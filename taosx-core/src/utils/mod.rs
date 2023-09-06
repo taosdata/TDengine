@@ -6,6 +6,14 @@ use taos::*;
 pub mod files;
 pub mod port_pool;
 
+pub fn mask_dsn(dsn: &Dsn) -> Dsn {
+    let mut dsn = dsn.clone();
+    dsn.password.take();
+    dsn.username.take();
+    dsn.params.clear();
+    dsn
+}
+
 pub fn stop_thread<T>(handle: JoinHandle<T>) {
     #[cfg(windows)]
     unsafe {

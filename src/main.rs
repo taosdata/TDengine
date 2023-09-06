@@ -7,6 +7,7 @@ use file_rotate::{
     suffix::{AppendTimestamp, DateFrom, FileLimit},
     ContentLimit, FileRotate, TimeFrequency,
 };
+use metrics_tracing_context::MetricsLayer;
 use shadow_rs::shadow;
 
 use taosx_core::{
@@ -28,6 +29,7 @@ use time::{macros::format_description, UtcOffset};
 use tracing_subscriber::{
     fmt::{format::FmtSpan, time::OffsetTime},
     prelude::*,
+    EnvFilter,
 };
 
 #[cfg(feature = "mimalloc")]
@@ -64,6 +66,18 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
 mod run;
 mod serve;
 
+fn fmt_span_from_str(s: &str) -> Result<FmtSpan, String> {
+    match s {
+        "none" => Ok(FmtSpan::NONE),
+        "full" => Ok(FmtSpan::FULL),
+        "new" => Ok(FmtSpan::NEW),
+        "enter" => Ok(FmtSpan::ENTER),
+        "exit" => Ok(FmtSpan::EXIT),
+        "active" => Ok(FmtSpan::ACTIVE),
+        _ => Err(s.to_string()),
+    }
+}
+
 #[derive(Debug, Parser, Clone)]
 pub(crate) struct GlobalOpts {
     /// For verbosity print.
@@ -79,7 +93,7 @@ pub(crate) struct GlobalOpts {
     debug: bool,
 
     /// Log keep days.
-    #[clap(long, global = true)]
+    #[clap(long, global = true, env = "LOG_KEEP_DAYS")]
     log_keep_days: Option<i64>,
 
     /// Be careful to use this, we suggest only use it when failed at first time.
@@ -87,6 +101,20 @@ pub(crate) struct GlobalOpts {
     /// We'll warn you various kind of risks before really running a task.
     #[clap(short, long, global = true)]
     yes_i_really_mean_it: bool,
+
+    /// Enable OpenTelemetry tracing and metrics exporter.
+    #[clap(long, global = true, action = clap::ArgAction::SetTrue, env = "ENABLE_OTEL")]
+    otel: Option<bool>,
+
+    #[clap(
+        short = 'e',
+        long,
+        global = true,
+        default_value = "none",
+        value_parser = fmt_span_from_str,
+        env = "TRACING_EVENTS"
+    )]
+    tracing_events: FmtSpan,
 }
 
 impl GlobalOpts {
@@ -218,88 +246,139 @@ fn main() -> Result<()> {
         clap_verbosity_flag::LevelFilter::Debug => LevelFilter::DEBUG,
         clap_verbosity_flag::LevelFilter::Trace => LevelFilter::TRACE,
     };
-
-    let mut layers = Vec::new();
-
-    layers.push(
-        tracing_subscriber::fmt::layer()
-            .with_timer(timer.clone())
-            .with_level(true)
-            .with_thread_ids(true)
-            .with_thread_names(true)
-            .with_span_events(FmtSpan::ACTIVE)
-            .with_ansi(false)
-            .with_writer(non_blocking)
-            .with_file(true)
-            .with_line_number(true)
-            // .compact()
-            .with_filter(level_filter)
-            .boxed(),
-    );
-    if atty::is(atty::Stream::Stderr) {
-        layers.push(
-            tracing_subscriber::fmt::layer()
-                .with_timer(timer.clone())
-                .with_level(true)
-                .with_thread_ids(true)
-                .with_writer(std::io::stderr)
-                .with_ansi(true)
-                .pretty()
-                .with_filter(level_filter)
-                .boxed(),
-        );
-    } else {
-        layers.push(
-            tracing_subscriber::fmt::layer()
-                .with_timer(timer.clone())
-                .with_level(true)
-                .with_thread_ids(true)
-                .with_writer(std::io::stderr)
-                .with_ansi(false)
-                .compact()
-                .with_filter(level_filter)
-                .boxed(),
-        );
-    }
-    tracing_subscriber::registry().with(layers).init();
-
+    let span_events = args.globals.tracing_events.clone();
     let worker_threads = args.globals.executor_worker_threads();
-
-    log::info!("version: {version}");
-    log::info!("commit id: {commit_id}");
-    log::info!("build time: {build_time}");
-
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .max_blocking_threads(4096)
         .thread_name("taosx")
         .worker_threads(worker_threads)
         .enable_all()
         .build()?;
-    if let Some(cmd) = args.commands {
-        match cmd {
-            Commands::Run(cmd) => {
-                runtime.block_on(cmd.run_with(args.globals))?;
-            }
-            Commands::Serve(cli) => {
-                // let rt = tokio::runtime::Builder::new_multi_thread()
-                //     .max_blocking_threads(4096)
-                //     .thread_name("runner")
-                //     .worker_threads(worker_threads)
-                //     .enable_all()
-                //     .build()?;
-                runtime.block_on(cli.run_with(args.globals, None))?;
-            }
-            Commands::External(_) => bail!("unknown subcommand"),
+
+    let res = runtime.block_on(async move {
+        let mut layers = Vec::new();
+
+        layers.push(
+            tracing_subscriber::fmt::layer()
+                .with_timer(timer.clone())
+                .with_level(true)
+                .with_thread_ids(true)
+                .with_thread_names(true)
+                .with_span_events(span_events.clone())
+                .with_ansi(false)
+                .with_writer(non_blocking)
+                .with_file(true)
+                .with_line_number(true)
+                // .compact()
+                .with_filter(level_filter)
+                .boxed(),
+        );
+        let filter = EnvFilter::builder()
+            .with_default_directive(level_filter.into())
+            .with_regex(true)
+            .from_env_lossy()
+            .add_directive("tungstenite=warn".parse()?)
+            // .add_directive("actix_server=info".parse()?)
+            // .add_directive("actix_http=info".parse()?)
+            .add_directive("tokio_tungstenite=info".parse()?)
+            .add_directive("mio=warn".parse()?);
+
+        // let target_filter = filter::filter_fn(|metadata| {
+        //     !metadata.target().starts_with("mio")
+        //         && !metadata.target().starts_with("actix_server")
+        //         && !metadata.target().starts_with("tungstenite")
+        //         && metadata.target() != "sqlx::query"
+        // });
+        // let filtered_layer = tracing_subscriber::fmt::layer()
+        //     .with_filter(filter)
+        //     .with_filter(target_filter.clone());
+        if atty::is(atty::Stream::Stderr) {
+            layers.push(
+                tracing_subscriber::fmt::layer()
+                    .with_timer(timer.clone())
+                    .with_level(true)
+                    .with_thread_ids(true)
+                    .with_writer(std::io::stderr)
+                    .with_span_events(span_events)
+                    .with_ansi(true)
+                    .pretty()
+                    .with_filter(filter)
+                    .boxed(),
+            );
+        } else {
+            layers.push(
+                tracing_subscriber::fmt::layer()
+                    .with_timer(timer.clone())
+                    .with_level(true)
+                    .with_thread_ids(true)
+                    .with_writer(std::io::stderr)
+                    .with_span_events(span_events)
+                    .with_ansi(false)
+                    .compact()
+                    .with_filter(filter)
+                    .boxed(),
+            );
         }
-    } else {
-        // let rt = tokio::runtime::Builder::new_multi_thread()
-        //     .max_blocking_threads(4096)
-        //     .thread_name("runner")
-        //     .worker_threads(worker_threads)
-        //     .enable_all()
-        //     .build()?;
-        runtime.block_on(serve::Cli::default().run_with(args.globals, None))?;
-    }
-    runtime.shutdown_background();
+
+        let metrics_layer = MetricsLayer::new();
+        if args.globals.otel.unwrap_or(false) {
+            let tracer = opentelemetry_jaeger::new_agent_pipeline()
+                .with_service_name("x")
+                // .install_simple()?;
+                .with_auto_split_batch(true)
+                .install_batch(opentelemetry::runtime::Tokio)?;
+
+            // Create a tracing layer with the configured tracer
+            let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
+
+            tracing_subscriber::registry()
+                .with(metrics_layer)
+                .with(layers)
+                .with(telemetry)
+                .init();
+        } else {
+            tracing_subscriber::registry()
+                .with(metrics_layer)
+                .with(layers)
+                .init();
+        }
+
+        tracing::info!("version: {version}");
+        tracing::info!("commit id: {commit_id}");
+        tracing::info!("build time: {build_time}");
+
+        let root_span = tracing::info_span!("root").entered();
+
+        if let Some(cmd) = args.commands {
+            match cmd {
+                Commands::Run(cmd) => {
+                    cmd.run_with(args.globals).await?;
+                }
+                Commands::Serve(cli) => {
+                    // let rt = tokio::runtime::Builder::new_multi_thread()
+                    //     .max_blocking_threads(4096)
+                    //     .thread_name("runner")
+                    //     .worker_threads(worker_threads)
+                    //     .enable_all()
+                    //     .build()?;
+                    cli.run_with(args.globals, None).await?;
+                }
+                Commands::External(_) => bail!("unknown subcommand"),
+            }
+        } else {
+            // let rt = tokio::runtime::Builder::new_multi_thread()
+            //     .max_blocking_threads(4096)
+            //     .thread_name("runner")
+            //     .worker_threads(worker_threads)
+            //     .enable_all()
+            //     .build()?;
+            serve::Cli::default().run_with(args.globals, None).await?;
+        }
+        root_span.exit();
+        Ok(())
+    });
+
+    opentelemetry::global::shutdown_tracer_provider();
+    res?;
     Ok(())
 }

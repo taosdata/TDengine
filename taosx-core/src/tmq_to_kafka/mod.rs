@@ -1,28 +1,44 @@
 use std::time::Duration;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use futures_util::TryStreamExt;
 use itertools::Itertools;
 use kafka::client::RequiredAcks;
 use kafka::producer::{Producer, Record};
 use serde_json::{Map, Value};
-use taos::sync::{Queryable, TBuilder};
-use taos::{AsAsyncConsumer, Dsn, IsAsyncData, TaosBuilder, TmqBuilder};
+use taos::{
+    AsAsyncConsumer, AsyncQueryable, AsyncTBuilder, Consumer, Dsn, IsAsyncData, TaosBuilder,
+    TmqBuilder,
+};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::task::JoinHandle;
+use tokio::time;
+use tokio_util::sync::CancellationToken;
 
-pub async fn tmq_to_kafka(from: Dsn, to: Dsn) -> Result<()> {
-    let sinker = KafkaSinker::new(from, to)?;
-    sinker.sink().await?;
+pub async fn tmq_to_kafka(from: Dsn, to: Dsn, cancel: CancellationToken) -> Result<()> {
+    let sinker = KafkaSinker::new(from, to).await?;
+    sinker.sink(cancel).await?;
     Ok(())
 }
 
-pub async fn clean_task(from: Dsn, task_id: String) -> Result<()> {
-    let taos = TaosBuilder::from_dsn(from)?.build()?;
-    let topic = tmq_topic_name(task_id);
-    taos.exec(format!("drop topic if exists {}", topic))
-        .unwrap();
+#[allow(dead_code)]
+pub async fn clean_task(from: Dsn) -> Result<()> {
+    log::warn!("clean task {}", &from.to_string());
+    let mut dsn = from.clone();
+    let db = dsn.subject.ok_or(anyhow!("db in dsn is null"))?;
+    let table = dsn.params.remove("table").ok_or(anyhow!("table is null"))?;
+    let topic_suffix = dsn
+        .params
+        .remove("topic_suffix")
+        .ok_or(anyhow!("topic suffix is null"))?;
+
+    let conn = TaosBuilder::from_dsn(from)?.build().await?;
+    let sql = format!(
+        "drop topic if exists {}",
+        tmq_topic_name(&db, &table, &topic_suffix)
+    );
+    conn.exec(sql).await?;
     Ok(())
 }
 
@@ -47,22 +63,22 @@ struct KafkaProducer {
 }
 
 impl TMQSource {
-    // from dsn: tmq|tmq+ws://user:password@host:port/db?table=table&task_id=task_id&[start=start&][end=end&]cols=cols&tags=tags&concurrent=1
-    fn new(mut dsn: Dsn, sender: Sender<String>) -> Result<TMQSource> {
+    // from dsn: tmq|tmq+ws://user:password@host:port/db?table=table&topic_suffix=topic_suffix&[start=start&][end=end&]cols=cols&tags=tags&concurrent=1
+    async fn new(mut dsn: Dsn, sender: Sender<String>) -> Result<TMQSource> {
         let mut consumer_dsn = Dsn::from(dsn.clone());
-        let group_id = "taosx_kafka_sink";
+        let group_id = "x_kafka_sink";
         consumer_dsn.set("group.id", group_id);
 
-        let taos = TaosBuilder::from_dsn(&dsn)?.build()?;
+        let conn = TaosBuilder::from_dsn(&dsn)?.build().await?;
         let db = dsn.subject.ok_or(anyhow!("db in dsn is null"))?;
         let table = dsn
             .params
             .remove("table")
             .ok_or(anyhow!("table in dsn is null"))?;
-        let task_id = dsn
+        let topic_suffix = dsn
             .params
-            .remove("task_id")
-            .ok_or(anyhow!("task id is null"))?;
+            .remove("topic_suffix")
+            .ok_or(anyhow!("topic suffix is null"))?;
         let ts_field = dsn.params.remove("ts").unwrap_or("ts".to_string());
         let start = dsn.params.remove("start");
         let end = dsn.params.remove("end");
@@ -84,11 +100,11 @@ impl TMQSource {
         if cols.is_none() && !tags.is_none() {
             return Err(anyhow!("cols is null and tags is not null"));
         }
-        let topic = tmq_topic_name(task_id);
+        let topic = tmq_topic_name(&db, &table, &topic_suffix);
 
         let topic_sql =
             TMQSource::tmq_sql(&cols, &tags, &db, &table, &topic, &ts_field, &start, &end);
-        taos.exec(&topic_sql)?;
+        conn.exec(&topic_sql).await?;
 
         Ok(TMQSource {
             consumer_dsn,
@@ -110,16 +126,16 @@ impl TMQSource {
     ) -> String {
         let mut columns = String::from("*");
         if let Some(cols) = cols {
-            columns = cols.join(", ");
+            columns = cols.iter().map(|s| format!("`{s}`")).join(", ");
         };
         if let Some(tags) = tags {
             // tags is not allow to exist without cols
             columns.push_str(", ");
-            columns.push_str(tags.join(", ").as_str());
+            columns.push_str(tags.iter().map(|s| format!("`{s}`")).join(", ").as_str());
         }
 
         let mut sql = format!(
-            "create topic {} as select {} from {}.{} ",
+            "create topic if not exists `{}` as select {} from `{}`.`{}` ",
             topic, columns, db, table
         );
         let mut conditions = Vec::with_capacity(2);
@@ -144,21 +160,19 @@ impl TMQSource {
             let dsn = self.consumer_dsn.clone();
             let topic = self.topic.to_string();
             let sender = self.sender.clone();
-            let future = tokio::spawn(async move {
-                TMQSource::consume(dsn, topic, sender).await.unwrap();
-                Ok(())
-            });
+            let consumer = TmqBuilder::from_dsn(dsn)?.build().await?;
+
+            let future = tokio::spawn(TMQSource::consume(consumer, topic, sender));
             futures.push(future);
         }
 
         Ok(futures)
     }
 
-    async fn consume(dsn: Dsn, topic: String, sender: Sender<String>) -> Result<()> {
-        let mut consumer = TmqBuilder::from_dsn(dsn)?.build()?;
+    async fn consume(mut consumer: Consumer, topic: String, sender: Sender<String>) -> Result<()> {
         AsAsyncConsumer::subscribe(&mut consumer, [topic]).await?;
 
-        loop {
+        'outer: loop {
             let mut stream = consumer.stream();
 
             while let Some((_offset, message)) = stream.try_next().await? {
@@ -167,42 +181,48 @@ impl TMQSource {
                         let records: Vec<Map<String, Value>> = block.deserialize().try_collect()?;
                         for record in records {
                             let record_json = serde_json::to_string(&record)?;
-                            log::debug!("receive from tmq {}", record_json);
+                            log::debug!("receive from tmq consumer {}", record_json);
 
-                            sender.send(record_json).await?;
+                            if sender.send(record_json).await.is_err() {
+                                // channel is closed.
+                                break 'outer;
+                            };
                         }
                     }
                 }
             }
         }
+
+        AsAsyncConsumer::unsubscribe(consumer).await;
+        Ok(())
     }
 }
 
 impl KafkaProducer {
     // create kafka producer from dsn, the dsn: kafka://host:port/topic?ack_timeout=1&batch_size=1
     fn new(mut dsn: Dsn, receiver: Receiver<String>) -> Result<KafkaProducer> {
-        let kafka_server: Vec<String> = dsn
-            .addresses
-            .into_iter()
-            .map(|address| {
-                format!(
-                    "{}:{}",
-                    address.host.ok_or(anyhow!("host in dsn is null")).unwrap(),
-                    address.port.ok_or(anyhow!("port in dsn is null")).unwrap()
-                )
-            })
-            .collect::<Vec<String>>();
-        let topic = dsn.subject.ok_or(anyhow!("db in from dsn is null"))?;
+        let mut kafka_server = Vec::new();
+        for address in dsn.addresses.into_iter() {
+            let host = address.host.ok_or(anyhow!("host in dsn is null"))?;
+            let port = address.port.ok_or(anyhow!("port in dsn is null"))?;
+            kafka_server.push(format!("{}:{}", host, port));
+        }
+        let topic = dsn
+            .subject
+            .ok_or(anyhow!("kafka sink topic should not be null"))?;
         let batch_size: usize = dsn
             .params
             .remove("batch_size")
             .unwrap_or("1".to_string())
             .parse()?;
-        let ack_timeout: u64 = dsn
-            .params
-            .remove("ack_timeout")
-            .unwrap_or("1".to_string())
-            .parse()?;
+        let ack_timeout: u64 = parse_duration::parse(
+            dsn.params
+                .remove("ack_timeout")
+                .unwrap_or("1".to_string())
+                .as_str(),
+        )
+        .context("ack timeout config error, should be a valid duartion config")?
+        .as_secs();
 
         Ok(KafkaProducer {
             topic,
@@ -213,48 +233,84 @@ impl KafkaProducer {
         })
     }
 
-    async fn sink(self) -> Result<JoinHandle<Result<()>>> {
+    async fn sink(self, cancel: CancellationToken) -> Result<JoinHandle<Result<()>>> {
         let receiver = self.receiver;
         let kafka_server = self.kafka_server.clone();
         let topic = self.topic;
         let ack_timeout = self.ack_timeout;
         let batch_size = self.batch_size;
 
-        let handler = tokio::spawn(async move {
-            KafkaProducer::deal_message(receiver, kafka_server, topic, ack_timeout, batch_size)
-                .await
-        });
+        dbg!(&kafka_server);
+        let server = kafka_server.iter().join(",");
+        let producer = Producer::from_hosts(kafka_server)
+            .with_required_acks(RequiredAcks::One)
+            .with_ack_timeout(Duration::from_secs(ack_timeout))
+            .create()
+            .with_context(|| format!("Create kafka producer error from {server}"))?;
+        tracing::info!("Start kafka producer");
+
+        let handler = tokio::spawn(KafkaProducer::deal_message(
+            receiver, producer, topic, batch_size, cancel,
+        ));
         Ok(handler)
     }
 
     async fn deal_message(
         mut receiver: Receiver<String>,
-        kafka_server: Vec<String>,
+        mut producer: Producer,
         topic: String,
-        ack_timeout: u64,
         batch_size: usize,
+        cancel: CancellationToken,
     ) -> Result<()> {
-        let mut producer = Producer::from_hosts(kafka_server)
-            .with_required_acks(RequiredAcks::One)
-            .with_ack_timeout(Duration::from_secs(ack_timeout))
-            .create()?;
+        tokio::spawn(async move {
+            let mut messages: Vec<String> = Vec::with_capacity(batch_size + 2);
+            let mut interval = time::interval(Duration::from_secs(1));
 
-        let mut messages = Vec::with_capacity(batch_size + 2);
-
-        while let Some(message) = receiver.recv().await {
-            messages.push(message);
-
-            if messages.len() >= batch_size {
-                let records = messages
-                    .into_iter()
-                    .map(|r| Record::from_value(topic.as_str(), r))
-                    .collect::<Vec<Record<_, _>>>();
-
-                producer.send_all(&records)?;
-                messages = Vec::with_capacity(batch_size + 2);
+            'outer: loop {
+                tokio::select! {
+                    Some(message) = receiver.recv() => {
+                        messages.push(message);
+                        if messages.len() >= batch_size {
+                            KafkaProducer::send_messages(&mut producer, &messages, &topic).await?;
+                            messages = Vec::with_capacity(batch_size + 2);
+                        }
+                    },
+                    _ = interval.tick() => {
+                        if messages.len() > 0 {
+                            KafkaProducer::send_messages(&mut producer, &messages, &topic).await?;
+                            messages = Vec::with_capacity(batch_size + 2);
+                        }
+                    },
+                    _ = cancel.cancelled() => {
+                        break 'outer;
+                    }
+                }
             }
-        }
 
+            if messages.len() > 0 {
+                KafkaProducer::send_messages(&mut producer, &messages, &topic).await?;
+            }
+            Result::<(), anyhow::Error>::Ok(())
+        })
+        .await??;
+
+        tracing::info!("Kafka producer stopped");
+        Ok(())
+    }
+
+    async fn send_messages(
+        producer: &mut Producer,
+        messages: &Vec<String>,
+        topic: &String,
+    ) -> Result<()> {
+        let records: Vec<Record<_, _>> = messages
+            .into_iter()
+            .map(|r| Record::from_value(topic.as_str(), r.as_bytes()))
+            .collect::<Vec<Record<_, _>>>();
+
+        producer
+            .send_all(&records)
+            .context("Kafka send message error")?;
         Ok(())
     }
 }
@@ -262,30 +318,43 @@ impl KafkaProducer {
 impl KafkaSinker {
     // from dsn: tmq|tmq+ws://user:password@host:port/db?table=table&[start=start&][end=end&]cols=cols&tags=tags
     // to dsn: kafka://host:port/topic?ack_timeout=1
-    fn new(from: Dsn, to: Dsn) -> Result<KafkaSinker> {
+    async fn new(from: Dsn, to: Dsn) -> Result<KafkaSinker> {
         let (tx, rx) = mpsc::channel(10);
-        let source = TMQSource::new(from, tx)?;
+        let source = TMQSource::new(from, tx).await?;
         let producer = KafkaProducer::new(to, rx)?;
 
         let sinker = KafkaSinker { source, producer };
         Ok(sinker)
     }
 
-    async fn sink(self) -> Result<()> {
+    async fn sink(self, cancel: CancellationToken) -> Result<()> {
         log::info!("start to sink data from tmq to kafka");
         let source_futures = self.source.read().await?;
-        let sink_future = self.producer.sink().await?;
+        let sink_future = self.producer.sink(cancel.clone()).await?;
+        tokio::spawn(async move {
+            tokio::select! {
+                _=cancel.cancelled() =>{
+                    log::warn!("kafka sinker task is canceled");
+                    for future in &source_futures {
+                        future.abort();
+                    }
+                    sink_future.abort();
+                }
+            }
 
-        for future in source_futures {
-            future.await??;
-        }
-        sink_future.await??;
+            for future in source_futures {
+                future.await??;
+            }
+            sink_future.await??;
+            Result::<(), anyhow::Error>::Ok(())
+        })
+        .await??;
 
         Ok(())
     }
 }
 
 // tmq topic is base on task id
-fn tmq_topic_name(task_id: String) -> String {
-    format!("taosx_kafka_sink_{}", task_id)
+fn tmq_topic_name(db: &String, table: &String, topic_suffix: &String) -> String {
+    format!("x_kafka_sink_{}_{}_{}", db, table, topic_suffix)
 }

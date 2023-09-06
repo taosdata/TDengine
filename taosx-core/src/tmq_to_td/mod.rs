@@ -3,13 +3,11 @@ use std::{sync::Arc, time::Duration};
 use anyhow::{bail, Context, Result};
 use taos::{Consumer, *};
 use tokio_util::sync::CancellationToken;
+use tracing::{instrument, Instrument};
 
-use crate::{
-    tmq::{check_tmq_dsn, group_id_hash, TmqMetrics},
-    utils::get_main_version_from_server_version,
-    Action,
-};
+use crate::{tmq::*, utils::get_main_version_from_server_version, Action};
 use dashmap::DashMap;
+use metrics::counter;
 use taos::taos_query::tmq::Assignment;
 
 async fn write_data(
@@ -23,6 +21,7 @@ async fn write_data(
     metrics: &TmqMetrics,
 ) -> Result<u64> {
     log::debug!("[{id}] start writing data");
+    counter!(METRICS_TMQ_MESSAGES_OF_DATA, 1);
     metrics
         .messages_of_data
         .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -41,12 +40,15 @@ async fn write_data(
             .context("Fetch raw block error")?
         {
             *rows += raw.nrows();
+            counter!(METRICS_TMQ_BLOCKS, 1);
             metrics
                 .blocks
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            counter!(METRICS_TMQ_RECORDS, raw.nrows() as u64);
             metrics
                 .records
                 .fetch_add(raw.nrows() as _, std::sync::atomic::Ordering::SeqCst);
+            counter!(METRICS_TMQ_POINTS, raw.nrows() as u64 * raw.ncols() as u64);
             metrics.points.fetch_add(
                 raw.nrows() as u64 * raw.ncols() as u64,
                 std::sync::atomic::Ordering::SeqCst,
@@ -165,12 +167,15 @@ async fn write_data(
                 .await
                 .context("Write with stmt execute error")?;
         }
+        counter!(METRICS_TMQ_BLOCKS, 1);
         metrics
             .blocks
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        counter!(METRICS_TMQ_RECORDS, raw.nrows() as u64);
         metrics
             .records
             .fetch_add(raw.nrows() as _, std::sync::atomic::Ordering::SeqCst);
+        counter!(METRICS_TMQ_POINTS, raw.nrows() as u64 * raw.ncols() as u64);
         metrics.points.fetch_add(
             raw.nrows() as u64 * raw.ncols() as u64,
             std::sync::atomic::Ordering::SeqCst,
@@ -189,8 +194,10 @@ async fn write_data(
                         || errstr.contains("[0x0603]")
                         || errstr.contains("[0x03C7]")
                     {
+                        counter!(METRICS_TMQ_WRITE_META_FAILS, 1);
                         log::warn!("[{id}] {errstr}");
                     } else {
+                        counter!(METRICS_TMQ_WRITE_META_FAILS, 1);
                         bail!("write raw data error: {err}");
                     }
                 }
@@ -218,6 +225,7 @@ async fn write_meta(
     target_is_v3: bool,
     metrics: &TmqMetrics,
 ) -> Result<()> {
+    counter!(METRICS_TMQ_MESSAGES_OF_META, 1);
     let cur = metrics
         .messages_of_meta
         .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -237,8 +245,10 @@ async fn write_meta(
                     || errstr.contains("[0x0603]")
                     || errstr.contains("[0x03C7]")
                 {
+                    counter!(METRICS_TMQ_WRITE_META_FAILS, 1);
                     log::warn!("[{id}] {errstr}");
                 } else {
+                    counter!(METRICS_TMQ_WRITE_META_FAILS, 1);
                     bail!("write raw meta error: {err}");
                 }
             }
@@ -269,7 +279,9 @@ async fn write_meta(
                 || errstr.contains("[0x03C7]")
             {
                 log::warn!("{errstr}");
+                counter!(METRICS_TMQ_WRITE_META_FAILS, 1);
             } else {
+                counter!(METRICS_TMQ_WRITE_META_FAILS, 1);
                 bail!("[{id}] write raw meta error: {err}");
             }
         }
@@ -278,6 +290,7 @@ async fn write_meta(
     Ok(())
 }
 
+#[instrument(skip(sender, consumer, taos, cancel))]
 async fn sync(
     id: usize,
     sender: tokio::sync::mpsc::UnboundedSender<Consumer>,
@@ -326,6 +339,7 @@ async fn sync(
                 }
 
                 if let Some((offset, message)) = next.with_context(|| format!("[{id}] polling next message error"))? {
+                    counter!(METRICS_TMQ_MESSAGES, 1);
                     metrics.messages.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                     let total = metrics.messages.load(std::sync::atomic::Ordering::SeqCst);
                     messages += 1;
@@ -367,6 +381,7 @@ async fn sync(
     Ok(())
 }
 
+#[instrument(skip_all)]
 pub async fn tmq_to_td(
     from: Dsn,
     actions: Vec<Action>,
@@ -401,6 +416,7 @@ pub async fn tmq_to_td(
         topics: topics.len(),
         ..Default::default()
     });
+    counter!(METRICS_TMQ_TOPICS, topics.len() as u64);
 
     let mut handles = Vec::new();
     let mut task_id = 0;
@@ -438,6 +454,7 @@ pub async fn tmq_to_td(
         } else {
             jobs
         };
+        counter!(METRICS_TMQ_WORKERS, jobs as u64);
         metrics
             .workers
             .fetch_add(jobs as _, std::sync::atomic::Ordering::SeqCst);
@@ -529,10 +546,9 @@ pub async fn tmq_to_td(
             let topic = topic.name.clone();
             consumer_handles.push(tokio::spawn(async move {
                 tracing::debug!("Subscribe consumer {id}");
-                consumer
-                    .subscribe([&topic])
-                    .await
-                    .with_context(|| format!("Subscribe consumer [{id}] with topic `{topic}` error"))?;
+                consumer.subscribe([&topic]).await.with_context(|| {
+                    format!("Subscribe consumer [{id}] with topic `{topic}` error")
+                })?;
                 anyhow::Ok(consumer)
             }));
         }
@@ -562,21 +578,24 @@ pub async fn tmq_to_td(
             let sender = consumers_sender.clone();
             let offsets = offsets.clone();
             let version = version.clone();
-            let handle = tokio::spawn(async move {
-                sync(
-                    task_id,
-                    sender,
-                    consumer,
-                    &taos,
-                    table,
-                    actions,
-                    cancellation,
-                    metrics,
-                    offsets,
-                    version,
-                )
-                .await
-            });
+            let handle = tokio::spawn(
+                async move {
+                    sync(
+                        task_id,
+                        sender,
+                        consumer,
+                        &taos,
+                        table,
+                        actions,
+                        cancellation,
+                        metrics,
+                        offsets,
+                        version,
+                    )
+                    .await
+                }
+                .in_current_span(),
+            );
             handles.push(handle);
             log::info!("spawn consuming task with id {task_id}",);
 

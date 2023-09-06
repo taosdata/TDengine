@@ -520,7 +520,9 @@ impl Parser {
         }
         let json_batches = to_json_valid_batches(&batches);
 
-        let json = arrow::json::writer::record_batches_to_json_rows(&json_batches)?;
+        let json = arrow::json::writer::record_batches_to_json_rows(
+            json_batches.iter().collect_vec().as_slice(),
+        )?;
 
         let mut data = vec![];
         for table in &self.model {

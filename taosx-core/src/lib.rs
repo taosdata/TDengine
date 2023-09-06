@@ -15,11 +15,15 @@ mod plugins;
 mod tmq_to_kafka;
 
 use anyhow::Context;
-use chrono::NaiveDate;
-use serde::Deserialize;
+use chrono::{NaiveDate, Utc};
+use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use taos::{AsyncTBuilder, Dsn, TaosBuilder};
+use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
+use tracing::{instrument, Instrument};
 
+mod extensions;
+
+use crate::tmq_to_kafka::clean_task;
 pub use crate::tmq_to_kafka::tmq_to_kafka;
 pub use csv::*;
 use dashmap::DashMap;
@@ -76,7 +80,7 @@ impl ConnectorLicense {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct TaskOpts {
     pub from: Dsn,
     pub transform: Vec<Action>,
@@ -90,6 +94,8 @@ pub struct TaskOpts {
     // pub port_pool: OnceCell<PortPool>
     pub offsets: Arc<DashMap<String, Vec<Assignment>>>,
     pub transferred: Option<Arc<Transferred>>,
+    pub span: tracing::Span,
+    pub task_id: Option<String>,
 }
 
 impl Drop for TaskOpts {
@@ -100,11 +106,74 @@ impl Drop for TaskOpts {
     }
 }
 
+#[derive(Debug, Serialize)]
+pub struct ValidatedSource {
+    available: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    since: Option<String>,
+}
+
+pub type ValidatedTarget = ValidatedSource;
+
+impl Default for ValidatedSource {
+    fn default() -> Self {
+        Self {
+            available: true,
+            version: None,
+            since: None,
+        }
+    }
+}
+
+pub async fn validate_source(dsn: impl IntoDsn) -> ValidatedSource {
+    let dsn = dsn.into_dsn();
+
+    match dsn {
+        Ok(dsn) if dsn.driver.as_str() == "kafka" => {
+            if let Err(err) = is_kafka_available(&dsn).await {
+                ValidatedSource {
+                    available: false,
+                    version: None,
+                    since: Some(format!("{err:#}")),
+                }
+            } else {
+                Default::default()
+            }
+        }
+        Ok(_) => Default::default(),
+        Err(err) => ValidatedSource {
+            available: false,
+            version: None,
+            since: Some(format!("DSN error: {err:#}")),
+        },
+    }
+}
+
+pub fn validate_target(dsn: impl IntoDsn) -> ValidatedTarget {
+    let dsn = dsn.into_dsn();
+
+    match dsn {
+        Ok(_) => Default::default(),
+        Err(err) => ValidatedSource {
+            available: false,
+            version: None,
+            since: Some(format!("DSN error: {err:#}")),
+        },
+    }
+}
+
+pub const METRICS_TIME_START: &str = "metrics.time_started";
+pub const METRICS_TIME_COST: &str = "metrics.time_cost";
+pub const METRICS_TIME_RECORDS_PER_SECOND: &str = "metrics.records_per_second";
+
 impl TaskOpts {
     pub fn cancel(&self) {
         self.cancel.cancel();
     }
 
+    #[instrument(skip_all, parent = &self.span)]
     pub async fn run(&self, port_pool: &PortPool) -> Result<(), anyhow::Error> {
         let Self {
             from,
@@ -119,6 +188,8 @@ impl TaskOpts {
             // port_pool,
             offsets,
             transferred,
+            span,
+            ..
         } = self;
 
         // Check if enterprise available
@@ -179,6 +250,7 @@ impl TaskOpts {
 
         // Run task
         {
+            metrics::gauge!(METRICS_TIME_START, Utc::now().timestamp_millis() as f64);
             match (from.driver.as_str(), to.driver.as_str()) {
                 ("tmq", "taos") => {
                     tmq_to_td(
@@ -189,6 +261,7 @@ impl TaskOpts {
                         cancel.clone(),
                         offsets.clone(),
                     )
+                    .in_current_span()
                     .await?;
                 }
                 ("tmq", "local") => {
@@ -224,6 +297,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
+                        span.clone(),
                     )
                     .await?;
                 }
@@ -237,6 +311,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
+                        span.clone(),
                     )
                     .await?;
                 }
@@ -250,6 +325,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
+                        span.clone(),
                     )
                     .await?;
                 }
@@ -263,6 +339,21 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
+                        span.clone(),
+                    )
+                    .await?;
+                }
+                ("opentsdb", "taos") => {
+                    plugins::opentsdb_to_taos(
+                        from.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        *jobs,
+                        port_pool,
+                        cancel.clone(),
+                        with_agent.clone(),
+                        transferred.clone(),
+                        span.clone(),
                     )
                     .await?;
                 }
@@ -275,11 +366,16 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
+                        span.clone(),
                     )
                     .await?;
                 }
                 ("tmq", "kafka") => {
-                    tmq_to_kafka(from.clone(), to.clone()).await?;
+                    let mut from = from.clone();
+                    if let Some(task_id) = self.task_id.clone() {
+                        from.params.insert("topic_suffix".parse()?, task_id);
+                    }
+                    tmq_to_kafka(from, to.clone(), cancel.clone()).await?;
                 }
                 ("kafka", "taos") => {
                     kafka_to_taos(
@@ -292,6 +388,7 @@ impl TaskOpts {
                         cancel.clone(),
                         with_agent.clone(),
                         transferred.clone(),
+                        span.clone(),
                     )
                     .await?;
                 }
@@ -299,5 +396,20 @@ impl TaskOpts {
             }
             Ok(())
         }
+    }
+
+    pub async fn delete_task(&self) -> Result<(), anyhow::Error> {
+        let Self { from, to, .. } = &self;
+        match (from.driver.as_str(), to.driver.as_str()) {
+            ("tmq", "kafka") => {
+                let mut from = from.clone();
+                if let Some(task_id) = self.task_id.clone() {
+                    from.params.insert("topic_suffix".parse()?, task_id);
+                }
+                clean_task(from.clone()).await?;
+            }
+            (_, _) => {}
+        }
+        Ok(())
     }
 }

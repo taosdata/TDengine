@@ -6,7 +6,6 @@ use std::{
     path::PathBuf,
     str::ParseBoolError,
     sync::Arc,
-    time::Duration,
 };
 
 use file_rotate::{
@@ -16,14 +15,13 @@ use file_rotate::{
 };
 
 use itertools::Itertools;
-use taos::{AsyncTBuilder, Dsn, TaosBuilder};
-use tokio::io::AsyncBufReadExt;
+use taos::Dsn;
+use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
+use tracing::Span;
 
 use crate::{
-    get_log_keep_days,
-    plugins::{runners::get_plugin_dir, sink},
-    utils::port_pool::PortPool,
+    build_ipc, get_log_keep_days, plugins::runners::get_plugin_dir, utils::port_pool::PortPool,
     Parser, Transferred,
 };
 
@@ -187,12 +185,13 @@ pub async fn mqtt_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
+    span: Span,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: MQTT");
 
     let exe_exists = std::path::Path::new(&mqtt_exe_path()).exists();
     if !exe_exists {
-        log::error!("plugin not found {}", mqtt_exe_path().to_str().unwrap());
+        tracing::error!("plugin not found {}", mqtt_exe_path().to_str().unwrap());
         Err(MqttConfigError::ExeNotFound(format!(
             "{}",
             mqtt_exe_path().to_str().unwrap()
@@ -213,34 +212,23 @@ pub async fn mqtt_to_taos(
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
-    log::info!(
+    tracing::info!(
         "Using mqtt config file {} \n{}",
         config_path.display(),
         toml
     );
-    let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
-    let ipc = if with_agent.is_none() {
-        let builder = TaosBuilder::from_dsn(&to)?;
-        sink::listen_tcp_socket(
-            builder.pool()?,
-            config.remote,
-            sender,
-            None,
-            cancel.clone(),
-            with_agent,
-            parser.clone(),
-            Some("mqtt"),
-            transferred,
-        )?
-    } else {
-        sink::listen_tcp_socket_with_agent(
-            config.remote,
-            sender,
-            None,
-            cancel.clone(),
-            with_agent.unwrap(),
-        )?
-    };
+    let mut ipc_handler = build_ipc(
+        &config.remote,
+        parser,
+        &to,
+        Some("mqtt"),
+        None,
+        &cancel,
+        with_agent,
+        transferred,
+        span,
+    )
+    .await?;
     let mqtt = mqtt_exe_path();
     let mut command = tokio::process::Command::new(mqtt);
 
@@ -248,11 +236,11 @@ pub async fn mqtt_to_taos(
 
     fs::create_dir_all(&log_path)?;
 
-    log::info!("log path created: {}", &log_path.display());
+    tracing::info!("log path created: {}", &log_path.display());
 
     log_path.push(LOG_FILE);
 
-    log::info!("log file dir: {}", &log_path.display());
+    tracing::info!("log file dir: {}", &log_path.display());
 
     let log_keep_days = get_log_keep_days();
 
@@ -279,6 +267,9 @@ pub async fn mqtt_to_taos(
         .spawn()
         .map_err(|err| anyhow::format_err!("Cannot spawn mqtt process: {err:?}"))?;
 
+    const ERROR_BUF_SIZE: usize = 2;
+    let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
+    let error_buf_producer = error_buf.clone();
     let stderr = child.stderr.take().expect("Failed to capture stderr");
     tokio::spawn(async move {
         let mut reader = tokio::io::BufReader::new(stderr);
@@ -289,6 +280,11 @@ pub async fn mqtt_to_taos(
             if bytes_read == 0 {
                 break; // End of stream, exit the loop
             }
+            if line.contains("fatal") {
+                use ringbuf::Rb;
+                let mut guard = error_buf_producer.lock().await;
+                let _ = guard.push_overwrite(line.clone());
+            }
             // Write the line to log_rotation
             write!(log_rotation, "{}", line).unwrap();
             line.clear();
@@ -298,55 +294,38 @@ pub async fn mqtt_to_taos(
 
     let port_pool = port_pool.clone();
     tokio::spawn(async move {
+        macro_rules! safe_exit {
+            () => {
+                let _ = ipc_handler.close().await;
+                temp_path.close().unwrap();
+                port_pool.put(ipc_port);
+            };
+        }
         tokio::select! {
             status = child.wait() => {
                 let status = status?;
-                log::info!("mqtt exit with {status}");
+                tracing::info!("mqtt exit with {status}");
                 if !status.success() {
-                    let _ = ipc.send(());
-                    temp_path.close().unwrap();
-                    port_pool.put(ipc_port);
-                    anyhow::bail!("mqtt exit with {status}");
-                    // let mut stdout = child.stdout.take().unwrap();
-                    // let mut stdout_string = String::new();
-                    // let _ = stdout.read_to_string(&mut stdout_string).await;
-                    // let stdout = if stdout_string.len() > 1000 {
-                    //     stdout_string[stdout_string.len() - 1000..].to_string()
-                    // } else {
-                    //     stdout_string
-                    // };
-
-
-                    // let mut stderr = child.stderr.take().unwrap();
-                    // let mut stderr_string = String::new();
-                    // let _ = stderr.read_to_string(&mut stderr_string).await;
-                    // let stderr = if stderr_string.len() > 1000 {
-                    //     stderr_string[stderr_string.len() - 1000..].to_string()
-                    // } else {
-                    //     stderr_string
-                    // };
-                    // anyhow::bail!("mqtt exit with status {status}: \nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}");
+                    use ringbuf::Rb;
+                    safe_exit!();
+                    let error = error_buf.lock().await.iter().join("");
+                    anyhow::bail!("MQTT exit with {}\n{error}", status);
                 }
             },
-            err = receiver.recv() => {
-                log::info!("have received worker thread panicked message, terminate child process");
+            err = ipc_handler.recv_error() => {
+                tracing::info!("have received worker thread panicked message, terminate child process");
                 if let Some(err) = err {
-                    let _ = ipc.send(());
-                    temp_path.close().unwrap();
-                    port_pool.put(ipc_port);
+                    safe_exit!();
                     anyhow::bail!("mqtt writer error: {err}");
                 }
             },
             _ = cancel.cancelled() => {
-                log::info!("mqtt task cancelled");
+                tracing::info!("mqtt task cancelled");
             },
         };
-        ipc.send(()).await?;
         let _ = child.kill().await;
-        log::info!("mqtt to taos task done");
-        temp_path.close().unwrap();
-        port_pool.put(ipc_port);
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tracing::info!("mqtt to taos task done");
+        safe_exit!();
         Ok(())
     })
     .await??;
@@ -420,6 +399,7 @@ mod tests {
         pretty_env_logger::init();
         let transferred = Arc::new(Transferred::default());
         let metrics = transferred.clone();
+        use std::time::Duration;
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_millis(200));
             loop {
@@ -459,6 +439,8 @@ mod tests {
             with_agent: None,
             offsets: Default::default(),
             transferred: Some(transferred),
+            span: tracing::info_span!("test_mqtt"),
+            task_id: None,
         };
         opts.run(&PortPool::default()).await.unwrap();
     }

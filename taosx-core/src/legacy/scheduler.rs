@@ -9,13 +9,17 @@ use std::{
 use flume::{Receiver, Sender};
 use futures::FutureExt;
 use itertools::Itertools;
+use metrics::counter;
 use taos::{AsyncQueryable, TaosPool};
 use tokio::{
     sync::oneshot,
     task::{JoinError, JoinHandle},
 };
+use tracing::{instrument, Instrument};
 
-use crate::{LegacyMetrics, QueryOpts, TargetOpts, TimeRange, Action};
+use crate::{
+    Action, LegacyMetrics, QueryOpts, TargetOpts, TimeRange, METRICS_LEGACY_CREATED_TABLES,
+};
 
 use super::{sync_normal_table_schema, sync_single_table, sync_super_table_schema_with_subs};
 
@@ -60,6 +64,7 @@ impl Debug for Scheduler {
     }
 }
 
+#[instrument(skip_all)]
 async fn worker(
     worker: u32,
     source: TaosPool,
@@ -112,7 +117,9 @@ async fn worker(
                                     break;
                                 }
                                 Err(err) => {
-                                    tracing::error!("sync_super_table_schema_with_subs {stable} err: {err:#}");
+                                    tracing::error!(
+                                        "sync_super_table_schema_with_subs {stable} err: {err:#}"
+                                    );
                                     let table_count = tables.len();
                                     let err_string = err.to_string();
                                     if (err_string.contains("0xE00")
@@ -155,7 +162,9 @@ async fn worker(
                         //normal
                         let mut errors = String::new();
                         for table in &tables {
-                            if let Err(err) = sync_normal_table_schema(&from, &table, &actions, &to).await {
+                            if let Err(err) =
+                                sync_normal_table_schema(&from, &table, &actions, &to).await
+                            {
                                 log::error!("Syncing table `{table}` error: {err:?}");
                                 if let Some(path) = opts.fails_to.as_ref() {
                                     path.lock().unwrap().write_fmt(format_args!(
@@ -166,6 +175,7 @@ async fn worker(
                                 }
                                 errors.extend(format!("- Error of table {table}: {err}\n").chars());
                             } else {
+                                counter!(METRICS_LEGACY_CREATED_TABLES, 1);
                                 metrics.created_tables.fetch_add(1, Ordering::SeqCst);
                             }
                         }
@@ -265,18 +275,21 @@ impl Scheduler {
         let (sender, receiver) = flume::bounded((workers * 2) as usize);
         let handles = (0..workers)
             .map(|i| {
-                tokio::spawn(worker(
-                    i,
-                    source.clone(),
-                    target.clone(),
-                    receiver.clone(),
-                    query.clone(),
-                    opts.clone(),
-                    metrics.clone(),
-                    actions.clone(),
-                    source_is_v3,
-                    target_is_v3,
-                ))
+                tokio::spawn(
+                    worker(
+                        i,
+                        source.clone(),
+                        target.clone(),
+                        receiver.clone(),
+                        query.clone(),
+                        opts.clone(),
+                        metrics.clone(),
+                        actions.clone(),
+                        source_is_v3,
+                        target_is_v3,
+                    )
+                    .in_current_span(),
+                )
             })
             .collect_vec();
 

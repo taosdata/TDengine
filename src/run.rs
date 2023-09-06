@@ -1,9 +1,9 @@
+use crate::serve::check_parser_timestamp_precision;
 use anyhow::{bail, Result};
 use clap::Parser;
 use taos::*;
+use taosx_core::utils::{self};
 use taosx_core::Action;
-use taosx_core::utils::{self, };
-use crate::serve::check_parser_timestamp_precision;
 
 #[derive(Parser, Debug)]
 pub(super) struct Cli {
@@ -91,7 +91,6 @@ impl Cli {
         } else {
             None
         };
-
         // validate parser
         if let Some(parser) = args.parser.as_ref() {
             if !check_parser_timestamp_precision(&parser) {
@@ -110,6 +109,8 @@ impl Cli {
             with_agent: None,
             offsets: Default::default(),
             transferred: Default::default(),
+            span: tracing::info_span!("cli"),
+            task_id: None,
         };
         task_opt.run(&Default::default()).await?;
 

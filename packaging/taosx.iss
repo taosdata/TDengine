@@ -144,7 +144,7 @@ begin
     if JavaReady = True then begin
       JavaVersionString := 'JAVA 1.8+ required' + #13#10 + JavaVersion + ' has been installed.' + #13#10 + 'OK.';
     end else
-      JavaVersionString := 'JAVA 1.8+ required' + #13#10 + JavaVersion + ' has been installed.' + #13#10 + 'Please update version.';
+      JavaVersionString := 'JAVA 1.8+ required' + #13#10 + 'No suitable version found.' + #13#10 + 'Please check it.';
   end;
   Result := JavaVersionString;
 end;
@@ -188,7 +188,7 @@ var
 begin
   AfterID := wpInstalling;
   JavaVersionString := GetJavaVersionDesc();
-  OutputMsgCheckJava := CreateOutputMsgMemoPage(AfterID, 'Check Java for influxdb Connector', 'The InfluxDB connector depends on the Java environment.'
+  OutputMsgCheckJava := CreateOutputMsgMemoPage(AfterID, 'Check Java for influxdb/opentsdb Connector', 'The InfluxDB/OpenTSDB connector depends on the Java environment.'
   + ' If you use this connector, please make sure to install the required version.', 'Java 1.8+ required', JavaVersionString);
   AfterID := OutputMsgCheckJava.ID;
 end;
@@ -218,11 +218,13 @@ Type: files; Name: "{app}\xplugins\pi\*.*"
 Type: files; Name: "{app}\xplugins\opc\*.*"
 Type: files; Name: "{app}\xplugins\mqtt\*.*"
 Type: files; Name: "{app}\xplugins\influxdb\*.*"
+Type: files; Name: "{app}\xplugins\opentsdb\*.*"
 Type: files; Name: "{app}\files\*.*"
 Type: dirifempty; Name: "{app}\xplugins\pi";
 Type: dirifempty; Name: "{app}\xplugins\opc";
 Type: dirifempty; Name: "{app}\xplugins\mqtt";
 Type: dirifempty; Name: "{app}\xplugins\influxdb";
+Type: dirifempty; Name: "{app}\xplugins\opentsdb";
 Type: dirifempty; Name: "{app}\files";
 
 [UninstallRun]

@@ -145,7 +145,7 @@ pub enum RenameOpts {
     Suffix { suffix: String },
     Template { template: String },
     // ReplaceWithRegex { regex: String, replace_with: String, }
-    ReplaceWithRegex { config: String, }
+    ReplaceWithRegex { config: String },
 }
 
 impl RenameOpts {
@@ -166,7 +166,9 @@ impl RenameOpts {
     }
 
     pub fn replace_with_regex(input: impl Into<String>) -> Self {
-        Self::ReplaceWithRegex { config: input.into() }
+        Self::ReplaceWithRegex {
+            config: input.into(),
+        }
     }
 
     pub fn apply(&self, name: &str) -> anyhow::Result<String> {
@@ -184,7 +186,9 @@ impl RenameOpts {
                     anyhow::bail!("replace_with_regex config should be <regex>::<replace_with>")
                 }
                 let regex = Regex::new(split.get(0).unwrap())?;
-                Ok(regex.replace_all(name, split.get(1).unwrap().to_string()).to_string())
+                Ok(regex
+                    .replace_all(name, split.get(1).unwrap().to_string())
+                    .to_string())
             }
         }
     }
@@ -604,9 +608,7 @@ impl Action {
                 taos::AlterType::AddColumn => (),
                 taos::AlterType::DropColumn => (),
                 taos::AlterType::ModifyColumnLength => (),
-                taos::AlterType::ModifyTagLength => {
-                    action.apply_in_place(&mut alter.table_name)?
-                }
+                taos::AlterType::ModifyTagLength => action.apply_in_place(&mut alter.table_name)?,
                 taos::AlterType::ModifyTableOption => (),
                 taos::AlterType::RenameColumn => (),
             },
@@ -623,7 +625,6 @@ impl Action {
         }
         Ok(())
     }
-
 }
 
 #[derive(Hash)]

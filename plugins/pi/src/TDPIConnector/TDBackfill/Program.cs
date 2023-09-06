@@ -7,6 +7,7 @@ using TDPIConnector.TDEngine;
 using System.Reflection;
 using System.Linq;
 using System.Diagnostics;
+using System.Threading;
 
 namespace TDBackfill
 {
@@ -171,8 +172,8 @@ namespace TDBackfill
                 {
                     backfillManager.BackfillPIPointsFromTool(AppSettings.tomlConfig.TDDataBase,
                         AppSettings.tomlConfig.AFDatabaseName,
-                        AppSettings.tomlConfig.BackfillStartTime,
-                        AppSettings.tomlConfig.BackfillEndTime,
+                        AppSettings.tomlConfig.BackfillStartTime.UtcDateTime,
+                        AppSettings.tomlConfig.BackfillEndTime.UtcDateTime,
                         AppSettings.tomlConfig.ToTDengineFirstTime,
                         AppSettings.tomlConfig.FromTDengineLastTime,
                         options.DropTables).Wait();
@@ -190,8 +191,8 @@ namespace TDBackfill
                         backfillManager.BackfillAFElementsFromTool(AppSettings.tomlConfig.TDDataBase,
                                 AppSettings.tomlConfig.AFDatabaseName,
                                 AppSettings.tomlConfig.TemplateForAFElement,
-                                AppSettings.tomlConfig.BackfillStartTime,
-                                AppSettings.tomlConfig.BackfillEndTime,
+                                AppSettings.tomlConfig.BackfillStartTime.UtcDateTime,
+                                AppSettings.tomlConfig.BackfillEndTime.UtcDateTime,
                                 AppSettings.tomlConfig.ToTDengineFirstTime,
                                 AppSettings.tomlConfig.FromTDengineLastTime,
                                 options.DropTables).Wait();
@@ -203,6 +204,13 @@ namespace TDBackfill
                     log.Error("Error backfilling AF Elements", e.InnerException);
                     return;
                 }
+
+                while (tdEngineProxy.isBusy()) {
+                    Console.WriteLine("Backfill wait for the end of data sending.");
+                    Thread.Sleep(1000);
+                }
+                // Make sure the taosx has received.
+                Thread.Sleep(AppSettings.BackfillQuitWait * 1000);
 
                 Console.WriteLine("Backfill finished, exit.");
             }

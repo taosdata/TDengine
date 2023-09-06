@@ -7,15 +7,19 @@ use file_rotate::{
     ContentLimit, FileRotate, TimeFrequency,
 };
 use itertools::Itertools;
-use taos::{AsyncTBuilder, Dsn, TaosBuilder};
-use tokio::io::AsyncBufReadExt;
+use taos::Dsn;
+use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
+use tracing::{instrument, Instrument, Span};
 
 use crate::{
-    get_log_keep_days, plugins::sink, utils::port_pool::PortPool, Action, DataSet, Transferred,
+    build_ipc, get_log_keep_days,
+    utils::{mask_dsn, port_pool::PortPool},
+    Action, DataSet, Transferred, ValidatedSource,
 };
 
 use super::get_plugin_dir;
+use std::error::Error;
 
 const INFLUXDB_V1: [&str; 2] = ["1.7", "1.8"];
 const INFLUXDB_V2: [&str; 8] = ["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7"];
@@ -232,6 +236,14 @@ pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
 }
 
 /// InfluxDB DSN example: "influxdb://127.0.0.1:8086/?token=abc&orgId=def&mode=normal&beginTime=2023-05-01&endTime="
+#[instrument(
+    skip_all,
+    fields(
+        x.influxdb.source = %mask_dsn(&from),
+        x.influxdb.sink = %mask_dsn(&to),
+        x.influxdb.agent = with_agent.as_ref().map(|a| a.0),
+    )
+)]
 pub async fn influxdb_to_taos(
     from: Dsn,
     _actions: Vec<Action>,
@@ -241,12 +253,14 @@ pub async fn influxdb_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
+    span: Span,
 ) -> anyhow::Result<()> {
+    // let _ = info_span!("influxdb_to_taos", x.influxdb.source = %mask_dsn(&from), x.influxdb.sink = %mask_dsn(&to)).entered();
     println!("# loading plugin: InfluxDB");
 
     let exe_exists = std::path::Path::new(&influxdb_jar_path()).exists();
     if !exe_exists {
-        log::error!("plugin not found {}", influxdb_jar_path().to_str().unwrap());
+        tracing::error!("plugin not found {}", influxdb_jar_path().to_str().unwrap());
         Err(InfluxdbError::ExeNotFound(format!(
             "{}",
             influxdb_jar_path().to_str().unwrap()
@@ -255,8 +269,8 @@ pub async fn influxdb_to_taos(
 
     // tdengine
     let td_database = to.subject.clone();
-    let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(&to)?.pool()?;
-    let target_pool_for_ipc = target_pool.clone();
+    // let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(&to)?.pool()?;
+    // let target_pool_for_ipc = target_pool.clone();
     // a random port
     let ipc_port = port_pool
         .get()
@@ -272,30 +286,20 @@ pub async fn influxdb_to_taos(
     // get the path of the temporary file
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
-    log::info!("Using config file {}", config_path.display());
+    tracing::info!("Using config file {}", config_path.display());
     // create socket channel
-    let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
-    let ipc = if with_agent.is_none() {
-        sink::listen_tcp_socket(
-            target_pool_for_ipc,
-            config.ipc_stream,
-            sender,
-            None,
-            cancel.clone(),
-            with_agent,
-            None,
-            Some("influxdb"),
-            transferred,
-        )?
-    } else {
-        sink::listen_tcp_socket_with_agent(
-            config.ipc_stream,
-            sender,
-            None,
-            cancel.clone(),
-            with_agent.unwrap(),
-        )?
-    };
+    let mut ipc = build_ipc(
+        &config.ipc_stream,
+        None,
+        &to,
+        Some("influxdb"),
+        None,
+        &cancel,
+        with_agent,
+        transferred,
+        span,
+    )
+    .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
     // 连接器路径
     let connector_path = influxdb_jar_path();
@@ -304,11 +308,11 @@ pub async fn influxdb_to_taos(
 
     fs::create_dir_all(&log_path)?;
 
-    log::info!("log path created: {}", &log_path.display());
+    tracing::info!("log path created: {}", &log_path.display());
 
     log_path.push(LOG_FILE);
 
-    log::info!("log file dir: {}", &log_path.display());
+    tracing::info!("log file dir: {}", &log_path.display());
 
     let log_keep_days = get_log_keep_days();
 
@@ -356,7 +360,9 @@ pub async fn influxdb_to_taos(
     let port_pool = port_pool.clone();
     {
         let mut child = child.spawn().context("Start InfluxDB collector error")?;
-
+        const ERROR_BUF_SIZE: usize = 2;
+        let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
+        let error_buf_producer = error_buf.clone();
         let stderr = child.stderr.take().expect("Failed to capture stderr");
         tokio::spawn(async move {
             let mut reader = tokio::io::BufReader::new(stderr);
@@ -367,6 +373,11 @@ pub async fn influxdb_to_taos(
                 if bytes_read == 0 {
                     break; // End of stream, exit the loop
                 }
+                if line.contains("ERROR") {
+                    use ringbuf::Rb;
+                    let mut guard = error_buf_producer.lock().await;
+                    let _ = guard.push_overwrite(line.clone());
+                }
                 // Write the line to log_rotation
                 write!(log_rotation, "{}", line)?;
                 line.clear();
@@ -374,27 +385,29 @@ pub async fn influxdb_to_taos(
             Ok::<(), std::io::Error>(())
         });
         // waiting until the end
-        log::info!("waiting for InfluxDB connector");
+        tracing::info!("waiting for InfluxDB connector");
         tokio::spawn(async move {
             tokio::select! {
                 // application exit with error code
                 status = child.wait() => {
                     let status = status?;
-                    log::info!("InfluxDB exit with {}", status);
+                    tracing::info!("InfluxDB exit with {}", status);
                     if !status.success() {
-                        let _ = ipc.send(());
-                        anyhow::bail!("InfluxDB exit with {}", status);
+                        use ringbuf::Rb;
+                        let _ = ipc.close().await?;
+                        let error = error_buf.lock().await.iter().join("");
+                        anyhow::bail!("InfluxDB exit with status {status}: {error}");
                     }
                 },
-                err = receiver.recv() => {
-                    log::info!("have received worker thread panicked message, terminate child process");
+                err = ipc.recv_error() => {
+                    tracing::info!("have received worker thread panicked message, terminate child process");
                     if let Some(err) = err {
                         let _ = ipc.send(());
                         anyhow::bail!("InfluxDB writer error: {err}");
                     }
                 },
                 _ = cancel.cancelled() => {
-                    log::info!("InfluxDB task cancelled");
+                    tracing::info!("InfluxDB task cancelled");
                 }
             }
             ;
@@ -402,7 +415,8 @@ pub async fn influxdb_to_taos(
             ipc.send(()).await?;
             // stop the connector
             let _ = child.kill().await;
-            log::info!("InfluxDB task Done");
+            ipc.close().await?;
+            tracing::info!("InfluxDB task Done");
             // delete the temporary file
             let _ = temp_path.close();
             // put ipc port back to port pool.
@@ -410,7 +424,7 @@ pub async fn influxdb_to_taos(
             // wait for completion
             tokio::time::sleep(Duration::from_millis(100)).await;
             Ok(())
-        }).await??;
+        }.in_current_span()).await??;
     }
     Ok(())
 }
@@ -507,5 +521,55 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
                 anyhow::bail!("Unknown exit code {exit}, maybe failed to connect, ip or port error")
             }
         }
+    }
+}
+
+pub async fn influxdb_validate(dsn: Dsn) -> anyhow::Result<ValidatedSource> {
+    let host = dsn
+        .addresses
+        .first()
+        .and_then(|addr| addr.host.clone())
+        .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
+    let port = dsn
+        .addresses
+        .first()
+        .and_then(|addr| addr.port.clone())
+        .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
+    let protocol = dsn.protocol.as_deref().unwrap_or("http");
+    let influx_url = format!("{}://{}:{}/", protocol, host, port);
+    // http 客户端
+    let client = reqwest::Client::new();
+    // 发送请求，获取结果
+    let result = client.get(influx_url).send().await;
+    // 请求成功
+    if result.is_ok() {
+        let response = result.unwrap();
+        let headers = response.headers();
+        // 组装结果
+        Ok(ValidatedSource {
+            available: true,
+            version: Some(format!(
+                "{} - {}",
+                headers
+                    .get("x-influxdb-build")
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+                headers
+                    .get("x-influxdb-version")
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string()
+            )),
+            since: Some(String::from("")),
+        })
+    } else {
+        Ok(ValidatedSource {
+            available: false,
+            version: Some(String::from("")),
+            since: Some(result.err().unwrap().source().unwrap().to_string()),
+        })
     }
 }

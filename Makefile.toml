@@ -14,6 +14,7 @@ args = ["build", "--release", "-p", "taosx-agent"]
 [tasks.build-plugins]
 dependencies = [
   "build-taosx-influxdb",
+  "build-taosx-opentsdb",
   "build-taosx-mqtt",
   "build-taosx-opc",
 ]
@@ -21,6 +22,10 @@ dependencies = [
 [tasks.build-taosx-influxdb]
 command = "mvn"
 args = ["package", "-f", "plugins/influxdb/pom.xml"]
+
+[tasks.build-taosx-opentsdb]
+command = "mvn"
+args = ["package", "-f", "plugins/opentsdb/pom.xml"]
 
 [tasks.build-taosx-mqtt]
 script = """
@@ -43,7 +48,7 @@ go build -C plugins/opc \
 
 [tasks.package]
 script = { file = "./scripts/package.sh" }
-dependencies = ["build-all"]
+# dependencies = ["build-all"]
 
 [tasks.install]
 cwd = "target/package/"

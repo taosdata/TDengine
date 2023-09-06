@@ -2,10 +2,12 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use arrow_flight::{FlightData, PutResult};
+use chrono::Utc;
 use futures::{Stream, TryStreamExt};
-use taos::{AsyncQueryable, AsyncTBuilder, AsyncBindable, Dsn, Stmt, TaosBuilder};
-use taosx_core::{ConnectorLicense, IpcStreamWorker, Parser};
+use taos::{AsyncBindable, AsyncQueryable, AsyncTBuilder, Dsn, Stmt, TaosBuilder};
+use taosx_core::{ConnectorLicense, IpcStreamWorker, Parser, METRICS_TIME_START};
 use tonic::{Status, Streaming};
+use tracing::Instrument;
 
 use crate::serve::controller::{transferred::ConnectorTransferred, TaskControllerRef, TaskDetail};
 
@@ -83,6 +85,7 @@ impl PutStream {
                 "opcua" => Some("opc_ua"),
                 "mqtt" => Some("mqtt"),
                 "influxdb" => Some("influxdb"),
+                "opentsdb" => Some("opentsdb"),
                 "kafka" => Some("kafka"),
                 "pi" => Some("pi"),
                 _ => None,
@@ -128,26 +131,39 @@ impl PutStream {
                 _ => None,
             };
 
+            // todo! add trace id to
+            let span = tracing::info_span!(
+                "task::spawned",
+                task.id = task.id,
+                trace_id = tracing::field::Empty
+            );
+
             // let transferred = self.controller.transferred.get((cluster_id, ))
+            let span_clone = span.clone();
             async fn ipc_stream_writer(
                 task: TaskDetail,
-                taos: &taos::Taos,
+                pool: &taos::TaosPool,
                 lock: Arc<tokio::sync::Mutex<()>>,
                 schema: Arc<arrow::datatypes::Schema>,
                 rx: flume::Receiver<arrow::record_batch::RecordBatch>,
                 license: Option<ConnectorLicense>,
                 transferred: Option<Arc<ConnectorTransferred>>,
+                span: tracing::Span,
             ) -> anyhow::Result<()> {
                 // dbg!(&task);
+                metrics::gauge!(METRICS_TIME_START, Utc::now().timestamp_millis() as f64);
                 let from = task.from.parse().unwrap();
-                let mut stmt = Stmt::init(taos).await.context("Initialize STMT")?;
+                let taos = pool.get().await?;
+                let mut stmt = Stmt::init(&taos).await.context("Initialize STMT")?;
+
                 let worker = IpcStreamWorker::new(
-                    &taos,
+                    &pool,
                     from,
                     lock,
                     schema,
                     license.as_ref(),
                     transferred.as_deref(),
+                    span.clone(),
                 )
                 .unwrap();
                 // dbg!(&task);
@@ -159,7 +175,9 @@ impl PutStream {
                     match rx.recv() {
                         Ok(record) => {
                             log::info!("Start writing records: {record:?}");
-                            if let Err(err) = worker.process_record(&mut stmt, record, parser.as_ref()).await
+                            if let Err(err) = worker
+                                .process_record(&mut stmt, record, parser.as_ref())
+                                .await
                             {
                                 log::warn!("Write stream error: {err}");
                             }
@@ -171,9 +189,15 @@ impl PutStream {
                     }
                 }
             }
-            tokio::spawn(async move {
-                ipc_stream_writer(task, &taos, lock, schema, rx, license, transferred).await
-            });
+            tokio::spawn(
+                async move {
+                    ipc_stream_writer(task, &pool, lock, schema, rx, license, transferred, span)
+                        .in_current_span()
+                        .await
+                }
+                .instrument(span_clone),
+            );
+            // let _ = span.enter();
         }
 
         Ok(stream

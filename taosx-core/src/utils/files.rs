@@ -1,6 +1,6 @@
+use anyhow::anyhow;
 use std::fs;
 use std::path::Path;
-use anyhow::anyhow;
 
 pub fn get_files_in_dir(dir: &str, ext: &str) -> Result<Vec<String>, anyhow::Error> {
     let path = Path::new(dir);
@@ -19,7 +19,10 @@ pub fn get_files_in_dir(dir: &str, ext: &str) -> Result<Vec<String>, anyhow::Err
                 stack.push(entry_path);
                 continue;
             }
-            if let Some(file) = entry_path.to_str().filter(|f| ext.is_empty() || f.ends_with(ext)) {
+            if let Some(file) = entry_path
+                .to_str()
+                .filter(|f| ext.is_empty() || f.ends_with(ext))
+            {
                 files.push(file.to_owned());
             }
         }

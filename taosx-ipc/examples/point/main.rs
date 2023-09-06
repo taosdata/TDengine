@@ -4,8 +4,8 @@ use anyhow::Result;
 
 use arrow::{
     array::{
-        make_builder, Float32Builder, StringBuilder, StructBuilder, TimestampMillisecondBuilder,
-        UInt8Array, Int32Builder,
+        make_builder, Float32Builder, Int32Builder, StringBuilder, StructBuilder,
+        TimestampMillisecondBuilder, UInt8Array,
     },
     datatypes::{DataType, Field, Fields, Schema},
     ipc::writer::StreamWriter,
@@ -34,7 +34,11 @@ async fn main() -> Result<()> {
         ),
         Field::new("id", ArrowDataType::Utf8, false),
         Field::new("value", ArrowDataType::Utf8, false),
-        Field::new("received", DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None), false),
+        Field::new(
+            "received",
+            DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
+            false,
+        ),
         Field::new("name", ArrowDataType::Utf8, false),
         Field::new("status", ArrowDataType::Int32, false),
     ];

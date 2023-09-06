@@ -14,11 +14,12 @@ use std::{
 use anyhow::{bail, Context};
 use chrono::{DateTime, TimeZone, Utc};
 use linked_hash_map::LinkedHashMap;
+use metrics::counter;
 use serde::Deserialize;
 use serde_with::serde_as;
 use taos::*;
 use tokio::sync::oneshot;
-use tracing::info;
+use tracing::{info, instrument};
 
 use crate::{legacy::scheduler::Todo, Action};
 
@@ -84,6 +85,17 @@ impl TableOpts {
         Ok(opts)
     }
 }
+
+// legacy metrics
+pub const METRICS_LEGACY_WORKERS: &str = "metrics.legacy.workers";
+pub const METRICS_LEGACY_STABLES: &str = "metrics.legacy.stables";
+pub const METRICS_LEGACY_UPDATED_TAGS: &str = "metrics.legacy.updated_tags";
+pub const METRICS_LEGACY_UPDATED_TABLES: &str = "metrics.legacy.updated_tables";
+pub const METRICS_LEGACY_CREATED_TABLES: &str = "metrics.legacy.created_tables";
+pub const METRICS_LEGACY_TABLES: &str = "metrics.legacy.tables";
+pub const METRICS_LEGACY_BLOCKS: &str = "metrics.legacy.blocks";
+pub const METRICS_LEGACY_RECORDS: &str = "metrics.legacy.records";
+pub const METRICS_LEGACY_POINTS: &str = "metrics.legacy.points";
 
 #[derive(Debug)]
 pub struct LegacyMetrics {
@@ -549,10 +561,16 @@ async fn sync_single_table_partial(
                 break;
             }
 
+            counter!(METRICS_LEGACY_BLOCKS, 1);
             metrics.blocks.fetch_add(1, Ordering::AcqRel);
+            counter!(METRICS_LEGACY_RECORDS, block.nrows() as u64);
             metrics
                 .records
                 .fetch_add(block.nrows() as _, Ordering::AcqRel);
+            counter!(
+                METRICS_LEGACY_POINTS,
+                block.nrows() as u64 * block.ncols() as u64
+            );
             metrics
                 .points
                 .fetch_add((block.nrows() * block.ncols()) as _, Ordering::AcqRel);
@@ -572,7 +590,8 @@ async fn sync_single_table_partial(
         while let Some(block) = blocks.try_next().await? {
             // dbg!(res.summary());
             if !prepare {
-                stmt.prepare(&sql).await
+                stmt.prepare(&sql)
+                    .await
                     .with_context(|| format!("[{new_table_name}] prepare statement error"))?;
                 prepare = true;
             }
@@ -591,18 +610,21 @@ async fn sync_single_table_partial(
                             range.start,
                             range.end,
                         );
-                        stmt.bind(&params).await
+                        stmt.bind(&params)
+                            .await
                             .context(format!("[{new_table_name}] bind by chunk {batch_size}"))?;
                         stmt.add_batch().await.context(format!(
                             "[{new_table_name}] add batch by chunk {batch_size}"
                         ))?;
                         stmt.execute().await
                             .with_context(|| format!("[{new_table_name}] execute {} rows insertion with batch size limit {batch_size}", range.len()))?;
-
+                        counter!(METRICS_LEGACY_BLOCKS, 1);
                         metrics.blocks.fetch_add(1, Ordering::SeqCst);
+                        counter!(METRICS_LEGACY_RECORDS, params.len() as u64);
                         metrics
                             .records
                             .fetch_add(params.len() as _, Ordering::SeqCst);
+                        counter!(METRICS_LEGACY_POINTS, params.len() as u64 * fields as u64);
                         metrics
                             .points
                             .fetch_add((params.len() * fields) as _, Ordering::SeqCst);
@@ -613,9 +635,11 @@ async fn sync_single_table_partial(
                     continue;
                 }
             }
-            stmt.bind(views).await
+            stmt.bind(views)
+                .await
                 .with_context(|| format!("[{table}] bind error"))?;
-            stmt.add_batch().await
+            stmt.add_batch()
+                .await
                 .with_context(|| format!("[{table}] add batch"))?;
 
             let res = stmt.execute().await;
@@ -634,7 +658,8 @@ async fn sync_single_table_partial(
                             stmt.prepare(&sql).await.context("re-prepare statement")?;
                         } else {
                             stmt = Stmt::init(to).await.context("re-initialize stmt")?;
-                            stmt.prepare(&sql).await
+                            stmt.prepare(&sql)
+                                .await
                                 .with_context(|| format!("[{table}] re-prepare statement error"))?;
                         }
                         let mut batch_size = block.nrows() / chunks;
@@ -648,9 +673,11 @@ async fn sync_single_table_partial(
                                 .iter()
                                 .map(|view| view.slice(range.clone()).unwrap())
                                 .collect();
-                            stmt.bind(&params).await
+                            stmt.bind(&params)
+                                .await
                                 .context(format!("[{table}] bind by batch limit {batch_size}"))?;
-                            stmt.add_batch().await
+                            stmt.add_batch()
+                                .await
                                 .context(format!("[{table}] add batch with limit {batch_size}"))?;
                             // stmt.execute().context(format!(
                             //     "[{table}] execute with batch limit {batch_size}"
@@ -661,11 +688,13 @@ async fn sync_single_table_partial(
                                 success = false;
                                 break;
                             }
-
+                            counter!(METRICS_LEGACY_BLOCKS, 1);
                             metrics.blocks.fetch_add(1, Ordering::SeqCst);
+                            counter!(METRICS_LEGACY_RECORDS, params.len() as u64);
                             metrics
                                 .records
                                 .fetch_add(params.len() as _, Ordering::SeqCst);
+                            counter!(METRICS_LEGACY_POINTS, params.len() as u64 * fields as u64);
                             metrics
                                 .points
                                 .fetch_add((params.len() * fields) as _, Ordering::SeqCst);
@@ -684,7 +713,8 @@ async fn sync_single_table_partial(
                     }
                 } else if err_str.contains("0x0x0020") {
                     tokio::time::sleep(Duration::from_millis(100)).await;
-                    stmt.execute().await
+                    stmt.execute()
+                        .await
                         .with_context(|| format!("[table: {table}] insert error: {err}"))?;
                 } else {
                     Err(err)
@@ -692,8 +722,11 @@ async fn sync_single_table_partial(
                 }
             } else {
                 let rows = res.unwrap();
+                counter!(METRICS_LEGACY_BLOCKS, 1);
                 metrics.blocks.fetch_add(1, Ordering::SeqCst);
+                counter!(METRICS_LEGACY_RECORDS, rows as u64);
                 metrics.records.fetch_add(rows as _, Ordering::SeqCst);
+                counter!(METRICS_LEGACY_POINTS, rows as u64 * fields as u64);
                 metrics
                     .points
                     .fetch_add((rows * fields) as _, Ordering::SeqCst);
@@ -813,6 +846,7 @@ async fn sync_super_table_schema_with_subs_without_pool(
                     );
                 } else {
                     updated_tags += 1;
+                    counter!(METRICS_LEGACY_UPDATED_TAGS, 1);
                     metrics.updated_tags.fetch_add(1, Ordering::SeqCst);
                 }
             }
@@ -855,6 +889,7 @@ async fn sync_super_table_schema_with_subs_without_pool(
             new_stable_name
         );
         metrics.created_tables.fetch_add(tables, Ordering::SeqCst);
+        counter!(METRICS_LEGACY_CREATED_TABLES, tables as u64);
     }
 
     Ok(())
@@ -978,6 +1013,7 @@ async fn sync_super_table_schema_with_subs(
                     );
                 } else {
                     updated_tags += 1;
+                    counter!(METRICS_LEGACY_UPDATED_TAGS, 1);
                     metrics.updated_tags.fetch_add(1, Ordering::SeqCst);
                 }
             }
@@ -1021,6 +1057,7 @@ async fn sync_super_table_schema_with_subs(
             new_stable_name
         );
         metrics.created_tables.fetch_add(tables, Ordering::SeqCst);
+        counter!(METRICS_LEGACY_CREATED_TABLES, tables as u64);
     }
 
     Ok(())
@@ -1353,6 +1390,7 @@ async fn sync_specified_tables_with_workers(
     let mut fails = 0;
     for reader in readers {
         count += 1;
+        counter!(METRICS_LEGACY_TABLES, 1);
         metrics.tables.fetch_add(1, Ordering::SeqCst);
         match reader.await? {
             Ok(_) => {}
@@ -1964,6 +2002,7 @@ async fn realtime(
     }
 }
 
+#[instrument(skip_all)]
 pub async fn legacy_to_taos(
     mut from: Dsn,
     actions: Vec<Action>,
@@ -2092,6 +2131,7 @@ pub async fn legacy_to_taos(
     let v2: String = target_taos.server_version().await?.to_string();
     let target_is_v3 = !v2.starts_with('2');
 
+    counter!(METRICS_LEGACY_WORKERS, concurrent as u64);
     metrics.workers.store(concurrent as _, Ordering::SeqCst);
 
     let todo = parse_todo_list(&from_pool, &source_opts).await?;
@@ -2101,7 +2141,7 @@ pub async fn legacy_to_taos(
     metrics
         .stables
         .store(todo.stables.len() as _, Ordering::SeqCst);
-
+    counter!(METRICS_LEGACY_STABLES, todo.stables.len() as u64);
     let metrics_inner = metrics.clone();
     let todo_inner = todo.clone();
 

@@ -7,9 +7,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/apache/arrow/go/v12/arrow"
-	"github.com/apache/arrow/go/v12/arrow/ipc"
-	"github.com/apache/arrow/go/v12/arrow/memory"
+	"github.com/apache/arrow/go/v13/arrow"
+	"github.com/apache/arrow/go/v13/arrow/ipc"
+	"github.com/apache/arrow/go/v13/arrow/memory"
 	"github.com/sunpe/gobox/logger"
 )
 
@@ -23,12 +23,19 @@ func NewArrowWriter(address *net.TCPAddr, debug bool, batchSize int, batchTimeou
 	if err != nil {
 		return nil, fmt.Errorf("create arrow writer error %v", err)
 	}
+
+	ipcWriter := ipc.NewWriter(conn, ipc.WithSchema(schema), ipc.WithAllocator(memory.NewGoAllocator()))
+	ipcReader, err := ipc.NewReader(conn, ipc.WithDelayReadSchema(true))
+	if err != nil {
+		return nil, fmt.Errorf("create arrow writer error. ipc reader error %v", err)
+	}
 	return &ArrowWriter{
 		debug:        debug,
 		batchSize:    batchSize,
 		batchTimeout: batchTimeout,
 		schema:       schema,
-		ipcWriter:    ipc.NewWriter(conn, ipc.WithSchema(schema), ipc.WithAllocator(memory.NewGoAllocator())),
+		ipcWriter:    ipcWriter,
+		ipcReader:    ipcReader,
 		af:           af,
 		ch:           ch,
 		done:         make(chan struct{}, 1),
@@ -42,6 +49,7 @@ type ArrowWriter struct {
 	batchTimeout time.Duration
 	schema       *arrow.Schema          // arrow schema
 	ipcWriter    *ipc.Writer            // arrow ipc writer
+	ipcReader    *ipc.Reader            // arrow ipc reader
 	af           appendFunc             // append value to arrow field
 	ch           chan *common.NodeValue // read node value from channel
 	done         chan struct{}
@@ -126,10 +134,42 @@ func (w *ArrowWriter) pack(_ context.Context, values []*common.NodeValue) (recor
 	return packData(values, w.schema, w.af)
 }
 
+const successCode = "0"
+
 func (w *ArrowWriter) writeRecord(_ context.Context, record arrow.Record) (err error) {
 	if w.debug {
 		j, _ := record.MarshalJSON()
 		logger.DebugF("## report to taosx by writer [%p] values [%s]", w, string(j))
 	}
-	return w.ipcWriter.Write(record)
+	err = w.ipcWriter.Write(record)
+	if err != nil {
+		return fmt.Errorf("write record to ipc error %v", err)
+	}
+
+	if !w.ipcReader.Next() {
+		return nil
+	}
+	responseRecord := w.ipcReader.Record()
+	defer responseRecord.Release()
+	if w.debug {
+		j, _ := responseRecord.MarshalJSON()
+		logger.DebugF("## report to taosx by [%p] and ack [%s]", w, string(j))
+	}
+
+	var code string
+	var message string
+	for i, col := range responseRecord.Columns() {
+		if responseRecord.ColumnName(i) == "code" {
+			code = col.ValueStr(0)
+		}
+		if responseRecord.ColumnName(i) == "message" {
+			message = col.ValueStr(0)
+		}
+	}
+
+	if code != successCode {
+		logger.ErrorF("## report to taosx and ack error. code %s message %s ", code, message)
+	}
+
+	return nil
 }

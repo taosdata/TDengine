@@ -16,9 +16,10 @@ use taos::Dsn;
 use tokio_util::sync::CancellationToken;
 
 use taosx_ipc::prelude::ArrowDataType;
+use tracing::Span;
 
-use crate::{Action, build_ipc, Parser, Transferred};
 use crate::utils::port_pool::PortPool;
+use crate::{build_ipc, Action, Parser, Transferred};
 
 async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
     let socket = format!("127.0.0.1:{}", port);
@@ -50,12 +51,15 @@ async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
         let mut key = BinaryBuilder::new();
         let mut value = BinaryBuilder::new();
 
-
         for ms in message_sets.iter() {
             for m in ms.messages() {
                 let ts = chrono::Utc::now().timestamp_nanos();
                 let default_print_value = String::from("false");
-                let print_value: bool = from.params.get("print_value").unwrap_or(&default_print_value).parse()?;
+                let print_value: bool = from
+                    .params
+                    .get("print_value")
+                    .unwrap_or(&default_print_value)
+                    .parse()?;
                 if print_value {
                     print_message(&ms, &m, &ts);
                 }
@@ -85,7 +89,6 @@ async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
             consumer.consume_messageset(ms)?;
         }
 
-
         consumer.commit_consumed()?;
         start = chrono::Utc::now().timestamp_millis();
     }
@@ -104,6 +107,7 @@ pub async fn kafka_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
+    span: Span,
 ) -> anyhow::Result<()> {
     println!(
         "{} kafka_to_taos started, from: {}, to: {}",
@@ -115,7 +119,18 @@ pub async fn kafka_to_taos(
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for Kafka connection"))?;
     let socket = format!("127.0.0.1:{}", port);
-    let (abort, mut closed) = build_ipc(&socket, parser, &to, &cancel, with_agent, transferred)?;
+    let mut ipc = build_ipc(
+        &socket,
+        parser,
+        &to,
+        Some("kafka"),
+        None,
+        &cancel,
+        with_agent,
+        transferred,
+        span,
+    )
+    .await?;
 
     let worker = tokio::spawn(kafka_worker(from, port));
     let abort_handle = worker.abort_handle();
@@ -129,28 +144,29 @@ pub async fn kafka_to_taos(
                 match status? {
                     Ok(_) => {
                         tokio::time::sleep(Duration::from_millis(100)).await;
-                        match closed.try_recv() {
+                        match ipc.try_recv_error() {
                             Ok(res) => {
                                 tracing::error!("IPC Error: {res}");
                                 anyhow::bail!("Kafka worker exit with IPC error: {res}");
                             }
                             Err(_) => {
                                 tracing::info!("Kafka worker done successfully");
-                                let _ = abort.send(());
+                                let _ = ipc.send(());
                             }
                         }
                     }
                     Err(err) => {
-                        let _ = abort.send(());
+                        let _ = ipc.send(());
                         anyhow::bail!("Kafka exit with error: {:#}", err);
                     }
                 }
             },
-            err = closed.recv() => {
+            err = ipc.recv_error() => {
                 tracing::info!("have received worker thread panicked message, terminate child process");
                 abort_handle.abort();
                 if let Some(err) = err {
-                    let _ = abort.send(());
+                    let _ = ipc.send(());
+                    let _ = ipc.close().await;
                     abort_handle.abort();
                     anyhow::bail!("Kafka writer error: {err:#}");
                 }
@@ -161,9 +177,10 @@ pub async fn kafka_to_taos(
             }
         }
         // send an empty tuple
-        let _ = abort.send(());
+        let _ = ipc.send(());
         // stop the connector
         tracing::info!("Kafka task Done");
+        ipc.close().await?;
         // put ipc port back to port pool.
         port_pool.put(port);
         // wait for completion
@@ -249,10 +266,12 @@ fn build_consumer(dsn: &Dsn) -> anyhow::Result<Consumer> {
         }
     }
 
-    let fallback_offset = parse_fallback_offset(dsn.params.get("fallback_offset").map(String::as_str))?;
+    let fallback_offset =
+        parse_fallback_offset(dsn.params.get("fallback_offset").map(String::as_str))?;
     builder = builder.with_fallback_offset(fallback_offset);
 
-    let offset_storage = parse_offset_storage(dsn.params.get("offset_storage").map(String::as_str))?;
+    let offset_storage =
+        parse_offset_storage(dsn.params.get("offset_storage").map(String::as_str))?;
     builder = builder.with_offset_storage(offset_storage);
 
     let consumer = builder.create()?;
@@ -282,8 +301,9 @@ fn build_ssl_builder(dsn: &Dsn) -> anyhow::Result<kafka::consumer::Builder> {
 
     let mut dsn_copy = dsn.clone();
 
-    let cert_key = super::mqtt::get_string_from_param_or_file(&mut dsn_copy, "cert_key", true, None)
-        .map_err(|s| KafkaSourceError::CAConfigReadError(s))?;
+    let cert_key =
+        super::mqtt::get_string_from_param_or_file(&mut dsn_copy, "cert_key", true, None)
+            .map_err(|s| KafkaSourceError::CAConfigReadError(s))?;
     let cert = super::mqtt::get_string_from_param_or_file(&mut dsn_copy, "cert", true, None)
         .map_err(|s| KafkaSourceError::CAConfigReadError(s))?;
 
@@ -334,17 +354,19 @@ fn parse_timeout(dsn: &Dsn) -> anyhow::Result<i64> {
     if timeout == "never" {
         return Ok(-1);
     }
-    timeout.parse::<i64>().map_err(|e| anyhow::anyhow!("invalid timeout: {}, cause: {}",timeout, e))
+    timeout
+        .parse::<i64>()
+        .map_err(|e| anyhow::anyhow!("invalid timeout: {}, cause: {}", timeout, e))
 }
 
 fn parse_fallback_offset(fallback_offset: Option<&str>) -> anyhow::Result<FetchOffset> {
     match fallback_offset {
         Some("Earliest") | None => Ok(FetchOffset::Earliest),
         Some("Latest") => Ok(FetchOffset::Latest),
-        Some(s) => {
-            s.parse::<i64>().map(FetchOffset::ByTime)
-                .map_err(|e| anyhow::anyhow!("invalid fallback_offset: {}, cause: {}",s, e))
-        }
+        Some(s) => s
+            .parse::<i64>()
+            .map(FetchOffset::ByTime)
+            .map_err(|e| anyhow::anyhow!("invalid fallback_offset: {}, cause: {}", s, e)),
     }
 }
 

@@ -1,5 +1,6 @@
 package com.taosdata.utils.arrow;
 
+import com.taosdata.caches.StatisticCache;
 import com.taosdata.model.entity.InfluxdbBucketDataEntity;
 import com.taosdata.model.entity.InfluxdbMeasurementEntity;
 import org.apache.arrow.memory.RootAllocator;
@@ -103,7 +104,7 @@ public class ArrowUtils {
     private static Map<String, String> generateMeta(ArrowInitDto arrowInitDto) {
         // TODO 目前不要响应，如果需要可以将none改为code/lush
         return new HashMap<String, String>() {{
-            put("ack", "none");
+            put("ack", "lush");
             put("stream", "lush");
             put("version", "1.0");
             put("init", arrowInitDto.toString());
@@ -247,6 +248,8 @@ public class ArrowUtils {
             // 这里固定传1
             vectorSchemaRoot.setRowCount(1);
             writer.writeBatch();
+            // 计数
+            StatisticCache.totalRecordBatch.incrementAndGet();
             // 为了连续发送，此处不写结束信号
             // writer.end();
             // 如果首次提交，返回完整字节流，其后只提交RecordBatch

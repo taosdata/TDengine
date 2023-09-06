@@ -18,8 +18,6 @@ thiserror = "1"
 twelf = { version = "0.10.0", default-features = false, features = ["toml", "env", "clap"] }
 itertools = "0.10.5"
 
-chrono = "0.4.24"
-chrono-tz = "0.8.2"
 dashmap = "5.4.0"
 flume = "0.10.14"
 serde = { version = "1", features = ["derive"] }
@@ -27,6 +25,8 @@ serde_json = "1"
 
 arrow = { workspace = true, features = ["chrono-tz"] }
 arrow-flight = { workspace = true }
+chrono = { workspace = true }
+chrono-tz = { workspace = true }
 tonic = { workspace = true }
 
 futures = "0.3"

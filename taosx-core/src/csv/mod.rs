@@ -20,7 +20,7 @@ use tokio::task::JoinHandle;
 
 use taosx_ipc::prelude::{AckReaderBuilder, ArrowDataType};
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, instrument, warn, Span};
 
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, utils, Parser, Transferred};
@@ -77,6 +77,11 @@ pub async fn csv_header(paths: Vec<&str>, has_header: bool) -> Result<CsvHeader>
     })
 }
 
+pub const CSV_FILES: &str = "metrics.csv.csv_files";
+pub const CSV_READ_RECORDS: &str = "metrics.csv.csv_read_records";
+pub const CSV_READ_RECORD_BATCHES: &str = "metrics.csv.csv_read_record_batches";
+
+#[instrument(skip_all)]
 pub async fn csv_to_taos(
     mut from: Dsn,
     parser: Option<Parser>,
@@ -85,21 +90,31 @@ pub async fn csv_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
+    span: Span,
 ) -> Result<()> {
     let port = port_pool
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for CSV connection"))?;
     let socket = format!("127.0.0.1:{}", port);
-    let (abort, mut closed) = build_ipc(&socket, parser, &to, &cancel, with_agent, transferred)?;
+    let mut ipc_handler = build_ipc(
+        &socket,
+        parser,
+        &to,
+        Some("csv"),
+        None,
+        &cancel,
+        with_agent,
+        transferred,
+        span,
+    )
+    .await?;
 
     let mut source = CsvSource::new(&mut from, port)?;
-
+    metrics::counter!(CSV_FILES, source.readers.len() as u64);
     info!("spawn CSV worker");
     let worker = tokio::spawn(async move {
-        let id = tokio::task::id();
         info!(
-            task.id = %id,
-            "[{id}] Reading CSV with config(concurrent: {}, batch_size: {})",
+            "Reading CSV with config(concurrent: {}, batch_size: {})",
             source.concurrent, source.batch_size
         );
         let handlers = source.read().await?;
@@ -122,7 +137,7 @@ pub async fn csv_to_taos(
             status = worker => {
                 match status? {
                     Ok(_) => {
-                        match closed.try_recv() {
+                        match ipc_handler.try_recv_error() {
                             Ok(res) => {
                                 tracing::error!("IPC Error: {res}");
                                 tokio::time::sleep(Duration::from_millis(100)).await;
@@ -135,32 +150,32 @@ pub async fn csv_to_taos(
                         }
                     }
                     Err(err) => {
-                        let _ = abort.send(());
+                        let _ = ipc_handler.close().await;
                         port_pool.put(port);
                         anyhow::bail!("CSV exit with error: {:#}", err);
                     }
                 }
             },
-            err = closed.recv() => {
-                log::info!("have received worker thread panicked message, terminate child process");
+            err = ipc_handler.recv_error() => {
+                tracing::info!("have received worker thread panicked message, terminate child process");
                 abort_handle.abort();
                 if let Some(err) = err {
-                    let _ = abort.send(());
+                    let _ = ipc_handler.close().await;
                     port_pool.put(port);
                     anyhow::bail!("CSV writer error: {err:#}");
                 }
             },
             _ = cancel.cancelled() => {
-                log::info!("CSV task cancelled");
+                tracing::info!("CSV task cancelled");
                 abort_handle.abort();
             }
         };
         // wait for completion
         tokio::time::sleep(Duration::from_millis(100)).await;
-        // send an empty tuple
-        let _ = abort.send(());
         // stop the connector
-        log::info!("CSV task finished");
+        tracing::info!("CSV task finished");
+        // wait for handler closed
+        let _ = ipc_handler.close().await;
         // put ipc port back to port pool.
         port_pool.put(port);
         Ok(())
@@ -398,12 +413,16 @@ impl CsvSource {
                     CsvSource::write_to_stream(&headers, &mut writer, &records)?;
                     records.iter_mut().for_each(Vec::clear);
                     batches += 1;
+                    metrics::counter!(CSV_READ_RECORDS, batch_size as u64);
+                    metrics::counter!(CSV_READ_RECORD_BATCHES, 1);
                 }
             }
 
             if records[0].len() > 0 {
                 CsvSource::write_to_stream(&headers, &mut writer, &records)?;
                 batches += 1;
+                metrics::counter!(CSV_READ_RECORDS, records[0].len() as u64);
+                metrics::counter!(CSV_READ_RECORD_BATCHES, 1);
             }
 
             let _ = writer.finish();
@@ -614,6 +633,7 @@ impl CsvSource {
 async fn test_csv_source() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "debug");
     pretty_env_logger::init();
+    let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
     use std::str::FromStr;
     csv_to_taos(
         Dsn::from_str("csv:../tests/csv/table-ns/ns.csv?batch_size=1000").unwrap(),
@@ -640,6 +660,7 @@ async fn test_csv_source() -> anyhow::Result<()> {
         Default::default(),
         None,
         None,
+        span.clone(),
     )
     .await?;
     tokio::time::sleep(Duration::from_secs(10)).await;

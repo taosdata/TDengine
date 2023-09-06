@@ -21,4 +21,9 @@ public class LocalConfig {
      * 读取数据任务过滤集合，用于断点续传
      */
     public static Set<String> fetchFilterSet = new HashSet<>();
+
+    /**
+     * 是否是InfluxDB云服务（云服务需要做一些特殊处理）
+     */
+    public static boolean isInfluxDBCloud = false;
 }

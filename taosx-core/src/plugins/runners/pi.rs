@@ -16,10 +16,11 @@ use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 use toml::value::Datetime;
+use tracing::Span;
 
 use crate::{
-    get_log_keep_days,
-    plugins::{service::spawn_rest_service, sink},
+    build_ipc, get_log_keep_days,
+    plugins::service::spawn_rest_service,
     utils::{port_pool::PortPool, stop_thread},
     Action, DataSet, DataSetsReq, Transferred,
 };
@@ -100,7 +101,13 @@ pub enum PiError {
 }
 
 impl PiConfig {
-    pub fn new(mut dsn: Dsn, td_database: String, ipc: u16, sql: u16) -> Result<Self, PiError> {
+    pub fn new(
+        mut dsn: Dsn,
+        td_database: String,
+        ipc: u16,
+        sql: u16,
+        is_real_run: bool,
+    ) -> Result<Self, PiError> {
         let server_name = dsn
             .addresses
             .first()
@@ -164,7 +171,11 @@ impl PiConfig {
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string())
                 .collect_vec();
-        if point_list.is_empty() && template_for_af_element.is_empty() && template_for_pi_point.is_empty() {
+        if is_real_run
+            && point_list.is_empty()
+            && template_for_af_element.is_empty()
+            && template_for_pi_point.is_empty()
+        {
             return Err(PiError::ConfigError(format!("TemplateForPIPoint, TemplateForAFElement and PointList should config at least one of them")));
         }
         let ipc_stream = format!("127.0.0.1:{ipc}");
@@ -283,6 +294,7 @@ pub async fn pi_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
+    span: Span,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: PI or PIBACKFILL");
     #[cfg(not(target_os = "windows"))]
@@ -292,7 +304,7 @@ pub async fn pi_to_taos(
 
     let exe_exists = std::path::Path::new(&pi_exe_path()).exists();
     if !exe_exists {
-        log::error!("plugin not found {}", pi_exe_path().to_str().unwrap());
+        tracing::error!("plugin not found {}", pi_exe_path().to_str().unwrap());
         Err(PiError::ExeNotFound(format!(
             "{}",
             pi_exe_path().to_str().unwrap()
@@ -313,7 +325,7 @@ pub async fn pi_to_taos(
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for PI connection"))?;
     let driver = from.driver.clone();
-    let config = PiConfig::new(from, td_database.unwrap(), ipc_port, sql)?;
+    let config = PiConfig::new(from, td_database.unwrap(), ipc_port, sql, true)?;
 
     //toml::ser::ValueSerializer
     let toml = toml::to_string(&config)?;
@@ -323,33 +335,22 @@ pub async fn pi_to_taos(
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
 
-    log::info!("Using config file {} \n{}", config_path.display(), toml);
+    tracing::info!("Using config file {} \n{}", config_path.display(), toml);
 
     let server = std::thread::spawn(move || spawn_rest_service(target_pool, sql));
-    let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
-    let ipc = if with_agent.is_none() {
-        let builder = TaosBuilder::from_dsn(&to)?;
-        let target_pool = builder.pool()?;
-        sink::listen_tcp_socket(
-            target_pool,
-            config.ipc_stream,
-            sender,
-            None,
-            cancel.clone(),
-            with_agent,
-            None,
-            Some("pi"),
-            transferred,
-        )?
-    } else {
-        sink::listen_tcp_socket_with_agent(
-            config.ipc_stream,
-            sender,
-            None,
-            cancel.clone(),
-            with_agent.unwrap(),
-        )?
-    };
+
+    let mut ipc = build_ipc(
+        &config.ipc_stream,
+        None,
+        &to,
+        Some("pi"),
+        None,
+        &cancel,
+        with_agent,
+        transferred,
+        span,
+    )
+    .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     let client = reqwest::Client::new();
@@ -370,11 +371,11 @@ pub async fn pi_to_taos(
 
     fs::create_dir_all(&log_path)?;
 
-    log::info!("log path created: {}", &log_path.display());
+    tracing::info!("log path created: {}", &log_path.display());
 
     log_path.push(LOG_FILE);
 
-    log::info!("log file dir: {}", &log_path.display());
+    tracing::info!("log file dir: {}", &log_path.display());
 
     let log_keep_days = get_log_keep_days();
 
@@ -440,14 +441,14 @@ pub async fn pi_to_taos(
     });
 
     let pid = child_command.id().unwrap();
-    log::info!("waiting for PI connector");
+    tracing::info!("waiting for PI connector");
 
     let port_pool = port_pool.clone();
     tokio::spawn(async move {
         tokio::select! {
             status = child_command.wait() => {
                 let status = status?;
-                log::info!("PI connector or PI backfill exit with {}", status);
+                tracing::info!("PI connector or PI backfill exit with {}", status);
                 if !status.success() {
                     let _ = ipc.send(());
                     stop_thread(server);
@@ -455,26 +456,27 @@ pub async fn pi_to_taos(
                 }
             },
             _ = tokio::signal::ctrl_c() => {
-                log::info!("Ctrl+C triggered, cancel tasks");
+                tracing::info!("Ctrl+C triggered, cancel tasks");
                 cancel.cancel();
                 // panic!();
             },
-            err = receiver.recv() => {
+            err = ipc.recv_error() => {
                 if let Some(err) = err {
-                    log::warn!("PI writer error occurred: {err}");
+                    tracing::warn!("PI writer error occurred: {err}");
                     let _ = ipc.send(());
                     stop_thread(server);
                     anyhow::bail!("PI writer error: {err}");
                 }
             },
             _ = cancel.cancelled() => {
-                log::info!("pi task cancelled");
+                tracing::info!("pi task cancelled");
             }
         }
         let _ = ipc.send(());
         stop_thread(server);
         terminate_child_process(pid)?;
-        log::info!("pi task Done");
+        let _ = ipc.close().await;
+        tracing::info!("pi task Done");
         temp_path.close().unwrap();
         port_pool.put(ipc_port);
         Ok(())
@@ -483,7 +485,7 @@ pub async fn pi_to_taos(
     // stop_thread(ipc);
     // let _ = ipc.send(());
     // stop_thread(server);
-    // log::info!("pi task Done");
+    // tracing::info!("pi task Done");
     // temp_path.close().unwrap();
 
     Ok(())
@@ -507,7 +509,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         anyhow::bail!("PI connector support only windows platform");
     }
 
-    let config = PiConfig::new(data.from.clone().into_dsn()?, String::new(), 0, 0)?;
+    let config = PiConfig::new(data.from.clone().into_dsn()?, String::new(), 0, 0, false)?;
 
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
@@ -515,7 +517,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
 
-    log::info!("Using config file {} \n{}", config_path.display(), toml);
+    tracing::info!("Using config file {} \n{}", config_path.display(), toml);
 
     let mut command = tokio::process::Command::new(pi_exe_path());
     let point_filter = if let Some(pf) = data.pattern.clone() {
@@ -528,11 +530,11 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 
     fs::create_dir_all(&log_path)?;
 
-    log::info!("log path created: {}", &log_path.display());
+    tracing::info!("log path created: {}", &log_path.display());
 
     log_path.push(LOG_FILE);
 
-    log::info!("log file dir: {}", &log_path.display());
+    tracing::info!("log file dir: {}", &log_path.display());
 
     let mut log_rotation = FileRotate::new(
         &log_path,
@@ -559,10 +561,10 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 
     writeln!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))?;
     // .context("Start PI collector error")?;
-    log::info!("PI Connector exit with status {}", output.status);
+    tracing::info!("PI Connector exit with status {}", output.status);
 
     let json: Value = serde_json::from_slice(&output.stdout)?;
-    log::debug!("pi dataset: {}", &json);
+    tracing::debug!("pi dataset: {}", &json);
     let map = json.as_object().unwrap();
     let mut dataset = Vec::new();
     data.categories.iter().for_each(|category| {

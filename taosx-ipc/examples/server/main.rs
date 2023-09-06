@@ -3,13 +3,16 @@ use std::{
     collections::HashMap,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
-    path::Path, 
+    path::Path,
 };
 use taos::sync::*;
-use taos_query::{AsyncQueryable, RawBlock, AsyncFetchable};
+use taos_query::{AsyncFetchable, AsyncQueryable, RawBlock};
 use taosx_ipc::{
     ack::{AckWriter, AckWriterBuilder},
-    stream::{flat::FlatMessage, point::{PointMessage, self}},
+    stream::{
+        flat::FlatMessage,
+        point::{self, PointMessage},
+    },
 };
 use tokio::runtime::Runtime;
 use tracing::{info, instrument, log};
@@ -303,7 +306,8 @@ fn handle_point_message<R: Read, W: Write>(
     let mut id_code_map = HashMap::new();
     id_code_map.insert("1".to_string(), "d110".to_string());
     id_code_map.insert("2".to_string(), "d112".to_string());
-    let table_config: TableConfig = serde_json::from_str(r#"{
+    let table_config: TableConfig = serde_json::from_str(
+        r#"{
         "stable_prefix": "meters",
         "column_configs":
         [
@@ -330,7 +334,9 @@ fn handle_point_message<R: Read, W: Write>(
                 "is_primary_key": false
             }
         ]
-    }"#).unwrap();
+    }"#,
+    )
+    .unwrap();
     let mut stmt = Stmt::init(&taos)?;
     let mut records_count = 0;
     let runtime = tokio::runtime::Runtime::new()?;
@@ -343,7 +349,8 @@ fn handle_point_message<R: Read, W: Write>(
             dbg!(&record);
             // let record = record.as_any().downcast_ref::<PointMessage>().unwrap();
             for message in record.records() {
-                let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
+                let cv_vec =
+                    taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
                 // process id, name, ts, value, status
                 let schema = message.schema();
                 let id_index = schema.index_of("id")?;
@@ -359,11 +366,11 @@ fn handle_point_message<R: Read, W: Write>(
                 let received_ts_cv = cv_vec.get(received_index).unwrap();
                 let value_cv = cv_vec.get(value_index).unwrap();
                 let status_cv = cv_vec.get(status_index).unwrap();
-        
+
                 // let table_info = &config.table_info;
                 // let ts_cloumn = &config.ts_cloumn_name;
                 let value_type = IpcDataType::from(value_field.data_type()).sql_repr();
-        
+
                 let mut stable_prefix = table_config.stable_prefix.clone();
                 let stable_name = if value_type.contains("varchar") {
                     stable_prefix.push_str("_varchar");
@@ -380,25 +387,48 @@ fn handle_point_message<R: Read, W: Write>(
                 for column_config in &table_config.column_configs {
                     if column_config.is_primary_key {
                         let primary_key_column_name = column_config.column_name.clone();
-                        let prinmary_key_column_alias = column_config.column_alias.clone().unwrap_or(primary_key_column_name.clone());
-                        columns_insert.insert(0, (primary_key_column_name, prinmary_key_column_alias.clone()));
-                        columns.insert_str(0, format!("{prinmary_key_column_alias} TIMESTAMP,").as_str());
+                        let prinmary_key_column_alias = column_config
+                            .column_alias
+                            .clone()
+                            .unwrap_or(primary_key_column_name.clone());
+                        columns_insert.insert(
+                            0,
+                            (primary_key_column_name, prinmary_key_column_alias.clone()),
+                        );
+                        columns.insert_str(
+                            0,
+                            format!("{prinmary_key_column_alias} TIMESTAMP,").as_str(),
+                        );
                     } else {
                         let primary_key_column_name = column_config.column_name.clone();
-                        let prinmary_key_column_alias = column_config.column_alias.clone().unwrap_or(primary_key_column_name.clone());
-                        columns_insert.push((primary_key_column_name, prinmary_key_column_alias.clone()));
+                        let prinmary_key_column_alias = column_config
+                            .column_alias
+                            .clone()
+                            .unwrap_or(primary_key_column_name.clone());
+                        columns_insert
+                            .push((primary_key_column_name, prinmary_key_column_alias.clone()));
                         let column_type = if column_config.column_type.is_some() {
                             column_config.column_type.unwrap().to_string()
                         } else {
                             value_type.clone()
                         };
-                        columns.push_str(format!("{prinmary_key_column_alias} {},", column_type).as_str());
+                        columns.push_str(
+                            format!("{prinmary_key_column_alias} {},", column_type).as_str(),
+                        );
                     }
                 }
                 // remove last char
                 columns.pop();
                 let tags = "`point_id` VARCHAR(2), `point_name` VARCHAR(2)";
-                let stable_sql = format!("create table if not exists `{}` ({}) tags ({}) COMMENT '{}'", stable_name, columns, tags, serde_json::to_string(&table_config).unwrap().replace("\"", "\\\""));
+                let stable_sql = format!(
+                    "create table if not exists `{}` ({}) tags ({}) COMMENT '{}'",
+                    stable_name,
+                    columns,
+                    tags,
+                    serde_json::to_string(&table_config)
+                        .unwrap()
+                        .replace("\"", "\\\"")
+                );
                 for i in 0..id_cv.len() {
                     let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
                     let code = id_code_map.get(&id);
@@ -406,7 +436,7 @@ fn handle_point_message<R: Read, W: Write>(
                         log::warn!("id: {} cannot get code", id);
                         continue;
                     }
-                    let mut child_table_name = stable_name.clone(); 
+                    let mut child_table_name = stable_name.clone();
                     child_table_name.push_str(format!("_{}", code.unwrap()).as_str());
                     let mut insert_sql = format!("insert into `{child_table_name}` ");
                     // let mut new_cv_vec = Vec::new();
@@ -418,16 +448,46 @@ fn handle_point_message<R: Read, W: Write>(
                     for (temp_name, temp_alias) in &columns_insert {
                         if temp_name == "received_time" {
                             // new_cv_vec.push(received_ts_cv.slice(i..i + 1).unwrap());
-                            values.push_str(format!("{},", received_ts_cv.slice(i..i + 1).unwrap().get(0).unwrap().into_value().to_sql_value()).as_str());
+                            values.push_str(
+                                format!(
+                                    "{},",
+                                    received_ts_cv
+                                        .slice(i..i + 1)
+                                        .unwrap()
+                                        .get(0)
+                                        .unwrap()
+                                        .into_value()
+                                        .to_sql_value()
+                                )
+                                .as_str(),
+                            );
                             // question_marks.push_str("?,");
                         } else if temp_name == "original_time" {
                             // new_cv_vec.push(server_ts_cv.slice(i..i + 1).unwrap());
                             // insert_sql.push_str(format!("{temp_alias},").as_str());
-                            values.push_str(format!("{},", server_ts_cv.slice(i..i + 1).unwrap().get(0).unwrap().into_value().to_sql_value()).as_str());
+                            values.push_str(
+                                format!(
+                                    "{},",
+                                    server_ts_cv
+                                        .slice(i..i + 1)
+                                        .unwrap()
+                                        .get(0)
+                                        .unwrap()
+                                        .into_value()
+                                        .to_sql_value()
+                                )
+                                .as_str(),
+                            );
                             // question_marks.push_str("?,");
                         } else if temp_name == "value" {
                             // new_cv_vec.push(value_cv.slice(i..i + 1).unwrap());
-                            let value_column = value_cv.slice(i..i + 1).unwrap().get(0).unwrap().into_value().to_sql_value();
+                            let value_column = value_cv
+                                .slice(i..i + 1)
+                                .unwrap()
+                                .get(0)
+                                .unwrap()
+                                .into_value()
+                                .to_sql_value();
                             value_cloumn_length = value_column.len();
                             values.push_str(format!("{value_column},").as_str());
                             value_cloumn_name = temp_alias;
@@ -435,7 +495,19 @@ fn handle_point_message<R: Read, W: Write>(
                             // question_marks.push_str("?,");
                         } else if temp_name == "status" {
                             // new_cv_vec.push(status_cv.slice(i..i + 1).unwrap());
-                            values.push_str(format!("{},", status_cv.slice(i..i + 1).unwrap().get(0).unwrap().into_value().to_sql_value()).as_str());
+                            values.push_str(
+                                format!(
+                                    "{},",
+                                    status_cv
+                                        .slice(i..i + 1)
+                                        .unwrap()
+                                        .get(0)
+                                        .unwrap()
+                                        .into_value()
+                                        .to_sql_value()
+                                )
+                                .as_str(),
+                            );
                             // insert_sql.push_str(format!("{temp_alias},").as_str());
                             // question_marks.push_str("?,");
                         }
@@ -445,8 +517,16 @@ fn handle_point_message<R: Read, W: Write>(
                     // question_marks.pop();
                     values.pop();
                     field_names.pop();
-                    let point_name = name_cv.slice(i..i+1).unwrap().get(0).unwrap().to_sql_value();
-                    insert_sql.push_str(format!(" USING `{stable_name}` TAGS (\"{id}\", {}) ", &point_name).as_str());
+                    let point_name = name_cv
+                        .slice(i..i + 1)
+                        .unwrap()
+                        .get(0)
+                        .unwrap()
+                        .to_sql_value();
+                    insert_sql.push_str(
+                        format!(" USING `{stable_name}` TAGS (\"{id}\", {}) ", &point_name)
+                            .as_str(),
+                    );
                     insert_sql.push_str(format!(" ({field_names}) VALUES ({})", values).as_str());
                     println!("insert sql: {}", insert_sql);
                     loop {
@@ -454,7 +534,7 @@ fn handle_point_message<R: Read, W: Write>(
                         match sql_res {
                             Ok(n) => {
                                 break;
-                            },
+                            }
                             Err(err) => {
                                 let errstr = err.to_string();
                                 log::debug!("error: {}", errstr);
@@ -474,7 +554,7 @@ fn handle_point_message<R: Read, W: Write>(
                                     //         return;
                                     //     }
                                     //     let mut need_add = true;
-                                    //     for column_config in &table_config.column_configs { 
+                                    //     for column_config in &table_config.column_configs {
                                     //         if get_real_column_name(column_config) == column_meta.field() {
                                     //             need_add = false;
                                     //             break;
@@ -491,22 +571,29 @@ fn handle_point_message<R: Read, W: Write>(
                                         let column_name = get_real_column_name(column_config);
                                         // alter stable column not supported by taosd
                                         // for old_column_config in &old_config.column_configs {
-                                            // if column_name == &old_column_config.column_name {
+                                        // if column_name == &old_column_config.column_name {
                                         //         if get_real_column_name(&old_column_config) != get_real_column_name(&column_config) {
                                         //             let modify_column_name_sql = format!("ALTER TABLE `{stable_name}` MODIFY")
                                         //         }
-                                            // }
                                         // }
-                                        let desc = taos_query::Queryable::describe(&taos, &stable_name).unwrap();
+                                        // }
+                                        let desc =
+                                            taos_query::Queryable::describe(&taos, &stable_name)
+                                                .unwrap();
                                         desc.into_iter().for_each(|column_meta| {
                                             if column_name == column_meta.field() {
                                                 need_add = false;
                                             }
                                         });
                                         if need_add {
-                                            let add_column_sql = format!("alter table `{stable_name}` ADD COLUMN {} {}", get_real_column_name(column_config), column_config.column_type.unwrap());
+                                            let add_column_sql = format!(
+                                                "alter table `{stable_name}` ADD COLUMN {} {}",
+                                                get_real_column_name(column_config),
+                                                column_config.column_type.unwrap()
+                                            );
                                             println!("add_column_sql:{}", add_column_sql);
-                                            taos_query::Queryable::exec(&taos, &add_column_sql).unwrap();
+                                            taos_query::Queryable::exec(&taos, &add_column_sql)
+                                                .unwrap();
                                         }
                                     }
 
@@ -526,7 +613,7 @@ fn handle_point_message<R: Read, W: Write>(
                                             } else if column_meta.field() == "point_name" && point_name.len() > column_meta.length() {
                                                 column_type = "tag";
                                                 length = point_name.len();
-                                            } else if (column_meta.ty == Ty::VarChar || column_meta.ty == Ty::NChar) 
+                                            } else if (column_meta.ty == Ty::VarChar || column_meta.ty == Ty::NChar)
                                                 && column_meta.field() == value_cloumn_name && value_cloumn_length > column_meta.length() {
                                                 column_type = "column";
                                                 length = value_cloumn_length;
@@ -546,9 +633,8 @@ fn handle_point_message<R: Read, W: Write>(
                                 } else {
                                     break;
                                 }
-                            },
+                            }
                         }
-                        
                     }
                 }
             }
@@ -561,7 +647,10 @@ fn handle_point_message<R: Read, W: Write>(
 
 #[inline]
 fn get_real_column_name(column_config: &ColumnConfig) -> &String {
-    &column_config.column_alias.as_ref().unwrap_or(&column_config.column_name)
+    &column_config
+        .column_alias
+        .as_ref()
+        .unwrap_or(&column_config.column_name)
 }
 
 #[cfg(not(target_os = "windows"))]

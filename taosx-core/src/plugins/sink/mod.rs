@@ -17,24 +17,27 @@ use std::{
     net::SocketAddr,
     str::FromStr,
     sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{AtomicUsize, Ordering},
         Arc,
     },
     task::Poll,
     time::Duration,
 };
 use taos::{
-    taos_query::common::Describe, AsyncBindable, AsyncFetchable, AsyncQueryable, Dsn, Itertools,
-    RawBlock, Stmt, Taos, TaosPool, Ty, Value,
+    taos_query::{common::Describe, Manager},
+    AsyncBindable, AsyncFetchable, AsyncQueryable, Dsn, Itertools, RawBlock, Stmt, Taos, TaosPool,
+    Ty, Value,
 };
-use tokio::sync::{mpsc::Sender, Mutex, OnceCell};
+use tokio::sync::{Mutex, Notify, OnceCell};
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, info, instrument, Instrument, Span};
 
 use crate::{ConnectorLicense, OPCConfig, Parser, Transferred};
 
 use super::runners::opc::{opc_config_blocking, ColumnConfig, OpcTableConfig};
+use super::*;
+use metrics::*;
 use taosx_ipc::{
     prelude::*,
     stream::{flat::FlatMessage, point::PointMessage},
@@ -58,7 +61,7 @@ async fn ipc_tcp_forward(
     task_id: i64,
 ) -> anyhow::Result<()> {
     use md5;
-    log::info!("token: {}", format!("{:x}", md5::compute(token.clone())));
+    tracing::info!("token: {}", format!("{:x}", md5::compute(token.clone())));
 
     let _ = cancel;
     use arrow_flight::{
@@ -83,7 +86,7 @@ async fn ipc_tcp_forward(
             // fut.poll_unpin(cx);
             let val = Arc::new(TimestampMillisecondArray::from_iter_values(vec![0, 1])) as ArrayRef;
             let item = RecordBatch::try_from_iter(vec![("ts", val)]).map_err(Into::into);
-            log::info!("{item:?}");
+            tracing::info!("{item:?}");
             std::task::Poll::Ready(Some(item))
         }
     }
@@ -119,7 +122,9 @@ async fn ipc_tcp_forward(
     let ipc_reader = tokio::task::spawn_blocking(move || IpcReader::new(reader_stream))
         .await?
         .context("Build IPC stream reader error")?;
-    let mut ipc_ack_writer = AckWriterBuilder::new(ipc_reader.ack()).open(&stream);
+    let ack = ipc_reader.ack();
+    let mut ipc_ack_writer =
+        tokio::task::spawn_blocking(move || AckWriterBuilder::new(ack).open(stream)).await?;
 
     let schema = ipc_reader.schema.clone();
     // dbg!(&schema);
@@ -131,11 +136,11 @@ async fn ipc_tcp_forward(
         while let Some(res) = batches.next().await {
             // dbg!(&res);
             if let Err(err) = sender.send(res.map_err(FlightError::from)) {
-                log::warn!("sender send error: {}", err.to_string());
+                tracing::warn!("sender send error: {}", err.to_string());
                 break;
             }
         }
-        log::info!("[task:{task_id}] stopped");
+        tracing::info!("[task:{task_id}] stopped");
     });
 
     struct IpcStream {
@@ -160,7 +165,7 @@ async fn ipc_tcp_forward(
             let c = self
                 .marker
                 .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            // log::info!("polled: {c} {cx:?}");
+            // tracing::info!("polled: {c} {cx:?}");
 
             if c % 2 == 0 {
                 // todo: why this is require?
@@ -186,9 +191,9 @@ async fn ipc_tcp_forward(
             Ok(channel) => break channel,
             Err(err) => {
                 retries += 1;
-                log::error!("Failed to establish connection: {}. Retrying...", err);
+                tracing::error!("Failed to establish connection: {}. Retrying...", err);
                 if retries >= MAX_RETRIES {
-                    log::error!("Max retries reached. Exiting...");
+                    tracing::error!("Max retries reached. Exiting...");
                     return Err(err);
                 }
                 tokio::time::sleep(RETRY_DELAY).await;
@@ -198,15 +203,23 @@ async fn ipc_tcp_forward(
     let mut client = FlightClient::new(channel);
     let _ = client
         .handshake(Bytes::from(token.as_bytes().to_vec()))
-        .await?;
+        .await
+        .map_err(|err| match err {
+            FlightError::Tonic(status) => anyhow::anyhow!("{}", status.message()),
+            err => anyhow::anyhow!("Handshake error: {err:#}"),
+        })?;
     // dbg!(res);
     client.add_header("x-task-id", &task_id.to_string())?;
     client.add_header("x-token", &token)?;
-    let mut stream = client.do_put(data).await.unwrap();
+    let mut stream = client.do_put(data).await.map_err(|err| match err {
+        FlightError::Arrow(err) => anyhow::anyhow!("IPC Arrow error: {err:#}"),
+        FlightError::Tonic(status) => anyhow::anyhow!("{}", status.message()),
+        err => anyhow::anyhow!("Put IPC stream error: {err:#}"),
+    })?;
 
     while let Some(res) = stream.next().await {
-        let _: PutResult = res?;
-        ipc_ack_writer.write_ok()?;
+        let _: PutResult = res.context("Got server response with error")?;
+        let _ = ipc_ack_writer.write_ok();
     }
 
     info!("[{task_id}] Putting stream finished");
@@ -219,8 +232,8 @@ async fn try_establish_channel(remote: String) -> anyhow::Result<Channel> {
     Ok(channel)
 }
 
-// #[instrument(skip_all)]
 #[framed]
+#[instrument(skip_all)]
 async fn ipc_tcp_read(
     client: String,
     pool: TaosPool,
@@ -236,7 +249,7 @@ async fn ipc_tcp_read(
     // let reader = stream.clone();
 
     info!(client, "Prepare IPC stream reader");
-    let reader_stream = stream.try_clone().unwrap();
+    let reader_stream = stream.try_clone().context("Clone tcp stream error")?;
     let ipc_reader = tokio::task::spawn_blocking(move || {
         IpcReader::new(reader_stream).context("IPC reading error")
     })
@@ -261,15 +274,15 @@ async fn ipc_tcp_read(
         transferred,
     )
     .await?;
-    log::info!("IPC stopped");
+    tracing::info!("IPC stream processed");
     Ok(())
     // tokio::select! {
     // _ = cancel.cancelled() => {
-    //     log::debug!("cancel IPC worker");
+    //     tracing::debug!("cancel IPC worker");
     //     Ok(())
     // },
     // done = ipc_process(client, pool, ipc_reader, ipc_ack_writer, lock, config, parser, connector, transferred) => {
-    //     log::info!("IPC stopped");
+    //     tracing::info!("IPC stopped");
     //     done
     // }
     // }
@@ -305,30 +318,23 @@ struct LushMessageTagModify {
 }
 
 // #[instrument(skip(taos, record, names, marks))]
+#[instrument(skip_all)]
 async fn consume_lush_record(
-    taos: &Taos,
+    pool: &TaosPool,
+    taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
     stmt: &mut Stmt,
     record: LushMessage,
     columns: &Vec<String>,
     names: &str,
     marks: &str,
     records: &mut usize,
-    license: Option<&ConnectorLicense>,
+    _license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
 ) -> anyhow::Result<()> {
-    if let Some((license, transferred)) = license.zip(transferred) {
-        let used = transferred.records.load(Ordering::SeqCst);
-        if used > license.number as _ {
-            anyhow::bail!(
-                "Connector {} out of number: {}/{}",
-                license.r#type,
-                used,
-                license.number
-            );
-        }
-    }
+    counter!(RECORD_BATCHES, 1);
     match record {
         LushMessage::Tables(tables) => {
+            let taos = taos.as_ref().unwrap();
             // let mut sql = format!("CREATE TABLE ");
             // map: <stable_name, (Vec<sql, sql_overflow?>, Vec<tag_name, tag_value>)>
             let mut create_sql_map: HashMap<String, LushMessageTagModify> = HashMap::new();
@@ -345,7 +351,6 @@ async fn consume_lush_record(
                 }
                 query_tags_sql.pop();
                 query_tags_sql.push_str(format!(" from `{table_name}`").as_str());
-                log::debug!("query_tags_sql: {query_tags_sql}");
                 match taos.query(query_tags_sql).await {
                     Ok(mut rs) => {
                         let mut rows = rs.rows();
@@ -355,7 +360,7 @@ async fn consume_lush_record(
                                 if tagname == next.0
                                     && tagvalue.to_sql_value() != next.1.to_sql_value()
                                 {
-                                    log::info!(
+                                    tracing::info!(
                                         "table {table_name} tag value not match, new: {}, old:{}",
                                         tagvalue.to_sql_value(),
                                         next.1.to_sql_value()
@@ -364,14 +369,14 @@ async fn consume_lush_record(
                                         "alter table `{table_name}` set TAG `{tagname}`={}",
                                         tagvalue.to_sql_value()
                                     );
-                                    log::info!("alter_set_sql: {alter_set_sql}");
+                                    tracing::info!("alter_set_sql: {alter_set_sql}");
                                     taos.exec(alter_set_sql).await?;
                                 }
                             }
                         }
                     }
                     Err(err) => {
-                        log::debug!("query_tags_sql err: {}", err.to_string());
+                        tracing::trace!("query_tags_sql err: {}", err.to_string());
                         if err.to_string().contains("0x2603") || err.to_string().contains("0x2662")
                         {
                             // table not exists
@@ -401,6 +406,7 @@ async fn consume_lush_record(
                                     }
                                     if !insert_done {
                                         // init sql shouldn't overflow
+                                        // counter!(CHILD_TABLE_CREATED, 1);
                                         tag_modify.sqls.push((table_sql, false));
                                     }
                                 } else {
@@ -410,6 +416,7 @@ async fn consume_lush_record(
                                         sqls: sql_vec,
                                         tags: table.tags().clone().unwrap(),
                                     };
+                                    // counter!(CHILD_TABLE_CREATED, 1);
                                     create_sql_map.insert(stable_name.clone(), tag_modify_message);
                                 }
                             }
@@ -471,30 +478,36 @@ async fn consume_lush_record(
         LushMessage::Insert(record) => {
             // let guard = mutex.lock().await;
             for record in record {
+                if record.num_rows() == 0 {
+                    continue;
+                }
+                counter!(BATCH_RECORDS, record.num_rows() as u64);
                 *records += record.num_rows();
                 let data = record.to_column_views();
                 // RawBlock
                 // taos.write_raw_block()
-                // dbg!(&map_data);
                 let sqls = record.generate_insert_sql_from_tablename(&data, columns);
                 if let Some((sqls, field_map)) = sqls {
                     for sql in sqls {
-                        log::debug!("insert sql: {sql}");
+                        tracing::debug!("insert sql: {sql}");
                         let mut retry = 0;
                         let mut count = 0;
                         loop {
-                            let res = taos.exec(sql.clone()).await;
+                            let res = taos.as_ref().unwrap().exec(sql.clone()).await;
                             match res {
                                 Ok(num) => {
                                     count = count + num;
+                                    counter!(INSERT_SQLS, 1);
+                                    counter!(RECORDS, num as u64);
                                     break;
                                 }
                                 Err(err) => {
                                     if retry > 2 {
-                                        log::warn!("retry 3 faild continue: {err:#}");
+                                        tracing::warn!("retry 3 faild continue: {err:#}");
+                                        counter!(INSERT_SQL_FAILS, 1);
                                         break;
                                     }
-                                    log::error!("written err cause: {err:#}");
+                                    tracing::error!("written err cause: {err:#}");
                                     let errstr = err.to_string();
                                     if errstr.contains("[0x2653]") {
                                         // column or tag length not enough
@@ -506,7 +519,8 @@ async fn consume_lush_record(
                                             break;
                                         }
                                         let stable_name = stable_name.unwrap();
-                                        let desc = taos.describe(&stable_name).await?;
+                                        let desc =
+                                            taos.as_ref().unwrap().describe(&stable_name).await?;
                                         let alter_sqls = generate_alter_sql_diff_desc(
                                             &stable_name,
                                             &desc,
@@ -517,11 +531,15 @@ async fn consume_lush_record(
                                             let alter_sqls = alter_sqls.unwrap();
                                             for alter_sql in alter_sqls {
                                                 tracing::info!("alter sql: {alter_sql}");
-                                                if let Err(err) = taos.exec(alter_sql).await {
+                                                if let Err(err) =
+                                                    taos.as_ref().unwrap().exec(alter_sql).await
+                                                {
                                                     tracing::info!("alter sql error: {err:#}");
                                                 }
                                             }
                                         }
+                                    } else if errstr.contains("[0x0E") {
+                                        taos.replace(pool.get().await?);
                                     }
                                     retry += 1;
                                 }
@@ -549,6 +567,7 @@ async fn consume_lush_record(
             // drop(guard);
         }
     }
+    info!("consume lush record done");
     Ok(())
 }
 
@@ -559,6 +578,7 @@ struct ModifyStructForPointMessage {
     value_cloumn_length: usize,
 }
 
+#[instrument(skip_all)]
 async fn consume_point_record(
     taos: &Taos,
     _: &mut Stmt,
@@ -567,6 +587,7 @@ async fn consume_point_record(
     config: &OpcTableConfig,
 ) -> anyhow::Result<usize> {
     let mut points = 0;
+    metrics::counter!(RECORD_BATCHES, 1);
     for message in record.records() {
         let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
         // process id, name, ts, value, status
@@ -662,10 +683,11 @@ async fn consume_point_record(
         > = HashMap::new();
         let mut child_table_create_sql_map = HashMap::new();
         for i in 0..id_cv.len() {
+            metrics::counter!(BATCH_RECORDS, 1);
             let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
             let code = id_code_map.get(&id);
             if code.is_none() {
-                log::warn!("id: {} cannot get code", id);
+                tracing::warn!("id: {} cannot get code", id);
                 continue;
             }
             let point_config = code.unwrap();
@@ -873,23 +895,27 @@ async fn consume_point_record(
         }
         for (stable_name, sql_vec) in stable_insert_map {
             for (insert_sql, _, value_column_type, modify_message) in sql_vec {
-                debug!("point message insert sql: {}", insert_sql);
+                debug!("point message insert sql len: {}", insert_sql.len());
                 let mut retry = 0;
                 'outer: loop {
                     if retry >= 3 {
-                        log::warn!("sql error cannot be solved, break;");
+                        tracing::warn!("sql error cannot be solved, break;");
+                        counter!(INSERT_SQL_FAILS, 1);
                         break;
                     }
                     let sql_res = taos.exec(&insert_sql).await;
                     match sql_res {
                         Ok(n) => {
                             *count += n;
+                            counter!(INSERT_SQLS, 1);
+                            counter!(RECORDS, n as u64);
+                            counter!(POINTS, n as u64 * columns_insert.len() as u64);
                             points += n;
                             break;
                         }
                         Err(err) => {
                             let errstr = err.to_string();
-                            log::warn!("error: {}", errstr);
+                            tracing::warn!("error: {}", errstr);
                             if errstr.contains("[0x2603]") || errstr.contains("0x0200") {
                                 // stable not exists
                                 // should be some
@@ -911,7 +937,7 @@ async fn consume_point_record(
                                 );
                                 tracing::info!("create stable sql: {}", &stable_sql);
                                 match taos.exec(&stable_sql).await {
-                                    Ok(_) => (),
+                                    Ok(_n) => (), //counter!(STABLE_CREATED, n as u64),
                                     Err(err) => {
                                         if err.to_string().contains("0x032C") {
                                             // Object is creating, maybe should ignore
@@ -938,7 +964,7 @@ async fn consume_point_record(
                                 for create_child_sql in child_table_create_sqls {
                                     tracing::info!("create child sql: {create_child_sql}");
                                     match taos.exec(&create_child_sql).await {
-                                        Ok(_) => (),
+                                        Ok(_n) => (), // counter!(CHILD_TABLE_CREATED, n as u64),
                                         Err(err) => {
                                             if err.to_string().contains("0x032C") {
                                                 // Object is creating, maybe should ignore
@@ -966,7 +992,7 @@ async fn consume_point_record(
                                         if column_config.column_type.is_none() {
                                             // shouldn't happen if normal
                                             // encounter when rename value column
-                                            log::error!("column {} column_type is error, maybe stable set error", column_real_name);
+                                            tracing::error!("column {} column_type is error, maybe stable set error", column_real_name);
                                             break 'outer;
                                         }
                                         let add_column_sql = format!(
@@ -974,7 +1000,7 @@ async fn consume_point_record(
                                             column_real_name,
                                             column_config.column_type.unwrap()
                                         );
-                                        log::info!("add_column_sql:{}", add_column_sql);
+                                        tracing::info!("add_column_sql:{}", add_column_sql);
                                         taos.exec(&add_column_sql).await?;
                                     }
                                 }
@@ -1000,18 +1026,18 @@ async fn consume_point_record(
                                     if sqls.is_some() {
                                         let sqls = sqls.unwrap();
                                         for alter_sql in sqls {
-                                            log::info!("alter table sql: {alter_sql}");
+                                            tracing::info!("alter table sql: {alter_sql}");
                                             match taos.exec(alter_sql).await {
                                                 Ok(_) => (),
                                                 Err(err) => {
                                                     if err.to_string().contains("0x0369") {
                                                         // Tag already exists occur when concurrent exec same alter
-                                                        log::warn!(
+                                                        tracing::warn!(
                                                             "alter table err: {}, will be ignored",
                                                             err.to_string()
                                                         );
                                                     } else {
-                                                        log::warn!(
+                                                        tracing::warn!(
                                                             "alter table err: {}",
                                                             err.to_string()
                                                         );
@@ -1056,7 +1082,7 @@ async fn consume_point_record(
                                 if sqls.is_some() {
                                     let sqls = sqls.unwrap();
                                     for sql in sqls {
-                                        log::info!("add execute sql: {}", &sql);
+                                        tracing::info!("add execute sql: {}", &sql);
                                         taos.exec(sql)
                                             .await
                                             .context("Writing point stream error")?;
@@ -1074,7 +1100,7 @@ async fn consume_point_record(
                                             column_meta.ty(),
                                             modify_message.value_cloumn_length,
                                         );
-                                        log::info!("add execute sql: {}", &sql);
+                                        tracing::info!("add execute sql: {}", &sql);
                                         taos.exec(sql).await.context(
                                             "Modify column length error while writing point stream",
                                         )?;
@@ -1125,6 +1151,7 @@ async fn consume_flat_record(
     let mut max_lengths = HashMap::new();
 
     for message in record.records() {
+        counter!(RECORD_BATCHES, 1);
         let batch = message.record();
         if let Some(parser) = parser {
             let batch = parser.parse_message_from_records(batch)?;
@@ -1137,6 +1164,7 @@ async fn consume_flat_record(
                         if records.records.num_rows() == 0 {
                             continue;
                         }
+                        counter!(BATCH_RECORDS, 1);
                         // dbg!(&records);
 
                         if records.records.column(0).null_count() > 0 {
@@ -1210,80 +1238,95 @@ async fn consume_flat_record(
                                                             .stables
                                                             .fetch_add(1, Ordering::SeqCst);
                                                     }
-                                                    _taos.exec(&sql).await?;
+                                                    match _taos.exec(&sql).await {
+                                                        Ok(_n) => (), // counter!(STABLE_CREATED, n as u64),
+                                                        Err(err) => return Err(err)?,
+                                                    }
                                                     let sql = records.table_sql();
 
                                                     loop {
-                                                        if let Err(err) = _taos.exec(&sql).await {
-                                                            if err.to_string().contains("[0x2605]")
-                                                            {
-                                                                let table = records
-                                                                    .table
-                                                                    .using
-                                                                    .as_deref()
-                                                                    .unwrap();
-                                                                let desc = _taos
-                                                                    .describe(table)
-                                                                    .await
-                                                                    .unwrap();
-                                                                for f in desc.iter().filter(|f| {
-                                                                    f.is_tag()
-                                                                        && f.ty().is_var_type()
-                                                                }) {
-                                                                    let sql = format!(
-                                                                        "alter table `{table}` modify tag `{}` {}({})",
-                                                                        f.field(),
-                                                                        f.ty(),
-                                                                        f.length() * 2
-                                                                    );
-                                                                    _taos.exec(&sql).await.unwrap();
-                                                                    continue;
-                                                                }
-                                                            } else if err
-                                                                .to_string()
-                                                                .contains("[0x260D]")
-                                                            {
-                                                                // Tags number not matched
-                                                                // add Tag
-                                                                let table = records
-                                                                    .table
-                                                                    .using
-                                                                    .as_deref()
-                                                                    .unwrap();
-                                                                let tags =
-                                                                    records.tag_meta().unwrap();
-                                                                for tag_meta in tags {
-                                                                    let mut need_add = true;
-                                                                    let res = _taos
+                                                        match _taos.exec(&sql).await {
+                                                            Ok(_n) => (), // counter!(CHILD_TABLE_CREATED,n as u64),
+                                                            Err(err) => {
+                                                                if err
+                                                                    .to_string()
+                                                                    .contains("[0x2605]")
+                                                                {
+                                                                    let table = records
+                                                                        .table
+                                                                        .using
+                                                                        .as_deref()
+                                                                        .unwrap();
+                                                                    let desc = _taos
                                                                         .describe(table)
                                                                         .await
                                                                         .unwrap();
-                                                                    res.into_iter().for_each(
-                                                                        |tag_added| {
-                                                                            if tag_added.is_tag()
-                                                                                && tag_added.field()
-                                                                                    == tag_meta
-                                                                                        .field()
-                                                                            {
-                                                                                need_add = false;
-                                                                            }
-                                                                        },
-                                                                    );
-                                                                    if need_add {
-                                                                        let add_tag_sql = format!(
-                                                                            "alter table `{table}` add tag `{}` {}",
-                                                                            tag_meta.field(),
-                                                                            parser.get_ipcdatatype_from_parser(tag_meta.field()).unwrap().sql_repr()
-                                                                            );
-                                                                        log::info!("table {table} add tag sql: {add_tag_sql}");
-                                                                        _taos
-                                                                            .exec(add_tag_sql)
+                                                                    for f in
+                                                                        desc.iter().filter(|f| {
+                                                                            f.is_tag()
+                                                                                && f.ty()
+                                                                                    .is_var_type()
+                                                                        })
+                                                                    {
+                                                                        let sql = format!(
+                                                                            "alter table `{table}` modify tag `{}` {}({})",
+                                                                            f.field(),
+                                                                            f.ty(),
+                                                                            f.length() * 2
+                                                                        );
+                                                                        let _ =
+                                                                            _taos.exec(&sql).await;
+                                                                        continue;
+                                                                    }
+                                                                } else if err
+                                                                    .to_string()
+                                                                    .contains("[0x260D]")
+                                                                {
+                                                                    // Tags number not matched
+                                                                    // add Tag
+                                                                    let table = records
+                                                                        .table
+                                                                        .using
+                                                                        .as_deref()
+                                                                        .unwrap();
+                                                                    let tags =
+                                                                        records.tag_meta().unwrap();
+                                                                    for tag_meta in tags {
+                                                                        let mut need_add = true;
+                                                                        let res = _taos
+                                                                            .describe(table)
                                                                             .await
                                                                             .unwrap();
+                                                                        res.into_iter().for_each(
+                                                                            |tag_added| {
+                                                                                if tag_added
+                                                                                    .is_tag()
+                                                                                    && tag_added
+                                                                                        .field()
+                                                                                        == tag_meta
+                                                                                            .field()
+                                                                                {
+                                                                                    need_add =
+                                                                                        false;
+                                                                                }
+                                                                            },
+                                                                        );
+                                                                        if need_add {
+                                                                            let add_tag_sql = format!(
+                                                                                "alter table `{table}` add tag `{}` {}",
+                                                                                tag_meta.field(),
+                                                                                parser.get_ipcdatatype_from_parser(tag_meta.field()).unwrap().sql_repr()
+                                                                                );
+                                                                            tracing::info!("table {table} add tag sql: {add_tag_sql}");
+                                                                            _taos
+                                                                                .exec(add_tag_sql)
+                                                                                .await
+                                                                                .unwrap();
+                                                                        }
                                                                     }
+                                                                } else {
+                                                                    Err(err)?;
                                                                 }
-                                                            } else {
-                                                                Err(err)?;
                                                             }
                                                         }
                                                         break;
@@ -1305,50 +1348,58 @@ async fn consume_flat_record(
                                 }
                             }
                             if let Err(err) = _taos.write_raw_block(&raw).await {
-                                // dbg!(&err);
                                 let code = err.code();
                                 let err_str = err.to_string();
                                 if err_str.contains("[0x2603]") || err_str.contains("[0x0618]") {
                                     if let Some(sql) = records.stable_sql() {
                                         // dbg!(&sql);
-                                        if let Err(err) = _taos.exec(&sql).await {
-                                            if err.to_string().contains("0x032C") {
-                                                // Object is creating
-                                                tracing::warn!(
-                                                    "error code [0x032C] encountered, ignore"
-                                                );
-                                                continue;
-                                            } else {
-                                                anyhow::bail!(
-                                                    "create stable sql err: {}",
-                                                    err.to_string()
-                                                );
+                                        match _taos.exec(&sql).await {
+                                            Ok(_n) => (), // counter!(STABLE_CREATED, n as u64),
+                                            Err(err) => {
+                                                if err.to_string().contains("0x032C") {
+                                                    // Object is creating
+                                                    tracing::warn!(
+                                                        "error code [0x032C] encountered, ignore"
+                                                    );
+                                                    continue;
+                                                } else {
+                                                    anyhow::bail!(
+                                                        "create stable sql err: {}",
+                                                        err.to_string()
+                                                    );
+                                                }
                                             }
                                         }
+
                                         let sql = records.table_sql();
 
                                         loop {
-                                            if let Err(err) = _taos.exec(&sql).await {
-                                                if err.to_string().contains("[0x2605]") {
-                                                    let table =
-                                                        records.table.using.as_deref().unwrap();
-                                                    let desc = _taos.describe(table).await.unwrap();
-                                                    for f in desc.iter().filter(|f| {
-                                                        f.is_tag() && f.ty().is_var_type()
-                                                    }) {
-                                                        let sql = format!(
-                                                        "alter table `{table}` modify tag `{}` {}({})",
-                                                        f.field(),
-                                                        f.ty(),
-                                                        f.length() * 2
-                                                        );
-                                                        _taos.exec(&sql).await?;
-                                                        continue;
+                                            match _taos.exec(&sql).await {
+                                                Ok(_n) => (), // counter!(CHILD_TABLE_CREATED, n as u64),
+                                                Err(err) => {
+                                                    if err.to_string().contains("[0x2605]") {
+                                                        let table =
+                                                            records.table.using.as_deref().unwrap();
+                                                        let desc =
+                                                            _taos.describe(table).await.unwrap();
+                                                        for f in desc.iter().filter(|f| {
+                                                            f.is_tag() && f.ty().is_var_type()
+                                                        }) {
+                                                            let sql = format!(
+                                                            "alter table `{table}` modify tag `{}` {}({})",
+                                                            f.field(),
+                                                            f.ty(),
+                                                            f.length() * 2
+                                                            );
+                                                            _taos.exec(&sql).await?;
+                                                            continue;
+                                                        }
+                                                    } else {
+                                                        Err(err)?;
                                                     }
-                                                } else {
-                                                    Err(err)?;
                                                 }
                                             }
+
                                             if let Some(transferred) = transferred {
                                                 transferred.tables.fetch_add(1, Ordering::SeqCst);
                                             }
@@ -1410,7 +1461,7 @@ async fn consume_flat_record(
                                                 &column_name,
                                                 ipc_data_type.unwrap(),
                                             );
-                                            log::info!("alter table column sql: {}", sql);
+                                            tracing::info!("alter table column sql: {}", sql);
                                             _taos.exec(&sql).await?;
                                         }
                                         index += 1;
@@ -1422,12 +1473,21 @@ async fn consume_flat_record(
                                 //     break;
                                 } else {
                                     error!(table = table_name, code = %code, "write {} records failed: {err:?}", records.records.num_rows());
+                                    counter!(WRITE_RAW_BLOCK_FAILS, 1);
+                                    counter!(RECORD_FAILS, raw.nrows() as u64);
+                                    counter!(
+                                        POINT_FAILS,
+                                        (raw.nrows() * raw.column_views().len()) as u64
+                                    );
                                     Err(err)?;
                                     break;
                                 }
                                 continue;
                             } else {
                                 *count += raw.nrows();
+                                counter!(WRITE_RAW_BLOCKS, 1);
+                                counter!(RECORDS, raw.nrows() as u64);
+                                counter!(POINTS, (raw.nrows() * raw.column_views().len()) as u64);
                                 if let Some(transferred) = transferred {
                                     transferred
                                         .records
@@ -1455,13 +1515,15 @@ async fn consume_flat_record(
 }
 
 // #[instrument(skip_all)]
-async fn ipc_lush_stream_reader<R: Read, W: Write>(
-    taos: &Taos,
+#[instrument(skip_all)]
+async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
+    pool: &TaosPool,
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
     license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
 ) -> anyhow::Result<()> {
+    let taos = pool.get().await?;
     let columns = ipc_reader
         .columns()
         .into_iter()
@@ -1469,63 +1531,74 @@ async fn ipc_lush_stream_reader<R: Read, W: Write>(
         .collect_vec();
     let names = columns.iter().map(|n| format!("`{n}`")).join(",");
     let marks = std::iter::repeat('?').take(columns.len()).join(",");
-    let mut stmt = Stmt::init(taos).await?;
+    let mut stmt = Stmt::init(&taos).await?;
 
     let mut count = 0;
-    for record in ipc_reader {
-        if let Ok(record) = record {
-            let record = *Box::<dyn Any>::downcast::<LushMessage>(unsafe {
-                std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
-            })
-            .unwrap();
-            let last = count;
-            let res = consume_lush_record(
-                &taos,
-                &mut stmt,
-                record,
-                &columns,
-                &names,
-                &marks,
-                &mut count,
-                license,
-                transferred,
-            )
-            .await;
-            if let Err(err) = res {
-                let written = count - last;
-                let _ = ipc_ack_writer.ack(LushAck {
-                    code: 0xFFFF,
-                    message: Some(err.to_string()),
+    let mut stream = ipc_reader.into_stream();
+
+    let mut batches = 0;
+    static mut ACKS: AtomicUsize = AtomicUsize::new(0);
+    let mut taos = Some(taos);
+    while let Some(record) = stream.try_next().await.context("next item error")? {
+        let record = *Box::<dyn Any>::downcast::<LushMessage>(unsafe {
+            std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
+        })
+        .unwrap();
+
+        let last = count;
+        if let Err(err) = consume_lush_record(
+            pool,
+            &mut taos,
+            &mut stmt,
+            record,
+            &columns,
+            &names,
+            &marks,
+            &mut count,
+            license,
+            transferred,
+        )
+        .in_current_span()
+        .await
+        {
+            tracing::error!("write batch {batches} error: {err:#}");
+            let written = count - last;
+            let _ = ipc_ack_writer.ack(LushAck {
+                code: 0xFFFF,
+                message: Some(err.to_string()),
+                context: Some(
+                    json!({
+                        "stream": "flat",
+                        "written":  written,
+                    })
+                    .to_string(),
+                ),
+            });
+        } else {
+            tracing::info!("ack");
+            let _ = ipc_ack_writer
+                .ack(LushAck {
+                    code: 0,
+                    message: None,
                     context: Some(
                         json!({
-                            "stream": "lush",
-                            "written":  written,
+                            "stream": "flat",
+                            "written":  count - last,
                         })
                         .to_string(),
                     ),
-                });
-            } else {
-                let _ = ipc_ack_writer
-                    .ack(LushAck {
-                        code: 0,
-                        message: None,
-                        context: Some(
-                            json!({
-                                "stream": "lush",
-                                "written":  count - last,
-                            })
-                            .to_string(),
-                        ),
-                    })
-                    .context("write ack error");
-            }
+                })
+                .context("write ack error");
+            tracing::info!(acks = unsafe { ACKS.load(Ordering::SeqCst) }, "ack done");
         }
+        unsafe { ACKS.fetch_add(1, Ordering::SeqCst) };
+        batches += 1;
     }
-    info!("Written {count} rows");
+    println!("finished, totally {count} rows");
     Ok(())
 }
 
-// #[instrument(skip_all)]
+#[instrument(skip_all)]
 async fn ipc_point_reader<R: Read, W: Write>(
     taos: &Taos,
     ipc_reader: IpcReader<R>,
@@ -1553,51 +1626,28 @@ async fn ipc_point_reader<R: Read, W: Write>(
                 std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
             })
             .unwrap();
-            let last = count;
-            let res = consume_point_record(
+            let n = consume_point_record(
                 taos,
                 &mut stmt,
                 &record,
                 &mut count,
                 config.as_ref().unwrap(),
             )
-            .await;
+            .await?;
 
-            if let Err(err) = res {
-                let written = count - last;
-                let _ = ipc_ack_writer.ack(LushAck {
-                    code: 0xFFFF,
-                    message: Some(err.to_string()),
-                    context: Some(
-                        json!({
-                            "stream": "point",
-                            "written":  written,
-                        })
-                        .to_string(),
-                    ),
-                });
-            } else {
-                let _ = ipc_ack_writer
-                    .ack(LushAck {
-                        code: 0,
-                        message: None,
-                        context: Some(
-                            json!({
-                                "stream": "point",
-                                "written":  count - last,
-                            })
-                            .to_string(),
-                        ),
-                    })
-                    .context("write ack error");
+            ipc_ack_writer.write_ok()?;
+
+            if let Some(transferred) = transferred {
+                transferred.points.fetch_add(n as _, Ordering::SeqCst);
             }
         }
     }
-    info!("Written {count} rows");
+    println!("finished, totally {count} rows");
     Ok(())
 }
 
-#[instrument(skip_all, fields(stream = "flat"))]
+const IPC_STREAM_RECORDS: &str = "ipc.stream.records";
+#[instrument(skip_all, fields(ipc.stream.item = "flat", ipc.stream.records = 0, ipc.stream.batches = 0))]
 async fn ipc_flat_stream_reader<R: Read, W: Write>(
     taos: &Taos,
     ipc_reader: IpcReader<R>,
@@ -1607,46 +1657,59 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
     transferred: Option<&Transferred>,
 ) -> anyhow::Result<()> {
     let mut count = 0;
-    for record in ipc_reader {
-        if let Ok(record) = record {
-            let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
-                std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
-            })
-            .unwrap();
-            let last = count;
-            if let Err(err) =
-                consume_flat_record(&taos, &record, &mut count, parser, license, transferred).await
-            {
-                let written = count - last;
-                let _ = ipc_ack_writer.ack(LushAck {
-                    code: 0xFFFF,
-                    message: Some(err.to_string()),
+    let mut batches = 0;
+    let mut stream = futures::stream::iter(ipc_reader).inspect_err(|err| {
+        tracing::warn!("Receive IPC item error: {err:#}");
+    });
+    while let Some(record) = stream.try_next().await? {
+        // if let Ok(record) = record {
+        batches += 1;
+        let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
+            std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
+        })
+        .unwrap();
+        let last = count;
+        if let Err(err) =
+            consume_flat_record(&taos, &record, &mut count, parser, license, transferred).await
+        {
+            tracing::error!("write batch {batches} error: {err:#}");
+            let written = count - last;
+            let _ = ipc_ack_writer.ack(LushAck {
+                code: 0xFFFF,
+                message: Some(err.to_string()),
+                context: Some(
+                    json!({
+                        "stream": "flat",
+                        "written":  written,
+                    })
+                    .to_string(),
+                ),
+            });
+        } else {
+            let _ = ipc_ack_writer
+                .ack(LushAck {
+                    code: 0,
+                    message: None,
                     context: Some(
                         json!({
                             "stream": "flat",
-                            "written":  written,
+                            "written":  count - last,
                         })
                         .to_string(),
                     ),
-                });
-            } else {
-                let _ = ipc_ack_writer
-                    .ack(LushAck {
-                        code: 0,
-                        message: None,
-                        context: Some(
-                            json!({
-                                "stream": "flat",
-                                "written":  count - last,
-                            })
-                            .to_string(),
-                        ),
-                    })
-                    .context("write ack error");
-            }
+                })
+                .context("write ack error");
         }
     }
-    info!("IPC processing done, written totally {count} records");
+    metrics::counter!("ipc.stream.records", count as u64);
+    metrics::counter!("ipc.stream.batches", batches as u64);
+
+    tracing::Span::current()
+        .record(IPC_STREAM_RECORDS, count)
+        .record("ipc.stream.batches", batches)
+        .in_scope(|| {
+            info!("IPC processing done, written totally {count} records");
+        });
     println!("Flat stream writing finished, totally {count} rows");
     Ok(())
 }
@@ -1718,7 +1781,7 @@ pub fn generate_alter_sql_diff_desc(
 
 #[framed]
 #[instrument(skip_all, fields(client, connector))]
-async fn ipc_process<R: Read, W: Write>(
+async fn ipc_process<R: Read + Send + 'static, W: Write>(
     client: String,
     pool: TaosPool,
     ipc_reader: IpcReader<R>,
@@ -1789,7 +1852,7 @@ async fn ipc_process<R: Read, W: Write>(
         }
         StreamType::Lush => {
             ipc_lush_stream_reader(
-                &taos,
+                &pool,
                 ipc_reader,
                 ipc_ack_writer,
                 license.as_ref(),
@@ -1834,7 +1897,7 @@ async fn handle_lush_message_init(
                 );
                 if sql.is_some() {
                     for sql in sql.unwrap() {
-                        log::info!("alter table sql: {}", sql.clone());
+                        tracing::info!("alter table sql: {}", sql.clone());
                         taos.exec(sql).await?;
                     }
                 }
@@ -1842,14 +1905,14 @@ async fn handle_lush_message_init(
                     generate_alter_sql_diff_desc(stable_name, &desc, init.tags().as_ref(), true);
                 if sql.is_some() {
                     for sql in sql.unwrap() {
-                        log::info!("alter table sql: {}", sql.clone());
+                        tracing::info!("alter table sql: {}", sql.clone());
                         taos.exec(sql).await?;
                     }
                 }
                 break;
             }
             Err(err) => {
-                log::warn!("describe failed: {}", err.to_string());
+                tracing::warn!("describe failed: {}", err.to_string());
                 // create table
                 info!("create sql: {sql}");
                 let res: Result<usize, taos::Error> = taos.exec(&sql).await;
@@ -1860,6 +1923,7 @@ async fn handle_lush_message_init(
                         break;
                     }
                 } else {
+                    // metrics::counter!(STABLE_CREATED, 1);
                     break;
                 }
             }
@@ -1870,7 +1934,7 @@ async fn handle_lush_message_init(
 
 #[allow(dead_code)]
 pub struct IpcStreamWorker<'a> {
-    taos: &'a Taos,
+    pool: &'a TaosPool,
     parser: IpcParser,
     lock: Arc<Mutex<()>>,
     task: Option<i64>,
@@ -1879,6 +1943,7 @@ pub struct IpcStreamWorker<'a> {
     opc_table_config: OnceCell<OpcTableConfig>,
     license: Option<&'a ConnectorLicense>,
     transferred: Option<&'a Transferred>,
+    span: tracing::Span,
     // stmt: Arc<UnsafeCell<Stmt>>,
 }
 
@@ -1887,23 +1952,25 @@ unsafe impl<'a> Sync for IpcStreamWorker<'a> {}
 
 impl<'a> IpcStreamWorker<'a> {
     pub fn new(
-        taos: &'a Taos,
+        pool: &'a TaosPool,
         from: Dsn,
         lock: Arc<Mutex<()>>,
         schema: Arc<Schema>,
         license: Option<&'a ConnectorLicense>,
         transferred: Option<&'a Transferred>,
+        span: tracing::Span,
         // license: Option<>
     ) -> anyhow::Result<Self> {
         let config = if from.driver.starts_with("opc") {
-            Some(opc_config_blocking(taos, &from, 1)?)
+            let taos = futures::executor::block_on(pool.get())?;
+            Some(opc_config_blocking(&taos, &from, 1)?)
         } else {
             None
         };
 
         // let stmt = Stmt::init(&taos)?;
         Ok(Self {
-            taos,
+            pool,
             from,
             parser: IpcParser::new(schema),
             lock: lock,
@@ -1912,6 +1979,7 @@ impl<'a> IpcStreamWorker<'a> {
             opc_table_config: OnceCell::const_new(),
             license,
             transferred, // stmt: Arc::new(UnsafeCell::new(stmt)),
+            span,
         })
     }
 
@@ -1920,16 +1988,18 @@ impl<'a> IpcStreamWorker<'a> {
         self
     }
 
+    #[instrument(skip_all)]
     pub async fn process_record(
         &self,
         stmt: &mut Stmt,
         record: RecordBatch,
         parser: Option<&Parser>,
     ) -> anyhow::Result<usize> {
+        let taos = self.pool.get().await?;
         if let Some(sql) = self.parser.metadata().init_sql_string() {
             let guard = self.lock.lock().await;
             let init = self.parser.metadata.init().unwrap();
-            handle_lush_message_init(init, self.taos, &sql).await?;
+            handle_lush_message_init(init, &taos, &sql).await?;
             // let max_retries = 10;
             // let mut i = 0;
             // loop {
@@ -1960,7 +2030,7 @@ impl<'a> IpcStreamWorker<'a> {
                 })
                 .unwrap();
                 consume_flat_record(
-                    &self.taos,
+                    &taos,
                     &record,
                     &mut count,
                     parser, // todo: license
@@ -1987,9 +2057,11 @@ impl<'a> IpcStreamWorker<'a> {
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
                 })
                 .map_err(|_| anyhow::format_err!("Unable to read lush message"))?;
+                let mut taos = Some(self.pool.get().await?);
                 // let stmt = unsafe { &mut *self.stmt.get() };
                 consume_lush_record(
-                    &self.taos,
+                    &self.pool,
+                    &mut taos,
                     stmt,
                     record,
                     &columns,
@@ -2030,17 +2102,14 @@ impl<'a> IpcStreamWorker<'a> {
                 let config = match res {
                     Some(config) => config,
                     None => {
-                        let _v = config.parse_tables_with(&self.taos).await?;
+                        let _v = config.parse_tables_with(&taos).await?;
                         self.opc_table_config
-                            .get_or_try_init(|| async {
-                                config.parse_tables_with(&self.taos).await
-                            })
+                            .get_or_try_init(|| async { config.parse_tables_with(&taos).await })
                             .await?
                     }
                 };
                 drop(guard);
-                let _n =
-                    consume_point_record(&self.taos, stmt, &record, &mut count, config).await?;
+                let _n = consume_point_record(&taos, stmt, &record, &mut count, config).await?;
                 if let Some(transferred) = self.transferred {
                     transferred.points.fetch_add(_n as _, Ordering::SeqCst);
                 }
@@ -2121,95 +2190,156 @@ impl<'a> IpcStreamWorker<'a> {
 //     }
 // }
 
-pub fn listen_tcp_socket_with_agent(
+pub async fn listen_tcp_socket_with_agent(
     socket: impl AsRef<str>,
-    sender: Sender<String>,
-    _config: Option<OpcTableConfig>,
     cancel: CancellationToken,
     with_agent: (i64, String, String),
-) -> anyhow::Result<tokio::sync::mpsc::Sender<()>> {
+) -> anyhow::Result<IpcHandler> {
     let addr = socket.as_ref();
 
-    let socket = tokio::net::TcpSocket::new_v4()?;
-    let addr: SocketAddr = addr.parse()?;
-    socket.bind(addr)?;
-    let socket = socket.listen(128)?;
-    socket.set_ttl(100)?;
+    let (sender, error_receiver) = tokio::sync::mpsc::channel(1);
 
-    let socket = Arc::new(socket);
+    let socket = tokio::net::TcpListener::bind(addr).await?;
 
-    let (closer, mut receiver) = tokio::sync::mpsc::channel::<()>(1);
-    let closed = Arc::new(AtomicBool::new(false));
-    let closed2 = closed.clone();
+    // let (closer, mut receiver) = tokio::sync::mpsc::channel::<()>(1);
+    // let closed = Arc::new(AtomicBool::new(false));
+    // let closed2 = closed.clone();
 
-    let thread = tokio::spawn(async move {
-        let mut handlers = vec![];
-        loop {
-            if closed2.load(std::sync::atomic::Ordering::SeqCst) {
-                tracing::debug!("IPC stopped");
-                break;
-            }
-            match socket.accept().await {
-                Ok((stream, addr)) => {
-                    log::info!("new tcp client!: {:?}", addr);
-                    let stream = stream.into_std().unwrap();
-                    let _ = stream.set_nonblocking(false);
-                    // let client = addr.as_socket_ipv4().unwrap().to_string();
-                    let se = sender.clone();
-                    let cancel = cancel.clone();
-                    let (id, remote, token) = with_agent.clone();
+    let notify = Arc::new(tokio::sync::Notify::new());
+    let notified = notify.clone();
+    let thread = tokio::spawn(
+        async move {
+            let mut handlers = vec![];
+            let accept_stream = |stream: tokio::net::TcpStream, addr: std::net::SocketAddr| {
+                tracing::info!("new tcp client!: {:?}", addr);
+                let stream = stream.into_std().unwrap();
+                let _ = stream.set_nonblocking(false);
+                // let client = addr.as_socket_ipv4().unwrap().to_string();
+                let se = sender.clone();
+                let cancel = cancel.clone();
+                let (id, remote, token) = with_agent.clone();
 
-                    let h = tokio::spawn(async move {
-                        let client = addr.to_string();
-                        let res =
-                            ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id)
-                                .await;
-                        if let Err(err) = res {
-                            // panic!("{err:?}");
-                            log::error!("ipc read err: {}", err);
-                            tokio::time::sleep(Duration::from_millis(100)).await;
-                            let _ = se.send(err.to_string()).await;
-                        } else {
-                            log::info!("IPC reader stopped for client {client}",);
+                tokio::spawn(async move {
+                    let client = addr.to_string();
+                    let res =
+                        ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id).await;
+                    if let Err(err) = res {
+                        tracing::error!("{:?}", err);
+                        let r = se.send(format!("{err:?}")).await;
+                        if let Err(send_err) = r {
+                            tracing::error!("error <{err:?}> reported to server: {send_err:?}");
                         }
-                    });
-                    handlers.push(h);
-                }
-                Err(e) => {
-                    /* connection failed */
-                    tracing::debug!("IPC stream acceptation error {e}, might be stopped");
-                    break;
+                    } else {
+                        tracing::info!("IPC reader stopped for client {client}",);
+                    }
+                })
+            };
+            loop {
+                tokio::select! {
+                    _ = notified.notified() => {
+                        break;
+                    }
+                    accept = socket.accept() => {
+                        match accept {
+                            Ok((stream, addr)) => {
+                                let h = accept_stream(stream, addr);
+                                handlers.push(h);
+                            }
+                            Err(e) => {
+                                /* connection failed */
+                                tracing::info!("IPC stream acceptation error {e}, might be stopped");
+                                break;
+                            }
+                        }
+                    }
                 }
             }
-        }
-        log::info!("IPC stream listener stopped");
-        tokio::time::sleep(Duration::from_micros(1000)).await;
+            tracing::info!(ipc.handlers = handlers.len(), "IPC stream listener stopped");
+            let instant = std::time::Instant::now();
 
-        for h in handlers {
-            let _ = h.await;
+            for h in handlers {
+                let _ = h.await;
+            }
+            tracing::info!("IPC stream handlers finished after {:?}", instant.elapsed());
+            anyhow::Ok(())
         }
-    });
+        .instrument(tracing::info_span!("agent_ipc_listener")),
+    );
 
-    tokio::spawn(async move {
-        let _ = receiver.recv().await;
+    let handle = tokio::spawn(async move {
         tracing::debug!("shutdown socket");
-        closed.store(true, std::sync::atomic::Ordering::SeqCst);
-        let _ = thread.await;
+        match tokio::time::timeout(Duration::from_secs(60 * 60), thread).await {
+            Ok(Ok(_)) => anyhow::Ok(()),
+            Ok(Err(err)) => anyhow::bail!("Thread join error: {err}"),
+            Err(_) => {
+                anyhow::bail!("Task running deadline elapsed(1h), but seems not finished")
+            }
+        }
     });
-    Ok(closer)
+    Ok(IpcHandler::new(notify, handle, error_receiver))
 }
 
-pub fn listen_tcp_socket(
+pub struct IpcHandler {
+    closer: Arc<Notify>,
+    handle: tokio::task::JoinHandle<anyhow::Result<()>>,
+    receiver: tokio::sync::mpsc::Receiver<String>,
+}
+
+impl IpcHandler {
+    fn new(
+        closer: Arc<Notify>,
+        handle: tokio::task::JoinHandle<anyhow::Result<()>>,
+        receiver: tokio::sync::mpsc::Receiver<String>,
+    ) -> Self {
+        Self {
+            closer,
+            handle,
+            receiver,
+        }
+    }
+    pub async fn send<T>(&self, _: T) -> Result<(), tokio::sync::mpsc::error::SendError<()>> {
+        // self.closer.send(()).await
+        self.closer.notify_waiters();
+        Ok(())
+    }
+    pub async fn wait(mut self) -> anyhow::Result<()> {
+        (&mut self.handle).await?
+    }
+
+    /// Receive error
+    pub async fn recv_error(&mut self) -> Option<String> {
+        self.receiver.recv().await
+    }
+
+    /// Receive error
+    pub fn try_recv_error(&mut self) -> Result<String, tokio::sync::mpsc::error::TryRecvError> {
+        self.receiver.try_recv()
+    }
+
+    /// Close IPC listener and wait until IPC handler joint.
+    pub async fn close(self) -> anyhow::Result<()> {
+        // let _ = self.closer.send(()).await;
+        self.closer.notify_waiters();
+        self.handle.await??;
+        Ok(())
+    }
+}
+
+#[instrument(skip_all, parent = &span)]
+pub async fn listen_tcp_socket(
     target: TaosPool,
     socket: impl AsRef<str>,
-    sender: Sender<String>,
+    // sender: Sender<String>,
     config: Option<OpcTableConfig>,
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     parser: Option<Parser>,
     connector: Option<&'static str>,
     transferred: Option<Arc<Transferred>>,
-) -> anyhow::Result<tokio::sync::mpsc::Sender<()>> {
+    span: Span,
+) -> anyhow::Result<IpcHandler> {
+    let (sender, error_receiver) = tokio::sync::mpsc::channel(1);
+
     let addr = socket.as_ref();
     let socket = tokio::net::TcpSocket::new_v4()?;
     let addr: SocketAddr = addr.parse()?;
@@ -2220,87 +2350,112 @@ pub fn listen_tcp_socket(
     info!("listen on socket address: {addr}");
     let sql_lock = Arc::new(Mutex::new(()));
     let socket = Arc::new(socket);
-    // let executor = futures::executor::ThreadPool::new().context("Failed to build pool")?;
-    let (closer, mut receiver) = tokio::sync::mpsc::channel::<()>(1);
-    let closed = Arc::new(AtomicBool::new(false));
-    let closed2 = closed.clone();
+    let notify = Arc::new(tokio::sync::Notify::new());
+    let notified = notify.clone();
 
-    let thread = tokio::task::spawn(async move {
-        info!("waiting for IPC connections");
-        let mut handlers = vec![];
-        loop {
-            if closed2.load(std::sync::atomic::Ordering::SeqCst) {
-                break;
-            }
-            match socket.accept().await {
-                Ok((stream, addr)) => {
-                    log::info!("new tcp client!: {:?}", addr);
-                    let stream = stream.into_std().unwrap();
-                    let _ = stream.set_nonblocking(false);
-                    let client = addr.to_string();
-                    let se = sender.clone();
-                    let cancel = cancel.clone();
+    let thread = tokio::task::spawn(
+        async move {
+            info!("waiting for IPC connections");
+            let mut handlers = vec![];
+            let accept_stream = |stream: tokio::net::TcpStream, addr: std::net::SocketAddr| {
+                tracing::info!("new tcp client!: {:?}", addr);
+                // let span = tracing::info_span!("ipc_reader", client.address = %addr);
+                let stream = stream.into_std().unwrap();
+                let _ = stream.set_nonblocking(false);
+                let client = addr.to_string();
+                let se = sender.clone();
+                let cancel = cancel.clone();
 
-                    if let Some((id, server, token)) = with_agent.clone() {
-                        handlers.push(tokio::spawn(async move {
-                            let res =
-                                ipc_tcp_forward(client, stream, cancel, server, token, id).await;
-                            if let Err(err) = res {
-                                // panic!("{err:?}");
-                                log::error!("ipc read err: {}", err);
-                                let _ = se.send(err.to_string()).await;
+                if let Some((id, server, token)) = with_agent.clone() {
+                    tokio::spawn(async move {
+                        let res = ipc_tcp_forward(client, stream, cancel, server, token, id).await;
+                        if let Err(err) = res {
+                            // panic!("{err:?}");
+                            tracing::error!("ipc read err: {}", err);
+                            let _ = se.send(err.to_string()).await;
+                        }
+                    })
+                } else {
+                    let pool = target.clone();
+                    let lock = sql_lock.clone();
+                    let config = config.clone();
+                    let parser = parser.clone();
+                    let connector = connector.clone();
+                    let transferred = transferred.clone();
+                    tokio::spawn(async move {
+                        // let dsn: Dsn = "taos:///db2".parse().unwrap();
+                        // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
+                        info!("Spawned IPC reader");
+                        let res = ipc_tcp_read(
+                            client,
+                            pool,
+                            stream,
+                            lock,
+                            config,
+                            cancel,
+                            parser,
+                            connector,
+                            transferred,
+                        )
+                        .in_current_span()
+                        .await;
+                        if let Err(err) = res {
+                            // panic!("{err:?}");
+                            println!("{err:?}");
+                            tracing::error!("ipc read err: {:#}", err);
+                            let _ = se.send(err.to_string()).await;
+                        } else {
+                            tracing::debug!("IPC handler completed");
+                        }
+                    }.instrument(span.clone()))
+                }
+            };
+            loop {
+                tokio::select! {
+                    _ = notified.notified() => {
+                        tracing::debug!("IPC listener received close signal");
+                        break;
+                    }
+                    accept = socket.accept() => {
+                        match accept {
+                            Ok((stream, addr)) => {
+                                let h = accept_stream(stream, addr);
+                                handlers.push(h);
                             }
-                        }));
-                    } else {
-                        let pool = target.clone();
-                        let lock = sql_lock.clone();
-                        let config = config.clone();
-                        let parser = parser.clone();
-                        let connector = connector.clone();
-                        let transferred = transferred.clone();
-                        handlers.push(tokio::spawn(async move {
-                            // let dsn: Dsn = "taos:///db2".parse().unwrap();
-                            // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
-                            info!("Spawned IPC reader");
-                            let res = ipc_tcp_read(
-                                client,
-                                pool,
-                                stream,
-                                lock,
-                                config,
-                                cancel,
-                                parser,
-                                connector,
-                                transferred,
-                            )
-                            .await;
-                            if let Err(err) = res {
-                                // panic!("{err:?}");
-                                println!("{err:?}");
-                                log::error!("ipc read err: {}", err);
-                                let _ = se.send(err.to_string()).await;
+                            Err(e) => {
+                                /* connection failed */
+                                tracing::info!("IPC stream acceptation error {e}, might be stopped");
+                                break;
                             }
-                        }));
+                        }
                     }
                 }
-                Err(e) => {
-                    /* connection failed */
-                    tracing::info!("IPC stream acceptation error {e}, might be stopped");
-                    break;
+            }
+            tracing::info!(ipc.handlers = handlers.len(), "IPC stream listener would wait for handlers to finish");
+
+            let _ = tracing::info_span!("wait for ipc handlers to be finished").entered();
+
+            let instant = std::time::Instant::now();
+            for h in handlers {
+                let _ = h.await;
+            }
+            tracing::info!("IPC stream handlers finished after {:?}", instant.elapsed());
+        }
+        .instrument(tracing::info_span!("plain_ipc_listener")),
+    );
+    let handle = tokio::spawn(
+        async move {
+            // closed.store(true, std::sync::atomic::Ordering::SeqCst);
+            tracing::info!("stop listener");
+            match tokio::time::timeout(Duration::from_secs(60 * 60), thread).await {
+                Ok(Ok(_)) => anyhow::Ok(()),
+                Ok(err) => err.map_err(Into::into),
+                Err(_) => {
+                    anyhow::bail!("Task running deadline elapsed(1h), but seems not finished")
                 }
             }
         }
-        tracing::info!("IPC stream listener stopped");
-        tokio::time::sleep(Duration::from_micros(1000)).await;
-        for h in handlers {
-            let _ = h.await;
-        }
-    });
-    tokio::spawn(async move {
-        let _ = receiver.recv().await;
-        tracing::debug!("shutdown socket");
-        closed.store(true, std::sync::atomic::Ordering::SeqCst);
-        let _ = thread.await;
-    });
-    Ok(closer)
+        .instrument(tracing::info_span!("plain_ipc_listener_abort_handle")),
+    );
+    Ok(IpcHandler::new(notify, handle, error_receiver))
 }

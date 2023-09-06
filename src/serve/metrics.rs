@@ -1,7 +1,8 @@
 use actix_web::{get, Responder};
-use metrics::{describe_gauge, gauge, register_gauge};
+use metrics::{describe_counter, describe_gauge, gauge, register_counter, register_gauge};
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle, PrometheusRecorder};
 use std::time::Duration;
+use taosx_core::RECORD_BATCHES;
 
 #[derive(Debug, Default)]
 pub struct Metrics {
@@ -27,6 +28,15 @@ pub fn process_metrics_init() {
         "taosx_process_io_written_bytes",
         "IO written in bytes of the process"
     );
+
+    // ----------- ipc stream counter register
+    register_counter!(RECORD_BATCHES);
+    describe_counter!(
+        RECORD_BATCHES,
+        "how many record batch received from ipc reader"
+    );
+
+    // ----------- tmq counter register
 }
 
 pub fn process_metrics(sys: &mut sysinfo::System) -> anyhow::Result<()> {

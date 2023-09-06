@@ -8,16 +8,22 @@ use actix_web::{
 };
 
 use anyhow::Context;
+use chrono::Utc;
 use itertools::Itertools;
+use metrics_util::debugging::Snapshotter;
 use serde::{Deserialize, Serialize};
 
 use taos::Code;
 
+use taosx_core::{METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND, METRICS_TIME_START};
 use tokio_cron_scheduler::Job;
 
 use utoipa::*;
 
-use crate::serve::{controller::TaskControllerRef, NewTask, TaskDecorator, TaskFilter, UpdateTask};
+use crate::serve::{
+    controller::{Status, TaskControllerRef},
+    NewTask, TaskDecorator, TaskFilter, UpdateTask,
+};
 
 /// Task endpoint error responses
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
@@ -143,9 +149,7 @@ pub(super) async fn create_task(
         if !check_parser_timestamp_precision(&parser_string) {
             return HttpResponse::InternalServerError().json(Failed {
                 code: Code::FAILED,
-                message: format!(
-                    "parser shouldn't contains different timestamp precision"
-                ),
+                message: format!("parser shouldn't contains different timestamp precision"),
             });
         }
     }
@@ -160,19 +164,19 @@ pub(super) async fn create_task(
                 match Job::new_async(schedule, move |uuid, mut l| {
                     let controller = controller.clone();
                     Box::pin(async move {
-                        log::info!("waiting for next tick");
+                        tracing::info!("waiting for next tick");
                         let next_tick = l.next_tick_for_job(uuid).await;
                         match next_tick {
                             Ok(Some(ts)) => {
-                                log::info!("Next tick is {:?}", ts);
+                                tracing::info!("Next tick is {:?}", ts);
                                 let _ = controller.start(id).await;
                             }
-                            _ => log::warn!("Could not get next tick"),
+                            _ => tracing::warn!("Could not get next tick"),
                         }
                     })
                 }) {
                     Ok(job) => {
-                        log::info!("add job for task: {task:?}");
+                        tracing::info!("add job for task: {task:?}");
                         if let Err(_err) = sched.add(job).await {
                             return HttpResponse::InternalServerError().json(Failed {
                                 code: Code::FAILED,
@@ -184,7 +188,7 @@ pub(super) async fn create_task(
                         // sched.start().await.unwrap();
                     }
                     Err(err) => {
-                        log::error!("Scheduler task error: {err:?}, task:{task:?}");
+                        tracing::error!("Scheduler task error: {err:?}, task:{task:?}");
                     }
                 }
             }
@@ -198,11 +202,14 @@ pub(super) async fn create_task(
 }
 
 pub fn check_parser_timestamp_precision(parser_string: &str) -> bool {
-    if (parser_string.contains(r#""TIMESTAMP""#) && parser_string.contains(r#""TIMESTAMP(us)""#)) ||
-        (parser_string.contains(r#""TIMESTAMP""#) && parser_string.contains(r#""TIMESTAMP(ns)""#)) ||
-        (parser_string.contains(r#""TIMESTAMP(us)""#) && parser_string.contains(r#""TIMESTAMP(ns)""#)) {
-            return false;
-        }
+    if (parser_string.contains(r#""TIMESTAMP""#) && parser_string.contains(r#""TIMESTAMP(us)""#))
+        || (parser_string.contains(r#""TIMESTAMP""#)
+            && parser_string.contains(r#""TIMESTAMP(ns)""#))
+        || (parser_string.contains(r#""TIMESTAMP(us)""#)
+            && parser_string.contains(r#""TIMESTAMP(ns)""#))
+    {
+        return false;
+    }
     true
 }
 
@@ -274,9 +281,7 @@ pub(super) async fn update_task(
         if !check_parser_timestamp_precision(&parser_string) {
             return HttpResponse::InternalServerError().json(Failed {
                 code: Code::FAILED,
-                message: format!(
-                    "parser shouldn't contains different timestamp precision"
-                ),
+                message: format!("parser shouldn't contains different timestamp precision"),
             });
         }
     }
@@ -485,6 +490,99 @@ pub(super) async fn get_task_activities_by_id(
     }
 }
 
+/// Get Task activities by given task id.
+///
+#[utoipa::path(
+    tag = "tasks",
+    responses(
+        (status = 200, description = "Task activities of the task", body = Vec<TaskActivity>),
+    ),
+    params(
+        ("id", description = "Unique storage id of Task"),
+    ),
+)]
+#[get("/tasks/{id}/metrics")]
+pub(super) async fn get_task_metrics_by_id(
+    snapshotter: Data<Snapshotter>,
+    task_store: Data<TaskControllerRef>,
+    id: Path<i64>,
+) -> impl Responder {
+    let id = id.into_inner();
+    let snapshot = snapshotter.snapshot().into_hashmap();
+    // dbg!(&snapshot);
+    let mut map = snapshot
+        .into_iter()
+        .filter(|(k, _)| {
+            k.key()
+                .labels()
+                .find(|label| label.key() == "task.id" && label.value() == id.to_string())
+                .is_some()
+        })
+        .map(|(k, v)| {
+            (
+                k.key().name().to_string(),
+                match v.2 {
+                    metrics_util::debugging::DebugValue::Gauge(c) => {
+                        serde_json::Number::from_f64(c.0)
+                    }
+                    metrics_util::debugging::DebugValue::Counter(c) => Some(c.into()),
+                    _ => None,
+                },
+            )
+        })
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let task_started_timestamp = map.get(METRICS_TIME_START);
+    if task_started_timestamp.is_some() {
+        let task_started_timestamp = task_started_timestamp.clone().unwrap().clone().unwrap();
+        let task = task_store.get(id).await.unwrap().unwrap();
+        let time_elapsed_in_seconds = if matches!(task.status(), Status::Running) {
+            let time_elasped = (Utc::now().timestamp_millis()
+                - task_started_timestamp.as_f64().unwrap() as i64)
+                / 1000;
+            if time_elasped < 1 {
+                Some(1)
+            } else {
+                Some(time_elasped)
+            }
+        } else {
+            if task.task.finished_at.is_some() {
+                let time_elapsed = (task.task.finished_at.unwrap().timestamp_millis()
+                    - task_started_timestamp.as_f64().unwrap() as i64)
+                    / 1000;
+                if time_elapsed < 1 {
+                    Some(1)
+                } else {
+                    Some(time_elapsed)
+                }
+            } else {
+                None
+            }
+        };
+        if time_elapsed_in_seconds.is_some() {
+            map.insert(
+                METRICS_TIME_COST.to_string(),
+                Some((time_elapsed_in_seconds.unwrap()).into()),
+            );
+            let records_vec = map
+                .iter()
+                .filter(|(k, _v)| k.contains("records"))
+                .map(|(_k, v)| v)
+                .collect_vec();
+            let records = records_vec.get(0);
+            if let Some(Some(records)) = records {
+                map.insert(
+                    METRICS_TIME_RECORDS_PER_SECOND.to_string(),
+                    Some(
+                        (records.as_i64().unwrap_or_default() / time_elapsed_in_seconds.unwrap())
+                            .into(),
+                    ),
+                );
+            }
+        }
+    }
+    serde_json::to_string(&map)
+}
+
 use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
 
 use super::controller::agent::AgentActivityFilter;
@@ -530,7 +628,7 @@ async fn save_files(MultipartForm(form): MultipartForm<UploadForm>) -> anyhow::R
         fs::create_dir_all(&path).with_context(|| "create file path failed")?;
         let file_name = f.file_name.unwrap();
         let releative_path = format!("{req_id}/{file_name}");
-        log::info!(
+        tracing::info!(
             "saving to {}, {releative_path}",
             upload_file_save_path.as_os_str().to_str().unwrap()
         );
@@ -615,8 +713,7 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
         filemeta_request.has_header,
     );
     // set current path
-    let path = ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT
-        .replace("files", "");
+    let path = ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT.replace("files", "");
     let root = std::path::Path::new(path.as_str());
     assert!(std::env::set_current_dir(&root).is_ok());
     match file_type.as_str() {

@@ -20,14 +20,13 @@ use anyhow::{bail, Context};
 use itertools::Itertools;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, Taos, TaosBuilder, Ty};
 use taosx_ipc::{prelude::IpcDataType, types::OptionSet};
-use tokio::io::AsyncBufReadExt;
+use tokio::{io::AsyncBufReadExt, sync::Mutex};
 
 use tokio_util::sync::CancellationToken;
-use tracing::instrument;
+use tracing::{instrument, Span};
 
 use crate::{
-    get_log_keep_days,
-    plugins::sink,
+    build_ipc, get_log_keep_days,
     utils::{get_string_content_from_param_value, port_pool::PortPool},
     Action, DataSet, DataSetsReq, Transferred,
 };
@@ -403,7 +402,7 @@ impl OPCConfig {
                     opc_table_config = Some(res.0);
                     for child_table_name in res.2.iter() {
                         let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
-                        log::info!("drop sql: {drop_sql}");
+                        tracing::info!("drop sql: {drop_sql}");
                         taos.unwrap().exec(drop_sql).await.map_err(|err| {
                             OpcError::ConfigError("csv_config_file", err.to_string())
                         })?;
@@ -493,7 +492,7 @@ impl OPCConfig {
                     opc_table_config = Some(res.0);
                     for child_table_name in res.2.iter() {
                         let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
-                        log::info!("drop sql: {drop_sql}");
+                        tracing::info!("drop sql: {drop_sql}");
                         taos.unwrap().exec(drop_sql).await.map_err(|err| {
                             OpcError::ConfigError("csv_config_file", err.to_string())
                         })?;
@@ -647,7 +646,7 @@ pub async fn generate_opcconfig_from_csv(
     let mut tables_to_drop = Vec::new();
     let mut current_tag_names = Vec::new();
     for mut file in files_or_strings {
-        log::info!(
+        tracing::info!(
             "current log: {}",
             std::env::current_dir().unwrap().to_str().unwrap()
         );
@@ -672,7 +671,7 @@ pub async fn generate_opcconfig_from_csv(
         let header = records.next().await;
         // skip first line(desc)
         if header.is_none() {
-            log::warn!("file {file} should have 2 lines at least");
+            tracing::warn!("file {file} should have 2 lines at least");
             continue;
         }
         let header = header.unwrap()?;
@@ -845,7 +844,7 @@ pub async fn generate_opcconfig_from_csv(
                     );
                     node_config_old.push(format!("{point_id}::{code}"))
                 }
-                Err(_e) => log::warn!("line {line} have different with other previous lines ",),
+                Err(_e) => tracing::warn!("line {line} have different with other previous lines ",),
             }
             line += 1;
         }
@@ -896,13 +895,13 @@ pub(super) fn get_string_vec_from_param_or_file(
             .partition(|v| v.starts_with("@"));
         // dbg!(&files, &node_config);
         for file in files {
-            log::info!(
+            tracing::info!(
                 "current log: {}",
                 std::env::current_dir().unwrap().to_str().unwrap()
             );
             let f = std::fs::File::open(&file[1..]);
             if f.is_err() {
-                log::warn!(
+                tracing::warn!(
                     "file: {} read error, cause: {}",
                     &file[1..],
                     f.err().unwrap()
@@ -914,7 +913,7 @@ pub(super) fn get_string_vec_from_param_or_file(
             let mut file_data = buf.lines().collect_vec();
             // remove header
             if file_data.remove(0).is_err() {
-                log::warn!("file: {} content length < 1", file);
+                tracing::warn!("file: {} content length < 1", file);
             }
 
             node_config.extend(
@@ -925,12 +924,12 @@ pub(super) fn get_string_vec_from_param_or_file(
             );
         }
         if node_config.len() == 0 {
-            log::warn!("node config is empty");
+            tracing::warn!("node config is empty");
             // return Err(format!("node config set but is empty: {nodes}"));
         }
         return Result::Ok(node_config);
     }
-    // log::warn!("node config is empty");
+    // tracing::warn!("node config is empty");
     return Err("Nodes not set".to_string());
 }
 
@@ -997,12 +996,13 @@ pub async fn opc_to_taos(
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
+    span: Span,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: OPC");
 
     let exe_exists = std::path::Path::new(&exe_path()).exists();
     if !exe_exists {
-        log::error!("plugin not found {}", exe_path().to_str().unwrap());
+        tracing::error!("plugin not found {}", exe_path().to_str().unwrap());
         Err(OpcError::ExeNotFound(format!(
             "{}",
             exe_path().to_str().unwrap()
@@ -1028,42 +1028,31 @@ pub async fn opc_to_taos(
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
 
-    log::info!("Using opc config file {} \n{}", config_path.display(), toml);
+    tracing::info!("Using opc config file {}", config_path.display());
 
-    let mut table_config = None;
+    let table_config = if with_agent.is_none() {
+        Some(config.parse_tables_with(&taos).await?)
+    } else {
+        None
+    };
     let connector = match config.opc_type {
         OpcType::FAKE => None,
         OpcType::OPCDA => Some("opc_da"),
         OpcType::OPCUA => Some("opc_ua"),
     };
-    let (sender, mut receiver) = tokio::sync::mpsc::channel(1);
-    let ipc = if with_agent.is_none() {
-        let builder = TaosBuilder::from_dsn(&to)?;
-        let target_pool = builder.pool()?;
-        let taos = target_pool.get().await?;
-        let target_pool_for_ipc = target_pool.clone();
 
-        table_config.replace(config.parse_tables_with(&taos).await?);
-        sink::listen_tcp_socket(
-            target_pool_for_ipc,
-            config.report.remote,
-            sender,
-            table_config,
-            cancel.clone(),
-            with_agent,
-            None,
-            connector,
-            transferred.clone(),
-        )?
-    } else {
-        sink::listen_tcp_socket_with_agent(
-            config.report.remote,
-            sender,
-            table_config,
-            cancel.clone(),
-            with_agent.unwrap(),
-        )?
-    };
+    let mut ipc_handler = build_ipc(
+        &config.report.remote,
+        None,
+        &to,
+        connector,
+        table_config,
+        &cancel,
+        with_agent,
+        transferred,
+        span,
+    )
+    .await?;
 
     let port_pool = port_pool.clone();
     let mut command = tokio::process::Command::new(exe_path());
@@ -1071,11 +1060,11 @@ pub async fn opc_to_taos(
     let mut log_path = log_path();
     fs::create_dir_all(&log_path)?;
 
-    log::info!("log path created: {}", &log_path.display());
+    tracing::info!("log path created: {}", &log_path.display());
 
     log_path.push(LOG_FILE);
 
-    log::info!("log file dir: {}", &log_path.display());
+    tracing::info!("log file dir: {}", &log_path.display());
 
     let log_keep_days = get_log_keep_days();
 
@@ -1097,62 +1086,78 @@ pub async fn opc_to_taos(
         .arg(format!("--conf={}", &config_path.display()))
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::piped());
-    {
-        let mut child = child.spawn()?;
 
-        let stderr = child.stderr.take().expect("Failed to capture stderr");
-        tokio::spawn(async move {
-            let mut reader = tokio::io::BufReader::new(stderr);
-            let mut line = String::new();
-            loop {
-                // Read a line from stderr
-                let bytes_read = reader.read_line(&mut line).await.unwrap();
-                if bytes_read == 0 {
-                    break; // End of stream, exit the loop
-                }
-                // Write the line to log_rotation
-                write!(log_rotation, "{}", line).unwrap();
-                line.clear();
+    let mut child = child.spawn()?;
+    const ERROR_BUF_SIZE: usize = 2;
+    let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
+    let error_buf_producer = error_buf.clone();
+    let stderr = child.stderr.take().expect("Failed to capture stderr");
+    tokio::spawn(async move {
+        let mut reader = tokio::io::BufReader::new(stderr);
+        let mut line = String::new();
+        loop {
+            // Read a line from stderr
+            let bytes_read = reader.read_line(&mut line).await.unwrap();
+            if bytes_read == 0 {
+                break; // End of stream, exit the loop
             }
-            Ok::<(), std::io::Error>(())
-        });
 
-        tokio::spawn(async move {
+            if line.contains("panic") {
+                use ringbuf::Rb;
+                let mut guard = error_buf_producer.lock().await;
+                let _ = guard.push_overwrite(line.clone());
+            }
+            // Write the line to log_rotation
+            write!(log_rotation, "{}", line).unwrap();
+            line.clear();
+        }
+        Ok::<(), std::io::Error>(())
+    });
+
+    tokio::spawn(async move {
+            macro_rules! safe_exit {
+            () => {
+                let _ = ipc_handler.close().await;
+                temp_path.close().unwrap();
+                port_pool.put(ipc_port);
+            };
+        }
             tokio::select! {
                 status = child.wait() => {
                     let status = status?;
-                    log::info!("OPC exit with {}", status);
+                    tracing::info!("OPC exit with {}", status);
                     if !status.success() {
-                        let _ = ipc.send(());
-                        anyhow::bail!("OPC exit with {}", status);
-                        // anyhow::bail!("OPC error: {}", child.stderr.map(|err| String::from_utf8_lossy(&err) ).unwrap_or("".into()));
+                        safe_exit!();
+                        use ringbuf::Rb;
+                        let error = error_buf.lock().await.iter().join("");
+                        anyhow::bail!("OPC exit with {}\n{error}", status);
                     }
                 },
                 // _ = tokio::signal::ctrl_c() => {
-                //     log::info!("Ctrl+C triggered, cancel tasks");
+                //     tracing::info!("Ctrl+C triggered, cancel tasks");
                 //     cancel.cancel();
                 // },
-                err = receiver.recv() => {
-                    log::info!("have received worker thread panicked message, terminate child process");
+                err = ipc_handler.recv_error() => {
+                    tracing::info!("have received worker thread panicked message, terminate child process");
                     if let Some(err) = err {
-                        let _ = ipc.send(());
+                        let _ = ipc_handler.close().await;
                         anyhow::bail!("OPC writer error: {err}");
                     }
                 },
                 _ = cancel.cancelled() => {
-                    log::info!("opc task cancelled");
+                    tracing::info!("opc task cancelled");
                 },
             };
-            ipc.send(()).await?;
             let _ = child.kill().await;
+            let _ = ipc_handler.close().await;
             // terminate_child_process(pid)?;
-            log::info!("OPC to taos task done");
+            tracing::info!("OPC to taos task done");
             temp_path.close().unwrap();
             port_pool.put(ipc_port);
             tokio::time::sleep(Duration::from_millis(100)).await;
             Ok(())
         }).await??;
-    }
+
     Ok(())
 }
 
@@ -1212,7 +1217,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let config_path = config_file.path().to_path_buf();
     let temp_path = config_file.into_temp_path();
 
-    log::info!("Using opc config file {} \n{}", config_path.display(), toml);
+    tracing::info!("Using opc config file {} \n{}", config_path.display(), toml);
 
     // TODO use unix socket on unix-like os
     // let ipc = if cfg!(target_os = "windows") {
@@ -1248,7 +1253,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 
     write!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr)).unwrap();
 
-    log::info!("OPC exit with status {}", output.status);
+    tracing::info!("OPC exit with status {}", output.status);
     if !output.status.success() {
         let error = String::from_utf8_lossy(&output.stderr);
         tracing::error!(
@@ -1270,7 +1275,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     temp_path.close()?;
     // let json = String::from_utf8_lossy(&output.stdout);
     let res: Vec<DataSet> = serde_json::from_slice(&output.stdout)?;
-    log::debug!(
+    tracing::debug!(
         "opc datasets : {}",
         serde_json::to_string(&res).unwrap_or("".to_string())
     );
@@ -1511,6 +1516,7 @@ async fn test_with_agent() -> anyhow::Result<()> {
     ua.nodes=ns=10;i=1004::t1::c1::double&connect_timeout=5&request_timeout=5&\
     concurrent=1&batch_size=5&batch_timeout=5&debug=true";
     let mut target = "taos:///opcua";
+    let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
     opc_to_taos(
         opc.parse().unwrap(),
         vec![],
@@ -1520,6 +1526,7 @@ async fn test_with_agent() -> anyhow::Result<()> {
         CancellationToken::new(),
         Some((2, "http://127.0.0.1:6051".into(), "".into())),
         None,
+        span.clone(),
     )
     .await?;
     Ok(())

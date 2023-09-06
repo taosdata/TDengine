@@ -1,0 +1,50 @@
+Configuration:
+  # 共有8个级别，按照从低到高为：ALL < TRACE < DEBUG < INFO < WARN < ERROR < FATAL < OFF。
+  status: warn
+  # 监控更改间隔时间
+  monitorInterval: 30
+
+  # 定义全局变量
+  Properties:
+    # 缺省配置
+    Property:
+      - name: log.path
+        value: logs
+
+  Appenders:
+    # 输出到控制台
+    Console:
+      # ref=console
+      name: console
+      # 控制台
+      target: SYSTEM_ERR
+      # 临界值过滤器
+      ThresholdFilter:
+        # 设定级别
+        level: info
+        # 匹配该级别及以上
+        onMatch: ACCEPT
+        # 不匹配该级别以下
+        onMismatch: DENY
+      # 日志打印格式
+      PatternLayout:
+        pattern: "%d{HH:mm:ss.SSS} %pid %-5level %logger{20} - [%method,%line] - %msg%n"
+
+  Loggers:
+    # 系统操作日志
+    Root:
+      # 日志级别
+      level: info
+      # 关联输出
+      AppenderRef:
+        - ref: console
+    Logger:
+      # sys-user日志
+      - name: sys-user
+        # 是否将日志流反馈到root中
+        additivity: false
+        # 日志级别
+        level: info
+        # 关联输出
+        AppenderRef:
+          - ref: console

@@ -294,6 +294,14 @@ namespace TDPIConnector.TDEngine.TaosxClient
                 reconnectTaosx();
             }
         }
+        public bool isBusy()
+        {
+            lock (stLock)
+            {
+                return builder.tableNameArrowArray.Length > 0;
+            }
+        }
+
         private void connectTaosx()
         {
             log.Info($"Stable:{builder.stableName},connectTaosx start...");

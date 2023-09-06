@@ -2,18 +2,21 @@
 members = ["taosx-ipc", "taosx-core", "taosx-agent"]
 
 [workspace.dependencies]
+chrono = { version = "0.4.26" }
+chrono-tz = { version = "0.8.3" }
+
 regex = { version = "1.9" }
-arrow = { version = "38.0.0", features = ["chrono-tz"] }
-arrow-flight = { version = "38.0.0" }
-parquet = "38.0.0"
+arrow = { version = "46.0.0", features = ["chrono-tz"] }
+arrow-flight = { version = "46.0.0" }
+parquet = "46.0.0"
 
 tonic = "0.9"
 
-taos = { version = "0.10.3", default-features = false, features = [
+taos = { version = "0.10.4", default-features = false, features = [
   "ws",
   "deadpool",
 ] }
-taos-query = { version = "0.10.3", default-features = false, features = [
+taos-query = { version = "0.10.4", default-features = false, features = [
   "deadpool",
 ] }
 
@@ -37,8 +40,8 @@ arrow-flight = { workspace = true }
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bitflags = "2"
-chrono = "0.4"
-clap = { version = "4.0.11", features = ["default", "derive"] }
+chrono = { workspace = true }
+clap = { version = "4.3.23", features = ["default", "derive", "env"] }
 clap-verbosity-flag = "2.0.0"
 config = "0.13.2"
 convert_case = "0.6.0"
@@ -113,6 +116,12 @@ tracing-appender = "0.2"
 tracing = { version = "0.1", features = ["log"] }
 atty = "*"
 file-rotate = "0.7.5"
+opentelemetry = { version = "*", features = ["rt-tokio"] }
+opentelemetry-jaeger = { version = "*", features = ["rt-tokio"] }
+tracing-opentelemetry = { version = "*" }
+tracing-actix-web = "0.7"
+metrics-tracing-context = "*"
+metrics-util = "*"
 
 reqwest = "0.11.15"
 taosx-ipc = { path = "./taosx-ipc" }

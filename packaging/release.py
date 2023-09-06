@@ -25,7 +25,8 @@ pi_connector = "pi"
 opc_connector = "opc"
 mqtt_connector = "mqtt"
 influxdb_connector = "influxdb"
-all_connectors = [pi_connector, opc_connector, mqtt_connector, influxdb_connector]
+opentsdb_connector = "opentsdb"
+all_connectors = [pi_connector, opc_connector, mqtt_connector, influxdb_connector, opentsdb_connector]
 
 class SubmoduleBuildInfo:
     def __init__(self, name, build_mode):
@@ -409,6 +410,22 @@ def build_and_install_influxdb(mode):
         print("Build influxdb failed: ", e.strerror)
         sys.exit()
 
+def build_and_install_opentsdb(mode):
+    print("build_and_install_opentsdb on windows start...")
+    opentsdb_connector_path = os.path.join(taosx_dir,  "plugins", "opentsdb")
+    os.chdir(opentsdb_connector_path)
+    build = "mvn clean package"
+    print(build)
+    os.system(build)
+    opentsdb_install_path = os.path.join(release_info.InstallPath, "plugins", "opentsdb")
+    init_directory(opentsdb_install_path)
+    opentsdb_path = os.path.join(opentsdb_connector_path, "target", "taosx-opentsdb.jar")
+    try:
+        shutil.copy2(opentsdb_path, opentsdb_install_path)
+    except FileNotFoundError as e:
+        print("Build opentsdb failed: ", e.strerror)
+        sys.exit()
+
 def init_explorer_code(explorer_path):
     print(explorer_path)
     if os.path.exists(explorer_path):
@@ -524,6 +541,9 @@ def init_install_directory():
     influxdb_install_path = os.path.join(release_info.InstallPath, "plugins", influxdb_connector)
     init_directory(influxdb_install_path)
 
+    opentsdb_install_path = os.path.join(release_info.InstallPath, "plugins", opentsdb_connector)
+    init_directory(opentsdb_install_path)
+
 
 def init_release_directory():
     print("initReleaseDirectory {}...".format(release_info.ReleasePath))
@@ -555,6 +575,9 @@ def test_handle_windows(process):
     elif process == influxdb_connector:
         print("Calling influxDB function...")
         build_and_install_influxdb("Debug")
+    elif process == opentsdb_connector:
+        print("Calling openTSDB function...")
+        build_and_install_opentsdb("Debug")
     else:
         print(f"Invalid -t param: {process}. Please enter valid input.")
 
@@ -602,6 +625,9 @@ if __name__ == '__main__':
             elif influxdb_connector == task.Name:
                 print("build influxdb_connector")
                 build_and_install_influxdb(task.VersionMode)
+            elif opentsdb_connector == task.Name:
+                print("build opentsdb_connector")
+                build_and_install_opentsdb(task.VersionMode)
             elif taos_explorer_name == task.Name:
                 print("build taos_explorer")
                 build_and_install_taos_explorer(task.VersionMode)

@@ -1,0 +1,68 @@
+---
+id: opentsdb
+type: uri
+name: OpenTSDB
+description: |
+  OpenTSDB 是一个架构在 HBase 系统之上的实时监控信息收集和展示平台。
+
+  TaosX 可以通过 `taosx-opentsdb` 插件高效地读取 OpenTSDB 中的数据，并将其写入 TDengine，以实现历史数据迁移或实时数据同步。
+strict: false
+protocol:
+  display: 连接协议
+  description: OpenTSDB 数据库连接的协议
+  choices:
+    - name: http
+      display: HTTP 协议
+      description: 使用 HTTP 协议连接 OpenTSDB
+    - name: https
+      display: HTTPS 协议
+      description: 使用 HTTPS 协议连接 OpenTSDB
+options:
+  host:
+    display: 服务器地址
+    description: OpenTSDB 服务器 IP 地址或域名
+    placeholder: 127.0.0.1
+    required: true
+  port:
+    display: 端口
+    description: OpenTSDB 服务器端口。
+    placeholder: "4242"
+    required: true
+groups:
+  - name: task
+    display: 同步设置
+    display_order: 1
+    description: 配置同步任务的起始时间和所同步的内容。
+    params:
+      - name: metrics
+        display: 物理量 Metrics
+        description: 指定需要同步的 Metrics ，未指定则同步全部。
+        placeholder: 请选择 Metrics
+        multiple: true
+        editable: true
+        hint:
+          type: str
+          choices:
+            - "--NONE--"
+      - name: beginTime
+        display: 起始时间
+        description: 同步数据的起始时间戳。
+        placeholder: YYYY-MM-DD HH:mm:ss
+        hint: time
+        required: true
+      - name: endTime
+        display: 结束时间
+        description: 同步数据的结束时间戳，如果未指定，将持续进行数据同步。
+        placeholder: YYYY-MM-DD HH:mm:ss
+        hint: time
+      - name: readWindow
+        display: 读取窗口
+        description: 选择一个读取窗口类型（D-天、H-小时、M-分钟），如果未指定，默认按“M-分钟”
+        placeholder: 请选择读取窗口类型
+        value: 'M'
+        hint:
+          type: str
+          choices:
+            - D
+            - H
+            - M

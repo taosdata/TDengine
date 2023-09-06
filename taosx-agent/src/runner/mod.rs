@@ -141,6 +141,8 @@ pub fn spawn_runner(
                                 )),
                                 offsets: Default::default(),
                                 transferred: None,
+                                span: tracing::info_span!("agent::tasks::run"),
+                                task_id: Some(task.id.to_string()),
                             };
                             let pool = port_pool.clone();
                             let status_tx = status_tx.clone();
@@ -164,7 +166,7 @@ pub fn spawn_runner(
                                         id: task.id,
                                         at: Utc::now(),
                                         action: "failed".to_string(),
-                                        message: Some(err.to_string()),
+                                        message: Some(format!("{err:#}")),
                                         context: Some(err.chain().join("\n")),
                                     };
                                     let _ = status_tx.send_async(status).await;

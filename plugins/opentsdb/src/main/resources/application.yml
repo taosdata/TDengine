@@ -1,0 +1,63 @@
+# 服务端口
+server:
+  port: 0
+# 日志配置
+logging:
+  config: classpath:log4j2.yml
+  level:
+    _org.springframework.*: off
+    org.springframework.*: off
+    org.apache.*: off
+    io.netty.util.*: off
+spring:
+  main:
+    log-startup-info: false
+    banner-mode: off
+  profiles:
+    include: db-source, netty
+
+# task parameters
+task:
+  # whether to resume running from the last breakpoint: normal(default)/resume
+  mode: normal
+  # empty is all, follow this principle
+  metrics:
+    - sys.cpu.used
+    - test
+  beginTime: 2023-08-10T08:00:00+0800
+  # empty is now
+  endTime:
+
+#performance parameters
+performance:
+  limitConnect: 2
+  limitBatch: 1000
+  limitSpeed: 100000
+  retryTimes: 3
+  # millisecond
+  retryInterval: 200
+  readWindow: m
+  maxThread: 50
+  queueSizeT: 1000
+  queueSizeD: 500000
+  thread:
+    # MessageThread线程
+    processMessageInterval: 1
+    processMessageEmptyInterval: 10
+    # PushPrepareThread线程
+    readMetricDataBatch: 10000
+    pushPrepareInterval: 10
+    # PushThread线程
+    pushInterval: 0
+    pushEmptyInterval: 10
+    # MetricThread线程
+    createMetricInterval: 5
+    createMetricFullInterval: 200
+    # MetricDataThread线程
+    readMetricBatch: 2000
+    readMetricInterval: 1
+    readMetricFullInterval: 200
+    # ScheduleThread线程
+    scheduleInterval: 5
+    # MonitorThread线程
+    monitorInterval: 500
