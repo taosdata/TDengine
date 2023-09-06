@@ -937,7 +937,7 @@ async fn consume_point_record(
                                 );
                                 tracing::info!("create stable sql: {}", &stable_sql);
                                 match taos.exec(&stable_sql).await {
-                                    Ok(_n) => (),//counter!(STABLE_CREATED, n as u64),
+                                    Ok(_n) => (), //counter!(STABLE_CREATED, n as u64),
                                     Err(err) => {
                                         if err.to_string().contains("0x032C") {
                                             // Object is creating, maybe should ignore
@@ -964,7 +964,7 @@ async fn consume_point_record(
                                 for create_child_sql in child_table_create_sqls {
                                     tracing::info!("create child sql: {create_child_sql}");
                                     match taos.exec(&create_child_sql).await {
-                                        Ok(_n) => (),// counter!(CHILD_TABLE_CREATED, n as u64),
+                                        Ok(_n) => (), // counter!(CHILD_TABLE_CREATED, n as u64),
                                         Err(err) => {
                                             if err.to_string().contains("0x032C") {
                                                 // Object is creating, maybe should ignore
@@ -1239,7 +1239,7 @@ async fn consume_flat_record(
                                                             .fetch_add(1, Ordering::SeqCst);
                                                     }
                                                     match _taos.exec(&sql).await {
-                                                        Ok(_n) => (),// counter!(STABLE_CREATED, n as u64),
+                                                        Ok(_n) => (), // counter!(STABLE_CREATED, n as u64),
                                                         Err(err) => return Err(err)?,
                                                     }
                                                     let sql = records.table_sql();
@@ -1354,7 +1354,7 @@ async fn consume_flat_record(
                                     if let Some(sql) = records.stable_sql() {
                                         // dbg!(&sql);
                                         match _taos.exec(&sql).await {
-                                            Ok(_n) => (),// counter!(STABLE_CREATED, n as u64),
+                                            Ok(_n) => (), // counter!(STABLE_CREATED, n as u64),
                                             Err(err) => {
                                                 if err.to_string().contains("0x032C") {
                                                     // Object is creating

@@ -13,7 +13,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, Span};
 
 use crate::{
-    build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred, ValidatedSource,
+    build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
+    ValidatedSource,
 };
 
 use super::get_plugin_dir;
@@ -438,11 +439,11 @@ pub async fn opentsdb_validate(dsn: Dsn) -> anyhow::Result<ValidatedSource> {
     // http 客户端
     let client = reqwest::Client::new();
     // 发送请求，获取结果
-    let mut result = client.get(opents_url).send().await;
+    let result = client.get(opents_url).send().await;
     // 请求成功
     if result.is_ok() {
         let response = result.unwrap();
-        let mut text = response.text().await.unwrap();
+        let text = response.text().await.unwrap();
         // 转换为json格式
         let json: serde_json::Value = serde_json::from_str(&text).unwrap();
         // 组装结果

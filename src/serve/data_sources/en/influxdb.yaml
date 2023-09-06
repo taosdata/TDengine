@@ -12,11 +12,11 @@ protocol:
   description: The protocol of the InfluxDB connection
   choices:
     - name: http
-      display: HTTP Protocol
-      description: Connect to InfluxDB using the HTTP protocol
+      display: HTTP 协议
+      description: 使用 HTTP 协议连接 InfluxDB
     - name: https
-      display: HTTPS Protocol
-      description: Connect to InfluxDB using the HTTPS protocol
+      display: HTTPS 协议
+      description: 使用 HTTPS 协议连接 InfluxDB
 options:
   host:
     display: IP address

@@ -304,6 +304,7 @@ async fn sync(
     version: String,
 ) -> Result<()> {
     log::info!("[{id}] task start");
+    let task_id = tokio::task::try_id();
     let mut stream = consumer.stream();
     let mut rows = 0;
     let mut messages = 0;
@@ -337,7 +338,7 @@ async fn sync(
                     offsets.insert(key, assignment);
                 }
 
-                if let Some((offset, message)) = next? {
+                if let Some((offset, message)) = next.with_context(|| format!("[{id}] polling next message error"))? {
                     counter!(METRICS_TMQ_MESSAGES, 1);
                     metrics.messages.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                     let total = metrics.messages.load(std::sync::atomic::Ordering::SeqCst);
@@ -347,19 +348,25 @@ async fn sync(
                     }
                     match message {
                         MessageSet::Meta(meta) => {
-                            write_meta(id, taos, &actions, &meta, target_is_v3, &metrics).await?;
+                            write_meta(id, taos, &actions, &meta, target_is_v3, &metrics).await.with_context(|| format!("[{id}] wring meta-only message error"))?;
                         }
                         MessageSet::Data(data) => {
-                            write_data(id, &mut rows, taos, table.as_deref(), &actions, &data, target_is_v3, &metrics).await?;
+                            write_data(id, &mut rows, taos, table.as_deref(), &actions, &data, target_is_v3, &metrics).await.with_context(|| format!("[{id}] wring data message error"))?;
                         }
                         MessageSet::MetaData(meta, data) => {
-                            write_meta(id, taos, &actions, &meta, target_is_v3, &metrics).await?;
+                            write_meta(id, taos, &actions, &meta, target_is_v3, &metrics).await.with_context(|| format!("[{id}] wring metadata message message error"))?;
                             if !actions.is_empty() {
-                                write_data(id, &mut rows, taos, table.as_deref(), &actions, &data, target_is_v3, &metrics).await?;
+                                write_data(id, &mut rows, taos, table.as_deref(), &actions, &data, target_is_v3, &metrics).await.with_context(|| format!("[{id}] wring data message error"))?;
                             }
                         }
                     }
-                    consumer.commit(offset).await?;
+                    if let Err(err) = consumer.commit(offset).await {
+                        tracing::warn!(
+                            consumer.task.id = ?task_id,
+                            consumer.worker.id = id,
+                            "[{id}] commit error: {err:?}"
+                        );
+                    };
                 } else {
                     break;
                 }
@@ -533,20 +540,22 @@ pub async fn tmq_to_td(
 
         let consumer_timer = std::time::Instant::now();
 
-        let (tx, rx) = flume::bounded(jobs);
-
-        for _ in 0..jobs {
-            let tx = tx.clone();
+        let mut consumer_handles = Vec::with_capacity(jobs);
+        for id in 0..jobs {
             let mut consumer = tmq.build().await?;
             let topic = topic.name.clone();
-            tokio::spawn(async move {
-                consumer.subscribe([&topic]).await?;
-                tx.send(consumer)?;
-                Ok::<(), anyhow::Error>(())
-            });
+            consumer_handles.push(tokio::spawn(async move {
+                tracing::debug!("Subscribe consumer {id}");
+                consumer
+                    .subscribe([&topic])
+                    .await
+                    .with_context(|| format!("Subscribe consumer [{id}] with topic `{topic}` error"))?;
+                anyhow::Ok(consumer)
+            }));
         }
-        for _ in 0..jobs {
-            let consumer = rx.recv_async().await?;
+
+        for h in consumer_handles {
+            let consumer = h.await??;
             consumers.push(consumer);
         }
         let duration = consumer_timer.elapsed();
