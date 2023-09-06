@@ -130,8 +130,10 @@ async fn worker(
                                         to = target.get().await?;
                                         retries -= 1;
                                         log::warn!(
-                                            "[worker:{worker}] sync stable {stable} error: {err}, retrying"
+                                            "[worker:{worker}] sync stable {stable} error: {err}, retrying ... {retries} times left"
                                         );
+                                        // wait 5 seconds to avoid too many retries
+                                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                                         continue;
                                     }
 
@@ -230,7 +232,7 @@ async fn worker(
                                 to = target.get().await?;
                                 retries -= 1;
                                 log::warn!(
-                                    "[worker:{worker}] sync table {table} error: {err}, retrying"
+                                    "[worker:{worker}] sync table {table} error: {err}, retrying ... {retries} times left"
                                 );
                                 continue;
                             }

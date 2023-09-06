@@ -524,7 +524,7 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     }
 }
 
-pub async fn influxdb_validate(mut dsn: Dsn) -> anyhow::Result<ValidatedSource> {
+pub async fn influxdb_validate(dsn: Dsn) -> anyhow::Result<ValidatedSource> {
     let host = dsn
         .addresses
         .first()
@@ -540,11 +540,11 @@ pub async fn influxdb_validate(mut dsn: Dsn) -> anyhow::Result<ValidatedSource> 
     // http 客户端
     let client = reqwest::Client::new();
     // 发送请求，获取结果
-    let mut result = client.get(influx_url).send().await;
+    let result = client.get(influx_url).send().await;
     // 请求成功
     if result.is_ok() {
         let response = result.unwrap();
-        let mut headers = response.headers();
+        let headers = response.headers();
         // 组装结果
         Ok(ValidatedSource {
             available: true,

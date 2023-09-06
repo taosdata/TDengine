@@ -966,7 +966,7 @@ impl TaskController {
         ))
         .fetch_all(&self.pool)
         .await
-        .unwrap();
+        .context("Database error")?;
 
         if filter.has_labels_filter() {
             filter.filter_task_labels(&mut tasks);

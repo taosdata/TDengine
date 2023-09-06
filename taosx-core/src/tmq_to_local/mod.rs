@@ -421,9 +421,21 @@ pub async fn tmq_to_local(
             .workers
             .fetch_add(jobs as _, std::sync::atomic::Ordering::SeqCst);
         counter!(METRICS_TMQ_WORKERS, jobs as u64);
-        for _ in 0..jobs {
+        let mut consumer_handles = Vec::with_capacity(jobs);
+        for id in 0..jobs {
             let mut consumer = tmq.build().await?;
-            consumer.subscribe([&topic.name]).await?;
+            let topic = topic.name.clone();
+            consumer_handles.push(tokio::spawn(async move {
+                tracing::debug!("Subscribe consumer {id}");
+                consumer.subscribe([&topic]).await.with_context(|| {
+                    format!("Subscribe consumer [{id}] with topic `{topic}` error")
+                })?;
+                anyhow::Ok(consumer)
+            }));
+        }
+
+        for h in consumer_handles {
+            let consumer = h.await??;
             consumers.push(consumer);
         }
 
