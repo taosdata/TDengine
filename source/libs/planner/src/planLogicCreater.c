@@ -373,6 +373,11 @@ static bool tagScanNodeHasTbname(SNode* pKeys) {
 static int32_t tagScanSetExecutionMode(SScanLogicNode* pScan) {
   pScan->onlyMetaCtbIdx = false;
 
+  if (pScan->tableType == TSDB_CHILD_TABLE) {
+    pScan->onlyMetaCtbIdx = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (tagScanNodeListHasTbname(pScan->pScanPseudoCols)) {
     pScan->onlyMetaCtbIdx = false;
     return TSDB_CODE_SUCCESS;

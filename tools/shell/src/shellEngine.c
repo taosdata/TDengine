@@ -28,12 +28,12 @@ static void    shellRecordCommandToHistory(char *command);
 static int32_t shellRunCommand(char *command, bool recordHistory);
 static void    shellRunSingleCommandImp(char *command);
 static char   *shellFormatTimestamp(char *buf, int64_t val, int32_t precision);
-static int32_t shellDumpResultToFile(const char *fname, TAOS_RES *tres);
+static int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres);
 static void    shellPrintNChar(const char *str, int32_t length, int32_t width);
 static void    shellPrintGeometry(const unsigned char *str, int32_t length, int32_t width);
-static int32_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql);
-static int32_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql);
-static int32_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool vertical, const char *sql);
+static int64_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql);
+static int64_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql);
+static int64_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool vertical, const char *sql);
 static void    shellReadHistory();
 static void    shellWriteHistory();
 static void    shellPrintError(TAOS_RES *tres, int64_t st);
@@ -238,14 +238,14 @@ void shellRunSingleCommandImp(char *command) {
   if (pFields != NULL) {  // select and show kinds of commands
     int32_t error_no = 0;
 
-    int32_t numOfRows = shellDumpResult(pSql, fname, &error_no, printMode, command);
+    int64_t numOfRows = shellDumpResult(pSql, fname, &error_no, printMode, command);
     if (numOfRows < 0) return;
 
     et = taosGetTimestampUs();
     if (error_no == 0) {
-      printf("Query OK, %d row(s) in set (%.6fs)\r\n", numOfRows, (et - st) / 1E6);
+      printf("Query OK, %"PRId64 " row(s) in set (%.6fs)\r\n", numOfRows, (et - st) / 1E6);
     } else {
-      printf("Query interrupted (%s), %d row(s) in set (%.6fs)\r\n", taos_errstr(pSql), numOfRows, (et - st) / 1E6);
+      printf("Query interrupted (%s), %"PRId64 " row(s) in set (%.6fs)\r\n", taos_errstr(pSql), numOfRows, (et - st) / 1E6);
     }
     taos_free_result(pSql);
   } else {
@@ -430,7 +430,7 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
   }
 }
 
-int32_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
+int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
   char fullname[PATH_MAX] = {0};
   if (taosExpandDir(fname, fullname, PATH_MAX) != 0) {
     tstrncpy(fullname, fname, PATH_MAX);
@@ -459,7 +459,7 @@ int32_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
   }
   taosFprintfFile(pFile, "\r\n");
 
-  int32_t numOfRows = 0;
+  int64_t numOfRows = 0;
   do {
     int32_t *length = taos_fetch_lengths(tres);
     for (int32_t i = 0; i < num_fields; i++) {
@@ -702,7 +702,7 @@ bool shellIsShowQuery(const char *sql) {
   return false;
 }
 
-int32_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
+int64_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
   TAOS_ROW row = taos_fetch_row(tres);
   if (row == NULL) {
     return 0;
@@ -726,11 +726,11 @@ int32_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
     resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
   }
 
-  int32_t numOfRows = 0;
+  int64_t numOfRows = 0;
   int32_t showMore = 1;
   do {
     if (numOfRows < resShowMaxNum) {
-      printf("*************************** %d.row ***************************\r\n", numOfRows + 1);
+      printf("*************************** %"PRId64".row ***************************\r\n", numOfRows + 1);
 
       int32_t *length = taos_fetch_lengths(tres);
 
@@ -856,7 +856,7 @@ void shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields) {
   putchar('\n');
 }
 
-int32_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
+int64_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
   TAOS_ROW row = taos_fetch_row(tres);
   if (row == NULL) {
     return 0;
@@ -879,7 +879,7 @@ int32_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
     resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
   }
 
-  int32_t numOfRows = 0;
+  int64_t numOfRows = 0;
   int32_t showMore = 1;
 
   do {
@@ -915,8 +915,8 @@ int32_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
   return numOfRows;
 }
 
-int32_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool vertical, const char *sql) {
-  int32_t numOfRows = 0;
+int64_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool vertical, const char *sql) {
+  int64_t numOfRows = 0;
   if (fname != NULL) {
     numOfRows = shellDumpResultToFile(fname, tres);
   } else if (vertical) {
