@@ -756,7 +756,7 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
     case TDMT_VND_STREAM_TASK_CHECK:
       return tqProcessStreamTaskCheckReq(pVnode->pTq, pMsg);
     case TDMT_VND_STREAM_TASK_CHECK_RSP:
-      return tqProcessStreamTaskCheckRsp(pVnode->pTq, 0, pMsg);
+      return tqProcessStreamTaskCheckRsp(pVnode->pTq, pMsg);
     case TDMT_STREAM_RETRIEVE:
       return tqProcessTaskRetrieveReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_RETRIEVE_RSP:

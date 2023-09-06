@@ -112,7 +112,7 @@ int32_t tqCheckAndRunStreamTaskAsync(STQ* pTq) {
 
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
   if (numOfTasks == 0) {
-    tqInfo("vgId:%d no stream tasks exist", vgId);
+    tqDebug("vgId:%d no stream tasks existed to run", vgId);
     taosWUnLockLatch(&pMeta->lock);
     return 0;
   }
@@ -150,7 +150,7 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
 
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
   if (numOfTasks == 0) {
-    tqInfo("vgId:%d no stream tasks exist", vgId);
+    tqDebug("vgId:%d no stream tasks existed to run", vgId);
     taosWUnLockLatch(&pMeta->lock);
     return 0;
   }
