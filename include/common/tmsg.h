@@ -896,6 +896,20 @@ int32_t tDeserializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pR
 void    tFreeSCreateUserReq(SCreateUserReq* pReq);
 
 typedef struct {
+  char        user[TSDB_USER_LEN];
+  int32_t     numOfRange;
+  SIpV4Range* pIpRanges;
+} SUpdateUserIpWhite;
+typedef struct {
+  int                 numOfUser;
+  SUpdateUserIpWhite* pUserIpWhite;
+} SUpdateIpWhite;
+
+int32_t tSerializeSUpdateIpWhite(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
+int32_t tDeserializeSUpdateIpWhite(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
+void    tFreeSUpdateIpWhiteReq(SUpdateIpWhite* pReq);
+
+typedef struct {
   int8_t      alterType;
   int8_t      superUser;
   int8_t      sysInfo;

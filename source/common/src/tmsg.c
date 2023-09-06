@@ -1420,6 +1420,66 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
 
 void tFreeSCreateUserReq(SCreateUserReq *pReq) { taosMemoryFree(pReq->pIpRanges); }
 
+int32_t tSerializeSUpdateIpWhite(void *buf, int32_t bufLen, SUpdateIpWhite *pReq) {
+  // impl later
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  if (tEncodeI32(&encoder, pReq->numOfUser) < 0) return -1;
+  for (int i = 0; i < pReq->numOfUser; i++) {
+    SUpdateUserIpWhite *pUser = &(pReq->pUserIpWhite[i]);
+    if (tEncodeCStr(&encoder, pUser->user) < 0) return -1;
+    if (tEncodeI32(&encoder, pUser->numOfRange) < 0) return -1;
+    for (int j = 0; j < pUser->numOfRange; j++) {
+      SIpV4Range *pRange = &pUser->pIpRanges[j];
+      if (tEncodeU32(&encoder, pRange->ip) < 0) return -1;
+      if (tEncodeU32(&encoder, pRange->mask) < 0) return -1;
+    }
+  }
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+int32_t tDeserializeSUpdateIpWhite(void *buf, int32_t bufLen, SUpdateIpWhite *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  // impl later
+  if (tDecodeI32(&decoder, &pReq->numOfUser) < 0) return -1;
+
+  pReq->pUserIpWhite = taosMemoryCalloc(1, sizeof(SUpdateUserIpWhite) * pReq->numOfUser);
+  for (int i = 0; i < pReq->numOfUser; i++) {
+    SUpdateUserIpWhite *pUserWhite = &pReq->pUserIpWhite[i];
+    if (tDecodeCStrTo(&decoder, pUserWhite->user) < 0) return -1;
+    if (tDecodeI32(&decoder, &pUserWhite->numOfRange) < 0) return -1;
+
+    pUserWhite->pIpRanges = taosMemoryCalloc(1, pUserWhite->numOfRange * sizeof(SIpV4Range));
+    for (int j = 0; j < pUserWhite->numOfRange; j++) {
+      SIpV4Range *pRange = &pUserWhite->pIpRanges[j];
+      if (tDecodeU32(&decoder, &pRange->ip) < 0) return -1;
+      if (tDecodeU32(&decoder, &pRange->mask) < 0) return -1;
+    }
+  }
+
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
+}
+void tFreeSUpdateIpWhiteReq(SUpdateIpWhite *pReq) {
+  for (int i = 0; i < pReq->numOfUser; i++) {
+    SUpdateUserIpWhite *pUserWhite = &pReq->pUserIpWhite[i];
+    taosMemoryFree(pUserWhite->pIpRanges);
+  }
+  taosMemoryFree(pReq->pUserIpWhite);
+  // impl later
+  return;
+}
+
 int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
