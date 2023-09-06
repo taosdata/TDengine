@@ -294,9 +294,8 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, void* data) {
 
     SRpcMsg msg = {.msgType = TDMT_VND_SUBMIT, .pCont = pBuf, .contLen = len};
     code = tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg);
-
     if (code == TSDB_CODE_SUCCESS) {
-      tqDebug("s-task:%s vgId:%d send submit %d blocks(%d rows) into dstTables completed", id, vgId);
+      tqDebug("s-task:%s vgId:%d send submit %d blocks into dstTables completed", id, vgId, numOfBlocks);
     } else {
       tqError("s-task:%s failed to put into write-queue since %s", id, terrstr());
     }
