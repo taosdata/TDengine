@@ -488,7 +488,8 @@ struct SDataFileWriter {
     STombBlock           tombBlock[1];
     int32_t              tombBlockIdx;
     // range
-    SVersionRange range;
+    SVersionRange        range;
+    SVersionRange        tombRange;
   } ctx[1];
 
   STFile   files[TSDB_FTYPE_MAX];
@@ -637,6 +638,7 @@ static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
 
   // range
   writer->ctx->range = (SVersionRange){.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
+  writer->ctx->tombRange = (SVersionRange){.minVer = VERSION_MAX, .maxVer = VERSION_MIN};
 
   writer->ctx->opened = true;
 
@@ -1243,7 +1245,7 @@ static int32_t tsdbDataFileDoWriteTombBlock(SDataFileWriter *writer) {
 
   code = tsdbFileWriteTombBlock(writer->fd[TSDB_FTYPE_TOMB], writer->tombBlock, writer->config->cmprAlg,
                                 &writer->files[TSDB_FTYPE_TOMB].size, writer->tombBlkArray, writer->config->bufArr,
-                                &writer->ctx->range);
+                                &writer->ctx->tombRange);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -1543,7 +1545,7 @@ static int32_t tsdbDataFileWriterCloseCommit(SDataFileWriter *writer, TFileOpArr
         .nf = writer->files[ftype],
     };
     tsdbTFileUpdVerRange(&op.nf, ofRange);
-    tsdbTFileUpdVerRange(&op.nf, writer->ctx->range);
+    tsdbTFileUpdVerRange(&op.nf, writer->ctx->tombRange);
     code = TARRAY2_APPEND(opArr, op);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
