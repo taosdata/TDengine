@@ -645,6 +645,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     }
 
     mndGetDnodeEps(pMnode, statusRsp.pDnodeEps);
+    statusRsp.ipWhiteVer = mndGetIpWhiteVer(pMnode);
 
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
     void   *pHead = rpcMallocCont(contLen);

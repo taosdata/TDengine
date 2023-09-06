@@ -113,7 +113,7 @@ void ipWhiteMgtUpdate2(SMnode *pMnode) {
   taosThreadRwlockUnlock(&ipWhiteMgt.rw);
 }
 
-int64_t ipWhiteMgtGetVer(SMnode *pMnode) {
+int64_t mndGetIpWhiteVer(SMnode *pMnode) {
   taosThreadRwlockWrlock(&ipWhiteMgt.rw);
   int64_t ver = ipWhiteMgt.ver;
   if (ver == 0) {

@@ -55,6 +55,10 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         dmUpdateDnodeCfg(pMgmt, &statusRsp.dnodeCfg);
         dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
       }
+      
+      if (pMgmt->ipWhiteVer != statusRsp.ipWhiteVer) {
+        // 
+      }
     }
     tFreeSStatusRsp(&statusRsp);
   }
