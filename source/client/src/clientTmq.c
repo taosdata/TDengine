@@ -982,7 +982,7 @@ int32_t tmq_unsubscribe(tmq_t* tmq) {
   }
   if (tmq->autoCommit) {
     int32_t rsp = tmq_commit_sync(tmq, NULL);
-    if (rsp != 0) {
+    if (rsp != 0 && rsp != TSDB_CODE_TMQ_SAME_COMMITTED_VALUE) {
       return rsp;
     }
   }
@@ -2122,7 +2122,7 @@ int32_t tmq_consumer_close(tmq_t* tmq) {
     // if auto commit is set, commit before close consumer. Otherwise, do nothing.
     if (tmq->autoCommit) {
       int32_t rsp = tmq_commit_sync(tmq, NULL);
-      if (rsp != 0) {
+      if (rsp != 0 && rsp != TSDB_CODE_TMQ_SAME_COMMITTED_VALUE) {
         return rsp;
       }
     }
