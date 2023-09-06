@@ -91,6 +91,15 @@ static void ipRangeListToStr(SIpV4Range *range, int32_t num, char *buf) {
   }
   if (len > 0) buf[len - 1] = 0;
 }
+static bool isRangeInIpWhiteList(SIpWhiteList *pList, SIpV4Range *tgt) {
+  for (int i = 0; i < pList->num; i++) {
+    SIpV4Range *el = &pList->pIpRange[i];
+    if (tgt->ip == el->ip && tgt->mask == el->mask) {
+      return true;
+    }
+  }
+  return false;
+}
 int32_t convertIpWhiteListToStr(SIpWhiteList *pList, char **buf) {
   if (pList->num == 0) {
     *buf = NULL;
@@ -169,15 +178,6 @@ static SIpWhiteList *cloneIpWhiteList(SIpWhiteList *pIpWhiteList) {
   SIpWhiteList *pNew = taosMemoryCalloc(1, sz);
   memcpy(pNew, pIpWhiteList, sz);
   return pNew;
-}
-static bool isRangeInIpWhiteList(SIpWhiteList *pList, SIpV4Range *tgt) {
-  for (int i = 0; i < pList->num; i++) {
-    SIpV4Range *el = &pList->pIpRange[i];
-    if (tgt->ip == el->ip && tgt->mask == el->mask) {
-      return true;
-    }
-  }
-  return false;
 }
 
 static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char *pass) {
