@@ -910,6 +910,13 @@ int32_t tDeserializeSUpdateIpWhite(void* buf, int32_t bufLen, SUpdateIpWhite* pR
 void    tFreeSUpdateIpWhiteReq(SUpdateIpWhite* pReq);
 
 typedef struct {
+  int64_t ipWhiteVer;
+} SRetrieveIpWhiteReq;
+
+int32_t tSerializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteReq* pReq);
+int32_t tDeserializeRetrieveIpWhite(void* buf, int32_t bufLen, SRetrieveIpWhiteReq* pReq);
+
+typedef struct {
   int8_t      alterType;
   int8_t      superUser;
   int8_t      sysInfo;
@@ -1469,7 +1476,6 @@ typedef struct {
   SClusterCfg clusterCfg;
   SArray*     pVloads;  // array of SVnodeLoad
   int32_t     statusSeq;
-  int64_t     ipWhiteVer;
 } SStatusReq;
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);

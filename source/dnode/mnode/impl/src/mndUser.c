@@ -55,6 +55,7 @@ static void     mndCancelGetNextUser(SMnode *pMnode, void *pIter);
 static int32_t  mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter);
 SHashObj       *mndFetchAllIpWhite(SMnode *pMnode);
+static int32_t  mndProcesSRetrieveIpWhiteReq(SRpcMsg *pReq);
 
 typedef struct {
   SHashObj      *pIpWhiteList;
@@ -124,8 +125,34 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
   taosThreadRwlockUnlock(&ipWhiteMgt.rw);
   return ver;
 }
+int64_t ipWhiteMgtFillMsg(SUpdateIpWhite *pUpdate) {
+  taosThreadRwlockWrlock(&ipWhiteMgt.rw);
+  int32_t num = taosHashGetSize(ipWhiteMgt.pIpWhiteList);
+  pUpdate->pUserIpWhite = taosMemoryCalloc(1, num * sizeof(SUpdateUserIpWhite));
+  void   *pIter = taosHashIterate(ipWhiteMgt.pIpWhiteList, NULL);
+  int32_t i = 0;
+  while (pIter) {
+    SUpdateUserIpWhite *pUser = &pUpdate->pUserIpWhite[i];
+    SIpWhiteList       *list = *(SIpWhiteList **)pIter;
 
-// int64_t ipWhiteMgt
+    size_t klen;
+    char  *key = taosHashGetKey(pIter, &klen);
+    if (list->num != 0) {
+      taosHashIterate(ipWhiteMgt.pIpWhiteList, pIter);
+      memcpy(pUser->user, key, klen);
+
+      pUser->numOfRange = list->num;
+      pUser->pIpRanges = taosMemoryCalloc(1, list->num * sizeof(SIpV4Range));
+      memcpy(pUser->pIpRanges, list->pIpRange, list->num * sizeof(SIpV4Range));
+      i++;
+    }
+    taosHashIterate(ipWhiteMgt.pIpWhiteList, pIter);
+  }
+  pUpdate->numOfUser = i;
+
+  taosThreadRwlockUnlock(&ipWhiteMgt.rw);
+  return 0;
+}
 
 void destroyIpWhiteTab(SHashObj *pIpWhiteTab) {
   if (pIpWhiteTab == NULL) return;
@@ -174,6 +201,7 @@ int32_t mndInitUser(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_USER, mndProcessAlterUserReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_USER, mndProcessDropUserReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_USER_AUTH, mndProcessGetUserAuthReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_RETRIEVE_IP_WHITE, mndProcesSRetrieveIpWhiteReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_USER, mndRetrieveUsers);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_USER, mndCancelGetNextUser);
@@ -969,6 +997,34 @@ _OVER:
   mndReleaseUser(pMnode, pOperUser);
   tFreeSCreateUserReq(&createReq);
   return code;
+}
+int32_t mndProcesSRetrieveIpWhiteReq(SRpcMsg *pReq) {
+  // impl later
+  SRetrieveIpWhiteReq req = {0};
+  if (tDeserializeRetrieveIpWhite(pReq->pCont, pReq->contLen, &req) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  SUpdateIpWhite ipWhite;
+
+  int32_t len = tSerializeSUpdateIpWhite(NULL, 0, &ipWhite);
+
+  void *pRsp = rpcMallocCont(len);
+  tSerializeSUpdateIpWhite(pRsp, len, &ipWhite);
+
+  if (req.ipWhiteVer == 0) {
+    pReq->info.rsp = pRsp;
+    pReq->info.rspLen = len;
+  } else {
+    pReq->info.rsp = pRsp;
+    pReq->info.rspLen = len;
+  }
+  tFreeSUpdateIpWhiteReq(&ipWhite);
+
+  return 0;
+_OVER:
+  return -1;
 }
 
 static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpcMsg *pReq) {

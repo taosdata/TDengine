@@ -1117,7 +1117,6 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     if (tEncodeI64(&encoder, reserved) < 0) return -1;
   }
 
-  if (tEncodeI64(&encoder, pReq->ipWhiteVer) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1228,8 +1227,6 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
       if (tDecodeI64(&decoder, &reserved) < 0) return -1;
     }
   }
-
-  if (tDecodeI64(&decoder, &pReq->ipWhiteVer) < 0) return -1;
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
@@ -1486,6 +1483,31 @@ void tFreeSUpdateIpWhiteReq(SUpdateIpWhite *pReq) {
   taosMemoryFree(pReq->pUserIpWhite);
   // impl later
   return;
+}
+int32_t tSerializeRetrieveIpWhite(void *buf, int32_t bufLen, SRetrieveIpWhiteReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  if (tEncodeI64(&encoder, pReq->ipWhiteVer) < 0) {
+    return -1;
+  }
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+int32_t tDeserializeRetrieveIpWhite(void *buf, int32_t bufLen, SRetrieveIpWhiteReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  // impl later
+  if (tDecodeI64(&decoder, &pReq->ipWhiteVer) < 0) return -1;
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
 }
 
 int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) {

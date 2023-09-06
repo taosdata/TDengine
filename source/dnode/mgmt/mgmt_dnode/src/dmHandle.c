@@ -30,7 +30,30 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
     taosThreadRwlockUnlock(&pMgmt->pData->lock);
   }
 }
+static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
+  if (pMgmt->ipWhiteVer == ver) {
+    return;
+  }
+  int64_t oldVer = pMgmt->ipWhiteVer;
+  pMgmt->ipWhiteVer = ver;
 
+  SRetrieveIpWhiteReq req = {.ipWhiteVer = oldVer};
+  int32_t             contLen = tSerializeRetrieveIpWhite(NULL, 0, &req);
+  void               *pHead = rpcMallocCont(contLen);
+  tSerializeRetrieveIpWhite(pHead, contLen, &req);
+
+  SRpcMsg rpcMsg = {.pCont = pHead,
+                    .contLen = contLen,
+                    .msgType = TDMT_MND_RETRIEVE_IP_WHITE,
+                    .info.ahandle = (void *)0x9527,
+                    .info.refId = 0,
+                    .info.noResp = 0};
+  SEpSet  epset = {0};
+
+  dmGetMnodeEpSet(pMgmt->pData, &epset);
+
+  rpcSendRequest(pMgmt->msgCb.clientRpc, &epset, &rpcMsg, NULL);
+}
 static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
   const STraceId *trace = &pRsp->info.traceId;
   dGTrace("status rsp received from mnode, statusSeq:%d code:0x%x", pMgmt->statusSeq, pRsp->code);
@@ -55,10 +78,7 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         dmUpdateDnodeCfg(pMgmt, &statusRsp.dnodeCfg);
         dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
       }
-      
-      if (pMgmt->ipWhiteVer != statusRsp.ipWhiteVer) {
-        // 
-      }
+      dmMayShouldUpdateIpWhiteList(pMgmt, statusRsp.ipWhiteVer);
     }
     tFreeSStatusRsp(&statusRsp);
   }
