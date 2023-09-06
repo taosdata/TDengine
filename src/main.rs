@@ -278,8 +278,10 @@ fn main() -> Result<()> {
             .with_regex(true)
             .from_env_lossy()
             .add_directive("tungstenite=warn".parse()?)
-            // .add_directive("actix_server=info".parse()?)
-            // .add_directive("actix_http=info".parse()?)
+            .add_directive("tokio=warn".parse()?)
+            .add_directive("runtime=warn".parse()?)
+            .add_directive("actix_server=info".parse()?)
+            .add_directive("actix_http=info".parse()?)
             .add_directive("tokio_tungstenite=info".parse()?)
             .add_directive("mio=warn".parse()?);
 
