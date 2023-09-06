@@ -200,7 +200,7 @@
     <el-dialog
       :title="dialogtitle"
       :visible.sync="searchdialog"
-      width="30%"
+      width="40%"
       :destroy-on-close="true"
       @close="closeDialog"
     >
@@ -282,7 +282,7 @@ const conditionMap = {
   JSON: JsonOperator,
   BOOL: CompareOperator.concat(
     getGeneralFn(["NOT BETWEEN", "BETWEEN"])
-  ).concat(["NOT BETWEEN AND", "BETWEEN AND"]),
+  ).concat(["NOT BETWEEN", "BETWEEN"]),
 };
 const conditionList = CompareOperator.concat(
   getGeneralFn(["NOT BETWEEN AND", "BETWEEN AND"])
@@ -809,6 +809,9 @@ export default {
                 },
                 {
                   condition: "",
+                },
+                {
+                  betweenVal:''
                 }
               );
             })
@@ -868,6 +871,9 @@ export default {
                   `${item.condition}` +
                   " " +
                   `'${item.value}'`;
+                  if(item.condition.includes('BETWEEN')){
+                    wherestr += ` AND '${item.betweenVal}'`
+                  }
               });
               await this.$store
                 .dispatch(
