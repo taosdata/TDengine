@@ -2894,9 +2894,15 @@ static void tagScanFilterByTagCond(SArray* aUidTags, SNode* pTagCond, SArray* aF
   SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
 
   SScalarParam output = {0};
-  tagScanCreateResultData(&type, numOfTables, &output);
+  code = tagScanCreateResultData(&type, numOfTables, &output);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
 
-  scalarCalculate(pTagCond, pBlockList, &output);
+  code = scalarCalculate(pTagCond, pBlockList, &output);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
 
   bool* result = (bool*)output.columnData->pData;
   for (int32_t i = 0 ; i < numOfTables; ++i) {
