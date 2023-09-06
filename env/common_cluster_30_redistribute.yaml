@@ -1,0 +1,85 @@
+settings:
+  - name: taosd
+    fqdn: [ceph01]
+    spec:
+      version: 3.0.0.0  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: ceph01:6030
+      dnodes:
+        - endpoint: ceph01:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            supportVnodes: 128
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+            asyncLog: 0
+            numOfLogLines: 2000000000
+        - endpoint: ceph02:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            supportVnodes: 128
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+            asyncLog: 0
+            numOfLogLines: 2000000000
+        - endpoint: ceph03:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            supportVnodes: 128
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+            asyncLog: 0
+            numOfLogLines: 2000000000
+        - endpoint: ceph04:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            supportVnodes: 128
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+            asyncLog: 0
+            numOfLogLines: 2000000000
+        - endpoint: ceph05:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            supportVnodes: 128
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+            asyncLog: 0
+            numOfLogLines: 2000000000
+        - endpoint: ceph06:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            supportVnodes: 128
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+            asyncLog: 0
+            numOfLogLines: 2000000000
+  - name: taosBenchmark
+    fqdn: [ceph01]
+    spec:
+      version: 3.0.0.0
+      taos_version: 3.0.0.0
+      config_dir: /etc/taos
+      taos_config:
+        firstEP: ceph01:6030
+        logDir: /var/log/taos
+        debugFlag: 131
+  - name: taospy
+    fqdn: [ceph01]
+    spec:
+      version: 3.0.0.0
+      client_version: 3.0.0.0
+      config:
+        firstEP: ceph01:6030
+        dataDir: /var/lib/taos
+        logDir: /var/log/taos
+        debugFlag: 135
+        asynclog: 0
+        logkeepDays: 2
+        numOfLogLines: 200000000
