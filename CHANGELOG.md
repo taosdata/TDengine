@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *influxdb*: Fix tiny bugs. #[TD-25792](https://jira.taosdata.com:18080/browse/TD-25792) (#617) ([8e6f4bf](8e6f4bf961c14110ee8b29d7a4c85a4c2b43cc66))
 - *influxdb*: Fix the bug of the name of measurement with dot. #[TD-25887](https://jira.taosdata.com:18080/browse/TD-25887) (#643) ([3028b78](3028b78b537a4ce5ae901b3bebd0e00278b797bc))
 - *influxdb*: Special handling for influxdb cloud. #[TD-25842](https://jira.taosdata.com:18080/browse/TD-25842) (#642) ([066a2f9](066a2f902a11dfbfa6c5cac3e879f1f9fd4b21bf))
+- *influxdb/opentsdb*: Modify tolerance type. [TD-26147](https://jira.taosdata.com:18080/browse/TD-26147) (#690) ([225c10a](225c10a1bc7d474780be0af1ee24b81793e235ec))
 - *ipc*: Retry ipc tcp forward #[TS-3800](https://jira.taosdata.com:18080/browse/TS-3800) (#599) ([2dd3c73](2dd3c734f41dbf49d695d096fd6a5b5d881c357e))
 - *ipc*: Fix lush ipc writing error (#619) ([c276564](c276564da23474a529e77500fe47310a28b4ccbd))
 - *ipc*: Fix lush ipc writing erro (#621) ([64db9d1](64db9d1846328ffa513fde0e446481d471f0fec4))
