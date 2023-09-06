@@ -145,8 +145,6 @@ class StaticFullSync(TDCase):
                             self.source_taosd_list[source][1]))
                 taosd_master.execute(f'drop topic {self.dbname[source]} ')    
                 taosd_master.execute(f'drop topic {self.stbname[source]} ')        
-            # self.ntb_dbname = [self.tdCom.get_long_name(5)]
-            # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
 
 
     def cleanup(self):
