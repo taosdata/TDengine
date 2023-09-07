@@ -901,18 +901,21 @@ int32_t tDeserializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pR
 void    tFreeSCreateUserReq(SCreateUserReq* pReq);
 
 typedef struct {
+  int64_t     ver;
   char        user[TSDB_USER_LEN];
   int32_t     numOfRange;
   SIpV4Range* pIpRanges;
 } SUpdateUserIpWhite;
 typedef struct {
+  int64_t             ver;
   int                 numOfUser;
   SUpdateUserIpWhite* pUserIpWhite;
 } SUpdateIpWhite;
 
-int32_t tSerializeSUpdateIpWhite(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
-int32_t tDeserializeSUpdateIpWhite(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
-void    tFreeSUpdateIpWhiteReq(SUpdateIpWhite* pReq);
+int32_t         tSerializeSUpdateIpWhite(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
+int32_t         tDeserializeSUpdateIpWhite(void* buf, int32_t bufLen, SUpdateIpWhite* pReq);
+void            tFreeSUpdateIpWhiteReq(SUpdateIpWhite* pReq);
+SUpdateIpWhite* cloneSUpdateIpWhiteReq(SUpdateIpWhite* pReq);
 
 typedef struct {
   int64_t ipWhiteVer;

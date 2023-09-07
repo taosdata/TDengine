@@ -120,7 +120,7 @@ typedef struct SServerObj {
 
 SWhiteList* uvWhiteListCreate();
 void        uvWhiteListDestroy(SWhiteList* pWhite);
-void        uvWhiteListAdd(SWhiteList* pWhite, char* user, char* ip);
+void        uvWhiteListAdd(SWhiteList* pWhite, char* user, SIpWhiteList* pList, int64_t ver);
 void        uvWhiteListUpdate(SWhiteList* pWhite, SHashObj* pTable);
 bool        uvWhiteListCheckConn(SWhiteList* pWhite, SSvrConn* pConn);
 bool        uvWhiteListFilte(SWhiteList* pWhite, char* user, uint32_t ip, int64_t ver);
@@ -234,29 +234,31 @@ typedef struct {
   int8_t  type;
 } SubnetUtils;
 
-int32_t subnetInit(SubnetUtils* pUtils, char* range) {
-  char buf[32] = {0};
-  strncpy(pUtils->info, range, strlen(range));
-  strncpy(buf, range, strlen(range));
+int32_t subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange) {
+  // char buf[32] = {0};
+  //  strncpy(pUtils->info, range, strlen(range));
+  //  strncpy(buf, range, strlen(range));
 
-  int16_t ip[5] = {0};
-  int8_t  k = cvtIp2Int(buf, ip);
-  if (k < 4) {
-    return -1;
-  }
+  // int16_t ip[5] = {0};
+  // int8_t  k = cvtIp2Int(buf, ip);
+  // if (k < 4) {
+  //   return -1;
+  // }
 
-  for (int i = 0; i < 4; i++) {
-    pUtils->address |= (ip[i] << (8 * (4 - i - 1)));
+  // for (int i = 0; i < 4; i++) {
+  //   pUtils->address |= (ip[i] << (8 * (4 - i - 1)));
+  // }
+  pUtils->address = pRange->ip;
+
+  int32_t mask = 0;
+  for (int i = 0; i < pRange->mask; i++) {
+    mask |= (1 << (31 - i));
   }
-  if (k == 5) {
-    for (int i = 0; i < ip[4]; i++) {
-      pUtils->netmask |= (1 << (31 - i));
-    }
-  }
+  pUtils->netmask = mask;
 
   pUtils->network = pUtils->address & pUtils->netmask;
   pUtils->broadcast = (pUtils->network) | (pUtils->netmask ^ 0xFFFFFFFF);
-  pUtils->type = (k == 4 ? 0 : 1);
+  pUtils->type = (pRange->mask == 0 ? 0 : 1);
 
   return 0;
 }
@@ -275,10 +277,10 @@ int32_t subnetCheckIp(SubnetUtils* pUtils, uint32_t ip) {
   }
 }
 
-static bool uvCheckIp(char* range, int32_t ip) {
+static bool uvCheckIp(SIpV4Range* pRange, int32_t ip) {
   // impl later
   SubnetUtils subnet = {0};
-  if (subnetInit(&subnet, range) != 0) {
+  if (subnetInit(&subnet, pRange) != 0) {
     return false;
   }
   return subnetCheckIp(&subnet, ip);
@@ -295,33 +297,33 @@ void uvWhiteListDestroy(SWhiteList* pWhite) {
   SHashObj* pWhiteList = pWhite->pList;
   void*     pIter = taosHashIterate(pWhiteList, NULL);
   while (pIter) {
-    SWhiteUserList* pList = *(SWhiteUserList**)pIter;
-    // for (int i = 0; i < taosArrayGetSize(pList->list); i++) {
-    //   char* range = taosArrayGetP(pList->list, i);
-    //   taosMemoryFree(range);
-    // }
-    // taosArrayDestroy(pList->list);
-    taosMemoryFree(pList);
+    SWhiteUserList* pUserList = *(SWhiteUserList**)pIter;
+    taosMemoryFree(pUserList->pList);
+    taosMemoryFree(pUserList);
+
     pIter = taosHashIterate(pWhiteList, pIter);
   }
   taosHashCleanup(pWhiteList);
   taosMemoryFree(pWhite);
 }
 
-void uvWhiteListAdd(SWhiteList* pWhite, char* user, char* ip) {
+void uvWhiteListAdd(SWhiteList* pWhite, char* user, SIpWhiteList* plist, int64_t ver) {
   SHashObj* pWhiteList = pWhite->pList;
 
-  SWhiteUserList** ppList = taosHashGet(pWhiteList, user, strlen(user));
-  if (ppList == NULL || *ppList == NULL) {
-    // SWhiteUserList* pList = taosMemoryCalloc(1, sizeof(SWhiteUserList));
-    // pList->list = taosArrayInit(8, sizeof(void*));
-    // taosArrayPush(pList->list, &ip);
-    // pList->ver += 1;
-    // taosHashPut(pWhiteList, user, strlen(user), &pList, sizeof(void*));
+  SWhiteUserList** ppUserList = taosHashGet(pWhiteList, user, strlen(user));
+  if (ppUserList == NULL || *ppUserList == NULL) {
+    SWhiteUserList* pUserList = taosMemoryCalloc(1, sizeof(SWhiteUserList));
+    pUserList->ver = ver;
+
+    pUserList->pList = plist;
+
+    taosHashPut(pWhiteList, user, strlen(user), &pUserList, sizeof(void*));
   } else {
-    // SWhiteUserList* pList = *ppList;
-    // pList->ver += 1;
-    // taosArrayPush(pList->list, &ip);
+    SWhiteUserList* pUserList = *ppUserList;
+
+    taosMemoryFreeClear(pUserList->pList);
+    pUserList->ver = ver;
+    pUserList->pList = plist;
   }
 }
 
@@ -341,13 +343,14 @@ bool uvWhiteListFilte(SWhiteList* pWhite, char* user, uint32_t ip, int64_t ver) 
   SWhiteUserList* pList = *ppList;
   if (pList->ver == ver) return true;
 
-  // for (int i = 0; i < taosArrayGetSize(pList->list); i++) {
-  //   char* range = taosArrayGetP(pList->list, i);
-  //   if (uvCheckIp(range, ip)) {
-  //     valid = true;
-  //     break;
-  //   }
-  // }
+  SIpWhiteList* pIpWhiteList = pList->pList;
+  for (int i = 0; i < pIpWhiteList->num; i++) {
+    SIpV4Range* range = &pIpWhiteList->pIpRange[i];
+    if (uvCheckIp(range, ip)) {
+      valid = true;
+      break;
+    }
+  }
   return valid;
 }
 bool uvWhiteListCheckConn(SWhiteList* pWhite, SSvrConn* pConn) {
@@ -1381,17 +1384,22 @@ void uvHandleRegister(SSvrMsg* msg, SWorkThrd* thrd) {
   }
 }
 void uvHandleUpdate(SSvrMsg* msg, SWorkThrd* thrd) {
-  // update white ip
-  // bool ret = (msg->func)(msg->arg);
-  SUpdateIpWhite* updateReq = msg->arg;
-  for (int i = 0; i < updateReq->numOfUser; i++) {
-    SUpdateUserIpWhite* pUser = &updateReq->pUserIpWhite[i];
+  SUpdateIpWhite* req = msg->arg;
+  for (int i = 0; i < req->numOfUser; i++) {
+    SUpdateUserIpWhite* pUser = &req->pUserIpWhite[i];
+
+    int32_t       sz = sizeof(SIpWhiteList) + pUser->numOfRange * sizeof(SIpV4Range);
+    SIpWhiteList* pList = taosMemoryCalloc(1, sz);
+    pList->num = pUser->numOfRange;
+
+    memcpy(pList->pIpRange, pUser->pIpRanges, sz);
+    uvWhiteListAdd(thrd->pWhiteList, pUser->user, pList, pUser->ver);
   }
-  // uvWhiteListUpdate(thrd->pWhiteList, SHashObj *pTable);
 
-  tFreeSUpdateIpWhiteReq(updateReq);
+  thrd->pWhiteList->ver = req->ver;
 
-  taosMemoryFree(updateReq);
+  tFreeSUpdateIpWhiteReq(req);
+  taosMemoryFree(req);
   taosMemoryFree(msg);
   return;
 }
@@ -1581,9 +1589,12 @@ void transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
   for (int i = 0; i < svrObj->numOfThreads; i++) {
     SWorkThrd* pThrd = svrObj->pThreadObj[i];
 
-    SSvrMsg* msg = taosMemoryCalloc(1, sizeof(SSvrMsg));
+    SSvrMsg*        msg = taosMemoryCalloc(1, sizeof(SSvrMsg));
+    SUpdateIpWhite* pReq = cloneSUpdateIpWhiteReq((SUpdateIpWhite*)arg);
+
     msg->type = Update;
-    msg->arg = arg;
+    msg->arg = pReq;
+
     transAsyncSend(pThrd->asyncPool, &msg->q);
   }
   transReleaseExHandle(transGetInstMgt(), (int64_t)thandle);

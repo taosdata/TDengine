@@ -67,8 +67,12 @@ static void dmUpdateRpcIpWhite(void *pTrans, SRpcMsg *pRpc) {
   SUpdateIpWhite *pIpWhite = taosMemoryCalloc(1, sizeof(SUpdateIpWhite));
   tDeserializeSUpdateIpWhite(pRpc->pCont, pRpc->contLen, pIpWhite);
 
-  // rpcSetIpWhite(pTrans, pIpWhite);
-  //  tFreeSUpdateIpWhiteReq(&ipWhite);
+  rpcSetIpWhite(pTrans, pIpWhite);
+
+  tFreeSUpdateIpWhiteReq(pIpWhite);
+  taosMemoryFree(pIpWhite);
+
+  rpcFreeCont(pRpc->pCont);
 }
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SDnodeTrans  *pTrans = &pDnode->trans;
@@ -103,8 +107,10 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
       if (pEpSet != NULL) {
         dmSetMnodeEpSet(&pDnode->data, pEpSet);
       }
+      break;
     case TDMT_MND_RETRIEVE_IP_WHITE_RSP: {
       dmUpdateRpcIpWhite(pTrans->serverRpc, pRpc);
+      return;
     } break;
     default:
       break;

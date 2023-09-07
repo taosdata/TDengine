@@ -126,7 +126,9 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
   return ver;
 }
 int64_t ipWhiteMgtFillMsg(SUpdateIpWhite *pUpdate) {
+  int64_t ver = 0;
   taosThreadRwlockWrlock(&ipWhiteMgt.rw);
+  ver = ipWhiteMgt.ver;
   int32_t num = taosHashGetSize(ipWhiteMgt.pIpWhiteList);
   pUpdate->pUserIpWhite = taosMemoryCalloc(1, num * sizeof(SUpdateUserIpWhite));
   void   *pIter = taosHashIterate(ipWhiteMgt.pIpWhiteList, NULL);
@@ -138,8 +140,8 @@ int64_t ipWhiteMgtFillMsg(SUpdateIpWhite *pUpdate) {
     size_t klen;
     char  *key = taosHashGetKey(pIter, &klen);
     if (list->num != 0) {
+      pUser->ver = ver;
       memcpy(pUser->user, key, klen);
-
       pUser->numOfRange = list->num;
       pUser->pIpRanges = taosMemoryCalloc(1, list->num * sizeof(SIpV4Range));
       memcpy(pUser->pIpRanges, list->pIpRange, list->num * sizeof(SIpV4Range));

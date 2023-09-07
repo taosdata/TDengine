@@ -1430,10 +1430,12 @@ int32_t tSerializeSUpdateIpWhite(void *buf, int32_t bufLen, SUpdateIpWhite *pReq
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
   if (tStartEncode(&encoder) < 0) return -1;
-
+  if (tEncodeI64(&encoder, pReq->ver) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->numOfUser) < 0) return -1;
   for (int i = 0; i < pReq->numOfUser; i++) {
     SUpdateUserIpWhite *pUser = &(pReq->pUserIpWhite[i]);
+
+    if (tEncodeI64(&encoder, pUser->ver) < 0) return -1;
     if (tEncodeCStr(&encoder, pUser->user) < 0) return -1;
     if (tEncodeI32(&encoder, pUser->numOfRange) < 0) return -1;
     for (int j = 0; j < pUser->numOfRange; j++) {
@@ -1455,11 +1457,13 @@ int32_t tDeserializeSUpdateIpWhite(void *buf, int32_t bufLen, SUpdateIpWhite *pR
 
   if (tStartDecode(&decoder) < 0) return -1;
   // impl later
+  if (tDecodeI64(&decoder, &pReq->ver) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->numOfUser) < 0) return -1;
 
   pReq->pUserIpWhite = taosMemoryCalloc(1, sizeof(SUpdateUserIpWhite) * pReq->numOfUser);
   for (int i = 0; i < pReq->numOfUser; i++) {
     SUpdateUserIpWhite *pUserWhite = &pReq->pUserIpWhite[i];
+    if (tDecodeI64(&decoder, &pUserWhite->ver) < 0) return -1;
     if (tDecodeCStrTo(&decoder, pUserWhite->user) < 0) return -1;
     if (tDecodeI32(&decoder, &pUserWhite->numOfRange) < 0) return -1;
 
@@ -1483,6 +1487,25 @@ void tFreeSUpdateIpWhiteReq(SUpdateIpWhite *pReq) {
   taosMemoryFree(pReq->pUserIpWhite);
   // impl later
   return;
+}
+SUpdateIpWhite *cloneSUpdateIpWhiteReq(SUpdateIpWhite *pReq) {
+  SUpdateIpWhite *pClone = taosMemoryCalloc(1, sizeof(SUpdateIpWhite));
+
+  pClone->pUserIpWhite = taosMemoryCalloc(1, sizeof(SUpdateUserIpWhite) * pReq->numOfUser);
+  pClone->ver = pReq->ver;
+  for (int i = 0; i < pReq->numOfUser; i++) {
+    SUpdateUserIpWhite *pNew = &pClone->pUserIpWhite[i];
+    SUpdateUserIpWhite *pOld = &pReq->pUserIpWhite[i];
+
+    pNew->ver = pOld->ver;
+    memcpy(pNew->user, pOld->user, strlen(pOld->user));
+    pNew->numOfRange = pOld->numOfRange;
+
+    int32_t sz = pOld->numOfRange * sizeof(SIpV4Range);
+    pNew->pIpRanges = taosMemoryCalloc(1, sz);
+    memcpy(pNew->pIpRanges, pOld->pIpRanges, sz);
+  }
+  return pClone;
 }
 int32_t tSerializeRetrieveIpWhite(void *buf, int32_t bufLen, SRetrieveIpWhiteReq *pReq) {
   SEncoder encoder = {0};
