@@ -218,7 +218,16 @@ int32_t smlSetCTableName(SSmlTableInfo *oneTable) {
 
   if (strlen(oneTable->childTableName) == 0) {
     SArray       *dst = taosArrayDup(oneTable->tags, NULL);
-    RandTableName rName = {dst, oneTable->sTableName, (uint8_t)oneTable->sTableNameLen, oneTable->childTableName};
+    ASSERT(oneTable->sTableNameLen < TSDB_TABLE_NAME_LEN);
+    char superName[TSDB_TABLE_NAME_LEN] = {0};
+    RandTableName rName = {dst, NULL, (uint8_t)oneTable->sTableNameLen, oneTable->childTableName};
+    if(tsSmlDot2Underline){
+      memcpy(superName, oneTable->sTableName, oneTable->sTableNameLen);
+      smlStrReplace(superName, oneTable->sTableNameLen);
+      rName.stbFullName = superName;
+    }else{
+      rName.stbFullName = oneTable->sTableName;
+    }
 
     buildChildTableName(&rName);
     taosArrayDestroy(dst);
@@ -230,6 +239,9 @@ void getTableUid(SSmlHandle *info, SSmlLineInfo *currElement, SSmlTableInfo *tin
   char   key[TSDB_TABLE_NAME_LEN * 2 + 1] = {0};
   size_t nLen = strlen(tinfo->childTableName);
   memcpy(key, currElement->measure, currElement->measureLen);
+  if(tsSmlDot2Underline){
+    smlStrReplace(key, currElement->measureLen);
+  }
   memcpy(key + currElement->measureLen + 1, tinfo->childTableName, nLen);
   void *uid =
       taosHashGet(info->tableUids, key,

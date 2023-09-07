@@ -32,12 +32,12 @@ static void queryDB(TAOS *taos, char *command) {
       taos_free_result(pSql);
       pSql = NULL;
     }
-    
+
     pSql = taos_query(taos, command);
     code = taos_errno(pSql);
     if (0 == code) {
       break;
-    }    
+    }
   }
 
   if (code != 0) {
@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
 
   TAOS *taos = taos_connect(argv[1], "root", "taosdata", NULL, 0);
   if (taos == NULL) {
-    printf("failed to connect to server, reason:%s\n", "null taos"/*taos_errstr(taos)*/);
+    printf("failed to connect to server, reason:%s\n", taos_errstr(NULL));
     exit(1);
   }
   for (int i = 0; i < 100; i++) {
@@ -86,14 +86,14 @@ void Test(TAOS *taos, char *qstr, int index)  {
   for (i = 0; i < 10; ++i) {
     sprintf(qstr, "insert into m1 values (%" PRId64 ", %d, %d, %d, %d, %f, %lf, '%s')", (uint64_t)(1546300800000 + i * 1000), i, i, i, i*10000000, i*1.0, i*2.0, "hello");
     printf("qstr: %s\n", qstr);
-    
+
     // note: how do you wanna do if taos_query returns non-NULL
     // if (taos_query(taos, qstr)) {
     //   printf("insert row: %i, reason:%s\n", i, taos_errstr(taos));
     // }
     TAOS_RES *result1 = taos_query(taos, qstr);
     if (result1 == NULL || taos_errno(result1) != 0) {
-      printf("failed to insert row, reason:%s\n", taos_errstr(result1));    
+      printf("failed to insert row, reason:%s\n", taos_errstr(result1));
       taos_free_result(result1);
       exit(1);
     } else {
@@ -107,7 +107,7 @@ void Test(TAOS *taos, char *qstr, int index)  {
   sprintf(qstr, "SELECT * FROM m1");
   result = taos_query(taos, qstr);
   if (result == NULL || taos_errno(result) != 0) {
-    printf("failed to select, reason:%s\n", taos_errstr(result));    
+    printf("failed to select, reason:%s\n", taos_errstr(result));
     taos_free_result(result);
     exit(1);
   }

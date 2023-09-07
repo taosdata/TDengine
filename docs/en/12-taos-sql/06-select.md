@@ -7,7 +7,7 @@ description: This document describes how to query data in TDengine.
 ## Syntax
 
 ```sql
-SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE()}
+SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
 SELECT [DISTINCT] select_list
     from_clause
@@ -167,7 +167,7 @@ The following SQL statement returns the number of subtables within the meters su
 SELECT COUNT(*) FROM (SELECT DISTINCT TBNAME FROM meters);
 ```
 
-In the preceding two statements, only tags can be used as filtering conditions in the WHERE clause. For example:
+In the preceding two statements, only tags can be used as filtering conditions in the WHERE clause. 
 
 **\_QSTART and \_QEND**
 
@@ -209,8 +209,7 @@ You can perform INNER JOIN statements based on the primary key. The following co
 3. For supertables, the ON condition must be equivalent to the primary key. In addition, the tag columns of the tables on which the INNER JOIN is performed must have a one-to-one relationship. You cannot specify an OR condition.
 4. The tables that are included in a JOIN clause must be of the same type (supertable, standard table, or subtable).
 5. You can include subqueries before and after the JOIN keyword.
-6. You cannot include more than ten tables in a JOIN clause.
-7. You cannot include a FILL clause and a JOIN clause in the same statement.
+6. You cannot include a FILL clause and a JOIN clause in the same statement.
 
 ## GROUP BY
 
@@ -301,6 +300,12 @@ SELECT TODAY();
 SELECT TIMEZONE();
 ```
 
+### Obtain Current User
+
+```sql
+SELECT CURRENT_USER();
+```
+
 ## Regular Expression
 
 ### Syntax
@@ -355,7 +360,7 @@ SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) F
 
 ## JOIN
 
-TDengine supports the `INTER JOIN` based on the timestamp primary key, that is, the `JOIN` condition must contain the timestamp primary key. As long as the requirement of timestamp-based primary key is met, `INTER JOIN` can be made between normal tables, sub-tables, super tables and sub-queries at will, and there is no limit on the number of tables.
+TDengine supports the `INTER JOIN` based on the timestamp primary key, that is, the `JOIN` condition must contain the timestamp primary key. As long as the requirement of timestamp-based primary key is met, `INTER JOIN` can be made between normal tables, sub-tables, super tables and sub-queries at will, and there is no limit on the number of tables, primary key and other conditions must be combined with `AND` operator.
 
 For standard tables:
 

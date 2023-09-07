@@ -1266,6 +1266,14 @@ SELECT SERVER_STATUS();
 
 **说明**：检测服务端是否所有 dnode 都在线，如果是则返回成功，否则返回无法建立连接的错误。
 
+### CURRENT_USER
+
+```sql
+SELECT CURRENT_USER();
+```
+
+**说明**：获取当前用户。
+
 
 ## Geometry 函数
 

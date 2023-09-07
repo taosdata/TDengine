@@ -972,7 +972,8 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
       SColumnInfoData* pSrcCol = taosArrayGet(pSrc->pDataBlock, slotId);
       SColumnInfoData* pDestCol = taosArrayGet(pDest->pDataBlock, j);
       bool             isNull = colDataIsNull(pSrcCol, pSrc->info.rows, rowIndex, NULL);
-      char*            pSrcData = colDataGetData(pSrcCol, rowIndex);
+      char*            pSrcData = NULL;
+      if (!isNull) pSrcData = colDataGetData(pSrcCol, rowIndex);
       colDataSetVal(pDestCol, pDest->info.rows, pSrcData, isNull);
     }
     pDest->info.rows++;
