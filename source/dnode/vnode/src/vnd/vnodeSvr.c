@@ -160,7 +160,7 @@ static int32_t vnodePreProcessDropTtlMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   }
 
   {  // find expired uids
-    tbUids = taosArrayInit(8, sizeof(int64_t));
+    tbUids = taosArrayInit(8, sizeof(tb_uid_t));
     if (tbUids == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       TSDB_CHECK_CODE(code, lino, _exit);
@@ -945,7 +945,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     int32_t clusterId = pVnode->config.syncCfg.nodeInfo[0].clusterId;
 
     char detail[1000] = {0};
-    sprintf(detail, "btime:%" PRId64 ", flags:%d, ttl:%d, type:%d", 
+    sprintf(detail, "btime:%" PRId64 ", flags:%d, ttl:%d, type:%d",
             pCreateReq->btime, pCreateReq->flags, pCreateReq->ttl, pCreateReq->type);
 
     SName name = {0};
