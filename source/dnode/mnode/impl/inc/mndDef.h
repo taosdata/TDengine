@@ -275,10 +275,6 @@ typedef struct {
   SAcctCfg  cfg;
   SAcctInfo info;
 } SAcctObj;
-typedef struct {
-  int32_t    num;
-  SIpV4Range pIpRange[];
-} SIpWhiteList;
 
 typedef struct {
   char          user[TSDB_USER_LEN];

@@ -881,6 +881,11 @@ typedef struct SIpV4Range {
 } SIpV4Range;
 
 typedef struct {
+  int32_t    num;
+  SIpV4Range pIpRange[];
+} SIpWhiteList;
+
+typedef struct {
   int8_t      createType;
   int8_t      superUser;  // denote if it is a super user or not
   int8_t      sysInfo;

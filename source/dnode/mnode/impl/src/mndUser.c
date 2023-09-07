@@ -138,7 +138,6 @@ int64_t ipWhiteMgtFillMsg(SUpdateIpWhite *pUpdate) {
     size_t klen;
     char  *key = taosHashGetKey(pIter, &klen);
     if (list->num != 0) {
-      taosHashIterate(ipWhiteMgt.pIpWhiteList, pIter);
       memcpy(pUser->user, key, klen);
 
       pUser->numOfRange = list->num;
@@ -146,7 +145,7 @@ int64_t ipWhiteMgtFillMsg(SUpdateIpWhite *pUpdate) {
       memcpy(pUser->pIpRanges, list->pIpRange, list->num * sizeof(SIpV4Range));
       i++;
     }
-    taosHashIterate(ipWhiteMgt.pIpWhiteList, pIter);
+    pIter = taosHashIterate(ipWhiteMgt.pIpWhiteList, pIter);
   }
   pUpdate->numOfUser = i;
 
@@ -258,7 +257,7 @@ int32_t convertIpWhiteListToStr(SIpWhiteList *pList, char **buf) {
     *buf = NULL;
     return 0;
   }
-  *buf = taosMemoryCalloc(1, pList->num * (sizeof(SIpWhiteList) + 4) + 4);
+  *buf = taosMemoryCalloc(1, pList->num * 36);
   ipRangeListToStr(pList->pIpRange, pList->num, *buf);
   return strlen(*buf);
 }
@@ -1006,7 +1005,8 @@ int32_t mndProcesSRetrieveIpWhiteReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  SUpdateIpWhite ipWhite;
+  SUpdateIpWhite ipWhite = {0};
+  ipWhiteMgtFillMsg(&ipWhite);
 
   int32_t len = tSerializeSUpdateIpWhite(NULL, 0, &ipWhite);
 

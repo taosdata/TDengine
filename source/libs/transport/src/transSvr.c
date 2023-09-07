@@ -71,8 +71,10 @@ typedef struct SSvrMsg {
 } SSvrMsg;
 
 typedef struct {
-  int64_t ver;
-  SArray* list;
+  int64_t       ver;
+  SIpWhiteList* pList;
+  // SArray* list;
+
 } SWhiteUserList;
 typedef struct {
   SHashObj* pList;
@@ -294,11 +296,11 @@ void uvWhiteListDestroy(SWhiteList* pWhite) {
   void*     pIter = taosHashIterate(pWhiteList, NULL);
   while (pIter) {
     SWhiteUserList* pList = *(SWhiteUserList**)pIter;
-    for (int i = 0; i < taosArrayGetSize(pList->list); i++) {
-      char* range = taosArrayGetP(pList->list, i);
-      taosMemoryFree(range);
-    }
-    taosArrayDestroy(pList->list);
+    // for (int i = 0; i < taosArrayGetSize(pList->list); i++) {
+    //   char* range = taosArrayGetP(pList->list, i);
+    //   taosMemoryFree(range);
+    // }
+    // taosArrayDestroy(pList->list);
     taosMemoryFree(pList);
     pIter = taosHashIterate(pWhiteList, pIter);
   }
@@ -311,15 +313,15 @@ void uvWhiteListAdd(SWhiteList* pWhite, char* user, char* ip) {
 
   SWhiteUserList** ppList = taosHashGet(pWhiteList, user, strlen(user));
   if (ppList == NULL || *ppList == NULL) {
-    SWhiteUserList* pList = taosMemoryCalloc(1, sizeof(SWhiteUserList));
-    pList->list = taosArrayInit(8, sizeof(void*));
-    taosArrayPush(pList->list, &ip);
-    pList->ver += 1;
-    taosHashPut(pWhiteList, user, strlen(user), &pList, sizeof(void*));
+    // SWhiteUserList* pList = taosMemoryCalloc(1, sizeof(SWhiteUserList));
+    // pList->list = taosArrayInit(8, sizeof(void*));
+    // taosArrayPush(pList->list, &ip);
+    // pList->ver += 1;
+    // taosHashPut(pWhiteList, user, strlen(user), &pList, sizeof(void*));
   } else {
-    SWhiteUserList* pList = *ppList;
-    pList->ver += 1;
-    taosArrayPush(pList->list, &ip);
+    // SWhiteUserList* pList = *ppList;
+    // pList->ver += 1;
+    // taosArrayPush(pList->list, &ip);
   }
 }
 
@@ -339,13 +341,13 @@ bool uvWhiteListFilte(SWhiteList* pWhite, char* user, uint32_t ip, int64_t ver) 
   SWhiteUserList* pList = *ppList;
   if (pList->ver == ver) return true;
 
-  for (int i = 0; i < taosArrayGetSize(pList->list); i++) {
-    char* range = taosArrayGetP(pList->list, i);
-    if (uvCheckIp(range, ip)) {
-      valid = true;
-      break;
-    }
-  }
+  // for (int i = 0; i < taosArrayGetSize(pList->list); i++) {
+  //   char* range = taosArrayGetP(pList->list, i);
+  //   if (uvCheckIp(range, ip)) {
+  //     valid = true;
+  //     break;
+  //   }
+  // }
   return valid;
 }
 bool uvWhiteListCheckConn(SWhiteList* pWhite, SSvrConn* pConn) {
@@ -1380,8 +1382,16 @@ void uvHandleRegister(SSvrMsg* msg, SWorkThrd* thrd) {
 }
 void uvHandleUpdate(SSvrMsg* msg, SWorkThrd* thrd) {
   // update white ip
-  bool ret = (msg->func)(msg->arg);
+  // bool ret = (msg->func)(msg->arg);
+  SUpdateIpWhite* updateReq = msg->arg;
+  for (int i = 0; i < updateReq->numOfUser; i++) {
+    SUpdateUserIpWhite* pUser = &updateReq->pUserIpWhite[i];
+  }
+  // uvWhiteListUpdate(thrd->pWhiteList, SHashObj *pTable);
 
+  tFreeSUpdateIpWhiteReq(updateReq);
+
+  taosMemoryFree(updateReq);
   taosMemoryFree(msg);
   return;
 }
@@ -1564,17 +1574,19 @@ _return2:
   return -1;
 }
 void transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
+  STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)thandle);
+
   tInfo("update ip white list");
-  SServerObj* svrObj = thandle;
+  SServerObj* svrObj = pTransInst->tcphandle;
   for (int i = 0; i < svrObj->numOfThreads; i++) {
     SWorkThrd* pThrd = svrObj->pThreadObj[i];
 
     SSvrMsg* msg = taosMemoryCalloc(1, sizeof(SSvrMsg));
     msg->type = Update;
     msg->arg = arg;
-    msg->func = *func;
     transAsyncSend(pThrd->asyncPool, &msg->q);
   }
+  transReleaseExHandle(transGetInstMgt(), (int64_t)thandle);
 }
 
 int transGetConnInfo(void* thandle, STransHandleInfo* pConnInfo) { return -1; }

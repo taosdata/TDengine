@@ -305,11 +305,12 @@ void transUnrefCliHandle(void* handle);
 int transReleaseCliHandle(void* handle);
 int transReleaseSrvHandle(void* handle);
 
-int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
-int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
-int transSendResponse(const STransMsg* msg);
-int transRegisterMsg(const STransMsg* msg);
-int transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
+int  transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
+int  transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
+int  transSendResponse(const STransMsg* msg);
+int  transRegisterMsg(const STransMsg* msg);
+int  transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
+void transSetIpWhiteList(void* shandle, void* arg, FilteFunc* func);
 
 int transSockInfo2Str(struct sockaddr* sockname, char* dst);
 
