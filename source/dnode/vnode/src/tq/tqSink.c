@@ -25,10 +25,12 @@ typedef struct STableSinkInfo {
 } STableSinkInfo;
 
 static int32_t doBuildSubmitFromResBlock(SVnode* pVnode, int32_t blockIndex, char* stbFullName, int64_t suid,
-                                 SSDataBlock* pDataBlock, SStreamTask* pTask, SSubmitTbData* pTableData);
+                                         SSDataBlock* pDataBlock, SStreamTask* pTask, SSubmitTbData* pTableData);
 static int32_t doSinkDeleteBlock(SVnode* pVnode, char* stbFullName, SSDataBlock* pDataBlock, SStreamTask* pTask,
                                  int64_t suid);
 static int32_t tqBuildSubmitReq(SSubmitReq2* pSubmitReq, int32_t vgId, void** pMsg, int32_t* msgLen);
+static void    fillBucket(STokenBucket* pBucket);
+static bool    hasAvailableToken(STokenBucket* pBucket);
 
 int32_t tqBuildDeleteReq(const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
                          const char* pIdStr) {
