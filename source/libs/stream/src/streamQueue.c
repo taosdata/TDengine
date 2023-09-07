@@ -180,8 +180,8 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
       STokenBucket* pBucket = &pTask->tokenBucket;
       bool          has = streamTaskHasAvailableToken(pBucket);
       if (!has) {  // no available token in th bucket, ignore this execution
-        qInfo("s-task:%s no available token for sink, capacity:%d, rate:%d token/sec, quit", pTask->id.idStr,
-               pBucket->capacity, pBucket->rate);
+//        qInfo("s-task:%s no available token for sink, capacity:%d, rate:%d token/sec, quit", pTask->id.idStr,
+//               pBucket->capacity, pBucket->rate);
         return TSDB_CODE_SUCCESS;
       }
 
@@ -357,6 +357,7 @@ static void fillBucket(STokenBucket* pBucket) {
     }
 
     pBucket->fillTimestamp = now;
+    qDebug("new token available, ts:%"PRId64, now);
   }
 }
 
