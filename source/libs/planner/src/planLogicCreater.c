@@ -46,8 +46,8 @@ static void setColumnInfo(SFunctionNode* pFunc, SColumnNode* pCol, bool isPartit
       pCol->colType = COLUMN_TYPE_TBNAME;
       SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
       if (pVal) {
-        strcpy(pCol->tableName, pVal->literal);
-        strcpy(pCol->tableAlias, pVal->literal);
+        snprintf(pCol->tableName, sizeof(pCol->tableName), "%s", pVal->literal);
+        snprintf(pCol->tableAlias, sizeof(pCol->tableAlias), "%s", pVal->literal);
       }
       break;
     case FUNCTION_TYPE_WSTART:
@@ -531,6 +531,9 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesListStrictAppend(pJoin->node.pChildren, (SNode*)pLeft);
     }
+    if (TSDB_CODE_SUCCESS != code) {
+      pLeft = NULL;
+    }
   }
 
   SLogicNode* pRight = NULL;
@@ -584,7 +587,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     }
   }
 
-  if (NULL == pJoin->node.pTargets) {
+  if (NULL == pJoin->node.pTargets && NULL != pLeft) {
     pJoin->node.pTargets = nodesCloneList(pLeft->pTargets);
     if (NULL == pJoin->node.pTargets) {
       code = TSDB_CODE_OUT_OF_MEMORY;
