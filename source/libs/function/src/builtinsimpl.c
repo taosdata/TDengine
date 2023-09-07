@@ -2714,16 +2714,20 @@ static int32_t doSetPrevVal(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
     case TSDB_DATA_TYPE_BOOL:
       pDiffInfo->prev.i64 = *(bool*)pv ? 1 : 0;
       break;
+    case TSDB_DATA_TYPE_UTINYINT:
     case TSDB_DATA_TYPE_TINYINT:
       pDiffInfo->prev.i64 = *(int8_t*)pv;
       break;
+    case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_INT:
       pDiffInfo->prev.i64 = *(int32_t*)pv;
       break;
+    case TSDB_DATA_TYPE_USMALLINT:
     case TSDB_DATA_TYPE_SMALLINT:
       pDiffInfo->prev.i64 = *(int16_t*)pv;
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_BIGINT:
       pDiffInfo->prev.i64 = *(int64_t*)pv;
       break;
@@ -2745,6 +2749,7 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
                             int64_t ts) {
   pDiffInfo->prevTs = ts;
   switch (type) {
+    case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_INT: {
       int32_t v = *(int32_t*)pv;
       int64_t delta = v - pDiffInfo->prev.i64;  // direct previous may be null
@@ -2758,6 +2763,7 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
       break;
     }
     case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_UTINYINT:
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t  v = *(int8_t*)pv;
       int64_t delta = v - pDiffInfo->prev.i64;  // direct previous may be null
@@ -2769,6 +2775,7 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
       pDiffInfo->prev.i64 = v;
       break;
     }
+    case TSDB_DATA_TYPE_USMALLINT:
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t v = *(int16_t*)pv;
       int64_t delta = v - pDiffInfo->prev.i64;  // direct previous may be null
@@ -2781,6 +2788,7 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t v = *(int64_t*)pv;
       int64_t delta = v - pDiffInfo->prev.i64;  // direct previous may be null
