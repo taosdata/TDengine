@@ -2320,7 +2320,7 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
 
   pDb = mndAcquireDbByStb(pMnode, alterReq.name);
   if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_INVALID_DB;
+    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
     goto _OVER;
   }
 
@@ -3616,7 +3616,7 @@ static int32_t mndProcessCreateIndexReq(SRpcMsg *pReq) {
 
   pDb = mndAcquireDbByStb(pMnode, tagIdxReq.dbFName);
   if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_INVALID_DB;
+    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
     goto _OVER;
   }
 
