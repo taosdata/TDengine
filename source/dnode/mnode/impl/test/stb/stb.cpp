@@ -448,7 +448,7 @@ TEST_F(MndTestStb, 02_Alter_Stb_AddTag) {
   {
     void*    pReq = BuildAlterStbAddTagReq("1.d3.stb", "tag4", &contLen);
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_DB);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_DB_NOT_EXIST);
   }
 
   {
@@ -665,7 +665,7 @@ TEST_F(MndTestStb, 06_Alter_Stb_AddColumn) {
   {
     void*    pReq = BuildAlterStbAddColumnReq("1.d7.stb", "tag4", &contLen);
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_DB);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_DB_NOT_EXIST);
   }
 
   {
