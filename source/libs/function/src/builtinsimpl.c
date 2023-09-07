@@ -115,9 +115,8 @@ typedef struct SDiffInfo {
   bool ignoreNegative;  // replace the ignore with case when
   bool firstOutput;
   union {
-    int64_t  i64;
-    uint64_t u64;
-    double   d64;
+    int64_t i64;
+    double  d64;
   } prev;
 
   int64_t prevTs;
@@ -2734,18 +2733,6 @@ static int32_t doSetPrevVal(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
     case TSDB_DATA_TYPE_DOUBLE:
       pDiffInfo->prev.d64 = *(double*)pv;
       break;
-    case TSDB_DATA_TYPE_UTINYINT:
-      pDiffInfo->prev.u64 = *(uint8_t*)pv;
-      break;
-    case TSDB_DATA_TYPE_UINT:
-      pDiffInfo->prev.u64 = *(uint32_t*)pv;
-      break;
-    case TSDB_DATA_TYPE_USMALLINT:
-      pDiffInfo->prev.u64 = *(uint16_t*)pv;
-      break;
-    case TSDB_DATA_TYPE_UBIGINT:
-      pDiffInfo->prev.u64 = *(uint64_t*)pv;
-      break;
     default:
       return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
   }
@@ -2825,51 +2812,6 @@ static int32_t doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, 
         colDataSetDouble(pOutput, pos, &delta);
       }
       pDiffInfo->prev.d64 = v;
-      break;
-    }
-    case TSDB_DATA_TYPE_UTINYINT: {
-      uint8_t  v = *(uint8_t*)pv;
-      uint64_t delta = v - pDiffInfo->prev.u64;  // direct previous may be null
-      if (delta < 0 && pDiffInfo->ignoreNegative) {
-        colDataSetNull_f_s(pOutput, pos);
-      } else {
-        colDataSetUInt64(pOutput, pos, &delta);
-      }
-      pDiffInfo->prev.u64 = v;
-      break;
-    }
-    case TSDB_DATA_TYPE_USMALLINT: {
-      uint16_t v = *(uint16_t*)pv;
-      uint64_t delta = v - pDiffInfo->prev.u64;  // direct previous may be null
-      if (delta < 0 && pDiffInfo->ignoreNegative) {
-        colDataSetNull_f_s(pOutput, pos);
-      } else {
-        colDataSetUInt64(pOutput, pos, &delta);
-      }
-      pDiffInfo->prev.u64 = v;
-      break;
-    }
-    case TSDB_DATA_TYPE_UINT: {
-      uint32_t v = *(uint32_t*)pv;
-      uint64_t delta = v - pDiffInfo->prev.u64;  // direct previous may be null
-      if (delta < 0 && pDiffInfo->ignoreNegative) {
-        colDataSetNull_f_s(pOutput, pos);
-      } else {
-        colDataSetUInt64(pOutput, pos, &delta);
-      }
-      pDiffInfo->prev.u64 = v;
-
-      break;
-    }
-    case TSDB_DATA_TYPE_UBIGINT: {
-      uint64_t v = *(uint64_t*)pv;
-      uint64_t delta = v - pDiffInfo->prev.i64;  // direct previous may be null
-      if (delta < 0 && pDiffInfo->ignoreNegative) {
-        colDataSetNull_f_s(pOutput, pos);
-      } else {
-        colDataSetUInt64(pOutput, pos, &delta);
-      }
-      pDiffInfo->prev.u64 = v;
       break;
     }
     default:
