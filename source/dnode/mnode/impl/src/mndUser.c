@@ -160,7 +160,7 @@ void destroyIpWhiteTab(SHashObj *pIpWhiteTab) {
   while (pIter) {
     SIpWhiteList *list = *(SIpWhiteList **)pIter;
     taosMemoryFree(list);
-    pIter = taosHashIterate(pIpWhiteTab, NULL);
+    pIter = taosHashIterate(pIpWhiteTab, pIter);
   }
 
   taosHashCleanup(pIpWhiteTab);
@@ -1415,11 +1415,18 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
 
     if (pUser->pIpWhiteList->num > 0) {
       int idx = 0;
-      for (int i = 0; i < alterReq.numIpRanges; i++) {
-        SIpV4Range *range = &(alterReq.pIpRanges[i]);
-        if (!isRangeInIpWhiteList(pUser->pIpWhiteList, range)) {
-          // already exist, just ignore;
-          memcpy(&pNew->pIpRange[idx], &pUser->pIpWhiteList->pIpRange[i], sizeof(SIpV4Range));
+      for (int i = 0; i < pUser->pIpWhiteList->num; i++) {
+        SIpV4Range *oldRange = &pUser->pIpWhiteList->pIpRange[i];
+        bool        found = false;
+        for (int j = 0; j < alterReq.numIpRanges; j++) {
+          SIpV4Range *range = &alterReq.pIpRanges[j];
+          if (isIpRangeEqual(oldRange, range)) {
+            found = true;
+            break;
+          }
+        }
+        if (found == false) {
+          memcpy(&pNew->pIpRange[idx], oldRange, sizeof(SIpV4Range));
           idx++;
         }
       }
