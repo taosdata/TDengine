@@ -354,7 +354,7 @@ bool uvWhiteListFilte(SWhiteList* pWhite, char* user, uint32_t ip, int64_t ver) 
   return valid;
 }
 bool uvWhiteListCheckConn(SWhiteList* pWhite, SSvrConn* pConn) {
-  if (pWhite->ver == pConn->whiteListVer) return true;
+  if (pWhite->ver == pConn->whiteListVer || strncmp(pConn->user, "_dnd", strlen("_dnd")) == 0) return true;
 
   return uvWhiteListFilte(pWhite, pConn->user, pConn->clientIp, pConn->whiteListVer);
 }

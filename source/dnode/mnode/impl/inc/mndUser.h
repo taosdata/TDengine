@@ -42,6 +42,8 @@ int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew);
 void    mndUserFreeObj(SUserObj *pUser);
 
 int64_t mndGetIpWhiteVer(SMnode *pMnode);
+
+
 #ifdef __cplusplus
 }
 #endif

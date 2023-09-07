@@ -820,6 +820,38 @@ _OVER:
   return code;
 }
 
+SIpWhiteList *mndCreateIpWhiteFromDnode(SMnode *pMnode) {
+  SDnodeObj *pObj = NULL;
+  void      *pIter = NULL;
+  SSdb      *pSdb = pMnode->pSdb;
+  SArray    *fqdns = taosArrayInit(4, sizeof(void *));
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
+
+    char *fqdn = taosStrdup(pObj->fqdn);
+    taosArrayPush(fqdns, &fqdn);
+    sdbRelease(pSdb, pObj);
+  }
+  int32_t       sz = taosArrayGetSize(fqdns);
+  SIpWhiteList *list = NULL;
+  if (sz != 0) {
+    list = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sz * sizeof(SIpV4Range));
+    for (int i = 0; i < sz; i++) {
+      char *e = taosArrayGetP(fqdns, i);
+      taosMemoryFree(e);
+      int32_t ip = taosGetFqdn(e);
+
+      SIpV4Range *pRange = &list->pIpRange[0];
+      pRange->ip = ip;
+      pRange->mask = 0;
+    }
+  }
+
+  taosArrayDestroy(fqdns);
+  return list;
+}
+
 static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   SShowVariablesRsp rsp = {0};
   int32_t           code = -1;

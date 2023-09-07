@@ -240,6 +240,7 @@ SHashObj *mndFetchAllIpWhite(SMnode *pMnode) {
   SSdb     *pSdb = pMnode->pSdb;
   void     *pIter = NULL;
   SHashObj *pIpWhiteTab = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 1, HASH_ENTRY_LOCK);
+
   while (1) {
     SUserObj *pUser = NULL;
     pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser);
