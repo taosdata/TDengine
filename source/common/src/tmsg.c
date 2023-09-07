@@ -1376,6 +1376,13 @@ int32_t tDeserializeSDropUserReq(void *buf, int32_t bufLen, SDropUserReq *pReq) 
   return 0;
 }
 
+SIpWhiteList *cloneIpWhiteList(SIpWhiteList *pIpWhiteList) {
+  int32_t       sz = sizeof(SIpWhiteList) + pIpWhiteList->num * sizeof(SIpV4Range);
+  SIpWhiteList *pNew = taosMemoryCalloc(1, sz);
+  memcpy(pNew, pIpWhiteList, sz);
+  return pNew;
+}
+
 int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
@@ -1491,8 +1498,10 @@ void tFreeSUpdateIpWhiteReq(SUpdateIpWhite *pReq) {
 SUpdateIpWhite *cloneSUpdateIpWhiteReq(SUpdateIpWhite *pReq) {
   SUpdateIpWhite *pClone = taosMemoryCalloc(1, sizeof(SUpdateIpWhite));
 
-  pClone->pUserIpWhite = taosMemoryCalloc(1, sizeof(SUpdateUserIpWhite) * pReq->numOfUser);
+  pClone->numOfUser = pReq->numOfUser;
   pClone->ver = pReq->ver;
+  pClone->pUserIpWhite = taosMemoryCalloc(1, sizeof(SUpdateUserIpWhite) * pReq->numOfUser);
+
   for (int i = 0; i < pReq->numOfUser; i++) {
     SUpdateUserIpWhite *pNew = &pClone->pUserIpWhite[i];
     SUpdateUserIpWhite *pOld = &pReq->pUserIpWhite[i];

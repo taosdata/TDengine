@@ -885,6 +885,7 @@ typedef struct {
   SIpV4Range pIpRange[];
 } SIpWhiteList;
 
+SIpWhiteList* cloneIpWhiteList(SIpWhiteList* pIpWhiteList);
 typedef struct {
   int8_t      createType;
   int8_t      superUser;  // denote if it is a super user or not

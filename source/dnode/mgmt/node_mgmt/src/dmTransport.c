@@ -64,13 +64,12 @@ static void dmConvertErrCode(tmsg_t msgType) {
   }
 }
 static void dmUpdateRpcIpWhite(void *pTrans, SRpcMsg *pRpc) {
-  SUpdateIpWhite *pIpWhite = taosMemoryCalloc(1, sizeof(SUpdateIpWhite));
-  tDeserializeSUpdateIpWhite(pRpc->pCont, pRpc->contLen, pIpWhite);
+  SUpdateIpWhite ipWhite = {0};  // aosMemoryCalloc(1, sizeof(SUpdateIpWhite));
+  tDeserializeSUpdateIpWhite(pRpc->pCont, pRpc->contLen, &ipWhite);
 
-  rpcSetIpWhite(pTrans, pIpWhite);
+  rpcSetIpWhite(pTrans, &ipWhite);
 
-  tFreeSUpdateIpWhiteReq(pIpWhite);
-  taosMemoryFree(pIpWhite);
+  tFreeSUpdateIpWhiteReq(&ipWhite);
 
   rpcFreeCont(pRpc->pCont);
 }

@@ -1388,8 +1388,8 @@ void uvHandleUpdate(SSvrMsg* msg, SWorkThrd* thrd) {
   for (int i = 0; i < req->numOfUser; i++) {
     SUpdateUserIpWhite* pUser = &req->pUserIpWhite[i];
 
-    int32_t       sz = sizeof(SIpWhiteList) + pUser->numOfRange * sizeof(SIpV4Range);
-    SIpWhiteList* pList = taosMemoryCalloc(1, sz);
+    int32_t       sz = pUser->numOfRange * sizeof(SIpV4Range);
+    SIpWhiteList* pList = taosMemoryCalloc(1, sz + sizeof(SIpWhiteList));
     pList->num = pUser->numOfRange;
 
     memcpy(pList->pIpRange, pUser->pIpRanges, sz);

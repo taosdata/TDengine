@@ -31,6 +31,7 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
   }
 }
 static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
+  dInfo("ip-white-dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->ipWhiteVer, ver);
   if (pMgmt->ipWhiteVer == ver) {
     return;
   }

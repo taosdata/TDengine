@@ -130,6 +130,7 @@ typedef struct SMnode {
   SGrantInfo     grant;
   MndMsgFp       msgFp[TDMT_MAX];
   SMsgCb         msgCb;
+  int64_t  ipWhiteVer;
 } SMnode;
 
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
