@@ -707,7 +707,7 @@ typedef struct {
   SSchemaWrapper outputSchema;
   SSchemaWrapper tagSchema;
 
-
+  char name[TSDB_STREAM_FNAME_LEN];
 
   // 3.0.5.
   int64_t checkpointId;
