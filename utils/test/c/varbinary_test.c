@@ -85,6 +85,7 @@ void varbinary_sql_test() {
 
   // test insert
   pRes = taos_query(taos, "insert into tb2 using stb tags (2, 'tb2_bin1', 093) values (now + 2s, 'nchar1', 892, 0.3)");
+  printf("error:%s", taos_errstr(pRes));
   ASSERT(taos_errno(pRes) != 0);
 
   pRes = taos_query(taos, "insert into tb3 using stb tags (3, 'tb3_bin1', 0x7f829) values (now + 3s, 'nchar1', 0x7f829, 0.3)");
