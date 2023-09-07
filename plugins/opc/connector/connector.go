@@ -8,6 +8,7 @@ import (
 	"math"
 	"math/rand"
 	"os/signal"
+	"path"
 	"sync"
 	"syscall"
 	"time"
@@ -28,11 +29,15 @@ type CsvDumper struct {
 	writer  *csv.Writer
 }
 
-func NewCsvDumper(path string, keep int64) (*CsvDumper, error) {
-	if len(path) == 0 {
+func NewCsvDumper(dumpPath string, keep int64) (*CsvDumper, error) {
+	if len(dumpPath) == 0 {
 		return nil, fmt.Errorf("invalid path")
 	}
-	rotate, err := rotatelogs.New(path+".%Y%m%d%H%M",
+	if err := common.MakeDirIfNotExist(dumpPath); err != nil {
+		return nil, err
+	}
+	filePath := path.Join(dumpPath, "opc_data.dump.%Y%m%d%H%M")
+	rotate, err := rotatelogs.New(filePath,
 		rotatelogs.WithMaxAge(time.Duration(keep)*24*time.Hour),
 		rotatelogs.WithRotationTime(time.Hour))
 	if err != nil {
