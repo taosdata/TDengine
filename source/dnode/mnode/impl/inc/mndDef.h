@@ -664,9 +664,15 @@ typedef struct SStreamConf {
 } SStreamConf;
 
 typedef struct {
-  char name[TSDB_STREAM_FNAME_LEN];
   // ctl
   SRWLatch lock;
+
+  // 3.0.20
+  int64_t checkpointFreq;  // ms
+  int64_t currentTick;     // do not serialize
+  int64_t deleteMark;
+  int8_t  igCheckUpdate;
+
   // create info
   int64_t createTime;
   int64_t updateTime;
@@ -701,11 +707,7 @@ typedef struct {
   SSchemaWrapper outputSchema;
   SSchemaWrapper tagSchema;
 
-  // 3.0.20
-  int64_t checkpointFreq;  // ms
-  int64_t currentTick;     // do not serialize
-  int64_t deleteMark;
-  int8_t  igCheckUpdate;
+  char name[TSDB_STREAM_FNAME_LEN];
 
   // 3.0.5.
   int64_t checkpointId;
