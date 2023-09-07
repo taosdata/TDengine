@@ -24,7 +24,7 @@
       </p>
       <template v-if="model == 'Wizard'">
         <div class="source-name" v-if="isEditable">
-          <el-form-item :label="$t('datasource.sourcename')">
+          <el-form-item :label="$t('datasource.targetname')">
             <el-input
               v-model="sourceName"
               placeholder=""
