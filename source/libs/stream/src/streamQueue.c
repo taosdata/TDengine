@@ -357,7 +357,7 @@ static void fillBucket(STokenBucket* pBucket) {
     }
 
     pBucket->fillTimestamp = now;
-    qDebug("new token available, ts:%"PRId64, now);
+    qInfo("new token available, ts:%"PRId64, now);
   }
 }
 
@@ -365,7 +365,7 @@ bool streamTaskHasAvailableToken(STokenBucket* pBucket) {
   fillBucket(pBucket);
   bool hasToken = (--pBucket->numOfToken) > 0;
   if (hasToken) {
-    qInfo("remain token:%d", pBucket->numOfToken);
+    qDebug("remain token:%d", pBucket->numOfToken);
     return true;
   } else {
     return false;
