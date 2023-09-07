@@ -30,7 +30,7 @@ The taosX package includes the following components:
 2. In the directory where the package is located, use `tar` to decompress the package.
 3. Run the `install.sh` script to install TDengine.
 
-For example: Note: Replace <version> with your version of TDengine.
+For example: Note: Replace <version\> with your version of TDengine.
 
 ```bash
 tar -zxvf TDengine-server-<version>-Linux-x64.tar.gz
