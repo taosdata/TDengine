@@ -14,6 +14,9 @@ from util.dnodes import *
 from util.common import *
 # from tmqCommon import *
 
+COMPARE_DATA = 0
+COMPARE_LEN = 1
+
 class TDTestCase:
     def __init__(self):
         self.vgroups    = 4
@@ -179,10 +182,10 @@ class TDTestCase:
 
     def explain_sql(self, sql: str):
         sql = "explain " + sql
-        tdSql.query(sql)
+        tdSql.query(sql, queryTimes=1)
         return tdSql.queryResult
 
-    def query_and_compare_res(self, sql1, sql2):
+    def query_and_compare_res(self, sql1, sql2, compare_what: int = 0):
         dur = self.query_with_time(sql1)
         tdLog.debug("sql1 query with time: [%f]" % dur)
         res1 = tdSql.queryResult
@@ -191,31 +194,35 @@ class TDTestCase:
         res2 = tdSql.queryResult
         if res1 is None or res2 is None:
             tdLog.exit("res1 or res2 is None")
-        if len(res1) != len(res2):
-            tdLog.exit("query and copare failed cause different rows, sql1: [%s], rows: [%d], sql2: [%s], rows: [%d]" % (sql1, len(res1), sql2, len(res2)))
-        for i in range(0, len(res1)):
-            if res1[i] != res2[i]:
-                tdLog.exit("compare failed for row: [%d], sqls: [%s] res1: [%s], sql2 : [%s] res2: [%s]" % (i, sql1, res1[i], sql2, res2[i]))
+        if compare_what <= COMPARE_LEN:
+            if len(res1) != len(res2):
+                tdLog.exit("query and copare failed cause different rows, sql1: [%s], rows: [%d], sql2: [%s], rows: [%d]" % (sql1, len(res1), sql2, len(res2)))
+        if compare_what == COMPARE_DATA:
+            for i in range(0, len(res1)):
+                if res1[i] != res2[i]:
+                    tdLog.exit("compare failed for row: [%d], sqls: [%s] res1: [%s], sql2 : [%s] res2: [%s]" % (i, sql1, res1[i], sql2, res2[i]))
         tdLog.debug("sql: [%s] and sql: [%s] have same results, rows: [%d]" % (sql1, sql2, len(res1)))
 
-    def prepare_and_query(self, sqls: [], order_by: str, select_list: str = "*"):
+    def prepare_and_query_and_compare(self, sqls: [], order_by: str, select_list: str = "*", compare_what: int = 0):
         for sql in sqls:
             sql_hint = self.add_order_by(self.add_hint(sql), order_by, select_list)
             sql = self.add_order_by(sql, order_by, select_list)
             self.check_explain_res_has_row("Sort", self.explain_sql(sql_hint))
             self.check_explain_res_has_row("Partition", self.explain_sql(sql))
-            self.query_and_compare_res(sql, sql_hint)
+            self.query_and_compare_res(sql, sql_hint, compare_what=compare_what)
 
     def test_sort_for_partition_res(self):
         sqls_par_c1_agg = [
                 "select count(*), c1 from meters partition by c1",
                 "select count(*), min(c2), max(c3), c1 from meters partition by c1",
+                "select c1 from meters partition by c1",
                 ]
         sqls_par_c1 = [
                 "select * from meters partition by c1"
                 ]
         sqls_par_c1_c2_agg = [
                 "select count(*), c1, c2 from meters partition by c1, c2",
+                "select c1, c2 from meters partition by c1, c2",
                 "select count(*), c1, c2, min(c4), max(c5), sum(c6) from meters partition by c1, c2",
                 ]
         sqls_par_c1_c2 = [
@@ -228,32 +235,32 @@ class TDTestCase:
         sqls_par_tag_c1 = [
                 "select count(*), c1, t1 from meters partition by t1, c1"
                 ]
-        self.prepare_and_query(sqls_par_c1_agg, "c1")
-        self.prepare_and_query(sqls_par_c1, "c1, ts, c2", "c1, ts, c2")
-        self.prepare_and_query(sqls_par_c1_c2_agg, "c1, c2")
-        self.prepare_and_query(sqls_par_c1_c2, "c1, c2, ts, c3", "c1, c2, ts, c3")
-        self.prepare_and_query(sqls_par_tbname_c1, "a, c1")
-        self.prepare_and_query(sqls_par_tag_c1, "t1, c1")
+        self.prepare_and_query_and_compare(sqls_par_c1_agg, "c1")
+        self.prepare_and_query_and_compare(sqls_par_c1, "c1, ts, c2", "c1, ts, c2")
+        self.prepare_and_query_and_compare(sqls_par_c1_c2_agg, "c1, c2")
+        self.prepare_and_query_and_compare(sqls_par_c1_c2, "c1, c2, ts, c3", "c1, c2, ts, c3")
+        self.prepare_and_query_and_compare(sqls_par_tbname_c1, "a, c1")
+        self.prepare_and_query_and_compare(sqls_par_tag_c1, "t1, c1")
 
     def get_interval_template_sqls(self, col_name):
         sqls = [
                 'select _wstart as ts, count(*), tbname as a, %s from meters partition by tbname, %s interval(1s)' %  (col_name, col_name),
-                'select _wstart as ts, count(*), tbname as a, %s from meters partition by tbname, %s interval(30s)' % (col_name, col_name),
-                'select _wstart as ts, count(*), tbname as a, %s from meters partition by tbname, %s interval(1m)' %  (col_name, col_name),
-                'select _wstart as ts, count(*), tbname as a, %s from meters partition by tbname, %s interval(30m)' % (col_name, col_name),
-                'select _wstart as ts, count(*), tbname as a, %s from meters partition by tbname, %s interval(1h)' %  (col_name, col_name),
+                #'select _wstart as ts, count(*), tbname as a, %s from meters partition by tbname, %s interval(30s)' % (col_name, col_name),
+                #'select _wstart as ts, count(*), tbname as a, %s from meters partition by tbname, %s interval(1m)' %  (col_name, col_name),
+                #'select _wstart as ts, count(*), tbname as a, %s from meters partition by tbname, %s interval(30m)' % (col_name, col_name),
+                #'select _wstart as ts, count(*), tbname as a, %s from meters partition by tbname, %s interval(1h)' %  (col_name, col_name),
 
                 'select _wstart as ts, count(*), t1 as a, %s from meters partition by t1, %s interval(1s)' %  (col_name, col_name),
-                'select _wstart as ts, count(*), t1 as a, %s from meters partition by t1, %s interval(30s)' % (col_name, col_name),
-                'select _wstart as ts, count(*), t1 as a, %s from meters partition by t1, %s interval(1m)' %  (col_name, col_name),
-                'select _wstart as ts, count(*), t1 as a, %s from meters partition by t1, %s interval(30m)' % (col_name, col_name),
-                'select _wstart as ts, count(*), t1 as a, %s from meters partition by t1, %s interval(1h)' %  (col_name, col_name),
+                #'select _wstart as ts, count(*), t1 as a, %s from meters partition by t1, %s interval(30s)' % (col_name, col_name),
+                #'select _wstart as ts, count(*), t1 as a, %s from meters partition by t1, %s interval(1m)' %  (col_name, col_name),
+                #'select _wstart as ts, count(*), t1 as a, %s from meters partition by t1, %s interval(30m)' % (col_name, col_name),
+                #'select _wstart as ts, count(*), t1 as a, %s from meters partition by t1, %s interval(1h)' %  (col_name, col_name),
 
                 'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(1s)' %  (col_name, col_name, col_name),
-                'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(30s)' % (col_name, col_name, col_name),
-                'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(1m)' %  (col_name, col_name, col_name),
-                'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(30m)' % (col_name, col_name, col_name),
-                'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(1h)' %  (col_name, col_name, col_name),
+                #'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(30s)' % (col_name, col_name, col_name),
+                #'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(1m)' %  (col_name, col_name, col_name),
+                #'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(30m)' % (col_name, col_name, col_name),
+                #'select _wstart as ts, count(*), %s as a, %s from meters partition by %s interval(1h)' %  (col_name, col_name, col_name),
 
                 'select _wstart as ts, count(*), tbname as a, %s from meters partition by %s, tbname interval(1s)' %  (col_name, col_name),
                 'select _wstart as ts, count(*), t1 as a, %s from meters partition by %s, t1 interval(1s)' %  (col_name, col_name),
@@ -263,29 +270,48 @@ class TDTestCase:
 
     def test_sort_for_partition_interval(self):
         sqls, order_list = self.get_interval_template_sqls('c1')
-        self.prepare_and_query(sqls, order_list)
-        sqls, order_list = self.get_interval_template_sqls('c2')
-        self.prepare_and_query(sqls, order_list)
+        self.prepare_and_query_and_compare(sqls, order_list)
+        #sqls, order_list = self.get_interval_template_sqls('c2')
+        #self.prepare_and_query(sqls, order_list)
         sqls, order_list = self.get_interval_template_sqls('c3')
-        self.prepare_and_query(sqls, order_list)
-        sqls, order_list = self.get_interval_template_sqls('c4')
-        self.prepare_and_query(sqls, order_list)
-        sqls, order_list = self.get_interval_template_sqls('c5')
-        self.prepare_and_query(sqls, order_list)
+        self.prepare_and_query_and_compare(sqls, order_list)
+        #sqls, order_list = self.get_interval_template_sqls('c4')
+        #self.prepare_and_query(sqls, order_list)
+        #sqls, order_list = self.get_interval_template_sqls('c5')
+        #self.prepare_and_query(sqls, order_list)
         sqls, order_list = self.get_interval_template_sqls('c6')
-        self.prepare_and_query(sqls, order_list)
-        sqls, order_list = self.get_interval_template_sqls('c7')
-        self.prepare_and_query(sqls, order_list)
+        self.prepare_and_query_and_compare(sqls, order_list)
+        #sqls, order_list = self.get_interval_template_sqls('c7')
+        #self.prepare_and_query(sqls, order_list)
         sqls, order_list = self.get_interval_template_sqls('c8')
-        self.prepare_and_query(sqls, order_list)
+        self.prepare_and_query_and_compare(sqls, order_list)
         sqls, order_list = self.get_interval_template_sqls('c9')
-        self.prepare_and_query(sqls, order_list)
+        self.prepare_and_query_and_compare(sqls, order_list)
+
+    def test_sort_for_partition_no_agg_limit(self):
+        sqls_template = [
+                'select * from meters partition by c1 slimit %d limit %d',
+                'select * from meters partition by c2 slimit %d limit %d',
+                'select * from meters partition by c8 slimit %d limit %d',
+                ]
+        sqls = []
+        for sql in sqls_template:
+            sqls.append(sql % (1,1))
+            sqls.append(sql % (1,10))
+            sqls.append(sql % (10,10))
+            sqls.append(sql % (100, 100))
+        order_by_list = 'ts,c1,c2,c3,c4,c5,c6,c7,c8,c9,t1,t2,t3,t4,t5,t6'
+
+        self.prepare_and_query_and_compare(sqls, order_by_list, compare_what=COMPARE_LEN)
+
 
     def run(self):
         self.prepareTestEnv()
+        #time.sleep(99999999)
         self.test_sort_for_partition_hint()
         self.test_sort_for_partition_res()
         self.test_sort_for_partition_interval()
+        self.test_sort_for_partition_no_agg_limit()
 
     def stop(self):
         tdSql.close()

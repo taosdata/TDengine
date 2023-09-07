@@ -223,6 +223,7 @@ typedef struct SMergeLogicNode {
   int32_t    srcGroupId;
   bool       groupSort;
   bool       ignoreGroupId;
+  bool       inputWithGroupId;
 } SMergeLogicNode;
 
 typedef enum EWindowType {
@@ -294,7 +295,8 @@ typedef struct SPartitionLogicNode {
   SNode*     pSubtable;
 
   bool    needBlockOutputTsOrder;  // if true, partition output block will have ts order maintained
-  int32_t tsSlotId;
+  int32_t pkTsColId;
+  uint64_t pkTsColTbId;
 } SPartitionLogicNode;
 
 typedef enum ESubplanType {
@@ -534,6 +536,7 @@ typedef struct SMergePhysiNode {
   int32_t    srcGroupId;
   bool       groupSort;
   bool       ignoreGroupId;
+  bool       inputWithGroupId;
 } SMergePhysiNode;
 
 typedef struct SWindowPhysiNode {

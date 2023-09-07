@@ -83,6 +83,15 @@ static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData,
   }
 }
 
+static FORCE_INLINE bool colDataIsNull_t(const SColumnInfoData* pColumnInfoData, uint32_t row, bool isVarType) {
+  if (!pColumnInfoData->hasNull) return false;
+  if (isVarType) {
+    return colDataIsNull_var(pColumnInfoData, row);
+  } else {
+    return pColumnInfoData->nullbitmap ? colDataIsNull_f(pColumnInfoData->nullbitmap, row) : false;
+  }
+}
+
 static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, uint32_t totalRows, uint32_t row,
                                        SColumnDataAgg* pColAgg) {
   if (!pColumnInfoData->hasNull) {

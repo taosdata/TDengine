@@ -2265,11 +2265,11 @@ void updateTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pWin, int64_t 
 int32_t compKeys(const SArray* pSortGroupCols, const char* oldkeyBuf, int32_t oldKeysLen, const SSDataBlock* pBlock, int32_t rowIndex) {
   SColumnDataAgg* pColAgg = NULL;
   const char*     isNull = oldkeyBuf;
-  const char*     p = oldkeyBuf + sizeof(int8_t) * taosArrayGetSize(pSortGroupCols);
+  const char*     p = oldkeyBuf + sizeof(int8_t) * pSortGroupCols->size;
 
-  for (int32_t i = 0; i < taosArrayGetSize(pSortGroupCols); ++i) {
-    const SColumn* pCol = (SColumn*)taosArrayGet(pSortGroupCols, i);
-    const SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pCol->slotId);
+  for (int32_t i = 0; i < pSortGroupCols->size; ++i) {
+    const SColumn* pCol = (SColumn*)TARRAY_GET_ELEM(pSortGroupCols, i);
+    const SColumnInfoData* pColInfoData = TARRAY_GET_ELEM(pBlock->pDataBlock, pCol->slotId);
     if (pBlock->pBlockAgg) pColAgg = pBlock->pBlockAgg[pCol->slotId];
 
     if (colDataIsNull(pColInfoData, pBlock->info.rows, rowIndex, pColAgg)) {
@@ -2296,15 +2296,15 @@ int32_t compKeys(const SArray* pSortGroupCols, const char* oldkeyBuf, int32_t ol
 
 int32_t buildKeys(char* keyBuf, const SArray* pSortGroupCols, const SSDataBlock* pBlock,
                  int32_t rowIndex) {
-  uint32_t        colNum = taosArrayGetSize(pSortGroupCols);
+  uint32_t        colNum = pSortGroupCols->size;
   SColumnDataAgg* pColAgg = NULL;
   char*           isNull = keyBuf;
   char*           p = keyBuf + sizeof(int8_t) * colNum;
 
   for (int32_t i = 0; i < colNum; ++i) {
-    const SColumn*         pCol = (SColumn*)taosArrayGet(pSortGroupCols, i);
-    const SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pCol->slotId);
-    if (pCol->slotId > taosArrayGetSize(pBlock->pDataBlock)) continue;
+    const SColumn*         pCol = (SColumn*)TARRAY_GET_ELEM(pSortGroupCols, i);
+    const SColumnInfoData* pColInfoData = TARRAY_GET_ELEM(pBlock->pDataBlock, pCol->slotId);
+    if (pCol->slotId > pBlock->pDataBlock->size) continue;
 
     if (pBlock->pBlockAgg) pColAgg = pBlock->pBlockAgg[pCol->slotId];
 

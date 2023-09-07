@@ -490,6 +490,7 @@ static int32_t logicMergeCopy(const SMergeLogicNode* pSrc, SMergeLogicNode* pDst
   COPY_SCALAR_FIELD(srcGroupId);
   COPY_SCALAR_FIELD(groupSort);
   COPY_SCALAR_FIELD(ignoreGroupId);
+  COPY_SCALAR_FIELD(inputWithGroupId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -543,7 +544,8 @@ static int32_t logicPartitionCopy(const SPartitionLogicNode* pSrc, SPartitionLog
   CLONE_NODE_LIST_FIELD(pTags);
   CLONE_NODE_FIELD(pSubtable);
   COPY_SCALAR_FIELD(needBlockOutputTsOrder);
-  COPY_SCALAR_FIELD(tsSlotId);
+  COPY_SCALAR_FIELD(pkTsColId);
+  COPY_SCALAR_FIELD(pkTsColTbId);
   return TSDB_CODE_SUCCESS;
 }
 

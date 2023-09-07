@@ -524,6 +524,11 @@ static int32_t stbSplRewriteFromMergeNode(SMergeLogicNode* pMerge, SLogicNode* p
       }
       break;
     }
+    case QUERY_NODE_LOGIC_PLAN_SORT: {
+      SSortLogicNode* pSort = (SSortLogicNode*)pNode;
+      if (pSort->calcGroupId) pMerge->inputWithGroupId = true;
+      break;
+    }
     default:
       break;
   }

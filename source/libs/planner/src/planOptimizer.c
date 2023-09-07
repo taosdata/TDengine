@@ -2838,13 +2838,14 @@ static bool pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimitPu
       cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_LIMIT_SLIMIT);
       return true;
     }
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+      if (((SSortLogicNode*)pNodeLimitPushTo)->calcGroupId) break;
+      // fall through
     case QUERY_NODE_LOGIC_PLAN_FILL:
-    case QUERY_NODE_LOGIC_PLAN_SORT: {
       cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_LIMIT_SLIMIT);
       SNode* pChild = NULL;
       FOREACH(pChild, pNodeLimitPushTo->pChildren) { pushDownLimitHow(pNodeLimitPushTo, (SLogicNode*)pChild); }
       return true;
-    }
     case QUERY_NODE_LOGIC_PLAN_AGG: {
       if (nodeType(pNodeWithLimit) == QUERY_NODE_LOGIC_PLAN_PROJECT &&
           (isPartTagAgg((SAggLogicNode*)pNodeLimitPushTo) || isPartTableAgg((SAggLogicNode*)pNodeLimitPushTo))) {
@@ -3585,11 +3586,13 @@ static SSortLogicNode* partColOptCreateSort(SPartitionLogicNode* pPartition) {
   int32_t code = TSDB_CODE_SUCCESS;
   SSortLogicNode* pSort = (SSortLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT);
   if (pSort) {
+    bool alreadyPartByPKTs = false;
     pSort->groupSort = false;
-    TSWAP(pSort->node.pChildren, pPartition->node.pChildren);
-    optResetParent((SLogicNode*)pSort);
     FOREACH(node, pPartition->pPartitionKeys) {
       SOrderByExprNode* pOrder = (SOrderByExprNode*)nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR);
+      if (QUERY_NODE_COLUMN == nodeType(node) && ((SColumnNode*)node)->colId == pPartition->pkTsColId &&
+          ((SColumnNode*)node)->tableId == pPartition->pkTsColTbId)
+        alreadyPartByPKTs = true;
       if (!pOrder) {
         code = TSDB_CODE_OUT_OF_MEMORY;
       } else {
@@ -3600,7 +3603,7 @@ static SSortLogicNode* partColOptCreateSort(SPartitionLogicNode* pPartition) {
       }
     }
 
-    if (pPartition->needBlockOutputTsOrder) {
+    if (pPartition->needBlockOutputTsOrder && !alreadyPartByPKTs) {
       SOrderByExprNode* pOrder = (SOrderByExprNode*)nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR);
       if (!pOrder) {
         code = TSDB_CODE_OUT_OF_MEMORY;
@@ -3612,7 +3615,7 @@ static SSortLogicNode* partColOptCreateSort(SPartitionLogicNode* pPartition) {
         FOREACH(node, pPartition->node.pTargets) {
           if (nodeType(node) == QUERY_NODE_COLUMN) {
             SColumnNode* pCol = (SColumnNode*)node;
-            if (pCol->slotId == pPartition->tsSlotId) {
+            if (pCol->colId == pPartition->pkTsColId && pCol->tableId == pPartition->pkTsColTbId) {
               pOrder->pExpr = nodesCloneNode((SNode*)pCol);
               break;
             }
@@ -3623,10 +3626,6 @@ static SSortLogicNode* partColOptCreateSort(SPartitionLogicNode* pPartition) {
         }
       }
     }
-  }
-  if (code == TSDB_CODE_SUCCESS) {
-    pSort->node.pTargets = nodesCloneList(((SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0))->pTargets);
-    if (!pSort->node.pTargets) code = TSDB_CODE_OUT_OF_MEMORY;
   }
   if (code != TSDB_CODE_SUCCESS) {
     nodesDestroyNode((SNode*)pSort);
@@ -3651,6 +3650,9 @@ static int32_t partitionColsOpt(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
     // if sort create failed, we eat the error, skip the optimization
     code = TSDB_CODE_SUCCESS;
   } else {
+    TSWAP(pSort->node.pChildren, pNode->node.pChildren);
+    TSWAP(pSort->node.pTargets, pNode->node.pTargets);
+    optResetParent((SLogicNode*)pSort);
     pSort->calcGroupId = true;
     code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pNode, (SLogicNode*)pSort);
     if (code == TSDB_CODE_SUCCESS) {

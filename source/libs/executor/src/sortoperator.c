@@ -692,6 +692,7 @@ typedef struct SMultiwayMergeOperatorInfo {
   bool           ignoreGroupId;
   uint64_t       groupId;
   STupleHandle*  prefetchedTuple;
+  bool           inputWithGroupId;
 } SMultiwayMergeOperatorInfo;
 
 int32_t openMultiwayMergeOperator(SOperatorInfo* pOperator) {
@@ -742,7 +743,7 @@ static void doGetSortedBlockData(SMultiwayMergeOperatorInfo* pInfo, SSortHandle*
 
   while (1) {
     STupleHandle* pTupleHandle = NULL;
-    if (pInfo->groupSort) {
+    if (pInfo->groupSort || pInfo->inputWithGroupId) {
       if (pInfo->prefetchedTuple == NULL) {
         pTupleHandle = tsortNextTuple(pHandle);
       } else {
@@ -763,7 +764,7 @@ static void doGetSortedBlockData(SMultiwayMergeOperatorInfo* pInfo, SSortHandle*
       break;
     }
 
-    if (pInfo->groupSort) {
+    if (pInfo->groupSort || pInfo->inputWithGroupId) {
       uint64_t tupleGroupId = tsortGetGroupId(pTupleHandle);
       if (pInfo->groupId == 0 || pInfo->groupId == tupleGroupId) {
         appendOneRowToDataBlock(p, pTupleHandle);
@@ -943,6 +944,7 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   pInfo->sortBufSize = pInfo->bufPageSize * (numStreams + 1);  // one additional is reserved for merged result.
   pInfo->binfo.inputTsOrder = pMergePhyNode->node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pMergePhyNode->node.outputTsOrder;
+  pInfo->inputWithGroupId = pMergePhyNode->inputWithGroupId;
 
   setOperatorInfo(pOperator, "MultiwayMergeOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(openMultiwayMergeOperator, doMultiwayMerge, NULL,

@@ -1265,7 +1265,8 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
     pPartition->needBlockOutputTsOrder = true;
     SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pSelect->pWindow;
     SColumnNode* pTsCol = (SColumnNode*)pInterval->pCol;
-    pPartition->tsSlotId = pTsCol->slotId;
+    pPartition->pkTsColId = pTsCol->colId;
+    pPartition->pkTsColTbId = pTsCol->tableId;
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pTags) {
