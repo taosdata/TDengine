@@ -21,7 +21,7 @@ taos-query = { version = "0.10.4", default-features = false, features = [
 ] }
 
 [workspace.package]
-version = "1.1.0"
+version = "1.3.0-alpha"
 
 [package]
 name = "taosx"
