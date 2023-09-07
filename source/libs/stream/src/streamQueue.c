@@ -362,8 +362,9 @@ static void fillBucket(STokenBucket* pBucket) {
 
 bool streamTaskHasAvailableToken(STokenBucket* pBucket) {
   fillBucket(pBucket);
-  bool hasToken = pBucket->numOfToken > 0;
+  bool hasToken = (--pBucket->numOfToken) > 0;
   if (hasToken) {
+    qInfo("remain token:%d", pBucket->numOfToken);
     return true;
   } else {
     return false;
