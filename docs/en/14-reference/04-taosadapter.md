@@ -246,7 +246,7 @@ node_export is an exporter of hardware and OS metrics exposed by the \*NIX kerne
 
 ### Get table's VGroup ID
 
-You can call `http://<fqdn>:6041/rest/vgid?db=<db>&table=<table>` to get table's VGroup ID. For more information about VGroup, please refer to [primary-logic-unit](/tdinternal/arch/#primary-logic-unit).
+You can call `http://<fqdn>:6041/rest/vgid?db=<db>&table=<table>` to get table's VGroup ID.
 
 ## Memory usage optimization methods
 
