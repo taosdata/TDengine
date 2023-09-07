@@ -47,7 +47,7 @@ def init_release_dir(release_info):
     global release_dir, systemd_path, target
     if release_info.Target == "agent":
         target = "taosx-agent"
-    release_dir = os.path.join(top_dir,"release","{0}-{1}-linux-{2}".format(target, release_info.TaosXVersion, release_info.CpuType))
+    release_dir = os.path.join(top_dir,"release","{0}-{1}-linux-{2}".format(target, release_info.TaosXVersion, release_info.CpuType.lower()))
     check_directory(release_dir)
     systemd_path = os.path.join(release_dir,"etc", "systemd", "system")
     check_directory(systemd_path)
