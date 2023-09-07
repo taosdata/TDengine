@@ -1231,6 +1231,8 @@ export default {
     agenttip: 'Please select the agent.',
     typetip: 'Please select the source type',
     nametip: 'Please enter the source name',
+    targetnametip:'Please enter the target name',
+    targettypetip:'Please select the target type',
     name2: 'Name',
     type: 'Type',
     target: 'Target',
@@ -1241,6 +1243,9 @@ export default {
     addsource: 'Add Source',
     sourcetype: 'Source Type',
     sourcename: 'Source Name',
+    addtarget: 'Add Target',
+    targettype: 'Type',
+    targetname: 'Name',
     agentInfo: `
       1. When using PI or OPC-DA data sources, you need to enable the agent.
       <br /> 

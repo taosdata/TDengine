@@ -18,7 +18,7 @@
           @click="addDbSource"
           size="small"
           icon="el-icon-plus"
-          >{{ $t("datasource.addsource") }}</el-button
+          >{{ $t("datasource.addtarget") }}</el-button
         >
       </div>
       <el-table
