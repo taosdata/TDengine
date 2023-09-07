@@ -326,6 +326,13 @@ typedef struct {
   int64_t sinkStart;
 } STaskTimestamp;
 
+typedef struct STokenBucket {
+    int32_t capacity;     // total capacity
+    int64_t fillTimestamp;// fill timestamp
+    int32_t numOfToken;   // total available tokens
+    int32_t rate;         // number of token per second
+} STokenBucket;
+
 struct SStreamTask {
   int64_t          ver;
   SStreamTaskId    id;
@@ -354,6 +361,7 @@ struct SStreamTask {
     STaskSinkFetch         fetchSink;
   };
   SSinkTaskRecorder sinkRecorder;
+  STokenBucket      tokenBucket;
 
   void*         launchTaskTimer;
   SMsgCb*       pMsgCb;  // msg handle

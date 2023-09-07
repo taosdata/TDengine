@@ -29,6 +29,8 @@ typedef struct SQueueReader {
   int32_t       waitDuration;  // maximum wait time to format several block into a batch to process, unit: ms
 } SQueueReader;
 
+static bool streamTaskHasAvailableToken(STokenBucket* pBucket);
+
 static void streamQueueCleanup(SStreamQueue* pQueue) {
   void* qItem = NULL;
   while ((qItem = streamQueueNextItem(pQueue)) != NULL) {
@@ -172,6 +174,14 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
     while (1) {
       if (streamTaskShouldPause(&pTask->status) || streamTaskShouldStop(&pTask->status)) {
         qDebug("s-task:%s task should pause, extract input blocks:%d", pTask->id.idStr, *numOfBlocks);
+        return TSDB_CODE_SUCCESS;
+      }
+
+      STokenBucket* pBucket = &pTask->tokenBucket;
+      bool          has = streamTaskHasAvailableToken(pBucket);
+      if (!has) {  // no available token in th bucket, ignore this execution
+        qInfo("s-task:%s no available token for sink, capacity:%d, rate:%d token/sec, quit", pTask->id.idStr,
+               pBucket->capacity, pBucket->rate);
         return TSDB_CODE_SUCCESS;
       }
 
@@ -319,4 +329,43 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
   }
 
   return 0;
+}
+
+int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t cap, int32_t rate) {
+  if (cap < 100 || rate < 50 || pBucket == NULL) {
+    qError("failed to init sink task bucket, cap:%d, rate:%d", cap, rate);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  pBucket->capacity = cap;
+  pBucket->rate = rate;
+  pBucket->numOfToken = cap;
+  pBucket->fillTimestamp = taosGetTimestampMs();
+  return TSDB_CODE_SUCCESS;
+}
+
+static void fillBucket(STokenBucket* pBucket) {
+  int64_t now = taosGetTimestampMs();
+  int64_t delta = now - pBucket->fillTimestamp;
+
+  int32_t inc = (delta / 1000.0) * pBucket->rate;
+  if (inc > 0) {
+    if ((pBucket->numOfToken + inc) < pBucket->capacity) {
+      pBucket->numOfToken += inc;
+    } else {
+      pBucket->numOfToken = pBucket->capacity;
+    }
+
+    pBucket->fillTimestamp = now;
+  }
+}
+
+bool streamTaskHasAvailableToken(STokenBucket* pBucket) {
+  fillBucket(pBucket);
+  bool hasToken = pBucket->numOfToken > 0;
+  if (hasToken) {
+    return true;
+  } else {
+    return false;
+  }
 }
