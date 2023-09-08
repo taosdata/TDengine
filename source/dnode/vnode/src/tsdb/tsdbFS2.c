@@ -174,11 +174,17 @@ int32_t save_fs(const TFileSetArray *arr, const char *fname) {
 
   // fset
   cJSON *ajson = cJSON_AddArrayToObject(json, "fset");
-  if (!ajson) TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+  if (!ajson) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
   const STFileSet *fset;
   TARRAY2_FOREACH(arr, fset) {
     cJSON *item = cJSON_CreateObject();
-    if (!item) TSDB_CHECK_CODE(code = TSDB_CODE_OUT_OF_MEMORY, lino, _exit);
+    if (!item) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
     cJSON_AddItemToArray(ajson, item);
 
     code = tsdbTFileSetToJson(fset, item);
@@ -231,7 +237,8 @@ static int32_t load_fs(STsdb *pTsdb, const char *fname, TFileSetArray *arr) {
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   } else {
-    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
 _exit:
@@ -312,7 +319,8 @@ static int32_t commit_edit(STFileSystem *fs) {
   int32_t code;
   int32_t lino;
   if ((code = taosRenameFile(current_t, current))) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(code), lino, _exit);
+    code = TAOS_SYSTEM_ERROR(code);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   code = apply_commit(fs);
@@ -345,7 +353,8 @@ static int32_t abort_edit(STFileSystem *fs) {
   int32_t code;
   int32_t lino;
   if ((code = taosRemoveFile(fname))) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(code), lino, _exit);
+    code = TAOS_SYSTEM_ERROR(code);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   code = apply_abort(fs);
@@ -398,7 +407,7 @@ static int32_t tsdbFSAddEntryToFileObjHash(STFileHash *hash, const char *fname) 
   STFileHashEntry *entry = taosMemoryMalloc(sizeof(*entry));
   if (entry == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
-  strcpy(entry->fname, fname);
+  strncpy(entry->fname, fname, TSDB_FILENAME_LEN);
 
   uint32_t idx = MurmurHash3_32(fname, strlen(fname)) % hash->numBucket;
 
@@ -873,7 +882,7 @@ int32_t tsdbFSCreateCopySnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
   STFileSet *fset1;
 
   fsetArr[0] = taosMemoryMalloc(sizeof(TFileSetArray));
-  if (fsetArr == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (fsetArr[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
   TARRAY2_INIT(fsetArr[0]);
 

@@ -41,16 +41,16 @@ enum {
   STREAM_STATUS__PAUSE,
 };
 
-enum {
+typedef enum ETaskStatus {
   TASK_STATUS__NORMAL = 0,
   TASK_STATUS__DROPPING,
-  TASK_STATUS__FAIL,
+  TASK_STATUS__UNINIT,  // not used, an placeholder
   TASK_STATUS__STOP,
   TASK_STATUS__SCAN_HISTORY,  // stream task scan history data by using tsdbread in the stream scanner
   TASK_STATUS__HALT,          // pause, but not be manipulated by user command
   TASK_STATUS__PAUSE,         // pause
   TASK_STATUS__CK,            // stream task is in checkpoint status, no data are allowed to put into inputQ anymore
-};
+} ETaskStatus;
 
 enum {
   TASK_SCHED_STATUS__INACTIVE = 1,

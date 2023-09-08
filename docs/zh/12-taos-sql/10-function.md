@@ -292,11 +292,11 @@ CONCAT_WS(separator_expr, expr1, expr2 [, expr] ...)
 LENGTH(expr)
 ```
 
-**功能说明**：以字节计数的字符串长度。
+**功能说明**：以字节计数的长度。
 
 **返回结果类型**：BIGINT。
 
-**适用数据类型**：输入参数是 VARCHAR 类型或者 NCHAR 类型的字符串或者列。
+**适用数据类型**：VARCHAR, NCHAR, VARBINARY。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 

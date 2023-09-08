@@ -2320,7 +2320,7 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
 
   pDb = mndAcquireDbByStb(pMnode, alterReq.name);
   if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_INVALID_DB;
+    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
     goto _OVER;
   }
 
@@ -2342,9 +2342,9 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
           alterReq.alterType, alterReq.numOfFields, alterReq.ttl);
 
   SName name = {0};
-  tNameFromString(&name, pDb->name, T_NAME_ACCT | T_NAME_DB);
+  tNameFromString(&name, alterReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  auditRecord(pReq, pMnode->clusterId, "alterStb", name.dbname, alterReq.name, detail);
+  auditRecord(pReq, pMnode->clusterId, "alterStb", name.dbname, name.tname, detail);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -3616,7 +3616,7 @@ static int32_t mndProcessCreateIndexReq(SRpcMsg *pReq) {
 
   pDb = mndAcquireDbByStb(pMnode, tagIdxReq.dbFName);
   if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_INVALID_DB;
+    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
     goto _OVER;
   }
 
