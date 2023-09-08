@@ -40,6 +40,8 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   pRsp->sysInfo = pUser->sysInfo;
   pRsp->version = pUser->authVersion;
   pRsp->passVer = pUser->passVersion;
+  pRsp->whiteListVer = mndGetIpWhiteVer(pMnode);
+  //TODO: mndSetUserAuthRsp in enterprise version
   return 0;
 }
 

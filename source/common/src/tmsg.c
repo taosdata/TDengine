@@ -1730,7 +1730,7 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
 
   // since 3.0.7.0
   if (tEncodeI32(pEncoder, pRsp->passVer) < 0) return -1;
-
+  if (tEncodeI64(pEncoder, pRsp->whiteListVer) < 0) return -1;
   return 0;
 }
 
@@ -1861,6 +1861,11 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
       if (tDecodeI32(pDecoder, &pRsp->passVer) < 0) goto _err;
     } else {
       pRsp->passVer = 0;
+    }
+    if (!tDecodeIsEnd(pDecoder)) {
+      if (tDecodeI64(pDecoder, &pRsp->whiteListVer) < 0) goto _err;
+    } else {
+      pRsp->whiteListVer = 0;
     }
   }
   return 0;
@@ -4366,6 +4371,7 @@ int32_t tSerializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   if (tEncodeCStr(&encoder, pRsp->sDetailVer) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->passVer) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->authVer) < 0) return -1;
+  if (tEncodeI64(&encoder, pRsp->whiteListVer) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -4402,6 +4408,11 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
     pRsp->authVer = 0;
   }
 
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI64(&decoder, &pRsp->whiteListVer) < 0) return -1;
+  } else {
+    pRsp->whiteListVer = 0;
+  }
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
