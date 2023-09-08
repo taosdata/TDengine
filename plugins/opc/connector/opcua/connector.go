@@ -26,7 +26,7 @@ func NewConnector(config common.Config) (connector.Connector, error) {
 		return nil, fmt.Errorf("validate connection collectConfig fail. %v", err)
 	}
 	if config.Collect.Interval <= 0 {
-		config.Collect.Interval = 1
+		config.Collect.Interval = 10
 	}
 	readers, err := createReaders(config)
 	if err != nil {
