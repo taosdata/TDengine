@@ -125,6 +125,7 @@ typedef enum {
 
 typedef enum {
   TAOS_NOTIFY_PASSVER = 0,
+  TAOS_NOTIFY_WHITELIST_VER = 1
 } TAOS_NOTIFY_TYPE;
 
 #define RET_MSG_LENGTH 1024

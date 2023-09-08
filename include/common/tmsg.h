@@ -849,6 +849,7 @@ typedef struct {
   int32_t  authVer;
   char     sVer[TSDB_VERSION_LEN];
   char     sDetailVer[128];
+  int64_t  whiteListVer;
 } SConnectRsp;
 
 int32_t tSerializeSConnectRsp(void* buf, int32_t bufLen, SConnectRsp* pRsp);
@@ -965,6 +966,7 @@ typedef struct {
   SHashObj* readTbs;
   SHashObj* writeTbs;
   SHashObj* useDbs;
+  int64_t whiteListVer;
 } SGetUserAuthRsp;
 
 int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
