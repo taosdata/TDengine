@@ -229,9 +229,15 @@ void tdbPCacheInvalidatePage(SPCache *pCache, SPager *pPager, SPgno pgno) {
   }
 
   if (pPage) {
-    tdbPCachePinPage(pCache, pPage);
+    bool moveToFreeList = false;
+    if (pPage->pLruNext) {
+      tdbPCachePinPage(pCache, pPage);
+      moveToFreeList = true;
+    }
     tdbPCacheRemovePageFromHash(pCache, pPage);
-    tdbPCacheFreePage(pCache, pPage);
+    if (moveToFreeList) {
+      tdbPCacheFreePage(pCache, pPage);
+    }
   }
 }
 
