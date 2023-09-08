@@ -385,7 +385,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   pTask->dataRange.range.minVer = ver;
   pTask->pMsgCb = pMsgCb;
 
-  streamTaskInitTokenBucket(&pTask->tokenBucket, 300, 200);
+  streamTaskInitTokenBucket(&pTask->tokenBucket, 200, 100);
   taosThreadMutexInit(&pTask->lock, NULL);
   streamTaskOpenAllUpstreamInput(pTask);
 
