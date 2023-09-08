@@ -172,6 +172,7 @@ void ipWhiteMgtUpdateAll(SMnode *pMnode) {
   SHashObj *pOld = ipWhiteMgt.pIpWhiteTab;
 
   ipWhiteMgt.pIpWhiteTab = pNew;
+
   destroyIpWhiteTab(pOld);
 }
 void ipWhiteMgtUpdate2(SMnode *pMnode) {
@@ -193,6 +194,77 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
   taosThreadRwlockUnlock(&ipWhiteMgt.rw);
   mInfo("ip-white-mnode ver, %" PRId64 "", ver);
   return ver;
+}
+
+bool mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t type) {
+  bool       update = false;
+  SIpV4Range range = {.ip = taosGetIpv4FromFqdn(fqdn), .mask = 0};
+
+  SIpWhiteList **ppList = taosHashGet(pIpWhiteTab, user, strlen(user));
+  SIpWhiteList  *pList = NULL;
+  if (ppList != NULL && *ppList != NULL) {
+    pList = *ppList;
+  }
+
+  if (type == IP_WHITE_ADD) {
+    if (pList == NULL) {
+      SIpWhiteList *pNewList = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range));
+      memcpy(pNewList->pIpRange, &range, sizeof(SIpV4Range));
+      pNewList->num = 1;
+
+      taosHashPut(pIpWhiteTab, user, strlen(user), &pNewList, sizeof(void *));
+      update = true;
+    } else {
+      if (!isRangeInWhiteList(pList, &range)) {
+        int32_t       sz = sizeof(SIpWhiteList) + sizeof(SIpV4Range) * (pList->num + 1);
+        SIpWhiteList *pNewList = taosMemoryCalloc(1, sz);
+        memcpy(pNewList->pIpRange, pList->pIpRange, sizeof(SIpV4Range) * (pList->num));
+        pNewList->pIpRange[pList->num].ip = range.ip;
+        pNewList->pIpRange[pList->num].mask = range.mask;
+
+        pNewList->num = pList->num + 1;
+
+        taosHashPut(pIpWhiteTab, user, strlen(user), &pNewList, sizeof(void *));
+        taosMemoryFree(pList);
+        update = true;
+      }
+    }
+  } else if (type == IP_WHITE_DROP) {
+    if (pList != NULL) {
+      if (isRangeInWhiteList(pList, &range)) {
+        if (pList->num == 1) {
+          taosHashRemove(pIpWhiteTab, user, strlen(user));
+          taosMemoryFree(pList);
+        } else {
+          int32_t       idx = 0;
+          int32_t       sz = sizeof(SIpWhiteList) + sizeof(SIpV4Range) * (pList->num - 1);
+          SIpWhiteList *pNewList = taosMemoryCalloc(1, sz);
+          for (int i = 0; i < pList->num; i++) {
+            SIpV4Range *e = &pList->pIpRange[i];
+            if (!isIpRangeEqual(e, &range)) {
+              pNewList->pIpRange[idx].ip = e->ip;
+              pNewList->pIpRange[idx].mask = e->mask;
+              idx++;
+            }
+          }
+          pNewList->num = idx;
+          taosHashPut(pIpWhiteTab, user, strlen(user), &pNewList, sizeof(void *));
+          taosMemoryFree(pList);
+        }
+        update = true;
+      }
+    }
+  }
+
+  return update;
+}
+void mndUpdateIpWhite(char *user, char *fqdn, int8_t type, int8_t lock) {
+  if (lock) taosThreadRwlockWrlock(&ipWhiteMgt.rw);
+  bool update = mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, user, fqdn, type);
+
+  if (update) ipWhiteMgt.ver++;
+
+  if (lock) taosThreadRwlockUnlock(&ipWhiteMgt.rw);
 }
 int64_t ipWhiteMgtFillMsg(SUpdateIpWhite *pUpdate) {
   int64_t ver = 0;
@@ -251,6 +323,17 @@ SHashObj *mndFetchAllIpWhite(SMnode *pMnode) {
 
     sdbRelease(pSdb, pUser);
   }
+
+  SArray *fqdns = mndGetAllDnodeFqdns(pMnode);
+
+  for (int i = 0; i < taosArrayGetSize(fqdns); i++) {
+    char *fqdn = taosArrayGetP(fqdns, i);
+    mndUpdateIpWhiteImpl(pIpWhiteTab, "_dnd", fqdn, IP_WHITE_ADD);
+
+    taosMemoryFree(fqdn);
+  }
+  taosArrayDestroy(fqdns);
+
   return pIpWhiteTab;
 }
 
@@ -913,8 +996,7 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   TSWAP(pOld->writeTbs, pNew->writeTbs);
   TSWAP(pOld->useDbs, pNew->useDbs);
 
-  int32_t sz = pNew->pIpWhiteList->num * sizeof(SIpV4Range) + sizeof(SIpWhiteList);
-  char   *pWhiteList = taosMemoryCalloc(1, sz);
+  int32_t sz = sizeof(SIpWhiteList) + pNew->pIpWhiteList->num * sizeof(SIpV4Range);
   pOld->pIpWhiteList = taosMemoryRealloc(pOld->pIpWhiteList, sz);
   memcpy(pOld->pIpWhiteList, pNew->pIpWhiteList, sz);
 

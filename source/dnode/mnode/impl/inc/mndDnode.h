@@ -31,8 +31,6 @@ int32_t    mndGetDnodeSize(SMnode *pMnode);
 bool       mndIsDnodeOnline(SDnodeObj *pDnode, int64_t curMs);
 void       mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo);
 
-SIpWhiteList *mndCreateIpWhiteFromDnode(SMnode *pMnode);
-
 #ifdef __cplusplus
 }
 #endif

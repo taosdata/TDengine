@@ -51,6 +51,12 @@ enum {
   DND_CONN_ACTIVE_CODE,
 };
 
+enum {
+  DND_CREATE,
+  DND_ADD,
+  DND_DROP,
+};
+
 static int32_t  mndCreateDefaultDnode(SMnode *pMnode);
 static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode);
 static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw);
@@ -103,7 +109,10 @@ int32_t mndInitDnode(SMnode *pMnode) {
   return sdbSetTable(pMnode->pSdb, table);
 }
 
-void mndCleanupDnode(SMnode *pMnode) {}
+SIpWhiteList *mndCreateIpWhiteOfDnode(SMnode *pMnode);
+SIpWhiteList *mndAddIpWhiteOfDnode(SIpWhiteList *pIpWhiteList, char *fqdn);
+SIpWhiteList *mndRmIpWhiteOfDnode(SIpWhiteList *pIpWhiteList, char *fqdn);
+void          mndCleanupDnode(SMnode *pMnode) {}
 
 static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
   int32_t  code = -1;
@@ -130,6 +139,7 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
+  mndUpdateIpWhite("_dnd", dnodeObj.fqdn, IP_WHITE_ADD, 1);
 
 _OVER:
   mndTransDrop(pTrans);
@@ -695,6 +705,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
 
+  mndUpdateIpWhite("_dnd", dnodeObj.fqdn, IP_WHITE_ADD, 1);
 _OVER:
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
@@ -820,37 +831,94 @@ _OVER:
   return code;
 }
 
-SIpWhiteList *mndCreateIpWhiteFromDnode(SMnode *pMnode) {
-  SDnodeObj *pObj = NULL;
-  void      *pIter = NULL;
-  SSdb      *pSdb = pMnode->pSdb;
-  SArray    *fqdns = taosArrayInit(4, sizeof(void *));
-  while (1) {
-    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pObj);
-    if (pIter == NULL) break;
+// void mndUpdateIpWhiteOfDnode(SMnode *pMnode, char *fqdn, int8_t type) {
+//   if (type == DND_CREATE) {
 
-    char *fqdn = taosStrdup(pObj->fqdn);
-    taosArrayPush(fqdns, &fqdn);
-    sdbRelease(pSdb, pObj);
-  }
-  int32_t       sz = taosArrayGetSize(fqdns);
-  SIpWhiteList *list = NULL;
-  if (sz != 0) {
-    list = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sz * sizeof(SIpV4Range));
-    for (int i = 0; i < sz; i++) {
-      char *e = taosArrayGetP(fqdns, i);
-      taosMemoryFree(e);
-      int32_t ip = taosGetFqdn(e);
+//   } else if (type == DND_ADD) {
 
-      SIpV4Range *pRange = &list->pIpRange[0];
-      pRange->ip = ip;
-      pRange->mask = 0;
-    }
-  }
+//   } else if (type == DND_DROP) {
 
-  taosArrayDestroy(fqdns);
-  return list;
-}
+//   }
+// }
+// SIpWhiteList *mndCreateIpWhiteOfDnode(SMnode *pMnode) {
+//   SDnodeObj *pObj = NULL;
+//   void      *pIter = NULL;
+//   SSdb      *pSdb = pMnode->pSdb;
+//   SArray    *fqdns = taosArrayInit(4, sizeof(void *));
+//   while (1) {
+//     pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pObj);
+//     if (pIter == NULL) break;
+
+//     char *fqdn = taosStrdup(pObj->fqdn);
+//     taosArrayPush(fqdns, &fqdn);
+//     sdbRelease(pSdb, pObj);
+//   }
+//   int32_t       sz = taosArrayGetSize(fqdns);
+//   SIpWhiteList *list = NULL;
+//   if (sz != 0) {
+//     list = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sz * sizeof(SIpV4Range));
+//     for (int i = 0; i < sz; i++) {
+//       char *e = taosArrayGetP(fqdns, i);
+//       taosMemoryFree(e);
+//       int32_t ip = taosGetFqdn(e);
+
+//       SIpV4Range *pRange = &list->pIpRange[0];
+//       pRange->ip = ip;
+//       pRange->mask = 0;
+//     }
+//   }
+
+//   taosArrayDestroy(fqdns);
+//   return list;
+// }
+
+// SIpWhiteList *mndAddIpWhiteOfDnode(SIpWhiteList *pIpWhiteList, char *fqdn) {
+//   SIpV4Range dst = {.ip = taosGetFqdn(fqdn), .mask = 0};
+//   bool       exist = false;
+//   for (int i = 0; i < pIpWhiteList->num; i++) {
+//     SIpV4Range *pRange = &pIpWhiteList->pIpRange[i];
+//     if (pRange->ip == dst.ip && pRange->mask == dst.mask) {
+//       exist = true;
+//       break;
+//     }
+//   }
+//   if (exist) {
+//     return cloneIpWhiteList(pIpWhiteList);
+
+//   } else {
+//     SIpWhiteList *pRet = taosMemoryCalloc(1, sizeof(SIpWhiteList) + (pIpWhiteList->num + 1) * sizeof(SIpV4Range));
+//     pRet->num = pIpWhiteList->num + 1;
+
+//     memcpy(pRet->pIpRange, pIpWhiteList->pIpRange, sizeof(SIpV4Range) * pIpWhiteList->num);
+
+//     SIpV4Range *pLast = &pRet->pIpRange[pIpWhiteList->num];
+//     pLast->ip = dst.ip;
+//     pLast->mask = dst.mask;
+//     return pRet;
+//   }
+// }
+// SIpWhiteList *mndRmIpWhiteOfDnode(SIpWhiteList *pIpWhiteList, char *fqdn) {
+//   SIpV4Range tgt = {.ip = taosGetFqdn(fqdn), .mask = 0};
+
+//   SIpWhiteList *pRet = taosMemoryCalloc(1, sizeof(SIpWhiteList) + (pIpWhiteList->num) * sizeof(SIpV4Range));
+//   int32_t       idx = 0;
+//   for (int i = 0; i < pIpWhiteList->num; i++) {
+//     SIpV4Range *pSrc = &pIpWhiteList->pIpRange[i];
+//     SIpV4Range *pDst = &pIpWhiteList->pIpRange[idx];
+//     if (pSrc->ip != tgt.ip || pSrc->mask != tgt.mask) {
+//       pDst[idx].ip = pSrc[i].ip;
+//       pDst[idx].mask = pSrc[i].mask;
+//       idx++;
+//     }
+//   }
+//   pRet->num = idx;
+//   if (pRet->num == 0) {
+//     taosMemoryFree(pRet);
+//     return NULL;
+//   }
+
+//   return pRet;
+// }
 
 static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   SShowVariablesRsp rsp = {0};
@@ -1019,6 +1087,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
+  mndUpdateIpWhite("_dnd", pDnode->fqdn, IP_WHITE_DROP, 1);
   code = 0;
 
 _OVER:
@@ -1490,4 +1559,20 @@ _err:
   mError("dnode:%d, failed to config since invalid conf:%s", pMCfgReq->dnodeId, pMCfgReq->config);
   terrno = TSDB_CODE_INVALID_CFG;
   return -1;
+}
+
+SArray *mndGetAllDnodeFqdns(SMnode *pMnode) {
+  SDnodeObj *pObj = NULL;
+  void      *pIter = NULL;
+  SSdb      *pSdb = pMnode->pSdb;
+  SArray    *fqdns = taosArrayInit(4, sizeof(void *));
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
+
+    char *fqdn = taosStrdup(pObj->fqdn);
+    taosArrayPush(fqdns, &fqdn);
+    sdbRelease(pSdb, pObj);
+  }
+  return fqdns;
 }
