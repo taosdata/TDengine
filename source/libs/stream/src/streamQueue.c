@@ -357,7 +357,7 @@ static void fillBucket(STokenBucket* pBucket) {
     }
 
     pBucket->fillTimestamp = now;
-    qInfo("new token available, ts:%"PRId64, now);
+    qInfo("new token available, current:%d, inc:%d ts:%"PRId64, pBucket->numOfToken, inc, now);
   }
 }
 
