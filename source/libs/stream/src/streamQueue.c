@@ -347,6 +347,7 @@ int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t cap, int32_t ra
 static void fillBucket(STokenBucket* pBucket) {
   int64_t now = taosGetTimestampMs();
   int64_t delta = now - pBucket->fillTimestamp;
+  ASSERT(pBucket->numOfToken >= 0);
 
   int32_t inc = (delta / 1000.0) * pBucket->rate;
   if (inc > 0) {
@@ -363,10 +364,9 @@ static void fillBucket(STokenBucket* pBucket) {
 
 bool streamTaskHasAvailableToken(STokenBucket* pBucket) {
   fillBucket(pBucket);
-  bool hasToken = (--pBucket->numOfToken) > 0;
-  if (hasToken) {
-    qDebug("remain token:%d", pBucket->numOfToken);
-    return true;
+  if (pBucket->numOfToken > 0) {
+    qDebug("remain token:%d", pBucket->numOfToken-1);
+    return --pBucket->numOfToken;
   } else {
     return false;
   }
