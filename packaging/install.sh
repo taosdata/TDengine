@@ -11,6 +11,8 @@ agentname="${PREFIX}x-agent"
 explorerName="${PREFIX}-explorer"
 csudo=""
 
+target=""
+
 if command -v sudo >/dev/null; then
   csudo="sudo "
 fi
@@ -135,14 +137,21 @@ remove_taosx() {
 }
 
 print_tips(){
-    echo -e "\033[32mTo configure taosx-agent   \033[0m: edit /etc/taos/agent.toml"
-    echo -e "\033[32mTo configure taos-explorer \033[0m: edit /etc/taos/explorer.toml"
-    echo -e "\033[32mTo start taosx             \033[0m: sudo systemctl start taosx"
-    echo -e "\033[32mTo start taosx-agent       \033[0m: sudo systemctl start taosx-agent"
-    echo -e "\033[32mTo start taos-explorer     \033[0m: sudo systemctl start taos-explorer"
+    if [ "$target" = "taosx" ]; then
+      echo -e "\033[32mTo configure taosx-agent   \033[0m: edit /etc/taos/agent.toml"
+      echo -e "\033[32mTo configure taos-explorer \033[0m: edit /etc/taos/explorer.toml"
+      echo -e "\033[32mTo start taosx             \033[0m: sudo systemctl start taosx"
+      echo -e "\033[32mTo start taosx-agent       \033[0m: sudo systemctl start taosx-agent"
+      echo -e "\033[32mTo start taos-explorer     \033[0m: sudo systemctl start taos-explorer"
 
-    echo -e "\n\033[32mtaosx is installed successfully!\033[0m"
-    echo -e "\033[32mOpen taos-explorer in web browser: http://`hostname`:6060\033[0m"
+      echo -e "\n\033[32mtaosx is installed successfully!\033[0m"
+      echo -e "\033[32mOpen taos-explorer in web browser: http://`hostname`:6060\033[0m"
+    else
+      echo -e "\033[32mTo configure taosx-agent   \033[0m: edit /etc/taos/agent.toml"
+      echo -e "\033[32mTo start taosx-agent       \033[0m: sudo systemctl start taosx-agent"
+
+      echo -e "\n\033[32mtaosx-agent is installed successfully!\033[0m"
+    fi
 }
 
 # install new taosx and taosx-agent

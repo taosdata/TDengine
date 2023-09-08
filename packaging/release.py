@@ -590,9 +590,16 @@ def test_handle(process):
             build_and_install_taos_explorer("Release")
         linux_release.test_handle(release_info, process)
 
+def update_target_info_to_file():
+    target = "taosx"
+    if release_info.Target == "agent":
+        target = taosx_agent_name
+    replace_file_content(os.path.join(script_dir, "uninstall.sh"), f'target=""', f'target="{target}"')
+    replace_file_content(os.path.join(script_dir, "install.sh"), f'target=""', f'target="{target}"')
 
 if __name__ == '__main__':
     init_build_info()
+    update_target_info_to_file()
     print_param()
     if test_process != "":
         test_handle(test_process)
