@@ -700,7 +700,6 @@ int32_t streamSourceScanHistoryData(SStreamTask* pTask);
 int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask);
 
 // agg level
-int32_t streamTaskScanHistoryPrepare(SStreamTask* pTask);
 int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistoryFinishReq* pReq,
                                           SRpcHandleInfo* pRpcInfo);
 int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask);

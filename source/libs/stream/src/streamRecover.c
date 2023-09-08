@@ -30,6 +30,13 @@ static void    streamTaskSetRangeStreamCalc(SStreamTask* pTask);
 static int32_t initScanHistoryReq(SStreamTask* pTask, SStreamScanHistoryReq* pReq, int8_t igUntreated);
 
 static void streamTaskSetReady(SStreamTask* pTask, int32_t numOfReqs) {
+  if (pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY && pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
+    pTask->numOfWaitingUpstream = taosArrayGetSize(pTask->pUpstreamInfoList);
+    qDebug("s-task:%s level:%d task wait for %d upstream tasks complete scan-history procedure, status:%s",
+           pTask->id.idStr, pTask->info.taskLevel, pTask->numOfWaitingUpstream,
+           streamGetTaskStatusStr(pTask->status.taskStatus));
+  }
+
   ASSERT(pTask->status.downstreamReady == 0);
   pTask->status.downstreamReady = 1;
 
@@ -97,11 +104,8 @@ int32_t streamTaskLaunchScanHistory(SStreamTask* pTask) {
       streamSetParamForScanHistory(pTask);
       streamTaskEnablePause(pTask);
     }
-
-    streamTaskScanHistoryPrepare(pTask);
   } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
     qDebug("s-task:%s sink task do nothing to handle scan-history", pTask->id.idStr);
-    streamTaskScanHistoryPrepare(pTask);
   }
   return 0;
 }
@@ -394,15 +398,6 @@ int32_t streamTaskPutTranstateIntoInputQ(SStreamTask* pTask) {
 
   pTask->status.appendTranstateBlock = true;
   return TSDB_CODE_SUCCESS;
-}
-
-// agg
-int32_t streamTaskScanHistoryPrepare(SStreamTask* pTask) {
-  pTask->numOfWaitingUpstream = taosArrayGetSize(pTask->pUpstreamInfoList);
-  qDebug("s-task:%s level:%d task wait for %d upstream tasks complete scan-history procedure, status:%s",
-         pTask->id.idStr, pTask->info.taskLevel, pTask->numOfWaitingUpstream,
-         streamGetTaskStatusStr(pTask->status.taskStatus));
-  return 0;
 }
 
 int32_t streamAggUpstreamScanHistoryFinish(SStreamTask* pTask) {
