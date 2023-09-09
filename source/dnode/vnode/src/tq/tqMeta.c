@@ -312,14 +312,14 @@ static int buildHandle(STQ* pTq, STqHandle* handle){
       return -1;
     }
   } else if (handle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
-    handle->pWalReader = walOpenReader(pVnode->pWal, NULL);
+    handle->pWalReader = walOpenReader(pVnode->pWal, NULL, 0);
     handle->execHandle.pTqReader = tqReaderOpen(pVnode);
 
     buildSnapContext(reader.vnode, reader.version, 0, handle->execHandle.subType, handle->fetchMeta,
                      (SSnapContext**)(&reader.sContext));
     handle->execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, vgId, NULL, handle->consumerId);
   } else if (handle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
-    handle->pWalReader = walOpenReader(pVnode->pWal, NULL);
+    handle->pWalReader = walOpenReader(pVnode->pWal, NULL, 0);
 
     if(handle->execHandle.execTb.qmsg != NULL && strcmp(handle->execHandle.execTb.qmsg, "") != 0) {
       if (nodesStringToNode(handle->execHandle.execTb.qmsg, &handle->execHandle.execTb.node) != 0) {
