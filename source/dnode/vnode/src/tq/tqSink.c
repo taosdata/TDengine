@@ -329,7 +329,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, void* data) {
         code = doBuildSubmitFromResBlock(pVnode, i, stbFullName, suid, pDataBlock, pTask, &tbData);
         taosArrayPush(submitReq.aSubmitTbData, &tbData);
 
-        code = doBuildSubmitAndSendMsg(pVnode, pTask, numOfBlocks, &submitReq);
+        code = doBuildSubmitAndSendMsg(pVnode, pTask, 1, &submitReq);
       }
     }
   } else {
