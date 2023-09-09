@@ -75,6 +75,7 @@ int32_t walNextValidMsg(SWalReader *pReader) {
     terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
     return -1;
   }
+
   while (fetchVer <= appliedVer) {
     if (walFetchHead(pReader, fetchVer) < 0) {
       return -1;
@@ -257,7 +258,7 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver) {
   bool    seeked = false;
 
   wDebug("vgId:%d, try to fetch ver %" PRId64 ", first ver:%" PRId64 ", commit ver:%" PRId64 ", last ver:%" PRId64
-         ", applied ver:%" PRId64", %"PRIx64,
+         ", applied ver:%" PRId64", 0x%"PRIx64,
          pRead->pWal->cfg.vgId, ver, pRead->pWal->vers.firstVer, pRead->pWal->vers.commitVer, pRead->pWal->vers.lastVer,
          pRead->pWal->vers.appliedVer, pRead->readerId);
 
@@ -297,7 +298,7 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver) {
   code = walValidHeadCksum(pRead->pHead);
 
   if (code != 0) {
-    wError("vgId:%d, unexpected wal log index:%" PRId64 ", since head checksum not passed, %"PRIx64, pRead->pWal->cfg.vgId, ver,
+    wError("vgId:%d, unexpected wal log index:%" PRId64 ", since head checksum not passed, 0x%"PRIx64, pRead->pWal->cfg.vgId, ver,
         pRead->readerId);
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
@@ -347,11 +348,11 @@ int32_t walFetchBody(SWalReader *pRead) {
   if (pReadHead->bodyLen != taosReadFile(pRead->pLogFile, pReadHead->body, pReadHead->bodyLen)) {
     if (pReadHead->bodyLen < 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
-      wError("vgId:%d, wal fetch body error:%" PRId64 ", read request index:%" PRId64 ", since %s, %"PRIx64,
-             vgId, pReadHead->version, ver, tstrerror(terrno), pRead->readerId);
+      wError("vgId:%d, wal fetch body error:%" PRId64 ", read request index:%" PRId64 ", since %s, 0x%"PRIx64,
+             vgId, pReadHead->version, ver, tstrerror(terrno), id);
     } else {
-      wError("vgId:%d, wal fetch body error:%" PRId64 ", read request index:%" PRId64 ", since file corrupted, %"PRIx64,
-             vgId, pReadHead->version, ver, pRead->readerId);
+      wError("vgId:%d, wal fetch body error:%" PRId64 ", read request index:%" PRId64 ", since file corrupted, 0x%"PRIx64,
+             vgId, pReadHead->version, ver, id);
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     }
     return -1;
