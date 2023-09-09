@@ -380,7 +380,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   pTask->outputInfo.status = TASK_OUTPUT_STATUS__NORMAL;
   pTask->pMeta = pMeta;
 
-  pTask->chkInfo.currentVer = ver;
+  pTask->chkInfo.nextProcessVer = ver;
   pTask->dataRange.range.maxVer = ver;
   pTask->dataRange.range.minVer = ver;
   pTask->pMsgCb = pMsgCb;

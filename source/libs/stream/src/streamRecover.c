@@ -498,7 +498,8 @@ int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask) {
 
 static void checkFillhistoryTaskStatus(SStreamTask* pTask, SStreamTask* pHTask) {
   pHTask->dataRange.range.minVer = 0;
-  pHTask->dataRange.range.maxVer = pTask->chkInfo.currentVer;
+  // the query version range should be limited to the already processed data
+  pHTask->dataRange.range.maxVer = pTask->chkInfo.nextProcessVer - 1;
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     qDebug("s-task:%s set the launch condition for fill-history s-task:%s, window:%" PRId64 " - %" PRId64
