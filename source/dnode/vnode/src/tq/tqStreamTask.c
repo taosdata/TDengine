@@ -396,25 +396,23 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     int32_t numOfItems = streamTaskGetInputQItems(pTask);
     int64_t maxVer = (pTask->info.fillHistory == 1) ? pTask->dataRange.range.maxVer : INT64_MAX;
 
+    taosThreadMutexLock(&pTask->lock);
+
+    pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
+    if (pTask->status.taskStatus != TASK_STATUS__NORMAL) {
+      tqDebug("s-task:%s not ready for submit block from wal, status:%s", pTask->id.idStr, pStatus);
+      taosThreadMutexUnlock(&pTask->lock);
+      streamMetaReleaseTask(pStreamMeta, pTask);
+      continue;
+    }
+
     SStreamQueueItem* pItem = NULL;
     code = extractMsgFromWal(pTask->exec.pWalReader, (void**)&pItem, maxVer, pTask->id.idStr);
 
     if ((code != TSDB_CODE_SUCCESS || pItem == NULL) && (numOfItems == 0)) {  // failed, continue
       handleFillhistoryScanComplete(pTask, walReaderGetCurrentVer(pTask->exec.pWalReader));
       streamMetaReleaseTask(pStreamMeta, pTask);
-      continue;
-    }
-
-    taosThreadMutexLock(&pTask->lock);
-    pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
-
-    if (pTask->status.taskStatus != TASK_STATUS__NORMAL) {
-      tqDebug("s-task:%s not ready for submit block from wal, status:%s", pTask->id.idStr, pStatus);
       taosThreadMutexUnlock(&pTask->lock);
-      streamMetaReleaseTask(pStreamMeta, pTask);
-      if (pItem != NULL) {
-        streamFreeQitem(pItem);
-      }
       continue;
     }
 
