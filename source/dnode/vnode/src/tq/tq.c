@@ -1090,14 +1090,17 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     }
 
     // now we can stop the stream task execution
-    streamTaskHalt(pStreamTask);
 
+    int64_t latestVer = 0;
+    taosThreadMutexLock(&pStreamTask->lock);
+    streamTaskHalt(pStreamTask);
     tqDebug("s-task:%s level:%d sched-status:%d is halt by fill-history task:%s", pStreamTask->id.idStr,
             pStreamTask->info.taskLevel, pStreamTask->status.schedStatus, id);
+    latestVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
+    taosThreadMutexUnlock(&pStreamTask->lock);
 
     // if it's an source task, extract the last version in wal.
     pRange = &pTask->dataRange.range;
-    int64_t latestVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
     done = streamHistoryTaskSetVerRangeStep2(pTask, latestVer);
 
     if (done) {
