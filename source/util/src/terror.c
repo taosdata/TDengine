@@ -100,7 +100,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STARTING,              "Database is starting 
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STOPPING,              "Database is closing down")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_DATA_FMT,             "Invalid data format")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CFG_VALUE,            "Invalid configuration value")
-TAOS_DEFINE_ERROR(TSDB_CODE_IP_NOT_IN_WHITE_LIST,          "User ip not in ip white list")
+TAOS_DEFINE_ERROR(TSDB_CODE_IP_NOT_IN_WHITE_LIST,          "Not allowed to connect")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
