@@ -271,7 +271,9 @@ int64_t ipWhiteMgtFillMsg(SUpdateIpWhite *pUpdate) {
   taosThreadRwlockWrlock(&ipWhiteMgt.rw);
   ver = ipWhiteMgt.ver;
   int32_t num = taosHashGetSize(ipWhiteMgt.pIpWhiteTab);
+
   pUpdate->pUserIpWhite = taosMemoryCalloc(1, num * sizeof(SUpdateUserIpWhite));
+
   void   *pIter = taosHashIterate(ipWhiteMgt.pIpWhiteTab, NULL);
   int32_t i = 0;
   while (pIter) {
@@ -291,6 +293,7 @@ int64_t ipWhiteMgtFillMsg(SUpdateIpWhite *pUpdate) {
     pIter = taosHashIterate(ipWhiteMgt.pIpWhiteTab, pIter);
   }
   pUpdate->numOfUser = i;
+  pUpdate->ver = ver;
 
   taosThreadRwlockUnlock(&ipWhiteMgt.rw);
   return 0;
@@ -328,7 +331,7 @@ SHashObj *mndFetchAllIpWhite(SMnode *pMnode) {
 
   for (int i = 0; i < taosArrayGetSize(fqdns); i++) {
     char *fqdn = taosArrayGetP(fqdns, i);
-    mndUpdateIpWhiteImpl(pIpWhiteTab, "_dnd", fqdn, IP_WHITE_ADD);
+    mndUpdateIpWhiteImpl(pIpWhiteTab, TSDB_DEFAULT_USER, fqdn, IP_WHITE_ADD);
 
     taosMemoryFree(fqdn);
   }

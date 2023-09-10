@@ -290,7 +290,7 @@ SWhiteList* uvWhiteListCreate() {
   SWhiteList* pWhiteList = taosMemoryCalloc(1, sizeof(SWhiteList));
 
   pWhiteList->pList = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 0, HASH_NO_LOCK);
-  pWhiteList->ver = 0;
+  pWhiteList->ver = -1;
   return pWhiteList;
 }
 void uvWhiteListDestroy(SWhiteList* pWhite) {
@@ -307,6 +307,51 @@ void uvWhiteListDestroy(SWhiteList* pWhite) {
   taosMemoryFree(pWhite);
 }
 
+void uvWhiteListToStr(SWhiteUserList* plist, char* user, char** ppBuf) {
+  int32_t len = 0;
+  char*   pBuf = taosMemoryCalloc(1, plist->pList->num * 36);
+  len = sprintf(pBuf, "user: %s, ver: %" PRId64 ", ip: {", user, plist->ver);
+
+  for (int i = 0; i < plist->pList->num; i++) {
+    SIpV4Range* pRange = &plist->pList->pIpRange[i];
+    {
+      char           tbuf[32] = {0};
+      struct in_addr addr;
+      addr.s_addr = pRange->ip;
+      uv_inet_ntop(AF_INET, &addr, tbuf, 32);
+
+      len += sprintf(pBuf + len, "%s", tbuf);
+      if (pRange->mask != 0) {
+        len += sprintf(pBuf + len, "%d", pRange->mask);
+      }
+    }
+    if (i == plist->pList->num - 1) {
+      len += sprintf(pBuf + len, "}");
+    } else {
+      len += sprintf(pBuf + len, ",");
+    }
+  }
+  pBuf[len] = 0;
+  *ppBuf = pBuf;
+}
+void uvWhiteListDebug(SWhiteList* pWrite) {
+  SHashObj* pWhiteList = pWrite->pList;
+  void*     pIter = taosHashIterate(pWhiteList, NULL);
+  while (pIter) {
+    size_t klen = 0;
+    char   user[TSDB_USER_LEN + 1] = {0};
+    char*  pUser = taosHashGetKey(pIter, &klen);
+    memcpy(user, pUser, klen);
+
+    SWhiteUserList* pUserList = *(SWhiteUserList**)pIter;
+
+    char* buf = NULL;
+    uvWhiteListToStr(pUserList, user, &buf);
+    tDebug("white %s", buf);
+    taosMemoryFree(buf);
+    pIter = taosHashIterate(pWhiteList, pIter);
+  }
+}
 void uvWhiteListAdd(SWhiteList* pWhite, char* user, SIpWhiteList* plist, int64_t ver) {
   SHashObj* pWhiteList = pWhite->pList;
 
@@ -325,6 +370,7 @@ void uvWhiteListAdd(SWhiteList* pWhite, char* user, SIpWhiteList* plist, int64_t
     pUserList->ver = ver;
     pUserList->pList = plist;
   }
+  uvWhiteListDebug(pWhite);
 }
 
 void uvWhiteListUpdate(SWhiteList* pWhite, SHashObj* pTable) {
@@ -338,7 +384,7 @@ bool uvWhiteListFilte(SWhiteList* pWhite, char* user, uint32_t ip, int64_t ver) 
   bool             valid = false;
   SWhiteUserList** ppList = taosHashGet(pWhiteList, user, strlen(user));
   if (ppList == NULL || *ppList == NULL) {
-    return true;
+    return false;
   }
   SWhiteUserList* pList = *ppList;
   if (pList->ver == ver) return true;
@@ -354,7 +400,9 @@ bool uvWhiteListFilte(SWhiteList* pWhite, char* user, uint32_t ip, int64_t ver) 
   return valid;
 }
 bool uvWhiteListCheckConn(SWhiteList* pWhite, SSvrConn* pConn) {
-  if (pWhite->ver == pConn->whiteListVer || strncmp(pConn->user, "_dnd", strlen("_dnd")) == 0) return true;
+  if (pConn->inType == TDMT_MND_STATUS || pConn->inType == TDMT_MND_RETRIEVE_IP_WHITE ||
+      pWhite->ver == pConn->whiteListVer /*|| strncmp(pConn->user, "_dnd", strlen("_dnd")) == 0*/)
+    return true;
 
   return uvWhiteListFilte(pWhite, pConn->user, pConn->clientIp, pConn->whiteListVer);
 }
@@ -382,11 +430,11 @@ static bool uvHandleReq(SSvrConn* pConn) {
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
 
+  pConn->inType = pHead->msgType;
   memcpy(pConn->user, pHead->user, strlen(pHead->user));
 
-  if (uvWhiteListCheckConn(pThrd->pWhiteList, pConn) == false) {
-    return false;
-  } else {
+  int8_t forbiddenIp = uvWhiteListCheckConn(pThrd->pWhiteList, pConn) == false ? 1 : 0;
+  if (forbiddenIp == 0) {
     uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
   }
 
@@ -408,7 +456,6 @@ static bool uvHandleReq(SSvrConn* pConn) {
   transMsg.msgType = pHead->msgType;
   transMsg.code = pHead->code;
 
-  pConn->inType = pHead->msgType;
   if (pConn->status == ConnNormal) {
     if (pHead->persist == 1) {
       pConn->status = ConnAcquire;
@@ -451,6 +498,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
   transMsg.info.refId = pConn->refId;
   transMsg.info.traceId = pHead->traceId;
   transMsg.info.cliVer = htonl(pHead->compatibilityVer);
+  transMsg.info.forbiddenIp = forbiddenIp;
 
   tGTrace("%s handle %p conn:%p translated to app, refId:%" PRIu64, transLabel(pTransInst), transMsg.info.handle, pConn,
           pConn->refId);

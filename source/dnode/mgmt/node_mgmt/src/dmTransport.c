@@ -91,6 +91,18 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     goto _OVER;
   }
 
+  if (pRpc->info.forbiddenIp == 1) {
+    struct in_addr addr;
+    addr.s_addr = pRpc->info.conn.clientIp;
+    char tbuf[40] = {0};
+    uv_inet_ntop(AF_INET, &addr, tbuf, 40);
+
+    dError("User %s host:%s not in ip white list", pRpc->info.conn.user, tbuf);
+
+    terrno = TSDB_CODE_IP_NOT_IN_WHITE_LIST;
+    goto _OVER;
+  }
+
   switch (pRpc->msgType) {
     case TDMT_DND_NET_TEST:
       dmProcessNetTestReq(pDnode, pRpc);
