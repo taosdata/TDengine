@@ -365,8 +365,9 @@ static void fillBucket(STokenBucket* pBucket) {
 bool streamTaskHasAvailableToken(STokenBucket* pBucket) {
   fillBucket(pBucket);
   if (pBucket->numOfToken > 0) {
-    qDebug("remain token:%d", pBucket->numOfToken-1);
-    return --pBucket->numOfToken;
+//    qDebug("current token:%d", pBucket->numOfToken);
+    --pBucket->numOfToken;
+    return true;
   } else {
     return false;
   }
