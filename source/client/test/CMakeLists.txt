@@ -20,7 +20,7 @@ TARGET_LINK_LIBRARIES(
 ADD_EXECUTABLE(smlTest smlTest.cpp)
 TARGET_LINK_LIBRARIES(
         smlTest
-        PUBLIC os util common transport parser catalog scheduler function gtest taos_static qcom
+        PUBLIC os util common transport parser catalog scheduler function gtest taos_static qcom geometry
 )
 
 TARGET_INCLUDE_DIRECTORIES(

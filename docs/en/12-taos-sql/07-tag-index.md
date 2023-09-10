@@ -49,3 +49,5 @@ You can also add filter conditions to limit the results.
 6. You can' create index on a normal table or a child table. 
 
 7. If the unique values of a tag column are too few, it's better not to create index on such tag columns, the benefit would be very small. 
+
+8. The newly created super table will randomly generate an index name for the first column of tags, which is composed of the name tag0 column with 23 random bytes, and can be rebuilt or dropped.  

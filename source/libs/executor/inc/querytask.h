@@ -39,6 +39,7 @@ typedef struct STaskIdInfo {
   uint64_t templateId;
   char*    str;
   int32_t  vgId;
+  uint64_t taskId;
 } STaskIdInfo;
 
 typedef struct STaskCostInfo {
@@ -69,8 +70,6 @@ typedef struct {
   SVersionRange        fillHistoryVer;
   STimeWindow          fillHistoryWindow;
   SStreamState*        pState;
-  int64_t              dataVersion;
-  int64_t              checkPointId;
 } SStreamTaskInfo;
 
 struct SExecTaskInfo {
@@ -83,6 +82,7 @@ struct SExecTaskInfo {
   int32_t               qbufQuota;  // total available buffer (in KB) during execution query
   int64_t               version;    // used for stream to record wal version, why not move to sschemainfo
   SStreamTaskInfo       streamInfo;
+  SArray*               schemaInfos;
   SSchemaInfo           schemaInfo;
   const char*           sql;        // query sql string
   jmp_buf               env;        // jump to this position when error happens.
@@ -94,12 +94,15 @@ struct SExecTaskInfo {
   STaskStopInfo         stopInfo;
   SRWLatch              lock;  // secure the access of STableListInfo
   SStorageAPI           storageAPI;
+  int8_t                dynamicTask;
+  SOperatorParam*       pOpParam;
+  bool                  paramSet;
 };
 
 void           buildTaskId(uint64_t taskId, uint64_t queryId, char* dst);
 SExecTaskInfo* doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model, SStorageAPI* pAPI);
 void           doDestroyTask(SExecTaskInfo* pTaskInfo);
-bool           isTaskKilled(SExecTaskInfo* pTaskInfo);
+bool           isTaskKilled(void* pTaskInfo);
 void           setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode);
 void           setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t        createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,

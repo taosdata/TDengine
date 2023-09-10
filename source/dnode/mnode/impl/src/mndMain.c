@@ -119,30 +119,40 @@ static void mndPullupTtl(SMnode *pMnode) {
   tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
 }
 
+static void mndPullupTrimDb(SMnode *pMnode) {
+  mTrace("pullup trim");
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRIM_DB_TIMER, .pCont = pReq, .contLen = contLen};
+  tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+}
+
 static void mndCalMqRebalance(SMnode *pMnode) {
-  mTrace("calc mq rebalance");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
-    SRpcMsg rpcMsg = { .msgType = TDMT_MND_TMQ_TIMER, .pCont = pReq, .contLen = contLen };
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_TMQ_TIMER, .pCont = pReq, .contLen = contLen};
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 }
 
-#if 0
 static void mndStreamCheckpointTick(SMnode *pMnode, int64_t sec) {
   int32_t contLen = 0;
   void   *pReq = mndBuildCheckpointTickMsg(&contLen, sec);
   if (pReq != NULL) {
-    SRpcMsg rpcMsg = {
-        .msgType = TDMT_MND_STREAM_CHECKPOINT_TIMER,
-        .pCont = pReq,
-        .contLen = contLen,
-    };
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_CHECKPOINT_TIMER, .pCont = pReq, .contLen = contLen};
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 }
-#endif
+
+static void mndStreamCheckNode(SMnode* pMnode) {
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_NODECHECK_TIMER, .pCont = pReq, .contLen = contLen};
+    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
+  }
+}
 
 static void mndPullupTelem(SMnode *pMnode) {
   mTrace("pullup telem msg");
@@ -185,7 +195,7 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
-    bool roleChanged = false;
+    bool stateChanged = false;
     for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
       SVnodeGid *pGid = &pVgroup->vnodeGid[vg];
       if (pGid->dnodeId == dnodeId) {
@@ -197,13 +207,14 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
           pGid->syncState = TAOS_SYNC_STATE_OFFLINE;
           pGid->syncRestore = 0;
           pGid->syncCanRead = 0;
-          roleChanged = true;
+          pGid->startTimeMs = 0;
+          stateChanged = true;
         }
         break;
       }
     }
 
-    if (roleChanged) {
+    if (stateChanged) {
       SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
       if (pDb != NULL && pDb->stateTs != curMs) {
         mInfo("db:%s, stateTs changed by offline check, old newTs:%" PRId64 " newTs:%" PRId64, pDb->name, pDb->stateTs,
@@ -254,8 +265,12 @@ static void *mndThreadFp(void *param) {
     if (lastTime % 10 != 0) continue;
 
     int64_t sec = lastTime / 10;
-    if (sec % tsTtlPushInterval == 0) {
+    if (sec % tsTtlPushIntervalSec == 0) {
       mndPullupTtl(pMnode);
+    }
+
+    if (sec % tsTrimVDbIntervalSec == 0) {
+      mndPullupTrimDb(pMnode);
     }
 
     if (sec % tsTransPullupInterval == 0) {
@@ -266,11 +281,13 @@ static void *mndThreadFp(void *param) {
       mndCalMqRebalance(pMnode);
     }
 
-#if 0
     if (sec % tsStreamCheckpointTickInterval == 0) {
       mndStreamCheckpointTick(pMnode, sec);
     }
-#endif
+
+    if (sec % tsStreamNodeCheckInterval == 0) {
+      mndStreamCheckNode(pMnode);
+    }
 
     if (sec % tsTelemInterval == (TMIN(60, (tsTelemInterval - 1)))) {
       mndPullupTelem(pMnode);
@@ -586,7 +603,7 @@ int32_t mndIsCatchUp(SMnode *pMnode) {
   return syncIsCatchUp(rid);
 }
 
-ESyncRole mndGetRole(SMnode *pMnode){
+ESyncRole mndGetRole(SMnode *pMnode) {
   int64_t rid = pMnode->syncMgmt.sync;
   return syncGetRole(rid);
 }
@@ -616,7 +633,8 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
   if (!IsReq(pMsg)) return 0;
   if (pMsg->msgType == TDMT_SCH_QUERY || pMsg->msgType == TDMT_SCH_MERGE_QUERY ||
       pMsg->msgType == TDMT_SCH_QUERY_CONTINUE || pMsg->msgType == TDMT_SCH_QUERY_HEARTBEAT ||
-      pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_SCH_MERGE_FETCH || pMsg->msgType == TDMT_SCH_DROP_TASK) {
+      pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_SCH_MERGE_FETCH || pMsg->msgType == TDMT_SCH_DROP_TASK ||
+      pMsg->msgType == TDMT_SCH_TASK_NOTIFY) {
     return 0;
   }
 
@@ -660,7 +678,7 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
 _OVER:
   if (pMsg->msgType == TDMT_MND_TMQ_TIMER || pMsg->msgType == TDMT_MND_TELEM_TIMER ||
       pMsg->msgType == TDMT_MND_TRANS_TIMER || pMsg->msgType == TDMT_MND_TTL_TIMER ||
-      pMsg->msgType == TDMT_MND_UPTIME_TIMER) {
+      pMsg->msgType == TDMT_MND_TRIM_DB_TIMER || pMsg->msgType == TDMT_MND_UPTIME_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
            pMnode->stopped, state.restored, syncStr(state.state));
     return -1;

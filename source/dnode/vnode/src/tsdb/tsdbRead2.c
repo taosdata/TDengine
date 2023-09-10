@@ -1102,10 +1102,10 @@ static int32_t dataBlockPartiallyRequired(STimeWindow* pWindow, SVersionRange* p
          (pVerRange->maxVer < pBlock->record.maxVer && pVerRange->maxVer >= pBlock->record.minVer);
 }
 
-static bool getNeighborBlockOfSameTable(SFileDataBlockInfo* pBlockInfo, STableBlockScanInfo* pTableBlockScanInfo,
+static bool getNeighborBlockOfSameTable(SDataBlockIter* pBlockIter, SFileDataBlockInfo* pBlockInfo, STableBlockScanInfo* pTableBlockScanInfo,
                                         int32_t* nextIndex, int32_t order, SBrinRecord* pRecord) {
   bool asc = ASCENDING_TRAVERSE(order);
-  if (asc && pBlockInfo->tbBlockIdx >= taosArrayGetSize(pTableBlockScanInfo->pBlockList) - 1) {
+  if (asc && pBlockInfo->tbBlockIdx >= taosArrayGetSize(pTableBlockScanInfo->pBlockIdxList) - 1) {
     return false;
   }
 
@@ -1116,7 +1116,8 @@ static bool getNeighborBlockOfSameTable(SFileDataBlockInfo* pBlockInfo, STableBl
   int32_t step = asc ? 1 : -1;
   //  *nextIndex = pBlockInfo->tbBlockIdx + step;
   //  *pBlockIndex = *(SBlockIndex*)taosArrayGet(pTableBlockScanInfo->pBlockList, *nextIndex);
-  SBrinRecord* p = taosArrayGet(pTableBlockScanInfo->pBlockList, pBlockInfo->tbBlockIdx + step);
+  STableDataBlockIdx* pTableDataBlockIdx = taosArrayGet(pTableBlockScanInfo->pBlockIdxList, pBlockInfo->tbBlockIdx + step);
+  SBrinRecord* p = taosArrayGet(pBlockIter->blockList, pTableDataBlockIdx->globalIndex);
   memcpy(pRecord, p, sizeof(SBrinRecord));
 
   *nextIndex = pBlockInfo->tbBlockIdx + step;
@@ -1141,7 +1142,7 @@ static int32_t findFileBlockInfoIndex(SDataBlockIter* pBlockIter, SFileDataBlock
   return -1;
 }
 
-static int32_t setFileBlockActiveInBlockIter(SDataBlockIter* pBlockIter, int32_t index, int32_t step) {
+static int32_t setFileBlockActiveInBlockIter(STsdbReader* pReader, SDataBlockIter* pBlockIter, int32_t index, int32_t step) {
   if (index < 0 || index >= pBlockIter->numOfBlocks) {
     return -1;
   }
@@ -1149,12 +1150,34 @@ static int32_t setFileBlockActiveInBlockIter(SDataBlockIter* pBlockIter, int32_t
   SFileDataBlockInfo fblock = *(SFileDataBlockInfo*)taosArrayGet(pBlockIter->blockList, index);
   pBlockIter->index += step;
 
-  if (index != pBlockIter->index) {
-    taosArrayRemove(pBlockIter->blockList, index);
-    taosArrayInsert(pBlockIter->blockList, pBlockIter->index, &fblock);
+  if (index != pBlockIter->index) {    
+    if (index > pBlockIter->index) {
+      for (int32_t i = index - 1; i >= pBlockIter->index; --i) {
+        SFileDataBlockInfo* pBlockInfo = taosArrayGet(pBlockIter->blockList, i);
 
-    SFileDataBlockInfo* pBlockInfo = taosArrayGet(pBlockIter->blockList, pBlockIter->index);
-    ASSERT(pBlockInfo->uid == fblock.uid && pBlockInfo->tbBlockIdx == fblock.tbBlockIdx);
+        STableBlockScanInfo* pBlockScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockInfo->uid, pReader->idStr);
+        STableDataBlockIdx* pTableDataBlockIdx = taosArrayGet(pBlockScanInfo->pBlockIdxList, pBlockInfo->tbBlockIdx);
+        pTableDataBlockIdx->globalIndex = i + 1;
+
+        taosArraySet(pBlockIter->blockList, i + 1, pBlockInfo);
+      }
+    } else if (index < pBlockIter->index) {
+      for (int32_t i = index + 1; i <= pBlockIter->index; ++i) {
+        SFileDataBlockInfo* pBlockInfo = taosArrayGet(pBlockIter->blockList, i);
+
+        STableBlockScanInfo* pBlockScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, pBlockInfo->uid, pReader->idStr);
+        STableDataBlockIdx* pTableDataBlockIdx = taosArrayGet(pBlockScanInfo->pBlockIdxList, pBlockInfo->tbBlockIdx);
+        pTableDataBlockIdx->globalIndex = i - 1;
+
+        taosArraySet(pBlockIter->blockList, i - 1, pBlockInfo);
+      }
+
+    }
+
+    taosArraySet(pBlockIter->blockList, pBlockIter->index, &fblock);
+    STableBlockScanInfo* pBlockScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, fblock.uid, pReader->idStr);
+    STableDataBlockIdx*  pTableDataBlockIdx = taosArrayGet(pBlockScanInfo->pBlockIdxList, fblock.tbBlockIdx);
+    pTableDataBlockIdx->globalIndex = pBlockIter->index;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1260,7 +1283,7 @@ static void getBlockToLoadInfo(SDataBlockToLoadInfo* pInfo, SFileDataBlockInfo* 
   int32_t     neighborIndex = 0;
   SBrinRecord rec = {0};
 
-  bool hasNeighbor = getNeighborBlockOfSameTable(pBlockInfo, pScanInfo, &neighborIndex, pReader->info.order, &rec);
+  bool hasNeighbor = getNeighborBlockOfSameTable(&pReader->status.blockIter, pBlockInfo, pScanInfo, &neighborIndex, pReader->info.order, &rec);
 
   // overlap with neighbor
   if (hasNeighbor) {
@@ -1268,7 +1291,7 @@ static void getBlockToLoadInfo(SDataBlockToLoadInfo* pInfo, SFileDataBlockInfo* 
   }
 
   // has duplicated ts of different version in this block
-  pInfo->hasDupTs = (pBlockInfo->record.numRow > pBlockInfo->record.count);
+  pInfo->hasDupTs = (pBlockInfo->record.numRow > pBlockInfo->record.count) || (pBlockInfo->record.count <= 0);
   pInfo->overlapWithDelInfo = overlapWithDelSkyline(pScanInfo, &pBlockInfo->record, pReader->info.order);
 
   if (hasDataInLastBlock(pLastBlockReader)) {
@@ -2232,7 +2255,7 @@ static int32_t loadNeighborIfOverlap(SFileDataBlockInfo* pBlockInfo, STableBlock
   *loadNeighbor = false;
 
   SBrinRecord rec = {0};
-  bool hasNeighbor = getNeighborBlockOfSameTable(pBlockInfo, pBlockScanInfo, &nextIndex, pReader->info.order, &rec);
+  bool hasNeighbor = getNeighborBlockOfSameTable(&pReader->status.blockIter, pBlockInfo, pBlockScanInfo, &nextIndex, pReader->info.order, &rec);
   if (!hasNeighbor) {  // do nothing
     return code;
   }
@@ -2242,11 +2265,11 @@ static int32_t loadNeighborIfOverlap(SFileDataBlockInfo* pBlockInfo, STableBlock
     SDataBlockIter* pBlockIter = &pStatus->blockIter;
 
     // 1. find the next neighbor block in the scan block list
-    SFileDataBlockInfo fb = {.uid = pBlockInfo->uid, .tbBlockIdx = nextIndex};
-    int32_t            neighborIndex = findFileBlockInfoIndex(pBlockIter, &fb);
+    STableDataBlockIdx* tableDataBlockIdx = taosArrayGet(pBlockScanInfo->pBlockIdxList, nextIndex);
+    int32_t            neighborIndex = tableDataBlockIdx->globalIndex;
 
     // 2. remove it from the scan block list
-    setFileBlockActiveInBlockIter(pBlockIter, neighborIndex, step);
+    setFileBlockActiveInBlockIter(pReader, pBlockIter, neighborIndex, step);
 
     // 3. load the neighbor block, and set it to be the currently accessed file data block
     code = doLoadFileBlockData(pReader, pBlockIter, &pStatus->fileBlockData, pBlockInfo->uid);
@@ -4178,6 +4201,7 @@ int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
       }
 
       pBlockScanInfo->pBlockList = taosArrayDestroy(pBlockScanInfo->pBlockList);
+      pBlockScanInfo->pBlockIdxList = taosArrayDestroy(pBlockScanInfo->pBlockIdxList);
       // TODO: keep skyline for reuse
       pBlockScanInfo->delSkyline = taosArrayDestroy(pBlockScanInfo->delSkyline);
     }

@@ -130,9 +130,24 @@ class TDTestCase:
             for j in range(0,60):
                 tdSql.checkData(i*1500+j, 1, None)
 
+    def test_fill_with_order_by(self):
+        sql = "select _wstart, _wend, count(ts), sum(c1) from meters where ts > '2018-11-25 00:00:00.000' and ts < '2018-11-26 00:00:00.00' interval(1d) fill(NULL) order by _wstart"
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+        sql = "select _wstart, _wend, count(ts), sum(c1) from meters where ts > '2018-11-25 00:00:00.000' and ts < '2018-11-26 00:00:00.00' interval(1d) fill(NULL) order by _wstart desc"
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+        sql = "select _wstart, count(*) from meters where ts > '2018-08-20 00:00:00.000' and ts < '2018-09-30 00:00:00.000' interval(9d) fill(NULL) order by _wstart desc;"
+        tdSql.query(sql)
+        tdSql.checkRows(6)
+        sql = "select _wstart, count(*) from meters where ts > '2018-08-20 00:00:00.000' and ts < '2018-09-30 00:00:00.000' interval(9d) fill(NULL) order by _wstart;"
+        tdSql.query(sql)
+        tdSql.checkRows(6)
+
     def run(self):
         self.prepareTestEnv()
         self.test_partition_by_with_interval_fill_prev_new_group_fill_error()
+        self.test_fill_with_order_by()
 
     def stop(self):
         tdSql.close()

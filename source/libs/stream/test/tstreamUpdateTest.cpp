@@ -12,7 +12,7 @@ class StreamStateEnv : public ::testing::Test {
  protected:
   virtual void SetUp() {
     streamMetaInit();
-    backend = streamBackendInit(path);
+    backend = streamBackendInit(path, 0);
   }
   virtual void TearDown() {
     streamMetaCleanup();

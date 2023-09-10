@@ -387,11 +387,22 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
         len += sprintf(str + len, "%lf", dv);
       } break;
 
+      case TSDB_DATA_TYPE_VARBINARY:{
+        void* data = NULL;
+        uint32_t size = 0;
+        int32_t charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);
+        if(taosAscii2Hex(row[i], charLen, &data, &size) < 0){
+          break;
+        }
+        memcpy(str + len, data, size);
+        len += size;
+        taosMemoryFree(data);
+      }break;
       case TSDB_DATA_TYPE_BINARY:
       case TSDB_DATA_TYPE_NCHAR:
       case TSDB_DATA_TYPE_GEOMETRY: {
         int32_t charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);
-        if (fields[i].type == TSDB_DATA_TYPE_BINARY || fields[i].type == TSDB_DATA_TYPE_GEOMETRY) {
+        if (fields[i].type == TSDB_DATA_TYPE_BINARY || fields[i].type == TSDB_DATA_TYPE_VARBINARY || fields[i].type == TSDB_DATA_TYPE_GEOMETRY) {
           if (ASSERT(charLen <= fields[i].bytes && charLen >= 0)) {
             tscError("taos_print_row error binary. charLen:%d, fields[i].bytes:%d", charLen, fields[i].bytes);
           }
@@ -863,8 +874,13 @@ void handleSubQueryFromAnalyse(SSqlCallbackWrapper *pWrapper, SMetaData *pResult
   if (TSDB_CODE_SUCCESS == code) {
     code = cloneCatalogReq(&pNewWrapper->pCatalogReq, pWrapper->pCatalogReq);
   }
-  doAsyncQueryFromAnalyse(pResultMeta, pNewWrapper, code);
-  nodesDestroyNode(pRoot);
+  if (TSDB_CODE_SUCCESS == code) {
+    doAsyncQueryFromAnalyse(pResultMeta, pNewWrapper, code);
+    nodesDestroyNode(pRoot);
+  } else {
+    handleQueryAnslyseRes(pWrapper, pResultMeta, code);
+    return;
+  }
 }
 
 void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta, int32_t code) {
@@ -1137,8 +1153,7 @@ void restartAsyncQuery(SRequestObj *pRequest, int32_t code) {
       pReqList[++reqIdx] = pTmp;
       releaseRequest(tmpRefId);
     } else {
-      tscError("0x%" PRIx64 ", prev req ref 0x%" PRIx64 " is not there, reqId:0x%" PRIx64, pTmp->self, tmpRefId,
-               pTmp->requestId);
+      tscError("prev req ref 0x%" PRIx64 " is not there", tmpRefId);
       break;
     }
   }
@@ -1151,7 +1166,7 @@ void restartAsyncQuery(SRequestObj *pRequest, int32_t code) {
       removeRequest(pTmp->self);
       releaseRequest(pTmp->self);
     } else {
-      tscError("0x%" PRIx64 " is not there", tmpRefId);
+      tscError("next req ref 0x%" PRIx64 " is not there", tmpRefId);
       break;
     }
   }

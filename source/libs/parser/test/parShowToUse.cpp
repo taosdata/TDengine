@@ -239,9 +239,9 @@ TEST_F(ParserShowToUseTest, showVgroups) {
 TEST_F(ParserShowToUseTest, showVnodes) {
   useDb("root", "test");
 
-  run("SHOW VNODES 1");
+  run("SHOW VNODES ON DNODE 1");
 
-  run("SHOW VNODES 'node1:7030'");
+  run("SHOW VNODES");
 }
 
 TEST_F(ParserShowToUseTest, splitVgroup) {
@@ -286,7 +286,7 @@ TEST_F(ParserShowToUseTest, trimDatabase) {
   run("TRIM DATABASE wxy_db");
 
   setTrimDbReq("wxy_db", 100);
-  run("TRIM DATABASE wxy_db MAX_SPEED 100");
+  run("TRIM DATABASE wxy_db BWLIMIT 100");
 }
 
 TEST_F(ParserShowToUseTest, useDatabase) {

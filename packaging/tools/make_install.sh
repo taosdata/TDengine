@@ -158,7 +158,6 @@ function install_bin() {
   ${csudo}rm -f ${bin_link_dir}/udfd || :
   ${csudo}rm -f ${bin_link_dir}/taosdemo || :
   ${csudo}rm -f ${bin_link_dir}/taosdump || :
-  ${csudo}rm -f ${bin_link_dir}/taosx || :
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
 
   if [ "$osType" != "Darwin" ]; then

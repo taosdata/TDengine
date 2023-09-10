@@ -96,6 +96,12 @@ void initMetadataAPI(SStoreMeta* pMeta) {
 
   pMeta->metaGetCachedTbGroup = metaGetCachedTbGroup;
   pMeta->metaPutTbGroupToCache = metaPutTbGroupToCache;
+
+  pMeta->openCtbCursor = metaOpenCtbCursor;
+  pMeta->resumeCtbCursor = metaResumeCtbCursor;
+  pMeta->pauseCtbCursor = metaPauseCtbCursor;
+  pMeta->closeCtbCursor = metaCloseCtbCursor;
+  pMeta->ctbCursorNext = metaCtbCursorNext;
 }
 
 void initTqAPI(SStoreTqReader* pTq) {

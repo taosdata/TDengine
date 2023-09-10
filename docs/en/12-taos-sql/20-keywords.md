@@ -178,7 +178,7 @@ The following list shows all reserved keywords:
 
 - MATCH
 - MAX_DELAY
-- MAX_SPEED
+- BWLIMIT
 - MAXROWS
 - MERGE
 - META

@@ -176,7 +176,7 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
   // SDelFile
   if (pTsdb->fs.pDelFile) {
     tsdbDelFileName(pTsdb, pTsdb->fs.pDelFile, fname);
-    if (taosStatFile(fname, &size, NULL)) {
+    if (taosStatFile(fname, &size, NULL, NULL)) {
       code = TAOS_SYSTEM_ERROR(errno);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
@@ -195,7 +195,7 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
 
     // head =========
     tsdbHeadFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pHeadF, fname);
-    if (taosStatFile(fname, &size, NULL)) {
+    if (taosStatFile(fname, &size, NULL, NULL)) {
       code = TAOS_SYSTEM_ERROR(errno);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
@@ -206,7 +206,7 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
 
     // data =========
     tsdbDataFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pDataF, fname);
-    if (taosStatFile(fname, &size, NULL)) {
+    if (taosStatFile(fname, &size, NULL, NULL)) {
       code = TAOS_SYSTEM_ERROR(errno);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
@@ -221,7 +221,7 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
 
     // sma =============
     tsdbSmaFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pSmaF, fname);
-    if (taosStatFile(fname, &size, NULL)) {
+    if (taosStatFile(fname, &size, NULL, NULL)) {
       code = TAOS_SYSTEM_ERROR(errno);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
@@ -237,7 +237,7 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
     // stt ===========
     for (int32_t iStt = 0; iStt < pSet->nSttF; iStt++) {
       tsdbSttFileName(pTsdb, pSet->diskId, pSet->fid, pSet->aSttF[iStt], fname);
-      if (taosStatFile(fname, &size, NULL)) {
+      if (taosStatFile(fname, &size, NULL, NULL)) {
         code = TAOS_SYSTEM_ERROR(errno);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
