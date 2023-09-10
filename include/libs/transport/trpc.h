@@ -167,6 +167,10 @@ int   rpcSetDefaultAddr(void *thandle, const char *ip, const char *fqdn);
 void *rpcAllocHandle();
 void  rpcSetIpWhite(void *thandl, void *arg);
 
+int32_t rpcUtilSIpRangeToStr(SIpV4Range *pRange, char *buf);
+
+int32_t rpcUtilSWhiteListToStr(SIpWhiteList *pWhiteList, char **ppBuf);
+
 #ifdef __cplusplus
 }
 #endif

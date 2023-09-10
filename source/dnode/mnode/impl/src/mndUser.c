@@ -192,7 +192,7 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
 
   ver = ipWhiteMgt.ver;
   taosThreadRwlockUnlock(&ipWhiteMgt.rw);
-  mInfo("ip-white-mnode ver, %" PRId64 "", ver);
+  mDebug("ip-white-mnode ver, %" PRId64 "", ver);
   return ver;
 }
 

@@ -209,74 +209,6 @@ static void uvHandleActivityTimeout(uv_timer_t* handle) {
   tDebug("%p timeout since no activity", conn);
 }
 
-int32_t cvtIp2Int(char* ip, int16_t* dest) {
-  int   k = 0;
-  char* start = ip;
-  char* end = start;
-
-  for (k = 0; *start != 0; start = end) {
-    for (end = start; *end != '.' && *end != '/' && *end != 0; end++) {
-    }
-    if (*end == '.' || *end == '/') {
-      *end = 0;
-      end++;
-    }
-    dest[k++] = atoi(start);
-  }
-  return k;
-}
-typedef struct {
-  int32_t netmask;
-  int32_t address;
-  int32_t network;
-  int32_t broadcast;
-  char    info[32];
-  int8_t  type;
-} SubnetUtils;
-
-int32_t subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange) {
-  // char buf[32] = {0};
-  //  strncpy(pUtils->info, range, strlen(range));
-  //  strncpy(buf, range, strlen(range));
-
-  // int16_t ip[5] = {0};
-  // int8_t  k = cvtIp2Int(buf, ip);
-  // if (k < 4) {
-  //   return -1;
-  // }
-
-  // for (int i = 0; i < 4; i++) {
-  //   pUtils->address |= (ip[i] << (8 * (4 - i - 1)));
-  // }
-  pUtils->address = pRange->ip;
-
-  int32_t mask = 0;
-  for (int i = 0; i < pRange->mask; i++) {
-    mask |= (1 << (31 - i));
-  }
-  pUtils->netmask = mask;
-
-  pUtils->network = pUtils->address & pUtils->netmask;
-  pUtils->broadcast = (pUtils->network) | (pUtils->netmask ^ 0xFFFFFFFF);
-  pUtils->type = (pRange->mask == 0 ? 0 : 1);
-
-  return 0;
-}
-int32_t subnetDebugInfoToBuf(SubnetUtils* pUtils, char* buf) {
-  sprintf(buf, "raw: %s, address: %d,  netmask:%d, network:%d, broadcast:%d", pUtils->info, pUtils->address,
-          pUtils->netmask, pUtils->network, pUtils->broadcast);
-  return 0;
-}
-int32_t subnetCheckIp(SubnetUtils* pUtils, uint32_t ip) {
-  // impl later
-  if (pUtils == NULL) return false;
-  if (pUtils->type == 0) {
-    return pUtils->address == ip;
-  } else {
-    return pUtils->network >= ip && pUtils->broadcast <= ip;
-  }
-}
-
 static bool uvCheckIp(SIpV4Range* pRange, int32_t ip) {
   // impl later
   SubnetUtils subnet = {0};
@@ -285,7 +217,6 @@ static bool uvCheckIp(SIpV4Range* pRange, int32_t ip) {
   }
   return subnetCheckIp(&subnet, ip);
 }
-
 SWhiteList* uvWhiteListCreate() {
   SWhiteList* pWhiteList = taosMemoryCalloc(1, sizeof(SWhiteList));
 
@@ -308,30 +239,13 @@ void uvWhiteListDestroy(SWhiteList* pWhite) {
 }
 
 void uvWhiteListToStr(SWhiteUserList* plist, char* user, char** ppBuf) {
-  int32_t len = 0;
-  char*   pBuf = taosMemoryCalloc(1, plist->pList->num * 36);
-  len = sprintf(pBuf, "user: %s, ver: %" PRId64 ", ip: {", user, plist->ver);
+  char*   tmp = NULL;
+  int32_t tlen = transUtilSWhiteListToStr(plist->pList, &tmp);
 
-  for (int i = 0; i < plist->pList->num; i++) {
-    SIpV4Range* pRange = &plist->pList->pIpRange[i];
-    {
-      char           tbuf[32] = {0};
-      struct in_addr addr;
-      addr.s_addr = pRange->ip;
-      uv_inet_ntop(AF_INET, &addr, tbuf, 32);
+  char*   pBuf = taosMemoryCalloc(1, tlen + 64);
+  int32_t len = sprintf(pBuf, "user: %s, ver: %" PRId64 ", ip: {%s}", user, plist->ver, tmp);
+  taosMemoryFree(tmp);
 
-      len += sprintf(pBuf + len, "%s", tbuf);
-      if (pRange->mask != 0) {
-        len += sprintf(pBuf + len, "%d", pRange->mask);
-      }
-    }
-    if (i == plist->pList->num - 1) {
-      len += sprintf(pBuf + len, "}");
-    } else {
-      len += sprintf(pBuf + len, ",");
-    }
-  }
-  pBuf[len] = 0;
   *ppBuf = pBuf;
 }
 void uvWhiteListDebug(SWhiteList* pWrite) {

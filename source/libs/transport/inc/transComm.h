@@ -437,6 +437,23 @@ int32_t transGetRefMgt();
 int32_t transGetInstMgt();
 
 void transHttpEnvDestroy();
+
+typedef struct {
+  int32_t netmask;
+  int32_t address;
+  int32_t network;
+  int32_t broadcast;
+  char    info[32];
+  int8_t  type;
+} SubnetUtils;
+
+int32_t subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange);
+int32_t subnetCheckIp(SubnetUtils* pUtils, uint32_t ip);
+int32_t subnetDebugInfoToBuf(SubnetUtils* pUtils, char* buf);
+
+int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf);
+int32_t transUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf);
+
 #ifdef __cplusplus
 }
 #endif

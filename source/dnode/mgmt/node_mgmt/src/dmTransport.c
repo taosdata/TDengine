@@ -92,10 +92,9 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   }
 
   if (pRpc->info.forbiddenIp == 1) {
-    struct in_addr addr;
-    addr.s_addr = pRpc->info.conn.clientIp;
-    char tbuf[40] = {0};
-    uv_inet_ntop(AF_INET, &addr, tbuf, 40);
+    char       tbuf[36] = {0};
+    SIpV4Range range = {.ip = pRpc->info.conn.clientIp, .mask = 0};
+    rpcUtilSIpRangeToStr(&range, tbuf);
 
     dError("User %s host:%s not in ip white list", pRpc->info.conn.user, tbuf);
 
