@@ -292,10 +292,18 @@ void uvWhiteListUpdate(SWhiteList* pWhite, SHashObj* pTable) {
   // impl later
 }
 
+static bool uvWhiteListIsDefaultAddr(uint32_t ip) {
+  // 127.0.0.1
+  static SIpV4Range range = {.ip = 16777343, .mask = 0};
+  return range.ip == ip;
+}
 bool uvWhiteListFilte(SWhiteList* pWhite, char* user, uint32_t ip, int64_t ver) {
   // impl check
-  SHashObj*        pWhiteList = pWhite->pList;
-  bool             valid = false;
+  SHashObj* pWhiteList = pWhite->pList;
+  bool      valid = false;
+
+  if (uvWhiteListIsDefaultAddr(ip)) return true;
+
   SWhiteUserList** ppList = taosHashGet(pWhiteList, user, strlen(user));
   if (ppList == NULL || *ppList == NULL) {
     return false;

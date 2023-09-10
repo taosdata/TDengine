@@ -260,8 +260,8 @@ bool mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t 
 }
 void mndUpdateIpWhite(char *user, char *fqdn, int8_t type, int8_t lock) {
   if (lock) taosThreadRwlockWrlock(&ipWhiteMgt.rw);
-  bool update = mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, user, fqdn, type);
 
+  bool update = mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, user, fqdn, type);
   if (update) ipWhiteMgt.ver++;
 
   if (lock) taosThreadRwlockUnlock(&ipWhiteMgt.rw);
@@ -316,6 +316,7 @@ SHashObj *mndFetchAllIpWhite(SMnode *pMnode) {
   void     *pIter = NULL;
   SHashObj *pIpWhiteTab = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 1, HASH_ENTRY_LOCK);
 
+  SArray *pUserNames = taosArrayInit(8, sizeof(void *));
   while (1) {
     SUserObj *pUser = NULL;
     pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pUser);
@@ -324,18 +325,46 @@ SHashObj *mndFetchAllIpWhite(SMnode *pMnode) {
     SIpWhiteList *pWhiteList = cloneIpWhiteList(pUser->pIpWhiteList);
     taosHashPut(pIpWhiteTab, pUser->user, strlen(pUser->user), &pWhiteList, sizeof(void *));
 
+    char *name = taosStrdup(pUser->user);
+    taosArrayPush(pUserNames, &name);
+
     sdbRelease(pSdb, pUser);
+  }
+
+  bool found = false;
+  for (int i = 0; i < taosArrayGetSize(pUserNames); i++) {
+    char *name = taosArrayGetP(pUserNames, i);
+    if (strlen(name) == strlen(TSDB_DEFAULT_USER) && strncmp(name, TSDB_DEFAULT_USER, strlen(TSDB_DEFAULT_USER)) == 0) {
+      found = true;
+      break;
+    }
+  }
+  if (found == false) {
+    char *name = taosStrdup(TSDB_DEFAULT_USER);
+    taosArrayPush(pUserNames, &name);
   }
 
   SArray *fqdns = mndGetAllDnodeFqdns(pMnode);
 
   for (int i = 0; i < taosArrayGetSize(fqdns); i++) {
     char *fqdn = taosArrayGetP(fqdns, i);
-    mndUpdateIpWhiteImpl(pIpWhiteTab, TSDB_DEFAULT_USER, fqdn, IP_WHITE_ADD);
 
+    for (int j = 0; j < taosArrayGetSize(pUserNames); j++) {
+      char *name = taosArrayGetP(pUserNames, j);
+      mndUpdateIpWhiteImpl(pIpWhiteTab, name, fqdn, IP_WHITE_ADD);
+    }
+  }
+
+  for (int i = 0; i < taosArrayGetSize(fqdns); i++) {
+    char *fqdn = taosArrayGetP(fqdns, i);
     taosMemoryFree(fqdn);
   }
   taosArrayDestroy(fqdns);
+
+  for (int i = 0; i < taosArrayGetSize(pUserNames); i++) {
+    taosMemoryFree(taosArrayGetP(pUserNames, i));
+  }
+  taosArrayDestroy(pUserNames);
 
   return pIpWhiteTab;
 }
@@ -1544,6 +1573,8 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   }
 
   if (alterReq.alterType == TSDB_ALTER_USER_ADD_WHITE_LIST) {
+    taosMemoryFree(newUser.pIpWhiteList);
+
     int32_t num = pUser->pIpWhiteList->num + alterReq.numIpRanges;
 
     SIpWhiteList *pNew = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range) * num);
@@ -1562,6 +1593,8 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     newUser.pIpWhiteList = pNew;
   }
   if (alterReq.alterType == TSDB_ALTER_USER_DROP_WHITE_LIST) {
+    taosMemoryFree(newUser.pIpWhiteList);
+
     int32_t       num = pUser->pIpWhiteList->num;
     SIpWhiteList *pNew = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range) * num);
 
