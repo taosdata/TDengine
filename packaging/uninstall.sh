@@ -114,7 +114,7 @@ stop_explore_service(){
 
 # remove old taosx and taosx-agent
 remove_taosx() {
-    echo "${target} related services..."
+    echo "stop ${target} related services..."
     stop_taosx_agent_service
     stop_taosx_service
     stop_explore_service
@@ -129,6 +129,24 @@ remove_taosx() {
     ${csudo}rm -rf /usr/local/taosx/files
 }
 
+# remove taosx-agent
+remove_taos_agent() {
+    echo "stop ${target} service..."
+    stop_taosx_agent_service
 
-remove_taosx
+    echo "delete related files..."
+    ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
+    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
+    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
+}
+
+remove_target() {
+    if [ "$target" = "taosx" ]; then
+      remove_taosx
+    else
+      remove_taos_agent
+    fi
+}
+
+remove_target
 echo "${target} has been removed successfully!"
