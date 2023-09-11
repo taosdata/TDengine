@@ -148,6 +148,10 @@ impl Client {
         let token = token.to_string();
         let channel = Endpoint::try_from(endpoint.clone())
             .map_err(|err| anyhow::format_err!("Unable to create endpoint on `{endpoint}`: {err}"))?
+            .keep_alive_while_idle(true)
+            .tcp_keepalive(Some(Duration::from_secs(5)))
+            .http2_keep_alive_interval(Duration::from_secs(15))
+            .keep_alive_timeout(Duration::from_secs(30))
             .connect()
             .await
             .map_err(|err| {
@@ -186,6 +190,10 @@ impl Client {
         resp_tx: Sender<RespAction>,
         resp_rx: Receiver<RespAction>,
     ) -> Result<()> {
+        let inner_grpc = self.client.inner();
+
+        tracing::info!("Wait tasks from server");
+
         struct FakeStream(
             SchemaRef,
             tokio::time::Interval,
@@ -388,7 +396,7 @@ impl Client {
             )
             .build(FakeStream(
                 schema.clone(),
-                tokio::time::interval(Duration::from_secs(30)),
+                tokio::time::interval(Duration::from_secs(60)),
                 Instant::now(),
                 resp_rx.into_stream(),
             ));

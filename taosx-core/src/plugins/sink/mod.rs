@@ -208,6 +208,7 @@ async fn ipc_tcp_forward(
             FlightError::Tonic(status) => anyhow::anyhow!("{}", status.message()),
             err => anyhow::anyhow!("Handshake error: {err:#}"),
         })?;
+    tracing::info!("Handshake done");
     // dbg!(res);
     client.add_header("x-task-id", &task_id.to_string())?;
     client.add_header("x-token", &token)?;
@@ -218,7 +219,8 @@ async fn ipc_tcp_forward(
     })?;
 
     while let Some(res) = stream.next().await {
-        let _: PutResult = res.context("Got server response with error")?;
+        let rsp: PutResult = res.context("Got server response with error")?;
+        tracing::info!("Response: {:?}", rsp);
         let _ = ipc_ack_writer.write_ok();
     }
 
@@ -227,7 +229,9 @@ async fn ipc_tcp_forward(
 }
 
 async fn try_establish_channel(remote: String) -> anyhow::Result<Channel> {
-    let endpoint = tonic::transport::Endpoint::try_from(remote)?;
+    let endpoint = tonic::transport::Endpoint::try_from(remote)?
+        .keep_alive_timeout(Duration::from_secs(30))
+        .http2_keep_alive_interval(Duration::from_secs(13));
     let channel = endpoint.connect().await?;
     Ok(channel)
 }

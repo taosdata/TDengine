@@ -1706,7 +1706,7 @@ pub async fn parse_todo_list(pool: &TaosPool, opts: &SourceOpts) -> anyhow::Resu
     let version = taos.server_version().await?;
     let is_v2 = version.starts_with('2');
     info!(version = version.as_ref(), "Retrieving table list...");
-    dbg!(&opts.stables);
+    // dbg!(&opts.stables);
     if let Some(stables) = opts.stables.as_ref() {
         const MAX_DISPLAY_STABLES: usize = 5;
         let list = if stables.len() > MAX_DISPLAY_STABLES {
@@ -2135,7 +2135,7 @@ pub async fn legacy_to_taos(
     metrics.workers.store(concurrent as _, Ordering::SeqCst);
 
     let todo = parse_todo_list(&from_pool, &source_opts).await?;
-    dbg!(&todo.stables);
+    // dbg!(&todo.stables);
     let todo = Arc::new(todo);
 
     metrics
