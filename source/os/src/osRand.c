@@ -27,11 +27,11 @@ void taosSeedRand(uint32_t seed) { return srand(seed); }
 
 uint32_t taosRand(void) {
 #ifdef WINDOWS
-    unsigned int pSeed;
-    rand_s(&pSeed);
-    return pSeed;
+  unsigned int pSeed;
+  rand_s(&pSeed);
+  return pSeed;
 #else
-    return rand();
+  return rand();
 #endif
 }
 
@@ -79,6 +79,15 @@ uint32_t taosSafeRand(void) {
 void taosRandStr(char* str, int32_t size) {
   const char* set = "abcdefghijklmnopqrstuvwxyz0123456789-_.";
   int32_t     len = 39;
+
+  for (int32_t i = 0; i < size; ++i) {
+    str[i] = set[taosRand() % len];
+  }
+}
+
+void taosRandStr2(char* str, int32_t size) {
+  const char* set = "abcdefghijklmnopqrstuvwxyz0123456789";
+  int32_t     len = 36;
 
   for (int32_t i = 0; i < size; ++i) {
     str[i] = set[taosRand() % len];

@@ -87,11 +87,12 @@ void vnodeSnapReaderClose(SVSnapReader *pReader) {
 int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) {
   int32_t code = 0;
   SVnode *pVnode = pReader->pVnode;
+  int32_t vgId = TD_VID(pReader->pVnode);
 
   // CONFIG ==============
   // FIXME: if commit multiple times and the config changed?
   if (!pReader->cfgDone) {
-    char fName[TSDB_FILENAME_LEN];
+    char    fName[TSDB_FILENAME_LEN];
     int32_t offset = 0;
 
     vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, fName, TSDB_FILENAME_LEN);
@@ -220,9 +221,57 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   }
 
   // STREAM ============
+  vInfo("vgId:%d stream task start", vgId);
   if (!pReader->streamTaskDone) {
+    if (pReader->pStreamTaskReader == NULL) {
+      code = streamTaskSnapReaderOpen(pReader->pVnode->pTq, pReader->sver, pReader->sver, &pReader->pStreamTaskReader);
+      if (code) {
+        vError("vgId:%d open streamtask snapshot reader failed, code:%s", vgId, tstrerror(code));
+        goto _err;
+      }
+    }
+
+    code = streamTaskSnapRead(pReader->pStreamTaskReader, ppData);
+    if (code) {
+      vError("vgId:%d error happens during read data from streatask snapshot, code:%s", vgId, tstrerror(code));
+      goto _err;
+    } else {
+      if (*ppData) {
+        vInfo("vgId:%d no streamTask snapshot", vgId);
+        goto _exit;
+      } else {
+        pReader->streamTaskDone = 1;
+        code = streamTaskSnapReaderClose(pReader->pStreamTaskReader);
+        if (code) {
+          goto _err;
+        }
+        pReader->pStreamTaskReader = NULL;
+      }
+    }
   }
   if (!pReader->streamStateDone) {
+    if (pReader->pStreamStateReader == NULL) {
+      code =
+          streamStateSnapReaderOpen(pReader->pVnode->pTq, pReader->sver, pReader->sver, &pReader->pStreamStateReader);
+      if (code) {
+        pReader->streamStateDone = 1;
+        pReader->pStreamStateReader = NULL;
+        goto _err;
+      }
+    }
+    code = streamStateSnapRead(pReader->pStreamStateReader, ppData);
+    if (code) {
+      goto _err;
+    } else {
+      if (*ppData) {
+        goto _exit;
+      } else {
+        pReader->streamStateDone = 1;
+        code = streamStateSnapReaderClose(pReader->pStreamStateReader);
+        if (code) goto _err;
+        pReader->pStreamStateReader = NULL;
+      }
+    }
   }
 
   // RSMA ==============
@@ -257,15 +306,15 @@ _exit:
     pReader->index++;
     *nData = sizeof(SSnapDataHdr) + pHdr->size;
     pHdr->index = pReader->index;
-    vDebug("vgId:%d, vnode snapshot read data, index:%" PRId64 " type:%d blockLen:%d ", TD_VID(pReader->pVnode),
-           pReader->index, pHdr->type, *nData);
+    vDebug("vgId:%d, vnode snapshot read data, index:%" PRId64 " type:%d blockLen:%d ", vgId, pReader->index,
+           pHdr->type, *nData);
   } else {
-    vInfo("vgId:%d, vnode snapshot read data end, index:%" PRId64, TD_VID(pReader->pVnode), pReader->index);
+    vInfo("vgId:%d, vnode snapshot read data end, index:%" PRId64, vgId, pReader->index);
   }
   return code;
 
 _err:
-  vError("vgId:%d, vnode snapshot read failed since %s", TD_VID(pReader->pVnode), tstrerror(code));
+  vError("vgId:%d, vnode snapshot read failed since %s", vgId, tstrerror(code));
   return code;
 }
 
@@ -362,6 +411,34 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     if (code) goto _exit;
   }
 
+  if (pWriter->pStreamTaskWriter) {
+    code = streamTaskSnapWriterClose(pWriter->pStreamTaskWriter, rollback);
+    if (code) goto _exit;
+  }
+
+  if (pWriter->pStreamStateWriter) {
+    code = streamStateSnapWriterClose(pWriter->pStreamStateWriter, rollback);
+    if (code) goto _exit;
+
+    code = streamStateRebuildFromSnap(pWriter->pStreamStateWriter, 0);
+    pWriter->pStreamStateWriter = NULL;
+    if (code) goto _exit;
+  }
+
+  if (pWriter->pStreamTaskWriter) {
+    code = streamTaskSnapWriterClose(pWriter->pStreamTaskWriter, rollback);
+    if (code) goto _exit;
+  }
+
+  if (pWriter->pStreamStateWriter) {
+    code = streamStateSnapWriterClose(pWriter->pStreamStateWriter, rollback);
+    if (code) goto _exit;
+
+    code = streamStateRebuildFromSnap(pWriter->pStreamStateWriter, 0);
+    pWriter->pStreamStateWriter = NULL;
+    if (code) goto _exit;
+  }
+
   if (pWriter->pRsmaSnapWriter) {
     code = rsmaSnapWriterClose(&pWriter->pRsmaSnapWriter, rollback);
     if (code) goto _exit;
@@ -381,7 +458,7 @@ _exit:
 }
 
 static int32_t vnodeSnapWriteInfo(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
-  int32_t code = 0;
+  int32_t       code = 0;
   SVnode       *pVnode = pWriter->pVnode;
   SSnapDataHdr *pHdr = (SSnapDataHdr *)pData;
 
@@ -459,9 +536,23 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
     } break;
     case SNAP_DATA_TQ_OFFSET: {
     } break;
-    case SNAP_DATA_STREAM_TASK: {
+    case SNAP_DATA_STREAM_TASK:
+    case SNAP_DATA_STREAM_TASK_CHECKPOINT: {
+      if (pWriter->pStreamTaskWriter == NULL) {
+        code = streamTaskSnapWriterOpen(pVnode->pTq, pWriter->sver, pWriter->ever, &pWriter->pStreamTaskWriter);
+        if (code) goto _err;
+      }
+      code = streamTaskSnapWrite(pWriter->pStreamTaskWriter, pData, nData);
+      if (code) goto _err;
     } break;
-    case SNAP_DATA_STREAM_STATE: {
+    case SNAP_DATA_STREAM_STATE_BACKEND: {
+      if (pWriter->pStreamStateWriter == NULL) {
+        code = streamStateSnapWriterOpen(pVnode->pTq, pWriter->sver, pWriter->ever, &pWriter->pStreamStateWriter);
+        if (code) goto _err;
+      }
+      code = streamStateSnapWrite(pWriter->pStreamStateWriter, pData, nData);
+      if (code) goto _err;
+
     } break;
     case SNAP_DATA_RSMA1:
     case SNAP_DATA_RSMA2:

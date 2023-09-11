@@ -89,6 +89,7 @@ SArray *qmGetMsgHandles() {
 
   if (dmSetMgmtHandle(pArray, TDMT_SCH_CANCEL_TASK, qmPutNodeMsgToFetchQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SCH_DROP_TASK, qmPutNodeMsgToFetchQueue, 1) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_SCH_TASK_NOTIFY, qmPutNodeMsgToFetchQueue, 1) == NULL) goto _OVER;
 
   code = 0;
 _OVER:

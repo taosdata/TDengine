@@ -438,6 +438,15 @@ class TDTestCase:
         tdSql.checkData(0,0,4)
         tdSql.checkData(1,0,1)
 
+        tdSql.query(f"select  unique(c1) v from (select _rowts, c1 from  {dbname}.ct1 partition by c2)")
+        tdSql.checkRows(10)
+
+        tdSql.query(f"select  unique(c1) v from (select _rowts, c1 from  {dbname}.ct1 order by c2)")
+        tdSql.checkRows(10)
+
+        tdSql.query(f"select  unique(c1) v from (select _rowts, c1 from  {dbname}.ct1 union all select _rowts, c1 from {dbname}.ct1)")
+        tdSql.checkRows(10)
+
         # TD-19911
         tdSql.error("select  unique(mode(12)) from (select _rowts , t1 , tbname from  db.stb1 );")
         tdSql.error("select  unique(mode(t1,1)) from (select _rowts , t1 , tbname from  db.stb1 );")

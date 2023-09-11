@@ -468,3 +468,117 @@ float taosStr2Float(const char *str, char **pEnd) {
 #endif
   return tmp;
 }
+
+#define HEX_PREFIX_LEN 2    // \x
+bool isHex(const char* z, uint32_t n){
+  if(n < HEX_PREFIX_LEN) return false;
+  if(z[0] == '\\' && z[1] == 'x') return true;
+  return false;
+}
+
+bool isValidateHex(const char* z, uint32_t n){
+  if(n % 2 != 0) return false;
+  for(size_t i = HEX_PREFIX_LEN; i < n; i++){
+    if(isxdigit(z[i]) == 0){
+      return false;
+    }
+  }
+  return true;
+}
+
+int32_t taosHex2Ascii(const char *z, uint32_t n, void** data, uint32_t* size){
+  n -= HEX_PREFIX_LEN;   // remove 0x
+  z += HEX_PREFIX_LEN;
+  *size = n / HEX_PREFIX_LEN;
+  if(*size == 0) return 0;
+  uint8_t* tmp = (uint8_t*)taosMemoryCalloc(*size, 1);
+  if(tmp == NULL) return -1;
+  int8_t   num = 0;
+  uint8_t *byte = tmp + *size - 1;
+
+  for (int i = n - 1; i >= 0; i--) {
+    if (z[i] >= 'a') {
+      *byte |= ((uint8_t)(10 + (z[i] - 'a')) << (num * 4));
+    } else if (z[i] >= 'A') {
+      *byte |= ((uint8_t)(10 + (z[i] - 'A')) << (num * 4));
+    } else {
+      *byte |= ((uint8_t)(z[i] - '0') << (num * 4));
+    }
+    if (num == 1) {
+      byte--;
+      num = 0;
+    } else {
+      num++;
+    }
+  }
+  *data = tmp;
+  return 0;
+}
+
+//int32_t taosBin2Ascii(const char *z, uint32_t n, void** data, uint32_t* size){
+//
+//  for (i = 2; isdigit(z[i]) || (z[i] >= 'a' && z[i] <= 'f') || (z[i] >= 'A' && z[i] <= 'F'); ++i) {
+//  }
+//
+//  n -= 2;   // remove 0b
+//  z += 2;
+//  *size = n%8 == 0 ? n/8 : n/8 + 1;
+//  uint8_t* tmp = (uint8_t*)taosMemoryCalloc(*size, 1);
+//  if(tmp == NULL) return -1;
+//  int8_t   num = 0;
+//  uint8_t *byte = tmp + *size - 1;
+//
+//  for (int i = n - 1; i >= 0; i--) {
+//    *byte |= ((uint8_t)(z[i] - '0') << num);
+//    if (num == 7) {
+//      byte--;
+//      num = 0;
+//    } else {
+//      num++;
+//    }
+//  }
+//  *data = tmp;
+//  return 0;
+//}
+
+static char valueOf(uint8_t symbol)
+{
+  switch(symbol)
+  {
+    case 0: return '0';
+    case 1: return '1';
+    case 2: return '2';
+    case 3: return '3';
+    case 4: return '4';
+    case 5: return '5';
+    case 6: return '6';
+    case 7: return '7';
+    case 8: return '8';
+    case 9: return '9';
+    case 10: return 'A';
+    case 11: return 'B';
+    case 12: return 'C';
+    case 13: return 'D';
+    case 14: return 'E';
+    case 15: return 'F';
+    default:
+    {
+      return -1;
+    }
+  }
+}
+
+int32_t taosAscii2Hex(const char *z, uint32_t n, void** data, uint32_t* size){
+  *size = n * 2 + HEX_PREFIX_LEN;
+  uint8_t* tmp = (uint8_t*)taosMemoryCalloc(*size + 1, 1);
+  if(tmp == NULL) return -1;
+  *data = tmp;
+  *(tmp++) = '\\';
+  *(tmp++) = 'x';
+  for(int i = 0; i < n; i ++){
+    uint8_t val = z[i];
+    tmp[i*2] = valueOf(val >> 4);
+    tmp[i*2 + 1] = valueOf(val & 0x0F);
+  }
+  return 0;
+}

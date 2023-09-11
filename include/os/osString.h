@@ -90,6 +90,11 @@ int8_t   taosStr2Int8(const char *str, char **pEnd, int32_t radix);
 uint8_t  taosStr2UInt8(const char *str, char **pEnd, int32_t radix);
 double   taosStr2Double(const char *str, char **pEnd);
 float    taosStr2Float(const char *str, char **pEnd);
+int32_t  taosHex2Ascii(const char *z, uint32_t n, void** data, uint32_t* size);
+int32_t  taosAscii2Hex(const char *z, uint32_t n, void** data, uint32_t* size);
+//int32_t  taosBin2Ascii(const char *z, uint32_t n, void** data, uint32_t* size);
+bool isHex(const char* z, uint32_t n);
+bool isValidateHex(const char* z, uint32_t n);
 
 #ifdef __cplusplus
 }

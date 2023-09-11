@@ -239,9 +239,9 @@ TEST_F(ParserShowToUseTest, showVgroups) {
 TEST_F(ParserShowToUseTest, showVnodes) {
   useDb("root", "test");
 
-  run("SHOW VNODES 1");
+  run("SHOW VNODES ON DNODE 1");
 
-  run("SHOW VNODES 'node1:7030'");
+  run("SHOW VNODES");
 }
 
 TEST_F(ParserShowToUseTest, splitVgroup) {

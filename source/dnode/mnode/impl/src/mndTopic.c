@@ -4,7 +4,7 @@
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
- *
+ *f
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
@@ -27,6 +27,7 @@
 #include "mndVgroup.h"
 #include "parser.h"
 #include "tname.h"
+#include "audit.h"
 
 #define MND_TOPIC_VER_NUMBER   3
 #define MND_TOPIC_RESERVE_SIZE 64
@@ -634,6 +635,25 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
 
+  char detail[4000] = {0};
+  char sql[3000] = {0};
+  strncpy(sql, createTopicReq.sql, 2999);
+
+  SName tableName = {0};
+  tNameFromString(&tableName, createTopicReq.subStbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+
+  sprintf(detail, "igExists:%d, subStbName:%s, subType:%d, withMeta:%d, sql:%s",
+          createTopicReq.igExists, tableName.tname, createTopicReq.subType, createTopicReq.withMeta, sql);
+
+  SName dbname = {0};
+  tNameFromString(&dbname, createTopicReq.subDbName, T_NAME_ACCT | T_NAME_DB);
+
+  SName topicName = {0};
+  tNameFromString(&topicName, createTopicReq.name, T_NAME_ACCT | T_NAME_DB);
+  //reuse this function for topic
+
+  auditRecord(pReq, pMnode->clusterId, "createTopic", topicName.dbname, dbname.dbname, detail);
+
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("failed to create topic:%s since %s", createTopicReq.name, terrstr());
@@ -830,6 +850,15 @@ end:
     return code;
   }
 
+  char detail[100] = {0};
+  sprintf(detail, "igNotExists:%d", dropReq.igNotExists);
+
+  SName name = {0};
+  tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB);
+  //reuse this function for topic
+
+  auditRecord(pReq, pMnode->clusterId, "dropTopic", name.dbname, "", detail);
+
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
@@ -878,7 +907,8 @@ static void schemaToJson(SSchema *schema, int32_t nCols, char *schemaJson){
     cJSON* ctype = cJSON_CreateString(tDataTypes[s->type].name);
     cJSON_AddItemToObject(column, "type", ctype);
     int32_t length = 0;
-    if (s->type == TSDB_DATA_TYPE_BINARY) {
+    if (s->type == TSDB_DATA_TYPE_BINARY || s->type == TSDB_DATA_TYPE_VARBINARY ||
+        s->type == TSDB_DATA_TYPE_GEOMETRY) {
       length = s->bytes - VARSTR_HEADER_SIZE;
     } else if (s->type == TSDB_DATA_TYPE_NCHAR || s->type == TSDB_DATA_TYPE_JSON) {
       length = (s->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;

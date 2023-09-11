@@ -336,6 +336,16 @@ bool fmIsSameInOutType(int32_t funcId) {
   return res;
 }
 
+bool fmIsConstantResFunc(SFunctionNode* pFunc) {
+  SNode* pNode;
+  FOREACH(pNode, pFunc->pParameterList) {
+    if (nodeType(pNode) != QUERY_NODE_VALUE) {
+      return false;
+    }
+  }
+  return true;
+}
+
 void getLastCacheDataType(SDataType* pType) {
   pType->bytes = getFirstLastInfoSize(pType->bytes) + VARSTR_HEADER_SIZE;
   pType->type = TSDB_DATA_TYPE_BINARY;

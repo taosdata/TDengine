@@ -42,10 +42,13 @@ typedef enum EGroupAction {
 
 typedef struct SLogicNode {
   ENodeType          type;
+  bool               dynamicOp;
+  bool               stmtRoot;
   SNodeList*         pTargets;  // SColumnNode
   SNode*             pConditions;
   SNodeList*         pChildren;
   struct SLogicNode* pParent;
+  SNodeList*         pHint;
   int32_t            optimizedFlag;
   uint8_t            precision;
   SNode*             pLimit;
@@ -107,15 +110,21 @@ typedef struct SScanLogicNode {
   bool          sortPrimaryKey;
   bool          igLastNull;
   bool          groupOrderScan;
+  bool          onlyMetaCtbIdx; // for tag scan with no tbname
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
-  SLogicNode node;
-  EJoinType  joinType;
-  SNode*     pMergeCondition;
-  SNode*     pOnConditions;
-  bool       isSingleTableJoin;
-  SNode*     pColEqualOnConditions;
+  SLogicNode     node;
+  EJoinType      joinType;
+  EJoinAlgorithm joinAlgo;
+  SNode*         pPrimKeyEqCond;
+  SNode*         pColEqCond;
+  SNode*         pTagEqCond;
+  SNode*         pTagOnCond;
+  SNode*         pOtherOnCond;
+  bool           isSingleTableJoin;
+  bool           hasSubQuery;
+  bool           isLowLevelJoin;
 } SJoinLogicNode;
 
 typedef struct SAggLogicNode {
@@ -153,6 +162,28 @@ typedef struct SInterpFuncLogicNode {
   SNode*      pFillValues;  // SNodeListNode
   SNode*      pTimeSeries;  // SColumnNode
 } SInterpFuncLogicNode;
+
+typedef struct SGroupCacheLogicNode {
+  SLogicNode  node;
+  bool        grpColsMayBeNull;  
+  bool        grpByUid;
+  bool        globalGrp;
+  bool        batchFetch;
+  SNodeList*  pGroupCols;
+} SGroupCacheLogicNode;
+
+typedef struct SDynQueryCtrlStbJoin {
+  bool          batchFetch;
+  SNodeList*    pVgList;
+  SNodeList*    pUidList;
+  bool          srcScan[2];
+} SDynQueryCtrlStbJoin;
+
+typedef struct SDynQueryCtrlLogicNode {
+  SLogicNode           node;
+  EDynQueryType        qType;
+  SDynQueryCtrlStbJoin stbJoin;
+} SDynQueryCtrlLogicNode;
 
 typedef enum EModifyTableType { MODIFY_TABLE_TYPE_INSERT = 1, MODIFY_TABLE_TYPE_DELETE } EModifyTableType;
 
@@ -312,6 +343,7 @@ typedef struct SDataBlockDescNode {
 
 typedef struct SPhysiNode {
   ENodeType           type;
+  bool                dynamicOp;
   EOrder              inputTsOrder;
   EOrder              outputTsOrder;
   SDataBlockDescNode* pOutputDataBlockDesc;
@@ -334,7 +366,11 @@ typedef struct SScanPhysiNode {
   bool       groupOrderScan;
 } SScanPhysiNode;
 
-typedef SScanPhysiNode STagScanPhysiNode;
+typedef struct STagScanPhysiNode {
+  SScanPhysiNode scan;
+  bool       onlyMetaCtbIdx; //no tbname, tag index not used.
+} STagScanPhysiNode;
+
 typedef SScanPhysiNode SBlockDistScanPhysiNode;
 
 typedef struct SLastRowScanPhysiNode {
@@ -409,11 +445,49 @@ typedef struct SInterpFuncPhysiNode {
 typedef struct SSortMergeJoinPhysiNode {
   SPhysiNode node;
   EJoinType  joinType;
-  SNode*     pMergeCondition;
-  SNode*     pOnConditions;
+  SNode*     pPrimKeyCond;
+  SNode*     pColEqCond;
+  SNode*     pOtherOnCond;
   SNodeList* pTargets;
-  SNode*     pColEqualOnConditions;
 } SSortMergeJoinPhysiNode;
+
+typedef struct SHashJoinPhysiNode {
+  SPhysiNode node;
+  EJoinType  joinType;
+  SNodeList* pOnLeft;
+  SNodeList* pOnRight;
+  SNode*     pFilterConditions;
+  SNodeList* pTargets;
+  SQueryStat inputStat[2];
+
+  SNode*     pPrimKeyCond;
+  SNode*     pColEqCond;
+  SNode*     pTagEqCond;  
+} SHashJoinPhysiNode;
+
+typedef struct SGroupCachePhysiNode {
+  SPhysiNode node;
+  bool       grpColsMayBeNull;
+  bool       grpByUid;
+  bool       globalGrp;
+  bool       batchFetch;
+  SNodeList* pGroupCols;
+} SGroupCachePhysiNode;
+
+typedef struct SStbJoinDynCtrlBasic {
+  bool     batchFetch;
+  int32_t  vgSlot[2];
+  int32_t  uidSlot[2];
+  bool     srcScan[2];
+} SStbJoinDynCtrlBasic;
+
+typedef struct SDynQueryCtrlPhysiNode {
+  SPhysiNode    node;
+  EDynQueryType qType;
+  union {
+    SStbJoinDynCtrlBasic stbJoin;
+  };
+} SDynQueryCtrlPhysiNode;
 
 typedef struct SAggPhysiNode {
   SPhysiNode node;
@@ -603,6 +677,8 @@ typedef struct SSubplan {
   SNode*         pTagCond;
   SNode*         pTagIndexCond;
   bool           showRewrite;
+  int32_t        rowsThreshold;
+  bool           dynamicRowThreshold;
 } SSubplan;
 
 typedef enum EExplainMode { EXPLAIN_MODE_DISABLE = 1, EXPLAIN_MODE_STATIC, EXPLAIN_MODE_ANALYZE } EExplainMode;

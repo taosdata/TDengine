@@ -68,6 +68,13 @@ void dsEndPut(DataSinkHandle handle, uint64_t useconds) {
   return pHandleImpl->fEndPut(pHandleImpl, useconds);
 }
 
+void dsReset(DataSinkHandle handle) {
+  SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
+  if (pHandleImpl->fReset) {
+    return pHandleImpl->fReset(pHandleImpl);
+  }
+}
+
 void dsGetDataLength(DataSinkHandle handle, int64_t* pLen, bool* pQueryEnd) {
   SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
   pHandleImpl->fGetLen(pHandleImpl, pLen, pQueryEnd);

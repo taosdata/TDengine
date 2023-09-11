@@ -79,6 +79,8 @@ const char *sdbStatusName(ESdbStatus status) {
       return "dropped";
     case SDB_STATUS_INIT:
       return "init";
+    case SDB_STATUS_UPDATE:
+      return "update";
     default:
       return "undefine";
   }
