@@ -5,7 +5,6 @@ import shutil
 import subprocess
 import sys
 import toml
-import re
 import linux_release
 
 from datetime import datetime
@@ -210,14 +209,7 @@ def print_param():
 def change_assemble_file_key(file, key, value):
     new_attribute = f'[assembly: AssemblyMetadata("{key}", "{value}")]'
     pattern = f'\[assembly: AssemblyMetadata\("{key}", "[^"]*"\)\]'
-    replace_file_content(file, pattern, new_attribute)
-
-def replace_file_content(file, pattern, new_attribute):
-    with open(file, "r") as f:
-        content = f.read()
-    new_content = re.sub(pattern, new_attribute, content)
-    with open(file, "w") as f:
-        f.write(new_content)
+    linux_release.replace_file_content(file, pattern, new_attribute)
 
 def change_piconnector_assemble_file():
     pi_connector_assembly_file_path = os.path.join(taosx_dir, "plugins", "pi", "src", \
@@ -590,16 +582,10 @@ def test_handle(process):
             build_and_install_taos_explorer("Release")
         linux_release.test_handle(release_info, process)
 
-def update_target_info_to_file():
-    target = "taosx"
-    if release_info.Target == "agent":
-        target = taosx_agent_name
-    replace_file_content(os.path.join(script_dir, "uninstall.sh"), f'target=""', f'target="{target}"')
-    replace_file_content(os.path.join(script_dir, "install.sh"), f'target=""', f'target="{target}"')
+
 
 if __name__ == '__main__':
     init_build_info()
-    update_target_info_to_file()
     print_param()
     if test_process != "":
         test_handle(test_process)
