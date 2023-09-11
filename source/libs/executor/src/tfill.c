@@ -582,9 +582,15 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
                                      pFillInfo->interval.slidingUnit, pFillInfo->interval.precision, pFillInfo->order);
     ASSERT(numOfRes >= numOfRows);
   } else {  // reach the end of data
-    if ((ekey1 < pFillInfo->currentKey && FILL_IS_ASC_FILL(pFillInfo)) ||
-        (ekey1 > pFillInfo->currentKey && !FILL_IS_ASC_FILL(pFillInfo))) {
-      return 0;
+    if ((ekey1 < pFillInfo->currentKey && FILL_IS_ASC_FILL(pFillInfo))) return 0;
+    if (!FILL_IS_ASC_FILL(pFillInfo)) {
+      if (ekey1 > pFillInfo->currentKey) {
+        if (taosTimeTruncate(ekey1, &pFillInfo->interval) <= pFillInfo->currentKey) {
+          return 1;
+        } else {
+          return 0;
+        }
+      }
     }
 
     numOfRes = taosTimeCountIntervalForFill(ekey1, pFillInfo->currentKey, pFillInfo->interval.sliding,
