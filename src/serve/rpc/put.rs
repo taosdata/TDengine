@@ -229,7 +229,7 @@ impl PutStream {
             while let Some(message) = stream.next().await {
                 let item = match message {
                     Ok(message) => {
-                        dbg!(&message);
+                        // dbg!(&message);
                         let app_metadata = message.app_metadata();
                         match message.payload {
                             arrow_flight::decode::DecodedPayload::None => None,
