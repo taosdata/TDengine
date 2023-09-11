@@ -10,7 +10,7 @@ use flume::{Receiver, Sender};
 use futures::FutureExt;
 use itertools::Itertools;
 use metrics::counter;
-use taos::{AsyncQueryable, TaosPool};
+use taos::{AsyncQueryable, Taos, TaosPool};
 use tokio::{
     sync::oneshot,
     task::{JoinError, JoinHandle},
@@ -224,6 +224,7 @@ async fn worker(
                         }
                         Err(err) => {
                             let err_string = err.to_string();
+                            // log::error!("err_string: {err_string}");
                             if (err_string.contains("0xE00")
                                 || err_string.contains("channel closed"))
                                 && retries > 0
@@ -234,6 +235,19 @@ async fn worker(
                                 log::warn!(
                                     "[worker:{worker}] sync table {table} error: {err}, retrying ... {retries} times left"
                                 );
+                                continue;
+                            } else if err_string.contains("0x263F")
+                                || err_string.contains("Column does not exist")
+                            {
+                                log::info!(
+                                    "[worker:{worker}] sync table {table} err 0x263F: {err:?}, add column"
+                                );
+                                let st = stable.as_ref().map(|s| s.as_str());
+                                if let Some(stable) = st {
+                                    sync_add_column(&from, &to, stable).await?;
+                                } else {
+                                    sync_add_column(&from, &to, &table).await?;
+                                }
                                 continue;
                             }
 
@@ -259,6 +273,25 @@ async fn worker(
         }
     }
 }
+
+pub async fn sync_add_column(from: &Taos, to: &Taos, table: &str) -> anyhow::Result<()> {
+    let des_from = from.describe(table).await?;
+    let des_to = to.describe(table).await?;
+    let mut add_columns = Vec::new();
+    for col in des_from.iter() {
+        if !col.is_tag() && !des_to.iter().any(|c| c.field() == col.field()) {
+            add_columns.push(col);
+        }
+    }
+    for col in add_columns {
+        let sql = format!("ALTER TABLE {} ADD COLUMN {}", table, col.sql_repr());
+        log::info!("add column sql: {sql}");
+        let _ = to.exec(sql.as_str()).await;
+    }
+
+    Ok(())
+}
+
 impl Scheduler {
     pub async fn new(
         source: TaosPool,

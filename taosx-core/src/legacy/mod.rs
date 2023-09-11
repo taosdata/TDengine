@@ -521,7 +521,7 @@ async fn sync_single_table_partial(
                                     .find(|f| f.field() == name)
                                     .map(|f| (name, f.ty()))
                                     .ok_or_else(|| {
-                                        anyhow::format_err!("Column {name} does not exist")
+                                        anyhow::format_err!("Column does not exist {name}")
                                     })
                             })
                             .try_collect()?;
