@@ -1025,11 +1025,7 @@ static int32_t createGroupCachePhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
   }
 */
 
-  if (TSDB_CODE_SUCCESS == code) {
-    *pPhyNode = (SPhysiNode*)pGrpCache;
-  } else {
-    nodesDestroyNode((SNode*)pGrpCache);
-  }
+  *pPhyNode = (SPhysiNode*)pGrpCache;
 
   return code;
 }
@@ -1059,6 +1055,8 @@ static int32_t updateDynQueryCtrlStbJoinInfo(SPhysiPlanContext* pCxt, SNodeList*
     }
     pDynCtrl->stbJoin.batchFetch = pLogicNode->stbJoin.batchFetch;
   }
+  nodesDestroyList(pVgList);
+  nodesDestroyList(pUidList);
 
   return code;
 }

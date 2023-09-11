@@ -819,7 +819,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     SWalFilterCond cond = {.deleteMsg = 1};  // delete msg also extract from wal files
-    pTask->exec.pWalReader = walOpenReader(pTq->pVnode->pWal, &cond);
+    pTask->exec.pWalReader = walOpenReader(pTq->pVnode->pWal, &cond, pTask->id.taskId);
   }
 
   // reset the task status from unfinished transaction
@@ -834,14 +834,14 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
 
   // checkpoint ver is the kept version, handled data should be the next version.
   if (pTask->chkInfo.checkpointId != 0) {
-    pTask->chkInfo.currentVer = pTask->chkInfo.checkpointVer + 1;
+    pTask->chkInfo.nextProcessVer = pTask->chkInfo.checkpointVer + 1;
     tqInfo("s-task:%s restore from the checkpointId:%" PRId64 " ver:%" PRId64 " currentVer:%" PRId64, pTask->id.idStr,
-           pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->currentVer);
+           pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer);
   }
 
   tqInfo("vgId:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64 " currentVer:%" PRId64
          " child id:%d, level:%d, status:%s fill-history:%d, trigger:%" PRId64 " ms",
-         vgId, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->currentVer,
+         vgId, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
          pTask->info.selfChildId, pTask->info.taskLevel, streamGetTaskStatusStr(pTask->status.taskStatus),
          pTask->info.fillHistory, pTask->info.triggerParam);
 
@@ -890,9 +890,10 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
   return streamSendCheckRsp(pTq->pStreamMeta, &req, &rsp, &pMsg->info, taskId);
 }
 
-int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t sversion, SRpcMsg* pMsg) {
+int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, SRpcMsg* pMsg) {
   char*   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t len = pMsg->contLen - sizeof(SMsgHead);
+  int32_t vgId = pTq->pStreamMeta->vgId;
 
   int32_t             code;
   SStreamTaskCheckRsp rsp;
@@ -901,7 +902,9 @@ int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t sversion, SRpcMsg* pMsg) {
   tDecoderInit(&decoder, (uint8_t*)pReq, len);
   code = tDecodeStreamTaskCheckRsp(&decoder, &rsp);
   if (code < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
     tDecoderClear(&decoder);
+    tqError("vgId:%d failed to parse check rsp msg, code:%s", vgId, tstrerror(terrno));
     return -1;
   }
 
@@ -1087,14 +1090,17 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     }
 
     // now we can stop the stream task execution
-    streamTaskHalt(pStreamTask);
 
+    int64_t latestVer = 0;
+    taosThreadMutexLock(&pStreamTask->lock);
+    streamTaskHalt(pStreamTask);
     tqDebug("s-task:%s level:%d sched-status:%d is halt by fill-history task:%s", pStreamTask->id.idStr,
             pStreamTask->info.taskLevel, pStreamTask->status.schedStatus, id);
+    latestVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
+    taosThreadMutexUnlock(&pStreamTask->lock);
 
     // if it's an source task, extract the last version in wal.
     pRange = &pTask->dataRange.range;
-    int64_t latestVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
     done = streamHistoryTaskSetVerRangeStep2(pTask, latestVer);
 
     if (done) {
@@ -1115,7 +1121,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
       int64_t dstVer = pTask->dataRange.range.minVer - 1;
 
-      pTask->chkInfo.currentVer = dstVer;
+      pTask->chkInfo.nextProcessVer = dstVer;
       walReaderSetSkipToVersion(pTask->exec.pWalReader, dstVer);
       tqDebug("s-task:%s wal reader start scan WAL verRange:%" PRId64 "-%" PRId64 ", set sched-status:%d", id, dstVer,
               pTask->dataRange.range.maxVer, TASK_SCHED_STATUS__INACTIVE);
@@ -1123,7 +1129,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
 
       // set the fill-history task to be normal
-      if (pTask->info.fillHistory == 1) {
+      if (pTask->info.fillHistory == 1 && !streamTaskShouldStop(&pTask->status)) {
         streamSetStatusNormal(pTask);
       }
 
@@ -1148,7 +1154,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       tqDebug(
           "s-task:%s scan-history in stream time window completed, now start to handle data from WAL, start "
           "ver:%" PRId64 ", window:%" PRId64 " - %" PRId64,
-          id, pTask->chkInfo.currentVer, pWindow->skey, pWindow->ekey);
+          id, pTask->chkInfo.nextProcessVer, pWindow->skey, pWindow->ekey);
     }
 
     code = streamTaskScanHistoryDataComplete(pTask);
@@ -1283,8 +1289,8 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
     // even in halt status, the data in inputQ must be processed
     int8_t st = pTask->status.taskStatus;
     if (st == TASK_STATUS__NORMAL || st == TASK_STATUS__SCAN_HISTORY || st == TASK_STATUS__CK) {
-      tqDebug("vgId:%d s-task:%s start to process block from inputQ, last chk point:%" PRId64, vgId, pTask->id.idStr,
-              pTask->chkInfo.currentVer);
+      tqDebug("vgId:%d s-task:%s start to process block from inputQ, next checked ver:%" PRId64, vgId, pTask->id.idStr,
+              pTask->chkInfo.nextProcessVer);
       streamProcessRunReq(pTask);
     } else {
       atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
@@ -1423,10 +1429,10 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
       walReaderSetSkipToVersion(pTask->exec.pWalReader, sversion);
       tqDebug("vgId:%d s-task:%s resume to exec, prev paused version:%" PRId64 ", start from vnode ver:%" PRId64
               ", schedStatus:%d",
-              vgId, pTask->id.idStr, pTask->chkInfo.currentVer, sversion, pTask->status.schedStatus);
+              vgId, pTask->id.idStr, pTask->chkInfo.nextProcessVer, sversion, pTask->status.schedStatus);
     } else {  // from the previous paused version and go on
       tqDebug("vgId:%d s-task:%s resume to exec, from paused ver:%" PRId64 ", vnode ver:%" PRId64 ", schedStatus:%d",
-              vgId, pTask->id.idStr, pTask->chkInfo.currentVer, sversion, pTask->status.schedStatus);
+              vgId, pTask->id.idStr, pTask->chkInfo.nextProcessVer, sversion, pTask->status.schedStatus);
     }
 
     if (level == TASK_LEVEL__SOURCE && pTask->info.fillHistory &&

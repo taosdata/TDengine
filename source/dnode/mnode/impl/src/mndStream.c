@@ -1111,7 +1111,7 @@ static int32_t mndAddStreamCheckpointToTrans(STrans *pTrans, SStreamObj *pStream
 
   pStream->checkpointId = checkpointId;
   pStream->checkpointFreq = taosGetTimestampMs();
-  atomic_store_64(&pStream->currentTick, 0);
+  pStream->currentTick = 0;
   // 3. commit log: stream checkpoint info
   pStream->version = pStream->version + 1;
 
