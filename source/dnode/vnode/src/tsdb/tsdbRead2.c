@@ -4918,14 +4918,14 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
   // fs
   code = tsdbFSCreateRefSnapshot(pTsdb->pFS, &pSnap->pfSetArray);
   if (code == TSDB_CODE_SUCCESS) {
-    tsdbTrace("vgId:%d, take read snapshot, %s", TD_VID(pTsdb->pVnode), pReader->idStr);
+    tsdbTrace("vgId:%d, take read snapshot", TD_VID(pTsdb->pVnode));
   }
 
 _exit:
   taosThreadRwlockUnlock(&pTsdb->rwLock);
 
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("vgId:%d take read snapshot failed, %s code:%s", TD_VID(pTsdb->pVnode), pReader->idStr, tstrerror(code));
+    tsdbError("vgId:%d take read snapshot failed, code:%s", TD_VID(pTsdb->pVnode), tstrerror(code));
 
     *ppSnap = NULL;
     if (pSnap) {
