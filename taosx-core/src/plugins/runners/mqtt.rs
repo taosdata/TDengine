@@ -388,6 +388,7 @@ pub(super) fn get_string_from_param_or_file(
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
     use taos::IntoDsn;
 
     use super::*;

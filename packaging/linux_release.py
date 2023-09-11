@@ -2,6 +2,7 @@ import os;
 import logging
 import shutil
 import sys
+import re
 
 
 script_dir = os.path.abspath(os.getcwd())
@@ -218,11 +219,19 @@ def build_and_install_taosx_agent_on_linux(mode='release'):
     check_directory(cfg_path)
     shutil.copy2(os.path.join(top_dir,"taosx-agent","examples","agent.toml"), cfg_path)
 
+def replace_file_content(file, pattern, new_attribute):
+    with open(file, "r") as f:
+        content = f.read()
+    new_content = re.sub(pattern, new_attribute, content)
+    with open(file, "w") as f:
+        f.write(new_content)
 
 def make_tar_package(release_info):
     logging.info("making tar package")
     shutil.copy(os.path.join(script_dir,"uninstall.sh"),release_dir)
     shutil.copy(os.path.join(script_dir,"install.sh"),release_dir)
+    replace_file_content(os.path.join(release_dir, "uninstall.sh"), f'target=""', f'target="{target}"')
+    replace_file_content(os.path.join(release_dir, "install.sh"), f'target=""', f'target="{target}"')
 
     os.chmod(os.path.join(release_dir,"uninstall.sh"),0o755)
     os.chmod(os.path.join(release_dir,"install.sh"),0o755)

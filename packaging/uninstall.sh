@@ -11,6 +11,8 @@ agentname="${PREFIX}x-agent"
 explorerName="${PREFIX}-explorer"
 csudo=""
 
+target=""
+
 if command -v sudo >/dev/null; then
   csudo="sudo "
 fi
@@ -112,7 +114,7 @@ stop_explore_service(){
 
 # remove old taosx and taosx-agent
 remove_taosx() {
-    echo "stop taosx related services..."
+    echo "${target} related services..."
     stop_taosx_agent_service
     stop_taosx_service
     stop_explore_service
@@ -129,4 +131,4 @@ remove_taosx() {
 
 
 remove_taosx
-echo "taosx has been removed successfully!"
+echo "${target} has been removed successfully!"
