@@ -136,6 +136,24 @@ remove_taosx() {
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
 }
 
+# remove taosx-agent
+remove_taos_agent() {
+    if [ -f ./bin/${agentname} ]; then
+        stop_taosx_agent_service
+        ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
+    fi
+    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
+    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
+}
+
+remove_target() {
+    if [ "$target" = "taosx" ]; then
+      remove_taosx
+    else
+      remove_taos_agent
+    fi
+}
+
 print_tips(){
     if [ "$target" = "taosx" ]; then
       echo -e "\033[32mTo configure taosx-agent   \033[0m: edit /etc/taos/agent.toml"
@@ -213,14 +231,14 @@ check_install_env(){
 check_install_env
 
 # main entry point
-if [ -x ${INSTALL_DIR}/${xName} ]; then
-    echo "${xName} is already installed, do you want to reinstall it? [y/n]"
+if [ -x ${INSTALL_DIR}/${target} ]; then
+    echo "${target} is already installed, do you want to reinstall it? [y/n]"
     read answer
     if [ $answer == "y" ]; then
-        remove_taosx
+        remove_target
         install_taosx
     else
-        echo "${xName} installation is cancelled"
+        echo "${target} installation is cancelled"
         exit 1
     fi
 else
