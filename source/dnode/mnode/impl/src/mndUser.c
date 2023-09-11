@@ -184,12 +184,13 @@ void ipWhiteMgtUpdate2(SMnode *pMnode) {
 }
 
 int64_t mndGetIpWhiteVer(SMnode *pMnode) {
+  int64_t ver = 0;
   taosThreadRwlockWrlock(&ipWhiteMgt.rw);
-  int64_t ver = ipWhiteMgt.ver;
-  if (ver == 0) {
+  if (ipWhiteMgt.ver == 0) {
     ipWhiteMgtUpdateAll(pMnode);
     ipWhiteMgt.ver = taosGetTimestampMs();
   }
+  ver = ipWhiteMgt.ver;
   taosThreadRwlockUnlock(&ipWhiteMgt.rw);
   mInfo("ip-white-mnode ver, %" PRId64 "", ver);
 
