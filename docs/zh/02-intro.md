@@ -11,7 +11,7 @@ TDengine 是一款专为物联网、工业互联网等场景设计并优化的�
 
 ## 主要功能
 
-TDengine 的主要功能如下：
+TDengine OSS 的主要功能如下：
 
 1. 写入数据，支持
    - [SQL 写入](../develop/insert-data/sql-writing)
