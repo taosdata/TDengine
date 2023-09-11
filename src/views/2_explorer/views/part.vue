@@ -3,6 +3,13 @@
     <div v-show="$store.state.console.partActive == 'sql' || $store.state.console.partActive == 'wizard'" class="sql-btn">
       <el-button 
         v-show="$store.state.console.partActive == 'wizard'"
+        @click="resetWizard" 
+        size="mini"
+      >
+        {{ $t('reset') }}
+      </el-button>
+      <el-button 
+        v-show="$store.state.console.partActive == 'wizard'"
         :disabled="previewBtn" 
         @click="getPreviewSql" 
         size="mini"
@@ -122,6 +129,9 @@
       },
       getPreviewSql() {
         this.$refs.wizard.getPreviewSql()
+      },
+      resetWizard() {
+        this.$refs.wizard.resetWizard()
       },
        handleSendSQL() {
         if (this.requestIng) return;

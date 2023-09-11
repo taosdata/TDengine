@@ -130,7 +130,7 @@
                           />
                         </span>
                         <!-- <el-rate v-else-if="ruleItem.operateType === 'Rate'" v-model="ruleItem.value" allow-half  :size="size"/> -->
-                        <el-input :placeholder="ruleItem.placeholder" v-else-if="!['IS NULL', 'IS NOT NULL'].includes(ruleItem.operator)" v-model="ruleItem.value" :size="size" />
+                        <el-input :placeholder="$t(`${ruleItem.placeholder}`)" v-else-if="!['IS NULL', 'IS NOT NULL'].includes(ruleItem.operator)" v-model="ruleItem.value" :size="size" />
                       </div>
                     </el-col>
                     <el-col>

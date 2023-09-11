@@ -134,7 +134,7 @@ const conditionMap = {
             operator: '>=',
             value: '',
             operators: [],
-            placeholder: this.$t('console.startTime')
+            placeholder: 'console.startTime'
           },
           {
             field: 'end time',
@@ -142,7 +142,7 @@ const conditionMap = {
             operator: '<',
             value: '',
             operators: [],
-            placeholder: this.$t('console.endTime')
+            placeholder: 'console.endTime'
           }
         ]
       }],
@@ -480,6 +480,10 @@ const conditionMap = {
     getPreviewSql() {
       this.dialog = true
       this.generateSql()
+    },
+    resetWizard() {
+      Object.assign(this.$data, this.$options.data())
+      this.$store.commit('console/RESET_GRID')
     },
     async handleSendSQL() {
       // 校验 _c0 为必填项 
