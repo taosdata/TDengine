@@ -1435,6 +1435,7 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
   }
   tEndDecode(&decoder);
 
+
   tDecoderClear(&decoder);
   return 0;
 }
@@ -1903,6 +1904,73 @@ void tFreeSGetUserAuthRsp(SGetUserAuthRsp *pRsp) {
   taosHashCleanup(pRsp->writeTbs);
   taosHashCleanup(pRsp->readTbs);
   taosHashCleanup(pRsp->useDbs);
+}
+
+int32_t tSerializeSGetWhiteListReq(void *buf, int32_t bufLen, SGetUserWhiteListReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->user) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSGetUserWhiteListReq(void *buf, int32_t bufLen, SGetUserWhiteListReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->user) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSGetUserWhiteListRsp(void* buf, int32_t bufLen, SGetUserWhiteListRsp* pRsp) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pRsp->user) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->numWhiteLists) < 0) return -1;
+  for (int i = 0; i < pRsp->numWhiteLists; ++i) {
+    if (tEncodeU32(&encoder, pRsp->pWhiteLists[i].ip) < 0) return -1;
+    if (tEncodeU32(&encoder, pRsp->pWhiteLists[i].mask) < 0) return -1;
+  }
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSGetUserWhiteListRsp(void* buf, int32_t bufLen, SGetUserWhiteListRsp* pRsp) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pRsp->user) < 0) return -1;
+
+  if (tDecodeI32(&decoder, &pRsp->numWhiteLists) < 0) return -1;
+  pRsp->pWhiteLists = taosMemoryMalloc(pRsp->numWhiteLists * sizeof(SIpV4Range));
+  if (pRsp->pWhiteLists == NULL) return -1;
+  for (int32_t i = 0; i < pRsp->numWhiteLists; ++i) {
+    if (tDecodeU32(&decoder, &(pRsp->pWhiteLists[i].ip)) < 0) return -1;
+    if (tDecodeU32(&decoder, &(pRsp->pWhiteLists[i].mask)) < 0) return -1;
+  }
+
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSGetUserWhiteListRsp(SGetUserWhiteListRsp* pRsp) {
+  taosMemoryFree(pRsp->pWhiteLists);
 }
 
 int32_t tSerializeSCreateDropMQSNodeReq(void *buf, int32_t bufLen, SMCreateQnodeReq *pReq) {
