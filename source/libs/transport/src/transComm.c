@@ -690,7 +690,7 @@ uint32_t subnetIpRang2Int(SIpV4Range* pRange) {
   return (el[0] << 24) | (el[1] << 16) | (el[2] << 8) | (el[0]);
 }
 int32_t subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange) {
-  if (pRange->mask == 0 || pRange->mask == 32) {
+  if (pRange->mask == 32) {
     pUtils->type = 0;
     pUtils->address = pRange->ip;
     return 0;
@@ -704,7 +704,7 @@ int32_t subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange) {
 
   pUtils->network = pUtils->address & pUtils->netmask;
   pUtils->broadcast = (pUtils->network) | (pUtils->netmask ^ 0xFFFFFFFF);
-  pUtils->type = (pRange->mask == 0 ? 0 : 1);
+  pUtils->type = (pRange->mask == 32 ? 0 : 1);
 
   return 0;
 }
@@ -737,7 +737,7 @@ int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) {
 
   len = strlen(buf);
 
-  if (pRange->mask != 0 && pRange->mask != 32) {
+  if (pRange->mask != 32) {
     len += sprintf(buf + len, "/%d", pRange->mask);
   }
   buf[len] = 0;
