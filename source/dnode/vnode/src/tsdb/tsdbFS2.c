@@ -1026,10 +1026,14 @@ static int32_t tsdbTFSetInsertSnapRange(STFileSet *fset, TSnapRangeArray *snapR)
   TARRAY2_FOREACH(fset->lvlArr, lvl) {
     STFileObj *fobj;
     TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+      // tsdbTFileUpdVerRange(&tf, (SVersionRange){.minVer = fobj->f->minVer, .maxVer = fobj->f->maxVer});
       code = tsdbTFileInsertSnapRange(fobj->f, snapR);
       if (code) return code;
     }
   }
+
+  //  int32_t code = tsdbTFileInsertSnapRange(&tf, snapR);
+  //  if (code) return code;
   return code;
 }
 
@@ -1272,6 +1276,10 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
   }
 
   int32_t i = 0;
+  code = 0;
+
+  // TODO: use the same fs fSetArr as get snapDiff. The following treatment is potentially wrong
+  //  if the fSetArr are changed.
   taosThreadRwlockRdlock(&fs->tsdb->rwLock);
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     while (i < TARRAY2_SIZE(snapD)) {
@@ -1279,6 +1287,7 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
       if (fset->fid < u->fid) {
         break;
       } else if (fset->fid > u->fid) {
+        ASSERT(false);
         i++;
         continue;
       } else {
@@ -1289,6 +1298,8 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
       if (sver1 > ever1) {
         continue;
       }
+      tsdbInfo("fsrArr:%p, fid:%d, sver:%" PRId64 ", ever:%" PRId64, fsrArr, fset->fid, sver1, ever1);
+
       code = tsdbTSnapRangeInitRef(fs->tsdb, fset, sver1, ever1, &fsr1);
       if (code) break;
 
