@@ -2141,7 +2141,7 @@ int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, cha
 
   int8_t      type = TSDB_DATA_TYPE_UBIGINT;
   const char* name = "group_id";
-  int32_t     len = strlen(name) - 1;
+  int32_t     len = strlen(name);
   SSmlKv pTag = { .key = name, .keyLen = len, .type = type, .u = groupId, .length = sizeof(uint64_t)};
   taosArrayPush(tags, &pTag);
 
