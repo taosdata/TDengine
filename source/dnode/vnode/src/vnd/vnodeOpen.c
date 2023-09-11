@@ -518,9 +518,13 @@ void vnodeStop(SVnode *pVnode) {}
 
 int64_t vnodeGetSyncHandle(SVnode *pVnode) { return pVnode->sync; }
 
-void vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot) {
-  pSnapshot->data = NULL;
+int32_t vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot) {
   pSnapshot->lastApplyIndex = pVnode->state.committed;
   pSnapshot->lastApplyTerm = pVnode->state.commitTerm;
   pSnapshot->lastConfigIndex = -1;
+
+  if (pSnapshot->typ == TAOS_SYNC_SNAP_INFO_FULL) {
+    // TODO: get full info of snapshots
+  }
+  return 0;
 }

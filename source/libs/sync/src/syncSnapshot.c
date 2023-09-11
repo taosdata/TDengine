@@ -74,6 +74,7 @@ void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {
 bool snapshotSenderIsStart(SSyncSnapshotSender *pSender) { return pSender->start; }
 
 int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
+  int32_t code = -1;
   pSender->start = true;
   pSender->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
   pSender->ack = SYNC_SNAPSHOT_SEQ_INVALID;
@@ -95,11 +96,26 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
   pSender->lastSendTime = pSender->startTime;
   pSender->finish = false;
 
+  // Get full snapshot info
+  SSyncNode *pSyncNode = pSender->pSyncNode;
+  SSnapshot  snapInfo = {.typ = TAOS_SYNC_SNAP_INFO_FULL};
+  if (pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapInfo) != 0) {
+    sSError(pSender, "snapshot get info failure since %s", terrstr());
+    goto _out;
+  }
+
+  int dataLen = 0;
+  if (snapInfo.data) {
+    SMsgHead *msgHead = snapInfo.data;
+    ASSERT(msgHead->vgId == pSyncNode->vgId);
+    dataLen = sizeof(SMsgHead) + msgHead->contLen;
+  }
+
   // build begin msg
   SRpcMsg rpcMsg = {0};
-  if (syncBuildSnapshotSend(&rpcMsg, 0, pSender->pSyncNode->vgId) != 0) {
+  if (syncBuildSnapshotSend(&rpcMsg, dataLen, pSender->pSyncNode->vgId) != 0) {
     sSError(pSender, "snapshot sender build msg failed since %s", terrstr());
-    return -1;
+    goto _out;
   }
 
   SyncSnapshotSend *pMsg = rpcMsg.pCont;
@@ -114,16 +130,27 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
   pMsg->startTime = pSender->startTime;
   pMsg->seq = SYNC_SNAPSHOT_SEQ_PREP_SNAPSHOT;
 
+  if (dataLen > 0) {
+    pMsg->payloadType = snapInfo.typ;
+    memcpy(pMsg->data, snapInfo.data, dataLen);
+  }
+
   // event log
   syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "snapshot sender start");
 
   // send msg
   if (syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg) != 0) {
     sSError(pSender, "snapshot sender send msg failed since %s", terrstr());
-    return -1;
+    goto _out;
   }
 
-  return 0;
+  code = 0;
+_out:
+  if (snapInfo.data) {
+    taosMemoryFree(snapInfo.data);
+    snapInfo.data = NULL;
+  }
+  return code;
 }
 
 void snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish) {
@@ -578,10 +605,29 @@ _SEND_REPLY:
     // build msg
     ;  // make complier happy
 
+  code = -1;
+  SSnapshot snapInfo = {.typ = TAOS_SYNC_SNAP_INFO_DIFF};
+  int32_t   dataLen = 0;
+  if (pMsg->dataLen > 0) {
+    void *data = taosMemoryCalloc(1, pMsg->dataLen);
+    if (data == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _out;
+    }
+    memcpy(data, pMsg->data, dataLen);
+    snapInfo.data = data;
+    data = NULL;
+    pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapInfo);
+
+    SMsgHead *msgHead = snapInfo.data;
+    ASSERT(msgHead->vgId == pSyncNode->vgId);
+    dataLen = msgHead->contLen;
+  }
+
   SRpcMsg rpcMsg = {0};
-  if (syncBuildSnapshotSendRsp(&rpcMsg, pSyncNode->vgId) != 0) {
+  if (syncBuildSnapshotSendRsp(&rpcMsg, dataLen, pSyncNode->vgId) != 0) {
     sRError(pReceiver, "snapshot receiver failed to build resp since %s", terrstr());
-    return -1;
+    goto _out;
   }
 
   SyncSnapshotRsp *pRspMsg = rpcMsg.pCont;
@@ -595,13 +641,24 @@ _SEND_REPLY:
   pRspMsg->code = code;
   pRspMsg->snapBeginIndex = syncNodeGetSnapBeginIndex(pSyncNode);
 
+  if (snapInfo.data) {
+    pRspMsg->payloadType = snapInfo.typ;
+    memcpy(pRspMsg->data, snapInfo.data, dataLen);
+  }
+
   // send msg
   syncLogSendSyncSnapshotRsp(pSyncNode, pRspMsg, "snapshot receiver pre-snapshot");
   if (syncNodeSendMsgById(&pRspMsg->destId, pSyncNode, &rpcMsg) != 0) {
     sRError(pReceiver, "snapshot receiver failed to build resp since %s", terrstr());
-    return -1;
+    goto _out;
   }
 
+  code = 0;
+_out:
+  if (snapInfo.data) {
+    taosMemoryFree(snapInfo.data);
+    snapInfo.data = NULL;
+  }
   return code;
 }
 
@@ -635,7 +692,7 @@ _SEND_REPLY:
 
   // build msg
   SRpcMsg rpcMsg = {0};
-  if (syncBuildSnapshotSendRsp(&rpcMsg, pSyncNode->vgId) != 0) {
+  if (syncBuildSnapshotSendRsp(&rpcMsg, 0, pSyncNode->vgId) != 0) {
     sRError(pReceiver, "snapshot receiver build resp failed since %s", terrstr());
     return -1;
   }
@@ -685,7 +742,7 @@ static int32_t syncNodeOnSnapshotReceive(SSyncNode *pSyncNode, SyncSnapshotSend 
 
   // build msg
   SRpcMsg rpcMsg = {0};
-  if (syncBuildSnapshotSendRsp(&rpcMsg, pSyncNode->vgId)) {
+  if (syncBuildSnapshotSendRsp(&rpcMsg, 0, pSyncNode->vgId)) {
     sRError(pReceiver, "snapshot receiver build resp failed since %s", terrstr());
     return -1;
   }
@@ -732,7 +789,7 @@ static int32_t syncNodeOnSnapshotEnd(SSyncNode *pSyncNode, SyncSnapshotSend *pMs
 
   // build msg
   SRpcMsg rpcMsg = {0};
-  if (syncBuildSnapshotSendRsp(&rpcMsg, pSyncNode->vgId) != 0) {
+  if (syncBuildSnapshotSendRsp(&rpcMsg, 0, pSyncNode->vgId) != 0) {
     sRError(pReceiver, "snapshot receiver build rsp failed since %s", terrstr());
     return -1;
   }
@@ -869,6 +926,11 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
   // update sender
   pSender->snapshot = snapshot;
 
+  if (pMsg->payloadType == TAOS_SYNC_SNAP_INFO_DIFF) {
+    SMsgHead *msgHead = (void *)pMsg->data;
+    ASSERT(msgHead->vgId == pSyncNode->vgId);
+    pSender->snapshotParam.data = pMsg->data;
+  }
   // start reader
   int32_t code = pSyncNode->pFsm->FpSnapshotStartRead(pSyncNode->pFsm, &pSender->snapshotParam, &pSender->pReader);
   if (code != 0) {
