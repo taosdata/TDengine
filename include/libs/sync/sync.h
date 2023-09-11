@@ -87,6 +87,12 @@ typedef enum {
   TAOS_SYNC_ROLE_ERROR = 2,
 } ESyncRole;
 
+typedef enum {
+  TAOS_SYNC_SNAP_INFO_BRIEF = 0,
+  TAOS_SYNC_SNAP_INFO_FULL = 1,
+  TAOS_SYNC_SNAP_INFO_DIFF = 2,
+} ESyncSnapInfoTyp;
+
 typedef struct SNodeInfo {
   int64_t   clusterId;
   int32_t   nodeId;
@@ -139,10 +145,12 @@ typedef struct SReConfigCbMeta {
 typedef struct SSnapshotParam {
   SyncIndex start;
   SyncIndex end;
+  void*     data;  // with SMsgHead
 } SSnapshotParam;
 
 typedef struct SSnapshot {
-  void*     data;
+  ESyncSnapInfoTyp typ;
+  void*            data;  // with SMsgHead
   SyncIndex lastApplyIndex;
   SyncTerm  lastApplyTerm;
   SyncIndex lastConfigIndex;
@@ -171,7 +179,7 @@ typedef struct SSyncFSM {
   void (*FpBecomeLearnerCb)(const struct SSyncFSM* pFsm);
 
   int32_t (*FpGetSnapshot)(const struct SSyncFSM* pFsm, SSnapshot* pSnapshot, void* pReaderParam, void** ppReader);
-  void (*FpGetSnapshotInfo)(const struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
+  int32_t (*FpGetSnapshotInfo)(const struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
 
   int32_t (*FpSnapshotStartRead)(const struct SSyncFSM* pFsm, void* pReaderParam, void** ppReader);
   void (*FpSnapshotStopRead)(const struct SSyncFSM* pFsm, void* pReader);
