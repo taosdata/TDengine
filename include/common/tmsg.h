@@ -1485,6 +1485,7 @@ typedef struct {
   SClusterCfg clusterCfg;
   SArray*     pVloads;  // array of SVnodeLoad
   int32_t     statusSeq;
+  int64_t     ipWhiteVer;
 } SStatusReq;
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);

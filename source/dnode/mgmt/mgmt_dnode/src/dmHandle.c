@@ -136,6 +136,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   pMgmt->statusSeq++;
   req.statusSeq = pMgmt->statusSeq;
+  req.ipWhiteVer = pMgmt->ipWhiteVer;
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   void   *pHead = rpcMallocCont(contLen);

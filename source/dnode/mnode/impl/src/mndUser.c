@@ -66,7 +66,7 @@ static SIpWhiteMgt ipWhiteMgt;
 
 void ipWhiteMgtInit() {
   ipWhiteMgt.pIpWhiteTab = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 1, HASH_ENTRY_LOCK);
-  ipWhiteMgt.ver = 0;
+  ipWhiteMgt.ver = taosGetTimestampMs();
   taosThreadRwlockInit(&ipWhiteMgt.rw, NULL);
 }
 void ipWhiteMgtCleanup() {
@@ -1194,13 +1194,9 @@ int32_t mndProcesSRetrieveIpWhiteReq(SRpcMsg *pReq) {
   void *pRsp = rpcMallocCont(len);
   tSerializeSUpdateIpWhite(pRsp, len, &ipWhite);
 
-  if (req.ipWhiteVer == 0) {
-    pReq->info.rsp = pRsp;
-    pReq->info.rspLen = len;
-  } else {
-    pReq->info.rsp = pRsp;
-    pReq->info.rspLen = len;
-  }
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = len;
+  //}
   tFreeSUpdateIpWhiteReq(&ipWhite);
 
   return 0;

@@ -527,7 +527,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       }
     }
   }
-  int64_t ver = mndGetIpWhiteVer(pMnode);
+
+  pMnode->ipWhiteVer = mndGetIpWhiteVer(pMnode);
 
   int64_t dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
   int64_t curMs = taosGetTimestampMs();
@@ -535,9 +536,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    dnodeChanged = (statusReq.dnodeVer == 0) || (statusReq.dnodeVer != dnodeVer);
   bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
   bool    supportVnodesChanged = pDnode->numOfSupportVnodes != statusReq.numOfSupportVnodes;
-  bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || pMnode->ipWhiteVer != ver;
-
-  pMnode->ipWhiteVer = ver;
+  bool    needCheck =
+      !online || dnodeChanged || reboot || supportVnodesChanged || pMnode->ipWhiteVer != statusReq.ipWhiteVer;
 
   const STraceId *trace = &pReq->info.traceId;
   mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
@@ -658,7 +658,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     }
 
     mndGetDnodeEps(pMnode, statusRsp.pDnodeEps);
-    statusRsp.ipWhiteVer = ver;
+    statusRsp.ipWhiteVer = pMnode->ipWhiteVer;
 
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
     void   *pHead = rpcMallocCont(contLen);
