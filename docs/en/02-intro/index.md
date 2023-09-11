@@ -8,7 +8,7 @@ TDengine is a big data platform designed and optimized for IoT (Internet of Thin
 
 This section introduces the major features, competitive advantages, typical use-cases and benchmarks to help you get a high level overview of TDengine.
 
-## Major Features
+## Major Features of TDengine OSS
 
 The major features are listed below:
 
