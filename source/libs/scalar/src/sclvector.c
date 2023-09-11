@@ -329,6 +329,7 @@ static FORCE_INLINE void varToVarbinary(char *buf, SScalarParam *pOut, int32_t r
     if (t == NULL) {
       sclError("Out of memory");
       terrno = TSDB_CODE_OUT_OF_MEMORY;
+      taosMemoryFree(data);
       return;
     }
     varDataSetLen(t, size);
