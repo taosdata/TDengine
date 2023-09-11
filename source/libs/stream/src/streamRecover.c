@@ -41,8 +41,8 @@ static void streamTaskSetReady(SStreamTask* pTask, int32_t numOfReqs) {
   pTask->status.downstreamReady = 1;
 
   int64_t el = (taosGetTimestampMs() - pTask->tsInfo.init);
-  qDebug("s-task:%s all %d downstream ready, init completed, elapsed time:%dms, task status:%s",
-         pTask->id.idStr, numOfReqs, (int32_t) el, streamGetTaskStatusStr(pTask->status.taskStatus));
+  qDebug("s-task:%s all %d downstream ready, init completed, elapsed time:%"PRId64"ms, task status:%s",
+         pTask->id.idStr, numOfReqs, el, streamGetTaskStatusStr(pTask->status.taskStatus));
 }
 
 int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated) {
