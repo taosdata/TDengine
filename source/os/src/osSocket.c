@@ -898,32 +898,6 @@ int64_t taosCopyFds(TdSocketPtr pSrcSocket, TdSocketPtr pDestSocket, int64_t len
 
 #endif  // endif 0
 
-uint32_t ip2uint(const char *const ip_addr) {
-  char ip_addr_cpy[20];
-  char ip[5];
-
-  tstrncpy(ip_addr_cpy, ip_addr, sizeof(ip_addr_cpy));
-
-  char *s_start, *s_end;
-  s_start = ip_addr_cpy;
-  s_end = ip_addr_cpy;
-
-  int32_t k;
-
-  for (k = 0; *s_start != '\0'; s_start = s_end) {
-    for (s_end = s_start; *s_end != '.' && *s_end != '\0'; s_end++) {
-    }
-    if (*s_end == '.') {
-      *s_end = '\0';
-      s_end++;
-    }
-    ip[k++] = (char)atoi(s_start);
-  }
-
-  ip[k] = '\0';
-
-  return *((uint32_t *)ip);
-}
 void taosBlockSIGPIPE() {
 #ifdef WINDOWS
   // ASSERT(0);

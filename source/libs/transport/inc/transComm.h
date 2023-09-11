@@ -439,12 +439,12 @@ int32_t transGetInstMgt();
 void transHttpEnvDestroy();
 
 typedef struct {
-  int32_t netmask;
-  int32_t address;
-  int32_t network;
-  int32_t broadcast;
-  char    info[32];
-  int8_t  type;
+  uint32_t netmask;
+  uint32_t address;
+  uint32_t network;
+  uint32_t broadcast;
+  char     info[32];
+  int8_t   type;
 } SubnetUtils;
 
 int32_t subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange);

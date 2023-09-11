@@ -655,14 +655,47 @@ void transDestoryExHandle(void* handle) {
   taosMemoryFree(handle);
 }
 
-int32_t subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange) {
-  pUtils->address = pRange->ip;
+void subnetIp2int(const char* const ip_addr, uint8_t* dst) {
+  char ip_addr_cpy[20];
+  char ip[5];
 
-  int32_t mask = 0;
-  for (int i = 0; i < pRange->mask; i++) {
-    mask |= (1 << (31 - i));
+  tstrncpy(ip_addr_cpy, ip_addr, sizeof(ip_addr_cpy));
+
+  char *s_start, *s_end;
+  s_start = ip_addr_cpy;
+  s_end = ip_addr_cpy;
+
+  int32_t k = 0;
+
+  for (k = 0; *s_start != '\0'; s_start = s_end) {
+    for (s_end = s_start; *s_end != '.' && *s_end != '\0'; s_end++) {
+    }
+    if (*s_end == '.') {
+      *s_end = '\0';
+      s_end++;
+    }
+    dst[k++] = (char)atoi(s_start);
   }
-  pUtils->netmask = mask;
+}
+
+int32_t subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange) {
+  if (pRange->mask == 0) {
+    pUtils->address = pRange->ip;
+    pUtils->type = 0;
+    return 0;
+  }
+
+  SIpV4Range tRange = {.ip = pRange->ip, .mask = 0};
+  char       tbuf[32] = {0};
+  transUtilSIpRangeToStr(&tRange, tbuf);
+  uint8_t el[4] = {0};
+  subnetIp2int(tbuf, el);
+
+  pUtils->address = (el[0] << 24) | (el[1] << 16) | (el[2] << 8) | (el[0]);
+
+  for (int i = 0; i < pRange->mask; i++) {
+    pUtils->netmask |= (1 << (31 - i));
+  }
 
   pUtils->network = pUtils->address & pUtils->netmask;
   pUtils->broadcast = (pUtils->network) | (pUtils->netmask ^ 0xFFFFFFFF);
@@ -681,7 +714,15 @@ int32_t subnetCheckIp(SubnetUtils* pUtils, uint32_t ip) {
   if (pUtils->type == 0) {
     return pUtils->address == ip;
   } else {
-    return pUtils->network >= ip && pUtils->broadcast <= ip;
+    SIpV4Range tRange = {.ip = ip, .mask = 0};
+    char       tbuf[32] = {0};
+    transUtilSIpRangeToStr(&tRange, tbuf);
+    uint8_t el[4] = {0};
+    subnetIp2int(tbuf, el);
+
+    ip = (el[0] << 24) | (el[1] << 16) | (el[2] << 8) | (el[0]);
+
+    return ip >= pUtils->network && ip <= pUtils->broadcast;
   }
 }
 
