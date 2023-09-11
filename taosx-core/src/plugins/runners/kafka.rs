@@ -18,14 +18,13 @@ use tokio_util::sync::CancellationToken;
 use taosx_ipc::prelude::ArrowDataType;
 use tracing::Span;
 
+use crate::{Action, build_ipc, Parser, Transferred};
 use crate::utils::port_pool::PortPool;
-use crate::{build_ipc, Action, Parser, Transferred};
 
 async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
     let socket = format!("127.0.0.1:{}", port);
     let stream = std::net::TcpStream::connect(socket)?;
     let schema = build_schema();
-
     let mut writer = StreamWriter::try_new(&stream, &schema)?;
 
     let mut consumer = build_consumer(&mut from)?;
@@ -395,35 +394,9 @@ fn parse_offset_storage(offset_storage: Option<&str>) -> anyhow::Result<GroupOff
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::fmt::Debug;
     use std::str::FromStr;
 
-    use arrow::datatypes::{DataType, Field, Schema};
-
-    use taosx_ipc::prelude::ArrowDataType;
-
     use super::*;
-
-    #[test]
-    fn test_arrow() {
-        let mut metadata = HashMap::new();
-        metadata.insert(String::from("version"), String::from("1.0"));
-        metadata.insert(String::from("stream"), String::from("flat"));
-        metadata.insert(String::from("ack"), String::from("none"));
-        let flat_columns = vec![
-            Field::new(
-                "ts",
-                DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None),
-                false,
-            ),
-            Field::new("topic", ArrowDataType::Utf8, false),
-            Field::new("qos", ArrowDataType::UInt8, false),
-            Field::new("payload", ArrowDataType::Binary, false),
-        ];
-        let record_list = DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None);
-        let schema = Schema::new(flat_columns).with_metadata(metadata);
-    }
 
     #[test]
     fn test_topics() {

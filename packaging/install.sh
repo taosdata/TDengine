@@ -11,6 +11,8 @@ agentname="${PREFIX}x-agent"
 explorerName="${PREFIX}-explorer"
 csudo=""
 
+target=""
+
 if command -v sudo >/dev/null; then
   csudo="sudo "
 fi
@@ -134,15 +136,40 @@ remove_taosx() {
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
 }
 
-print_tips(){
-    echo -e "\033[32mTo configure taosx-agent   \033[0m: edit /etc/taos/agent.toml"
-    echo -e "\033[32mTo configure taos-explorer \033[0m: edit /etc/taos/explorer.toml"
-    echo -e "\033[32mTo start taosx             \033[0m: sudo systemctl start taosx"
-    echo -e "\033[32mTo start taosx-agent       \033[0m: sudo systemctl start taosx-agent"
-    echo -e "\033[32mTo start taos-explorer     \033[0m: sudo systemctl start taos-explorer"
+# remove taosx-agent
+remove_taos_agent() {
+    if [ -f ./bin/${agentname} ]; then
+        stop_taosx_agent_service
+        ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
+    fi
+    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
+    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
+}
 
-    echo -e "\n\033[32mtaosx is installed successfully!\033[0m"
-    echo -e "\033[32mOpen taos-explorer in web browser: http://`hostname`:6060\033[0m"
+remove_target() {
+    if [ "$target" = "taosx" ]; then
+      remove_taosx
+    else
+      remove_taos_agent
+    fi
+}
+
+print_tips(){
+    if [ "$target" = "taosx" ]; then
+      echo -e "\033[32mTo configure taosx-agent   \033[0m: edit /etc/taos/agent.toml"
+      echo -e "\033[32mTo configure taos-explorer \033[0m: edit /etc/taos/explorer.toml"
+      echo -e "\033[32mTo start taosx             \033[0m: sudo systemctl start taosx"
+      echo -e "\033[32mTo start taosx-agent       \033[0m: sudo systemctl start taosx-agent"
+      echo -e "\033[32mTo start taos-explorer     \033[0m: sudo systemctl start taos-explorer"
+
+      echo -e "\n\033[32mtaosx is installed successfully!\033[0m"
+      echo -e "\033[32mOpen taos-explorer in web browser: http://`hostname`:6060\033[0m"
+    else
+      echo -e "\033[32mTo configure taosx-agent   \033[0m: edit /etc/taos/agent.toml"
+      echo -e "\033[32mTo start taosx-agent       \033[0m: sudo systemctl start taosx-agent"
+
+      echo -e "\n\033[32mtaosx-agent is installed successfully!\033[0m"
+    fi
 }
 
 # install new taosx and taosx-agent
@@ -204,14 +231,14 @@ check_install_env(){
 check_install_env
 
 # main entry point
-if [ -x ${INSTALL_DIR}/${xName} ]; then
-    echo "${xName} is already installed, do you want to reinstall it? [y/n]"
+if [ -x ${INSTALL_DIR}/${target} ]; then
+    echo "${target} is already installed, do you want to reinstall it? [y/n]"
     read answer
     if [ $answer == "y" ]; then
-        remove_taosx
+        remove_target
         install_taosx
     else
-        echo "${xName} installation is cancelled"
+        echo "${target} installation is cancelled"
         exit 1
     fi
 else
