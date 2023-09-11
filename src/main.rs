@@ -107,7 +107,7 @@ pub(crate) struct GlobalOpts {
     otel: Option<bool>,
 
     #[clap(
-        short = 'e',
+        // short = 'e',
         long,
         global = true,
         default_value = "none",
