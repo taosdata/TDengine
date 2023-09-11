@@ -1117,8 +1117,8 @@ static bool getNeighborBlockOfSameTable(SDataBlockIter* pBlockIter, SFileDataBlo
   //  *nextIndex = pBlockInfo->tbBlockIdx + step;
   //  *pBlockIndex = *(SBlockIndex*)taosArrayGet(pTableBlockScanInfo->pBlockList, *nextIndex);
   STableDataBlockIdx* pTableDataBlockIdx = taosArrayGet(pTableBlockScanInfo->pBlockIdxList, pBlockInfo->tbBlockIdx + step);
-  SBrinRecord* p = taosArrayGet(pBlockIter->blockList, pTableDataBlockIdx->globalIndex);
-  memcpy(pRecord, p, sizeof(SBrinRecord));
+  SFileDataBlockInfo* p = taosArrayGet(pBlockIter->blockList, pTableDataBlockIdx->globalIndex);
+  memcpy(pRecord, &p->record, sizeof(SBrinRecord));
 
   *nextIndex = pBlockInfo->tbBlockIdx + step;
 
