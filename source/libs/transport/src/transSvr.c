@@ -96,6 +96,7 @@ typedef struct SWorkThrd {
 
   SWhiteList* pWhiteList;
   int64_t     whiteListVer;
+  int8_t      enableIpWhiteList;
 } SWorkThrd;
 
 typedef struct SServerObj {
@@ -355,9 +356,12 @@ static bool uvHandleReq(SSvrConn* pConn) {
   pConn->inType = pHead->msgType;
   memcpy(pConn->user, pHead->user, strlen(pHead->user));
 
-  int8_t forbiddenIp = uvWhiteListCheckConn(pThrd->pWhiteList, pConn) == false ? 1 : 0;
-  if (forbiddenIp == 0) {
-    uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
+  int8_t forbiddenIp = 0;
+  if (pThrd->enableIpWhiteList) {
+    forbiddenIp = uvWhiteListCheckConn(pThrd->pWhiteList, pConn) == false ? 1 : 0;
+    if (forbiddenIp == 0) {
+      uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
+    }
   }
 
   if (uvRecvReleaseReq(pConn, pHead)) {
@@ -1355,21 +1359,26 @@ void uvHandleRegister(SSvrMsg* msg, SWorkThrd* thrd) {
 }
 void uvHandleUpdate(SSvrMsg* msg, SWorkThrd* thrd) {
   SUpdateIpWhite* req = msg->arg;
-  for (int i = 0; i < req->numOfUser; i++) {
-    SUpdateUserIpWhite* pUser = &req->pUserIpWhite[i];
+  if (req != NULL) {
+    for (int i = 0; i < req->numOfUser; i++) {
+      SUpdateUserIpWhite* pUser = &req->pUserIpWhite[i];
 
-    int32_t       sz = pUser->numOfRange * sizeof(SIpV4Range);
-    SIpWhiteList* pList = taosMemoryCalloc(1, sz + sizeof(SIpWhiteList));
-    pList->num = pUser->numOfRange;
+      int32_t       sz = pUser->numOfRange * sizeof(SIpV4Range);
+      SIpWhiteList* pList = taosMemoryCalloc(1, sz + sizeof(SIpWhiteList));
+      pList->num = pUser->numOfRange;
 
-    memcpy(pList->pIpRange, pUser->pIpRanges, sz);
-    uvWhiteListAdd(thrd->pWhiteList, pUser->user, pList, pUser->ver);
+      memcpy(pList->pIpRange, pUser->pIpRanges, sz);
+      uvWhiteListAdd(thrd->pWhiteList, pUser->user, pList, pUser->ver);
+    }
+
+    thrd->pWhiteList->ver = req->ver;
+    thrd->enableIpWhiteList = 1;
+
+    tFreeSUpdateIpWhiteReq(req);
+    taosMemoryFree(req);
+  } else {
+    thrd->enableIpWhiteList = 0;
   }
-
-  thrd->pWhiteList->ver = req->ver;
-
-  tFreeSUpdateIpWhiteReq(req);
-  taosMemoryFree(req);
   taosMemoryFree(msg);
   return;
 }
@@ -1560,7 +1569,7 @@ void transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
     SWorkThrd* pThrd = svrObj->pThreadObj[i];
 
     SSvrMsg*        msg = taosMemoryCalloc(1, sizeof(SSvrMsg));
-    SUpdateIpWhite* pReq = cloneSUpdateIpWhiteReq((SUpdateIpWhite*)arg);
+    SUpdateIpWhite* pReq = (arg != NULL ? cloneSUpdateIpWhiteReq((SUpdateIpWhite*)arg) : NULL);
 
     msg->type = Update;
     msg->arg = pReq;

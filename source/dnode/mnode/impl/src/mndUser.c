@@ -66,7 +66,7 @@ static SIpWhiteMgt ipWhiteMgt;
 
 void ipWhiteMgtInit() {
   ipWhiteMgt.pIpWhiteTab = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 1, HASH_ENTRY_LOCK);
-  ipWhiteMgt.ver = taosGetTimestampMs();
+  ipWhiteMgt.ver = 0;
   taosThreadRwlockInit(&ipWhiteMgt.rw, NULL);
 }
 void ipWhiteMgtCleanup() {
@@ -188,11 +188,14 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
   int64_t ver = ipWhiteMgt.ver;
   if (ver == 0) {
     ipWhiteMgtUpdateAll(pMnode);
+    ipWhiteMgt.ver = taosGetTimestampMs();
   }
-
-  ver = ipWhiteMgt.ver;
   taosThreadRwlockUnlock(&ipWhiteMgt.rw);
   mInfo("ip-white-mnode ver, %" PRId64 "", ver);
+
+  if (mndCheckIpWhiteList(pMnode) == 0 || tsEnableWhiteList == false) {
+    return 0;
+  }
   return ver;
 }
 

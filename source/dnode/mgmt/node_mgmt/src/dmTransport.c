@@ -73,6 +73,18 @@ static void dmUpdateRpcIpWhite(void *pTrans, SRpcMsg *pRpc) {
 
   rpcFreeCont(pRpc->pCont);
 }
+static bool dmIsForbiddenIp(int8_t forbidden, char *user, uint32_t clientIp) {
+  if (forbidden) {
+    SIpV4Range range = {.ip = clientIp, .mask = 32};
+    char       buf[36] = {0};
+
+    rpcUtilSIpRangeToStr(&range, buf);
+    dError("User %s host:%s not in ip white list", user, buf);
+    return true;
+  } else {
+    return false;
+  }
+}
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SDnodeTrans  *pTrans = &pDnode->trans;
   int32_t       code = -1;
@@ -91,13 +103,8 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     goto _OVER;
   }
 
-  if (pRpc->info.forbiddenIp == 1) {
-    char       tbuf[36] = {0};
-    SIpV4Range range = {.ip = pRpc->info.conn.clientIp, .mask = 32};
-    rpcUtilSIpRangeToStr(&range, tbuf);
-
-    dError("User %s host:%s not in ip white list", pRpc->info.conn.user, tbuf);
-
+  bool isForbidden = dmIsForbiddenIp(pRpc->info.forbiddenIp, pRpc->info.conn.user, pRpc->info.conn.clientIp);
+  if (isForbidden) {
     terrno = TSDB_CODE_IP_NOT_IN_WHITE_LIST;
     goto _OVER;
   }
@@ -397,6 +404,7 @@ void dmCleanupServer(SDnode *pDnode) {
 SMsgCb dmGetMsgcb(SDnode *pDnode) {
   SMsgCb msgCb = {
       .clientRpc = pDnode->trans.clientRpc,
+      .serverRpc = pDnode->trans.serverRpc,
       .sendReqFp = dmSendReq,
       .sendRspFp = dmSendRsp,
       .registerBrokenLinkArgFp = dmRegisterBrokenLinkArg,
