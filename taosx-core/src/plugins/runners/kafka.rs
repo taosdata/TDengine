@@ -51,7 +51,6 @@ async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
         let mut key = BinaryBuilder::new();
         let mut value = BinaryBuilder::new();
 
-
         for ms in message_sets.iter() {
             for m in ms.messages() {
                 let ts = chrono::Utc::now().timestamp_nanos();
@@ -152,7 +151,7 @@ pub async fn kafka_to_taos(
                             }
                             Err(_) => {
                                 tracing::info!("Kafka worker done successfully");
-                                let _ = ipc.send(());
+                                let _ = ipc.send(()).await;
                             }
                         }
                     }
@@ -166,7 +165,7 @@ pub async fn kafka_to_taos(
                 tracing::info!("have received worker thread panicked message, terminate child process");
                 abort_handle.abort();
                 if let Some(err) = err {
-                    let _ = ipc.send(());
+                    let _ = ipc.send(()).await;
                     let _ = ipc.close().await;
                     abort_handle.abort();
                     anyhow::bail!("Kafka writer error: {err:#}");
@@ -178,7 +177,7 @@ pub async fn kafka_to_taos(
             }
         }
         // send an empty tuple
-        let _ = ipc.send(());
+        let _ = ipc.send(()).await;
         // stop the connector
         tracing::info!("Kafka task Done");
         ipc.close().await?;

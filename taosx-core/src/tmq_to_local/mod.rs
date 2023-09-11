@@ -246,7 +246,7 @@ async fn backup(
     barrier.wait().await;
     log::info!("[{id}] total backup {} rows", rows);
     drop(stream);
-    let _ = sender.send(consumer);
+    let _ = sender.send(consumer); // tokio send
     // consumer.unsubscribe().await;
     log::info!("[{id}] backup done");
     Ok(())

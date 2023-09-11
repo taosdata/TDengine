@@ -5,7 +5,7 @@ use arrow::{
     ipc::writer::IpcWriteOptions,
     record_batch::RecordBatch,
 };
-use arrow_flight::{FlightClient, PutResult};
+use arrow_flight::FlightClient;
 use async_backtrace::framed;
 use bytes::Bytes;
 use futures::TryStreamExt;
@@ -70,52 +70,52 @@ async fn ipc_tcp_forward(
         FlightData,
     };
     use futures::StreamExt;
-    struct FakeStream(SchemaRef, tokio::time::Interval);
+    // struct FakeStream(SchemaRef, tokio::time::Interval);
 
-    impl futures::Stream for FakeStream {
-        type Item = Result<RecordBatch, FlightError>;
-        fn poll_next(
-            mut self: std::pin::Pin<&mut Self>,
-            cx: &mut std::task::Context<'_>,
-        ) -> std::task::Poll<Option<Self::Item>> {
-            // std::thread::sleep(Duration::from_millis(100));
-            match self.1.poll_tick(cx) {
-                Poll::Ready(_) => (),
-                Poll::Pending => return Poll::Pending,
-            }
-            // fut.poll_unpin(cx);
-            let val = Arc::new(TimestampMillisecondArray::from_iter_values(vec![0, 1])) as ArrayRef;
-            let item = RecordBatch::try_from_iter(vec![("ts", val)]).map_err(Into::into);
-            tracing::info!("{item:?}");
-            std::task::Poll::Ready(Some(item))
-        }
-    }
-    struct Data {
-        data: FlightDataEncoder,
-    }
-    impl futures::Stream for Data {
-        type Item = FlightData;
-        fn poll_next(
-            mut self: std::pin::Pin<&mut Self>,
-            cx: &mut std::task::Context<'_>,
-        ) -> std::task::Poll<Option<Self::Item>> {
-            self.data
-                .try_poll_next_unpin(cx)
-                .map(|u| u.transpose().unwrap())
-                .map(|u| {
-                    u.map(|mut v| {
-                        if v.app_metadata.is_empty() {
-                            v.app_metadata = Bytes::from("request");
-                            // dbg!(v)
-                            v
-                        } else {
-                            // dbg!(v)
-                            v
-                        }
-                    })
-                })
-        }
-    }
+    // impl futures::Stream for FakeStream {
+    //     type Item = Result<RecordBatch, FlightError>;
+    //     fn poll_next(
+    //         mut self: std::pin::Pin<&mut Self>,
+    //         cx: &mut std::task::Context<'_>,
+    //     ) -> std::task::Poll<Option<Self::Item>> {
+    //         // std::thread::sleep(Duration::from_millis(100));
+    //         match self.1.poll_tick(cx) {
+    //             Poll::Ready(_) => (),
+    //             Poll::Pending => return Poll::Pending,
+    //         }
+    //         // fut.poll_unpin(cx);
+    //         let val = Arc::new(TimestampMillisecondArray::from_iter_values(vec![0, 1])) as ArrayRef;
+    //         let item = RecordBatch::try_from_iter(vec![("ts", val)]).map_err(Into::into);
+    //         tracing::info!("{item:?}");
+    //         std::task::Poll::Ready(Some(item))
+    //     }
+    // }
+    // struct Data {
+    //     data: FlightDataEncoder,
+    // }
+    // impl futures::Stream for Data {
+    //     type Item = FlightData;
+    //     fn poll_next(
+    //         mut self: std::pin::Pin<&mut Self>,
+    //         cx: &mut std::task::Context<'_>,
+    //     ) -> std::task::Poll<Option<Self::Item>> {
+    //         self.data
+    //             .try_poll_next_unpin(cx)
+    //             .map(|u| u.transpose().unwrap())
+    //             .map(|u| {
+    //                 u.map(|mut v| {
+    //                     if v.app_metadata.is_empty() {
+    //                         v.app_metadata = Bytes::from("request");
+    //                         // dbg!(v)
+    //                         v
+    //                     } else {
+    //                         // dbg!(v)
+    //                         v
+    //                     }
+    //                 })
+    //             })
+    //     }
+    // }
     let reader_stream = stream
         .try_clone()
         .context("Try clone IPC stream as reader error")?;
@@ -128,59 +128,30 @@ async fn ipc_tcp_forward(
 
     let schema = ipc_reader.schema.clone();
     // dbg!(&schema);
-    let (sender, receiver) = flume::bounded(5);
+    // let (sender, receiver) = flume::bounded(5);
 
     info!(client, remote, "reading batches");
-    tokio::spawn(async move {
-        let mut batches = futures::stream::iter(ipc_reader.reader);
-        while let Some(res) = batches.next().await {
-            // dbg!(&res);
-            if let Err(err) = sender.send(res.map_err(FlightError::from)) {
-                tracing::warn!("sender send error: {}", err.to_string());
-                break;
-            }
-        }
-        tracing::info!("[task:{task_id}] stopped");
-    });
-
-    struct IpcStream {
-        receiver: flume::Receiver<Result<RecordBatch, FlightError>>,
-        marker: AtomicUsize,
-    }
-    impl IpcStream {
-        fn new(receiver: flume::Receiver<Result<RecordBatch, FlightError>>) -> Self {
-            Self {
-                receiver,
-                marker: AtomicUsize::new(0),
-            }
-        }
-    }
-
-    impl futures::Stream for IpcStream {
-        type Item = Result<RecordBatch, FlightError>;
-        fn poll_next(
-            self: std::pin::Pin<&mut Self>,
-            cx: &mut std::task::Context<'_>,
-        ) -> std::task::Poll<Option<Self::Item>> {
-            let c = self
-                .marker
-                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            // tracing::info!("polled: {c} {cx:?}");
-
-            if c % 2 == 0 {
-                // todo: why this is require?
-                cx.waker().wake_by_ref();
-                return Poll::Pending;
-            }
-            let recv = self.receiver.recv();
-            Poll::Ready(recv.ok())
-        }
-    }
+    // tokio::spawn(async move {
+    //     let mut batches = ipc_reader.into_raw_stream();
+    //     while let Some(res) = batches.next().await {
+    //         dbg!(&res);
+    //         if sender
+    //             .send_async(res.map_err(FlightError::from))
+    //             .await
+    //             .is_err()
+    //         {
+    //             tracing::info!("IPC remote handler has been closed");
+    //             break;
+    //         }
+    //     }
+    //     tracing::info!("[task:{task_id}] stopped");
+    // });
+    // tokio::task::yield_now().await;
 
     let data = FlightDataEncoderBuilder::new()
         .with_schema(schema.clone())
         .with_options(IpcWriteOptions::try_new(8, false, arrow::ipc::MetadataVersion::V5).unwrap())
-        .build(IpcStream::new(receiver));
+        .build(ipc_reader.into_raw_stream().map_err(FlightError::from));
 
     const MAX_RETRIES: usize = 3;
     const RETRY_DELAY: Duration = Duration::from_secs(5);
@@ -208,19 +179,29 @@ async fn ipc_tcp_forward(
             FlightError::Tonic(status) => anyhow::anyhow!("{}", status.message()),
             err => anyhow::anyhow!("Handshake error: {err:#}"),
         })?;
-    tracing::info!("Handshake done");
+    info!("Handshake done");
     // dbg!(res);
     client.add_header("x-task-id", &task_id.to_string())?;
     client.add_header("x-token", &token)?;
-    let mut stream = client.do_put(data).await.map_err(|err| match err {
+    info!("Do putting");
+    let mut stream = client.do_put(data).await.map_err(|err| match dbg!(err) {
         FlightError::Arrow(err) => anyhow::anyhow!("IPC Arrow error: {err:#}"),
         FlightError::Tonic(status) => anyhow::anyhow!("{}", status.message()),
         err => anyhow::anyhow!("Put IPC stream error: {err:#}"),
     })?;
+    info!("Get putting stream response");
 
     while let Some(res) = stream.next().await {
-        let rsp: PutResult = res.context("Got server response with error")?;
-        tracing::info!("Response: {:?}", rsp);
+        let rsp = res.context("Got server response with error");
+        match rsp {
+            Ok(rsp) => {
+                tracing::debug!("Response ok: {:?}", rsp);
+            }
+            Err(err) => {
+                tracing::error!("Server response error: {err:#}");
+                Err(err)?;
+            }
+        }
         let _ = ipc_ack_writer.write_ok();
     }
 
@@ -1155,6 +1136,7 @@ async fn consume_flat_record(
     let mut max_lengths = HashMap::new();
 
     for message in record.records() {
+        tokio::task::yield_now().await;
         counter!(RECORD_BATCHES, 1);
         let batch = message.record();
         if let Some(parser) = parser {

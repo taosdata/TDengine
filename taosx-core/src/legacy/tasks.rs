@@ -175,7 +175,10 @@ impl TablesHandle {
                 let time_range = TimeRange::new().start(start).end(now);
 
                 for table in &tables {
-                    sender.send((table.clone(), time_range.clone())).unwrap();
+                    sender
+                        .send_async((table.clone(), time_range.clone()))
+                        .await
+                        .unwrap();
                 }
             }
 
@@ -188,7 +191,10 @@ impl TablesHandle {
                 let time_range = TimeRange::new().start(start).end(end);
                 log::debug!("spawn sync task for range: {:?}", time_range);
                 for table in &tables {
-                    sender.send((table.clone(), time_range.clone())).unwrap();
+                    sender
+                        .send_async((table.clone(), time_range.clone()))
+                        .await
+                        .unwrap();
                 }
                 start = end;
                 let _ = interval.tick().await;

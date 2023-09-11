@@ -120,7 +120,7 @@ pub fn spawn_runner(
                                     "task": task.id,
                                 }),
                             );
-                            let _ = sender.send(RespAction::AgentActivity(activity));
+                            let _ = sender.send_async(RespAction::AgentActivity(activity)).await;
                             let cancellation = CancellationToken::new();
                             let cancel = cancellation.clone();
 

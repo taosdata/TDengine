@@ -176,7 +176,7 @@ impl AgentTasks {
                             }
                             AgentAction::RetrieveDataSets(req, sets) => {
                                 if let Some(sender) = datasets.remove(&req) {
-                                    let _ = sender.1.send(Ok(sets));
+                                    let _ = sender.1.send_async(Ok(sets)).await;
                                 }
                             }
                         }
@@ -191,7 +191,7 @@ impl AgentTasks {
     }
 
     pub fn send(&self, action: AgentAction) -> Result<usize, AgentTasksError> {
-        self.sender.send(action)
+        self.sender.send(action) // tokio send
     }
 }
 
@@ -460,7 +460,7 @@ impl TaskController {
         MIGRATOR.run(&pool).await?;
         let scheduler = JobScheduler::new().await?;
         scheduler.start().await?;
-        let transferred = Transferred::new(pool.clone(), Duration::from_secs(1));
+        let transferred = Transferred::new(pool.clone(), Duration::from_secs(10));
         Ok(Self {
             pool,
             runtime: None,
@@ -672,7 +672,7 @@ impl TaskController {
                     }
                     let activity;
                     if let Some((id, sender, _)) = agent_task_worker.as_ref() {
-                        let _ = sender.send(AgentAction::Cancel(*id));
+                        let _ = sender.send(AgentAction::Cancel(*id)); // tokio send
                         activity = "Send cancel signal to agent".to_string();
                     } else {
                         opts.cancel();
@@ -886,7 +886,7 @@ impl TaskController {
                         .execute(&pool)
                         .await?;
                         if let Some((id, sender, agent_id)) = &agent_task_worker {
-                            let send = sender.send(AgentAction::Run(*id)).map_err(|_| anyhow::format_err!("Unable to start task {id} with agent {agent_id}")).map(|_| ());
+                            let send = sender.send(AgentAction::Run(*id)).map_err(|_| anyhow::format_err!("Unable to start task {id} with agent {agent_id}")).map(|_| ()); // tokio send
                             let _ = dbg!(send);
                             cloned_token2.cancelled().await;
                         } else {

@@ -190,8 +190,6 @@ impl Client {
         resp_tx: Sender<RespAction>,
         resp_rx: Receiver<RespAction>,
     ) -> Result<()> {
-        let inner_grpc = self.client.inner();
-
         tracing::info!("Wait tasks from server");
 
         struct FakeStream(
@@ -444,31 +442,33 @@ impl Client {
                     "run" => {
                         let task: Task = serde_json::from_str(&context).unwrap();
                         info!("Start task {}", task.id);
-                        sender.send(Action::Run(task)).unwrap();
+                        sender.send_async(Action::Run(task)).await?;
                     }
                     "stop" => {
                         let task: Task = serde_json::from_str(&context).unwrap();
                         info!("Stop task {}", task.id);
-                        sender.send(Action::Stop(task.id)).unwrap();
+                        sender.send_async(Action::Stop(task.id)).await?;
                         // let task:
                     }
                     "cancel" => {
                         let task: Task = serde_json::from_str(&context).unwrap();
                         info!("Cancel task {}", task.id);
-                        sender.send(Action::Cancel(task.id)).unwrap();
+                        sender.send_async(Action::Cancel(task.id)).await?;
                         // let task:
                     }
                     "list" => {
                         let req: DataSetsReq = serde_json::from_str(&context).unwrap();
                         let sets = list_datasets_from(&req).await.map_err(Fail::new);
-                        let _ = resp_tx.send(RespAction::ListOk(ListResponse { req, res: sets }));
+                        let _ = resp_tx
+                            .send_async(RespAction::ListOk(ListResponse { req, res: sets }))
+                            .await?;
                     }
                     "heartbeat" => {
                         let resp = HeartbeatResponse {
                             req: ts.naive_utc().and_utc(),
                             res: Utc::now(),
                         };
-                        let _ = resp_tx.send(RespAction::HeartbeatOk(resp));
+                        let _ = resp_tx.send_async(RespAction::HeartbeatOk(resp)).await?;
                     }
                     "heartbeat-ok" => {
                         let resp: HeartbeatResponse = serde_json::from_str(&context).unwrap();

@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use arrow_flight::{FlightData, PutResult};
+use arrow_flight::{error::FlightError, FlightData, PutResult};
 use chrono::Utc;
 use futures::{Stream, TryStreamExt};
+use futures_util::StreamExt;
 use taos::{AsyncBindable, AsyncQueryable, AsyncTBuilder, Dsn, Stmt, TaosBuilder};
 use taosx_core::{ConnectorLicense, IpcStreamWorker, Parser, METRICS_TIME_START};
 use tonic::{Status, Streaming};
@@ -69,7 +70,10 @@ impl PutStream {
 
         let lock = Arc::new(tokio::sync::Mutex::new(()));
 
+        // data channel
         let (tx, rx) = flume::bounded(100);
+        // response channel
+        let (rsp_tx, rsp_rx) = flume::bounded(100);
 
         let schema = stream
             .try_next()
@@ -146,6 +150,7 @@ impl PutStream {
                 lock: Arc<tokio::sync::Mutex<()>>,
                 schema: Arc<arrow::datatypes::Schema>,
                 rx: flume::Receiver<arrow::record_batch::RecordBatch>,
+                rsp_tx: flume::Sender<anyhow::Result<()>>,
                 license: Option<ConnectorLicense>,
                 transferred: Option<Arc<ConnectorTransferred>>,
                 span: tracing::Span,
@@ -155,6 +160,7 @@ impl PutStream {
                 let from = task.from.parse().unwrap();
                 let taos = pool.get().await?;
                 let mut stmt = Stmt::init(&taos).await.context("Initialize STMT")?;
+                let _ = span.clone().entered();
 
                 let worker = IpcStreamWorker::new(
                     &pool,
@@ -166,13 +172,14 @@ impl PutStream {
                     span.clone(),
                 )
                 .unwrap();
-                // dbg!(&task);
+                dbg!(&task);
                 let parser: Option<Parser> = task
                     .parser
                     .as_ref()
                     .map(|v| serde_json::from_value(v.clone()).unwrap());
+                tracing::info!("Start IPC stream writer");
                 loop {
-                    match rx.recv() {
+                    match rx.recv_async().await {
                         Ok(record) => {
                             log::info!("Start writing records: {record:?}");
                             if let Err(err) = worker
@@ -180,6 +187,9 @@ impl PutStream {
                                 .await
                             {
                                 log::warn!("Write stream error: {err}");
+                                let _ = rsp_tx.send_async(Err(err)).await;
+                            } else {
+                                let _ = rsp_tx.send_async(Ok(())).await;
                             }
                         }
                         Err(err) => {
@@ -191,38 +201,141 @@ impl PutStream {
             }
             tokio::spawn(
                 async move {
-                    ipc_stream_writer(task, &pool, lock, schema, rx, license, transferred, span)
-                        .in_current_span()
-                        .await
+                    ipc_stream_writer(
+                        task,
+                        &pool,
+                        lock,
+                        schema,
+                        rx,
+                        rsp_tx,
+                        license,
+                        transferred,
+                        span,
+                    )
+                    .in_current_span()
+                    .await
                 }
                 .instrument(span_clone),
             );
             // let _ = span.enter();
+        } else {
+            anyhow::bail!("Invalid IPC stream");
         }
 
-        Ok(stream
-            .map_ok(move |message| {
-                // message.payload
-                let app_metadata = message.app_metadata();
-                match message.payload {
-                    arrow_flight::decode::DecodedPayload::None => todo!(),
-                    arrow_flight::decode::DecodedPayload::Schema(schema) => {
-                        dbg!(schema);
-                    }
-                    arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
-                        // dbg!(&batch);
-                        if let Err(err) = tx.send(batch) {
-                            log::warn!(
-                                "into_flight_put_result channel send err: {}",
-                                err.to_string()
-                            );
+        // stream;
+
+        let (p_tx, p_rx) = flume::bounded(10);
+        tokio::spawn(async move {
+            while let Some(message) = stream.next().await {
+                let item = match message {
+                    Ok(message) => {
+                        dbg!(&message);
+                        let app_metadata = message.app_metadata();
+                        match message.payload {
+                            arrow_flight::decode::DecodedPayload::None => None,
+                            arrow_flight::decode::DecodedPayload::Schema(schema) => {
+                                dbg!(schema);
+                                Some(Ok(PutResult { app_metadata }))
+                            }
+                            arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
+                                if let Err(err) = tx.send_async(batch).await {
+                                    log::warn!(
+                                        "into_flight_put_result channel send err: {}",
+                                        err.to_string()
+                                    );
+                                    Some(Err(FlightError::ExternalError(Box::new(err))))
+                                } else {
+                                    rsp_rx
+                                        .recv_async()
+                                        .await
+                                        .map_err(|err| {
+                                            FlightError::from_external_error(Box::new(err))
+                                        })
+                                        .and_then(|res| {
+                                            res.map_err(|err| {
+                                                FlightError::Tonic(Status::invalid_argument(
+                                                    format!("{err:#}"),
+                                                ))
+                                            })
+                                            .map(|_| PutResult { app_metadata })
+                                        })
+                                        .map(Some)
+                                        .transpose()
+                                }
+                            }
                         }
                     }
+                    Err(err) => Some(Err(err)),
+                };
+                if let Some(item) = item {
+                    if p_tx.send_async(item).await.is_err() {
+                        log::info!("into_flight_put_result channel closed");
+                        break;
+                    }
                 }
-                // let app_metadata = message.app_metadata;
-                PutResult { app_metadata }
-            })
+            }
+            tracing::info!("IPC stream writer stopped");
+        });
+        tokio::task::yield_now().await;
+
+        Ok(p_rx
+            .into_stream()
             .map_err(|err| Status::from_error(Box::new(err))))
+
+        // let tx = Arc::new(tx);
+        // // let cloned_tx = tx.clone();
+        // let rsp_rx = Arc::new(rsp_rx);
+        // let channel = (tx, rsp_rx);
+        // let iter = std::iter::repeat(channel.clone());
+        // let rx_iter = futures::stream::iter(iter);
+
+        // Ok(stream
+        //     .zip(rx_iter)
+        //     .filter_map(|(message, (tx, rsp_rx))| async move {
+        //         match message {
+        //             Ok(message) => {
+        //                 dbg!(&message);
+        //                 let app_metadata = message.app_metadata();
+        //                 match message.payload {
+        //                     arrow_flight::decode::DecodedPayload::None => todo!(),
+        //                     arrow_flight::decode::DecodedPayload::Schema(schema) => {
+        //                         dbg!(schema);
+        //                     }
+        //                     arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
+        //                         // dbg!(&batch);
+        //                         if let Err(err) = tx.send_async(batch).await {
+        //                             log::warn!(
+        //                                 "into_flight_put_result channel send err: {}",
+        //                                 err.to_string()
+        //                             );
+        //                             return Some(Err(FlightError::ExternalError(Box::new(err))));
+        //                         } else {
+        //                             return rsp_rx
+        //                                 .recv_async()
+        //                                 .await
+        //                                 .map_err(|err| {
+        //                                     FlightError::from_external_error(Box::new(err))
+        //                                 })
+        //                                 .and_then(|res| {
+        //                                     res.map_err(|err| {
+        //                                         FlightError::Tonic(Status::invalid_argument(
+        //                                             format!("{err:#}"),
+        //                                         ))
+        //                                     })
+        //                                     .map(|_| PutResult { app_metadata })
+        //                                 })
+        //                                 .map(Some)
+        //                                 .transpose();
+        //                         }
+        //                     }
+        //                 }
+        //                 // let app_metadata = message.app_metadata;
+        //                 Some(Ok(PutResult { app_metadata }))
+        //             }
+        //             Err(err) => Some(Err(err)),
+        //         }
+        //     })
+        //     .map_err(|err| Status::from_error(Box::new(err))))
     }
 }
 

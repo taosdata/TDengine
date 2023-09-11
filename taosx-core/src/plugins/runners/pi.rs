@@ -450,7 +450,7 @@ pub async fn pi_to_taos(
                 let status = status?;
                 tracing::info!("PI connector or PI backfill exit with {}", status);
                 if !status.success() {
-                    let _ = ipc.send(());
+                    let _ = ipc.send(()).await;
                     stop_thread(server);
                     anyhow::bail!("PI connector or PI backfill exit with {}", status);
                 }
@@ -472,7 +472,7 @@ pub async fn pi_to_taos(
                 tracing::info!("pi task cancelled");
             }
         }
-        let _ = ipc.send(());
+        let _ = ipc.send(()).await;
         stop_thread(server);
         terminate_child_process(pid)?;
         let _ = ipc.close().await;

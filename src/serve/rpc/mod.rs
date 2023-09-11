@@ -631,6 +631,7 @@ impl FlightService for FlightServiceImpl {
         }
 
         tokio::spawn(listen_tasks(controller, agent, tx));
+        tokio::task::yield_now().await;
 
         Ok(response)
     }
