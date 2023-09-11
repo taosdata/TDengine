@@ -484,9 +484,10 @@ async fn sync_single_table_partial(
             loop {
                 let ok = to.write_raw_block(&block).await;
                 if let Err(err) = ok {
+                    let code: i32 = err.code().into();
                     let err_str = err.to_string();
                     log::debug!("sync_single_table_partial write raw block error: {err:#}",);
-                    if err_str.contains("0x2603") {
+                    if code == 0x2603 || code == 0x0618 {
                         if let Some(stable) = stable {
                             sync_super_table_schema_with_subs_without_pool(
                                 from,
@@ -503,6 +504,14 @@ async fn sync_single_table_partial(
                             .await?;
                         } else {
                             sync_normal_table_schema(from, table, actions, to).await?;
+                        }
+                        continue;
+                    } else if code == 0x263F || code == 0x061B {
+                        tracing::info!("sync table {table} error with: {err:#}");
+                        if let Some(stable) = stable {
+                            scheduler::sync_add_column(from, to, stable).await?;
+                        } else {
+                            scheduler::sync_add_column(from, to, table).await?;
                         }
                         continue;
                     } else if err_str.contains("0x0911") {

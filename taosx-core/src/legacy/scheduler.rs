@@ -143,7 +143,7 @@ async fn worker(
 
                                     if let Some(path) = opts.fails_to.as_ref() {
                                         path.lock().unwrap().write_fmt(format_args!(
-                                            "meta\t{}:{}\t{}\n",
+                                            "meta\t{}:{}\t\t{}\n",
                                             stable.as_str(),
                                             tables.join(","),
                                             format!("{err:#}").replace("\n", " ")
@@ -168,7 +168,7 @@ async fn worker(
                                 log::error!("Syncing table `{table}` error: {err:?}");
                                 if let Some(path) = opts.fails_to.as_ref() {
                                     path.lock().unwrap().write_fmt(format_args!(
-                                        "meta\t{}\t{}\n",
+                                        "meta\t{}\t\t{}\n",
                                         table.as_str(),
                                         format!("{err:?}").replace("\n", " ")
                                     ))?;
@@ -256,8 +256,8 @@ async fn worker(
                             );
                             if let Some(path) = opts.fails_to.as_ref() {
                                 path.lock().unwrap().write_fmt(format_args!(
-                                    "data\t{}\t{}\n",
-                                    table.as_str(),
+                                    "data\t{}\t{:?}\t{}\n",
+                                    table.as_str(), query.time_range,
                                     format!("{err:?}").replace("\n", " ")
                                 ))?;
                             }
