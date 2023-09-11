@@ -43,5 +43,5 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   return 0;
 }
 
-int32_t mndCheckIpWhiteList(SMnode *pMnode) { return 0; }
+int32_t mndEnableIpWhiteList(SMnode *pMnode) { return 0; }
 #endif

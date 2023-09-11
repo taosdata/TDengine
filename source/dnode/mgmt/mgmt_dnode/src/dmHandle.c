@@ -36,6 +36,7 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
     if (ver == 0) {
       dInfo("disable ip-white-dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->ipWhiteVer, ver);
       rpcSetIpWhite(pMgmt->msgCb.serverRpc, NULL);
+      pMgmt->ipWhiteVer = ver;
     }
     return;
   }
