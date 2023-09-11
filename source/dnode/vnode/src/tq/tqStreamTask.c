@@ -94,6 +94,9 @@ int32_t tqCheckAndRunStreamTask(STQ* pTq) {
       continue;
     }
 
+    pTask->tsInfo.init = taosGetTimestampMs();
+    tqDebug("s-task:%s set the init ts:%"PRId64, pTask->id.idStr, pTask->tsInfo.init);
+
     streamSetStatusNormal(pTask);
     streamTaskCheckDownstream(pTask);
 

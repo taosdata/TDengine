@@ -983,6 +983,9 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
 
       bool restored = pTq->pVnode->restored;
       if (p != NULL && restored) {
+        p->tsInfo.init = taosGetTimestampMs();
+        tqDebug("s-task:%s set the init ts:%"PRId64, p->id.idStr, p->tsInfo.init);
+
         streamTaskCheckDownstream(p);
       } else if (!restored) {
         tqWarn("s-task:%s not launched since vnode(vgId:%d) not ready", p->id.idStr, vgId);
