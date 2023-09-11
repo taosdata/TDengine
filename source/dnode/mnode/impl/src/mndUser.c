@@ -198,7 +198,7 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
 
 bool mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t type) {
   bool       update = false;
-  SIpV4Range range = {.ip = taosGetIpv4FromFqdn(fqdn), .mask = 0};
+  SIpV4Range range = {.ip = taosGetIpv4FromFqdn(fqdn), .mask = 32};
 
   SIpWhiteList **ppList = taosHashGet(pIpWhiteTab, user, strlen(user));
   SIpWhiteList  *pList = NULL;
@@ -508,7 +508,7 @@ static SIpWhiteList *createDefaultIpWhiteList() {
   struct in_addr addr;
   if (uv_inet_pton(AF_INET, "127.0.0.1", &addr) == 0) {
     range->ip = addr.s_addr;
-    range->mask = 0;
+    range->mask = 32;
   }
   return pWhiteList;
 }

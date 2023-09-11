@@ -679,21 +679,23 @@ void subnetIp2int(const char* const ip_addr, uint8_t* dst) {
 }
 
 uint32_t subnetIpRang2Int(SIpV4Range* pRange) {
-  SIpV4Range range = {.ip = pRange->ip, .mask = 0};
+  SIpV4Range range = {.ip = pRange->ip, .mask = 32};
   uint8_t    el[4] = {0};
   char       buf[32] = {0};
 
   transUtilSIpRangeToStr(&range, buf);
+
   subnetIp2int(buf, el);
 
   return (el[0] << 24) | (el[1] << 16) | (el[2] << 8) | (el[0]);
 }
 int32_t subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange) {
-  if (pRange->mask == 0) {
-    pUtils->address = pRange->ip;
+  if (pRange->mask == 0 || pRange->mask == 32) {
     pUtils->type = 0;
+    pUtils->address = pRange->ip;
     return 0;
   }
+  // pUtils->address = ntohl(pRange->ip);
   pUtils->address = subnetIpRang2Int(pRange);
 
   for (int i = 0; i < pRange->mask; i++) {
@@ -717,8 +719,9 @@ int32_t subnetCheckIp(SubnetUtils* pUtils, uint32_t ip) {
   if (pUtils->type == 0) {
     return pUtils->address == ip;
   } else {
-    SIpV4Range range = {.ip = ip, .mask = 0};
+    SIpV4Range range = {.ip = ip, .mask = 32};
 
+    // uint32_t ip = ntohl(ip);
     uint32_t ip = subnetIpRang2Int(&range);
     return ip >= pUtils->network && ip <= pUtils->broadcast;
   }
@@ -731,9 +734,10 @@ int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) {
   addr.s_addr = pRange->ip;
 
   uv_inet_ntop(AF_INET, &addr, buf, 32);
+
   len = strlen(buf);
 
-  if (pRange->mask != 0) {
+  if (pRange->mask != 0 && pRange->mask != 32) {
     len += sprintf(buf + len, "/%d", pRange->mask);
   }
   buf[len] = 0;

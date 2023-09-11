@@ -93,7 +93,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
   if (pRpc->info.forbiddenIp == 1) {
     char       tbuf[36] = {0};
-    SIpV4Range range = {.ip = pRpc->info.conn.clientIp, .mask = 0};
+    SIpV4Range range = {.ip = pRpc->info.conn.clientIp, .mask = 32};
     rpcUtilSIpRangeToStr(&range, tbuf);
 
     dError("User %s host:%s not in ip white list", pRpc->info.conn.user, tbuf);

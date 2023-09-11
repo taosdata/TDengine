@@ -294,7 +294,7 @@ void uvWhiteListUpdate(SWhiteList* pWhite, SHashObj* pTable) {
 
 static bool uvWhiteListIsDefaultAddr(uint32_t ip) {
   // 127.0.0.1
-  static SIpV4Range range = {.ip = 16777343, .mask = 0};
+  static SIpV4Range range = {.ip = 16777343, .mask = 32};
   return range.ip == ip;
 }
 bool uvWhiteListFilte(SWhiteList* pWhite, char* user, uint32_t ip, int64_t ver) {
