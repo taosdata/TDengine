@@ -1308,6 +1308,7 @@ int32_t tDeserializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
   }
 
   if (tDecodeI32(&decoder, &pRsp->statusSeq) < 0) return -1;
+
   if (!tDecodeIsEnd(&decoder)) {
     if (tDecodeI64(&decoder, &pRsp->ipWhiteVer) < 0) return -1;
   }
