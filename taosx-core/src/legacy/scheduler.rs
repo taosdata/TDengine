@@ -18,10 +18,11 @@ use tokio::{
 use tracing::{instrument, Instrument};
 
 use crate::{
+    legacy::{split_table_into_time_range_chunks, sync_single_table_partial},
     Action, LegacyMetrics, QueryOpts, TargetOpts, TimeRange, METRICS_LEGACY_CREATED_TABLES,
 };
 
-use super::{sync_normal_table_schema, sync_single_table, sync_super_table_schema_with_subs};
+use super::{sync_normal_table_schema, sync_super_table_schema_with_subs};
 
 pub enum Todo {
     Meta(
@@ -202,72 +203,100 @@ async fn worker(
                 };
                 let mut retries = MAX_WS_RETRIES;
 
-                loop {
-                    match sync_single_table(
-                        &from,
-                        stable.as_ref().map(|s| s.as_str()),
-                        &table,
-                        &to,
-                        &actions,
-                        &query,
-                        &opts,
-                        target_is_v3,
-                        &metrics,
-                    )
-                    .await
-                    {
-                        Ok(_) => {
-                            if let Some(sender) = sender {
-                                let _ = sender.send(Ok(()));
-                            }
-                            break;
-                        }
-                        Err(err) => {
-                            let err_string = err.to_string();
-                            // log::error!("err_string: {err_string}");
-                            if (err_string.contains("0xE00")
-                                || err_string.contains("channel closed"))
-                                && retries > 0
-                            {
-                                from = source.get().await?;
-                                to = target.get().await?;
-                                retries -= 1;
-                                log::warn!(
+                let chunks = split_table_into_time_range_chunks(&from, &table, &query).await;
+                match chunks {
+                    Ok(chunks) => {
+                        // chunks
+                        for chunk in chunks {
+                            let mut query = query.clone();
+                            query.time_range = chunk;
+                            loop {
+                                match sync_single_table_partial(
+                                    &from,
+                                    stable.as_ref().map(|s| s.as_str()),
+                                    &table,
+                                    &to,
+                                    &actions,
+                                    &query,
+                                    &opts,
+                                    target_is_v3,
+                                    &metrics,
+                                )
+                                .await
+                                {
+                                    Ok(_) => {
+                                        break;
+                                    }
+                                    Err(err) => {
+                                        let err_string = err.to_string();
+                                        // log::error!("err_string: {err_string}");
+                                        if (err_string.contains("0xE00")
+                                            || err_string.contains("channel closed"))
+                                            && retries > 0
+                                        {
+                                            from = source.get().await?;
+                                            to = target.get().await?;
+                                            retries -= 1;
+                                            log::warn!(
                                     "[worker:{worker}] sync table {table} error: {err}, retrying ... {retries} times left"
                                 );
-                                continue;
-                            } else if err_string.contains("0x263F")
-                                || err_string.contains("Column does not exist")
-                            {
-                                log::info!(
+                                            continue;
+                                        } else if err_string.contains("0x263F")
+                                            || err_string.contains("Column does not exist")
+                                        {
+                                            log::info!(
                                     "[worker:{worker}] sync table {table} err 0x263F: {err:?}, add column"
                                 );
-                                let st = stable.as_ref().map(|s| s.as_str());
-                                if let Some(stable) = st {
-                                    sync_add_column(&from, &to, stable).await?;
-                                } else {
-                                    sync_add_column(&from, &to, &table).await?;
-                                }
-                                continue;
-                            }
+                                            let st = stable.as_ref().map(|s| s.as_str());
+                                            if let Some(stable) = st {
+                                                sync_add_column(&from, &to, stable).await?;
+                                            } else {
+                                                sync_add_column(&from, &to, &table).await?;
+                                            }
+                                            continue;
+                                        }
 
-                            log::error!(
+                                        log::error!(
                                 "[worker:{worker}] sync table {table} error: {err:?}, continue next"
-                            );
-                            if let Some(path) = opts.fails_to.as_ref() {
-                                path.lock().unwrap().write_fmt(format_args!(
-                                    "data\t{}\t{:?}\t{}\n",
-                                    table.as_str(), query.time_range,
-                                    format!("{err:?}").replace("\n", " ")
-                                ))?;
-                            }
+                                        );
+                                        if let Some(path) = opts.fails_to.as_ref() {
+                                            path.lock().unwrap().write_fmt(format_args!(
+                                                "data\t{}\t{:?}\t{}\n",
+                                                table.as_str(),
+                                                query.time_range,
+                                                format!("{err:?}").replace("\n", " ")
+                                            ))?;
+                                        }
 
-                            if let Some(sender) = sender {
-                                let _ = sender.send(Err(err));
+                                        break;
+                                    }
+                                };
                             }
-                            break;
                         }
-                    };
+
+                        if let Some(sender) = sender {
+                            let _ = sender.send(Ok(()));
+                        }
+
+                        // err
+
+                        // if let Some(sender) = sender {
+                        //     let _ = sender.send(Err(err));
+                        // }
+                    }
+                    Err(err) => {
+                        tracing::error!(
+                            "[worker:{worker}] sync table {table} error: {err:?}, continue next"
+                        );
+                        if let Some(path) = opts.fails_to.as_ref() {
+                            path.lock().unwrap().write_fmt(format_args!(
+                                "data\t{}\t{:?}\t{}\n",
+                                table.as_str(),
+                                query.time_range,
+                                format!("{err:?}").replace("\n", " ")
+                            ))?;
+                        }
+                    }
                 }
             }
         }

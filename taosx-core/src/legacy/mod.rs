@@ -360,17 +360,11 @@ impl QueryOpts {
 }
 
 #[async_backtrace::framed]
-async fn sync_single_table(
+async fn split_table_into_time_range_chunks(
     from: &Taos,
-    stable: Option<&str>,
     table: &str,
-    to: &Taos,
-    actions: &Vec<Action>,
     opts: &QueryOpts,
-    target_opts: &TargetOpts,
-    target_is_v3: bool,
-    metrics: &LegacyMetrics,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Vec<TimeRange>> {
     log::debug!("Migrate data from table `{table}`");
 
     let mut time_range = opts.time_range;
@@ -390,42 +384,95 @@ async fn sync_single_table(
     match (time_range.has_start(), time_range.has_end()) {
         (true, true) => (),
         (true, false) => {
-            if let Ok(ts) = query_ts_with(from, format!("select last(_c0) from {table}")).await {
+            if let Ok(ts) = query_ts_with(from, format!("select last(_c0) from `{table}`")).await {
                 time_range.end.replace(ts + chrono::Duration::seconds(1));
             }
         }
         (false, true) => {
-            if let Ok(ts) = query_ts_with(from, format!("select first(_c0) from {table}")).await {
+            if let Ok(ts) = query_ts_with(from, format!("select first(_c0) from `{table}`")).await {
                 time_range.start.replace(ts);
             }
         }
         (false, false) => {
-            if let Ok(ts) = query_ts_with(from, format!("select first(_c0) from {table}")).await {
+            if let Ok(ts) = query_ts_with(from, format!("select first(_c0) from `{table}`")).await {
                 time_range.start.replace(ts);
             }
-            if let Ok(ts) = query_ts_with(from, format!("select last(_c0) from {table}")).await {
+            if let Ok(ts) = query_ts_with(from, format!("select last(_c0) from `{table}`")).await {
                 time_range.end.replace(ts + chrono::Duration::seconds(1));
             }
         }
     }
-    for ts in time_range.to_chunks(opts.unit) {
-        let mut opts = opts.clone();
-        opts.time_range = ts;
-        sync_single_table_partial(
-            from,
-            stable,
-            table,
-            to,
-            actions,
-            &opts,
-            target_opts,
-            target_is_v3,
-            metrics,
-        )
-        .await?;
-    }
-    Ok(())
+
+    Ok(time_range.to_chunks(opts.unit))
 }
+
+// #[async_backtrace::framed]
+// async fn sync_single_table(
+//     from: &Taos,
+//     stable: Option<&str>,
+//     table: &str,
+//     to: &Taos,
+//     actions: &Vec<Action>,
+//     opts: &QueryOpts,
+//     target_opts: &TargetOpts,
+//     target_is_v3: bool,
+//     metrics: &LegacyMetrics,
+// ) -> anyhow::Result<()> {
+//     log::debug!("Migrate data from table `{table}`");
+
+//     let mut time_range = opts.time_range;
+//     async fn query_ts_with(
+//         taos: &Taos,
+//         sql: impl AsRef<str>,
+//     ) -> Result<chrono::DateTime<Utc>, taos::Error> {
+//         let sql = sql.as_ref();
+//         let mut set = taos.query(&sql).await?;
+//         let mut records = set.to_records().await?;
+//         if let Some(Value::Timestamp(ts)) = records.pop().and_then(|mut v| v.pop()) {
+//             Ok(Utc.from_local_datetime(&ts.to_naive_datetime()).unwrap())
+//         } else {
+//             Err(taos::Error::from_string("Invalid sql for timestamp: {sql}"))
+//         }
+//     }
+//     match (time_range.has_start(), time_range.has_end()) {
+//         (true, true) => (),
+//         (true, false) => {
+//             if let Ok(ts) = query_ts_with(from, format!("select last(_c0) from {table}")).await {
+//                 time_range.end.replace(ts + chrono::Duration::seconds(1));
+//             }
+//         }
+//         (false, true) => {
+//             if let Ok(ts) = query_ts_with(from, format!("select first(_c0) from {table}")).await {
+//                 time_range.start.replace(ts);
+//             }
+//         }
+//         (false, false) => {
+//             if let Ok(ts) = query_ts_with(from, format!("select first(_c0) from {table}")).await {
+//                 time_range.start.replace(ts);
+//             }
+//             if let Ok(ts) = query_ts_with(from, format!("select last(_c0) from {table}")).await {
+//                 time_range.end.replace(ts + chrono::Duration::seconds(1));
+//             }
+//         }
+//     }
+//     for ts in time_range.to_chunks(opts.unit) {
+//         let mut opts = opts.clone();
+//         opts.time_range = ts;
+//         sync_single_table_partial(
+//             from,
+//             stable,
+//             table,
+//             to,
+//             actions,
+//             &opts,
+//             target_opts,
+//             target_is_v3,
+//             metrics,
+//         )
+//         .await?;
+//     }
+//     Ok(())
+// }
 
 #[async_backtrace::framed]
 async fn sync_single_table_partial(
@@ -2179,7 +2226,7 @@ pub async fn legacy_to_taos(
             break;
         }
         std::thread::sleep(Duration::from_secs(5));
-        log::info!(
+        tracing::info!(
             "Processed {}/{}, metrics detail:\n{}",
             metrics_inner.tables.load(Ordering::SeqCst),
             todo_inner.tables.len(),
