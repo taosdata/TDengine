@@ -69,7 +69,7 @@ int32_t vnodeBegin(SVnode *pVnode);
 int32_t vnodeStart(SVnode *pVnode);
 void    vnodeStop(SVnode *pVnode);
 int64_t vnodeGetSyncHandle(SVnode *pVnode);
-void    vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
+int32_t   vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
 void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *numOfTables, int64_t *numOfNormalTables);
 int32_t   vnodeProcessCreateTSma(SVnode *pVnode, void *pCont, uint32_t contLen);
 int32_t   vnodeGetTableList(void *pVnode, int8_t type, SArray *pList);
