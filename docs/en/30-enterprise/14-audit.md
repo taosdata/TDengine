@@ -4,7 +4,7 @@ title: "审计日志"
 sidebar_label: "审计日志"
 ---
 
-## 简介
+## Introduction
 
 从 TDengine 3.1.1.0 开始，TDengine 企业版提供审计日志的功能，用于帮助系统管理员记录在整个数据库系统中曾经发生的重要的元数据变更操作。 TDengine 审计日志功能需要由 taosd, taosKeeper, taosAdapter 等几个组件协同才能生效。具体的数据流是 TDengine 集群中的 mnode 对涉及元数据变更的操作会将相应的审计日志发送到 taosKeeper ，taosKeeper 再通过 taosAdapter 将审计日志写入到相同或不同的 TDengine 集群中。
 
@@ -42,7 +42,7 @@ taosKeeper 会依据上报的审计数据在相应的数据库中自动建立超
 CREATE STABLE operations(ts timestamp, details VARCHAR(1000)， User VARCHAR(25), Operation VARCHAR(20)) TAGS (target1 VARCHAR(100)，target2 VARCHAR(300), clusterID VARCHAR(64) );
 ```
 
-其中：
+The parameters are:
 1. target1 和 target2 为标签，用于表示所操作的对象。比如 target1 = "db1", target2 = "stableA"。在不同场景下 target1 和 target2 所代表的含义不同，也可能 target2 为空。
 2. User 和 Operation 为数据列，表示哪个用户在该对象上进行了什么操作
 3. timestamp 为时间戳列，表示操作发生时的时间

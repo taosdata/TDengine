@@ -1,116 +1,117 @@
 ---
 toc_max_heading_level: 4
-title: 权限控制
+title: Permissions Management
 ---
 
-TDengine 中的权限管理分为用户管理、数据库授权管理以及消息订阅授权管理。
+Access control in TDengine includes user management, database authorization management, and message subscription authorization.
 
-当 TDengine 安装并部署成功后，系统中内置有 "root" 用户。持有默认 "root" 用户密码的系统管理员应该第一时间修改 root 用户的密码，并根据业务需要创建普通用户并为这些用户授予适当的权限。在未授权的情况下，普通用户可以创建DATABASE，并拥有自己创建的 DATABASE 的所有权限，包括删除数据库、修改数据库、查询时序数据和写入时序数据。超级用户可以给普通用户授予其他（即非该用户所创建的） DATABASE 的读写权限，使其可以在这些 DATABASE 上读写数据，但不能对其进行删除和修改数据库的操作。超级用户或者 topic 的创建者也可以给其它用户授予对某个 topic 的订阅权限。
 
-## 用户管理
+After a successful installation and deployment of TDengine, the system comes with a built-in "root" user. System administrators with the default "root" user password should change the root user's password immediately and create ordinary users and grant them appropriate permissions as needed for business purposes. Without authorization, ordinary users can create databases and have full permissions over the databases they create, including deleting databases, modifying databases, querying time-series data, and writing time-series data. Superusers can grant read and write permissions to ordinary users on other databases (i.e., databases not created by the user), allowing them to read and write data on these databases but not perform operations like deleting and modifying databases. Superusers or the creators of topics can also grant subscription permissions to other users for a specific topic.
 
-用户管理涉及用户的整个生命周期，从创建用户、对用户进行授权、撤销对用户的授权、查看用户信息、直到删除用户。
+## User Management
 
-###  创建用户
+User management involves the entire lifecycle of a user, from creating a user, authorizing a user, revoking authorizations, viewing user information, to deleting a user.
 
-创建用户的操作只能由 root 用户进行，语法如下
+### Create a User
+
+Only the root user can create users using the following syntax:
 
 ```sql
 CREATE USER user_name PASS 'password' [SYSINFO {1\|0}]; 
 ```
 
-说明：
+Description:
 
--   user_name 最长为 23 字节。
--   password 最长为 128 字节，合法字符包括"a-zA-Z0-9!?\$%\^&\*()_–+={[}]:;@\~\#\|\<,\>.?/"，不可以出现单双引号、撇号、反斜杠和空格，且不可以为空。
--   SYSINFO 表示用户是否可以查看系统信息。1 表示可以查看，0 表示不可以查看。系统信息包括服务端配置信息、服务端各种节点信息（如 DNODE、QNODE等）、存储相关的信息等。默认为可以查看系统信息。
+- `user_name` can be up to 23 bytes long.
+- `password` can be up to 128 bytes long and can include valid characters such as "a-zA-Z0-9!?$%^&*()_–+={[}]:;@~#|<,>.?/", but it cannot contain single or double quotes, backticks, or spaces, and it cannot be empty.
+- SYSINFO indicates whether the user can view system information. 1 means they can view it, and 0 means they cannot. System information includes server configuration, various node information (such as DNODE, QNODE, etc.), and storage-related information. The default is to allow viewing system information.
 
-示例：创建密码为123456且可以查看系统信息的用户 test
+Example: Creating a user named "test" with the password "123456" and the ability to view system information:
 
 ```
 SQL taos\> create user test pass '123456' sysinfo 1; Query OK, 0 of 0 rows affected (0.001254s)
 ```
 
-###  查看用户
+### View Users
 
-查看系统中的用户信息请使用 show users 命令，示例如下
+To view information about users in the system, use the show users command, as shown below:
 
 ```sql
 show users;
 ```
 
-也可以通过查询系统表 `INFORMATION_SCHEMA.INS_USERS` 获取系统中的用户信息，示例如下
+You can also retrieve user information from the system table INFORMATION_SCHEMA.INS_USERS, as demonstrated below:
 
 ```sql
 select * from information_schema.ins_users;  
 ```
 
-###  删除用户
+### Delete a User
 
-删除用户请使用
+Delete a User
 
 ```sql
 DROP USER user_name; 
 ```
 
-###  修改用户信息
+### Modify User Information
 
-修改用户信息的命令如下
+Modify User Information
 
 ```sql
 ALTER USER user_name alter_user_clause   alter_user_clause: {  PASS 'literal'  \| ENABLE value  \| SYSINFO value } 
 ```
 
-说明：
+Description:
 
--   PASS：修改用户密码。
--   ENABLE：修改用户是否启用。1 表示启用此用户，0 表示禁用此用户。
--   SYSINFO：修改用户是否可查看系统信息。1 表示可以查看系统信息，0 表示不可以查看系统信息。
+- PASS: Modify the user password.
+- ENABLE: Specify whether the user is enabled or disabled. 1 indicates enabled and 0 indicates disabled.
+- SYSINFO: Specify whether the user can query system information. 1 indicates that the user can query system information and 0 indicates that the user cannot query system information.
 
-示例：禁用 test 用户
+Example: delete test user
 
 ```sql
 alter user test enable 0; Query OK, 0 of 0 rows affected (0.001160s) 
 ```
 
-## 数据库访问授权
+### Database Access Control
 
-系统管理员可以根据业务需要对系统中的每个用户针对每个数据库进行特定的授权，以防止业务数据被不恰当的用户读取或修改。对某个用户进行数据库访问授权的语法如下：
+System administrators can grant specific authorizations to each user for each database in the system, depending on business needs, to prevent unauthorized access or modifications to business data. The syntax for granting database access to a user is as follows:
 
 ```sql
 GRANT privileges ON priv_level TO user_name   privileges : {  ALL  \| priv_type [, priv_type] ... }   priv_type : {  READ  \| WRITE }   priv_level : {  dbname.\*  \| \*.\* } 
 ```
 
-对数据库的访问权限包含读和写两种权限，它们可以被分别授予，也可以被同时授予。
+Database access permissions include read and write permissions, which can be granted separately or together.
 
-说明
+Description:
 
--   priv_level 格式中 "." 之前为数据库名称， "." 之后为表名称，但目前不支持表级别的授权控制，所以 "." 之后必须写为 "\*" ，意为 "." 前所指定的数据库中的所有表
--   "dbname.\*" 意思是名为 "dbname" 的数据库中的所有表
--   "\*.\*" 意思是所有数据库名中的所有表
+In the priv_level format, the part before the "." is the database name, and the part after the "." is the table name. However, table-level authorization control is not supported at this time, so the part after the "." must be "\*" indicating all tables in the database specified before the ".".
+"dbname.\*" means all tables in the database named "dbname."
+"\*.\*" means all tables in all database names.
 
-### 数据库权限说明
+### Database Permissions
 
-对 root 用户和普通用户的权限的说明如下表
+The permissions for the root user and ordinary users are explained in the table below:
 
-| 用户     | 描述                               | 权限说明                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| User     | Description                               | Permissions                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 |----------|------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 超级用户 | 只有 root 是超级用户               |  DB 外部 所有操作权限，例如user、dnode、udf、qnode等的CRUD DB 权限，包括 创建 删除 更新，例如修改 Option，移动 Vgruop等 读 写 Enable/Disable 用户                                                                                                                                                                                                                                                                                                                                     |
-| 普通用户 | 除 root 以外的其它用户均为普通用户 | 在可读的 DB 中，普通用户可以进行读操作 select describe show subscribe 在可写 DB 的内部，用户可以进行写操作： 创建、删除、修改 超级表 创建、删除、修改 子表 创建、删除、修改 topic 写入数据 被限制系统信息时，不可进行如下操作 show dnode、mnode、vgroups、qnode、snode 修改用户包括自身密码 show db时只能看到自己的db，并且不能看到vgroups、副本、cache等信息 无论是否被限制系统信息，都可以 管理 udf 可以创建 DB 自己创建的 DB 具备所有权限 非自己创建的 DB ，参照读、写列表中的权限 |
+| Superuser	| Only "root" is a superuser	| All operations outside of the DB, such as CRUD DB permissions for users, dnode, udf, qnode, etc. DB permissions include creating, deleting, and updating. For example, modifying options, moving Vgroups, enabling/disabling users. Read and write Enable/Disable users |
+| Ordinary User	| All users except "root" are ordinary users	| In a readable DB, ordinary users can perform read operations such as select, describe, show, and subscribe. In a writable DB, users can perform write operations, including creating, deleting, and modifying super tables, creating, deleting, and modifying sub-tables, creating, deleting, and modifying topics, and writing data. When restricted from viewing system information, users cannot perform operations such as show dnode, mnode, vgroups, qnode, snode, modify users, including their own passwords, and when they use "show db," they can only see their own databases without seeing vgroups, replicas, caches, and other information. Regardless of whether they are restricted from viewing system information, they can manage UDFs and create databases. They have full permissions on databases they create and have read and write permissions on databases they didn't create, according to the read and write lists.
 
-### 消息订阅授权
+Message Subscription Authorization
 
-任意用户都可以在自己拥有读权限的数据库上创建 topic。超级用户 root 可以在任意数据库上创建 topic。每个 topic 的订阅权限都可以被独立授权给任何用户，不管该用户是否拥有该数据库的访问权限。删除 topic 只能由 root 用户或者该 topic 的创建者进行。topic 只能由超级用户、topic的创建者或者被显式授予 subscribe 权限的用户订阅。
+Any user can create topics on databases they have read access to. The superuser "root" can create topics on any database. Subscription permissions for each topic can be independently granted to any user, regardless of whether they have access to the database. Only the root user or the creator of a topic can delete it. Topics can be subscribed to by superusers, the creators of topics, or users explicitly granted "subscribe" permissions.
 
-授予订阅权限的语法如下：
+The syntax for granting subscription permissions is as follows:
 
 ```sql
 GRANT privileges ON priv_level TO user_name  privileges : {  ALL  | priv_type [, priv_type] ... }   priv_type : {  SUBSCRIBE }   priv_level : {  topic_name } 
 ```
 
-### 基于标签的授权（表级授权）
+### Tag-Based Authorization (Table-Level Authorization)
 
-从 TDengine 3.0.5.0 开始，我们支持按标签授权某个超级表中部分特定的子表。具体的 SQL 语法如下。
+Starting from TDengine 3.0.5.0, we support authorizing specific sub-tables within a super table using tag-based authorization. The SQL syntax for this is as follows:
 
 ```sql
 GRANT privileges ON priv_level [WITH tag_condition] TO user_name
@@ -152,39 +153,39 @@ priv_level : {
 }
 ```
 
-上面 SQL 的语义为：
+The semantics of the above SQL are as follows:
 
-- 用户可以通过 dbname.tbname 来为指定的表（包括超级表和普通表）授予或回收其读写权限，不支持直接对子表授予或回收权限。
-- 用户可以通过 dbname.tbname 和 WITH 子句来为符合条件的所有子表授予或回收其读写权限。使用 WITH 子句时，权限级别必须为超级表。
+- Users can grant or revoke read and write permissions for specified tables (including super tables and regular tables) using dbname.tbname. Directly granting or revoking permissions for sub-tables is not supported.
+- Users can grant or revoke read and write permissions for all sub-tables that meet specific conditions using dbname.tbname and the WITH clause. When using the WITH clause, the permission level must be for a super table.
 
-### 表级权限和数据库权限的关系
+### Relationship Between Table-Level Authorization and Database Authorization
 
-下表列出了在不同的数据库授权和表级授权的组合下产生的实际权限。
+The table below outlines the actual permissions resulting from different combinations of database authorization and table-level authorization:
 
-|                |**表无授权**       | **表读授权** | **表读授权有标签条件** | **表写授权** | **表写授权有标签条件** |
+|                |**No Table Permissions**       | **Table Read Permissions** | **Table Read Permissions with Tag Conditions** | **Table Write Permissions** | **Table Write Permissions with Tag Conditions** |
 | -------------- | ---------------- | -------- | ---------- | ------ | ----------- | 
-| **数据库无授权**  | 无授权          | 对此表有读权限，对数据库下的其他表无权限   |  对此表符合标签权限的子表有读权限，对数据库下的其他表无权限       | 对此表有写权限，对数据库下的其他表无权限      | 对此表符合标签权限的子表有写权限，对数据库下的其他表无权限      | 
-| **数据库读授权**  | 对所有表有读权限 | 对所有表有读权限     | 对此表符合标签权限的子表有读权限，对数据库下的其他表有读权限       | 对此表有写权限，对所有表有读权限    | 对此表符合标签权限的子表有写权限，所有表有读权限 | 
-| **数据库写授权**  | 对所有表有写权限 | 对此表有读权限，对所有表有写权限    | 对此表符合标签权限的子表有读权限，对所有表有写权限      | 对所有表有写权限     | 对此表符合标签权限的子表有写权限，数据库下的其他表有写权限        | 
+No Database Authorization	| No authorization	| Read permission for this table, no permission for other tables under the database	| Read permission for sub-tables under this table that meet the tag condition, no permission for other tables under the database	| Write permission for this table, no permission for other tables under the database	| Write permission for sub-tables under this table that meet the tag condition, no permission for other tables under the database | 
+No Database Authorization	| No authorization	| Read permission for this table, no permission for other tables under the database	| Read permission for sub-tables under this table that meet the tag condition, no permission for other tables under the database	| Write permission for this table, no permission for other tables under the database	| Write permission for sub-tables under this table that meet the tag condition, no permission for other tables under the database | 
+Read Database Authorization	| Read permission for all tables	| Read permission for all tables	| Read permission for sub-tables under this table that meet the tag condition, read permission for all tables under the database	| Write permission for this table, read permission for all tables	| Write permission for sub-tables under this table that meet the tag condition, read permission for all tables under the database | 
 
 
-### 查看用户授权
+### View User Permissions
 
-使用下面的命令可以显示一个用户所拥有的授权：
+You can display the authorizations a user has using the following command:
 
 ```sql
 show user privileges 
 ```
 
-### 撤销授权
+### Revoke Permissions
 
-1.  撤销数据库访问的授权
+1. Revoke database access authorization
 
 ```sql
 REVOKE privileges ON priv_level FROM user_name   privileges : {  ALL  \| priv_type [, priv_type] ... }   priv_type : {  READ  \| WRITE }   priv_level : {  dbname.\*  \| \*.\* }  
 ```
 
-2.  撤销数据订阅的授权
+2. Revoke data subscription authorization
 
 ```sql
 REVOKE privileges ON priv_level FROM user_name   privileges : {  ALL  \| priv_type [, priv_type] ... }   priv_type : {  SUBSCRIBE }   priv_level : {  topi_name } 

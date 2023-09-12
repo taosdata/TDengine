@@ -3,11 +3,11 @@ title: 边云协同
 sidebar_label: 边云协同
 ---
 
-## 简介
+## Introduction
 
 利用 taosX 这个零代码数据迁移平台以及 TDengine server 的数据订阅特性，可以轻易地实现边云协同功能。在云端（或使用 TDengine server 的集中存储端）部署 taosX，在使用 TDengine server 的边端创建 topic，可以根据需要有选择地将关键数据从边端实时同步到云端。边云协同只支持边端和云端都是 TDengine 3.0 的版本。本节讲述如何使用 taosX 的命令行进行边云协同，您也可以使用 taos-explorer 的可视化界面进行边云协同，具体请参考[可视化管理](../explorer)。服务安装与部署请参考 [安装与部署](../../get-started)。
 
-## 命令行参数
+## Command Line Parameters
 
 对命令行参数的详细说明请参考[命令行参数](../../reference/taosx)
 

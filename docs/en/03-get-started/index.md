@@ -1,6 +1,6 @@
 ---
-title: 安装与部署指南
-sidebar_label: 安装与部署
+title: Installation Guide
+sidebar_label: Installation Guide
 ---
 
 ```mdx-code-block

@@ -3,7 +3,7 @@ toc_max_heading_level: 4
 title: 数据同步
 ---
 
-## 简介
+## Introduction
 
 本节讲述如何使用 taosX 的命令行在 TDengine 集群之间同步数据。数据同步功能的目标端必须是 TDengine 3.0，源端可以是 TDengine 3.0 或 2.6 。对于 taosX 的命令行参数解析，请参考 [taosX](../../reference/taosx)。您也可以使用 taos-explorer 的可视化界面进行数据同步，具体请参考[可视化管理](../explorer)。服务安装与部署请参考 [安装与部署](../../get-started)。
 
@@ -22,7 +22,7 @@ title: 数据同步
 | offset    | 从指定的 offset 开始订阅，格式为 `<vgroup_id>:<offset>`，若有多个 vgroup 则用半角逗号隔开 | 若为空则从 0 开始订阅  |
 | token     | 目标源参数。 认证使用参数。                              | 无                                     |
 
-### 示例
+### Examples
 
 ```shell
 taosx run \
@@ -58,7 +58,7 @@ taosx run \
 | timeout-per-table  | 目标源参数。 为子表或普通表同步任务添加超时。                                                                                                                                                                                             | 无                                     |
 | update-tags        | 目标源参数。 检查子表存在与否，不存在时正常建表，存在时检查标签值是否一致，不一致则更新。                                                                                                                                                 | 无                                     |
 
-### 示例
+### Examples
 
 1.使用原生连接同步数据
 

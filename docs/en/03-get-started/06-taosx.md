@@ -1,57 +1,57 @@
 ---
-title: 部署 taosX
-sidebar_label: 部署 taosX
+title: Installing taosX
+sidebar_label: taosX
 ---
 
-## 简介
+## Introduction
 
-本节讲述如何部署 taosX。在安装了 taosX 安装包后，系统中就具备了 taosX，细节请参考 [安装与配置](../install)。
+This document describes how to install taosX. The taosX installation package includes taosX. For more information, see [Installation Guide](../install/).
 
-## 配置
+## Configuration
 
-taosX 仅支持通过命令行参数进行配置。服务模式下，taosX 支持的命令行参数可以通过以下方式查看：
+You can configure taosX with command-line parameters. To view the supported parameters when taosX is run as a service, run the following command:
 
 ```
 taosx serve --help
 ```
 
-建议通过 Systemd 的方式，启动 taosX 的服务模式，其 Systemd 的配置文件位于：`/etc/systemd/system/taosx.service`. 如需修改 taosX 的启动参数，可以编辑该文件中的以下行：
+The `systemd` configuration file for taosX is located at `/etc/systemd/system/taosx.service`. To configure the taosX service, modify the following line in the `taosx.service` file:
 
 ```
 ExecStart=/usr/bin/taosx serve -v
 ```
 
-修改后，需执行以下命令重启 taosX 服务，使配置生效：
+After you modify the `taosx.service` file, restart the taosX service to cause your changes to take effect:
 
 ```
 systemctl daemon-reload
 systemctl restart taosx
 ```
 
-## 启动
+## Start taosX
 
-Linux 系统上以 Systemd 的方式启动 taosX 的命令如下：
+On Linux, use `systemd` to start the taosX service:
 
 ```shell
 systemctl start taosx
 ```
 
-Windows 系统上，请在 "Services" 系统管理工具中找到 "taosX" 服务，然后点击 "启动这个服务"。
+On Windows, open the **Services** app and start the **taosX** service.
 
-## 问题排查
+## Troubleshooting
 
-1. 如何修改 taosX 的日志级别？
+1. Modifying the taosX log level
 
-taosX 的日志级别是通过命令行参数指定的，默认的日志级别为 Info, 具体参数如下：
-- INFO: `taosx serve -v`
-- DEBUG: `taosx serve -vv`
-- TRACE: `taosx serve -vvv`
+The default log level for taosX is `info`. To specify a different level, use the following command-line parameters:
+- `info`: `taosx serve -v`
+- `debug`: `taosx serve -vv`
+- `trace`: `taosx serve -vvv`
 
-Systemd 方式启动时，如何修改命令行参数，请参考“配置”章节。
+To specify command-line parameters when taosX is run as a service, see Configuration.
 
-2. 如何查看 taosX 的日志？
+2. Viewing taosX logs
 
-以 Systemd 方式启动时，可通过 journalctl 命令查看日志。以滚动方式，实时查看最新日志的命令如下：
+You can use the `journalctl` command to view taosX log files. The following command displays the latest logs:
 
 ```
 journalctl -u taosx -f

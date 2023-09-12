@@ -22,12 +22,12 @@ title: 数据接入
 | certificate     | string | cert.pem的路径。当安全模式或策略不是”无”时生效        |
 | private_key     | string | key.pem的路径。 当安全模式或策略不是”无”时生效 |
 | csv_config_file | string | 包含 OPC UA 的点位配置和表配置。与配置 csv_config_file 配置互斥，csv_config_file 优先生效|
-| ua.nodes | string | OPC-UA 测点的 NodeID。和 opc_table_config 配置结合使用，两者需要同时配置。与配置 csv_config_file 配置互斥，csv_config_file 优先生效。配置格式为 <nodeid\>::<code\>，code 用于建子表。|
-| opc_table_config | string | OPCUA 单列模式表配置。需要与 ua.nodes 配合使用。|
-| debug | bool | 启用 OPC 连接器的 debug 日志。默认为 false。|
+| ua.nodes | string | OPC-UA 测点的 NodeID。和 opc_table_config 配置结合使用，两者需要同时配置。与配置 csv_config_file 配置互斥，csv_config_file 优先生效。配置格式为 <nodeid\>::<code\>，code 用于建子表。 |
+| opc_table_config | string | OPCUA 单列模式表配置。需要与 ua.nodes 配合使用。 |
+| debug | bool | 启用 OPC 连接器的 debug 日志。默认为 false。 |
 | enable | bool | 原始数据存储。默认为 false|
-| path | string | 原始数据存储路径。enable 为 true 时必须配置。|
-| keep | int | 原始数据保存天数。enable 为 true 时必须配置。|
+| path | string | 原始数据存储路径。enable 为 true 时必须配置。 |
+| keep | int | 原始数据保存天数。enable 为 true 时必须配置。 |
 
 补充：
 1. opc_table_config 说明：
@@ -64,7 +64,7 @@ title: 数据接入
 }
 ```
 
-### 示例
+### Examples
 
 1. 使用 ua.nodes 和 opc_table_config 的配置示例：
 采集 nodeid 为 ns=2;i=2 和 ns=2;i=3 的点位，将其写入到集群 tdengine 的 opc 库中超级表前缀为 meters，如果 ns=2;i=2 的点位类型为 float 则会创建 meters_float 的超级表，超级表使用 opc 接收的数据作为时间戳索引列，并且保留原始时间戳列，原始时间戳列名为 ts_2,数据列存储为 valueaa，同时存储质量数据到 quality11 列。
@@ -100,12 +100,12 @@ taosx run -f "opcua://<server-info>?csv_config_file=@<file_path>" -t "taos+ws://
 | connect_timeout | int    | 连接的超时时间（单位：秒），默认为10秒                                  |
 | request_timeout | int    | 请求的超时时间（单位：秒），默认为10秒                                              |
 | csv_config_file | string | 包含 OPC UA 的点位配置和表配置。与 ua.nodes 两者之间需要配置一个。CSV 的配置模版参考：OPC 需求汇总及完成现状 |
-| da.tags | string | OPC-UA 测点的 NodeID。和 opc_table_config 配置结合使用，两者需要同时配置。与配置 csv_config_file 配置互斥，csv_config_file 优先生效。|
+| da.tags | string | OPC-UA 测点的 NodeID。和 opc_table_config 配置结合使用，两者需要同时配置。与配置 csv_config_file 配置互斥，csv_config_file 优先生效。 |
 | opc_table_config | string | OPCUA 单列模式表配置。需要与 da.tags 配合使用|
-| debug | bool | 启用 OPC 连接器的 debug 日志。默认为 false。|
+| debug | bool | 启用 OPC 连接器的 debug 日志。默认为 false。 |
 | enable | bool | 原始数据存储。默认为 false|
-| path | string | 原始数据存储路径。enable 为 true 时必须配置。|
-| keep | int | 原始数据保存天数。enable 为 true 时必须配置。|
+| path | string | 原始数据存储路径。enable 为 true 时必须配置。 |
+| keep | int | 原始数据保存天数。enable 为 true 时必须配置。 |
 
 ### 应用示例
 
@@ -236,7 +236,7 @@ taosx run --from "<InfluxDB-DSN>" --to "<TDengine-DSN>"
 - endTime: 非必填，可以不指定该字段或值为空，格式与beginTime相同；如果未指定，提交任务后，将持续进行数据同步；
 - readWindow: 非必填，可以不指定该字段或值为空，可选项为D、H、M（天、时、分）；如果未指定，则默认按 M 拆分读取窗口。
 
-### 示例
+### Examples
 
 将位于 192.168.1.10 的 InfluxDB 中, Bucket 名称为 test_bucket, 从UTC时间2023年06月01日00时00分00秒开始的数据，通过运行在 192.168.1.20 上的 taoskeeper, 同步至 TDengine 的 test_db 数据库中，完整的命令如下所示：
 ```bash
@@ -272,7 +272,7 @@ taosx run --from "<OpenTSDB-DSN>" --to "<TDengine-DSN>"
 - endTime: 非必填，可以不指定该字段或值为空，格式与beginTime相同；如果未指定，提交任务后，将持续进行数据同步；
 - readWindow: 非必填，可以不指定该字段或值为空，可选项为D、H、M（天、时、分）；如果未指定，则默认按分钟拆分读取窗口。
 
-### 示例
+### Examples
 
 将位于 192.168.1.10 的 OpenTSDB 中, Metric 名称为 test_metric1 与 test_metric2 的两个数据源, 从UTC时间2023年06月01日00时00分00秒开始的数据，通过运行在 192.168.1.20 上的 taoskeeper, 同步至 TDengine 的 test_db 数据库中，完整的命令如下所示：
 
@@ -294,7 +294,7 @@ taosx run \
 taosx run --from "<MQTT-DSN>" --to "<TDengine-DSN>" --parser "@<parser-config-file-path>"
 ```
 
-其中：
+The parameters are:
 - `--from` 用于指定 MQTT 数据源的 DSN
 - `--to` 用于指定 TDengine 的 DSN
 - `--parser` 用于指定一个 JSON 格式的配置文件，该文件决定了如何解析 JSON 格式的 MQTT 消息，以及写入 TDengine 时的超级表名、子表名、字段名称和类型，以及标签名称和类型等。
@@ -455,7 +455,7 @@ taosx run -f "<Kafka-DSN>" -t "<TDengine-DSN>"
 ```shell
 taosx run -f "<Kafka-DSN>" -t "<TDengine-DSN>" --parser "@<parser-config-file-path>"
 ```
-其中：
+The parameters are:
 - -f或--from： Kafka 的 DSN
 - -t或--to ：TDengine 的 DSN
 - --parser ：一个 JSON 格式的配置文件，或JSON格式的字符串。
@@ -475,7 +475,7 @@ taosx run -f "<Kafka-DSN>" -t "<TDengine-DSN>" --parser "@<parser-config-file-pa
 | cert_key | SSL证书key的文件路径 | 否 | | 源端  ||
 
 
-### 示例一
+### Example 1
 
 从192.168.1.92服务器的Kafka实例中消费数据，同步到192.168.1.92上的TDengine，不使用parser。
 

@@ -1,14 +1,14 @@
 ---
-title: 部署 taosKeeper 
-sidebar_label: 部署 taosKeeper
+title: Installing taosKeeper 
+sidebar_label: taosKeeper
 ---
 
-本节讲述如何部署 taosKeeper, taosKeeper 是用于接收业务集群产生的监控数据并将其写入监控集群的一个代理服务。
+taosKeeper is a component of TDengine that monitors the operating status of your TDengine cluster and stores monitoring metrics.
 
-## 安装
+## Installing taosKeeper
 
-taosKeeper 无需独立安装。在安装了 TDengine server 之后，系统中就已经具备了 taosKeeper。但如果想在不同的服务器上分别部署 TDengine 集群 (taosd 组件) 和 taosKeeper，则需要在这些服务器上都安装 TDengine server 安装包。具体请参数 [安装](../install)。关于 taosKeeper 的配置和使用细节，请参考 [taosKeeper](../../reference/taosKeeper)。
+It is not necessary to install taosKeeper separately. When you install TDengine Server, taosKeeper is automatically installed. However, if desired, you can install taosKeeper and TDengine Server on different machines. For more information, see [Installation](../install/). For more information about taosKeeper, see [taosKeeper](../../reference/taosKeeper).
 
-## 部署
+### Deployment
 
-部署 taosKeeper 请参考 [taosKeeper](../../reference/taosKeeper/#配置和运行方式)
+To install taosKeeper separately, see [taosKeeper](../../reference/taosKeeper/#configuration).
