@@ -868,6 +868,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   mndTransDrop(pTrans);
 
   taosThreadMutexLock(&execNodeList.lock);
+  mDebug("register to stream task node list");
   keepStreamTasksInBuf(&streamObj, &execNodeList);
   taosThreadMutexUnlock(&execNodeList.lock);
 
@@ -876,13 +877,8 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   char detail[2000] = {0};
   sprintf(detail,
           "checkpointFreq:%" PRId64 ", createStb:%d, deleteMark:%" PRId64
-          ", "
-          "fillHistory:%d, igExists:%d, "
-          "igExpired:%d, igUpdate:%d, lastTs:%" PRId64
-          ", "
-          "maxDelay:%" PRId64
-          ", numOfTags:%d, sourceDB:%s, "
-          "targetStbFullName:%s, triggerType:%d, watermark:%" PRId64,
+          ", fillHistory:%d, igExists:%d, igExpired:%d, igUpdate:%d, lastTs:%" PRId64 ", maxDelay:%" PRId64
+          ", numOfTags:%d, sourceDB:%s, targetStbFullName:%s, triggerType:%d, watermark:%" PRId64,
           createStreamReq.checkpointFreq, createStreamReq.createStb, createStreamReq.deleteMark,
           createStreamReq.fillHistory, createStreamReq.igExists, createStreamReq.igExpired, createStreamReq.igUpdate,
           createStreamReq.lastTs, createStreamReq.maxDelay, createStreamReq.numOfTags, createStreamReq.sourceDB,
@@ -1579,8 +1575,8 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         } else if (taskStatus == TASK_STATUS__DROPPING) {
           memcpy(varDataVal(status), "dropping", 8);
           varDataSetLen(status, 8);
-        } else if (taskStatus == TASK_STATUS__FAIL) {
-          memcpy(varDataVal(status), "fail", 4);
+        } else if (taskStatus == TASK_STATUS__UNINIT) {
+          memcpy(varDataVal(status), "uninit", 6);
           varDataSetLen(status, 4);
         } else if (taskStatus == TASK_STATUS__STOP) {
           memcpy(varDataVal(status), "stop", 4);
@@ -2021,14 +2017,11 @@ static int32_t createStreamUpdateTrans(SMnode *pMnode, SStreamObj *pStream, SVgr
 
 static bool isNodeEpsetChanged(const SEpSet *pPrevEpset, const SEpSet *pCurrent) {
   const SEp *pEp = GET_ACTIVE_EP(pPrevEpset);
+  const SEp* p = GET_ACTIVE_EP(pCurrent);
 
-  for (int32_t i = 0; i < pCurrent->numOfEps; ++i) {
-    const SEp *p = &(pCurrent->eps[i]);
-    if (pEp->port == p->port && strncmp(pEp->fqdn, p->fqdn, TSDB_FQDN_LEN) == 0) {
-      return false;
-    }
+  if (pEp->port == p->port && strncmp(pEp->fqdn, p->fqdn, TSDB_FQDN_LEN) == 0) {
+    return false;
   }
-
   return true;
 }
 
@@ -2125,6 +2118,7 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
     mDebug("stream:0x%" PRIx64 " involved node changed, create update trans", pStream->uid);
     int32_t code = createStreamUpdateTrans(pMnode, pStream, pChangeInfo);
     if (code != TSDB_CODE_SUCCESS) {
+      sdbCancelFetch(pSdb, pIter);
       return code;
     }
   }
@@ -2228,17 +2222,21 @@ static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg) {
   SVgroupChangeInfo changeInfo = mndFindChangedNodeInfo(pMnode, execNodeList.pNodeEntryList, pNodeSnapshot);
   if (taosArrayGetSize(changeInfo.pUpdateNodeList) > 0) {
     code = mndProcessVgroupChange(pMnode, &changeInfo);
+
+    // keep the new vnode snapshot
+    if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS) {
+      mDebug("create trans successfully, update cached node list");
+      taosArrayDestroy(execNodeList.pNodeEntryList);
+      execNodeList.pNodeEntryList = pNodeSnapshot;
+      execNodeList.ts = ts;
+    }
+  } else {
+    mDebug("no update found in nodeList");
+    taosArrayDestroy(pNodeSnapshot);
   }
 
   taosArrayDestroy(changeInfo.pUpdateNodeList);
   taosHashCleanup(changeInfo.pDBMap);
-
-  // keep the new vnode snapshot
-  if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_ACTION_IN_PROGRESS) {
-    taosArrayDestroy(execNodeList.pNodeEntryList);
-    execNodeList.pNodeEntryList = pNodeSnapshot;
-    execNodeList.ts = ts;
-  }
 
   mDebug("end to do stream task node change checking");
   atomic_store_32(&mndNodeCheckSentinel, 0);
@@ -2289,7 +2287,6 @@ static void keepStreamTasksInBuf(SStreamObj *pStream, SStreamVnodeRevertIndex *p
 // todo: this process should be executed by the write queue worker of the mnode
 int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
-
   SStreamHbMsg req = {0};
   int32_t      code = TSDB_CODE_SUCCESS;
 
@@ -2314,10 +2311,13 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   for (int32_t i = 0; i < req.numOfTasks; ++i) {
     STaskStatusEntry *p = taosArrayGet(req.pTaskStatus, i);
-    int64_t           k[2] = {p->streamId, p->taskId};
-    int32_t           index = *(int32_t *)taosHashGet(execNodeList.pTaskMap, &k, sizeof(k));
+    int64_t   k[2] = {p->streamId, p->taskId};
+    int32_t *index = taosHashGet(execNodeList.pTaskMap, &k, sizeof(k));
+    if (index == NULL) {
+      continue;
+    }
 
-    STaskStatusEntry *pStatusEntry = taosArrayGet(execNodeList.pTaskList, index);
+    STaskStatusEntry *pStatusEntry = taosArrayGet(execNodeList.pTaskList, *index);
     pStatusEntry->status = p->status;
     if (p->status != TASK_STATUS__NORMAL) {
       mDebug("received s-task:0x%x not in ready status:%s", p->taskId, streamGetTaskStatusStr(p->status));

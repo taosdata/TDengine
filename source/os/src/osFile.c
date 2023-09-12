@@ -19,6 +19,8 @@
 
 #ifdef WINDOWS
 #include <io.h>
+#include <WinBase.h>
+#include <ktmw32.h>
 #define F_OK 0
 #define W_OK 2
 #define R_OK 4
@@ -175,12 +177,32 @@ int32_t taosRemoveFile(const char *path) { return remove(path); }
 
 int32_t taosRenameFile(const char *oldName, const char *newName) {
 #ifdef WINDOWS
-  bool code = MoveFileEx(oldName, newName, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED);
-  if (!code) {
-    printf("failed to rename file %s to %s, reason:%s\n", oldName, newName, strerror(errno));
+  bool finished = false;
+
+  HANDLE transactionHandle = CreateTransaction(NULL, NULL, 0, 0, 0, INFINITE, NULL);
+  if (transactionHandle == INVALID_HANDLE_VALUE) {
+    printf("failed to rename file %s to %s, reason: CreateTransaction failed.\n", oldName, newName);
+    return -1;
   }
 
-  return code ? 0 : -1;
+  BOOL result = MoveFileTransacted(oldName, newName, NULL, NULL, MOVEFILE_REPLACE_EXISTING, transactionHandle);
+
+  if (result) {
+    finished = CommitTransaction(transactionHandle);
+    if (!finished) {
+      DWORD error = GetLastError();
+      printf("failed to rename file %s to %s, reason: CommitTransaction errcode %d.\n", oldName, newName, error);
+    }
+  } else {
+    RollbackTransaction(transactionHandle);
+    DWORD error = GetLastError();
+    finished = false;
+    printf("failed to rename file %s to %s, reason: MoveFileTransacted errcode %d.\n", oldName, newName, error);
+  }
+
+  CloseHandle(transactionHandle);
+
+  return finished ? 0 : -1;
 #else
   int32_t code = rename(oldName, newName);
   if (code < 0) {
@@ -904,10 +926,16 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
     goto cmp_end;
   }
 
-  dstFp = gzdopen(pFile->fd, "wb6f");
+  // Both gzclose() and fclose() will close the associated fd, so they need to have different fds.
+  FileFd gzFd = dup(pFile->fd);
+  if (gzFd < 0) {
+    ret = -4;
+    goto cmp_end;
+  }
+  dstFp = gzdopen(gzFd, "wb6f");
   if (dstFp == NULL) {
     ret = -3;
-    taosCloseFile(&pFile);
+    close(gzFd);
     goto cmp_end;
   }
 

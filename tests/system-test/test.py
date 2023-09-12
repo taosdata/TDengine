@@ -177,7 +177,7 @@ if __name__ == "__main__":
                 sys.exit(0)
 
         if key in ['-k', '--killValgrind']:
-            killValgrind = 0
+            killValgrind = 1
 
         if key in ['-e', '--execCmd']:
             try:

@@ -25,7 +25,8 @@
 
 #define FLUSH_RATIO                    0.5
 #define FLUSH_NUM                      4
-#define DEFAULT_MAX_STREAM_BUFFER_SIZE (128 * 1024 * 1024);
+#define DEFAULT_MAX_STREAM_BUFFER_SIZE (128 * 1024 * 1024)
+#define MIN_NUM_OF_ROW_BUFF            10240
 
 struct SStreamFileState {
   SList*     usedBuffs;
@@ -67,7 +68,7 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
   pFileState->usedBuffs = tdListNew(POINTER_BYTES);
   pFileState->freeBuffs = tdListNew(POINTER_BYTES);
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
-  int32_t    cap = TMIN(10240, pFileState->maxRowCount);
+  int32_t    cap = TMIN(MIN_NUM_OF_ROW_BUFF, pFileState->maxRowCount);
   pFileState->rowBuffMap = tSimpleHashInit(cap, hashFn);
   if (!pFileState->usedBuffs || !pFileState->freeBuffs || !pFileState->rowBuffMap) {
     goto _error;
@@ -272,10 +273,12 @@ int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, voi
     *pVLen = pFileState->rowSize;
     *pVal = *pos;
     (*pos)->beUsed = true;
+    (*pos)->beFlushed = false;
     return TSDB_CODE_SUCCESS;
   }
   SRowBuffPos* pNewPos = getNewRowPos(pFileState);
   pNewPos->beUsed = true;
+  pNewPos->beFlushed = false;
   ASSERT(pNewPos->pRowBuff);
   memcpy(pNewPos->pKey, pKey, keyLen);
 
@@ -375,6 +378,10 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
   while ((pNode = tdListNext(&iter)) != NULL && code == TSDB_CODE_SUCCESS) {
     SRowBuffPos* pPos = *(SRowBuffPos**)pNode->data;
     ASSERT(pPos->pRowBuff && pFileState->rowSize > 0);
+    if (pPos->beFlushed) {
+      continue;
+    }
+    pPos->beFlushed = true;
 
     if (streamStateGetBatchSize(batch) >= BATCH_LIMIT) {
       streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
@@ -513,6 +520,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
     ASSERT(pVLen == pFileState->rowSize);
     memcpy(pNewPos->pRowBuff, pVal, pVLen);
     taosMemoryFreeClear(pVal);
+    pNewPos->beFlushed = true;
     code = tSimpleHashPut(pFileState->rowBuffMap, pNewPos->pKey, pFileState->keyLen, &pNewPos, POINTER_BYTES);
     if (code != TSDB_CODE_SUCCESS) {
       destroyRowBuffPos(pNewPos);

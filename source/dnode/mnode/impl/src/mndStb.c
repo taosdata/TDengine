@@ -1255,12 +1255,12 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   sprintf(detail, "colVer:%d, delay1:%" PRId64 ", delay2:%" PRId64 ", deleteMark1:%" PRId64 ", "
           "deleteMark2:%" PRId64 ", igExists:%d, numOfColumns:%d, numOfFuncs:%d, numOfTags:%d, "
           "source:%d, suid:%" PRId64 ", tagVer:%d, ttl:%d, "
-          "watermark1:%" PRId64 ", watermark2:%" PRId64, 
-          createReq.colVer, createReq.delay1, createReq.delay2, createReq.deleteMark1, 
+          "watermark1:%" PRId64 ", watermark2:%" PRId64,
+          createReq.colVer, createReq.delay1, createReq.delay2, createReq.deleteMark1,
           createReq.deleteMark2, createReq.igExists, createReq.numOfColumns, createReq.numOfFuncs, createReq.numOfTags,
           createReq.source, createReq.suid, createReq.tagVer, createReq.ttl,
           createReq.watermark1, createReq.watermark2);
-  
+
   mndAuditFieldStr(detail, createReq.pColumns, createReq.numOfColumns, AUDIT_DETAIL_MAX);
   mndAuditFieldStr(detail, createReq.pTags, createReq.numOfTags, AUDIT_DETAIL_MAX);
 
@@ -2610,7 +2610,7 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   char detail[2000] = {0};
   sprintf(detail, "igNotExists:%d, source:%d" ,
           dropReq.igNotExists, dropReq.source);
- 
+
   SName name = {0};
   tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
