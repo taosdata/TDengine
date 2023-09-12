@@ -375,16 +375,17 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
     return -1;
   }
 
-  pTask->tsInfo.init = taosGetTimestampMs();
+  pTask->tsInfo.created = taosGetTimestampMs();
   pTask->inputInfo.status = TASK_INPUT_STATUS__NORMAL;
   pTask->outputInfo.status = TASK_OUTPUT_STATUS__NORMAL;
   pTask->pMeta = pMeta;
 
-  pTask->chkInfo.currentVer = ver;
+  pTask->chkInfo.nextProcessVer = ver;
   pTask->dataRange.range.maxVer = ver;
   pTask->dataRange.range.minVer = ver;
   pTask->pMsgCb = pMsgCb;
 
+  streamTaskInitTokenBucket(&pTask->tokenBucket, 150, 100);
   taosThreadMutexInit(&pTask->lock, NULL);
   streamTaskOpenAllUpstreamInput(pTask);
 
@@ -502,8 +503,9 @@ int32_t streamTaskStop(SStreamTask* pTask) {
     taosMsleep(100);
   }
 
+  pTask->tsInfo.init = 0;
   int64_t el = taosGetTimestampMs() - st;
-  qDebug("vgId:%d s-task:%s is closed in %" PRId64 " ms", pMeta->vgId, pTask->id.idStr, el);
+  qDebug("vgId:%d s-task:%s is closed in %" PRId64 " ms, and reset init ts", pMeta->vgId, pTask->id.idStr, el);
   return 0;
 }
 

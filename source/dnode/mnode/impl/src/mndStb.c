@@ -2320,7 +2320,7 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
 
   pDb = mndAcquireDbByStb(pMnode, alterReq.name);
   if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_INVALID_DB;
+    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
     goto _OVER;
   }
 
@@ -2436,6 +2436,7 @@ static int32_t mndDropStb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *p
   if (mndSetDropStbRedoActions(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
   if (mndDropIdxsByStb(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
   if (mndDropSmasByStb(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
+  if (mndUserRemoveStb(pMnode, pTrans, pStb->name) != 0) goto _OVER;  
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
 
@@ -3616,7 +3617,7 @@ static int32_t mndProcessCreateIndexReq(SRpcMsg *pReq) {
 
   pDb = mndAcquireDbByStb(pMnode, tagIdxReq.dbFName);
   if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_INVALID_DB;
+    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
     goto _OVER;
   }
 
