@@ -226,7 +226,7 @@ int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
     STaosQueue* pQueue = pTask->outputInfo.queue->pQueue;
     code = taosWriteQitem(pQueue, pBlock);
 
-    int32_t total = taosQueueItemSize(pQueue);
+    int32_t total = streamQueueGetNumOfItems(pTask->outputInfo.queue);
     double  size = SIZE_IN_MB(taosQueueMemorySize(pQueue));
     if (code != 0) {
       qError("s-task:%s failed to put res into outputQ, outputQ items:%d, size:%.2fMiB code:%s, result lost",
