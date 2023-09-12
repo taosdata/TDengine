@@ -250,6 +250,7 @@ int32_t streamTaskSnapWrite(SStreamTaskWriter* pWriter, uint8_t* pData, uint32_t
       taosWUnLockLatch(&pTq->pStreamMeta->lock);
       return -1;
     }
+    taosWUnLockLatch(&pTq->pStreamMeta->lock);
   } else if (pHdr->type == SNAP_DATA_STREAM_TASK_CHECKPOINT) {
     // do nothing
   }
