@@ -148,7 +148,7 @@ async fn main() -> anyhow::Result<()> {
                 Embed::new("/docs-en/", &StaticAssets)
                     .index_file("index.html")
                     .fallback_handler(|_: &_| {
-                        let embed = StaticAssets::get("docs-en/index.html").unwrap();
+                        let embed = StaticAssets::get("docs-en/index/index.html").unwrap();
                         HttpResponse::Ok()
                             .content_type(ContentType::html())
                             .body(embed.data)
