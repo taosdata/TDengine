@@ -268,6 +268,7 @@ void mndUpdateIpWhite(SMnode *pMnode, char *user, char *fqdn, int8_t type, int8_
     if (ipWhiteMgt.ver == 0) {
       ipWhiteMgtUpdateAll(pMnode);
       ipWhiteMgt.ver = taosGetTimestampMs();
+      mInfo("ip-white-mnode ver, %" PRId64 "", ipWhiteMgt.ver);
     }
   }
 
