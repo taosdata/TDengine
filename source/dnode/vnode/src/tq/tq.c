@@ -798,7 +798,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     pTask->smaSink.smaSink = smaHandleRes;
   } else if (pTask->outputInfo.type == TASK_OUTPUT__TABLE) {
     pTask->tbSink.vnode = pTq->pVnode;
-    pTask->tbSink.tbSinkFunc = tqSinkToTablePipeline;
+    pTask->tbSink.tbSinkFunc = tqSinkDataIntoDstTable;
 
     int32_t   ver1 = 1;
     SMetaInfo info = {0};
@@ -1048,7 +1048,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     ASSERT(pTask->status.pauseAllowed == true);
   }
 
-  streamSourceScanHistoryData(pTask);
+  streamScanHistoryData(pTask);
   if (pTask->status.taskStatus == TASK_STATUS__PAUSE) {
     double el = (taosGetTimestampMs() - pTask->tsInfo.step1Start) / 1000.0;
     tqDebug("s-task:%s is paused in the step1, elapsed time:%.2fs, sched-status:%d", pTask->id.idStr, el,
