@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2023-09-12
+
+**Full Changelog**: [v1.2.0...v1.2.1](https://github.com/taosdata/taosx/compare/v1.2.0...v1.2.1)
+
+### Bug Fixes
+
+- *legacy*: Add column when cause 0x263F [TS-3937](https://jira.taosdata.com:18080/browse/TS-3937) (#705) ([ee092fd](ee092fd950ef678b135db62736439d983ff14bc9))
+- *legacy*: Fix select tbname 0x0362 error when stable special ([307337b](307337becee0cd735c6b9f386afda225cefa2a5b))
+- *legacy*: Correct fail-to time range ([7cb5fcd](7cb5fcd4619a6f4fc75575ed897f0f2e375ef679))
+- *package*: Error occurs when multi build (#701) ([390a5e1](390a5e1808702b529eb64fea67aa334720fda5d4))
+- *serve*: Persist fallback to std::fs::copy when failed ([136b853](136b853d554297a600c12fa516e523526f4663f0))
+- *serve*: Fix invalid value "Cancelled" for enum Status ([4eaf948](4eaf948135c581037f0c7c50b8d1621a89752bfc))
+- *serve*: Stop task cause 404 ([0895cc4](0895cc4b4c5534e63e32369d6dbb1baefb9a96be))
+
+- Fix agent keep live issue (#699) ([a6c4fb4](a6c4fb4bac4364c7ee9fd90b791f1ac415fd0a5f))
+- Clap short option confilct (#703) ([f8f5291](f8f52918b46da7158c43c190b25328b8a1b50bd8))
+- Clap short option confilct (#704) ([405f900](405f900138ee665f17b60ef882623ed8cf5b6b61))
+- Try to fix pending issue ([b6d99f5](b6d99f5def8a341a36d77ab9f2600b0b8eb993a4))
+
+
+### Enhancements
+
+- *legacy*: Add time range in fails-to output ([9dd93a8](9dd93a8aa9ae970ea70774c46411b3e0d7f9bc0a))
+- *opc*: Fix opc dump path (#693) ([04962fa](04962fa94e920cfd1fb0154cb40ce13a49ca0253))
+
+- Install optimization (#697) ([20c9607](20c9607f1d2ec599ea669011d2afe08ebc6b7963))
+
+
+### Features
+
+- *source*: Add historian data source #[TS-3802](https://jira.taosdata.com:18080/browse/TS-3802) (#664) ([a04d189](a04d1895a1e39bce8ffc909a0ee00abb0ec34eda))
+
+
+
 ## [1.2.0] - 2023-09-06
 
 **Full Changelog**: [v1.1.0...v1.2.0](https://github.com/taosdata/taosx/compare/v1.1.0...v1.2.0)
