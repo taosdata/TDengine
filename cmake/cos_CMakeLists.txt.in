@@ -1,0 +1,12 @@
+# cos
+ExternalProject_Add(cos
+        GIT_REPOSITORY https://github.com/tencentyun/cos-c-sdk-v5.git
+	GIT_TAG v5.0.16
+        SOURCE_DIR "${TD_CONTRIB_DIR}/cos-c-sdk-v5"
+        BINARY_DIR ""
+        #BUILD_IN_SOURCE TRUE
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
+)

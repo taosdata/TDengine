@@ -63,7 +63,7 @@ typedef struct STableBlockScanInfo {
   SIterInfo iiter;              // imem buffer skip list iterator
   SArray*   delSkyline;         // delete info for this table
   int32_t   fileDelIndex;       // file block delete index
-  int32_t   lastBlockDelIndex;  // delete index for last block
+  int32_t   sttBlockDelIndex;  // delete index for last block
   bool      iterInit;           // whether to initialize the in-memory skip list iterator or not
 } STableBlockScanInfo;
 
@@ -87,13 +87,13 @@ typedef struct SIOCostSummary {
   double  headFileLoadTime;
   int64_t smaDataLoad;
   double  smaLoadTime;
-  int64_t lastBlockLoad;
-  double  lastBlockLoadTime;
+  int64_t sttStatisBlockLoad;
+  int64_t sttBlockLoad;
+  double  sttBlockLoadTime;
   int64_t composedBlocks;
   double  buildComposedBlockTime;
   double  createScanInfoList;
-  //  double  getTbFromMemTime;
-  //  double  getTbFromIMemTime;
+  SSttBlockLoadCostInfo sttCost;
   double initDelSkylineIterTime;
 } SIOCostSummary;
 
@@ -586,8 +586,8 @@ static int32_t filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader, bo
     return TSDB_CODE_SUCCESS;
   }
 
-  SIOCostSummary* pSum = &pReader->cost;
-  getLastBlockLoadInfo(pIter->pLastBlockReader->pInfo, &pSum->lastBlockLoad, &pReader->cost.lastBlockLoadTime);
+  SIOCostSummary* pCost = &pReader->cost;
+  getSttBlockLoadInfo(pIter->pLastBlockReader->pInfo, &pCost->sttCost);
 
   pIter->pLastBlockReader->uid = 0;
   tMergeTreeClose(&pIter->pLastBlockReader->mergeTree);
@@ -1976,7 +1976,7 @@ static bool nextRowFromLastBlocks(SLastBlockReader* pLastBlockReader, STableBloc
     pLastBlockReader->currentKey = key;
     pScanInfo->lastKeyInStt = key;
 
-    if (!hasBeenDropped(pScanInfo->delSkyline, &pScanInfo->lastBlockDelIndex, key, ver, pLastBlockReader->order,
+    if (!hasBeenDropped(pScanInfo->delSkyline, &pScanInfo->sttBlockDelIndex, key, ver, pLastBlockReader->order,
                         pVerRange)) {
       return true;
     }
@@ -3018,7 +3018,7 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
   pBlockScanInfo->iter.index = index;
   pBlockScanInfo->iiter.index = index;
   pBlockScanInfo->fileDelIndex = index;
-  pBlockScanInfo->lastBlockDelIndex = index;
+  pBlockScanInfo->sttBlockDelIndex = index;
 
   return code;
 
@@ -4029,7 +4029,7 @@ int32_t doMergeRowsInLastBlock(SLastBlockReader* pLastBlockReader, STableBlockSc
       tsdbRowMergerAdd(pMerger, pRow1, NULL);
     } else {
       tsdbTrace("uid:%" PRIu64 " last del index:%d, del range:%d, lastKeyInStt:%" PRId64 ", %s", pScanInfo->uid,
-                pScanInfo->lastBlockDelIndex, (int32_t)taosArrayGetSize(pScanInfo->delSkyline), pScanInfo->lastKeyInStt,
+                pScanInfo->sttBlockDelIndex, (int32_t)taosArrayGetSize(pScanInfo->delSkyline), pScanInfo->lastKeyInStt,
                 idStr);
       break;
     }
@@ -4697,7 +4697,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
     SLastBlockReader* pLReader = pFilesetIter->pLastBlockReader;
     tMergeTreeClose(&pLReader->mergeTree);
 
-    getLastBlockLoadInfo(pLReader->pInfo, &pCost->lastBlockLoad, &pCost->lastBlockLoadTime);
+    getSttBlockLoadInfo(pLReader->pInfo, &pCost->sttCost);
 
     pLReader->pInfo = destroyLastBlockLoadInfo(pLReader->pInfo);
     taosMemoryFree(pLReader);
@@ -4711,7 +4711,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
       ", composed-blocks-time:%.2fms, STableBlockScanInfo size:%.2f Kb, createTime:%.2f ms,initDelSkylineIterTime:%.2f "
       "ms, %s",
       pReader, pCost->headFileLoad, pCost->headFileLoadTime, pCost->smaDataLoad, pCost->smaLoadTime, pCost->numOfBlocks,
-      pCost->blockLoadTime, pCost->buildmemBlock, pCost->lastBlockLoad, pCost->lastBlockLoadTime, pCost->composedBlocks,
+      pCost->blockLoadTime, pCost->buildmemBlock, pCost->sttBlockLoad, pCost->sttBlockLoadTime, pCost->composedBlocks,
       pCost->buildComposedBlockTime, numOfTables * sizeof(STableBlockScanInfo) / 1000.0, pCost->createScanInfoList,
       pCost->initDelSkylineIterTime, pReader->idStr);
 
@@ -5608,4 +5608,4 @@ void tsdbReaderSetId(STsdbReader* pReader, const char* idstr) {
   pReader->idStr = taosStrdup(idstr);
 }
 
-void tsdbReaderSetCloseFlag(STsdbReader* pReader) { pReader->code = TSDB_CODE_TSC_QUERY_CANCELLED; }
+void tsdbReaderSetCloseFlag(STsdbReader* pReader) { /*pReader->code = TSDB_CODE_TSC_QUERY_CANCELLED;*/ }

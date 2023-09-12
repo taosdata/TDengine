@@ -43,6 +43,8 @@ In TDengine, the data types below can be used when specifying a column or tag.
 | 15  |       JSON        |              | JSON type can only be used on tags. A tag of json type is excluded with any other tags of any other type.                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | 16  |      VARCHAR      | User-defined | Alias of BINARY                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | 17  |      GEOMETRY     | User-defined | Geometry                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 18  |      VARBINARY     | User-defined | Binary data with variable length
+ 
 :::note
 
 - Each row of the table cannot be longer than 48KB (64KB since version 3.0.5.0) (note that each BINARY/NCHAR/GEOMETRY column takes up an additional 2 bytes of storage space).
@@ -57,7 +59,7 @@ In TDengine, the data types below can be used when specifying a column or tag.
     | 3 | POLYGON((1.0 1.0, 2.0 2.0, 1.0 1.0)) | 13+3*16    | 13+4094*16 | +16                      |
 
 - Numeric values in SQL statements will be determined as integer or float type according to whether there is decimal point or whether scientific notation is used, so attention must be paid to avoid overflow. For example, 9999999999999999999 will be considered as overflow because it exceeds the upper limit of long integer, but 9999999999999999999.0 will be considered as a legal float number.
-
+- VARBINARY is a data type that stores binary data, with a maximum length of 65517 bytes and a maximum length of 16382 bytes for tag columns. Binary data can be written through SQL or schemaless (which needs to be converted to a string starting with \x), or written through stmt (which can directly use binary). Display starting with hexadecimal starting with \x.
 :::
 
 ## Constants

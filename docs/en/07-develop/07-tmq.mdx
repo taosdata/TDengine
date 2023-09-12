@@ -106,8 +106,6 @@ The related schemas and APIs in various languages are described as follows:
     DLL_EXPORT const char *tmq_err2str(int32_t code);
 ```
 
-For more information, see [C/C++ Connector](/reference/connector/cpp).
-
 The following example is based on the smart meter table described in Data Models. For complete sample code, see the C language section below.
 
 </TabItem>
@@ -122,7 +120,19 @@ Set<String> subscription() throws SQLException;
 
 ConsumerRecords<V> poll(Duration timeout) throws SQLException;
 
+Set<TopicPartition> assignment() throws SQLException;
+long position(TopicPartition partition) throws SQLException;
+Map<TopicPartition, Long> position(String topic) throws SQLException;
+Map<TopicPartition, Long> beginningOffsets(String topic) throws SQLException;
+Map<TopicPartition, Long> endOffsets(String topic) throws SQLException;
+Map<TopicPartition, OffsetAndMetadata> committed(Set<TopicPartition> partitions) throws SQLException;
+
+void seek(TopicPartition partition, long offset) throws SQLException;
+void seekToBeginning(Collection<TopicPartition> partitions) throws SQLException;
+void seekToEnd(Collection<TopicPartition> partitions) throws SQLException;
+
 void commitSync() throws SQLException;
+void commitSync(Map<TopicPartition, OffsetAndMetadata> offsets) throws SQLException;
 
 void close() throws SQLException;
 ```

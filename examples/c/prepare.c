@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
   taos_free_result(result);
 
   // create table
-  const char* sql = "create table m1 (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, bin binary(40), blob nchar(10))";
+  const char* sql = "create table m1 (ts timestamp, b bool, v1 tinyint, v2 smallint, v4 int, v8 bigint, f4 float, f8 double, bin binary(40), blob nchar(10), varbin varbinary(16))";
   result = taos_query(taos, sql);
   code = taos_errno(result);
   if (code != 0) {
@@ -68,6 +68,7 @@ int main(int argc, char *argv[])
       double f8;
       char bin[40];
       char blob[80];
+      int8_t varbin[16];
   } v = {0};
 
   int32_t boolLen = sizeof(int8_t);
@@ -80,7 +81,7 @@ int main(int argc, char *argv[])
   int32_t ncharLen = 30;
 
   stmt = taos_stmt_init(taos);
-  TAOS_MULTI_BIND params[10];
+  TAOS_MULTI_BIND params[11];
   params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
   params[0].buffer_length = sizeof(v.ts);
   params[0].buffer = &v.ts;
@@ -152,9 +153,19 @@ int main(int argc, char *argv[])
   params[9].is_null = NULL;
   params[9].num = 1;
 
+  int8_t tmp[16] = {'a', 0, 1, 13, '1'};
+  int32_t vbinLen = 5;
+  memcpy(v.varbin, tmp, sizeof(v.varbin));
+  params[10].buffer_type = TSDB_DATA_TYPE_VARBINARY;
+  params[10].buffer_length = sizeof(v.varbin);
+  params[10].buffer = v.varbin;
+  params[10].length = &vbinLen;
+  params[10].is_null = NULL;
+  params[10].num = 1;
+
   char is_null = 1;
 
-  sql = "insert into m1 values(?,?,?,?,?,?,?,?,?,?)";
+  sql = "insert into m1 values(?,?,?,?,?,?,?,?,?,?,?)";
   code = taos_stmt_prepare(stmt, sql, 0);
   if (code != 0){
     printf("failed to execute taos_stmt_prepare. code:0x%x\n", code);
@@ -162,7 +173,7 @@ int main(int argc, char *argv[])
   v.ts = 1591060628000;
   for (int i = 0; i < 10; ++i) {
     v.ts += 1;
-    for (int j = 1; j < 10; ++j) {
+    for (int j = 1; j < 11; ++j) {
       params[j].is_null = ((i == j) ? &is_null : 0);
     }
     v.b = (int8_t)i % 2;
@@ -216,7 +227,7 @@ int main(int argc, char *argv[])
     printf("expect two rows, but %d rows are fetched\n", rows);
   }
 
-  taos_free_result(result);
+//  taos_free_result(result);
   taos_stmt_close(stmt);
 
   return 0;

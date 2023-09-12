@@ -25,7 +25,7 @@ int32_t qsortHelper(const void* p1, const void* p2, const void* param) {
 
 // todo refactor: 1) move away; 2) use merge sort instead; 3) qsort is not a stable sort actually.
 void taosSort(void* base, int64_t sz, int64_t width, __compar_fn_t compar) {
-#if defined(WINDOWS) || defined(_ALPINE)
+#if defined(WINDOWS_STASH) || defined(_ALPINE)
   void* param = compar;
   taosqsort(base, sz, width, param, qsortHelper);
 #else

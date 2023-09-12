@@ -60,17 +60,17 @@ import CDemo from "./_sub_c.mdx";
     typedef void(tmq_commit_cb(tmq_t *tmq, int32_t code, void *param));
 
     typedef enum tmq_conf_res_t {
-        TMQ_CONF_UNKNOWN = -2,
-        TMQ_CONF_INVALID = -1,
-        TMQ_CONF_OK = 0,
-    } tmq_conf_res_t;
+    TMQ_CONF_UNKNOWN = -2,
+    TMQ_CONF_INVALID = -1,
+    TMQ_CONF_OK = 0,
+} tmq_conf_res_t;
 
     typedef struct tmq_topic_assignment {
-        int32_t vgId;
-        int64_t currentOffset;
-        int64_t begin;
-        int64_t end;  // The last version of wal + 1
-    } tmq_topic_assignment;
+    int32_t vgId;
+    int64_t currentOffset;
+    int64_t begin;
+    int64_t end;
+} tmq_topic_assignment;
 
     DLL_EXPORT tmq_conf_t    *tmq_conf_new();
     DLL_EXPORT tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value);
@@ -89,24 +89,24 @@ import CDemo from "./_sub_c.mdx";
     DLL_EXPORT int32_t   tmq_subscription(tmq_t *tmq, tmq_list_t **topics);
     DLL_EXPORT TAOS_RES *tmq_consumer_poll(tmq_t *tmq, int64_t timeout);
     DLL_EXPORT int32_t   tmq_consumer_close(tmq_t *tmq);
-    DLL_EXPORT int32_t   tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg); //Commit the msg’s offset + 1
+    DLL_EXPORT int32_t   tmq_commit_sync(tmq_t *tmq, const TAOS_RES *msg);
     DLL_EXPORT void      tmq_commit_async(tmq_t *tmq, const TAOS_RES *msg, tmq_commit_cb *cb, void *param);
     DLL_EXPORT int32_t   tmq_commit_offset_sync(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset);
     DLL_EXPORT void      tmq_commit_offset_async(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset, tmq_commit_cb *cb, void *param);
     DLL_EXPORT int32_t   tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment,int32_t *numOfAssignment);
     DLL_EXPORT void      tmq_free_assignment(tmq_topic_assignment* pAssignment);
     DLL_EXPORT int32_t   tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t vgId, int64_t offset);
-    DLL_EXPORT int64_t   tmq_position(tmq_t *tmq, const char *pTopicName, int32_t vgId);  // The current offset is the offset of the last consumed message + 1
+    DLL_EXPORT int64_t   tmq_position(tmq_t *tmq, const char *pTopicName, int32_t vgId);
     DLL_EXPORT int64_t   tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId);
 
     DLL_EXPORT const char *tmq_get_topic_name(TAOS_RES *res);
     DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
     DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
-    DLL_EXPORT int64_t     tmq_get_vgroup_offset(TAOS_RES* res);  // Get current offset of the result
-    DLL_EXPORT const char *tmq_err2str(int32_t code);
+    DLL_EXPORT int64_t     tmq_get_vgroup_offset(TAOS_RES* res);
+    DLL_EXPORT const char *tmq_err2str(int32_t code);DLL_EXPORT void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param);
 ```
 
-这些 API 的文档请见 [C/C++ Connector](../../connector/cpp)，下面介绍一下它们的具体用法（超级表和子表结构请参考“数据建模”一节），完整的示例代码请见下面 C 语言的示例代码。
+下面介绍一下它们的具体用法（超级表和子表结构请参考“数据建模”一节），完整的示例代码请见下面 C 语言的示例代码。
 
 </TabItem>
 <TabItem value="java" label="Java">
@@ -120,7 +120,19 @@ Set<String> subscription() throws SQLException;
 
 ConsumerRecords<V> poll(Duration timeout) throws SQLException;
 
+Set<TopicPartition> assignment() throws SQLException;
+long position(TopicPartition partition) throws SQLException;
+Map<TopicPartition, Long> position(String topic) throws SQLException;
+Map<TopicPartition, Long> beginningOffsets(String topic) throws SQLException;
+Map<TopicPartition, Long> endOffsets(String topic) throws SQLException;
+Map<TopicPartition, OffsetAndMetadata> committed(Set<TopicPartition> partitions) throws SQLException;
+
+void seek(TopicPartition partition, long offset) throws SQLException;
+void seekToBeginning(Collection<TopicPartition> partitions) throws SQLException;
+void seekToEnd(Collection<TopicPartition> partitions) throws SQLException;
+
 void commitSync() throws SQLException;
+void commitSync(Map<TopicPartition, OffsetAndMetadata> offsets) throws SQLException;
 
 void close() throws SQLException;
 ```

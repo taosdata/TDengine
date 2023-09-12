@@ -272,7 +272,7 @@ typedef struct tmq_topic_assignment {
   int32_t vgId;
   int64_t currentOffset;
   int64_t begin;
-  int64_t end;  // The last invalidate version of wal + 1
+  int64_t end;
 } tmq_topic_assignment;
 
 DLL_EXPORT tmq_conf_t    *tmq_conf_new();
@@ -305,7 +305,7 @@ DLL_EXPORT int64_t   tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t v
 DLL_EXPORT const char *tmq_get_topic_name(TAOS_RES *res);
 DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
 DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
-DLL_EXPORT int64_t     tmq_get_vgroup_offset(TAOS_RES* res);  // Get current offset of the result
+DLL_EXPORT int64_t     tmq_get_vgroup_offset(TAOS_RES* res);
 DLL_EXPORT const char *tmq_err2str(int32_t code);
 
 /* ------------------------------ TAOSX -----------------------------------*/

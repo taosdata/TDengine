@@ -7,7 +7,7 @@ print ======== step0
 $dbPrefix = ta_3_db
 $tbPrefix = ta_3_tb
 $mtPrefix = ta_3_mt
-$tbNum = 500 
+$tbNum = 50 
 $rowNum = 20
 $totalNum = 200
 
@@ -17,6 +17,20 @@ sql use $dbPrefix
 
 print =============== create super table and register tag index 
 sql create table if not exists $mtPrefix (ts timestamp, c1 int) tags (t1 int, t2 int, t3 int, t4 int, t5 int)
+
+sql use information_schema; 
+
+sql create index t2i on ta_3_db.ta_3_mt(t2)
+
+sql_error create index t3i on ta_3_mt(t3)  
+
+sql_error drop index t2i 
+sql drop index ta_3_db.t2i
+
+
+sql use $dbPrefix 
+
+
 
 sql show stables
 if $rows != 1 then
@@ -48,12 +62,16 @@ while $i < $tbNum
   $i = $i + 1
 endw
 
-
+sql_error create index ti1 on $mtPrefix (t1)
 sql create index ti2 on $mtPrefix (t2)
 sql create index ti5 on $mtPrefix (t5)
 
 print ==== test name conflict
 # 
+
+sql_error create index ti1 on $mtPrefix(t1) 
+sql_error create index ti11 on $mtPrefix(t1) 
+
 sql_error create index ti3 on $mtPrefix(t2) 
 
 sql_error create index ti2 on $mtPrefix(t2) 
@@ -67,6 +85,15 @@ print ===== test operator equal
 $i = 0
 while $i < $tbNum
   sql select * from $mtPrefix where t2= $i ;
+  if $rows != 1 then
+    return -1
+  endi
+  $i = $i + 1
+endw
+
+$i = 0
+while $i < $tbNum
+  sql select * from $mtPrefix where t1= $i ;
   if $rows != 1 then
     return -1
   endi
@@ -250,7 +277,7 @@ endw
 print === show index
 
 sql select * from information_schema.ins_indexes
-if $rows != 1 then 
+if $rows != 2 then 
   return -1
 endi
 
@@ -259,13 +286,43 @@ print === drop index ti2
 sql drop index ti2
 
 print === drop not exist index
+
+sql select * from information_schema.ins_indexes
+if $rows != 1 then 
+  return -1
+endi
+
+sql drop index $data[0][0]
+
+if $rows != 0 then 
+  return -1
+endi
+
+
 sql_error drop index t2
 sql_error drop index t3
 
 
 
+sql create index ti0 on $mtPrefix (t1)
+
+$i = $interval 
+while $i < $limit
+  sql select * from $mtPrefix where t1 <= $i ;
+  
+  $tmp = $i  - $interval
+  $tmp = $tmp + 1
+  if $rows != $tmp then
+    return -1
+  endi
+  $i = $i + 1
+endw
 sql_error create index ti0 on $mtPrefix (t1)
+sql_error create index ti2 on $mtPrefix (t1)
+
+
 sql_error create index t2i on ta_3_tb17 (t2)
+
 
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

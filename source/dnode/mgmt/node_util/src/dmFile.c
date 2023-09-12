@@ -38,7 +38,7 @@ int32_t dmReadFile(const char *path, const char *name, bool *pDeployed) {
   char      file[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
 
-  if (taosStatFile(file, NULL, NULL) < 0) {
+  if (taosStatFile(file, NULL, NULL, NULL) < 0) {
     dInfo("file:%s not exist", file);
     code = 0;
     goto _OVER;

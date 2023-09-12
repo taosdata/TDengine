@@ -15,7 +15,7 @@ TDengine 通过 [taosKeeper](../taosKeeper) 将服务器的 CPU、内存、硬�
 
 - 单节点的 TDengine 服务器或多节点的 [TDengine] 集群，以及一个[Grafana]服务器。此仪表盘需要 TDengine 3.0.0.0 及以上，并开启监控服务，具体配置请参考：[TDengine 监控配置](../config/#监控相关)。
 - taosAdapter 已经安装并正常运行。具体细节请参考：[taosAdapter 使用手册](../taosadapter)
-- taosKeeper 已安装并正常运行。具体细节请参考：[taosKeeper 使用手册](../taosKeeper)
+- taosKeeper 已安装并正常运行。注意需要 taos.cfg 文件中打开 monitor 相关配置项，具体细节请参考：[taosKeeper 使用手册](../taosKeeper)
 
 记录以下信息：
 
@@ -120,7 +120,7 @@ chmod +x TDinsight.sh
 ./TDinsight.sh
 ```
 
-这个脚本会自动下载最新的[Grafana TDengine 数据源插件](https://github.com/taosdata/grafanaplugin/releases/latest) 和 [TDinsight 仪表盘](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsightV3.json) ，将命令行选项中的可配置参数转为 [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) 配置文件，以进行自动化部署及更新等操作。利用该脚本提供的告警设置选项，你还可以获得内置的阿里云短信告警通知支持。
+这个脚本会自动下载最新的[Grafana TDengine 数据源插件](https://github.com/taosdata/grafanaplugin/releases/latest) 和 [TDinsight 仪表盘](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsightV3.json) ，将命令行选项中的可配置参数转为 [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) 配置文件，以进行自动化部署及更新等操作。
 
 假设您在同一台主机上使用 TDengine 和 Grafana 的默认服务。运行 `./TDinsight.sh` 并打开 Grafana 浏览器窗口就可以看到 TDinsight 仪表盘了。
 
@@ -152,9 +152,6 @@ Install and configure TDinsight dashboard in Grafana on Ubuntu 18.04/20.04 syste
 -i, --tdinsight-uid <string>                Replace with a non-space ASCII code as the dashboard id. [default: tdinsight]
 -t, --tdinsight-title <string>              Dashboard title. [default: TDinsight]
 -e, --tdinsight-editable                    If the provisioning dashboard could be editable. [default: false]
-
--E, --external-notifier <string>            Apply external notifier uid to TDinsight dashboard.
-
 ```
 
 大多数命令行选项都可以通过环境变量获得同样的效果。
@@ -172,24 +169,15 @@ Install and configure TDinsight dashboard in Grafana on Ubuntu 18.04/20.04 syste
 | -i     | --tdinsight-uid            | TDINSIGHT_DASHBOARD_UID      | TDinsight 仪表盘`uid`。 [默认值：tdinsight]             |
 | -t     | --tdinsight-title          | TDINSIGHT_DASHBOARD_TITLE    | TDinsight 仪表盘标题。 [默认：TDinsight]                |
 | -e     | --tdinsight-editable       | TDINSIGHT_DASHBOARD_EDITABLE | 如果配置仪表盘可以编辑。 [默认值：false]                |
-| -E     | --external-notifier        | EXTERNAL_NOTIFIER            | 将外部通知程序 uid 应用于 TDinsight 仪表盘。            |
+
+:::note
+新版本插件使用 Grafana unified alerting 功能，`-E` 选项不再支持。
+:::
 
 假设您在主机 `tdengine` 上启动 TDengine 数据库，HTTP API 端口为 `6041`，用户为 `root1`，密码为 `pass5ord`。执行脚本：
 
 ```bash
 ./TDinsight.sh -a http://tdengine:6041 -u root1 -p pass5ord
-```
-
-我们提供了一个“-E”选项，用于从命令行配置 TDinsight 使用现有的通知通道(Notification Channel)。假设你的 Grafana 用户和密码是 `admin:admin`，使用以下命令获取已有的通知通道的`uid`：
-
-```bash
-curl --no-progress-meter -u admin:admin http://localhost:3000/api/alert-notifications | jq
-```
-
-使用上面获取的 `uid` 值作为 `-E` 输入。
-
-```bash
-./TDinsight.sh -a http://tdengine:6041 -u root1 -p pass5ord -E existing-notifier
 ```
 
 如果要监控多个 TDengine 集群，则需要设置多个 TDinsight 仪表盘。设置非默认 TDinsight 需要进行一些更改： `-n` `-i` `-t` 选项需要更改为非默认名称，如果使用 内置短信告警功能，`-N` 和 `-L` 也应该改变。
