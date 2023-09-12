@@ -956,3 +956,12 @@ cmp_end:
 
   return ret;
 }
+
+int32_t taosSetFileHandlesLimit() {
+#ifdef WINDOWS
+  const int max_handles = 8192;
+  int       res = _setmaxstdio(max_handles);
+  return res == max_handles ? 0 : -1;
+#endif
+  return 0;
+}
