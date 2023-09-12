@@ -312,12 +312,20 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
     }
   } else if (type == STREAM_INPUT__CHECKPOINT || type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
              type == STREAM_INPUT__TRANS_STATE) {
-    taosWriteQitem(pQueue, pItem);
+    int32_t code = taosWriteQitem(pQueue, pItem);
+    if (code != TSDB_CODE_SUCCESS) {
+      taosFreeQitem(pItem);
+      return code;
+    }
     qDebug("s-task:%s level:%d %s blockdata enqueue, total in queue:%d, size:%.2fMiB", pTask->id.idStr,
            pTask->info.taskLevel, streamGetBlockTypeStr(type), total, size);
   } else if (type == STREAM_INPUT__GET_RES) {
     // use the default memory limit, refactor later.
-    taosWriteQitem(pQueue, pItem);
+    int32_t code = taosWriteQitem(pQueue, pItem);
+    if (code != TSDB_CODE_SUCCESS) {
+      taosFreeQitem(pItem);
+      return code;
+    }
     qDebug("s-task:%s data res enqueue, current(blocks:%d, size:%.2fMiB)", pTask->id.idStr, total, size);
   } else {
     ASSERT(0);

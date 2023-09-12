@@ -125,7 +125,6 @@ static int32_t appendCheckpointIntoInputQ(SStreamTask* pTask, int32_t checkpoint
 
   taosMemoryFree(pBlock);
   if (streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pChkpoint) < 0) {
-    taosFreeQitem(pChkpoint);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -271,7 +270,12 @@ int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
     keys[0] = pId->streamId;
     keys[1] = pId->taskId;
 
-    SStreamTask* p = *(SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+    SStreamTask** ppTask = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+    if (ppTask == NULL) {
+      continue;
+    }
+
+    SStreamTask* p = *ppTask;
     if (p->info.fillHistory == 1) {
       continue;
     }
