@@ -77,6 +77,10 @@ const mutations = {
   },
   SET_PREVIEW_BTN(state,data){
     state.previewBtn = data
+  },
+  RESET_GRID(state){
+    state.head = []
+    state.result = []
   }
 };
 
