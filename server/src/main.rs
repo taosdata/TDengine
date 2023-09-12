@@ -143,6 +143,17 @@ async fn main() -> anyhow::Result<()> {
                             .body(embed.data)
                     }),
             )
+            .service(web::redirect("/docs-en", "/docs-en/"))
+            .service(
+                Embed::new("/docs-en/", &StaticAssets)
+                    .index_file("index.html")
+                    .fallback_handler(|_: &_| {
+                        let embed = StaticAssets::get("docs-en/index.html").unwrap();
+                        HttpResponse::Ok()
+                            .content_type(ContentType::html())
+                            .body(embed.data)
+                    }),
+            )
             .service(
                 Embed::new("/", &StaticAssets)
                     .index_file("index.html")
