@@ -1451,7 +1451,7 @@ impl TaskController {
             let _ = handle.await?;
             Ok(Some(()))
         } else {
-            Ok(None)
+            Ok(Some(()))
         }
     }
 
