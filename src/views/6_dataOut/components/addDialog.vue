@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     align="center"
-    :title="$t('datasource.addsource')"
+    :title="$t('datasource.addtarget')"
     width="500px"
     :visible.sync="visible"
     :destroy-on-close="true"
@@ -64,13 +64,13 @@
         </el-tooltip>
       </el-form-item> -->
       <el-form-item
-        :label="$t('datasource.sourcetype')"
+        :label="$t('datasource.targettype')"
         prop="type"
         class="sourcetype"
       >
         <el-select
           v-model="ruleForm.type"
-          :placeholder="$t('datasource.typetip')"
+          :placeholder="$t('datasource.targettypetip')"
         >
           <el-option
             :label="item.name"
@@ -85,10 +85,10 @@
           >{{ $t("datasource.influxdbtip") }}</span
         >
       </el-form-item>
-      <el-form-item :label="$t('datasource.sourcename')" prop="name">
+      <el-form-item :label="$t('datasource.targetname')" prop="name">
         <el-input
           v-model="ruleForm.name"
-          :placeholder="$t('datasource.nametip')"
+          :placeholder="$t('datasource.targetnametip')"
           :maxlength="20"
         ></el-input>
       </el-form-item>

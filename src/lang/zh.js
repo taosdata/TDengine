@@ -1001,6 +1001,8 @@ export default {
     agenttip:'请选择代理',
     typetip:'请选择数据类型',
     nametip:'请输入数据源名称',
+    targetnametip:'请输入名称',
+    targettypetip:'请选择目标类型',
     name2: '名称',
     type: '类型',
     target: '目标数据库',
@@ -1011,6 +1013,9 @@ export default {
     addsource: '新增数据源',
     sourcetype: '数据源类型',
     sourcename: '数据源名称',
+    addtarget: '新增目标',
+    targettype: '类型',
+    targetname: '名称',
     agentInfo: `
       1. 使用 PI 或 OPC-DA 数据源时，需启用代理。
       <br /> 
