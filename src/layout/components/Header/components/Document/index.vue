@@ -48,8 +48,7 @@ export default {
   name: "Dcoument",
   computed: {
     docsUrl() {
-      console.log('zhixngle',this.$store.state.language);
-      return window.navigator.language == "en"
+      return window.navigator.language.includes('en')
         ? "/docs-en/"
         : "/docs/";
     },
