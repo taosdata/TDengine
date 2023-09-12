@@ -928,10 +928,16 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
     goto cmp_end;
   }
 
-  dstFp = gzdopen(pFile->fd, "wb6f");
+  // Both gzclose() and fclose() will close the associated fd, so they need to have different fds.
+  FileFd gzFd = dup(pFile->fd);
+  if (gzFd < 0) {
+    ret = -4;
+    goto cmp_end;
+  }
+  dstFp = gzdopen(gzFd, "wb6f");
   if (dstFp == NULL) {
     ret = -3;
-    taosCloseFile(&pFile);
+    close(gzFd);
     goto cmp_end;
   }
 
