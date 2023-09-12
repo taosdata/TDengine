@@ -231,11 +231,13 @@ func (r *reader) observe(ctx context.Context, ch chan *common.NodeValue) error {
 }
 
 func (r *reader) readValue(ctx context.Context, nodes []*uaNode, nodesToRead []*ua.ReadValueID) ([]*common.NodeValue, error) {
+	start := time.Now()
 	res, err := r.client.ReadWithContext(ctx,
 		&ua.ReadRequest{MaxAge: 2000, TimestampsToReturn: ua.TimestampsToReturnBoth, NodesToRead: nodesToRead})
 	if err != nil {
 		return nil, fmt.Errorf("observe failed: %w", err)
 	}
+	spent := time.Since(start).Milliseconds()
 
 	values := make([]*common.NodeValue, 0, len(res.Results))
 	for i, item := range res.Results {
@@ -247,8 +249,8 @@ func (r *reader) readValue(ctx context.Context, nodes []*uaNode, nodesToRead []*
 			logger.Error("## observe opc ua item is nil", "identifier", identifier, "item", item)
 			continue
 		}
-		logger.DebugF("## observe opc ua identifier [%s] value [%v] type [%v]", identifier, item.Value.Value(),
-			item.Value.Type())
+		logger.DebugF("## observe opc ua identifier [%s] value [%v] type [%v] spend [%d]ms", identifier, item.Value.Value(),
+			item.Value.Type(), spent)
 
 		if item.Status != ua.StatusOK && !r.containsBad {
 			logger.WarnF("## observe data for identifier [%q] status [%v] is not ok(0x0) ", identifier, item.Status)
