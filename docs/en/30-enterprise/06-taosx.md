@@ -71,7 +71,7 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 2. transform Configures some operations on table names and fields during data synchronization (only supported from 2.6 to 3.0 and between 3.0) with the --transform or -T setting. This setting cannot be made with Explorer at this time. The data structure is described as follows:
    
   ```shell
-  1. AddTag, add TAG for the table. For example: -T add-tag:<tag1>=<value1\>
+  1. AddTag, add TAG for the table. For example: `-T add-tag:<tag1>=<value1>`
   2. Rename tables：
       2.1 Renaming scope
           2.1.1 RenameTable: rename all table matching the criterias
@@ -90,9 +90,9 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
       --transform rename-table:prefix:<prefix>
 
       2.Replace `prefix1` with `prefix2` for all tables matching the criterias, in the example below `<>` is used for regular expression instead of place holder
-      -T rename-child-table:replace_with_regex:^prefix1(?<old\>)::prefix2_$old
+      -T rename-child-table:replace_with_regex:^prefix1(?<old>)::prefix2_$old
 
-      More explanation: ^prefix1(?<old\>) is regular exppression, it will match the table name with `prefix1` as prefix and the remaining part as `old`, then replace `prefix1` with `prefix2`, the final table name is `prefix2_old`
+      More explanation: ^prefix1(?<old>) is regular exppression, it will match the table name with `prefix1` as prefix and the remaining part as `old`, then replace `prefix1` with `prefix2`, the final table name is `prefix2_old`
 
       For more details about regular replacement please refer to https://docs.rs/regex/latest/regex/#example-replacement-with-named-capture-groups 
   ```
