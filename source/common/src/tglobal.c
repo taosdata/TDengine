@@ -1598,6 +1598,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
     if (taosSetS3Cfg(tsCfg) != 0) return -1;
   }
   taosSetSystemCfg(tsCfg);
+  if (taosSetFileHandlesLimit() != 0) return -1;
 
   cfgDumpCfg(tsCfg, tsc, false);
 
