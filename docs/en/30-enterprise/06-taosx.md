@@ -71,7 +71,7 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 2. transform Configures some operations on table names and fields during data synchronization (only supported from 2.6 to 3.0 and between 3.0) with the --transform or -T setting. This setting cannot be made with Explorer at this time. The data structure is described as follows:
    
   ```shell
-  1. AddTag, add TAG for the table. For example: -T add-tag:<tag1>=<value1>
+  1. AddTag, add TAG for the table. For example: -T add-tag:<tag1>=<value1\>
   2. Rename tables：
       2.1 Renaming scope
           2.1.1 RenameTable: rename all table matching the criterias
