@@ -396,7 +396,7 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    int32_t numOfItems = streamTaskGetInputQItems(pTask);
+    int32_t numOfItems = streamQueueGetNumOfItems(pTask->inputInfo.queue);
     int64_t maxVer = (pTask->info.fillHistory == 1) ? pTask->dataRange.range.maxVer : INT64_MAX;
 
     taosThreadMutexLock(&pTask->lock);
