@@ -1732,7 +1732,9 @@ pub async fn parse_todo_list(pool: &TaosPool, opts: &SourceOpts) -> anyhow::Resu
         let mut tables = vec![];
         for stable in &stables {
             if is_v2 {
-                let mut res = taos.query(&format!("select tbname from {stable}")).await?;
+                let mut res = taos
+                    .query(&format!("select tbname from `{stable}`"))
+                    .await?;
                 tables.extend(
                     res.deserialize()
                         .map_ok(|s: String| (Some(stable.clone()), s))
@@ -2177,10 +2179,11 @@ pub async fn legacy_to_taos(
             break;
         }
         std::thread::sleep(Duration::from_secs(5));
-        log::debug!(
-            "Processed {}/{}",
+        log::info!(
+            "Processed {}/{}, metrics detail:\n{}",
             metrics_inner.tables.load(Ordering::SeqCst),
-            todo_inner.tables.len()
+            todo_inner.tables.len(),
+            metrics_inner
         );
     });
 
