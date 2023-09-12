@@ -21,7 +21,7 @@ taosx run -f 'tmq://root:taosdata@td1:6030/db1' -t 'local:/path_directory/'
 
 ## 从本地数据文件恢复到 TDengine
 
-### 示例
+### Examples
 ```shell
 taosx run -f 'local:/path_directory/' -t 'taos://root:taosdata@td2:6030/db1?assert'
 ```

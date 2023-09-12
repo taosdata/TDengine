@@ -1,32 +1,32 @@
 ---
-title: 多级存储
-sidebar_label: 多级存储 
+title: Tiered Storage
+sidebar_label: Tiered Storage 
 toc_max_heading_level: 4
 ---
 
-## 简介
+## Introduction
 
-本节介绍 TDengine Enterprise 特有的多级存储功能，其作用是将较近的热度较高的数据存储在高速介质上，而是时间久远热度很低的数据存储在低成本介质上，从而能够同时实现多个表面上似乎矛盾的目标：提高访问效率、扩大存储空间、控制成本。
+This section describes TDengine Enterprise's unique Multi-Level Storage feature, which is designed to store more recent, hot data on high-speed media, and older, less hot data on low-cost media, thus achieving multiple, seemingly contradictory goals at the same time: improving access efficiency, expanding storage space, and controlling costs.
 
-## 配置方式
+## Configuration
 
-多级存储支持 3 级，每级最多可配置 16 个挂载点。
+Multi-level storage supports 3 levels with up to 16 mount points per level.
 
-TDengine 多级存储配置方式如下（在配置文件/etc/taos/taos.cfg 中）：
+TDengine multi-level storage is configured in the following way (in the configuration file /etc/taos/taos.cfg):
 
 ```
 dataDir [path] <level> <primary>
 ```
 
-- path: 挂载点的文件夹路径
-- level: 介质存储等级，取值为 0，1，2。
-  0 级存储最新的数据，1 级存储次新的数据，2 级存储最老的数据，省略默认为 0。
-  各级存储之间的数据流向：0 级存储 -> 1 级存储 -> 2 级存储。
-  同一存储等级可挂载多个硬盘，同一存储等级上的数据文件分布在该存储等级的所有硬盘上。
-  需要说明的是，数据在不同级别的存储介质上的移动，是由系统自动完成的，用户无需干预。
-- primary: 是否为主挂载点，0（否）或 1（是），省略默认为 1。
+- path: Folder path of the mount point
+- level: The media storage level, which takes the values 0, 1, and 2.
+  Level 0 stores the newest data, level 1 stores the next newest data, level 2 stores the oldest data, and omitted defaults to 0.
+  Data flow between levels of storage: level 0 storage -> level 1 storage -> level 2 storage.
+  Multiple hard disks can be mounted on the same storage level, and data files on the same storage level are distributed across all hard disks in that storage level.
+  It should be noted that the movement of data across different levels of storage media is done automatically by the system without user intervention.
+- primary: Whether or not it is the primary mount point, 0 (no) or 1 (yes), omitted defaults to 1.
 
-在配置中，只允许一个主挂载点的存在（level=0，primary=1），例如采用如下的配置方式：
+In the configuration, only one primary mount point is allowed (level=0, primary=1), e.g. using the following configuration:
 
 ```
 dataDir /mnt/data1 0 1
@@ -39,18 +39,18 @@ dataDir /mnt/data6 2 0
 
 :::note
 
-1. 多级存储不允许跨级配置，合法的配置方案有：仅 0 级，仅 0 级+ 1 级，以及 0 级+ 1 级+ 2 级。而不允许只配置 level=0 和 level=2，而不配置 level=1。
-2. 禁止手动移除使用中的挂载盘，挂载盘目前不支持非本地的网络盘。
-3. 多级存储目前不支持删除已经挂载的硬盘的功能。
+1. Multi-level storage does not allow cross-level configurations, and the legal configuration options are: level 0 only, level 0 + level 1 only, and level 0 + level 1 + level 2. Instead, it is not allowed to configure only level=0 and level=2 without level=1.
+2. Prohibit manual removal of active mount disks, which currently do not support non-local network disks.
+3. Multi-level storage does not currently support the ability to delete mounted hard disks.
 
 :::
 
-## 负载均衡
+## Load Balancing
 
-在多级存储中，有且只有一个主挂载点，主挂载点承担了系统中最重要的元数据在座，同时各个 vnode 的主目录均存在于当前 dnode 主挂载点上，从而导致该 dnode 的写入性能受限于单个磁盘的 IO 吞吐能力。
+In multilevel storage, there is only one primary mount point, which holds the most important metadata in the system, and the home directory of each vnode exists on the current dnode's primary mount point, which results in the dnode's write performance being limited by the IO throughput capacity of a single disk.
 
-从 TDengine 3.1.0.0 开始，如果一个 dnode 配置了多个 0 级挂载点，我们将该 dnode 上所有 vnode 的主目录均衡分布在所有的 0 级挂载点上，由这些 0 级挂载点共同承担写入负荷。在网络  I/O 及其它处理资源不成为瓶颈的情况下，通过优化集群配置，测试结果证明整个系统的写入能力和 0 级挂载点的数量呈现线性关系，即随着 0 级挂载点数量的增加，整个系统的写入能力也成倍增加。
+Starting from TDengine 3.1.0.0, if a dnode is configured with more than one level 0 mount point, we distribute the home directories of all the vnodes on the dnode to all level 0 mount points in a balanced way, and these level 0 mount points share the write load. Under the condition that the network I/O and other processing resources do not become bottlenecks, through the optimization of cluster configuration, the test results prove that the write capacity of the whole system and the number of level 0 mount points show a linear relationship, that is, with the increase of the number of level 0 mount points, the write capacity of the whole system also increases exponentially.
 
-## 同级挂载点选择策略
+## Sibling mount point selection strategy
 
-一般情况下，当 TDengine 要从同级挂载点中选择一个用于生成新的数据文件时，采用 round robin 策略进行选择。但现实中有可能每个磁盘的容量不相同，或者容量相同但写入的数据量不相同，这就导致会出现每个磁盘上的可用空间不均衡，在实际进行选择时有可能会选择到一个剩余空间已经很小的磁盘。为了解决这个问题，从 3.1.1.0 开始引入了一个新的配置 `minDiskFreeSize`，当某块磁盘上的可用空间小于等于这个阈值时，该磁盘将不再被选择用于生成新的数据文件。该配置项的单位为字节，其值应该大于 2GB，即会跳过可用空间小于 2GB 的挂载点。
+In general, when TDengine wants to select one of the sibling mount points for generating a new data file, the round robin policy is used for selection. However, in reality, the capacity of each disk may not be the same, or the capacity is the same but the amount of data written to it is not the same, which will lead to an imbalance in the available space on each disk, and in the actual selection, it is possible to select a disk that has very little space left. To address this issue, a new configuration `minDiskFreeSize` has been introduced since 3.1.1.0, whereby when the free space on a disk is less than or equal to this threshold, that disk will no longer be selected for generating new data files. This configuration item is in bytes and should have a value greater than 2GB, i.e. it will skip mount points with less than 2GB of free space.

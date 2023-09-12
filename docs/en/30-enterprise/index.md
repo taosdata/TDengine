@@ -1,10 +1,10 @@
 ---
-title: 企业版特有功能
-sidebar_label: 企业版特性
-description: 企业版特有功能和工具
+title: Enterprise Features
+sidebar_label: Enterprise Features
+description: This article describes the enterprise features and tools in TDengine.
 ---
 
-本章主要讲述 TDengine Enterprise 中的高级特性，包含集群能力，权限控制，多级存储，授权管理，数据接入和备份，以及可视化管理等内容。
+This article describes the enterprise features and tools in TDengine, including clustering, access control, tiered storage, permissions management, data sources, backup and restore, and the Web-based management interface.
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';

@@ -1,19 +1,19 @@
 ---
-title: 部署 Explorer
-sidebar_label: 部署 Explorer
+title: Installing taosExplorer
+sidebar_label: taosExplorer
 ---
 
-## 简介
+## Introduction
 
-如果想通过图形化界面使用和管理 TDengine，或者通过图形化界面管理数据接入，则需要部署 taos explorer。在系统中安装了 taosX 安装包 之后，系统中就具备了 taos explorer，细节请参考 [安装与配置](../install)。
+taosExplorer is a GUI for TDengine Enterprise. With taosExplorer, you can use TDengine features and manage your TDengine deployment and data sources in a convenient Web-based interface. taosExplorer is installed automatically when you install taosX. For more information, see [Installation Guide](../install/).
 
-## 准备工作
+## Prerequisites
 
-在启动 taosExplorer 之前，请先确认 TDengine 集群已经正确设置并运行（即 taosd 服务），taosAdapter 也已经正确设置和运行并与 TDengine 集群保持连接状态。如果想要使用数据备份和恢复或者数据同步功能，请确保 taosX 服务和 Agent 服务也已经正确设置和运行。
+Before you start taosExplorer, ensure that your TDengine cluster is running, taosAdapter is running, and your cluster is connected to taosAdapter. If you want to use data backup, restore, or replication in taosExplorer, ensure that the taosX service and agent are running.
 
-## 配置
+## Configuration
 
-在启动 taosExplorer 之前，请确保配置文件中的内容正确。
+You must configure taosExplorer before running it. The configuration is as follows:
 
 ```TOML
 listen = "0.0.0.0:6060"
@@ -22,16 +22,16 @@ cluster = "http://localhost:6041"
 x_api = "http://localhost:6050"
 ```
 
-说明：
+Description:
 
--   listen - taosExplorer 对外提供服务的地址
--   log_level - 日志级别，可选值为 "debug", "info", "warn", "error", "fatal"
--   cluster - TDengine集群的 taosadapter 地址 
--   x_api - taosX 的服务地址
+-   `listen`: Specify the IP address that taosExplorer uses to provide services.
+-   `log_level`: Specify the level of logs to record. You can enter `debug`, `info`, `warn`, `error`, or `fatal`.
+-   `cluster`: Specify the location of your taosAdapter instance. 
+-   `x_api`: Specify the location of your taosX instance.
 
-## 启动
+## Start taosExplorer
 
-然后启动 taosExplorer，可以直接在命令行执行 taos-explorer 或者使用下面的 systemctl 脚本用 systemctl 来启动 taosExplorer 服务
+To start taosExplorer, you can run the `taos-explorer` command or use `systemctl` to start the `taosExplorer` service.
 
 ```shell
 [Unit]
@@ -48,7 +48,7 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
-## 问题排查
+## Troubleshooting
 
-1. 当通过浏览器打开taosExplorer站点遇到“无法访问此网站”的错误信息时，请通过命令行登录taosExplorer所在机器，并使用命令systemctl status taos-explorer.service检查服务的状态，如果返回的状态是inactive，请使用命令systemctl start taos-explorer.service启动服务。
-2. 如果需要获取taosExplorer的详细日志，可通过命令journalctl -u taos-explorer
+1. If you encounter a network connection error when opening taosExplorer in your browser, log in to the machine running taosExplorer and run the `systemctl status taos-explorer.service` command to determine the running status of taosExplorer. If the status is `inactive`, run the `systemctl start taos-explorer.service` command to start taosExplorer.
+2. To view taosExplorer logs, run the `journalctl -u taos-explorer` command.

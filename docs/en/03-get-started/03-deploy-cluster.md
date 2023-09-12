@@ -1,76 +1,76 @@
 ---
-title: 部署集群
-sidebar_label: 部署集群
+title: Deployment
+sidebar_label: Deployment
 ---
 
-## 准备工作
+## Prerequisites
 
-### 第零步
+### Step 0
 
-规划集群所有物理节点的 FQDN，将规划好的 FQDN 分别添加到每个物理节点的 /etc/hosts；修改每个物理节点的 /etc/hosts，将所有集群物理节点的 IP 与 FQDN 的对应添加好。【如部署了 DNS，请联系网络管理员在 DNS 上做好相关配置】
+The FQDN of all hosts must be setup properly. For e.g. FQDNs may have to be configured in the /etc/hosts file on each host. You must confirm that each FQDN can be accessed from any other host. For e.g. you can do this by using the `ping` command. If you have a DNS server on your network, contact your network administrator for assistance.
 
-### 第一步
+### Step 1
 
-如果搭建集群的物理节点中，存有之前的测试数据，或者装过其他版本的 TDengine，请先将其删除，并清空所有数据（如果需要保留原有数据，请联系涛思交付团队进行旧版本升级、数据迁移），具体步骤请参考博客[《TDengine 多种安装包的安装和卸载》](https://www.taosdata.com/blog/2019/08/09/566.html)。
+If any previous version of TDengine has been installed and configured on any host, the installation needs to be removed and the data needs to be cleaned up. For details about uninstalling please refer to [Install and Uninstall](/operation/pkg-install). To clean up the data, please use `rm -rf /var/lib/taos/\*` assuming the `dataDir` is configured as `/var/lib/taos`.
 
 :::note
-因为 FQDN 的信息会写进文件，如果之前没有配置或者更改 FQDN，且启动了 TDengine。请一定在确保数据无用或者备份的前提下，清理一下之前的数据（rm -rf /var/lib/taos/\*）；
+FQDN information is written to file. If you have started TDengine without configuring or changing the FQDN, ensure that data is backed up or no longer needed before running the `rm -rf /var/lib\taos/\*` command.
 :::
 
 :::note
-客户端所在服务器也需要配置，确保它可以正确解析每个节点的 FQDN 配置，不管是通过 DNS 服务，还是修改 hosts 文件。
+- The host where the client program runs also needs to be configured properly for FQDN, to make sure all hosts for client or server can be accessed from any other. In other words, the hosts where the client is running are also considered as a part of the cluster.
 :::
 
-### 第二步
+### Step 2
 
-确保集群中所有主机在端口 6030-6042 上的 TCP/UDP 协议能够互通。
+- Please ensure that your firewall rules do not block TCP/UDP on ports 6030-6042 on all hosts in the cluster.
 
-### 第三步
+### Step 3
 
-在所有物理节点安装 TDengine，且版本必须是一致的，但不要启动 taosd。安装时，提示输入是否要加入一个已经存在的 TDengine 集群时，第一个物理节点直接回车创建新集群，后续物理节点则输入该集群任何一个在线的物理节点的 FQDN:端口号（默认 6030）；
+Now it's time to install TDengine on all hosts but without starting `taosd`. Note that the versions on all hosts should be same. If you are prompted to input the existing TDengine cluster, simply press carriage return to ignore the prompt.
 
-### 第四步
+### Step 4
 
-检查所有数据节点，以及应用程序所在物理节点的网络设置：
+Now each physical node (referred to, hereinafter, as `dnode` which is an abbreviation for "data node") of TDengine needs to be configured properly.
 
-每个物理节点上执行命令 `hostname -f`，查看和确认所有节点的 hostname 是不相同的（应用驱动所在节点无需做此项检查）；
+To get the hostname on any host, the command `hostname -f` can be executed.
 
-每个物理节点上执行 ping host，其中 host 是其他物理节点的 hostname，看能否 ping 通其它物理节点；如果不能 ping 通，需要检查网络设置，或 /etc/hosts 文件（Windows 系统默认路径为 C:\Windows\system32\drivers\etc\hosts），或 DNS 的配置。如果无法 ping 通，是无法组成集群的；
+`ping <FQDN>` command can be executed on each host to check whether any other host is accessible from it. If any host is not accessible, the network configuration, like /etc/hosts or DNS configuration, needs to be checked and revised, to make any two hosts accessible to each other. Hosts that are not accessible to each other cannot form a cluster.
 
-从应用运行的物理节点，ping taosd 运行的数据节点，如果无法 ping 通，应用是无法连接 taosd 的，请检查应用所在物理节点的 DNS 设置或 hosts 文件；
+On the physical machine running the application, ping the dnode that is running taosd. If the dnode is not accessible, the application cannot connect to taosd. In this case, verify the DNS and hosts settings on the physical node running the application.
 
-每个数据节点的 End Point 就是输出的 hostname 外加端口号，比如 h1.taosdata.com:6030。
+The end point of each dnode is the output hostname and port, such as h1.taosdata.com:6030.
 
-### 第五步
+### Step 5
 
-修改 TDengine 的配置文件（所有节点的文件 /etc/taos/taos.cfg 都需要修改）。假设准备启动的第一个数据节点 End Point 为 h1.taosdata.com:6030，其与集群配置相关参数如下：
+Modify the TDengine configuration file `/etc/taos/taos.cfg` on each node. Assuming the first dnode of TDengine cluster is "h1.taosdata.com:6030", its `taos.cfg` is configured as following.
 
 ```c
-// firstEp 是每个数据节点首次启动后连接的第一个数据节点
+// firstEp is the end point to connect to when any dnode starts
 firstEp               h1.taosdata.com:6030
 
-// 必须配置为本数据节点的 FQDN，如果本机只有一个 hostname，可注释掉本项
+// must be configured to the FQDN of the host where the dnode is launched
 fqdn                  h1.taosdata.com
 
-// 配置本数据节点的端口号，缺省是 6030
+// the port used by the dnode, default is 6030
 serverPort            6030
 
 ```
 
-一定要修改的参数是 firstEp 和 fqdn。在每个数据节点，firstEp 需全部配置成一样，但 fqdn 一定要配置成其所在数据节点的值。其他参数可不做任何修改，除非你很清楚为什么要修改。
+`firstEp` and `fqdn` must be configured properly. In `taos.cfg` of all dnodes in TDengine cluster, `firstEp` must be configured to point to same address, i.e. the first dnode of the cluster. `fqdn` and `serverPort` compose the address of each node itself. Retain the default values for other parameters.
 
-加入到集群中的数据节点 dnode，下表中涉及集群相关的参数必须完全相同，否则不能成功加入到集群中。
+For all the dnodes in a TDengine cluster, the below parameters must be configured exactly the same, any node whose configuration is different from dnodes already in the cluster can't join the cluster.
 
-| **#** | **配置参数名称**   | **含义**                                    |
+| **#** | **Parameter**      | **Definition**                                                                    |
 | ----- | ------------------ | ------------------------------------------- |
-| 1     | statusInterval     | dnode 向 mnode 报告状态时长                 |
-| 2     | timezone           | 时区                                        |
-| 3     | locale             | 系统区位信息及编码格式                       |
-| 4     | charset            | 字符集编码                                 |
+| 1     | statusInterval     | The interval by which dnode reports its status to mnode                           |
+| 2     | timezone           | Timezone                                                                          |
+| 3     | locale             | System region and encoding                       |
+| 4     | charset            | Character set |
 
-## 启动集群
+## Start Cluster
 
-按照《立即开始》里的步骤，启动第一个数据节点，例如 h1.taosdata.com，然后执行 taos，启动 TDengine CLI，在其中执行命令 “SHOW DNODES”，如下所示：
+The first dnode can be started following the instructions in [Get Started](/get-started/). Then the TDengine CLI can be launched to execute command `show dnodes`, the output is as following for example:
 
 ```
 taos> show dnodes;
@@ -82,54 +82,54 @@ Query OK, 1 rows affected (0.007984s)
 
 ```
 
-上述命令里，可以看到刚启动的数据节点的 End Point 是：h1.taos.com:6030，就是这个新集群的 firstEp。
+From the above output, it is shown that the end point of the started dnode is "h1.taosdata.com:6030", which is the `firstEp` of the cluster.
 
-## 添加数据节点
+## Add DNODE
 
-将后续的数据节点添加到现有集群，具体有以下几步：
+There are a few steps necessary to add other dnodes in the cluster.
 
-按照《立即开始》一章的方法在每个物理节点启动 taosd；（注意：每个物理节点都需要在 taos.cfg 文件中将 firstEp 参数配置为新集群首个节点的 End Point——在本例中是 h1.taos.com:6030）
+Second, we can start `taosd` as instructed in [Get Started](/get-started/).
 
-在第一个数据节点，使用 CLI 程序 taos，登录进 TDengine 系统，执行命令：
+Then, on the first dnode i.e. h1.taosdata.com in our example, use TDengine CLI `taos` to execute the following command:
 
 ```sql
 CREATE DNODE "h2.taos.com:6030";
 ````
 
-将新数据节点的 End Point（准备工作中第四步获知的）添加进集群的 EP 列表。“fqdn:port”需要用双引号引起来，否则出错。请注意将示例的“h2.taos.com:6030” 替换为这个新数据节点的 End Point。
+This adds the end point of the new dnode (from Step 4) into the end point list of the cluster. In the command "fqdn:port" should be quoted using double quotes. Change `"h2.taos.com:6030"` to the end point of your new dnode.
 
-然后执行命令
+Then on the first dnode h1.taosdata.com, execute `show dnodes` in `taos`
 
 ```sql
 SHOW DNODES;
 ```
 
-查看新节点是否被成功加入。如果该被加入的数据节点处于离线状态，请做两个检查：
+to show whether the second dnode has been added in the cluster successfully or not. If the status of the newly added dnode is offline, please check:
 
-查看该数据节点的 taosd 是否正常工作，如果没有正常运行，需要先检查为什么?
-查看该数据节点 taosd 日志文件 taosdlog.0 里前面几行日志（一般在 /var/log/taos 目录），看日志里输出的该数据节点 fqdn 以及端口号是否为刚添加的 End Point。如果不一致，需要将正确的 End Point 添加进去。
-按照上述步骤可以源源不断的将新的数据节点加入到集群。
+- Whether the `taosd` process is running properly or not
+- In the log file `taosdlog.0` to see whether the fqdn and port are correct and add the correct end point if not.
+The above process can be repeated to add more dnodes in the cluster.
 
 :::tip
 
-任何已经加入集群在线的数据节点，都可以作为后续待加入节点的 firstEp。
-firstEp 这个参数仅仅在该数据节点首次加入集群时有作用，加入集群后，该数据节点会保存最新的 mnode 的 End Point 列表，不再依赖这个参数。
-接下来，配置文件中的 firstEp 参数就主要在客户端连接的时候使用了，例如 TDengine CLI 如果不加参数，会默认连接由 firstEp 指定的节点。
-两个没有配置 firstEp 参数的数据节点 dnode 启动后，会独立运行起来。这个时候，无法将其中一个数据节点加入到另外一个数据节点，形成集群。无法将两个独立的集群合并成为新的集群。
+Any node that is in the cluster and online can be the firstEp of new nodes.
+Nodes use the firstEp parameter only when joining a cluster for the first time. After a node has joined the cluster, it stores the latest mnode in its end point list and no longer makes use of firstEp.
+However, firstEp is used by clients that connect to the cluster. For example, if you run the TDengine CLI without arguments, it connects to the firstEp by default.
+Two dnodes that are launched without a firstEp value operate independently of each other. It is not possible to add one dnode to the other dnode and form a cluster. It is also not possible to form two independent clusters into a new cluster.
 
 :::
 
-## 查看数据节点
+## View Dnodes
 
-启动 TDengine CLI 程序 taos，然后执行：
+The below command can be executed in TDengine CLI `taos`
 
 ```sql
 SHOW DNODES;
 ```
 
-它将列出集群中所有的 dnode，每个 dnode 的 ID，end_point（fqdn:port），状态（ready，offline 等），vnode 数目，还未使用的 vnode 数目等信息。在添加或删除一个数据节点后，可以使用该命令查看。
+to list all dnodes in the cluster, including ID, end point (fqdn:port), status (ready, offline), number of vnodes, number of free vnodes and so on. We recommend executing this command after adding or removing a dnode.
 
-输出如下（具体内容仅供参考，取决于实际的集群配置）
+Below is the example output of this command.
 
 ```
 taos> show dnodes;
@@ -139,18 +139,18 @@ taos> show dnodes;
 Query OK, 1 rows affected (0.006684s)
 ```
 
-## 查看虚拟节点组
+## Show VGROUPs
 
-为充分利用多核技术，并提供横向扩展能力，数据需要分片处理。因此 TDengine 会将一个 DB 的数据切分成多份，存放在多个 vnode 里。这些 vnode 可能分布在多个数据节点 dnode 里，这样就实现了水平扩展。一个 vnode 仅仅属于一个 DB，但一个 DB 可以有多个 vnode。vnode 所在的数据节点是 mnode 根据当前系统资源的情况，自动进行分配的，无需任何人工干预。
+To utilize system resources efficiently and provide scalability, data sharding is required. The data of each database is divided into multiple shards and stored in multiple vnodes. These vnodes may be located on different dnodes. One way of scaling out is to add more vnodes on dnodes. Each vnode can only be used for a single DB, but one DB can have multiple vnodes. The allocation of vnode is scheduled automatically by mnode based on system resources of the dnodes.
 
-启动 CLI 程序 taos，然后执行：
+Launch TDengine CLI `taos` and execute below command:
 
 ```sql
 USE SOME_DATABASE;
 SHOW VGROUPS;
 ```
 
-输出如下（具体内容仅供参考，取决于实际的集群配置）
+The example output is below:
 
 ```
 taos> use db;
@@ -165,40 +165,40 @@ taos> show vgroups;
 Query OK, 8 row(s) in set (0.001154s)
 ```
 
-## 删除数据节点
+## Delete a DNODE
 
-启动 CLI 程序 taos，执行：
+Launch the TDengine CLI and execute below command:
 
 ```sql
 DROP DNODE "fqdn:port";
 ```
 
-或者
+or
 
 ```sql
 DROP DNODE dnodeId;
 ```
 
-通过 “fqdn:port” 或 dnodeID 来指定一个具体的节点都是可以的。其中 fqdn 是被删除的节点的 FQDN，port 是其对外服务器的端口号；dnodeID 可以通过 SHOW DNODES 获得。
+to drop or remove a dnode from the cluster. In the command, you can get `dnodeId` from `show dnodes`.
 
 :::warning
 
-数据节点一旦被 drop 之后，不能重新加入集群。需要将此节点重新部署（清空数据文件夹）。集群在完成 `drop dnode` 操作之前，会将该 dnode 的数据迁移走。
-请注意 `drop dnode` 和 停止 taosd 进程是两个不同的概念，不要混淆：因为删除 dnode 之前要执行迁移数据的操作，因此被删除的 dnode 必须保持在线状态。待删除操作结束之后，才能停止 taosd 进程。
-一个数据节点被 drop 之后，其他节点都会感知到这个 dnodeID 的删除操作，任何集群中的节点都不会再接收此 dnodeID 的请求。
-dnodeID 是集群自动分配的，不得人工指定。它在生成时是递增的，不会重复。
+- Once a dnode is dropped, it can't rejoin the cluster. To rejoin, the dnode needs to deployed again after cleaning up the data directory. Before dropping a dnode, the data belonging to the dnode MUST be migrated/backed up according to your data retention, data security or other SOPs.
+- Please note that `drop dnode` is different from stopping `taosd` process. `drop dnode` just removes the dnode out of TDengine cluster. Only after a dnode is dropped, can the corresponding `taosd` process be stopped.
+- Once a dnode is dropped, other dnodes in the cluster will be notified of the drop and will not accept the request from the dropped dnode.
+- dnodeID is allocated automatically and can't be manually modified. dnodeID is generated in ascending order without duplication.
 
 :::
 
-## 常见问题
+## Frequently Asked Questions
 
-1、建立集群时使用 CREATE DNODE 增加新节点后，新节点始终显示 offline 状态？
+1. After using the `CREATE DNODE` command to create a dnode, the node does not come online.
 ```sql
-  1）首先要检查增加的新节点上的 taosd 服务是否已经正常启动
+  1. Ensure that the taosd service on the new node is running properly.
   
-  2）如果已经启动，再检查到新节点的网络是否通畅，可以使用 ping fqdn 验证下
+  2. Ensure that the new node has network connectivity. You can ping its FQDN to test connectivity.
   
-  3）如果前面两步都没有问题，这一步要检查新节点做为独立集群在运行了，可以使用 taos -h fqdn 连接上后，show dnodes; 命令查看.
-    如果显示的列表与你主节点上显示的不一致，说明此节点自己单独成立了一个集群，解决的方法是停止新节点上的服务，然后清空新节点上 
-    taos.cfg 中配置的 dataDir 目录下的所有文件，重新启动新节点服务即可解决。
+  3. Ensure that the new node is not running as an independent cluster. Run the `taos -h <fqdn>` command to log in to the node and then `SHOW DNODES` to view the cluster.
+    If the new node shows different information from your primary dnode, stop the taosd service on the new node and delete  
+    all files in the `dataDir` directory specified in `taos.cfg`. Then restart the new node.
 ```  

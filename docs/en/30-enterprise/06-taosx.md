@@ -4,25 +4,25 @@ title: taosX
 sidebar_label: taosX
 ---
 
-## 简介
+## Introduction
 
-taosX 是用于数据接入，同步，备份和恢复的零代码平台。本节详细介绍 taosX 的命令行。
+taosXis a zero-code platform for data ingestion, replication, backup, and restore. This article describes the taosX command line.
 
-## 命令行参数说明
+## Command Line Parameters Description:
 
-**注意：部分参数暂无法通过 explorer设置【见：其他参数说明】，之后会逐步开放） **
+**Note: Some parameters cannot be set by explorer for the time being [see: Description of Other Parameters], and will be opened gradually afterwards) **.
 
-命令行执行示例：
+The commands are as follows:
 
 ```shell
 taosx -f <from-DSN> -t <to-DSN> <其他参数>
 ```
 
-以下参数说明及示例中若无特殊说明 `<content>` 的格式均为占位符，使用时需要使用实际参数进行替换。
+The format of `<content>` in the following parameter descriptions and examples is a placeholder unless otherwise specified, so you need to replace it with the actual parameter when using it.
 
 ## DSN (Data Source Name)
 
-taosX 命令行模式使用 DSN 来表示一个数据源（来源或目的源），典型的 DSN 如下：
+The taosX command line mode uses a DSN to represent a data source (source or destination source), a typical DSN is as follows:
 
 ```bash
 # url-like
@@ -30,48 +30,48 @@ taosX 命令行模式使用 DSN 来表示一个数据源（来源或目的源）
 |------|------------|---|-----------|-----------|------|------|----------|-----------------------|
 |driver|   protocol |   | username  | password  | host | port |  object  |  params               |
 
-// url 示例
+// url example
 tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 ```
-[] 中的数据都为可选参数。
+[] are optional
 
-1. 不同的驱动 (driver) 拥有不同的参数。driver 包含如下选项:
+1. Different drivers have different parameters. The driver contains the following options.
 
-- taos：使用查询接口从 TDengine 获取数据
-- tmq：启用数据订阅从 TDengine 获取数据
-- local：数据备份或恢复
-- pi: 启用 pi-connector从 pi 数据库中获取数据
-- opc：启用 opc-connector 从 opc-server 中获取数据
-- mqtt: 启用 mqtt-connector 获取 mqtt-broker 中的数据
-- kafka: 启用 Kafka 连接器从 Kafka Topics 中订阅消息写入
-- influxdb:  启用 influxdb 连接器从 InfluxDB 获取数据
-- csv：从 CSV 文件解析数据
+- taos: Getting data from TDengine using the query interface
+- tmq: enable data subscription to get data from TDengine
+- local: data backup or recovery
+- pi: Enable pi-connector to fetch data from the pi database
+- opc: enable opc-connector to get data from opc-server
+- mqtt: Enable mqtt-connector to fetch data from mqtt-broker
+- kafka: Enabling the Kafka Connector to Subscribe to Message Writes from Kafka Topics
+- influxdb:  Enabling the influxdb connector to fetch data from InfluxDB
+- csv: parsing data from CSV files
 
-2. +protocol 包含如下选项：
-- +ws: 当 driver 取值为 taos 或 tmq 时使用，表示使用 rest 获取数据。不使用 +ws 则表示使用原生连接获取数据，此时需要 taosx 所在的服务器安装 taosc。
-- +ua: 当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-ua
-- +da: 当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-da
+2. +protocol contains the following options:
+- +ws: Used when driver is taos or tmq, to indicate that rest is used to fetch data. Not using +ws means that a native connection is used to get the data, which requires taosc to be installed on the server where taosx is hosted.
+- +ua: Used when the driver value is opc, indicating that the opc-server of the collected data is opc-ua.
+- +da: Used when the driver value is opc, indicating that the opc-server of the collected data is opc-da.
 
-3. host:port 表示数据源的地址和端口。
-4. object 表示具体的数据源，可以是TDengine的数据库、超级表、表，也可以是本地备份文件的路径，也可以是对应数据源服务器中的数据库。
-5. username 和 password 表示该数据源的用户名和密码。
-6. params 代表了 dsn 的参数。
+3. host:port Indicates the address and port of the data source.
+4. object Indicates the specific data source, which can be the database, super table, table of TDengine, or the path of the local backup file, or the database in the corresponding data source server.
+5. username and password indicate the username and password for this data source.
+6. params represents the parameters of dsn.
 
-## 其它参数说明
+## Other notes
 
-1. parser 通过 --parser 或 -p 设置，设置 transform 的 parser 生效。可以通过 Explorer 在如 CSV，MQTT，KAFKA 数据源的任务配置进行设置。
+1. parser is set by --parser or -p, set the parser of transform to take effect. This can be set up through Explorer's task configuration in data sources such as CSV, MQTT, and KAFKA.
 
-  配置示例：
+  For example:
 
   ```shell
   --parser "{\"parse\":{\"ts\":{\"as\":\"timestamp(ms)\"},\"topic\":{\"as\":\"varchar\",\"alias\":\"t\"},\"partition\":{\"as\":\"int\",\"alias\":\"p\"},\"offset\":{\"as\":\"bigint\",\"alias\":\"o\"},\"key\":{\"as\":\"binary\",\"alias\":\"k\"},\"value\":{\"as\":\"binary\",\"alias\":\"v\"}},\"model\":[{\"name\":\"t_{t}\",\"using\":\"kafka_data\",\"tags\":[\"t\",\"p\"],\"columns\":[\"ts\",\"o\",\"k\",\"v\"]}]}"
 
   ```
 
-2. transform 通过 --transform 或 -T 设置，配置数据同步（仅支持 2.6 到 3.0 以及 3.0 之间同步）过程中对于表名及表字段的一些操作。暂无法通过 Explorer 进行设置。配置说明如下：
+2. transform Configures some operations on table names and fields during data synchronization (only supported from 2.6 to 3.0 and between 3.0) with the --transform or -T setting. This setting cannot be made with Explorer at this time. The data structure is described as follows:
    
   ```shell
-  1.AddTag，为表添加 TAG。设置示例：-T add-tag:<tag1>=<value1>。
+  1. AddTag, add TAG for the table. 设置示例：-T add-tag:<tag1>=<value1>。
   2.表重命名：
       2.1 重命名表限定
           2.1.1 RenameTable：对所有符合条件的表进行重命名。
@@ -94,6 +94,6 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
       若有更复杂的替换需求请参考：https://docs.rs/regex/latest/regex/#example-replacement-with-named-capture-groups 或咨询 taosx 开发人员。
   ```
 
-3. jobs 指定任务并发数，仅支持 tmq 任务。暂无法通过 Explorer 进行设置。通过 --jobs `<number>` 或 -j `<number>` 进行设置。
+3. jobs 指定任务并发数，仅支持 tmq 任务。 This setting cannot be made with Explorer at this time. 通过 --jobs `<number>` 或 -j `<number>` 进行设置。
 4. -v 用于指定 taosx 的日志级别，-v 表示启用 info 级别日志，-vv 对应 debug，-vvv 对应 trace。
 
