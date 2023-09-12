@@ -1906,7 +1906,7 @@ void tFreeSGetUserAuthRsp(SGetUserAuthRsp *pRsp) {
   taosHashCleanup(pRsp->useDbs);
 }
 
-int32_t tSerializeSGetWhiteListReq(void *buf, int32_t bufLen, SGetUserWhiteListReq *pReq) {
+int32_t tSerializeSGetUserWhiteListReq(void *buf, int32_t bufLen, SGetUserWhiteListReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
 

@@ -175,12 +175,15 @@ int32_t fetchWhiteListCallbackFn(void* param, SDataBuf* pMsg, int32_t code) {
     return code;
   }
 
-  SGetUserWhiteListRsp *pRsp = pMsg->pData;
-  pInfo->userCbFn(pInfo->userParam, code, taos, pRsp->numWhiteLists, &pRsp->pWhiteLists->ip_mask);
+  SGetUserWhiteListRsp wlRsp;
+  tDeserializeSGetUserWhiteListRsp(pMsg->pData, pMsg->len, &wlRsp);
+
+  pInfo->userCbFn(pInfo->userParam, code, taos, wlRsp.numWhiteLists, &wlRsp.pWhiteLists->ip_mask);
 
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
   taosMemoryFree(pInfo);
+  tFreeSGetUserWhiteListRsp(&wlRsp);
   return code;
 }
 
