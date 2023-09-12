@@ -4670,9 +4670,120 @@ static int32_t checkCreateDatabase(STranslateContext* pCxt, SCreateDatabaseStmt*
   return checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions);
 }
 
+#define FILL_CMD_SQL(sql, sqlLen, pCmdReq, CMD_TYPE, genericCmd) \
+  CMD_TYPE* pCmdReq = genericCmd;                                                   \
+  char* cmdSql = taosMemoryMalloc(sqlLen); \
+  if (cmdSql == NULL) { \
+    return TSDB_CODE_OUT_OF_MEMORY; \
+  } \
+  memcpy(cmdSql, sql, sqlLen); \
+  pCmdReq->sqlLen = sqlLen; \
+  pCmdReq->sql = cmdSql;                                        \
+
+static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) {
+  const char* sql = pCxt->pParseCxt->pSql;
+  size_t sqlLen = pCxt->pParseCxt->sqlLen;
+
+  switch (msgType) {
+    case TDMT_MND_CREATE_DB: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateDbReq, pReq);
+      break;
+    }
+    case TDMT_MND_ALTER_DB: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SAlterDbReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_DB: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SDropDbReq, pReq);
+      break;
+    }  
+    case TDMT_MND_COMPACT_DB: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCompactDbReq, pReq);
+      break;
+    }
+
+    case TDMT_MND_TMQ_DROP_TOPIC: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropTopicReq, pReq);     
+      break; 
+    }
+
+    case TDMT_MND_BALANCE_VGROUP_LEADER: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SBalanceVgroupLeaderReq, pReq);  
+      break;          
+    }    
+    case TDMT_MND_BALANCE_VGROUP: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SBalanceVgroupReq, pReq);
+      break;            
+    }
+    case TDMT_MND_REDISTRIBUTE_VGROUP: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SRedistributeVgroupReq, pReq);
+      break;            
+    }
+    case TDMT_MND_CREATE_STB: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateStbReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_STB: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropStbReq, pReq);
+      break;
+    }
+    case TDMT_MND_ALTER_STB: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMAlterStbReq, pReq);
+      break;
+    }
+
+    case TDMT_MND_DROP_USER: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SDropUserReq, pReq);
+      break;
+    }
+    case TDMT_MND_CREATE_USER: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateUserReq, pReq);
+    }
+    case TDMT_MND_ALTER_USER: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SAlterUserReq, pReq);
+      break;
+    }
+
+    case TDMT_MND_CREATE_QNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateQnodeReq, pReq);
+      break;
+    }
+
+    case TDMT_MND_DROP_DNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SDropDnodeReq, pReq);
+      break;
+    }
+    case TDMT_MND_RESTORE_DNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SRestoreDnodeReq, pReq);
+      break;
+    }
+    case TDMT_MND_CONFIG_DNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCfgDnodeReq, pReq);
+      break;
+    }
+
+    case TDMT_MND_CREATE_DNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateDnodeReq, pReq);
+      break;
+    }
+
+    case TDMT_MND_DROP_STREAM: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropStreamReq, pReq);
+      break;
+    }
+    default: {
+      break;
+    }
+  
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
 typedef int32_t (*FSerializeFunc)(void* pBuf, int32_t bufLen, void* pReq);
 
 static int32_t buildCmdMsg(STranslateContext* pCxt, int16_t msgType, FSerializeFunc func, void* pReq) {
+  fillCmdSql(pCxt, msgType, pReq);
   pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
   if (NULL == pCxt->pCmdMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
