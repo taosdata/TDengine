@@ -498,9 +498,10 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   ASSERT((pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH));
 
   const char* id = pTask->id.idStr;
-  int32_t numOfElems = taosQueueItemSize(pTask->outputInfo.queue->pQueue);
+  int32_t numOfElems = streamQueueGetNumOfItems(pTask->outputInfo.queue);
+  double size = SIZE_IN_MB(taosQueueMemorySize(pTask->outputInfo.queue->pQueue));
   if (numOfElems > 0) {
-    qDebug("s-task:%s try to dispatch intermediate block to downstream, elem in outputQ:%d", id, numOfElems);
+    qDebug("s-task:%s start to dispatch intermediate block to downstream, elem in outputQ:%d, size:%.2fMiB", id, numOfElems, size);
   }
 
   // to make sure only one dispatch is running

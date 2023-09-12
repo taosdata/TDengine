@@ -164,11 +164,13 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
   return code;
 }
 
-int32_t streamScanExec(SStreamTask* pTask, int32_t batchSize) {
+int32_t streamScanHistoryData(SStreamTask* pTask) {
   ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE);
+
   int32_t code = TSDB_CODE_SUCCESS;
   void*   exec = pTask->exec.pExecutor;
   bool    finished = false;
+  int32_t outputBatchSize = 100;
 
   qSetStreamOpOpen(exec);
 
@@ -217,8 +219,8 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSize) {
       block.info.childId = pTask->info.selfChildId;
       taosArrayPush(pRes, &block);
 
-      if ((++numOfBlocks) >= batchSize) {
-        qDebug("s-task:%s scan exec numOfBlocks:%d, output limit:%d reached", pTask->id.idStr, numOfBlocks, batchSize);
+      if ((++numOfBlocks) >= outputBatchSize) {
+        qDebug("s-task:%s scan exec numOfBlocks:%d, output limit:%d reached", pTask->id.idStr, numOfBlocks, outputBatchSize);
         break;
       }
     }
@@ -246,13 +248,6 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSize) {
   }
 
   return 0;
-}
-
-int32_t streamTaskGetInputQItems(const SStreamTask* pTask) {
-  int32_t numOfItems1 = taosQueueItemSize(pTask->inputInfo.queue->pQueue);
-  int32_t numOfItems2 = taosQallItemSize(pTask->inputInfo.queue->qall);
-
-  return numOfItems1 + numOfItems2;
 }
 
 // wait for the stream task to be idle
@@ -576,7 +571,6 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     // todo other thread may change the status
     // do nothing after sync executor state to storage backend, untill the vnode-level checkpoint is completed.
     if (type == STREAM_INPUT__CHECKPOINT) {
-//      ASSERT(pTask->status.taskStatus == TASK_STATUS__CK);
       qDebug("s-task:%s checkpoint block received, set the status:%s", pTask->id.idStr,
              streamGetTaskStatusStr(pTask->status.taskStatus));
       streamTaskBuildCheckpoint(pTask);
@@ -607,8 +601,6 @@ int32_t streamTryExec(SStreamTask* pTask) {
       atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__FAILED);
       return -1;
     }
-
-//    streamTaskBuildCheckpoint(pTask);
 
     atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
     qDebug("s-task:%s exec completed, status:%s, sched-status:%d", id, streamGetTaskStatusStr(pTask->status.taskStatus),

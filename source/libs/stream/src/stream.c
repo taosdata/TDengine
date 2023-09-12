@@ -177,7 +177,7 @@ static int32_t streamTaskAppendInputBlocks(SStreamTask* pTask, const SStreamDisp
 }
 
 int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pRsp) {
-  SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
+  SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SStreamDataBlock));
   int8_t            status = TASK_INPUT_STATUS__NORMAL;
 
   // enqueue
@@ -223,9 +223,16 @@ int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
     destroyStreamDataBlock(pBlock);
   } else {
     ASSERT(type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH);
-    code = taosWriteQitem(pTask->outputInfo.queue->pQueue, pBlock);
+    STaosQueue* pQueue = pTask->outputInfo.queue->pQueue;
+    code = taosWriteQitem(pQueue, pBlock);
+
+    int32_t total = streamQueueGetNumOfItems(pTask->outputInfo.queue);
+    double  size = SIZE_IN_MB(taosQueueMemorySize(pQueue));
     if (code != 0) {
-      qError("s-task:%s failed to put res into outputQ", pTask->id.idStr);
+      qError("s-task:%s failed to put res into outputQ, outputQ items:%d, size:%.2fMiB code:%s, result lost",
+             pTask->id.idStr, total, size, tstrerror(code));
+    } else {
+      qInfo("s-task:%s data put into outputQ, outputQ items:%d, size:%.2fMiB", pTask->id.idStr, total, size);
     }
 
     streamDispatchStreamBlock(pTask);

@@ -371,10 +371,6 @@ int32_t initScanHistoryReq(SStreamTask* pTask, SStreamScanHistoryReq* pReq, int8
   return 0;
 }
 
-int32_t streamSourceScanHistoryData(SStreamTask* pTask) {
-  return streamScanExec(pTask, 100);
-}
-
 int32_t streamTaskPutTranstateIntoInputQ(SStreamTask* pTask) {
   SStreamDataBlock* pTranstate = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SSDataBlock));
   if (pTranstate == NULL) {
