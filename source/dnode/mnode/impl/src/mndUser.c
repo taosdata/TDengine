@@ -1827,8 +1827,9 @@ static int32_t mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     cols++;
 
-    char   *buf = NULL;
-    int32_t tlen = convertIpWhiteListToStr(pUser->pIpWhiteList, &buf);
+    char *buf = NULL;
+    // int32_t tlen = convertIpWhiteListToStr(pUser->pIpWhiteList, &buf);
+    int32_t tlen = mndFetchIpWhiteList(pUser->pIpWhiteList, &buf);
     if (tlen != 0) {
       char *varstr = taosMemoryCalloc(1, VARSTR_HEADER_SIZE + tlen);
       varDataSetLen(varstr, tlen);
