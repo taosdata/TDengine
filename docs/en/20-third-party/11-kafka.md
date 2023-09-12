@@ -35,7 +35,7 @@ Confluent Enterprise Edition provides the `confluent` command-line tool to manag
 1. Linux operating system
 2. Java 8 and Maven installed
 3. Git is installed
-4. TDengine is installed and started. If not, please refer to [Installation and Uninstallation](/operation/pkg-install)
+4. TDengine is installed and started. If not, please refer to [Installation and Uninstallation](../../operation/pkg-install)
 
 ## Install Confluent
 
