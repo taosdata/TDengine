@@ -15,7 +15,7 @@ taosXis a zero-code platform for data ingestion, replication, backup, and restor
 The commands are as follows:
 
 ```shell
-taosx -f <from-DSN> -t <to-DSN> <其他参数>
+taosx -f <from-DSN> -t <to-DSN> <Other Parameters>
 ```
 
 The format of `<content>` in the following parameter descriptions and examples is a placeholder unless otherwise specified, so you need to replace it with the actual parameter when using it.
@@ -72,28 +72,31 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
    
   ```shell
   1. AddTag, add TAG for the table. 设置示例：-T add-tag:<tag1>=<value1>。
-  2.表重命名：
-      2.1 重命名表限定
-          2.1.1 RenameTable：对所有符合条件的表进行重命名。
-          2.1.2 RenameChildTable：对所有符合条件的子表进行重命名。
-          2.1.3 RenameSuperTable：对所有符合条件的超级表进行重命名。
-      2.2 重命名方式
-          2.2.1 Prefix：添加前缀。
-          2.2.2 Suffix：添加后缀。
-          2.2.3 Template：模板方式。
-          2.2.4 ReplaceWithRegex：正则替换。taosx 1.1.0 新增。
-  重命名配置方式：
-      <表限定>:<重命名方式>:<重命名值>
-  使用示例：
-      1.为所有表添加前缀 <prefix>
-      --transform rename-table:prefix:<prefix>
-      2.为符合条件的表替换前缀：prefix1 替换为 prefix2，以下示例中的 <> 为正则表达式的不再是占位符。
-      -T rename-child-table:replace_with_regex:^prefix1(?<old>)::prefix2_$old
+  2. Rename tables：
+      2.1 Renaming scope
+          2.1.1 RenameTable: rename all table matching the criterias
+          2.1.2 RenameChildTable: rename all child tables matching the criterias
+          2.1.3 RenameSuperTable: rename all supertables matching the criterias
+      2.2 Renaming methods
+          2.2.1 Prefix: rename by adding prefix
+          2.2.2 Suffix: rename by adding suffix
+          2.2.3 Template: rename by using template
+          2.2.4 ReplaceWithRegex: rename by regular replacing
+  Configuration forrenaming：
+      <Renaming scope>:<renaming method>:<renaming value>
 
-      示例说明：^prefix1(?<old>) 为正则表达式，该表达式会匹配表名中包含以 prefix1 开始的表名并将后缀部分记录为 old，prefix2$old 则会使用 prefix2 与 old 进行替换。注意：两部分使用关键字符 :: 进行分隔，所以需要保证正则表达式中不能包含该字符。
-      若有更复杂的替换需求请参考：https://docs.rs/regex/latest/regex/#example-replacement-with-named-capture-groups 或咨询 taosx 开发人员。
+  Examples:
+      1. Add prefix for all tables
+      --transform rename-table:prefix:<prefix>
+
+      2.Replace `prefix1` with `prefix2` for all tables matching the criterias, in the example below `<>` is used for regular expression instead of place holder
+      -T rename-child-table:replace_with_regex:^prefix1(?<old\>)::prefix2_$old
+
+      More explanation: ^prefix1(?<old\>) is regular exppression, it will match the table name with `prefix1` as prefix and the remaining part as `old`, then replace `prefix1` with `prefix2`, the final table name is `prefix2_old`
+
+      For more details about regular replacement please refer to https://docs.rs/regex/latest/regex/#example-replacement-with-named-capture-groups 
   ```
 
-3. jobs 指定任务并发数，仅支持 tmq 任务。 This setting cannot be made with Explorer at this time. 通过 --jobs `<number>` 或 -j `<number>` 进行设置。
-4. -v 用于指定 taosx 的日志级别，-v 表示启用 info 级别日志，-vv 对应 debug，-vvv 对应 trace。
+3. jobs specify the number of parallel tasks, it is only valid for taks of tmq type. It can be specified using --jobs `<number>` or -j `<number>` .
+4. -v specifies the log level of taosx, -v means info level log, -vv means debug level log, -vvv means trace level log.
 
