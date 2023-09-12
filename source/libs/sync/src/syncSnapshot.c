@@ -605,15 +605,16 @@ _SEND_REPLY:
     // build msg
     ;  // make complier happy
 
-  code = -1;
   SSnapshot snapInfo = {.typ = TAOS_SYNC_SNAP_INFO_DIFF};
   int32_t   dataLen = 0;
   if (pMsg->dataLen > 0) {
     void *data = taosMemoryCalloc(1, pMsg->dataLen);
     if (data == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
       goto _out;
     }
+    dataLen = pMsg->dataLen;
     memcpy(data, pMsg->data, dataLen);
     snapInfo.data = data;
     data = NULL;
@@ -627,6 +628,7 @@ _SEND_REPLY:
   SRpcMsg rpcMsg = {0};
   if (syncBuildSnapshotSendRsp(&rpcMsg, dataLen, pSyncNode->vgId) != 0) {
     sRError(pReceiver, "snapshot receiver failed to build resp since %s", terrstr());
+    code = terrno;
     goto _out;
   }
 
@@ -650,10 +652,9 @@ _SEND_REPLY:
   syncLogSendSyncSnapshotRsp(pSyncNode, pRspMsg, "snapshot receiver pre-snapshot");
   if (syncNodeSendMsgById(&pRspMsg->destId, pSyncNode, &rpcMsg) != 0) {
     sRError(pReceiver, "snapshot receiver failed to build resp since %s", terrstr());
-    goto _out;
+    code = terrno;
   }
 
-  code = 0;
 _out:
   if (snapInfo.data) {
     taosMemoryFree(snapInfo.data);
