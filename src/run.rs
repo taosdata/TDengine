@@ -6,6 +6,7 @@ use crate::serve::check_parser_timestamp_precision;
 use anyhow::{bail, Result};
 use chrono::Utc;
 use clap::Parser;
+use metrics_util::debugging::Snapshotter;
 use taos::*;
 use taosx_core::utils::{self};
 use taosx_core::{Action, METRICS_TIME_START, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND};
@@ -134,116 +135,21 @@ impl Cli {
         // metrics::set_boxed_recorder(Box::new(fanout))?;
 
         // let debug_recorder = DebuggingRecorder::new();
-        let timer_run = AtomicBool::new(true);
+        let timer_run = Arc::new(AtomicBool::new(true));
+        let snapshotter_clone = snapshotter.clone();
+        let timer_flag = timer_run.clone();
         std::thread::spawn(move || {
             println!("print timer start");
             loop {
-                if !timer_run.load(Ordering::Relaxed) {
+                if !timer_flag.load(Ordering::SeqCst) {
                     println!("print timer stop");
                     break;
                 }
-                let snapshotter = snapshotter.clone();
-                let snapshot = snapshotter.snapshot();
-                let mut map = snapshot.into_hashmap().into_iter().map(|(k, v)| {
-                    (
-                        k.key().name().to_string(),
-                        match v.2 {
-                            metrics_util::debugging::DebugValue::Gauge(c) => {
-                                serde_json::Number::from_f64(c.0)
-                            }
-                            metrics_util::debugging::DebugValue::Counter(c) => Some(c.into()),
-                            _ => None,
-                        },
-                    )
-                })
-                .collect::<std::collections::BTreeMap<_, _>>();
-                let task_started_timestamp = map.get(METRICS_TIME_START);
-                if task_started_timestamp.is_some() {
-                    let task_started_timestamp = task_started_timestamp.clone().unwrap().clone().unwrap();
-                    let time_elapsed_in_seconds = {
-                        let time_elasped = (Utc::now().timestamp_millis() - task_started_timestamp.as_f64().unwrap() as i64) / 1000;
-                        if time_elasped < 1 {
-                            Some(1)
-                        } else {
-                            Some(time_elasped)
-                        }
-                    };
-                    if time_elapsed_in_seconds.is_some() {
-                        map.insert(METRICS_TIME_COST.to_string(), Some((time_elapsed_in_seconds.unwrap()).into()));
-                        let records_vec = map.iter().filter(|(k, _v)| k.contains("records")).map(|(_k, v)| v).collect_vec();
-                        let records = records_vec.get(0);
-                        if records.is_some() {
-                            // should be safe
-                            let records = records.unwrap().clone().clone().unwrap().clone().as_i64().unwrap();
-                            map.insert(METRICS_TIME_RECORDS_PER_SECOND.to_string(), Some((records / time_elapsed_in_seconds.unwrap()).into()));
-                        }
-                    }
-                }
-                println!("metrics: {:?}", serde_json::to_string_pretty(&map));
-                
+                print_metrics(snapshotter.clone()).unwrap();
                 std::thread::sleep(Duration::from_secs(5));
             }
         });
-        // let mut sched = JobScheduler::new().await?;
-        // sched
-        // .add(Job::new_cron_job_async("1/10 * * * * *", |uuid, mut l,| {
-        //     Box::pin(async move {
-        //         let snapshotter = snapshotter.clone();
-        //         let snapshot = snapshotter.snapshot();
-        //         let mut map = snapshot.into_hashmap().into_iter().map(|(k, v)| {
-        //             (
-        //                 k.key().name().to_string(),
-        //                 match v.2 {
-        //                     metrics_util::debugging::DebugValue::Gauge(c) => {
-        //                         serde_json::Number::from_f64(c.0)
-        //                     }
-        //                     metrics_util::debugging::DebugValue::Counter(c) => Some(c.into()),
-        //                     _ => None,
-        //                 },
-        //             )
-        //         })
-        //         .collect::<std::collections::BTreeMap<_, _>>();
-        //         let task_started_timestamp = map.get(METRICS_TIME_START);
-        //         if task_started_timestamp.is_some() {
-        //             let task_started_timestamp = task_started_timestamp.clone().unwrap().clone().unwrap();
-        //             let time_elapsed_in_seconds = {
-        //                 let time_elasped = (Utc::now().timestamp_millis() - task_started_timestamp.as_f64().unwrap() as i64) / 1000;
-        //                 if time_elasped < 1 {
-        //                     Some(1)
-        //                 } else {
-        //                     Some(time_elasped)
-        //                 }
-        //             };
-        //             if time_elapsed_in_seconds.is_some() {
-        //                 map.insert(METRICS_TIME_COST.to_string(), Some((time_elapsed_in_seconds.unwrap()).into()));
-        //                 let records_vec = map.iter().filter(|(k, _v)| k.contains("records")).map(|(_k, v)| v).collect_vec();
-        //                 let records = records_vec.get(0);
-        //                 if records.is_some() {
-        //                     // should be safe
-        //                     let records = records.unwrap().clone().clone().unwrap().clone().as_i64().unwrap();
-        //                     map.insert(METRICS_TIME_RECORDS_PER_SECOND.to_string(), Some((records / time_elapsed_in_seconds.unwrap()).into()));
-        //                 }
-        //             }
-        //         }
-        //         println!("{:?}", serde_json::to_string(&map));
-                
-        //         let next_tick = l.next_tick_for_job(uuid).await;
-        //         match next_tick {
-        //             Ok(Some(ts)) => println!("Next time for 60s is {:?}", ts),
-        //             _ => println!("Could not get next tick for 60s job"),
-        //         }
-        //     })
-        // })?)
-        // .await?;
-        // Add code to be run during/after shutdown
-        // sched.set_shutdown_handler(Box::new(|| {
-        //     Box::pin(async move {
-        //         println!("Shut down metrics schedular done");
-        //     })
-        // }));
-
-        // // Start the scheduler
-        // sched.start().await?;
+        
         task_opt.run(&Default::default()).await?;
 
         // match (args.from.driver.as_str(), args.to.driver.as_str()) {
@@ -422,7 +328,50 @@ impl Cli {
         //         args.to
         //     ),
         // }
-
+        timer_run.store(false, Ordering::SeqCst);
+        print_metrics(snapshotter_clone)?;
         Ok(())
     }
+}
+
+/// difference with metrics info get is time process
+fn print_metrics(snapshotter: Arc<Snapshotter>) -> Result<()> {
+    let snapshot = snapshotter.snapshot();
+    let mut map = snapshot.into_hashmap().into_iter().map(|(k, v)| {
+        (
+            k.key().name().to_string(),
+            match v.2 {
+                metrics_util::debugging::DebugValue::Gauge(c) => {
+                    serde_json::Number::from_f64(c.0)
+                }
+                metrics_util::debugging::DebugValue::Counter(c) => Some(c.into()),
+                _ => None,
+            },
+        )
+    })
+    .collect::<std::collections::BTreeMap<_, _>>();
+    let task_started_timestamp = map.get(METRICS_TIME_START);
+    if task_started_timestamp.is_some() {
+        let task_started_timestamp = task_started_timestamp.clone().unwrap().clone().unwrap();
+        let time_elapsed_in_seconds = {
+            let time_elasped = (Utc::now().timestamp_millis() - task_started_timestamp.as_f64().unwrap() as i64) / 1000;
+            if time_elasped < 1 {
+                Some(1)
+            } else {
+                Some(time_elasped)
+            }
+        };
+        if time_elapsed_in_seconds.is_some() {
+            map.insert(METRICS_TIME_COST.to_string(), Some((time_elapsed_in_seconds.unwrap()).into()));
+            let records_vec = map.iter().filter(|(k, _v)| k.contains("records")).map(|(_k, v)| v).collect_vec();
+            let records = records_vec.get(0);
+            if records.is_some() {
+                // should be safe
+                let records = records.unwrap().clone().clone().unwrap().clone().as_i64().unwrap();
+                map.insert(METRICS_TIME_RECORDS_PER_SECOND.to_string(), Some((records / time_elapsed_in_seconds.unwrap()).into()));
+            }
+        }
+    }
+    println!("metrics: {:#?}", serde_json::to_string_pretty(&map)?);
+    Ok(())
 }
