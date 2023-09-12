@@ -165,7 +165,6 @@ struct SStreamTaskWriter {
   STQ*    pTq;
   int64_t sver;
   int64_t ever;
-  TXN*    txn;
 };
 
 int32_t streamTaskSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTaskWriter** ppWriter) {
