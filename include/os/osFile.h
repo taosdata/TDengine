@@ -76,7 +76,7 @@ int32_t taosUnLockFile(TdFilePtr pFile);
 
 int32_t taosUmaskFile(int32_t maskVal);
 
-int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime);
+int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime, int32_t *atime);
 int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno);
 int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime);
 bool    taosCheckExistFile(const char *pathname);

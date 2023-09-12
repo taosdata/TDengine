@@ -118,12 +118,15 @@ class TDTestCase:
     def show_tagidx(self, stbname):
         sql = f'select index_name,column_name from information_schema.ins_indexes where db_name="db"'
         tdSql.query(sql)
-        rows = len(self.tag_dict.keys())-1
+        rows = len(self.tag_dict.keys())
         tdSql.checkRows(rows)
 
         for i in range(rows):
             col_name = tdSql.getData(i, 1)
             idx_name = f'idx_{col_name}'
+            # skip first tag
+            if col_name == "t1":
+                continue
             tdSql.checkData(i, 0, idx_name)
 
         tdLog.info(f' show {rows} tag indexs ok.')
@@ -201,7 +204,7 @@ class TDTestCase:
         # check idx result is 0
         sql = f'select index_name,column_name from information_schema.ins_indexes where db_name="db"'
         tdSql.query(sql)
-        tdSql.checkRows(0)
+        tdSql.checkRows(1)
         tdLog.info(f' drop {cnt} tag indexs ok.')
 
     # create long name idx 

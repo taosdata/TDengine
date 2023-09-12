@@ -258,6 +258,66 @@ class TDTestCase:
                     "insert into tb values(now, 20.0, 20);",
                     "select * from tb;"],
                 "res": [True, True, True, True, False, True, False]
+            },
+            "test_db_all_childtable_none": {
+                "db_privilege": "all",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "none",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "none",
+                "sql": ["insert into ct2 using stb tags('ct2') values(now, 20.2, 20)", 
+                    "insert into ct1 using stb tags('ct1') values(now, 21.21, 21)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 22.22, 22);",
+                    "select * from tb;"],
+                "res": [True, True, True, True, True, True, True]
+            },
+            "test_db_none_stable_all_childtable_none": {
+                "db_privilege": "none",
+                "stable_priviege": "all",
+                "child_table_ct1_privilege": "none",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "none",
+                "sql": ["insert into ct2 using stb tags('ct2') values(now, 23.23, 23)", 
+                    "insert into ct1 using stb tags('ct1') values(now, 24.24, 24)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 25.25, 25);",
+                    "select * from tb;"],
+                "res": [True, True, True, True, True, False, False]
+            },
+            "test_db_no_permission_childtable_all": {
+                "db_privilege": "none",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "all",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "none",
+                "sql": ["insert into ct2 using stb tags('ct2') values(now, 26.26, 26)", 
+                    "insert into ct1 using stb tags('ct1') values(now, 27.27, 27)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 28.28, 28);",
+                    "select * from tb;"],
+                "res": [False, True, True, True, False, False, False]
+            },
+            "test_db_none_stable_none_table_all": {
+                "db_privilege": "none",
+                "stable_priviege": "none",
+                "child_table_ct1_privilege": "none",
+                "child_table_ct2_privilege": "none",
+                "table_tb_privilege": "all",
+                "sql": ["insert into ct2 using stb tags('ct2') values(now, 26.26, 26)", 
+                    "insert into ct1 using stb tags('ct1') values(now, 27.27, 27)", 
+                    "select * from stb;", 
+                    "select * from ct1;", 
+                    "select * from ct2;", 
+                    "insert into tb values(now, 29.29, 29);",
+                    "select * from tb;"],
+                "res": [False, False, False, False, False, True, True]
             }
         }
 
@@ -361,7 +421,7 @@ class TDTestCase:
                         data = res.fetch_all()
                         tdLog.debug("query result: {}".format(data))
                         # check query results by cases
-                        if case_name in ["test_db_no_permission_childtable_read", "test_db_write_childtable_read"] and self.cases[case_name]["sql"][index] == "select * from ct2;":
+                        if case_name in ["test_db_no_permission_childtable_read", "test_db_write_childtable_read", "test_db_no_permission_childtable_all"] and self.cases[case_name]["sql"][index] == "select * from ct2;":
                             if not self.cases[case_name]["res"][index]:
                                 if  0 == len(data):
                                     tdLog.debug("Query with sql {} successfully as expected with empty result".format(self.cases[case_name]["sql"][index]))

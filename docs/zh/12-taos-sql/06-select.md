@@ -9,7 +9,7 @@ description: 查询数据的详细语法
 ```sql
 SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
-SELECT [DISTINCT] select_list
+SELECT [hints] [DISTINCT] select_list
     from_clause
     [WHERE condition]
     [partition_by_clause]
@@ -20,6 +20,11 @@ SELECT [DISTINCT] select_list
     [SLIMIT limit_val [SOFFSET offset_val]]
     [LIMIT limit_val [OFFSET offset_val]]
     [>> export_file]
+
+hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
+
+hint:
+    BATCH_SCAN | NO_BATCH_SCAN   
 
 select_list:
     select_expr [, select_expr] ...
@@ -68,6 +73,29 @@ order_by_clasue:
 
 order_expr:
     {expr | position | c_alias} [DESC | ASC] [NULLS FIRST | NULLS LAST]
+```
+
+## Hints
+
+Hints 是用户控制单个语句查询优化的一种手段，当 Hint 不适用于当前的查询语句时会被自动忽略，具体说明如下：
+
+- Hints 语法以`/*+`开始，终于`*/`，前后可有空格。
+- Hints 语法只能跟随在 SELECT 关键字后。
+- 每个 Hints 可以包含多个 Hint，Hint 间以空格分开，当多个 Hint 冲突或相同时以先出现的为准。
+- 当 Hints 中某个 Hint 出现错误时，错误出现之前的有效 Hint 仍然有效，当前及之后的 Hint 被忽略。
+- hint_param_list 是每个 Hint 的参数，根据每个 Hint 的不同而不同。
+
+目前支持的 Hints 列表如下：
+
+|    **Hint**   |    **参数**    |         **说明**           |       **适用范围**         |  
+| :-----------: | -------------- | -------------------------- | -------------------------- |
+| BATCH_SCAN    | 无             | 采用批量读表的方式         | 超级表 JOIN 语句           |         
+| NO_BATCH_SCAN | 无             | 采用顺序读表的方式         | 超级表 JOIN 语句           |         
+
+举例： 
+
+```sql
+SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
 ```
 
 ## 列表

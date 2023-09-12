@@ -37,6 +37,7 @@
 #include "monitor.h"
 #include "qnode.h"
 #include "sync.h"
+#include "tfs.h"
 #include "wal.h"
 
 #include "libs/function/tudf.h"
@@ -111,6 +112,7 @@ typedef struct {
 typedef struct {
   const char         *path;
   const char         *name;
+  STfs               *pTfs;
   SDnodeData         *pData;
   SMsgCb              msgCb;
   ProcessCreateNodeFp processCreateNodeFp;

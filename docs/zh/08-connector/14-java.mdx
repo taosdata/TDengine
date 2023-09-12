@@ -36,6 +36,7 @@ REST 连接支持所有能运行 Java 的平台。
 
 | taos-jdbcdriver 版本 |                                                                        主要变化                                                                        |   TDengine 版本    |
 | :------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------: | :----------------: |
+|        3.2.5         |                                                      数据订阅增加 committed()、assignment() 方法                                                       | 3.1.0.3 及更高版本 |
 |        3.2.4         |                                   数据订阅在 WebSocket 连接下增加 enable.auto.commit 参数，以及 unsubscribe() 方法。                                   |         -          |
 |        3.2.3         |                                                         修复 ResultSet 在一些情况数据解析失败                                                          |         -          |
 |        3.2.2         |                                                           新增功能：数据订阅支持 seek 功能。                                                           | 3.0.5.0 及更高版本 |
@@ -1003,7 +1004,7 @@ TaosConsumer consumer = new TaosConsumer<>(config);
 - httpConnectTimeout: 创建连接超时参数，单位 ms，默认为 5000 ms。仅在 WebSocket 连接下有效。
 - messageWaitTimeout: 数据传输超时参数，单位 ms，默认为 10000 ms。仅在 WebSocket 连接下有效。
 - httpPoolSize: 同一个连接下最大并行请求数。仅在 WebSocket 连接下有效。
-  其他参数请参考：[Consumer 参数列表](../../../develop/tmq#创建-consumer-以及consumer-group)
+  其他参数请参考：[Consumer 参数列表](../../develop/tmq#创建-consumer-以及consumer-group)
 
 #### 订阅消费数据
 
@@ -1022,14 +1023,19 @@ while(true) {
 #### 指定订阅 Offset
 
 ```java
+// 获取订阅的 topicPartition
+Set<TopicPartition> assignment() throws SQLException;
 // 获取 offset
 long position(TopicPartition partition) throws SQLException;
 Map<TopicPartition, Long> position(String topic) throws SQLException;
 Map<TopicPartition, Long> beginningOffsets(String topic) throws SQLException;
 Map<TopicPartition, Long> endOffsets(String topic) throws SQLException;
+Map<TopicPartition, OffsetAndMetadata> committed(Set<TopicPartition> partitions) throws SQLException;
 
 // 指定下一次 poll 中使用的 offset
 void seek(TopicPartition partition, long offset) throws SQLException;
+void seekToBeginning(Collection<TopicPartition> partitions) throws SQLException;
+void seekToEnd(Collection<TopicPartition> partitions) throws SQLException;
 ```
 
 示例代码：
@@ -1055,6 +1061,18 @@ try (TaosConsumer<ResultBean> consumer = new TaosConsumer<>(properties)) {
 }
 ```
 
+#### 提交 Offset
+
+当`enable.auto.commit`为 false 时，可以手动提交 offset。
+
+```java
+void commitSync() throws SQLException;
+void commitSync(Map<TopicPartition, OffsetAndMetadata> offsets) throws SQLException;
+// 异步提交仅在 native 连接下有效
+void commitAsync(OffsetCommitCallback<V> callback) throws SQLException;
+void commitAsync(Map<TopicPartition, OffsetAndMetadata> offsets, OffsetCommitCallback<V> callback) throws SQLException;
+```
+
 #### 关闭订阅
 
 ```java
@@ -1064,7 +1082,7 @@ consumer.unsubscribe();
 consumer.close()
 ```
 
-详情请参考：[数据订阅](../../../develop/tmq)
+详情请参考：[数据订阅](../../develop/tmq)
 
 #### 完整示例
 
@@ -1355,7 +1373,7 @@ public static void main(String[] args) throws Exception {
 
 **解决方法**： 更换 taos-jdbcdriver 3.0.2+ 版本。
 
-其它问题请参考 [FAQ](../../../train-faq/faq)
+其它问题请参考 [FAQ](../../train-faq/faq)
 
 ## API 参考
 

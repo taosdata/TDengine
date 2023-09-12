@@ -44,7 +44,7 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
     }
 
     // 2. valid length for each type
-    if (pSchema[i].type == TSDB_DATA_TYPE_BINARY) {
+    if (pSchema[i].type == TSDB_DATA_TYPE_BINARY || pSchema[i].type == TSDB_DATA_TYPE_VARBINARY) {
       if (pSchema[i].bytes > TSDB_MAX_BINARY_LEN) {
         return false;
       }
@@ -300,6 +300,23 @@ int32_t dataConverToStr(char* str, int type, void* buf, int32_t bufSize, int32_t
       n = sprintf(str, "%e", GET_DOUBLE_VAL(buf));
       break;
 
+    case TSDB_DATA_TYPE_VARBINARY:{
+      if (bufSize < 0) {
+        //        tscError("invalid buf size");
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
+      void* data = NULL;
+      uint32_t size = 0;
+      if(taosAscii2Hex(buf, bufSize, &data, &size) < 0){
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      *str = '"';
+      memcpy(str + 1, data, size);
+      *(str + size + 1) = '"';
+      n = size + 2;
+      taosMemoryFree(data);
+      break;
+    }
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_GEOMETRY:
       if (bufSize < 0) {

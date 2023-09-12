@@ -356,7 +356,7 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
           }
         } else {
           varDataLen += sizeof(VarDataLenT);
-          if (pTColumn->type == TSDB_DATA_TYPE_VARCHAR || pTColumn->type == TSDB_DATA_TYPE_GEOMETRY) {
+          if (pTColumn->type == TSDB_DATA_TYPE_VARCHAR || pTColumn->type == TSDB_DATA_TYPE_VARBINARY || pTColumn->type == TSDB_DATA_TYPE_GEOMETRY) {
             varDataLen += CHAR_BYTES;
             if (maxVarDataLen < CHAR_BYTES + sizeof(VarDataLenT)) {
               maxVarDataLen = CHAR_BYTES + sizeof(VarDataLenT);

@@ -191,7 +191,7 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
 #endif
 }
 
-int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime) {
+int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime, int32_t *atime) {
 #ifdef WINDOWS
   struct _stati64 fileStat;
   int32_t         code = _stati64(path, &fileStat);
@@ -209,6 +209,10 @@ int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime) {
 
   if (mtime != NULL) {
     *mtime = fileStat.st_mtime;
+  }
+
+  if (atime != NULL) {
+    *atime = fileStat.st_atime;
   }
 
   return 0;
@@ -540,7 +544,7 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
 
 #ifdef WINDOWS
   struct __stat64 fileStat;
-  int32_t code = _fstat64(pFile->fd, &fileStat);
+  int32_t         code = _fstat64(pFile->fd, &fileStat);
 #else
   struct stat fileStat;
   int32_t code = fstat(pFile->fd, &fileStat);
@@ -900,17 +904,17 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
     goto cmp_end;
   }
 
-   dstFp = gzdopen(pFile->fd, "wb6f");
-   if (dstFp == NULL) {
-     ret = -3;
-     taosCloseFile(&pFile);
-     goto cmp_end;
-   }
+  dstFp = gzdopen(pFile->fd, "wb6f");
+  if (dstFp == NULL) {
+    ret = -3;
+    taosCloseFile(&pFile);
+    goto cmp_end;
+  }
 
-   while (!feof(pSrcFile->fp)) {
-     len = (int32_t)fread(data, 1, compressSize, pSrcFile->fp);
-     (void)gzwrite(dstFp, data, len);
-   }
+  while (!feof(pSrcFile->fp)) {
+    len = (int32_t)fread(data, 1, compressSize, pSrcFile->fp);
+    (void)gzwrite(dstFp, data, len);
+  }
 
 cmp_end:
   if (pFile) {
