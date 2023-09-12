@@ -840,8 +840,13 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
     }
 
     bufferSize += 512;
-    *ptrBuf = taosMemoryRealloc(*ptrBuf, bufferSize);
-    if (*ptrBuf == NULL) return -1;
+    void* newBuf = taosMemoryRealloc(*ptrBuf, bufferSize);
+    if (newBuf == NULL) {
+      taosMemoryFreeClear(*ptrBuf);
+      return -1;
+    }
+
+    *ptrBuf = newBuf;
   }
 
   (*ptrBuf)[totalBytesRead] = '\0';
