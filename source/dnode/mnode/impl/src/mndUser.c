@@ -1201,15 +1201,22 @@ _OVER:
   return code;
 }
 
-//TODO: this is enterpise version, or shared version between enterprise and community?
-static int32_t mndSetUserWhiteListRsp(SMnode* pMnode, SUserObj* pUser, SGetUserWhiteListRsp* pWhiteListRsp) {
+//TODO: for community version use the commented version
+int32_t mndSetUserWhiteListRsp(SMnode* pMnode, SUserObj* pUser, SGetUserWhiteListRsp* pWhiteListRsp) {
   memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
+//  pWhiteListRsp->numWhiteLists = 1;
+//  pWhiteListRsp->pWhiteLists = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
+//  if (pWhiteListRsp->pWhiteLists == NULL) {
+//    return TSDB_CODE_OUT_OF_MEMORY;
+//  }
+//  memset(pUser->pIpWhiteList->pIpRange, 0, pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
   pWhiteListRsp->numWhiteLists = pUser->pIpWhiteList->num;
   pWhiteListRsp->pWhiteLists = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
   if (pWhiteListRsp->pWhiteLists == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy(pUser->pIpWhiteList->pIpRange, pUser->pIpWhiteList->pIpRange, pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
+
   return 0;
 }
 
