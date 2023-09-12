@@ -412,7 +412,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type, void* pExclude,
+int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type, void* pRanges,
                            STsdbSnapReader** reader) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -425,7 +425,7 @@ int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type,
   reader[0]->ever = ever;
   reader[0]->type = type;
 
-  code = tsdbFSCreateRefRangedSnapshot(tsdb->pFS, sver, ever, (TSnapRangeArray*)pExclude, &reader[0]->fsrArr);
+  code = tsdbFSCreateRefRangedSnapshot(tsdb->pFS, sver, ever, (TSnapRangeArray*)pRanges, &reader[0]->fsrArr);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -1156,4 +1156,9 @@ _exit:
               hdr->type, hdr->index, hdr->size);
   }
   return code;
+}
+
+int32_t tsdbSnapGetInfo(STsdb* pTsdb, SSnapshot* pSnap) {
+  // TODO: get the full and diff info of tsdb Snap
+  return 0;
 }
