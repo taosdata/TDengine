@@ -503,8 +503,9 @@ int32_t streamTaskStop(SStreamTask* pTask) {
     taosMsleep(100);
   }
 
+  pTask->tsInfo.init = 0;
   int64_t el = taosGetTimestampMs() - st;
-  qDebug("vgId:%d s-task:%s is closed in %" PRId64 " ms", pMeta->vgId, pTask->id.idStr, el);
+  qDebug("vgId:%d s-task:%s is closed in %" PRId64 " ms, and reset init ts", pMeta->vgId, pTask->id.idStr, el);
   return 0;
 }
 
