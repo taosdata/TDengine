@@ -49,6 +49,7 @@ static int32_t  mndProcessCreateUserReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterUserReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropUserReq(SRpcMsg *pReq);
 static int32_t  mndProcessGetUserAuthReq(SRpcMsg *pReq);
+static int32_t  mndProcessGetUserWhiteListReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveUsers(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextUser(SMnode *pMnode, void *pIter);
 static int32_t  mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
@@ -398,6 +399,8 @@ int32_t mndInitUser(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_USER, mndProcessAlterUserReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_USER, mndProcessDropUserReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_USER_AUTH, mndProcessGetUserAuthReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_GET_USER_WHITELIST, mndProcessGetUserWhiteListReq);
+
   mndSetMsgHandle(pMnode, TDMT_MND_RETRIEVE_IP_WHITE, mndProcesSRetrieveIpWhiteReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_USER, mndRetrieveUsers);
@@ -1197,6 +1200,67 @@ _OVER:
   tFreeSCreateUserReq(&createReq);
   return code;
 }
+
+//TODO: for community version use the commented version
+int32_t mndSetUserWhiteListRsp(SMnode* pMnode, SUserObj* pUser, SGetUserWhiteListRsp* pWhiteListRsp) {
+  memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
+//  pWhiteListRsp->numWhiteLists = 1;
+//  pWhiteListRsp->pWhiteLists = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
+//  if (pWhiteListRsp->pWhiteLists == NULL) {
+//    return TSDB_CODE_OUT_OF_MEMORY;
+//  }
+//  memset(pUser->pIpWhiteList->pIpRange, 0, pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
+  pWhiteListRsp->numWhiteLists = pUser->pIpWhiteList->num;
+  pWhiteListRsp->pWhiteLists = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
+  if (pWhiteListRsp->pWhiteLists == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  memcpy(pUser->pIpWhiteList->pIpRange, pUser->pIpWhiteList->pIpRange, pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
+
+  return 0;
+}
+
+int32_t mndProcessGetUserWhiteListReq(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  int32_t code = -1;
+  SUserObj *pUser = NULL;
+  SGetUserWhiteListReq wlReq = {0};
+  SGetUserWhiteListRsp wlRsp = {0};
+
+  if (tDeserializeSGetUserWhiteListReq(pReq->pCont, pReq->contLen, &wlReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+  mTrace("user: %s, start to get whitelist", wlReq.user);
+
+  pUser = mndAcquireUser(pMnode, wlReq.user);
+  if (pUser == NULL) {
+    terrno = TSDB_CODE_MND_USER_NOT_EXIST;
+    goto _OVER;
+  }
+
+  code = mndSetUserWhiteListRsp(pMnode, pUser, &wlRsp);
+  if (code) {
+    goto _OVER;
+  }
+  int32_t contLen = tSerializeSGetUserWhiteListRsp(NULL, 0, &wlRsp);
+  void   *pRsp = rpcMallocCont(contLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  tSerializeSGetUserWhiteListRsp(pRsp, contLen, &wlRsp);
+
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = contLen;
+  code = 0;
+_OVER:
+  mndReleaseUser(pMnode, pUser);
+  tFreeSGetUserWhiteListRsp(&wlRsp);
+  return code;
+}
+
 int32_t mndProcesSRetrieveIpWhiteReq(SRpcMsg *pReq) {
   // impl later
   SRetrieveIpWhiteReq req = {0};

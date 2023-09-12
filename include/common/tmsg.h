@@ -849,6 +849,7 @@ typedef struct {
   int32_t  authVer;
   char     sVer[TSDB_VERSION_LEN];
   char     sDetailVer[128];
+  int64_t  whiteListVer;
 } SConnectRsp;
 
 int32_t tSerializeSConnectRsp(void* buf, int32_t bufLen, SConnectRsp* pRsp);
@@ -875,9 +876,14 @@ typedef struct {
 int32_t tSerializeSDropUserReq(void* buf, int32_t bufLen, SDropUserReq* pReq);
 int32_t tDeserializeSDropUserReq(void* buf, int32_t bufLen, SDropUserReq* pReq);
 
-typedef struct SIpV4Range {
-  uint32_t ip;
-  uint32_t mask;
+typedef union {
+  struct {
+    uint64_t ip_mask;
+  };
+  struct {
+    uint32_t ip;
+    uint32_t mask;
+  };
 } SIpV4Range;
 
 typedef struct {
@@ -965,11 +971,29 @@ typedef struct {
   SHashObj* readTbs;
   SHashObj* writeTbs;
   SHashObj* useDbs;
+  int64_t whiteListVer;
 } SGetUserAuthRsp;
 
 int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
 int32_t tDeserializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
 void    tFreeSGetUserAuthRsp(SGetUserAuthRsp* pRsp);
+
+typedef struct {
+  char user[TSDB_USER_LEN];
+} SGetUserWhiteListReq;
+
+int32_t tSerializeSGetUserWhiteListReq(void* buf, int32_t bufLen, SGetUserWhiteListReq* pReq);
+int32_t tDeserializeSGetUserWhiteListReq(void* buf, int32_t bufLen, SGetUserWhiteListReq* pReq);
+
+typedef struct {
+  char user[TSDB_USER_LEN];
+  int32_t numWhiteLists;
+  SIpV4Range* pWhiteLists;
+} SGetUserWhiteListRsp;
+
+int32_t tSerializeSGetUserWhiteListRsp(void* buf, int32_t bufLen, SGetUserWhiteListRsp* pRsp);
+int32_t tDeserializeSGetUserWhiteListRsp(void* buf, int32_t bufLen, SGetUserWhiteListRsp* pRsp);
+void    tFreeSGetUserWhiteListRsp(SGetUserWhiteListRsp* pRsp);
 
 /*
  * for client side struct, only column id, type, bytes are necessary
