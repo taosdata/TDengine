@@ -60,52 +60,6 @@ async fn ipc_tcp_forward(
     let _ = cancel;
     use arrow_flight::{encode::FlightDataEncoderBuilder, error::FlightError};
     use futures::StreamExt;
-    // struct FakeStream(SchemaRef, tokio::time::Interval);
-
-    // impl futures::Stream for FakeStream {
-    //     type Item = Result<RecordBatch, FlightError>;
-    //     fn poll_next(
-    //         mut self: std::pin::Pin<&mut Self>,
-    //         cx: &mut std::task::Context<'_>,
-    //     ) -> std::task::Poll<Option<Self::Item>> {
-    //         // std::thread::sleep(Duration::from_millis(100));
-    //         match self.1.poll_tick(cx) {
-    //             Poll::Ready(_) => (),
-    //             Poll::Pending => return Poll::Pending,
-    //         }
-    //         // fut.poll_unpin(cx);
-    //         let val = Arc::new(TimestampMillisecondArray::from_iter_values(vec![0, 1])) as ArrayRef;
-    //         let item = RecordBatch::try_from_iter(vec![("ts", val)]).map_err(Into::into);
-    //         tracing::info!("{item:?}");
-    //         std::task::Poll::Ready(Some(item))
-    //     }
-    // }
-    // struct Data {
-    //     data: FlightDataEncoder,
-    // }
-    // impl futures::Stream for Data {
-    //     type Item = FlightData;
-    //     fn poll_next(
-    //         mut self: std::pin::Pin<&mut Self>,
-    //         cx: &mut std::task::Context<'_>,
-    //     ) -> std::task::Poll<Option<Self::Item>> {
-    //         self.data
-    //             .try_poll_next_unpin(cx)
-    //             .map(|u| u.transpose().unwrap())
-    //             .map(|u| {
-    //                 u.map(|mut v| {
-    //                     if v.app_metadata.is_empty() {
-    //                         v.app_metadata = Bytes::from("request");
-    //                         // dbg!(v)
-    //                         v
-    //                     } else {
-    //                         // dbg!(v)
-    //                         v
-    //                     }
-    //                 })
-    //             })
-    //     }
-    // }
     let reader_stream = stream
         .try_clone()
         .context("Try clone IPC stream as reader error")?;
@@ -138,64 +92,88 @@ async fn ipc_tcp_forward(
     // });
     // tokio::task::yield_now().await;
 
-    let data = FlightDataEncoderBuilder::new()
-        .with_schema(schema.clone())
-        .with_options(IpcWriteOptions::try_new(8, false, arrow::ipc::MetadataVersion::V5).unwrap())
-        .build(ipc_reader.into_raw_stream().map_err(FlightError::from));
+    let ipc_stream = ipc_reader.into_raw_stream();
 
-    const MAX_RETRIES: usize = 3;
-    const RETRY_DELAY: Duration = Duration::from_secs(5);
+    // let max_retries_in_one_minutes = 3;
+    // let last_retry_time = Arc::new(AtomicUsize::new(0));
+    loop {
+        let data_stream = ipc_stream.clone();
+        let data = FlightDataEncoderBuilder::new()
+            .with_schema(schema.clone())
+            .with_options(
+                IpcWriteOptions::try_new(8, false, arrow::ipc::MetadataVersion::V5).unwrap(),
+            )
+            .build(data_stream.map_err(FlightError::from));
 
-    let mut retries = 0;
-    let channel = loop {
-        match try_establish_channel(remote.clone()).await {
-            Ok(channel) => break channel,
-            Err(err) => {
-                retries += 1;
-                tracing::error!("Failed to establish connection: {}. Retrying...", err);
-                if retries >= MAX_RETRIES {
-                    tracing::error!("Max retries reached. Exiting...");
-                    return Err(err);
+        const MAX_RETRIES: usize = 3;
+        const RETRY_DELAY: Duration = Duration::from_secs(5);
+
+        let mut retries = 0;
+        let channel = loop {
+            match try_establish_channel(remote.clone()).await {
+                Ok(channel) => break channel,
+                Err(err) => {
+                    retries += 1;
+                    tracing::error!("Failed to establish connection: {}. Retrying...", err);
+                    if retries >= MAX_RETRIES {
+                        tracing::error!("Max retries reached. Exiting...");
+                        return Err(err);
+                    }
+                    tokio::time::sleep(RETRY_DELAY).await;
                 }
-                tokio::time::sleep(RETRY_DELAY).await;
             }
-        }
-    };
-    let mut client = FlightClient::new(channel);
-    let _ = client
-        .handshake(Bytes::from(token.as_bytes().to_vec()))
-        .await
-        .map_err(|err| match err {
+        };
+        let mut client = FlightClient::new(channel);
+        let _ = client
+            .handshake(Bytes::from(token.as_bytes().to_vec()))
+            .await
+            .map_err(|err| match err {
+                FlightError::Tonic(status) => anyhow::anyhow!("{}", status.message()),
+                err => anyhow::anyhow!("Handshake error: {err:#}"),
+            })?;
+        info!("Handshake done");
+        // dbg!(res);
+        client.add_header("x-task-id", &task_id.to_string())?;
+        client.add_header("x-token", &token)?;
+        info!("Do putting");
+        let mut stream = client.do_put(data).await.map_err(|err| match dbg!(err) {
+            FlightError::Arrow(err) => anyhow::anyhow!("IPC Arrow error: {err:#}"),
             FlightError::Tonic(status) => anyhow::anyhow!("{}", status.message()),
-            err => anyhow::anyhow!("Handshake error: {err:#}"),
+            err => anyhow::anyhow!("Put IPC stream error: {err:#}"),
         })?;
-    info!("Handshake done");
-    // dbg!(res);
-    client.add_header("x-task-id", &task_id.to_string())?;
-    client.add_header("x-token", &token)?;
-    info!("Do putting");
-    let mut stream = client.do_put(data).await.map_err(|err| match dbg!(err) {
-        FlightError::Arrow(err) => anyhow::anyhow!("IPC Arrow error: {err:#}"),
-        FlightError::Tonic(status) => anyhow::anyhow!("{}", status.message()),
-        err => anyhow::anyhow!("Put IPC stream error: {err:#}"),
-    })?;
-    info!("Get putting stream response");
+        info!("Get putting stream response");
 
-    while let Some(res) = stream.next().await {
-        let rsp = res.context("Got server response with error");
-        match rsp {
-            Ok(rsp) => {
-                tracing::debug!("Response ok: {:?}", rsp);
+        while let Some(res) = stream.next().await {
+            let rsp = res;
+            match rsp {
+                Ok(rsp) => {
+                    tracing::debug!("Response ok: {:?}", rsp);
+                }
+                Err(err) => match &err {
+                    FlightError::Tonic(status) => {
+                        if status
+                            .message()
+                            .contains("stream closed because of a broken pipe")
+                        {
+                            tracing::warn!("Disconnected, retry after one second: {err:#}");
+                            tokio::time::sleep(Duration::from_secs(1)).await;
+                            continue;
+                        }
+                        tracing::error!("Tonic error: {status}");
+                        Err(err).context("Got server response with error")?;
+                    }
+                    _ => {
+                        tracing::error!("Other error: {err:#}");
+                        Err(err).context("Got server response with error")?;
+                    }
+                },
             }
-            Err(err) => {
-                tracing::error!("Server response error: {err:#}");
-                Err(err)?;
-            }
+            let _ = ipc_ack_writer.write_ok();
         }
-        let _ = ipc_ack_writer.write_ok();
-    }
 
-    info!("[{task_id}] Putting stream finished");
+        info!("[{task_id}] Putting stream finished");
+        break;
+    }
     Ok(())
 }
 

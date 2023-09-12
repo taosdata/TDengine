@@ -28,6 +28,7 @@ use serde::{Deserialize, Serialize};
 use taosx_core::{
     list_datasets_from, DataSetsReq, Fail, HeartbeatResponse, ListResponse, RespAction,
 };
+use tonic::transport::Channel;
 use tonic::{codegen::Bytes, transport::Endpoint};
 use tracing::info;
 
@@ -142,21 +143,41 @@ pub struct Task {
 const fn is_false(b: &bool) -> bool {
     *b
 }
+
+async fn new_channel(endpoint: String) -> anyhow::Result<Channel> {
+    Endpoint::try_from(endpoint.clone())
+        .map_err(|err| anyhow::format_err!("Unable to create endpoint on `{endpoint}`: {err:#}"))?
+        .keep_alive_while_idle(true)
+        .tcp_keepalive(Some(Duration::from_secs(5)))
+        .http2_keep_alive_interval(Duration::from_secs(15))
+        .keep_alive_timeout(Duration::from_secs(30))
+        .connect()
+        .await
+        .map_err(|err| anyhow::format_err!("Unable to connect with endpoint `{endpoint}`: {err:#}"))
+}
 impl Client {
     pub async fn new(endpoint: impl Display, token: impl Display) -> Result<Self> {
         let endpoint = endpoint.to_string();
         let token = token.to_string();
-        let channel = Endpoint::try_from(endpoint.clone())
-            .map_err(|err| anyhow::format_err!("Unable to create endpoint on `{endpoint}`: {err}"))?
-            .keep_alive_while_idle(true)
-            .tcp_keepalive(Some(Duration::from_secs(5)))
-            .http2_keep_alive_interval(Duration::from_secs(15))
-            .keep_alive_timeout(Duration::from_secs(30))
-            .connect()
-            .await
-            .map_err(|err| {
-                anyhow::format_err!("Unable to connect with endpoint `{endpoint}`: {err}")
-            })?;
+        const MAX_RETRIES: usize = 5;
+        let mut retries = 0;
+        let channel = loop {
+            match new_channel(endpoint.clone()).await {
+                Ok(channel) => break Ok(channel),
+                Err(err) => {
+                    retries += 1;
+                    info!(
+                        "Unable to connect to server, retry {}/{}",
+                        retries, MAX_RETRIES
+                    );
+                    if retries > MAX_RETRIES {
+                        break Err(err);
+                    } else {
+                        continue;
+                    }
+                }
+            }
+        }?;
 
         let mut client = FlightClient::new(channel);
         client.add_header("x-token", &token)?;
