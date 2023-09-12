@@ -1,7 +1,7 @@
 ---
 toc_max_heading_level: 4
-title: "Licensing"
-sidebar_label: "Licence Key Management"
+title: "Licence Key Management"
+sidebar_label: "Licensing"
 ---
 
 ## Introduction
