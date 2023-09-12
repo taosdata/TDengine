@@ -122,7 +122,7 @@ impl GlobalOpts {
         let min = std::thread::available_parallelism()
             .map(|v| v.get() * 2)
             .unwrap_or(16)
-            .max(8);
+            .max(16);
 
         if self.jobs + 2 > min {
             self.jobs + 2
@@ -249,6 +249,9 @@ fn main() -> Result<()> {
     let span_events = args.globals.tracing_events.clone();
     let worker_threads = args.globals.executor_worker_threads();
     let runtime = tokio::runtime::Builder::new_multi_thread()
+        .disable_lifo_slot()
+        .rng_seed(tokio::runtime::RngSeed::from_bytes(b"taosx rng seed"))
+        .global_queue_interval(31)
         .max_blocking_threads(4096)
         .thread_name("taosx")
         .worker_threads(worker_threads)
