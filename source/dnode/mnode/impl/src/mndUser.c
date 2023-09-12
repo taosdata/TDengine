@@ -1121,6 +1121,8 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     goto _OVER;
   }
   ipWhiteMgtUpdate(userObj.user, userObj.pIpWhiteList);
+  taosMemoryFree(userObj.pIpWhiteList);
+
   mndTransDrop(pTrans);
   return 0;
 _OVER:
