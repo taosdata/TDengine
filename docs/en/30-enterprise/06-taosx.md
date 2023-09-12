@@ -71,29 +71,29 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 2. transform Configures some operations on table names and fields during data synchronization (only supported from 2.6 to 3.0 and between 3.0) with the --transform or -T setting. This setting cannot be made with Explorer at this time. The data structure is described as follows:
    
   ```shell
-  1. AddTag, add TAG for the table. 设置示例：-T add-tag:<tag1>=<value1>。
-  2.表重命名：
-      2.1 重命名表限定
-          2.1.1 RenameTable：对所有符合条件的表进行重命名。
-          2.1.2 RenameChildTable：对所有符合条件的子表进行重命名。
-          2.1.3 RenameSuperTable：对所有符合条件的超级表进行重命名。
-      2.2 重命名方式
-          2.2.1 Prefix：添加前缀。
-          2.2.2 Suffix：添加后缀。
-          2.2.3 Template：模板方式。
-          2.2.4 ReplaceWithRegex：正则替换。taosx 1.1.0 新增。
-  重命名配置方式：
-      <表限定>:<重命名方式>:<重命名值>
-  使用示例：
-      1.为所有表添加前缀 <prefix>
+  1. AddTag, add TAG for the table. Example of setting: -T add-tag:<tag1>=<value1>.
+  2. Table renaming:
+      2.1 Renaming table qualifications
+          2.1.1 RenameTable: Renames all eligible tables.
+          2.1.2 RenameChildTable: Renames all eligible child tables.
+          2.1.3 RenameSuperTable: Renames all eligible super tables.
+      2.2 Renaming methods
+          2.2.1 Prefix: Add a prefix.
+          2.2.2 Suffix: add a suffix.
+          2.2.3 Template: the template approach.
+          2.2.4 ReplaceWithRegex: regular replacement. taosx 1.1.0 Added.
+  Rename the configuration method:
+      <table-qualified>:<rename-mode>:<rename-value>
+  Usage examples：
+      1. Add prefix <prefix> to all tables
       --transform rename-table:prefix:<prefix>
-      2.为符合条件的表替换前缀：prefix1 替换为 prefix2，以下示例中的 <> 为正则表达式的不再是占位符。
+      2. Replace prefixes for eligible tables: prefix1 is replaced with prefix2, and <> in the following example is no longer a placeholder for a regular expression.
       -T rename-child-table:replace_with_regex:^prefix1(?<old>)::prefix2_$old
 
-      示例说明：^prefix1(?<old>) 为正则表达式，该表达式会匹配表名中包含以 prefix1 开始的表名并将后缀部分记录为 old，prefix2$old 则会使用 prefix2 与 old 进行替换。注意：两部分使用关键字符 :: 进行分隔，所以需要保证正则表达式中不能包含该字符。
-      若有更复杂的替换需求请参考：https://docs.rs/regex/latest/regex/#example-replacement-with-named-capture-groups 或咨询 taosx 开发人员。
+      Example description: ^prefix1(? <old>) is a regular expression that matches table names that start with prefix1 and records the suffix as old. prefix2$old replaces old with prefix2. Note: The two parts are separated by the key character ::, so you need to make sure that the regular expression cannot contain that character.
+      For more complex replacement needs please refer to: https://docs.rs/regex/latest/regex/#example-replacement-with-named-capture-groups or consult the taosx developers.
   ```
 
-3. jobs 指定任务并发数，仅支持 tmq 任务。 This setting cannot be made with Explorer at this time. 通过 --jobs `<number>` 或 -j `<number>` 进行设置。
-4. -v 用于指定 taosx 的日志级别，-v 表示启用 info 级别日志，-vv 对应 debug，-vvv 对应 trace。
+3. jobs Specifies the number of concurrent jobs. only tmq jobs are supported. This setting cannot be made with Explorer at this time. Set via --jobs `<number>` or -j `<number>`.
+4. -v is used to specify the taosx logging level, -v means enable info level logging, -vv corresponds to debug, -vvv corresponds to trace.
 
