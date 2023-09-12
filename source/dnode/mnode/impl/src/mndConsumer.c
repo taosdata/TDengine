@@ -401,7 +401,6 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
 
     SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, pConsumer->cgroup, data->topicName);
     if(pSub == NULL){
-      ASSERT(0);
       continue;
     }
     taosWLockLatch(&pSub->lock);
