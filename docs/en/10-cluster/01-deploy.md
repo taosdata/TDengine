@@ -30,7 +30,7 @@ As a best practice, before cleaning up any data files or directories, please ens
 
 ### Step 3
 
-Now it's time to install TDengine on all hosts but without starting `taosd`. Note that the versions on all hosts should be same. If you are prompted to input the existing TDengine cluster, simply press carriage return to ignore the prompt. `install.sh -e no` can also be used to disable this prompt. For details please refer to [Install and Uninstall](/operation/pkg-install).
+Now it's time to install TDengine on all hosts but without starting `taosd`. Note that the versions on all hosts should be same. If you are prompted to input the existing TDengine cluster, simply press carriage return to ignore the prompt. `install.sh -e no` can also be used to disable this prompt. For details please refer to [Install and Uninstall](../../operation/pkg-install).
 
 ### Step 4
 
