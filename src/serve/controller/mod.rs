@@ -1448,7 +1448,7 @@ impl TaskController {
             .await?;
 
             token.cancel();
-            let _ = handle.await?;
+            let _ = tokio::time::timeout(Duration::from_secs(10), handle).await??;
             Ok(Some(()))
         } else {
             Ok(Some(()))

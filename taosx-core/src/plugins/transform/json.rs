@@ -426,7 +426,6 @@ impl TransformExt for Json {
 #[cfg(test)]
 mod tests {
     use arrow::array::ArrayRef;
-    use futures::StreamExt;
 
     use crate::plugins::transform::MessageTableMeta;
 

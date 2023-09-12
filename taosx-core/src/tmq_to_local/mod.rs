@@ -247,7 +247,7 @@ async fn backup(
     log::info!("[{id}] total backup {} rows", rows);
     drop(stream);
     let _ = sender.send(consumer); // tokio send
-    // consumer.unsubscribe().await;
+                                   // consumer.unsubscribe().await;
     log::info!("[{id}] backup done");
     Ok(())
 }

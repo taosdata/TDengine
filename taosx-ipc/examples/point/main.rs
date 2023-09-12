@@ -3,16 +3,13 @@ use std::{collections::HashMap, sync::Arc};
 use anyhow::Result;
 
 use arrow::{
-    array::{
-        make_builder, Float32Builder, Int32Builder, StringBuilder, StructBuilder,
-        TimestampMillisecondBuilder, UInt8Array,
-    },
+    array::{Int32Builder, StringBuilder, TimestampMillisecondBuilder},
     datatypes::{DataType, Field, Fields, Schema},
     ipc::writer::StreamWriter,
     record_batch::RecordBatch,
 };
 
-use taosx_ipc::{prelude::*, stream::components::ListOfStructBuilder};
+use taosx_ipc::prelude::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -44,7 +41,7 @@ async fn main() -> Result<()> {
     ];
     // let opc_columns = Fields::from_iter(&opc_columns);
     let fields = Fields::from((&opc_columns).clone());
-    let record = DataType::Struct(fields);
+    let _record = DataType::Struct(fields);
     let schema = Schema::new(opc_columns).with_metadata(metadata);
 
     let mut writer = StreamWriter::try_new(&stream, &schema)?;

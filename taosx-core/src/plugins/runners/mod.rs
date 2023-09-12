@@ -1,12 +1,12 @@
 use std::path::{Path, PathBuf};
 
+pub mod historian;
 pub mod influxdb;
 pub mod kafka;
 pub mod mqtt;
 pub mod opc;
 pub mod opentsdb;
 pub mod pi;
-pub mod historian;
 const ENV_PLUGINS_HOME: &'static str = "PLUGINS_HOME";
 const ENV_PLUGINS_HOME_DEFAULT: &'static str = {
     cfg_if::cfg_if! {

@@ -215,17 +215,17 @@ async fn test_get_main_version_from_server_version() -> anyhow::Result<()> {
     let version = "3.0";
     assert_eq!(
         Err("error"),
-        get_main_version_from_server_version(&version.to_string()).map_err(|err| "error")
+        get_main_version_from_server_version(&version.to_string()).map_err(|_err| "error")
     );
     let version = "a.b";
     assert_eq!(
         Err("error"),
-        get_main_version_from_server_version(&version.to_string()).map_err(|err| "error")
+        get_main_version_from_server_version(&version.to_string()).map_err(|_err| "error")
     );
     let version = "ab";
     assert_eq!(
         Err("error"),
-        get_main_version_from_server_version(&version.to_string()).map_err(|err| "error")
+        get_main_version_from_server_version(&version.to_string()).map_err(|_err| "error")
     );
     Ok(())
 }
