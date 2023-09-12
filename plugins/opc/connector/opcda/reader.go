@@ -59,7 +59,7 @@ func newReader(config common.Config) (*reader, error) {
 	}
 
 	if config.Collect.Interval <= 0 {
-		config.Collect.Interval = 1
+		config.Collect.Interval = 10
 	}
 
 	var pointRegex *regexp.Regexp
@@ -208,7 +208,10 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 }
 
 func (r *reader) readItems(tags map[string]*daTag) (values []*common.NodeValue) {
+	start := time.Now()
 	items := r.client.Read()
+	spent := time.Since(start).Milliseconds()
+
 	values = make([]*common.NodeValue, 0, len(items))
 	for id, item := range items {
 		if !item.Good() && !r.containsBad {
@@ -218,6 +221,8 @@ func (r *reader) readItems(tags map[string]*daTag) (values []*common.NodeValue) 
 
 		value := item.Value
 		valueType := tags[id].valueType
+		logger.DebugF("## read opc da item [%s] value [%v] type [%v] spend [%d]ms", id, value, valueType, spent)
+
 		if valueType == common.Invalid {
 			t := reflect.TypeOf(value).Kind()
 			var err error
