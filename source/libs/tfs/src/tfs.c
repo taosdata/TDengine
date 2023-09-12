@@ -296,7 +296,7 @@ int32_t tfsMkdirRecurAt(STfs *pTfs, const char *rname, SDiskID diskId) {
       // https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/dirname.3.html
       char *dir = taosStrdup(taosDirName(s));
 
-      if (tfsMkdirRecurAt(pTfs, dir, diskId) < 0) {
+      if (strlen(dir) >= strlen(rname) || tfsMkdirRecurAt(pTfs, dir, diskId) < 0) {
         taosMemoryFree(s);
         taosMemoryFree(dir);
         return -1;

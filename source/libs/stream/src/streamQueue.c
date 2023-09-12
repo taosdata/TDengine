@@ -29,6 +29,8 @@ typedef struct SQueueReader {
   int32_t       waitDuration;  // maximum wait time to format several block into a batch to process, unit: ms
 } SQueueReader;
 
+static bool streamTaskHasAvailableToken(STokenBucket* pBucket);
+
 static void streamQueueCleanup(SStreamQueue* pQueue) {
   void* qItem = NULL;
   while ((qItem = streamQueueNextItem(pQueue)) != NULL) {
@@ -175,6 +177,14 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
         return TSDB_CODE_SUCCESS;
       }
 
+      STokenBucket* pBucket = &pTask->tokenBucket;
+      bool          has = streamTaskHasAvailableToken(pBucket);
+      if (!has) {  // no available token in th bucket, ignore this execution
+//        qInfo("s-task:%s no available token for sink, capacity:%d, rate:%d token/sec, quit", pTask->id.idStr,
+//               pBucket->capacity, pBucket->rate);
+        return TSDB_CODE_SUCCESS;
+      }
+
       SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputInfo.queue);
       if (qItem == NULL) {
         qDebug("===stream===break batchSize:%d, %s", *numOfBlocks, id);
@@ -264,9 +274,9 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
   if (type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamDataSubmit* px = (SStreamDataSubmit*)pItem;
     if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && streamQueueIsFull(pQueue)) {
-      qError(
-          "s-task:%s inputQ is full, capacity(size:%d num:%dMiB), current(blocks:%d, size:%.2fMiB) stop to push data",
-          pTask->id.idStr, STREAM_TASK_INPUT_QUEUE_CAPACITY, STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE, total, size);
+//      qError(
+//          "s-task:%s inputQ is full, capacity(size:%d num:%dMiB), current(blocks:%d, size:%.2fMiB) stop to push data",
+//          pTask->id.idStr, STREAM_TASK_INPUT_QUEUE_CAPACITY, STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE, total, size);
       streamDataSubmitDestroy(px);
       taosFreeQitem(pItem);
       return -1;
@@ -288,8 +298,8 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
   } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
              type == STREAM_INPUT__REF_DATA_BLOCK) {
     if (streamQueueIsFull(pQueue)) {
-      qError("s-task:%s input queue is full, capacity:%d size:%d MiB, current(blocks:%d, size:%.2fMiB) abort",
-             pTask->id.idStr, STREAM_TASK_INPUT_QUEUE_CAPACITY, STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE, total, size);
+//      qError("s-task:%s input queue is full, capacity:%d size:%d MiB, current(blocks:%d, size:%.2fMiB) abort",
+//             pTask->id.idStr, STREAM_TASK_INPUT_QUEUE_CAPACITY, STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE, total, size);
       destroyStreamDataBlock((SStreamDataBlock*)pItem);
       return -1;
     }
@@ -319,4 +329,45 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
   }
 
   return 0;
+}
+
+int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t cap, int32_t rate) {
+  if (cap < 100 || rate < 50 || pBucket == NULL) {
+    qError("failed to init sink task bucket, cap:%d, rate:%d", cap, rate);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  pBucket->capacity = cap;
+  pBucket->rate = rate;
+  pBucket->numOfToken = cap;
+  pBucket->fillTimestamp = taosGetTimestampMs();
+  return TSDB_CODE_SUCCESS;
+}
+
+static void fillBucket(STokenBucket* pBucket) {
+  int64_t now = taosGetTimestampMs();
+  int64_t delta = now - pBucket->fillTimestamp;
+  ASSERT(pBucket->numOfToken >= 0);
+
+  int32_t inc = (delta / 1000.0) * pBucket->rate;
+  if (inc > 0) {
+    if ((pBucket->numOfToken + inc) < pBucket->capacity) {
+      pBucket->numOfToken += inc;
+    } else {
+      pBucket->numOfToken = pBucket->capacity;
+    }
+
+    pBucket->fillTimestamp = now;
+    qDebug("new token available, current:%d, inc:%d ts:%"PRId64, pBucket->numOfToken, inc, now);
+  }
+}
+
+bool streamTaskHasAvailableToken(STokenBucket* pBucket) {
+  fillBucket(pBucket);
+  if (pBucket->numOfToken > 0) {
+    --pBucket->numOfToken;
+    return true;
+  } else {
+    return false;
+  }
 }

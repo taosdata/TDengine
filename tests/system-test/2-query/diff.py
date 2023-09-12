@@ -16,6 +16,9 @@ class TDTestCase:
         self.perfix = 'dev'
         self.tables = 10
 
+    def check_result(self):
+        for i in range(self.rowNum):
+            tdSql.checkData(i, 0, 1);
 
     def run(self):
         tdSql.prepare()
@@ -179,11 +182,6 @@ class TDTestCase:
         tdSql.error(f"select diff(col8) from {dbname}.stb_1")
         tdSql.error(f"select diff(col9) from {dbname}.stb")
         tdSql.error(f"select diff(col9) from {dbname}.stb_1")
-        tdSql.error(f"select diff(col11) from  {dbname}.stb_1")
-        tdSql.error(f"select diff(col12) from  {dbname}.stb_1")
-        tdSql.error(f"select diff(col13) from  {dbname}.stb_1")
-        tdSql.error(f"select diff(col14) from  {dbname}.stb_1")
-        tdSql.error(f"select diff(col14) from  {dbname}.stb_1")
         tdSql.error(f"select diff(col1,col1,col1) from  {dbname}.stb_1")
         tdSql.error(f"select diff(col1,1,col1) from  {dbname}.stb_1")
         tdSql.error(f"select diff(col1,col1,col) from  {dbname}.stb_1")
@@ -216,6 +214,22 @@ class TDTestCase:
 
         tdSql.query(f"select diff(col6) from  {dbname}.stb_1")
         tdSql.checkRows(10)
+
+        tdSql.query(f"select diff(col11) from  {dbname}.stb_1")
+        tdSql.checkRows(10)
+        self.check_result()
+
+        tdSql.query(f"select diff(col12) from  {dbname}.stb_1")
+        tdSql.checkRows(10)
+        self.check_result()
+
+        tdSql.query(f"select diff(col13) from  {dbname}.stb_1")
+        tdSql.checkRows(10)
+        self.check_result()
+
+        tdSql.query(f"select diff(col14) from  {dbname}.stb_1")
+        tdSql.checkRows(10)
+        self.check_result()
 
         tdSql.execute(f'''create table  {dbname}.stb1(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double,
                     col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned) tags(loc nchar(20))''')
