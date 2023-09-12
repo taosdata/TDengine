@@ -111,14 +111,12 @@ typedef int32_t FTaskExpand(void* ahandle, SStreamTask* pTask, int64_t ver);
 typedef struct {
   int8_t      type;
   int64_t     ver;
-  int32_t*    dataRef;
   SPackedData submit;
 } SStreamDataSubmit;
 
 typedef struct {
   int8_t  type;
   int64_t ver;
-  SArray* dataRefs;  // SArray<int32_t*>
   SArray* submits;   // SArray<SPackedSubmit>
 } SStreamMergedSubmit;
 
@@ -260,7 +258,7 @@ typedef struct SStreamTaskId {
 typedef struct SCheckpointInfo {
   int64_t checkpointId;
   int64_t checkpointVer;  // latest checkpointId version
-  int64_t currentVer;     // current offset in WAL, not serialize it
+  int64_t nextProcessVer;     // current offset in WAL, not serialize it
 } SCheckpointInfo;
 
 typedef struct SStreamStatus {
@@ -312,11 +310,26 @@ typedef struct STaskSchedInfo {
   void*   pTimer;
 } STaskSchedInfo;
 
+typedef struct SSinkTaskRecorder {
+  int64_t numOfSubmit;
+  int64_t numOfBlocks;
+  int64_t numOfRows;
+} SSinkTaskRecorder;
+
 typedef struct {
+  int64_t created;
   int64_t init;
   int64_t step1Start;
   int64_t step2Start;
+  int64_t sinkStart;
 } STaskTimestamp;
+
+typedef struct STokenBucket {
+    int32_t capacity;     // total capacity
+    int64_t fillTimestamp;// fill timestamp
+    int32_t numOfToken;   // total available tokens
+    int32_t rate;         // number of token per second
+} STokenBucket;
 
 struct SStreamTask {
   int64_t          ver;
@@ -345,6 +358,8 @@ struct SStreamTask {
     STaskSinkSma           smaSink;
     STaskSinkFetch         fetchSink;
   };
+  SSinkTaskRecorder sinkRecorder;
+  STokenBucket      tokenBucket;
 
   void*         launchTaskTimer;
   SMsgCb*       pMsgCb;  // msg handle
@@ -655,7 +670,7 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask);
 int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask);
 int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated);
 bool    streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer);
-int32_t streamTaskGetInputQItems(const SStreamTask* pTask);
+int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue);
 
 // common
 int32_t     streamRestoreParam(SStreamTask* pTask);
@@ -679,11 +694,10 @@ void        streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
 // source level
 int32_t streamSetParamForStreamScannerStep1(SStreamTask* pTask, SVersionRange* pVerRange, STimeWindow* pWindow);
 int32_t streamSetParamForStreamScannerStep2(SStreamTask* pTask, SVersionRange* pVerRange, STimeWindow* pWindow);
-int32_t streamSourceScanHistoryData(SStreamTask* pTask);
+int32_t streamScanHistoryData(SStreamTask* pTask);
 int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask);
 
 // agg level
-int32_t streamTaskScanHistoryPrepare(SStreamTask* pTask);
 int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistoryFinishReq* pReq,
                                           SRpcHandleInfo* pRpcInfo);
 int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask);

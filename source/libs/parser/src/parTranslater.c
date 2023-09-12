@@ -7007,7 +7007,6 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
 
   int32_t code = nodesListStrictAppend(pParamterList, (SNode*)col);
   if (code) {
-    nodesDestroyNode((SNode*)col);
     nodesDestroyList(pParamterList);
     return code;
   }
@@ -7025,7 +7024,6 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
   }
   code = nodesListStrictAppend(pProjectionList, pFunc);
   if (code) {
-    nodesDestroyNode(pFunc);
     nodesDestroyList(pProjectionList);
     return code;
   }

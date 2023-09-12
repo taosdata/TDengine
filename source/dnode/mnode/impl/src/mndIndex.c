@@ -439,7 +439,7 @@ static int32_t mndProcessCreateIdxReq(SRpcMsg *pReq) {
 
   pDb = mndAcquireDbByStb(pMnode, createReq.stbName);
   if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_INVALID_DB;
+    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
     goto _OVER;
   }
 
