@@ -63,7 +63,22 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader
   pReader->sver = sver;
   pReader->ever = ever;
 
-  // TODO: decode pParam->data and store the result in pReader->pRanges
+  if (pParam->data) {
+    pReader->pRanges = taosMemoryCalloc(1, sizeof(*pReader->pRanges));
+    if (pReader->pRanges == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+    TARRAY2_INIT(pReader->pRanges);
+    SMsgHead *msgHead = pParam->data;
+    ASSERT(msgHead->vgId == TD_VID(pVnode));
+    void *buf = (char *)pParam->data + sizeof(SMsgHead);
+
+    if (tDeserializeSnapRangeArray(buf, msgHead->contLen, pReader->pRanges) < 0) {
+      vError("vgId:%d, failed to deserialize snap range.", TD_VID(pVnode));
+      goto _err;
+    }
+  }
 
   vInfo("vgId:%d, vnode snapshot reader opened, sver:%" PRId64 " ever:%" PRId64, TD_VID(pVnode), sver, ever);
   *ppReader = pReader;
@@ -101,6 +116,9 @@ void vnodeSnapReaderClose(SVSnapReader *pReader) {
     tqCheckInfoReaderClose(&pReader->pTqCheckInfoReader);
   }
 
+  if (pReader->pRanges) {
+    tsdbSnapRangeArrayDestroy(&pReader->pRanges);
+  }
   taosMemoryFree(pReader);
 }
 

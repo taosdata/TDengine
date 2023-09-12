@@ -676,6 +676,11 @@ typedef TARRAY2(STFileSet *) TFileSetArray;
 typedef struct STSnapRange STSnapRange;
 typedef TARRAY2(STSnapRange *) TSnapRangeArray;  // disjoint snap ranges
 
+// util
+int32_t tSerializeSnapRangeArray(void *buf, int32_t bufLen, TSnapRangeArray *pSnapR);
+int32_t tDeserializeSnapRangeArray(void *buf, int32_t bufLen, TSnapRangeArray *pSnapR);
+void    tsdbSnapRangeArrayDestroy(TSnapRangeArray **ppSnap);
+
 struct STsdbReadSnap {
   SMemTable     *pMem;
   SQueryNode    *pNode;
