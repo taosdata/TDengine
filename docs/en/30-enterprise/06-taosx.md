@@ -100,3 +100,4 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 3. jobs specify the number of parallel tasks, it is only valid for taks of tmq type. It can be specified using --jobs `<number>` or -j `<number>` .
 4. -v specifies the log level of taosx, -v means info level log, -vv means debug level log, -vvv means trace level log.
 
+

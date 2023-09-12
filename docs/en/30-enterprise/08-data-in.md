@@ -1,47 +1,47 @@
 ---
 toc_max_heading_level: 4
-title: 数据接入
+title: Data Ingestion
 ---
 
-本节讲述如何使用 taosX 的命令行模式从各种数据源接入数据到 TDengine。对于 taosX 的命令行参数解析，请参考 [taosX](../../reference/taosx)。您也可以使用 taos-explorer 的可视化界面进行数据接入，具体请参考[可视化管理](../explorer)。服务安装与部署请参考 [安装与部署](../../get-started)。
+This section describes how to access data from various data sources to TDengine using taosX's command line mode. For command line arguments to taosX, see [taosX](../../reference/taosx). You can also use taos-explorer's visual interface for data ingestion, please refer to [Visual Management](../explorer). For service installation and deployment, please refer to [Installation and Deployment](../../get-started).
 
 ## OPC-UA
 
-### 配置参数
+### Configuration Parameters
 
-| 参数名称 | 类型    | 描述                                   |  
+| Name | Type    | Description                                   |  
 |-----------------|--------|-----------------------------------------------------------------------------|
-| interval | int    | 采集间隔（单位：秒），默认为1秒                                   |
-| concurrent | int    | 采集器并发数，默认为1                                   |
-| batch_size | int    | 采集器上报的批次点位数，默认为100                                   |
-| batch_timeout | int    | 采集器上报的超时时间（单位：秒），默认为20秒                                   |
-| connect_timeout | int    | 连接的超时时间（单位：秒），默认为10秒                                  |
-| request_timeout | int    | 请求的超时时间（单位：秒），默认为10秒                                              |
-| security_policy | string | OPC-UA连接安全策略（可配置为None/Basic128Rsa15/Basic256/Basic256Sha256）                                  |
-| security_mode   | string | OPC-UA连接模式（可配置为None/Sign/SignAndEncrypt）                                                    |
-| certificate     | string | cert.pem的路径。当安全模式或策略不是”无”时生效        |
-| private_key     | string | key.pem的路径。 当安全模式或策略不是”无”时生效 |
-| csv_config_file | string | 包含 OPC UA 的点位配置和表配置。与配置 csv_config_file 配置互斥，csv_config_file 优先生效|
-| ua.nodes | string | OPC-UA 测点的 NodeID。和 opc_table_config 配置结合使用，两者需要同时配置。与配置 csv_config_file 配置互斥，csv_config_file 优先生效。配置格式为 <nodeid\>::<code\>，code 用于建子表。 |
-| opc_table_config | string | OPCUA 单列模式表配置。需要与 ua.nodes 配合使用。 |
-| debug | bool | 启用 OPC 连接器的 debug 日志。默认为 false。 |
-| enable | bool | 原始数据存储。默认为 false|
-| path | string | 原始数据存储路径。enable 为 true 时必须配置。 |
-| keep | int | 原始数据保存天数。enable 为 true 时必须配置。 |
+| interval | int    | Collection interval (seconds), default 1s                                   |
+| concurrent | int    | Collection concurrency, default 1                                   |
+| batch_size | int    | Collection data points per batch, default 100                                   |
+| batch_timeout | int    | Timeout for collectors (seconds), default 20s                                   |
+| connect_timeout | int    | Timeout for connections (seconds), default 10s                                  |
+| request_timeout | int    | Timeout for requests (seconds), default 10s                                              |
+| security_policy | string | OPC-UA connection security policy (None/Basic128Rsa15/Basic256/Basic256Sha256)                                  |
+| security_mode   | string | OPC-UA connection mode (None/Sign/SignAndEncrypt)                                                    |
+| certificate     | string | cert.pem path Takes effect when connection mode and policy are not none        |
+| private_key     | string | key.pem path Takes effect when connection mode and policy are not none |
+| csv_config_file | string | Contains OPC UA data point and table configuration. Mutually exclusive with configure csv_config_file configuration, csv_config_file takes precedence|
+| ua.nodes | string | OPC-UA node NodeID. Used in conjunction with opc_table_config configuration, both need to be configured at the same time. Mutually exclusive with configure csv_config_file configuration, csv_config_file takes precedence. Configuration format is <nodeid\>::<code\>, code is used to build sub-tables. |
+| opc_table_config | string | OPCUA single-column table configuration. Must be used with ua.nodes. |
+| debug | bool | Whether to enable OPC connector debug logs. The default value is false. |
+| enable | bool | Whether to store raw data. The default value is false|
+| path | string | Raw data storage path. Must be configured when enable is set to true. |
+| keep | int | Days to store raw data. Must be configured when enable is set to true. |
 
-补充：
-1. opc_table_config 说明：
+Notes:
+1. opc_table_config:
 
 ```json
 {
-    "stable_prefix": "meters", // 超级表前缀
+    "stable_prefix": "meters", // Supertable prefix
     "column_configs":
     [
         {
-            "column_name": "received_time", // 存储接收时间
+            "column_name": "received_time", // Storage received time
             "column_type": "timestamp",
-            "column_alias": "ts", // 接收时间建表列用列名为 ts
-            "is_primary_key": true // 接收时间时间戳作为主键
+            "column_alias": "ts", // Receive the time to build the table column with the column name ts
+            "is_primary_key": true // Receive time timestamp as primary key
         },
         {
             "column_name": "original_time",
@@ -50,14 +50,14 @@ title: 数据接入
             "is_primary_key": false
         },
         {
-            "column_name": "value", // 数据列
-            "column_alias": "valueaa", // 数据列别名
+            "column_name": "value", // Data column
+            "column_alias": "valueaa", // Data column alias
             "is_primary_key": false
         },
         {
-            "column_name": "quality", // 质量位列
+            "column_name": "quality", // Quality column
             "column_type": "int",
-            "column_alias": "quality11", // 质量位列别名
+            "column_alias": "quality11", // Quality column alias
             "is_primary_key": false
         }
     ]
@@ -66,8 +66,8 @@ title: 数据接入
 
 ### Examples
 
-1. 使用 ua.nodes 和 opc_table_config 的配置示例：
-采集 nodeid 为 ns=2;i=2 和 ns=2;i=3 的点位，将其写入到集群 tdengine 的 opc 库中超级表前缀为 meters，如果 ns=2;i=2 的点位类型为 float 则会创建 meters_float 的超级表，超级表使用 opc 接收的数据作为时间戳索引列，并且保留原始时间戳列，原始时间戳列名为 ts_2,数据列存储为 valueaa，同时存储质量数据到 quality11 列。
+1. Example configuration using ua.nodes and opc_table_config:
+Capture the points with nodeid ns=2;i=2 and ns=2;i=3, write them to the opc library of cluster tdengine with supertable prefixed with meters, and create a supertable of meters_float if the points with ns=2;i=2 are of type float. The supertable uses the data received by opc as the timestamp index column and The super table uses the data received by opc as the timestamp index column and keeps the original timestamp column, the original timestamp column is named ts_2, the data column is stored as valueaa, and the quality data is stored in the quality11 column.
 
 ```shell
 taosx run \
@@ -78,36 +78,36 @@ taosx run \
 
 ```
 
-2. 使用 CSV 配置文件
+2. Using CSV configuration file
 
 ```shell
 taosx run -f "opcua://<server-info>?csv_config_file=@<file_path>" -t "taos+ws://tdengine:6041/opc"
 ```
 
-### CSV 配置文件模板
+### CSV configuration file template
 
 
 ## OPC-DA
 
-### 配置参数
+### Configuration Parameters
 
-| 参数名称 | 类型    | 描述                                   |
+| Name | Type    | Description                                   |
 |-----------------|--------|-----------------------------------------------------------------------------|
-| interval | int    | 采集间隔（单位：秒），默认为1秒                                   |
-| concurrent | int    | 采集器并发数，默认为1                                   |
-| batch_size | int    | 采集器上报的批次点位数，默认为100                                   |
-| batch_timeout | int    | 采集器上报的超时时间（单位：秒），默认为20秒                                   |
-| connect_timeout | int    | 连接的超时时间（单位：秒），默认为10秒                                  |
-| request_timeout | int    | 请求的超时时间（单位：秒），默认为10秒                                              |
-| csv_config_file | string | 包含 OPC UA 的点位配置和表配置。与 ua.nodes 两者之间需要配置一个。CSV 的配置模版参考：OPC 需求汇总及完成现状 |
-| da.tags | string | OPC-UA 测点的 NodeID。和 opc_table_config 配置结合使用，两者需要同时配置。与配置 csv_config_file 配置互斥，csv_config_file 优先生效。 |
-| opc_table_config | string | OPCUA 单列模式表配置。需要与 da.tags 配合使用|
-| debug | bool | 启用 OPC 连接器的 debug 日志。默认为 false。 |
-| enable | bool | 原始数据存储。默认为 false|
-| path | string | 原始数据存储路径。enable 为 true 时必须配置。 |
-| keep | int | 原始数据保存天数。enable 为 true 时必须配置。 |
+| interval | int    | Collection interval (seconds), default 1s                                   |
+| concurrent | int    | Collection concurrency, default 1                                   |
+| batch_size | int    | Collection data points per batch, default 100                                   |
+| batch_timeout | int    | Timeout for collectors (seconds), default 20s                                   |
+| connect_timeout | int    | Timeout for connections (seconds), default 10s                                  |
+| request_timeout | int    | Timeout for requests (seconds), default 10s                                              |
+| csv_config_file | string | Contains OPC UA data point and table configuration. Either csv_config_file or ua.nodes must be used. CSV Configuration Template Reference: OPC Requirements Summary and Status of Completion |
+| da.tags | string | OPC-UA node NodeID. Used in conjunction with opc_table_config configuration, both need to be configured at the same time. Mutually exclusive with configure csv_config_file configuration, csv_config_file takes precedence. |
+| opc_table_config | string | OPCUA single-column table configuration. Must be used with da.tags|
+| debug | bool | Whether to enable OPC connector debug logs. The default value is false. |
+| enable | bool | Whether to store raw data. The default value is false|
+| path | string | Raw data storage path. Must be configured when enable is set to true. |
+| keep | int | Days to store raw data. Must be configured when enable is set to true. |
 
-### 应用示例
+### Usage examples
 
 ```shell
 taosx run \
@@ -115,24 +115,24 @@ taosx run \
     -t "taos://tdengine:6030/opc"
 ```
 
-以上示例的执行结果：
+The result of the above example execution:
 
-采集 Matrikon.OPC.Simulation.1 服务器上 OPC DA 中 da.tags 为 Random.Real8的数据，数据类型为int，对应在 TDengine 中以表名为 tb3 ，列名为c1，列类型为 int 型 schema 来创建表（如果对应表已存在，则直接采集数据并写入）。
+Capture data from the OPC DA on the Matrikon.OPC.Simulation.1 server with da.tags of Random.Real8 and a data type of int, which corresponds to the creation of a table in TDengine with the table name tb3, the column name c1, and a schema of type int (if the corresponding table already exists, the data is captured directly and written to the table). (if the corresponding table already exists, the data will be collected and written directly).
 
-### 常见错误排查
+### Troubleshooting common errors
 
-(1) 如果使用原生连接，任务启动失败并打印如下错误：
+(1) If a native connection is used, the task fails to start and reports the following error:
 ```text
 Error: tmq to td task exec error
 
 Caused by:
     0: Error occurred while creating a new object: [0x000B] Unable to establish connection
 ```
-解决方式：
+Solution:
 
-检查目标端 TDengine 的 FQDN 是否联通及端口 6030 是否可正常访问。
+Check whether the FQDN of the target TDengine is connected and whether port 6030 can be accessed normally.
 
-(2) 如果使用 WebSocket 连接任务启动失败并打印如下错误：：
+(2) If you use a WebSocket connection the task fails to start and reports the following error:
 
 ```text
 Error: tmq to td task exec error
@@ -143,35 +143,35 @@ Caused by:
     2: failed to lookup address information: Temporary failure in name resolution
 ```
 
-使用 WebSocket 连接时可能遇到多种错误类型，错误信息可以在 ”Caused by“ 后查看，以下是几种可能的错误：
+There are several types of errors that can be encountered when connecting using a WebSocket. The error message can be viewed after "Caused by", the following are a few possible errors:
 
-- "Temporary failure in name resolution": DNS 解析错误，检查目标端 TDengine的 IP 或 FQDN 是否能够正常访问。
-- "IO error: Connection refused (os error 111)": 端口访问失败，检查目标端口是否配置正确或是否已开启和可访问（通常为6041端口）。
-- "HTTP error: *": 可能连接到错误的 taosAdapter 端口或 LSB/Nginx/Proxy 配置错误。
-- "WebSocket protocol error: Handshake not finished": WebSocket 连接错误，通常是因为配置的端口不正确。
+- "Temporary failure in name resolution": DNS resolution error, check if the IP or FQDN of the target TDengine cluster is accessible.
+- "IO error: Connection refused (os error 111)": Port access failed, check if the target port (typically 6041) is configured correctly or is enabled and accessible.
+- "HTTP error: *": Possible connection to wrong taosAdapter port or LSB/Nginx/Proxy configuration error.
+- "WebSocket protocol error: Handshake not finished": WebSocket connection error, usually due to an incorrectly configured port.
 
 ## PI 
 
-### PI DSN 配置
+### PI DSN Configuration
 
-PI DSN 的完整配置如下：
+The PI DSN configuration is as follows:
 
 ```shell
 pi://[<username>:<password>@]PIServerName/AFDatabaseName?[TemplateForPIPoint][&TemplateForAFElement][&PointList][&<PISystemName=pisys>][&<MaxWaitLen>][&UpdateInterval]
 ```
 
-在 taosX CLI 运行时支持的参数如下，其中 TemplateForPIPoint、TemplateForAFElement、PointList 三个参数至少配置一项：
-- PISystemName：选填，连接配置 PI 系统服务名，默认值与 PIServerName 一致
-- MaxWaitLen：选填，数据最大缓冲条数，默认值为 1000 ,有效取值范围为 [1,10000]
-- UpdateInterval：选填，PI System 取数据频率，默认值为 10000(毫秒：ms),有效取值范围为 [10,600000]
-- TemplateForPIPoint：选填，使用 PI Point 模式将模板按照 element 的每个 Arrtribution 作为子表导入到 TDengine 
-- TemplateForAFElement：选填，使用 AF Point 模式将模板按照 element 的 Attribution 集合作为一个子表导入到 TDengine 
-- PointList：选填，使用 PointList 模式将指定csv文件中描述的点位信息在 PI 数据库中的数据导入到 TDengine
+The following parameters are supported in the taosX CLI runtime, with at least one of the TemplateForPIPoint, TemplateForAFElement, and PointList parameters configured:
+- PISystemName: optional, connection configuration PI system service name, the default value is the same as PIServerName.
+- MaxWaitLen: optional, the maximum number of data buffer bars, the default value is 1000, the valid range is [1,10000].
+- UpdateInterval: optional, the frequency of data retrieval by PI System, the default value is 10000 (milliseconds: ms), the valid range is [10,600000].
+- TemplateForPIPoint: optional, use PI Point mode to import templates into TDengine according to each Arrtribution of an element as a sub-table 
+- TemplateForAFElement: optional, use AF Point mode to import the template into TDengine as a sub-table according to the element's Attribution collection 
+- PointList: optional, use PointList mode to import the point information described in the specified csv file in the PI database to TDengine.
 
 
-### 应用示例
+### Usage examples
 
-将位于服务器 WIN-2OA23UM12TN 中的 PI 数据库 Met1，模板 template1、template2配置为 TemplateForPIPoint模式，模板 template3、template4 配置为 TemplateForAFElement 模式，服务器 /home/ 路径下的点位文件 points.csv 配置为 PointList 模式，连接配置 PI 系统服务名为 PI，数据最大缓冲条数为1000，PI System 取数据频率为10000ms，将该库中的数据同步到 服务器 tdengine 的 pi 库中。完整的示例如下：
+Configure the PI database Met1, template template1, template2 as TemplateForPIPoint mode, template template3, template4 as TemplateForAFElement mode, and the points file points.csv under the path of server WIN-2OA23UM12TN as PointList mode, connect and configure the PI System service name as PI, the maximum buffer bar of data as 1000, and the data fetching frequency of PI System as 10000ms. points.csv under the path of home/ is configured as PointList mode, the connection is configured with the PI System service name PI, the maximum number of data buffer entries is 1000, and the frequency of data fetching by the PI System is 10000ms, and the data in the library is synchronized to the pi library of the server tdengine. The complete example is as follows.
 
 ```shell
 taosx run \
@@ -180,20 +180,20 @@ taosx run \
 ```
 
 
-### 常见错误排查
+### Troubleshooting common errors
 
-(1) 如果使用原生连接，任务启动失败并打印如下错误：
+(1) If a native connection is used, the task fails to start and reports the following error:
 ```text
 Error: tmq to td task exec error
 
 Caused by:
     0: Error occurred while creating a new object: [0x000B] Unable to establish connection
 ```
-解决方式：
+Solution:
 
-检查目标端 TDengine 的 FQDN 是否联通及端口 6030 是否可正常访问。
+Check whether the FQDN of the target TDengine is connected and whether port 6030 can be accessed normally.
 
-(2) 如果使用 WebSocket 连接任务启动失败并打印如下错误：：
+(2) If you use a WebSocket connection the task fails to start and reports the following error:
 
 ```text
 Error: tmq to td task exec error
@@ -204,41 +204,41 @@ Caused by:
     2: failed to lookup address information: Temporary failure in name resolution
 ```
 
-使用 WebSocket 连接时可能遇到多种错误类型，错误信息可以在 ”Caused by“ 后查看，以下是几种可能的错误：
+There are several types of errors that can be encountered when connecting using a WebSocket. The error message can be viewed after "Caused by", the following are a few possible errors:
 
-- "Temporary failure in name resolution": DNS 解析错误，检查目标端 TDengine的 IP 或 FQDN 是否能够正常访问。
-- "IO error: Connection refused (os error 111)": 端口访问失败，检查目标端口是否配置正确或是否已开启和可访问（通常为6041端口）。
-- "HTTP error: *": 可能连接到错误的 taosAdapter 端口或 LSB/Nginx/Proxy 配置错误。
-- "WebSocket protocol error: Handshake not finished": WebSocket 连接错误，通常是因为配置的端口不正确。
+- "Temporary failure in name resolution": DNS resolution error, check if the IP or FQDN of the target TDengine cluster is accessible.
+- "IO error: Connection refused (os error 111)": Port access failed, check if the target port (typically 6041) is configured correctly or is enabled and accessible.
+- "HTTP error: *": Possible connection to wrong taosAdapter port or LSB/Nginx/Proxy configuration error.
+- "WebSocket protocol error: Handshake not finished": WebSocket connection error, usually due to an incorrectly configured port.
 
 
 ## InfluxDB
 
-### 命令行参数
+### Command Line Parameters
 
-将数据从 InfluxDB 同步至 TDengine 的命令，如下所示：
+The command to synchronize data from InfluxDB to TDengine is shown below:
 
 ```bash
 taosx run --from "<InfluxDB-DSN>" --to "<TDengine-DSN>"
 ```
 
-其中，InfluxDB DSN 符合 DSN 的通用规则，这里仅对其特有的参数进行说明：
-- version: 必填，InfluxDB 的版本，主要用于区分 1.x 与 2.x 两个版本，二者使用不同的认证参数；
+The InfluxDB DSN conforms to the general rules for DSNs, and only the parameters specific to it are described here:
+- version: Required, the version of InfluxDB, mainly used to distinguish between 1.x and 2.x versions, which use different authentication parameters;
 - version = 1.x
-  - username: 必填，InfluxDB 用户，该用户至少在该组织中拥有读取权限；
-  - password: 必填，InfluxDB 用户的登陆密码；
+  - username: Required, InfluxDB user that has read access at least in this organization;
+  - password: Required, the login password for the InfluxDB user;
 - version = 2.x
-  - orgId: 必填，InfluxDB 中的 Orgnization ID；
-  - token: 必填，InfluxDB 中生成的 API token, 这个 token 至少要拥有以上 Bucket 的 Read 权限；
-- bucket: 必填，InfluxDB 中的 Bucket 名称，一次只能同步一个 Bucket；
-- measurements: 非必填，可以指定需要同步的多个 Measurements（英文逗号分割），未指定则同步全部；
-- beginTime: 必填，格式为：YYYY-MM-DD'T'HH:MM:SS'Z', 时区采用 UTC 时区，例如：2023-06-01T00:00:00+0800, 即北京时间2023-06-01 00:00:00（东八区时间）；
-- endTime: 非必填，可以不指定该字段或值为空，格式与beginTime相同；如果未指定，提交任务后，将持续进行数据同步；
-- readWindow: 非必填，可以不指定该字段或值为空，可选项为D、H、M（天、时、分）；如果未指定，则默认按 M 拆分读取窗口。
+  - orgId: Required, the Organization ID in InfluxDB;
+  - token: Mandatory, the API token generated in InfluxDB, this token must have at least the Read permission of the above Bucket;
+- bucket: Required, the name of the Bucket in InfluxDB, only one Bucket can be synchronized at a time;
+- measurements: Non-required, you can specify multiple Measurements to be synchronized (English comma-separated), unspecified synchronizes all;
+- beginTime: Required, format: YYYY-MM-DD'T'HH:MM:SS'Z', time zone adopts UTC time zone, e.g.: 2023-06-01T00:00:00+0800, i.e. Beijing time 2023-06-01 00:00:00 (East 8 time zone);
+- endTime: Non-required, the field can be left unspecified or the value can be empty, in the same format as beginTime; if unspecified, the data synchronization will continue after the task is submitted;
+- readWindow: Non-required, the field can be left unspecified or the value is empty, the options are D, H, M (days, hours, minutes); if not specified, the default is to split the read window by M.
 
 ### Examples
 
-将位于 192.168.1.10 的 InfluxDB 中, Bucket 名称为 test_bucket, 从UTC时间2023年06月01日00时00分00秒开始的数据，通过运行在 192.168.1.20 上的 taoskeeper, 同步至 TDengine 的 test_db 数据库中，完整的命令如下所示：
+Synchronize the data from InfluxDB located at 192.168.1.10, Bucket name test_bucket, starting at 00:00:00 UTC on June 01, 2023, to TDengine's test_db via taoskeeper running on 192.168.1.20 database of TDengine, the complete command is shown below:
 ```bash
 # version = 1.x
 taosx run \
@@ -253,28 +253,28 @@ taosx run \
   -vv
 ```
 
-在这个命令中，未指定endTime, 所以任务会长期运行，持续同步最新的数据。
+In this command, endTime is not specified, so the task will run for a long time, continuously synchronizing the latest data.
 
 
 ## OpenTSDB
 
-### 命令行参数
+### Command Line Parameters
 
-将数据从 OpenTSDB 同步至 TDengine 的命令，如下所示：
+The command to synchronize data from OpenTSDB to TDengine is shown below:
 
 ```bash
 taosx run --from "<OpenTSDB-DSN>" --to "<TDengine-DSN>"
 ```
 
-其中，OpenTSDB DSN 符合 DSN 的通用规则，这里仅对其特有的参数进行说明：
-- metrics: 非必填，可以指定需要同步的多个 Metrics（英文逗号分割），未指定则同步全部；
-- beginTime: 必填，格式为：YYYY-MM-DD'T'HH:MM:SS'Z', 时区采用 UTC 时区，例如：2023-06-01T00:00:00+0800, 即北京时间2023-06-01 00:00:00（东八区时间）；
-- endTime: 非必填，可以不指定该字段或值为空，格式与beginTime相同；如果未指定，提交任务后，将持续进行数据同步；
-- readWindow: 非必填，可以不指定该字段或值为空，可选项为D、H、M（天、时、分）；如果未指定，则默认按分钟拆分读取窗口。
+The OpenTSDB DSN conforms to the general rules for DSNs, and only the parameters specific to it are described here:
+- metrics: Non-required, you can specify multiple Metrics to be synchronized (English comma-separated), unspecified synchronizes all;
+- beginTime: Required, format: YYYY-MM-DD'T'HH:MM:SS'Z', time zone adopts UTC time zone, e.g.: 2023-06-01T00:00:00+0800, i.e. Beijing time 2023-06-01 00:00:00 (East 8 time zone);
+- endTime: Non-required, the field can be left unspecified or the value can be empty, in the same format as beginTime; if unspecified, the data synchronization will continue after the task is submitted;
+- readWindow: Non-required, the field can be left unspecified or the value is empty, the options are D, H, M (days, hours, minutes); if not specified, the default is to split the read window by minutes.
 
 ### Examples
 
-将位于 192.168.1.10 的 OpenTSDB 中, Metric 名称为 test_metric1 与 test_metric2 的两个数据源, 从UTC时间2023年06月01日00时00分00秒开始的数据，通过运行在 192.168.1.20 上的 taoskeeper, 同步至 TDengine 的 test_db 数据库中，完整的命令如下所示：
+Synchronize the data from two data sources with metric names test_metric1 and test_metric2 in OpenTSDB located at 192.168.1.10 from 00:00:00 UTC on June 01, 2023 to TDengine's test_db database using taoskeeper running on 192.168.1.20 with the following commands The complete command to synchronize to the test_db database of TDengine is shown below:
 
 ```bash
 taosx run \
@@ -283,43 +283,43 @@ taosx run \
   -vv
 ```
 
-在这个命令中，未指定endTime, 所以任务会长期运行，持续同步最新的数据。
+In this command, endTime is not specified, so the task will run for a long time, continuously synchronizing the latest data.
 
 
 ## MQTT
 
-目前，MQTT 连接器仅支持从 MQTT 服务端消费 JSON 格式的消息，并将其同步至 TDengine. 命令如下所示：
+Currently, the MQTT Connector only supports consuming JSON-formatted messages from the MQTT server and synchronizing them to the TDengine. The commands are shown below:
 
 ```bash
 taosx run --from "<MQTT-DSN>" --to "<TDengine-DSN>" --parser "@<parser-config-file-path>"
 ```
 
 The parameters are:
-- `--from` 用于指定 MQTT 数据源的 DSN
-- `--to` 用于指定 TDengine 的 DSN
-- `--parser` 用于指定一个 JSON 格式的配置文件，该文件决定了如何解析 JSON 格式的 MQTT 消息，以及写入 TDengine 时的超级表名、子表名、字段名称和类型，以及标签名称和类型等。
+- `--from` specifies the DSN of the MQTT data source
+- `--to` specifies the DSN of the TDengine cluster
+- `--parser` specifies a JSON-formatted configuration file that determines how to parse JSON-formatted MQTT messages, as well as the super table names, sub-table names, field names and types, and label names and types when writing to TDengine.
 
-### MQTT DSN 配置
+### MQTT DSN Configuration
 
-MQTT DSN 符合 DSN 的通用规则，这里仅对其特有的参数进行说明：
-- topics: 必填，用于配置监听的 MQTT 主题名称和连接器支持的最大 QoS, 采用 `<topic>::<max-Qos>` 的形式；支持配置多个主题，使用逗号分隔；配置主题时，还可以使用 MQTT 协议的支持的通配符#和+;
-- version: 非必填，用于配置 MQTT 协议的版本，支持的版本包括：3.1/3.1.1/5.0, 默认值为3.1;
-- clean_session: 非必填，用于配置连接器作为 MQTT 客户端连接至 MQTT 服务端时，服务端是否保存该会话信息，其默认值为 true, 即不保存会话信息；
-- client_id: 必填，用于配置连接器作为 MQTT 客户端连接至 MQTT 服务端时的客户端 id;
-- keep_alive: 非必填，用于配置连接器作为 MQTT 客户端，向 MQTT 服务端发出 PINGREG 消息后的等待时间，如果连接器在该时间内，未收到来自 MQTT 服务端的 PINGREQ, 连接器则主动断开连接；该配置的单位为秒，默认值为 60;
-- ca: 非必填，用于指定连接器与 MQTT 服务端建立 SSL/TLS 连接时，使用的 CA 证书，其值为在证书文件的绝对路径前添加@, 例如：@/home/admin/certs/ca.crt;
-- cert: 非必填，用于指定连接器与 MQTT 服务端建立 SSL/TLS 连接时，使用的客户端证书，其值为在证书文件的绝对路径前添加@, 例如：@/home/admin/certs/client.crt;
-- cert_key: 非必填，用于指定连接器与 MQTT 服务端建立 SSL/TLS 连接时，使用的客户端私钥，其值为在私钥文件的绝对路径前添加@, 例如：@/home/admin/certs/client.key;
-- log_level: 非必填，用于配置连接器的日志级别，连接器支持 error/warn/info/debug/trace 5种日志级别，默认值为 info.
+MQTT DSN conforms to the general rules for DSNs, and only the parameters specific to it are described here:
+- topics: Mandatory, used to configure the name of the MQTT topic to listen on and the maximum QoS supported by the connector, in the form of `<topic>::<max-Qos>`; multiple topics can be configured, separated by commas; when configuring a topic, you can also use the wildcard characters # and + supported by the MQTT protocol.
+- version: Non-required, used to configure the version of MQTT protocol, supported versions include: 3.1/3.1.1/5.0, the default value is 3.1;
+- clean_session: Non-required, used to configure the connector as an MQTT client to connect to the MQTT server, the server whether to save the session information, the default value is true, that is, does not save the session information;
+- client_id: Mandatory, used to configure the client id of the connector when it connects to the MQTT server as an MQTT client.
+- keep_alive: Non-required, used to configure the waiting time after the connector, as an MQTT client, sends a PINGREG message to the MQTT server, if the connector does not receive a PINGREQ message from the MQTT server within this time, the connector will actively disconnect; the unit of this configuration is seconds, and the default value is 60.
+- ca: Non-required, used to specify the CA certificate to be used when the connector establishes an SSL/TLS connection with the MQTT server, and its value is @ in front of the absolute path of the certificate file, for example: @/home/admin/certs/ca.crt.
+- cert: Non-required, used to specify the client certificate to be used when the connector establishes an SSL/TLS connection with the MQTT server, whose value is @ in front of the absolute path of the certificate file, for example: @/home/admin/certs/client.crt.
+- cert_key: Non-required, used to specify the client's private key to be used when the connector establishes an SSL/TLS connection with the MQTT server, whose value is @ in front of the absolute path of the private key file, for example: @/home/admin/certs/client.key.
+- log_level: Non-required, used to configure the logging level of the connector, the connector supports error/warn/info/debug/trace 5 logging levels, the default value is info.
 
-一个完整的 MQTT DSN 示例如下：
+A sample MQTT description string is as follows:
 ```bash
 mqtt://<username>:<password>@<mqtt-broker-ip>:8883?topics=testtopic/1::2&version=3.1&clean_session=true&log_level=info&client_id=taosdata_1234&keep_alive=60&ca=@/home/admin/certs/ca.crt&cert=@/home/admin/certs/client.crt&cert_key=@/home/admin/certs/client.key
 ```
 
-### MQTT 连接器的解释器配置
+### Interpreter configuration for MQTT connectors
 
-连接器的解释器配置文件，即`--parser`配置项的参数，它的值为一个 JSON 文件，其配置可分为`parse`和`model`两部分，模板如下所示：
+The connector's interpreter configuration file, the parameter to the `--parser` configuration item, which takes the value of a JSON file, can be configured in two parts, `parse` and `model`, as shown in the template below:
 
 ```json
 {
@@ -344,21 +344,21 @@ mqtt://<username>:<password>@<mqtt-broker-ip>:8883?topics=testtopic/1::2&version
 }
 ```
 
-各字段的说明如下：
-- parse 部分目前仅支持 json 一种 payload, json 字段的值是一个由 JSON Object 构成的 JSON Array:
-  - 每个 JSON Ojbect 包括 name, alias, cast 三个字段；
-  - name 字段用于指定如何从 MQTT 消息中提取字段，如果 MQTT 消息是一个简单的 JSON Object, 这里可以直接设置其字段名；如果 MQTT 消息是一个复杂的 JSON Object, 这里可以使用 JSON Path 提取字段，例如：`$.data.city`;
-  - alias 字段用于命名 MQTT 消息中的字段同步至 TDengine 后使用的名称；
-  - cast 字段用于指定 MQTT 消息中的字段同步至 TDengine 后使用的类型。
-- model 部分用于设置 TDengine 超级表、子表、列和标签等信息：
-  - using 字段用于指定超级表名称；
-  - name 字段用于指定子表名称，它的值可以分为前缀和变量两部分，变量为 parse 部分设置的 alias 的值，需要使用{}, 例如：d{id}；
-  - columns 字段用于设置 MQTT 消息中的哪些字段作为 TDengine 超级表中的列，取值为 parse 部分设置的 alias 的值；需要注意的是，这里的顺序会决定 TDengine 超级表中列的顺序，因此第一列必须为 TIMESTAMP 类型；
-  - tags 字段用于设置 MQTT 消息中的哪些字段作为 TDengine 超级表中的标签，取值为 parse 部分设置的 alias 的值。
+The fields are described below:
+- The parse section currently supports only one type of payload, json, where the value of the json field is a JSON Array consisting of a JSON Object.
+  - Each JSON Object consists of three fields: name, alias, cast;
+  - The name field specifies how to extract the field from the MQTT message. If the MQTT message is a simple JSON Object, you can set the field name here; if the MQTT message is a complex JSON Object, you can use a JSON Path to extract the field, e.g. `$.data.city`
+  - The alias field is used to name the name that will be used after the fields in the MQTT message are synchronized to the TDengine;
+  - The cast field is used to specify the type of field used in the MQTT message after it is synchronized to the TDengine.
+- The model section is used to set up information about the TDengine super table, sub-tables, columns and labels:
+  - The using field is used to specify the super table name;
+  - The name field is used to specify the name of the sub-table, and its value can be divided into two parts: the prefix and the variable, the variable is the value of the alias set in the parse part, and you need to use {}, for example: d{id};
+  - The columns field is used to set which fields in the MQTT message are to be used as columns in the TDengine super table, and takes the value of the alias set in the parse section; note that the order here determines the order of the columns in the TDengine super table, and therefore the first column must be of type TIMESTAMP;
+  - The tags field is used to set which fields in the MQTT message are used as tags in the TDengine super table, and takes the value of the alias set in the parse section.
 
-### 举例说明
+### Example
 
-在 192.168.1.10 的 1883 端口运行着一个 MQTT broker, 用户名、口令分别为admin, 123456; 现欲将其中的消息，通过运行在 192.168.1.20 的 taosadapter 同步至 TDengine 的 test 数据库中。MQTT 消息格式为：
+There is an MQTT broker running on port 1883 of 192.168.1.10, with usernames and passwords admin, 123456; we want to synchronize the messages from it to TDengine's test database via taosadapter running on 192.168.1.20. The MQTT message format is:
 
 ```json
 {
@@ -371,7 +371,7 @@ mqtt://<username>:<password>@<mqtt-broker-ip>:8883?topics=testtopic/1::2&version
 }
 ```
 
-MQTT 消息同步至 TDengine 时, 如果采用 meters 作为超级表名，前缀“d”拼接id字段的值作为子表名，ts, id, current, voltage, phase作为超级表的列，groupid, location作为超级表的标签，其解释器的配置如下：
+When MQTT messages are synchronized to TDengine, if you use meters as the name of the super table, prefix "d" to concatenate the value of id field as the name of the sub-table, ts, id, current, voltage, phase as the columns of the super table, and groupid, location as the labels of the super table, the interpreter is configured as follows:
 ```json
 {
   "parse": {
@@ -433,7 +433,7 @@ MQTT 消息同步至 TDengine 时, 如果采用 meters 作为超级表名，前�
 }
 ```
 
-如果以上parser配置位于`/home/admin/parser.json`中，那么完整的命令如下所示：
+If the above parser configuration is located in `/home/admin/parser.json`, then the full command is shown below:
 
 ```bash
 taosx run \
@@ -445,39 +445,39 @@ taosx run \
 
 ## Kafka
 
-### 命令行参数
+### Command Line Parameters
 
-taosx 支持从 Kafka 消费数据，写入 TDengine。命令如下所示：
-```sehll
+taosx supports consuming data from Kafka and writing to TDengine. The configuration file is described as follows:
+```shell
 taosx run -f "<Kafka-DSN>" -t "<TDengine-DSN>"
 ```
-或
+or
 ```shell
 taosx run -f "<Kafka-DSN>" -t "<TDengine-DSN>" --parser "@<parser-config-file-path>"
 ```
 The parameters are:
-- -f或--from： Kafka 的 DSN
-- -t或--to ：TDengine 的 DSN
-- --parser ：一个 JSON 格式的配置文件，或JSON格式的字符串。
+- -f or --from: Kafka DSN
+- -t or --to: TDengine DSN
+- --parser: JSON configuration file or string
   
-### Kafka DSN 配置
+### Kafka DSN configuration
 
-| 参数 | 说明 | 必填? | 缺省值 | 适用于 | 示例 | 
+| Parameter | Description | Mandatory | Default | Used On | Example | 
 |-----|---------------|----------|---------|---------|----------|
-| group| 消费者的group。允许组为空字符串，在这种情况下，生成的消费者将是无组的 | 否 | "" | 源端 | |
-| topics | 指定要使用的主题。指定主题的所有可用分区都将被使用，除非在指定 topic_partitions 时被覆盖。| 该参数或topic_partitions必须至少指定一个，以便将主题分配给消费者。| None | 源端 |  topics=tp1,tp2 | 
-| topic_partitions | 显式指定要使用的主题分区。只使用已标识主题的指定分区。 | 该参数或topics必须至少指定一个，以便将主题分配给消费者。 | None | 源端 | topic_partitions=tp1:0..2,tp2:1 |
-| fallback_offset | topic偏移量时可能的值：- Earliest：接收最早的可用偏移量; - Latest：接收最近的偏移量; - ByTime(i64):用于请求在某一特定时间(ms)之前的所有消息;Unix时间戳(毫秒) | 否 | Earliest | 源端 | fallback_offset=Earliest | 
-| offset_storage | 定义在获取或提交组偏移量时，要使用的可用存储：- Zookeeper：基于Zookeeper的存储(从kafka 0.8.1开始可用)；- Kafka：基于Kafka的存储(从Kafka 0.8.2开始可用)。这是组存储其偏移量的首选方法。  | 否 | Kafka | 源端  | offset_storage=Kafka |
-| timeout | 从kafka订阅数据时，如果超时后没有获取到有效数据，退出 | 否 | 500 | 源端  | timeout=never | 
-| use_ssl | 是否使用SSL认证 | 否 |  | 源端  | |
-| cert | SSL证书的文件路径 | 否 | | | 源端  | |
-| cert_key | SSL证书key的文件路径 | 否 | | 源端  ||
+| group| Consumer group. Can be an empty string; in this case the consumer generated has no group | No | "" | Source | |
+| topics | Specify the topic to consume. All available partitions for the specified topic will be used unless overridden when topic_partitions is specified. | This parameter or topic_partitions must specify at least one in order for topics to be assigned to consumers. | None | Source |  topics=tp1,tp2 | 
+| topic_partitions | Explicitly specify the topic partition to be used. Use only the specified partition with the topic identified. | This parameter or topics must specify at least one in order for the topic to be assigned to the consumer. | None | Source | topic_partitions=tp1:0..2,tp2:1 |
+| fallback_offset | Possible values at topic offset: - Earliest: receive the earliest available offset; - Latest: receive the most recent offset; - ByTime(i64): used to request all messages up to a specific time (ms); Unix timestamps (milliseconds) | No | Earliest | Source | fallback_offset=Earliest | 
+| offset_storage | Defines the available storage to use when fetching or committing group offsets: - Zookeeper: Zookeeper-based storage (available since kafka 0.8.1); - Kafka: Kafka-based storage (available since Kafka 0.8.2). This is the preferred method for groups to store their offsets.  | No | Kafka | Source  | offset_storage=Kafka |
+| timeout | When subscribing to data from kafka, if no valid data is fetched after the timeout, exit | No | 500 | Source  | timeout=never | 
+| use_ssl | Whether to use SSL | No |  | Source  | |
+| cert | SSL certificate path | No | | | Source  | |
+| cert_key | SSL certificate key path | No | | Source  ||
 
 
 ### Example 1
 
-从192.168.1.92服务器的Kafka实例中消费数据，同步到192.168.1.92上的TDengine，不使用parser。
+Consume data from a Kafka instance on the 192.168.1.92 server and synchronize it to the TDengine on 192.168.1.92 without using a parser.
 
 1. kafka
 
@@ -520,12 +520,12 @@ use kafka_to_taos;
 taosx run -f "kafka://192.168.1.92:9092/?topics=tp1,tp2&timeout=5000" -t "taos://192.168.1.92:6030/kafka_to_taos" --parser "{\"parse\":{\"ts\":{\"as\":\"timestamp(ms)\"},\"topic\":{\"as\":\"varchar\",\"alias\":\"t\"},\"partition\":{\"as\":\"int\",\"alias\":\"p\"},\"offset\":{\"as\":\"bigint\",\"alias\":\"o\"},\"key\":{\"as\":\"binary\",\"alias\":\"k\"},\"value\":{\"as\":\"binary\",\"alias\":\"v\"}},\"model\":[{\"name\":\"t_{t}\",\"using\":\"kafka_data\",\"tags\":[\"t\",\"p\"],\"columns\":[\"ts\",\"o\",\"k\",\"v\"]}]}"
 ```
 
-### 示例2
+### Example 2
 
-从192.168.1.92服务器的Kafka实例中消费数据，同步到192.168.1.92上的TDengine，使用parser解析value中的JSON数据。
+Consume data from the Kafka instance on the 192.168.1.92 server, synchronize it to the TDengine on 192.168.1.92, and use parser to parse the JSON data in the value.
 
-1. kafka，同“示例1”
-2. TDengine，同“示例1”
+1. kafka, same as example 1
+2. TDengine, same as example 1
 3. Taosx
    
 ```shell

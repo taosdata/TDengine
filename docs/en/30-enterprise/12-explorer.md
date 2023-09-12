@@ -1,256 +1,256 @@
 ---
 toc_max_heading_level: 4
-title: "可视化管理"
+title: Visual Management
 ---
 
 ## Introduction
 
-为了易于企业版用户更容易使用和管理数据库，TDengine 3.0 企业版提供了一个全新的可视化组件 taosExplorer。用户能够在其中方便地管理数据库管理系统中中各元素（数据库、超级表、子表）的生命周期，执行查询，监控系统状态，管理用户和授权，完成数据备份和恢复，与其它集群之间进行数据同步，导出数据，管理主题和流计算。
+In order to make it easier for Enterprise Edition users to use and manage the database, TDengine 3.0 Enterprise Edition provides a new visualization component taosExplorer. Users are able to easily manage the lifecycle of the elements of the database management system (databases, super-tables, sub-tables), execute queries, monitor the status of the system, manage users and authorizations, perform data backup and recovery, synchronize data with other clusters, export data, and manage topics and streaming calculations.
 
 
-## 部署服务
+## Deployment
 
-详情请参考 [部署服务](../../get-started)
+See [Installation and Deployment](../../get-started)
 
-## 登录
+## Login
 
-在 TDengine 管理系统的登录页面，输入正确的用户名和密码后，点击登录按钮，即可登录。
+On the login page of TDengine management system, enter the correct user name and password, and then click the Login button to log in.
 
 Description:
-- 这里的用户，需要在所连接的 TDengine 中创建，TDengine 默认的用户名和密码为`root/taosdata`;
-- 在 TDengine 中创建用户时，默认会设置用户的 SYSINFO 属性值为1, 表示该用户可以查看系统信息，只有 SYSINFO 属性为 1 的用户才能正常登录 TDengine 管理系统。
+- The user here needs to be created in the connected TDengine. The default username and password for TDengine is `root/taosdata`.
+- When you create a user in TDengine, the default value of the user's SYSINFO attribute will be set to 1, which means that the user can view the system information, and only the user with the SYSINFO attribute of 1 can log in the TDengine management system normally.
 
-## 面板
+## Dashboard
 
-taosExplorer 内置了一个简单的仪表盘展示以下集群信息，点击左侧功能列表中的 "面板" 可以启用此功能。
+taosExplorer has a simple built-in dashboard displaying the following cluster information, which can be enabled by clicking on "Panels" in the list of features on the left.
 
-- 默认的仪表盘会返回对应 Grafana 的安装配置向导
-- 配置过 Grafana 的仪表盘在点击' 面板' 时会跳转到对应的配置地址（该地址来源于 /profile 接口的返回值）
-
-
-## 数据浏览器
-
-点击功能列表的“数据浏览器”入口，在“数据浏览器”中可以创建和删除数据库、创建和删除超级表和子表，执行SQL语句，查看SQL语句的执行结果。此外，超级管理员还有对数据库的管理权限，其他用户不提供该功能。
-
-具体权限有：
-
-1.查看（提供数据库/超级表/普通表的基本信息）
-
-2.编辑 (编辑数据库/超级表/普通表的信息)
-
-3.数据库管理权限 （仅限超级管理员，该操作可以给指定用户配置数据库管理权限）
-
-4.删除 （删除数据库/超级表/普通表）
-
-5.追加 （选择对应的数据库/超级表/普通表名称直接追加到右侧sql输入区域，避免了手工输入）
+- The default dashboard returns the wizard that corresponds to Grafana's installation and configuration.
+- Grafana-configured dashboards are redirected to the corresponding configuration address when clicking on a 'panel' (the address is derived from the return value of the /profile interface)
 
 
-## 系统管理
+## Data Explorer
 
-点击功能列表中的“系统管理”入口，可以创建用户、对用户进行访问授权、以及删除用户。还能够对当前所管理的集群中的数据进行备份和恢复。也可以配置一个远程 TDengine 的地址进行数据同步。同时也提供了集群信息和许可证的信息以及代理信息以供查看。系统管理 菜单只有 root 用户才有权限看到
+You can create and delete databases, create and delete super tables and sub-tables, execute SQL statements, and view the results of SQL statements by clicking the "Data Browser" entry in the function list. In addition, the Super Administrator has administrative rights to the database, a feature not available to other users.
 
-### 用户管理
+Permissions include:
 
-点击“系统管理”后，默认会进入“用户”标签页。
-在用户列表，可以查看系统中已存在的用户及其创建时间，并可以对用户进行启用、禁用，编辑（包括修改密码，数据库的读写权限等），删除等操作。
-点击用户列表右上方的“+新增”按钮，即可打开“新增用户”对话框：
-1. 输入新增用户的用户名称，必填
-2. 输入新增用户的登录密码，必填，密码长度要求为8-16个字符，且至少要满足以下4个条件中的3个：大写字母，小写字母，数字，特殊字符
-3. 选择新增用户对系统中已存在的数据库的读写权限，非必填，默认情况下，新增用户对所有已存在的数据库无读写权限
-4. 提写完成后，点击确定按钮，即可新增用户。
+1. View (provides basic information on database/super table/general table)
 
-### 系统信息
+2. Edit (Edit information of database/super table/general table)
 
-点击“集群”标签后，可以查看DNodes, MNodes和QNodes的状态、创建时间等信息，并可以对以上节点进行新增和删除操作。
+3. Database management rights (super administrator only, this operation can be configured for the specified user database management rights)
 
-### 许可证管理
+4. Delete (delete database/super table/general table)
 
-点击“许可证”标签后，可以查看系统和系统和各连接器的许可证信息。
-点击位于“许可证”标签页右上角的“激活许可证”按钮，输入“激活码”和“连接器激活码”后，点击“确定”按钮，即可激活，激活码请联系 TDengine 客户成功团队获取。
+5. Append (select the corresponding database/super table/general table name to append directly to the right sql input area, avoiding manual input)
 
-## 数据写入
 
-点击功能列表中的 "数据写入"，可以配置不同类型的数据源，包括 TDengine Subscription, PI, OPC-UA, OPC-DA, InfluxDB, MQTT，Kafka, CSV 等，将它们的数据写入到当前正在被管理的 TDengine 集群中。
+## System Administration
 
-### TDengine 订阅
+By clicking on the "System Administration" portal in the function list, you can create users, authorize access to users, and delete users. It is also capable of backing up and restoring the data in the currently managed cluster. You can also configure a remote TDengine address for data synchronization. Cluster and license information as well as proxy information is also provided for viewing. The system administration menu can only be seen by the root user.
 
-进入TDengine订阅任务配置页面：
-1. 在连接协议栏中，配置连接协议，默认为原生连接，可配置为WS、WSS；
-2. 在服务器栏中配置服务器的 IP 或域名；
-3. 在端口栏中配置连接的端口号，默认值为6030；
-4. 在主题栏中，配置可以配置订阅一个或多个数据库，或超级表或普通表，也可以是一个已创建的 Topic；
-5. 在认证栏，可以配置访问 TDengine 的用户名密码，用户名默认值为 root，密码默认值为 taosdata；如果数据源为云服务实例，则可以选择令牌认证方式并配置实例 token；
-6. 在订阅初始位置栏，可配置从最早数据（earliest）或最晚（latest）数据开始订阅，默认为 earliest；
-7. 在超时栏配置超时时间，可配置为 never: 表示无超时时间，持续进行订阅，也可指定超时时间：5s, 1m 等，支持单位 ms（毫秒），s（秒），m（分钟），h（小时），d（天），M（月），y（年）。
-8. 在目标数据库栏中，选择本地 TDengine 的库作为目标库，点击 submit，即可启动一个 TDengine 订阅任务。
+### User Management
+
+After clicking "System Administration", you will be taken to the "Users" tab by default.
+In the user list, you can view the existing users in the system and their creation time, and you can enable, disable, edit (including changing passwords, database read/write permissions, etc.), delete and other operations on the users.
+Click the "+Add" button at the top right of the user list to open the "Add User" dialog:
+1. Enter the user name of the new user, mandatory fields
+2. Enter the login password of the new user, required, the password length is required to be 8-16 characters, and at least three of the following four conditions must be met: uppercase letters, lowercase letters, numbers, and special characters.
+3. Select the read/write privileges of the new user to the existing databases in the system, non-required, by default, the new user has no read/write privileges to all existing databases.
+4. Once the writeup is complete, click the OK button to add the new user.
+
+### System Information
+
+After clicking the "Cluster" tab, you can view the status, creation time and other information of DNodes, MNodes and QNodes, and you can add and delete the above nodes.
+
+### License Management
+
+By clicking on the "License" tab, you can view the license information for the system and each connector.
+Click on the "Activate License" button located in the upper right corner of the "License" tab, enter the "Activation Code" and "Connector Activation Code" and click on the "OK" button to activate the license, the activation code should be obtained by contacting TDengine Customer Success team.
+
+## Data Ingestion
+
+By clicking "Data Write" in the function list, you can configure different types of data sources, including TDengine Subscription, PI, OPC-UA, OPC-DA, InfluxDB, MQTT, Kafka, CSV, etc., to write their data to the TDengine cluster that is currently being managed.
+
+### TDengine Subscription
+
+Go to the TDengine Subscription Task Configuration page:
+1. In the Connection Protocol field, configure the connection protocol, which defaults to Native Connection and can be configured as WS, WSS;
+2. Configure the IP or domain name of the server in the Server field;
+3. Configure the port number for the connection in the Port field; the default value is 6030;
+4. In the Subject field, Configure can configure a subscription to one or more databases, either super or normal tables, or a created Topic;
+5. In the Authentication field, you can configure the user name and password for accessing TDengine, the default value of the user name is root and the default value of the password is taosdata; if the data source is a cloud service instance, you can select the token authentication method and configure the instance token;
+6. In the Subscription Initial Position field, you can configure the subscription to start with the earliest data (earliest) or the latest data (latest), with the default being earliest;
+7. Configure the timeout in the Timeout field, which can be configured as never. Indicates that the subscription continues without a timeout, or you can specify a timeout: 5s, 1m, etc. The supported units are ms (milliseconds), s (seconds), m (minutes), h (hours), d (days), M (months), and y (years).
+8. In the Target Database column, select the local TDengine library as the target library and click Submit to start a TDengine subscription task.
 
 ### Pi
 
-1. 在 PI 数据接入页面，设置 PI 服务器的名称、AF 数据库名称。
-2. 在监测点集栏，可以配置选择 Point 模式监测点集合、Point 模式监测的 AF 模板、AF 模式监测的 AF 模板。
-3. 在 PI 系统设置栏，可以配置 PI 系统名，默认为 PI 服务器名。
-4. 在 Data Queue 栏，可以配置 PI 连接器运行参数：MaxWaitLen（数据最大缓冲条数），默认值为 1000 ,有效取值范围为 [1,10000]；UpdateInterval（PI System 取数据频率），默认值为 10000(毫秒：ms),有效取值范围为 [10,600000]；重启补偿时间（Max Backfill Range，单位：天），每次重启服务时向前补偿该天数的数据，默认为1天。
-5. 在目标数据库栏，选择需要写入的 TDengine 数据库，点击 submit ，即可启动一个 PI 数据接入任务。
+1. On the PI data access screen, set the PI server name and AF database name.
+2. In the Monitoring Point Sets column, you can configure the selection of Point mode monitoring point sets, AF templates for Point mode monitoring, and AF templates for AF mode monitoring.
+3. In the PI System Settings field, you can configure the PI system name, which defaults to the PI server name.
+4. In the Data Queue column, you can configure the running parameters of PI Connector: MaxWaitLen (Maximum number of data buffer bars), the default value is 1000, and the valid range of values is [1,10000]; UpdateInterval (frequency of data fetching by the PI System), the default value is 10000 (milliseconds: ms), and the valid range of values is [ 10,600000]; Max Backfill Range (in days), each time the service is restarted, the data will be compensated forward for that number of days, and the default value is 1 day. 10,600000]; Max Backfill Range (unit: days), each time the service is restarted, the data is compensated forward for the number of days, the default is 1 day.
+5. In the Target Database field, select the TDengine database you want to write to and click Submit to start a PI data access task.
 
 ### OPC-UA
 
-1. 在 OPC-UA页面，配置 OPC-server 的地址，输入格式为 127.0.0.1:6666/OPCUA/ServerPath。
-2. 在认证栏，选择访问方式。可以选择匿名访问、用户名密码访问、证书访问。使用证书访问时，需配置证书文件信息、私钥文件信息、OPC-UA 安全协议和 OPC-UA 安全策略
-3. 在 Data Sets 栏，配置点位信息。(可通过“选择”按钮选择正则表达式过滤点位，每次最多能过滤出10条点位)；点位配置有两种方式：1.手动输入点位信息 2.上传csv文件配置点位信息
-4. 在连接配置栏，配置连接超时间隔和采集超时间隔（单位：秒），默认值为10秒。
-5. 在采集配置栏，配置采集间隔（单位：秒）、点位数量、采集模式。采集模式可选择observe（轮询模式）和subscribe（订阅模式），默认值为observe。
-6. 在库表配置栏，配置目标 TDengine 中存储数据的超级表、子表结构信息。
-7. 在其他配置栏，配置并行度、单次采集上报批次（默认值100）、上报超时时间（单位：秒，默认值10）、是否开启debug级别日志。
-8. 在目标数据库栏，选择需要写入的 TDengine 数据库，点击 submit，即可启动一个 OPC-UA 数据接入任务。
+1. On the OPC-UA page, configure the address of the OPC-server by entering the format 127.0.0.1:6666/OPCUA/ServerPath.
+2. In the Authentication field, select the access method. You can choose between anonymous access, username and password access, and certificate access. When using certificate access, you need to configure certificate file information, private key file information, OPC-UA security protocol, and OPC-UA security policy.
+3. In the Data Sets column, configure the point information. (You can select the regular expression filtering points through the "Select" button, each time up to 10 points can be filtered out); points configured in two ways: 1. manually enter the point information 2. upload a csv file to configure the point information
+4. In the Connection Configuration field, configure the Connection Timeout Interval and Capture Timeout Interval (in seconds), with a default value of 10 seconds.
+5. In the Acquisition Configuration field, configure the acquisition interval (in seconds), number of points, and acquisition mode. The collection mode can be selected from observe (polling mode) and subscribe (subscription mode), the default value is observe.
+6. In the Library Table Configuration column, configure the super table and sub-table structure information of the data stored in the target TDengine.
+7. In the Other Configuration column, configure the degree of parallelism, the number of report batches for a single collection (default value 100), the report timeout (unit: seconds, default value 10), and whether or not to turn on debug level logging.
+8. In the Target Database field, select the TDengine database you want to write to and click Submit to start a OPC- UA data access task.
 
 ### OPC-DA
 
-1. 在 OPC-DA页面，配置 OPC-server 的地址，输入格式为 127.0.0.1<,localhost>/Matrikon.OPC.Simulation.1。
-2. 在数据点栏，配置 OPC-DA 采集点信息。(可通过“选择”按钮选择正则表达式过滤点位，每次最多能过滤出10条点位)。点位配置有两种方式：1.手动输入点位信息 2.上传csv文件配置点位信息
-3. 在连接栏，配置连接超时时间（单位：秒，默认值为10秒）、采集超时时间（单位：秒，默认值为10秒）。
-4. 在库表配置栏，配置目标 TDengine 中存储数据的超级表、子表结构信息。
-5. 在其他配置栏，配置并行度、单次采集上报批次（默认值100）、上报超时时间（单位：秒，默认值10）、是否开启debug级别日志。
-6. 在目标数据库栏，选择需要写入的 TDengine 数据库，点击 submit，即可启动一个 OPC-DA 数据接入任务。
+1. On the OPC-DA page, configure the address of the OPC-server by entering the format 127.0.0.1<,localhost>/Matrikon.OPC.Simulation.1.
+2. In the Data Points column, configure the OPC-DA collection point information. (You can select the regular expression filtering points through the "Select" button, each time up to 10 points can be filtered out) points configured in two ways: 1. manually enter the point information 2. upload a csv file to configure the point information
+3. In the Connection column, configure the Connection Timeout Time (unit: seconds, default value is 10 seconds), Capture Timeout Time (unit: seconds, default value is 10 seconds).
+4. In the Library Table Configuration column, configure the super table and sub-table structure information of the data stored in the target TDengine.
+5. In the Other Configuration column, configure the degree of parallelism, the number of report batches for a single collection (default value 100), the report timeout (unit: seconds, default value 10), and whether or not to turn on debug level logging.
+6. In the Target Database field, select the TDengine database you want to write to and click Submit to start a OPC- DA data access task.
 
 ### InfluxDB
 
-进入 InfluxDB 数据源同步任务的编辑页面后：
-1. 在服务器地址输入框, 输入 InfluxDB 服务器的地址，可以输入 IP 地址或域名，此项为必填字段；
-2. 在端口输入框, 输入 InfluxDB 服务器端口，默认情况下，InfluxDB 监听8086端口的 HTTP 请求和8088端口的 HTTPS 请求，此项为必填字段；
-3. 在组织 ID 输入框，输入将要同步的组织 ID，此项为必填字段;
-4. 在令牌 Token 输入框，输入一个至少拥有读取这个组织 ID 下的指定 Bucket 权限的 Token, 此项为必填字段;
-5. 在同步设置的起始时间项下，通过点选选择一个同步数据的起始时间，起始时间使用 UTC 时间， 此项为必填字段;
-6. 在同步设置的结束时间项下，当不指定结束时间时，将持续进行最新数据的同步；当指定结束时间时，将只同步到这个结束时间为止; 结束时间使用 UTC 时间，此项为可选字段；
-7. 在桶 Bucket 输入框，输入一个需要同步的 Bucket，目前只支持同步一个 Bucket 至 TDengine 数据库，此项为必填字段；
-8. 在目标数据库下拉列表，选择一个将要写入的 TDengine 目标数据库 （注意：目前只支持同步到精度为纳秒的 TDengine 目标数据库），此项为必填字段；
-9. 填写完成以上信息后，点击提交按钮，即可直接启动从 InfluxDB 到 TDengine 的数据同步。
+After you enter the edit page for the InfluxDB Data Source Synchronization task:
+1. In the Server Address input box, enter the address of the InfluxDB server, either an IP address or a domain name; this field is required;
+2. In the Port input box, enter the InfluxDB server port. By default, InfluxDB listens for HTTP requests on port 8086 and HTTPS requests on port 8088, this field is required;
+3. In the Organization ID input box, enter the ID of the organization to be synchronized; this field is required.
+4. In the Token Token input box, enter a required field for a token that has at least read access to the specified bucket under this organization ID.
+5. Under Start time of synchronization settings, select a start time for synchronizing the data by clicking on it, the start time is in UTC time, this field is required.
+6. Under End Time of Synchronization Settings, when no end time is specified, synchronization of the latest data will continue; when an end time is specified, synchronization will continue only up to this end time; the end time is in UTC time, and this is an optional field;
+7. In the Bucket input box, enter a bucket to be synchronized, only one bucket can be synchronized to TDengine database, this field is required;
+8. In the Target Database drop-down list, select a TDengine target database to be written to (Note: Currently, only TDengine target databases with nanosecond precision are supported to be synchronized), this field is required;
+9. After completing the above information, click the Submit button to start the data synchronization from InfluxDB to TDengine directly.
 
 ### MQTT
 
-进入 MQTT 数据源同步任务的编辑页面后：
-1. 在 MQTT 地址卡片，输入 MQTT 地址，必填字段，包括 IP 和 端口号，例如：192.168.1.10:1883;
-2. 在认证卡片，输入 MQTT 连接器访问 MQTT 服务器时的用户名和密码，这两个字段为选填字段，如果未输入，即采用匿名认证的方式；
-3. 在 SSL 证书卡片，可以选择是否打开 SSL/TLS 开关，如果打开此开关，MQTT 连接器和 MQTT 服务器之间的通信将采用 SSL/TLS 的方式进行加密；打开这个开关后，会出现 CA, 客户端证书和客户端私钥三个必填配置项，可以在这里输入证书和私钥文件的内容；
-4. 在连接卡片，可以配置以下信息：
-    - MQTT 协议：支持3.1/3.1.1/5.0三个版本；
-    - Client ID: MQTT 连接器连接 MQTT 服务器时所使用的客户端 ID, 用于标识客户端的身份；
-    - Keep Alive: 用于配置 MQTT 连接器与 MQTT 服务器之间的Keep Alive时间，默认值为60秒；
-    - Clean Session: 用于配置 MQTT 连接器是否以Clean Session的方式连接至 MQTT 服务器，默认值为True;
-    - 订阅主题及 QoS 配置：这里用来配置监听的 MQTT 主题，以及该主题支持的最大QoS, 主题和 QoS 的配置之间用::分隔，多个主题之间用,分隔，主题的配置可以支持 MQTT 协议的通配符#和+;
-5. 在其他卡片，可以配置 MQTT 连接器的日志级别，支持 error, warn, info, debug, trace 5个级别，默认值为 info;
-6. MQTT Payload 解析卡片，用于配置如何解析 MQTT 消息：
-    - 配置表的第一行为 ts 字段，该字段为 TIMESTAMP 类型，它的值为 MQTT 连接器收到 MQTT 消息的时间；
-    - 配置表的第二行为 topic 字段，为该消息的主题名称，可以选择将该字段作为列或者标签同步至 TDengine;
-    - 配置表的第三行为 qos 字段，为该消息的 QoS 属性，可以选择将该字段作为列或者标签同步至 TDengine;
-    - 剩余的配置项皆为自定义字段，每个字段都需要配置：字段（来源），列（目标），列类型（目标）。字段（来源）是指该 MQTT 消息中的字段名称，当前仅支持 JSON 类型的 MQTT 消息同步，可以使用 JSON Path 语法从 MQTT 消息中提取字段，例如：$.data.id; 列（目标）是指同步至 TDengine 后的字段名称；列类型（目标）是指同步至 TDengine 后的字段类型，可以从下拉列表中选择；当且仅当以上3个配置都填写后，才能新增下一个字段；
-    - 如果 MQTT 消息中包含时间戳，可以选择新增一个自定义字段，将其作为同步至 TDengine 时的主键；需要注意的是，MQTT 消息中时间戳的仅支持 Unix Timestamp格式，且该字段的列类型（目标）的选择，需要与创建 TDengine 数据库时的配置一致；
-    - 子表命名规则：用于配置子表名称，采用“前缀+{列类型(目标)}”的格式，例如：d{id};
-    - 超级表名：用于配置同步至 TDengine 时，采用的超级表名；
-7. 在目标数据库卡片，可以选择同步至 TDengine 的数据库名称，支持直接从下拉列表中选择。
-8. 填写完成以上信息后，点击提交按钮，即可直接启动从 MQTT 到 TDengine 的数据同步。
+After you enter the edit page for the MQTT Data Source Synchronization task:
+1. On the MQTT Address card, enter the MQTT address with required fields, including IP and port number, for example: 192.168.1.10:1883.
+2. In the Authentication card, enter the MQTT Connector's user name and password for accessing the MQTT server. These two fields are optional, and if they are not entered, then anonymous authentication is used;
+3. In the SSL Certificate card, you can choose whether to turn on the SSL/TLS switch, if you turn on this switch, the communication between MQTT Connector and MQTT Server will be encrypted by SSL/TLS; after you turn on this switch, there will be three required configuration items, CA, Client Certificate and Client Private Key, where you can input the content of the certificate and private key files;
+4. On the connection card, the following information can be configured:
+    - MQTT protocol: supports version 3.1/3.1.1/5.0;
+    - Client ID: The client ID used by the MQTT connector to connect to the MQTT server, which identifies the client;
+    - Keep Alive: Used to configure the Keep Alive time between the MQTT connector and the MQTT server, the default value is 60 seconds;
+    - Clean Session: Used to configure whether the MQTT connector connects to the MQTT server as a Clean Session, the default value is True.
+    - Subscription Topic and QoS Configuration: This is used to configure the MQTT topic for listening and the maximum QoS supported by the topic, the topic and QoS configurations are separated by ::, multiple topics are separated by ,, and the topic configurations can support the MQTT protocol wildcards # and +
+5. In other cards, you can configure the logging level of the MQTT connector, which supports 5 levels: error, warn, info, debug, trace, and the default value is info.
+6. MQTT Payload parsing card to configure how to parse MQTT messages:
+    - The first line of the configuration table is the ts field, which is of type TIMESTAMP and whose value is the time the MQTT message was received by the MQTT connector;
+    - The second line of the configuration table is the topic field, which is the subject name of the message, and which can optionally be synchronized to TDengine as a column or a label.
+    - The third line of the configuration table is the qos field, which is the QoS attribute of the message, and which can optionally be synchronized to the TDengine as a column or a label.
+    - The remaining configuration items are all custom fields, each of which needs to be configured: Field (Source), Column (Target), Column Type (Target). Field (source) is the name of the field in the MQTT message, only JSON type MQTT message synchronization is supported, you can use JSON Path syntax to extract the field from the MQTT message, for example: $.data.id; Column (target) is the name of the field after synchronization to TDengine; Column type (target) is the type of the field after synchronization to TDengine. The column type (target) is the type of the field after synchronization to TDengine, which can be selected from the drop-down list; the next field can be added when and only when all the above three configurations are filled in;
+    - If the MQTT message contains a timestamp, you can choose to add a new custom field to be used as the primary key when synchronizing to TDengine; note that only the Unix Timestamp format is supported for timestamps in MQTT messages, and the column type (target) of the field needs to be selected in the same way as configured during the creation of the TDengine database;
+    - Sub-table naming rules: used to configure the name of the sub-table, using the format of "prefix + {column type (target)}", e.g.: d{id};
+    - Super Table Name: Used to configure the super table name used when synchronizing to TDengine;
+7. In the Target Database card, you can select the name of the database to be synchronized to TDengine, which is supported to be selected directly from the drop-down list.
+8. After completing the above information, click the Submit button to start the data synchronization from MQTT to TDengine directly.
 
 ### Kafka
 
-1. 在Kafka页面，配置Kafka选项，必填字段，包括：bootstrap_server，例如192.168.1.92:9092；
-2. 如果使用SSL认证，在SSL认证卡中，选择cert和cert_key的文件路径；
-3. 配置其他参数，topics、topic_partitions这2个参数至少填写一个，其他参数有默认值；
-4. 如果消费的Kafka数据是JSON格式，可以配置parser卡片，对数据进行解析转换；
-5. 在目标数据库卡片中，选择同步到TDengine的数据库名称，支持从下拉列表中选择；
-6. 填写完以上信息后，点击提交按钮，即可启动从Kafka到TDengine的数据同步。
+1. On the Kafka page, configure the Kafka options, required fields, including: bootstrap_server, for example 192.168.1.92:9092;
+2. If you are using SSL authentication, in the SSL Authentication card, select the path to the cert and cert_key files;
+3. Configure other parameters, fill in at least one of the two parameters, topics, topic_partitions, other parameters have default values;
+4. If the consumed Kafka data is in JSON format, you can configure the parser card to parse and transform the data;
+5. In the Target Database card, select the name of the database to be synchronized to TDengine, which supports selection from a drop-down list;
+6. After filling in the above information, click the Submit button to start the data synchronization from Kafka to TDengine.
 
 ### CSV
 
-1. 在CSV页面，配置CSV选项，可设置忽略前N行，可输入具体的数字
-2. CSV的写入配置，设置批次写入量，默认是1000
-3. CSV文件解析，用于获取CSV对应的列信息：
-      - 上传CSV文件或者输入CSV文件的地址
-      - 选择是否包包含Header
-      - 包含Header情况下直接执行下一步，查询出对应CSV的列信息，获取CSV的配置信息
-      - 不包含Header情况，需要输入自定列信息，并以逗号分隔，然后下一步，获取CSV的配置信息
-      - CSV的配置项，每个字段都需要配置：CSV列，DB列，列类型（目标），主键(整个配置只能有一个主键，且主键必须是TIMESTAMP类型)，作为列，作为Tag。CSV列是指该 CSV文件中的列或者自定义的列；DB列是对应的数据表的列
-      - 子表命名规则：用于配置子表名称，采用“前缀+{列类型(目标)}”的格式，例如：d{id};
-      - 超级表名：用于配置同步至 TDengine 时，采用的超级表名；
-4. 在目标数据库卡片，可以选择同步至 TDengine 的数据库名称，支持直接从下拉列表中选择。
-5. 填写完成以上信息后，点击提交按钮，即可直接启动从 CSV到 TDengine 的数据同步。
+1. On the CSV page, configure the CSV options to ignore the first N rows, and enter specific numbers
+2. CSV write configuration, set the batch write amount, the default is 1000
+3. CSV file parsing for obtaining the column information corresponding to the CSV:
+      - Upload a CSV file or enter the address of a CSV file
+      - Select whether the package contains a Header
+      - Execute the next step directly if the Header is included, query the column information of the corresponding CSV, and obtain the configuration information of the CSV.
+      - Without Header case, you need to enter the customized column information and separated by comma, and then the next step, to get the configuration information of the CSV
+      - Configuration items for CSV, each field needs to be configured: CSV Column, DB Column, Column Type (Target), Primary Key (there can only be one Primary Key for the entire configuration and the Primary Key must be of type TIMESTAMP), as Column, as Tag. CSV columns are the columns in the CSV file or customized columns; DB columns are the columns of the corresponding data tables
+      - Sub-table naming rules: used to configure the name of the sub-table, using the format of "prefix + {column type (target)}", e.g.: d{id};
+      - Super Table Name: Used to configure the super table name used when synchronizing to TDengine;
+4. In the Target Database card, you can select the name of the database to be synchronized to TDengine, which is supported to be selected directly from the drop-down list.
+5. After completing the above information, click the Submit button to start the data synchronization from CSV to TDengine directly.
 
 
-## 备份和恢复
+## Data Backup and Restoration
 
-您可以将当前连接的 TDengine 集群中的数据备份至一个或多个本地文件中，稍后可以通过这些文件进行数据恢复。本章节将介绍数据备份和恢复的具体步骤。
+You can back up the data in the currently connected TDengine cluster to one or more local files from which you can later perform data recovery. This section describes the specific steps for data backup and recovery.
 
-### 备份数据到本地文件
+### Backup data to a local file
 
-1. 进入系统管理页面，点击【备份】进入数据备份页面，点击右上角【新增备份】。
-2. 在数据备份配置页面中可以配置三个参数：
-  - 备份周期：必填项，配置每次执行数据备份的时间间隔，可通过下拉框选择每天、每 7 天、每 30 天执行一次数据备份，配置后，会在对应的备份周期的0:00时启动一次数据备份任务；
-  - 数据库：必填项，配置需要备份的数据库名（数据库的 wal_retention_period 参数需大于0）；
-  - 目录：必填项，配置将数据备份到 taosX 所在运行环境中指定的路径下，如 /root/data_backup；
-3. 点击【确定】，可创建数据备份任务。
+1. Enter the system management page, click [Backup] to enter the data backup page, and click [Add Backup] in the upper right corner.
+2. Three parameters can be configured in the Data Backup Configuration page:
+  - Backup Cycle: Required, configure the time interval for each data backup, you can select daily, every 7 days, every 30 days through the drop-down box to perform a data backup, after the configuration, it will start a data backup task at 0:00 of the corresponding backup cycle;
+  - Database: required, configure the name of the database to be backed up (the wal_retention_period parameter of the database should be greater than 0);
+  - Directory: Required, configure to back up the data to the specified path in the environment where taosX is running, such as /root/data_backup;
+3. Click [OK] to create a data backup task.
 
-### 从本地文件恢复
+### Recovering from local files
 
-1. 完成数据备份任务创建后，在页面中对应的数据备份任务右侧点击【数据恢复】，可将已经备份到指定路径下的数据恢复到当前 TDengine 中。
-
-
-## 数据订阅
-
-本章节，将介绍如何在 TDengine 集群中，创建主题，并将其分享给其他用户，以及如何查看一个主题的消费者信息。
-
-通过 Explorer, 您可以轻松地完成对数据订阅的管理，从而更好地利用 TDengine 提供的数据订阅能力。
-点击左侧导航栏中的“数据订阅”，即可跳转至数据订阅配置管理页面。
-您可以通过以下两种方式创建主题：使用向导和自定义 SQL 语句。通过自定义 SQL 创建主题时，您需要了解 TDengine 提供的数据订阅 SQL 语句的语法，并保证其正确性。
-
-Note: 对于数据订阅的详细说明，可参考官方文档中关于“数据订阅”章节，创建数据订阅之前需要先准备源数据库（或源数据库包含相应的超级表或者表），其中源数据库需配置wal_retention_period > 0 。
-
-包括主题，消费者，共享主题和示例代码
-
-### 创建主题 
-
-1. 在“主题”标签页，点击“新增新主题”按钮以后，选择向导窗格，然后输入“主题名称”；
-2. 在“数据库”下拉列表中，选择相应的数据库；
-3. 在“类型”标签下，选择“数据库” 或 “超级表” 或 “子查询”，这里以默认值“数据库”为例；
-4. 然后点击“创建” 按钮，即可创建对应的主题。
-
-### 分享主题 
-
-1. 在“共享主题”标签页，在“主题“下拉列表中，选择将要分享的主题；
-2. 点击“添加可消费该主题的用户”按钮，然后在“用户名”下拉列表中选择相应的用户，然后点击“新增”，即可将该主题分享给此用户。
+1. After completing the creation of a data backup task, click [Data Recovery] on the right side of the corresponding data backup task on the page to restore the data that has been backed up to the specified path to the current TDengine.
 
 
-### 查看消费者信息
+## Data Subscription
 
-1. 通过执行下一节“示例代码”所述的“完整实例”，即可消费共享主题
-2. 在“消费者”标签页，可查看到消费者的有关信息
+In this section, you will learn how to create topics and share them with other users in a TDengine cluster, as well as how to view consumer information for a topic.
 
-### 示例代码
+With Explorer, you can easily manage your data subscriptions to take advantage of the data subscription capabilities offered by TDengine.
+Click "Data Subscription" in the left navigation bar to jump to the data subscription configuration management page.
+You can create topics in two ways: using the wizard and customizing SQL statements. When creating topics via custom SQL, you need to understand the syntax of the data subscription SQL statements provided by TDengine and ensure that they are correct.
 
-1. 在“示例代码”标签页，在“主题“下拉列表中，选择相应的主题；
-2. 选择您熟悉的语言，然后您可以阅读以及使用这部分示例代码用来”创建消费“，”订阅主题“，通过执行 “完整实例”中的程序即可消费共享主题
+Note: For detailed description of data subscription, you can refer to the official documentation of the "Data Subscription" section, before creating a data subscription you need to prepare the source database (or the source database contains the appropriate super-table or table), in which the source database needs to be configured wal_retention_period > 0.
 
-## 流计算
+Includes themes, consumers, shared themes and sample code
 
-通过 Explorer, 您可以轻松地完成对流的管理，从而更好地利用 TDengine 提供的流计算能力。
-点击左侧导航栏中的“流计算”，即可跳转至流计算配置管理页面。
-您可以通过以下两种方式创建流：流计算向导和自定义 SQL 语句。当前，通过流计算向导创建流时，暂不支持分组功能。通过自定义 SQL 创建流时，您需要了解 TDengine 提供的流计算 SQL 语句的语法，并保证其正确性。
+### Create a Topic 
 
-Note: 对于流计算的详细说明，可参考官方文档中关于“流式计算”章节，创建流计算之前需要先准备源数据库以及相应的超级表或表、输出的数据库。
+1. In the "Themes" tab, after clicking the "Add New Theme" button, select the Wizard pane and enter a "Theme Name";
+2. In the "Database" drop-down list, select the appropriate database;
+3. Under the "Type" tab, select "Database" or "Supertable" or "Subquery". The default value of "Database" is used as an example;
+4. Then click the "Create" button to create the corresponding theme.
 
-### 流计算向导
+### Share a Topic 
 
-1. 点击“创建流计算”按钮以后，选择流计算向导窗格，然后输入“流名称”；
-2. 在“输出”部分，输入相应的“数据库”，“超级表”以及“子表前缀”；
-3. 在“源”部分，选择相应的“数据库”，然后根据具体情况，选择使用“超级表”或“表”：
-  1. 如果使用“超级表“，请从“超级表”下拉列表中选择相应的超级表, 并在“字段设置”区域，选择相应的字段
-  2. 如果使用“表“，请从“表”下拉列表中选择相应的表, 并在“字段设置”区域，选择相应的字段
-4. 对于窗口设置，根据需要选择”SESSION“, "STATE"或"INTERVAL", 并配置相应的值；
-5. 对于”执行“部分，选择相应的”触发器“类型，并设置“Watermark”, "Ignore Expired", "DELETE_MARK", "FILL_HISTORY", "IGNORE UPDATE"；
-6. 然后点击“创建” 按钮，即可创建对应的流计算。
+1. On the Share Topic tab, in the Topic drop-down list, select the topic you want to share;
+2. Click the "Add users who can consume this topic" button, and then select the corresponding user in the "Username" drop-down list, and then click "Add" to share this topic then click "Add" to share the topic with this user.
 
-### 使用 SQL 语句建流
 
-1. 点击“创建流计算”按钮以后，选择流计算SQL窗格，然后输入类似如下的SQL语句(反引号内为源数据库以及相应的超级表或表、输出的数据库，请按您的环境更新反引号内的内容)
+### View Consumer Groups
+
+1. Shared topics can be consumed by executing the "Full Example" described in the "Sample Code" in the next section.
+2. On the "Consumer" tab, information about the consumer can be viewed.
+
+### Sample Code
+
+1. In the Sample Code tab, in the Theme drop-down list, select the appropriate theme;
+2. Choose a language you are familiar with, and then you can read and use this part of the sample code to "create consumption", "subscribe to the theme", by executing the "full example" in the program in the "Full Example" to consume shared topics
+
+## Stream Processing
+
+With Explorer, you can easily manage your streams to take advantage of the streaming capabilities provided by TDengine.
+Click "Streaming Calculation" in the left navigation bar to jump to the Streaming Calculation Configuration Management page.
+You can create streams in two ways: the Stream Calculation Wizard and custom SQL statements. Currently, the grouping feature is not supported when creating a flow through the Flow Calculation Wizard. When creating streams via custom SQL, you need to understand the syntax of the stream computation SQL statement provided by TDengine and ensure that it is correct.
+
+Note: For a detailed description of streaming computation, you can refer to the official documentation of the "Streaming Computing" chapter, you need to prepare the source database as well as the corresponding super table or table, the output database before creating the streaming computation.
+
+### Stream Processing Wizard
+
+1. After clicking the Create Stream Calculation button, select the Stream Calculation Wizard pane and enter a Stream Name;
+2. In the "Output" section, enter the appropriate "Database", "Supertable" and "Subtable Prefix". in the "Output" section;
+3. In the "Source" section, select the appropriate "Database" and then choose to use either "Super Table" or "Table" as appropriate. The "Table" section:
+  1. If you are using a "Supertable", select the appropriate supertable from the "Supertable" drop-down list, and select the appropriate fields in the "Field Settings" area.
+  2. If you are using "Tables", select the appropriate table from the "Table" drop-down list, and in the "Field Settings" area, select the appropriate field.
+4. For window settings, select "SESSION", "STATE" or "INTERVAL" as required, and configure the values accordingly;
+5. For the "Execution" section, select the appropriate "Trigger" type and set "Watermark", "Ignore Expired", " DELETE_MARK", "FILL_HISTORY", "IGNORE UPDATE";
+6. Then click the "Create" button to create the corresponding flow calculation.
+
+### Building streams with SQL statements
+
+1. After clicking the "Create Streaming Calculation" button, select the Streaming Calculation SQL pane, and then enter the SQL statement similar to the following (inside the quotation marks are the source database and the corresponding super-table or table, and the output database, please update the contents inside the quotation marks according to your environment).
    
 ```shell
 CREATE STREAM `test_stream` TRIGGER WINDOW_CLOSE IGNORE EXPIRED 1 INTO `db_name`.`stable1` SUBTABLE(CONCAT('table1',tbname)) AS SELECT count(*) FROM `test_db`.`stable_name` PARTITION BY tbname INTERVAL(1m)
 ```
-2. 点击“创建”按钮，即可创建对应的流计算。
+2. Then click the "Create" button to create the corresponding flow calculation.
