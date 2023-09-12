@@ -1252,22 +1252,11 @@ _out:
   return Z;
 }
 
-int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TSnapRangeArray *pExclude,
+int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TSnapRangeArray *pRanges,
                                       TSnapRangeArray **fsrArr) {
   int32_t      code = -1;
   STFileSet   *fset;
   STSnapRange *fsr1 = NULL;
-
-  TSnapRangeArray *snapF = tsdbFSToSnapRangeArray(fs);
-  if (snapF == NULL) {
-    tsdbError("failed to generate snap ranges from fs since %s.", terrstr());
-    goto _out;
-  }
-  TSnapRangeArray *snapD = tsdbSnapDiff(snapF, pExclude);
-  if (snapD == NULL) {
-    tsdbError("failed to get diff of snap ranges since %s.", terrstr());
-    goto _out;
-  }
 
   fsrArr[0] = taosMemoryCalloc(1, sizeof(*fsrArr[0]));
   if (fsrArr[0] == NULL) {
@@ -1278,37 +1267,32 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
   int32_t i = 0;
   code = 0;
 
-  // TODO: use the same fs fSetArr as get snapDiff. The following treatment is potentially wrong
-  //  if the fSetArr are changed.
   taosThreadRwlockRdlock(&fs->tsdb->rwLock);
   TARRAY2_FOREACH(fs->fSetArr, fset) {
-    while (i < TARRAY2_SIZE(snapD)) {
-      STSnapRange *u = TARRAY2_GET(snapD, i);
-      if (fset->fid < u->fid) {
-        break;
-      } else if (fset->fid > u->fid) {
-        ASSERT(false);
+    int64_t sver1 = sver;
+    int64_t ever1 = ever;
+
+    while (pRanges && i < TARRAY2_SIZE(pRanges)) {
+      STSnapRange *u = TARRAY2_GET(pRanges, i);
+      if (fset->fid > u->fid) {
         i++;
         continue;
-      } else {
+      }
+
+      if (fset->fid == u->fid) {
+        sver1 = u->sver;
         i++;
       }
-      int64_t sver1 = TMAX(sver, u->sver);
-      int64_t ever1 = TMIN(ever, u->ever);
-      if (sver1 > ever1) {
-        continue;
-      }
-      tsdbInfo("fsrArr:%p, fid:%d, sver:%" PRId64 ", ever:%" PRId64, fsrArr, fset->fid, sver1, ever1);
-
-      code = tsdbTSnapRangeInitRef(fs->tsdb, fset, sver1, ever1, &fsr1);
-      if (code) break;
-
-      code = TARRAY2_APPEND(fsrArr[0], fsr1);
-      if (code) break;
-
-      fsr1 = NULL;
     }
+    tsdbInfo("fsrArr:%p, fid:%d, sver:%" PRId64 ", ever:%" PRId64, fsrArr, fset->fid, sver1, ever1);
+
+    code = tsdbTSnapRangeInitRef(fs->tsdb, fset, sver1, ever1, &fsr1);
     if (code) break;
+
+    code = TARRAY2_APPEND(fsrArr[0], fsr1);
+    if (code) break;
+
+    fsr1 = NULL;
   }
   taosThreadRwlockUnlock(&fs->tsdb->rwLock);
 
@@ -1319,14 +1303,6 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
   }
 
 _out:
-  TSnapRangeArray **ppArrs[2] = {&snapF, &snapD};
-  int               len = sizeof(ppArrs) / sizeof(ppArrs[0]);
-  for (int k = 0; k < len; k++) {
-    if (ppArrs[k][0] == NULL) continue;
-    TARRAY2_DESTROY(ppArrs[k][0], tsdbTSnapRangeClear);
-    taosMemoryFree(ppArrs[k][0]);
-    ppArrs[k][0] = NULL;
-  }
   return code;
 }
 

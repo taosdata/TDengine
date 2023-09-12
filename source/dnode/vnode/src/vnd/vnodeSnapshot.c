@@ -29,7 +29,7 @@ struct SVSnapReader {
   SMetaSnapReader *pMetaReader;
   // tsdb
   int8_t           tsdbDone;
-  TSnapRangeArray *pExclude;
+  TSnapRangeArray *pRanges;
   STsdbSnapReader *pTsdbReader;
   // tq
   int8_t           tqHandleDone;
@@ -46,8 +46,10 @@ struct SVSnapReader {
   SRSmaSnapReader *pRsmaReader;
 };
 
-int32_t vnodeSnapReaderOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapReader **ppReader) {
+int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader **ppReader) {
   int32_t       code = 0;
+  int64_t       sver = pParam->start;
+  int64_t       ever = pParam->end;
   SVSnapReader *pReader = NULL;
 
   pReader = (SVSnapReader *)taosMemoryCalloc(1, sizeof(*pReader));
@@ -59,7 +61,7 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapRe
   pReader->sver = sver;
   pReader->ever = ever;
 
-  // TODO: pReader->pEx
+  // TODO: decode pParam->data and store the result in pReader->pRanges
 
   vInfo("vgId:%d, vnode snapshot reader opened, sver:%" PRId64 " ever:%" PRId64, TD_VID(pVnode), sver, ever);
   *ppReader = pReader;
@@ -165,7 +167,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   if (!pReader->tsdbDone) {
     // open if not
     if (pReader->pTsdbReader == NULL) {
-      code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, SNAP_DATA_TSDB, pReader->pExclude,
+      code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, SNAP_DATA_TSDB, pReader->pRanges,
                                 &pReader->pTsdbReader);
       if (code) goto _err;
     }
