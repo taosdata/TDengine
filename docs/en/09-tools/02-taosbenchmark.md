@@ -17,7 +17,7 @@ Please be noted that in the context of TDengine cloud service, non privileged us
 
 There are two ways to install taosBenchmark:
 
-- Installing the official TDengine installer will automatically install taosBenchmark. Please refer to [TDengine installation](/operation/pkg-install) for details.
+- Installing the official TDengine installer will automatically install taosBenchmark. 
 
 - Compile taos-tools separately and install them. Please refer to the [taos-tools](https://github.com/taosdata/taos-tools) repository for details.
 
