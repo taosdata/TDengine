@@ -20,8 +20,8 @@ use linked_hash_map::LinkedHashMap;
 use metrics::counter;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sqlx::FromRow;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
+use sqlx::{FromRow, Sqlite};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::utils::mask_dsn;
 use taosx_core::utils::port_pool::PortPool;
@@ -1897,8 +1897,6 @@ impl AgentFilter {
 /// ```
 #[derive(Serialize, Deserialize, ToSchema, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[derive(sqlx::Type)]
-#[sqlx(rename_all = "snake_case")]
 pub(super) enum Status {
     /// Created by API.
     Created,
@@ -1933,6 +1931,75 @@ impl Display for Status {
             Status::Interrupted => f.write_str("interrupted"),
             Status::Stopped => f.write_str("stopped"),
         }
+    }
+}
+
+impl Status {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Status::Created => "created",
+            Status::Cleared => "cleared",
+            Status::Started => "started",
+            Status::Running => "running",
+            Status::Cancelled => "cancelled",
+            Status::Completed => "completed",
+            Status::Failed => "failed",
+            Status::Interrupted => "interrupted",
+            Status::Stopped => "stopped",
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("Invalid status: {0}")]
+pub struct InvalidStatus(String);
+
+impl FromStr for Status {
+    type Err = InvalidStatus;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "created" => Ok(Status::Created),
+            "cleared" => Ok(Status::Cleared),
+            "started" => Ok(Status::Started),
+            "running" => Ok(Status::Running),
+            "cancelled" => Ok(Status::Cancelled),
+            "completed" => Ok(Status::Completed),
+            "failed" => Ok(Status::Failed),
+            "interrupted" => Ok(Status::Interrupted),
+            "stopped" => Ok(Status::Stopped),
+            _ => Err(InvalidStatus(s.to_string())),
+        }
+    }
+}
+
+impl<'r> sqlx::Decode<'r, sqlx::sqlite::Sqlite> for Status {
+    fn decode(
+        value: <sqlx::sqlite::Sqlite as sqlx::database::HasValueRef<'r>>::ValueRef,
+    ) -> Result<Self, sqlx::error::BoxDynError> {
+        let v: &'r str = sqlx::Decode::decode(value)?;
+        Self::from_str(v).map_err(|err| Box::new(err) as _)
+    }
+}
+impl<'q, DB: sqlx::Database> sqlx::encode::Encode<'q, DB> for Status
+where
+    &'q str: sqlx::Encode<'q, DB>,
+{
+    fn encode_by_ref(
+        &self,
+        buf: &mut <DB as sqlx::database::HasArguments<'q>>::ArgumentBuffer,
+    ) -> sqlx::encode::IsNull {
+        self.as_str().encode(buf as _)
+    }
+
+    fn size_hint(&self) -> usize {
+        self.as_str().size_hint()
+    }
+}
+
+impl sqlx::Type<Sqlite> for Status {
+    fn type_info() -> <Sqlite as sqlx::Database>::TypeInfo {
+        str::type_info()
     }
 }
 
