@@ -388,7 +388,7 @@ pub(super) fn get_string_from_param_or_file(
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+
     use taos::IntoDsn;
 
     use super::*;
@@ -399,7 +399,7 @@ mod tests {
         std::env::set_var("RUST_LOG", "debug,tokio=warn");
         pretty_env_logger::init();
         let transferred = Arc::new(Transferred::default());
-        let metrics = transferred.clone();
+        let _metrics = transferred.clone();
         use std::time::Duration;
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_millis(200));

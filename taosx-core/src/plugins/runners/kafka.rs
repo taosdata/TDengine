@@ -18,8 +18,8 @@ use tokio_util::sync::CancellationToken;
 use taosx_ipc::prelude::ArrowDataType;
 use tracing::Span;
 
-use crate::{Action, build_ipc, Parser, Transferred};
 use crate::utils::port_pool::PortPool;
+use crate::{build_ipc, Action, Parser, Transferred};
 
 async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
     let socket = format!("127.0.0.1:{}", port);

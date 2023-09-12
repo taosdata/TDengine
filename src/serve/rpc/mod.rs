@@ -983,7 +983,7 @@ mod tests {
             // .into_inner();
 
             stream
-                .try_for_each(|res| async move {
+                .try_for_each(|_res| async move {
                     // dbg!(res.app_metadata);
                     Ok(())
                 })

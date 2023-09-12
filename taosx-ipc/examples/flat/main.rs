@@ -3,16 +3,13 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use anyhow::Result;
 
 use arrow::{
-    array::{
-        make_builder, BinaryBuilder, PrimitiveBuilder, StringBuilder, StructBuilder,
-        TimestampMillisecondBuilder, UInt8Array, UInt8Builder,
-    },
+    array::{BinaryBuilder, StringBuilder, TimestampMillisecondBuilder, UInt8Builder},
     datatypes::{DataType, Field, Schema},
     ipc::writer::StreamWriter,
     record_batch::RecordBatch,
 };
 
-use taosx_ipc::{prelude::*, stream::components::ListOfStructBuilder};
+use taosx_ipc::prelude::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -36,7 +33,7 @@ async fn main() -> Result<()> {
         Field::new("qos", ArrowDataType::UInt8, false),
         Field::new("payload", ArrowDataType::Binary, false),
     ];
-    let record_list = DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None);
+    let _record_list = DataType::Timestamp(arrow::datatypes::TimeUnit::Millisecond, None);
 
     let schema = Schema::new(flat_columns).with_metadata(metadata);
     // let schema = Schema::new(vec![

@@ -404,12 +404,13 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                    ).await?;
+                    )
+                    .await?;
                 }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }
-            Ok(())
         }
+        Ok(())
     }
 
     pub async fn delete_task(&self) -> Result<(), anyhow::Error> {

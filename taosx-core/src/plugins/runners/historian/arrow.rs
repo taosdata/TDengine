@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use arrow::array;
 use arrow::array::{ArrayBuilder, ArrayRef};
-use arrow::datatypes::{Field, Schema};
 use arrow::datatypes::TimeUnit::Nanosecond;
+use arrow::datatypes::{Field, Schema};
 use arrow::record_batch::RecordBatch;
 use chrono::NaiveDateTime;
 use itertools::Itertools;
@@ -29,12 +29,14 @@ impl ArrowDataAppender {
         metadata.insert(String::from("stream"), String::from("flat"));
         metadata.insert(String::from("ack"), String::from("lush"));
         // fields
-        let fields = columns.iter()
+        let fields = columns
+            .iter()
             .map(|c| Field::new(c.name(), to_arrow_type(c.column_type()), true))
             .collect_vec();
 
         // data builders
-        let data_builders = fields.iter()
+        let data_builders = fields
+            .iter()
             .map(|f| array::make_builder(f.data_type(), 10))
             .collect_vec();
 
@@ -168,8 +170,11 @@ impl ArrowDataAppender {
     }
 
     pub fn finish(&mut self) -> anyhow::Result<RecordBatch> {
-        let array_refs = self.data_builders.iter_mut()
-            .map(|builder| Arc::new(builder.finish()) as ArrayRef).collect_vec();
+        let array_refs = self
+            .data_builders
+            .iter_mut()
+            .map(|builder| Arc::new(builder.finish()) as ArrayRef)
+            .collect_vec();
 
         let batch = RecordBatch::try_new(Arc::new(self.schema.clone()), array_refs)?;
         Ok(batch)
@@ -187,6 +192,6 @@ fn to_arrow_type(column_type: ColumnType) -> ArrowDataType {
         ColumnType::Floatn => ArrowDataType::Float64,
         ColumnType::Int1 => ArrowDataType::UInt8,
         ColumnType::Intn | ColumnType::Int4 => ArrowDataType::Int32,
-        _ => ArrowDataType::Binary
+        _ => ArrowDataType::Binary,
     }
 }

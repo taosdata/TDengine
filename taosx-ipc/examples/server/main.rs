@@ -6,13 +6,10 @@ use std::{
     path::Path,
 };
 use taos::sync::*;
-use taos_query::{AsyncFetchable, AsyncQueryable, RawBlock};
+use taos_query::{AsyncFetchable, AsyncQueryable};
 use taosx_ipc::{
     ack::{AckWriter, AckWriterBuilder},
-    stream::{
-        flat::FlatMessage,
-        point::{self, PointMessage},
-    },
+    stream::{flat::FlatMessage, point::PointMessage},
 };
 use tokio::runtime::Runtime;
 use tracing::{info, instrument, log};
@@ -297,7 +294,6 @@ pub struct ColumnConfig {
     pub is_primary_key: bool,
 }
 
-use anyhow::Context;
 fn handle_point_message<R: Read, W: Write>(
     ipc_reader: IpcReader<R>,
     taos: Taos,
@@ -337,8 +333,8 @@ fn handle_point_message<R: Read, W: Write>(
     }"#,
     )
     .unwrap();
-    let mut stmt = Stmt::init(&taos)?;
-    let mut records_count = 0;
+    let _stmt = Stmt::init(&taos)?;
+    let records_count = 0;
     let runtime = tokio::runtime::Runtime::new()?;
     for record in ipc_reader {
         if let Ok(record) = record {
@@ -532,7 +528,7 @@ fn handle_point_message<R: Read, W: Write>(
                     loop {
                         let sql_res = taos_query::Queryable::exec(&taos, &insert_sql);
                         match sql_res {
-                            Ok(n) => {
+                            Ok(_n) => {
                                 break;
                             }
                             Err(err) => {

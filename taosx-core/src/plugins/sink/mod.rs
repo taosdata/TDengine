@@ -1,10 +1,5 @@
 use anyhow::{bail, Context};
-use arrow::{
-    array::{ArrayRef, TimestampMillisecondArray},
-    datatypes::{Schema, SchemaRef},
-    ipc::writer::IpcWriteOptions,
-    record_batch::RecordBatch,
-};
+use arrow::{datatypes::Schema, ipc::writer::IpcWriteOptions, record_batch::RecordBatch};
 use arrow_flight::FlightClient;
 use async_backtrace::framed;
 use bytes::Bytes;
@@ -20,7 +15,6 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
-    task::Poll,
     time::Duration,
 };
 use taos::{
@@ -64,11 +58,7 @@ async fn ipc_tcp_forward(
     tracing::info!("token: {}", format!("{:x}", md5::compute(token.clone())));
 
     let _ = cancel;
-    use arrow_flight::{
-        encode::{FlightDataEncoder, FlightDataEncoderBuilder},
-        error::FlightError,
-        FlightData,
-    };
+    use arrow_flight::{encode::FlightDataEncoderBuilder, error::FlightError};
     use futures::StreamExt;
     // struct FakeStream(SchemaRef, tokio::time::Interval);
 
