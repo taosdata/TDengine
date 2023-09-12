@@ -1158,7 +1158,201 @@ _exit:
   return code;
 }
 
-int32_t tsdbSnapGetInfo(STsdb* pTsdb, SSnapshot* pSnap) {
-  // TODO: get the full and diff info of tsdb Snap
+static int32_t tsdbTSnapRangeCmprFn(STSnapRange* fsr1, STSnapRange* fsr2) {
+  if (fsr1->fid < fsr2->fid) return -1;
+  if (fsr1->fid > fsr2->fid) return 1;
   return 0;
+}
+
+static int32_t tsdbTFileInsertSnapRange(STFile* f, TSnapRangeArray* snapR) {
+  STSnapRange* fsr = taosMemoryCalloc(1, sizeof(*fsr));
+  if (fsr == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  fsr->fid = f->fid;
+  fsr->sver = f->minVer;
+  fsr->ever = f->maxVer;
+
+  int32_t code = TARRAY2_SORT_INSERT(snapR, fsr, tsdbTSnapRangeCmprFn);
+  if (code) {
+    taosMemoryFree(fsr);
+    fsr = NULL;
+  }
+  return code;
+}
+
+static int32_t tsdbTFSetInsertSnapRange(STFileSet* fset, TSnapRangeArray* snapR) {
+  STFile tf = {.fid = fset->fid, .minVer = VERSION_MAX, .maxVer = VERSION_MIN};
+  for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+    if (fset->farr[ftype] == NULL) continue;
+    STFile* f = fset->farr[ftype]->f;
+    tsdbTFileUpdVerRange(&tf, (SVersionRange){.minVer = f->minVer, .maxVer = f->maxVer});
+  }
+
+  const SSttLvl* lvl;
+  TARRAY2_FOREACH(fset->lvlArr, lvl) {
+    STFileObj* fobj;
+    TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+      tsdbTFileUpdVerRange(&tf, (SVersionRange){.minVer = fobj->f->minVer, .maxVer = fobj->f->maxVer});
+    }
+  }
+
+  int32_t code = tsdbTFileInsertSnapRange(&tf, snapR);
+  if (code) return code;
+  return code;
+}
+
+static TSnapRangeArray* tsdbGetSnapRangeArray(STFileSystem* fs) {
+  int32_t          code = 0;
+  TSnapRangeArray* snapR = taosMemoryCalloc(1, sizeof(*snapR));
+  if (snapR == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  TARRAY2_INIT(snapR);
+
+  taosThreadRwlockRdlock(&fs->tsdb->rwLock);
+  STFileSet* fset;
+  TARRAY2_FOREACH(fs->fSetArr, fset) {
+    code = tsdbTFSetInsertSnapRange(fset, snapR);
+    if (code) break;
+  }
+  taosThreadRwlockUnlock(&fs->tsdb->rwLock);
+
+  if (code) {
+    TARRAY2_DESTROY(snapR, tsdbTSnapRangeClear);
+    taosMemoryFree(snapR);
+    snapR = NULL;
+  }
+  return snapR;
+}
+
+int32_t tSerializeSnapRangeArray(void* buf, int32_t bufLen, TSnapRangeArray* pSnapR) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  int8_t  msgVer = 1;
+  int32_t arrLen = TARRAY2_SIZE(pSnapR);
+  int8_t  reserved8 = 0;
+  if (tStartEncode(&encoder) < 0) goto _err;
+  if (tEncodeI8(&encoder, msgVer) < 0) goto _err;
+  if (tEncodeI8(&encoder, reserved8) < 0) goto _err;
+  if (tEncodeI32(&encoder, arrLen) < 0) goto _err;
+
+  int64_t reserved64 = 0;
+  for (int32_t i = 0; i < arrLen; i++) {
+    STSnapRange* u = TARRAY2_GET(pSnapR, i);
+    int64_t      fid = u->fid;
+    if (tEncodeI64(&encoder, fid) < 0) goto _err;
+    if (tEncodeI64(&encoder, u->sver) < 0) goto _err;
+    if (tEncodeI64(&encoder, u->ever) < 0) goto _err;
+    if (tEncodeI64(&encoder, reserved64) < 0) goto _err;
+  }
+
+  tEndEncode(&encoder);
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+
+_err:
+  tEncoderClear(&encoder);
+  return -1;
+}
+
+int32_t tDeserializeSnapRangeArray(void* buf, int32_t bufLen, TSnapRangeArray* pSnapR) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  int8_t  msgVer = 0;
+  int32_t arrLen = 0;
+  int8_t  reserved8 = 0;
+  if (tStartDecode(&decoder) < 0) goto _err;
+  if (tDecodeI8(&decoder, &msgVer) < 0) goto _err;
+  if (tDecodeI8(&decoder, &reserved8) < 0) goto _err;
+  if (tDecodeI32(&decoder, &arrLen) < 0) goto _err;
+
+  int64_t      fid = 0;
+  int64_t      reserved64 = 0;
+  STSnapRange* pRange = NULL;
+  for (int32_t i = 0; i < arrLen; i++) {
+    pRange = taosMemoryCalloc(1, sizeof(STSnapRange));
+    if (tDecodeI64(&decoder, &fid) < 0) goto _err;
+    pRange->fid = fid;
+    if (tDecodeI64(&decoder, &pRange->sver) < 0) goto _err;
+    if (tDecodeI64(&decoder, &pRange->ever) < 0) goto _err;
+    if (tDecodeI64(&decoder, &reserved64) < 0) goto _err;
+    TARRAY2_APPEND(pSnapR, pRange);
+    pRange = NULL;
+  }
+
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
+
+_err:
+  if (pRange) {
+    taosMemoryFree(pRange);
+    pRange = NULL;
+  }
+  tDecoderClear(&decoder);
+  return -1;
+}
+
+void tsdbSnapRangeArrayDestroy(TSnapRangeArray** ppSnap) {
+  TARRAY2_DESTROY(ppSnap[0], tsdbTSnapRangeClear);
+  taosMemoryFree(ppSnap[0]);
+  ppSnap[0] = NULL;
+}
+
+static int32_t tsdbSnapInfoDataLenCalc(TSnapRangeArray* pSnap) {
+  int32_t headerLen = 8;
+  int32_t itemLen = sizeof(STSnapRange) + 8;
+  int32_t size = TARRAY2_SIZE(pSnap);
+  return headerLen + itemLen * size;
+}
+
+int32_t tsdbSnapGetInfo(STsdb* pTsdb, SSnapshot* pSnap) {
+  int32_t code = 0;
+  if (pSnap->typ == TAOS_SYNC_SNAP_INFO_BRIEF) {
+    return 0;
+  }
+  code = -1;
+  TSnapRangeArray* snapR = tsdbGetSnapRangeArray(pTsdb->pFS);
+  if (snapR == NULL) {
+    goto _out;
+  }
+  if (pSnap->typ == TAOS_SYNC_SNAP_INFO_DIFF) {
+    for (int32_t i = 0; i < TARRAY2_SIZE(snapR); i++) {
+      STSnapRange* u = TARRAY2_GET(snapR, i);
+      u->sver = u->ever + 1;
+      u->ever = VERSION_MAX;
+    }
+  }
+
+  int32_t bufLen = sizeof(SMsgHead) + tsdbSnapInfoDataLenCalc(snapR);
+  void*   data = taosMemoryRealloc(pSnap->data, bufLen);
+  if (data == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _out;
+  }
+  pSnap->data = data;
+  void*   buf = ((char*)data) + sizeof(SMsgHead);
+  int32_t tlen = 0;
+
+  if ((tlen = tSerializeSnapRangeArray(buf, bufLen, snapR)) < 0) {
+    tsdbError("vgId:%d, failed to serialize snap range since %s", TD_VID(pTsdb->pVnode), terrstr());
+    goto _out;
+  }
+  SMsgHead* msgHead = pSnap->data;
+  msgHead->contLen = tlen;
+  msgHead->vgId = TD_VID(pTsdb->pVnode);
+
+  code = 0;
+_out:
+  if (snapR) {
+    tsdbSnapRangeArrayDestroy(&snapR);
+  }
+
+  return code;
 }
