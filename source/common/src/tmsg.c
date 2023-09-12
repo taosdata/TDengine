@@ -1384,6 +1384,8 @@ int32_t tDeserializeSDropUserReq(void *buf, int32_t bufLen, SDropUserReq *pReq) 
 }
 
 SIpWhiteList *cloneIpWhiteList(SIpWhiteList *pIpWhiteList) {
+  if (pIpWhiteList == NULL) return NULL;
+
   int32_t       sz = sizeof(SIpWhiteList) + pIpWhiteList->num * sizeof(SIpV4Range);
   SIpWhiteList *pNew = taosMemoryCalloc(1, sz);
   memcpy(pNew, pIpWhiteList, sz);

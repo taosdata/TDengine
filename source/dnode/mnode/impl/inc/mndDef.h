@@ -289,6 +289,7 @@ typedef struct {
   int32_t       acctId;
   int32_t       authVersion;
   int32_t       passVersion;
+  int64_t       ipWhiteListVer;
   SIpWhiteList* pIpWhiteList;
 
   SHashObj* readDbs;

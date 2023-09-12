@@ -139,7 +139,7 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
-  mndUpdateIpWhite(TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1);
+  mndUpdateIpWhite(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1);
 
 _OVER:
   mndTransDrop(pTrans);
@@ -705,7 +705,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
 
-  mndUpdateIpWhite(TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1);
+  mndUpdateIpWhite(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1);
 _OVER:
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
@@ -998,7 +998,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
-  mndUpdateIpWhite(TSDB_DEFAULT_USER, pDnode->fqdn, IP_WHITE_DROP, 1);
+  mndUpdateIpWhite(pMnode, TSDB_DEFAULT_USER, pDnode->fqdn, IP_WHITE_DROP, 1);
   code = 0;
 
 _OVER:

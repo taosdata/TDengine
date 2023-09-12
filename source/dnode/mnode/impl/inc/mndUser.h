@@ -47,7 +47,7 @@ void    mndUserFreeObj(SUserObj *pUser);
 
 int64_t mndGetIpWhiteVer(SMnode *pMnode);
 
-void mndUpdateIpWhite(char *user, char *fqdn, int8_t type, int8_t lock);
+void mndUpdateIpWhite(SMnode *pMnode, char *user, char *fqdn, int8_t type, int8_t lock);
 
 #ifdef __cplusplus
 }
