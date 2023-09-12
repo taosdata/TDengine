@@ -1344,6 +1344,8 @@ static int32_t mnodeCompact(SDbObj *pDb, SCompactMsg *pCompactMsg) {
     }
   }
 
+  int64_t skey0 = skey;
+  int64_t ekey0 = ekey;
   // copy from mnodeSyncDb, so ugly
   for (int32_t i = 0; i < count; i++) {
     SVgObj *pVgroup = NULL;
@@ -1354,10 +1356,10 @@ static int32_t mnodeCompact(SDbObj *pDb, SCompactMsg *pCompactMsg) {
       if (pVgroup == NULL) break;
       if (pVgroup->pDb == pDb && pVgroup->vgId == buf[i]) {
         if (nanoSkey) {          
-          skey = convertTimePrecision(skey, TSDB_TIME_PRECISION_NANO, pVgroup->pDb->cfg.precision);
+          skey = convertTimePrecision(skey0, TSDB_TIME_PRECISION_NANO, pVgroup->pDb->cfg.precision);
         }
         if (nanoEkey) {
-          ekey = convertTimePrecision(ekey, TSDB_TIME_PRECISION_NANO, pVgroup->pDb->cfg.precision);
+          ekey = convertTimePrecision(ekey0, TSDB_TIME_PRECISION_NANO, pVgroup->pDb->cfg.precision);
         }
         mInfo("vgId: %d send compact msg. start %"PRId64 " end %"PRId64, pVgroup->vgId, skey, ekey);
         mnodeSendCompactVgroupMsg(pVgroup, skey, ekey);
