@@ -819,14 +819,33 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
     return -1;
   }
 #ifdef WINDOWS
-  *ptrBuf = taosMemoryMalloc(1024);
+  size_t bufferSize = 512;
+  *ptrBuf = taosMemoryMalloc(bufferSize);
   if (*ptrBuf == NULL) return -1;
-  if (fgets(*ptrBuf, 1023, pFile->fp) == NULL) {
-    taosMemoryFreeClear(*ptrBuf);
-    return -1;
+
+  size_t bytesRead = 0;
+  size_t totalBytesRead = 0;
+
+  while (1) {
+    char *result = fgets(*ptrBuf + totalBytesRead, bufferSize - totalBytesRead, pFile->fp);
+    if (result == NULL) {
+      taosMemoryFreeClear(*ptrBuf);
+      return -1;
+    }
+    bytesRead = strlen(*ptrBuf + totalBytesRead);
+    totalBytesRead += bytesRead;
+
+    if (totalBytesRead < bufferSize - 1 || (*ptrBuf)[totalBytesRead - 1] == '\n') {
+      break;
+    }
+
+    bufferSize += 512;
+    *ptrBuf = taosMemoryRealloc(*ptrBuf, bufferSize);
+    if (*ptrBuf == NULL) return -1;
   }
-  (*ptrBuf)[1023] = 0;
-  return strlen(*ptrBuf);
+
+  (*ptrBuf)[totalBytesRead] = '\0';
+  return totalBytesRead;
 #else
   size_t len = 0;
   return getline(ptrBuf, &len, pFile->fp);
