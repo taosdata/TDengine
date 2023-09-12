@@ -223,9 +223,16 @@ int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
     destroyStreamDataBlock(pBlock);
   } else {
     ASSERT(type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH);
-    code = taosWriteQitem(pTask->outputInfo.queue->pQueue, pBlock);
+    STaosQueue* pQueue = pTask->outputInfo.queue->pQueue;
+    code = taosWriteQitem(pQueue, pBlock);
+
+    int32_t total = taosQueueItemSize(pQueue);
+    double  size = SIZE_IN_MB(taosQueueMemorySize(pQueue));
     if (code != 0) {
-      qError("s-task:%s failed to put res into outputQ", pTask->id.idStr);
+      qError("s-task:%s failed to put res into outputQ, outputQ items:%d, size:%.2fMiB code:%s, result lost",
+             pTask->id.idStr, total, size, tstrerror(code));
+    } else {
+      qInfo("s-task:%s data put into outputQ, outputQ items:%d, size:%.2fMiB", pTask->id.idStr, total, size);
     }
 
     streamDispatchStreamBlock(pTask);
