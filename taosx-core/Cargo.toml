@@ -95,7 +95,7 @@ md5 = "0.7.0"
 kafka = "0.9.0"
 rand = "0.8"
 base64 = "0.21.2"
-tiberius = { version = "0.12.2", default-features = false, features = ["chrono", "tds73", "time", "winauth", "vendored-openssl"] }
+tiberius = { version = "0.12.2", default-features = false, features = ["chrono", "tds73", "time", "winauth"] }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["processthreadsapi"] }
