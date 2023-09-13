@@ -2902,7 +2902,7 @@ static SNode* createMultiResFunc(SFunctionNode* pSrcFunc, SExprNode* pExpr) {
       taosCreateMD5Hash(buf, len);
       strncpy(pFunc->node.aliasName, buf, TSDB_COL_NAME_LEN  - 1);
       len = snprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pCol->colName);
-      taosCreateMD5Hash(buf, len);
+      // note: userAlias could be truncated here
       strncpy(pFunc->node.userAlias, buf, TSDB_COL_NAME_LEN - 1);
     }
   } else {
@@ -2910,7 +2910,7 @@ static SNode* createMultiResFunc(SFunctionNode* pSrcFunc, SExprNode* pExpr) {
     taosCreateMD5Hash(buf, len);
     strncpy(pFunc->node.aliasName, buf, TSDB_COL_NAME_LEN - 1);
     len = snprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pExpr->userAlias);
-    taosCreateMD5Hash(buf, len);
+    // note: userAlias could be truncated here
     strncpy(pFunc->node.userAlias, buf, TSDB_COL_NAME_LEN - 1);
   }
 
@@ -7021,7 +7021,6 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
 
   int32_t code = nodesListStrictAppend(pParamterList, (SNode*)col);
   if (code) {
-    nodesDestroyNode((SNode*)col);
     nodesDestroyList(pParamterList);
     return code;
   }
@@ -7039,7 +7038,6 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
   }
   code = nodesListStrictAppend(pProjectionList, pFunc);
   if (code) {
-    nodesDestroyNode(pFunc);
     nodesDestroyList(pProjectionList);
     return code;
   }

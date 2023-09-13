@@ -246,6 +246,8 @@ int32_t streamTaskSnapWrite(SStreamTaskWriter* pWriter, uint8_t* pData, uint32_t
 
     taosWLockLatch(&pTq->pStreamMeta->lock);
     int64_t key[2] = {task.streamId, task.taskId};
+
+    taosWLockLatch(&pTq->pStreamMeta->lock);
     if (tdbTbUpsert(pTq->pStreamMeta->pTaskDb, key, sizeof(int64_t) << 1, (uint8_t*)pData + sizeof(SSnapDataHdr),
                     nData - sizeof(SSnapDataHdr), pTq->pStreamMeta->txn) < 0) {
       taosWUnLockLatch(&pTq->pStreamMeta->lock);

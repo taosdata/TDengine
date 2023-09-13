@@ -418,6 +418,10 @@ int32_t streamMetaGetNumOfStreamTasks(SStreamMeta* pMeta) {
     int64_t        keys[2] = {pId->streamId, pId->taskId};
 
     SStreamTask** p = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+    if (p == NULL) {
+      continue;
+    }
+
     if ((*p)->info.fillHistory == 0) {
       num += 1;
     }

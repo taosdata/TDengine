@@ -436,6 +436,8 @@ int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStream
   taosArrayDestroy(pRes->uidList);
   *pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
   if (*pRefBlock == NULL) {
+    blockDataCleanup(pDelBlock);
+    taosMemoryFree(pDelBlock);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 

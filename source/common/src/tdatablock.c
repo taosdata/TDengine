@@ -2139,22 +2139,16 @@ int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, cha
     return TSDB_CODE_FAILED;
   }
 
-  SSmlKv pTag = {.key = "group_id",
-                 .keyLen = sizeof("group_id") - 1,
-                 .type = TSDB_DATA_TYPE_UBIGINT,
-                 .u = groupId,
-                 .length = sizeof(uint64_t)};
+  int8_t      type = TSDB_DATA_TYPE_UBIGINT;
+  const char* name = "group_id";
+  int32_t     len = strlen(name);
+  SSmlKv pTag = { .key = name, .keyLen = len, .type = type, .u = groupId, .length = sizeof(uint64_t)};
   taosArrayPush(tags, &pTag);
 
   RandTableName rname = {
-      .tags = tags,
-      .stbFullName = stbFullName,
-      .stbFullNameLen = strlen(stbFullName),
-      .ctbShortName = cname,
-  };
+      .tags = tags, .stbFullName = stbFullName, .stbFullNameLen = strlen(stbFullName), .ctbShortName = cname};
 
   buildChildTableName(&rname);
-
   taosArrayDestroy(tags);
 
   if ((rname.ctbShortName && rname.ctbShortName[0]) == 0) {

@@ -16,7 +16,7 @@
 #include "taoserror.h"
 #include "walInt.h"
 
-SWalReader *walOpenReader(SWal *pWal, SWalFilterCond *cond) {
+SWalReader *walOpenReader(SWal *pWal, SWalFilterCond *cond, int64_t id) {
   SWalReader *pReader = taosMemoryCalloc(1, sizeof(SWalReader));
   if (pReader == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -24,7 +24,7 @@ SWalReader *walOpenReader(SWal *pWal, SWalFilterCond *cond) {
   }
 
   pReader->pWal = pWal;
-  pReader->readerId = tGenIdPI64();
+  pReader->readerId = (id != 0)? id:tGenIdPI64();
   pReader->pIdxFile = NULL;
   pReader->pLogFile = NULL;
   pReader->curVersion = -1;
@@ -75,6 +75,7 @@ int32_t walNextValidMsg(SWalReader *pReader) {
     terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
     return -1;
   }
+
   while (fetchVer <= appliedVer) {
     if (walFetchHead(pReader, fetchVer) < 0) {
       return -1;
@@ -257,9 +258,9 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver) {
   bool    seeked = false;
 
   wDebug("vgId:%d, try to fetch ver %" PRId64 ", first ver:%" PRId64 ", commit ver:%" PRId64 ", last ver:%" PRId64
-         ", applied ver:%" PRId64,
+         ", applied ver:%" PRId64", 0x%"PRIx64,
          pRead->pWal->cfg.vgId, ver, pRead->pWal->vers.firstVer, pRead->pWal->vers.commitVer, pRead->pWal->vers.lastVer,
-         pRead->pWal->vers.appliedVer);
+         pRead->pWal->vers.appliedVer, pRead->readerId);
 
   // TODO: valid ver
   if (ver > pRead->pWal->vers.commitVer) {
@@ -297,7 +298,8 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver) {
   code = walValidHeadCksum(pRead->pHead);
 
   if (code != 0) {
-    wError("vgId:%d, unexpected wal log index:%" PRId64 ", since head checksum not passed", pRead->pWal->cfg.vgId, ver);
+    wError("vgId:%d, unexpected wal log index:%" PRId64 ", since head checksum not passed, 0x%"PRIx64, pRead->pWal->cfg.vgId, ver,
+        pRead->readerId);
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
@@ -307,9 +309,9 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver) {
 
 int32_t walSkipFetchBody(SWalReader *pRead) {
   wDebug("vgId:%d, skip fetch body %" PRId64 ", first ver:%" PRId64 ", commit ver:%" PRId64 ", last ver:%" PRId64
-         ", applied ver:%" PRId64,
+         ", applied ver:%" PRId64", 0x%"PRIx64,
          pRead->pWal->cfg.vgId, pRead->pHead->head.version, pRead->pWal->vers.firstVer, pRead->pWal->vers.commitVer,
-         pRead->pWal->vers.lastVer, pRead->pWal->vers.appliedVer);
+         pRead->pWal->vers.lastVer, pRead->pWal->vers.appliedVer, pRead->readerId);
 
   int64_t code = taosLSeekFile(pRead->pLogFile, pRead->pHead->head.bodyLen, SEEK_CUR);
   if (code < 0) {
@@ -324,11 +326,13 @@ int32_t walSkipFetchBody(SWalReader *pRead) {
 int32_t walFetchBody(SWalReader *pRead) {
   SWalCont *pReadHead = &pRead->pHead->head;
   int64_t   ver = pReadHead->version;
+  int32_t   vgId = pRead->pWal->cfg.vgId;
+  int64_t   id = pRead->readerId;
 
   wDebug("vgId:%d, fetch body %" PRId64 ", first ver:%" PRId64 ", commit ver:%" PRId64 ", last ver:%" PRId64
-         ", applied ver:%" PRId64,
-         pRead->pWal->cfg.vgId, ver, pRead->pWal->vers.firstVer, pRead->pWal->vers.commitVer, pRead->pWal->vers.lastVer,
-         pRead->pWal->vers.appliedVer);
+         ", applied ver:%" PRId64 ", 0x%" PRIx64,
+         vgId, ver, pRead->pWal->vers.firstVer, pRead->pWal->vers.commitVer, pRead->pWal->vers.lastVer,
+         pRead->pWal->vers.appliedVer, id);
 
   if (pRead->capacity < pReadHead->bodyLen) {
     SWalCkHead *ptr = (SWalCkHead *)taosMemoryRealloc(pRead->pHead, sizeof(SWalCkHead) + pReadHead->bodyLen);
@@ -344,26 +348,25 @@ int32_t walFetchBody(SWalReader *pRead) {
   if (pReadHead->bodyLen != taosReadFile(pRead->pLogFile, pReadHead->body, pReadHead->bodyLen)) {
     if (pReadHead->bodyLen < 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
-      wError("vgId:%d, wal fetch body error:%" PRId64 ", read request index:%" PRId64 ", since %s",
-             pRead->pWal->cfg.vgId, pReadHead->version, ver, tstrerror(terrno));
+      wError("vgId:%d, wal fetch body error:%" PRId64 ", read request index:%" PRId64 ", since %s, 0x%"PRIx64,
+             vgId, pReadHead->version, ver, tstrerror(terrno), id);
     } else {
-      wError("vgId:%d, wal fetch body error:%" PRId64 ", read request index:%" PRId64 ", since file corrupted",
-             pRead->pWal->cfg.vgId, pReadHead->version, ver);
+      wError("vgId:%d, wal fetch body error:%" PRId64 ", read request index:%" PRId64 ", since file corrupted, 0x%"PRIx64,
+             vgId, pReadHead->version, ver, id);
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     }
     return -1;
   }
 
   if (pReadHead->version != ver) {
-    wError("vgId:%d, wal fetch body error, index:%" PRId64 ", read request index:%" PRId64, pRead->pWal->cfg.vgId,
-           pReadHead->version, ver);
+    wError("vgId:%d, wal fetch body error, index:%" PRId64 ", read request index:%" PRId64", 0x%"PRIx64, vgId,
+           pReadHead->version, ver, id);
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
 
   if (walValidBodyCksum(pRead->pHead) != 0) {
-    wError("vgId:%d, wal fetch body error, index:%" PRId64 ", since body checksum not passed", pRead->pWal->cfg.vgId,
-           ver);
+    wError("vgId:%d, wal fetch body error, index:%" PRId64 ", since body checksum not passed, 0x%" PRIx64, vgId, ver, id);
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
