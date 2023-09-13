@@ -80,7 +80,7 @@ typedef struct {
 typedef struct {
   SHashObj* pList;
   int64_t   ver;
-} SWhiteList;
+} SIpWhiteListTab;
 typedef struct SWorkThrd {
   TdThread      thread;
   uv_connect_t  connect_req;
@@ -95,7 +95,7 @@ typedef struct SWorkThrd {
   void* pTransInst;
   bool  quit;
 
-  SWhiteList* pWhiteList;
+  SIpWhiteListTab* pWhiteList;
   int64_t     whiteListVer;
   int8_t      enableIpWhiteList;
 } SWorkThrd;
@@ -120,13 +120,13 @@ typedef struct SServerObj {
   bool inited;
 } SServerObj;
 
-SWhiteList* uvWhiteListCreate();
-void        uvWhiteListDestroy(SWhiteList* pWhite);
-void        uvWhiteListAdd(SWhiteList* pWhite, char* user, SIpWhiteList* pList, int64_t ver);
-void        uvWhiteListUpdate(SWhiteList* pWhite, SHashObj* pTable);
-bool        uvWhiteListCheckConn(SWhiteList* pWhite, SSvrConn* pConn);
-bool        uvWhiteListFilte(SWhiteList* pWhite, char* user, uint32_t ip, int64_t ver);
-void        uvWhiteListSetConnVer(SWhiteList* pWhite, SSvrConn* pConn);
+SIpWhiteListTab* uvWhiteListCreate();
+void        uvWhiteListDestroy(SIpWhiteListTab* pWhite);
+void        uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteList* pList, int64_t ver);
+void        uvWhiteListUpdate(SIpWhiteListTab* pWhite, SHashObj* pTable);
+bool        uvWhiteListCheckConn(SIpWhiteListTab* pWhite, SSvrConn* pConn);
+bool        uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, uint32_t ip, int64_t ver);
+void        uvWhiteListSetConnVer(SIpWhiteListTab* pWhite, SSvrConn* pConn);
 
 static void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
 static void uvAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
@@ -219,14 +219,14 @@ static bool uvCheckIp(SIpV4Range* pRange, int32_t ip) {
   }
   return subnetCheckIp(&subnet, ip);
 }
-SWhiteList* uvWhiteListCreate() {
-  SWhiteList* pWhiteList = taosMemoryCalloc(1, sizeof(SWhiteList));
+SIpWhiteListTab* uvWhiteListCreate() {
+  SIpWhiteListTab* pWhiteList = taosMemoryCalloc(1, sizeof(SIpWhiteListTab));
 
   pWhiteList->pList = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 0, HASH_NO_LOCK);
   pWhiteList->ver = -1;
   return pWhiteList;
 }
-void uvWhiteListDestroy(SWhiteList* pWhite) {
+void uvWhiteListDestroy(SIpWhiteListTab* pWhite) {
   SHashObj* pWhiteList = pWhite->pList;
   void*     pIter = taosHashIterate(pWhiteList, NULL);
   while (pIter) {
@@ -250,7 +250,7 @@ void uvWhiteListToStr(SWhiteUserList* plist, char* user, char** ppBuf) {
 
   *ppBuf = pBuf;
 }
-void uvWhiteListDebug(SWhiteList* pWrite) {
+void uvWhiteListDebug(SIpWhiteListTab* pWrite) {
   SHashObj* pWhiteList = pWrite->pList;
   void*     pIter = taosHashIterate(pWhiteList, NULL);
   while (pIter) {
@@ -268,7 +268,7 @@ void uvWhiteListDebug(SWhiteList* pWrite) {
     pIter = taosHashIterate(pWhiteList, pIter);
   }
 }
-void uvWhiteListAdd(SWhiteList* pWhite, char* user, SIpWhiteList* plist, int64_t ver) {
+void uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteList* plist, int64_t ver) {
   SHashObj* pWhiteList = pWhite->pList;
 
   SWhiteUserList** ppUserList = taosHashGet(pWhiteList, user, strlen(user));
@@ -289,7 +289,7 @@ void uvWhiteListAdd(SWhiteList* pWhite, char* user, SIpWhiteList* plist, int64_t
   uvWhiteListDebug(pWhite);
 }
 
-void uvWhiteListUpdate(SWhiteList* pWhite, SHashObj* pTable) {
+void uvWhiteListUpdate(SIpWhiteListTab* pWhite, SHashObj* pTable) {
   pWhite->ver++;
   // impl later
 }
@@ -299,7 +299,7 @@ static bool uvWhiteListIsDefaultAddr(uint32_t ip) {
   static SIpV4Range range = {.ip = 16777343, .mask = 32};
   return range.ip == ip;
 }
-bool uvWhiteListFilte(SWhiteList* pWhite, char* user, uint32_t ip, int64_t ver) {
+bool uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, uint32_t ip, int64_t ver) {
   // impl check
   SHashObj* pWhiteList = pWhite->pList;
   bool      valid = false;
@@ -310,10 +310,10 @@ bool uvWhiteListFilte(SWhiteList* pWhite, char* user, uint32_t ip, int64_t ver) 
   if (ppList == NULL || *ppList == NULL) {
     return false;
   }
-  SWhiteUserList* pList = *ppList;
-  if (pList->ver == ver) return true;
+  SWhiteUserList* pUserList = *ppList;
+  if (pUserList->ver == ver) return true;
 
-  SIpWhiteList* pIpWhiteList = pList->pList;
+  SIpWhiteList* pIpWhiteList = pUserList->pList;
   for (int i = 0; i < pIpWhiteList->num; i++) {
     SIpV4Range* range = &pIpWhiteList->pIpRange[i];
     if (uvCheckIp(range, ip)) {
@@ -323,7 +323,7 @@ bool uvWhiteListFilte(SWhiteList* pWhite, char* user, uint32_t ip, int64_t ver) 
   }
   return valid;
 }
-bool uvWhiteListCheckConn(SWhiteList* pWhite, SSvrConn* pConn) {
+bool uvWhiteListCheckConn(SIpWhiteListTab* pWhite, SSvrConn* pConn) {
   if (pConn->inType == TDMT_MND_STATUS || pConn->inType == TDMT_MND_RETRIEVE_IP_WHITE ||
       pConn->serverIp == pConn->clientIp ||
       pWhite->ver == pConn->whiteListVer /*|| strncmp(pConn->user, "_dnd", strlen("_dnd")) == 0*/)
@@ -331,7 +331,7 @@ bool uvWhiteListCheckConn(SWhiteList* pWhite, SSvrConn* pConn) {
 
   return uvWhiteListFilte(pWhite, pConn->user, pConn->clientIp, pConn->whiteListVer);
 }
-void uvWhiteListSetConnVer(SWhiteList* pWhite, SSvrConn* pConn) {
+void uvWhiteListSetConnVer(SIpWhiteListTab* pWhite, SSvrConn* pConn) {
   // if conn already check by current whiteLis
   pConn->whiteListVer = pWhite->ver;
 }
