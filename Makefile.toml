@@ -3,31 +3,26 @@ load_cargo_aliases = false
 skip_core_tasks = true
 default_to_workspace = false
 
-[tasks.build-taosx]
+[tasks.taosx]
 command = "cargo"
 args = ["build", "--release"]
 
-[tasks.build-taosx-agent]
+[tasks.taosx-agent]
 command = "cargo"
 args = ["build", "--release", "-p", "taosx-agent"]
 
-[tasks.build-plugins]
-dependencies = [
-  "build-taosx-influxdb",
-  "build-taosx-opentsdb",
-  "build-taosx-mqtt",
-  "build-taosx-opc",
-]
+[tasks.plugins]
+dependencies = ["taosx-influxdb", "taosx-opentsdb", "taosx-mqtt", "taosx-opc"]
 
-[tasks.build-taosx-influxdb]
+[tasks.taosx-influxdb]
 command = "mvn"
 args = ["package", "-f", "plugins/influxdb/pom.xml"]
 
-[tasks.build-taosx-opentsdb]
+[tasks.taosx-opentsdb]
 command = "mvn"
 args = ["package", "-f", "plugins/opentsdb/pom.xml"]
 
-[tasks.build-taosx-mqtt]
+[tasks.taosx-mqtt]
 script = """
 commit=$(git rev-parse HEAD | cut -c 1-8)
 built=$(date +"%F %T %:z")
@@ -37,7 +32,7 @@ go build -C plugins/mqtt \
   -ldflags "-X $path/version.Commit=${commit} -X '$path/version.BuildTime=$built'"
 """
 
-[tasks.build-taosx-opc]
+[tasks.taosx-opc]
 script = """
 commit=$(git rev-parse HEAD | cut -c 1-8)
 built=$(date +"%F %T %:z")
@@ -47,17 +42,54 @@ go build -C plugins/opc \
 """
 
 [tasks.package]
-script = { file = "./scripts/package.sh" }
+# script = { file = "./scripts/package.sh" }
 # dependencies = ["build-all"]
+script = """
+PKG=target/packaging/linux
+[ -d $PKG ] && rm -rf $PKG
+mkdir -p $PKG/usr/bin
+mkdir -p $PKG/usr/local/taosx/plugins/influxdb
+mkdir -p $PKG/usr/local/taosx/plugins/opentsdb
+mkdir -p $PKG/usr/local/taosx/plugins/mqtt
+mkdir -p $PKG/usr/local/taosx/plugins/opc
+
+mkdir -p $PKG/etc/systemd
+mkdir -p $PKG/etc/taos
+
+cp target/release/taosx target/release/taosx-agent $PKG/usr/bin
+cp plugins/influxdb/target/taosx-influxdb.jar $PKG/usr/local/taosx/plugins/influxdb
+cp plugins/opentsdb/target/taosx-opentsdb.jar $PKG/usr/local/taosx/plugins/opentsdb
+cp plugins/mqtt/target/taosx-mqtt $PKG/usr/local/taosx/plugins/mqtt/
+cp plugins/opc/target/taosx-opc $PKG/usr/local/taosx/plugins/opc/
+cp packaging/uninstall.sh $PKG/usr/local/taosx/
+
+cp target/*.service $PKG/etc/systemd/
+cp taosx-agent/examples/agent.toml $PKG/etc/taos/agnt.example.toml
+
+cd $PKG
+version=$(./usr/bin/taosx --version|cut -f 2 -d " ")
+tar cavf ../taosx-$version.tar.gz ./*
+ln -f ../taosx-$version.tar.gz ../taosx-latest.tar.gz
+"""
 
 [tasks.install]
-cwd = "target/package/"
-script = { file = "./install.sh" }
+cwd = "target/packaging"
 dependencies = ["package"]
+script = """
+sudo tar -C / --no-same-owner -xvf taosx-latest.tar.gz
+"""
+
+[tasks.uninstall]
+script = """
+/usr/local/taosx/uninstall.sh
+"""
 
 [tasks.build-all]
-dependencies = [
-  "build-taosx",
-  "build-taosx-agent",
-  "build-plugins",
-]
+dependencies = ["taosx", "taosx-agent", "plugins"]
+
+[tasks.docker-cloud]
+script = """
+version=$(toml get Cargo.toml workspace.package.version -r)
+docker build -t image.cloud.taosdata.com/taosx/serve:$version .
+"""
+dependencies = ["plugins"]
