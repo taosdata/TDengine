@@ -181,19 +181,19 @@ impl PutStream {
                 loop {
                     match rx.recv_async().await {
                         Ok(record) => {
-                            log::info!("Start writing records: {record:?}");
+                            tracing::info!("Start writing records: {record:?}");
                             if let Err(err) = worker
                                 .process_record(&mut stmt, record, parser.as_ref())
                                 .await
                             {
-                                log::warn!("Write stream error: {err}");
+                                tracing::warn!("Write stream error: {err}");
                                 let _ = rsp_tx.send_async(Err(err)).await;
                             } else {
                                 let _ = rsp_tx.send_async(Ok(())).await;
                             }
                         }
                         Err(err) => {
-                            log::warn!("IPC stream worker stopped, err:{}", err.to_string());
+                            tracing::warn!("IPC stream worker stopped, err:{}", err.to_string());
                             break Ok(());
                         }
                     }
@@ -239,7 +239,7 @@ impl PutStream {
                             }
                             arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
                                 if let Err(err) = tx.send_async(batch).await {
-                                    log::warn!(
+                                    tracing::warn!(
                                         "into_flight_put_result channel send err: {}",
                                         err.to_string()
                                     );
@@ -269,7 +269,7 @@ impl PutStream {
                 };
                 if let Some(item) = item {
                     if p_tx.send_async(item).await.is_err() {
-                        log::info!("into_flight_put_result channel closed");
+                        tracing::info!("into_flight_put_result channel closed");
                         break;
                     }
                 }
@@ -304,7 +304,7 @@ impl PutStream {
         //                     arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
         //                         // dbg!(&batch);
         //                         if let Err(err) = tx.send_async(batch).await {
-        //                             log::warn!(
+        //                             tracing::warn!(
         //                                 "into_flight_put_result channel send err: {}",
         //                                 err.to_string()
         //                             );

@@ -54,7 +54,7 @@ pub struct DataSetsReq {
     limit: usize,
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 pub(super) struct Cli {
     /// Listen to ip:port address.
     #[clap(short = 'l', long, default_value = "0.0.0.0:6050")]
@@ -131,8 +131,13 @@ impl Cli {
         }
         Ok(controller)
     }
-    pub(super) async fn api(&self, controller: TaskControllerRef) -> Result<()> {
+    pub(super) async fn api(
+        self,
+        controller: TaskControllerRef,
+        grpc_handle: tokio::task::JoinHandle<Result<()>>,
+    ) -> Result<()> {
         let span = tracing::info_span!("server", addr = self.listen).entered();
+        let store_cloned = controller.clone();
         #[derive(OpenApi)]
         #[openapi(
             components(
@@ -275,7 +280,20 @@ impl Cli {
         .bind(addr)
         .map_err(|err| anyhow::format_err!("Start HTTP server error: {err} (addr: {addr})"))?
         .run();
-        server.await?;
+
+        tokio::select! {
+            _ = server => {
+                tracing::info!("server stopped");
+                // done;
+            },
+            _ = grpc_handle => {
+                tracing::info!("flight RPC service stopped");
+            }
+            _ = tokio::signal::ctrl_c() => {
+                tracing::info!("Ctrl+C triggered");
+            }
+        };
+        drop(store_cloned);
         span.exit();
         Ok(())
     }
@@ -286,7 +304,7 @@ impl Cli {
         Ok(())
     }
 
-    pub(super) async fn run_with(
+    pub(super) async fn _run_with(
         self,
         _opts: super::GlobalOpts,
         _rt: impl Into<Option<tokio::runtime::Runtime>>,

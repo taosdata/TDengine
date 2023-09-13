@@ -14,6 +14,8 @@ RUN wget -O /tmp/client.tar.gz https://www.taosdata.com/assets-download/3.0/TDen
 	&& rm -rf /tmp/TDengine-client-${TAOS_VERSION} \
 	&& rm -rf /tmp/client.tar.gz
 
+RUN apt install -y curl sqlite3
+
 ENV PLUGINS_HOME=/taosx/plugins/
 
 ADD ./plugins/influxdb/target/taosx-influxdb.jar /taosx/plugins/influxdb/

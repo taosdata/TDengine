@@ -365,7 +365,7 @@ async fn split_table_into_time_range_chunks(
     table: &str,
     opts: &QueryOpts,
 ) -> anyhow::Result<Vec<TimeRange>> {
-    log::debug!("Migrate data from table `{table}`");
+    tracing::debug!("Migrate data from table `{table}`");
 
     let mut time_range = opts.time_range;
     async fn query_ts_with(
@@ -418,7 +418,7 @@ async fn split_table_into_time_range_chunks(
 //     target_is_v3: bool,
 //     metrics: &LegacyMetrics,
 // ) -> anyhow::Result<()> {
-//     log::debug!("Migrate data from table `{table}`");
+//     tracing::debug!("Migrate data from table `{table}`");
 
 //     let mut time_range = opts.time_range;
 //     async fn query_ts_with(
@@ -533,7 +533,7 @@ async fn sync_single_table_partial(
                 if let Err(err) = ok {
                     let code: i32 = err.code().into();
                     let err_str = err.to_string();
-                    log::debug!("sync_single_table_partial write raw block error: {err:#}",);
+                    tracing::debug!("sync_single_table_partial write raw block error: {err:#}",);
                     if code == 0x2603 || code == 0x0618 {
                         if let Some(stable) = stable {
                             sync_super_table_schema_with_subs_without_pool(
@@ -661,7 +661,7 @@ async fn sync_single_table_partial(
                             .iter()
                             .map(|view| view.slice(range.clone()).unwrap())
                             .collect();
-                        log::debug!(
+                        tracing::debug!(
                             "[{table}] write {}..{} rows with max batch size: {batch_size}",
                             range.start,
                             range.end,
@@ -702,7 +702,7 @@ async fn sync_single_table_partial(
 
             if res.is_err() {
                 let err = res.unwrap_err();
-                log::warn!("Write block error: {err}");
+                tracing::warn!("Write block error: {err}");
                 let err_str = err.to_string();
                 if err_str.contains("0x1002") {
                     let mut chunks = 4;
@@ -896,7 +896,7 @@ async fn sync_super_table_schema_with_subs_without_pool(
             {
                 let sql = format!("alter table `{n}` set tag `{tag}` = {}", r.to_sql_value());
                 if let Err(err) = to.exec(&sql).await {
-                    log::error!(
+                    tracing::error!(
                         "Altering table `{n}` tag `{tag}` to {} error: {err:?}",
                         r.to_sql_value()
                     );
@@ -908,7 +908,7 @@ async fn sync_super_table_schema_with_subs_without_pool(
             }
         }
 
-        log::info!("Totally updated {} tags in this chunk", updated_tags);
+        tracing::info!("Totally updated {} tags in this chunk", updated_tags);
     }
     const MAX_SQL_LEN: usize = 1000 * 1000; // 800kb.
     let max_sql_length = target_opts.max_sql_length.unwrap_or(MAX_SQL_LEN);
@@ -930,16 +930,16 @@ async fn sync_super_table_schema_with_subs_without_pool(
                 tokio::time::sleep(duration).await;
             }
 
-            log::debug!("Already created {} tables, {} in batch", tables, batch);
+            tracing::debug!("Already created {} tables, {} in batch", tables, batch);
             sql = format!("CREATE TABLE");
             batch = 0;
         }
         sql.extend(e.chars());
     }
     if tables > 0 {
-        log::debug!("Create child tables with sql: {sql}");
+        tracing::debug!("Create child tables with sql: {sql}");
         to.exec(&sql).await?;
-        log::info!(
+        tracing::info!(
             "Created {} tables in stable {} in this chunk",
             tables,
             new_stable_name
@@ -983,7 +983,7 @@ async fn sync_super_table_schema_with_subs(
         .replace("create stable", "CREATE TABLE IF NOT EXISTS");
     loop {
         sql = transform_sql_with_actions(sql, name, actions, true)?;
-        log::debug!("sync schema sql: {sql}");
+        tracing::debug!("sync schema sql: {sql}");
         if let Err(err) = to.exec(&sql).await {
             let errstr = err.to_string();
             if errstr.contains("0x000B") {
@@ -1063,7 +1063,7 @@ async fn sync_super_table_schema_with_subs(
             {
                 let sql = format!("alter table `{n}` set tag `{tag}` = {}", l.to_sql_value());
                 if let Err(err) = to.exec(&sql).await {
-                    log::error!(
+                    tracing::error!(
                         "Altering table `{n}` tag `{tag}` to {} error: {err:?}",
                         l.to_sql_value()
                     );
@@ -1075,7 +1075,7 @@ async fn sync_super_table_schema_with_subs(
             }
         }
 
-        log::info!("Totally updated {} tags in this chunk", updated_tags);
+        tracing::info!("Totally updated {} tags in this chunk", updated_tags);
     }
     const MAX_SQL_LEN: usize = 1000 * 1000; // 800kb.
     let max_sql_length = target_opts.max_sql_length.unwrap_or(MAX_SQL_LEN);
@@ -1098,7 +1098,7 @@ async fn sync_super_table_schema_with_subs(
                 tokio::time::sleep(duration).await;
             }
 
-            log::debug!("Already created {} tables, {} in batch", tables, batch);
+            tracing::debug!("Already created {} tables, {} in batch", tables, batch);
             sql = format!("CREATE TABLE");
             batch = 0;
         }
@@ -1107,7 +1107,7 @@ async fn sync_super_table_schema_with_subs(
     if tables > 0 {
         tracing::debug!("Create child tables with sql: {sql}");
         to.exec(&sql).await?;
-        log::info!(
+        tracing::info!(
             "Created {} tables in stable {} in this chunk",
             tables,
             new_stable_name
@@ -1126,7 +1126,7 @@ fn transform_sql_with_actions(
     actions: &Vec<Action>,
     is_stable: bool,
 ) -> anyhow::Result<String> {
-    // log::debug!("sql transform before: {sql}");
+    // tracing::debug!("sql transform before: {sql}");
     if is_stable {
         for action in actions {
             match action {
@@ -1185,7 +1185,7 @@ fn transform_sql_with_actions(
             }
         }
     }
-    // log::debug!("sql transform after: {sql}");
+    // tracing::debug!("sql transform after: {sql}");
     Ok(sql)
 }
 
@@ -1194,7 +1194,7 @@ fn transform_tbname_with_actions(
     actions: &Vec<Action>,
     is_stable: bool,
 ) -> anyhow::Result<String> {
-    log::debug!("table name transform before: {table_name}");
+    tracing::debug!("table name transform before: {table_name}");
     let mut new_table_name = String::from(table_name);
     if is_stable {
         for action in actions {
@@ -1221,7 +1221,7 @@ fn transform_tbname_with_actions(
             }
         }
     }
-    log::debug!("table name transform after: {new_table_name}");
+    tracing::debug!("table name transform after: {new_table_name}");
     Ok(new_table_name)
 }
 
@@ -1231,7 +1231,7 @@ async fn sync_normal_table_schema(
     actions: &Vec<Action>,
     to: &Taos,
 ) -> anyhow::Result<()> {
-    log::info!("Sync normal table schema of {name}");
+    tracing::info!("Sync normal table schema of {name}");
     let (_, sql): ((), String) = from
         .query_one(format!("show create table `{name}`"))
         .await
@@ -1364,21 +1364,21 @@ async fn sync_schema(
         match reader.await? {
             Ok(_) => {}
             Err(err) => {
-                log::error!("Error: {err:#}",);
+                tracing::error!("Error: {err:#}",);
                 fails += 1;
             }
         }
 
         if count % dot == 0 {
             if fails == 0 {
-                log::info!(
+                tracing::info!(
                     "Synchronized {:.2}% of tables ({} of {}) for schema.",
                     count as f64 * 100.0 / total as f64,
                     count,
                     total,
                 )
             } else {
-                log::info!(
+                tracing::info!(
                     "Synchronized {:.2}% of tables ({} of {}) for schema, {} failed.",
                     count as f64 * 100.0 / total as f64,
                     count,
@@ -1388,7 +1388,7 @@ async fn sync_schema(
             }
         }
     }
-    log::info!("Synchronizing {count} tables metadata with {concurrency} workers finished");
+    tracing::info!("Synchronizing {count} tables metadata with {concurrency} workers finished");
 
     Ok(())
 }
@@ -1405,7 +1405,7 @@ async fn sync_specified_tables_with_workers(
     _source_is_v3: bool,
     _target_is_v3: bool,
 ) -> anyhow::Result<()> {
-    log::info!("Synchronize table data with {} workers", workers);
+    tracing::info!("Synchronize table data with {} workers", workers);
     // let order = Ordering::SeqCst;
     // let to_taos = to.get()?;
     // let workers = if workers > 0 {
@@ -1420,7 +1420,7 @@ async fn sync_specified_tables_with_workers(
     // let chunk_size = tables.len() / workers / 2;
     // let chunk_size = if chunk_size > 0 { chunk_size } else { 1 };
 
-    // log::info!("Synching schedule use chunk size {chunk_size}");
+    // tracing::info!("Synching schedule use chunk size {chunk_size}");
 
     // let count = Arc::new(AtomicUsize::new(0));
     let mut count = 0;
@@ -1451,21 +1451,21 @@ async fn sync_specified_tables_with_workers(
         match reader.await? {
             Ok(_) => {}
             Err(err) => {
-                log::error!("Syncing error: {err:#}",);
+                tracing::error!("Syncing error: {err:#}",);
                 fails += 1;
             }
         }
 
         if count % dot == 0 {
             if fails == 0 {
-                log::info!(
+                tracing::info!(
                     "Synchronized {:.2}% of tables ({} of {}).",
                     count as f64 * 100.0 / total_tables as f64,
                     count,
                     total_tables,
                 )
             } else {
-                log::info!(
+                tracing::info!(
                     "Synchronized {:.2}% of tables ({} of {}), {} failed.",
                     count as f64 * 100.0 / total_tables as f64,
                     count,
@@ -1475,7 +1475,7 @@ async fn sync_specified_tables_with_workers(
             }
         }
     }
-    log::info!("Synchronizing {count} tables with {workers} workers finished");
+    tracing::info!("Synchronizing {count} tables with {workers} workers finished");
     Ok(())
 }
 
@@ -1770,7 +1770,7 @@ pub async fn parse_todo_list(pool: &TaosPool, opts: &SourceOpts) -> anyhow::Resu
         } else {
             stables.iter().take(MAX_DISPLAY_STABLES).join(",")
         };
-        log::info!("Use stables list in data source parameters: {list}");
+        tracing::info!("Use stables list in data source parameters: {list}");
 
         let stables = stables
             .iter()
@@ -1802,7 +1802,7 @@ pub async fn parse_todo_list(pool: &TaosPool, opts: &SourceOpts) -> anyhow::Resu
                 );
             }
         }
-        log::info!(
+        tracing::info!(
             "Try to synchronize {} tables in {} stables",
             tables.len(),
             stables.len()
@@ -1840,7 +1840,7 @@ pub async fn parse_todo_list(pool: &TaosPool, opts: &SourceOpts) -> anyhow::Resu
                 if let Some(record) = table_record {
                     *stable = record.stable_name.map(Arc::new);
                 } else {
-                    log::warn!("Table todo not found: {table}");
+                    tracing::warn!("Table todo not found: {table}");
                 }
             } else {
                 let database: String = taos.query_one("SELECT database()").await?.unwrap();
@@ -1856,11 +1856,11 @@ pub async fn parse_todo_list(pool: &TaosPool, opts: &SourceOpts) -> anyhow::Resu
                         }
                     }
                 } else {
-                    log::warn!("Table todo not found: {table}");
+                    tracing::warn!("Table todo not found: {table}");
                 }
             }
         }
-        log::info!(
+        tracing::info!(
             "Try to synchronize {} tables in {} stables",
             tables.len(),
             stables.len()
@@ -1966,7 +1966,7 @@ pub async fn parse_todo_list(pool: &TaosPool, opts: &SourceOpts) -> anyhow::Resu
                 .await
                 .context("Deserialize stable list from source error")?;
 
-            log::info!(
+            tracing::info!(
                 "Try to synchronize {} tables in {} stables and {} ordinary tables",
                 tables.len(),
                 stables.len(),
@@ -2067,7 +2067,7 @@ pub async fn legacy_to_taos(
     mut to: Dsn,
     concurrency: usize,
 ) -> anyhow::Result<()> {
-    log::info!("synchronization started in legacy mode");
+    tracing::info!("synchronization started in legacy mode");
 
     let concurrent = if concurrency > 0 {
         concurrency
@@ -2142,7 +2142,7 @@ pub async fn legacy_to_taos(
                             // same version or version out of consider
                             option_str.clone()
                         };
-                    log::info!(
+                    tracing::info!(
                         "original data option:{}, ultimate database option: {}",
                         option_str,
                         ultimate_database_option
@@ -2203,7 +2203,7 @@ pub async fn legacy_to_taos(
     let metrics_inner = metrics.clone();
     let todo_inner = todo.clone();
 
-    log::info!("Prepare for {} worker scheduler", concurrency);
+    tracing::info!("Prepare for {} worker scheduler", concurrency);
     let scheduler = scheduler::Scheduler::new(
         from_pool.clone(),
         to_pool.clone(),
@@ -2222,7 +2222,7 @@ pub async fn legacy_to_taos(
     let task_done_clone = rc.clone();
     std::thread::spawn(move || loop {
         if task_done_clone.load(Ordering::Relaxed) {
-            log::debug!("stop timer");
+            tracing::debug!("stop timer");
             break;
         }
         std::thread::sleep(Duration::from_secs(5));
@@ -2268,7 +2268,7 @@ pub async fn legacy_to_taos(
             .await?;
         }
         (SyncMode::AsIs, SchemaMode::Always) => {
-            log::info!("synchronize schema");
+            tracing::info!("synchronize schema");
             sync_schema(
                 &scheduler,
                 &from_pool,
@@ -2284,7 +2284,7 @@ pub async fn legacy_to_taos(
                 target_is_v3,
             )
             .await?;
-            log::info!("synchronize all tables");
+            tracing::info!("synchronize all tables");
             // sync_tables_only(&from, &to, source_opts.query).await?;
             sync_specified_tables_with_workers(
                 &scheduler,
@@ -2308,7 +2308,7 @@ pub async fn legacy_to_taos(
             //     jobs,
             // )
             // .await?;
-            log::info!("synchronize finished.");
+            tracing::info!("synchronize finished.");
         }
         (SyncMode::Realtime, _) => {
             // let mut tables = TablesHandle::new(
@@ -2373,7 +2373,7 @@ pub async fn legacy_to_taos(
 
             if source_opts.table.restro.is_zero() {
                 source_opts.table.restro = restro_mark.elapsed();
-                log::info!(
+                tracing::info!(
                     "Override restro duration to {:?} for historical data sync",
                     source_opts.table.restro
                 );

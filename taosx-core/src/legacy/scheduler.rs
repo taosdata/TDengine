@@ -130,7 +130,7 @@ async fn worker(
                                         from = source.get().await?;
                                         to = target.get().await?;
                                         retries -= 1;
-                                        log::warn!(
+                                        tracing::warn!(
                                             "[worker:{worker}] sync stable {stable} error: {err}, retrying ... {retries} times left"
                                         );
                                         // wait 5 seconds to avoid too many retries
@@ -138,7 +138,7 @@ async fn worker(
                                         continue;
                                     }
 
-                                    log::error!(
+                                    tracing::error!(
                                         "[worker:{worker}] sync stable schema {stable} with {table_count} sub tables error: {err:#}, continue next"
                                     );
 
@@ -166,7 +166,7 @@ async fn worker(
                             if let Err(err) =
                                 sync_normal_table_schema(&from, &table, &actions, &to).await
                             {
-                                log::error!("Syncing table `{table}` error: {err:?}");
+                                tracing::error!("Syncing table `{table}` error: {err:?}");
                                 if let Some(path) = opts.fails_to.as_ref() {
                                     path.lock().unwrap().write_fmt(format_args!(
                                         "meta\t{}\t\t{}\n",
@@ -229,7 +229,7 @@ async fn worker(
                                     }
                                     Err(err) => {
                                         let err_string = err.to_string();
-                                        // log::error!("err_string: {err_string}");
+                                        // tracing::error!("err_string: {err_string}");
                                         if (err_string.contains("0xE00")
                                             || err_string.contains("channel closed"))
                                             && retries > 0
@@ -237,14 +237,14 @@ async fn worker(
                                             from = source.get().await?;
                                             to = target.get().await?;
                                             retries -= 1;
-                                            log::warn!(
+                                            tracing::warn!(
                                     "[worker:{worker}] sync table {table} error: {err}, retrying ... {retries} times left"
                                 );
                                             continue;
                                         } else if err_string.contains("0x263F")
                                             || err_string.contains("Column does not exist")
                                         {
-                                            log::info!(
+                                            tracing::info!(
                                     "[worker:{worker}] sync table {table} err 0x263F: {err:?}, add column"
                                 );
                                             let st = stable.as_ref().map(|s| s.as_str());
@@ -256,7 +256,7 @@ async fn worker(
                                             continue;
                                         }
 
-                                        log::error!(
+                                        tracing::error!(
                                 "[worker:{worker}] sync table {table} error: {err:?}, continue next"
                                         );
                                         if let Some(path) = opts.fails_to.as_ref() {
@@ -314,7 +314,7 @@ pub async fn sync_add_column(from: &Taos, to: &Taos, table: &str) -> anyhow::Res
     }
     for col in add_columns {
         let sql = format!("ALTER TABLE {} ADD COLUMN {}", table, col.sql_repr());
-        log::info!("add column sql: {sql}");
+        tracing::info!("add column sql: {sql}");
         let _ = to.exec(sql.as_str()).await;
     }
 

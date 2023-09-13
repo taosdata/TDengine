@@ -245,7 +245,7 @@ impl Client {
                                     ("context", context),
                                 ])
                                 .map_err(Into::into);
-                                log::info!("{item:?}");
+                                tracing::info!("{item:?}");
                                 return std::task::Poll::Ready(Some(item));
                             }
                             RespAction::HeartbeatOk(resp) => {
@@ -264,7 +264,7 @@ impl Client {
                                     ("context", context),
                                 ])
                                 .map_err(Into::into);
-                                log::info!("Send heartbeat response: {item:?}");
+                                tracing::info!("Send heartbeat response: {item:?}");
                                 cx.waker().wake_by_ref();
                                 return std::task::Poll::Ready(Some(item));
                             }
@@ -284,7 +284,7 @@ impl Client {
                                     ("context", context),
                                 ])
                                 .map_err(Into::into);
-                                log::info!("{item:?}");
+                                tracing::info!("{item:?}");
                                 cx.waker().wake_by_ref();
                                 return std::task::Poll::Ready(Some(item));
                             }
@@ -304,7 +304,7 @@ impl Client {
                                     ("context", context),
                                 ])
                                 .map_err(Into::into);
-                                // log::info!("{item:?}");
+                                // tracing::info!("{item:?}");
                                 cx.waker().wake_by_ref();
                                 return std::task::Poll::Ready(Some(item));
                             }
@@ -325,7 +325,7 @@ impl Client {
                                 ])
                                 .map_err(Into::into);
                                 // dbg!(&item);
-                                // log::info!("{item:?}");
+                                // tracing::info!("{item:?}");
                                 cx.waker().wake_by_ref();
                                 return std::task::Poll::Ready(Some(item));
                             }
@@ -352,7 +352,7 @@ impl Client {
                             ("context", context),
                         ])
                         .map_err(Into::into);
-                        log::info!("send heartbeat message");
+                        tracing::info!("send heartbeat message");
                         return std::task::Poll::Ready(Some(item));
                     }
                     Poll::Pending => {
@@ -458,7 +458,7 @@ impl Client {
                     context.value(0),
                 );
 
-                log::info!("At [{ts}] action `{action}` triggered");
+                tracing::info!("At [{ts}] action `{action}` triggered");
                 match action {
                     "run" => {
                         let task: Task = serde_json::from_str(&context).unwrap();

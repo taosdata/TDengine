@@ -111,7 +111,11 @@ jsonwebtoken = "8.3"
 rand = "0.8"
 
 time = { version = "0.3", features = ["formatting", "macros"] }
-tracing-subscriber = { version = "0.3", features = ["time", "local-time","env-filter"] }
+tracing-subscriber = { version = "0.3", features = [
+  "time",
+  "local-time",
+  "env-filter",
+] }
 tracing-appender = "0.2"
 tracing = { version = "0.1", features = ["log"] }
 atty = "*"
@@ -122,6 +126,7 @@ tracing-opentelemetry = { version = "*" }
 tracing-actix-web = "0.7"
 metrics-tracing-context = "*"
 metrics-util = "*"
+console-subscriber = { version = "*" }
 
 reqwest = "0.11.15"
 taosx-ipc = { path = "./taosx-ipc" }
