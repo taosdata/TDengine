@@ -88,7 +88,7 @@
             type="primary"
             style="width: 100%; height: 32px; padding: 4px 20px"
             @click="submotForm('ruleForm')"
-            >新增</el-button
+            >{{ $t('add') }}</el-button
           >
         </el-form-item>
       </el-form>
