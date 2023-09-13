@@ -70,5 +70,8 @@ groups:
         display: Tolerance interval(ms)
         description: When synchronizing real-time data, overlap each window forward to ensure data integrity
         placeholder: Please input the tolerance interval
-        hint: integer
+        hint:
+          type: integer
+          min: 1
+          max: 30000
         value: 10000
