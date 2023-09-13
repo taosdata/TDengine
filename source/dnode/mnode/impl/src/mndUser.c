@@ -1203,29 +1203,30 @@ _OVER:
   return code;
 }
 
-//TODO: for community version use the commented version
-int32_t mndSetUserWhiteListRsp(SMnode* pMnode, SUserObj* pUser, SGetUserWhiteListRsp* pWhiteListRsp) {
+// TODO: for community version use the commented version
+int32_t mndSetUserWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhiteListRsp *pWhiteListRsp) {
   memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
-//  pWhiteListRsp->numWhiteLists = 1;
-//  pWhiteListRsp->pWhiteLists = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
-//  if (pWhiteListRsp->pWhiteLists == NULL) {
-//    return TSDB_CODE_OUT_OF_MEMORY;
-//  }
-//  memset(pUser->pIpWhiteList->pIpRange, 0, pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
+  //  pWhiteListRsp->numWhiteLists = 1;
+  //  pWhiteListRsp->pWhiteLists = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
+  //  if (pWhiteListRsp->pWhiteLists == NULL) {
+  //    return TSDB_CODE_OUT_OF_MEMORY;
+  //  }
+  //  memset(pUser->pIpWhiteList->pIpRange, 0, pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
   pWhiteListRsp->numWhiteLists = pUser->pIpWhiteList->num;
   pWhiteListRsp->pWhiteLists = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
   if (pWhiteListRsp->pWhiteLists == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  memcpy(pUser->pIpWhiteList->pIpRange, pUser->pIpWhiteList->pIpRange, pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
+  memcpy(pUser->pIpWhiteList->pIpRange, pUser->pIpWhiteList->pIpRange,
+         pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
 
   return 0;
 }
 
 int32_t mndProcessGetUserWhiteListReq(SRpcMsg *pReq) {
-  SMnode *pMnode = pReq->info.node;
-  int32_t code = -1;
-  SUserObj *pUser = NULL;
+  SMnode              *pMnode = pReq->info.node;
+  int32_t              code = -1;
+  SUserObj            *pUser = NULL;
   SGetUserWhiteListReq wlReq = {0};
   SGetUserWhiteListRsp wlRsp = {0};
 
