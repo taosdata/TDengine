@@ -88,14 +88,10 @@ typedef struct {
   int64_t     snapshotVer;
   SWalReader* pWalReader;
   SWalRef*    pRef;
-  //  STqPushHandle pushHandle;    // push
   STqExecHandle    execHandle;  // exec
   SRpcMsg*         msg;
   tq_handle_status status;
 } STqHandle;
-typedef struct {
-  int64_t snapshotVer;
-} SStreamHandle;
 
 struct STQ {
   SVnode*         pVnode;
