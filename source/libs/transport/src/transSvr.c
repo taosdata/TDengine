@@ -965,7 +965,6 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
 
     pConn->clientIp = addr.sin_addr.s_addr;
     pConn->serverIp = saddr.sin_addr.s_addr;
-
     pConn->port = ntohs(addr.sin_port);
 
     uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocRecvBufferCb, uvOnRecvCb);
