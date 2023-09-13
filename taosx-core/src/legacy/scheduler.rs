@@ -313,9 +313,11 @@ pub async fn sync_add_column(from: &Taos, to: &Taos, table: &str) -> anyhow::Res
         }
     }
     for col in add_columns {
-        let sql = format!("ALTER TABLE {} ADD COLUMN {}", table, col.sql_repr());
+        let sql = format!("ALTER TABLE `{}` ADD COLUMN {}", table, col.sql_repr());
         tracing::info!("add column sql: {sql}");
-        let _ = to.exec(sql.as_str()).await;
+        if let Err(err) = to.exec(sql.as_str()).await {
+            tracing::error!("Add column error: {err:#}");
+        }
     }
 
     Ok(())
