@@ -110,7 +110,7 @@ pub(crate) struct GlobalOpts {
         // short = 'e',
         long,
         global = true,
-        default_value = "enter",
+        default_value = "none",
         value_parser = fmt_span_from_str,
         env = "TRACING_EVENTS"
     )]
@@ -289,10 +289,11 @@ fn main() -> Result<()> {
             .add_directive("tungstenite=warn".parse()?)
             .add_directive("tokio=warn".parse()?)
             .add_directive("runtime=warn".parse()?)
-            // .add_directive("actix_server=info".parse()?)
+            .add_directive("actix_server=info".parse()?)
             .add_directive("actix_http=info".parse()?)
             .add_directive("tokio_tungstenite=info".parse()?)
-            .add_directive("mio=warn".parse()?);
+            .add_directive("mio=info".parse()?)
+            .add_directive("h2=info".parse()?);
 
         if atty::is(atty::Stream::Stderr) {
             layers.push(

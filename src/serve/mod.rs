@@ -262,6 +262,7 @@ impl Cli {
             // This factory closure is called on each worker thread independently.
             App::new()
                 .wrap(cors)
+                .wrap(Logger::default())
                 .wrap(Compat::new(TracingLogger::default()))
                 .app_data(recorder.clone())
                 .app_data(snapshotter.clone())
