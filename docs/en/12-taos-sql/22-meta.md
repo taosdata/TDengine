@@ -26,7 +26,7 @@ This document introduces the tables of INFORMATION_SCHEMA and their structure.
 
 ## INS_DNODES
 
-Provides information about dnodes. Similar to SHOW DNODES.
+Provides information about dnodes. Similar to SHOW DNODES. Users whose SYSINFO attribute is 0 can't view this table.
 
 | #   |   **Column**   | **Data Type** | **Description**                                                                                                                                          |
 | --- | :------------: | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -40,7 +40,7 @@ Provides information about dnodes. Similar to SHOW DNODES.
 
 ## INS_MNODES
 
-Provides information about mnodes. Similar to SHOW MNODES.
+Provides information about mnodes. Similar to SHOW MNODES. Users whose SYSINFO attribute is 0 can't view this table.
 
 | #   | **Column**  | **Data Type** | **Description**                            |
 | --- | :---------: | ------------- | ------------------------------------------ |
@@ -52,7 +52,7 @@ Provides information about mnodes. Similar to SHOW MNODES.
 
 ## INS_QNODES
 
-Provides information about qnodes. Similar to SHOW QNODES.
+Provides information about qnodes. Similar to SHOW QNODES. Users whose SYSINFO attribute is 0 can't view this table.
 
 | #   | **Column**  | **Data Type** | **Description** |
 | --- | :---------: | ------------- | --------------- |
@@ -62,7 +62,7 @@ Provides information about qnodes. Similar to SHOW QNODES.
 
 ## INS_CLUSTER
 
-Provides information about the cluster.
+Provides information about the cluster. Users whose SYSINFO attribute is 0 can't view this table.
 
 | #   | **Column**  | **Data Type** | **Description** |
 | --- | :---------: | ------------- | --------------- |
@@ -196,7 +196,7 @@ Provides information about standard tables and subtables.
 
 ## INS_USERS
 
-Provides information about TDengine users.
+Provides information about TDengine users. Users whose SYSINFO attribute is 0 can't view this table.
 
 | #   | **Column**  | **Data Type** | **Description**  |
 | --- | :---------: | ------------- | ---------------- |
@@ -206,7 +206,7 @@ Provides information about TDengine users.
 
 ## INS_GRANTS
 
-Provides information about TDengine Enterprise Edition permissions.
+Provides information about TDengine Enterprise Edition permissions. Users whose SYSINFO attribute is 0 can't view this table.
 
 | #   | **Column**  | **Data Type** | **Description**                                                                                                                                                |
 | --- | :---------: | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -227,7 +227,7 @@ Provides information about TDengine Enterprise Edition permissions.
 
 ## INS_VGROUPS
 
-Provides information about vgroups.
+Provides information about vgroups. Users whose SYSINFO attribute is 0 can't view this table.
 
 | #   | **Column** | **Data Type** | **Description**                                                                                                                     |
 | --- | :--------: | ------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -256,7 +256,7 @@ Provides system configuration information.
 
 ## INS_DNODE_VARIABLES
 
-Provides dnode configuration information.
+Provides dnode configuration information. Users whose SYSINFO attribute is 0 can't view this table.
 
 | #   | **Column** | **Data Type** | **Description**                                                                                                         |
 | --- | :--------: | ------------- | ----------------------------------------------------------------------------------------------------------------------- |
@@ -299,6 +299,8 @@ Provides dnode configuration information.
 | 9   |   trigger    | INT           | Method of triggering the result push (see stream processing documentation). It should be noted that `trigger` is a TDengine keyword and needs to be escaped with ` when used as a column name. |
 
 ## INS_USER_PRIVILEGES
+
+Users whose SYSINFO attribute is 0 can't view this table.
 
 | #   |   **Column**   | **Data Type** | **Description**                         |**                                                                               |
 | --- | :----------: | ------------ | -------------------------------------------|
