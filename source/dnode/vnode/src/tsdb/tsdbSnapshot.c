@@ -432,7 +432,7 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s, sver:%" PRId64 " ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode),
               __func__, lino, tstrerror(code), sver, ever, type);
-    tsdbFSDestroyRefRangedSnapshot(&reader[0]->fsrArr);
+    tsdbSnapRangeArrayDestroy(&reader[0]->fsrArr);
     taosMemoryFree(reader[0]);
     reader[0] = NULL;
   } else {
@@ -460,7 +460,7 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** reader) {
   TARRAY2_DESTROY(reader[0]->sttReaderArr, tsdbSttFileReaderClose);
   tsdbDataFileReaderClose(&reader[0]->dataReader);
 
-  tsdbFSDestroyRefRangedSnapshot(&reader[0]->fsrArr);
+  tsdbSnapRangeArrayDestroy(&reader[0]->fsrArr);
   tDestroyTSchema(reader[0]->skmTb->pTSchema);
 
   for (int32_t i = 0; i < ARRAY_SIZE(reader[0]->aBuf); ++i) {
@@ -1300,9 +1300,11 @@ _err:
 }
 
 void tsdbSnapRangeArrayDestroy(TSnapRangeArray** ppSnap) {
-  TARRAY2_DESTROY(ppSnap[0], tsdbTSnapRangeClear);
-  taosMemoryFree(ppSnap[0]);
-  ppSnap[0] = NULL;
+  if (ppSnap && ppSnap[0]) {
+    TARRAY2_DESTROY(ppSnap[0], tsdbTSnapRangeClear);
+    taosMemoryFree(ppSnap[0]);
+    ppSnap[0] = NULL;
+  }
 }
 
 static int32_t tsdbSnapInfoDataLenCalc(TSnapRangeArray* pSnap) {
