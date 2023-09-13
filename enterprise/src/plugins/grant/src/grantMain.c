@@ -241,6 +241,7 @@ typedef struct {
 
 static bool   recheckClusterTime = true;
 static int8_t grantHbLock = 0;
+static int8_t grantFetchLock = 0;
 int32_t       grantFlag = 0;
 SGrantHandle  grantHandle = {0};
 
@@ -650,8 +651,14 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
 }
 
 static int32_t mndProcessGrantFetch(SRpcMsg *pReq) {
+  if (0 != atomic_val_compare_exchange_8(&grantFetchLock, 0, 1)) {
+    uWarn("previous grant fetch task not finished yet");
+    return 0;
+  }
+
   SMnode *pMnode = pReq->info.node;
   grantRetrieveGrantInfo(pMnode);
+  atomic_val_compare_exchange_8(&grantFetchLock, 1, 0);
   return 0;
 }
 
