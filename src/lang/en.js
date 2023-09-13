@@ -961,7 +961,7 @@ export default {
     expire_time: 'Expire Time',
     user_name: 'User Name',
     shareTopic: 'Share Topic',
-    sampleCode: 'Smaple Code',
+    sampleCode: 'Sample Code',
     addShareTopicUser: "Add user to consume this topic",
     shareTopicUser: "Users who can consume this topic",
     manageTopic: "Manage {topicName} Topic",
