@@ -22,6 +22,14 @@ SHOW CLUSTER;
 
 显示当前集群的信息
 
+## SHOW CLUSTER ALIVE
+
+```sql
+SHOW CLUSTER ALIVE;
+```
+
+查询当前集群的状态是否可用，返回值： 0：不可用 1：完全可用 2：部分可用（集群中部分节点下线，但其它节点仍可以正常使用）
+
 ## SHOW CONNECTIONS
 
 ```sql

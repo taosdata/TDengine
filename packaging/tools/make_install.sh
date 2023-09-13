@@ -158,7 +158,6 @@ function install_bin() {
   ${csudo}rm -f ${bin_link_dir}/udfd || :
   ${csudo}rm -f ${bin_link_dir}/taosdemo || :
   ${csudo}rm -f ${bin_link_dir}/taosdump || :
-  ${csudo}rm -f ${bin_link_dir}/taosx || :
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
 
   if [ "$osType" != "Darwin" ]; then
@@ -348,9 +347,9 @@ function install_lib() {
 
 function install_header() {
   ${csudo}mkdir -p ${inc_link_dir}
-  ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/taosudf.h || :
+  ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taosudf.h || :
   [ -f ${inc_link_dir}/taosws.h ] && ${csudo}rm -f ${inc_link_dir}/taosws.h ||:
-  ${csudo}cp -f ${source_dir}/include/client/taos.h ${source_dir}/include/common/taosdef.h ${source_dir}/include/util/taoserror.h ${source_dir}/include/libs/function/taosudf.h \
+  ${csudo}cp -f ${source_dir}/include/client/taos.h ${source_dir}/include/common/taosdef.h ${source_dir}/include/util/taoserror.h ${source_dir}/include/util/tdef.h ${source_dir}/include/libs/function/taosudf.h \
     ${install_main_dir}/include && ${csudo}chmod 644 ${install_main_dir}/include/*
 
   if [ -f ${binary_dir}/build/include/taosws.h ]; then
@@ -361,6 +360,7 @@ function install_header() {
   ${csudo}ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h > /dev/null 2>&1
   ${csudo}ln -s ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h > /dev/null 2>&1
   ${csudo}ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h > /dev/null 2>&1
+  ${csudo}ln -s ${install_main_dir}/include/tdef.h ${inc_link_dir}/tdef.h > /dev/null 2>&1
   ${csudo}ln -s ${install_main_dir}/include/taosudf.h ${inc_link_dir}/taosudf.h > /dev/null 2>&1
 
   ${csudo}chmod 644 ${install_main_dir}/include/*

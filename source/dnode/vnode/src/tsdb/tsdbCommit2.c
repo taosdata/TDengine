@@ -235,36 +235,33 @@ static int32_t tsdbCommitOpenReader(SCommitter2 *committer) {
     return 0;
   }
 
-  ASSERT(TARRAY2_SIZE(committer->ctx->fset->lvlArr) == 1);
+  SSttLvl *lvl;
+  TARRAY2_FOREACH(committer->ctx->fset->lvlArr, lvl) {
+    STFileObj *fobj = NULL;
+    TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+      SSttFileReader *sttReader;
 
-  SSttLvl *lvl = TARRAY2_FIRST(committer->ctx->fset->lvlArr);
+      SSttFileReaderConfig config = {
+          .tsdb = committer->tsdb,
+          .szPage = committer->szPage,
+          .file = fobj->f[0],
+      };
 
-  ASSERT(lvl->level == 0);
+      code = tsdbSttFileReaderOpen(fobj->fname, &config, &sttReader);
+      TSDB_CHECK_CODE(code, lino, _exit);
 
-  STFileObj *fobj = NULL;
-  TARRAY2_FOREACH(lvl->fobjArr, fobj) {
-    SSttFileReader *sttReader;
+      code = TARRAY2_APPEND(committer->sttReaderArray, sttReader);
+      TSDB_CHECK_CODE(code, lino, _exit);
 
-    SSttFileReaderConfig config = {
-        .tsdb = committer->tsdb,
-        .szPage = committer->szPage,
-        .file = fobj->f[0],
-    };
+      STFileOp op = {
+          .optype = TSDB_FOP_REMOVE,
+          .fid = fobj->f->fid,
+          .of = fobj->f[0],
+      };
 
-    code = tsdbSttFileReaderOpen(fobj->fname, &config, &sttReader);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    code = TARRAY2_APPEND(committer->sttReaderArray, sttReader);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    STFileOp op = {
-        .optype = TSDB_FOP_REMOVE,
-        .fid = fobj->f->fid,
-        .of = fobj->f[0],
-    };
-
-    code = TARRAY2_APPEND(committer->fopArray, op);
-    TSDB_CHECK_CODE(code, lino, _exit);
+      code = TARRAY2_APPEND(committer->fopArray, op);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
   }
 
 _exit:
@@ -530,7 +527,9 @@ static int32_t tsdbCloseCommitter(SCommitter2 *committer, int32_t eno) {
   ASSERT(committer->tombIterMerger == NULL);
   TARRAY2_DESTROY(committer->dataIterArray, NULL);
   TARRAY2_DESTROY(committer->tombIterArray, NULL);
+  TARRAY2_DESTROY(committer->sttReaderArray, NULL);
   TARRAY2_DESTROY(committer->fopArray, NULL);
+  TARRAY2_DESTROY(committer->sttReaderArray, NULL);
   tsdbFSDestroyCopySnapshot(&committer->fsetArr);
 
 _exit:

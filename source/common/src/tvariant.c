@@ -122,6 +122,7 @@ void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uin
       break;
     }
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_GEOMETRY: {  // todo refactor, extract a method
       pVar->pz = taosMemoryCalloc(len + 1, sizeof(char));
       memcpy(pVar->pz, pz, len);
@@ -141,7 +142,8 @@ void taosVariantDestroy(SVariant *pVar) {
   if (pVar == NULL) return;
 
   if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR ||
-      pVar->nType == TSDB_DATA_TYPE_JSON || pVar->nType == TSDB_DATA_TYPE_GEOMETRY) {
+      pVar->nType == TSDB_DATA_TYPE_JSON || pVar->nType == TSDB_DATA_TYPE_GEOMETRY ||
+      pVar->nType == TSDB_DATA_TYPE_VARBINARY) {
     taosMemoryFreeClear(pVar->pz);
     pVar->nLen = 0;
   }
@@ -152,8 +154,9 @@ void taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
   if (pSrc == NULL || pDst == NULL) return;
 
   pDst->nType = pSrc->nType;
-  if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_NCHAR ||
-      pSrc->nType == TSDB_DATA_TYPE_JSON || pSrc->nType == TSDB_DATA_TYPE_GEOMETRY) {
+  if (pSrc->nType == TSDB_DATA_TYPE_BINARY ||pSrc->nType == TSDB_DATA_TYPE_VARBINARY ||
+      pSrc->nType == TSDB_DATA_TYPE_NCHAR || pSrc->nType == TSDB_DATA_TYPE_JSON ||
+      pSrc->nType == TSDB_DATA_TYPE_GEOMETRY) {
     int32_t len = pSrc->nLen + TSDB_NCHAR_SIZE;
     char   *p = taosMemoryRealloc(pDst->pz, len);
     ASSERT(p);
@@ -185,7 +188,8 @@ int32_t taosVariantCompare(const SVariant *p1, const SVariant *p2) {
     return 1;
   }
 
-  if (p1->nType == TSDB_DATA_TYPE_BINARY || p1->nType == TSDB_DATA_TYPE_NCHAR || p1->nType == TSDB_DATA_TYPE_GEOMETRY) {
+  if (p1->nType == TSDB_DATA_TYPE_BINARY || p1->nType == TSDB_DATA_TYPE_VARBINARY ||
+      p1->nType == TSDB_DATA_TYPE_NCHAR || p1->nType == TSDB_DATA_TYPE_GEOMETRY) {
     if (p1->nLen == p2->nLen) {
       return memcmp(p1->pz, p2->pz, p1->nLen);
     } else {
@@ -237,6 +241,7 @@ char *taosVariantGet(SVariant *pVar, int32_t type) {
     case TSDB_DATA_TYPE_FLOAT:
       return (char *)&pVar->f;
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_GEOMETRY:
       return (char *)pVar->pz;

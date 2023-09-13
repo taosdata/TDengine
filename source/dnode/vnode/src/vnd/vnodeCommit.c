@@ -15,6 +15,7 @@
 
 #include "vnd.h"
 #include "vnodeInt.h"
+#include "sync.h"
 
 extern int32_t tsdbPreCommit(STsdb *pTsdb);
 extern int32_t tsdbCommitBegin(STsdb *pTsdb, SCommitInfo *pInfo);
@@ -200,8 +201,10 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   // free info binary
   taosMemoryFree(data);
 
-  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d selfIndex:%d", pInfo->config.vgId, fname,
-        pInfo->config.syncCfg.replicaNum, pInfo->config.syncCfg.myIndex);
+  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d selfIndex:%d changeVersion:%d", 
+        pInfo->config.vgId, fname,
+        pInfo->config.syncCfg.replicaNum, pInfo->config.syncCfg.myIndex, 
+        pInfo->config.syncCfg.changeVersion);
 
   return 0;
 
@@ -284,6 +287,8 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   char    dir[TSDB_FILENAME_LEN] = {0};
 
   tsem_wait(&pVnode->canCommit);
+
+  if(syncNodeGetConfig(pVnode->sync, &pVnode->config.syncCfg) != 0) goto _exit;
 
   pVnode->state.commitTerm = pVnode->state.applyTerm;
 

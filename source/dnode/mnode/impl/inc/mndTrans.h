@@ -66,11 +66,13 @@ void    mndReleaseTrans(SMnode *pMnode, STrans *pTrans);
 STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, const SRpcMsg *pReq,
                        const char *opername);
 void    mndTransDrop(STrans *pTrans);
+
+int32_t mndTransAppendPrepareLog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendRedolog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendUndolog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendCommitlog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendNullLog(STrans *pTrans);
-int32_t mndTransAppendPrepareAction(STrans *pTrans, STransAction *pAction);
+
 int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction);
 int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);

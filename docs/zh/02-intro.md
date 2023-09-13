@@ -4,13 +4,14 @@ description: 简要介绍 TDengine 的主要功能
 toc_max_heading_level: 2
 ---
 
-TDengine 是一款开源、高性能、云原生的[时序数据库](https://tdengine.com/tsdb/)，且针对物联网、车联网、工业互联网、金融、IT 运维等场景进行了优化。TDengine 的代码，包括集群功能，都在 GNU AGPL v3.0 下开源。除核心的时序数据库功能外，TDengine 还提供[缓存](../develop/cache/)、[数据订阅](../develop/tmq)、[流式计算](../develop/stream)等其它功能以降低系统复杂度及研发和运维成本。
+TDengine 是一款专为物联网、工业互联网等场景设计并优化的大数据平台，它能安全高效地将大量设备、数据采集器每天产生的高达 TB 甚至 PB 级的数据进行汇聚、存储、分析和分发，对业务运行状态进行实时监测、预警，提供实时的商业洞察。其核心模块是高性能、集群开源、云原生、极简的时序数据库 TDengine OSS。
 
-本章节介绍 TDengine 的主要功能、竞争优势、适用场景、与其他数据库的对比测试等等，让大家对 TDengine 有个整体的了解。
+
+本节介绍 TDengine OSS 的主要产品和功能、竞争优势、适用场景、与其他数据库的对比测试等等，让大家对 TDengine OSS 有个整体了解
 
 ## 主要功能
 
-TDengine 的主要功能如下：
+TDengine OSS 的主要功能如下：
 
 1. 写入数据，支持
    - [SQL 写入](../develop/insert-data/sql-writing)
@@ -143,3 +144,10 @@ TDengine 的主要功能如下：
 - [TDengine VS InfluxDB ，写入性能大 PK ！](https://www.taosdata.com/2021/11/05/3248.html)
 - [TDengine 和 InfluxDB 查询性能对比测试报告](https://www.taosdata.com/2022/02/22/5969.html)
 - [TDengine 与 InfluxDB、OpenTSDB、Cassandra、MySQL、ClickHouse 等数据库的对比测试报告](https://www.taosdata.com/downloads/TDengine_Testing_Report_cn.pdf)
+
+
+## 主要产品
+
+TDengine 有两个主要产品：TDengine Enterprise （即 TDengine 企业版）和 TDengine Cloud，关于它们的具体定义请参考 
+- [TDengine 企业版](https://www.taosdata.com/tdengine-pro)
+- [TDengine 云服务](https://cloud.taosdata.com/?utm_source=menu&utm_medium=webcn)

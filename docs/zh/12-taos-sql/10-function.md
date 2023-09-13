@@ -292,11 +292,11 @@ CONCAT_WS(separator_expr, expr1, expr2 [, expr] ...)
 LENGTH(expr)
 ```
 
-**功能说明**：以字节计数的字符串长度。
+**功能说明**：以字节计数的长度。
 
 **返回结果类型**：BIGINT。
 
-**适用数据类型**：输入参数是 VARCHAR 类型或者 NCHAR 类型的字符串或者列。
+**适用数据类型**：VARCHAR, NCHAR, VARBINARY。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -402,7 +402,7 @@ CAST(expr AS type_name)
 
 **返回结果类型**：CAST 中指定的类型（type_name)。
 
-**适用数据类型**：输入参数 expression 的类型可以是除JSON外的所有类型。
+**适用数据类型**：输入参数 expr 的类型可以是除JSON和VARBINARY外的所有类型。如果 type_name 为 VARBINARY，则 expr 只能是 VARCHAR 类型。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -700,7 +700,7 @@ ELAPSED(ts_primary_key [, time_unit])
 LEASTSQUARES(expr, start_val, step_val)
 ```
 
-**功能说明**：统计表中某列的值是主键（时间戳）的拟合直线方程。start_val 是自变量初始值，step_val 是自变量的步长值。
+**功能说明**：统计表中某列的值的拟合直线方程。start_val 是自变量初始值，step_val 是自变量的步长值。
 
 **返回数据类型**：字符串表达式（斜率, 截距）。
 
@@ -1265,6 +1265,14 @@ SELECT SERVER_STATUS();
 ```
 
 **说明**：检测服务端是否所有 dnode 都在线，如果是则返回成功，否则返回无法建立连接的错误。
+
+### CURRENT_USER
+
+```sql
+SELECT CURRENT_USER();
+```
+
+**说明**：获取当前用户。
 
 
 ## Geometry 函数

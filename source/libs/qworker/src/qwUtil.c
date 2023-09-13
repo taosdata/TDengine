@@ -45,7 +45,7 @@ char *qwBufStatusStr(int32_t bufStatus) {
   return "UNKNOWN";
 }
 
-int32_t qwSetTaskStatus(QW_FPARAMS_DEF, SQWTaskStatus *task, int8_t status) {
+int32_t qwSetTaskStatus(QW_FPARAMS_DEF, SQWTaskStatus *task, int8_t status, bool dynamicTask) {
   int32_t code = 0;
   int8_t  origStatus = 0;
   bool    ignore = false;
@@ -53,7 +53,7 @@ int32_t qwSetTaskStatus(QW_FPARAMS_DEF, SQWTaskStatus *task, int8_t status) {
   while (true) {
     origStatus = atomic_load_8(&task->status);
 
-    QW_ERR_RET(qwDbgValidateStatus(QW_FPARAMS(), origStatus, status, &ignore));
+    QW_ERR_RET(qwDbgValidateStatus(QW_FPARAMS(), origStatus, status, &ignore, dynamicTask));
     if (ignore) {
       break;
     }
@@ -312,7 +312,48 @@ void qwFreeTaskCtx(SQWTaskCtx *ctx) {
     ctx->sinkHandle = NULL;
     qDebug("sink handle destroyed");
   }
+
+  taosArrayDestroy(ctx->tbInfo);
 }
+
+static void freeExplainExecItem(void *param) {
+  SExplainExecInfo *pInfo = param;
+  taosMemoryFree(pInfo->verboseInfo);
+}
+
+
+int32_t qwSendExplainResponse(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
+  qTaskInfo_t taskHandle = ctx->taskHandle;
+
+  ctx->explainRsped = true;
+  
+  SArray *execInfoList = taosArrayInit(4, sizeof(SExplainExecInfo));
+  QW_ERR_RET(qGetExplainExecInfo(taskHandle, execInfoList));
+  
+  if (ctx->localExec) {
+    SExplainLocalRsp localRsp = {0};
+    localRsp.rsp.numOfPlans = taosArrayGetSize(execInfoList);
+    SExplainExecInfo *pExec = taosMemoryCalloc(localRsp.rsp.numOfPlans, sizeof(SExplainExecInfo));
+    memcpy(pExec, taosArrayGet(execInfoList, 0), localRsp.rsp.numOfPlans * sizeof(SExplainExecInfo));
+    localRsp.rsp.subplanInfo = pExec;
+    localRsp.qId = qId;
+    localRsp.tId = tId;
+    localRsp.rId = rId;
+    localRsp.eId = eId;
+    taosArrayPush(ctx->explainRes, &localRsp);
+    taosArrayDestroy(execInfoList);
+  } else {
+    SRpcHandleInfo connInfo = ctx->ctrlConnInfo;
+    connInfo.ahandle = NULL;
+    int32_t code = qwBuildAndSendExplainRsp(&connInfo, execInfoList);
+    taosArrayDestroyEx(execInfoList, freeExplainExecItem);
+    QW_ERR_RET(code);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 
 int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
   char id[sizeof(qId) + sizeof(tId) + sizeof(eId)] = {0};
@@ -338,6 +379,7 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
   }
 
   qwFreeTaskCtx(&octx);
+  ctx->tbInfo = NULL;
 
   QW_TASK_DLOG_E("task ctx dropped");
 
@@ -381,7 +423,7 @@ _return:
   QW_RET(code);
 }
 
-int32_t qwUpdateTaskStatus(QW_FPARAMS_DEF, int8_t status) {
+int32_t qwUpdateTaskStatus(QW_FPARAMS_DEF, int8_t status, bool dynamicTask) {
   SQWSchStatus  *sch = NULL;
   SQWTaskStatus *task = NULL;
   int32_t        code = 0;
@@ -389,7 +431,7 @@ int32_t qwUpdateTaskStatus(QW_FPARAMS_DEF, int8_t status) {
   QW_ERR_RET(qwAcquireScheduler(mgmt, sId, QW_READ, &sch));
   QW_ERR_JRET(qwAcquireTaskStatus(QW_FPARAMS(), QW_READ, sch, &task));
 
-  QW_ERR_JRET(qwSetTaskStatus(QW_FPARAMS(), task, status));
+  QW_ERR_JRET(qwSetTaskStatus(QW_FPARAMS(), task, status, dynamicTask));
 
 _return:
 
@@ -401,7 +443,31 @@ _return:
   QW_RET(code);
 }
 
+
+int32_t qwHandleDynamicTaskEnd(QW_FPARAMS_DEF) {
+  char id[sizeof(qId) + sizeof(tId) + sizeof(eId)] = {0};
+  QW_SET_QTID(id, qId, tId, eId);
+  SQWTaskCtx octx;
+
+  SQWTaskCtx *ctx = taosHashGet(mgmt->ctxHash, id, sizeof(id));
+  if (NULL == ctx) {
+    QW_TASK_DLOG_E("task ctx not exist, may be dropped");
+    QW_ERR_RET(QW_CTX_NOT_EXISTS_ERR_CODE(mgmt));
+  }
+
+  if (!ctx->dynamicTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  QW_ERR_RET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCC, ctx->dynamicTask));
+
+  QW_ERR_RET(qwHandleTaskComplete(QW_FPARAMS(), ctx));
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qwDropTask(QW_FPARAMS_DEF) {
+  QW_ERR_RET(qwHandleDynamicTaskEnd(QW_FPARAMS()));
   QW_ERR_RET(qwDropTaskStatus(QW_FPARAMS()));
   QW_ERR_RET(qwDropTaskCtx(QW_FPARAMS()));
 
@@ -438,15 +504,29 @@ void qwSetHbParam(int64_t refId, SQWHbParam **pParam) {
 }
 
 void qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx) {
-  char dbFName[TSDB_DB_FNAME_LEN] = {0};
-  char tbName[TSDB_TABLE_NAME_LEN] = {0};
+  char dbFName[TSDB_DB_FNAME_LEN];
+  char tbName[TSDB_TABLE_NAME_LEN];
+  STbVerInfo tbInfo;
+  int32_t i = 0;
 
-  qGetQueryTableSchemaVersion(pTaskInfo, dbFName, tbName, &ctx->tbInfo.sversion, &ctx->tbInfo.tversion);
+  while (true) {
+    if (qGetQueryTableSchemaVersion(pTaskInfo, dbFName, tbName, &tbInfo.sversion, &tbInfo.tversion, i) < 0) {
+      break;
+    }
 
-  if (dbFName[0] && tbName[0]) {
-    sprintf(ctx->tbInfo.tbFName, "%s.%s", dbFName, tbName);
-  } else {
-    ctx->tbInfo.tbFName[0] = 0;
+    if (dbFName[0] && tbName[0]) {
+      sprintf(tbInfo.tbFName, "%s.%s", dbFName, tbName);
+    } else {
+      tbInfo.tbFName[0] = 0;
+    }
+
+    if (NULL == ctx->tbInfo) {
+      ctx->tbInfo = taosArrayInit(1, sizeof(tbInfo));
+    }
+    
+    taosArrayPush(ctx->tbInfo, &tbInfo);
+    
+    i++;
   }
 }
 

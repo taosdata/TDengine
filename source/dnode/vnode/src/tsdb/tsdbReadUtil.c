@@ -220,8 +220,9 @@ void clearBlockScanInfo(STableBlockScanInfo* p) {
 
   p->delSkyline = taosArrayDestroy(p->delSkyline);
   p->pBlockList = taosArrayDestroy(p->pBlockList);
+  p->pBlockIdxList = taosArrayDestroy(p->pBlockIdxList);
   p->pMemDelData = taosArrayDestroy(p->pMemDelData);
-  p->pfileDelData = taosArrayDestroy(p->pfileDelData);
+  p->pFileDelData = taosArrayDestroy(p->pFileDelData);
 }
 
 void destroyAllBlockScanInfo(SSHashObj* pTableMap) {
@@ -238,7 +239,8 @@ void destroyAllBlockScanInfo(SSHashObj* pTableMap) {
 static void doCleanupInfoForNextFileset(STableBlockScanInfo* pScanInfo) {
   // reset the index in last block when handing a new file
   taosArrayClear(pScanInfo->pBlockList);
-  taosArrayClear(pScanInfo->pfileDelData);  // del data from each file set
+  taosArrayClear(pScanInfo->pBlockIdxList);
+  taosArrayClear(pScanInfo->pFileDelData);  // del data from each file set
 }
 
 void cleanupInfoFoxNextFileset(SSHashObj* pTableMap) {
@@ -384,12 +386,21 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
 
   // since there is only one table qualified, blocks are not sorted
   if (sup.numOfTables == 1) {
+    STableBlockScanInfo* pTableScanInfo = taosArrayGetP(pTableList, 0);
+    if (pTableScanInfo->pBlockIdxList == NULL) {
+      pTableScanInfo->pBlockIdxList = taosArrayInit(numOfBlocks, sizeof(STableDataBlockIdx));
+    }
     for (int32_t i = 0; i < numOfBlocks; ++i) {
       SFileDataBlockInfo blockInfo = {.uid = sup.pDataBlockInfo[0][i].uid, .tbBlockIdx = i};
       blockInfo.record = *(SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[0][i].pInfo->pBlockList, i);
 
       taosArrayPush(pBlockIter->blockList, &blockInfo);
+
+      STableDataBlockIdx tableDataBlockIdx = {.globalIndex = i};
+      taosArrayPush(pTableScanInfo->pBlockIdxList, &tableDataBlockIdx);
     }
+    taosArrayDestroy(pTableScanInfo->pBlockList);
+    pTableScanInfo->pBlockList = NULL;
 
     int64_t et = taosGetTimestampUs();
     tsdbDebug("%p create blocks info struct completed for one table, %d blocks not sorted, elapsed time:%.2f ms %s",
@@ -420,7 +431,13 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
     blockInfo.record = *(SBrinRecord*)taosArrayGet(sup.pDataBlockInfo[pos][index].pInfo->pBlockList, index);
 
     taosArrayPush(pBlockIter->blockList, &blockInfo);
-
+    STableBlockScanInfo *pTableScanInfo = sup.pDataBlockInfo[pos][index].pInfo;
+    if (pTableScanInfo->pBlockIdxList == NULL) {
+      size_t szTableDataBlocks = taosArrayGetSize(pTableScanInfo->pBlockList);
+      pTableScanInfo->pBlockIdxList = taosArrayInit(szTableDataBlocks, sizeof(STableDataBlockIdx));
+    }
+    STableDataBlockIdx tableDataBlockIdx = {.globalIndex = numOfTotal};
+    taosArrayPush(pTableScanInfo->pBlockIdxList, &tableDataBlockIdx);
     // set data block index overflow, in order to disable the offset comparator
     if (sup.indexPerTable[pos] >= sup.numOfBlocksPerTable[pos]) {
       sup.indexPerTable[pos] = sup.numOfBlocksPerTable[pos] + 1;
@@ -428,6 +445,12 @@ int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int3
 
     numOfTotal += 1;
     tMergeTreeAdjust(pTree, tMergeTreeGetAdjustIndex(pTree));
+  }
+
+  for (int32_t i = 0; i < numOfTables; ++i) {
+    STableBlockScanInfo* pTableScanInfo = taosArrayGetP(pTableList, i);
+    taosArrayDestroy(pTableScanInfo->pBlockList);
+    pTableScanInfo->pBlockList = NULL;
   }
 
   int64_t et = taosGetTimestampUs();
@@ -502,14 +525,14 @@ static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_
 
     if (newTable) {
       (*pScanInfo) = getTableBlockScanInfo(pReader->status.pTableMap, uid, pReader->idStr);
-      if ((*pScanInfo)->pfileDelData == NULL) {
-        (*pScanInfo)->pfileDelData = taosArrayInit(4, sizeof(SDelData));
+      if ((*pScanInfo)->pFileDelData == NULL) {
+        (*pScanInfo)->pFileDelData = taosArrayInit(4, sizeof(SDelData));
       }
     }
 
     if (record.version <= pReader->info.verRange.maxVer) {
       SDelData delData = {.version = record.version, .sKey = record.skey, .eKey = record.ekey};
-      taosArrayPush((*pScanInfo)->pfileDelData, &delData);
+      taosArrayPush((*pScanInfo)->pFileDelData, &delData);
     }
   }
 
@@ -556,8 +579,8 @@ static int32_t doLoadTombDataFromTombBlk(const TTombBlkArray* pTombBlkArray, STs
     uint64_t uid = pReader->status.uidList.tableUidList[j];
 
     STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, uid, pReader->idStr);
-    if (pScanInfo->pfileDelData == NULL) {
-      pScanInfo->pfileDelData = taosArrayInit(4, sizeof(SDelData));
+    if (pScanInfo->pFileDelData == NULL) {
+      pScanInfo->pFileDelData = taosArrayInit(4, sizeof(SDelData));
     }
 
     ETombBlkCheckEnum ret = 0;

@@ -8,6 +8,7 @@ add_executable(sml_test sml_test.c)
 add_executable(get_db_name_test get_db_name_test.c)
 add_executable(tmq_offset tmqOffset.c)
 add_executable(tmq_offset_test tmq_offset_test.c)
+add_executable(varbinary_test varbinary_test.c)
 target_link_libraries(
     tmq_offset
     PUBLIC taos
@@ -31,7 +32,7 @@ target_link_libraries(
 )
 target_link_libraries(
     tmq_sim
-    PUBLIC taos
+    PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common
     PUBLIC os
@@ -65,10 +66,20 @@ target_link_libraries(
     PUBLIC util
     PUBLIC common
     PUBLIC os
+    PUBLIC geometry
+
 )
 
 target_link_libraries(
     get_db_name_test
+    PUBLIC taos
+    PUBLIC util
+    PUBLIC common
+    PUBLIC os
+)
+
+target_link_libraries(
+    varbinary_test
     PUBLIC taos
     PUBLIC util
     PUBLIC common

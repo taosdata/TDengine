@@ -233,7 +233,7 @@ class TMQCom:
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
         for i in range(ctbNum):
             rowsBatched = 0
-            sql += " %s%d values "%(stbName,i)
+            sql += " %s.%s%d values "%(dbName, stbName, i)
             for j in range(rowsPerTbl):
                 sql += "(%d, %d, 'tmqrow_%d') "%(startTs + j, j, j)
                 rowsBatched += 1
@@ -241,7 +241,7 @@ class TMQCom:
                     tsql.execute(sql)
                     rowsBatched = 0
                     if j < rowsPerTbl - 1:
-                        sql = "insert into %s%d values " %(stbName,i)
+                        sql = "insert into %s.%s%d values " %(dbName, stbName,i)
                     else:
                         sql = "insert into "
         #end sql
@@ -263,7 +263,7 @@ class TMQCom:
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
         for i in range(ctbNum):
             rowsBatched = 0
-            sql += " %s%d values "%(ctbPrefix,i)
+            sql += " %s.%s%d values "%(dbName, ctbPrefix,i)
             for j in range(rowsPerTbl):
                 if (j % 2 == 0):
                     sql += "(%d, %d, %d, 'tmqrow_%d') "%(startTs + j, j, j, j)
@@ -274,7 +274,7 @@ class TMQCom:
                     tsql.execute(sql)
                     rowsBatched = 0
                     if j < rowsPerTbl - 1:
-                        sql = "insert into %s%d values " %(ctbPrefix,i)
+                        sql = "insert into %s.%s%d values " %(dbName, ctbPrefix, i)
                     else:
                         sql = "insert into "
         #end sql
@@ -296,7 +296,7 @@ class TMQCom:
         #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
         for i in range(ctbNum):
             rowsBatched = 0
-            sql += " %s%d values "%(ctbPrefix,i+ctbStartIdx)
+            sql += " %s.%s%d values "%(dbName, ctbPrefix, i+ctbStartIdx)
             for j in range(rowsPerTbl):
                 if (j % 2 == 0):
                     sql += "(%d, %d, %d, 'tmqrow_%d', now) "%(startTs + j, j, j, j)
@@ -307,7 +307,7 @@ class TMQCom:
                     tsql.execute(sql)
                     rowsBatched = 0
                     if j < rowsPerTbl - 1:
-                        sql = "insert into %s%d values " %(ctbPrefix,i+ctbStartIdx)
+                        sql = "insert into %s.%s%d values " %(dbName, ctbPrefix, i+ctbStartIdx)
                     else:
                         sql = "insert into "
         #end sql
@@ -578,18 +578,40 @@ class TMQCom:
         tdLog.info("wait subscriptions exit for %d s"%wait_cnt)
 
     def killProcesser(self, processerName):
-        killCmd = (
-            "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1"
-            % processerName
-        )
+        if platform.system().lower() == 'windows':
+            killCmd = ("wmic process where name=\"%s.exe\" call terminate > NUL 2>&1" % processerName)
+            psCmd = ("wmic process where name=\"%s.exe\" | findstr \"%s.exe\"" % (processerName, processerName))
+        else:
+            killCmd = (
+                "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1"
+                % processerName
+            )
+            psCmd = ("ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % processerName)
 
-        psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % processerName
-        processID = subprocess.check_output(psCmd, shell=True)
-
+        processID = ""
+        
+        try: 
+            processID = subprocess.check_output(psCmd, shell=True)
+        except Exception as err:
+            processID = ""
+            print('**** warn: ', err)        
+        
         while processID:
             os.system(killCmd)
             time.sleep(1)
-            processID = subprocess.check_output(psCmd, shell=True)
+            try: 
+                processID = subprocess.check_output(psCmd, shell=True)
+            except Exception as err:
+                processID = ""
+                print('**** warn: ', err)
+                
+    def startProcess(self, processName, param):
+        if platform.system().lower() == 'windows':
+            cmd = f"mintty -h never %s %s > NUL 2>&1" % (processName, param)
+        else:
+            cmd = f"nohup %s %s > /dev/null 2>&1 &" % (processName, param)
+        tdLog.info("%s"%(cmd))
+        os.system(cmd)                
 
     def close(self):
         self.cursor.close()
