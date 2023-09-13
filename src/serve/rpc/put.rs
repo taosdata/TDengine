@@ -266,9 +266,15 @@ impl PutStream {
                     }
                     Err(err) => Some(Err(err)),
                 };
+
                 if let Some(item) = item {
+                    let is_err = item.is_err();
                     if p_tx.send_async(item).await.is_err() {
                         tracing::info!("into_flight_put_result channel closed");
+                        break;
+                    }
+                    if is_err {
+                        tracing::warn!("Flight error, break");
                         break;
                     }
                 }
