@@ -332,7 +332,6 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
 
   pTask->pReadyMsgList = taosArrayDestroy(pTask->pReadyMsgList);
-  taosThreadMutexDestroy(&pTask->lock);
   if (pTask->msgInfo.pData != NULL) {
     destroyStreamDataBlock(pTask->msgInfo.pData);
     pTask->msgInfo.pData = NULL;
@@ -552,4 +551,36 @@ void streamTaskResetUpstreamStageInfo(SStreamTask* pTask) {
   }
 
   qDebug("s-task:%s reset all upstream tasks stage info", pTask->id.idStr);
+}
+
+int8_t streamTaskSetSchedStatusWait(SStreamTask* pTask) {
+  taosThreadMutexLock(&pTask->lock);
+  int8_t status = pTask->status.schedStatus;
+  if (status == TASK_SCHED_STATUS__INACTIVE) {
+    pTask->status.schedStatus = TASK_SCHED_STATUS__WAITING;
+  }
+  taosThreadMutexUnlock(&pTask->lock);
+
+  return status;
+}
+
+int8_t streamTaskSetSchedStatusActive(SStreamTask* pTask) {
+  taosThreadMutexLock(&pTask->lock);
+  int8_t status = pTask->status.schedStatus;
+  if (status == TASK_SCHED_STATUS__WAITING) {
+    pTask->status.schedStatus = TASK_SCHED_STATUS__ACTIVE;
+  }
+  taosThreadMutexUnlock(&pTask->lock);
+
+  return status;
+}
+
+int8_t streamTaskSetSchedStatusInActive(SStreamTask* pTask) {
+  taosThreadMutexLock(&pTask->lock);
+  int8_t status = pTask->status.schedStatus;
+  ASSERT(status == TASK_SCHED_STATUS__WAITING || status == TASK_SCHED_STATUS__ACTIVE);
+  pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
+  taosThreadMutexUnlock(&pTask->lock);
+
+  return status;
 }

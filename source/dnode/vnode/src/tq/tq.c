@@ -1033,8 +1033,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   // we have to continue retrying to successfully execute the scan history task.
-  int8_t schedStatus = atomic_val_compare_exchange_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE,
-                                                     TASK_SCHED_STATUS__WAITING);
+  int8_t schedStatus = streamTaskSetSchedStatusWait(pTask);
   if (schedStatus != TASK_SCHED_STATUS__INACTIVE) {
     tqError(
         "s-task:%s failed to start scan-history in first stream time window since already started, unexpected "
@@ -1051,9 +1050,8 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   streamScanHistoryData(pTask);
   if (pTask->status.taskStatus == TASK_STATUS__PAUSE) {
     double el = (taosGetTimestampMs() - pTask->tsInfo.step1Start) / 1000.0;
-    tqDebug("s-task:%s is paused in the step1, elapsed time:%.2fs, sched-status:%d", pTask->id.idStr, el,
-            TASK_SCHED_STATUS__INACTIVE);
-    atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+    int8_t status = streamTaskSetSchedStatusInActive(pTask);
+    tqDebug("s-task:%s is paused in the step1, elapsed time:%.2fs, sched-status:%d", pTask->id.idStr, el, status);
     streamMetaReleaseTask(pMeta, pTask);
     return 0;
   }
@@ -1093,8 +1091,8 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     }
 
     // now we can stop the stream task execution
-
     int64_t latestVer = 0;
+
     taosThreadMutexLock(&pStreamTask->lock);
     streamTaskHalt(pStreamTask);
     tqDebug("s-task:%s level:%d sched-status:%d is halt by fill-history task:%s", pStreamTask->id.idStr,
@@ -1128,7 +1126,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       tqDebug("s-task:%s wal reader start scan WAL verRange:%" PRId64 "-%" PRId64 ", set sched-status:%d", id, dstVer,
               pTask->dataRange.range.maxVer, TASK_SCHED_STATUS__INACTIVE);
 
-      atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+      /*int8_t status = */streamTaskSetSchedStatusInActive(pTask);
 
       // set the fill-history task to be normal
       if (pTask->info.fillHistory == 1 && !streamTaskShouldStop(&pTask->status)) {
@@ -1295,9 +1293,9 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
               pTask->chkInfo.nextProcessVer);
       streamProcessRunReq(pTask);
     } else {
-      atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+      int8_t status = streamTaskSetSchedStatusInActive(pTask);
       tqDebug("vgId:%d s-task:%s ignore run req since not in ready state, status:%s, sched-status:%d", vgId,
-              pTask->id.idStr, streamGetTaskStatusStr(st), pTask->status.schedStatus);
+              pTask->id.idStr, streamGetTaskStatusStr(st), status);
     }
 
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);

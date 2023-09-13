@@ -480,7 +480,7 @@ int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask) {
 
   // execute in the scan history complete call back msg, ready to process data from inputQ
   streamSetStatusNormal(pTask);
-  atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+  streamTaskSetSchedStatusInActive(pTask);
 
   taosWLockLatch(&pMeta->lock);
   streamMetaSaveTask(pMeta, pTask);
