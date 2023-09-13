@@ -152,7 +152,7 @@ impl PutStream {
                 rx: flume::Receiver<arrow::record_batch::RecordBatch>,
                 rsp_tx: flume::Sender<anyhow::Result<()>>,
                 license: Option<ConnectorLicense>,
-                transferred: Option<Arc<ConnectorTransferred>>,
+                _transferred: Option<Arc<ConnectorTransferred>>,
                 span: tracing::Span,
             ) -> anyhow::Result<()> {
                 // dbg!(&task);
@@ -163,12 +163,12 @@ impl PutStream {
                 let _ = span.clone().entered();
 
                 let worker = IpcStreamWorker::new(
-                    &pool,
+                    pool.clone(),
                     from,
                     lock,
                     schema,
-                    license.as_ref(),
-                    transferred.as_deref(),
+                    license,
+                    None,
                     span.clone(),
                 )
                 .await?;

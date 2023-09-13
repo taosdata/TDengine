@@ -1887,31 +1887,27 @@ async fn handle_lush_message_init(
 }
 
 #[allow(dead_code)]
-pub struct IpcStreamWorker<'a> {
-    pool: &'a TaosPool,
+pub struct IpcStreamWorker {
+    pool: TaosPool,
     parser: IpcParser,
     lock: Arc<Mutex<()>>,
     task: Option<i64>,
     from: Dsn,
     config: Option<OPCConfig>,
     opc_table_config: OnceCell<OpcTableConfig>,
-    license: Option<&'a ConnectorLicense>,
-    transferred: Option<&'a Transferred>,
+    license: Option<ConnectorLicense>,
+    transferred: Option<Transferred>,
     span: tracing::Span,
     // stmt: Arc<UnsafeCell<Stmt>>,
 }
-
-unsafe impl<'a> Send for IpcStreamWorker<'a> {}
-unsafe impl<'a> Sync for IpcStreamWorker<'a> {}
-
-impl<'a> IpcStreamWorker<'a> {
+impl IpcStreamWorker {
     pub async fn new(
-        pool: &'a TaosPool,
+        pool: TaosPool,
         from: Dsn,
         lock: Arc<Mutex<()>>,
         schema: Arc<Schema>,
-        license: Option<&'a ConnectorLicense>,
-        transferred: Option<&'a Transferred>,
+        license: Option<ConnectorLicense>,
+        transferred: Option<Transferred>,
         span: tracing::Span,
         // license: Option<>
     ) -> anyhow::Result<Self> {
@@ -1988,8 +1984,8 @@ impl<'a> IpcStreamWorker<'a> {
                     &record,
                     &mut count,
                     parser, // todo: license
-                    self.license,
-                    self.transferred,
+                    self.license.as_ref(),
+                    self.transferred.as_ref(),
                 )
                 .await?;
                 Ok(count)
@@ -2022,14 +2018,16 @@ impl<'a> IpcStreamWorker<'a> {
                     &names,
                     &marks,
                     &mut count,
-                    self.license,
-                    self.transferred,
+                    self.license.as_ref(),
+                    self.transferred.as_ref(),
                 )
                 .await?;
                 Ok(count)
             }
             StreamType::Point => {
-                if let Some((_license, transferred)) = self.license.zip(self.transferred) {
+                if let Some((_license, transferred)) =
+                    self.license.as_ref().zip(self.transferred.as_ref())
+                {
                     let _used = transferred.points.load(Ordering::SeqCst);
                     // if used > license.number as _ {
                     //     anyhow::bail!(
@@ -2064,7 +2062,7 @@ impl<'a> IpcStreamWorker<'a> {
                 };
                 drop(guard);
                 let _n = consume_point_record(&taos, stmt, &record, &mut count, config).await?;
-                if let Some(transferred) = self.transferred {
+                if let Some(transferred) = &self.transferred {
                     transferred.points.fetch_add(_n as _, Ordering::SeqCst);
                 }
                 // todo: license
