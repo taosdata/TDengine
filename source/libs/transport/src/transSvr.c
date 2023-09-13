@@ -43,6 +43,7 @@ typedef struct SSvrConn {
 
   ConnStatus status;
 
+  uint32_t serverIp;
   uint32_t clientIp;
   uint16_t port;
 
@@ -324,6 +325,7 @@ bool uvWhiteListFilte(SWhiteList* pWhite, char* user, uint32_t ip, int64_t ver) 
 }
 bool uvWhiteListCheckConn(SWhiteList* pWhite, SSvrConn* pConn) {
   if (pConn->inType == TDMT_MND_STATUS || pConn->inType == TDMT_MND_RETRIEVE_IP_WHITE ||
+      pConn->serverIp == pConn->clientIp ||
       pWhite->ver == pConn->whiteListVer /*|| strncmp(pConn->user, "_dnd", strlen("_dnd")) == 0*/)
     return true;
 
@@ -358,7 +360,7 @@ static bool uvHandleReq(SSvrConn* pConn) {
 
   int8_t forbiddenIp = 0;
   if (pThrd->enableIpWhiteList) {
-    forbiddenIp = uvWhiteListCheckConn(pThrd->pWhiteList, pConn) == false ? 1 : 0;
+    forbiddenIp = !uvWhiteListCheckConn(pThrd->pWhiteList, pConn) ? 1 : 0;
     if (forbiddenIp == 0) {
       uvWhiteListSetConnVer(pThrd->pWhiteList, pConn);
     }
@@ -959,7 +961,11 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     transSockInfo2Str(&sockname, pConn->src);
 
     struct sockaddr_in addr = *(struct sockaddr_in*)&peername;
+    struct sockaddr_in saddr = *(struct sockaddr_in*)&sockname;
+
     pConn->clientIp = addr.sin_addr.s_addr;
+    pConn->serverIp = saddr.sin_addr.s_addr;
+
     pConn->port = ntohs(addr.sin_port);
 
     uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocRecvBufferCb, uvOnRecvCb);
