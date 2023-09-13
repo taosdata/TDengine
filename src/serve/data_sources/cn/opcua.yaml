@@ -8,7 +8,7 @@ description: |
 
   如果想了解更多关于 OPC UA 的信息，可以阅读OPC Foundation网站和一些有用的博客，例如：
   1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)
-  2. [What is OPC UA](https://opcfoundation.org/about/opc-technologies/opc-ua/).
+  2. [What is OPC UA](https://opcfoundation.org/about/opc-technologies/opc-ua/)
 
   taosX 使用 OPC 连接器从 OPC 服务器拉取或订阅数据。
 type: uri
