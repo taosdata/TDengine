@@ -1905,7 +1905,7 @@ unsafe impl<'a> Send for IpcStreamWorker<'a> {}
 unsafe impl<'a> Sync for IpcStreamWorker<'a> {}
 
 impl<'a> IpcStreamWorker<'a> {
-    pub fn new(
+    pub async fn new(
         pool: &'a TaosPool,
         from: Dsn,
         lock: Arc<Mutex<()>>,
@@ -1916,8 +1916,8 @@ impl<'a> IpcStreamWorker<'a> {
         // license: Option<>
     ) -> anyhow::Result<Self> {
         let config = if from.driver.starts_with("opc") {
-            let taos = futures::executor::block_on(pool.get())?;
-            Some(opc_config_blocking(&taos, &from, 1)?)
+            let taos = pool.get().await?;
+            Some(opc_config_blocking(&taos, &from, 1).await?)
         } else {
             None
         };

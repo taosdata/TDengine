@@ -171,8 +171,7 @@ impl PutStream {
                     transferred.as_deref(),
                     span.clone(),
                 )
-                .unwrap();
-                dbg!(&task);
+                .await?;
                 let parser: Option<Parser> = task
                     .parser
                     .as_ref()
