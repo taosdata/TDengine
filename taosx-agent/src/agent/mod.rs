@@ -150,7 +150,7 @@ async fn new_channel(endpoint: String) -> anyhow::Result<Channel> {
         .keep_alive_while_idle(true)
         .tcp_keepalive(Some(Duration::from_secs(5)))
         .http2_keep_alive_interval(Duration::from_secs(13))
-        .keep_alive_timeout(Duration::from_secs(60))
+        .keep_alive_timeout(Duration::from_secs(120))
         .connect()
         .await
         .map_err(|err| anyhow::format_err!("Unable to connect with endpoint `{endpoint}`: {err:#}"))
