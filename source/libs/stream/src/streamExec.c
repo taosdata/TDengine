@@ -509,7 +509,7 @@ int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
       code = streamTransferStateToStreamTask(pTask);
 
       if (code != TSDB_CODE_SUCCESS) {
-        atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+        /*int8_t status = */streamTaskSetSchedStatusInActive(pTask);
       }
     } else {
       qDebug("s-task:%s sink task does not transfer state", id);
@@ -615,11 +615,9 @@ bool streamTaskIsIdle(const SStreamTask* pTask) {
 
 int32_t streamTryExec(SStreamTask* pTask) {
   // this function may be executed by multi-threads, so status check is required.
-  int8_t schedStatus =
-      atomic_val_compare_exchange_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__WAITING, TASK_SCHED_STATUS__ACTIVE);
-
   const char* id = pTask->id.idStr;
 
+  int8_t schedStatus = streamTaskSetSchedStatusActive(pTask);
   if (schedStatus == TASK_SCHED_STATUS__WAITING) {
     while (1) {
       int32_t code = streamExecForAll(pTask);
@@ -628,9 +626,12 @@ int32_t streamTryExec(SStreamTask* pTask) {
         return -1;
       }
 
+      taosThreadMutexLock(&pTask->lock);
       if (taosQueueEmpty(pTask->inputInfo.queue->pQueue) || streamTaskShouldStop(&pTask->status) ||
           streamTaskShouldPause(&pTask->status)) {
         atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+        taosThreadMutexUnlock(&pTask->lock);
+
         qDebug("s-task:%s exec completed, status:%s, sched-status:%d", id,
                streamGetTaskStatusStr(pTask->status.taskStatus), pTask->status.schedStatus);
         return 0;
