@@ -20,8 +20,7 @@ use linked_hash_map::LinkedHashMap;
 use metrics::counter;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
-use sqlx::{FromRow, Sqlite};
+use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::utils::mask_dsn;
 use taosx_core::utils::port_pool::PortPool;
@@ -208,7 +207,7 @@ pub struct TaskStatus {
     context: Option<String>,
 }
 
-pub(super) struct TaskController {
+pub(crate) struct TaskController {
     pub pool: SqlitePool,
     pub runtime: Option<Runtime>,
     pub tasks: RwLock<
@@ -251,7 +250,7 @@ impl Debug for TaskController {
 // }
 
 #[derive(Debug, Clone)]
-pub(super) struct TaskControllerRef(Arc<TaskController>);
+pub(crate) struct TaskControllerRef(Arc<TaskController>);
 
 impl TaskControllerRef {
     pub async fn from_sqlite(sqlite: &str) -> anyhow::Result<Self> {
@@ -1386,9 +1385,9 @@ impl TaskController {
         Ok(Some(task.into()))
     }
     pub async fn stop(&self, id: i64) -> anyhow::Result<Option<()>> {
+        tracing::info!("Stop task by id {id}");
         if let Some((handle, token)) = { self.tasks.write().await.remove(&id) } {
             tracing::info_span!("stop_task", task = id);
-            tracing::info!("Stop task by id {id}");
             let now = Utc::now();
 
             let agent: Option<(Option<i64>, Status)> = sqlx::query_as::<_, (Option<i64>, Status)>(
@@ -1759,11 +1758,9 @@ impl TaskController {
     }
 
     pub async fn delete_agent(&self, agent_id: i64) -> anyhow::Result<()> {
-        let mut conn = self.pool.acquire().await?;
-        let trans = self.pool.begin().await?;
         let ids = sqlx::query_as::<_, (i64,)>("select id from tasks where via = ?")
             .bind(agent_id)
-            .fetch_all(&mut conn)
+            .fetch_all(&self.pool)
             .await?;
         if !ids.is_empty() {
             anyhow::bail!("should delete associated tasks before delete agent");
@@ -1771,15 +1768,14 @@ impl TaskController {
 
         sqlx::query("delete from agent_activities where id = ?")
             .bind(agent_id)
-            .execute(&mut conn)
+            .execute(&self.pool)
             .await?;
         tracing::info!("Deleted agent with id {agent_id}");
 
         sqlx::query("delete from agents where id = ?")
             .bind(agent_id)
-            .execute(&mut conn)
+            .execute(&self.pool)
             .await?;
-        trans.commit().await?;
 
         Ok(())
     }
@@ -1973,9 +1969,12 @@ impl FromStr for Status {
     }
 }
 
-impl<'r> sqlx::Decode<'r, sqlx::sqlite::Sqlite> for Status {
+impl<'r, DB: sqlx::Database> sqlx::Decode<'r, DB> for Status
+where
+    &'r str: sqlx::Decode<'r, DB>,
+{
     fn decode(
-        value: <sqlx::sqlite::Sqlite as sqlx::database::HasValueRef<'r>>::ValueRef,
+        value: <DB as sqlx::database::HasValueRef<'r>>::ValueRef,
     ) -> Result<Self, sqlx::error::BoxDynError> {
         let v: &'r str = sqlx::Decode::decode(value)?;
         Self::from_str(v).map_err(|err| Box::new(err) as _)
@@ -1997,9 +1996,12 @@ where
     }
 }
 
-impl sqlx::Type<Sqlite> for Status {
-    fn type_info() -> <Sqlite as sqlx::Database>::TypeInfo {
-        str::type_info()
+impl<'t, DB: sqlx::Database> sqlx::Type<DB> for Status
+where
+    &'t str: sqlx::Type<DB>,
+{
+    fn type_info() -> DB::TypeInfo {
+        <&'t str as sqlx::Type<DB>>::type_info()
     }
 }
 
@@ -2520,7 +2522,7 @@ const fn is_false(b: &bool) -> bool {
         "to": "taos:///test2"
     })
 )]
-pub(super) struct NewTask {
+pub(crate) struct NewTask {
     stream_type: Option<String>,
     /// Task name.
     #[schema(example = "demo")]
@@ -2686,7 +2688,7 @@ impl From<NewTask> for NewTaskV1 {
 #[derive(Serialize, Deserialize, ToSchema, Default, Clone, Debug, sqlx::FromRow)]
 #[serde(default)]
 #[schema(example = json!({"from": "tmq:///test", "to": "taos:///test2"}))]
-pub(super) struct UpdateTask {
+pub struct UpdateTask {
     /// Task name
     name: Option<String>,
     /// Update trigger,
@@ -2722,7 +2724,7 @@ pub(super) struct UpdateTask {
 
 #[derive(Serialize, Deserialize, Default, Clone, IntoParams)]
 #[serde(default)]
-pub(super) struct TaskFilter {
+pub struct TaskFilter {
     name: Option<String>,
     stream_type: Option<String>,
     from_cluster: Option<String>,

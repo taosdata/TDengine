@@ -74,7 +74,7 @@ base64 = "0.21.2"
 cfg-if = "1.0.0"
 uuid = { version = "1.4.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
-sqlx = { version = "0.6", features = ["sqlite", "chrono", "json"] }
+sqlx = { version = "0.7", features = ["sqlite", "chrono", "json"] }
 utoipa = { version = "3", features = ["actix_extras", "chrono"] }
 utoipa-swagger-ui = { version = "3.0.2", features = ["actix-web"] }
 
@@ -140,7 +140,7 @@ winapi = { version = "0.3", features = ["processthreadsapi"] }
 libc = "0.2"
 
 [build-dependencies]
-sqlx = { version = "0.6", features = ["sqlite", "chrono"] }
+sqlx = { version = "0.7", features = ["sqlite", "chrono"] }
 dotenv = "0.15.0"
 shadow-rs = "0.21.0"
 
