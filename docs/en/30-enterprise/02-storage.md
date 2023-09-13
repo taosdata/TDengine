@@ -6,27 +6,27 @@ toc_max_heading_level: 4
 
 ## Introduction
 
-This section describes TDengine Enterprise's unique Multi-Level Storage feature, which is designed to store more recent, hot data on high-speed media, and older, less hot data on low-cost media, thus achieving multiple, seemingly contradictory goals at the same time: improving access efficiency, expanding storage space, and controlling costs.
+This article describes how to use tiered storage in TDengine. With tiered storage, you can balance data accessibility and storage costs by moving older data to less expensive storage media automatically.
 
 ## Configuration
 
-Multi-level storage supports 3 levels with up to 16 mount points per level.
+TDengine supports three tiers of storage. Each tier can include 16 mount points.
 
-TDengine multi-level storage is configured in the following way (in the configuration file /etc/taos/taos.cfg):
+To configure tiered storage, modify your `taos.cfg` file as follows:
 
 ```
 dataDir [path] <level> <primary>
 ```
 
-- path: Folder path of the mount point
-- level: The media storage level, which takes the values 0, 1, and 2.
-  Level 0 stores the newest data, level 1 stores the next newest data, level 2 stores the oldest data, and omitted defaults to 0.
-  Data flow between levels of storage: level 0 storage -> level 1 storage -> level 2 storage.
-  Multiple hard disks can be mounted on the same storage level, and data files on the same storage level are distributed across all hard disks in that storage level.
-  It should be noted that the movement of data across different levels of storage media is done automatically by the system without user intervention.
-- primary: Whether or not it is the primary mount point, 0 (no) or 1 (yes), omitted defaults to 1.
+- path: The path to a mount point
+- level: The tier for the specified mount point. Enter 0, 1, or 2.
+  Tier 0 contains the latest data, tier 1 contains older data, and tier 2 contains the oldest data. The default value is 0.
+  As data ages, it is moved from tier 0 to tier 1 and then to tier 2.
+  You can mount multiple disks in a single tier. The data stored on each tier is distributed among all disks associated with the tier.
+  Note that TDengine moves between tiers automatically.
+- primary: Whether the specified mount point is the primary mount point. Enter 0 for false or 1 for true. The default value is 1.
 
-In the configuration, only one primary mount point is allowed (level=0, primary=1), e.g. using the following configuration:
+A TDengine cluster can have only one primary mount point, which must be on tier 0. An example configuration is as follows:
 
 ```
 dataDir /mnt/data1 0 1
@@ -39,18 +39,18 @@ dataDir /mnt/data6 2 0
 
 :::note
 
-1. Multi-level storage does not allow cross-level configurations, and the legal configuration options are: level 0 only, level 0 + level 1 only, and level 0 + level 1 + level 2. Instead, it is not allowed to configure only level=0 and level=2 without level=1.
-2. Prohibit manual removal of active mount disks, which currently do not support non-local network disks.
-3. Multi-level storage does not currently support the ability to delete mounted hard disks.
+1. Skipping tiers is not allowed. Your configuration can have tier 0 storage only, tier 0 and tier 1 storage, or tier 0, 1, and 2 storage. You cannot configure tier 1 storage without tier 0 storage or tier 2 storage without tier 0 and tier 1 storage.
+2. You cannot manually remove mount points that are in use. You cannot mount network disks.
+3. You cannot remove disks that have been mounted.
 
 :::
 
 ## Load Balancing
 
-In multilevel storage, there is only one primary mount point, which holds the most important metadata in the system, and the home directory of each vnode exists on the current dnode's primary mount point, which results in the dnode's write performance being limited by the IO throughput capacity of a single disk.
+System metadata is stored on the primary mount point. The root directory of each vnode is stored on the primary mount point of the associated dnode. For this reason, data ingestion performance on each dnode is limited by the I/O throughput of the primary mount point.
 
-Starting from TDengine 3.1.0.0, if a dnode is configured with more than one level 0 mount point, we distribute the home directories of all the vnodes on the dnode to all level 0 mount points in a balanced way, and these level 0 mount points share the write load. Under the condition that the network I/O and other processing resources do not become bottlenecks, through the optimization of cluster configuration, the test results prove that the write capacity of the whole system and the number of level 0 mount points show a linear relationship, that is, with the increase of the number of level 0 mount points, the write capacity of the whole system also increases exponentially.
+In TDengine 3.1.0.0 and later, the root directories of the vnodes on a dnode are distributed among all tier 0 storage. There is a direct correlation between the number of tier 0 storage devices and the ingestion performance of the system. To improve write performance, add tier 0 storage devices to your dnodes.
 
-## Sibling mount point selection strategy
+## Disk Selection Within Tiers
 
-In general, when TDengine wants to select one of the sibling mount points for generating a new data file, the round robin policy is used for selection. However, in reality, the capacity of each disk may not be the same, or the capacity is the same but the amount of data written to it is not the same, which will lead to an imbalance in the available space on each disk, and in the actual selection, it is possible to select a disk that has very little space left. To address this issue, a new configuration `minDiskFreeSize` has been introduced since 3.1.1.0, whereby when the free space on a disk is less than or equal to this threshold, that disk will no longer be selected for generating new data files. This configuration item is in bytes and should have a value greater than 2GB, i.e. it will skip mount points with less than 2GB of free space.
+TDengine uses a round robin policy to select the mount point that it uses to store new data files. This policy can become a problem if certain disks on a tier have less remaining space than others, as TDengine may select a disk that is almost full. You can specify the `minDiskFreeSize` parameter to set a minimum threshold for remaining disk space, after which TDengine will no longer store new data files on disks that do not meet the threshold. Specify a value in bytes. It is recommended that you set this value to 2 GB or higher.

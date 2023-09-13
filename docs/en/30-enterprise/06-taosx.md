@@ -6,23 +6,23 @@ sidebar_label: taosX
 
 ## Introduction
 
-taosXis a zero-code platform for data ingestion, replication, backup, and restore. This article describes the taosX command line.
+taosX is zero-code platform for data ingestion, replication, and backup. This article describes the command-line parameters of taosX.
 
-## Command Line Parameters Description:
+## Description
 
-**Note: Some parameters cannot be set by explorer for the time being [see: Description of Other Parameters], and will be opened gradually afterwards) **.
+**Note: Some parameters cannot be configured through taosExplorer.**
 
-The commands are as follows:
+An example of taosX command-line parameters is shown as follows:
 
 ```shell
-taosx -f <from-DSN> -t <to-DSN> <Other Parameters>
+taosx -f <from-DSN> -t <to-DSN> <other-parameters>
 ```
 
-The format of `<content>` in the following parameter descriptions and examples is a placeholder unless otherwise specified, so you need to replace it with the actual parameter when using it.
+Angled braces (\<\>) are used to denote content that you input based on your system configuration.
 
-## DSN (Data Source Name)
+## Data Source Name (DSN)
 
-The taosX command line mode uses a DSN to represent a data source (source or destination source), a typical DSN is as follows:
+taosX refers to data sources and destinations by their DSN. A standard DSN is shown as follows:
 
 ```bash
 # url-like
@@ -30,74 +30,70 @@ The taosX command line mode uses a DSN to represent a data source (source or des
 |------|------------|---|-----------|-----------|------|------|----------|-----------------------|
 |driver|   protocol |   | username  | password  | host | port |  object  |  params               |
 
-// url example
+// URL example
 tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 ```
-[] are optional
+Items within brackets (\[\]) are optional.
 
-1. Different drivers have different parameters. The driver contains the following options.
+1. Each driver uses different parameters. taosX includes the following drivers:
 
-- taos: Getting data from TDengine using the query interface
-- tmq: enable data subscription to get data from TDengine
-- local: data backup or recovery
-- pi: Enable pi-connector to fetch data from the pi database
-- opc: enable opc-connector to get data from opc-server
-- mqtt: Enable mqtt-connector to fetch data from mqtt-broker
-- kafka: Enabling the Kafka Connector to Subscribe to Message Writes from Kafka Topics
-- influxdb:  Enabling the influxdb connector to fetch data from InfluxDB
-- csv: parsing data from CSV files
+- taos: queries data from TDengine
+- tmq: subscribes to data in TDengine
+- local: used to back up or restore data locally
+- pi: obtains data from a PI System deployment
+- opc: obtains data from an OPC server
+- mqtt: obtains data from an MQTT broker
+- kafka:  subscribes to data in Kafka topics
+- influxdb:  obtains data from an InfluxDB deployment
+- csv: parses data from a CSV file
 
-2. +protocol contains the following options:
-- +ws: Used when driver is taos or tmq, to indicate that rest is used to fetch data. Not using +ws means that a native connection is used to get the data, which requires taosc to be installed on the server where taosx is hosted.
-- +ua: Used when the driver value is opc, indicating that the opc-server of the collected data is opc-ua.
-- +da: Used when the driver value is opc, indicating that the opc-server of the collected data is opc-da.
+2. taosX supports the following protocols:
+- +ws: uses the REST API to connect with a TDengine server using the taos or tmq driver. If you do not specify the +ws protocol, the taos and tmq drivers use native connections to TDengine. Note that the TDengine Client must be installed on the same machine as taosX for native connections.
+- +ua: uses OPC-UA to connect with an OPC server.
+- +da: uses OPC-DA to connect with an OPC server.
 
-3. host:port Indicates the address and port of the data source.
-4. object Indicates the specific data source, which can be the database, super table, table of TDengine, or the path of the local backup file, or the database in the corresponding data source server.
-5. username and password indicate the username and password for this data source.
-6. params represents the parameters of dsn.
+3. host:port indicates the IP address and port of the data source.
+4. object indicates the specific item to transfer. This can be a TDengine database, supertable, or table; a local backup file; or a database on a data source.
+5. username and password indicate the credentials on the data source.
+6. params indicate additional parameters for the data source.
 
-## Other notes
+## Other Parameters
 
-1. parser is set by --parser or -p, set the parser of transform to take effect. This can be set up through Explorer's task configuration in data sources such as CSV, MQTT, and KAFKA.
+1. Use the -p or --parser parameter to configure the transform parser. This item can be configured in taosExplorer.
 
-  For example:
+  Example:
 
   ```shell
   --parser "{\"parse\":{\"ts\":{\"as\":\"timestamp(ms)\"},\"topic\":{\"as\":\"varchar\",\"alias\":\"t\"},\"partition\":{\"as\":\"int\",\"alias\":\"p\"},\"offset\":{\"as\":\"bigint\",\"alias\":\"o\"},\"key\":{\"as\":\"binary\",\"alias\":\"k\"},\"value\":{\"as\":\"binary\",\"alias\":\"v\"}},\"model\":[{\"name\":\"t_{t}\",\"using\":\"kafka_data\",\"tags\":[\"t\",\"p\"],\"columns\":[\"ts\",\"o\",\"k\",\"v\"]}]}"
 
   ```
 
-2. transform Configures some operations on table names and fields during data synchronization (only supported from 2.6 to 3.0 and between 3.0) with the --transform or -T setting. This setting cannot be made with Explorer at this time. The data structure is described as follows:
+2. Use the -T or --transform parameter to perform operations on database names or fields when migrating from TDengine 2.6 or 3.0 to 3.0. This parameter cannot be configured in taosExplorer. The usage of this parameter is described as follows:
    
   ```shell
-  1. AddTag, add TAG for the table. For example: `-T add-tag:<tag1>=<value1>`
-  2. Rename tables：
-      2.1 Renaming scope
-          2.1.1 RenameTable: rename all table matching the criterias
-          2.1.2 RenameChildTable: rename all child tables matching the criterias
-          2.1.3 RenameSuperTable: rename all supertables matching the criterias
-      2.2 Renaming methods
-          2.2.1 Prefix: rename by adding prefix
-          2.2.2 Suffix: rename by adding suffix
-          2.2.3 Template: rename by using template
-          2.2.4 ReplaceWithRegex: rename by regular replacing
-  Configuration forrenaming：
-      <Renaming scope>:<renaming method>:<renaming value>
-
-  Examples:
-      1. Add prefix for all tables
+  1. AddTag: adds a tag to a table. Example: -T add-tag:<tag1>=<value1>
+  2. Table renaming:
+      2.1 Conditions
+          2.1.1 RenameTable: renames all tables that match the specified conditions
+          2.1.2. RenameChildTable: renames all subtables that match the specified conditions
+          2.1.3 RenameSuperTable: renames all supertables that match the specified conditions
+      2.2 Options
+          2.2.1 Prefix: adds a prefix
+          2.2.2 Suffix: adds a suffix
+          2.2.3 Template: template mode
+          2.2.4 ReplaceWithRegex: replaces with a regular expression 
+  Operations are performed as follows:
+      <condition>:<option>:<value>
+  Example:
+      1. Add a prefix to all tables:
       --transform rename-table:prefix:<prefix>
-
-      2.Replace `prefix1` with `prefix2` for all tables matching the criterias, in the example below `<>` is used for regular expression instead of place holder
+      2. Change prefix1 to prefix2 for all tables:
       -T rename-child-table:replace_with_regex:^prefix1(?<old>)::prefix2_$old
 
-      More explanation: ^prefix1(?<old>) is regular exppression, it will match the table name with `prefix1` as prefix and the remaining part as `old`, then replace `prefix1` with `prefix2`, the final table name is `prefix2_old`
-
-      For more details about regular replacement please refer to https://docs.rs/regex/latest/regex/#example-replacement-with-named-capture-groups 
+      Note: ^prefix1(?<old>) is a regular expression that matches all tables whose name begins with prefix1 and adds the suffix old. prefix2$old replaces old with prefix2. Note: Because each part of the command is separated with a colon (:), your regular expression cannot contain colons.
+      For more information about regular expressions, see <https://docs.rs/regex/latest/regex/#example-replacement-with-named-capture-groups>
   ```
 
-3. jobs specify the number of parallel tasks, it is only valid for taks of tmq type. It can be specified using --jobs `<number>` or -j `<number>` .
-4. -v specifies the log level of taosx, -v means info level log, -vv means debug level log, -vvv means trace level log.
-
+3. jobs indicates the number of concurrent jobs that can be run. This option is used with the tmq driver only. This parameter cannot be configured in taosExplorer. You can specify the number of concurrent jobs with the --jobs <number> or -j <number> parameter.
+4. The -v parameter specifies the log level of taosX. -v indicates info, -vv indicates debug, and -vvv indicates trace.
 

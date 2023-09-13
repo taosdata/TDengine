@@ -3,34 +3,34 @@ toc_max_heading_level: 4
 title: Data Ingestion
 ---
 
-This section describes how to access data from various data sources to TDengine using taosX's command line mode. For command line arguments to taosX, see [taosX](../../reference/taosx). You can also use taos-explorer's visual interface for data ingestion, please refer to [Visual Management](../explorer). For service installation and deployment, please refer to [Installation and Deployment](../../get-started).
+This article describes how to use taosX to ingest data into TDengine. For more information about taosX, see [taosX](../../reference/taosx/). You can also use taosExplorer to set up data ingestion. For more information, see [taosExplorer](../explorer/). For more information about installing taosX, see [Installation](../../get-started/).
 
 ## OPC-UA
 
-### Configuration Parameters
+### Parameters
 
 | Name | Type    | Description                                   |  
 |-----------------|--------|-----------------------------------------------------------------------------|
-| interval | int    | Collection interval (seconds), default 1s                                   |
-| concurrent | int    | Collection concurrency, default 1                                   |
-| batch_size | int    | Collection data points per batch, default 100                                   |
-| batch_timeout | int    | Timeout for collectors (seconds), default 20s                                   |
-| connect_timeout | int    | Timeout for connections (seconds), default 10s                                  |
-| request_timeout | int    | Timeout for requests (seconds), default 10s                                              |
-| security_policy | string | OPC-UA connection security policy (None/Basic128Rsa15/Basic256/Basic256Sha256)                                  |
-| security_mode   | string | OPC-UA connection mode (None/Sign/SignAndEncrypt)                                                    |
-| certificate     | string | cert.pem path Takes effect when connection mode and policy are not none        |
-| private_key     | string | key.pem path Takes effect when connection mode and policy are not none |
-| csv_config_file | string | Contains OPC UA data point and table configuration. Mutually exclusive with configure csv_config_file configuration, csv_config_file takes precedence|
-| ua.nodes | string | OPC-UA node NodeID. Used in conjunction with opc_table_config configuration, both need to be configured at the same time. Mutually exclusive with configure csv_config_file configuration, csv_config_file takes precedence. Configuration format is <nodeid\>::<code\>, code is used to build sub-tables. |
-| opc_table_config | string | OPCUA single-column table configuration. Must be used with ua.nodes. |
-| debug | bool | Whether to enable OPC connector debug logs. The default value is false. |
-| enable | bool | Whether to store raw data. The default value is false|
-| path | string | Raw data storage path. Must be configured when enable is set to true. |
-| keep | int | Days to store raw data. Must be configured when enable is set to true. |
+| interval | int    | Data collection interval, in seconds. Default 1                                   |
+| concurrent | int    | Data collection concurrency. Default 1                                   |
+| batch_size | int    | Batch size for uploading collected data. Default 100                                   |
+| batch_timeout | int    | Timeout for uploading collected data, in seconds. Default 20                                   |
+| connect_timeout | int    | Timeout for connections, in seconds. Default 10                                  |
+| request_timeout | int    | Timeout for requests, in seconds. Default 10                                              |
+| security_policy | string | OPC-UA security policy. Enter None, Basic128Rsa15, Basic256, or Basic256Sha256.                                  |
+| security_mode   | string | OPC-UA security mode. Enter None, Sign, or SignAndEncrypt.                                                    |
+| certificate     | string | Path to the `cert.pem` file. This option takes effect when `security_policy` and `security_mode` are not `None`.        |
+| private_key     | string | Path to the `key.pem` file. This option takes effect when `security_policy` and `security_mode` are not `None`.
+| csv_config_file | string | File containing OPC-UA data point and table configurations. Mutually exclusive with `csv_config_file`. If both options are included, only `csv_config_file` takes effect.|
+| ua.nodes | string | Identifiers of OPC-UA nodes. This parameter must be used together with the `opc_table_config` parameter. Mutually exclusive with `csv_config_file`. If both options are included, only `csv_config_file` takes effect. Enter identifiers in the format <nodeid\>::<code\> where code is used to create subtables. |
+| opc_table_config | string | Configuration for OPC-UA single-column mode. This parameter must be used together with the `ua.nodes` parameter. |
+| debug | bool | Enables debug logs on the OPC connector. Default false |
+| enable | bool | Enables raw data storage. Default false|
+| path | string | Path at which raw data is stored. When `enable` is true, this parameter must be specified. |
+| keep | int | Time to retain raw data. When `enable` is true, this parameter must be specified. |
 
 Notes:
-1. opc_table_config:
+1. `opc_table_config` is configured as follows:
 
 ```json
 {
@@ -40,8 +40,8 @@ Notes:
         {
             "column_name": "received_time", // Storage received time
             "column_type": "timestamp",
-            "column_alias": "ts", // Receive the time to build the table column with the column name ts
-            "is_primary_key": true // Receive time timestamp as primary key
+            "column_alias": "ts", // The column created for received time is named ts.
+            "is_primary_key": true // The received time is the primary key.
         },
         {
             "column_name": "original_time",
@@ -51,7 +51,7 @@ Notes:
         },
         {
             "column_name": "value", // Data column
-            "column_alias": "valueaa", // Data column alias
+            "column_alias": "valueaa", // Alias of data column
             "is_primary_key": false
         },
         {
@@ -64,10 +64,10 @@ Notes:
 }
 ```
 
-### Examples
+### Example
 
-1. Example configuration using ua.nodes and opc_table_config:
-Capture the points with nodeid ns=2;i=2 and ns=2;i=3, write them to the opc library of cluster tdengine with supertable prefixed with meters, and create a supertable of meters_float if the points with ns=2;i=2 are of type float. The supertable uses the data received by opc as the timestamp index column and The super table uses the data received by opc as the timestamp index column and keeps the original timestamp column, the original timestamp column is named ts_2, the data column is stored as valueaa, and the quality data is stored in the quality11 column.
+1. Configuration with `ua.nodes` and `opc_table_config`:
+The identifiers of the OPC nodes are ns=2;1=2 and ns=2;i=3. Data from these nodes is ingested into a TDengine supertable with the prefix meters. If the ns=2;i=2 node contains floating-point data, the meters_float supertable is created in TDengine. The received time in OPC is used as the timestamp and primary key in TDengine. The original timestamp column is retained as the ts_2 column. The data column is stored as valueaa and quality data is stored in the quality11 column.
 
 ```shell
 taosx run \
@@ -78,7 +78,7 @@ taosx run \
 
 ```
 
-2. Using CSV configuration file
+2. CSV configuration:
 
 ```shell
 taosx run -f "opcua://<server-info>?csv_config_file=@<file_path>" -t "taos+ws://tdengine:6041/opc"
@@ -89,25 +89,25 @@ taosx run -f "opcua://<server-info>?csv_config_file=@<file_path>" -t "taos+ws://
 
 ## OPC-DA
 
-### Configuration Parameters
+### Parameters
 
 | Name | Type    | Description                                   |
 |-----------------|--------|-----------------------------------------------------------------------------|
-| interval | int    | Collection interval (seconds), default 1s                                   |
-| concurrent | int    | Collection concurrency, default 1                                   |
-| batch_size | int    | Collection data points per batch, default 100                                   |
-| batch_timeout | int    | Timeout for collectors (seconds), default 20s                                   |
-| connect_timeout | int    | Timeout for connections (seconds), default 10s                                  |
-| request_timeout | int    | Timeout for requests (seconds), default 10s                                              |
-| csv_config_file | string | Contains OPC UA data point and table configuration. Either csv_config_file or ua.nodes must be used. CSV Configuration Template Reference: OPC Requirements Summary and Status of Completion |
-| da.tags | string | OPC-UA node NodeID. Used in conjunction with opc_table_config configuration, both need to be configured at the same time. Mutually exclusive with configure csv_config_file configuration, csv_config_file takes precedence. |
-| opc_table_config | string | OPCUA single-column table configuration. Must be used with da.tags|
-| debug | bool | Whether to enable OPC connector debug logs. The default value is false. |
-| enable | bool | Whether to store raw data. The default value is false|
-| path | string | Raw data storage path. Must be configured when enable is set to true. |
-| keep | int | Days to store raw data. Must be configured when enable is set to true. |
+| interval | int    | Data collection interval, in seconds. Default 1s                                   |
+| concurrent | int    | Data collection concurrency, default 1                                   |
+| batch_size | int    | Batch size for uploading collected data. Default 100                                   |
+| batch_timeout | int    | Timeout for uploading collected data, in seconds. Default 20                                   |
+| connect_timeout | int    | Timeout for connections, in seconds. Default 10                                  |
+| request_timeout | int    | Timeout for requests, in seconds. Default 10                                              |
+| csv_config_file | string | File containing OPC-UA data point and table configurations. Either `csv_config_file` or `ua.nodes` must be specified. For the configuration template, see OPC Requirements and Completion.
+| da.tags | string | Identifiers of OPC-UA nodes. This parameter must be used together with the `opc_table_config` parameter. Mutually exclusive with `csv_config_file`. If both options are included, only `csv_config_file` takes effect. |
+| opc_table_config | string | Configuration for OPC-UA single-column mode. This parameter must be used together with `da.tags`.
+| debug | bool | Enables debug logs on the OPC connector. Default false |
+| enable | bool | Enables raw data storage. Default false|
+| path | string | Path at which raw data is stored. When `enable` is true, this parameter must be specified. |
+| keep | int | Time to retain raw data. When `enable` is true, this parameter must be specified. |
 
-### Usage examples
+### Example
 
 ```shell
 taosx run \
@@ -115,13 +115,13 @@ taosx run \
     -t "taos://tdengine:6030/opc"
 ```
 
-The result of the above example execution:
+The results of this example operation are as follows:
 
-Capture data from the OPC DA on the Matrikon.OPC.Simulation.1 server with da.tags of Random.Real8 and a data type of int, which corresponds to the creation of a table in TDengine with the table name tb3, the column name c1, and a schema of type int (if the corresponding table already exists, the data is captured directly and written to the table). (if the corresponding table already exists, the data will be collected and written directly).
+The da.tags on the Matrikon.OPC.Simulation OPC-DA server are stored as Random.Real8 data with the `int` type. In TDengine, the corresponding table is named tb3. The column is named c1 and its type is `int`. The table is created automatically if it does not already exist.
 
-### Troubleshooting common errors
+### Troubleshooting
 
-(1) If a native connection is used, the task fails to start and reports the following error:
+1. When using a native connection, jobs fail to start and the following error is displayed:
 ```text
 Error: tmq to td task exec error
 
@@ -130,9 +130,9 @@ Caused by:
 ```
 Solution:
 
-Check whether the FQDN of the target TDengine is connected and whether port 6030 can be accessed normally.
+Ensure that the FQDN of the destination TDengine cluster is accessible and that port 6030 on that FQDN is open.
 
-(2) If you use a WebSocket connection the task fails to start and reports the following error:
+2. When using a WebSocket connection, jobs fail to start and the following error is displayed:
 
 ```text
 Error: tmq to td task exec error
@@ -143,35 +143,35 @@ Caused by:
     2: failed to lookup address information: Temporary failure in name resolution
 ```
 
-There are several types of errors that can be encountered when connecting using a WebSocket. The error message can be viewed after "Caused by", the following are a few possible errors:
+You can check the **Caused by** section to diagnose WebSocket connection errors. Several potential errors are listed as follows:
 
-- "Temporary failure in name resolution": DNS resolution error, check if the IP or FQDN of the target TDengine cluster is accessible.
-- "IO error: Connection refused (os error 111)": Port access failed, check if the target port (typically 6041) is configured correctly or is enabled and accessible.
-- "HTTP error: *": Possible connection to wrong taosAdapter port or LSB/Nginx/Proxy configuration error.
-- "WebSocket protocol error: Handshake not finished": WebSocket connection error, usually due to an incorrectly configured port.
+- **Temporary failure in name resolution**: Ensure that the IP address or FQDN of the target TDengine cluster are accessible.
+- **IO error: Connection refused (os error 111)**: Ensure that the required port on the target TDengine cluster is open. Typically, port 6041 is used for this connection.
+- **HTTP error: \* **: Ensure that your LSB, nginx, and proxy server configurations are correct and that you are connecting to the correct taosAdapter port.
+- **WebSocket protocol error: Handshake not finished**: Ensure that the correct port is configured for the connection.
 
-## PI 
+## PI System 
 
-### PI DSN Configuration
+### PI System DSN
 
-The PI DSN configuration is as follows:
+The DSN for PI System is configured as follows:
 
 ```shell
 pi://[<username>:<password>@]PIServerName/AFDatabaseName?[TemplateForPIPoint][&TemplateForAFElement][&PointList][&<PISystemName=pisys>][&<MaxWaitLen>][&UpdateInterval]
 ```
 
-The following parameters are supported in the taosX CLI runtime, with at least one of the TemplateForPIPoint, TemplateForAFElement, and PointList parameters configured:
-- PISystemName: optional, connection configuration PI system service name, the default value is the same as PIServerName.
-- MaxWaitLen: optional, the maximum number of data buffer bars, the default value is 1000, the valid range is [1,10000].
-- UpdateInterval: optional, the frequency of data retrieval by PI System, the default value is 10000 (milliseconds: ms), the valid range is [10,600000].
-- TemplateForPIPoint: optional, use PI Point mode to import templates into TDengine according to each Arrtribution of an element as a sub-table 
-- TemplateForAFElement: optional, use AF Point mode to import the template into TDengine as a sub-table according to the element's Attribution collection 
-- PointList: optional, use PointList mode to import the point information described in the specified csv file in the PI database to TDengine.
+The supported command-line parameters are described as follows. You must include at least one of the TemplateForPIPoint, TemplateForAFElement, and PointList parameters when configuring your PI System data source.
+- PISystemName: (Optional) Specify the name of the PI System server. If you do not specify a value for PISystemName, the value of PIServerName is used.
+- MaxWaitLen: (Optional) Specify the maximum buffering time for PI System data. Enter a value between 1 and 10000. The default value is 1000.
+- UpdateInterval: (Optional) Specify the interval in milliseconds at which PI System data is obtained. Enter a value between 10 and 600000. The default value is 10000.
+- TemplateForPIPoint: (Optional) Ingest PI System data in PI Point mode. This mode creates a subtable in TDengine for each attribution of an element in PI System. 
+- TemplateForAFElement: (Optional) Ingest PI System data in AF Element mode. This mode creates a subtable for the set of attributions of an element in PI System.  
+- PointList: (Optional) Ingest PI System data in Point List mode. This mode ingests data from the PI Points specified in a CSV file.
 
 
-### Usage examples
+### Example
 
-Configure the PI database Met1, template template1, template2 as TemplateForPIPoint mode, template template3, template4 as TemplateForAFElement mode, and the points file points.csv under the path of server WIN-2OA23UM12TN as PointList mode, connect and configure the PI System service name as PI, the maximum buffer bar of data as 1000, and the data fetching frequency of PI System as 10000ms. points.csv under the path of home/ is configured as PointList mode, the connection is configured with the PI System service name PI, the maximum number of data buffer entries is 1000, and the frequency of data fetching by the PI System is 10000ms, and the data in the library is synchronized to the pi library of the server tdengine. The complete example is as follows.
+A PI System database Met1 is located on the server WIN-20A23UM12TN. Its template1 and template2 are ingested into TDengine in PI Point mode, template3 and template4 in AF Element mode, and `points.csv` in the `/home/` directory of the server is ingested in Point List mode. The PI System name is PI, the maximum buffering time is 1000, and the interval for obtaining data is 10,000 milliseconds. The data is written to the `pi` database in TDengine. The following command performs this configuration:
 
 ```shell
 taosx run \
@@ -180,9 +180,9 @@ taosx run \
 ```
 
 
-### Troubleshooting common errors
+### Troubleshooting
 
-(1) If a native connection is used, the task fails to start and reports the following error:
+1. When using a native connection, jobs fail to start and the following error is displayed:
 ```text
 Error: tmq to td task exec error
 
@@ -191,9 +191,9 @@ Caused by:
 ```
 Solution:
 
-Check whether the FQDN of the target TDengine is connected and whether port 6030 can be accessed normally.
+Ensure that the FQDN of the destination TDengine cluster is accessible and that port 6030 on that FQDN is open.
 
-(2) If you use a WebSocket connection the task fails to start and reports the following error:
+2. When using a WebSocket connection, jobs fail to start and the following error is displayed:
 
 ```text
 Error: tmq to td task exec error
@@ -204,41 +204,41 @@ Caused by:
     2: failed to lookup address information: Temporary failure in name resolution
 ```
 
-There are several types of errors that can be encountered when connecting using a WebSocket. The error message can be viewed after "Caused by", the following are a few possible errors:
+You can check the **Caused by** section to diagnose WebSocket connection errors. Several potential errors are listed as follows:
 
-- "Temporary failure in name resolution": DNS resolution error, check if the IP or FQDN of the target TDengine cluster is accessible.
-- "IO error: Connection refused (os error 111)": Port access failed, check if the target port (typically 6041) is configured correctly or is enabled and accessible.
-- "HTTP error: *": Possible connection to wrong taosAdapter port or LSB/Nginx/Proxy configuration error.
-- "WebSocket protocol error: Handshake not finished": WebSocket connection error, usually due to an incorrectly configured port.
+- **Temporary failure in name resolution**: Ensure that the IP address or FQDN of the target TDengine cluster are accessible.
+- **IO error: Connection refused (os error 111)**: Ensure that the required port on the target TDengine cluster is open. Typically, port 6041 is used for this connection.
+- **HTTP error: \* **: Ensure that your LSB, nginx, and proxy server configurations are correct and that you are connecting to the correct taosAdapter port.
+- **WebSocket protocol error: Handshake not finished**: Ensure that the correct port is configured for the connection.
 
 
 ## InfluxDB
 
-### Command Line Parameters
+### Command-Line Parameters
 
-The command to synchronize data from InfluxDB to TDengine is shown below:
+The following command ingests data from InfluxDB into TDengine:
 
 ```bash
 taosx run --from "<InfluxDB-DSN>" --to "<TDengine-DSN>"
 ```
 
-The InfluxDB DSN conforms to the general rules for DSNs, and only the parameters specific to it are described here:
-- version: Required, the version of InfluxDB, mainly used to distinguish between 1.x and 2.x versions, which use different authentication parameters;
+The InfluxDB DSN complies with standard DSN conventions. Additional parameters are described as follows:
+- version: (Mandatory) Specify whether the InfluxDB data source is running InfluxDB 1.x or 2.x.
 - version = 1.x
-  - username: Required, InfluxDB user that has read access at least in this organization;
-  - password: Required, the login password for the InfluxDB user;
+  - username: (Mandatory) Specify an InfluxDB user with at least read permissions in the organization whose data you want to replicate.
+  - password: (Mandatory) Specify the password of the InfluxDB user.
 - version = 2.x
-  - orgId: Required, the Organization ID in InfluxDB;
-  - token: Mandatory, the API token generated in InfluxDB, this token must have at least the Read permission of the above Bucket;
-- bucket: Required, the name of the Bucket in InfluxDB, only one Bucket can be synchronized at a time;
-- measurements: Non-required, you can specify multiple Measurements to be synchronized (English comma-separated), unspecified synchronizes all;
-- beginTime: Required, format: YYYY-MM-DD'T'HH:MM:SS'Z', time zone adopts UTC time zone, e.g.: 2023-06-01T00:00:00+0800, i.e. Beijing time 2023-06-01 00:00:00 (East 8 time zone);
-- endTime: Non-required, the field can be left unspecified or the value can be empty, in the same format as beginTime; if unspecified, the data synchronization will continue after the task is submitted;
-- readWindow: Non-required, the field can be left unspecified or the value is empty, the options are D, H, M (days, hours, minutes); if not specified, the default is to split the read window by M.
+  - orgId: (Mandatory) Specify the InfluxDB organization ID.
+  - token: (Mandatory) Specify the API token generated in InfluxDB. The token must have at least read permissions for the bucket whose data you want to replicate.
+- bucket: (Mandatory) Specify the bucket whose data you want to replicate. You can replicate only one bucket per command.
+- measurements: (Optional) Specify one or more measurements to replicate, separated by commas (,). If you do not specify a value, all measurements are replicated.
+- beginTime: (Mandatory) Specify the starting timestamp for data replication in the YYYY-MM-DD'T'HH:MM:SS'Z' format. For example, 2023-06-01T00:00:00-0700 indicates midnight on June 1, 2023 in Pacific Daylight Time.
+- endTime: (Optional) Specify the ending timestamp for data replication in the same format as `beginTime`. If you do not specify a value, data replication is performed continuously.
+- readWindow: (Optional) Specify the read window. You can enter D (day), H (hour) or M (minute). The default value is M.
 
-### Examples
+### Example
 
-Synchronize the data from InfluxDB located at 192.168.1.10, Bucket name test_bucket, starting at 00:00:00 UTC on June 01, 2023, to TDengine's test_db via taoskeeper running on 192.168.1.20 database of TDengine, the complete command is shown below:
+An InfluxDB server located at 192.168.1.10 has a bucket named `test_bucket`. The following configuration ingests data from `test_bucket` starting at midnight UTC on June 1, 2023 into a TDengine database named `test_db` through a taosKeeper instance located at 192.168.1.20.
 ```bash
 # version = 1.x
 taosx run \
@@ -253,28 +253,28 @@ taosx run \
   -vv
 ```
 
-In this command, endTime is not specified, so the task will run for a long time, continuously synchronizing the latest data.
+Because the `endTime` parameter is not specified, this job continues replicating data indefinitely.
 
 
 ## OpenTSDB
 
-### Command Line Parameters
+### Command-Line Parameters
 
-The command to synchronize data from OpenTSDB to TDengine is shown below:
+The following command ingests OpenTSDB data into TDengine:
 
 ```bash
 taosx run --from "<OpenTSDB-DSN>" --to "<TDengine-DSN>"
 ```
 
-The OpenTSDB DSN conforms to the general rules for DSNs, and only the parameters specific to it are described here:
-- metrics: Non-required, you can specify multiple Metrics to be synchronized (English comma-separated), unspecified synchronizes all;
-- beginTime: Required, format: YYYY-MM-DD'T'HH:MM:SS'Z', time zone adopts UTC time zone, e.g.: 2023-06-01T00:00:00+0800, i.e. Beijing time 2023-06-01 00:00:00 (East 8 time zone);
-- endTime: Non-required, the field can be left unspecified or the value can be empty, in the same format as beginTime; if unspecified, the data synchronization will continue after the task is submitted;
-- readWindow: Non-required, the field can be left unspecified or the value is empty, the options are D, H, M (days, hours, minutes); if not specified, the default is to split the read window by minutes.
+The OpenTSDB DSN complies with standard DSN conventions. Additional parameters are described as follows:
+- metrics: (Optional) Specify the metrics that you want to ingest from OpenTSDB, separated by commas (,). If you do not specify this parameter, all metrics are ingested.
+- beginTime: (Mandatory) Specify the starting timestamp for data replication in the YYYY-MM-DD'T'HH:MM:SS'Z' format. For example, 2023-06-01T00:00:00-0700 indicates midnight on June 1, 2023 in Pacific Daylight Time.
+- endTime: (Optional) Specify the ending timestamp for data replication in the same format as `beginTime`. If you do not specify a value, data replication is performed continuously.
+- readWindow: (Optional) Specify the read window. You can enter D (day), H (hour) or M (minute). The default value is M.
 
-### Examples
+### Example
 
-Synchronize the data from two data sources with metric names test_metric1 and test_metric2 in OpenTSDB located at 192.168.1.10 from 00:00:00 UTC on June 01, 2023 to TDengine's test_db database using taoskeeper running on 192.168.1.20 with the following commands The complete command to synchronize to the test_db database of TDengine is shown below:
+An OpenTSDB server located at 192.168.1.10 has metrics named `test_metric1` and `test_metric2`. The following configuration ingests data from these metrics starting at midnight UTC on June 1, 2023 into a TDengine database named `test_db` through a taosKeeper instance located at 192.168.1.20.
 
 ```bash
 taosx run \
@@ -283,43 +283,43 @@ taosx run \
   -vv
 ```
 
-In this command, endTime is not specified, so the task will run for a long time, continuously synchronizing the latest data.
+Because the `endTime` parameter is not specified, this job continues replicating data indefinitely.
 
 
 ## MQTT
 
-Currently, the MQTT Connector only supports consuming JSON-formatted messages from the MQTT server and synchronizing them to the TDengine. The commands are shown below:
+You can consume data in JSON format from an MQTT server and store it in TDengine. The command is as follows:
 
 ```bash
 taosx run --from "<MQTT-DSN>" --to "<TDengine-DSN>" --parser "@<parser-config-file-path>"
 ```
 
-The parameters are:
-- `--from` specifies the DSN of the MQTT data source
-- `--to` specifies the DSN of the TDengine cluster
-- `--parser` specifies a JSON-formatted configuration file that determines how to parse JSON-formatted MQTT messages, as well as the super table names, sub-table names, field names and types, and label names and types when writing to TDengine.
+where:
+- `--from`: Specify the DSN of the MQTT data source.
+- `--to`: Specify the DSN of the TDengine cluster.
+- `--parser`: Specify a JSON file that describes how to parse MQTT data with corresponding supertable names, subtable names, data column names and types, and tag column names and types in TDengine.
 
 ### MQTT DSN Configuration
 
-MQTT DSN conforms to the general rules for DSNs, and only the parameters specific to it are described here:
-- topics: Mandatory, used to configure the name of the MQTT topic to listen on and the maximum QoS supported by the connector, in the form of `<topic>::<max-Qos>`; multiple topics can be configured, separated by commas; when configuring a topic, you can also use the wildcard characters # and + supported by the MQTT protocol.
-- version: Non-required, used to configure the version of MQTT protocol, supported versions include: 3.1/3.1.1/5.0, the default value is 3.1;
-- clean_session: Non-required, used to configure the connector as an MQTT client to connect to the MQTT server, the server whether to save the session information, the default value is true, that is, does not save the session information;
-- client_id: Mandatory, used to configure the client id of the connector when it connects to the MQTT server as an MQTT client.
-- keep_alive: Non-required, used to configure the waiting time after the connector, as an MQTT client, sends a PINGREG message to the MQTT server, if the connector does not receive a PINGREQ message from the MQTT server within this time, the connector will actively disconnect; the unit of this configuration is seconds, and the default value is 60.
-- ca: Non-required, used to specify the CA certificate to be used when the connector establishes an SSL/TLS connection with the MQTT server, and its value is @ in front of the absolute path of the certificate file, for example: @/home/admin/certs/ca.crt.
-- cert: Non-required, used to specify the client certificate to be used when the connector establishes an SSL/TLS connection with the MQTT server, whose value is @ in front of the absolute path of the certificate file, for example: @/home/admin/certs/client.crt.
-- cert_key: Non-required, used to specify the client's private key to be used when the connector establishes an SSL/TLS connection with the MQTT server, whose value is @ in front of the absolute path of the private key file, for example: @/home/admin/certs/client.key.
-- log_level: Non-required, used to configure the logging level of the connector, the connector supports error/warn/info/debug/trace 5 logging levels, the default value is info.
+The MQTT DSN complies with standard DSN conventions. Additional parameters are described as follows:
+- topics: (Mandatory) Specify one or more MQTT topic names and maximum QoS values to ingest into TDengine. Use the `<topic>::<max-QoS>` format and separate multiple values with commas (,). You can also use the number sign (#) and plus sign (+) as defined in the MQTT protocol.
+- version: (Optional) Specify the version of MQTT. Enter 3.1, 3.11, or 5.0. The default value is 3.1.
+- clean_session: (Optional) Specify whether to retain session information from previous connections to the MQTT server. Enter true to delete session information or false to retain session information. The default value is true.
+- client_id: (Mandatory) Specify the client ID for the connection between the MQTT client and server.
+- keep_alive: (Optional) Specify how long the MQTT client waits for a response to PINGREG data that it sends to the MQTT server. If the MQTT server does not respond with a PINGREQ in the specified time, the connection is terminated. Enter a value in seconds. The default value is 60.
+- ca: (Optional) Specify a CA certificate to use for SSL/TLS connections to the MQTT server. Enter an at sign (@) followed by the path to the certificate file, for example `@/home/admin/certs/ca.crt`.
+- cert: (Optional) Specify a client certificate to use for SSL/TLS connections to the MQTT server. Enter an at sign (@) followed by the path to the certificate file, for example `@/home/admin/certs/client.crt`.
+- cert_key: (Optional) Specify the client key to use for SSL/TLS connections to the MQTT server. Enter an at sign (@) followed by the path to the key file, for example `@/home/admin/certs/client.key`.
+- log_level: (Optional) Specify the log level for the MQTT connection. Enter `error`, `warn`, `info`, `debug`, or `trace`. The default value is `info`.
 
-A sample MQTT description string is as follows:
+An example is shown as follows:
 ```bash
 mqtt://<username>:<password>@<mqtt-broker-ip>:8883?topics=testtopic/1::2&version=3.1&clean_session=true&log_level=info&client_id=taosdata_1234&keep_alive=60&ca=@/home/admin/certs/ca.crt&cert=@/home/admin/certs/client.crt&cert_key=@/home/admin/certs/client.key
 ```
 
-### Interpreter configuration for MQTT connectors
+### MQTT Parser
 
-The connector's interpreter configuration file, the parameter to the `--parser` configuration item, which takes the value of a JSON file, can be configured in two parts, `parse` and `model`, as shown in the template below:
+The format of the MQTT data parser is shown as follows. Note that it is separated into `parse` and `model` sections.
 
 ```json
 {
@@ -344,21 +344,21 @@ The connector's interpreter configuration file, the parameter to the `--parser` 
 }
 ```
 
-The fields are described below:
-- The parse section currently supports only one type of payload, json, where the value of the json field is a JSON Array consisting of a JSON Object.
-  - Each JSON Object consists of three fields: name, alias, cast;
-  - The name field specifies how to extract the field from the MQTT message. If the MQTT message is a simple JSON Object, you can set the field name here; if the MQTT message is a complex JSON Object, you can use a JSON Path to extract the field, e.g. `$.data.city`
-  - The alias field is used to name the name that will be used after the fields in the MQTT message are synchronized to the TDengine;
-  - The cast field is used to specify the type of field used in the MQTT message after it is synchronized to the TDengine.
-- The model section is used to set up information about the TDengine super table, sub-tables, columns and labels:
-  - The using field is used to specify the super table name;
-  - The name field is used to specify the name of the sub-table, and its value can be divided into two parts: the prefix and the variable, the variable is the value of the alias set in the parse part, and you need to use {}, for example: d{id};
-  - The columns field is used to set which fields in the MQTT message are to be used as columns in the TDengine super table, and takes the value of the alias set in the parse section; note that the order here determines the order of the columns in the TDengine super table, and therefore the first column must be of type TIMESTAMP;
-  - The tags field is used to set which fields in the MQTT message are used as tags in the TDengine super table, and takes the value of the alias set in the parse section.
+The parser configuration is described as follows:
+- The `parse` section contains a JSON array consisting of JSON objects.
+  - Each JSON object includes the `name`, `alias`, and `cast` fields.
+  - The `name` field specifies how to obtain data from MQTT messages. If the MQTT message contains a simple JSON object, you can specify the object name. However, if the message contains a more complex JSON object, you must specify the JSON path, for example `$.data.city`.
+  - The `alias` field specifies the name that TDengine uses for the MQTT data.
+  - The `cast` field specifies the data type that TDengine uses for the MQTT data.
+- The `model section describes how supertables, subtables, data columns, and tag columns are created in TDengine for the MQTT data.
+  - The `using` field specifies a supertable for the MQTT data.
+  - The `name` field specifies a subtable for the MQTT data. This field consists of a prefix followed by the value of the `alias` field specified in the `parse` section. Enter the prefix followed by the alias in brackets ({}), for example `d{id}`.
+  - The `columns` field specifies the fields in the MQTT data that you want to parse into data columns in TDengine. Enter the value of the `alias` field specified in the `parse` section. Note that the first column must use the `TIMESTAMP` data type.
+  - The `tags` field specifies the fields in the MQTT data that you want to parse into tag columns in TDengine. Enter the value of the `alias` field specified in the `parse` section.
 
 ### Example
 
-There is an MQTT broker running on port 1883 of 192.168.1.10, with usernames and passwords admin, 123456; we want to synchronize the messages from it to TDengine's test database via taosadapter running on 192.168.1.20. The MQTT message format is:
+An MQTT broker is located at 192.168.1.10 on port 1883. The user name for this broker is `admin` and the password is `123456`. The following configuration ingests data from this broker into the `test` database on a TDengine cluster whose taosAdapter instance is located at 192.168.1.20. The MQTT data format is as follows:
 
 ```json
 {
@@ -371,7 +371,7 @@ There is an MQTT broker running on port 1883 of 192.168.1.10, with usernames and
 }
 ```
 
-When MQTT messages are synchronized to TDengine, if you use meters as the name of the super table, prefix "d" to concatenate the value of id field as the name of the sub-table, ts, id, current, voltage, phase as the columns of the super table, and groupid, location as the labels of the super table, the interpreter is configured as follows:
+The following parser configuration specifies `meters` as the supertable; `d` as the subtable prefix; `ts`, `id`, `current`, `voltage`, and `phase` as the data columns; and `groupid` and `location` as the tag columns:
 ```json
 {
   "parse": {
@@ -433,7 +433,7 @@ When MQTT messages are synchronized to TDengine, if you use meters as the name o
 }
 ```
 
-If the above parser configuration is located in `/home/admin/parser.json`, then the full command is shown below:
+The following command ingests MQTT data into TDengine using the preceding parser configuration located at `/home/admin/parser.json`:
 
 ```bash
 taosx run \
@@ -445,41 +445,41 @@ taosx run \
 
 ## Kafka
 
-### Command Line Parameters
+### Command-Line Parameters
 
-taosx supports consuming data from Kafka and writing to TDengine. The configuration file is described as follows:
+You can consume data from Kafka and ingest it into TDengine. The command is as follows:
 ```shell
 taosx run -f "<Kafka-DSN>" -t "<TDengine-DSN>"
 ```
-or
+or:
 ```shell
 taosx run -f "<Kafka-DSN>" -t "<TDengine-DSN>" --parser "@<parser-config-file-path>"
 ```
-The parameters are:
-- -f or --from: Kafka DSN
-- -t or --to: TDengine DSN
-- --parser: JSON configuration file or string
+where:
+- `-f` or `--from`: Specify the Kafka DSN.
+- `-t` or `-to`: Specify the TDengine DSN.
+- `--parser`: Specify the parser configuration as a file or as a JSON string.
   
-### Kafka DSN configuration
+### Kafka DSN Configuration
 
-| Parameter | Description | Mandatory | Default | Used On | Example | 
+| Parameter | Description | Mandatory | Default | Location | Example | 
 |-----|---------------|----------|---------|---------|----------|
-| group| Consumer group. Can be an empty string; in this case the consumer generated has no group | No | "" | Source | |
-| topics | Specify the topic to consume. All available partitions for the specified topic will be used unless overridden when topic_partitions is specified. | This parameter or topic_partitions must specify at least one in order for topics to be assigned to consumers. | None | Source |  topics=tp1,tp2 | 
-| topic_partitions | Explicitly specify the topic partition to be used. Use only the specified partition with the topic identified. | This parameter or topics must specify at least one in order for the topic to be assigned to the consumer. | None | Source | topic_partitions=tp1:0..2,tp2:1 |
-| fallback_offset | Possible values at topic offset: - Earliest: receive the earliest available offset; - Latest: receive the most recent offset; - ByTime(i64): used to request all messages up to a specific time (ms); Unix timestamps (milliseconds) | No | Earliest | Source | fallback_offset=Earliest | 
-| offset_storage | Defines the available storage to use when fetching or committing group offsets: - Zookeeper: Zookeeper-based storage (available since kafka 0.8.1); - Kafka: Kafka-based storage (available since Kafka 0.8.2). This is the preferred method for groups to store their offsets.  | No | Kafka | Source  | offset_storage=Kafka |
-| timeout | When subscribing to data from kafka, if no valid data is fetched after the timeout, exit | No | 500 | Source  | timeout=never | 
-| use_ssl | Whether to use SSL | No |  | Source  | |
-| cert | SSL certificate path | No | | | Source  | |
-| cert_key | SSL certificate key path | No | | Source  ||
+| group| Specify a consumer group. If you do not specify a consumer group, the consumer is not assigned to any group. | No | "" | Source | |
+| topics | Specify topics to consume. All availability zones for the specified topics will be used unless otherwise configured with the `topic_partitions` parameter. | Either `topic` or `topic_partitions` must be specified. | None | Source |  topics=tp1,tp2 | 
+| topic_partitions | Specify which topic partitions to ingest. Only specified partitions of identified topics are used. | Either `topic` or `topic_partitions` must be specified. | None | Source | topic_partitions=tp1:0..2,tp2:1 |
+| fallback_offset | Specify a topic offset mode. Enter `Earliest`, `Latest`, or `ByTime(i64)`. - `Earliest` indicates the earliest available offset. - `Latest` indicates the latest available offset. - `ByTime(i64)` indicates all information before a specified time; enter a Unix time in millisecond precision. | No | Earliest | Source | fallback_offset=Earliest | 
+| offset_storage | Specify a storage method for obtaining or submitting a group offset. Enter `Zookeeper` or `Kafka`. - `Zookeeper` uses ZooKeeper and is supported in Kafka 0.8.1 and later. - `Kafka` uses Kafka and is supported in Kafka 0.8.2 and later. These groups store offsets.  | No | Kafka | Source  | offset_storage=Kafka |
+| timeout | Specify a timeout for obtaining valid data from a subscribed Kafka topic. | No | 500 | Source  | timeout=never | 
+| use_ssl | Specify whether to use SSL. | No |  | Source  | |
+| cert | Specify the path to your SSL certificate file. | No | | | Source  | |
+| cert_key | Specify the path to your SSL certificate key file. | No | | Source  ||
 
 
 ### Example 1
 
-Consume data from a Kafka instance on the 192.168.1.92 server and synchronize it to the TDengine on 192.168.1.92 without using a parser.
+A Kafka instance is located at 192.168.1.92. This configuration ingests data from the Kafka instance into a TDengine cluster located at 192.168.1.92 without using a parser.
 
-1. kafka
+1. Kafka configuration
 
 ```shell
 #!/bin/bash
@@ -506,7 +506,7 @@ $KAFKA_HOME/bin/kafka-topics.sh --bootstrap-server 127.0.0.1:9092 --topic tp1 --
 $KAFKA_HOME/bin/kafka-topics.sh --bootstrap-server 127.0.0.1:9092 --topic tp2 --describe
 ```
 
-2. TDengine
+2. TDengine configuration
 
 ```shell
 drop database if exists kafka_to_taos;
@@ -514,7 +514,7 @@ create database if not exists kafka_to_taos precision 'ms';
 use kafka_to_taos;
 ```
 
-3. taosx
+3. taosX configuration
 
 ```shell
 taosx run -f "kafka://192.168.1.92:9092/?topics=tp1,tp2&timeout=5000" -t "taos://192.168.1.92:6030/kafka_to_taos" --parser "{\"parse\":{\"ts\":{\"as\":\"timestamp(ms)\"},\"topic\":{\"as\":\"varchar\",\"alias\":\"t\"},\"partition\":{\"as\":\"int\",\"alias\":\"p\"},\"offset\":{\"as\":\"bigint\",\"alias\":\"o\"},\"key\":{\"as\":\"binary\",\"alias\":\"k\"},\"value\":{\"as\":\"binary\",\"alias\":\"v\"}},\"model\":[{\"name\":\"t_{t}\",\"using\":\"kafka_data\",\"tags\":[\"t\",\"p\"],\"columns\":[\"ts\",\"o\",\"k\",\"v\"]}]}"
@@ -522,11 +522,11 @@ taosx run -f "kafka://192.168.1.92:9092/?topics=tp1,tp2&timeout=5000" -t "taos:/
 
 ### Example 2
 
-Consume data from the Kafka instance on the 192.168.1.92 server, synchronize it to the TDengine on 192.168.1.92, and use parser to parse the JSON data in the value.
+A Kafka instance is located at 192.168.1.92. This configuration ingests data from the Kafka instance into a TDengine cluster located at 192.168.1.92 and parses JSON data.
 
-1. kafka, same as example 1
-2. TDengine, same as example 1
-3. Taosx
+1. For the Kafka configuration, see Example 1.
+2. For the TDengine configuration, see Example 1.
+3. taosX configuration
    
 ```shell
 taosx run -f "kafka://192.168.1.92:9092/?topics=tp1,tp2&timeout=5000" -t "taos://192.168.0.201:6030/kafka_to_taos" --parser "{\"parse\":{\"ts\":{\"as\":\"timestamp(ms)\"},\"topic\":{\"as\":\"varchar\",\"alias\":\"t\"},\"partition\":{\"as\":\"int\",\"alias\":\"p\"},\"offset\":{\"as\":\"bigint\",\"alias\":\"o\"},\"value\":{\"json\":[\"id::int\",\"message::binary\"]}},\"model\":[{\"name\":\"t_{t}\",\"using\":\"kafka_data\",\"tags\":[\"t\",\"p\"],\"columns\":[\"ts\",\"o\",\"id\",\"message\"]}]}"
