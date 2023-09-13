@@ -117,6 +117,7 @@ int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, EShowType showTy
     case TSDB_MGMT_TABLE_CONNS:
     case TSDB_MGMT_TABLE_APPS:
     case TSDB_MGMT_TABLE_TRANS:
+    case TSDB_MGMT_TABLE_COL:
       code = 0;
       break;
     default:
