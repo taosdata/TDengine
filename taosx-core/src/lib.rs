@@ -164,7 +164,8 @@ pub fn validate_target(dsn: impl IntoDsn) -> ValidatedTarget {
     }
 }
 
-pub const METRICS_TIME_START: &str = "metrics.time_started";
+pub const METRICS_TIME_START: &str = "metrics.time_started_timestamp";
+pub const METRICS_TIME_START_DATE: &str = "metrics.time_started_date";
 pub const METRICS_TIME_COST: &str = "metrics.time_cost";
 pub const METRICS_TIME_RECORDS_PER_SECOND: &str = "metrics.records_per_second";
 

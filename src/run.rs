@@ -125,16 +125,6 @@ impl Cli {
         let snapshotter = Arc::new(debugging_recorder.snapshotter());
         debugging_recorder.install()?;
 
-        // let metrics_allowed_labels = ["task.id", "request_id", "client.address"];
-        // let debugging =
-        //     TracingContextLayer::only_allow(&metrics_allowed_labels).layer(debugging_recorder);
-
-        // let fanout = FanoutBuilder::default()
-        //     .add_recorder(debugging)
-        //     .build();
-        // metrics::set_boxed_recorder(Box::new(fanout))?;
-
-        // let debug_recorder = DebuggingRecorder::new();
         let timer_run = Arc::new(AtomicBool::new(true));
         let snapshotter_clone = snapshotter.clone();
         let timer_flag = timer_run.clone();
@@ -372,6 +362,6 @@ fn print_metrics(snapshotter: Arc<Snapshotter>) -> Result<()> {
             }
         }
     }
-    println!("metrics: {:#?}", serde_json::to_string_pretty(&map)?);
+    println!("metrics: {}", serde_json::to_string_pretty(&map)?);
     Ok(())
 }
