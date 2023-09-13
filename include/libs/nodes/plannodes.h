@@ -288,6 +288,7 @@ typedef struct SPartitionLogicNode {
   SNodeList* pPartitionKeys;
   SNodeList* pTags;
   SNode*     pSubtable;
+  SNodeList* pAggFuncs;
 } SPartitionLogicNode;
 
 typedef enum ESubplanType {
