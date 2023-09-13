@@ -10,7 +10,7 @@ description: |
   For more about OPC DA we introduce you to read the [OPC Foundation site](https://opcfoundation.org/), and some useful blogs, such as
 
   1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)
-  2. [What is OPC DA](https://plcynergy.com/opc-da/),
+  2. [What is OPC DA](https://plcynergy.com/opc-da/)
 
   taosX could pull data from OPC server by a OPC connector plugin.
 

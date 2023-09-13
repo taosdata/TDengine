@@ -49,8 +49,7 @@ type DataReporter struct {
 
 func (r *DataReporter) Report(ctx context.Context, ch <-chan *common.NodeValue) error {
 	defer func() {
-		logger.Debug("## read value is done.")
-
+		logger.Debug("## report value is done.")
 		r.valueChannels.Range(func(key, value any) bool {
 			ch := value.(chan *common.NodeValue)
 			close(ch)
@@ -59,11 +58,15 @@ func (r *DataReporter) Report(ctx context.Context, ch <-chan *common.NodeValue) 
 	}()
 
 	for value := range ch {
-		_valueCh, loaded := r.valueChannels.LoadOrStore(value.ValueType, make(chan *common.NodeValue, r.batchSize))
-		valueCh := _valueCh.(chan *common.NodeValue)
+		var valueCh chan *common.NodeValue
 
-		// create writer when first time
-		if !loaded {
+		if vc, loaded := r.valueChannels.Load(value.ValueType); loaded {
+			valueCh = vc.(chan *common.NodeValue)
+		} else {
+			// create writer when first time
+			valueCh = make(chan *common.NodeValue, r.batchSize*2)
+			r.valueChannels.Store(value.ValueType, valueCh)
+
 			writers, err := r.createWriters(value.ValueType, valueCh)
 			if err != nil {
 				logger.ErrorF("## create writer error. %v", err)
