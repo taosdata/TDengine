@@ -1037,15 +1037,6 @@ _out:
   return code;
 }
 
-int32_t tsdbFSDestroyRefRangedSnapshot(TSnapRangeArray **fsrArr) {
-  if (fsrArr[0]) {
-    TARRAY2_DESTROY(fsrArr[0], tsdbTSnapRangeClear);
-    taosMemoryFreeClear(fsrArr[0]);
-    fsrArr[0] = NULL;
-  }
-  return 0;
-}
-
 const char *gFSBgTaskName[] = {NULL, "MERGE", "RETENTION", "COMPACT"};
 
 static int32_t tsdbFSRunBgTask(void *arg) {
