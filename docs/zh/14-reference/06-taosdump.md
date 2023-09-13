@@ -116,6 +116,10 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -?, --help                 Give this help list
       --usage                Give a short usage message
   -V, --version              Print program version
+  -W, --rename=RENAME-LIST   Rename database name with new name during
+                             importing data. RENAME-LIST: 
+                             "db1=newDB1|db2=newDB2" means rename db1 to newDB1
+                             and rename db2 to newDB2
 
 Mandatory or optional arguments to long options are also mandatory or optional
 for any corresponding short options.
