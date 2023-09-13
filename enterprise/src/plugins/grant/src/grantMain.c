@@ -204,6 +204,7 @@ static void     grantConnResetMaster(SMnode *pMnode);
 static void     grantSetClusterInfo(SMnode *pMnode);
 static void     grantConnStatusCheck(SMnode *pMnode, uint32_t curTime, SDnodeInfo *pDnodeInfo);
 static int32_t  mndProcessGrantHB(SRpcMsg *pReq);
+static int32_t  mndProcessGrantFetch(SRpcMsg *pReq);
 static int32_t  dmGenerateGrantMsg(GrantMsg *pGrant, GrantStatus *pGrantStatus, SDnodeInfo *pInfo, int64_t clusterTime);
 static int32_t  mndSetActiveCodeFromCfg(SDnodeInfo *pDnodeInfo, GrantMsg *pMsg);
 static int32_t  mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, GrantMsg *pGrantMsg,
@@ -239,8 +240,6 @@ typedef struct {
 } SGrantHandle;
 
 static bool   recheckClusterTime = true;
-static void  *grantCheckTimer = NULL;
-static void  *grantSendTimer = NULL;
 static int8_t grantHbLock = 0;
 int32_t       grantFlag = 0;
 SGrantHandle  grantHandle = {0};
@@ -262,6 +261,7 @@ int32_t mndInitGrant(SMnode *pMnode) {
   grantHandle.lastCheck = &gStatus.lastCheck;
 
   mndSetMsgHandle(pMnode, TDMT_MND_GRANT_HB_TIMER, mndProcessGrantHB);
+  mndSetMsgHandle(pMnode, TDMT_MND_GRANT_FETCH_TIMER, mndProcessGrantFetch);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndCancelGetNextGrant);
   grantSetClusterInfo(pMnode);
@@ -287,8 +287,6 @@ _exit:
 }
 
 void mndCleanupGrant() {
-  taosTmrStopA(&grantCheckTimer);
-  taosTmrStopA(&grantSendTimer);
   taosHashCleanup(grantHandle.pOfficials);
   taosArrayDestroy(grantHandle.pDistInfo);
 }
@@ -476,7 +474,7 @@ static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus
       }
     }
   } else {
-    uWarn("failed to grant since active granted is false");
+    uDebug("failed to grant since active granted is false");
   }
 
   if (grantObj.granted) {
@@ -648,6 +646,13 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
   taosArrayDestroy(pDnodeInfo);
 
   atomic_val_compare_exchange_8(&grantHbLock, 1, 0);
+  return 0;
+}
+
+static int32_t mndProcessGrantFetch(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  uInfo("retrieve grant info");
+  grantRetrieveGrantInfo(pMnode);
   return 0;
 }
 
