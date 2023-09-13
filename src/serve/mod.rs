@@ -7,6 +7,7 @@ use anyhow::Result;
 use clap::Parser;
 
 use actix_web::{
+    middleware::{Compat, Logger},
     web::{Data, PayloadConfig, ServiceConfig},
     App, HttpServer,
 };
@@ -114,6 +115,177 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
     }
 }
 impl Cli {
+    pub(super) async fn controller(&self) -> Result<TaskControllerRef> {
+        let database_url = if let Some(path) = self.database_url.as_deref() {
+            path.to_string()
+        } else if let Ok(url) = std::env::var("DATABASE_URL") {
+            url
+        } else {
+            "sqlite:taosx.db".to_string()
+        };
+        let controller = TaskControllerRef::from_sqlite(&database_url).await?;
+
+        if !self.do_not_resume {
+            info!("resume all tasks");
+            controller.start_all_with_schedule().await?;
+        }
+        Ok(controller)
+    }
+    pub(super) async fn api(&self, controller: TaskControllerRef) -> Result<()> {
+        let span = tracing::info_span!("server", addr = self.listen).entered();
+        #[derive(OpenApi)]
+        #[openapi(
+            components(
+                schemas(
+                    TaskDetail,
+                    NewTask,
+                    UpdateTask,
+                    Labels,
+                    Task,
+                    TaskActivity,
+                    Failed,
+                    DataSourceInput,
+                    DataSourceDefinition,
+                    ProtocolItem,
+                    Param,
+                    GroupedParams,
+                    DataSourceOptions,
+                    OptionDef,
+                    Protocol,
+                    DataSourceType,
+                    CloudTarget,
+                    Transformer,
+                    DataIn,
+                    Authentication,
+                    Hint,
+                    HintDefinition,
+                    Definitions,
+                    AuthItem,
+                    Agent,
+                    AgentFilter,
+                    AgentProps,
+                    AgentUpdates,
+                    AgentWithToken,
+                    AgentStatus,
+                    AgentToken,
+                    AgentConnectors,
+                    DataSetsReq,
+                    ConnectorTransferred,
+                    DatasetsDefinition,
+                    LangQuery,
+                    Lang,
+                    UploadForm,
+                    FileMetaRequest,
+                    AgentActivityFilter,
+                    Activity,
+                    LevelFilter,
+                    ActivityOrder,
+                ),
+                responses(
+                )
+            ),
+            paths(
+                task::get_tasks,
+                task::get_tasks_count,
+                task::create_task,
+                task::update_task,
+                task::delete_task,
+                task::start_task,
+                task::stop_task,
+                task::get_task_by_id,
+                task::get_task_offsets_by_id,
+                task::get_task_activities_by_id,
+                task::upload_files,
+                task::filemeta,
+                task::download_files,
+                task::get_task_metrics_by_id,
+
+                metrics::metrics_exporter,
+
+                data_sources_in,
+                data_sources_in_one,
+                data_source_collection,
+
+                agent::create_agent,
+                agent::update_agent,
+                agent::delete_agent,
+                agent::get_agents,
+                agent::get_agent_activities,
+
+                routes::cluster::get_cluster_connector_transferred,
+
+            ),
+            tags(
+                (name = "tasks", description = "Task management endpoints"),
+                (name = "data sources", description = "Data in/out"),
+                (name = "agents", description = "Agents Management"),
+                (name = "cluster", description = "Cluster Information"),
+            ),
+        )]
+        struct ApiDoc;
+
+        let store = Data::new(controller);
+
+        let openapi = ApiDoc::openapi();
+
+        let metrics_recorder = metrics::Metrics::default().init()?;
+        let handle = metrics_recorder.handle();
+
+        let debugging_recorder = metrics_util::debugging::DebuggingRecorder::new();
+        let snapshotter = Data::new(debugging_recorder.snapshotter());
+
+        let metrics_allowed_labels = ["task.id", "request_id", "client.address"];
+        let recorder =
+            TracingContextLayer::only_allow(&metrics_allowed_labels).layer(metrics_recorder);
+        let debugging =
+            TracingContextLayer::only_allow(&metrics_allowed_labels).layer(debugging_recorder);
+
+        let fanout = FanoutBuilder::default()
+            .add_recorder(recorder)
+            .add_recorder(debugging)
+            .build();
+        ::metrics::set_boxed_recorder(Box::new(fanout))?;
+
+        let recorder = Data::new(handle);
+
+        let addr = self.listen.as_str();
+        let server = HttpServer::new(move || {
+            let cors = Cors::default()
+                .allow_any_origin()
+                .allow_any_method()
+                .allow_any_header();
+            // This factory closure is called on each worker thread independently.
+            App::new()
+                .wrap(cors)
+                .wrap(Compat::new(TracingLogger::default()))
+                .app_data(recorder.clone())
+                .app_data(snapshotter.clone())
+                .app_data(PayloadConfig::new(std::usize::MAX))
+                .app_data(
+                    MultipartFormConfig::default()
+                        .memory_limit(1024 * 1024 * 100) // memory limit set to 100M
+                        .total_limit(std::usize::MAX),
+                ) // payload set to 2G
+                .configure(configure(store.clone()))
+                .service(
+                    SwaggerUi::new("/swagger-ui/{_:.*}")
+                        .url("/api-doc/openapi.json", openapi.clone()),
+                )
+        })
+        .bind(addr)
+        .map_err(|err| anyhow::format_err!("Start HTTP server error: {err} (addr: {addr})"))?
+        .run();
+        server.await?;
+        span.exit();
+        Ok(())
+    }
+
+    pub(super) async fn grpc(self, controller: TaskControllerRef) -> Result<()> {
+        let flight = rpc::RpcConfig::default();
+        flight.serve_with_controller(controller).await?;
+        Ok(())
+    }
+
     pub(super) async fn run_with(
         self,
         _opts: super::GlobalOpts,
@@ -218,14 +390,12 @@ impl Cli {
         } else {
             "sqlite:taosx.db".to_string()
         };
-
         let controller = TaskControllerRef::from_sqlite(&database_url).await?;
 
         if !self.do_not_resume {
             info!("resume all tasks");
             controller.start_all_with_schedule().await?;
         }
-
         let rpc_controller_ref = controller.clone();
 
         let store = Data::new(controller);
@@ -264,7 +434,8 @@ impl Cli {
             // This factory closure is called on each worker thread independently.
             App::new()
                 .wrap(cors)
-                .wrap(TracingLogger::default())
+                .wrap(Compat::new(TracingLogger::default()))
+                .wrap(Logger::default())
                 .app_data(recorder.clone())
                 .app_data(snapshotter.clone())
                 .app_data(PayloadConfig::new(std::usize::MAX))
