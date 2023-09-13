@@ -96,7 +96,7 @@ async fn ipc_tcp_forward(
 
     // let max_retries_in_one_minutes = 3;
     // let last_retry_time = Arc::new(AtomicUsize::new(0));
-    loop {
+    'start: loop {
         let data_stream = ipc_stream.clone();
         let data = FlightDataEncoderBuilder::new()
             .with_schema(schema.clone())
@@ -157,7 +157,7 @@ async fn ipc_tcp_forward(
                         {
                             tracing::warn!("Disconnected, retry after one second: {err:#}");
                             tokio::time::sleep(Duration::from_secs(1)).await;
-                            continue;
+                            continue 'start;
                         }
                         tracing::error!("Tonic error: {status}");
                         Err(err).context("Got server response with error")?;
