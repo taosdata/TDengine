@@ -357,7 +357,7 @@ impl FlightService for FlightServiceImpl {
                                             ("context", context),
                                         ])
                                         .map_err(FlightError::Arrow);
-                                        // log::info!("Send heartbeat response");
+                                        // tracing::info!("Send heartbeat response");
                                         let _ = resp_tx.send_async(item).await;
                                         // return std::task::Poll::Ready(Some(item));
                                     }
@@ -487,7 +487,7 @@ impl FlightService for FlightServiceImpl {
                         .unwrap();
 
                         if let Err(err) = tx.send_async(Ok(batch)).await {
-                            log::warn!("Task listener closed: {err:#}");
+                            tracing::warn!("Task listener closed: {err:#}");
                             break;
                         }
                     }
@@ -514,15 +514,15 @@ impl FlightService for FlightServiceImpl {
 
             //     if let Err(err) = tx.send_async(Ok(batch)).await {
             //         dbg!(&err);
-            //         log::warn!("Task listener closed");
+            //         tracing::warn!("Task listener closed");
             //         break;
             //     }
             //     continue;
             // } /* end test */
             loop {
-                log::info!("Waiting for new task");
+                tracing::info!("Waiting for new task");
                 if let Ok(data) = receiver.recv().await {
-                    log::info!("{data:?}");
+                    tracing::info!("{data:?}");
 
                     let ts: ArrayRef = Arc::new(TimestampMillisecondArray::from_iter_values([
                         chrono::Utc::now().timestamp_millis(),
@@ -594,7 +594,7 @@ impl FlightService for FlightServiceImpl {
                                 .unwrap();
 
                                 if let Err(err) = tx.send_async(Ok(batch)).await {
-                                    log::warn!("Task listener closed: {err:#}");
+                                    tracing::warn!("Task listener closed: {err:#}");
                                     break;
                                 }
                             } else {
@@ -617,7 +617,7 @@ impl FlightService for FlightServiceImpl {
                             .unwrap();
 
                             if let Err(err) = tx.send_async(Ok(batch)).await {
-                                log::warn!("Task listener closed: {err:#}");
+                                tracing::warn!("Task listener closed: {err:#}");
                                 break;
                             }
                         }
@@ -690,7 +690,7 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
             for file in files {
                 // let mut reader = csv_async::AsyncReader::from_reader(tokio::fs::File::open(&file[1..]).await?);
                 // let header = reader.headers().await?;
-                log::info!(
+                tracing::info!(
                     "current log: {}",
                     std::env::current_dir().unwrap().to_str().unwrap()
                 );
@@ -906,7 +906,7 @@ mod tests {
                     let val = Arc::new(TimestampMillisecondArray::from_iter_values(vec![0, 1]))
                         as ArrayRef;
                     let item = RecordBatch::try_from_iter(vec![("ts", val)]).map_err(Into::into);
-                    log::info!("{item:?}");
+                    tracing::info!("{item:?}");
                     std::task::Poll::Ready(Some(item))
                 }
             }

@@ -80,7 +80,7 @@ pub fn spawn_runner(
     flume::Receiver<TaskStatus>,
 ) {
     let (tx, rx) = flume::bounded(1);
-    let (status_tx, status_rx) = flume::unbounded();
+    let (status_tx, status_rx) = flume::bounded(10);
     let endpoint = endpoint.to_string();
     let token = token.to_string();
     let mut tasks_map = DashMap::new();

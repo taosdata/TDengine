@@ -329,13 +329,13 @@ fn main() -> anyhow::Result<()> {
     let version = build::PKG_VERSION;
     let commit_id = build::COMMIT_HASH;
     let build_time = build::BUILD_TIME;
-    log::info!("version: {version}");
-    log::info!("commit id: {commit_id}");
-    log::info!("build time: {build_time}");
+    tracing::info!("version: {version}");
+    tracing::info!("commit id: {commit_id}");
+    tracing::info!("build time: {build_time}");
 
-    log::info!("log keep days: {}", &log_keep_days);
+    tracing::info!("log keep days: {}", &log_keep_days);
 
-    log::info!("Start");
+    tracing::info!("Start");
 
     // todo: arrow flight rpc client.
     let rt = tokio::runtime::Builder::new_multi_thread()

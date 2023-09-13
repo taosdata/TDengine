@@ -20,7 +20,7 @@ async fn write_data(
     target_is_v3: bool,
     metrics: &TmqMetrics,
 ) -> Result<u64> {
-    log::debug!("[{id}] start writing data");
+    tracing::debug!("[{id}] start writing data");
     counter!(METRICS_TMQ_MESSAGES_OF_DATA, 1);
     metrics
         .messages_of_data
@@ -65,7 +65,7 @@ async fn write_data(
         if let Some(name) = table {
             if actions.is_empty() {
                 raw.with_table_name(name);
-                log::debug!(
+                tracing::debug!(
                     "[{id}] write into {name} {} rows(total {}) with {} columns",
                     raw.nrows(),
                     rows,
@@ -82,7 +82,7 @@ async fn write_data(
                     }
                 }
                 raw.with_table_name(&name);
-                log::debug!(
+                tracing::debug!(
                     "[{id}] write into {name} {} rows(total {}) with {} columns",
                     raw.nrows(),
                     rows,
@@ -101,7 +101,7 @@ async fn write_data(
                     }
                 }
                 raw.with_table_name(&name);
-                log::debug!(
+                tracing::debug!(
                     "[{id}] write into {name} {} rows(total {}) with {} columns",
                     raw.nrows(),
                     rows,
@@ -109,7 +109,7 @@ async fn write_data(
                 );
             }
         } else {
-            log::debug!(
+            tracing::debug!(
                 "[{id}] write {} rows(total {}) with {} columns",
                 raw.nrows(),
                 rows,
@@ -195,22 +195,22 @@ async fn write_data(
                         || errstr.contains("[0x03C7]")
                     {
                         counter!(METRICS_TMQ_WRITE_META_FAILS, 1);
-                        log::warn!("[{id}] {errstr}");
+                        tracing::warn!("[{id}] {errstr}");
                     } else {
                         counter!(METRICS_TMQ_WRITE_META_FAILS, 1);
                         bail!("write raw data error: {err}");
                     }
                 }
             } else {
-                log::warn!("[{id}] v2 target does not support delete data");
+                tracing::warn!("[{id}] v2 target does not support delete data");
             }
         } else {
-            log::warn!(
+            tracing::warn!(
                 "[{id}] there's older version delete message, you must delete data manually"
             );
         }
     }
-    log::debug!(
+    tracing::debug!(
         "[{id}] end writing data, current records {}",
         metrics.records.load(std::sync::atomic::Ordering::SeqCst)
     );
@@ -229,14 +229,14 @@ async fn write_meta(
     let cur = metrics
         .messages_of_meta
         .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-    log::debug!("[{id}] start writing meta {cur}");
-    // log::debug!("[{id}] meta: {}", meta.as_json_meta().await?);
+    tracing::debug!("[{id}] start writing meta {cur}");
+    // tracing::debug!("[{id}] meta: {}", meta.as_json_meta().await?);
     if actions.is_empty() {
         if target_is_v3 {
             let jm = meta.as_json_meta().await.context("Fetch json meta error");
             match jm {
-                Ok(meta) => log::debug!("meta: {:?}", meta),
-                Err(err) => log::warn!("meta: {:?}", err),
+                Ok(meta) => tracing::debug!("meta: {:?}", meta),
+                Err(err) => tracing::warn!("meta: {:?}", err),
             };
             if let Err(err) = taos.write_raw_meta(&meta.as_raw_meta().await?).await {
                 let errstr = err.to_string();
@@ -246,7 +246,7 @@ async fn write_meta(
                     || errstr.contains("[0x03C7]")
                 {
                     counter!(METRICS_TMQ_WRITE_META_FAILS, 1);
-                    log::warn!("[{id}] {errstr}");
+                    tracing::warn!("[{id}] {errstr}");
                 } else {
                     counter!(METRICS_TMQ_WRITE_META_FAILS, 1);
                     bail!("write raw meta error: {err}");
@@ -278,7 +278,7 @@ async fn write_meta(
                 || errstr.contains("[0x0603]")
                 || errstr.contains("[0x03C7]")
             {
-                log::warn!("{errstr}");
+                tracing::warn!("{errstr}");
                 counter!(METRICS_TMQ_WRITE_META_FAILS, 1);
             } else {
                 counter!(METRICS_TMQ_WRITE_META_FAILS, 1);
@@ -286,7 +286,7 @@ async fn write_meta(
             }
         }
     }
-    log::debug!("[{id}] end writing meta {cur}");
+    tracing::debug!("[{id}] end writing meta {cur}");
     Ok(())
 }
 
@@ -303,7 +303,7 @@ async fn sync(
     offsets: Arc<DashMap<String, Vec<Assignment>>>,
     version: String,
 ) -> Result<()> {
-    log::info!("[{id}] task start");
+    tracing::info!("[{id}] task start");
     let task_id = tokio::task::try_id();
     let mut stream = consumer.stream();
     let mut rows = 0;
@@ -316,25 +316,25 @@ async fn sync(
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
-                log::warn!("[sync: {id}] cancelled");
+                tracing::warn!("[sync: {id}] cancelled");
                 break;
             }
             next = stream.try_next() => {
-                log::debug!("version:{} a-{} b-{} c-{} ", version, a, b, c);
+                tracing::debug!("version:{} a-{} b-{} c-{} ", version, a, b, c);
                 let assignments = if a >= 3 && b >= 0 && c >= 5 {
                     consumer.assignments().await.unwrap()
                 } else {
                     vec![]
                 };
 
-                log::debug!("assignment: {:?}", assignments);
+                tracing::debug!("assignment: {:?}", assignments);
                 for (topic, assignment) in assignments {
                     if assignment.is_empty() {
                         continue;
                     }
                     let vgroup_id = assignment[0].vgroup_id();
                     let key = format!("{}@vgroup{}", topic, vgroup_id);
-                    log::debug!("key: {}, assignment: {:?}", key, assignment);
+                    tracing::debug!("key: {}, assignment: {:?}", key, assignment);
                     offsets.insert(key, assignment);
                 }
 
@@ -344,7 +344,7 @@ async fn sync(
                     let total = metrics.messages.load(std::sync::atomic::Ordering::SeqCst);
                     messages += 1;
                     if messages % 2000 == 0 {
-                        log::info!("[{id}] received {messages} messages ({:.2})", messages as f64 / total as f64);
+                        tracing::info!("[{id}] received {messages} messages ({:.2})", messages as f64 / total as f64);
                     }
                     match message {
                         MessageSet::Meta(meta) => {
@@ -373,7 +373,7 @@ async fn sync(
             }
         }
     }
-    log::info!("[{id}] task done");
+    tracing::info!("[{id}] task done");
 
     // do not drop consumer when single task done.
     drop(stream);
@@ -403,7 +403,7 @@ pub async fn tmq_to_td(
         }
 
         let group_id = group_id_hash(&from, &to);
-        log::info!(
+        tracing::info!(
             "group.id not set, will use automatically generated group id: {}",
             group_id
         );
@@ -558,7 +558,7 @@ pub async fn tmq_to_td(
             consumers.push(consumer);
         }
         let duration = consumer_timer.elapsed();
-        log::info!("Setup {} consumers in {:?}", jobs, duration);
+        tracing::info!("Setup {} consumers in {:?}", jobs, duration);
 
         for _ in 0..jobs {
             let consumer = consumers.pop().unwrap();
@@ -597,19 +597,19 @@ pub async fn tmq_to_td(
                 .in_current_span(),
             );
             handles.push(handle);
-            log::info!("spawn consuming task with id {task_id}",);
+            tracing::info!("spawn consuming task with id {task_id}",);
 
             task_id += 1;
         }
     }
 
-    log::info!("spawn consuming tasks {}", handles.len());
+    tracing::info!("spawn consuming tasks {}", handles.len());
     for handle in handles {
         let _ = handle.await??;
     }
-    log::debug!("consumers tasks offsets: {:?}", offsets);
+    tracing::debug!("consumers tasks offsets: {:?}", offsets);
 
-    log::info!("stop all consumers({})", task_id);
+    tracing::info!("stop all consumers({})", task_id);
     for _ in 0..task_id {
         let consumer = consumers_receiver.recv().await;
         tokio::spawn(async move {
@@ -624,7 +624,7 @@ pub async fn tmq_to_td(
     drop(target);
     drop(builder);
     tokio::time::sleep(Duration::from_millis(1000)).await;
-    log::info!("replication done.");
+    tracing::info!("replication done.");
     println!("{}", metrics.as_ref());
 
     Ok(())

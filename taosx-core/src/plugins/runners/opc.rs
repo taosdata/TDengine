@@ -978,11 +978,9 @@ pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
     ))
 }
 
-pub fn opc_config_blocking(taos: &Taos, dsn: &Dsn, port: u16) -> anyhow::Result<OPCConfig> {
-    futures::executor::block_on(async {
-        let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect, Some(taos)).await?;
-        Ok::<_, anyhow::Error>(config)
-    })
+pub async fn opc_config_blocking(taos: &Taos, dsn: &Dsn, port: u16) -> anyhow::Result<OPCConfig> {
+    let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect, Some(taos)).await?;
+    Ok::<_, anyhow::Error>(config)
 }
 
 #[instrument(skip_all, fields(taosx.task.from = "opc", taosx.task.jobs = jobs, taosx.task.id = with_agent.as_ref().map(|v| v.0)))]
