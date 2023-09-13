@@ -175,6 +175,17 @@ static void mndPullupGrant(SMnode *pMnode) {
   }
 }
 
+static void mndFetchGrant(SMnode *pMnode) {
+  mTrace("fetch grant msg");
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {
+        .msgType = TDMT_MND_GRANT_FETCH_TIMER, .pCont = pReq, .contLen = contLen, .info.ahandle = (void *)0x9529};
+    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
+  }
+}
+
 static void mndIncreaseUpTime(SMnode *pMnode) {
   mTrace("increate uptime");
   int32_t contLen = 0;
@@ -292,6 +303,10 @@ static void *mndThreadFp(void *param) {
     if (sec % tsTelemInterval == (TMIN(60, (tsTelemInterval - 1)))) {
       mndPullupTelem(pMnode);
     }
+
+    if (sec % tsGrantFetchInterval == 0) {
+      mndFetchGrant(pMnode);
+    }    
 
     if (sec % tsGrantHBInterval == 0) {
       mndPullupGrant(pMnode);
