@@ -10,7 +10,7 @@ TDengine 是一款开源、高性能、云原生的[时序数据库](https://tde
 
 ## 主要产品
 
-TDengine 有三个主要产品：TDengine Pro （即 TDengine 企业版），TDengine Cloud，和 TDengine OSS，关于它们的具体定义请参考 
+TDengine 有三个主要产品：TDengine Enterprise （即 TDengine 企业版），TDengine Cloud，和 TDengine OSS，关于它们的具体定义请参考 
 - [TDengine 企业版](https://www.taosdata.com/tdengine-pro)
 - [TDengine 云服务](https://cloud.taosdata.com/?utm_source=menu&utm_medium=webcn)
 - [TDengine 开源版](https://www.taosdata.com/tdengine-oss)

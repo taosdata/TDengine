@@ -418,6 +418,10 @@ int32_t streamMetaGetNumOfStreamTasks(SStreamMeta* pMeta) {
     int64_t        keys[2] = {pId->streamId, pId->taskId};
 
     SStreamTask** p = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+    if (p == NULL) {
+      continue;
+    }
+
     if ((*p)->info.fillHistory == 0) {
       num += 1;
     }
@@ -539,10 +543,13 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
 }
 
 int32_t streamMetaBegin(SStreamMeta* pMeta) {
+  taosWLockLatch(&pMeta->lock);
   if (tdbBegin(pMeta->db, &pMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
                TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
+    taosWUnLockLatch(&pMeta->lock);
     return -1;
   }
+  taosWUnLockLatch(&pMeta->lock);
   return 0;
 }
 

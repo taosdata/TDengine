@@ -46,7 +46,8 @@ static int32_t tsdbSttLvlInitEx(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl **lvl
       return code;
     }
 
-    TARRAY2_APPEND(lvl[0]->fobjArr, fobj);
+    code = TARRAY2_APPEND(lvl[0]->fobjArr, fobj);
+    if (code) return code;
   }
   return 0;
 }
@@ -185,7 +186,8 @@ static int32_t tsdbJsonToSttLvl(STsdb *pTsdb, const cJSON *json, SSttLvl **lvl) 
       return code;
     }
 
-    TARRAY2_APPEND(lvl[0]->fobjArr, fobj);
+    code = TARRAY2_APPEND(lvl[0]->fobjArr, fobj);
+    if (code) return code;
   }
   return 0;
 }
@@ -263,7 +265,8 @@ int32_t tsdbJsonToTFileSet(STsdb *pTsdb, const cJSON *json, STFileSet **fset) {
         return code;
       }
 
-      TARRAY2_APPEND((*fset)->lvlArr, lvl);
+      code = TARRAY2_APPEND((*fset)->lvlArr, lvl);
+      if (code) return code;
     }
   } else {
     return TSDB_CODE_FILE_CORRUPTED;
@@ -326,11 +329,12 @@ int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op) {
 
       STFileObj   tfobj = {.f[0] = {.cid = op->of.cid}}, *tfobjp = &tfobj;
       STFileObj **fobjPtr = TARRAY2_SEARCH(lvl->fobjArr, &tfobjp, tsdbTFileObjCmpr, TD_EQ);
-      tfobjp = (fobjPtr ? *fobjPtr : NULL);
-
-      ASSERT(tfobjp);
-
-      tfobjp->f[0] = op->nf;
+      if (fobjPtr) {
+        tfobjp = *fobjPtr;
+        tfobjp->f[0] = op->nf;
+      } else {
+        tsdbError("file not found, cid:%" PRId64, op->of.cid);
+      }
     } else {
       fset->farr[op->nf.type]->f[0] = op->nf;
     }
