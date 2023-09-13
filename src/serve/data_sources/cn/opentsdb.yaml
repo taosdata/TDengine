@@ -70,5 +70,8 @@ groups:
         display: 容错间隔（毫秒）
         description: 在同步实时数据时，每个窗口向前重叠时长，以尽量保证数据完整。
         placeholder: 请输入容错间隔
-        hint: integer
+        hint:
+          type: integer
+          min: 1
+          max: 30000
         value: 10000
