@@ -256,8 +256,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   }
 
   tDeleteStreamDispatchReq(pReq);
-  streamSchedExec(pTask);
-
+  streamTryExec(pTask);
   return 0;
 }
 

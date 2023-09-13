@@ -621,19 +621,20 @@ int32_t streamTryExec(SStreamTask* pTask) {
   const char* id = pTask->id.idStr;
 
   if (schedStatus == TASK_SCHED_STATUS__WAITING) {
-    int32_t code = streamExecForAll(pTask);
-    if (code < 0) {  // todo this status shoudl be removed
-      atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__FAILED);
-      return -1;
-    }
+    while (1) {
+      int32_t code = streamExecForAll(pTask);
+      if (code < 0) {  // todo this status shoudl be removed
+        atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__FAILED);
+        return -1;
+      }
 
-    atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
-    qDebug("s-task:%s exec completed, status:%s, sched-status:%d", id, streamGetTaskStatusStr(pTask->status.taskStatus),
-           pTask->status.schedStatus);
-
-    if (!(taosQueueEmpty(pTask->inputInfo.queue->pQueue) || streamTaskShouldStop(&pTask->status) ||
-          streamTaskShouldPause(&pTask->status))) {
-      streamSchedExec(pTask);
+      if (taosQueueEmpty(pTask->inputInfo.queue->pQueue) || streamTaskShouldStop(&pTask->status) ||
+          streamTaskShouldPause(&pTask->status)) {
+        atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+        qDebug("s-task:%s exec completed, status:%s, sched-status:%d", id,
+               streamGetTaskStatusStr(pTask->status.taskStatus), pTask->status.schedStatus);
+        return 0;
+      }
     }
   } else {
     qDebug("s-task:%s already started to exec by other thread, status:%s, sched-status:%d", id,
