@@ -651,7 +651,6 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
 
 static int32_t mndProcessGrantFetch(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
-  uInfo("retrieve grant info");
   grantRetrieveGrantInfo(pMnode);
   return 0;
 }
