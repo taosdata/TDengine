@@ -388,34 +388,34 @@ int32_t tqCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle){
   return taosHashPut(pTq->pHandle, handle->subKey, strlen(handle->subKey), handle, sizeof(STqHandle));
 }
 
-int32_t tqMetaRestoreHandle(STQ* pTq) {
-  int  code = 0;
-  TBC* pCur = NULL;
-  if (tdbTbcOpen(pTq->pExecStore, &pCur, NULL) < 0) {
-    return -1;
-  }
-
-  void*    pKey = NULL;
-  int      kLen = 0;
-  void*    pVal = NULL;
-  int      vLen = 0;
-
-  tdbTbcMoveToFirst(pCur);
-
-  while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
-    STqHandle handle = {0};
-    code = restoreHandle(pTq, pVal, vLen, &handle);
-    if (code < 0) {
-      tqDestroyTqHandle(&handle);
-      break;
-    }
-  }
-
-  tdbFree(pKey);
-  tdbFree(pVal);
-  tdbTbcClose(pCur);
-  return code;
-}
+//int32_t tqMetaRestoreHandle(STQ* pTq) {
+//  int  code = 0;
+//  TBC* pCur = NULL;
+//  if (tdbTbcOpen(pTq->pExecStore, &pCur, NULL) < 0) {
+//    return -1;
+//  }
+//
+//  void*    pKey = NULL;
+//  int      kLen = 0;
+//  void*    pVal = NULL;
+//  int      vLen = 0;
+//
+//  tdbTbcMoveToFirst(pCur);
+//
+//  while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
+//    STqHandle handle = {0};
+//    code = restoreHandle(pTq, pVal, vLen, &handle);
+//    if (code < 0) {
+//      tqDestroyTqHandle(&handle);
+//      break;
+//    }
+//  }
+//
+//  tdbFree(pKey);
+//  tdbFree(pVal);
+//  tdbTbcClose(pCur);
+//  return code;
+//}
 
 int32_t tqMetaGetHandle(STQ* pTq, const char* key) {
   void*    pVal = NULL;

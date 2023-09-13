@@ -173,20 +173,18 @@ int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback) {
     if (code) goto _err;
   }
 
-  int vgId = TD_VID(pWriter->pTq->pVnode);
-
   taosMemoryFree(pWriter);
   *ppWriter = NULL;
 
-  // restore from metastore
-  if (tqMetaRestoreHandle(pTq) < 0) {
-    goto _err;
-  }
+//  // restore from metastore
+//  if (tqMetaRestoreHandle(pTq) < 0) {
+//    goto _err;
+//  }
 
   return code;
 
 _err:
-  tqError("vgId:%d, tq snapshot writer close failed since %s", vgId, tstrerror(code));
+  tqError("vgId:%d, tq snapshot writer close failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
   return code;
 }
 
