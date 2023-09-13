@@ -434,8 +434,9 @@ int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo)
 int32_t tDecodeStreamTaskId(SDecoder* pDecoder, SStreamTaskId* pTaskId);
 
 int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem);
+int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBlock);
 int32_t streamTaskPutTranstateIntoInputQ(SStreamTask* pTask);
-bool    streamQueueIsFull(const STaosQueue* pQueue);
+bool    streamQueueIsFull(const STaosQueue* pQueue, bool inputQ);
 
 typedef struct {
   SMsgHead head;
@@ -645,12 +646,10 @@ SStreamChildEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t 
 void    streamTaskInputFail(SStreamTask* pTask);
 int32_t streamTryExec(SStreamTask* pTask);
 int32_t streamSchedExec(SStreamTask* pTask);
-int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock);
 bool    streamTaskShouldStop(const SStreamStatus* pStatus);
 bool    streamTaskShouldPause(const SStreamStatus* pStatus);
 bool    streamTaskIsIdle(const SStreamTask* pTask);
 
-int32_t streamScanExec(SStreamTask* pTask, int32_t batchSize);
 void    initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen);
 
 char* createStreamTaskIdStr(int64_t streamId, int32_t taskId);
