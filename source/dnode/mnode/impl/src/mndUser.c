@@ -57,6 +57,7 @@ static void     mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter);
 SHashObj       *mndFetchAllIpWhite(SMnode *pMnode);
 static int32_t  mndProcesSRetrieveIpWhiteReq(SRpcMsg *pReq);
 
+void ipWhiteMgtUpdateAll(SMnode *pMnode);
 typedef struct {
   SHashObj      *pIpWhiteTab;
   int64_t        ver;
@@ -188,6 +189,7 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
   int64_t ver = 0;
   taosThreadRwlockWrlock(&ipWhiteMgt.rw);
   if (ipWhiteMgt.ver == 0) {
+    // user and dnode r
     ipWhiteMgtUpdateAll(pMnode);
     ipWhiteMgt.ver = taosGetTimestampMs();
   }
@@ -204,7 +206,7 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
 bool mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t type) {
   bool       update = false;
   SIpV4Range range = {.ip = taosGetIpv4FromFqdn(fqdn), .mask = 32};
-
+  mDebug("ip-white-list may update for user: %s, fqdn: %s", user, fqdn);
   SIpWhiteList **ppList = taosHashGet(pIpWhiteTab, user, strlen(user));
   SIpWhiteList  *pList = NULL;
   if (ppList != NULL && *ppList != NULL) {
@@ -260,8 +262,21 @@ bool mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t 
       }
     }
   }
+  if (update) {
+    mDebug("ip-white-list update for user: %s, fqdn: %s", user, fqdn);
+  }
 
   return update;
+}
+
+int32_t mndRefreshUserIpWhiteList(SMnode *pMnode) {
+  taosThreadRwlockWrlock(&ipWhiteMgt.rw);
+
+  ipWhiteMgtUpdateAll(pMnode);
+  ipWhiteMgt.ver = taosGetTimestampMs();
+  taosThreadRwlockUnlock(&ipWhiteMgt.rw);
+
+  return 0;
 }
 void mndUpdateIpWhite(SMnode *pMnode, char *user, char *fqdn, int8_t type, int8_t lock) {
   if (lock) {
@@ -269,7 +284,7 @@ void mndUpdateIpWhite(SMnode *pMnode, char *user, char *fqdn, int8_t type, int8_
     if (ipWhiteMgt.ver == 0) {
       ipWhiteMgtUpdateAll(pMnode);
       ipWhiteMgt.ver = taosGetTimestampMs();
-      mInfo("ip-white-mnode ver, %" PRId64 "", ipWhiteMgt.ver);
+      mInfo("ip-white-list, user: %" PRId64 "", ipWhiteMgt.ver);
     }
   }
 
@@ -422,14 +437,22 @@ static void ipRangeToStr(SIpV4Range *range, char *buf) {
   }
   return;
 }
-static void ipRangeListToStr(SIpV4Range *range, int32_t num, char *buf) {
+static bool isDefualtRange(SIpV4Range *pRange) {
+  static SIpV4Range val = {.ip = 16777343, .mask = 32};
+  return pRange->ip == val.ip && pRange->mask == val.mask;
+}
+static int32_t ipRangeListToStr(SIpV4Range *range, int32_t num, char *buf) {
   int32_t len = 0;
   for (int i = 0; i < num; i++) {
-    char tbuf[36] = {0};
+    char        tbuf[36] = {0};
+    SIpV4Range *pRange = &range[i];
+    if (isDefualtRange(pRange)) continue;
+
     ipRangeToStr(&range[i], tbuf);
     len += sprintf(buf + len, "%s,", tbuf);
   }
   if (len > 0) buf[len - 1] = 0;
+  return len;
 }
 
 static bool isIpRangeEqual(SIpV4Range *a, SIpV4Range *b) {
@@ -459,7 +482,11 @@ int32_t convertIpWhiteListToStr(SIpWhiteList *pList, char **buf) {
     return 0;
   }
   *buf = taosMemoryCalloc(1, pList->num * 36);
-  ipRangeListToStr(pList->pIpRange, pList->num, *buf);
+  int32_t len = ipRangeListToStr(pList->pIpRange, pList->num, *buf);
+  if (len == 0) {
+    taosMemoryFree(*buf);
+    return 0;
+  }
   return strlen(*buf);
 }
 int32_t tSerializeIpWhiteList(void *buf, int32_t len, SIpWhiteList *pList) {

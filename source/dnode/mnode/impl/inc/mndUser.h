@@ -49,6 +49,8 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode);
 
 void mndUpdateIpWhite(SMnode *pMnode, char *user, char *fqdn, int8_t type, int8_t lock);
 
+int32_t mndRefreshUserIpWhiteList(SMnode *pMnode);
+
 #ifdef __cplusplus
 }
 #endif
