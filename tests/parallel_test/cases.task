@@ -15,12 +15,12 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/ins_topics_test.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqMaxTopic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqParamsTest.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqParamsTest.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqClientConsLog.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqMaxGroupIds.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqConsumeDiscontinuousData.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqOffset.py
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmqDropConsumer.py
-
 
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/create_wrong_topic.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dropDbR3ConflictTransaction.py -N 3
@@ -73,6 +73,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dataFromTsdbNWal.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/dataFromTsdbNWal-multiCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_taosx.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqSeekAndCommit.py
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmq_offset.py
 ,,n,system-test,python3 ./test.py -f 7-tmq/tmqDataPrecisionUnit.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/raw_block_interface_test.py

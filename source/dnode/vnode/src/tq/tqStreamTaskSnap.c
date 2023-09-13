@@ -165,7 +165,6 @@ struct SStreamTaskWriter {
   STQ*    pTq;
   int64_t sver;
   int64_t ever;
-  TXN*    txn;
 };
 
 int32_t streamTaskSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTaskWriter** ppWriter) {
@@ -182,12 +181,6 @@ int32_t streamTaskSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTa
   pWriter->sver = sver;
   pWriter->ever = ever;
 
-  if (tdbBegin(pTq->pStreamMeta->db, &pWriter->txn, tdbDefaultMalloc, tdbDefaultFree, NULL, 0) < 0) {
-    code = -1;
-    taosMemoryFree(pWriter);
-    goto _err;
-  }
-
   *ppWriter = pWriter;
   tqDebug("vgId:%d, vnode stream-task snapshot writer opened", TD_VID(pTq->pVnode));
   return code;
@@ -203,30 +196,33 @@ int32_t streamTaskSnapWriterClose(SStreamTaskWriter* pWriter, int8_t rollback) {
   int32_t code = 0;
   STQ*    pTq = pWriter->pTq;
 
+  taosWLockLatch(&pTq->pStreamMeta->lock);
   tqDebug("vgId:%d, vnode stream-task snapshot writer closed", TD_VID(pTq->pVnode));
   if (rollback) {
-    tdbAbort(pWriter->pTq->pStreamMeta->db, pWriter->txn);
+    tdbAbort(pTq->pStreamMeta->db, pTq->pStreamMeta->txn);
   } else {
-    code = tdbCommit(pWriter->pTq->pStreamMeta->db, pWriter->txn);
+    code = tdbCommit(pTq->pStreamMeta->db, pTq->pStreamMeta->txn);
     if (code) goto _err;
-    code = tdbPostCommit(pWriter->pTq->pStreamMeta->db, pWriter->txn);
+    code = tdbPostCommit(pTq->pStreamMeta->db, pTq->pStreamMeta->txn);
     if (code) goto _err;
   }
 
+  if (tdbBegin(pTq->pStreamMeta->db, &pTq->pStreamMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL, 0) < 0) {
+    code = -1;
+    taosMemoryFree(pWriter);
+    goto _err;
+  }
+
+  taosWUnLockLatch(&pTq->pStreamMeta->lock);
+
   taosMemoryFree(pWriter);
-
-  // restore from metastore
-  // if (tqMetaRestoreHandle(pTq) < 0) {
-  //   goto _err;
-  // }
-
   return code;
 
 _err:
   tqError("vgId:%d, vnode stream-task snapshot writer failed to close since %s", TD_VID(pWriter->pTq->pVnode),
           tstrerror(code));
+  taosWUnLockLatch(&pTq->pStreamMeta->lock);
   return code;
-  return 0;
 }
 
 int32_t streamTaskSnapWrite(SStreamTaskWriter* pWriter, uint8_t* pData, uint32_t nData) {
@@ -247,11 +243,17 @@ int32_t streamTaskSnapWrite(SStreamTaskWriter* pWriter, uint8_t* pData, uint32_t
     }
     tDecoderClear(&decoder);
     // tdbTbInsert(TTB *pTb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn)
+
+    taosWLockLatch(&pTq->pStreamMeta->lock);
     int64_t key[2] = {task.streamId, task.taskId};
+
+    taosWLockLatch(&pTq->pStreamMeta->lock);
     if (tdbTbUpsert(pTq->pStreamMeta->pTaskDb, key, sizeof(int64_t) << 1, (uint8_t*)pData + sizeof(SSnapDataHdr),
-                    nData - sizeof(SSnapDataHdr), pWriter->txn) < 0) {
+                    nData - sizeof(SSnapDataHdr), pTq->pStreamMeta->txn) < 0) {
+      taosWUnLockLatch(&pTq->pStreamMeta->lock);
       return -1;
     }
+    taosWUnLockLatch(&pTq->pStreamMeta->lock);
   } else if (pHdr->type == SNAP_DATA_STREAM_TASK_CHECKPOINT) {
     // do nothing
   }
