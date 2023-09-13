@@ -73,7 +73,7 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader
     void *buf = (char *)pParam->data + sizeof(SMsgHead);
 
     if (tDeserializeSnapRangeArray(buf, msgHead->contLen, pReader->pRanges) < 0) {
-      vError("vgId:%s, failed to deserialize snap range.", TD_VID(pVnode));
+      vError("vgId:%d, failed to deserialize snap range.", TD_VID(pVnode));
       goto _err;
     }
   }
