@@ -51,7 +51,7 @@ void __taos_notify_cb(void *param, void *ext, int type) {
     }
     case TAOS_NOTIFY_WHITELIST_VER: {
       ++nWhiteListVerNotified;
-      printf("%s:%d type:%d user:%s ver:%d\n", __func__, __LINE__, type, param ? (char *)param : "NULL", *(int64_t *)ext);
+      printf("%s:%d type:%d user:%s ver:%"PRId64 "\n", __func__, __LINE__, type, param ? (char *)param : "NULL", *(int64_t *)ext);
       break;      
     }
     default:
@@ -118,7 +118,7 @@ int main(int argc, char *argv[]) {
   }
   createUsers(taos, argv[1]);
 
-  sleep(10);
+  sleep(1);
 
   dropUsers(taos);
   taos_close(taos);
