@@ -314,12 +314,20 @@ fn main() -> anyhow::Result<()> {
             .boxed(),
     );
     if atty::is(atty::Stream::Stdout) {
+        cfg_if::cfg_if! {
+            if #[cfg(windows)] {
+               let ansi = false;
+            } else {
+               let ansi = true;
+            }
+        };
         layers.push(
             tracing_subscriber::fmt::layer()
                 .with_timer(timer.clone())
                 .with_level(true)
                 .with_writer(std::io::stdout)
                 .pretty()
+                .with_ansi(ansi)
                 .with_filter(level_filter)
                 .boxed(),
         );

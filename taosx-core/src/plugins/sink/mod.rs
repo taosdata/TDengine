@@ -179,7 +179,8 @@ async fn ipc_tcp_forward(
 
 async fn try_establish_channel(remote: String) -> anyhow::Result<Channel> {
     let endpoint = tonic::transport::Endpoint::try_from(remote)?
-        .keep_alive_timeout(Duration::from_secs(30))
+        .keep_alive_while_idle(true)
+        .keep_alive_timeout(Duration::from_secs(120))
         .http2_keep_alive_interval(Duration::from_secs(13));
     let channel = endpoint.connect().await?;
     Ok(channel)

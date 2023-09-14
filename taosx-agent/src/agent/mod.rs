@@ -20,6 +20,7 @@ use arrow_flight::{
     error::FlightError,
     Action as FlightAction, FlightData,
 };
+use cfg_if::cfg_if;
 use chrono::{DateTime, Utc};
 use flume::r#async::RecvStream;
 use flume::{Receiver, Sender};
@@ -145,10 +146,17 @@ const fn is_false(b: &bool) -> bool {
 }
 
 async fn new_channel(endpoint: String) -> anyhow::Result<Channel> {
+    cfg_if! {
+        if #[cfg(windows)] {
+           let tcp_keepalive = None;
+        } else {
+           let tcp_keepalive = Some(Duration::from_secs(5));
+        }
+    };
     Endpoint::try_from(endpoint.clone())
         .map_err(|err| anyhow::format_err!("Unable to create endpoint on `{endpoint}`: {err:#}"))?
         .keep_alive_while_idle(true)
-        .tcp_keepalive(Some(Duration::from_secs(5)))
+        .tcp_keepalive(tcp_keepalive)
         .http2_keep_alive_interval(Duration::from_secs(13))
         .keep_alive_timeout(Duration::from_secs(120))
         .connect()
