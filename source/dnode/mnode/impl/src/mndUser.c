@@ -437,7 +437,7 @@ static void ipRangeToStr(SIpV4Range *range, char *buf) {
   }
   return;
 }
-static bool isDefualtRange(SIpV4Range *pRange) {
+static bool isDefaultRange(SIpV4Range *pRange) {
   static SIpV4Range val = {.ip = 16777343, .mask = 32};
   return pRange->ip == val.ip && pRange->mask == val.mask;
 }
@@ -446,7 +446,7 @@ static int32_t ipRangeListToStr(SIpV4Range *range, int32_t num, char *buf) {
   for (int i = 0; i < num; i++) {
     char        tbuf[36] = {0};
     SIpV4Range *pRange = &range[i];
-    if (isDefualtRange(pRange)) continue;
+    if (isDefaultRange(pRange)) continue;
 
     ipRangeToStr(&range[i], tbuf);
     len += sprintf(buf + len, "%s,", tbuf);
@@ -1663,12 +1663,14 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   }
 
   if (alterReq.alterType == TSDB_ALTER_USER_ADD_WHITE_LIST) {
-    taosMemoryFree(newUser.pIpWhiteList);
+    taosMemoryFreeClear(newUser.pIpWhiteList);
 
     int32_t num = pUser->pIpWhiteList->num + alterReq.numIpRanges;
 
     SIpWhiteList *pNew = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range) * num);
     int32_t       idx = pUser->pIpWhiteList->num;
+
+    bool exist = false;
     memcpy(pNew->pIpRange, pUser->pIpWhiteList->pIpRange, sizeof(SIpV4Range) * idx);
     for (int i = 0; i < alterReq.numIpRanges; i++) {
       SIpV4Range *range = &(alterReq.pIpRanges[i]);
@@ -1677,17 +1679,32 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
         memcpy(&pNew->pIpRange[idx], range, sizeof(SIpV4Range));
         idx++;
         continue;
+      } else {
+        exist = true;
       }
+    }
+    if (exist) {
+      taosMemoryFree(pNew);
+      terrno = TSDB_CODE_MND_USER_HOST_EXIST;
+      code = terrno;
+      goto _OVER;
     }
     pNew->num = idx;
     newUser.pIpWhiteList = pNew;
     newUser.ipWhiteListVer = pUser->ipWhiteListVer + 1;
+
+    if (pNew->num >= TSDB_PRIVILEDGE_HOST_LEN / 24) {
+      terrno = TSDB_CODE_MND_TOO_MANY_USER_HOST;
+      code = terrno;
+      goto _OVER;
+    }
   }
   if (alterReq.alterType == TSDB_ALTER_USER_DROP_WHITE_LIST) {
-    taosMemoryFree(newUser.pIpWhiteList);
+    taosMemoryFreeClear(newUser.pIpWhiteList);
 
     int32_t       num = pUser->pIpWhiteList->num;
     SIpWhiteList *pNew = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range) * num);
+    bool          noexist = true;
 
     if (pUser->pIpWhiteList->num > 0) {
       int idx = 0;
@@ -1696,7 +1713,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
         bool        found = false;
         for (int j = 0; j < alterReq.numIpRanges; j++) {
           SIpV4Range *range = &alterReq.pIpRanges[j];
-          if (isIpRangeEqual(oldRange, range)) {
+          if (!isDefaultRange(range) && isIpRangeEqual(oldRange, range)) {
             found = true;
             break;
           }
@@ -1704,6 +1721,9 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
         if (found == false) {
           memcpy(&pNew->pIpRange[idx], oldRange, sizeof(SIpV4Range));
           idx++;
+        }
+        if (found == true) {
+          noexist = false;
         }
       }
       pNew->num = idx;
@@ -1714,6 +1734,11 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       pNew->num = 0;
       newUser.pIpWhiteList = pNew;
       newUser.ipWhiteListVer = pUser->ipWhiteListVer + 1;
+    }
+    if (noexist) {
+      terrno = TSDB_CODE_MND_USER_HOST_NOT_EXIST;
+      code = terrno;
+      goto _OVER;
     }
   }
 
