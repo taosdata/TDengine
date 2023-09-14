@@ -1886,6 +1886,7 @@ static int32_t doBuildStreamTaskUpdateMsg(void **pBuf, int32_t *pLen, SVgroupCha
   tEncodeSize(tEncodeStreamTaskUpdateMsg, &req, blen, code);
   if (code < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosArrayDestroy(req.pNodeList);
     return -1;
   }
 
@@ -1894,6 +1895,7 @@ static int32_t doBuildStreamTaskUpdateMsg(void **pBuf, int32_t *pLen, SVgroupCha
   void *buf = taosMemoryMalloc(tlen);
   if (buf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosArrayDestroy(req.pNodeList);
     return -1;
   }
 
@@ -1911,6 +1913,7 @@ static int32_t doBuildStreamTaskUpdateMsg(void **pBuf, int32_t *pLen, SVgroupCha
   *pBuf = buf;
   *pLen = tlen;
 
+  taosArrayDestroy(req.pNodeList);
   return TSDB_CODE_SUCCESS;
 }
 

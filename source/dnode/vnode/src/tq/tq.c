@@ -1678,6 +1678,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
             req.taskId);
     rsp.code = TSDB_CODE_SUCCESS;
     taosWUnLockLatch(&pMeta->lock);
+    taosArrayDestroy(req.pNodeList);
     return rsp.code;
   }
 
@@ -1750,12 +1751,14 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
       if (code != 0) {
         tqError("vgId:%d failed to reopen stream meta", vgId);
         taosWUnLockLatch(&pMeta->lock);
+        taosArrayDestroy(req.pNodeList);
         return -1;
       }
 
       if (streamMetaLoadAllTasks(pTq->pStreamMeta) < 0) {
         tqError("vgId:%d failed to load stream tasks", vgId);
         taosWUnLockLatch(&pMeta->lock);
+        taosArrayDestroy(req.pNodeList);
         return -1;
       }
 
@@ -1772,5 +1775,6 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
     }
   }
 
+  taosArrayDestroy(req.pNodeList);
   return rsp.code;
 }
