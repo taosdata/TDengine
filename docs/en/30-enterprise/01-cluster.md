@@ -23,51 +23,51 @@ COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY']；
 - All data files on the vnodes in the vgroups associated with the specified database are scanned and compressed.
 - Deleted data and data from deleted tables is completely removed.
 - STT files are combined.
-- The start time of COMPACT data can be specified with the start with keyword.
-- The end time of the COMPACT data can be specified with the end with keyword.
+- You can use the `START WITH` keyword to specify a start time for the `COMPACT` command.
+- You can use the `END WITH` keyword to specify an end time for the `COMPACT` command.
 
 
-### Notes
+### Additional Notes
 
-- COMPACT is asynchronous and returns after executing the COMPACT command without waiting for COMPACT to finish. If another COMPACT task is initiated if the previous COMPACT did not complete, it will wait for the previous task to complete before returning.
-- COMPACT may block writes, but does not block queries.
-- COMPACT's progress is not observable
+- The `COMPACT` command runs asynchronously and returns before the command has finished. If you run the `COMPACT` command while a previous `COMPACT` operation is still in progress, the new `COMPACT` operation waits until the previous `COMPACT` operation has finished.
+- The `COMPACT` command blocks data ingestion but does not block data querying.
+- The progress of the `COMPACT` command is not displayed.
 
 ## Raft Leader Balancing
 
-When one or more nodes in a multicopy cluster are restarted due to upgrades or other reasons, it is possible that the load on each dnode in the cluster is not balanced, and in extreme cases, the leader of all vgroups may be on the same dnode. To solve this problem, you can use the following command
+If one or more nodes in a multi-replica cluster are restarted due to an upgrade or another reason, load on the cluster may become unevenly distributed among the dnodes in the cluster. In extreme cases, it is possible that a single dnode becomes the leader node of all vgroups in the cluster. You can run the following command to rebalance your cluster:
 
 ```SQL
 balance vgroup leader;
 ```
 
-## Features
+### Features
 
-Let the leader of all vgroups be evenly distributed across their respective replica nodes. This command causes the vgroup to force a reelection, and by doing so, transforms the leaders of the vgroup during the election process, and by doing so, ends up with an even distribution of leaders.
+The command distributes all vgroup leader nodes evenly across replicas. It implements this by forcing vgroups to reelect their leaders.
 
 ### Notes
 
-Raft elections inherently carry randomness, so the uniform distribution produced by the redistribution of the election also carries some probability that it will not be perfectly uniform. The side effect of this command is that it affects queries and writes. When a vgroup is reelected, it cannot be written to or queried by the vgroup from the start of the election until a new leader is elected. The election process is typically completed in seconds. All vgroups will be re-elected one by one in turn.
+There is an element of randomness in all Raft elections. For this reason, it is possible that load is not completely evenly distributed even after this command has been run. This command affects ingestion and query operations. Data cannot be written to or queried from a vgroup while it is reelecting its Raft leader. The reelection process generally is completed in a number of seconds. Each vgroup in the cluster will go through the reelection process one by one.
 
-## Restore a Node
+## Restoring Dnodes
 
-When all data on a data node (dnode) in the cluster is lost or corrupted, such as disk corruption or directory deletion by mistake, you can restore some or all of the logical nodes on the data node by using the restore dnode command, which relies on other replicas in the multicopy to replicate the data, and therefore only works if the number of dnodes in the cluster is greater than or equal to 3 and the number of replicas is 3.
+If the data on a dnode has been lost or corrupted, for example due to a hard disk failure or accidental deletion, you can use the `RESTORE DNODE` command to restore some or all logical nodes. This command can be used only in clusters with three or more dnodes and three replicas.
 
 ```sql
 restore dnode <dnode_id> # Restore all mnodes, vnodes, and qnodes on the specified dnode
 restore mnode on dnode <dnode_id> # Restore the mnode on the specified dnode
-restore vnode on dnode <dnode_id>  # Restore all vnodes on the specified dnode
+restore vnode on dnode <dnode_id> # Restore all vnodes on the specified dnode
 restore qnode on dnode <dnode_id> # Restore all qnodes on the specified dnode
 ```
 
-### Restrictions
+### Limitations
 
-- This function is based on the recovery of the existing replication function, not disaster recovery or backup recovery, so for the mnode and vnode to be recovered, the use of this command assumes that there still exists the other two copies of the mnode or vnode that still work properly.
-- This command cannot repair damage or loss of individual files in the data directory. For example, if individual files or data in an mnode or vnode are corrupted, it is not possible to recover the corrupted file or chunk of data individually. At this point, you can choose to clear all the data of the mnode/vnode and then restore it.
+- This command restores data by copying it from other replicas. It is not intended as a disaster recovery or backup tool. For this command to succeed, it is necessary that the other two replicas in the cluster operate normally.
+- This command cannot restore specific files or directories on a node. It is not possible to specify files on an mnode or vnode that may have become corrupted and restore them from a replica. Instead, you can delete all data on the affected mnode or vnode and use this command to restore it.
 
 ## Split Vgroups
 
-When a vgroup is overloaded in terms of CPU or Disk resource usage due to an excessive number of sub-tables, the vgroup can be split into two virtual groups by using the split vgroup command after adding dnode nodes. After the split is complete, the two newly created vgroups assume the read and write services originally provided by one vgroup.
+If a vgroup contains an excessive number of subtables, its CPU or disk usage may become too high. In this situation, you can add additional dnodes to your cluster and then use the `SPLIT VGROUP` command to split your overloaded vgroup into two vgroups. After a vgroup has been split, the two newly created vgroups provide the read and write services for its subtables.
 
 ```sql
 split vgroup <vgroup_id>
@@ -75,16 +75,16 @@ split vgroup <vgroup_id>
 
 ### Notes
 
-- The single replica library virtual group, after the split is complete, the total disk space usage for historical time-series data, may double. Therefore, before performing this operation, make sure that there are enough CPU and disk resources in the cluster by adding dnode nodes to avoid under-resourcing.
-- This command is a DB-level transaction; during execution, other management transactions for the current DB will be rejected. other DBs in the cluster are not affected.
-- Read and write services are available continuously during split task execution; during this time, there may be perceptible brief interruptions in read and write operations.
-- Streams and subscriptions are not supported during splits. The historical WAL is cleared when the split ends.
-- During the splitting process, node downtime restart fault tolerance can be supported; however, node disk failure fault tolerance is not supported.
+- If you split the vgroup for a single-replica database, the disk usage of its historical data may double. For this reason, you must add a dnode to your cluster and ensure that CPU and disk resources are sufficient before splitting a vgroup.
+- This command is a database-level transaction. While the command is running, all management transactions on the database stored on the specified vgroup are rejected. The other databases in the cluster are not affected.
+- While the command is running, the database stored on the specified vgroup can continue to ingest and query data. However, there may be a short service interruption.
+- While the command is running, stream processing and data subscription tasks cannot be run. Splitting a vgroup erases its historical WAL.
+- While the command is running, the cluster can recover from node restarts but not from hard disk failures.
 
-## Hot Update of Cluster Settings
+## Hot Update of Cluster Configuration
 
-As of version 3.1.1.0, TDengine Enterprise supports online hot updating of `supportVnodes`, a very important dnode configuration parameter. This parameter was originally configured in the `taos.cfg` configuration file to indicate the maximum number of vnodes that the dnode can support. New vnodes are allocated when a database is created, and vnodes are destroyed when a database is deleted.
+You can configure the `supportVnodes` parameter on the fly to specify the maximum number of vnodes on each dnode in your cluster. This parameter is originally set in the `taos.cfg` file. When you create a database, TDengine allocates a new vnode to the database. When you delete a database, TDengine deletes the vnode allocated to that database.
 
-However, updating `supportVnodes` online does not result in persistence, and when the system is rebooted, the maximum number of vnodes allowed is still determined by the `supportVnodes` configured in taos.cfg.
+Note that changing the value of the `supportVnodes` parameter on the fly is not persistent. If your cluster is restarted, the maximum number of vnodes on each dnode in the cluster is reset to the value specified in the `taos.cfg` file. 
 
-If the number of `supportVnodes` set by online update or configuration file is less than the number of vnodes already physically present in the dnode, the existing vnodes will not be affected. However, when attempting to create a new database, the success of the creation is still determined by the actual `supportVnodes` parameter in effect.
+Setting the value of the `supportVnodes` parameter lower than the number of vnodes currently running on your dnodes will not delete existing vnodes. However, more vnodes cannot be created, which may cause database creation to fail.

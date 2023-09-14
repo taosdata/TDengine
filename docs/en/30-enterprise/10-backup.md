@@ -3,39 +3,39 @@ toc_max_heading_level: 4
 title: Data Backup and Restoration
 ---
 
-This section describes how to use the taosX command line to back up data from a TDengine cluster to a local file and how to restore data from a backed up local file to a TDengine cluster. For command line arguments to taosX, see [taosX](../../reference/taosx). You can also use taos-explorer's visual interface for data backup and recovery, please refer to [Visual Management](../explorer). For service installation and deployment, please refer to [Installation and Deployment](../../get-started).
+This article describes how to back up your TDengine data to a local disk and restore it from disk. For more information about taosX, see [taosX](../../reference/taosx/). You can back up and restore data through taosExplorer. For more information, see [taosExplorer](../explorer/). For information about installing TDengine, see [Installation](../../get-started/).
 
-## Back up TDengine data to local machine
+## Back Up TDengine Data
 
-### Examples
+### Example
 ```shell
 taosx run -f 'tmq://root:taosdata@td1:6030/db1' -t 'local:/path_directory/'
 
 ```
-The result of the above example execution and the parameter description:
+This command is described as follows:
 
-Backup all data from database db1 in cluster td1 to the /path_directory path on the taosx device.
+All data in the `db1` database on the `td1` cluster is backed up to the `/path_directory` directory on the machine running taosX.
 
-The object support of the data source (DSN with -f parameter) is configured to database level (dbname), super table level (dbname.stablename), and sub table/tablename level (dbname.tablename), which corresponds to the level of the backed up data, i.e., database, super table, and sub table/tablename level.
+You can back up databases, supertables, standard tables, and subtables by specifying the desired object in the DSN.
 
 
-## Restore TDengine data from file
+## Restore TDengine Data
 
-### Examples
+### Example
 ```shell
 taosx run -f 'local:/path_directory/' -t 'taos://root:taosdata@td2:6030/db1?assert'
 ```
 
-The result of the above example execution:
+This command is described as follows:
 
-Restore the data files that have been backed up under the /path_directory path of the device where taosx is located to the database db1 of cluster td2, and if db1 does not exist, it will be built automatically.
+All backed up data in the `/path_directory` directory is restored to the `db1` database on the `tb2` cluster. If `db1` does not exist, it is created.
 
-The object in the target source (DSN with -t parameter) is supported to be configured as database (dbname), super table (dbname.stablename), sub/common table (dbname.tablename), which corresponds to the level of the backed up data, database level, super table level, sub/common table level, provided that the backed up datafiles are also of the corresponding Database level, super table level, sub table/ordinary table level data.
+You can restore databases, supertables, standard tables, and subtables by specifying the desired object in the DSN.
 
 
-## Troubleshooting common errors
+## Troubleshooting
 
-(1) If a native connection is used, the task fails to start and reports the following error:
+1. When using a native connection, the job fails with the following error:
 
 ```text
 Error: tmq to td task exec error
@@ -43,9 +43,9 @@ Error: tmq to td task exec error
 Caused by:
     [0x000B] Unable to establish connection
 ```
-The reason is that the port link with the data source is abnormal, you need to check whether the data source FQDN is connected and whether port 6030 can be accessed normally.
+This error occurs when the source and target TDengine clusters cannot connect to each other. Ensure that their FQDNs have connectivity and that port 6030 is open.
 
-(2) If you use a WebSocket connection, the task fails to start and reports the following error:
+2. When using a WebSocket connection, the job fails with the following error:
 
 ```text
 Error: tmq to td task exec error
@@ -56,15 +56,15 @@ Caused by:
     2: failed to lookup address information: Temporary failure in name resolution
 ```
 
-There are several types of errors that can be encountered when connecting using a WebSocket. The error message can be viewed after "Caused by", the following are a few possible errors:
+You can check the **Caused by** section to diagnose WebSocket connection errors. Several potential errors are listed as follows:
 
-- "Temporary failure in name resolution": DNS resolution error, check if the IP or FQDN is accessible.
-- "IO error: Connection refused (os error 111)": Port access failed, check if the port is configured correctly or is enabled and accessible.
-- "IO error: received corrupt message": Message parsing failed, probably because SSL was enabled using wss, but the source port does not support it.
-- "HTTP error: *": Possible connection to wrong taosAdapter port or LSB/Nginx/Proxy configuration error.
-- "WebSocket protocol error: Handshake not finished": WebSocket connection error, usually due to an incorrectly configured port.
+- **Temporary failure in name resolution**: Ensure that the IP address or FQDN of the target TDengine cluster are accessible.
+- **IO error: Connection refused (os error 111)**: Ensure that the required port on the target TDengine cluster is open.
+- **IO error: received corrupt message**: Ensure that the specified data source supports SSL.
+- **HTTP error: \* **: Ensure that your LSB, nginx, and proxy server configurations are correct and that you are connecting to the correct taosAdapter port.
+- **WebSocket protocol error: Handshake not finished**: Ensure that the correct port is configured for the connection.
 
-(3) If the task fails to start and reports the following error:
+3. A job fails to start and the following error is displayed:
 
 ```text
 Error: tmq to td task exec error
@@ -73,10 +73,10 @@ Caused by:
     [0x038C] WAL retention period is zero
 ```
 
-is unable to subscribe due to a misconfiguration of the source database WAL.
+The WAL configuration on the data source is incorrect, causing data subscription to fail.
 
 Solution:
-Modify WAL Configuration:
+Change the WAL retention period on the affected database:
 
 ```sql
 alter database test wal_retention_period 3600;
