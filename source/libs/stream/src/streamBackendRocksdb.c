@@ -1591,7 +1591,6 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
   return 0;
 }
 int streamStateOpenBackend(void* backend, SStreamState* pState) {
-  // qInfo("start to open state %p on backend %p 0x%" PRIx64 "-%d", pState, backend, pState->streamId, pState->taskId);
   taosAcquireRef(streamBackendId, pState->streamBackendRid);
   SBackendWrapper*   handle = backend;
   SBackendCfWrapper* pBackendCfWrapper = taosMemoryCalloc(1, sizeof(SBackendCfWrapper));

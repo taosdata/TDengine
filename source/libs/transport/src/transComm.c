@@ -655,39 +655,32 @@ void transDestoryExHandle(void* handle) {
   taosMemoryFree(handle);
 }
 
-void subnetIp2int(const char* const ip_addr, uint8_t* dst) {
-  char ip_addr_cpy[20];
-  char ip[5];
+// void subnetIp2int(const char* const ip_addr, uint8_t* dst) {
+//   char ip_addr_cpy[20];
+//   char ip[5];
 
-  tstrncpy(ip_addr_cpy, ip_addr, sizeof(ip_addr_cpy));
+//   tstrncpy(ip_addr_cpy, ip_addr, sizeof(ip_addr_cpy));
 
-  char *s_start, *s_end;
-  s_start = ip_addr_cpy;
-  s_end = ip_addr_cpy;
+//   char *s_start, *s_end;
+//   s_start = ip_addr_cpy;
+//   s_end = ip_addr_cpy;
 
-  int32_t k = 0;
+//   int32_t k = 0;
 
-  for (k = 0; *s_start != '\0'; s_start = s_end) {
-    for (s_end = s_start; *s_end != '.' && *s_end != '\0'; s_end++) {
-    }
-    if (*s_end == '.') {
-      *s_end = '\0';
-      s_end++;
-    }
-    dst[k++] = (char)atoi(s_start);
-  }
-}
+//   for (k = 0; *s_start != '\0'; s_start = s_end) {
+//     for (s_end = s_start; *s_end != '.' && *s_end != '\0'; s_end++) {
+//     }
+//     if (*s_end == '.') {
+//       *s_end = '\0';
+//       s_end++;
+//     }
+//     dst[k++] = (char)atoi(s_start);
+//   }
+// }
 
 uint32_t subnetIpRang2Int(SIpV4Range* pRange) {
-  SIpV4Range range = {.ip = pRange->ip, .mask = 32};
-  uint8_t    el[4] = {0};
-  char       buf[32] = {0};
-
-  transUtilSIpRangeToStr(&range, buf);
-
-  subnetIp2int(buf, el);
-
-  return (el[0] << 24) | (el[1] << 16) | (el[2] << 8) | (el[0]);
+  uint32_t ip = pRange->ip;
+  return ((ip & 0xFF) << 24) | ((ip & 0xFF00) << 8) | ((ip & 0xFF0000) >> 8) | ((ip >> 24) & 0xFF);
 }
 int32_t subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange) {
   if (pRange->mask == 32) {
@@ -695,7 +688,6 @@ int32_t subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange) {
     pUtils->address = pRange->ip;
     return 0;
   }
-  // pUtils->address = ntohl(pRange->ip);
   pUtils->address = subnetIpRang2Int(pRange);
 
   for (int i = 0; i < pRange->mask; i++) {
@@ -721,9 +713,8 @@ int32_t subnetCheckIp(SubnetUtils* pUtils, uint32_t ip) {
   } else {
     SIpV4Range range = {.ip = ip, .mask = 32};
 
-    // uint32_t ip = ntohl(ip);
-    uint32_t ip = subnetIpRang2Int(&range);
-    return ip >= pUtils->network && ip <= pUtils->broadcast;
+    uint32_t t = subnetIpRang2Int(&range);
+    return t >= pUtils->network && t <= pUtils->broadcast;
   }
 }
 

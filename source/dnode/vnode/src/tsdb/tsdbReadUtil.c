@@ -273,7 +273,12 @@ SBrinRecord* getNextBrinRecord(SBrinRecordIter* pIter) {
     pIter->pCurrentBlk = taosArrayGet(pIter->pBrinBlockList, pIter->blockIndex);
 
     tBrinBlockClear(&pIter->block);
-    tsdbDataFileReadBrinBlock(pIter->pReader, pIter->pCurrentBlk, &pIter->block);
+    int32_t code = tsdbDataFileReadBrinBlock(pIter->pReader, pIter->pCurrentBlk, &pIter->block);
+    if (code != TSDB_CODE_SUCCESS) {
+      tsdbError("failed to read brinBlock from file, code:%s", tstrerror(code));
+      return NULL;
+    }
+
     pIter->recordIndex = -1;
   }
 

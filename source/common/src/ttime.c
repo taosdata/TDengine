@@ -692,34 +692,67 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision) {
   return (int64_t)(taosMktime(&tm) * TSDB_TICK_PER_SECOND(precision) + fraction);
 }
 
-int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision) {
+/**
+ * @brief calc how many windows after filling between skey and ekey
+ * @notes for asc order
+ *     skey      --->       ekey
+ *      ^                    ^
+ * _____!_____.........._____|_____..
+ *      |__1__)
+ *            |__2__)...-->|_ret+1_)
+ *      skey + ret * interval <= ekey
+ *      skey + ret * interval + interval > ekey
+ * ======> (ekey - skey - interval) / interval < ret <= (ekey - skey) / interval
+ * For keys from blocks which do not need filling, skey + ret * interval == ekey.
+ * For keys need filling, skey + ret * interval <= ekey.
+ * Total num of windows is ret + 1(the last window)
+ *
+ *        for desc order
+ *     skey       <---      ekey
+ *      ^                    ^
+ * _____|____..........______!____...
+ *                           |_first_)
+ *                     |__1__)
+ *  |_ret_)<--...|__2__)
+ *      skey >= ekey - ret * interval
+ *      skey < ekey - ret * interval + interval
+ *=======> (ekey - skey) / interval <= ret < (ekey - skey + interval) / interval
+ * For keys from blocks which do not need filling, skey == ekey - ret * interval.
+ * For keys need filling, skey >= ekey - ret * interval.
+ * Total num of windows is ret + 1(the first window)
+ */
+int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision,
+                              int32_t order) {
   if (ekey < skey) {
     int64_t tmp = ekey;
     ekey = skey;
     skey = tmp;
   }
+  int32_t ret;
 
   if (unit != 'n' && unit != 'y') {
-    return (int32_t)((ekey - skey) / interval);
+    ret = (int32_t)((ekey - skey) / interval);
+    if (order == TSDB_ORDER_DESC && ret * interval < (ekey - skey)) ret += 1;
+  } else {
+    skey /= (int64_t)(TSDB_TICK_PER_SECOND(precision));
+    ekey /= (int64_t)(TSDB_TICK_PER_SECOND(precision));
+
+    struct tm tm;
+    time_t    t = (time_t)skey;
+    taosLocalTime(&t, &tm, NULL);
+    int32_t smon = tm.tm_year * 12 + tm.tm_mon;
+
+    t = (time_t)ekey;
+    taosLocalTime(&t, &tm, NULL);
+    int32_t emon = tm.tm_year * 12 + tm.tm_mon;
+
+    if (unit == 'y') {
+      interval *= 12;
+    }
+    ret = (emon - smon) / (int32_t)interval;
+    if (order == TSDB_ORDER_DESC && ret * interval < (smon - emon)) ret += 1;
   }
-
-  skey /= (int64_t)(TSDB_TICK_PER_SECOND(precision));
-  ekey /= (int64_t)(TSDB_TICK_PER_SECOND(precision));
-
-  struct tm tm;
-  time_t    t = (time_t)skey;
-  taosLocalTime(&t, &tm, NULL);
-  int32_t smon = tm.tm_year * 12 + tm.tm_mon;
-
-  t = (time_t)ekey;
-  taosLocalTime(&t, &tm, NULL);
-  int32_t emon = tm.tm_year * 12 + tm.tm_mon;
-
-  if (unit == 'y') {
-    interval *= 12;
-  }
-
-  return (emon - smon) / (int32_t)interval;
+  return ret + 1;
 }
 
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {

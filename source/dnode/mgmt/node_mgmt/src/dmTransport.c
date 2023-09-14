@@ -79,7 +79,7 @@ static bool dmIsForbiddenIp(int8_t forbidden, char *user, uint32_t clientIp) {
     char       buf[36] = {0};
 
     rpcUtilSIpRangeToStr(&range, buf);
-    dError("User %s host:%s not in ip white list", user, buf);
+    dError("User:%s host:%s not in ip white list", user, buf);
     return true;
   } else {
     return false;

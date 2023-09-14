@@ -158,10 +158,6 @@ void varbinary_sql_test() {
   taos_free_result(pRes);
 
   // string function test, not support
-  pRes = taos_query(taos, "select length(c2) from stb");
-  ASSERT(taos_errno(pRes) != 0);
-  taos_free_result(pRes);
-
   pRes = taos_query(taos, "select ltrim(c2) from stb");
   ASSERT(taos_errno(pRes) != 0);
   taos_free_result(pRes);
@@ -191,7 +187,7 @@ void varbinary_sql_test() {
   ASSERT(taos_errno(pRes) != 0);
   taos_free_result(pRes);
 
-  // support first/last/last_row/count/hyperloglog/sample/tail/mode
+  // support first/last/last_row/count/hyperloglog/sample/tail/mode/length
   pRes = taos_query(taos, "select first(c2) from stb");
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
@@ -205,6 +201,10 @@ void varbinary_sql_test() {
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "select mode(c2) from stb");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select length(c2) from stb where c2 = '\\x7F8290'");
   ASSERT(taos_errno(pRes) == 0);
   taos_free_result(pRes);
 

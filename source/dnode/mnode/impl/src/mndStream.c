@@ -1922,6 +1922,7 @@ int32_t mndPersistTransLog(SStreamObj *pStream, STrans *pTrans) {
   SSdbRaw *pCommitRaw = mndStreamActionEncode(pStream);
   if (pCommitRaw == NULL) {
     mError("failed to encode stream since %s", terrstr());
+    mndTransDrop(pTrans);
     return -1;
   }
 
@@ -1988,6 +1989,7 @@ static int32_t createStreamUpdateTrans(SMnode *pMnode, SStreamObj *pStream, SVgr
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         taosMemoryFree(pBuf);
         taosWUnLockLatch(&pStream->lock);
+        mndTransDrop(pTrans);
         return -1;
       }
     }
@@ -1998,7 +2000,6 @@ static int32_t createStreamUpdateTrans(SMnode *pMnode, SStreamObj *pStream, SVgr
   int32_t code = mndPersistTransLog(pStream, pTrans);
   if (code != TSDB_CODE_SUCCESS) {
     sdbRelease(pMnode->pSdb, pStream);
-    mndTransDrop(pTrans);
     return -1;
   }
 
