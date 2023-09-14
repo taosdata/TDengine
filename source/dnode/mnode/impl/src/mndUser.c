@@ -432,8 +432,8 @@ static void ipRangeToStr(SIpV4Range *range, char *buf) {
   addr.s_addr = range->ip;
 
   uv_inet_ntop(AF_INET, &addr, buf, 32);
-  if (range->mask != 32) {
-    sprintf(buf + strlen(buf), "/%d", range->mask);
+  if (range->mask == 32) {
+   sprintf(buf + strlen(buf), "/%d", range->mask);
   }
   return;
 }
@@ -446,7 +446,7 @@ static int32_t ipRangeListToStr(SIpV4Range *range, int32_t num, char *buf) {
   for (int i = 0; i < num; i++) {
     char        tbuf[36] = {0};
     SIpV4Range *pRange = &range[i];
-    if (isDefaultRange(pRange)) continue;
+    // if (isDefaultRange(pRange)) continue;
 
     ipRangeToStr(&range[i], tbuf);
     len += sprintf(buf + len, "%s,", tbuf);
@@ -1118,12 +1118,23 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     userObj.pIpWhiteList = createDefaultIpWhiteList();
 
   } else {
-    SIpWhiteList *p = taosMemoryCalloc(1, sizeof(SIpWhiteList) + pCreate->numIpRanges * sizeof(SIpV4Range));
+    SIpWhiteList *p = taosMemoryCalloc(1, sizeof(SIpWhiteList) + pCreate->numIpRanges * sizeof(SIpV4Range) + 1);
+    bool          localHost = false;
     for (int i = 0; i < pCreate->numIpRanges; i++) {
       p->pIpRange[i].ip = pCreate->pIpRanges[i].ip;
       p->pIpRange[i].mask = pCreate->pIpRanges[i].mask;
+
+      if (isDefaultRange(&pCreate->pIpRanges[i])) {
+        localHost = true;
+      }
     }
-    p->num = pCreate->numIpRanges;
+    if (localHost == false) {
+      p->pIpRange[pCreate->numIpRanges].ip = 16777343;
+      p->pIpRange[pCreate->numIpRanges].mask = 32;
+      p->num = pCreate->numIpRanges + 1;
+    } else {
+      p->num = pCreate->numIpRanges;
+    }
     userObj.pIpWhiteList = p;
   }
 
@@ -1705,6 +1716,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     int32_t       num = pUser->pIpWhiteList->num;
     SIpWhiteList *pNew = taosMemoryCalloc(1, sizeof(SIpWhiteList) + sizeof(SIpV4Range) * num);
     bool          noexist = true;
+    bool          localHost = false;
 
     if (pUser->pIpWhiteList->num > 0) {
       int idx = 0;
@@ -1713,16 +1725,21 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
         bool        found = false;
         for (int j = 0; j < alterReq.numIpRanges; j++) {
           SIpV4Range *range = &alterReq.pIpRanges[j];
-          if (!isDefaultRange(range) && isIpRangeEqual(oldRange, range)) {
+          if (isDefaultRange(range)) {
+            localHost = true;
+            break;
+          }
+          if (isIpRangeEqual(oldRange, range)) {
             found = true;
             break;
           }
         }
+        if (localHost) break;
+
         if (found == false) {
           memcpy(&pNew->pIpRange[idx], oldRange, sizeof(SIpV4Range));
           idx++;
-        }
-        if (found == true) {
+        } else {
           noexist = false;
         }
       }
@@ -1734,6 +1751,12 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
       pNew->num = 0;
       newUser.pIpWhiteList = pNew;
       newUser.ipWhiteListVer = pUser->ipWhiteListVer + 1;
+    }
+
+    if (localHost) {
+      terrno = TSDB_CODE_MND_USER_LOCAL_HOST_NOT_DROP;
+      code = terrno;
+      goto _OVER;
     }
     if (noexist) {
       terrno = TSDB_CODE_MND_USER_HOST_NOT_EXIST;
