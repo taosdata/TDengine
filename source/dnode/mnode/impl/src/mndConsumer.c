@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mndConsumer.h"
 #include "mndPrivilege.h"
+#include "mndVgroup.h"
 #include "mndShow.h"
 #include "mndSubscribe.h"
 #include "mndTopic.h"
@@ -542,6 +543,14 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
         SMqVgEp *pVgEp = taosArrayGetP(pConsumerEp->vgs, j);
         char     offsetKey[TSDB_PARTITION_KEY_LEN];
         mndMakePartitionKey(offsetKey, pConsumer->cgroup, topic, pVgEp->vgId);
+
+        if(epoch == -1){
+          SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVgEp->vgId);
+          if(pVgroup){
+            pVgEp->epSet = mndGetVgroupEpset(pMnode, pVgroup);
+            mndReleaseVgroup(pMnode, pVgroup);
+          }
+        }
         // 2.2.1 build vg ep
         SMqSubVgEp vgEp = {
             .epSet = pVgEp->epSet,
