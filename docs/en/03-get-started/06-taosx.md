@@ -1,5 +1,5 @@
 ---
-title: Installing taosX
+title: Deploy taosX
 sidebar_label: taosX
 ---
 

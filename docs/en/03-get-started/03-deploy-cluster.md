@@ -1,5 +1,5 @@
 ---
-title: Deployment
+title: Deploy TDengine Cluster
 sidebar_label: Deployment
 ---
 

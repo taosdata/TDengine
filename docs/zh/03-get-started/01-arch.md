@@ -45,8 +45,8 @@ sidebar_label: 部署架构
     - 在 Agent 不是必需的情况下，推荐不使用 Agent，可以简化环境部署。
 
 
-8. taos explroer 是便于使用和管理 TDengine 集群以及各种数据传输任务的可视化工具。
+9. taos explroer 是便于使用和管理 TDengine 集群以及各种数据传输任务的可视化工具。
 
-9. Grafana：存储在监控集群中的监控数据可以通过 Grafana 来呈现关键的监控指标。
+10. Grafana：存储在监控集群中的监控数据可以通过 Grafana 来呈现关键的监控指标。
 
-10. Applications：向业务集群写入业务数据或从中查询业务数据的应用程序。其中 Applications (native connection) 是指采用原生连接的应用，应用直接连接到业务集群。Applications (RESTful) 是指采用 RESTful 接口访问业务集群的应用。 Applications (WebSocket) 是采用 WebSocket 连接的应用。 RESTful 和 WebSocket 访问都需要通过  taosAdapter 。
+11. Applications：向业务集群写入业务数据或从中查询业务数据的应用程序。其中 Applications (native connection) 是指采用原生连接的应用，应用直接连接到业务集群。Applications (RESTful) 是指采用 RESTful 接口访问业务集群的应用。 Applications (WebSocket) 是采用 WebSocket 连接的应用。 RESTful 和 WebSocket 访问都需要通过  taosAdapter 。
