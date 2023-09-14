@@ -7011,8 +7011,8 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  strcpy(col->tableAlias, pTable);
-  strcpy(col->colName, pMeta->schema[0].name);
+  tstrncpy(col->tableAlias, pTable, tListLen(col->tableAlias));
+  tstrncpy(col->colName, pMeta->schema[0].name, tListLen(col->colName));
   SNodeList* pParamterList = nodesMakeList();
   if (NULL == pParamterList) {
     nodesDestroyNode((SNode*)col);
