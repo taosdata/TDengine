@@ -101,6 +101,12 @@ typedef struct SNodeInfo {
   ESyncRole nodeRole;
 } SNodeInfo;
 
+typedef struct SSyncTLV {
+  int32_t typ;
+  int32_t len;
+  char    val[];
+} SSyncTLV;
+
 typedef struct SSyncCfg {
   int32_t   totalReplicaNum;
   int32_t   replicaNum;

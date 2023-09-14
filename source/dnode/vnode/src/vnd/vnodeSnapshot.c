@@ -43,6 +43,7 @@ struct SVSnapReader {
   SStreamStateReader *pStreamStateReader;
   // rsma
   int8_t           rsmaDone;
+  TSnapRangeArray *pRsmaRanges;
   SRSmaSnapReader *pRsmaReader;
 };
 
@@ -62,19 +63,44 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader
   pReader->ever = ever;
 
   if (pParam->data) {
-    pReader->pRanges = taosMemoryCalloc(1, sizeof(*pReader->pRanges));
-    if (pReader->pRanges == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
+    SSyncTLV *datHead = (void *)pParam->data;
+    if (datHead->typ != TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
+      terrno = TSDB_CODE_INVALID_DATA_FMT;
       goto _err;
     }
-    TARRAY2_INIT(pReader->pRanges);
-    SMsgHead *msgHead = pParam->data;
-    ASSERT(msgHead->vgId == TD_VID(pVnode));
-    void *buf = (char *)pParam->data + sizeof(SMsgHead);
 
-    if (tDeserializeSnapRangeArray(buf, msgHead->contLen, pReader->pRanges) < 0) {
-      vError("vgId:%d, failed to deserialize snap range.", TD_VID(pVnode));
-      goto _err;
+    int32_t offset = 0;
+    while (offset + sizeof(SSyncTLV) < datHead->len) {
+      SSyncTLV *sectHead = (void *)(datHead->val + offset);
+      offset += sizeof(SSyncTLV) + sectHead->len;
+      void   *buf = sectHead->val;
+      int32_t bufLen = sectHead->len;
+      ASSERT(sectHead->typ == SNAP_DATA_TSDB || sectHead->typ == SNAP_DATA_RSMA1);
+      STsdbSnapPartList *pList = tsdbSnapPartListCreate();
+      if (pList == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        goto _err;
+      }
+      if (tDeserializeTsdbSnapPartList(buf, bufLen, pList) < 0) {
+        terrno = TSDB_CODE_INVALID_DATA_FMT;
+        goto _err;
+      }
+      TSnapRangeArray **ppRanges = NULL;
+      if (sectHead->typ == SNAP_DATA_TSDB) {
+        ppRanges = &pReader->pRanges;
+      } else if (sectHead->typ == SNAP_DATA_RSMA1) {
+        ppRanges = &pReader->pRsmaRanges;
+      }
+      if (ppRanges == NULL) {
+        tsdbSnapPartListDestroy(&pList);
+        continue;
+      }
+      if (tsdbSnapPartListToRangeDiff(pList, ppRanges) < 0) {
+        vError("vgId:%d, failed to get range diff since %s", TD_VID(pVnode), terrstr());
+        tsdbSnapPartListDestroy(&pList);
+        goto _err;
+      }
+      tsdbSnapPartListDestroy(&pList);
     }
   }
 

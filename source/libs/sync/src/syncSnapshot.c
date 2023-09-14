@@ -98,7 +98,7 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
 
   // Get full snapshot info
   SSyncNode *pSyncNode = pSender->pSyncNode;
-  SSnapshot  snapInfo = {.typ = TAOS_SYNC_SNAP_INFO_FULL};
+  SSnapshot  snapInfo = {.typ = TDMT_SYNC_PREP_SNAPSHOT};
   if (pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapInfo) != 0) {
     sSError(pSender, "snapshot get info failure since %s", terrstr());
     goto _out;
@@ -106,12 +106,15 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
 
   int dataLen = 0;
   if (snapInfo.data) {
-    SMsgHead *msgHead = snapInfo.data;
-    ASSERT(msgHead->vgId == pSyncNode->vgId);
-    dataLen = sizeof(SMsgHead) + msgHead->contLen;
+    SSyncTLV *datHead = snapInfo.data;
+    if (datHead->typ != TDMT_SYNC_PREP_SNAPSHOT) {
+      sSError(pSender, "unexpected data typ in data of snapshot info. typ: %d", datHead->typ);
+      terrno = TSDB_CODE_INVALID_DATA_FMT;
+      goto _out;
+    }
+    dataLen = sizeof(SSyncTLV) + datHead->len;
   }
 
-  // build begin msg
   SRpcMsg rpcMsg = {0};
   if (syncBuildSnapshotSend(&rpcMsg, dataLen, pSender->pSyncNode->vgId) != 0) {
     sSError(pSender, "snapshot sender build msg failed since %s", terrstr());
@@ -605,7 +608,7 @@ _SEND_REPLY:
     // build msg
     ;  // make complier happy
 
-  SSnapshot snapInfo = {.typ = TAOS_SYNC_SNAP_INFO_DIFF};
+  SSnapshot snapInfo = {.typ = TDMT_SYNC_PREP_SNAPSHOT_REPLY};
   int32_t   dataLen = 0;
   if (pMsg->dataLen > 0) {
     void *data = taosMemoryCalloc(1, pMsg->dataLen);
@@ -614,15 +617,18 @@ _SEND_REPLY:
       code = terrno;
       goto _out;
     }
-    dataLen = pMsg->dataLen;
-    memcpy(data, pMsg->data, dataLen);
+    memcpy(data, pMsg->data, pMsg->dataLen);
     snapInfo.data = data;
     data = NULL;
     pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapInfo);
 
-    SMsgHead *msgHead = snapInfo.data;
-    ASSERT(msgHead->vgId == pSyncNode->vgId);
-    dataLen = msgHead->contLen;
+    SSyncTLV *datHead = snapInfo.data;
+    if (datHead->typ != TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
+      sRError(pReceiver, "unexpected data typ in data of snapshot info. typ: %d", datHead->typ);
+      code = TSDB_CODE_INVALID_DATA_FMT;
+      goto _out;
+    }
+    dataLen = sizeof(SSyncTLV) + datHead->len;
   }
 
   SRpcMsg rpcMsg = {0};
@@ -927,12 +933,17 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
   // update sender
   pSender->snapshot = snapshot;
 
-  if (pMsg->payloadType == TAOS_SYNC_SNAP_INFO_DIFF) {
-    SMsgHead *msgHead = (void *)pMsg->data;
-    ASSERT(msgHead->vgId == pSyncNode->vgId);
+  // start reader
+  if (pMsg->payloadType == TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
+    SSyncTLV *datHead = (void *)pMsg->data;
+    if (datHead->typ != pMsg->payloadType) {
+      sSError(pSender, "unexpected data type in data of SyncSnapshotRsp. typ: %d", datHead->typ);
+      terrno = TSDB_CODE_INVALID_DATA_FMT;
+      return -1;
+    }
     pSender->snapshotParam.data = pMsg->data;
   }
-  // start reader
+
   int32_t code = pSyncNode->pFsm->FpSnapshotStartRead(pSyncNode->pFsm, &pSender->snapshotParam, &pSender->pReader);
   if (code != 0) {
     sSError(pSender, "prepare snapshot failed since %s", terrstr());
