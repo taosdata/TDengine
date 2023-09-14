@@ -109,7 +109,6 @@ int32_t streamSetupScheduleTrigger(SStreamTask* pTask) {
 
 int32_t streamSchedExec(SStreamTask* pTask) {
   int8_t schedStatus = streamTaskSetSchedStatusWait(pTask);
-
   if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
     SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
     if (pRunReq == NULL) {

@@ -395,7 +395,7 @@ int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBloc
 }
 
 int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t cap, int32_t rate) {
-  if (cap < 100 || rate < 50 || pBucket == NULL) {
+  if (cap < 50 || rate < 50 || pBucket == NULL) {
     qError("failed to init sink task bucket, cap:%d, rate:%d", cap, rate);
     return TSDB_CODE_INVALID_PARA;
   }

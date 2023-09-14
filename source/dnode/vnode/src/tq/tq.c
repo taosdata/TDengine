@@ -1684,8 +1684,11 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   if (tDecodeStreamTaskUpdateMsg(&decoder, &req) < 0) {
     rsp.code = TSDB_CODE_MSG_DECODE_ERROR;
     tqError("vgId:%d failed to decode task update msg, code:%s", vgId, tstrerror(rsp.code));
-    goto _end;
+    tDecoderClear(&decoder);
+    return rsp.code;
   }
+
+  tDecoderClear(&decoder);
 
   // update the nodeEpset when it exists
   taosWLockLatch(&pMeta->lock);
@@ -1699,7 +1702,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
             req.taskId);
     rsp.code = TSDB_CODE_SUCCESS;
     taosWUnLockLatch(&pMeta->lock);
-    goto _end;
+    return rsp.code;
   }
 
   SStreamTask* pTask = *ppTask;
@@ -1739,37 +1742,32 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
     streamTaskStop(*ppHTask);
   }
 
-  tqDebug("s-task:%s task nodeEp update completed", pTask->id.idStr);
-
   pMeta->closedTask += 1;
   if (ppHTask != NULL) {
+    tqDebug("s-task:%s task nodeEp update completed, streamTask and related fill-history task closed", pTask->id.idStr);
     pMeta->closedTask += 1;
+  } else {
+    tqDebug("s-task:%s task nodeEp update completed, streamTask closed", pTask->id.idStr);
   }
+
+  rsp.code = 0;
 
   // possibly only handle the stream task.
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
-  bool    allStopped = (pMeta->closedTask == numOfTasks);
-  if (allStopped) {
-    pMeta->closedTask = 0;
+  if (pMeta->closedTask < numOfTasks) {
+    tqDebug("vgId:%d closed tasks:%d, unclosed:%d", vgId, pMeta->closedTask, (numOfTasks - pMeta->closedTask));
+    taosWUnLockLatch(&pMeta->lock);
   } else {
-    tqDebug("vgId:%d closed tasks:%d, not closed:%d", vgId, pMeta->closedTask, (numOfTasks - pMeta->closedTask));
-  }
-
-  taosWUnLockLatch(&pMeta->lock);
-
-_end:
-  tDecoderClear(&decoder);
-
-  if (allStopped) {
+    pMeta->closedTask = 0;
 
     if (!pTq->pVnode->restored) {
       tqDebug("vgId:%d vnode restore not completed, not restart the tasks", vgId);
+      taosWUnLockLatch(&pMeta->lock);
     } else {
-      tqDebug("vgId:%d all tasks are stopped, restart them", vgId);
-      taosWLockLatch(&pMeta->lock);
+      tqDebug("vgId:%d tasks are all updated and stopped, restart them", vgId);
 
       terrno = 0;
-      int32_t code = streamMetaReopen(pMeta, 0);
+      int32_t code = streamMetaReopen(pMeta);
       if (code != 0) {
         tqError("vgId:%d failed to reopen stream meta", vgId);
         taosWUnLockLatch(&pMeta->lock);
@@ -1793,4 +1791,3 @@ _end:
 
   return rsp.code;
 }
-

@@ -553,13 +553,11 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   pVnode->restored = true;
 
   if (vnodeIsRoleLeader(pVnode)) {
-    vInfo("vgId:%d, sync restore finished, start to launch stream tasks", vgId);
-
     // start to restore all stream tasks
     if (tsDisableStream) {
-      vInfo("vgId:%d, not launch stream tasks, since stream tasks are disabled", vgId);
+      vInfo("vgId:%d, sync restore finished, not launch stream tasks, since stream tasks are disabled", vgId);
     } else {
-      vInfo("vgId:%d start to launch stream tasks", pVnode->config.vgId);
+      vInfo("vgId:%d sync restore finished, start to launch stream tasks", pVnode->config.vgId);
       tqStartStreamTasks(pVnode->pTq);
       tqCheckAndRunStreamTaskAsync(pVnode->pTq);
     }
