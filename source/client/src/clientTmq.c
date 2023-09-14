@@ -1755,9 +1755,9 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
         atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__RECOVER);
         tscDebug("consumer:0x%" PRIx64 " wait for the re-balance, set status to be RECOVER", tmq->consumerId);
       } else if (pRspWrapper->code == TSDB_CODE_TQ_NO_COMMITTED_OFFSET) {
-        taosFreeQitem(pRspWrapper);
         terrno = pRspWrapper->code;
         tscError("consumer:0x%" PRIx64 " unexpected rsp from poll, code:%s", tmq->consumerId, tstrerror(pRspWrapper->code));
+        taosFreeQitem(pRspWrapper);
         return NULL;
       } else{
         if(pRspWrapper->code == TSDB_CODE_VND_INVALID_VGROUP_ID){   // for vnode transform
