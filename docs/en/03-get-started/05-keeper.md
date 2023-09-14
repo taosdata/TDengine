@@ -1,5 +1,5 @@
 ---
-title: Install and Deploy taosKeeper 
+title: Deploy taosKeeper 
 sidebar_label: taosKeeper
 ---
 
