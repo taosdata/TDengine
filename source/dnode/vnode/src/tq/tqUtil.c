@@ -36,10 +36,15 @@ int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
   return 0;
 }
 
-void tqUpdateNodeStage(STQ* pTq) {
+void tqUpdateNodeStage(STQ* pTq, bool isLeader) {
   SSyncState state = syncGetState(pTq->pVnode->sync);
-  pTq->pStreamMeta->stage = state.term;
-  tqDebug("vgId:%d update the meta stage to be:%"PRId64, pTq->pStreamMeta->vgId, pTq->pStreamMeta->stage);
+  SStreamMeta* pMeta = pTq->pStreamMeta;
+  tqDebug("vgId:%d update the meta stage:%"PRId64", prev:%"PRId64" leader:%d", pMeta->vgId, state.term, pMeta->stage, isLeader);
+  pMeta->stage = state.term;
+  pMeta->leader = isLeader;
+  if (isLeader) {
+    streamMetaStartHb(pMeta);
+  }
 }
 
 static int32_t tqInitTaosxRsp(STaosxRsp* pRsp, STqOffsetVal pOffset) {

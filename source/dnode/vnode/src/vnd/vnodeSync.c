@@ -549,8 +549,19 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
 
   ASSERT(commitIdx == vnodeSyncAppliedIndex(pFsm));
   walApplyVer(pVnode->pWal, commitIdx);
-
   pVnode->restored = true;
+
+  if (!pVnode->pTq->pStreamMeta->taskWillbeLaunched) {
+    vInfo("vgId:%d, sync restore finished, stream tasks will be launched by other thread", vgId);
+    return;
+  }
+
+  taosWLockLatch(&pVnode->pTq->pStreamMeta->lock);
+  if (!pVnode->pTq->pStreamMeta->taskWillbeLaunched) {
+    vInfo("vgId:%d, sync restore finished, stream tasks will be launched by other thread", vgId);
+    taosWUnLockLatch(&pVnode->pTq->pStreamMeta->lock);
+    return;
+  }
 
   if (vnodeIsRoleLeader(pVnode)) {
     // start to restore all stream tasks
@@ -564,6 +575,8 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   } else {
     vInfo("vgId:%d, sync restore finished, not launch stream tasks since not leader", vgId);
   }
+
+  taosWUnLockLatch(&pVnode->pTq->pStreamMeta->lock);
 }
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
@@ -578,7 +591,10 @@ static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
   }
   taosThreadMutexUnlock(&pVnode->lock);
 
-  tqStopStreamTasks(pVnode->pTq);
+  if (pVnode->pTq) {
+    tqUpdateNodeStage(pVnode->pTq, false);
+    tqStopStreamTasks(pVnode->pTq);
+  }
 }
 
 static void vnodeBecomeLearner(const SSyncFSM *pFsm) {
@@ -597,7 +613,7 @@ static void vnodeBecomeLearner(const SSyncFSM *pFsm) {
 static void vnodeBecomeLeader(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
   if (pVnode->pTq) {
-    tqUpdateNodeStage(pVnode->pTq);
+    tqUpdateNodeStage(pVnode->pTq, true);
   }
   vDebug("vgId:%d, become leader", pVnode->config.vgId);
 }
