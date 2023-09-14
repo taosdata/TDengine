@@ -108,14 +108,12 @@ int32_t streamSetupScheduleTrigger(SStreamTask* pTask) {
 }
 
 int32_t streamSchedExec(SStreamTask* pTask) {
-  int8_t schedStatus = atomic_val_compare_exchange_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE,
-                                                     TASK_SCHED_STATUS__WAITING);
-
+  int8_t schedStatus = streamTaskSetSchedStatusWait(pTask);
   if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
     SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
     if (pRunReq == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
-      atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+      /*int8_t status = */streamTaskSetSchedStatusInActive(pTask);
       qError("failed to create msg to aunch s-task:%s, reason out of memory", pTask->id.idStr);
       return -1;
     }
@@ -256,8 +254,11 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   }
 
   tDeleteStreamDispatchReq(pReq);
-  streamSchedExec(pTask);
 
+  int8_t schedStatus = streamTaskSetSchedStatusWait(pTask);
+  if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
+    streamTryExec(pTask);
+  }
   return 0;
 }
 

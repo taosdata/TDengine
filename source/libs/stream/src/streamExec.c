@@ -358,17 +358,17 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   streamTaskReleaseState(pTask);
   streamTaskReloadState(pStreamTask);
 
-  // 3. clear the link between fill-history task and stream task info
-  pStreamTask->historyTaskId.taskId = 0;
-
-  // 4. resume the state of stream task, after this function, the stream task will run immidately. But it can not be
+  // 3. resume the state of stream task, after this function, the stream task will run immidately. But it can not be
   // pause, since the pause allowed attribute is not set yet.
   streamTaskResumeFromHalt(pStreamTask);
 
   qDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", pTask->id.idStr);
 
-  // 5. free it and remove fill-history task from disk meta-store
+  // 4. free it and remove fill-history task from disk meta-store
   streamMetaUnregisterTask(pMeta, pTask->id.streamId, pTask->id.taskId);
+
+  // 5. clear the link between fill-history task and stream task info
+  pStreamTask->historyTaskId.taskId = 0;
 
   // 6. save to disk
   taosWLockLatch(&pMeta->lock);
@@ -509,7 +509,7 @@ int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
       code = streamTransferStateToStreamTask(pTask);
 
       if (code != TSDB_CODE_SUCCESS) {
-        atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+        /*int8_t status = */streamTaskSetSchedStatusInActive(pTask);
       }
     } else {
       qDebug("s-task:%s sink task does not transfer state", id);
@@ -615,25 +615,28 @@ bool streamTaskIsIdle(const SStreamTask* pTask) {
 
 int32_t streamTryExec(SStreamTask* pTask) {
   // this function may be executed by multi-threads, so status check is required.
-  int8_t schedStatus =
-      atomic_val_compare_exchange_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__WAITING, TASK_SCHED_STATUS__ACTIVE);
-
   const char* id = pTask->id.idStr;
 
+  int8_t schedStatus = streamTaskSetSchedStatusActive(pTask);
   if (schedStatus == TASK_SCHED_STATUS__WAITING) {
-    int32_t code = streamExecForAll(pTask);
-    if (code < 0) {  // todo this status shoudl be removed
-      atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__FAILED);
-      return -1;
-    }
+    while (1) {
+      int32_t code = streamExecForAll(pTask);
+      if (code < 0) {  // todo this status shoudl be removed
+        atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__FAILED);
+        return -1;
+      }
 
-    atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
-    qDebug("s-task:%s exec completed, status:%s, sched-status:%d", id, streamGetTaskStatusStr(pTask->status.taskStatus),
-           pTask->status.schedStatus);
+      taosThreadMutexLock(&pTask->lock);
+      if (taosQueueEmpty(pTask->inputInfo.queue->pQueue) || streamTaskShouldStop(&pTask->status) ||
+          streamTaskShouldPause(&pTask->status)) {
+        atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+        taosThreadMutexUnlock(&pTask->lock);
 
-    if (!(taosQueueEmpty(pTask->inputInfo.queue->pQueue) || streamTaskShouldStop(&pTask->status) ||
-          streamTaskShouldPause(&pTask->status))) {
-      streamSchedExec(pTask);
+        qDebug("s-task:%s exec completed, status:%s, sched-status:%d", id,
+               streamGetTaskStatusStr(pTask->status.taskStatus), pTask->status.schedStatus);
+        return 0;
+      }
+      taosThreadMutexUnlock(&pTask->lock);
     }
   } else {
     qDebug("s-task:%s already started to exec by other thread, status:%s, sched-status:%d", id,

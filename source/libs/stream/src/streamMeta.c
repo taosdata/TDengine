@@ -139,6 +139,11 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
     goto _err;
   }
 
+  pMeta->pUpdateTaskList = taosHashInit(64, fp, false, HASH_NO_LOCK);
+  if (pMeta->pUpdateTaskList == NULL) {
+    goto _err;
+  }
+
   // task list
   pMeta->pTaskList = taosArrayInit(4, sizeof(SStreamTaskId));
   if (pMeta->pTaskList == NULL) {
@@ -201,16 +206,13 @@ _err:
   if (pMeta->pCheckpointDb) tdbTbClose(pMeta->pCheckpointDb);
   if (pMeta->db) tdbClose(pMeta->db);
 
-  // taosThreadMutexDestroy(&pMeta->backendMutex);
-  //  taosThreadRwlockDestroy(&pMeta->lock);
-
   taosMemoryFree(pMeta);
 
   qError("failed to open stream meta");
   return NULL;
 }
 
-int32_t streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId) {
+int32_t streamMetaReopen(SStreamMeta* pMeta) {
   streamMetaClear(pMeta);
 
   pMeta->streamBackendRid = -1;
@@ -315,6 +317,7 @@ void streamMetaCloseImpl(void* arg) {
 
   taosHashCleanup(pMeta->pTasks);
   taosHashCleanup(pMeta->pTaskBackendUnique);
+  taosHashCleanup(pMeta->pUpdateTaskList);
 
   taosMemoryFree(pMeta->path);
   taosThreadMutexDestroy(&pMeta->backendMutex);
@@ -688,7 +691,6 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       continue;
     }
 
-    streamTaskResetUpstreamStageInfo(pTask);
     if (taosHashPut(pMeta->pTasks, keys, sizeof(keys), &pTask, sizeof(void*)) < 0) {
       doClear(pKey, pVal, pCur, pRecycleList);
       tFreeStreamTask(pTask);
@@ -701,6 +703,7 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
 
     ASSERT(pTask->status.downstreamReady == 0);
   }
+
   qInfo("vgId:%d pause task num:%d", pMeta->vgId, pMeta->pauseTaskNum);
 
   tdbFree(pKey);
@@ -757,9 +760,8 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
   return 0;
 }
 
-static bool readyToSendHb(SMetaHbInfo* pInfo) {
-  if ((++pInfo->tickCounter) >= META_HB_SEND_IDLE_COUNTER) {
-    // reset the counter
+static bool enoughTimeDuration(SMetaHbInfo* pInfo) {
+  if ((++pInfo->tickCounter) >= META_HB_SEND_IDLE_COUNTER) { // reset the counter
     pInfo->tickCounter = 0;
     return true;
   }
@@ -783,11 +785,20 @@ void metaHbToMnode(void* param, void* tmrId) {
     return;
   }
 
-  if (!readyToSendHb(&pMeta->hbInfo)) {
+  // not leader not send msg
+  if (!pMeta->leader) {
+    qInfo("vgId:%d follower not send hb to mnode", pMeta->vgId);
+    taosReleaseRef(streamMetaId, rid);
+    return;
+  }
+
+  if (!enoughTimeDuration(&pMeta->hbInfo)) {
     taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->hbInfo.hbTmr);
     taosReleaseRef(streamMetaId, rid);
     return;
   }
+
+  qInfo("vgId:%d start hb", pMeta->vgId);
 
   taosRLockLatch(&pMeta->lock);
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
@@ -810,7 +821,7 @@ void metaHbToMnode(void* param, void* tmrId) {
     STaskStatusEntry entry = {.streamId = pId->streamId, .taskId = pId->taskId, .status = (*pTask)->status.taskStatus};
     taosArrayPush(hbMsg.pTaskStatus, &entry);
 
-    if (i == 0) {
+    if (!hasValEpset) {
       epsetAssign(&epset, &(*pTask)->info.mnodeEpset);
       hasValEpset = true;
     }
@@ -856,6 +867,8 @@ void metaHbToMnode(void* param, void* tmrId) {
 
     qDebug("vgId:%d, build and send hb to mnode", pMeta->vgId);
     tmsgSendReq(&epset, &msg);
+  } else {
+    qError("vgId:%d no mnd epset", pMeta->vgId);
   }
 
   taosArrayDestroy(hbMsg.pTaskStatus);
@@ -906,10 +919,12 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
   taosWUnLockLatch(&pMeta->lock);
 
   // wait for the stream meta hb function stopping
-  pMeta->hbInfo.stopFlag = STREAM_META_WILL_STOP;
-  while (pMeta->hbInfo.stopFlag != STREAM_META_OK_TO_STOP) {
-    taosMsleep(100);
-    qDebug("vgId:%d wait for meta to stop timer", pMeta->vgId);
+  if (pMeta->leader) {
+    pMeta->hbInfo.stopFlag = STREAM_META_WILL_STOP;
+    while (pMeta->hbInfo.stopFlag != STREAM_META_OK_TO_STOP) {
+      taosMsleep(100);
+      qDebug("vgId:%d wait for meta to stop timer", pMeta->vgId);
+    }
   }
 
   qDebug("vgId:%d start to check all tasks", vgId);
@@ -922,4 +937,11 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
 
   int64_t el = taosGetTimestampMs() - st;
   qDebug("vgId:%d all stream tasks are not in timer, continue close, elapsed time:%" PRId64 " ms", pMeta->vgId, el);
+}
+
+void streamMetaStartHb(SStreamMeta* pMeta) {
+  int64_t* pRid = taosMemoryMalloc(sizeof(int64_t));
+  metaRefMgtAdd(pMeta->vgId, pRid);
+  *pRid = pMeta->rid;
+  metaHbToMnode(pRid, NULL);
 }

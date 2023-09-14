@@ -400,14 +400,18 @@ typedef struct SStreamMeta {
   FTaskExpand*  expandFunc;
   int32_t       vgId;
   int64_t       stage;
+  bool          leader;
+  int8_t        taskWillbeLaunched;
   SRWLatch      lock;
+//  TdThreadRwlock lock;
   int32_t       walScanCounter;
   void*         streamBackend;
   int64_t       streamBackendRid;
   SHashObj*     pTaskBackendUnique;
   TdThreadMutex backendMutex;
   SMetaHbInfo   hbInfo;
-  int32_t       closedTask;
+  SHashObj*     pUpdateTaskList;
+//  int32_t       closedTask;
   int32_t       totalTasks;  // this value should be increased when a new task is added into the meta
   int32_t       chkptNotReadyTasks;
   int64_t       rid;
@@ -660,6 +664,9 @@ int32_t streamTaskLaunchScanHistory(SStreamTask* pTask);
 int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage);
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList);
 void    streamTaskResetUpstreamStageInfo(SStreamTask* pTask);
+int8_t  streamTaskSetSchedStatusWait(SStreamTask* pTask);
+int8_t  streamTaskSetSchedStatusActive(SStreamTask* pTask);
+int8_t  streamTaskSetSchedStatusInActive(SStreamTask* pTask);
 
 int32_t streamTaskStop(SStreamTask* pTask);
 int32_t streamSendCheckRsp(const SStreamMeta* pMeta, const SStreamTaskCheckReq* pReq, SStreamTaskCheckRsp* pRsp,
@@ -714,10 +721,11 @@ int32_t      streamMetaGetNumOfTasks(SStreamMeta* pMeta);
 int32_t      streamMetaGetNumOfStreamTasks(SStreamMeta* pMeta);
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
-int32_t      streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId);
+int32_t      streamMetaReopen(SStreamMeta* pMeta);
 int32_t      streamMetaCommit(SStreamMeta* pMeta);
 int32_t      streamMetaLoadAllTasks(SStreamMeta* pMeta);
 void         streamMetaNotifyClose(SStreamMeta* pMeta);
+void         streamMetaStartHb(SStreamMeta* pMeta);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
