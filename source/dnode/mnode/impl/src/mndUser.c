@@ -197,9 +197,9 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
   taosThreadRwlockUnlock(&ipWhiteMgt.rw);
   mDebug("ip-white-list on mnode ver: %" PRId64 "", ver);
 
-  if (mndEnableIpWhiteList(pMnode) == 0 || tsEnableWhiteList == false) {
-    return 0;
-  }
+  // if (mndEnableIpWhiteList(pMnode) == 0 || tsEnableWhiteList == false) {
+  //   return 0;
+  // }
   return ver;
 }
 
