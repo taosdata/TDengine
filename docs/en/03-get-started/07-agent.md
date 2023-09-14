@@ -1,6 +1,6 @@
 ---
-title: Installing taosX Agent
-sidebar_label: taosX Agent
+title: Install and Deploy taos-Agent
+sidebar_label: taos-Agent
 ---
 
 ## Introduction

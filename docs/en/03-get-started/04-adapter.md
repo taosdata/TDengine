@@ -1,5 +1,5 @@
 ---
-title: Install taosAdapter 
+title: Install and Deploy taosAdapter 
 sidebar_label: taosAdapter
 ---
 
@@ -13,7 +13,7 @@ It is not necessary to install taosAdapter separately. When you install TDengine
 
 To install a single instance of taosAdapter, see [Install taosAdapter](https://docs.tdengine.com/reference/taosadapter/#install-taosadapter).
 
-### Multi-Node Deployment
+## Multi-Node Deployment
 
 You can install multiple instances of taosAdapter to improve system throughput and prevent taosAdapter from becoming a bottleneck. Installing multiple instances also makes the system more robust and increases availability. If any instance of taosAdapter cannot provide services, requests entering the system are automatically routed to another taosAdapter instance. Load balancing is necessary for multi-node deployments of taosAdapter.
 

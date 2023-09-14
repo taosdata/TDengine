@@ -1,6 +1,6 @@
 ---
 title: Installation Guide
-sidebar_label: Installation Guide
+sidebar_label: Installation
 ---
 
 ## Introduction
