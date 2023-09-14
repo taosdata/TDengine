@@ -612,7 +612,7 @@ _exit:
 
 void tRowSort(SArray *aRowP) {
   if (TARRAY_SIZE(aRowP) <= 1) return;
-  taosArraySort(aRowP, tRowPCmprFn);
+  taosArrayMSort(aRowP, tRowPCmprFn);
 }
 
 int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag) {
