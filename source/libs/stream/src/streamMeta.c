@@ -793,10 +793,13 @@ void metaHbToMnode(void* param, void* tmrId) {
   }
 
   if (!enoughTimeDuration(&pMeta->hbInfo)) {
+    qInfo("vgId:%d not enough time, %d", pMeta->vgId, pMeta->hbInfo.tickCounter);
     taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->hbInfo.hbTmr);
     taosReleaseRef(streamMetaId, rid);
     return;
   }
+
+  qInfo("vgId:%d start hb", pMeta->vgId);
 
   taosRLockLatch(&pMeta->lock);
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
@@ -819,7 +822,7 @@ void metaHbToMnode(void* param, void* tmrId) {
     STaskStatusEntry entry = {.streamId = pId->streamId, .taskId = pId->taskId, .status = (*pTask)->status.taskStatus};
     taosArrayPush(hbMsg.pTaskStatus, &entry);
 
-    if (i == 0) {
+    if (!hasValEpset) {
       epsetAssign(&epset, &(*pTask)->info.mnodeEpset);
       hasValEpset = true;
     }
@@ -865,6 +868,8 @@ void metaHbToMnode(void* param, void* tmrId) {
 
     qDebug("vgId:%d, build and send hb to mnode", pMeta->vgId);
     tmsgSendReq(&epset, &msg);
+  } else {
+    qError("vgId:%d no mnd epset", pMeta->vgId);
   }
 
   taosArrayDestroy(hbMsg.pTaskStatus);
