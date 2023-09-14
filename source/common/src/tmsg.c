@@ -45,7 +45,9 @@
 #define ENCODESQL()                                              \
   do {                                                           \
     if (tEncodeI32(&encoder, pReq->sqlLen) < 0) return -1;       \
-    if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;         \
+    if (pReq->sqlLen > 0){                                       \
+      if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;       \
+    }                                                            \
   } while (0)
 
 #define FREESQL()                     \
@@ -6843,7 +6845,9 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
     ASSERT(0);
   }
   if (tEncodeI32(pCoder, pReq->sqlLen) < 0) return -1;
-  if (tEncodeCStr(pCoder, pReq->sql) < 0) return -1;
+  if(pReq->sqlLen > 0) {
+    if (tEncodeCStr(pCoder, pReq->sql) < 0) return -1;
+  }
 
   tEndEncode(pCoder);
   return 0;
