@@ -17,6 +17,7 @@
 #include "dmInt.h"
 #include "thttp.h"
 
+int8_t       tsNeedUpdStatus = 0;
 static void *dmStatusThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
@@ -28,13 +29,13 @@ static void *dmStatusThreadFp(void *param) {
   int64_t              upTime = 0;
 
   while (1) {
-    taosMsleep(200);
+    taosMsleep(100);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
     if (curTime < lastTime) lastTime = curTime;
     float interval = (curTime - lastTime) / 1000.0f;
-    if (interval >= tsStatusInterval) {
+    if (atomic_val_compare_exchange_8(&tsNeedUpdStatus, 1, 0) == 1 || interval >= tsStatusInterval) {
       dmSendStatusReq(pMgmt);
       lastTime = curTime;
 

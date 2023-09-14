@@ -15,6 +15,8 @@
 
 #include "meta.h"
 
+extern int8_t tsNeedUpdStatus;
+
 static int  metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 static int  metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 static int  metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME);
@@ -788,6 +790,8 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
 
+  atomic_val_compare_exchange_8(&tsNeedUpdStatus, 0, 1);
+
   if (pMetaRsp) {
     *pMetaRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
 
@@ -1093,6 +1097,8 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
     metaTbGroupCacheClear(pMeta, uid);
     --pMeta->pVnode->config.vndStats.numOfSTables;
   }
+
+  atomic_val_compare_exchange_8(&tsNeedUpdStatus, 0, 1);
 
   metaCacheDrop(pMeta, uid);
 

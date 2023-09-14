@@ -117,12 +117,10 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 }
 
 static int32_t mndProcessGrantHB(SRpcMsg *pReq) { return TSDB_CODE_SUCCESS; }
-static int32_t mndProcessGrantFetch(SRpcMsg *pReq) { return TSDB_CODE_SUCCESS; }
 
 int32_t mndInitGrant(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
   mndSetMsgHandle(pMnode, TDMT_MND_GRANT_HB_TIMER, mndProcessGrantHB);
-  mndSetMsgHandle(pMnode, TDMT_MND_GRANT_FETCH_TIMER, mndProcessGrantFetch);
   return 0;
 }
 

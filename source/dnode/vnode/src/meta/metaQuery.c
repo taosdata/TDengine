@@ -700,7 +700,7 @@ int64_t metaGetTbNum(SMeta *pMeta) {
 int64_t metaGetTimeSeriesNum(SMeta *pMeta) {
   // sum of (number of columns of stable -  1) * number of ctables (excluding timestamp column)
   int64_t nTables = metaGetTbNum(pMeta);
-  if (nTables - pMeta->pVnode->config.vndStats.numOfCmprTables > 100 ||
+  if (nTables - pMeta->pVnode->config.vndStats.numOfCmprTables > 0 ||
       pMeta->pVnode->config.vndStats.numOfTimeSeries <= 0 ||
       ++pMeta->pVnode->config.vndStats.itvTimeSeries % (60 * 5) == 0) {
     int64_t num = 0;

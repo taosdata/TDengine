@@ -51,6 +51,7 @@ enum {
   DND_CONN_ACTIVE_CODE,
 };
 
+extern int32_t  mndUpdateClusterInfo(SRpcMsg *pReq);
 static int32_t  mndCreateDefaultDnode(SMnode *pMnode);
 static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode);
 static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw);
@@ -525,6 +526,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
   bool    supportVnodesChanged = pDnode->numOfSupportVnodes != statusReq.numOfSupportVnodes;
   bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged;
+  int64_t nDiffTimeSeries = 0;
 
   const STraceId *trace = &pReq->info.traceId;
   mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
@@ -535,6 +537,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
     SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVload->vgId);
     if (pVgroup != NULL) {
+      nDiffTimeSeries = pVload->numOfTimeSeries - pVgroup->numOfTimeSeries;
       if (pVload->syncState == TAOS_SYNC_STATE_LEADER) {
         pVgroup->cacheUsage = pVload->cacheUsage;
         pVgroup->numOfCachedTables = pVload->numOfCachedTables;
@@ -662,8 +665,15 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 _OVER:
   mndReleaseDnode(pMnode, pDnode);
   taosArrayDestroy(statusReq.pVloads);
+  if (nDiffTimeSeries > 0) {
+    mndUpdateClusterInfo(pReq);
+  }
   return code;
 }
+
+#ifndef TD_ENTERPRISE
+int32_t mndUpdateClusterInfo(SRpcMsg *pReq) { return 0; }
+#endif
 
 static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pCreate) {
   int32_t  code = -1;
