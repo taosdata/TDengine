@@ -31,10 +31,10 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
   }
 }
 static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
-  dInfo("ip-white-dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->ipWhiteVer, ver);
+  dDebug("ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->ipWhiteVer, ver);
   if (pMgmt->ipWhiteVer == ver) {
     if (ver == 0) {
-      dInfo("disable ip-white-dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->ipWhiteVer, ver);
+      dDebug("disable ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->ipWhiteVer, ver);
       rpcSetIpWhite(pMgmt->msgCb.serverRpc, NULL);
       pMgmt->ipWhiteVer = ver;
     }

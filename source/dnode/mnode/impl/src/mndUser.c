@@ -195,7 +195,7 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
   }
   ver = ipWhiteMgt.ver;
   taosThreadRwlockUnlock(&ipWhiteMgt.rw);
-  mInfo("ip-white-mnode ver: %" PRId64 "", ver);
+  mDebug("ip-white-list on mnode ver: %" PRId64 "", ver);
 
   // if (mndEnableIpWhiteList(pMnode) == 0 || tsEnableWhiteList == false) {
   //   return 0;
@@ -616,7 +616,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t ipWhiteReserve =
-      pUser->pIpWhiteList ? (sizeof(SIpV4Range) * pUser->pIpWhiteList->num + sizeof(SIpWhiteList) + 4) : 4;
+      pUser->pIpWhiteList ? (sizeof(SIpV4Range) * pUser->pIpWhiteList->num + sizeof(SIpWhiteList) + 4) : 16;
   int32_t numOfReadDbs = taosHashGetSize(pUser->readDbs);
   int32_t numOfWriteDbs = taosHashGetSize(pUser->writeDbs);
   int32_t numOfReadStbs = taosHashGetSize(pUser->readTbs);
@@ -1078,6 +1078,7 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   int32_t sz = sizeof(SIpWhiteList) + pNew->pIpWhiteList->num * sizeof(SIpV4Range);
   pOld->pIpWhiteList = taosMemoryRealloc(pOld->pIpWhiteList, sz);
   memcpy(pOld->pIpWhiteList, pNew->pIpWhiteList, sz);
+  pOld->ipWhiteListVer = pNew->ipWhiteListVer;
 
   taosWUnLockLatch(&pOld->lock);
 

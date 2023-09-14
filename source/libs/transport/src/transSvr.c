@@ -96,8 +96,8 @@ typedef struct SWorkThrd {
   bool  quit;
 
   SIpWhiteListTab* pWhiteList;
-  int64_t     whiteListVer;
-  int8_t      enableIpWhiteList;
+  int64_t          whiteListVer;
+  int8_t           enableIpWhiteList;
 } SWorkThrd;
 
 typedef struct SServerObj {
@@ -121,12 +121,12 @@ typedef struct SServerObj {
 } SServerObj;
 
 SIpWhiteListTab* uvWhiteListCreate();
-void        uvWhiteListDestroy(SIpWhiteListTab* pWhite);
-void        uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteList* pList, int64_t ver);
-void        uvWhiteListUpdate(SIpWhiteListTab* pWhite, SHashObj* pTable);
-bool        uvWhiteListCheckConn(SIpWhiteListTab* pWhite, SSvrConn* pConn);
-bool        uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, uint32_t ip, int64_t ver);
-void        uvWhiteListSetConnVer(SIpWhiteListTab* pWhite, SSvrConn* pConn);
+void             uvWhiteListDestroy(SIpWhiteListTab* pWhite);
+void             uvWhiteListAdd(SIpWhiteListTab* pWhite, char* user, SIpWhiteList* pList, int64_t ver);
+void             uvWhiteListUpdate(SIpWhiteListTab* pWhite, SHashObj* pTable);
+bool             uvWhiteListCheckConn(SIpWhiteListTab* pWhite, SSvrConn* pConn);
+bool             uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, uint32_t ip, int64_t ver);
+void             uvWhiteListSetConnVer(SIpWhiteListTab* pWhite, SSvrConn* pConn);
 
 static void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
 static void uvAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
@@ -263,7 +263,7 @@ void uvWhiteListDebug(SIpWhiteListTab* pWrite) {
 
     char* buf = NULL;
     uvWhiteListToStr(pUserList, user, &buf);
-    tDebug("white %s", buf);
+    tDebug("ip-white-list  %s", buf);
     taosMemoryFree(buf);
     pIter = taosHashIterate(pWhiteList, pIter);
   }
@@ -1568,7 +1568,7 @@ _return2:
 void transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
   STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)thandle);
 
-  tInfo("update ip white list");
+  tDebug("ip-white-list update on rpc");
   SServerObj* svrObj = pTransInst->tcphandle;
   for (int i = 0; i < svrObj->numOfThreads; i++) {
     SWorkThrd* pThrd = svrObj->pThreadObj[i];
