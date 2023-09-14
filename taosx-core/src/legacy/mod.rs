@@ -1,7 +1,9 @@
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashMap},
     fmt::{Debug, Display},
     io::Write,
+    num::NonZeroUsize,
     path::Path,
     str::FromStr,
     sync::{
@@ -474,8 +476,152 @@ async fn split_table_into_time_range_chunks(
 //     Ok(())
 // }
 
+struct WriteContext {
+    from: (TaosPool, TableTodo),
+    to: (TaosPool, TableTodo),
+    actions: Vec<Action>,
+    target_opts: TargetOpts,
+    metrics: Arc<LegacyMetrics>,
+}
+async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResult<()> {
+    // write block
+
+    let from = &context
+        .from
+        .0
+        .get()
+        .await
+        .context("Get source connection error")?;
+    let to = &context
+        .to
+        .0
+        .get()
+        .await
+        .context("Get source connection error")?;
+    let stable = context.from.1.stable.as_deref();
+    let table = &context.from.1.name;
+    let actions = &context.actions;
+    let new_table_name = &context.to.1.name;
+    let metrics = &context.metrics;
+    let target_opts = &context.target_opts;
+
+    block.with_table_name(new_table_name);
+
+    loop {
+        let ok = to.write_raw_block(&block).await;
+        if let Err(err) = ok {
+            let code: i32 = err.code().into();
+            let err_str = err.to_string();
+            tracing::debug!("sync_single_table_partial write raw block error: {err:#}",);
+            if code == 0x2603 || code == 0x0618 {
+                if let Some(stable) = stable {
+                    sync_super_table_schema_with_subs_without_pool(
+                        &from,
+                        stable,
+                        &[table],
+                        &to,
+                        1,
+                        &context.target_opts,
+                        true,
+                        &context.actions,
+                        0,
+                        &context.metrics,
+                    )
+                    .await?;
+                } else {
+                    sync_normal_table_schema(from, table, actions, to).await?;
+                }
+                continue;
+            } else if code == 0x263F || code == 0x061B {
+                tracing::info!("sync table {table} error with: {err:#}");
+                if let Some(stable) = stable {
+                    scheduler::sync_add_column(from, to, stable).await?;
+                } else {
+                    scheduler::sync_add_column(from, to, table).await?;
+                }
+                continue;
+            } else if err_str.contains("0x0911") {
+                // TSDB_CODE_SYN_PROPOSE_NOT_READY： Sync not ready to propose
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                continue;
+            } else if err_str.contains("0x0118") {
+                let desc = to
+                    .describe(table)
+                    .await
+                    .map_err(|err| anyhow::format_err!("Describe table {table} error: {err}"))?;
+                let fields: HashMap<_, Ty> = block
+                    .field_names()
+                    .iter()
+                    .map(|name| {
+                        desc.iter()
+                            .find(|f| f.field() == name)
+                            .map(|f| (name, f.ty()))
+                            .ok_or_else(|| anyhow::format_err!("Column does not exist {name}"))
+                    })
+                    .try_collect()?;
+                let views: Vec<ColumnView> = block
+                    .column_views()
+                    .iter()
+                    .zip(block.field_names())
+                    .map(|(view, name)| view.cast(fields[name]))
+                    .try_collect()
+                    .map_err(RawError::from_any)?;
+                let mut new = RawBlock::from_views(views.as_slice(), block.precision());
+                new.with_table_name(new_table_name);
+                new.with_field_names(block.field_names());
+                // dbg!(&new);
+                // new.pretty_format();
+                to.write_raw_block(&new).await.map_err(|err| {
+                    anyhow::format_err!(
+                        "[{}:{}]write raw block of table {table} ({} rows): {}\nData:{}",
+                        std::file!(),
+                        std::line!(),
+                        new.nrows(),
+                        err,
+                        new.pretty_format()
+                    )
+                })?;
+            } else {
+                return Err(err).with_context(|| {
+                    format!(
+                        "[{}:{}]write raw block of table {table} ({} rows): {}",
+                        std::file!(),
+                        std::line!(),
+                        block.nrows(),
+                        err_str
+                    )
+                })?;
+            }
+        }
+        break;
+    }
+
+    counter!(METRICS_LEGACY_BLOCKS, 1);
+    metrics.blocks.fetch_add(1, Ordering::AcqRel);
+    counter!(METRICS_LEGACY_RECORDS, block.nrows() as u64);
+    metrics
+        .records
+        .fetch_add(block.nrows() as _, Ordering::AcqRel);
+    counter!(
+        METRICS_LEGACY_POINTS,
+        block.nrows() as u64 * block.ncols() as u64
+    );
+    metrics
+        .points
+        .fetch_add((block.nrows() * block.ncols()) as _, Ordering::AcqRel);
+
+    // metrics.fetch_add()
+
+    if let Some(duration) = target_opts.interval {
+        tokio::time::sleep(duration).await;
+    }
+    RawResult::Ok(())
+}
+
 #[async_backtrace::framed]
 async fn sync_single_table_partial(
+    source: TaosPool,
+    target: TaosPool,
     from: &Taos,
     stable: Option<&str>,
     table: &str,
@@ -484,7 +630,7 @@ async fn sync_single_table_partial(
     opts: &QueryOpts,
     target_opts: &TargetOpts,
     target_is_v3: bool,
-    metrics: &LegacyMetrics,
+    metrics: Arc<LegacyMetrics>,
 ) -> anyhow::Result<()> {
     let (table, sql) = if opts.select_from_stable {
         if let Some(stable) = stable {
@@ -524,119 +670,25 @@ async fn sync_single_table_partial(
     let fields = res.num_of_fields();
     let mut blocks = res.blocks();
     let new_table_name = transform_tbname_with_actions(table, actions, false)?;
+
+    let concurrent_limit = target_opts.concurrent_limit.get();
+
     if target_is_v3 && !target_opts.force_stmt {
-        while let Some(mut block) = blocks.try_next().await? {
-            block.with_table_name(&new_table_name);
+        let context = Arc::new(WriteContext {
+            from: (source.clone(), TableTodo::new(table, stable)),
+            to: (target.clone(), TableTodo::new(new_table_name, stable)),
+            actions: actions.clone(),
+            target_opts: target_opts.clone(),
+            metrics: metrics.clone(),
+        });
 
-            loop {
-                let ok = to.write_raw_block(&block).await;
-                if let Err(err) = ok {
-                    let code: i32 = err.code().into();
-                    let err_str = err.to_string();
-                    tracing::debug!("sync_single_table_partial write raw block error: {err:#}",);
-                    if code == 0x2603 || code == 0x0618 {
-                        if let Some(stable) = stable {
-                            sync_super_table_schema_with_subs_without_pool(
-                                from,
-                                stable,
-                                &[table],
-                                to,
-                                1,
-                                &target_opts,
-                                true,
-                                actions,
-                                0,
-                                &metrics,
-                            )
-                            .await?;
-                        } else {
-                            sync_normal_table_schema(from, table, actions, to).await?;
-                        }
-                        continue;
-                    } else if code == 0x263F || code == 0x061B {
-                        tracing::info!("sync table {table} error with: {err:#}");
-                        if let Some(stable) = stable {
-                            scheduler::sync_add_column(from, to, stable).await?;
-                        } else {
-                            scheduler::sync_add_column(from, to, table).await?;
-                        }
-                        continue;
-                    } else if err_str.contains("0x0911") {
-                        // TSDB_CODE_SYN_PROPOSE_NOT_READY： Sync not ready to propose
-                        tokio::time::sleep(Duration::from_secs(2)).await;
-                        continue;
-                    } else if err_str.contains("0x0118") {
-                        let desc = to.describe(table).await.map_err(|err| {
-                            anyhow::format_err!("Describe table {table} error: {err}")
-                        })?;
-                        let fields: HashMap<_, Ty> = block
-                            .field_names()
-                            .iter()
-                            .map(|name| {
-                                desc.iter()
-                                    .find(|f| f.field() == name)
-                                    .map(|f| (name, f.ty()))
-                                    .ok_or_else(|| {
-                                        anyhow::format_err!("Column does not exist {name}")
-                                    })
-                            })
-                            .try_collect()?;
-                        let views: Vec<ColumnView> = block
-                            .column_views()
-                            .iter()
-                            .zip(block.field_names())
-                            .map(|(view, name)| view.cast(fields[name]))
-                            .try_collect()?;
-                        let mut new = RawBlock::from_views(views.as_slice(), block.precision());
-                        new.with_table_name(&new_table_name);
-                        new.with_field_names(block.field_names());
-                        // dbg!(&new);
-                        // new.pretty_format();
-                        to.write_raw_block(&new).await.map_err(|err| {
-                            anyhow::format_err!(
-                                "[{}:{}]write raw block of table {table} ({} rows): {}\nData:{}",
-                                std::file!(),
-                                std::line!(),
-                                new.nrows(),
-                                err,
-                                new.pretty_format()
-                            )
-                        })?;
-                    } else {
-                        return Err(err).with_context(|| {
-                            format!(
-                                "[{}:{}]write raw block of table {table} ({} rows): {}",
-                                std::file!(),
-                                std::line!(),
-                                block.nrows(),
-                                err_str
-                            )
-                        })?;
-                    }
-                }
-                break;
-            }
-
-            counter!(METRICS_LEGACY_BLOCKS, 1);
-            metrics.blocks.fetch_add(1, Ordering::AcqRel);
-            counter!(METRICS_LEGACY_RECORDS, block.nrows() as u64);
-            metrics
-                .records
-                .fetch_add(block.nrows() as _, Ordering::AcqRel);
-            counter!(
-                METRICS_LEGACY_POINTS,
-                block.nrows() as u64 * block.ncols() as u64
-            );
-            metrics
-                .points
-                .fetch_add((block.nrows() * block.ncols()) as _, Ordering::AcqRel);
-
-            // metrics.fetch_add()
-
-            if let Some(duration) = target_opts.interval {
-                tokio::time::sleep(duration).await;
-            }
-        }
+        // todo: if concurrent_limit == 0 should use try_for_each?
+        blocks
+            .map_ok(|block| (block, context.clone()))
+            .try_for_each_concurrent(concurrent_limit, |(block, context)| {
+                write_block(block, context)
+            })
+            .await?;
     } else {
         let question_masks = std::iter::repeat('?').take(fields).join(",");
         let sql = format!("INSERT INTO `{new_table_name}` VALUES({question_masks})");
@@ -1189,12 +1241,15 @@ fn transform_sql_with_actions(
     Ok(sql)
 }
 
-fn transform_tbname_with_actions(
-    table_name: &str,
+fn transform_tbname_with_actions<'a>(
+    table_name: &'a str,
     actions: &Vec<Action>,
     is_stable: bool,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<Cow<'a, str>> {
     tracing::debug!("table name transform before: {table_name}");
+    if actions.is_empty() {
+        return Ok(Cow::Borrowed(table_name));
+    }
     let mut new_table_name = String::from(table_name);
     if is_stable {
         for action in actions {
@@ -1222,7 +1277,7 @@ fn transform_tbname_with_actions(
         }
     }
     tracing::debug!("table name transform after: {new_table_name}");
-    Ok(new_table_name)
+    Ok(new_table_name.into())
 }
 
 async fn sync_normal_table_schema(
@@ -1514,6 +1569,7 @@ pub struct SourceOpts {
     forever: bool,
     tables: Option<Vec<String>>,
     stables: Option<Vec<String>>,
+    workers: usize,
 }
 
 impl SourceOpts {
@@ -1544,6 +1600,10 @@ impl SourceOpts {
         if let Some(offset) = dsn.remove("offset") {
             let offset: u32 = offset.parse()?;
             opts.query.limit.offset.replace(offset);
+        }
+        if let Some(value) = dsn.remove("workers") {
+            let value: usize = value.parse()?;
+            opts.workers = value;
         }
 
         if let Some(value) = dsn.remove("start") {
@@ -1644,7 +1704,7 @@ impl FromStr for SchemaMode {
         }
     }
 }
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct TargetOpts {
     assert: bool,
     schema: SchemaMode,
@@ -1656,6 +1716,25 @@ pub struct TargetOpts {
     fails_to: Option<Arc<std::sync::Mutex<std::fs::File>>>,
     timeout_per_table: Option<Duration>,
     update_tags: bool,
+    concurrent_limit: NonZeroUsize,
+}
+
+impl Default for TargetOpts {
+    fn default() -> Self {
+        Self {
+            assert: false,
+            schema: SchemaMode::default(),
+            database_options: None,
+            batch_size: None,
+            interval: None,
+            max_sql_length: None,
+            force_stmt: false,
+            fails_to: None,
+            timeout_per_table: None,
+            update_tags: false,
+            concurrent_limit: NonZeroUsize::new(8).unwrap(),
+        }
+    }
 }
 
 impl Drop for TargetOpts {
@@ -1698,6 +1777,11 @@ impl TargetOpts {
                     .with_context(|| format!("invalid batch-size value: {value}"))?,
             );
         }
+        if let Some(value) = dsn.remove("concurrent-limit") {
+            opts.concurrent_limit = value
+                .parse()
+                .with_context(|| format!("invalid concurrent-limit value: {value}"))?;
+        }
         if let Some(value) = dsn.remove("interval") {
             let value = parse_duration::parse(&value)?;
             opts.interval.replace(value);
@@ -1728,12 +1812,17 @@ impl TargetOpts {
 }
 
 pub struct TableTodo {
-    #[allow(dead_code)]
     name: String,
     stable: Option<String>,
 }
 
 impl TableTodo {
+    pub fn new(name: impl Into<String>, stable: Option<impl Into<String>>) -> Self {
+        Self {
+            name: name.into(),
+            stable: stable.map(Into::into),
+        }
+    }
     pub fn is_ordinary_table(&self) -> bool {
         self.stable.is_none()
     }
@@ -2079,6 +2168,10 @@ pub async fn legacy_to_taos(
     let metrics = Arc::new(LegacyMetrics::default());
     let from_database = from.subject.clone().unwrap();
     let mut source_opts = SourceOpts::from_params(&mut from)?;
+    if source_opts.workers == 0 {
+        source_opts.workers = concurrent;
+    }
+
     verify::verify_dsn(&from)
         .map_err(|err| anyhow::format_err!("Cannot parse source DSN params: {err}"))?;
 
@@ -2209,7 +2302,7 @@ pub async fn legacy_to_taos(
         to_pool.clone(),
         Arc::new(source_opts.query),
         Arc::new(target_opts.clone()),
-        concurrency as u32,
+        source_opts.workers as _,
         &actions,
         metrics.clone(),
         source_is_v3,
