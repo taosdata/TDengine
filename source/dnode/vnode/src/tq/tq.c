@@ -852,11 +852,21 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
            pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer);
   }
 
-  tqInfo("vgId:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64 " nextProcessVer:%" PRId64
-         " child id:%d, level:%d, status:%s fill-history:%d, trigger:%" PRId64 " ms",
-         vgId, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
-         pTask->info.selfChildId, pTask->info.taskLevel, streamGetTaskStatusStr(pTask->status.taskStatus),
-         pTask->info.fillHistory, pTask->info.triggerParam);
+  if (pTask->info.fillHistory) {
+    tqInfo("vgId:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64
+           " nextProcessVer:%" PRId64
+           " child id:%d, level:%d, status:%s fill-history:%d, related stream task:0x%x trigger:%" PRId64 " ms",
+           vgId, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
+           pTask->info.selfChildId, pTask->info.taskLevel, streamGetTaskStatusStr(pTask->status.taskStatus),
+           pTask->info.fillHistory, pTask->streamTaskId.taskId, pTask->info.triggerParam);
+  } else {
+    tqInfo("vgId:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64
+           " nextProcessVer:%" PRId64
+           " child id:%d, level:%d, status:%s fill-history:%d, related fill-task:0x%x trigger:%" PRId64 " ms",
+           vgId, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
+           pTask->info.selfChildId, pTask->info.taskLevel, streamGetTaskStatusStr(pTask->status.taskStatus),
+           pTask->info.fillHistory, pTask->historyTaskId.taskId, pTask->info.triggerParam);
+  }
 
   return 0;
 }
@@ -1178,44 +1188,6 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     return code;
   }
 
-  return 0;
-}
-
-// notify the downstream tasks to transfer executor state after handle all history blocks.
-int32_t tqProcessTaskTransferStateReq(STQ* pTq, SRpcMsg* pMsg) {
-  char*   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
-  int32_t len = pMsg->contLen - sizeof(SMsgHead);
-
-  SStreamTransferReq req = {0};
-
-  SDecoder decoder;
-  tDecoderInit(&decoder, (uint8_t*)pReq, len);
-  int32_t code = tDecodeStreamScanHistoryFinishReq(&decoder, &req);
-  tDecoderClear(&decoder);
-
-  tqDebug("vgId:%d start to process transfer state msg, from s-task:0x%x", pTq->pStreamMeta->vgId,
-          req.downstreamTaskId);
-
-  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, req.streamId, req.downstreamTaskId);
-  if (pTask == NULL) {
-    tqError("failed to find task:0x%x, it may have been dropped already. process transfer state failed",
-            req.downstreamTaskId);
-    return -1;
-  }
-
-  int32_t remain = streamAlignTransferState(pTask);
-  if (remain > 0) {
-    tqDebug("s-task:%s receive upstream transfer state msg, remain:%d", pTask->id.idStr, remain);
-    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
-    return 0;
-  }
-
-  // transfer the ownership of executor state
-  tqDebug("s-task:%s all upstream tasks send transfer msg, open transfer state flag", pTask->id.idStr);
-  ASSERT(pTask->streamTaskId.taskId != 0 && pTask->info.fillHistory == 1);
-
-  streamSchedExec(pTask);
-  streamMetaReleaseTask(pTq->pStreamMeta, pTask);
   return 0;
 }
 
@@ -1592,6 +1564,10 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t      code = 0;
 
   SStreamCheckpointSourceReq req = {0};
+  if (!vnodeIsRoleLeader(pTq->pVnode)) {
+    tqDebug("vgId:%d not leader node, ignore checkpoint-source msg", vgId);
+    return TSDB_CODE_SUCCESS;
+  }
 
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, len);
@@ -1801,6 +1777,8 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
         vInfo("vgId:%d, restart all stream tasks", vgId);
         tqStartStreamTasks(pTq);
         tqCheckAndRunStreamTaskAsync(pTq);
+      } else {
+        vInfo("vgId:%d, follower node not start stream tasks", vgId);
       }
 
       pMeta->taskWillbeLaunched = 0;
