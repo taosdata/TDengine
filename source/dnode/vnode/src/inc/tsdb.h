@@ -681,6 +681,33 @@ int32_t tSerializeSnapRangeArray(void *buf, int32_t bufLen, TSnapRangeArray *pSn
 int32_t tDeserializeSnapRangeArray(void *buf, int32_t bufLen, TSnapRangeArray *pSnapR);
 void    tsdbSnapRangeArrayDestroy(TSnapRangeArray **ppSnap);
 
+// snap partition list
+typedef TARRAY2(SVersionRange) SVerRangeList;
+typedef struct STsdbSnapPartition STsdbSnapPartition;
+typedef TARRAY2(STsdbSnapPartition *) STsdbSnapPartList;
+// util
+STsdbSnapPartList *tsdbSnapPartListCreate();
+void               tsdbSnapPartListDestroy(STsdbSnapPartList **ppList);
+int32_t            tSerializeTsdbSnapPartList(void *buf, int32_t bufLen, STsdbSnapPartList *pList);
+int32_t            tDeserializeTsdbSnapPartList(void *buf, int32_t bufLen, STsdbSnapPartList *pList);
+int32_t            tsdbSnapPartListToRangeDiff(STsdbSnapPartList *pList, TSnapRangeArray **ppRanges);
+
+enum {
+  TSDB_SNAP_RANGE_TYP_HEAD = 0,
+  TSDB_SNAP_RANGE_TYP_DATA,
+  TSDB_SNAP_RANGE_TYP_SMA,
+  TSDB_SNAP_RANGE_TYP_TOMB,
+  TSDB_SNAP_RANGE_TYP_STT,
+  TSDB_SNAP_RANGE_TYP_MAX,
+};
+
+struct STsdbSnapPartition {
+  int64_t       fid;
+  int8_t        stat;
+  SVerRangeList verRanges[TSDB_SNAP_RANGE_TYP_MAX];
+};
+
+// snap read
 struct STsdbReadSnap {
   SMemTable     *pMem;
   SQueryNode    *pNode;
