@@ -876,14 +876,9 @@ typedef struct {
 int32_t tSerializeSDropUserReq(void* buf, int32_t bufLen, SDropUserReq* pReq);
 int32_t tDeserializeSDropUserReq(void* buf, int32_t bufLen, SDropUserReq* pReq);
 
-typedef union {
-  struct {
-    uint64_t ip_mask;
-  };
-  struct {
+typedef struct SIpV4Range{
     uint32_t ip;
     uint32_t mask;
-  };
 } SIpV4Range;
 
 typedef struct {
