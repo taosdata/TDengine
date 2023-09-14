@@ -34,19 +34,8 @@
 #define USER_LEN 24
 #define BUF_LEN  1024
 
-typedef uint16_t VarDataLenT;
-
-#define TSDB_NCHAR_SIZE    sizeof(int32_t)
-#define VARSTR_HEADER_SIZE sizeof(VarDataLenT)
-
-#define GET_FLOAT_VAL(x)  (*(float *)(x))
-#define GET_DOUBLE_VAL(x) (*(double *)(x))
-
-#define varDataLen(v) ((VarDataLenT *)(v))[0]
-
-void createUsers(TAOS *taos, const char *host, char *qstr);
-void passVerTestMulti(const char *host, char *qstr);
-void sysInfoTest(TAOS *taos, const char *host, char *qstr);
+void createUsers(TAOS *taos, const char *host);
+void dropUsers(TAOS* taos);
 
 int   nPassVerNotified = 0;
 int nWhiteListVerNotified = 0;
@@ -68,6 +57,17 @@ void __taos_notify_cb(void *param, void *ext, int type) {
     default:
       printf("%s:%d unknown type:%d\n", __func__, __LINE__, type);
       break;
+  }
+}
+
+void __taos_async_whitelist_cb(void *param, int code, TAOS *taos, int numOfWhiteLists, uint64_t* pWhiteList) {
+  if (code == 0) {
+    printf("fetch whitelist cb. user: %s numofWhitelist: %d\n", param ? (char*)param : NULL, numOfWhiteLists);
+    for (int i = 0; i < numOfWhiteLists; ++i) {
+      printf("  %d: %16x\n", i, pWhiteList[i]);
+    }
+  } else {
+    printf("fetch whitelist cb error %d\n", code);
   }
 }
 
@@ -116,13 +116,27 @@ int main(int argc, char *argv[]) {
     printf("failed to connect to server, reason:%s\n", "null taos" /*taos_errstr(taos)*/);
     exit(1);
   }
-  createUsers(taos, argv[1], qstr);
+  createUsers(taos, argv[1]);
 
+  sleep(10);
+
+  dropUsers(taos);
   taos_close(taos);
   taos_cleanup();
 }
 
-void createUsers(TAOS *taos, const char *host, char *qstr) {
+void dropUsers(TAOS *taos) {
+  char qstr[1024];
+  for (int i = 0; i < nUser; ++i) {
+    sprintf(users[i], "user%d", i);
+    sprintf(qstr, "DROP USER %s", users[i]);
+    queryDB(taos, qstr);
+    taos_close(taosu[i]);
+ }
+}
+
+void createUsers(TAOS *taos, const char *host) {
+  char qstr[1024];
   // users
   for (int i = 0; i < nUser; ++i) {
     sprintf(users[i], "user%d", i);
@@ -143,8 +157,10 @@ void createUsers(TAOS *taos, const char *host, char *qstr) {
       fprintf(stderr, "success to run: taos_set_notify_cb for user:%s\n", users[i]);
     }
 
-    // alter pass for users
+    // alter whitelist for users
     sprintf(qstr, "alter user %s add host '%d.%d.%d.%d/24'", users[i], i, i, i, i);
     queryDB(taos, qstr);
+
+    taos_fetch_whitelist_a(taosu[i], __taos_async_whitelist_cb, users[i]);
   }
 }

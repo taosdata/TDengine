@@ -1244,7 +1244,7 @@ int32_t mndSetUserWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhiteLis
   if (pWhiteListRsp->pWhiteLists == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  memcpy(pUser->pIpWhiteList->pIpRange, pUser->pIpWhiteList->pIpRange,
+  memcpy(pWhiteListRsp->pWhiteLists, pUser->pIpWhiteList->pIpRange,
          pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
 
   return 0;
