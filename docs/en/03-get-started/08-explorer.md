@@ -1,5 +1,5 @@
 ---
-title: Install and Deploy taosExplorer
+title: Deploy taosExplorer
 sidebar_label: taosExplorer
 ---
 
