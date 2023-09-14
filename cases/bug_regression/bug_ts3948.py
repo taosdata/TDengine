@@ -13,11 +13,10 @@
 
 from taostest import TDCase, T
 from taostest.util.common import TDCom
-from taostest.util.sml_types import TDSmlProtocolType, TDSmlTimestampType
 from taostest.util.remote import Remote
 import taos
 
-class TestTs2918(TDCase):
+class TestTs3948(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.tdCom.env_setting = self.env_setting
@@ -57,7 +56,7 @@ class TestTs2918(TDCase):
             values[3].binary(row[4])
             stmt.bind_param(values)
 
-    def insert_data(self):
+    def insert_check(self):
         conn = taos.connect(host=self.taosd_setting["fqdn"][0], database="power")
         try:
             stmt = conn.statement("INSERT INTO ? USING meters TAGS(?, ?) VALUES(?, ?, ?, ?)")
@@ -73,21 +72,14 @@ class TestTs2918(TDCase):
 
     def run(self):
         self.create_stable()
-        self.insert_data()
-        # input_sql = f'stb,type=insert eid=1 {self.ts}'
-        # print("=====",input_sql)
-        # self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.MILLI_SECOND.value)
-        # self.tdSql.query(f'show {self.dbname}.tables')
-        # tbname = self.tdSql.query_data[0][0]
-        # self.tdSql.execute(f'insert into {tbname} values ({self.ts}, 2)')
-        # self.tdSql.query(f'select * from stb')
-        # self.tdSql.query(f'select * from {tbname}')
+        self.insert_check()
+
     def cleanup(self):
         pass
 
     def desc(self) -> str:
         case_description = '''
-            bug-ts2918
+            bug-ts3948
         '''
         return case_description
 
