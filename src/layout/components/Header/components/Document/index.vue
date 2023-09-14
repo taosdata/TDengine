@@ -49,7 +49,7 @@ export default {
   computed: {
     docsUrl() {
       return window.navigator.language.includes('en')
-        ? "/docs-en/index"
+        ? "/docs-en/"
         : "/docs/";
     },
     discordUrl() {
