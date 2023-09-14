@@ -81,6 +81,7 @@ struct SSttLvl {
 
 struct STFileSet {
   int32_t      fid;
+  int8_t       stat;
   STFileObj   *farr[TSDB_FTYPE_MAX];  // file array
   TSttLvlArray lvlArr[1];             // level array
 };
