@@ -39,7 +39,6 @@ typedef struct SDnodeMgmt {
   GetMnodeLoadsFp        getMnodeLoadsFp;
   GetQnodeLoadsFp        getQnodeLoadsFp;
   int32_t                statusSeq;
-  int64_t                ipWhiteVer;
 } SDnodeMgmt;
 
 // dmHandle.c

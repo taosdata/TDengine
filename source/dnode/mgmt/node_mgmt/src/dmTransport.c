@@ -63,11 +63,12 @@ static void dmConvertErrCode(tmsg_t msgType) {
     terrno = TSDB_CODE_VND_STOPPED;
   }
 }
-static void dmUpdateRpcIpWhite(void *pTrans, SRpcMsg *pRpc) {
+static void dmUpdateRpcIpWhite(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
   SUpdateIpWhite ipWhite = {0};  // aosMemoryCalloc(1, sizeof(SUpdateIpWhite));
   tDeserializeSUpdateIpWhite(pRpc->pCont, pRpc->contLen, &ipWhite);
 
   rpcSetIpWhite(pTrans, &ipWhite);
+  pData->ipWhiteVer = ipWhite.ver;
 
   tFreeSUpdateIpWhiteReq(&ipWhite);
 
@@ -126,7 +127,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
       }
       break;
     case TDMT_MND_RETRIEVE_IP_WHITE_RSP: {
-      dmUpdateRpcIpWhite(pTrans->serverRpc, pRpc);
+      dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
     } break;
     default:

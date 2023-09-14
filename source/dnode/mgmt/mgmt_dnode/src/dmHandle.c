@@ -31,17 +31,17 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
   }
 }
 static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
-  dDebug("ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->ipWhiteVer, ver);
-  if (pMgmt->ipWhiteVer == ver) {
+  dDebug("ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->pData->ipWhiteVer, ver);
+  if (pMgmt->pData->ipWhiteVer == ver) {
     if (ver == 0) {
-      dDebug("disable ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->ipWhiteVer, ver);
+      dDebug("disable ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->pData->ipWhiteVer, ver);
       rpcSetIpWhite(pMgmt->msgCb.serverRpc, NULL);
-      pMgmt->ipWhiteVer = ver;
+      // pMgmt->ipWhiteVer = ver;
     }
     return;
   }
-  int64_t oldVer = pMgmt->ipWhiteVer;
-  pMgmt->ipWhiteVer = ver;
+  int64_t oldVer = pMgmt->pData->ipWhiteVer;
+  // pMgmt->ipWhiteVer = ver;
 
   SRetrieveIpWhiteReq req = {.ipWhiteVer = oldVer};
   int32_t             contLen = tSerializeRetrieveIpWhite(NULL, 0, &req);
@@ -141,7 +141,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   pMgmt->statusSeq++;
   req.statusSeq = pMgmt->statusSeq;
-  req.ipWhiteVer = pMgmt->ipWhiteVer;
+  req.ipWhiteVer = pMgmt->pData->ipWhiteVer;
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   void   *pHead = rpcMallocCont(contLen);
