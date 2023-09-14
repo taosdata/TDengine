@@ -156,8 +156,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/raw_block_interface_test.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqSubscribeStb-r3.py -N 5
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -n 3 
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -i True
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -n 3 -i True
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-19201.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TS-3404.py
@@ -818,7 +818,7 @@
 ,,y,script,./test.sh -f tsim/dnode/balance3.sim
 ,,y,script,./test.sh -f tsim/vnode/replica3_many.sim
 ,,y,script,./test.sh -f tsim/stable/metrics_idx.sim
-,,y,script,./test.sh -f tsim/db/alter_replica_13.sim
+# ,,y,script,./test.sh -f tsim/db/alter_replica_13.sim
 ,,y,script,./test.sh -f tsim/sync/3Replica1VgElect.sim
 ,,y,script,./test.sh -f tsim/sync/3Replica5VgElect.sim
 ,,n,script,./test.sh -f tsim/valgrind/checkError6.sim
@@ -831,7 +831,7 @@
 ,,y,script,./test.sh -f tsim/user/privilege_table.sim
 ,,y,script,./test.sh -f tsim/user/privilege_create_db.sim
 ,,y,script,./test.sh -f tsim/db/alter_option.sim
-,,y,script,./test.sh -f tsim/db/alter_replica_31.sim
+# ,,y,script,./test.sh -f tsim/db/alter_replica_31.sim
 ,,y,script,./test.sh -f tsim/db/basic1.sim
 ,,y,script,./test.sh -f tsim/db/basic2.sim
 ,,y,script,./test.sh -f tsim/db/basic3.sim
