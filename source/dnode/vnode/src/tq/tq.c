@@ -1330,14 +1330,7 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
 int32_t tqProcessTaskDropReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   SVDropStreamTaskReq* pReq = (SVDropStreamTaskReq*)msg;
   tqDebug("vgId:%d receive msg to drop stream task:0x%x", TD_VID(pTq->pVnode), pReq->taskId);
-  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->streamId, pReq->taskId);
-  if (pTask == NULL) {
-    tqError("vgId:%d failed to acquire s-task:0x%x when dropping it", pTq->pStreamMeta->vgId, pReq->taskId);
-    return 0;
-  }
-
   streamMetaUnregisterTask(pTq->pStreamMeta, pReq->streamId, pReq->taskId);
-  streamMetaReleaseTask(pTq->pStreamMeta, pTask);
   return 0;
 }
 
