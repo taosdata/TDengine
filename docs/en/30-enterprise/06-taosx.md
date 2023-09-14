@@ -71,7 +71,7 @@ Items within brackets (\[\]) are optional.
 2. Use the -T or --transform parameter to perform operations on database names or fields when migrating from TDengine 2.6 or 3.0 to 3.0. This parameter cannot be configured in taosExplorer. The usage of this parameter is described as follows:
    
   ```shell
-  1. AddTag: adds a tag to a table. Example: -T add-tag:<tag1>=<value1/>
+  1. AddTag: adds a tag to a table. Example: -T add-tag:<tag1>=<value1>
   2. Table renaming:
       2.1 Conditions
           2.1.1 RenameTable: renames all tables that match the specified conditions
