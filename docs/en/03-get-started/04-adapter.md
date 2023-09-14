@@ -1,5 +1,5 @@
 ---
-title: Deploy taosAdapter 
+title: Set up taosAdapter 
 sidebar_label: taosAdapter
 ---
 
@@ -9,15 +9,15 @@ taosAdapter is a component of TDengine that provides RESTful and WebSocket inter
 
 It is not necessary to install taosAdapter separately. When you install TDengine Server, taosAdapter is automatically installed. However, if desired, you can install taosAdapter and TDengine Server on different machines. For more information, see [Installation](../install/). For more information about taosAdapter, see [taosAdapter](../../reference/taosAdapter/).
 
-## Single-Node Deployment
+## Single Instance
 
 To install a single instance of taosAdapter, see [Install taosAdapter](https://docs.tdengine.com/reference/taosadapter/#install-taosadapter).
 
-## Multi-Node Deployment
+## Multiple Instance
 
-You can install multiple instances of taosAdapter to improve system throughput and prevent taosAdapter from becoming a bottleneck. Installing multiple instances also makes the system more robust and increases availability. If any instance of taosAdapter cannot provide services, requests entering the system are automatically routed to another taosAdapter instance. Load balancing is necessary for multi-node deployments of taosAdapter.
+You can install multiple instances of taosAdapter to improve system throughput and prevent taosAdapter from becoming a bottleneck. Installing multiple instances also makes the system more robust and increases availability. If any instance of taosAdapter cannot provide services, requests entering the system are automatically routed to another taosAdapter instance. Load balancing is necessary for setting up multiple instances of taosAdapter.
 
-First, install each instance of taosAdapter as described in the single-node deployment section. Next, configure nginx as follows. Note that you must replace the sample endpoints with the actual endpoints for your environment. For details about nginx configuration, see the official nginx documentation.
+First, install each instance of taosAdapter as described in the setting up single instance section. Next, configure nginx as follows. Note that you must replace the sample endpoints with the actual endpoints for your environment. For details about nginx configuration, see the official nginx documentation.
 
 ```json     
 user root;

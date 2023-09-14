@@ -1,6 +1,6 @@
 ---
-title: Installation and Deployment Guide
-sidebar_label: Install & Deploy
+title: Installation and Set up Guide
+sidebar_label: Install & Set up
 ---
 
 ```mdx-code-block

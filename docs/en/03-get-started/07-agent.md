@@ -1,5 +1,5 @@
 ---
-title: Deploy taos-Agent
+title: Set up taos-Agent
 sidebar_label: taos-Agent
 ---
 
@@ -7,7 +7,7 @@ sidebar_label: taos-Agent
 
 This document describes how to install the taosX agent. The taosX agent is installed automatically when you install taosX. For more information, see [Installation Guide](../install/).
 
-## Configuration
+## Configure
 
 The configuration file for the taosX agent is located at `/etc/taos/agent.toml`. The configuration options are described as follows:
 - endpoint: (Mandatory) Specify the GRPC endpoint of taosX.
@@ -29,7 +29,7 @@ You can configure the length of time for which log files are stores by specifyin
 export TAOSX_LOGS_KEEP_DAYS=7
 ```
 
-## Start the taosX Agent
+## Start taos-Agent
 
 On Linux, use the `systemctl` command to start the taosX agent:
 

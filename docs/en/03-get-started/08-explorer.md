@@ -1,11 +1,11 @@
 ---
-title: Deploy taosExplorer
+title: Set up taosExplorer
 sidebar_label: taosExplorer
 ---
 
 ## Introduction
 
-taosExplorer is a GUI for TDengine Enterprise. With taosExplorer, you can use TDengine features and manage your TDengine deployment and data sources in a convenient Web-based interface. taosExplorer is installed automatically when you install taosX. For more information, see [Installation Guide](../install/).
+taosExplorer is a GUI for TDengine Enterprise. With taosExplorer, you can use TDengine features and manage your TDengine cluster and data sources in a convenient Web-based interface. taosExplorer is installed automatically when you install taosX. For more information, see [Installation Guide](../install/).
 
 ## Prerequisites
 
