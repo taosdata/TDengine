@@ -1121,34 +1121,35 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     userObj.pIpWhiteList = createDefaultIpWhiteList();
 
   } else {
-    if (pCreate->numIpRanges > MND_MAX_USE_HOST) {
+    SHashObj *pUniqueTab = taosHashInit(64, MurmurHash3_32, false, HASH_NO_LOCK);
+    int32_t   dummpy = 0;
+    for (int i = 0; i < pCreate->numIpRanges; i++) {
+      SIpV4Range range = {.ip = pCreate->pIpRanges[i].ip, .mask = pCreate->pIpRanges[i].mask};
+      taosHashPut(pUniqueTab, &range, sizeof(range), &dummpy, sizeof(dummpy));
+    }
+    taosHashPut(pUniqueTab, &defaultIpRange, sizeof(defaultIpRange), &dummpy, sizeof(dummpy));
+
+    if (taosHashGetSize(pUniqueTab) > MND_MAX_USE_HOST) {
       terrno = TSDB_CODE_MND_TOO_MANY_USER_HOST;
+      taosHashCleanup(pUniqueTab);
       return terrno;
     }
 
-    bool localHost = false;
-
-    for (int i = 0; i < pCreate->numIpRanges; i++) {
-      SIpV4Range *pRange = &pCreate->pIpRanges[i];
-      if (isDefaultRange(pRange)) {
-        localHost = true;
-        break;
-      }
-    }
-    int32_t       numOfRanges = localHost ? pCreate->numIpRanges : pCreate->numIpRanges + 1;
+    int32_t       numOfRanges = taosHashGetSize(pUniqueTab);
     SIpWhiteList *p = taosMemoryCalloc(1, sizeof(SIpWhiteList) + numOfRanges * sizeof(SIpV4Range));
-    int           idx = 0;
-    if (localHost == false) {
-      p->pIpRange[idx].ip = defaultIpRange.ip;
-      p->pIpRange[idx].mask = defaultIpRange.mask;
-      idx++;
+    void         *pIter = taosHashIterate(pUniqueTab, NULL);
+    int32_t       i = 0;
+    while (pIter) {
+      size_t      len = 0;
+      SIpV4Range *key = taosHashGetKey(pIter, &len);
+      p->pIpRange[i].ip = key->ip;
+      p->pIpRange[i].mask = key->mask;
+      pIter = taosHashIterate(pUniqueTab, pIter);
+
+      i++;
     }
 
-    for (int i = idx, j = 0; i < numOfRanges && j < pCreate->numIpRanges; i++, j++) {
-      p->pIpRange[i].ip = pCreate->pIpRanges[j].ip;
-      p->pIpRange[i].mask = pCreate->pIpRanges[j].mask;
-    }
-
+    taosHashCleanup(pUniqueTab);
     p->num = numOfRanges;
     userObj.pIpWhiteList = p;
   }
