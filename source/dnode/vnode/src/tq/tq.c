@@ -1742,10 +1742,10 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
     streamTaskStop(*ppHTask);
   }
 
-  pMeta->closedTask += 1;
+  taosHashPut(pMeta->pUpdateTaskList, &pTask->id, sizeof(pTask->id), NULL, 0);
   if (ppHTask != NULL) {
     tqDebug("s-task:%s task nodeEp update completed, streamTask and related fill-history task closed", pTask->id.idStr);
-    pMeta->closedTask += 1;
+    taosHashPut(pMeta->pUpdateTaskList, &(*ppHTask)->id, sizeof(pTask->id), NULL, 0);
   } else {
     tqDebug("s-task:%s task nodeEp update completed, streamTask closed", pTask->id.idStr);
   }
@@ -1754,11 +1754,14 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 
   // possibly only handle the stream task.
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
-  if (pMeta->closedTask < numOfTasks) {
-    tqDebug("vgId:%d closed tasks:%d, unclosed:%d", vgId, pMeta->closedTask, (numOfTasks - pMeta->closedTask));
+  int32_t updateTasks = taosHashGetSize(pMeta->pUpdateTaskList);
+  if (updateTasks < numOfTasks) {
+    pMeta->taskWillbeLaunched = 1;
+
+    tqDebug("vgId:%d closed tasks:%d, unclosed:%d", vgId, updateTasks, (numOfTasks - updateTasks));
     taosWUnLockLatch(&pMeta->lock);
   } else {
-    pMeta->closedTask = 0;
+    taosHashClear(pMeta->pUpdateTaskList);
 
     if (!pTq->pVnode->restored) {
       tqDebug("vgId:%d vnode restore not completed, not restart the tasks", vgId);
@@ -1780,12 +1783,14 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
         return -1;
       }
 
-      taosWUnLockLatch(&pMeta->lock);
       if (vnodeIsRoleLeader(pTq->pVnode) && !tsDisableStream) {
         vInfo("vgId:%d, restart all stream tasks", vgId);
         tqStartStreamTasks(pTq);
         tqCheckAndRunStreamTaskAsync(pTq);
       }
+
+      pMeta->taskWillbeLaunched = 0;
+      taosWUnLockLatch(&pMeta->lock);
     }
   }
 
