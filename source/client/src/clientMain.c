@@ -178,8 +178,21 @@ int32_t fetchWhiteListCallbackFn(void* param, SDataBuf* pMsg, int32_t code) {
   SGetUserWhiteListRsp wlRsp;
   tDeserializeSGetUserWhiteListRsp(pMsg->pData, pMsg->len, &wlRsp);
 
-  pInfo->userCbFn(pInfo->userParam, code, taos, wlRsp.numWhiteLists, &wlRsp.pWhiteLists->ip_mask);
+  uint64_t* pWhiteLists = taosMemoryMalloc(wlRsp.numWhiteLists * sizeof(uint64_t));
+  if (pWhiteLists == NULL) {
+    taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
+    taosMemoryFree(pInfo);
+    tFreeSGetUserWhiteListRsp(&wlRsp);
+  }
 
+  for (int i = 0; i < wlRsp.numWhiteLists; ++i) {
+    pWhiteLists[i] = ((uint64_t)wlRsp.pWhiteLists[i].mask << 32) | wlRsp.pWhiteLists[i].ip;
+  }
+
+  pInfo->userCbFn(pInfo->userParam, code, taos, wlRsp.numWhiteLists, pWhiteLists);
+
+  taosMemoryFree(pWhiteLists);
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
   taosMemoryFree(pInfo);

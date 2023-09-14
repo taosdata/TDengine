@@ -64,7 +64,7 @@ void __taos_async_whitelist_cb(void *param, int code, TAOS *taos, int numOfWhite
   if (code == 0) {
     printf("fetch whitelist cb. user: %s numofWhitelist: %d\n", param ? (char*)param : NULL, numOfWhiteLists);
     for (int i = 0; i < numOfWhiteLists; ++i) {
-      printf("  %d: %16x\n", i, pWhiteList[i]);
+      printf("  %d: 0x%llx\n", i, pWhiteList[i]);
     }
   } else {
     printf("fetch whitelist cb error %d\n", code);
@@ -118,8 +118,11 @@ int main(int argc, char *argv[]) {
   }
   createUsers(taos, argv[1]);
 
-  sleep(1);
-
+  while (nWhiteListVerNotified < 10) {
+    printf("white list update notified %d times\n", nWhiteListVerNotified);
+    sleep(1);
+  }
+  printf("succeed in getting white list nofication. %d times\n", nWhiteListVerNotified);
   dropUsers(taos);
   taos_close(taos);
   taos_cleanup();
@@ -163,4 +166,5 @@ void createUsers(TAOS *taos, const char *host) {
 
     taos_fetch_whitelist_a(taosu[i], __taos_async_whitelist_cb, users[i]);
   }
+
 }
