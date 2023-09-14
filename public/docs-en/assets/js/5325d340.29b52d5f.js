@@ -1,5 +1,5 @@
 "use strict";
-(self["webpackChunkdocs"] = self["webpackChunkdocs"] || []).push([[2225],{
+(self["webpackChunkdocs"] = self["webpackChunkdocs"] || []).push([[4678],{
 
 /***/ 3905:
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
@@ -212,7 +212,49 @@ function createElement (type, props) {
 
 /***/ }),
 
-/***/ 9701:
+/***/ 2991:
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+
+// EXPORTS
+__webpack_require__.d(__webpack_exports__, {
+  Z: () => (/* binding */ DocCardList)
+});
+
+// EXTERNAL MODULE: ./node_modules/react/index.js
+var react = __webpack_require__(7294);
+// EXTERNAL MODULE: ./node_modules/clsx/dist/clsx.m.js
+var clsx_m = __webpack_require__(6010);
+// EXTERNAL MODULE: ./node_modules/@docusaurus/theme-common/lib/utils/docsUtils.js
+var docsUtils = __webpack_require__(3438);
+// EXTERNAL MODULE: ./node_modules/@docusaurus/core/lib/client/exports/Link.js + 1 modules
+var Link = __webpack_require__(9960);
+// EXTERNAL MODULE: ./node_modules/@docusaurus/core/lib/client/exports/isInternalUrl.js
+var isInternalUrl = __webpack_require__(3919);
+// EXTERNAL MODULE: ./node_modules/@docusaurus/core/lib/client/exports/Translate.js + 1 modules
+var Translate = __webpack_require__(5999);
+;// CONCATENATED MODULE: ./node_modules/@docusaurus/theme-classic/lib/theme/DocCard/styles.module.css
+// extracted by mini-css-extract-plugin
+/* harmony default export */ const styles_module = ({"cardContainer":"cardContainer_fWXF","cardTitle":"cardTitle_rnsV","cardDescription":"cardDescription_PWke"});
+;// CONCATENATED MODULE: ./node_modules/@docusaurus/theme-classic/lib/theme/DocCard/index.js
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */function CardContainer(_ref){let{href,children}=_ref;return/*#__PURE__*/react.createElement(Link/* default */.Z,{href:href,className:(0,clsx_m/* default */.Z)('card padding--lg',styles_module.cardContainer)},children);}function CardLayout(_ref2){let{href,icon,title,description}=_ref2;return/*#__PURE__*/react.createElement(CardContainer,{href:href},/*#__PURE__*/react.createElement("h2",{className:(0,clsx_m/* default */.Z)('text--truncate',styles_module.cardTitle),title:title},icon," ",title),description&&/*#__PURE__*/react.createElement("p",{className:(0,clsx_m/* default */.Z)('text--truncate',styles_module.cardDescription),title:description},description));}function CardCategory(_ref3){let{item}=_ref3;const href=(0,docsUtils/* findFirstCategoryLink */.Wl)(item);// Unexpected: categories that don't have a link have been filtered upfront
+if(!href){return null;}return/*#__PURE__*/react.createElement(CardLayout,{href:href,icon:"\uD83D\uDDC3\uFE0F",title:item.label,description:item.description??(0,Translate/* translate */.I)({message:'{count} items',id:'theme.docs.DocCard.categoryDescription',description:'The default description for a category card in the generated index about how many items this category includes'},{count:item.items.length})});}function CardLink(_ref4){let{item}=_ref4;const icon=(0,isInternalUrl/* default */.Z)(item.href)?'📄️':'🔗';const doc=(0,docsUtils/* useDocById */.xz)(item.docId??undefined);return/*#__PURE__*/react.createElement(CardLayout,{href:item.href,icon:icon,title:item.label,description:item.description??doc?.description});}function DocCard(_ref5){let{item}=_ref5;switch(item.type){case'link':return/*#__PURE__*/react.createElement(CardLink,{item:item});case'category':return/*#__PURE__*/react.createElement(CardCategory,{item:item});default:throw new Error(`unknown item type ${JSON.stringify(item)}`);}}
+;// CONCATENATED MODULE: ./node_modules/@docusaurus/theme-classic/lib/theme/DocCardList/index.js
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */function DocCardListForCurrentSidebarCategory(_ref){let{className}=_ref;const category=(0,docsUtils/* useCurrentSidebarCategory */.jA)();return/*#__PURE__*/react.createElement(DocCardList,{items:category.items,className:className});}function DocCardList(props){const{items,className}=props;if(!items){return/*#__PURE__*/react.createElement(DocCardListForCurrentSidebarCategory,props);}const filteredItems=(0,docsUtils/* filterDocCardListItems */.MN)(items);return/*#__PURE__*/react.createElement("section",{className:(0,clsx_m/* default */.Z)('row',className)},filteredItems.map((item,index)=>/*#__PURE__*/react.createElement("article",{key:index,className:"col col--6 margin-bottom--lg"},/*#__PURE__*/react.createElement(DocCard,{item:item}))));}
+
+/***/ }),
+
+/***/ 2067:
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 __webpack_require__.r(__webpack_exports__);
@@ -224,11 +266,12 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   metadata: () => (/* binding */ metadata),
 /* harmony export */   toc: () => (/* binding */ toc)
 /* harmony export */ });
-/* harmony import */ var _root_enterprise_docs_enterprise_docs_en_node_modules_babel_runtime_helpers_esm_extends_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(7462);
+/* harmony import */ var _root_enterprise_docs_enterprise_docs_en_node_modules_babel_runtime_helpers_esm_extends_js__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(7462);
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(7294);
 /* harmony import */ var _mdx_js_react__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(3905);
-/* @jsxRuntime classic */ /* @jsx mdx */ /* @jsxFrag React.Fragment */const frontMatter={title:'TDengine Enterprise Documentation',sidebar_label:'TDengine Enterprise'};const contentTitle=undefined;const metadata={"unversionedId":"index","id":"index","title":"TDengine Enterprise Documentation","description":"TDengine™ is a next generation data historian purpose-built for Industry 4.0 and Industrial IoT. It enables real-time data ingestion, storage, analysis, and distribution of petabytes per day, generated by billions of sensors and data collectors. With TDengine making big data affordable and accessible, digital transformation has never been easier.","source":"@site/docs/01-index.md","sourceDirName":".","slug":"/index","permalink":"/docs-en/index","draft":false,"tags":[],"version":"current","sidebarPosition":1,"frontMatter":{"title":"TDengine Enterprise Documentation","sidebar_label":"TDengine Enterprise"},"sidebar":"defaultSidebar","next":{"title":"Concepts","permalink":"/docs-en/concept/"}};const assets={};const toc=[];const layoutProps={toc};const MDXLayout="wrapper";function MDXContent(_ref){let{components,...props}=_ref;return (0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)(MDXLayout,(0,_root_enterprise_docs_enterprise_docs_en_node_modules_babel_runtime_helpers_esm_extends_js__WEBPACK_IMPORTED_MODULE_2__/* ["default"] */ .Z)({},layoutProps,props,{components:components,mdxType:"MDXLayout"}),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`TDengine™ is a next generation data historian purpose-built for Industry 4.0 and Industrial IoT. It enables real-time data ingestion, storage, analysis, and distribution of petabytes per day, generated by billions of sensors and data collectors. With TDengine making big data affordable and accessible, digital transformation has never been easier.
-This documentation introduces the basic concepts of TDengine and describes the installation process, usage, features, APIs, maintenance, and enterprise features. The intended audience of this documentation is technical architects, developers, and systems administrators.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`To make full use of the characteristics of time-series data, TDengine creates a separate table for each data collection point and introduces the concept of the supertable, a template for table creation. TDengine features an innovative storage engine that improves the efficiency of data ingestion, querying, and storage operations. To start learning about TDengine, see `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("a",{parentName:"p","href":"../concept/"},`Concepts`),`.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`To install TDengine, see `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("a",{parentName:"p","href":"../get-started/"},`Installation and Deployment`),`. This section describes the installation process for each component of TDengine along with a complete system diagram.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`For information about database connections, data modeling, data ingestion and querying, stream processing, caching, data subscription, and user-defined functions, see the `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("a",{parentName:"p","href":"../develop/"},`Developer Guide`),`. Sample code is provided for a variety of programming languages. In most scenarios, you can copy and paste the sample code into your applications with only a few changes.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`TDengine uses SQL as its query language, making it easier to learn for new users and decreasing the cost of migration from another system. The SQL used in TDengine has been expanded to cover more time-series-specific scenarios, including interpolation, downsampling, and time-weighted averages. For the SQL statements and functions supported in TDengine, see `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("a",{parentName:"p","href":"../taos-sql/"},`TDengine SQL`),`.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`For information about fault tolerance and disaster recovery, importing and exporting data, configuring TDengine, monitoring the running status of TDengine, or improving performance, see `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("a",{parentName:"p","href":"../operation/"},`Administration`),`.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`For information about enterprise features including cluster management, tiered storage, permissions management, industrial data sources, backup and restore, data replication, edge-cloud orchestration, log auditing, and the GUI, see `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("a",{parentName:"p","href":"../enterprise/"},`Enterprise Features`),`.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`For information about the TDengine REST API, connectors, and other utilities, see `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("a",{parentName:"p","href":"../reference/"},`Reference`),`.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`If any parts of this documentation are unclear or incomplete, contact us at `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("a",{parentName:"p","href":"mailto:support@tdengine.com"},`support@tdengine.com`),` for assistance.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`TDengine Team`));};MDXContent.isMDXComponent=true;
+/* harmony import */ var _theme_DocCardList__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(2991);
+/* harmony import */ var _docusaurus_theme_common__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(3438);
+/* @jsxRuntime classic */ /* @jsx mdx */ /* @jsxFrag React.Fragment */const frontMatter={title:'Installation and Deployment Guide',sidebar_label:'Install & Deploy'};const contentTitle=undefined;const metadata={"unversionedId":"get-started/index","id":"get-started/index","title":"Installation and Deployment Guide","description":"","source":"@site/docs/03-get-started/index.md","sourceDirName":"03-get-started","slug":"/get-started/","permalink":"/docs-en/get-started/","draft":false,"tags":[],"version":"current","frontMatter":{"title":"Installation and Deployment Guide","sidebar_label":"Install & Deploy"},"sidebar":"defaultSidebar","previous":{"title":"Concepts","permalink":"/docs-en/concept/"},"next":{"title":"Architecture","permalink":"/docs-en/get-started/arch"}};const assets={};const toc=[];const layoutProps={toc};const MDXLayout="wrapper";function MDXContent(_ref){let{components,...props}=_ref;return (0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)(MDXLayout,(0,_root_enterprise_docs_enterprise_docs_en_node_modules_babel_runtime_helpers_esm_extends_js__WEBPACK_IMPORTED_MODULE_3__/* ["default"] */ .Z)({},layoutProps,props,{components:components,mdxType:"MDXLayout"}),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)(_theme_DocCardList__WEBPACK_IMPORTED_MODULE_2__/* ["default"] */ .Z,{items:(0,_docusaurus_theme_common__WEBPACK_IMPORTED_MODULE_4__/* .useCurrentSidebarCategory */ .jA)().items,mdxType:"DocCardList"}));};MDXContent.isMDXComponent=true;
 
 /***/ })
 

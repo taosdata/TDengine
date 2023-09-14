@@ -1,5 +1,5 @@
 "use strict";
-(self["webpackChunkdocs"] = self["webpackChunkdocs"] || []).push([[560],{
+(self["webpackChunkdocs"] = self["webpackChunkdocs"] || []).push([[539],{
 
 /***/ 3905:
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
@@ -212,7 +212,7 @@ function createElement (type, props) {
 
 /***/ }),
 
-/***/ 3611:
+/***/ 7361:
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 __webpack_require__.r(__webpack_exports__);
@@ -227,23 +227,75 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _root_enterprise_docs_enterprise_docs_en_node_modules_babel_runtime_helpers_esm_extends_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(7462);
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(7294);
 /* harmony import */ var _mdx_js_react__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(3905);
-/* @jsxRuntime classic */ /* @jsx mdx */ /* @jsxFrag React.Fragment */const frontMatter={title:'Installing taosExplorer',sidebar_label:'taosExplorer'};const contentTitle=undefined;const metadata={"unversionedId":"get-started/explorer","id":"get-started/explorer","title":"Installing taosExplorer","description":"Introduction","source":"@site/docs/03-get-started/08-explorer.md","sourceDirName":"03-get-started","slug":"/get-started/explorer","permalink":"/docs-en/get-started/explorer","draft":false,"tags":[],"version":"current","sidebarPosition":8,"frontMatter":{"title":"Installing taosExplorer","sidebar_label":"taosExplorer"},"sidebar":"defaultSidebar","previous":{"title":"taosX Agent","permalink":"/docs-en/get-started/agent"},"next":{"title":"Developer Guide","permalink":"/docs-en/develop/"}};const assets={};const toc=[{value:'Introduction',id:'introduction',level:2},{value:'Prerequisites',id:'prerequisites',level:2},{value:'Configuration',id:'configuration',level:2},{value:'Start taosExplorer',id:'start-taosexplorer',level:2},{value:'Troubleshooting',id:'troubleshooting',level:2}];const layoutProps={toc};const MDXLayout="wrapper";function MDXContent(_ref){let{components,...props}=_ref;return (0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)(MDXLayout,(0,_root_enterprise_docs_enterprise_docs_en_node_modules_babel_runtime_helpers_esm_extends_js__WEBPACK_IMPORTED_MODULE_2__/* ["default"] */ .Z)({},layoutProps,props,{components:components,mdxType:"MDXLayout"}),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("h2",{"id":"introduction"},`Introduction`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`taosExplorer is a GUI for TDengine Enterprise. With taosExplorer, you can use TDengine features and manage your TDengine deployment and data sources in a convenient Web-based interface. taosExplorer is installed automatically when you install taosX. For more information, see `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("a",{parentName:"p","href":"../install/"},`Installation Guide`),`.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("h2",{"id":"prerequisites"},`Prerequisites`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`Before you start taosExplorer, ensure that your TDengine cluster is running, taosAdapter is running, and your cluster is connected to taosAdapter. If you want to use data backup, restore, or replication in taosExplorer, ensure that the taosX service and agent are running.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("h2",{"id":"configuration"},`Configuration`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`You must configure taosExplorer before running it. The configuration is as follows:`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("pre",null,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("code",{parentName:"pre","className":"language-TOML"},`listen = "0.0.0.0:6060"
-log_level = "info"
-cluster = "http://localhost:6041"
-x_api = "http://localhost:6050"
-`)),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`Description:`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("ul",null,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("li",{parentName:"ul"},(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("inlineCode",{parentName:"li"},`listen`),`: Specify the IP address that taosExplorer uses to provide services.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("li",{parentName:"ul"},(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("inlineCode",{parentName:"li"},`log_level`),`: Specify the level of logs to record. You can enter `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("inlineCode",{parentName:"li"},`debug`),`, `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("inlineCode",{parentName:"li"},`info`),`, `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("inlineCode",{parentName:"li"},`warn`),`, `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("inlineCode",{parentName:"li"},`error`),`, or `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("inlineCode",{parentName:"li"},`fatal`),`.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("li",{parentName:"ul"},(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("inlineCode",{parentName:"li"},`cluster`),`: Specify the location of your taosAdapter instance. `),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("li",{parentName:"ul"},(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("inlineCode",{parentName:"li"},`x_api`),`: Specify the location of your taosX instance.`)),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("h2",{"id":"start-taosexplorer"},`Start taosExplorer`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`To start taosExplorer, you can run the `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("inlineCode",{parentName:"p"},`taos-explorer`),` command or use `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("inlineCode",{parentName:"p"},`systemctl`),` to start the `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("inlineCode",{parentName:"p"},`taosExplorer`),` service.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("pre",null,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("code",{parentName:"pre","className":"language-shell"},`[Unit]
-Description=Explorer for TDengine
-After=network-online.target
-Wants=network-online.target
+/* @jsxRuntime classic */ /* @jsx mdx */ /* @jsxFrag React.Fragment */const frontMatter={title:'Deploy taosAdapter',sidebar_label:'taosAdapter'};const contentTitle=undefined;const metadata={"unversionedId":"get-started/adapter","id":"get-started/adapter","title":"Deploy taosAdapter","description":"taosAdapter is a component of TDengine that provides RESTful and WebSocket interfaces.","source":"@site/docs/03-get-started/04-adapter.md","sourceDirName":"03-get-started","slug":"/get-started/adapter","permalink":"/docs-en/get-started/adapter","draft":false,"tags":[],"version":"current","sidebarPosition":4,"frontMatter":{"title":"Deploy taosAdapter","sidebar_label":"taosAdapter"},"sidebar":"defaultSidebar","previous":{"title":"Deploy Cluster","permalink":"/docs-en/get-started/deploy-cluster"},"next":{"title":"taosKeeper","permalink":"/docs-en/get-started/keeper"}};const assets={};const toc=[{value:'Installing taosAdapter',id:'installing-taosadapter',level:2},{value:'Single-Node Deployment',id:'single-node-deployment',level:2},{value:'Multi-Node Deployment',id:'multi-node-deployment',level:2}];const layoutProps={toc};const MDXLayout="wrapper";function MDXContent(_ref){let{components,...props}=_ref;return (0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)(MDXLayout,(0,_root_enterprise_docs_enterprise_docs_en_node_modules_babel_runtime_helpers_esm_extends_js__WEBPACK_IMPORTED_MODULE_2__/* ["default"] */ .Z)({},layoutProps,props,{components:components,mdxType:"MDXLayout"}),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`taosAdapter is a component of TDengine that provides RESTful and WebSocket interfaces.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("h2",{"id":"installing-taosadapter"},`Installing taosAdapter`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`It is not necessary to install taosAdapter separately. When you install TDengine Server, taosAdapter is automatically installed. However, if desired, you can install taosAdapter and TDengine Server on different machines. For more information, see `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("a",{parentName:"p","href":"../install/"},`Installation`),`. For more information about taosAdapter, see `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("a",{parentName:"p","href":"../../reference/taosAdapter/"},`taosAdapter`),`.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("h2",{"id":"single-node-deployment"},`Single-Node Deployment`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`To install a single instance of taosAdapter, see `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("a",{parentName:"p","href":"https://docs.tdengine.com/reference/taosadapter/#install-taosadapter"},`Install taosAdapter`),`.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("h2",{"id":"multi-node-deployment"},`Multi-Node Deployment`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`You can install multiple instances of taosAdapter to improve system throughput and prevent taosAdapter from becoming a bottleneck. Installing multiple instances also makes the system more robust and increases availability. If any instance of taosAdapter cannot provide services, requests entering the system are automatically routed to another taosAdapter instance. Load balancing is necessary for multi-node deployments of taosAdapter.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`First, install each instance of taosAdapter as described in the single-node deployment section. Next, configure nginx as follows. Note that you must replace the sample endpoints with the actual endpoints for your environment. For details about nginx configuration, see the official nginx documentation.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("pre",null,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("code",{parentName:"pre","className":"language-json"},`user root;
+worker_processes auto;
+error_log /var/log/nginx_error.log;
 
-[Service]
-Type=simple
-ExecStart=/usr/bin/taos-explorer
-Restart=always
 
-[Install]
-WantedBy=multi-user.target
-`)),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("h2",{"id":"troubleshooting"},`Troubleshooting`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("ol",null,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("li",{parentName:"ol"},`If you encounter a network connection error when opening taosExplorer in your browser, log in to the machine running taosExplorer and run the `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("inlineCode",{parentName:"li"},`systemctl status taos-explorer.service`),` command to determine the running status of taosExplorer. If the status is `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("inlineCode",{parentName:"li"},`inactive`),`, run the `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("inlineCode",{parentName:"li"},`systemctl start taos-explorer.service`),` command to start taosExplorer.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("li",{parentName:"ol"},`To view taosExplorer logs, run the `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("inlineCode",{parentName:"li"},`journalctl -u taos-explorer`),` command.`)));};MDXContent.isMDXComponent=true;
+events {
+        use epoll;
+        worker_connections 1024;
+}
+
+http {
+
+    access_log off;
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+
+    server {
+        listen 6041;
+        location ~* {
+            proxy_pass http://dbserver;
+            proxy_read_timeout 600s;
+            proxy_send_timeout 600s;
+            proxy_connect_timeout 600s;
+            proxy_next_upstream error http_502 non_idempotent;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $http_connection;
+        }
+    }
+    server {
+        listen 6043;
+        location ~* {
+            proxy_pass http://keeper;
+            proxy_read_timeout 60s;
+            proxy_next_upstream error  http_502 http_500  non_idempotent;
+        }
+    }
+
+    server {
+        listen 6060;
+        location ~* {
+            proxy_pass http://explorer;
+            proxy_read_timeout 60s;
+            proxy_next_upstream error  http_502 http_500  non_idempotent;
+        }
+    }
+    upstream dbserver {
+        least_conn;
+        server 172.16.214.201:6041 max_fails=0;
+        server 172.16.214.202:6041 max_fails=0;
+        server 172.16.214.203:6041 max_fails=0;
+    }
+    upstream keeper {
+        ip_hash;
+        server 172.16.214.201:6043 ;
+        server 172.16.214.202:6043 ;
+        server 172.16.214.203:6043 ;
+    }
+    upstream explorer{
+        ip_hash;
+        server 172.16.214.201:6060 ;
+        server 172.16.214.202:6060 ;
+        server 172.16.214.203:6060 ;
+    }
+}
+`)));};MDXContent.isMDXComponent=true;
 
 /***/ })
 

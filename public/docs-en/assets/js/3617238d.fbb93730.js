@@ -1,5 +1,5 @@
 "use strict";
-(self["webpackChunkdocs"] = self["webpackChunkdocs"] || []).push([[539],{
+(self["webpackChunkdocs"] = self["webpackChunkdocs"] || []).push([[7030],{
 
 /***/ 3905:
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
@@ -212,7 +212,7 @@ function createElement (type, props) {
 
 /***/ }),
 
-/***/ 7361:
+/***/ 6985:
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 __webpack_require__.r(__webpack_exports__);
@@ -227,75 +227,18 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _root_enterprise_docs_enterprise_docs_en_node_modules_babel_runtime_helpers_esm_extends_js__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(7462);
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(7294);
 /* harmony import */ var _mdx_js_react__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(3905);
-/* @jsxRuntime classic */ /* @jsx mdx */ /* @jsxFrag React.Fragment */const frontMatter={title:'Install taosAdapter',sidebar_label:'taosAdapter'};const contentTitle=undefined;const metadata={"unversionedId":"get-started/adapter","id":"get-started/adapter","title":"Install taosAdapter","description":"taosAdapter is a component of TDengine that provides RESTful and WebSocket interfaces.","source":"@site/docs/03-get-started/04-adapter.md","sourceDirName":"03-get-started","slug":"/get-started/adapter","permalink":"/docs-en/get-started/adapter","draft":false,"tags":[],"version":"current","sidebarPosition":4,"frontMatter":{"title":"Install taosAdapter","sidebar_label":"taosAdapter"},"sidebar":"defaultSidebar","previous":{"title":"Deployment","permalink":"/docs-en/get-started/deploy-cluster"},"next":{"title":"taosKeeper","permalink":"/docs-en/get-started/keeper"}};const assets={};const toc=[{value:'Installing taosAdapter',id:'installing-taosadapter',level:2},{value:'Single-Node Deployment',id:'single-node-deployment',level:2},{value:'Multi-Node Deployment',id:'multi-node-deployment',level:3}];const layoutProps={toc};const MDXLayout="wrapper";function MDXContent(_ref){let{components,...props}=_ref;return (0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)(MDXLayout,(0,_root_enterprise_docs_enterprise_docs_en_node_modules_babel_runtime_helpers_esm_extends_js__WEBPACK_IMPORTED_MODULE_2__/* ["default"] */ .Z)({},layoutProps,props,{components:components,mdxType:"MDXLayout"}),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`taosAdapter is a component of TDengine that provides RESTful and WebSocket interfaces.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("h2",{"id":"installing-taosadapter"},`Installing taosAdapter`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`It is not necessary to install taosAdapter separately. When you install TDengine Server, taosAdapter is automatically installed. However, if desired, you can install taosAdapter and TDengine Server on different machines. For more information, see `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("a",{parentName:"p","href":"../install/"},`Installation`),`. For more information about taosAdapter, see `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("a",{parentName:"p","href":"../../reference/taosAdapter/"},`taosAdapter`),`.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("h2",{"id":"single-node-deployment"},`Single-Node Deployment`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`To install a single instance of taosAdapter, see `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("a",{parentName:"p","href":"https://docs.tdengine.com/reference/taosadapter/#install-taosadapter"},`Install taosAdapter`),`.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("h3",{"id":"multi-node-deployment"},`Multi-Node Deployment`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`You can install multiple instances of taosAdapter to improve system throughput and prevent taosAdapter from becoming a bottleneck. Installing multiple instances also makes the system more robust and increases availability. If any instance of taosAdapter cannot provide services, requests entering the system are automatically routed to another taosAdapter instance. Load balancing is necessary for multi-node deployments of taosAdapter.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`First, install each instance of taosAdapter as described in the single-node deployment section. Next, configure nginx as follows. Note that you must replace the sample endpoints with the actual endpoints for your environment. For details about nginx configuration, see the official nginx documentation.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("pre",null,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("code",{parentName:"pre","className":"language-json"},`user root;
-worker_processes auto;
-error_log /var/log/nginx_error.log;
-
-
-events {
-        use epoll;
-        worker_connections 1024;
-}
-
-http {
-
-    access_log off;
-
-    map $http_upgrade $connection_upgrade {
-        default upgrade;
-        ''      close;
-    }
-
-    server {
-        listen 6041;
-        location ~* {
-            proxy_pass http://dbserver;
-            proxy_read_timeout 600s;
-            proxy_send_timeout 600s;
-            proxy_connect_timeout 600s;
-            proxy_next_upstream error http_502 non_idempotent;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection $http_connection;
-        }
-    }
-    server {
-        listen 6043;
-        location ~* {
-            proxy_pass http://keeper;
-            proxy_read_timeout 60s;
-            proxy_next_upstream error  http_502 http_500  non_idempotent;
-        }
-    }
-
-    server {
-        listen 6060;
-        location ~* {
-            proxy_pass http://explorer;
-            proxy_read_timeout 60s;
-            proxy_next_upstream error  http_502 http_500  non_idempotent;
-        }
-    }
-    upstream dbserver {
-        least_conn;
-        server 172.16.214.201:6041 max_fails=0;
-        server 172.16.214.202:6041 max_fails=0;
-        server 172.16.214.203:6041 max_fails=0;
-    }
-    upstream keeper {
-        ip_hash;
-        server 172.16.214.201:6043 ;
-        server 172.16.214.202:6043 ;
-        server 172.16.214.203:6043 ;
-    }
-    upstream explorer{
-        ip_hash;
-        server 172.16.214.201:6060 ;
-        server 172.16.214.202:6060 ;
-        server 172.16.214.203:6060 ;
-    }
-}
-`)));};MDXContent.isMDXComponent=true;
+/* @jsxRuntime classic */ /* @jsx mdx */ /* @jsxFrag React.Fragment */const frontMatter={title:'Tiered Storage',sidebar_label:'Tiered Storage',toc_max_heading_level:4};const contentTitle=undefined;const metadata={"unversionedId":"enterprise/storage","id":"enterprise/storage","title":"Tiered Storage","description":"Introduction","source":"@site/docs/30-enterprise/02-storage.md","sourceDirName":"30-enterprise","slug":"/enterprise/storage","permalink":"/docs-en/enterprise/storage","draft":false,"tags":[],"version":"current","sidebarPosition":2,"frontMatter":{"title":"Tiered Storage","sidebar_label":"Tiered Storage","toc_max_heading_level":4},"sidebar":"defaultSidebar","previous":{"title":"Cluster Management","permalink":"/docs-en/enterprise/cluster"},"next":{"title":"Permissions Management","permalink":"/docs-en/enterprise/grant"}};const assets={};const toc=[{value:'Introduction',id:'introduction',level:2},{value:'Configuration',id:'configuration',level:2},{value:'Load Balancing',id:'load-balancing',level:2},{value:'Disk Selection Within Tiers',id:'disk-selection-within-tiers',level:2}];const layoutProps={toc};const MDXLayout="wrapper";function MDXContent(_ref){let{components,...props}=_ref;return (0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)(MDXLayout,(0,_root_enterprise_docs_enterprise_docs_en_node_modules_babel_runtime_helpers_esm_extends_js__WEBPACK_IMPORTED_MODULE_2__/* ["default"] */ .Z)({},layoutProps,props,{components:components,mdxType:"MDXLayout"}),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("h2",{"id":"introduction"},`Introduction`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`This article describes how to use tiered storage in TDengine. With tiered storage, you can balance data accessibility and storage costs by moving older data to less expensive storage media automatically.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("h2",{"id":"configuration"},`Configuration`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`TDengine supports three tiers of storage. Each tier can include 16 mount points.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`To configure tiered storage, modify your `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("inlineCode",{parentName:"p"},`taos.cfg`),` file as follows:`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("pre",null,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("code",{parentName:"pre"},`dataDir [path] <level> <primary>
+`)),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("ul",null,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("li",{parentName:"ul"},`path: The path to a mount point`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("li",{parentName:"ul"},`level: The tier for the specified mount point. Enter 0, 1, or 2.
+Tier 0 contains the latest data, tier 1 contains older data, and tier 2 contains the oldest data. The default value is 0.
+As data ages, it is moved from tier 0 to tier 1 and then to tier 2.
+You can mount multiple disks in a single tier. The data stored on each tier is distributed among all disks associated with the tier.
+Note that TDengine moves between tiers automatically.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("li",{parentName:"ul"},`primary: Whether the specified mount point is the primary mount point. Enter 0 for false or 1 for true. The default value is 1.`)),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`A TDengine cluster can have only one primary mount point, which must be on tier 0. An example configuration is as follows:`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("pre",null,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("code",{parentName:"pre"},`dataDir /mnt/data1 0 1
+dataDir /mnt/data2 0 0
+dataDir /mnt/data3 1 0
+dataDir /mnt/data4 1 0
+dataDir /mnt/data5 2 0
+dataDir /mnt/data6 2 0
+`)),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("admonition",{"type":"note"},(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("ol",{parentName:"admonition"},(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("li",{parentName:"ol"},`Skipping tiers is not allowed. Your configuration can have tier 0 storage only, tier 0 and tier 1 storage, or tier 0, 1, and 2 storage. You cannot configure tier 1 storage without tier 0 storage or tier 2 storage without tier 0 and tier 1 storage.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("li",{parentName:"ol"},`You cannot manually remove mount points that are in use. You cannot mount network disks.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("li",{parentName:"ol"},`You cannot remove disks that have been mounted.`))),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("h2",{"id":"load-balancing"},`Load Balancing`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`System metadata is stored on the primary mount point. The root directory of each vnode is stored on the primary mount point of the associated dnode. For this reason, data ingestion performance on each dnode is limited by the I/O throughput of the primary mount point.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`In TDengine 3.1.0.0 and later, the root directories of the vnodes on a dnode are distributed among all tier 0 storage. There is a direct correlation between the number of tier 0 storage devices and the ingestion performance of the system. To improve write performance, add tier 0 storage devices to your dnodes.`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("h2",{"id":"disk-selection-within-tiers"},`Disk Selection Within Tiers`),(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("p",null,`TDengine uses a round robin policy to select the mount point that it uses to store new data files. This policy can become a problem if certain disks on a tier have less remaining space than others, as TDengine may select a disk that is almost full. You can specify the `,(0,_mdx_js_react__WEBPACK_IMPORTED_MODULE_1__/* .mdx */ .kt)("inlineCode",{parentName:"p"},`minDiskFreeSize`),` parameter to set a minimum threshold for remaining disk space, after which TDengine will no longer store new data files on disks that do not meet the threshold. Specify a value in bytes. It is recommended that you set this value to 2 GB or higher.`));};MDXContent.isMDXComponent=true;
 
 /***/ })
 
