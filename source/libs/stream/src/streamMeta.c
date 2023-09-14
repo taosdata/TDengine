@@ -206,9 +206,6 @@ _err:
   if (pMeta->pCheckpointDb) tdbTbClose(pMeta->pCheckpointDb);
   if (pMeta->db) tdbClose(pMeta->db);
 
-  // taosThreadMutexDestroy(&pMeta->backendMutex);
-  //  taosThreadRwlockDestroy(&pMeta->lock);
-
   taosMemoryFree(pMeta);
 
   qError("failed to open stream meta");
@@ -694,7 +691,6 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       continue;
     }
 
-    streamTaskResetUpstreamStageInfo(pTask);
     if (taosHashPut(pMeta->pTasks, keys, sizeof(keys), &pTask, sizeof(void*)) < 0) {
       doClear(pKey, pVal, pCur, pRecycleList);
       tFreeStreamTask(pTask);
@@ -707,6 +703,7 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
 
     ASSERT(pTask->status.downstreamReady == 0);
   }
+
   qInfo("vgId:%d pause task num:%d", pMeta->vgId, pMeta->pauseTaskNum);
 
   tdbFree(pKey);
@@ -938,4 +935,9 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
   qDebug("vgId:%d all stream tasks are not in timer, continue close, elapsed time:%" PRId64 " ms", pMeta->vgId, el);
 }
 
-void streamMetaStartHb(SStreamMeta* pMeta) { metaHbToMnode(pMeta, NULL); }
+void streamMetaStartHb(SStreamMeta* pMeta) {
+  int64_t* pRid = taosMemoryMalloc(sizeof(int64_t));
+  metaRefMgtAdd(pMeta->vgId, pRid);
+  *pRid = pMeta->rid;
+  metaHbToMnode(pRid, NULL);
+}

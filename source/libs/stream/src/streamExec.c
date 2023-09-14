@@ -358,17 +358,17 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   streamTaskReleaseState(pTask);
   streamTaskReloadState(pStreamTask);
 
-  // 3. clear the link between fill-history task and stream task info
-  pStreamTask->historyTaskId.taskId = 0;
-
-  // 4. resume the state of stream task, after this function, the stream task will run immidately. But it can not be
+  // 3. resume the state of stream task, after this function, the stream task will run immidately. But it can not be
   // pause, since the pause allowed attribute is not set yet.
   streamTaskResumeFromHalt(pStreamTask);
 
   qDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", pTask->id.idStr);
 
-  // 5. free it and remove fill-history task from disk meta-store
+  // 4. free it and remove fill-history task from disk meta-store
   streamMetaUnregisterTask(pMeta, pTask->id.streamId, pTask->id.taskId);
+
+  // 5. clear the link between fill-history task and stream task info
+  pStreamTask->historyTaskId.taskId = 0;
 
   // 6. save to disk
   taosWLockLatch(&pMeta->lock);
