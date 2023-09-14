@@ -12,9 +12,11 @@ pub struct TagMeta {
 impl TagMeta {
     pub fn from_row(row: &Row) -> anyhow::Result<Self> {
         let tag_name = (row.try_get("TagName")? as Option<&str>)
-            .ok_or_else(|| anyhow::anyhow!("TagName is required"))?.to_string();
+            .ok_or_else(|| anyhow::anyhow!("TagName is required"))?
+            .to_string();
         let description = (row.try_get("Description")? as Option<&str>)
-            .unwrap_or("").to_string();
+            .unwrap_or("")
+            .to_string();
 
         Ok(TagMeta {
             name: tag_name,
@@ -47,11 +49,11 @@ pub async fn query_tags(client: &mut Client<Compat<TcpStream>>) -> anyhow::Resul
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-    use taos::Dsn;
+    use super::*;
     use crate::plugins::runners::historian::config::SourceConfig;
     use crate::plugins::runners::historian::connect;
-    use super::*;
+    use std::str::FromStr;
+    use taos::Dsn;
 
     #[test]
     fn test_from_row() {}

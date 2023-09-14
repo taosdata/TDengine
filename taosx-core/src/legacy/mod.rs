@@ -360,17 +360,11 @@ impl QueryOpts {
 }
 
 #[async_backtrace::framed]
-async fn sync_single_table(
+async fn split_table_into_time_range_chunks(
     from: &Taos,
-    stable: Option<&str>,
     table: &str,
-    to: &Taos,
-    actions: &Vec<Action>,
     opts: &QueryOpts,
-    target_opts: &TargetOpts,
-    target_is_v3: bool,
-    metrics: &LegacyMetrics,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Vec<TimeRange>> {
     log::debug!("Migrate data from table `{table}`");
 
     let mut time_range = opts.time_range;
@@ -390,42 +384,95 @@ async fn sync_single_table(
     match (time_range.has_start(), time_range.has_end()) {
         (true, true) => (),
         (true, false) => {
-            if let Ok(ts) = query_ts_with(from, format!("select last(_c0) from {table}")).await {
+            if let Ok(ts) = query_ts_with(from, format!("select last(_c0) from `{table}`")).await {
                 time_range.end.replace(ts + chrono::Duration::seconds(1));
             }
         }
         (false, true) => {
-            if let Ok(ts) = query_ts_with(from, format!("select first(_c0) from {table}")).await {
+            if let Ok(ts) = query_ts_with(from, format!("select first(_c0) from `{table}`")).await {
                 time_range.start.replace(ts);
             }
         }
         (false, false) => {
-            if let Ok(ts) = query_ts_with(from, format!("select first(_c0) from {table}")).await {
+            if let Ok(ts) = query_ts_with(from, format!("select first(_c0) from `{table}`")).await {
                 time_range.start.replace(ts);
             }
-            if let Ok(ts) = query_ts_with(from, format!("select last(_c0) from {table}")).await {
+            if let Ok(ts) = query_ts_with(from, format!("select last(_c0) from `{table}`")).await {
                 time_range.end.replace(ts + chrono::Duration::seconds(1));
             }
         }
     }
-    for ts in time_range.to_chunks(opts.unit) {
-        let mut opts = opts.clone();
-        opts.time_range = ts;
-        sync_single_table_partial(
-            from,
-            stable,
-            table,
-            to,
-            actions,
-            &opts,
-            target_opts,
-            target_is_v3,
-            metrics,
-        )
-        .await?;
-    }
-    Ok(())
+
+    Ok(time_range.to_chunks(opts.unit))
 }
+
+// #[async_backtrace::framed]
+// async fn sync_single_table(
+//     from: &Taos,
+//     stable: Option<&str>,
+//     table: &str,
+//     to: &Taos,
+//     actions: &Vec<Action>,
+//     opts: &QueryOpts,
+//     target_opts: &TargetOpts,
+//     target_is_v3: bool,
+//     metrics: &LegacyMetrics,
+// ) -> anyhow::Result<()> {
+//     log::debug!("Migrate data from table `{table}`");
+
+//     let mut time_range = opts.time_range;
+//     async fn query_ts_with(
+//         taos: &Taos,
+//         sql: impl AsRef<str>,
+//     ) -> Result<chrono::DateTime<Utc>, taos::Error> {
+//         let sql = sql.as_ref();
+//         let mut set = taos.query(&sql).await?;
+//         let mut records = set.to_records().await?;
+//         if let Some(Value::Timestamp(ts)) = records.pop().and_then(|mut v| v.pop()) {
+//             Ok(Utc.from_local_datetime(&ts.to_naive_datetime()).unwrap())
+//         } else {
+//             Err(taos::Error::from_string("Invalid sql for timestamp: {sql}"))
+//         }
+//     }
+//     match (time_range.has_start(), time_range.has_end()) {
+//         (true, true) => (),
+//         (true, false) => {
+//             if let Ok(ts) = query_ts_with(from, format!("select last(_c0) from {table}")).await {
+//                 time_range.end.replace(ts + chrono::Duration::seconds(1));
+//             }
+//         }
+//         (false, true) => {
+//             if let Ok(ts) = query_ts_with(from, format!("select first(_c0) from {table}")).await {
+//                 time_range.start.replace(ts);
+//             }
+//         }
+//         (false, false) => {
+//             if let Ok(ts) = query_ts_with(from, format!("select first(_c0) from {table}")).await {
+//                 time_range.start.replace(ts);
+//             }
+//             if let Ok(ts) = query_ts_with(from, format!("select last(_c0) from {table}")).await {
+//                 time_range.end.replace(ts + chrono::Duration::seconds(1));
+//             }
+//         }
+//     }
+//     for ts in time_range.to_chunks(opts.unit) {
+//         let mut opts = opts.clone();
+//         opts.time_range = ts;
+//         sync_single_table_partial(
+//             from,
+//             stable,
+//             table,
+//             to,
+//             actions,
+//             &opts,
+//             target_opts,
+//             target_is_v3,
+//             metrics,
+//         )
+//         .await?;
+//     }
+//     Ok(())
+// }
 
 #[async_backtrace::framed]
 async fn sync_single_table_partial(
@@ -484,9 +531,10 @@ async fn sync_single_table_partial(
             loop {
                 let ok = to.write_raw_block(&block).await;
                 if let Err(err) = ok {
+                    let code: i32 = err.code().into();
                     let err_str = err.to_string();
                     log::debug!("sync_single_table_partial write raw block error: {err:#}",);
-                    if err_str.contains("0x2603") {
+                    if code == 0x2603 || code == 0x0618 {
                         if let Some(stable) = stable {
                             sync_super_table_schema_with_subs_without_pool(
                                 from,
@@ -505,6 +553,14 @@ async fn sync_single_table_partial(
                             sync_normal_table_schema(from, table, actions, to).await?;
                         }
                         continue;
+                    } else if code == 0x263F || code == 0x061B {
+                        tracing::info!("sync table {table} error with: {err:#}");
+                        if let Some(stable) = stable {
+                            scheduler::sync_add_column(from, to, stable).await?;
+                        } else {
+                            scheduler::sync_add_column(from, to, table).await?;
+                        }
+                        continue;
                     } else if err_str.contains("0x0911") {
                         // TSDB_CODE_SYN_PROPOSE_NOT_READY： Sync not ready to propose
                         tokio::time::sleep(Duration::from_secs(2)).await;
@@ -521,7 +577,7 @@ async fn sync_single_table_partial(
                                     .find(|f| f.field() == name)
                                     .map(|f| (name, f.ty()))
                                     .ok_or_else(|| {
-                                        anyhow::format_err!("Column {name} does not exist")
+                                        anyhow::format_err!("Column does not exist {name}")
                                     })
                             })
                             .try_collect()?;
@@ -1706,7 +1762,7 @@ pub async fn parse_todo_list(pool: &TaosPool, opts: &SourceOpts) -> anyhow::Resu
     let version = taos.server_version().await?;
     let is_v2 = version.starts_with('2');
     info!(version = version.as_ref(), "Retrieving table list...");
-    dbg!(&opts.stables);
+    // dbg!(&opts.stables);
     if let Some(stables) = opts.stables.as_ref() {
         const MAX_DISPLAY_STABLES: usize = 5;
         let list = if stables.len() > MAX_DISPLAY_STABLES {
@@ -1723,7 +1779,9 @@ pub async fn parse_todo_list(pool: &TaosPool, opts: &SourceOpts) -> anyhow::Resu
         let mut tables = vec![];
         for stable in &stables {
             if is_v2 {
-                let mut res = taos.query(&format!("select tbname from {stable}")).await?;
+                let mut res = taos
+                    .query(&format!("select tbname from `{stable}`"))
+                    .await?;
                 tables.extend(
                     res.deserialize()
                         .map_ok(|s: String| (Some(stable.clone()), s))
@@ -2135,7 +2193,7 @@ pub async fn legacy_to_taos(
     metrics.workers.store(concurrent as _, Ordering::SeqCst);
 
     let todo = parse_todo_list(&from_pool, &source_opts).await?;
-    dbg!(&todo.stables);
+    // dbg!(&todo.stables);
     let todo = Arc::new(todo);
 
     metrics
@@ -2168,10 +2226,11 @@ pub async fn legacy_to_taos(
             break;
         }
         std::thread::sleep(Duration::from_secs(5));
-        log::debug!(
-            "Processed {}/{}",
+        tracing::info!(
+            "Processed {}/{}, metrics detail:\n{}",
             metrics_inner.tables.load(Ordering::SeqCst),
-            todo_inner.tables.len()
+            todo_inner.tables.len(),
+            metrics_inner
         );
     });
 

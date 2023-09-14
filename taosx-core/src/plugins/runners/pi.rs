@@ -296,7 +296,7 @@ pub async fn pi_to_taos(
     transferred: Option<Arc<Transferred>>,
     span: Span,
 ) -> anyhow::Result<()> {
-    println!("# loading plugin: PI or PIBACKFILL");
+    println!("# loading plugin: {}", from.driver);
     #[cfg(not(target_os = "windows"))]
     {
         anyhow::bail!("PI connector support only windows platform");
@@ -321,11 +321,11 @@ pub async fn pi_to_taos(
     let ipc_port = port_pool
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for PI connection"))?;
-    let sql = port_pool
+    let sql_port = port_pool
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for PI connection"))?;
     let driver = from.driver.clone();
-    let config = PiConfig::new(from, td_database.unwrap(), ipc_port, sql, true)?;
+    let config = PiConfig::new(from, td_database.unwrap(), ipc_port, sql_port, true)?;
 
     //toml::ser::ValueSerializer
     let toml = toml::to_string(&config)?;
@@ -337,7 +337,7 @@ pub async fn pi_to_taos(
 
     tracing::info!("Using config file {} \n{}", config_path.display(), toml);
 
-    let server = std::thread::spawn(move || spawn_rest_service(target_pool, sql));
+    let server = std::thread::spawn(move || spawn_rest_service(target_pool, sql_port));
 
     let mut ipc = build_ipc(
         &config.ipc_stream,
@@ -445,26 +445,28 @@ pub async fn pi_to_taos(
 
     let port_pool = port_pool.clone();
     tokio::spawn(async move {
+        macro_rules! safe_exit {
+            () => {
+                let _ = ipc.close().await;
+                temp_path.close().unwrap();
+                port_pool.put(ipc_port);
+                stop_thread(server);
+                port_pool.put(sql_port);
+            };
+        }
         tokio::select! {
             status = child_command.wait() => {
                 let status = status?;
                 tracing::info!("PI connector or PI backfill exit with {}", status);
                 if !status.success() {
-                    let _ = ipc.send(());
-                    stop_thread(server);
+                    safe_exit!();
                     anyhow::bail!("PI connector or PI backfill exit with {}", status);
                 }
-            },
-            _ = tokio::signal::ctrl_c() => {
-                tracing::info!("Ctrl+C triggered, cancel tasks");
-                cancel.cancel();
-                // panic!();
             },
             err = ipc.recv_error() => {
                 if let Some(err) = err {
                     tracing::warn!("PI writer error occurred: {err}");
-                    let _ = ipc.send(());
-                    stop_thread(server);
+                    safe_exit!();
                     anyhow::bail!("PI writer error: {err}");
                 }
             },
@@ -472,13 +474,10 @@ pub async fn pi_to_taos(
                 tracing::info!("pi task cancelled");
             }
         }
-        let _ = ipc.send(());
-        stop_thread(server);
+        let _ = ipc.send(()).await;
         terminate_child_process(pid)?;
-        let _ = ipc.close().await;
         tracing::info!("pi task Done");
-        temp_path.close().unwrap();
-        port_pool.put(ipc_port);
+        safe_exit!();
         Ok(())
     })
     .await??;

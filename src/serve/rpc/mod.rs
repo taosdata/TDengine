@@ -631,6 +631,7 @@ impl FlightService for FlightServiceImpl {
         }
 
         tokio::spawn(listen_tasks(controller, agent, tx));
+        tokio::task::yield_now().await;
 
         Ok(response)
     }
@@ -982,7 +983,7 @@ mod tests {
             // .into_inner();
 
             stream
-                .try_for_each(|res| async move {
+                .try_for_each(|_res| async move {
                     // dbg!(res.app_metadata);
                     Ok(())
                 })

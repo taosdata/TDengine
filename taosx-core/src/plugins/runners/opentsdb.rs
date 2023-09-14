@@ -449,9 +449,10 @@ pub async fn opentsdb_validate(dsn: Dsn) -> anyhow::Result<ValidatedSource> {
     // http 客户端
     let client = reqwest::Client::new();
     // 发送请求，获取结果
-    let result = client.get(opents_url).send().await;
-    // 请求成功
+    let result = client.get(opents_url).send().await; // reqwest send
+
     if result.is_ok() {
+        // 请求成功
         let response = result.unwrap();
         let text = response.text().await.unwrap();
         // 转换为json格式

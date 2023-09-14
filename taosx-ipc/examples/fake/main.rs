@@ -3,7 +3,7 @@ use anyhow::Result;
 use arrow::{
     array::{BinaryBuilder, Float64Builder, Int32Builder, TimestampMillisecondBuilder},
     datatypes::DataType,
-    ipc::{writer::StreamWriter, Null, NullBuilder},
+    ipc::writer::StreamWriter,
 };
 
 use taosx_ipc::prelude::*;

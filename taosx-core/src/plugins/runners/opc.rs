@@ -6,7 +6,6 @@ use std::{
     path::PathBuf,
     str::FromStr,
     sync::Arc,
-    time::Duration,
 };
 
 use base64::{engine::general_purpose, Engine};
@@ -1115,48 +1114,40 @@ pub async fn opc_to_taos(
     });
 
     tokio::spawn(async move {
-            macro_rules! safe_exit {
+        macro_rules! safe_exit {
             () => {
                 let _ = ipc_handler.close().await;
                 temp_path.close().unwrap();
                 port_pool.put(ipc_port);
             };
         }
-            tokio::select! {
-                status = child.wait() => {
-                    let status = status?;
-                    tracing::info!("OPC exit with {}", status);
-                    if !status.success() {
-                        safe_exit!();
-                        use ringbuf::Rb;
-                        let error = error_buf.lock().await.iter().join("");
-                        anyhow::bail!("OPC exit with {}\n{error}", status);
-                    }
-                },
-                // _ = tokio::signal::ctrl_c() => {
-                //     tracing::info!("Ctrl+C triggered, cancel tasks");
-                //     cancel.cancel();
-                // },
-                err = ipc_handler.recv_error() => {
-                    tracing::info!("have received worker thread panicked message, terminate child process");
-                    if let Some(err) = err {
-                        let _ = ipc_handler.close().await;
-                        anyhow::bail!("OPC writer error: {err}");
-                    }
-                },
-                _ = cancel.cancelled() => {
-                    tracing::info!("opc task cancelled");
-                },
-            };
-            let _ = child.kill().await;
-            let _ = ipc_handler.close().await;
-            // terminate_child_process(pid)?;
-            tracing::info!("OPC to taos task done");
-            temp_path.close().unwrap();
-            port_pool.put(ipc_port);
-            tokio::time::sleep(Duration::from_millis(100)).await;
-            Ok(())
-        }).await??;
+        tokio::select! {
+            status = child.wait() => {
+                let status = status?;
+                tracing::info!("OPC exit with {}", status);
+                if !status.success() {
+                    safe_exit!();
+                    use ringbuf::Rb;
+                    let error = error_buf.lock().await.iter().join("");
+                    anyhow::bail!("OPC exit with {}\n{error}", status);
+                }
+            },
+            err = ipc_handler.recv_error() => {
+                tracing::info!("have received worker thread panicked message, terminate child process");
+                if let Some(err) = err {
+                    safe_exit!();
+                    anyhow::bail!("OPC writer error: {err}");
+                }
+            },
+            _ = cancel.cancelled() => {
+                tracing::info!("opc task cancelled");
+            },
+        };
+        let _ = child.kill().await;
+        tracing::info!("OPC to taos task done");
+        safe_exit!();
+        Ok(())
+    }).await??;
 
     Ok(())
 }
@@ -1512,10 +1503,10 @@ async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> {
 async fn test_with_agent() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "debug");
     pretty_env_logger::init();
-    let mut opc = "opc+ua://192.168.0.133:53530/OPCUA/SimulationServer?\
+    let opc = "opc+ua://192.168.0.133:53530/OPCUA/SimulationServer?\
     ua.nodes=ns=10;i=1004::t1::c1::double&connect_timeout=5&request_timeout=5&\
     concurrent=1&batch_size=5&batch_timeout=5&debug=true";
-    let mut target = "taos:///opcua";
+    let target = "taos:///opcua";
     let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
     opc_to_taos(
         opc.parse().unwrap(),

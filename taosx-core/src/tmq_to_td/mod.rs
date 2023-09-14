@@ -377,7 +377,7 @@ async fn sync(
 
     // do not drop consumer when single task done.
     drop(stream);
-    let _ = sender.send(consumer);
+    let _ = sender.send(consumer); // tokio send
     Ok(())
 }
 
