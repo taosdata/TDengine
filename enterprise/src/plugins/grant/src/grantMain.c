@@ -204,7 +204,6 @@ static void     grantConnResetMaster(SMnode *pMnode);
 static void     grantSetClusterInfo(SMnode *pMnode);
 static void     grantConnStatusCheck(SMnode *pMnode, uint32_t curTime, SDnodeInfo *pDnodeInfo);
 static int32_t  mndProcessGrantHB(SRpcMsg *pReq);
-static int32_t  mndProcessGrantFetch(SRpcMsg *pReq);
 static int32_t  dmGenerateGrantMsg(GrantMsg *pGrant, GrantStatus *pGrantStatus, SDnodeInfo *pInfo, int64_t clusterTime);
 static int32_t  mndSetActiveCodeFromCfg(SDnodeInfo *pDnodeInfo, GrantMsg *pMsg);
 static int32_t  mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, GrantMsg *pGrantMsg,
@@ -241,7 +240,6 @@ typedef struct {
 
 static bool   recheckClusterTime = true;
 static int8_t grantHbLock = 0;
-static int8_t grantFetchLock = 0;
 int32_t       grantFlag = 0;
 SGrantHandle  grantHandle = {0};
 
@@ -852,9 +850,7 @@ static void grantRetrieveGrantInfo(SMnode *pMnode) {
 
 int32_t mndUpdateClusterInfo(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
-
   grantRetrieveGrantInfo(pMnode);
-
   return 0;
 }
 
