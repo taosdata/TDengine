@@ -94,6 +94,6 @@ Items within brackets (\[\]) are optional.
       For more information about regular expressions, see <https://docs.rs/regex/latest/regex/#example-replacement-with-named-capture-groups>
   ```
 
-3. jobs indicates the number of concurrent jobs that can be run. This option is used with the tmq driver only. This parameter cannot be configured in taosExplorer. You can specify the number of concurrent jobs with the --jobs <number> or -j <number> parameter.
+3. jobs indicates the number of concurrent jobs that can be run. This option is used with the tmq driver only. This parameter cannot be configured in taosExplorer. You can specify the number of concurrent jobs with the `--jobs <number>` or `-j <number>` parameter.
 4. The -v parameter specifies the log level of taosX. -v indicates info, -vv indicates debug, and -vvv indicates trace.
 
