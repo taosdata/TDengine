@@ -14,6 +14,15 @@ args = ["build", "--release", "-p", "taosx-agent"]
 [tasks.plugins]
 dependencies = ["taosx-influxdb", "taosx-opentsdb", "taosx-mqtt", "taosx-opc"]
 
+[tasks.clean-plugins]
+script = """
+set -ex
+rm -rf plugins/influxdb/target
+rm -rf plugins/opentsdb/target
+rm -rf plugins/mqtt/dist
+rm -rf plugins/opc/taosx-opc
+"""
+
 [tasks.taosx-influxdb]
 command = "mvn"
 args = ["package", "-f", "plugins/influxdb/pom.xml"]
@@ -28,7 +37,7 @@ commit=$(git rev-parse HEAD | cut -c 1-8)
 built=$(date +"%F %T %:z")
 path=github.com/taosdata/taosx/plugins/mqtt
 go build -C plugins/mqtt \
-  -o target/taosx-mqtt \
+  -o dist/taosx-mqtt \
   -ldflags "-X $path/version.Commit=${commit} -X '$path/version.BuildTime=$built'"
 """
 
@@ -37,7 +46,7 @@ script = """
 commit=$(git rev-parse HEAD | cut -c 1-8)
 built=$(date +"%F %T %:z")
 go build -C plugins/opc \
-  -o target/taosx-opc \
+  -o taosx-opc \
   -ldflags "-X collector/version.CommitID=${commit} -X 'collector/version.BuildAt=$built'"
 """
 
@@ -59,8 +68,8 @@ mkdir -p $PKG/etc/taos
 cp target/release/taosx target/release/taosx-agent $PKG/usr/bin
 cp plugins/influxdb/target/taosx-influxdb.jar $PKG/usr/local/taosx/plugins/influxdb
 cp plugins/opentsdb/target/taosx-opentsdb.jar $PKG/usr/local/taosx/plugins/opentsdb
-cp plugins/mqtt/target/taosx-mqtt $PKG/usr/local/taosx/plugins/mqtt/
-cp plugins/opc/target/taosx-opc $PKG/usr/local/taosx/plugins/opc/
+cp plugins/mqtt/dist/taosx-mqtt $PKG/usr/local/taosx/plugins/mqtt/
+cp plugins/opc/taosx-opc $PKG/usr/local/taosx/plugins/opc/
 cp packaging/uninstall.sh $PKG/usr/local/taosx/
 
 cp target/*.service $PKG/etc/systemd/

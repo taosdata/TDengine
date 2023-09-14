@@ -212,6 +212,8 @@ async fn worker(
                             query.time_range = chunk;
                             loop {
                                 match sync_single_table_partial(
+                                    source.clone(),
+                                    target.clone(),
                                     &from,
                                     stable.as_ref().map(|s| s.as_str()),
                                     &table,
@@ -220,7 +222,7 @@ async fn worker(
                                     &query,
                                     &opts,
                                     target_is_v3,
-                                    &metrics,
+                                    metrics.clone(),
                                 )
                                 .await
                                 {
@@ -336,7 +338,7 @@ impl Scheduler {
         target_is_v3: bool,
     ) -> Self {
         let workers = std::cmp::max(1, workers);
-        let (sender, receiver) = flume::bounded((workers * 2) as usize);
+        let (sender, receiver) = flume::bounded((workers * 4) as usize);
         let handles = (0..workers)
             .map(|i| {
                 tokio::spawn(
