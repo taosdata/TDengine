@@ -1,6 +1,6 @@
 ---
-title: Deploy TDengine Cluster
-sidebar_label: Deploy Cluster
+title: Set up TDengine Cluster
+sidebar_label: Set up Cluster
 ---
 
 ## Prerequisites
@@ -183,7 +183,7 @@ to drop or remove a dnode from the cluster. In the command, you can get `dnodeId
 
 :::warning
 
-- Once a dnode is dropped, it can't rejoin the cluster. To rejoin, the dnode needs to deployed again after cleaning up the data directory. Before dropping a dnode, the data belonging to the dnode MUST be migrated/backed up according to your data retention, data security or other SOPs.
+- Once a dnode is dropped, it can't rejoin the cluster. To rejoin, the dnode needs to set up again after cleaning up the data directory. Before dropping a dnode, the data belonging to the dnode MUST be migrated/backed up according to your data retention, data security or other SOPs.
 - Please note that `drop dnode` is different from stopping `taosd` process. `drop dnode` just removes the dnode out of TDengine cluster. Only after a dnode is dropped, can the corresponding `taosd` process be stopped.
 - Once a dnode is dropped, other dnodes in the cluster will be notified of the drop and will not accept the request from the dropped dnode.
 - dnodeID is allocated automatically and can't be manually modified. dnodeID is generated in ascending order without duplication.
