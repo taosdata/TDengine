@@ -851,9 +851,9 @@ static void grantRetrieveGrantInfo(SMnode *pMnode) {
   cloudGrantStatus.curSTables = grantGetClusterCurSTables(pMnode);
   cloudGrantStatus.curTables = grantGetClusterCurTables(pMnode);
 #else
+  grantStatus.curTimeSeries = grantGetClusterCurTimeSeries(pMnode);
   grantStatus.curStorage = grantGetClusterCurStorage(pMnode);
   grantStatus.curSpeed = grantGetClusterCurSpeed();
-  grantStatus.curTimeSeries = grantGetClusterCurTimeSeries(pMnode);
   grantStatus.curQueryTime = grantGetClusterCurQueryTime();
   grantStatus.curUsers = grantGetClusterCurUsers(pMnode);
   grantStatus.curAccts = grantGetClusterCurAccts(pMnode);
@@ -861,6 +861,14 @@ static void grantRetrieveGrantInfo(SMnode *pMnode) {
   grantStatus.curDbs = grantGetClusterCurDbs(pMnode);
   grantStatus.curCpuCores = grantGetClusterCurCores(pMnode);
 #endif
+}
+
+int32_t mndUpdateClusterInfo(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+
+  grantRetrieveGrantInfo(pMnode);
+  
+  return 0;
 }
 
 static void grantConnResetMaster(SMnode *pMnode) {
