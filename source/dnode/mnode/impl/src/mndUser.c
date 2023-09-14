@@ -432,8 +432,8 @@ static void ipRangeToStr(SIpV4Range *range, char *buf) {
   addr.s_addr = range->ip;
 
   uv_inet_ntop(AF_INET, &addr, buf, 32);
-  if (range->mask == 32) {
-   sprintf(buf + strlen(buf), "/%d", range->mask);
+  if (range->mask != 32) {
+    sprintf(buf + strlen(buf), "/%d", range->mask);
   }
   return;
 }
