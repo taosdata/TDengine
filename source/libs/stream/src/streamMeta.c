@@ -211,7 +211,7 @@ _err:
   return NULL;
 }
 
-int32_t streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId) {
+int32_t streamMetaReopen(SStreamMeta* pMeta) {
   streamMetaClear(pMeta);
 
   pMeta->streamBackendRid = -1;
