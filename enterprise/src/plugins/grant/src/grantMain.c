@@ -262,7 +262,6 @@ int32_t mndInitGrant(SMnode *pMnode) {
   grantHandle.lastCheck = &gStatus.lastCheck;
 
   mndSetMsgHandle(pMnode, TDMT_MND_GRANT_HB_TIMER, mndProcessGrantHB);
-  mndSetMsgHandle(pMnode, TDMT_MND_GRANT_FETCH_TIMER, mndProcessGrantFetch);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndCancelGetNextGrant);
   grantSetClusterInfo(pMnode);
@@ -650,18 +649,6 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
   return 0;
 }
 
-static int32_t mndProcessGrantFetch(SRpcMsg *pReq) {
-  if (0 != atomic_val_compare_exchange_8(&grantFetchLock, 0, 1)) {
-    uWarn("previous grant fetch task not finished yet");
-    return 0;
-  }
-
-  SMnode *pMnode = pReq->info.node;
-  grantRetrieveGrantInfo(pMnode);
-  atomic_val_compare_exchange_8(&grantFetchLock, 1, 0);
-  return 0;
-}
-
 void grantParseParameter() {
 #ifdef _TD_MIPS
   fprintf(stderr, "the MIPS platform does not support machine code currently!\n");
@@ -867,7 +854,7 @@ int32_t mndUpdateClusterInfo(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
 
   grantRetrieveGrantInfo(pMnode);
-  
+
   return 0;
 }
 
