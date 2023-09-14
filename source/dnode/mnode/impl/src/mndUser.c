@@ -1144,7 +1144,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
       idx++;
     }
 
-    for (int i = idx, j = 0; i < numOfRanges; i++, j++) {
+    for (int i = idx, j = 0; i < numOfRanges && j < pCreate->numIpRanges; i++, j++) {
       p->pIpRange[i].ip = pCreate->pIpRanges[j].ip;
       p->pIpRange[i].mask = pCreate->pIpRanges[j].mask;
     }
