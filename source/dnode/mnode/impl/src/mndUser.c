@@ -1126,23 +1126,30 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
       return terrno;
     }
 
-    SIpWhiteList *p = taosMemoryCalloc(1, sizeof(SIpWhiteList) + (pCreate->numIpRanges + 1) * sizeof(SIpV4Range));
-    bool          localHost = false;
-    for (int i = 0; i < pCreate->numIpRanges; i++) {
-      p->pIpRange[i].ip = pCreate->pIpRanges[i].ip;
-      p->pIpRange[i].mask = pCreate->pIpRanges[i].mask;
+    bool localHost = false;
 
-      if (isDefaultRange(&pCreate->pIpRanges[i])) {
+    for (int i = 0; i < pCreate->numIpRanges; i++) {
+      SIpV4Range *pRange = &pCreate->pIpRanges[i];
+      if (isDefaultRange(pRange)) {
         localHost = true;
+        break;
       }
     }
+    int32_t       numOfRanges = localHost ? pCreate->numIpRanges : pCreate->numIpRanges + 1;
+    SIpWhiteList *p = taosMemoryCalloc(1, sizeof(SIpWhiteList) + numOfRanges * sizeof(SIpV4Range));
+    int           idx = 0;
     if (localHost == false) {
-      p->pIpRange[pCreate->numIpRanges].ip = defaultIpRange.ip;
-      p->pIpRange[pCreate->numIpRanges].mask = defaultIpRange.mask;
-      p->num = pCreate->numIpRanges + 1;
-    } else {
-      p->num = pCreate->numIpRanges;
+      p->pIpRange[idx].ip = defaultIpRange.ip;
+      p->pIpRange[idx].mask = defaultIpRange.mask;
+      idx++;
     }
+
+    for (int i = idx, j = 0; i < numOfRanges; i++, j++) {
+      p->pIpRange[i].ip = pCreate->pIpRanges[j].ip;
+      p->pIpRange[i].mask = pCreate->pIpRanges[j].mask;
+    }
+
+    p->num = numOfRanges;
     userObj.pIpWhiteList = p;
   }
 
