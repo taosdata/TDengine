@@ -1,5 +1,5 @@
 ---
-title: Install and Deploy taosAdapter 
+title: Deploy taosAdapter 
 sidebar_label: taosAdapter
 ---
 
