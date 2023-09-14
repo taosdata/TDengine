@@ -22,38 +22,6 @@
 static void tLDataIterClose2(SLDataIter *pIter);
 
 // SLDataIter =================================================
-SSttBlockLoadInfo *tCreateLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols,
-                                            int32_t numOfSttTrigger) {
-  SSttBlockLoadInfo *pLoadInfo = taosMemoryCalloc(numOfSttTrigger, sizeof(SSttBlockLoadInfo));
-  if (pLoadInfo == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  for (int32_t i = 0; i < numOfSttTrigger; ++i) {
-    pLoadInfo[i].blockIndex[0] = -1;
-    pLoadInfo[i].blockIndex[1] = -1;
-    pLoadInfo[i].currentLoadBlockIndex = 1;
-
-    int32_t code = tBlockDataCreate(&pLoadInfo[i].blockData[0]);
-    if (code) {
-      terrno = code;
-    }
-
-    code = tBlockDataCreate(&pLoadInfo[i].blockData[1]);
-    if (code) {
-      terrno = code;
-    }
-
-    pLoadInfo[i].aSttBlk = taosArrayInit(4, sizeof(SSttBlk));
-    pLoadInfo[i].pSchema = pSchema;
-    pLoadInfo[i].colIds = colList;
-    pLoadInfo[i].numOfCols = numOfCols;
-  }
-
-  return pLoadInfo;
-}
-
 SSttBlockLoadInfo *tCreateOneLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols) {
   SSttBlockLoadInfo *pLoadInfo = taosMemoryCalloc(1, sizeof(SSttBlockLoadInfo));
   if (pLoadInfo == NULL) {
@@ -81,25 +49,6 @@ SSttBlockLoadInfo *tCreateOneLastBlockLoadInfo(STSchema *pSchema, int16_t *colLi
   pLoadInfo->numOfCols = numOfCols;
 
   return pLoadInfo;
-}
-
-void resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
-  for (int32_t i = 0; i < 1; ++i) {
-    pLoadInfo[i].currentLoadBlockIndex = 1;
-    pLoadInfo[i].blockIndex[0] = -1;
-    pLoadInfo[i].blockIndex[1] = -1;
-
-    taosArrayClear(pLoadInfo[i].aSttBlk);
-
-    pLoadInfo[i].cost.loadBlocks = 0;
-    pLoadInfo[i].cost.blockElapsedTime = 0;
-    pLoadInfo[i].cost.statisElapsedTime = 0;
-    pLoadInfo[i].cost.loadStatisBlocks = 0;
-    pLoadInfo[i].statisBlockIndex = -1;
-    tStatisBlockDestroy(pLoadInfo[i].statisBlock);
-
-    pLoadInfo[i].sttBlockLoaded = false;
-  }
 }
 
 void getSttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, SSttBlockLoadCostInfo* pLoadCost) {
@@ -307,12 +256,6 @@ static int32_t binarySearchForStartRowIndex(uint64_t *uidList, int32_t num, uint
       return findEarliestRow(midPos, uid, uidList, num, backward);
     }
   }
-}
-
-int32_t tLDataIterOpen(struct SLDataIter *pIter, SDataFReader *pReader, int32_t iStt, int8_t backward, uint64_t suid,
-                       uint64_t uid, STimeWindow *pTimeWindow, SVersionRange *pRange, SSttBlockLoadInfo *pBlockLoadInfo,
-                       const char *idStr, bool strictTimeRange) {
-  return 0;
 }
 
 static int32_t extractSttBlockInfo(SLDataIter *pIter, const TSttBlkArray *pArray, SSttBlockLoadInfo *pBlockLoadInfo,
@@ -765,50 +708,6 @@ static FORCE_INLINE int32_t tLDataIterCmprFn(const SRBTreeNode *p1, const SRBTre
 
 static FORCE_INLINE int32_t tLDataIterDescCmprFn(const SRBTreeNode *p1, const SRBTreeNode *p2) {
   return -1 * tLDataIterCmprFn(p1, p2);
-}
-
-int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
-                       STimeWindow *pTimeWindow, SVersionRange *pVerRange, SSttBlockLoadInfo *pBlockLoadInfo,
-                       bool destroyLoadInfo, const char *idStr, bool strictTimeRange, SLDataIter *pLDataIter) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  pMTree->backward = backward;
-  pMTree->pIter = NULL;
-  pMTree->idStr = idStr;
-
-  if (!pMTree->backward) {  // asc
-    tRBTreeCreate(&pMTree->rbt, tLDataIterCmprFn);
-  } else {  // desc
-    tRBTreeCreate(&pMTree->rbt, tLDataIterDescCmprFn);
-  }
-
-  pMTree->pLoadInfo = pBlockLoadInfo;
-  pMTree->destroyLoadInfo = destroyLoadInfo;
-  pMTree->ignoreEarlierTs = false;
-
-  for (int32_t i = 0; i < pFReader->pSet->nSttF; ++i) {  // open all last file
-    memset(&pLDataIter[i], 0, sizeof(SLDataIter));
-    code = tLDataIterOpen(&pLDataIter[i], pFReader, i, pMTree->backward, suid, uid, pTimeWindow, pVerRange,
-                          &pMTree->pLoadInfo[i], pMTree->idStr, strictTimeRange);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _end;
-    }
-
-    bool hasVal = tLDataIterNextRow(&pLDataIter[i], pMTree->idStr);
-    if (hasVal) {
-      tMergeTreeAddIter(pMTree, &pLDataIter[i]);
-    } else {
-      if (!pMTree->ignoreEarlierTs) {
-        pMTree->ignoreEarlierTs = pLDataIter[i].ignoreEarlierTs;
-      }
-    }
-  }
-
-  return code;
-
-_end:
-  tMergeTreeClose(pMTree);
-  return code;
 }
 
 int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf) {

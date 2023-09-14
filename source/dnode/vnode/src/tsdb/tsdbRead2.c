@@ -2760,6 +2760,7 @@ static int32_t doSumFileBlockRows(STsdbReader* pReader, SDataFReader* pFileReade
     goto _end;
   }
 
+#if 0
   int32_t numOfTables = tSimpleHashGetSize(pReader->status.pTableMap);
 
   SArray* aBlockIdx = (SArray*)taosLRUCacheValue(pFileReader->pTsdb->biCache, handle);
@@ -2788,6 +2789,7 @@ static int32_t doSumFileBlockRows(STsdbReader* pReader, SDataFReader* pFileReade
     //      pReader->rowsNum += block.nRow;
     //    }
   }
+#endif
 
 _end:
   tsdbBICacheRelease(pFileReader->pTsdb->biCache, handle);
@@ -4453,7 +4455,11 @@ static void doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_
   // do fill all null column value SMA info
   int32_t i = 0, j = 0;
   int32_t size = (int32_t)TARRAY2_SIZE(&pSup->colAggArray);
-  TARRAY2_INSERT_PTR(&pSup->colAggArray, 0, pTsAgg);
+  int32_t code = TARRAY2_INSERT_PTR(&pSup->colAggArray, 0, pTsAgg);
+  if (code != TSDB_CODE_SUCCESS) {
+    return;
+  }
+
   size++;
 
   while (j < numOfCols && i < size) {
@@ -4466,7 +4472,11 @@ static void doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_
     } else if (pSup->colId[j] < pAgg->colId) {
       if (pSup->colId[j] != PRIMARYKEY_TIMESTAMP_COL_ID) {
         SColumnDataAgg nullColAgg = {.colId = pSup->colId[j], .numOfNull = numOfRows};
-        TARRAY2_INSERT_PTR(&pSup->colAggArray, i, &nullColAgg);
+        code = TARRAY2_INSERT_PTR(&pSup->colAggArray, i, &nullColAgg);
+        if (code != TSDB_CODE_SUCCESS) {
+          return;
+        }
+
         i += 1;
         size++;
       }
@@ -4477,7 +4487,11 @@ static void doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_
   while (j < numOfCols) {
     if (pSup->colId[j] != PRIMARYKEY_TIMESTAMP_COL_ID) {
       SColumnDataAgg nullColAgg = {.colId = pSup->colId[j], .numOfNull = numOfRows};
-      TARRAY2_INSERT_PTR(&pSup->colAggArray, i, &nullColAgg);
+      code = TARRAY2_INSERT_PTR(&pSup->colAggArray, i, &nullColAgg);
+      if (code != TSDB_CODE_SUCCESS) {
+        return;
+      }
+
       i += 1;
     }
     j++;
@@ -4835,7 +4849,7 @@ int64_t tsdbGetNumOfRowsInMemTable2(STsdbReader* pReader) {
   return rows;
 }
 
-int32_t tsdbGetTableSchema2(void* pVnode, int64_t uid, STSchema** pSchema, int64_t* suid) {
+int32_t tsdbGetTableSchema(void* pVnode, int64_t uid, STSchema** pSchema, int64_t* suid) {
   SMetaReader mr = {0};
   metaReaderDoInit(&mr, ((SVnode*)pVnode)->pMeta, 0);
   int32_t code = metaReaderGetTableEntryByUidCache(&mr, uid);
@@ -4970,4 +4984,4 @@ void tsdbReaderSetId2(STsdbReader* pReader, const char* idstr) {
   pReader->status.fileIter.pLastBlockReader->mergeTree.idStr = pReader->idStr;
 }
 
-void tsdbReaderSetCloseFlag2(STsdbReader* pReader) { pReader->code = TSDB_CODE_TSC_QUERY_CANCELLED; }
+void tsdbReaderSetCloseFlag(STsdbReader* pReader) { /*pReader->code = TSDB_CODE_TSC_QUERY_CANCELLED;*/ }
