@@ -1,5 +1,5 @@
 ---
-title: Set up taosExplorer
+title: Set Up taosExplorer
 sidebar_label: taosExplorer
 ---
 

@@ -1,5 +1,5 @@
 ---
-title: Set up taosAdapter 
+title: Set Up taosAdapter 
 sidebar_label: taosAdapter
 ---
 

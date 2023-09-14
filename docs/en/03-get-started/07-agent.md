@@ -1,5 +1,5 @@
 ---
-title: Set up taos-Agent
+title: Set Up taos-Agent
 sidebar_label: taos-Agent
 ---
 

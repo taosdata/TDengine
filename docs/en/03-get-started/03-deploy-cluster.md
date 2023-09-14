@@ -1,6 +1,6 @@
 ---
-title: Set up TDengine Cluster
-sidebar_label: Set up Cluster
+title: Set Up TDengine Cluster
+sidebar_label: Set Up Cluster
 ---
 
 ## Prerequisites
