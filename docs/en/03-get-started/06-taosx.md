@@ -1,5 +1,5 @@
 ---
-title: Set up taosX
+title: Set Up taosX
 sidebar_label: taosX
 ---
 

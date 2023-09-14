@@ -1,5 +1,5 @@
 ---
-title: Set up taosKeeper 
+title: Set Up taosKeeper 
 sidebar_label: taosKeeper
 ---
 
