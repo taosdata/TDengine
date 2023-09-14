@@ -198,7 +198,6 @@ extern int32_t tsTtlPushIntervalSec;
 extern int32_t tsTtlBatchDropNum;
 extern int32_t tsTrimVDbIntervalSec;
 extern int32_t tsGrantHBInterval;
-extern int32_t tsGrantFetchInterval;
 extern int32_t tsUptimeInterval;
 
 extern int32_t tsRpcRetryLimit;
