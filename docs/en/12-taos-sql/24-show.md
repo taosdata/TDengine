@@ -384,7 +384,7 @@ Shows information about all vgroups in the current database.
 ## SHOW VNODES
 
 ```sql
-SHOW VNODES {dnode_id | dnode_endpoint};
+SHOW VNODES [ON DNODE dnode_id];
 ```
 
 Shows information about all vnodes in the system or about the vnodes for a specified dnode.
