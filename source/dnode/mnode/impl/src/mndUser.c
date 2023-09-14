@@ -39,6 +39,8 @@ static bool          isIpRangeEqual(SIpV4Range *a, SIpV4Range *b);
 
 void destroyIpWhiteTab(SHashObj *pIpWhiteTab);
 
+#define MND_MAX_USE_HOST (TSDB_PRIVILEDGE_HOST_LEN / 24)
+
 static int32_t  mndCreateDefaultUsers(SMnode *pMnode);
 static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw);
 static int32_t  mndUserActionInsert(SSdb *pSdb, SUserObj *pUser);
@@ -65,6 +67,8 @@ typedef struct {
 } SIpWhiteMgt;
 
 static SIpWhiteMgt ipWhiteMgt;
+
+const static SIpV4Range defaultIpRange = {.ip = 16777343, .mask = 32};
 
 void ipWhiteMgtInit() {
   ipWhiteMgt.pIpWhiteTab = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), 1, HASH_ENTRY_LOCK);
@@ -446,7 +450,6 @@ static int32_t ipRangeListToStr(SIpV4Range *range, int32_t num, char *buf) {
   for (int i = 0; i < num; i++) {
     char        tbuf[36] = {0};
     SIpV4Range *pRange = &range[i];
-    // if (isDefaultRange(pRange)) continue;
 
     ipRangeToStr(&range[i], tbuf);
     len += sprintf(buf + len, "%s,", tbuf);
@@ -1118,7 +1121,12 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     userObj.pIpWhiteList = createDefaultIpWhiteList();
 
   } else {
-    SIpWhiteList *p = taosMemoryCalloc(1, sizeof(SIpWhiteList) + pCreate->numIpRanges * sizeof(SIpV4Range) + 1);
+    if (pCreate->numIpRanges > MND_MAX_USE_HOST) {
+      terrno = TSDB_CODE_MND_TOO_MANY_USER_HOST;
+      return terrno;
+    }
+
+    SIpWhiteList *p = taosMemoryCalloc(1, sizeof(SIpWhiteList) + (pCreate->numIpRanges + 1) * sizeof(SIpV4Range));
     bool          localHost = false;
     for (int i = 0; i < pCreate->numIpRanges; i++) {
       p->pIpRange[i].ip = pCreate->pIpRanges[i].ip;
@@ -1129,8 +1137,8 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
       }
     }
     if (localHost == false) {
-      p->pIpRange[pCreate->numIpRanges].ip = 16777343;
-      p->pIpRange[pCreate->numIpRanges].mask = 32;
+      p->pIpRange[pCreate->numIpRanges].ip = defaultIpRange.ip;
+      p->pIpRange[pCreate->numIpRanges].mask = defaultIpRange.mask;
       p->num = pCreate->numIpRanges + 1;
     } else {
       p->num = pCreate->numIpRanges;
@@ -1704,7 +1712,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     newUser.pIpWhiteList = pNew;
     newUser.ipWhiteListVer = pUser->ipWhiteListVer + 1;
 
-    if (pNew->num >= TSDB_PRIVILEDGE_HOST_LEN / 24) {
+    if (pNew->num > MND_MAX_USE_HOST) {
       terrno = TSDB_CODE_MND_TOO_MANY_USER_HOST;
       code = terrno;
       goto _OVER;
