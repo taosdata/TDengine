@@ -1,6 +1,6 @@
 ---
 title: Deploy TDengine Cluster
-sidebar_label: Deployment
+sidebar_label: Deploy Cluster
 ---
 
 ## Prerequisites
