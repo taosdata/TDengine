@@ -1,5 +1,5 @@
 ---
-title: Install and Deploy taos-Agent
+title: Deploy taos-Agent
 sidebar_label: taos-Agent
 ---
 
