@@ -924,7 +924,7 @@ int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, SRpcMsg* pMsg) {
 
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, rsp.streamId, rsp.upstreamTaskId);
   if (pTask == NULL) {
-    tqError("tq failed to locate the stream task:0x%" PRIx64 "-0x%x (vgId:%d), it may have been destroyed",
+    tqError("tq failed to locate the stream task:0x%" PRIx64 "-0x%x (vgId:%d), it may have been destroyed or stopped",
             rsp.streamId, rsp.upstreamTaskId, pTq->pStreamMeta->vgId);
     terrno = TSDB_CODE_STREAM_TASK_NOT_EXIST;
     return -1;

@@ -793,7 +793,6 @@ void metaHbToMnode(void* param, void* tmrId) {
   }
 
   if (!enoughTimeDuration(&pMeta->hbInfo)) {
-    qInfo("vgId:%d not enough time, %d", pMeta->vgId, pMeta->hbInfo.tickCounter);
     taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->hbInfo.hbTmr);
     taosReleaseRef(streamMetaId, rid);
     return;
