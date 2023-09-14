@@ -22,6 +22,8 @@ The taosX package includes the following components:
 - `taosExplorer`: a graphical user interface for TDengine
 - data source SDK: the SDK called by taosX or taosAgent to connect with each data source
 
+  To use the functionalities provided by TDengine Enterprise, you need to at least install the TDengine-server package. To use data transfer capability and visual management tool, you need to also install taosX package.
+
 ## Install TDengine Server
 
 ### Linux
