@@ -26,6 +26,10 @@ target_link_libraries(
     PUBLIC lz4_static
     PUBLIC api cjson geos_c TSZ
 )
+target_sources(
+    util 
+    PRIVATE "${TD_SOURCE_DIR}/source/common/src/tglobal.c"
+)
 
 if(${BUILD_TEST})
     ADD_SUBDIRECTORY(test)
