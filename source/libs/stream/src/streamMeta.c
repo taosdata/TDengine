@@ -47,6 +47,8 @@ struct SMetaHbInfo {
   tmr_h   hbTmr;
   int32_t stopFlag;
   int32_t tickCounter;
+  int32_t hbCount;
+  int64_t hbStart;
 };
 
 SMetaRefMgt gMetaRefMgt;
@@ -332,6 +334,7 @@ void streamMetaCloseImpl(void* arg) {
   taosHashCleanup(pMeta->pTaskBackendUnique);
   taosHashCleanup(pMeta->pUpdateTaskSet);
 
+  taosMemoryFree(pMeta->pHbInfo);
   taosMemoryFree(pMeta->path);
   taosThreadMutexDestroy(&pMeta->backendMutex);
 
@@ -784,7 +787,6 @@ static bool enoughTimeDuration(SMetaHbInfo* pInfo) {
 void metaHbToMnode(void* param, void* tmrId) {
   int64_t rid = *(int64_t*)param;
 
-  SStreamHbMsg hbMsg = {0};
   SStreamMeta* pMeta = taosAcquireRef(streamMetaId, rid);
   if (pMeta == NULL) {
     return;
@@ -802,7 +804,13 @@ void metaHbToMnode(void* param, void* tmrId) {
   if (!pMeta->leader) {
     qInfo("vgId:%d follower not send hb to mnode", pMeta->vgId);
     taosReleaseRef(streamMetaId, rid);
+    pMeta->pHbInfo->hbStart = 0;
     return;
+  }
+
+  // set the hb start time
+  if (pMeta->pHbInfo->hbStart == 0) {
+    pMeta->pHbInfo->hbStart = taosGetTimestampMs();
   }
 
   if (!enoughTimeDuration(pMeta->pHbInfo)) {
@@ -811,22 +819,22 @@ void metaHbToMnode(void* param, void* tmrId) {
     return;
   }
 
-  qInfo("vgId:%d start hb", pMeta->vgId);
+  qDebug("vgId:%d build stream task hb, leader:%d", pMeta->vgId, pMeta->leader);
 
+  SStreamHbMsg hbMsg = {0};
   taosRLockLatch(&pMeta->lock);
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
 
   SEpSet epset = {0};
   bool   hasValEpset = false;
-
   hbMsg.vgId = pMeta->vgId;
   hbMsg.pTaskStatus = taosArrayInit(numOfTasks, sizeof(STaskStatusEntry));
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
     SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
-    int64_t        keys[2] = {pId->streamId, pId->taskId};
-    SStreamTask**  pTask = taosHashGet(pMeta->pTasksMap, keys, sizeof(keys));
 
+    int64_t       keys[2] = {pId->streamId, pId->taskId};
+    SStreamTask** pTask = taosHashGet(pMeta->pTasksMap, keys, sizeof(keys));
     if ((*pTask)->info.fillHistory == 1) {
       continue;
     }
@@ -878,10 +886,13 @@ void metaHbToMnode(void* param, void* tmrId) {
     initRpcMsg(&msg, TDMT_MND_STREAM_HEARTBEAT, buf, tlen);
     msg.info.noResp = 1;
 
-    qDebug("vgId:%d, build and send hb to mnode", pMeta->vgId);
+    pMeta->pHbInfo->hbCount += 1;
+
+    qDebug("vgId:%d, build and send hb to mnode, numOfTasks:%d total:%d", pMeta->vgId, hbMsg.numOfTasks,
+           pMeta->pHbInfo->hbCount);
     tmsgSendReq(&epset, &msg);
   } else {
-    qError("vgId:%d no mnd epset", pMeta->vgId);
+    qDebug("vgId:%d no tasks and no mnd epset, not send stream hb to mnode", pMeta->vgId);
   }
 
   taosArrayDestroy(hbMsg.pTaskStatus);
@@ -914,7 +925,9 @@ static bool hasStreamTaskInTimer(SStreamMeta* pMeta) {
 void streamMetaNotifyClose(SStreamMeta* pMeta) {
   int32_t vgId = pMeta->vgId;
 
-  qDebug("vgId:%d notify all stream tasks that the vnode is closing", vgId);
+  qDebug("vgId:%d notify all stream tasks that the vnode is closing. isLeader:%d startHb%" PRId64 ", totalHb:%d", vgId,
+         pMeta->leader, pMeta->pHbInfo->hbStart, pMeta->pHbInfo->hbCount);
+
   taosWLockLatch(&pMeta->lock);
 
   void* pIter = NULL;

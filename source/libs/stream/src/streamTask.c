@@ -277,7 +277,20 @@ static void freeUpstreamItem(void* p) {
 void tFreeStreamTask(SStreamTask* pTask) {
   int32_t taskId = pTask->id.taskId;
 
-  qDebug("free s-task:0x%x, %p, state:%p", taskId, pTask, pTask->pState);
+  STaskExecStatisInfo* pStatis = &pTask->taskExecInfo;
+
+  qDebug("start to free s-task:0x%x, %p, state:%p, status:%s", taskId, pTask, pTask->pState,
+         streamGetTaskStatusStr(pTask->status.taskStatus));
+
+  qDebug("s-task:0x%x exec info: create:%" PRId64 ", init:%" PRId64 ", start:%" PRId64
+         ", updateCount:%d latestUpdate:%" PRId64 ", latestCheckPoint:%" PRId64 ", ver:%" PRId64
+         " nextProcessVer:%" PRId64,
+         taskId, pStatis->created, pStatis->init, pStatis->start, pStatis->updateCount, pStatis->latestUpdateTs,
+         pTask->chkInfo.checkpointId, pTask->chkInfo.checkpointVer, pTask->chkInfo.nextProcessVer);
+
+  if (pStatis->created == 0 || pStatis->init == 0 || pStatis->start == 0) {
+    int32_t k = 1;
+  }
 
   // remove the ref by timer
   while (pTask->status.timerActive > 0) {
@@ -396,7 +409,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   TdThreadMutexAttr attr = {0};
   int code = taosThreadMutexAttrInit(&attr);
   if (code != 0) {
-    qError("s-task:%s init mutex attr failed, code:%s", pTask->id.idStr, tstrerror(code));
+    qError("s-task:%s initElapsed mutex attr failed, code:%s", pTask->id.idStr, tstrerror(code));
     return code;
   }
 
@@ -524,9 +537,8 @@ int32_t streamTaskStop(SStreamTask* pTask) {
     taosMsleep(100);
   }
 
-  pTask->taskExecInfo.init = 0;
   int64_t el = taosGetTimestampMs() - st;
-  qDebug("vgId:%d s-task:%s is closed in %" PRId64 " ms, and reset init ts", pMeta->vgId, pTask->id.idStr, el);
+  qDebug("vgId:%d s-task:%s is closed in %" PRId64 " ms", pMeta->vgId, pTask->id.idStr, el);
   return 0;
 }
 
@@ -556,9 +568,9 @@ int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEpSet) {
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList) {
   STaskExecStatisInfo* p = &pTask->taskExecInfo;
   qDebug("s-task:%s update task nodeEp epset, update count:%d, prevTs:%"PRId64, pTask->id.idStr,
-          p->taskUpdateCount + 1, p->latestUpdateTs);
+          p->updateCount + 1, p->latestUpdateTs);
 
-  p->taskUpdateCount += 1;
+  p->updateCount += 1;
   p->latestUpdateTs = taosGetTimestampMs();
 
   for (int32_t i = 0; i < taosArrayGetSize(pNodeList); ++i) {
@@ -614,4 +626,26 @@ int8_t streamTaskSetSchedStatusInActive(SStreamTask* pTask) {
   taosThreadMutexUnlock(&pTask->lock);
 
   return status;
+}
+
+int32_t streamBuildAndSendDropTaskMsg(SStreamTask* pTask, int32_t vgId, SStreamTaskId* pTaskId) {
+  SVDropStreamTaskReq *pReq = rpcMallocCont(sizeof(SVDropStreamTaskReq));
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  pReq->head.vgId = vgId;
+  pReq->taskId = pTaskId->taskId;
+  pReq->streamId = pTaskId->streamId;
+
+  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_DROP, .pCont = pReq, .contLen = sizeof(SVDropStreamTaskReq)};
+  int32_t code = tmsgPutToQueue(pTask->pMsgCb, WRITE_QUEUE, &msg);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("vgId:%d failed to send drop task:0x%x msg, code:%s", vgId, pTaskId->taskId, tstrerror(code));
+    return code;
+  }
+
+  qDebug("vgId:%d build and send drop table:0x%x msg", vgId, pTaskId->taskId);
+  return code;
 }
