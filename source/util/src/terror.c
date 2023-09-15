@@ -100,6 +100,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STARTING,              "Database is starting 
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_IS_STOPPING,              "Database is closing down")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_DATA_FMT,             "Invalid data format")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CFG_VALUE,            "Invalid configuration value")
+TAOS_DEFINE_ERROR(TSDB_CODE_IP_NOT_IN_WHITE_LIST,          "Not allowed to connect")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
@@ -193,6 +194,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USERS,           "Too many users")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ALTER_OPER,       "Invalid alter operation")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_AUTH_FAILURE,             "Authentication failure")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_PRIVILEDGE_EXIST,         "User already have this priviledge")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_HOST_EXIST,          "Host already exist in ip white list")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_HOST_NOT_EXIST,      "Host not exist in ip white list")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_USER_HOST,       "Too many host in ip white list")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_LOCAL_HOST_NOT_DROP,  "Host can not be dropped")
 
 //mnode-stable-part1
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STB_ALREADY_EXIST,        "STable already exists")
