@@ -14,7 +14,7 @@ export default {
   ok: 'OK',
   changepwdtip: 'Password is successfully changed, please log in again',
   systemTitle: "TDengine Management System",
-  copyright: 'Copyright (c) 2022 by TDengine, All Rights Reserved.',
+  copyright: 'Copyright (c) 2023 by TDengine, All Rights Reserved.',
   sqlPreview: "SQL Preview",
   unknown: "Unknown Error!",
   download: "Download",
