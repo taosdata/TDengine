@@ -72,7 +72,16 @@ impl FlightService for FlightServiceImpl {
         req: Request<Streaming<HandshakeRequest>>,
     ) -> Result<Response<Self::HandshakeStream>, Status> {
         let addr = req.remote_addr();
-        let (_, _extensions, mut req) = req.into_parts();
+        let (meta, _extensions, mut req) = req.into_parts();
+
+        let client_version = meta.get("x-version").ok_or_else(|| {
+            Status::aborted("The server does not compatible to your agent, please upgrade to a newer version")
+        })?.to_str().map_err(|err| Status::aborted(format!("Invalid agent version: {err}")))?;
+        // dbg!(&meta, &extension);
+        {
+            // check agent version
+            let _ = client_version; // now we support all versions.
+        }
         tracing::info!("handshake with client {:?}", addr);
 
         let req = req.message().await?;
@@ -177,7 +186,7 @@ impl FlightService for FlightServiceImpl {
 
         let token = meta
             .get("x-token")
-            .unwrap()
+            .ok_or_else(|| Status::aborted("Token should be set"))?
             .to_str()
             .map_err(|err| Status::aborted(format!("Invalid token: {err}")))?;
 

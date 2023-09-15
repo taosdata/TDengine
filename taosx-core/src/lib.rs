@@ -42,6 +42,8 @@ use tokio_util::sync::CancellationToken;
 pub use transform::Action;
 use utils::port_pool::PortPool;
 
+shadow_rs::shadow!(build);
+
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum Compression {
     None,

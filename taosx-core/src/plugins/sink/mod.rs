@@ -124,6 +124,9 @@ async fn ipc_tcp_forward(
             }
         };
         let mut client = FlightClient::new(channel);
+        client.add_header("x-task-id", &task_id.to_string())?;
+        client.add_header("x-token", &token)?;
+        client.add_header("x-version", crate::build::PKG_VERSION)?;
         let _ = client
             .handshake(Bytes::from(token.as_bytes().to_vec()))
             .await
@@ -133,8 +136,7 @@ async fn ipc_tcp_forward(
             })?;
         info!("Handshake done");
         // dbg!(res);
-        client.add_header("x-task-id", &task_id.to_string())?;
-        client.add_header("x-token", &token)?;
+
         info!("Do putting");
         let mut stream = client.do_put(data).await.map_err(|err| match dbg!(err) {
             FlightError::Arrow(err) => anyhow::anyhow!("IPC Arrow error: {err:#}"),

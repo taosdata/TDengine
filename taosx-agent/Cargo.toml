@@ -14,9 +14,13 @@ clap-verbosity-flag = "2.0.0"
 const_format = "0.2"
 dotenv = "0.15.0"
 log = { version = "0.4", features = ["serde"] }
-shadow-rs = "0.21.0"
+
 thiserror = "1"
-twelf = { version = "0.10.0", default-features = false, features = ["toml", "env", "clap"] }
+twelf = { version = "0.10.0", default-features = false, features = [
+	"toml",
+	"env",
+	"clap",
+] }
 itertools = "0.10.5"
 
 dashmap = "5.4.0"
@@ -29,6 +33,7 @@ arrow-flight = { workspace = true }
 chrono = { workspace = true }
 chrono-tz = { workspace = true }
 tonic = { workspace = true }
+shadow-rs = { workspace = true }
 
 futures = "0.3"
 tokio = { version = "1", features = ["full"] }
@@ -38,11 +43,11 @@ tracing = { version = "0.1", features = ["log"] }
 taosx-core = { path = "../taosx-core" }
 
 time = { version = "0.3", features = ["formatting", "macros"] }
-tracing-subscriber = { version = "0.3", features = ["time", "local-time",] }
+tracing-subscriber = { version = "0.3", features = ["time", "local-time"] }
 tracing-appender = "0.2"
 
 file-rotate = "0.7.5"
 
 [build-dependencies]
 dotenv = "0.15.0"
-shadow-rs = "0.21.0"
+shadow-rs = { workspace = true }

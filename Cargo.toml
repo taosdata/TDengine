@@ -4,6 +4,7 @@ members = ["taosx-ipc", "taosx-core", "taosx-agent"]
 [workspace.dependencies]
 chrono = { version = "0.4.26" }
 chrono-tz = { version = "0.8.3" }
+shadow-rs = { version = "0.23" }
 
 regex = { version = "1.9" }
 arrow = { version = "46.0.0", features = ["chrono-tz"] }
@@ -37,6 +38,9 @@ description = "taosX - TDengine data integration tool"
 anyhow = "1"
 arrow = { workspace = true }
 arrow-flight = { workspace = true }
+
+shadow-rs = { workspace = true }
+
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bitflags = "2"
@@ -89,8 +93,6 @@ metrics = "0.21.0"
 metrics-exporter-prometheus = { version = "0.12.0", default-features = false, features = [
   "push-gateway",
 ] }
-# palaver = "0.2.8"
-shadow-rs = "0.21.0"
 sysinfo = "0.29.0"
 
 async-backtrace = "0.2.2"
@@ -147,7 +149,9 @@ libc = "0.2"
 [build-dependencies]
 sqlx = { version = "0.7", features = ["sqlite", "chrono"] }
 dotenv = "0.15.0"
-shadow-rs = "0.21.0"
+
+shadow-rs = { workspace = true }
+
 
 [dev-dependencies]
 tower = "0.4"
