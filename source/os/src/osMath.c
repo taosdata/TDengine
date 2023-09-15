@@ -32,9 +32,3 @@ void taosSort(void* base, int64_t sz, int64_t width, __compar_fn_t compar) {
   qsort(base, sz, width, compar);
 #endif
 }
-
-// stable sort
-void taosMSort(void* base, int64_t sz, int64_t width, __compar_fn_t compar) {
-  void* param = compar;
-  taosMergeSort(base, sz, width, param, qsortHelper);
-}
