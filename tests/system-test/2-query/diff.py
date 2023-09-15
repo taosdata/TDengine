@@ -47,6 +47,10 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
         dbname = "db"
+
+        # full type test
+        self.full_datatype_test()
+
         tdSql.execute(
             f"create table {dbname}.ntb(ts timestamp,c1 int,c2 double,c3 float)")
         tdSql.execute(
@@ -304,9 +308,6 @@ class TDTestCase:
 
         tdSql.checkData(0, 1, 11)
         tdSql.checkData(1, 1, -9)
-
-        # full type test
-        self.full_datatype_test()
 
     def stop(self):
         tdSql.close()
