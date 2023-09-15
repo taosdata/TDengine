@@ -1277,7 +1277,7 @@ int32_t mndProcessGetUserWhiteListReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndSetUserWhiteListRsp(pMnode, pUser, &wlRsp);
+  // code = mndSetUserWhiteListRsp(pMnode, pUser, &wlRsp);
   if (code) {
     goto _OVER;
   }
