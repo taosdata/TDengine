@@ -358,12 +358,12 @@ static bool stbNotSystemScan(SLogicNode* pNode) {
   }
 }
 
-static bool stbHasPartTbname(SNodeList* pPartKeys) {
-  if (NULL == pPartKeys) {
+bool keysHasTbname(SNodeList* pKeys) {
+  if (NULL == pKeys) {
     return false;
   }
   SNode* pPartKey = NULL;
-  FOREACH(pPartKey, pPartKeys) {
+  FOREACH(pPartKey, pKeys) {
     if (QUERY_NODE_GROUPING_SET == nodeType(pPartKey)) {
       pPartKey = nodesListGetNode(((SGroupingSetNode*)pPartKey)->pParameterList, 0);
     }
@@ -390,10 +390,10 @@ bool isPartTableAgg(SAggLogicNode* pAgg) {
     return false;
   }
   if (NULL != pAgg->pGroupKeys) {
-    return stbHasPartTbname(pAgg->pGroupKeys) &&
+    return (pAgg->isGroupTb || keysHasTbname(pAgg->pGroupKeys)) &&
            stbNotSystemScan((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0));
   }
-  return stbHasPartTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0)));
+  return pAgg->isPartTb || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0)));
 }
 
 static bool stbHasPartTag(SNodeList* pPartKeys) {
@@ -428,6 +428,17 @@ bool getBatchScanOptionFromHint(SNodeList* pList) {
   }
 
   return batchScan;
+}
+
+bool getSortForGroupOptHint(SNodeList* pList) {
+  SNode* pNode;
+  FOREACH(pNode, pList) {
+    SHintNode* pHint = (SHintNode*)pNode;
+    if (pHint->option == HINT_SORT_FOR_GROUP) {
+      return true;
+    }
+  }
+  return false;
 }
 
 int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
@@ -467,7 +478,7 @@ bool isPartTagAgg(SAggLogicNode* pAgg) {
 }
 
 bool isPartTableWinodw(SWindowLogicNode* pWindow) {
-  return stbHasPartTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
+  return pWindow->isPartTb || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
 }
 
 bool cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat) {
@@ -489,4 +500,20 @@ bool cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat) {
     cloned = true;
   }
   return cloned;
+}
+
+static EDealRes partTagsOptHasColImpl(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    if (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType && COLUMN_TYPE_TBNAME != ((SColumnNode*)pNode)->colType) {
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+bool keysHasCol(SNodeList* pKeys) {
+  bool hasCol = false;
+  nodesWalkExprs(pKeys, partTagsOptHasColImpl, &hasCol);
+  return hasCol;
 }
