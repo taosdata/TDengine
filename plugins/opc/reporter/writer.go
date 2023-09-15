@@ -139,7 +139,8 @@ const successCode = "0"
 func (w *ArrowWriter) writeRecord(_ context.Context, record arrow.Record) (err error) {
 	if w.debug {
 		j, _ := record.MarshalJSON()
-		logger.DebugF("## report to taosx by writer [%p] values [%s]", w, string(j))
+		logger.DebugF("## report to taosx by writer [%p] values [%s]. and [%d] elements in channel",
+			w, string(j), len(w.ch))
 	}
 	err = w.ipcWriter.Write(record)
 	if err != nil {
@@ -151,10 +152,6 @@ func (w *ArrowWriter) writeRecord(_ context.Context, record arrow.Record) (err e
 	}
 	responseRecord := w.ipcReader.Record()
 	defer responseRecord.Release()
-	if w.debug {
-		j, _ := responseRecord.MarshalJSON()
-		logger.DebugF("## report to taosx by [%p] and ack [%s]", w, string(j))
-	}
 
 	var code string
 	var message string

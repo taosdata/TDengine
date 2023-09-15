@@ -14,13 +14,13 @@ async fn restore(
     table: Option<&str>,
 ) -> Result<()> {
     let path = path.as_ref();
-    log::info!("[{}] restore with file: {:?}", id, path.display());
+    tracing::info!("[{}] restore with file: {:?}", id, path.display());
     let reader = tokio::fs::File::open(path).await?;
     let reader = tokio::io::BufReader::new(reader);
     let reader = async_compression::tokio::bufread::ZstdDecoder::new(reader);
     let mut reader = ZCodec::new(reader);
     let header = reader.header_async().await?;
-    log::debug!("[{id}] parse header: {:?}", header);
+    tracing::debug!("[{id}] parse header: {:?}", header);
     let mut rows = 0;
 
     loop {
@@ -32,11 +32,11 @@ async fn restore(
                     if let Err(err) = taos.write_raw_meta(&meta).await {
                         let err_str = err.to_string();
                         if err_str.contains("0x032C") {
-                            log::warn!("found error 0x032C, retry once");
+                            tracing::warn!("found error 0x032C, retry once");
                             tokio::time::sleep(Duration::from_nanos(100)).await;
                             taos.write_raw_meta(&meta).await?;
                         } else if err_str.contains("0x2603") {
-                            log::warn!("found error 0x2603, retry once");
+                            tracing::warn!("found error 0x2603, retry once");
                             taos.write_raw_meta(&meta).await?;
                         } else {
                             Err(err).context("create table error with write_raw")?;
@@ -71,17 +71,17 @@ async fn restore(
                             }
                         };
                     }
-                    log::debug!("[{id}] current rows: {}", rows);
+                    tracing::debug!("[{id}] current rows: {}", rows);
                     // taos.write_raw_data(data[0]).await?
                 }
                 _ => unreachable!(),
             },
             Err(err) => {
                 if err.kind() == std::io::ErrorKind::UnexpectedEof {
-                    log::info!("[{id}] reading file {} done", path.display());
+                    tracing::info!("[{id}] reading file {} done", path.display());
                     break;
                 }
-                log::debug!("[{id}] Reading data error: {}", &err);
+                tracing::debug!("[{id}] Reading data error: {}", &err);
                 break;
             }
         }
@@ -91,7 +91,7 @@ async fn restore(
     tokio::fs::write(zo, "").await?;
     drop(reader);
 
-    log::info!(
+    tracing::info!(
         "[{}] totally write {} rows from file {}",
         id,
         rows,
@@ -144,7 +144,7 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
         for topic in &config.topics {
             if &topic.database != target {
                 if force {
-                    log::warn!("restore from {} to {} by force", topic.database, target);
+                    tracing::warn!("restore from {} to {} by force", topic.database, target);
                 } else {
                     bail!("to restore from {} to a different database {}, please use --yes-i-really-mean-it", topic.database, target);
                 }
@@ -165,7 +165,7 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
     for topic in &config.topics {
         if let Some(target) = target_database.as_ref() {
             if !global_taos.database_exists(&target).await? {
-                log::info!(
+                tracing::info!(
                     "target database not exist, create database `{target}` with the same parameter in the backup"
                 );
                 if let Some(sql) = topic.database_sql.as_deref() {

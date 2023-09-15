@@ -156,7 +156,9 @@ func (r *reader) stop(_ context.Context) {
 	defer close(r.done)
 
 	r.disconnect()
-	r.dumper.Close()
+	if r.dumper != nil {
+		r.dumper.Close()
+	}
 }
 
 func (r *reader) ensureConnect(ctx context.Context) error {
@@ -196,10 +198,7 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 			case <-notifyCtx.Done():
 				return
 			case <-ticker.C:
-				values := r.readItems(r.tags)
-				for _, val := range values {
-					ch <- val
-				}
+				r.readAndSend(ch)
 			}
 		}
 	}()
@@ -207,11 +206,19 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 	return ch, nil
 }
 
+func (r *reader) readAndSend(ch chan *common.NodeValue) {
+	values := r.readItems(r.tags)
+	for _, val := range values {
+		ch <- val
+	}
+}
+
 func (r *reader) readItems(tags map[string]*daTag) (values []*common.NodeValue) {
 	start := time.Now()
 	items := r.client.Read()
 	spent := time.Since(start).Milliseconds()
 
+	now := time.Now()
 	values = make([]*common.NodeValue, 0, len(items))
 	for id, item := range items {
 		if !item.Good() && !r.containsBad {
@@ -238,7 +245,7 @@ func (r *reader) readItems(tags map[string]*daTag) (values []*common.NodeValue) 
 			Identifier: id,
 			Name:       tags[id].name,
 			Timestamp:  item.Timestamp,
-			Now:        time.Now(),
+			Now:        now,
 			Value:      value,
 			ValueType:  valueType,
 			Status:     int64(uint32(item.Quality)),

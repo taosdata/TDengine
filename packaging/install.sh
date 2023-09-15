@@ -162,8 +162,9 @@ print_tips(){
       echo -e "\033[32mTo start taosx-agent       \033[0m: sudo systemctl start taosx-agent"
       echo -e "\033[32mTo start taos-explorer     \033[0m: sudo systemctl start taos-explorer"
 
-      echo -e "\n\033[32mtaosx is installed successfully!\033[0m"
-      echo -e "\033[32mOpen taos-explorer in web browser: http://`hostname`:6060\033[0m"
+      echo -e "\n\033[32mtaosX and taosExplorer are installed successfully!\033[0m"
+      echo -e "\033[32mTo access the TDengine management system: http://`hostname`:6060\033[0m"
+      echo -e "\033[32mTo read the TDengine user manual: http://`hostname`:6060/docs\033[0m"
     else
       echo -e "\033[32mTo configure taosx-agent   \033[0m: edit /etc/taos/agent.toml"
       echo -e "\033[32mTo start taosx-agent       \033[0m: sudo systemctl start taosx-agent"

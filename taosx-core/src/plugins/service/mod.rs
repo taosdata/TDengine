@@ -40,19 +40,19 @@ impl From<taos::Error> for RestErrResponse {
 }
 impl RestBuilder {
     pub async fn query(&self, sql: &str) -> Result<RestOkResponse, RestErrResponse> {
-        log::info!("SQL: {sql}");
+        tracing::info!("SQL: {sql}");
         let conn = self.taos.get().await.map_err(|err| RestErrResponse {
             code: Code::FAILED,
             desc: err.to_string(),
         })?;
-        log::info!("Got connection, querying");
+        tracing::info!("Got connection, querying");
         let mut set = conn.query(sql).await?;
         let column_meta = set
             .fields()
             .iter()
             .map(|f| (f.name().to_string(), f.ty().to_string(), f.bytes()))
             .collect_vec();
-        log::info!("Got fields {column_meta:?}, fetching data.");
+        tracing::info!("Got fields {column_meta:?}, fetching data.");
         let data = set
             .to_records()
             .await?
@@ -68,7 +68,7 @@ impl RestBuilder {
                     .collect_vec()
             })
             .collect_vec();
-        log::info!("SQL result: {data:?}");
+        tracing::info!("SQL result: {data:?}");
         Ok(RestOkResponse {
             code: Code::SUCCESS,
             column_meta,
@@ -87,7 +87,7 @@ pub fn spawn_rest_service(pool: TaosPool, port: u16) -> anyhow::Result<()> {
         match rest.query(&sql).await {
             Ok(ok) => HttpResponse::Ok().json(ok),
             Err(err) => {
-                log::info!(
+                tracing::info!(
                     "query sql error code :{}, message:{} ",
                     err.code.to_string(),
                     err.desc

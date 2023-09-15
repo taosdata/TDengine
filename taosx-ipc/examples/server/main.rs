@@ -429,7 +429,7 @@ fn handle_point_message<R: Read, W: Write>(
                     let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
                     let code = id_code_map.get(&id);
                     if code.is_none() {
-                        log::warn!("id: {} cannot get code", id);
+                        tracing::warn!("id: {} cannot get code", id);
                         continue;
                     }
                     let mut child_table_name = stable_name.clone();
@@ -533,7 +533,7 @@ fn handle_point_message<R: Read, W: Write>(
                             }
                             Err(err) => {
                                 let errstr = err.to_string();
-                                log::debug!("error: {}", errstr);
+                                tracing::debug!("error: {}", errstr);
                                 if errstr.contains("[0x2603]") {
                                     // stable not exists
                                     println!("create stable sql: {}", &stable_sql);
@@ -622,7 +622,7 @@ fn handle_point_message<R: Read, W: Write>(
                                                 column_meta.ty(),
                                                 length,
                                                 );
-                                            log::info!("add execute sql: {}", &sql);
+                                            tracing::info!("add execute sql: {}", &sql);
                                             taos.exec_sync(sql).unwrap();
                                         });
                                     });

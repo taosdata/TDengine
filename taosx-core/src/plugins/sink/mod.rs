@@ -96,7 +96,7 @@ async fn ipc_tcp_forward(
 
     // let max_retries_in_one_minutes = 3;
     // let last_retry_time = Arc::new(AtomicUsize::new(0));
-    loop {
+    'start: loop {
         let data_stream = ipc_stream.clone();
         let data = FlightDataEncoderBuilder::new()
             .with_schema(schema.clone())
@@ -124,6 +124,9 @@ async fn ipc_tcp_forward(
             }
         };
         let mut client = FlightClient::new(channel);
+        client.add_header("x-task-id", &task_id.to_string())?;
+        client.add_header("x-token", &token)?;
+        client.add_header("x-version", crate::build::PKG_VERSION)?;
         let _ = client
             .handshake(Bytes::from(token.as_bytes().to_vec()))
             .await
@@ -133,8 +136,6 @@ async fn ipc_tcp_forward(
             })?;
         info!("Handshake done");
         // dbg!(res);
-        client.add_header("x-task-id", &task_id.to_string())?;
-        client.add_header("x-token", &token)?;
         info!("Do putting");
         let mut stream = client.do_put(data).await.map_err(|err| match dbg!(err) {
             FlightError::Arrow(err) => anyhow::anyhow!("IPC Arrow error: {err:#}"),
@@ -157,7 +158,7 @@ async fn ipc_tcp_forward(
                         {
                             tracing::warn!("Disconnected, retry after one second: {err:#}");
                             tokio::time::sleep(Duration::from_secs(1)).await;
-                            continue;
+                            continue 'start;
                         }
                         tracing::error!("Tonic error: {status}");
                         Err(err).context("Got server response with error")?;
@@ -179,7 +180,8 @@ async fn ipc_tcp_forward(
 
 async fn try_establish_channel(remote: String) -> anyhow::Result<Channel> {
     let endpoint = tonic::transport::Endpoint::try_from(remote)?
-        .keep_alive_timeout(Duration::from_secs(30))
+        .keep_alive_while_idle(true)
+        .keep_alive_timeout(Duration::from_secs(120))
         .http2_keep_alive_interval(Duration::from_secs(13));
     let channel = endpoint.connect().await?;
     Ok(channel)
@@ -1887,37 +1889,33 @@ async fn handle_lush_message_init(
 }
 
 #[allow(dead_code)]
-pub struct IpcStreamWorker<'a> {
-    pool: &'a TaosPool,
+pub struct IpcStreamWorker {
+    pool: TaosPool,
     parser: IpcParser,
     lock: Arc<Mutex<()>>,
     task: Option<i64>,
     from: Dsn,
     config: Option<OPCConfig>,
     opc_table_config: OnceCell<OpcTableConfig>,
-    license: Option<&'a ConnectorLicense>,
-    transferred: Option<&'a Transferred>,
+    license: Option<ConnectorLicense>,
+    transferred: Option<Transferred>,
     span: tracing::Span,
     // stmt: Arc<UnsafeCell<Stmt>>,
 }
-
-unsafe impl<'a> Send for IpcStreamWorker<'a> {}
-unsafe impl<'a> Sync for IpcStreamWorker<'a> {}
-
-impl<'a> IpcStreamWorker<'a> {
-    pub fn new(
-        pool: &'a TaosPool,
+impl IpcStreamWorker {
+    pub async fn new(
+        pool: TaosPool,
         from: Dsn,
         lock: Arc<Mutex<()>>,
         schema: Arc<Schema>,
-        license: Option<&'a ConnectorLicense>,
-        transferred: Option<&'a Transferred>,
+        license: Option<ConnectorLicense>,
+        transferred: Option<Transferred>,
         span: tracing::Span,
         // license: Option<>
     ) -> anyhow::Result<Self> {
         let config = if from.driver.starts_with("opc") {
-            let taos = futures::executor::block_on(pool.get())?;
-            Some(opc_config_blocking(&taos, &from, 1)?)
+            let taos = pool.get().await?;
+            Some(opc_config_blocking(&taos, &from, 1).await?)
         } else {
             None
         };
@@ -1988,8 +1986,8 @@ impl<'a> IpcStreamWorker<'a> {
                     &record,
                     &mut count,
                     parser, // todo: license
-                    self.license,
-                    self.transferred,
+                    self.license.as_ref(),
+                    self.transferred.as_ref(),
                 )
                 .await?;
                 Ok(count)
@@ -2022,14 +2020,16 @@ impl<'a> IpcStreamWorker<'a> {
                     &names,
                     &marks,
                     &mut count,
-                    self.license,
-                    self.transferred,
+                    self.license.as_ref(),
+                    self.transferred.as_ref(),
                 )
                 .await?;
                 Ok(count)
             }
             StreamType::Point => {
-                if let Some((_license, transferred)) = self.license.zip(self.transferred) {
+                if let Some((_license, transferred)) =
+                    self.license.as_ref().zip(self.transferred.as_ref())
+                {
                     let _used = transferred.points.load(Ordering::SeqCst);
                     // if used > license.number as _ {
                     //     anyhow::bail!(
@@ -2064,7 +2064,7 @@ impl<'a> IpcStreamWorker<'a> {
                 };
                 drop(guard);
                 let _n = consume_point_record(&taos, stmt, &record, &mut count, config).await?;
-                if let Some(transferred) = self.transferred {
+                if let Some(transferred) = &self.transferred {
                     transferred.points.fetch_add(_n as _, Ordering::SeqCst);
                 }
                 // todo: license

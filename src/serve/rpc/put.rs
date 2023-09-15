@@ -152,7 +152,7 @@ impl PutStream {
                 rx: flume::Receiver<arrow::record_batch::RecordBatch>,
                 rsp_tx: flume::Sender<anyhow::Result<()>>,
                 license: Option<ConnectorLicense>,
-                transferred: Option<Arc<ConnectorTransferred>>,
+                _transferred: Option<Arc<ConnectorTransferred>>,
                 span: tracing::Span,
             ) -> anyhow::Result<()> {
                 // dbg!(&task);
@@ -163,16 +163,15 @@ impl PutStream {
                 let _ = span.clone().entered();
 
                 let worker = IpcStreamWorker::new(
-                    &pool,
+                    pool.clone(),
                     from,
                     lock,
                     schema,
-                    license.as_ref(),
-                    transferred.as_deref(),
+                    license,
+                    None,
                     span.clone(),
                 )
-                .unwrap();
-                dbg!(&task);
+                .await?;
                 let parser: Option<Parser> = task
                     .parser
                     .as_ref()
@@ -181,19 +180,19 @@ impl PutStream {
                 loop {
                     match rx.recv_async().await {
                         Ok(record) => {
-                            log::info!("Start writing records: {record:?}");
+                            tracing::info!("Start writing records: {record:?}");
                             if let Err(err) = worker
                                 .process_record(&mut stmt, record, parser.as_ref())
                                 .await
                             {
-                                log::warn!("Write stream error: {err}");
+                                tracing::warn!("Write stream error: {err}");
                                 let _ = rsp_tx.send_async(Err(err)).await;
                             } else {
                                 let _ = rsp_tx.send_async(Ok(())).await;
                             }
                         }
                         Err(err) => {
-                            log::warn!("IPC stream worker stopped, err:{}", err.to_string());
+                            tracing::warn!("IPC stream worker stopped, err:{}", err.to_string());
                             break Ok(());
                         }
                     }
@@ -239,7 +238,7 @@ impl PutStream {
                             }
                             arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
                                 if let Err(err) = tx.send_async(batch).await {
-                                    log::warn!(
+                                    tracing::warn!(
                                         "into_flight_put_result channel send err: {}",
                                         err.to_string()
                                     );
@@ -267,9 +266,15 @@ impl PutStream {
                     }
                     Err(err) => Some(Err(err)),
                 };
+
                 if let Some(item) = item {
+                    let is_err = item.is_err();
                     if p_tx.send_async(item).await.is_err() {
-                        log::info!("into_flight_put_result channel closed");
+                        tracing::info!("into_flight_put_result channel closed");
+                        break;
+                    }
+                    if is_err {
+                        tracing::warn!("Flight error, break");
                         break;
                     }
                 }
@@ -304,7 +309,7 @@ impl PutStream {
         //                     arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
         //                         // dbg!(&batch);
         //                         if let Err(err) = tx.send_async(batch).await {
-        //                             log::warn!(
+        //                             tracing::warn!(
         //                                 "into_flight_put_result channel send err: {}",
         //                                 err.to_string()
         //                             );

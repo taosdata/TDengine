@@ -543,7 +543,7 @@ impl Parser {
                     {
                         indices.push(index);
                     } else {
-                        log::warn!("Selected column {} not found in stream message", name);
+                        tracing::warn!("Selected column {} not found in stream message", name);
                     }
                 }
                 Some(indices)

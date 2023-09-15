@@ -203,17 +203,27 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
         _ = runner => {
             tracing::info!("Runner stopped");
         }
-        _ = async {
+        err = async {
+            let ret: anyhow::Result<()>;
             loop {
                 let sender = sender.clone();
                 if let Err(err) = client.wait_tasks(sender, resp_tx.clone(), resp_rx.clone()).await {
+                    let err_str = format!("{err:#}");
+                    if err_str.contains("code: Aborted") {
+                        tracing::info!("Connection aborted, error: {err}");
+                        ret = Err(err);
+                        break;
+                    } else {
+                        tracing::error!("Connection closed, error: {err}. Retry in 5 seconds");
+                    }
                     tracing::error!("Connection closed, error: {err}. Retry in 5 seconds");
                 }
                 tokio::time::sleep(Duration::from_secs(5)).await;
             }
-            // Ok::<_, anyhow::Error>(())
+            ret
          } => {
-            tracing::info!("Task listener stopped");
+            tracing::error!("Task listener failed");
+            err?;
         }
         _ = async {
             loop {
@@ -314,12 +324,20 @@ fn main() -> anyhow::Result<()> {
             .boxed(),
     );
     if atty::is(atty::Stream::Stdout) {
+        cfg_if::cfg_if! {
+            if #[cfg(windows)] {
+               let ansi = false;
+            } else {
+               let ansi = true;
+            }
+        };
         layers.push(
             tracing_subscriber::fmt::layer()
                 .with_timer(timer.clone())
                 .with_level(true)
                 .with_writer(std::io::stdout)
                 .pretty()
+                .with_ansi(ansi)
                 .with_filter(level_filter)
                 .boxed(),
         );
@@ -329,13 +347,13 @@ fn main() -> anyhow::Result<()> {
     let version = build::PKG_VERSION;
     let commit_id = build::COMMIT_HASH;
     let build_time = build::BUILD_TIME;
-    log::info!("version: {version}");
-    log::info!("commit id: {commit_id}");
-    log::info!("build time: {build_time}");
+    tracing::info!("version: {version}");
+    tracing::info!("commit id: {commit_id}");
+    tracing::info!("build time: {build_time}");
 
-    log::info!("log keep days: {}", &log_keep_days);
+    tracing::info!("log keep days: {}", &log_keep_days);
 
-    log::info!("Start");
+    tracing::info!("Start");
 
     // todo: arrow flight rpc client.
     let rt = tokio::runtime::Builder::new_multi_thread()

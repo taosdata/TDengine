@@ -66,8 +66,10 @@ func (c *CsvDumper) Dump(value *common.NodeValue) error {
 }
 
 func (c *CsvDumper) Close() {
-	c.writer.Flush()
-	_ = c.rotator.Close()
+	if c.writer != nil {
+		c.writer.Flush()
+		_ = c.rotator.Close()
+	}
 }
 
 type FakeConnector struct {
