@@ -31,6 +31,7 @@ func NewDataReporter(config common.Config) (Reporter, error) {
 		batchSize:    config.Report.BatchSize,
 		batchTimeout: time.Duration(config.Report.BatchTimeout) * time.Second,
 		concurrent:   config.Report.Concurrent,
+		points:       len(config.Collect.Ua.Nodes) + len(config.Collect.Da.Tags),
 	}
 	return &r, nil
 }
@@ -45,6 +46,7 @@ type DataReporter struct {
 	once          sync.Once
 	valueChannels sync.Map // key - valueType, value - value channel
 	writers       []writer
+	points        int // point count
 }
 
 func (r *DataReporter) Report(ctx context.Context, ch <-chan *common.NodeValue) error {
@@ -64,7 +66,7 @@ func (r *DataReporter) Report(ctx context.Context, ch <-chan *common.NodeValue) 
 			valueCh = vc.(chan *common.NodeValue)
 		} else {
 			// create writer when first time
-			valueCh = make(chan *common.NodeValue, r.batchSize*2)
+			valueCh = make(chan *common.NodeValue, r.points*2)
 			r.valueChannels.Store(value.ValueType, valueCh)
 
 			writers, err := r.createWriters(value.ValueType, valueCh)
