@@ -246,6 +246,7 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   pRsp->superAuth = pUser->superUser;
   pRsp->version = pUser->authVersion;
   pRsp->passVer = pUser->passVersion;
+  pRsp->whiteListVer = pUser->ipWhiteListVer;
   pRsp->enable = pUser->enable;
   pRsp->sysInfo = pUser->sysInfo;
   taosRLockLatch(&pUser->lock);
@@ -278,3 +279,17 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
 
   return 0;
 }
+
+int32_t mndSetUserWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhiteListRsp *pWhiteListRsp) {
+  memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
+  pWhiteListRsp->numWhiteLists = pUser->pIpWhiteList->num;
+  pWhiteListRsp->pWhiteLists = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
+  if (pWhiteListRsp->pWhiteLists == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  memcpy(pUser->pIpWhiteList->pIpRange, pUser->pIpWhiteList->pIpRange,
+         pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
+  return 0;
+}
+
+int32_t mndEnableIpWhiteList(SMnode *pMnode) { return 1; }
