@@ -94,8 +94,8 @@ int32_t tqCheckAndRunStreamTask(STQ* pTq) {
       continue;
     }
 
-    pTask->tsInfo.init = taosGetTimestampMs();
-    tqDebug("s-task:%s set the init ts:%"PRId64, pTask->id.idStr, pTask->tsInfo.init);
+    pTask->taskExecInfo.init = taosGetTimestampMs();
+    tqDebug("s-task:%s set the init ts:%"PRId64, pTask->id.idStr, pTask->taskExecInfo.init);
 
     streamSetStatusNormal(pTask);
     streamTaskCheckDownstream(pTask);
@@ -241,7 +241,7 @@ int32_t tqStartStreamTasks(STQ* pTq) {
     SStreamTaskId* pTaskId = taosArrayGet(pMeta->pTaskList, i);
 
     int64_t key[2] = {pTaskId->streamId, pTaskId->taskId};
-    SStreamTask** pTask = taosHashGet(pMeta->pTasks, key, sizeof(key));
+    SStreamTask** pTask = taosHashGet(pMeta->pTasksMap, key, sizeof(key));
 
     int8_t status = (*pTask)->status.taskStatus;
     if (status == TASK_STATUS__STOP && (*pTask)->info.fillHistory != 1) {
@@ -307,7 +307,7 @@ void handleFillhistoryScanComplete(SStreamTask* pTask, int64_t ver) {
             ", not scan wal anymore, add transfer-state block into inputQ",
             id, ver, maxVer);
 
-      double el = (taosGetTimestampMs() - pTask->tsInfo.step2Start) / 1000.0;
+      double el = (taosGetTimestampMs() - pTask->taskExecInfo.step2Start) / 1000.0;
       qDebug("s-task:%s scan-history from WAL stage(step 2) ended, elapsed time:%.2fs", id, el);
       /*int32_t code = */streamTaskPutTranstateIntoInputQ(pTask);
       /*int32_t code = */streamSchedExec(pTask);

@@ -29,16 +29,23 @@ extern "C" {
 #define ONE_MB_F       (1048576.0)
 #define SIZE_IN_MB(_v) ((_v) / ONE_MB_F)
 
-typedef struct {
+typedef struct SStreamGlobalEnv {
   int8_t inited;
   void*  timer;
 } SStreamGlobalEnv;
 
-typedef struct {
+typedef struct SStreamContinueExecInfo {
   SEpSet  epset;
   int32_t taskId;
   SRpcMsg msg;
 } SStreamContinueExecInfo;
+
+struct STokenBucket {
+  int32_t capacity;     // total capacity
+  int64_t fillTimestamp;// fill timestamp
+  int32_t numOfToken;   // total available tokens
+  int32_t rate;         // number of token per second
+};
 
 extern SStreamGlobalEnv streamEnv;
 extern int32_t streamBackendId;

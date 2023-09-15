@@ -201,7 +201,7 @@ int32_t streamScanHistoryData(SStreamTask* pTask) {
 
   while (!finished) {
     if (streamTaskShouldPause(&pTask->status)) {
-      double el = (taosGetTimestampMs() - pTask->tsInfo.step1Start) / 1000.0;
+      double el = (taosGetTimestampMs() - pTask->taskExecInfo.step1Start) / 1000.0;
       qDebug("s-task:%s paused from the scan-history task, elapsed time:%.2fsec", pTask->id.idStr, el);
       break;
     }

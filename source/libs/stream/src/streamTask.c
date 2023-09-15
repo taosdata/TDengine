@@ -355,6 +355,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
     pTask->pUpstreamInfoList = NULL;
   }
 
+  taosMemoryFree(pTask->pTokenBucket);
   taosThreadMutexDestroy(&pTask->lock);
   taosMemoryFree(pTask);
 
@@ -371,10 +372,10 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
 
   if (pTask->inputInfo.queue == NULL || pTask->outputInfo.queue == NULL) {
     qError("s-task:%s failed to prepare the input/output queue, initialize task failed", pTask->id.idStr);
-    return -1;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pTask->tsInfo.created = taosGetTimestampMs();
+  pTask->taskExecInfo.created = taosGetTimestampMs();
   pTask->inputInfo.status = TASK_INPUT_STATUS__NORMAL;
   pTask->outputInfo.status = TASK_OUTPUT_STATUS__NORMAL;
   pTask->pMeta = pMeta;
@@ -384,19 +385,25 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   pTask->dataRange.range.minVer = ver;
   pTask->pMsgCb = pMsgCb;
 
-  streamTaskInitTokenBucket(&pTask->tokenBucket, 50, 50);
-
-  TdThreadMutexAttr attr = {0};
-  int ret = taosThreadMutexAttrInit(&attr);
-  if (ret != 0) {
-    qError("s-task:%s init mutex attr failed, code:%s", pTask->id.idStr, tstrerror(ret));
-    return ret;
+  pTask->pTokenBucket = taosMemoryCalloc(1, sizeof(STokenBucket));
+  if (pTask->pTokenBucket == NULL) {
+    qError("s-task:%s failed to prepare the tokenBucket, code:%s", pTask->id.idStr, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  ret = taosThreadMutexAttrSetType(&attr, PTHREAD_MUTEX_RECURSIVE);
-  if (ret != 0) {
-    qError("s-task:%s set mutex attr recursive, code:%s", pTask->id.idStr, tstrerror(ret));
-    return ret;
+  streamTaskInitTokenBucket(pTask->pTokenBucket, 50, 50);
+
+  TdThreadMutexAttr attr = {0};
+  int code = taosThreadMutexAttrInit(&attr);
+  if (code != 0) {
+    qError("s-task:%s init mutex attr failed, code:%s", pTask->id.idStr, tstrerror(code));
+    return code;
+  }
+
+  code = taosThreadMutexAttrSetType(&attr, PTHREAD_MUTEX_RECURSIVE);
+  if (code != 0) {
+    qError("s-task:%s set mutex attr recursive, code:%s", pTask->id.idStr, tstrerror(code));
+    return code;
   }
 
   taosThreadMutexInit(&pTask->lock, &attr);
@@ -517,7 +524,7 @@ int32_t streamTaskStop(SStreamTask* pTask) {
     taosMsleep(100);
   }
 
-  pTask->tsInfo.init = 0;
+  pTask->taskExecInfo.init = 0;
   int64_t el = taosGetTimestampMs() - st;
   qDebug("vgId:%d s-task:%s is closed in %" PRId64 " ms, and reset init ts", pMeta->vgId, pTask->id.idStr, el);
   return 0;
@@ -547,10 +554,18 @@ int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEpSet) {
 }
 
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList) {
+  STaskExecStatisInfo* p = &pTask->taskExecInfo;
+  qDebug("s-task:%s update task nodeEp epset, update count:%d, prevTs:%"PRId64, pTask->id.idStr,
+          p->taskUpdateCount + 1, p->latestUpdateTs);
+
+  p->taskUpdateCount += 1;
+  p->latestUpdateTs = taosGetTimestampMs();
+
   for (int32_t i = 0; i < taosArrayGetSize(pNodeList); ++i) {
     SNodeUpdateInfo* pInfo = taosArrayGet(pNodeList, i);
     doUpdateTaskEpset(pTask, pInfo->nodeId, &pInfo->newEp);
   }
+
   return 0;
 }
 
