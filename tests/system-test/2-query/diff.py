@@ -21,6 +21,7 @@ class TDTestCase:
             tdSql.checkData(i, 0, 1);
     
     def full_datatype_test(self):
+        tdSql.execute("use db;")
         sql = "create table st(ts timestamp, c1 bool, c2 float, c3 double,c4 tinyint, c5 smallint, c6 int, c7 bigint, c8 tinyint unsigned, c9 smallint unsigned, c10 int unsigned, c11 bigint unsigned) tags( area int);"
         tdSql.execute(sql)
 
