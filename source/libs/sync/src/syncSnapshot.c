@@ -368,6 +368,17 @@ void snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver) {
     pReceiver->pWriter = NULL;
   }
 
+  // free data of snapshot info
+  if (pReceiver->snapshotParam.data) {
+    taosMemoryFree(pReceiver->snapshotParam.data);
+    pReceiver->snapshotParam.data = NULL;
+  }
+
+  if (pReceiver->snapshot.data) {
+    taosMemoryFree(pReceiver->snapshot.data);
+    pReceiver->snapshot.data = NULL;
+  }
+
   // free receiver
   taosMemoryFree(pReceiver);
 }
@@ -652,6 +663,17 @@ _SEND_REPLY:
   if (snapInfo.data) {
     pRspMsg->payloadType = snapInfo.typ;
     memcpy(pRspMsg->data, snapInfo.data, dataLen);
+
+    // save snapshot info
+    SSnapshotParam *pParam = &pReceiver->snapshotParam;
+    void           *data = taosMemoryRealloc(pParam->data, dataLen);
+    if (data == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = terrno;
+      goto _out;
+    }
+    pParam->data = data;
+    memcpy(pParam->data, snapInfo.data, dataLen);
   }
 
   // send msg
@@ -941,7 +963,7 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
       terrno = TSDB_CODE_INVALID_DATA_FMT;
       return -1;
     }
-    pSender->snapshotParam.data = pMsg->data;
+    pSender->snapshotParam.data = (void *)pMsg->data;
   }
 
   int32_t code = pSyncNode->pFsm->FpSnapshotStartRead(pSyncNode->pFsm, &pSender->snapshotParam, &pSender->pReader);
