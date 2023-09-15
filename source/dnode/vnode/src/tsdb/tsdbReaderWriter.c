@@ -28,6 +28,7 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
     const char *object_name = taosDirEntryBaseName((char *)path);
     long        s3_size = tsS3Enabled ? s3Size(object_name) : 0;
     if (tsS3Enabled && !strncmp(path + strlen(path) - 5, ".data", 5) && s3_size > 0) {
+#ifndef S3_BLOCK_CACHE
       s3EvictCache(path, s3_size);
       s3Get(object_name, path);
 
@@ -38,6 +39,13 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
         // taosMemoryFree(pFD);
         goto _exit;
       }
+#else
+      pFD->s3File = 1;
+      pFD->pFD = (TdFilePtr)&pFD->s3File;
+      int32_t vid = 0;
+      sscanf(object_name, "v%df%dver%lld.data", &vid, &pFD->fid, &pFD->cid);
+      pFD->objName = object_name;
+#endif
     } else {
       code = TAOS_SYSTEM_ERROR(errsv);
       // taosMemoryFree(pFD);
@@ -101,7 +109,9 @@ void tsdbCloseFile(STsdbFD **ppFD) {
   STsdbFD *pFD = *ppFD;
   if (pFD) {
     taosMemoryFree(pFD->pBuf);
-    taosCloseFile(&pFD->pFD);
+    if (!pFD->s3File) {
+      taosCloseFile(&pFD->pFD);
+    }
     taosMemoryFree(pFD);
     *ppFD = NULL;
   }
@@ -151,6 +161,18 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
     if (code) {
       goto _exit;
     }
+  }
+
+  if (pFD->s3File) {
+    // 1. convert pgno to block no,
+    //    block_size(# of pages) & block_cache_size (# of blocks)
+    //    block_no = pgno / block_size + 1;
+    //    block_offset = (block_no - 1) * block_size * pFD->szPage
+    // 2, lookup block cache to fetch block
+    // 3, if found, memcpy page from block
+    // 4, if not found, download block from s3
+    //    check pg checksum in the block
+    //    insert into block cache and goto step 3.
   }
 
   // seek

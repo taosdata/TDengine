@@ -264,6 +264,9 @@ char   tsS3BucketName[TSDB_FQDN_LEN] = "<bucketname>";
 char   tsS3AppId[TSDB_FQDN_LEN] = "<appid>";
 int8_t tsS3Enabled = false;
 
+int32_t tsS3BlockSize = 4096;     // number of tsdb pages
+int32_t tsS3BlockCacheSize = 16;  // number of blocks
+
 int32_t tsCheckpointInterval = 20;
 
 #ifndef _STORAGE
@@ -321,7 +324,9 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   return 0;
 }
 
-struct SConfig *taosGetCfg() { return tsCfg; }
+struct SConfig *taosGetCfg() {
+  return tsCfg;
+}
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
