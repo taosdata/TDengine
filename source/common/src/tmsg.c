@@ -6891,7 +6891,7 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     ASSERT(0);
   }
 
-  if(tDecodeIsEnd(pCoder)){
+  if(!tDecodeIsEnd(pCoder)){
     if(tDecodeI32(pCoder, &pReq->sqlLen) < 0) return -1;
     if(pReq->sqlLen > 0){
       pReq->sql = taosMemoryCalloc(1, pReq->sqlLen + 1);
