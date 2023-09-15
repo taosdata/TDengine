@@ -590,21 +590,22 @@ _err:
 static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
   if (0 != atomic_val_compare_exchange_8(&grantHbLock, 0, 1)) {
     uWarn("previous grant task not finished yet");
+    atomic_val_compare_exchange_8(&grantHbLock, 1, 2);
     return 0;
   }
 
-  if (tsGrantHBInterval != GRANT_HEART_BEAT_MSG) tsGrantHBInterval = GRANT_HEART_BEAT_MSG;
   SMnode *pMnode = pReq->info.node;
   int32_t dnodeSize = mndGetDnodeSize(pMnode);
-
   SArray *pDnodeInfo = taosArrayInit(dnodeSize, sizeof(SDnodeInfo));
   if (!pDnodeInfo) {
-    atomic_val_compare_exchange_8(&grantHbLock, 1, 0);
+    atomic_store_8(&grantHbLock, 0);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     uWarn("failed to process grant hb msg since %s", terrstr());
     return -1;
   }
 
+_grant:
+  if (tsGrantHBInterval != GRANT_HEART_BEAT_MSG) tsGrantHBInterval = GRANT_HEART_BEAT_MSG;
   if (recheckClusterTime) {
     grantResetMaster(pMnode);
     grantConnResetMaster(pMnode);
@@ -641,9 +642,13 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
     atomic_store_8(&tsGrant, 0);
   }
 
-  taosArrayDestroy(pDnodeInfo);
+  if (atomic_val_compare_exchange_8(&grantHbLock, 2, 1) == 2) {
+    taosArrayClear(pDnodeInfo);
+    goto _grant;
+  }
 
-  atomic_val_compare_exchange_8(&grantHbLock, 1, 0);
+  atomic_store_8(&grantHbLock, 0);
+  taosArrayDestroy(pDnodeInfo);
   return 0;
 }
 
@@ -851,6 +856,9 @@ static void grantRetrieveGrantInfo(SMnode *pMnode) {
 int32_t mndUpdateClusterInfo(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
   grantRetrieveGrantInfo(pMnode);
+
+  // distribute grantStatus to dnodes at once
+  tsGrantHBInterval = -GRANT_HEART_BEAT_MSG;  // equal to GRANT_HB_INTERVAL;
   return 0;
 }
 
