@@ -51,7 +51,6 @@ enum {
   DND_CONN_ACTIVE_CODE,
 };
 
-extern int32_t  mndUpdateClusterInfo(SRpcMsg *pReq);
 static int32_t  mndCreateDefaultDnode(SMnode *pMnode);
 static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode);
 static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw);
@@ -473,7 +472,9 @@ static bool mndUpdateMnodeState(SMnodeObj *pObj, SMnodeLoad *pMload) {
 }
 
 #ifndef TD_ENTERPRISE
-int32_t mndUpdateClusterInfo(SRpcMsg *pReq) { return 0; }
+static int32_t mndUpdateClusterInfo(SRpcMsg *pReq) { return 0; }
+#else
+int32_t mndUpdateClusterInfo(SRpcMsg *pReq);
 #endif
 
 static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
