@@ -388,7 +388,7 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
   pLoad->numOfCachedTables = tsdbCacheGetElems(pVnode);
   pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
-  pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta);
+  pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 0);
   pLoad->totalStorage = (int64_t)3 * 1073741824;
   pLoad->compStorage = (int64_t)2 * 1073741824;
   pLoad->pointsWritten = 100;

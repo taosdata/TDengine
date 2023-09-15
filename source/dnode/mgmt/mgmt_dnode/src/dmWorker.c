@@ -148,6 +148,20 @@ int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
   return 0;
 }
 
+int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  if (taosThreadCreate(&pMgmt->statusThread, &thAttr, dmStatusThreadFp, pMgmt) != 0) {
+    dError("failed to create status thread since %s", strerror(errno));
+    return -1;
+  }
+
+  taosThreadAttrDestroy(&thAttr);
+  tmsgReportStartup("dnode-status", "initialized");
+  return 0;
+}
+
 void dmStopStatusThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->statusThread)) {
     taosThreadJoin(pMgmt->statusThread, NULL);

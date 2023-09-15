@@ -26,6 +26,9 @@ static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
   if (dmStartCrashReportThread(pMgmt) != 0) {
     return -1;
   }
+  if (dmStartNotifyThread(pMgmt) != 0) {
+    return -1;
+  }
   return 0;
 }
 

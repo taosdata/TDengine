@@ -697,18 +697,15 @@ int64_t metaGetTbNum(SMeta *pMeta) {
 }
 
 // N.B. Called by statusReq per second
-int64_t metaGetTimeSeriesNum(SMeta *pMeta) {
+int64_t metaGetTimeSeriesNum(SMeta *pMeta, int type) {
   // sum of (number of columns of stable -  1) * number of ctables (excluding timestamp column)
-  int64_t nTables = metaGetTbNum(pMeta);
-  if (nTables - pMeta->pVnode->config.vndStats.numOfCmprTables > 0 ||
-      pMeta->pVnode->config.vndStats.numOfTimeSeries <= 0 ||
+  if (type || pMeta->pVnode->config.vndStats.numOfTimeSeries <= 0 ||
       ++pMeta->pVnode->config.vndStats.itvTimeSeries % (60 * 5) == 0) {
     int64_t num = 0;
     vnodeGetTimeSeriesNum(pMeta->pVnode, &num);
     pMeta->pVnode->config.vndStats.numOfTimeSeries = num;
 
     pMeta->pVnode->config.vndStats.itvTimeSeries = (TD_VID(pMeta->pVnode) % 100) * 2;
-    pMeta->pVnode->config.vndStats.numOfCmprTables = nTables;
   }
 
   return pMeta->pVnode->config.vndStats.numOfTimeSeries + pMeta->pVnode->config.vndStats.numOfNTimeSeries;
