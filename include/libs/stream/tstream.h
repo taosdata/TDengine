@@ -321,8 +321,8 @@ typedef struct {
   int64_t init;
   int64_t step1Start;
   int64_t step2Start;
-  int64_t execStart;
-  int32_t taskUpdateCount;
+  int64_t start;
+  int32_t updateCount;
   int64_t latestUpdateTs;
 } STaskExecStatisInfo;
 
@@ -722,7 +722,7 @@ int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSo
 int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask);
 
 int32_t streamAlignTransferState(SStreamTask* pTask);
-
+int32_t streamBuildAndSendDropTaskMsg(SStreamTask* pTask, int32_t vgId, SStreamTaskId* pTaskId);
 int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask,
                                         int8_t isSucceed);
 int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SRpcMsg* pMsg,

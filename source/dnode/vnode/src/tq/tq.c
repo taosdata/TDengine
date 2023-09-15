@@ -1097,7 +1097,8 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
       tqDebug("s-task:%s fill-history task set status to be dropping", id);
 
-      streamMetaUnregisterTask(pMeta, pTask->id.streamId, pTask->id.taskId);
+//      streamMetaUnregisterTask(pMeta, pTask->id.streamId, pTask->id.taskId);
+      streamBuildAndSendDropTaskMsg(pTask, pMeta->vgId, &pTask->id);
       streamMetaReleaseTask(pMeta, pTask);
       return -1;
     }
@@ -1347,10 +1348,14 @@ int32_t tqProcessTaskDropReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgL
 
   // commit the update
   taosWLockLatch(&pTq->pStreamMeta->lock);
+  int32_t numOfTasks = streamMetaGetNumOfTasks(pTq->pStreamMeta);
+  tqDebug("vgId:%d task:0x%x dropped, remain tasks:%d", TD_VID(pTq->pVnode), pReq->taskId, numOfTasks);
+
   if (streamMetaCommit(pTq->pStreamMeta) < 0) {
     // persist to disk
   }
   taosWUnLockLatch(&pTq->pStreamMeta->lock);
+
   return 0;
 }
 
