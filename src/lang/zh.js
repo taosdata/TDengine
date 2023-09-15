@@ -796,6 +796,7 @@ export default {
     version: '版本',
     users:'用户数量',
     license:'许可证',
+    audit:'审计',
     stables: "超级表",
     tables: "表",
     dnodes: 'dnode 数量',
@@ -1626,7 +1627,11 @@ export default {
     activeCode: '激活码',
     cActiveCode: '连接器激活码',
     dataRestoration: '数据恢复',
-    activeTip: '联系TDengine客户成功团队获取激活码'
+    activeTip: '联系TDengine客户成功团队获取激活码',
+    time: '时间',
+    details: '细节',
+    target_1: '操作对象 1',
+    target_2: '操作对象 2',
   },
   taosagents:{
     step1:'安装',

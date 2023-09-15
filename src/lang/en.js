@@ -954,6 +954,7 @@ export default {
     clusterId: 'Cluster ID',
     version: 'Version',
     license: 'License',
+    audit:'Audit',
     stables: "STables",
     tables: "Table",
     select_topic_tip: 'Please select the topic',
@@ -1852,7 +1853,11 @@ export default {
     activeCode: 'Activation code',
     cActiveCode: 'Activation Code for Connectors',
     dataRestoration: 'Restore',
-    activeTip: 'Contact the TDengine customer success team to get the activation code'
+    activeTip: 'Contact the TDengine customer success team to get the activation code',
+    time: 'Time',
+    details: 'Details',
+    target_1: 'Operand 1',
+    target_2: 'Operand 2',
   },
   taosagents: {
     step1:'Install',
