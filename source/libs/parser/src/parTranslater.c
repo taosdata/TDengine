@@ -8312,7 +8312,7 @@ typedef struct SVgroupCreateTableBatch {
 } SVgroupCreateTableBatch;
 
 static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* pStmt, const SVgroupInfo* pVgroupInfo,
-                                        SVgroupCreateTableBatch* pBatch) {
+                                        SVgroupCreateTableBatch* pBatch, STranslateContext* pCxt) {
   char  dbFName[TSDB_DB_FNAME_LEN] = {0};
   SName name = {.type = TSDB_DB_NAME_T, .acctId = acctId};
   strcpy(name.dbname, pStmt->dbName);
@@ -8322,6 +8322,14 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   req.type = TD_NORMAL_TABLE;
   req.name = taosStrdup(pStmt->tableName);
   req.ttl = pStmt->pOptions->ttl;
+  req.sqlLen = pCxt->pParseCxt->sqlLen;
+  if (req.sqlLen > 0) {
+    req.sql = taosMemoryMalloc(pCxt->pParseCxt->sqlLen);
+    if (NULL == req.sql) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    memcpy(req.sql, pCxt->pParseCxt->pSql, req.sqlLen);
+  }
   if (pStmt->pOptions->commentNull == false) {
     req.comment = taosStrdup(pStmt->pOptions->comment);
     if (NULL == req.comment) {
@@ -8426,14 +8434,14 @@ static void destroyCreateTbReqArray(SArray* pArray) {
 }
 
 static int32_t buildCreateTableDataBlock(int32_t acctId, const SCreateTableStmt* pStmt, const SVgroupInfo* pInfo,
-                                         SArray** pBufArray) {
+                                         SArray** pBufArray, STranslateContext* pCxt) {
   *pBufArray = taosArrayInit(1, POINTER_BYTES);
   if (NULL == *pBufArray) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   SVgroupCreateTableBatch tbatch = {0};
-  int32_t                 code = buildNormalTableBatchReq(acctId, pStmt, pInfo, &tbatch);
+  int32_t                 code = buildNormalTableBatchReq(acctId, pStmt, pInfo, &tbatch, pCxt);
   if (TSDB_CODE_SUCCESS == code) {
     code = serializeVgroupCreateTableBatch(&tbatch, *pBufArray);
   }
@@ -8460,7 +8468,7 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
   }
   SArray* pBufArray = NULL;
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildCreateTableDataBlock(pCxt->pParseCxt->acctId, pStmt, &info, &pBufArray);
+    code = buildCreateTableDataBlock(pCxt->pParseCxt->acctId, pStmt, &info, &pBufArray, pCxt);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteToVnodeModifyOpStmt(pQuery, pBufArray);
@@ -8474,7 +8482,7 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
 
 static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, SCreateSubTableClause* pStmt,
                                      const STag* pTag, uint64_t suid, const char* sTableNmae, SVgroupInfo* pVgInfo,
-                                     SArray* tagName, uint8_t tagNum) {
+                                     SArray* tagName, uint8_t tagNum, STranslateContext* pCxt) {
   //  char  dbFName[TSDB_DB_FNAME_LEN] = {0};
   //  SName name = {.type = TSDB_DB_NAME_T, .acctId = acctId};
   //  strcpy(name.dbname, pStmt->dbName);
@@ -8484,6 +8492,11 @@ static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, S
   req.type = TD_CHILD_TABLE;
   req.name = taosStrdup(pStmt->tableName);
   req.ttl = pStmt->pOptions->ttl;
+  req.sqlLen = pCxt->pParseCxt->sqlLen;
+  if (req.sqlLen > 0) {
+    req.sql = taosMemoryMalloc(pCxt->pParseCxt->sqlLen);
+    memcpy(req.sql, pCxt->pParseCxt->pSql, req.sqlLen);
+  }
   if (pStmt->pOptions->commentNull == false) {
     req.comment = taosStrdup(pStmt->pOptions->comment);
     req.commentLen = strlen(pStmt->pOptions->comment);
@@ -8760,7 +8773,7 @@ static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableCla
   }
   if (TSDB_CODE_SUCCESS == code) {
     addCreateTbReqIntoVgroup(pCxt->pParseCxt->acctId, pVgroupHashmap, pStmt, pTag, pSuperTableMeta->uid,
-                             pStmt->useTableName, &info, tagName, pSuperTableMeta->tableInfo.numOfTags);
+                             pStmt->useTableName, &info, tagName, pSuperTableMeta->tableInfo.numOfTags, pCxt);
   } else {
     taosMemoryFree(pTag);
   }
