@@ -1753,6 +1753,34 @@ impl TaskController {
         }
     }
 
+    pub async fn agent_disconnect(&self, agent_id: i64) -> anyhow::Result<()> {
+        let tasks = self
+            .tasks(TaskFilter {
+                via: Some(agent_id),
+                status: Some("running".to_string()),
+                ..Default::default()
+            })
+            .await?;
+        for task in tasks {
+            let id = task.id;
+            let _ = sqlx::query(&format!(
+                "UPDATE tasks SET `status` = `cancelled` WHERE id = {id} AND `status` == 'running'"
+            ))
+            .execute(&self.pool)
+            .await;
+            let activity = Activity::new::<String>(
+                id,
+                Utc::now(),
+                LevelFilter::Info,
+                format!("Task {id} is cancelled because agent is disconnected"),
+                "cancelled",
+                None,
+            );
+            self.push_task_activity(&activity).await?;
+        }
+        Ok(())
+    }
+
     pub async fn update_agent(
         &self,
         agent_id: i64,

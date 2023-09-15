@@ -38,7 +38,7 @@ use arrow_flight::{
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
     HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
 };
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::serve::{
     controller::{
@@ -361,7 +361,9 @@ impl FlightService for FlightServiceImpl {
                                         let _ = resp_tx.send_async(item).await;
                                         // return std::task::Poll::Ready(Some(item));
                                     }
-                                    _ => todo!("Unknown action"),
+                                    action => {
+                                        warn!("Unknown action: {action}");
+                                    }
                                 }
                             }
                             // batch.
@@ -371,7 +373,7 @@ impl FlightService for FlightServiceImpl {
                     Ok(())
                 })
                 .await;
-            tracing::info!(agent = agent_id, "Agent RPC stopped");
+            tracing::info!(agent = agent_id, "Agent RPC stopped with ");
             let context = result
                 .err()
                 .map(|err| json!({"code": 0xFFFFi32, "message": err.to_string()}).to_string());
@@ -384,6 +386,12 @@ impl FlightService for FlightServiceImpl {
                 context,
             );
             let _ = controller_runner.push_agent_activity(&activity).await?;
+            tracing::info!(agent = agent_id, "Agent RPC stopped");
+
+            controller_runner
+                .agent_disconnect(agent_id)
+                .await
+                .map_err(|err| Status::internal(err.to_string()))?;
             Ok::<_, anyhow::Error>(())
         });
         let stream: Self::DoExchangeStream = Box::pin(IpcStream::new(rx));
