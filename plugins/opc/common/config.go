@@ -232,3 +232,17 @@ type Point struct {
 	ID   string `json:"id,omitempty"`
 	Name string `json:"name,omitempty"`
 }
+
+type NodeValues []*NodeValue
+
+func (n NodeValues) Len() int {
+	return len(n)
+}
+
+func (n NodeValues) Less(i, j int) bool {
+	return n[i].Timestamp.Before(n[j].Timestamp)
+}
+
+func (n NodeValues) Swap(i, j int) {
+	n[i], n[j] = n[j], n[i]
+}
