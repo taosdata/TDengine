@@ -293,7 +293,8 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
       // for stream interval
       if (pBlock->info.type == STREAM_RETRIEVE || pBlock->info.type == STREAM_DELETE_RESULT ||
-          pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
+          pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_CREATE_CHILD_TABLE ||
+          pBlock->info.type == STREAM_CHECKPOINT) {
         return pBlock;
       }
 
