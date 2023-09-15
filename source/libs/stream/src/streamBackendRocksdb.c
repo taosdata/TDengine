@@ -1710,27 +1710,27 @@ int streamStateGetCfIdx(SStreamState* pState, const char* funcName) {
     }
   }
   if (pState != NULL && idx != -1) {
-    SBackendCfWrapper*              wrapper = pState->pTdbState->pBackendCfWrapper;
-    rocksdb_column_family_handle_t* cf = NULL;
-    taosThreadRwlockRdlock(&wrapper->rwLock);
-    cf = wrapper->pHandle[idx];
-    taosThreadRwlockUnlock(&wrapper->rwLock);
-    if (cf == NULL) {
-      char buf[128] = {0};
-      GEN_COLUMN_FAMILY_NAME(buf, wrapper->idstr, ginitDict[idx].key);
-      char* err = NULL;
+    SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
 
-      taosThreadRwlockWrlock(&wrapper->rwLock);
+    char buf[128] = {0};
+    GEN_COLUMN_FAMILY_NAME(buf, wrapper->idstr, ginitDict[idx].key);
+    char* err = NULL;
+
+    taosThreadRwlockWrlock(&wrapper->rwLock);
+    rocksdb_column_family_handle_t* cf = NULL;
+    cf = wrapper->pHandle[idx];
+    if (cf == NULL) {
       cf = rocksdb_create_column_family(wrapper->rocksdb, wrapper->cfOpts[idx], buf, &err);
       if (err != NULL) {
         idx = -1;
         qError("failed to to open cf, %p %s_%s, reason:%s", pState, wrapper->idstr, funcName, err);
         taosMemoryFree(err);
       } else {
+        qDebug("succ to open cf, %p %s_%s", pState, wrapper->idstr, funcName);
         wrapper->pHandle[idx] = cf;
       }
-      taosThreadRwlockUnlock(&wrapper->rwLock);
     }
+    taosThreadRwlockUnlock(&wrapper->rwLock);
   }
 
   return idx;
