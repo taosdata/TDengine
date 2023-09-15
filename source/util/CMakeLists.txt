@@ -22,13 +22,9 @@ target_include_directories(
 )
 target_link_libraries(
     util
-    PUBLIC os
+    PUBLIC os common
     PUBLIC lz4_static
     PUBLIC api cjson geos_c TSZ
-)
-target_sources(
-    util 
-    PRIVATE "${TD_SOURCE_DIR}/source/common/src/tglobal.c"
 )
 
 if(${BUILD_TEST})
