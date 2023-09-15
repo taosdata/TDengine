@@ -491,8 +491,7 @@ static int32_t vnodeSnapshotDoRead(const SSyncFSM *pFsm, void *pReader, void **p
 }
 
 static int32_t vnodeSnapshotStartWrite(const SSyncFSM *pFsm, void *pParam, void **ppWriter) {
-  SVnode         *pVnode = pFsm->data;
-  SSnapshotParam *pSnapshotParam = pParam;
+  SVnode *pVnode = pFsm->data;
 
   do {
     int32_t itemSize = tmsgGetQueueSize(&pVnode->msgCb, pVnode->config.vgId, APPLY_QUEUE);
@@ -505,7 +504,7 @@ static int32_t vnodeSnapshotStartWrite(const SSyncFSM *pFsm, void *pParam, void 
     }
   } while (true);
 
-  int32_t code = vnodeSnapWriterOpen(pVnode, pSnapshotParam->start, pSnapshotParam->end, (SVSnapWriter **)ppWriter);
+  int32_t code = vnodeSnapWriterOpen(pVnode, (SSnapshotParam *)pParam, (SVSnapWriter **)ppWriter);
   return code;
 }
 
