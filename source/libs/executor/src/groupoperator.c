@@ -1132,7 +1132,8 @@ static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
       } break;
       case STREAM_CREATE_CHILD_TABLE:
       case STREAM_RETRIEVE:
-      case STREAM_CHECKPOINT: {
+      case STREAM_CHECKPOINT: 
+      case STREAM_GET_ALL: {
         return pBlock;
       }
       default:
