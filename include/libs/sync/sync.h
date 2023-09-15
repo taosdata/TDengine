@@ -151,12 +151,12 @@ typedef struct SReConfigCbMeta {
 typedef struct SSnapshotParam {
   SyncIndex start;
   SyncIndex end;
-  void*     data;  // with SMsgHead
+  SSyncTLV* data;
 } SSnapshotParam;
 
 typedef struct SSnapshot {
-  ESyncSnapInfoTyp typ;
-  void*            data;  // with SMsgHead
+  int32_t   typ;
+  SSyncTLV* data;
   SyncIndex lastApplyIndex;
   SyncTerm  lastApplyTerm;
   SyncIndex lastConfigIndex;
