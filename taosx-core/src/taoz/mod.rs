@@ -107,7 +107,7 @@ impl ZFile {
     }
 
     pub async fn shutdown(&mut self) -> IoResult<()> {
-        log::debug!("shutdown file {}", self.prefix.display());
+        tracing::debug!("shutdown file {}", self.prefix.display());
         self.file.shutdown().await?;
         Ok(())
     }
@@ -252,8 +252,8 @@ mod tests {
                             let _len = writer.write_data_async(&block).await.unwrap();
                             rows += block.nrows();
                             // dbg!(len);
-                            // log::info!("");
-                            log::info!(
+                            // tracing::info!("");
+                            tracing::info!(
                                 "table {} rows: {}",
                                 block.table_name().unwrap(),
                                 block.nrows()

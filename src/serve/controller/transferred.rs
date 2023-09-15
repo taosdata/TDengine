@@ -78,7 +78,7 @@ async fn tracking_transferred(
             // let cache
             let res = sqlx::query("insert into connector_transferred values(?, ?, ?, ?, ?) on conflict(cluster_id, connector) DO update set tables = excluded.tables, records = excluded.records, points = excluded.points").bind(cluster_id).bind(connector).bind(transferred.tables.load(Ordering::SeqCst) as i32).bind(transferred.records.load(Ordering::SeqCst) as i64).bind(transferred.points.load(Ordering::SeqCst) as i64).execute(persist).await;
             if let Err(err) = res {
-                log::error!("Persist connector transferred metrics to database error: {err}");
+                tracing::error!("Persist connector transferred metrics to database error: {err}");
             }
         }
         Ok::<_, sqlx::Error>(())

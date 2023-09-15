@@ -120,7 +120,7 @@ impl Cli {
                 res?;
             }
             _ = tokio::signal::ctrl_c() => {
-                log::info!("ctrl-c received, exiting...");
+                tracing::info!("ctrl-c received, exiting...");
                 cancel.cancel();
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             }

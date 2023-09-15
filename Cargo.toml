@@ -4,6 +4,7 @@ members = ["taosx-ipc", "taosx-core", "taosx-agent"]
 [workspace.dependencies]
 chrono = { version = "0.4.26" }
 chrono-tz = { version = "0.8.3" }
+shadow-rs = { version = "0.23" }
 
 regex = { version = "1.9" }
 arrow = { version = "46.0.0", features = ["chrono-tz"] }
@@ -12,16 +13,16 @@ parquet = "46.0.0"
 
 tonic = "0.9"
 
-taos = { version = "0.10.4", default-features = false, features = [
+taos = { version = "0.10.9", default-features = false, features = [
   "ws",
   "deadpool",
 ] }
-taos-query = { version = "0.10.4", default-features = false, features = [
+taos-query = { version = "0.10.9", default-features = false, features = [
   "deadpool",
 ] }
 
 [workspace.package]
-version = "1.2.0"
+version = "1.2.2"
 
 [package]
 name = "taosx"
@@ -37,6 +38,9 @@ description = "taosX - TDengine data integration tool"
 anyhow = "1"
 arrow = { workspace = true }
 arrow-flight = { workspace = true }
+
+shadow-rs = { workspace = true }
+
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bitflags = "2"
@@ -74,7 +78,7 @@ base64 = "0.21.2"
 cfg-if = "1.0.0"
 uuid = { version = "1.4.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
-sqlx = { version = "0.6", features = ["sqlite", "chrono", "json"] }
+sqlx = { version = "0.7", features = ["sqlite", "chrono", "json"] }
 utoipa = { version = "3", features = ["actix_extras", "chrono"] }
 utoipa-swagger-ui = { version = "3.0.2", features = ["actix-web"] }
 
@@ -89,8 +93,6 @@ metrics = "0.21.0"
 metrics-exporter-prometheus = { version = "0.12.0", default-features = false, features = [
   "push-gateway",
 ] }
-# palaver = "0.2.8"
-shadow-rs = "0.21.0"
 sysinfo = "0.29.0"
 
 async-backtrace = "0.2.2"
@@ -103,7 +105,7 @@ serde_with = "3"
 tokio-cron-scheduler = "0.9.4"
 
 bitvec = "1"
-mimalloc = { version = "0.1.34", default-features = false, optional = true }
+mimalloc = { version = "0.1.39", default-features = false, optional = true }
 tempfile = "3"
 
 bytes = "1.4.0"
@@ -111,7 +113,11 @@ jsonwebtoken = "8.3"
 rand = "0.8"
 
 time = { version = "0.3", features = ["formatting", "macros"] }
-tracing-subscriber = { version = "0.3", features = ["time", "local-time","env-filter"] }
+tracing-subscriber = { version = "0.3", features = [
+  "time",
+  "local-time",
+  "env-filter",
+] }
 tracing-appender = "0.2"
 tracing = { version = "0.1", features = ["log"] }
 atty = "*"
@@ -122,6 +128,7 @@ tracing-opentelemetry = { version = "*" }
 tracing-actix-web = "0.7"
 metrics-tracing-context = "*"
 metrics-util = "*"
+console-subscriber = { version = "*" }
 
 reqwest = "0.11.15"
 taosx-ipc = { path = "./taosx-ipc" }
@@ -140,9 +147,11 @@ winapi = { version = "0.3", features = ["processthreadsapi"] }
 libc = "0.2"
 
 [build-dependencies]
-sqlx = { version = "0.6", features = ["sqlite", "chrono"] }
+sqlx = { version = "0.7", features = ["sqlite", "chrono"] }
 dotenv = "0.15.0"
-shadow-rs = "0.21.0"
+
+shadow-rs = { workspace = true }
+
 
 [dev-dependencies]
 tower = "0.4"

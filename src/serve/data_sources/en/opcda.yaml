@@ -10,7 +10,7 @@ description: |
   For more about OPC DA we introduce you to read the [OPC Foundation site](https://opcfoundation.org/), and some useful blogs, such as
 
   1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)
-  2. [What is OPC DA](https://plcynergy.com/opc-da/),
+  2. [What is OPC DA](https://plcynergy.com/opc-da/)
 
   taosX could pull data from OPC server by a OPC connector plugin.
 
@@ -47,7 +47,7 @@ datasets:
 groups:
   - name: DataSet CSV config file
     display_order: 0
-    description: | 
+    description: |
       CSV dataset and table config file.
     params:
       - name: use_csv_config
@@ -85,13 +85,27 @@ groups:
         description: Timeout for a request in seconds.
         placeholder: 10
         value: 10
-        
+
+  - name: Collect
+    display_order: 3
+    description: Some configurations used in connecting step.
+    params:
+      - name: interval
+        display: Collect interval
+        description: |-
+          Collect data interval in second
+        hint:
+          type: integer
+          min: 1
+          max: 60
+        value: 1
+
   - name: Original Data Save
     display_order: 2
     description: Original Data Collected By OPC Connector Save Config
     params:
       - name: enable
-        display: Enable Save Original Collected Data
+        display: Save Original Collected Data
         description: |-
           Default is false (Not Save).
         value: false
@@ -104,7 +118,7 @@ groups:
           type: str
         description: Data save path, should config if enable save data.
         placeholder: /data/
-      
+
       - name: keep
         display: Data Keep Days
         hint:

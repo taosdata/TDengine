@@ -24,7 +24,7 @@ pub async fn tmq_to_kafka(from: Dsn, to: Dsn, cancel: CancellationToken) -> Resu
 
 #[allow(dead_code)]
 pub async fn clean_task(from: Dsn) -> Result<()> {
-    log::warn!("clean task {}", &from.to_string());
+    tracing::warn!("clean task {}", &from.to_string());
     let mut dsn = from.clone();
     let db = dsn.subject.ok_or(anyhow!("db in dsn is null"))?;
     let table = dsn.params.remove("table").ok_or(anyhow!("table is null"))?;
@@ -181,7 +181,7 @@ impl TMQSource {
                         let records: Vec<Map<String, Value>> = block.deserialize().try_collect()?;
                         for record in records {
                             let record_json = serde_json::to_string(&record)?;
-                            log::debug!("receive from tmq consumer {}", record_json);
+                            tracing::debug!("receive from tmq consumer {}", record_json);
 
                             if sender.send(record_json).await.is_err() {
                                 // channel is closed.
@@ -328,13 +328,13 @@ impl KafkaSinker {
     }
 
     async fn sink(self, cancel: CancellationToken) -> Result<()> {
-        log::info!("start to sink data from tmq to kafka");
+        tracing::info!("start to sink data from tmq to kafka");
         let source_futures = self.source.read().await?;
         let sink_future = self.producer.sink(cancel.clone()).await?;
         tokio::spawn(async move {
             tokio::select! {
                 _=cancel.cancelled() =>{
-                    log::warn!("kafka sinker task is canceled");
+                    tracing::warn!("kafka sinker task is canceled");
                     for future in &source_futures {
                         future.abort();
                     }

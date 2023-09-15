@@ -20,6 +20,7 @@ use arrow_flight::{
     error::FlightError,
     Action as FlightAction, FlightData,
 };
+use cfg_if::cfg_if;
 use chrono::{DateTime, Utc};
 use flume::r#async::RecvStream;
 use flume::{Receiver, Sender};
@@ -145,12 +146,19 @@ const fn is_false(b: &bool) -> bool {
 }
 
 async fn new_channel(endpoint: String) -> anyhow::Result<Channel> {
+    cfg_if! {
+        if #[cfg(windows)] {
+           let tcp_keepalive = None;
+        } else {
+           let tcp_keepalive = Some(Duration::from_secs(5));
+        }
+    };
     Endpoint::try_from(endpoint.clone())
         .map_err(|err| anyhow::format_err!("Unable to create endpoint on `{endpoint}`: {err:#}"))?
         .keep_alive_while_idle(true)
-        .tcp_keepalive(Some(Duration::from_secs(5)))
-        .http2_keep_alive_interval(Duration::from_secs(15))
-        .keep_alive_timeout(Duration::from_secs(30))
+        .tcp_keepalive(tcp_keepalive)
+        .http2_keep_alive_interval(Duration::from_secs(13))
+        .keep_alive_timeout(Duration::from_secs(120))
         .connect()
         .await
         .map_err(|err| anyhow::format_err!("Unable to connect with endpoint `{endpoint}`: {err:#}"))
@@ -181,6 +189,7 @@ impl Client {
 
         let mut client = FlightClient::new(channel);
         client.add_header("x-token", &token)?;
+        client.add_header("x-version", crate::build::PKG_VERSION)?;
         let result = client
             .handshake(token.to_string())
             .await
@@ -245,7 +254,7 @@ impl Client {
                                     ("context", context),
                                 ])
                                 .map_err(Into::into);
-                                log::info!("{item:?}");
+                                tracing::info!("{item:?}");
                                 return std::task::Poll::Ready(Some(item));
                             }
                             RespAction::HeartbeatOk(resp) => {
@@ -264,7 +273,7 @@ impl Client {
                                     ("context", context),
                                 ])
                                 .map_err(Into::into);
-                                log::info!("Send heartbeat response: {item:?}");
+                                tracing::info!("Send heartbeat response: {item:?}");
                                 cx.waker().wake_by_ref();
                                 return std::task::Poll::Ready(Some(item));
                             }
@@ -284,7 +293,7 @@ impl Client {
                                     ("context", context),
                                 ])
                                 .map_err(Into::into);
-                                log::info!("{item:?}");
+                                tracing::info!("{item:?}");
                                 cx.waker().wake_by_ref();
                                 return std::task::Poll::Ready(Some(item));
                             }
@@ -304,7 +313,7 @@ impl Client {
                                     ("context", context),
                                 ])
                                 .map_err(Into::into);
-                                // log::info!("{item:?}");
+                                // tracing::info!("{item:?}");
                                 cx.waker().wake_by_ref();
                                 return std::task::Poll::Ready(Some(item));
                             }
@@ -325,7 +334,7 @@ impl Client {
                                 ])
                                 .map_err(Into::into);
                                 // dbg!(&item);
-                                // log::info!("{item:?}");
+                                // tracing::info!("{item:?}");
                                 cx.waker().wake_by_ref();
                                 return std::task::Poll::Ready(Some(item));
                             }
@@ -352,7 +361,7 @@ impl Client {
                             ("context", context),
                         ])
                         .map_err(Into::into);
-                        log::info!("send heartbeat message");
+                        tracing::info!("send heartbeat message");
                         return std::task::Poll::Ready(Some(item));
                     }
                     Poll::Pending => {
@@ -458,7 +467,7 @@ impl Client {
                     context.value(0),
                 );
 
-                log::info!("At [{ts}] action `{action}` triggered");
+                tracing::info!("At [{ts}] action `{action}` triggered");
                 match action {
                     "run" => {
                         let task: Task = serde_json::from_str(&context).unwrap();

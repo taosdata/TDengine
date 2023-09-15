@@ -131,7 +131,7 @@ pub fn get_string_content_from_file_path(file_path: &str) -> Option<String> {
         let file = file.unwrap();
         let f = std::fs::File::open(&file[1..]);
         if let Err(err) = f {
-            log::error!("file: {} read error, cause: {}", file, err.to_string());
+            tracing::error!("file: {} read error, cause: {}", file, err.to_string());
             None
         } else {
             let buf = std::io::BufReader::new(f.unwrap());

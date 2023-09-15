@@ -206,6 +206,9 @@ func (r *reader) observe(ctx context.Context, ch chan *common.NodeValue) error {
 		ticker := time.NewTicker(r.interval)
 		defer ticker.Stop()
 
+		var wait sync.WaitGroup
+		defer wait.Wait()
+
 		for {
 			select {
 			case <-r.done:
@@ -213,21 +216,27 @@ func (r *reader) observe(ctx context.Context, ch chan *common.NodeValue) error {
 			case <-notifyCtx.Done():
 				return
 			case <-ticker.C:
-				values, err := r.readValue(ctx, r.nodes, r.nodesToRead)
-				if err != nil {
-					logger.Error("## observe metric error", "error", err)
-					continue
-				}
-
-				for _, value := range values {
-					ch <- value
-				}
+				wait.Add(1)
+				go r.readAndSend(ctx, ch, &wait)
 			}
 		}
-
 	}()
 
 	return nil
+}
+
+func (r *reader) readAndSend(ctx context.Context, ch chan *common.NodeValue, wait *sync.WaitGroup) {
+	defer wait.Done()
+
+	values, err := r.readValue(ctx, r.nodes, r.nodesToRead)
+	if err != nil {
+		logger.Error("## observe metric error", "error", err)
+		return
+	}
+
+	for _, value := range values {
+		ch <- value
+	}
 }
 
 func (r *reader) readValue(ctx context.Context, nodes []*uaNode, nodesToRead []*ua.ReadValueID) ([]*common.NodeValue, error) {
@@ -239,6 +248,7 @@ func (r *reader) readValue(ctx context.Context, nodes []*uaNode, nodesToRead []*
 	}
 	spent := time.Since(start).Milliseconds()
 
+	now := time.Now()
 	values := make([]*common.NodeValue, 0, len(res.Results))
 	for i, item := range res.Results {
 		node := nodes[i]
@@ -276,7 +286,7 @@ func (r *reader) readValue(ctx context.Context, nodes []*uaNode, nodesToRead []*
 			Identifier: identifier,
 			Name:       name,
 			Timestamp:  ts,
-			Now:        time.Now(),
+			Now:        now,
 			Value:      item.Value.Value(),
 			ValueType:  valueType,
 			Status:     int64(item.Status),

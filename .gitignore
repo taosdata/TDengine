@@ -28,3 +28,5 @@ plugins/opc/target/
 release
 centos7.target
 vendor
+plugins/opentsdb/target/
+plugins/opc/taosx-opc
