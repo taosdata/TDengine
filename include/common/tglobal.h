@@ -163,6 +163,7 @@ extern double   tsFPrecision;
 extern double   tsDPrecision;
 extern uint32_t tsMaxRange;
 extern uint32_t tsCurRange;
+extern bool     tsIfAdtFse;
 extern char     tsCompressor[];
 
 // tfs

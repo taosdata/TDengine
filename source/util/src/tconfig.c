@@ -415,6 +415,16 @@ int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, double mi
   return cfgAddItem(pCfg, &item, name);
 }
 
+int32_t cfgAddDouble(SConfig *pCfg, const char *name, double defaultVal, double minval, double maxval, int8_t scope) {
+  if (defaultVal < minval || defaultVal > maxval) {
+    terrno = TSDB_CODE_OUT_OF_RANGE;
+    return -1;
+  }
+
+  SConfigItem item = {.dtype = CFG_DTYPE_DOUBLE, .fval = defaultVal, .fmin = minval, .fmax = maxval, .scope = scope};
+  return cfgAddItem(pCfg, &item, name);
+}
+
 int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope) {
   SConfigItem item = {.dtype = CFG_DTYPE_STRING, .scope = scope};
   item.str = taosStrdup(defaultVal);

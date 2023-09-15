@@ -57,6 +57,11 @@ extern bool lossyDouble;
 int32_t     tsCompressInit();
 void        tsCompressExit();
 
+int32_t tsCompressFloatLossyImp(const char *const input, const int32_t nelements, char *const output);
+int32_t tsDecompressFloatLossyImp(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output);
+int32_t tsCompressDoubleLossyImp(const char *const input, const int32_t nelements, char *const output);
+int32_t tsDecompressDoubleLossyImp(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output);
+
 static FORCE_INLINE int32_t tsCompressFloatLossy(const char *const input, int32_t inputSize, const int32_t nelements,
                                                  char *const output, int32_t outputSize, char algorithm,
                                                  char *const buffer, int32_t bufferSize) {

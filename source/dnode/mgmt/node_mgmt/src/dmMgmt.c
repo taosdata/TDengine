@@ -111,6 +111,11 @@ int32_t dmInitDnode(SDnode *pDnode) {
     goto _OVER;
   }
 
+#ifdef TD_TSZ
+  // compress module init
+  tsCompressInit();
+#endif
+
   pDnode->wrappers[DNODE].func = dmGetMgmtFunc();
   pDnode->wrappers[MNODE].func = mmGetMgmtFunc();
   pDnode->wrappers[VNODE].func = vmGetMgmtFunc();
@@ -180,6 +185,12 @@ void dmCleanupDnode(SDnode *pDnode) {
   streamMetaCleanup();
   indexCleanup();
   taosConvDestroy();
+
+#ifdef TD_TSZ
+  // compress destroy
+  tsCompressExit();
+#endif
+
   dDebug("dnode is closed, ptr:%p", pDnode);
 }
 
