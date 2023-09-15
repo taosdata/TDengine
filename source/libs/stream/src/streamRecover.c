@@ -40,7 +40,7 @@ static void streamTaskSetReady(SStreamTask* pTask, int32_t numOfReqs) {
   ASSERT(pTask->status.downstreamReady == 0);
   pTask->status.downstreamReady = 1;
 
-  int64_t el = (taosGetTimestampMs() - pTask->tsInfo.init);
+  int64_t el = (taosGetTimestampMs() - pTask->taskExecInfo.init);
   qDebug("s-task:%s all %d downstream ready, init completed, elapsed time:%"PRId64"ms, task status:%s",
          pTask->id.idStr, numOfReqs, el, streamGetTaskStatusStr(pTask->status.taskStatus));
 }
@@ -525,7 +525,7 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
   taosWLockLatch(&pMeta->lock);
   int64_t keys[2] = {pInfo->streamId, pInfo->taskId};
 
-  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, keys, sizeof(keys));
   if (ppTask) {
     ASSERT((*ppTask)->status.timerActive >= 1);
 
@@ -590,7 +590,7 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
   int64_t keys[2] = {pTask->historyTaskId.streamId, hTaskId};
 
   // Set the execute conditions, including the query time window and the version range
-  SStreamTask** pHTask = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+  SStreamTask** pHTask = taosHashGet(pMeta->pTasksMap, keys, sizeof(keys));
   if (pHTask == NULL) {
     qWarn("s-task:%s vgId:%d failed to launch history task:0x%x, since it is not built yet", pTask->id.idStr,
           pMeta->vgId, hTaskId);

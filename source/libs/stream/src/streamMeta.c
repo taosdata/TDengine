@@ -43,6 +43,12 @@ typedef struct {
   SHashObj*     pTable;
 } SMetaRefMgt;
 
+struct SMetaHbInfo {
+  tmr_h   hbTmr;
+  int32_t stopFlag;
+  int32_t tickCounter;
+};
+
 SMetaRefMgt gMetaRefMgt;
 
 void    metaRefMgtInit();
@@ -134,13 +140,18 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   }
 
   _hash_fn_t fp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR);
-  pMeta->pTasks = taosHashInit(64, fp, true, HASH_NO_LOCK);
-  if (pMeta->pTasks == NULL) {
+  pMeta->pTasksMap = taosHashInit(64, fp, true, HASH_NO_LOCK);
+  if (pMeta->pTasksMap == NULL) {
     goto _err;
   }
 
-  pMeta->pUpdateTaskList = taosHashInit(64, fp, false, HASH_NO_LOCK);
-  if (pMeta->pUpdateTaskList == NULL) {
+  pMeta->pUpdateTaskSet = taosHashInit(64, fp, false, HASH_NO_LOCK);
+  if (pMeta->pUpdateTaskSet == NULL) {
+    goto _err;
+  }
+
+  pMeta->pHbInfo = taosMemoryCalloc(1, sizeof(SMetaHbInfo));
+  if (pMeta->pHbInfo == NULL) {
     goto _err;
   }
 
@@ -164,9 +175,9 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
 
   metaRefMgtAdd(pMeta->vgId, pRid);
 
-  pMeta->hbInfo.hbTmr = taosTmrStart(metaHbToMnode, META_HB_CHECK_INTERVAL, pRid, streamEnv.timer);
-  pMeta->hbInfo.tickCounter = 0;
-  pMeta->hbInfo.stopFlag = 0;
+  pMeta->pHbInfo->hbTmr = taosTmrStart(metaHbToMnode, META_HB_CHECK_INTERVAL, pRid, streamEnv.timer);
+  pMeta->pHbInfo->tickCounter = 0;
+  pMeta->pHbInfo->stopFlag = 0;
 
   pMeta->pTaskBackendUnique =
       taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
@@ -200,11 +211,13 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
 
 _err:
   taosMemoryFree(pMeta->path);
-  if (pMeta->pTasks) taosHashCleanup(pMeta->pTasks);
+  if (pMeta->pTasksMap) taosHashCleanup(pMeta->pTasksMap);
   if (pMeta->pTaskList) taosArrayDestroy(pMeta->pTaskList);
   if (pMeta->pTaskDb) tdbTbClose(pMeta->pTaskDb);
   if (pMeta->pCheckpointDb) tdbTbClose(pMeta->pCheckpointDb);
   if (pMeta->db) tdbClose(pMeta->db);
+  if (pMeta->pHbInfo) taosMemoryFreeClear(pMeta->pHbInfo);
+  if (pMeta->pUpdateTaskSet) taosHashCleanup(pMeta->pUpdateTaskSet);
 
   taosMemoryFree(pMeta);
 
@@ -258,7 +271,7 @@ int32_t streamMetaReopen(SStreamMeta* pMeta) {
 
 void streamMetaClear(SStreamMeta* pMeta) {
   void* pIter = NULL;
-  while ((pIter = taosHashIterate(pMeta->pTasks, pIter)) != NULL) {
+  while ((pIter = taosHashIterate(pMeta->pTasksMap, pIter)) != NULL) {
     SStreamTask* p = *(SStreamTask**)pIter;
 
     // release the ref by timer
@@ -274,7 +287,7 @@ void streamMetaClear(SStreamMeta* pMeta) {
 
   taosRemoveRef(streamBackendId, pMeta->streamBackendRid);
 
-  taosHashClear(pMeta->pTasks);
+  taosHashClear(pMeta->pTasksMap);
   taosHashClear(pMeta->pTaskBackendUnique);
 
   taosArrayClear(pMeta->pTaskList);
@@ -315,9 +328,9 @@ void streamMetaCloseImpl(void* arg) {
   taosArrayDestroy(pMeta->chkpSaved);
   taosArrayDestroy(pMeta->chkpInUse);
 
-  taosHashCleanup(pMeta->pTasks);
+  taosHashCleanup(pMeta->pTasksMap);
   taosHashCleanup(pMeta->pTaskBackendUnique);
-  taosHashCleanup(pMeta->pUpdateTaskList);
+  taosHashCleanup(pMeta->pUpdateTaskSet);
 
   taosMemoryFree(pMeta->path);
   taosThreadMutexDestroy(&pMeta->backendMutex);
@@ -379,7 +392,7 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
   *pAdded = false;
 
   int64_t keys[2] = {pTask->id.streamId, pTask->id.taskId};
-  void*   p = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+  void*   p = taosHashGet(pMeta->pTasksMap, keys, sizeof(keys));
   if (p == NULL) {
     if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
       tFreeStreamTask(pTask);
@@ -401,14 +414,14 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
     return 0;
   }
 
-  taosHashPut(pMeta->pTasks, keys, sizeof(keys), &pTask, POINTER_BYTES);
+  taosHashPut(pMeta->pTasksMap, keys, sizeof(keys), &pTask, POINTER_BYTES);
   *pAdded = true;
   return 0;
 }
 
 int32_t streamMetaGetNumOfTasks(SStreamMeta* pMeta) {
-  size_t size = taosHashGetSize(pMeta->pTasks);
-  ASSERT(taosArrayGetSize(pMeta->pTaskList) == taosHashGetSize(pMeta->pTasks));
+  size_t size = taosHashGetSize(pMeta->pTasksMap);
+  ASSERT(taosArrayGetSize(pMeta->pTaskList) == taosHashGetSize(pMeta->pTasksMap));
   return (int32_t)size;
 }
 
@@ -419,7 +432,7 @@ int32_t streamMetaGetNumOfStreamTasks(SStreamMeta* pMeta) {
     SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
     int64_t        keys[2] = {pId->streamId, pId->taskId};
 
-    SStreamTask** p = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+    SStreamTask** p = taosHashGet(pMeta->pTasksMap, keys, sizeof(keys));
     if (p == NULL) {
       continue;
     }
@@ -436,7 +449,7 @@ SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t
   taosRLockLatch(&pMeta->lock);
 
   int64_t       keys[2] = {streamId, taskId};
-  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, keys, sizeof(keys));
   if (ppTask != NULL) {
     if (!streamTaskShouldStop(&(*ppTask)->status)) {
       int32_t ref = atomic_add_fetch_32(&(*ppTask)->refCnt, 1);
@@ -480,7 +493,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   taosWLockLatch(&pMeta->lock);
 
   int64_t       keys[2] = {streamId, taskId};
-  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, keys, sizeof(keys));
   if (ppTask) {
     pTask = *ppTask;
     if (streamTaskShouldPause(&pTask->status)) {
@@ -500,7 +513,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
 
   while (1) {
     taosRLockLatch(&pMeta->lock);
-    ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+    ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, keys, sizeof(keys));
 
     if (ppTask) {
       if ((*ppTask)->status.timerActive == 0) {
@@ -519,9 +532,9 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
 
   // let's do delete of stream task
   taosWLockLatch(&pMeta->lock);
-  ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+  ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, keys, sizeof(keys));
   if (ppTask) {
-    taosHashRemove(pMeta->pTasks, keys, sizeof(keys));
+    taosHashRemove(pMeta->pTasksMap, keys, sizeof(keys));
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__DROPPING);
 
     ASSERT(pTask->status.timerActive == 0);
@@ -673,7 +686,7 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
 
     // do duplicate task check.
     int64_t keys[2] = {pTask->id.streamId, pTask->id.taskId};
-    void*   p = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+    void*   p = taosHashGet(pMeta->pTasksMap, keys, sizeof(keys));
     if (p == NULL) {
       // pTask->chkInfo.checkpointVer may be 0, when a follower is become a leader
       // In this case, we try not to start fill-history task anymore.
@@ -691,7 +704,7 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       continue;
     }
 
-    if (taosHashPut(pMeta->pTasks, keys, sizeof(keys), &pTask, sizeof(void*)) < 0) {
+    if (taosHashPut(pMeta->pTasksMap, keys, sizeof(keys), &pTask, sizeof(void*)) < 0) {
       doClear(pKey, pVal, pCur, pRecycleList);
       tFreeStreamTask(pTask);
       return -1;
@@ -778,8 +791,8 @@ void metaHbToMnode(void* param, void* tmrId) {
   }
 
   // need to stop, stop now
-  if (pMeta->hbInfo.stopFlag == STREAM_META_WILL_STOP) {
-    pMeta->hbInfo.stopFlag = STREAM_META_OK_TO_STOP;
+  if (pMeta->pHbInfo->stopFlag == STREAM_META_WILL_STOP) {
+    pMeta->pHbInfo->stopFlag = STREAM_META_OK_TO_STOP;
     qDebug("vgId:%d jump out of meta timer", pMeta->vgId);
     taosReleaseRef(streamMetaId, rid);
     return;
@@ -792,8 +805,8 @@ void metaHbToMnode(void* param, void* tmrId) {
     return;
   }
 
-  if (!enoughTimeDuration(&pMeta->hbInfo)) {
-    taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->hbInfo.hbTmr);
+  if (!enoughTimeDuration(pMeta->pHbInfo)) {
+    taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->pHbInfo->hbTmr);
     taosReleaseRef(streamMetaId, rid);
     return;
   }
@@ -812,7 +825,7 @@ void metaHbToMnode(void* param, void* tmrId) {
   for (int32_t i = 0; i < numOfTasks; ++i) {
     SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
     int64_t        keys[2] = {pId->streamId, pId->taskId};
-    SStreamTask**  pTask = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+    SStreamTask**  pTask = taosHashGet(pMeta->pTasksMap, keys, sizeof(keys));
 
     if ((*pTask)->info.fillHistory == 1) {
       continue;
@@ -872,7 +885,7 @@ void metaHbToMnode(void* param, void* tmrId) {
   }
 
   taosArrayDestroy(hbMsg.pTaskStatus);
-  taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->hbInfo.hbTmr);
+  taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->pHbInfo->hbTmr);
   taosReleaseRef(streamMetaId, rid);
 }
 
@@ -883,7 +896,7 @@ static bool hasStreamTaskInTimer(SStreamMeta* pMeta) {
 
   void* pIter = NULL;
   while (1) {
-    pIter = taosHashIterate(pMeta->pTasks, pIter);
+    pIter = taosHashIterate(pMeta->pTasksMap, pIter);
     if (pIter == NULL) {
       break;
     }
@@ -906,7 +919,7 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
 
   void* pIter = NULL;
   while (1) {
-    pIter = taosHashIterate(pMeta->pTasks, pIter);
+    pIter = taosHashIterate(pMeta->pTasksMap, pIter);
     if (pIter == NULL) {
       break;
     }
@@ -920,8 +933,8 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
 
   // wait for the stream meta hb function stopping
   if (pMeta->leader) {
-    pMeta->hbInfo.stopFlag = STREAM_META_WILL_STOP;
-    while (pMeta->hbInfo.stopFlag != STREAM_META_OK_TO_STOP) {
+    pMeta->pHbInfo->stopFlag = STREAM_META_WILL_STOP;
+    while (pMeta->pHbInfo->stopFlag != STREAM_META_OK_TO_STOP) {
       taosMsleep(100);
       qDebug("vgId:%d wait for meta to stop timer", pMeta->vgId);
     }
