@@ -6,6 +6,7 @@ import subprocess
 import sys
 import toml
 import linux_release
+import zipfile
 
 from datetime import datetime
 
@@ -60,20 +61,20 @@ def GetCpuType():
     machine = platform.machine()
 
     if arch == '32bit':
-        type =  '32'
+        type = '32'
     elif arch == '64bit':
         if machine.startswith('arm'):
             type = 'arm64'
         elif machine in ('x86_64', 'amd64',  'AMD64'):
-            type =  'x64'
+            type = 'x64'
         elif machine == 'aarch64':
-            type =  'AArch64'
+            type = 'AArch64'
         else:
-            type =  f'Unknown architecture: {machine}'
+            type = f'Unknown architecture: {machine}'
             print(f'Get cpu type failed! {machine}')
             sys.exit()
     else:
-        type =  f'Unknown architecture: {arch}'
+        type = f'Unknown architecture: {arch}'
         print(f'Get cpu type failed! {arch}')
         sys.exit()
     return type
@@ -311,6 +312,7 @@ def build_and_install_mqtt_on_windows(mode):
         print("Build MQTT failed: ", e.strerror)
         sys.exit()
 
+
 def build_and_install_opc(mode):
     if release_info.OS == 'Windows':
         build_and_install_opc_on_windows(mode)
@@ -432,6 +434,8 @@ def init_explorer_code(explorer_path):
 
 def build_taos_explorer(explorer_path, mode):
     init_explorer_code(explorer_path)
+    update_docs_zip_file(explorer_path)
+    copy_docs_to_explorer(explorer_path)
     os.chdir(explorer_path)
     os.system('yarn install')
     os.system('yarn build:bin')
@@ -476,12 +480,41 @@ def package_on_windows():
         f'/DMyAppBeforeInstallTxt="{app_before_install_txt}" '\
         f'/DAppName="{target}" '\
         f'{script_dir}/taosx.iss /O{taosx_dir}/release'
-    print(cmd);
+    print(cmd)
     result = subprocess.run(cmd, shell=True)
     if result.returncode != 0:
         print(f'package {release_info.PackageName} failed')
         sys.exit(1)
 
+
+def copy_docs_to_explorer(explorer_path):
+    print("copy docs to explorer")
+    zh_doc_zip_path = os.path.join(explorer_path, "..", "docs-zh.zip")
+    zh_doc_public_path = os.path.join(explorer_path, "public", "docs")
+    if os.path.exists(zh_doc_zip_path):
+        unzip_docs(zh_doc_zip_path, zh_doc_public_path)
+    else:
+        print("WARN: not found docs-zh.zip")
+    en_doc_zip_path = os.path.join(explorer_path, "..", "docs-en.zip")
+    en_doc_public_path = os.path.join(explorer_path, "public", "docs-en")
+    if os.path.exists(en_doc_zip_path):
+        unzip_docs(en_doc_zip_path, en_doc_public_path)
+    else:
+        print("WARN: not found docs-en.zip")
+
+def unzip_docs(doc_zip_path, doc_public_path):
+    if os.path.exists(doc_public_path):
+        shutil.rmtree(doc_public_path)
+    with zipfile.ZipFile(doc_zip_path) as doc_zip_file:
+        doc_zip_file.extractall(doc_public_path)
+
+def update_docs_zip_file(explorer_path):
+    print("update docs zip file")
+    doc_zip_path = os.path.join(explorer_path, "..")
+    cmd1 = f"scp root@192.168.0.30:/root/enterprise-docs/docs-en.zip {doc_zip_path}"
+    cmd2 = f"scp root@192.168.0.30:/root/enterprise-docs/docs-zh.zip {doc_zip_path}"
+    os.system(cmd1)
+    os.system(cmd2)
 
 def package():
     if release_info.OS == 'Windows':
