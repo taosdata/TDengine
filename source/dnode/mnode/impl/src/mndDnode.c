@@ -472,6 +472,10 @@ static bool mndUpdateMnodeState(SMnodeObj *pObj, SMnodeLoad *pMload) {
   return stateChanged;
 }
 
+#ifndef TD_ENTERPRISE
+int32_t mndUpdateClusterInfo(SRpcMsg *pReq) { return 0; }
+#endif
+
 static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   SStatusReq statusReq = {0};
@@ -670,10 +674,6 @@ _OVER:
   }
   return code;
 }
-
-#ifndef TD_ENTERPRISE
-int32_t mndUpdateClusterInfo(SRpcMsg *pReq) { return 0; }
-#endif
 
 static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pCreate) {
   int32_t  code = -1;
