@@ -1,9 +1,13 @@
 FROM ubuntu:22.04
 LABEL maintainer "Linhe Huo <linhe.huo@gmail.com"
 
-RUN apt update && apt install -y wget ca-certificates && rm -rf /var/cache/apt/*
+ENV TINI_VERSION v0.19.0
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
+RUN chmod +x /tini
 
-RUN apt install -y openjdk-18-jre
+RUN apt update \
+  && apt install -y wget curl jq sqlite3 openjdk-18-jre ca-certificates \
+  && rm -rf /var/cache/apt/*
 
 ENV TAOS_VERSION=3.1.1.0
 
@@ -14,7 +18,7 @@ RUN wget -O /tmp/client.tar.gz https://www.taosdata.com/assets-download/3.0/TDen
 	&& rm -rf /tmp/TDengine-client-${TAOS_VERSION} \
 	&& rm -rf /tmp/client.tar.gz
 
-RUN apt install -y curl sqlite3
+ENTRYPOINT ["/tini", "--"]
 
 ENV PLUGINS_HOME=/taosx/plugins/
 
