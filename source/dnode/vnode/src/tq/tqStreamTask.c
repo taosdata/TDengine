@@ -166,7 +166,7 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
     return 0;
   }
 
-  int32_t numOfPauseTasks = pTq->pStreamMeta->pauseTaskNum;
+  int32_t numOfPauseTasks = pTq->pStreamMeta->numOfPausedTasks;
   if (ckPause && numOfTasks == numOfPauseTasks) {
     tqDebug("vgId:%d ignore all submit, all streams had been paused, reset the walScanCounter", vgId);
 

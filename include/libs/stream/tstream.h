@@ -237,7 +237,7 @@ typedef struct SStreamChildEpInfo {
 
 typedef struct STaskId {
   int64_t streamId;
-  int32_t taskId;
+  int64_t taskId;
 } STaskId;
 
 typedef struct SStreamTaskId {
@@ -393,7 +393,8 @@ typedef struct SStreamMeta {
   TdThreadMutex backendMutex;
   SMetaHbInfo*  pHbInfo;
   SHashObj*     pUpdateTaskSet;
-  int32_t       totalTasks;  // this value should be increased when a new task is added into the meta
+  int32_t       numOfStreamTasks;  // this value should be increased when a new task is added into the meta
+  int32_t       numOfPausedTasks;
   int32_t       chkptNotReadyTasks;
   int64_t       rid;
 
@@ -402,7 +403,6 @@ typedef struct SStreamMeta {
   SArray*  chkpInUse;
   int32_t  chkpCap;
   SRWLatch chkpDirLock;
-  int32_t  pauseTaskNum;
 } SStreamMeta;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
@@ -553,8 +553,7 @@ int32_t tEncodeStreamCheckpointReadyMsg(SEncoder* pEncoder, const SStreamCheckpo
 int32_t tDecodeStreamCheckpointReadyMsg(SDecoder* pDecoder, SStreamCheckpointReadyMsg* pRsp);
 
 typedef struct STaskStatusEntry {
-  int64_t streamId;
-  int32_t taskId;
+  STaskId id;
   int32_t status;
 } STaskStatusEntry;
 

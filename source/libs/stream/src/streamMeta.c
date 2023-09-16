@@ -205,8 +205,8 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   taosInitRWLatch(&pMeta->lock);
   taosThreadMutexInit(&pMeta->backendMutex, NULL);
 
-  pMeta->pauseTaskNum = 0;
-
+  pMeta->numOfPausedTasks = 0;
+  pMeta->numOfStreamTasks = 0;
   qInfo("vgId:%d open stream meta successfully, latest checkpoint:%" PRId64 ", stage:%" PRId64, vgId, pMeta->chkpId,
         stage);
   return pMeta;
@@ -412,6 +412,10 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
   }
 
   taosHashPut(pMeta->pTasksMap, &id, sizeof(id), &pTask, POINTER_BYTES);
+  if (pTask->info.fillHistory == 0) {
+    atomic_add_fetch_32(&pMeta->numOfStreamTasks, 1);
+  }
+
   *pAdded = true;
   return 0;
 }
@@ -492,7 +496,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   if (ppTask) {
     pTask = *ppTask;
     if (streamTaskShouldPause(&pTask->status)) {
-      int32_t num = atomic_sub_fetch_32(&pMeta->pauseTaskNum, 1);
+      int32_t num = atomic_sub_fetch_32(&pMeta->numOfPausedTasks, 1);
       qInfo("vgId:%d s-task:%s drop stream task. pause task num:%d", pMeta->vgId, pTask->id.idStr, num);
     }
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__DROPPING);
@@ -641,8 +645,8 @@ static void doClear(void* pKey, void* pVal, TBC* pCur, SArray* pRecycleList) {
 
 int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   TBC* pCur = NULL;
-
   qInfo("vgId:%d load stream tasks from meta files", pMeta->vgId);
+
   if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
     qError("vgId:%d failed to open stream meta, code:%s", pMeta->vgId, tstrerror(terrno));
     return -1;
@@ -714,14 +718,16 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       return -1;
     }
 
+    if (pTask->info.fillHistory == 0) {
+      atomic_add_fetch_32(&pMeta->numOfStreamTasks, 1);
+    }
+
     if (streamTaskShouldPause(&pTask->status)) {
-      atomic_add_fetch_32(&pMeta->pauseTaskNum, 1);
+      atomic_add_fetch_32(&pMeta->numOfPausedTasks, 1);
     }
 
     ASSERT(pTask->status.downstreamReady == 0);
   }
-
-  qInfo("vgId:%d pause task num:%d", pMeta->vgId, pMeta->pauseTaskNum);
 
   tdbFree(pKey);
   tdbFree(pVal);
@@ -738,7 +744,8 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   }
 
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
-  qDebug("vgId:%d load %d tasks into meta from disk completed", pMeta->vgId, numOfTasks);
+  qDebug("vgId:%d load %d tasks into meta from disk completed, streamTask:%d, paused:%d", pMeta->vgId, numOfTasks,
+         pMeta->numOfStreamTasks, pMeta->numOfPausedTasks);
   taosArrayDestroy(pRecycleList);
   return 0;
 }
@@ -750,8 +757,8 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
 
   for (int32_t i = 0; i < pReq->numOfTasks; ++i) {
     STaskStatusEntry* ps = taosArrayGet(pReq->pTaskStatus, i);
-    if (tEncodeI64(pEncoder, ps->streamId) < 0) return -1;
-    if (tEncodeI32(pEncoder, ps->taskId) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->id.streamId) < 0) return -1;
+    if (tEncodeI32(pEncoder, ps->id.taskId) < 0) return -1;
     if (tEncodeI32(pEncoder, ps->status) < 0) return -1;
   }
   tEndEncode(pEncoder);
@@ -766,8 +773,11 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
   pReq->pTaskStatus = taosArrayInit(pReq->numOfTasks, sizeof(STaskStatusEntry));
   for (int32_t i = 0; i < pReq->numOfTasks; ++i) {
     STaskStatusEntry hb = {0};
-    if (tDecodeI64(pDecoder, &hb.streamId) < 0) return -1;
-    if (tDecodeI32(pDecoder, &hb.taskId) < 0) return -1;
+    if (tDecodeI64(pDecoder, &hb.id.streamId) < 0) return -1;
+    int32_t taskId = 0;
+    if (tDecodeI32(pDecoder, &taskId) < 0) return -1;
+
+    hb.id.taskId = taskId;
     if (tDecodeI32(pDecoder, &hb.status) < 0) return -1;
 
     taosArrayPush(pReq->pTaskStatus, &hb);
@@ -839,7 +849,7 @@ void metaHbToMnode(void* param, void* tmrId) {
       continue;
     }
 
-    STaskStatusEntry entry = {.streamId = pId->streamId, .taskId = pId->taskId, .status = (*pTask)->status.taskStatus};
+    STaskStatusEntry entry = {.id = *pId, .status = (*pTask)->status.taskStatus};
     taosArrayPush(hbMsg.pTaskStatus, &entry);
 
     if (!hasValEpset) {

@@ -1194,7 +1194,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
       STaskStatusEntry *p = taosArrayGet(execNodeList.pTaskList, i);
       if (p->status != TASK_STATUS__NORMAL) {
         mDebug("s-task:0x%" PRIx64 "-0x%x (nodeId:%d) status:%s not ready, create checkpoint msg not issued",
-               p->streamId, p->taskId, 0, streamGetTaskStatusStr(p->status));
+               p->id.streamId, (int32_t)p->id.taskId, 0, streamGetTaskStatusStr(p->status));
         ready = false;
         break;
       }
@@ -1564,29 +1564,17 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
         // status
         char   status[20 + VARSTR_HEADER_SIZE] = {0};
-        int8_t taskStatus = atomic_load_8(&pTask->status.taskStatus);
-        if (taskStatus == TASK_STATUS__NORMAL) {
-          memcpy(varDataVal(status), "normal", 6);
-          varDataSetLen(status, 6);
-        } else if (taskStatus == TASK_STATUS__DROPPING) {
-          memcpy(varDataVal(status), "dropping", 8);
-          varDataSetLen(status, 8);
-        } else if (taskStatus == TASK_STATUS__UNINIT) {
-          memcpy(varDataVal(status), "uninit", 6);
-          varDataSetLen(status, 4);
-        } else if (taskStatus == TASK_STATUS__STOP) {
-          memcpy(varDataVal(status), "stop", 4);
-          varDataSetLen(status, 4);
-        } else if (taskStatus == TASK_STATUS__SCAN_HISTORY) {
-          memcpy(varDataVal(status), "history", 7);
-          varDataSetLen(status, 7);
-        } else if (taskStatus == TASK_STATUS__HALT) {
-          memcpy(varDataVal(status), "halt", 4);
-          varDataSetLen(status, 4);
-        } else if (taskStatus == TASK_STATUS__PAUSE) {
-          memcpy(varDataVal(status), "pause", 5);
-          varDataSetLen(status, 5);
+
+        STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
+        int32_t *index = taosHashGet(execNodeList.pTaskMap, &id, sizeof(id));
+        if (index == NULL) {
+          continue;
         }
+
+        STaskStatusEntry *pStatusEntry = taosArrayGet(execNodeList.pTaskList, *index);
+        const char* pStatus = streamGetTaskStatusStr(pStatusEntry->status);
+        STR_TO_VARSTR(status, pStatus);
+
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         colDataSetVal(pColInfo, numOfRows, (const char *)&status, false);
 
@@ -2269,16 +2257,16 @@ static void keepStreamTasksInBuf(SStreamObj *pStream, SStreamVnodeRevertIndex *p
     int32_t numOfTasks = taosArrayGetSize(pLevel);
     for (int32_t j = 0; j < numOfTasks; j++) {
       SStreamTask *pTask = taosArrayGetP(pLevel, j);
-      int64_t      keys[2] = {pTask->id.streamId, pTask->id.taskId};
 
-      void *p = taosHashGet(pExecNode->pTaskMap, keys, sizeof(keys));
+      STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
+      void *p = taosHashGet(pExecNode->pTaskMap, &id, sizeof(id));
       if (p == NULL) {
         STaskStatusEntry entry = {
-            .streamId = pTask->id.streamId, .taskId = pTask->id.taskId, .status = TASK_STATUS__STOP};
+            .id.streamId = pTask->id.streamId, .id.taskId = pTask->id.taskId, .status = TASK_STATUS__STOP};
         taosArrayPush(pExecNode->pTaskList, &entry);
 
         int32_t ordinal = taosArrayGetSize(pExecNode->pTaskList) - 1;
-        taosHashPut(pExecNode->pTaskMap, keys, sizeof(keys), &ordinal, sizeof(ordinal));
+        taosHashPut(pExecNode->pTaskMap, &id, sizeof(id), &ordinal, sizeof(ordinal));
       }
     }
   }
@@ -2311,8 +2299,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   for (int32_t i = 0; i < req.numOfTasks; ++i) {
     STaskStatusEntry *p = taosArrayGet(req.pTaskStatus, i);
-    int64_t   k[2] = {p->streamId, p->taskId};
-    int32_t *index = taosHashGet(execNodeList.pTaskMap, &k, sizeof(k));
+    int32_t *index = taosHashGet(execNodeList.pTaskMap, &p->id, sizeof(p->id));
     if (index == NULL) {
       continue;
     }
@@ -2320,7 +2307,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     STaskStatusEntry *pStatusEntry = taosArrayGet(execNodeList.pTaskList, *index);
     pStatusEntry->status = p->status;
     if (p->status != TASK_STATUS__NORMAL) {
-      mDebug("received s-task:0x%x not in ready status:%s", p->taskId, streamGetTaskStatusStr(p->status));
+      mDebug("received s-task:0x%"PRIx64" not in ready status:%s", p->id.taskId, streamGetTaskStatusStr(p->status));
     }
   }
   taosThreadMutexUnlock(&execNodeList.lock);
