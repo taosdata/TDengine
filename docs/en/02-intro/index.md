@@ -6,7 +6,7 @@ toc_max_heading_level: 2
 
 TDengine is a big data platform designed and optimized for IoT (Internet of Things) and Industrial Internet. It can safely and effetively converge, store, process and distribute high volume data (TB or even PB) generated everyday by a lot of devices and data acquisition units, monitor and alert business operation status in real time and provide real time business insight. The core component of TDengine is TDengine OSS, which is a high performance, open source, cloud native and simplified time series database. 
 
-This section introduces the major features, competitive advantages, typical use-cases and benchmarks to help you get a high level overview of TDengine.
+This section introduces the major features, competitive advantages, typical use-cases and benchmarks to help you get a high level overview of TDengine OSS.
 
 ## Major Features of TDengine OSS
 
@@ -44,7 +44,7 @@ For more details on features, please read through the entire documentation.
 
 ## Competitive Advantages
 
-By making full use of [characteristics of time series data](https://tdengine.com/tsdb/characteristics-of-time-series-data/), TDengine differentiates itself from other [time series databases](https://tdengine.com/tsdb/), with the following advantages.
+By making full use of [characteristics of time series data](https://tdengine.com/tsdb/characteristics-of-time-series-data/), TDengine OSS differentiates itself from other [time series databases](https://tdengine.com/tsdb/), with the following advantages.
 
 - **[High-Performance](https://tdengine.com/tdengine/high-performance-time-series-database/)**: TDengine is the only time-series database to solve the high cardinality issue to support billions of data collection points while out performing other time-series databases for data ingestion, querying and data compression.
 
