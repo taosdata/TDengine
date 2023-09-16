@@ -41,8 +41,8 @@ static void streamTaskSetReady(SStreamTask* pTask, int32_t numOfReqs) {
   pTask->status.downstreamReady = 1;
 
   int64_t el = (taosGetTimestampMs() - pTask->tsInfo.init);
-  qDebug("s-task:%s all %d downstream ready, init completed, elapsed time:%dms, task status:%s",
-         pTask->id.idStr, numOfReqs, (int32_t) el, streamGetTaskStatusStr(pTask->status.taskStatus));
+  qDebug("s-task:%s all %d downstream ready, init completed, elapsed time:%"PRId64"ms, task status:%s",
+         pTask->id.idStr, numOfReqs, el, streamGetTaskStatusStr(pTask->status.taskStatus));
 }
 
 int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated) {
@@ -371,10 +371,6 @@ int32_t initScanHistoryReq(SStreamTask* pTask, SStreamScanHistoryReq* pReq, int8
   return 0;
 }
 
-int32_t streamSourceScanHistoryData(SStreamTask* pTask) {
-  return streamScanExec(pTask, 100);
-}
-
 int32_t streamTaskPutTranstateIntoInputQ(SStreamTask* pTask) {
   SStreamDataBlock* pTranstate = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SSDataBlock));
   if (pTranstate == NULL) {
@@ -484,7 +480,7 @@ int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask) {
 
   // execute in the scan history complete call back msg, ready to process data from inputQ
   streamSetStatusNormal(pTask);
-  atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+  streamTaskSetSchedStatusInActive(pTask);
 
   taosWLockLatch(&pMeta->lock);
   streamMetaSaveTask(pMeta, pTask);

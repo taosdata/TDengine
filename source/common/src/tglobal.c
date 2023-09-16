@@ -240,7 +240,7 @@ int32_t tsTtlBatchDropNum = 10000;   // number of tables dropped per batch
 // internal
 int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
-int32_t tsStreamCheckpointTickInterval = 600;
+int32_t tsStreamCheckpointTickInterval = 30;
 int32_t tsStreamNodeCheckInterval = 10;
 int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushIntervalSec = 10;
@@ -477,7 +477,7 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   if (cfgAddTimezone(pCfg, "timezone", tsTimezoneStr, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddLocale(pCfg, "locale", tsLocale, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddCharset(pCfg, "charset", tsCharset, CFG_SCOPE_BOTH) != 0) return -1;
-  if (cfgAddBool(pCfg, "assert", 1, CFG_SCOPE_BOTH) != 0) return -1;
+  if (cfgAddBool(pCfg, "assert", tsAssert, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddBool(pCfg, "enableCoreFile", 1, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddFloat(pCfg, "numOfCores", tsNumOfCores, 1, 100000, CFG_SCOPE_BOTH) != 0) return -1;
 
@@ -1598,6 +1598,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
     if (taosSetS3Cfg(tsCfg) != 0) return -1;
   }
   taosSetSystemCfg(tsCfg);
+  if (taosSetFileHandlesLimit() != 0) return -1;
 
   cfgDumpCfg(tsCfg, tsc, false);
 

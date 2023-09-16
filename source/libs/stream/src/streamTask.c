@@ -332,7 +332,6 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
 
   pTask->pReadyMsgList = taosArrayDestroy(pTask->pReadyMsgList);
-  taosThreadMutexDestroy(&pTask->lock);
   if (pTask->msgInfo.pData != NULL) {
     destroyStreamDataBlock(pTask->msgInfo.pData);
     pTask->msgInfo.pData = NULL;
@@ -385,8 +384,22 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   pTask->dataRange.range.minVer = ver;
   pTask->pMsgCb = pMsgCb;
 
-  streamTaskInitTokenBucket(&pTask->tokenBucket, 150, 100);
-  taosThreadMutexInit(&pTask->lock, NULL);
+  streamTaskInitTokenBucket(&pTask->tokenBucket, 50, 50);
+
+  TdThreadMutexAttr attr = {0};
+  int ret = taosThreadMutexAttrInit(&attr);
+  if (ret != 0) {
+    qError("s-task:%s init mutex attr failed, code:%s", pTask->id.idStr, tstrerror(ret));
+    return ret;
+  }
+
+  ret = taosThreadMutexAttrSetType(&attr, PTHREAD_MUTEX_RECURSIVE);
+  if (ret != 0) {
+    qError("s-task:%s set mutex attr recursive, code:%s", pTask->id.idStr, tstrerror(ret));
+    return ret;
+  }
+
+  taosThreadMutexInit(&pTask->lock, &attr);
   streamTaskOpenAllUpstreamInput(pTask);
 
   return TSDB_CODE_SUCCESS;
@@ -503,8 +516,9 @@ int32_t streamTaskStop(SStreamTask* pTask) {
     taosMsleep(100);
   }
 
+  pTask->tsInfo.init = 0;
   int64_t el = taosGetTimestampMs() - st;
-  qDebug("vgId:%d s-task:%s is closed in %" PRId64 " ms", pMeta->vgId, pTask->id.idStr, el);
+  qDebug("vgId:%d s-task:%s is closed in %" PRId64 " ms, and reset init ts", pMeta->vgId, pTask->id.idStr, el);
   return 0;
 }
 
@@ -551,4 +565,37 @@ void streamTaskResetUpstreamStageInfo(SStreamTask* pTask) {
   }
 
   qDebug("s-task:%s reset all upstream tasks stage info", pTask->id.idStr);
+}
+
+int8_t streamTaskSetSchedStatusWait(SStreamTask* pTask) {
+  taosThreadMutexLock(&pTask->lock);
+  int8_t status = pTask->status.schedStatus;
+  if (status == TASK_SCHED_STATUS__INACTIVE) {
+    pTask->status.schedStatus = TASK_SCHED_STATUS__WAITING;
+  }
+  taosThreadMutexUnlock(&pTask->lock);
+
+  return status;
+}
+
+int8_t streamTaskSetSchedStatusActive(SStreamTask* pTask) {
+  taosThreadMutexLock(&pTask->lock);
+  int8_t status = pTask->status.schedStatus;
+  if (status == TASK_SCHED_STATUS__WAITING) {
+    pTask->status.schedStatus = TASK_SCHED_STATUS__ACTIVE;
+  }
+  taosThreadMutexUnlock(&pTask->lock);
+
+  return status;
+}
+
+int8_t streamTaskSetSchedStatusInActive(SStreamTask* pTask) {
+  taosThreadMutexLock(&pTask->lock);
+  int8_t status = pTask->status.schedStatus;
+  ASSERT(status == TASK_SCHED_STATUS__WAITING || status == TASK_SCHED_STATUS__ACTIVE ||
+         status == TASK_SCHED_STATUS__INACTIVE);
+  pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
+  taosThreadMutexUnlock(&pTask->lock);
+
+  return status;
 }

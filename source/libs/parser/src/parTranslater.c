@@ -6997,8 +6997,8 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  strcpy(col->tableAlias, pTable);
-  strcpy(col->colName, pMeta->schema[0].name);
+  tstrncpy(col->tableAlias, pTable, tListLen(col->tableAlias));
+  tstrncpy(col->colName, pMeta->schema[0].name, tListLen(col->colName));
   SNodeList* pParamterList = nodesMakeList();
   if (NULL == pParamterList) {
     nodesDestroyNode((SNode*)col);
@@ -7007,7 +7007,6 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
 
   int32_t code = nodesListStrictAppend(pParamterList, (SNode*)col);
   if (code) {
-    nodesDestroyNode((SNode*)col);
     nodesDestroyList(pParamterList);
     return code;
   }
@@ -7025,7 +7024,6 @@ static int32_t createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta
   }
   code = nodesListStrictAppend(pProjectionList, pFunc);
   if (code) {
-    nodesDestroyNode(pFunc);
     nodesDestroyList(pProjectionList);
     return code;
   }

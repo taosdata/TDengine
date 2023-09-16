@@ -249,6 +249,9 @@ class TDTestCase:
         tdSql.checkRows(14)
         tdSql.query(f"select derivative(c1, 1s, 0) from (select * from {dbname}.t1 union select * from {dbname}.t1 order by ts)")
         tdSql.checkRows(11)
+        tdSql.query(f"select count(*) from {dbname}.t1 as a join {dbname}.t1 as b on a.ts = b.ts and a.ts is null")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
 
         tdSql.error(f"select first(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
         tdSql.error(f"select last(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")

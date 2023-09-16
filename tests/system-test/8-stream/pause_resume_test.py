@@ -11,9 +11,12 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
         self.tdCom = tdCom
+        self.date_time = 1694054350870
+        self.interval = 15
 
     def pause_resume_test(self, interval, partition="tbname", delete=False, fill_history_value=None, pause=True, resume=True, ignore_untreated=False):
         tdLog.info(f"*** testing stream pause+resume: interval: {interval}, partition: {partition}, delete: {delete}, fill_history: {fill_history_value}, ignore_untreated: {ignore_untreated} ***")
+        date_time = self.date_time
         if_exist_value_list = [None, True]
         if_exist = random.choice(if_exist_value_list)
         reverse_check = True if ignore_untreated else False
@@ -54,20 +57,20 @@ class TDTestCase:
         self.tdCom.create_stream(stream_name=f'{self.ctb_name}{self.tdCom.stream_suffix}', des_table=self.tdCom.ctb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tdCom.stb_source_select_str}  from {self.ctb_name} {partition_elm} interval({self.tdCom.dataDict["interval"]}s)', trigger_mode="at_once", subtable_value=ctb_subtable_value, fill_history_value=fill_history_value)
         self.tdCom.create_stream(stream_name=f'{self.tb_name}{self.tdCom.stream_suffix}', des_table=self.tdCom.tb_stream_des_table, source_sql=f'select _wstart AS wstart, {self.tdCom.tb_source_select_str}  from {self.tb_name} {partition_elm} interval({self.tdCom.dataDict["interval"]}s)', trigger_mode="at_once", subtable_value=tb_subtable_value, fill_history_value=fill_history_value)
         for i in range(range_count):
-            ts_value = str(self.tdCom.date_time+self.tdCom.dataDict["interval"])+f'+{i*10}s'
+            ts_value = str(date_time+self.tdCom.dataDict["interval"])+f'+{i*10}s'
             ts_cast_delete_value = self.tdCom.time_cast(ts_value)
             self.tdCom.sinsert_rows(tbname=self.ctb_name, ts_value=ts_value)
             if self.tdCom.update and i%2 == 0:
                 self.tdCom.sinsert_rows(tbname=self.ctb_name, ts_value=ts_value)
             if self.delete and i%2 != 0:
                 self.tdCom.sdelete_rows(tbname=self.ctb_name, start_ts=ts_cast_delete_value)
-            self.tdCom.date_time += 1
+            date_time += 1
             self.tdCom.sinsert_rows(tbname=self.tb_name, ts_value=ts_value)
             if self.tdCom.update and i%2 == 0:
                 self.tdCom.sinsert_rows(tbname=self.tb_name, ts_value=ts_value)
             if self.delete and i%2 != 0:
                 self.tdCom.sdelete_rows(tbname=self.tb_name, start_ts=ts_cast_delete_value)
-            self.tdCom.date_time += 1
+            date_time += 1
             if partition:
                 partition_elm = f'partition by {partition}'
             else:
@@ -140,8 +143,8 @@ class TDTestCase:
         for delete in [True, False]:
             for fill_history_value in [0, 1]:
                 # pause/resume
-                self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", ignore_untreated=False, fill_history_value=fill_history_value, delete=delete)
-                self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", ignore_untreated=True, fill_history_value=fill_history_value, delete=delete)
+                self.pause_resume_test(interval=self.interval, partition="tbname", ignore_untreated=False, fill_history_value=fill_history_value, delete=delete)
+                self.pause_resume_test(interval=self.interval, partition="tbname", ignore_untreated=True, fill_history_value=fill_history_value, delete=delete)
                 # self.pause_resume_test(interval=random.randint(10, 15), partition="tbname", resume=False, fill_history_value=fill_history_value, delete=delete)
 
     def stop(self):
