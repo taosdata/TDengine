@@ -165,9 +165,14 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   if (tDecodeI8(pDecoder, &pTask->info.fillHistory) < 0) return -1;
 
   if (tDecodeI64(pDecoder, &pTask->historyTaskId.streamId)) return -1;
-  if (tDecodeI32(pDecoder, &pTask->historyTaskId.taskId)) return -1;
+
+  int32_t taskId = pTask->historyTaskId.taskId;
+  if (tDecodeI32(pDecoder, &taskId)) return -1;
+
   if (tDecodeI64(pDecoder, &pTask->streamTaskId.streamId)) return -1;
-  if (tDecodeI32(pDecoder, &pTask->streamTaskId.taskId)) return -1;
+
+  taskId = pTask->streamTaskId.taskId;
+  if (tDecodeI32(pDecoder, &taskId)) return -1;
 
   if (tDecodeU64(pDecoder, &pTask->dataRange.range.minVer)) return -1;
   if (tDecodeU64(pDecoder, &pTask->dataRange.range.maxVer)) return -1;
@@ -259,8 +264,11 @@ int32_t tDecodeStreamTaskId(SDecoder* pDecoder, STaskId* pTaskId) {
   if (ver != SSTREAM_TASK_VER) return -1;
 
   if (tDecodeI64(pDecoder, &pTaskId->streamId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pTaskId->taskId) < 0) return -1;
 
+  int32_t taskId = 0;
+  if (tDecodeI32(pDecoder, &taskId) < 0) return -1;
+
+  pTaskId->taskId = taskId;
   tEndDecode(pDecoder);
   return 0;
 }
