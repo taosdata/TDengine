@@ -86,6 +86,15 @@ int32_t streamTransferStateToStreamTask(SStreamTask* pTask);
 
 int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t cap, int32_t rate);
 
+SStreamQueue* streamQueueOpen(int64_t cap);
+void          streamQueueClose(SStreamQueue* pQueue, int32_t taskId);
+void          streamQueueProcessSuccess(SStreamQueue* queue);
+void          streamQueueProcessFail(SStreamQueue* queue);
+void*         streamQueueNextItem(SStreamQueue* pQueue);
+void          streamFreeQitem(SStreamQueueItem* data);
+
+STaskId extractStreamTaskKey(const SStreamTask* pTask);
+
 #ifdef __cplusplus
 }
 #endif

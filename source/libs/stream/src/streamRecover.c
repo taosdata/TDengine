@@ -21,8 +21,7 @@
 
 typedef struct SStreamTaskRetryInfo {
   SStreamMeta* pMeta;
-  int32_t      taskId;
-  int64_t      streamId;
+  STaskId      id;
 } SStreamTaskRetryInfo;
 
 static int32_t streamSetParamForScanHistory(SStreamTask* pTask);
@@ -520,12 +519,10 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
   SStreamTaskRetryInfo* pInfo = param;
   SStreamMeta*          pMeta = pInfo->pMeta;
 
-  qDebug("s-task:0x%x in timer to launch related history task", pInfo->taskId);
+  qDebug("s-task:0x%x in timer to launch related history task", (int32_t) pInfo->id.taskId);
 
   taosWLockLatch(&pMeta->lock);
-  int64_t keys[2] = {pInfo->streamId, pInfo->taskId};
-
-  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, keys, sizeof(keys));
+  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &pInfo->id, sizeof(pInfo->id));
   if (ppTask) {
     ASSERT((*ppTask)->status.timerActive >= 1);
 
@@ -541,7 +538,7 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
   }
   taosWUnLockLatch(&pMeta->lock);
 
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pInfo->streamId, pInfo->taskId);
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pInfo->id.streamId, pInfo->id.taskId);
   if (pTask != NULL) {
     ASSERT(pTask->status.timerActive >= 1);
 
@@ -552,7 +549,7 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
       qWarn(
           "s-task:%s vgId:%d status:%s failed to launch history task:0x%x, since it may not be built, or may have been "
           "destroyed, or should stop",
-          pTask->id.idStr, pMeta->vgId, pStatus, pTask->historyTaskId.taskId);
+          pTask->id.idStr, pMeta->vgId, pStatus, (int32_t) pTask->historyTaskId.taskId);
 
       taosTmrReset(tryLaunchHistoryTask, 100, pInfo, streamEnv.timer, &pTask->launchTaskTimer);
       streamMetaReleaseTask(pMeta, pTask);
@@ -568,7 +565,7 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
     atomic_sub_fetch_8(&pTask->status.timerActive, 1);
     streamMetaReleaseTask(pMeta, pTask);
   } else {
-    qError("s-task:0x%x failed to load task, it may have been destroyed", pInfo->taskId);
+    qError("s-task:0x%x failed to load task, it may have been destroyed", (int32_t) pInfo->id.taskId);
   }
 
   taosMemoryFree(pInfo);
@@ -587,17 +584,15 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
   qDebug("s-task:%s start to launch related fill-history task:0x%" PRIx64 "-0x%x", pTask->id.idStr,
          pTask->historyTaskId.streamId, hTaskId);
 
-  int64_t keys[2] = {pTask->historyTaskId.streamId, hTaskId};
-
   // Set the execute conditions, including the query time window and the version range
-  SStreamTask** pHTask = taosHashGet(pMeta->pTasksMap, keys, sizeof(keys));
+  SStreamTask** pHTask = taosHashGet(pMeta->pTasksMap, &pTask->historyTaskId, sizeof(pTask->historyTaskId));
   if (pHTask == NULL) {
     qWarn("s-task:%s vgId:%d failed to launch history task:0x%x, since it is not built yet", pTask->id.idStr,
           pMeta->vgId, hTaskId);
 
     SStreamTaskRetryInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamTaskRetryInfo));
-    pInfo->taskId = pTask->id.taskId;
-    pInfo->streamId = pTask->id.streamId;
+    pInfo->id.taskId = pTask->id.taskId;
+    pInfo->id.streamId = pTask->id.streamId;
     pInfo->pMeta = pTask->pMeta;
 
     if (pTask->launchTaskTimer == NULL) {
