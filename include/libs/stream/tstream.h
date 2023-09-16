@@ -321,15 +321,13 @@ typedef struct {
   int64_t init;
   int64_t step1Start;
   int64_t step2Start;
-  int64_t sinkStart;
-} STaskTimestamp;
+  int64_t start;
+  int32_t updateCount;
+  int64_t latestUpdateTs;
+} STaskExecStatisInfo;
 
-typedef struct STokenBucket {
-    int32_t capacity;     // total capacity
-    int64_t fillTimestamp;// fill timestamp
-    int32_t numOfToken;   // total available tokens
-    int32_t rate;         // number of token per second
-} STokenBucket;
+typedef struct STokenBucket STokenBucket;
+typedef struct SMetaHbInfo  SMetaHbInfo;
 
 struct SStreamTask {
   int64_t          ver;
@@ -345,7 +343,7 @@ struct SStreamTask {
   SDataRange       dataRange;
   SStreamTaskId    historyTaskId;
   SStreamTaskId    streamTaskId;
-  STaskTimestamp   tsInfo;
+  STaskExecStatisInfo taskExecInfo;
   SArray*          pReadyMsgList;  // SArray<SStreamChkptReadyInfo*>
   TdThreadMutex    lock;           // secure the operation of set task status and puting data into inputQ
   SArray*          pUpstreamInfoList;
@@ -359,7 +357,7 @@ struct SStreamTask {
     STaskSinkFetch         fetchSink;
   };
   SSinkTaskRecorder sinkRecorder;
-  STokenBucket      tokenBucket;
+  STokenBucket*     pTokenBucket;
 
   void*         launchTaskTimer;
   SMsgCb*       pMsgCb;  // msg handle
@@ -381,19 +379,13 @@ struct SStreamTask {
   char                reserve[256];
 };
 
-typedef struct SMetaHbInfo {
-  tmr_h   hbTmr;
-  int32_t stopFlag;
-  int32_t tickCounter;
-} SMetaHbInfo;
-
 // meta
 typedef struct SStreamMeta {
   char*         path;
   TDB*          db;
   TTB*          pTaskDb;
   TTB*          pCheckpointDb;
-  SHashObj*     pTasks;
+  SHashObj*     pTasksMap;
   SArray*       pTaskList;  // SArray<task_id*>
   void*         ahandle;
   TXN*          txn;
@@ -403,15 +395,13 @@ typedef struct SStreamMeta {
   bool          leader;
   int8_t        taskWillbeLaunched;
   SRWLatch      lock;
-//  TdThreadRwlock lock;
   int32_t       walScanCounter;
   void*         streamBackend;
   int64_t       streamBackendRid;
   SHashObj*     pTaskBackendUnique;
   TdThreadMutex backendMutex;
-  SMetaHbInfo   hbInfo;
-  SHashObj*     pUpdateTaskList;
-//  int32_t       closedTask;
+  SMetaHbInfo*  pHbInfo;
+  SHashObj*     pUpdateTaskSet;
   int32_t       totalTasks;  // this value should be increased when a new task is added into the meta
   int32_t       chkptNotReadyTasks;
   int64_t       rid;
@@ -732,7 +722,7 @@ int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSo
 int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask);
 
 int32_t streamAlignTransferState(SStreamTask* pTask);
-
+int32_t streamBuildAndSendDropTaskMsg(SStreamTask* pTask, int32_t vgId, SStreamTaskId* pTaskId);
 int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask,
                                         int8_t isSucceed);
 int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SRpcMsg* pMsg,

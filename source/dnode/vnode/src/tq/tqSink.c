@@ -274,7 +274,7 @@ int32_t doBuildAndSendSubmitMsg(SVnode* pVnode, SStreamTask* pTask, SSubmitReq2*
 
   if ((pTask->sinkRecorder.numOfSubmit % 5000) == 0) {
     SSinkTaskRecorder* pRec = &pTask->sinkRecorder;
-    double             el = (taosGetTimestampMs() - pTask->tsInfo.sinkStart) / 1000.0;
+    double             el = (taosGetTimestampMs() - pTask->taskExecInfo.start) / 1000.0;
     tqInfo("s-task:%s vgId:%d write %" PRId64 " blocks (%" PRId64 " rows) in %" PRId64
            " submit into dst table, duration:%.2f Sec.",
            pTask->id.idStr, vgId, pRec->numOfBlocks, pRec->numOfRows, pRec->numOfSubmit, el);
@@ -755,8 +755,8 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
   int32_t       code = TSDB_CODE_SUCCESS;
   const char*   id = pTask->id.idStr;
 
-  if (pTask->tsInfo.sinkStart == 0) {
-    pTask->tsInfo.sinkStart = taosGetTimestampMs();
+  if (pTask->taskExecInfo.start == 0) {
+    pTask->taskExecInfo.start = taosGetTimestampMs();
   }
 
   bool onlySubmitData = true;

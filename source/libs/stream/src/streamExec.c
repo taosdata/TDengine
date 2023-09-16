@@ -201,7 +201,7 @@ int32_t streamScanHistoryData(SStreamTask* pTask) {
 
   while (!finished) {
     if (streamTaskShouldPause(&pTask->status)) {
-      double el = (taosGetTimestampMs() - pTask->tsInfo.step1Start) / 1000.0;
+      double el = (taosGetTimestampMs() - pTask->taskExecInfo.step1Start) / 1000.0;
       qDebug("s-task:%s paused from the scan-history task, elapsed time:%.2fsec", pTask->id.idStr, el);
       break;
     }
@@ -303,7 +303,8 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
         pTask->id.idStr, pTask->streamTaskId.taskId);
 
     // 1. free it and remove fill-history task from disk meta-store
-    streamMetaUnregisterTask(pMeta, pTask->id.streamId, pTask->id.taskId);
+//    streamMetaUnregisterTask(pMeta, pTask->id.streamId, pTask->id.taskId);
+    streamBuildAndSendDropTaskMsg(pStreamTask, pMeta->vgId, &pTask->id);
 
     // 2. save to disk
     taosWLockLatch(&pMeta->lock);
@@ -365,7 +366,8 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   qDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", pTask->id.idStr);
 
   // 4. free it and remove fill-history task from disk meta-store
-  streamMetaUnregisterTask(pMeta, pTask->id.streamId, pTask->id.taskId);
+//  streamMetaUnregisterTask(pMeta, pTask->id.streamId, pTask->id.taskId);
+  streamBuildAndSendDropTaskMsg(pStreamTask, pMeta->vgId, &pTask->id);
 
   // 5. clear the link between fill-history task and stream task info
   pStreamTask->historyTaskId.taskId = 0;
@@ -408,6 +410,8 @@ int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
 
   if (level == TASK_LEVEL__AGG || level == TASK_LEVEL__SOURCE) {  // do transfer task operator states.
     code = streamDoTransferStateToStreamTask(pTask);
+  } else { // drop fill-history task
+    streamBuildAndSendDropTaskMsg(pTask, pTask->pMeta->vgId, &pTask->id);
   }
 
   return code;
@@ -503,16 +507,12 @@ int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
     }
   } else {  // non-dispatch task, do task state transfer directly
     streamFreeQitem((SStreamQueueItem*)pBlock);
-    if (level != TASK_LEVEL__SINK) {
-      qDebug("s-task:%s non-dispatch task, start to transfer state directly", id);
-      ASSERT(pTask->info.fillHistory == 1);
-      code = streamTransferStateToStreamTask(pTask);
+    qDebug("s-task:%s non-dispatch task, start to transfer state directly", id);
+    ASSERT(pTask->info.fillHistory == 1);
+    code = streamTransferStateToStreamTask(pTask);
 
-      if (code != TSDB_CODE_SUCCESS) {
-        /*int8_t status = */streamTaskSetSchedStatusInActive(pTask);
-      }
-    } else {
-      qDebug("s-task:%s sink task does not transfer state", id);
+    if (code != TSDB_CODE_SUCCESS) {
+      /*int8_t status = */ streamTaskSetSchedStatusInActive(pTask);
     }
   }
 
