@@ -105,3 +105,9 @@ taostest --use=common_insert.yaml --case=restful_insert/numeric_type_boundary_ch
 #taostest --use=common_insert.yaml --case=restful_insert/str_type_boundary_check.py --keep --containers
 
 taostest --setup=common_cluster_30_redistribute.yaml --case=cluster/vnode_redistribute.py --keep
+
+
+
+
+
+
