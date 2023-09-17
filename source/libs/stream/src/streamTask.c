@@ -97,9 +97,12 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   if (tEncodeI8(pEncoder, pTask->info.fillHistory) < 0) return -1;
 
   if (tEncodeI64(pEncoder, pTask->historyTaskId.streamId)) return -1;
-  if (tEncodeI32(pEncoder, pTask->historyTaskId.taskId)) return -1;
+  int32_t taskId = pTask->historyTaskId.taskId;
+  if (tEncodeI32(pEncoder, taskId)) return -1;
+
   if (tEncodeI64(pEncoder, pTask->streamTaskId.streamId)) return -1;
-  if (tEncodeI32(pEncoder, pTask->streamTaskId.taskId)) return -1;
+  taskId = pTask->streamTaskId.taskId;
+  if (tEncodeI32(pEncoder, taskId)) return -1;
 
   if (tEncodeU64(pEncoder, pTask->dataRange.range.minVer)) return -1;
   if (tEncodeU64(pEncoder, pTask->dataRange.range.maxVer)) return -1;
@@ -141,6 +144,8 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
 }
 
 int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
+  int32_t taskId = 0;
+
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pTask->ver) < 0) return -1;
   if (pTask->ver != SSTREAM_TASK_VER) return -1;
@@ -165,9 +170,12 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   if (tDecodeI8(pDecoder, &pTask->info.fillHistory) < 0) return -1;
 
   if (tDecodeI64(pDecoder, &pTask->historyTaskId.streamId)) return -1;
-  if (tDecodeI32(pDecoder, &pTask->historyTaskId.taskId)) return -1;
+  if (tDecodeI32(pDecoder, &taskId)) return -1;
+  pTask->historyTaskId.taskId = taskId;
+
   if (tDecodeI64(pDecoder, &pTask->streamTaskId.streamId)) return -1;
-  if (tDecodeI32(pDecoder, &pTask->streamTaskId.taskId)) return -1;
+  if (tDecodeI32(pDecoder, &taskId)) return -1;
+  pTask->streamTaskId.taskId = taskId;
 
   if (tDecodeU64(pDecoder, &pTask->dataRange.range.minVer)) return -1;
   if (tDecodeU64(pDecoder, &pTask->dataRange.range.maxVer)) return -1;
@@ -251,15 +259,19 @@ int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo)
   tEndDecode(pDecoder);
   return 0;
 }
-int32_t tDecodeStreamTaskId(SDecoder* pDecoder, SStreamTaskId* pTaskId) {
+
+int32_t tDecodeStreamTaskId(SDecoder* pDecoder, STaskId* pTaskId) {
   int64_t ver;
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &ver) < 0) return -1;
   if (ver != SSTREAM_TASK_VER) return -1;
 
   if (tDecodeI64(pDecoder, &pTaskId->streamId) < 0) return -1;
-  if (tDecodeI32(pDecoder, &pTaskId->taskId) < 0) return -1;
 
+  int32_t taskId = 0;
+  if (tDecodeI32(pDecoder, &taskId) < 0) return -1;
+
+  pTaskId->taskId = taskId;
   tEndDecode(pDecoder);
   return 0;
 }
@@ -478,8 +490,8 @@ void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpS
     SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->pUpstreamInfoList, i);
     if (pInfo->nodeId == nodeId) {
       epsetAssign(&pInfo->epSet, pEpSet);
-      qDebug("s-task:0x%x update the upstreamInfo, nodeId:%d taskId:0x%x newEpset:%s", pTask->id.taskId, nodeId,
-             pInfo->taskId, buf);
+      qDebug("s-task:0x%x update the upstreamInfo taskId:0x%x(nodeId:%d) newEpset:%s", pTask->id.taskId,
+             pInfo->taskId, nodeId, buf);
       break;
     }
   }
@@ -509,7 +521,8 @@ void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SE
 
       if (pVgInfo->vgId == nodeId) {
         epsetAssign(&pVgInfo->epSet, pEpSet);
-        qDebug("s-task:0x%x update the dispatch info, nodeId:%d newEpset:%s", pTask->id.taskId, nodeId, buf);
+        qDebug("s-task:0x%x update the dispatch info, task:0x%x(nodeId:%d) newEpset:%s", pTask->id.taskId,
+               pVgInfo->taskId, nodeId, buf);
         break;
       }
     }
@@ -517,7 +530,8 @@ void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SE
     STaskDispatcherFixedEp* pDispatcher = &pTask->fixedEpDispatcher;
     if (pDispatcher->nodeId == nodeId) {
       epsetAssign(&pDispatcher->epSet, pEpSet);
-      qDebug("s-task:0x%x update the dispatch info, nodeId:%d newEpSet:%s", pTask->id.taskId, nodeId, buf);
+      qDebug("s-task:0x%x update the dispatch info, task:0x%x(nodeId:%d) newEpSet:%s", pTask->id.taskId,
+             pDispatcher->taskId, nodeId, buf);
     }
   } else {
     // do nothing
@@ -567,17 +581,19 @@ int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEpSet) {
 
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList) {
   STaskExecStatisInfo* p = &pTask->taskExecInfo;
-  qDebug("s-task:%s update task nodeEp epset, update count:%d, prevTs:%"PRId64, pTask->id.idStr,
-          p->updateCount + 1, p->latestUpdateTs);
 
-  p->updateCount += 1;
+  int32_t numOfNodes = taosArrayGetSize(pNodeList);
+  int64_t prevTs = p->latestUpdateTs;
+
   p->latestUpdateTs = taosGetTimestampMs();
+  p->updateCount += 1;
+  qDebug("s-task:%s update task nodeEp epset, updatedNodes:%d, updateCount:%d, prevTs:%" PRId64, pTask->id.idStr,
+         numOfNodes, p->updateCount, prevTs);
 
   for (int32_t i = 0; i < taosArrayGetSize(pNodeList); ++i) {
     SNodeUpdateInfo* pInfo = taosArrayGet(pNodeList, i);
     doUpdateTaskEpset(pTask, pInfo->nodeId, &pInfo->newEp);
   }
-
   return 0;
 }
 
@@ -648,4 +664,9 @@ int32_t streamBuildAndSendDropTaskMsg(SStreamTask* pTask, int32_t vgId, SStreamT
 
   qDebug("vgId:%d build and send drop table:0x%x msg", vgId, pTaskId->taskId);
   return code;
+}
+
+STaskId extractStreamTaskKey(const SStreamTask* pTask) {
+  STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
+  return id;
 }

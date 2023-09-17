@@ -189,15 +189,17 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
 int32_t sndProcessTaskDropReq(SSnode *pSnode, char *msg, int32_t msgLen) {
   SVDropStreamTaskReq *pReq = (SVDropStreamTaskReq *)msg;
   qDebug("snode:%d receive msg to drop stream task:0x%x", pSnode->pMeta->vgId, pReq->taskId);
-
-  SStreamTask* pTask = streamMetaAcquireTask(pSnode->pMeta, pReq->streamId, pReq->taskId);
-  if (pTask == NULL) {
-    qError("vgId:%d failed to acquire s-task:0x%x when dropping it", pSnode->pMeta->vgId, pReq->taskId);
-    return 0;
-  }
-
   streamMetaUnregisterTask(pSnode->pMeta, pReq->streamId, pReq->taskId);
-  streamMetaReleaseTask(pSnode->pMeta, pTask);
+
+  // commit the update
+  taosWLockLatch(&pSnode->pMeta->lock);
+  int32_t numOfTasks = streamMetaGetNumOfTasks(pSnode->pMeta);
+  qDebug("vgId:%d task:0x%x dropped, remain tasks:%d", pSnode->pMeta->vgId, pReq->taskId, numOfTasks);
+
+  if (streamMetaCommit(pSnode->pMeta) < 0) {
+    // persist to disk
+  }
+  taosWUnLockLatch(&pSnode->pMeta->lock);
   return 0;
 }
 

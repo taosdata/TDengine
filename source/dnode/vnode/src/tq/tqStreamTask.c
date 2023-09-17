@@ -166,7 +166,7 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
     return 0;
   }
 
-  int32_t numOfPauseTasks = pTq->pStreamMeta->pauseTaskNum;
+  int32_t numOfPauseTasks = pTq->pStreamMeta->numOfPausedTasks;
   if (ckPause && numOfTasks == numOfPauseTasks) {
     tqDebug("vgId:%d ignore all submit, all streams had been paused, reset the walScanCounter", vgId);
 
@@ -240,8 +240,8 @@ int32_t tqStartStreamTasks(STQ* pTq) {
   for (int32_t i = 0; i < numOfTasks; ++i) {
     SStreamTaskId* pTaskId = taosArrayGet(pMeta->pTaskList, i);
 
-    int64_t key[2] = {pTaskId->streamId, pTaskId->taskId};
-    SStreamTask** pTask = taosHashGet(pMeta->pTasksMap, key, sizeof(key));
+    STaskId id = {.streamId = pTaskId->streamId, .taskId = pTaskId->taskId};
+    SStreamTask** pTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
 
     int8_t status = (*pTask)->status.taskStatus;
     if (status == TASK_STATUS__STOP && (*pTask)->info.fillHistory != 1) {

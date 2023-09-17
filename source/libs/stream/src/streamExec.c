@@ -300,10 +300,9 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
     qError(
         "s-task:%s failed to find related stream task:0x%x, it may have been destroyed or closed, destroy the related "
         "fill-history task",
-        pTask->id.idStr, pTask->streamTaskId.taskId);
+        pTask->id.idStr, (int32_t) pTask->streamTaskId.taskId);
 
     // 1. free it and remove fill-history task from disk meta-store
-//    streamMetaUnregisterTask(pMeta, pTask->id.streamId, pTask->id.taskId);
     streamBuildAndSendDropTaskMsg(pStreamTask, pMeta->vgId, &pTask->id);
 
     // 2. save to disk
@@ -371,6 +370,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
 
   // 5. clear the link between fill-history task and stream task info
   pStreamTask->historyTaskId.taskId = 0;
+  pStreamTask->historyTaskId.streamId = 0;
 
   // 6. save to disk
   taosWLockLatch(&pMeta->lock);
