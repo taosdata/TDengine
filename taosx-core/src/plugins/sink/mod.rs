@@ -300,19 +300,19 @@ async fn consume_lush_record(
                 if tags.is_none() {
                     continue;
                 }
-                let tags = tags.clone().unwrap();
+                let tags = tags.as_ref().unwrap();
                 let mut query_tags_sql = format!("SELECT ");
-                for (tagname, _) in &tags {
+                for (tagname, _) in tags {
                     query_tags_sql.push_str(format!("`{tagname}`,").as_str());
                 }
                 query_tags_sql.pop();
                 query_tags_sql.push_str(format!(" from `{table_name}`").as_str());
-                match taos.query(query_tags_sql).await {
+                match taos.query(&query_tags_sql).await {
                     Ok(mut rs) => {
                         let mut rows = rs.rows();
                         while let Some(mut row) = rows.try_next().await? {
                             let next = row.next().unwrap();
-                            for (tagname, tagvalue) in &tags {
+                            for (tagname, tagvalue) in tags {
                                 if tagname == next.0
                                     && tagvalue.to_sql_value() != next.1.to_sql_value()
                                 {
@@ -332,9 +332,9 @@ async fn consume_lush_record(
                         }
                     }
                     Err(err) => {
-                        tracing::trace!("query_tags_sql err: {}", err.to_string());
-                        if err.to_string().contains("0x2603") || err.to_string().contains("0x2662")
-                        {
+                        let errstr = format!("{err:#}");
+                        tracing::warn!(sql = query_tags_sql, error = errstr, "query_tags_sql err");
+                        if errstr.contains("0x2603") || errstr.contains("0x2662") {
                             // table not exists
                             let table_sql = table.to_sql(None);
                             if table_sql.is_some() {
@@ -391,8 +391,8 @@ async fn consume_lush_record(
                     match taos.exec(&sql.0).await {
                         Ok(_) => (),
                         Err(err) => {
-                            let err_str = err.to_string();
-                            tracing::warn!("create table error: {err:#}");
+                            let err_str = format!("{err:#}");
+                            tracing::warn!(sql = sql.0, error = err_str, "create table error");
                             if err_str.contains("0x2653") {
                                 // column or tag length not enough
                                 let desc = taos.describe(&stable_name.as_str()).await?;
@@ -448,6 +448,7 @@ async fn consume_lush_record(
                         tracing::debug!("insert sql: {sql}");
                         let mut retry = 0;
                         let mut count = 0;
+                        let mut break_err = Ok(());
                         loop {
                             let res = taos.as_ref().unwrap().exec(sql.clone()).await;
                             match res {
@@ -455,16 +456,23 @@ async fn consume_lush_record(
                                     count = count + num;
                                     counter!(INSERT_SQLS, 1);
                                     counter!(RECORDS, num as u64);
+                                    if break_err.is_err() {
+                                        break_err?;
+                                    }
                                     break;
                                 }
                                 Err(err) => {
-                                    if retry > 2 {
-                                        tracing::warn!("retry 3 faild continue: {err:#}");
+                                    if retry > 5 {
+                                        tracing::warn!("retry 3 failed continue: {err:#}");
                                         counter!(INSERT_SQL_FAILS, 1);
                                         break;
                                     }
-                                    tracing::error!("written err cause: {err:#}");
-                                    let errstr = err.to_string();
+                                    let errstr = format!("{err:#}");
+                                    tracing::error!(
+                                        sql = sql,
+                                        error = errstr,
+                                        "Lush stream writing error"
+                                    );
                                     if errstr.contains("[0x2653]") {
                                         // column or tag length not enough
                                         let fields = Vec::from_iter(field_map.clone());
@@ -497,6 +505,7 @@ async fn consume_lush_record(
                                     } else if errstr.contains("[0x0E") {
                                         taos.replace(pool.get().await?);
                                     }
+                                    break_err = Err(err);
                                     retry += 1;
                                 }
                             }
@@ -854,10 +863,14 @@ async fn consume_point_record(
             for (insert_sql, _, value_column_type, modify_message) in sql_vec {
                 debug!("point message insert sql len: {}", insert_sql.len());
                 let mut retry = 0;
+                let mut break_err = Ok(());
                 'outer: loop {
                     if retry >= 5 {
                         tracing::warn!("sql error cannot be solved, break;");
                         counter!(INSERT_SQL_FAILS, 1);
+                        if break_err.is_err() {
+                            break_err?;
+                        }
                         break;
                     }
                     let sql_res = taos.as_ref().unwrap().exec(&insert_sql).await;
@@ -871,8 +884,12 @@ async fn consume_point_record(
                             break;
                         }
                         Err(err) => {
-                            let errstr = err.to_string();
-                            tracing::warn!("error: {}", errstr);
+                            let errstr = format!("{err:#}");
+                            tracing::warn!(
+                                sql = insert_sql,
+                                error = errstr,
+                                "Insert point record error"
+                            );
                             if errstr.contains("[0x2603]") || errstr.contains("0x0200") {
                                 // stable not exists
                                 // should be some
@@ -906,6 +923,7 @@ async fn consume_point_record(
                                         } else if err_str.contains("0xE00") {
                                             taos.replace(pool.get().await?);
                                             retry += 1;
+                                            break_err = Err(err);
                                             continue;
                                         } else {
                                             tracing::error!("create stable sql error: {err:#}");
@@ -939,6 +957,7 @@ async fn consume_point_record(
                                             } else if err_str.contains("0xE00") {
                                                 taos.replace(pool.get().await?);
                                                 retry += 1;
+                                                break_err = Err(err);
                                                 continue 'outer;
                                             } else {
                                                 tracing::error!("create table sql error: {err:#}");
@@ -961,6 +980,7 @@ async fn consume_point_record(
                                             match code {
                                                 0x0E001 | 0x0E002 | 0x0E003 => {
                                                     taos.replace(pool.get().await?);
+                                                    break_err = Err(err);
                                                     continue 'outer;
                                                 }
                                                 _ => {
@@ -1007,6 +1027,7 @@ async fn consume_point_record(
                                                 }
                                                 0x0E001 | 0x0E002 | 0x0E003 => {
                                                     taos.replace(pool.get().await?);
+                                                    break_err = Err(err);
                                                     continue 'outer;
                                                 }
                                                 _ => {
@@ -1130,10 +1151,11 @@ async fn consume_point_record(
                                 }
                             } else if errstr.contains("[0xE002]") || errstr.contains("[0xE003]") {
                                 taos.replace(pool.get().await?);
-                                continue;
                             } else {
+                                break_err = Err(err);
                                 break;
                             }
+                            break_err = Err(err);
                             retry += 1;
                         }
                     }
