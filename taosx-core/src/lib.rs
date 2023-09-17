@@ -194,60 +194,62 @@ impl TaskOpts {
             ..
         } = self;
 
-        // Check if enterprise available
-        #[cfg(not(feature = "disable-enterprise-only-validation"))]
-        match (from.driver.as_str(), to.driver.as_str()) {
-            ("tmq" | "taos", "tmq" | "taos") => {
-                let mut from = from.clone();
-                from.subject.take();
-                let from = TaosBuilder::from_dsn(from)?;
-                let mut to = to.clone();
-                to.subject.take();
-                let to = TaosBuilder::from_dsn(to)?;
+        if with_agent.is_none() {
+            // Check if enterprise available
+            #[cfg(not(feature = "disable-enterprise-only-validation"))]
+            match (from.driver.as_str(), to.driver.as_str()) {
+                ("tmq" | "taos", "tmq" | "taos") => {
+                    let mut from = from.clone();
+                    from.subject.take();
+                    let from = TaosBuilder::from_dsn(from)?;
+                    let mut to = to.clone();
+                    to.subject.take();
+                    let to = TaosBuilder::from_dsn(to)?;
 
-                if !from
-                    .is_enterprise_edition()
-                    .await
-                    .context("Failed to check source edition")?
-                    && !to
+                    if !from
+                        .is_enterprise_edition()
+                        .await
+                        .context("Failed to check source edition")?
+                        && !to
+                            .is_enterprise_edition()
+                            .await
+                            .context("Failed to check target edition")?
+                    {
+                        anyhow::bail!(
+                        "Source or target should be enterprise edition. If it's not your case, please contact us."
+                    )
+                    }
+                }
+                ("tmq" | "taos", _) => {
+                    let mut from = from.clone();
+                    from.subject.take();
+                    let builder = TaosBuilder::from_dsn(from)?;
+                    if !builder
+                        .is_enterprise_edition()
+                        .await
+                        .context("Failed to check source edition")?
+                    {
+                        anyhow::bail!(
+                        "Only enterprise edition is supported. If it's not your case, please contact us."
+                    )
+                    }
+                }
+                (_, "tmq" | "taos") => {
+                    let mut to = to.clone();
+                    to.subject.take();
+                    let builder = TaosBuilder::from_dsn(to)?;
+                    if !builder
                         .is_enterprise_edition()
                         .await
                         .context("Failed to check target edition")?
-                {
-                    anyhow::bail!(
-                        "Source or target should be enterprise edition. If it's not your case, please contact us."
-                    )
-                }
-            }
-            ("tmq" | "taos", _) => {
-                let mut from = from.clone();
-                from.subject.take();
-                let builder = TaosBuilder::from_dsn(from)?;
-                if !builder
-                    .is_enterprise_edition()
-                    .await
-                    .context("Failed to check source edition")?
-                {
-                    anyhow::bail!(
+                    {
+                        anyhow::bail!(
                         "Only enterprise edition is supported. If it's not your case, please contact us."
                     )
+                    }
                 }
+                _ => (),
             }
-            (_, "tmq" | "taos") => {
-                let mut to = to.clone();
-                to.subject.take();
-                let builder = TaosBuilder::from_dsn(to)?;
-                if !builder
-                    .is_enterprise_edition()
-                    .await
-                    .context("Failed to check target edition")?
-                {
-                    anyhow::bail!(
-                        "Only enterprise edition is supported. If it's not your case, please contact us."
-                    )
-                }
-            }
-            _ => (),
         }
 
         // Run task
