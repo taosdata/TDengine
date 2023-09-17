@@ -15,7 +15,7 @@ settings:
             debugFlag: 135
             asyncLog: 0
             numOfLogLines: 2000000000
-        - endpoint: ceph02:6030
+        - endpoint: ceph01:6031
           config_dir: /etc/taos
           config: # will write into taos.cfg
             supportVnodes: 128
@@ -24,7 +24,7 @@ settings:
             debugFlag: 135
             asyncLog: 0
             numOfLogLines: 2000000000
-        - endpoint: ceph03:6030
+        - endpoint: ceph01:6032
           config_dir: /etc/taos
           config: # will write into taos.cfg
             supportVnodes: 128
@@ -33,7 +33,7 @@ settings:
             debugFlag: 135
             asyncLog: 0
             numOfLogLines: 2000000000
-        - endpoint: ceph04:6030
+        - endpoint: ceph01:6033
           config_dir: /etc/taos
           config: # will write into taos.cfg
             supportVnodes: 128
@@ -42,7 +42,7 @@ settings:
             debugFlag: 135
             asyncLog: 0
             numOfLogLines: 2000000000
-        - endpoint: ceph05:6030
+        - endpoint: ceph01:6034
           config_dir: /etc/taos
           config: # will write into taos.cfg
             supportVnodes: 128
@@ -51,7 +51,7 @@ settings:
             debugFlag: 135
             asyncLog: 0
             numOfLogLines: 2000000000
-        - endpoint: ceph06:6030
+        - endpoint: ceph01:6035
           config_dir: /etc/taos
           config: # will write into taos.cfg
             supportVnodes: 128
