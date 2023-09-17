@@ -185,6 +185,8 @@ install_taosx() {
     echo "install services to ${SERVICE_CONFIG_DIR}..."
     ${csudo}cp -fr etc/systemd/system/* ${SERVICE_CONFIG_DIR}
 
+    ${csudo}systemctl daemon-reload
+
     check_and_create_directory "${CONFIG_DIR}"
     # copy config to /etc/taos
     if [ -f ${CONFIG_DIR}/agent.toml ]; then
