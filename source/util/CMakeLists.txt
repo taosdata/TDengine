@@ -22,7 +22,7 @@ target_include_directories(
 )
 target_link_libraries(
     util
-    PUBLIC os common
+    PUBLIC os
     PUBLIC lz4_static
     PUBLIC api cjson geos_c TSZ
 )
