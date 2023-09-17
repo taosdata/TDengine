@@ -799,17 +799,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     }
   }
 
-  //  pDb = mndAcquireDb(pMnode, streamObj.sourceDb);
-  //  if (pDb->cfg.replications != 1) {
-  //    mError("stream source db must have only 1 replica, but %s has %d", pDb->name, pDb->cfg.replications);
-  //    terrno = TSDB_CODE_MND_MULTI_REPLICA_SOURCE_DB;
-  //    mndReleaseDb(pMnode, pDb);
-  //    pDb = NULL;
-  //    goto _OVER;
-  //  }
-
-  //  mndReleaseDb(pMnode, pDb);
-
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "create-stream");
   if (pTrans == NULL) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
