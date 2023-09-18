@@ -303,7 +303,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
         pTask->id.idStr, (int32_t) pTask->streamTaskId.taskId);
 
     // 1. free it and remove fill-history task from disk meta-store
-    streamBuildAndSendDropTaskMsg(pStreamTask, pMeta->vgId, &pTask->id);
+    streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
 
     // 2. save to disk
     taosWLockLatch(&pMeta->lock);
@@ -365,8 +365,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   qDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", pTask->id.idStr);
 
   // 4. free it and remove fill-history task from disk meta-store
-//  streamMetaUnregisterTask(pMeta, pTask->id.streamId, pTask->id.taskId);
-  streamBuildAndSendDropTaskMsg(pStreamTask, pMeta->vgId, &pTask->id);
+  streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
 
   // 5. clear the link between fill-history task and stream task info
   pStreamTask->historyTaskId.taskId = 0;
@@ -411,7 +410,7 @@ int32_t streamTransferStateToStreamTask(SStreamTask* pTask) {
   if (level == TASK_LEVEL__AGG || level == TASK_LEVEL__SOURCE) {  // do transfer task operator states.
     code = streamDoTransferStateToStreamTask(pTask);
   } else { // drop fill-history task
-    streamBuildAndSendDropTaskMsg(pTask, pTask->pMeta->vgId, &pTask->id);
+    streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pTask->pMeta->vgId, &pTask->id);
   }
 
   return code;
