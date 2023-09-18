@@ -77,6 +77,8 @@ import dataJson from "./data.json";
 import SearchPop from "@/components/Header/components/pop";
 import { getUrls, fetchApiByCluster } from "@/api/explorer/login";
 import { encrypt } from "@/utils/index";
+import Vue from 'vue'
+
 export default {
   name: "Login",
   components: {
@@ -198,7 +200,6 @@ export default {
           token,
           sql
         ).catch(reason => {
-          console.log(reason);
           Promise.reject(reason);
         }).then((res) => {
           if (res && res.code == 0 && !res.desc) {
@@ -265,7 +266,6 @@ export default {
                 })
               );
             });
-            console.log(result, "===pp");
             if (
               result.length > 0 &&
               ["official", "trial"].includes(result[0].version)
@@ -305,6 +305,9 @@ export default {
         dynamic.innerText = process.env.VUE_APP_CUS_NAME + " Management System";
       }
     });
+    const timer = setTimeout(() => {
+      Vue.prototype.$message = Message;
+    }, 1500)
   },
 };
 </script>
