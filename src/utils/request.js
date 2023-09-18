@@ -1,5 +1,9 @@
 import axios from "axios";
 import { Message } from "element-ui";
+import {
+  getToken
+} from "@/utils/token";
+import router from "@/router/index.js";
 import store from "../store";
 import { refreshTokenExpire } from "./token";
 import { ReLoginCode, SuccessCode, RequestCommonConfig } from "@/const";
@@ -17,9 +21,11 @@ let setTokenTimer = null;
 
 request.interceptors.request.use(
   (config) => {
-    if (store.getters.token) {
+    const hasToken = getToken();
+    console.log(store.getters.token,hasToken,'token值');
+    if (hasToken) {
       // 让每个请求都携带token
-      config.headers["Authorization"] = store.getters.token;
+      config.headers["Authorization"] = hasToken;
       if (!config.noRefreshToken) {
         refreshTokenExpire();
         //token延期
@@ -32,6 +38,10 @@ request.interceptors.request.use(
           
         // }, 10);
       }
+    }else{
+      router.push({
+        path:'/login'
+      })
     }
     config.headers["Accept-Language"] = "q=0.8, " + store?.state?.language;
     return config;
@@ -50,6 +60,8 @@ request.interceptors.response.use(
    */
   // Determine the request status by custom code
   (response) => {
+
+   
     if (response.data) {
       const res = response.data;
 
