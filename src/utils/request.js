@@ -1,6 +1,5 @@
 import axios from "axios";
 import { Message } from "element-ui";
-
 import store from "../store";
 import { refreshTokenExpire } from "./token";
 import { ReLoginCode, SuccessCode, RequestCommonConfig } from "@/const";
@@ -22,14 +21,16 @@ request.interceptors.request.use(
       // 让每个请求都携带token
       config.headers["Authorization"] = store.getters.token;
       if (!config.noRefreshToken) {
+        refreshTokenExpire();
         //token延期
-        if (setTokenTimer) {
-          clearTimeout(setTokenTimer);
-        }
-        setTokenTimer = setTimeout(() => {
-          setTokenTimer = null;
-          refreshTokenExpire();
-        }, 5000);
+        // if (setTokenTimer) {
+        //   clearTimeout(setTokenTimer);
+        // }
+        // setTokenTimer = setTimeout(() => {
+        //   setTokenTimer = null;
+        //   refreshTokenExpire();
+          
+        // }, 10);
       }
     }
     config.headers["Accept-Language"] = "q=0.8, " + store?.state?.language;

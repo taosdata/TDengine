@@ -2,7 +2,7 @@ import Cookies from "js-cookie";
 import { TokenKey, AppIDKey, TokenExpire, RedirectKey } from "@/const";
 import { jsonToObj } from "./index";
 import { isIPUrl } from "./validate";
-
+import router from "@/router/index.js";
 const Domain = isIPUrl(document.domain) ? document.domain : document.domain.split(".").slice(-2).join(".");
 const currentDomain = document.domain;
 export function getToken() {
@@ -23,6 +23,9 @@ export function refreshTokenExpire() {
     setToken(token);
   } else {
     removeToken();
+    router.push({
+      path:'/login'
+    })
   }
 }
 export function removeToken() {
