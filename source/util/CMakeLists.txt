@@ -25,6 +25,7 @@ target_link_libraries(
     PUBLIC os
     PUBLIC lz4_static
     PUBLIC api cjson geos_c TSZ
+    PUBLIC common
 )
 
 if(${BUILD_TEST})
