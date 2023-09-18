@@ -135,6 +135,12 @@ typedef struct {
   __taos_notify_fn_t fp;
 } SPassInfo;
 
+typedef struct {
+  int64_t ver;
+  void* param;
+  __taos_notify_fn_t fp;
+} SWhiteListInfo;
+
 typedef struct STscObj {
   char          user[TSDB_USER_LEN];
   char          pass[TSDB_PASSWORD_LEN];
@@ -152,6 +158,7 @@ typedef struct STscObj {
   SAppInstInfo* pAppInfo;
   SHashObj*     pRequests;
   SPassInfo     passInfo;
+  SWhiteListInfo whiteListInfo;
 } STscObj;
 
 typedef struct STscDbg {
