@@ -79,25 +79,25 @@ int32_t tqCheckInfoRead(STqCheckInfoReader* pReader, uint8_t** ppData) {
   void* pVal = NULL;
   int32_t     kLen = 0;
   int32_t     vLen = 0;
-  SDecoder    decoder;
-  STqCheckInfo info;
+//  SDecoder    decoder;
+//  STqCheckInfo info;
 
-  *ppData = NULL;
+//  *ppData = NULL;
   if (tdbTbcNext(pReader->pCur, &pKey, &kLen, &pVal, &vLen)) {
     goto _exit;
   }
 
-  tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
-  if (tDecodeSTqCheckInfo(&decoder, &info) < 0) {
-    tdbFree(pKey);
-    tdbFree(pVal);
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
-  }
-  tdbFree(pKey);
-  tdbFree(pVal);
-  tDecoderClear(&decoder);
-
+//  tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
+//  if (tDecodeSTqCheckInfo(&decoder, &info) < 0) {
+//    tdbFree(pKey);
+//    tdbFree(pVal);
+//    code = TSDB_CODE_OUT_OF_MEMORY;
+//    goto _err;
+//  }
+//  tdbFree(pKey);
+//  tdbFree(pVal);
+//  tDecoderClear(&decoder);
+//
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + vLen);
   if (*ppData == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -109,13 +109,17 @@ int32_t tqCheckInfoRead(STqCheckInfoReader* pReader, uint8_t** ppData) {
   pHdr->size = vLen;
   memcpy(pHdr->data, pVal, vLen);
 
-  tqInfo("vgId:%d, vnode check info tq read data, topic: %s vLen:%d", TD_VID(pReader->pTq->pVnode),
-         info.topic, vLen);
-
 _exit:
+  tdbFree(pKey);
+  tdbFree(pVal);
+
+  tqInfo("vgId:%d, vnode check info tq read data, vLen:%d", TD_VID(pReader->pTq->pVnode), vLen);
   return code;
 
 _err:
+  tdbFree(pKey);
+  tdbFree(pVal);
+
   tqError("vgId:%d, vnode check info tq read data failed since %s", TD_VID(pReader->pTq->pVnode), tstrerror(code));
   return code;
 }

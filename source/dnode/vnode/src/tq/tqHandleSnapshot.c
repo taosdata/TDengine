@@ -75,30 +75,50 @@ int32_t tqSnapReaderClose(STqSnapReader** ppReader) {
 
 int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData) {
   int32_t     code = 0;
-  const void* pKey = NULL;
-  const void* pVal = NULL;
+  void* pKey = NULL;
+  void* pVal = NULL;
   int32_t     kLen = 0;
   int32_t     vLen = 0;
-  SDecoder    decoder;
-  STqHandle   handle;
+//  SDecoder    decoder;
+//  STqHandle   handle;
 
-  *ppData = NULL;
-  for (;;) {
-    if (tdbTbcGet(pReader->pCur, &pKey, &kLen, &pVal, &vLen)) {
-      goto _exit;
-    }
 
-    tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
-    tDecodeSTqHandle(&decoder, &handle);
-    tDecoderClear(&decoder);
-
-    if (handle.snapshotVer <= pReader->sver && handle.snapshotVer >= pReader->ever) {
-      tdbTbcMoveToNext(pReader->pCur);
-      break;
-    } else {
-      tdbTbcMoveToNext(pReader->pCur);
-    }
+//  *ppData = NULL;
+  if (tdbTbcNext(pReader->pCur, &pKey, &kLen, &pVal, &vLen)) {
+    goto _exit;
   }
+
+//  tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
+//  if (tDecodeSTqCheckInfo(&decoder, &info) < 0) {
+//    tdbFree(pKey);
+//    tdbFree(pVal);
+//    code = TSDB_CODE_OUT_OF_MEMORY;
+//    goto _err;
+//  }
+//  tdbFree(pKey);
+//  tdbFree(pVal);
+//  tDecoderClear(&decoder);
+
+//  *ppData = NULL;
+//  for (;;) {
+//    if (tdbTbcGet(pReader->pCur, &pKey, &kLen, &pVal, &vLen)) {
+//      goto _exit;
+//    }
+//
+//    tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
+//    tDecodeSTqHandle(&decoder, &handle);
+//    tDecoderClear(&decoder);
+//
+//    tqInfo("vgId:%d, vnode snapshot tq start read data, version:%" PRId64 " subKey: %s vLen:%d, sver:%"PRId64 " , ever:%" PRId64, TD_VID(pReader->pTq->pVnode),
+//           handle.snapshotVer, handle.subKey, vLen,
+//           pReader->sver, pReader->ever);
+//    if (handle.snapshotVer <= pReader->sver && handle.snapshotVer >= pReader->ever) {
+//      tdbTbcMoveToNext(pReader->pCur);
+//      break;
+//    } else {
+//      tdbTbcMoveToNext(pReader->pCur);
+//    }
+//  }
 
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + vLen);
   if (*ppData == NULL) {
@@ -111,13 +131,15 @@ int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData) {
   pHdr->size = vLen;
   memcpy(pHdr->data, pVal, vLen);
 
-  tqInfo("vgId:%d, vnode snapshot tq read data, version:%" PRId64 " subKey: %s vLen:%d", TD_VID(pReader->pTq->pVnode),
-         handle.snapshotVer, handle.subKey, vLen);
-
 _exit:
+  tdbFree(pKey);
+  tdbFree(pVal);
+  tqInfo("vgId:%d, vnode snapshot tq read data, vLen:%d", TD_VID(pReader->pTq->pVnode), vLen);
   return code;
 
 _err:
+  tdbFree(pKey);
+  tdbFree(pVal);
   tqError("vgId:%d, vnode snapshot tq read data failed since %s", TD_VID(pReader->pTq->pVnode), tstrerror(code));
   return code;
 }
