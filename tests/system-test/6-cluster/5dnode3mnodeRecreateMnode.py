@@ -166,22 +166,23 @@ class TDTestCase:
             nodePort = 6030 + i*100
             newTdSql=tdCom.newTdSql(port=nodePort)
 
+
+        tdDnodes[1].stoptaosd()
+
         dataPath = tdDnodes[1].dataDir
         os.system(f"rm -rf {dataPath}/*")
         os.system(f"rm -rf {dataPath}/.runing")
 
-        tdDnodes[1].stoptaosd()
         tdDnodes[1].starttaosd()
         sleep(5)
         for i in range(6):
             nodePort = 6030 + i*100 
             newTdSql=tdCom.newTdSql(port=nodePort)
 
+        tdDnodes[0].stoptaosd()
         dataPath = tdDnodes[0].dataDir
         os.system(f"rm -rf {dataPath}/*")
         os.system(f"rm -rf {dataPath}/.runing")
-
-        tdDnodes[0].stoptaosd()
         tdDnodes[0].starttaosd()
         sleep(5)
         for i in range(6):

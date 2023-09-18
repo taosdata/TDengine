@@ -23,22 +23,22 @@ extern "C" {
 #endif
 
 typedef struct SDnodeMgmt {
-  SDnodeData         *pData;
-  SMsgCb              msgCb;
-  const char         *path;
-  const char         *name;
-  TdThread            statusThread;
-  TdThread            monitorThread;
-  TdThread            crashReportThread;
-  SSingleWorker       mgmtWorker;
-  ProcessCreateNodeFp processCreateNodeFp;
+  SDnodeData            *pData;
+  SMsgCb                 msgCb;
+  const char            *path;
+  const char            *name;
+  TdThread               statusThread;
+  TdThread               monitorThread;
+  TdThread               crashReportThread;
+  SSingleWorker          mgmtWorker;
+  ProcessCreateNodeFp    processCreateNodeFp;
   ProcessAlterNodeTypeFp processAlterNodeTypeFp;
-  ProcessDropNodeFp   processDropNodeFp;
-  SendMonitorReportFp sendMonitorReportFp;
-  GetVnodeLoadsFp     getVnodeLoadsFp;
-  GetMnodeLoadsFp     getMnodeLoadsFp;
-  GetQnodeLoadsFp     getQnodeLoadsFp;
-  int32_t             statusSeq;
+  ProcessDropNodeFp      processDropNodeFp;
+  SendMonitorReportFp    sendMonitorReportFp;
+  GetVnodeLoadsFp        getVnodeLoadsFp;
+  GetMnodeLoadsFp        getMnodeLoadsFp;
+  GetQnodeLoadsFp        getQnodeLoadsFp;
+  int32_t                statusSeq;
 } SDnodeMgmt;
 
 // dmHandle.c

@@ -194,6 +194,16 @@ void tsortSetClosed(SSortHandle* pHandle);
 void tsortSetSingleTableMerge(SSortHandle* pHandle);
 void tsortSetAbortCheckFn(SSortHandle* pHandle, bool (*checkFn)(void* param), void* param);
 
+/**
+ * @brief comp the tuple with keyBuf, if not equal, new keys will be built in keyBuf, newLen will be stored in keyLen
+ * @param [in] pSortCols cols to comp and build
+ * @param [in, out] pass in the old keys, if comp not equal, new keys will be built in it.
+ * @param [in, out] keyLen the old keysLen, if comp not equal, new keysLen will be stored in it.
+ * @param [in] the tuple to comp with
+ * @retval 0 if comp equal, 1 if not
+ */
+int32_t tsortCompAndBuildKeys(const SArray* pSortCols, char* keyBuf, int32_t* keyLen, const STupleHandle* pTuple);
+
 #ifdef __cplusplus
 }
 #endif

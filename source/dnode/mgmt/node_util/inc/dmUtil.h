@@ -107,6 +107,7 @@ typedef struct {
   TdThreadRwlock lock;
   SMsgCb         msgCb;
   bool           validMnodeEps;
+  int64_t        ipWhiteVer;
 } SDnodeData;
 
 typedef struct {
