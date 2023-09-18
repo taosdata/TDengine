@@ -25,6 +25,7 @@ extern SAudit tsAudit;
 
 void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
                     char *detail, int32_t len) {
+  /*
   if(len > AUDIT_DETAIL_MAX){
     uError("can't record audit since detail is too long, len:%d, operation:%s, target1:%s, target2:%s", 
             len, operation, target1, target2);
@@ -32,6 +33,7 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
   int32_t min = len > AUDIT_DETAIL_MAX ? AUDIT_DETAIL_MAX : len;
   char* buf = taosMemoryMalloc(min);
   memcpy(buf, detail, min - 1);
+  */
 
   char *user = pReq->info.conn.user;
 
@@ -59,7 +61,7 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
 
   auditSend(pJson);
 
-  taosMemoryFree(buf);
+  //taosMemoryFree(buf);
 }
 
 void auditSend(SJson *pJson) {
