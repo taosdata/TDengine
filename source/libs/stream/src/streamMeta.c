@@ -295,6 +295,8 @@ void streamMetaClear(SStreamMeta* pMeta) {
   taosArrayClear(pMeta->pTaskList);
   taosArrayClear(pMeta->chkpSaved);
   taosArrayClear(pMeta->chkpInUse);
+  pMeta->numOfStreamTasks = 0;
+  pMeta->numOfPausedTasks = 0;
 }
 
 void streamMetaClose(SStreamMeta* pMeta) {
@@ -748,6 +750,7 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   }
 
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+  ASSERT(pMeta->numOfStreamTasks <= numOfTasks);
   qDebug("vgId:%d load %d tasks into meta from disk completed, streamTask:%d, paused:%d", pMeta->vgId, numOfTasks,
          pMeta->numOfStreamTasks, pMeta->numOfPausedTasks);
   taosArrayDestroy(pRecycleList);
