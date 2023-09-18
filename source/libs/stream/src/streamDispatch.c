@@ -990,6 +990,8 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     if (code != TSDB_CODE_SUCCESS) {  // todo: do nothing if error happens
     }
 
+    // now ready for next data output
+    atomic_store_8(&pTask->outputInfo.status, TASK_OUTPUT_STATUS__NORMAL);
     return TSDB_CODE_SUCCESS;
   }
 
