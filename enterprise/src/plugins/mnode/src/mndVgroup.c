@@ -78,10 +78,11 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
 
-  auditRecord(pReq, pMnode->clusterId, "balanceVgroupLead", "", "", "");
+  auditRecord(pReq, pMnode->clusterId, "balanceVgroupLead", "", "", req.sql, req.sqlLen);
 
 _OVER:
   mndTransDrop(pTrans);
+  tFreeSBalanceVgroupLeaderReq(&req);
   return code;
 }
 

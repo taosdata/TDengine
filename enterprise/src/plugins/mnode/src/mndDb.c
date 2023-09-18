@@ -103,14 +103,10 @@ int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
   code = mndCompactDb(pMnode, pReq, pDb, compactReq.timeRange);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char detail[1000] = {0};
-  sprintf(detail, "timeRange.ekey:%" PRId64 ", timeRange.skey:%" PRId64, 
-          compactReq.timeRange.ekey, compactReq.timeRange.skey);
-
   SName name = {0};
   tNameFromString(&name, compactReq.db, T_NAME_ACCT | T_NAME_DB);
 
-  auditRecord(pReq, pMnode->clusterId, "compactDB", name.dbname, "", detail);
+  auditRecord(pReq, pMnode->clusterId, "compactDB", name.dbname, "", compactReq.sql, compactReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -118,6 +114,7 @@ _OVER:
   }
 
   mndReleaseDb(pMnode, pDb);
+  tFreeSCompactDbReq(&compactReq);
   return code;
 }
 
