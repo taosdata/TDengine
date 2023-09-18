@@ -106,7 +106,7 @@ int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
   SName name = {0};
   tNameFromString(&name, compactReq.db, T_NAME_ACCT | T_NAME_DB);
 
-  auditRecord(pReq, pMnode->clusterId, "compactDB", name.dbname, "", compactReq.sql, compactReq.sqlLen);
+  //auditRecord(pReq, pMnode->clusterId, "compactDB", name.dbname, "", compactReq.sql, compactReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -114,7 +114,7 @@ _OVER:
   }
 
   mndReleaseDb(pMnode, pDb);
-  tFreeSCompactDbReq(&compactReq);
+  //tFreeSCompactDbReq(&compactReq);
   return code;
 }
 
