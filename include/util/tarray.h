@@ -225,7 +225,7 @@ void taosArraySort(SArray* pArray, __compar_fn_t comparFn);
  * @param pArray
  * @param compar
  */
-void taosArrayMSort(SArray* pArray, __compar_fn_t comparFn);
+int32_t taosArrayMSort(SArray* pArray, __compar_fn_t comparFn);
 
 /**
  * search the array

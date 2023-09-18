@@ -312,10 +312,12 @@ static void taosMerge(void *src, int32_t start, int32_t leftend, int32_t end, in
   }
 }
 
-static void taosMergeSortHelper(void *src, int64_t numOfElem, int64_t size, const void *param, __ext_compar_fn_t comparFn) {
+static int32_t taosMergeSortHelper(void *src, int64_t numOfElem, int64_t size, const void *param,
+                                   __ext_compar_fn_t comparFn) {
   // short array sort, instead of merge sort process
   const int32_t THRESHOLD_SIZE = 6;
   char         *buf = taosMemoryCalloc(1, size);  // prepare the swap buffer
+  if (buf == NULL) return TSDB_CODE_OUT_OF_MEMORY;
   for (int32_t start = 0; start < numOfElem - 1; start += THRESHOLD_SIZE) {
     int32_t end = (start + THRESHOLD_SIZE - 1) <= numOfElem - 1 ? (start + THRESHOLD_SIZE - 1) : numOfElem - 1;
     tInsertSort(src, size, start, end, param, comparFn, buf);
@@ -325,6 +327,7 @@ static void taosMergeSortHelper(void *src, int64_t numOfElem, int64_t size, cons
   if (numOfElem > THRESHOLD_SIZE) {
     int32_t currSize;
     void *tmp = taosMemoryMalloc(numOfElem * size);
+    if (tmp == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
     for (currSize = THRESHOLD_SIZE; currSize <= numOfElem - 1; currSize = 2 * currSize) {
       int32_t leftStart;
@@ -340,6 +343,7 @@ static void taosMergeSortHelper(void *src, int64_t numOfElem, int64_t size, cons
 
     taosMemoryFreeClear(tmp);
   }
+  return 0;
 }
 
 int32_t msortHelper(const void *p1, const void *p2, const void *param) {
@@ -348,7 +352,7 @@ int32_t msortHelper(const void *p1, const void *p2, const void *param) {
 }
 
 
-void taosMergeSort(void *src, int64_t numOfElem, int64_t size, __compar_fn_t comparFn) {
+int32_t taosMergeSort(void *src, int64_t numOfElem, int64_t size, __compar_fn_t comparFn) {
   void *param = comparFn;
-  taosMergeSortHelper(src, numOfElem, size, param, msortHelper);
+  return taosMergeSortHelper(src, numOfElem, size, param, msortHelper);
 }
