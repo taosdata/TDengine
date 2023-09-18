@@ -1086,8 +1086,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
       tqDebug("s-task:%s fill-history task set status to be dropping", id);
 
-//      streamMetaUnregisterTask(pMeta, pTask->id.streamId, pTask->id.taskId);
-      streamBuildAndSendDropTaskMsg(pTask, pMeta->vgId, &pTask->id);
+      streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
       streamMetaReleaseTask(pMeta, pTask);
       return -1;
     }
