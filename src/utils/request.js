@@ -1,16 +1,18 @@
 import axios from "axios";
 import { Message } from "element-ui";
-
+import { getToken } from "@/utils/token";
+import router from "@/router/index.js";
 import store from "../store";
 import { refreshTokenExpire } from "./token";
 import { ReLoginCode, SuccessCode, RequestCommonConfig } from "@/const";
+import Vue from 'vue';
+
 const request = axios.create({
   ...RequestCommonConfig,
   baseURL: process.env.VUE_APP_BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
- 
 });
 
 let msg = "";
@@ -18,26 +20,34 @@ let setTokenTimer = null;
 
 request.interceptors.request.use(
   (config) => {
-    if (store.getters.token) {
+    const hasToken = getToken();
+    if (hasToken) {
       // 让每个请求都携带token
-      config.headers["Authorization"] = store.getters.token;
+      config.headers["Authorization"] = hasToken;
       if (!config.noRefreshToken) {
+        refreshTokenExpire();
         //token延期
-        if (setTokenTimer) {
-          clearTimeout(setTokenTimer);
-        }
-        setTokenTimer = setTimeout(() => {
-          setTokenTimer = null;
-          refreshTokenExpire();
-        }, 5000);
+        // if (setTokenTimer) {
+        //   clearTimeout(setTokenTimer);
+        // }
+        // setTokenTimer = setTimeout(() => {
+        //   setTokenTimer = null;
+        //   refreshTokenExpire();
+
+        // }, 10);
       }
+    } else {
+      config.cancelToken = axios.CancelToken.source;
+      Vue.prototype.$message = () => {};
+      router.push({
+        path: "/login",
+      });
     }
     config.headers["Accept-Language"] = "q=0.8, " + store?.state?.language;
     return config;
   },
   (error) => {
     // do something with request error
-    console.log(error, "request");
     return Promise.reject(error);
   }
 );
@@ -49,89 +59,96 @@ request.interceptors.response.use(
    */
   // Determine the request status by custom code
   (response) => {
-    if (response.data) {
-      const res = response.data;
+    const hasToken = getToken();
+    if (hasToken) {
+      if (response.data) {
+        const res = response.data;
 
-      if (res && res.type) return Promise.resolve(res);
-      if (res.code) {
-        //针对最新的tasks接口无code情况做出的判断
-        res.code += "";
-      }
-      if (res.code && checkRegion(res.code)) {
-        // token过期, 让用户重新登录
-        store.dispatch("app/logout", false);
-        return Promise.reject(null);
-      }
-      if (res.code && checkStatus(res.code)) {
-        return Promise.resolve(res.data);
-      }
-      if (Object.is(res.code, 0) && res.code === "0") {
-        //针对 'show databses'
+        if (res && res.type) return Promise.resolve(res);
+        if (res.code) {
+          //针对最新的tasks接口无code情况做出的判断
+          res.code += "";
+        }
+        if (res.code && checkRegion(res.code)) {
+          // token过期, 让用户重新登录
+          store.dispatch("app/logout", false);
+          return Promise.reject(null);
+        }
+        if (res.code && checkStatus(res.code)) {
+          return Promise.resolve(res.data);
+        }
+        if (Object.is(res.code, 0) && res.code === "0") {
+          //针对 'show databses'
+          return Promise.resolve(res);
+        }
+        if (res.code && res.code === "21200") {
+          //测试用---后续删除
+          return Promise.resolve(res);
+        }
         return Promise.resolve(res);
+      } else if (response.status == 200) {
+        return Promise.resolve(response);
       }
-      if (res.code && res.code === "21200") {
-        //测试用---后续删除
-        return Promise.resolve(res);
-      }
-      return Promise.resolve(res);
-    } else if (response.status == 200) {
-      return Promise.resolve(response);
     }
   },
   (error) => {
-    console.log("error:", error, error.response.data);
-    Message.closeAll();
-    if (error.response.data.code) {
-      return Promise.resolve(error.response.data);
-    }
-    let msg =
-      error.response.data.message ||
-      error.response.data.desc ||
-      error.message ||
-      "Unexpected error";
-    Message.error(msg);
-    let taosx404en =
-      "The Taosx API is not configured. Please check the explorer configuration";
-    let taosx500en =
-      "The Taosx API cannot be accessed. Please check the Taosx service status";
-    let taosx404 = "未配置 TaosX API，请检查 Explorer 配置";
-    let taosx500 = "TaosX API 无法访问，请检查 taosx 服务状态";
-    // Message.closeAll()
-    let isoem = false;
-    if (
-      process.env.VUE_APP_CUS_NAME &&
-      process.env.VUE_APP_CUS_NAME !== "TDengine"
-    ) {
-      isoem = true;
-    }
-    if (error.config.baseURL.includes("/api/x")) {
-      if (error.response && error.response.status === 404) {
-        Message.error(
-          navigator.language.includes("zh")
-            ? isoem
-              ? taosx404.replace("Taosx", "")
-              : taosx404
-            : isoem
-            ? taosx404en.replace("Taosx", "")
-            : taosx404en
-        );
-      } else if (error.response && error.response.status === 500) {
-        Message.error(
-          navigator.language.includes("zh")
-            ? isoem
-              ? taosx500.replace("Taosx", "")
-              : taosx500
-            : isoem
-            ? taosx500en.replace("Taosx", "")
-            : taosx500en
-        );
-      } else {
-        error.message && Message.error(error.message);
+    const hasToken = getToken();
+    if (hasToken) {
+      Message.closeAll();
+      if (error.response.data.code) {
+        return Promise.resolve(error.response.data);
       }
-    }
-    error.message = msg;
+      let msg =
+        error.response.data.message ||
+        error.response.data.desc ||
+        error.message ||
+        "Unexpected error";
+      Message.error(msg);
+      let taosx404en =
+        "The Taosx API is not configured. Please check the explorer configuration";
+      let taosx500en =
+        "The Taosx API cannot be accessed. Please check the Taosx service status";
+      let taosx404 = "未配置 TaosX API，请检查 Explorer 配置";
+      let taosx500 = "TaosX API 无法访问，请检查 taosx 服务状态";
+      // Message.closeAll()
+      let isoem = false;
+      if (
+        process.env.VUE_APP_CUS_NAME &&
+        process.env.VUE_APP_CUS_NAME !== "TDengine"
+      ) {
+        isoem = true;
+      }
+      if (error.config.baseURL.includes("/api/x")) {
+        if (error.response && error.response.status === 404) {
+          Message.error(
+            navigator.language.includes("zh")
+              ? isoem
+                ? taosx404.replace("Taosx", "")
+                : taosx404
+              : isoem
+              ? taosx404en.replace("Taosx", "")
+              : taosx404en
+          );
+        } else if (error.response && error.response.status === 500) {
+          Message.error(
+            navigator.language.includes("zh")
+              ? isoem
+                ? taosx500.replace("Taosx", "")
+                : taosx500
+              : isoem
+              ? taosx500en.replace("Taosx", "")
+              : taosx500en
+          );
+        } else {
+          error.message && Message.error(error.message);
+        }
+      }
+      error.message = msg;
 
-    return Promise.reject(error);
+      return Promise.reject(error);
+    } else {
+      Message.closeAll();
+    }
   }
 );
 function checkStatus(code) {

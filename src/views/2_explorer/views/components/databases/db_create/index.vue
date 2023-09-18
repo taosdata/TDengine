@@ -583,6 +583,9 @@
         }
       }
     },
+    beforeDestroy(){
+      this.$store.commit('dbs/SET_DIALOG_DB_VISABLE', false)
+    }
   };
 </script>
 

@@ -117,7 +117,7 @@
     },
     computed: {
       learnMoreTip() {
-        return this.$t("stream.learnMoreTip").replace(/docsUrl/, StreamDocsUrl);
+        return this.$t("stream.learnMoreTip").replace(/docsUrl/, `${this.$t('urlPart')}/develop/stream/`);
       },
     },
     async created() {

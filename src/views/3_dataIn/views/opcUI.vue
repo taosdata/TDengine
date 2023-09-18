@@ -825,7 +825,6 @@ export default {
       },
       payloadVal: "",
       mqttpayload: ["json"],
-      decryptPwd: "", //解密的密码
       // dbsource,
       disable: false,
       address: "",
@@ -1128,7 +1127,6 @@ export default {
           }
         }
 
-        this.decryptPwd = decrypt(localStorage.getItem("pwd"));
         if (data.authentication && data.authentication.value == "plain") {
           if (
             data.authentication.alternatives[this.tagName == "mqtt" ? 0 : 1]
@@ -1162,12 +1160,6 @@ export default {
             data.options.endpoint.value ? data.options.endpoint.value : "/"
           }`;
         }
-        //  else {
-        //   dns += `:///`;
-        // }
-        // dns += data.options.subject.value
-        //   ? "/" + data.options.subject.value
-        //   : "";
         let reg = /\s+/g;
         dns = dns.replace(reg, "").trim();
         let querystr = "";
@@ -1402,7 +1394,6 @@ export default {
           dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
         }
         if (this.tagName == "csv") {
-          console.log(this.dbname,'当前的数据库0000000');
           // this.dbname = this.$refs.csvdata.$refs.param.ruleForm2.dbName;
         }
         if (!this.dbname) {
@@ -1599,7 +1590,6 @@ export default {
             (!this.$refs.csvdata.$refs.param.ruleForm.hasHeader
               ? `&header=${this.$refs.csvdata.$refs.param.ruleForm.customcol}`
               : "");
-              console.log('csv最新代码');
         }
 
         if (this.isEditable&&this.editId) {

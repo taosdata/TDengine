@@ -240,7 +240,6 @@ export default {
             this.tagName = "pibackfill";
             break;
           case "csv":
-            console.log("csv跳转编辑", this.echoData);
             (this.currentName = "opcui"), (this.tagName = "csv");
             break;
           case "taos":

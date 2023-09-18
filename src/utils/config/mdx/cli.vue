@@ -82,7 +82,7 @@
     <pre
       v-highlight
     ><code>Welcome to the TDengine shell from Linux, Client Version:3.0.0.0
-Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.
+Copyright (c) 2023 by TAOS Data, Inc. All rights reserved.
 
 Successfully connect to cloud.tdengine.com:8085 in restful mode
 
@@ -91,7 +91,8 @@ taos&gt;
     <p>
       {{ $t("docs.tool.cli.step4desc1") }}&nbsp;
       <a
-        :href="`https://docs.${urlPart}.com/reference/taos-shell#execute-sql-script-file`"
+        :href="`${$t('urlPart')}/reference/taos-shell#execute-sql-script-file`"
+        target="_blank"
         >{{ $t("docs.tool.cli.step4desc2") }}</a
       >&nbsp;{{ $t("docs.tool.cli.step4desc3") }}
     </p>
