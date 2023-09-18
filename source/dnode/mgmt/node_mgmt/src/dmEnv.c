@@ -17,24 +17,6 @@
 #include "dmMgmt.h"
 #include "audit.h"
 
-#define STR_CASE_CMP(s, d)   (0 == strcasecmp((s), (d)))
-#define STR_STR_CMP(s, d)    (strstr((s), (d)))
-#define STR_INT_CMP(s, d, c) (taosStr2Int32(s, 0, 10) c(d))
-#define STR_STR_SIGN         ("ia")
-#define DM_INIT_MON()                   \
-  do {                                  \
-    code = (int32_t)(2147483648 | 298); \
-    strncpy(stName, tsVersionName, 64); \
-    monCfg.maxLogs = tsMonitorMaxLogs;  \
-    monCfg.port = tsMonitorPort;        \
-    monCfg.server = tsMonitorFqdn;      \
-    monCfg.comp = tsMonitorComp;        \
-    if (monInit(&monCfg) != 0) {        \
-      if (terrno != 0) code = terrno;   \
-      goto _exit;                       \
-    }                                   \
-  } while (0)
-
 #define DM_INIT_AUDIT()                 \
   do {                                  \
     auditCfg.port = tsMonitorPort;        \
@@ -45,15 +27,7 @@
     }                                   \
   } while (0)
 
-#define DM_ERR_RTN(c) \
-  do {                \
-    code = (c);       \
-    goto _exit;       \
-  } while (0)
-
 static SDnode      globalDnode = {0};
-static const char *dmOS[10] = {"Ubuntu",  "CentOS Linux", "Red Hat", "Debian GNU", "CoreOS",
-                               "FreeBSD", "openSUSE",     "SLES",    "Fedora",     "macOS"};
 
 SDnode *dmInstance() { return &globalDnode; }
 
@@ -76,30 +50,14 @@ static int32_t dmInitSystem() {
 static int32_t dmInitMonitor() {
   int32_t code = 0;
   SMonCfg monCfg = {0};
-  char    reName[64] = {0};
-  char    stName[64] = {0};
-  char    ver[64] = {0};
 
-  DM_INIT_MON();
-
-  if (STR_STR_CMP(stName, STR_STR_SIGN)) {
-    DM_ERR_RTN(0);
-  }
-  if (taosGetOsReleaseName(reName, stName, ver, 64) != 0) {
-    DM_ERR_RTN(code);
-  }
-  if (STR_CASE_CMP(stName, dmOS[0])) {
-    if (STR_INT_CMP(ver, 17, >)) {
-      DM_ERR_RTN(0);
-    }
-  } else if (STR_CASE_CMP(stName, dmOS[1])) {
-    if (STR_INT_CMP(ver, 6, >)) {
-      DM_ERR_RTN(0);
-    }
-  } else if (STR_STR_CMP(stName, dmOS[2]) || STR_STR_CMP(stName, dmOS[3]) || STR_STR_CMP(stName, dmOS[4]) ||
-             STR_STR_CMP(stName, dmOS[5]) || STR_STR_CMP(stName, dmOS[6]) || STR_STR_CMP(stName, dmOS[7]) ||
-             STR_STR_CMP(stName, dmOS[8]) || STR_STR_CMP(stName, dmOS[9])) {
-    DM_ERR_RTN(0);
+  monCfg.maxLogs = tsMonitorMaxLogs;
+  monCfg.port = tsMonitorPort;
+  monCfg.server = tsMonitorFqdn;
+  monCfg.comp = tsMonitorComp;
+  if (monInit(&monCfg) != 0) {
+    if (terrno != 0) code = terrno;
+    goto _exit;
   }
 
 _exit:
@@ -185,21 +143,6 @@ static bool dmCheckDataDirVersion() {
     return false;
   }
   return true;
-}
-
-int32_t dmInit() {
-  dInfo("start to init dnode env");
-  if (dmDiskInit() != 0) return -1;
-  if (!dmCheckDataDirVersion()) return -1;
-  if (!dmCheckDiskSpace()) return -1;
-  if (dmCheckRepeatInit(dmInstance()) != 0) return -1;
-  if (dmInitSystem() != 0) return -1;
-  if (dmInitMonitor() != 0) return -1;
-  if (dmInitAudit() != 0) return -1;
-  if (dmInitDnode(dmInstance()) != 0) return -1;
-
-  dInfo("dnode env is initialized");
-  return 0;
 }
 
 static int32_t dmCheckRepeatCleanup(SDnode *pDnode) {
