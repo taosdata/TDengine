@@ -98,7 +98,7 @@ export TDENGINE_TOKEN=&quot;${token}&quot;
       </li>
       <li>
         {{ $t("docs.party.telegraf.step5desc3") }}
-        <a :href="schemelessUrl">{{
+        <a :href="schemelessUrl" target="_blank">{{
           $t("docs.party.telegraf.step5desc3end")
         }}</a>
       </li>
@@ -128,7 +128,7 @@ export default {
   computed: {
     schemelessUrl(){
       return (
-        (navigator.language.includes('en')?this.enDomain:this.zhDomain)+'/reference/schemaless/#Schemaless-Line-Protocol'
+        (this.$t('urlPart'))+'/reference/schemaless/#Schemaless-Line-Protocol'
       )
     },
     jdbcURL() {

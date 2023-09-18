@@ -7,6 +7,7 @@ let taosname = process.env.VUE_APP_CUS_NAME &&
   process.env.VUE_APP_CUS_NAME !== "TDengine" ? process.env.VUE_APP_CUS_PROMPT : 'taos'
 export default {
   //通用部分
+  urlPart: '/docs-en',
   disbleagent: 'Disable agent',
   enableagent: 'Enable agent',
   database: 'Database',
@@ -954,6 +955,7 @@ export default {
     clusterId: 'Cluster ID',
     version: 'Version',
     license: 'License',
+    audit:'Audit',
     stables: "STables",
     tables: "Table",
     select_topic_tip: 'Please select the topic',
@@ -1265,6 +1267,8 @@ export default {
       desc: "Connect using the {0} to encapsulate SQL as a REST request.",
       bottom1: "The client connection is then established.",
       bottom2: "The client connection is then established. For how to write data and query data, please refer to ",
+      bottom2_1: "Insert Data",
+      bottom2_2: "Query Data",
       bottomand: " and ",
       bottom3: "For more details about how to write or query data via REST API, please check ",
       bottom3end: ".",
@@ -1763,6 +1767,7 @@ export default {
       step6desc: "The following are full sample codes about how to consume the shared topic `{0}`:",
       enddesc: "For more details about data subscription, please refer to",
       enddesc1: ".",
+      enddesc2: 'Data Subscription'
     },
     dashboard: {
       monitortip:'You can use Grafana to monitor the TDengine running status, please follow the steps below:',
@@ -1852,7 +1857,11 @@ export default {
     activeCode: 'Activation code',
     cActiveCode: 'Activation Code for Connectors',
     dataRestoration: 'Restore',
-    activeTip: 'Contact the TDengine customer success team to get the activation code'
+    activeTip: 'Contact the TDengine customer success team to get the activation code',
+    time: 'Time',
+    details: 'Details',
+    target_1: 'Operand 1',
+    target_2: 'Operand 2',
   },
   taosagents: {
     step1:'Install',

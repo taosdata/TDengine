@@ -56,7 +56,7 @@ export ${replaceTDENGINE}_URL=&quot;${url}&quot;
     <p v-if="!isOEM">
       {{ $t("docs.virtual.grafana.step4desc1")
       }}<a
-        :href="`https://docs.${urlPart}.com/third-party/grafana#create-dashboard`"
+        :href="`${$t('urlPart')}/third-party/grafana#create-dashboard`"
         >{{ $t("docs.virtual.grafana.step4desc2") }}</a
       >{{ $t("docs.virtual.grafana.step4desc3") }}
     </p>
