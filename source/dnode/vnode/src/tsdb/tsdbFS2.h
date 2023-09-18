@@ -52,9 +52,12 @@ int32_t tsdbCloseFS(STFileSystem **fs);
 int32_t tsdbFSCreateCopySnapshot(STFileSystem *fs, TFileSetArray **fsetArr);
 int32_t tsdbFSDestroyCopySnapshot(TFileSetArray **fsetArr);
 int32_t tsdbFSCreateRefSnapshot(STFileSystem *fs, TFileSetArray **fsetArr);
-int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsrArr);
+int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr);
 
-int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TSnapRangeArray *pEx,
+int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TSnapRangeArray *pExclude, TFileSetArray **fsetArr,
+                                       TFileOpArray *fopArr);
+int32_t tsdbFSDestroyCopyRangedSnapshot(TFileSetArray **fsetArr, TFileOpArray *fopArr);
+int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TSnapRangeArray *pRanges,
                                       TSnapRangeArray **fsrArr);
 int32_t tsdbFSDestroyRefRangedSnapshot(TSnapRangeArray **fsrArr);
 // txn

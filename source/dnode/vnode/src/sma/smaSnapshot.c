@@ -128,7 +128,7 @@ struct SRSmaSnapWriter {
   STsdbSnapWriter* pDataWriter[TSDB_RETENTION_L2];
 };
 
-int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapWriter** ppWriter) {
+int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, void* pRanges, SRSmaSnapWriter** ppWriter) {
   int32_t          code = 0;
   int32_t          lino = 0;
   SVnode*          pVnode = pSma->pVnode;
@@ -147,7 +147,7 @@ int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapWrit
   // rsma1/rsma2
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pSma->pRSmaTsdb[i]) {
-      code = tsdbSnapWriterOpen(pSma->pRSmaTsdb[i], sver, ever, &pWriter->pDataWriter[i]);
+      code = tsdbSnapWriterOpen(pSma->pRSmaTsdb[i], sver, ever, pRanges, &pWriter->pDataWriter[i]);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
