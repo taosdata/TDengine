@@ -7,23 +7,25 @@ import store from "./store";
 const whiteList = ["Login"];
 
 router.beforeEach(async (to, from, next) => {
-  let result = await getUrls();
-
-  if (
-    result.cluster != localStorage.getItem("base_url") &&
-    to.name != "Login"
-  ) {
-    next(`/login`);
-    next();
-  }
-  const hasToken = getToken();
-  if (!hasToken) {
-    if (whiteList.includes(to.name)) {
-      next();
-    } else {
+  if (to.name != "Login") {
+    let result = await getUrls();
+    if (
+      result.cluster != localStorage.getItem("base_url") &&
+      to.name != "Login"
+    ) {
       next(`/login`);
+      next();
+    }
+    const hasToken = getToken();
+    if (!hasToken) {
+      if (whiteList.includes(to.name)) {
+        next();
+      } else {
+        next(`/login`);
+      }
     }
   }
+
   next();
 });
 // 切换标签页之后返回页面，查询token
@@ -46,4 +48,3 @@ function handleReplacePath(to) {
     replace: true,
   };
 }
-
