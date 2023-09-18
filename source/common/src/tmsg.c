@@ -45,8 +45,6 @@
 #define ENCODESQL()                                              \
   do {                                                           \
     if (pReq->sqlLen > 0 && pReq->sql != NULL){                  \
-      if (tEncodeI32(&encoder, pReq->sqlLen) < 0) return -1;     \
-      if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;       \
     }                                                            \
   } while (0)
 
