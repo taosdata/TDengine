@@ -122,8 +122,8 @@ async fn main() -> anyhow::Result<()> {
     ><code class="language-rust"></code></pre>
     <p v-if="!isOEM">
       {{ $t("docs.topic.enddesc") }}
-      <a :href="`https://docs.${urlPart}.com/develop/tmq/#data-subscription`">{{
-        `https://docs.${urlPart}.com/develop/tmq/#data-subscription`
+      <a :href="`${$t('urlPart')}/develop/tmq/#data-subscription`">{{
+        $t("docs.topic.enddesc2")
       }}</a>
       {{ $t("docs.topic.enddesc1") }}
     </p>

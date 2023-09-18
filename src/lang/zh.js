@@ -7,6 +7,7 @@ let taosname=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos'
 export default {
   //通用部分
+  urlPart: '/docs',
   disbleagent:'不启用代理',
   enableagent:'启用代理',
   database:'数据库',
@@ -1063,6 +1064,8 @@ export default {
       desc: "通过封装 SQL 为 REST 请求的 {0} 连接器来连接。",
       bottom1: "客户端连接完成。",
       bottom2: "想了解如何写入和查询数据，请参考链接",
+      bottom2_1: "数据写入",
+      bottom2_2: "查询数据",
       bottomand: "和",
       bottom3: "想了解如何通过 REST API 写入和查询数据，请参考",
       bottom3end: "。",
@@ -1527,6 +1530,7 @@ export default {
       step6desc: "下面是如何消费这个共享主题 `{0}` 的完整的代码示例：",
       enddesc: "了解更多数据订阅的内容，请参考",
       enddesc1: "。",
+      enddesc2: '数据订阅'
     },
     dashboard:{
       monitortip:'请遵循以下步骤用Grafana去监控TDengine的运行状态',
