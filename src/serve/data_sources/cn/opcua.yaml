@@ -165,7 +165,7 @@ groups:
           type: integer
           min: 1
           max: 60
-        value: 1
+        value: 10
 
       - name: limit
         display: 点位限制
@@ -186,7 +186,7 @@ groups:
           choices:
             - observe
             - subscribe
-        value: observe
+        value: subscribe
 
   - name: 原始数据保存
     display_order: 3

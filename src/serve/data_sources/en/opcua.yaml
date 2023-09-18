@@ -160,7 +160,7 @@ groups:
           type: integer
           min: 1
           max: 60
-        value: 1
+        value: 10
 
       - name: limit
         display: Collect limit
@@ -181,7 +181,7 @@ groups:
           choices:
             - observe
             - subscribe
-        value: observe
+        value: subscribe
 
   - name: Original Data Save
     display_order: 3
