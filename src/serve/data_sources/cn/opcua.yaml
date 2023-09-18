@@ -213,7 +213,7 @@ groups:
           type: integer
           min: 1
         description: 原始数据的保留天数，若启用保存原始数据需配置。
-        placeholder: 10
+        value: 10
 
   - name: 库表配置
     display_order: 4
