@@ -273,6 +273,7 @@ typedef struct SShowStmt {
   SNode*        pDbName;  // SValueNode
   SNode*        pTbName;  // SValueNode
   EOperatorType tableCondType;
+  SValueNode*        pKind; // show databases: user/system, show tables: normal/child, others NULL
 } SShowStmt;
 
 typedef struct SShowCreateDatabaseStmt {
