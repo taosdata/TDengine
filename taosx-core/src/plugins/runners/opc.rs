@@ -1081,6 +1081,7 @@ pub async fn opc_to_taos(
     let child = command
         .arg("collect")
         .arg(format!("--conf={}", &config_path.display()))
+        .kill_on_drop(true)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::piped());
 
@@ -1114,6 +1115,7 @@ pub async fn opc_to_taos(
     tokio::spawn(async move {
         macro_rules! safe_exit {
             () => {
+                let _ = child.kill().await;
                 let _ = ipc_handler.close().await;
                 temp_path.close().unwrap();
                 port_pool.put(ipc_port);
@@ -1141,7 +1143,6 @@ pub async fn opc_to_taos(
                 tracing::info!("opc task cancelled");
             },
         };
-        let _ = child.kill().await;
         tracing::info!("OPC to taos task done");
         safe_exit!();
         Ok(())
