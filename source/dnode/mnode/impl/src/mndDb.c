@@ -755,7 +755,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   SName name = {0};
   tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB);
 
-  auditRecord(pReq, pMnode->clusterId, "createDB", name.dbname, "", createReq.sql, createReq.sqlLen);
+  auditRecord1(pReq, pMnode->clusterId, "createDB", name.dbname, "", createReq.sql, createReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -1002,7 +1002,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   SName name = {0};
   tNameFromString(&name, alterReq.db, T_NAME_ACCT | T_NAME_DB);
 
-  auditRecord(pReq, pMnode->clusterId, "alterDB", name.dbname, "", alterReq.sql, alterReq.sqlLen);
+  auditRecord1(pReq, pMnode->clusterId, "alterDB", name.dbname, "", alterReq.sql, alterReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -1297,7 +1297,7 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   SName name = {0};
   tNameFromString(&name, dropReq.db, T_NAME_ACCT | T_NAME_DB);
 
-  auditRecord(pReq, pMnode->clusterId, "dropDB", name.dbname, "", dropReq.sql, dropReq.sqlLen);
+  auditRecord1(pReq, pMnode->clusterId, "dropDB", name.dbname, "", dropReq.sql, dropReq.sqlLen);
 
 _OVER:
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
