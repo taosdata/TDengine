@@ -942,12 +942,14 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
 
     taosArrayPush(rsp.pArray, &cRsp);
 
-    int32_t clusterId = pVnode->config.syncCfg.nodeInfo[0].clusterId;
+    if(pCreateReq->sqlLen > 0){ //skip auto create table, not set sql when auto create table
+      int32_t clusterId = pVnode->config.syncCfg.nodeInfo[0].clusterId;
 
-    SName name = {0};
-    tNameFromString(&name, pVnode->config.dbname, T_NAME_ACCT | T_NAME_DB);
+      SName name = {0};
+      tNameFromString(&name, pVnode->config.dbname, T_NAME_ACCT | T_NAME_DB);
 
-    auditRecord(pReq, clusterId, "createTable", name.dbname, pCreateReq->name, pCreateReq->sql, pCreateReq->sqlLen);
+      auditRecord(pReq, clusterId, "createTable", name.dbname, pCreateReq->name, pCreateReq->sql, pCreateReq->sqlLen);
+    }
   }
 
   vDebug("vgId:%d, add %d new created tables into query table list", TD_VID(pVnode), (int32_t)taosArrayGetSize(tbUids));
