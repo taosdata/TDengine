@@ -37,7 +37,7 @@
       if(pReq->sqlLen > 0){                                     \
         pReq->sql = taosMemoryCalloc(1, pReq->sqlLen + 1);      \
         if (pReq->sql == NULL) return -1;                       \
-        if (tDecodeCStrTo(&decoder, pReq->sql) < 0) return -1;  \
+        if (tDecodeCStrAndLen(&decoder, &pReq->sql, &pReq->sqlLen) < 0) return -1;  \
       }                                                         \
     }                                                           \
   } while (0)
@@ -46,7 +46,7 @@
   do {                                                           \
     if (pReq->sqlLen > 0 && pReq->sql != NULL){                  \
       if (tEncodeI32(&encoder, pReq->sqlLen) < 0) return -1;     \
-      if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;       \
+      if (tEncodeCStrWithLen(&encoder, pReq->sql, pReq->sqlLen) < 0) return -1;       \
     }                                                            \
   } while (0)
 
@@ -6844,9 +6844,9 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   } else {
     ASSERT(0);
   }
-  if (tEncodeI32(pCoder, pReq->sqlLen) < 0) return -1;
   if(pReq->sqlLen > 0) {
-    if (tEncodeCStr(pCoder, pReq->sql) < 0) return -1;
+    if (tEncodeI32(pCoder, pReq->sqlLen) < 0) return -1;
+    if (tEncodeCStrWithLen(pCoder, pReq->sql, pReq->sqlLen) < 0) return -1;
   }
 
   tEndEncode(pCoder);
@@ -6896,7 +6896,7 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     if(pReq->sqlLen > 0){
       pReq->sql = taosMemoryCalloc(1, pReq->sqlLen + 1);
       if (pReq->sql == NULL) return -1;
-      if (tDecodeCStrTo(pCoder, pReq->sql) < 0) return -1;
+      if (tDecodeCStrAndLen(pCoder, &pReq->sql, &pReq->sqlLen) < 0) return -1;
     }
   }
 
