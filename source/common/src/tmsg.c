@@ -32,7 +32,7 @@
 
 #define DECODESQL()                                             \
   do {                                                          \
-    if(tDecodeIsEnd(&decoder)){                                 \
+    if(!tDecodeIsEnd(&decoder)){                                 \
       if(tDecodeI32(&decoder, &pReq->sqlLen) < 0) return -1;    \
       if(pReq->sqlLen > 0){                                     \
         pReq->sql = taosMemoryCalloc(1, pReq->sqlLen + 1);      \
@@ -45,6 +45,8 @@
 #define ENCODESQL()                                              \
   do {                                                           \
     if (pReq->sqlLen > 0 && pReq->sql != NULL){                  \
+      if (tEncodeI32(&encoder, pReq->sqlLen) < 0) return -1;     \
+      if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;       \
     }                                                            \
   } while (0)
 
