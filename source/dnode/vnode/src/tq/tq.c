@@ -670,7 +670,14 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   STqHandle* pHandle = NULL;
   while (1) {
     pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
-    if (pHandle || tqMetaGetHandle(pTq, req.subKey) < 0) {
+    if (pHandle) {
+      break;
+    }
+    taosRLockLatch(&pTq->lock);
+    ret = tqMetaGetHandle(pTq, req.subKey);
+    taosRUnLockLatch(&pTq->lock);
+
+    if (ret < 0) {
       break;
     }
   }
@@ -690,7 +697,9 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       tqDestroyTqHandle(&handle);
       goto end;
     }
+    taosWLockLatch(&pTq->lock);
     ret = tqMetaSaveHandle(pTq, req.subKey, &handle);
+    taosWUnLockLatch(&pTq->lock);
   } else {
     while(1){
       taosWLockLatch(&pTq->lock);
