@@ -61,8 +61,9 @@ void taosqsort(void *src, int64_t numOfElem, int64_t size, const void *param, __
  * @param numOfElem
  * @param size
  * @param comparFn
+ * @return  int32_t 0 for success, other for failure.
  */
-void taosMergeSort(void *src, int64_t numOfElem, int64_t size, __compar_fn_t comparFn);
+int32_t taosMergeSort(void *src, int64_t numOfElem, int64_t size, __compar_fn_t comparFn);
 
 /**
  * binary search, with range support
