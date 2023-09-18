@@ -91,7 +91,7 @@ int32_t streamStateSnapRead(SStreamStateReader* pReader, uint8_t** ppData) {
   uint8_t* rowData = NULL;
   int64_t  len;
   code = streamSnapRead(pReader->pReaderImpl, &rowData, &len);
-  if (rowData == NULL || len == 0) {
+  if (code != 0 || rowData == NULL || len == 0) {
     return code;
   }
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + len);
@@ -168,7 +168,7 @@ int32_t streamStateSnapWriterClose(SStreamStateWriter* pWriter, int8_t rollback)
 }
 int32_t streamStateRebuildFromSnap(SStreamStateWriter* pWriter, int64_t chkpId) {
   tqDebug("vgId:%d, vnode %s  start to rebuild stream-state", TD_VID(pWriter->pTq->pVnode), STREAM_STATE_TRANSFER);
-  int32_t code = streamMetaReopen(pWriter->pTq->pStreamMeta, chkpId);
+  int32_t code = streamMetaReopen(pWriter->pTq->pStreamMeta);
   if (code == 0) {
     code = streamStateLoadTasks(pWriter);
   }

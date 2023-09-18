@@ -83,7 +83,6 @@ static void streamSchedByTimer(void* param, void* tmrId) {
     atomic_store_8(&pTask->schedInfo.status, TASK_TRIGGER_STATUS__INACTIVE);
     pTrigger->pBlock->info.type = STREAM_GET_ALL;
     if (streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTrigger) < 0) {
-      taosFreeQitem(pTrigger);
       taosTmrReset(streamSchedByTimer, (int32_t)pTask->info.triggerParam, pTask, streamEnv.timer, &pTask->schedInfo.pTimer);
       return;
     }
@@ -109,14 +108,12 @@ int32_t streamSetupScheduleTrigger(SStreamTask* pTask) {
 }
 
 int32_t streamSchedExec(SStreamTask* pTask) {
-  int8_t schedStatus = atomic_val_compare_exchange_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE,
-                                                     TASK_SCHED_STATUS__WAITING);
-
+  int8_t schedStatus = streamTaskSetSchedStatusWait(pTask);
   if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
     SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
     if (pRunReq == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
-      atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
+      /*int8_t status = */streamTaskSetSchedStatusInActive(pTask);
       qError("failed to create msg to aunch s-task:%s, reason out of memory", pTask->id.idStr);
       return -1;
     }
@@ -178,7 +175,7 @@ static int32_t streamTaskAppendInputBlocks(SStreamTask* pTask, const SStreamDisp
 }
 
 int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pRsp) {
-  SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, 0);
+  SStreamDataBlock* pData = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SStreamDataBlock));
   int8_t            status = TASK_INPUT_STATUS__NORMAL;
 
   // enqueue
@@ -211,29 +208,6 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
   tmsgSendRsp(pRsp);
 
   return status == TASK_INPUT_STATUS__NORMAL ? 0 : -1;
-}
-
-int32_t streamTaskOutputResultBlock(SStreamTask* pTask, SStreamDataBlock* pBlock) {
-  int32_t code = 0;
-  int32_t type = pTask->outputInfo.type;
-  if (type == TASK_OUTPUT__TABLE) {
-    pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, pBlock->blocks);
-    destroyStreamDataBlock(pBlock);
-  } else if (type == TASK_OUTPUT__SMA) {
-    pTask->smaSink.smaSink(pTask->smaSink.vnode, pTask->smaSink.smaId, pBlock->blocks);
-    destroyStreamDataBlock(pBlock);
-  } else {
-    ASSERT(type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH);
-    code = taosWriteQitem(pTask->outputInfo.queue->pQueue, pBlock);
-    if (code != 0) {
-      qError("s-task:%s failed to put res into outputQ", pTask->id.idStr);
-    }
-
-    streamDispatchStreamBlock(pTask);
-    return code;
-  }
-
-  return 0;
 }
 
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp, bool exec) {
@@ -280,8 +254,11 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   }
 
   tDeleteStreamDispatchReq(pReq);
-  streamSchedExec(pTask);
 
+  int8_t schedStatus = streamTaskSetSchedStatusWait(pTask);
+  if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
+    streamTryExec(pTask);
+  }
   return 0;
 }
 

@@ -178,6 +178,10 @@ void bkdMgtDestroy(SBackendManager* bm) {
 
   taosHashCleanup(bm->pSstTbl[0]);
   taosHashCleanup(bm->pSstTbl[1]);
+
+  taosMemoryFree(bm->pCurrent);
+  taosMemoryFree(bm->pManifest);
+
   taosMemoryFree(bm);
 }
 
@@ -239,7 +243,7 @@ int32_t bkdMgtGetDelta(SBackendManager* bm, int64_t chkpId, SArray* list) {
       continue;
     }
     if (strlen(name) >= sstLen && strncmp(name + strlen(name) - 4, pSST, sstLen) == 0) {
-      char* p = taosStrdup(name);
+      // char* p = taosStrdup(name);
       taosHashPut(bm->pSstTbl[1 - bm->idx], name, strlen(name), &dummy, sizeof(dummy));
       continue;
     }
@@ -267,7 +271,7 @@ int32_t bkdMgtGetDelta(SBackendManager* bm, int64_t chkpId, SArray* list) {
       taosArrayClearP(bm->pDel, taosMemoryFree);
       taosHashClear(bm->pSstTbl[1 - bm->idx]);
       bm->update = 0;
-
+      taosCloseDir(&pDir);
       return code;
     }
 
@@ -280,6 +284,8 @@ int32_t bkdMgtGetDelta(SBackendManager* bm, int64_t chkpId, SArray* list) {
   taosHashClear(bm->pSstTbl[bm->idx]);
   bm->idx = 1 - bm->idx;
 
+  taosCloseDir(&pDir);
+
   return 0;
 }
 
@@ -287,8 +293,8 @@ int32_t bkdMgtDumpTo(SBackendManager* bm, char* dname) {
   int32_t code = 0;
   int32_t len = bm->len + 128;
 
-  char* dstBuf = taosMemoryCalloc(1, len);
   char* srcBuf = taosMemoryCalloc(1, len);
+  char* dstBuf = taosMemoryCalloc(1, len);
 
   char* srcDir = taosMemoryCalloc(1, len);
   char* dstDir = taosMemoryCalloc(1, len);
@@ -297,12 +303,16 @@ int32_t bkdMgtDumpTo(SBackendManager* bm, char* dname) {
   sprintf(dstDir, "%s%s%s", bm->path, TD_DIRSEP, dname);
 
   if (!taosDirExist(srcDir)) {
-    return 0;
+    qError("failed to dump srcDir %s, reason: not exist such dir", srcDir);
+    code = -1;
+    goto _ERROR;
   }
 
   code = taosMkDir(dstDir);
   if (code != 0) {
-    return code;
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    qError("failed to mkdir srcDir %s, reason: %s", dstDir, terrstr());
+    goto _ERROR;
   }
 
   // clear current file
@@ -353,6 +363,7 @@ int32_t bkdMgtDumpTo(SBackendManager* bm, char* dname) {
   taosArrayClearP(bm->pAdd, taosMemoryFree);
   taosArrayClearP(bm->pDel, taosMemoryFree);
 
+_ERROR:
   taosMemoryFree(srcBuf);
   taosMemoryFree(dstBuf);
   taosMemoryFree(srcDir);
@@ -388,7 +399,11 @@ int32_t copyFiles(const char* src, const char* dst) {
   char*   dstName = taosMemoryCalloc(1, dLen + 64);
 
   TdDirPtr pDir = taosOpenDir(src);
-  if (pDir == NULL) return 0;
+  if (pDir == NULL) {
+    taosMemoryFree(srcName);
+    taosMemoryFree(dstName);
+    return -1;
+  }
 
   TdDirEntryPtr de = NULL;
   while ((de = taosReadDir(pDir)) != NULL) {
@@ -1483,7 +1498,11 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
       rocksdb_options_set_block_based_table_factory((rocksdb_options_t*)cfOpts[i], tableOpt);
       params[i].tableOpt = tableOpt;
 
-      int      idx = streamStateGetCfIdx(NULL, funcname);
+      int idx = streamStateGetCfIdx(NULL, funcname);
+      if (idx < 0 || idx >= sizeof(ginitDict) / sizeof(ginitDict[0])) {
+        qError("failed to open cf");
+        return -1;
+      }
       SCfInit* cfPara = &ginitDict[idx];
 
       rocksdb_comparator_t* compare =
@@ -1591,7 +1610,6 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
   return 0;
 }
 int streamStateOpenBackend(void* backend, SStreamState* pState) {
-  // qInfo("start to open state %p on backend %p 0x%" PRIx64 "-%d", pState, backend, pState->streamId, pState->taskId);
   taosAcquireRef(streamBackendId, pState->streamBackendRid);
   SBackendWrapper*   handle = backend;
   SBackendCfWrapper* pBackendCfWrapper = taosMemoryCalloc(1, sizeof(SBackendCfWrapper));
@@ -1713,25 +1731,23 @@ int streamStateGetCfIdx(SStreamState* pState, const char* funcName) {
   if (pState != NULL && idx != -1) {
     SBackendCfWrapper*              wrapper = pState->pTdbState->pBackendCfWrapper;
     rocksdb_column_family_handle_t* cf = NULL;
-    taosThreadRwlockRdlock(&wrapper->rwLock);
+    taosThreadRwlockWrlock(&wrapper->rwLock);
     cf = wrapper->pHandle[idx];
-    taosThreadRwlockUnlock(&wrapper->rwLock);
     if (cf == NULL) {
       char buf[128] = {0};
       GEN_COLUMN_FAMILY_NAME(buf, wrapper->idstr, ginitDict[idx].key);
       char* err = NULL;
-
-      taosThreadRwlockWrlock(&wrapper->rwLock);
       cf = rocksdb_create_column_family(wrapper->rocksdb, wrapper->cfOpts[idx], buf, &err);
       if (err != NULL) {
         idx = -1;
-        qError("failed to to open cf, %p %s_%s, reason:%s", pState, wrapper->idstr, funcName, err);
+        qError("failed to open cf, %p %s_%s, reason:%s", pState, wrapper->idstr, funcName, err);
         taosMemoryFree(err);
       } else {
+        qDebug("succ to to open cf, %p %s_%s", pState, wrapper->idstr, funcName);
         wrapper->pHandle[idx] = cf;
       }
-      taosThreadRwlockUnlock(&wrapper->rwLock);
     }
+    taosThreadRwlockUnlock(&wrapper->rwLock);
   }
 
   return idx;
@@ -2316,6 +2332,7 @@ int32_t streamStateSessionGetKVByCur_rocksdb(SStreamStateCur* pCur, SSessionKey*
   char*             val = NULL;
   int32_t           len = decodeValueFunc((void*)vval, vLen, NULL, &val);
   if (len < 0) {
+    taosMemoryFree(val);
     return -1;
   }
 
@@ -2799,6 +2816,7 @@ char* streamDefaultIterVal_rocksdb(void* iter, int32_t* len) {
   const char* val = rocksdb_iter_value(pCur->iter, (size_t*)&vlen);
   *len = decodeValueFunc((void*)val, vlen, NULL, &ret);
   if (*len < 0) {
+    taosMemoryFree(ret);
     return NULL;
   }
 

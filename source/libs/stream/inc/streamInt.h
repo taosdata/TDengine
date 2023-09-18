@@ -29,16 +29,23 @@ extern "C" {
 #define ONE_MB_F       (1048576.0)
 #define SIZE_IN_MB(_v) ((_v) / ONE_MB_F)
 
-typedef struct {
+typedef struct SStreamGlobalEnv {
   int8_t inited;
   void*  timer;
 } SStreamGlobalEnv;
 
-typedef struct {
+typedef struct SStreamContinueExecInfo {
   SEpSet  epset;
   int32_t taskId;
   SRpcMsg msg;
 } SStreamContinueExecInfo;
+
+struct STokenBucket {
+  int32_t capacity;     // total capacity
+  int64_t fillTimestamp;// fill timestamp
+  int32_t numOfToken;   // total available tokens
+  int32_t rate;         // number of token per second
+};
 
 extern SStreamGlobalEnv streamEnv;
 extern int32_t streamBackendId;
@@ -76,6 +83,17 @@ int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo,
 int32_t streamNotifyUpstreamContinue(SStreamTask* pTask);
 int32_t streamTaskFillHistoryFinished(SStreamTask* pTask);
 int32_t streamTransferStateToStreamTask(SStreamTask* pTask);
+
+int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t cap, int32_t rate);
+
+SStreamQueue* streamQueueOpen(int64_t cap);
+void          streamQueueClose(SStreamQueue* pQueue, int32_t taskId);
+void          streamQueueProcessSuccess(SStreamQueue* queue);
+void          streamQueueProcessFail(SStreamQueue* queue);
+void*         streamQueueNextItem(SStreamQueue* pQueue);
+void          streamFreeQitem(SStreamQueueItem* data);
+
+STaskId extractStreamTaskKey(const SStreamTask* pTask);
 
 #ifdef __cplusplus
 }

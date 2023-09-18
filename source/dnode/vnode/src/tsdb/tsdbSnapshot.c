@@ -857,6 +857,9 @@ static int32_t tsdbSnapWriteTombRecord(STsdbSnapWriter* writer, const STombRecor
     } else {
       break;
     }
+
+    code = tsdbIterMergerNext(writer->ctx->tombIterMerger);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (record->suid == INT64_MAX) {

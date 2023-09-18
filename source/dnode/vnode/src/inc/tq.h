@@ -155,7 +155,7 @@ int32_t         tqOffsetCommitFile(STqOffsetStore* pStore);
 // tqSink
 int32_t tqBuildDeleteReq(const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
                          const char* pIdStr);
-void    tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, void* data);
+void    tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data);
 
 // tqOffset
 char*   tqOffsetBuildFName(const char* path, int32_t fVer);
@@ -174,7 +174,7 @@ int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequ
 int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                         int32_t type, int64_t sver, int64_t ever);
 int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset);
-void    tqUpdateNodeStage(STQ* pTq);
+void    tqUpdateNodeStage(STQ* pTq, bool isLeader);
 
 #ifdef __cplusplus
 }
