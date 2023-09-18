@@ -37,7 +37,7 @@
       if(pReq->sqlLen > 0){                                     \
         pReq->sql = taosMemoryCalloc(1, pReq->sqlLen + 1);      \
         if (pReq->sql == NULL) return -1;                       \
-        if (tDecodeCStrAndLen(&decoder, &pReq->sql, &pReq->sqlLen) < 0) return -1;  \
+        if (tDecodeCStrTo(&decoder, &pReq->sql) < 0) return -1;  \
       }                                                         \
     }                                                           \
   } while (0)
