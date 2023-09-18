@@ -63,7 +63,7 @@ $env:TDENGINE_URL=&quot;${url}&quot;
     <p>
       {{ $t("docs.connector.bottom3") }}
       <a
-        :href="`https://docs.${urlPart}.com/${restapi}/rest-api/`"
+        :href="`${$t('urlPart')}/${restapi}/rest-api/`"
         >REST API</a
       >{{ $t("docs.connector.bottom3end") }}
     </p>

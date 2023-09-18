@@ -54,21 +54,21 @@ func main() {
     <p>{{ $t("docs.connector.go.step4desc2") }}</p>
     <pre v-highlight><code>go run main.go
 </code></pre>
-    <p>
-      {{ $t("docs.connector.bottom2") }}
-      <a :href="`https://docs.${urlPart}.com/develop/insert-data/`">{{
-        `https://docs.${urlPart}.com/develop/insert-data/`
+<p>
+      {{ $t("docs.connector.bottom1") }} {{ $t("docs.connector.bottom2") }}
+      <a :href="`${$t('urlPart')}/develop/insert-data/`">{{
+        `${$t('docs.connector.bottom2_1')}`
       }}</a>
       {{ $t("docs.connector.bottomand") }}
-       <a :href="`https://docs.${urlPart}.com/develop/query-data/`">{{
-        `https://docs.${urlPart}.com/develop/query-data/`
+      <a :href="`${$t('urlPart')}/develop/query-data/`">{{
+        `${$t('docs.connector.bottom2_2')}`
       }}</a
       >{{ $t("docs.connector.bottom3end") }}
     </p>
     <p>
       {{ $t("docs.connector.bottom3") }}
       <a
-        :href="`https://docs.${urlPart}.com/${restapi}/rest-api/`"
+        :href="`${$t('urlPart')}/${restapi}/rest-api/`"
         >REST API</a
       >{{ $t("docs.connector.bottom3end") }}
     </p>
