@@ -203,10 +203,7 @@ int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq){
   char obj[32] = {0};
   sprintf(obj, "%d", restoreReq.dnodeId);
 
-  char detail[100] = {0};
-  sprintf(detail, "%s", mndAuditRestoreDnodeTypeStr(restoreReq.restoreType));
-
-  auditRecord(pReq, pMnode->clusterId, "restore", obj, "", detail);
+  //auditRecord(pReq, pMnode->clusterId, "restore", obj, "", restoreReq.sql, restoreReq.sqlLen);
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("dnode:%d, failed to restore, restoreType:%d,  since %s", 
@@ -214,5 +211,6 @@ _OVER:
   }
 
   mndReleaseDnode(pMnode, pDnode);
+  //tFreeSRestoreDnodeReq(&restoreReq);
   return code;
 }
