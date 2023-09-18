@@ -983,6 +983,50 @@ int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
   return 0;
 }
 
+int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TSnapRangeArray *pExclude, TFileSetArray **fsetArr,
+                                       TFileOpArray *fopArr) {
+  int32_t    code = 0;
+  STFileSet *fset;
+  STFileSet *fset1;
+
+  fsetArr[0] = taosMemoryMalloc(sizeof(TFileSetArray));
+  if (fsetArr == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  TARRAY2_INIT(fsetArr[0]);
+
+  int32_t i = 0;
+
+  taosThreadRwlockRdlock(&fs->tsdb->rwLock);
+  TARRAY2_FOREACH(fs->fSetArr, fset) {
+    int64_t ever = VERSION_MAX;
+    while (pExclude && i < TARRAY2_SIZE(pExclude)) {
+      STSnapRange *u = TARRAY2_GET(pExclude, i);
+      if (fset->fid > u->fid) {
+        i++;
+        continue;
+      }
+      if (fset->fid == u->fid) {
+        ever = u->sver - 1;
+        i++;
+      }
+    }
+
+    code = tsdbTFileSetFilteredInitDup(fs->tsdb, fset, ever, &fset1, fopArr);
+    if (code) break;
+
+    code = TARRAY2_APPEND(fsetArr[0], fset1);
+    if (code) break;
+  }
+  taosThreadRwlockUnlock(&fs->tsdb->rwLock);
+
+  if (code) {
+    TARRAY2_DESTROY(fsetArr[0], tsdbTFileSetClear);
+    taosMemoryFree(fsetArr[0]);
+    fsetArr[0] = NULL;
+  }
+  return code;
+}
+
 int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TSnapRangeArray *pRanges,
                                       TSnapRangeArray **fsrArr) {
   int32_t      code = -1;
@@ -1009,12 +1053,12 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
         i++;
         continue;
       }
-
       if (fset->fid == u->fid) {
         sver1 = u->sver;
         i++;
       }
     }
+
     tsdbInfo("fsrArr:%p, fid:%d, sver:%" PRId64 ", ever:%" PRId64, fsrArr, fset->fid, sver1, ever1);
 
     code = tsdbTSnapRangeInitRef(fs->tsdb, fset, sver1, ever1, &fsr1);

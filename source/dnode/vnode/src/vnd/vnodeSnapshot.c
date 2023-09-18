@@ -144,6 +144,11 @@ void vnodeSnapReaderClose(SVSnapReader *pReader) {
   if (pReader->pRanges) {
     tsdbSnapRangeArrayDestroy(&pReader->pRanges);
   }
+
+  if (pReader->pRsmaRanges) {
+    tsdbSnapRangeArrayDestroy(&pReader->pRsmaRanges);
+  }
+
   taosMemoryFree(pReader);
 }
 
@@ -508,6 +513,10 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     if (code) goto _exit;
   }
 
+  if (pWriter->pRanges) {
+    tsdbSnapRangeArrayDestroy(&pWriter->pRanges);
+  }
+
   if (pWriter->pTsdbSnapWriter) {
     code = tsdbSnapWriterClose(&pWriter->pTsdbSnapWriter, rollback);
     if (code) goto _exit;
@@ -525,6 +534,10 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     code = streamStateRebuildFromSnap(pWriter->pStreamStateWriter, 0);
     pWriter->pStreamStateWriter = NULL;
     if (code) goto _exit;
+  }
+
+  if (pWriter->pRsmaRanges) {
+    tsdbSnapRangeArrayDestroy(&pWriter->pRsmaRanges);
   }
 
   if (pWriter->pRsmaSnapWriter) {
@@ -613,7 +626,8 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
     case SNAP_DATA_DEL: {
       // tsdb
       if (pWriter->pTsdbSnapWriter == NULL) {
-        code = tsdbSnapWriterOpen(pVnode->pTsdb, pWriter->sver, pWriter->ever, &pWriter->pTsdbSnapWriter);
+        code = tsdbSnapWriterOpen(pVnode->pTsdb, pWriter->sver, pWriter->ever, pWriter->pRanges,
+                                  &pWriter->pTsdbSnapWriter);
         if (code) goto _err;
       }
 
@@ -647,7 +661,8 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
     case SNAP_DATA_QTASK: {
       // rsma1/rsma2/qtask for rsma
       if (pWriter->pRsmaSnapWriter == NULL) {
-        code = rsmaSnapWriterOpen(pVnode->pSma, pWriter->sver, pWriter->ever, &pWriter->pRsmaSnapWriter);
+        code = rsmaSnapWriterOpen(pVnode->pSma, pWriter->sver, pWriter->ever, pWriter->pRsmaRanges,
+                                  &pWriter->pRsmaSnapWriter);
         if (code) goto _err;
       }
 
