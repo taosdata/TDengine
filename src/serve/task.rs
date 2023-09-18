@@ -637,7 +637,10 @@ async fn save_files(MultipartForm(form): MultipartForm<UploadForm>) -> anyhow::R
             upload_file_save_path.as_os_str().to_str().unwrap()
         ))
         .to_path_buf();
-        f.file.persist(path)?;
+        if let Err(persis_err) = f.file.persist(&path) {
+            // fallback to copy
+            std::fs::copy(persis_err.file.path(), path).context("cannot save uploaded file")?;
+        }
         file_save_paths.push(format!("./files/{req_id}/{file_name}"));
     }
     Ok(file_save_paths)

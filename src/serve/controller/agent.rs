@@ -114,7 +114,7 @@ impl<'r> sqlx::Decode<'r, sqlx::Sqlite> for Context {
     fn decode(
         value: <sqlx::Sqlite as sqlx::database::HasValueRef<'r>>::ValueRef,
     ) -> Result<Self, sqlx::error::BoxDynError> {
-        let value = String::decode(value)?;
+        let value: String = sqlx::Decode::<sqlx::Sqlite>::decode(value)?;
 
         // now you can parse this into your type (assuming there is a `FromStr`)
 

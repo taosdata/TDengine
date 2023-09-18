@@ -20,8 +20,7 @@ use linked_hash_map::LinkedHashMap;
 use metrics::counter;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sqlx::FromRow;
-use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, SqlitePool};
+use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::utils::mask_dsn;
 use taosx_core::utils::port_pool::PortPool;
@@ -176,7 +175,7 @@ impl AgentTasks {
                             }
                             AgentAction::RetrieveDataSets(req, sets) => {
                                 if let Some(sender) = datasets.remove(&req) {
-                                    let _ = sender.1.send(Ok(sets));
+                                    let _ = sender.1.send_async(Ok(sets)).await;
                                 }
                             }
                         }
@@ -191,7 +190,7 @@ impl AgentTasks {
     }
 
     pub fn send(&self, action: AgentAction) -> Result<usize, AgentTasksError> {
-        self.sender.send(action)
+        self.sender.send(action) // tokio send
     }
 }
 
@@ -208,7 +207,7 @@ pub struct TaskStatus {
     context: Option<String>,
 }
 
-pub(super) struct TaskController {
+pub(crate) struct TaskController {
     pub pool: SqlitePool,
     pub runtime: Option<Runtime>,
     pub tasks: RwLock<
@@ -251,7 +250,7 @@ impl Debug for TaskController {
 // }
 
 #[derive(Debug, Clone)]
-pub(super) struct TaskControllerRef(Arc<TaskController>);
+pub(crate) struct TaskControllerRef(Arc<TaskController>);
 
 impl TaskControllerRef {
     pub async fn from_sqlite(sqlite: &str) -> anyhow::Result<Self> {
@@ -460,7 +459,7 @@ impl TaskController {
         MIGRATOR.run(&pool).await?;
         let scheduler = JobScheduler::new().await?;
         scheduler.start().await?;
-        let transferred = Transferred::new(pool.clone(), Duration::from_secs(1));
+        let transferred = Transferred::new(pool.clone(), Duration::from_secs(10));
         Ok(Self {
             pool,
             runtime: None,
@@ -479,12 +478,13 @@ impl TaskController {
     // }
 
     #[instrument(skip_all, name = "task::start", parent = None, fields(
-        x.task.id = task.id,
-        x.task.source = %mask_dsn(&task.from.parse().unwrap()),
-        x.task.sink = %mask_dsn(&task.to.parse().unwrap()),
-        x.task.agent = task.via,
+        task.id = task.id,
+        task.source = %mask_dsn(&task.from.parse().unwrap()),
+        task.sink = %mask_dsn(&task.to.parse().unwrap()),
+        task.agent = task.via,
     ))]
     async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
+        tracing::info!("start task");
         let id = task.id;
         let now = Utc::now();
 
@@ -492,7 +492,8 @@ impl TaskController {
 
         {
             // for read guard lifetime
-            if let Some(h) = self.tasks.read().await.get(&id) {
+            let guard = self.tasks.read().await;
+            if let Some(h) = guard.get(&id) {
                 if !h.0.is_finished() {
                     tracing::info!("try start task {id} but it is running");
                     let context = format!("Trying to start task {id} but it is running");
@@ -509,12 +510,14 @@ impl TaskController {
                     remove_finished_task = true;
                 }
             }
+            drop(guard);
         }
 
         if remove_finished_task {
             // write guard lifetime.
             let mut guard = self.tasks.write().await;
             guard.remove(&id);
+            drop(guard);
         }
 
         let from = if let Some(topic) = task.oneshot_topic.as_deref() {
@@ -643,7 +646,7 @@ impl TaskController {
 
         let task_handler = async move {
             // let _ = span.clone().entered();
-            tracing::info!(x.task.id = id, "start worker");
+            tracing::info!(task.id = id, "start worker");
             // set current dir for upload files
             let path = task::ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT.replace("files", "");
             let root = std::path::Path::new(path.as_str());
@@ -672,7 +675,7 @@ impl TaskController {
                     }
                     let activity;
                     if let Some((id, sender, _)) = agent_task_worker.as_ref() {
-                        let _ = sender.send(AgentAction::Cancel(*id));
+                        let _ = sender.send(AgentAction::Cancel(*id)); // tokio send
                         activity = "Send cancel signal to agent".to_string();
                     } else {
                         opts.cancel();
@@ -886,7 +889,7 @@ impl TaskController {
                         .execute(&pool)
                         .await?;
                         if let Some((id, sender, agent_id)) = &agent_task_worker {
-                            let send = sender.send(AgentAction::Run(*id)).map_err(|_| anyhow::format_err!("Unable to start task {id} with agent {agent_id}")).map(|_| ());
+                            let send = sender.send(AgentAction::Run(*id)).map_err(|_| anyhow::format_err!("Unable to start task {id} with agent {agent_id}")).map(|_| ()); // tokio send
                             let _ = dbg!(send);
                             cloned_token2.cancelled().await;
                         } else {
@@ -960,6 +963,7 @@ impl TaskController {
     }
 
     pub async fn tasks(&self, mut filter: TaskFilter) -> anyhow::Result<Vec<TaskDetail>> {
+        tracing::info!("list tasks");
         let condition = filter.to_sql_conditions()?;
         let mut tasks = sqlx::query_as::<_, Task>(&format!(
             "select * from task_with_labels where {condition} order by created_at desc"
@@ -1083,7 +1087,13 @@ impl TaskController {
         Ok(())
     }
 
+    #[instrument(skip_all, name = "task::create", parent = None, fields(
+        task.source = %mask_dsn(&task.from.parse().unwrap()),
+        task.sink = %mask_dsn(&task.to.parse().unwrap()),
+        task.agent = task.via,
+    ))]
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
+        tracing::info!("create new task");
         let from: Dsn = task
             .from
             .parse()
@@ -1214,7 +1224,9 @@ impl TaskController {
         Ok(task.into())
     }
 
+    #[instrument(skip_all, name = "task::update", parent = None, fields(task.id = id))]
     pub async fn update(&self, id: i64, task: UpdateTask) -> anyhow::Result<Option<TaskDetail>> {
+        tracing::info!("update task {id}");
         if let Some(topic) = task.oneshot_topic.as_deref() {
             if topic.len() > 64 {
                 anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
@@ -1274,6 +1286,7 @@ impl TaskController {
         }
     }
 
+    #[instrument(skip_all, name = "task::start", parent = None, fields(task.id = id))]
     pub async fn start(&self, id: i64) -> anyhow::Result<Option<()>> {
         let task = self.get(id).await?;
 
@@ -1286,6 +1299,7 @@ impl TaskController {
         self.start_task(&task.task).await.map(Some)
     }
 
+    #[instrument(skip_all, name = "task::get", parent = None, fields(task.id = id))]
     pub async fn get(&self, id: i64) -> anyhow::Result<Option<TaskDetail>> {
         let task: Option<Task> = sqlx::query_as("select * from task_with_labels where id = ?")
             .bind(id)
@@ -1299,7 +1313,7 @@ impl TaskController {
             })
             .map(Into::into))
     }
-
+    #[instrument(skip_all, name = "task::delete", parent = None, fields(task.id = id))]
     pub async fn delete(&self, id: i64) -> anyhow::Result<Option<TaskDetail>> {
         {
             if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
@@ -1324,10 +1338,14 @@ impl TaskController {
             tracing::info!("successfully deleted task by id {id}");
         }
 
-        let mut task: Task = sqlx::query_as("select * from task_with_labels where id = ?")
+        let task: Option<Task> = sqlx::query_as("select * from task_with_labels where id = ?")
             .bind(id)
-            .fetch_one(&self.pool)
+            .fetch_optional(&self.pool)
             .await?;
+        if task.is_none() {
+            return Ok(None);
+        }
+        let mut task = task.unwrap();
         task.backport_labels();
         if let Some(topic) = task.oneshot_topic.as_deref() {
             let mut dsn: Dsn = task.from.parse()?;
@@ -1385,10 +1403,12 @@ impl TaskController {
 
         Ok(Some(task.into()))
     }
+
+    #[instrument(skip_all, name = "task::stop", parent = None, fields(task.id = id))]
     pub async fn stop(&self, id: i64) -> anyhow::Result<Option<()>> {
+        tracing::info!("Stop task by id {id}");
         if let Some((handle, token)) = { self.tasks.write().await.remove(&id) } {
             tracing::info_span!("stop_task", task = id);
-            tracing::info!("Stop task by id {id}");
             let now = Utc::now();
 
             let agent: Option<(Option<i64>, Status)> = sqlx::query_as::<_, (Option<i64>, Status)>(
@@ -1448,10 +1468,10 @@ impl TaskController {
             .await?;
 
             token.cancel();
-            let _ = handle.await?;
+            let _ = tokio::time::timeout(Duration::from_secs(10), handle).await??;
             Ok(Some(()))
         } else {
-            Ok(None)
+            Ok(Some(()))
         }
     }
 
@@ -1733,6 +1753,34 @@ impl TaskController {
         }
     }
 
+    pub async fn agent_disconnect(&self, agent_id: i64) -> anyhow::Result<()> {
+        let tasks = self
+            .tasks(TaskFilter {
+                via: Some(agent_id),
+                status: Some("running".to_string()),
+                ..Default::default()
+            })
+            .await?;
+        for task in tasks {
+            let id = task.id;
+            let _ = sqlx::query(&format!(
+                "UPDATE tasks SET `status` = `cancelled` WHERE id = {id} AND `status` == 'running'"
+            ))
+            .execute(&self.pool)
+            .await;
+            let activity = Activity::new::<String>(
+                id,
+                Utc::now(),
+                LevelFilter::Info,
+                format!("Task {id} is cancelled because agent is disconnected"),
+                "cancelled",
+                None,
+            );
+            self.push_task_activity(&activity).await?;
+        }
+        Ok(())
+    }
+
     pub async fn update_agent(
         &self,
         agent_id: i64,
@@ -1759,11 +1807,9 @@ impl TaskController {
     }
 
     pub async fn delete_agent(&self, agent_id: i64) -> anyhow::Result<()> {
-        let mut conn = self.pool.acquire().await?;
-        let trans = self.pool.begin().await?;
         let ids = sqlx::query_as::<_, (i64,)>("select id from tasks where via = ?")
             .bind(agent_id)
-            .fetch_all(&mut conn)
+            .fetch_all(&self.pool)
             .await?;
         if !ids.is_empty() {
             anyhow::bail!("should delete associated tasks before delete agent");
@@ -1771,15 +1817,14 @@ impl TaskController {
 
         sqlx::query("delete from agent_activities where id = ?")
             .bind(agent_id)
-            .execute(&mut conn)
+            .execute(&self.pool)
             .await?;
         tracing::info!("Deleted agent with id {agent_id}");
 
         sqlx::query("delete from agents where id = ?")
             .bind(agent_id)
-            .execute(&mut conn)
+            .execute(&self.pool)
             .await?;
-        trans.commit().await?;
 
         Ok(())
     }
@@ -1897,8 +1942,6 @@ impl AgentFilter {
 /// ```
 #[derive(Serialize, Deserialize, ToSchema, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[derive(sqlx::Type)]
-#[sqlx(rename_all = "snake_case")]
 pub(super) enum Status {
     /// Created by API.
     Created,
@@ -1933,6 +1976,81 @@ impl Display for Status {
             Status::Interrupted => f.write_str("interrupted"),
             Status::Stopped => f.write_str("stopped"),
         }
+    }
+}
+
+impl Status {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Status::Created => "created",
+            Status::Cleared => "cleared",
+            Status::Started => "started",
+            Status::Running => "running",
+            Status::Cancelled => "cancelled",
+            Status::Completed => "completed",
+            Status::Failed => "failed",
+            Status::Interrupted => "interrupted",
+            Status::Stopped => "stopped",
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("Invalid status: {0}")]
+pub struct InvalidStatus(String);
+
+impl FromStr for Status {
+    type Err = InvalidStatus;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "created" => Ok(Status::Created),
+            "cleared" => Ok(Status::Cleared),
+            "started" => Ok(Status::Started),
+            "running" => Ok(Status::Running),
+            "cancelled" => Ok(Status::Cancelled),
+            "completed" => Ok(Status::Completed),
+            "failed" => Ok(Status::Failed),
+            "interrupted" => Ok(Status::Interrupted),
+            "stopped" => Ok(Status::Stopped),
+            _ => Err(InvalidStatus(s.to_string())),
+        }
+    }
+}
+
+impl<'r, DB: sqlx::Database> sqlx::Decode<'r, DB> for Status
+where
+    &'r str: sqlx::Decode<'r, DB>,
+{
+    fn decode(
+        value: <DB as sqlx::database::HasValueRef<'r>>::ValueRef,
+    ) -> Result<Self, sqlx::error::BoxDynError> {
+        let v: &'r str = sqlx::Decode::decode(value)?;
+        Self::from_str(v).map_err(|err| Box::new(err) as _)
+    }
+}
+impl<'q, DB: sqlx::Database> sqlx::encode::Encode<'q, DB> for Status
+where
+    &'q str: sqlx::Encode<'q, DB>,
+{
+    fn encode_by_ref(
+        &self,
+        buf: &mut <DB as sqlx::database::HasArguments<'q>>::ArgumentBuffer,
+    ) -> sqlx::encode::IsNull {
+        self.as_str().encode(buf as _)
+    }
+
+    fn size_hint(&self) -> usize {
+        self.as_str().size_hint()
+    }
+}
+
+impl<'t, DB: sqlx::Database> sqlx::Type<DB> for Status
+where
+    &'t str: sqlx::Type<DB>,
+{
+    fn type_info() -> DB::TypeInfo {
+        <&'t str as sqlx::Type<DB>>::type_info()
     }
 }
 
@@ -2453,7 +2571,7 @@ const fn is_false(b: &bool) -> bool {
         "to": "taos:///test2"
     })
 )]
-pub(super) struct NewTask {
+pub(crate) struct NewTask {
     stream_type: Option<String>,
     /// Task name.
     #[schema(example = "demo")]
@@ -2619,7 +2737,7 @@ impl From<NewTask> for NewTaskV1 {
 #[derive(Serialize, Deserialize, ToSchema, Default, Clone, Debug, sqlx::FromRow)]
 #[serde(default)]
 #[schema(example = json!({"from": "tmq:///test", "to": "taos:///test2"}))]
-pub(super) struct UpdateTask {
+pub struct UpdateTask {
     /// Task name
     name: Option<String>,
     /// Update trigger,
@@ -2655,7 +2773,7 @@ pub(super) struct UpdateTask {
 
 #[derive(Serialize, Deserialize, Default, Clone, IntoParams)]
 #[serde(default)]
-pub(super) struct TaskFilter {
+pub struct TaskFilter {
     name: Option<String>,
     stream_type: Option<String>,
     from_cluster: Option<String>,

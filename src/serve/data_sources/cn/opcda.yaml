@@ -10,9 +10,7 @@ description: |
 
   如果想了解更多关于OPC UA/DA的信息，可以阅读OPC Foundation网站和一些有用的博客，例如：
   1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)
-  2. [What is OPC DA](https://plcynergy.com/opc-da/),
-  3. [What is OPC UA](https://opcfoundation.org/about/opc-technologies/opc-ua/).
-  4. [WHEN TO USE OPC-UA VS OPC-DA](https://www.vertech.com/blog/opc-ua-vs-opc-da).
+  2. [What is OPC DA](https://plcynergy.com/opc-da/)
 
   taosX 使用 OPC 连接器从 OPC 服务器拉取或订阅数据。
 type: uri
@@ -33,7 +31,7 @@ datasets:
   categories:
   - category: tags
     display: DA Tags
-    description: | 
+    description: |
       OPC DA 点位配置列表。使用 <点位名称>::<点位编码> 的格式配置，多个使用英文逗号分隔，编码可以是任意字符串，产生的子表表名会以超级表前缀_值的类型_编码字符串。
     target:
       name: da.tags
@@ -48,7 +46,7 @@ datasets:
 groups:
   - name: 点位配置文件
     display_order: 0
-    description: | 
+    description: |
       CSV 点位及表信息配置文件设置。
     params:
       - name: use_csv_config
@@ -86,6 +84,20 @@ groups:
         placeholder: 10
         value: 10
 
+  - name: 采集配置
+    display_order: 2
+    description: 数据采集相关配置项。
+    params:
+      - name: interval
+        display: 采集间隔
+        description: |-
+          数据点位采集间隔，单位为：秒。
+        hint:
+          type: integer
+          min: 1
+          max: 60
+        value: 1
+
   - name: 原始数据保存
     display_order: 2
     description: OPC 连接器采集到的原始数据保存配置。
@@ -104,7 +116,7 @@ groups:
           type: str
         description: 原始数据的保存路径，若启用保存原始数据需配置。
         placeholder: /data/
-      
+
       - name: keep
         display: 保留天数
         hint:
@@ -115,9 +127,9 @@ groups:
 
   - name: 库表配置
     display_order: 4
-    description: | 
+    description: |
       超级表创建配置
- 
+
       - **received_time**: 采集时间戳。<br>
       - **original_time**: 原始时间戳。<br>
       - **value**: 采集点值。<br>
@@ -161,7 +173,7 @@ groups:
         description: 每批次采集数据上报的超时时间间隔，单位为：秒 (s)。
         placeholder: 20
         value: 1
-        
+
       - name: debug
         display: 开启 Debug 日志
         hint:

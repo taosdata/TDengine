@@ -105,7 +105,7 @@ pub async fn query_to_parquet(mut from: Dsn, to: Dsn, force: bool) -> Result<()>
 
     let mut rs = taos.query(&sql).await?;
 
-    log::info!("sql: {sql}, fields: {}", rs.num_of_fields());
+    tracing::info!("sql: {sql}, fields: {}", rs.num_of_fields());
 
     let filename = to.path.expect("parquet file must be input");
     if std::path::Path::new(&filename).exists() && !force {
@@ -113,7 +113,7 @@ pub async fn query_to_parquet(mut from: Dsn, to: Dsn, force: bool) -> Result<()>
     }
 
     let schema = Arc::new(fields_to_arrow(rs.fields(), rs.precision()));
-    log::debug!("schema: {}", &schema);
+    tracing::debug!("schema: {}", &schema);
     let schema_ref = schema.clone();
     let props = WriterProperties::builder()
         .set_compression(parquet::basic::Compression::ZSTD(ZstdLevel::default()))
@@ -138,7 +138,7 @@ pub async fn query_to_parquet(mut from: Dsn, to: Dsn, force: bool) -> Result<()>
 
     let (blocks, rows) = rs.summary();
 
-    log::info!(
+    tracing::info!(
         "write {rows} rows(in {blocks} blocks) to parquet: {}",
         filename
     );

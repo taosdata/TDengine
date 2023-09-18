@@ -40,7 +40,7 @@ impl ZFileMan {
     pub async fn shutdown(&self) -> Result<()> {
         for entry in self.writers.iter_mut() {
             let mut man = entry.value().lock().await;
-            log::info!("Flush vgroup {}", entry.key());
+            tracing::info!("Flush vgroup {}", entry.key());
             man.start_raw_block().await?;
             man.finish_raw_block().await?;
             man.flush().await?;
@@ -101,7 +101,7 @@ impl ZFileMan {
                 }
             }
             nrows += block.nrows();
-            log::debug!(
+            tracing::debug!(
                 "[vg:{vgroup}] table {} rows: {}",
                 block.table_name().unwrap_or_default(),
                 block.nrows()
@@ -170,26 +170,26 @@ async fn backup(
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
-                log::warn!("[sync: {id}] cancelled");
+                tracing::warn!("[sync: {id}] cancelled");
                 break;
             }
             next = stream.try_next() => {
                 let (a, b, c) = get_main_version_from_server_version(&version).unwrap();
-                log::debug!("version:{} a-{} b-{} c-{} ", version, a, b, c);
+                tracing::debug!("version:{} a-{} b-{} c-{} ", version, a, b, c);
                 let assignments = if a >= 3 && b >= 0 && c >= 5 {
                     consumer.assignments().await.unwrap()
                 } else {
                     vec![]
                 };
 
-                log::debug!("assignment: {:?}", assignments);
+                tracing::debug!("assignment: {:?}", assignments);
                 for (topic, assignment) in assignments {
                     if assignment.is_empty() {
                         continue;
                     }
                     let vgroup_id = assignment[0].vgroup_id();
                     let key = format!("{}@vgroup{}", topic, vgroup_id);
-                    log::debug!("key: {}, assignment: {:?}", key, assignment);
+                    tracing::debug!("key: {}, assignment: {:?}", key, assignment);
                     offsets.insert(key, assignment);
                 }
 
@@ -201,7 +201,7 @@ async fn backup(
                     let total = metrics.messages.load(std::sync::atomic::Ordering::SeqCst);
                     messages += 1;
                     if messages % 2000 == 0 {
-                        log::info!("[{id}] received {messages} messages ({:.2})", messages as f64 / total as f64);
+                        tracing::info!("[{id}] received {messages} messages ({:.2})", messages as f64 / total as f64);
                     }
                     let vgroup = offset.vgroup_id();
 
@@ -236,7 +236,7 @@ async fn backup(
                         }
                     }
                 } else {
-                    log::info!("[sync: {id}] polling stopped");
+                    tracing::info!("[sync: {id}] polling stopped");
                     break;
                 }
             }
@@ -244,11 +244,11 @@ async fn backup(
     }
 
     barrier.wait().await;
-    log::info!("[{id}] total backup {} rows", rows);
+    tracing::info!("[{id}] total backup {} rows", rows);
     drop(stream);
-    let _ = sender.send(consumer);
-    // consumer.unsubscribe().await;
-    log::info!("[{id}] backup done");
+    let _ = sender.send(consumer); // tokio send
+                                   // consumer.unsubscribe().await;
+    tracing::info!("[{id}] backup done");
     Ok(())
 }
 
@@ -324,22 +324,22 @@ pub async fn tmq_to_local(
     }
     let path: &Path = to.path.as_ref().unwrap().as_ref();
     if !path.exists() {
-        log::info!("create directory for backup: {}", path.display());
+        tracing::info!("create directory for backup: {}", path.display());
         std::fs::create_dir_all(path)?;
     } else {
-        log::info!("use existing directory for backup: {}", path.display());
+        tracing::info!("use existing directory for backup: {}", path.display());
     }
 
     let config_path = path.join("local.toml");
     let config = if config_path.exists() {
-        log::info!("read configuration in: {}", config_path.display());
+        tracing::info!("read configuration in: {}", config_path.display());
         let mut config = LocalConfig::from_path(&config_path)?;
         config.last_modified = Local::now();
 
         if let Some(group_id) = from_params.get("group.id") {
             if config.group_id != group_id.as_str() {
                 if force {
-                    log::warn!(
+                    tracing::warn!(
                         "group id not match(`{}` vs `{}` in last operation), but use it by force",
                         group_id,
                         config.group_id
@@ -388,15 +388,15 @@ pub async fn tmq_to_local(
     counter!(METRICS_TMQ_TOPICS, config.topics.len() as u64);
 
     let tmq = TmqBuilder::from_dsn(&from)?;
-    log::info!("TMQ builder created");
+    tracing::info!("TMQ builder created");
 
     if to.path.is_none() {
         anyhow::bail!("invalid backup DSN: {}", to);
     }
 
-    log::info!("write to config file");
+    tracing::info!("write to config file");
     config.write_to(config_path)?;
-    log::info!("write to config file done");
+    tracing::info!("write to config file done");
 
     let mut handles = Vec::new();
 
@@ -416,7 +416,7 @@ pub async fn tmq_to_local(
         };
 
         let mut consumers = Vec::with_capacity(jobs);
-        log::info!("create {jobs} consumers for topic {}", topic.name);
+        tracing::info!("create {jobs} consumers for topic {}", topic.name);
         metrics
             .workers
             .fetch_add(jobs as _, std::sync::atomic::Ordering::SeqCst);
@@ -480,16 +480,16 @@ pub async fn tmq_to_local(
     }
     for handle in handles {
         let _ = handle.await??;
-        log::info!("worker done");
+        tracing::info!("worker done");
     }
     for man in files_manager {
         man.shutdown().await?;
     }
-    log::info!("stop all consumers({})", task_id);
+    tracing::info!("stop all consumers({})", task_id);
     for _ in 0..task_id {
         let _ = consumers_receiver.recv().await;
     }
-    log::info!("all workers done for backup");
+    tracing::info!("all workers done for backup");
 
     println!("{}", metrics.as_ref());
     Ok(())

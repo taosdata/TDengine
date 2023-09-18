@@ -158,7 +158,7 @@ impl MessageArrowRecords {
                                         Some(length),
                                     )),
                                     Err(err) => {
-                                        log::error!(
+                                        tracing::error!(
                                             "varchar/nchar parse error: {}",
                                             err.to_string()
                                         );
@@ -211,7 +211,7 @@ impl MessageArrowRecords {
                                             Some(length),
                                         )),
                                         Err(err) => {
-                                            log::error!(
+                                            tracing::error!(
                                                 "varchar/nchar parse error: {}",
                                                 err.to_string()
                                             );

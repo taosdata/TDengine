@@ -362,74 +362,74 @@ pub async fn influxdb_to_taos(
     }
 
     let port_pool = port_pool.clone();
-    {
-        let mut child = child.spawn().context("Start InfluxDB collector error")?;
-        const ERROR_BUF_SIZE: usize = 2;
-        let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
-        let error_buf_producer = error_buf.clone();
-        let stderr = child.stderr.take().expect("Failed to capture stderr");
-        tokio::spawn(async move {
-            let mut reader = tokio::io::BufReader::new(stderr);
-            let mut line = String::new();
-            loop {
-                // Read a line from stderr
-                let bytes_read = reader.read_line(&mut line).await?;
-                if bytes_read == 0 {
-                    break; // End of stream, exit the loop
-                }
-                if line.contains("ERROR") {
+
+    let mut child = child.spawn().context("Start InfluxDB collector error")?;
+    const ERROR_BUF_SIZE: usize = 2;
+    let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
+    let error_buf_producer = error_buf.clone();
+    let stderr = child.stderr.take().expect("Failed to capture stderr");
+    tokio::spawn(async move {
+        let mut reader = tokio::io::BufReader::new(stderr);
+        let mut line = String::new();
+        loop {
+            // Read a line from stderr
+            let bytes_read = reader.read_line(&mut line).await?;
+            if bytes_read == 0 {
+                break; // End of stream, exit the loop
+            }
+            if line.contains("ERROR") {
+                use ringbuf::Rb;
+                let mut guard = error_buf_producer.lock().await;
+                let _ = guard.push_overwrite(line.clone());
+            }
+            // Write the line to log_rotation
+            write!(log_rotation, "{}", line)?;
+            line.clear();
+        }
+        Ok::<(), std::io::Error>(())
+    });
+    // waiting until the end
+    tracing::info!("waiting for InfluxDB connector");
+    tokio::spawn(async move {
+        macro_rules! safe_exit {
+            () => {
+                let _ = ipc.close().await;
+                temp_path.close().unwrap();
+                port_pool.put(ipc_port);
+            };
+        }
+        tokio::select! {
+            // application exit with error code
+            status = child.wait() => {
+                let status = status?;
+                tracing::info!("InfluxDB exit with {}", status);
+                if !status.success() {
                     use ringbuf::Rb;
-                    let mut guard = error_buf_producer.lock().await;
-                    let _ = guard.push_overwrite(line.clone());
+                    safe_exit!();
+                    let error = error_buf.lock().await.iter().join("");
+                    anyhow::bail!("InfluxDB exit with status {status}: {error}");
                 }
-                // Write the line to log_rotation
-                write!(log_rotation, "{}", line)?;
-                line.clear();
-            }
-            Ok::<(), std::io::Error>(())
-        });
-        // waiting until the end
-        tracing::info!("waiting for InfluxDB connector");
-        tokio::spawn(async move {
-            tokio::select! {
-                // application exit with error code
-                status = child.wait() => {
-                    let status = status?;
-                    tracing::info!("InfluxDB exit with {}", status);
-                    if !status.success() {
-                        use ringbuf::Rb;
-                        let _ = ipc.close().await?;
-                        let error = error_buf.lock().await.iter().join("");
-                        anyhow::bail!("InfluxDB exit with status {status}: {error}");
-                    }
-                },
-                err = ipc.recv_error() => {
-                    tracing::info!("have received worker thread panicked message, terminate child process");
-                    if let Some(err) = err {
-                        let _ = ipc.send(());
-                        anyhow::bail!("InfluxDB writer error: {err}");
-                    }
-                },
-                _ = cancel.cancelled() => {
-                    tracing::info!("InfluxDB task cancelled");
+            },
+            err = ipc.recv_error() => {
+                tracing::info!("have received worker thread panicked message, terminate child process");
+                if let Some(err) = err {
+                    // kill child pid before raising error
+                    let _ = child.kill().await;
+                    safe_exit!();
+                    anyhow::bail!("InfluxDB writer error: {err}");
                 }
+            },
+            _ = cancel.cancelled() => {
+                tracing::info!("InfluxDB task cancelled");
             }
-            ;
-            // send an empty tuple
-            ipc.send(()).await?;
-            // stop the connector
-            let _ = child.kill().await;
-            ipc.close().await?;
-            tracing::info!("InfluxDB task Done");
-            // delete the temporary file
-            let _ = temp_path.close();
-            // put ipc port back to port pool.
-            port_pool.put(ipc_port);
-            // wait for completion
-            tokio::time::sleep(Duration::from_millis(100)).await;
-            Ok(())
-        }.in_current_span()).await??;
-    }
+        };
+        // stop the connector
+        let _ = child.kill().await;
+        tracing::info!("InfluxDB task Done");
+        safe_exit!();
+        Ok(())
+    }.in_current_span()).await??;
+
     Ok(())
 }
 

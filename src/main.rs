@@ -122,7 +122,7 @@ impl GlobalOpts {
         let min = std::thread::available_parallelism()
             .map(|v| v.get() * 2)
             .unwrap_or(16)
-            .max(8);
+            .max(16);
 
         if self.jobs + 2 > min {
             self.jobs + 2
@@ -163,6 +163,20 @@ struct Args {
 
 const ENV_PLUGINS_HOME: &'static str = "PLUGINS_HOME";
 const ENV_TAOSX_PLUGINS_HOME: &'static str = concatcp!(build::CUS_PROMPT, "_PLUGINS_HOME");
+
+fn build_runtime(
+    worker_threads: usize,
+) -> std::result::Result<tokio::runtime::Runtime, std::io::Error> {
+    tokio::runtime::Builder::new_multi_thread()
+        .disable_lifo_slot()
+        .rng_seed(tokio::runtime::RngSeed::from_bytes(b"taosx rng seed"))
+        .global_queue_interval(31)
+        .max_blocking_threads(4096)
+        .thread_name("taosx")
+        .worker_threads(worker_threads)
+        .enable_all()
+        .build()
+}
 fn main() -> Result<()> {
     dotenv::dotenv().ok();
     let args = Args::parse();
@@ -248,14 +262,9 @@ fn main() -> Result<()> {
     };
     let span_events = args.globals.tracing_events.clone();
     let worker_threads = args.globals.executor_worker_threads();
-    let runtime = tokio::runtime::Builder::new_multi_thread()
-        .max_blocking_threads(4096)
-        .thread_name("taosx")
-        .worker_threads(worker_threads)
-        .enable_all()
-        .build()?;
+    let runtime = build_runtime(worker_threads)?;
 
-    let res = runtime.block_on(async move {
+    runtime.block_on(async move {
         let mut layers = Vec::new();
 
         layers.push(
@@ -283,17 +292,9 @@ fn main() -> Result<()> {
             .add_directive("actix_server=info".parse()?)
             .add_directive("actix_http=info".parse()?)
             .add_directive("tokio_tungstenite=info".parse()?)
-            .add_directive("mio=warn".parse()?);
+            .add_directive("mio=info".parse()?)
+            .add_directive("h2=info".parse()?);
 
-        // let target_filter = filter::filter_fn(|metadata| {
-        //     !metadata.target().starts_with("mio")
-        //         && !metadata.target().starts_with("actix_server")
-        //         && !metadata.target().starts_with("tungstenite")
-        //         && metadata.target() != "sqlx::query"
-        // });
-        // let filtered_layer = tracing_subscriber::fmt::layer()
-        //     .with_filter(filter)
-        //     .with_filter(target_filter.clone());
         if atty::is(atty::Stream::Stderr) {
             layers.push(
                 tracing_subscriber::fmt::layer()
@@ -323,6 +324,7 @@ fn main() -> Result<()> {
         }
 
         let metrics_layer = MetricsLayer::new();
+        let console_layer = console_subscriber::spawn();
         if args.globals.otel.unwrap_or(false) {
             let tracer = opentelemetry_jaeger::new_agent_pipeline()
                 .with_service_name("x")
@@ -334,12 +336,14 @@ fn main() -> Result<()> {
             let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
 
             tracing_subscriber::registry()
+                .with(console_layer)
                 .with(metrics_layer)
                 .with(layers)
                 .with(telemetry)
                 .init();
         } else {
             tracing_subscriber::registry()
+                .with(console_layer)
                 .with(metrics_layer)
                 .with(layers)
                 .init();
@@ -348,39 +352,32 @@ fn main() -> Result<()> {
         tracing::info!("version: {version}");
         tracing::info!("commit id: {commit_id}");
         tracing::info!("build time: {build_time}");
+        anyhow::Ok(())
+    })?;
 
-        let root_span = tracing::info_span!("root").entered();
-
-        if let Some(cmd) = args.commands {
-            match cmd {
-                Commands::Run(cmd) => {
-                    cmd.run_with(args.globals).await?;
-                }
-                Commands::Serve(cli) => {
-                    // let rt = tokio::runtime::Builder::new_multi_thread()
-                    //     .max_blocking_threads(4096)
-                    //     .thread_name("runner")
-                    //     .worker_threads(worker_threads)
-                    //     .enable_all()
-                    //     .build()?;
-                    cli.run_with(args.globals, None).await?;
-                }
-                Commands::External(_) => bail!("unknown subcommand"),
-            }
-        } else {
-            // let rt = tokio::runtime::Builder::new_multi_thread()
-            //     .max_blocking_threads(4096)
-            //     .thread_name("runner")
-            //     .worker_threads(worker_threads)
-            //     .enable_all()
-            //     .build()?;
-            serve::Cli::default().run_with(args.globals, None).await?;
+    match args
+        .commands
+        .unwrap_or(Commands::Serve(serve::Cli::default()))
+    {
+        Commands::Run(cli) => {
+            let _ = tracing::info_span!("cli").entered();
+            runtime.block_on(cli.run_with(args.globals))?;
         }
-        root_span.exit();
-        Ok(())
-    });
-
+        Commands::Serve(serve) => {
+            let _ = tracing::info_span!("serve").entered();
+            let grpc_rt = build_runtime(worker_threads)?;
+            // let api_rt = build_runtime(worker_threads)?;
+            let ctl = runtime.block_on(serve.controller())?;
+            let api_ctl = ctl.clone();
+            let serve_api = serve.clone();
+            let grpc_handle = grpc_rt.spawn(serve_api.grpc(ctl.clone()));
+            runtime.block_on(async move {
+                // rest api
+                serve.api(api_ctl, grpc_handle).await
+            })?;
+        }
+        Commands::External(_) => bail!("unknown subcommand"),
+    }
     opentelemetry::global::shutdown_tracer_provider();
-    res?;
     Ok(())
 }

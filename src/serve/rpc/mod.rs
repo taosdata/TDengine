@@ -38,7 +38,7 @@ use arrow_flight::{
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
     HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
 };
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::serve::{
     controller::{
@@ -72,7 +72,16 @@ impl FlightService for FlightServiceImpl {
         req: Request<Streaming<HandshakeRequest>>,
     ) -> Result<Response<Self::HandshakeStream>, Status> {
         let addr = req.remote_addr();
-        let (_, _extensions, mut req) = req.into_parts();
+        let (meta, _extensions, mut req) = req.into_parts();
+
+        let client_version = meta.get("x-version").ok_or_else(|| {
+            Status::aborted("The server does not compatible to your agent, please upgrade to a newer version")
+        })?.to_str().map_err(|err| Status::aborted(format!("Invalid agent version: {err}")))?;
+        // dbg!(&meta, &extension);
+        {
+            // check agent version
+            let _ = client_version; // now we support all versions.
+        }
         tracing::info!("handshake with client {:?}", addr);
 
         let req = req.message().await?;
@@ -177,7 +186,7 @@ impl FlightService for FlightServiceImpl {
 
         let token = meta
             .get("x-token")
-            .unwrap()
+            .ok_or_else(|| Status::aborted("Token should be set"))?
             .to_str()
             .map_err(|err| Status::aborted(format!("Invalid token: {err}")))?;
 
@@ -357,11 +366,13 @@ impl FlightService for FlightServiceImpl {
                                             ("context", context),
                                         ])
                                         .map_err(FlightError::Arrow);
-                                        // log::info!("Send heartbeat response");
+                                        // tracing::info!("Send heartbeat response");
                                         let _ = resp_tx.send_async(item).await;
                                         // return std::task::Poll::Ready(Some(item));
                                     }
-                                    _ => todo!("Unknown action"),
+                                    action => {
+                                        warn!("Unknown action: {action}");
+                                    }
                                 }
                             }
                             // batch.
@@ -371,7 +382,7 @@ impl FlightService for FlightServiceImpl {
                     Ok(())
                 })
                 .await;
-            tracing::info!(agent = agent_id, "Agent RPC stopped");
+            tracing::info!(agent = agent_id, "Agent RPC stopped with ");
             let context = result
                 .err()
                 .map(|err| json!({"code": 0xFFFFi32, "message": err.to_string()}).to_string());
@@ -384,6 +395,12 @@ impl FlightService for FlightServiceImpl {
                 context,
             );
             let _ = controller_runner.push_agent_activity(&activity).await?;
+            tracing::info!(agent = agent_id, "Agent RPC stopped");
+
+            controller_runner
+                .agent_disconnect(agent_id)
+                .await
+                .map_err(|err| Status::internal(err.to_string()))?;
             Ok::<_, anyhow::Error>(())
         });
         let stream: Self::DoExchangeStream = Box::pin(IpcStream::new(rx));
@@ -487,7 +504,7 @@ impl FlightService for FlightServiceImpl {
                         .unwrap();
 
                         if let Err(err) = tx.send_async(Ok(batch)).await {
-                            log::warn!("Task listener closed: {err:#}");
+                            tracing::warn!("Task listener closed: {err:#}");
                             break;
                         }
                     }
@@ -514,15 +531,15 @@ impl FlightService for FlightServiceImpl {
 
             //     if let Err(err) = tx.send_async(Ok(batch)).await {
             //         dbg!(&err);
-            //         log::warn!("Task listener closed");
+            //         tracing::warn!("Task listener closed");
             //         break;
             //     }
             //     continue;
             // } /* end test */
             loop {
-                log::info!("Waiting for new task");
+                tracing::info!("Waiting for new task");
                 if let Ok(data) = receiver.recv().await {
-                    log::info!("{data:?}");
+                    tracing::info!("{data:?}");
 
                     let ts: ArrayRef = Arc::new(TimestampMillisecondArray::from_iter_values([
                         chrono::Utc::now().timestamp_millis(),
@@ -594,7 +611,7 @@ impl FlightService for FlightServiceImpl {
                                 .unwrap();
 
                                 if let Err(err) = tx.send_async(Ok(batch)).await {
-                                    log::warn!("Task listener closed: {err:#}");
+                                    tracing::warn!("Task listener closed: {err:#}");
                                     break;
                                 }
                             } else {
@@ -617,7 +634,7 @@ impl FlightService for FlightServiceImpl {
                             .unwrap();
 
                             if let Err(err) = tx.send_async(Ok(batch)).await {
-                                log::warn!("Task listener closed: {err:#}");
+                                tracing::warn!("Task listener closed: {err:#}");
                                 break;
                             }
                         }
@@ -631,6 +648,7 @@ impl FlightService for FlightServiceImpl {
         }
 
         tokio::spawn(listen_tasks(controller, agent, tx));
+        tokio::task::yield_now().await;
 
         Ok(response)
     }
@@ -689,7 +707,7 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
             for file in files {
                 // let mut reader = csv_async::AsyncReader::from_reader(tokio::fs::File::open(&file[1..]).await?);
                 // let header = reader.headers().await?;
-                log::info!(
+                tracing::info!(
                     "current log: {}",
                     std::env::current_dir().unwrap().to_str().unwrap()
                 );
@@ -905,7 +923,7 @@ mod tests {
                     let val = Arc::new(TimestampMillisecondArray::from_iter_values(vec![0, 1]))
                         as ArrayRef;
                     let item = RecordBatch::try_from_iter(vec![("ts", val)]).map_err(Into::into);
-                    log::info!("{item:?}");
+                    tracing::info!("{item:?}");
                     std::task::Poll::Ready(Some(item))
                 }
             }
@@ -982,7 +1000,7 @@ mod tests {
             // .into_inner();
 
             stream
-                .try_for_each(|res| async move {
+                .try_for_each(|_res| async move {
                     // dbg!(res.app_metadata);
                     Ok(())
                 })

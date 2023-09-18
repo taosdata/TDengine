@@ -131,7 +131,7 @@ pub fn get_string_content_from_file_path(file_path: &str) -> Option<String> {
         let file = file.unwrap();
         let f = std::fs::File::open(&file[1..]);
         if let Err(err) = f {
-            log::error!("file: {} read error, cause: {}", file, err.to_string());
+            tracing::error!("file: {} read error, cause: {}", file, err.to_string());
             None
         } else {
             let buf = std::io::BufReader::new(f.unwrap());
@@ -215,17 +215,17 @@ async fn test_get_main_version_from_server_version() -> anyhow::Result<()> {
     let version = "3.0";
     assert_eq!(
         Err("error"),
-        get_main_version_from_server_version(&version.to_string()).map_err(|err| "error")
+        get_main_version_from_server_version(&version.to_string()).map_err(|_err| "error")
     );
     let version = "a.b";
     assert_eq!(
         Err("error"),
-        get_main_version_from_server_version(&version.to_string()).map_err(|err| "error")
+        get_main_version_from_server_version(&version.to_string()).map_err(|_err| "error")
     );
     let version = "ab";
     assert_eq!(
         Err("error"),
-        get_main_version_from_server_version(&version.to_string()).map_err(|err| "error")
+        get_main_version_from_server_version(&version.to_string()).map_err(|_err| "error")
     );
     Ok(())
 }

@@ -47,7 +47,7 @@ async fn process_sync_with(
     // let target_is_v3 = self.target_is_v3;
     // let table = self.table.clone();
     // let target_opts = self.target_opts.clone();
-    // log::debug!("spawn sync task for range: {:?}", opts.time_range);
+    // tracing::debug!("spawn sync task for range: {:?}", opts.time_range);
     // let h = tokio::spawn(async move {
     loop {
         let (table, time_range) = receiver.recv().await.unwrap();
@@ -110,7 +110,7 @@ impl TablesHandle {
         //     )
         //     .await
         //     {
-        //         log::warn!("syncing error: {err:?}");
+        //         tracing::warn!("syncing error: {err:?}");
         //     }
         //     let _ = sender_cloned;
         // });
@@ -175,7 +175,10 @@ impl TablesHandle {
                 let time_range = TimeRange::new().start(start).end(now);
 
                 for table in &tables {
-                    sender.send((table.clone(), time_range.clone())).unwrap();
+                    sender
+                        .send_async((table.clone(), time_range.clone()))
+                        .await
+                        .unwrap();
                 }
             }
 
@@ -186,9 +189,12 @@ impl TablesHandle {
             loop {
                 let end = Utc::now() - tick_duration;
                 let time_range = TimeRange::new().start(start).end(end);
-                log::debug!("spawn sync task for range: {:?}", time_range);
+                tracing::debug!("spawn sync task for range: {:?}", time_range);
                 for table in &tables {
-                    sender.send((table.clone(), time_range.clone())).unwrap();
+                    sender
+                        .send_async((table.clone(), time_range.clone()))
+                        .await
+                        .unwrap();
                 }
                 start = end;
                 let _ = interval.tick().await;
@@ -293,7 +299,7 @@ impl TableHandler {
             let target_is_v3 = self.target_is_v3;
             let table = self.table.clone();
             let target_opts = self.target_opts.clone();
-            log::debug!("spawn sync task for range: {:?}", opts.time_range);
+            tracing::debug!("spawn sync task for range: {:?}", opts.time_range);
             let metrics = self.metrics.clone();
             let h = tokio::spawn(async move {
                 sync_single_table(
@@ -340,7 +346,7 @@ impl TableHandler {
                 time_range: TimeRange::new().start(start).end(end),
                 ..Default::default()
             };
-            log::debug!("spawn sync task for range: {:?}", opts.time_range);
+            tracing::debug!("spawn sync task for range: {:?}", opts.time_range);
             let target_opts = self.target_opts.clone();
             let metrics = self.metrics.clone();
             let h = tokio::spawn(async move {
@@ -432,7 +438,7 @@ mod tests {
 
         tokio::select! {
             _ = sleep => {
-                log::warn!("timer elapsed");
+                tracing::warn!("timer elapsed");
             }
             _ = tables_handle.join() => {
             },
@@ -449,7 +455,7 @@ mod tests {
             .query_one("select count(*) from ts2031t.ntb1")
             .await?
             .unwrap();
-        log::info!("we've synced {wrote} records");
+        tracing::info!("we've synced {wrote} records");
         Ok(())
     }
 
@@ -491,7 +497,7 @@ mod tests {
 
         tokio::select! {
             _ = sleep => {
-                log::warn!("timer elapsed");
+                tracing::warn!("timer elapsed");
             }
             _ = table_task.run() => {
             },
@@ -508,7 +514,7 @@ mod tests {
             .query_one("select count(*) from ts2031t.ntb1")
             .await?
             .unwrap();
-        log::info!("we've synced {wrote} records");
+        tracing::info!("we've synced {wrote} records");
         Ok(())
     }
 }

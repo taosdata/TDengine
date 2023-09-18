@@ -22,7 +22,7 @@ use arrow::{
 use futures::Stream;
 use taos_query::prelude::Itertools;
 use taos_query::prelude::{ColumnView, Ty, Value};
-use tracing::{error, log};
+use tracing::error;
 
 use crate::{
     ack::AckType,
@@ -458,11 +458,27 @@ impl<R: Read> IpcReader<R> {
     where
         R: Send + 'static,
     {
-        let (tx, rx) = flume::unbounded();
+        let (tx, rx) = flume::bounded(1);
         std::thread::spawn(move || {
             for item in self {
-                tx.send(item)?;
+                tx.send(item)?; // send under blocking thread
             }
+            Ok::<_, flume::SendError<_>>(())
+        });
+        rx.into_stream()
+    }
+    pub fn into_raw_stream(
+        self,
+    ) -> flume::r#async::RecvStream<'static, Result<RecordBatch, ArrowError>>
+    where
+        R: Send + 'static,
+    {
+        let (tx, rx) = flume::bounded(1);
+        std::thread::spawn(move || {
+            for item in self.reader {
+                tx.send(item)?; // send under blocking thread
+            }
+            tracing::info!("Raw ipc reader stream closed");
             Ok::<_, flume::SendError<_>>(())
         });
         rx.into_stream()
@@ -847,7 +863,7 @@ impl LushMessageInsert {
                                 insert_values.push_str(format!("{},", sql_value).as_str());
                             } else {
                                 // ignore null columnview
-                                log::trace!("column view {} is null", column_name);
+                                tracing::trace!("column view {} is null", column_name);
                             }
                         }
                         index += 1;

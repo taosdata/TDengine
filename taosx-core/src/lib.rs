@@ -42,6 +42,8 @@ use tokio_util::sync::CancellationToken;
 pub use transform::Action;
 use utils::port_pool::PortPool;
 
+shadow_rs::shadow!(build);
+
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum Compression {
     None,
@@ -405,12 +407,13 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                    ).await?;
+                    )
+                    .await?;
                 }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }
-            Ok(())
         }
+        Ok(())
     }
 
     pub async fn delete_task(&self) -> Result<(), anyhow::Error> {

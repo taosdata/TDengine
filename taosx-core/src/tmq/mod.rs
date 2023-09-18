@@ -292,7 +292,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
         {
             Ok(Some((_, sql))) => Some(sql),
             Err(err) => {
-                log::warn!("SHOW CREATE DATABASE `{}` error: {}", database, err);
+                tracing::warn!("SHOW CREATE DATABASE `{}` error: {}", database, err);
                 None
             }
             _ => unreachable!(),
@@ -335,7 +335,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
             {
                 Ok(Some((_, sql))) => Some(sql),
                 Err(err) => {
-                    log::warn!("SHOW CREATE DATABASE `{}` error: {}, so that we can't automatically create a same database", topic.db_name(), err);
+                    tracing::warn!("SHOW CREATE DATABASE `{}` error: {}, so that we can't automatically create a same database", topic.db_name(), err);
                     None
                 }
                 _ => unreachable!(),
@@ -380,7 +380,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
             {
                 Ok(Some((_, sql))) => Some(sql),
                 Err(err) => {
-                    log::warn!("SHOW CREATE DATABASE `{}` error: {}", database, err);
+                    tracing::warn!("SHOW CREATE DATABASE `{}` error: {}", database, err);
                     None
                 }
                 _ => unreachable!(),
@@ -434,7 +434,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                         {
                             Ok(Some((_, sql))) => Some(sql),
                             Err(err) => {
-                                log::warn!(
+                                tracing::warn!(
                                     "SHOW CREATE DATABASE `{}` error: {}",
                                     topic.db_name(),
                                     err
@@ -481,7 +481,11 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                         {
                             Ok(Some((_, sql))) => Some(sql),
                             Err(err) => {
-                                log::warn!("SHOW CREATE DATABASE `{}` error: {}", database, err);
+                                tracing::warn!(
+                                    "SHOW CREATE DATABASE `{}` error: {}",
+                                    database,
+                                    err
+                                );
                                 None
                             }
                             _ => unreachable!(),
@@ -553,7 +557,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                         {
                             Ok(Some((_, sql))) => Some(sql),
                             Err(err) => {
-                                log::warn!(
+                                tracing::warn!(
                                     "SHOW CREATE DATABASE `{}` error: {}",
                                     topic.db_name(),
                                     err
@@ -622,7 +626,11 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                         {
                             Ok(Some((_, sql))) => Some(sql),
                             Err(err) => {
-                                log::warn!("SHOW CREATE DATABASE `{}` error: {}", database, err);
+                                tracing::warn!(
+                                    "SHOW CREATE DATABASE `{}` error: {}",
+                                    database,
+                                    err
+                                );
                                 None
                             }
                             _ => unreachable!(),
@@ -676,7 +684,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
             {
                 Ok(Some((_, sql))) => Some(sql),
                 Err(err) => {
-                    log::warn!("SHOW CREATE DATABASE `{}` error: {}", topic.db_name(), err);
+                    tracing::warn!("SHOW CREATE DATABASE `{}` error: {}", topic.db_name(), err);
                     None
                 }
                 _ => unreachable!(),
@@ -723,7 +731,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                     {
                         Ok(Some((_, sql))) => Some(sql),
                         Err(err) => {
-                            log::warn!("SHOW CREATE DATABASE `{}` error: {}", topic, err);
+                            tracing::warn!("SHOW CREATE DATABASE `{}` error: {}", topic, err);
                             None
                         }
                         _ => unreachable!(),

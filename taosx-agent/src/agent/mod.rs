@@ -20,6 +20,7 @@ use arrow_flight::{
     error::FlightError,
     Action as FlightAction, FlightData,
 };
+use cfg_if::cfg_if;
 use chrono::{DateTime, Utc};
 use flume::r#async::RecvStream;
 use flume::{Receiver, Sender};
@@ -28,6 +29,7 @@ use serde::{Deserialize, Serialize};
 use taosx_core::{
     list_datasets_from, DataSetsReq, Fail, HeartbeatResponse, ListResponse, RespAction,
 };
+use tonic::transport::Channel;
 use tonic::{codegen::Bytes, transport::Endpoint};
 use tracing::info;
 
@@ -142,20 +144,52 @@ pub struct Task {
 const fn is_false(b: &bool) -> bool {
     *b
 }
+
+async fn new_channel(endpoint: String) -> anyhow::Result<Channel> {
+    cfg_if! {
+        if #[cfg(windows)] {
+           let tcp_keepalive = None;
+        } else {
+           let tcp_keepalive = Some(Duration::from_secs(5));
+        }
+    };
+    Endpoint::try_from(endpoint.clone())
+        .map_err(|err| anyhow::format_err!("Unable to create endpoint on `{endpoint}`: {err:#}"))?
+        .keep_alive_while_idle(true)
+        .tcp_keepalive(tcp_keepalive)
+        .http2_keep_alive_interval(Duration::from_secs(13))
+        .keep_alive_timeout(Duration::from_secs(120))
+        .connect()
+        .await
+        .map_err(|err| anyhow::format_err!("Unable to connect with endpoint `{endpoint}`: {err:#}"))
+}
 impl Client {
     pub async fn new(endpoint: impl Display, token: impl Display) -> Result<Self> {
         let endpoint = endpoint.to_string();
         let token = token.to_string();
-        let channel = Endpoint::try_from(endpoint.clone())
-            .map_err(|err| anyhow::format_err!("Unable to create endpoint on `{endpoint}`: {err}"))?
-            .connect()
-            .await
-            .map_err(|err| {
-                anyhow::format_err!("Unable to connect with endpoint `{endpoint}`: {err}")
-            })?;
+        const MAX_RETRIES: usize = 5;
+        let mut retries = 0;
+        let channel = loop {
+            match new_channel(endpoint.clone()).await {
+                Ok(channel) => break Ok(channel),
+                Err(err) => {
+                    retries += 1;
+                    info!(
+                        "Unable to connect to server, retry {}/{}",
+                        retries, MAX_RETRIES
+                    );
+                    if retries > MAX_RETRIES {
+                        break Err(err);
+                    } else {
+                        continue;
+                    }
+                }
+            }
+        }?;
 
         let mut client = FlightClient::new(channel);
         client.add_header("x-token", &token)?;
+        client.add_header("x-version", crate::build::PKG_VERSION)?;
         let result = client
             .handshake(token.to_string())
             .await
@@ -186,6 +220,8 @@ impl Client {
         resp_tx: Sender<RespAction>,
         resp_rx: Receiver<RespAction>,
     ) -> Result<()> {
+        tracing::info!("Wait tasks from server");
+
         struct FakeStream(
             SchemaRef,
             tokio::time::Interval,
@@ -218,7 +254,7 @@ impl Client {
                                     ("context", context),
                                 ])
                                 .map_err(Into::into);
-                                log::info!("{item:?}");
+                                tracing::info!("{item:?}");
                                 return std::task::Poll::Ready(Some(item));
                             }
                             RespAction::HeartbeatOk(resp) => {
@@ -237,7 +273,7 @@ impl Client {
                                     ("context", context),
                                 ])
                                 .map_err(Into::into);
-                                log::info!("Send heartbeat response: {item:?}");
+                                tracing::info!("Send heartbeat response: {item:?}");
                                 cx.waker().wake_by_ref();
                                 return std::task::Poll::Ready(Some(item));
                             }
@@ -257,7 +293,7 @@ impl Client {
                                     ("context", context),
                                 ])
                                 .map_err(Into::into);
-                                log::info!("{item:?}");
+                                tracing::info!("{item:?}");
                                 cx.waker().wake_by_ref();
                                 return std::task::Poll::Ready(Some(item));
                             }
@@ -277,7 +313,7 @@ impl Client {
                                     ("context", context),
                                 ])
                                 .map_err(Into::into);
-                                // log::info!("{item:?}");
+                                // tracing::info!("{item:?}");
                                 cx.waker().wake_by_ref();
                                 return std::task::Poll::Ready(Some(item));
                             }
@@ -298,7 +334,7 @@ impl Client {
                                 ])
                                 .map_err(Into::into);
                                 // dbg!(&item);
-                                // log::info!("{item:?}");
+                                // tracing::info!("{item:?}");
                                 cx.waker().wake_by_ref();
                                 return std::task::Poll::Ready(Some(item));
                             }
@@ -325,7 +361,7 @@ impl Client {
                             ("context", context),
                         ])
                         .map_err(Into::into);
-                        log::info!("send heartbeat message");
+                        tracing::info!("send heartbeat message");
                         return std::task::Poll::Ready(Some(item));
                     }
                     Poll::Pending => {
@@ -388,7 +424,7 @@ impl Client {
             )
             .build(FakeStream(
                 schema.clone(),
-                tokio::time::interval(Duration::from_secs(30)),
+                tokio::time::interval(Duration::from_secs(60)),
                 Instant::now(),
                 resp_rx.into_stream(),
             ));
@@ -431,36 +467,38 @@ impl Client {
                     context.value(0),
                 );
 
-                log::info!("At [{ts}] action `{action}` triggered");
+                tracing::info!("At [{ts}] action `{action}` triggered");
                 match action {
                     "run" => {
                         let task: Task = serde_json::from_str(&context).unwrap();
                         info!("Start task {}", task.id);
-                        sender.send(Action::Run(task)).unwrap();
+                        sender.send_async(Action::Run(task)).await?;
                     }
                     "stop" => {
                         let task: Task = serde_json::from_str(&context).unwrap();
                         info!("Stop task {}", task.id);
-                        sender.send(Action::Stop(task.id)).unwrap();
+                        sender.send_async(Action::Stop(task.id)).await?;
                         // let task:
                     }
                     "cancel" => {
                         let task: Task = serde_json::from_str(&context).unwrap();
                         info!("Cancel task {}", task.id);
-                        sender.send(Action::Cancel(task.id)).unwrap();
+                        sender.send_async(Action::Cancel(task.id)).await?;
                         // let task:
                     }
                     "list" => {
                         let req: DataSetsReq = serde_json::from_str(&context).unwrap();
                         let sets = list_datasets_from(&req).await.map_err(Fail::new);
-                        let _ = resp_tx.send(RespAction::ListOk(ListResponse { req, res: sets }));
+                        let _ = resp_tx
+                            .send_async(RespAction::ListOk(ListResponse { req, res: sets }))
+                            .await?;
                     }
                     "heartbeat" => {
                         let resp = HeartbeatResponse {
                             req: ts.naive_utc().and_utc(),
                             res: Utc::now(),
                         };
-                        let _ = resp_tx.send(RespAction::HeartbeatOk(resp));
+                        let _ = resp_tx.send_async(RespAction::HeartbeatOk(resp)).await?;
                     }
                     "heartbeat-ok" => {
                         let resp: HeartbeatResponse = serde_json::from_str(&context).unwrap();

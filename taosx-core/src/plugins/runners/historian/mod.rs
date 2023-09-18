@@ -10,14 +10,14 @@ use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
-use crate::{Action, build_ipc, Parser, Transferred};
 use crate::plugins::runners::historian::arrow::ArrowDataAppender;
 use crate::plugins::runners::historian::config::SourceConfig;
 use crate::utils::port_pool::PortPool;
+use crate::{build_ipc, Action, Parser, Transferred};
 
+mod arrow;
 mod config;
 mod tag;
-mod arrow;
 
 pub async fn historian_to_taos(
     from: Dsn,
@@ -31,7 +31,9 @@ pub async fn historian_to_taos(
     transferred: Option<Arc<Transferred>>,
     span: Span,
 ) -> anyhow::Result<()> {
-    let port = port_pool.get().ok_or_else(|| anyhow::format_err!("No available port for connection"))?;
+    let port = port_pool
+        .get()
+        .ok_or_else(|| anyhow::format_err!("No available port for connection"))?;
     let socket = format!("127.0.0.1:{}", port);
 
     let mut ipc = build_ipc(
@@ -44,7 +46,8 @@ pub async fn historian_to_taos(
         with_agent,
         transferred,
         span,
-    ).await?;
+    )
+    .await?;
 
     let port_pool = port_pool.clone();
 
@@ -120,7 +123,11 @@ async fn historian_worker(from: Dsn, port: u16) -> anyhow::Result<()> {
     // filter tags
     let tag_names;
     if config.tags.len() == 1 && config.tags[0] == "*" {
-        tag_names = tag::query_tags(&mut client).await?.iter().map(|tag| tag.name.clone()).collect();
+        tag_names = tag::query_tags(&mut client)
+            .await?
+            .iter()
+            .map(|tag| tag.name.clone())
+            .collect();
     } else {
         tag_names = config.tags;
     }
@@ -134,11 +141,22 @@ async fn historian_worker(from: Dsn, port: u16) -> anyhow::Result<()> {
         );
         tracing::info!("sql: {}", sql);
         // query
-        let mut rows = client.query(&sql, &[
-            &(tag_name.as_str()), &config.begin_date_time, &config.end_date_time, &config.retrieve_mode
-        ]).await?;
+        let mut rows = client
+            .query(
+                &sql,
+                &[
+                    &(tag_name.as_str()),
+                    &config.begin_date_time,
+                    &config.end_date_time,
+                    &config.retrieve_mode,
+                ],
+            )
+            .await?;
         // metadata
-        let columns = rows.columns().await?.ok_or_else(|| anyhow::anyhow!("No columns returned"))?;
+        let columns = rows
+            .columns()
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("No columns returned"))?;
         let mut appender = ArrowDataAppender::new(columns);
         let socket = format!("127.0.0.1:{}", port);
         let stream = std::net::TcpStream::connect(socket)?;
@@ -153,7 +171,7 @@ async fn historian_worker(from: Dsn, port: u16) -> anyhow::Result<()> {
                     continue;
                 }
             }
-        };
+        }
         // write batch
         let batch = appender.finish()?;
         writer.write(&batch)?;
@@ -168,7 +186,10 @@ async fn connect(source_config: &SourceConfig) -> anyhow::Result<Client<Compat<T
     let mut config = Config::new();
     config.host(&source_config.host);
     config.port(source_config.port);
-    config.authentication(AuthMethod::sql_server(&source_config.username, &source_config.password));
+    config.authentication(AuthMethod::sql_server(
+        &source_config.username,
+        &source_config.password,
+    ));
     config.trust_cert();
 
     let tcp = TcpStream::connect(config.get_addr()).await?;
@@ -218,7 +239,8 @@ mod tests {
             None,
             None,
             Span::current(),
-        ).await;
+        )
+        .await;
 
         assert!(res.is_ok());
     }
@@ -230,7 +252,10 @@ mod tests {
         let total_records = 10359;
         let gap_sec = 2;
 
-        let mut file = File::create(format!("tag{}_{}_{}sec.csv", tag_index, total_records, gap_sec))?;
+        let mut file = File::create(format!(
+            "tag{}_{}_{}sec.csv",
+            tag_index, total_records, gap_sec
+        ))?;
         file.write_all(b"ASCII\n")?;
         file.write_all(b"|\n")?;
         file.write_all(b"Win10-2021XIVKQ|1|Server Local|1|1\n")?;
@@ -243,7 +268,9 @@ mod tests {
             let dt: DateTime<Utc> = DateTime::from_utc(naive.unwrap(), Utc);
             let date_time = dt.format("%Y/%m/%d|%H:%M:%S").to_string();
             let date_value = rng.gen_range(0.0..100.0);
-            file.write_all(format!("tag{}|0|{}|1|{}|192\n", tag_index, date_time, date_value).as_bytes())?;
+            file.write_all(
+                format!("tag{}|0|{}|1|{}|192\n", tag_index, date_time, date_value).as_bytes(),
+            )?;
         }
         Ok(())
     }

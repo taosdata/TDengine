@@ -6,13 +6,10 @@ use std::{
     path::Path,
 };
 use taos::sync::*;
-use taos_query::{AsyncFetchable, AsyncQueryable, RawBlock};
+use taos_query::{AsyncFetchable, AsyncQueryable};
 use taosx_ipc::{
     ack::{AckWriter, AckWriterBuilder},
-    stream::{
-        flat::FlatMessage,
-        point::{self, PointMessage},
-    },
+    stream::{flat::FlatMessage, point::PointMessage},
 };
 use tokio::runtime::Runtime;
 use tracing::{info, instrument, log};
@@ -297,7 +294,6 @@ pub struct ColumnConfig {
     pub is_primary_key: bool,
 }
 
-use anyhow::Context;
 fn handle_point_message<R: Read, W: Write>(
     ipc_reader: IpcReader<R>,
     taos: Taos,
@@ -337,8 +333,8 @@ fn handle_point_message<R: Read, W: Write>(
     }"#,
     )
     .unwrap();
-    let mut stmt = Stmt::init(&taos)?;
-    let mut records_count = 0;
+    let _stmt = Stmt::init(&taos)?;
+    let records_count = 0;
     let runtime = tokio::runtime::Runtime::new()?;
     for record in ipc_reader {
         if let Ok(record) = record {
@@ -433,7 +429,7 @@ fn handle_point_message<R: Read, W: Write>(
                     let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
                     let code = id_code_map.get(&id);
                     if code.is_none() {
-                        log::warn!("id: {} cannot get code", id);
+                        tracing::warn!("id: {} cannot get code", id);
                         continue;
                     }
                     let mut child_table_name = stable_name.clone();
@@ -532,12 +528,12 @@ fn handle_point_message<R: Read, W: Write>(
                     loop {
                         let sql_res = taos_query::Queryable::exec(&taos, &insert_sql);
                         match sql_res {
-                            Ok(n) => {
+                            Ok(_n) => {
                                 break;
                             }
                             Err(err) => {
                                 let errstr = err.to_string();
-                                log::debug!("error: {}", errstr);
+                                tracing::debug!("error: {}", errstr);
                                 if errstr.contains("[0x2603]") {
                                     // stable not exists
                                     println!("create stable sql: {}", &stable_sql);
@@ -626,7 +622,7 @@ fn handle_point_message<R: Read, W: Write>(
                                                 column_meta.ty(),
                                                 length,
                                                 );
-                                            log::info!("add execute sql: {}", &sql);
+                                            tracing::info!("add execute sql: {}", &sql);
                                             taos.exec_sync(sql).unwrap();
                                         });
                                     });

@@ -706,7 +706,7 @@ fn test_kafka() {
     let dsn = "kafka://a.k/?topics=a,b";
     let dsn = Dsn::from_str(&dsn).unwrap();
     // let tmq = &mut def[0];
-    let ds = def.values_from(dsn);
+    let _ds = def.values_from(dsn);
 }
 #[test]
 fn test_legacy() {

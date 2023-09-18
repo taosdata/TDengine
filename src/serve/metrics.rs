@@ -54,7 +54,7 @@ pub fn process_metrics(sys: &mut sysinfo::System) -> anyhow::Result<()> {
     let pid = get_current_pid();
     if pid.is_err() {
         let err = pid.unwrap_err();
-        log::warn!("process metrics does not supported on current platform: {err}");
+        tracing::warn!("process metrics does not supported on current platform: {err}");
         return Ok(());
     }
     let pid = pid.unwrap();

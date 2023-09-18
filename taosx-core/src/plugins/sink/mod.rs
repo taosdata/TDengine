@@ -1,11 +1,6 @@
 use anyhow::{bail, Context};
-use arrow::{
-    array::{ArrayRef, TimestampMillisecondArray},
-    datatypes::{Schema, SchemaRef},
-    ipc::writer::IpcWriteOptions,
-    record_batch::RecordBatch,
-};
-use arrow_flight::{FlightClient, PutResult};
+use arrow::{datatypes::Schema, ipc::writer::IpcWriteOptions, record_batch::RecordBatch};
+use arrow_flight::FlightClient;
 use async_backtrace::framed;
 use bytes::Bytes;
 use futures::TryStreamExt;
@@ -20,7 +15,6 @@ use std::{
         atomic::{AtomicUsize, Ordering},
         Arc,
     },
-    task::Poll,
     time::Duration,
 };
 use taos::{
@@ -64,58 +58,8 @@ async fn ipc_tcp_forward(
     tracing::info!("token: {}", format!("{:x}", md5::compute(token.clone())));
 
     let _ = cancel;
-    use arrow_flight::{
-        encode::{FlightDataEncoder, FlightDataEncoderBuilder},
-        error::FlightError,
-        FlightData,
-    };
+    use arrow_flight::{encode::FlightDataEncoderBuilder, error::FlightError};
     use futures::StreamExt;
-    struct FakeStream(SchemaRef, tokio::time::Interval);
-
-    impl futures::Stream for FakeStream {
-        type Item = Result<RecordBatch, FlightError>;
-        fn poll_next(
-            mut self: std::pin::Pin<&mut Self>,
-            cx: &mut std::task::Context<'_>,
-        ) -> std::task::Poll<Option<Self::Item>> {
-            // std::thread::sleep(Duration::from_millis(100));
-            match self.1.poll_tick(cx) {
-                Poll::Ready(_) => (),
-                Poll::Pending => return Poll::Pending,
-            }
-            // fut.poll_unpin(cx);
-            let val = Arc::new(TimestampMillisecondArray::from_iter_values(vec![0, 1])) as ArrayRef;
-            let item = RecordBatch::try_from_iter(vec![("ts", val)]).map_err(Into::into);
-            tracing::info!("{item:?}");
-            std::task::Poll::Ready(Some(item))
-        }
-    }
-    struct Data {
-        data: FlightDataEncoder,
-    }
-    impl futures::Stream for Data {
-        type Item = FlightData;
-        fn poll_next(
-            mut self: std::pin::Pin<&mut Self>,
-            cx: &mut std::task::Context<'_>,
-        ) -> std::task::Poll<Option<Self::Item>> {
-            self.data
-                .try_poll_next_unpin(cx)
-                .map(|u| u.transpose().unwrap())
-                .map(|u| {
-                    u.map(|mut v| {
-                        if v.app_metadata.is_empty() {
-                            v.app_metadata = Bytes::from("request");
-                            // dbg!(v)
-                            v
-                        } else {
-                            // dbg!(v)
-                            v
-                        }
-                    })
-                })
-        }
-    }
     let reader_stream = stream
         .try_clone()
         .context("Try clone IPC stream as reader error")?;
@@ -128,106 +72,117 @@ async fn ipc_tcp_forward(
 
     let schema = ipc_reader.schema.clone();
     // dbg!(&schema);
-    let (sender, receiver) = flume::bounded(5);
+    // let (sender, receiver) = flume::bounded(5);
 
     info!(client, remote, "reading batches");
-    tokio::spawn(async move {
-        let mut batches = futures::stream::iter(ipc_reader.reader);
-        while let Some(res) = batches.next().await {
-            // dbg!(&res);
-            if let Err(err) = sender.send(res.map_err(FlightError::from)) {
-                tracing::warn!("sender send error: {}", err.to_string());
-                break;
-            }
-        }
-        tracing::info!("[task:{task_id}] stopped");
-    });
+    // tokio::spawn(async move {
+    //     let mut batches = ipc_reader.into_raw_stream();
+    //     while let Some(res) = batches.next().await {
+    //         dbg!(&res);
+    //         if sender
+    //             .send_async(res.map_err(FlightError::from))
+    //             .await
+    //             .is_err()
+    //         {
+    //             tracing::info!("IPC remote handler has been closed");
+    //             break;
+    //         }
+    //     }
+    //     tracing::info!("[task:{task_id}] stopped");
+    // });
+    // tokio::task::yield_now().await;
 
-    struct IpcStream {
-        receiver: flume::Receiver<Result<RecordBatch, FlightError>>,
-        marker: AtomicUsize,
-    }
-    impl IpcStream {
-        fn new(receiver: flume::Receiver<Result<RecordBatch, FlightError>>) -> Self {
-            Self {
-                receiver,
-                marker: AtomicUsize::new(0),
-            }
-        }
-    }
+    let ipc_stream = ipc_reader.into_raw_stream();
 
-    impl futures::Stream for IpcStream {
-        type Item = Result<RecordBatch, FlightError>;
-        fn poll_next(
-            self: std::pin::Pin<&mut Self>,
-            cx: &mut std::task::Context<'_>,
-        ) -> std::task::Poll<Option<Self::Item>> {
-            let c = self
-                .marker
-                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            // tracing::info!("polled: {c} {cx:?}");
+    // let max_retries_in_one_minutes = 3;
+    // let last_retry_time = Arc::new(AtomicUsize::new(0));
+    'start: loop {
+        let data_stream = ipc_stream.clone();
+        let data = FlightDataEncoderBuilder::new()
+            .with_schema(schema.clone())
+            .with_options(
+                IpcWriteOptions::try_new(8, false, arrow::ipc::MetadataVersion::V5).unwrap(),
+            )
+            .build(data_stream.map_err(FlightError::from));
 
-            if c % 2 == 0 {
-                // todo: why this is require?
-                cx.waker().wake_by_ref();
-                return Poll::Pending;
-            }
-            let recv = self.receiver.recv();
-            Poll::Ready(recv.ok())
-        }
-    }
+        const MAX_RETRIES: usize = 3;
+        const RETRY_DELAY: Duration = Duration::from_secs(5);
 
-    let data = FlightDataEncoderBuilder::new()
-        .with_schema(schema.clone())
-        .with_options(IpcWriteOptions::try_new(8, false, arrow::ipc::MetadataVersion::V5).unwrap())
-        .build(IpcStream::new(receiver));
-
-    const MAX_RETRIES: usize = 3;
-    const RETRY_DELAY: Duration = Duration::from_secs(5);
-
-    let mut retries = 0;
-    let channel = loop {
-        match try_establish_channel(remote.clone()).await {
-            Ok(channel) => break channel,
-            Err(err) => {
-                retries += 1;
-                tracing::error!("Failed to establish connection: {}. Retrying...", err);
-                if retries >= MAX_RETRIES {
-                    tracing::error!("Max retries reached. Exiting...");
-                    return Err(err);
+        let mut retries = 0;
+        let channel = loop {
+            match try_establish_channel(remote.clone()).await {
+                Ok(channel) => break channel,
+                Err(err) => {
+                    retries += 1;
+                    tracing::error!("Failed to establish connection: {}. Retrying...", err);
+                    if retries >= MAX_RETRIES {
+                        tracing::error!("Max retries reached. Exiting...");
+                        return Err(err);
+                    }
+                    tokio::time::sleep(RETRY_DELAY).await;
                 }
-                tokio::time::sleep(RETRY_DELAY).await;
             }
-        }
-    };
-    let mut client = FlightClient::new(channel);
-    let _ = client
-        .handshake(Bytes::from(token.as_bytes().to_vec()))
-        .await
-        .map_err(|err| match err {
+        };
+        let mut client = FlightClient::new(channel);
+        client.add_header("x-task-id", &task_id.to_string())?;
+        client.add_header("x-token", &token)?;
+        client.add_header("x-version", crate::build::PKG_VERSION)?;
+        let _ = client
+            .handshake(Bytes::from(token.as_bytes().to_vec()))
+            .await
+            .map_err(|err| match err {
+                FlightError::Tonic(status) => anyhow::anyhow!("{}", status.message()),
+                err => anyhow::anyhow!("Handshake error: {err:#}"),
+            })?;
+        info!("Handshake done");
+        // dbg!(res);
+        info!("Do putting");
+        let mut stream = client.do_put(data).await.map_err(|err| match dbg!(err) {
+            FlightError::Arrow(err) => anyhow::anyhow!("IPC Arrow error: {err:#}"),
             FlightError::Tonic(status) => anyhow::anyhow!("{}", status.message()),
-            err => anyhow::anyhow!("Handshake error: {err:#}"),
+            err => anyhow::anyhow!("Put IPC stream error: {err:#}"),
         })?;
-    // dbg!(res);
-    client.add_header("x-task-id", &task_id.to_string())?;
-    client.add_header("x-token", &token)?;
-    let mut stream = client.do_put(data).await.map_err(|err| match err {
-        FlightError::Arrow(err) => anyhow::anyhow!("IPC Arrow error: {err:#}"),
-        FlightError::Tonic(status) => anyhow::anyhow!("{}", status.message()),
-        err => anyhow::anyhow!("Put IPC stream error: {err:#}"),
-    })?;
+        info!("Get putting stream response");
 
-    while let Some(res) = stream.next().await {
-        let _: PutResult = res.context("Got server response with error")?;
-        let _ = ipc_ack_writer.write_ok();
+        while let Some(res) = stream.next().await {
+            let rsp = res;
+            match rsp {
+                Ok(rsp) => {
+                    tracing::debug!("Response ok: {:?}", rsp);
+                }
+                Err(err) => match &err {
+                    FlightError::Tonic(status) => {
+                        if status
+                            .message()
+                            .contains("stream closed because of a broken pipe")
+                        {
+                            tracing::warn!("Disconnected, retry after one second: {err:#}");
+                            tokio::time::sleep(Duration::from_secs(1)).await;
+                            continue 'start;
+                        }
+                        tracing::error!("Tonic error: {status}");
+                        Err(err).context("Got server response with error")?;
+                    }
+                    _ => {
+                        tracing::error!("Other error: {err:#}");
+                        Err(err).context("Got server response with error")?;
+                    }
+                },
+            }
+            let _ = ipc_ack_writer.write_ok();
+        }
+
+        info!("[{task_id}] Putting stream finished");
+        break;
     }
-
-    info!("[{task_id}] Putting stream finished");
     Ok(())
 }
 
 async fn try_establish_channel(remote: String) -> anyhow::Result<Channel> {
-    let endpoint = tonic::transport::Endpoint::try_from(remote)?;
+    let endpoint = tonic::transport::Endpoint::try_from(remote)?
+        .keep_alive_while_idle(true)
+        .keep_alive_timeout(Duration::from_secs(120))
+        .http2_keep_alive_interval(Duration::from_secs(13));
     let channel = endpoint.connect().await?;
     Ok(channel)
 }
@@ -1151,6 +1106,7 @@ async fn consume_flat_record(
     let mut max_lengths = HashMap::new();
 
     for message in record.records() {
+        tokio::task::yield_now().await;
         counter!(RECORD_BATCHES, 1);
         let batch = message.record();
         if let Some(parser) = parser {
@@ -1933,37 +1889,33 @@ async fn handle_lush_message_init(
 }
 
 #[allow(dead_code)]
-pub struct IpcStreamWorker<'a> {
-    pool: &'a TaosPool,
+pub struct IpcStreamWorker {
+    pool: TaosPool,
     parser: IpcParser,
     lock: Arc<Mutex<()>>,
     task: Option<i64>,
     from: Dsn,
     config: Option<OPCConfig>,
     opc_table_config: OnceCell<OpcTableConfig>,
-    license: Option<&'a ConnectorLicense>,
-    transferred: Option<&'a Transferred>,
+    license: Option<ConnectorLicense>,
+    transferred: Option<Transferred>,
     span: tracing::Span,
     // stmt: Arc<UnsafeCell<Stmt>>,
 }
-
-unsafe impl<'a> Send for IpcStreamWorker<'a> {}
-unsafe impl<'a> Sync for IpcStreamWorker<'a> {}
-
-impl<'a> IpcStreamWorker<'a> {
-    pub fn new(
-        pool: &'a TaosPool,
+impl IpcStreamWorker {
+    pub async fn new(
+        pool: TaosPool,
         from: Dsn,
         lock: Arc<Mutex<()>>,
         schema: Arc<Schema>,
-        license: Option<&'a ConnectorLicense>,
-        transferred: Option<&'a Transferred>,
+        license: Option<ConnectorLicense>,
+        transferred: Option<Transferred>,
         span: tracing::Span,
         // license: Option<>
     ) -> anyhow::Result<Self> {
         let config = if from.driver.starts_with("opc") {
-            let taos = futures::executor::block_on(pool.get())?;
-            Some(opc_config_blocking(&taos, &from, 1)?)
+            let taos = pool.get().await?;
+            Some(opc_config_blocking(&taos, &from, 1).await?)
         } else {
             None
         };
@@ -2034,8 +1986,8 @@ impl<'a> IpcStreamWorker<'a> {
                     &record,
                     &mut count,
                     parser, // todo: license
-                    self.license,
-                    self.transferred,
+                    self.license.as_ref(),
+                    self.transferred.as_ref(),
                 )
                 .await?;
                 Ok(count)
@@ -2068,14 +2020,16 @@ impl<'a> IpcStreamWorker<'a> {
                     &names,
                     &marks,
                     &mut count,
-                    self.license,
-                    self.transferred,
+                    self.license.as_ref(),
+                    self.transferred.as_ref(),
                 )
                 .await?;
                 Ok(count)
             }
             StreamType::Point => {
-                if let Some((_license, transferred)) = self.license.zip(self.transferred) {
+                if let Some((_license, transferred)) =
+                    self.license.as_ref().zip(self.transferred.as_ref())
+                {
                     let _used = transferred.points.load(Ordering::SeqCst);
                     // if used > license.number as _ {
                     //     anyhow::bail!(
@@ -2110,7 +2064,7 @@ impl<'a> IpcStreamWorker<'a> {
                 };
                 drop(guard);
                 let _n = consume_point_record(&taos, stmt, &record, &mut count, config).await?;
-                if let Some(transferred) = self.transferred {
+                if let Some(transferred) = &self.transferred {
                     transferred.points.fetch_add(_n as _, Ordering::SeqCst);
                 }
                 // todo: license
