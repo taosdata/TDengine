@@ -6844,7 +6844,8 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   } else {
     ASSERT(0);
   }
-  if(pReq->sqlLen > 0) {
+  //ENCODESQL
+  if(pReq->sqlLen > 0 && pReq->sql != NULL) {
     if (tEncodeI32(pCoder, pReq->sqlLen) < 0) return -1;
     if (tEncodeCStrWithLen(pCoder, pReq->sql, pReq->sqlLen) < 0) return -1;
   }
@@ -6891,12 +6892,13 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     ASSERT(0);
   }
 
+  //DECODESQL
   if(!tDecodeIsEnd(pCoder)){
     if(tDecodeI32(pCoder, &pReq->sqlLen) < 0) return -1;
     if(pReq->sqlLen > 0){
       pReq->sql = taosMemoryCalloc(1, pReq->sqlLen + 1);
       if (pReq->sql == NULL) return -1;
-      if (tDecodeCStrAndLen(pCoder, &pReq->sql, &pReq->sqlLen) < 0) return -1;
+      if (tDecodeCStrTo(pCoder, pReq->sql) < 0) return -1;
     }
   }
 
