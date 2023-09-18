@@ -877,7 +877,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   tNameFromString(&name, createStreamReq.name, T_NAME_ACCT | T_NAME_DB);
   //reuse this function for stream
 
-  auditRecord(pReq, pMnode->clusterId, "createStream", name.dbname, "", 
+  auditRecord1(pReq, pMnode->clusterId, "createStream", name.dbname, "", 
               createStreamReq.sql, strlen(createStreamReq.sql));
 
 _OVER:
@@ -1321,7 +1321,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB);
   //reuse this function for stream
 
-  auditRecord(pReq, pMnode->clusterId, "dropStream", name.dbname, "", dropReq.sql, dropReq.sqlLen);
+  auditRecord1(pReq, pMnode->clusterId, "dropStream", name.dbname, "", dropReq.sql, dropReq.sqlLen);
 
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
