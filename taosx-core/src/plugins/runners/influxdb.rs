@@ -349,6 +349,7 @@ pub async fn influxdb_to_taos(
             .arg("-jar")
             .arg(&connector_path)
             .arg(&config_path)
+            .kill_on_drop(true)
             .stdout(std::process::Stdio::inherit())
             .stderr(std::process::Stdio::piped());
     } else {
@@ -357,6 +358,7 @@ pub async fn influxdb_to_taos(
             .arg("-jar")
             .arg(&connector_path)
             .arg(&config_path)
+            .kill_on_drop(true)
             .stdout(std::process::Stdio::inherit())
             .stderr(std::process::Stdio::piped());
     }

@@ -300,6 +300,7 @@ pub async fn opentsdb_to_taos(
             .arg("-jar")
             .arg(&connector_path)
             .arg(&config_path)
+            .kill_on_drop(true)
             .stdout(std::process::Stdio::inherit())
             .stderr(std::process::Stdio::piped());
     }
@@ -400,6 +401,7 @@ pub async fn opentsdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
         .arg(&connector_path)
         .arg("-fetch")
         .arg(&opents_url)
+        .kill_on_drop(true)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::piped())
         .output()

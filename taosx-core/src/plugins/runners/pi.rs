@@ -400,6 +400,7 @@ pub async fn pi_to_taos(
             child_command = command
                 .arg("-f")
                 .arg(&config_path)
+                .kill_on_drop(true)
                 .stdout(std::process::Stdio::inherit())
                 .stderr(std::process::Stdio::piped())
                 .spawn()
@@ -410,6 +411,7 @@ pub async fn pi_to_taos(
             child_command = command
                 .arg("-f")
                 .arg(&config_path)
+                .kill_on_drop(true)
                 .stdout(std::process::Stdio::inherit())
                 .stderr(std::process::Stdio::piped())
                 .spawn()
@@ -553,6 +555,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         .arg(&config_path)
         .arg("-p")
         .arg(point_filter)
+        .kill_on_drop(true)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .output()
