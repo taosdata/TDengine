@@ -8215,3 +8215,65 @@ void tDeleteMqSubTopicEp(SMqSubTopicEp *pSubTopicEp) {
   pSubTopicEp->schema.nCols = 0;
   taosArrayDestroy(pSubTopicEp->vgs);
 }
+
+int32_t tSerializeSCMCreateViewReq(void *buf, int32_t bufLen, const SCMCreateViewReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->dbFName) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->orReplace) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->precision) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->numOfCols) < 0) return -1;
+  for (int32_t i = 0; i < pReq->numOfCols; ++i) {
+    SSchema *pSchema = &pReq->pSchema[i];
+    if (tEncodeSSchema(&encoder, pSchema) < 0) return -1;
+  }
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSCMCreateViewReq(void *buf, int32_t bufLen, SCMCreateViewReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->dbFName) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->orReplace) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->precision) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->numOfCols) < 0) return -1;
+
+  if (pReq->numOfCols > 0) {
+    pReq->pSchema = taosArrayInit(pReq->numOfCols, sizeof(SSchema));
+    if (pReq->pSchema == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    for (int32_t i = 0; i < pReq->numOfCols; ++i) {
+      SSchema* pSchema = pReq->pSchema + i;
+      if (tDecodeSSchema(&decoder, pSchema) < 0) return -1;
+    }
+  }
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void    tFreeSCMCreateViewReq(SCMCreateViewReq* pReq) {
+  if (NULL == pReq) {
+    return;
+  }
+  
+  taosMemoryFree(pReq->pSchema);
+}
+
+

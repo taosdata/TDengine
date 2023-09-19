@@ -141,6 +141,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_APPS,
   TSDB_MGMT_TABLE_STREAM_TASKS,
   TSDB_MGMT_TABLE_PRIVILEGES,
+  TSDB_MGMT_TABLE_VIEWS,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -251,6 +252,7 @@ typedef enum ENodeType {
   QUERY_NODE_CASE_WHEN,
   QUERY_NODE_EVENT_WINDOW,
   QUERY_NODE_HINT,
+  QUERY_NODE_VIEW,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -354,7 +356,9 @@ typedef enum ENodeType {
   QUERY_NODE_RESTORE_MNODE_STMT,
   QUERY_NODE_RESTORE_VNODE_STMT,
   QUERY_NODE_PAUSE_STREAM_STMT,
-  QUERY_NODE_RESUME_STREAM_STMT,
+  QUERY_NODE_RESUME_STREAM_STMT,  
+  QUERY_NODE_CREATE_VIEW_STMT,
+  QUERY_NODE_DROP_VIEW_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -3846,6 +3850,32 @@ typedef struct {
     void* pDataBlock;
   };
 } SPackedData;
+
+typedef struct {
+  char     name[TSDB_VIEW_NAME_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  int8_t   orReplace;
+  int8_t   precision;
+  int32_t  numOfCols;
+  SSchema* pSchema;
+} SCMCreateViewReq;
+
+typedef struct {
+  int64_t streamId;
+} SCMCreateViewRsp;
+
+int32_t tSerializeSCMCreateViewReq(void* buf, int32_t bufLen, const SCMCreateViewReq* pReq);
+int32_t tDeserializeSCMCreateViewReq(void* buf, int32_t bufLen, SCMCreateViewReq* pReq);
+void    tFreeSCMCreateViewReq(SCMCreateViewReq* pReq);
+
+
+typedef struct {
+  char   dbFName[TSDB_DB_FNAME_LEN];
+  char   viewName[TSDB_VIEW_NAME_LEN];
+  int8_t igNotExists;
+} SCMDropViewReq;
+
+
 
 #pragma pack(pop)
 

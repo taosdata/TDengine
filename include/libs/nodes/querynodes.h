@@ -180,6 +180,16 @@ typedef struct STempTableNode {
   SNode*     pSubquery;
 } STempTableNode;
 
+typedef struct SViewNode {
+  STableNode         table;  // QUERY_NODE_REAL_TABLE
+  struct STableMeta* pMeta;
+  SVgroupsInfo*      pVgroupList;
+  char               qualDbName[TSDB_DB_NAME_LEN];  // SHOW qualDbName.TABLES
+  double             ratio;
+  SArray*            pSmaIndexes;
+  int8_t             cacheLastMode;
+} SViewNode;
+
 typedef enum EJoinType { 
   JOIN_TYPE_INNER = 1,
   JOIN_TYPE_LEFT,

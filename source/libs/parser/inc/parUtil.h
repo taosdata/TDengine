@@ -69,6 +69,7 @@ typedef struct SParseMetaCache {
   SHashObj* pUdf;          // key is funcName, element is SFuncInfo*
   SHashObj* pTableIndex;   // key is tbFName, element is SArray<STableIndexInfo>*
   SHashObj* pTableCfg;     // key is tbFName, element is STableCfg*
+  SHashObj* pViews;        // key is viewFName, element is SViewInfo*
   SArray*   pDnodes;       // element is SEpSet
   bool      dnodeRequired;
 } SParseMetaCache;
@@ -93,6 +94,8 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
 int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache);
 int32_t reserveTableMetaInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveTableMetaInCacheExt(const SName* pName, SParseMetaCache* pMetaCache);
+int32_t reserveViewMetaInCache(int32_t acctId, const char* pDb, const char* pView, SParseMetaCache* pMetaCache);
+int32_t reserveViewMetaInCacheExt(const SName* pName, SParseMetaCache* pMetaCache);
 int32_t reserveDbVgInfoInCache(int32_t acctId, const char* pDb, SParseMetaCache* pMetaCache);
 int32_t reserveTableVgroupInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveTableVgroupInCacheExt(const SName* pName, SParseMetaCache* pMetaCache);

@@ -622,6 +622,14 @@ language_opt(A) ::= LANGUAGE NK_STRING(B).                                      
 or_replace_opt(A) ::= .                                                            { A = false; }
 or_replace_opt(A) ::= OR REPLACE.                                                  { A = true; }
 
+/************************************************ create/drop view **************************************************/
+cmd ::= CREATE or_replace_opt(A) VIEW full_view_name(B) col_list_opt(C) AS query_or_subquery(D).
+                                                                                  { pCxt->pRootNode = createCreateViewStmt(pCxt, A, B, C, D); }
+cmd ::= DROP VIEW exists_opt(A) full_view_name(B).                                { pCxt->pRootNode = createDropViewStmt(pCxt, A, B); }
+
+full_view_name(A) ::= view_name(B).                                               { A = createViewNode(pCxt, NULL, &B, NULL); }
+full_view_name(A) ::= db_name(B) NK_DOT view_name(C).                             { A = createViewNode(pCxt, &B, &C, NULL); }
+
 /************************************************ create/drop stream **************************************************/
 cmd ::= CREATE STREAM not_exists_opt(E) stream_name(A) stream_options(B) INTO
   full_table_name(C) col_list_opt(H) tag_def_or_ref_opt(F) subtable_opt(G)
@@ -749,6 +757,10 @@ column_name(A) ::= NK_ID(B).                                                    
 %type function_name                                                               { SToken }
 %destructor function_name                                                         { }
 function_name(A) ::= NK_ID(B).                                                    { A = B; }
+
+%type view_name                                                                   { SToken }
+%destructor view_name                                                             { }
+view_name(A) ::= NK_ID(B).                                                        { A = B; }
 
 %type table_alias                                                                 { SToken }
 %destructor table_alias                                                           { }

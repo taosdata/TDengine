@@ -1026,7 +1026,7 @@ void taos_query_a_with_reqid(TAOS *taos, const char *sql, __taos_async_fn_t fp, 
   taosAsyncQueryImplWithReqid(connId, sql, fp, param, false, reqid);
 }
 
-int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt) {
+int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SSqlCallbackWrapper *pWrapper) {
   const STscObj *pTscObj = pRequest->pTscObj;
 
   *pCxt = taosMemoryCalloc(1, sizeof(SParseContext));
@@ -1051,7 +1051,9 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt) {
                            .async = true,
                            .svrVer = pTscObj->sVer,
                            .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
-                           .allocatorId = pRequest->allocatorRefId};
+                           .allocatorId = pRequest->allocatorRefId,
+                           .validateSqlFp = clientValidateSql,
+                           .validateSqlParam = pWrapper};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1068,7 +1070,7 @@ int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *p
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = createParseContext(pRequest, &pWrapper->pParseCtx);
+    code = createParseContext(pRequest, &pWrapper->pParseCtx, pWrapper);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

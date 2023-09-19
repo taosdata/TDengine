@@ -269,6 +269,10 @@ const char* nodesNodeName(ENodeType type) {
       return "RestoreMnodeStmt";
     case QUERY_NODE_RESTORE_VNODE_STMT:
       return "RestoreVnodeStmt";
+    case QUERY_NODE_CREATE_VIEW_STMT:
+      return "CreateViewStmt";
+    case QUERY_NODE_DROP_VIEW_STMT:
+      return "DropViewStmt";
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return "LogicScan";
     case QUERY_NODE_LOGIC_PLAN_JOIN:

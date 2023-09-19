@@ -488,6 +488,27 @@ typedef struct SDropFunctionStmt {
   bool      ignoreNotExists;
 } SDropFunctionStmt;
 
+typedef struct SQueryResInfo {
+
+} SQueryResInfo;
+
+typedef struct SCreateViewStmt {
+  ENodeType           type;
+  char                dbName[TSDB_DB_NAME_LEN];
+  char                viewName[TSDB_VIEW_NAME_LEN];
+  bool                orReplace;
+  SNodeList*          pCols;
+  SNode*              pQuery;
+  SCMCreateViewReq    createReq;
+} SCreateViewStmt;
+
+typedef struct SDropViewStmt {
+  ENodeType  type;
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       viewName[TSDB_VIEW_NAME_LEN];
+  bool       ignoreNotExists;
+} SDropViewStmt;
+
 typedef struct SGrantStmt {
   ENodeType type;
   char      userName[TSDB_USER_LEN];

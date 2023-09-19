@@ -33,6 +33,8 @@ typedef struct SStmtCallback {
   int32_t (*getExecInfoFn)(TAOS_STMT*, SHashObj**, SHashObj**);
 } SStmtCallback;
 
+typedef int32_t (*validateSqlFn)(void* param, SQuery* pQuery, const char* sql, SQueryResInfo* pRes);
+
 typedef struct SParseCsvCxt {
   TdFilePtr   fp;           // last parsed file
   int32_t     tableNo;      // last parsed table
@@ -64,6 +66,8 @@ typedef struct SParseContext {
   SArray*          pTableMetaPos;    // sql table pos => catalog data pos
   SArray*          pTableVgroupPos;  // sql table pos => catalog data pos
   int64_t          allocatorId;
+  validateSqlFn    validateSqlFp;
+  void*            validateSqlParam;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);

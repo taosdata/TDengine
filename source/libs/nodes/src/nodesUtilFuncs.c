@@ -304,6 +304,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SEventWindowNode));
     case QUERY_NODE_HINT:
       return makeNode(type, sizeof(SHintNode));
+    case QUERY_NODE_VIEW:
+      return makeNode(type, sizeof(SViewNode));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
@@ -467,6 +469,10 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_RESTORE_MNODE_STMT:
     case QUERY_NODE_RESTORE_VNODE_STMT:
       return makeNode(type, sizeof(SRestoreComponentNodeStmt));
+    case QUERY_NODE_CREATE_VIEW_STMT:
+      return makeNode(type, sizeof(SCreateViewStmt));
+    case QUERY_NODE_DROP_VIEW_STMT:
+      return makeNode(type, sizeof(SDropViewStmt));
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -832,6 +838,13 @@ void nodesDestroyNode(SNode* pNode) {
       destroyHintValue(pHint->option, pHint->value);
       break;
     }
+    case QUERY_NODE_VIEW: {
+      SViewNode* pView = (SViewNode*)pNode;
+      taosMemoryFreeClear(pView->pMeta);
+      taosMemoryFreeClear(pView->pVgroupList);
+      taosArrayDestroyEx(pView->pSmaIndexes, destroySmaIndex);
+      break;
+    }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pStmt = (SSetOperator*)pNode;
       nodesDestroyList(pStmt->pProjectionList);
@@ -1114,6 +1127,13 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_RESTORE_QNODE_STMT:   // no pointer field
     case QUERY_NODE_RESTORE_MNODE_STMT:   // no pointer field
     case QUERY_NODE_RESTORE_VNODE_STMT:   // no pointer field
+      break;
+    case QUERY_NODE_CREATE_VIEW_STMT:  {
+      SCreateViewStmt* pStmt = (SCreateViewStmt*)pNode;
+      nodesDestroyNode(pStmt->pQuery);
+      break;
+    }
+    case QUERY_NODE_DROP_VIEW_STMT:
       break;
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       SScanLogicNode* pLogicNode = (SScanLogicNode*)pNode;

@@ -7262,6 +7262,42 @@ static int32_t translateResumeStream(STranslateContext* pCxt, SResumeStreamStmt*
   return buildCmdMsg(pCxt, TDMT_MND_RESUME_STREAM, (FSerializeFunc)tSerializeSMResumeStreamReq, &req);
 }
 
+static int32_t validateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStmt) {
+  if (QUERY_NODE_SELECT_STMT != nodeType(pStmt->pQuery)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VIEW_QUERY, "Invalid view query type");
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStmt) {
+  int32_t code = validateCreateView(pCxt, pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = (*pCxt->pParseCxt->validateSqlFp)(pCxt->pParseCxt->validateSqlParam, pStmt->pQuery, pCxt->pParseCxt->pSql, &pStmt->createReq);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    strncpy(pStmt->createReq.name, pStmt->viewName, sizeof(pStmt->createReq.name) - 1);
+    snprintf(pStmt->createReq.dbFName, sizeof(pStmt->createReq.dbFName) - 1, "%d.%s", pCxt->pParseCxt->acctId, pStmt->dbName);
+    pStmt->createReq.orReplace = pStmt->orReplace;
+    
+    code = buildCmdMsg(pCxt, TDMT_MND_CREATE_VIEW, (FSerializeFunc)tSerializeSCMCreateViewReq, &pStmt->createReq);
+  }
+
+  tFreeSCMCreateViewReq(&pStmt->createReq);
+  return code;
+}
+
+
+static int32_t translateDropView(STranslateContext* pCxt, SDropViewStmt* pStmt) {
+  SMDropViewReq   dropReq = {0};
+  SName           name;
+  tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  tNameGetFullDbName(&name, dropReq.dbFName);
+  dropReq.igNotExists = pStmt->ignoreNotExists;
+  return buildCmdMsg(pCxt, TDMT_MND_DROP_VIEW, (FSerializeFunc)tSerializeSMDropViewReq, &dropReq);
+}
+
+
 static int32_t readFromFile(char* pName, int32_t* len, char** buf) {
   int64_t filesize = 0;
   if (taosStatFile(pName, &filesize, NULL, NULL) < 0) {
@@ -7693,6 +7729,13 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_RESTORE_VNODE_STMT:
       code = translateRestoreDnode(pCxt, (SRestoreComponentNodeStmt*)pNode);
       break;
+    case QUERY_NODE_CREATE_VIEW_STMT:
+      code = translateCreateView(pCxt, (SCreateStreamStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_VIEW_STMT:
+      code = translateDropView(pCxt, (SCreateStreamStmt*)pNode);
+      break;
+
     default:
       break;
   }

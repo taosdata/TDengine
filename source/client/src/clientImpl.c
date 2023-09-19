@@ -2591,3 +2591,48 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
 
   schedulerFetchRows(pRequest->body.queryJob, &req);
 }
+
+int32_t clientValidateSql(void* param, SQuery* pQuery, const char* sql, SCMCreateViewReq* pReq) {
+  SSqlCallbackWrapper *pWrapper = (SSqlCallbackWrapper *)param;
+  SSyncQueryParam* syncParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
+  tsem_init(&syncParam->sem, 0, 0);
+
+  SRequestObj* pRequest = pWrapper->pRequest;
+  SRequestObj* pNewRequest = NULL;
+  int32_t      code = buildRequest(pRequest->pTscObj->id, sql, strlen(sql), syncParam, true, &pNewRequest, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return code;
+  }
+
+  pNewRequest->pQuery = pQuery;
+  pNewRequest->body.queryFp = syncQueryFn;
+  doAsyncQuery(pNewRequest, false);
+
+  tsem_wait(&syncParam->sem);
+
+  code = pNewRequest->code;
+  pRequest->code = code;
+
+  if (TSDB_CODE_SUCCESS == code) {
+    pReq->numOfCols = pQuery->numOfResCols;
+    pReq->precision = pQuery->precision;
+    pReq->pSchema = taosMemoryMalloc(pQuery->numOfResCols * sizeof(SSchema));
+    if (NULL == pReq->pSchema) {
+      code = terrno = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      memcpy(pReq->pSchema, pQuery->pResSchema, pQuery->numOfResCols * sizeof(SSchema));
+    }
+  } else if (0 != pNewRequest->msgBuf[0]) {
+    strncpy(pRequest->msgBuf, pNewRequest->msgBuf, pRequest->msgBufLen - 1);
+    pRequest->msgBuf[pRequest->msgBufLen - 1] = 0;
+  }
+  
+  freeQueryParam(syncParam);
+  destroyRequest(pNewRequest);
+  
+  return code;
+}
+
+
+

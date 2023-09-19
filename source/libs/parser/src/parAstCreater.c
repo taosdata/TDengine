@@ -219,6 +219,16 @@ static bool checkCGroupName(SAstCreateContext* pCxt, SToken* pCGroup) {
   return true;
 }
 
+static bool checkViewName(SAstCreateContext* pCxt, SToken* pViewName) {
+  trimEscape(pViewName);
+  if (pViewName->n >= TSDB_VIEW_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pViewName->z);
+    return false;
+  }
+  return true;
+}
+
+
 static bool checkStreamName(SAstCreateContext* pCxt, SToken* pStreamName) {
   trimEscape(pStreamName);
   if (pStreamName->n >= TSDB_STREAM_NAME_LEN) {
@@ -714,6 +724,23 @@ SNode* createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, SNode* pLeft
   joinTable->pOnCond = pJoinCond;
   return (SNode*)joinTable;
 }
+
+SNode* createViewNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pViewName) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (!checkDbName(pCxt, pDbName, true) || !checkViewName(pCxt, pViewName)) {
+    return NULL;
+  }
+  SViewNode* pView = (SViewNode*)nodesMakeNode(QUERY_NODE_VIEW);
+  CHECK_OUT_OF_MEM(pView);
+  if (NULL != pDbName) {
+    COPY_STRING_FORM_ID_TOKEN(pView->table.dbName, pDbName);
+  } else {
+    snprintf(pView->table.dbName, sizeof(pView->table.dbName), "%s", pCxt->pQueryCxt->db);
+  }
+  COPY_STRING_FORM_ID_TOKEN(pView->table.tableName, pViewName);
+  return (SNode*)pView;
+}
+
 
 SNode* createLimitNode(SAstCreateContext* pCxt, const SToken* pLimit, const SToken* pOffset) {
   CHECK_PARSER_STATUS(pCxt);
@@ -2123,6 +2150,30 @@ SNode* createDropFunctionStmt(SAstCreateContext* pCxt, bool ignoreNotExists, con
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->ignoreNotExists = ignoreNotExists;
   COPY_STRING_FORM_ID_TOKEN(pStmt->funcName, pFuncName);
+  return (SNode*)pStmt;
+}
+
+SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pView, SNodeList* pCols, SNode* pQuery) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateViewStmt* pStmt = (SCreateViewStmt*)nodesMakeNode(QUERY_NODE_CREATE_VIEW_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  strcpy(pStmt->dbName, ((SViewNode*)pView)->table.dbName);
+  strcpy(pStmt->viewName, ((SViewNode*)pView)->table.tableName);
+  nodesDestroyNode(pView);
+  pStmt->orReplace = orReplace;
+  pStmt->pQuery = pQuery;
+  pStmt->pCols = pCols;
+  return (SNode*)pStmt;
+}
+
+SNode* createDropViewStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pView) {
+  CHECK_PARSER_STATUS(pCxt);
+  SDropViewStmt* pStmt = (SDropViewStmt*)nodesMakeNode(QUERY_NODE_DROP_VIEW_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  strcpy(pStmt->dbName, ((SViewNode*)pView)->table.dbName);
+  strcpy(pStmt->viewName, ((SViewNode*)pView)->table.tableName);
+  nodesDestroyNode(pView);
   return (SNode*)pStmt;
 }
 

@@ -51,6 +51,7 @@ typedef enum {
 typedef struct SUserAuthInfo {
   char      user[TSDB_USER_LEN];
   SName     tbName;
+  bool      isView;
   AUTH_TYPE type;
 } SUserAuthInfo;
 
@@ -83,6 +84,7 @@ typedef struct SCatalogReq {
   SArray* pTableIndex;    // element is SNAME
   SArray* pTableCfg;      // element is SNAME
   SArray* pTableTag;      // element is SNAME
+  SArray* pView;          // element is STablesReq
   bool    qNodeRequired;  // valid qnode
   bool    dNodeRequired;  // valid dnode
   bool    svrVerRequired;
@@ -109,6 +111,7 @@ typedef struct SMetaData {
   SArray*   pTableCfg;    // pRes = STableCfg*
   SArray*   pTableTag;    // pRes = SArray<STagVal>*
   SArray*   pDnodeList;   // pRes = SArray<SEpSet>*
+  SArray*   pView;        // pRes = SViewInfo*
   SMetaRes* pSvrVer;      // pRes = char*
 } SMetaData;
 
