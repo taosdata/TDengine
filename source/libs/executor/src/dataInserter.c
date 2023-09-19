@@ -289,8 +289,8 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
   }
 
   if (disorderTs) {
-    tRowSort(tbData.aRowP);
-    if ((terrno = tRowMerge(tbData.aRowP, (STSchema*)pTSchema, 0)) != 0) {
+    if ((tRowSort(tbData.aRowP) != TSDB_CODE_SUCCESS) ||
+      (terrno = tRowMerge(tbData.aRowP, (STSchema*)pTSchema, 0)) != 0) {
       goto _end;
     }
   }
