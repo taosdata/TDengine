@@ -16,6 +16,8 @@
 #include "tq.h"
 #include "vnd.h"
 
+#define MAX_REPEAT_SCAN_THRESHOLD  3
+
 static int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle);
 static int32_t setWalReaderStartOffset(SStreamTask* pTask, int32_t vgId);
 static void    handleFillhistoryScanComplete(SStreamTask* pTask, int64_t ver);
@@ -153,6 +155,9 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
   }
 
   pMeta->walScanCounter += 1;
+  if (pMeta->walScanCounter > MAX_REPEAT_SCAN_THRESHOLD) {
+    pMeta->walScanCounter = MAX_REPEAT_SCAN_THRESHOLD;
+  }
 
   if (pMeta->walScanCounter > 1) {
     tqDebug("vgId:%d wal read task has been launched, remain scan times:%d", vgId, pMeta->walScanCounter);
