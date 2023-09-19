@@ -210,6 +210,8 @@ python3 ./test.py -f 2-query/hyperloglog.py -P
 python3 ./test.py -f 2-query/hyperloglog.py -P -R
 python3 ./test.py -f 2-query/interp.py -P
 python3 ./test.py -f 2-query/interp.py -P -R
+python3 ./test.py -f 2-query/fill.py -P
+python3 ./test.py -f 2-query/fill.py -P -R
 python3 ./test.py -f 2-query/irate.py -P
 python3 ./test.py -f 2-query/irate.py -P -R
 python3 ./test.py -f 2-query/join.py -P
