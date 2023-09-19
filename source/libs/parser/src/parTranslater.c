@@ -4820,7 +4820,9 @@ static int32_t translateDropDatabase(STranslateContext* pCxt, SDropDatabaseStmt*
   tNameGetFullDbName(&name, dropReq.db);
   dropReq.ignoreNotExists = pStmt->ignoreNotExists;
 
-  return buildCmdMsg(pCxt, TDMT_MND_DROP_DB, (FSerializeFunc)tSerializeSDropDbReq, &dropReq);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_DB, (FSerializeFunc)tSerializeSDropDbReq, &dropReq);
+  tFreeSDropDbReq(&dropReq);
+  return code;
 }
 
 static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, SAlterDbReq* pReq) {
