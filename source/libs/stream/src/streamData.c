@@ -65,6 +65,10 @@ SStreamDataBlock* createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamT
   pStreamBlocks->type = STREAM_INPUT__DATA_BLOCK;
   pStreamBlocks->blocks = pRes;
 
+  if (pItem == NULL) {
+    return pStreamBlocks;
+  }
+
   if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)pItem;
     pStreamBlocks->sourceVer = pSubmit->ver;
