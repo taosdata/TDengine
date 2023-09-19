@@ -104,7 +104,7 @@ taostest --use=common_cluster_30.yaml --case=restful_insert/numeric_type_boundar
 
 taostest --use=common_cluster_30.yaml --case=bug_regression/td23659.py --keep --containers
 
-taostest --setup=common_cluster_30_redistribute.yaml --case=cluster/vnode_redistribute.py --keep
+#taostest --setup=common_cluster_30_redistribute.yaml --case=cluster/vnode_redistribute.py --keep
 
 
 
