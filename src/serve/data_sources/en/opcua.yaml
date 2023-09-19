@@ -174,8 +174,8 @@ groups:
       - name: collect_mode
         display: Collect Mode
         description: |-
-          observe or subscribe. default is observe
-        placeholder: observe
+          observe or subscribe. default is subscribe
+        placeholder: subscribe
         hint:
           type: str
           choices:
