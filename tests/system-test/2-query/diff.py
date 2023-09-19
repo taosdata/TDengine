@@ -25,7 +25,7 @@ class TDTestCase:
         sql = "create table db.st(ts timestamp, c1 bool, c2 float, c3 double,c4 tinyint, c5 smallint, c6 int, c7 bigint, c8 tinyint unsigned, c9 smallint unsigned, c10 int unsigned, c11 bigint unsigned) tags( area int);"
         tdSql.execute(sql)
 
-        sql = "create table db.t1 using st tags(1);"
+        sql = "create table db.t1 using db.st tags(1);"
         tdSql.execute(sql)
 
         ts = 1694000000000
