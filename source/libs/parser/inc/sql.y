@@ -530,11 +530,15 @@ tag_item(A) ::= column_name(B).                                                 
 tag_item(A) ::= column_name(B) column_alias(C).                                   { A = setProjectionAlias(pCxt, createColumnNode(pCxt, NULL, &B), &C); }
 tag_item(A) ::= column_name(B) AS column_alias(C).                                { A = setProjectionAlias(pCxt, createColumnNode(pCxt, NULL, &B), &C); }
 
-db_kind_opt(A) ::= .                                                              { A = NULL; }
-db_kind_opt(A) ::= NK_STRING(B).                                                  { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
+%type db_kind_opt                                                                 { EShowKind }
+%destructor db_kind_opt                                                           { }
+db_kind_opt(A) ::= .                                                              { A = SHOW_KIND_NONE; }
+db_kind_opt(A) ::= USER.                                                          { A = SHOW_KIND_DATABASES_USER; }
+db_kind_opt(A) ::= SYSTEM.                                                        { A = SHOW_KIND_DATABASES_SYSTEM; }
 
-table_kind_opt(A) ::= .                                                           { A = NULL; }
-table_kind_opt(A) ::= NK_STRING(B).                                               { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
+table_kind_opt(A) ::= .                                                           { A = SHOW_KIND_NONE; }
+table_kind_opt(A) ::= NORMAL.                                                     { A = SHOW_KIND_TABLES_NORMAL; }
+table_kind_opt(A) ::= CHILD.                                                      { A = SHOW_KIND_TABLES_CHILD; }
 /************************************************ create index ********************************************************/
 cmd ::= CREATE SMA INDEX not_exists_opt(D)
   col_name(A) ON full_table_name(B) index_options(C).                      { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_SMA, D, A, B, NULL, C); }

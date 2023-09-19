@@ -8079,19 +8079,19 @@ static int32_t addShowChildTablesCond(SSelectStmt* pSelect) {
 
 static int32_t addShowKindCond(const SShowStmt* pShow, SSelectStmt* pSelect) {
   if (pShow->type != QUERY_NODE_SHOW_DATABASES_STMT && pShow->type != QUERY_NODE_SHOW_TABLES_STMT ||
-      pShow->pKind == NULL) {
+      pShow->showKind == SHOW_KIND_NONE) {
     return TSDB_CODE_SUCCESS;
   }
   if (pShow->type == QUERY_NODE_SHOW_DATABASES_STMT) {
-    if (strcasecmp(pShow->pKind->literal, "USER") == 0) {
+    if (pShow->showKind == SHOW_KIND_DATABASES_USER) {
       addShowUserDatabasesCond(pSelect);
-    } else if (strcasecmp(pShow->pKind->literal, "SYSTEM") == 0) {
+    } else if (pShow->showKind == SHOW_KIND_DATABASES_SYSTEM) {
       addShowSystemDatabasesCond(pSelect);
     }
   } else if (pShow->type == QUERY_NODE_SHOW_TABLES_STMT) {
-    if (strcasecmp(pShow->pKind->literal, "NORMAL") == 0) {
+    if (pShow->showKind == SHOW_KIND_TABLES_NORMAL) {
       addShowNormalTablesCond(pSelect);
-    } else if (strcasecmp(pShow->pKind->literal, "CHILD") == 0) {
+    } else if (pShow->showKind == SHOW_KIND_TABLES_CHILD) {
       addShowChildTablesCond(pSelect);
     }
   }

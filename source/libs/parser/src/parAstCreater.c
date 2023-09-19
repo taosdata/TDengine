@@ -1552,15 +1552,9 @@ SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type) {
   return (SNode*)pStmt;
 }
 
-SNode* setShowKind(SAstCreateContext* pCxt, SNode* pStmt, SNode* pKind) {
-  //TODO: check show
-  if ((nodeType(pStmt) == QUERY_NODE_SHOW_TABLES_STMT ||
-      nodeType(pStmt) == QUERY_NODE_SHOW_DATABASES_STMT) && nodeType(pKind) == QUERY_NODE_VALUE) {
-    SShowStmt* pShowStmt = (SShowStmt*)pStmt;
-    pShowStmt->pKind = (SValueNode*)pKind;
-  } else {
-    //pCxt->errCode = generateSyntaxErrMsgExt(pCxt->msgBuf, code, "shall be normal|child, user/system");
-  }
+SNode* setShowKind(SAstCreateContext* pCxt, SNode* pStmt, EShowKind showKind) {
+  SShowStmt* pShow = (SShowStmt*)pStmt;
+  pShow->showKind = showKind;
   return pStmt;
 }
 

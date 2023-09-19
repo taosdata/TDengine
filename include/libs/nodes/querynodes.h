@@ -277,6 +277,14 @@ typedef enum ETimeLineMode {
   TIME_LINE_GLOBAL,
 } ETimeLineMode;
 
+typedef enum EShowKind {
+  SHOW_KIND_NONE = 1,
+  SHOW_KIND_TABLES_NORMAL,
+  SHOW_KIND_TABLES_CHILD,
+  SHOW_KIND_DATABASES_USER,
+  SHOW_KIND_DATABASES_SYSTEM
+} EShowKind;
+
 typedef struct SFillNode {
   ENodeType   type;  // QUERY_NODE_FILL
   EFillMode   mode;
