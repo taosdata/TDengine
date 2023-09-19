@@ -4753,7 +4753,24 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateQnodeReq, pReq);
       break;
     }
+    case TDMT_MND_DROP_QNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropQnodeReq, pReq);
+      break;
+    }
 
+    case TDMT_MND_CREATE_MNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateMnodeReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_MNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropMnodeReq, pReq);
+      break;
+    }
+
+    case TDMT_MND_CREATE_DNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateDnodeReq, pReq);
+      break;
+    }
     case TDMT_MND_DROP_DNODE: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SDropDnodeReq, pReq);
       break;
@@ -4764,11 +4781,6 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
     }
     case TDMT_MND_CONFIG_DNODE: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCfgDnodeReq, pReq);
-      break;
-    }
-
-    case TDMT_MND_CREATE_DNODE: {
-      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateDnodeReq, pReq);
       break;
     }
 
