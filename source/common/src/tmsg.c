@@ -50,7 +50,9 @@
 
 #define FREESQL()                     \
   do {                                \
-    taosMemoryFree(pReq->sql);        \
+    if(pReq->sql != NULL){            \
+      taosMemoryFree(pReq->sql);      \
+    }                                 \
     pReq->sql = NULL;                 \
   } while (0)
 
