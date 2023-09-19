@@ -402,6 +402,9 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
 
     SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, pConsumer->cgroup, data->topicName);
     if(pSub == NULL){
+#ifdef TMQ_DEBUG
+      ASSERT(0);
+#endif
       continue;
     }
     taosWLockLatch(&pSub->lock);
@@ -499,7 +502,9 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
       SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, pConsumer->cgroup, topic);
       // txn guarantees pSub is created
       if(pSub == NULL) {
+#ifdef TMQ_DEBUG
         ASSERT(0);
+#endif
         continue;
       }
       taosRLockLatch(&pSub->lock);
@@ -510,7 +515,9 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
       // 2.1 fetch topic schema
       SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
       if(pTopic == NULL) {
+#ifdef TMQ_DEBUG
         ASSERT(0);
+#endif
         taosRUnLockLatch(&pSub->lock);
         mndReleaseSubscribe(pMnode, pSub);
         continue;
@@ -657,7 +664,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   }
 
   // check topic existence
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_TOPIC, pMsg, "subscribe");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pMsg, "subscribe");
   if (pTrans == NULL) {
     goto _over;
   }

@@ -847,7 +847,11 @@ end:
   mndReleaseSubscribe(pMnode, pSub);
   mndTransDrop(pTrans);
 
-  return code;
+  if (code != 0) {
+    mError("cgroup %s on topic:%s, failed to drop", dropReq.cgroup, dropReq.topic);
+    return code;
+  }
+  return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
 void mndCleanupSubscribe(SMnode *pMnode) {}
