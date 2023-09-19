@@ -4738,6 +4738,7 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
     }
     case TDMT_MND_CREATE_USER: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateUserReq, pReq);
+      break;
     }
     case TDMT_MND_ALTER_USER: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SAlterUserReq, pReq);
