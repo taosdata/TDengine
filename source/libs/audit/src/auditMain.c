@@ -33,24 +33,14 @@ int32_t auditInit(const SAuditCfg *pCfg) {
 extern void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
                           char *detail, int32_t len);
 
-void auditRecord1(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
+void auditRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
                 char *detail, int32_t len) {
   //auditRecordImp(pReq, clusterId, operation, target1, target2, detail, len);
   auditRecordImp(pReq, clusterId, operation, target1, target2, detail, 0);
 }
 
-void auditRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
-                char *detail) {
-}
-
-void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
-                    char *detail, int32_t len) {
-}
-
-/*
 #ifndef TD_ENTERPRISE
 void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
                     char *detail, int32_t len) {
 }
 #endif
-*/
