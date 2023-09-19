@@ -864,6 +864,7 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
   char*   msgStr = pMsg->pCont;
   char*   msgBody = POINTER_SHIFT(msgStr, sizeof(SMsgHead));
   int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
+  SStreamMeta* pMeta = pTq->pStreamMeta;
 
   SStreamTaskCheckReq req;
   SDecoder            decoder;
@@ -884,10 +885,17 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
       .upstreamTaskId = req.upstreamTaskId,
   };
 
-  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, req.streamId, taskId);
+  // only the leader node handle the check request
+  if (!pMeta->leader) {
+    tqError("s-task:0x%x invalid check msg from upstream:0x%x(vgId:%d), vgId:%d is follower, not handle check msg",
+            taskId, req.upstreamTaskId, req.upstreamNodeId, pMeta->vgId);
+    return -1;
+  }
+
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, taskId);
   if (pTask != NULL) {
     rsp.status = streamTaskCheckStatus(pTask, req.upstreamTaskId, req.upstreamNodeId, req.stage);
-    streamMetaReleaseTask(pTq->pStreamMeta, pTask);
+    streamMetaReleaseTask(pMeta, pTask);
 
     const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
     tqDebug("s-task:%s status:%s, stage:%d recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), ready:%d",
@@ -899,7 +907,7 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
             req.streamId, taskId, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
   }
 
-  return streamSendCheckRsp(pTq->pStreamMeta, &req, &rsp, &pMsg->info, taskId);
+  return streamSendCheckRsp(pMeta, &req, &rsp, &pMsg->info, taskId);
 }
 
 int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, SRpcMsg* pMsg) {
