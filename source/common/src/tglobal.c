@@ -478,7 +478,7 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   if (cfgAddTimezone(pCfg, "timezone", tsTimezoneStr, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddLocale(pCfg, "locale", tsLocale, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddCharset(pCfg, "charset", tsCharset, CFG_SCOPE_BOTH) != 0) return -1;
-  if (cfgAddBool(pCfg, "assert", 1, CFG_SCOPE_BOTH) != 0) return -1;
+  if (cfgAddBool(pCfg, "assert", tsAssert, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddBool(pCfg, "enableCoreFile", 1, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddFloat(pCfg, "numOfCores", tsNumOfCores, 1, 100000, CFG_SCOPE_BOTH) != 0) return -1;
 

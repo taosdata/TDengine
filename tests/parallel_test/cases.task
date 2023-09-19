@@ -293,7 +293,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/count.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/countAlwaysReturnValue.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py 
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/db.py -N 3 -n 3 -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/diff.py -R
@@ -431,7 +431,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/upper.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varchar.py -R
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py 
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -R
@@ -480,7 +480,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeModifyMeta.py  -N 6 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeModifyMeta.py  -N 6 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 6 -M 3
-,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 6 -M 3 -n 3 
+,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 6 -M 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py -N 6 -M 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py -N 6 -M 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateStb.py -N 6 -M 3
@@ -878,9 +878,9 @@
 ,,y,script,./test.sh -f tsim/dnode/offline_reason.sim
 ,,y,script,./test.sh -f tsim/dnode/redistribute_vgroup_replica1.sim
 ,,y,script,./test.sh -f tsim/dnode/vnode_clean.sim
-,,y,script,./test.sh -f tsim/dnode/use_dropped_dnode.sim 
-,,y,script,./test.sh -f tsim/dnode/split_vgroup_replica1.sim 
-,,y,script,./test.sh -f tsim/dnode/split_vgroup_replica3.sim 
+,,y,script,./test.sh -f tsim/dnode/use_dropped_dnode.sim
+,,y,script,./test.sh -f tsim/dnode/split_vgroup_replica1.sim
+,,y,script,./test.sh -f tsim/dnode/split_vgroup_replica3.sim
 ,,y,script,./test.sh -f tsim/import/basic.sim
 ,,y,script,./test.sh -f tsim/import/commit.sim
 ,,y,script,./test.sh -f tsim/import/large.sim
@@ -1007,8 +1007,8 @@
 ,,y,script,./test.sh -f tsim/query/emptyTsRange.sim
 ,,y,script,./test.sh -f tsim/query/emptyTsRange_scl.sim
 ,,y,script,./test.sh -f tsim/query/partitionby.sim
-,,y,script,./test.sh -f tsim/query/tableCount.sim 
-,,y,script,./test.sh -f tsim/query/tag_scan.sim 
+,,y,script,./test.sh -f tsim/query/tableCount.sim
+,,y,script,./test.sh -f tsim/query/tag_scan.sim
 ,,y,script,./test.sh -f tsim/query/nullColSma.sim
 ,,y,script,./test.sh -f tsim/query/bug3398.sim
 ,,y,script,./test.sh -f tsim/query/explain_tsorder.sim
@@ -1152,9 +1152,9 @@
 ,,y,script,./test.sh -f tsim/catalog/alterInCurrent.sim
 ,,y,script,./test.sh -f tsim/scalar/in.sim
 ,,y,script,./test.sh -f tsim/scalar/scalar.sim
-,,y,script,./test.sh -f tsim/scalar/filter.sim 
-,,y,script,./test.sh -f tsim/scalar/caseWhen.sim 
-,,y,script,./test.sh -f tsim/scalar/tsConvert.sim 
+,,y,script,./test.sh -f tsim/scalar/filter.sim
+,,y,script,./test.sh -f tsim/scalar/caseWhen.sim
+,,y,script,./test.sh -f tsim/scalar/tsConvert.sim
 ,,y,script,./test.sh -f tsim/alter/cached_schema_after_alter.sim
 ,,y,script,./test.sh -f tsim/alter/dnode.sim
 ,,y,script,./test.sh -f tsim/alter/table.sim
@@ -1241,8 +1241,8 @@
 ,,y,script,./test.sh -f tsim/tag/drop_tag.sim
 ,,y,script,./test.sh -f tsim/tag/tbNameIn.sim
 ,,y,script,./test.sh -f tmp/monitor.sim
-,,y,script,./test.sh -f tsim/tagindex/add_index.sim 
-,,n,script,./test.sh -f tsim/tagindex/sma_and_tag_index.sim 
+,,y,script,./test.sh -f tsim/tagindex/add_index.sim
+,,n,script,./test.sh -f tsim/tagindex/sma_and_tag_index.sim
 
 
 #develop test
