@@ -1177,7 +1177,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   SName name = {0};
   tNameFromString(&name, createReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  auditRecord(pReq, pMnode->clusterId, "createStb", name.dbname, name.tname, createReq.sql, createReq.sqlLen);
+  auditRecord1(pReq, pMnode->clusterId, "createStb", name.dbname, name.tname, createReq.sql, createReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -2230,7 +2230,7 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
 
   pDb = mndAcquireDbByStb(pMnode, alterReq.name);
   if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_INVALID_DB;
+    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
     goto _OVER;
   }
 
@@ -2250,7 +2250,7 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   SName name = {0};
   tNameFromString(&name, alterReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  auditRecord(pReq, pMnode->clusterId, "alterStb", name.dbname, alterReq.name, alterReq.sql, alterReq.sqlLen);
+  auditRecord1(pReq, pMnode->clusterId, "alterStb", name.dbname, alterReq.name, alterReq.sql, alterReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -2342,6 +2342,7 @@ static int32_t mndDropStb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *p
   if (mndSetDropStbRedoActions(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
   if (mndDropIdxsByStb(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
   if (mndDropSmasByStb(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
+  if (mndUserRemoveStb(pMnode, pTrans, pStb->name) != 0) goto _OVER;  
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
 
@@ -2516,7 +2517,7 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   SName name = {0};
   tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  auditRecord(pReq, pMnode->clusterId, "dropStb", name.dbname, name.tname, dropReq.sql, dropReq.sqlLen);
+  auditRecord1(pReq, pMnode->clusterId, "dropStb", name.dbname, name.tname, dropReq.sql, dropReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -3519,7 +3520,7 @@ static int32_t mndProcessCreateIndexReq(SRpcMsg *pReq) {
 
   pDb = mndAcquireDbByStb(pMnode, tagIdxReq.dbFName);
   if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_INVALID_DB;
+    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
     goto _OVER;
   }
 

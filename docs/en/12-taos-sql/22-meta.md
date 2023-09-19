@@ -26,7 +26,7 @@ This document introduces the tables of INFORMATION_SCHEMA and their structure.
 
 ## INS_DNODES
 
-Provides information about dnodes. Similar to SHOW DNODES.
+Provides information about dnodes. Similar to SHOW DNODES. Users whose SYSINFO attribute is 0 can't view this table.
 
 | #   |   **Column**   | **Data Type** | **Description**                                                                                                                                          |
 | --- | :------------: | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -40,7 +40,7 @@ Provides information about dnodes. Similar to SHOW DNODES.
 
 ## INS_MNODES
 
-Provides information about mnodes. Similar to SHOW MNODES.
+Provides information about mnodes. Similar to SHOW MNODES. Users whose SYSINFO attribute is 0 can't view this table.
 
 | #   | **Column**  | **Data Type** | **Description**                            |
 | --- | :---------: | ------------- | ------------------------------------------ |
@@ -52,7 +52,7 @@ Provides information about mnodes. Similar to SHOW MNODES.
 
 ## INS_QNODES
 
-Provides information about qnodes. Similar to SHOW QNODES.
+Provides information about qnodes. Similar to SHOW QNODES. Users whose SYSINFO attribute is 0 can't view this table.
 
 | #   | **Column**  | **Data Type** | **Description** |
 | --- | :---------: | ------------- | --------------- |
@@ -62,7 +62,7 @@ Provides information about qnodes. Similar to SHOW QNODES.
 
 ## INS_CLUSTER
 
-Provides information about the cluster.
+Provides information about the cluster. Users whose SYSINFO attribute is 0 can't view this table.
 
 | #   | **Column**  | **Data Type** | **Description** |
 | --- | :---------: | ------------- | --------------- |
@@ -74,27 +74,27 @@ Provides information about the cluster.
 
 Provides information about user-created databases. Similar to SHOW DATABASES.
 
-| #   |    **Column**    | **Data Type** | **Description**                  |
+| #   |    **Column**        | **Data Type**    | **Description**                  |
 | --- | :------------------: | ---------------- | ------------------------------------------------ |
-| 1| name| BINARY(32)| Database name |
+| 1   | name                 | VARCHAR(64)      | Database name |
 | 2   | create_time | TIMESTAMP    | Creation time           |
 | 3   |       ntables        | INT              | Number of standard tables and subtables (not including supertables) |
 | 4   |       vgroups        | INT              | Number of vgroups. It should be noted that `vnodes` is a TDengine keyword and needs to be escaped with ` when used as a column name.                            |
 | 6   |       replica        | INT              | Number of replicas. It should be noted that `replica` is a TDengine keyword and needs to be escaped with ` when used as a column name.                                            |
-| 7   |        strict        | BINARY(4)        | Obsoleted |
-| 8   |       duration       | INT              | Duration for storage of single files. It should be noted that `duration` is a TDengine keyword and needs to be escaped with ` when used as a column name.                          |
-| 9   |         keep         | INT              | Data retention period. It should be noted that `keep` is a TDengine keyword and needs to be escaped with ` when used as a column name.                                      |
+| 7   |        strict        | VARCHAR(4)       | Obsoleted |
+| 8   |       duration       | VARCHAR(10)      | Duration for storage of single files. It should be noted that `duration` is a TDengine keyword and needs to be escaped with ` when used as a column name.                          |
+| 9   |         keep         | VARCHAR(32)      | Data retention period. It should be noted that `keep` is a TDengine keyword and needs to be escaped with ` when used as a column name.                                      |
 | 10  |        buffer        | INT              | Write cache size per vnode, in MB. It should be noted that `buffer` is a TDengine keyword and needs to be escaped with ` when used as a column name.            |
 | 11  |       pagesize       | INT              | Page size for vnode metadata storage engine, in KB. It should be noted that `pagesize` is a TDengine keyword and needs to be escaped with ` when used as a column name.    |
 | 12  |        pages         | INT              | Number of pages per vnode metadata storage engine. It should be noted that `pages` is a TDengine keyword and needs to be escaped with ` when used as a column name.             |
 | 13  |       minrows        | INT              | Maximum number of records per file block. It should be noted that `minrows` is a TDengine keyword and needs to be escaped with ` when used as a column name.                            |
 | 14  |       maxrows        | INT              | Minimum number of records per file block. It should be noted that `maxrows` is a TDengine keyword and needs to be escaped with ` when used as a column name.                            |
 | 15  |         comp         | INT              | Compression method. It should be noted that `comp` is a TDengine keyword and needs to be escaped with ` when used as a column name.                                      |
-| 16  |      precision       | BINARY(2)        | Time precision. It should be noted that `precision` is a TDengine keyword and needs to be escaped with ` when used as a column name.                                       |
-| 17  |        status        | BINARY(10)       | Current database status                                       |
-| 18  |      retentions       | BINARY (60)      | Aggregation interval and retention period. It should be noted that `retentions` is a TDengine keyword and needs to be escaped with ` when used as a column name.                          |
+| 16  |      precision       | VARCHAR(2)       | Time precision. It should be noted that `precision` is a TDengine keyword and needs to be escaped with ` when used as a column name.                                       |
+| 17  |        status        | VARCHAR(10)      | Current database status                                       |
+| 18  |      retentions       | VARCHAR(60)     | Aggregation interval and retention period. It should be noted that `retentions` is a TDengine keyword and needs to be escaped with ` when used as a column name.                          |
 | 19  |    single_stable     | BOOL             | Whether the database can contain multiple supertables. It should be noted that `single_stable` is a TDengine keyword and needs to be escaped with ` when used as a column name.            |
-| 20  |      cachemodel      | BINARY(60)       | Caching method for the newest data. It should be noted that `cachemodel` is a TDengine keyword and needs to be escaped with ` when used as a column name.                |
+| 20  |      cachemodel      | VARCHAR(60)      | Caching method for the newest data. It should be noted that `cachemodel` is a TDengine keyword and needs to be escaped with ` when used as a column name.                |
 | 21  |      cachesize       | INT              | Memory per vnode used for caching the newest data. It should be noted that `cachesize` is a TDengine keyword and needs to be escaped with ` when used as a column name.   |
 | 22  |      wal_level       | INT              | WAL level. It should be noted that `wal_level` is a TDengine keyword and needs to be escaped with ` when used as a column name.                                      |
 | 23  |   wal_fsync_period   | INT              | Interval at which WAL is written to disk. It should be noted that `wal_fsync_period` is a TDengine keyword and needs to be escaped with ` when used as a column name.   |
@@ -196,7 +196,7 @@ Provides information about standard tables and subtables.
 
 ## INS_USERS
 
-Provides information about TDengine users.
+Provides information about TDengine users. Users whose SYSINFO attribute is 0 can't view this table.
 
 | #   | **Column**  | **Data Type** | **Description**  |
 | --- | :---------: | ------------- | ---------------- |
@@ -206,7 +206,7 @@ Provides information about TDengine users.
 
 ## INS_GRANTS
 
-Provides information about TDengine Enterprise Edition permissions.
+Provides information about TDengine Enterprise Edition permissions. Users whose SYSINFO attribute is 0 can't view this table.
 
 | #   | **Column**  | **Data Type** | **Description**                                                                                                                                                |
 | --- | :---------: | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -227,7 +227,7 @@ Provides information about TDengine Enterprise Edition permissions.
 
 ## INS_VGROUPS
 
-Provides information about vgroups.
+Provides information about vgroups. Users whose SYSINFO attribute is 0 can't view this table.
 
 | #   | **Column** | **Data Type** | **Description**                                                                                                                     |
 | --- | :--------: | ------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -256,7 +256,7 @@ Provides system configuration information.
 
 ## INS_DNODE_VARIABLES
 
-Provides dnode configuration information.
+Provides dnode configuration information. Users whose SYSINFO attribute is 0 can't view this table.
 
 | #   | **Column** | **Data Type** | **Description**                                                                                                         |
 | --- | :--------: | ------------- | ----------------------------------------------------------------------------------------------------------------------- |
@@ -299,6 +299,8 @@ Provides dnode configuration information.
 | 9   |   trigger    | INT           | Method of triggering the result push (see stream processing documentation). It should be noted that `trigger` is a TDengine keyword and needs to be escaped with ` when used as a column name. |
 
 ## INS_USER_PRIVILEGES
+
+Users whose SYSINFO attribute is 0 can't view this table.
 
 | #   |   **Column**   | **Data Type** | **Description**                         |**                                                                               |
 | --- | :----------: | ------------ | -------------------------------------------|

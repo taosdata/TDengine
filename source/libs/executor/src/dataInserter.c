@@ -446,7 +446,7 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
   taosThreadMutexInit(&inserter->mutex, NULL);
   if (NULL == inserter->pDataBlocks) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_OUT_OF_MEMORY;
+    goto _return;
   }
 
   inserter->fullOrderColList = pInserterNode->pCols->length == inserter->pSchema->numOfCols;

@@ -125,7 +125,6 @@ static int32_t appendCheckpointIntoInputQ(SStreamTask* pTask, int32_t checkpoint
 
   taosMemoryFree(pBlock);
   if (streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pChkpoint) < 0) {
-    taosFreeQitem(pChkpoint);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -183,8 +182,7 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
     taosWLockLatch(&pMeta->lock);
 
     if (pMeta->chkptNotReadyTasks == 0) {
-      pMeta->chkptNotReadyTasks = streamMetaGetNumOfStreamTasks(pMeta);
-      pMeta->totalTasks = pMeta->chkptNotReadyTasks;
+      pMeta->chkptNotReadyTasks = pMeta->numOfStreamTasks;
     }
 
     taosWUnLockLatch(&pMeta->lock);
@@ -267,11 +265,13 @@ int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
 
   int64_t keys[2];
   for (int32_t i = 0; i < taosArrayGetSize(pMeta->pTaskList); ++i) {
-    SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
-    keys[0] = pId->streamId;
-    keys[1] = pId->taskId;
+    STaskId* pId = taosArrayGet(pMeta->pTaskList, i);
+    SStreamTask** ppTask = taosHashGet(pMeta->pTasksMap, pId, sizeof(*pId));
+    if (ppTask == NULL) {
+      continue;
+    }
 
-    SStreamTask* p = *(SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+    SStreamTask* p = *ppTask;
     if (p->info.fillHistory == 1) {
       continue;
     }
@@ -287,7 +287,7 @@ int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
     streamTaskOpenAllUpstreamInput(p);   // open inputQ for all upstream tasks
     qDebug("vgId:%d s-task:%s level:%d commit task status after checkpoint completed, checkpointId:%" PRId64
            ", Ver(saved):%" PRId64 " currentVer:%" PRId64 ", status to be normal, prev:%s",
-           pMeta->vgId, p->id.idStr, p->info.taskLevel, checkpointId, p->chkInfo.checkpointVer, p->chkInfo.currentVer,
+           pMeta->vgId, p->id.idStr, p->info.taskLevel, checkpointId, p->chkInfo.checkpointVer, p->chkInfo.nextProcessVer,
            streamGetTaskStatusStr(prev));
   }
 
@@ -314,15 +314,13 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
 
   if (remain == 0) {  // all tasks are ready
     qDebug("s-task:%s is ready for checkpoint", pTask->id.idStr);
-    pMeta->totalTasks = 0;
-
     streamBackendDoCheckpoint(pMeta, pTask->checkpointingId);
     streamSaveAllTaskStatus(pMeta, pTask->checkpointingId);
     qDebug("vgId:%d vnode wide checkpoint completed, save all tasks status, checkpointId:%" PRId64, pMeta->vgId,
            pTask->checkpointingId);
   } else {
     qDebug("vgId:%d vnode wide tasks not reach checkpoint ready status, ready s-task:%s, not ready:%d/%d", pMeta->vgId,
-           pTask->id.idStr, remain, pMeta->totalTasks);
+           pTask->id.idStr, remain, pMeta->numOfStreamTasks);
   }
 
   // send check point response to upstream task

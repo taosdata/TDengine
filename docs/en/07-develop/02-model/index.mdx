@@ -55,7 +55,7 @@ At most 4096 columns are allowed in a STable. If there are more than 4096 of met
 
 ## Create Table
 
-A specific table needs to be created for each data collection point. Similar to RDBMS, table name and schema are required to create a table. Additionally, one or more tags can be created for each table. To create a table, a STable needs to be used as template and the values need to be specified for the tags. For example, for the meters in [Table 1](/tdinternal/arch#model_table1), the table can be created using below SQL statement.
+A specific table needs to be created for each data collection point. Similar to RDBMS, table name and schema are required to create a table. Additionally, one or more tags can be created for each table. To create a table, a STable needs to be used as template and the values need to be specified for the tags. For example, for the smart meters table, the table can be created using below SQL statement.
 
 ```sql
 CREATE TABLE d1001 USING meters TAGS ("California.SanFrancisco", 2);

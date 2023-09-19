@@ -668,7 +668,7 @@ class TDDnodes:
         self.testCluster = False
         self.valgrind = 0
         self.asan = False
-        self.killValgrind = 1
+        self.killValgrind = 0
 
     def init(self, path, remoteIP = ""):
         binPath = self.dnodes[0].getPath() + "/../../../"
@@ -775,9 +775,41 @@ class TDDnodes:
             tdLog.info("execute finished")
             return
 
+    def killProcesser(self, processerName):
+        if platform.system().lower() == 'windows':
+            killCmd = ("wmic process where name=\"%s.exe\" call terminate > NUL 2>&1" % processerName)
+            psCmd = ("wmic process where name=\"%s.exe\" | findstr \"%s.exe\"" % (processerName, processerName))
+        else:
+            killCmd = (
+                "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1"
+                % processerName
+            )
+            psCmd = ("ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % processerName)
+
+        processID = ""
+        
+        try: 
+            processID = subprocess.check_output(psCmd, shell=True)
+            while processID:
+                os.system(killCmd)
+                time.sleep(1)
+                try: 
+                    processID = subprocess.check_output(psCmd, shell=True)
+                except Exception as err:
+                    processID = ""
+                    tdLog.debug('**** kill pid warn: {err}')
+        except Exception as err:
+            processID = ""
+            tdLog.debug(f'**** find pid warn: {err}')        
+        
+
+
     def stopAll(self):
         tdLog.info("stop all dnodes, asan:%d" % self.asan)
-        distro_id = distro.id()
+        if platform.system().lower() != 'windows':
+            distro_id = distro.id()
+        else:
+            distro_id = "not alpine"
         if self.asan and distro_id != "alpine":
             tdLog.info("execute script: %s" % self.stopDnodesPath)
             os.system(self.stopDnodesPath)
@@ -792,7 +824,6 @@ class TDDnodes:
 
 
         if (distro_id == "alpine"):
-            print(distro_id)
             psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
             while(processID):
@@ -803,36 +834,9 @@ class TDDnodes:
                 processID = subprocess.check_output(
                     psCmd, shell=True).decode("utf-8").strip()
         elif platform.system().lower() == 'windows':
-            psCmd = "for /f %a in ('wmic process where \"name='taosd.exe'\" get processId ^| xargs echo ^| awk '{print $2}' ^&^& echo aa') do @(ps | grep %a | awk '{print $1}' | xargs)"
-            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
-            while(processID):
-                print(f"pid of taosd.exe:{processID}")
-                killCmd = "kill -9 %s > nul 2>&1" % processID
-                os.system(killCmd)
-                time.sleep(1)
-                processID = subprocess.check_output(
-                    psCmd, shell=True).decode("utf-8").strip()
-                
-            psCmd = "for /f %a in ('wmic process where \"name='tmq_sim.exe'\" get processId ^| xargs echo ^| awk '{print $2}' ^&^& echo aa') do @(ps | grep %a | awk '{print $1}' | xargs)"
-            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
-            while(processID):
-                print(f"pid of tmq_sim.exe:{processID}")
-                killCmd = "kill -9 %s > nul 2>&1" % processID
-                os.system(killCmd)
-                time.sleep(1)
-                processID = subprocess.check_output(
-                    psCmd, shell=True).decode("utf-8").strip()
-                
-            psCmd = "for /f %a in ('wmic process where \"name='taosBenchmark.exe'\" get processId ^| xargs echo ^| awk '{print $2}' ^&^& echo aa') do @(ps | grep %a | awk '{print $1}' | xargs)"
-            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
-            while(processID):
-                print(f"pid of taosBenchmark.exe:{processID}")
-                killCmd = "kill -9 %s > nul 2>&1" % processID
-                os.system(killCmd)
-                time.sleep(1)
-                processID = subprocess.check_output(
-                    psCmd, shell=True).decode("utf-8").strip()
-                
+            self.killProcesser("taosd")
+            self.killProcesser("tmq_sim")
+            self.killProcesser("taosBenchmark")
         else:
             psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
@@ -849,7 +853,6 @@ class TDDnodes:
                 time.sleep(1)
                 processID = subprocess.check_output(
                     psCmd, shell=True).decode("utf-8").strip()
-
         if self.killValgrind == 1:
             psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}' | xargs"
             processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()

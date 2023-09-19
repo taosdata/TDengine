@@ -36,12 +36,19 @@ static void    metaHbToMnode(void* param, void* tmrId);
 static void    streamMetaClear(SStreamMeta* pMeta);
 static int32_t streamMetaBegin(SStreamMeta* pMeta);
 static void    streamMetaCloseImpl(void* arg);
-static void    extractStreamTaskKey(int64_t* pKey, const SStreamTask* pTask);
 
 typedef struct {
   TdThreadMutex mutex;
   SHashObj*     pTable;
 } SMetaRefMgt;
+
+struct SMetaHbInfo {
+  tmr_h   hbTmr;
+  int32_t stopFlag;
+  int32_t tickCounter;
+  int32_t hbCount;
+  int64_t hbStart;
+};
 
 SMetaRefMgt gMetaRefMgt;
 
@@ -129,14 +136,23 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   if (tdbTbOpen("checkpoint.db", sizeof(int32_t), -1, NULL, pMeta->db, &pMeta->pCheckpointDb, 0) < 0) {
     goto _err;
   }
-
   if (streamMetaBegin(pMeta) < 0) {
     goto _err;
   }
 
   _hash_fn_t fp = taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR);
-  pMeta->pTasks = taosHashInit(64, fp, true, HASH_NO_LOCK);
-  if (pMeta->pTasks == NULL) {
+  pMeta->pTasksMap = taosHashInit(64, fp, true, HASH_NO_LOCK);
+  if (pMeta->pTasksMap == NULL) {
+    goto _err;
+  }
+
+  pMeta->pUpdateTaskSet = taosHashInit(64, fp, false, HASH_NO_LOCK);
+  if (pMeta->pUpdateTaskSet == NULL) {
+    goto _err;
+  }
+
+  pMeta->pHbInfo = taosMemoryCalloc(1, sizeof(SMetaHbInfo));
+  if (pMeta->pHbInfo == NULL) {
     goto _err;
   }
 
@@ -160,9 +176,9 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
 
   metaRefMgtAdd(pMeta->vgId, pRid);
 
-  pMeta->hbInfo.hbTmr = taosTmrStart(metaHbToMnode, META_HB_CHECK_INTERVAL, pRid, streamEnv.timer);
-  pMeta->hbInfo.tickCounter = 0;
-  pMeta->hbInfo.stopFlag = 0;
+  pMeta->pHbInfo->hbTmr = taosTmrStart(metaHbToMnode, META_HB_CHECK_INTERVAL, pRid, streamEnv.timer);
+  pMeta->pHbInfo->tickCounter = 0;
+  pMeta->pHbInfo->stopFlag = 0;
 
   pMeta->pTaskBackendUnique =
       taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
@@ -188,22 +204,21 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   taosInitRWLatch(&pMeta->lock);
   taosThreadMutexInit(&pMeta->backendMutex, NULL);
 
-  pMeta->pauseTaskNum = 0;
-
+  pMeta->numOfPausedTasks = 0;
+  pMeta->numOfStreamTasks = 0;
   qInfo("vgId:%d open stream meta successfully, latest checkpoint:%" PRId64 ", stage:%" PRId64, vgId, pMeta->chkpId,
         stage);
   return pMeta;
 
 _err:
   taosMemoryFree(pMeta->path);
-  if (pMeta->pTasks) taosHashCleanup(pMeta->pTasks);
+  if (pMeta->pTasksMap) taosHashCleanup(pMeta->pTasksMap);
   if (pMeta->pTaskList) taosArrayDestroy(pMeta->pTaskList);
   if (pMeta->pTaskDb) tdbTbClose(pMeta->pTaskDb);
   if (pMeta->pCheckpointDb) tdbTbClose(pMeta->pCheckpointDb);
   if (pMeta->db) tdbClose(pMeta->db);
-
-  // taosThreadMutexDestroy(&pMeta->backendMutex);
-  //  taosThreadRwlockDestroy(&pMeta->lock);
+  if (pMeta->pHbInfo) taosMemoryFreeClear(pMeta->pHbInfo);
+  if (pMeta->pUpdateTaskSet) taosHashCleanup(pMeta->pUpdateTaskSet);
 
   taosMemoryFree(pMeta);
 
@@ -211,7 +226,7 @@ _err:
   return NULL;
 }
 
-int32_t streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId) {
+int32_t streamMetaReopen(SStreamMeta* pMeta) {
   streamMetaClear(pMeta);
 
   pMeta->streamBackendRid = -1;
@@ -257,7 +272,7 @@ int32_t streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId) {
 
 void streamMetaClear(SStreamMeta* pMeta) {
   void* pIter = NULL;
-  while ((pIter = taosHashIterate(pMeta->pTasks, pIter)) != NULL) {
+  while ((pIter = taosHashIterate(pMeta->pTasksMap, pIter)) != NULL) {
     SStreamTask* p = *(SStreamTask**)pIter;
 
     // release the ref by timer
@@ -273,7 +288,7 @@ void streamMetaClear(SStreamMeta* pMeta) {
 
   taosRemoveRef(streamBackendId, pMeta->streamBackendRid);
 
-  taosHashClear(pMeta->pTasks);
+  taosHashClear(pMeta->pTasksMap);
   taosHashClear(pMeta->pTaskBackendUnique);
 
   taosArrayClear(pMeta->pTaskList);
@@ -314,9 +329,11 @@ void streamMetaCloseImpl(void* arg) {
   taosArrayDestroy(pMeta->chkpSaved);
   taosArrayDestroy(pMeta->chkpInUse);
 
-  taosHashCleanup(pMeta->pTasks);
+  taosHashCleanup(pMeta->pTasksMap);
   taosHashCleanup(pMeta->pTaskBackendUnique);
+  taosHashCleanup(pMeta->pUpdateTaskSet);
 
+  taosMemoryFree(pMeta->pHbInfo);
   taosMemoryFree(pMeta->path);
   taosThreadMutexDestroy(&pMeta->backendMutex);
 
@@ -343,10 +360,8 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   tEncodeStreamTask(&encoder, pTask);
   tEncoderClear(&encoder);
 
-  int64_t key[2] = {0};
-  extractStreamTaskKey(key, pTask);
-
-  if (tdbTbUpsert(pMeta->pTaskDb, key, STREAM_TASK_KEY_LEN, buf, len, pMeta->txn) < 0) {
+  int64_t id[2] = {pTask->id.streamId, pTask->id.taskId};
+  if (tdbTbUpsert(pMeta->pTaskDb, id, STREAM_TASK_KEY_LEN, buf, len, pMeta->txn) < 0) {
     qError("s-task:%s save to disk failed, code:%s", pTask->id.idStr, tstrerror(terrno));
     return -1;
   }
@@ -355,18 +370,14 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   return 0;
 }
 
-void extractStreamTaskKey(int64_t* pKey, const SStreamTask* pTask) {
-  pKey[0] = pTask->id.streamId;
-  pKey[1] = pTask->id.taskId;
-}
-
-int32_t streamMetaRemoveTask(SStreamMeta* pMeta, int64_t* pKey) {
-  int32_t code = tdbTbDelete(pMeta->pTaskDb, pKey, STREAM_TASK_KEY_LEN, pMeta->txn);
+int32_t streamMetaRemoveTask(SStreamMeta* pMeta, STaskId* pTaskId) {
+  int64_t key[2] = {pTaskId->streamId, pTaskId->taskId};
+  int32_t code = tdbTbDelete(pMeta->pTaskDb, key, STREAM_TASK_KEY_LEN, pMeta->txn);
   if (code != 0) {
-    qError("vgId:%d failed to remove task:0x%x from metastore, code:%s", pMeta->vgId, (int32_t)pKey[1],
+    qError("vgId:%d failed to remove task:0x%x from metastore, code:%s", pMeta->vgId, (int32_t) pTaskId->taskId,
            tstrerror(terrno));
   } else {
-    qDebug("vgId:%d remove task:0x%x from metastore", pMeta->vgId, (int32_t)pKey[1]);
+    qDebug("vgId:%d remove task:0x%x from metastore", pMeta->vgId, (int32_t) pTaskId->taskId);
   }
 
   return code;
@@ -376,8 +387,8 @@ int32_t streamMetaRemoveTask(SStreamMeta* pMeta, int64_t* pKey) {
 int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask, bool* pAdded) {
   *pAdded = false;
 
-  int64_t keys[2] = {pTask->id.streamId, pTask->id.taskId};
-  void*   p = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+  STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
+  void* p = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (p == NULL) {
     if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
       tFreeStreamTask(pTask);
@@ -399,14 +410,18 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
     return 0;
   }
 
-  taosHashPut(pMeta->pTasks, keys, sizeof(keys), &pTask, POINTER_BYTES);
+  taosHashPut(pMeta->pTasksMap, &id, sizeof(id), &pTask, POINTER_BYTES);
+  if (pTask->info.fillHistory == 0) {
+    atomic_add_fetch_32(&pMeta->numOfStreamTasks, 1);
+  }
+
   *pAdded = true;
   return 0;
 }
 
 int32_t streamMetaGetNumOfTasks(SStreamMeta* pMeta) {
-  size_t size = taosHashGetSize(pMeta->pTasks);
-  ASSERT(taosArrayGetSize(pMeta->pTaskList) == taosHashGetSize(pMeta->pTasks));
+  size_t size = taosHashGetSize(pMeta->pTasksMap);
+  ASSERT(taosArrayGetSize(pMeta->pTaskList) == taosHashGetSize(pMeta->pTasksMap));
   return (int32_t)size;
 }
 
@@ -414,10 +429,12 @@ int32_t streamMetaGetNumOfStreamTasks(SStreamMeta* pMeta) {
   int32_t num = 0;
   size_t  size = taosArrayGetSize(pMeta->pTaskList);
   for (int32_t i = 0; i < size; ++i) {
-    SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
-    int64_t        keys[2] = {pId->streamId, pId->taskId};
+    STaskId* pId = taosArrayGet(pMeta->pTaskList, i);
+    SStreamTask** p = taosHashGet(pMeta->pTasksMap, pId, sizeof(*pId));
+    if (p == NULL) {
+      continue;
+    }
 
-    SStreamTask** p = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
     if ((*p)->info.fillHistory == 0) {
       num += 1;
     }
@@ -429,8 +446,8 @@ int32_t streamMetaGetNumOfStreamTasks(SStreamMeta* pMeta) {
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
   taosRLockLatch(&pMeta->lock);
 
-  int64_t       keys[2] = {streamId, taskId};
-  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+  STaskId id = {.streamId = streamId, .taskId = taskId};
+  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (ppTask != NULL) {
     if (!streamTaskShouldStop(&(*ppTask)->status)) {
       int32_t ref = atomic_add_fetch_32(&(*ppTask)->refCnt, 1);
@@ -473,12 +490,12 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   // pre-delete operation
   taosWLockLatch(&pMeta->lock);
 
-  int64_t       keys[2] = {streamId, taskId};
-  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+  STaskId id = {.streamId = streamId, .taskId = taskId};
+  SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (ppTask) {
     pTask = *ppTask;
     if (streamTaskShouldPause(&pTask->status)) {
-      int32_t num = atomic_sub_fetch_32(&pMeta->pauseTaskNum, 1);
+      int32_t num = atomic_sub_fetch_32(&pMeta->numOfPausedTasks, 1);
       qInfo("vgId:%d s-task:%s drop stream task. pause task num:%d", pMeta->vgId, pTask->id.idStr, num);
     }
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__DROPPING);
@@ -494,7 +511,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
 
   while (1) {
     taosRLockLatch(&pMeta->lock);
-    ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+    ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
 
     if (ppTask) {
       if ((*ppTask)->status.timerActive == 0) {
@@ -513,9 +530,19 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
 
   // let's do delete of stream task
   taosWLockLatch(&pMeta->lock);
-  ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+  ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (ppTask) {
-    taosHashRemove(pMeta->pTasks, keys, sizeof(keys));
+    // it is an fill-history task, remove the related stream task's id that points to it
+    if ((*ppTask)->info.fillHistory == 1) {
+      STaskId streamTaskId = {.streamId = (*ppTask)->streamTaskId.streamId, .taskId = (*ppTask)->streamTaskId.taskId};
+      SStreamTask** ppStreamTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &streamTaskId, sizeof(streamTaskId));
+      if (ppStreamTask != NULL) {
+        (*ppStreamTask)->historyTaskId.taskId = 0;
+        (*ppStreamTask)->historyTaskId.streamId = 0;
+      }
+    }
+
+    taosHashRemove(pMeta->pTasksMap, &id, sizeof(id));
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__DROPPING);
 
     ASSERT(pTask->status.timerActive == 0);
@@ -528,7 +555,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
       streamMetaReleaseTask(pMeta, pTask);
     }
 
-    streamMetaRemoveTask(pMeta, keys);
+    streamMetaRemoveTask(pMeta, &id);
     streamMetaReleaseTask(pMeta, pTask);
   } else {
     qDebug("vgId:%d failed to find the task:0x%x, it may have been dropped already", pMeta->vgId, taskId);
@@ -539,10 +566,13 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
 }
 
 int32_t streamMetaBegin(SStreamMeta* pMeta) {
+  taosWLockLatch(&pMeta->lock);
   if (tdbBegin(pMeta->db, &pMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
                TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
+    taosWUnLockLatch(&pMeta->lock);
     return -1;
   }
+  taosWUnLockLatch(&pMeta->lock);
   return 0;
 }
 
@@ -614,8 +644,8 @@ static void doClear(void* pKey, void* pVal, TBC* pCur, SArray* pRecycleList) {
 
 int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   TBC* pCur = NULL;
-
   qInfo("vgId:%d load stream tasks from meta files", pMeta->vgId);
+
   if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
     qError("vgId:%d failed to open stream meta, code:%s", pMeta->vgId, tstrerror(terrno));
     return -1;
@@ -626,7 +656,7 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   void*    pVal = NULL;
   int32_t  vLen = 0;
   SDecoder decoder;
-  SArray*  pRecycleList = taosArrayInit(4, STREAM_TASK_KEY_LEN);
+  SArray*  pRecycleList = taosArrayInit(4, sizeof(STaskId));
 
   tdbTbcMoveToFirst(pCur);
   while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
@@ -653,18 +683,17 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       int32_t taskId = pTask->id.taskId;
       tFreeStreamTask(pTask);
 
-      int64_t key[2] = {0};
-      extractStreamTaskKey(key, pTask);
+      STaskId id = extractStreamTaskKey(pTask);
 
-      taosArrayPush(pRecycleList, key);
+      taosArrayPush(pRecycleList, &id);
       int32_t total = taosArrayGetSize(pRecycleList);
       qDebug("s-task:0x%x is already dropped, add into recycle list, total:%d", taskId, total);
       continue;
     }
 
     // do duplicate task check.
-    int64_t keys[2] = {pTask->id.streamId, pTask->id.taskId};
-    void*   p = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+    STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
+    void*   p = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
     if (p == NULL) {
       // pTask->chkInfo.checkpointVer may be 0, when a follower is become a leader
       // In this case, we try not to start fill-history task anymore.
@@ -682,20 +711,22 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       continue;
     }
 
-    streamTaskResetUpstreamStageInfo(pTask);
-    if (taosHashPut(pMeta->pTasks, keys, sizeof(keys), &pTask, sizeof(void*)) < 0) {
+    if (taosHashPut(pMeta->pTasksMap, &id, sizeof(id), &pTask, POINTER_BYTES) < 0) {
       doClear(pKey, pVal, pCur, pRecycleList);
       tFreeStreamTask(pTask);
       return -1;
     }
 
+    if (pTask->info.fillHistory == 0) {
+      atomic_add_fetch_32(&pMeta->numOfStreamTasks, 1);
+    }
+
     if (streamTaskShouldPause(&pTask->status)) {
-      atomic_add_fetch_32(&pMeta->pauseTaskNum, 1);
+      atomic_add_fetch_32(&pMeta->numOfPausedTasks, 1);
     }
 
     ASSERT(pTask->status.downstreamReady == 0);
   }
-  qInfo("vgId:%d pause task num:%d", pMeta->vgId, pMeta->pauseTaskNum);
 
   tdbFree(pKey);
   tdbFree(pVal);
@@ -706,13 +737,14 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
 
   if (taosArrayGetSize(pRecycleList) > 0) {
     for (int32_t i = 0; i < taosArrayGetSize(pRecycleList); ++i) {
-      int64_t* pId = taosArrayGet(pRecycleList, i);
+      STaskId* pId = taosArrayGet(pRecycleList, i);
       streamMetaRemoveTask(pMeta, pId);
     }
   }
 
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
-  qDebug("vgId:%d load %d tasks into meta from disk completed", pMeta->vgId, numOfTasks);
+  qDebug("vgId:%d load %d tasks into meta from disk completed, streamTask:%d, paused:%d", pMeta->vgId, numOfTasks,
+         pMeta->numOfStreamTasks, pMeta->numOfPausedTasks);
   taosArrayDestroy(pRecycleList);
   return 0;
 }
@@ -724,8 +756,8 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
 
   for (int32_t i = 0; i < pReq->numOfTasks; ++i) {
     STaskStatusEntry* ps = taosArrayGet(pReq->pTaskStatus, i);
-    if (tEncodeI64(pEncoder, ps->streamId) < 0) return -1;
-    if (tEncodeI32(pEncoder, ps->taskId) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->id.streamId) < 0) return -1;
+    if (tEncodeI32(pEncoder, ps->id.taskId) < 0) return -1;
     if (tEncodeI32(pEncoder, ps->status) < 0) return -1;
   }
   tEndEncode(pEncoder);
@@ -740,8 +772,11 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
   pReq->pTaskStatus = taosArrayInit(pReq->numOfTasks, sizeof(STaskStatusEntry));
   for (int32_t i = 0; i < pReq->numOfTasks; ++i) {
     STaskStatusEntry hb = {0};
-    if (tDecodeI64(pDecoder, &hb.streamId) < 0) return -1;
-    if (tDecodeI32(pDecoder, &hb.taskId) < 0) return -1;
+    if (tDecodeI64(pDecoder, &hb.id.streamId) < 0) return -1;
+    int32_t taskId = 0;
+    if (tDecodeI32(pDecoder, &taskId) < 0) return -1;
+
+    hb.id.taskId = taskId;
     if (tDecodeI32(pDecoder, &hb.status) < 0) return -1;
 
     taosArrayPush(pReq->pTaskStatus, &hb);
@@ -751,9 +786,8 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
   return 0;
 }
 
-static bool readyToSendHb(SMetaHbInfo* pInfo) {
-  if ((++pInfo->tickCounter) >= META_HB_SEND_IDLE_COUNTER) {
-    // reset the counter
+static bool enoughTimeDuration(SMetaHbInfo* pInfo) {
+  if ((++pInfo->tickCounter) >= META_HB_SEND_IDLE_COUNTER) { // reset the counter
     pInfo->tickCounter = 0;
     return true;
   }
@@ -763,48 +797,61 @@ static bool readyToSendHb(SMetaHbInfo* pInfo) {
 void metaHbToMnode(void* param, void* tmrId) {
   int64_t rid = *(int64_t*)param;
 
-  SStreamHbMsg hbMsg = {0};
   SStreamMeta* pMeta = taosAcquireRef(streamMetaId, rid);
   if (pMeta == NULL) {
     return;
   }
 
   // need to stop, stop now
-  if (pMeta->hbInfo.stopFlag == STREAM_META_WILL_STOP) {
-    pMeta->hbInfo.stopFlag = STREAM_META_OK_TO_STOP;
+  if (pMeta->pHbInfo->stopFlag == STREAM_META_WILL_STOP) {
+    pMeta->pHbInfo->stopFlag = STREAM_META_OK_TO_STOP;
     qDebug("vgId:%d jump out of meta timer", pMeta->vgId);
     taosReleaseRef(streamMetaId, rid);
     return;
   }
 
-  if (!readyToSendHb(&pMeta->hbInfo)) {
-    taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->hbInfo.hbTmr);
+  // not leader not send msg
+  if (!pMeta->leader) {
+    qInfo("vgId:%d follower not send hb to mnode", pMeta->vgId);
+    taosReleaseRef(streamMetaId, rid);
+    pMeta->pHbInfo->hbStart = 0;
+    return;
+  }
+
+  // set the hb start time
+  if (pMeta->pHbInfo->hbStart == 0) {
+    pMeta->pHbInfo->hbStart = taosGetTimestampMs();
+  }
+
+  if (!enoughTimeDuration(pMeta->pHbInfo)) {
+    taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->pHbInfo->hbTmr);
     taosReleaseRef(streamMetaId, rid);
     return;
   }
 
+  qDebug("vgId:%d build stream task hb, leader:%d", pMeta->vgId, pMeta->leader);
+
+  SStreamHbMsg hbMsg = {0};
   taosRLockLatch(&pMeta->lock);
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
 
   SEpSet epset = {0};
   bool   hasValEpset = false;
-
   hbMsg.vgId = pMeta->vgId;
   hbMsg.pTaskStatus = taosArrayInit(numOfTasks, sizeof(STaskStatusEntry));
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
-    SStreamTaskId* pId = taosArrayGet(pMeta->pTaskList, i);
-    int64_t        keys[2] = {pId->streamId, pId->taskId};
-    SStreamTask**  pTask = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
+    STaskId* pId = taosArrayGet(pMeta->pTaskList, i);
 
+    SStreamTask** pTask = taosHashGet(pMeta->pTasksMap, pId, sizeof(*pId));
     if ((*pTask)->info.fillHistory == 1) {
       continue;
     }
 
-    STaskStatusEntry entry = {.streamId = pId->streamId, .taskId = pId->taskId, .status = (*pTask)->status.taskStatus};
+    STaskStatusEntry entry = {.id = *pId, .status = (*pTask)->status.taskStatus};
     taosArrayPush(hbMsg.pTaskStatus, &entry);
 
-    if (i == 0) {
+    if (!hasValEpset) {
       epsetAssign(&epset, &(*pTask)->info.mnodeEpset);
       hasValEpset = true;
     }
@@ -848,12 +895,17 @@ void metaHbToMnode(void* param, void* tmrId) {
     initRpcMsg(&msg, TDMT_MND_STREAM_HEARTBEAT, buf, tlen);
     msg.info.noResp = 1;
 
-    qDebug("vgId:%d, build and send hb to mnode", pMeta->vgId);
+    pMeta->pHbInfo->hbCount += 1;
+
+    qDebug("vgId:%d, build and send hb to mnode, numOfTasks:%d total:%d", pMeta->vgId, hbMsg.numOfTasks,
+           pMeta->pHbInfo->hbCount);
     tmsgSendReq(&epset, &msg);
+  } else {
+    qDebug("vgId:%d no tasks and no mnd epset, not send stream hb to mnode", pMeta->vgId);
   }
 
   taosArrayDestroy(hbMsg.pTaskStatus);
-  taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->hbInfo.hbTmr);
+  taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->pHbInfo->hbTmr);
   taosReleaseRef(streamMetaId, rid);
 }
 
@@ -864,7 +916,7 @@ static bool hasStreamTaskInTimer(SStreamMeta* pMeta) {
 
   void* pIter = NULL;
   while (1) {
-    pIter = taosHashIterate(pMeta->pTasks, pIter);
+    pIter = taosHashIterate(pMeta->pTasksMap, pIter);
     if (pIter == NULL) {
       break;
     }
@@ -882,12 +934,14 @@ static bool hasStreamTaskInTimer(SStreamMeta* pMeta) {
 void streamMetaNotifyClose(SStreamMeta* pMeta) {
   int32_t vgId = pMeta->vgId;
 
-  qDebug("vgId:%d notify all stream tasks that the vnode is closing", vgId);
+  qDebug("vgId:%d notify all stream tasks that the vnode is closing. isLeader:%d startHb%" PRId64 ", totalHb:%d", vgId,
+         pMeta->leader, pMeta->pHbInfo->hbStart, pMeta->pHbInfo->hbCount);
+
   taosWLockLatch(&pMeta->lock);
 
   void* pIter = NULL;
   while (1) {
-    pIter = taosHashIterate(pMeta->pTasks, pIter);
+    pIter = taosHashIterate(pMeta->pTasksMap, pIter);
     if (pIter == NULL) {
       break;
     }
@@ -900,10 +954,12 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
   taosWUnLockLatch(&pMeta->lock);
 
   // wait for the stream meta hb function stopping
-  pMeta->hbInfo.stopFlag = STREAM_META_WILL_STOP;
-  while (pMeta->hbInfo.stopFlag != STREAM_META_OK_TO_STOP) {
-    taosMsleep(100);
-    qDebug("vgId:%d wait for meta to stop timer", pMeta->vgId);
+  if (pMeta->leader) {
+    pMeta->pHbInfo->stopFlag = STREAM_META_WILL_STOP;
+    while (pMeta->pHbInfo->stopFlag != STREAM_META_OK_TO_STOP) {
+      taosMsleep(100);
+      qDebug("vgId:%d wait for meta to stop timer", pMeta->vgId);
+    }
   }
 
   qDebug("vgId:%d start to check all tasks", vgId);
@@ -916,4 +972,11 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
 
   int64_t el = taosGetTimestampMs() - st;
   qDebug("vgId:%d all stream tasks are not in timer, continue close, elapsed time:%" PRId64 " ms", pMeta->vgId, el);
+}
+
+void streamMetaStartHb(SStreamMeta* pMeta) {
+  int64_t* pRid = taosMemoryMalloc(sizeof(int64_t));
+  metaRefMgtAdd(pMeta->vgId, pRid);
+  *pRid = pMeta->rid;
+  metaHbToMnode(pRid, NULL);
 }
