@@ -35,18 +35,16 @@
     if(!tDecodeIsEnd(&decoder)){                                 \
       if(tDecodeI32(&decoder, &pReq->sqlLen) < 0) return -1;    \
       if(pReq->sqlLen > 0){                                     \
-        pReq->sql = taosMemoryCalloc(1, pReq->sqlLen + 1);      \
-        if (pReq->sql == NULL) return -1;                       \
-        if (tDecodeCStrTo(&decoder, pReq->sql) < 0) return -1;  \
+        if (tDecodeBinaryAlloc(&decoder, (void **)&pReq->sql, NULL) < 0) return -1;  \
       }                                                         \
     }                                                           \
   } while (0)
 
 #define ENCODESQL()                                              \
   do {                                                           \
-    if (pReq->sqlLen > 0 && pReq->sql != NULL){                  \
-      if (tEncodeI32(&encoder, pReq->sqlLen) < 0) return -1;     \
-      if (tEncodeCStrWithLen(&encoder, pReq->sql, pReq->sqlLen) < 0) return -1;       \
+    if (tEncodeI32(&encoder, pReq->sqlLen) < 0) return -1;       \
+    if (pReq->sqlLen > 0){                                       \
+      if (tEncodeBinary(&encoder, pReq->sql, pReq->sqlLen) < 0) return -1;       \
     }                                                            \
   } while (0)
 
