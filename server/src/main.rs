@@ -510,16 +510,20 @@ impl Args {
         let conn = TaosBuilder::from_dsn(dsn)?.build().await?;
 
         if let Some(active_code) = license.active_code.as_ref() {
-            let sql = format!("alter all dnodes 'activeCode' '{active_code}'");
-            conn.exec(&sql)
-                .await
-                .map_err(|err| RestErrResponse::new(format!("Invalid activeCode: {err:#}")))?;
+            if active_code.len() > 0 {
+                let sql = format!("alter all dnodes 'activeCode' '{active_code}'");
+                conn.exec(&sql)
+                    .await
+                    .map_err(|err| RestErrResponse::new(format!("Invalid activeCode: {err:#}")))?;
+            }
         }
-        if let Some(active_code) = license.c_active_code.as_ref() {
-            let sql = format!("alter all dnodes 'cActiveCode' '{active_code}'");
-            conn.exec(&sql)
-                .await
-                .map_err(|err| RestErrResponse::new(format!("Invalid cActiveCode: {err:#}")))?;
+        if let Some(c_active_code) = license.c_active_code.as_ref() {
+            if c_active_code.len() > 0 {
+                let sql = format!("alter all dnodes 'cActiveCode' '{c_active_code}'");
+                conn.exec(&sql)
+                    .await
+                    .map_err(|err| RestErrResponse::new(format!("Invalid cActiveCode: {err:#}")))?;
+            }
         }
         let renewed = conn
             .query("show dnodes")
