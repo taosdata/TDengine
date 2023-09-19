@@ -525,6 +525,9 @@ int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
 int32_t streamExecForAll(SStreamTask* pTask) {
   const char* id = pTask->id.idStr;
 
+  // merge multiple input data if possible in the input queue.
+  qDebug("s-task:%s start to extract data block from inputQ", id);
+
   while (1) {
     int32_t           numOfBlocks = 0;
     SStreamQueueItem* pInput = NULL;
@@ -532,9 +535,6 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       qDebug("s-task:%s stream task is stopped", id);
       break;
     }
-
-    // merge multiple input data if possible in the input queue.
-    qDebug("s-task:%s start to extract data block from inputQ", id);
 
     /*int32_t code = */ streamTaskGetDataFromInputQ(pTask, &pInput, &numOfBlocks);
     if (pInput == NULL) {
