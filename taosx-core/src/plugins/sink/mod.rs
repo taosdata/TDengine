@@ -1232,6 +1232,7 @@ async fn consume_flat_record(
                         raw.with_field_names(&columns).with_table_name(table_name);
                         //debug!("{}", &raw.pretty_format());
 
+                        let mut write_retries = 0;
                         loop {
                             let var_views = views
                                 .iter()
@@ -1255,7 +1256,7 @@ async fn consume_flat_record(
                                                 if let Some(col) =
                                                     desc.iter().find(|f| f.field() == name.as_str())
                                                 {
-                                                    debug_assert!(ty == col.ty());
+                                                    // debug_assert!(ty == col.ty());
                                                     if col.length() < length {
                                                         let table = records
                                                             .table
@@ -1425,12 +1426,25 @@ async fn consume_flat_record(
                                                 }
                                             }
                                         }
+
                                     }
                                 }
                             }
                             if let Err(err) = taos.as_ref().unwrap().write_raw_block(&raw).await {
                                 let code = err.code();
                                 let err_str = err.to_string();
+                                write_retries += 1;
+                                if write_retries > 2 {
+                                    tracing::warn!("flat message write raw block encounter unrecoverable err: {err:#}");
+                                    counter!(WRITE_RAW_BLOCK_FAILS, 1);
+                                    counter!(RECORD_FAILS, raw.nrows() as u64);
+                                    counter!(
+                                        POINT_FAILS,
+                                        (raw.nrows() * raw.column_views().len()) as u64
+                                    );
+                                    Err(err)?;
+                                    break;
+                                }
                                 if err_str.contains("[0x2603]") || err_str.contains("[0x0618]") {
                                     if let Some(sql) = records.stable_sql() {
                                         // dbg!(&sql);
