@@ -461,6 +461,8 @@ class TDTestCase:
     def stop(self):
         # remove the user
         tdSql.execute(f'drop user {self.username}')
+        # remove database
+        tdSql.execute(f'drop database {self.dbname}')
         # close the connection
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
