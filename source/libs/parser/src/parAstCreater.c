@@ -1553,6 +1553,9 @@ SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type) {
 }
 
 SNode* setShowKind(SAstCreateContext* pCxt, SNode* pStmt, EShowKind showKind) {
+  if (pStmt == NULL) {
+    return NULL;
+  } 
   SShowStmt* pShow = (SShowStmt*)pStmt;
   pShow->showKind = showKind;
   return pStmt;
