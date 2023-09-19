@@ -154,13 +154,14 @@ sql_error select * from information_schema.ins_mnodes
 sql_error select * from information_schema.ins_modules
 sql_error select * from information_schema.ins_qnodes
 sql_error select * from information_schema.ins_cluster
+sql_error select * from information_schema.ins_users
+sql_error select * from information_schema.ins_user_privilege
 sql select * from information_schema.ins_databases
 sql select * from information_schema.ins_functions
 sql select * from information_schema.ins_indexes
 sql select * from information_schema.ins_stables
 sql select * from information_schema.ins_tables
 sql select * from information_schema.ins_tags
-sql select * from information_schema.ins_users
 sql select * from information_schema.ins_topics
 sql select * from information_schema.ins_subscriptions
 sql select * from information_schema.ins_streams

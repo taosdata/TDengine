@@ -24,7 +24,7 @@ class TDTestCase:
         for i in range(self.tables):
             tdSql.execute(f'create table t{i} using stb tags({i}) ttl {self.ttl}')
         
-        time.sleep(self.ttl * 2)
+        time.sleep(self.ttl + 3)
         tdSql.query('show tables')
         tdSql.checkRows(90)
 

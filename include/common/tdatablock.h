@@ -28,6 +28,7 @@ typedef struct SBlockOrderInfo {
   bool             nullFirst;
   int32_t          order;
   int32_t          slotId;
+  void*            compFn;
   SColumnInfoData* pColData;
 } SBlockOrderInfo;
 
@@ -79,6 +80,15 @@ static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData,
     }
 
     return colDataIsNull_f(pColumnInfoData->nullbitmap, row);
+  }
+}
+
+static FORCE_INLINE bool colDataIsNull_t(const SColumnInfoData* pColumnInfoData, uint32_t row, bool isVarType) {
+  if (!pColumnInfoData->hasNull) return false;
+  if (isVarType) {
+    return colDataIsNull_var(pColumnInfoData, row);
+  } else {
+    return pColumnInfoData->nullbitmap ? colDataIsNull_f(pColumnInfoData->nullbitmap, row) : false;
   }
 }
 
@@ -210,6 +220,10 @@ double blockDataGetSerialRowSize(const SSDataBlock* pBlock);
 size_t blockDataGetSerialMetaSize(uint32_t numOfCols);
 
 int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo);
+/**
+ * @brief find how many rows already in order start from first row
+ */
+int32_t blockDataGetSortedRows(SSDataBlock* pDataBlock, SArray* pOrderInfo);
 
 int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows, bool clearPayload);
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
