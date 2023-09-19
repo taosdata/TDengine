@@ -642,7 +642,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   tNameFromString(&topicName, createTopicReq.name, T_NAME_ACCT | T_NAME_DB);
   //reuse this function for topic
 
-  auditRecord1(pReq, pMnode->clusterId, "createTopic", topicName.dbname, dbname.dbname, 
+  auditRecord(pReq, pMnode->clusterId, "createTopic", topicName.dbname, dbname.dbname, 
               createTopicReq.sql, strlen(createTopicReq.sql));
 
 _OVER:
@@ -846,7 +846,7 @@ end:
   tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB);
   //reuse this function for topic
 
-  auditRecord1(pReq, pMnode->clusterId, "dropTopic", name.dbname, "", dropReq.sql, dropReq.sqlLen);
+  auditRecord(pReq, pMnode->clusterId, "dropTopic", name.dbname, "", dropReq.sql, dropReq.sqlLen);
 
   tFreeSMDropTopicReq(&dropReq);
 

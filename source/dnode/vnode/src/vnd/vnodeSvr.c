@@ -948,7 +948,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
       SName name = {0};
       tNameFromString(&name, pVnode->config.dbname, T_NAME_ACCT | T_NAME_DB);
 
-      auditRecord1(pReq, clusterId, "createTable", name.dbname, pCreateReq->name, pCreateReq->sql, pCreateReq->sqlLen);
+      auditRecord(pReq, clusterId, "createTable", name.dbname, pCreateReq->name, pCreateReq->sql, pCreateReq->sqlLen);
     }
   }
 
