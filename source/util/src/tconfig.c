@@ -534,6 +534,7 @@ void cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *p
       len = snprintf(buf, bufSize, "%" PRId64, pItem->i64);
       break;
     case CFG_DTYPE_FLOAT:
+    case CFG_DTYPE_DOUBLE:
       len = snprintf(buf, bufSize, "%f", pItem->fval);
       break;
     case CFG_DTYPE_STRING:
