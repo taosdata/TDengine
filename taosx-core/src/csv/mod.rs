@@ -144,8 +144,8 @@ pub async fn csv_to_taos(
                                 port_pool.put(port);
                                 anyhow::bail!("CSV exit with IPC error: {res}");
                             }
-                            Err(_) => {
-                                tracing::info!("CSV worker done successfully");
+                            Err(err) => {
+                                tracing::warn!("CSV worker done, cause: {:#}", err);
                             }
                         }
                     }
