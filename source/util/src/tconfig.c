@@ -321,6 +321,7 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
     case CFG_DTYPE_INT64:
       return cfgSetInt64(pItem, value, stype);
     case CFG_DTYPE_FLOAT:
+    case CFG_DTYPE_DOUBLE:
       return cfgSetFloat(pItem, value, stype);
     case CFG_DTYPE_STRING:
       return cfgSetString(pItem, value, stype);
@@ -506,6 +507,8 @@ const char *cfgDtypeStr(ECfgDataType type) {
       return "int64";
     case CFG_DTYPE_FLOAT:
       return "float";
+    case CFG_DTYPE_FLOAT:
+      return "double";
     case CFG_DTYPE_STRING:
       return "string";
     case CFG_DTYPE_DIR:
@@ -632,6 +635,7 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
         }
         break;
       case CFG_DTYPE_FLOAT:
+      case CFG_DTYPE_DOUBLE:
         if (dump) {
           printf("%s %s %.2f", src, name, pItem->fval);
           printf("\n");

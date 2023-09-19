@@ -15,7 +15,6 @@
 #include "Huffman.h"
 #include "transcode.h"
 #include "fse.h"
-#include <sys/time.h>
 
 void new_TightDataPointStorageD_Empty(TightDataPointStorageD **this)
 {
