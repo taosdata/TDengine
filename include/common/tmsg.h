@@ -2622,6 +2622,9 @@ static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
   } else if (req->type == TSDB_NORMAL_TABLE) {
     taosMemoryFreeClear(req->ntb.schemaRow.pSchema);
   }
+  if(pReq->sql != NULL){
+    taosMemoryFree(pReq->sql);
+  }
 }
 
 typedef struct {
