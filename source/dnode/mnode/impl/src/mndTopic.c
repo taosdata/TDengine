@@ -694,10 +694,12 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   if (pTopic == NULL) {
     if (dropReq.igNotExists) {
       mInfo("topic:%s, not exist, ignore not exist is set", dropReq.name);
+      tFreeSMDropTopicReq(&dropReq);
       return 0;
     } else {
       terrno = TSDB_CODE_MND_TOPIC_NOT_EXIST;
       mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
+      tFreeSMDropTopicReq(&dropReq);
       return -1;
     }
   }
