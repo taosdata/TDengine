@@ -191,6 +191,10 @@ typedef struct {
 } SGrantStatus;
 
 typedef struct {
+  uint64_t curTimeSeries;
+} SGrantNotify;
+
+typedef struct {
   bool     updateForced;
   bool     usbDongle;
   bool     officialVersion;
