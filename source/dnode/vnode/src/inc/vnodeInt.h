@@ -410,6 +410,7 @@ struct STsdbKeepCfg {
   int32_t keep0;
   int32_t keep1;
   int32_t keep2;
+  int32_t keepTimeOffset;
 };
 
 typedef struct SVCommitSched {
