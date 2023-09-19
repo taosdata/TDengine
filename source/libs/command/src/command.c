@@ -89,7 +89,7 @@ static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
 }
 
 static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock, int32_t numOfRows, STableMeta* pMeta, int8_t biMode) {
-  blockDataEnsureCapacity(pBlock, numOfRows);
+  blockDataEnsureCapacity(pBlock, numOfRows + 1);
   pBlock->info.rows = 0;
 
   // field
