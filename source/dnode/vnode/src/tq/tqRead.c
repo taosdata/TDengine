@@ -1118,7 +1118,6 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
           taosArrayDestroy(list);
           taosHashCancelIterate(pTq->pHandle, pIter);
           taosWUnLockLatch(&pTq->lock);
-
           return ret;
         }
         tqReaderSetTbUidList(pTqHandle->execHandle.pTqReader, list, NULL);
@@ -1129,7 +1128,6 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
     }
   }
   taosWUnLockLatch(&pTq->lock);
-
   // update the table list handle for each stream scanner/wal reader
   taosWLockLatch(&pTq->pStreamMeta->lock);
   while (1) {

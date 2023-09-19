@@ -879,7 +879,6 @@ end:
     mError("cgroup %s on topic:%s, failed to drop", dropReq.cgroup, dropReq.topic);
     return code;
   }
-
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
