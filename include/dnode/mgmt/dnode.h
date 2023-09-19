@@ -44,6 +44,7 @@ int32_t dmRun();
  */
 void dmStop();
 
+
 #ifdef __cplusplus
 }
 #endif

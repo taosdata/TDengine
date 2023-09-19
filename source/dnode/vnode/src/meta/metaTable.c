@@ -36,6 +36,7 @@ static int metaDeleteBtimeIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateNcolIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaDeleteNcolIdx(SMeta *pMeta, const SMetaEntry *pME);
 
+
 static void metaGetEntryInfo(const SMetaEntry *pEntry, SMetaInfo *pInfo) {
   pInfo->uid = pEntry->uid;
   pInfo->version = pEntry->version;
@@ -736,6 +737,7 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
   metaReaderClear(&mr);
 
   // build SMetaEntry
+  SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
   me.version = ver;
   me.type = pReq->type;
   me.uid = pReq->uid;
@@ -769,7 +771,9 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
     }
 #endif
 
-    ++pMeta->pVnode->config.vndStats.numOfCTables;
+    ++pStats->numOfCTables;
+
+    pStats->numOfTimeSeries += 2;  // 2 cols for test.
 
     metaWLock(pMeta);
     metaUpdateStbStats(pMeta, me.ctbEntry.suid, 1);
@@ -784,11 +788,18 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
     me.ntbEntry.schemaRow = pReq->ntb.schemaRow;
     me.ntbEntry.ncid = me.ntbEntry.schemaRow.pSchema[me.ntbEntry.schemaRow.nCols - 1].colId + 1;
 
-    ++pMeta->pVnode->config.vndStats.numOfNTables;
-    pMeta->pVnode->config.vndStats.numOfNTimeSeries += me.ntbEntry.schemaRow.nCols - 1;
+    ++pStats->numOfNTables;
+    pStats->numOfNTimeSeries += me.ntbEntry.schemaRow.nCols - 1;
   }
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
+  // assert(pStats->numOfTimeSeries + pStats->numOfNTimeSeries < 200000);
+  // if (pStats->numOfTimeSeries + pStats->numOfNTimeSeries - pStats->numOfCmprTimeSeries > 100) {
+  //   pStats->numOfCmprTimeSeries = pStats->numOfTimeSeries + pStats->numOfNTimeSeries;
+  //   SDndNotifyInfo dNotifyInfo = {.vgId = pMeta->pVnode->config.vgId,
+  //                                 .nTimeSeries = pStats->numOfTimeSeries + pStats->numOfNTimeSeries};
+  //   dmProcessNotifyReq(&dNotifyInfo);
+  // }
 
   atomic_val_compare_exchange_8(&tsNeedUpdStatus, 0, 1);
 

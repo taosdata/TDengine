@@ -130,11 +130,11 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   taosThreadRwlockUnlock(&pMgmt->pData->lock);
 
   SMonVloadInfo vinfo = {0};
-  (*pMgmt->getVnodeLoadsFp)(&vinfo);
+                (*pMgmt->getVnodeLoadsFp)(&vinfo);
   req.pVloads = vinfo.pVloads;
 
   SMonMloadInfo minfo = {0};
-  (*pMgmt->getMnodeLoadsFp)(&minfo);
+                (*pMgmt->getMnodeLoadsFp)(&minfo);
   req.mload = minfo.load;
 
   (*pMgmt->getQnodeLoadsFp)(&req.qload);
@@ -198,7 +198,7 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
 
   SServerStatusRsp statusRsp = {0};
   SMonMloadInfo    minfo = {0};
-  (*pMgmt->getMnodeLoadsFp)(&minfo);
+                   (*pMgmt->getMnodeLoadsFp)(&minfo);
   if (minfo.isMnode &&
       (minfo.load.syncState == TAOS_SYNC_STATE_ERROR || minfo.load.syncState == TAOS_SYNC_STATE_OFFLINE)) {
     pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
@@ -207,7 +207,7 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
   }
 
   SMonVloadInfo vinfo = {0};
-  (*pMgmt->getVnodeLoadsFp)(&vinfo);
+                (*pMgmt->getVnodeLoadsFp)(&vinfo);
   for (int32_t i = 0; i < taosArrayGetSize(vinfo.pVloads); ++i) {
     SVnodeLoad *pLoad = taosArrayGet(vinfo.pVloads, i);
     if (pLoad->syncState == TAOS_SYNC_STATE_ERROR || pLoad->syncState == TAOS_SYNC_STATE_OFFLINE) {
@@ -395,6 +395,7 @@ SArray *dmGetMsgHandles() {
 
   // Requests handled by MNODE
   if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT_NOTIFY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_AUTH_RSP, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
   code = 0;
@@ -407,3 +408,99 @@ _OVER:
     return pArray;
   }
 }
+
+#ifndef TD_ENTERPRISE
+int32_t dmStartNotify(SDnodeMgmt *pMgmt) { return 0; }
+int32_t dmProcessNotifyReq(SDndNotifyInfo *pInfo) { return 0; }
+#else
+static SHashObj   *tsDndNotifyInfo = NULL;
+static int64_t     tsTimeSeries = 0;
+static int8_t      tsDndNotifyInitLock = 0;
+static int8_t      tsDndNotifyLock = 0;
+static SDnodeMgmt *pSDnodeMgmt = NULL;
+
+int32_t dmStartNotify(SDnodeMgmt *pMgmt) {
+  pSDnodeMgmt = pMgmt;
+  return 0;
+}
+
+int32_t dmProcessNotifyReq(SDndNotifyInfo *pInfo) {
+  if (atomic_load_8(&tsDndNotifyInitLock) != 2) {
+    if (atomic_val_compare_exchange_8(&tsDndNotifyInitLock, 0, 1) == 0) {
+      tsDndNotifyInfo = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+
+      // fetch the latest tsTimeSeries of vgroups in current dnode
+      atomic_store_8(&tsDndNotifyInitLock, 2);
+    } else {
+      int32_t nLoops = 0;
+      while (atomic_load_8(&tsDndNotifyInitLock) != 2) {
+        if (++nLoops > 1000) {
+          sched_yield();
+          nLoops = 0;
+        }
+      }
+    }
+  }
+
+  if (atomic_val_compare_exchange_8(&tsDndNotifyLock, 0, 1) != 0) {
+    return 0;
+  }
+
+  int64_t lastTimeSeries = atomic_load_64(&tsTimeSeries);
+
+  int64_t *val = NULL;
+  if ((val = taosHashGet(tsDndNotifyInfo, &pInfo->vgId, sizeof(pInfo->vgId)))) {
+    if (*val != pInfo->nTimeSeries) {
+      assert(*val > 0);
+      atomic_add_fetch_64(&tsTimeSeries, pInfo->nTimeSeries - *val);
+      taosHashPut(tsDndNotifyInfo, &pInfo->vgId, sizeof(pInfo->vgId), &pInfo->nTimeSeries, sizeof(pInfo->nTimeSeries));
+    }
+  } else {
+    atomic_add_fetch_64(&tsTimeSeries, pInfo->nTimeSeries);
+    taosHashPut(tsDndNotifyInfo, &pInfo->vgId, sizeof(pInfo->vgId), &pInfo->nTimeSeries, sizeof(pInfo->nTimeSeries));
+  }
+
+  if (atomic_load_64(&tsTimeSeries) - lastTimeSeries > 100) {
+    int32_t    hashSize = taosHashGetSize(tsDndNotifyInfo);
+    SNotifyReq req = {.nVgroup = hashSize};
+    req.payload = taosMemoryMalloc(sizeof(SDndNotifyInfo) * hashSize);
+
+    int64_t *nVal = NULL;
+    int32_t   iter = 0;
+
+    int64_t nnn = 0;
+    size_t kLen = sizeof(int32_t);
+    while ((nVal = taosHashIterate(tsDndNotifyInfo, nVal)) && iter < hashSize) {
+      int32_t *nVgId = taosHashGetKey(nVal, &kLen);
+      (req.payload + iter)->vgId = *nVgId;
+      (req.payload + iter)->nTimeSeries = *nVal;
+      ++iter;
+    }
+    // assert(nnn < 1000000);
+
+    int32_t contLen = tSerializeSNotifyReq(NULL, 0, &req);
+    if (contLen <= 0) return -1;
+    void *pHead = rpcMallocCont(contLen);
+    if (!pHead) {
+      tFreeSNotifyReq(&req);
+      atomic_store_8(&tsDndNotifyLock, 0);
+      return -1;
+    }
+    tSerializeSNotifyReq(pHead, contLen, &req);
+    tFreeSNotifyReq(&req);
+
+    SRpcMsg rpcMsg = {.pCont = pHead,
+                      .contLen = contLen,
+                      .msgType = TDMT_MND_NOTIFY,
+                      .info.ahandle = NULL,
+                      .info.refId = 0,
+                      .info.noResp = 1};
+
+    SEpSet epSet = {0};
+    dmGetMnodeEpSet(pSDnodeMgmt->pData, &epSet);
+    rpcSendRequest(pSDnodeMgmt->msgCb.clientRpc, &epSet, &rpcMsg, NULL);
+  }
+  atomic_store_8(&tsDndNotifyLock, 0);
+  return 0;
+}
+#endif

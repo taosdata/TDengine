@@ -1035,6 +1035,52 @@ int32_t tDeserializeSMDropFullTextReq(void *buf, int32_t bufLen, SMDropFullTextR
   return 0;
 }
 
+int32_t tSerializeSNotifyReq(void *buf, int32_t bufLen, SNotifyReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  if (tEncodeI32(&encoder, pReq->nVgroup) < 0) return -1;
+  for (int32_t i = 0; i < pReq->nVgroup; ++i) {
+    if (tEncodeI32(&encoder, (pReq->payload + i)->vgId) < 0) return -1;
+    if (tEncodeI64(&encoder, (pReq->payload + i)->nTimeSeries) < 0) return -1;
+  }
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSNotifyReq(void *buf, int32_t bufLen, SNotifyReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+
+  if (tDecodeI32(&decoder, &pReq->nVgroup) < 0) return -1;
+
+  pReq->payload = taosMemoryMalloc(pReq->nVgroup * (sizeof(SDndNotifyInfo)));
+  if (!pReq->payload) return -1;
+
+  for (int32_t i = 0; i < pReq->nVgroup; ++i) {
+    if (tDecodeI32(&decoder, &((pReq->payload + i)->vgId)) < 0) return -1;
+    if (tDecodeI64(&decoder, &((pReq->payload + i)->nTimeSeries)) < 0) return -1;
+  }
+
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSNotifyReq(SNotifyReq *pReq) {
+  if (pReq) {
+    taosMemoryFreeClear(pReq->payload);
+  }
+}
+
 int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);

@@ -79,6 +79,14 @@ static void    mndCancelGetNextDnode(SMnode *pMnode, void *pIter);
 
 static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t opLen, int32_t *pOutValue);
 
+#ifndef TD_ENTERPRISE
+static int32_t mndUpdateClusterInfo(SRpcMsg *pReq) { return 0; }
+static int32_t mndProcessNotifyReq(SRpcMsg *pReq) { return 0; }
+#else
+int32_t mndUpdateClusterInfo(SRpcMsg *pReq);
+int32_t mndProcessNotifyReq(SRpcMsg *pReq);
+#endif
+
 int32_t mndInitDnode(SMnode *pMnode) {
   SSdbTable table = {
       .sdbType = SDB_DNODE,
@@ -96,6 +104,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_DNODE, mndProcessConfigDnodeReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CONFIG_DNODE_RSP, mndProcessConfigDnodeRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STATUS, mndProcessStatusReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_NOTIFY, mndProcessNotifyReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DNODE_LIST, mndProcessDnodeListReq);
   mndSetMsgHandle(pMnode, TDMT_MND_SHOW_VARIABLES, mndProcessShowVariablesReq);
   mndSetMsgHandle(pMnode, TDMT_MND_RESTORE_DNODE, mndProcessRestoreDnodeReq);
@@ -480,12 +489,6 @@ static bool mndUpdateMnodeState(SMnodeObj *pObj, SMnodeLoad *pMload) {
   return stateChanged;
 }
 
-#ifndef TD_ENTERPRISE
-static int32_t mndUpdateClusterInfo(SRpcMsg *pReq) { return 0; }
-#else
-int32_t mndUpdateClusterInfo(SRpcMsg *pReq);
-#endif
-
 static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   SStatusReq statusReq = {0};
@@ -537,6 +540,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
   int64_t dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
   int64_t curMs = taosGetTimestampMs();
+  int64_t nDiffTimeSeries = 0;
   bool    online = mndIsDnodeOnline(pDnode, curMs);
   bool    dnodeChanged = (statusReq.dnodeVer == 0) || (statusReq.dnodeVer != dnodeVer);
   bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
