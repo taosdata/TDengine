@@ -308,6 +308,7 @@ typedef struct {
   int32_t daysToKeep0;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
+  int32_t keepTimeOffset;
   int32_t minRows;
   int32_t maxRows;
   int32_t walFsyncPeriod;

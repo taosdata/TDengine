@@ -3734,7 +3734,7 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
 static int32_t removeConstantValueFromList(SNodeList** pList) {
   SNode* pNode = NULL;
   WHERE_EACH(pNode, *pList) {
-    if (nodeType(pNode) == QUERY_NODE_VALUE || 
+    if (nodeType(pNode) == QUERY_NODE_VALUE ||
         (nodeType(pNode) == QUERY_NODE_FUNCTION && fmIsConstantResFunc((SFunctionNode*)pNode) && fmIsScalarFunc(((SFunctionNode*)pNode)->funcId))) {
       ERASE_NODE(*pList);
       continue;
@@ -3753,7 +3753,7 @@ static int32_t removeConstantValueFromList(SNodeList** pList) {
 static int32_t translatePartitionBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_PARTITION_BY;
   int32_t code = TSDB_CODE_SUCCESS;
-  
+
   if (TSDB_CODE_SUCCESS == code && pSelect->pPartitionByList) {
     int8_t typeType = getTableTypeFromTableNode(pSelect->pFromTable);
     SNode* pPar = nodesListGetNode(pSelect->pPartitionByList, 0);
@@ -4330,6 +4330,7 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->hashPrefix = pStmt->pOptions->tablePrefix;
   pReq->hashSuffix = pStmt->pOptions->tableSuffix;
   pReq->tsdbPageSize = pStmt->pOptions->tsdbPageSize;
+  pReq->keepTimeOffset = pStmt->pOptions->keepTimeOffset;
   pReq->ignoreExist = pStmt->ignoreExists;
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
@@ -4425,6 +4426,17 @@ static int32_t checkDbKeepOption(STranslateContext* pCxt, SDatabaseOptions* pOpt
   if (!((pOptions->keep[0] <= pOptions->keep[1]) && (pOptions->keep[1] <= pOptions->keep[2]))) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                    "Invalid keep value, should be keep0 <= keep1 <= keep2");
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkDbKeepTimeOffsetOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
+  if (pOptions->keepTimeOffset < TSDB_MIN_KEEP_TIME_OFFSET || pOptions->keepTimeOffset > TSDB_MAX_KEEP_TIME_OFFSET) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                   "Invalid option keep_time_offset: %d"
+                                   " valid range: [%d, %d]",
+                                   pOptions->keepTimeOffset, TSDB_MIN_KEEP_TIME_OFFSET, TSDB_MAX_KEEP_TIME_OFFSET);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -4603,6 +4615,9 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbKeepOption(pCxt, pOptions);  // use precision
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbKeepTimeOffsetOption(pCxt, pOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRangeOption(pCxt, "pages", pOptions->pages, TSDB_MIN_PAGES_PER_VNODE, TSDB_MAX_PAGES_PER_VNODE);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -4696,28 +4711,28 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
     case TDMT_MND_DROP_DB: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SDropDbReq, pReq);
       break;
-    }  
+    }
     case TDMT_MND_COMPACT_DB: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCompactDbReq, pReq);
       break;
     }
 
     case TDMT_MND_TMQ_DROP_TOPIC: {
-      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropTopicReq, pReq);     
-      break; 
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropTopicReq, pReq);
+      break;
     }
 
     case TDMT_MND_BALANCE_VGROUP_LEADER: {
-      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SBalanceVgroupLeaderReq, pReq);  
-      break;          
-    }    
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SBalanceVgroupLeaderReq, pReq);
+      break;
+    }
     case TDMT_MND_BALANCE_VGROUP: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SBalanceVgroupReq, pReq);
-      break;            
+      break;
     }
     case TDMT_MND_REDISTRIBUTE_VGROUP: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SRedistributeVgroupReq, pReq);
-      break;            
+      break;
     }
     case TDMT_MND_CREATE_STB: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateStbReq, pReq);
@@ -4787,9 +4802,9 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
     default: {
       break;
     }
-  
+
   }
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4849,6 +4864,7 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   pReq->daysToKeep0 = pStmt->pOptions->keep[0];
   pReq->daysToKeep1 = pStmt->pOptions->keep[1];
   pReq->daysToKeep2 = pStmt->pOptions->keep[2];
+  pReq->keepTimeOffset = pStmt->pOptions->keepTimeOffset;
   pReq->walFsyncPeriod = pStmt->pOptions->fsyncPeriod;
   pReq->walLevel = pStmt->pOptions->walLevel;
   pReq->strict = pStmt->pOptions->strict;
@@ -6230,7 +6246,7 @@ static int32_t translateCreateComponentNode(STranslateContext* pCxt, SCreateComp
   int32_t code = buildCmdMsg(pCxt, getCreateComponentNodeMsgType(nodeType(pStmt)),
                      (FSerializeFunc)tSerializeSCreateDropMQSNodeReq, &createReq);
   tFreeSMCreateQnodeReq(&createReq);
-  return code;                   
+  return code;
 }
 
 static int16_t getDropComponentNodeMsgType(ENodeType type) {
@@ -6254,7 +6270,7 @@ static int32_t translateDropComponentNode(STranslateContext* pCxt, SDropComponen
   int32_t code = buildCmdMsg(pCxt, getDropComponentNodeMsgType(nodeType(pStmt)),
                      (FSerializeFunc)tSerializeSCreateDropMQSNodeReq, &dropReq);
   tFreeSDDropQnodeReq(&dropReq);
-  return code;                   
+  return code;
 }
 
 static int32_t checkTopicQuery(STranslateContext* pCxt, SSelectStmt* pSelect) {
