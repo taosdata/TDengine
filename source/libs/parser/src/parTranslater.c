@@ -4858,7 +4858,9 @@ static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStm
   SAlterDbReq alterReq = {0};
   buildAlterDbReq(pCxt, pStmt, &alterReq);
 
-  return buildCmdMsg(pCxt, TDMT_MND_ALTER_DB, (FSerializeFunc)tSerializeSAlterDbReq, &alterReq);
+  code = buildCmdMsg(pCxt, TDMT_MND_ALTER_DB, (FSerializeFunc)tSerializeSAlterDbReq, &alterReq);
+  tFreeSAlterDbReq(&alterReq);
+  return code;
 }
 
 static int32_t translateTrimDatabase(STranslateContext* pCxt, STrimDatabaseStmt* pStmt) {
@@ -5855,7 +5857,9 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   createReq.enable = 1;
   strcpy(createReq.pass, pStmt->password);
 
-  return buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
+  tFreeSCreateUserReq(&createReq);
+  return code;
 }
 
 static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
@@ -5870,14 +5874,18 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
     snprintf(alterReq.objname, sizeof(alterReq.objname), "%s", pCxt->pParseCxt->db);
   }
 
-  return buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &alterReq);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &alterReq);
+  tFreeSAlterUserReq(&alterReq);
+  return code;
 }
 
 static int32_t translateDropUser(STranslateContext* pCxt, SDropUserStmt* pStmt) {
   SDropUserReq dropReq = {0};
   strcpy(dropReq.user, pStmt->userName);
 
-  return buildCmdMsg(pCxt, TDMT_MND_DROP_USER, (FSerializeFunc)tSerializeSDropUserReq, &dropReq);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_USER, (FSerializeFunc)tSerializeSDropUserReq, &dropReq);
+  tFreeSDropUserReq(&dropReq);
+  return code;
 }
 
 static int32_t translateCreateDnode(STranslateContext* pCxt, SCreateDnodeStmt* pStmt) {
@@ -5885,7 +5893,9 @@ static int32_t translateCreateDnode(STranslateContext* pCxt, SCreateDnodeStmt* p
   strcpy(createReq.fqdn, pStmt->fqdn);
   createReq.port = pStmt->port;
 
-  return buildCmdMsg(pCxt, TDMT_MND_CREATE_DNODE, (FSerializeFunc)tSerializeSCreateDnodeReq, &createReq);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CREATE_DNODE, (FSerializeFunc)tSerializeSCreateDnodeReq, &createReq);
+  tFreeSCreateDnodeReq(&createReq);
+  return code;
 }
 
 static int32_t translateDropDnode(STranslateContext* pCxt, SDropDnodeStmt* pStmt) {
@@ -5896,7 +5906,9 @@ static int32_t translateDropDnode(STranslateContext* pCxt, SDropDnodeStmt* pStmt
   dropReq.force = pStmt->force;
   dropReq.unsafe = pStmt->unsafe;
 
-  return buildCmdMsg(pCxt, TDMT_MND_DROP_DNODE, (FSerializeFunc)tSerializeSDropDnodeReq, &dropReq);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_DNODE, (FSerializeFunc)tSerializeSDropDnodeReq, &dropReq);
+  tFreeSDropDnodeReq(&dropReq);
+  return code;
 }
 
 static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pStmt) {
@@ -5905,7 +5917,9 @@ static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pSt
   strcpy(cfgReq.config, pStmt->config);
   strcpy(cfgReq.value, pStmt->value);
 
-  return buildCmdMsg(pCxt, TDMT_MND_CONFIG_DNODE, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CONFIG_DNODE, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
+  tFreeSMCfgDnodeReq(&cfgReq);
+  return code;
 }
 
 static int32_t translateRestoreDnode(STranslateContext* pCxt, SRestoreComponentNodeStmt* pStmt) {
@@ -5927,7 +5941,10 @@ static int32_t translateRestoreDnode(STranslateContext* pCxt, SRestoreComponentN
     default:
       return -1;
   }
-  return buildCmdMsg(pCxt, TDMT_MND_RESTORE_DNODE, (FSerializeFunc)tSerializeSRestoreDnodeReq, &restoreReq);
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_RESTORE_DNODE, (FSerializeFunc)tSerializeSRestoreDnodeReq, &restoreReq);
+  tFreeSRestoreDnodeReq(&restoreReq);
+  return code;
 }
 
 static int32_t getSmaIndexDstVgId(STranslateContext* pCxt, const char* pDbName, const char* pTableName,
@@ -6197,8 +6214,10 @@ static int16_t getCreateComponentNodeMsgType(ENodeType type) {
 
 static int32_t translateCreateComponentNode(STranslateContext* pCxt, SCreateComponentNodeStmt* pStmt) {
   SMCreateQnodeReq createReq = {.dnodeId = pStmt->dnodeId};
-  return buildCmdMsg(pCxt, getCreateComponentNodeMsgType(nodeType(pStmt)),
+  int32_t code = buildCmdMsg(pCxt, getCreateComponentNodeMsgType(nodeType(pStmt)),
                      (FSerializeFunc)tSerializeSCreateDropMQSNodeReq, &createReq);
+  tFreeSMCreateQnodeReq(&createReq);
+  return code;                   
 }
 
 static int16_t getDropComponentNodeMsgType(ENodeType type) {
@@ -6219,8 +6238,10 @@ static int16_t getDropComponentNodeMsgType(ENodeType type) {
 
 static int32_t translateDropComponentNode(STranslateContext* pCxt, SDropComponentNodeStmt* pStmt) {
   SDDropQnodeReq dropReq = {.dnodeId = pStmt->dnodeId};
-  return buildCmdMsg(pCxt, getDropComponentNodeMsgType(nodeType(pStmt)),
+  int32_t code = buildCmdMsg(pCxt, getDropComponentNodeMsgType(nodeType(pStmt)),
                      (FSerializeFunc)tSerializeSCreateDropMQSNodeReq, &dropReq);
+  tFreeSDDropQnodeReq(&dropReq);
+  return code;                   
 }
 
 static int32_t checkTopicQuery(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -6409,7 +6430,9 @@ static int32_t translateDropTopic(STranslateContext* pCxt, SDropTopicStmt* pStmt
   snprintf(dropReq.name, sizeof(dropReq.name), "%d.%s", pCxt->pParseCxt->acctId, pStmt->topicName);
   dropReq.igNotExists = pStmt->ignoreNotExists;
 
-  return buildCmdMsg(pCxt, TDMT_MND_TMQ_DROP_TOPIC, (FSerializeFunc)tSerializeSMDropTopicReq, &dropReq);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_TMQ_DROP_TOPIC, (FSerializeFunc)tSerializeSMDropTopicReq, &dropReq);
+  tFreeSMDropTopicReq(&dropReq);
+  return code;
 }
 
 static int32_t translateDropCGroup(STranslateContext* pCxt, SDropCGroupStmt* pStmt) {
@@ -6477,6 +6500,7 @@ static int32_t translateCompact(STranslateContext* pCxt, SCompactDatabaseStmt* p
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_COMPACT_DB, (FSerializeFunc)tSerializeSCompactDbReq, &compactReq);
   }
+  tFreeSCompactDbReq(&compactReq);
   return code;
 }
 
@@ -7336,7 +7360,9 @@ static int32_t translateDropStream(STranslateContext* pCxt, SDropStreamStmt* pSt
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->streamName, strlen(pStmt->streamName));
   tNameGetFullDbName(&name, dropReq.name);
   dropReq.igNotExists = pStmt->ignoreNotExists;
-  return buildCmdMsg(pCxt, TDMT_MND_DROP_STREAM, (FSerializeFunc)tSerializeSMDropStreamReq, &dropReq);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_STREAM, (FSerializeFunc)tSerializeSMDropStreamReq, &dropReq);
+  tFreeSMDropStreamReq(&dropReq);
+  return code;
 }
 
 static int32_t translatePauseStream(STranslateContext* pCxt, SPauseStreamStmt* pStmt) {
@@ -7531,17 +7557,23 @@ static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
   strcpy(req.user, pStmt->userName);
   sprintf(req.objname, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
   sprintf(req.tabName, "%s", pStmt->tabName);
-  return buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
+  tFreeSAlterUserReq(&req);
+  return code;
 }
 
 static int32_t translateBalanceVgroup(STranslateContext* pCxt, SBalanceVgroupStmt* pStmt) {
   SBalanceVgroupReq req = {0};
-  return buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP, (FSerializeFunc)tSerializeSBalanceVgroupReq, &req);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP, (FSerializeFunc)tSerializeSBalanceVgroupReq, &req);
+  tFreeSBalanceVgroupReq(&req);
+  return code;
 }
 
 static int32_t translateBalanceVgroupLeader(STranslateContext* pCxt, SBalanceVgroupLeaderStmt* pStmt) {
   SBalanceVgroupLeaderReq req = {0};
-  return buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP_LEADER, (FSerializeFunc)tSerializeSBalanceVgroupLeaderReq, &req);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP_LEADER, (FSerializeFunc)tSerializeSBalanceVgroupLeaderReq, &req);
+  tFreeSBalanceVgroupLeaderReq(&req);
+  return code;
 }
 
 static int32_t translateMergeVgroup(STranslateContext* pCxt, SMergeVgroupStmt* pStmt) {
@@ -7585,6 +7617,7 @@ static int32_t translateRedistributeVgroup(STranslateContext* pCxt, SRedistribut
     req.dnodeId3 = pStmt->dnodeId3;
     code = buildCmdMsg(pCxt, TDMT_MND_REDISTRIBUTE_VGROUP, (FSerializeFunc)tSerializeSRedistributeVgroupReq, &req);
   }
+  tFreeSRedistributeVgroupReq(&req);
   return code;
 }
 
