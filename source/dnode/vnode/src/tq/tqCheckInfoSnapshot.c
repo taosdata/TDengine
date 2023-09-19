@@ -79,25 +79,11 @@ int32_t tqCheckInfoRead(STqCheckInfoReader* pReader, uint8_t** ppData) {
   void* pVal = NULL;
   int32_t     kLen = 0;
   int32_t     vLen = 0;
-//  SDecoder    decoder;
-//  STqCheckInfo info;
 
-//  *ppData = NULL;
   if (tdbTbcNext(pReader->pCur, &pKey, &kLen, &pVal, &vLen)) {
     goto _exit;
   }
 
-//  tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
-//  if (tDecodeSTqCheckInfo(&decoder, &info) < 0) {
-//    tdbFree(pKey);
-//    tdbFree(pVal);
-//    code = TSDB_CODE_OUT_OF_MEMORY;
-//    goto _err;
-//  }
-//  tdbFree(pKey);
-//  tdbFree(pVal);
-//  tDecoderClear(&decoder);
-//
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + vLen);
   if (*ppData == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -175,20 +161,13 @@ int32_t tqCheckInfoWriterClose(STqCheckInfoWriter** ppWriter, int8_t rollback) {
     if (code) goto _err;
   }
 
-  int vgId = TD_VID(pWriter->pTq->pVnode);
-
   taosMemoryFree(pWriter);
   *ppWriter = NULL;
-
-  // restore from metastore
-  if (tqMetaRestoreCheckInfo(pTq) < 0) {
-    goto _err;
-  }
 
   return code;
 
 _err:
-  tqError("vgId:%d, tq check info writer close failed since %s", vgId, tstrerror(code));
+  tqError("vgId:%d, tq check info writer close failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
   return code;
 }
 
@@ -199,11 +178,13 @@ int32_t tqCheckInfoWrite(STqCheckInfoWriter* pWriter, uint8_t* pData, uint32_t n
   SDecoder     decoder;
   SDecoder* pDecoder = &decoder;
 
-
+  tDecoderInit(pDecoder, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
   code = tDecodeSTqCheckInfo(pDecoder, &info);
   if (code) goto _err;
+  code = taosHashPut(pTq->pCheckInfo, info.topic, strlen(info.topic), &info, sizeof(STqCheckInfo));
+  if (code) goto _err;
   code = tqMetaSaveCheckInfo(pTq, info.topic, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
-  if (code < 0) goto _err;
+  if (code) goto _err;
   tDecoderClear(pDecoder);
 
   return code;
