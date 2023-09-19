@@ -22,20 +22,20 @@ class TDTestCase:
     
     def full_datatype_test(self):
         tdSql.execute("use db;")
-        sql = "create table st(ts timestamp, c1 bool, c2 float, c3 double,c4 tinyint, c5 smallint, c6 int, c7 bigint, c8 tinyint unsigned, c9 smallint unsigned, c10 int unsigned, c11 bigint unsigned) tags( area int);"
+        sql = "create table db.st(ts timestamp, c1 bool, c2 float, c3 double,c4 tinyint, c5 smallint, c6 int, c7 bigint, c8 tinyint unsigned, c9 smallint unsigned, c10 int unsigned, c11 bigint unsigned) tags( area int);"
         tdSql.execute(sql)
 
-        sql = "create table t1 using st tags(1);"
+        sql = "create table db.t1 using db.st tags(1);"
         tdSql.execute(sql)
 
         ts = 1694000000000
         rows = 126
         for i in range(rows):
             ts += 1
-            sql = f"insert into t1 values({ts},true,{i},{i},{i%127},{i%32767},{i},{i},{i%127},{i%32767},{i},{i});"
+            sql = f"insert into db.t1 values({ts},true,{i},{i},{i%127},{i%32767},{i},{i},{i%127},{i%32767},{i},{i});"
             tdSql.execute(sql)
 
-        sql = "select diff(ts),diff(c1),diff(c3),diff(c4),diff(c5),diff(c6),diff(c7),diff(c8),diff(c9),diff(c10),diff(c11) from t1"
+        sql = "select diff(ts),diff(c1),diff(c3),diff(c4),diff(c5),diff(c6),diff(c7),diff(c8),diff(c9),diff(c10),diff(c11) from db.t1"
         tdSql.query(sql)
         tdSql.checkRows(rows - 1)
         for i in range(rows - 1):
