@@ -2623,7 +2623,7 @@ static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
     taosMemoryFreeClear(req->ntb.schemaRow.pSchema);
   }
   if(req->sql != NULL){
-    taosMemoryFree(pReq->sql);
+    taosMemoryFree(req->sql);
   }
 }
 
