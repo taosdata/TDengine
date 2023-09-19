@@ -59,7 +59,8 @@ _OVER:
 }
 
 int32_t mndCheckAlterUserPrivilege(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter) {
-  if (pUser->superUser && pAlter->alterType != TSDB_ALTER_USER_PASSWD) {
+  if (pUser->superUser && pAlter->alterType != TSDB_ALTER_USER_PASSWD &&
+      pAlter->alterType != TSDB_ALTER_USER_ADD_WHITE_LIST && pAlter->alterType != TSDB_ALTER_USER_DROP_WHITE_LIST) {
     terrno = TSDB_CODE_MND_NO_RIGHTS;
     return -1;
   }
