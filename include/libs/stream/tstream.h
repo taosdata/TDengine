@@ -247,6 +247,7 @@ typedef struct SStreamTaskId {
 } SStreamTaskId;
 
 typedef struct SCheckpointInfo {
+  int64_t startTs;
   int64_t checkpointId;
   int64_t checkpointVer;  // latest checkpointId version
   int64_t nextProcessVer;     // current offset in WAL, not serialize it
