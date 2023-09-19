@@ -52,7 +52,6 @@
 #include "lz4.h"
 #include "tRealloc.h"
 #include "tlog.h"
-#include "tglobal.h"
 
 #ifdef TD_TSZ
 #include "td_sz.h"
@@ -71,20 +70,21 @@ bool lossyFloat = false;
 bool lossyDouble = false;
 
 // init call
-int32_t tsCompressInit() {
+int32_t tsCompressInit(char* lossyColumns, double fPrecision, double dPrecision, unsigned int32_t maxIntervals, 
+                       unsigned int32_t intervals, int32_t intervals, const char* compressor)
   // config
-  if (tsLossyColumns[0] == 0) {
+  if (lossyColumns[0] == 0) {
     lossyFloat = false;
     lossyDouble = false;
     return 0;
   }
 
-  lossyFloat = strstr(tsLossyColumns, "float") != NULL;
-  lossyDouble = strstr(tsLossyColumns, "double") != NULL;
+  lossyFloat = strstr(lossyColumns, "float") != NULL;
+  lossyDouble = strstr(lossyColumns, "double") != NULL;
 
   if (lossyFloat == false && lossyDouble == false) return 0;
 
-  tdszInit(tsFPrecision, tsDPrecision, tsMaxRange, tsCurRange, (int)tsIfAdtFse, tsCompressor);
+  tdszInit(fPrecision, dPrecision, maxIntervals, intervals, intervals, compressor);
   if (lossyFloat) uTrace("lossy compression float  is opened. ");
   if (lossyDouble) uTrace("lossy compression double is opened. ");
   return 1;

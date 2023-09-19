@@ -54,7 +54,8 @@ extern "C" {
 #ifdef TD_TSZ
 extern bool lossyFloat;
 extern bool lossyDouble;
-int32_t     tsCompressInit();
+int32_t tsCompressInit(char* lossyColumns, double fPrecision, double dPrecision, unsigned int32_t maxIntervals, 
+                       unsigned int32_t intervals, int32_t intervals, const char* compressor);
 void        tsCompressExit();
 
 int32_t tsCompressFloatLossyImp(const char *const input, const int32_t nelements, char *const output);
