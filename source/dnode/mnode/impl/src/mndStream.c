@@ -876,10 +876,12 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   SName name = {0};
   tNameFromString(&name, createStreamReq.name, T_NAME_ACCT | T_NAME_DB);
   //reuse this function for stream
-
-  auditRecord1(pReq, pMnode->clusterId, "createStream", name.dbname, "", 
-              createStreamReq.sql, strlen(createStreamReq.sql));
-
+  
+  //TODO
+  if (createStreamReq.sql != NULL) {
+    auditRecord1(pReq, pMnode->clusterId, "createStream", name.dbname, "", 
+                createStreamReq.sql, strlen(createStreamReq.sql));
+  }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
