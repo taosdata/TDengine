@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndStb.h"
+#include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndIndex.h"
@@ -31,7 +32,6 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "tname.h"
-#include "audit.h"
 
 #define STB_VER_NUMBER   1
 #define STB_RESERVE_SIZE 64
@@ -858,6 +858,23 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   }
   return 0;
 }
+static int32_t mndGenIdxNameForFirstTag(char *fullname, char *dbname, char *tagname) {
+  char    randStr[TSDB_COL_NAME_LEN] = {0};
+  int32_t left = TSDB_COL_NAME_LEN - strlen(tagname) - 1;
+  if (left <= 1) {
+    sprintf(fullname, "%s.%s", dbname, tagname);
+  } else {
+    int8_t start = left < 8 ? 0 : 8;
+    int8_t end = left >= 24 ? 24 : left - 1;
+    // gen rand str len [base:end]
+    // note: ignore rand performance issues
+    int64_t len = taosRand() % (end - start + 1) + start;
+    taosRandStr2(randStr, len);
+    sprintf(fullname, "%s.%s_%s", dbname, tagname, randStr);
+  }
+
+  return 0;
+}
 
 static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCreate, SDbObj *pDb) {
   SStbObj stbObj = {0};
@@ -871,10 +888,8 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   mInfo("trans:%d, used to create stb:%s", pTrans->id, pCreate->name);
   if (mndBuildStbFromReq(pMnode, &stbObj, pCreate, pDb) != 0) goto _OVER;
 
-  char randStr[24] = {0};
-  taosRandStr2(randStr, tListLen(randStr) - 1);
   SSchema *pSchema = &(stbObj.pTags[0]);
-  sprintf(fullIdxName, "%s.%s_%s", pDb->name, pSchema->name, randStr);
+  mndGenIdxNameForFirstTag(fullIdxName, pDb->name, pSchema->name);
 
   SSIdx idx = {0};
   if (mndAcquireGlobalIdx(pMnode, fullIdxName, SDB_IDX, &idx) == 0 && idx.pIdx != NULL) {
@@ -2342,7 +2357,7 @@ static int32_t mndDropStb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *p
   if (mndSetDropStbRedoActions(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
   if (mndDropIdxsByStb(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
   if (mndDropSmasByStb(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
-  if (mndUserRemoveStb(pMnode, pTrans, pStb->name) != 0) goto _OVER;  
+  if (mndUserRemoveStb(pMnode, pTrans, pStb->name) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
 
@@ -3273,7 +3288,7 @@ static int32_t buildSysDbColsInfo(SSDataBlock *p, int8_t buildWhichDBs, char *tb
   return p->info.rows;
 }
 
-static int8_t determineBuildColForWhichDBs(const char* db) {
+static int8_t determineBuildColForWhichDBs(const char *db) {
   int8_t buildWhichDBs;
   if (!db[0])
     buildWhichDBs = BUILD_COL_FOR_ALL_DB;
@@ -3291,11 +3306,11 @@ static int8_t determineBuildColForWhichDBs(const char* db) {
 }
 
 static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  uint8_t buildWhichDBs;
+  uint8_t  buildWhichDBs;
   SMnode  *pMnode = pReq->info.node;
   SSdb    *pSdb = pMnode->pSdb;
   SStbObj *pStb = NULL;
-  int32_t numOfRows = 0;
+  int32_t  numOfRows = 0;
 
   buildWhichDBs = determineBuildColForWhichDBs(pShow->db);
 
