@@ -462,9 +462,9 @@ cmd ::= SHOW db_kind_opt(A) DATABASES.                                          
                                                                                     pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DATABASES_STMT);
                                                                                     setShowKind(pCxt, pCxt->pRootNode, A);
                                                                                   }
-cmd ::= SHOW table_kind_opt(C) db_name_cond_opt(A) TABLES like_pattern_opt(B).    {
-                                                                                    pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_TABLES_STMT, A, B, OP_TYPE_LIKE);
-                                                                                    setShowKind(pCxt, pCxt->pRootNode, C);
+cmd ::= SHOW table_kind_db_name_cond_opt(A) TABLES like_pattern_opt(B).           {
+                                                                                    pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_TABLES_STMT, A.pDbName, B, OP_TYPE_LIKE);
+                                                                                    setShowKind(pCxt, pCxt->pRootNode, A.kind);
                                                                                   }
 cmd ::= SHOW db_name_cond_opt(A) STABLES like_pattern_opt(B).                     { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_STABLES_STMT, A, B, OP_TYPE_LIKE); }
 cmd ::= SHOW db_name_cond_opt(A) VGROUPS.                                         { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_VGROUPS_STMT, A, NULL, OP_TYPE_LIKE); }
@@ -507,6 +507,20 @@ cmd ::= SHOW VNODES.                                                            
 cmd ::= SHOW db_name_cond_opt(A) ALIVE.                                           { pCxt->pRootNode = createShowAliveStmt(pCxt, A,    QUERY_NODE_SHOW_DB_ALIVE_STMT); }
 cmd ::= SHOW CLUSTER ALIVE.                                                       { pCxt->pRootNode = createShowAliveStmt(pCxt, NULL, QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT); }
 
+%type table_kind_db_name_cond_opt                                                 { SShowTablesOption }
+%destructor table_kind_db_name_cond_opt                                           { }
+table_kind_db_name_cond_opt(A) ::= .                                              { A.kind = SHOW_KIND_NONE; A.pDbName = createDefaultDatabaseCondValue(pCxt); }
+table_kind_db_name_cond_opt(A) ::= table_kind(B).                                 { A.kind = B; A.pDbName = createDefaultDatabaseCondValue(pCxt); }
+table_kind_db_name_cond_opt(A) ::= db_name_cond(C).                               { A.kind = SHOW_KIND_NONE; A.pDbName = C; }
+table_kind_db_name_cond_opt(A) ::= table_kind(B) db_name_cond(C).                 { A.kind = B; A.pDbName = C; }
+
+%type table_kind                                                                  { EShowKind }
+%destructor table_kind                                                            { }   
+table_kind(A) ::= NORMAL.                                                         { A = SHOW_KIND_TABLES_NORMAL; }
+table_kind(A) ::= CHILD.                                                          { A = SHOW_KIND_TABLES_CHILD; }
+
+db_name_cond(A) ::= db_name(B) NK_DOT.                                            { A = createIdentifierValueNode(pCxt, &B); }
+
 db_name_cond_opt(A) ::= .                                                         { A = createDefaultDatabaseCondValue(pCxt); }
 db_name_cond_opt(A) ::= db_name(B) NK_DOT.                                        { A = createIdentifierValueNode(pCxt, &B); }
 
@@ -536,9 +550,6 @@ db_kind_opt(A) ::= .                                                            
 db_kind_opt(A) ::= USER.                                                          { A = SHOW_KIND_DATABASES_USER; }
 db_kind_opt(A) ::= SYSTEM.                                                        { A = SHOW_KIND_DATABASES_SYSTEM; }
 
-table_kind_opt(A) ::= .                                                           { A = SHOW_KIND_NONE; }
-table_kind_opt(A) ::= NORMAL.                                                     { A = SHOW_KIND_TABLES_NORMAL; }
-table_kind_opt(A) ::= CHILD.                                                      { A = SHOW_KIND_TABLES_CHILD; }
 /************************************************ create index ********************************************************/
 cmd ::= CREATE SMA INDEX not_exists_opt(D)
   col_name(A) ON full_table_name(B) index_options(C).                      { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_SMA, D, A, B, NULL, C); }

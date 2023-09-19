@@ -297,7 +297,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
 
 int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
-  int32_t            code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp);
+  int32_t            code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp, pRequest->pTscObj->biMode);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
   }

@@ -87,6 +87,11 @@ typedef struct STokenPair {
   SToken second;
 } STokenPair;
 
+typedef struct SShowTablesOption {
+  EShowKind kind;
+  SNode* pDbName;
+} SShowTablesOption;
+
 extern SToken nil_token;
 
 void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt);

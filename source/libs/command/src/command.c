@@ -115,7 +115,7 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
     colDataSetVal(pCol4, pBlock->info.rows, buf, false);
     ++(pBlock->info.rows);
   }
-  if (biMode != 0) {
+  if (pMeta->tableType == TSDB_SUPER_TABLE && biMode != 0) {
     STR_TO_VARSTR(buf, "tbname");
     colDataSetVal(pCol1, pBlock->info.rows, buf, false);
     STR_TO_VARSTR(buf, "VARCHAR");
