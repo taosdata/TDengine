@@ -1252,7 +1252,7 @@ static int32_t tsdbTFileSetToSnapPart(STFileSet* fset, STsdbSnapPartition** ppSP
       if (f->maxVer > fset->maxVerValid) {
         corrupt = true;
         tsdbError("skip incomplete stt file.fid:%d, maxVerValid:%" PRId64 ", minVer:%" PRId64 ", maxVer:%" PRId64
-                  ", ftype: %s",
+                  ", ftype: %d",
                   fset->fid, fset->maxVerValid, f->minVer, f->maxVer, typ);
         continue;
       }
@@ -1477,7 +1477,7 @@ int32_t tsdbSnapPartListToRangeDiff(STsdbSnapPartList* pList, TSnapRangeArray** 
     r->fid = part->fid;
     r->sver = maxVerValid + 1;
     r->ever = VERSION_MAX;
-    tsdbInfo("range diff fid:%d, sver:%" PRId64 ", ever:%" PRId64, part->fid, r->sver, r->ever);
+    tsdbInfo("range diff fid:%" PRId64 ", sver:%" PRId64 ", ever:%" PRId64, part->fid, r->sver, r->ever);
     TARRAY2_APPEND(pDiff, r);
   }
   ppRanges[0] = pDiff;
