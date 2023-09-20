@@ -331,23 +331,25 @@
                     v-model="p.value"
                     :disable="p.target.selectable"
                     @keydown.enter.native="searchDatas"
-                  ></el-input>
-                  <div>
+                  >
+                    <el-button slot="append" icon="el-icon-search" @click="searchDatas"></el-button>
+                  </el-input>
+                  <div class="resultWrap">
                     <div class="searchList" v-loading="loading">
                       <el-empty
                         :image-size="80"
                         v-if="configurationdata.length <= 0"
                       ></el-empty>
                       <template v-else>
-                        <div
-                          class="searchListItem"
-                          v-for="c in configurationdata"
-                          :key="c.id"
-                          :class="[activeDataSet.id == c.id ? 'actived' : '']"
-                          @click="handelDataSet(c)"
-                        >
-                          {{ c.id }}
-                        </div>
+                        <el-table 
+                          :data="configurationdata" 
+                          size="mini" 
+                          @row-click="handelDataSet"
+                          highlight-current-row
+                          >
+                          <el-table-column prop="id" label="Id"></el-table-column>
+                          <el-table-column prop="name" label="Name"></el-table-column>
+                        </el-table>
                       </template>
                     </div>
                     <template
@@ -2032,7 +2034,7 @@ export default {
     }
   }
   .configuration {
-    > div {
+    .resultWrap {
       display: flex;
       margin-top: 16px;
     }
