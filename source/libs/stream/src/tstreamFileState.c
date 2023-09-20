@@ -16,7 +16,6 @@
 #include "tstreamFileState.h"
 
 #include "query.h"
-#include "storageapi.h"
 #include "streamBackendRocksdb.h"
 #include "taos.h"
 #include "tcommon.h"
@@ -29,29 +28,64 @@
 #define MIN_NUM_OF_ROW_BUFF            10240
 
 struct SStreamFileState {
-  SList*     usedBuffs;
-  SList*     freeBuffs;
-  SSHashObj* rowBuffMap;
-  void*      pFileStore;
-  int32_t    rowSize;
-  int32_t    selectivityRowSize;
-  int32_t    keyLen;
-  uint64_t   preCheckPointVersion;
-  uint64_t   checkPointVersion;
-  TSKEY      maxTs;
-  TSKEY      deleteMark;
-  TSKEY      flushMark;
-  uint64_t   maxRowCount;
-  uint64_t   curRowCount;
-  GetTsFun   getTs;
-  char*      id;
+  SList*                 usedBuffs;
+  SList*                 freeBuffs;
+  void*                  rowStateBuff;
+  void*                  pFileStore;
+  int32_t                rowSize;
+  int32_t                selectivityRowSize;
+  int32_t                keyLen;
+  uint64_t               preCheckPointVersion;
+  uint64_t               checkPointVersion;
+  TSKEY                  maxTs;
+  TSKEY                  deleteMark;
+  TSKEY                  flushMark;
+  uint64_t               maxRowCount;
+  uint64_t               curRowCount;
+  GetTsFun               getTs;
+  char*                  id;
+
+  _state_buff_cleanup_fn stateBuffCleanupFn;
+  _state_buff_remove_fn  stateBuffRemoveFn;
+
+  _state_file_remove_fn  stateFileRemoveFn;
+  _state_file_get_fn     stateFileGetFn;
+  _state_file_clear_fn   stateFileClearFn;
 };
 
 typedef SRowBuffPos SRowBuffInfo;
 
+int32_t stateHashBuffRemoveFn(void* pBuff, const void *pKey, size_t keyLen) {
+  return tSimpleHashRemove(pBuff, pKey, keyLen);
+}
+
+void stateHashBuffClearFn(void* pBuff) {
+  tSimpleHashClear(pBuff);
+}
+
+void stateHashBuffCleanupFn(void* pBuff) {
+  tSimpleHashCleanup(pBuff);
+}
+
+int32_t intervalFileRemoveFn(SStreamFileState* pFileState, const void* pKey) {
+  return streamStateDel_rocksdb(pFileState->pFileStore, pKey);
+}
+
+int32_t intervalFileGetFn(SStreamFileState* pFileState, void* pKey, void* data, int32_t* pDataLen) {
+  return streamStateGet_rocksdb(pFileState->pFileStore, pKey, data, pDataLen);
+}
+
+int32_t sessionFileRemoveFn(SStreamFileState* pFileState, const void* pKey) {
+  return streamStateSessionDel_rocksdb(pFileState->pFileStore, pKey);
+}
+
+int32_t sessionFileGetFn(SStreamFileState* pFileState, void* pKey, void* data, int32_t* pDataLen) {
+  return streamStateSessionGet_rocksdb(pFileState->pFileStore, pKey, data, pDataLen);
+}
+
 SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
                                       GetTsFun fp, void* pFile, TSKEY delMark, const char* taskId,
-                                      int64_t checkpointId) {
+                                      int64_t checkpointId, int8_t type) {
   if (memSize <= 0) {
     memSize = DEFAULT_MAX_STREAM_BUFFER_SIZE;
   }
@@ -69,8 +103,25 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
   pFileState->freeBuffs = tdListNew(POINTER_BYTES);
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   int32_t    cap = TMIN(MIN_NUM_OF_ROW_BUFF, pFileState->maxRowCount);
-  pFileState->rowBuffMap = tSimpleHashInit(cap, hashFn);
-  if (!pFileState->usedBuffs || !pFileState->freeBuffs || !pFileState->rowBuffMap) {
+  if (type == STREAM_STATE_BUFF_HASH) {
+    pFileState->rowStateBuff = tSimpleHashInit(cap, hashFn);
+    pFileState->stateBuffCleanupFn = stateHashBuffCleanupFn;
+    pFileState->stateBuffRemoveFn = stateHashBuffRemoveFn;
+
+    pFileState->stateFileRemoveFn = intervalFileRemoveFn;
+    pFileState->stateFileGetFn = intervalFileGetFn;
+    pFileState->stateFileClearFn = streamStateClear_rocksdb;
+  } else {
+    pFileState->rowStateBuff = tSimpleHashInit(cap, hashFn);
+    pFileState->stateBuffCleanupFn = sessionWinStateCleanup;
+    pFileState->stateBuffRemoveFn = deleteSessionWinStateBuff;
+
+    pFileState->stateFileRemoveFn = sessionFileRemoveFn;
+    pFileState->stateFileGetFn = sessionFileGetFn;
+    pFileState->stateFileClearFn = streamStateSessionClear_rocksdb;
+  }
+
+  if (!pFileState->usedBuffs || !pFileState->freeBuffs || !pFileState->rowStateBuff) {
     goto _error;
   }
 
@@ -134,8 +185,15 @@ void streamFileStateDestroy(SStreamFileState* pFileState) {
   taosMemoryFree(pFileState->id);
   tdListFreeP(pFileState->usedBuffs, destroyRowBuffAllPosPtr);
   tdListFreeP(pFileState->freeBuffs, destroyRowBuff);
-  tSimpleHashCleanup(pFileState->rowBuffMap);
+  pFileState->stateBuffCleanupFn(pFileState->rowStateBuff);
   taosMemoryFree(pFileState);
+}
+
+void putFreeBuff(SStreamFileState* pFileState, SRowBuffPos* pPos) {
+  if (pPos->pRowBuff) {
+    tdListAppend(pFileState->freeBuffs, &(pPos->pRowBuff));
+    pPos->pRowBuff = NULL;
+  }
 }
 
 void clearExpiredRowBuff(SStreamFileState* pFileState, TSKEY ts, bool all) {
@@ -146,11 +204,10 @@ void clearExpiredRowBuff(SStreamFileState* pFileState, TSKEY ts, bool all) {
   while ((pNode = tdListNext(&iter)) != NULL) {
     SRowBuffPos* pPos = *(SRowBuffPos**)(pNode->data);
     if (all || (pFileState->getTs(pPos->pKey) < ts && !pPos->beUsed)) {
-      ASSERT(pPos->pRowBuff != NULL);
-      tdListAppend(pFileState->freeBuffs, &(pPos->pRowBuff));
-      pPos->pRowBuff = NULL;
+      putFreeBuff(pFileState, pPos);
+
       if (!all) {
-        tSimpleHashRemove(pFileState->rowBuffMap, pPos->pKey, pFileState->keyLen);
+        pFileState->stateBuffRemoveFn(pFileState->rowStateBuff, pPos->pKey, pFileState->keyLen);
       }
       destroyRowBuffPos(pPos);
       tdListPopNode(pFileState->usedBuffs, pNode);
@@ -162,11 +219,18 @@ void clearExpiredRowBuff(SStreamFileState* pFileState, TSKEY ts, bool all) {
 void streamFileStateClear(SStreamFileState* pFileState) {
   pFileState->flushMark = INT64_MIN;
   pFileState->maxTs = INT64_MIN;
-  tSimpleHashClear(pFileState->rowBuffMap);
+  tSimpleHashClear(pFileState->rowStateBuff);
   clearExpiredRowBuff(pFileState, 0, true);
 }
 
 bool needClearDiskBuff(SStreamFileState* pFileState) { return pFileState->flushMark > 0; }
+
+void streamFileStateReleaseBuff(SStreamFileState* pFileState, SRowBuffPos* pPos, bool used) {
+  if (pPos->needFree) {
+    putFreeBuff(pFileState, pPos);
+  }
+  pPos->beUsed = used;
+}
 
 void popUsedBuffs(SStreamFileState* pFileState, SStreamSnapshot* pFlushList, uint64_t max, bool used) {
   uint64_t  i = 0;
@@ -179,10 +243,12 @@ void popUsedBuffs(SStreamFileState* pFileState, SStreamSnapshot* pFlushList, uin
     if (pPos->beUsed == used) {
       tdListAppend(pFlushList, &pPos);
       pFileState->flushMark = TMAX(pFileState->flushMark, pFileState->getTs(pPos->pKey));
-      tSimpleHashRemove(pFileState->rowBuffMap, pPos->pKey, pFileState->keyLen);
+      pFileState->stateBuffRemoveFn(pFileState->rowStateBuff, pPos->pKey, pFileState->keyLen);
       tdListPopNode(pFileState->usedBuffs, pNode);
       taosMemoryFreeClear(pNode);
-      i++;
+      if (pPos->pRowBuff) {
+        i++;
+      }
     }
   }
 
@@ -210,9 +276,7 @@ int32_t flushRowBuff(SStreamFileState* pFileState) {
   SListNode* pNode = NULL;
   while ((pNode = tdListNext(&fIter)) != NULL) {
     SRowBuffPos* pPos = *(SRowBuffPos**)pNode->data;
-    ASSERT(pPos->pRowBuff != NULL);
-    tdListAppend(pFileState->freeBuffs, &pPos->pRowBuff);
-    pPos->pRowBuff = NULL;
+    putFreeBuff(pFileState, pPos);
   }
 
   tdListFreeP(pFlushList, destroyRowBuffPosPtr);
@@ -227,7 +291,9 @@ int32_t clearRowBuff(SStreamFileState* pFileState) {
   return TSDB_CODE_SUCCESS;
 }
 
-void* getFreeBuff(SList* lists, int32_t buffSize) {
+void* getFreeBuff(SStreamFileState* pFileState) {
+  SList* lists = pFileState->freeBuffs;
+  int32_t buffSize = pFileState->rowSize;
   SListNode* pNode = tdListPopHead(lists);
   if (!pNode) {
     return NULL;
@@ -238,10 +304,18 @@ void* getFreeBuff(SList* lists, int32_t buffSize) {
   return ptr;
 }
 
+int32_t streamFileStateClearBuff(SStreamFileState* pFileState, SRowBuffPos* pPos) {
+  if (pPos->pRowBuff) {
+    memset(pPos->pRowBuff, 0, pFileState->rowSize);
+    return TSDB_CODE_SUCCESS;
+  }
+  return TSDB_CODE_FAILED;
+}
+
 SRowBuffPos* getNewRowPos(SStreamFileState* pFileState) {
   SRowBuffPos* pPos = taosMemoryCalloc(1, sizeof(SRowBuffPos));
   pPos->pKey = taosMemoryCalloc(1, pFileState->keyLen);
-  void* pBuff = getFreeBuff(pFileState->freeBuffs, pFileState->rowSize);
+  void* pBuff = getFreeBuff(pFileState);
   if (pBuff) {
     pPos->pRowBuff = pBuff;
     goto _end;
@@ -258,7 +332,7 @@ SRowBuffPos* getNewRowPos(SStreamFileState* pFileState) {
 
   int32_t code = clearRowBuff(pFileState);
   ASSERT(code == 0);
-  pPos->pRowBuff = getFreeBuff(pFileState->freeBuffs, pFileState->rowSize);
+  pPos->pRowBuff = getFreeBuff(pFileState);
 
 _end:
   tdListAppend(pFileState->usedBuffs, &pPos);
@@ -266,9 +340,17 @@ _end:
   return pPos;
 }
 
+SRowBuffPos* getNewRowPosForWrite(SStreamFileState* pFileState) {
+  SRowBuffPos* newPos =  getNewRowPos(pFileState);
+  newPos->beUsed = true;
+  newPos->beFlushed = false;
+  newPos->needFree = false;
+  return newPos;
+}
+
 int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen) {
   pFileState->maxTs = TMAX(pFileState->maxTs, pFileState->getTs(pKey));
-  SRowBuffPos** pos = tSimpleHashGet(pFileState->rowBuffMap, pKey, keyLen);
+  SRowBuffPos** pos = tSimpleHashGet(pFileState->rowStateBuff, pKey, keyLen);
   if (pos) {
     *pVLen = pFileState->rowSize;
     *pVal = *pos;
@@ -276,14 +358,12 @@ int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, voi
     (*pos)->beFlushed = false;
     return TSDB_CODE_SUCCESS;
   }
-  SRowBuffPos* pNewPos = getNewRowPos(pFileState);
-  pNewPos->beUsed = true;
-  pNewPos->beFlushed = false;
+  SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
   ASSERT(pNewPos->pRowBuff);
   memcpy(pNewPos->pKey, pKey, keyLen);
 
   TSKEY ts = pFileState->getTs(pKey);
-  if (ts > pFileState->maxTs - pFileState->deleteMark && ts < pFileState->flushMark) {
+  if (!isDeteled(pFileState, ts) && isFlushedState(pFileState, ts)) {
     int32_t len = 0;
     void*   p = NULL;
     int32_t code = streamStateGet_rocksdb(pFileState->pFileStore, pKey, &p, &len);
@@ -294,7 +374,7 @@ int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, voi
     taosMemoryFree(p);
   }
 
-  tSimpleHashPut(pFileState->rowBuffMap, pKey, keyLen, &pNewPos, POINTER_BYTES);
+  tSimpleHashPut(pFileState->rowStateBuff, pKey, keyLen, &pNewPos, POINTER_BYTES);
   if (pVal) {
     *pVLen = pFileState->rowSize;
     *pVal = pNewPos;
@@ -303,9 +383,12 @@ int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, voi
 }
 
 int32_t deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen) {
-  int32_t code_buff = tSimpleHashRemove(pFileState->rowBuffMap, pKey, keyLen);
-  int32_t code_rocks = streamStateDel_rocksdb(pFileState->pFileStore, pKey);
-  return code_buff == TSDB_CODE_SUCCESS ? code_buff : code_rocks;
+  int32_t code_buff = pFileState->stateBuffRemoveFn(pFileState->rowStateBuff, pKey, keyLen);
+  int32_t code_file = pFileState->stateFileRemoveFn(pFileState, pKey);
+  if (code_buff == TSDB_CODE_SUCCESS || code_file == TSDB_CODE_SUCCESS) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return TSDB_CODE_FAILED;
 }
 
 int32_t getRowBuffByPos(SStreamFileState* pFileState, SRowBuffPos* pPos, void** pVal) {
@@ -314,17 +397,17 @@ int32_t getRowBuffByPos(SStreamFileState* pFileState, SRowBuffPos* pPos, void** 
     return TSDB_CODE_SUCCESS;
   }
 
-  pPos->pRowBuff = getFreeBuff(pFileState->freeBuffs, pFileState->rowSize);
+  pPos->pRowBuff = getFreeBuff(pFileState);
   if (!pPos->pRowBuff) {
     int32_t code = clearRowBuff(pFileState);
     ASSERT(code == 0);
-    pPos->pRowBuff = getFreeBuff(pFileState->freeBuffs, pFileState->rowSize);
+    pPos->pRowBuff = getFreeBuff(pFileState);
     ASSERT(pPos->pRowBuff);
   }
 
   int32_t len = 0;
   void*   pBuff = NULL;
-  streamStateGet_rocksdb(pFileState->pFileStore, pPos->pKey, &pBuff, &len);
+  pFileState->stateFileGetFn(pFileState, pPos->pKey, &pBuff, &len);
   memcpy(pPos->pRowBuff, pBuff, len);
   taosMemoryFree(pBuff);
   (*pVal) = pPos->pRowBuff;
@@ -333,7 +416,7 @@ int32_t getRowBuffByPos(SStreamFileState* pFileState, SRowBuffPos* pPos, void** 
 }
 
 bool hasRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen) {
-  SRowBuffPos** pos = tSimpleHashGet(pFileState->rowBuffMap, pKey, keyLen);
+  SRowBuffPos** pos = tSimpleHashGet(pFileState->rowStateBuff, pKey, keyLen);
   if (pos) {
     return true;
   }
@@ -349,13 +432,13 @@ SStreamSnapshot* getSnapshot(SStreamFileState* pFileState) {
   return pFileState->usedBuffs;
 }
 
-void streamFileStateDecode(TSKEY* key, void* pBuff, int32_t len) { pBuff = taosDecodeFixedI64(pBuff, key); }
+void streamFileStateDecode(TSKEY* pKey, void* pBuff, int32_t len) { pBuff = taosDecodeFixedI64(pBuff, pKey); }
 
-void streamFileStateEncode(TSKEY* key, void** pVal, int32_t* pLen) {
+void streamFileStateEncode(TSKEY* pKey, void** pVal, int32_t* pLen) {
   *pLen = sizeof(TSKEY);
   (*pVal) = taosMemoryCalloc(1, *pLen);
   void* buff = *pVal;
-  taosEncodeFixedI64(&buff, *key);
+  taosEncodeFixedI64(&buff, *pKey);
 }
 
 int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, bool flushState) {
@@ -487,6 +570,7 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
   return code;
 }
 
+//todo(liuyao) session需要支持recover，需要修改下面代码，下面只是interval的。
 int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pFileState->maxTs != INT64_MIN) {
@@ -508,7 +592,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
     }
     void*        pVal = NULL;
     int32_t      pVLen = 0;
-    SRowBuffPos* pNewPos = getNewRowPos(pFileState);
+    SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
     code = streamStateGetKVByCur_rocksdb(pCur, pNewPos->pKey, (const void**)&pVal, &pVLen);
     if (code != TSDB_CODE_SUCCESS || pFileState->getTs(pNewPos->pKey) < pFileState->flushMark) {
       destroyRowBuffPos(pNewPos);
@@ -521,7 +605,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
     memcpy(pNewPos->pRowBuff, pVal, pVLen);
     taosMemoryFreeClear(pVal);
     pNewPos->beFlushed = true;
-    code = tSimpleHashPut(pFileState->rowBuffMap, pNewPos->pKey, pFileState->keyLen, &pNewPos, POINTER_BYTES);
+    code = tSimpleHashPut(pFileState->rowStateBuff, pNewPos->pKey, pFileState->keyLen, &pNewPos, POINTER_BYTES);
     if (code != TSDB_CODE_SUCCESS) {
       destroyRowBuffPos(pNewPos);
       break;
@@ -538,4 +622,24 @@ int32_t streamFileStateGeSelectRowSize(SStreamFileState* pFileState) { return pF
 void streamFileStateReloadInfo(SStreamFileState* pFileState, TSKEY ts) {
   pFileState->flushMark = TMAX(pFileState->flushMark, ts);
   pFileState->maxTs = TMAX(pFileState->maxTs, ts);
+}
+
+void* getRowStateBuff(SStreamFileState* pFileState) {
+  return pFileState->rowStateBuff;
+}
+
+void* getStateFileStore(SStreamFileState* pFileState) {
+  return pFileState->pFileStore;
+}
+
+bool isDeteled(SStreamFileState* pFileState, TSKEY ts) {
+  return ts < (pFileState->maxTs - pFileState->deleteMark);
+}
+
+bool isFlushedState(SStreamFileState* pFileState, TSKEY ts) {
+  return ts < pFileState->flushMark;
+}
+
+int32_t getRowStateRowSize(SStreamFileState* pFileState) {
+  return pFileState->rowSize;
 }

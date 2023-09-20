@@ -28,14 +28,25 @@ extern "C" {
 #endif
 
 typedef struct SStreamFileState SStreamFileState;
-typedef SList SStreamSnapshot;
+typedef SList                   SStreamSnapshot;
+
+typedef void*   (*_state_buff_get_fn)(void* pRowBuff, const void* pKey, size_t keyLen);
+typedef int32_t (*_state_buff_put_fn)(void* pRowBuff, const void* pKey, size_t keyLen, const void* data, size_t dataLen);
+typedef int32_t (*_state_buff_remove_fn)(void* pRowBuff, const void* pKey, size_t keyLen);
+typedef void    (*_state_buff_cleanup_fn)(void* pRowBuff);
+
+typedef int32_t (*_state_file_remove_fn)(SStreamFileState* pFileState, const void* pKey);
+typedef int32_t (*_state_file_get_fn)(SStreamFileState* pFileState, void* pKey, void* data, int32_t* pDataLen);
+typedef int32_t (*_state_file_clear_fn)(SStreamState* pState);
 
 SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
                                       GetTsFun fp, void* pFile, TSKEY delMark, const char* taskId,
-                                      int64_t checkpointId);
+                                      int64_t checkpointId, int8_t type);
 void              streamFileStateDestroy(SStreamFileState* pFileState);
 void              streamFileStateClear(SStreamFileState* pFileState);
 bool              needClearDiskBuff(SStreamFileState* pFileState);
+void              streamFileStateReleaseBuff(SStreamFileState* pFileState, SRowBuffPos* pPos, bool used);
+int32_t           streamFileStateClearBuff(SStreamFileState* pFileState, SRowBuffPos* pPos);
 
 int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen);
 int32_t deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen);
@@ -51,6 +62,31 @@ int32_t getSnapshotIdList(SStreamFileState* pFileState, SArray* list);
 int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark);
 int32_t streamFileStateGeSelectRowSize(SStreamFileState* pFileState);
 void    streamFileStateReloadInfo(SStreamFileState* pFileState, TSKEY ts);
+
+void* getRowStateBuff(SStreamFileState* pFileState);
+void* getStateFileStore(SStreamFileState* pFileState);
+bool isDeteled(SStreamFileState* pFileState, TSKEY ts);
+bool isFlushedState(SStreamFileState* pFileState, TSKEY ts);
+SRowBuffPos* getNewRowPosForWrite(SStreamFileState* pFileState);
+int32_t getRowStateRowSize(SStreamFileState* pFileState);
+
+// session window
+int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, TSKEY gap, void** pVal, int32_t* pVLen);
+int32_t deleteSessionWinStateBuff(void* pBuff, const void *key, size_t keyLen);
+
+void sessionWinStateClear(SStreamFileState* pFileState);
+void sessionWinStateCleanup(void* pBuff);
+
+SStreamStateCur* sessionWinStateSeekKeyCurrentPrev(SStreamFileState* pFileState, const SSessionKey* pWinKey);
+SStreamStateCur* sessionWinStateSeekKeyCurrentNext(SStreamFileState* pFileState, const SSessionKey* pWinKey);
+SStreamStateCur* sessionWinStateSeekKeyNext(SStreamFileState* pFileState, const SSessionKey* pWinKey);
+int32_t sessionWinStateGetKVByCur(SStreamStateCur* pCur, SSessionKey* pKey, void** pVal, int32_t* pVLen);
+int32_t sessionWinStateMoveToNext(SStreamStateCur* pCur);
+int32_t sessionWinStateGetKeyByRange(SStreamFileState* pFileState, const SSessionKey* key, SSessionKey* curKey);
+
+// state window
+int32_t getStateWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, char* pKeyData, int32_t keyDataLen,
+                             state_key_cmpr_fn fn, void** pVal, int32_t* pVLen);
 
 #ifdef __cplusplus
 }

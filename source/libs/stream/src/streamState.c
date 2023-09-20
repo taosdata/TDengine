@@ -395,9 +395,6 @@ int32_t streamStateFillDel(SStreamState* pState, const SWinKey* key) {
 int32_t streamStateClear(SStreamState* pState) {
 #ifdef USE_ROCKSDB
   streamFileStateClear(pState->pFileState);
-  if (needClearDiskBuff(pState->pFileState)) {
-    streamStateClear_rocksdb(pState);
-  }
   return 0;
 #else
   SWinKey key = {.ts = 0, .groupId = 0};
@@ -466,18 +463,22 @@ int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void*
 #endif
 }
 
-int32_t streamStateReleaseBuf(SStreamState* pState, const SWinKey* key, void* pVal) {
+int32_t streamStateReleaseBuf(SStreamState* pState, void* pVal, bool used) {
   // todo refactor
   qDebug("streamStateReleaseBuf");
   if (!pVal) {
     return 0;
   }
 #ifdef USE_ROCKSDB
-  taosMemoryFree(pVal);
+  streamFileStateReleaseBuff(pState->pFileState, pVal, used);
 #else
   streamStateFreeVal(pVal);
 #endif
   return 0;
+}
+
+int32_t streamStateClearBuff(SStreamState* pState, void* pVal) {
+  return streamFileStateClearBuff(pState->pFileState, pVal);
 }
 
 SStreamStateCur* streamStateFillGetCur(SStreamState* pState, const SWinKey* key) {
@@ -566,39 +567,6 @@ int32_t streamStateGetGroupKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const v
     }
   }
   return -1;
-#endif
-}
-
-int32_t streamStateGetFirst(SStreamState* pState, SWinKey* key) {
-#ifdef USE_ROCKSDB
-  return streamStateGetFirst_rocksdb(pState, key);
-#else
-  // todo refactor
-  SWinKey tmp = {.ts = 0, .groupId = 0};
-  streamStatePut(pState, &tmp, NULL, 0);
-  SStreamStateCur* pCur = streamStateSeekKeyNext(pState, &tmp);
-  int32_t          code = streamStateGetKVByCur(pCur, key, NULL, 0);
-  streamStateFreeCur(pCur);
-  streamStateDel(pState, &tmp);
-  return code;
-#endif
-}
-
-int32_t streamStateSeekFirst(SStreamState* pState, SStreamStateCur* pCur) {
-#ifdef USE_ROCKSDB
-  rocksdb_iter_seek_to_first(pCur->iter);
-  return 0;
-#else
-  return tdbTbcMoveToFirst(pCur->pCur);
-#endif
-}
-
-int32_t streamStateSeekLast(SStreamState* pState, SStreamStateCur* pCur) {
-#ifdef USE_ROCKSDB
-  rocksdb_iter_seek_to_last(pCur->iter);
-  return 0;
-#else
-  return tdbTbcMoveToLast(pCur->pCur);
 #endif
 }
 
@@ -693,7 +661,7 @@ SStreamStateCur* streamStateFillSeekKeyPrev(SStreamState* pState, const SWinKey*
 
 int32_t streamStateCurNext(SStreamState* pState, SStreamStateCur* pCur) {
 #ifdef USE_ROCKSDB
-  return streamStateCurNext_rocksdb(pState, pCur);
+  return sessionWinStateMoveToNext(pCur);
 #else
   if (!pCur) {
     return -1;
@@ -714,7 +682,7 @@ int32_t streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur) {
 #endif
 }
 void streamStateFreeCur(SStreamStateCur* pCur) {
-  if (!pCur) {
+  if (!pCur || pCur->buffIndex >= 0) {
     return;
   }
   qDebug("streamStateFreeCur");
@@ -734,11 +702,17 @@ void streamStateFreeVal(void* val) {
 #endif
 }
 
-int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, const void* value, int32_t vLen) {
+int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, void* value, int32_t vLen) {
 #ifdef USE_ROCKSDB
-  qDebug("===stream===save skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64, key->win.skey, key->win.ekey,
-         key->groupId);
-  return streamStateSessionPut_rocksdb(pState, key, value, vLen);
+  SRowBuffPos* pos = (SRowBuffPos*)value;
+  if (pos->needFree) {
+    int32_t      code = streamStateSessionPut_rocksdb(pState, key, pos->pRowBuff, vLen);
+    streamStateReleaseBuf(pState, pos, true);
+    qDebug("===stream===save skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64 ".code:%d", key->win.skey,
+           key->win.ekey, key->groupId, code);
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
 #else
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
   return tdbTbUpsert(pState->pTdbState->pSessionStateDb, &sKey, sizeof(SStateSessionKey), value, vLen,
@@ -748,6 +722,7 @@ int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, cons
 
 int32_t streamStateSessionGet(SStreamState* pState, SSessionKey* key, void** pVal, int32_t* pVLen) {
 #ifdef USE_ROCKSDB
+  ASSERT(0);
   return streamStateSessionGet_rocksdb(pState, key, pVal, pVLen);
 #else
 
@@ -773,7 +748,7 @@ int32_t streamStateSessionDel(SStreamState* pState, const SSessionKey* key) {
 #ifdef USE_ROCKSDB
   qDebug("===stream===delete skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64, key->win.skey, key->win.ekey,
          key->groupId);
-  return streamStateSessionDel_rocksdb(pState, key);
+  return deleteRowBuff(pState->pFileState, key, sizeof(SSessionKey));
 #else
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
   return tdbTbDelete(pState->pTdbState->pSessionStateDb, &sKey, sizeof(SStateSessionKey), pState->pTdbState->txn);
@@ -782,7 +757,7 @@ int32_t streamStateSessionDel(SStreamState* pState, const SSessionKey* key) {
 
 SStreamStateCur* streamStateSessionSeekKeyCurrentPrev(SStreamState* pState, const SSessionKey* key) {
 #ifdef USE_ROCKSDB
-  return streamStateSessionSeekKeyCurrentPrev_rocksdb(pState, key);
+  return sessionWinStateSeekKeyCurrentPrev(pState->pFileState, key);
 #else
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
   if (pCur == NULL) {
@@ -813,7 +788,7 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentPrev(SStreamState* pState, cons
 
 SStreamStateCur* streamStateSessionSeekKeyCurrentNext(SStreamState* pState, const SSessionKey* key) {
 #ifdef USE_ROCKSDB
-  return streamStateSessionSeekKeyCurrentNext_rocksdb(pState, (SSessionKey*)key);
+  return sessionWinStateSeekKeyCurrentNext(pState->pFileState, key);
 #else
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
   if (pCur == NULL) {
@@ -845,7 +820,7 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentNext(SStreamState* pState, cons
 
 SStreamStateCur* streamStateSessionSeekKeyNext(SStreamState* pState, const SSessionKey* key) {
 #ifdef USE_ROCKSDB
-  return streamStateSessionSeekKeyNext_rocksdb(pState, key);
+  return sessionWinStateSeekKeyNext(pState->pFileState, key);
 #else
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
   if (pCur == NULL) {
@@ -876,7 +851,7 @@ SStreamStateCur* streamStateSessionSeekKeyNext(SStreamState* pState, const SSess
 
 int32_t streamStateSessionGetKVByCur(SStreamStateCur* pCur, SSessionKey* pKey, void** pVal, int32_t* pVLen) {
 #ifdef USE_ROCKSDB
-  return streamStateSessionGetKVByCur_rocksdb(pCur, pKey, pVal, pVLen);
+  return sessionWinStateGetKVByCur(pCur, pKey, pVal, pVLen);
 #else
   if (!pCur) {
     return -1;
@@ -899,6 +874,7 @@ int32_t streamStateSessionGetKVByCur(SStreamStateCur* pCur, SSessionKey* pKey, v
 
 int32_t streamStateSessionClear(SStreamState* pState) {
 #ifdef USE_ROCKSDB
+  sessionWinStateClear(pState->pFileState);
   return streamStateSessionClear_rocksdb(pState);
 #else
   SSessionKey      key = {.win.skey = 0, .win.ekey = 0, .groupId = 0};
@@ -923,7 +899,7 @@ int32_t streamStateSessionClear(SStreamState* pState) {
 
 int32_t streamStateSessionGetKeyByRange(SStreamState* pState, const SSessionKey* key, SSessionKey* curKey) {
 #ifdef USE_ROCKSDB
-  return streamStateSessionGetKeyByRange_rocksdb(pState, key, curKey);
+  return sessionWinStateGetKeyByRange(pState->pFileState, key, curKey);
 #else
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
   if (pCur == NULL) {
@@ -976,7 +952,7 @@ int32_t streamStateSessionGetKeyByRange(SStreamState* pState, const SSessionKey*
 int32_t streamStateSessionAddIfNotExist(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal,
                                         int32_t* pVLen) {
 #ifdef USE_ROCKSDB
-  return streamStateSessionAddIfNotExist_rocksdb(pState, key, gap, pVal, pVLen);
+  return getSessionWinResultBuff(pState->pFileState, key, gap, pVal, pVLen);
 #else
   // todo refactor
   int32_t     res = 0;
@@ -1032,7 +1008,7 @@ int32_t streamStateStateAddIfNotExist(SStreamState* pState, SSessionKey* key, ch
   // todo refactor
 
 #ifdef USE_ROCKSDB
-  return streamStateStateAddIfNotExist_rocksdb(pState, key, pKeyData, keyDataLen, fn, pVal, pVLen);
+  return getStateWinResultBuff(pState->pFileState, key, pKeyData, keyDataLen, fn, pVal, pVLen);
 #else
   int32_t     res = 0;
   SSessionKey tmpKey = *key;
@@ -1142,6 +1118,12 @@ int32_t streamStateDeleteCheckPoint(SStreamState* pState, TSKEY mark) {
 }
 
 void streamStateReloadInfo(SStreamState* pState, TSKEY ts) { streamFileStateReloadInfo(pState->pFileState, ts); }
+
+SStreamStateCur* createStreamStateCursor() {
+  SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
+  pCur->buffIndex = -1;
+  return pCur;
+}
 
 #if 0
 char* streamStateSessionDump(SStreamState* pState) {
