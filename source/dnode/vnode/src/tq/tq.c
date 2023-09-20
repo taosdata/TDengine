@@ -1128,7 +1128,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
     while (1) {
       taosThreadMutexLock(&pStreamTask->lock);
-      int8_t status = pTask->status.taskStatus;
+      int8_t status = pStreamTask->status.taskStatus;
       if (status == TASK_STATUS__DROPPING || status == TASK_STATUS__STOP) {
         //        return;
         // do nothing
@@ -1139,9 +1139,9 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
         // do nothing
       }
 
-      if (pTask->status.taskStatus == TASK_STATUS__CK) {
+      if (pStreamTask->status.taskStatus == TASK_STATUS__CK) {
         qDebug("s-task:%s status:%s during generating checkpoint, wait for 1sec and retry set status:halt",
-               pTask->id.idStr, streamGetTaskStatusStr(TASK_STATUS__CK));
+               pStreamTask->id.idStr, streamGetTaskStatusStr(TASK_STATUS__CK));
         taosThreadMutexUnlock(&pStreamTask->lock);
         taosMsleep(1000);
         continue;
@@ -1149,14 +1149,14 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
       // upgrade to halt status
       if (status == TASK_STATUS__PAUSE) {
-        qDebug("s-task:%s upgrade status to %s from %s", pTask->id.idStr, streamGetTaskStatusStr(TASK_STATUS__HALT),
+        qDebug("s-task:%s upgrade status to %s from %s", pStreamTask->id.idStr, streamGetTaskStatusStr(TASK_STATUS__HALT),
                streamGetTaskStatusStr(TASK_STATUS__PAUSE));
       } else {
-        qDebug("s-task:%s halt task", pTask->id.idStr);
+        qDebug("s-task:%s halt task", pStreamTask->id.idStr);
       }
 
-      pTask->status.keepTaskStatus = status;
-      pTask->status.taskStatus = TASK_STATUS__HALT;
+      pStreamTask->status.keepTaskStatus = status;
+      pStreamTask->status.taskStatus = TASK_STATUS__HALT;
 
       tqDebug("s-task:%s level:%d sched-status:%d is halt by fill-history task:%s", pStreamTask->id.idStr,
               pStreamTask->info.taskLevel, pStreamTask->status.schedStatus, id);
