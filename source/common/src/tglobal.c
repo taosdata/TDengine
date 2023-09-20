@@ -220,7 +220,7 @@ double   tsFPrecision = 1E-8;                   // float column precision
 double   tsDPrecision = 1E-16;                  // double column precision
 uint32_t tsMaxRange = 500;                      // max quantization intervals
 uint32_t tsCurRange = 100;                      // current quantization intervals
-bool     tsIfAdtFse = true;                     // ADT-FSE algorithom or original huffman algorithom
+bool     tsIfAdtFse = false;                     // ADT-FSE algorithom or original huffman algorithom
 char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 
 // udf
