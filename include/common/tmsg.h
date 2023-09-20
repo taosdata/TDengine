@@ -3905,6 +3905,7 @@ typedef struct {
 typedef struct {
   char     name[TSDB_VIEW_NAME_LEN];
   char     dbFName[TSDB_DB_FNAME_LEN];
+  char*    sql;
   int8_t   orReplace;
   int8_t   precision;
   int32_t  numOfCols;

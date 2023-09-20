@@ -729,55 +729,7 @@ void    tFreeStreamObj(SStreamObj* pObj);
 // } SStreamCheckpointObj;
 
 
-typedef struct {
-  char name[TSDB_STREAM_FNAME_LEN];
-  // ctl
-  SRWLatch lock;
-  // create info
-  int64_t createTime;
-  int64_t updateTime;
-  int32_t version;
-  int32_t totalLevel;
-  int64_t smaId;  // 0 for unused
-  // info
-  int64_t     uid;
-  int8_t      status;
-  SStreamConf conf;
-  // source and target
-  int64_t sourceDbUid;
-  int64_t targetDbUid;
-  char    sourceDb[TSDB_DB_FNAME_LEN];
-  char    targetDb[TSDB_DB_FNAME_LEN];
-  char    targetSTbName[TSDB_TABLE_FNAME_LEN];
-  int64_t targetStbUid;
-
-  // fixedSinkVg is not applicable for encode and decode
-  SVgObj  fixedSinkVg;
-  int32_t fixedSinkVgId;  // 0 for shuffle
-
-  // transformation
-  char*   sql;
-  char*   ast;
-  char*   physicalPlan;
-  SArray* tasks;  // SArray<SArray<SStreamTask>>
-
-  SArray* pHTasksList;  // generate the results for already stored ts data
-  int64_t hTaskUid;     // stream task for history ts data
-
-  SSchemaWrapper outputSchema;
-  SSchemaWrapper tagSchema;
-
-  // 3.0.20
-  int64_t checkpointFreq;  // ms
-  int64_t currentTick;     // do not serialize
-  int64_t deleteMark;
-  int8_t  igCheckUpdate;
-
-  // 3.0.5.
-  int64_t checkpointId;
-  char    reserve[256];
-
-} SViewObj;
+typedef SCMCreateViewReq SViewObj;
 
 int32_t tEncodeSViewObj(SEncoder* pEncoder, const SViewObj* pObj);
 int32_t tDecodeSViewObj(SDecoder* pDecoder, SViewObj* pObj, int32_t sver);
