@@ -488,10 +488,16 @@ impl Client {
                     }
                     "list" => {
                         let req: DataSetsReq = serde_json::from_str(&context).unwrap();
-                        let sets = list_datasets_from(&req).await.map_err(Fail::new);
-                        let _ = resp_tx
-                            .send_async(RespAction::ListOk(ListResponse { req, res: sets }))
-                            .await?;
+                        let resp_tx = resp_tx.clone();
+                        tokio::spawn(async move {
+                            let sets = list_datasets_from(&req).await.map_err(Fail::new);
+                            let send_ok = resp_tx
+                                .send_async(RespAction::ListOk(ListResponse { req, res: sets }))
+                                .await;
+                            if let Err(err) = send_ok {
+                                tracing::error!("Can't send list response to server: {err:#}");
+                            }
+                        });
                     }
                     "heartbeat" => {
                         let resp = HeartbeatResponse {
