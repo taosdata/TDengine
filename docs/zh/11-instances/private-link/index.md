@@ -5,8 +5,8 @@ description: 使用 PrivateLink 打通您的 VPC 和 TDengine Cloud 服务实例
 ---
 
 ## 介绍
-阿里云 私网连接（PrivateLink） 是一种高度可用、可扩展的技术，您可以使用它将您的应用程序连接到具有不同 VPC 的 TDengine Cloud 实例。 
-"私有网络连接"允许您的 VPC 中的应用程序通过您的私有 IP 地址连接到 TDengine Cloud 实例，而不是公共互联网。
+阿里云 私网连接（PrivateLink） 是一种高可用、可扩展的技术，您可以使用它将您的应用程序连接到阿里云同一个区域或者不同区域的 TDengine Cloud 实例。 
+"私有网络连接"允许您阿里云中的应用程序通过您的私有 IP 地址连接到 TDengine Cloud 实例的私有网关地址，而不是公共互联网网关地址。
 
 
 PrivateLink 的架构如下：
