@@ -1712,9 +1712,38 @@ export default {
           data.authentication &&
           data.authentication.value == "certificates"
         ) {
-          data.authentication.alternatives[2].params.forEach((val) => {
-            querystr += val.value ? `${val.name}=${val.value}&` : "";
-          });
+          for (
+            let i = 0;
+            i < data.authentication.alternatives[2].params.length;
+            i++
+          ) {
+            let type = data.authentication.alternatives[2].params[i].hint.type;
+            let authName = data.authentication.alternatives[2].params[i].name;
+
+            let authValue =
+              type == "file"
+                ? authName == "certificate"
+                  ? this.certfileList.length > 0
+                    ? "@" + this.certfileList[0].response[0]
+                    : ""
+                  : this.privatefileList.length > 0
+                  ? "@" + this.privatefileList[0].response[0]
+                  : ""
+                : data.authentication.alternatives[2].params[i].value;
+            let authDisplay =
+              data.authentication.alternatives[2].params[i].display;
+            let authRequired =
+              data.authentication.alternatives[2].params[i].required;
+            if (authRequired && !authValue) {
+              Message({
+                type: "warning",
+                message: this.$t("datasource.msg") + ":" + `${authDisplay} `,
+              });
+              return;
+            } else {
+              querystr += authValue ? `${authName}=${authValue}&` : "";
+            }
+          }
         }
         if (data.authentication && data.authentication.value == "plain") {
           if (data.authentication.alternatives[1].username.value) {
