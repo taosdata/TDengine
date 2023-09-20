@@ -29,6 +29,9 @@ extern "C" {
 #ifndef _STREAM_H_
 #define _STREAM_H_
 
+#define ONE_MB_F       (1048576.0)
+#define SIZE_IN_MB(_v) ((_v) / ONE_MB_F)
+
 typedef struct SStreamTask SStreamTask;
 
 #define SSTREAM_TASK_VER 2
@@ -306,6 +309,7 @@ typedef struct SSinkTaskRecorder {
   int64_t numOfSubmit;
   int64_t numOfBlocks;
   int64_t numOfRows;
+  int64_t bytes;
 } SSinkTaskRecorder;
 
 typedef struct {

@@ -95,7 +95,7 @@ static int32_t streamAlignCheckpoint(SStreamTask* pTask) {
   int32_t num = taosArrayGetSize(pTask->pUpstreamInfoList);
   int64_t old = atomic_val_compare_exchange_32(&pTask->checkpointAlignCnt, 0, num);
   if (old == 0) {
-    qDebug("s-task:%s set initial align upstream num:%d", pTask->id.idStr, num);
+    stDebug("s-task:%s set initial align upstream num:%d", pTask->id.idStr, num);
   }
 
   return atomic_sub_fetch_32(&pTask->checkpointAlignCnt, 1);
@@ -189,7 +189,7 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
   int32_t taskLevel = pTask->info.taskLevel;
   if (taskLevel == TASK_LEVEL__SOURCE) {
     if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-      qDebug("s-task:%s set childIdx:%d, and add checkpoint block into outputQ", id, pTask->info.selfChildId);
+      stDebug("s-task:%s set childIdx:%d, and add checkpoint block into outputQ", id, pTask->info.selfChildId);
       continueDispatchCheckpointBlock(pBlock, pTask);
     } else {  // only one task exists, no need to dispatch downstream info
       streamProcessCheckpointReadyMsg(pTask);
@@ -207,19 +207,19 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
     int32_t notReady = streamAlignCheckpoint(pTask);
     int32_t num = taosArrayGetSize(pTask->pUpstreamInfoList);
     if (notReady > 0) {
-      qDebug("s-task:%s received checkpoint block, idx:%d, %d upstream tasks not send checkpoint info yet, total:%d",
+      stDebug("s-task:%s received checkpoint block, idx:%d, %d upstream tasks not send checkpoint info yet, total:%d",
              id, pTask->info.selfChildId, notReady, num);
       streamFreeQitem((SStreamQueueItem*)pBlock);
       return code;
     }
 
     if (taskLevel == TASK_LEVEL__SINK) {
-      qDebug("s-task:%s process checkpoint block, all %d upstreams sent checkpoint msgs, send ready msg to upstream",
+      stDebug("s-task:%s process checkpoint block, all %d upstreams sent checkpoint msgs, send ready msg to upstream",
              id, num);
       streamFreeQitem((SStreamQueueItem*)pBlock);
       streamTaskBuildCheckpoint(pTask);
     } else {
-      qDebug(
+      stDebug(
           "s-task:%s process checkpoint block, all %d upstreams sent checkpoint msgs, dispatch checkpoint msg "
           "downstream", id, num);
 
@@ -248,12 +248,12 @@ int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask) {
   ASSERT(notReady >= 0);
 
   if (notReady == 0) {
-    qDebug("s-task:%s all downstream tasks have completed the checkpoint, start to do checkpoint for current task",
+    stDebug("s-task:%s all downstream tasks have completed the checkpoint, start to do checkpoint for current task",
            pTask->id.idStr);
     appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT);
   } else {
     int32_t total = streamTaskGetNumOfDownstream(pTask);
-    qDebug("s-task:%s %d/%d downstream tasks are not ready, wait", pTask->id.idStr, notReady, total);
+    stDebug("s-task:%s %d/%d downstream tasks are not ready, wait", pTask->id.idStr, notReady, total);
   }
 
   return 0;
@@ -284,7 +284,7 @@ int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
     // save the task
     streamMetaSaveTask(pMeta, p);
     streamTaskOpenAllUpstreamInput(p);   // open inputQ for all upstream tasks
-    qDebug("vgId:%d s-task:%s level:%d commit task status after checkpoint completed, checkpointId:%" PRId64
+    stDebug("vgId:%d s-task:%s level:%d commit task status after checkpoint completed, checkpointId:%" PRId64
            ", Ver(saved):%" PRId64 " currentVer:%" PRId64 ", status to be normal, prev:%s",
            pMeta->vgId, p->id.idStr, p->info.taskLevel, checkpointId, p->chkInfo.checkpointVer, p->chkInfo.nextProcessVer,
            streamGetTaskStatusStr(prev));
@@ -292,12 +292,12 @@ int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
 
   if (streamMetaCommit(pMeta) < 0) {
     taosWUnLockLatch(&pMeta->lock);
-    qError("vgId:%d failed to commit stream meta after do checkpoint, checkpointId:%" PRId64 ", since %s", pMeta->vgId,
+    stError("vgId:%d failed to commit stream meta after do checkpoint, checkpointId:%" PRId64 ", since %s", pMeta->vgId,
            checkpointId, terrstr());
     return -1;
   } else {
     taosWUnLockLatch(&pMeta->lock);
-    qInfo("vgId:%d commit stream meta after do checkpoint, checkpointId:%" PRId64 " DONE", pMeta->vgId, checkpointId);
+    stInfo("vgId:%d commit stream meta after do checkpoint, checkpointId:%" PRId64 " DONE", pMeta->vgId, checkpointId);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -314,13 +314,13 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   double el = (taosGetTimestampMs() - pTask->chkInfo.startTs) / 1000.0;
 
   if (remain == 0) {  // all tasks are ready
-    qDebug("s-task:%s is ready for checkpoint", pTask->id.idStr);
+    stDebug("s-task:%s is ready for checkpoint", pTask->id.idStr);
     streamBackendDoCheckpoint(pMeta, pTask->checkpointingId);
     streamSaveAllTaskStatus(pMeta, pTask->checkpointingId);
-    qDebug("vgId:%d vnode wide checkpoint completed, save all tasks status, elapsed time:%.2f Sec checkpointId:%" PRId64, pMeta->vgId,
+    stInfo("vgId:%d vnode wide checkpoint completed, save all tasks status, elapsed time:%.2f Sec checkpointId:%" PRId64, pMeta->vgId,
            el, pTask->checkpointingId);
   } else {
-    qDebug(
+    stInfo(
         "vgId:%d vnode wide tasks not reach checkpoint ready status, ready s-task:%s, elapsed time:%.2f Sec not "
         "ready:%d/%d",
         pMeta->vgId, pTask->id.idStr, el, remain, pMeta->numOfStreamTasks);
@@ -335,7 +335,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
 
   if (code != TSDB_CODE_SUCCESS) {
     // todo: let's retry send rsp to upstream/mnode
-    qError("s-task:%s failed to send checkpoint rsp to upstream, checkpointId:%" PRId64 ", code:%s", pTask->id.idStr,
+    stError("s-task:%s failed to send checkpoint rsp to upstream, checkpointId:%" PRId64 ", code:%s", pTask->id.idStr,
            pTask->checkpointingId, tstrerror(code));
   }
 

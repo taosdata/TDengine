@@ -60,10 +60,10 @@ static void streamSchedByTimer(void* param, void* tmrId) {
   SStreamTask* pTask = (void*)param;
 
   int8_t status = atomic_load_8(&pTask->schedInfo.status);
-  qDebug("s-task:%s in scheduler, trigger status:%d, next:%dms", pTask->id.idStr, status, (int32_t)pTask->info.triggerParam);
+  stDebug("s-task:%s in scheduler, trigger status:%d, next:%dms", pTask->id.idStr, status, (int32_t)pTask->info.triggerParam);
 
   if (streamTaskShouldStop(&pTask->status) || streamTaskShouldPause(&pTask->status)) {
-    qDebug("s-task:%s jump out of schedTimer", pTask->id.idStr);
+    stDebug("s-task:%s jump out of schedTimer", pTask->id.idStr);
     return;
   }
 
@@ -98,7 +98,7 @@ int32_t streamSetupScheduleTrigger(SStreamTask* pTask) {
     int32_t ref = atomic_add_fetch_32(&pTask->refCnt, 1);
     ASSERT(ref == 2 && pTask->schedInfo.pTimer == NULL);
 
-    qDebug("s-task:%s setup scheduler trigger, delay:%" PRId64 " ms", pTask->id.idStr, pTask->info.triggerParam);
+    stDebug("s-task:%s setup scheduler trigger, delay:%" PRId64 " ms", pTask->id.idStr, pTask->info.triggerParam);
 
     pTask->schedInfo.pTimer = taosTmrStart(streamSchedByTimer, (int32_t)pTask->info.triggerParam, pTask, streamEnv.timer);
     pTask->schedInfo.status = TASK_TRIGGER_STATUS__INACTIVE;
@@ -114,7 +114,7 @@ int32_t streamSchedExec(SStreamTask* pTask) {
     if (pRunReq == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       /*int8_t status = */streamTaskSetSchedStatusInActive(pTask);
-      qError("failed to create msg to aunch s-task:%s, reason out of memory", pTask->id.idStr);
+      stError("failed to create msg to aunch s-task:%s, reason out of memory", pTask->id.idStr);
       return -1;
     }
 
@@ -122,12 +122,12 @@ int32_t streamSchedExec(SStreamTask* pTask) {
     pRunReq->streamId = pTask->id.streamId;
     pRunReq->taskId = pTask->id.taskId;
 
-    qDebug("trigger to run s-task:%s", pTask->id.idStr);
+    stDebug("trigger to run s-task:%s", pTask->id.idStr);
 
     SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
     tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &msg);
   } else {
-    qDebug("s-task:%s not launch task since sched status:%d", pTask->id.idStr, pTask->status.schedStatus);
+    stDebug("s-task:%s not launch task since sched status:%d", pTask->id.idStr, pTask->status.schedStatus);
   }
 
   return 0;
@@ -159,7 +159,7 @@ static int32_t streamTaskAppendInputBlocks(SStreamTask* pTask, const SStreamDisp
   if (pBlock == NULL) {
     streamTaskInputFail(pTask);
     status = TASK_INPUT_STATUS__FAILED;
-    qError("vgId:%d, s-task:%s failed to receive dispatch msg, reason: out of memory", pTask->pMeta->vgId,
+    stError("vgId:%d, s-task:%s failed to receive dispatch msg, reason: out of memory", pTask->pMeta->vgId,
            pTask->id.idStr);
   } else {
     if (pBlock->type == STREAM_INPUT__TRANS_STATE) {
@@ -180,7 +180,7 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
 
   // enqueue
   if (pData != NULL) {
-    qDebug("s-task:%s (child %d) recv retrieve req from task:0x%x(vgId:%d), reqId:0x%" PRIx64, pTask->id.idStr,
+    stDebug("s-task:%s (child %d) recv retrieve req from task:0x%x(vgId:%d), reqId:0x%" PRIx64, pTask->id.idStr,
            pTask->info.selfChildId, pReq->srcTaskId, pReq->srcNodeId, pReq->reqId);
 
     pData->type = STREAM_INPUT__DATA_RETRIEVE;
@@ -211,7 +211,7 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
 }
 
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp, bool exec) {
-  qDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d), msgLen:%" PRId64, pTask->id.idStr,
+  stDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d), msgLen:%" PRId64, pTask->id.idStr,
          pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->totalLen);
   int32_t status = 0;
 
@@ -220,21 +220,20 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
 
   // upstream task has restarted/leader-follower switch/transferred to other dnodes
   if (pReq->stage > pInfo->stage) {
-    qError("s-task:%s upstream task:0x%x (vgId:%d) has restart/leader-switch/vnode-transfer, prev stage:%" PRId64
+    stError("s-task:%s upstream task:0x%x (vgId:%d) has restart/leader-switch/vnode-transfer, prev stage:%" PRId64
            ", current:%" PRId64 " dispatch msg rejected",
            pTask->id.idStr, pReq->upstreamTaskId, pReq->upstreamNodeId, pInfo->stage, pReq->stage);
     status = TASK_INPUT_STATUS__BLOCKED;
   } else {
     if (!pInfo->dataAllowed) {
-      qWarn("s-task:%s data from task:0x%x is denied, since inputQ is closed for it", pTask->id.idStr,
+      stWarn("s-task:%s data from task:0x%x is denied, since inputQ is closed for it", pTask->id.idStr,
             pReq->upstreamTaskId);
       status = TASK_INPUT_STATUS__BLOCKED;
     } else {
-      // Current task has received the checkpoint req from the upstream task, from which the message should all be
-      // blocked
+      // This task has received the checkpoint req from the upstream task, from which all the messages should be blocked
       if (pReq->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
         streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
-        qDebug("s-task:%s close inputQ for upstream:0x%x", pTask->id.idStr, pReq->upstreamTaskId);
+        stDebug("s-task:%s close inputQ for upstream:0x%x", pTask->id.idStr, pReq->upstreamTaskId);
       }
 
       status = streamTaskAppendInputBlocks(pTask, pReq);
@@ -308,6 +307,6 @@ SStreamChildEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t 
     }
   }
 
-  qError("s-task:%s failed to find upstream task:0x%x", pTask->id.idStr, taskId);
+  stError("s-task:%s failed to find upstream task:0x%x", pTask->id.idStr, taskId);
   return NULL;
 }
