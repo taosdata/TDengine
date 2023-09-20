@@ -434,10 +434,20 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
     return -1;
   }
 #ifdef WINDOWS
-  size_t pos = _lseeki64(pFile->fd, 0, SEEK_CUR);
-  _lseeki64(pFile->fd, offset, SEEK_SET);
-  int64_t ret = _read(pFile->fd, buf, count);
-  _lseeki64(pFile->fd, pos, SEEK_SET);
+  int64_t ret = 0;
+
+  OVERLAPPED ol = {0};
+  ol.OffsetHigh = (uint32_t)((offset & 0xFFFFFFFF00000000LL) >> 0x20);
+  ol.Offset = (uint32_t)(offset & 0xFFFFFFFFLL);
+
+  HANDLE handle = (HANDLE)_get_osfhandle(pFile->fd);
+  SetLastError(0);
+  bool result = ReadFile(handle, buf, count, &ret, &ol);
+
+  if (!result && GetLastError() != ERROR_HANDLE_EOF) {
+    errno = GetLastError();
+    return -1;
+  }
 #else
   int64_t ret = pread(pFile->fd, buf, count, offset);
 #endif
@@ -501,10 +511,19 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
     return 0;
   }
 #ifdef WINDOWS
-  size_t pos = _lseeki64(pFile->fd, 0, SEEK_CUR);
-  _lseeki64(pFile->fd, offset, SEEK_SET);
-  int64_t ret = _write(pFile->fd, buf, count);
-  _lseeki64(pFile->fd, pos, SEEK_SET);
+  int64_t ret = 0;
+
+  OVERLAPPED ol = {0};
+  pl.OffsetHigh = (uint32_t)((offset & 0xFFFFFFFF00000000LL) >> 0x20);
+  pl.Offset = (uint32_t)(offset & 0xFFFFFFFFLL);
+
+  HANDLE handle = (HANDLE)_get_osfhandle(pFile->fd);
+  SetLastError(0);
+  bool result = WriteFile(handle, buf, count, &ret, &ol);
+  if (!result) {
+    errno = GetLastError();
+    return -1;
+  }
 #else
   int64_t ret = pwrite(pFile->fd, buf, count, offset);
 #endif
