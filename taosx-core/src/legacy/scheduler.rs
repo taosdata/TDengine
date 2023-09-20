@@ -121,7 +121,7 @@ async fn worker(
                                     break;
                                 }
                                 Err(err) => {
-                                    tracing::error!(
+                                    tracing::warn!(
                                         "sync_super_table_schema_with_subs {stable} err: {err:#}"
                                     );
                                     let table_count = tables.len();
@@ -152,6 +152,13 @@ async fn worker(
                                             tables.join(","),
                                             format!("{err:#}").replace("\n", " ")
                                         ))?;
+                                    } else {
+                                        println!(
+                                            "meta\t{}:{}\t\t{}",
+                                            stable.as_str(),
+                                            tables.join(","),
+                                            format!("{err:#}").replace("\n", " ")
+                                        );
                                     }
 
                                     if let Some(sender) = sender {
@@ -176,6 +183,12 @@ async fn worker(
                                         table.as_str(),
                                         format!("{err:?}").replace("\n", " ")
                                     ))?;
+                                } else {
+                                    println!(
+                                        "meta\t{}\t\t{}",
+                                        table.as_str(),
+                                        format!("{err:?}").replace("\n", " ")
+                                    );
                                 }
                                 errors.extend(format!("- Error of table {table}: {err}\n").chars());
                             } else {
@@ -272,6 +285,13 @@ async fn worker(
                                                 query.time_range,
                                                 format!("{err:?}").replace("\n", " ")
                                             ))?;
+                                        } else {
+                                            println!(
+                                                "data\t{}\t{:?}\t{}",
+                                                table.as_str(),
+                                                query.time_range,
+                                                format!("{err:?}").replace("\n", " ")
+                                            );
                                         }
 
                                         break;
@@ -301,6 +321,13 @@ async fn worker(
                                 query.time_range,
                                 format!("{err:?}").replace("\n", " ")
                             ))?;
+                        } else {
+                            println!(
+                                "data\t{}\t{:?}\t{}",
+                                table.as_str(),
+                                query.time_range,
+                                format!("{err:?}").replace("\n", " ")
+                            );
                         }
                     }
                 }
