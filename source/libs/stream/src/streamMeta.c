@@ -767,6 +767,8 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
     if (tEncodeI64(pEncoder, ps->id.streamId) < 0) return -1;
     if (tEncodeI32(pEncoder, ps->id.taskId) < 0) return -1;
     if (tEncodeI32(pEncoder, ps->status) < 0) return -1;
+    if (tEncodeI32(pEncoder, ps->stage) < 0) return -1;
+    if (tEncodeI32(pEncoder, ps->nodeId) < 0) return -1;
   }
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -779,15 +781,17 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
 
   pReq->pTaskStatus = taosArrayInit(pReq->numOfTasks, sizeof(STaskStatusEntry));
   for (int32_t i = 0; i < pReq->numOfTasks; ++i) {
-    STaskStatusEntry hb = {0};
-    if (tDecodeI64(pDecoder, &hb.id.streamId) < 0) return -1;
-    int32_t taskId = 0;
+    int32_t          taskId = 0;
+    STaskStatusEntry entry = {0};
+
+    if (tDecodeI64(pDecoder, &entry.id.streamId) < 0) return -1;
     if (tDecodeI32(pDecoder, &taskId) < 0) return -1;
+    if (tDecodeI32(pDecoder, &entry.status) < 0) return -1;
+    if (tDecodeI32(pDecoder, &entry.stage) < 0) return -1;
+    if (tDecodeI32(pDecoder, &entry.nodeId) < 0) return -1;
 
-    hb.id.taskId = taskId;
-    if (tDecodeI32(pDecoder, &hb.status) < 0) return -1;
-
-    taosArrayPush(pReq->pTaskStatus, &hb);
+    entry.id.taskId = taskId;
+    taosArrayPush(pReq->pTaskStatus, &entry);
   }
 
   tEndDecode(pDecoder);
@@ -856,7 +860,8 @@ void metaHbToMnode(void* param, void* tmrId) {
       continue;
     }
 
-    STaskStatusEntry entry = {.id = *pId, .status = (*pTask)->status.taskStatus};
+    STaskStatusEntry entry = {
+        .id = *pId, .status = (*pTask)->status.taskStatus, .nodeId = pMeta->vgId, .stage = pMeta->stage};
     taosArrayPush(hbMsg.pTaskStatus, &entry);
 
     if (!hasValEpset) {
