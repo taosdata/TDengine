@@ -241,6 +241,11 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
     }
   }
 
+  int8_t st = pTask->status.taskStatus;
+  if (st == TASK_STATUS__HALT) {
+    status = TASK_INPUT_STATUS__BLOCKED;
+  }
+
   {
     // do send response with the input status
     int32_t code = buildDispatchRsp(pTask, pReq, status, &pRsp->pCont);
@@ -255,7 +260,6 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
 
   tDeleteStreamDispatchReq(pReq);
 
-  int8_t st = pTask->status.taskStatus;
   if (st == TASK_STATUS__NORMAL || st == TASK_STATUS__SCAN_HISTORY || st == TASK_STATUS__CK) {
     int8_t schedStatus = streamTaskSetSchedStatusWait(pTask);
     if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
