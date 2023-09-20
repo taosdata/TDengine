@@ -616,7 +616,6 @@ impl TaskController {
             task.id = id,
             trace_id = tracing::field::Empty
         );
-        dbg!(tracing::Span::current().metadata());
         // span.record("request", value)
         let opts = TaskOpts {
             transform: vec![],

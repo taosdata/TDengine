@@ -1230,7 +1230,6 @@ async fn consume_flat_record(
 
                         let mut raw = RawBlock::from_views(&views, taos::Precision::Millisecond);
                         raw.with_field_names(&columns).with_table_name(table_name);
-                        //debug!("{}", &raw.pretty_format());
 
                         let mut write_retries = 0;
                         loop {
@@ -1426,7 +1425,6 @@ async fn consume_flat_record(
                                                 }
                                             }
                                         }
-
                                     }
                                 }
                             }
@@ -1435,7 +1433,7 @@ async fn consume_flat_record(
                                 let err_str = err.to_string();
                                 write_retries += 1;
                                 if write_retries > 2 {
-                                    tracing::warn!("flat message write raw block encounter unrecoverable err: {err:#}");
+                                    tracing::error!("flat message write raw block encounter unrecoverable err: {err:#}");
                                     counter!(WRITE_RAW_BLOCK_FAILS, 1);
                                     counter!(RECORD_FAILS, raw.nrows() as u64);
                                     counter!(
