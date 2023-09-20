@@ -789,11 +789,11 @@ pub async fn generate_opcconfig_from_csv(
                             column_alias: Some(quality_col_name.clone()),
                             is_primary_key: false,
                         });
-                        let received_ts_col = record_map.get("received_ts_col");
+                        let received_ts_col = record_map.get("received_ts_col").or(record_map.get("received_time_col"));
                         let mut has_primary_key = false;
                         if received_ts_col.is_some() {
                             let received_ts_col_name = record_map
-                                .get("received_ts_col")
+                                .get("received_ts_col").or(record_map.get("received_time_col"))
                                 .unwrap_or(&"received_ts".to_string())
                                 .clone();
                             check_duplicated(
