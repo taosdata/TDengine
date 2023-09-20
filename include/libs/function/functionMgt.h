@@ -236,6 +236,7 @@ bool fmIsInterpPseudoColumnFunc(int32_t funcId);
 bool fmIsGroupKeyFunc(int32_t funcId);
 bool fmIsBlockDistFunc(int32_t funcId);
 bool fmIsConstantResFunc(SFunctionNode* pFunc);
+bool fmIsSkipScanCheckFunc(int32_t funcId);
 
 void getLastCacheDataType(SDataType* pType);
 SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList);
