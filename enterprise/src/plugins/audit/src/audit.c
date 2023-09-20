@@ -31,7 +31,12 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
   }
   int32_t min = len > AUDIT_DETAIL_MAX ? AUDIT_DETAIL_MAX : len;
   char* buf = taosMemoryMalloc(min);
-  memcpy(buf, detail, min - 1);
+  if(detail == NULL && len > 0){
+    uError("audit detail shound not be null, len:%d", len);
+  }
+  if(detail != NULL){
+    memcpy(buf, detail, min - 1);
+  }
 
   char *user = pReq->info.conn.user;
 
