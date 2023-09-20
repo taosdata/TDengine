@@ -4674,9 +4674,133 @@ static int32_t checkCreateDatabase(STranslateContext* pCxt, SCreateDatabaseStmt*
   return checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions);
 }
 
+#define FILL_CMD_SQL(sql, sqlLen, pCmdReq, CMD_TYPE, genericCmd) \
+  CMD_TYPE* pCmdReq = genericCmd;                                                   \
+  char* cmdSql = taosMemoryMalloc(sqlLen); \
+  if (cmdSql == NULL) { \
+    return TSDB_CODE_OUT_OF_MEMORY; \
+  } \
+  memcpy(cmdSql, sql, sqlLen); \
+  pCmdReq->sqlLen = sqlLen; \
+  pCmdReq->sql = cmdSql;                                        \
+
+static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) {
+  const char* sql = pCxt->pParseCxt->pSql;
+  size_t sqlLen = pCxt->pParseCxt->sqlLen;
+
+  switch (msgType) {
+    case TDMT_MND_CREATE_DB: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateDbReq, pReq);
+      break;
+    }
+    case TDMT_MND_ALTER_DB: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SAlterDbReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_DB: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SDropDbReq, pReq);
+      break;
+    }  
+    case TDMT_MND_COMPACT_DB: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCompactDbReq, pReq);
+      break;
+    }
+
+    case TDMT_MND_TMQ_DROP_TOPIC: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropTopicReq, pReq);     
+      break; 
+    }
+
+    case TDMT_MND_BALANCE_VGROUP_LEADER: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SBalanceVgroupLeaderReq, pReq);  
+      break;          
+    }    
+    case TDMT_MND_BALANCE_VGROUP: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SBalanceVgroupReq, pReq);
+      break;            
+    }
+    case TDMT_MND_REDISTRIBUTE_VGROUP: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SRedistributeVgroupReq, pReq);
+      break;            
+    }
+    case TDMT_MND_CREATE_STB: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateStbReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_STB: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropStbReq, pReq);
+      break;
+    }
+    case TDMT_MND_ALTER_STB: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMAlterStbReq, pReq);
+      break;
+    }
+
+    case TDMT_MND_DROP_USER: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SDropUserReq, pReq);
+      break;
+    }
+    case TDMT_MND_CREATE_USER: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateUserReq, pReq);
+      break;
+    }
+    case TDMT_MND_ALTER_USER: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SAlterUserReq, pReq);
+      break;
+    }
+
+    case TDMT_MND_CREATE_QNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateQnodeReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_QNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropQnodeReq, pReq);
+      break;
+    }
+
+    case TDMT_MND_CREATE_MNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateMnodeReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_MNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropMnodeReq, pReq);
+      break;
+    }
+
+    case TDMT_MND_CREATE_DNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SCreateDnodeReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_DNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SDropDnodeReq, pReq);
+      break;
+    }
+    case TDMT_MND_RESTORE_DNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SRestoreDnodeReq, pReq);
+      break;
+    }
+    case TDMT_MND_CONFIG_DNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCfgDnodeReq, pReq);
+      break;
+    }
+
+    case TDMT_MND_DROP_STREAM: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropStreamReq, pReq);
+      break;
+    }
+    default: {
+      break;
+    }
+  
+  }
+  
+  return TSDB_CODE_SUCCESS;
+}
+
 typedef int32_t (*FSerializeFunc)(void* pBuf, int32_t bufLen, void* pReq);
 
 static int32_t buildCmdMsg(STranslateContext* pCxt, int16_t msgType, FSerializeFunc func, void* pReq) {
+  fillCmdSql(pCxt, msgType, pReq);
   pCxt->pCmdMsg = taosMemoryMalloc(sizeof(SCmdMsgInfo));
   if (NULL == pCxt->pCmdMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -4713,7 +4837,9 @@ static int32_t translateDropDatabase(STranslateContext* pCxt, SDropDatabaseStmt*
   tNameGetFullDbName(&name, dropReq.db);
   dropReq.ignoreNotExists = pStmt->ignoreNotExists;
 
-  return buildCmdMsg(pCxt, TDMT_MND_DROP_DB, (FSerializeFunc)tSerializeSDropDbReq, &dropReq);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_DB, (FSerializeFunc)tSerializeSDropDbReq, &dropReq);
+  tFreeSDropDbReq(&dropReq);
+  return code;
 }
 
 static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, SAlterDbReq* pReq) {
@@ -4749,7 +4875,9 @@ static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStm
   SAlterDbReq alterReq = {0};
   buildAlterDbReq(pCxt, pStmt, &alterReq);
 
-  return buildCmdMsg(pCxt, TDMT_MND_ALTER_DB, (FSerializeFunc)tSerializeSAlterDbReq, &alterReq);
+  code = buildCmdMsg(pCxt, TDMT_MND_ALTER_DB, (FSerializeFunc)tSerializeSAlterDbReq, &alterReq);
+  tFreeSAlterDbReq(&alterReq);
+  return code;
 }
 
 static int32_t translateTrimDatabase(STranslateContext* pCxt, STrimDatabaseStmt* pStmt) {
@@ -5466,6 +5594,7 @@ static int32_t doTranslateDropSuperTable(STranslateContext* pCxt, const SName* p
     tNameExtractFullName(pTableName, dropReq.name);
     dropReq.igNotExists = ignoreNotExists;
     code = buildCmdMsg(pCxt, TDMT_MND_DROP_STB, (FSerializeFunc)tSerializeSMDropStbReq, &dropReq);
+    tFreeSMDropStbReq(&dropReq);
   }
   return code;
 }
@@ -5745,7 +5874,9 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   createReq.enable = 1;
   strcpy(createReq.pass, pStmt->password);
 
-  return buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CREATE_USER, (FSerializeFunc)tSerializeSCreateUserReq, &createReq);
+  tFreeSCreateUserReq(&createReq);
+  return code;
 }
 
 static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt) {
@@ -5760,14 +5891,18 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
     snprintf(alterReq.objname, sizeof(alterReq.objname), "%s", pCxt->pParseCxt->db);
   }
 
-  return buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &alterReq);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &alterReq);
+  tFreeSAlterUserReq(&alterReq);
+  return code;
 }
 
 static int32_t translateDropUser(STranslateContext* pCxt, SDropUserStmt* pStmt) {
   SDropUserReq dropReq = {0};
   strcpy(dropReq.user, pStmt->userName);
 
-  return buildCmdMsg(pCxt, TDMT_MND_DROP_USER, (FSerializeFunc)tSerializeSDropUserReq, &dropReq);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_USER, (FSerializeFunc)tSerializeSDropUserReq, &dropReq);
+  tFreeSDropUserReq(&dropReq);
+  return code;
 }
 
 static int32_t translateCreateDnode(STranslateContext* pCxt, SCreateDnodeStmt* pStmt) {
@@ -5775,7 +5910,9 @@ static int32_t translateCreateDnode(STranslateContext* pCxt, SCreateDnodeStmt* p
   strcpy(createReq.fqdn, pStmt->fqdn);
   createReq.port = pStmt->port;
 
-  return buildCmdMsg(pCxt, TDMT_MND_CREATE_DNODE, (FSerializeFunc)tSerializeSCreateDnodeReq, &createReq);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CREATE_DNODE, (FSerializeFunc)tSerializeSCreateDnodeReq, &createReq);
+  tFreeSCreateDnodeReq(&createReq);
+  return code;
 }
 
 static int32_t translateDropDnode(STranslateContext* pCxt, SDropDnodeStmt* pStmt) {
@@ -5786,7 +5923,9 @@ static int32_t translateDropDnode(STranslateContext* pCxt, SDropDnodeStmt* pStmt
   dropReq.force = pStmt->force;
   dropReq.unsafe = pStmt->unsafe;
 
-  return buildCmdMsg(pCxt, TDMT_MND_DROP_DNODE, (FSerializeFunc)tSerializeSDropDnodeReq, &dropReq);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_DNODE, (FSerializeFunc)tSerializeSDropDnodeReq, &dropReq);
+  tFreeSDropDnodeReq(&dropReq);
+  return code;
 }
 
 static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pStmt) {
@@ -5795,7 +5934,9 @@ static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pSt
   strcpy(cfgReq.config, pStmt->config);
   strcpy(cfgReq.value, pStmt->value);
 
-  return buildCmdMsg(pCxt, TDMT_MND_CONFIG_DNODE, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CONFIG_DNODE, (FSerializeFunc)tSerializeSMCfgDnodeReq, &cfgReq);
+  tFreeSMCfgDnodeReq(&cfgReq);
+  return code;
 }
 
 static int32_t translateRestoreDnode(STranslateContext* pCxt, SRestoreComponentNodeStmt* pStmt) {
@@ -5817,7 +5958,10 @@ static int32_t translateRestoreDnode(STranslateContext* pCxt, SRestoreComponentN
     default:
       return -1;
   }
-  return buildCmdMsg(pCxt, TDMT_MND_RESTORE_DNODE, (FSerializeFunc)tSerializeSRestoreDnodeReq, &restoreReq);
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_RESTORE_DNODE, (FSerializeFunc)tSerializeSRestoreDnodeReq, &restoreReq);
+  tFreeSRestoreDnodeReq(&restoreReq);
+  return code;
 }
 
 static int32_t getSmaIndexDstVgId(STranslateContext* pCxt, const char* pDbName, const char* pTableName,
@@ -6087,8 +6231,10 @@ static int16_t getCreateComponentNodeMsgType(ENodeType type) {
 
 static int32_t translateCreateComponentNode(STranslateContext* pCxt, SCreateComponentNodeStmt* pStmt) {
   SMCreateQnodeReq createReq = {.dnodeId = pStmt->dnodeId};
-  return buildCmdMsg(pCxt, getCreateComponentNodeMsgType(nodeType(pStmt)),
+  int32_t code = buildCmdMsg(pCxt, getCreateComponentNodeMsgType(nodeType(pStmt)),
                      (FSerializeFunc)tSerializeSCreateDropMQSNodeReq, &createReq);
+  tFreeSMCreateQnodeReq(&createReq);
+  return code;                   
 }
 
 static int16_t getDropComponentNodeMsgType(ENodeType type) {
@@ -6109,8 +6255,10 @@ static int16_t getDropComponentNodeMsgType(ENodeType type) {
 
 static int32_t translateDropComponentNode(STranslateContext* pCxt, SDropComponentNodeStmt* pStmt) {
   SDDropQnodeReq dropReq = {.dnodeId = pStmt->dnodeId};
-  return buildCmdMsg(pCxt, getDropComponentNodeMsgType(nodeType(pStmt)),
+  int32_t code = buildCmdMsg(pCxt, getDropComponentNodeMsgType(nodeType(pStmt)),
                      (FSerializeFunc)tSerializeSCreateDropMQSNodeReq, &dropReq);
+  tFreeSDDropQnodeReq(&dropReq);
+  return code;                   
 }
 
 static int32_t checkTopicQuery(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -6299,7 +6447,9 @@ static int32_t translateDropTopic(STranslateContext* pCxt, SDropTopicStmt* pStmt
   snprintf(dropReq.name, sizeof(dropReq.name), "%d.%s", pCxt->pParseCxt->acctId, pStmt->topicName);
   dropReq.igNotExists = pStmt->ignoreNotExists;
 
-  return buildCmdMsg(pCxt, TDMT_MND_TMQ_DROP_TOPIC, (FSerializeFunc)tSerializeSMDropTopicReq, &dropReq);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_TMQ_DROP_TOPIC, (FSerializeFunc)tSerializeSMDropTopicReq, &dropReq);
+  tFreeSMDropTopicReq(&dropReq);
+  return code;
 }
 
 static int32_t translateDropCGroup(STranslateContext* pCxt, SDropCGroupStmt* pStmt) {
@@ -6367,6 +6517,7 @@ static int32_t translateCompact(STranslateContext* pCxt, SCompactDatabaseStmt* p
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_COMPACT_DB, (FSerializeFunc)tSerializeSCompactDbReq, &compactReq);
   }
+  tFreeSCompactDbReq(&compactReq);
   return code;
 }
 
@@ -7226,7 +7377,9 @@ static int32_t translateDropStream(STranslateContext* pCxt, SDropStreamStmt* pSt
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->streamName, strlen(pStmt->streamName));
   tNameGetFullDbName(&name, dropReq.name);
   dropReq.igNotExists = pStmt->ignoreNotExists;
-  return buildCmdMsg(pCxt, TDMT_MND_DROP_STREAM, (FSerializeFunc)tSerializeSMDropStreamReq, &dropReq);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_STREAM, (FSerializeFunc)tSerializeSMDropStreamReq, &dropReq);
+  tFreeSMDropStreamReq(&dropReq);
+  return code;
 }
 
 static int32_t translatePauseStream(STranslateContext* pCxt, SPauseStreamStmt* pStmt) {
@@ -7421,17 +7574,23 @@ static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
   strcpy(req.user, pStmt->userName);
   sprintf(req.objname, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
   sprintf(req.tabName, "%s", pStmt->tabName);
-  return buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
+  tFreeSAlterUserReq(&req);
+  return code;
 }
 
 static int32_t translateBalanceVgroup(STranslateContext* pCxt, SBalanceVgroupStmt* pStmt) {
   SBalanceVgroupReq req = {0};
-  return buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP, (FSerializeFunc)tSerializeSBalanceVgroupReq, &req);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP, (FSerializeFunc)tSerializeSBalanceVgroupReq, &req);
+  tFreeSBalanceVgroupReq(&req);
+  return code;
 }
 
 static int32_t translateBalanceVgroupLeader(STranslateContext* pCxt, SBalanceVgroupLeaderStmt* pStmt) {
   SBalanceVgroupLeaderReq req = {0};
-  return buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP_LEADER, (FSerializeFunc)tSerializeSBalanceVgroupLeaderReq, &req);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP_LEADER, (FSerializeFunc)tSerializeSBalanceVgroupLeaderReq, &req);
+  tFreeSBalanceVgroupLeaderReq(&req);
+  return code;
 }
 
 static int32_t translateMergeVgroup(STranslateContext* pCxt, SMergeVgroupStmt* pStmt) {
@@ -7475,6 +7634,7 @@ static int32_t translateRedistributeVgroup(STranslateContext* pCxt, SRedistribut
     req.dnodeId3 = pStmt->dnodeId3;
     code = buildCmdMsg(pCxt, TDMT_MND_REDISTRIBUTE_VGROUP, (FSerializeFunc)tSerializeSRedistributeVgroupReq, &req);
   }
+  tFreeSRedistributeVgroupReq(&req);
   return code;
 }
 
@@ -8199,7 +8359,7 @@ typedef struct SVgroupCreateTableBatch {
 } SVgroupCreateTableBatch;
 
 static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* pStmt, const SVgroupInfo* pVgroupInfo,
-                                        SVgroupCreateTableBatch* pBatch) {
+                                        SVgroupCreateTableBatch* pBatch, STranslateContext* pCxt) {
   char  dbFName[TSDB_DB_FNAME_LEN] = {0};
   SName name = {.type = TSDB_DB_NAME_T, .acctId = acctId};
   strcpy(name.dbname, pStmt->dbName);
@@ -8209,6 +8369,14 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   req.type = TD_NORMAL_TABLE;
   req.name = taosStrdup(pStmt->tableName);
   req.ttl = pStmt->pOptions->ttl;
+  req.sqlLen = pCxt->pParseCxt->sqlLen;
+  if (req.sqlLen > 0) {
+    req.sql = taosMemoryMalloc(pCxt->pParseCxt->sqlLen);
+    if (NULL == req.sql) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    memcpy(req.sql, pCxt->pParseCxt->pSql, req.sqlLen);
+  }
   if (pStmt->pOptions->commentNull == false) {
     req.comment = taosStrdup(pStmt->pOptions->comment);
     if (NULL == req.comment) {
@@ -8313,14 +8481,14 @@ static void destroyCreateTbReqArray(SArray* pArray) {
 }
 
 static int32_t buildCreateTableDataBlock(int32_t acctId, const SCreateTableStmt* pStmt, const SVgroupInfo* pInfo,
-                                         SArray** pBufArray) {
+                                         SArray** pBufArray, STranslateContext* pCxt) {
   *pBufArray = taosArrayInit(1, POINTER_BYTES);
   if (NULL == *pBufArray) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   SVgroupCreateTableBatch tbatch = {0};
-  int32_t                 code = buildNormalTableBatchReq(acctId, pStmt, pInfo, &tbatch);
+  int32_t                 code = buildNormalTableBatchReq(acctId, pStmt, pInfo, &tbatch, pCxt);
   if (TSDB_CODE_SUCCESS == code) {
     code = serializeVgroupCreateTableBatch(&tbatch, *pBufArray);
   }
@@ -8347,7 +8515,7 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
   }
   SArray* pBufArray = NULL;
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildCreateTableDataBlock(pCxt->pParseCxt->acctId, pStmt, &info, &pBufArray);
+    code = buildCreateTableDataBlock(pCxt->pParseCxt->acctId, pStmt, &info, &pBufArray, pCxt);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteToVnodeModifyOpStmt(pQuery, pBufArray);
@@ -8361,7 +8529,7 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
 
 static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, SCreateSubTableClause* pStmt,
                                      const STag* pTag, uint64_t suid, const char* sTableNmae, SVgroupInfo* pVgInfo,
-                                     SArray* tagName, uint8_t tagNum) {
+                                     SArray* tagName, uint8_t tagNum, STranslateContext* pCxt) {
   //  char  dbFName[TSDB_DB_FNAME_LEN] = {0};
   //  SName name = {.type = TSDB_DB_NAME_T, .acctId = acctId};
   //  strcpy(name.dbname, pStmt->dbName);
@@ -8371,6 +8539,11 @@ static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, S
   req.type = TD_CHILD_TABLE;
   req.name = taosStrdup(pStmt->tableName);
   req.ttl = pStmt->pOptions->ttl;
+  req.sqlLen = pCxt->pParseCxt->sqlLen;
+  if (req.sqlLen > 0) {
+    req.sql = taosMemoryMalloc(pCxt->pParseCxt->sqlLen);
+    memcpy(req.sql, pCxt->pParseCxt->pSql, req.sqlLen);
+  }
   if (pStmt->pOptions->commentNull == false) {
     req.comment = taosStrdup(pStmt->pOptions->comment);
     req.commentLen = strlen(pStmt->pOptions->comment);
@@ -8647,7 +8820,7 @@ static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableCla
   }
   if (TSDB_CODE_SUCCESS == code) {
     addCreateTbReqIntoVgroup(pCxt->pParseCxt->acctId, pVgroupHashmap, pStmt, pTag, pSuperTableMeta->uid,
-                             pStmt->useTableName, &info, tagName, pSuperTableMeta->tableInfo.numOfTags);
+                             pStmt->useTableName, &info, tagName, pSuperTableMeta->tableInfo.numOfTags, pCxt);
   } else {
     taosMemoryFree(pTag);
   }
