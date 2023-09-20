@@ -163,34 +163,41 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
     }
   }
 
-  if (pFD->s3File) {
-    // 1. convert pgno to block no,
-    //    block_size(# of pages) & block_cache_size (# of blocks)
-    //    block_no = pgno / block_size + 1;
-    //    block_offset = (block_no - 1) * block_size * pFD->szPage
-    // 2, lookup block cache to fetch block
-    // 3, if found, memcpy page from block
-    // 4, if not found, download block from s3
-    //    check pg checksum in the block
-    //    insert into block cache and goto step 3.
-  }
-
-  // seek
   int64_t offset = PAGE_OFFSET(pgno, pFD->szPage);
-  int64_t n = taosLSeekFile(pFD->pFD, offset, SEEK_SET);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _exit;
-  }
 
-  // read
-  n = taosReadFile(pFD->pFD, pFD->pBuf, pFD->szPage);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _exit;
-  } else if (n < pFD->szPage) {
-    code = TSDB_CODE_FILE_CORRUPTED;
-    goto _exit;
+  if (pFD->s3File) {
+    LRUHandle *handle = NULL;
+
+    pFD->blkno = (pgno + tsS3BlockSize - 1) / tsS3BlockSize;
+    int32_t code = tsdbCacheGetBlockS3(pFD->pTsdb->bCache, pFD, &handle);
+    if (code != TSDB_CODE_SUCCESS || handle == NULL) {
+      tsdbBCacheRelease(pFD->pTsdb->bCache, handle);
+      goto _exit;
+    }
+
+    uint8_t *pBlock = (uint8_t *)taosLRUCacheValue(pFD->pTsdb->bCache, handle);
+
+    int64_t blk_offset = (pFD->blkno - 1) * tsS3BlockSize * pFD->szPage;
+    memcpy(pFD->pBuf, pBlock + (offset - blk_offset), pFD->szPage);
+
+    tsdbBCacheRelease(pFD->pTsdb->bCache, handle);
+  } else {
+    // seek
+    int64_t n = taosLSeekFile(pFD->pFD, offset, SEEK_SET);
+    if (n < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _exit;
+    }
+
+    // read
+    n = taosReadFile(pFD->pFD, pFD->pBuf, pFD->szPage);
+    if (n < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _exit;
+    } else if (n < pFD->szPage) {
+      code = TSDB_CODE_FILE_CORRUPTED;
+      goto _exit;
+    }
   }
 
   // check
