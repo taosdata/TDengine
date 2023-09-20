@@ -276,8 +276,8 @@ int32_t doBuildAndSendSubmitMsg(SVnode* pVnode, SStreamTask* pTask, SSubmitReq2*
     SSinkTaskRecorder* pRec = &pTask->sinkRecorder;
     double             el = (taosGetTimestampMs() - pTask->taskExecInfo.start) / 1000.0;
     tqInfo("s-task:%s vgId:%d write %" PRId64 " blocks (%" PRId64 " rows) in %" PRId64
-           " submit into dst table, duration:%.2f Sec.",
-           pTask->id.idStr, vgId, pRec->numOfBlocks, pRec->numOfRows, pRec->numOfSubmit, el);
+           " submit into dst table, %.2fMiB duration:%.2f Sec.",
+           pTask->id.idStr, vgId, pRec->numOfBlocks, pRec->numOfRows, pRec->numOfSubmit, SIZE_IN_MB(pRec->bytes), el);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -868,6 +868,7 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
       }
 
       pTask->sinkRecorder.numOfRows += pDataBlock->info.rows;
+      pTask->sinkRecorder.bytes += pDataBlock->info.rowSize;
     }
 
     taosHashCleanup(pTableIndexMap);
