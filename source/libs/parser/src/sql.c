@@ -6389,7 +6389,7 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 281: /* table_kind_db_name_cond_opt ::= */
 #line 512 "sql.y"
-{ yymsp[1].minor.yy343.kind = SHOW_KIND_NONE; yymsp[1].minor.yy343.pDbName = createDefaultDatabaseCondValue(pCxt); }
+{ yymsp[1].minor.yy343.kind = SHOW_KIND_ALL; yymsp[1].minor.yy343.pDbName = createDefaultDatabaseCondValue(pCxt); }
 #line 6393 "sql.c"
         break;
       case 282: /* table_kind_db_name_cond_opt ::= table_kind */
@@ -6400,7 +6400,7 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 283: /* table_kind_db_name_cond_opt ::= db_name_cond */
 #line 514 "sql.y"
-{ yylhsminor.yy343.kind = SHOW_KIND_NONE; yylhsminor.yy343.pDbName = yymsp[0].minor.yy122; }
+{ yylhsminor.yy343.kind = SHOW_KIND_ALL; yylhsminor.yy343.pDbName = yymsp[0].minor.yy122; }
 #line 6404 "sql.c"
   yymsp[0].minor.yy343 = yylhsminor.yy343;
         break;
@@ -6469,7 +6469,7 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 303: /* db_kind_opt ::= */
 #line 549 "sql.y"
-{ yymsp[1].minor.yy579 = SHOW_KIND_NONE; }
+{ yymsp[1].minor.yy579 = SHOW_KIND_ALL; }
 #line 6473 "sql.c"
         break;
       case 304: /* db_kind_opt ::= USER */

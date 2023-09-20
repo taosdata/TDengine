@@ -509,9 +509,9 @@ cmd ::= SHOW CLUSTER ALIVE.                                                     
 
 %type table_kind_db_name_cond_opt                                                 { SShowTablesOption }
 %destructor table_kind_db_name_cond_opt                                           { }
-table_kind_db_name_cond_opt(A) ::= .                                              { A.kind = SHOW_KIND_NONE; A.pDbName = createDefaultDatabaseCondValue(pCxt); }
+table_kind_db_name_cond_opt(A) ::= .                                              { A.kind = SHOW_KIND_ALL; A.pDbName = createDefaultDatabaseCondValue(pCxt); }
 table_kind_db_name_cond_opt(A) ::= table_kind(B).                                 { A.kind = B; A.pDbName = createDefaultDatabaseCondValue(pCxt); }
-table_kind_db_name_cond_opt(A) ::= db_name_cond(C).                               { A.kind = SHOW_KIND_NONE; A.pDbName = C; }
+table_kind_db_name_cond_opt(A) ::= db_name_cond(C).                               { A.kind = SHOW_KIND_ALL; A.pDbName = C; }
 table_kind_db_name_cond_opt(A) ::= table_kind(B) db_name_cond(C).                 { A.kind = B; A.pDbName = C; }
 
 %type table_kind                                                                  { EShowKind }
@@ -546,7 +546,7 @@ tag_item(A) ::= column_name(B) AS column_alias(C).                              
 
 %type db_kind_opt                                                                 { EShowKind }
 %destructor db_kind_opt                                                           { }
-db_kind_opt(A) ::= .                                                              { A = SHOW_KIND_NONE; }
+db_kind_opt(A) ::= .                                                              { A = SHOW_KIND_ALL; }
 db_kind_opt(A) ::= USER.                                                          { A = SHOW_KIND_DATABASES_USER; }
 db_kind_opt(A) ::= SYSTEM.                                                        { A = SHOW_KIND_DATABASES_SYSTEM; }
 

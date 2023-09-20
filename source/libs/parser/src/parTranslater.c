@@ -8079,7 +8079,7 @@ static int32_t addShowChildTablesCond(SSelectStmt* pSelect) {
 
 static int32_t addShowKindCond(const SShowStmt* pShow, SSelectStmt* pSelect) {
   if (pShow->type != QUERY_NODE_SHOW_DATABASES_STMT && pShow->type != QUERY_NODE_SHOW_TABLES_STMT ||
-      pShow->showKind == SHOW_KIND_NONE) {
+      pShow->showKind == SHOW_KIND_ALL) {
     return TSDB_CODE_SUCCESS;
   }
   if (pShow->type == QUERY_NODE_SHOW_DATABASES_STMT) {
