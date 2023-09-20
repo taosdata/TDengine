@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mndConsumer.h"
 #include "mndPrivilege.h"
+#include "mndVgroup.h"
 #include "mndShow.h"
 #include "mndSubscribe.h"
 #include "mndTopic.h"
@@ -401,6 +402,9 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
 
     SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, pConsumer->cgroup, data->topicName);
     if(pSub == NULL){
+#ifdef TMQ_DEBUG
+      ASSERT(0);
+#endif
       continue;
     }
     taosWLockLatch(&pSub->lock);
@@ -498,7 +502,9 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
       SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, pConsumer->cgroup, topic);
       // txn guarantees pSub is created
       if(pSub == NULL) {
+#ifdef TMQ_DEBUG
         ASSERT(0);
+#endif
         continue;
       }
       taosRLockLatch(&pSub->lock);
@@ -509,7 +515,9 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
       // 2.1 fetch topic schema
       SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
       if(pTopic == NULL) {
+#ifdef TMQ_DEBUG
         ASSERT(0);
+#endif
         taosRUnLockLatch(&pSub->lock);
         mndReleaseSubscribe(pMnode, pSub);
         continue;
@@ -542,6 +550,14 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
         SMqVgEp *pVgEp = taosArrayGetP(pConsumerEp->vgs, j);
         char     offsetKey[TSDB_PARTITION_KEY_LEN];
         mndMakePartitionKey(offsetKey, pConsumer->cgroup, topic, pVgEp->vgId);
+
+        if(epoch == -1){
+          SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVgEp->vgId);
+          if(pVgroup){
+            pVgEp->epSet = mndGetVgroupEpset(pMnode, pVgroup);
+            mndReleaseVgroup(pMnode, pVgroup);
+          }
+        }
         // 2.2.1 build vg ep
         SMqSubVgEp vgEp = {
             .epSet = pVgEp->epSet,
@@ -648,7 +664,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   }
 
   // check topic existence
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_TOPIC, pMsg, "subscribe");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pMsg, "subscribe");
   if (pTrans == NULL) {
     goto _over;
   }
