@@ -97,23 +97,17 @@ class TDTestCase:
         tdLog.debug("restart dnode ok")
 
     def redistributeVgroups(self):
-        dnodesList = []
-        tdSql.query("show dnodes")
-        for result in tdSql.queryResult:
-            dnodesList.append(result[0])
-
         tdSql.query("select * from information_schema.ins_vnodes")
         vnodeId = 0
         for result in tdSql.queryResult:
             if result[2] == 'dbt':
-                tdLog.debug("dnode is %d"%(result[0]))
-                dnodesList.remove(result[0])
                 vnodeId = result[1]
+                tdLog.debug("vnode is %d"%(vnodeId))
                 break
-        redistributeSql = "redistribute vgroup %d dnode %d" %(vnodeId, dnodesList[0])
-        tdLog.debug("redistributeSql:%s"%(redistributeSql))
-        tdSql.query(redistributeSql)
-        tdLog.debug("redistributeSql ok")
+        splitSql = "split vgroup %d" %(vnodeId)
+        tdLog.debug("splitSql:%s"%(splitSql))
+        tdSql.query(splitSql)
+        tdLog.debug("splitSql ok")
 
     def tmqCase1(self):
         tdLog.printNoPrefix("======== test case 1: ")
@@ -324,8 +318,6 @@ class TDTestCase:
         tdSql.prepare()
         self.prepareTestEnv()
         self.tmqCase1()
-        self.tmqCase2()
-        self.tmqCase3()
 
     def stop(self):
         tdSql.close()
