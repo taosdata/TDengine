@@ -1635,12 +1635,13 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
   if (pTask->status.taskStatus == TASK_STATUS__HALT) {
     qError("s-task:%s not ready for checkpoint, since it is halt, ignore this checkpoint:%" PRId64 ", set it failure",
            pTask->id.idStr, req.checkpointId);
+    taosThreadMutexUnlock(&pTask->lock);
+
     streamMetaReleaseTask(pMeta, pTask);
 
     SRpcMsg rsp = {0};
     buildCheckpointSourceRsp(&req, &pMsg->info, &rsp, 0);
     tmsgSendRsp(&rsp);   // error occurs
-    taosThreadMutexUnlock(&pTask->lock);
     return TSDB_CODE_SUCCESS;
   }
   streamProcessCheckpointSourceReq(pTask, &req);
