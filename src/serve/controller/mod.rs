@@ -142,7 +142,7 @@ pub struct AgentTasks {
 
 impl AgentTasks {
     pub fn new() -> Self {
-        let (sender, receiver) = tokio::sync::broadcast::channel(10);
+        let (sender, receiver) = tokio::sync::broadcast::channel(10000);
         Self {
             current: Arc::new(DashSet::new()),
             datasets: Arc::new(DashMap::new()),
@@ -1875,10 +1875,16 @@ impl TaskController {
         let agent = agent_tasks
             .get(&agent_id)
             .ok_or_else(|| anyhow::format_err!("Unknown or inactive agent {agent_id}"))?;
-
+        tracing::info!("Send list datasets request to agent");
         agent.send(AgentAction::ListDataSets(req, sender))?;
-        let data = recv.recv_async().await??;
-        Ok(data)
+        tracing::info!("Retrieve datasets result from agent");
+        match tokio::time::timeout(Duration::from_secs(20), recv.recv_async()).await {
+            Ok(data) => data?.context("Retrieve datasets result error"),
+            Err(err) => {
+                tracing::error!("Retrieve datasets result timeout from agent");
+                Err(err).context("Retrieve datasets result timeout from agent")
+            }
+        }
     }
 
     pub async fn cluster_transferred(
