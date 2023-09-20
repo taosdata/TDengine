@@ -31,8 +31,8 @@ void encode_with_fse(int *type, size_t dataSeriesLength, unsigned int intervals,
 
     // transcoding
     int md = intervals / 2;
-    uint8_t type2code[intervals];
-    unsigned int diff[intervals];
+    uint8_t*   type2code = (uint8_t *)malloc(intervals * sizeof(uint8_t));
+    uint32_t*  diff      = (uint32_t *)malloc(intervals * sizeof(uint32_t));
 
     for (int i = md; i < intervals; i++)
     {
@@ -80,6 +80,8 @@ void encode_with_fse(int *type, size_t dataSeriesLength, unsigned int intervals,
         exit(1);
     }
     free(tp_code);
+    free(type2code);
+    free(diff);
 
     return;
 }

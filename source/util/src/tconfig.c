@@ -507,7 +507,7 @@ const char *cfgDtypeStr(ECfgDataType type) {
       return "int64";
     case CFG_DTYPE_FLOAT:
       return "float";
-    case CFG_DTYPE_FLOAT:
+    case CFG_DTYPE_DOUBLE:
       return "double";
     case CFG_DTYPE_STRING:
       return "string";
