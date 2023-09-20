@@ -35,8 +35,7 @@ extern void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, ch
 
 void auditRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
                 char *detail, int32_t len) {
-  //auditRecordImp(pReq, clusterId, operation, target1, target2, detail, len);
-  auditRecordImp(pReq, clusterId, operation, target1, target2, detail, 0);
+  auditRecordImp(pReq, clusterId, operation, target1, target2, detail, len);
 }
 
 #ifndef TD_ENTERPRISE
