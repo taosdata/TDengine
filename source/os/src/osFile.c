@@ -533,8 +533,8 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
 #ifdef WINDOWS
   int64_t    ret = 0;
   OVERLAPPED ol = {0};
-  pl.OffsetHigh = (uint32_t)((offset & 0xFFFFFFFF00000000LL) >> 0x20);
-  pl.Offset = (uint32_t)(offset & 0xFFFFFFFFLL);
+  ol.OffsetHigh = (uint32_t)((offset & 0xFFFFFFFF00000000LL) >> 0x20);
+  ol.Offset = (uint32_t)(offset & 0xFFFFFFFFLL);
 
   HANDLE handle = (HANDLE)_get_osfhandle(pFile->fd);
   SetLastError(0);
