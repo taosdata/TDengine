@@ -259,13 +259,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   }
 
   tDeleteStreamDispatchReq(pReq);
-
-  if (st == TASK_STATUS__NORMAL || st == TASK_STATUS__SCAN_HISTORY || st == TASK_STATUS__CK) {
-    int8_t schedStatus = streamTaskSetSchedStatusWait(pTask);
-    if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
-      streamTryExec(pTask);
-    }
-  }
+  streamSchedExec(pTask);
 
   return 0;
 }
