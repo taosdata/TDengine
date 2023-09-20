@@ -17,7 +17,7 @@ use utoipa::*;
 mod definition;
 pub use definition::*;
 
-use crate::serve::{controller::TaskControllerRef, task::Failed};
+use crate::serve::{controller::TaskControllerRef, task::{Failed, ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT}};
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub(super) struct DataSourceInput {
@@ -197,6 +197,9 @@ pub(super) async fn data_source_collection(
     controller: Data<TaskControllerRef>,
     data: Json<DataSetsReq>,
 ) -> impl Responder {
+    let path = ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT.replace("files", "");
+    let root = std::path::Path::new(path.as_str());
+    let _ = std::env::set_current_dir(&root);
     let data = data.into_inner();
     match if let Some(agent) = data.via {
         controller.list_datasets_via_agent(agent, data).await
