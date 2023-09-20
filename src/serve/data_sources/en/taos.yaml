@@ -128,12 +128,12 @@ groups:
         display: Unit
         hint:
           type: duration
-        value: 0s
+        value: 1d
         description: |-
           Time duration unit for query.<br>
           Supports abbreviations of numbers and units, such as "1ms" for 1 millisecond, "1s" for 1 seconds, "1m" for 1 minute, "1h" for 1 hour, "1d" for 1 day, and "1w" for 1 week.<br>
           Only numbers default to seconds as unit.<br>
-        placeholder: 1d
+        placeholder: "Unit: 1s/1h/1d"
 
   - name: Realtime Settings
     display_order: 4
@@ -157,7 +157,7 @@ groups:
           Supports abbreviations of numbers and units, such as "1ms" for 1 millisecond, "1s" for 1 seconds, "1m" for 1 minute, "1h" for 1 hour, "1d" for 1 day, and "1w" for 1 week.<br>
           Only numbers default to seconds as unit.<br>
         value: 1s
-        placeholder:
+        placeholder: "Interval: 1s"
       - name: excursion
         display: Excursion
         hint:
@@ -167,4 +167,4 @@ groups:
           Wait for some period to querying random-order data.<br>
           Supports abbreviations of numbers and units, such as "1ms" for 1 millisecond, "1s" for 1 seconds, "1m" for 1 minute, "1h" for 1 hour, "1d" for 1 day, and "1w" for 1 week.<br>
           Only numbers default to seconds as unit.<br>
-        placeholder: 5m
+        placeholder: "Duration: 5m"
