@@ -2272,6 +2272,8 @@ void keepStreamTasksInBuf(SStreamObj *pStream, SStreamExecNodeInfo *pExecNode) {
                                   .status = TASK_STATUS__STOP};
         taosHashPut(pExecNode->pTaskMap, &id, sizeof(id), &entry, sizeof(entry));
         taosArrayPush(pExecNode->pTaskList, &id);
+        mInfo("s-task:0x%x add into task buffer, total:%d", (int32_t)entry.id.taskId,
+              (int32_t)taosArrayGetSize(pExecNode->pTaskList));
       }
     }
   }
@@ -2295,6 +2297,8 @@ void removeStreamTasksInBuf(SStreamObj* pStream, SStreamExecNodeInfo * pExecNode
           STaskId* pId = taosArrayGet(pExecNode->pTaskList, k);
           if (pId->taskId == id.taskId && pId->streamId == id.streamId) {
             taosArrayRemove(pExecNode->pTaskList, k);
+            mInfo("s-task:0x%x removed from buffer, remain:%d", (int32_t)id.taskId,
+                  (int32_t)taosArrayGetSize(pExecNode->pTaskList));
             break;
           }
         }
