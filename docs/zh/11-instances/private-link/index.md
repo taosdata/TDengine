@@ -5,8 +5,8 @@ description: 使用 PrivateLink 打通您的 VPC 和 TDengine Cloud 服务实例
 ---
 
 ## 介绍
-阿里云 私网连接（PrivateLink） 是一种高可用、可扩展的技术，您可以使用它将您的应用程序连接到阿里云同一个区域或者不同区域的 TDengine Cloud 实例。 
-"私有网络连接"允许您阿里云中的应用程序通过您的私有 IP 地址连接到 TDengine Cloud 实例的私有网关地址，而不是公共互联网网关地址。
+阿里云 私网连接（PrivateLink） 是一种高可用、可扩展的技术，您可以使用它将您的应用程序连接到阿里云同一个地域或者不同地域的 TDengine Cloud 实例。 
+"私有网络连接"允许您阿里云中的应用程序通过您的私有 IP 地址连接到 TDengine Cloud 实例的私有网关地址，而不是公共互联网网关地址。既节省公共互联网的网络流量开销，又提高了连接 TDengine Cloud 实例的带宽。
 
 
 PrivateLink 的架构如下：
@@ -19,7 +19,7 @@ PrivateLink 的架构如下：
 [阿里云私网连接概述](https://help.aliyun.com/document_detail/2539840.html)  
 
 ## 如何使用私网链接
-### 步骤1：在TDengine云中选择端点服务
+### 步骤1：在 TDengine Cloud 中选择终端服务并配置白名单
 1. 登录 TDengine Cloud 打开 [实例](https://console.cloud.taosdata.com/instances/privateLink) 页面， 选择右侧 "私有连接" 页签， 在页面上点击 **服务列表** 按钮。
 2. 在服务列表里选择和您 VPC 所在可用区的服务，点击操作栏 **添加白名单**按钮 ，输入您的阿里云账号ID。
 3. 在阿里云创建您的终端节点，此时可以选择到 TDengine Cloud 的终端服务。
@@ -75,8 +75,8 @@ PrivateLink 的架构如下：
 现在您可以使用私有 DNS 名称访问 VPC 中的 TDengine Cloud 实例。 您可以在 TDengine Cloud 的[实例页面](https://console.cloud.taosdata.com/instances)中找到**私有URL**。
 
 ## 如何删除端点连接
-1. 点击TDengine云**端点连接列表**页面中的**操作**按钮。 稍后，连接状态将变为 DISCONNECTED。
-2. 删除TDengine云**端点连接列表**页面中的连接。
-3. 在阿里云控制台中删除终端节点。否则，艾伦将继续收费。
+1. 点击TDengine Cloud **私有连接**页面中的**操作**按钮。稍后，连接状态将变为 DISCONNECTED。
+2. 删除TDengine Cloud **私有连接**页面中的连接。
+3. 在阿里云控制台中删除终端节点。否则，阿里云将继续收费。
    1. 在阿里云专有网络控制台的 **终端节点** 页面中选择端点。
    2. 单击列表“**操作**”栏“**删除**”按钮。
