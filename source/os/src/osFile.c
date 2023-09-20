@@ -434,14 +434,14 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
     return -1;
   }
 #ifdef WINDOWS
-  int64_t    ret = 0;
+  DWORD      ret = 0;
   OVERLAPPED ol = {0};
   ol.OffsetHigh = (uint32_t)((offset & 0xFFFFFFFF00000000LL) >> 0x20);
   ol.Offset = (uint32_t)(offset & 0xFFFFFFFFLL);
 
   HANDLE handle = (HANDLE)_get_osfhandle(pFile->fd);
   SetLastError(0);
-  bool result = ReadFile(handle, buf, count, &ret, &ol);
+  BOOL result = ReadFile(handle, buf, count, &ret, &ol);
   if (!result && GetLastError() != ERROR_HANDLE_EOF) {
     errno = GetLastError();
     return -1;
@@ -509,14 +509,14 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
     return 0;
   }
 #ifdef WINDOWS
-  int64_t    ret = 0;
+  DWORD      ret = 0;
   OVERLAPPED ol = {0};
   ol.OffsetHigh = (uint32_t)((offset & 0xFFFFFFFF00000000LL) >> 0x20);
   ol.Offset = (uint32_t)(offset & 0xFFFFFFFFLL);
 
   HANDLE handle = (HANDLE)_get_osfhandle(pFile->fd);
   SetLastError(0);
-  bool result = WriteFile(handle, buf, count, &ret, &ol);
+  BOOL result = WriteFile(handle, buf, count, &ret, &ol);
   if (!result) {
     errno = GetLastError();
     return -1;
