@@ -1012,6 +1012,11 @@ struct STsdbFilterInfo {
   TABLEID tbid;
 };
 
+enum {
+  TSDB_FS_STATE_NORMAL = 0,
+  TSDB_FS_STATE_INCOMPLETE,
+};
+
 #ifdef __cplusplus
 }
 #endif

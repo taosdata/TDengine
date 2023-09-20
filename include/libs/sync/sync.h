@@ -36,8 +36,7 @@ extern "C" {
 #define SYNC_DEL_WAL_MS              (1000 * 60)
 #define SYNC_ADD_QUORUM_COUNT        3
 #define SYNC_VNODE_LOG_RETENTION     (TSDB_SYNC_LOG_BUFFER_RETENTION + 1)
-#define SNAPSHOT_MAX_CLOCK_SKEW_MS   1000 * 10
-#define SNAPSHOT_WAIT_MS             1000 * 30
+#define SNAPSHOT_WAIT_MS             1000 * 5
 
 #define SYNC_MAX_RETRY_BACKOFF         5
 #define SYNC_LOG_REPL_RETRY_WAIT_MS    100
@@ -88,10 +87,9 @@ typedef enum {
 } ESyncRole;
 
 typedef enum {
-  TAOS_SYNC_SNAP_INFO_BRIEF = 0,
-  TAOS_SYNC_SNAP_INFO_FULL = 1,
-  TAOS_SYNC_SNAP_INFO_DIFF = 2,
-} ESyncSnapInfoTyp;
+  SYNC_FSM_STATE_NORMAL = 0,
+  SYNC_FSM_STATE_INCOMPLETE,
+} ESyncFsmState;
 
 typedef struct SNodeInfo {
   int64_t   clusterId;
@@ -155,8 +153,9 @@ typedef struct SSnapshotParam {
 } SSnapshotParam;
 
 typedef struct SSnapshot {
-  int32_t   typ;
+  int32_t       type;
   SSyncTLV* data;
+  ESyncFsmState state;
   SyncIndex lastApplyIndex;
   SyncTerm  lastApplyTerm;
   SyncIndex lastConfigIndex;

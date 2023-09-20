@@ -139,6 +139,7 @@ typedef struct SSyncNode {
   SSyncFSM* pFsm;
   int32_t   quorum;
   SRaftId   leaderCache;
+  ESyncFsmState fsmState;
 
   // life cycle
   int64_t rid;

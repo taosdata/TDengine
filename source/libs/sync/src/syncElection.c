@@ -71,6 +71,11 @@ static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
 }
 
 int32_t syncNodeElect(SSyncNode* pSyncNode) {
+  if (pSyncNode->fsmState == SYNC_FSM_STATE_INCOMPLETE) {
+    sNError(pSyncNode, "ignore leader hb timeout due to incomplete fsm state");
+    return -1;
+  }
+
   sNInfo(pSyncNode, "begin election");
   pSyncNode->electNum++;
 
