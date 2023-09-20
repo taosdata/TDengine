@@ -452,6 +452,7 @@ int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset) {
   if (fset[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
   fset[0]->fid = fid;
+  fset[0]->maxVerValid = VERSION_MAX;
   TARRAY2_INIT(fset[0]->lvlArr);
   return 0;
 }

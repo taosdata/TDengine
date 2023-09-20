@@ -502,7 +502,9 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     char dir[TSDB_FILENAME_LEN] = {0};
     vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, dir, TSDB_FILENAME_LEN);
 
-    vnodeCommitInfo(dir);
+    code = vnodeCommitInfo(dir);
+    if (code) goto _exit;
+
   } else {
     vnodeRollback(pWriter->pVnode);
   }

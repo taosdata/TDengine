@@ -101,7 +101,7 @@ struct STFSBgTask {
 struct STFileSystem {
   STsdb        *tsdb;
   tsem_t        canEdit;
-  int32_t       state;
+  int32_t       fsstate;
   int64_t       neid;
   EFEditT       etype;
   TFileSetArray fSetArr[1];

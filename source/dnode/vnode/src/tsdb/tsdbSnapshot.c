@@ -436,8 +436,8 @@ _exit:
     taosMemoryFree(reader[0]);
     reader[0] = NULL;
   } else {
-    tsdbInfo("vgId:%d %s done, sver:%" PRId64 " ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode), __func__, sver, ever,
-             type);
+    tsdbInfo("vgId:%d tsdb snapshot reader opened. sver:%" PRId64 " ever:%" PRId64 " type:%d", TD_VID(tsdb->pVnode),
+             sver, ever, type);
   }
   return code;
 }
@@ -1103,6 +1103,8 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** writer, int8_t rollback) {
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
+    writer[0]->tsdb->pFS->fsstate = TSDB_FS_STATE_NORMAL;
+
     taosThreadRwlockUnlock(&writer[0]->tsdb->rwLock);
   }
   tsdbFSEnableBgTask(tsdb->pFS);
@@ -1218,14 +1220,28 @@ static int32_t tsdbTFileSetToSnapPart(STFileSet* fset, STsdbSnapPartition** ppSP
     goto _err;
   }
 
+  p->fid = fset->fid;
+
+  int32_t code = 0;
   int32_t typ = 0;
+  int32_t corrupt = false;
+  int32_t count = 0;
   for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
     if (fset->farr[ftype] == NULL) continue;
     typ = tsdbFTypeToSRangeTyp(ftype);
     ASSERT(typ < TSDB_SNAP_RANGE_TYP_MAX);
     STFile*       f = fset->farr[ftype]->f;
+    if (f->maxVer > fset->maxVerValid) {
+      corrupt = true;
+      tsdbError("skip incomplete data file: fid:%d, maxVerValid:%" PRId64 ", minVer:%" PRId64 ", maxVer:%" PRId64
+                ", ftype: %d",
+                fset->fid, fset->maxVerValid, f->minVer, f->maxVer, ftype);
+      continue;
+    }
+    count++;
     SVersionRange vr = {.minVer = f->minVer, .maxVer = f->maxVer};
-    TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
+    code = TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
+    ASSERT(code == 0);
   }
 
   typ = TSDB_SNAP_RANGE_TYP_STT;
@@ -1234,9 +1250,23 @@ static int32_t tsdbTFileSetToSnapPart(STFileSet* fset, STsdbSnapPartition** ppSP
     STFileObj* fobj;
     TARRAY2_FOREACH(lvl->fobjArr, fobj) {
       STFile*       f = fobj->f;
+      if (f->maxVer > fset->maxVerValid) {
+        corrupt = true;
+        tsdbError("skip incomplete stt file.fid:%d, maxVerValid:%" PRId64 ", minVer:%" PRId64 ", maxVer:%" PRId64
+                  ", ftype: %d",
+                  fset->fid, fset->maxVerValid, f->minVer, f->maxVer, typ);
+        continue;
+      }
+      count++;
       SVersionRange vr = {.minVer = f->minVer, .maxVer = f->maxVer};
-      TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
+      code = TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
+      ASSERT(code == 0);
     }
+  }
+  if (corrupt && count == 0) {
+    SVersionRange vr = {.minVer = VERSION_MIN, .maxVer = fset->maxVerValid};
+    code = TARRAY2_SORT_INSERT(&p->verRanges[typ], vr, tVersionRangeCmprFn);
+    ASSERT(code == 0);
   }
   ppSP[0] = p;
   return 0;
@@ -1272,7 +1302,8 @@ static STsdbSnapPartList* tsdbGetSnapPartList(STFileSystem* fs) {
       break;
     }
     ASSERT(pItem != NULL);
-    TARRAY2_SORT_INSERT(pList, pItem, tsdbSnapPartCmprFn);
+    code = TARRAY2_SORT_INSERT(pList, pItem, tsdbSnapPartCmprFn);
+    ASSERT(code == 0);
   }
   taosThreadRwlockUnlock(&fs->tsdb->rwLock);
 
@@ -1432,18 +1463,22 @@ int32_t tsdbSnapPartListToRangeDiff(STsdbSnapPartList* pList, TSnapRangeArray** 
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _err;
     }
-    int64_t ever = -1;
+    int64_t maxVerValid = -1;
     int32_t typMax = TSDB_SNAP_RANGE_TYP_MAX;
     for (int32_t i = 0; i < typMax; i++) {
       SVerRangeList* iList = &part->verRanges[i];
-      SVersionRange  r = {0};
-      TARRAY2_FOREACH(iList, r) {
-        if (r.maxVer < r.minVer) continue;
-        ever = TMAX(ever, r.maxVer);
+      SVersionRange  vr = {0};
+      TARRAY2_FOREACH(iList, vr) {
+        if (vr.maxVer < vr.minVer) {
+          continue;
+        }
+        maxVerValid = TMAX(maxVerValid, vr.maxVer);
       }
     }
-    r->sver = ever + 1;
+    r->fid = part->fid;
+    r->sver = maxVerValid + 1;
     r->ever = VERSION_MAX;
+    tsdbInfo("range diff fid:%" PRId64 ", sver:%" PRId64 ", ever:%" PRId64, part->fid, r->sver, r->ever);
     TARRAY2_APPEND(pDiff, r);
   }
   ppRanges[0] = pDiff;
@@ -1473,14 +1508,16 @@ void tsdbSnapPartListDestroy(STsdbSnapPartList** ppList) {
 }
 
 int32_t tsdbSnapGetInfo(STsdb* pTsdb, SSnapshot* pSnap) {
-  if (pSnap->typ != TDMT_SYNC_PREP_SNAPSHOT && pSnap->typ != TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
+  pSnap->state = pTsdb->pFS->fsstate;
+  if (pSnap->type != TDMT_SYNC_PREP_SNAPSHOT && pSnap->type != TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
     return 0;
   }
+
   int                code = -1;
   STsdbSnapPartList* pList = tsdbGetSnapPartList(pTsdb->pFS);
   if (pList == NULL) goto _out;
 
-  if (pSnap->typ == TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
+  if (pSnap->type == TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
   }
 
   void*   buf = NULL;
@@ -1499,7 +1536,7 @@ int32_t tsdbSnapGetInfo(STsdb* pTsdb, SSnapshot* pSnap) {
 
   // header
   SSyncTLV* datHead = (void*)pSnap->data;
-  datHead->typ = pSnap->typ;
+  datHead->typ = pSnap->type;
   datHead->len = 0;
 
   // tsdb
