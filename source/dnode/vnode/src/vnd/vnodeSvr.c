@@ -1443,11 +1443,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
       SColData *pColData = (SColData *)taosArrayGet(pSubmitTbData->aCol, 0);
       TSKEY    *aKey = (TSKEY *)(pColData->pData);
-      vDebug("vgId:%d submit %d rows data, uid:%"PRId64, TD_VID(pVnode), pColData->nVal, pSubmitTbData->uid);
 
       for (int32_t iRow = 0; iRow < pColData->nVal; iRow++) {
-        vDebug("vgId:%d uid:%"PRId64" ts:%"PRId64, TD_VID(pVnode), pSubmitTbData->uid, aKey[iRow]);
-
         if (aKey[iRow] < minKey || aKey[iRow] > maxKey || (iRow > 0 && aKey[iRow] <= aKey[iRow - 1])) {
           code = TSDB_CODE_INVALID_MSG;
           vError("vgId:%d %s failed since %s, version:%" PRId64, TD_VID(pVnode), __func__, tstrerror(terrno), ver);
