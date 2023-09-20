@@ -1631,6 +1631,19 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
     return TSDB_CODE_SUCCESS;
   }
 
+  taosThreadMutexLock(&pTask->lock);
+  if (pTask->status.taskStatus == TASK_STATUS__HALT) {
+    qError("s-task:%s not ready for checkpoint, since it is halt, ignore this checkpoint:%" PRId64
+               ", set it failure", pTask->id.idStr, req.checkpointId);
+    streamMetaReleaseTask(pMeta, pTask);
+
+    SRpcMsg rsp = {0};
+    buildCheckpointSourceRsp(&req, &pMsg->info, &rsp, 0);
+    tmsgSendRsp(&rsp);   // error occurs
+  }
+  streamProcessCheckpointSourceReq(pTask, &req);
+  taosThreadMutexUnlock(&pTask->lock);
+
   int32_t total = 0;
   taosWLockLatch(&pMeta->lock);
 
@@ -1653,7 +1666,6 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
 
   // todo: when generating checkpoint, no new tasks are allowed to add into current Vnode
   // todo: when generating checkpoint, leader of mnode has transfer to other DNode?
-  streamProcessCheckpointSourceReq(pTask, &req);
   streamMetaReleaseTask(pMeta, pTask);
   return code;
 }
