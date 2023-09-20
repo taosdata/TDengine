@@ -38,13 +38,6 @@ typedef struct {
   STFileHashEntry **buckets;
 } STFileHash;
 
-enum {
-  TSDB_FS_STATE_NONE = 0,
-  TSDB_FS_STATE_OPEN,
-  TSDB_FS_STATE_EDIT,
-  TSDB_FS_STATE_CLOSE,
-};
-
 static const char *gCurrentFname[] = {
     [TSDB_FCURRENT] = "current.json",
     [TSDB_FCURRENT_C] = "current.c.json",
@@ -57,7 +50,7 @@ static int32_t create_fs(STsdb *pTsdb, STFileSystem **fs) {
 
   fs[0]->tsdb = pTsdb;
   tsem_init(&fs[0]->canEdit, 0, 1);
-  fs[0]->state = TSDB_FS_STATE_NONE;
+  fs[0]->fsstate = TSDB_FS_STATE_NORMAL;
   fs[0]->neid = 0;
   TARRAY2_INIT(fs[0]->fSetArr);
   TARRAY2_INIT(fs[0]->fSetArrTmp);
@@ -496,6 +489,7 @@ static void tsdbFSDestroyFileObjHash(STFileHash *hash) {
 static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
   int32_t code = 0;
   int32_t lino = 0;
+  int32_t corrupt = false;
 
   {  // scan each file
     STFileSet *fset = NULL;
@@ -503,8 +497,12 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
       // data file
       for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ftype++) {
         if (fset->farr[ftype] == NULL) continue;
-        code = tsdbFSDoScanAndFixFile(fs, fset->farr[ftype]);
-        TSDB_CHECK_CODE(code, lino, _exit);
+        STFileObj *fobj = fset->farr[ftype];
+        code = tsdbFSDoScanAndFixFile(fs, fobj);
+        if (code) {
+          fset->maxVerValid = TMIN(fset->maxVerValid, fobj->f->minVer - 1);
+          corrupt = true;
+        }
       }
 
       // stt file
@@ -513,10 +511,19 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
         STFileObj *fobj;
         TARRAY2_FOREACH(lvl->fobjArr, fobj) {
           code = tsdbFSDoScanAndFixFile(fs, fobj);
-          TSDB_CHECK_CODE(code, lino, _exit);
+          if (code) {
+            fset->maxVerValid = TMIN(fset->maxVerValid, fobj->f->minVer - 1);
+            corrupt = true;
+          }
         }
       }
     }
+  }
+
+  if (corrupt) {
+    tsdbError("vgId:%d, not to clear unreferenced files since some fset corrupted", TD_VID(fs->tsdb->pVnode));
+    fs->fsstate = TSDB_FS_STATE_INCOMPLETE;
+    goto _exit;
   }
 
   {  // clear unreferenced files
@@ -1009,6 +1016,7 @@ int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TSnapRangeArray *pExclu
         ever = u->sver - 1;
         i++;
       }
+      break;
     }
 
     code = tsdbTFileSetFilteredInitDup(fs->tsdb, fset, ever, &fset1, fopArr);
@@ -1057,7 +1065,10 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
         sver1 = u->sver;
         i++;
       }
+      break;
     }
+
+    if (sver1 > ever1) continue;
 
     tsdbInfo("fsrArr:%p, fid:%d, sver:%" PRId64 ", ever:%" PRId64, fsrArr, fset->fid, sver1, ever1);
 

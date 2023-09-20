@@ -15,6 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "tq.h"
+#include "sync.h"
+#include "tsdb.h"
 #include "vnd.h"
 
 #define BATCH_ENABLE 0
@@ -782,4 +784,15 @@ bool vnodeIsLeader(SVnode *pVnode) {
   }
 
   return true;
+}
+
+int32_t vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnap) {
+  pSnap->lastApplyIndex = pVnode->state.committed;
+  pSnap->lastApplyTerm = pVnode->state.commitTerm;
+  pSnap->lastConfigIndex = -1;
+
+  int32_t code = tsdbSnapGetInfo(pVnode->pTsdb, pSnap);
+
+  pSnap->state = (pSnap->state == TSDB_FS_STATE_INCOMPLETE) ? SYNC_FSM_STATE_INCOMPLETE : SYNC_FSM_STATE_NORMAL;
+  return code;
 }

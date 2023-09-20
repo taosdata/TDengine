@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "sync.h"
+#include "tsdb.h"
 #include "vnd.h"
 #include "vndCos.h"
 
@@ -517,10 +519,3 @@ ESyncRole vnodeGetRole(SVnode *pVnode) { return syncGetRole(pVnode->sync); }
 void vnodeStop(SVnode *pVnode) {}
 
 int64_t vnodeGetSyncHandle(SVnode *pVnode) { return pVnode->sync; }
-
-int32_t vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnap) {
-  pSnap->lastApplyIndex = pVnode->state.committed;
-  pSnap->lastApplyTerm = pVnode->state.commitTerm;
-  pSnap->lastConfigIndex = -1;
-  return tsdbSnapGetInfo(pVnode->pTsdb, pSnap);
-}
