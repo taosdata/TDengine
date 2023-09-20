@@ -59,21 +59,65 @@ int32_t s3PutObjectFromFile(const char *file_str, const char *object_str) {
   cos_request_options_t *options = NULL;
   cos_string_t           bucket, object, file;
   cos_table_t           *resp_headers;
-  int                    traffic_limit = 0;
+  // int                    traffic_limit = 0;
 
   cos_pool_create(&p, NULL);
   options = cos_request_options_create(p);
   s3InitRequestOptions(options, is_cname);
   cos_table_t *headers = NULL;
+  /*
   if (traffic_limit) {
     // 限速值设置范围为819200 - 838860800，即100KB/s - 100MB/s，如果超出该范围将返回400错误
     headers = cos_table_make(p, 1);
     cos_table_add_int(headers, "x-cos-traffic-limit", 819200);
   }
+  */
   cos_str_set(&bucket, tsS3BucketName);
   cos_str_set(&file, file_str);
   cos_str_set(&object, object_str);
   s = cos_put_object_from_file(options, &bucket, &object, &file, headers, &resp_headers);
+  log_status(s);
+
+  cos_pool_destroy(p);
+
+  if (s->code != 200) {
+    return code = s->code;
+  }
+
+  return code;
+}
+
+int32_t s3PutObjectFromFile2(const char *file_str, const char *object_str) {
+  int32_t                     code = 0;
+  cos_pool_t                 *p = NULL;
+  int                         is_cname = 0;
+  cos_status_t               *s = NULL;
+  cos_request_options_t      *options = NULL;
+  cos_string_t                bucket, object, file;
+  cos_table_t                *resp_headers;
+  int                         traffic_limit = 0;
+  cos_table_t                *headers = NULL;
+  cos_resumable_clt_params_t *clt_params = NULL;
+
+  cos_pool_create(&p, NULL);
+  options = cos_request_options_create(p);
+  s3InitRequestOptions(options, is_cname);
+  headers = cos_table_make(p, 0);
+  cos_str_set(&bucket, tsS3BucketName);
+  cos_str_set(&file, file_str);
+  cos_str_set(&object, object_str);
+
+  // upload
+  clt_params = cos_create_resumable_clt_params_content(p, 1024 * 1024, 8, COS_FALSE, NULL);
+  s = cos_resumable_upload_file(options, &bucket, &object, &file, headers, NULL, clt_params, NULL, &resp_headers, NULL);
+
+  if (!cos_status_is_ok(s)) {
+    vError("s3: %s", s->error_msg);
+    vError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    code = terrno;
+    return code;
+  }
+
   log_status(s);
 
   cos_pool_destroy(p);
@@ -404,6 +448,7 @@ long s3Size(const char *object_name) {
 int32_t s3Init() { return 0; }
 void    s3CleanUp() {}
 int32_t s3PutObjectFromFile(const char *file, const char *object) { return 0; }
+int32_t s3PutObjectFromFile2(const char *file, const char *object) { return 0; }
 void    s3DeleteObjectsByPrefix(const char *prefix) {}
 void    s3DeleteObjects(const char *object_name[], int nobject) {}
 bool    s3Exists(const char *object_name) { return false; }
