@@ -1640,6 +1640,7 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
     SRpcMsg rsp = {0};
     buildCheckpointSourceRsp(&req, &pMsg->info, &rsp, 0);
     tmsgSendRsp(&rsp);   // error occurs
+    taosThreadMutexUnlock(&pTask->lock);
     return TSDB_CODE_SUCCESS;
   }
   streamProcessCheckpointSourceReq(pTask, &req);
