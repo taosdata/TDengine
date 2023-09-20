@@ -347,14 +347,16 @@ impl OPCConfig {
                 let security_mode = dsn.remove("security_mode").unwrap_or("None".to_string());
 
                 let certificate = if let Some(cert) = dsn.remove("certificate") {
-                    get_string_content_from_param_value(&cert, true, false)
-                        .map_err(|err| OpcError::ConfigError("certificate", err.to_string()))?
+                    Some(cert.trim_start_matches('@').to_string())
+                    // get_string_content_from_param_value(&cert, true, false)
+                    //     .map_err(|err| OpcError::ConfigError("certificate", err.to_string()))?
                 } else {
                     None
                 };
                 let private_key = if let Some(private_key) = dsn.remove("private_key") {
-                    get_string_content_from_param_value(&private_key, true, false)
-                        .map_err(|err| OpcError::ConfigError("private_key", err.to_string()))?
+                    Some(private_key.trim_start_matches('@').to_string())
+                    // get_string_content_from_param_value(&private_key, true, false)
+                    //     .map_err(|err| OpcError::ConfigError("private_key", err.to_string()))?
                 } else {
                     None
                 };
@@ -789,11 +791,14 @@ pub async fn generate_opcconfig_from_csv(
                             column_alias: Some(quality_col_name.clone()),
                             is_primary_key: false,
                         });
-                        let received_ts_col = record_map.get("received_ts_col").or(record_map.get("received_time_col"));
+                        let received_ts_col = record_map
+                            .get("received_ts_col")
+                            .or(record_map.get("received_time_col"));
                         let mut has_primary_key = false;
                         if received_ts_col.is_some() {
                             let received_ts_col_name = record_map
-                                .get("received_ts_col").or(record_map.get("received_time_col"))
+                                .get("received_ts_col")
+                                .or(record_map.get("received_time_col"))
                                 .unwrap_or(&"received_ts".to_string())
                                 .clone();
                             check_duplicated(
