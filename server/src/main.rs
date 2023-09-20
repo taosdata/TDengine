@@ -534,8 +534,12 @@ impl Args {
         dsn.password = Some(credentials.password);
         let conn = TaosBuilder::from_dsn(dsn)?.build().await?;
 
+        let mut active_code_empty = true;
+        let mut c_active_code_empty = true;
+
         if let Some(active_code) = license.active_code.as_ref() {
             if active_code.len() > 0 {
+                active_code_empty = false;
                 let sql = format!("alter all dnodes 'activeCode' '{active_code}'");
                 conn.exec(&sql)
                     .await
@@ -544,6 +548,7 @@ impl Args {
         }
         if let Some(c_active_code) = license.c_active_code.as_ref() {
             if c_active_code.len() > 0 {
+                c_active_code_empty = false;
                 let sql = format!("alter all dnodes 'cActiveCode' '{c_active_code}'");
                 conn.exec(&sql)
                     .await
@@ -555,7 +560,7 @@ impl Args {
             .await?
             .deserialize::<RenewLicense>()
             .all(|l| async move { l.map(|l| {
-                (l.active_code == *license.active_code || *license.active_code.unwrap_or(String("")).is_empty()) && (l.c_active_code == *license.c_active_code || *license.c_active_code.unwrap_or(String("")).is_empty())
+                (l.active_code == license.active_code || active_code_empty) && (l.c_active_code == license.c_active_code || c_active_code_empty)
             }).unwrap_or_default() })
             .await;
 
