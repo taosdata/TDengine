@@ -255,10 +255,14 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
 
   tDeleteStreamDispatchReq(pReq);
 
-  int8_t schedStatus = streamTaskSetSchedStatusWait(pTask);
-  if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
-    streamTryExec(pTask);
+  int8_t st = pTask->status.taskStatus;
+  if (st == TASK_STATUS__NORMAL || st == TASK_STATUS__SCAN_HISTORY || st == TASK_STATUS__CK) {
+    int8_t schedStatus = streamTaskSetSchedStatusWait(pTask);
+    if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
+      streamTryExec(pTask);
+    }
   }
+
   return 0;
 }
 
