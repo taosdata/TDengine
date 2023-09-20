@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *legacy*: Try to fix migration oom ([5fbaa4d](5fbaa4d334b084a24be63e7cb9956f4084da2ff2))
 - *serve*: Fix legacy data source options default value error ([a61c56d](a61c56d59ec413778db7caf90b265d1fcc513781))
 - *serve*: Fix metrics display error for multiple starts ([6985239](698523998a6751f97242f1181697116a83ed6a48))
+- *serve*: Fix using files path ([efed071](efed0712e760151d22cfe793544d040a1bee6186))
 
 - Fix opc process still running aftere stopped ([59160e3](59160e3924de165ef23c6cc3020e94ef6b6b705d))
 - Break write loop when encount unrecoverable error ([82bcf9f](82bcf9fd9057da32a5008c43bc86c4fa7a5653f7))
@@ -41,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Opc csv config column modify ([c60558e](c60558efc7026d862d2dcef644759d1c29f243fa))
 - Modify opcua desc ([2d52a0e](2d52a0e89d8053361692e52f7f247aca6b89882a))
 - Keep backward compatibility ([a4b4074](a4b40745f9a0ef94883fc984f344b4de11f2d406))
+- Opc table config field modify ([4a2c741](4a2c74102ba2bc8f4760d1f4270eb4a361c803c7))
+- Modify opc table config desc ([145e417](145e417fcd2bcd664dece45f829284e3ae60e9ac))
 
 
 ## [1.2.3] - 2023-09-17
