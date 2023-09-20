@@ -35,6 +35,7 @@ typedef struct SRawExprNode {
   char*     p;
   uint32_t  n;
   SNode*    pNode;
+  bool isPseudoColumn;
 } SRawExprNode;
 
 typedef struct SDataType {

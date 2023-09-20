@@ -6814,7 +6814,6 @@ static YYACTIONTYPE yy_reduce(
       case 405: /* signed_literal ::= signed */ yytestcase(yyruleno==405);
       case 426: /* expr_or_subquery ::= expression */ yytestcase(yyruleno==426);
       case 427: /* expression ::= literal */ yytestcase(yyruleno==427);
-      case 428: /* expression ::= pseudo_column */ yytestcase(yyruleno==428);
       case 429: /* expression ::= column_reference */ yytestcase(yyruleno==429);
       case 430: /* expression ::= function_expression */ yytestcase(yyruleno==430);
       case 431: /* expression ::= case_when_expression */ yytestcase(yyruleno==431);
@@ -6833,37 +6832,37 @@ static YYACTIONTYPE yy_reduce(
       case 597: /* query_or_subquery ::= query_expression */ yytestcase(yyruleno==597);
 #line 727 "sql.y"
 { yylhsminor.yy122 = yymsp[0].minor.yy122; }
-#line 6836 "sql.c"
+#line 6835 "sql.c"
   yymsp[0].minor.yy122 = yylhsminor.yy122;
         break;
       case 396: /* literal ::= NULL */
 #line 728 "sql.y"
 { yylhsminor.yy122 = createRawExprNode(pCxt, &yymsp[0].minor.yy0, createValueNode(pCxt, TSDB_DATA_TYPE_NULL, &yymsp[0].minor.yy0)); }
-#line 6842 "sql.c"
+#line 6841 "sql.c"
   yymsp[0].minor.yy122 = yylhsminor.yy122;
         break;
       case 397: /* literal ::= NK_QUESTION */
 #line 729 "sql.y"
 { yylhsminor.yy122 = createRawExprNode(pCxt, &yymsp[0].minor.yy0, createPlaceholderValueNode(pCxt, &yymsp[0].minor.yy0)); }
-#line 6848 "sql.c"
+#line 6847 "sql.c"
   yymsp[0].minor.yy122 = yylhsminor.yy122;
         break;
       case 398: /* duration_literal ::= NK_VARIABLE */
 #line 731 "sql.y"
 { yylhsminor.yy122 = createRawExprNode(pCxt, &yymsp[0].minor.yy0, createDurationValueNode(pCxt, &yymsp[0].minor.yy0)); }
-#line 6854 "sql.c"
+#line 6853 "sql.c"
   yymsp[0].minor.yy122 = yylhsminor.yy122;
         break;
       case 399: /* signed ::= NK_INTEGER */
 #line 733 "sql.y"
 { yylhsminor.yy122 = createValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &yymsp[0].minor.yy0); }
-#line 6860 "sql.c"
+#line 6859 "sql.c"
   yymsp[0].minor.yy122 = yylhsminor.yy122;
         break;
       case 400: /* signed ::= NK_PLUS NK_INTEGER */
 #line 734 "sql.y"
 { yymsp[-1].minor.yy122 = createValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &yymsp[0].minor.yy0); }
-#line 6866 "sql.c"
+#line 6865 "sql.c"
         break;
       case 401: /* signed ::= NK_MINUS NK_INTEGER */
 #line 735 "sql.y"
@@ -6872,19 +6871,19 @@ static YYACTIONTYPE yy_reduce(
                                                                                     t.n = (yymsp[0].minor.yy0.z + yymsp[0].minor.yy0.n) - yymsp[-1].minor.yy0.z;
                                                                                     yylhsminor.yy122 = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &t);
                                                                                   }
-#line 6875 "sql.c"
+#line 6874 "sql.c"
   yymsp[-1].minor.yy122 = yylhsminor.yy122;
         break;
       case 402: /* signed ::= NK_FLOAT */
 #line 740 "sql.y"
 { yylhsminor.yy122 = createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &yymsp[0].minor.yy0); }
-#line 6881 "sql.c"
+#line 6880 "sql.c"
   yymsp[0].minor.yy122 = yylhsminor.yy122;
         break;
       case 403: /* signed ::= NK_PLUS NK_FLOAT */
 #line 741 "sql.y"
 { yymsp[-1].minor.yy122 = createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &yymsp[0].minor.yy0); }
-#line 6887 "sql.c"
+#line 6886 "sql.c"
         break;
       case 404: /* signed ::= NK_MINUS NK_FLOAT */
 #line 742 "sql.y"
@@ -6893,25 +6892,25 @@ static YYACTIONTYPE yy_reduce(
                                                                                     t.n = (yymsp[0].minor.yy0.z + yymsp[0].minor.yy0.n) - yymsp[-1].minor.yy0.z;
                                                                                     yylhsminor.yy122 = createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &t);
                                                                                   }
-#line 6896 "sql.c"
+#line 6895 "sql.c"
   yymsp[-1].minor.yy122 = yylhsminor.yy122;
         break;
       case 406: /* signed_literal ::= NK_STRING */
 #line 749 "sql.y"
 { yylhsminor.yy122 = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &yymsp[0].minor.yy0); }
-#line 6902 "sql.c"
+#line 6901 "sql.c"
   yymsp[0].minor.yy122 = yylhsminor.yy122;
         break;
       case 407: /* signed_literal ::= NK_BOOL */
 #line 750 "sql.y"
 { yylhsminor.yy122 = createValueNode(pCxt, TSDB_DATA_TYPE_BOOL, &yymsp[0].minor.yy0); }
-#line 6908 "sql.c"
+#line 6907 "sql.c"
   yymsp[0].minor.yy122 = yylhsminor.yy122;
         break;
       case 408: /* signed_literal ::= TIMESTAMP NK_STRING */
 #line 751 "sql.y"
 { yymsp[-1].minor.yy122 = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &yymsp[0].minor.yy0); }
-#line 6914 "sql.c"
+#line 6913 "sql.c"
         break;
       case 409: /* signed_literal ::= duration_literal */
       case 411: /* signed_literal ::= literal_func */ yytestcase(yyruleno==411);
@@ -6923,19 +6922,25 @@ static YYACTIONTYPE yy_reduce(
       case 611: /* search_condition ::= common_expression */ yytestcase(yyruleno==611);
 #line 752 "sql.y"
 { yylhsminor.yy122 = releaseRawExprNode(pCxt, yymsp[0].minor.yy122); }
-#line 6926 "sql.c"
+#line 6925 "sql.c"
   yymsp[0].minor.yy122 = yylhsminor.yy122;
         break;
       case 410: /* signed_literal ::= NULL */
 #line 753 "sql.y"
 { yylhsminor.yy122 = createValueNode(pCxt, TSDB_DATA_TYPE_NULL, &yymsp[0].minor.yy0); }
-#line 6932 "sql.c"
+#line 6931 "sql.c"
   yymsp[0].minor.yy122 = yylhsminor.yy122;
         break;
       case 412: /* signed_literal ::= NK_QUESTION */
 #line 755 "sql.y"
 { yylhsminor.yy122 = createPlaceholderValueNode(pCxt, &yymsp[0].minor.yy0); }
-#line 6938 "sql.c"
+#line 6937 "sql.c"
+  yymsp[0].minor.yy122 = yylhsminor.yy122;
+        break;
+      case 428: /* expression ::= pseudo_column */
+#line 812 "sql.y"
+{ yylhsminor.yy122 = yymsp[0].minor.yy122; setRawExprNodeIsPseudoColumn(pCxt, yylhsminor.yy122, true); }
+#line 6943 "sql.c"
   yymsp[0].minor.yy122 = yylhsminor.yy122;
         break;
       case 432: /* expression ::= NK_LP expression NK_RP */
@@ -6943,7 +6948,7 @@ static YYACTIONTYPE yy_reduce(
       case 610: /* subquery ::= NK_LP subquery NK_RP */ yytestcase(yyruleno==610);
 #line 816 "sql.y"
 { yylhsminor.yy122 = createRawExprNodeExt(pCxt, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0, releaseRawExprNode(pCxt, yymsp[-1].minor.yy122)); }
-#line 6946 "sql.c"
+#line 6951 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 433: /* expression ::= NK_PLUS expr_or_subquery */
@@ -6952,7 +6957,7 @@ static YYACTIONTYPE yy_reduce(
                                                                                     SToken t = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy122);
                                                                                     yylhsminor.yy122 = createRawExprNodeExt(pCxt, &yymsp[-1].minor.yy0, &t, releaseRawExprNode(pCxt, yymsp[0].minor.yy122));
                                                                                   }
-#line 6955 "sql.c"
+#line 6960 "sql.c"
   yymsp[-1].minor.yy122 = yylhsminor.yy122;
         break;
       case 434: /* expression ::= NK_MINUS expr_or_subquery */
@@ -6961,7 +6966,7 @@ static YYACTIONTYPE yy_reduce(
                                                                                     SToken t = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy122);
                                                                                     yylhsminor.yy122 = createRawExprNodeExt(pCxt, &yymsp[-1].minor.yy0, &t, createOperatorNode(pCxt, OP_TYPE_MINUS, releaseRawExprNode(pCxt, yymsp[0].minor.yy122), NULL));
                                                                                   }
-#line 6964 "sql.c"
+#line 6969 "sql.c"
   yymsp[-1].minor.yy122 = yylhsminor.yy122;
         break;
       case 435: /* expression ::= expr_or_subquery NK_PLUS expr_or_subquery */
@@ -6971,7 +6976,7 @@ static YYACTIONTYPE yy_reduce(
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy122);
                                                                                     yylhsminor.yy122 = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_ADD, releaseRawExprNode(pCxt, yymsp[-2].minor.yy122), releaseRawExprNode(pCxt, yymsp[0].minor.yy122))); 
                                                                                   }
-#line 6974 "sql.c"
+#line 6979 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 436: /* expression ::= expr_or_subquery NK_MINUS expr_or_subquery */
@@ -6981,7 +6986,7 @@ static YYACTIONTYPE yy_reduce(
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy122);
                                                                                     yylhsminor.yy122 = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_SUB, releaseRawExprNode(pCxt, yymsp[-2].minor.yy122), releaseRawExprNode(pCxt, yymsp[0].minor.yy122))); 
                                                                                   }
-#line 6984 "sql.c"
+#line 6989 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 437: /* expression ::= expr_or_subquery NK_STAR expr_or_subquery */
@@ -6991,7 +6996,7 @@ static YYACTIONTYPE yy_reduce(
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy122);
                                                                                     yylhsminor.yy122 = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_MULTI, releaseRawExprNode(pCxt, yymsp[-2].minor.yy122), releaseRawExprNode(pCxt, yymsp[0].minor.yy122))); 
                                                                                   }
-#line 6994 "sql.c"
+#line 6999 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 438: /* expression ::= expr_or_subquery NK_SLASH expr_or_subquery */
@@ -7001,7 +7006,7 @@ static YYACTIONTYPE yy_reduce(
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy122);
                                                                                     yylhsminor.yy122 = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_DIV, releaseRawExprNode(pCxt, yymsp[-2].minor.yy122), releaseRawExprNode(pCxt, yymsp[0].minor.yy122))); 
                                                                                   }
-#line 7004 "sql.c"
+#line 7009 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 439: /* expression ::= expr_or_subquery NK_REM expr_or_subquery */
@@ -7011,7 +7016,7 @@ static YYACTIONTYPE yy_reduce(
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy122);
                                                                                     yylhsminor.yy122 = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_REM, releaseRawExprNode(pCxt, yymsp[-2].minor.yy122), releaseRawExprNode(pCxt, yymsp[0].minor.yy122)));
                                                                                   }
-#line 7014 "sql.c"
+#line 7019 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 440: /* expression ::= column_reference NK_ARROW NK_STRING */
@@ -7020,7 +7025,7 @@ static YYACTIONTYPE yy_reduce(
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, yymsp[-2].minor.yy122);
                                                                                     yylhsminor.yy122 = createRawExprNodeExt(pCxt, &s, &yymsp[0].minor.yy0, createOperatorNode(pCxt, OP_TYPE_JSON_GET_VALUE, releaseRawExprNode(pCxt, yymsp[-2].minor.yy122), createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &yymsp[0].minor.yy0))); 
                                                                                   }
-#line 7023 "sql.c"
+#line 7028 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 441: /* expression ::= expr_or_subquery NK_BITAND expr_or_subquery */
@@ -7030,7 +7035,7 @@ static YYACTIONTYPE yy_reduce(
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy122);
                                                                                     yylhsminor.yy122 = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_BIT_AND, releaseRawExprNode(pCxt, yymsp[-2].minor.yy122), releaseRawExprNode(pCxt, yymsp[0].minor.yy122)));
                                                                                   }
-#line 7033 "sql.c"
+#line 7038 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 442: /* expression ::= expr_or_subquery NK_BITOR expr_or_subquery */
@@ -7040,19 +7045,19 @@ static YYACTIONTYPE yy_reduce(
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy122);
                                                                                     yylhsminor.yy122 = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_BIT_OR, releaseRawExprNode(pCxt, yymsp[-2].minor.yy122), releaseRawExprNode(pCxt, yymsp[0].minor.yy122)));
                                                                                   }
-#line 7043 "sql.c"
+#line 7048 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 445: /* column_reference ::= column_name */
 #line 870 "sql.y"
 { yylhsminor.yy122 = createRawExprNode(pCxt, &yymsp[0].minor.yy203, createColumnNode(pCxt, NULL, &yymsp[0].minor.yy203)); }
-#line 7049 "sql.c"
+#line 7054 "sql.c"
   yymsp[0].minor.yy122 = yylhsminor.yy122;
         break;
       case 446: /* column_reference ::= table_name NK_DOT column_name */
 #line 871 "sql.y"
 { yylhsminor.yy122 = createRawExprNodeExt(pCxt, &yymsp[-2].minor.yy203, &yymsp[0].minor.yy203, createColumnNode(pCxt, &yymsp[-2].minor.yy203, &yymsp[0].minor.yy203)); }
-#line 7055 "sql.c"
+#line 7060 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 447: /* pseudo_column ::= ROWTS */
@@ -7069,68 +7074,68 @@ static YYACTIONTYPE yy_reduce(
       case 464: /* literal_func ::= NOW */ yytestcase(yyruleno==464);
 #line 873 "sql.y"
 { yylhsminor.yy122 = createRawExprNode(pCxt, &yymsp[0].minor.yy0, createFunctionNode(pCxt, &yymsp[0].minor.yy0, NULL)); }
-#line 7072 "sql.c"
+#line 7077 "sql.c"
   yymsp[0].minor.yy122 = yylhsminor.yy122;
         break;
       case 449: /* pseudo_column ::= table_name NK_DOT TBNAME */
 #line 875 "sql.y"
 { yylhsminor.yy122 = createRawExprNodeExt(pCxt, &yymsp[-2].minor.yy203, &yymsp[0].minor.yy0, createFunctionNode(pCxt, &yymsp[0].minor.yy0, createNodeList(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &yymsp[-2].minor.yy203)))); }
-#line 7078 "sql.c"
+#line 7083 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 459: /* function_expression ::= function_name NK_LP expression_list NK_RP */
       case 460: /* function_expression ::= star_func NK_LP star_func_para_list NK_RP */ yytestcase(yyruleno==460);
 #line 886 "sql.y"
 { yylhsminor.yy122 = createRawExprNodeExt(pCxt, &yymsp[-3].minor.yy203, &yymsp[0].minor.yy0, createFunctionNode(pCxt, &yymsp[-3].minor.yy203, yymsp[-1].minor.yy298)); }
-#line 7085 "sql.c"
+#line 7090 "sql.c"
   yymsp[-3].minor.yy122 = yylhsminor.yy122;
         break;
       case 461: /* function_expression ::= CAST NK_LP expr_or_subquery AS type_name NK_RP */
 #line 889 "sql.y"
 { yylhsminor.yy122 = createRawExprNodeExt(pCxt, &yymsp[-5].minor.yy0, &yymsp[0].minor.yy0, createCastFunctionNode(pCxt, releaseRawExprNode(pCxt, yymsp[-3].minor.yy122), yymsp[-1].minor.yy388)); }
-#line 7091 "sql.c"
+#line 7096 "sql.c"
   yymsp[-5].minor.yy122 = yylhsminor.yy122;
         break;
       case 463: /* literal_func ::= noarg_func NK_LP NK_RP */
 #line 892 "sql.y"
 { yylhsminor.yy122 = createRawExprNodeExt(pCxt, &yymsp[-2].minor.yy203, &yymsp[0].minor.yy0, createFunctionNode(pCxt, &yymsp[-2].minor.yy203, NULL)); }
-#line 7097 "sql.c"
+#line 7102 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 478: /* star_func_para_list ::= NK_STAR */
 #line 916 "sql.y"
 { yylhsminor.yy298 = createNodeList(pCxt, createColumnNode(pCxt, NULL, &yymsp[0].minor.yy0)); }
-#line 7103 "sql.c"
+#line 7108 "sql.c"
   yymsp[0].minor.yy298 = yylhsminor.yy298;
         break;
       case 483: /* star_func_para ::= table_name NK_DOT NK_STAR */
       case 551: /* select_item ::= table_name NK_DOT NK_STAR */ yytestcase(yyruleno==551);
 #line 925 "sql.y"
 { yylhsminor.yy122 = createColumnNode(pCxt, &yymsp[-2].minor.yy203, &yymsp[0].minor.yy0); }
-#line 7110 "sql.c"
+#line 7115 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 484: /* case_when_expression ::= CASE when_then_list case_when_else_opt END */
 #line 928 "sql.y"
 { yylhsminor.yy122 = createRawExprNodeExt(pCxt, &yymsp[-3].minor.yy0, &yymsp[0].minor.yy0, createCaseWhenNode(pCxt, NULL, yymsp[-2].minor.yy298, yymsp[-1].minor.yy122)); }
-#line 7116 "sql.c"
+#line 7121 "sql.c"
   yymsp[-3].minor.yy122 = yylhsminor.yy122;
         break;
       case 485: /* case_when_expression ::= CASE common_expression when_then_list case_when_else_opt END */
 #line 930 "sql.y"
 { yylhsminor.yy122 = createRawExprNodeExt(pCxt, &yymsp[-4].minor.yy0, &yymsp[0].minor.yy0, createCaseWhenNode(pCxt, releaseRawExprNode(pCxt, yymsp[-3].minor.yy122), yymsp[-2].minor.yy298, yymsp[-1].minor.yy122)); }
-#line 7122 "sql.c"
+#line 7127 "sql.c"
   yymsp[-4].minor.yy122 = yylhsminor.yy122;
         break;
       case 488: /* when_then_expr ::= WHEN common_expression THEN common_expression */
 #line 937 "sql.y"
 { yymsp[-3].minor.yy122 = createWhenThenNode(pCxt, releaseRawExprNode(pCxt, yymsp[-2].minor.yy122), releaseRawExprNode(pCxt, yymsp[0].minor.yy122)); }
-#line 7128 "sql.c"
+#line 7133 "sql.c"
         break;
       case 490: /* case_when_else_opt ::= ELSE common_expression */
 #line 940 "sql.y"
 { yymsp[-1].minor.yy122 = releaseRawExprNode(pCxt, yymsp[0].minor.yy122); }
-#line 7133 "sql.c"
+#line 7138 "sql.c"
         break;
       case 491: /* predicate ::= expr_or_subquery compare_op expr_or_subquery */
       case 496: /* predicate ::= expr_or_subquery in_op in_predicate_value */ yytestcase(yyruleno==496);
@@ -7140,7 +7145,7 @@ static YYACTIONTYPE yy_reduce(
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy122);
                                                                                     yylhsminor.yy122 = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, yymsp[-1].minor.yy416, releaseRawExprNode(pCxt, yymsp[-2].minor.yy122), releaseRawExprNode(pCxt, yymsp[0].minor.yy122)));
                                                                                   }
-#line 7143 "sql.c"
+#line 7148 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 492: /* predicate ::= expr_or_subquery BETWEEN expr_or_subquery AND expr_or_subquery */
@@ -7150,7 +7155,7 @@ static YYACTIONTYPE yy_reduce(
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy122);
                                                                                     yylhsminor.yy122 = createRawExprNodeExt(pCxt, &s, &e, createBetweenAnd(pCxt, releaseRawExprNode(pCxt, yymsp[-4].minor.yy122), releaseRawExprNode(pCxt, yymsp[-2].minor.yy122), releaseRawExprNode(pCxt, yymsp[0].minor.yy122)));
                                                                                   }
-#line 7153 "sql.c"
+#line 7158 "sql.c"
   yymsp[-4].minor.yy122 = yylhsminor.yy122;
         break;
       case 493: /* predicate ::= expr_or_subquery NOT BETWEEN expr_or_subquery AND expr_or_subquery */
@@ -7160,7 +7165,7 @@ static YYACTIONTYPE yy_reduce(
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy122);
                                                                                     yylhsminor.yy122 = createRawExprNodeExt(pCxt, &s, &e, createNotBetweenAnd(pCxt, releaseRawExprNode(pCxt, yymsp[-5].minor.yy122), releaseRawExprNode(pCxt, yymsp[-2].minor.yy122), releaseRawExprNode(pCxt, yymsp[0].minor.yy122)));
                                                                                   }
-#line 7163 "sql.c"
+#line 7168 "sql.c"
   yymsp[-5].minor.yy122 = yylhsminor.yy122;
         break;
       case 494: /* predicate ::= expr_or_subquery IS NULL */
@@ -7169,7 +7174,7 @@ static YYACTIONTYPE yy_reduce(
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, yymsp[-2].minor.yy122);
                                                                                     yylhsminor.yy122 = createRawExprNodeExt(pCxt, &s, &yymsp[0].minor.yy0, createOperatorNode(pCxt, OP_TYPE_IS_NULL, releaseRawExprNode(pCxt, yymsp[-2].minor.yy122), NULL));
                                                                                   }
-#line 7172 "sql.c"
+#line 7177 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 495: /* predicate ::= expr_or_subquery IS NOT NULL */
@@ -7178,78 +7183,78 @@ static YYACTIONTYPE yy_reduce(
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, yymsp[-3].minor.yy122);
                                                                                     yylhsminor.yy122 = createRawExprNodeExt(pCxt, &s, &yymsp[0].minor.yy0, createOperatorNode(pCxt, OP_TYPE_IS_NOT_NULL, releaseRawExprNode(pCxt, yymsp[-3].minor.yy122), NULL));
                                                                                   }
-#line 7181 "sql.c"
+#line 7186 "sql.c"
   yymsp[-3].minor.yy122 = yylhsminor.yy122;
         break;
       case 497: /* compare_op ::= NK_LT */
 #line 977 "sql.y"
 { yymsp[0].minor.yy416 = OP_TYPE_LOWER_THAN; }
-#line 7187 "sql.c"
+#line 7192 "sql.c"
         break;
       case 498: /* compare_op ::= NK_GT */
 #line 978 "sql.y"
 { yymsp[0].minor.yy416 = OP_TYPE_GREATER_THAN; }
-#line 7192 "sql.c"
+#line 7197 "sql.c"
         break;
       case 499: /* compare_op ::= NK_LE */
 #line 979 "sql.y"
 { yymsp[0].minor.yy416 = OP_TYPE_LOWER_EQUAL; }
-#line 7197 "sql.c"
+#line 7202 "sql.c"
         break;
       case 500: /* compare_op ::= NK_GE */
 #line 980 "sql.y"
 { yymsp[0].minor.yy416 = OP_TYPE_GREATER_EQUAL; }
-#line 7202 "sql.c"
+#line 7207 "sql.c"
         break;
       case 501: /* compare_op ::= NK_NE */
 #line 981 "sql.y"
 { yymsp[0].minor.yy416 = OP_TYPE_NOT_EQUAL; }
-#line 7207 "sql.c"
+#line 7212 "sql.c"
         break;
       case 502: /* compare_op ::= NK_EQ */
 #line 982 "sql.y"
 { yymsp[0].minor.yy416 = OP_TYPE_EQUAL; }
-#line 7212 "sql.c"
+#line 7217 "sql.c"
         break;
       case 503: /* compare_op ::= LIKE */
 #line 983 "sql.y"
 { yymsp[0].minor.yy416 = OP_TYPE_LIKE; }
-#line 7217 "sql.c"
+#line 7222 "sql.c"
         break;
       case 504: /* compare_op ::= NOT LIKE */
 #line 984 "sql.y"
 { yymsp[-1].minor.yy416 = OP_TYPE_NOT_LIKE; }
-#line 7222 "sql.c"
+#line 7227 "sql.c"
         break;
       case 505: /* compare_op ::= MATCH */
 #line 985 "sql.y"
 { yymsp[0].minor.yy416 = OP_TYPE_MATCH; }
-#line 7227 "sql.c"
+#line 7232 "sql.c"
         break;
       case 506: /* compare_op ::= NMATCH */
 #line 986 "sql.y"
 { yymsp[0].minor.yy416 = OP_TYPE_NMATCH; }
-#line 7232 "sql.c"
+#line 7237 "sql.c"
         break;
       case 507: /* compare_op ::= CONTAINS */
 #line 987 "sql.y"
 { yymsp[0].minor.yy416 = OP_TYPE_JSON_CONTAINS; }
-#line 7237 "sql.c"
+#line 7242 "sql.c"
         break;
       case 508: /* in_op ::= IN */
 #line 991 "sql.y"
 { yymsp[0].minor.yy416 = OP_TYPE_IN; }
-#line 7242 "sql.c"
+#line 7247 "sql.c"
         break;
       case 509: /* in_op ::= NOT IN */
 #line 992 "sql.y"
 { yymsp[-1].minor.yy416 = OP_TYPE_NOT_IN; }
-#line 7247 "sql.c"
+#line 7252 "sql.c"
         break;
       case 510: /* in_predicate_value ::= NK_LP literal_list NK_RP */
 #line 994 "sql.y"
 { yylhsminor.yy122 = createRawExprNodeExt(pCxt, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0, createNodeListNode(pCxt, yymsp[-1].minor.yy298)); }
-#line 7252 "sql.c"
+#line 7257 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 512: /* boolean_value_expression ::= NOT boolean_primary */
@@ -7258,7 +7263,7 @@ static YYACTIONTYPE yy_reduce(
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy122);
                                                                                     yylhsminor.yy122 = createRawExprNodeExt(pCxt, &yymsp[-1].minor.yy0, &e, createLogicConditionNode(pCxt, LOGIC_COND_TYPE_NOT, releaseRawExprNode(pCxt, yymsp[0].minor.yy122), NULL));
                                                                                   }
-#line 7261 "sql.c"
+#line 7266 "sql.c"
   yymsp[-1].minor.yy122 = yylhsminor.yy122;
         break;
       case 513: /* boolean_value_expression ::= boolean_value_expression OR boolean_value_expression */
@@ -7268,7 +7273,7 @@ static YYACTIONTYPE yy_reduce(
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy122);
                                                                                     yylhsminor.yy122 = createRawExprNodeExt(pCxt, &s, &e, createLogicConditionNode(pCxt, LOGIC_COND_TYPE_OR, releaseRawExprNode(pCxt, yymsp[-2].minor.yy122), releaseRawExprNode(pCxt, yymsp[0].minor.yy122)));
                                                                                   }
-#line 7271 "sql.c"
+#line 7276 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 514: /* boolean_value_expression ::= boolean_value_expression AND boolean_value_expression */
@@ -7278,64 +7283,64 @@ static YYACTIONTYPE yy_reduce(
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy122);
                                                                                     yylhsminor.yy122 = createRawExprNodeExt(pCxt, &s, &e, createLogicConditionNode(pCxt, LOGIC_COND_TYPE_AND, releaseRawExprNode(pCxt, yymsp[-2].minor.yy122), releaseRawExprNode(pCxt, yymsp[0].minor.yy122)));
                                                                                   }
-#line 7281 "sql.c"
+#line 7286 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 522: /* table_reference_list ::= table_reference_list NK_COMMA table_reference */
 #line 1027 "sql.y"
 { yylhsminor.yy122 = createJoinTableNode(pCxt, JOIN_TYPE_INNER, yymsp[-2].minor.yy122, yymsp[0].minor.yy122, NULL); }
-#line 7287 "sql.c"
+#line 7292 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 525: /* table_primary ::= table_name alias_opt */
 #line 1033 "sql.y"
 { yylhsminor.yy122 = createRealTableNode(pCxt, NULL, &yymsp[-1].minor.yy203, &yymsp[0].minor.yy203); }
-#line 7293 "sql.c"
+#line 7298 "sql.c"
   yymsp[-1].minor.yy122 = yylhsminor.yy122;
         break;
       case 526: /* table_primary ::= db_name NK_DOT table_name alias_opt */
 #line 1034 "sql.y"
 { yylhsminor.yy122 = createRealTableNode(pCxt, &yymsp[-3].minor.yy203, &yymsp[-1].minor.yy203, &yymsp[0].minor.yy203); }
-#line 7299 "sql.c"
+#line 7304 "sql.c"
   yymsp[-3].minor.yy122 = yylhsminor.yy122;
         break;
       case 527: /* table_primary ::= subquery alias_opt */
 #line 1035 "sql.y"
 { yylhsminor.yy122 = createTempTableNode(pCxt, releaseRawExprNode(pCxt, yymsp[-1].minor.yy122), &yymsp[0].minor.yy203); }
-#line 7305 "sql.c"
+#line 7310 "sql.c"
   yymsp[-1].minor.yy122 = yylhsminor.yy122;
         break;
       case 529: /* alias_opt ::= */
 #line 1040 "sql.y"
 { yymsp[1].minor.yy203 = nil_token;  }
-#line 7311 "sql.c"
+#line 7316 "sql.c"
         break;
       case 531: /* alias_opt ::= AS table_alias */
 #line 1042 "sql.y"
 { yymsp[-1].minor.yy203 = yymsp[0].minor.yy203; }
-#line 7316 "sql.c"
+#line 7321 "sql.c"
         break;
       case 532: /* parenthesized_joined_table ::= NK_LP joined_table NK_RP */
       case 533: /* parenthesized_joined_table ::= NK_LP parenthesized_joined_table NK_RP */ yytestcase(yyruleno==533);
 #line 1044 "sql.y"
 { yymsp[-2].minor.yy122 = yymsp[-1].minor.yy122; }
-#line 7322 "sql.c"
+#line 7327 "sql.c"
         break;
       case 534: /* joined_table ::= table_reference join_type JOIN table_reference ON search_condition */
 #line 1049 "sql.y"
 { yylhsminor.yy122 = createJoinTableNode(pCxt, yymsp[-4].minor.yy498, yymsp[-5].minor.yy122, yymsp[-2].minor.yy122, yymsp[0].minor.yy122); }
-#line 7327 "sql.c"
+#line 7332 "sql.c"
   yymsp[-5].minor.yy122 = yylhsminor.yy122;
         break;
       case 535: /* join_type ::= */
 #line 1053 "sql.y"
 { yymsp[1].minor.yy498 = JOIN_TYPE_INNER; }
-#line 7333 "sql.c"
+#line 7338 "sql.c"
         break;
       case 536: /* join_type ::= INNER */
 #line 1054 "sql.y"
 { yymsp[0].minor.yy498 = JOIN_TYPE_INNER; }
-#line 7338 "sql.c"
+#line 7343 "sql.c"
         break;
       case 537: /* query_specification ::= SELECT hint_list set_quantifier_opt tag_mode_opt select_list from_clause_opt where_clause_opt partition_by_clause_opt range_opt every_opt fill_opt twindow_clause_opt group_by_clause_opt having_clause_opt */
 #line 1060 "sql.y"
@@ -7351,42 +7356,42 @@ static YYACTIONTYPE yy_reduce(
                                                                                     yymsp[-13].minor.yy122 = addEveryClause(pCxt, yymsp[-13].minor.yy122, yymsp[-4].minor.yy122);
                                                                                     yymsp[-13].minor.yy122 = addFillClause(pCxt, yymsp[-13].minor.yy122, yymsp[-3].minor.yy122);
                                                                                   }
-#line 7354 "sql.c"
+#line 7359 "sql.c"
         break;
       case 538: /* hint_list ::= */
 #line 1075 "sql.y"
 { yymsp[1].minor.yy298 = createHintNodeList(pCxt, NULL); }
-#line 7359 "sql.c"
+#line 7364 "sql.c"
         break;
       case 539: /* hint_list ::= NK_HINT */
 #line 1076 "sql.y"
 { yylhsminor.yy298 = createHintNodeList(pCxt, &yymsp[0].minor.yy0); }
-#line 7364 "sql.c"
+#line 7369 "sql.c"
   yymsp[0].minor.yy298 = yylhsminor.yy298;
         break;
       case 544: /* set_quantifier_opt ::= ALL */
 #line 1087 "sql.y"
 { yymsp[0].minor.yy983 = false; }
-#line 7370 "sql.c"
+#line 7375 "sql.c"
         break;
       case 547: /* select_item ::= NK_STAR */
 #line 1094 "sql.y"
 { yylhsminor.yy122 = createColumnNode(pCxt, NULL, &yymsp[0].minor.yy0); }
-#line 7375 "sql.c"
+#line 7380 "sql.c"
   yymsp[0].minor.yy122 = yylhsminor.yy122;
         break;
       case 549: /* select_item ::= common_expression column_alias */
       case 559: /* partition_item ::= expr_or_subquery column_alias */ yytestcase(yyruleno==559);
 #line 1096 "sql.y"
 { yylhsminor.yy122 = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, yymsp[-1].minor.yy122), &yymsp[0].minor.yy203); }
-#line 7382 "sql.c"
+#line 7387 "sql.c"
   yymsp[-1].minor.yy122 = yylhsminor.yy122;
         break;
       case 550: /* select_item ::= common_expression AS column_alias */
       case 560: /* partition_item ::= expr_or_subquery AS column_alias */ yytestcase(yyruleno==560);
 #line 1097 "sql.y"
 { yylhsminor.yy122 = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, yymsp[-2].minor.yy122), &yymsp[0].minor.yy203); }
-#line 7389 "sql.c"
+#line 7394 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 555: /* partition_by_clause_opt ::= PARTITION BY partition_list */
@@ -7394,99 +7399,99 @@ static YYACTIONTYPE yy_reduce(
       case 600: /* order_by_clause_opt ::= ORDER BY sort_specification_list */ yytestcase(yyruleno==600);
 #line 1106 "sql.y"
 { yymsp[-2].minor.yy298 = yymsp[0].minor.yy298; }
-#line 7397 "sql.c"
+#line 7402 "sql.c"
         break;
       case 562: /* twindow_clause_opt ::= SESSION NK_LP column_reference NK_COMMA duration_literal NK_RP */
 #line 1119 "sql.y"
 { yymsp[-5].minor.yy122 = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, yymsp[-3].minor.yy122), releaseRawExprNode(pCxt, yymsp[-1].minor.yy122)); }
-#line 7402 "sql.c"
+#line 7407 "sql.c"
         break;
       case 563: /* twindow_clause_opt ::= STATE_WINDOW NK_LP expr_or_subquery NK_RP */
 #line 1120 "sql.y"
 { yymsp[-3].minor.yy122 = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, yymsp[-1].minor.yy122)); }
-#line 7407 "sql.c"
+#line 7412 "sql.c"
         break;
       case 564: /* twindow_clause_opt ::= INTERVAL NK_LP duration_literal NK_RP sliding_opt fill_opt */
 #line 1122 "sql.y"
 { yymsp[-5].minor.yy122 = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, yymsp[-3].minor.yy122), NULL, yymsp[-1].minor.yy122, yymsp[0].minor.yy122); }
-#line 7412 "sql.c"
+#line 7417 "sql.c"
         break;
       case 565: /* twindow_clause_opt ::= INTERVAL NK_LP duration_literal NK_COMMA duration_literal NK_RP sliding_opt fill_opt */
 #line 1125 "sql.y"
 { yymsp[-7].minor.yy122 = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, yymsp[-5].minor.yy122), releaseRawExprNode(pCxt, yymsp[-3].minor.yy122), yymsp[-1].minor.yy122, yymsp[0].minor.yy122); }
-#line 7417 "sql.c"
+#line 7422 "sql.c"
         break;
       case 566: /* twindow_clause_opt ::= EVENT_WINDOW START WITH search_condition END WITH search_condition */
 #line 1127 "sql.y"
 { yymsp[-6].minor.yy122 = createEventWindowNode(pCxt, yymsp[-3].minor.yy122, yymsp[0].minor.yy122); }
-#line 7422 "sql.c"
+#line 7427 "sql.c"
         break;
       case 570: /* fill_opt ::= FILL NK_LP fill_mode NK_RP */
 #line 1133 "sql.y"
 { yymsp[-3].minor.yy122 = createFillNode(pCxt, yymsp[-1].minor.yy312, NULL); }
-#line 7427 "sql.c"
+#line 7432 "sql.c"
         break;
       case 571: /* fill_opt ::= FILL NK_LP VALUE NK_COMMA expression_list NK_RP */
 #line 1134 "sql.y"
 { yymsp[-5].minor.yy122 = createFillNode(pCxt, FILL_MODE_VALUE, createNodeListNode(pCxt, yymsp[-1].minor.yy298)); }
-#line 7432 "sql.c"
+#line 7437 "sql.c"
         break;
       case 572: /* fill_opt ::= FILL NK_LP VALUE_F NK_COMMA expression_list NK_RP */
 #line 1135 "sql.y"
 { yymsp[-5].minor.yy122 = createFillNode(pCxt, FILL_MODE_VALUE_F, createNodeListNode(pCxt, yymsp[-1].minor.yy298)); }
-#line 7437 "sql.c"
+#line 7442 "sql.c"
         break;
       case 573: /* fill_mode ::= NONE */
 #line 1139 "sql.y"
 { yymsp[0].minor.yy312 = FILL_MODE_NONE; }
-#line 7442 "sql.c"
+#line 7447 "sql.c"
         break;
       case 574: /* fill_mode ::= PREV */
 #line 1140 "sql.y"
 { yymsp[0].minor.yy312 = FILL_MODE_PREV; }
-#line 7447 "sql.c"
+#line 7452 "sql.c"
         break;
       case 575: /* fill_mode ::= NULL */
 #line 1141 "sql.y"
 { yymsp[0].minor.yy312 = FILL_MODE_NULL; }
-#line 7452 "sql.c"
+#line 7457 "sql.c"
         break;
       case 576: /* fill_mode ::= NULL_F */
 #line 1142 "sql.y"
 { yymsp[0].minor.yy312 = FILL_MODE_NULL_F; }
-#line 7457 "sql.c"
+#line 7462 "sql.c"
         break;
       case 577: /* fill_mode ::= LINEAR */
 #line 1143 "sql.y"
 { yymsp[0].minor.yy312 = FILL_MODE_LINEAR; }
-#line 7462 "sql.c"
+#line 7467 "sql.c"
         break;
       case 578: /* fill_mode ::= NEXT */
 #line 1144 "sql.y"
 { yymsp[0].minor.yy312 = FILL_MODE_NEXT; }
-#line 7467 "sql.c"
+#line 7472 "sql.c"
         break;
       case 581: /* group_by_list ::= expr_or_subquery */
 #line 1153 "sql.y"
 { yylhsminor.yy298 = createNodeList(pCxt, createGroupingSetNode(pCxt, releaseRawExprNode(pCxt, yymsp[0].minor.yy122))); }
-#line 7472 "sql.c"
+#line 7477 "sql.c"
   yymsp[0].minor.yy298 = yylhsminor.yy298;
         break;
       case 582: /* group_by_list ::= group_by_list NK_COMMA expr_or_subquery */
 #line 1154 "sql.y"
 { yylhsminor.yy298 = addNodeToList(pCxt, yymsp[-2].minor.yy298, createGroupingSetNode(pCxt, releaseRawExprNode(pCxt, yymsp[0].minor.yy122))); }
-#line 7478 "sql.c"
+#line 7483 "sql.c"
   yymsp[-2].minor.yy298 = yylhsminor.yy298;
         break;
       case 586: /* range_opt ::= RANGE NK_LP expr_or_subquery NK_COMMA expr_or_subquery NK_RP */
 #line 1161 "sql.y"
 { yymsp[-5].minor.yy122 = createInterpTimeRange(pCxt, releaseRawExprNode(pCxt, yymsp[-3].minor.yy122), releaseRawExprNode(pCxt, yymsp[-1].minor.yy122)); }
-#line 7484 "sql.c"
+#line 7489 "sql.c"
         break;
       case 587: /* range_opt ::= RANGE NK_LP expr_or_subquery NK_RP */
 #line 1163 "sql.y"
 { yymsp[-3].minor.yy122 = createInterpTimePoint(pCxt, releaseRawExprNode(pCxt, yymsp[-1].minor.yy122)); }
-#line 7489 "sql.c"
+#line 7494 "sql.c"
         break;
       case 590: /* query_expression ::= query_simple order_by_clause_opt slimit_clause_opt limit_clause_opt */
 #line 1170 "sql.y"
@@ -7495,80 +7500,80 @@ static YYACTIONTYPE yy_reduce(
                                                                                     yylhsminor.yy122 = addSlimitClause(pCxt, yylhsminor.yy122, yymsp[-1].minor.yy122);
                                                                                     yylhsminor.yy122 = addLimitClause(pCxt, yylhsminor.yy122, yymsp[0].minor.yy122);
                                                                                   }
-#line 7498 "sql.c"
+#line 7503 "sql.c"
   yymsp[-3].minor.yy122 = yylhsminor.yy122;
         break;
       case 593: /* union_query_expression ::= query_simple_or_subquery UNION ALL query_simple_or_subquery */
 #line 1180 "sql.y"
 { yylhsminor.yy122 = createSetOperator(pCxt, SET_OP_TYPE_UNION_ALL, yymsp[-3].minor.yy122, yymsp[0].minor.yy122); }
-#line 7504 "sql.c"
+#line 7509 "sql.c"
   yymsp[-3].minor.yy122 = yylhsminor.yy122;
         break;
       case 594: /* union_query_expression ::= query_simple_or_subquery UNION query_simple_or_subquery */
 #line 1182 "sql.y"
 { yylhsminor.yy122 = createSetOperator(pCxt, SET_OP_TYPE_UNION, yymsp[-2].minor.yy122, yymsp[0].minor.yy122); }
-#line 7510 "sql.c"
+#line 7515 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 602: /* slimit_clause_opt ::= SLIMIT NK_INTEGER */
       case 606: /* limit_clause_opt ::= LIMIT NK_INTEGER */ yytestcase(yyruleno==606);
 #line 1196 "sql.y"
 { yymsp[-1].minor.yy122 = createLimitNode(pCxt, &yymsp[0].minor.yy0, NULL); }
-#line 7517 "sql.c"
+#line 7522 "sql.c"
         break;
       case 603: /* slimit_clause_opt ::= SLIMIT NK_INTEGER SOFFSET NK_INTEGER */
       case 607: /* limit_clause_opt ::= LIMIT NK_INTEGER OFFSET NK_INTEGER */ yytestcase(yyruleno==607);
 #line 1197 "sql.y"
 { yymsp[-3].minor.yy122 = createLimitNode(pCxt, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0); }
-#line 7523 "sql.c"
+#line 7528 "sql.c"
         break;
       case 604: /* slimit_clause_opt ::= SLIMIT NK_INTEGER NK_COMMA NK_INTEGER */
       case 608: /* limit_clause_opt ::= LIMIT NK_INTEGER NK_COMMA NK_INTEGER */ yytestcase(yyruleno==608);
 #line 1198 "sql.y"
 { yymsp[-3].minor.yy122 = createLimitNode(pCxt, &yymsp[0].minor.yy0, &yymsp[-2].minor.yy0); }
-#line 7529 "sql.c"
+#line 7534 "sql.c"
         break;
       case 609: /* subquery ::= NK_LP query_expression NK_RP */
 #line 1206 "sql.y"
 { yylhsminor.yy122 = createRawExprNodeExt(pCxt, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0, yymsp[-1].minor.yy122); }
-#line 7534 "sql.c"
+#line 7539 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 614: /* sort_specification ::= expr_or_subquery ordering_specification_opt null_ordering_opt */
 #line 1220 "sql.y"
 { yylhsminor.yy122 = createOrderByExprNode(pCxt, releaseRawExprNode(pCxt, yymsp[-2].minor.yy122), yymsp[-1].minor.yy626, yymsp[0].minor.yy877); }
-#line 7540 "sql.c"
+#line 7545 "sql.c"
   yymsp[-2].minor.yy122 = yylhsminor.yy122;
         break;
       case 615: /* ordering_specification_opt ::= */
 #line 1224 "sql.y"
 { yymsp[1].minor.yy626 = ORDER_ASC; }
-#line 7546 "sql.c"
+#line 7551 "sql.c"
         break;
       case 616: /* ordering_specification_opt ::= ASC */
 #line 1225 "sql.y"
 { yymsp[0].minor.yy626 = ORDER_ASC; }
-#line 7551 "sql.c"
+#line 7556 "sql.c"
         break;
       case 617: /* ordering_specification_opt ::= DESC */
 #line 1226 "sql.y"
 { yymsp[0].minor.yy626 = ORDER_DESC; }
-#line 7556 "sql.c"
+#line 7561 "sql.c"
         break;
       case 618: /* null_ordering_opt ::= */
 #line 1230 "sql.y"
 { yymsp[1].minor.yy877 = NULL_ORDER_DEFAULT; }
-#line 7561 "sql.c"
+#line 7566 "sql.c"
         break;
       case 619: /* null_ordering_opt ::= NULLS FIRST */
 #line 1231 "sql.y"
 { yymsp[-1].minor.yy877 = NULL_ORDER_FIRST; }
-#line 7566 "sql.c"
+#line 7571 "sql.c"
         break;
       case 620: /* null_ordering_opt ::= NULLS LAST */
 #line 1232 "sql.y"
 { yymsp[-1].minor.yy877 = NULL_ORDER_LAST; }
-#line 7571 "sql.c"
+#line 7576 "sql.c"
         break;
       default:
         break;
@@ -7641,7 +7646,7 @@ static void yy_syntax_error(
   } else if (TSDB_CODE_PAR_DB_NOT_SPECIFIED == pCxt->errCode && TK_NK_FLOAT == TOKEN.type) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, TOKEN.z);
   }
-#line 7644 "sql.c"
+#line 7649 "sql.c"
 /************ End %syntax_error code ******************************************/
   ParseARG_STORE /* Suppress warning about unused %extra_argument variable */
   ParseCTX_STORE
