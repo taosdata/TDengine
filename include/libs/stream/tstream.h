@@ -556,6 +556,8 @@ int32_t tDecodeStreamCheckpointReadyMsg(SDecoder* pDecoder, SStreamCheckpointRea
 typedef struct STaskStatusEntry {
   STaskId id;
   int32_t status;
+  int32_t stage;
+  int32_t nodeId;
 } STaskStatusEntry;
 
 typedef struct SStreamHbMsg {
