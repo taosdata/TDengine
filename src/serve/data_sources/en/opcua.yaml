@@ -216,8 +216,8 @@ groups:
     description: |
       Stable Config
 
-      - **received_time**: time opc collector received<br>
-      - **original_time**: time from opc server <br>
+      - **received_ts**: timestamp opc collector received<br>
+      - **original_ts**: timestamp from opc server <br>
       - **value**: point value<br>
       - **status**: point status<br>
 
