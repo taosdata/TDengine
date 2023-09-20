@@ -239,7 +239,7 @@ impl Cli {
         let debugging_recorder = metrics_util::debugging::DebuggingRecorder::new();
         let snapshotter = Data::new(debugging_recorder.snapshotter());
 
-        let metrics_allowed_labels = ["task.id", "request_id", "client.address"];
+        let metrics_allowed_labels = ["task.id", "client.address"];
         let recorder =
             TracingContextLayer::only_allow(&metrics_allowed_labels).layer(metrics_recorder);
         let debugging =
