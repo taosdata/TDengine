@@ -180,6 +180,7 @@ The following list shows all reserved keywords:
 - MAX_DELAY
 - BWLIMIT
 - MAXROWS
+- MAX_SPEED
 - MERGE
 - META
 - MINROWS

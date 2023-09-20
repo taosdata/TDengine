@@ -247,6 +247,7 @@ typedef struct SStreamTaskId {
 } SStreamTaskId;
 
 typedef struct SCheckpointInfo {
+  int64_t startTs;
   int64_t checkpointId;
   int64_t checkpointVer;  // latest checkpointId version
   int64_t nextProcessVer;     // current offset in WAL, not serialize it
@@ -661,6 +662,7 @@ int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue);
 // common
 int32_t     streamRestoreParam(SStreamTask* pTask);
 int32_t     streamSetStatusNormal(SStreamTask* pTask);
+int32_t     streamSetStatusUnint(SStreamTask* pTask);
 const char* streamGetTaskStatusStr(int32_t status);
 void        streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta);
 void        streamTaskResume(SStreamTask* pTask, SStreamMeta* pMeta);

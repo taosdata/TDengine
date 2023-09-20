@@ -294,6 +294,8 @@ void streamMetaClear(SStreamMeta* pMeta) {
   taosArrayClear(pMeta->pTaskList);
   taosArrayClear(pMeta->chkpSaved);
   taosArrayClear(pMeta->chkpInUse);
+  pMeta->numOfStreamTasks = 0;
+  pMeta->numOfPausedTasks = 0;
 }
 
 void streamMetaClose(SStreamMeta* pMeta) {
@@ -644,10 +646,12 @@ static void doClear(void* pKey, void* pVal, TBC* pCur, SArray* pRecycleList) {
 
 int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   TBC* pCur = NULL;
-  qInfo("vgId:%d load stream tasks from meta files", pMeta->vgId);
+  int32_t vgId = pMeta->vgId;
+
+  qInfo("vgId:%d load stream tasks from meta files", vgId);
 
   if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
-    qError("vgId:%d failed to open stream meta, code:%s", pMeta->vgId, tstrerror(terrno));
+    qError("vgId:%d failed to open stream meta, code:%s", vgId, tstrerror(terrno));
     return -1;
   }
 
@@ -662,6 +666,8 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
     SStreamTask* pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
     if (pTask == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      qError("vgId:%d failed to load stream task from meta-files, code:%s", vgId, tstrerror(terrno));
       doClear(pKey, pVal, pCur, pRecycleList);
       return -1;
     }
@@ -672,9 +678,8 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       doClear(pKey, pVal, pCur, pRecycleList);
       tFreeStreamTask(pTask);
       qError(
-          "stream read incompatible data, rm %s/vnode/vnode*/tq/stream if taosd cannot start, and rebuild stream "
-          "manually",
-          tsDataDir);
+          "vgId:%d stream read incompatible data, rm %s/vnode/vnode*/tq/stream if taosd cannot start, and rebuild stream "
+          "manually", vgId, tsDataDir);
       return -1;
     }
     tDecoderClear(&decoder);
@@ -731,6 +736,7 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   tdbFree(pKey);
   tdbFree(pVal);
   if (tdbTbcClose(pCur) < 0) {
+    qError("vgId:%d failed to close meta-file cursor", vgId);
     taosArrayDestroy(pRecycleList);
     return -1;
   }
@@ -743,6 +749,7 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   }
 
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+  ASSERT(pMeta->numOfStreamTasks <= numOfTasks && pMeta->numOfPausedTasks <= numOfTasks);
   qDebug("vgId:%d load %d tasks into meta from disk completed, streamTask:%d, paused:%d", pMeta->vgId, numOfTasks,
          pMeta->numOfStreamTasks, pMeta->numOfPausedTasks);
   taosArrayDestroy(pRecycleList);

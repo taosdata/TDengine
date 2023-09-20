@@ -109,11 +109,14 @@ class VNode :
         # load config
         tdLog.info(f' meta-ver file={metaFile}')
         if metaFile != "":
-            jsonVer = jsonFromFile(metaFile)
-            metaNode = jsonVer["meta"]
-            self.snapVer  = int(metaNode["snapshotVer"])
-            self.firstVer = int(metaNode["firstVer"])
-            self.lastVer  = int(metaNode["lastVer"])            
+            try:
+                jsonVer = jsonFromFile(metaFile)
+                metaNode = jsonVer["meta"]
+                self.snapVer  = int(metaNode["snapshotVer"])
+                self.firstVer = int(metaNode["firstVer"])
+                self.lastVer  = int(metaNode["lastVer"])
+            except Exception as e:
+                tdLog.info(f' read json file except.')
 
         # sort with startVer
         self.walFiles = sorted(self.walFiles, key=lambda x : x.startVer, reverse=True)
