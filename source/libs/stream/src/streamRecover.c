@@ -205,21 +205,22 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
   SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, upstreamTaskId);
   ASSERT(pInfo != NULL);
 
+  const char* id = pTask->id.idStr;
   if (stage == -1) {
-    qDebug("s-task:%s receive check msg from upstream task:0x%x, invalid stageId:%" PRId64 ", not ready", pTask->id.idStr,
+    qDebug("s-task:%s receive check msg from upstream task:0x%x, invalid stageId:%" PRId64 ", not ready", id,
            upstreamTaskId, stage);
     return 0;
   }
 
   if (pInfo->stage == -1) {
     pInfo->stage = stage;
-    qDebug("s-task:%s receive check msg from upstream task:0x%x, init stage value:%" PRId64, pTask->id.idStr,
+    qDebug("s-task:%s receive check msg from upstream task:0x%x for the time, init stage value:%" PRId64, id,
            upstreamTaskId, stage);
   }
 
   if (pInfo->stage < stage) {
     qError("s-task:%s receive msg from upstream task:0x%x(vgId:%d), new stage received:%" PRId64 ", prev:%" PRId64,
-           pTask->id.idStr, upstreamTaskId, vgId, stage, pInfo->stage);
+           id, upstreamTaskId, vgId, stage, pInfo->stage);
   }
 
   return ((pTask->status.downstreamReady == 1) && (pInfo->stage == stage))? 1:0;
@@ -351,6 +352,18 @@ int32_t streamSetStatusNormal(SStreamTask* pTask) {
   } else {
     qDebug("s-task:%s set task status to be normal, prev:%s", pTask->id.idStr, streamGetTaskStatusStr(status));
     atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__NORMAL);
+    return 0;
+  }
+}
+
+int32_t streamSetStatusUnint(SStreamTask* pTask) {
+  int32_t status = atomic_load_8(&pTask->status.taskStatus);
+  if (status == TASK_STATUS__DROPPING) {
+    qError("s-task:%s cannot be set uninit, since in dropping state", pTask->id.idStr);
+    return -1;
+  } else {
+    qDebug("s-task:%s set task status to be uninit, prev:%s", pTask->id.idStr, streamGetTaskStatusStr(status));
+    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__UNINIT);
     return 0;
   }
 }

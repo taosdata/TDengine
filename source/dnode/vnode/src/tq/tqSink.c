@@ -537,7 +537,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, STSchema* pTSchema, SSDataBlock
       if (k == 0) {
         SColumnInfoData* pColData = taosArrayGet(pDataBlock->pDataBlock, dataIndex);
         void*            colData = colDataGetData(pColData, j);
-        tqDebug("s-task:%s sink row %d, col %d ts %" PRId64, id, j, k, *(int64_t*)colData);
+        tqTrace("s-task:%s sink row %d, col %d ts %" PRId64, id, j, k, *(int64_t*)colData);
       }
 
       if (IS_SET_NULL(pCol)) {

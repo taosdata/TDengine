@@ -141,6 +141,7 @@ int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSo
   pTask->status.taskStatus = TASK_STATUS__CK;
   pTask->checkpointingId = pReq->checkpointId;
   pTask->checkpointNotReadyTasks = streamTaskGetNumOfDownstream(pTask);
+  pTask->chkInfo.startTs = taosGetTimestampMs();
 
   // 2. let's dispatch checkpoint msg to downstream task directly and do nothing else. put the checkpoint block into
   //    inputQ, to make sure all blocks with less version have been handled by this task already.
@@ -200,6 +201,8 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
     }
   } else if (taskLevel == TASK_LEVEL__SINK || taskLevel == TASK_LEVEL__AGG) {
     ASSERT(taosArrayGetSize(pTask->pUpstreamInfoList) > 0);
+
+    pTask->chkInfo.startTs = taosGetTimestampMs();
 
     // update the child Id for downstream tasks
     streamAddCheckpointReadyMsg(pTask, pBlock->srcTaskId, pTask->info.selfChildId, checkpointId);
@@ -312,15 +315,19 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   int32_t      remain = atomic_sub_fetch_32(&pMeta->chkptNotReadyTasks, 1);
   ASSERT(remain >= 0);
 
+  double el = (taosGetTimestampMs() - pTask->chkInfo.startTs) / 1000.0;
+
   if (remain == 0) {  // all tasks are ready
     qDebug("s-task:%s is ready for checkpoint", pTask->id.idStr);
     streamBackendDoCheckpoint(pMeta, pTask->checkpointingId);
     streamSaveAllTaskStatus(pMeta, pTask->checkpointingId);
-    qDebug("vgId:%d vnode wide checkpoint completed, save all tasks status, checkpointId:%" PRId64, pMeta->vgId,
-           pTask->checkpointingId);
+    qDebug("vgId:%d vnode wide checkpoint completed, save all tasks status, elapsed time:%.2f Sec checkpointId:%" PRId64, pMeta->vgId,
+           el, pTask->checkpointingId);
   } else {
-    qDebug("vgId:%d vnode wide tasks not reach checkpoint ready status, ready s-task:%s, not ready:%d/%d", pMeta->vgId,
-           pTask->id.idStr, remain, pMeta->numOfStreamTasks);
+    qDebug(
+        "vgId:%d vnode wide tasks not reach checkpoint ready status, ready s-task:%s, elapsed time:%.2f Sec not "
+        "ready:%d/%d",
+        pMeta->vgId, pTask->id.idStr, el, remain, pMeta->numOfStreamTasks);
   }
 
   // send check point response to upstream task
