@@ -804,7 +804,7 @@ pub async fn generate_opcconfig_from_csv(
                             current_columns.push(received_ts_col_name.clone());
                             has_primary_key = true;
                             column_config.push(ColumnConfig {
-                                column_name: "received_time".to_string(),
+                                column_name: "received_ts".to_string(),
                                 column_type: Some(Ty::Timestamp),
                                 column_alias: Some(received_ts_col_name),
                                 is_primary_key: has_primary_key,
@@ -817,7 +817,7 @@ pub async fn generate_opcconfig_from_csv(
                         check_duplicated(&current_tag_names, Some(&current_columns), &ts_col_name)?;
                         current_columns.push(ts_col_name.clone());
                         column_config.push(ColumnConfig {
-                            column_name: "original_time".to_string(),
+                            column_name: "original_ts".to_string(),
                             column_type: Some(Ty::Timestamp),
                             column_alias: Some(ts_col_name),
                             is_primary_key: !has_primary_key,
