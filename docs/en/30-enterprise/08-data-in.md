@@ -235,6 +235,7 @@ The InfluxDB DSN complies with standard DSN conventions. Additional parameters a
 - beginTime: (Mandatory) Specify the starting timestamp for data replication in the YYYY-MM-DD'T'HH:MM:SS'Z' format. For example, 2023-06-01T00:00:00-0700 indicates midnight on June 1, 2023 in Pacific Daylight Time.
 - endTime: (Optional) Specify the ending timestamp for data replication in the same format as `beginTime`. If you do not specify a value, data replication is performed continuously.
 - readWindow: (Optional) Specify the read window. You can enter D (day), H (hour) or M (minute). The default value is M.
+- tolerance: (Optional) Specify the tolerance time (unit is millisecond), only the integer value from 1 to 300000 is supported, if not specified, the default value is 10000
 
 ### Example
 
@@ -242,13 +243,13 @@ An InfluxDB server located at 192.168.1.10 has a bucket named `test_bucket`. The
 ```bash
 # version = 1.x
 taosx run \
-  --from "influxdb+http://192.168.1.10:8086/?version=1.7&username=test&password=123456&bucket=test_bucket&measurements=&beginTime=2023-06-01T00:00:00+0800&readWindow=M" \
+  --from "influxdb+http://192.168.1.10:8086/?version=1.7&username=test&password=123456&bucket=test_bucket&measurements=&beginTime=2023-06-01T00:00:00+0800&readWindow=M&tolerance=10000" \
   --to "taos+http://192.168.1.20:6041/test_db" \
   -vv
 
 # version = 2.x
 taosx run \
-  --from "influxdb+http://192.168.1.10:8086/?version=2.7&orgId=3233855dc7e37d8d&token=OZ2sB6Ie6qcKcYAmcHnL-i3STfLVg_IRPQjPIzjsAQ4aUxCWzYhDesNape1tp8IsX9AH0ld41C-clTgo08CGYA==&bucket=test_bucket&measurements=&beginTime=2023-06-01T00:00:00+0800&readWindow=M" \
+  --from "influxdb+http://192.168.1.10:8086/?version=2.7&orgId=3233855dc7e37d8d&token=OZ2sB6Ie6qcKcYAmcHnL-i3STfLVg_IRPQjPIzjsAQ4aUxCWzYhDesNape1tp8IsX9AH0ld41C-clTgo08CGYA==&bucket=test_bucket&measurements=&beginTime=2023-06-01T00:00:00+0800&readWindow=M&tolerance=10000" \
   --to "taos+http://192.168.1.20:6041/test_db" \
   -vv
 ```
@@ -271,6 +272,7 @@ The OpenTSDB DSN complies with standard DSN conventions. Additional parameters a
 - beginTime: (Mandatory) Specify the starting timestamp for data replication in the YYYY-MM-DD'T'HH:MM:SS'Z' format. For example, 2023-06-01T00:00:00-0700 indicates midnight on June 1, 2023 in Pacific Daylight Time.
 - endTime: (Optional) Specify the ending timestamp for data replication in the same format as `beginTime`. If you do not specify a value, data replication is performed continuously.
 - readWindow: (Optional) Specify the read window. You can enter D (day), H (hour) or M (minute). The default value is M.
+- tolerance: (Optional) Specify the tolerance time (unit is millisecond), only the integer value from 1 to 300000 is supported, if not specified, the default value is 10000.
 
 ### Example
 
@@ -278,7 +280,7 @@ An OpenTSDB server located at 192.168.1.10 has metrics named `test_metric1` and 
 
 ```bash
 taosx run \
-  --from "opentsdb+http://192.168.1.10:4242/?metrics=test_metric1,test_metric2&beginTime=2023-06-01T00:00:00+0800&readWindow=M" \
+  --from "opentsdb+http://192.168.1.10:4242/?metrics=test_metric1,test_metric2&beginTime=2023-06-01T00:00:00+0800&readWindow=M&tolerance=10000" \
   --to "taos+http://192.168.1.20:6041/test_db" \
   -vv
 ```

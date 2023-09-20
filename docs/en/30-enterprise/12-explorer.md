@@ -115,15 +115,34 @@ Go to the TDengine Subscription Task Configuration page:
 ### InfluxDB
 
 After you enter the edit page for the InfluxDB Data Source Synchronization task:
-1. In the Server Address input box, enter the address of the InfluxDB server, either an IP address or a domain name; this field is required;
-2. In the Port input box, enter the InfluxDB server port. By default, InfluxDB listens for HTTP requests on port 8086 and HTTPS requests on port 8088, this field is required;
-3. In the Organization ID input box, enter the ID of the organization to be synchronized; this field is required.
-4. In the Token Token input box, enter a required field for a token that has at least read access to the specified bucket under this organization ID.
+1. In the Protocol drop-down list, select a protocol of the InfluxDB connection, available items are "HTTP Protocol" or "HTTPS Protocol", this field is required;
+2. In the Server Address input box, enter the address of the InfluxDB server, either an IP address or a domain name; this field is required;
+3. In the Port input box, enter the InfluxDB server port. By default, InfluxDB listens for HTTP requests on port 8086 and HTTPS requests on port 8088, this field is required;
+4. In the Authentication section, 1.x versions and 2.x versions were supported for InfluxDB server, choose the corresponding version according to your requirement, this field is required;
+5. If InfluxDB server is 1.x version, select the correct one from version drop-down list, 1.7 and 1.8 are supported now, then fill in the username and password, these 3 fields are required;
+6. If InfluxDB server is 2.x version, select the correct one from version drop-down list, from 2.0 to 2.7 are supported now, then fill in enter the ID of the organization to be synchronized into Organization ID input box, enter a required field for a token that has at least read access to the specified bucket under this organization ID into the Token input box, these 3 fields are required;
+7. In the Bucket input box, enter a bucket to be synchronized, only one bucket can be synchronized to TDengine database, and also could get all bucket list by clicking "Get Schema" button, this field is required;
+8. In the Measurements input box, select one or more specified measurements to migrate, and if not specified, it will migrate all measurements, this is an optional field;
+9. Under Start time of synchronization settings, select a start time for synchronizing the data by clicking on it, the start time is in UTC time, this field is required.
+10. Under End Time of Synchronization Settings, when no end time is specified, synchronization of the latest data will continue; when an end time is specified, synchronization will continue only up to this end time; the end time is in UTC time, and this is an optional field;
+11. In the Read Window drop-down list, select a type of read window(D-Day, H-Hour, M-Minute), if not specified, the default value is "M-Minute", this is an optional field;
+12. In the Tolerance interval input box (unit is millisecond), only the integer value from 1 to 300000 is supported, if not specified, the default value is 10000, this is an optional field;
+13. In the Target Database drop-down list, select a TDengine target database to be written to (Note: Currently, only TDengine target databases with nanosecond precision are supported to be synchronized), this field is required;
+14. After completing the above information, click the Submit button to start the data synchronization from InfluxDB to TDengine directly.
+
+### OpenTSDB
+
+After you enter the edit page for the OpenTSDB Data Source Synchronization task:
+1. In the Protocol drop-down list, select a protocol of the OpenTSDB connection, available items are "HTTP Protocol" or "HTTPS Protocol", this field is required;
+2. In the Server Address input box, enter the address of the OpenTSDB server, either an IP address or a domain name; this field is required;
+3. In the Port input box, enter the OpenTSDB server port. By default, OpenTSDB listens for HTTP requests on port 4242, this field is required;
+4. In the Metrics input box, select one or more specified metrics to migrate, and if not specified, it will migrate all metrics, this is an optional field;
 5. Under Start time of synchronization settings, select a start time for synchronizing the data by clicking on it, the start time is in UTC time, this field is required.
 6. Under End Time of Synchronization Settings, when no end time is specified, synchronization of the latest data will continue; when an end time is specified, synchronization will continue only up to this end time; the end time is in UTC time, and this is an optional field;
-7. In the Bucket input box, enter a bucket to be synchronized, only one bucket can be synchronized to TDengine database, this field is required;
-8. In the Target Database drop-down list, select a TDengine target database to be written to (Note: Currently, only TDengine target databases with nanosecond precision are supported to be synchronized), this field is required;
-9. After completing the above information, click the Submit button to start the data synchronization from InfluxDB to TDengine directly.
+7. In the Read Window drop-down list, select a type of read window(D-Day, H-Hour, M-Minute), if not specified, the default value is "M-Minute", this is an optional field;
+8. In the Tolerance interval input box (unit is millisecond), only the integer value from 1 to 300000 is supported, if not specified, the default value is 10000, this is an optional field;
+9. In the Target Database drop-down list, select a TDengine target database to be written to (Note: Currently, only TDengine target databases with millisecond precision are supported to be synchronized), this field is required;
+10. After completing the above information, click the Submit button to start the data synchronization from OpenTSDB to TDengine directly.
 
 ### MQTT
 
