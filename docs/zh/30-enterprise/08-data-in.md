@@ -234,7 +234,8 @@ taosx run --from "<InfluxDB-DSN>" --to "<TDengine-DSN>"
 - measurements: 非必填，可以指定需要同步的多个 Measurements（英文逗号分割），未指定则同步全部；
 - beginTime: 必填，格式为：YYYY-MM-DD'T'HH:MM:SS'Z', 时区采用 UTC 时区，例如：2023-06-01T00:00:00+0800, 即北京时间2023-06-01 00:00:00（东八区时间）；
 - endTime: 非必填，可以不指定该字段或值为空，格式与beginTime相同；如果未指定，提交任务后，将持续进行数据同步；
-- readWindow: 非必填，可以不指定该字段或值为空，可选项为D、H、M（天、时、分）；如果未指定，则默认按 M 拆分读取窗口。
+- readWindow: 非必填，可以不指定该字段或值为空，可选项为D、H、M（天、时、分）；如果未指定，则默认按 M 拆分读取窗口；
+- tolerance: 非必填, 范围从1到30000的整数，单位为毫秒。
 
 ### 示例
 
@@ -242,13 +243,13 @@ taosx run --from "<InfluxDB-DSN>" --to "<TDengine-DSN>"
 ```bash
 # version = 1.x
 taosx run \
-  --from "influxdb+http://192.168.1.10:8086/?version=1.7&username=test&password=123456&bucket=test_bucket&measurements=&beginTime=2023-06-01T00:00:00+0800&readWindow=M" \
+  --from "influxdb+http://192.168.1.10:8086/?version=1.7&username=test&password=123456&bucket=test_bucket&measurements=&beginTime=2023-06-01T00:00:00+0800&readWindow=M&tolerance=10000" \
   --to "taos+http://192.168.1.20:6041/test_db" \
   -vv
 
 # version = 2.x
 taosx run \
-  --from "influxdb+http://192.168.1.10:8086/?version=2.7&orgId=3233855dc7e37d8d&token=OZ2sB6Ie6qcKcYAmcHnL-i3STfLVg_IRPQjPIzjsAQ4aUxCWzYhDesNape1tp8IsX9AH0ld41C-clTgo08CGYA==&bucket=test_bucket&measurements=&beginTime=2023-06-01T00:00:00+0800&readWindow=M" \
+  --from "influxdb+http://192.168.1.10:8086/?version=2.7&orgId=3233855dc7e37d8d&token=OZ2sB6Ie6qcKcYAmcHnL-i3STfLVg_IRPQjPIzjsAQ4aUxCWzYhDesNape1tp8IsX9AH0ld41C-clTgo08CGYA==&bucket=test_bucket&measurements=&beginTime=2023-06-01T00:00:00+0800&readWindow=M&tolerance=10000" \
   --to "taos+http://192.168.1.20:6041/test_db" \
   -vv
 ```
@@ -271,14 +272,15 @@ taosx run --from "<OpenTSDB-DSN>" --to "<TDengine-DSN>"
 - beginTime: 必填，格式为：YYYY-MM-DD'T'HH:MM:SS'Z', 时区采用 UTC 时区，例如：2023-06-01T00:00:00+0800, 即北京时间2023-06-01 00:00:00（东八区时间）；
 - endTime: 非必填，可以不指定该字段或值为空，格式与beginTime相同；如果未指定，提交任务后，将持续进行数据同步；
 - readWindow: 非必填，可以不指定该字段或值为空，可选项为D、H、M（天、时、分）；如果未指定，则默认按分钟拆分读取窗口。
+- tolerance: 非必填, 范围从1到30000的整数，单位为毫秒。
 
 ### 示例
 
-将位于 192.168.1.10 的 OpenTSDB 中, Metric 名称为 test_metric1 与 test_metric2 的两个数据源, 从UTC时间2023年06月01日00时00分00秒开始的数据，通过运行在 192.168.1.20 上的 taoskeeper, 同步至 TDengine 的 test_db 数据库中，完整的命令如下所示：
+将位于 192.168.1.10 的 OpenTSDB 中, Metric 名称为 test_metric1 与 test_metric2 的两个数据源, 从UTC时间2023年06月01日00时00分00秒开始的数据，通过运行在 192.168.1.20 上的 taosadapter, 同步至 TDengine 的 test_db 数据库中，完整的命令如下所示：
 
 ```bash
 taosx run \
-  --from "opentsdb+http://192.168.1.10:4242/?metrics=test_metric1,test_metric2&beginTime=2023-06-01T00:00:00+0800&readWindow=M" \
+  --from "opentsdb+http://192.168.1.10:4242/?metrics=test_metric1,test_metric2&beginTime=2023-06-01T00:00:00+0800&readWindow=M&tolerance=10000" \
   --to "taos+http://192.168.1.20:6041/test_db" \
   -vv
 ```
