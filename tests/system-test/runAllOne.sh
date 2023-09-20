@@ -452,6 +452,7 @@ python3 ./test.py -f 2-query/arccos.py -P -Q 2
 python3 ./test.py -f 2-query/arctan.py -P -Q 2
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py -P -Q 2
 python3 ./test.py -f 2-query/interp.py -P -Q 2
+python3 ./test.py -f 2-query/fill.py -P -Q 2
 python3 ./test.py -f 2-query/nestedQueryInterval.py -P -Q 2
 python3 ./test.py -f 2-query/stablity.py -P -Q 2
 python3 ./test.py -f 2-query/stablity_1.py -P -Q 2
@@ -581,6 +582,7 @@ python3 ./test.py -f 2-query/last_row.py -P -Q 3
 python3 ./test.py -f 2-query/tsbsQuery.py -P -Q 3
 python3 ./test.py -f 2-query/sml.py -P -Q 3
 python3 ./test.py -f 2-query/interp.py -P -Q 3
+python3 ./test.py -f 2-query/fill.py -P -Q 3
 python3 ./test.py -f 2-query/case_when.py -P -Q 3
 python3 ./test.py -f 2-query/blockSMA.py -P -Q 3
 python3 ./test.py -f 2-query/projectionDesc.py -P -Q 3
@@ -677,6 +679,7 @@ python3 ./test.py -f 2-query/last_row.py -P -Q 4
 python3 ./test.py -f 2-query/tsbsQuery.py -P -Q 4
 python3 ./test.py -f 2-query/sml.py -P -Q 4
 python3 ./test.py -f 2-query/interp.py -P -Q 4
+python3 ./test.py -f 2-query/fill.py -P -Q 4
 python3 ./test.py -f 2-query/case_when.py -P -Q 4
 python3 ./test.py -f 2-query/insert_select.py -P
 python3 ./test.py -f 2-query/insert_select.py -P -R
