@@ -136,8 +136,6 @@ int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSo
   ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE);
 
   // 1. set task status to be prepared for check point, no data are allowed to put into inputQ.
-  taosThreadMutexLock(&pTask->lock);
-
   pTask->status.taskStatus = TASK_STATUS__CK;
   pTask->checkpointingId = pReq->checkpointId;
   pTask->checkpointNotReadyTasks = streamTaskGetNumOfDownstream(pTask);
@@ -146,8 +144,6 @@ int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSo
   // 2. let's dispatch checkpoint msg to downstream task directly and do nothing else. put the checkpoint block into
   //    inputQ, to make sure all blocks with less version have been handled by this task already.
   int32_t code = appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT_TRIGGER);
-  taosThreadMutexUnlock(&pTask->lock);
-
   return code;
 }
 
