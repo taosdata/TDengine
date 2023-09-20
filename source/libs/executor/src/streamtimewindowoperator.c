@@ -1520,6 +1520,7 @@ void destroyStreamAggSupporter(SStreamAggSupporter* pSup) {
   tSimpleHashCleanup(pSup->pResultRows);
   destroyDiskbasedBuf(pSup->pResultBuf);
   blockDataDestroy(pSup->pScanBlock);
+  pSup->stateStore.streamFileStateDestroy(pSup->pState->pFileState);
   taosMemoryFreeClear(pSup->pState);
   taosMemoryFreeClear(pSup->pDummyCtx);
 }

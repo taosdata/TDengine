@@ -203,7 +203,7 @@ void sessionWinStateCleanup(void* pBuff) {
   size_t  keyLen = 0;
   int32_t iter = 0;
   while ((pIte = tSimpleHashIterate(pBuff, pIte, &iter)) != NULL) {
-    SArray* pWinStates = (SArray*) pIte;
+    SArray* pWinStates = (SArray*) (*(void**)pIte);
     taosArrayDestroy(pWinStates);
   }
   tSimpleHashCleanup(pBuff);
@@ -360,19 +360,23 @@ int32_t sessionWinStateGetKeyByRange(SStreamFileState* pFileState, const SSessio
   int32_t code = sessionWinStateGetKVByCur(pCur, &tmpKey, NULL, NULL);
   bool hasCurrentPrev = true;
   if (code == TSDB_CODE_FAILED) {
+    streamStateFreeCur(pCur);
     pCur = sessionWinStateSeekKeyNext(pFileState, key);
     code = sessionWinStateGetKVByCur(pCur, &tmpKey, NULL, NULL);
     hasCurrentPrev = false;
   }
+
   if (code == TSDB_CODE_FAILED) {
-    return TSDB_CODE_FAILED;
+    code = TSDB_CODE_FAILED;
+    goto _end;
   }
 
   if (sessionRangeKeyCmpr(key, &tmpKey) == 0) {
     *curKey = tmpKey;
-    return code;
+    goto _end;
   } else if (!hasCurrentPrev) {
-    return TSDB_CODE_FAILED;
+    code = TSDB_CODE_FAILED;
+    goto _end;
   }
 
   sessionWinStateMoveToNext(pCur);
@@ -383,6 +387,8 @@ int32_t sessionWinStateGetKeyByRange(SStreamFileState* pFileState, const SSessio
     code = TSDB_CODE_FAILED;
   }
 
+_end:
+  streamStateFreeCur(pCur);
   return code;
 }
 
