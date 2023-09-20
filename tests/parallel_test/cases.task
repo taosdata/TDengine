@@ -564,6 +564,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity_1.py -Q 2
@@ -693,6 +694,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 3
@@ -789,6 +791,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -R
