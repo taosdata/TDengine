@@ -126,6 +126,7 @@ groups:
           min: 1
         description: Original Data Keep Days, should config if enable save data.
         placeholder: 10
+        value: 10
 
   - name: Table Config
     display_order: 4
