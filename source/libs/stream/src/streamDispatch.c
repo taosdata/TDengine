@@ -942,7 +942,7 @@ int32_t streamNotifyUpstreamContinue(SStreamTask* pTask) {
   }
 
   taosArrayClear(pTask->pRspMsgList);
-  stDebug("s-task:%s level:%d checkpoint ready msg sent to all %d upstreams", pTask->id.idStr, pTask->info.taskLevel,
+  stDebug("s-task:%s level:%d continue process msg sent to all %d upstreams", pTask->id.idStr, pTask->info.taskLevel,
          num);
   return 0;
 }

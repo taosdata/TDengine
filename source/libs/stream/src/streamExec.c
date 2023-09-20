@@ -580,7 +580,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     ASSERT(pTask->chkInfo.checkpointVer <= pTask->chkInfo.nextProcessVer && ver >= pTask->chkInfo.checkpointVer);
 
     if (ver != pTask->chkInfo.checkpointVer) {
-      stDebug("s-task:%s update checkpointVer(unsaved) from %" PRId64 " to %" PRId64 " , currentVer:%" PRId64,
+      stDebug("s-task:%s update checkpointVer(unsaved) from %" PRId64 " to %" PRId64 ", nextProcessVer:%" PRId64,
              pTask->id.idStr, pTask->chkInfo.checkpointVer, ver, pTask->chkInfo.nextProcessVer);
       pTask->chkInfo.checkpointVer = ver;
     }
