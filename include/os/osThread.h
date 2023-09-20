@@ -46,7 +46,6 @@ typedef HANDLE             TdThreadMutexAttr;  // windows api
 typedef struct {
   SRWLOCK lock;
   int8_t  excl;
-  int32_t nshare;
 } TdThreadRwlock;                               // pthread api
 typedef pthread_attr_t     TdThreadAttr;        // pthread api
 typedef pthread_once_t     TdThreadOnce;        // pthread api

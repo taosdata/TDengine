@@ -418,6 +418,7 @@ SMCtbCursor *metaOpenCtbCursor(void* pVnode, tb_uid_t uid, int lock) {
 
   pCtbCur = (SMCtbCursor *)taosMemoryCalloc(1, sizeof(*pCtbCur));
   if (pCtbCur == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -467,6 +468,7 @@ int32_t metaResumeCtbCursor(SMCtbCursor* pCtbCur, int8_t first) {
     int ret = 0;
     ret = tdbTbcOpen(pCtbCur->pMeta->pCtbIdx, (TBC**)&pCtbCur->pCur, NULL);
     if (ret < 0) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       metaCloseCtbCursor(pCtbCur);
       return -1;
     }
