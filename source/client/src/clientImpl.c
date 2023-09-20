@@ -1698,7 +1698,10 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
     // convert ucs4 to native multi-bytes string
     pResultInfo->convertUcs4 = convertUcs4;
 
-    SSyncQueryParam* pParam = pRequest->body.param;
+    SSyncQueryParam* pParam = NULL;
+    if (pRequest->syncQuery) {
+      pParam = pRequest->body.param;
+    }
     taos_fetch_rows_a(pRequest, syncFetchFn, pParam);
     tsem_wait(&pParam->sem);
   }
@@ -2553,7 +2556,7 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
 }
 
 void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param) {
-  if (pRequest->syncQuery) {
+  if (pRequest->syncQuery && pRequest->body.param != param) {
     if (pRequest->body.param) {
       tsem_destroy(&((SSyncQueryParam *)pRequest->body.param)->sem);
     }
