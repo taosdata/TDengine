@@ -623,8 +623,8 @@ or_replace_opt(A) ::= .                                                         
 or_replace_opt(A) ::= OR REPLACE.                                                  { A = true; }
 
 /************************************************ create/drop view **************************************************/
-cmd ::= CREATE or_replace_opt(A) VIEW full_view_name(B) col_list_opt(C) AS query_or_subquery(D).
-                                                                                  { pCxt->pRootNode = createCreateViewStmt(pCxt, A, B, C, D); }
+cmd ::= CREATE or_replace_opt(A) VIEW full_view_name(B) col_list_opt(C) AS(D) query_or_subquery(E).
+                                                                                  { pCxt->pRootNode = createCreateViewStmt(pCxt, A, B, C, &D, E); }
 cmd ::= DROP VIEW exists_opt(A) full_view_name(B).                                { pCxt->pRootNode = createDropViewStmt(pCxt, A, B); }
 
 full_view_name(A) ::= view_name(B).                                               { A = createViewNode(pCxt, NULL, &B, NULL); }

@@ -8433,6 +8433,7 @@ int32_t tSerializeSCMCreateViewReq(void *buf, int32_t bufLen, const SCMCreateVie
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->dbFName) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->orReplace) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->precision) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->numOfCols) < 0) return -1;
@@ -8455,12 +8456,13 @@ int32_t tDeserializeSCMCreateViewReq(void *buf, int32_t bufLen, SCMCreateViewReq
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->dbFName) < 0) return -1;
+  if (tDecodeCStrAlloc(&decoder, &pReq->sql) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->orReplace) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->precision) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->numOfCols) < 0) return -1;
 
   if (pReq->numOfCols > 0) {
-    pReq->pSchema = taosArrayInit(pReq->numOfCols, sizeof(SSchema));
+    pReq->pSchema = taosMemoryCalloc(pReq->numOfCols, sizeof(SSchema));
     if (pReq->pSchema == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
@@ -8485,5 +8487,10 @@ void    tFreeSCMCreateViewReq(SCMCreateViewReq* pReq) {
   
   taosMemoryFree(pReq->pSchema);
 }
+
+int32_t tSerializeSCMDropViewReq(void* buf, int32_t bufLen, const SCMDropViewReq* pReq);
+int32_t tDeserializeSCMDropViewReq(void* buf, int32_t bufLen, SCMDropViewReq* pReq);
+void    tFreeSCMDropViewReq(SCMDropViewReq* pReq);
+
 
 

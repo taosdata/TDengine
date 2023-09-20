@@ -3905,11 +3905,13 @@ typedef struct {
 typedef struct {
   char     name[TSDB_VIEW_NAME_LEN];
   char     dbFName[TSDB_DB_FNAME_LEN];
+  char*    querySql;
   char*    sql;
   int8_t   orReplace;
   int8_t   precision;
   int32_t  numOfCols;
   SSchema* pSchema;
+  SRWLatch lock;  
 } SCMCreateViewReq;
 
 typedef struct {
@@ -3920,14 +3922,16 @@ int32_t tSerializeSCMCreateViewReq(void* buf, int32_t bufLen, const SCMCreateVie
 int32_t tDeserializeSCMCreateViewReq(void* buf, int32_t bufLen, SCMCreateViewReq* pReq);
 void    tFreeSCMCreateViewReq(SCMCreateViewReq* pReq);
 
-
 typedef struct {
   char   dbFName[TSDB_DB_FNAME_LEN];
   char   viewName[TSDB_VIEW_NAME_LEN];
+  char*  sql;
   int8_t igNotExists;
 } SCMDropViewReq;
 
-
+int32_t tSerializeSCMDropViewReq(void* buf, int32_t bufLen, const SCMDropViewReq* pReq);
+int32_t tDeserializeSCMDropViewReq(void* buf, int32_t bufLen, SCMDropViewReq* pReq);
+void    tFreeSCMDropViewReq(SCMDropViewReq* pReq);
 
 #pragma pack(pop)
 

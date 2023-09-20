@@ -48,14 +48,13 @@ void mndCleanupView(SMnode *pMnode) {
 }
 
 static int32_t mndProcessCreateViewReq(SRpcMsg *pReq) {
-  SCMCreateViewReq   createViewReq = {0};
-
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
+  SCMCreateViewReq   createViewReq = {0};
   if (tDeserializeSCMCreateViewReq(pReq->pCont, pReq->contLen, &createViewReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
+    return -1;
   }
 
   mInfo("start to create view:%s, sql:%s", createViewReq.name, createViewReq.sql);
@@ -68,14 +67,15 @@ static int32_t mndProcessDropViewReq(SRpcMsg *pReq) {
 #ifndef TD_ENTERPRISE
     return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
-    if (tDeserializeSCMDropViewReq(pReq->pCont, pReq->contLen, &createViewReq) != 0) {
+    SCMDropViewReq dropViewReq = {0};
+    if (tDeserializeSCMDropViewReq(pReq->pCont, pReq->contLen, &dropViewReq) != 0) {
       terrno = TSDB_CODE_INVALID_MSG;
-      goto _OVER;
+      return -1;
     }
   
-    mInfo("start to drop view:%s, sql:%s", createViewReq.name, createViewReq.sql);
+    mInfo("start to drop view:%s, sql:%s", dropViewReq.viewName, dropViewReq.sql);
   
-    return mndProcessDropViewReqImpl(&createViewReq, pReq);
+    return mndProcessDropViewReqImpl(&dropViewReq, pReq);
 #endif
 }
 
