@@ -160,7 +160,7 @@ groups:
           type: integer
           min: 1
           max: 60
-        value: 1
+        value: 10
 
       - name: limit
         display: Collect limit
@@ -174,14 +174,14 @@ groups:
       - name: collect_mode
         display: Collect Mode
         description: |-
-          observe or subscribe. default is observe
-        placeholder: observe
+          observe or subscribe. default is subscribe
+        placeholder: subscribe
         hint:
           type: str
           choices:
             - observe
             - subscribe
-        value: observe
+        value: subscribe
 
   - name: Original Data Save
     display_order: 3
@@ -209,6 +209,7 @@ groups:
           min: 1
         description: Original Data Keep Days, should config if enable save data.
         placeholder: 10
+        value: 10
 
   - name: Table Config
     display_order: 4

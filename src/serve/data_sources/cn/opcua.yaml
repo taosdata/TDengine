@@ -165,7 +165,7 @@ groups:
           type: integer
           min: 1
           max: 60
-        value: 1
+        value: 10
 
       - name: limit
         display: 点位限制
@@ -179,14 +179,14 @@ groups:
       - name: collect_mode
         display: 采集模式
         description: |-
-          `observe` 模式（读取点位最新值上报）或 `subscribe`（订阅模式，变更时上报）。默认为 `observe`。
-        placeholder: observe
+          `observe` 模式（读取点位最新值上报）或 `subscribe`（订阅模式，变更时上报）。默认为 `subscribe`。
+        placeholder: subscribe
         hint:
           type: str
           choices:
             - observe
             - subscribe
-        value: observe
+        value: subscribe
 
   - name: 原始数据保存
     display_order: 3
@@ -213,7 +213,7 @@ groups:
           type: integer
           min: 1
         description: 原始数据的保留天数，若启用保存原始数据需配置。
-        placeholder: 10
+        value: 10
 
   - name: 库表配置
     display_order: 4

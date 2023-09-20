@@ -789,24 +789,24 @@ pub async fn generate_opcconfig_from_csv(
                             column_alias: Some(quality_col_name.clone()),
                             is_primary_key: false,
                         });
-                        let received_time_col = record_map.get("received_time_col");
+                        let received_ts_col = record_map.get("received_ts_col").or(record_map.get("received_time_col"));
                         let mut has_primary_key = false;
-                        if received_time_col.is_some() {
-                            let received_time_col_name = record_map
-                                .get("received_time_col")
-                                .unwrap_or(&"received_time".to_string())
+                        if received_ts_col.is_some() {
+                            let received_ts_col_name = record_map
+                                .get("received_ts_col").or(record_map.get("received_time_col"))
+                                .unwrap_or(&"received_ts".to_string())
                                 .clone();
                             check_duplicated(
                                 &current_tag_names,
                                 Some(&current_columns),
-                                &received_time_col_name,
+                                &received_ts_col_name,
                             )?;
-                            current_columns.push(received_time_col_name.clone());
+                            current_columns.push(received_ts_col_name.clone());
                             has_primary_key = true;
                             column_config.push(ColumnConfig {
                                 column_name: "received_time".to_string(),
                                 column_type: Some(Ty::Timestamp),
-                                column_alias: Some(received_time_col_name),
+                                column_alias: Some(received_ts_col_name),
                                 is_primary_key: has_primary_key,
                             });
                         }
