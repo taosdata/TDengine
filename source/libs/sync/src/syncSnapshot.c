@@ -133,7 +133,7 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
   pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
   pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
   pMsg->lastConfig = pSender->lastConfig;
-  pMsg->startTime = atomic_load_64(&pSender->startTime);
+  pMsg->startTime = pSender->startTime;
   pMsg->seq = SYNC_SNAPSHOT_SEQ_PREP_SNAPSHOT;
 
   if (dataLen > 0) {
@@ -270,6 +270,7 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
   pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
   pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
   pMsg->lastConfig = pSender->lastConfig;
+  pMsg->startTime = pSender->startTime;
   pMsg->seq = pSender->seq;
 
   if (pSender->pCurrentBlock != NULL && pSender->blockLen > 0) {
