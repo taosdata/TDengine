@@ -401,21 +401,26 @@
                     :placeholder="$t('datasource.regexPlaceholder')"
                     v-model="p.value"
                     @keydown.enter.native="searchDatas"
-                  ></el-input>
-                  <div>
-                    <div
-                      class="searchList"
-                      v-loading="loading"
-                      v-if="configurationdata.length > 0"
-                    >
-                      <div
-                        v-for="c in configurationdata"
-                        :key="c.id"
-                        :class="[activeDataSet.id == c.id ? 'actived' : '']"
-                        @click="handelDataSet(c)"
-                      >
-                        {{ c.id }}
-                      </div>
+                  >
+                    <el-button slot="append" icon="el-icon-search" @click="searchDatas"></el-button>
+                  </el-input>
+                  <div class="resultWrap">
+                    <div class="searchList" v-loading="loading">
+                      <el-empty
+                        :image-size="80"
+                        v-if="configurationdata.length <= 0"
+                      ></el-empty>
+                      <template v-else>
+                        <el-table 
+                          :data="configurationdata" 
+                          size="mini" 
+                          @row-click="handelDataSet"
+                          highlight-current-row
+                          >
+                          <el-table-column prop="id" label="Id"></el-table-column>
+                          <el-table-column prop="name" label="Name"></el-table-column>
+                        </el-table>
+                      </template>
                     </div>
                     <template
                       v-if="
@@ -1856,7 +1861,7 @@ export default {
     }
   }
   .configuration {
-    > div {
+    .resultWrap {
       display: flex;
       margin-top: 16px;
     }
