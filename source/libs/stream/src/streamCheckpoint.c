@@ -155,6 +155,7 @@ static int32_t continueDispatchCheckpointBlock(SStreamDataBlock* pBlock, SStream
   if (code == 0) {
     streamDispatchStreamBlock(pTask);
   } else {
+    stError("s-task:%s failed to put checkpoint into outputQ, code:%s", pTask->id.idStr, tstrerror(code));
     streamFreeQitem((SStreamQueueItem*)pBlock);
   }
 
