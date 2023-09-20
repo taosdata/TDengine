@@ -1564,6 +1564,9 @@ SNode* setShowKind(SAstCreateContext* pCxt, SNode* pStmt, EShowKind showKind) {
 SNode* createShowStmtWithCond(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbName,
                               EOperatorType tableCondType) {
   CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pDbName) {
+    pDbName = createDefaultDatabaseCondValue(pCxt);
+  }
   if (needDbShowStmt(type) && NULL == pDbName) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "database not specified");
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;

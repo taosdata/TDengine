@@ -509,8 +509,8 @@ cmd ::= SHOW CLUSTER ALIVE.                                                     
 
 %type table_kind_db_name_cond_opt                                                 { SShowTablesOption }
 %destructor table_kind_db_name_cond_opt                                           { }
-table_kind_db_name_cond_opt(A) ::= .                                              { A.kind = SHOW_KIND_ALL; A.pDbName = createDefaultDatabaseCondValue(pCxt); }
-table_kind_db_name_cond_opt(A) ::= table_kind(B).                                 { A.kind = B; A.pDbName = createDefaultDatabaseCondValue(pCxt); }
+table_kind_db_name_cond_opt(A) ::= .                                              { A.kind = SHOW_KIND_ALL; A.pDbName = NULL; }
+table_kind_db_name_cond_opt(A) ::= table_kind(B).                                 { A.kind = B; A.pDbName = NULL; }
 table_kind_db_name_cond_opt(A) ::= db_name_cond(C).                               { A.kind = SHOW_KIND_ALL; A.pDbName = C; }
 table_kind_db_name_cond_opt(A) ::= table_kind(B) db_name_cond(C).                 { A.kind = B; A.pDbName = C; }
 

@@ -6389,12 +6389,12 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 281: /* table_kind_db_name_cond_opt ::= */
 #line 512 "sql.y"
-{ yymsp[1].minor.yy343.kind = SHOW_KIND_ALL; yymsp[1].minor.yy343.pDbName = createDefaultDatabaseCondValue(pCxt); }
+{ yymsp[1].minor.yy343.kind = SHOW_KIND_ALL; yymsp[1].minor.yy343.pDbName = NULL; }
 #line 6393 "sql.c"
         break;
       case 282: /* table_kind_db_name_cond_opt ::= table_kind */
 #line 513 "sql.y"
-{ yylhsminor.yy343.kind = yymsp[0].minor.yy579; yylhsminor.yy343.pDbName = createDefaultDatabaseCondValue(pCxt); }
+{ yylhsminor.yy343.kind = yymsp[0].minor.yy579; yylhsminor.yy343.pDbName = NULL; }
 #line 6398 "sql.c"
   yymsp[0].minor.yy343 = yylhsminor.yy343;
         break;
