@@ -234,9 +234,7 @@ int32_t taosThreadMutexLock(TdThreadMutex *mutex) {
   return 0;
 #else
   THREAD_PTR_CHECK(mutex)
-  int result = pthread_mutex_lock(mutex);
-  assert(result == 0);
-  return result;
+  return pthread_mutex_lock(mutex);
 #endif
 }
 
@@ -260,9 +258,7 @@ int32_t taosThreadMutexUnlock(TdThreadMutex *mutex) {
   return 0;
 #else
   THREAD_PTR_CHECK(mutex)
-  int result = pthread_mutex_unlock(mutex);
-  assert(result == 0);
-  return result;
+  return pthread_mutex_unlock(mutex);
 #endif
 }
 
