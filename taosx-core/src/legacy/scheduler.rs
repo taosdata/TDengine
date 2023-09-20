@@ -4,6 +4,7 @@ use std::{
     pin::Pin,
     sync::{atomic::Ordering, Arc},
     task::{Context, Poll},
+    time::Duration,
 };
 
 use flume::{Receiver, Sender};
@@ -32,7 +33,7 @@ pub enum Todo {
     ),
     Data(
         Option<Arc<String>>,
-        String,
+        Arc<String>,
         TimeRange,
         Option<oneshot::Sender<anyhow::Result<()>>>,
     ),
@@ -87,6 +88,8 @@ async fn worker(
     to.exec("select 1")
         .await
         .map_err(|err| anyhow::format_err!("check target connection error: {err:?}"))?;
+    let smooth_fold = (worker as f64 + 1.0).log2() as u32;
+    tokio::time::sleep(query.smooth_init * smooth_fold).await;
     loop {
         let todo = receiver.recv_async().await?;
         match todo {
@@ -200,6 +203,7 @@ async fn worker(
                     unit: query.unit,
                     limit: query.limit,
                     select_from_stable: query.select_from_stable,
+                    smooth_init: query.smooth_init,
                 };
                 let mut retries = MAX_WS_RETRIES;
 
@@ -215,7 +219,7 @@ async fn worker(
                                     source.clone(),
                                     target.clone(),
                                     &from,
-                                    stable.as_ref().map(|s| s.as_str()),
+                                    &stable,
                                     &table,
                                     &to,
                                     &actions,
