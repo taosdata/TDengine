@@ -665,7 +665,7 @@ async fn consume_point_record(
             let mut value_cloumn_length = 128;
             let mut columns_in_insert = String::new();
             for (temp_name, temp_alias) in &columns_insert {
-                if temp_name == "received_time" {
+                if temp_name == "received_ts" || temp_name == "received_time" {
                     values.push_str(
                         format!(
                             "{},",
@@ -679,7 +679,7 @@ async fn consume_point_record(
                         )
                         .as_str(),
                     );
-                } else if temp_name == "original_time" {
+                } else if temp_name == "original_ts" || temp_name == "original_time" {
                     values.push_str(
                         format!(
                             "{},",
