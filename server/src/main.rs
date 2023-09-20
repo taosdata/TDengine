@@ -554,7 +554,9 @@ impl Args {
             .query("show dnodes")
             .await?
             .deserialize::<RenewLicense>()
-            .all(|l| async move { l.map(|l| l == *license).unwrap_or_default() })
+            .all(|l| async move { l.map(|l| {
+                (l.active_code == *license.active_code || *license.active_code.unwrap_or(String("")).is_empty()) && (l.c_active_code == *license.c_active_code || *license.c_active_code.unwrap_or(String("")).is_empty())
+            }).unwrap_or_default() })
             .await;
 
         if renewed {
