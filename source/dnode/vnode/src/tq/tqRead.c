@@ -102,6 +102,7 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
     for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
       pCreateReq = req.pReqs + iReq;
       taosMemoryFreeClear(pCreateReq->comment);
+      taosMemoryFreeClear(pCreateReq->sql);
       if (pCreateReq->type == TSDB_CHILD_TABLE) {
         taosArrayDestroy(pCreateReq->ctb.tagName);
       }

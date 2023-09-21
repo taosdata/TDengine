@@ -30,14 +30,16 @@ int32_t auditInit(const SAuditCfg *pCfg) {
   return 0;
 }
 
-extern void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, char *detail);
+extern void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
+                          char *detail, int32_t len);
 
-void auditRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, char *detail) {
-  auditRecordImp(pReq, clusterId, operation, target1, target2, detail);
+void auditRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
+                char *detail, int32_t len) {
+  auditRecordImp(pReq, clusterId, operation, target1, target2, detail, len);
 }
 
 #ifndef TD_ENTERPRISE
-void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, char *detail) {
+void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
+                    char *detail, int32_t len) {
 }
 #endif
-
