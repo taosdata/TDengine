@@ -97,7 +97,7 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
       }
 
       if (pRsp->dropped == 1) {
-        if (atomic_val_compare_exchange_8(pTscObj->dropped, 0, 1) == 0) {
+        if (atomic_val_compare_exchange_8(&pTscObj->dropped, 0, 1) == 0) {
           if (pTscObj->userDroppedInfo.fp) {
             SPassInfo *dropInfo = &pTscObj->userDroppedInfo;
             if (dropInfo->fp) {
