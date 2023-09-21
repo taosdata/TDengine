@@ -993,10 +993,12 @@ impl TaskController {
         let taos = builder.build().await?;
         let is_enterprise = builder.is_enterprise_edition().await?;
 
+        let assert_enterprise = builder.assert_enterprise_edition().await;
+
         #[cfg(not(feature = "disable-enterprise-only-validation"))]
-        if !is_enterprise {
+        if let Err(err) = assert_enterprise {
             anyhow::bail!(
-                "Only enterprise edition is supported. If it's not your case, please contact us."
+                format!("{err:?}. Only enterprise edition is supported. If it's not your case, please contact us.")
             )
         }
         // is cloud?
