@@ -5676,11 +5676,11 @@ static YYACTIONTYPE yy_reduce(
 { pCxt->pRootNode = createDropViewStmt(pCxt, yymsp[-1].minor.yy953, yymsp[0].minor.yy168); }
         break;
       case 345: /* full_view_name ::= view_name */
-{ yylhsminor.yy168 = createViewNode(pCxt, NULL, &yymsp[0].minor.yy737, NULL); }
+{ yylhsminor.yy168 = createViewNode(pCxt, NULL, &yymsp[0].minor.yy737); }
   yymsp[0].minor.yy168 = yylhsminor.yy168;
         break;
       case 346: /* full_view_name ::= db_name NK_DOT view_name */
-{ yylhsminor.yy168 = createViewNode(pCxt, &yymsp[-2].minor.yy737, &yymsp[0].minor.yy737, NULL); }
+{ yylhsminor.yy168 = createViewNode(pCxt, &yymsp[-2].minor.yy737, &yymsp[0].minor.yy737); }
   yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
       case 347: /* cmd ::= CREATE STREAM not_exists_opt stream_name stream_options INTO full_table_name col_list_opt tag_def_or_ref_opt subtable_opt AS query_or_subquery */

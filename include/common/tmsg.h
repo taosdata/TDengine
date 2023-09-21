@@ -3903,6 +3903,7 @@ typedef struct {
 } SPackedData;
 
 typedef struct {
+  char     fullname[TSDB_VIEW_FNAME_LEN];
   char     name[TSDB_VIEW_NAME_LEN];
   char     dbFName[TSDB_DB_FNAME_LEN];
   char*    querySql;
@@ -3914,17 +3915,14 @@ typedef struct {
   SRWLatch lock;  
 } SCMCreateViewReq;
 
-typedef struct {
-  int64_t streamId;
-} SCMCreateViewRsp;
-
 int32_t tSerializeSCMCreateViewReq(void* buf, int32_t bufLen, const SCMCreateViewReq* pReq);
 int32_t tDeserializeSCMCreateViewReq(void* buf, int32_t bufLen, SCMCreateViewReq* pReq);
 void    tFreeSCMCreateViewReq(SCMCreateViewReq* pReq);
 
 typedef struct {
+  char   fullname[TSDB_VIEW_FNAME_LEN];
+  char   name[TSDB_VIEW_NAME_LEN];
   char   dbFName[TSDB_DB_FNAME_LEN];
-  char   viewName[TSDB_VIEW_NAME_LEN];
   char*  sql;
   int8_t igNotExists;
 } SCMDropViewReq;

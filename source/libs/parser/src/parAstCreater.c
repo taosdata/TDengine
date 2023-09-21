@@ -2166,6 +2166,8 @@ SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pVie
   CHECK_PARSER_STATUS(pCxt);
   SCreateViewStmt* pStmt = (SCreateViewStmt*)nodesMakeNode(QUERY_NODE_CREATE_VIEW_STMT);
   CHECK_OUT_OF_MEM(pStmt);
+  pStmt->pQuerySql = strdup(pAs->z + pAs->n);
+  CHECK_OUT_OF_MEM(pStmt->pQuerySql);
   strcpy(pStmt->dbName, ((SViewNode*)pView)->table.dbName);
   strcpy(pStmt->viewName, ((SViewNode*)pView)->table.tableName);
   nodesDestroyNode(pView);

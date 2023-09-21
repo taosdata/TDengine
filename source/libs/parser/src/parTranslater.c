@@ -7272,29 +7272,46 @@ static int32_t validateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStm
 
 static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStmt) {
   int32_t code = validateCreateView(pCxt, pStmt);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = (*pCxt->pParseCxt->validateSqlFp)(pCxt->pParseCxt->validateSqlParam, pStmt->pQuery, pCxt->pParseCxt->pSql, &pStmt->createReq);
+  if (TSDB_CODE_SUCCESS == code) {    
+    SQuery* pQuery = NULL;
+    code = buildQueryAfterParse(&pQuery, pStmt->pQuery, 0, NULL);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = (*pCxt->pParseCxt->validateSqlFp)(pCxt->pParseCxt->validateSqlParam, pQuery, pStmt->pQuerySql, &pStmt->createReq);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     strncpy(pStmt->createReq.name, pStmt->viewName, sizeof(pStmt->createReq.name) - 1);
     snprintf(pStmt->createReq.dbFName, sizeof(pStmt->createReq.dbFName) - 1, "%d.%s", pCxt->pParseCxt->acctId, pStmt->dbName);
+    snprintf(pStmt->createReq.fullname, sizeof(pStmt->createReq.fullname) - 1, "%s.%s", pStmt->createReq.dbFName, pStmt->viewName);
+    TSWAP(pStmt->createReq.querySql, pStmt->pQuerySql);
     pStmt->createReq.orReplace = pStmt->orReplace;
-    
+    pStmt->createReq.sql = strdup(pCxt->pParseCxt->pSql);
+    if (NULL == pStmt->createReq.sql) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_VIEW, (FSerializeFunc)tSerializeSCMCreateViewReq, &pStmt->createReq);
   }
-
+  
   tFreeSCMCreateViewReq(&pStmt->createReq);
   return code;
 }
 
 
 static int32_t translateDropView(STranslateContext* pCxt, SDropViewStmt* pStmt) {
-  SMDropViewReq   dropReq = {0};
+  SCMDropViewReq   dropReq = {0};
   SName           name;
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   tNameGetFullDbName(&name, dropReq.dbFName);
+  strncpy(dropReq.name, pStmt->viewName, sizeof(dropReq.name) - 1);
+  snprintf(dropReq.fullname, sizeof(dropReq.fullname) - 1, "%s.%s", dropReq.dbFName, dropReq.name);
+  dropReq.sql = strdup(pCxt->pParseCxt->pSql);
+  if (NULL == dropReq.sql) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   dropReq.igNotExists = pStmt->ignoreNotExists;
-  return buildCmdMsg(pCxt, TDMT_MND_DROP_VIEW, (FSerializeFunc)tSerializeSMDropViewReq, &dropReq);
+  return buildCmdMsg(pCxt, TDMT_MND_DROP_VIEW, (FSerializeFunc)tSerializeSCMDropViewReq, &dropReq);
 }
 
 
@@ -7730,10 +7747,10 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       code = translateRestoreDnode(pCxt, (SRestoreComponentNodeStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_VIEW_STMT:
-      code = translateCreateView(pCxt, (SCreateStreamStmt*)pNode);
+      code = translateCreateView(pCxt, (SCreateViewStmt*)pNode);
       break;
     case QUERY_NODE_DROP_VIEW_STMT:
-      code = translateDropView(pCxt, (SCreateStreamStmt*)pNode);
+      code = translateDropView(pCxt, (SDropViewStmt*)pNode);
       break;
 
     default:

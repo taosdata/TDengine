@@ -29,6 +29,20 @@ extern void  Parse(void*, int, SToken, void*);
 extern void  ParseFree(void*, FFree);
 extern void  ParseTrace(FILE*, char*);
 
+int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placeholderNo, SArray* pPlaceholderValues) {
+  *pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
+  if (NULL == *pQuery) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  (*pQuery)->pRoot = pRootNode;
+  (*pQuery)->placeholderNum = placeholderNo;
+  (*pQuery)->pPlaceholderValues = pPlaceholderValues;
+  (*pQuery)->execStage = QUERY_EXEC_STAGE_ANALYSE;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
   initAstCreateContext(pParseCxt, &cxt);
@@ -77,14 +91,10 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
 abort_parse:
   ParseFree(pParser, (FFree)taosMemoryFree);
   if (TSDB_CODE_SUCCESS == cxt.errCode) {
-    *pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
-    if (NULL == *pQuery) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+    int32_t code = buildQueryAfterParse(pQuery, cxt.pRootNode, cxt.placeholderNo, cxt.pPlaceholderValues);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
     }
-    (*pQuery)->pRoot = cxt.pRootNode;
-    (*pQuery)->placeholderNum = cxt.placeholderNo;
-    TSWAP((*pQuery)->pPlaceholderValues, cxt.pPlaceholderValues);
-    (*pQuery)->execStage = QUERY_EXEC_STAGE_ANALYSE;
   }
   taosArrayDestroy(cxt.pPlaceholderValues);
   return cxt.errCode;
@@ -782,7 +792,7 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowSubscriptions(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_CREATE_VIEW_STMT:
       return collectMetaKeyFromCreateViewStmt(pCxt, (SCreateViewStmt*)pStmt);
-    case QUERY_NODE_CREATE_VIEW_STMT:
+    case QUERY_NODE_DROP_VIEW_STMT:
       return collectMetaKeyFromDropViewStmt(pCxt, (SDropViewStmt*)pStmt);
     default:
       break;

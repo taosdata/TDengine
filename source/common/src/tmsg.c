@@ -8431,8 +8431,10 @@ int32_t tSerializeSCMCreateViewReq(void *buf, int32_t bufLen, const SCMCreateVie
   tEncoderInit(&encoder, buf, bufLen);
 
   if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->fullname) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->dbFName) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->querySql) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->orReplace) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->precision) < 0) return -1;
@@ -8454,8 +8456,10 @@ int32_t tDeserializeSCMCreateViewReq(void *buf, int32_t bufLen, SCMCreateViewReq
   tDecoderInit(&decoder, buf, bufLen);
 
   if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->fullname) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->dbFName) < 0) return -1;
+  if (tDecodeCStrAlloc(&decoder, &pReq->querySql) < 0) return -1;
   if (tDecodeCStrAlloc(&decoder, &pReq->sql) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->orReplace) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->precision) < 0) return -1;
@@ -8484,13 +8488,53 @@ void    tFreeSCMCreateViewReq(SCMCreateViewReq* pReq) {
   if (NULL == pReq) {
     return;
   }
-  
+
+  taosMemoryFree(pReq->querySql);
+  taosMemoryFree(pReq->sql);  
   taosMemoryFree(pReq->pSchema);
 }
 
-int32_t tSerializeSCMDropViewReq(void* buf, int32_t bufLen, const SCMDropViewReq* pReq);
-int32_t tDeserializeSCMDropViewReq(void* buf, int32_t bufLen, SCMDropViewReq* pReq);
-void    tFreeSCMDropViewReq(SCMDropViewReq* pReq);
+int32_t tSerializeSCMDropViewReq(void* buf, int32_t bufLen, const SCMDropViewReq* pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->fullname) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->dbFName) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->igNotExists) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSCMDropViewReq(void* buf, int32_t bufLen, SCMDropViewReq* pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->fullname) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->dbFName) < 0) return -1;
+  if (tDecodeCStrAlloc(&decoder, &pReq->sql) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->igNotExists) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+void    tFreeSCMDropViewReq(SCMDropViewReq* pReq) {
+  if (NULL == pReq) {
+    return;
+  }
+  
+  taosMemoryFree(pReq->sql);
+}
 
 
 

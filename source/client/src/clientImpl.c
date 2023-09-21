@@ -2592,6 +2592,12 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
   schedulerFetchRows(pRequest->body.queryJob, &req);
 }
 
+int32_t asyncValidateSql(void* param) {
+  doAsyncQuery((SRequestObj*)param, false);
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t clientValidateSql(void* param, SQuery* pQuery, const char* sql, SCMCreateViewReq* pReq) {
   SSqlCallbackWrapper *pWrapper = (SSqlCallbackWrapper *)param;
   SSyncQueryParam* syncParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
@@ -2605,9 +2611,14 @@ int32_t clientValidateSql(void* param, SQuery* pQuery, const char* sql, SCMCreat
     return code;
   }
 
-  pNewRequest->pQuery = pQuery;
+  //pNewRequest->pQuery = pQuery;
   pNewRequest->body.queryFp = syncQueryFn;
-  doAsyncQuery(pNewRequest, false);
+
+  code = taosAsyncExec(asyncValidateSql, pNewRequest, NULL);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to sched async validate sql");
+    return code;
+  }
 
   tsem_wait(&syncParam->sem);
 

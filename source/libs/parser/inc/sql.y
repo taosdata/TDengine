@@ -627,8 +627,8 @@ cmd ::= CREATE or_replace_opt(A) VIEW full_view_name(B) col_list_opt(C) AS(D) qu
                                                                                   { pCxt->pRootNode = createCreateViewStmt(pCxt, A, B, C, &D, E); }
 cmd ::= DROP VIEW exists_opt(A) full_view_name(B).                                { pCxt->pRootNode = createDropViewStmt(pCxt, A, B); }
 
-full_view_name(A) ::= view_name(B).                                               { A = createViewNode(pCxt, NULL, &B, NULL); }
-full_view_name(A) ::= db_name(B) NK_DOT view_name(C).                             { A = createViewNode(pCxt, &B, &C, NULL); }
+full_view_name(A) ::= view_name(B).                                               { A = createViewNode(pCxt, NULL, &B); }
+full_view_name(A) ::= db_name(B) NK_DOT view_name(C).                             { A = createViewNode(pCxt, &B, &C); }
 
 /************************************************ create/drop stream **************************************************/
 cmd ::= CREATE STREAM not_exists_opt(E) stream_name(A) stream_options(B) INTO

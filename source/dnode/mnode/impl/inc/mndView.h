@@ -25,11 +25,28 @@ extern "C" {
 int32_t mndInitView(SMnode *pMnode);
 void    mndCleanupView(SMnode *pMnode);
 
+int32_t mndProcessCreateViewReq(SRpcMsg *pReq);
+int32_t mndProcessDropViewReq(SRpcMsg *pReq);
+
+#ifdef TD_ENTERPRISE
 SViewObj *mndAcquireView(SMnode *pMnode, char *viewName);
 void      mndReleaseView(SMnode *pMnode, SViewObj *pView);
 
 SSdbRaw *mndViewActionEncode(SViewObj *pView);
 SSdbRow *mndViewActionDecode(SSdbRaw *pRaw);
+int32_t mndViewActionInsert(SSdb *pSdb, SViewObj *pView);
+int32_t mndViewActionDelete(SSdb *pSdb, SViewObj *pView);
+int32_t mndViewActionUpdate(SSdb *pSdb, SViewObj *pOldView, SViewObj *pNewView);
+
+int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq);
+int32_t mndProcessDropViewReqImpl(SCMDropViewReq* pDropView, SRpcMsg *pReq);
+
+#endif
+
+int32_t mndRetrieveView(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+void mndCancelGetNextView(SMnode *pMnode, void *pIter);
+
+
 
 #ifdef __cplusplus
 }

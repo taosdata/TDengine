@@ -14,11 +14,11 @@
  */
 
 #include "mndView.h"
+#include "mndShow.h"
 
 int32_t mndInitView(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_VIEW, mndProcessCreateViewReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_VIEW, mndProcessDropViewReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_NODECHECK_TIMER, mndProcessNodeCheck);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VIEWS, mndRetrieveView);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_VIEWS, mndCancelGetNextView);
@@ -41,13 +41,10 @@ int32_t mndInitView(SMnode *pMnode) {
 }
 
 void mndCleanupView(SMnode *pMnode) {
-  taosArrayDestroy(execNodeList.pTaskList);
-  taosHashCleanup(execNodeList.pTaskMap);
-  taosThreadMutexDestroy(&execNodeList.lock);
   mDebug("mnd view cleanup");
 }
 
-static int32_t mndProcessCreateViewReq(SRpcMsg *pReq) {
+int32_t mndProcessCreateViewReq(SRpcMsg *pReq) {
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
@@ -57,13 +54,13 @@ static int32_t mndProcessCreateViewReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  mInfo("start to create view:%s, sql:%s", createViewReq.name, createViewReq.sql);
+  mInfo("start to create view:%s, sql:%s", createViewReq.fullname, createViewReq.sql);
 
   return mndProcessCreateViewReqImpl(&createViewReq, pReq);
 #endif
 }
 
-static int32_t mndProcessDropViewReq(SRpcMsg *pReq) {
+int32_t mndProcessDropViewReq(SRpcMsg *pReq) {
 #ifndef TD_ENTERPRISE
     return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
@@ -73,13 +70,14 @@ static int32_t mndProcessDropViewReq(SRpcMsg *pReq) {
       return -1;
     }
   
-    mInfo("start to drop view:%s, sql:%s", dropViewReq.viewName, dropViewReq.sql);
+    mInfo("start to drop view:%s, sql:%s", dropViewReq.name, dropViewReq.sql);
   
     return mndProcessDropViewReqImpl(&dropViewReq, pReq);
 #endif
 }
 
-static int32_t mndRetrieveView(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+int32_t mndRetrieveView(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+#if 0
   SMnode     *pMnode = pReq->info.node;
   SSdb       *pSdb = pMnode->pSdb;
   int32_t     numOfRows = 0;
@@ -149,9 +147,12 @@ static int32_t mndRetrieveView(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
 
   pShow->numOfRows += numOfRows;
   return numOfRows;
+#else
+  return 0;
+#endif
 }
 
-static void mndCancelGetNextView(SMnode *pMnode, void *pIter) {
+void mndCancelGetNextView(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
 }
