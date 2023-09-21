@@ -3048,24 +3048,26 @@ static void getBCacheKey(int32_t fid, int64_t commitID, int64_t blkno, char *key
 }
 
 static int32_t tsdbCacheLoadBlockS3(STsdbFD *pFD, uint8_t **ppBlock) {
-  int32_t  code = 0;
+  int32_t code = 0;
+  /*
   uint8_t *pBlock = taosMemoryCalloc(1, tsS3BlockSize * pFD->szPage);
   if (pBlock == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-
+  */
   int64_t block_offset = (pFD->blkno - 1) * tsS3BlockSize * pFD->szPage;
-  code = s3GetObjectBlock(pFD->objName, block_offset, tsS3BlockSize * pFD->szPage, pBlock);
+  // int64_t size = 4096;
+  code = s3GetObjectBlock(pFD->objName, block_offset, tsS3BlockSize * pFD->szPage, ppBlock);
   if (code != TSDB_CODE_SUCCESS) {
-    taosMemoryFree(pBlock);
+    // taosMemoryFree(pBlock);
     code = TSDB_CODE_OUT_OF_MEMORY;
     return code;
   }
 
-  *ppBlock = pBlock;
+  //*ppBlock = pBlock;
 
-  tsdbTrace("block:%p load from s3", pBlock);
+  tsdbTrace("block:%p load from s3", *ppBlock);
 
 _exit:
   return code;

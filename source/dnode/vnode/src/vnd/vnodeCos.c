@@ -261,7 +261,7 @@ bool s3Get(const char *object_name, const char *path) {
   return ret;
 }
 
-int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_size, uint8_t *pBlock) {
+int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_size, uint8_t **ppBlock) {
   int32_t                code = 0;
   cos_pool_t            *p = NULL;
   int                    is_cname = 0;
@@ -327,7 +327,7 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_
   //销毁内存池
   cos_pool_destroy(p);
 
-  pBlock = buf;
+  *ppBlock = buf;
 
   return code;
 }
@@ -453,7 +453,7 @@ void    s3DeleteObjectsByPrefix(const char *prefix) {}
 void    s3DeleteObjects(const char *object_name[], int nobject) {}
 bool    s3Exists(const char *object_name) { return false; }
 bool    s3Get(const char *object_name, const char *path) { return false; }
-int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, uint8_t *pBlock) { return 0; }
+int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, uint8_t **ppBlock) { return 0; }
 void    s3EvictCache(const char *path, long object_size) {}
 long    s3Size(const char *object_name) { return 0; }
 
