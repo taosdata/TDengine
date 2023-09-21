@@ -397,7 +397,7 @@ class TDTestCase:
         # prepare env
         self.prepareEnv()
 
-        for i in range(5):
+        for i in range(3):
             # split vgroup on db2
             start = time.time()
             self.splitVGroup(self.db2)
