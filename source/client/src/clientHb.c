@@ -96,7 +96,8 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         }
       }
 
-      if (pRsp->dropped == 1) {
+      if (pRsp->dropped == 1 && pTscObj->dropped == 0) {
+        pTscObj->dropped = 1;
         if (pTscObj->userDroppedInfo.fp) {
           SPassInfo *dropInfo = &pTscObj->userDroppedInfo;
           if (dropInfo->fp) {
@@ -778,6 +779,16 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
   int32_t   code = 0;
   SHbParam *hbParam = (SHbParam *)param;
   SCatalog *pCatalog = NULL;
+
+  STscObj *pTscObj = (STscObj *)acquireTscObj(connKey->tscRid);
+  if (!pTscObj) {
+    tscWarn("tscObj rid %" PRIx64 " not exist", connKey->tscRid);
+    return TSDB_CODE_APP_ERROR;
+  } else if (pTscObj->dropped) {
+    tscDebug("tscObj rid %" PRIx64 " user:%s dropped", connKey->tscRid, pTscObj->user);
+    releaseTscObj(connKey->tscRid);
+    return TSDB_CODE_SUCCESS;
+  }
 
   if (hbParam->reqCnt == 0) {
     code = catalogGetHandle(hbParam->clusterId, &pCatalog);

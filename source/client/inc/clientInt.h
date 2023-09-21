@@ -151,6 +151,7 @@ typedef struct STscObj {
   char           sDetailVer[128];
   int8_t         sysInfo;
   int8_t         connType;
+  int8_t         dropped;
   int32_t        acctId;
   uint32_t       connId;
   int64_t        id;         // ref ID returned by taosAddRef
