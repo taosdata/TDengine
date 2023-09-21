@@ -1415,6 +1415,8 @@ static void initClientTopicFromRsp(SMqClientTopic* pTopic, SMqSubTopicEp* pTopic
     STqOffsetVal offsetNew = {0};
     offsetNew.type = tmq->resetOffsetCfg;
 
+    tscInfo("consumer:0x%" PRIx64 ", update topic:%s, new numOfVgs:%d, num:%d, port:%d", tmq->consumerId, pTopic->topicName, vgNumGet, pVgEp->epSet.numOfEps,pVgEp->epSet.eps[pVgEp->epSet.inUse].port);
+
     SMqClientVg clientVg = {
         .pollCnt = 0,
         .vgId = pVgEp->vgId,

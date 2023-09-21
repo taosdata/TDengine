@@ -159,6 +159,7 @@ int32_t tqOffsetSnapWrite(STqOffsetWriter* pWriter, uint8_t* pData, uint32_t nDa
       taosCloseFile(&pFile);
       return -1;
     }
+    taosCloseFile(&pFile);
   } else {
     return -1;
   }
