@@ -2251,6 +2251,7 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
 
     memcpy(&userAuth.userAuth, &msg->userAuth, sizeof(msg->userAuth));
     userAuth.userCacheSize = ctgGetUserCacheSize(&userAuth.userAuth);
+
     if (taosHashPut(pCtg->userCache, msg->userAuth.user, strlen(msg->userAuth.user), &userAuth, sizeof(userAuth))) {
       ctgError("taosHashPut user %s to cache failed", msg->userAuth.user);
       CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
