@@ -697,7 +697,6 @@ _SEND_REPLY:
   }
 
   // send msg
-  syncLogSendSyncSnapshotRsp(pSyncNode, pRspMsg, "snapshot receiver pre-snapshot");
   if (syncNodeSendMsgById(&pRspMsg->destId, pSyncNode, &rpcMsg) != 0) {
     sRError(pReceiver, "failed to send resp since %s", terrstr());
     code = terrno;
@@ -717,19 +716,19 @@ static int32_t syncNodeOnSnapshotBegin(SSyncNode *pSyncNode, SyncSnapshotSend *p
   int32_t                code = TSDB_CODE_SYN_INTERNAL_ERROR;
 
   if (!snapshotReceiverIsStart(pReceiver)) {
-    sRError(pReceiver, "snapshot receiver begin failed since not start");
+    sRError(pReceiver, "failed to begin snapshot receiver since not started");
     goto _SEND_REPLY;
   }
 
   if (snapshotReceiverSignatureCmp(pReceiver, pMsg) != 0) {
     terrno = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
-    sRError(pReceiver, "snapshot receiver begin failed since %s", terrstr());
+    sRError(pReceiver, "failed to begin snapshot receiver since %s", terrstr());
     goto _SEND_REPLY;
   }
 
   // start writer
   if (snapshotReceiverStartWriter(pReceiver, pMsg) != 0) {
-    sRError(pReceiver, "snapshot receiver begin failed since start writer failed");
+    sRError(pReceiver, "failed to start snapshot writer since %s", terrstr());
     goto _SEND_REPLY;
   }
 
@@ -742,7 +741,7 @@ _SEND_REPLY:
   // build msg
   SRpcMsg rpcMsg = {0};
   if (syncBuildSnapshotSendRsp(&rpcMsg, 0, pSyncNode->vgId) != 0) {
-    sRError(pReceiver, "snapshot receiver build resp failed since %s", terrstr());
+    sRError(pReceiver, "failed to build snapshot receiver resp since %s", terrstr());
     return -1;
   }
 
@@ -757,12 +756,9 @@ _SEND_REPLY:
   pRspMsg->code = code;
   pRspMsg->snapBeginIndex = pReceiver->snapshotParam.start;
 
-  ASSERT(pRspMsg->startTime);
-
   // send msg
-  syncLogSendSyncSnapshotRsp(pSyncNode, pRspMsg, "snapshot receiver begin");
   if (syncNodeSendMsgById(&pRspMsg->destId, pSyncNode, &rpcMsg) != 0) {
-    sRError(pReceiver, "snapshot receiver send resp failed since %s", terrstr());
+    sRError(pReceiver, "failed to send snapshot receiver resp since %s", terrstr());
     return -1;
   }
 
@@ -778,7 +774,7 @@ static int32_t syncNodeOnSnapshotReceive(SSyncNode *pSyncNode, SyncSnapshotSend 
 
   if (snapshotReceiverSignatureCmp(pReceiver, pMsg) != 0) {
     terrno = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
-    sRError(pReceiver, "snapshot receive failed since %s.", terrstr());
+    sRError(pReceiver, "failed to receive snapshot data since %s.", terrstr());
     code = terrno;
     goto _SEND_REPLY;
   }
@@ -794,7 +790,7 @@ _SEND_REPLY:
   // build msg
   SRpcMsg rpcMsg = {0};
   if (syncBuildSnapshotSendRsp(&rpcMsg, 0, pSyncNode->vgId)) {
-    sRError(pReceiver, "snapshot receiver build resp failed since %s", terrstr());
+    sRError(pReceiver, "failed to build snapshot receiver resp since %s", terrstr());
     return -1;
   }
 
@@ -809,11 +805,9 @@ _SEND_REPLY:
   pRspMsg->code = code;
   pRspMsg->snapBeginIndex = pReceiver->snapshotParam.start;
 
-  ASSERT(pRspMsg->startTime);
   // send msg
-  syncLogSendSyncSnapshotRsp(pSyncNode, pRspMsg, "snapshot receiver received");
   if (syncNodeSendMsgById(&pRspMsg->destId, pSyncNode, &rpcMsg) != 0) {
-    sRError(pReceiver, "snapshot receiver send resp failed since %s", terrstr());
+    sRError(pReceiver, "failed to send snapshot receiver resp since %s", terrstr());
     return -1;
   }
 
