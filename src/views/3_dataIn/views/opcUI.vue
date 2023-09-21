@@ -574,14 +574,14 @@
                         style="margin-right: 20px"
                         >{{ $t("datasource.selectfile") }}</el-button
                       >
-                      <!-- <template v-if="language.includes('zh')">
+                      <template v-if="language.includes('zh')">
                         <a href="/template-zh.csv" download>下载模板</a>
                       </template>
                       <template v-else>
                         <a href="/template-en.csv" download
                           >Download Template File</a
                         >
-                      </template> -->
+                      </template>
                     </el-upload>
                   </template>
                   <template v-if="p.hint === 'str' || p.hint === 'timeout'">
