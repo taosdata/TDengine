@@ -271,14 +271,11 @@ export default {
 .json-zone {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  max-height: 250px;
-  //   padding-left: 200px;
   margin-bottom: 15px;
   position: relative;
   .el-icon-info {
     color: #4259ce;
-    margin-top: 0px;
+    margin-top: 5px;
     margin-left: 4px;
   }
 
