@@ -28,9 +28,9 @@ class TDTestCase:
         tdSql.init(conn.cursor(), False)
 
     def getDataPath(self):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
+        selfPath = tdCom.getBuildPath()
 
-        return selfPath + '/../../../sim/dnode%d/data/vnode/vnode%d/wal/*';
+        return selfPath + '/../sim/dnode%d/data/vnode/vnode%d/wal/*';
 
     def prepareTestEnv(self):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
@@ -58,6 +58,7 @@ class TDTestCase:
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
 
+        tdCom.drop_all_db();
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], wal_retention_period=36000,vgroups=paraDict["vgroups"],replica=self.replicaVar)
         tdLog.info("create stb")
@@ -325,6 +326,7 @@ class TDTestCase:
         self.prepareTestEnv()
         self.tmqCase1()
         self.tmqCase2()
+        self.prepareTestEnv()
         self.tmqCase3()
 
     def stop(self):
