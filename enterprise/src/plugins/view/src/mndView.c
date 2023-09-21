@@ -14,6 +14,8 @@
  */
 
 #include "mndView.h"
+#include "mndTrans.h"
+#include "audit.h"
 
 #define MND_VIEW_VER_NUMBER 1
 
@@ -26,7 +28,7 @@ SSdbRaw *mndViewActionEncode(SViewObj *pView) {
   terrno = TSDB_CODE_SUCCESS;
   void *buf = NULL;
   SSdbRaw *pRaw = NULL;
-  int32_t tlen = tSerializeSCMCreateViewReq(buf, 0, (SCMCreateViewReq*)pView);
+  int32_t tlen = tSerializeSCMCreateViewReq(NULL, 0, (SCMCreateViewReq*)pView);
   if (tlen < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto VIEW_ENCODE_OVER;
@@ -45,7 +47,7 @@ SSdbRaw *mndViewActionEncode(SViewObj *pView) {
     goto VIEW_ENCODE_OVER;
   }
 
-  int32_t tlen = tSerializeSCMCreateViewReq(buf, tlen, (SCMCreateViewReq*)pView);
+  tlen = tSerializeSCMCreateViewReq(buf, tlen, (SCMCreateViewReq*)pView);
   if (tlen < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto VIEW_ENCODE_OVER;
@@ -60,12 +62,12 @@ SSdbRaw *mndViewActionEncode(SViewObj *pView) {
 VIEW_ENCODE_OVER:
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
-    mError("view:%s, failed to encode to raw:%p since %s", pView->name, pRaw, terrstr());
+    mError("view:%s, failed to encode to raw:%p since %s", pView->fullname, pRaw, terrstr());
     sdbFreeRaw(pRaw);
     return NULL;
   }
 
-  mTrace("view:%s, encode to raw:%p, row:%p", pView->name, pRaw, pView);
+  mTrace("view:%s, encode to raw:%p, row:%p", pView->fullname, pRaw, pView);
   return pRaw;
 }
 
@@ -118,36 +120,36 @@ SSdbRow *mndViewActionDecode(SSdbRaw *pRaw) {
 VIEW_DECODE_OVER:
   taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
-    mError("view:%s, failed to decode from raw:%p since %s", pView == NULL ? "null" : pView->name, pRaw,
+    mError("view:%s, failed to decode from raw:%p since %s", pView == NULL ? "null" : pView->fullname, pRaw,
            terrstr());
     taosMemoryFreeClear(pRow);
     return NULL;
   }
 
-  mTrace("view:%s, decode from raw:%p, row:%p", pView->name, pRaw, pView);
+  mTrace("view:%s, decode from raw:%p, row:%p", pView->fullname, pRaw, pView);
   return pRow;
 }
 
-static int32_t mndViewActionInsert(SSdb *pSdb, SViewObj *pView) {
-  mTrace("view:%s, perform insert action", pView->name);
+int32_t mndViewActionInsert(SSdb *pSdb, SViewObj *pView) {
+  mTrace("view:%s, perform insert action", pView->fullname);
   return 0;
 }
 
-static int32_t mndViewActionDelete(SSdb *pSdb, SViewObj *pView) {
-  mTrace("view:%s, perform delete action", pView->name);
+int32_t mndViewActionDelete(SSdb *pSdb, SViewObj *pView) {
+  mTrace("view:%s, perform delete action", pView->fullname);
   tFreeViewObj(pView);
   return 0;
 }
 
-static int32_t mndViewActionUpdate(SSdb *pSdb, SViewObj *pOldView, SViewObj *pNewView) {
+int32_t mndViewActionUpdate(SSdb *pSdb, SViewObj *pOldView, SViewObj *pNewView) {
   taosWLockLatch(&pOldView->lock);
 
-  mTrace("view:%s, perform update action, old row:%p new row:%p", pOldView->name, pOldView, pNewView);
-  
-  strncpy(pOldView->dbFName, pNewView->dbFName, sizeof(pOldView->dbFName) - 1);
+  mTrace("view:%s, perform update action, old row:%p new row:%p", pOldView->fullname, pOldView, pNewView);
+
   pOldView->orReplace = pNewView->orReplace;
   pOldView->precision = pNewView->precision;
   pOldView->numOfCols = pNewView->numOfCols;
+  TSWAP(pOldView->querySql, pNewView->querySql);
   TSWAP(pOldView->sql, pNewView->sql);
   TSWAP(pOldView->pSchema, pNewView->pSchema);
 
@@ -172,15 +174,14 @@ void mndReleaseView(SMnode *pMnode, SViewObj *pView) {
 
 static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg *pReq) {
   SViewObj *pView = (SViewObj*)pCreate;
-  pView
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-view");
   if (pTrans == NULL) {
-    mError("view:%s, failed to create since %s", pCreate->name, terrstr());
+    mError("view:%s, failed to create since %s", pCreate->fullname, terrstr());
     return -1;
   }
 
-  mInfo("trans:%d, used to create view:%s", pTrans->id, pCreate->name);
+  mInfo("trans:%d, used to create view:%s", pTrans->id, pCreate->fullname);
 
   SSdbRaw *pCommitRaw = mndViewActionEncode(pView);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
@@ -202,70 +203,96 @@ static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg 
   return 0;
 }
 
+static int32_t mndDropView(SMnode *pMnode, SRpcMsg *pReq, SViewObj *pView) {
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "drop-view");
+  if (pTrans == NULL) {
+    mError("view:%s, failed to drop since %s", pView->fullname, terrstr());
+    return -1;
+  }
+  mInfo("trans:%d, used to drop view:%s", pTrans->id, pView->fullname);
+
+  SSdbRaw *pCommitRaw = mndViewActionEncode(pView);
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  mndTransDrop(pTrans);
+  return 0;
+}
+
+
 static void mndLogCreateViewAudit(SRpcMsg *pReq, SMnode *pMnode, SCMCreateViewReq* pCreateViewReq) {
   char detail[2000] = {0};
   sprintf(detail, "orReplace:%d, precision:%d, numOfCols:%d",
           pCreateViewReq->orReplace, pCreateViewReq->precision, pCreateViewReq->numOfCols);
 
-  auditRecord(pReq, pMnode->clusterId, "createView", pCreateViewReq.dbFName, pCreateViewReq.name, detail);
+  auditRecord(pReq, pMnode->clusterId, "createView", pCreateViewReq->dbFName, pCreateViewReq->name, detail);
 }
 
-static int32_t mndProcessCreateViewReqImpl(SRpcMsg *pReq) {
+static void mndLogDropViewAudit(SRpcMsg *pReq, SMnode *pMnode, SCMDropViewReq* pDropViewReq) {
+  char detail[100] = {0};
+  sprintf(detail, "igNotExists:%d", pDropViewReq->igNotExists);
+
+  auditRecord(pReq, pMnode->clusterId, "dropView", pDropViewReq->dbFName, pDropViewReq->name, detail);
+}
+
+
+int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq) {
   SMnode            *pMnode = pReq->info.node;
   int32_t            code = -1;
   SViewObj          *pView = NULL;
   SDbObj            *pDb = NULL;
-  SCMCreateViewReq   createViewReq = {0};
   SViewObj           newObj = {0};
 
-  pView = mndAcquireView(pMnode, createViewReq.name);
+  pView = mndAcquireView(pMnode, pCreateView->fullname);
   if (pView != NULL) {
-    if (!createViewReq.orReplace) {
+    if (!pCreateView->orReplace) {
       terrno = TSDB_CODE_MND_VIEW_ALREADY_EXIST;
       goto _OVER;
     } else {
-      mInfo("view %s already exist, or replace is set", createViewReq.name);
+      mInfo("view %s already exist, or replace is set", pCreateView->fullname);
     }
   } else if (terrno != TSDB_CODE_SUCCESS) {
     goto _OVER;
   }
 
-  if (mndCreateView(pMnode, &createViewReq, pReq) < 0) {
-    mError("view:%s, failed to create since %s", createViewReq.name, terrstr());
+  if (mndCreateView(pMnode, pCreateView, pReq) < 0) {
+    mError("view:%s, failed to create since %s", pCreateView->fullname, terrstr());
     goto _OVER;
   }
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  mndLogCreateViewAudit(pReq, pMnode, &createViewReq);
+  mndLogCreateViewAudit(pReq, pMnode, pCreateView);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("failed to create view %s since %s", createViewReq.name, terrstr());
+    mError("failed to create view %s since %s", pCreateView->fullname, terrstr());
   }
 
   mndReleaseView(pMnode, pView);
 
-  tFreeSCMCreateViewReq(&createViewReq);
+  tFreeSCMCreateViewReq(pCreateView);
   return code;
 }
 
-static int32_t mndProcessDropViewReqImpl(SRpcMsg *pReq) {
+int32_t mndProcessDropViewReqImpl(SCMDropViewReq* pDropView, SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
-  SViewObj *pView = NULL;
-
-  SCMDropViewReq dropReq = {0};
-  if (tDeserializeSMDropViewReq(pReq->pCont, pReq->contLen, &dropReq) < 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
-
-  pView = mndAcquireView(pMnode, dropReq.name);
+  int32_t     code = -1;
+  SViewObj   *pView = mndAcquireView(pMnode, pDropView->fullname);
 
   if (pView == NULL) {
-    if (dropReq.igNotExists) {
-      mInfo("view:%s, not exist, ignore not exist is set", dropReq.name);
-      sdbRelease(pMnode->pSdb, pView);
+    if (pDropView->igNotExists) {
+      mInfo("view:%s, not exist, ignore not exist is set", pDropView->name);
       return 0;
     } else {
       terrno = TSDB_CODE_MND_VIEW_NOT_EXIST;
@@ -273,66 +300,26 @@ static int32_t mndProcessDropViewReqImpl(SRpcMsg *pReq) {
     }
   }
 
-  if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pView->targetDb) != 0) {
-    sdbRelease(pMnode->pSdb, pView);
-    return -1;
+  if (mndDropView(pMnode, pReq, pView) < 0) {
+    goto _OVER;
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "drop-view");
-  if (pTrans == NULL) {
-    mError("view:%s, failed to drop since %s", dropReq.name, terrstr());
-    sdbRelease(pMnode->pSdb, pView);
-    return -1;
+  code = TSDB_CODE_ACTION_IN_PROGRESS;
+
+  mndLogDropViewAudit(pReq, pMnode, pDropView);
+
+_OVER:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("failed to drop view %s since %s", pDropView->fullname, terrstr());
   }
-
-  mInfo("trans:%d, used to drop view:%s", pTrans->id, dropReq.name);
-
-  mndTransSetDbName(pTrans, pView->sourceDb, pView->targetDb);
-  if (mndTransCheckConflict(pMnode, pTrans) != 0) {
-    sdbRelease(pMnode->pSdb, pView);
-    mndTransDrop(pTrans);
-    return -1;
-  }
-  // mndTransSetSerial(pTrans);
-
-  // drop all tasks
-  if (mndDropViewTasks(pMnode, pTrans, pView) < 0) {
-    mError("view:%s, failed to drop task since %s", dropReq.name, terrstr());
-    sdbRelease(pMnode->pSdb, pView);
-    mndTransDrop(pTrans);
-    return -1;
-  }
-
-  // drop view
-  if (mndPersistDropViewLog(pMnode, pTrans, pView) < 0) {
-    sdbRelease(pMnode->pSdb, pView);
-    mndTransDrop(pTrans);
-    return -1;
-  }
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare drop view trans since %s", pTrans->id, terrstr());
-    sdbRelease(pMnode->pSdb, pView);
-    mndTransDrop(pTrans);
-    return -1;
-  }
-
-  char detail[100] = {0};
-  sprintf(detail, "igNotExists:%d", dropReq.igNotExists);
-
-  SName name = {0};
-  tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB);
-  //reuse this function for view
-
-  auditRecord(pReq, pMnode->clusterId, "dropView", name.dbname, "", detail);
 
   sdbRelease(pMnode->pSdb, pView);
-  mndTransDrop(pTrans);
 
-  return TSDB_CODE_ACTION_IN_PROGRESS;
+  return code;
 }
 
 static int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+#if 0
   SMnode     *pMnode = pReq->info.node;
   SSdb       *pSdb = pMnode->pSdb;
   int32_t     numOfRows = 0;
@@ -402,6 +389,9 @@ static int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
 
   pShow->numOfRows += numOfRows;
   return numOfRows;
+#else
+  return 0;
+#endif
 }
 
 static void mndCancelGetNextViewImpl(SMnode *pMnode, void *pIter) {
