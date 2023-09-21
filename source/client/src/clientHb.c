@@ -781,19 +781,6 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
   SHbParam *hbParam = (SHbParam *)param;
   SCatalog *pCatalog = NULL;
 
-  STscObj *pTscObj = (STscObj *)acquireTscObj(connKey->tscRid);
-  if (!pTscObj) {
-    tscWarn("tscObj rid %" PRIx64 " not exist", connKey->tscRid);
-    return TSDB_CODE_APP_ERROR;
-  } else {
-    if (atomic_load_8(&pTscObj->dropped) == 1) {
-      tscDebug("tscObj rid %" PRIx64 " user:%s dropped", connKey->tscRid, pTscObj->user);
-      releaseTscObj(connKey->tscRid);
-      return TSDB_CODE_SUCCESS;
-    }
-    releaseTscObj(connKey->tscRid);
-  }
-
   if (hbParam->reqCnt == 0) {
     code = catalogGetHandle(hbParam->clusterId, &pCatalog);
     if (code != TSDB_CODE_SUCCESS) {
@@ -868,7 +855,8 @@ SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
     SClientHbKey *connKey = &pOneReq->connKey;
     STscObj      *pTscObj = (STscObj *)acquireTscObj(connKey->tscRid);
 
-    if (!pTscObj) {
+    if (!pTscObj || atomic_load_8(&pTscObj->dropped) == 1) {
+      if (pTscObj) releaseTscObj(connKey->tscRid);
       continue;
     }
 
