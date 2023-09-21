@@ -612,10 +612,10 @@ static void vnodeBecomeLearner(const SSyncFSM *pFsm) {
 
 static void vnodeBecomeLeader(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
+  vDebug("vgId:%d, become leader", pVnode->config.vgId);
   if (pVnode->pTq) {
     tqUpdateNodeStage(pVnode->pTq, true);
   }
-  vDebug("vgId:%d, become leader", pVnode->config.vgId);
 }
 
 static bool vnodeApplyQueueEmpty(const SSyncFSM *pFsm) {

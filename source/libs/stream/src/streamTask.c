@@ -543,7 +543,22 @@ int32_t streamTaskStop(SStreamTask* pTask) {
   int64_t      st = taosGetTimestampMs();
   const char*  id = pTask->id.idStr;
 
-  pTask->status.taskStatus = TASK_STATUS__STOP;
+  // we should wait for the task complete the checkpoint operation before stop it, otherwise, the operation maybe blocked
+  // by the unfinished checkpoint operation, even if the leader has become the follower.
+  while(1) {
+    taosThreadMutexLock(&pTask->lock);
+
+    if (pTask->status.taskStatus == TASK_STATUS__CK) {
+      stDebug("s-task:%s in checkpoint, wait for it completed for 500ms before stop task", pTask->id.idStr);
+      taosThreadMutexUnlock(&pTask->lock);
+      taosMsleep(500);
+    } else {
+      pTask->status.taskStatus = TASK_STATUS__STOP;
+      taosThreadMutexUnlock(&pTask->lock);
+      break;
+    }
+  }
+
   qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
 
   while (/*pTask->status.schedStatus != TASK_SCHED_STATUS__INACTIVE */ !streamTaskIsIdle(pTask)) {
