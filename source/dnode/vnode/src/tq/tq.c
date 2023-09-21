@@ -900,7 +900,7 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
 
   // only the leader node handle the check request
   if (!pMeta->leader) {
-    tqError("s-task:0x%x invalid check msg from upstream:0x%x(vgId:%d), vgId:%d is follower, not handle check msg",
+    tqError("s-task:0x%x invalid check msg from upstream:0x%x(vgId:%d), vgId:%d is follower, not handle check status msg",
             taskId, req.upstreamTaskId, req.upstreamNodeId, pMeta->vgId);
     return -1;
   }
@@ -1611,7 +1611,7 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
 
   SStreamCheckpointSourceReq req = {0};
   if (!vnodeIsRoleLeader(pTq->pVnode)) {
-    tqDebug("vgId:%d not leader node, ignore checkpoint-source msg", vgId);
+    tqDebug("vgId:%d not leader, ignore checkpoint-source msg", vgId);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1672,7 +1672,7 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
   total = pMeta->numOfStreamTasks;
   taosWUnLockLatch(&pMeta->lock);
 
-  qDebug("s-task:%s (vgId:%d) level:%d receive checkpoint-source msg, chkpt:%" PRId64 ", total checkpoint req:%d",
+  qInfo("s-task:%s (vgId:%d) level:%d receive checkpoint-source msg chkpt:%" PRId64 ", total checkpoint reqs:%d",
          pTask->id.idStr, vgId, pTask->info.taskLevel, req.checkpointId, total);
 
   code = streamAddCheckpointSourceRspMsg(&req, &pMsg->info, pTask, 1);
