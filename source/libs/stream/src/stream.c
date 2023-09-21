@@ -240,6 +240,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
     }
   }
 
+  // disable the data from upstream tasks
   int8_t st = pTask->status.taskStatus;
   if (st == TASK_STATUS__HALT) {
     status = TASK_INPUT_STATUS__BLOCKED;

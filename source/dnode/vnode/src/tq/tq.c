@@ -1539,6 +1539,12 @@ int32_t vnodeEnqueueStreamMsg(SVnode* pVnode, SRpcMsg* pMsg) {
   int32_t taskId = req.taskId;
   tqDebug("vgId:%d receive dispatch msg to s-task:0x%" PRIx64 "-0x%x", vgId, req.streamId, taskId);
 
+  // for test purpose
+//  if (req.type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+//    code = TSDB_CODE_STREAM_TASK_NOT_EXIST;
+//    goto FAIL;
+//  }
+
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, req.streamId, taskId);
   if (pTask != NULL) {
     SRpcMsg rsp = {.info = pMsg->info, .code = 0};
