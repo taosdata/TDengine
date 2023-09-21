@@ -2857,7 +2857,7 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
   return code;
 }
 
-static int32_t createAllColumns(STranslateContext* pCxt, bool igTags, SNodeList** pCols) {
+static int32_t  createAllColumns(STranslateContext* pCxt, bool igTags, SNodeList** pCols) {
   *pCols = nodesMakeList();
   if (NULL == *pCols) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY);
@@ -3019,6 +3019,105 @@ static int32_t createTags(STranslateContext* pCxt, SNodeList** pOutput) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
+  return TSDB_CODE_SUCCESS;
+}
+
+static void biMakeAliasNameInMD5(char* pExprStr, int32_t len, char* pAlias) {
+  T_MD5_CTX ctx;
+  tMD5Init(&ctx);
+  tMD5Update(&ctx, pExprStr, len);
+  tMD5Final(&ctx);
+  char* p = pAlias;
+  for (uint8_t i = 0; i < tListLen(ctx.digest); ++i) {
+    sprintf(p, "%02x", ctx.digest[i]);
+    p += 2;
+  }
+}
+
+static SNode* biMakeTbnameProjectionNode(char* funcName, char* tableAlias) {
+  SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  val->literal = strdup(tableAlias);
+  val->node.resType.type = TSDB_DATA_TYPE_BINARY;
+  val->node.resType.bytes = strlen(val->literal);
+  val->isDuration = false;
+  val->translate = false;
+
+  SNodeList* paramList = nodesMakeList();
+  nodesListAppend(paramList, (SNode*)val);
+
+  SFunctionNode* tbNamefunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  strncpy(tbNamefunc->functionName, "tbname", strlen("tbname"));
+  nodesListMakeAppend(&tbNamefunc->pParameterList, (SNode*)val);
+
+  snprintf(tbNamefunc->node.userAlias, sizeof(tbNamefunc->node.userAlias), "%s.tbname", tableAlias);
+  biMakeAliasNameInMD5(tbNamefunc->node.userAlias, strlen(tbNamefunc->node.userAlias), tbNamefunc->node.aliasName);
+  if (funcName == NULL) {
+    return (SNode*)tbNamefunc;
+  } else {
+    SFunctionNode* multiResFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+    strncpy(multiResFunc->functionName, funcName, strlen(funcName));
+    nodesListMakeAppend(&multiResFunc->pParameterList, (SNode*)tbNamefunc);
+
+    snprintf(multiResFunc->node.userAlias, sizeof(multiResFunc->node.userAlias), "%s(%s.tbname)", funcName, tableAlias);
+    biMakeAliasNameInMD5(multiResFunc->node.userAlias, strlen(multiResFunc->node.userAlias), multiResFunc->node.aliasName);
+    return (SNode*)multiResFunc;
+  }
+}
+
+static int32_t biRewriteSelectFuncParamStar(STranslateContext* pCxt, SSelectStmt* pSelect, SNode* pNode, SListCell* pSelectListCell) {
+  SNodeList* pTbnameNodeList = nodesMakeList();
+
+  SFunctionNode* pFunc = (SFunctionNode*)pNode;
+  if (pFunc->funcType == FUNCTION_TYPE_LAST || pFunc->funcType == FUNCTION_TYPE_LAST_ROW || pFunc->funcType == FUNCTION_TYPE_FIRST) {
+    SNodeList* pParams = pFunc->pParameterList;
+    SNode*     pPara = NULL;
+    FOREACH(pPara, pParams) {
+      if (isStar(pPara)) {
+        SArray* pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
+        size_t  n = taosArrayGetSize(pTables);
+        for (int32_t i = 0; i < n; ++i) {
+          STableNode* pTable = taosArrayGetP(pTables, i);
+          SNode*      pTbnameNode = biMakeTbnameProjectionNode(pFunc->functionName, pTable->tableAlias);
+          nodesListAppend(pTbnameNodeList, pTbnameNode);
+        }
+        nodesListInsertList(pSelect->pProjectionList, pSelectListCell, pTbnameNodeList);
+      } else if (isTableStar(pPara)) {
+        char*  pTableAlias = ((SColumnNode*)pPara)->tableAlias;
+        SNode* pTbnameNode = biMakeTbnameProjectionNode(pFunc->functionName, pTableAlias);
+        nodesListAppend(pTbnameNodeList, pTbnameNode);
+        nodesListInsertList(pSelect->pProjectionList, pSelectListCell, pTbnameNodeList);
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// after translate from
+// before translate select list
+static int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  SNode* pNode = NULL;
+  SNodeList* pTbnameNodeList = nodesMakeList();
+  WHERE_EACH(pNode, pSelect->pProjectionList) {
+    if (isStar(pNode)) {
+      SArray* pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
+      size_t n = taosArrayGetSize(pTables);
+      for (int32_t i = 0; i < n; ++i) {
+        STableNode* pTable = taosArrayGetP(pTables, i);
+        SNode* pTbnameNode = biMakeTbnameProjectionNode(NULL, pTable->tableAlias);
+        nodesListAppend(pTbnameNodeList, pTbnameNode);
+      }
+      INSERT_LIST(pSelect->pProjectionList, pTbnameNodeList);
+    } else if (isTableStar(pNode)) {
+      char* pTableAlias = ((SColumnNode*)pNode)->tableAlias;
+      SNode* pTbnameNode = biMakeTbnameProjectionNode(NULL, pTableAlias);
+      nodesListAppend(pTbnameNodeList, pTbnameNode);
+      INSERT_LIST(pSelect->pProjectionList, pTbnameNodeList);
+    } else if (isMultiResFunc(pNode)) {
+      biRewriteSelectFuncParamStar(pCxt, pSelect, pNode, cell);
+    }
+     WHERE_NEXT;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3934,6 +4033,9 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateHaving(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code && pCxt->pParseCxt->biMode != 0) {
+    code = biRewriteSelectStar(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateSelectList(pCxt, pSelect);
@@ -9537,11 +9639,6 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t rewriteQueryForBI(STranslateContext* pParseCxt, SQuery* pQuery) {
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t translate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
   STranslateContext cxt = {0};
 
@@ -9549,13 +9646,9 @@ int32_t translate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMe
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteQuery(&cxt, pQuery);
   }
-  if (TSDB_CODE_SUCCESS == code && pParseCxt->biMode != 0) {
-    code = rewriteQueryForBI(&cxt, pQuery);
-  }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateQuery(&cxt, pQuery->pRoot);
   }
-
   if (TSDB_CODE_SUCCESS == code && (cxt.pPrevRoot || cxt.pPostRoot)) {
     pQuery->pPrevRoot = cxt.pPrevRoot;
     pQuery->pPostRoot = cxt.pPostRoot;
