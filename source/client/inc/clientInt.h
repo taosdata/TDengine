@@ -159,6 +159,7 @@ typedef struct STscObj {
   SHashObj*     pRequests;
   SPassInfo     passInfo;
   SWhiteListInfo whiteListInfo;
+  int8_t        biMode;
 } STscObj;
 
 typedef struct STscDbg {
