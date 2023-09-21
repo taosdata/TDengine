@@ -264,7 +264,6 @@ int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask) {
 int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
   taosWLockLatch(&pMeta->lock);
 
-  int64_t keys[2];
   for (int32_t i = 0; i < taosArrayGetSize(pMeta->pTaskList); ++i) {
     STaskId* pId = taosArrayGet(pMeta->pTaskList, i);
     SStreamTask** ppTask = taosHashGet(pMeta->pTasksMap, pId, sizeof(*pId));
@@ -305,6 +304,7 @@ int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
   return TSDB_CODE_SUCCESS;
 }
 
+// todo: handle the case: during the checkpoint procedure, leader/follower changes happened.
 int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   int32_t code = 0;
 
