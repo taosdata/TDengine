@@ -100,9 +100,9 @@ class TDTestCase:
                 tdSql.checkEqual(i[1],len(self.perf_list))
             elif i[0].lower() == self.dbname:
                 tdSql.checkEqual(i[1],self.tbnum+1)
-    
 
-        
+
+
     def ins_col_check_4096(self):
         tdSql.execute('create database db3 vgroups 2 replica 1')
         col_str = tdCom.gen_tag_col_str("col", "int",4094)
@@ -113,7 +113,7 @@ class TDTestCase:
             col_value_str = '1, ' * 4093 + '1'
             tdSql.execute(f"insert into db3.ctb{i} values(now,{col_value_str})(now+1s,{col_value_str})(now+2s,{col_value_str})(now+3s,{col_value_str})")
         tdSql.query("select * from information_schema.ins_columns")
-        
+
         tdSql.execute('drop database db3')
     def ins_stable_check(self):
         tdSql.execute('create database db3 vgroups 2 replica 1')
@@ -132,7 +132,7 @@ class TDTestCase:
             else:
                 tdSql.checkEqual(result[i][0],f'stb_{i-1}')
                 tdSql.checkEqual(result[i][1],ctbnum)
-                
+
     def ins_stable_check2(self):
         tdSql.execute('drop database if exists restful_test')
         tdSql.execute('drop database if exists log')
@@ -148,13 +148,13 @@ class TDTestCase:
             tdSql.execute(f'create stable restful_test._stb_{i} (ts timestamp,c0 int) tags(t0 int);')
             tdSql.execute(f'create stable d0._stb_{i} (ts timestamp,c0 int, c1 int) tags(t0 int,t1 int);')
             tdSql.execute(f'create stable d1._stb_{i} (ts timestamp,c0 int, c1 int, c2 int) tags(t0 int,t1 int, t2 int);')
-        
+
         tdSql.execute(f'CREATE STABLE log.`taosadapter_restful_http_request_summary_milliseconds` (`_ts` TIMESTAMP, `sum` DOUBLE) TAGS (`request_uri` NCHAR(128));')
         tdSql.execute(f'CREATE STABLE log.`taosadapter_system_cpu_percent` (`_ts` TIMESTAMP, `gauge` DOUBLE) TAGS (`endpoint` NCHAR(45));')
         tdSql.execute(f'CREATE STABLE log.`taosadapter_restful_http_request_total` (`_ts` TIMESTAMP, `gauge` DOUBLE) TAGS (`client_ip` NCHAR(40));')
         tdSql.execute(f'CREATE STABLE log.`taosadapter_system_mem_percent` (`_ts` TIMESTAMP, `gauge` DOUBLE) TAGS (`endpoint` NCHAR(45));')
         tdSql.execute(f'CREATE STABLE log.`taosadapter_restful_http_request_fail` (`_ts` TIMESTAMP, `gauge` DOUBLE) TAGS (`request_uri` NCHAR(128), `status_code` NCHAR(4));')
-        
+
         tdSql.query(f'select * from information_schema.ins_stables where db_name="restful_test" limit 0,25;') # condition 1
         result = tdSql.queryResult
         tdSql.checkEqual(len(result),25)
@@ -217,7 +217,7 @@ class TDTestCase:
             tdSql.checkEqual(20470,len(tdSql.queryResult))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
-        tdSql.checkEqual(194, len(tdSql.queryResult))
+        tdSql.checkEqual(195, len(tdSql.queryResult))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
         tdSql.checkEqual(54, len(tdSql.queryResult))
