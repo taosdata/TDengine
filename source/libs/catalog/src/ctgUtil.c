@@ -311,6 +311,18 @@ void ctgFreeHandleImpl(SCatalog* pCtg) {
   taosMemoryFree(pCtg);
 }
 
+int32_t ctgRemoveCacheUser(SCatalog* pCtg, const char* user) {
+  if (!pCtg || !user) {
+    return -1;
+  }
+  
+  SCtgUserAuth* pUser = (SCtgUserAuth*)taosHashGet(pCtg->userCache, user, strlen(user));
+  ctgFreeSCtgUserAuth(pUser);
+  taosHashRemove(pCtg->userCache, user, strlen(user));
+
+  return 0;
+}
+
 void ctgFreeHandle(SCatalog* pCtg) {
   if (NULL == pCtg) {
     return;

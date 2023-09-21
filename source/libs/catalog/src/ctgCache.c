@@ -2241,8 +2241,15 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
     goto _return;
   }
 
+  int8_t userDropped = msg->userAuth.dropped;
+
   SCtgUserAuth *pUser = (SCtgUserAuth *)taosHashGet(pCtg->userCache, msg->userAuth.user, strlen(msg->userAuth.user));
   if (NULL == pUser) {
+    if (userDropped) {
+      taosMemoryFreeClear(msg);
+      return TSDB_CODE_SUCCESS;
+    }
+
     SCtgUserAuth userAuth = {0};
 
     memcpy(&userAuth.userAuth, &msg->userAuth, sizeof(msg->userAuth));
@@ -2258,6 +2265,9 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
     CTG_CACHE_NUM_INC(CTG_CI_USER, 1);
 
     return TSDB_CODE_SUCCESS;
+  } else if(userDropped) {
+    ctgRemoveCacheUser(pCtg, msg->userAuth.user);
+    goto _return;
   }
 
   CTG_LOCK(CTG_WRITE, &pUser->lock);

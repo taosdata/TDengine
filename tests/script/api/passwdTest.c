@@ -208,7 +208,7 @@ int main(int argc, char *argv[]) {
   }
   createUsers(taos, argv[1], qstr);
   passVerTestMulti(argv[1], qstr);
-  // sysInfoTest(taos, argv[1], qstr);
+  sysInfoTest(taos, argv[1], qstr);
   userDroppedTest(taos, argv[1], qstr);
 
   taos_close(taos);
@@ -234,13 +234,6 @@ void createUsers(TAOS *taos, const char *host, char *qstr) {
       fprintf(stderr, "failed to run: taos_set_notify_cb(TAOS_NOTIFY_PASSVER) for user:%s since %d\n", users[i], code);
     } else {
       fprintf(stderr, "success to run: taos_set_notify_cb(TAOS_NOTIFY_PASSVER) for user:%s\n", users[i]);
-    }
-
-    code = taos_set_notify_cb(taosu[i], __taos_notify_cb, users[i], TAOS_NOTIFY_USER_DROPPED);
-    if (code != 0) {
-      fprintf(stderr, "failed to run: taos_set_notify_cb(TAOS_NOTIFY_USER_DROPPED) for user:%s since %d\n", users[i], code);
-    } else {
-      fprintf(stderr, "success to run: taos_set_notify_cb(TAOS_NOTIFY_USER_DROPPED) for user:%s\n", users[i]);
     }
 
     // alter pass for users
@@ -396,13 +389,20 @@ _REP:
 
 void userDroppedTest(TAOS *taos, const char *host, char *qstr) {
   // users
-  int nTestUsers = 1;  // nUser
+  int nTestUsers = nUser;
   for (int i = 0; i < nTestUsers; ++i) {
     // sprintf(users[i], "user%d", i);
     taosu[i] = taos_connect(host, users[i], "taos", NULL, 0);
     if (taosu[i] == NULL) {
       printf("failed to connect to server, user:%s, reason:%s\n", users[i], "null taos" /*taos_errstr(taos)*/);
       exit(1);
+    }
+    int code = taos_set_notify_cb(taosu[i], __taos_notify_cb, users[i], TAOS_NOTIFY_USER_DROPPED);
+    if (code != 0) {
+      fprintf(stderr, "failed to run: taos_set_notify_cb:%d for user:%s since %d\n", TAOS_NOTIFY_USER_DROPPED, users[i],
+              code);
+    } else {
+      fprintf(stderr, "success to run: taos_set_notify_cb:%d for user:%s\n", TAOS_NOTIFY_USER_DROPPED, users[i]);
     }
   }
 
@@ -435,5 +435,5 @@ void userDroppedTest(TAOS *taos, const char *host, char *qstr) {
     fprintf(stderr, ">>> failed to get user dropped notification since nNotify %d < nConn %d\n", nUserDropped, nConn);
   }
   fprintf(stderr, "######## %s #########\n", __func__);
-  sleep(300);
+  // sleep(300);
 }
