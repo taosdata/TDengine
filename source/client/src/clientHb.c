@@ -104,8 +104,6 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
           }
         }
         releaseTscObj(pReq->connKey.tscRid);
-        // delete the tscObj
-        releaseTscObj(pReq->connKey.tscRid);
         continue;
       }
 
@@ -578,6 +576,10 @@ static int32_t hbGetUserAuthInfo(SClientHbKey *connKey, SHbParam *param, SClient
     tscWarn("tscObj rid %" PRIx64 " not exist", connKey->tscRid);
     return TSDB_CODE_APP_ERROR;
   }
+
+  // if(pTscObj->dropped == 1) {
+  //   releaseTscObj(connKey->tscRid);
+  // }
 
   int32_t code = 0;
 
