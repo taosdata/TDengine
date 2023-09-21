@@ -198,9 +198,9 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
     }
   } else if (taskLevel == TASK_LEVEL__SINK || taskLevel == TASK_LEVEL__AGG) {
     ASSERT(taosArrayGetSize(pTask->pUpstreamInfoList) > 0);
-
-    // todo: this may be not the first one
-    pTask->chkInfo.startTs = taosGetTimestampMs();
+    if (pTask->chkInfo.startTs == 0) {
+      pTask->chkInfo.startTs = taosGetTimestampMs();
+    }
 
     // update the child Id for downstream tasks
     streamAddCheckpointReadyMsg(pTask, pBlock->srcTaskId, pTask->info.selfChildId, checkpointId);

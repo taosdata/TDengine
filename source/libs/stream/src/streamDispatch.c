@@ -373,6 +373,8 @@ static int32_t doDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* p
       }
     }
 
+    stDebug("s-task:%s complete shuffle-dispatch blocks to all %d vnodes", pTask->id.idStr, vgSz);
+
     code = 0;
 
     FAIL_SHUFFLE_DISPATCH:
@@ -976,22 +978,28 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   if (code != TSDB_CODE_SUCCESS) {
     // dispatch message failed: network error, or node not available.
     // in case of the input queue is full, the code will be TSDB_CODE_SUCCESS, the and pRsp->inputStatus will be set
-    // flag. here we need to retry dispatch this message to downstream task immediately. handle the case the failure
+    // flag. Here we need to retry dispatch this message to downstream task immediately. handle the case the failure
     // happened too fast.
     // todo handle the shuffle dispatch failure
-    if (code == TSDB_CODE_STREAM_TASK_NOT_EXIST) { // destination task does not exist, not retry anymore
+    if (code == TSDB_CODE_STREAM_TASK_NOT_EXIST) {  // destination task does not exist, not retry anymore
       stError("s-task:%s failed to dispatch msg to task:0x%x(vgId:%d), no retry, since it is destroyed already", id,
-             pRsp->downstreamTaskId, pRsp->downstreamNodeId);
-      {// we should set the correct finish flag to make sure the shuffle dispatch will be executed completed.
-         if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-           int32_t left = atomic_sub_fetch_32(&pTask->shuffleDispatcher.waitingRspCnt, 1);
-           if (left > 0) { // do nothing
-             stError("s-task:%s add the shuffle dispatch counter to complete the dispatch process", id);
-           } else {
-             stError("s-task:%s the last rsp is failed, ignore it and continue, roll-back will discard this msg", id);
-             handleDispatchSuccessRsp(pTask, pRsp->downstreamTaskId);
-           }
-         }
+              pRsp->downstreamTaskId, pRsp->downstreamNodeId);
+
+      SStreamDataBlock* pMsgBlock = pTask->msgInfo.pData;
+      if (pMsgBlock->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+        stError("s-task:%s checkpoint trigger send failed, continue do checkpoint ready process", id);
+        streamProcessCheckpointReadyMsg(pTask);
+      }
+
+      // we should set the correct finish flag to make sure the shuffle dispatch will be executed completed.
+      if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+        int32_t left = atomic_sub_fetch_32(&pTask->shuffleDispatcher.waitingRspCnt, 1);
+        if (left > 0) {  // do nothing
+          stError("s-task:%s add the shuffle dispatch counter to complete the dispatch process", id);
+        } else {
+          stError("s-task:%s the last rsp is failed, ignore it and continue, roll-back will discard this msg", id);
+          handleDispatchSuccessRsp(pTask, pRsp->downstreamTaskId);
+        }
       }
     } else {
       stError("s-task:%s failed to dispatch msg to task:0x%x(vgId:%d), code:%s, retry cnt:%d", id,
