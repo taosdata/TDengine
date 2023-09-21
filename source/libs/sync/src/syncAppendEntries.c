@@ -157,7 +157,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   if (ths->fsmState == SYNC_FSM_STATE_INCOMPLETE) {
     pReply->fsmState = ths->fsmState;
-    sError("vgId:%d, not allow to accept sync log msg due to incomplete fsm state", ths->vgId);
+    sError("vgId:%d, not to accept sync log msg due to incomplete fsm state", ths->vgId);
     syncEntryDestroy(pEntry);
     goto _SEND_RESPONSE;
   }
