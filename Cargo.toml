@@ -64,7 +64,7 @@ serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9.19"
 sha2 = "0.10"
 thiserror = "1"
-tokio = { version = "1", features = ["full", "tracing"] }
+tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7" }
 toml = "0.7.2"
 zstd = "0.12.1"
@@ -128,7 +128,7 @@ tracing-opentelemetry = { version = "*" }
 tracing-actix-web = "0.7"
 metrics-tracing-context = "*"
 metrics-util = "*"
-console-subscriber = { version = "*" }
+console-subscriber = { version = "*", optional = true}
 
 reqwest = "0.11.15"
 taosx-ipc = { path = "./taosx-ipc" }
@@ -173,6 +173,8 @@ disable-enterprise-only-validation = [
 disable-enterprise-connector-validation = [
   "taosx-core/disable-enterprise-connector-validation",
 ]
+
+tokio-tracing = ["tokio/tracing", "console-subscriber"]
 
 [profile.sani]
 inherits = "release"

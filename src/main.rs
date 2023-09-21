@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+use cfg_if::cfg_if;
 use chrono::Local;
 use clap::{Parser, Subcommand};
 use const_format::concatcp;
@@ -324,7 +325,6 @@ fn main() -> Result<()> {
         }
 
         let metrics_layer = MetricsLayer::new();
-        let console_layer = console_subscriber::spawn();
         if args.globals.otel.unwrap_or(false) {
             let tracer = opentelemetry_jaeger::new_agent_pipeline()
                 .with_service_name("x")
@@ -334,19 +334,34 @@ fn main() -> Result<()> {
 
             // Create a tracing layer with the configured tracer
             let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
-
-            tracing_subscriber::registry()
-                .with(console_layer)
+            let layered = tracing_subscriber::registry()
                 .with(metrics_layer)
                 .with(layers)
-                .with(telemetry)
-                .init();
+                .with(telemetry);
+            cfg_if! {
+                if #[cfg(feature = "tokio-tracing")] {
+                    layered
+                        .with(console_subscriber::spawn())
+                        .init()
+                } else {
+                    layered
+                        .init()
+                }
+            }
         } else {
-            tracing_subscriber::registry()
-                .with(console_layer)
+            let layered = tracing_subscriber::registry()
                 .with(metrics_layer)
-                .with(layers)
-                .init();
+                .with(layers);
+            cfg_if! {
+                if #[cfg(feature = "tokio-tracing")] {
+                    layered
+                        .with(console_subscriber::spawn())
+                        .init()
+                } else {
+                    layered
+                        .init()
+                }
+            }
         }
 
         tracing::info!("version: {version}");
