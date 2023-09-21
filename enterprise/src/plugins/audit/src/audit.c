@@ -25,6 +25,8 @@ extern SAudit tsAudit;
 
 void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
                     char *detail, int32_t len) {
+  if (!tsEnableAudit || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
+  
   if(len > AUDIT_DETAIL_MAX){
     uError("can't record audit since detail is too long, len:%d, operation:%s, target1:%s, target2:%s", 
             len, operation, target1, target2);
@@ -40,7 +42,6 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
 
   char *user = pReq->info.conn.user;
 
-  if (!tsEnableAudit || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
   SJson *pJson = tjsonCreateObject();
   if (pJson == NULL) {
     taosMemoryFreeClear(buf);
