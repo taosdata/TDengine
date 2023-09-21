@@ -1,6 +1,6 @@
 [config]
-load_cargo_aliases = false
-skip_core_tasks = true
+load_cargo_aliases = true
+skip_core_tasks = false
 default_to_workspace = false
 
 [tasks.taosx]
@@ -95,6 +95,20 @@ script = """
 
 [tasks.build-all]
 dependencies = ["taosx", "taosx-agent", "plugins"]
+
+[tasks.build-sanitizer]
+command = "cargo"
+env = { "RUSTFLAGS" = "-Zsanitizer=address --cfg tokio_unstable" }
+args = [
+  "build",
+  "--release",
+  "--target",
+  "x86_64-unknown-linux-gnu",
+  "-Zbuild-std",
+]
+
+[tasks.clean-all]
+dependencies = ["clean-plugins", "clean"]
 
 [tasks.docker-cloud]
 script = """
