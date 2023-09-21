@@ -113,6 +113,7 @@ int32_t taosThreadCondSignal(TdThreadCond *cond) {
 int32_t taosThreadCondBroadcast(TdThreadCond *cond) {
 #ifdef __USE_WIN_THREAD
   WakeAllConditionVariable(cond);
+  return 0;
 #else
   return pthread_cond_broadcast(cond);
 #endif
