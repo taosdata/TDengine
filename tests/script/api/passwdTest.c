@@ -298,11 +298,12 @@ void passVerTestMulti(const char *host, char *qstr) {
   }
 
   fprintf(stderr, "######## %s #########\n", __func__);
-  if (nPassVerNotified >= nConn) {
-    fprintf(stderr, ">>> succeed to get passVer notification since nNotify %d >= nConn %d\n", nPassVerNotified,
+  if (nPassVerNotified == nConn) {
+    fprintf(stderr, ">>> succeed to get passVer notification since nNotify %d == nConn %d\n", nPassVerNotified,
             nConn);
   } else {
-    fprintf(stderr, ">>> failed to get passVer notification since nNotify %d < nConn %d\n", nPassVerNotified, nConn);
+    fprintf(stderr, ">>> failed to get passVer notification since nNotify %d != nConn %d\n", nPassVerNotified, nConn);
+    exit(1);
   }
   fprintf(stderr, "######## %s #########\n", __func__);
   // sleep(300);
@@ -416,7 +417,7 @@ void userDroppedTest(TAOS *taos, const char *host, char *qstr) {
   int nConn = nTestUsers;
 
   for (int i = 0; i < 15; ++i) {
-    printf("%s:%d [%d] second(s) elasped, passVer notification received:%d, total:%d\n", __func__, __LINE__, i,
+    printf("%s:%d [%d] second(s) elasped, user dropped notification received:%d, total:%d\n", __func__, __LINE__, i,
            nUserDropped, nConn);
     if (nUserDropped >= nConn) break;
     sleep(1);
@@ -429,10 +430,11 @@ void userDroppedTest(TAOS *taos, const char *host, char *qstr) {
   }
 
   fprintf(stderr, "######## %s #########\n", __func__);
-  if (nUserDropped >= nConn) {
-    fprintf(stderr, ">>> succeed to get user dropped notification since nNotify %d >= nConn %d\n", nUserDropped, nConn);
+  if (nUserDropped == nConn) {
+    fprintf(stderr, ">>> succeed to get user dropped notification since nNotify %d == nConn %d\n", nUserDropped, nConn);
   } else {
-    fprintf(stderr, ">>> failed to get user dropped notification since nNotify %d < nConn %d\n", nUserDropped, nConn);
+    fprintf(stderr, ">>> failed to get user dropped notification since nNotify %d != nConn %d\n", nUserDropped, nConn);
+    exit(1);
   }
   fprintf(stderr, "######## %s #########\n", __func__);
   // sleep(300);
