@@ -104,15 +104,15 @@
             "tags": [{"type": "TINYINT"}]
         },{
             "name": "stb4",
-            "child_table_exists":"yes",
-            "auto_create_table": "123",   
+            "child_table_exists":"no",
+            "auto_create_table": "yes",   
             "childtable_count": 20,   
-            "childtable_prefix": "NY123_",    
+            "childtable_prefix": "NY23_",    
             "batch_create_tbl_num": 100,   
             "data_source": "rand",       
             "insert_mode": "taosc",      
             "insert_rows": 5,       
-            "childtable_limit": 40,      
+            "childtable_limit": 0,      
             "childtable_offset":0,     
             "interlace_rows": 0,         
             "insert_interval":0,         
@@ -128,10 +128,10 @@
             "tags": [{"type": "TINYINT"}]
         },{
             "name": "stb5",
-            "child_table_exists":"yes",
-            "auto_create_table": "no",   
+            "child_table_exists":"no",
+            "auto_create_table": "yes",   
             "childtable_count": 20,   
-            "childtable_prefix": "NYN_",    
+            "childtable_prefix": "NYAN_",    
             "batch_create_tbl_num": 100,   
             "data_source": "rand",       
             "insert_mode": "taosc",      
@@ -152,10 +152,10 @@
             "tags": [{"type": "TINYINT"}]
         },{
             "name": "stb6",
-            "child_table_exists":"yes",
+            "child_table_exists":"no",
             "auto_create_table": "yes",   
             "childtable_count": 20,   
-            "childtable_prefix": "NYY_",    
+            "childtable_prefix": "ANYY_",    
             "batch_create_tbl_num": 100,   
             "data_source": "rand",       
             "insert_mode": "taosc",      
