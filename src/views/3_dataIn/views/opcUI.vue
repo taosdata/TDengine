@@ -332,7 +332,11 @@
                     :disable="p.target.selectable"
                     @keydown.enter.native="searchDatas"
                   >
-                    <el-button slot="append" icon="el-icon-search" @click="searchDatas"></el-button>
+                    <el-button
+                      slot="append"
+                      icon="el-icon-search"
+                      @click="searchDatas"
+                    ></el-button>
                   </el-input>
                   <div class="resultWrap">
                     <div class="searchList" v-loading="loading">
@@ -341,14 +345,20 @@
                         v-if="configurationdata.length <= 0"
                       ></el-empty>
                       <template v-else>
-                        <el-table 
-                          :data="configurationdata" 
-                          size="mini" 
+                        <el-table
+                          :data="configurationdata"
+                          size="mini"
                           @row-click="handelDataSet"
                           highlight-current-row
-                          >
-                          <el-table-column prop="id" label="Id"></el-table-column>
-                          <el-table-column prop="name" label="Name"></el-table-column>
+                        >
+                          <el-table-column
+                            prop="id"
+                            label="Id"
+                          ></el-table-column>
+                          <el-table-column
+                            prop="name"
+                            label="Name"
+                          ></el-table-column>
                         </el-table>
                       </template>
                     </div>
@@ -557,19 +567,21 @@
                       :file-list="fileList"
                       :auto-upload="true"
                     >
-                      <el-button slot="trigger" size ="small" type="primary" style="margin-right:20px;">{{
-                        $t("datasource.selectfile")
-                      }}</el-button>
-                      <template v-if="language.includes('en')">
+                      <el-button
+                        slot="trigger"
+                        size="small"
+                        type="primary"
+                        style="margin-right: 20px"
+                        >{{ $t("datasource.selectfile") }}</el-button
+                      >
+                      <!-- <template v-if="language.includes('zh')">
+                        <a href="/template-zh.csv" download>下载模板</a>
+                      </template>
+                      <template v-else>
                         <a href="/template-en.csv" download
                           >Download Template File</a
-                        ></template
-                      >
-                      <template v-else>
-                        <a href="/template-zh.csv" download
-                          >下载模板</a
-                        ></template
-                      >
+                        >
+                      </template> -->
                     </el-upload>
                   </template>
                   <template v-if="p.hint === 'str' || p.hint === 'timeout'">

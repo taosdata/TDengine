@@ -5,7 +5,7 @@
         <el-tab-pane :label="$t('datasource.uploadcsv')" name="first">
           <div class="upload-file">
             <span
-              :class="['label required', language.includes('en') ? 'en' : 'zh']"
+              :class="['label required', language.includes('zh') ? 'zh' : 'en']"
               >{{ $t("datasource.upfile") }}</span
             >
             <el-upload

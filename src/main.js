@@ -38,7 +38,7 @@ export function getBrowserLang() {
   const browserLang = (nav.language || nav.browserLanguage || '').toLowerCase();
   if (browserLang.includes('zh')) return 'zh';
   if (browserLang.includes('en')) return 'en';
-  return 'zh';
+  return 'en';
 }
 setLang(getBrowserLang())
 new Vue({
