@@ -133,11 +133,13 @@ typedef struct {
   int32_t            ver;
   void*              param;
   __taos_notify_fn_t fp;
-} SPassInfo;
+} STscNotifyInfo;
+
+typedef STscNotifyInfo SPassInfo;
 
 typedef struct {
-  int64_t ver;
-  void* param;
+  int64_t            ver;
+  void*              param;
   __taos_notify_fn_t fp;
 } SWhiteListInfo;
 
@@ -159,6 +161,7 @@ typedef struct STscObj {
   SHashObj*     pRequests;
   SPassInfo     passInfo;
   SWhiteListInfo whiteListInfo;
+  STscNotifyInfo userDroppedInfo;
 } STscObj;
 
 typedef struct STscDbg {

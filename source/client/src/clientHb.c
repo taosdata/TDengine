@@ -96,6 +96,19 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         }
       }
 
+      if (pRsp->dropped == 1) {
+        if (pTscObj->userDroppedInfo.fp) {
+          SPassInfo *dropInfo = &pTscObj->userDroppedInfo;
+          if (dropInfo->fp) {
+            (*dropInfo->fp)(dropInfo->param, NULL, TAOS_NOTIFY_USER_DROPPED);
+          }
+        }
+        releaseTscObj(pReq->connKey.tscRid);
+        // delete the tscObj
+        releaseTscObj(pReq->connKey.tscRid);
+        continue;
+      }
+
       pTscObj->authVer = pRsp->version;
 
       if (pTscObj->sysInfo != pRsp->sysInfo) {
