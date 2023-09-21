@@ -1,6 +1,7 @@
 ---
 toc_max_heading_level: 4
 title: Data Export
+sidebar_label: Data Export
 ---
 
 This article describes how to use taosX to export data from TDengine. For more information about taosX, see [taosX](../../reference/taosx/). You can also use taosExplorer to set up data ingestion. For more information, see [taosExplorer](../explorer/). For more information about installing taosX, see [Installation](../../get-started/).

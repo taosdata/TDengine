@@ -25,19 +25,25 @@ taosx run -f "<TDengine-DSN>" -t "<Kafka-DSN>"
   
 ### TDengine DSN 配置
 
-TDengine DSN 符合 DSN 的通用规则，这里仅对其特有的参数进行说明：
+TDengine DSN  的完整配置如下：
+```shell
+tmq://user:password@host:port/db?table=table&topic_suffix=topic_suffix[&cols=cols[&tags=tags]][&start=start][&end=end][&ts=ts]
+```
 - table: 输出数据的超级表名，此字段为必填字段;
-- cols: 超级表中被订阅的列，默认为所有字段，此项为必填字段;
+- topic_suffix: TMQ topic名字的后缀，此项为必填字段;
+- cols: 超级表中被订阅的列，默认为所有字段，此项为可选字段;
 - tags: 超级表中被订阅的标签，默认为所有标签，此项为可选字段；
 - start: 订阅数据的开始时间，此项为可选字段;
 - end: 订阅数据的结束时间，此项为可选字段;
-- ts: 时间戳的列名，默认为ts，此项为可选字段;
-- topic_suffix: TMQ topic名字的后缀，此项为必填字段;
+- ts: 时间戳的列名，默认为ts，此项为可选字段。
 
 
 ### Kafka DSN 配置
 
-Kafka DSN 符合 DSN 的通用规则，这里仅对其特有的参数进行说明：
+Kafka DSN  的完整配置如下：
+```shell
+kafka://host:port/topic?[&ack_timeout=acktimeout][&batch_size=batchsize]
+```
 - ack_timeout: Kafka消息消费的超时时间，此字段为可选字段;
 - batch_size: 批量发送到Kafka的数据条数，此项为可选字段;
 
