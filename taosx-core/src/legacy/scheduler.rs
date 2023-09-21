@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fmt::Debug,
     io::Write,
     pin::Pin,
@@ -20,6 +21,7 @@ use tracing::{instrument, Instrument};
 use crate::{
     legacy::{
         split_table_into_time_range_chunks, sync_single_table_partial, sync_super_table_schema,
+        transform_sql_with_remap,
     },
     Action, LegacyMetrics, QueryOpts, TargetOpts, TimeRange, METRICS_LEGACY_CREATED_TABLES,
 };
@@ -97,8 +99,21 @@ async fn worker(
         match todo {
             Todo::STable(stable, sender) => {
                 let mut retries = MAX_WS_RETRIES;
+                let remap = opts
+                    .remap
+                    .as_ref()
+                    .and_then(|v| v.get(stable.as_str()).map(Clone::clone));
                 loop {
-                    match sync_super_table_schema(&from, &stable, &to, &opts, &actions).await {
+                    match sync_super_table_schema(
+                        &from,
+                        &stable,
+                        &to,
+                        remap.as_ref(),
+                        &opts,
+                        &actions,
+                    )
+                    .await
+                    {
                         Ok(_) => {
                             let _ = sender.send(Ok(()));
                             break;
@@ -149,6 +164,10 @@ async fn worker(
                 match stable {
                     Some(stable) => {
                         let mut retries = MAX_WS_RETRIES;
+                        let remap = opts
+                            .remap
+                            .as_ref()
+                            .and_then(|v| v.get(stable.as_str()).map(Clone::clone));
                         loop {
                             //todo
                             match sync_super_table_schema_with_subs(
@@ -156,12 +175,10 @@ async fn worker(
                                 &stable,
                                 &tables,
                                 &to,
-                                tables.len(),
+                                remap.as_ref(),
                                 &opts,
                                 source_is_v3,
-                                target_is_v3,
                                 &actions,
-                                0,
                                 &metrics,
                             )
                             .await
@@ -225,8 +242,9 @@ async fn worker(
                         //normal
                         let mut errors = String::new();
                         for table in &tables {
+                            let remap = opts.remap.as_ref().and_then(|v| v.get(table));
                             if let Err(err) =
-                                sync_normal_table_schema(&from, &table, &actions, &to).await
+                                sync_normal_table_schema(&from, &table, &actions, remap, &to).await
                             {
                                 tracing::error!("Syncing table `{table}` error: {err:?}");
                                 if let Some(path) = opts.fails_to.as_ref() {
@@ -272,6 +290,16 @@ async fn worker(
                 };
                 let mut retries = MAX_WS_RETRIES;
 
+                let remap = opts.remap.as_ref().and_then(|v| {
+                    v.get(
+                        stable
+                            .as_ref()
+                            .map(|s| s.as_str())
+                            .unwrap_or(table.as_str()),
+                    )
+                    .map(Clone::clone)
+                });
+
                 let chunks = split_table_into_time_range_chunks(&from, &table, &query).await;
                 match chunks {
                     Ok(chunks) => {
@@ -289,6 +317,7 @@ async fn worker(
                                     &to,
                                     &actions,
                                     &query,
+                                    remap.as_ref(),
                                     &opts,
                                     target_is_v3,
                                     metrics.clone(),
@@ -320,9 +349,11 @@ async fn worker(
                                 );
                                             let st = stable.as_ref().map(|s| s.as_str());
                                             if let Some(stable) = st {
-                                                sync_add_column(&from, &to, stable).await?;
+                                                sync_add_column(&from, &to, stable, remap.as_ref())
+                                                    .await?;
                                             } else {
-                                                sync_add_column(&from, &to, &table).await?;
+                                                sync_add_column(&from, &to, &table, remap.as_ref())
+                                                    .await?;
                                             }
                                             continue;
                                         }
@@ -388,17 +419,30 @@ async fn worker(
     }
 }
 
-pub async fn sync_add_column(from: &Taos, to: &Taos, table: &str) -> anyhow::Result<()> {
-    let des_from = from.describe(table).await?;
-    let des_to = to.describe(table).await?;
+pub async fn sync_add_column(
+    from: &Taos,
+    to: &Taos,
+    table: &str,
+    remap: Option<&Arc<HashMap<String, String>>>,
+) -> anyhow::Result<()> {
+    let l_desc = from.describe(table).await?;
+    let r_desc = to.describe(table).await?;
     let mut add_columns = Vec::new();
-    for col in des_from.iter() {
-        if !col.is_tag() && !des_to.iter().any(|c| c.field() == col.field()) {
-            add_columns.push(col);
+    for l in l_desc.iter() {
+        if !l.is_tag()
+            && !r_desc
+                .iter()
+                .any(|r| r.field() == remap.and_then(|map| map.get(l.field())).unwrap_or(&l.field))
+        {
+            add_columns.push(l);
         }
     }
     for col in add_columns {
-        let sql = format!("ALTER TABLE `{}` ADD COLUMN {}", table, col.sql_repr());
+        let sql = format!(
+            "ALTER TABLE `{}` ADD COLUMN {}",
+            table,
+            transform_sql_with_remap(col.sql_repr(), remap)
+        );
         tracing::info!("add column sql: {sql}");
         if let Err(err) = to.exec(sql.as_str()).await {
             tracing::error!("Add column error: {err:#}");

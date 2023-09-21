@@ -25,9 +25,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Span};
 
 use crate::{
-    build_ipc, get_log_keep_days,
-    utils::{get_string_content_from_param_value, port_pool::PortPool},
-    Action, DataSet, DataSetsReq, Transferred,
+    build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
+    Transferred,
 };
 
 #[derive(Debug, serde::Serialize)]

@@ -15,7 +15,6 @@ use std::{
 
 use anyhow::{bail, Context};
 use chrono::{DateTime, TimeZone, Utc};
-use linked_hash_map::LinkedHashMap;
 use metrics::counter;
 use rand::seq::SliceRandom;
 use serde::Deserialize;
@@ -416,6 +415,7 @@ struct WriteContext {
     actions: Vec<Action>,
     target_opts: TargetOpts,
     metrics: Arc<LegacyMetrics>,
+    remap: Option<Arc<HashMap<String, String>>>,
 }
 async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResult<()> {
     // write block
@@ -438,7 +438,17 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
     let new_table_name = context.to.1.name.as_str();
     let metrics = &context.metrics;
     let target_opts = &context.target_opts;
+    let remap = &context.remap;
 
+    if let Some(remap) = remap {
+        let names = block
+            .field_names()
+            .iter()
+            .map(|s| remap.get(s).unwrap_or(s))
+            .map(Clone::clone)
+            .collect_vec();
+        block.with_field_names(names);
+    }
     block.with_table_name(new_table_name);
 
     loop {
@@ -449,29 +459,37 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
             tracing::debug!("sync_single_table_partial write raw block error: {err:#}",);
             if code == 0x2603 || code == 0x0618 {
                 if let Some(stable) = stable {
-                    sync_super_table_schema_with_subs_without_pool(
+                    sync_super_table_schema(
+                        &from,
+                        stable,
+                        &to,
+                        remap.as_ref(),
+                        target_opts,
+                        actions,
+                    )
+                    .await?;
+                    sync_super_table_schema_with_subs(
                         &from,
                         stable,
                         &[table.as_str()],
                         &to,
-                        1,
-                        &context.target_opts,
+                        remap.as_ref(),
+                        target_opts,
                         true,
-                        &context.actions,
-                        0,
-                        &context.metrics,
+                        actions,
+                        metrics,
                     )
                     .await?;
                 } else {
-                    sync_normal_table_schema(from, table, actions, to).await?;
+                    sync_normal_table_schema(from, table, actions, remap.as_ref(), to).await?;
                 }
                 continue;
             } else if code == 0x263F || code == 0x061B {
                 tracing::info!("sync table {table} error with: {err:#}");
                 if let Some(stable) = stable {
-                    scheduler::sync_add_column(from, to, stable).await?;
+                    scheduler::sync_add_column(from, to, stable, remap.as_ref()).await?;
                 } else {
-                    scheduler::sync_add_column(from, to, table).await?;
+                    scheduler::sync_add_column(from, to, table, remap.as_ref()).await?;
                 }
                 continue;
             } else if err_str.contains("0x0911") {
@@ -562,10 +580,12 @@ async fn sync_single_table_partial(
     to: &Taos,
     actions: &Vec<Action>,
     opts: &QueryOpts,
+    remap: Option<&Arc<HashMap<String, String>>>,
     target_opts: &TargetOpts,
     target_is_v3: bool,
     metrics: Arc<LegacyMetrics>,
 ) -> anyhow::Result<()> {
+    tracing::info!("Syncing table {table} with range: {}", opts.time_range);
     let (table, sql) = if opts.select_from_stable {
         if let Some(stable) = stable {
             let stable_schema = from.describe(stable).await?;
@@ -624,6 +644,7 @@ async fn sync_single_table_partial(
             actions: actions.clone(),
             target_opts: target_opts.clone(),
             metrics: metrics.clone(),
+            remap: remap.map(Clone::clone),
         });
 
         if target_opts.blocks_chunk_size.get() == 1 {
@@ -825,162 +846,11 @@ async fn sync_single_table_partial(
     Ok(())
 }
 
-async fn sync_super_table_schema_with_subs_without_pool(
-    from: &Taos,
-    name: &str,
-    subs: &[impl AsRef<str>],
-    to: &Taos,
-    tables: usize,
-    target_opts: &TargetOpts,
-    is_v3: bool,
-    actions: &Vec<Action>,
-    _concurrency: usize,
-    metrics: &LegacyMetrics,
-) -> anyhow::Result<()> {
-    debug_assert!(!name.is_empty());
-    let (_, sql): ((), String) = from
-        .query_one(format!("show create table `{name}`"))
-        .await?
-        .unwrap();
-    let create_sql = transform_sql_with_actions(
-        sql.replace("VARCHAR", "BINARY")
-            .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
-            .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS")
-            .replace("create table", "CREATE TABLE IF NOT EXISTS")
-            .replace("create stable", "CREATE TABLE IF NOT EXISTS"),
-        name,
-        actions,
-        true,
-    )?;
-    if let Err(err) = to.exec(create_sql).await {
-        if err.to_string().contains("0x000B") {
-            from.exec(format!("desc `{name}`")).await?;
-        } else {
-            Err(err).with_context(|| format!("sql: [{}] exec error", &sql))?;
-        }
-    }
-    if let Some(duration) = target_opts.interval {
-        tokio::time::sleep(duration).await;
-    }
-
-    if tables == 0 {
-        return Ok(());
-    }
-
-    let desc = from.describe(name).await?;
-    let tag_name_vec = desc.tag_names().collect_vec();
-    let tag_names = Arc::new(tag_name_vec.iter().map(|s| format!("`{s}`")).join(","));
-
-    let cond_for_to = subs
-        .iter()
-        .map(|n| {
-            format!(
-                "'{}'",
-                transform_tbname_with_actions(n.as_ref(), actions, false).unwrap()
-            )
-        })
-        .join(",");
-    let cond = subs.iter().map(|n| format!("'{}'", n.as_ref())).join(",");
-
-    let stable_name_for_to = transform_tbname_with_actions(name, actions, true)?;
-    let sql = if is_v3 {
-        format!("SELECT distinct tbname, {tag_names} FROM `{stable_name_for_to}` WHERE tbname IN ({cond_for_to})")
-    } else {
-        format!("SELECT tbname, {tag_names} FROM `{stable_name_for_to}` WHERE tbname IN ({cond_for_to})")
-    };
-
-    let res_to: LinkedHashMap<_, _> = to
-        .query(&sql)
-        .await?
-        .to_records()
-        .await?
-        .into_iter()
-        .map(|mut v| (format!("{}", v.remove(0)), v))
-        .collect();
-    let sql = if is_v3 {
-        format!("SELECT distinct tbname, {tag_names} FROM `{name}` WHERE tbname IN ({cond})")
-    } else {
-        format!("SELECT tbname, {tag_names} FROM `{name}` WHERE tbname IN ({cond})")
-    };
-    let (exists, non_exists): (Vec<_>, Vec<_>) = from
-        .query(&sql)
-        .await?
-        .to_records()
-        .await?
-        .into_iter()
-        .map(|mut v| (format!("{}", v.remove(0)), v))
-        .partition(|v| res_to.contains_key(&v.0));
-    if target_opts.update_tags {
-        let mut updated_tags = 0;
-        for (n, l) in &exists {
-            let r = res_to.get(n).unwrap();
-
-            for (tag, _l, r) in l
-                .into_iter()
-                .zip(r)
-                .zip(&tag_name_vec)
-                .filter_map(|((l, r), tag)| if l == r { None } else { Some((tag, l, r)) })
-            {
-                let sql = format!("alter table `{n}` set tag `{tag}` = {}", r.to_sql_value());
-                if let Err(err) = to.exec(&sql).await {
-                    tracing::error!(
-                        "Altering table `{n}` tag `{tag}` to {} error: {err:?}",
-                        r.to_sql_value()
-                    );
-                } else {
-                    updated_tags += 1;
-                    counter!(METRICS_LEGACY_UPDATED_TAGS, 1);
-                    metrics.updated_tags.fetch_add(1, Ordering::SeqCst);
-                }
-            }
-        }
-
-        tracing::info!("Totally updated {} tags in this chunk", updated_tags);
-    }
-    const MAX_SQL_LEN: usize = 1000 * 1000; // 800kb.
-    let max_sql_length = target_opts.max_sql_length.unwrap_or(MAX_SQL_LEN);
-    let mut tables = 0;
-    let mut batch = 0;
-    let mut sql = format!("CREATE TABLE");
-    let new_stable_name = transform_tbname_with_actions(name, &actions, true)?;
-    for (child, row) in non_exists {
-        let tags = row.iter().map(|v| v.to_sql_value()).join(",");
-        let e = format!("  IF NOT EXISTS `{child}` USING `{new_stable_name}` TAGS({tags})");
-        batch += 1;
-        tables += 1;
-
-        if sql.len() + e.len() > max_sql_length {
-            sql = transform_sql_with_actions(sql, &child, actions, false)?;
-            to.exec(&sql).await?;
-
-            if let Some(duration) = target_opts.interval {
-                tokio::time::sleep(duration).await;
-            }
-
-            tracing::debug!("Already created {} tables, {} in batch", tables, batch);
-            sql = format!("CREATE TABLE");
-            batch = 0;
-        }
-        sql.extend(e.chars());
-    }
-    if tables > 0 {
-        tracing::debug!("Create child tables with sql: {sql}");
-        to.exec(&sql).await?;
-        tracing::info!(
-            "Created {} tables in stable {} in this chunk",
-            tables,
-            new_stable_name
-        );
-        metrics.created_tables.fetch_add(tables, Ordering::SeqCst);
-        counter!(METRICS_LEGACY_CREATED_TABLES, tables as u64);
-    }
-
-    Ok(())
-}
 async fn sync_super_table_schema(
     from: &Taos,
     name: &str,
     to: &Taos,
+    remap: Option<&Arc<HashMap<String, String>>>,
     target_opts: &TargetOpts,
     actions: &Vec<Action>,
 ) -> anyhow::Result<()> {
@@ -1016,9 +886,10 @@ async fn sync_super_table_schema(
         target
     };
 
-    let sql = transform_sql_with_actions(sql, name, actions, true)?;
+    let sql = transform_sql_with_actions(sql, name, actions, true, remap)?;
+
     loop {
-        tracing::debug!("sync schema sql: {sql}");
+        tracing::info!("sync schema sql: {sql}");
         if let Err(err) = to.exec(&sql).await {
             let code: i32 = err.code().into();
             if code == 0x000B {
@@ -1038,13 +909,17 @@ async fn sync_super_table_schema(
     // Compare fields metadata and synchronize if not match.
     let desc = from.describe(name).await?;
     let target_desc = to.describe(&target_name).await?;
-    let mut fields: BTreeMap<_, _> = desc.iter().map(|f| (f.field(), f)).collect();
-    for r in target_desc.iter() {
-        if let Some(l) = fields.remove(r.field()) {
-            if l.is_tag() != r.is_tag() {
+    let fields: BTreeMap<_, _> = target_desc.iter().map(|f| (f.field(), f)).collect();
+
+    for l in desc.iter() {
+        let r_name = remap.and_then(|m| m.get(l.field())).unwrap_or(&l.field);
+        if let Some(r) = fields.get(&r_name.as_str()) {
+            // check if the field is equal.
+
+            if r.is_tag() != l.is_tag() {
                 bail!("Target field is not match the source");
             }
-            if l.ty() != r.ty() {
+            if r.ty() != l.ty() {
                 warn!(
                     "Target field ({}) is not equal to source({})",
                     r.sql_repr(),
@@ -1054,11 +929,14 @@ async fn sync_super_table_schema(
                 if r.length() < l.length() {
                     let c_or_t = if r.is_tag() { "TAG" } else { "COLUMN" };
                     if let Err(err) = to
-                        .exec(format!(
-                            "ALTER TABLE `{}` MODIFY {} {}",
-                            target_name,
-                            c_or_t,
-                            l.sql_repr(),
+                        .exec(transform_sql_with_remap(
+                            format!(
+                                "ALTER TABLE `{}` MODIFY {} {}",
+                                target_name,
+                                c_or_t,
+                                l.sql_repr(),
+                            ),
+                            remap,
                         ))
                         .await
                     {
@@ -1069,23 +947,27 @@ async fn sync_super_table_schema(
                     }
                 }
             }
-        }
-    }
-    for l in fields.values() {
-        let c_or_t = if l.is_tag() { "TAG" } else { "COLUMN" };
-        if let Err(err) = to
-            .exec(format!(
-                "ALTER TABLE `{}` ADD {} {}",
-                target_name,
-                c_or_t,
-                l.sql_repr(),
-            ))
-            .await
-        {
-            warn!(
-                "Add column {} for table {target_name} error: {err:#}",
-                l.field()
-            );
+        } else {
+            // field does not exist in right side.
+
+            let c_or_t = if l.is_tag() { "TAG" } else { "COLUMN" };
+            if let Err(err) = to
+                .exec(transform_sql_with_remap(
+                    format!(
+                        "ALTER TABLE `{}` ADD {} {}",
+                        target_name,
+                        c_or_t,
+                        l.sql_repr(),
+                    ),
+                    remap,
+                ))
+                .await
+            {
+                warn!(
+                    "Add column {} for table {target_name} error: {err:#}",
+                    l.field()
+                );
+            }
         }
     }
     if let Some(duration) = target_opts.interval {
@@ -1099,114 +981,16 @@ async fn sync_super_table_schema_with_subs(
     name: &str,
     subs: &[impl AsRef<str>],
     to: &Taos,
-    tables: usize,
+    remap: Option<&Arc<HashMap<String, String>>>,
     target_opts: &TargetOpts,
     is_v3: bool,
-    _to_is_v3: bool,
     actions: &Vec<Action>,
-    _concurrency: usize,
     metrics: &Arc<LegacyMetrics>,
 ) -> anyhow::Result<()> {
     debug_assert!(!name.is_empty());
-    // let (_, sql): ((), String) = from
-    //     .query_one(format!("show create table `{name}`"))
-    //     .await?
-    //     .unwrap();
-    // let sql = sql
-    //     .replace("VARCHAR", "BINARY")
-    //     .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
-    //     .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS")
-    //     .replace("create table", "CREATE TABLE IF NOT EXISTS")
-    //     .replace("create stable", "CREATE TABLE IF NOT EXISTS");
-
-    // let target_name: Cow<str> = if actions.is_empty() {
-    //     name.into()
-    // } else {
-    //     let mut target: Cow<str> = name.into();
-    //     for action in actions {
-    //         match action {
-    //             Action::RenameTable(action) => {
-    //                 target = action.apply(name)?.into();
-    //                 break;
-    //             }
-    //             Action::RenameSuperTable(action) => {
-    //                 target = action.apply(name)?.into();
-    //                 break;
-    //             }
-    //             _ => (),
-    //         }
-    //     }
-    //     target
-    // };
-
-    // let sql = transform_sql_with_actions(sql, name, actions, true)?;
-    // loop {
-    //     tracing::debug!("sync schema sql: {sql}");
-    //     if let Err(err) = to.exec(&sql).await {
-    //         let code: i32 = err.code().into();
-    //         if code == 0x000B {
-    //             from.exec(format!("desc `{name}`")).await?;
-    //             break;
-    //         } else if code == 0x032C {
-    //             continue;
-    //         } else {
-    //             Err(err).with_context(|| format!("sql: [{}] exec error", &sql))?;
-    //             break;
-    //         }
-    //     } else {
-    //         break;
-    //     }
-    // }
-
-    // // Compare fields metadata and synchronize if not match.
-    // let desc = from.describe(name).await?;
-    // let target_desc = to.describe(&target_name).await?;
-    // let mut fields: BTreeMap<_, _> = desc.iter().map(|f| (f.field(), f)).collect();
-    // for r in target_desc.iter() {
-    //     if let Some(l) = fields.remove(r.field()) {
-    //         if l.is_tag() != r.is_tag() {
-    //             bail!("Target field is not match the source");
-    //         }
-    //         if l.ty() != r.ty() {
-    //             warn!(
-    //                 "Target field ({}) is not equal to source({})",
-    //                 r.sql_repr(),
-    //                 l.sql_repr()
-    //             );
-    //         } else {
-    //             if r.length() < l.length() {
-    //                 let c_or_t = if r.is_tag() { "TAG" } else { "COLUMN" };
-    //                 to.exec(format!(
-    //                     "ALTER TABLE `{}` MODIFY {} {}",
-    //                     target_name,
-    //                     c_or_t,
-    //                     l.sql_repr(),
-    //                 ))
-    //                 .await?;
-    //             }
-    //         }
-    //     }
-    // }
-    // for l in fields.values() {
-    //     let c_or_t = if l.is_tag() { "TAG" } else { "COLUMN" };
-    //     to.exec(format!(
-    //         "ALTER TABLE `{}` ADD {} {}",
-    //         target_name,
-    //         c_or_t,
-    //         l.sql_repr(),
-    //     ))
-    //     .await?;
-    // }
-    // if let Some(duration) = target_opts.interval {
-    //     tokio::time::sleep(duration).await;
-    // }
-
-    // if tables == 0 {
-    //     return Ok(());
-    // }
     let desc = from.describe(name).await?;
     let tag_name_vec = desc.tag_names().collect_vec();
-    let tag_names = Arc::new(tag_name_vec.iter().map(|s| format!("`{s}`")).join(","));
+    let tag_names = tag_name_vec.iter().map(|s| format!("`{s}`")).join(",");
 
     let cond_for_to = subs
         .iter()
@@ -1227,7 +1011,7 @@ async fn sync_super_table_schema_with_subs(
     };
 
     let res_to: HashMap<_, _> = to
-        .query(sql)
+        .query(transform_sql_with_remap(sql, remap))
         .await?
         .to_records()
         .await?
@@ -1259,6 +1043,7 @@ async fn sync_super_table_schema_with_subs(
                 .filter_map(|((l, r), tag)| if l == r { None } else { Some((tag, l, r)) })
             {
                 let sql = format!("alter table `{n}` set tag `{tag}` = {}", l.to_sql_value());
+                let sql = transform_sql_with_remap(sql, remap);
                 if let Err(err) = to.exec(&sql).await {
                     tracing::error!(
                         "Altering table `{n}` tag `{tag}` to {} error: {err:?}",
@@ -1282,9 +1067,12 @@ async fn sync_super_table_schema_with_subs(
     let new_stable_name = transform_tbname_with_actions(name, actions, true)?;
     for (child, row) in non_exists {
         let new_table_name = transform_tbname_with_actions(&child, actions, false)?;
-        let tags = row.iter().map(|v| v.to_sql_value()).join(",");
-        let e =
-            format!("  IF NOT EXISTS `{new_table_name}` USING `{new_stable_name}` TAGS({tags})");
+        let tags = row.into_iter().map(|v| v.to_sql_value()).join(",");
+        // let tag_names = tag_name_vec.iter().map(|s| format!("`{s}`")).join(",");
+        let e = transform_sql_with_remap(
+            format!("  IF NOT EXISTS `{new_table_name}` USING `{new_stable_name}` ({tag_names}) TAGS({tags})"),
+            remap,
+        );
         batch += 1;
         tables += 1;
 
@@ -1318,12 +1106,13 @@ async fn sync_super_table_schema_with_subs(
 
 // transfrom create sql based on actions
 fn transform_sql_with_actions(
-    mut sql: String,
+    sql: String,
     table_name: &str,
     actions: &Vec<Action>,
     is_stable: bool,
+    remap: Option<&Arc<HashMap<String, String>>>,
 ) -> anyhow::Result<String> {
-    // tracing::debug!("sql transform before: {sql}");
+    let mut sql = transform_sql_with_remap(sql, remap);
     if actions.is_empty() {
         return Ok(sql);
     }
@@ -1389,6 +1178,18 @@ fn transform_sql_with_actions(
     Ok(sql)
 }
 
+fn transform_sql_with_remap(
+    mut sql: String,
+    remap: Option<&Arc<HashMap<String, String>>>,
+) -> String {
+    if let Some(remap) = remap {
+        for (l, r) in remap.iter() {
+            sql = sql.replace(&format!("`{l}`"), &format!("`{r}`"));
+        }
+    }
+    sql
+}
+
 fn transform_tbname_with_actions<'a>(
     table_name: &'a str,
     actions: &Vec<Action>,
@@ -1432,6 +1233,7 @@ async fn sync_normal_table_schema(
     from: &Taos,
     name: &str,
     actions: &Vec<Action>,
+    remap: Option<&Arc<HashMap<String, String>>>,
     to: &Taos,
 ) -> anyhow::Result<()> {
     tracing::info!("Sync normal table schema of {name}");
@@ -1444,7 +1246,7 @@ async fn sync_normal_table_schema(
     let mut sql = sql
         .replace("VARCHAR", "BINARY")
         .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS");
-    sql = transform_sql_with_actions(sql, name, actions, false)?;
+    sql = transform_sql_with_actions(sql, name, actions, false, remap)?;
     if let Err(err) = to.exec(sql.clone()).await {
         if !err.to_string().contains("[0x000B]") {
             Err(err).with_context(|| format!("normal table create error, sql: [{sql}]"))?;
@@ -1866,6 +1668,10 @@ pub struct TargetOpts {
     update_tags: bool,
     concurrent_limit: NonZeroUsize,
     blocks_chunk_size: NonZeroUsize,
+    /// Remap the field name to another.
+    ///
+    /// A map of table name to another map of field name to another.
+    remap: Option<HashMap<String, Arc<HashMap<String, String>>>>,
 }
 
 impl Default for TargetOpts {
@@ -1883,6 +1689,7 @@ impl Default for TargetOpts {
             update_tags: false,
             concurrent_limit: NonZeroUsize::new(1).unwrap(),
             blocks_chunk_size: NonZeroUsize::new(1).unwrap(),
+            remap: None,
         }
     }
 }
@@ -1961,6 +1768,67 @@ impl TargetOpts {
             if v != "false" {
                 opts.update_tags = true;
             }
+        }
+
+        if let Some(value) = dsn.remove("remap") {
+            let in_lines = value.split(",").filter_map(|s| {
+                if let Some((table, from, to)) = s.split("::").collect_tuple() {
+                    Some((
+                        table.trim().to_string(),
+                        (from.trim().to_string(), to.trim().to_string()),
+                    ))
+                } else {
+                    None
+                }
+            });
+            opts.remap.replace(
+                value
+                    .split(",")
+                    .filter_map(|s| {
+                        if s.starts_with('@') {
+                            Some(
+                                std::fs::File::open(&s[1..])
+                                    .context("open remap file error")
+                                    .map(|f| {
+                                        csv_lib::ReaderBuilder::new()
+                                            .has_headers(false)
+                                            .flexible(true)
+                                            .from_reader(f)
+                                    }),
+                            )
+                        } else {
+                            None
+                        }
+                    })
+                    .map_ok(|mut buf| {
+                        let iter = buf.records();
+                        iter.filter_map(|l| {
+                            if let Ok(l) = l {
+                                return l.iter().take(3).collect_tuple().map(
+                                    |(table, from, to)| {
+                                        (
+                                            table.trim().to_string(),
+                                            (from.trim().to_string(), to.trim().to_string()),
+                                        )
+                                    },
+                                );
+                            }
+                            None
+                        })
+                        .collect_vec()
+                    })
+                    .flatten_ok()
+                    .try_collect::<_, Vec<_>, _>()?
+                    .into_iter()
+                    .chain(in_lines)
+                    .group_by(|(table, _)| table.clone())
+                    .into_iter()
+                    .map(|(group, v)| {
+                        let map: HashMap<_, _> = v.map(|(_, v)| v).collect();
+                        (group.to_string(), Arc::new(map))
+                    })
+                    .collect(),
+            );
         }
         Ok(opts)
     }
