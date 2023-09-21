@@ -140,6 +140,13 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)
       taosThreadMutexUnlock(&pObj->mutex);
       break;
     }
+    case TAOS_NOTIFY_USER_DROPPED: {
+      taosThreadMutexLock(&pObj->mutex);
+      pObj->userDroppedInfo.fp = fp;
+      pObj->userDroppedInfo.param = param;
+      taosThreadMutexUnlock(&pObj->mutex);
+      break;
+    }
     default: {
       terrno = TSDB_CODE_INVALID_PARA;
       releaseTscObj(*(int64_t *)taos);

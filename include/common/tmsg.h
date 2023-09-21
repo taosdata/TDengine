@@ -917,7 +917,7 @@ typedef struct {
   int8_t    superAuth;
   int8_t    sysInfo;
   int8_t    enable;
-  int8_t    reserve;
+  int8_t    dropped;
   SHashObj* createdDbs;
   SHashObj* readDbs;
   SHashObj* writeDbs;
