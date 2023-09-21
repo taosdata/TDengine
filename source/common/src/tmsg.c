@@ -35,10 +35,10 @@
     if(!tDecodeIsEnd(&decoder)){                                 \
       if(tDecodeI32(&decoder, &pReq->sqlLen) < 0) return -1;    \
       if(pReq->sqlLen > 0){                                     \
+        if (tDecodeBinaryAlloc(&decoder, (void **)&pReq->sql, NULL) < 0) return -1;  \
       }                                                         \
     }                                                           \
   } while (0)
-//        if (tDecodeBinaryAlloc(&decoder, (void **)&pReq->sql, NULL) < 0) return -1;  \
 
 #define ENCODESQL()                                              \
   do {                                                           \
