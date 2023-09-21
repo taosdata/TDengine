@@ -697,7 +697,9 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       tqDestroyTqHandle(&handle);
       goto end;
     }
+    taosWLockLatch(&pTq->lock);
     ret = tqMetaSaveHandle(pTq, req.subKey, &handle);
+    taosWUnLockLatch(&pTq->lock);
   } else {
     while(1){
       taosWLockLatch(&pTq->lock);
