@@ -96,12 +96,13 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         }
       }
 
-      if (pRsp->dropped == 1 && pTscObj->dropped == 0) {
-        pTscObj->dropped = 1;
-        if (pTscObj->userDroppedInfo.fp) {
-          SPassInfo *dropInfo = &pTscObj->userDroppedInfo;
-          if (dropInfo->fp) {
-            (*dropInfo->fp)(dropInfo->param, NULL, TAOS_NOTIFY_USER_DROPPED);
+      if (pRsp->dropped == 1) {
+        if (atomic_val_compare_exchange_8(&pTscObj->dropped, 0, 1) == 0) {
+          if (pTscObj->userDroppedInfo.fp) {
+            SPassInfo *dropInfo = &pTscObj->userDroppedInfo;
+            if (dropInfo->fp) {
+              (*dropInfo->fp)(dropInfo->param, NULL, TAOS_NOTIFY_USER_DROPPED);
+            }
           }
         }
         releaseTscObj(pReq->connKey.tscRid);
@@ -784,7 +785,7 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
   if (!pTscObj) {
     tscWarn("tscObj rid %" PRIx64 " not exist", connKey->tscRid);
     return TSDB_CODE_APP_ERROR;
-  } else if (pTscObj->dropped) {
+  } else if (atomic_load_8(&pTscObj->dropped) == 1) {
     tscDebug("tscObj rid %" PRIx64 " user:%s dropped", connKey->tscRid, pTscObj->user);
     releaseTscObj(connKey->tscRid);
     return TSDB_CODE_SUCCESS;
