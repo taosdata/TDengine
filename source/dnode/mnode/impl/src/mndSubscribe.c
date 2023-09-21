@@ -398,6 +398,7 @@ static int32_t processRemoveAddVgs(SMnode *pMnode, SMqRebOutputObj *pOutput){
       for(int32_t k = 0; k < taosArrayGetSize(newVgs); k++){
         SMqVgEp *pnewVgEp = taosArrayGetP(newVgs, k);
         if(pVgEp->vgId == pnewVgEp->vgId){
+          tDeleteSMqVgEp(pnewVgEp);
           taosArrayRemove(newVgs, k);
           find = true;
           break;
@@ -416,8 +417,10 @@ static int32_t processRemoveAddVgs(SMnode *pMnode, SMqRebOutputObj *pOutput){
   if(taosArrayGetSize(pOutput->pSub->unassignedVgs) == 0 && taosArrayGetSize(newVgs) != 0){
     taosArrayAddAll(pOutput->pSub->unassignedVgs, newVgs);
     mInfo("processRemoveAddVgs add new vg num:%d", (int)taosArrayGetSize(newVgs));
+    taosArrayDestroy(newVgs);
+  }else{
+    taosArrayDestroyP(newVgs, (FDelete)tDeleteSMqVgEp);
   }
-  taosArrayDestroyP(newVgs, (FDelete)tDeleteSMqVgEp);
   return totalVgNum;
 }
 
