@@ -999,7 +999,7 @@ impl TaskController {
         #[cfg(not(feature = "disable-enterprise-only-validation"))]
         if let Err(err) = assert_enterprise {
             anyhow::bail!(
-                format!("{err:?}. Only enterprise edition is supported. If it's not your case, please contact us.")
+                format!("{err:?}. A non-expired enterprise edition is required in most of steps.")
             )
         }
         // is cloud?
