@@ -152,6 +152,7 @@ typedef struct STscObj {
   int8_t         sysInfo;
   int8_t         connType;
   int8_t         dropped;
+  int8_t         biMode;
   int32_t        acctId;
   uint32_t       connId;
   int64_t        id;         // ref ID returned by taosAddRef

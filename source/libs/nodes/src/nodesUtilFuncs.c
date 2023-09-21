@@ -2284,3 +2284,37 @@ const char* dataOrderStr(EDataOrderLevel order) {
   }
   return "unknown";
 }
+
+SValueNode* nodesMakeValueNodeFromString(char* literal) {
+  int32_t lenStr = strlen(literal);
+  SValueNode* pValNode = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  if (pValNode) {
+    pValNode->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+    pValNode->node.resType.bytes = lenStr + VARSTR_HEADER_SIZE;
+    char* p = taosMemoryMalloc(lenStr + 1  + VARSTR_HEADER_SIZE);
+    if (p == NULL) {
+      return NULL;
+    }
+    varDataSetLen(p, lenStr);
+    memcpy(varDataVal(p), literal, lenStr + 1);
+    pValNode->datum.p = p;
+    pValNode->literal = tstrdup(literal);
+    pValNode->translate = true;
+    pValNode->isDuration = false;
+    pValNode->isNull = false;
+  }
+  return pValNode;
+}
+
+SValueNode* nodesMakeValueNodeFromBool(bool b) {
+  SValueNode* pValNode = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  if (pValNode) {
+    pValNode->node.resType.type = TSDB_DATA_TYPE_BOOL;
+    pValNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+    nodesSetValueNodeValue(pValNode, &b);
+    pValNode->translate = true;
+    pValNode->isDuration = false;
+    pValNode->isNull = false;
+  }
+  return pValNode;
+}
