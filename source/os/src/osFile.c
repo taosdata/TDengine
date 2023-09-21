@@ -444,7 +444,7 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
   BOOL result = ReadFile(handle, buf, count, &ret, &ol);
   if (!result && GetLastError() != ERROR_HANDLE_EOF) {
     errno = GetLastError();
-    return -1;
+    ret = -1;
   }
 #else
   int64_t ret = pread(pFile->fd, buf, count, offset);
@@ -519,7 +519,7 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
   BOOL result = WriteFile(handle, buf, count, &ret, &ol);
   if (!result) {
     errno = GetLastError();
-    return -1;
+    ret = -1;
   }
 #else
   int64_t ret = pwrite(pFile->fd, buf, count, offset);
