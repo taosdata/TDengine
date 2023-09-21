@@ -29,8 +29,10 @@ extern "C" {
 #ifndef _STREAM_H_
 #define _STREAM_H_
 
-#define ONE_MB_F       (1048576.0)
-#define SIZE_IN_MB(_v) ((_v) / ONE_MB_F)
+#define ONE_MiB_F       (1048576.0)
+#define ONE_KiB_F       (1024.0)
+#define SIZE_IN_MiB(_v) ((_v) / ONE_MiB_F)
+#define SIZE_IN_KiB(_v) ((_v) / ONE_KiB_F)
 
 typedef struct SStreamTask SStreamTask;
 

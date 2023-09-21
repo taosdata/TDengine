@@ -72,7 +72,7 @@ static int32_t doDumpResult(SStreamTask* pTask, SStreamQueueItem* pItem, SArray*
   }
 
   stDebug("s-task:%s dump stream result data blocks, num:%d, size:%.2fMiB", pTask->id.idStr, numOfBlocks,
-         SIZE_IN_MB(size));
+         SIZE_IN_MiB(size));
 
   int32_t code = doOutputResultBlockImpl(pTask, pStreamBlocks);
   if (code != TSDB_CODE_SUCCESS) {  // back pressure and record position
@@ -163,7 +163,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
     taosArrayPush(pRes, &block);
 
     stDebug("s-task:%s (child %d) executed and get %d result blocks, size:%.2fMiB", pTask->id.idStr,
-           pTask->info.selfChildId, numOfBlocks, SIZE_IN_MB(size));
+           pTask->info.selfChildId, numOfBlocks, SIZE_IN_MiB(size));
 
     // current output should be dispatched to down stream nodes
     if (numOfBlocks >= STREAM_RESULT_DUMP_THRESHOLD || size >= STREAM_RESULT_DUMP_SIZE_THRESHOLD) {
@@ -553,8 +553,12 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
       ASSERT(type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__CHECKPOINT);
 
+      // here only handle the data block sink operation
       if (type == STREAM_INPUT__DATA_BLOCK) {
-        stDebug("s-task:%s sink task start to sink %d blocks", id, numOfBlocks);
+        int32_t blockSize = streamQueueItemGetSize(pInput);
+        pTask->sinkRecorder.bytes += blockSize;
+
+        stDebug("s-task:%s sink task start to sink %d blocks, size:%.2fKiB", id, numOfBlocks, SIZE_IN_KiB(blockSize));
         doOutputResultBlockImpl(pTask, (SStreamDataBlock*)pInput);
         continue;
       }
@@ -574,7 +578,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 
     double el = (taosGetTimestampMs() - st) / 1000.0;
     stDebug("s-task:%s batch of input blocks exec end, elapsed time:%.2fs, result size:%.2fMiB, numOfBlocks:%d", id, el,
-           SIZE_IN_MB(resSize), totalBlocks);
+           SIZE_IN_MiB(resSize), totalBlocks);
 
     // update the currentVer if processing the submit blocks.
     ASSERT(pTask->chkInfo.checkpointVer <= pTask->chkInfo.nextProcessVer && ver >= pTask->chkInfo.checkpointVer);
@@ -590,8 +594,8 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     // todo other thread may change the status
     // do nothing after sync executor state to storage backend, untill the vnode-level checkpoint is completed.
     if (type == STREAM_INPUT__CHECKPOINT) {
-      stDebug("s-task:%s checkpoint block received, set the status:%s", pTask->id.idStr,
-             streamGetTaskStatusStr(pTask->status.taskStatus));
+      stDebug("s-task:%s checkpoint block received, set status:%s", pTask->id.idStr,
+              streamGetTaskStatusStr(pTask->status.taskStatus));
       streamTaskBuildCheckpoint(pTask);
       return 0;
     }

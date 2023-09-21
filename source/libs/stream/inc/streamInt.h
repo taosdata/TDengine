@@ -57,7 +57,6 @@ extern SStreamGlobalEnv streamEnv;
 extern int32_t streamBackendId;
 extern int32_t streamBackendCfWrapperId;
 
-const char* streamGetBlockTypeStr(int32_t type);
 void        streamRetryDispatchStreamBlock(SStreamTask* pTask, int64_t waitDuration);
 int32_t     streamDispatchStreamBlock(SStreamTask* pTask);
 
@@ -81,7 +80,12 @@ int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask);
 int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask);
 int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask);
 
-int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks);
+int32_t     streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks);
+int32_t     streamQueueGetNumOfItemsInQueue(const SStreamQueue* pQueue);
+int32_t     streamQueueItemGetSize(const SStreamQueueItem* pItem);
+void        streamQueueItemIncSize(const SStreamQueueItem* pItem, int32_t size);
+const char* streamQueueItemGetTypeStr(int32_t type);
+
 SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem);
 
 int32_t streamTaskBuildScanhistoryRspMsg(SStreamTask* pTask, SStreamScanHistoryFinishReq* pReq, void** pBuffer, int32_t* pLen);
