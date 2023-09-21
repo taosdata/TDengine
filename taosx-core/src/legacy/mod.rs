@@ -22,7 +22,7 @@ use serde::Deserialize;
 use serde_with::serde_as;
 use taos::*;
 use tokio::sync::oneshot;
-use tracing::{info, instrument};
+use tracing::{info, instrument, warn};
 
 use crate::{legacy::scheduler::Todo, Action};
 
@@ -977,19 +977,12 @@ async fn sync_super_table_schema_with_subs_without_pool(
 
     Ok(())
 }
-
-async fn sync_super_table_schema_with_subs(
+async fn sync_super_table_schema(
     from: &Taos,
     name: &str,
-    subs: &[impl AsRef<str>],
     to: &Taos,
-    tables: usize,
     target_opts: &TargetOpts,
-    is_v3: bool,
-    _to_is_v3: bool,
     actions: &Vec<Action>,
-    _concurrency: usize,
-    metrics: &Arc<LegacyMetrics>,
 ) -> anyhow::Result<()> {
     debug_assert!(!name.is_empty());
     let (_, sql): ((), String) = from
@@ -1002,6 +995,27 @@ async fn sync_super_table_schema_with_subs(
         .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS")
         .replace("create table", "CREATE TABLE IF NOT EXISTS")
         .replace("create stable", "CREATE TABLE IF NOT EXISTS");
+
+    let target_name: Cow<str> = if actions.is_empty() {
+        name.into()
+    } else {
+        let mut target: Cow<str> = name.into();
+        for action in actions {
+            match action {
+                Action::RenameTable(action) => {
+                    target = action.apply(name)?.into();
+                    break;
+                }
+                Action::RenameSuperTable(action) => {
+                    target = action.apply(name)?.into();
+                    break;
+                }
+                _ => (),
+            }
+        }
+        target
+    };
+
     let sql = transform_sql_with_actions(sql, name, actions, true)?;
     loop {
         tracing::debug!("sync schema sql: {sql}");
@@ -1020,14 +1034,176 @@ async fn sync_super_table_schema_with_subs(
             break;
         }
     }
+
+    // Compare fields metadata and synchronize if not match.
+    let desc = from.describe(name).await?;
+    let target_desc = to.describe(&target_name).await?;
+    let mut fields: BTreeMap<_, _> = desc.iter().map(|f| (f.field(), f)).collect();
+    for r in target_desc.iter() {
+        if let Some(l) = fields.remove(r.field()) {
+            if l.is_tag() != r.is_tag() {
+                bail!("Target field is not match the source");
+            }
+            if l.ty() != r.ty() {
+                warn!(
+                    "Target field ({}) is not equal to source({})",
+                    r.sql_repr(),
+                    l.sql_repr()
+                );
+            } else {
+                if r.length() < l.length() {
+                    let c_or_t = if r.is_tag() { "TAG" } else { "COLUMN" };
+                    if let Err(err) = to
+                        .exec(format!(
+                            "ALTER TABLE `{}` MODIFY {} {}",
+                            target_name,
+                            c_or_t,
+                            l.sql_repr(),
+                        ))
+                        .await
+                    {
+                        warn!(
+                            "Modify column {} of table {target_name} error: {err:#}",
+                            l.field()
+                        );
+                    }
+                }
+            }
+        }
+    }
+    for l in fields.values() {
+        let c_or_t = if l.is_tag() { "TAG" } else { "COLUMN" };
+        if let Err(err) = to
+            .exec(format!(
+                "ALTER TABLE `{}` ADD {} {}",
+                target_name,
+                c_or_t,
+                l.sql_repr(),
+            ))
+            .await
+        {
+            warn!(
+                "Add column {} for table {target_name} error: {err:#}",
+                l.field()
+            );
+        }
+    }
     if let Some(duration) = target_opts.interval {
         tokio::time::sleep(duration).await;
     }
+    Ok(())
+}
 
-    if tables == 0 {
-        return Ok(());
-    }
+async fn sync_super_table_schema_with_subs(
+    from: &Taos,
+    name: &str,
+    subs: &[impl AsRef<str>],
+    to: &Taos,
+    tables: usize,
+    target_opts: &TargetOpts,
+    is_v3: bool,
+    _to_is_v3: bool,
+    actions: &Vec<Action>,
+    _concurrency: usize,
+    metrics: &Arc<LegacyMetrics>,
+) -> anyhow::Result<()> {
+    debug_assert!(!name.is_empty());
+    // let (_, sql): ((), String) = from
+    //     .query_one(format!("show create table `{name}`"))
+    //     .await?
+    //     .unwrap();
+    // let sql = sql
+    //     .replace("VARCHAR", "BINARY")
+    //     .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
+    //     .replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS")
+    //     .replace("create table", "CREATE TABLE IF NOT EXISTS")
+    //     .replace("create stable", "CREATE TABLE IF NOT EXISTS");
 
+    // let target_name: Cow<str> = if actions.is_empty() {
+    //     name.into()
+    // } else {
+    //     let mut target: Cow<str> = name.into();
+    //     for action in actions {
+    //         match action {
+    //             Action::RenameTable(action) => {
+    //                 target = action.apply(name)?.into();
+    //                 break;
+    //             }
+    //             Action::RenameSuperTable(action) => {
+    //                 target = action.apply(name)?.into();
+    //                 break;
+    //             }
+    //             _ => (),
+    //         }
+    //     }
+    //     target
+    // };
+
+    // let sql = transform_sql_with_actions(sql, name, actions, true)?;
+    // loop {
+    //     tracing::debug!("sync schema sql: {sql}");
+    //     if let Err(err) = to.exec(&sql).await {
+    //         let code: i32 = err.code().into();
+    //         if code == 0x000B {
+    //             from.exec(format!("desc `{name}`")).await?;
+    //             break;
+    //         } else if code == 0x032C {
+    //             continue;
+    //         } else {
+    //             Err(err).with_context(|| format!("sql: [{}] exec error", &sql))?;
+    //             break;
+    //         }
+    //     } else {
+    //         break;
+    //     }
+    // }
+
+    // // Compare fields metadata and synchronize if not match.
+    // let desc = from.describe(name).await?;
+    // let target_desc = to.describe(&target_name).await?;
+    // let mut fields: BTreeMap<_, _> = desc.iter().map(|f| (f.field(), f)).collect();
+    // for r in target_desc.iter() {
+    //     if let Some(l) = fields.remove(r.field()) {
+    //         if l.is_tag() != r.is_tag() {
+    //             bail!("Target field is not match the source");
+    //         }
+    //         if l.ty() != r.ty() {
+    //             warn!(
+    //                 "Target field ({}) is not equal to source({})",
+    //                 r.sql_repr(),
+    //                 l.sql_repr()
+    //             );
+    //         } else {
+    //             if r.length() < l.length() {
+    //                 let c_or_t = if r.is_tag() { "TAG" } else { "COLUMN" };
+    //                 to.exec(format!(
+    //                     "ALTER TABLE `{}` MODIFY {} {}",
+    //                     target_name,
+    //                     c_or_t,
+    //                     l.sql_repr(),
+    //                 ))
+    //                 .await?;
+    //             }
+    //         }
+    //     }
+    // }
+    // for l in fields.values() {
+    //     let c_or_t = if l.is_tag() { "TAG" } else { "COLUMN" };
+    //     to.exec(format!(
+    //         "ALTER TABLE `{}` ADD {} {}",
+    //         target_name,
+    //         c_or_t,
+    //         l.sql_repr(),
+    //     ))
+    //     .await?;
+    // }
+    // if let Some(duration) = target_opts.interval {
+    //     tokio::time::sleep(duration).await;
+    // }
+
+    // if tables == 0 {
+    //     return Ok(());
+    // }
     let desc = from.describe(name).await?;
     let tag_name_vec = desc.tag_names().collect_vec();
     let tag_names = Arc::new(tag_name_vec.iter().map(|s| format!("`{s}`")).join(","));
@@ -1319,25 +1495,19 @@ async fn sync_schema(
     _source_is_v3: bool,
     _target_is_v3: bool,
 ) -> anyhow::Result<()> {
-    // let from = from_pool.get().await?;
-    // let to = to_pool.get().await?;
-    // let v2: String = to.query_one("SELECT server_version()").await?.unwrap();
-    // let to_is_v3 = v2.starts_with('3');
-    // let v1: String = from
-    //     .query_one("SELECT server_version()")
-    //     .await
-    //     .context("Get server version of source error")?
-    //     .unwrap();
-    // let is_v3 = if v1.starts_with("2") { false } else { true };
-
+    // tasks listener
     let mut readers = Vec::new();
-    // for stable in &todo.stables {
-    //     let (sender, reader) = oneshot::channel();
-    //     scheduler
-    //         .send(Todo::Meta(Some(stable.clone()), vec![], Some(sender)))
-    //         .await?;
-    //     readers.push((vec![], reader));
-    // }
+
+    for stable in &todo.stables {
+        let (sender, reader) = oneshot::channel();
+        // let (stable, tables);
+        scheduler.send(Todo::STable(stable.clone(), sender)).await?;
+        readers.push((0, reader));
+    }
+    for (_, reader) in readers.drain(..) {
+        reader.await??;
+    }
+    info!("STables syncing done");
 
     // if opts.query.select_from_stable {
     let chunk_size = 400;
@@ -1366,7 +1536,6 @@ async fn sync_schema(
             .map(|v| v.get())
             .unwrap_or(8)
     };
-
     for chunk in chunks {
         let (sender, reader) = oneshot::channel();
         let (stable, tables) = chunk;
@@ -1378,7 +1547,7 @@ async fn sync_schema(
             ))
             .await?;
 
-        readers.push((tables, reader));
+        readers.push((tables.len(), reader));
     }
     let total = todo.tables.len();
     let mut dot = total / 100;
@@ -1388,7 +1557,7 @@ async fn sync_schema(
     let mut count = 0;
     let mut fails = 0;
     for (tables, reader) in readers {
-        count += tables.len();
+        count += tables;
 
         match reader.await? {
             Ok(_) => {}
@@ -2344,8 +2513,10 @@ pub async fn legacy_to_taos(
     let v2: String = target_taos.server_version().await?.to_string();
     let target_is_v3 = !v2.starts_with('2');
 
-    counter!(METRICS_LEGACY_WORKERS, concurrent as u64);
-    metrics.workers.store(concurrent as _, Ordering::SeqCst);
+    counter!(METRICS_LEGACY_WORKERS, source_opts.workers as u64);
+    metrics
+        .workers
+        .store(source_opts.workers as _, Ordering::SeqCst);
 
     let todo = parse_todo_list(&from_pool, &source_opts).await?;
     // dbg!(&todo.stables);
@@ -2400,7 +2571,7 @@ pub async fn legacy_to_taos(
                 target_opts.clone(),
                 todo.clone(),
                 &actions,
-                concurrent,
+                source_opts.workers as _,
                 &metrics,
                 source_is_v3,
                 target_is_v3,
@@ -2415,7 +2586,7 @@ pub async fn legacy_to_taos(
                 source_opts.query,
                 &todo.tables,
                 target_opts,
-                concurrent,
+                source_opts.workers as _,
                 metrics.clone(),
                 source_is_v3,
                 target_is_v3,
@@ -2433,7 +2604,7 @@ pub async fn legacy_to_taos(
                 target_opts.clone(),
                 todo.clone(),
                 &actions,
-                concurrent,
+                source_opts.workers as _,
                 &metrics,
                 source_is_v3,
                 target_is_v3,
@@ -2448,34 +2619,15 @@ pub async fn legacy_to_taos(
                 source_opts.query,
                 &todo.tables,
                 target_opts,
-                concurrent,
+                source_opts.workers as _,
                 metrics.clone(),
                 source_is_v3,
                 target_is_v3,
             )
             .await?;
-            // sync_tables_only_with_workers(
-            //     from_pool,
-            //     to_pool,
-            //     source_opts.query,
-            //     source_opts.tables.take(),
-            //     target_opts,
-            //     jobs,
-            // )
-            // .await?;
             tracing::info!("synchronize finished.");
         }
         (SyncMode::Realtime, _) => {
-            // let mut tables = TablesHandle::new(
-            //     from_pool,
-            //     to_pool,
-            //     source_opts.table,
-            //     target_opts,
-            //     metrics.clone(),
-            // )
-            // .await?;
-            // tables.spawn().await?;
-            // tables.join().await?;
             realtime(
                 &scheduler,
                 Utc::now(),
@@ -2501,7 +2653,7 @@ pub async fn legacy_to_taos(
                         target_opts.clone(),
                         todo.clone(),
                         &actions,
-                        concurrent,
+                        source_opts.workers as _,
                         &metrics,
                         source_is_v3,
                         target_is_v3,
@@ -2518,7 +2670,7 @@ pub async fn legacy_to_taos(
                 source_opts.query.clone(),
                 &todo.tables,
                 target_opts.clone(),
-                concurrent * 4,
+                source_opts.workers as _,
                 metrics.clone(),
                 source_is_v3,
                 target_is_v3,
