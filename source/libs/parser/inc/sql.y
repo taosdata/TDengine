@@ -81,11 +81,31 @@ alter_account_option ::= USERS literal.                                         
 alter_account_option ::= CONNS literal.                                           { }
 alter_account_option ::= STATE literal.                                           { }
 
+%type ip_range_list                                                               { SNodeList* }
+%destructor ip_range_list                                                         { nodesDestroyList($$); }
+ip_range_list(A) ::= NK_STRING(B).                                                { A = createNodeList(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B)); }
+ip_range_list(A) ::= ip_range_list(B) NK_COMMA NK_STRING(C).                      { A = addNodeToList(pCxt, B, createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &C)); }
+
+%type white_list                                                                  { SNodeList* }
+%destructor white_list                                                            { nodesDestroyList($$); }
+white_list(A) ::= HOST ip_range_list(B).                                          { A = B; }
+
+%type white_list_opt                                                              { SNodeList* }
+%destructor white_list_opt                                                        { nodesDestroyList($$); }
+white_list_opt(A) ::= .                                                           { A = NULL; }
+white_list_opt(A) ::= white_list(B).                                              { A = B; }
+   
 /************************************************ create/alter/drop user **********************************************/
-cmd ::= CREATE USER user_name(A) PASS NK_STRING(B) sysinfo_opt(C).                { pCxt->pRootNode = createCreateUserStmt(pCxt, &A, &B, C); }
+cmd ::= CREATE USER user_name(A) PASS NK_STRING(B) sysinfo_opt(C) 
+                      white_list_opt(D).                                          { 
+                                                                                    pCxt->pRootNode = createCreateUserStmt(pCxt, &A, &B, C);
+                                                                                    pCxt->pRootNode = addCreateUserStmtWhiteList(pCxt, pCxt->pRootNode, D);     
+                                                                                  }
 cmd ::= ALTER USER user_name(A) PASS NK_STRING(B).                                { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_PASSWD, &B); }
 cmd ::= ALTER USER user_name(A) ENABLE NK_INTEGER(B).                             { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_ENABLE, &B); }
 cmd ::= ALTER USER user_name(A) SYSINFO NK_INTEGER(B).                            { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_SYSINFO, &B); }
+cmd ::= ALTER USER user_name(A) ADD white_list(B).                                { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_ADD_WHITE_LIST, B); }
+cmd ::= ALTER USER user_name(A) DROP white_list(B).                               { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_DROP_WHITE_LIST, B); }
 cmd ::= DROP USER user_name(A).                                                   { pCxt->pRootNode = createDropUserStmt(pCxt, &A); }
 
 %type sysinfo_opt                                                                 { int8_t }
@@ -438,8 +458,13 @@ col_name(A) ::= column_name(B).                                                 
 cmd ::= SHOW DNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DNODES_STMT); }
 cmd ::= SHOW USERS.                                                               { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USERS_STMT); }
 cmd ::= SHOW USER PRIVILEGES.                                                     { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USER_PRIVILEGES_STMT); }
-cmd ::= SHOW DATABASES.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DATABASES_STMT); }
-cmd ::= SHOW db_name_cond_opt(A) TABLES like_pattern_opt(B).                      { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_TABLES_STMT, A, B, OP_TYPE_LIKE); }
+cmd ::= SHOW db_kind_opt(A) DATABASES.                                            {
+                                                                                    pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DATABASES_STMT);
+                                                                                    setShowKind(pCxt, pCxt->pRootNode, A);
+                                                                                  }
+cmd ::= SHOW table_kind_db_name_cond_opt(A) TABLES like_pattern_opt(B).           {
+                                                                                    pCxt->pRootNode = createShowTablesStmt(pCxt, A, B, OP_TYPE_LIKE);
+                                                                                  }
 cmd ::= SHOW db_name_cond_opt(A) STABLES like_pattern_opt(B).                     { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_STABLES_STMT, A, B, OP_TYPE_LIKE); }
 cmd ::= SHOW db_name_cond_opt(A) VGROUPS.                                         { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_VGROUPS_STMT, A, NULL, OP_TYPE_LIKE); }
 cmd ::= SHOW MNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_MNODES_STMT); }
@@ -481,6 +506,18 @@ cmd ::= SHOW VNODES.                                                            
 cmd ::= SHOW db_name_cond_opt(A) ALIVE.                                           { pCxt->pRootNode = createShowAliveStmt(pCxt, A,    QUERY_NODE_SHOW_DB_ALIVE_STMT); }
 cmd ::= SHOW CLUSTER ALIVE.                                                       { pCxt->pRootNode = createShowAliveStmt(pCxt, NULL, QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT); }
 
+%type table_kind_db_name_cond_opt                                                 { SShowTablesOption }
+%destructor table_kind_db_name_cond_opt                                           { }
+table_kind_db_name_cond_opt(A) ::= .                                              { A.kind = SHOW_KIND_ALL; A.dbName = nil_token; }
+table_kind_db_name_cond_opt(A) ::= table_kind(B).                                 { A.kind = B; A.dbName = nil_token; }
+table_kind_db_name_cond_opt(A) ::= db_name(C) NK_DOT.                             { A.kind = SHOW_KIND_ALL; A.dbName = C; }
+table_kind_db_name_cond_opt(A) ::= table_kind(B) db_name(C) NK_DOT.               { A.kind = B; A.dbName = C; }
+
+%type table_kind                                                                  { EShowKind }
+%destructor table_kind                                                            { }   
+table_kind(A) ::= NORMAL.                                                         { A = SHOW_KIND_TABLES_NORMAL; }
+table_kind(A) ::= CHILD.                                                          { A = SHOW_KIND_TABLES_CHILD; }
+
 db_name_cond_opt(A) ::= .                                                         { A = createDefaultDatabaseCondValue(pCxt); }
 db_name_cond_opt(A) ::= db_name(B) NK_DOT.                                        { A = createIdentifierValueNode(pCxt, &B); }
 
@@ -504,11 +541,17 @@ tag_item(A) ::= column_name(B).                                                 
 tag_item(A) ::= column_name(B) column_alias(C).                                   { A = setProjectionAlias(pCxt, createColumnNode(pCxt, NULL, &B), &C); }
 tag_item(A) ::= column_name(B) AS column_alias(C).                                { A = setProjectionAlias(pCxt, createColumnNode(pCxt, NULL, &B), &C); }
 
+%type db_kind_opt                                                                 { EShowKind }
+%destructor db_kind_opt                                                           { }
+db_kind_opt(A) ::= .                                                              { A = SHOW_KIND_ALL; }
+db_kind_opt(A) ::= USER.                                                          { A = SHOW_KIND_DATABASES_USER; }
+db_kind_opt(A) ::= SYSTEM.                                                        { A = SHOW_KIND_DATABASES_SYSTEM; }
+
 /************************************************ create index ********************************************************/
 cmd ::= CREATE SMA INDEX not_exists_opt(D)
-  full_index_name(A) ON full_table_name(B) index_options(C).                      { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_SMA, D, A, B, NULL, C); }
+  col_name(A) ON full_table_name(B) index_options(C).                      { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_SMA, D, A, B, NULL, C); }
 cmd ::= CREATE INDEX not_exists_opt(D)
-  full_index_name(A) ON full_table_name(B) NK_LP col_name_list(C) NK_RP.          { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_NORMAL, D, A, B, C, NULL); }
+  col_name(A) ON full_table_name(B) NK_LP col_name_list(C) NK_RP.          { pCxt->pRootNode = createCreateIndexStmt(pCxt, INDEX_TYPE_NORMAL, D, A, B, C, NULL); }
 cmd ::= DROP INDEX exists_opt(B) full_index_name(A).                              { pCxt->pRootNode = createDropIndexStmt(pCxt, B, A); }
 
 full_index_name(A) ::= index_name(B).                                             { A = createRealTableNodeForIndexName(pCxt, NULL, &B); }

@@ -81,6 +81,7 @@ int64_t tsMndLogRetention = 2000;
 int8_t  tsGrant = 1;
 int32_t tsMndGrantMode = 0;
 bool    tsMndSkipGrant = false;
+bool    tsEnableWhiteList = false;  // ip white list cfg
 
 // dnode
 int64_t tsDndStart = 0;
@@ -128,7 +129,7 @@ int32_t tsQueryPolicy = 1;
 int32_t tsQueryRspPolicy = 0;
 int64_t tsQueryMaxConcurrentTables = 200;  // unit is TSDB_TABLE_NUM_UNIT
 bool    tsEnableQueryHb = true;
-bool    tsEnableScience = false;     // on taos-cli show float and doulbe with scientific notation if true
+bool    tsEnableScience = false;  // on taos-cli show float and doulbe with scientific notation if true
 int32_t tsQuerySmaOptimize = 0;
 int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from which level to query rsma data.
 bool    tsQueryPlannerTrace = false;
@@ -240,17 +241,17 @@ int32_t tsTtlBatchDropNum = 10000;   // number of tables dropped per batch
 // internal
 int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
-int32_t tsStreamCheckpointTickInterval = 1;
+int32_t tsStreamCheckpointTickInterval = 600;
+int32_t tsStreamNodeCheckInterval = 10;
 int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushIntervalSec = 10;
-int32_t tsTrimVDbIntervalSec = 60 * 60; // interval of trimming db in all vgroups
+int32_t tsTrimVDbIntervalSec = 60 * 60;  // interval of trimming db in all vgroups
 int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
 char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits
 char    tsUdfdLdLibPath[512] = "";
 bool    tsDisableStream = false;
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
-int64_t tsCheckpointInterval = 3 * 60 * 60 * 1000;
 bool    tsFilterScalarMode = false;
 int32_t tsKeepTimeOffset = 0;          // latency of data migration
 int     tsResolveFQDNRetryTime = 100;  // seconds
@@ -262,6 +263,8 @@ char   tsS3AccessKeySecret[TSDB_FQDN_LEN] = "<accesskeysecrect>";
 char   tsS3BucketName[TSDB_FQDN_LEN] = "<bucketname>";
 char   tsS3AppId[TSDB_FQDN_LEN] = "<appid>";
 int8_t tsS3Enabled = false;
+
+int32_t tsCheckpointInterval = 20;
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -475,7 +478,7 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   if (cfgAddTimezone(pCfg, "timezone", tsTimezoneStr, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddLocale(pCfg, "locale", tsLocale, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddCharset(pCfg, "charset", tsCharset, CFG_SCOPE_BOTH) != 0) return -1;
-  if (cfgAddBool(pCfg, "assert", 1, CFG_SCOPE_BOTH) != 0) return -1;
+  if (cfgAddBool(pCfg, "assert", tsAssert, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddBool(pCfg, "enableCoreFile", 1, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddFloat(pCfg, "numOfCores", tsNumOfCores, 1, 100000, CFG_SCOPE_BOTH) != 0) return -1;
 
@@ -657,6 +660,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt64(pCfg, "minDiskFreeSize", tsMinDiskFreeSize, TFS_MIN_DISK_FREE_SIZE, 1024 * 1024 * 1024,
                   CFG_SCOPE_SERVER) != 0)
     return -1;
+  if (cfgAddBool(pCfg, "enableWhiteList", tsEnableWhiteList, CFG_SCOPE_SERVER) != 0) return -1;
 
   GRANT_CFG_ADD;
   return 0;
@@ -1045,6 +1049,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMndLogRetention = cfgGetItem(pCfg, "mndLogRetention")->i64;
   tsMndSkipGrant = cfgGetItem(pCfg, "skipGrant")->bval;
   tsMndGrantMode = cfgGetItem(pCfg, "grantMode")->i32;
+  tsEnableWhiteList = cfgGetItem(pCfg, "enableWhiteList")->bval;
 
   tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
   tstrncpy(tsUdfdResFuncs, cfgGetItem(pCfg, "udfdResFuncs")->str, sizeof(tsUdfdResFuncs));
@@ -1057,7 +1062,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsDisableStream = cfgGetItem(pCfg, "disableStream")->bval;
   tsStreamBufferSize = cfgGetItem(pCfg, "streamBufferSize")->i64;
-  tsCheckpointInterval = cfgGetItem(pCfg, "checkpointInterval")->i64;
 
   tsFilterScalarMode = cfgGetItem(pCfg, "filterScalarMode")->bval;
   tsKeepTimeOffset = cfgGetItem(pCfg, "keepTimeOffset")->i32;
@@ -1523,7 +1527,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32, false);
 
-  if (taosMulModeMkDir(tsLogDir, 0777) != 0) {
+  if (taosMulModeMkDir(tsLogDir, 0777, true) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     printf("failed to create dir:%s since %s", tsLogDir, terrstr());
     cfgCleanup(pCfg);
@@ -1597,6 +1601,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
     if (taosSetS3Cfg(tsCfg) != 0) return -1;
   }
   taosSetSystemCfg(tsCfg);
+  if (taosSetFileHandlesLimit() != 0) return -1;
 
   cfgDumpCfg(tsCfg, tsc, false);
 

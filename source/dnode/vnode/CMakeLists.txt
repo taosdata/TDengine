@@ -64,9 +64,13 @@ set(
     "src/tq/tqPush.c"
     "src/tq/tqSink.c"
     "src/tq/tqCommit.c"
-    "src/tq/tqRestore.c"
-    "src/tq/tqSnapshot.c"
+    "src/tq/tqStreamTask.c"
+    "src/tq/tqHandleSnapshot.c"
+    "src/tq/tqCheckInfoSnapshot.c"
     "src/tq/tqOffsetSnapshot.c"
+    "src/tq/tqStreamStateSnap.c"
+    "src/tq/tqStreamTaskSnap.c"
+    
 )
 
 aux_source_directory("src/tsdb/" TSDB_SOURCE_FILES)

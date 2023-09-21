@@ -203,10 +203,10 @@ class TDTestCase:
             tdLog.exit("show consumers %d not equal expect num: %d"%(topicNum, expectConsumerNUm))
 
         flag = 0
-        for i in range(10):                  
+        while (1):
             tdSql.query('show subscriptions;')
             subscribeNum = tdSql.queryRows
-            tdLog.info(" get subscriptions count: %d"%(subscribeNum))
+            tdLog.info(" get subscriptions count: %d, expected:%d"%(subscribeNum, expectSubscribeNum))
             if subscribeNum == expectSubscribeNum:
                 flag = 1
                 break

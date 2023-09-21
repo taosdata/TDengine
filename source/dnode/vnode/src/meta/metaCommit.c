@@ -61,5 +61,12 @@ int  metaPrepareAsyncCommit(SMeta *pMeta) {
 // abort the meta txn
 int metaAbort(SMeta *pMeta) {
   if (!pMeta->txn) return 0;
-  return tdbAbort(pMeta->pEnv, pMeta->txn);
+  int code = tdbAbort(pMeta->pEnv, pMeta->txn);
+  if (code) {
+    metaError("vgId:%d, failed to abort meta since %s", TD_VID(pMeta->pVnode), tstrerror(terrno));
+  } else {
+    pMeta->txn = NULL;
+  }
+
+  return code;
 }

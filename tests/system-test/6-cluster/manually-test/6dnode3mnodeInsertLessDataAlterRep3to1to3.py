@@ -27,7 +27,7 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         tdLog.debug(f"start to excute {__file__}")
         self.TDDnodes = None
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), True)
         self.host = socket.gethostname()
 
 
@@ -177,7 +177,7 @@ class TDTestCase:
             tdSql.query("select count(*) from %s"%stableName)
             tdSql.checkData(0,0,rowsPerStb)
         
-        clusterComCheck.check_vgroups_status(vgroup_numbers=paraDict["vgroups"],db_replica=replica1,db_name=paraDict["dbName"],count_number=40)
+        clusterComCheck.check_vgroups_status(vgroup_numbers=paraDict["vgroups"],db_replica=replica1,db_name=paraDict["dbName"],count_number=100)
         sleep(5)
         tdLog.info(f"show transactions;alter database db0_0 replica {replica3};")
         TdSqlEx.execute(f'show transactions;')

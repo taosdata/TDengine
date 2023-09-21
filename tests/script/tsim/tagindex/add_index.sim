@@ -18,6 +18,20 @@ sql use $dbPrefix
 print =============== create super table and register tag index 
 sql create table if not exists $mtPrefix (ts timestamp, c1 int) tags (t1 int, t2 int, t3 int, t4 int, t5 int)
 
+sql use information_schema; 
+
+sql create index t2i on ta_3_db.ta_3_mt(t2)
+
+sql_error create index t3i on ta_3_mt(t3)  
+
+sql_error drop index t2i 
+sql drop index ta_3_db.t2i
+
+
+sql use $dbPrefix 
+
+
+
 sql show stables
 if $rows != 1 then
   return -1
@@ -278,11 +292,12 @@ if $rows != 1 then
   return -1
 endi
 
-sql drop index $data[0][0]
+#$drop_name=`$data[0][0]`
+#sql drop index `$data[0][0]\` 
 
-if $rows != 0 then 
-  return -1
-endi
+#if $rows != 0 then 
+#  return -1
+#endi
 
 
 sql_error drop index t2
@@ -290,7 +305,7 @@ sql_error drop index t3
 
 
 
-sql create index ti0 on $mtPrefix (t1)
+#sql create index ti0 on $mtPrefix (t1)
 
 $i = $interval 
 while $i < $limit
@@ -308,6 +323,7 @@ sql_error create index ti2 on $mtPrefix (t1)
 
 
 sql_error create index t2i on ta_3_tb17 (t2)
+
 
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

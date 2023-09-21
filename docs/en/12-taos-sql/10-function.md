@@ -292,11 +292,11 @@ CONCAT_WS(separator_expr, expr1, expr2 [, expr] ...)
 LENGTH(expr)
 ```
 
-**Description**: The length in bytes of a string
+**Description**: The length in bytes
 
 **Return value type**: Bigint
 
-**Applicable data types**: VARCHAR and NCHAR fields or columns
+**Applicable data types**: VARCHAR and NCHAR and VARBINARY 
 
 **Nested query**: It can be used in both the outer query and inner query in a nested query.
 
@@ -402,7 +402,7 @@ CAST(expr AS type_name)
 
 **Return value type**: The type specified by parameter `type_name`
 
-**Applicable data types**: All data types except JSON
+**Applicable data types**: All data types except JSON and VARBINARY. If type_name is VARBINARY, expr can only be VARCHAR.
 
 **Nested query**: It can be used in both the outer query and inner query in a nested query.
 

@@ -69,6 +69,8 @@ typedef struct STqSnapReader      STqSnapReader;
 typedef struct STqSnapWriter      STqSnapWriter;
 typedef struct STqOffsetReader    STqOffsetReader;
 typedef struct STqOffsetWriter    STqOffsetWriter;
+typedef struct STqCheckInfoReader STqCheckInfoReader;
+typedef struct STqCheckInfoWriter STqCheckInfoWriter;
 typedef struct SStreamTaskReader  SStreamTaskReader;
 typedef struct SStreamTaskWriter  SStreamTaskWriter;
 typedef struct SStreamStateReader SStreamStateReader;
@@ -89,10 +91,11 @@ typedef struct SQueryNode         SQueryNode;
 #define VNODE_RSMA0_DIR "tsdb"
 #define VNODE_RSMA1_DIR "rsma1"
 #define VNODE_RSMA2_DIR "rsma2"
+#define VNODE_TQ_STREAM "stream"
 
 #define VNODE_BUFPOOL_SEGMENTS 3
 
-#define VND_INFO_FNAME "vnode.json"
+#define VND_INFO_FNAME     "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
 // vnd.h
@@ -214,16 +217,19 @@ int32_t tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid
 int32_t tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
 
 // tq
-int  tqInit();
-void tqCleanUp();
-STQ* tqOpen(const char* path, SVnode* pVnode);
-void tqNotifyClose(STQ*);
-void tqClose(STQ*);
-int  tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
-int  tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
-int  tqUnregisterPushHandle(STQ* pTq, void* pHandle);
-int  tqStartStreamTasks(STQ* pTq);  // restore all stream tasks after vnode launching completed.
-int  tqCheckStreamStatus(STQ* pTq);
+int     tqInit();
+void    tqCleanUp();
+STQ*    tqOpen(const char* path, SVnode* pVnode);
+void    tqNotifyClose(STQ*);
+void    tqClose(STQ*);
+int     tqPushMsg(STQ*, tmsg_t msgType);
+int     tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
+int     tqUnregisterPushHandle(STQ* pTq, void* pHandle);
+int     tqScanWalAsync(STQ* pTq, bool ckPause);
+int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessStreamTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqCheckAndRunStreamTaskAsync(STQ* pTq);
 
 int     tqCommit(STQ*);
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
@@ -246,7 +252,7 @@ int32_t tqProcessTaskDropReq(STQ* pTq, int64_t version, char* msg, int32_t msgLe
 int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t version, SRpcMsg* pMsg);
+int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec);
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
@@ -306,6 +312,14 @@ int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData);
 int32_t tqSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapWriter** ppWriter);
 int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback);
 int32_t tqSnapWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+// STqCheckInfoshotReader ==
+int32_t tqCheckInfoReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqCheckInfoReader** ppReader);
+int32_t tqCheckInfoReaderClose(STqCheckInfoReader** ppReader);
+int32_t tqCheckInfoRead(STqCheckInfoReader* pReader, uint8_t** ppData);
+// STqCheckInfoshotWriter ======================================
+int32_t tqCheckInfoWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqCheckInfoWriter** ppWriter);
+int32_t tqCheckInfoWriterClose(STqCheckInfoWriter** ppWriter, int8_t rollback);
+int32_t tqCheckInfoWrite(STqCheckInfoWriter* pWriter, uint8_t* pData, uint32_t nData);
 // STqOffsetReader ========================================
 int32_t tqOffsetReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqOffsetReader** ppReader);
 int32_t tqOffsetReaderClose(STqOffsetReader** ppReader);
@@ -315,6 +329,26 @@ int32_t tqOffsetWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqOffsetWriter
 int32_t tqOffsetWriterClose(STqOffsetWriter** ppWriter, int8_t rollback);
 int32_t tqOffsetSnapWrite(STqOffsetWriter* pWriter, uint8_t* pData, uint32_t nData);
 // SStreamTaskWriter ======================================
+
+int32_t streamTaskSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTaskReader** ppReader);
+int32_t streamTaskSnapReaderClose(SStreamTaskReader* pReader);
+int32_t streamTaskSnapRead(SStreamTaskReader* pReader, uint8_t** ppData);
+
+int32_t streamTaskSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamTaskWriter** ppWriter);
+int32_t streamTaskSnapWriterClose(SStreamTaskWriter* ppWriter, int8_t rollback);
+int32_t streamTaskSnapWrite(SStreamTaskWriter* pWriter, uint8_t* pData, uint32_t nData);
+
+int32_t streamStateSnapReaderOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamStateReader** ppReader);
+int32_t streamStateSnapReaderClose(SStreamStateReader* pReader);
+int32_t streamStateSnapRead(SStreamStateReader* pReader, uint8_t** ppData);
+
+int32_t streamStateSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, SStreamStateWriter** ppWriter);
+int32_t streamStateSnapWriterClose(SStreamStateWriter* pWriter, int8_t rollback);
+int32_t streamStateSnapWrite(SStreamStateWriter* pWriter, uint8_t* pData, uint32_t nData);
+int32_t streamStateRebuildFromSnap(SStreamStateWriter* pWriter, int64_t chkpId);
+
+int32_t streamStateLoadTasks(SStreamStateWriter* pWriter);
+
 // SStreamTaskReader ======================================
 // SStreamStateWriter =====================================
 // SStreamStateReader =====================================
@@ -478,7 +512,10 @@ enum {
   SNAP_DATA_TQ_HANDLE = 7,
   SNAP_DATA_TQ_OFFSET = 8,
   SNAP_DATA_STREAM_TASK = 9,
-  SNAP_DATA_STREAM_STATE = 10,
+  SNAP_DATA_STREAM_TASK_CHECKPOINT = 10,
+  SNAP_DATA_STREAM_STATE = 11,
+  SNAP_DATA_STREAM_STATE_BACKEND = 12,
+  SNAP_DATA_TQ_CHECKINFO = 13,
 };
 
 struct SSnapDataHdr {

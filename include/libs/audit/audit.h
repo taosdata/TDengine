@@ -29,6 +29,8 @@
 extern "C" {
 #endif
 
+#define AUDIT_DETAIL_MAX 16000
+
 typedef struct {
   const char *server;
   uint16_t    port;

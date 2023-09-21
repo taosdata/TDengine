@@ -88,6 +88,7 @@ extern int64_t tsMndLogRetention;
 extern int8_t  tsGrant;
 extern int32_t tsMndGrantMode;
 extern bool    tsMndSkipGrant;
+extern bool    tsEnableWhiteList;
 
 // dnode
 extern int64_t tsDndStart;
@@ -191,6 +192,7 @@ extern int64_t tsWalFsyncDataSizeLimit;
 extern int32_t tsTransPullupInterval;
 extern int32_t tsMqRebalanceInterval;
 extern int32_t tsStreamCheckpointTickInterval;
+extern int32_t tsStreamNodeCheckInterval;
 extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushIntervalSec;
 extern int32_t tsTtlBatchDropNum;
@@ -203,7 +205,6 @@ extern int32_t tsRpcRetryInterval;
 
 extern bool    tsDisableStream;
 extern int64_t tsStreamBufferSize;
-extern int64_t tsCheckpointInterval;
 extern bool    tsFilterScalarMode;
 extern int32_t tsKeepTimeOffset;
 extern int32_t tsMaxStreamBackendCache;

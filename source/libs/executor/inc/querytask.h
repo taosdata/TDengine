@@ -70,8 +70,6 @@ typedef struct {
   SVersionRange        fillHistoryVer;
   STimeWindow          fillHistoryWindow;
   SStreamState*        pState;
-  int64_t              dataVersion;
-  int64_t              checkPointId;
 } SStreamTaskInfo;
 
 struct SExecTaskInfo {

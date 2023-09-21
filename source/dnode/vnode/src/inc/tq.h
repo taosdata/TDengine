@@ -45,8 +45,8 @@ extern "C" {
 typedef struct STqOffsetStore STqOffsetStore;
 
 // tqPush
-#define EXTRACT_DATA_FROM_WAL_ID    (-1)
-#define STREAM_TASK_STATUS_CHECK_ID (-2)
+#define STREAM_EXEC_EXTRACT_DATA_IN_WAL_ID (-1)
+#define STREAM_EXEC_TASK_STATUS_CHECK_ID     (-2)
 
 // tqExec
 typedef struct {
@@ -55,7 +55,7 @@ typedef struct {
 
 typedef struct {
   int64_t suid;
-  char*   qmsg;   // SubPlanToString
+  char*   qmsg;  // SubPlanToString
   SNode*  node;
 } STqExecTb;
 
@@ -81,17 +81,16 @@ typedef enum tq_handle_status {
 } tq_handle_status;
 
 typedef struct {
-  char          subKey[TSDB_SUBSCRIBE_KEY_LEN];
-  int64_t       consumerId;
-  int32_t       epoch;
-  int8_t        fetchMeta;
-  int64_t       snapshotVer;
-  SWalReader*   pWalReader;
-  SWalRef*      pRef;
-//  STqPushHandle pushHandle;    // push
-  STqExecHandle execHandle;    // exec
-  SRpcMsg*      msg;
-  tq_handle_status        status;
+  char        subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int64_t     consumerId;
+  int32_t     epoch;
+  int8_t      fetchMeta;
+  int64_t     snapshotVer;
+  SWalReader* pWalReader;
+  SWalRef*    pRef;
+  STqExecHandle    execHandle;  // exec
+  SRpcMsg*         msg;
+  tq_handle_status status;
 } STqHandle;
 
 struct STQ {
@@ -110,15 +109,8 @@ struct STQ {
 };
 
 typedef struct {
-  int8_t inited;
-  tmr_h  timer;
-} STqMgmt;
-
-typedef struct {
   int32_t size;
 } STqOffsetHead;
-
-static STqMgmt tqMgmt = {0};
 
 int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle);
 int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
@@ -142,7 +134,7 @@ int32_t tqMetaOpen(STQ* pTq);
 int32_t tqMetaClose(STQ* pTq);
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle);
 int32_t tqMetaDeleteHandle(STQ* pTq, const char* key);
-int32_t tqMetaRestoreHandle(STQ* pTq);
+//int32_t tqMetaRestoreHandle(STQ* pTq);
 int32_t tqMetaSaveCheckInfo(STQ* pTq, const char* key, const void* value, int32_t vLen);
 int32_t tqMetaDeleteCheckInfo(STQ* pTq, const char* key);
 int32_t tqMetaRestoreCheckInfo(STQ* pTq);
@@ -159,7 +151,7 @@ int32_t         tqOffsetCommitFile(STqOffsetStore* pStore);
 // tqSink
 int32_t tqBuildDeleteReq(const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
                          const char* pIdStr);
-void    tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
+void    tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data);
 
 // tqOffset
 char*   tqOffsetBuildFName(const char* path, int32_t fVer);
@@ -167,8 +159,10 @@ int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname);
 
 // tqStream
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver);
-int32_t tqStreamTasksScanWal(STQ* pTq);
-int32_t tqStreamTasksStatusCheck(STQ* pTq);
+int32_t tqScanWal(STQ* pTq);
+int32_t tqCheckAndRunStreamTask(STQ* pTq);
+int32_t tqStartStreamTasks(STQ* pTq);
+int32_t tqStopStreamTasks(STQ* pTq);
 
 // tq util
 int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStreamRefDataBlock** pRefBlock);
@@ -176,6 +170,8 @@ int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequ
 int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                         int32_t type, int64_t sver, int64_t ever);
 int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset);
+void    tqUpdateNodeStage(STQ* pTq);
+
 #ifdef __cplusplus
 }
 #endif

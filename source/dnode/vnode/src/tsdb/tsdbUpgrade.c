@@ -113,23 +113,7 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
         };
 
         if (dataBlk->hasDup) {
-          tBlockDataReset(ctx->blockData);
-
-          int16_t  aCid = 0;
-          STSchema tSchema = {0};
-          TABLEID  tbid = {.suid = pBlockIdx->suid, .uid = pBlockIdx->uid};
-          code = tBlockDataInit(ctx->blockData, &tbid, &tSchema, &aCid, 0);
-          TSDB_CHECK_CODE(code, lino, _exit);
-
-          code = tsdbReadDataBlock(reader, dataBlk, ctx->blockData);
-          TSDB_CHECK_CODE(code, lino, _exit);
-
-          record.count = 1;
-          for (int32_t i = 1; i < ctx->blockData->nRow; ++i) {
-            if (ctx->blockData->aTSKEY[i] != ctx->blockData->aTSKEY[i - 1]) {
-              record.count++;
-            }
-          }
+          record.count = 0;
         }
 
         code = tBrinBlockPut(ctx->brinBlock, &record);

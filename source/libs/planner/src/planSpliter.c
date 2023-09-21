@@ -244,7 +244,12 @@ static bool stbSplHasMultiTbScan(bool streamQuery, SLogicNode* pNode) {
     }
     pChild = nodesListGetNode(((SLogicNode*)pChild)->pChildren, 0);
   }
-  return (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) && stbSplIsMultiTbScan(streamQuery, (SScanLogicNode*)pChild));
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) && stbSplIsMultiTbScan(streamQuery, (SScanLogicNode*)pChild)) {
+    return true;
+  } else if (QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pChild)) {
+    return stbSplHasMultiTbScan(streamQuery, (SLogicNode*)pChild);
+  }
+  return false;
 }
 
 static bool stbSplIsMultiTbScanChild(bool streamQuery, SLogicNode* pNode) {
@@ -389,7 +394,11 @@ static int32_t stbSplAppendWStart(SNodeList* pFuncs, int32_t* pIndex) {
   }
   strcpy(pWStart->functionName, "_wstart");
   int64_t pointer = (int64_t)pWStart;
-  snprintf(pWStart->node.aliasName, sizeof(pWStart->node.aliasName), "%s.%" PRId64 "", pWStart->functionName, pointer);
+  char name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
+  int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWStart->functionName, pointer);
+  taosCreateMD5Hash(name, len);
+  strncpy(pWStart->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
+
   int32_t code = fmGetFuncInfo(pWStart, NULL, 0);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListStrictAppend(pFuncs, (SNode*)pWStart);
@@ -415,7 +424,11 @@ static int32_t stbSplAppendWEnd(SWindowLogicNode* pWin, int32_t* pIndex) {
   }
   strcpy(pWEnd->functionName, "_wend");
   int64_t pointer = (int64_t)pWEnd;
-  snprintf(pWEnd->node.aliasName, sizeof(pWEnd->node.aliasName), "%s.%" PRId64 "", pWEnd->functionName, pointer);
+  char name[TSDB_COL_NAME_LEN + TSDB_POINTER_PRINT_BYTES + TSDB_NAME_DELIMITER_LEN + 1] = {0};
+  int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWEnd->functionName, pointer);
+  taosCreateMD5Hash(name, len);
+  strncpy(pWEnd->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
+
   int32_t code = fmGetFuncInfo(pWEnd, NULL, 0);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListStrictAppend(pWin->pFuncs, (SNode*)pWEnd);
@@ -509,6 +522,11 @@ static int32_t stbSplRewriteFromMergeNode(SMergeLogicNode* pMerge, SLogicNode* p
         nodesDestroyNode(pMerge->node.pSlimit);
         pMerge->node.pSlimit = NULL;
       }
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_SORT: {
+      SSortLogicNode* pSort = (SSortLogicNode*)pNode;
+      if (pSort->calcGroupId) pMerge->inputWithGroupId = true;
       break;
     }
     default:

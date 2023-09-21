@@ -312,14 +312,14 @@ static int buildHandle(STQ* pTq, STqHandle* handle){
       return -1;
     }
   } else if (handle->execHandle.subType == TOPIC_SUB_TYPE__DB) {
-    handle->pWalReader = walOpenReader(pVnode->pWal, NULL);
+    handle->pWalReader = walOpenReader(pVnode->pWal, NULL, 0);
     handle->execHandle.pTqReader = tqReaderOpen(pVnode);
 
     buildSnapContext(reader.vnode, reader.version, 0, handle->execHandle.subType, handle->fetchMeta,
                      (SSnapContext**)(&reader.sContext));
     handle->execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, vgId, NULL, handle->consumerId);
   } else if (handle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
-    handle->pWalReader = walOpenReader(pVnode->pWal, NULL);
+    handle->pWalReader = walOpenReader(pVnode->pWal, NULL, 0);
 
     if(handle->execHandle.execTb.qmsg != NULL && strcmp(handle->execHandle.execTb.qmsg, "") != 0) {
       if (nodesStringToNode(handle->execHandle.execTb.qmsg, &handle->execHandle.execTb.node) != 0) {
@@ -388,34 +388,34 @@ int32_t tqCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle){
   return taosHashPut(pTq->pHandle, handle->subKey, strlen(handle->subKey), handle, sizeof(STqHandle));
 }
 
-int32_t tqMetaRestoreHandle(STQ* pTq) {
-  int  code = 0;
-  TBC* pCur = NULL;
-  if (tdbTbcOpen(pTq->pExecStore, &pCur, NULL) < 0) {
-    return -1;
-  }
-
-  void*    pKey = NULL;
-  int      kLen = 0;
-  void*    pVal = NULL;
-  int      vLen = 0;
-
-  tdbTbcMoveToFirst(pCur);
-
-  while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
-    STqHandle handle = {0};
-    code = restoreHandle(pTq, pVal, vLen, &handle);
-    if (code < 0) {
-      tqDestroyTqHandle(&handle);
-      break;
-    }
-  }
-
-  tdbFree(pKey);
-  tdbFree(pVal);
-  tdbTbcClose(pCur);
-  return code;
-}
+//int32_t tqMetaRestoreHandle(STQ* pTq) {
+//  int  code = 0;
+//  TBC* pCur = NULL;
+//  if (tdbTbcOpen(pTq->pExecStore, &pCur, NULL) < 0) {
+//    return -1;
+//  }
+//
+//  void*    pKey = NULL;
+//  int      kLen = 0;
+//  void*    pVal = NULL;
+//  int      vLen = 0;
+//
+//  tdbTbcMoveToFirst(pCur);
+//
+//  while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
+//    STqHandle handle = {0};
+//    code = restoreHandle(pTq, pVal, vLen, &handle);
+//    if (code < 0) {
+//      tqDestroyTqHandle(&handle);
+//      break;
+//    }
+//  }
+//
+//  tdbFree(pKey);
+//  tdbFree(pVal);
+//  tdbTbcClose(pCur);
+//  return code;
+//}
 
 int32_t tqMetaGetHandle(STQ* pTq, const char* key) {
   void*    pVal = NULL;

@@ -37,6 +37,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Column ambiguously defined: %s";
     case TSDB_CODE_PAR_WRONG_VALUE_TYPE:
       return "Invalid value type: %s";
+    case TSDB_CODE_PAR_INVALID_VARBINARY:
+      return "Invalid varbinary value: %s";
     case TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION:
       return "There mustn't be aggregation";
     case TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT:
@@ -138,7 +140,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_CANNOT_DROP_PRIMARY_KEY:
       return "Primary timestamp column cannot be dropped";
     case TSDB_CODE_PAR_INVALID_MODIFY_COL:
-      return "Only binary/nchar/geometry column length could be modified, and the length can only be increased, not decreased";
+      return "Only varbinary/binary/nchar/geometry column length could be modified, and the length can only be increased, not decreased";
     case TSDB_CODE_PAR_INVALID_TBNAME:
       return "Invalid tbname pseudo column";
     case TSDB_CODE_PAR_INVALID_FUNCTION_NAME:
@@ -182,6 +184,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "No valid function in window query";
     case TSDB_CODE_PAR_INVALID_OPTR_USAGE:
       return "Invalid usage of expr: %s";
+    case TSDB_CODE_PAR_INVALID_IP_RANGE:
+      return "invalid ip range";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:

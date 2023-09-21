@@ -1839,10 +1839,6 @@ static int32_t translateLength(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  if (TSDB_DATA_TYPE_VARBINARY == ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type) {
-    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-  }
-
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   return TSDB_CODE_SUCCESS;
 }
@@ -3312,7 +3308,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "now",
     .type = FUNCTION_TYPE_NOW,
-    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateNowToday,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
@@ -3322,7 +3318,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "today",
     .type = FUNCTION_TYPE_TODAY,
-    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateNowToday,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
@@ -3450,7 +3446,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_group_key",
     .type = FUNCTION_TYPE_GROUP_KEY,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
     .translateFunc = translateGroupKey,
     .getEnvFunc   = getGroupKeyFuncEnv,
     .initFunc     = functionSetup,
