@@ -1832,7 +1832,7 @@ int taos_stmt_close(TAOS_STMT *stmt) {
   return stmtClose(stmt);
 }
 
-int taos_set_mode(TAOS* taos, int mode, int value) {
+int taos_set_conn_mode(TAOS* taos, int mode, int value) {
   if (taos == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -1848,6 +1848,9 @@ int taos_set_mode(TAOS* taos, int mode, int value) {
     case TAOS_CONN_MODE_BI:
       atomic_store_8(&pObj->biMode, value);
       break;
+    default:
+      tscError("not supported mode.");
+      return TSDB_CODE_INVALID_PARA;
   }
   return 0;
 }

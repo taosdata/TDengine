@@ -244,7 +244,7 @@ typedef enum {
   TAOS_CONN_MODE_BI = 0,
 } TAOS_CONN_MODE;
 
-DLL_EXPORT int taos_set_mode(TAOS* taos, int mode, int value);
+DLL_EXPORT int taos_set_conn_mode(TAOS* taos, int mode, int value);
 /*  --------------------------schemaless INTERFACE------------------------------- */
 
 DLL_EXPORT TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int protocol, int precision);
