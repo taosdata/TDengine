@@ -3,7 +3,9 @@
     <div
       :class="[
         'left-ui',
-        (this.$parent.currentTaskStatus == 'running'&&!this.$parent.isCopyable) ? 'readable' : '',
+        this.$parent.currentTaskStatus == 'running' && !this.$parent.isCopyable
+          ? 'readable'
+          : '',
       ]"
     >
       <section class="header">
@@ -330,7 +332,13 @@
                     :disable="p.target.selectable"
                     @keydown.enter.native="searchDatas"
                   >
-                    <el-button slot="append" icon="el-icon-search" @click="searchDatas"></el-button>
+
+                    <el-button
+                      slot="append"
+                      icon="el-icon-search"
+                      @click="searchDatas"
+                    ></el-button>
+
                   </el-input>
                   <div class="resultWrap">
                     <div class="searchList" v-loading="loading">
@@ -339,14 +347,22 @@
                         v-if="configurationdata.length <= 0"
                       ></el-empty>
                       <template v-else>
-                        <el-table 
-                          :data="configurationdata" 
-                          size="mini" 
+
+                        <el-table
+                          :data="configurationdata"
+                          size="mini"
                           @row-click="handelDataSet"
                           highlight-current-row
-                          >
-                          <el-table-column prop="id" label="Id"></el-table-column>
-                          <el-table-column prop="name" label="Name"></el-table-column>
+                        >
+                          <el-table-column
+                            prop="id"
+                            label="Id"
+                          ></el-table-column>
+                          <el-table-column
+                            prop="name"
+                            label="Name"
+                          ></el-table-column>
+
                         </el-table>
                       </template>
                     </div>
@@ -555,9 +571,21 @@
                       :file-list="fileList"
                       :auto-upload="true"
                     >
-                      <el-button slot="trigger" size="small" type="primary">{{
-                        $t("datasource.selectfile")
-                      }}</el-button>
+                      <el-button
+                        slot="trigger"
+                        size="small"
+                        type="primary"
+                        style="margin-right: 20px"
+                        >{{ $t("datasource.selectfile") }}</el-button
+                      >
+                      <!-- <template v-if="language.includes('zh')">
+                        <a href="/template-zh.csv" download>下载模板</a>
+                      </template>
+                      <template v-else>
+                        <a href="/template-en.csv" download
+                          >Download Template File</a
+                        >
+                      </template> -->
                     </el-upload>
                   </template>
                   <template v-if="p.hint === 'str' || p.hint === 'timeout'">
@@ -689,7 +717,7 @@
       </section>
       <section class="choose-db">
         <span class="label required">{{ $t("datasource.targetdb") }}</span>
-        <el-select v-model="dbname" placeholder="" style="margin-right: 8px;">
+        <el-select v-model="dbname" placeholder="" style="margin-right: 8px">
           <el-option
             v-for="db in dblist"
             :key="db['node-key']"
@@ -697,8 +725,8 @@
             :value="db.name"
           ></el-option>
         </el-select>
-        <el-button size="medium" type="primary" plain  @click="handleDbBtn">
-          {{ $t('data.createDatabase') }}
+        <el-button size="medium" type="primary" plain @click="handleDbBtn">
+          {{ $t("data.createDatabase") }}
         </el-button>
       </section>
       <section class="bottom">
@@ -733,7 +761,7 @@ import { validPath } from "@/utils/validate";
 import PThreeCheckbox from "../components/pThreeCheckbox.vue";
 import MqttConnector from "../components/newMqttConnector.vue";
 import opcConnector from "../components/opcConnector.vue";
-import DialogCreateDb from '../components/addDbDialog.vue';
+import DialogCreateDb from "../components/addDbDialog.vue";
 export default {
   name: "DbSourceUI",
   components: {
@@ -741,7 +769,7 @@ export default {
     MqttConnector,
     opcConnector,
     CsvData,
-    DialogCreateDb
+    DialogCreateDb,
   },
   props: {
     echoData: {
@@ -782,7 +810,7 @@ export default {
         return [];
       },
     },
-    
+
     isEditable: {
       type: Boolean,
       default: false,
@@ -798,6 +826,7 @@ export default {
   },
   data() {
     return {
+      language: window.navigator.language,
       limit: 1,
       opcPointavalible: true,
       mqttcafile: [],
@@ -983,15 +1012,15 @@ export default {
         if (this.tagName == "kafka") {
           this.getdbprecision();
         }
-      }
+      },
     },
     "$store.state.dbs.dialogDbVisible": {
       handler(val) {
         if (!val) {
-          this.getDatabases()
+          this.getDatabases();
         }
-      }
-    }
+      },
+    },
   },
   methods: {
     //处理空值和‘undefined’字符值
@@ -1551,10 +1580,10 @@ export default {
           }
           let model = this.$store.state.app.csvParser.model;
           let parse = this.$store.state.app.csvParser.parse;
-           if(this.$store.state.app.csvtags.length>0&&!model.tags){
-            model['tags']=this.$store.state.app.csvtags
-           }
-          if (model.tags&&model.tags.length > 0) {
+          if (this.$store.state.app.csvtags.length > 0 && !model.tags) {
+            model["tags"] = this.$store.state.app.csvtags;
+          }
+          if (model.tags && model.tags.length > 0) {
             model.name = this.$refs.csvdata.$refs.param.ruleForm2.subname;
             model.using = this.$refs.csvdata.$refs.param.ruleForm2.tableName;
             piParams["parser"] = this.$store.state.app.csvParser;
@@ -1574,18 +1603,20 @@ export default {
             Message.error(this.$t("datasource.csvwholeinfo"));
             return;
           }
-          let flag = (model.tags?[...model.columns, ...model.tags]:[...model.columns]).some(
-            (item) => parse[item].as == ""
-          );
+          let flag = (
+            model.tags ? [...model.columns, ...model.tags] : [...model.columns]
+          ).some((item) => parse[item].as == "");
           if (flag) {
             Message.error(this.$t("datasource.csvwholeinfo"));
             return;
           }
           piParams["from"] =
-            `csv:` + (this.$refs.csvdata.activeName=='first'?
-            this.$refs.csvdata.fileList.map((item, index) => {
-              return item.response[0];
-            }):this.$refs.csvdata.fileurl) +
+            `csv:` +
+            (this.$refs.csvdata.activeName == "first"
+              ? this.$refs.csvdata.fileList.map((item, index) => {
+                  return item.response[0];
+                })
+              : this.$refs.csvdata.fileurl) +
             dns.substring(3) +
             `&has_header=` +
             this.$refs.csvdata.$refs.param.ruleForm.hasHeader +
@@ -1594,7 +1625,7 @@ export default {
               : "");
         }
 
-        if (this.isEditable&&this.editId) {
+        if (this.isEditable && this.editId) {
           let result = await EditSource(piParams, this.editId);
           if (result.message) {
             Message.error(result.message);
@@ -1626,8 +1657,8 @@ export default {
 
     handleDbBtn() {
       this.$store.commit("dbs/HANDLE_ADD_DB");
-      this.$store.commit("dbs/SET_ADD_DB_COMP",'datain');
-      this.$store.commit('dbs/SET_DIALOG_DB_VISABLE', true)
+      this.$store.commit("dbs/SET_ADD_DB_COMP", "datain");
+      this.$store.commit("dbs/SET_DIALOG_DB_VISABLE", true);
     },
 
     handleClick(tab, event) {
@@ -2009,14 +2040,14 @@ export default {
       }
     }
     :deep {
-    .el-input-number__increase,
-    .el-input-number__decrease {
-      height: 38px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      .el-input-number__increase,
+      .el-input-number__decrease {
+        height: 38px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
     }
-  }
   }
   .right-ui {
     margin-left: 20px;

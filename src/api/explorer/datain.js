@@ -1,5 +1,5 @@
 import { request } from "@/utils/request";
-let language=window.navigator.language.includes('en')?'en':'zh'
+let language=window.navigator.language.includes('zh')?'zh':'en'
 export function getTask(id,type){
     return request({
         baseURL:process.env.VUE_APP_X_API,
@@ -10,7 +10,7 @@ export function getTask(id,type){
 
 
 export function getUIData(){
-    let language=window.navigator.language.includes('en')?'en':'zh'
+    let language=window.navigator.language.includes('zh')?'zh':'en'
     return request({
         baseURL:process.env.VUE_APP_X_API,
         url:`/ds/in?lang=${language}`,
@@ -43,7 +43,7 @@ export function EditSource(data,id){
 }
 //获取ua的nodes或者da的tags
 export function getUaAndDaData(data){
-    let language=window.navigator.language.includes('en')?'en':'zh'
+    let language=window.navigator.language.includes('zh')?'zh':'en'
     return request({
         baseURL:process.env.VUE_APP_X_API,
         url:`/ds/in/sets`,

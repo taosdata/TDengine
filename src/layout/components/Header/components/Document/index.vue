@@ -48,9 +48,8 @@ export default {
   name: "Dcoument",
   computed: {
     docsUrl() {
-      return window.navigator.language.includes('en')
-        ? "/docs-en/"
-        : "/docs/";
+      return window.navigator.language.includes('zh')
+        ?"/docs/":"/docs-en/";
     },
     discordUrl() {
       return this.$store.state.language == "en"

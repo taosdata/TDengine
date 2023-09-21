@@ -1,0 +1,4 @@
+serial number(optional),"code(Required, will be point child table name)",OPC Point Id (Required),"TAG example 1(Optional, tag::<tag type>::tag name)",Tag example 2(Optional),Value type(Required),"Value Column Name(Optional, default is val)","Quality Column Name(Optional, default is quality)","Enable Point ?  1-Enable 0-Disable (Optional, default is enable)",Stable Name(Required),"Point Time Column Name(Optional,  Source is OPC Server Time default is ts)","Receiveed Time Column Name(Optional, will use opc connector received time as time index if configed)"
+0,tbname,point_id,tag::VARCHAR(200)::name,tag::VARCHAR(50)::unit,type,value_col,quality_col,enabled,stable,ts_col,received_ts_col
+1,tbname1,ns=3;i=1002,name1,unit1,int,value11,quality11,1,stable1,ts11,received_time11
+2,tbname2,ns=3;i=1007,name2,unit2,double,value11,quality11,0,stable2,ts11,received_time11

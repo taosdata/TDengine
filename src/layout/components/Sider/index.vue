@@ -153,9 +153,8 @@ export default {
       let menus = JSON.parse(process.env.VUE_APP_CUS_CONFIG).menus;
       this.permission_routes = this.permission_routes.map((item) => {
         if (Object.keys(menus).includes(item.path.replace("/", ""))) {
-          item.title = this.language.includes("en")
-            ? menus[item.path.replace("/", "")].en
-            : menus[item.path.replace("/", "")].zh;
+          item.title = this.language.includes("zh")?menus[item.path.replace("/", "")].zh
+            : menus[item.path.replace("/", "")].en;
         }
         return item;
       });
