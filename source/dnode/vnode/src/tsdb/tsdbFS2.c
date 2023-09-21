@@ -500,7 +500,7 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
         STFileObj *fobj = fset->farr[ftype];
         code = tsdbFSDoScanAndFixFile(fs, fobj);
         if (code) {
-          fset->maxVerValid = TMIN(fset->maxVerValid, fobj->f->minVer - 1);
+          fset->maxVerValid = (fobj->f->minVer <= fobj->f->maxVer) ? TMIN(fset->maxVerValid, fobj->f->minVer - 1) : -1;
           corrupt = true;
         }
       }
@@ -512,7 +512,7 @@ static int32_t tsdbFSDoSanAndFix(STFileSystem *fs) {
         TARRAY2_FOREACH(lvl->fobjArr, fobj) {
           code = tsdbFSDoScanAndFixFile(fs, fobj);
           if (code) {
-            fset->maxVerValid = TMIN(fset->maxVerValid, fobj->f->minVer - 1);
+            fset->maxVerValid = (fobj->f->minVer <= fobj->f->maxVer) ? TMIN(fset->maxVerValid, fobj->f->minVer - 1) : -1;
             corrupt = true;
           }
         }
