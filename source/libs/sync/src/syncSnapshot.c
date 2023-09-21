@@ -96,7 +96,7 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
   pSender->sendingMS = 0;
   pSender->term = raftStoreGetTerm(pSender->pSyncNode);
   pSender->startTime = taosGetMonoTimestampMs();
-  pSender->lastSendTime = pSender->startTime;
+  pSender->lastSendTime = taosGetTimestampMs();
   pSender->finish = false;
 
   // Get full snapshot info
