@@ -34,8 +34,7 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
   if(detail == NULL && len > 0){
     uError("audit detail shound not be null, len:%d", len);
   }
-  if(detail != NULL){
-    taosMemoryFreeClear(buf);
+  if(detail != NULL && min > 1){
     memcpy(buf, detail, min - 1);
   }
 
