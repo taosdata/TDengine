@@ -4,7 +4,6 @@ use std::{
     pin::Pin,
     sync::{atomic::Ordering, Arc},
     task::{Context, Poll},
-    time::Duration,
 };
 
 use flume::{Receiver, Sender};
@@ -19,13 +18,16 @@ use tokio::{
 use tracing::{instrument, Instrument};
 
 use crate::{
-    legacy::{split_table_into_time_range_chunks, sync_single_table_partial},
+    legacy::{
+        split_table_into_time_range_chunks, sync_single_table_partial, sync_super_table_schema,
+    },
     Action, LegacyMetrics, QueryOpts, TargetOpts, TimeRange, METRICS_LEGACY_CREATED_TABLES,
 };
 
 use super::{sync_normal_table_schema, sync_super_table_schema_with_subs};
 
 pub enum Todo {
+    STable(Arc<String>, oneshot::Sender<anyhow::Result<()>>),
     Meta(
         Option<Arc<String>>,
         Vec<String>,
@@ -93,6 +95,56 @@ async fn worker(
     loop {
         let todo = receiver.recv_async().await?;
         match todo {
+            Todo::STable(stable, sender) => {
+                let mut retries = MAX_WS_RETRIES;
+                loop {
+                    match sync_super_table_schema(&from, &stable, &to, &opts, &actions).await {
+                        Ok(_) => {
+                            let _ = sender.send(Ok(()));
+                            break;
+                        }
+                        Err(err) => {
+                            tracing::warn!("sync STable schema {stable} err: {err:#}");
+                            let err_string = err.to_string();
+                            if (err_string.contains("0xE00")
+                                || err_string.contains("channel closed"))
+                                && retries > 0
+                            {
+                                from = source.get().await?;
+                                to = target.get().await?;
+                                retries -= 1;
+                                tracing::warn!(
+                                            "[worker:{worker}] sync stable {stable} error: {err}, retrying ... {retries} times left"
+                                        );
+                                // wait 5 seconds to avoid too many retries
+                                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                                continue;
+                            }
+
+                            tracing::error!(
+                                        "[worker:{worker}] sync stable schema {stable} error: {err:#}, continue next"
+                                    );
+
+                            if let Some(path) = opts.fails_to.as_ref() {
+                                path.lock().unwrap().write_fmt(format_args!(
+                                    "meta\t{}:\t\t{}\n",
+                                    stable.as_str(),
+                                    format!("{err:#}").replace("\n", " ")
+                                ))?;
+                            } else {
+                                println!(
+                                    "meta\t{}:\t\t{}",
+                                    stable.as_str(),
+                                    format!("{err:#}").replace("\n", " ")
+                                );
+                            }
+
+                            let _ = sender.send(Err(err));
+                            break;
+                        }
+                    }
+                }
+            }
             Todo::Meta(stable, tables, sender) => {
                 match stable {
                     Some(stable) => {
