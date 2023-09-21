@@ -500,7 +500,7 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   const char* id = pTask->id.idStr;
   int32_t numOfElems = streamQueueGetNumOfItems(pTask->outputInfo.queue);
   if (numOfElems > 0) {
-    double size = SIZE_IN_MB(taosQueueMemorySize(pTask->outputInfo.queue->pQueue));
+    double size = SIZE_IN_MiB(taosQueueMemorySize(pTask->outputInfo.queue->pQueue));
     stDebug("s-task:%s start to dispatch intermediate block to downstream, elem in outputQ:%d, size:%.2fMiB", id, numOfElems, size);
   }
 
