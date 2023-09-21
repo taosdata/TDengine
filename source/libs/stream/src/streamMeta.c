@@ -140,39 +140,78 @@ enum STREAM_STATE_VER {
   STREAM_STATA_NEED_CONVERT,
 };
 
-int32_t streamMetaCheckStateVer(SStreamMeta* pMeta) {
-  TBC* pCur = NULL;
+int32_t streamMetaCheckStateCompatible(SStreamMeta* pMeta) {
+  int8_t ret = STREAM_STATA_COMPATIBLE;
+  TBC*   pCur = NULL;
+
   if (tdbTbcOpen(pMeta->pTaskDb, &pCur, NULL) < 0) {
     // no task info, no stream
-    return STREAM_STATA_COMPATIBLE;
+    return ret;
   }
-
-  void*    pKey = NULL;
-  int32_t  kLen = 0;
-  void*    pVal = NULL;
-  int32_t  vLen = 0;
-  SDecoder decoder;
+  void*   pKey = NULL;
+  int32_t kLen = 0;
+  void*   pVal = NULL;
+  int32_t vLen = 0;
 
   tdbTbcMoveToFirst(pCur);
   while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
     if (pVal == NULL || vLen == 0) {
       break;
     }
+    SDecoder        decoder;
     SCheckpointInfo info;
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     if (tDecodeStreamTaskChkInfo(&decoder, &info) < 0) {
       continue;
     }
+    if (info.msgVer <= SSTREAM_TASK_INCOMPATIBLE_VER) {
+      ret = STREAM_STATA_NO_COMPATIBLE;
+    } else if (info.msgVer == SSTREAM_TASK_NEED_CONVERT_VER) {
+      ret = STREAM_STATA_NEED_CONVERT;
+    } else if (info.msgVer == SSTREAM_TASK_VER) {
+      ret = STREAM_STATA_COMPATIBLE;
+    }
     tDecoderClear(&decoder);
+    break;
   }
   tdbFree(pKey);
   tdbFree(pVal);
   tdbTbcClose(pCur);
-
-  return STREAM_STATA_NEED_CONVERT;
+  return ret;
 }
 
-int32_t      streamMetaDoStateDataConvert(SStreamMeta* pMeta) { return 0; }
+int32_t streamMetaDoStateDataConvertImpl(SStreamMeta* pMeta) {
+  int64_t          chkpId = streamGetLatestCheckpointId(pMeta);
+  SBackendWrapper* pBackend = streamBackendInit(pMeta->path, chkpId);
+
+  void* pIter = taosHashIterate(pBackend->cfInst, NULL);
+  while (pIter) {
+    size_t len = 0;
+    void*  key = taosHashGetKey(pIter, &len);
+      
+    pIter = taosHashIterate(pBackend->cfInst, pIter);
+  }
+
+  // streamBackendCleanup();
+
+  return 0;
+}
+int32_t streamMetaDoStateDataConvert(SStreamMeta* pMeta) {
+  int8_t compatible = streamMetaCheckStateCompatible(pMeta);
+  if (compatible == STREAM_STATA_COMPATIBLE) {
+    return 0;
+  } else if (compatible == STREAM_STATA_NO_COMPATIBLE) {
+    qError(
+        "stream read incompatible data, rm %s/vnode/vnode*/tq/stream if taosd cannot start, and rebuild stream "
+        "manually",
+        tsDataDir);
+    return -1;
+  } else if (compatible == STREAM_STATA_NEED_CONVERT) {
+    qError("stream state need covert backend format");
+    return streamMetaDoStateDataConvertImpl(pMeta);
+  }
+  return 0;
+}
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId, int64_t stage) {
   int32_t      code = -1;
   SStreamMeta* pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));

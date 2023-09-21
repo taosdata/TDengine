@@ -46,9 +46,6 @@ typedef struct SCompactFilteFactory {
 } SCompactFilteFactory;
 
 typedef struct {
-  void* tableOpt;
-} RocksdbCfParam;
-typedef struct {
   rocksdb_t*                       db;
   rocksdb_column_family_handle_t** pHandle;
   rocksdb_writeoptions_t*          wOpt;
@@ -1455,6 +1452,181 @@ void destroyRocksdbCfInst(RocksdbCfInst* inst) {
   taosMemoryFree(inst);
 }
 
+STaskBackendWrapper* streamStateOpenTaskBackend(char* path, char* key) {
+  int32_t code = 0;
+
+  char* taskPath = taosMemoryCalloc(1, strlen(path) + 128);
+  sprintf(taskPath, "%s%s%s%s%s", path, TD_DIRSEP, "state", TD_DIRSEP, key);
+
+  STaskBackendWrapper* pTaskBackend = taosMemoryCalloc(1, sizeof(SBackendWrapper));
+  rocksdb_env_t*       env = rocksdb_create_default_env();
+
+  rocksdb_cache_t*   cache = rocksdb_cache_create_lru(256);
+  rocksdb_options_t* opts = rocksdb_options_create();
+  // rocksdb_options_set_env(opts, env);
+  rocksdb_options_set_create_if_missing(opts, 1);
+  rocksdb_options_set_create_missing_column_families(opts, 1);
+  // rocksdb_options_set_max_total_wal_size(opts, dbMemLimit);
+  rocksdb_options_set_recycle_log_file_num(opts, 6);
+  rocksdb_options_set_max_write_buffer_number(opts, 3);
+  rocksdb_options_set_info_log_level(opts, 1);
+  // rocksdb_options_set_db_write_buffer_size(opts, dbMemLimit);
+  // rocksdb_options_set_write_buffer_size(opts, dbMemLimit / 2);
+  rocksdb_options_set_atomic_flush(opts, 1);
+
+  pTaskBackend->env = env;
+  pTaskBackend->dbOpt = opts;
+  pTaskBackend->cache = cache;
+  pTaskBackend->filterFactory = rocksdb_compactionfilterfactory_create(
+      NULL, destroyCompactFilteFactory, compactFilteFactoryCreateFilter, compactFilteFactoryName);
+  rocksdb_options_set_compaction_filter_factory(pTaskBackend->dbOpt, pTaskBackend->filterFactory);
+
+  char*  err = NULL;
+  size_t nCf = 0;
+
+  char** cfs = rocksdb_list_column_families(opts, taskPath, &nCf, &err);
+  if (nCf == 0 || nCf == 1 || err != NULL) {
+    taosMemoryFreeClear(err);
+    pTaskBackend->db = rocksdb_open(opts, taskPath, &err);
+    if (err != NULL) {
+      qError("failed to open rocksdb, path:%s, reason:%s", taskPath, err);
+      taosMemoryFreeClear(err);
+    }
+  } else {
+    ASSERT(0);
+  }
+  if (cfs != NULL) {
+    rocksdb_list_column_families_destroy(cfs, nCf);
+  }
+  qDebug("succ to init stream backend at %s, backend:%p", taskPath, pTaskBackend);
+
+  nCf = sizeof(ginitDict) / sizeof(ginitDict[0]);
+  pTaskBackend->pCf = taosMemoryCalloc(nCf, sizeof(rocksdb_column_family_handle_t*));
+  pTaskBackend->pCfParams = taosMemoryCalloc(nCf, sizeof(RocksdbCfParam));
+  pTaskBackend->pCfOpts = taosMemoryCalloc(nCf, sizeof(rocksdb_options_t*));
+  pTaskBackend->pCompares = taosMemoryCalloc(nCf, sizeof(rocksdb_comparator_t*));
+
+  for (int i = 0; i < nCf; i++) {
+    rocksdb_options_t*                   opt = rocksdb_options_create_copy(pTaskBackend->dbOpt);
+    rocksdb_block_based_table_options_t* tableOpt = rocksdb_block_based_options_create();
+    rocksdb_block_based_options_set_block_cache(tableOpt, pTaskBackend->cache);
+    rocksdb_block_based_options_set_partition_filters(tableOpt, 1);
+
+    rocksdb_filterpolicy_t* filter = rocksdb_filterpolicy_create_bloom(15);
+    rocksdb_block_based_options_set_filter_policy(tableOpt, filter);
+
+    rocksdb_options_set_block_based_table_factory((rocksdb_options_t*)opt, tableOpt);
+
+    SCfInit* cfPara = &ginitDict[i];
+
+    rocksdb_comparator_t* compare =
+        rocksdb_comparator_create(NULL, cfPara->detroyFunc, cfPara->cmpFunc, cfPara->cmpName);
+    rocksdb_options_set_comparator((rocksdb_options_t*)opt, compare);
+
+    pTaskBackend->pCompares[i] = compare;
+    pTaskBackend->pCfOpts[i] = opt;
+    pTaskBackend->pCfParams[i].tableOpt = tableOpt;
+  }
+
+  return pTaskBackend;
+}
+
+int8_t getCfIdx(const char* key) {
+  int    idx = -1;
+  size_t len = strlen(key);
+  for (int i = 0; i < sizeof(ginitDict) / sizeof(ginitDict[0]); i++) {
+    if (len == ginitDict[i].len && strncmp(key, ginitDict[i].key, strlen(key)) == 0) {
+      idx = i;
+      break;
+    }
+  }
+  return idx;
+}
+rocksdb_column_family_handle_t* taskBackendOpenCf(STaskBackendWrapper* pBackend, const char* key) {
+  char*  err = NULL;
+  int8_t idx = getCfIdx(key);
+  if (idx == -1) return NULL;
+
+  rocksdb_column_family_handle_t* cf =
+      rocksdb_create_column_family(pBackend->db, pBackend->pCfOpts[idx], ginitDict[idx].key, &err);
+  if (err != NULL) {
+    qError("failed to open cf, key:%s, reason: %s", key, err);
+    taosMemoryFree(err);
+    return NULL;
+  }
+  return cf;
+}
+int32_t copyData(RocksdbCfInst* pSrc, STaskBackendWrapper* pDst, int8_t i) {
+  int32_t WRITE_BATCH = 1024;
+  char*   err = NULL;
+  int     code = 0;
+
+  rocksdb_readoptions_t* pRdOpt = rocksdb_readoptions_create();
+
+  rocksdb_writebatch_t* wb = rocksdb_writebatch_create();
+  rocksdb_iterator_t*   pIter = rocksdb_create_iterator_cf(pSrc->db, pRdOpt, pSrc->pHandle[i]);
+  rocksdb_iter_seek_to_first(pIter);
+  while (rocksdb_iter_valid(pIter)) {
+    if (rocksdb_writebatch_count(wb) >= WRITE_BATCH) {
+      rocksdb_write(pDst->db, pDst->writeOpts, wb, &err);
+      if (err != NULL) {
+        code = -1;
+        goto _EXIT;
+      }
+      rocksdb_writebatch_clear(wb);
+    }
+
+    size_t klen = 0, vlen = 0;
+    char*  key = (char*)rocksdb_iter_key(pIter, &klen);
+    char*  val = (char*)rocksdb_iter_value(pIter, &vlen);
+
+    rocksdb_writebatch_put_cf(wb, pDst->pCf[i], key, klen, val, vlen);
+    rocksdb_iter_next(pIter);
+  }
+
+  if (rocksdb_writebatch_count(wb) > 0) {
+    rocksdb_write(pDst->db, pDst->writeOpts, wb, &err);
+    if (err != NULL) {
+      code = -1;
+      goto _EXIT;
+    }
+  }
+
+_EXIT:
+  rocksdb_iter_destroy(pIter);
+  rocksdb_readoptions_destroy(pRdOpt);
+  taosMemoryFree(err);
+
+  return code;
+}
+
+int32_t streamStateConvertDataFormat(char* path, char* key, void* cfInst) {
+  int nCf = sizeof(ginitDict) / sizeof(ginitDict[0]);
+
+  int32_t        code = 0;
+  RocksdbCfInst* CfInst = cfInst;
+
+  STaskBackendWrapper* pTaskBackend = streamStateOpenTaskBackend(path, key);
+  RocksdbCfInst*       pSrcBackend = cfInst;
+
+  for (int i = 0; i < nCf; i++) {
+    rocksdb_column_family_handle_t* pSrcCf = pSrcBackend->pHandle[i];
+    if (pSrcCf == NULL) continue;
+
+    rocksdb_column_family_handle_t* pDstCf = taskBackendOpenCf(pTaskBackend, ginitDict[i].key);
+    if (pDstCf == NULL) {
+      return -1;
+    }
+
+    code = copyData(pSrcBackend, pTaskBackend, i);
+    if (code != 0) {
+      return -1;
+    }
+
+    pTaskBackend->pCf[i] = pDstCf;
+  }
+  return 0;
+}
 int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t nCf) {
   SBackendWrapper* handle = backend;
   char*            err = NULL;

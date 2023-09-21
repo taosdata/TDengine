@@ -42,7 +42,30 @@ typedef struct {
   TdThreadMutex                      cfMutex;
   SHashObj*                          cfInst;
   int64_t                            defaultCfInit;
+
 } SBackendWrapper;
+
+typedef struct {
+  void* tableOpt;
+} RocksdbCfParam;
+
+typedef struct {
+  rocksdb_t*              db;
+  rocksdb_writeoptions_t* writeOpts;
+  rocksdb_readoptions_t*  readOpts;
+  rocksdb_options_t*      dbOpt;
+  rocksdb_env_t*          env;
+  rocksdb_cache_t*        cache;
+
+  rocksdb_column_family_handle_t** pCf;
+  rocksdb_comparator_t**           pCompares;
+  rocksdb_options_t**              pCfOpts;
+  RocksdbCfParam*                  pCfParams;
+
+  rocksdb_compactionfilterfactory_t* filterFactory;
+  TdThreadMutex                      cfMutex;
+
+} STaskBackendWrapper;
 
 void*      streamBackendInit(const char* path, int64_t chkpId);
 void       streamBackendCleanup(void* arg);
@@ -51,6 +74,7 @@ int32_t    streamBackendLoadCheckpointInfo(void* pMeta);
 int32_t    streamBackendDoCheckpoint(void* pMeta, uint64_t checkpointId);
 SListNode* streamBackendAddCompare(void* backend, void* arg);
 void       streamBackendDelCompare(void* backend, void* arg);
+int32_t    streamStateConvertDataFormat(char* path, char* key, void* cfInst);
 
 int  streamStateOpenBackend(void* backend, SStreamState* pState);
 void streamStateCloseBackend(SStreamState* pState, bool remove);

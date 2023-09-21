@@ -31,7 +31,10 @@ extern "C" {
 
 typedef struct SStreamTask SStreamTask;
 
-#define SSTREAM_TASK_VER 2
+#define SSTREAM_TASK_VER         3 
+#define SSTREAM_TASK_INCOMPATIBLE_VER 1
+#define SSTREAM_TASK_NEED_CONVERT_VER 2
+
 enum {
   STREAM_STATUS__NORMAL = 0,
   STREAM_STATUS__STOP,
@@ -117,7 +120,7 @@ typedef struct {
 typedef struct {
   int8_t  type;
   int64_t ver;
-  SArray* submits;   // SArray<SPackedSubmit>
+  SArray* submits;  // SArray<SPackedSubmit>
 } SStreamMergedSubmit;
 
 typedef struct {
@@ -257,8 +260,9 @@ typedef struct SStreamTaskId {
 
 typedef struct SCheckpointInfo {
   int64_t checkpointId;
-  int64_t checkpointVer;  // latest checkpointId version
-  int64_t nextProcessVer;     // current offset in WAL, not serialize it
+  int64_t checkpointVer;   // latest checkpointId version
+  int64_t nextProcessVer;  // current offset in WAL, not serialize it
+  int64_t msgVer;
 } SCheckpointInfo;
 
 typedef struct SStreamStatus {
@@ -283,8 +287,8 @@ typedef struct SSTaskBasicInfo {
   int32_t selfChildId;
   int32_t totalLevel;
   int8_t  taskLevel;
-  int8_t  fillHistory;  // is fill history task or not
-  int64_t triggerParam; // in msec
+  int8_t  fillHistory;   // is fill history task or not
+  int64_t triggerParam;  // in msec
 } SSTaskBasicInfo;
 
 typedef struct SDispatchMsgInfo {
@@ -301,13 +305,13 @@ typedef struct STaskOutputInfo {
 } STaskOutputInfo;
 
 typedef struct STaskInputInfo {
-  int8_t status;
+  int8_t        status;
   SStreamQueue* queue;
 } STaskInputInfo;
 
 typedef struct STaskSchedInfo {
-  int8_t  status;
-  void*   pTimer;
+  int8_t status;
+  void*  pTimer;
 } STaskSchedInfo;
 
 typedef struct SSinkTaskRecorder {
@@ -325,10 +329,10 @@ typedef struct {
 } STaskTimestamp;
 
 typedef struct STokenBucket {
-    int32_t capacity;     // total capacity
-    int64_t fillTimestamp;// fill timestamp
-    int32_t numOfToken;   // total available tokens
-    int32_t rate;         // number of token per second
+  int32_t capacity;       // total capacity
+  int64_t fillTimestamp;  // fill timestamp
+  int32_t numOfToken;     // total available tokens
+  int32_t rate;           // number of token per second
 } STokenBucket;
 
 struct SStreamTask {
@@ -650,7 +654,7 @@ bool    streamTaskShouldStop(const SStreamStatus* pStatus);
 bool    streamTaskShouldPause(const SStreamStatus* pStatus);
 bool    streamTaskIsIdle(const SStreamTask* pTask);
 
-void    initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen);
+void initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen);
 
 char* createStreamTaskIdStr(int64_t streamId, int32_t taskId);
 
