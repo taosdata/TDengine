@@ -332,7 +332,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
               char key[TSDB_SUBSCRIBE_KEY_LEN];
               mndMakeSubscribeKey(key, pConsumer->cgroup, topic);
               mndGetOrCreateRebSub(pRebMsg->rebSubHash, key);
-              mInfo("vnode splitted, rebalance will be triggered");
+              mInfo("vnode splitted, vgId:%d rebalance will be triggered", pVgEp->vgId);
             }
             mndReleaseVgroup(pMnode, pVgroup);
           }

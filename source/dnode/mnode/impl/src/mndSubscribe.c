@@ -417,7 +417,7 @@ static int32_t processRemoveAddVgs(SMnode *pMnode, SMqRebOutputObj *pOutput){
     taosArrayAddAll(pOutput->pSub->unassignedVgs, newVgs);
     mInfo("processRemoveAddVgs add new vg num:%d", (int)taosArrayGetSize(newVgs));
   }
-  taosArrayDestroy(newVgs);
+  taosArrayDestroyP(newVgs, (FDelete)tDeleteSMqVgEp);
   return totalVgNum;
 }
 
