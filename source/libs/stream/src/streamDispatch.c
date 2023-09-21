@@ -837,7 +837,7 @@ int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t upstreamTaskId, 
   info.msg.info.noResp = 1;  // refactor later.
 
   stDebug("s-task:%s (level:%d) prepare checkpoint ready msg to upstream s-task:0x%" PRIx64 ":0x%x (vgId:%d) idx:%d",
-         pTask->id.idStr, pTask->info.taskLevel, req.streamId, req.upstreamTaskId, req.downstreamNodeId, index);
+         pTask->id.idStr, pTask->info.taskLevel, req.streamId, req.upstreamTaskId, req.upstreamNodeId, index);
 
   if (pTask->pReadyMsgList == NULL) {
     pTask->pReadyMsgList = taosArrayInit(4, sizeof(SStreamChkptReadyInfo));
