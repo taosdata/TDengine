@@ -44,8 +44,8 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
   pSender->pSyncNode = pSyncNode;
   pSender->replicaIndex = replicaIndex;
   pSender->term = raftStoreGetTerm(pSyncNode);
-  pSender->startTime = 0;
-  pSender->endTime = 0;
+  pSender->startTime = -1;
+  pSender->waitTime = -1;
   pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &pSender->snapshot);
   pSender->finish = false;
 
@@ -138,7 +138,7 @@ void snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish) {
   if (stopped) return;
 
   pSender->finish = finish;
-  pSender->endTime = taosGetTimestampMs();
+  pSender->waitTime = -1;
 
   // close reader
   if (pSender->pReader != NULL) {
@@ -292,8 +292,12 @@ int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId) {
     return 0;
   }
 
-  if (pSender->finish && taosGetTimestampMs() - pSender->endTime < SNAPSHOT_WAIT_MS) {
-    sSDebug(pSender, "snapshot sender start too frequently, ignore");
+  int64_t timeNow = taosGetTimestampMs();
+  if (pSender->waitTime <= 0) {
+    pSender->waitTime = timeNow + SNAPSHOT_WAIT_MS;
+  }
+  if (timeNow < pSender->waitTime) {
+    sSDebug(pSender, "snapshot sender waitTime not expired yet, ignore");
     return 0;
   }
 
@@ -607,7 +611,7 @@ _SEND_REPLY:;
   // send msg
   syncLogSendSyncSnapshotRsp(pSyncNode, pRspMsg, "snapshot receiver pre-snapshot");
   if (syncNodeSendMsgById(&pRspMsg->destId, pSyncNode, &rpcMsg) != 0) {
-    sRError(pReceiver, "snapshot receiver failed to build resp since %s", terrstr());
+    sRError(pReceiver, "failed to send resp since %s", terrstr());
     return -1;
   }
 
@@ -820,13 +824,16 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
   if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER || pSyncNode->state == TAOS_SYNC_STATE_LEARNER) {
     if (pMsg->term == raftStoreGetTerm(pSyncNode)) {
       if (pMsg->seq == SYNC_SNAPSHOT_SEQ_PREP_SNAPSHOT) {
-        syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "process seq pre-snapshot");
+        sInfo("vgId:%d, receive pre-snapshot msg of snapshot replication. signature:(%" PRId64 ", %" PRId64 ")",
+              pSyncNode->vgId, pMsg->term, pMsg->startTime);
         code = syncNodeOnSnapshotPrep(pSyncNode, pMsg);
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_BEGIN) {
-        syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "process seq begin");
+        sInfo("vgId:%d, receive begin msg of snapshot replication. signature:(%" PRId64 ", %" PRId64 ")",
+              pSyncNode->vgId, pMsg->term, pMsg->startTime);
         code = syncNodeOnSnapshotBegin(pSyncNode, pMsg);
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_END) {
-        syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "process seq end");
+        sInfo("vgId:%d, receive end msg of snapshot replication. signature: (%" PRId64 ", %" PRId64 ")",
+              pSyncNode->vgId, pMsg->term, pMsg->startTime);
         code = syncNodeOnSnapshotEnd(pSyncNode, pMsg);
         if (syncLogBufferReInit(pSyncNode->pLogBuf, pSyncNode) != 0) {
           sRError(pReceiver, "failed to reinit log buffer since %s", terrstr());
@@ -871,7 +878,7 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
          pMsg->snapBeginIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm);
 
   if (pMsg->snapBeginIndex > snapshot.lastApplyIndex) {
-    sSError(pSender, "prepare snapshot failed since beginIndex:%" PRId64 " larger than applyIndex:%" PRId64,
+    sSError(pSender, "failed to prepare snapshot since beginIndex:%" PRId64 " larger than applyIndex:%" PRId64,
             pMsg->snapBeginIndex, snapshot.lastApplyIndex);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
@@ -912,6 +919,8 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
   pSendMsg->startTime = pSender->startTime;
   pSendMsg->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
 
+  sSInfo(pSender, "begin snapshot replication to dnode %d. startTime:%" PRId64, DID(&pSendMsg->destId),
+         pSendMsg->startTime);
   // send msg
   syncLogSendSyncSnapshotSend(pSyncNode, pSendMsg, "snapshot sender reply pre");
   if (syncNodeSendMsgById(&pSendMsg->destId, pSender->pSyncNode, &rpcMsg) != 0) {
