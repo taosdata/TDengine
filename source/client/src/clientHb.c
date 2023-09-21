@@ -577,10 +577,6 @@ static int32_t hbGetUserAuthInfo(SClientHbKey *connKey, SHbParam *param, SClient
     return TSDB_CODE_APP_ERROR;
   }
 
-  // if(pTscObj->dropped == 1) {
-  //   releaseTscObj(connKey->tscRid);
-  // }
-
   int32_t code = 0;
 
   SKv  kv = {.key = HEARTBEAT_KEY_USER_AUTHINFO};
