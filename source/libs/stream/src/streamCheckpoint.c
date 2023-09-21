@@ -285,10 +285,12 @@ int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
     // save the task
     streamMetaSaveTask(pMeta, p);
     streamTaskOpenAllUpstreamInput(p);   // open inputQ for all upstream tasks
-    stDebug("vgId:%d s-task:%s level:%d commit task status after checkpoint completed, checkpointId:%" PRId64
-           ", Ver(saved):%" PRId64 " currentVer:%" PRId64 ", status to be normal, prev:%s",
-           pMeta->vgId, p->id.idStr, p->info.taskLevel, checkpointId, p->chkInfo.checkpointVer, p->chkInfo.nextProcessVer,
-           streamGetTaskStatusStr(prev));
+
+    stDebug(
+        "vgId:%d s-task:%s level:%d open upstream inputQ, commit task status after checkpoint completed, "
+        "checkpointId:%" PRId64 ", Ver(saved):%" PRId64 " currentVer:%" PRId64 ", status to be normal, prev:%s",
+        pMeta->vgId, p->id.idStr, p->info.taskLevel, checkpointId, p->chkInfo.checkpointVer, p->chkInfo.nextProcessVer,
+        streamGetTaskStatusStr(prev));
   }
 
   if (streamMetaCommit(pMeta) < 0) {
