@@ -3,7 +3,7 @@
     <el-form
       :model="ruleForm"
       ref="ruleForm"
-      :label-width="language.includes('en') ? '200px' : '120px'"
+      :label-width="language.includes('zh') ? '120px' : '200px'"
       :rules="rules"
     >
       <el-form-item :label="$t('datasource.includeheader')" prop="hasHeader">
@@ -26,7 +26,7 @@
     <el-form
       :model="ruleForm2"
       ref="ruleForm2"
-      :label-width="language.includes('en') ? '200px' : '120px'"
+      :label-width="language.includes('zh') ? '120px' : '200px'"
       :rules="rules"
     >
 
