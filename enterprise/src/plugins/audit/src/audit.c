@@ -35,6 +35,7 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
     uError("audit detail shound not be null, len:%d", len);
   }
   if(detail != NULL){
+    taosMemoryFreeClear(buf);
     memcpy(buf, detail, min - 1);
   }
 
@@ -43,6 +44,7 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
   if (!tsEnableAudit || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
   SJson *pJson = tjsonCreateObject();
   if (pJson == NULL) {
+    taosMemoryFreeClear(buf);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return;
   }
@@ -64,7 +66,7 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
 
   auditSend(pJson);
 
-  taosMemoryFree(buf);
+  taosMemoryFreeClear(buf);
 }
 
 void auditSend(SJson *pJson) {
