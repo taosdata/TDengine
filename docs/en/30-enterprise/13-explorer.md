@@ -193,6 +193,28 @@ After you enter the edit page for the MQTT Data Source Synchronization task:
 5. After completing the above information, click the Submit button to start the data synchronization from CSV to TDengine directly.
 
 
+## Data Export
+
+By clicking "Data Out" in the function list, you can export data to kafka from the TDengine cluster that is currently being managed.
+
+
+### Kafka
+
+After you enter the edit page for the Kafka Data Source export task:
+1.  In the Database card, you can select the name of the database to be exported to Kafka, which is supported to be selected directly from the drop-down list, this field is required;
+2.  In the Super Table card, you can select or enter the name of super table in the selected database, this field is required;
+3.  Select columns to be subscribed, default is all the columns of the super table, this field is required;
+4.  Select tags to be subscribed, default is all the tags of the super table;
+5.  Under Start time settings field, select a start time for the data by clicking on it, this field is optional;
+6.  Under End time settings field, select a start time for the data by clicking on it, this field is optional;
+7.  If the Start time or the End time are specified, enter the the column name of timestamp, default value is ts; 
+8.  In the Kafka Server input box, enter bootstrap_server, for example 192.168.1.92:9092, this field is required;
+9.  In the Topic input box, enter an existing topic name in Kafka, this field is required;
+10. Set Kafka ack timeout in seconds，default is 1 second，this field is optional；
+11. Set the Batch size, this field is optional；
+12. After completing the above information, click the Submit button to start the data synchronization from TDengine to Kafka directly.
+
+
 ## Data Backup and Restoration
 
 You can back up the data in the currently connected TDengine cluster to one or more local files from which you can later perform data recovery. This section describes the specific steps for data backup and recovery.
