@@ -1010,8 +1010,11 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
       sNTrace(pSyncNode, "reset commit index by snapshot");
     }
     pSyncNode->fsmState = snapshot.state;
-    if (pSyncNode->fsmState) {
-      sError("vgId:%d, fsm state incomplete.", pSyncNode->vgId);
+    if (pSyncNode->fsmState != SYNC_FSM_STATE_NORMAL) {
+      sError("vgId:%d, fsm state is incomplete.", pSyncNode->vgId);
+      if (pSyncNode->replicaNum == 1) {
+        goto _error;
+      }
     }
   }
   pSyncNode->commitIndex = commitIndex;
