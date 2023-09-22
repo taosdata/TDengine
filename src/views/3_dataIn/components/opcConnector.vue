@@ -35,6 +35,7 @@
         ></el-checkbox>
       </li>
       <li>
+        <!-- <span style="color:red;font-size:24px;">{{ currentPrimary }}=={{ item.column_name }}</span> -->
         <el-checkbox
           @change="saveToDb(item)"
           :value="saveFileds.includes(item.column_name)"
@@ -78,11 +79,11 @@ import { deepClone } from "@/utils";
 export default {
   name: "OpcConnector",
   props: {
-    echoData:{
-        type:Array,
-        default:()=>{
-            return []
-        }
+    echoData: {
+      type: Array,
+      default: () => {
+        return [];
+      },
     },
     opcConfig: {
       type: Object,
@@ -90,7 +91,7 @@ export default {
         return null;
       },
     },
-    
+
     isEditable: {
       type: Boolean,
       default: false,
@@ -110,24 +111,24 @@ export default {
       currentPrimary: "",
       //   opcConfig,
       headers: ["colname", "rename", "coltype"],
-      saveFileds: ["value", "received_time"],
+      saveFileds: ["value", "original_ts"],
     };
   },
   mounted() {
     this.getDefaultPrimayKey();
-    this.saveFileds=deepClone(this.echoData)
+    this.saveFileds = deepClone(this.echoData);
   },
   methods: {
     getDefaultPrimayKey() {
       let primary = this.opcConfig.column_configs.filter(
         (item) => item.is_primary_key
       )[0].column_name;
-      if(primary){
-        if(!this.saveFileds.includes(primary)){
-            this.saveFileds.push(primary)
+      if (primary) {
+        if (!this.saveFileds.includes(primary)) {
+          this.saveFileds.push(primary);
         }
       }
-      this.currentPrimary = primary ? primary : "received_time";
+      this.currentPrimary = primary ? primary : "original_ts";
     },
     saveToDb(val) {
       if (!this.saveFileds.includes(val.column_name)) {
@@ -142,17 +143,12 @@ export default {
         }
         let index = this.saveFileds.indexOf(val.column_name);
         this.saveFileds.splice(index, 1);
-        
       }
-    
-      this.$emit('changeEchoData',this.saveFileds)
+
+      this.$emit("changeEchoData", this.saveFileds);
     },
     changePrimary(val) {
       this.currentPrimary = val.column_name;
-      if (!this.saveFileds.includes(val.column_name)) {
-        //主键列一定会入库
-        this.saveFileds.push(val.column_name);
-      }
     },
     structureData() {},
     submit() {
@@ -181,6 +177,33 @@ export default {
       });
     },
   },
+  watch: {
+    "$store.state.app.opcConfig": {
+      deep: true,
+      handler(val) {
+        this.currentPrimary = val.column_configs.filter(
+          (item) => item.is_primary_key == true
+        )[0].column_name;
+      },
+    },
+    currentPrimary: {
+      deep: true,
+      handler(newval, oldval) {
+        if(this.saveFileds.includes(oldval)&&!this.saveFileds.includes(newval)){
+          this.saveFileds.splice(this.saveFileds.indexOf(oldval),1,newval)
+        }
+        let oldData=this.$store.state.app.opcConfig
+        oldData.column_configs.map(item=>{
+          if(item.column_name==newval){
+            item.is_primary_key=true
+          }else{
+            item.is_primary_key=false
+          }
+          return item
+        })
+      },
+    },
+  },
 };
 </script>
 <style lang="scss" scoped>
@@ -193,7 +216,7 @@ export default {
 }
 .singleton-header {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr 1fr ;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
   column-gap: 10px;
   border-top: 1px solid #ebeef5;
   padding-top: 8px;
@@ -209,7 +232,7 @@ export default {
 .singleton-cols {
   display: grid;
   width: 100%;
-  grid-template-columns: 1fr 1fr 1fr 1fr 1fr ;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
   border-bottom: 1px solid #ebeef5;
   border-top: none;
   li {

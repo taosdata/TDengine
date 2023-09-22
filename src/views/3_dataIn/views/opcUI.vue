@@ -595,6 +595,7 @@
                       <el-select
                         v-model="p.value"
                         :placeholder="p.placeholder ? p.placeholder : ''"
+                        @change="changeOpcCollectMode"
                       >
                         <el-option
                           v-for="c in p.hint.choices"
@@ -752,7 +753,7 @@ import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import marked from "marked";
 import CsvData from "../components/csvData.vue";
-import { decrypt, debounce, deepClone } from "@/utils/index";
+import { debounce, deepClone } from "@/utils/index";
 import { validPath } from "@/utils/validate";
 import PThreeCheckbox from "../components/pThreeCheckbox.vue";
 import MqttConnector from "../components/newMqttConnector.vue";
@@ -1019,6 +1020,41 @@ export default {
     },
   },
   methods: {
+    changeOpcCollectMode(val) {
+      if (this.tagName.includes("opc")) {
+        let oldData = this.$store.state.app.opcConfig;
+        let columnCons = [];
+        if (val == "observe") {
+          columnCons = oldData.column_configs.map((item) => {
+            if (item.column_name == "received_ts") {
+              item["is_primary_key"] = true;
+            }
+            if (item.column_name == "original_ts") {
+              item["is_primary_key"] = false;
+            }
+            return item;
+          });
+          this.$store.commit("app/SET_OPC_CONFIG", {
+            column_configs: columnCons,
+            stable_prefix: oldData.stable_prefix,
+          });
+        } else {
+          columnCons = oldData.column_configs.map((item) => {
+            if (item.column_name == "received_ts") {
+              item["is_primary_key"] = false;
+            }
+            if (item.column_name == "original_ts") {
+              item["is_primary_key"] = true;
+            }
+            return item;
+          });
+        }
+        this.$store.commit("app/SET_OPC_CONFIG", {
+          column_configs: columnCons,
+          stable_prefix: oldData.stable_prefix,
+        });
+      }
+    },
     //处理空值和‘undefined’字符值
     handleEmptyValue(val) {
       return (
