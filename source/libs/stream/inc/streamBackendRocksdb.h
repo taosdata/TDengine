@@ -51,8 +51,8 @@ typedef struct {
 
 typedef struct {
   rocksdb_t*              db;
-  rocksdb_writeoptions_t* writeOpts;
-  rocksdb_readoptions_t*  readOpts;
+  rocksdb_writeoptions_t* writeOpt;
+  rocksdb_readoptions_t*  readOpt;
   rocksdb_options_t*      dbOpt;
   rocksdb_env_t*          env;
   rocksdb_cache_t*        cache;
@@ -63,18 +63,19 @@ typedef struct {
   RocksdbCfParam*                  pCfParams;
 
   rocksdb_compactionfilterfactory_t* filterFactory;
-  TdThreadMutex                      cfMutex;
+  TdThreadMutex                      mutex;
 
 } STaskBackendWrapper;
 
-void*      streamBackendInit(const char* path, int64_t chkpId);
-void       streamBackendCleanup(void* arg);
-void       streamBackendHandleCleanup(void* arg);
-int32_t    streamBackendLoadCheckpointInfo(void* pMeta);
-int32_t    streamBackendDoCheckpoint(void* pMeta, uint64_t checkpointId);
-SListNode* streamBackendAddCompare(void* backend, void* arg);
-void       streamBackendDelCompare(void* backend, void* arg);
-int32_t    streamStateConvertDataFormat(char* path, char* key, void* cfInst);
+void*                streamBackendInit(const char* path, int64_t chkpId);
+void                 streamBackendCleanup(void* arg);
+void                 streamBackendHandleCleanup(void* arg);
+int32_t              streamBackendLoadCheckpointInfo(void* pMeta);
+int32_t              streamBackendDoCheckpoint(void* pMeta, uint64_t checkpointId);
+SListNode*           streamBackendAddCompare(void* backend, void* arg);
+void                 streamBackendDelCompare(void* backend, void* arg);
+int32_t              streamStateConvertDataFormat(char* path, char* key, void* cfInst);
+STaskBackendWrapper* streamStateOpenTaskBackend(char* path, char* key);
 
 int  streamStateOpenBackend(void* backend, SStreamState* pState);
 void streamStateCloseBackend(SStreamState* pState, bool remove);

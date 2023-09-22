@@ -181,17 +181,20 @@ int32_t streamMetaCheckStateCompatible(SStreamMeta* pMeta) {
 }
 
 int32_t streamMetaDoStateDataConvertImpl(SStreamMeta* pMeta) {
+  int32_t          code = 0;
   int64_t          chkpId = streamGetLatestCheckpointId(pMeta);
   SBackendWrapper* pBackend = streamBackendInit(pMeta->path, chkpId);
 
   void* pIter = taosHashIterate(pBackend->cfInst, NULL);
   while (pIter) {
-    size_t len = 0;
-    void*  key = taosHashGetKey(pIter, &len);
-      
+    void* key = taosHashGetKey(pIter, NULL);
+    code = streamStateConvertDataFormat(pMeta->path, key, *(void**)pIter);
+    if (code != 0) {
+      // continue
+    }
+
     pIter = taosHashIterate(pBackend->cfInst, pIter);
   }
-
   // streamBackendCleanup();
 
   return 0;
@@ -200,18 +203,21 @@ int32_t streamMetaDoStateDataConvert(SStreamMeta* pMeta) {
   int8_t compatible = streamMetaCheckStateCompatible(pMeta);
   if (compatible == STREAM_STATA_COMPATIBLE) {
     return 0;
+  } else if (compatible == STREAM_STATA_NEED_CONVERT) {
+    qInfo("stream state need covert backend format");
+
+    return streamMetaDoStateDataConvertImpl(pMeta);
   } else if (compatible == STREAM_STATA_NO_COMPATIBLE) {
     qError(
         "stream read incompatible data, rm %s/vnode/vnode*/tq/stream if taosd cannot start, and rebuild stream "
         "manually",
         tsDataDir);
+
     return -1;
-  } else if (compatible == STREAM_STATA_NEED_CONVERT) {
-    qError("stream state need covert backend format");
-    return streamMetaDoStateDataConvertImpl(pMeta);
   }
   return 0;
 }
+
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId, int64_t stage) {
   int32_t      code = -1;
   SStreamMeta* pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
