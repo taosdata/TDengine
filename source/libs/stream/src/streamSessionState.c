@@ -135,16 +135,15 @@ int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, 
 
   if (index + 1 == 0) {
     if (!isDeteled(pFileState, endTs) && isFlushedState(pFileState, endTs)) {
-      int32_t      len = 0;
       void*        p = NULL;
       void*        pFileStore = getStateFileStore(pFileState);
-      int32_t      code = streamStateSessionAddIfNotExist_rocksdb(pFileStore, pWinKey, gap, &p, &len);
+      int32_t      code = streamStateSessionAddIfNotExist_rocksdb(pFileStore, pWinKey, gap, &p, pVLen);
       SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
       pNewPos->needFree = true;
 
       qDebug("===stream===get session win:%" PRId64 ",%" PRId64 " from disc, res %d", startTs, endTs, code);
       if (code == TSDB_CODE_SUCCESS) {
-        memcpy(pNewPos->pRowBuff, p, len);
+        memcpy(pNewPos->pRowBuff, p, *pVLen);
       }
       taosMemoryFree(p);
       (*pVal) = pNewPos;
@@ -160,6 +159,20 @@ int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, 
 
 _end:
   return (*pVal) != NULL ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED;
+}
+
+int32_t getSessionFlushedBuff(SStreamFileState* pFileState, SSessionKey* pKey, void** pVal, int32_t* pVLen) {
+  SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
+  pNewPos->needFree = true;
+  void* pBuff = NULL;
+  int32_t code = streamStateSessionGet_rocksdb(getStateFileStore(pFileState), pKey, &pBuff, pVLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  memcpy(pNewPos->pRowBuff, pBuff, *pVLen);
+  taosMemoryFreeClear(pBuff);
+  (*pVal) = pNewPos;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t deleteSessionWinStateBuff(void* pBuff, const void *key, size_t keyLen) {
@@ -446,16 +459,15 @@ int32_t getStateWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, ch
 
   if (index + 1 == 0) {
     if (!isDeteled(pFileState, endTs) && isFlushedState(pFileState, endTs)) {
-      int32_t      len = 0;
       void*        p = NULL;
       void*        pFileStore = getStateFileStore(pFileState);
-      int32_t      code = streamStateStateAddIfNotExist_rocksdb(pFileStore, pWinKey, pKeyData, keyDataLen, fn, &p, &len);
+      int32_t      code = streamStateStateAddIfNotExist_rocksdb(pFileStore, pWinKey, pKeyData, keyDataLen, fn, &p, pVLen);
       SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
       pNewPos->needFree = true;
 
       qDebug("===stream===get session win:%" PRId64 ",%" PRId64 " from disc, res %d", startTs, endTs, code);
       if (code == TSDB_CODE_SUCCESS) {
-        memcpy(pNewPos->pRowBuff, p, len);
+        memcpy(pNewPos->pRowBuff, p, *pVLen);
       }
       taosMemoryFree(p);
       (*pVal) = pNewPos;

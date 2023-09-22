@@ -720,8 +720,7 @@ int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, void
 
 int32_t streamStateSessionGet(SStreamState* pState, SSessionKey* key, void** pVal, int32_t* pVLen) {
 #ifdef USE_ROCKSDB
-  ASSERT(0);
-  return streamStateSessionGet_rocksdb(pState, key, pVal, pVLen);
+  return getSessionFlushedBuff(pState->pFileState, key, pVal, pVLen);
 #else
 
   SStreamStateCur* pCur = streamStateSessionSeekKeyCurrentNext(pState, key);

@@ -28,29 +28,31 @@
 #define MIN_NUM_OF_ROW_BUFF            10240
 
 struct SStreamFileState {
-  SList*                 usedBuffs;
-  SList*                 freeBuffs;
-  void*                  rowStateBuff;
-  void*                  pFileStore;
-  int32_t                rowSize;
-  int32_t                selectivityRowSize;
-  int32_t                keyLen;
-  uint64_t               preCheckPointVersion;
-  uint64_t               checkPointVersion;
-  TSKEY                  maxTs;
-  TSKEY                  deleteMark;
-  TSKEY                  flushMark;
-  uint64_t               maxRowCount;
-  uint64_t               curRowCount;
-  GetTsFun               getTs;
-  char*                  id;
+  SList*   usedBuffs;
+  SList*   freeBuffs;
+  void*    rowStateBuff;
+  void*    pFileStore;
+  int32_t  rowSize;
+  int32_t  selectivityRowSize;
+  int32_t  keyLen;
+  uint64_t preCheckPointVersion;
+  uint64_t checkPointVersion;
+  TSKEY    maxTs;
+  TSKEY    deleteMark;
+  TSKEY    flushMark;
+  uint64_t maxRowCount;
+  uint64_t curRowCount;
+  GetTsFun getTs;
+  char*    id;
+  char*    cfName;
 
-  _state_buff_cleanup_fn stateBuffCleanupFn;
-  _state_buff_remove_fn  stateBuffRemoveFn;
+  _state_buff_cleanup_fn        stateBuffCleanupFn;
+  _state_buff_remove_fn         stateBuffRemoveFn;
+  _state_buff_create_statekeyfn stateBuffCreateStateKeyFn;
 
-  _state_file_remove_fn  stateFileRemoveFn;
-  _state_file_get_fn     stateFileGetFn;
-  _state_file_clear_fn   stateFileClearFn;
+  _state_file_remove_fn stateFileRemoveFn;
+  _state_file_get_fn    stateFileGetFn;
+  _state_file_clear_fn  stateFileClearFn;
 };
 
 typedef SRowBuffPos SRowBuffInfo;
@@ -75,12 +77,28 @@ int32_t intervalFileGetFn(SStreamFileState* pFileState, void* pKey, void* data, 
   return streamStateGet_rocksdb(pFileState->pFileStore, pKey, data, pDataLen);
 }
 
+void* intervalCreateStateKey(SRowBuffPos* pPos, int64_t num) {
+  SStateKey* pStateKey = taosMemoryCalloc(1, sizeof(SStateKey));
+  SWinKey* pWinKey =  pPos->pKey;
+  pStateKey->key = *pWinKey;
+  pStateKey->opNum = num;
+  return pStateKey;
+}
+
 int32_t sessionFileRemoveFn(SStreamFileState* pFileState, const void* pKey) {
   return streamStateSessionDel_rocksdb(pFileState->pFileStore, pKey);
 }
 
 int32_t sessionFileGetFn(SStreamFileState* pFileState, void* pKey, void* data, int32_t* pDataLen) {
   return streamStateSessionGet_rocksdb(pFileState->pFileStore, pKey, data, pDataLen);
+}
+
+void* sessionCreateStateKey(SRowBuffPos* pPos, int64_t num) {
+  SStateSessionKey* pStateKey = taosMemoryCalloc(1, sizeof(SStateSessionKey));
+  SSessionKey* pWinKey =  pPos->pKey;
+  pStateKey->key = *pWinKey;
+  pStateKey->opNum = num;
+  return pStateKey;
 }
 
 SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize, uint32_t selectRowSize,
@@ -107,18 +125,22 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
     pFileState->rowStateBuff = tSimpleHashInit(cap, hashFn);
     pFileState->stateBuffCleanupFn = stateHashBuffCleanupFn;
     pFileState->stateBuffRemoveFn = stateHashBuffRemoveFn;
+    pFileState->stateBuffCreateStateKeyFn = intervalCreateStateKey;
 
     pFileState->stateFileRemoveFn = intervalFileRemoveFn;
     pFileState->stateFileGetFn = intervalFileGetFn;
     pFileState->stateFileClearFn = streamStateClear_rocksdb;
+    pFileState->cfName = taosStrdup("state");
   } else {
     pFileState->rowStateBuff = tSimpleHashInit(cap, hashFn);
     pFileState->stateBuffCleanupFn = sessionWinStateCleanup;
     pFileState->stateBuffRemoveFn = deleteSessionWinStateBuff;
+    pFileState->stateBuffCreateStateKeyFn = sessionCreateStateKey;
 
     pFileState->stateFileRemoveFn = sessionFileRemoveFn;
     pFileState->stateFileGetFn = sessionFileGetFn;
     pFileState->stateFileClearFn = streamStateSessionClear_rocksdb;
+    pFileState->cfName = taosStrdup("sess");
   }
 
   if (!pFileState->usedBuffs || !pFileState->freeBuffs || !pFileState->rowStateBuff) {
@@ -183,6 +205,7 @@ void streamFileStateDestroy(SStreamFileState* pFileState) {
   }
 
   taosMemoryFree(pFileState->id);
+  taosMemoryFree(pFileState->cfName);
   tdListFreeP(pFileState->usedBuffs, destroyRowBuffAllPosPtr);
   tdListFreeP(pFileState->freeBuffs, destroyRowBuff);
   pFileState->stateBuffCleanupFn(pFileState->rowStateBuff);
@@ -226,9 +249,6 @@ void streamFileStateClear(SStreamFileState* pFileState) {
 bool needClearDiskBuff(SStreamFileState* pFileState) { return pFileState->flushMark > 0; }
 
 void streamFileStateReleaseBuff(SStreamFileState* pFileState, SRowBuffPos* pPos, bool used) {
-  if (pPos->needFree) {
-    putFreeBuff(pFileState, pPos);
-  }
   pPos->beUsed = used;
 }
 
@@ -391,8 +411,19 @@ int32_t deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t ke
   return TSDB_CODE_FAILED;
 }
 
+static void recoverSessionRowBuff(SStreamFileState* pFileState, SRowBuffPos* pPos) {
+  int32_t len = 0;
+  void*   pBuff = NULL;
+  pFileState->stateFileGetFn(pFileState, pPos->pKey, &pBuff, &len);
+  memcpy(pPos->pRowBuff, pBuff, len);
+  taosMemoryFree(pBuff);
+}
+
 int32_t getRowBuffByPos(SStreamFileState* pFileState, SRowBuffPos* pPos, void** pVal) {
   if (pPos->pRowBuff) {
+    if (pPos->needFree) {
+      recoverSessionRowBuff(pFileState, pPos);
+    }
     (*pVal) = pPos->pRowBuff;
     return TSDB_CODE_SUCCESS;
   }
@@ -405,11 +436,7 @@ int32_t getRowBuffByPos(SStreamFileState* pFileState, SRowBuffPos* pPos, void** 
     ASSERT(pPos->pRowBuff);
   }
 
-  int32_t len = 0;
-  void*   pBuff = NULL;
-  pFileState->stateFileGetFn(pFileState, pPos->pKey, &pBuff, &len);
-  memcpy(pPos->pRowBuff, pBuff, len);
-  taosMemoryFree(pBuff);
+  recoverSessionRowBuff(pFileState, pPos);
   (*pVal) = pPos->pRowBuff;
   tdListPrepend(pFileState->usedBuffs, &pPos);
   return TSDB_CODE_SUCCESS;
@@ -452,7 +479,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
   int32_t    numOfElems = listNEles(pSnapshot);
   SListNode* pNode = NULL;
 
-  int idx = streamStateGetCfIdx(pFileState->pFileStore, "state");
+  int idx = streamStateGetCfIdx(pFileState->pFileStore, pFileState->cfName);
 
   int32_t len = pFileState->rowSize + sizeof(uint64_t) + sizeof(int32_t) + 1;
   char*   buf = taosMemoryCalloc(1, len);
@@ -471,12 +498,12 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
       streamStateClearBatch(batch);
     }
 
-    SStateKey sKey = {.key = *((SWinKey*)pPos->pKey), .opNum = ((SStreamState*)pFileState->pFileStore)->number};
-    code = streamStatePutBatchOptimize(pFileState->pFileStore, idx, batch, &sKey, pPos->pRowBuff, pFileState->rowSize,
+    void* pSKey = pFileState->stateBuffCreateStateKeyFn(pPos, ((SStreamState*)pFileState->pFileStore)->number);
+    code = streamStatePutBatchOptimize(pFileState->pFileStore, idx, batch, pSKey, pPos->pRowBuff, pFileState->rowSize,
                                        0, buf);
+    taosMemoryFreeClear(pSKey);
     // todo handle failure
     memset(buf, 0, len);
-    //    qDebug("===stream===put %" PRId64 " to disc, res %d", sKey.key.ts, code);
   }
   taosMemoryFree(buf);
 
@@ -637,7 +664,7 @@ bool isDeteled(SStreamFileState* pFileState, TSKEY ts) {
 }
 
 bool isFlushedState(SStreamFileState* pFileState, TSKEY ts) {
-  return ts < pFileState->flushMark;
+  return ts <= pFileState->flushMark;
 }
 
 int32_t getRowStateRowSize(SStreamFileState* pFileState) {

@@ -2595,11 +2595,15 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
 
 void streamSessionReleaseState(SOperatorInfo* pOperator) {
   SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
-  int32_t                        resSize = taosArrayGetSize(pInfo->historyWins) * sizeof(SSessionKey);
+  int32_t                        winSize = taosArrayGetSize(pInfo->historyWins) * sizeof(SSessionKey);
+  int32_t                        resSize = winSize + sizeof(TSKEY);
+  char*                          pBuff = taosMemoryCalloc(1, resSize);
+  memcpy(pBuff, pInfo->historyWins->pData, winSize);
+  memcpy(pBuff + winSize, &pInfo->twAggSup.maxTs, sizeof(TSKEY));
   pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_SESSION_OP_STATE_NAME,
-                                                     strlen(STREAM_SESSION_OP_STATE_NAME), pInfo->historyWins->pData,
-                                                     resSize);
+                                                     strlen(STREAM_SESSION_OP_STATE_NAME), pBuff, resSize);
   pInfo->streamAggSup.stateStore.streamStateCommit(pInfo->streamAggSup.pState);
+  taosMemoryFreeClear(pBuff);
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   if (downstream->fpSet.releaseStreamStateFn) {
     downstream->fpSet.releaseStreamStateFn(downstream);
@@ -2621,20 +2625,34 @@ void streamSessionSemiReloadState(SOperatorInfo* pOperator) {
   void* pBuf = NULL;
   int32_t code = pAggSup->stateStore.streamStateGetInfo(pAggSup->pState, STREAM_SESSION_OP_STATE_NAME,
                                                         strlen(STREAM_SESSION_OP_STATE_NAME), &pBuf, &size);
-  int32_t num = size / sizeof(SSessionKey);
+  int32_t num = (size - sizeof(TSKEY)) / sizeof(SSessionKey);
   SSessionKey* pSeKeyBuf = (SSessionKey*) pBuf;
-  ASSERT(size == num * sizeof(SSessionKey));
+  ASSERT(size == num * sizeof(SSessionKey) + sizeof(TSKEY));
   for (int32_t i = 0; i < num; i++) {
     SResultWindowInfo winInfo = {0};
     setSessionOutputBuf(pAggSup, pSeKeyBuf[i].win.skey, pSeKeyBuf[i].win.ekey, pSeKeyBuf[i].groupId, &winInfo);
     compactSessionSemiWindow(pOperator, &winInfo);
     saveSessionOutputBuf(pAggSup, &winInfo);
   }
+  TSKEY ts = *(TSKEY*)((char*)pBuf + size - sizeof(TSKEY));
   taosMemoryFree(pBuf);
+  pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, ts);
+  pAggSup->stateStore.streamStateReloadInfo(pAggSup->pState, ts);
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   if (downstream->fpSet.reloadStreamStateFn) {
     downstream->fpSet.reloadStreamStateFn(downstream);
+  }
+}
+
+void getSessionWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey, SResultWindowInfo* pWinInfo) {
+  int32_t rowSize = pAggSup->resultRowSize;
+  int32_t code = pAggSup->stateStore.streamStateSessionGet(pAggSup->pState, pKey, (void**)&pWinInfo->pStatePos, &rowSize);
+  if (code == TSDB_CODE_SUCCESS) {
+    pWinInfo->sessionWin = *pKey;
+    pWinInfo->isOutput = true;
+  } else {
+    SET_SESSION_WIN_INVALID((*pWinInfo));
   }
 }
 
@@ -2643,21 +2661,25 @@ void streamSessionReloadState(SOperatorInfo* pOperator) {
   SStreamAggSupporter*           pAggSup = &pInfo->streamAggSup;
   resetWinRange(&pAggSup->winRange);
 
-  SResultWindowInfo winInfo = {0};
   int32_t           size = 0;
   void*             pBuf = NULL;
   int32_t           code = pAggSup->stateStore.streamStateGetInfo(pAggSup->pState, STREAM_SESSION_OP_STATE_NAME,
                                                                   strlen(STREAM_SESSION_OP_STATE_NAME), &pBuf, &size);
-  int32_t           num = size / sizeof(SSessionKey);
+  int32_t           num = (size - sizeof(TSKEY)) / sizeof(SSessionKey);
   SSessionKey*      pSeKeyBuf = (SSessionKey*)pBuf;
-  ASSERT(size == num * sizeof(SSessionKey));
+  ASSERT(size == num * sizeof(SSessionKey) + sizeof(TSKEY));
+
+  TSKEY ts = *(TSKEY*)((char*)pBuf + size - sizeof(TSKEY));
+  pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, ts);
+  pAggSup->stateStore.streamStateReloadInfo(pAggSup->pState, ts);
+
   if (!pInfo->pStUpdated && num > 0) {
     _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
     pInfo->pStUpdated = tSimpleHashInit(64, hashFn);
   }
   for (int32_t i = 0; i < num; i++) {
     SResultWindowInfo winInfo = {0};
-    setSessionOutputBuf(pAggSup, pSeKeyBuf[i].win.skey, pSeKeyBuf[i].win.ekey, pSeKeyBuf[i].groupId, &winInfo);
+    getSessionWindowInfoByKey(pAggSup, pSeKeyBuf + i, &winInfo);
     int32_t winNum = compactSessionWindow(pOperator, &winInfo, pInfo->pStUpdated, pInfo->pStDeleted, true);
     if (winNum > 0) {
       qDebug("===stream=== reload state. save result %" PRId64 ", %" PRIu64, winInfo.sessionWin.win.skey,
