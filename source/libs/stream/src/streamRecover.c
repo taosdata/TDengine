@@ -214,7 +214,7 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
 
   if (pInfo->stage == -1) {
     pInfo->stage = stage;
-    stDebug("s-task:%s receive check msg from upstream task:0x%x for the time, init stage value:%" PRId64, id,
+    stDebug("s-task:%s receive check msg from upstream task:0x%x first time, init stage value:%" PRId64, id,
            upstreamTaskId, stage);
   }
 
@@ -223,7 +223,13 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
            id, upstreamTaskId, vgId, stage, pInfo->stage);
   }
 
-  return ((pTask->status.downstreamReady == 1) && (pInfo->stage == stage))? 1:0;
+  if (pTask->status.downstreamReady != 1) {
+    return TASK_DOWNSTREAM_NOT_READY;
+  } else if (pInfo->stage != stage) {
+    return TASK_SELF_NEW_STAGE;
+  } else {
+    return TASK_DOWNSTREAM_READY;
+  }
 }
 
 static void doProcessDownstreamReadyRsp(SStreamTask* pTask, int32_t numOfReqs) {
@@ -259,7 +265,7 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
   ASSERT(pTask->id.taskId == pRsp->upstreamTaskId);
   const char* id = pTask->id.idStr;
 
-  if (pRsp->status == 1) {
+  if (pRsp->status == TASK_DOWNSTREAM_READY) {
     if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
       bool found = false;
 
@@ -298,10 +304,20 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
       doProcessDownstreamReadyRsp(pTask, 1);
     }
   } else {  // not ready, wait for 100ms and retry
-    stDebug("s-task:%s downstream taskId:0x%x (vgId:%d) not ready, stage:%d, wait for 100ms and retry", id,
-           pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->oldStage);
-    taosMsleep(100);
-    streamRecheckDownstream(pTask, pRsp);
+    if (pRsp->status == TASK_DOWNSTREAM_NOT_LEADER) {
+     stError("s-task:%s downstream taskId:0x%x (vgId:%d) vnode-transfer/leader-change detected, roll-back needed not send check again",
+         id, pRsp->downstreamTaskId, pRsp->downstreamNodeId);
+    } else if (pRsp->status == TASK_SELF_NEW_STAGE) {
+      stError(
+          "s-task:%s vnode-transfer/leader-change/restart detected, old stage:%d, current stage:%d, roll-back needed "
+          "and not send check again",
+          id, pRsp->oldStage, (int32_t) pTask->pMeta->stage);
+    } else {
+      stDebug("s-task:%s downstream taskId:0x%x (vgId:%d) not ready, stage:%d, wait for 100ms and retry", id,
+              pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->oldStage);
+      taosMsleep(100);
+      streamRecheckDownstream(pTask, pRsp);
+    }
   }
 
   return 0;
