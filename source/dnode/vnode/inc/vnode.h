@@ -86,11 +86,13 @@ void   *vnodeGetIdx(void *pVnode);
 void   *vnodeGetIvtIdx(void *pVnode);
 
 int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num);
+int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num);
 int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num);
 int32_t vnodeGetAllCtbNum(SVnode *pVnode, int64_t *num);
 
 void    vnodeResetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
+int32_t vnodeGetLoadLite(SVnode *pVnode, SVnodeLoadLite *pLoad);
 int32_t vnodeValidateTableHash(SVnode *pVnode, char *tableFName);
 
 int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg);
@@ -134,7 +136,7 @@ bool     metaTbInFilterCache(void *pVnode, tb_uid_t suid, int8_t type);
 int32_t  metaPutTbToFilterCache(void *pVnode, tb_uid_t suid, int8_t type);
 int32_t  metaSizeOfTbFilterCache(void *pVnode, int8_t type);
 
-int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables);
+int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t *numOfCols);
 
 // tsdb
 typedef struct STsdbReader STsdbReader;
@@ -288,10 +290,10 @@ typedef struct {
   int64_t numOfSTables;
   int64_t numOfCTables;
   int64_t numOfNTables;
-  int64_t numOfCmprTimeSeries;
+  int64_t numOfReportedTimeSeries;
   int64_t numOfNTimeSeries;
   int64_t numOfTimeSeries;
-  int64_t itvTimeSeries;
+  // int64_t itvTimeSeries;
   int64_t pointsWritten;
   int64_t totalStorage;
   int64_t compStorage;

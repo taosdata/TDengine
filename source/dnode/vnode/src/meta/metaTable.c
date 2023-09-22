@@ -15,7 +15,7 @@
 
 #include "meta.h"
 
-extern int8_t tsNeedUpdStatus;
+extern tsem_t dmNotifySem;
 
 static int  metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 static int  metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
@@ -192,6 +192,16 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
   taosArrayDestroy(pTagVals);
 #endif
   return 0;
+}
+
+static inline void metaTimeSeriesNotifyCheck(SMeta *pMeta) {
+#ifdef TD_ENTERPRISE
+  int64_t nTimeSeries = metaGetTimeSeriesNum(pMeta, 0);
+  int64_t deltaTS = nTimeSeries - pMeta->pVnode->config.vndStats.numOfReportedTimeSeries;
+  if (abs(deltaTS) > tsTimeSeriesThreshold) {
+    tsem_post(&dmNotifySem);
+  }
+#endif
 }
 
 int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
@@ -392,6 +402,8 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   metaUpdateUidIdx(pMeta, &nStbEntry);
 
   // metaStatsCacheDrop(pMeta, nStbEntry.uid);
+
+  metaUpdateStbStats(pMeta, pReq->suid, 0, pReq->schemaRow.nCols);
 
   metaULock(pMeta);
 
@@ -773,10 +785,12 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
 
     ++pStats->numOfCTables;
 
-    pStats->numOfTimeSeries += 2;  // 2 cols for test.
+    int32_t nCols = 0;
+    metaGetStbStats(pMeta->pVnode, me.ctbEntry.suid, 0, &nCols);
+    pStats->numOfTimeSeries = pStats->numOfCTables * (nCols - 1);
 
     metaWLock(pMeta);
-    metaUpdateStbStats(pMeta, me.ctbEntry.suid, 1);
+    metaUpdateStbStats(pMeta, me.ctbEntry.suid, 1, 0);
     metaUidCacheClear(pMeta, me.ctbEntry.suid);
     metaTbGroupCacheClear(pMeta, me.ctbEntry.suid);
     metaULock(pMeta);
@@ -793,15 +807,8 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
   }
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
-  // assert(pStats->numOfTimeSeries + pStats->numOfNTimeSeries < 200000);
-  // if (pStats->numOfTimeSeries + pStats->numOfNTimeSeries - pStats->numOfCmprTimeSeries > 100) {
-  //   pStats->numOfCmprTimeSeries = pStats->numOfTimeSeries + pStats->numOfNTimeSeries;
-  //   SDndNotifyInfo dNotifyInfo = {.vgId = pMeta->pVnode->config.vgId,
-  //                                 .nTimeSeries = pStats->numOfTimeSeries + pStats->numOfNTimeSeries};
-  //   dmProcessNotifyReq(&dNotifyInfo);
-  // }
 
-  atomic_val_compare_exchange_8(&tsNeedUpdStatus, 0, 1);
+  metaTimeSeriesNotifyCheck(pMeta);
 
   if (pMetaRsp) {
     *pMetaRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
@@ -1086,19 +1093,23 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
 
   if (e.type != TSDB_SUPER_TABLE) metaDeleteTtl(pMeta, &e);
 
+  SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
   if (e.type == TSDB_CHILD_TABLE) {
     tdbTbDelete(pMeta->pCtbIdx, &(SCtbIdxKey){.suid = e.ctbEntry.suid, .uid = uid}, sizeof(SCtbIdxKey), pMeta->txn);
 
-    --pMeta->pVnode->config.vndStats.numOfCTables;
+    --pStats->numOfCTables;
+    int32_t nCols = 0;
+    metaGetStbStats(pMeta->pVnode, e.ctbEntry.suid, 0, &nCols);
+    pStats->numOfTimeSeries = pStats->numOfCTables * (nCols - 1);
 
-    metaUpdateStbStats(pMeta, e.ctbEntry.suid, -1);
+    metaUpdateStbStats(pMeta, e.ctbEntry.suid, -1, 0);
     metaUidCacheClear(pMeta, e.ctbEntry.suid);
     metaTbGroupCacheClear(pMeta, e.ctbEntry.suid);
   } else if (e.type == TSDB_NORMAL_TABLE) {
     // drop schema.db (todo)
 
-    --pMeta->pVnode->config.vndStats.numOfNTables;
-    pMeta->pVnode->config.vndStats.numOfNTimeSeries -= e.ntbEntry.schemaRow.nCols - 1;
+    --pStats->numOfNTables;
+    pStats->numOfNTimeSeries -= e.ntbEntry.schemaRow.nCols - 1;
   } else if (e.type == TSDB_SUPER_TABLE) {
     tdbTbDelete(pMeta->pSuidIdx, &e.uid, sizeof(tb_uid_t), pMeta->txn);
     // drop schema.db (todo)
@@ -1106,12 +1117,13 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
     metaStatsCacheDrop(pMeta, uid);
     metaUidCacheClear(pMeta, uid);
     metaTbGroupCacheClear(pMeta, uid);
-    --pMeta->pVnode->config.vndStats.numOfSTables;
+    metaUpdTimeSeriesNum(pMeta);
+    --pStats->numOfSTables;
   }
 
-  atomic_val_compare_exchange_8(&tsNeedUpdStatus, 0, 1);
-
   metaCacheDrop(pMeta, uid);
+
+  metaTimeSeriesNotifyCheck(pMeta);
 
   tDecoderClear(&dc);
   tdbFree(pData);
@@ -1272,6 +1284,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
       strcpy(pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].name, pAlterTbReq->colName);
 
       ++pMeta->pVnode->config.vndStats.numOfNTimeSeries;
+      metaTimeSeriesNotifyCheck(pMeta);
       break;
     case TSDB_ALTER_TABLE_DROP_COLUMN:
       if (pColumn == NULL) {
@@ -1294,6 +1307,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
       pSchema->nCols--;
 
       --pMeta->pVnode->config.vndStats.numOfNTimeSeries;
+      metaTimeSeriesNotifyCheck(pMeta);
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
       if (pColumn == NULL) {

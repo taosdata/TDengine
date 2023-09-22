@@ -1041,10 +1041,15 @@ int32_t tSerializeSNotifyReq(void *buf, int32_t bufLen, SNotifyReq *pReq) {
 
   if (tStartEncode(&encoder) < 0) return -1;
 
-  if (tEncodeI32(&encoder, pReq->nVgroup) < 0) return -1;
-  for (int32_t i = 0; i < pReq->nVgroup; ++i) {
-    if (tEncodeI32(&encoder, (pReq->payload + i)->vgId) < 0) return -1;
-    if (tEncodeI64(&encoder, (pReq->payload + i)->nTimeSeries) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->dnodeId) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->clusterId) < 0) return -1;
+
+  int32_t nVgroup = taosArrayGetSize(pReq->pVloads);
+  if (tEncodeI32(&encoder, nVgroup) < 0) return -1;
+  for (int32_t i = 0; i < nVgroup; ++i) {
+    SVnodeLoadLite *vload = TARRAY_GET_ELEM(pReq->pVloads, i);
+    if (tEncodeI32(&encoder, vload->vgId) < 0) return -1;
+    if (tEncodeI64(&encoder, vload->nTimeSeries) < 0) return -1;
   }
 
   tEndEncode(&encoder);
@@ -1055,29 +1060,39 @@ int32_t tSerializeSNotifyReq(void *buf, int32_t bufLen, SNotifyReq *pReq) {
 }
 
 int32_t tDeserializeSNotifyReq(void *buf, int32_t bufLen, SNotifyReq *pReq) {
+  int32_t  code = TSDB_CODE_INVALID_MSG;
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
-  if (tStartDecode(&decoder) < 0) return -1;
-
-  if (tDecodeI32(&decoder, &pReq->nVgroup) < 0) return -1;
-
-  pReq->payload = taosMemoryMalloc(pReq->nVgroup * (sizeof(SDndNotifyInfo)));
-  if (!pReq->payload) return -1;
-
-  for (int32_t i = 0; i < pReq->nVgroup; ++i) {
-    if (tDecodeI32(&decoder, &((pReq->payload + i)->vgId)) < 0) return -1;
-    if (tDecodeI64(&decoder, &((pReq->payload + i)->nTimeSeries)) < 0) return -1;
+  if (tStartDecode(&decoder) < 0) goto _exit;
+  if (tDecodeI32(&decoder, &pReq->dnodeId) < 0) goto _exit;
+  if (tDecodeI64(&decoder, &pReq->clusterId) < 0) goto _exit;
+  int32_t nVgroup = 0;
+  if (tDecodeI32(&decoder, &nVgroup) < 0) goto _exit;
+  if (nVgroup > 0) {
+    pReq->pVloads = taosArrayInit(nVgroup, sizeof(SVnodeLoadLite));
+    if (!pReq->pVloads) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+    for (int32_t i = 0; i < nVgroup; ++i) {
+      SVnodeLoadLite *vload = TARRAY_GET_ELEM(pReq->pVloads, i);
+      if (tDecodeI32(&decoder, &(vload->vgId)) < 0) goto _exit;
+      if (tDecodeI64(&decoder, &(vload->nTimeSeries)) < 0) goto _exit;
+    }
   }
 
+  code = 0;
+  
+_exit:
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
-  return 0;
+  return code;
 }
 
 void tFreeSNotifyReq(SNotifyReq *pReq) {
   if (pReq) {
-    taosMemoryFreeClear(pReq->payload);
+    taosArrayDestroy(pReq->pVloads);
   }
 }
 

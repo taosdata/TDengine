@@ -17,7 +17,6 @@
 #include "dmInt.h"
 #include "thttp.h"
 
-int8_t       tsNeedUpdStatus = 0;
 static void *dmStatusThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
@@ -29,13 +28,13 @@ static void *dmStatusThreadFp(void *param) {
   int64_t              upTime = 0;
 
   while (1) {
-    taosMsleep(100);
+    taosMsleep(200);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
     if (curTime < lastTime) lastTime = curTime;
     float interval = (curTime - lastTime) / 1000.0f;
-    if (atomic_val_compare_exchange_8(&tsNeedUpdStatus, 1, 0) == 1 || interval >= tsStatusInterval) {
+    if (interval >= tsStatusInterval) {
       dmSendStatusReq(pMgmt);
       lastTime = curTime;
 
@@ -49,6 +48,26 @@ static void *dmStatusThreadFp(void *param) {
         tsDndUpTime = TMAX(tsDndUpTime, upTime);
       }
     }
+  }
+
+  return NULL;
+}
+
+tsem_t       dmNotifySem;
+static void *dmNotifyThreadFp(void *param) {
+  SDnodeMgmt *pMgmt = param;
+  int64_t     lastTime = taosGetTimestampMs();
+  setThreadName("dnode-notify");
+
+  if (tsem_init(&dmNotifySem, 0, 0) != 0) {
+    return NULL;
+  }
+
+  while (1) {
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
+
+    tsem_wait(&dmNotifySem);
+    dmSendNotifyReq(pMgmt);
   }
 
   return NULL;
@@ -152,6 +171,29 @@ void dmStopStatusThread(SDnodeMgmt *pMgmt) {
     taosThreadJoin(pMgmt->statusThread, NULL);
     taosThreadClear(&pMgmt->statusThread);
   }
+}
+
+int32_t dmStartNotifyThread(SDnodeMgmt *pMgmt) {
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  if (taosThreadCreate(&pMgmt->notifyThread, &thAttr, dmNotifyThreadFp, pMgmt) != 0) {
+    dError("failed to create notify thread since %s", strerror(errno));
+    return -1;
+  }
+
+  taosThreadAttrDestroy(&thAttr);
+  tmsgReportStartup("dnode-notify", "initialized");
+  return 0;
+}
+
+void dmStopNotifyThread(SDnodeMgmt *pMgmt) {
+  if (taosCheckPthreadValid(pMgmt->notifyThread)) {
+    tsem_post(&dmNotifySem);
+    taosThreadJoin(pMgmt->notifyThread, NULL);
+    taosThreadClear(&pMgmt->notifyThread);
+  }
+  tsem_destroy(&dmNotifySem);
 }
 
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt) {

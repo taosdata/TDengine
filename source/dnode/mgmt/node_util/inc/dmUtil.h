@@ -92,8 +92,6 @@ typedef void (*GetMnodeLoadsFp)(SMonMloadInfo *pInfo);
 typedef void (*GetQnodeLoadsFp)(SQnodeLoad *pInfo);
 typedef int32_t (*ProcessAlterNodeTypeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 
-int32_t dmProcessNotifyReq(SDndNotifyInfo *pInfo);
-
 typedef struct {
   int32_t        dnodeId;
   int64_t        clusterId;
@@ -123,6 +121,7 @@ typedef struct {
   ProcessDropNodeFp   processDropNodeFp;
   SendMonitorReportFp sendMonitorReportFp;
   GetVnodeLoadsFp     getVnodeLoadsFp;
+  GetVnodeLoadsFp     getVnodeLoadsLiteFp;
   GetMnodeLoadsFp     getMnodeLoadsFp;
   GetQnodeLoadsFp     getQnodeLoadsFp;
 } SMgmtInputOpt;
