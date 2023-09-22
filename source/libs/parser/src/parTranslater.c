@@ -3002,12 +3002,12 @@ static int32_t createTags(STranslateContext* pCxt, SNodeList** pOutput) {
 }
 
 
-#ifndef TD_BI_SUPPORT
+#ifndef TD_ENTERPRISE
 int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
   return TSDB_CODE_SUCCESS;
 }
-
 #endif
+
 static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
   SNode* pNode = NULL;
   WHERE_EACH(pNode, pSelect->pProjectionList) {
