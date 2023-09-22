@@ -142,6 +142,8 @@ static int32_t buildDispatchRsp(const SStreamTask* pTask, const SStreamDispatchR
   ((SMsgHead*)(*pBuf))->vgId = htonl(pReq->upstreamNodeId);
   SStreamDispatchRsp* pDispatchRsp = POINTER_SHIFT((*pBuf), sizeof(SMsgHead));
 
+  pDispatchRsp->stage = htobe64(pReq->stage);
+  pDispatchRsp->msgId = htonl(pReq->msgId);
   pDispatchRsp->inputStatus = status;
   pDispatchRsp->streamId = htobe64(pReq->streamId);
   pDispatchRsp->upstreamNodeId = htonl(pReq->upstreamNodeId);

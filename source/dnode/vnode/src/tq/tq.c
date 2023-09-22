@@ -1372,6 +1372,8 @@ int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg) {
   pRsp->streamId = htobe64(pRsp->streamId);
   pRsp->downstreamTaskId = htonl(pRsp->downstreamTaskId);
   pRsp->downstreamNodeId = htonl(pRsp->downstreamNodeId);
+  pRsp->stage = htobe64(pRsp->stage);
+  pRsp->msgId = htonl(pRsp->msgId);
 
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pRsp->streamId, pRsp->upstreamTaskId);
   if (pTask) {
@@ -1597,6 +1599,8 @@ FAIL:
   pRsp->upstreamNodeId = htonl(req.upstreamNodeId);
   pRsp->downstreamNodeId = htonl(pVnode->config.vgId);
   pRsp->downstreamTaskId = htonl(req.taskId);
+  pRsp->msgId = htonl(req.msgId);
+  pRsp->stage = htobe64(req.stage);
   pRsp->inputStatus = TASK_OUTPUT_STATUS__NORMAL;
 
   int32_t len = sizeof(SMsgHead) + sizeof(SStreamDispatchRsp);

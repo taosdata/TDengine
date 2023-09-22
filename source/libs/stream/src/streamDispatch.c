@@ -53,6 +53,7 @@ void initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen) {
 int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->stage) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->msgId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->srcVgId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->type) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
@@ -78,6 +79,7 @@ int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* p
 int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->stage) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->msgId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->srcVgId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pReq->type) < 0) return -1;
   if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
@@ -112,6 +114,7 @@ static int32_t tInitStreamDispatchReq(SStreamDispatchReq* pReq, const SStreamTas
   pReq->streamId = pTask->id.streamId;
   pReq->srcVgId = vgId;
   pReq->stage = pTask->pMeta->stage;
+  pReq->msgId = pTask->taskExecInfo.dispatchCount;
   pReq->upstreamTaskId = pTask->id.taskId;
   pReq->upstreamChildId = pTask->info.selfChildId;
   pReq->upstreamNodeId = pTask->info.nodeId;
@@ -1056,7 +1059,20 @@ static int32_t handleDispatchSuccessRsp(SStreamTask* pTask, int32_t downstreamId
 
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code) {
   const char* id = pTask->id.idStr;
+  int32_t     vgId = pTask->pMeta->vgId;
   int32_t msgId = pTask->taskExecInfo.dispatchCount;
+
+  if ((!pTask->pMeta->leader) || (pTask->status.downstreamReady != 1)) {
+    stError("s-task:%s vgId:%d is follower or task just re-launched, not handle the dispatch rsp, discard it", id, vgId);
+    return TSDB_CODE_STREAM_TASK_NOT_EXIST;
+  }
+
+  if ((pRsp->msgId != msgId) || (pRsp->stage != pTask->pMeta->stage)) {
+    stError("s-task:%s vgId:%d not expect rsp, expected: msgId:%d, stage:%" PRId64 " actual msgId:%d, stage:%" PRId64
+            " discard it",
+            id, vgId, msgId, pTask->pMeta->stage, pRsp->msgId, pRsp->stage);
+    return TSDB_CODE_INVALID_MSG;
+  }
 
   int32_t leftRsp = 0;
 
