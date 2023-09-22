@@ -1566,7 +1566,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         colDataSetVal(pColInfo, numOfRows, (const char *)&level, false);
 
         // status
-        char   status[20 + VARSTR_HEADER_SIZE] = {0};
+        char status[20 + VARSTR_HEADER_SIZE] = {0};
 
         STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
         STaskStatusEntry* pe = taosHashGet(execNodeList.pTaskMap, &id, sizeof(id));
@@ -1579,6 +1579,9 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         colDataSetVal(pColInfo, numOfRows, (const char *)&status, false);
+
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        colDataSetVal(pColInfo, numOfRows, (const char *)&pe->stage, false);
 
         numOfRows++;
       }
