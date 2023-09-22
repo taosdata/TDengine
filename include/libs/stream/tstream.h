@@ -452,6 +452,7 @@ struct SStreamDispatchReq {
   int64_t stage;  // nodeId from upstream task
   int64_t streamId;
   int32_t taskId;
+  int32_t msgId;      // msg id to identify if the incoming msg from the same sender
   int32_t srcVgId;
   int32_t upstreamTaskId;
   int32_t upstreamChildId;
@@ -468,7 +469,9 @@ typedef struct {
   int32_t upstreamTaskId;
   int32_t downstreamNodeId;
   int32_t downstreamTaskId;
+  int32_t msgId;
   int8_t  inputStatus;
+  int64_t stage;
 } SStreamDispatchRsp;
 
 typedef struct {
