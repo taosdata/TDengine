@@ -3034,7 +3034,7 @@ static void biMakeAliasNameInMD5(char* pExprStr, int32_t len, char* pAlias) {
   }
 }
 
-static SNode* biMakeTbnameProjectionNode(char* funcName, char* tableAlias) {
+static SNode* biMakeTbnameProjectAstNode(char* funcName, char* tableAlias) {
   SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   val->literal = strdup(tableAlias);
   val->node.resType.type = TSDB_DATA_TYPE_BINARY;
@@ -3045,18 +3045,18 @@ static SNode* biMakeTbnameProjectionNode(char* funcName, char* tableAlias) {
   SNodeList* paramList = nodesMakeList();
   nodesListAppend(paramList, (SNode*)val);
 
-  SFunctionNode* tbNamefunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
-  strncpy(tbNamefunc->functionName, "tbname", strlen("tbname"));
-  nodesListMakeAppend(&tbNamefunc->pParameterList, (SNode*)val);
+  SFunctionNode* tbNameFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  strncpy(tbNameFunc->functionName, "tbname", strlen("tbname"));
+  nodesListMakeAppend(&tbNameFunc->pParameterList, (SNode*)val);
 
-  snprintf(tbNamefunc->node.userAlias, sizeof(tbNamefunc->node.userAlias), "%s.tbname", tableAlias);
-  biMakeAliasNameInMD5(tbNamefunc->node.userAlias, strlen(tbNamefunc->node.userAlias), tbNamefunc->node.aliasName);
+  snprintf(tbNameFunc->node.userAlias, sizeof(tbNameFunc->node.userAlias), "%s.tbname", tableAlias);
+  biMakeAliasNameInMD5(tbNameFunc->node.userAlias, strlen(tbNameFunc->node.userAlias), tbNameFunc->node.aliasName);
   if (funcName == NULL) {
-    return (SNode*)tbNamefunc;
+    return (SNode*)tbNameFunc;
   } else {
     SFunctionNode* multiResFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
     strncpy(multiResFunc->functionName, funcName, strlen(funcName));
-    nodesListMakeAppend(&multiResFunc->pParameterList, (SNode*)tbNamefunc);
+    nodesListMakeAppend(&multiResFunc->pParameterList, (SNode*)tbNameFunc);
 
     snprintf(multiResFunc->node.userAlias, sizeof(multiResFunc->node.userAlias), "%s(%s.tbname)", funcName, tableAlias);
     biMakeAliasNameInMD5(multiResFunc->node.userAlias, strlen(multiResFunc->node.userAlias), multiResFunc->node.aliasName);
@@ -3068,7 +3068,9 @@ static int32_t biRewriteSelectFuncParamStar(STranslateContext* pCxt, SSelectStmt
   SNodeList* pTbnameNodeList = nodesMakeList();
 
   SFunctionNode* pFunc = (SFunctionNode*)pNode;
-  if (pFunc->funcType == FUNCTION_TYPE_LAST || pFunc->funcType == FUNCTION_TYPE_LAST_ROW || pFunc->funcType == FUNCTION_TYPE_FIRST) {
+  if (strcasecmp(pFunc->functionName, "last") == 0 || 
+      strcasecmp(pFunc->functionName, "last_row") == 0 ||
+      strcasecmp(pFunc->functionName, "first") == 0) {
     SNodeList* pParams = pFunc->pParameterList;
     SNode*     pPara = NULL;
     FOREACH(pPara, pParams) {
@@ -3077,15 +3079,15 @@ static int32_t biRewriteSelectFuncParamStar(STranslateContext* pCxt, SSelectStmt
         size_t  n = taosArrayGetSize(pTables);
         for (int32_t i = 0; i < n; ++i) {
           STableNode* pTable = taosArrayGetP(pTables, i);
-          SNode*      pTbnameNode = biMakeTbnameProjectionNode(pFunc->functionName, pTable->tableAlias);
+          SNode*      pTbnameNode = biMakeTbnameProjectAstNode(pFunc->functionName, pTable->tableAlias);
           nodesListAppend(pTbnameNodeList, pTbnameNode);
         }
-        nodesListInsertList(pSelect->pProjectionList, pSelectListCell, pTbnameNodeList);
+        nodesListInsertListAfterPos(pSelect->pProjectionList, pSelectListCell, pTbnameNodeList);
       } else if (isTableStar(pPara)) {
         char*  pTableAlias = ((SColumnNode*)pPara)->tableAlias;
-        SNode* pTbnameNode = biMakeTbnameProjectionNode(pFunc->functionName, pTableAlias);
+        SNode* pTbnameNode = biMakeTbnameProjectAstNode(pFunc->functionName, pTableAlias);
         nodesListAppend(pTbnameNodeList, pTbnameNode);
-        nodesListInsertList(pSelect->pProjectionList, pSelectListCell, pTbnameNodeList);
+        nodesListInsertListAfterPos(pSelect->pProjectionList, pSelectListCell, pTbnameNodeList);
       }
     }
   }
@@ -3103,16 +3105,16 @@ static int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect
       size_t n = taosArrayGetSize(pTables);
       for (int32_t i = 0; i < n; ++i) {
         STableNode* pTable = taosArrayGetP(pTables, i);
-        SNode* pTbnameNode = biMakeTbnameProjectionNode(NULL, pTable->tableAlias);
+        SNode* pTbnameNode = biMakeTbnameProjectAstNode(NULL, pTable->tableAlias);
         nodesListAppend(pTbnameNodeList, pTbnameNode);
       }
-      INSERT_LIST(pSelect->pProjectionList, pTbnameNodeList);
+      nodesListInsertListAfterPos(pSelect->pProjectionList, cell, pTbnameNodeList);
     } else if (isTableStar(pNode)) {
       char* pTableAlias = ((SColumnNode*)pNode)->tableAlias;
-      SNode* pTbnameNode = biMakeTbnameProjectionNode(NULL, pTableAlias);
+      SNode* pTbnameNode = biMakeTbnameProjectAstNode(NULL, pTableAlias);
       nodesListAppend(pTbnameNodeList, pTbnameNode);
-      INSERT_LIST(pSelect->pProjectionList, pTbnameNodeList);
-    } else if (isMultiResFunc(pNode)) {
+      nodesListInsertListAfterPos(pSelect->pProjectionList, cell, pTbnameNodeList);
+    } else if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
       biRewriteSelectFuncParamStar(pCxt, pSelect, pNode, cell);
     }
      WHERE_NEXT;
