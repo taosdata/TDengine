@@ -211,7 +211,7 @@ After you enter the edit page for the Kafka Data Source export task:
 8.  In the Kafka Server input box, enter bootstrap_server, for example 192.168.1.92:9092, this field is required;
 9.  In the Topic input box, enter an existing topic name in Kafka, this field is required;
 10. Set Kafka ack timeout in seconds, this field is optional, the default value is 1s;
-11. Set the Batch size, this field is optional；
+11. Set the Batch size, this field is optional, the default value is 1;
 12. After completing the above information, click the Submit button to start the data synchronization from TDengine to Kafka directly.
 
 
