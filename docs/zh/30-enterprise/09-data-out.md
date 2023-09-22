@@ -20,7 +20,7 @@ taosx run -f "<TDengine-DSN>" -t "<Kafka-DSN>"
 taosx run -f "<TDengine-DSN>" -t "<Kafka-DSN>"
 ```
 其中：
-- -f或--from ：TDengine 的 DSN
+- -f或--from：TDengine 的 DSN
 - -t或--to： Kafka 的 DSN
   
 ### TDengine DSN 配置
