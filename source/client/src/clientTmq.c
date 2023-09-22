@@ -3109,7 +3109,6 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
 
 TAOS *tmq_get_connect(tmq_t *tmq){
   if (tmq && tmq->pTscObj) {
-    int64_t *rid = taosMemoryCalloc(1, sizeof(int64_t));
     return (TAOS *)(&(tmq->pTscObj->id));
   }
   return NULL;
