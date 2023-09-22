@@ -431,6 +431,10 @@ static void doRetryDispatchData(void* param, void* tmrId) {
 
   int32_t code = 0;
   {
+    SArray* pList = taosArrayDup(pTask->msgInfo.pRetryList, NULL);
+    taosArrayDestroy(pTask->msgInfo.pRetryList);
+    pTask->msgInfo.pRetryList = NULL;
+
     SStreamDispatchReq *pReq = pTask->msgInfo.pData;
 
     if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
@@ -438,12 +442,12 @@ static void doRetryDispatchData(void* param, void* tmrId) {
       int32_t numOfVgroups = taosArrayGetSize(vgInfo);
 
 
-      int32_t numOfFailed = taosArrayGetSize(pTask->msgInfo.pRetryList);
+      int32_t numOfFailed = taosArrayGetSize(pList);
       stDebug("s-task:%s (child taskId:%d) re-try shuffle-dispatch blocks to %d vgroup(s), msgId:%d",
               id, pTask->info.selfChildId, numOfFailed, msgId);
 
       for (int32_t i = 0; i < numOfFailed; i++) {
-        int32_t vgId = *(int32_t*) taosArrayGet(pTask->msgInfo.pRetryList, i);
+        int32_t vgId = *(int32_t*) taosArrayGet(pList, i);
 
         for(int32_t j = 0; j < numOfVgroups; ++j) {
           SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, j);
