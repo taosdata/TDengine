@@ -2843,9 +2843,25 @@ static bool pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimitPu
     case QUERY_NODE_LOGIC_PLAN_AGG: {
       if (nodeType(pNodeWithLimit) == QUERY_NODE_LOGIC_PLAN_PROJECT &&
           (isPartTagAgg((SAggLogicNode*)pNodeLimitPushTo) || isPartTableAgg((SAggLogicNode*)pNodeLimitPushTo))) {
-        // when part by tag, slimit will be cloned to agg, and it will be pipelined.
+        // when part by tag/tbname, slimit will be cloned to agg, and it will be pipelined.
         // The scan below will do scanning with group order
         return cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_SLIMIT);
+      }
+      // else if not part by tag and tbname, the partition node below indicates that results are sorted, the agg node can
+      // be pipelined.
+      if (nodeType(pNodeWithLimit) == QUERY_NODE_LOGIC_PLAN_PROJECT && LIST_LENGTH(pNodeLimitPushTo->pChildren) == 1) {
+        SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNodeLimitPushTo->pChildren, 0);
+        if (nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_PARTITION) {
+          pNodeLimitPushTo->forceCreateNonBlockingOptr = true;
+          return cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_SLIMIT);
+        }
+        // Currently, partColOpt is executed after pushDownLimitOpt, and partColOpt will replace partition node with
+        // sort node.
+        // To avoid dependencies between these two optimizations, we add sort node too.
+        if (nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_SORT && ((SSortLogicNode*)pChild)->calcGroupId) {
+          pNodeLimitPushTo->forceCreateNonBlockingOptr = true;
+          return cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_SLIMIT);
+        }
       }
       break;
     }
@@ -3593,6 +3609,7 @@ static SSortLogicNode* partColOptCreateSort(SPartitionLogicNode* pPartition) {
         nodesListMakeAppend(&pSort->pSortKeys, (SNode*)pOrder);
         pOrder->order = ORDER_ASC;
         pOrder->pExpr = nodesCloneNode(node);
+        pOrder->nullOrder = NULL_ORDER_FIRST;
         if (!pOrder->pExpr) code = TSDB_CODE_OUT_OF_MEMORY;
       }
     }

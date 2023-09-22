@@ -905,6 +905,7 @@ int32_t streamBackendTriggerChkp(void* arg, char* dst) {
   }
 
 _ERROR:
+  taosMemoryFree(ppCf);
   taosReleaseRef(streamBackendId, backendRid);
   taosArrayDestroy(refs);
   return code;

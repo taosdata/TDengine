@@ -53,6 +53,10 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col_agg.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col_agg.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col_agg.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/partition_by_col_agg.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqShow.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb0.py
@@ -164,6 +168,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -i True
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -n 3 -i True
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform.py -N 2 -n 1
+,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit.py -N 2 -n 1
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeReplicate.py -M 3 -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-19201.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py
