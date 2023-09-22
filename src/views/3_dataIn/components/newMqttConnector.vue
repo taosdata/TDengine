@@ -83,7 +83,7 @@
           effect="light"
           :content="$t('datasource.addmqtttip')"
           placement="right-start"
-          style="position: absolute; right: 5px"
+          style="position: absolute; left: 0px"
         >
           <i class="el-icon-info"></i>
         </el-tooltip>
@@ -275,7 +275,7 @@ export default {
   position: relative;
   .el-icon-info {
     color: #4259ce;
-    margin-top: 5px;
+    margin-top: 8px;
     margin-left: 4px;
   }
 
@@ -300,7 +300,8 @@ export default {
   }
   .footer {
     .el-button {
-      width: 96%;
+      width: 95%;
+      margin-left:40px;
     }
   }
   .col-content {

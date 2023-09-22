@@ -27,7 +27,7 @@ import { getUIData } from "@/api/explorer/datain";
 import constparser from "./mqttparser.json";
 import constOpc from "./opcconfig.json";
 import { deepClone } from "@/utils";
-const opcDefaultChecked = ["value", "received_time"];
+const opcDefaultChecked = ["value", "original_ts"];
 export default {
   name: "DbSource",
   components: {
@@ -65,9 +65,11 @@ export default {
   methods: {
     //回显opc的数据
     echoOpcData() {
+      
       let opcconfigData = this.uidata[0].groups.filter(
         (item) => item.name == this.$t("datasource.opcconfig")
       )[0].params[0];
+    
       if (!opcconfigData.value) {
         opcconfigData.value = JSON.stringify(constOpc);
       }
@@ -85,15 +87,29 @@ export default {
         ),
         stable_prefix: JSON.parse(opcconfigData.value).stable_prefix,
       };
-      this.$store.commit("app/SET_OPC_CONFIG", {
-        column_configs: deepClone(
+      let result = ["received_ts", "original_ts", "value", "quality"].map(
+        (item) => {
+          let res = deepClone(
           JSON.parse(opcconfigData.value).column_configs.concat(others)
-        ),
+        ).filter((val) => {
+            if (val.column_name == item) {
+              return val;
+            }
+          })[0];
+          return res;
+        }
+      );
+
+      JSON.parse(opcconfigData.value).column_configs = deepClone(result);
+      this.$store.commit("app/SET_OPC_CONFIG", {
+        column_configs: result,
         stable_prefix: JSON.parse(opcconfigData.value).stable_prefix,
       });
 
       opcconfigData.value = JSON.stringify(newEcho);
+     
       this.opcConfig = deepClone(JSON.parse(opcconfigData.value));
+      this.opcConfig.column_configs = deepClone(result)
     },
     async getData() {
       try {
