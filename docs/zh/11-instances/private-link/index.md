@@ -22,6 +22,9 @@ PrivateLink 的架构如下：
 ### 步骤1：在 TDengine Cloud 中选择终端服务并配置白名单
 1. 登录 TDengine Cloud 打开 [实例](https://console.cloud.taosdata.com/instances/privateLink) 页面， 选择右侧 "私有连接" 页签， 在页面上点击 **服务列表** 按钮。
 2. 在服务列表里选择和您 VPC 所在可用区的服务，点击操作栏 **添加白名单**按钮 ，输入您的阿里云账号ID。
+   ![添加白名单](./eps-whitelist.webp)
+   <center><figcaption>图2. 添加白名单</figcaption></center>
+
 3. 在阿里云创建您的终端节点，此时可以选择到 TDengine Cloud 的终端服务。
 
 
@@ -33,22 +36,26 @@ PrivateLink 的架构如下：
 2. 从区域下拉列表中选择您的VPC所在的地域。 在左侧导航栏中单击**终端节点**，在右侧页面单击左上角的**创建终端节点**，进入**创建终端节点**页面。
 
    ![创建终端节点](./create-endpoint-1.webp)
-   <center><figcaption>图2. 创建终端节点</figcaption></center>
-3. 选择接口终端节点
-4. **步骤1中添加服务白名单成功，这里就可以看到可用服务，选中可用服务**
-5. 选择业务服务所在的 vpc ，添加完专有网络，会出现下面两个选择项
+   <center><figcaption>图3. 创建终端节点</figcaption></center>
+
+3. 选择接口终端节点。
+4. **步骤1中添加服务白名单成功，这里就可以看到可用服务，选中可用服务。**
+5. 选择业务服务所在的 vpc ，添加完专有网络，会出现下面两个选择项。
    
    ![设置安全组&网络交换机](./create-endpoint-2.webp)
- <center><figcaption>图3. 设置安全组&网络交换机</figcaption></center>
+ <center><figcaption>图4. 设置安全组&网络交换机</figcaption></center>
 
-6. 选择已有安全组或者创建一个，请开放443端口
-7. 可用区交换机如果存在要选择在端点服务所在可用区，不存在请创建一个；这里默认要填两个，删掉第二个
-
+6. 选择已有安全组或者创建一个，请开放443端口。
+7. 可用区交换机如果存在要选择在端点服务所在可用区，不存在请创建一个；这里默认要填两个，删掉第二个。
    :::
-8. 单击创建端点。 **VPC 终端节点 ID**。
+8. 单击创建端点。 等待创建成功，在终端节点详情页面您即可得到**VPC 终端节点 ID**。
 
 ### 步骤3: 在 TDengine Cloud 添加私有网络连接
 1. 在TDengine Cloud左侧导航面板中，选择**实例**，在右侧页面选择**私有连接**选项卡，点击右上角的**添加私有链接**。 将显示 **添加私有链接** 页面。
+  
+  ![添加私有连接](./add-connection.webp)
+ <center><figcaption>图5. 添加私有连接</figcaption></center>
+
 2. 输入您的连接名称，选择您在阿里云控制台创建终端节点时选择的端点服务，然后输入您在步骤 2 中创建的 **终端节点 ID**。
 3. 单击**验证**按钮来验证连接请求是否存在并且可以被接受。
 4. 单击“**添加**”按钮创建**端点连接**。
@@ -62,13 +69,14 @@ PrivateLink 的架构如下：
 2. 在右侧终端节点详情页面中选择**可用区与网卡**选项卡，可以看到如下图页面。
 
    ![查看终端节点IP](./endpoint-desc.webp)
- <center><figcaption>图4. 查看终端节点IP</figcaption></center>
+ <center><figcaption>图6. 查看终端节点IP</figcaption></center>
 
 3. 复制图上**IP地址**栏，在**私有连接**列表如下图，复制**私有DNS名称**。
    ![查看私有DNS](./private-dns.webp)
- <center><figcaption>图5. 查看私有DNS</figcaption></center>
+ <center><figcaption>图7. 查看私有DNS</figcaption></center>
 
-4. **登录您的 ECS 主机，修改 /etc/hosts 文件。格式: ${私有DNS} ${终端节点IP}。**
+4. **登录您的 ECS 主机，修改 /etc/hosts 文件。格式: {私有DNS} {终端节点IP}。**
+5. 验证：curl -d "show databases;" https://{私有DNS}/rest/sql?token=${token} 参阅云服务[编程 - REST API](https://console.cloud.taosdata.com/programming/docs/connector/REST%20API)。
 
 ### 步骤5:使用私有 DNS 调用 TDengine Cloud 服务
 
@@ -76,6 +84,9 @@ PrivateLink 的架构如下：
 
 ## 如何删除端点连接
 1. 点击TDengine Cloud **私有连接**页面中的**操作**按钮。稍后，连接状态将变为 DISCONNECTED。
+   ![删除私有连接](./delete-connection.webp)
+ <center><figcaption>图5. 删除私有连接</figcaption></center>
+
 2. 删除TDengine Cloud **私有连接**页面中的连接。
 3. 在阿里云控制台中删除终端节点。否则，阿里云将继续收费。
    1. 在阿里云专有网络控制台的 **终端节点** 页面中选择端点。
