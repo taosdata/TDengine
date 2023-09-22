@@ -1593,7 +1593,7 @@ FAIL:
   }
 
   pRspHead->vgId = htonl(req.upstreamNodeId);
-  ASSERT(pRspHead->vgId > 0);
+  ASSERT(pRspHead->vgId != 0);
 
   SStreamDispatchRsp* pRsp = POINTER_SHIFT(pRspHead, sizeof(SMsgHead));
   pRsp->streamId = htobe64(req.streamId);
