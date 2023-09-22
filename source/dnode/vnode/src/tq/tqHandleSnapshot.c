@@ -174,7 +174,7 @@ int32_t tqSnapWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   STQ*      pTq = pWriter->pTq;
   SDecoder  decoder = {0};
   SDecoder* pDecoder = &decoder;
-  STqHandle handle;
+  STqHandle handle = {0};
 
   tDecoderInit(pDecoder, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
   code = tDecodeSTqHandle(pDecoder, &handle);
