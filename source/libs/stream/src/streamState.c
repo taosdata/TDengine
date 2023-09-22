@@ -678,17 +678,29 @@ int32_t streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur) {
   return tdbTbcMoveToPrev(pCur->pCur);
 #endif
 }
+
+void streamStateResetCur(SStreamStateCur* pCur) {
+  if (!pCur) {
+    return;
+  }
+  if (pCur->iter) rocksdb_iter_destroy(pCur->iter);
+  if (pCur->snapshot) rocksdb_release_snapshot(pCur->db, pCur->snapshot);
+  if (pCur->readOpt) rocksdb_readoptions_destroy(pCur->readOpt);
+
+  tdbTbcClose(pCur->pCur);
+
+  memset(pCur, 0, sizeof(SStreamStateCur));
+
+  pCur->buffIndex = -1;
+}
+
 void streamStateFreeCur(SStreamStateCur* pCur) {
   if (!pCur || pCur->buffIndex >= 0) {
     taosMemoryFree(pCur);
     return;
   }
   qDebug("streamStateFreeCur");
-  rocksdb_iter_destroy(pCur->iter);
-  if (pCur->snapshot) rocksdb_release_snapshot(pCur->db, pCur->snapshot);
-  rocksdb_readoptions_destroy(pCur->readOpt);
-
-  tdbTbcClose(pCur->pCur);
+  streamStateResetCur(pCur);
   taosMemoryFree(pCur);
 }
 

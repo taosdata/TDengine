@@ -80,6 +80,7 @@ SStreamStateCur* streamStateSeekKeyNext(SStreamState* pState, const SWinKey* key
 SStreamStateCur* streamStateFillSeekKeyNext(SStreamState* pState, const SWinKey* key);
 SStreamStateCur* streamStateFillSeekKeyPrev(SStreamState* pState, const SWinKey* key);
 void             streamStateFreeCur(SStreamStateCur* pCur);
+void             streamStateResetCur(SStreamStateCur* pCur);
 
 int32_t streamStateGetGroupKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 int32_t streamStateGetKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);

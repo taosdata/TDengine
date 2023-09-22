@@ -2680,6 +2680,9 @@ void streamSessionReloadState(SOperatorInfo* pOperator) {
   for (int32_t i = 0; i < num; i++) {
     SResultWindowInfo winInfo = {0};
     getSessionWindowInfoByKey(pAggSup, pSeKeyBuf + i, &winInfo);
+    if (!IS_VALID_SESSION_WIN(winInfo)) {
+      continue;
+    }
     int32_t winNum = compactSessionWindow(pOperator, &winInfo, pInfo->pStUpdated, pInfo->pStDeleted, true);
     if (winNum > 0) {
       qDebug("===stream=== reload state. save result %" PRId64 ", %" PRIu64, winInfo.sessionWin.win.skey,
