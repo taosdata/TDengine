@@ -28,10 +28,10 @@ tmq://user:password@host:port/db?table=table&topic_suffix=topic_suffix[&cols=col
 ```
 - table: super table name，this field is required;
 - topic_suffix: TMQ topic suffix，this field is required;
-- cols: columns to be subscribed, default is all columns，this field is optional;
-- tags: tags to be subscribed, default is all tags, this field is optional;
-- start: start timestamp for the data subscribed，this field is optional;
-- end: end timestamp for the data subscribed，this field is optional;
+- cols: columns to be exported, default is all columns，this field is optional;
+- tags: tags to be exported, default is all tags, this field is optional;
+- start: start timestamp for the data exported，this field is optional;
+- end: end timestamp for the data exported，this field is optional;
 - ts: the column name of timestamp，default is ts，this field is optional;
 
 
