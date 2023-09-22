@@ -1398,7 +1398,7 @@ static EDealRes haveVectorFunction(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t findTable(STranslateContext* pCxt, const char* pTableAlias, STableNode** pOutput) {
+int32_t findTable(STranslateContext* pCxt, const char* pTableAlias, STableNode** pOutput) {
   SArray* pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
   size_t  nums = taosArrayGetSize(pTables);
   for (size_t i = 0; i < nums; ++i) {

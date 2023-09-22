@@ -47,7 +47,7 @@ typedef struct STranslateContext {
 } STranslateContext;
 
 int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect);
-
+int32_t findTable(STranslateContext* pCxt, const char* pTableAlias, STableNode** pOutput);
 #ifdef __cplusplus
 }
 #endif
