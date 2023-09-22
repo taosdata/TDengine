@@ -218,6 +218,10 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, pReq->upstreamTaskId);
   ASSERT(pInfo != NULL);
 
+  if (!pTask->pMeta->leader) {
+    ASSERT(0);
+  }
+
   // upstream task has restarted/leader-follower switch/transferred to other dnodes
   if (pReq->stage > pInfo->stage) {
     stError("s-task:%s upstream task:0x%x (vgId:%d) has restart/leader-switch/vnode-transfer, prev stage:%" PRId64
