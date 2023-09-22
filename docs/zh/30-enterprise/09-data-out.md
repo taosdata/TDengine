@@ -45,7 +45,7 @@ Kafka DSN  的完整配置如下：
 kafka://host:port/topic?[&ack_timeout=acktimeout][&batch_size=batchsize]
 ```
 - ack_timeout: Kafka 消息消费的超时时间，此字段为可选字段，默认值为1秒;
-- batch_size: 批量发送到Kafka的数据条数，此项为可选字段;
+- batch_size: 批量发送到 Kafka 的数据条数，此项为可选字段，默认值为1;
 
 
 ### 示例
