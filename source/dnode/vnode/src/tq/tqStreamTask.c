@@ -355,7 +355,7 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
 
     const char* pStatus = streamGetTaskStatusStr(status);
     if (status != TASK_STATUS__NORMAL) {
-      tqDebug("s-task:%s not ready for new submit block from wal, status:%s", pTask->id.idStr, pStatus);
+      tqTrace("s-task:%s not ready for new submit block from wal, status:%s", pTask->id.idStr, pStatus);
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }

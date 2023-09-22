@@ -1335,6 +1335,8 @@ int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec) {
   tDecodeStreamDispatchReq(&decoder, &req);
   tDecoderClear(&decoder);
 
+  tqDebug("s-task:0x%x recv dispatch msg from 0x%x(vgId:%d)", req.taskId, req.upstreamTaskId, req.upstreamNodeId);
+
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, req.streamId, req.taskId);
   if (pTask) {
     SRpcMsg rsp = {.info = pMsg->info, .code = 0};
