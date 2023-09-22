@@ -256,7 +256,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
     // do send response with the input status
     int32_t code = buildDispatchRsp(pTask, pReq, status, &pRsp->pCont);
     if (code != TSDB_CODE_SUCCESS) {
-      // todo handle failure
+      stError("s-task:%s failed to build dispatch rsp, msgId:%d, code:%s", pTask->id.idStr, pReq->msgId, tstrerror(code));
       return code;
     }
 
