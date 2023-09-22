@@ -629,6 +629,8 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pAggNode->node.pOutputDataBlockDesc->outputRowSize);
         EXPLAIN_ROW_APPEND_LIMIT(pAggNode->node.pLimit);
         EXPLAIN_ROW_APPEND_SLIMIT(pAggNode->node.pSlimit);
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+        EXPLAIN_ROW_APPEND(EXPLAIN_PLAN_BLOCKING, !pAggNode->node.forceCreateNonBlockingOptr);
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
 
