@@ -68,15 +68,28 @@ static int32_t biRewriteSelectFuncParamStar(STranslateContext* pCxt, SSelectStmt
         size_t  n = taosArrayGetSize(pTables);
         for (int32_t i = 0; i < n; ++i) {
           STableNode* pTable = taosArrayGetP(pTables, i);
-          SNode*      pTbnameNode = biMakeTbnameProjectAstNode(pFunc->functionName, pTable->tableAlias);
+          if (nodeType(pTable) == QUERY_NODE_REAL_TABLE && ((SRealTableNode*)pTable)->pMeta != NULL &&
+              ((SRealTableNode*)pTable)->pMeta->tableType == TSDB_SUPER_TABLE) {
+            SNode* pTbnameNode = biMakeTbnameProjectAstNode(pFunc->functionName, pTable->tableAlias);
+            nodesListAppend(pTbnameNodeList, pTbnameNode);
+          }
+        }
+        if (LIST_LENGTH(pTbnameNodeList) > 0) {
+          nodesListInsertListAfterPos(pSelect->pProjectionList, pSelectListCell, pTbnameNodeList);
+        }
+      } else if (nodesIsTableStar(pPara)) {
+        char* pTableAlias = ((SColumnNode*)pPara)->tableAlias;
+        STableNode* pTable = NULL;
+        int32_t     code = findTable(pCxt, pTableAlias, &pTable);
+        if (TSDB_CODE_SUCCESS == code && nodeType(pTable) == QUERY_NODE_REAL_TABLE &&
+            ((SRealTableNode*)pTable)->pMeta != NULL &&
+            ((SRealTableNode*)pTable)->pMeta->tableType == TSDB_SUPER_TABLE) {
+          SNode* pTbnameNode = biMakeTbnameProjectAstNode(pFunc->functionName, pTableAlias);
           nodesListAppend(pTbnameNodeList, pTbnameNode);
         }
-        nodesListInsertListAfterPos(pSelect->pProjectionList, pSelectListCell, pTbnameNodeList);
-      } else if (nodesIsTableStar(pPara)) {
-        char*  pTableAlias = ((SColumnNode*)pPara)->tableAlias;
-        SNode* pTbnameNode = biMakeTbnameProjectAstNode(pFunc->functionName, pTableAlias);
-        nodesListAppend(pTbnameNodeList, pTbnameNode);
-        nodesListInsertListAfterPos(pSelect->pProjectionList, pSelectListCell, pTbnameNodeList);
+        if (LIST_LENGTH(pTbnameNodeList) > 0) {
+          nodesListInsertListAfterPos(pSelect->pProjectionList, pSelectListCell, pTbnameNodeList);
+        }
       }
     }
   }
@@ -94,15 +107,30 @@ int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
       size_t n = taosArrayGetSize(pTables);
       for (int32_t i = 0; i < n; ++i) {
         STableNode* pTable = taosArrayGetP(pTables, i);
-        SNode* pTbnameNode = biMakeTbnameProjectAstNode(NULL, pTable->tableAlias);
-        nodesListAppend(pTbnameNodeList, pTbnameNode);
+        if (nodeType(pTable) == QUERY_NODE_REAL_TABLE && 
+            ((SRealTableNode*)pTable)->pMeta != NULL && 
+            ((SRealTableNode*)pTable)->pMeta->tableType == TSDB_SUPER_TABLE) {
+          SNode* pTbnameNode = biMakeTbnameProjectAstNode(NULL, pTable->tableAlias);
+          nodesListAppend(pTbnameNodeList, pTbnameNode);
+        }
       }
-      nodesListInsertListAfterPos(pSelect->pProjectionList, cell, pTbnameNodeList);
+      if (LIST_LENGTH(pTbnameNodeList) > 0) {
+        nodesListInsertListAfterPos(pSelect->pProjectionList, cell, pTbnameNodeList);
+      }
     } else if (nodesIsTableStar(pNode)) {
       char* pTableAlias = ((SColumnNode*)pNode)->tableAlias;
-      SNode* pTbnameNode = biMakeTbnameProjectAstNode(NULL, pTableAlias);
-      nodesListAppend(pTbnameNodeList, pTbnameNode);
-      nodesListInsertListAfterPos(pSelect->pProjectionList, cell, pTbnameNodeList);
+      STableNode* pTable = NULL;
+      int32_t     code = findTable(pCxt, pTableAlias, &pTable);
+      if (TSDB_CODE_SUCCESS == code && 
+          nodeType(pTable) == QUERY_NODE_REAL_TABLE &&
+          ((SRealTableNode*)pTable)->pMeta != NULL && 
+          ((SRealTableNode*)pTable)->pMeta->tableType == TSDB_SUPER_TABLE) {
+        SNode* pTbnameNode = biMakeTbnameProjectAstNode(NULL, pTableAlias);
+        nodesListAppend(pTbnameNodeList, pTbnameNode);
+      }
+      if (LIST_LENGTH(pTbnameNodeList) > 0) {
+        nodesListInsertListAfterPos(pSelect->pProjectionList, cell, pTbnameNodeList);
+      }
     } else if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
       biRewriteSelectFuncParamStar(pCxt, pSelect, pNode, cell);
     }
