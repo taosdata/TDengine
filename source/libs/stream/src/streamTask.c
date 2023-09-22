@@ -342,6 +342,13 @@ void tFreeStreamTask(SStreamTask* pTask) {
     walCloseReader(pTask->exec.pWalReader);
   }
 
+  pTask->pReadyMsgList = taosArrayDestroy(pTask->pReadyMsgList);
+  if (pTask->msgInfo.pData != NULL) {
+    destroyDispatchMsg(pTask->msgInfo.pData, getNumOfDispatchBranch(pTask));
+    pTask->msgInfo.pData = NULL;
+    pTask->msgInfo.dispatchMsgType = 0;
+  }
+
   if (pTask->outputInfo.type == TASK_OUTPUT__TABLE) {
     tDeleteSchemaWrapper(pTask->tbSink.pSchemaWrapper);
     taosMemoryFree(pTask->tbSink.pTSchema);
@@ -354,13 +361,6 @@ void tFreeStreamTask(SStreamTask* pTask) {
   if (pTask->pState) {
     stDebug("s-task:0x%x start to free task state", taskId);
     streamStateClose(pTask->pState, status == TASK_STATUS__DROPPING);
-  }
-
-  pTask->pReadyMsgList = taosArrayDestroy(pTask->pReadyMsgList);
-  if (pTask->msgInfo.pData != NULL) {
-    destroyDispatchMsg(pTask->msgInfo.pData, getNumOfDispatchBranch(pTask));
-    pTask->msgInfo.pData = NULL;
-    pTask->msgInfo.dispatchMsgType = 0;
   }
 
   if (pTask->id.idStr != NULL) {
