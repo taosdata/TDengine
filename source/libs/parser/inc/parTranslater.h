@@ -47,6 +47,8 @@ typedef struct STranslateContext {
 } STranslateContext;
 
 int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect);
+bool isStar(SNode* pNode);
+bool isTableStar(SNode* pNode);
 
 #ifdef __cplusplus
 }

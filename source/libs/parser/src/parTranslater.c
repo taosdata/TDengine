@@ -1789,12 +1789,12 @@ static int32_t translateBlockDistFunc(STranslateContext* pCtx, SFunctionNode* pF
   return TSDB_CODE_SUCCESS;
 }
 
-static bool isStar(SNode* pNode) {
+bool isStar(SNode* pNode) {
   return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' == ((SColumnNode*)pNode)->tableAlias[0]) &&
          (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
 }
 
-static bool isTableStar(SNode* pNode) {
+bool isTableStar(SNode* pNode) {
   return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' != ((SColumnNode*)pNode)->tableAlias[0]) &&
          (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
 }
