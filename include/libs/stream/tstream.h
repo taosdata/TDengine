@@ -31,7 +31,7 @@ extern "C" {
 
 typedef struct SStreamTask SStreamTask;
 
-#define SSTREAM_TASK_VER         3 
+#define SSTREAM_TASK_VER              3
 #define SSTREAM_TASK_INCOMPATIBLE_VER 1
 #define SSTREAM_TASK_NEED_CONVERT_VER 2
 
@@ -382,6 +382,7 @@ struct SStreamTask {
   int32_t             transferStateAlignCnt;
   struct SStreamMeta* pMeta;
   SSHashObj*          pNameMap;
+  void*               pBackend;
   char                reserve[256];
 };
 
@@ -422,6 +423,8 @@ typedef struct SStreamMeta {
   int32_t  chkpCap;
   SRWLatch chkpDirLock;
   int32_t  pauseTaskNum;
+
+  // SHashObj* pTaskBackend;
 } SStreamMeta;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
@@ -722,6 +725,7 @@ int32_t      streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId);
 int32_t      streamMetaCommit(SStreamMeta* pMeta);
 int32_t      streamMetaLoadAllTasks(SStreamMeta* pMeta);
 void         streamMetaNotifyClose(SStreamMeta* pMeta);
+void*        streamMetaGetBackendByTaskKey(SStreamMeta* pMeta, char* key);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);

@@ -582,9 +582,9 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
       taosWLockLatch(&pTq->lock);
       bool exec = tqIsHandleExec(pHandle);
 
-      if(exec){
+      if (exec) {
         tqInfo("vgId:%d, topic:%s, subscription is executing, delete wait for 10ms and retry, pHandle:%p", vgId,
-                pHandle->subKey, pHandle);
+               pHandle->subKey, pHandle);
         taosWUnLockLatch(&pTq->lock);
         taosMsleep(10);
         continue;
@@ -699,12 +699,12 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     }
     ret = tqMetaSaveHandle(pTq, req.subKey, &handle);
   } else {
-    while(1){
+    while (1) {
       taosWLockLatch(&pTq->lock);
       bool exec = tqIsHandleExec(pHandle);
-      if(exec){
-        tqInfo("vgId:%d, topic:%s, subscription is executing, sub wait for 10ms and retry, pHandle:%p", pTq->pVnode->config.vgId,
-               pHandle->subKey, pHandle);
+      if (exec) {
+        tqInfo("vgId:%d, topic:%s, subscription is executing, sub wait for 10ms and retry, pHandle:%p",
+               pTq->pVnode->config.vgId, pHandle->subKey, pHandle);
         taosWUnLockLatch(&pTq->lock);
         taosMsleep(10);
         continue;
@@ -713,7 +713,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
         tqInfo("vgId:%d no switch consumer:0x%" PRIx64 " remains, because redo wal log", req.vgId, req.newConsumerId);
       } else {
         tqInfo("vgId:%d switch consumer from Id:0x%" PRIx64 " to Id:0x%" PRIx64, req.vgId, pHandle->consumerId,
-            req.newConsumerId);
+               req.newConsumerId);
         atomic_store_64(&pHandle->consumerId, req.newConsumerId);
         atomic_store_32(&pHandle->epoch, 0);
         tqUnregisterPushHandle(pTq, pHandle);
@@ -736,6 +736,9 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   tqDebug("s-task:0x%x start to expand task", pTask->id.taskId);
 
   int32_t code = streamTaskInit(pTask, pTq->pStreamMeta, &pTq->pVnode->msgCb, ver);
+
+  pTask->pBackend = streamMetaGetBackendByTaskKey(pTq->pStreamMeta, (char*)pTask->id.idStr);
+
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -859,8 +862,8 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
            pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer);
   }
 
-  tqInfo("vgId:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64 " nextProcessVer:%" PRId64
-         " child id:%d, level:%d, status:%s fill-history:%d, trigger:%" PRId64 " ms",
+  tqInfo("vgId:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64
+         " nextProcessVer:%" PRId64 " child id:%d, level:%d, status:%s fill-history:%d, trigger:%" PRId64 " ms",
          vgId, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
          pTask->info.selfChildId, pTask->info.taskLevel, streamGetTaskStatusStr(pTask->status.taskStatus),
          pTask->info.fillHistory, pTask->info.triggerParam);
@@ -1004,7 +1007,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
       bool restored = pTq->pVnode->restored;
       if (p != NULL && restored) {
         p->tsInfo.init = taosGetTimestampMs();
-        tqDebug("s-task:%s set the init ts:%"PRId64, p->id.idStr, p->tsInfo.init);
+        tqDebug("s-task:%s set the init ts:%" PRId64, p->id.idStr, p->tsInfo.init);
 
         streamTaskCheckDownstream(p);
       } else if (!restored) {
@@ -1443,7 +1446,7 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
     return 0;
   }
 
-  int8_t  status = pTask->status.taskStatus;
+  int8_t status = pTask->status.taskStatus;
   if (status == TASK_STATUS__NORMAL || status == TASK_STATUS__SCAN_HISTORY || status == TASK_STATUS__CK) {
     // no lock needs to secure the access of the version
     if (igUntreated && level == TASK_LEVEL__SOURCE && !pTask->info.fillHistory) {
@@ -1622,12 +1625,13 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
   // downstream not ready, current the stream tasks are not all ready. Ignore this checkpoint req.
   if (pTask->status.downstreamReady != 1) {
     qError("s-task:%s not ready for checkpoint, since downstream not ready, ignore this checkpoint:%" PRId64
-           ", set it failure", pTask->id.idStr, req.checkpointId);
+           ", set it failure",
+           pTask->id.idStr, req.checkpointId);
     streamMetaReleaseTask(pMeta, pTask);
 
     SRpcMsg rsp = {0};
     buildCheckpointSourceRsp(&req, &pMsg->info, &rsp, 0);
-    tmsgSendRsp(&rsp);   // error occurs
+    tmsgSendRsp(&rsp);  // error occurs
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1784,7 +1788,6 @@ _end:
   tDecoderClear(&decoder);
 
   if (allStopped) {
-
     if (!pTq->pVnode->restored) {
       tqDebug("vgId:%d vnode restore not completed, not restart the tasks", vgId);
     } else {
@@ -1816,4 +1819,3 @@ _end:
 
   return rsp.code;
 }
-

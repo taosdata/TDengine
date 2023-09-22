@@ -220,6 +220,17 @@ int32_t streamMetaMayDoStateBackendConvert(SStreamMeta* pMeta) {
   return 0;
 }
 
+void* streamMetaGetBackendByTaskKey(SStreamMeta* pMeta, char* key) {
+  void** ppBackend = taosHashGet(pMeta->pTaskBackendUnique, key, strlen(key));
+  if (ppBackend != NULL && *ppBackend != NULL) {
+    // add ref later
+    return *ppBackend;
+  }
+  void* pBackend = streamStateOpenTaskBackend(pMeta->path, key);
+  taosHashPut(pMeta->pTaskBackendUnique, key, strlen(key), &pBackend, sizeof(void*));
+
+  return pBackend;
+}
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId, int64_t stage) {
   int32_t      code = -1;
   SStreamMeta* pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
@@ -277,11 +288,12 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->hbInfo.tickCounter = 0;
   pMeta->hbInfo.stopFlag = 0;
 
+  pMeta->pTaskBackendUnique =
+      taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+
   // start backend
   // taosInitRWLatch(&pMeta->chkpDirLock);
 
-  // pMeta->pTaskBackendUnique =
-  //     taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   // pMeta->chkpSaved = taosArrayInit(4, sizeof(int64_t));
   // pMeta->chkpInUse = taosArrayInit(4, sizeof(int64_t));
   // pMeta->chkpCap = 8;
