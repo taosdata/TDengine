@@ -3991,14 +3991,13 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pNewQueryInfo->vgroupLimit  = pQueryInfo->vgroupLimit;
   pNewQueryInfo->distinct     =  pQueryInfo->distinct;
   pNewQueryInfo->multigroupResult = pQueryInfo->multigroupResult;
-
-  pNewQueryInfo->buf          = malloc(pQueryInfo->bufLen);
-  if (pNewQueryInfo->buf == NULL) {
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    goto _error;
-  }
-
+  
   if (pQueryInfo->bufLen > 0) {
+    pNewQueryInfo->buf          = malloc(pQueryInfo->bufLen);
+    if (pNewQueryInfo->buf == NULL) {
+      terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      goto _error;
+    }
     memcpy(pNewQueryInfo->buf, pQueryInfo->buf, pQueryInfo->bufLen);
   }
 
