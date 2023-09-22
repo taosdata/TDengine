@@ -897,12 +897,12 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
       streamMetaReleaseTask(pMeta, pTask);
 
       const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
-      tqDebug("s-task:%s status:%s, stage:%d recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), ready:%d",
+      tqDebug("s-task:%s status:%s, stage:%d recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), check_status:%d",
               pTask->id.idStr, pStatus, rsp.oldStage, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
     } else {
       rsp.status = TASK_DOWNSTREAM_NOT_READY;
       tqDebug("tq recv task check(taskId:0x%" PRIx64 "-0x%x not built yet) req(reqId:0x%" PRIx64
-              ") from task:0x%x (vgId:%d), rsp status %d",
+              ") from task:0x%x (vgId:%d), rsp check_status %d",
               req.streamId, taskId, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
     }
   }

@@ -358,8 +358,9 @@ void tFreeStreamTask(SStreamTask* pTask) {
 
   pTask->pReadyMsgList = taosArrayDestroy(pTask->pReadyMsgList);
   if (pTask->msgInfo.pData != NULL) {
-    destroyStreamDataBlock(pTask->msgInfo.pData);
+    destroyDispatchMsg(pTask->msgInfo.pData, getNumOfDispatchBranch(pTask));
     pTask->msgInfo.pData = NULL;
+    pTask->msgInfo.dispatchMsgType = 0;
   }
 
   if (pTask->id.idStr != NULL) {
