@@ -45,7 +45,7 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
       int32_t vid = 0;
       sscanf(object_name, "v%df%dver%" PRId64 ".data", &vid, &pFD->fid, &pFD->cid);
       pFD->objName = object_name;
-      pFD->szFile = s3_size;
+      // pFD->szFile = s3_size;
 #endif
     } else {
       code = TAOS_SYSTEM_ERROR(errsv);
