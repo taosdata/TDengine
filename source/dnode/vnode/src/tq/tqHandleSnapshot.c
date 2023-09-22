@@ -178,17 +178,14 @@ int32_t tqSnapWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
 
   tDecoderInit(pDecoder, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
   code = tDecodeSTqHandle(pDecoder, &handle);
-  if (code) goto _err;
+  if (code) goto end;
   taosWLockLatch(&pTq->lock);
   code = tqMetaSaveHandle(pTq, handle.subKey, &handle);
   taosWUnLockLatch(&pTq->lock);
-  if (code < 0) goto _err;
-  tDecoderClear(pDecoder);
 
-  return code;
-
-_err:
+end:
   tDecoderClear(pDecoder);
-  tqError("vgId:%d, vnode snapshot tq write failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
+  tqDestroyTqHandle(&handle);
+  tqInfo("vgId:%d, vnode snapshot tq write result:%d", TD_VID(pTq->pVnode), code);
   return code;
 }
