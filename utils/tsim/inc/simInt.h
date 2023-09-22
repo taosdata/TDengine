@@ -123,6 +123,7 @@ enum {
   SIM_CMD_RETURN,
   SIM_CMD_LINE_INSERT,
   SIM_CMD_LINE_INSERT_ERROR,
+  SIM_CMD_SET_BI_MODE,
   SIM_CMD_END
 };
 
@@ -210,6 +211,7 @@ bool     simExecuteSqlSlowCmd(SScript *script, char *option);
 bool     simExecuteRestfulCmd(SScript *script, char *rest);
 bool     simExecuteLineInsertCmd(SScript *script, char *option);
 bool     simExecuteLineInsertErrorCmd(SScript *script, char *option);
+bool     simExecuteSetBIModeCmd(SScript *script, char *option);
 void     simVisuallizeOption(SScript *script, char *src, char *dst);
 
 #endif /*_TD_SIM_INT_H_*/

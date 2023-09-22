@@ -1,0 +1,29 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql drop database if exists db1;
+sql create database db1 vgroups 3;
+sql create database db1;
+sql use db1;
+sql create stable sta (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);
+sql create stable stb (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);
+sql create table tba1 using sta tags(1, 1, 1);
+sql create table tba2 using sta tags(2, 2, 2);
+sql insert into tba1 values(now, 1, "1");
+sql insert into tba2 values(now + 1s, 2, "2");
+sql create table tbn1 (ts timestamp, f1 int);
+sql create database db2 vgroups 3;
+sql create database db2;
+sql use db2;
+sql create stable sta (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);
+sql create stable stb (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);
+sql create table tba1 using sta tags(1, 1, 1);
+sql create table tba2 using sta tags(2, 2, 2);
+
+set_bi_mode 1
+sql select * from db1.sta;
+print $rows
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

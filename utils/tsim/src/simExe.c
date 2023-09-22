@@ -502,6 +502,26 @@ bool simExecuteSystemContentCmd(SScript *script, char *option) {
   return true;
 }
 
+bool simExecuteSetBIModeCmd(SScript *script, char *option) {
+  char    buf[1024];
+
+  simVisuallizeOption(script, option, buf);
+  option = buf;
+
+  int32_t mode = atoi(option);
+
+  simInfo("script:%s, set bi mode %d", script->fileName, mode);
+
+  if (mode != 0) {
+    taos_set_conn_mode(script->taos, TAOS_CONN_MODE_BI, 1);
+  } else {
+    taos_set_conn_mode(script->taos, TAOS_CONN_MODE_BI, 0);
+  }
+
+  script->linePos++;
+  return true;
+}
+
 bool simExecutePrintCmd(SScript *script, char *rest) {
   char buf[65536];
 
