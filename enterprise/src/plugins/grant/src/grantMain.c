@@ -244,6 +244,8 @@ typedef struct {
 
 static bool      recheckClusterTime = true;
 static int8_t    grantHbLock = 0;
+static int64_t   grantNotifyCnt = 0;
+static int64_t   grantNotifyTimeSeries = 0;
 int32_t          grantFlag = 0;
 SGrantHandle     grantHandle = {0};
 static SHashObj *grantNotifyInfo;
@@ -943,10 +945,12 @@ static int32_t mndProcessGrantNotify(SRpcMsg *pReq) {
     return -1;
   }
 
-
   mndGetDnodeData(pMnode, pDnodeInfo);
 
-  SGrantNotify notify = {.curTimeSeries = gStatus.curTimeSeries};
+  int64_t notifyTimeSeries = atomic_load_64(&grantStatus.curTimeSeries);
+  atomic_store_64(&grantNotifyTimeSeries, notifyTimeSeries);
+
+  SGrantNotify notify = {.curTimeSeries = notifyTimeSeries};
   for (int32_t i = 0; i < taosArrayGetSize(pDnodeInfo); ++i) {
     SDnodeInfo *info = (SDnodeInfo *)taosArrayGet(pDnodeInfo, i);
     mndSendGrantNotifyToDnode(pMnode, info, &notify);
@@ -956,40 +960,24 @@ static int32_t mndProcessGrantNotify(SRpcMsg *pReq) {
   return 0;
 }
 
-int32_t mndUpdateClusterInfo(SRpcMsg *pReq) {
+int32_t mndUpdClusterInfo(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
 
-  // fetch latest info
   gStatus.curTimeSeries = grantGetClusterCurTimeSeries(pMnode);
-  mndProcessGrantNotify(pReq);
-
-  return 0;
-}
-
-int32_t mndProcessNotifyReq(SRpcMsg *pReq) {
-  SNotifyReq notifyReq = {0};
-
-  if (tDeserializeSNotifyReq(pReq->pCont, pReq->contLen, &notifyReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
+  if (gStatus.curTimeSeries >= gStatus.limitTimeSeries) {
+    // if ((atomic_fetch_add_64(&grantNotifyCnt, 1) & 127) < 3) {
+      mndProcessGrantNotify(pReq);
+    // }
+    if (grantNotifyCnt > INT32_MAX) {
+      atomic_store_64(&grantNotifyCnt, 1);
+    }
+  } else {
+    if (atomic_load_64(&grantNotifyTimeSeries) != atomic_load_64(&gStatus.curTimeSeries)) {
+      mndProcessGrantNotify(pReq);
+    }
+    if (grantNotifyCnt != 0) atomic_store_64(&grantNotifyCnt, 0);
   }
 
-  for (int32_t i = 0; i < notifyReq.nVgroup; ++i) {
-    SDndNotifyInfo *pNotify = notifyReq.payload + i;
-    taosHashPut(grantNotifyInfo, &pNotify->vgId, sizeof(pNotify->vgId), &pNotify->nTimeSeries,
-                sizeof(pNotify->nTimeSeries));
-  }
-
-  int64_t         nTimeSeries = 0;
-  int64_t *nVal = NULL;
-  while ((nVal = taosHashIterate(grantNotifyInfo, nVal))) {
-    nTimeSeries += *nVal;
-  }
-  // assert(nTimeSeries < 1000000);
-  gStatus.curTimeSeries = nTimeSeries;
-  mndProcessGrantNotify(pReq);
-
-_OVER:
   return 0;
 }
 
