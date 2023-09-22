@@ -714,15 +714,19 @@ void streamStateFreeVal(void* val) {
 
 int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, void* value, int32_t vLen) {
 #ifdef USE_ROCKSDB
+  int32_t code = TSDB_CODE_SUCCESS;
   SRowBuffPos* pos = (SRowBuffPos*)value;
   if (pos->needFree) {
-    int32_t code = streamStateSessionPut_rocksdb(pState, key, pos->pRowBuff, vLen);
-    streamStateReleaseBuf(pState, pos, true);
-    qDebug("===stream===save skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64 ".code:%d", key->win.skey,
-           key->win.ekey, key->groupId, code);
-    return code;
+    if (isFlushedState(pState->pFileState, key->win.ekey)) {
+      code = streamStateSessionPut_rocksdb(pState, key, pos->pRowBuff, vLen);
+      streamStateReleaseBuf(pState, pos, true);
+      qDebug("===stream===save skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64 ".code:%d", key->win.skey,
+            key->win.ekey, key->groupId, code);
+    } else {
+      code = putSessionWinResultBuff(pState->pFileState, value);
+    }
   }
-  return TSDB_CODE_SUCCESS;
+  return code;
 #else
   SStateSessionKey sKey = {.key = *key, .opNum = pState->number};
   return tdbTbUpsert(pState->pTdbState->pSessionStateDb, &sKey, sizeof(SStateSessionKey), value, vLen,

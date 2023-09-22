@@ -88,29 +88,28 @@ static SRowBuffPos* insertNewSessionWindow(SStreamFileState* pFileState, SArray*
   return pNewPos;
 }
 
-int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, TSKEY gap, void** pVal, int32_t* pVLen) {
-  SSessionKey* pWinKey = key;
+int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, TSKEY gap, void** pVal, int32_t* pVLen) {
   SSHashObj* pSessionBuff = getRowStateBuff(pFileState);
   SArray* pWinStates = NULL;
-  void** ppBuff = tSimpleHashGet(pSessionBuff, &pWinKey->groupId, sizeof(uint64_t));
+  void** ppBuff = tSimpleHashGet(pSessionBuff, &pKey->groupId, sizeof(uint64_t));
   if (ppBuff) {
     pWinStates = (SArray*)(*ppBuff);
   } else {
     pWinStates = taosArrayInit(16, POINTER_BYTES);
-    tSimpleHashPut(pSessionBuff, &pWinKey->groupId, sizeof(uint64_t), &pWinStates, POINTER_BYTES);
+    tSimpleHashPut(pSessionBuff, &pKey->groupId, sizeof(uint64_t), &pWinStates, POINTER_BYTES);
   }
 
-  TSKEY startTs = pWinKey->win.skey;
-  TSKEY endTs = pWinKey->win.ekey;
+  TSKEY startTs = pKey->win.skey;
+  TSKEY endTs = pKey->win.ekey;
 
   int32_t size = taosArrayGetSize(pWinStates);
   if (size == 0) {
-    (*pVal) = addNewSessionWindow(pFileState, pWinStates, key);
+    (*pVal) = addNewSessionWindow(pFileState, pWinStates, pKey);
     goto _end;
   }
 
-  // find the first position which is smaller than the pWinKey
-  int32_t      index = binarySearch(pWinStates, size, pWinKey, sessionStateKeyCompare);
+  // find the first position which is smaller than the pKey
+  int32_t      index = binarySearch(pWinStates, size, pKey, sessionStateKeyCompare);
   SRowBuffPos* pPos = NULL;
 
   if (index >= 0) {
@@ -118,7 +117,7 @@ int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, 
     if (inSessionWindow(pPos->pKey, startTs, gap)) {
       (*pVal) = pPos;
       SSessionKey* pDestWinKey = (SSessionKey*)pPos->pKey;
-      *key = *pDestWinKey;
+      *pKey = *pDestWinKey;
       goto _end;
     }
   }
@@ -128,7 +127,7 @@ int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, 
     if (inSessionWindow(pPos->pKey, startTs, gap) || (endTs != INT64_MIN && inSessionWindow(pPos->pKey, endTs, gap)) ) {
       (*pVal) = pPos;
       SSessionKey* pDestWinKey = (SSessionKey*)pPos->pKey;
-      *key = *pDestWinKey;
+      *pKey = *pDestWinKey;
       goto _end;
     }
   }
@@ -137,7 +136,7 @@ int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, 
     if (!isDeteled(pFileState, endTs) && isFlushedState(pFileState, endTs)) {
       void*        p = NULL;
       void*        pFileStore = getStateFileStore(pFileState);
-      int32_t      code = streamStateSessionAddIfNotExist_rocksdb(pFileStore, pWinKey, gap, &p, pVLen);
+      int32_t      code = streamStateSessionAddIfNotExist_rocksdb(pFileStore, pKey, gap, &p, pVLen);
       SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
       pNewPos->needFree = true;
 
@@ -152,13 +151,44 @@ int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, 
   }
 
   if (index == size - 1) {
-    (*pVal) = addNewSessionWindow(pFileState, pWinStates, key);
+    (*pVal) = addNewSessionWindow(pFileState, pWinStates, pKey);
     goto _end;
   }
-  (*pVal) = insertNewSessionWindow(pFileState, pWinStates, key, index + 1);
+  (*pVal) = insertNewSessionWindow(pFileState, pWinStates, pKey, index + 1);
 
 _end:
   return (*pVal) != NULL ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED;
+}
+
+int32_t putSessionWinResultBuff(SStreamFileState* pFileState, SRowBuffPos* pPos) {
+  SSHashObj* pSessionBuff = getRowStateBuff(pFileState);
+  SSessionKey* pKey = pPos->pKey;
+  SArray* pWinStates = NULL;
+  void** ppBuff = tSimpleHashGet(pSessionBuff, &pKey->groupId, sizeof(uint64_t));
+  if (ppBuff) {
+    pWinStates = (SArray*)(*ppBuff);
+  } else {
+    pWinStates = taosArrayInit(16, POINTER_BYTES);
+    tSimpleHashPut(pSessionBuff, &pKey->groupId, sizeof(uint64_t), &pWinStates, POINTER_BYTES);
+  }
+
+  int32_t size = taosArrayGetSize(pWinStates);
+  if (size == 0) {
+    taosArrayPush(pWinStates, &pPos);
+    goto _end;
+  }
+
+  // find the first position which is smaller than the pKey
+  int32_t      index = binarySearch(pWinStates, size, pKey, sessionStateKeyCompare);
+  if (index >= 0) {
+    taosArrayInsert(pWinStates, index, &pPos);
+  } else {
+    taosArrayInsert(pWinStates, 0, &pPos);
+  }
+
+_end:
+  pPos->needFree = false;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t getSessionFlushedBuff(SStreamFileState* pFileState, SSessionKey* pKey, void** pVal, int32_t* pVLen) {

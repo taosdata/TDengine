@@ -660,7 +660,7 @@ void* getStateFileStore(SStreamFileState* pFileState) {
 }
 
 bool isDeteled(SStreamFileState* pFileState, TSKEY ts) {
-  return ts < (pFileState->maxTs - pFileState->deleteMark);
+  return pFileState->deleteMark > 0 && ts < (pFileState->maxTs - pFileState->deleteMark);
 }
 
 bool isFlushedState(SStreamFileState* pFileState, TSKEY ts) {

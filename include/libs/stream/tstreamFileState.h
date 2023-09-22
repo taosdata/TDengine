@@ -73,6 +73,7 @@ int32_t getRowStateRowSize(SStreamFileState* pFileState);
 
 // session window
 int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, TSKEY gap, void** pVal, int32_t* pVLen);
+int32_t putSessionWinResultBuff(SStreamFileState* pFileState, SRowBuffPos* pPos);
 int32_t getSessionFlushedBuff(SStreamFileState* pFileState, SSessionKey* pKey, void** pVal, int32_t* pVLen);
 int32_t deleteSessionWinStateBuff(void* pBuff, const void *key, size_t keyLen);
 
