@@ -213,36 +213,39 @@ int32_t streamTaskEnqueueRetrieve(SStreamTask* pTask, SStreamRetrieveReq* pReq, 
 }
 
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
-  stDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d), msgLen:%" PRId64, pTask->id.idStr,
-         pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->totalLen);
-  int32_t status = 0;
+  int32_t     status = 0;
+  const char* id = pTask->id.idStr;
+
+  stDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d), msgLen:%" PRId64 ", msgId:%d", id,
+          pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->totalLen, pReq->msgId);
 
   SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, pReq->upstreamTaskId);
   ASSERT(pInfo != NULL);
 
   if (!pTask->pMeta->leader) {
-    stError("s-task:%s task on follower received dispatch msgs, should discard it, not now", pTask->id.idStr);
-  }
-
-  // upstream task has restarted/leader-follower switch/transferred to other dnodes
-  if (pReq->stage > pInfo->stage) {
-    stError("s-task:%s upstream task:0x%x (vgId:%d) has restart/leader-switch/vnode-transfer, prev stage:%" PRId64
-           ", current:%" PRId64 " dispatch msg rejected",
-           pTask->id.idStr, pReq->upstreamTaskId, pReq->upstreamNodeId, pInfo->stage, pReq->stage);
+    stError("s-task:%s task on follower received dispatch msgs, should discard it, not now", id);
     status = TASK_INPUT_STATUS__BLOCKED;
   } else {
-    if (!pInfo->dataAllowed) {
-      stWarn("s-task:%s data from task:0x%x is denied, since inputQ is closed for it", pTask->id.idStr,
-            pReq->upstreamTaskId);
+    if (pReq->stage > pInfo->stage) {
+      // upstream task has restarted/leader-follower switch/transferred to other dnodes
+      stError("s-task:%s upstream task:0x%x (vgId:%d) has restart/leader-switch/vnode-transfer, prev stage:%" PRId64
+              ", current:%" PRId64 " dispatch msg rejected",
+              id, pReq->upstreamTaskId, pReq->upstreamNodeId, pInfo->stage, pReq->stage);
       status = TASK_INPUT_STATUS__BLOCKED;
     } else {
-      // This task has received the checkpoint req from the upstream task, from which all the messages should be blocked
-      if (pReq->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
-        streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
-        stDebug("s-task:%s close inputQ for upstream:0x%x", pTask->id.idStr, pReq->upstreamTaskId);
-      }
+      if (!pInfo->dataAllowed) {
+        stWarn("s-task:%s data from task:0x%x is denied, since inputQ is closed for it", id, pReq->upstreamTaskId);
+        status = TASK_INPUT_STATUS__BLOCKED;
+      } else {
+        // This task has received the checkpoint req from the upstream task, from which all the messages should be
+        // blocked
+        if (pReq->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+          streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
+          stDebug("s-task:%s close inputQ for upstream:0x%x, msgId:%d", id, pReq->upstreamTaskId, pReq->msgId);
+        }
 
-      status = streamTaskAppendInputBlocks(pTask, pReq);
+        status = streamTaskAppendInputBlocks(pTask, pReq);
+      }
     }
   }
 
@@ -256,7 +259,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
     // do send response with the input status
     int32_t code = buildDispatchRsp(pTask, pReq, status, &pRsp->pCont);
     if (code != TSDB_CODE_SUCCESS) {
-      stError("s-task:%s failed to build dispatch rsp, msgId:%d, code:%s", pTask->id.idStr, pReq->msgId, tstrerror(code));
+      stError("s-task:%s failed to build dispatch rsp, msgId:%d, code:%s", id, pReq->msgId, tstrerror(code));
       return code;
     }
 
