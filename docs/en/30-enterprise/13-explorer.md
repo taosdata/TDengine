@@ -204,7 +204,7 @@ After you enter the edit page for the Kafka Data Source export task:
 1.  In the Database card, you can select the name of the database to be exported to Kafka, which is supported to be selected directly from the drop-down list, this field is required;
 2.  In the Super Table card, you can select or enter the name of super table in the selected database, this field is required;
 3.  Select columns to be exported, default is all the columns of the super table, this field is required;
-4.  Select tags to be subscribed, default is all the tags of the super table;
+4.  Select tags to be exported, default is all the tags of the super table;
 5.  Under Start time settings field, select a start time for the data by clicking on it, this field is optional;
 6.  Under End time settings field, select a start time for the data by clicking on it, this field is optional;
 7.  If the Start time or the End time are specified, enter the the column name of timestamp, default value is ts; 
