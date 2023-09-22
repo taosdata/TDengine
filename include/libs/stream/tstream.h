@@ -297,7 +297,8 @@ typedef struct SDispatchMsgInfo {
   int8_t  dispatchMsgType;
   int16_t msgType;     // dispatch msg type
   int32_t retryCount;  // retry send data count
-  int64_t blockingTs;  // output blocking timestamp
+  int64_t startTs;  // output blocking timestamp
+  SArray* pRetryList;  // current dispatch successfully completed node of downstream
 } SDispatchMsgInfo;
 
 typedef struct STaskOutputInfo {

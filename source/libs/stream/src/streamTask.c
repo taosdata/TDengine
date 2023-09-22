@@ -381,6 +381,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
     pTask->pUpstreamInfoList = NULL;
   }
 
+  pTask->msgInfo.pRetryList = taosArrayDestroy(pTask->msgInfo.pRetryList);
   taosMemoryFree(pTask->pTokenBucket);
   taosThreadMutexDestroy(&pTask->lock);
   taosMemoryFree(pTask);
@@ -410,6 +411,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   pTask->dataRange.range.maxVer = ver;
   pTask->dataRange.range.minVer = ver;
   pTask->pMsgCb = pMsgCb;
+  pTask->msgInfo.pRetryList = taosArrayInit(4, sizeof(int32_t));
 
   pTask->pTokenBucket = taosMemoryCalloc(1, sizeof(STokenBucket));
   if (pTask->pTokenBucket == NULL) {
