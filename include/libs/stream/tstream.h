@@ -34,6 +34,12 @@ extern "C" {
 #define SIZE_IN_MiB(_v) ((_v) / ONE_MiB_F)
 #define SIZE_IN_KiB(_v) ((_v) / ONE_KiB_F)
 
+
+#define TASK_DOWNSTREAM_READY       0x0
+#define TASK_DOWNSTREAM_NOT_READY   0x1
+#define TASK_DOWNSTREAM_NOT_LEADER  0x2
+#define TASK_SELF_NEW_STAGE         0x3
+
 typedef struct SStreamTask SStreamTask;
 
 #define SSTREAM_TASK_VER 2

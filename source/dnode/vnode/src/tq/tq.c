@@ -889,22 +889,22 @@ int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg) {
   if (!pMeta->leader) {
     tqError("s-task:0x%x invalid check msg from upstream:0x%x(vgId:%d), vgId:%d is follower, not handle check status msg",
             taskId, req.upstreamTaskId, req.upstreamNodeId, pMeta->vgId);
-    return -1;
-  }
-
-  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, taskId);
-  if (pTask != NULL) {
-    rsp.status = streamTaskCheckStatus(pTask, req.upstreamTaskId, req.upstreamNodeId, req.stage);
-    streamMetaReleaseTask(pMeta, pTask);
-
-    const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
-    tqDebug("s-task:%s status:%s, stage:%d recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), ready:%d",
-            pTask->id.idStr, pStatus, rsp.oldStage, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
+    rsp.status = TASK_DOWNSTREAM_NOT_LEADER;
   } else {
-    rsp.status = 0;
-    tqDebug("tq recv task check(taskId:0x%" PRIx64 "-0x%x not built yet) req(reqId:0x%" PRIx64
-            ") from task:0x%x (vgId:%d), rsp status %d",
-            req.streamId, taskId, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
+    SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, taskId);
+    if (pTask != NULL) {
+      rsp.status = streamTaskCheckStatus(pTask, req.upstreamTaskId, req.upstreamNodeId, req.stage);
+      streamMetaReleaseTask(pMeta, pTask);
+
+      const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
+      tqDebug("s-task:%s status:%s, stage:%d recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), ready:%d",
+              pTask->id.idStr, pStatus, rsp.oldStage, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
+    } else {
+      rsp.status = TASK_DOWNSTREAM_NOT_READY;
+      tqDebug("tq recv task check(taskId:0x%" PRIx64 "-0x%x not built yet) req(reqId:0x%" PRIx64
+              ") from task:0x%x (vgId:%d), rsp status %d",
+              req.streamId, taskId, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
+    }
   }
 
   return streamSendCheckRsp(pMeta, &req, &rsp, &pMsg->info, taskId);
