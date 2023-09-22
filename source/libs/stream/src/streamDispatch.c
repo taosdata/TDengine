@@ -432,8 +432,7 @@ static void doRetryDispatchData(void* param, void* tmrId) {
   int32_t code = 0;
   {
     SArray* pList = taosArrayDup(pTask->msgInfo.pRetryList, NULL);
-    taosArrayDestroy(pTask->msgInfo.pRetryList);
-    pTask->msgInfo.pRetryList = NULL;
+    taosArrayClear(pTask->msgInfo.pRetryList);
 
     SStreamDispatchReq *pReq = pTask->msgInfo.pData;
 
