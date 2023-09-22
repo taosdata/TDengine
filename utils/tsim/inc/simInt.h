@@ -161,6 +161,7 @@ typedef struct _script_t {
   bool              killed;
   void             *taos;
   char              rows[12];                                                         // number of rows data retrieved
+  char              cols[12];                                                        // number of columns data retrieved
   char              data[MAX_QUERY_ROW_NUM][MAX_QUERY_COL_NUM][MAX_QUERY_VALUE_LEN];  // query results
   char              system_exit_code[12];
   char              system_ret_content[MAX_SYSTEM_RESULT_LEN];
