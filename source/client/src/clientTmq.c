@@ -1768,7 +1768,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
         tscError("consumer:0x%" PRIx64 " msg from vgId:%d discarded, since %s", tmq->consumerId, pollRspWrapper->vgId, tstrerror(pRspWrapper->code));
         taosWLockLatch(&tmq->lock);
         SMqClientVg* pVg = getVgInfo(tmq, pollRspWrapper->topicName, pollRspWrapper->vgId);
-        pVg->emptyBlockReceiveTs = taosGetTimestampMs();
+        if(pVg) pVg->emptyBlockReceiveTs = taosGetTimestampMs();
         taosWUnLockLatch(&tmq->lock);
       }
       setVgIdle(tmq, pollRspWrapper->topicName, pollRspWrapper->vgId);
