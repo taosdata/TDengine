@@ -786,7 +786,8 @@ static int32_t syncNodeOnSnapshotReceive(SSyncNode *pSyncNode, SyncSnapshotSend 
     }
   }
 
-_SEND_REPLY:
+_SEND_REPLY:;
+
   // build msg
   SRpcMsg rpcMsg = {0};
   if (syncBuildSnapshotSendRsp(&rpcMsg, 0, pSyncNode->vgId)) {
@@ -834,7 +835,8 @@ static int32_t syncNodeOnSnapshotEnd(SSyncNode *pSyncNode, SyncSnapshotSend *pMs
     snapshotReceiverStop(pReceiver);
   }
 
-_SEND_REPLY:
+_SEND_REPLY:;
+
   // build msg
   SRpcMsg rpcMsg = {0};
   if (syncBuildSnapshotSendRsp(&rpcMsg, 0, pSyncNode->vgId) != 0) {
