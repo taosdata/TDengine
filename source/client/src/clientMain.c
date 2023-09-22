@@ -147,6 +147,13 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)
       taosThreadMutexUnlock(&pObj->mutex);
       break;
     }
+    case TAOS_NOTIFY_USER_DROPPED: {
+      taosThreadMutexLock(&pObj->mutex);
+      pObj->userDroppedInfo.fp = fp;
+      pObj->userDroppedInfo.param = param;
+      taosThreadMutexUnlock(&pObj->mutex);
+      break;
+    }
     default: {
       terrno = TSDB_CODE_INVALID_PARA;
       releaseTscObj(*(int64_t *)taos);
@@ -1166,6 +1173,8 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt) {
                            .svrVer = pTscObj->sVer,
                            .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
                            .allocatorId = pRequest->allocatorRefId};
+  int8_t biMode = atomic_load_8(&((STscObj *)pTscObj)->biMode);
+  (*pCxt)->biMode = biMode;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1828,4 +1837,27 @@ int taos_stmt_close(TAOS_STMT *stmt) {
   }
 
   return stmtClose(stmt);
+}
+
+int taos_set_conn_mode(TAOS* taos, int mode, int value) {
+  if (taos == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  STscObj *pObj = acquireTscObj(*(int64_t *)taos);
+  if (NULL == pObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    tscError("invalid parameter for %s", __func__);
+    return terrno;
+  }
+  switch (mode) {
+    case TAOS_CONN_MODE_BI:
+      atomic_store_8(&pObj->biMode, value);
+      break;
+    default:
+      tscError("not supported mode.");
+      return TSDB_CODE_INVALID_PARA;
+  }
+  return 0;
 }
