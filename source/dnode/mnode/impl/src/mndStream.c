@@ -2229,6 +2229,23 @@ static int32_t removeInvalidStreamTask(SArray *pNodeSnapshot) {
     doRemoveFromTask(&execNodeList, pId);
   }
 
+  int32_t size = taosArrayGetSize(pNodeSnapshot);
+  SArray* pValidNodeEntryList = taosArrayInit(4, sizeof(SNodeEntry));
+  for(int32_t i = 0; i < taosArrayGetSize(execNodeList.pNodeEntryList); ++i) {
+    SNodeEntry* pExisted = taosArrayGet(execNodeList.pNodeEntryList, i);
+
+    for(int32_t j = 0; j < size; ++j) {
+      SNodeEntry* pEntry = taosArrayGet(pNodeSnapshot, j);
+      if (pEntry->nodeId == pExisted->nodeId) {
+        taosArrayPush(pValidNodeEntryList, pExisted);
+        break;
+      }
+    }
+  }
+
+  execNodeList.pNodeEntryList = taosArrayDestroy(execNodeList.pNodeEntryList);
+  execNodeList.pNodeEntryList = pValidNodeEntryList;
+
   return 0;
 }
 
