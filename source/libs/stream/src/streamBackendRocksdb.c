@@ -1653,14 +1653,13 @@ _EXIT:
   return code;
 }
 
-int32_t streamStateConvertDataFormat(char* path, char* key, void* cfInst) {
+int32_t streamStateConvertDataFormat(char* path, char* key, void* pCfInst) {
   int nCf = sizeof(ginitDict) / sizeof(ginitDict[0]);
 
-  int32_t        code = 0;
-  RocksdbCfInst* CfInst = cfInst;
+  int32_t code = 0;
 
   STaskBackendWrapper* pTaskBackend = streamStateOpenTaskBackend(path, key);
-  RocksdbCfInst*       pSrcBackend = cfInst;
+  RocksdbCfInst*       pSrcBackend = pCfInst;
 
   for (int i = 0; i < nCf; i++) {
     rocksdb_column_family_handle_t* pSrcCf = pSrcBackend->pHandle[i];
