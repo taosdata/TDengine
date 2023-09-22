@@ -72,7 +72,7 @@ PrivateLink 的架构如下：
  <center><figcaption>图6. 查看终端节点IP</figcaption></center>
 
 3. 复制图上**IP地址**栏，在**私有连接**列表如下图，复制**私有DNS名称**。
-   ![查看私有DNS](./private-dns.webp)
+   ![查看私有DNS](./connection-list.webp)
  <center><figcaption>图7. 查看私有DNS</figcaption></center>
 
 4. **登录您的 ECS 主机，修改 /etc/hosts 文件。格式: {私有DNS} {终端节点IP}。**
@@ -84,8 +84,8 @@ PrivateLink 的架构如下：
 
 ## 如何删除端点连接
 1. 点击TDengine Cloud **私有连接**页面中的**操作**按钮。稍后，连接状态将变为 DISCONNECTED。
-   ![删除私有连接](./delete-connection.webp)
- <center><figcaption>图5. 删除私有连接</figcaption></center>
+   ![删除私有连接](./connection-list.webp)
+ <center><figcaption>图8. 删除私有连接</figcaption></center>
 
 2. 删除TDengine Cloud **私有连接**页面中的连接。
 3. 在阿里云控制台中删除终端节点。否则，阿里云将继续收费。
