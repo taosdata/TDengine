@@ -12,7 +12,7 @@ sidebar_label: 数据输出
 ### 命令行参数
 
 taosx 支持从 TDengine 的数据输出到 Kafka。命令如下所示：
-```sehll
+```shell
 taosx run -f "<TDengine-DSN>" -t "<Kafka-DSN>" 
 ```
 或
