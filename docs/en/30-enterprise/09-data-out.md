@@ -43,7 +43,7 @@ The DSN for Kafka configured as follows:
 kafka://host:port/topic?[&ack_timeout=acktimeout][&batch_size=batchsize]
 ```
 - ack_timeout: Kafka ack timeout in seconds，this field is optional, the default value is 1s;
-- batch_size: Batch size，this field is optional;
+- batch_size: Batch size，this field is optional, the default value is 1;
 
 
 ### Example
