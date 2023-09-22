@@ -140,7 +140,7 @@ static int32_t buildDispatchRsp(const SStreamTask* pTask, const SStreamDispatchR
   }
 
   ((SMsgHead*)(*pBuf))->vgId = htonl(pReq->upstreamNodeId);
-  ASSERT(((SMsgHead*)(*pBuf))->vgId > 0);
+  ASSERT(((SMsgHead*)(*pBuf))->vgId != 0);
 
   SStreamDispatchRsp* pDispatchRsp = POINTER_SHIFT((*pBuf), sizeof(SMsgHead));
 
