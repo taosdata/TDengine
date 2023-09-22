@@ -290,8 +290,11 @@ typedef struct SSTaskBasicInfo {
   int64_t triggerParam; // in msec
 } SSTaskBasicInfo;
 
+typedef struct SStreamDispatchReq SStreamDispatchReq;
+
 typedef struct SDispatchMsgInfo {
-  void*   pData;       // current dispatch data
+  SStreamDispatchReq*   pData;       // current dispatch data
+  int8_t  dispatchMsgType;
   int16_t msgType;     // dispatch msg type
   int32_t retryCount;  // retry send data count
   int64_t blockingTs;  // output blocking timestamp
@@ -327,6 +330,7 @@ typedef struct {
   int64_t step2Start;
   int64_t start;
   int32_t updateCount;
+  int32_t dispatchCount;
   int64_t latestUpdateTs;
 } STaskExecStatisInfo;
 
@@ -442,7 +446,7 @@ typedef struct {
   int32_t  taskId;
 } SStreamTaskRunReq;
 
-typedef struct {
+struct SStreamDispatchReq {
   int32_t type;
   int64_t stage;  // nodeId from upstream task
   int64_t streamId;
@@ -455,7 +459,7 @@ typedef struct {
   int64_t totalLen;
   SArray* dataLen;  // SArray<int32_t>
   SArray* data;     // SArray<SRetrieveTableRsp*>
-} SStreamDispatchReq;
+};
 
 typedef struct {
   int64_t streamId;
