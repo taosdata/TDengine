@@ -365,7 +365,7 @@ class TDTestCase:
         dbName = "emptydb"
         vgNum = 2
         # create database
-        sql = f"create database {dbName} vgroups {vgNum}"
+        sql = f"create database {dbName} vgroups {vgNum} replica 1"
         tdLog.info(sql)
         tdSql.execute(sql)
 
