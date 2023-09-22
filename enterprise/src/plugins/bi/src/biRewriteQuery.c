@@ -63,7 +63,7 @@ static int32_t biRewriteSelectFuncParamStar(STranslateContext* pCxt, SSelectStmt
     SNodeList* pParams = pFunc->pParameterList;
     SNode*     pPara = NULL;
     FOREACH(pPara, pParams) {
-      if (isStar(pPara)) {
+      if (nodesIsStar(pPara)) {
         SArray* pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
         size_t  n = taosArrayGetSize(pTables);
         for (int32_t i = 0; i < n; ++i) {
@@ -72,7 +72,7 @@ static int32_t biRewriteSelectFuncParamStar(STranslateContext* pCxt, SSelectStmt
           nodesListAppend(pTbnameNodeList, pTbnameNode);
         }
         nodesListInsertListAfterPos(pSelect->pProjectionList, pSelectListCell, pTbnameNodeList);
-      } else if (isTableStar(pPara)) {
+      } else if (nodesIsTableStar(pPara)) {
         char*  pTableAlias = ((SColumnNode*)pPara)->tableAlias;
         SNode* pTbnameNode = biMakeTbnameProjectAstNode(pFunc->functionName, pTableAlias);
         nodesListAppend(pTbnameNodeList, pTbnameNode);
@@ -89,7 +89,7 @@ int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
   SNode* pNode = NULL;
   SNodeList* pTbnameNodeList = nodesMakeList();
   WHERE_EACH(pNode, pSelect->pProjectionList) {
-    if (isStar(pNode)) {
+    if (nodesIsStar(pNode)) {
       SArray* pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
       size_t n = taosArrayGetSize(pTables);
       for (int32_t i = 0; i < n; ++i) {
@@ -98,7 +98,7 @@ int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
         nodesListAppend(pTbnameNodeList, pTbnameNode);
       }
       nodesListInsertListAfterPos(pSelect->pProjectionList, cell, pTbnameNodeList);
-    } else if (isTableStar(pNode)) {
+    } else if (nodesIsTableStar(pNode)) {
       char* pTableAlias = ((SColumnNode*)pNode)->tableAlias;
       SNode* pTbnameNode = biMakeTbnameProjectAstNode(NULL, pTableAlias);
       nodesListAppend(pTbnameNodeList, pTbnameNode);
