@@ -8489,9 +8489,9 @@ void    tFreeSCMCreateViewReq(SCMCreateViewReq* pReq) {
     return;
   }
 
-  taosMemoryFree(pReq->querySql);
-  taosMemoryFree(pReq->sql);  
-  taosMemoryFree(pReq->pSchema);
+  taosMemoryFreeClear(pReq->querySql);
+  taosMemoryFreeClear(pReq->sql);  
+  taosMemoryFreeClear(pReq->pSchema);
 }
 
 int32_t tSerializeSCMDropViewReq(void* buf, int32_t bufLen, const SCMDropViewReq* pReq) {

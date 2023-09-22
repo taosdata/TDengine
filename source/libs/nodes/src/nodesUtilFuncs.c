@@ -1130,6 +1130,8 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_CREATE_VIEW_STMT:  {
       SCreateViewStmt* pStmt = (SCreateViewStmt*)pNode;
+      taosMemoryFree(pStmt->pQuerySql);
+      tFreeSCMCreateViewReq(&pStmt->createReq);
       nodesDestroyNode(pStmt->pQuery);
       break;
     }

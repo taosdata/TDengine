@@ -7273,11 +7273,7 @@ static int32_t validateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStm
 static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStmt) {
   int32_t code = validateCreateView(pCxt, pStmt);
   if (TSDB_CODE_SUCCESS == code) {    
-    SQuery* pQuery = NULL;
-    code = buildQueryAfterParse(&pQuery, pStmt->pQuery, 0, NULL);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = (*pCxt->pParseCxt->validateSqlFp)(pCxt->pParseCxt->validateSqlParam, pQuery, pStmt->pQuerySql, &pStmt->createReq);
-    }
+    code = (*pCxt->pParseCxt->validateSqlFp)(pCxt->pParseCxt->validateSqlParam, pStmt->pQuerySql, &pStmt->createReq);
   }
   if (TSDB_CODE_SUCCESS == code) {
     strncpy(pStmt->createReq.name, pStmt->viewName, sizeof(pStmt->createReq.name) - 1);

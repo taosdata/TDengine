@@ -300,7 +300,8 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
 void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
                                  int64_t reqid);
 void taosAsyncFetchImpl(SRequestObj *pRequest, __taos_async_fn_t fp, void *param);
-int32_t clientValidateSql(void* param, SQuery* pQuery, const char* sql, SCMCreateViewReq* pReq);
+int32_t clientValidateSql(void* param, const char* sql, SCMCreateViewReq* pReq);
+void syncQueryFn(void* param, void* res, int32_t code);
 
 int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols);
 
@@ -411,6 +412,11 @@ int32_t buildPreviousRequest(SRequestObj *pRequest, const char* sql, SRequestObj
 int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *pRequest, bool updateMetaForce);
 void    returnToUser(SRequestObj* pRequest);
 void    stopAllQueries(SRequestObj *pRequest);
+void    freeQueryParam(SSyncQueryParam* param);
+
+#ifdef TD_ENTERPRISE
+int32_t clientValidateSqlImpl(void* param, const char* sql, SCMCreateViewReq* pReq);
+#endif
 
 #ifdef __cplusplus
 }

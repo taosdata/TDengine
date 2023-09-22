@@ -498,7 +498,6 @@ typedef struct SCreateViewStmt {
   char                viewName[TSDB_VIEW_NAME_LEN];
   char*               pQuerySql;
   bool                orReplace;
-  SNodeList*          pCols;
   SNode*              pQuery;
   SCMCreateViewReq    createReq;
 } SCreateViewStmt;

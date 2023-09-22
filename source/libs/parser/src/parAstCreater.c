@@ -2162,7 +2162,7 @@ SNode* createDropFunctionStmt(SAstCreateContext* pCxt, bool ignoreNotExists, con
   return (SNode*)pStmt;
 }
 
-SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pView, SNodeList* pCols, const SToken* pAs, SNode* pQuery) {
+SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pView, const SToken* pAs, SNode* pQuery) {
   CHECK_PARSER_STATUS(pCxt);
   SCreateViewStmt* pStmt = (SCreateViewStmt*)nodesMakeNode(QUERY_NODE_CREATE_VIEW_STMT);
   CHECK_OUT_OF_MEM(pStmt);
@@ -2173,7 +2173,6 @@ SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pVie
   nodesDestroyNode(pView);
   pStmt->orReplace = orReplace;
   pStmt->pQuery = pQuery;
-  pStmt->pCols = pCols;
   return (SNode*)pStmt;
 }
 

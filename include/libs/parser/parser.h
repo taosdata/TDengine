@@ -33,7 +33,7 @@ typedef struct SStmtCallback {
   int32_t (*getExecInfoFn)(TAOS_STMT*, SHashObj**, SHashObj**);
 } SStmtCallback;
 
-typedef int32_t (*validateSqlFn)(void* param, SQuery* pQuery, const char* sql, SCMCreateViewReq* pRes);
+typedef int32_t (*validateSqlFn)(void* param, const char* sql, SCMCreateViewReq* pRes);
 
 typedef struct SParseCsvCxt {
   TdFilePtr   fp;           // last parsed file
