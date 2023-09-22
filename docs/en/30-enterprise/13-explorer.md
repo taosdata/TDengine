@@ -206,7 +206,7 @@ After you enter the edit page for the Kafka Data Source export task:
 3.  Select columns to be exported, default is all the columns of the super table, this field is required;
 4.  Select tags to be exported, default is all the tags of the super table;
 5.  Under Start time settings field, select a start time for the data by clicking on it, this field is optional;
-6.  Under End time settings field, select a start time for the data by clicking on it, this field is optional;
+6.  Under End time settings field, select a end time for the data by clicking on it, this field is optional;
 7.  If the Start time or the End time are specified, enter the the column name of timestamp, default value is ts; 
 8.  In the Kafka Server input box, enter bootstrap_server, for example 192.168.1.92:9092, this field is required;
 9.  In the Topic input box, enter an existing topic name in Kafka, this field is required;
