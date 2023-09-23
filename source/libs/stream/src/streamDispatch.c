@@ -854,7 +854,6 @@ int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInf
   }
 
   ((SMsgHead*)pBuf)->vgId = htonl(pReq->mnodeId);
-
   void* abuf = POINTER_SHIFT(pBuf, sizeof(SMsgHead));
 
   tEncoderInit(&encoder, (uint8_t*)abuf, len);
