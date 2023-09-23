@@ -318,6 +318,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   double el = (taosGetTimestampMs() - pTask->chkInfo.startTs) / 1000.0;
 
   if (remain == 0) {  // all tasks are ready
+    pTask->chkInfo.startTs = 0;  // clear the recorded start time
     stDebug("s-task:%s is ready for checkpoint", pTask->id.idStr);
     streamBackendDoCheckpoint(pMeta, pTask->checkpointingId);
     streamSaveAllTaskStatus(pMeta, pTask->checkpointingId);
