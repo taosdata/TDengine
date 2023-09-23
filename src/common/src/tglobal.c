@@ -54,7 +54,7 @@ int32_t  tsSyncCheckInterval = 1500;
 // common
 int32_t tsRpcTimer = 300;
 int32_t tsRpcMaxTime = 600;  // seconds;
-int32_t tsRpcForceTcp = 1;   // disable this, means query, show command use udp protocol as default
+int32_t tsRpcForceTcp = 0;   // disable this, means query, show command use udp protocol as default
 int32_t tsMaxShellConns = 50000;
 int32_t tsMaxConnections = 5000;
 int32_t tsShellActivityTimer = 3;  // second
