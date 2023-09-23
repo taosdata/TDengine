@@ -226,7 +226,8 @@ static void recheckDownstreamTasks(void* param, void* tmrId) {
   }
 
   destroyRecheckInfo(pInfo);
-  atomic_sub_fetch_8(&pTask->status.timerActive, 1);
+  int8_t ref = atomic_sub_fetch_8(&pTask->status.timerActive, 1);
+  stDebug("s-task:%s complete send check in timer, ref:%d", pTask->id.idStr, ref);
 }
 
 int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage) {
