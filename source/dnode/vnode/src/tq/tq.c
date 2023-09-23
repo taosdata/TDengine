@@ -1603,12 +1603,15 @@ FAIL:
 }
 
 // todo error code cannot be return, since this is invoked by an mnode-launched transaction.
-int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg) {
+int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
   char*        msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t      len = pMsg->contLen - sizeof(SMsgHead);
   int32_t      code = 0;
+
+  // disable auto rsp to source
+  pRsp->info.handle = NULL;
 
   SStreamCheckpointSourceReq req = {0};
   if (!vnodeIsRoleLeader(pTq->pVnode)) {
