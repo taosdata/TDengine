@@ -216,7 +216,7 @@ int64_t tsTickPerHour[] = {3600000L, 3600000000L, 3600000000000L};
 char tsLossyColumns[32] = "";  // "float|double" means all float and double columns can be lossy compressed.  set empty
                                // can close lossy compress.
 // below option can take effect when tsLossyColumns not empty
-double   tsFPrecision = 1E-8;                   // float column precision
+float    tsFPrecision = 1E-8;                   // float column precision
 double   tsDPrecision = 1E-16;                  // double column precision
 uint32_t tsMaxRange = 500;                      // max quantization intervals
 uint32_t tsCurRange = 100;                      // current quantization intervals
@@ -649,7 +649,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
     return -1;
 
   if (cfgAddString(pCfg, "LossyColumns", tsLossyColumns, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddDouble(pCfg, "FPrecision", tsFPrecision, 0.0f, 1000000.0f, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddFloat(pCfg, "FPrecision", tsFPrecision, 0.0f, 100000.0f, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddDouble(pCfg, "DPrecision", tsDPrecision, 0.0f, 1000000.0f, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "MaxRange", tsMaxRange, 0, 65536, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "CurRange", tsCurRange, 0, 65536, CFG_SCOPE_SERVER) != 0) return -1;

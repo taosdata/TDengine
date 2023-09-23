@@ -24,7 +24,7 @@
 //
 // Init  success return 1 else 0
 //
-void tdszInit(double fPrecision, double dPrecision, unsigned int maxIntervals, unsigned int intervals, int ifAdtFse, const char* compressor)
+void tdszInit(float fPrecision, double dPrecision, unsigned int maxIntervals, unsigned int intervals, int ifAdtFse, const char* compressor)
 {
 	// need malloc
 	if(confparams_cpr == NULL)

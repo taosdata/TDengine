@@ -70,7 +70,7 @@ bool lossyFloat = false;
 bool lossyDouble = false;
 
 // init call
-int32_t tsCompressInit(char* lossyColumns, double fPrecision, double dPrecision, uint32_t maxIntervals, uint32_t intervals,
+int32_t tsCompressInit(char* lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals, uint32_t intervals,
                        int32_t ifAdtFse, const char* compressor) {
   // config
   if (lossyColumns[0] == 0) {
