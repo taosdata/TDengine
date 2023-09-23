@@ -576,7 +576,7 @@ void rpcSendRecvWithTimeout(void *shandle, SRpcEpSet *pEpSet, SRpcMsg *pMsg, SRp
   int64_t rid = 0;
   rpcSendRequest(shandle, pEpSet, pMsg, &rid);
 
-#if defined (LINUX)
+#if defined(LINUX)
   if (tsem_timewait(&sem, 3 * 1000) == 0) {
     // do nothing
   } else {
@@ -584,7 +584,7 @@ void rpcSendRecvWithTimeout(void *shandle, SRpcEpSet *pEpSet, SRpcMsg *pMsg, SRp
     pRsp->code = -1;
   }
 
-#else 
+#else
   tsem_wait(&sem);
 #endif
   tsem_destroy(&sem);
@@ -765,11 +765,11 @@ static SRpcConn *rpcAllocateClientConn(SRpcInfo *pRpc) {
 
 static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
   SRpcConn *pConn = NULL;
-  char      hashstr[40] = {0};
+  char      hashstr[60] = {0};
   SRpcHead *pHead = (SRpcHead *)pRecv->msg;
 
-  size_t size =
-      snprintf(hashstr, sizeof(hashstr), "%x:%x:%x:%d", pRecv->ip, pHead->linkUid, pHead->sourceId, pRecv->connType);
+  size_t size = snprintf(hashstr, sizeof(hashstr), "%x:%d:%x:%x:%d", pRecv->ip, pRecv->port, pHead->linkUid,
+                         pHead->sourceId, pRecv->connType);
 
   // check if it is already allocated
   SRpcConn **ppConn = (SRpcConn **)(taosHashGet(pRpc->hash, hashstr, size));

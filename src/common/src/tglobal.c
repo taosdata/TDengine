@@ -54,7 +54,7 @@ int32_t  tsSyncCheckInterval = 1500;
 // common
 int32_t tsRpcTimer = 300;
 int32_t tsRpcMaxTime = 600;  // seconds;
-int32_t tsRpcForceTcp = 0;   // disable this, means query, show command use udp protocol as default
+int32_t tsRpcForceTcp = 1;   // disable this, means query, show command use udp protocol as default
 int32_t tsMaxShellConns = 50000;
 int32_t tsMaxConnections = 5000;
 int32_t tsShellActivityTimer = 3;  // second
@@ -131,9 +131,9 @@ int32_t tsProjectExecInterval = 10000;   // every 10sec, the projection will be 
 int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 
 // The tsc async write batching feature (using ABWD).
-bool    tsWriteBatchThreadLocal = false;    // if thread local enable, each thread will allocate a dispatcher.
-int32_t tsWriteBatchSize = 0;               // suggest: 64 - 512, default 0, 0 means disable batching.
-int32_t tsWriteBatchTimeout = 10;           // suggest: 2 - 100 (unit: milliseconds)
+bool    tsWriteBatchThreadLocal = false;  // if thread local enable, each thread will allocate a dispatcher.
+int32_t tsWriteBatchSize = 0;             // suggest: 64 - 512, default 0, 0 means disable batching.
+int32_t tsWriteBatchTimeout = 10;         // suggest: 2 - 100 (unit: milliseconds)
 
 // max query time range in seconds
 // if less than zero, no limits on query time range
@@ -213,25 +213,25 @@ char    tsInternalPass[] = "secretkey";
 int32_t tsMonitorInterval = 30;  // seconds
 
 // audit
-int8_t  tsEnableAudit = 0;
-char    tsAuditDbName[TSDB_DB_NAME_LEN] = "audit";
+int8_t tsEnableAudit = 0;
+char   tsAuditDbName[TSDB_DB_NAME_LEN] = "audit";
 
 // stream
 int8_t tsEnableStream = 1;
 
 // internal
-int8_t tsCompactMnodeWal = 0;
-int8_t tsPrintAuth = 0;
-int8_t tscEmbedded = 0;
-char   configDir[PATH_MAX] = {0};
-char   tsVnodeDir[PATH_MAX] = {0};
-char   tsDnodeDir[PATH_MAX] = {0};
-char   tsMnodeDir[PATH_MAX] = {0};
-char   tsMnodeTmpDir[PATH_MAX] = {0};
-char   tsMnodeBakDir[PATH_MAX] = {0};
-char   tsDataDir[PATH_MAX] = {0};
-char   tsScriptDir[PATH_MAX] = {0};
-char   tsTempDir[PATH_MAX] = "/tmp/";
+int8_t  tsCompactMnodeWal = 0;
+int8_t  tsPrintAuth = 0;
+int8_t  tscEmbedded = 0;
+char    configDir[PATH_MAX] = {0};
+char    tsVnodeDir[PATH_MAX] = {0};
+char    tsDnodeDir[PATH_MAX] = {0};
+char    tsMnodeDir[PATH_MAX] = {0};
+char    tsMnodeTmpDir[PATH_MAX] = {0};
+char    tsMnodeBakDir[PATH_MAX] = {0};
+char    tsDataDir[PATH_MAX] = {0};
+char    tsScriptDir[PATH_MAX] = {0};
+char    tsTempDir[PATH_MAX] = "/tmp/";
 int32_t tsKeepTimeOffset = 0;
 
 int32_t tsDiskCfgNum = 0;
@@ -242,7 +242,7 @@ SDiskCfg tsDiskCfg[1];
 #else
 SDiskCfg tsDiskCfg[TSDB_MAX_DISKS];
 #endif
-int64_t  tsMinDiskFreeSize = 50*1024*1024;
+int64_t tsMinDiskFreeSize = 50 * 1024 * 1024;
 
 /*
  * minimum scale for whole system, millisecond by default
@@ -290,13 +290,12 @@ int32_t  cqDebugFlag = 131;
 int32_t  fsDebugFlag = 135;
 
 int8_t tsClientMerge = 0;
-int8_t tsAggAlways = 0; // Agg function always return value even if zero row 
+int8_t tsAggAlways = 0;  // Agg function always return value even if zero row
 
 // probe alive connection
-int32_t tsProbeSeconds     =  5 * 60; // start probe link alive after tsProbeSeconds from starting query
-int32_t tsProbeKillSeconds = 10 * 60; // start kill query after tsProbeKillSeconds from last alive time
-int32_t tsProbeInterval    = 40;      // 40 * 1.5s = 60 s interval time
-
+int32_t tsProbeSeconds = 5 * 60;       // start probe link alive after tsProbeSeconds from starting query
+int32_t tsProbeKillSeconds = 10 * 60;  // start kill query after tsProbeKillSeconds from last alive time
+int32_t tsProbeInterval = 40;          // 40 * 1.5s = 60 s interval time
 
 #ifdef TD_TSZ
 //
@@ -317,11 +316,12 @@ int8_t tsDeadLockKillQuery = 1;
 
 // default JSON string type
 char tsDefaultJSONStrType[7] = "nchar";
-char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = ""; //user defined child table name can be specified in tag value.
-                                                    //If set to empty system will generate table name using MD5 hash.
-char tsSmlTagNullName[TSDB_COL_NAME_LEN] = "_tag_null"; //for line protocol if tag is omitted, add a tag with NULL value
-                                                        //to make sure inserted records belongs to the same measurement
-                                                        //default name is _tag_null and can be user configurable
+char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table name can be specified in tag value.
+                                                     // If set to empty system will generate table name using MD5 hash.
+char tsSmlTagNullName[TSDB_COL_NAME_LEN] =
+    "_tag_null";  // for line protocol if tag is omitted, add a tag with NULL value
+                  // to make sure inserted records belongs to the same measurement
+                  // default name is _tag_null and can be user configurable
 
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;
@@ -1841,7 +1841,7 @@ static void doInitGlobalConfig(void) {
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
   cfg.minValue = 0;
-  cfg.maxValue = 2048*1024;
+  cfg.maxValue = 2048 * 1024;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
@@ -1897,7 +1897,7 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
-  
+
   cfg.option = "writeBatchThreadLocal";
   cfg.ptr = &tsWriteBatchThreadLocal;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
@@ -1942,8 +1942,8 @@ static void doInitGlobalConfig(void) {
   cfg.ptr = &tsMinDiskFreeSize;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 50 * 1024 * 1024; // 50MB
-  cfg.maxValue = 1024 * 1024 * 1024; // 1GB
+  cfg.minValue = 50 * 1024 * 1024;    // 50MB
+  cfg.maxValue = 1024 * 1024 * 1024;  // 1GB
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
