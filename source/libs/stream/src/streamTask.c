@@ -129,9 +129,9 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   } else if (pTask->outputInfo.type == TASK_OUTPUT__FETCH) {
     if (tEncodeI8(pEncoder, pTask->fetchSink.reserved) < 0) return -1;
   } else if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
-    if (tEncodeI32(pEncoder, pTask->fixedEpDispatcher.taskId) < 0) return -1;
-    if (tEncodeI32(pEncoder, pTask->fixedEpDispatcher.nodeId) < 0) return -1;
-    if (tEncodeSEpSet(pEncoder, &pTask->fixedEpDispatcher.epSet) < 0) return -1;
+    if (tEncodeI32(pEncoder, pTask->fixedDispatcher.taskId) < 0) return -1;
+    if (tEncodeI32(pEncoder, pTask->fixedDispatcher.nodeId) < 0) return -1;
+    if (tEncodeSEpSet(pEncoder, &pTask->fixedDispatcher.epSet) < 0) return -1;
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     if (tSerializeSUseDbRspImp(pEncoder, &pTask->shuffleDispatcher.dbInfo) < 0) return -1;
     if (tEncodeCStr(pEncoder, pTask->shuffleDispatcher.stbFullName) < 0) return -1;
@@ -211,9 +211,9 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   } else if (pTask->outputInfo.type == TASK_OUTPUT__FETCH) {
     if (tDecodeI8(pDecoder, &pTask->fetchSink.reserved) < 0) return -1;
   } else if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
-    if (tDecodeI32(pDecoder, &pTask->fixedEpDispatcher.taskId) < 0) return -1;
-    if (tDecodeI32(pDecoder, &pTask->fixedEpDispatcher.nodeId) < 0) return -1;
-    if (tDecodeSEpSet(pDecoder, &pTask->fixedEpDispatcher.epSet) < 0) return -1;
+    if (tDecodeI32(pDecoder, &pTask->fixedDispatcher.taskId) < 0) return -1;
+    if (tDecodeI32(pDecoder, &pTask->fixedDispatcher.nodeId) < 0) return -1;
+    if (tDecodeSEpSet(pDecoder, &pTask->fixedDispatcher.epSet) < 0) return -1;
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     if (tDeserializeSUseDbRspImp(pDecoder, &pTask->shuffleDispatcher.dbInfo) < 0) return -1;
     if (tDecodeCStrTo(pDecoder, pTask->shuffleDispatcher.stbFullName) < 0) return -1;
@@ -289,20 +289,17 @@ static void freeUpstreamItem(void* p) {
 void tFreeStreamTask(SStreamTask* pTask) {
   int32_t taskId = pTask->id.taskId;
 
-  STaskExecStatisInfo* pStatis = &pTask->taskExecInfo;
+  STaskExecStatisInfo* pStatis = &pTask->execInfo;
 
   stDebug("start to free s-task:0x%x, %p, state:%p, status:%s", taskId, pTask, pTask->pState,
          streamGetTaskStatusStr(pTask->status.taskStatus));
 
-  stDebug("s-task:0x%x exec info: create:%" PRId64 ", init:%" PRId64 ", start:%" PRId64
+  stDebug("s-task:0x%x task exec summary: create:%" PRId64 ", init:%" PRId64 ", start:%" PRId64
          ", updateCount:%d latestUpdate:%" PRId64 ", latestCheckPoint:%" PRId64 ", ver:%" PRId64
-         " nextProcessVer:%" PRId64,
+         " nextProcessVer:%" PRId64", checkpointCount:%d",
          taskId, pStatis->created, pStatis->init, pStatis->start, pStatis->updateCount, pStatis->latestUpdateTs,
-         pTask->chkInfo.checkpointId, pTask->chkInfo.checkpointVer, pTask->chkInfo.nextProcessVer);
-
-  if (pStatis->created == 0 || pStatis->init == 0 || pStatis->start == 0) {
-    int32_t k = 1;
-  }
+         pTask->chkInfo.checkpointId, pTask->chkInfo.checkpointVer, pTask->chkInfo.nextProcessVer,
+         pStatis->checkpoint);
 
   // remove the ref by timer
   while (pTask->status.timerActive > 0) {
@@ -315,9 +312,22 @@ void tFreeStreamTask(SStreamTask* pTask) {
     pTask->schedInfo.pTimer = NULL;
   }
 
-  if (pTask->launchTaskTimer != NULL) {
-    taosTmrStop(pTask->launchTaskTimer);
-    pTask->launchTaskTimer = NULL;
+  if (pTask->pTimer != NULL) {
+    if (pTask->pTimer->hTaskLaunchTimer != NULL) {
+      taosTmrStop(pTask->pTimer->hTaskLaunchTimer);
+      pTask->pTimer->hTaskLaunchTimer = NULL;
+    }
+
+    if (pTask->pTimer->dispatchTimer != NULL) {
+      taosTmrStop(pTask->pTimer->dispatchTimer);
+      pTask->pTimer->dispatchTimer = NULL;
+    }
+
+    if (pTask->pTimer->checkTimer != NULL) {
+      taosTmrStop(pTask->pTimer->checkTimer);
+      pTask->pTimer->checkTimer = NULL;
+    }
+    taosMemoryFreeClear(pTask->pTimer);
   }
 
   int32_t status = atomic_load_8((int8_t*)&(pTask->status.taskStatus));
@@ -402,7 +412,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pTask->taskExecInfo.created = taosGetTimestampMs();
+  pTask->execInfo.created = taosGetTimestampMs();
   pTask->inputInfo.status = TASK_INPUT_STATUS__NORMAL;
   pTask->outputInfo.status = TASK_OUTPUT_STATUS__NORMAL;
   pTask->pMeta = pMeta;
@@ -416,6 +426,12 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   pTask->pTokenBucket = taosMemoryCalloc(1, sizeof(STokenBucket));
   if (pTask->pTokenBucket == NULL) {
     stError("s-task:%s failed to prepare the tokenBucket, code:%s", pTask->id.idStr, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pTask->pTimer = taosMemoryCalloc(1, sizeof(STaskTimer));
+  if (pTask->pTimer == NULL) {
+    stError("s-task:%s failed to prepare the timer, code:%s", pTask->id.idStr, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -501,7 +517,7 @@ void streamTaskUpdateUpstreamInfo(SStreamTask* pTask, int32_t nodeId, const SEpS
 }
 
 void streamTaskSetFixedDownstreamInfo(SStreamTask* pTask, const SStreamTask* pDownstreamTask) {
-  STaskDispatcherFixedEp* pDispatcher = &pTask->fixedEpDispatcher;
+  STaskDispatcherFixed* pDispatcher = &pTask->fixedDispatcher;
   pDispatcher->taskId = pDownstreamTask->id.taskId;
   pDispatcher->nodeId = pDownstreamTask->info.nodeId;
   pDispatcher->epSet = pDownstreamTask->info.epSet;
@@ -530,7 +546,7 @@ void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SE
       }
     }
   } else if (type == TASK_OUTPUT__FIXED_DISPATCH) {
-    STaskDispatcherFixedEp* pDispatcher = &pTask->fixedEpDispatcher;
+    STaskDispatcherFixed* pDispatcher = &pTask->fixedDispatcher;
     if (pDispatcher->nodeId == nodeId) {
       epsetAssign(&pDispatcher->epSet, pEpSet);
       stDebug("s-task:0x%x update the dispatch info, task:0x%x(nodeId:%d) newEpSet:%s", pTask->id.taskId,
@@ -598,7 +614,7 @@ int32_t doUpdateTaskEpset(SStreamTask* pTask, int32_t nodeId, SEpSet* pEpSet) {
 }
 
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList) {
-  STaskExecStatisInfo* p = &pTask->taskExecInfo;
+  STaskExecStatisInfo* p = &pTask->execInfo;
 
   int32_t numOfNodes = taosArrayGetSize(pNodeList);
   int64_t prevTs = p->latestUpdateTs;

@@ -202,7 +202,7 @@ int32_t streamScanHistoryData(SStreamTask* pTask) {
 
   while (!finished) {
     if (streamTaskShouldPause(&pTask->status)) {
-      double el = (taosGetTimestampMs() - pTask->taskExecInfo.step1Start) / 1000.0;
+      double el = (taosGetTimestampMs() - pTask->execInfo.step1Start) / 1000.0;
       stDebug("s-task:%s paused from the scan-history task, elapsed time:%.2fsec", pTask->id.idStr, el);
       break;
     }
@@ -556,7 +556,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       // here only handle the data block sink operation
       if (type == STREAM_INPUT__DATA_BLOCK) {
         int32_t blockSize = streamQueueItemGetSize(pInput);
-        pTask->sinkRecorder.bytes += blockSize;
+        pTask->execInfo.sink.bytes += blockSize;
 
         stDebug("s-task:%s sink task start to sink %d blocks, size:%.2fKiB", id, numOfBlocks, SIZE_IN_KiB(blockSize));
         doOutputResultBlockImpl(pTask, (SStreamDataBlock*)pInput);

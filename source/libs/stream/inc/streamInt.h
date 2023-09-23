@@ -26,6 +26,8 @@
 extern "C" {
 #endif
 
+#define CHECK_DOWNSTREAM_INTERVAL 100
+
 // clang-format off
 #define stFatal(...) do { if (stDebugFlag & DEBUG_FATAL) { taosPrintLog("STM FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
 #define stError(...) do { if (stDebugFlag & DEBUG_ERROR) { taosPrintLog("STM ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
@@ -53,11 +55,17 @@ struct STokenBucket {
   int32_t rate;         // number of token per second
 };
 
+struct STaskTimer {
+  void* hTaskLaunchTimer;
+  void* dispatchTimer;
+  void* checkTimer;
+};
+
 extern SStreamGlobalEnv streamEnv;
 extern int32_t streamBackendId;
 extern int32_t streamBackendCfWrapperId;
 
-void        streamRetryDispatchStreamBlock(SStreamTask* pTask, int64_t waitDuration);
+void        streamRetryDispatchData(SStreamTask* pTask, int64_t waitDuration);
 int32_t     streamDispatchStreamBlock(SStreamTask* pTask);
 void        destroyDispatchMsg(SStreamDispatchReq* pReq, int32_t numOfVgroups);
 int32_t     getNumOfDispatchBranch(SStreamTask* pTask);
@@ -75,7 +83,7 @@ int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* p
 
 int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId);
 int32_t streamTaskBuildCheckpoint(SStreamTask* pTask);
-int32_t streamDispatchCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, int32_t nodeId, SEpSet* pEpSet);
+int32_t streamSendCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, int32_t nodeId, SEpSet* pEpSet);
 
 int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t srcTaskId, int32_t index, int64_t checkpointId);
 int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask);
