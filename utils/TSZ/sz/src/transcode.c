@@ -13,6 +13,15 @@
 #include "bitstream.h"
 #include <stdlib.h>
 
+
+#ifdef WINDOWS
+int32_t BUILDIN_CLZ(uint32_t val) {
+  unsigned long r = 0;
+  _BitScanReverse(&r, val);
+  return (int)(31 - r);
+}
+#endif
+
 /**
  * @brief transform type array to FseCode & tranCodeBits
  * [type] ---minus md---> [factor] ---transcode---> [tp_code] + [bitstream of diff]
