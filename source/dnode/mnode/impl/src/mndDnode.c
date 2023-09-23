@@ -697,13 +697,13 @@ static int32_t mndProcessNotifyReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  // int64_t clusterid = mndGetClusterId(pMnode);
-  // if (notifyReq.clusterId != 0 && notifyReq.clusterId != clusterid) {
-  //   code = TSDB_CODE_MND_DNODE_DIFF_CLUSTER;
-  //   mWarn("dnode:%d, its clusterid:%" PRId64 " differ from current cluster:%" PRId64 " since %s", notifyReq.dnodeId,
-  //         notifyReq.clusterId, clusterid, tstrerror(code));
-  //   goto _OVER;
-  // }
+  int64_t clusterid = mndGetClusterId(pMnode);
+  if (notifyReq.clusterId != 0 && notifyReq.clusterId != clusterid) {
+    code = TSDB_CODE_MND_DNODE_DIFF_CLUSTER;
+    mWarn("dnode:%d, its clusterid:%" PRId64 " differ from current cluster:%" PRId64 " since %s", notifyReq.dnodeId,
+          notifyReq.clusterId, clusterid, tstrerror(code));
+    goto _OVER;
+  }
 
   int32_t nVgroup = taosArrayGetSize(notifyReq.pVloads);
   for (int32_t v = 0; v < nVgroup; ++v) {

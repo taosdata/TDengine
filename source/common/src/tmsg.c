@@ -1076,9 +1076,10 @@ int32_t tDeserializeSNotifyReq(void *buf, int32_t bufLen, SNotifyReq *pReq) {
       goto _exit;
     }
     for (int32_t i = 0; i < nVgroup; ++i) {
-      SVnodeLoadLite *vload = TARRAY_GET_ELEM(pReq->pVloads, i);
-      if (tDecodeI32(&decoder, &(vload->vgId)) < 0) goto _exit;
-      if (tDecodeI64(&decoder, &(vload->nTimeSeries)) < 0) goto _exit;
+      SVnodeLoadLite vload;
+      if (tDecodeI32(&decoder, &(vload.vgId)) < 0) goto _exit;
+      if (tDecodeI64(&decoder, &(vload.nTimeSeries)) < 0) goto _exit;
+      taosArrayPush(pReq->pVloads, &vload);
     }
   }
 
