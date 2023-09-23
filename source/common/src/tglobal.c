@@ -265,6 +265,9 @@ char   tsS3BucketName[TSDB_FQDN_LEN] = "<bucketname>";
 char   tsS3AppId[TSDB_FQDN_LEN] = "<appid>";
 int8_t tsS3Enabled = false;
 
+int32_t tsS3BlockSize = 4096;     // number of tsdb pages
+int32_t tsS3BlockCacheSize = 16;  // number of blocks
+
 int32_t tsCheckpointInterval = 20;
 
 #ifndef _STORAGE
@@ -322,7 +325,9 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   return 0;
 }
 
-struct SConfig *taosGetCfg() { return tsCfg; }
+struct SConfig *taosGetCfg() {
+  return tsCfg;
+}
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -657,6 +662,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "s3Accesskey", tsS3AccessKey, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddString(pCfg, "s3Endpoint", tsS3Endpoint, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddString(pCfg, "s3BucketName", tsS3BucketName, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "s3BlockSize", tsS3BlockSize, 2048, 1024 * 1024, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "s3BlockCacheSize", tsS3BlockCacheSize, 4, 1024 * 1024, CFG_SCOPE_SERVER) != 0) return -1;
 
   // min free disk space used to check if the disk is full [50MB, 1GB]
   if (cfgAddInt64(pCfg, "minDiskFreeSize", tsMinDiskFreeSize, TFS_MIN_DISK_FREE_SIZE, 1024 * 1024 * 1024,
@@ -1072,6 +1079,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsPQSortMemThreshold = cfgGetItem(pCfg, "pqSortMemThreshold")->i32;
   tsResolveFQDNRetryTime = cfgGetItem(pCfg, "resolveFQDNRetryTime")->i32;
   tsMinDiskFreeSize = cfgGetItem(pCfg, "minDiskFreeSize")->i64;
+
+  tsS3BlockSize = cfgGetItem(pCfg, "s3BlockSize")->i32;
+  tsS3BlockCacheSize = cfgGetItem(pCfg, "s3BlockCacheSize")->i32;
 
   GRANT_CFG_GET;
   return 0;
@@ -1645,6 +1655,20 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     if (pItem != NULL) {
       pItem->bval = tsEnableMonitor;
     }
+    return;
+  }
+
+  if (strcasecmp(option, "s3BlockSize") == 0) {
+    int32_t newS3BlockSize = atoi(value);
+    uInfo("s3BlockSize set from %d to %d", tsS3BlockSize, newS3BlockSize);
+    tsS3BlockSize = newS3BlockSize;
+    return;
+  }
+
+  if (strcasecmp(option, "s3BlockCacheSize") == 0) {
+    int32_t newS3BlockCacheSize = atoi(value);
+    uInfo("s3BlockCacheSize set from %d to %d", tsS3BlockCacheSize, newS3BlockCacheSize);
+    tsS3BlockCacheSize = newS3BlockCacheSize;
     return;
   }
 
