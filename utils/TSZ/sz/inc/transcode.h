@@ -19,9 +19,9 @@ extern "C" {
 
 
 #ifdef WINDOWS
-int32_t BUILDIN_CLZ(uint32_t val);
+int32_t BUILDIN_CLZ_EX(uint32_t val);
 #else
-#define BUILDIN_CLZ(val)  __builtin_clz(val)
+#define BUILDIN_CLZ_EX(val)  __builtin_clz(val)
 #endif
 
 /**
@@ -60,10 +60,10 @@ MEM_STATIC int Int2code(int factor)
                                          24, 24, 24, 24, 24, 24, 24, 24,
                                          24, 24, 24, 24, 24, 24, 24, 24 };
     if (factor >= 0)
-        return (factor > 63) ? 50 - BUILDIN_CLZ(factor) : Ft_Code[factor];
+        return (factor > 63) ? 50 - BUILDIN_CLZ_EX(factor) : Ft_Code[factor];
     else {
         factor = -factor;
-        return (factor > 63) ? 17 + BUILDIN_CLZ(factor) : 67 - Ft_Code[factor];
+        return (factor > 63) ? 17 + BUILDIN_CLZ_EX(factor) : 67 - Ft_Code[factor];
     }
 }
 

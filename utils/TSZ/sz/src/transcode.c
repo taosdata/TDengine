@@ -15,7 +15,7 @@
 
 
 #ifdef WINDOWS
-int32_t BUILDIN_CLZ(uint32_t val) {
+int32_t BUILDIN_CLZ_EX(uint32_t val) {
   unsigned long r = 0;
   _BitScanReverse(&r, val);
   return (int)(31 - r);
