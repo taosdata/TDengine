@@ -58,7 +58,6 @@ struct STokenBucket {
 struct STaskTimer {
   void* hTaskLaunchTimer;
   void* dispatchTimer;
-  void* checkTimer;
 };
 
 extern SStreamGlobalEnv streamEnv;

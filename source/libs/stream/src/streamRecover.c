@@ -24,8 +24,9 @@ typedef struct SLaunchHTaskInfo {
 } SLaunchHTaskInfo;
 
 typedef struct STaskRecheckInfo {
-  SStreamTask* pTask;
+  SStreamTask*        pTask;
   SStreamTaskCheckReq req;
+  void*               checkTimer;
 } STaskRecheckInfo;
 
 static int32_t streamSetParamForScanHistory(SStreamTask* pTask);
@@ -197,6 +198,8 @@ static STaskRecheckInfo* createRecheckInfo(SStreamTask* pTask, const SStreamTask
 
 static void destroyRecheckInfo(STaskRecheckInfo* pInfo) {
   if (pInfo != NULL) {
+    taosTmrStop(pInfo->checkTimer);
+    pInfo->checkTimer = NULL;
     taosMemoryFree(pInfo);
   }
 }
@@ -349,18 +352,13 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
           "again, roll-back needed",
           id, pRsp->oldStage, (int32_t)pTask->pMeta->stage);
     } else {
-      STaskTimer*       pTmr = pTask->pTimer;
       STaskRecheckInfo* pInfo = createRecheckInfo(pTask, pRsp);
 
       int8_t ref = atomic_add_fetch_8(&pTask->status.timerActive, 1);
       stDebug("s-task:%s downstream taskId:0x%x (vgId:%d) not ready, stage:%d, retry in 100ms, ref:%d ", id,
               pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->oldStage, ref);
 
-      if (pTmr->checkTimer != NULL) {
-        taosTmrReset(recheckDownstreamTasks, CHECK_DOWNSTREAM_INTERVAL, pInfo, streamEnv.timer, &pTmr->checkTimer);
-      } else {
-        pTmr->checkTimer = taosTmrStart(recheckDownstreamTasks, CHECK_DOWNSTREAM_INTERVAL, pInfo, streamEnv.timer);
-      }
+      taosTmrReset(recheckDownstreamTasks, CHECK_DOWNSTREAM_INTERVAL, pInfo, streamEnv.timer, &pInfo->checkTimer);
     }
   }
 

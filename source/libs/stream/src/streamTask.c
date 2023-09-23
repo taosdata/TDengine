@@ -323,10 +323,6 @@ void tFreeStreamTask(SStreamTask* pTask) {
       pTask->pTimer->dispatchTimer = NULL;
     }
 
-    if (pTask->pTimer->checkTimer != NULL) {
-      taosTmrStop(pTask->pTimer->checkTimer);
-      pTask->pTimer->checkTimer = NULL;
-    }
     taosMemoryFreeClear(pTask->pTimer);
   }
 
