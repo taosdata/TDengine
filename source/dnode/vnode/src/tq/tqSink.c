@@ -270,11 +270,11 @@ int32_t doBuildAndSendSubmitMsg(SVnode* pVnode, SStreamTask* pTask, SSubmitReq2*
     tqError("s-task:%s failed to put into write-queue since %s", id, terrstr());
   }
 
-  SSinkTaskRecorder* pRec = &pTask->sinkRecorder;
+  SSinkRecorder* pRec = &pTask->execInfo.sink;
 
   pRec->numOfSubmit += 1;
   if ((pRec->numOfSubmit % 5000) == 0) {
-    double             el = (taosGetTimestampMs() - pTask->taskExecInfo.start) / 1000.0;
+    double             el = (taosGetTimestampMs() - pTask->execInfo.start) / 1000.0;
     tqInfo("s-task:%s vgId:%d write %" PRId64 " blocks (%" PRId64 " rows) in %" PRId64
            " submit into dst table, %.2fMiB duration:%.2f Sec.",
            pTask->id.idStr, vgId, pRec->numOfBlocks, pRec->numOfRows, pRec->numOfSubmit, SIZE_IN_MiB(pRec->bytes), el);
@@ -755,8 +755,8 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
   int32_t       code = TSDB_CODE_SUCCESS;
   const char*   id = pTask->id.idStr;
 
-  if (pTask->taskExecInfo.start == 0) {
-    pTask->taskExecInfo.start = taosGetTimestampMs();
+  if (pTask->execInfo.start == 0) {
+    pTask->execInfo.start = taosGetTimestampMs();
   }
 
   bool onlySubmitData = true;
@@ -785,7 +785,7 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
       } else if (pDataBlock->info.type == STREAM_CHECKPOINT) {
         continue;
       } else {
-        pTask->sinkRecorder.numOfBlocks += 1;
+        pTask->execInfo.sink.numOfBlocks += 1;
 
         SSubmitReq2 submitReq = {.aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData))};
         if (submitReq.aSubmitTbData == NULL) {
@@ -833,7 +833,7 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
       }
 
       hasSubmit = true;
-      pTask->sinkRecorder.numOfBlocks += 1;
+      pTask->execInfo.sink.numOfBlocks += 1;
       uint64_t groupId = pDataBlock->info.id.groupId;
 
       SSubmitTbData tbData = {.suid = suid, .uid = 0, .sver = pTSchema->version};
@@ -867,7 +867,7 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
         }
       }
 
-      pTask->sinkRecorder.numOfRows += pDataBlock->info.rows;
+      pTask->execInfo.sink.numOfRows += pDataBlock->info.rows;
     }
 
     taosHashCleanup(pTableIndexMap);

@@ -1003,8 +1003,8 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
 
       bool restored = pTq->pVnode->restored;
       if (p != NULL && restored) {
-        p->taskExecInfo.init = taosGetTimestampMs();
-        tqDebug("s-task:%s set the init ts:%"PRId64, p->id.idStr, p->taskExecInfo.init);
+        p->execInfo.init = taosGetTimestampMs();
+        tqDebug("s-task:%s set the init ts:%"PRId64, p->id.idStr, p->execInfo.init);
 
         streamTaskCheckDownstream(p);
       } else if (!restored) {
@@ -1042,14 +1042,14 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
   tqDebug("s-task:%s start scan-history stage(step 1), status:%s", id, pStatus);
 
-  if (pTask->taskExecInfo.step1Start == 0) {
+  if (pTask->execInfo.step1Start == 0) {
     ASSERT(pTask->status.pauseAllowed == false);
-    pTask->taskExecInfo.step1Start = taosGetTimestampMs();
+    pTask->execInfo.step1Start = taosGetTimestampMs();
     if (pTask->info.fillHistory == 1) {
       streamTaskEnablePause(pTask);
     }
   } else {
-    tqDebug("s-task:%s resume from paused, start ts:%" PRId64, pTask->id.idStr, pTask->taskExecInfo.step1Start);
+    tqDebug("s-task:%s resume from paused, start ts:%" PRId64, pTask->id.idStr, pTask->execInfo.step1Start);
   }
 
   // we have to continue retrying to successfully execute the scan history task.
@@ -1069,7 +1069,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
   streamScanHistoryData(pTask);
   if (pTask->status.taskStatus == TASK_STATUS__PAUSE) {
-    double el = (taosGetTimestampMs() - pTask->taskExecInfo.step1Start) / 1000.0;
+    double el = (taosGetTimestampMs() - pTask->execInfo.step1Start) / 1000.0;
     int8_t status = streamTaskSetSchedStatusInActive(pTask);
     tqDebug("s-task:%s is paused in the step1, elapsed time:%.2fs, sched-status:%d", pTask->id.idStr, el, status);
     streamMetaReleaseTask(pMeta, pTask);
@@ -1077,7 +1077,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   // the following procedure should be executed, no matter status is stop/pause or not
-  double el = (taosGetTimestampMs() - pTask->taskExecInfo.step1Start) / 1000.0;
+  double el = (taosGetTimestampMs() - pTask->execInfo.step1Start) / 1000.0;
   tqDebug("s-task:%s scan-history stage(step 1) ended, elapsed time:%.2fs", id, el);
 
   if (pTask->info.fillHistory) {
@@ -1158,7 +1158,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     done = streamHistoryTaskSetVerRangeStep2(pTask, latestVer);
 
     if (done) {
-      pTask->taskExecInfo.step2Start = taosGetTimestampMs();
+      pTask->execInfo.step2Start = taosGetTimestampMs();
       qDebug("s-task:%s scan-history from WAL stage(step 2) ended, elapsed time:%.2fs", id, 0.0);
       streamTaskPutTranstateIntoInputQ(pTask);
       streamTryExec(pTask);  // exec directly
@@ -1170,7 +1170,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
               pStreamTask->id.idStr);
       ASSERT(pTask->status.schedStatus == TASK_SCHED_STATUS__WAITING);
 
-      pTask->taskExecInfo.step2Start = taosGetTimestampMs();
+      pTask->execInfo.step2Start = taosGetTimestampMs();
       streamSetParamForStreamScannerStep2(pTask, pRange, pWindow);
 
       int64_t dstVer = pTask->dataRange.range.minVer;

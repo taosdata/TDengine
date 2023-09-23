@@ -141,6 +141,8 @@ int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSo
   pTask->checkpointNotReadyTasks = streamTaskGetNumOfDownstream(pTask);
   pTask->chkInfo.startTs = taosGetTimestampMs();
 
+  pTask->execInfo.checkpoint += 1;
+
   // 2. let's dispatch checkpoint msg to downstream task directly and do nothing else. put the checkpoint block into
   //    inputQ, to make sure all blocks with less version have been handled by this task already.
   int32_t code = appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT_TRIGGER);
@@ -200,6 +202,7 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
     ASSERT(taosArrayGetSize(pTask->pUpstreamInfoList) > 0);
     if (pTask->chkInfo.startTs == 0) {
       pTask->chkInfo.startTs = taosGetTimestampMs();
+      pTask->execInfo.checkpoint += 1;
     }
 
     // update the child Id for downstream tasks
@@ -321,13 +324,15 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
     stDebug("s-task:%s is ready for checkpoint", pTask->id.idStr);
     streamBackendDoCheckpoint(pMeta, pTask->checkpointingId);
     streamSaveAllTaskStatus(pMeta, pTask->checkpointingId);
-    stInfo("vgId:%d vnode wide checkpoint completed, save all tasks status, elapsed time:%.2f Sec checkpointId:%" PRId64, pMeta->vgId,
-           el, pTask->checkpointingId);
+    stInfo(
+        "vgId:%d vnode wide checkpoint completed, save all tasks status, last:%s, level:%d elapsed time:%.2f Sec "
+        "checkpointId:%" PRId64,
+        pMeta->vgId, pTask->id.idStr, pTask->info.taskLevel, el, pTask->checkpointingId);
   } else {
     stInfo(
-        "vgId:%d vnode wide tasks not reach checkpoint ready status, ready s-task:%s, elapsed time:%.2f Sec not "
-        "ready:%d/%d",
-        pMeta->vgId, pTask->id.idStr, el, remain, pMeta->numOfStreamTasks);
+        "vgId:%d vnode wide tasks not reach checkpoint ready status, ready s-task:%s, level:%d elapsed time:%.2f Sec "
+        "not ready:%d/%d",
+        pMeta->vgId, pTask->id.idStr, pTask->info.taskLevel, el, remain, pMeta->numOfStreamTasks);
   }
 
   // send check point response to upstream task

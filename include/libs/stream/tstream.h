@@ -209,7 +209,7 @@ typedef struct {
   int32_t taskId;
   int32_t nodeId;
   SEpSet  epSet;
-} STaskDispatcherFixedEp;
+} STaskDispatcherFixed;
 
 typedef struct {
   char      stbFullName[TSDB_TABLE_FNAME_LEN];
@@ -298,7 +298,7 @@ typedef struct SDispatchMsgInfo {
   int8_t  dispatchMsgType;
   int16_t msgType;     // dispatch msg type
   int32_t retryCount;  // retry send data count
-  int64_t startTs;  // output blocking timestamp
+  int64_t startTs;     // dispatch start time, record total elapsed time for dispatch
   SArray* pRetryList;  // current dispatch successfully completed node of downstream
 } SDispatchMsgInfo;
 
@@ -318,24 +318,27 @@ typedef struct STaskSchedInfo {
   void*   pTimer;
 } STaskSchedInfo;
 
-typedef struct SSinkTaskRecorder {
+typedef struct SSinkRecorder {
   int64_t numOfSubmit;
   int64_t numOfBlocks;
   int64_t numOfRows;
   int64_t bytes;
-} SSinkTaskRecorder;
+} SSinkRecorder;
 
-typedef struct {
-  int64_t created;
-  int64_t init;
-  int64_t step1Start;
-  int64_t step2Start;
-  int64_t start;
-  int32_t updateCount;
-  int32_t dispatchCount;
-  int64_t latestUpdateTs;
+typedef struct STaskExecStatisInfo {
+  int64_t       created;
+  int64_t       init;
+  int64_t       step1Start;
+  int64_t       step2Start;
+  int64_t       start;
+  int32_t       updateCount;
+  int32_t       dispatch;
+  int64_t       latestUpdateTs;
+  int32_t       checkpoint;
+  SSinkRecorder sink;
 } STaskExecStatisInfo;
 
+typedef struct STaskTimer   STaskTimer;
 typedef struct STokenBucket STokenBucket;
 typedef struct SMetaHbInfo  SMetaHbInfo;
 
@@ -353,23 +356,22 @@ struct SStreamTask {
   SDataRange       dataRange;
   STaskId          historyTaskId;
   STaskId          streamTaskId;
-  STaskExecStatisInfo taskExecInfo;
+  STaskExecStatisInfo execInfo;
   SArray*          pReadyMsgList;  // SArray<SStreamChkptReadyInfo*>
   TdThreadMutex    lock;           // secure the operation of set task status and puting data into inputQ
   SArray*          pUpstreamInfoList;
 
   // output
   union {
-    STaskDispatcherFixedEp fixedEpDispatcher;
+    STaskDispatcherFixed   fixedDispatcher;
     STaskDispatcherShuffle shuffleDispatcher;
     STaskSinkTb            tbSink;
     STaskSinkSma           smaSink;
     STaskSinkFetch         fetchSink;
   };
-  SSinkTaskRecorder sinkRecorder;
-  STokenBucket*     pTokenBucket;
 
-  void*         launchTaskTimer;
+  STokenBucket* pTokenBucket;
+  STaskTimer*   pTimer;
   SMsgCb*       pMsgCb;  // msg handle
   SStreamState* pState;  // state backend
   SArray*       pRspMsgList;
