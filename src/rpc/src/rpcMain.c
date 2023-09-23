@@ -676,9 +676,9 @@ static void rpcReleaseConn(SRpcConn *pConn) {
   taosTmrStopA(&pConn->pIdleTimer);
 
   if (pRpc->connType == TAOS_CONN_SERVER) {
-    char   hashstr[40] = {0};
-    size_t size = snprintf(hashstr, sizeof(hashstr), "%x:%x:%x:%d", pConn->peerIp, pConn->linkUid, pConn->peerId,
-                           pConn->connType);
+    char   hashstr[60] = {0};
+    size_t size = snprintf(hashstr, sizeof(hashstr), "%x:%d:%x:%x:%d", pConn->peerIp, pConn->peerPort, pConn->linkUid,
+                           pConn->peerId, pConn->connType);
     taosHashRemove(pRpc->hash, hashstr, size);
     rpcFreeMsg(pConn->pRspMsg);  // it may have a response msg saved, but not request msg
     pConn->pRspMsg = NULL;
