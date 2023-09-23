@@ -1046,7 +1046,9 @@ static int32_t handleDispatchSuccessRsp(SStreamTask* pTask, int32_t downstreamId
           pTask->id.idStr, downstreamId, el);
 
   // put data into inputQ of current task is also allowed
-  pTask->inputInfo.status = TASK_INPUT_STATUS__NORMAL;
+  if (pTask->inputInfo.status == TASK_INPUT_STATUS__BLOCKED) {
+    pTask->inputInfo.status = TASK_INPUT_STATUS__NORMAL;
+  }
 
   // now ready for next data output
   atomic_store_8(&pTask->outputInfo.status, TASK_OUTPUT_STATUS__NORMAL);
@@ -1105,6 +1107,9 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
 
       stError("s-task:%s inputQ of downstream task:0x%x(vgId:%d) is full, wait for %dms and retry dispatch data", id,
               pRsp->downstreamTaskId, pRsp->downstreamNodeId, DISPATCH_RETRY_INTERVAL_MS);
+    } else if (pRsp->inputStatus == TASK_INPUT_STATUS__REFUSED) {
+      stError("s-task:%s downstream task:0x%x(vgId:%d) refused the dispatch msg, treat it as success", id,
+              pRsp->downstreamTaskId, pRsp->downstreamNodeId);
     }
 
     // transtate msg has been sent to downstream successfully. let's transfer the fill-history task state

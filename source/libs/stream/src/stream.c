@@ -225,15 +225,15 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   ASSERT(pInfo != NULL);
 
   if (!pTask->pMeta->leader) {
-    stError("s-task:%s task on follower received dispatch msgs, should discard it, not now", id);
-    status = TASK_INPUT_STATUS__BLOCKED;
+    stError("s-task:%s task on follower received dispatch msgs, dispatch msg rejected", id);
+    status = TASK_INPUT_STATUS__REFUSED;
   } else {
     if (pReq->stage > pInfo->stage) {
       // upstream task has restarted/leader-follower switch/transferred to other dnodes
       stError("s-task:%s upstream task:0x%x (vgId:%d) has restart/leader-switch/vnode-transfer, prev stage:%" PRId64
               ", current:%" PRId64 " dispatch msg rejected",
               id, pReq->upstreamTaskId, pReq->upstreamNodeId, pInfo->stage, pReq->stage);
-      status = TASK_INPUT_STATUS__BLOCKED;
+      status = TASK_INPUT_STATUS__REFUSED;
     } else {
       if (!pInfo->dataAllowed) {
         stWarn("s-task:%s data from task:0x%x is denied, since inputQ is closed for it", id, pReq->upstreamTaskId);
