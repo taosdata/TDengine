@@ -22,8 +22,6 @@
 
 #include "mndInt.h"
 
-#define GRANT_HB_INTERVAL 300  // 300 seconds
-
   int32_t mndInitGrant(SMnode * pMnode);
   void    mndCleanupGrant();
   void    grantParseParameter();

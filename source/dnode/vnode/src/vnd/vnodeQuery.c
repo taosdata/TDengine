@@ -554,7 +554,7 @@ int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
 }
 
 int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
-  SSchemaWrapper *pSW = metaGetTableSchema(pVnode->pMeta, suid, -1, 1);
+  SSchemaWrapper *pSW = metaGetTableSchema(pVnode->pMeta, suid, -1, 0);
   if (pSW) {
     *num = pSW->nCols;
     tDeleteSchemaWrapper(pSW);

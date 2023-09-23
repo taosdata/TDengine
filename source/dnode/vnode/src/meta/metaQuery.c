@@ -697,24 +697,23 @@ int64_t metaGetTbNum(SMeta *pMeta) {
 }
 
 void metaUpdTimeSeriesNum(SMeta *pMeta) {
-  SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
-  int64_t      nCtbTimeSeries = 0;
-
-  vnodeGetTimeSeriesNum(pMeta->pVnode, &nCtbTimeSeries);
-  atomic_store_64(&pStats->numOfTimeSeries, nCtbTimeSeries);
+  int64_t nCtbTimeSeries = 0;
+  if (vnodeGetTimeSeriesNum(pMeta->pVnode, &nCtbTimeSeries) == 0) {
+    atomic_store_64(&pMeta->pVnode->config.vndStats.numOfTimeSeries, nCtbTimeSeries);
+  }
 }
 
-static int64_t metaGetTimeSeriesNumImpl(SMeta *pMeta, bool forceUpd) {
+static FORCE_INLINE  metaGetTimeSeriesNumImpl(SMeta *pMeta, bool forceUpd) {
   // sum of (number of columns of stable -  1) * number of ctables (excluding timestamp column)
   SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
-  if (forceUpd || pStats->numOfTimeSeries < 0) {
+  if (forceUpd || pStats->numOfTimeSeries <= 0) {
     metaUpdTimeSeriesNum(pMeta);
   }
 
   return pStats->numOfTimeSeries + pStats->numOfNTimeSeries;
 }
 
-// type: 1 report timeseries
+// type: 1 reported timeseries
 int64_t metaGetTimeSeriesNum(SMeta *pMeta, int type) {
   int64_t nTimeSeries = metaGetTimeSeriesNumImpl(pMeta, false);
   if (type == 1) {
@@ -1532,18 +1531,19 @@ int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t
     metaULock(pVnodeObj->pMeta);
     if (numOfTables) *numOfTables = state.ctbNum;
     if (numOfCols) *numOfCols = state.colNum;
+    assert(state.colNum > 0);
+    assert(state.ctbNum >= 0);
     goto _exit;
   }
 
   // slow path: search TDB
   int64_t ctbNum = 0;
-  vnodeGetCtbNum(pVnode, uid, &ctbNum);
-
-  metaULock(pVnodeObj->pMeta);
-  if (numOfTables) *numOfTables = ctbNum;
-
   int32_t colNum = 0;
+  vnodeGetCtbNum(pVnode, uid, &ctbNum);
   vnodeGetStbColumnNum(pVnode, uid, &colNum);
+  metaULock(pVnodeObj->pMeta);
+
+  if (numOfTables) *numOfTables = ctbNum;
   if (numOfCols) *numOfCols = colNum;
 
   state.uid = uid;
@@ -1559,13 +1559,12 @@ _exit:
   return code;
 }
 
-void metaUpdateStbStats(SMeta *pMeta, int64_t uid, int64_t deltaCtb, int32_t totalCols) {
+void metaUpdateStbStats(SMeta *pMeta, int64_t uid, int64_t deltaCtb, int32_t deltaCol) {
   SMetaStbStats stats = {0};
 
   if (metaStatsCacheGet(pMeta, uid, &stats) == TSDB_CODE_SUCCESS) {
     stats.ctbNum += deltaCtb;
-    if (totalCols > 0) stats.colNum = totalCols;
-
+    stats.colNum += deltaCol;
     metaStatsCacheUpsert(pMeta, &stats);
   }
 }

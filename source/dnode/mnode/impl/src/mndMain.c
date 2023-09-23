@@ -262,13 +262,6 @@ static void *mndThreadFp(void *param) {
     lastTime++;
     taosMsleep(100);
     if (mndGetStop(pMnode)) break;
-
-    if (atomic_val_compare_exchange_32(&tsGrantHBInterval, -GRANT_HB_INTERVAL, GRANT_HB_INTERVAL) ==
-            -GRANT_HB_INTERVAL ||
-        (lastTime % (tsGrantHBInterval * 10) == 0)) {
-      mndPullupGrant(pMnode);
-    }
-
     if (lastTime % 10 != 0) continue;
 
     int64_t sec = lastTime / 10;
@@ -298,6 +291,10 @@ static void *mndThreadFp(void *param) {
 
     if (sec % tsTelemInterval == (TMIN(60, (tsTelemInterval - 1)))) {
       mndPullupTelem(pMnode);
+    }
+
+    if (sec % tsGrantHBInterval == 0) {
+      mndPullupGrant(pMnode);
     }
 
     if (sec % tsUptimeInterval == 0) {

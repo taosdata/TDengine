@@ -56,6 +56,7 @@ enum {
   DND_ADD,
   DND_DROP,
 };
+
 static int32_t  mndCreateDefaultDnode(SMnode *pMnode);
 static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode);
 static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw);
@@ -549,6 +550,10 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   const STraceId *trace = &pReq->info.traceId;
   mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
           pDnode->accessTimes, needCheck, online, reboot, dnodeChanged, statusReq.statusSeq);
+
+  if (reboot) {
+    tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
+  }
 
   for (int32_t v = 0; v < taosArrayGetSize(statusReq.pVloads); ++v) {
     SVnodeLoad *pVload = taosArrayGet(statusReq.pVloads, v);
