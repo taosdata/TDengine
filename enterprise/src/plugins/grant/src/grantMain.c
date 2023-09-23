@@ -965,14 +965,14 @@ int32_t mndUpdClusterInfo(SRpcMsg *pReq) {
 
   gStatus.curTimeSeries = grantGetClusterCurTimeSeries(pMnode);
   if (gStatus.curTimeSeries >= gStatus.limitTimeSeries) {
-    // if ((atomic_fetch_add_64(&grantNotifyCnt, 1) & 127) < 3) {
+    if ((atomic_fetch_add_64(&grantNotifyCnt, 1) & 127) < 3) {
       mndProcessGrantNotify(pReq);
-    // }
+    }
     if (grantNotifyCnt > INT32_MAX) {
       atomic_store_64(&grantNotifyCnt, 1);
     }
   } else {
-    if (atomic_load_64(&grantNotifyTimeSeries) != atomic_load_64(&gStatus.curTimeSeries)) {
+    if (atomic_load_64(&gStatus.curTimeSeries) < atomic_load_64(&grantNotifyTimeSeries)) {
       mndProcessGrantNotify(pReq);
     }
     if (grantNotifyCnt != 0) atomic_store_64(&grantNotifyCnt, 0);
