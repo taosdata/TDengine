@@ -109,6 +109,7 @@ void decode_with_fse(int *type, size_t dataSeriesLength, unsigned int intervals,
     {
         // all zeros
         memset((void *)type, 0, sizeof(int) * dataSeriesLength);
+        free(tp_code);
         return;
     }
     size_t fse_size = FSE_decompress(tp_code, dataSeriesLength, FseCode, FseCode_size);
