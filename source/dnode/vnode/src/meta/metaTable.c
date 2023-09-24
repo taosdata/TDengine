@@ -314,6 +314,8 @@ _drop_super_table:
   tdbTbDelete(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, pMeta->txn);
   tdbTbDelete(pMeta->pUidIdx, &pReq->suid, sizeof(tb_uid_t), pMeta->txn);
   tdbTbDelete(pMeta->pSuidIdx, &pReq->suid, sizeof(tb_uid_t), pMeta->txn);
+  
+  metaStatsCacheDrop(pMeta, pReq->suid);
 
   metaULock(pMeta);
 
@@ -389,6 +391,8 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   nStbEntry.stbEntry.schemaRow = pReq->schemaRow;
   nStbEntry.stbEntry.schemaTag = pReq->schemaTag;
 
+  int32_t deltaCol = pReq->schemaRow.nCols - oStbEntry.stbEntry.schemaRow.nCols;
+
   metaWLock(pMeta);
   // compare two entry
   if (oStbEntry.stbEntry.schemaRow.version != pReq->schemaRow.version) {
@@ -403,21 +407,23 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
 
   // metaStatsCacheDrop(pMeta, nStbEntry.uid);
 
-  int32_t deltaCol = pReq->schemaRow.nCols - oStbEntry.stbEntry.schemaRow.nCols;
   if (deltaCol != 0) {
     metaUpdateStbStats(pMeta, pReq->suid, 0, deltaCol);
+  }
+  metaULock(pMeta);
+
+  if (deltaCol != 0) {
     int64_t ctbNum;
-    metaGetStbStats(pMeta, pReq->suid, &ctbNum, NULL);
+    metaGetStbStats(pMeta->pVnode, pReq->suid, &ctbNum, NULL);
     pMeta->pVnode->config.vndStats.numOfTimeSeries += (ctbNum * deltaCol);
   }
 
-  metaULock(pMeta);
-
+_exit:
   if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
   tDecoderClear(&dc);
   tdbTbcClose(pTbDbc);
   tdbTbcClose(pUidIdxc);
-  return 0;
+  return ret;
 }
 int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   SMetaEntry oStbEntry = {0};
@@ -1306,6 +1312,9 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
     case TSDB_ALTER_TABLE_ADD_COLUMN:
       if (pColumn) {
         terrno = TSDB_CODE_VND_COL_ALREADY_EXISTS;
+        goto _err;
+      }
+      if ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) < 0) {
         goto _err;
       }
       pSchema->version++;
