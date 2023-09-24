@@ -38,6 +38,7 @@ static void dmStopMgmt(SDnodeMgmt *pMgmt) {
   pMgmt->pData->stopped = true;
   dmStopMonitorThread(pMgmt);
   dmStopStatusThread(pMgmt);
+  dmStopNotifyThread(pMgmt);
   dmStopCrashReportThread(pMgmt);
 }
 

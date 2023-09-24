@@ -58,8 +58,9 @@ int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg);
 // dmWorker.c
 int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmStartStatusThread(SDnodeMgmt *pMgmt);
-int32_t dmStartNotifyThread(SDnodeMgmt *pMgmt);
 void    dmStopStatusThread(SDnodeMgmt *pMgmt);
+int32_t dmStartNotifyThread(SDnodeMgmt *pMgmt);
+void    dmStopNotifyThread(SDnodeMgmt *pMgmt);
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt);
 void    dmStopMonitorThread(SDnodeMgmt *pMgmt);
 int32_t dmStartCrashReportThread(SDnodeMgmt *pMgmt);
