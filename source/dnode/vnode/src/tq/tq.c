@@ -1816,15 +1816,16 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
   int32_t updateTasks = taosHashGetSize(pMeta->pUpdateTaskSet);
   if (updateTasks < numOfTasks) {
-    pMeta->taskWillbeLaunched = 1;
-
-    tqDebug("vgId:%d closed tasks:%d, unclosed:%d", vgId, updateTasks, (numOfTasks - updateTasks));
+    pMeta->taskStartedByNodeUpdate = 1;
+    tqDebug("vgId:%d closed tasks:%d, unclosed:%d, all tasks will be started when nodeEp update completed", vgId,
+            updateTasks, (numOfTasks - updateTasks));
     taosWUnLockLatch(&pMeta->lock);
   } else {
     taosHashClear(pMeta->pUpdateTaskSet);
 
     if (!pTq->pVnode->restored) {
-      tqDebug("vgId:%d vnode restore not completed, not restart the tasks", vgId);
+      tqDebug("vgId:%d vnode restore not completed, not restart the tasks, clear the start after nodeUpdate flag", vgId);
+      pMeta->taskStartedByNodeUpdate = 0;
       taosWUnLockLatch(&pMeta->lock);
     } else {
       tqDebug("vgId:%d tasks are all updated and stopped, restart them", vgId);
@@ -1846,14 +1847,13 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
       }
 
       if (vnodeIsRoleLeader(pTq->pVnode) && !tsDisableStream) {
-        vInfo("vgId:%d, restart all stream tasks", vgId);
+        vInfo("vgId:%d restart all stream tasks", vgId);
         tqStartStreamTasks(pTq);
         tqCheckAndRunStreamTaskAsync(pTq);
       } else {
         vInfo("vgId:%d, follower node not start stream tasks", vgId);
       }
 
-      pMeta->taskWillbeLaunched = 0;
       taosWUnLockLatch(&pMeta->lock);
     }
   }

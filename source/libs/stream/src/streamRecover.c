@@ -118,8 +118,8 @@ int32_t streamTaskLaunchScanHistory(SStreamTask* pTask) {
 
 // check status
 static int32_t doCheckDownstreamStatus(SStreamTask* pTask) {
-  SDataRange* pRange = &pTask->dataRange;
-  STimeWindow*    pWindow = &pRange->window;
+  SDataRange*  pRange = &pTask->dataRange;
+  STimeWindow* pWindow = &pRange->window;
 
   SStreamTaskCheckReq req = {
       .streamId = pTask->id.streamId,
@@ -136,10 +136,10 @@ static int32_t doCheckDownstreamStatus(SStreamTask* pTask) {
     req.downstreamTaskId = pTask->fixedDispatcher.taskId;
     pTask->checkReqId = req.reqId;
 
-    stDebug("s-task:%s check single downstream task:0x%x(vgId:%d) ver:%" PRId64 "-%" PRId64 " window:%" PRId64
-           "-%" PRId64 ", stage:%"PRId64" req:0x%" PRIx64,
-           pTask->id.idStr, req.downstreamTaskId, req.downstreamNodeId, pRange->range.minVer, pRange->range.maxVer,
-           pWindow->skey, pWindow->ekey, req.stage, req.reqId);
+    stDebug("s-task:%s stage:%" PRId64 " check single downstream task:0x%x(vgId:%d) ver:%" PRId64 "-%" PRId64
+            " window:%" PRId64 "-%" PRId64 " req:0x%" PRIx64,
+            pTask->id.idStr, req.reqId, req.downstreamTaskId, req.downstreamNodeId, pRange->range.minVer,
+            pRange->range.maxVer, pWindow->skey, pWindow->ekey, req.reqId);
 
     streamSendCheckMsg(pTask, &req, pTask->fixedDispatcher.nodeId, &pTask->fixedDispatcher.epSet);
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
@@ -158,8 +158,8 @@ static int32_t doCheckDownstreamStatus(SStreamTask* pTask) {
       taosArrayPush(pTask->checkReqIds, &req.reqId);
       req.downstreamNodeId = pVgInfo->vgId;
       req.downstreamTaskId = pVgInfo->taskId;
-      stDebug("s-task:%s (vgId:%d) check downstream task:0x%x (vgId:%d) (shuffle), idx:%d, stage:%" PRId64,
-             pTask->id.idStr, pTask->info.nodeId, req.downstreamTaskId, req.downstreamNodeId, i, req.stage);
+      stDebug("s-task:%s (vgId:%d) stage:%" PRId64 "check downstream task:0x%x (vgId:%d) (shuffle), idx:%d",
+              pTask->id.idStr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, i);
       streamSendCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
   } else {
@@ -907,6 +907,12 @@ void streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta) {
       stDebug("vgId:%d s-task:%s task already stopped/paused, status:%s, do nothing", pMeta->vgId, pTask->id.idStr, str);
       return;
     }
+//
+//    if (pTask->status.downstreamReady == 0) {
+//      ASSERT(pTask->execInfo.start == 0);
+//      stDebug("s-task:%s in check downstream procedure, abort and paused", pTask->id.idStr);
+//      break;
+//    }
 
     const char* pStatus = streamGetTaskStatusStr(status);
     stDebug("s-task:%s wait for the task can be paused, status:%s, vgId:%d", pTask->id.idStr, pStatus, pMeta->vgId);

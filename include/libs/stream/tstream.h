@@ -405,7 +405,7 @@ typedef struct SStreamMeta {
   int32_t       vgId;
   int64_t       stage;
   bool          leader;
-  int8_t        taskWillbeLaunched;
+  int8_t        taskStartedByNodeUpdate;
   SRWLatch      lock;
   int32_t       walScanCounter;
   void*         streamBackend;
