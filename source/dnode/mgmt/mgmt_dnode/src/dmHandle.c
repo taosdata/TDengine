@@ -130,11 +130,11 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   taosThreadRwlockUnlock(&pMgmt->pData->lock);
 
   SMonVloadInfo vinfo = {0};
-                (*pMgmt->getVnodeLoadsFp)(&vinfo);
+  (*pMgmt->getVnodeLoadsFp)(&vinfo);
   req.pVloads = vinfo.pVloads;
 
   SMonMloadInfo minfo = {0};
-                (*pMgmt->getMnodeLoadsFp)(&minfo);
+  (*pMgmt->getMnodeLoadsFp)(&minfo);
   req.mload = minfo.load;
 
   (*pMgmt->getQnodeLoadsFp)(&req.qload);
@@ -173,11 +173,11 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 void dmSendNotifyReq(SDnodeMgmt *pMgmt) {
   SNotifyReq req = {0};
 
-  // taosThreadRwlockRdlock(&pMgmt->pData->lock);
-  // req.dnodeId = pMgmt->pData->dnodeId;
-  // taosThreadRwlockUnlock(&pMgmt->pData->lock);
+  taosThreadRwlockRdlock(&pMgmt->pData->lock);
+  req.dnodeId = pMgmt->pData->dnodeId;
+  taosThreadRwlockUnlock(&pMgmt->pData->lock);
 
-  // req.clusterId = pMgmt->pData->clusterId;
+  req.clusterId = pMgmt->pData->clusterId;
 
   SMonVloadInfo vinfo = {0};
   (*pMgmt->getVnodeLoadsLiteFp)(&vinfo);
@@ -228,7 +228,7 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
 
   SServerStatusRsp statusRsp = {0};
   SMonMloadInfo    minfo = {0};
-                   (*pMgmt->getMnodeLoadsFp)(&minfo);
+  (*pMgmt->getMnodeLoadsFp)(&minfo);
   if (minfo.isMnode &&
       (minfo.load.syncState == TAOS_SYNC_STATE_ERROR || minfo.load.syncState == TAOS_SYNC_STATE_OFFLINE)) {
     pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
@@ -237,7 +237,7 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
   }
 
   SMonVloadInfo vinfo = {0};
-                (*pMgmt->getVnodeLoadsFp)(&vinfo);
+  (*pMgmt->getVnodeLoadsFp)(&vinfo);
   for (int32_t i = 0; i < taosArrayGetSize(vinfo.pVloads); ++i) {
     SVnodeLoad *pLoad = taosArrayGet(vinfo.pVloads, i);
     if (pLoad->syncState == TAOS_SYNC_STATE_ERROR || pLoad->syncState == TAOS_SYNC_STATE_OFFLINE) {

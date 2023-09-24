@@ -314,7 +314,7 @@ _drop_super_table:
   tdbTbDelete(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, pMeta->txn);
   tdbTbDelete(pMeta->pUidIdx, &pReq->suid, sizeof(tb_uid_t), pMeta->txn);
   tdbTbDelete(pMeta->pSuidIdx, &pReq->suid, sizeof(tb_uid_t), pMeta->txn);
-  
+
   metaStatsCacheDrop(pMeta, pReq->suid);
 
   metaULock(pMeta);
@@ -423,7 +423,7 @@ _exit:
   tDecoderClear(&dc);
   tdbTbcClose(pTbDbc);
   tdbTbcClose(pUidIdxc);
-  return ret;
+  return 0;
 }
 int metaAddIndexToSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   SMetaEntry oStbEntry = {0};
@@ -850,8 +850,8 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUi
   void    *pData = NULL;
   int      nData = 0;
   int      rc = 0;
-  tb_uid_t uid;
-  tb_uid_t suid;
+  tb_uid_t uid = 0;
+  tb_uid_t suid = 0;
   int      type;
 
   rc = tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &pData, &nData);
@@ -891,38 +891,40 @@ _exit:
 void metaDropTables(SMeta *pMeta, SArray *tbUids) {
   if (taosArrayGetSize(tbUids) == 0) return;
 
-  int64_t    ctbNum = 0;
+  int64_t    nCtbDropped = 0;
   SSHashObj *suidHash = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
 
   metaWLock(pMeta);
   for (int i = 0; i < taosArrayGetSize(tbUids); ++i) {
     tb_uid_t uid = *(tb_uid_t *)taosArrayGet(tbUids, i);
     tb_uid_t suid = 0;
-    metaDropTableByUid(pMeta, uid, NULL, &suid);
-    if (suid != 0 && suidHash) {
-      int64_t *cnt = tSimpleHashGet(suidHash, &suid, sizeof(tb_uid_t));
-      if (cnt) {
-        ctbNum = *cnt + 1;
+    int      type;
+    metaDropTableByUid(pMeta, uid, &type, &suid);
+    if (type == TSDB_CHILD_TABLE && suid != 0 && suidHash) {
+      int64_t *pVal = tSimpleHashGet(suidHash, &suid, sizeof(tb_uid_t));
+      if (pVal) {
+        nCtbDropped = *pVal + 1;
       } else {
-        ctbNum = 1;
+        nCtbDropped = 1;
       }
-      tSimpleHashPut(suidHash, &suid, sizeof(tb_uid_t), &ctbNum, sizeof(int64_t));
+      tSimpleHashPut(suidHash, &suid, sizeof(tb_uid_t), &nCtbDropped, sizeof(int64_t));
     }
     metaDebug("batch drop table:%" PRId64, uid);
   }
   metaULock(pMeta);
 
   // update timeseries
-  void   *pCtbNum = NULL;
+  void   *pCtbDropped = NULL;
   int32_t iter = 0;
-  while ((pCtbNum = tSimpleHashIterate(suidHash, pCtbNum, &iter))) {
-    tb_uid_t    *pSuid = tSimpleHashGetKey(pCtbNum, NULL);
+  while ((pCtbDropped = tSimpleHashIterate(suidHash, pCtbDropped, &iter))) {
+    tb_uid_t    *pSuid = tSimpleHashGetKey(pCtbDropped, NULL);
     int32_t      nCols = 0;
     SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
     if (metaGetStbStats(pMeta->pVnode, *pSuid, NULL, &nCols) == 0) {
-      pStats->numOfTimeSeries -= *(int64_t *)pCtbNum * (nCols - 1);
+      pStats->numOfTimeSeries -= *(int64_t *)pCtbDropped * (nCols - 1);
     }
   }
+  tSimpleHashCleanup(suidHash);
 }
 
 static int32_t metaFilterTableByHash(SMeta *pMeta, SArray *uidList) {

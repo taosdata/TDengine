@@ -1531,8 +1531,8 @@ int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t
     metaULock(pVnodeObj->pMeta);
     if (numOfTables) *numOfTables = state.ctbNum;
     if (numOfCols) *numOfCols = state.colNum;
-    assert(state.colNum > 0);
-    assert(state.ctbNum >= 0);
+    ASSERTS(state.colNum > 0, "vgId:%d, suid:%" PRIi64 " nCols:%d <= 0 in metaCache", TD_VID(pVnodeObj), uid,
+            state.colNum);
     goto _exit;
   }
 
