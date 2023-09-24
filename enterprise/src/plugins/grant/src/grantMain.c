@@ -242,13 +242,12 @@ typedef struct {
   SArray   *pDistInfo;
 } SGrantHandle;
 
-static bool      recheckClusterTime = true;
-static int8_t    grantHbLock = 0;
-static int64_t   grantNotifyCnt = 0;
-static int64_t   grantNotifyTimeSeries = 0;
-int32_t          grantFlag = 0;
-SGrantHandle     grantHandle = {0};
-static SHashObj *grantNotifyInfo;
+static bool    recheckClusterTime = true;
+static int8_t  grantHbLock = 0;
+static int64_t grantNotifyCnt = 0;
+static int64_t grantNotifyTimeSeries = 0;
+int32_t        grantFlag = 0;
+SGrantHandle   grantHandle = {0};
 
 // extern SSysTableMeta infosMeta[];
 #ifdef GRANTS_CFG
@@ -281,11 +280,6 @@ int32_t mndInitGrant(SMnode *pMnode) {
     goto _exit;
   }
 
-  if (!(grantNotifyInfo = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK))) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _exit;
-  }
-
 _exit:
   if (terrno != 0) {
     uError("grant data initialize failed since %s", tstrerror(terrno));
@@ -299,7 +293,6 @@ _exit:
 void mndCleanupGrant() {
   taosHashCleanup(grantHandle.pOfficials);
   taosArrayDestroy(grantHandle.pDistInfo);
-  taosHashCleanup(grantNotifyInfo);
 }
 
 static void grantSetClusterInfo(SMnode *pMnode) {
