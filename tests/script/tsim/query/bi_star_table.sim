@@ -97,6 +97,11 @@ if $data03 != tba1 then
     return -1
 endi
 
+sql select * from (select f1 from db1.sta);
+if $cols != 1 then
+  return -1
+endi
+
 set_bi_mode 0
 sql select * from db1.sta order by ts;
 if $cols != 6 then
