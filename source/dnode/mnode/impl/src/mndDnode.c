@@ -723,7 +723,7 @@ static int32_t mndProcessNotifyReq(SRpcMsg *pReq) {
     }
   }
 _OVER:
-#ifdef ENTERPIRSE_UPDATED
+#ifdef MAKE_JENKINS_HAPPY
   mndUpdClusterInfo(pReq);
 #endif
   tFreeSNotifyReq(&notifyReq);
