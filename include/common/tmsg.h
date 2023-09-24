@@ -959,7 +959,7 @@ typedef struct {
   int8_t    superAuth;
   int8_t    sysInfo;
   int8_t    enable;
-  int8_t    reserve;
+  int8_t    dropped;
   SHashObj* createdDbs;
   SHashObj* readDbs;
   SHashObj* writeDbs;
@@ -3182,32 +3182,6 @@ typedef struct {
 int32_t tEncodeSTqCheckInfo(SEncoder* pEncoder, const STqCheckInfo* pInfo);
 int32_t tDecodeSTqCheckInfo(SDecoder* pDecoder, STqCheckInfo* pInfo);
 void    tDeleteSTqCheckInfo(STqCheckInfo* pInfo);
-
-typedef struct {
-  char topic[TSDB_TOPIC_FNAME_LEN];
-} STqDelCheckInfoReq;
-
-typedef struct {
-  int32_t vgId;
-  int64_t offset;
-  char    topicName[TSDB_TOPIC_FNAME_LEN];
-  char    cgroup[TSDB_CGROUP_LEN];
-} SMqOffset;
-
-typedef struct {
-  int64_t    consumerId;
-  int32_t    num;
-  SMqOffset* offsets;
-} SMqCMCommitOffsetReq;
-
-typedef struct {
-  int32_t reserved;
-} SMqCMCommitOffsetRsp;
-
-int32_t tEncodeSMqOffset(SEncoder* encoder, const SMqOffset* pOffset);
-int32_t tDecodeSMqOffset(SDecoder* decoder, SMqOffset* pOffset);
-int32_t tEncodeSMqCMCommitOffsetReq(SEncoder* encoder, const SMqCMCommitOffsetReq* pReq);
-int32_t tDecodeSMqCMCommitOffsetReq(SDecoder* decoder, SMqCMCommitOffsetReq* pReq);
 
 // tqOffset
 enum {

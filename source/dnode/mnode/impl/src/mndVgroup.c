@@ -2672,14 +2672,14 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
   SDbObj   dbObj = {0};
   SArray  *pArray = mndBuildDnodesArray(pMnode, 0);
 
-  int32_t numOfTopics = 0;
-  if (mndGetNumOfTopics(pMnode, pDb->name, &numOfTopics) != 0) {
-    goto _OVER;
-  }
-  if (numOfTopics > 0) {
-    terrno = TSDB_CODE_MND_TOPIC_MUST_BE_DELETED;
-    goto _OVER;
-  }
+//  int32_t numOfTopics = 0;
+//  if (mndGetNumOfTopics(pMnode, pDb->name, &numOfTopics) != 0) {
+//    goto _OVER;
+//  }
+//  if (numOfTopics > 0) {
+//    terrno = TSDB_CODE_MND_TOPIC_MUST_BE_DELETED;
+//    goto _OVER;
+//  }
 
   int32_t numOfStreams = 0;
   if (mndGetNumOfStreams(pMnode, pDb->name, &numOfStreams) != 0) {

@@ -458,8 +458,13 @@ col_name(A) ::= column_name(B).                                                 
 cmd ::= SHOW DNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DNODES_STMT); }
 cmd ::= SHOW USERS.                                                               { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USERS_STMT); }
 cmd ::= SHOW USER PRIVILEGES.                                                     { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USER_PRIVILEGES_STMT); }
-cmd ::= SHOW DATABASES.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DATABASES_STMT); }
-cmd ::= SHOW db_name_cond_opt(A) TABLES like_pattern_opt(B).                      { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_TABLES_STMT, A, B, OP_TYPE_LIKE); }
+cmd ::= SHOW db_kind_opt(A) DATABASES.                                            {
+                                                                                    pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DATABASES_STMT);
+                                                                                    setShowKind(pCxt, pCxt->pRootNode, A);
+                                                                                  }
+cmd ::= SHOW table_kind_db_name_cond_opt(A) TABLES like_pattern_opt(B).           {
+                                                                                    pCxt->pRootNode = createShowTablesStmt(pCxt, A, B, OP_TYPE_LIKE);
+                                                                                  }
 cmd ::= SHOW db_name_cond_opt(A) STABLES like_pattern_opt(B).                     { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_STABLES_STMT, A, B, OP_TYPE_LIKE); }
 cmd ::= SHOW db_name_cond_opt(A) VGROUPS.                                         { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_VGROUPS_STMT, A, NULL, OP_TYPE_LIKE); }
 cmd ::= SHOW MNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_MNODES_STMT); }
@@ -501,6 +506,18 @@ cmd ::= SHOW VNODES.                                                            
 cmd ::= SHOW db_name_cond_opt(A) ALIVE.                                           { pCxt->pRootNode = createShowAliveStmt(pCxt, A,    QUERY_NODE_SHOW_DB_ALIVE_STMT); }
 cmd ::= SHOW CLUSTER ALIVE.                                                       { pCxt->pRootNode = createShowAliveStmt(pCxt, NULL, QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT); }
 
+%type table_kind_db_name_cond_opt                                                 { SShowTablesOption }
+%destructor table_kind_db_name_cond_opt                                           { }
+table_kind_db_name_cond_opt(A) ::= .                                              { A.kind = SHOW_KIND_ALL; A.dbName = nil_token; }
+table_kind_db_name_cond_opt(A) ::= table_kind(B).                                 { A.kind = B; A.dbName = nil_token; }
+table_kind_db_name_cond_opt(A) ::= db_name(C) NK_DOT.                             { A.kind = SHOW_KIND_ALL; A.dbName = C; }
+table_kind_db_name_cond_opt(A) ::= table_kind(B) db_name(C) NK_DOT.               { A.kind = B; A.dbName = C; }
+
+%type table_kind                                                                  { EShowKind }
+%destructor table_kind                                                            { }   
+table_kind(A) ::= NORMAL.                                                         { A = SHOW_KIND_TABLES_NORMAL; }
+table_kind(A) ::= CHILD.                                                          { A = SHOW_KIND_TABLES_CHILD; }
+
 db_name_cond_opt(A) ::= .                                                         { A = createDefaultDatabaseCondValue(pCxt); }
 db_name_cond_opt(A) ::= db_name(B) NK_DOT.                                        { A = createIdentifierValueNode(pCxt, &B); }
 
@@ -523,6 +540,12 @@ tag_item(A) ::= QTAGS(B).                                                       
 tag_item(A) ::= column_name(B).                                                   { A = createColumnNode(pCxt, NULL, &B); }
 tag_item(A) ::= column_name(B) column_alias(C).                                   { A = setProjectionAlias(pCxt, createColumnNode(pCxt, NULL, &B), &C); }
 tag_item(A) ::= column_name(B) AS column_alias(C).                                { A = setProjectionAlias(pCxt, createColumnNode(pCxt, NULL, &B), &C); }
+
+%type db_kind_opt                                                                 { EShowKind }
+%destructor db_kind_opt                                                           { }
+db_kind_opt(A) ::= .                                                              { A = SHOW_KIND_ALL; }
+db_kind_opt(A) ::= USER.                                                          { A = SHOW_KIND_DATABASES_USER; }
+db_kind_opt(A) ::= SYSTEM.                                                        { A = SHOW_KIND_DATABASES_SYSTEM; }
 
 /************************************************ create index ********************************************************/
 cmd ::= CREATE SMA INDEX not_exists_opt(D)

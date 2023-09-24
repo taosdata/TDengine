@@ -1652,7 +1652,7 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
   if (tEncodeI8(pEncoder, pRsp->superAuth) < 0) return -1;
   if (tEncodeI8(pEncoder, pRsp->sysInfo) < 0) return -1;
   if (tEncodeI8(pEncoder, pRsp->enable) < 0) return -1;
-  if (tEncodeI8(pEncoder, pRsp->reserve) < 0) return -1;
+  if (tEncodeI8(pEncoder, pRsp->dropped) < 0) return -1;
   if (tEncodeI32(pEncoder, pRsp->version) < 0) return -1;
 
   int32_t numOfCreatedDbs = taosHashGetSize(pRsp->createdDbs);
@@ -1767,7 +1767,7 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
   if (tDecodeI8(pDecoder, &pRsp->superAuth) < 0) goto _err;
   if (tDecodeI8(pDecoder, &pRsp->sysInfo) < 0) goto _err;
   if (tDecodeI8(pDecoder, &pRsp->enable) < 0) goto _err;
-  if (tDecodeI8(pDecoder, &pRsp->reserve) < 0) goto _err;
+  if (tDecodeI8(pDecoder, &pRsp->dropped) < 0) goto _err;
   if (tDecodeI32(pDecoder, &pRsp->version) < 0) goto _err;
 
   int32_t numOfCreatedDbs = 0;
@@ -5384,43 +5384,7 @@ int32_t tDeserializeSServerStatusRsp(void *buf, int32_t bufLen, SServerStatusRsp
   tDecoderClear(&decoder);
   return 0;
 }
-int32_t tEncodeSMqOffset(SEncoder *encoder, const SMqOffset *pOffset) {
-  if (tEncodeI32(encoder, pOffset->vgId) < 0) return -1;
-  if (tEncodeI64(encoder, pOffset->offset) < 0) return -1;
-  if (tEncodeCStr(encoder, pOffset->topicName) < 0) return -1;
-  if (tEncodeCStr(encoder, pOffset->cgroup) < 0) return -1;
-  return encoder->pos;
-}
 
-int32_t tDecodeSMqOffset(SDecoder *decoder, SMqOffset *pOffset) {
-  if (tDecodeI32(decoder, &pOffset->vgId) < 0) return -1;
-  if (tDecodeI64(decoder, &pOffset->offset) < 0) return -1;
-  if (tDecodeCStrTo(decoder, pOffset->topicName) < 0) return -1;
-  if (tDecodeCStrTo(decoder, pOffset->cgroup) < 0) return -1;
-  return 0;
-}
-
-int32_t tEncodeSMqCMCommitOffsetReq(SEncoder *encoder, const SMqCMCommitOffsetReq *pReq) {
-  if (tStartEncode(encoder) < 0) return -1;
-  if (tEncodeI32(encoder, pReq->num) < 0) return -1;
-  for (int32_t i = 0; i < pReq->num; i++) {
-    tEncodeSMqOffset(encoder, &pReq->offsets[i]);
-  }
-  tEndEncode(encoder);
-  return encoder->pos;
-}
-
-int32_t tDecodeSMqCMCommitOffsetReq(SDecoder *decoder, SMqCMCommitOffsetReq *pReq) {
-  if (tStartDecode(decoder) < 0) return -1;
-  if (tDecodeI32(decoder, &pReq->num) < 0) return -1;
-  pReq->offsets = (SMqOffset *)tDecoderMalloc(decoder, sizeof(SMqOffset) * pReq->num);
-  if (pReq->offsets == NULL) return -1;
-  for (int32_t i = 0; i < pReq->num; i++) {
-    tDecodeSMqOffset(decoder, &pReq->offsets[i]);
-  }
-  tEndDecode(decoder);
-  return 0;
-}
 int32_t tSerializeSExplainRsp(void *buf, int32_t bufLen, SExplainRsp *pRsp) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
