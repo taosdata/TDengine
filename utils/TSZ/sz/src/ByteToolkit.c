@@ -82,7 +82,7 @@ INLINE long bytesToLong_bigEndian(unsigned char* b) {
 INLINE void longToBytes_bigEndian(unsigned char *b, long num) 
 {
 	unsigned char* sou = (unsigned char*)&num;
-#if defined(_TD_LINUX_64) || defined(_TD_ARM_64)  || defined(_TD_DARWIN_64)
+  if(sizeof(num) == 8) {
     // 8 bytes
 	b[7] = sou[0];
 	b[6] = sou[1];
@@ -92,13 +92,13 @@ INLINE void longToBytes_bigEndian(unsigned char *b, long num)
 	b[2] = sou[5];
 	b[1] = sou[6];
 	b[0] = sou[7];
-#else
+  } else {
 	memset(b, 0, 4);
 	b[7] = sou[0];
 	b[6] = sou[1];
 	b[5] = sou[2];
 	b[4] = sou[3];
-#endif
+  }
 }
 
 //TODO: debug: lfBuf.lvalue could be actually little_endian....
