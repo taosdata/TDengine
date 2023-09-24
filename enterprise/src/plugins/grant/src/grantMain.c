@@ -259,7 +259,7 @@ static SHashObj *grantNotifyInfo;
 
 int32_t mndInitGrant(SMnode *pMnode) {
   terrno = 0;
-  tsGrantHBInterval = 5;
+  tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
 #ifdef GRANTS_CFG
   grantFlag |= (int32_t)GRANT_EDITION_CLOUD;
 #endif
@@ -647,11 +647,17 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
   }
 
 _grant:
-  if (tsGrantHBInterval != GRANT_HEART_BEAT_MSG) tsGrantHBInterval = GRANT_HEART_BEAT_MSG;
   if (recheckClusterTime) {
-    grantResetMaster(pMnode);
+    grantResetMaster(pMnode);  // update recheckClusterTime
     grantConnResetMaster(pMnode);
   }
+
+  if (recheckClusterTime) {
+    tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
+  } else if (tsGrantHBInterval != GRANT_HEART_BEAT_MSG) {
+    tsGrantHBInterval = GRANT_HEART_BEAT_MSG;
+  }
+
   grantRetrieveGrantInfo(pMnode);
 
   grantSetClusterInfo(pMnode);
@@ -964,15 +970,16 @@ int32_t mndUpdClusterInfo(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
 
   gStatus.curTimeSeries = grantGetClusterCurTimeSeries(pMnode);
-  if (gStatus.curTimeSeries >= gStatus.limitTimeSeries) {
+  if (gStatus.curTimeSeries > gStatus.limitTimeSeries) {
     if ((atomic_fetch_add_64(&grantNotifyCnt, 1) & 127) < 3) {
       mndProcessGrantNotify(pReq);
     }
-    if (grantNotifyCnt > INT32_MAX) {
-      atomic_store_64(&grantNotifyCnt, 1);
+    if (grantNotifyCnt >= INT32_MAX) {
+      atomic_store_64(&grantNotifyCnt, grantNotifyCnt & 127);
     }
   } else {
-    if (atomic_load_64(&gStatus.curTimeSeries) < atomic_load_64(&grantNotifyTimeSeries)) {
+    if (atomic_load_64(&gStatus.curTimeSeries) < atomic_load_64(&grantNotifyTimeSeries) ||
+        0 == atomic_load_64(&grantNotifyTimeSeries)) {
       mndProcessGrantNotify(pReq);
     }
     if (grantNotifyCnt != 0) atomic_store_64(&grantNotifyCnt, 0);
@@ -1149,7 +1156,7 @@ static int32_t grantCheckDatabases() {
 
 static int32_t grantCheckTimeSeries() {
   if (grantStatus.limitTimeSeries == GRANT_TIME_SERIES_LIMITS ||
-      grantStatus.curTimeSeries <= grantStatus.limitTimeSeries) {
+      grantStatus.curTimeSeries < grantStatus.limitTimeSeries) {
     return 0;
   } else {
     uError("grant failed to create table, exist:%" PRIu64 ", reason:grant timeseries limited",
@@ -1182,7 +1189,7 @@ static int32_t grantCheckDnodes() {
 }
 
 static int32_t grantCheckStorage() {
-  if (grantStatus.limitStorage == GRANT_STORAGE_LIMITS || grantStatus.curStorage <= grantStatus.limitStorage) {
+  if (grantStatus.limitStorage == GRANT_STORAGE_LIMITS || grantStatus.curStorage < grantStatus.limitStorage) {
     return 0;
   } else {
     uError("grant storage in-available, used:%" PRIu64 ", grant:%" PRIu64 ", reason:grant storage limited",
