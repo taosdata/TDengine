@@ -40,7 +40,6 @@
 #include "tfs.h"
 #include "wal.h"
 
-#include "libs/function/tudf.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

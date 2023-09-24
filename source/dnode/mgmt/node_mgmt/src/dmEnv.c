@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "audit.h"
+#include "libs/function/tudf.h"
 
 #define DM_INIT_AUDIT()                 \
   do {                                  \
@@ -47,23 +48,23 @@ static int32_t dmInitSystem() {
   return 0;
 }
 
-static int32_t dmInitMonitor() {
-  int32_t code = 0;
-  SMonCfg monCfg = {0};
+// static int32_t dmInitMonitor() {
+//   int32_t code = 0;
+//   SMonCfg monCfg = {0};
 
-  monCfg.maxLogs = tsMonitorMaxLogs;
-  monCfg.port = tsMonitorPort;
-  monCfg.server = tsMonitorFqdn;
-  monCfg.comp = tsMonitorComp;
-  if (monInit(&monCfg) != 0) {
-    if (terrno != 0) code = terrno;
-    goto _exit;
-  }
+//   monCfg.maxLogs = tsMonitorMaxLogs;
+//   monCfg.port = tsMonitorPort;
+//   monCfg.server = tsMonitorFqdn;
+//   monCfg.comp = tsMonitorComp;
+//   if (monInit(&monCfg) != 0) {
+//     if (terrno != 0) code = terrno;
+//     goto _exit;
+//   }
 
-_exit:
-  if (code) terrno = code;
-  return code;
-}
+// _exit:
+//   if (code) terrno = code;
+//   return code;
+// }
 
 static int32_t dmInitAudit() {
   SAuditCfg auditCfg = {0};
@@ -381,3 +382,17 @@ int64_t dmGetClusterId() {
   return globalDnode.data.clusterId;
 }
 
+int32_t dmInit() {
+  dInfo("start to init dnode env");
+  if (dmDiskInit() != 0) return -1;
+  if (!dmCheckDataDirVersion()) return -1;
+  if (!dmCheckDiskSpace()) return -1;
+  if (dmCheckRepeatInit(dmInstance()) != 0) return -1;
+  if (dmInitSystem() != 0) return -1;
+  if (dmInitMonitor() != 0) return -1;
+  if (dmInitAudit() != 0) return -1;
+  if (dmInitDnode(dmInstance()) != 0) return -1;
+
+  dInfo("dnode env is initialized");
+  return 0;
+}
