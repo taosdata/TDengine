@@ -48,23 +48,23 @@ static int32_t dmInitSystem() {
   return 0;
 }
 
-// static int32_t dmInitMonitor() {
-//   int32_t code = 0;
-//   SMonCfg monCfg = {0};
+static int32_t dmInitMonitor() {
+  int32_t code = 0;
+  SMonCfg monCfg = {0};
 
-//   monCfg.maxLogs = tsMonitorMaxLogs;
-//   monCfg.port = tsMonitorPort;
-//   monCfg.server = tsMonitorFqdn;
-//   monCfg.comp = tsMonitorComp;
-//   if (monInit(&monCfg) != 0) {
-//     if (terrno != 0) code = terrno;
-//     goto _exit;
-//   }
+  monCfg.maxLogs = tsMonitorMaxLogs;
+  monCfg.port = tsMonitorPort;
+  monCfg.server = tsMonitorFqdn;
+  monCfg.comp = tsMonitorComp;
+  if (monInit(&monCfg) != 0) {
+    if (terrno != 0) code = terrno;
+    goto _exit;
+  }
 
-// _exit:
-//   if (code) terrno = code;
-//   return code;
-// }
+_exit:
+  if (code) terrno = code;
+  return code;
+}
 
 static int32_t dmInitAudit() {
   SAuditCfg auditCfg = {0};

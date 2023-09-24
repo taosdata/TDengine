@@ -57,6 +57,8 @@ static int32_t dmDecodeEps(SJson *pJson, SDnodeData *pData) {
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "dnodeVer", pData->dnodeVer, code);
   if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "engineVer", pData->engineVer, code);
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "clusterId", pData->clusterId, code);
   if (code < 0) return -1;
   tjsonGetInt32ValueFromDouble(pJson, "dropped", pData->dropped, code);
@@ -184,6 +186,7 @@ _OVER:
 static int32_t dmEncodeEps(SJson *pJson, SDnodeData *pData) {
   if (tjsonAddDoubleToObject(pJson, "dnodeId", pData->dnodeId) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "dnodeVer", pData->dnodeVer) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "engineVer", pData->engineVer) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "clusterId", pData->clusterId) < 0) return -1;
   if (tjsonAddDoubleToObject(pJson, "dropped", pData->dropped) < 0) return -1;
 
@@ -220,6 +223,7 @@ int32_t dmWriteEps(SDnodeData *pData) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   pJson = tjsonCreateObject();
   if (pJson == NULL) goto _OVER;
+  pData->engineVer = tsVersion;
   if (dmEncodeEps(pJson, pData) != 0) goto _OVER;
   buffer = tjsonToString(pJson);
   if (buffer == NULL) goto _OVER;

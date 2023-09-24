@@ -92,9 +92,13 @@ int64_t dmGetClusterId();
 // dmMgmt.c
 int32_t       dmInitDnode(SDnode *pDnode);
 void          dmCleanupDnode(SDnode *pDnode);
+int32_t       dmInitVars(SDnode *pDnode);
+void          dmClearVars(SDnode *pDnode);
+int32_t       dmInitModule(SDnode *pDnode);
 SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType nType);
 int32_t       dmMarkWrapper(SMgmtWrapper *pWrapper);
 void          dmReleaseWrapper(SMgmtWrapper *pWrapper);
+bool          dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper);
 SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper);
 void          dmSetStatus(SDnode *pDnode, EDndRunStatus stype);
 void          dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg);

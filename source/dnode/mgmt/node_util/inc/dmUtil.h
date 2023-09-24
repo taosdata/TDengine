@@ -93,6 +93,7 @@ typedef int32_t (*ProcessAlterNodeTypeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 
 typedef struct {
   int32_t        dnodeId;
+  int32_t        engineVer;  
   int64_t        clusterId;
   int64_t        dnodeVer;
   int64_t        updateTime;
