@@ -193,17 +193,17 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
   int64_t ver = 0;
   taosThreadRwlockWrlock(&ipWhiteMgt.rw);
   if (ipWhiteMgt.ver == 0) {
-    // user and dnode r
+    // get user and dnode ip white list
     ipWhiteMgtUpdateAll(pMnode);
     ipWhiteMgt.ver = taosGetTimestampMs();
   }
   ver = ipWhiteMgt.ver;
   taosThreadRwlockUnlock(&ipWhiteMgt.rw);
-  mDebug("ip-white-list on mnode ver: %" PRId64 "", ver);
 
   if (mndEnableIpWhiteList(pMnode) == 0 || tsEnableWhiteList == false) {
-    return 0;
+    ver = 0;
   }
+  mDebug("ip-white-list on mnode ver: %" PRId64 "", ver);
   return ver;
 }
 
