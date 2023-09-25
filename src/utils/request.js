@@ -7,6 +7,8 @@ import { refreshTokenExpire } from "./token";
 import { ReLoginCode, SuccessCode, RequestCommonConfig } from "@/const";
 import Vue from 'vue';
 
+
+
 const request = axios.create({
   ...RequestCommonConfig,
   baseURL: process.env.VUE_APP_BASE_URL,
@@ -21,18 +23,22 @@ let setTokenTimer = null;
 request.interceptors.request.use(
   (config) => {
     const hasToken = getToken();
-    if (hasToken) {
-      // 让每个请求都携带token
-      config.headers["Authorization"] = hasToken;
-      if (!config.noRefreshToken) {
-        refreshTokenExpire();
+    if (config.headers.noAuth !== true) {
+      if (hasToken) {
+        // 让每个请求都携带token
+        config.headers["Authorization"] = hasToken;
+        if (!config.noRefreshToken) {
+          refreshTokenExpire();
+        }
+      } else {
+        config.cancelToken = axios.CancelToken.source;
+        Vue.prototype.$message = () => {};
+        router.push({
+          path: "/login",
+        });
       }
     } else {
-      config.cancelToken = axios.CancelToken.source;
-      Vue.prototype.$message = () => {};
-      router.push({
-        path: "/login",
-      });
+      console.log(config.url);
     }
     config.headers["Accept-Language"] = "q=0.8, " + store?.state?.language;
     return config;

@@ -760,7 +760,7 @@ export default {
     };
     const backfillStart = (time) => {
       let end = this.dbsource[0].groups
-        .filter((val) => val.name == "Backfill")[0]
+        .filter((val) => val.name.includes('Backfill'))[0]
         .params.filter((item) => item.name == "BackfillEndTime");
       if (end[0].value) {
         return time.getTime() > new Date(end[0].value).getTime();
@@ -770,7 +770,7 @@ export default {
     };
     const backfillEnd = (time) => {
       let start = this.dbsource[0].groups
-        .filter((val) => val.name == "Backfill")[0]
+        .filter((val) => val.name.includes('Backfill'))[0]
         .params.filter((item) => item.name == "BackfillStartTime");
       if (start[0].value) {
         return (

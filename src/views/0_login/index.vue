@@ -135,27 +135,13 @@ export default {
   },
   methods: {
     submitForm(formName) {
-      // let reg =
-      //   /^(https?:\/\/)?([\da-z.-]+)(\.([a-z.]{2,6}))?(:[\d]{1,5})?([\/\w.-]*)*\/?$/;
-
-      // if (
-      //   this.dynamicValidateForm.cluster &&
-      //   !reg.test(this.dynamicValidateForm.cluster)
-      // ) {
-      //   Message.error("Please enter the correct cluster url .");
-      //   return;
-      // }
       this.$refs[formName].validate((valid) => {
         if (valid) {
           this.loading = true;
           this.encryptedPwd = encrypt(this.dynamicValidateForm.password);
           setTimeout(() => {
-            // if (!this.taosxStatus) {
-            //   Message.error(this.$t("login.taosxtip"));
-            //   this.loading = false;
-            // } else {
+           
             this.login();
-            // }
           }, 1000);
         } else {
           return false;
@@ -289,8 +275,8 @@ export default {
       }
     },
   },
-  created() {
-    this.getClusterAndDashboardUrl();
+  async created() {
+    await this.getClusterAndDashboardUrl();
     localStorage.setItem("supportWebsite", this.dataJson.supportWebsite);
     localStorage.setItem("documentWebsite", this.dataJson.documentWebsite);
     
