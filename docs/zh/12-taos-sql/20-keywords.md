@@ -180,6 +180,7 @@ description: TDengine 保留关键字的详细列表
 - MAX_DELAY
 - BWLIMIT
 - MAXROWS
+- MAX_SPEED
 - MERGE
 - META
 - MINROWS

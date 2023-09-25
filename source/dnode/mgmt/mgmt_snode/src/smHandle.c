@@ -28,15 +28,18 @@ int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   if (pInput->pData->dnodeId != 0 && createReq.dnodeId != pInput->pData->dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to create snode since %s", terrstr());
+    tFreeSMCreateQnodeReq(&createReq);
     return -1;
   }
 
   bool deployed = true;
   if (dmWriteFile(pInput->path, pInput->name, deployed) != 0) {
     dError("failed to write snode file since %s", terrstr());
+    tFreeSMCreateQnodeReq(&createReq);
     return -1;
   }
 
+  tFreeSMCreateQnodeReq(&createReq);
   return 0;
 }
 
@@ -50,15 +53,18 @@ int32_t smProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   if (pInput->pData->dnodeId != 0 && dropReq.dnodeId != pInput->pData->dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to drop snode since %s", terrstr());
+    tFreeSMCreateQnodeReq(&dropReq);
     return -1;
   }
 
   bool deployed = false;
   if (dmWriteFile(pInput->path, pInput->name, deployed) != 0) {
     dError("failed to write snode file since %s", terrstr());
+    tFreeSMCreateQnodeReq(&dropReq);
     return -1;
   }
 
+  tFreeSMCreateQnodeReq(&dropReq);
   return 0;
 }
 

@@ -1045,6 +1045,7 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWr
   writer[0]->precision = pTsdb->keepCfg.precision;
   writer[0]->minRow = pTsdb->pVnode->config.tsdbCfg.minRows;
   writer[0]->maxRow = pTsdb->pVnode->config.tsdbCfg.maxRows;
+  writer[0]->cmprAlg = pTsdb->pVnode->config.tsdbCfg.compression;
   writer[0]->commitID = tsdbFSAllocEid(pTsdb->pFS);
   writer[0]->szPage = pTsdb->pVnode->config.tsdbPageSize;
   writer[0]->compactVersion = INT64_MAX;
