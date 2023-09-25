@@ -832,7 +832,7 @@ TEST(clientCase, projection_query_tables) {
   for(int32_t i = 0; i < 1000000; ++i) {
     char t[512] = {0};
 
-    sprintf(t, "insert into t1 values(%ld, %ld)", start + i, i);
+    sprintf(t, "insert into t1 values(now, %ld)", i);
     while(1) {
       void* p = taos_query(pConn, t);
       code = taos_errno(p);

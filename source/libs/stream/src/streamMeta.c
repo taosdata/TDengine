@@ -225,7 +225,7 @@ _err:
   if (pMeta->db) tdbClose(pMeta->db);
   if (pMeta->pHbInfo) taosMemoryFreeClear(pMeta->pHbInfo);
   if (pMeta->pUpdateTaskSet) taosHashCleanup(pMeta->pUpdateTaskSet);
-
+  if (pMeta->startInfo.pReadyTaskSet) taosHashCleanup(pMeta->startInfo.pReadyTaskSet);
   taosMemoryFree(pMeta);
 
   stError("failed to open stream meta");
@@ -340,6 +340,7 @@ void streamMetaCloseImpl(void* arg) {
   taosHashCleanup(pMeta->pTasksMap);
   taosHashCleanup(pMeta->pTaskBackendUnique);
   taosHashCleanup(pMeta->pUpdateTaskSet);
+  taosHashCleanup(pMeta->startInfo.pReadyTaskSet);
 
   taosMemoryFree(pMeta->pHbInfo);
   taosMemoryFree(pMeta->path);
