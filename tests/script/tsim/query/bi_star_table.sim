@@ -1,0 +1,111 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql drop database if exists db1;
+sql create database db1 vgroups 3;
+sql create database db1;
+sql use db1;
+sql create stable sta (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);
+sql create stable stb (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);
+sql create table tba1 using sta tags(1, 1, 1);
+sql create table tba2 using sta tags(2, 2, 2);
+sql insert into tba1 values(now, 1, "1");
+sql insert into tba2 values(now + 1s, 2, "2");
+sql create table tbn1 (ts timestamp, f1 int);
+sql create database db2 vgroups 3;
+sql create database db2;
+sql use db2;
+sql create stable sta (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);
+sql create stable stb (ts timestamp, f1 int, f2 binary(200)) tags(t1 int, t2 int, t3 int);
+sql create table tba1 using sta tags(1, 1, 1);
+sql create table tba2 using sta tags(2, 2, 2);
+
+set_bi_mode 1
+sql select * from db1.sta order by ts;
+if $cols != 7 then
+  return -1
+endi
+
+if $data06 != tba1 then
+  return -1
+endi
+
+sql select last(*) from db1.sta;
+if $cols != 4 then
+    return -1
+endi
+
+if $data03 != tba2 then
+    return -1
+endi
+
+sql select last_row(*) from db1.sta;
+if $cols != 4 then
+    return -1
+endi
+
+if $data03 != tba2 then
+    return -1
+endi
+
+sql select first(*) from db1.sta;
+if $cols != 4 then
+    return -1
+endi
+
+if $data03 != tba1 then
+    return -1
+endi
+
+print "=====table star ====================="
+
+sql select b.* from db1.sta b order by ts;
+if $cols != 7 then
+  return -1
+endi
+
+if $data06 != tba1 then
+  return -1
+endi
+
+sql select last(b.*) from db1.sta b;
+if $cols != 4 then
+    return -1
+endi
+
+if $data03 != tba2 then
+    return -1
+endi
+
+sql select last_row(b.*) from db1.sta b;
+if $cols != 4 then
+    return -1
+endi
+
+if $data03 != tba2 then
+    return -1
+endi
+
+sql select first(b.*) from db1.sta b;
+if $cols != 4 then
+    return -1
+endi
+
+if $data03 != tba1 then
+    return -1
+endi
+
+sql select * from (select f1 from db1.sta);
+if $cols != 1 then
+  return -1
+endi
+
+set_bi_mode 0
+sql select * from db1.sta order by ts;
+if $cols != 6 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
