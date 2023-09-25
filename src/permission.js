@@ -1,5 +1,5 @@
 //no-unused-vars
-import router, { addRoutes } from "@/router/index.js";
+import router from "@/router/index.js";
 import { getToken } from "@/utils/token.js";
 import { getUrls } from "@/api/explorer/login";
 import store from "./store";
@@ -7,26 +7,32 @@ import store from "./store";
 const whiteList = ["Login"];
 
 router.beforeEach(async (to, from, next) => {
-  if (to.name != "Login") {
-    let result = await getUrls();
-    if (
-      result.cluster != localStorage.getItem("base_url") &&
-      to.name != "Login"
-    ) {
-      next(`/login`);
-      next();
-    }
-    const hasToken = getToken();
-    if (!hasToken) {
-      if (whiteList.includes(to.name)) {
-        next();
-      } else {
+  try {
+    if (to.name != "Login") {
+      let result = await getUrls();
+      if (
+        result?.cluster != localStorage.getItem("base_url") &&
+        to.name != "Login"
+      ) {
         next(`/login`);
+        next();
+      }
+      const hasToken = getToken();
+      if (!hasToken) {
+        if (whiteList.includes(to.name)) {
+          next();
+        } else {
+          next(`/login`);
+        }
       }
     }
+    
+  
+    next();
+    
+  } catch (error) {
+    console.log('eeee', error)
   }
-
-  next();
 });
 // 切换标签页之后返回页面，查询token
 document.addEventListener("visibilitychange", () => {

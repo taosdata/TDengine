@@ -247,7 +247,7 @@ export default {
           this.taosxStatus = false;
         }
       } catch (error) {
-        // Message.error(error);
+        Message.error(error);
       }
     },
     //获取登录用户权限

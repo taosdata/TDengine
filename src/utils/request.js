@@ -26,15 +26,6 @@ request.interceptors.request.use(
       config.headers["Authorization"] = hasToken;
       if (!config.noRefreshToken) {
         refreshTokenExpire();
-        //token延期
-        // if (setTokenTimer) {
-        //   clearTimeout(setTokenTimer);
-        // }
-        // setTokenTimer = setTimeout(() => {
-        //   setTokenTimer = null;
-        //   refreshTokenExpire();
-
-        // }, 10);
       }
     } else {
       config.cancelToken = axios.CancelToken.source;
@@ -59,36 +50,33 @@ request.interceptors.response.use(
    */
   // Determine the request status by custom code
   (response) => {
-    const hasToken = getToken();
-    if (hasToken) {
-      if (response.data) {
-        const res = response.data;
+    if (response.data) {
+      const res = response.data;
 
-        if (res && res.type) return Promise.resolve(res);
-        if (res.code) {
-          //针对最新的tasks接口无code情况做出的判断
-          res.code += "";
-        }
-        if (res.code && checkRegion(res.code)) {
-          // token过期, 让用户重新登录
-          store.dispatch("app/logout", false);
-          return Promise.reject(null);
-        }
-        if (res.code && checkStatus(res.code)) {
-          return Promise.resolve(res.data);
-        }
-        if (Object.is(res.code, 0) && res.code === "0") {
-          //针对 'show databses'
-          return Promise.resolve(res);
-        }
-        if (res.code && res.code === "21200") {
-          //测试用---后续删除
-          return Promise.resolve(res);
-        }
-        return Promise.resolve(res);
-      } else if (response.status == 200) {
-        return Promise.resolve(response);
+      if (res && res.type) return Promise.resolve(res);
+      if (res.code) {
+        //针对最新的tasks接口无code情况做出的判断
+        res.code += "";
       }
+      if (res.code && checkRegion(res.code)) {
+        // token过期, 让用户重新登录
+        store.dispatch("app/logout", false);
+        return Promise.reject(null);
+      }
+      if (res.code && checkStatus(res.code)) {
+        return Promise.resolve(res.data);
+      }
+      if (Object.is(res.code, 0) && res.code === "0") {
+        //针对 'show databses'
+        return Promise.resolve(res);
+      }
+      if (res.code && res.code === "21200") {
+        //测试用---后续删除
+        return Promise.resolve(res);
+      }
+      return Promise.resolve(res);
+    } else if (response.status == 200) {
+      return Promise.resolve(response);
     }
   },
   (error) => {
@@ -169,12 +157,6 @@ requestOffical.interceptors.response.use(
     return response.data;
   },
   (error) => {
-    // 网络或者服务器错误
-    // Message({
-    //   message: error.message,
-    //   type: "error",
-    //   duration: 3000,
-    // });
     return Promise.reject(error);
   }
 );

@@ -6,6 +6,9 @@
         (this.$parent.currentTaskStatus == 'running'&&!this.$parent.isCopyable) ? 'readable' : '',
       ]"
     >
+    <!-- <section>
+      <DataTarget></DataTarget>
+    </section> -->
       <section class="header">
         <h1>{{ dbsource[0].name ? dbsource[0].name : "" }}</h1>
       </section>
@@ -683,6 +686,7 @@
   </div>
 </template>
 <script>
+// import DataTarget from './dataTarget.vue'
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
 import DatePicker from "@/components/date-picker";
