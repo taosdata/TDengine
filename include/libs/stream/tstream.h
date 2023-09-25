@@ -698,7 +698,6 @@ int32_t     streamSetStatusUnint(SStreamTask* pTask);
 const char* streamGetTaskStatusStr(int32_t status);
 void        streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta);
 void        streamTaskResume(SStreamTask* pTask, SStreamMeta* pMeta);
-void        streamTaskHalt(SStreamTask* pTask);
 void        streamTaskResumeFromHalt(SStreamTask* pTask);
 void        streamTaskDisablePause(SStreamTask* pTask);
 void        streamTaskEnablePause(SStreamTask* pTask);

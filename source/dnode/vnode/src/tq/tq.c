@@ -1135,8 +1135,12 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       }
 
       if (status == TASK_STATUS__HALT) {
-        //        return;
-        // do nothing
+//        tqDebug("s-task:%s level:%d sched-status:%d is halt by fill-history task:%s", pStreamTask->id.idStr,
+//                pStreamTask->info.taskLevel, pStreamTask->status.schedStatus, id);
+//        latestVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
+//
+//        taosThreadMutexUnlock(&pStreamTask->lock);
+//        break;
       }
 
       if (pStreamTask->status.taskStatus == TASK_STATUS__CK) {
@@ -1152,7 +1156,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
         qDebug("s-task:%s upgrade status to %s from %s", pStreamTask->id.idStr, streamGetTaskStatusStr(TASK_STATUS__HALT),
                streamGetTaskStatusStr(TASK_STATUS__PAUSE));
       } else {
-        qDebug("s-task:%s halt task", pStreamTask->id.idStr);
+        qDebug("s-task:%s halt task, prev status:%s", pStreamTask->id.idStr, streamGetTaskStatusStr(status));
       }
 
       pStreamTask->status.keepTaskStatus = status;
@@ -1174,6 +1178,13 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       pTask->execInfo.step2Start = taosGetTimestampMs();
       qDebug("s-task:%s scan-history from WAL stage(step 2) ended, elapsed time:%.2fs", id, 0.0);
       streamTaskPutTranstateIntoInputQ(pTask);
+
+      if (pTask->status.taskStatus == TASK_STATUS__PAUSE) {
+        pTask->status.keepTaskStatus = TASK_STATUS__NORMAL;
+        qDebug("s-task:%s prev status is %s, update the kept status to be:%s when after step 2", id,
+               streamGetTaskStatusStr(TASK_STATUS__PAUSE), streamGetTaskStatusStr(pTask->status.keepTaskStatus));
+      }
+
       streamTryExec(pTask);  // exec directly
     } else {
       STimeWindow* pWindow = &pTask->dataRange.window;
