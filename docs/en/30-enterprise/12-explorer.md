@@ -44,10 +44,15 @@ Permissions include:
 
 5. Append (select the corresponding database/super table/general table name to append directly to the right sql input area, avoiding manual input)
 
+In Data Explorer, the stables and tables in different databases can be checked in a tree structure. If there are many stables/tables in a database, the search button on the right of STables/Tables can be clicked, and after submitting the keyword of the tables in the dialogue box, the matched stables/tables will be shown.
+
+Besides querying database by inputing SQL queries manually, a wizard is available on Data Explorer. After inputing necessary information by following the wizard, the database queries can be made. Now, the wizard supports WHERE, ORDER BY, GROUP BY, PARTITION BY, Window Clause, etc.
 
 ## System Administration
 
 By clicking on the "System Administration" portal in the function list, you can create users, authorize access to users, and delete users. It is also capable of backing up and restoring the data in the currently managed cluster. You can also configure a remote TDengine address for data synchronization. Cluster and license information as well as proxy information is also provided for viewing. The system administration menu can only be seen by the root user.
+
+In the "License" tab of "Management", to make it easier to activate TDengine Enterprise, users can check the cluster ID of TDengine on this page directly.
 
 ### User Management
 
@@ -71,6 +76,8 @@ Click on the "Activate License" button located in the upper right corner of the 
 ## Data Ingestion
 
 By clicking "Data Write" in the function list, you can configure different types of data sources, including TDengine Subscription, PI, OPC-UA, OPC-DA, InfluxDB, MQTT, Kafka, CSV, etc., to write their data to the TDengine cluster that is currently being managed.
+
+In the task list of the Data Source page, the following 3 operations can be made to every task: edit, delete and duplicate. Through the duplication operation, a new task can be created easily based on an existing task. After submitting the task, the metrics of the task can be obtained by clicking the "View" button on the task list.
 
 ### TDengine Subscription
 
