@@ -11,13 +11,20 @@
 
     <properties>
         <project.assembly.dir>src/main/resources/assembly</project.assembly.dir>
+        <java.version>1.8</java.version>
+
     </properties>
 
     <dependencies>
         <dependency>
             <groupId>com.taosdata.jdbc</groupId>
             <artifactId>taos-jdbcdriver</artifactId>
-            <version>3.0.0</version>
+            <version>3.2.7</version>
+        </dependency>
+        <dependency>
+            <groupId>org.locationtech.jts</groupId>
+            <artifactId>jts-core</artifactId>
+            <version>1.19.0</version>
         </dependency>
     </dependencies>
 
@@ -68,12 +75,12 @@
                     </execution>
 
                     <execution>
-                        <id>SubscribeDemo</id>
+                        <id>GeometryDemo</id>
                         <configuration>
-                            <finalName>SubscribeDemo</finalName>
+                            <finalName>GeometryDemo</finalName>
                             <archive>
                                 <manifest>
-                                    <mainClass>com.taosdata.example.SubscribeDemo</mainClass>
+                                    <mainClass>com.taosdata.example.GeometryDemo</mainClass>
                                 </manifest>
                             </archive>
                             <descriptorRefs>

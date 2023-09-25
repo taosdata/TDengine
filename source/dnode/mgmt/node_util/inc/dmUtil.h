@@ -107,6 +107,7 @@ typedef struct {
   TdThreadRwlock lock;
   SMsgCb         msgCb;
   bool           validMnodeEps;
+  int64_t        ipWhiteVer;
 } SDnodeData;
 
 typedef struct {
@@ -120,6 +121,7 @@ typedef struct {
   ProcessDropNodeFp   processDropNodeFp;
   SendMonitorReportFp sendMonitorReportFp;
   GetVnodeLoadsFp     getVnodeLoadsFp;
+  GetVnodeLoadsFp     getVnodeLoadsLiteFp;
   GetMnodeLoadsFp     getMnodeLoadsFp;
   GetQnodeLoadsFp     getQnodeLoadsFp;
 } SMgmtInputOpt;

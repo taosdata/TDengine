@@ -136,6 +136,8 @@ typedef struct SAggLogicNode {
   bool       hasTimeLineFunc;
   bool       onlyHasKeepOrderFunc;
   bool       hasGroupKeyOptimized;
+  bool       isGroupTb;
+  bool       isPartTb;  // true if partition keys has tbname
 } SAggLogicNode;
 
 typedef struct SProjectLogicNode {
@@ -221,6 +223,7 @@ typedef struct SMergeLogicNode {
   int32_t    srcGroupId;
   bool       groupSort;
   bool       ignoreGroupId;
+  bool       inputWithGroupId;
 } SMergeLogicNode;
 
 typedef enum EWindowType {
@@ -263,6 +266,7 @@ typedef struct SWindowLogicNode {
   int8_t           igExpired;
   int8_t           igCheckUpdate;
   EWindowAlgorithm windowAlgo;
+  bool             isPartTb;
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
@@ -279,8 +283,9 @@ typedef struct SSortLogicNode {
   SLogicNode node;
   SNodeList* pSortKeys;
   bool       groupSort;
-  int64_t    maxRows;
   bool       skipPKSortOpt;
+  bool       calcGroupId;
+  bool       excludePkCol; // exclude PK ts col when calc group id
 } SSortLogicNode;
 
 typedef struct SPartitionLogicNode {
@@ -288,6 +293,11 @@ typedef struct SPartitionLogicNode {
   SNodeList* pPartitionKeys;
   SNodeList* pTags;
   SNode*     pSubtable;
+  SNodeList* pAggFuncs;
+
+  bool    needBlockOutputTsOrder;  // if true, partition output block will have ts order maintained
+  int32_t pkTsColId;
+  uint64_t pkTsColTbId;
 } SPartitionLogicNode;
 
 typedef enum ESubplanType {
@@ -527,6 +537,7 @@ typedef struct SMergePhysiNode {
   int32_t    srcGroupId;
   bool       groupSort;
   bool       ignoreGroupId;
+  bool       inputWithGroupId;
 } SMergePhysiNode;
 
 typedef struct SWindowPhysiNode {
@@ -603,6 +614,8 @@ typedef struct SSortPhysiNode {
   SNodeList* pExprs;     // these are expression list of order_by_clause and parameter expression of aggregate function
   SNodeList* pSortKeys;  // element is SOrderByExprNode, and SOrderByExprNode::pExpr is SColumnNode
   SNodeList* pTargets;
+  bool       calcGroupId;
+  bool       excludePkCol;
 } SSortPhysiNode;
 
 typedef SSortPhysiNode SGroupSortPhysiNode;
@@ -612,6 +625,9 @@ typedef struct SPartitionPhysiNode {
   SNodeList* pExprs;  // these are expression list of partition_by_clause
   SNodeList* pPartitionKeys;
   SNodeList* pTargets;
+
+  bool    needBlockOutputTsOrder;
+  int32_t tsSlotId;
 } SPartitionPhysiNode;
 
 typedef struct SStreamPartitionPhysiNode {

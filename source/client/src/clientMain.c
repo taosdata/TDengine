@@ -140,6 +140,20 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)
       taosThreadMutexUnlock(&pObj->mutex);
       break;
     }
+    case TAOS_NOTIFY_WHITELIST_VER: {
+      taosThreadMutexLock(&pObj->mutex);
+      pObj->whiteListInfo.fp = fp;
+      pObj->whiteListInfo.param = param;
+      taosThreadMutexUnlock(&pObj->mutex);
+      break;
+    }
+    case TAOS_NOTIFY_USER_DROPPED: {
+      taosThreadMutexLock(&pObj->mutex);
+      pObj->userDroppedInfo.fp = fp;
+      pObj->userDroppedInfo.param = param;
+      taosThreadMutexUnlock(&pObj->mutex);
+      break;
+    }
     default: {
       terrno = TSDB_CODE_INVALID_PARA;
       releaseTscObj(*(int64_t *)taos);
@@ -149,6 +163,113 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)
 
   releaseTscObj(*(int64_t *)taos);
   return 0;
+}
+
+typedef struct SFetchWhiteListInfo{
+  int64_t connId;
+  __taos_async_whitelist_fn_t userCbFn;
+  void* userParam;
+} SFetchWhiteListInfo;
+
+int32_t fetchWhiteListCallbackFn(void* param, SDataBuf* pMsg, int32_t code) {
+  SFetchWhiteListInfo* pInfo = (SFetchWhiteListInfo*)param;
+  TAOS* taos = &pInfo->connId;
+  if (code != TSDB_CODE_SUCCESS) {
+    pInfo->userCbFn(pInfo->userParam, code, taos, 0, NULL);
+    taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
+    taosMemoryFree(pInfo);
+    return code;
+  }
+
+  SGetUserWhiteListRsp wlRsp;
+  tDeserializeSGetUserWhiteListRsp(pMsg->pData, pMsg->len, &wlRsp);
+
+  uint64_t* pWhiteLists = taosMemoryMalloc(wlRsp.numWhiteLists * sizeof(uint64_t));
+  if (pWhiteLists == NULL) {
+    taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
+    taosMemoryFree(pInfo);
+    tFreeSGetUserWhiteListRsp(&wlRsp);
+  }
+
+  for (int i = 0; i < wlRsp.numWhiteLists; ++i) {
+    pWhiteLists[i] = ((uint64_t)wlRsp.pWhiteLists[i].mask << 32) | wlRsp.pWhiteLists[i].ip;
+  }
+
+  pInfo->userCbFn(pInfo->userParam, code, taos, wlRsp.numWhiteLists, pWhiteLists);
+
+  taosMemoryFree(pWhiteLists);
+  taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
+  taosMemoryFree(pInfo);
+  tFreeSGetUserWhiteListRsp(&wlRsp);
+  return code;
+}
+
+void taos_fetch_whitelist_a(TAOS *taos, __taos_async_whitelist_fn_t fp, void *param) {
+  if (NULL == taos) {
+    fp(param, TSDB_CODE_INVALID_PARA, taos, 0, NULL);
+    return;
+  }
+
+  int64_t connId = *(int64_t*)taos;
+
+  STscObj *pTsc = acquireTscObj(connId);
+  if (NULL == pTsc) {
+    fp(param, TSDB_CODE_TSC_DISCONNECTED, taos, 0, NULL);
+    return;
+  }
+
+  SGetUserWhiteListReq req;
+  memcpy(req.user, pTsc->user, TSDB_USER_LEN);
+  int32_t msgLen = tSerializeSGetUserWhiteListReq(NULL, 0, &req);
+  void* pReq = taosMemoryMalloc(msgLen);
+  if (pReq == NULL) {
+    fp(param, TSDB_CODE_OUT_OF_MEMORY, taos, 0, NULL);
+    releaseTscObj(connId);
+    return;
+  }
+
+  if (tSerializeSGetUserWhiteListReq(pReq, msgLen, &req) < 0) {
+    fp(param, TSDB_CODE_INVALID_PARA, taos, 0, NULL);
+    taosMemoryFree(pReq);
+    releaseTscObj(connId);
+    return;
+  }
+
+  SFetchWhiteListInfo* pParam = taosMemoryMalloc(sizeof(SFetchWhiteListInfo));
+  if (pParam == NULL) {
+    fp(param, TSDB_CODE_OUT_OF_MEMORY, taos, 0, NULL);
+    taosMemoryFree(pReq);
+    releaseTscObj(connId);
+    return;
+  }
+
+  pParam->connId = connId;
+  pParam->userCbFn = fp;
+  pParam->userParam = param;
+  SMsgSendInfo* pSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  if (pSendInfo == NULL) {
+    fp(param,  TSDB_CODE_OUT_OF_MEMORY, taos, 0, NULL);
+    taosMemoryFree(pParam);
+    taosMemoryFree(pReq);
+    releaseTscObj(connId);
+    return;
+  }
+
+  pSendInfo->msgInfo = (SDataBuf){.pData = pReq, .len = msgLen, .handle = NULL};
+  pSendInfo->requestId = generateRequestId();
+  pSendInfo->requestObjRefId = 0;
+  pSendInfo->param = pParam;
+  pSendInfo->fp = fetchWhiteListCallbackFn;
+  pSendInfo->msgType = TDMT_MND_GET_USER_WHITELIST;
+
+  int64_t transportId = 0;
+  SEpSet epSet = getEpSet_s(&pTsc->pAppInfo->mgmtEp);
+  asyncSendMsgToServer(pTsc->pAppInfo->pTransporter, &epSet, &transportId, pSendInfo);
+  releaseTscObj(connId);
+  return;
 }
 
 void taos_close_internal(void *taos) {
@@ -1052,6 +1173,8 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt) {
                            .svrVer = pTscObj->sVer,
                            .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
                            .allocatorId = pRequest->allocatorRefId};
+  int8_t biMode = atomic_load_8(&((STscObj *)pTscObj)->biMode);
+  (*pCxt)->biMode = biMode;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1714,4 +1837,27 @@ int taos_stmt_close(TAOS_STMT *stmt) {
   }
 
   return stmtClose(stmt);
+}
+
+int taos_set_conn_mode(TAOS* taos, int mode, int value) {
+  if (taos == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  STscObj *pObj = acquireTscObj(*(int64_t *)taos);
+  if (NULL == pObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    tscError("invalid parameter for %s", __func__);
+    return terrno;
+  }
+  switch (mode) {
+    case TAOS_CONN_MODE_BI:
+      atomic_store_8(&pObj->biMode, value);
+      break;
+    default:
+      tscError("not supported mode.");
+      return TSDB_CODE_INVALID_PARA;
+  }
+  return 0;
 }

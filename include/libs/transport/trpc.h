@@ -37,6 +37,7 @@ typedef struct {
   int64_t  applyIndex;
   uint64_t applyTerm;
   char     user[TSDB_USER_LEN];
+
 } SRpcConnInfo;
 
 typedef struct SRpcHandleInfo {
@@ -60,6 +61,8 @@ typedef struct SRpcHandleInfo {
   STraceId traceId;
 
   SRpcConnInfo conn;
+  int8_t       forbiddenIp;
+
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {
@@ -162,6 +165,11 @@ int   rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, 
 int   rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
 int   rpcSetDefaultAddr(void *thandle, const char *ip, const char *fqdn);
 void *rpcAllocHandle();
+void  rpcSetIpWhite(void *thandl, void *arg);
+
+int32_t rpcUtilSIpRangeToStr(SIpV4Range *pRange, char *buf);
+
+int32_t rpcUtilSWhiteListToStr(SIpWhiteList *pWhiteList, char **ppBuf);
 
 #ifdef __cplusplus
 }

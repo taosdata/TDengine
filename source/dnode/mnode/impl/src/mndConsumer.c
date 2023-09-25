@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mndConsumer.h"
 #include "mndPrivilege.h"
+#include "mndVgroup.h"
 #include "mndShow.h"
 #include "mndSubscribe.h"
 #include "mndTopic.h"
@@ -310,6 +311,34 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
           taosArrayPush(pRebSub->removedConsumers, &pConsumer->consumerId);
         }
         taosRUnLockLatch(&pConsumer->lock);
+      }else{
+        int32_t newTopicNum = taosArrayGetSize(pConsumer->currentTopics);
+        for (int32_t i = 0; i < newTopicNum; i++) {
+          char *           topic = taosArrayGetP(pConsumer->currentTopics, i);
+          SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, pConsumer->cgroup, topic);
+          if (pSub == NULL) {
+            continue;
+          }
+          taosRLockLatch(&pSub->lock);
+
+          // 2.2 iterate all vg assigned to the consumer of that topic
+          SMqConsumerEp *pConsumerEp = taosHashGet(pSub->consumerHash, &pConsumer->consumerId, sizeof(int64_t));
+          int32_t        vgNum = taosArrayGetSize(pConsumerEp->vgs);
+
+          for (int32_t j = 0; j < vgNum; j++) {
+            SMqVgEp *pVgEp = taosArrayGetP(pConsumerEp->vgs, j);
+            SVgObj * pVgroup = mndAcquireVgroup(pMnode, pVgEp->vgId);
+            if (!pVgroup) {
+              char key[TSDB_SUBSCRIBE_KEY_LEN];
+              mndMakeSubscribeKey(key, pConsumer->cgroup, topic);
+              mndGetOrCreateRebSub(pRebMsg->rebSubHash, key);
+              mInfo("vnode splitted, vgId:%d rebalance will be triggered", pVgEp->vgId);
+            }
+            mndReleaseVgroup(pMnode, pVgroup);
+          }
+          taosRUnLockLatch(&pSub->lock);
+          mndReleaseSubscribe(pMnode, pSub);
+        }
       }
     } else if (status == MQ_CONSUMER_STATUS_LOST) {
       if (hbStatus > MND_CONSUMER_LOST_CLEAR_THRESHOLD) {   // clear consumer if lost a day
@@ -342,7 +371,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
   }
 
   if (taosHashGetSize(pRebMsg->rebSubHash) != 0) {
-      mInfo("mq rebalance will be triggered");
+    mInfo("mq rebalance will be triggered");
     SRpcMsg rpcMsg = {
         .msgType = TDMT_MND_TMQ_DO_REBALANCE,
         .pCont = pRebMsg,
@@ -401,6 +430,9 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
 
     SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, pConsumer->cgroup, data->topicName);
     if(pSub == NULL){
+#ifdef TMQ_DEBUG
+      ASSERT(0);
+#endif
       continue;
     }
     taosWLockLatch(&pSub->lock);
@@ -498,7 +530,9 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
       SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, pConsumer->cgroup, topic);
       // txn guarantees pSub is created
       if(pSub == NULL) {
+#ifdef TMQ_DEBUG
         ASSERT(0);
+#endif
         continue;
       }
       taosRLockLatch(&pSub->lock);
@@ -509,7 +543,9 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
       // 2.1 fetch topic schema
       SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
       if(pTopic == NULL) {
+#ifdef TMQ_DEBUG
         ASSERT(0);
+#endif
         taosRUnLockLatch(&pSub->lock);
         mndReleaseSubscribe(pMnode, pSub);
         continue;
@@ -540,8 +576,16 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
 
       for (int32_t j = 0; j < vgNum; j++) {
         SMqVgEp *pVgEp = taosArrayGetP(pConsumerEp->vgs, j);
-        char     offsetKey[TSDB_PARTITION_KEY_LEN];
-        mndMakePartitionKey(offsetKey, pConsumer->cgroup, topic, pVgEp->vgId);
+//        char     offsetKey[TSDB_PARTITION_KEY_LEN];
+//        mndMakePartitionKey(offsetKey, pConsumer->cgroup, topic, pVgEp->vgId);
+
+        if(epoch == -1){
+          SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVgEp->vgId);
+          if(pVgroup){
+            pVgEp->epSet = mndGetVgroupEpset(pMnode, pVgroup);
+            mndReleaseVgroup(pMnode, pVgroup);
+          }
+        }
         // 2.2.1 build vg ep
         SMqSubVgEp vgEp = {
             .epSet = pVgEp->epSet,
@@ -648,7 +692,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   }
 
   // check topic existence
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_TOPIC, pMsg, "subscribe");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pMsg, "subscribe");
   if (pTrans == NULL) {
     goto _over;
   }

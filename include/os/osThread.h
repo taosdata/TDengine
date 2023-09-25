@@ -22,6 +22,15 @@
 extern "C" {
 #endif
 
+#if defined(WINDOWS) && !defined(__USE_PTHREAD)
+#include <windows.h>
+#define __USE_WIN_THREAD
+// https://learn.microsoft.com/en-us/windows/win32/winprog/using-the-windows-headers
+// #ifndef _WIN32_WINNT
+// #define _WIN32_WINNT 0x0600
+// #endif
+#endif
+
 #if !defined(WINDOWS) && !defined(_ALPINE)
 #ifndef __USE_XOPEN2K
 #define TD_USE_SPINLOCK_AS_MUTEX
@@ -29,6 +38,22 @@ typedef pthread_mutex_t pthread_spinlock_t;
 #endif
 #endif
 
+#ifdef __USE_WIN_THREAD
+typedef pthread_t          TdThread;           // pthread api
+typedef pthread_spinlock_t TdThreadSpinlock;   // pthread api
+typedef CRITICAL_SECTION   TdThreadMutex;      // windows api
+typedef HANDLE             TdThreadMutexAttr;  // windows api
+typedef struct {
+  SRWLOCK lock;
+  int8_t  excl;
+} TdThreadRwlock;                               // windows api
+typedef pthread_attr_t     TdThreadAttr;        // pthread api
+typedef pthread_once_t     TdThreadOnce;        // pthread api
+typedef HANDLE             TdThreadRwlockAttr;  // windows api
+typedef CONDITION_VARIABLE TdThreadCond;        // windows api
+typedef HANDLE             TdThreadCondAttr;    // windows api
+typedef pthread_key_t      TdThreadKey;         // pthread api
+#else
 typedef pthread_t            TdThread;
 typedef pthread_spinlock_t   TdThreadSpinlock;
 typedef pthread_mutex_t      TdThreadMutex;
@@ -40,11 +65,14 @@ typedef pthread_rwlockattr_t TdThreadRwlockAttr;
 typedef pthread_cond_t       TdThreadCond;
 typedef pthread_condattr_t   TdThreadCondAttr;
 typedef pthread_key_t        TdThreadKey;
+#endif
 
 #define taosThreadCleanupPush pthread_cleanup_push
 #define taosThreadCleanupPop  pthread_cleanup_pop
 
-#ifdef WINDOWS
+#if defined(WINDOWS) && !defined(__USE_PTHREAD)
+#define TD_PTHREAD_MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER_FORBID
+#elif defined(WINDOWS)
 #define TD_PTHREAD_MUTEX_INITIALIZER (TdThreadMutex)(-1)
 #else
 #define TD_PTHREAD_MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER

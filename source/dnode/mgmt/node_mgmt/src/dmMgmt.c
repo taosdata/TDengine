@@ -19,6 +19,10 @@
 #include "index.h"
 #include "qworker.h"
 #include "tstream.h"
+#ifdef TD_TSZ
+#include "tglobal.h"
+#include "tcompression.h"
+#endif
 
 static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
@@ -111,6 +115,11 @@ int32_t dmInitDnode(SDnode *pDnode) {
     goto _OVER;
   }
 
+#ifdef TD_TSZ
+  // compress module init
+  tsCompressInit(tsLossyColumns, tsFPrecision, tsDPrecision, tsMaxRange, tsCurRange, (int)tsIfAdtFse, tsCompressor);
+#endif
+
   pDnode->wrappers[DNODE].func = dmGetMgmtFunc();
   pDnode->wrappers[MNODE].func = mmGetMgmtFunc();
   pDnode->wrappers[VNODE].func = vmGetMgmtFunc();
@@ -180,6 +189,12 @@ void dmCleanupDnode(SDnode *pDnode) {
   streamMetaCleanup();
   indexCleanup();
   taosConvDestroy();
+
+#ifdef TD_TSZ
+  // compress destroy
+  tsCompressExit();
+#endif
+
   dDebug("dnode is closed, ptr:%p", pDnode);
 }
 

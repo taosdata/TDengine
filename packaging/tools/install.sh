@@ -218,8 +218,6 @@ function install_bin() {
   ${csudo}rm -f ${bin_link_dir}/${demoName2} || :
   ${csudo}rm -f ${bin_link_dir}/${benchmarkName2} || :
   ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
-  ${csudo}rm -f ${bin_link_dir}/${xname2} || :
-  ${csudo}rm -f ${bin_link_dir}/${explorerName} || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
   ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
 
@@ -233,8 +231,6 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/${benchmarkName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${benchmarkName2} ${bin_link_dir}/${demoName2} || :
   [ -x ${install_main_dir}/bin/${benchmarkName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${benchmarkName2} ${bin_link_dir}/${benchmarkName2} || :
   [ -x ${install_main_dir}/bin/${dumpName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${dumpName2} ${bin_link_dir}/${dumpName2} || :
-  [ -x ${install_main_dir}/bin/${xname2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${xname2} ${bin_link_dir}/${xname2} || :
-  [ -x ${install_main_dir}/bin/${explorerName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${explorerName} ${bin_link_dir}/${explorerName} || :
   [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -sf ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   if [ "$clientName2" == "${clientName}" ]; then
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
@@ -242,6 +238,12 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
 
   if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
+    ${csudo}rm -f ${bin_link_dir}/${xname2} || :
+    ${csudo}rm -f ${bin_link_dir}/${explorerName} || :
+
+    #Make link
+    [ -x ${install_main_dir}/bin/${xname2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${xname2} ${bin_link_dir}/${xname2} || :
+    [ -x ${install_main_dir}/bin/${explorerName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${explorerName} ${bin_link_dir}/${explorerName} || :
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript2} || :
   fi
 }
@@ -700,28 +702,28 @@ function clean_service_on_systemd() {
   fi
   ${csudo}systemctl disable tarbitratord &>/dev/null || echo &>/dev/null
   ${csudo}rm -f ${tarbitratord_service_config}
-  # if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
-  #     ${csudo}rm -f ${service_config_dir}/${serverName2}.service
-  # fi
-  x_service_config="${service_config_dir}/${xName2}.service"
-  if [ -e "$x_service_config" ]; then
-    if systemctl is-active --quiet ${xName2}; then
-      echo "${productName2} ${xName2} is running, stopping it..."
-      ${csudo}systemctl stop ${xName2} &>/dev/null || echo &>/dev/null
+  
+  if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
+    x_service_config="${service_config_dir}/${xName2}.service"
+    if [ -e "$x_service_config" ]; then
+      if systemctl is-active --quiet ${xName2}; then
+        echo "${productName2} ${xName2} is running, stopping it..."
+        ${csudo}systemctl stop ${xName2} &>/dev/null || echo &>/dev/null
+      fi
+      ${csudo}systemctl disable ${xName2} &>/dev/null || echo &>/dev/null
+      ${csudo}rm -f ${x_service_config}
     fi
-    ${csudo}systemctl disable ${xName2} &>/dev/null || echo &>/dev/null
-    ${csudo}rm -f ${x_service_config}
-  fi
 
-  explorer_service_config="${service_config_dir}/${explorerName2}.service"
-  if [ -e "$explorer_service_config" ]; then
-    if systemctl is-active --quiet ${explorerName2}; then
-      echo "${productName2} ${explorerName2} is running, stopping it..."
-      ${csudo}systemctl stop ${explorerName2} &>/dev/null || echo &>/dev/null
+    explorer_service_config="${service_config_dir}/${explorerName2}.service"
+    if [ -e "$explorer_service_config" ]; then
+      if systemctl is-active --quiet ${explorerName2}; then
+        echo "${productName2} ${explorerName2} is running, stopping it..."
+        ${csudo}systemctl stop ${explorerName2} &>/dev/null || echo &>/dev/null
+      fi
+      ${csudo}systemctl disable ${explorerName2} &>/dev/null || echo &>/dev/null
+      ${csudo}rm -f ${explorer_service_config}
+      ${csudo}rm -f /etc/${clientName2}/explorer.toml
     fi
-    ${csudo}systemctl disable ${explorerName2} &>/dev/null || echo &>/dev/null
-    ${csudo}rm -f ${explorer_service_config}
-    ${csudo}rm -f /etc/${clientName2}/explorer.toml
   fi
 }
 

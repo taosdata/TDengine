@@ -119,6 +119,7 @@ typedef struct SLeftValueNode {
 typedef enum EHintOption {
   HINT_NO_BATCH_SCAN = 1,
   HINT_BATCH_SCAN,
+  HINT_SORT_FOR_GROUP,
 } EHintOption;
 
 typedef struct SHintNode {
@@ -275,6 +276,14 @@ typedef enum ETimeLineMode {
   TIME_LINE_MULTI,
   TIME_LINE_GLOBAL,
 } ETimeLineMode;
+
+typedef enum EShowKind {
+  SHOW_KIND_ALL = 1,
+  SHOW_KIND_TABLES_NORMAL,
+  SHOW_KIND_TABLES_CHILD,
+  SHOW_KIND_DATABASES_USER,
+  SHOW_KIND_DATABASES_SYSTEM
+} EShowKind;
 
 typedef struct SFillNode {
   ENodeType   type;  // QUERY_NODE_FILL
@@ -518,12 +527,17 @@ void*   nodesGetValueFromNode(SValueNode* pNode);
 int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value);
 char*   nodesGetStrValueFromNode(SValueNode* pNode);
 void    nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
+SValueNode* nodesMakeValueNodeFromString(char* literal);
+SValueNode* nodesMakeValueNodeFromBool(bool b);
 
 char*   nodesGetFillModeString(EFillMode mode);
 int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc);
 
 const char* operatorTypeStr(EOperatorType type);
 const char* logicConditionTypeStr(ELogicConditionType type);
+
+bool nodesIsStar(SNode* pNode);
+bool nodesIsTableStar(SNode* pNode);
 
 #ifdef __cplusplus
 }
