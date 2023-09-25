@@ -146,6 +146,21 @@ static bool dmCheckDataDirVersion() {
   return true;
 }
 
+int32_t dmInit() {
+  dInfo("start to init dnode env");
+  if (dmDiskInit() != 0) return -1;
+  if (!dmCheckDataDirVersion()) return -1;
+  if (!dmCheckDiskSpace()) return -1;
+  if (dmCheckRepeatInit(dmInstance()) != 0) return -1;
+  if (dmInitSystem() != 0) return -1;
+  if (dmInitMonitor() != 0) return -1;
+  if (dmInitAudit() != 0) return -1;
+  if (dmInitDnode(dmInstance()) != 0) return -1;
+
+  dInfo("dnode env is initialized");
+  return 0;
+}
+
 static int32_t dmCheckRepeatCleanup(SDnode *pDnode) {
   if (atomic_val_compare_exchange_8(&pDnode->once, DND_ENV_READY, DND_ENV_CLEANUP) != DND_ENV_READY) {
     dError("dnode env is already cleaned up");
@@ -381,19 +396,4 @@ void dmReportStartup(const char *pName, const char *pDesc) {
 
 int64_t dmGetClusterId() {
   return globalDnode.data.clusterId;
-}
-
-int32_t dmInit() {
-  dInfo("start to init dnode env");
-  if (dmDiskInit() != 0) return -1;
-  if (!dmCheckDataDirVersion()) return -1;
-  if (!dmCheckDiskSpace()) return -1;
-  if (dmCheckRepeatInit(dmInstance()) != 0) return -1;
-  if (dmInitSystem() != 0) return -1;
-  if (dmInitMonitor() != 0) return -1;
-  if (dmInitAudit() != 0) return -1;
-  if (dmInitDnode(dmInstance()) != 0) return -1;
-
-  dInfo("dnode env is initialized");
-  return 0;
 }
