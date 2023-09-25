@@ -34,7 +34,7 @@
 #define GRANT_TOLERENCE      86400  //86400
 #define GRANT_CHK_TOLERENCE  259200 //259200seconds
 #define GRANT_CHECK_INTERVAL 3600   //3600seconds
-#define GRANT_HEART_BEAT_MSG 300    //300seconds
+#define GRANT_HEART_BEAT_MSG 60     //60seconds
 #else
 #define GRANT_DEFAULT        60
 #define GRANT_TOLERENCE      60
@@ -189,6 +189,10 @@ typedef struct {
   uint32_t       curCpuCores;  // version 2 since 3.0.5.0
   SGrantConnMsg  connectors;   // version 2 since 3.0.5.0
 } SGrantStatus;
+
+typedef struct {
+  uint64_t curTimeSeries;
+} SGrantNotify;
 
 typedef struct {
   bool     updateForced;
