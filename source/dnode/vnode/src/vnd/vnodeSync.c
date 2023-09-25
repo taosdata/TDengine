@@ -552,7 +552,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   pVnode->restored = true;
 
   taosWLockLatch(&pVnode->pTq->pStreamMeta->lock);
-  if (pVnode->pTq->pStreamMeta->taskStartedByNodeUpdate) {
+  if (pVnode->pTq->pStreamMeta->startInfo.startedAfterNodeUpdate) {
     vInfo("vgId:%d, sync restore finished, stream tasks will be launched by other thread", vgId);
     taosWUnLockLatch(&pVnode->pTq->pStreamMeta->lock);
     return;

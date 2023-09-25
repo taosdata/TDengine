@@ -154,41 +154,6 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
   int32_t     taskLevel = pTask->info.taskLevel;
   *numOfBlocks = 0;
 
-  //  if (pTask->info.taskLevel == TASK_LEVEL__SINK) {  // extract block from inputQ, one-by-one
-  //    while (1) {
-  //      if (streamTaskShouldPause(&pTask->status) || streamTaskShouldStop(&pTask->status)) {
-  //        stDebug("s-task:%s task should pause, extract input blocks:%d", pTask->id.idStr, *numOfBlocks);
-  //        return TSDB_CODE_SUCCESS;
-  //      }
-  //
-  //      STokenBucket* pBucket = pTask->pTokenBucket;
-  //      //      if (!streamTaskHasAvailableToken(pBucket)) {  // no available token in th bucket, ignore this
-  //      execution
-  //      //        stInfo("s-task:%s no available token for sink, capacity:%d, rate:%d token/sec, quit",
-  //      pTask->id.idStr,
-  //      //               pBucket->capacity, pBucket->rate);
-  //      //        return TSDB_CODE_SUCCESS;
-  //      //      }
-  //
-  //      SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputInfo.queue);
-  //      if (qItem == NULL) {
-  //        if (++retryTimes < MAX_RETRY_TIMES) {
-  //          taosMsleep(10);
-  //          continue;
-  //        }
-  //
-  //        return TSDB_CODE_SUCCESS;
-  //      }
-  //
-  //      stDebug("s-task:%s sink task handle block, type:%s", id, streamQueueItemGetTypeStr(qItem->type));
-  //      pTask->sinkRecorder.bytes += streamQueueItemGetSize(qItem);
-  //
-  //      *numOfBlocks = 1;
-  //      *pInput = qItem;
-  //      return TSDB_CODE_SUCCESS;
-  //    }
-  //  }
-
   while (1) {
     if (streamTaskShouldPause(&pTask->status) || streamTaskShouldStop(&pTask->status)) {
       stDebug("s-task:%s task should pause, extract input blocks:%d", pTask->id.idStr, *numOfBlocks);

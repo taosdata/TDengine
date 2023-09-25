@@ -34,6 +34,9 @@ static void    streamTaskSetRangeStreamCalc(SStreamTask* pTask);
 static int32_t initScanHistoryReq(SStreamTask* pTask, SStreamScanHistoryReq* pReq, int8_t igUntreated);
 
 static void streamTaskSetReady(SStreamTask* pTask, int32_t numOfReqs) {
+  SStreamMeta* pMeta = pTask->pMeta;
+  int32_t      vgId = pMeta->vgId;
+
   if (pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY && pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
     pTask->numOfWaitingUpstream = taosArrayGetSize(pTask->pUpstreamInfoList);
     stDebug("s-task:%s level:%d task wait for %d upstream tasks complete scan-history procedure, status:%s",
@@ -48,6 +51,19 @@ static void streamTaskSetReady(SStreamTask* pTask, int32_t numOfReqs) {
   int64_t el = (pTask->execInfo.start - pTask->execInfo.init);
   stDebug("s-task:%s all %d downstream ready, init completed, elapsed time:%" PRId64 "ms, task status:%s",
           pTask->id.idStr, numOfReqs, el, streamGetTaskStatusStr(pTask->status.taskStatus));
+
+  taosWLockLatch(&pMeta->lock);
+  pMeta->startInfo.readyTasks += 1;
+  int32_t numOfTotal = streamMetaGetNumOfTasks(pMeta);
+  if (pMeta->startInfo.readyTasks == numOfTotal) {
+    // reset value for next time start
+    pMeta->startInfo.readyTasks = 0;
+    pMeta->startInfo.startedAfterNodeUpdate = 0;
+    pMeta->startInfo.elapsedTime = pTask->execInfo.start - pMeta->startInfo.ts;
+    stDebug("vgId:%d all %d task(s) are started successfully, last ready task:%s level:%d, total elapsed time:%.2f sec",
+            vgId, numOfTotal, pTask->id.idStr, pTask->info.taskLevel, pMeta->startInfo.elapsedTime / 1000.0);
+  }
+  taosWUnLockLatch(&pMeta->lock);
 }
 
 int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated) {

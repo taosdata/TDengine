@@ -391,6 +391,13 @@ struct SStreamTask {
   char                reserve[256];
 };
 
+typedef struct STaskStartInfo {
+  int64_t ts;
+  int32_t startedAfterNodeUpdate;
+  int32_t readyTasks;
+  int32_t elapsedTime;
+} STaskStartInfo;
+
 // meta
 typedef struct SStreamMeta {
   char*         path;
@@ -405,7 +412,7 @@ typedef struct SStreamMeta {
   int32_t       vgId;
   int64_t       stage;
   bool          leader;
-  int8_t        taskStartedByNodeUpdate;
+  STaskStartInfo startInfo;
   SRWLatch      lock;
   int32_t       walScanCounter;
   void*         streamBackend;

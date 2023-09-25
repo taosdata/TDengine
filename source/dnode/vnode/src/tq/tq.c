@@ -1830,7 +1830,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
   int32_t updateTasks = taosHashGetSize(pMeta->pUpdateTaskSet);
   if (updateTasks < numOfTasks) {
-    pMeta->taskStartedByNodeUpdate = 1;
+    pMeta->startInfo.startedAfterNodeUpdate = 1;
     tqDebug("vgId:%d closed tasks:%d, unclosed:%d, all tasks will be started when nodeEp update completed", vgId,
             updateTasks, (numOfTasks - updateTasks));
     taosWUnLockLatch(&pMeta->lock);
@@ -1839,7 +1839,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 
     if (!pTq->pVnode->restored) {
       tqDebug("vgId:%d vnode restore not completed, not restart the tasks, clear the start after nodeUpdate flag", vgId);
-      pMeta->taskStartedByNodeUpdate = 0;
+      pMeta->startInfo.startedAfterNodeUpdate = 0;
       taosWUnLockLatch(&pMeta->lock);
     } else {
       tqDebug("vgId:%d tasks are all updated and stopped, restart them", vgId);
