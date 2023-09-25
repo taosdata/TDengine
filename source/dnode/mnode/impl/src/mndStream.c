@@ -2247,6 +2247,7 @@ static int32_t removeInvalidStreamTask(SArray *pNodeSnapshot) {
   execNodeList.pNodeEntryList = taosArrayDestroy(execNodeList.pNodeEntryList);
   execNodeList.pNodeEntryList = pValidNodeEntryList;
 
+  taosArrayDestroy(pRemoveTaskList);
   return 0;
 }
 
