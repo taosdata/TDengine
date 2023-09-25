@@ -81,7 +81,7 @@ static void    mndCancelGetNextDnode(SMnode *pMnode, void *pIter);
 
 static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t opLen, int32_t *pOutValue);
 
-#if defined(TD_ENTERPRISE) && !defined(_TD_DARWIN_64)
+#ifdef _GRANT
 int32_t mndUpdClusterInfo(SRpcMsg *pReq);
 #else
 static int32_t mndUpdClusterInfo(SRpcMsg *pReq) { return 0; }

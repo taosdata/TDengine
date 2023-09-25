@@ -246,12 +246,6 @@ void dmStopCrashReportThread(SDnodeMgmt *pMgmt) {
   }
 }
 
-#if defined(TD_ENTERPRISE) && !defined(_TD_DARWIN_64)
-int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg);
-#else
-static int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg) { return 0; }
-#endif
-
 static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SDnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
