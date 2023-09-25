@@ -52,14 +52,13 @@ int32_t dmInitDnode(SDnode *pDnode) {
     pWrapper->required = dmRequireNode(pDnode, pWrapper);
   }
 
-
   pDnode->lockfile = dmCheckRunning(tsDataDir);
   if (pDnode->lockfile == NULL) {
     goto _OVER;
   }
 
   if (dmInitModule(pDnode) != 0) {
-    dError("failed to init dmModule since %s", terrstr());
+    dError("failed to init dm module since %s", terrstr());
     goto _OVER;
   }
 

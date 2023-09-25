@@ -98,7 +98,8 @@ int32_t dmReadEps(SDnodeData *pData) {
 
   pData->dnodeEps = taosArrayInit(1, sizeof(SDnodeEp));
   if (pData->dnodeEps == NULL) {
-    dError("failed to calloc dnodeEp array since %s", strerror(errno));
+    code = terrno;
+    dError("failed to calloc dnodeEp array since %s", terrstr());
     goto _OVER;
   }
 
@@ -221,6 +222,9 @@ int32_t dmWriteEps(SDnodeData *pData) {
   snprintf(realfile, sizeof(realfile), "%s%sdnode%sdnode.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
 
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+
+  if ((code = dmInitDndInfo(pData)) != 0) goto _OVER;
+
   pJson = tjsonCreateObject();
   if (pJson == NULL) goto _OVER;
   pData->engineVer = tsVersion;

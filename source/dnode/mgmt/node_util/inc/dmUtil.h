@@ -171,6 +171,9 @@ int32_t   dmReadFile(const char *path, const char *name, bool *pDeployed);
 int32_t   dmWriteFile(const char *path, const char *name, bool deployed);
 TdFilePtr dmCheckRunning(const char *dataDir);
 
+// dmModule.c
+int32_t dmInitDndInfo(SDnodeData *pData);
+
 // dmEps.c
 int32_t dmReadEps(SDnodeData *pData);
 int32_t dmWriteEps(SDnodeData *pData);
