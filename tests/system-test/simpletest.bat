@@ -18,7 +18,7 @@ python3 .\test.py -f 1-insert\influxdb_line_taosc_insert.py
 @REM #python3 .\test.py -f 1-insert\test_stmt_muti_insert_query.py
 @REM python3 .\test.py -f 1-insert\alter_stable.py
 @REM python3 .\test.py -f 1-insert\alter_table.py
-@REM python3 .\test.py -f 2-query\between.py
+python3 .\test.py -f 2-query\between.py
 @REM python3 .\test.py -f 2-query\distinct.py
 @REM python3 .\test.py -f 2-query\varchar.py
 @REM python3 .\test.py -f 2-query\ltrim.py
@@ -101,3 +101,4 @@ python3 .\test.py -f 7-tmq\subscribeStb.py
 @REM python3 .\test.py -f 7-tmq\subscribeStb3.py
 @REM python3 .\test.py -f 7-tmq\subscribeStb4.py
 @REM python3 .\test.py -f 7-tmq\db.py
+python3 .\test.py -f 6-cluster\5dnode3mnodeSep1VnodeStopDnodeModifyMeta.py  -N 6 -M 3
