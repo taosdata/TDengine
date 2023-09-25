@@ -49,6 +49,10 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_time.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQuery_26.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_limit_opt.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_limit_opt_2.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_limit_opt_2.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_limit_opt_2.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interval_limit_opt_2.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqShow.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmqDropStb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/subscribeStb0.py
@@ -191,7 +195,7 @@
 ,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
 ,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
 ,,n,system-test,python3 ./test.py -N 3 -f 0-others/walRetention.py
-#,,n,system-test,python3 ./test.py -f 0-others/splitVGroup.py -N 5
+,,n,system-test,python3 ./test.py -f 0-others/splitVGroup.py -N 5
 ,,n,system-test,python3 ./test.py -f 0-others/timeRangeWise.py -N 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_database.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 1-insert/alter_replica.py -N 3

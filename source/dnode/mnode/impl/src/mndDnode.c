@@ -913,7 +913,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   char obj[200] = {0};
   sprintf(obj, "%s:%d", createReq.fqdn, createReq.port);
 
-  auditRecord(pReq, pMnode->clusterId, "createDnode", obj, "", "");
+  auditRecord(pReq, pMnode->clusterId, "createDnode", obj, "", createReq.sql, createReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -921,6 +921,7 @@ _OVER:
   }
 
   mndReleaseDnode(pMnode, pDnode);
+  tFreeSCreateDnodeReq(&createReq);
   return code;
 }
 
@@ -1065,13 +1066,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   char obj1[30] = {0};
   sprintf(obj1, "%d", dropReq.dnodeId);
 
-  //char obj2[150] = {0};
-  //sprintf(obj2, "%s:%d", dropReq.fqdn, dropReq.port);
-
-  char detail[100] = {0};
-  sprintf(detail, "force:%d, unsafe:%d", dropReq.force, dropReq.unsafe);
-
-  auditRecord(pReq, pMnode->clusterId, "dropDnode", obj1, "", detail);
+  auditRecord(pReq, pMnode->clusterId, "dropDnode", obj1, "", dropReq.sql, dropReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -1082,6 +1077,7 @@ _OVER:
   mndReleaseMnode(pMnode, pMObj);
   mndReleaseQnode(pMnode, pQObj);
   mndReleaseSnode(pMnode, pSObj);
+  tFreeSDropDnodeReq(&dropReq);
   return code;
 }
 
@@ -1102,6 +1098,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
   mInfo("dnode:%d, start to config, option:%s, value:%s", cfgReq.dnodeId, cfgReq.config, cfgReq.value);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONFIG_DNODE) != 0) {
+    tFreeSMCfgDnodeReq(&cfgReq);
     return -1;
   }
 
@@ -1112,6 +1109,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     if (' ' != cfgReq.config[7] && 0 != cfgReq.config[7]) {
       mError("dnode:%d, failed to config monitor since invalid conf:%s", cfgReq.dnodeId, cfgReq.config);
       terrno = TSDB_CODE_INVALID_CFG;
+      tFreeSMCfgDnodeReq(&cfgReq);
       return -1;
     }
 
@@ -1123,6 +1121,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     if (flag < 0 || flag > 2) {
       mError("dnode:%d, failed to config monitor since value:%d", cfgReq.dnodeId, flag);
       terrno = TSDB_CODE_INVALID_CFG;
+      tFreeSMCfgDnodeReq(&cfgReq);
       return -1;
     }
 
@@ -1137,6 +1136,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     if (flag < 0 || flag > 23) {
       mError("dnode:%d, failed to config keepTimeOffset since value:%d. Valid range: [0, 23]", cfgReq.dnodeId, flag);
       terrno = TSDB_CODE_INVALID_CFG;
+      tFreeSMCfgDnodeReq(&cfgReq);
       return -1;
     }
 
@@ -1152,6 +1152,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       mError("dnode:%d, failed to config ttlPushInterval since value:%d. Valid range: [0, 100000]", cfgReq.dnodeId,
              flag);
       terrno = TSDB_CODE_INVALID_CFG;
+      tFreeSMCfgDnodeReq(&cfgReq);
       return -1;
     }
 
@@ -1167,6 +1168,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       mError("dnode:%d, failed to config ttlBatchDropNum since value:%d. Valid range: [0, %d]", cfgReq.dnodeId,
              flag, INT32_MAX);
       terrno = TSDB_CODE_INVALID_CFG;
+      tFreeSMCfgDnodeReq(&cfgReq);
       return -1;
     }
 
@@ -1182,6 +1184,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     if (flag < 0 || flag > 4096) {
       mError("dnode:%d, failed to config supportVnodes since value:%d. Valid range: [0, 4096]", cfgReq.dnodeId, flag);
       terrno = TSDB_CODE_INVALID_CFG;
+      tFreeSMCfgDnodeReq(&cfgReq);
       return -1;
     }
     if (flag == 0) {
@@ -1197,6 +1200,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     if (' ' != cfgReq.config[index] && 0 != cfgReq.config[index]) {
       mError("dnode:%d, failed to config activeCode since invalid conf:%s", cfgReq.dnodeId, cfgReq.config);
       terrno = TSDB_CODE_INVALID_CFG;
+      tFreeSMCfgDnodeReq(&cfgReq);
       return -1;
     }
     int32_t vlen = strlen(cfgReq.value);
@@ -1206,6 +1210,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       mError("dnode:%d, failed to config activeCode since invalid vlen:%d. conf:%s, val:%s", cfgReq.dnodeId, vlen,
              cfgReq.config, cfgReq.value);
       terrno = TSDB_CODE_INVALID_OPTION;
+      tFreeSMCfgDnodeReq(&cfgReq);
       return -1;
     }
 
@@ -1214,8 +1219,10 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
     if (mndConfigDnode(pMnode, pReq, &cfgReq, opt) != 0) {
       mError("dnode:%d, failed to config activeCode since %s", cfgReq.dnodeId, terrstr());
+      tFreeSMCfgDnodeReq(&cfgReq);
       return -1;
     }
+    tFreeSMCfgDnodeReq(&cfgReq);
     return 0;
 #endif
   } else {
@@ -1228,6 +1235,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       if (' ' != cfgReq.config[optLen] && 0 != cfgReq.config[optLen]) {
         mError("dnode:%d, failed to config since invalid conf:%s", cfgReq.dnodeId, cfgReq.config);
         terrno = TSDB_CODE_INVALID_CFG;
+        tFreeSMCfgDnodeReq(&cfgReq);
         return -1;
       }
 
@@ -1239,6 +1247,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       if (flag < 0 || flag > 255) {
         mError("dnode:%d, failed to config %s since value:%d", cfgReq.dnodeId, optName, flag);
         terrno = TSDB_CODE_INVALID_CFG;
+        tFreeSMCfgDnodeReq(&cfgReq);
         return -1;
       }
 
@@ -1250,6 +1259,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     if (!findOpt) {
       terrno = TSDB_CODE_INVALID_CFG;
       mError("dnode:%d, failed to config since %s", cfgReq.dnodeId, terrstr());
+      tFreeSMCfgDnodeReq(&cfgReq);
       return -1;
     }
   }
@@ -1257,10 +1267,9 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   char obj[50] = {0};
   sprintf(obj, "%d", cfgReq.dnodeId);
 
-  char detail[500] = {0};
-  sprintf(detail, "config:%s, value:%s", cfgReq.config, cfgReq.value);
+  auditRecord(pReq, pMnode->clusterId, "alterDnode", obj, "", cfgReq.sql, cfgReq.sqlLen);
 
-  auditRecord(pReq, pMnode->clusterId, "alterDnode", obj, "", detail);
+  tFreeSMCfgDnodeReq(&cfgReq);
 
   int32_t code = -1;
   SSdb   *pSdb = pMnode->pSdb;

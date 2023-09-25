@@ -214,11 +214,18 @@ void taosArrayDestroyEx(SArray* pArray, FDelete fp);
 void taosArraySwap(SArray* a, SArray* b);
 
 /**
- * sort the array
+ * sort the array use qsort
  * @param pArray
  * @param compar
  */
 void taosArraySort(SArray* pArray, __compar_fn_t comparFn);
+
+/**
+ * sort the array use merge sort
+ * @param pArray
+ * @param compar
+ */
+int32_t taosArrayMSort(SArray* pArray, __compar_fn_t comparFn);
 
 /**
  * search the array
