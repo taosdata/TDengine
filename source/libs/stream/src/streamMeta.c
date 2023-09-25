@@ -152,6 +152,11 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
     goto _err;
   }
 
+  pMeta->startInfo.pReadyTaskSet = taosHashInit(64, fp, false, HASH_NO_LOCK);
+  if (pMeta->startInfo.pReadyTaskSet == NULL) {
+
+  }
+
   pMeta->pHbInfo = taosMemoryCalloc(1, sizeof(SMetaHbInfo));
   if (pMeta->pHbInfo == NULL) {
     goto _err;

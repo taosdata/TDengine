@@ -53,13 +53,17 @@ static void streamTaskSetReady(SStreamTask* pTask, int32_t numOfReqs) {
           pTask->id.idStr, numOfReqs, el, streamGetTaskStatusStr(pTask->status.taskStatus));
 
   taosWLockLatch(&pMeta->lock);
-  pMeta->startInfo.readyTasks += 1;
+
+  STaskId id = extractStreamTaskKey(pTask);
+  taosHashPut(pMeta->startInfo.pReadyTaskSet, &id, sizeof(id), NULL, 0);
   int32_t numOfTotal = streamMetaGetNumOfTasks(pMeta);
-  if (pMeta->startInfo.readyTasks == numOfTotal) {
+
+  if (taosHashGetSize(pMeta->startInfo.pReadyTaskSet) == numOfTotal) {
     // reset value for next time start
-    pMeta->startInfo.readyTasks = 0;
+    taosHashClear(pMeta->startInfo.pReadyTaskSet);
     pMeta->startInfo.startedAfterNodeUpdate = 0;
     pMeta->startInfo.elapsedTime = pTask->execInfo.start - pMeta->startInfo.ts;
+
     stDebug("vgId:%d all %d task(s) are started successfully, last ready task:%s level:%d, total elapsed time:%.2f sec",
             vgId, numOfTotal, pTask->id.idStr, pTask->info.taskLevel, pMeta->startInfo.elapsedTime / 1000.0);
   }
@@ -174,7 +178,7 @@ static int32_t doCheckDownstreamStatus(SStreamTask* pTask) {
       taosArrayPush(pTask->checkReqIds, &req.reqId);
       req.downstreamNodeId = pVgInfo->vgId;
       req.downstreamTaskId = pVgInfo->taskId;
-      stDebug("s-task:%s (vgId:%d) stage:%" PRId64 "check downstream task:0x%x (vgId:%d) (shuffle), idx:%d",
+      stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " check downstream task:0x%x (vgId:%d) (shuffle), idx:%d",
               pTask->id.idStr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId, i);
       streamSendCheckMsg(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
     }
@@ -272,10 +276,10 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
             id, upstreamTaskId, vgId, stage, pInfo->stage);
   }
 
-  if (pTask->status.downstreamReady != 1) {
-    return TASK_DOWNSTREAM_NOT_READY;
-  } else if (pInfo->stage != stage) {
+  if (pInfo->stage != stage) {
     return TASK_SELF_NEW_STAGE;
+  } else if (pTask->status.downstreamReady != 1) {
+    return TASK_DOWNSTREAM_NOT_READY;
   } else {
     return TASK_DOWNSTREAM_READY;
   }
