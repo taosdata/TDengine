@@ -1,4 +1,5 @@
 #define MyAppIco "favicon.ico"
+#define OPCGdbaInstallPath "c:\\Windows\SysWOW64"
 
 [Setup]
 AppName={#AppName}
@@ -19,6 +20,10 @@ Source: "{#MyAppSourceDir}\plugins\*"; DestDir: "{app}\plugins"; Flags: recurses
 Source: "{#MyAppSourceDir}\bin\*"; DestDir: "{app}\bin"
 Source: "{#MyAppSourceDir}\config\agent.toml"; DestDir: "{app}\config"; Flags: uninsneveruninstall onlyifdoesntexist; BeforeInstall: MyBeforeInstall('agent.toml');
 Source: "{#MyAppSourceDir}\config\explorer.toml"; DestDir: "{app}\config"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; BeforeInstall: MyBeforeInstall('exploerer.toml');
+Source: "{#MyAppSourceDir}\append\opc_gdba_32\*"; DestDir: "{#OPCGdbaInstallPath}\"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; Check: ShouldInstallOPC
+
+[Components]
+Name: "component"; Description: "OPC DLL(OPC Data Access Auto Interface)              http://www.gray-box.net/daawrapper.php?lang=en";
 
 [run]
 Filename: "{app}\\bin\\taosx-srv.exe"; Parameters: "install"; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\bin\taosx-srv.exe'))
@@ -28,6 +33,8 @@ Filename: REG.exe; Parameters: "ADD ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVer
   /T ""REG_SZ"" /D ""\""{app}\uninstall_{#AppName}.exe\"""" /F"; StatusMsg: Installing {#AppName}...; Flags: RunHidden WaitUntilTerminated
 Filename: REG.exe; Parameters: "ADD ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#AppName}_is1"" /V ""QuietUninstallString"" \
   /T ""REG_SZ"" /D ""\""{app}\uninstall_{#AppName}.exe\"" /SILENT"" /F"; StatusMsg: Installing {#AppName}...; Flags: RunHidden WaitUntilTerminated
+Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " ""{#OPCGdbaInstallPath}\gbda_aut.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
+Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " ""{#OPCGdbaInstallPath}\gbhda_aw.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
 
 [UninstallRun]
 RunOnceId: "stoptaosx"; Filename: {sys}\sc.exe; Parameters: "stop taosx" ; Flags: runhidden
@@ -44,6 +51,7 @@ var
   JavaVersionString: String;
   PISDKVersionString: string;
   JavaReady: Boolean;
+  OPCInstallFileFlag: Boolean;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var
@@ -92,7 +100,7 @@ var
   tokens: TStringList;
   major, minor: Integer;
 begin
-  // 分割版本号字符串为主要版本号和次要版本号
+  // Split the version number string into a major version number and a minor version number.
   tokens := TStringList.Create;
   try
     tokens.StrictDelimiter := True;
@@ -100,17 +108,17 @@ begin
     tokens.DelimitedText := version;
     if tokens.Count < 2 then
     begin
-      Result := False; // 版本号格式不正确，返回 False
+      Result := False; // The version number format is incorrect, return false.
       Exit;
     end;
     major := StrToIntDef(tokens[0], -1);
     minor := StrToIntDef(tokens[1], -1);
     if (major > 1) or ((major = 1) and (minor >= 8)) then
     begin
-      Result := True; // 版本号大于等于 1.8，返回 True
+      Result := True; // The version number is greater than or equal to 1.8, return True.
       Exit;
     end;
-    Result := False; // 版本号小于 1.8，返回 False
+    Result := False; // The version number is less than 1.8, return False.
   finally
     tokens.Free;
   end;
@@ -186,6 +194,7 @@ procedure InitializeWizard;
 var
   AfterID: Integer;
 begin
+  AfterID := wpSelectTasks;
   AfterID := wpInstalling;
   JavaVersionString := GetJavaVersionDesc();
   OutputMsgCheckJava := CreateOutputMsgMemoPage(AfterID, 'Check Java for influxdb/opentsdb Connector', 'The InfluxDB/OpenTSDB connector depends on the Java environment.'
@@ -210,8 +219,23 @@ begin
     + ' If you use this connector, please make sure to install it.', 'PI SDK required', PISDKVersionString);
     AfterID := OutputMsgCheckPISDK.ID;
   end;
+  if CurPageID = wpReady then
+    begin
+      if WizardForm.ComponentsList.Checked[0] then
+        begin
+          OPCInstallFileFlag := True;
+        end;
+      //if WizardForm.ComponentsList.Checked[1] then   // PI Connector
+      //  begin
+      //    MsgBox('PI Selected.', mbError, MB_OK);
+      //  end;
+    end;
 end;
 
+function ShouldInstallOPC: Boolean;
+begin
+  Result := OPCInstallFileFlag;
+end;
 
 [UninstallDelete]
 Type: files; Name: "{app}\xplugins\pi\*.*"
@@ -229,6 +253,8 @@ Type: dirifempty; Name: "{app}\files";
 
 [UninstallRun]
 Filename: "{app}\uninstall_{#AppName}.exe"; Parameters: "/SILENT"; Check: fileexists('{app}\uninstall_{#AppName}.exe')
+Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " /u ""{app}\plugins\opc\gbda_aut.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
+Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " /u ""{app}\plugins\opc\gbhda_aw.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
 
 [Messages]
 ConfirmUninstall=Do you really want to uninstall from your computer?%n%nPress [Y] to completely delete %1 and all its components;%nPress [N] to keep the software on your computer.
