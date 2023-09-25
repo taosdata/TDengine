@@ -1001,34 +1001,34 @@ void streamTaskEnablePause(SStreamTask* pTask) {
 }
 
 // fix: this function should be removed, it may cause deadlock.
-void streamTaskHalt(SStreamTask* pTask) {
-  int8_t status = pTask->status.taskStatus;
-  if (status == TASK_STATUS__DROPPING || status == TASK_STATUS__STOP) {
-    return;
-  }
-
-  if (status == TASK_STATUS__HALT) {
-    return;
-  }
-
-  // wait for checkpoint completed
-  while(pTask->status.taskStatus == TASK_STATUS__CK) {
-    qDebug("s-task:%s status:%s during generating checkpoint, wait for 1sec and retry set status:halt", pTask->id.idStr,
-           streamGetTaskStatusStr(TASK_STATUS__CK));
-    taosMsleep(1000);
-  }
-
-  // upgrade to halt status
-  if (status == TASK_STATUS__PAUSE) {
-    stDebug("s-task:%s upgrade status to %s from %s", pTask->id.idStr, streamGetTaskStatusStr(TASK_STATUS__HALT),
-           streamGetTaskStatusStr(TASK_STATUS__PAUSE));
-  } else {
-    stDebug("s-task:%s halt task", pTask->id.idStr);
-  }
-
-  pTask->status.keepTaskStatus = status;
-  pTask->status.taskStatus = TASK_STATUS__HALT;
-}
+//void streamTaskHalt(SStreamTask* pTask) {
+//  int8_t status = pTask->status.taskStatus;
+//  if (status == TASK_STATUS__DROPPING || status == TASK_STATUS__STOP) {
+//    return;
+//  }
+//
+//  if (status == TASK_STATUS__HALT) {
+//    return;
+//  }
+//
+//  // wait for checkpoint completed
+//  while(pTask->status.taskStatus == TASK_STATUS__CK) {
+//    qDebug("s-task:%s status:%s during generating checkpoint, wait for 1sec and retry set status:halt", pTask->id.idStr,
+//           streamGetTaskStatusStr(TASK_STATUS__CK));
+//    taosMsleep(1000);
+//  }
+//
+//  // upgrade to halt status
+//  if (status == TASK_STATUS__PAUSE) {
+//    stDebug("s-task:%s upgrade status to %s from %s", pTask->id.idStr, streamGetTaskStatusStr(TASK_STATUS__HALT),
+//           streamGetTaskStatusStr(TASK_STATUS__PAUSE));
+//  } else {
+//    stDebug("s-task:%s halt task", pTask->id.idStr);
+//  }
+//
+//  pTask->status.keepTaskStatus = status;
+//  pTask->status.taskStatus = TASK_STATUS__HALT;
+//}
 
 void streamTaskResumeFromHalt(SStreamTask* pTask) {
   const char* id = pTask->id.idStr;
