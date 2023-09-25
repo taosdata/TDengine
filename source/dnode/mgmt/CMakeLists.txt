@@ -14,14 +14,6 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/node_mgmt/inc"
 )
 
-IF (NOT BUILD_DM_MODULE)
-  MESSAGE(STATUS "NOT BUILD_DM_MODULE")
-  target_link_directories(
-    taosd 
-    PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/dm_static"
-  )
-ENDIF()
-
 IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
   ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
   SET(LINK_JEMALLOC "-L${CMAKE_BINARY_DIR}/build/lib -ljemalloc")
@@ -31,8 +23,8 @@ ENDIF ()
 
 IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
     ADD_DEPENDENCIES(taosd jemalloc)
-    target_link_libraries(taosd dnode dmModule ${LINK_JEMALLOC})
+    target_link_libraries(taosd dnode ${LINK_JEMALLOC})
 ELSE ()
-    target_link_libraries(taosd dnode dmModule)
+    target_link_libraries(taosd dnode)
 ENDIF ()
 
