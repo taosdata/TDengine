@@ -53,6 +53,26 @@ static void *dmStatusThreadFp(void *param) {
   return NULL;
 }
 
+tsem_t       dmNotifySem;
+static void *dmNotifyThreadFp(void *param) {
+  SDnodeMgmt *pMgmt = param;
+  int64_t     lastTime = taosGetTimestampMs();
+  setThreadName("dnode-notify");
+
+  if (tsem_init(&dmNotifySem, 0, 0) != 0) {
+    return NULL;
+  }
+
+  while (1) {
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
+
+    tsem_wait(&dmNotifySem);
+    dmSendNotifyReq(pMgmt);
+  }
+
+  return NULL;
+}
+
 static void *dmMonitorThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
@@ -132,7 +152,6 @@ static void *dmCrashReportThreadFp(void *param) {
   return NULL;
 }
 
-
 int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
   TdThreadAttr thAttr;
   taosThreadAttrInit(&thAttr);
@@ -152,6 +171,29 @@ void dmStopStatusThread(SDnodeMgmt *pMgmt) {
     taosThreadJoin(pMgmt->statusThread, NULL);
     taosThreadClear(&pMgmt->statusThread);
   }
+}
+
+int32_t dmStartNotifyThread(SDnodeMgmt *pMgmt) {
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  if (taosThreadCreate(&pMgmt->notifyThread, &thAttr, dmNotifyThreadFp, pMgmt) != 0) {
+    dError("failed to create notify thread since %s", strerror(errno));
+    return -1;
+  }
+
+  taosThreadAttrDestroy(&thAttr);
+  tmsgReportStartup("dnode-notify", "initialized");
+  return 0;
+}
+
+void dmStopNotifyThread(SDnodeMgmt *pMgmt) {
+  if (taosCheckPthreadValid(pMgmt->notifyThread)) {
+    tsem_post(&dmNotifySem);
+    taosThreadJoin(pMgmt->notifyThread, NULL);
+    taosThreadClear(&pMgmt->notifyThread);
+  }
+  tsem_destroy(&dmNotifySem);
 }
 
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt) {
@@ -250,6 +292,11 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
     case TDMT_MND_GRANT:
       code = dmProcessGrantReq(&pMgmt->pData->clusterId, pMsg);
+      break;
+    case TDMT_MND_GRANT_NOTIFY:
+#ifdef MAKE_JENKINS_HAPPY
+      code = dmProcessGrantNotify(NULL, pMsg);
+#endif
       break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;

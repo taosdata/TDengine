@@ -171,11 +171,16 @@ static bool scanPathOptMayBeOptimized(SLogicNode* pNode) {
 }
 
 static bool scanPathOptShouldGetFuncs(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
+    if (pNode->pParent && QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent)) {
+      if (WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType) return true;
+    } else {
+      return !scanPathOptHaveNormalCol(((SPartitionLogicNode*)pNode)->pPartitionKeys);
+    }
+  }
+
   if ((QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode) &&
-       WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode)->winType) ||
-      (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode) && pNode->pParent &&
-       QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode->pParent) &&
-       WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode->pParent)->winType)) {
+       WINDOW_TYPE_INTERVAL == ((SWindowLogicNode*)pNode)->winType)) {
     return true;
   }
   if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode)) {
@@ -191,30 +196,17 @@ static SNodeList* scanPathOptGetAllFuncs(SLogicNode* pNode) {
       return ((SWindowLogicNode*)pNode)->pFuncs;
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return ((SAggLogicNode*)pNode)->pAggFuncs;
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+      return ((SPartitionLogicNode*)pNode)->pAggFuncs;
     default:
       break;
   }
   return NULL;
 }
 
-static bool scanPathOptNeedOptimizeDataRequire(const SFunctionNode* pFunc) {
-  if (!fmIsSpecialDataRequiredFunc(pFunc->funcId)) {
-    return false;
-  }
-  SNode* pPara = NULL;
-  FOREACH(pPara, pFunc->pParameterList) {
-    if (QUERY_NODE_COLUMN != nodeType(pPara) && QUERY_NODE_VALUE != nodeType(pPara)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-static bool scanPathOptNeedDynOptimize(const SFunctionNode* pFunc) {
-  if (!fmIsDynamicScanOptimizedFunc(pFunc->funcId)) {
-    return false;
-  }
-  SNode* pPara = NULL;
+static bool scanPathOptIsSpecifiedFuncType(const SFunctionNode* pFunc, bool (*typeCheckFn)(int32_t)) {
+  if (!typeCheckFn(pFunc->funcId)) return false;
+  SNode* pPara;
   FOREACH(pPara, pFunc->pParameterList) {
     if (QUERY_NODE_COLUMN != nodeType(pPara) && QUERY_NODE_VALUE != nodeType(pPara)) {
       return false;
@@ -232,10 +224,12 @@ static int32_t scanPathOptGetRelatedFuncs(SScanLogicNode* pScan, SNodeList** pSd
   FOREACH(pNode, pAllFuncs) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     int32_t        code = TSDB_CODE_SUCCESS;
-    if (scanPathOptNeedOptimizeDataRequire(pFunc)) {
+    if (scanPathOptIsSpecifiedFuncType(pFunc, fmIsSpecialDataRequiredFunc)) {
       code = nodesListMakeStrictAppend(&pTmpSdrFuncs, nodesCloneNode(pNode));
-    } else if (scanPathOptNeedDynOptimize(pFunc)) {
+    } else if (scanPathOptIsSpecifiedFuncType(pFunc, fmIsDynamicScanOptimizedFunc)) {
       code = nodesListMakeStrictAppend(&pTmpDsoFuncs, nodesCloneNode(pNode));
+    } else if (scanPathOptIsSpecifiedFuncType(pFunc, fmIsSkipScanCheckFunc)) {
+      continue;
     } else {
       otherFunc = true;
       break;
@@ -2849,9 +2843,25 @@ static bool pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimitPu
     case QUERY_NODE_LOGIC_PLAN_AGG: {
       if (nodeType(pNodeWithLimit) == QUERY_NODE_LOGIC_PLAN_PROJECT &&
           (isPartTagAgg((SAggLogicNode*)pNodeLimitPushTo) || isPartTableAgg((SAggLogicNode*)pNodeLimitPushTo))) {
-        // when part by tag, slimit will be cloned to agg, and it will be pipelined.
+        // when part by tag/tbname, slimit will be cloned to agg, and it will be pipelined.
         // The scan below will do scanning with group order
         return cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_SLIMIT);
+      }
+      // else if not part by tag and tbname, the partition node below indicates that results are sorted, the agg node can
+      // be pipelined.
+      if (nodeType(pNodeWithLimit) == QUERY_NODE_LOGIC_PLAN_PROJECT && LIST_LENGTH(pNodeLimitPushTo->pChildren) == 1) {
+        SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNodeLimitPushTo->pChildren, 0);
+        if (nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_PARTITION) {
+          pNodeLimitPushTo->forceCreateNonBlockingOptr = true;
+          return cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_SLIMIT);
+        }
+        // Currently, partColOpt is executed after pushDownLimitOpt, and partColOpt will replace partition node with
+        // sort node.
+        // To avoid dependencies between these two optimizations, we add sort node too.
+        if (nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_SORT && ((SSortLogicNode*)pChild)->calcGroupId) {
+          pNodeLimitPushTo->forceCreateNonBlockingOptr = true;
+          return cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_SLIMIT);
+        }
       }
       break;
     }
@@ -3599,6 +3609,7 @@ static SSortLogicNode* partColOptCreateSort(SPartitionLogicNode* pPartition) {
         nodesListMakeAppend(&pSort->pSortKeys, (SNode*)pOrder);
         pOrder->order = ORDER_ASC;
         pOrder->pExpr = nodesCloneNode(node);
+        pOrder->nullOrder = NULL_ORDER_FIRST;
         if (!pOrder->pExpr) code = TSDB_CODE_OUT_OF_MEMORY;
       }
     }

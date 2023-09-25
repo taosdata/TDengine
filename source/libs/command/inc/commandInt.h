@@ -104,6 +104,7 @@ extern "C" {
 #define EXPLAIN_VGROUP_SLOT_FORMAT "vgroup_slot=%d,%d"
 #define EXPLAIN_UID_SLOT_FORMAT "uid_slot=%d,%d"
 #define EXPLAIN_SRC_SCAN_FORMAT "src_scan=%d,%d"
+#define EXPLAIN_PLAN_BLOCKING "blocking=%d"
 
 #define COMMAND_RESET_LOG "resetLog"
 #define COMMAND_SCHEDULE_POLICY "schedulePolicy"

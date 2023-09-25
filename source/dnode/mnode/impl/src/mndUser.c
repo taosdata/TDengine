@@ -2289,6 +2289,11 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
   for (int32_t i = 0; i < numOfUses; ++i) {
     SUserObj *pUser = mndAcquireUser(pMnode, pUsers[i].user);
     if (pUser == NULL) {
+      if (TSDB_CODE_MND_USER_NOT_EXIST == terrno) {
+        SGetUserAuthRsp rsp = {.dropped = 1};
+        memcpy(rsp.user, pUsers[i].user, TSDB_USER_LEN);
+        taosArrayPush(batchRsp.pArray, &rsp);
+      }
       mError("user:%s, failed to auth user since %s", pUsers[i].user, terrstr());
       continue;
     }

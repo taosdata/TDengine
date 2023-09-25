@@ -87,7 +87,7 @@ static int32_t tsdbUpgradeHead(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReader *
     char fname[TSDB_FILENAME_LEN];
     tsdbTFileName(tsdb, &file, fname);
 
-    code = tsdbOpenFile(fname, ctx->szPage, TD_FILE_READ | TD_FILE_WRITE, &ctx->fd);
+    code = tsdbOpenFile(fname, tsdb, TD_FILE_READ | TD_FILE_WRITE, &ctx->fd);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     // convert
@@ -257,7 +257,7 @@ static int32_t tsdbUpgradeSttFile(STsdb *tsdb, SDFileSet *pDFileSet, SDataFReade
     code = tsdbTFileObjInit(tsdb, &file, &fobj);
     TSDB_CHECK_CODE(code, lino, _exit1);
 
-    code = tsdbOpenFile(fobj->fname, ctx->szPage, TD_FILE_READ | TD_FILE_WRITE, &ctx->fd);
+    code = tsdbOpenFile(fobj->fname, tsdb, TD_FILE_READ | TD_FILE_WRITE, &ctx->fd);
     TSDB_CHECK_CODE(code, lino, _exit1);
 
     for (int32_t iSttBlk = 0; iSttBlk < taosArrayGetSize(aSttBlk); iSttBlk++) {
@@ -408,8 +408,7 @@ static int32_t tsdbUpgradeOpenTombFile(STsdb *tsdb, STFileSet *fset, STsdbFD **f
   }
 
   char fname[TSDB_FILENAME_LEN] = {0};
-  code = tsdbOpenFile(fobj[0]->fname, tsdb->pVnode->config.tsdbPageSize,
-                      TD_FILE_READ | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_CREATE, fd);
+  code = tsdbOpenFile(fobj[0]->fname, tsdb, TD_FILE_READ | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_CREATE, fd);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   uint8_t hdr[TSDB_FHDR_SIZE] = {0};

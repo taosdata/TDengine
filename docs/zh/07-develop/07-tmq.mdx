@@ -23,22 +23,30 @@ import CDemo from "./_sub_c.mdx";
 
 为了实现上述功能，TDengine 会为 WAL (Write-Ahead-Log) 文件自动创建索引以支持快速随机访问，并提供了灵活可配置的文件切换与保留机制：用户可以按需指定 WAL 文件保留的时间以及大小（详见 create database 语句）。通过以上方式将 WAL 改造成了一个保留事件到达顺序的、可持久化的存储引擎（但由于 TSDB 具有远比 WAL 更高的压缩率，我们不推荐保留太长时间，一般来说，不超过几天）。 对于以 topic 形式创建的查询，TDengine 将对接 WAL 而不是 TSDB 作为其存储引擎。在消费时，TDengine 根据当前消费进度从 WAL 直接读取数据，并使用统一的查询引擎实现过滤、变换等操作，将数据推送给消费者。
 
-本文档不对消息队列本身的基础知识做介绍，如果需要了解，请自行搜索。
+下面为关于数据订阅的一些说明，需要对TDengine的架构有一些了解，结合各个语言链接器的接口使用。
+- 一个消费组消费同一个topic下的所有数据，不同消费组之间相互独立；
+- 一个消费组消费同一个topic所有的vgroup，消费组可由多个消费者组成，但一个vgroup仅被一个消费者消费，如果消费者数量超过了vgroup数量，多余的消费者不消费数据；
+- 在服务端每个vgroup仅保存一个offset，每个vgroup的offset是单调递增的，但不一定连续。各个vgroup的offset之间没有关联；
+- 每次poll服务端会返回一个结果block，该block属于一个vgroup，可能包含多个wal版本的数据，可以通过 offset 接口获得是该block第一条记录的offset；
+- 一个消费组如果从未commit过offset，当其成员消费者重启重新拉取数据时，均从参数auto.offset.reset设定值开始消费；在一个消费者生命周期中，客户端本地记录了最近一次拉取数据的offset，不会拉取重复数据；
+- 消费者如果异常终止（没有调用tmq_close），需等约12秒后触发其所属消费组rebalance，该消费者在服务端状态变为LOST，约1天后该消费者自动被删除；正常退出，退出后就会删除消费者；新增消费者，需等约2秒触发rebalance，该消费者在服务端状态变为ready；
+- 消费组rebalance会对该组所有ready状态的消费者成员重新进行vgroup分配，消费者仅能对自己负责的vgroup进行assignment/seek/commit/poll操作；
+- 消费者可利用 position 获得当前消费的offset，并seek到指定offset，重新消费；
+- seek将position指向指定offset，不执行commit操作，一旦seek成功，可poll拉取指定offset及以后的数据；
+- seek 操作之前须调用 assignment 接口获取该consumer的vgroup ID和offset范围。seek 操作会检测vgroup ID 和 offset是否合法，如非法将报错；
+- position是获取当前的消费位置，是下次要取的位置，不是当前消费到的位置
+- commit是提交消费位置，不带参数的话，是提交当前消费位置（下次要取的位置，不是当前消费到的位置），带参数的话，是提交参数里的位置（也即下次退出重启后要取的位置）
+- seek是设置consumer消费位置，seek到哪，position就返回哪，都是下次要取的位置
+- seek不会影响commit，commit不影响seek，相互独立，两个是不同的概念
+- begin接口为wal 第一条数据的offset，end 接口为wal 最后一条数据的offset + 1
+- offset接口获取的是记录所在结果block块里的第一条数据的offset，当seek至该offset时，将消费到这个block里的全部数据。参见第四点；
+- 由于存在 WAL 过期删除机制，即使seek 操作成功，poll数据时有可能offset已失效。如果poll 的offset 小于 WAL 最小版本号，将会从WAL最小版本号消费；
+- 数据订阅是从 WAL 消费数据，如果一些 WAL 文件被基于 WAL 保留策略删除，则已经删除的 WAL 文件中的数据就无法再消费到。需要根据业务需要在创建数据库时合理设置 `WAL_RETENTION_PERIOD` 或 `WAL_RETENTION_SIZE` ，并确保应用及时消费数据，这样才不会产生数据丢失的现象。数据订阅的行为与 Kafka 等广泛使用的消息队列类产品的行为相似；
 
-说明（以c接口为例）：
-1. 一个消费组消费同一个topic下的所有数据，不同消费组之间相互独立；
-2. 一个消费组消费同一个topic所有的vgroup，消费组可由多个消费者组成，但一个vgroup仅被一个消费者消费，如果消费者数量超过了vgroup数量，多余的消费者不消费数据；
-3. 在服务端每个vgroup仅保存一个offset，每个vgroup的offset是单调递增的，但不一定连续。各个vgroup的offset之间没有关联；
-4. 每次poll服务端会返回一个结果block，该block属于一个vgroup，可能包含多个wal版本的数据，可以通过 tmq_get_vgroup_offset 接口获得是该block第一条记录的offset；
-5. 一个消费组如果从未commit过offset，当其成员消费者重启重新拉取数据时，均从参数auto.offset.reset设定值开始消费；在一个消费者生命周期中，客户端本地记录了最近一次拉取数据的offset，不会拉取重复数据；
-6. 消费者如果异常终止（没有调用tmq_close），需等约12秒后触发其所属消费组rebalance，该消费者在服务端状态变为LOST，约1天后该消费者自动被删除；正常退出，退出后就会删除消费者；新增消费者，需等约2秒触发rebalance，该消费者在服务端状态变为ready；
-7. 消费组rebalance会对该组所有ready状态的消费者成员重新进行vgroup分配，消费者仅能对自己负责的vgroup进行assignment/seek/commit/poll操作；
-8. 消费者可利用 tmq_position 获得当前消费的offset，并seek到指定offset，重新消费；
-9. seek将position指向指定offset，不执行commit操作，一旦seek成功，可poll拉取指定offset及以后的数据；
-10. seek 操作之前须调用 tmq_get_topic_assignment 接口获取该consumer的vgroup ID和offset范围。seek 操作会检测vgroup ID 和 offset是否合法，如非法将报错；
-11. tmq_get_vgroup_offset接口获取的是记录所在结果block块里的第一条数据的offset，当seek至该offset时，将消费到这个block里的全部数据。参见第四点；
-12. 由于存在 WAL 过期删除机制，即使seek 操作成功，poll数据时有可能offset已失效。如果poll 的offset 小于 WAL 最小版本号，将会从WAL最小版本号消费；
-13. 数据订阅是从 WAL 消费数据，如果一些 WAL 文件被基于 WAL 保留策略删除，则已经删除的 WAL 文件中的数据就无法再消费到。需要根据业务需要在创建数据库时合理设置 `WAL_RETENTION_PERIOD` 或 `WAL_RETENTION_SIZE` ，并确保应用及时消费数据，这样才不会产生数据丢失的现象。数据订阅的行为与 Kafka 等广泛使用的消息队列类产品的行为相似；
+本文档不对消息队列本身的知识做更多的介绍，如果需要了解，请自行搜索。
+
+从3.2.0.0版本开始，数据订阅支持vnode迁移和分裂。
+由于数据订阅依赖wal文件，而在vnode迁移和分裂的过程中，wal并不会同步过去，所以迁移或分裂后，之前没消费完的wal数据后消费不到。所以请保证之前把数据全部消费完后，再进行vnode迁移或分裂，否则，消费会丢失数据。
 
 ## 主要数据结构和 API
 

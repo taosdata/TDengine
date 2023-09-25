@@ -191,7 +191,7 @@ typedef struct {
 } SMonBmInfo;
 
 typedef struct {
-  SArray *pVloads;  // SVnodeLoad
+  SArray *pVloads;  // SVnodeLoad/SVnodeLoadLite
 } SMonVloadInfo;
 
 typedef struct {

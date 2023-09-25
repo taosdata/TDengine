@@ -40,16 +40,19 @@ while $i < $halfNum
     $c = $x / 10
     $c = $c * 10
     $c = $x - $c
+    $c2 = $c
     $binary = 'binary . $c
     $binary = $binary . '
     $nchar = 'nchar . $c
     $nchar = $nchar . '
 
     $ts = $ts + $i
+    print insert into $tb values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar ) 
     sql insert into $tb values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar )
 
     $ts = $ts + $halfNum
-    sql insert into $tb1 values ( $ts , $c , NULL , $c , NULL , $c , $c , true, $binary , $nchar )
+    print insert into $tb1 values ( $ts , $c2 , NULL , $c2 , NULL , $c2 , $c2 , true, $binary , $nchar )
+    sql insert into $tb1 values ( $ts , $c2 , NULL , $c2 , NULL , $c2 , $c2 , true, $binary , $nchar )
     $x = $x + 1
   endw
 
