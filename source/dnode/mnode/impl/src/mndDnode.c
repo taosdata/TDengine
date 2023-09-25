@@ -688,7 +688,9 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 _OVER:
   mndReleaseDnode(pMnode, pDnode);
   taosArrayDestroy(statusReq.pVloads);
+#ifndef _TD_DARWIN_64
   mndUpdClusterInfo(pReq);
+#endif
   return code;
 }
 
@@ -721,7 +723,9 @@ static int32_t mndProcessNotifyReq(SRpcMsg *pReq) {
     }
   }
 _OVER:
+#ifndef _TD_DARWIN_64
   mndUpdClusterInfo(pReq);
+#endif
   tFreeSNotifyReq(&notifyReq);
   return code;
 }
