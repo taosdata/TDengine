@@ -1001,7 +1001,6 @@ async fn sync_super_table_schema_with_subs(
             )
         })
         .join(",");
-    let cond = subs.iter().map(|n| format!("'{}'", n.as_ref())).join(",");
 
     let stable_name_for_to = transform_tbname_with_actions(name, actions, true)?;
     let sql = if is_v3 {
@@ -1009,7 +1008,6 @@ async fn sync_super_table_schema_with_subs(
     } else {
         format!("SELECT tbname, {tag_names} FROM `{stable_name_for_to}` WHERE tbname IN ({cond_for_to})")
     };
-
     let res_to: HashMap<_, _> = to
         .query(transform_sql_with_remap(sql, remap))
         .await?
@@ -1018,19 +1016,12 @@ async fn sync_super_table_schema_with_subs(
         .into_iter()
         .map(|mut v| (format!("{}", v.remove(0)), v))
         .collect();
-
-    let (exists, non_exists): (Vec<_>, Vec<_>) = from
-        .query(if is_v3 {
-            format!("SELECT distinct tbname, {tag_names} FROM `{name}` WHERE tbname IN ({cond})")
-        } else {
-            format!("SELECT tbname, {tag_names} FROM `{name}` WHERE tbname IN ({cond})")
-        })
-        .await?
-        .to_records()
-        .await?
-        .into_iter()
-        .map(|mut v| (format!("{}", v.remove(0)), v))
-        .partition(|v| res_to.contains_key(&v.0));
+    let (exists, non_exists): (Vec<_>, Vec<_>) =
+        query_sub_tables_from_source(from, is_v3, subs, name, &tag_names)
+            .await?
+            .into_iter()
+            .map(|mut v| (format!("{}", v.remove(0)), v))
+            .partition(|v| res_to.contains_key(&v.0));
     if target_opts.update_tags {
         let mut updated_tags = 0;
         for (n, l) in &exists {
@@ -1102,6 +1093,38 @@ async fn sync_super_table_schema_with_subs(
     }
 
     Ok(())
+}
+
+async fn query_sub_tables_from_source(
+    from: &Taos,
+    is_v3: bool,
+    subs: &[impl AsRef<str>],
+    name: &str,
+    tag_names: &String,
+) -> Result<Vec<Vec<Value>>, anyhow::Error> {
+    if is_v3 {
+        let cond = subs.iter().map(|n| format!("'{}'", n.as_ref())).join(",");
+        let sql =
+            format!("SELECT distinct tbname, {tag_names} FROM `{name}` WHERE tbname IN ({cond})");
+        Ok(from.query(sql).await?.to_records().await?)
+    } else {
+        let mut sub_tables: Vec<Vec<Value>> = Vec::new();
+        for sub in subs {
+            let sql = format!("SELECT tbname, {tag_names} FROM `{}`", sub.as_ref());
+            tracing::info!("{}", &sql);
+            let result = from.query(sql).await;
+            match result {
+                Ok(mut rs) => {
+                    let mut tmp = rs.to_records().await?;
+                    sub_tables.append(&mut tmp);
+                }
+                Err(error) => {
+                    tracing::warn!("select sub table {} error: {}", sub.as_ref(), error);
+                }
+            }
+        }
+        Ok(sub_tables)
+    }
 }
 
 // transfrom create sql based on actions
@@ -2462,7 +2485,6 @@ pub async fn legacy_to_taos(
             .await?;
         }
         (SyncMode::AsIs, SchemaMode::Always) => {
-            tracing::info!("synchronize schema");
             sync_schema(
                 &scheduler,
                 &from_pool,

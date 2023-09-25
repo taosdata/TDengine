@@ -17,7 +17,10 @@ use utoipa::*;
 mod definition;
 pub use definition::*;
 
-use crate::serve::{controller::TaskControllerRef, task::{Failed, ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT}};
+use crate::serve::{
+    controller::TaskControllerRef,
+    task::{Failed, ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT},
+};
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub(super) struct DataSourceInput {
