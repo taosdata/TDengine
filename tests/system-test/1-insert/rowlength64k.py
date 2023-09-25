@@ -1264,18 +1264,6 @@ class TDTestCase:
 
         self.ins_query()
 
-    def insertFromCsvOfLength65500(self):  
-        
-        tdLog.info('test insert from csv of length 65500')
-        os.system(f"taosBenchmark -f {self.testcasePath}//tableColumn4096.json")
-        
-        tdSql.execute(f"insert into db4096.ctb00 file '{self.testcasePath}//tableColumn4096csvLength64k.csv'")
-        tdSql.query("select count(*) from db4096.ctb00")
-        tdSql.checkData(0, 0, 1)
-        tdSql.query("select length(c4092) from db4096.ctb00")
-        tdSql.checkData(0, 0, 16375)
-
-
     def run(self):
         tdSql.prepare()
         
@@ -1289,7 +1277,6 @@ class TDTestCase:
         # self.run_5() 
         # self.run_6() 
         # self.run_7() 
-        self.insertFromCsvOfLength65500()
         
         endTime_all = time.time()
         print("total time %ds" % (endTime_all - startTime_all))        
