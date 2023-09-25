@@ -184,12 +184,13 @@ SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* 
       return NULL;
     }
 
+    streamQueueItemIncSize((SStreamQueueItem*)pMerged, streamQueueItemGetSize(pElem));
+
     streamMergeSubmit(pMerged, (SStreamDataSubmit*)dst);
     streamMergeSubmit(pMerged, (SStreamDataSubmit*)pElem);
     taosFreeQitem(dst);
     taosFreeQitem(pElem);
 
-    streamQueueItemIncSize((SStreamQueueItem*)pMerged, streamQueueItemGetSize(pElem));
     return (SStreamQueueItem*)pMerged;
   } else {
     stDebug("block type:%s not merged with existed blocks list, type:%d", streamQueueItemGetTypeStr(pElem->type), dst->type);

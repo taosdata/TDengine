@@ -72,6 +72,8 @@ int32_t tqCheckAndRunStreamTask(STQ* pTq) {
   SArray* pTaskList = NULL;
   taosWLockLatch(&pMeta->lock);
   pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
+  taosHashClear(pMeta->startInfo.pReadyTaskSet);
+  pMeta->startInfo.ts = taosGetTimestampMs();
   taosWUnLockLatch(&pMeta->lock);
 
   // broadcast the check downstream tasks msg
@@ -234,8 +236,6 @@ int32_t tqStartStreamTasks(STQ* pTq) {
   if (numOfTasks == 0) {
     return TSDB_CODE_SUCCESS;
   }
-
-  pMeta->startInfo.ts = taosGetTimestampMs();
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
     SStreamTaskId* pTaskId = taosArrayGet(pMeta->pTaskList, i);

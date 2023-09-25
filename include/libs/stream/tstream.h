@@ -392,10 +392,10 @@ struct SStreamTask {
 };
 
 typedef struct STaskStartInfo {
-  int64_t ts;
-  int32_t startedAfterNodeUpdate;
-  int32_t readyTasks;
-  int32_t elapsedTime;
+  int64_t   ts;
+  int32_t   startedAfterNodeUpdate;
+  SHashObj* pReadyTaskSet;           // tasks that are all ready for running stream processing
+  int32_t   elapsedTime;
 } STaskStartInfo;
 
 // meta

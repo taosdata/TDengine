@@ -1847,7 +1847,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
       }
 
       if (vnodeIsRoleLeader(pTq->pVnode) && !tsDisableStream) {
-        vInfo("vgId:%d restart all stream tasks", vgId);
+        vInfo("vgId:%d restart all stream tasks after all tasks being updated", vgId);
         tqStartStreamTasks(pTq);
         tqCheckAndRunStreamTaskAsync(pTq);
       } else {
