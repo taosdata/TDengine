@@ -231,10 +231,11 @@ int32_t tqStartStreamTasks(STQ* pTq) {
   int32_t      numOfTasks = taosArrayGetSize(pMeta->pTaskList);
 
   tqDebug("vgId:%d start all %d stream task(s)", vgId, numOfTasks);
-
   if (numOfTasks == 0) {
     return TSDB_CODE_SUCCESS;
   }
+
+  pMeta->startInfo.ts = taosGetTimestampMs();
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
     SStreamTaskId* pTaskId = taosArrayGet(pMeta->pTaskList, i);
