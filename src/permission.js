@@ -31,7 +31,7 @@ router.beforeEach(async (to, from, next) => {
     next();
     
   } catch (error) {
-    console.error('eeee', error)
+    console.log('eeee', error)
   }
 });
 // 切换标签页之后返回页面，查询token

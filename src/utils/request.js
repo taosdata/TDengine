@@ -26,18 +26,9 @@ request.interceptors.request.use(
       config.headers["Authorization"] = hasToken;
       if (!config.noRefreshToken) {
         refreshTokenExpire();
-        //token延期
-        // if (setTokenTimer) {
-        //   clearTimeout(setTokenTimer);
-        // }
-        // setTokenTimer = setTimeout(() => {
-        //   setTokenTimer = null;
-        //   refreshTokenExpire();
-
-        // }, 10);
       }
     } else {
-      // config.cancelToken = axios.CancelToken.source;
+      config.cancelToken = axios.CancelToken.source;
       Vue.prototype.$message = () => {};
       router.push({
         path: "/login",
@@ -59,9 +50,6 @@ request.interceptors.response.use(
    */
   // Determine the request status by custom code
   (response) => {
-    // const hasToken = getToken();
-    // if (hasToken) {
-    // }
     if (response.data) {
       const res = response.data;
 
@@ -169,12 +157,6 @@ requestOffical.interceptors.response.use(
     return response.data;
   },
   (error) => {
-    // 网络或者服务器错误
-    // Message({
-    //   message: error.message,
-    //   type: "error",
-    //   duration: 3000,
-    // });
     return Promise.reject(error);
   }
 );
