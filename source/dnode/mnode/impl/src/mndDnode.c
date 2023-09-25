@@ -81,10 +81,10 @@ static void    mndCancelGetNextDnode(SMnode *pMnode, void *pIter);
 
 static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t opLen, int32_t *pOutValue);
 
-#ifndef TD_ENTERPRISE
-static int32_t mndUpdClusterInfo(SRpcMsg *pReq) { return 0; }
-#else
+#if defined(TD_ENTERPRISE) && !defined(_TD_DARWIN_64)
 int32_t mndUpdClusterInfo(SRpcMsg *pReq);
+#else
+static int32_t mndUpdClusterInfo(SRpcMsg *pReq) { return 0; }
 #endif
 
 int32_t mndInitDnode(SMnode *pMnode) {
@@ -688,9 +688,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 _OVER:
   mndReleaseDnode(pMnode, pDnode);
   taosArrayDestroy(statusReq.pVloads);
-#ifndef _TD_DARWIN_64
   mndUpdClusterInfo(pReq);
-#endif
   return code;
 }
 
@@ -723,9 +721,7 @@ static int32_t mndProcessNotifyReq(SRpcMsg *pReq) {
     }
   }
 _OVER:
-#ifndef _TD_DARWIN_64
   mndUpdClusterInfo(pReq);
-#endif
   tFreeSNotifyReq(&notifyReq);
   return code;
 }

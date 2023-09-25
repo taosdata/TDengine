@@ -246,6 +246,11 @@ void dmStopCrashReportThread(SDnodeMgmt *pMgmt) {
   }
 }
 
+#if defined(TD_ENTERPRISE) && !defined(_TD_DARWIN_64)
+int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg);
+#else
+static int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg) { return 0; }
+#endif
 
 static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SDnodeMgmt *pMgmt = pInfo->ahandle;
@@ -294,9 +299,7 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       code = dmProcessGrantReq(&pMgmt->pData->clusterId, pMsg);
       break;
     case TDMT_MND_GRANT_NOTIFY:
-#ifndef _TD_DARWIN_64
       code = dmProcessGrantNotify(NULL, pMsg);
-#endif
       break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;

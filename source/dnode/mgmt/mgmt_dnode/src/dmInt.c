@@ -20,7 +20,7 @@ static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
   if (dmStartStatusThread(pMgmt) != 0) {
     return -1;
   }
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) && !defined(_TD_DARWIN_64)
   if (dmStartNotifyThread(pMgmt) != 0) {
     return -1;
   }
