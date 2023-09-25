@@ -388,7 +388,7 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
   pLoad->numOfCachedTables = tsdbCacheGetElems(pVnode);
   pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
-  pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta);
+  pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1);
   pLoad->totalStorage = (int64_t)3 * 1073741824;
   pLoad->compStorage = (int64_t)2 * 1073741824;
   pLoad->pointsWritten = 100;
@@ -400,6 +400,15 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   return 0;
 }
 
+int32_t vnodeGetLoadLite(SVnode *pVnode, SVnodeLoadLite *pLoad) {
+  SSyncState syncState = syncGetState(pVnode->sync);
+  if (syncState.state == TAOS_SYNC_STATE_LEADER) {
+    pLoad->vgId = TD_VID(pVnode);
+    pLoad->nTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1);
+    return 0;
+  }
+  return -1;
+}
 /**
  * @brief Reset the statistics value by monitor interval
  *
@@ -544,8 +553,8 @@ int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
-  SSchemaWrapper *pSW = metaGetTableSchema(pVnode->pMeta, suid, -1, 1);
+int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
+  SSchemaWrapper *pSW = metaGetTableSchema(pVnode->pMeta, suid, -1, 0);
   if (pSW) {
     *num = pSW->nCols;
     tDeleteSchemaWrapper(pSW);
@@ -634,10 +643,8 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
     tb_uid_t suid = *(tb_uid_t *)taosArrayGet(suidList, i);
 
     int64_t ctbNum = 0;
-    metaGetStbStats(pVnode, suid, &ctbNum);
-
-    int numOfCols = 0;
-    vnodeGetStbColumnNum(pVnode, suid, &numOfCols);
+    int32_t numOfCols = 0;
+    metaGetStbStats(pVnode, suid, &ctbNum, &numOfCols);
 
     *num += ctbNum * (numOfCols - 1);
   }

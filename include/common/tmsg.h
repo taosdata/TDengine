@@ -959,7 +959,7 @@ typedef struct {
   int8_t    superAuth;
   int8_t    sysInfo;
   int8_t    enable;
-  int8_t    reserve;
+  int8_t    dropped;
   SHashObj* createdDbs;
   SHashObj* readDbs;
   SHashObj* writeDbs;
@@ -1465,6 +1465,11 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
+  int32_t vgId;
+  int64_t nTimeSeries;
+} SVnodeLoadLite;
+
+typedef struct {
   int8_t  syncState;
   int64_t syncTerm;
   int8_t  syncRestore;
@@ -1510,6 +1515,16 @@ typedef struct {
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 void    tFreeSStatusReq(SStatusReq* pReq);
+
+typedef struct {
+  int32_t dnodeId;
+  int64_t clusterId;
+  SArray* pVloads;
+} SNotifyReq;
+
+int32_t tSerializeSNotifyReq(void* buf, int32_t bufLen, SNotifyReq* pReq);
+int32_t tDeserializeSNotifyReq(void* buf, int32_t bufLen, SNotifyReq* pReq);
+void    tFreeSNotifyReq(SNotifyReq* pReq);
 
 typedef struct {
   int32_t dnodeId;

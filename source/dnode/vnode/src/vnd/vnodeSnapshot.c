@@ -34,6 +34,8 @@ struct SVSnapReader {
   STqSnapReader   *pTqSnapReader;
   int8_t           tqOffsetDone;
   STqOffsetReader *pTqOffsetReader;
+  int8_t           tqCheckInfoDone;
+  STqCheckInfoReader *pTqCheckInfoReader;
   // stream
   int8_t              streamTaskDone;
   SStreamTaskReader  *pStreamTaskReader;
@@ -79,6 +81,18 @@ void vnodeSnapReaderClose(SVSnapReader *pReader) {
 
   if (pReader->pMetaReader) {
     metaSnapReaderClose(&pReader->pMetaReader);
+  }
+
+  if (pReader->pTqSnapReader) {
+    tqSnapReaderClose(&pReader->pTqSnapReader);
+  }
+
+  if (pReader->pTqOffsetReader) {
+    tqOffsetReaderClose(&pReader->pTqOffsetReader);
+  }
+
+  if (pReader->pTqCheckInfoReader) {
+    tqCheckInfoReaderClose(&pReader->pTqCheckInfoReader);
   }
 
   taosMemoryFree(pReader);
@@ -181,6 +195,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   }
 
   // TQ ================
+  vInfo("vgId:%d tq transform start", vgId);
   if (!pReader->tqHandleDone) {
     if (pReader->pTqSnapReader == NULL) {
       code = tqSnapReaderOpen(pReader->pVnode->pTq, pReader->sver, pReader->ever, &pReader->pTqSnapReader);
@@ -196,6 +211,25 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       } else {
         pReader->tqHandleDone = 1;
         code = tqSnapReaderClose(&pReader->pTqSnapReader);
+        if (code) goto _err;
+      }
+    }
+  }
+  if (!pReader->tqCheckInfoDone) {
+    if (pReader->pTqCheckInfoReader == NULL) {
+      code = tqCheckInfoReaderOpen(pReader->pVnode->pTq, pReader->sver, pReader->ever, &pReader->pTqCheckInfoReader);
+      if (code < 0) goto _err;
+    }
+
+    code = tqCheckInfoRead(pReader->pTqCheckInfoReader, ppData);
+    if (code) {
+      goto _err;
+    } else {
+      if (*ppData) {
+        goto _exit;
+      } else {
+        pReader->tqCheckInfoDone = 1;
+        code = tqCheckInfoReaderClose(&pReader->pTqCheckInfoReader);
         if (code) goto _err;
       }
     }
@@ -334,6 +368,7 @@ struct SVSnapWriter {
   // tq
   STqSnapWriter   *pTqSnapWriter;
   STqOffsetWriter *pTqOffsetWriter;
+  STqCheckInfoWriter *pTqCheckInfoWriter;
   // stream
   SStreamTaskWriter  *pStreamTaskWriter;
   SStreamStateWriter *pStreamStateWriter;
@@ -408,6 +443,21 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
 
   if (pWriter->pTsdbSnapWriter) {
     code = tsdbSnapWriterClose(&pWriter->pTsdbSnapWriter, rollback);
+    if (code) goto _exit;
+  }
+
+  if (pWriter->pTqSnapWriter) {
+    code = tqSnapWriterClose(&pWriter->pTqSnapWriter, rollback);
+    if (code) goto _exit;
+  }
+
+  if (pWriter->pTqCheckInfoWriter) {
+    code = tqCheckInfoWriterClose(&pWriter->pTqCheckInfoWriter, rollback);
+    if (code) goto _exit;
+  }
+
+  if (pWriter->pTqOffsetWriter) {
+    code = tqOffsetWriterClose(&pWriter->pTqOffsetWriter, rollback);
     if (code) goto _exit;
   }
 
@@ -519,8 +569,34 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       if (code) goto _err;
     } break;
     case SNAP_DATA_TQ_HANDLE: {
+      // tq handle
+      if (pWriter->pTqSnapWriter == NULL) {
+        code = tqSnapWriterOpen(pVnode->pTq, pWriter->sver, pWriter->ever, &pWriter->pTqSnapWriter);
+        if (code) goto _err;
+      }
+
+      code = tqSnapWrite(pWriter->pTqSnapWriter, pData, nData);
+      if (code) goto _err;
+    } break;
+    case SNAP_DATA_TQ_CHECKINFO: {
+      // tq checkinfo
+      if (pWriter->pTqCheckInfoWriter == NULL) {
+        code = tqCheckInfoWriterOpen(pVnode->pTq, pWriter->sver, pWriter->ever, &pWriter->pTqCheckInfoWriter);
+        if (code) goto _err;
+      }
+
+      code = tqCheckInfoWrite(pWriter->pTqCheckInfoWriter, pData, nData);
+      if (code) goto _err;
     } break;
     case SNAP_DATA_TQ_OFFSET: {
+      // tq offset
+      if (pWriter->pTqOffsetWriter == NULL) {
+        code = tqOffsetWriterOpen(pVnode->pTq, pWriter->sver, pWriter->ever, &pWriter->pTqOffsetWriter);
+        if (code) goto _err;
+      }
+
+      code = tqOffsetSnapWrite(pWriter->pTqOffsetWriter, pData, nData);
+      if (code) goto _err;
     } break;
     case SNAP_DATA_STREAM_TASK:
     case SNAP_DATA_STREAM_TASK_CHECKPOINT: {
