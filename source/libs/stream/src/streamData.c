@@ -165,17 +165,17 @@ SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* 
     SStreamDataBlock* pBlockSrc = (SStreamDataBlock*)pElem;
     taosArrayAddAll(pBlock->blocks, pBlockSrc->blocks);
     taosArrayDestroy(pBlockSrc->blocks);
-    taosFreeQitem(pElem);
-
     streamQueueItemIncSize(dst, streamQueueItemGetSize(pElem));
+
+    taosFreeQitem(pElem);
     return dst;
   } else if (dst->type == STREAM_INPUT__MERGED_SUBMIT && pElem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)dst;
     SStreamDataSubmit*   pBlockSrc = (SStreamDataSubmit*)pElem;
     streamMergeSubmit(pMerged, pBlockSrc);
-    taosFreeQitem(pElem);
-
     streamQueueItemIncSize(dst, streamQueueItemGetSize(pElem));
+
+    taosFreeQitem(pElem);
     return dst;
   } else if (dst->type == STREAM_INPUT__DATA_SUBMIT && pElem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamMergedSubmit* pMerged = streamMergedSubmitNew();
@@ -188,9 +188,9 @@ SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* 
 
     streamMergeSubmit(pMerged, (SStreamDataSubmit*)dst);
     streamMergeSubmit(pMerged, (SStreamDataSubmit*)pElem);
+
     taosFreeQitem(dst);
     taosFreeQitem(pElem);
-
     return (SStreamQueueItem*)pMerged;
   } else {
     stDebug("block type:%s not merged with existed blocks list, type:%d", streamQueueItemGetTypeStr(pElem->type), dst->type);
