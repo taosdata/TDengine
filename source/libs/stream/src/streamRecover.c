@@ -255,20 +255,21 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
 
   const char* id = pTask->id.idStr;
   if (stage == -1) {
-    stDebug("s-task:%s receive check msg from upstream task:0x%x, invalid stageId:%" PRId64 ", not ready", id,
-           upstreamTaskId, stage);
+    stDebug("s-task:%s receive check msg from upstream task:0x%x(vgId:%d), invalid stageId:%" PRId64 ", not ready", id,
+            upstreamTaskId, vgId, stage);
     return 0;
   }
 
   if (pInfo->stage == -1) {
     pInfo->stage = stage;
-    stDebug("s-task:%s receive check msg from upstream task:0x%x first time, init stage value:%" PRId64, id,
-           upstreamTaskId, stage);
+    stDebug("s-task:%s receive check msg from upstream task:0x%x(vgId:%d) first time, init stage value:%" PRId64, id,
+            upstreamTaskId, vgId, stage);
   }
 
   if (pInfo->stage < stage) {
-    stError("s-task:%s receive msg from upstream task:0x%x(vgId:%d), new stage received:%" PRId64 ", prev:%" PRId64,
-           id, upstreamTaskId, vgId, stage, pInfo->stage);
+    stError("s-task:%s receive check msg from upstream task:0x%x(vgId:%d), new stage received:%" PRId64
+            ", prev:%" PRId64,
+            id, upstreamTaskId, vgId, stage, pInfo->stage);
   }
 
   if (pTask->status.downstreamReady != 1) {
