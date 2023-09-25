@@ -1,6 +1,14 @@
 <template>
-  <div class="dnode-block">
+  <div class="dnode-block" v-loading="loading">
     <div class="flexEnd">
+      <el-button
+        plain
+        @click="refresh"
+        size="small"
+        icon="el-icon-refresh"
+        :disabled="loading"
+        >{{ $t("refresh") }}</el-button
+      >
       <el-button
         plain
         @click="add"
@@ -252,6 +260,8 @@ export default {
           console.log('res',res);
           if (res && res.code == 0) {
             this.$message.success(this.$t('operateSucc'))
+            this.dialog = false
+            this.refresh()
           } else {
             this.$message.error(res?.desc)
           }
