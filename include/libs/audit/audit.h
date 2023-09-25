@@ -29,7 +29,7 @@
 extern "C" {
 #endif
 
-#define AUDIT_DETAIL_MAX 64000
+#define AUDIT_DETAIL_MAX 65536
 
 typedef struct {
   const char *server;
