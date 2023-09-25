@@ -31,18 +31,18 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
     uError("can't record audit since detail is too long, len:%d, operation:%s, target1:%s, target2:%s", 
             len, operation, target1, target2);
   }
-  int32_t min = len > AUDIT_DETAIL_MAX ? AUDIT_DETAIL_MAX : len;
+  int32_t min = len >= AUDIT_DETAIL_MAX ? AUDIT_DETAIL_MAX : len;
   char* buf = taosMemoryMalloc(min);
   memset(buf, 0, min);
   if(detail == NULL && len > 0){
     uError("audit detail shound not be null, len:%d", len);
   }
-  if(detail != NULL){
-    if(min == AUDIT_DETAIL_MAX){
+  if(detail != NULL && len > 0){
+    if(len >= AUDIT_DETAIL_MAX){
       memcpy(buf, detail, min - 1);
     }
     else{
-      memcpy(buf, detail, min);
+      memcpy(buf, detail, len);
     }
   }
 
