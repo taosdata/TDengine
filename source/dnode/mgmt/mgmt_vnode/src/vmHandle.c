@@ -40,6 +40,28 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
   taosThreadRwlockUnlock(&pMgmt->lock);
 }
 
+void vmGetVnodeLoadsLite(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
+  pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoadLite));
+  if (!pInfo->pVloads) return;
+
+  taosThreadRwlockRdlock(&pMgmt->lock);
+
+  void *pIter = taosHashIterate(pMgmt->hash, NULL);
+  while (pIter) {
+    SVnodeObj **ppVnode = pIter;
+    if (ppVnode == NULL || *ppVnode == NULL) continue;
+
+    SVnodeObj     *pVnode = *ppVnode;
+    SVnodeLoadLite vload = {0};
+    if (vnodeGetLoadLite(pVnode->pImpl, &vload) == 0) {
+      taosArrayPush(pInfo->pVloads, &vload);
+    }
+    pIter = taosHashIterate(pMgmt->hash, pIter);
+  }
+
+  taosThreadRwlockUnlock(&pMgmt->lock);
+}
+
 void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   SMonVloadInfo vloads = {0};
   vmGetVnodeLoads(pMgmt, &vloads, true);
