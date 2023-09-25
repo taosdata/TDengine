@@ -2418,7 +2418,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
       for(int32_t j = 0; j < numOfNodes; ++j) {
         SNodeEntry* pNodeEntry = taosArrayGet(execNodeList.pNodeEntryList, j);
         if (pNodeEntry->nodeId == pEntry->nodeId) {
-          mInfo("vgId:%d stage updated, from %d to %d, nodeUpdate should be trigger by s-task:0x%" PRIx64,
+          mInfo("vgId:%d stage updated, from %d to %d, nodeUpdate trigger by s-task:0x%" PRIx64,
                 pEntry->nodeId, pEntry->stage, p->stage, pEntry->id.taskId);
 
           pNodeEntry->stageUpdated = true;
