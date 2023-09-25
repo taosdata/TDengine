@@ -688,9 +688,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 _OVER:
   mndReleaseDnode(pMnode, pDnode);
   taosArrayDestroy(statusReq.pVloads);
-#ifdef MAKE_JENKINS_HAPPY
   mndUpdClusterInfo(pReq);
-#endif
   return code;
 }
 
@@ -723,9 +721,7 @@ static int32_t mndProcessNotifyReq(SRpcMsg *pReq) {
     }
   }
 _OVER:
-#ifdef MAKE_JENKINS_HAPPY
   mndUpdClusterInfo(pReq);
-#endif
   tFreeSNotifyReq(&notifyReq);
   return code;
 }
