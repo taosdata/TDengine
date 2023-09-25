@@ -93,6 +93,8 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
 
   if (strncmp(varName, "rows", varLen) == 0) return script->rows;
 
+  if (strncmp(varName, "cols", varLen) == 0) return script->cols;
+
   if (strncmp(varName, "system_exit", varLen) == 0) return script->system_exit_code;
 
   if (strncmp(varName, "system_content", varLen) == 0) return script->system_ret_content;
@@ -502,6 +504,26 @@ bool simExecuteSystemContentCmd(SScript *script, char *option) {
   return true;
 }
 
+bool simExecuteSetBIModeCmd(SScript *script, char *option) {
+  char    buf[1024];
+
+  simVisuallizeOption(script, option, buf);
+  option = buf;
+
+  int32_t mode = atoi(option);
+
+  simInfo("script:%s, set bi mode %d", script->fileName, mode);
+
+  if (mode != 0) {
+    taos_set_conn_mode(script->taos, TAOS_CONN_MODE_BI, 1);
+  } else {
+    taos_set_conn_mode(script->taos, TAOS_CONN_MODE_BI, 0);
+  }
+
+  script->linePos++;
+  return true;
+}
+
 bool simExecutePrintCmd(SScript *script, char *rest) {
   char buf[65536];
 
@@ -808,6 +830,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
 
   taos_free_result(pSql);
   sprintf(script->rows, "%d", numOfRows);
+  sprintf(script->cols, "%d", num_fields);
 
   script->linePos++;
   return true;
@@ -822,6 +845,7 @@ bool simExecuteSqlImpCmd(SScript *script, char *rest, bool isSlow) {
 
   simDebug("script:%s, exec:%s", script->fileName, rest);
   strcpy(script->rows, "-1");
+  strcpy(script->cols, "-1");
   for (int32_t row = 0; row < MAX_QUERY_ROW_NUM; ++row) {
     for (int32_t col = 0; col < MAX_QUERY_COL_NUM; ++col) {
       strcpy(script->data[row][col], "null");
@@ -918,6 +942,7 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
 
   simDebug("script:%s, exec:%s", script->fileName, rest);
   strcpy(script->rows, "-1");
+  strcpy(script->cols, "-1");
   for (int32_t row = 0; row < MAX_QUERY_ROW_NUM; ++row) {
     for (int32_t col = 0; col < MAX_QUERY_COL_NUM; ++col) {
       strcpy(script->data[row][col], "null");
