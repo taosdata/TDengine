@@ -4,7 +4,7 @@ if (DEFINED GRANT_CFG_INCLUDE_DIR)
   add_definitions(-DGRANTS_CFG)
 endif()
 
-IF (NOT BUILD_DM_MODULE)
+IF ((NOT BUILD_DM_MODULE) AND (NOT TD_WINDOWS))
   MESSAGE(STATUS "NOT BUILD_DM_MODULE")
   target_link_directories(
     mgmt_dnode
