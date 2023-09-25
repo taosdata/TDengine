@@ -1540,7 +1540,7 @@ STaskBackendWrapper* streamStateOpenTaskBackend(char* path, char* key) {
   qDebug("succ to init stream backend at %s, backend:%p", taskPath, pTaskBackend);
   return pTaskBackend;
 }
-void streamMeteCloseTaskBackend(STaskBackendWrapper* wrapper) {
+void streamStateCloseTaskBackend(STaskBackendWrapper* wrapper) {
   if (wrapper == NULL) return;
 
   rocksdb_flushoptions_t* flushOpt = rocksdb_flushoptions_create();
@@ -1673,7 +1673,7 @@ int32_t streamStateConvertDataFormat(char* path, char* key, void* pCfInst) {
   }
 
 _EXIT:
-  streamMeteCloseTaskBackend(pTaskBackend);
+  streamStateCloseTaskBackend(pTaskBackend);
 
   return code;
 }
