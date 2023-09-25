@@ -363,6 +363,7 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .processDropNodeFp = dmProcessDropNodeReq,
       .sendMonitorReportFp = dmSendMonitorReport,
       .getVnodeLoadsFp = dmGetVnodeLoads,
+      .getVnodeLoadsLiteFp = dmGetVnodeLoadsLite,
       .getMnodeLoadsFp = dmGetMnodeLoads,
       .getQnodeLoadsFp = dmGetQnodeLoads,
   };
