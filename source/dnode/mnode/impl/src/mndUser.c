@@ -58,6 +58,7 @@ static int32_t  mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
 static void     mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter);
 SHashObj       *mndFetchAllIpWhite(SMnode *pMnode);
 static int32_t  mndProcesSRetrieveIpWhiteReq(SRpcMsg *pReq);
+bool mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t type); 
 
 void ipWhiteMgtUpdateAll(SMnode *pMnode);
 typedef struct {
@@ -80,7 +81,7 @@ void ipWhiteMgtCleanup() {
   taosThreadRwlockDestroy(&ipWhiteMgt.rw);
 }
 
-int32_t ipWhiteMgtUpdate(char *user, SIpWhiteList *pNew) {
+int32_t ipWhiteMgtUpdate(SMnode *pMnode, char *user, SIpWhiteList *pNew) {
   bool update = true;
   taosThreadRwlockWrlock(&ipWhiteMgt.rw);
   SIpWhiteList **ppList = taosHashGet(ipWhiteMgt.pIpWhiteTab, user, strlen(user));
@@ -98,6 +99,25 @@ int32_t ipWhiteMgtUpdate(char *user, SIpWhiteList *pNew) {
       taosHashPut(ipWhiteMgt.pIpWhiteTab, user, strlen(user), &p, sizeof(void *));
     }
   }
+  SArray *fqdns = mndGetAllDnodeFqdns(pMnode);
+
+  for (int i = 0; i < taosArrayGetSize(fqdns); i++) {
+    char *fqdn = taosArrayGetP(fqdns, i);
+    mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, TSDB_DEFAULT_USER, fqdn, IP_WHITE_ADD);
+  }
+
+  for (int i = 0; i < taosArrayGetSize(fqdns); i++) {
+    char *fqdn = taosArrayGetP(fqdns, i);
+    taosMemoryFree(fqdn);
+  }
+  taosArrayDestroy(fqdns);
+
+  // for (int i = 0; i < taosArrayGetSize(pUserNames); i++) {
+  //   taosMemoryFree(taosArrayGetP(pUserNames, i));
+  // }
+  //taosArrayDestroy(pUserNames);
+  
+
   if (update) ipWhiteMgt.ver++;
 
   taosThreadRwlockUnlock(&ipWhiteMgt.rw);
@@ -1178,7 +1198,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     mndTransDrop(pTrans);
     goto _OVER;
   }
-  ipWhiteMgtUpdate(userObj.user, userObj.pIpWhiteList);
+  ipWhiteMgtUpdate(pMnode, userObj.user, userObj.pIpWhiteList);
   taosMemoryFree(userObj.pIpWhiteList);
 
   mndTransDrop(pTrans);
@@ -1346,7 +1366,7 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpc
     mndTransDrop(pTrans);
     return -1;
   }
-  ipWhiteMgtUpdate(pNew->user, pNew->pIpWhiteList);
+  ipWhiteMgtUpdate(pMnode, pNew->user, pNew->pIpWhiteList);
   mndTransDrop(pTrans);
   return 0;
 }
