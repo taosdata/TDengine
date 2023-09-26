@@ -2694,6 +2694,7 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
     if (tEncodeI8(&encoder, pRetension->keepUnit) < 0) return -1;
   }
   if (tEncodeI32(&encoder, pReq->tsdbPageSize) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->keepTimeOffset) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2756,6 +2757,11 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
 
   if (tDecodeI32(&decoder, &pReq->tsdbPageSize) < 0) return -1;
 
+  pReq->keepTimeOffset = TSDB_DEFAULT_KEEP_TIME_OFFSET;
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI32(&decoder, &pReq->keepTimeOffset) < 0) return -1;
+  }
+
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -2793,6 +2799,7 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   // 2nd modification
   if (tEncodeI32(&encoder, pReq->walRetentionPeriod) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->walRetentionSize) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->keepTimeOffset) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2835,6 +2842,10 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   } else {
     pReq->walRetentionPeriod = -1;
     pReq->walRetentionSize = -1;
+  }
+  pReq->keepTimeOffset = TSDB_DEFAULT_KEEP_TIME_OFFSET;
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI32(&decoder, &pReq->keepTimeOffset) < 0) return -1;
   }
   tEndDecode(&decoder);
 
@@ -3462,6 +3473,7 @@ int32_t tDeserializeSVTrimDbReq(void *buf, int32_t bufLen, SVTrimDbReq *pReq) {
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->timestamp) < 0) return -1;
+
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -3563,6 +3575,7 @@ int32_t tSerializeSDbCfgRspImpl(SEncoder *encoder, const SDbCfgRsp *pRsp) {
   }
   if (tEncodeI8(encoder, pRsp->schemaless) < 0) return -1;
   if (tEncodeI16(encoder, pRsp->sstTrigger) < 0) return -1;
+  if (tEncodeI32(encoder, pRsp->keepTimeOffset) < 0) return -1;
 
   return 0;
 }
@@ -3631,6 +3644,10 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
   }
   if (tDecodeI8(decoder, &pRsp->schemaless) < 0) return -1;
   if (tDecodeI16(decoder, &pRsp->sstTrigger) < 0) return -1;
+  pRsp->keepTimeOffset = TSDB_DEFAULT_KEEP_TIME_OFFSET;
+  if (!tDecodeIsEnd(decoder)) {
+    if (tDecodeI32(decoder, &pRsp->keepTimeOffset) < 0) return -1;
+  }
 
   return 0;
 }
@@ -4680,6 +4697,7 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
     if (tEncodeSReplica(&encoder, pReplica) < 0) return -1;
   }
   if (tEncodeI32(&encoder, pReq->changeVersion) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->keepTimeOffset) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -4768,6 +4786,10 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   }
   if (!tDecodeIsEnd(&decoder)) {
     if (tDecodeI32(&decoder, &pReq->changeVersion) < 0) return -1;
+  }
+  pReq->keepTimeOffset = TSDB_DEFAULT_KEEP_TIME_OFFSET;
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI32(&decoder, &pReq->keepTimeOffset) < 0) return -1;
   }
 
   tEndDecode(&decoder);
@@ -4928,6 +4950,7 @@ int32_t tSerializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeCon
   // 2nd modification
   if (tEncodeI32(&encoder, pReq->walRetentionPeriod) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->walRetentionSize) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->keepTimeOffset) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -4974,6 +4997,11 @@ int32_t tDeserializeSAlterVnodeConfigReq(void *buf, int32_t bufLen, SAlterVnodeC
     if (tDecodeI32(&decoder, &pReq->walRetentionPeriod) < 0) return -1;
     if (tDecodeI32(&decoder, &pReq->walRetentionSize) < 0) return -1;
   }
+  pReq->keepTimeOffset = TSDB_DEFAULT_KEEP_TIME_OFFSET;
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI32(&decoder, &pReq->keepTimeOffset) < 0) return -1;
+  }
+
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
