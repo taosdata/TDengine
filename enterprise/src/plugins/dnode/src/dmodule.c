@@ -252,7 +252,7 @@ static int32_t dmReadVars(SEngineInfo *pInfo) {
 
 _exit:
   if (code != 0) {
-    dError("failed to init dm vars since %s", tstrerror(code));
+    dError("readVars: failed to read since %s", tstrerror(code));
   }
   taosMemoryFreeClear(buffer);
   taosCloseFile(&pFile);
