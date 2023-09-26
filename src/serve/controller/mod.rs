@@ -997,9 +997,9 @@ impl TaskController {
 
         #[cfg(not(feature = "disable-enterprise-only-validation"))]
         if let Err(err) = assert_enterprise {
-            anyhow::bail!(
-                format!("{err:?}. A non-expired enterprise edition is required in most of steps.")
-            )
+            anyhow::bail!(format!(
+                "{err:?}. A non-expired enterprise edition is required in most of steps."
+            ))
         }
         // is cloud?
         if to
@@ -1764,11 +1764,14 @@ impl TaskController {
             .await?;
         for task in tasks {
             let id = task.id;
-            let _ = sqlx::query(&format!(
-                "UPDATE tasks SET `status` = `cancelled` WHERE id = {id} AND `status` == 'running'"
+            if let Err(err) = sqlx::query(&format!(
+                "UPDATE tasks SET `status` = 'cancelled' WHERE id = {id} AND `status` = 'running'"
             ))
             .execute(&self.pool)
-            .await;
+            .await
+            {
+                tracing::error!("Update task {id} status to cancelled failed: {err:#}");
+            }
             let activity = Activity::new::<String>(
                 id,
                 Utc::now(),
