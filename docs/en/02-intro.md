@@ -11,11 +11,11 @@ This section introduces the major features, competitive advantages and typical u
 
 The major features are listed below:
 
-1. Data In
+1. [Data In](../data-in/)
    - Supports [Data Sources](../data-in/ds/).
    - Supports [Data Collection Agents](../data-in/dca/).
 2. Data Explorer: browse through databases and even run SQL queries once you login.
-3. Programming
+3. [Programming](../programming/)
     - Provides [connectors](../programming/connector/) for Java, Python, Go, Rust, Node.js and other programming languages.
     - Provides a [REST API](../programming/connector/rest-api/).
 4. [Streams](../stream/): Not only is the continuous query is supported, but TDengine also supports event driven stream processing, so Flink or Spark is not needed for time-series data processing.
@@ -40,8 +40,10 @@ The major features are listed below:
    - Manage the [roles](../user-mgmt/roles) of the current organization.
 
 9. [Organizations](../orgs)：management the organization of the current user.
+10. [Instances](../instances/)
+    - Manage the [Private link](../instances/private-link)
 
-10. [DB Mart](../dbmarts)：the published public databases in TDengine Cloud.
+11. [DB Mart](../dbmarts)：the published public databases in TDengine Cloud.
 
 For more details on features, please read through the entire documentation.
 
