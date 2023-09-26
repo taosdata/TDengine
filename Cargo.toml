@@ -122,13 +122,16 @@ tracing-appender = "0.2"
 tracing = { version = "0.1", features = ["log"] }
 atty = "*"
 file-rotate = "0.7.5"
-opentelemetry = { version = "*", features = ["rt-tokio"] }
-opentelemetry-jaeger = { version = "*", features = ["rt-tokio"] }
-tracing-opentelemetry = { version = "*" }
+opentelemetry = { version = "0.20.0", features = [
+  "rt-tokio",
+  "rt-tokio-current-thread",
+] }
+opentelemetry-otlp = { version = "0.13" }
+tracing-opentelemetry = { version = "0.21.0" }
 tracing-actix-web = "0.7"
 metrics-tracing-context = "*"
 metrics-util = "*"
-console-subscriber = { version = "*", optional = true}
+console-subscriber = { version = "*", optional = true }
 
 reqwest = "0.11.15"
 taosx-ipc = { path = "./taosx-ipc" }

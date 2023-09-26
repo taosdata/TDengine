@@ -175,7 +175,7 @@ impl TaskOpts {
         self.cancel.cancel();
     }
 
-    #[instrument(skip_all, parent = &self.span)]
+    #[instrument(skip_all, name = "run_task")]
     pub async fn run(&self, port_pool: &PortPool) -> Result<(), anyhow::Error> {
         let Self {
             from,
@@ -280,10 +280,15 @@ impl TaskOpts {
                     .await?;
                 }
                 ("local", "taos") => {
-                    local_to_taos(from.clone(), to.clone(), *jobs, *force).await?;
+                    local_to_taos(from.clone(), to.clone(), *jobs, *force)
+                        .in_current_span()
+                        .await?;
                 }
                 ("taos", "taos") => {
-                    legacy_to_taos(from.clone(), transform.clone(), to.clone(), *jobs).await?;
+                    legacy_to_taos(from.clone(), transform.clone(), to.clone(), *jobs)
+                        // .in_current_span()
+                        .instrument(tracing::info_span!("legacy_to_taos"))
+                        .await?;
                 }
                 ("taos", "csv") => {
                     query_to_csv(from.clone(), to.clone()).await?;

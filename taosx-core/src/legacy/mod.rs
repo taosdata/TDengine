@@ -21,7 +21,7 @@ use serde::Deserialize;
 use serde_with::serde_as;
 use taos::*;
 use tokio::sync::oneshot;
-use tracing::{info, instrument, warn};
+use tracing::{info, instrument, warn, Instrument};
 
 use crate::{legacy::scheduler::Todo, Action};
 
@@ -1282,6 +1282,7 @@ impl TableRecord {
     }
 }
 
+#[instrument(skip_all)]
 #[async_backtrace::framed]
 async fn sync_schema(
     scheduler: &Scheduler,
@@ -1393,6 +1394,7 @@ async fn sync_schema(
     Ok(())
 }
 
+#[instrument(skip_all)]
 async fn sync_specified_tables_with_workers(
     scheduler: &Scheduler,
     _from: TaosPool,
@@ -1884,6 +1886,7 @@ impl LegacyTodo {
     }
 }
 
+#[instrument(skip_all)]
 #[async_backtrace::framed]
 pub async fn parse_todo_list(pool: &TaosPool, opts: &SourceOpts) -> anyhow::Result<LegacyTodo> {
     // let version =
@@ -2248,7 +2251,7 @@ async fn realtime(
     }
 }
 
-#[instrument(skip_all)]
+// #[instrument(skip_all)]
 pub async fn legacy_to_taos(
     mut from: Dsn,
     actions: Vec<Action>,
@@ -2256,6 +2259,9 @@ pub async fn legacy_to_taos(
     concurrency: usize,
 ) -> anyhow::Result<()> {
     tracing::info!("synchronization started in legacy mode");
+
+    let _ = tracing::info_span!("check parameters").entered();
+    // let span = span.entered();
 
     let concurrent = if concurrency > 0 {
         concurrency
@@ -2386,6 +2392,8 @@ pub async fn legacy_to_taos(
         .workers
         .store(source_opts.workers as _, Ordering::SeqCst);
 
+    // span.exit();
+
     let todo = parse_todo_list(&from_pool, &source_opts).await?;
     // dbg!(&todo.stables);
     let todo = Arc::new(todo);
@@ -2396,6 +2404,7 @@ pub async fn legacy_to_taos(
     counter!(METRICS_LEGACY_STABLES, todo.stables.len() as u64);
     let metrics_inner = metrics.clone();
     let todo_inner = todo.clone();
+
 
     tracing::info!("Prepare for {} worker scheduler", source_opts.workers);
     let scheduler = scheduler::Scheduler::new(
@@ -2409,6 +2418,7 @@ pub async fn legacy_to_taos(
         source_is_v3,
         target_is_v3,
     )
+    // .instrument(tracing::info_span!("scheduler"))
     .await;
 
     let task_done = AtomicBool::new(false);

@@ -453,6 +453,7 @@ pub async fn sync_add_column(
 }
 
 impl Scheduler {
+    #[instrument(skip_all)]
     pub async fn new(
         source: TaosPool,
         target: TaosPool,

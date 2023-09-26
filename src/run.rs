@@ -5,6 +5,7 @@ use taos::*;
 use taosx_core::utils::{self};
 use taosx_core::Action;
 use tokio_util::sync::CancellationToken;
+use tracing::Instrument;
 
 #[derive(Parser, Debug)]
 pub(super) struct Cli {
@@ -79,7 +80,10 @@ pub(super) struct Cli {
 }
 
 impl Cli {
+    #[tracing::instrument(skip(self, opts), name = "cli")]
     pub(super) async fn run_with(self, opts: super::GlobalOpts) -> Result<()> {
+        // let _ = span.entered();
+        tracing::info!("start cli");
         let args = self;
         let parser = args.parser.as_ref().map(|p| {
             let content = utils::get_string_content_from_file_path(p);
@@ -99,6 +103,9 @@ impl Cli {
             }
         }
         let cancel = CancellationToken::new();
+        let span = tracing::Span::current();
+        // let _ = span.clone().entered();
+        // let _ = span.enter();
         let task_opt = taosx_core::TaskOpts {
             from: args.from,
             transform: args.transform,
@@ -111,12 +118,12 @@ impl Cli {
             with_agent: None,
             offsets: Default::default(),
             transferred: Default::default(),
-            span: tracing::info_span!("cli"),
+            span: span.clone(),
             task_id: None,
         };
         let port_pool = Default::default();
         tokio::select! {
-            res = task_opt.run(&port_pool) => {
+            res = task_opt.run(&port_pool).in_current_span() => {
                 res?;
             }
             _ = tokio::signal::ctrl_c() => {
