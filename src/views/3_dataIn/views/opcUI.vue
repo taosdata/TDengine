@@ -330,12 +330,12 @@
                     :placeholder="$t('datasource.regexPlaceholder')"
                     v-model="p.value"
                     :disable="p.target.selectable"
-                    @keydown.enter.native="searchDatas"
+                    @keydown.enter.native="searchDatas($event,p.value)"
                   >
                     <el-button
                       slot="append"
                       icon="el-icon-search"
-                      @click="searchDatas"
+                      @click="searchDatas($event,p.value)"
                     ></el-button>
                   </el-input>
                   <div class="resultWrap">
@@ -1756,7 +1756,7 @@ export default {
         this.dbsource[0].datasets.categories = categories;
       }
     },
-    searchDatas: debounce(function (e) {
+    searchDatas: debounce(function (e,val) {
       try {
         let data = this.dbsource[0];
         let endpoint = data.options.endpoint.value;
@@ -1833,7 +1833,7 @@ export default {
         params = {
           from: `opc${this.protocol}${dns}`,
           categories: [this.activeName],
-          pattern: e.target.value,
+          pattern: val,
           offset: 0,
           limit: 10,
         };
