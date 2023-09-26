@@ -189,6 +189,7 @@ static int32_t tsdbJsonToSttLvl(STsdb *pTsdb, const cJSON *json, SSttLvl **lvl) 
     code = TARRAY2_APPEND(lvl[0]->fobjArr, fobj);
     if (code) return code;
   }
+  TARRAY2_SORT(lvl[0]->fobjArr, tsdbTFileObjCmpr);
   return 0;
 }
 
@@ -268,6 +269,7 @@ int32_t tsdbJsonToTFileSet(STsdb *pTsdb, const cJSON *json, STFileSet **fset) {
       code = TARRAY2_APPEND((*fset)->lvlArr, lvl);
       if (code) return code;
     }
+    TARRAY2_SORT((*fset)->lvlArr, tsdbSttLvlCmprFn);
   } else {
     return TSDB_CODE_FILE_CORRUPTED;
   }
