@@ -8,6 +8,25 @@ description: |
 
   taosX 可以通过 PI 连接器插件从 PI 系统中提取实时数据。
 type: uri
+params:
+- name: system_configuration
+  display: PI 系统配置
+  display_order: 0
+  description:
+  value: PI Data Archive and Asset Framework (AF) Server
+  hint:
+    type: str
+    choices:
+      - PI Data Archive and Asset Framework (AF) Server
+      - PI Data Archive Only
+- name: PISystemName
+  display: AF Server 名称
+  placeholder: pi-af-server-name
+  display_order: 3
+  description: |-
+    PI 系统(AF Server) 名称 (hostname).
+  hint:
+    type: str
 options:
   host:
     display: PI服务名
@@ -35,12 +54,12 @@ groups:
 
 - name: 数据队列
   display_order: 3
-  description: Other configurations.
+  description: 批量和自动回填配置。
   params:
   - name: MaxWaitLen
     display: 消息队列缓存数
     description: |-
-      超过该数字消息会立即发送
+      将数据发送到 TDengine 之前要批处理的最大更新数（行）。
     hint:
       type: integer
       min: 1
@@ -52,14 +71,14 @@ groups:
       type: integer
       min: 100
       max: 60000
-    description: 每隔该 ms 数从 PI 拉取数据。
+    description: 将批量更新发送到 TDengine 之前等待的最长时间（以毫秒为单位）。
     placeholder: 10000
     value: 10000
   - name: MaxBackfillRangeDays
     display: 重启补偿时间
     hint:
       type: integer
-    description: 每次重启服务时向前补偿该天数的数据，如果缺失的话。
+    description: 连接丢失或首次启动时自动回填的最大天数。
     placeholder: 1
     value: 1
 
