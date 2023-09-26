@@ -412,7 +412,7 @@
           ></div>
         </div>
         <template>
-          <el-tabs v-model="activeName" @tab-click="handleClick">
+          <el-tabs v-model="activeName" @tab-click="handleClick" class="pi-tab-item">
             <el-tab-pane
               v-for="(p, pind) in dbsource[0].datasets.categories"
               :label="p.display"
@@ -2059,6 +2059,12 @@ export default {
   }
   .cancel-btn {
     z-index: 101;
+  }
+
+  ::v-deep .el-tabs__item {
+    max-width: 230px;
+    text-wrap: wrap;
+    line-height: 25px !important;
   }
 }
 </style>
