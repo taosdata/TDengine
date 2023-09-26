@@ -19,6 +19,7 @@ use tracing::{instrument, Instrument};
 
 use crate::{
     legacy::{split_table_into_time_range_chunks, sync_single_table_partial},
+    utils::breakpoints,
     Action, LegacyMetrics, QueryOpts, TargetOpts, TimeRange, METRICS_LEGACY_CREATED_TABLES,
 };
 
@@ -210,6 +211,9 @@ async fn worker(
                         for chunk in chunks {
                             let mut query = query.clone();
                             query.time_range = chunk;
+                            // set breakpoint use query.time_range.start
+                            let breakpoint = &query.time_range.start.unwrap().to_string();
+                            breakpoints::breakpoints_set("3", &table, breakpoint)?;
                             loop {
                                 match sync_single_table_partial(
                                     source.clone(),

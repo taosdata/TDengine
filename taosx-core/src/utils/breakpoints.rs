@@ -1,0 +1,111 @@
+use tracing::info;
+
+fn breakpoints_db_dir(task_id: &str) -> String {
+    let path = std::env::var("TAOSX_BREAKPOINTS_HOME")
+        .unwrap_or_else(|_| "/target/breakpoints".to_string());
+    format!("{}/{}.db", path, task_id)
+}
+
+pub fn breakpoints_set(task_id: &str, sub_task: &str, breakpoints: &str) -> anyhow::Result<()> {
+    let path = breakpoints_db_dir(task_id);
+    println!("breakpoints db path: {}", path);
+    info!("breakpoints db path: {}", path);
+    let db = sled::open(path).expect("sled open db file failed");
+    db.insert(sub_task, breakpoints)?;
+    Ok(())
+}
+
+pub fn breakpoints_get(task_id: &str, sub_task: &str) -> anyhow::Result<Option<String>> {
+    let path = breakpoints_db_dir(task_id);
+    // if path not exist, return None to avoid create db file
+    if !std::path::Path::new(&path).exists() {
+        return Ok(None);
+    }
+    let db = sled::open(path).expect("sled open db file failed");
+    let result = db.get(sub_task)?;
+    match result {
+        Some(v) => Ok(Some(String::from_utf8(v.to_vec())?)),
+        None => Ok(None),
+    }
+}
+
+pub fn breakpoints_remove(task_id: &str, sub_task: &str) -> anyhow::Result<()> {
+    let path = breakpoints_db_dir(task_id);
+    let db = sled::open(path).expect("sled open db file failed");
+    db.remove(sub_task)?;
+    Ok(())
+}
+
+pub fn breakpoints_clear(task_id: &str) -> anyhow::Result<()> {
+    let path = breakpoints_db_dir(task_id);
+    // delete db file
+    if std::path::Path::new(&path).exists() {
+        std::fs::remove_dir_all(&path)?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_breakpoints_db_dir() {
+        let task_id = "1";
+        let path = breakpoints_db_dir(task_id);
+        assert_eq!(path, "./target/breakpoints/1.db");
+
+        // set env
+        std::env::set_var("TAOSX_BREAKPOINTS_HOME", "/tmp/breakpoints");
+        let path = breakpoints_db_dir(task_id);
+        assert_eq!(path, "/tmp/breakpoints/1.db");
+    }
+
+    #[test]
+    fn test_breakpoints_remove() {
+        let task_id = "1";
+        let sub_task = "t0001";
+        let breakpoints = "2023-01-01 20:00:00";
+        breakpoints_set(task_id, sub_task, breakpoints).unwrap();
+
+        let result = breakpoints_get(task_id, sub_task).unwrap();
+        assert_eq!(result.unwrap(), breakpoints);
+
+        breakpoints_remove(task_id, sub_task).unwrap();
+        let result = breakpoints_get(task_id, sub_task).unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_breakpoints_clear() {
+        let task_id = "2";
+        let sub_task = "t0001";
+        let breakpoints = "2023-01-01 20:00:00";
+        breakpoints_set(task_id, sub_task, breakpoints).unwrap();
+
+        let result = breakpoints_get(task_id, sub_task).unwrap();
+        assert_eq!(result.unwrap(), breakpoints);
+
+        breakpoints_clear(task_id).unwrap();
+
+        let dir = breakpoints_db_dir(task_id);
+        assert_eq!(std::path::Path::new(&dir).exists(), false);
+
+        let result = breakpoints_get(task_id, sub_task).unwrap();
+        assert_eq!(result, None);
+    }
+
+    #[test]
+    fn test_breakpoints_all() {
+        let res_not_exist = breakpoints_get("20", "t0001").unwrap();
+        assert_eq!(res_not_exist, None);
+
+        let task_id = "1";
+        let sub_task = "t0001";
+        let breakpoints = "2023-01-01 20:00:00";
+        breakpoints_set(task_id, sub_task, breakpoints).unwrap();
+
+        let result = breakpoints_get(task_id, sub_task).unwrap();
+        assert_eq!(result.unwrap(), breakpoints);
+    }
+}

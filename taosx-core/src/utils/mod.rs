@@ -5,6 +5,7 @@ use taos::*;
 
 pub mod files;
 pub mod port_pool;
+pub mod breakpoints;
 
 pub fn mask_dsn(dsn: &Dsn) -> Dsn {
     let mut dsn = dsn.clone();
