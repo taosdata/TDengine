@@ -892,9 +892,9 @@ export default {
     if (this.isEditable) {
       this.dbname = this.dbName;
       this.handleEditData();
-      this.getSchema(false);
       let defaultVal = (this.dbsource[0]?.params && this.dbsource[0]?.params[0]?.value) || this.piSystemConfiguration
       this.changeSystemConfiguration(defaultVal)
+      this.getSchema(false);
     }
   },
   mounted() {
@@ -1030,7 +1030,8 @@ export default {
           if (
             Object.hasOwnProperty.call(data.options[key], "required") &&
             (data.options[key]["value"] == "" ||
-              data.options[key]["value"] == undefined)
+              data.options[key]["value"] == undefined) &&
+              this.isPiDataArchiveAll
           ) {
             Message({
               type: "warning",
@@ -1182,7 +1183,7 @@ export default {
               }
             }
           } else {
-            querystr += `${data.params[0].name}=${data.params[0].value}`
+            querystr += `${data.params[0].name}=${data.params[0].value}&`
           }
         }
         if (this.tagName == "influxdb") {
@@ -1411,16 +1412,45 @@ export default {
           });
           return;
         }
-        if (!subject) {
+        if (!subject && this.isPiDataArchiveAll) {
           Message({
             type: "warning",
             message: `${enterTip} ${data.options.subject.display}`,
           });
           return;
         }
+        let querystr = ''
+        if (data.params) {
+          if (this.isPiDataArchiveAll) {
+            for (let index = 0; index < data.params.length; index++) {
+              if (
+                Object.hasOwnProperty.call(
+                  data.params[index],
+                  "required"
+                ) &&
+                data.params[index]["value"] == ""
+              ) {
+                Message({
+                  type: "warning",
+                  message: `${enterTip} ${data.params[index].name} `,
+                });
+                return;
+              } else {
+                if (this.handleEmptyValue(data.params[index].value)) {
+                  querystr +=
+                    `${data.params[index].name}=${data.params[index].value}` +
+                    "&";
+                }
+              }
+            }
+          } else {
+            querystr += `${data.params[0].name}=${data.params[0].value}&`
+          }
+        }
+        console.log('ss',querystr);
         let params = null;
         params = {
-          from: `${this.tagName}://${host}${subject}`,
+          from: `${this.tagName}://${host}${subject}${querystr ? "?" + querystr.replace(/&$/g, "") : ""}`,
           categories: [this.activeName],
           pattern: e.target.value,
           offset: 0,
@@ -1518,7 +1548,8 @@ export default {
           if (
             Object.hasOwnProperty.call(data.options[key], "required") &&
             (data.options[key]["value"] == "" ||
-              data.options[key]["value"] == undefined)
+              data.options[key]["value"] == undefined) &&
+              this.isPiDataArchiveAll
           ) {
             Message({
               type: "warning",
