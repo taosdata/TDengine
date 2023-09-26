@@ -565,7 +565,12 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     // .context("Start PI collector error")?;
     tracing::info!("PI Connector exit with status {}", output.status);
 
-    let json: Value = serde_json::from_slice(&output.stdout)?;
+    let json: Value = serde_json::from_slice(&output.stdout).with_context(|| {
+        format!(
+            "Parse json from stdout `{}` error",
+            &String::from_utf8_lossy(&output.stdout[..output.stdout.len().min(100)])
+        )
+    })?;
     tracing::debug!("pi dataset: {}", &json);
     let map = json.as_object().unwrap();
     let mut dataset = Vec::new();
