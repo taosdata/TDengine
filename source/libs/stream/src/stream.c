@@ -224,7 +224,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   SStreamChildEpInfo* pInfo = streamTaskGetUpstreamTaskEpInfo(pTask, pReq->upstreamTaskId);
   ASSERT(pInfo != NULL);
 
-  if (!pTask->pMeta->leader) {
+  if (pTask->pMeta->role == NODE_ROLE_FOLLOWER) {
     stError("s-task:%s task on follower received dispatch msgs, dispatch msg rejected", id);
     status = TASK_INPUT_STATUS__REFUSED;
   } else {

@@ -554,26 +554,26 @@ void streamTaskUpdateDownstreamInfo(SStreamTask* pTask, int32_t nodeId, const SE
 }
 
 int32_t streamTaskStop(SStreamTask* pTask) {
-  SStreamMeta* pMeta = pTask->pMeta;
+  int32_t      vgId = pTask->pMeta->vgId;
   int64_t      st = taosGetTimestampMs();
   const char*  id = pTask->id.idStr;
 
   taosThreadMutexLock(&pTask->lock);
   if (pTask->status.taskStatus == TASK_STATUS__CK) {
-    stDebug("s-task:%s in checkpoint will be discarded since task is stopped", pTask->id.idStr);
+    stDebug("s-task:%s in checkpoint will be discarded since task is stopped", id);
   }
   pTask->status.taskStatus = TASK_STATUS__STOP;
   taosThreadMutexUnlock(&pTask->lock);
 
   qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
-
   while (/*pTask->status.schedStatus != TASK_SCHED_STATUS__INACTIVE */ !streamTaskIsIdle(pTask)) {
-    stDebug("s-task:%s level:%d wait for task to be idle, check again in 100ms", id, pTask->info.taskLevel);
+    stDebug("s-task:%s level:%d wait for task to be idle and then close, check again in 100ms", id,
+            pTask->info.taskLevel);
     taosMsleep(100);
   }
 
   int64_t el = taosGetTimestampMs() - st;
-  stDebug("vgId:%d s-task:%s is closed in %" PRId64 " ms", pMeta->vgId, pTask->id.idStr, el);
+  stDebug("vgId:%d s-task:%s is closed in %" PRId64 " ms", vgId, id, el);
   return 0;
 }
 

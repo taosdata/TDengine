@@ -1021,18 +1021,19 @@ int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo,
 int32_t streamNotifyUpstreamContinue(SStreamTask* pTask) {
   ASSERT(pTask->info.taskLevel == TASK_LEVEL__AGG || pTask->info.taskLevel == TASK_LEVEL__SINK);
 
+  const char* id = pTask->id.idStr;
+  int32_t     level = pTask->info.taskLevel;
+
   int32_t num = taosArrayGetSize(pTask->pRspMsgList);
   for (int32_t i = 0; i < num; ++i) {
     SStreamContinueExecInfo* pInfo = taosArrayGet(pTask->pRspMsgList, i);
     tmsgSendRsp(&pInfo->msg);
 
-    stDebug("s-task:%s level:%d notify upstream:0x%x to continue process data in WAL", pTask->id.idStr, pTask->info.taskLevel,
-           pInfo->taskId);
+    stDebug("s-task:%s level:%d notify upstream:0x%x continuing scan data in WAL", id, level, pInfo->taskId);
   }
 
   taosArrayClear(pTask->pRspMsgList);
-  stDebug("s-task:%s level:%d continue process msg sent to all %d upstreams", pTask->id.idStr, pTask->info.taskLevel,
-         num);
+  stDebug("s-task:%s level:%d continue process msg sent to all %d upstreams", id, level, num);
   return 0;
 }
 
@@ -1063,7 +1064,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   int32_t     vgId = pTask->pMeta->vgId;
   int32_t msgId = pTask->execInfo.dispatch;
 
-  if ((!pTask->pMeta->leader) || (pTask->status.downstreamReady != 1)) {
+  if ((pTask->pMeta->role == NODE_ROLE_FOLLOWER) || (pTask->status.downstreamReady != 1)) {
     stError("s-task:%s vgId:%d is follower or task just re-launched, not handle the dispatch rsp, discard it", id, vgId);
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
@@ -1160,10 +1161,9 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
 
         // now ready for next data output
         atomic_store_8(&pTask->outputInfo.status, TASK_OUTPUT_STATUS__NORMAL);
-        return TSDB_CODE_SUCCESS;
+      } else {
+        handleDispatchSuccessRsp(pTask, pRsp->downstreamTaskId);
       }
-
-      handleDispatchSuccessRsp(pTask, pRsp->downstreamTaskId);
     }
   }
 

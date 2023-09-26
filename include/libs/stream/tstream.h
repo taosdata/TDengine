@@ -40,6 +40,10 @@ extern "C" {
 #define TASK_DOWNSTREAM_NOT_LEADER  0x2
 #define TASK_SELF_NEW_STAGE         0x3
 
+#define NODE_ROLE_UNINIT     0x1
+#define NODE_ROLE_LEADER     0x2
+#define NODE_ROLE_FOLLOWER   0x3
+
 typedef struct SStreamTask SStreamTask;
 
 #define SSTREAM_TASK_VER 2
@@ -411,7 +415,8 @@ typedef struct SStreamMeta {
   FTaskExpand*  expandFunc;
   int32_t       vgId;
   int64_t       stage;
-  bool          leader;
+//  bool          leader;
+  int32_t       role;
   STaskStartInfo startInfo;
   SRWLatch      lock;
   int32_t       walScanCounter;

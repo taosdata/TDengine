@@ -196,7 +196,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->chkpId = streamGetLatestCheckpointId(pMeta);
   pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
   while (pMeta->streamBackend == NULL) {
-    taosMsleep(2 * 1000);
+    taosMsleep(500);
     pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
     if (pMeta->streamBackend == NULL) {
       stError("vgId:%d failed to init stream backend", pMeta->vgId);
@@ -205,6 +205,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   }
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
 
+  pMeta->role = NODE_ROLE_UNINIT;
   code = streamBackendLoadCheckpointInfo(pMeta);
 
   taosInitRWLatch(&pMeta->lock);
@@ -237,6 +238,7 @@ int32_t streamMetaReopen(SStreamMeta* pMeta) {
 
   pMeta->streamBackendRid = -1;
   pMeta->streamBackend = NULL;
+  pMeta->role = NODE_ROLE_UNINIT;
 
   char* defaultPath = taosMemoryCalloc(1, strlen(pMeta->path) + 128);
   sprintf(defaultPath, "%s%s%s", pMeta->path, TD_DIRSEP, "state");
@@ -262,14 +264,14 @@ int32_t streamMetaReopen(SStreamMeta* pMeta) {
 
   pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
   while (pMeta->streamBackend == NULL) {
-    taosMsleep(2 * 1000);
+    taosMsleep(500);
     pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
     if (pMeta->streamBackend == NULL) {
       stError("vgId:%d failed to init stream backend", pMeta->vgId);
       stInfo("vgId:%d retry to init stream backend", pMeta->vgId);
-      // return -1;
     }
   }
+
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
   streamBackendLoadCheckpointInfo(pMeta);
 
@@ -346,6 +348,7 @@ void streamMetaCloseImpl(void* arg) {
   taosMemoryFree(pMeta->path);
   taosThreadMutexDestroy(&pMeta->backendMutex);
 
+  pMeta->role = NODE_ROLE_UNINIT;
   taosMemoryFree(pMeta);
   stDebug("end to close stream meta");
 }
@@ -829,7 +832,7 @@ void metaHbToMnode(void* param, void* tmrId) {
   }
 
   // not leader not send msg
-  if (!pMeta->leader) {
+  if (pMeta->role == NODE_ROLE_FOLLOWER) {
     stInfo("vgId:%d follower not send hb to mnode", pMeta->vgId);
     taosReleaseRef(streamMetaId, rid);
     pMeta->pHbInfo->hbStart = 0;
@@ -847,7 +850,7 @@ void metaHbToMnode(void* param, void* tmrId) {
     return;
   }
 
-  stDebug("vgId:%d build stream task hb, leader:%d", pMeta->vgId, pMeta->leader);
+  stDebug("vgId:%d build stream task hb, leader:%d", pMeta->vgId, (pMeta->role == NODE_ROLE_LEADER));
 
   SStreamHbMsg hbMsg = {0};
   taosRLockLatch(&pMeta->lock);
@@ -954,7 +957,7 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
   int32_t vgId = pMeta->vgId;
 
   stDebug("vgId:%d notify all stream tasks that the vnode is closing. isLeader:%d startHb%" PRId64 ", totalHb:%d", vgId,
-         pMeta->leader, pMeta->pHbInfo->hbStart, pMeta->pHbInfo->hbCount);
+         (pMeta->role == NODE_ROLE_LEADER), pMeta->pHbInfo->hbStart, pMeta->pHbInfo->hbCount);
 
   taosWLockLatch(&pMeta->lock);
 
@@ -973,7 +976,7 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
   taosWUnLockLatch(&pMeta->lock);
 
   // wait for the stream meta hb function stopping
-  if (pMeta->leader) {
+  if (pMeta->role == NODE_ROLE_LEADER) {
     pMeta->pHbInfo->stopFlag = STREAM_META_WILL_STOP;
     while (pMeta->pHbInfo->stopFlag != STREAM_META_OK_TO_STOP) {
       taosMsleep(100);
@@ -1002,5 +1005,5 @@ void streamMetaStartHb(SStreamMeta* pMeta) {
 
 void streamMetaInitForSnode(SStreamMeta* pMeta) {
   pMeta->stage = 0;
-  pMeta->leader = true;
+  pMeta->role = NODE_ROLE_LEADER;
 }
