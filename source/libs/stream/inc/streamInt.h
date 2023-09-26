@@ -49,10 +49,13 @@ typedef struct SStreamContinueExecInfo {
 } SStreamContinueExecInfo;
 
 struct STokenBucket {
-  int32_t capacity;     // total capacity
-  int64_t fillTimestamp;// fill timestamp
-  int32_t numOfToken;   // total available tokens
-  int32_t rate;         // number of token per second
+  int32_t numCapacity;    // total capacity, available token per second
+  int32_t numOfToken;     // total available tokens
+  int32_t numRate;        // number of token per second
+  double  bytesCapacity;  // available capacity for maximum input size, KiloBytes per Second
+  double  bytesRemain;    // not consumed bytes per second
+  double  bytesRate;      // number of token per second
+  int64_t fillTimestamp;  // fill timestamp
 };
 
 struct STaskTimer {
@@ -89,7 +92,7 @@ int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask);
 int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask);
 int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask);
 
-int32_t     streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks);
+int32_t     streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks, int32_t* blockSize);
 int32_t     streamQueueGetNumOfItemsInQueue(const SStreamQueue* pQueue);
 int32_t     streamQueueItemGetSize(const SStreamQueueItem* pItem);
 void        streamQueueItemIncSize(const SStreamQueueItem* pItem, int32_t size);
@@ -103,7 +106,7 @@ int32_t streamNotifyUpstreamContinue(SStreamTask* pTask);
 int32_t streamTaskFillHistoryFinished(SStreamTask* pTask);
 int32_t streamTransferStateToStreamTask(SStreamTask* pTask);
 
-int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t cap, int32_t rate);
+int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, int32_t bytesRate);
 
 SStreamQueue* streamQueueOpen(int64_t cap);
 void          streamQueueClose(SStreamQueue* pQueue, int32_t taskId);

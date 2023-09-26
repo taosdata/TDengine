@@ -524,6 +524,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
   stDebug("s-task:%s start to extract data block from inputQ", id);
 
   while (1) {
+    int32_t           blockSize = 0;
     int32_t           numOfBlocks = 0;
     SStreamQueueItem* pInput = NULL;
     if (streamTaskShouldStop(&pTask->status)) {
@@ -531,7 +532,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       break;
     }
 
-    /*int32_t code = */ streamTaskGetDataFromInputQ(pTask, &pInput, &numOfBlocks);
+    /*int32_t code = */ streamTaskGetDataFromInputQ(pTask, &pInput, &numOfBlocks, &blockSize);
     if (pInput == NULL) {
       ASSERT(numOfBlocks == 0);
       return 0;
@@ -555,9 +556,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 
       // here only handle the data block sink operation
       if (type == STREAM_INPUT__DATA_BLOCK) {
-        int32_t blockSize = streamQueueItemGetSize(pInput);
         pTask->execInfo.sink.dataSize += blockSize;
-
         stDebug("s-task:%s sink task start to sink %d blocks, size:%.2fKiB", id, numOfBlocks, SIZE_IN_KiB(blockSize));
         doOutputResultBlockImpl(pTask, (SStreamDataBlock*)pInput);
         continue;
