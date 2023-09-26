@@ -84,6 +84,9 @@ func newReader(debug bool,
 		return nil, err
 	}
 
+	if err := dumpConfig.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid dump config: %w", err)
+	}
 	if dumpConfig.Enable {
 		dumper, err := connector.NewCsvDumper(dumpConfig.Path, dumpConfig.Keep)
 		if err != nil {
@@ -145,6 +148,7 @@ func (r *reader) ensureConnected(ctx context.Context) error {
 }
 
 func (r *reader) stop(ctx context.Context) {
+	logger.Warn("## stop opc ua reader")
 	r.once.Do(func() {
 		defer close(r.done)
 		if r.state == opcua.Disconnected {
@@ -215,7 +219,9 @@ func (r *reader) observe(ctx context.Context, ch chan *common.NodeValue) error {
 				return
 			case <-notifyCtx.Done():
 				return
-			case <-ticker.C:
+			case t := <-ticker.C:
+				logger.DebugF("## observe opc ua start-[%s]", t.Format(time.RFC3339Nano))
+
 				wait.Add(1)
 				go r.readAndSend(ctx, ch, &wait)
 			}
@@ -239,7 +245,7 @@ func (r *reader) readAndSend(ctx context.Context, ch chan *common.NodeValue, wai
 	}
 }
 
-func (r *reader) readValue(ctx context.Context, nodes []*uaNode, nodesToRead []*ua.ReadValueID) ([]*common.NodeValue, error) {
+func (r *reader) readValue(ctx context.Context, nodes []*uaNode, nodesToRead []*ua.ReadValueID) (values []*common.NodeValue, err error) {
 	start := time.Now()
 	res, err := r.client.ReadWithContext(ctx,
 		&ua.ReadRequest{MaxAge: 2000, TimestampsToReturn: ua.TimestampsToReturnBoth, NodesToRead: nodesToRead})
@@ -249,7 +255,7 @@ func (r *reader) readValue(ctx context.Context, nodes []*uaNode, nodesToRead []*
 	spent := time.Since(start).Milliseconds()
 
 	now := time.Now()
-	values := make([]*common.NodeValue, 0, len(res.Results))
+	values = make([]*common.NodeValue, 0, len(res.Results))
 	for i, item := range res.Results {
 		node := nodes[i]
 		identifier := node.nodeID.String()
@@ -259,8 +265,8 @@ func (r *reader) readValue(ctx context.Context, nodes []*uaNode, nodesToRead []*
 			logger.Error("## observe opc ua item is nil", "identifier", identifier, "item", item)
 			continue
 		}
-		logger.DebugF("## observe opc ua identifier [%s] value [%v] type [%v] spend [%d]ms", identifier, item.Value.Value(),
-			item.Value.Type(), spent)
+		logger.DebugF("## observe opc ua identifier [%s] start-[%s] value [%v] type [%v] spend [%d]ms",
+			identifier, start.Format(time.RFC3339Nano), item.Value.Value(), item.Value.Type(), spent)
 
 		if item.Status != ua.StatusOK && !r.containsBad {
 			logger.WarnF("## observe data for identifier [%q] status [%v] is not ok(0x0) ", identifier, item.Status)
@@ -291,11 +297,8 @@ func (r *reader) readValue(ctx context.Context, nodes []*uaNode, nodesToRead []*
 			ValueType:  valueType,
 			Status:     int64(item.Status),
 		}
-		if err = r.dump(nodeValue); err != nil {
-			logger.Error("## dump node value error", "error", err)
-			panic(fmt.Errorf("dump node value error: %w", err))
-		}
 
+		r.dump(nodeValue)
 		values = append(values, nodeValue)
 	}
 
@@ -393,11 +396,7 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 						Status:     int64(status),
 					}
 
-					if err = r.dump(nodeValue); err != nil {
-						logger.Error("## dump node value error", "error", err)
-						panic(fmt.Errorf("dump node value error: %w", err))
-					}
-
+					r.dump(nodeValue)
 					ch <- nodeValue
 				}
 			}
@@ -678,10 +677,16 @@ func (r *reader) nodeToPoint(ctx context.Context, node *opcua.Node) common.Point
 	return common.Point{ID: node.String(), Name: name}
 }
 
-func (r *reader) dump(value *common.NodeValue) error {
+func (r *reader) dump(value *common.NodeValue) {
+	start := time.Now()
+	defer func() {
+		if r.debug {
+			logger.DebugF("## dump node value %s spend %dms", value.Identifier, time.Since(start).Milliseconds())
+		}
+	}()
 	if r.dumper == nil {
-		return nil
+		return
 	}
 
-	return r.dumper.Dump(value)
+	r.dumper.Dump(value)
 }

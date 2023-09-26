@@ -218,6 +218,16 @@ func (r *ReportConfig) Validate() error {
 	return nil
 }
 
+func (c *DumpConfig) Validate() error {
+	if c.Enable && len(c.Path) == 0 {
+		return fmt.Errorf("dump path is null")
+	}
+	if c.Keep == 0 {
+		c.Keep = 7
+	}
+	return nil
+}
+
 type NodeValue struct {
 	Identifier string    `json:"identifier,omitempty"`
 	Name       string    `json:"name,omitempty"`
