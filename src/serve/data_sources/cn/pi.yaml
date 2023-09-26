@@ -23,6 +23,7 @@ params:
   display: AF Server 名称
   placeholder: pi-af-server-name
   display_order: 3
+  required: true
   description: |-
     PI 系统(AF Server) 名称 (hostname).
   hint:
@@ -34,24 +35,12 @@ options:
     placeholder: server
     required: true
   subject:
-    required: true
-    display: AFDatabaseName
+    display: AF Database Name
     description: AF 数据库名
     placeholder: '如: Met1'
+    required: true
 strict: false
 groups:
-- name: PI 系统设置
-  display_order: 2
-  description: PI 系统相关配置项。
-  params:
-  - name: PISystemName
-    display: AF-SERVER-NAME
-    description: |-
-      AF-SERVER-NAME，留空以使用服务器地址。
-    hint:
-      type: str
-
-
 - name: 数据队列
   display_order: 3
   description: 批量和自动回填配置。
