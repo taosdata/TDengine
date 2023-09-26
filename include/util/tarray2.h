@@ -165,6 +165,8 @@ static FORCE_INLINE int32_t tarray2SortInsert(void *arr, const void *elePtr, int
 #define TARRAY2_FOREACH_PTR_REVERSE(a, ep) \
   for (int32_t __i = (a)->size - 1; __i >= 0 && ((ep) = &(a)->data[__i], 1); __i--)
 
+#define TARRAY2_SORT(a, cmp) taosSort((a)->data, (a)->size, sizeof((a)->data[0]), (__compar_fn_t)cmp)
+
 #ifdef __cplusplus
 }
 #endif
