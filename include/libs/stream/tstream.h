@@ -326,18 +326,21 @@ typedef struct SSinkRecorder {
   int64_t numOfSubmit;
   int64_t numOfBlocks;
   int64_t numOfRows;
-  int64_t bytes;
+  int64_t dataSize;
 } SSinkRecorder;
 
 typedef struct STaskExecStatisInfo {
   int64_t       created;
   int64_t       init;
+  int64_t       start;
   int64_t       step1Start;
   int64_t       step2Start;
-  int64_t       start;
   int32_t       updateCount;
-  int32_t       dispatch;
   int64_t       latestUpdateTs;
+  int32_t       processDataBlocks;
+  int64_t       processDataSize;
+  int32_t       dispatch;
+  int64_t       dispatchDataSize;
   int32_t       checkpoint;
   SSinkRecorder sink;
 } STaskExecStatisInfo;
@@ -415,7 +418,6 @@ typedef struct SStreamMeta {
   FTaskExpand*  expandFunc;
   int32_t       vgId;
   int64_t       stage;
-//  bool          leader;
   int32_t       role;
   STaskStartInfo startInfo;
   SRWLatch      lock;

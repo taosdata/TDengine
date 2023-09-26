@@ -556,7 +556,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       // here only handle the data block sink operation
       if (type == STREAM_INPUT__DATA_BLOCK) {
         int32_t blockSize = streamQueueItemGetSize(pInput);
-        pTask->execInfo.sink.bytes += blockSize;
+        pTask->execInfo.sink.dataSize += blockSize;
 
         stDebug("s-task:%s sink task start to sink %d blocks, size:%.2fKiB", id, numOfBlocks, SIZE_IN_KiB(blockSize));
         doOutputResultBlockImpl(pTask, (SStreamDataBlock*)pInput);
