@@ -1879,7 +1879,7 @@ impl TaskController {
         tracing::info!("Send list datasets request to agent");
         agent.send(AgentAction::ListDataSets(req, sender))?;
         tracing::info!("Retrieve datasets result from agent");
-        match tokio::time::timeout(Duration::from_secs(20), recv.recv_async()).await {
+        match tokio::time::timeout(Duration::from_secs(60), recv.recv_async()).await {
             Ok(data) => data?.context("Retrieve datasets result error"),
             Err(err) => {
                 tracing::error!("Retrieve datasets result timeout from agent");
