@@ -1083,12 +1083,6 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     if (code == TSDB_CODE_STREAM_TASK_NOT_EXIST) {  // destination task does not exist, not retry anymore
       stError("s-task:%s failed to dispatch msg to task:0x%x(vgId:%d), msgId:%d no retry, since task destroyed already", id,
               pRsp->downstreamTaskId, pRsp->downstreamNodeId, msgId);
-
-//      SStreamDataBlock* pMsgBlock = pTask->msgInfo.pData;
-//      if (pMsgBlock->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
-//        stError("s-task:%s checkpoint trigger send failed, continue do checkpoint ready process", id);
-//        streamProcessCheckpointReadyMsg(pTask);
-//      }
     } else {
       stError("s-task:%s failed to dispatch msgId:%d to task:0x%x(vgId:%d), code:%s, add to retry list", id, msgId,
               pRsp->downstreamTaskId, pRsp->downstreamNodeId, tstrerror(code));

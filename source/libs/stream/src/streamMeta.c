@@ -999,3 +999,8 @@ void streamMetaStartHb(SStreamMeta* pMeta) {
   *pRid = pMeta->rid;
   metaHbToMnode(pRid, NULL);
 }
+
+void streamMetaInitForSnode(SStreamMeta* pMeta) {
+  pMeta->stage = 0;
+  pMeta->leader = true;
+}
