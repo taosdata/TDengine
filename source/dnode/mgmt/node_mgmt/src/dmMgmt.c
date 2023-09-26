@@ -24,6 +24,7 @@
 #include "tcompression.h"
 #endif
 
+#if 0
 static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
 
@@ -105,6 +106,7 @@ static void dmClearVars(SDnode *pDnode) {
   taosThreadMutexDestroy(&pDnode->mutex);
   memset(&pDnode->mutex, 0, sizeof(pDnode->mutex));
 }
+#endif
 
 int32_t dmInitDnode(SDnode *pDnode) {
   dDebug("start to create dnode");
@@ -143,22 +145,26 @@ int32_t dmInitDnode(SDnode *pDnode) {
     pWrapper->required = dmRequireNode(pDnode, pWrapper);
   }
 
-  if (dmInitMsgHandle(pDnode) != 0) {
-    dError("failed to init msg handles since %s", terrstr());
-    goto _OVER;
-  }
+  // if (dmInitMsgHandle(pDnode) != 0) {
+  //   dError("failed to init msg handles since %s", terrstr());
+  //   goto _OVER;
+  // }
 
   pDnode->lockfile = dmCheckRunning(tsDataDir);
   if (pDnode->lockfile == NULL) {
     goto _OVER;
   }
 
-  if (dmInitServer(pDnode) != 0) {
-    dError("failed to init transport since %s", terrstr());
-    goto _OVER;
-  }
+  // if (dmInitServer(pDnode) != 0) {
+  //   dError("failed to init transport since %s", terrstr());
+  //   goto _OVER;
+  // }
 
-  if (dmInitClient(pDnode) != 0) {
+  // if (dmInitClient(pDnode) != 0) {
+  //   goto _OVER;
+  // }
+
+  if(dmInitModule(pDnode) != 0) {
     goto _OVER;
   }
 
