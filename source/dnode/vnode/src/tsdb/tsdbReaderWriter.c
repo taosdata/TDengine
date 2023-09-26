@@ -175,6 +175,9 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
     int32_t code = tsdbCacheGetBlockS3(pFD->pTsdb->bCache, pFD, &handle);
     if (code != TSDB_CODE_SUCCESS || handle == NULL) {
       tsdbBCacheRelease(pFD->pTsdb->bCache, handle);
+      if (!handle) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+      }
       goto _exit;
     }
 
