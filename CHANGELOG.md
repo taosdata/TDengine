@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - *agent*: Fix pi datasets unexpected value at line .. error ([0a72625](0a7262519584277b43f6c0decf63008ef758ba5a))
 - *legacy*: Sync stable schema cause conflict transactions ([cf5894b](cf5894b891a572f3f096253725a3e1f7cd315dc1))
+- *pi*: Fix mut requires in older rustc ([6bbf9b0](6bbf9b03aa6df507fe2baa51404f846025816cf5))
 - *serve*: Fix agent tasks set as cancelled error ([db14086](db140863151e9d052d9cb7719e30bf2241071f3c))
 
 - Assert enterprise edition ([1bb276d](1bb276d1bc83485476a3fd2b2c82ddb76898e842))
