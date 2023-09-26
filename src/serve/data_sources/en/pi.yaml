@@ -77,7 +77,7 @@ datasets:
   description: PI System template and points
   categories:
   - category: PointList
-    display: Point List
+    display: One Table per PI Point
     description: |
       The point names exists in pi system.
     target:
@@ -88,7 +88,7 @@ datasets:
       editable: true
       selectable: true
   - category: TemplateForPIPoint
-    display: Template For PI Point
+    display: One Table per PI Point from AF Element Template
     description: |
       The template names exists in pi system.
     target:
@@ -99,7 +99,7 @@ datasets:
       editable: true
       selectable: true
   - category: TemplateForAFElement
-    display: Template For AF Element
+    display: One Table per AF Element from AF Element Template
     description: |
       The template names exists in pi system.
     target:
