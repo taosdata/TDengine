@@ -236,6 +236,7 @@ static int32_t load_fs(STsdb *pTsdb, const char *fname, TFileSetArray *arr) {
       code = TARRAY2_APPEND(arr, fset);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
+    TARRAY2_SORT(arr, tsdbTFileSetCmprFn);
   } else {
     code = TSDB_CODE_FILE_CORRUPTED;
     TSDB_CHECK_CODE(code, lino, _exit);
