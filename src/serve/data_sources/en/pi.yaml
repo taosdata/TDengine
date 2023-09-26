@@ -23,6 +23,7 @@ params:
 - name: PISystemName
   display: AF Server Name
   placeholder: pi-af-server-name
+  required: true
   display_order: 3
   description: |-
     PI System(AF Server) name (hostname).
@@ -38,6 +39,7 @@ options:
     display: AF Database Name
     description: AF database name
     placeholder: 'Example: Met1'
+    required: true
 strict: false
 groups:
 - name: Data Queue
