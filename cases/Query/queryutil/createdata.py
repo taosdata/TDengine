@@ -147,7 +147,7 @@ class TDCreateData():
         # print(rows,self.tdSql.getData(0,0),self.tdSql.getData(2,0),self.tdSql.getData(1,0),self.tdSql.getData(3,0),self.tdSql.getData(4,0))
         for i in range(rows):
             self.tdSql.query(sql)
-            self.tdSql.query("drop index %s.%s" %(database,self.tdSql.getData(0,0)))
+            self.tdSql.query("drop index %s.`%s`" %(database,self.tdSql.getData(0,0)))
         
         #create_new_index
         self.tdSql.query("select distinct db_name,stable_name,tag_name from information_schema.ins_tags where db_name ='%s';" %database)
