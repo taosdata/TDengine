@@ -42,7 +42,7 @@ void tqUpdateNodeStage(STQ* pTq, bool isLeader) {
   int64_t      stage = pMeta->stage;
 
   pMeta->stage = state.term;
-  pMeta->leader = isLeader;
+  pMeta->role = (isLeader)? NODE_ROLE_LEADER:NODE_ROLE_FOLLOWER;
   if (isLeader) {
     tqInfo("vgId:%d update meta stage:%" PRId64 ", prev:%" PRId64 " leader:%d, start to send Hb", pMeta->vgId,
            state.term, stage, isLeader);
