@@ -1309,7 +1309,7 @@ async fn consume_flat_record(
                                 let code = err.code();
                                 let err_str = err.to_string();
                                 write_retries += 1;
-                                if write_retries > 2 {
+                                if write_retries > 5 {
                                     tracing::warn!("flat message write raw block encounter unrecoverable err: {err:#}");
                                     counter!(WRITE_RAW_BLOCK_FAILS, 1);
                                     counter!(RECORD_FAILS, raw.nrows() as u64);
