@@ -89,7 +89,14 @@
         <el-table-column
           :label="$t('datasource.name2')"
           prop="localname"
-        ></el-table-column>
+          width="120"
+        >
+        <template slot-scope="scope">
+          <el-tooltip :content="scope.row.localname" placement="top-start">
+            <span class="nowrap">{{ scope.row.localname }}</span>
+          </el-tooltip>
+        </template>
+        </el-table-column>
         <el-table-column
           :label="$t('datasource.type')"
           prop="localtype"
