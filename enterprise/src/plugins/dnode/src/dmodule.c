@@ -46,7 +46,7 @@ typedef struct {
 } SEngineInfo;
 
 // file operation (TODO: refactor to dmUtil.c)
-#define DM_FILE_HEAD_SIZE 256
+#define DM_FILE_HEAD_SIZE 512
 typedef struct {
   uint32_t version;
   uint32_t len;  // Encoded content len(checksum included)
@@ -86,6 +86,7 @@ static FORCE_INLINE bool dmIsCloudVer() {
 }
 
 static int32_t dmInitPrerequisites() {
+#ifndef _TD_DARWIN_64
   int32_t code = 0;
 
   char reName[64] = {0};
@@ -118,6 +119,9 @@ static int32_t dmInitPrerequisites() {
 _exit:
   if (code) terrno = code;
   return code;
+#else
+  return 0;
+#endif
 }
 
 static int dmEncodeDFHeader(void **buf, SDFHeader *pHeader) {
@@ -266,12 +270,19 @@ static void dmGetFname(const char *fname, char *ofname) {
 }
 
 int32_t dmInitDndInfo(SDnodeData *pData) {
-  int32_t     code = 0;
+#ifndef _TD_DARWIN_64
+  int32_t code = 0;
+  char    cfname[PATH_MAX] = "\0";
+
+  dmGetFname(DM_ENGINE_FILE, cfname);
+  bool fileExist = !(taosStatFile(cfname, NULL, NULL, NULL) < 0);
+  if (fileExist) {
+    return code;
+  }
+
   int8_t      eType = 0;
   SEngineInfo eInfo = {0};
-
   dmFetchEType(&eType);
-
   eInfo.type = eType;
   eInfo.dnodeId = pData->dnodeId;
   eInfo.engineVer = tsVersion;
@@ -281,11 +292,14 @@ int32_t dmInitDndInfo(SDnodeData *pData) {
 
   if ((code = dmWriteVars(&eInfo)) != 0) goto _exit;
 
-_exit: 
-  if(code != 0) {
+_exit:
+  if (code != 0) {
     assert(0);
   }
   return code;
+#else
+  return 0;
+#endif
 }
 
 static int32_t dmWriteVars(SEngineInfo *pInfo) {
@@ -374,6 +388,7 @@ static void dmFetchEType(int8_t *type) {
 }
 
 static int32_t dmInitVersion(SDnode *pDnode) {
+#ifndef _TD_DARWIN_64
   int32_t     code = 0;
   int8_t      eType = 0;
   SEngineInfo eInfo = {0};
@@ -386,9 +401,12 @@ static int32_t dmInitVersion(SDnode *pDnode) {
 
   dmFetchEType(&eType);
 
+  taosThreadRwlockRdlock(pDnode);
   if (((code = dmReadVars(&eInfo)) != 0) && (errno != ENOENT)) {
+    taosThreadRwlockUnlock(pDnode);
     goto _exit;
   }
+  taosThreadRwlockUnlock(pDnode);
 
   if (pDnode->data.engineVer == 0) {           // dnode.json history version
     if ((eInfo.type & 0x0F) == DM_ETYPE_UN) {  // without DM_ENGINE_FILE, create(handle update from history versin)
@@ -399,7 +417,12 @@ static int32_t dmInitVersion(SDnode *pDnode) {
       eInfo.createMs = taosGetTimestampMs();
       eInfo.updateMs = eInfo.createMs;
       // save
-      if ((code = dmWriteVars(&eInfo)) != 0) goto _exit;
+      taosThreadRwlockWrlock(&pData->lock);
+      if ((code = dmWriteVars(&eInfo)) != 0) {
+        taosThreadRwlockUnlock(pDnode);
+        goto _exit;
+      }
+      taosThreadRwlockUnlock(pDnode);
       code = dmSyncEps(&pDnode->data);
       goto _exit;
     }
@@ -407,7 +430,8 @@ static int32_t dmInitVersion(SDnode *pDnode) {
     dError("failed to init version since lack of file(0x:%x-%x-%x)", eType, eInfo.type, pDnode->data.engineVer);
     code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
     goto _exit;
-  } else if (pDnode->data.clusterId != eInfo.clusterId) {  // not history version, DM_ENGINE_FILE exists, check clusterId
+  } else if (pDnode->data.clusterId !=
+             eInfo.clusterId) {  // not history version, DM_ENGINE_FILE exists, check clusterId
     dError("failed to init version since inconsistent cluster Id, %" PRIi64 ":%" PRIi64, pDnode->data.clusterId,
            eInfo.clusterId);
     code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
@@ -416,35 +440,43 @@ static int32_t dmInitVersion(SDnode *pDnode) {
     dmSyncEps(&pDnode->data);
   }
 
-  if (eType == DM_ETYPE_OS) { // oss
-    if (eInfo.type > DM_ETYPE_OS) { // enterprise to oss not allowed
+  if (eType == DM_ETYPE_OS) {        // oss
+    if (eInfo.type > DM_ETYPE_OS) {  // enterprise to oss not allowed
       code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
       dError("node:%d, failed to init version since %s(0x:%x-%x-%x)", pDnode->data.dnodeId, terrstr(), eType,
              eInfo.type, pDnode->data.engineVer);
       goto _exit;
     }
-  } else if (eInfo.type == DM_ETYPE_OS) { // update oss to enterprise
+  } else if (eInfo.type == DM_ETYPE_OS) {  // update oss to enterprise
     eInfo.type = eType;
     eInfo.engineVer = tsVersion;
     eInfo.updateMs = taosGetTimestampMs();
-    if ((code = dmWriteVars(&eInfo)) != 0) goto _exit;
+    taosThreadRwlockWrlock(&pData->lock);
+    if ((code = dmWriteVars(&eInfo)) != 0) {
+      taosThreadRwlockUnlock(pDnode);
+      goto _exit;
+    }
+    taosThreadRwlockUnlock(pDnode);
   }
 _exit:
   return code;
+#else
+  return 0;
+#endif
 }
+
 static int32_t dmSyncEps(SDnodeData *pData) {
   int32_t code = 0;
-  char      file[PATH_MAX] = "\0";
+  char    file[PATH_MAX] = "\0";
   snprintf(file, sizeof(file), "%s%sdnode%sdnode.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
   taosThreadRwlockWrlock(&pData->lock);
   bool fileExist = !(taosStatFile(file, NULL, NULL, NULL) < 0);
-  if(fileExist) {
+  if (fileExist) {
     code = dmWriteEps(pData);
   }
   taosThreadRwlockUnlock(&pData->lock);
   return code;
 }
-
 
 bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
@@ -459,8 +491,6 @@ bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
 
   return required;
 }
-
-
 
 int32_t dmInitVars(SDnode *pDnode) {
   SDnodeData *pData = &pDnode->data;
@@ -538,7 +568,6 @@ int32_t dmInitModule(SDnode *pDnode) {
   if (dmInitPrerequisites() != 0) {
     goto _err;
   }
-
   if (dmInitVersion(pDnode) != 0) {
     terrno = TSDB_CODE_VERSION_NOT_COMPATIBLE;
     goto _err;
