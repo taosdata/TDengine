@@ -15,8 +15,10 @@ PrivateLink 的架构如下：
 <center><figcaption>图 1. TDengine Cloud 私网连接架构</figcaption></center>
 
 有关 阿里云 私网连接（PrivateLink） 概念的更多详细信息，请参阅以下文档：
-[什么是私网连接](https://help.aliyun.com/document_detail/161974.html)  
-[阿里云私网连接概述](https://help.aliyun.com/document_detail/2539840.html)  
+
+[什么是私网连接](https://help.aliyun.com/document_detail/161974.html)
+
+[阿里云私网连接概述](https://help.aliyun.com/document_detail/2539840.html)
 
 ## 如何使用私网链接
 ### 步骤1：在 TDengine Cloud 中选择终端服务并配置白名单
