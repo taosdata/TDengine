@@ -634,7 +634,7 @@ class TDTestQuery(TDCase):
         sql = "select count(*) from (%s);" %sql  
         self.time_cost(sql) 
     
-    def basic_query_util(self,sql,data_col,db_tb,base_fun,replace_fun,base_num,replace_num):
+    def basic_query_util_common(self,sql,data_col,db_tb,base_fun,replace_fun,base_num,replace_num):
         sql_base = sql
         sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('%s' %base_num,'%s' %replace_num)
         self.time_cost(sql)   
@@ -652,6 +652,7 @@ class TDTestQuery(TDCase):
         
             
     def basic_query_util(self,sql,data_col,db_tb,base_fun,replace_fun,base_num,replace_num):
+        #all sqls
         sql_base = sql
         distinct_sql = sql_base.replace('%s' %base_fun,'%s' %replace_fun).replace('%s' %base_num,'%s' %replace_num)
         self.basic_query_util_common(distinct_sql,data_col,db_tb,base_fun,replace_fun,base_num,replace_num)
@@ -1191,36 +1192,36 @@ class TDTestQuery(TDCase):
         #self.describe_table(self.db_tb) 
         
         #self.describe_table("`table_sample_1`.`stable_1`") 
-        self.describe_table("`test_10bi`.`meters`")
+        #self.describe_table("`test_10bi`.`meters`")
         self.describe_table("`information_schema`.`ins_dnodes`") 
-        # self.describe_table("`information_schema`.`ins_mnodes`")
-        # #self.describe_table("`information_schema`.`ins_modules`")  #TD-24684
-        # self.describe_table("`information_schema`.`ins_qnodes`")
-        # self.describe_table("`information_schema`.`ins_snodes`")
-        # self.describe_table("`information_schema`.`ins_cluster`")
-        # self.describe_table("`information_schema`.`ins_databases`")
-        # self.describe_table("`information_schema`.`ins_functions`")
-        # self.describe_table("`information_schema`.`ins_indexes`")
-        # # #self.describe_table("`information_schema`.`ins_stables`")  #TD-24784
-        # # #self.describe_table("`information_schema`.`ins_tables`")  #TD-24707
-        # # #self.describe_table("`information_schema`.`ins_tags`")  #TD-24707
-        # # #self.describe_table("`information_schema`.`ins_columns`")  #TD-24705 man
-        # # self.describe_table("`information_schema`.`ins_users`")
-        # # self.describe_table("`information_schema`.`ins_grants`")
-        # # # self.describe_table("`information_schema`.`ins_vgroups`")
-        # # # self.describe_table("`information_schema`.`ins_configs`")
-        # # # self.describe_table("`information_schema`.`ins_dnode_variables`")
-        # # # #self.describe_table("`information_schema`.`ins_topics`")  #TD-24716
-        # # # self.describe_table("`information_schema`.`ins_subscriptions`")
-        # # # self.describe_table("`information_schema`.`ins_streams`")
-        # # # self.describe_table("`information_schema`.`ins_stream_tasks`")
-        # # # self.describe_table("`information_schema`.`ins_vnodes`")
-        # # # self.describe_table("`information_schema`.`ins_user_privileges`")
-        # self.describe_table("`performance_schema`.`perf_connections`")
-        # self.describe_table("`performance_schema`.`perf_queries`")
-        # self.describe_table("`performance_schema`.`perf_consumers`")
-        # self.describe_table("`performance_schema`.`perf_trans`")
-        # self.describe_table("`performance_schema`.`perf_apps`")
+        self.describe_table("`information_schema`.`ins_mnodes`")
+        #TD-24684 delete self.describe_table("`information_schema`.`ins_modules`")  
+        self.describe_table("`information_schema`.`ins_qnodes`")
+        self.describe_table("`information_schema`.`ins_snodes`")
+        self.describe_table("`information_schema`.`ins_cluster`")
+        self.describe_table("`information_schema`.`ins_databases`")
+        self.describe_table("`information_schema`.`ins_functions`")
+        self.describe_table("`information_schema`.`ins_indexes`")
+        self.describe_table("`information_schema`.`ins_stables`")
+        self.describe_table("`information_schema`.`ins_tables`") 
+        self.describe_table("`information_schema`.`ins_tags`")  
+        self.describe_table("`information_schema`.`ins_columns`")
+        self.describe_table("`information_schema`.`ins_users`")
+        self.describe_table("`information_schema`.`ins_grants`")
+        self.describe_table("`information_schema`.`ins_vgroups`")
+        self.describe_table("`information_schema`.`ins_configs`")
+        self.describe_table("`information_schema`.`ins_dnode_variables`")
+        self.describe_table("`information_schema`.`ins_topics`")
+        self.describe_table("`information_schema`.`ins_subscriptions`")
+        self.describe_table("`information_schema`.`ins_streams`")
+        self.describe_table("`information_schema`.`ins_stream_tasks`")
+        self.describe_table("`information_schema`.`ins_vnodes`")
+        self.describe_table("`information_schema`.`ins_user_privileges`")
+        self.describe_table("`performance_schema`.`perf_connections`")
+        self.describe_table("`performance_schema`.`perf_queries`")
+        self.describe_table("`performance_schema`.`perf_consumers`")
+        self.describe_table("`performance_schema`.`perf_trans`")
+        self.describe_table("`performance_schema`.`perf_apps`")
             
 
         endTime = time.time()
