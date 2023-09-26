@@ -57,7 +57,7 @@ static int32_t dmDecodeEps(SJson *pJson, SDnodeData *pData) {
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "dnodeVer", pData->dnodeVer, code);
   if (code < 0) return -1;
-  tjsonGetNumberValue(pJson, "engineVer", pData->dnodeVer, code);
+  tjsonGetNumberValue(pJson, "engineVer", pData->engineVer, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "clusterId", pData->clusterId, code);
   if (code < 0) return -1;
