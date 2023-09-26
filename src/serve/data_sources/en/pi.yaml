@@ -8,38 +8,46 @@ description: |
 
   taosX could pull real-time data from PI System by a PI connector plugin.
 type: uri
+
+params:
+- name: system_configuration
+  display: System Configuration
+  display_order: 0
+  description:
+  value: PI Data Archive and Asset Framework (AF) Server
+  hint:
+    type: str
+    choices:
+      - PI Data Archive and Asset Framework (AF) Server
+      - PI Data Archive Only
+- name: PISystemName
+  display: AF Server Name
+  placeholder: pi-af-server-name
+  display_order: 3
+  description: |-
+    PI System(AF Server) name (hostname).
+  hint:
+    type: str
 options:
   host:
-    display: Server
-    description: PI server name (hostname).
-    placeholder: server
+    display: PI Data Archive Server
+    description: PI Data Archive Server (hostname).
+    placeholder: pi data archive server
     required: true
   subject:
-    required: true
-    display: AFDatabaseName
+    display: AF Database Name
     description: AF database name
     placeholder: 'Example: Met1'
 strict: false
 groups:
-- name: PI System
-  display_order: 2
-  description: PI system configurations.
-  params:
-  - name: PISystemName
-    display: PI System Name
-    description: |-
-      PI System name, leave it empty to use the same hostname with **Server**.
-    hint:
-      type: str
-
 - name: Data Queue
   display_order: 3
-  description: Other configurations.
+  description: Batch and auto-backfill configurations.
   params:
   - name: MaxWaitLen
-    display: Max Wait Length
+    display: Update Batch Size(count)
     description: |-
-      Message Wait queue max length
+      Max number of updates (rows) to batch before sending data to TDengine.
     hint:
       type: integer
       min: 1
@@ -51,14 +59,14 @@ groups:
       type: integer
       min: 100
       max: 60000
-    description: Pull Data from PI System Interval in `ms`.
+    description: Max time to wait before sending batch updates to TDengine (in miliseconds).
     placeholder: 10000
     value: 10000
   - name: MaxBackfillRangeDays
     display: Max Backfill Range(in days)
     hint:
       type: integer
-    description: Max backfill time range in days.
+    description: Max number of days to automatically backfill when connection is lost or on first startup.
     placeholder: 1
     value: 1
 
@@ -69,7 +77,6 @@ datasets:
   - category: PointList
     display: Point List
     description: |
-      # Title
       The point names exists in pi system.
     target:
       name: PointList
@@ -81,7 +88,6 @@ datasets:
   - category: TemplateForPIPoint
     display: Template For PI Point
     description: |
-      # Title
       The template names exists in pi system.
     target:
       name: TemplateForPIPoint
@@ -93,7 +99,6 @@ datasets:
   - category: TemplateForAFElement
     display: Template For AF Element
     description: |
-      # Title
       The template names exists in pi system.
     target:
       name: TemplateForAFElement

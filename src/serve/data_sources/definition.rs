@@ -92,6 +92,8 @@ pub struct Param {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_order: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub hint: Option<Hint>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub short_description: Option<String>,
@@ -593,6 +595,7 @@ impl DataSourceDefinition {
         for (name, value) in dsn.params {
             self.params.push(Param {
                 name,
+                display_order: None,
                 hint: None,
                 short_description: None,
                 description: None,
