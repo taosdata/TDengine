@@ -501,7 +501,6 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   int32_t    lino = 0;
   STsdb     *pTsdb = pCommitter->pTsdb;
   SDFileSet *pRSet = NULL;
-
   // memory
   pCommitter->commitFid = tsdbKeyFid(pCommitter->nextKey, pCommitter->minutes, pCommitter->precision);
   pCommitter->expLevel = tsdbFidLevel(pCommitter->commitFid, &pCommitter->pTsdb->keepCfg, taosGetTimestampSec());
@@ -799,7 +798,6 @@ static int32_t tsdbCommitFileData(SCommitter *pCommitter) {
   int32_t    lino = 0;
   STsdb     *pTsdb = pCommitter->pTsdb;
   SMemTable *pMemTable = pTsdb->imem;
-
   // commit file data start
   code = tsdbCommitFileDataStart(pCommitter);
   TSDB_CHECK_CODE(code, lino, _exit);

@@ -246,7 +246,6 @@ void dmStopCrashReportThread(SDnodeMgmt *pMgmt) {
   }
 }
 
-
 static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SDnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
@@ -294,9 +293,7 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       code = dmProcessGrantReq(&pMgmt->pData->clusterId, pMsg);
       break;
     case TDMT_MND_GRANT_NOTIFY:
-#ifdef MAKE_JENKINS_HAPPY
       code = dmProcessGrantNotify(NULL, pMsg);
-#endif
       break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;

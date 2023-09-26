@@ -301,14 +301,14 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_
   apr_table_add(headers, COS_RANGE, range_buf);
 
   s = cos_get_object_to_buffer(options, &bucket, &object, headers, NULL, &download_buffer, &resp_headers);
+  log_status(s);
   if (!cos_status_is_ok(s)) {
     vError("s3: %s", s->error_msg);
     vError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-    code = terrno;
+    code = TAOS_SYSTEM_ERROR(EIO);
     return code;
   }
 
-  log_status(s);
   // print_headers(resp_headers);
   int64_t len = 0;
   int64_t size = 0;
