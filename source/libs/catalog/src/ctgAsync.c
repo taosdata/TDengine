@@ -1171,7 +1171,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
       STableMetaOutput* pOut = (STableMetaOutput*)pMsgCtx->out;
 
       if (CTG_IS_META_NULL(pOut->metaType)) {
-        ctgError("no tbmeta got, tbNmae:%s", tNameGetTableName(pName));
+        ctgError("no tbmeta got, tbName:%s", tNameGetTableName(pName));
         ctgRemoveTbMetaFromCache(pCtg, pName, false);
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
@@ -1341,7 +1341,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
       STableMetaOutput* pOut = (STableMetaOutput*)pMsgCtx->out;
 
       if (CTG_IS_META_NULL(pOut->metaType)) {
-        ctgTaskError("no tbmeta got, tbNmae:%s", tNameGetTableName(pName));
+        ctgTaskError("no tbmeta got, tbName:%s", tNameGetTableName(pName));
         ctgRemoveTbMetaFromCache(pCtg, pName, false);
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
