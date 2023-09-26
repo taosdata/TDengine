@@ -1764,11 +1764,14 @@ impl TaskController {
             .await?;
         for task in tasks {
             let id = task.id;
-            let _ = sqlx::query(&format!(
-                "UPDATE tasks SET `status` = `cancelled` WHERE id = {id} AND `status` == 'running'"
+            if let Err(err) = sqlx::query(&format!(
+                "UPDATE tasks SET `status` = 'cancelled' WHERE id = {id} AND `status` = 'running'"
             ))
             .execute(&self.pool)
-            .await;
+            .await
+            {
+                tracing::error!("Update task {id} status to cancelled failed: {err:#}");
+            }
             let activity = Activity::new::<String>(
                 id,
                 Utc::now(),
@@ -1879,7 +1882,7 @@ impl TaskController {
         tracing::info!("Send list datasets request to agent");
         agent.send(AgentAction::ListDataSets(req, sender))?;
         tracing::info!("Retrieve datasets result from agent");
-        match tokio::time::timeout(Duration::from_secs(20), recv.recv_async()).await {
+        match tokio::time::timeout(Duration::from_secs(60), recv.recv_async()).await {
             Ok(data) => data?.context("Retrieve datasets result error"),
             Err(err) => {
                 tracing::error!("Retrieve datasets result timeout from agent");
