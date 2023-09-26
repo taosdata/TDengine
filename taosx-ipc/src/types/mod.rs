@@ -76,7 +76,7 @@ impl<T> Fail<T> {
     pub fn new(error: impl Display) -> Self {
         Self {
             code: 0xFFFF,
-            message: error.to_string(),
+            message: format!("{error:#}"),
             context: None,
         }
     }
