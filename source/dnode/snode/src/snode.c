@@ -112,18 +112,16 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto FAIL;
   }
-  pSnode->msgCb = pOption->msgCb;
 
+  pSnode->msgCb = pOption->msgCb;
   pSnode->pMeta = streamMetaOpen(path, pSnode, (FTaskExpand *)sndExpandTask, SNODE_HANDLE, -1);
   if (pSnode->pMeta == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto FAIL;
   }
 
-  // todo fix it: send msg to mnode to rollback to an existed checkpoint, and broadcast the rollback msg to all other
-  // computing nodes.
-  pSnode->pMeta->stage = 0;
-
+  // todo fix it: send msg to mnode to rollback to an existed checkpoint
+  streamMetaInitForSnode(pSnode->pMeta);
   return pSnode;
 
 FAIL:
@@ -258,10 +256,11 @@ int32_t sndProcessTaskRetrieveReq(SSnode *pSnode, SRpcMsg *pMsg) {
 int32_t sndProcessTaskDispatchRsp(SSnode *pSnode, SRpcMsg *pMsg) {
   SStreamDispatchRsp *pRsp = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
 
-  int32_t taskId = htonl(pRsp->upstreamTaskId);
-  int64_t streamId = htobe64(pRsp->streamId);
+  pRsp->upstreamTaskId = htonl(pRsp->upstreamTaskId);
+  pRsp->streamId = htobe64(pRsp->streamId);
+  pRsp->msgId = htonl(pRsp->msgId);
 
-  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, streamId, taskId);
+  SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, pRsp->streamId, pRsp->upstreamTaskId);
   if (pTask) {
     streamProcessDispatchRsp(pTask, pRsp, pMsg->code);
     streamMetaReleaseTask(pSnode->pMeta, pTask);

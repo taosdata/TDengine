@@ -739,6 +739,7 @@ int32_t      streamMetaCommit(SStreamMeta* pMeta);
 int32_t      streamMetaLoadAllTasks(SStreamMeta* pMeta);
 void         streamMetaNotifyClose(SStreamMeta* pMeta);
 void         streamMetaStartHb(SStreamMeta* pMeta);
+void         streamMetaInitForSnode(SStreamMeta* pMeta);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
