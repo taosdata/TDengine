@@ -8,6 +8,8 @@ sleep 500
 
 sql connect
 
+print step1=============
+
 sql create database test  vgroups 1;
 sql use test;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
@@ -71,7 +73,7 @@ if $rows != 29 then
   goto loop1
 endi
 
-
+print step2=============
 
 sql create database test2  vgroups 10;
 sql use test2;
@@ -137,12 +139,12 @@ if $rows != 29 then
   goto loop3
 endi
 
-print step2=============
+print step3=============
 
 sql create database test1  vgroups 1;
 sql use test1;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
-sql create stream streams1 trigger at_once ignore expired 0 ignore update 1 into streamt1 as select  _wstart, count(*) c1 from t1 session(ts, 1s);
+sql create stream streams1 trigger at_once ignore expired 0 ignore update 0 into streamt1 as select  _wstart, count(*) c1 from t1 session(ts, 1s);
 
 sql insert into t1 values(1648791211000,1,2,3,1.0);
 sql insert into t1 values(1648791213000,1,2,3,1.1);

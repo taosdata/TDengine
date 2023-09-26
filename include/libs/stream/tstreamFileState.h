@@ -32,7 +32,7 @@ typedef SList                   SStreamSnapshot;
 
 typedef void*   (*_state_buff_get_fn)(void* pRowBuff, const void* pKey, size_t keyLen);
 typedef int32_t (*_state_buff_put_fn)(void* pRowBuff, const void* pKey, size_t keyLen, const void* data, size_t dataLen);
-typedef int32_t (*_state_buff_remove_fn)(void* pRowBuff, const void* pKey, size_t keyLen);
+typedef int32_t (*_state_buff_remove_fn)(void* pRowBuff, const void* pKey, size_t keyLen, bool invalid);
 typedef void    (*_state_buff_cleanup_fn)(void* pRowBuff);
 typedef void*   (*_state_buff_create_statekeyfn)(SRowBuffPos* pPos, int64_t num);
 
@@ -53,6 +53,7 @@ int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, voi
 int32_t deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen);
 int32_t getRowBuffByPos(SStreamFileState* pFileState, SRowBuffPos* pPos, void** pVal);
 bool    hasRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen);
+void    putFreeBuff(SStreamFileState* pFileState, SRowBuffPos* pPos);
 
 SStreamSnapshot* getSnapshot(SStreamFileState* pFileState);
 int32_t          flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, bool flushState);
@@ -74,7 +75,7 @@ int32_t getRowStateRowSize(SStreamFileState* pFileState);
 int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, TSKEY gap, void** pVal, int32_t* pVLen);
 int32_t putSessionWinResultBuff(SStreamFileState* pFileState, SRowBuffPos* pPos);
 int32_t getSessionFlushedBuff(SStreamFileState* pFileState, SSessionKey* pKey, void** pVal, int32_t* pVLen);
-int32_t deleteSessionWinStateBuff(void* pBuff, const void *key, size_t keyLen);
+int32_t deleteSessionWinStateBuff(void* pBuff, const void *key, size_t keyLen, bool invalid);
 
 void sessionWinStateClear(SStreamFileState* pFileState);
 void sessionWinStateCleanup(void* pBuff);

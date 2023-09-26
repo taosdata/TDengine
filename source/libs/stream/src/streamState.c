@@ -723,6 +723,7 @@ int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, void
       }
       code = streamStateSessionPut_rocksdb(pState, key, pos->pRowBuff, vLen);
       streamStateReleaseBuf(pState, pos, true);
+      putFreeBuff(pState->pFileState, pos);
       qDebug("===stream===save skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64 ".code:%d", key->win.skey,
             key->win.ekey, key->groupId, code);
     } else {

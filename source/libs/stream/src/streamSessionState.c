@@ -89,6 +89,7 @@ static SRowBuffPos* insertNewSessionWindow(SStreamFileState* pFileState, SArray*
 }
 
 int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, TSKEY gap, void** pVal, int32_t* pVLen) {
+  int32_t code = TSDB_CODE_SUCCESS;
   SSHashObj* pSessionBuff = getRowStateBuff(pFileState);
   SArray* pWinStates = NULL;
   void** ppBuff = tSimpleHashGet(pSessionBuff, &pKey->groupId, sizeof(uint64_t));
@@ -105,6 +106,7 @@ int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey,
   int32_t size = taosArrayGetSize(pWinStates);
   if (size == 0) {
     (*pVal) = addNewSessionWindow(pFileState, pWinStates, pKey);
+    code = TSDB_CODE_FAILED;
     goto _end;
   }
 
@@ -138,29 +140,35 @@ int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey,
     if (!isDeteled(pFileState, endTs) && isFlushedState(pFileState, endTs, gap)) {
       void*        p = NULL;
       void*        pFileStore = getStateFileStore(pFileState);
-      int32_t      code = streamStateSessionAddIfNotExist_rocksdb(pFileStore, pKey, gap, &p, pVLen);
       SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
-      memcpy(pNewPos->pKey, pKey, sizeof(SSessionKey));
-      pNewPos->needFree = true;
+      int32_t      code_file = streamStateSessionAddIfNotExist_rocksdb(pFileStore, pKey, gap, &p, pVLen);
+      if (code_file == TSDB_CODE_SUCCESS || isFlushedState(pFileState, endTs, 0)) {
+        memcpy(pNewPos->pKey, pKey, sizeof(SSessionKey));
+        pNewPos->needFree = true;
 
-      qDebug("===stream===get session win:%" PRId64 ",%" PRId64 " from disc, res %d", startTs, endTs, code);
-      if (code == TSDB_CODE_SUCCESS) {
+        qDebug("===stream===get session win:%" PRId64 ",%" PRId64 " from disc, res %d", startTs, endTs, code_file);
         memcpy(pNewPos->pRowBuff, p, *pVLen);
+        taosMemoryFree(p);
+        (*pVal) = pNewPos;
+        code = code_file;
+        goto _end;
+      } else {
+        taosMemoryFree(p);
+        streamFileStateReleaseBuff(pFileState, pNewPos, false);
       }
-      taosMemoryFree(p);
-      (*pVal) = pNewPos;
-      goto _end;
     }
   }
 
   if (index == size - 1) {
     (*pVal) = addNewSessionWindow(pFileState, pWinStates, pKey);
+    code = TSDB_CODE_FAILED;
     goto _end;
   }
   (*pVal) = insertNewSessionWindow(pFileState, pWinStates, pKey, index + 1);
+  code = TSDB_CODE_FAILED;
 
 _end:
-  return (*pVal) != NULL ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED;
+  return code;
 }
 
 int32_t putSessionWinResultBuff(SStreamFileState* pFileState, SRowBuffPos* pPos) {
@@ -209,7 +217,7 @@ int32_t getSessionFlushedBuff(SStreamFileState* pFileState, SSessionKey* pKey, v
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t deleteSessionWinStateBuff(void* pBuff, const void *key, size_t keyLen) {
+int32_t deleteSessionWinStateBuff(void* pBuff, const void *key, size_t keyLen, bool invalid) {
   SSHashObj* pSessionBuff = (SSHashObj*) pBuff;
   SSessionKey* pWinKey = (SSessionKey*) key;
   void** ppBuff = tSimpleHashGet(pSessionBuff, &pWinKey->groupId, sizeof(uint64_t));
@@ -221,8 +229,11 @@ int32_t deleteSessionWinStateBuff(void* pBuff, const void *key, size_t keyLen) {
   TSKEY gap = 0;
   int32_t index = binarySearch(pWinStates, size, pWinKey, sessionStateKeyCompare);
   if (index >= 0) {
-    SRowBuffPos** ppos = taosArrayGet(pWinStates, index);
-    if (inSessionWindow((*ppos)->pKey, pWinKey->win.skey, gap)) {
+    SRowBuffPos* pPos = taosArrayGetP(pWinStates, index);
+    if (inSessionWindow(pPos->pKey, pWinKey->win.skey, gap)) {
+      if (invalid) {
+        pPos->beFlushed = true;
+      }
       taosArrayRemove(pWinStates, index);
     }
   }
@@ -484,6 +495,7 @@ int32_t getStateWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, ch
     if (inSessionWindow(pPos->pKey, startTs, gap) || fn(pKeyData, stateKey) == true) {
       (*pVal) = pPos;
       SSessionKey* pDestWinKey = (SSessionKey*)pPos->pKey;
+      pPos->beUsed = true;
       *key = *pDestWinKey;
       goto _end;
     }
@@ -495,27 +507,31 @@ int32_t getStateWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, ch
     if (inSessionWindow(pPos->pKey, startTs, gap) || (endTs != INT64_MIN && inSessionWindow(pPos->pKey, endTs, gap)) || fn(pKeyData, stateKey) == true) {
       (*pVal) = pPos;
       SSessionKey* pDestWinKey = (SSessionKey*)pPos->pKey;
+      pPos->beUsed = true;
       *key = *pDestWinKey;
       goto _end;
     }
   }
 
   if (index + 1 == 0) {
-    if (!isDeteled(pFileState, endTs) && isFlushedState(pFileState, endTs, 0)) {
+    if (!isDeteled(pFileState, endTs)) {
       void*        p = NULL;
       void*        pFileStore = getStateFileStore(pFileState);
-      int32_t      code = streamStateStateAddIfNotExist_rocksdb(pFileStore, pWinKey, pKeyData, keyDataLen, fn, &p, pVLen);
       SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
-      memcpy(pNewPos->pKey, pWinKey, sizeof(SSessionKey));
       pNewPos->needFree = true;
-
-      qDebug("===stream===get session win:%" PRId64 ",%" PRId64 " from disc, res %d", startTs, endTs, code);
-      if (code == TSDB_CODE_SUCCESS) {
+      int32_t code_file = streamStateStateAddIfNotExist_rocksdb(pFileStore, pWinKey, pKeyData, keyDataLen, fn, &p, pVLen);
+      if (code_file == TSDB_CODE_SUCCESS || isFlushedState(pFileState, endTs, 0)) {
+        memcpy(pNewPos->pKey, pWinKey, sizeof(SSessionKey));
+        qDebug("===stream===get session win:%" PRId64 ",%" PRId64 " from disc, res %d", pWinKey->win.skey, pWinKey->win.ekey, code_file);
         memcpy(pNewPos->pRowBuff, p, *pVLen);
+        (*pVal) = pNewPos;
+        taosMemoryFree(p);
+        code = code_file;
+        goto _end;
+      } else {
+        taosMemoryFree(p);
+        streamFileStateReleaseBuff(pFileState, pNewPos, false);
       }
-      taosMemoryFree(p);
-      (*pVal) = pNewPos;
-      goto _end;
     }
   }
 
