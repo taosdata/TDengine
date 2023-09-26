@@ -16,7 +16,7 @@ use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 // use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 use toml::value::Datetime;
-use tracing::Span;
+use tracing::{instrument, Span};
 
 use crate::{
     build_ipc, get_log_keep_days,
@@ -504,6 +504,7 @@ fn terminate_child_process(id: u32) -> anyhow::Result<()> {
 }
 
 #[allow(unused_variables, unreachable_code)]
+#[instrument(skip(data), fields(plugin = "pi"))]
 pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     println!("# loading plugin: PI");
     #[cfg(not(target_os = "windows"))]
@@ -571,11 +572,21 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         .find_map(|line| {
             let line = line.ok()?;
             if line.len() < 10 {
+                tracing::warn!("invalid json line: {}", &line);
                 return None;
             }
             serde_json::from_str(&line).ok()
         })
-        .ok_or_else(|| anyhow::format_err!("No valid json data returned from PI connector"))?;
+        .ok_or_else(|| {
+            tracing::error!(
+                "No valid json data returned from PI connector: {}",
+                String::from_utf8_lossy(&output.stdout)
+            );
+            anyhow::format_err!(
+                "No valid json data returned from PI connector: {}",
+                String::from_utf8_lossy(&output.stdout)
+            )
+        })?;
     tracing::debug!("pi dataset: {}", &json);
     let map = json.as_object().unwrap();
     let mut dataset = Vec::new();
