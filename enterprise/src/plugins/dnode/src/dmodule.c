@@ -281,7 +281,7 @@ int32_t dmInitDndInfo(SDnodeData *pData) {
     return code;
   }
   dmGetFname(DM_ENGINE_FILE, cfname);
-  bool fileExist = !(taosStatFile(cfname, NULL, NULL, NULL) < 0);
+  fileExist = !(taosStatFile(cfname, NULL, NULL, NULL) < 0);
   if (fileExist) {
     return code;
   }
@@ -416,7 +416,7 @@ static int32_t dmInitVersion(SDnode *pDnode) {
     taosThreadRwlockUnlock(&pDnode->data.lock);
     goto _exit;
   }
-  taosThreadRwlockUnlock(pDnode);
+  taosThreadRwlockUnlock(&pDnode->data.lock);
 
   if (pDnode->data.engineVer == 0) {           // dnode.json history version
     if ((eInfo.type & 0x0F) == DM_ETYPE_UN) {  // without DM_ENGINE_FILE, create(handle update from history versin)
