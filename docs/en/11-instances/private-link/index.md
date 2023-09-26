@@ -20,7 +20,7 @@ For more details of the PrivateLink concept, please see the following AWS docume
 
 ## How to use PrivateLink
 ### Step 1: choose a endpoint service name in TDengine Cloud
-1. Open [Network](https://console.cloud.tdengine.com/network) page in TDengine Cloud, Click **Service List** button.
+1. Open [Instances](https://console.cloud.tdengine.com/instances/privateLink) page in TDengine Cloud, Click **Service List** button.
 2. Record the **Service Name** from the list of services in the correct cloud and region for later usage.
 
 ### Step 2: Set up a private endpoint with AWS
@@ -44,7 +44,7 @@ To use the AWS Management Console to create a VPC interface endpoint, please fol
 8. Click Create endpoint. Then you have the **VPC endpoint ID**.
 
 ### Step 3: Create endpoint connection using TDengine Cloud
-1. In TDengine Cloud left navigation panel, select **Network**, then choose the **PrivateLink** tab, click **Add New Private Link** in the upper-right corner. The **Add New Private Link** page will be displayed.
+1. In TDengine Cloud left navigation panel, select **Instance**, then choose the **PrivateLink** tab, click **Add New Private Link** in the upper-right corner. The **Add New Private Link** page will be displayed.
 2. Input your preferred connection name, select the correct endpoint service to use to create the connection, and then enter the **Endpoint ID** you created in step 2.
 3. Click the **Verify** button to verify if the request existed and could be accepted. 
 4. Click the **Add** button to create the private endpoint connection.

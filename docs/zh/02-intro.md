@@ -11,11 +11,11 @@ TDengine Cloud 是全托管的时序数据处理云服务平台。它是基于�
 
 TDengine Cloud 的主要功能如下：
 
-1. 数据写入
+1. [数据写入](../data-in/)
    - 支持 [数据源](../data-in/ds/)。
    - 支持 [数据采集代理](../data-in/dca/)。
 2. 数据浏览器： 可以浏览数据库和各种表，如果您已经登录，还可以直接执行 SQL 查询语句，创建数据库，修改数据库属性，创建和修改超级表以及子表等等。
-3. 编程
+3. [编程](../programming/)
     - 提供各种[连接器](../programming/connector/)，比如 Java，Python，Go，Rust，Node.js，R 等编程语言。
     - 提供了[REST API](../programming/connector/rest-api/)。
 4. [流计算](../stream/)：不仅支持连续查询，TDengine还支持基于事件驱动的流计算，无需安装 Flink/Spark 就可以处理时序数据。
@@ -28,7 +28,7 @@ TDengine Cloud 的主要功能如下：
    - 支持 [Google Data Studio](../tools/gds/)。
    - 支持 [Promethues](../tools/prometheus/)。
    - 支持 [DBeaver](../tools/dbeaver/)。
-7. [实例管理](../mgmt)
+7. [管理](../mgmt)
    - 管理实例的 [用户和用户组](../mgmt/user-mgmt)
    - 支持 [数据复制](../mgmt/replication)一个数据库到另外一个区域或者另外一个云。
    - 支持 [备份](../mgmt/backup) 数据。
@@ -41,8 +41,10 @@ TDengine Cloud 的主要功能如下：
    - 管理组织的 [角色](../user-mgmt/roles)
 
 9. [组织管理](../orgs)：管理登录用户相关的所有组织
+10. [实例管理](../instances/)
+    - 管理 [私有连接](../instances/private-link)。
 
-10. [数据库集市](../dbmarts)：用户能够访问的 TDengine Cloud 公共数据库
+11. [数据库集市](../dbmarts)：用户能够访问的 TDengine Cloud 公共数据库
 
 更多细节功能，请阅读整个文档。
 
