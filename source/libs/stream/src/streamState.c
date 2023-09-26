@@ -351,7 +351,7 @@ bool streamStateCheck(SStreamState* pState, const SWinKey* key) {
 
 int32_t streamStateGetByPos(SStreamState* pState, void* pos, void** pVal) {
   int32_t code = getRowBuffByPos(pState->pFileState, pos, pVal);
-  releaseRowBuffPos(pos);
+  streamFileStateReleaseBuff(pState->pFileState, pos, false);
   return code;
 }
 
@@ -717,7 +717,10 @@ int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, void
   int32_t code = TSDB_CODE_SUCCESS;
   SRowBuffPos* pos = (SRowBuffPos*)value;
   if (pos->needFree) {
-    if (isFlushedState(pState->pFileState, key->win.ekey)) {
+    if (isFlushedState(pState->pFileState, key->win.ekey, 0)) {
+      if (!pos->pRowBuff) {
+        return code;
+      }
       code = streamStateSessionPut_rocksdb(pState, key, pos->pRowBuff, vLen);
       streamStateReleaseBuf(pState, pos, true);
       qDebug("===stream===save skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64 ".code:%d", key->win.skey,

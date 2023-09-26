@@ -239,6 +239,27 @@ void clearExpiredRowBuff(SStreamFileState* pFileState, TSKEY ts, bool all) {
   }
 }
 
+void clearFlushedRowBuff(SStreamFileState* pFileState, SStreamSnapshot* pFlushList, uint64_t max) {
+  uint64_t  i = 0;
+  SListIter iter = {0};
+  tdListInitIter(pFileState->usedBuffs, &iter, TD_LIST_FORWARD);
+
+  SListNode* pNode = NULL;
+  while ((pNode = tdListNext(&iter)) != NULL && i < max) {
+    SRowBuffPos* pPos = *(SRowBuffPos**)pNode->data;
+    if (isFlushedState(pFileState, pFileState->getTs(pPos->pKey), 0)) {
+      tdListAppend(pFlushList, &pPos);
+      pFileState->flushMark = TMAX(pFileState->flushMark, pFileState->getTs(pPos->pKey));
+      pFileState->stateBuffRemoveFn(pFileState->rowStateBuff, pPos->pKey, pFileState->keyLen);
+      tdListPopNode(pFileState->usedBuffs, pNode);
+      taosMemoryFreeClear(pNode);
+      if (pPos->pRowBuff) {
+        i++;
+      }
+    }
+  }
+}
+
 void streamFileStateClear(SStreamFileState* pFileState) {
   pFileState->flushMark = INT64_MIN;
   pFileState->maxTs = INT64_MIN;
@@ -283,10 +304,13 @@ int32_t flushRowBuff(SStreamFileState* pFileState) {
 
   uint64_t num = (uint64_t)(pFileState->curRowCount * FLUSH_RATIO);
   num = TMAX(num, FLUSH_NUM);
-  popUsedBuffs(pFileState, pFlushList, num, false);
-
+  clearFlushedRowBuff(pFileState, pFlushList, num);
   if (isListEmpty(pFlushList)) {
-    popUsedBuffs(pFileState, pFlushList, num, true);
+    popUsedBuffs(pFileState, pFlushList, num, false);
+
+    if (isListEmpty(pFlushList)) {
+      popUsedBuffs(pFileState, pFlushList, num, true);
+    }
   }
 
   flushSnapshot(pFileState, pFlushList, false);
@@ -383,7 +407,7 @@ int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, voi
   memcpy(pNewPos->pKey, pKey, keyLen);
 
   TSKEY ts = pFileState->getTs(pKey);
-  if (!isDeteled(pFileState, ts) && isFlushedState(pFileState, ts)) {
+  if (!isDeteled(pFileState, ts) && isFlushedState(pFileState, ts, 0)) {
     int32_t len = 0;
     void*   p = NULL;
     int32_t code = streamStateGet_rocksdb(pFileState->pFileStore, pKey, &p, &len);
@@ -449,8 +473,6 @@ bool hasRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen) {
   }
   return false;
 }
-
-void releaseRowBuffPos(SRowBuffPos* pBuff) { pBuff->beUsed = false; }
 
 SStreamSnapshot* getSnapshot(SStreamFileState* pFileState) {
   int64_t mark = (INT64_MIN + pFileState->deleteMark >= pFileState->maxTs) ? INT64_MIN
@@ -663,8 +685,8 @@ bool isDeteled(SStreamFileState* pFileState, TSKEY ts) {
   return pFileState->deleteMark > 0 && ts < (pFileState->maxTs - pFileState->deleteMark);
 }
 
-bool isFlushedState(SStreamFileState* pFileState, TSKEY ts) {
-  return ts <= pFileState->flushMark;
+bool isFlushedState(SStreamFileState* pFileState, TSKEY ts, TSKEY gap) {
+  return ts <= (pFileState->flushMark + gap);
 }
 
 int32_t getRowStateRowSize(SStreamFileState* pFileState) {

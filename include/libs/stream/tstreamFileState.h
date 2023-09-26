@@ -52,7 +52,6 @@ int32_t           streamFileStateClearBuff(SStreamFileState* pFileState, SRowBuf
 int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, void** pVal, int32_t* pVLen);
 int32_t deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen);
 int32_t getRowBuffByPos(SStreamFileState* pFileState, SRowBuffPos* pPos, void** pVal);
-void    releaseRowBuffPos(SRowBuffPos* pBuff);
 bool    hasRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen);
 
 SStreamSnapshot* getSnapshot(SStreamFileState* pFileState);
@@ -67,7 +66,7 @@ void    streamFileStateReloadInfo(SStreamFileState* pFileState, TSKEY ts);
 void* getRowStateBuff(SStreamFileState* pFileState);
 void* getStateFileStore(SStreamFileState* pFileState);
 bool isDeteled(SStreamFileState* pFileState, TSKEY ts);
-bool isFlushedState(SStreamFileState* pFileState, TSKEY ts);
+bool isFlushedState(SStreamFileState* pFileState, TSKEY ts, TSKEY gap);
 SRowBuffPos* getNewRowPosForWrite(SStreamFileState* pFileState);
 int32_t getRowStateRowSize(SStreamFileState* pFileState);
 
