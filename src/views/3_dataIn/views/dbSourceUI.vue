@@ -48,6 +48,38 @@
           </div>
         </div>
         <div class="first">
+          <!-- 根节点下的 params 参数 -->
+          <div
+            style="width: 100%"
+            v-if="dbsource[0].params && JSON.stringify(dbsource[0]?.params[0]) !== '{}'"
+          >
+          <span
+            :class="[
+              'label',
+              dbsource[0].params[0].required ? 'required' : '',
+            ]"
+            >{{ dbsource[0].params[0].display }}</span
+          >
+          <div class="label-value">
+            <el-select
+              v-model="dbsource[0].params[0].value"
+              placeholder=""
+              style="margin-bottom: 8px"
+              @change="changeSystemConfiguration"
+            >
+              <el-option
+                v-for="c in dbsource[0].params[0].hint.choices"
+                :key="c"
+                :label="c"
+                :value="c"
+              ></el-option>
+            </el-select>
+            <div
+              v-html="transforHtml(dbsource[0].params[0].description)"
+              class="description"
+            ></div>
+          </div>
+        </div>
           <div style="width: 100%">
             <span
               :class="[
@@ -95,9 +127,36 @@
             </div>
           </div>
         </div>
+        <!-- 根节点下的 params 参数 -->
         <div
           style="width: 100%"
-          v-if="JSON.stringify(dbsource[0].options.subject) !== '{}'"
+          v-if="dbsource[0].params && isPiDataArchiveAll"
+        >
+          <span
+            :class="[
+              'label',
+              dbsource[0].params[1].required ? 'required' : '',
+            ]"
+            >{{ dbsource[0].params[1].display }}</span
+          >
+          <div class="label-value">
+            <el-input
+              :placeholder="dbsource[0].params[1].placeholder"
+              v-model="dbsource[0].params[1].value"
+              style="margin-bottom: 8px"
+            ></el-input>
+            <div
+              v-html="transforHtml(dbsource[0].params[1].description)"
+              class="description"
+            ></div>
+          </div>
+        </div>
+        <!-- pi 的 AF Database Name 需要根据 System Configuration 值确认-->
+        <div
+          style="width: 100%"
+          v-if="JSON.stringify(dbsource[0].options.subject) !== '{}'
+          && isPiDataArchiveAll
+          "
         >
           <span
             :class="[
@@ -357,6 +416,7 @@
               :name="p.category"
               :key="p.category"
               lazy
+              :disabled="!['PointList'].includes(p.category) && !isPiDataArchiveAll"
             >
               <div :key="pind">
                 <div
@@ -644,7 +704,7 @@
       </template>
 
       <!--未分组显示根节点下的params，显示方式和groups一样-->
-      <section class="ungrounded" v-if="dbsource[0].params"></section>
+      <!-- <section class="ungrounded" v-if="dbsource[0].params"></section> -->
       <section class="choose-db">
         <span class="label required">{{ this.$t("datasource.targetdb") }}</span>
         <div class="target-db-name">
@@ -817,7 +877,9 @@ export default {
       btnLoading: false,
       bucketList: [],
       measurementList: [],
-      metricsList:[]
+      metricsList:[],
+      piSystemConfiguration: 'PI Data Archive and Asset Framework (AF) Server',
+      isPiDataArchiveAll: true
     };
   },
   created() {
@@ -827,6 +889,8 @@ export default {
       this.dbname = this.dbName;
       this.handleEditData();
       this.getSchema(false);
+      let defaultVal = (this.dbsource[0]?.params && this.dbsource[0]?.params[0]?.value) || this.piSystemConfiguration
+      this.changeSystemConfiguration(defaultVal)
     }
   },
   mounted() {
@@ -891,6 +955,13 @@ export default {
           return group;
         });
       }
+    },
+    changeSystemConfiguration(val) {
+      this.piSystemConfiguration = val
+      this.isPiDataArchiveAll = val == 'PI Data Archive and Asset Framework (AF) Server'
+        if(val == 'PI Data Archive Only') {
+          this.activeName = 'PointList'
+        }
     },
     changeHost(host) {
       if (this.tagName == "influxdb") {
@@ -1015,7 +1086,7 @@ export default {
             `${data.options.port.value ? data.options.port.value : ""}`;
         }
 
-        dns += data.options.subject.value
+        dns += (data.options.subject.value && this.isPiDataArchiveAll)
           ? "/" + data.options.subject.value
           : "";
         let reg = /\s+/g;
@@ -1081,6 +1152,33 @@ export default {
                 querystr += `${target.name}=${target.value}` + "&";
               }
             }
+          }
+        }
+        if (data.params) {
+          if (this.isPiDataArchiveAll) {
+            for (let index = 0; index < data.params.length; index++) {
+              if (
+                Object.hasOwnProperty.call(
+                  data.params[index],
+                  "required"
+                ) &&
+                data.params[index]["value"] == ""
+              ) {
+                Message({
+                  type: "warning",
+                  message: `${enterTip} ${data.params[index].name} `,
+                });
+                return;
+              } else {
+                if (this.handleEmptyValue(data.params[index].value)) {
+                  querystr +=
+                    `${data.params[index].name}=${data.params[index].value}` +
+                    "&";
+                }
+              }
+            }
+          } else {
+            querystr += `${data.params[0].name}=${data.params[0].value}`
           }
         }
         if (this.tagName == "influxdb") {
@@ -1298,7 +1396,7 @@ export default {
       try {
         let data = this.dbsource[0];
         let host = data.options.host.value ? data.options.host.value : "";
-        let subject = data.options.subject.value
+        let subject = (data.options.subject.value && this.isPiDataArchiveAll)
           ? "/" + data.options.subject.value
           : "";
         let enterTip = this.$t("dataIn.enterTip");
@@ -1480,7 +1578,7 @@ export default {
             `${data.options.port.value ? data.options.port.value : ""}`;
         }
 
-        dns += data.options.subject.value
+        dns += (data.options.subject.value && this.isPiDataArchiveAll)
           ? "/" + data.options.subject.value
           : "";
         let reg = /\s+/g;
