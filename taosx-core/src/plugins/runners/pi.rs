@@ -13,7 +13,7 @@ use chrono::{Local, NaiveDateTime};
 use itertools::Itertools;
 use serde_json::{Map, Value};
 use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
-use tokio::io::AsyncBufReadExt;
+// use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 use toml::value::Datetime;
 use tracing::Span;
@@ -429,6 +429,7 @@ pub async fn pi_to_taos(
     tokio::spawn(async move {
         let mut reader = tokio::io::BufReader::new(stderr);
         let mut line = String::new();
+        use tokio::io::AsyncBufReadExt;
         loop {
             // Read a line from stderr
             let bytes_read = reader.read_line(&mut line).await.unwrap();
@@ -565,12 +566,16 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     // .context("Start PI collector error")?;
     tracing::info!("PI Connector exit with status {}", output.status);
 
-    let json: Value = serde_json::from_slice(&output.stdout).with_context(|| {
-        format!(
-            "Parse json from stdout `{}` error",
-            &String::from_utf8_lossy(&output.stdout[..output.stdout.len().min(100)])
-        )
-    })?;
+    let lines = output.stdout.lines();
+    let json: Value = lines
+        .find_map(|line| {
+            let line = line.ok()?;
+            if line.len() < 10 {
+                return None;
+            }
+            serde_json::from_str(&line).ok()
+        })
+        .ok_or_else(|| anyhow::format_err!("No valid json data returned from PI connector"))?;
     tracing::debug!("pi dataset: {}", &json);
     let map = json.as_object().unwrap();
     let mut dataset = Vec::new();
