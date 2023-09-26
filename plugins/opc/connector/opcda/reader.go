@@ -97,6 +97,9 @@ func newReader(config common.Config) (*reader, error) {
 		tags[tag.Tag] = &daTag{tag: tag.Tag, name: tagName[tag.Tag]}
 	}
 	r.tags = tags
+	if err = config.Collect.Dump.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid dump config: %w", err)
+	}
 	if config.Collect.Dump.Enable {
 		dumper, err := connector.NewCsvDumper(config.Collect.Dump.Path, config.Collect.Dump.Keep)
 		if err != nil {
@@ -151,6 +154,7 @@ func (r *reader) disconnect() {
 }
 
 func (r *reader) stop(_ context.Context) {
+	logger.Warn("## opc da connector stopped!")
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	defer close(r.done)
@@ -251,11 +255,7 @@ func (r *reader) readItems(tags map[string]*daTag) (values []*common.NodeValue) 
 			Status:     int64(uint32(item.Quality)),
 		}
 
-		if err := r.dump(nodeValue); err != nil {
-			logger.Error("## dump data error", "err", err)
-			panic(fmt.Errorf("dump data error. %v", err))
-		}
-
+		r.dump(nodeValue)
 		values = append(values, nodeValue)
 	}
 	return values
@@ -308,12 +308,12 @@ func (r *reader) browse(tree *opc.Tree) (points []common.Point) {
 	return
 }
 
-func (r *reader) dump(value *common.NodeValue) error {
+func (r *reader) dump(value *common.NodeValue) {
 	if r.dumper == nil {
-		return nil
+		return
 	}
 
-	return r.dumper.Dump(value)
+	r.dumper.Dump(value)
 }
 
 func toValueType(k reflect.Kind) (common.ValueType, error) {

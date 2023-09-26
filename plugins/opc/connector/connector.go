@@ -25,8 +25,10 @@ type Connector interface {
 }
 
 type CsvDumper struct {
-	rotator *rotatelogs.RotateLogs
-	writer  *csv.Writer
+	rotator    *rotatelogs.RotateLogs
+	ch         chan []string
+	done       chan struct{}
+	writerDone chan struct{}
 }
 
 func NewCsvDumper(dumpPath string, keep int64) (*CsvDumper, error) {
@@ -43,13 +45,19 @@ func NewCsvDumper(dumpPath string, keep int64) (*CsvDumper, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dump file: %w", err)
 	}
-	writer := csv.NewWriter(rotate)
-	return &CsvDumper{rotator: rotate, writer: writer}, nil
+	dumper := CsvDumper{
+		rotator:    rotate,
+		ch:         make(chan []string, 100),
+		done:       make(chan struct{}, 1),
+		writerDone: make(chan struct{}, 1),
+	}
+	dumper.startToDump()
+	return &dumper, nil
 }
 
-func (c *CsvDumper) Dump(value *common.NodeValue) error {
+func (c *CsvDumper) Dump(value *common.NodeValue) {
 	if value == nil {
-		return nil
+		return
 	}
 
 	item := []string{
@@ -61,15 +69,37 @@ func (c *CsvDumper) Dump(value *common.NodeValue) error {
 		value.ValueType.String(),                         // value type
 		ua.StatusCodes[ua.StatusCode(value.Status)].Name, // status
 	}
-
-	return c.writer.Write(item)
+	c.ch <- item
 }
 
 func (c *CsvDumper) Close() {
-	if c.writer != nil {
-		c.writer.Flush()
-		_ = c.rotator.Close()
-	}
+	logger.Info("## close csv dumper")
+	close(c.done)
+	<-c.writerDone
+	_ = c.rotator.Close()
+}
+
+func (c *CsvDumper) startToDump() {
+	go func() {
+		defer close(c.writerDone)
+
+		writer := csv.NewWriter(c.rotator)
+		defer writer.Flush()
+		if err := writer.Error(); err != nil {
+			logger.Error("## failed to flush csv writer: %v", err)
+		}
+
+		for {
+			select {
+			case <-c.done:
+				return
+			case item := <-c.ch:
+				if err := writer.Write(item); err != nil {
+					logger.Error("## failed to write csv: %v", err)
+				}
+			}
+		}
+	}()
 }
 
 type FakeConnector struct {
