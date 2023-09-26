@@ -206,12 +206,12 @@ static int32_t dmReadVars(SEngineInfo *pInfo) {
   if (nRead != DM_FILE_HEAD_SIZE) {
     code = TAOS_SYSTEM_ERROR(errno);
     if (code == 0) code = TSDB_CODE_FILE_CORRUPTED;
-    dError("failed to read %d bytes from file %s since %s", DM_FILE_HEAD_SIZE, fname, tstrerror(code));
+    dError("readVars: failed to read %d bytes from header since %s", DM_FILE_HEAD_SIZE, tstrerror(code));
     goto _exit;
   }
 
   if (!taosCheckChecksumWhole((uint8_t *)buffer, DM_FILE_HEAD_SIZE)) {
-    dError("header of file %s is corrupted since wrong checksum", fname);
+    dError("readVars: header is corrupted since wrong checksum");
     code = TSDB_CODE_FILE_CORRUPTED;
     goto _exit;
   }
@@ -236,12 +236,12 @@ static int32_t dmReadVars(SEngineInfo *pInfo) {
     if (nRead != dHeader.len) {
       code = TAOS_SYSTEM_ERROR(errno);
       if (code == 0) code = TSDB_CODE_FILE_CORRUPTED;
-      dError("failed to read %d bytes from file %s since %s", DM_FILE_HEAD_SIZE, fname, tstrerror(code));
+      dError("readVars: failed to read %d bytes from file since %s", DM_FILE_HEAD_SIZE, tstrerror(code));
       goto _exit;
     }
 
     if (!taosCheckChecksumWhole((uint8_t *)buffer, dHeader.len)) {
-      dError("file %s is corrupted since wrong checksum", fname);
+      dError("readVars: file is corrupted since wrong checksum");
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _exit;
     }
@@ -371,7 +371,7 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
 _exit:
   taosMemoryFreeClear(pBuf);
   if (code != 0) {
-    dError("failed to write dm vars to %s since %s", cfname, tstrerror(code));
+    dError("failed to write dm vars since %s", tstrerror(code));
     taosCloseFile(&tFile);
     taosRemoveFile(tfname);
   }
@@ -451,8 +451,7 @@ static int32_t dmInitVersion(SDnode *pDnode) {
 
   if (eType == DM_ETYPE_OS) {        // oss
     if (eInfo.type > DM_ETYPE_OS) {  // enterprise to oss not allowed
-      code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
-      dError("node:%d, failed to init version since %s(0x:%x-%x-%x)", pDnode->data.dnodeId, terrstr(), eType,
+      dError("node:%d, failed to init version since %s(0x:%x-%x-%x)", pDnode->data.dnodeId, tstrerror(code), eType,
              eInfo.type, pDnode->data.engineVer);
       goto _exit;
     }
