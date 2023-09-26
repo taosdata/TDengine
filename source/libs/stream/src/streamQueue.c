@@ -154,6 +154,12 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
   int32_t     taskLevel = pTask->info.taskLevel;
   *numOfBlocks = 0;
 
+  // no available token in bucket for sink task, let's wait
+  if (taskLevel == TASK_LEVEL__SINK && (!streamTaskHasAvailableToken(pTask->pTokenBucket))) {
+    stDebug("s-task:%s no available token in bucket for sink data, wait", id);
+    return TSDB_CODE_SUCCESS;
+  }
+
   while (1) {
     if (streamTaskShouldPause(&pTask->status) || streamTaskShouldStop(&pTask->status)) {
       stDebug("s-task:%s task should pause, extract input blocks:%d", pTask->id.idStr, *numOfBlocks);
