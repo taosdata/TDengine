@@ -196,11 +196,10 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->chkpId = streamGetLatestCheckpointId(pMeta);
   pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
   while (pMeta->streamBackend == NULL) {
-    taosMsleep(500);
+    taosMsleep(100);
     pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
     if (pMeta->streamBackend == NULL) {
-      stError("vgId:%d failed to init stream backend", pMeta->vgId);
-      stInfo("vgId:%d retry to init stream backend", pMeta->vgId);
+      stInfo("vgId:%d failed to init stream backend, retry in 100ms", pMeta->vgId);
     }
   }
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
@@ -264,11 +263,10 @@ int32_t streamMetaReopen(SStreamMeta* pMeta) {
 
   pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
   while (pMeta->streamBackend == NULL) {
-    taosMsleep(500);
+    taosMsleep(100);
     pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
     if (pMeta->streamBackend == NULL) {
-      stError("vgId:%d failed to init stream backend", pMeta->vgId);
-      stInfo("vgId:%d retry to init stream backend", pMeta->vgId);
+      stInfo("vgId:%d failed to init stream backend, retry in 100ms", pMeta->vgId);
     }
   }
 
