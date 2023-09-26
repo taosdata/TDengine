@@ -38,14 +38,14 @@ PrivateLink 的架构如下：
    ![创建终端节点](./create-endpoint-1.webp)
    <center><figcaption>图3. 创建终端节点</figcaption></center>
 
-3. 选择接口终端节点。
+3. 选择**接口终端节点**。
 4. **步骤1中添加服务白名单成功，这里就可以看到可用服务，选中可用服务。**
 5. 选择业务服务所在的 vpc ，添加完专有网络，会出现下面两个选择项。
    
    ![设置安全组&网络交换机](./create-endpoint-2.webp)
  <center><figcaption>图4. 设置安全组&网络交换机</figcaption></center>
 
-6. 选择已有安全组或者创建一个，请开放443端口。
+6. 选择已有安全组或者创建一个，**请开放443端口**。不开放443将不能访问您的 TDengine Cloud 服务实例。
 7. 可用区交换机如果存在要选择在端点服务所在可用区，不存在请创建一个；这里默认要填两个，删掉第二个。
    :::
 8. 单击创建端点。 等待创建成功，在终端节点详情页面您即可得到**VPC 终端节点 ID**。
@@ -71,12 +71,12 @@ PrivateLink 的架构如下：
    ![查看终端节点IP](./endpoint-desc.webp)
  <center><figcaption>图6. 查看终端节点IP</figcaption></center>
 
-3. 复制图上**IP地址**栏，在**私有连接**列表如下图，复制**私有DNS名称**。
+3. 复制图上**IP地址**栏，在TDengine cloud 控制台 **私有连接**列表，复制对应可用区终端服务**私有DNS名称**栏（如下图）。
    ![查看私有DNS](./connection-list.webp)
  <center><figcaption>图7. 查看私有DNS</figcaption></center>
 
-4. **登录您的 ECS 主机，修改 /etc/hosts 文件。格式: {私有DNS} {终端节点IP}。**
-5. 验证：curl -d "show databases;" https://{私有DNS}/rest/sql?token=${token} 参阅云服务[编程 - REST API](https://console.cloud.taosdata.com/programming/docs/connector/REST%20API)。
+4. **登录您的 ECS 主机，修改 /etc/hosts 文件。格式:{终端节点IP} {私有DNS}。**
+5. 验证：curl -d "show databases;" **https**://{私有DNS}/rest/sql?token=${token} 参阅云服务[编程 - REST API](https://console.cloud.taosdata.com/programming/docs/connector/REST%20API)。
 
 ### 步骤5:使用私有 DNS 调用 TDengine Cloud 服务
 
