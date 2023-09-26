@@ -4,7 +4,7 @@ members = ["taosx-ipc", "taosx-core", "taosx-agent"]
 [workspace.dependencies]
 chrono = { version = "0.4.26" }
 chrono-tz = { version = "0.8.3" }
-shadow-rs = { version = "0.23" }
+shadow-rs = { version = "0.24" }
 
 regex = { version = "1.9" }
 arrow = { version = "46.0.0", features = ["chrono-tz"] }
@@ -13,11 +13,11 @@ parquet = "46.0.0"
 
 tonic = "0.9"
 
-taos = { version = "0.10.12", default-features = false, features = [
+taos = { version = "0.10.13", default-features = false, features = [
   "ws",
   "deadpool",
 ] }
-taos-query = { version = "0.10.12", default-features = false, features = [
+taos-query = { version = "0.10.13", default-features = false, features = [
   "deadpool",
 ] }
 
