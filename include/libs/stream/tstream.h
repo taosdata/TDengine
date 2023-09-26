@@ -29,6 +29,21 @@ extern "C" {
 #ifndef _STREAM_H_
 #define _STREAM_H_
 
+#define ONE_MiB_F       (1048576.0)
+#define ONE_KiB_F       (1024.0)
+#define SIZE_IN_MiB(_v) ((_v) / ONE_MiB_F)
+#define SIZE_IN_KiB(_v) ((_v) / ONE_KiB_F)
+
+
+#define TASK_DOWNSTREAM_READY       0x0
+#define TASK_DOWNSTREAM_NOT_READY   0x1
+#define TASK_DOWNSTREAM_NOT_LEADER  0x2
+#define TASK_SELF_NEW_STAGE         0x3
+
+#define NODE_ROLE_UNINIT     0x1
+#define NODE_ROLE_LEADER     0x2
+#define NODE_ROLE_FOLLOWER   0x3
+
 typedef struct SStreamTask SStreamTask;
 
 #define SSTREAM_TASK_VER 2
@@ -64,6 +79,7 @@ enum {
   TASK_INPUT_STATUS__NORMAL = 1,
   TASK_INPUT_STATUS__BLOCKED,
   TASK_INPUT_STATUS__FAILED,
+  TASK_INPUT_STATUS__REFUSED,
 };
 
 enum {
@@ -197,7 +213,7 @@ typedef struct {
   int32_t taskId;
   int32_t nodeId;
   SEpSet  epSet;
-} STaskDispatcherFixedEp;
+} STaskDispatcherFixed;
 
 typedef struct {
   char      stbFullName[TSDB_TABLE_FNAME_LEN];
@@ -279,11 +295,15 @@ typedef struct SSTaskBasicInfo {
   int64_t triggerParam; // in msec
 } SSTaskBasicInfo;
 
+typedef struct SStreamDispatchReq SStreamDispatchReq;
+
 typedef struct SDispatchMsgInfo {
-  void*   pData;       // current dispatch data
+  SStreamDispatchReq*   pData;       // current dispatch data
+  int8_t  dispatchMsgType;
   int16_t msgType;     // dispatch msg type
   int32_t retryCount;  // retry send data count
-  int64_t blockingTs;  // output blocking timestamp
+  int64_t startTs;     // dispatch start time, record total elapsed time for dispatch
+  SArray* pRetryList;  // current dispatch successfully completed node of downstream
 } SDispatchMsgInfo;
 
 typedef struct STaskOutputInfo {
@@ -302,22 +322,27 @@ typedef struct STaskSchedInfo {
   void*   pTimer;
 } STaskSchedInfo;
 
-typedef struct SSinkTaskRecorder {
+typedef struct SSinkRecorder {
   int64_t numOfSubmit;
   int64_t numOfBlocks;
   int64_t numOfRows;
-} SSinkTaskRecorder;
+  int64_t bytes;
+} SSinkRecorder;
 
-typedef struct {
-  int64_t created;
-  int64_t init;
-  int64_t step1Start;
-  int64_t step2Start;
-  int64_t start;
-  int32_t updateCount;
-  int64_t latestUpdateTs;
+typedef struct STaskExecStatisInfo {
+  int64_t       created;
+  int64_t       init;
+  int64_t       step1Start;
+  int64_t       step2Start;
+  int64_t       start;
+  int32_t       updateCount;
+  int32_t       dispatch;
+  int64_t       latestUpdateTs;
+  int32_t       checkpoint;
+  SSinkRecorder sink;
 } STaskExecStatisInfo;
 
+typedef struct STaskTimer   STaskTimer;
 typedef struct STokenBucket STokenBucket;
 typedef struct SMetaHbInfo  SMetaHbInfo;
 
@@ -335,23 +360,22 @@ struct SStreamTask {
   SDataRange       dataRange;
   STaskId          historyTaskId;
   STaskId          streamTaskId;
-  STaskExecStatisInfo taskExecInfo;
+  STaskExecStatisInfo execInfo;
   SArray*          pReadyMsgList;  // SArray<SStreamChkptReadyInfo*>
   TdThreadMutex    lock;           // secure the operation of set task status and puting data into inputQ
   SArray*          pUpstreamInfoList;
 
   // output
   union {
-    STaskDispatcherFixedEp fixedEpDispatcher;
+    STaskDispatcherFixed   fixedDispatcher;
     STaskDispatcherShuffle shuffleDispatcher;
     STaskSinkTb            tbSink;
     STaskSinkSma           smaSink;
     STaskSinkFetch         fetchSink;
   };
-  SSinkTaskRecorder sinkRecorder;
-  STokenBucket*     pTokenBucket;
 
-  void*         launchTaskTimer;
+  STokenBucket* pTokenBucket;
+  STaskTimer*   pTimer;
   SMsgCb*       pMsgCb;  // msg handle
   SStreamState* pState;  // state backend
   SArray*       pRspMsgList;
@@ -371,6 +395,13 @@ struct SStreamTask {
   char                reserve[256];
 };
 
+typedef struct STaskStartInfo {
+  int64_t   ts;
+  int32_t   startedAfterNodeUpdate;
+  SHashObj* pReadyTaskSet;           // tasks that are all ready for running stream processing
+  int32_t   elapsedTime;
+} STaskStartInfo;
+
 // meta
 typedef struct SStreamMeta {
   char*         path;
@@ -384,8 +415,9 @@ typedef struct SStreamMeta {
   FTaskExpand*  expandFunc;
   int32_t       vgId;
   int64_t       stage;
-  bool          leader;
-  int8_t        taskWillbeLaunched;
+//  bool          leader;
+  int32_t       role;
+  STaskStartInfo startInfo;
   SRWLatch      lock;
   int32_t       walScanCounter;
   void*         streamBackend;
@@ -430,11 +462,12 @@ typedef struct {
   int32_t  taskId;
 } SStreamTaskRunReq;
 
-typedef struct {
+struct SStreamDispatchReq {
   int32_t type;
   int64_t stage;  // nodeId from upstream task
   int64_t streamId;
   int32_t taskId;
+  int32_t msgId;      // msg id to identify if the incoming msg from the same sender
   int32_t srcVgId;
   int32_t upstreamTaskId;
   int32_t upstreamChildId;
@@ -443,7 +476,7 @@ typedef struct {
   int64_t totalLen;
   SArray* dataLen;  // SArray<int32_t>
   SArray* data;     // SArray<SRetrieveTableRsp*>
-} SStreamDispatchReq;
+};
 
 typedef struct {
   int64_t streamId;
@@ -451,7 +484,9 @@ typedef struct {
   int32_t upstreamTaskId;
   int32_t downstreamNodeId;
   int32_t downstreamTaskId;
+  int32_t msgId;
   int8_t  inputStatus;
+  int64_t stage;
 } SStreamDispatchRsp;
 
 typedef struct {
@@ -556,6 +591,8 @@ int32_t tDecodeStreamCheckpointReadyMsg(SDecoder* pDecoder, SStreamCheckpointRea
 typedef struct STaskStatusEntry {
   STaskId id;
   int32_t status;
+  int32_t stage;
+  int32_t nodeId;
 } STaskStatusEntry;
 
 typedef struct SStreamHbMsg {
@@ -622,7 +659,7 @@ void    tDeleteStreamDispatchReq(SStreamDispatchReq* pReq);
 int32_t streamSetupScheduleTrigger(SStreamTask* pTask);
 
 int32_t streamProcessRunReq(SStreamTask* pTask);
-int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg, bool exec);
+int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
 int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code);
 
 int32_t             streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pMsg);
@@ -666,7 +703,6 @@ int32_t     streamSetStatusUnint(SStreamTask* pTask);
 const char* streamGetTaskStatusStr(int32_t status);
 void        streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta);
 void        streamTaskResume(SStreamTask* pTask, SStreamMeta* pMeta);
-void        streamTaskHalt(SStreamTask* pTask);
 void        streamTaskResumeFromHalt(SStreamTask* pTask);
 void        streamTaskDisablePause(SStreamTask* pTask);
 void        streamTaskEnablePause(SStreamTask* pTask);
@@ -708,6 +744,7 @@ int32_t      streamMetaCommit(SStreamMeta* pMeta);
 int32_t      streamMetaLoadAllTasks(SStreamMeta* pMeta);
 void         streamMetaNotifyClose(SStreamMeta* pMeta);
 void         streamMetaStartHb(SStreamMeta* pMeta);
+void         streamMetaInitForSnode(SStreamMeta* pMeta);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);

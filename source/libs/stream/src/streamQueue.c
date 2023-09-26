@@ -65,7 +65,7 @@ SStreamQueue* streamQueueOpen(int64_t cap) {
 }
 
 void streamQueueClose(SStreamQueue* pQueue, int32_t taskId) {
-  qDebug("s-task:0x%x free the queue:%p, items in queue:%d", taskId, pQueue->pQueue, taosQueueItemSize(pQueue->pQueue));
+  stDebug("s-task:0x%x free the queue:%p, items in queue:%d", taskId, pQueue->pQueue, taosQueueItemSize(pQueue->pQueue));
   streamQueueCleanup(pQueue);
 
   taosFreeQall(pQueue->qall);
@@ -102,64 +102,6 @@ void streamQueueProcessFail(SStreamQueue* queue) {
   atomic_store_8(&queue->status, STREAM_QUEUE__FAILED);
 }
 
-#if 0
-bool streamQueueResEmpty(const SStreamQueueRes* pRes) {
-  //
-  return true;
-}
-int64_t           streamQueueResSize(const SStreamQueueRes* pRes) { return pRes->size; }
-SStreamQueueNode* streamQueueResFront(SStreamQueueRes* pRes) { return pRes->head; }
-SStreamQueueNode* streamQueueResPop(SStreamQueueRes* pRes) {
-  SStreamQueueNode* pRet = pRes->head;
-  pRes->head = pRes->head->next;
-  return pRet;
-}
-
-void streamQueueResClear(SStreamQueueRes* pRes) {
-  while (pRes->head) {
-    SStreamQueueNode* pNode = pRes->head;
-    streamFreeQitem(pRes->head->item);
-    pRes->head = pNode;
-  }
-}
-
-SStreamQueueRes streamQueueBuildRes(SStreamQueueNode* pTail) {
-  int64_t           size = 0;
-  SStreamQueueNode* head = NULL;
-
-  while (pTail) {
-    SStreamQueueNode* pTmp = pTail->next;
-    pTail->next = head;
-    head = pTail;
-    pTail = pTmp;
-    size++;
-  }
-
-  return (SStreamQueueRes){.head = head, .size = size};
-}
-
-bool    streamQueueHasTask(const SStreamQueue1* pQueue) { return atomic_load_ptr(pQueue->pHead); }
-int32_t streamQueuePush(SStreamQueue1* pQueue, SStreamQueueItem* pItem) {
-  SStreamQueueNode* pNode = taosMemoryMalloc(sizeof(SStreamQueueNode));
-  pNode->item = pItem;
-  SStreamQueueNode* pHead = atomic_load_ptr(pQueue->pHead);
-  while (1) {
-    pNode->next = pHead;
-    SStreamQueueNode* pOld = atomic_val_compare_exchange_ptr(pQueue->pHead, pHead, pNode);
-    if (pOld == pHead) {
-      break;
-    }
-  }
-  return 0;
-}
-
-SStreamQueueRes streamQueueGetRes(SStreamQueue1* pQueue) {
-  SStreamQueueNode* pNode = atomic_exchange_ptr(pQueue->pHead, NULL);
-  if (pNode) return streamQueueBuildRes(pNode);
-  return (SStreamQueueRes){0};
-}
-#endif
-
 bool streamQueueIsFull(const STaosQueue* pQueue, bool inputQ) {
   bool isFull = taosQueueItemSize((STaosQueue*)pQueue) >= STREAM_TASK_QUEUE_CAPACITY;
   if (isFull) {
@@ -167,7 +109,7 @@ bool streamQueueIsFull(const STaosQueue* pQueue, bool inputQ) {
   }
 
   int32_t threahold = (inputQ) ? STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE : STREAM_TASK_OUTPUT_QUEUE_CAPACITY_IN_SIZE;
-  double  size = SIZE_IN_MB(taosQueueMemorySize((STaosQueue*)pQueue));
+  double  size = SIZE_IN_MiB(taosQueueMemorySize((STaosQueue*)pQueue));
   return (size >= threahold);
 }
 
@@ -178,71 +120,70 @@ int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue) {
   return numOfItems1 + numOfItems2;
 }
 
+int32_t streamQueueGetNumOfItemsInQueue(const SStreamQueue* pQueue) {
+  return taosQueueItemSize(pQueue->pQueue);
+}
+
+int32_t streamQueueItemGetSize(const SStreamQueueItem* pItem) {
+  STaosQnode* p = (STaosQnode*)((char*) pItem - sizeof(STaosQnode));
+  return p->dataSize;
+}
+
+void streamQueueItemIncSize(const SStreamQueueItem* pItem, int32_t size) {
+  STaosQnode* p = (STaosQnode*)((char*) pItem - sizeof(STaosQnode));
+  p->dataSize += size;
+}
+
+const char* streamQueueItemGetTypeStr(int32_t type) {
+  switch (type) {
+    case STREAM_INPUT__CHECKPOINT:
+      return "checkpoint";
+    case STREAM_INPUT__CHECKPOINT_TRIGGER:
+      return "checkpoint-trigger";
+    case STREAM_INPUT__TRANS_STATE:
+      return "trans-state";
+    default:
+      return "datablock";
+  }
+}
+
 int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks) {
   int32_t     retryTimes = 0;
   int32_t     MAX_RETRY_TIMES = 5;
   const char* id = pTask->id.idStr;
-
-  if (pTask->info.taskLevel == TASK_LEVEL__SINK) {  // extract block from inputQ, one-by-one
-    while (1) {
-      if (streamTaskShouldPause(&pTask->status) || streamTaskShouldStop(&pTask->status)) {
-        qDebug("s-task:%s task should pause, extract input blocks:%d", pTask->id.idStr, *numOfBlocks);
-        return TSDB_CODE_SUCCESS;
-      }
-
-      STokenBucket* pBucket = pTask->pTokenBucket;
-      if (!streamTaskHasAvailableToken(pBucket)) {  // no available token in th bucket, ignore this execution
-//        qInfo("s-task:%s no available token for sink, capacity:%d, rate:%d token/sec, quit", pTask->id.idStr,
-//               pBucket->capacity, pBucket->rate);
-        return TSDB_CODE_SUCCESS;
-      }
-
-      SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputInfo.queue);
-      if (qItem == NULL) {
-        qDebug("===stream===break batchSize:%d, %s", *numOfBlocks, id);
-        return TSDB_CODE_SUCCESS;
-      }
-
-      qDebug("s-task:%s sink task handle block one-by-one, type:%d", id, qItem->type);
-
-      *numOfBlocks = 1;
-      *pInput = qItem;
-      return TSDB_CODE_SUCCESS;
-    }
-  }
+  int32_t     taskLevel = pTask->info.taskLevel;
+  *numOfBlocks = 0;
 
   while (1) {
     if (streamTaskShouldPause(&pTask->status) || streamTaskShouldStop(&pTask->status)) {
-      qDebug("s-task:%s task should pause, extract input blocks:%d", pTask->id.idStr, *numOfBlocks);
+      stDebug("s-task:%s task should pause, extract input blocks:%d", pTask->id.idStr, *numOfBlocks);
       return TSDB_CODE_SUCCESS;
     }
 
     SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputInfo.queue);
     if (qItem == NULL) {
-      if (pTask->info.taskLevel == TASK_LEVEL__SOURCE && (++retryTimes) < MAX_RETRY_TIMES) {
+      if ((taskLevel == TASK_LEVEL__SOURCE  || taskLevel == TASK_LEVEL__SINK) && (++retryTimes) < MAX_RETRY_TIMES) {
         taosMsleep(10);
-        qDebug("===stream===try again batchSize:%d, retry:%d, %s", *numOfBlocks, retryTimes, id);
         continue;
       }
-
-      qDebug("===stream===break batchSize:%d, %s", *numOfBlocks, id);
       return TSDB_CODE_SUCCESS;
     }
 
     // do not merge blocks for sink node and check point data block
-    if (qItem->type == STREAM_INPUT__CHECKPOINT || qItem->type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
-        qItem->type == STREAM_INPUT__TRANS_STATE) {
-      const char* p = streamGetBlockTypeStr(qItem->type);
+    int8_t type = qItem->type;
+    if (type == STREAM_INPUT__CHECKPOINT || type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
+        type == STREAM_INPUT__TRANS_STATE) {
+      const char* p = streamQueueItemGetTypeStr(qItem->type);
 
       if (*pInput == NULL) {
-        qDebug("s-task:%s %s msg extracted, start to process immediately", id, p);
+        stDebug("s-task:%s %s msg extracted, start to process immediately", id, p);
 
         *numOfBlocks = 1;
         *pInput = qItem;
         return TSDB_CODE_SUCCESS;
       } else {
         // previous existed blocks needs to be handle, before handle the checkpoint msg block
-        qDebug("s-task:%s %s msg extracted, handle previous blocks, numOfBlocks:%d", id, p, *numOfBlocks);
+        stDebug("s-task:%s %s msg extracted, handle previous blocks, numOfBlocks:%d", id, p, *numOfBlocks);
         streamQueueProcessFail(pTask->inputInfo.queue);
         return TSDB_CODE_SUCCESS;
       }
@@ -255,7 +196,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
         void* newRet = streamMergeQueueItem(*pInput, qItem);
         if (newRet == NULL) {
           if (terrno != 0) {
-            qError("s-task:%s failed to merge blocks from inputQ, numOfBlocks:%d, code:%s", id, *numOfBlocks,
+            stError("s-task:%s failed to merge blocks from inputQ, numOfBlocks:%d, code:%s", id, *numOfBlocks,
                    tstrerror(terrno));
           }
 
@@ -270,7 +211,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
       streamQueueProcessSuccess(pTask->inputInfo.queue);
 
       if (*numOfBlocks >= MAX_STREAM_EXEC_BATCH_NUM) {
-        qDebug("s-task:%s batch size limit:%d reached, start to process blocks", id, MAX_STREAM_EXEC_BATCH_NUM);
+        stDebug("s-task:%s batch size limit:%d reached, start to process blocks", id, MAX_STREAM_EXEC_BATCH_NUM);
         return TSDB_CODE_SUCCESS;
       }
     }
@@ -285,8 +226,8 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
   if (type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamDataSubmit* px = (SStreamDataSubmit*)pItem;
     if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && streamQueueIsFull(pQueue, true)) {
-      double size = SIZE_IN_MB(taosQueueMemorySize(pQueue));
-      qTrace(
+      double size = SIZE_IN_MiB(taosQueueMemorySize(pQueue));
+      stTrace(
           "s-task:%s inputQ is full, capacity(size:%d num:%dMiB), current(blocks:%d, size:%.2fMiB) stop to push data",
           pTask->id.idStr, STREAM_TASK_QUEUE_CAPACITY, STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE, total, size);
       streamDataSubmitDestroy(px);
@@ -304,17 +245,17 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
       return code;
     }
 
-    double size = SIZE_IN_MB(taosQueueMemorySize(pQueue));
+    double size = SIZE_IN_MiB(taosQueueMemorySize(pQueue));
 
     // use the local variable to avoid the pItem be freed by other threads, since it has been put into queue already.
-    qDebug("s-task:%s submit enqueue msgLen:%d ver:%" PRId64 ", total in queue:%d, size:%.2fMiB", pTask->id.idStr,
-           msgLen, ver, total, size + SIZE_IN_MB(msgLen));
+    stDebug("s-task:%s submit enqueue msgLen:%d ver:%" PRId64 ", total in queue:%d, size:%.2fMiB", pTask->id.idStr,
+           msgLen, ver, total, size + SIZE_IN_MiB(msgLen));
   } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
              type == STREAM_INPUT__REF_DATA_BLOCK) {
     if (streamQueueIsFull(pQueue, true)) {
-      double size = SIZE_IN_MB(taosQueueMemorySize(pQueue));
+      double size = SIZE_IN_MiB(taosQueueMemorySize(pQueue));
 
-      qTrace("s-task:%s input queue is full, capacity:%d size:%d MiB, current(blocks:%d, size:%.2fMiB) abort",
+      stTrace("s-task:%s input queue is full, capacity:%d size:%d MiB, current(blocks:%d, size:%.2fMiB) abort",
              pTask->id.idStr, STREAM_TASK_QUEUE_CAPACITY, STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE, total, size);
       destroyStreamDataBlock((SStreamDataBlock*)pItem);
       return -1;
@@ -326,8 +267,8 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
       return code;
     }
 
-    double size = SIZE_IN_MB(taosQueueMemorySize(pQueue));
-    qDebug("s-task:%s blockdata enqueue, total in queue:%d, size:%.2fMiB", pTask->id.idStr, total, size);
+    double size = SIZE_IN_MiB(taosQueueMemorySize(pQueue));
+    stDebug("s-task:%s blockdata enqueue, total in queue:%d, size:%.2fMiB", pTask->id.idStr, total, size);
   } else if (type == STREAM_INPUT__CHECKPOINT || type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
              type == STREAM_INPUT__TRANS_STATE) {
     int32_t code = taosWriteQitem(pQueue, pItem);
@@ -336,9 +277,9 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
       return code;
     }
 
-    double size = SIZE_IN_MB(taosQueueMemorySize(pQueue));
-    qDebug("s-task:%s level:%d %s blockdata enqueue, total in queue:%d, size:%.2fMiB", pTask->id.idStr,
-           pTask->info.taskLevel, streamGetBlockTypeStr(type), total, size);
+    double size = SIZE_IN_MiB(taosQueueMemorySize(pQueue));
+    stDebug("s-task:%s level:%d %s blockdata enqueue, total in queue:%d, size:%.2fMiB", pTask->id.idStr,
+           pTask->info.taskLevel, streamQueueItemGetTypeStr(type), total, size);
   } else if (type == STREAM_INPUT__GET_RES) {
     // use the default memory limit, refactor later.
     int32_t code = taosWriteQitem(pQueue, pItem);
@@ -347,15 +288,15 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
       return code;
     }
 
-    double size = SIZE_IN_MB(taosQueueMemorySize(pQueue));
-    qDebug("s-task:%s data res enqueue, current(blocks:%d, size:%.2fMiB)", pTask->id.idStr, total, size);
+    double size = SIZE_IN_MiB(taosQueueMemorySize(pQueue));
+    stDebug("s-task:%s data res enqueue, current(blocks:%d, size:%.2fMiB)", pTask->id.idStr, total, size);
   } else {
     ASSERT(0);
   }
 
   if (type != STREAM_INPUT__GET_RES && type != STREAM_INPUT__CHECKPOINT && pTask->info.triggerParam != 0) {
     atomic_val_compare_exchange_8(&pTask->schedInfo.status, TASK_TRIGGER_STATUS__INACTIVE, TASK_TRIGGER_STATUS__ACTIVE);
-    qDebug("s-task:%s new data arrived, active the trigger, triggerStatus:%d", pTask->id.idStr, pTask->schedInfo.status);
+    stDebug("s-task:%s new data arrived, active the trigger, triggerStatus:%d", pTask->id.idStr, pTask->schedInfo.status);
   }
 
   return 0;
@@ -367,14 +308,14 @@ int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBloc
 
   while (streamQueueIsFull(pQueue, false)) {
     if (streamTaskShouldStop(&pTask->status)) {
-      qInfo("s-task:%s discard result block due to task stop", pTask->id.idStr);
+      stInfo("s-task:%s discard result block due to task stop", pTask->id.idStr);
       return TSDB_CODE_STREAM_EXEC_CANCELLED;
     }
 
     int32_t total = streamQueueGetNumOfItems(pTask->outputInfo.queue);
-    double  size = SIZE_IN_MB(taosQueueMemorySize(pQueue));
+    double  size = SIZE_IN_MiB(taosQueueMemorySize(pQueue));
     // let's wait for there are enough space to hold this result pBlock
-    qDebug("s-task:%s outputQ is full, wait for 500ms and retry, outputQ items:%d, size:%.2fMiB", pTask->id.idStr,
+    stDebug("s-task:%s outputQ is full, wait for 500ms and retry, outputQ items:%d, size:%.2fMiB", pTask->id.idStr,
            total, size);
     taosMsleep(500);
   }
@@ -382,12 +323,12 @@ int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBloc
   int32_t code = taosWriteQitem(pQueue, pBlock);
 
   int32_t total = streamQueueGetNumOfItems(pTask->outputInfo.queue);
-  double  size = SIZE_IN_MB(taosQueueMemorySize(pQueue));
+  double  size = SIZE_IN_MiB(taosQueueMemorySize(pQueue));
   if (code != 0) {
-    qError("s-task:%s failed to put res into outputQ, outputQ items:%d, size:%.2fMiB code:%s, result lost",
+    stError("s-task:%s failed to put res into outputQ, outputQ items:%d, size:%.2fMiB code:%s, result lost",
            pTask->id.idStr, total + 1, size, tstrerror(code));
   } else {
-    qDebug("s-task:%s data put into outputQ, outputQ items:%d, size:%.2fMiB", pTask->id.idStr, total, size);
+    stDebug("s-task:%s data put into outputQ, outputQ items:%d, size:%.2fMiB", pTask->id.idStr, total, size);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -395,7 +336,7 @@ int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBloc
 
 int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t cap, int32_t rate) {
   if (cap < 50 || rate < 50 || pBucket == NULL) {
-    qError("failed to init sink task bucket, cap:%d, rate:%d", cap, rate);
+    stError("failed to init sink task bucket, cap:%d, rate:%d", cap, rate);
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -420,7 +361,7 @@ static void fillBucket(STokenBucket* pBucket) {
     }
 
     pBucket->fillTimestamp = now;
-    qDebug("new token available, current:%d, inc:%d ts:%"PRId64, pBucket->numOfToken, inc, now);
+    stDebug("new token available, current:%d, inc:%d ts:%"PRId64, pBucket->numOfToken, inc, now);
   }
 }
 

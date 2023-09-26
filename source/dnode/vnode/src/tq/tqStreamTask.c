@@ -72,6 +72,8 @@ int32_t tqCheckAndRunStreamTask(STQ* pTq) {
   SArray* pTaskList = NULL;
   taosWLockLatch(&pMeta->lock);
   pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
+  taosHashClear(pMeta->startInfo.pReadyTaskSet);
+  pMeta->startInfo.ts = taosGetTimestampMs();
   taosWUnLockLatch(&pMeta->lock);
 
   // broadcast the check downstream tasks msg
@@ -96,8 +98,8 @@ int32_t tqCheckAndRunStreamTask(STQ* pTq) {
       continue;
     }
 
-    pTask->taskExecInfo.init = taosGetTimestampMs();
-    tqDebug("s-task:%s start check downstream tasks, set the init ts:%"PRId64, pTask->id.idStr, pTask->taskExecInfo.init);
+    pTask->execInfo.init = taosGetTimestampMs();
+    tqDebug("s-task:%s start check downstream tasks, set the init ts:%"PRId64, pTask->id.idStr, pTask->execInfo.init);
 
     streamSetStatusNormal(pTask);
     streamTaskCheckDownstream(pTask);
@@ -231,7 +233,6 @@ int32_t tqStartStreamTasks(STQ* pTq) {
   int32_t      numOfTasks = taosArrayGetSize(pMeta->pTaskList);
 
   tqDebug("vgId:%d start all %d stream task(s)", vgId, numOfTasks);
-
   if (numOfTasks == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -306,7 +307,7 @@ void handleFillhistoryScanComplete(SStreamTask* pTask, int64_t ver) {
             ", not scan wal anymore, add transfer-state block into inputQ",
             id, ver, maxVer);
 
-      double el = (taosGetTimestampMs() - pTask->taskExecInfo.step2Start) / 1000.0;
+      double el = (taosGetTimestampMs() - pTask->execInfo.step2Start) / 1000.0;
       qDebug("s-task:%s scan-history from WAL stage(step 2) ended, elapsed time:%.2fs", id, el);
       /*int32_t code = */streamTaskPutTranstateIntoInputQ(pTask);
       /*int32_t code = */streamSchedExec(pTask);
@@ -355,7 +356,7 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
 
     const char* pStatus = streamGetTaskStatusStr(status);
     if (status != TASK_STATUS__NORMAL) {
-      tqDebug("s-task:%s not ready for new submit block from wal, status:%s", pTask->id.idStr, pStatus);
+      tqTrace("s-task:%s not ready for new submit block from wal, status:%s", pTask->id.idStr, pStatus);
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
     }
