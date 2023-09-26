@@ -27,7 +27,6 @@ static GLOBAL: Jemalloc = Jemalloc;
 use mimalloc::MiMalloc;
 
 use time::{macros::format_description, UtcOffset};
-use tonic::metadata::MetadataMap;
 use tracing::Instrument;
 use tracing_subscriber::{
     fmt::{format::FmtSpan, time::OffsetTime},
@@ -334,17 +333,11 @@ fn main() -> Result<()> {
             layers.push(console_subscriber::spawn().boxed());
         }
         if args.globals.otel.unwrap_or(false) {
-            let mut map = MetadataMap::with_capacity(2);
-
-            map.insert("x-version", build::PKG_VERSION.parse().unwrap());
-            map.insert("x-commit", build::SHORT_COMMIT.parse().unwrap());
-
             let tracer = opentelemetry_otlp::new_pipeline()
                 .tracing()
                 .with_exporter(
                     opentelemetry_otlp::new_exporter()
                         .tonic()
-                        .with_metadata(map),
                 )
                 .with_trace_config(
                     opentelemetry::sdk::trace::config()

@@ -7,11 +7,11 @@ chrono-tz = { version = "0.8.3" }
 shadow-rs = { version = "0.24" }
 
 regex = { version = "1.9" }
-arrow = { version = "46.0.0", features = ["chrono-tz"] }
-arrow-flight = { version = "46.0.0" }
-parquet = "46.0.0"
+arrow = { version = "47.0.0", features = ["chrono-tz"] }
+arrow-flight = { version = "47.0.0" }
+parquet = "47.0.0"
 
-tonic = "0.9"
+tonic = "0.10"
 
 taos = { version = "0.10.13", default-features = false, features = [
   "ws",
