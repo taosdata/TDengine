@@ -431,7 +431,9 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  streamTaskInitTokenBucket(pTask->pTokenBucket, 50, 50);
+  // 2MiB per second for sink task
+  // 50 times sink operator per second
+  streamTaskInitTokenBucket(pTask->pTokenBucket, 50, 50, 2);
 
   TdThreadMutexAttr attr = {0};
   int code = taosThreadMutexAttrInit(&attr);
