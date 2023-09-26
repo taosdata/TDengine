@@ -334,6 +334,7 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
     colInfo.info.type = TSDB_DATA_TYPE_NULL;
     colInfo.info.bytes = 1;
 
+
     SExprInfo* pOneExpr = &pOperator->exprSupp.pExprInfo[i];
     for (int32_t j = 0; j < pOneExpr->base.numOfParams; ++j) {
       SFunctParam* pFuncParam = &pOneExpr->base.pParam[j];
@@ -353,6 +354,10 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
   }
 
   blockDataEnsureCapacity(pBlock, pBlock->info.rows);
+  for (int32_t i = 0; i < blockDataGetNumOfCols(pBlock); ++i) {
+    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+    colDataSetNULL(pColInfoData, 0);
+  }
   *ppBlock = pBlock;
 
   return TSDB_CODE_SUCCESS;
