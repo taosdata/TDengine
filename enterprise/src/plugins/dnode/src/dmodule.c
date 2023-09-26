@@ -255,7 +255,7 @@ static int32_t dmReadVars(SEngineInfo *pInfo) {
 
 _exit:
   if (code != 0) {
-    dError("failed to init dm vars, read file %s failed since %s", fname, tstrerror(code));
+    dError("failed to init dm vars since %s", tstrerror(code));
   }
   taosMemoryFreeClear(buffer);
   taosCloseFile(&pFile);
@@ -442,8 +442,7 @@ static int32_t dmInitVersion(SDnode *pDnode) {
     goto _exit;
   } else if (pDnode->data.clusterId !=
              eInfo.clusterId) {  // not history version, DM_ENGINE_FILE exists, check clusterId
-    dError("failed to init version since inconsistent cluster Id, %" PRIi64 ":%" PRIi64, pDnode->data.clusterId,
-           eInfo.clusterId);
+    dError("failed to init version since inconsistent cluster");
     code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
     goto _exit;
   } else if (pDnode->data.engineVer != tsVersion) {  // update to latest engineVer
