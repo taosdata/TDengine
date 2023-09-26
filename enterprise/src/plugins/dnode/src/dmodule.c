@@ -35,6 +35,7 @@ typedef enum {
 
 #define DM_ENGINE_FILE "dnode.info"
 #define DM_ENGINE_FILE_T "dnode.info.t"
+#define DNODE_CFG_FILE "dnode.json"
 
 typedef struct {
   int8_t  type;  // 0 unknown 1 community 2 trial 3 official
@@ -274,6 +275,11 @@ int32_t dmInitDndInfo(SDnodeData *pData) {
   int32_t code = 0;
   char    cfname[PATH_MAX] = "\0";
 
+  dmGetFname(DNODE_CFG_FILE, cfname);
+  bool fileExist = !(taosStatFile(cfname, NULL, NULL, NULL) < 0);
+  if (fileExist) { // dnode.info must be created before dnode.json
+    return code;
+  }
   dmGetFname(DM_ENGINE_FILE, cfname);
   bool fileExist = !(taosStatFile(cfname, NULL, NULL, NULL) < 0);
   if (fileExist) {
@@ -395,15 +401,19 @@ static int32_t dmInitVersion(SDnode *pDnode) {
 
   if (dmIsCloudVer()) goto _exit;
 
-  char cfgFile[PATH_MAX] = "\0";
-  dmGetFname("dnode.json", cfgFile);
-  if (taosStatFile(cfgFile, NULL, NULL, NULL) < 0) goto _exit;
-
   dmFetchEType(&eType);
 
-  taosThreadRwlockRdlock(pDnode);
+  char cfgFile[PATH_MAX] = "\0";
+  dmGetFname(DNODE_CFG_FILE, cfgFile);
+
+  taosThreadRwlockRdlock(&pDnode->data.lock);
+  // dnode.json not exist, return directly
+  if (taosStatFile(cfgFile, NULL, NULL, NULL) < 0) {
+    taosThreadRwlockUnlock(&pDnode->data.lock);
+    goto _exit;
+  }
   if (((code = dmReadVars(&eInfo)) != 0) && (errno != ENOENT)) {
-    taosThreadRwlockUnlock(pDnode);
+    taosThreadRwlockUnlock(&pDnode->data.lock);
     goto _exit;
   }
   taosThreadRwlockUnlock(pDnode);
@@ -417,12 +427,12 @@ static int32_t dmInitVersion(SDnode *pDnode) {
       eInfo.createMs = taosGetTimestampMs();
       eInfo.updateMs = eInfo.createMs;
       // save
-      taosThreadRwlockWrlock(&pData->lock);
+      taosThreadRwlockWrlock(&pDnode->data.lock);
       if ((code = dmWriteVars(&eInfo)) != 0) {
-        taosThreadRwlockUnlock(pDnode);
+        taosThreadRwlockUnlock(&pDnode->data.lock);
         goto _exit;
       }
-      taosThreadRwlockUnlock(pDnode);
+      taosThreadRwlockUnlock(&pDnode->data.lock);
       code = dmSyncEps(&pDnode->data);
       goto _exit;
     }
@@ -436,7 +446,7 @@ static int32_t dmInitVersion(SDnode *pDnode) {
            eInfo.clusterId);
     code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
     goto _exit;
-  } else if (pDnode->data.engineVer != tsVersion) {  // updateEps
+  } else if (pDnode->data.engineVer != tsVersion) {  // update to latest engineVer
     dmSyncEps(&pDnode->data);
   }
 
@@ -451,12 +461,12 @@ static int32_t dmInitVersion(SDnode *pDnode) {
     eInfo.type = eType;
     eInfo.engineVer = tsVersion;
     eInfo.updateMs = taosGetTimestampMs();
-    taosThreadRwlockWrlock(&pData->lock);
+    taosThreadRwlockWrlock(&pDnode->data.lock);
     if ((code = dmWriteVars(&eInfo)) != 0) {
-      taosThreadRwlockUnlock(pDnode);
+      taosThreadRwlockUnlock(&pDnode->data.lock);
       goto _exit;
     }
-    taosThreadRwlockUnlock(pDnode);
+    taosThreadRwlockUnlock(&pDnode->data.lock);
   }
 _exit:
   return code;
