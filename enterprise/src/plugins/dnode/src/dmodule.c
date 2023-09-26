@@ -18,6 +18,10 @@
 #include "dmMgmt.h"
 #include "tchecksum.h"
 
+#if defined(GRANTS_CFG) || defined(_TD_DARWIN_64)
+#define _TD_SKIP_DM_CHECK
+#endif
+
 extern char tsVersionName[];
 
 typedef enum {
@@ -79,15 +83,8 @@ static int32_t dmWriteVars(SEngineInfo *pInfo);
 
 // implementations
 
-static FORCE_INLINE bool dmIsCloudVer() {
-#ifdef GRANTS_CFG
-  return true;
-#endif
-  return false;
-}
-
 static int32_t dmInitPrerequisites() {
-#ifndef _TD_DARWIN_64
+#ifndef _TD_SKIP_DM_CHECK
   int32_t code = 0;
 
   char reName[64] = {0};
@@ -271,7 +268,7 @@ static void dmGetFname(const char *fname, char *ofname) {
 }
 
 int32_t dmInitDndInfo(SDnodeData *pData) {
-#ifndef _TD_DARWIN_64
+#ifndef _TD_SKIP_DM_CHECK
   int32_t code = 0;
   char    cfname[PATH_MAX] = "\0";
 
@@ -394,12 +391,10 @@ static void dmFetchEType(int8_t *type) {
 }
 
 static int32_t dmInitVersion(SDnode *pDnode) {
-#ifndef _TD_DARWIN_64
+#ifndef _TD_SKIP_DM_CHECK
   int32_t     code = 0;
   int8_t      eType = 0;
   SEngineInfo eInfo = {0};
-
-  if (dmIsCloudVer()) goto _exit;
 
   dmFetchEType(&eType);
 
