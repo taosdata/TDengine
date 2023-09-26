@@ -571,6 +571,9 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let json: Value = lines
         .find_map(|line| {
             let line = line.ok()?;
+            if line.is_empty() {
+                return None;
+            }
             if line.len() < 10 {
                 tracing::warn!("invalid json line: {}", &line);
                 return None;
