@@ -567,7 +567,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     // .context("Start PI collector error")?;
     tracing::info!("PI Connector exit with status {}", output.status);
 
-    let lines = output.stdout.lines();
+    let mut lines = output.stdout.lines();
     let json: Value = lines
         .find_map(|line| {
             let line = line.ok()?;

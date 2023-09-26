@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.5] - 2023-09-26
+
+**Full Changelog**: [v1.2.4...v1.2.5](https://github.com/taosdata/taosx/compare/v1.2.4...v1.2.5)
+
+### Bug Fixes
+
+- *agent*: Fix pi datasets unexpected value at line .. error ([0a72625](0a7262519584277b43f6c0decf63008ef758ba5a))
+- *legacy*: Sync stable schema cause conflict transactions ([cf5894b](cf5894b891a572f3f096253725a3e1f7cd315dc1))
+- *pi*: Fix mut requires in older rustc ([6bbf9b0](6bbf9b03aa6df507fe2baa51404f846025816cf5))
+- *serve*: Fix agent tasks set as cancelled error ([db14086](db140863151e9d052d9cb7719e30bf2241071f3c))
+
+- Assert enterprise edition ([1bb276d](1bb276d1bc83485476a3fd2b2c82ddb76898e842))
+- Update assert_enterprise msg ([8baf82d](8baf82d431e28a594fc37b470d0de96cf167a93c))
+- Fix mem leak with native connections ([c0fe976](c0fe97645d3ba4815750430a4eca1d68c4b7de00))
+- Sync schema error for some specific 2.x versions ([a95c29e](a95c29ec6a31616b56fbc8d2543c57d1ce6c6378))
+
+
+### Enhancements
+
+- *dev*: Add clean-all and build-sanitizer task [skip ci] ([fe1f887](fe1f8876a94f25e9a43e5badaa26187dd6c9d9ee))
+- *pi*: Improve pi datasets error message ([06f26cb](06f26cbc293bcc209a5c02a52c4ee13eb4a0fbb1))
+
+- Improve error logs in pi datasets ([5db8af9](5db8af981204737d5a6d80098d6a3788ce1a6ff0))
+
+
+### Features
+
+- *legacy*: Support remap options in target ([898e418](898e418069458c74037b86bd356eb977e0188a12))
+
+
+
+### Refactor
+
+
+- Make tokio-console optional by compile features ([9e0c106](9e0c106100845e3a59ef3c826aa7764231c0c17e))
+- Use opentelemetry-otlp instead jaeger ([9bc70ce](9bc70ce2ef866526e82d9b181d5dfea4fee8014c))
+
+
+### Ref
+
+- *serve*: Default timeout for datasets to 60s ([b4cf729](b4cf72982e12d2ccf1e7232debbb52fce265b26f))
+
+
+
 ## [1.2.4] - 2023-09-20
 
 **Full Changelog**: [v1.2.3...v1.2.4](https://github.com/taosdata/taosx/compare/v1.2.3...v1.2.4)
