@@ -1507,14 +1507,20 @@ void tsdbSnapPartListDestroy(STsdbSnapPartList** ppList) {
   ppList[0] = NULL;
 }
 
-int32_t tsdbSnapGetDetails(SVnode* pVnode, SSnapshot* pSnap) {
-  int code = -1;
-  if (pVnode->pTsdb->pFS->fsstate == TSDB_FS_STATE_NORMAL) {
-    pSnap->state = SYNC_FSM_STATE_NORMAL;
-  } else {
-    pSnap->state = SYNC_FSM_STATE_INCOMPLETE;
+ETsdbFsState tsdbSnapGetFsState(SVnode* pVnode) {
+  if (!VND_IS_RSMA(pVnode)) {
+    return pVnode->pTsdb->pFS->fsstate;
   }
+  for (int32_t lvl = 0; lvl < TSDB_RETENTION_MAX; ++lvl) {
+    if (SMA_RSMA_GET_TSDB(pVnode, lvl)->pFS->fsstate != TSDB_FS_STATE_NORMAL) {
+      return TSDB_FS_STATE_INCOMPLETE;
+    }
+  }
+  return TSDB_FS_STATE_NORMAL;
+}
 
+int32_t tsdbSnapGetDetails(SVnode* pVnode, SSnapshot* pSnap) {
+  int                code = -1;
   STsdb*             pTsdb = pVnode->pTsdb;
   STsdbSnapPartList* pList = tsdbGetSnapPartList(pTsdb->pFS);
   if (pList == NULL) goto _out;
