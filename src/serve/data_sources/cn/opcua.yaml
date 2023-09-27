@@ -131,7 +131,7 @@ groups:
           type: file
   - name: 连接配置
     display_order: 1
-    description: 连接相关配置。
+    description: OPC 连接相关配置
     params:
       - name: connect_timeout
         display: 连接超时
@@ -237,8 +237,8 @@ groups:
     description: 其他配置项。
     params:
       - name: concurrent
-        display: 并行度
-        description: 采集并行度。
+        display: 上报并行度
+        description: 采集的数据写入数据库的并行度
         hint:
           type: integer
           min: 1
@@ -250,7 +250,7 @@ groups:
           type: integer
           min: 1
           max: 10000
-        description: 每次采集上报的最大数据量。
+        description: 每次采集数据写入数据库的最大记录条数
         placeholder: 100
         value: 1
       - name: batch_timeout
@@ -259,7 +259,7 @@ groups:
           type: integer
           min: 1
           max: 60
-        description: 每批次采集数据上报的超时时间间隔，单位为：秒 (s)。
+        description: 每批次采集数据上报的等待时间间隔，单位为：秒 (s)
         placeholder: 20
         value: 1
       - name: debug
