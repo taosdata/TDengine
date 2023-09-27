@@ -918,7 +918,7 @@ export default {
       uploadData: {
         req_id: new Date().getTime(),
       },
-      uploadUrl: process.env.VUE_APP_X_API + `upload`,
+      uploadUrl: process.env.VUE_APP_X_API + `/upload`,
     };
   },
   created() {
