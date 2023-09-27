@@ -1521,53 +1521,65 @@ ETsdbFsState tsdbSnapGetFsState(SVnode* pVnode) {
 
 int32_t tsdbSnapGetDetails(SVnode* pVnode, SSnapshot* pSnap) {
   int                code = -1;
-  STsdb*             pTsdb = pVnode->pTsdb;
-  STsdbSnapPartList* pList = tsdbGetSnapPartList(pTsdb->pFS);
-  if (pList == NULL) goto _out;
+  int32_t            tsdbMaxCnt = (!VND_IS_RSMA(pVnode) ? 1 : TSDB_RETENTION_MAX);
+  int32_t            subTyps[TSDB_RETENTION_MAX] = {SNAP_DATA_TSDB, SNAP_DATA_RSMA1, SNAP_DATA_RSMA2};
+  STsdbSnapPartList* pLists[TSDB_RETENTION_MAX] = {0};
 
-  if (pSnap->type == TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
+  for (int32_t j = 0; j < tsdbMaxCnt; ++j) {
+    STsdb* pTsdb = SMA_RSMA_GET_TSDB(pVnode, j);
+    pLists[j] = tsdbGetSnapPartList(pTsdb->pFS);
+    if (pLists[j] == NULL) goto _out;
   }
 
-  void*   buf = NULL;
-  int32_t tlen = 0;
-
-  // estimate data length encode
+  // estimate bufLen and prepare
   int32_t bufLen = sizeof(SSyncTLV);  // typ: TDMT_SYNC_PREP_SNAPSHOT or TDMT_SYNC_PREP_SNAPSOT_REPLY
-  bufLen += sizeof(SSyncTLV);         // subtyp: SNAP_DATA_TSDB
-  bufLen += tTsdbSnapPartListDataLenCalc(pList);
+  for (int32_t j = 0; j < tsdbMaxCnt; ++j) {
+    bufLen += sizeof(SSyncTLV);  // subTyps[j]
+    bufLen += tTsdbSnapPartListDataLenCalc(pLists[j]);
+  }
+
+  tsdbInfo("vgId:%d, allocate %d bytes for data of snapshot info.", TD_VID(pVnode), bufLen);
 
   void* data = taosMemoryRealloc(pSnap->data, bufLen);
   if (data == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    tsdbError("vgId:%d, failed to realloc memory for data of snapshot info. bytes:%d", TD_VID(pVnode), bufLen);
     goto _out;
   }
   pSnap->data = data;
 
   // header
-  SSyncTLV* datHead = (void*)pSnap->data;
-  datHead->typ = pSnap->type;
-  datHead->len = 0;
+  SSyncTLV* head = data;
+  head->len = 0;
+  head->typ = pSnap->type;
+  int32_t offset = sizeof(SSyncTLV);
 
-  // tsdb
-  SSyncTLV* tsdbHead = (void*)datHead->val;
-  tsdbHead->typ = SNAP_DATA_TSDB;
+  // fill snapshot info
+  for (int32_t j = 0; j < tsdbMaxCnt; ++j) {
+    if (pSnap->type == TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
+    }
 
-  buf = tsdbHead->val;
-  tlen = 0;
-  if ((tlen = tSerializeTsdbSnapPartList(buf, bufLen, pList)) < 0) {
-    tsdbError("vgId:%d, failed to serialize snap range since %s", TD_VID(pTsdb->pVnode), terrstr());
-    goto _out;
+    //  subHead
+    SSyncTLV* subHead = (void*)((char*)data + offset);
+    subHead->typ = subTyps[j];
+    ASSERT(subHead->val == (char*)data + offset + sizeof(SSyncTLV));
+
+    int32_t tlen = 0;
+    if ((tlen = tSerializeTsdbSnapPartList(subHead->val, bufLen - offset - sizeof(SSyncTLV), pLists[j])) < 0) {
+      tsdbError("vgId:%d, failed to serialize snap partition list of tsdb %d since %s", TD_VID(pVnode), j, terrstr());
+      goto _out;
+    }
+    subHead->len = tlen;
+    offset += sizeof(SSyncTLV) + tlen;
   }
-  tsdbHead->len = tlen;
-  datHead->len += sizeof(SSyncTLV) + tsdbHead->len;
 
-  // rsma
-
+  head->len = offset;
   code = 0;
 
 _out:
-  if (pList) {
-    tsdbSnapPartListDestroy(&pList);
+  for (int32_t j = 0; j < tsdbMaxCnt; ++j) {
+    if (pLists[j] == NULL) continue;
+    tsdbSnapPartListDestroy(&pLists[j]);
   }
 
   return code;
