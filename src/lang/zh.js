@@ -18,6 +18,7 @@ export default {
   copyright:' Copyright 2023 北京涛思数据科技有限公司',
   sqlPreview: "SQL 预览",
   download: "下载",
+  downloadTemplate: '下载模板',
   isDel: "确定要删除{isDelName}吗？",
   isDisable: "确定要禁用 {isDisableName}?",
   isEnable: "确定要启用 {isDisableName}?",

@@ -19,6 +19,7 @@ export default {
   sqlPreview: "SQL Preview",
   unknown: "Unknown Error!",
   download: "Download",
+  downloadTemplate: 'Download Template File',
   isDel: "Are you sure you want to delete {isDelName}?",
   isDisable: "Are you sure to disable {isDisableName}?",
   isEnable: "Are you sure to enable {isDisableName}?",
