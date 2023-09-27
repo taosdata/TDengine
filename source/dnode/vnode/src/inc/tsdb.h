@@ -1012,10 +1012,14 @@ struct STsdbFilterInfo {
   TABLEID tbid;
 };
 
-enum {
+typedef enum {
   TSDB_FS_STATE_NORMAL = 0,
   TSDB_FS_STATE_INCOMPLETE,
-};
+} ETsdbFsState;
+
+// utils
+ETsdbFsState tsdbSnapGetFsState(SVnode *pVnode);
+int32_t      tsdbSnapGetDetails(SVnode *pVnode, SSnapshot *pSnap);
 
 #ifdef __cplusplus
 }
