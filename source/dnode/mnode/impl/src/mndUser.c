@@ -315,23 +315,13 @@ void mndUpdateIpWhiteForAllUser(SMnode *pMnode, char *user, char *fqdn, int8_t t
 
   bool update = mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, user, fqdn, type);
 
-  SArray *pUsers = taosArrayInit(24, sizeof(void *));
-  void   *pIter = taosHashIterate(ipWhiteMgt.pIpWhiteTab, NULL);
+  void *pIter = taosHashIterate(ipWhiteMgt.pIpWhiteTab, NULL);
   while (pIter) {
     char *key = taosHashGetKey(pIter, NULL);
-    void *elem = taosStrdup(key);
-    taosArrayPush(pUsers, &elem);
+    update |= mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, key, fqdn, type);
 
     pIter = taosHashIterate(ipWhiteMgt.pIpWhiteTab, pIter);
   }
-
-  for (int i = 0; i < taosArrayGetSize(pUsers); i++) {
-    char *p = taosArrayGetP(pUsers, i);
-    update |= mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, p, fqdn, type);
-
-    taosMemoryFree(p);
-  }
-  taosArrayDestroy(pUsers);
 
   if (update) ipWhiteMgt.ver++;
 
