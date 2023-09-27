@@ -576,6 +576,7 @@ void* destroyConnPool(SCliThrd* pThrd) {
     connList = taosHashIterate((SHashObj*)pool, connList);
   }
   taosHashCleanup(pool);
+  pThrd->pool = NULL;
   return NULL;
 }
 
@@ -870,8 +871,10 @@ static void cliDestroyConn(SCliConn* conn, bool clear) {
     connList->list->numOfConn--;
     connList->size--;
   } else {
-    SConnList* connList = taosHashGet((SHashObj*)pThrd->pool, conn->dstAddr, strlen(conn->dstAddr) + 1);
-    if (connList != NULL) connList->list->numOfConn--;
+    if (pThrd->pool) {
+      SConnList* connList = taosHashGet((SHashObj*)pThrd->pool, conn->dstAddr, strlen(conn->dstAddr) + 1);
+      if (connList != NULL) connList->list->numOfConn--;
+    }
   }
   conn->list = NULL;
   pThrd->newConnCount--;
