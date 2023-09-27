@@ -693,7 +693,7 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
         const char* p = streamGetTaskStatusStr(pTask->status.taskStatus);
         int32_t     hTaskId = pHTaskInfo->id.taskId;
         stDebug(
-            "s-task:%s status:%s failed to launch fill-history task:0x%x, retry launch %dms, retryCount:%d",
+            "s-task:%s status:%s failed to launch fill-history task:0x%x, retry launch:%dms, retryCount:%d",
             pTask->id.idStr, p, hTaskId, pHTaskInfo->waitInterval, pHTaskInfo->retryTimes);
 
         taosTmrReset(tryLaunchHistoryTask, LAUNCH_HTASK_INTERVAL, pInfo, streamEnv.timer, &pHTaskInfo->pTimer);
