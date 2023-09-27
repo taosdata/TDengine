@@ -1507,13 +1507,15 @@ void tsdbSnapPartListDestroy(STsdbSnapPartList** ppList) {
   ppList[0] = NULL;
 }
 
-int32_t tsdbSnapGetInfo(STsdb* pTsdb, SSnapshot* pSnap) {
-  pSnap->state = pTsdb->pFS->fsstate;
-  if (pSnap->type != TDMT_SYNC_PREP_SNAPSHOT && pSnap->type != TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
-    return 0;
+int32_t tsdbSnapGetDetails(SVnode* pVnode, SSnapshot* pSnap) {
+  int code = -1;
+  if (pVnode->pTsdb->pFS->fsstate == TSDB_FS_STATE_NORMAL) {
+    pSnap->state = SYNC_FSM_STATE_NORMAL;
+  } else {
+    pSnap->state = SYNC_FSM_STATE_INCOMPLETE;
   }
 
-  int                code = -1;
+  STsdb*             pTsdb = pVnode->pTsdb;
   STsdbSnapPartList* pList = tsdbGetSnapPartList(pTsdb->pFS);
   if (pList == NULL) goto _out;
 
@@ -1522,6 +1524,7 @@ int32_t tsdbSnapGetInfo(STsdb* pTsdb, SSnapshot* pSnap) {
 
   void*   buf = NULL;
   int32_t tlen = 0;
+
   // estimate data length encode
   int32_t bufLen = sizeof(SSyncTLV);  // typ: TDMT_SYNC_PREP_SNAPSHOT or TDMT_SYNC_PREP_SNAPSOT_REPLY
   bufLen += sizeof(SSyncTLV);         // subtyp: SNAP_DATA_TSDB
