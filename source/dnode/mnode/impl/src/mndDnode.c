@@ -28,8 +28,8 @@
 #include "mndVgroup.h"
 #include "tmisce.h"
 
-#define TSDB_DNODE_VER_NUMBER   2
-#define TSDB_DNODE_RESERVE_SIZE 64
+#define TSDB_DNODE_VER_NUMBER   3
+#define TSDB_DNODE_RESERVE_SIZE 56
 
 static const char *offlineReason[] = {
     "",
@@ -49,6 +49,7 @@ static const char *offlineReason[] = {
 enum {
   DND_ACTIVE_CODE,
   DND_CONN_ACTIVE_CODE,
+  DND_IS_ARBITRATOR,
 };
 
 enum {
@@ -167,6 +168,7 @@ static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode) {
   SDB_SET_INT64(pRaw, dataPos, pDnode->updateTime, _OVER)
   SDB_SET_INT16(pRaw, dataPos, pDnode->port, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pDnode->fqdn, TSDB_FQDN_LEN, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pDnode->isArbitrator, _OVER);
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_DNODE_RESERVE_SIZE, _OVER)
   SDB_SET_INT16(pRaw, dataPos, TSDB_ACTIVE_KEY_LEN, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pDnode->active, TSDB_ACTIVE_KEY_LEN, _OVER)
@@ -211,6 +213,7 @@ static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pDnode->updateTime, _OVER)
   SDB_GET_INT16(pRaw, dataPos, &pDnode->port, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pDnode->fqdn, TSDB_FQDN_LEN, _OVER)
+  SDB_GET_INT8(pRaw, dataPos, &pDnode->isArbitrator, _OVER);
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_DNODE_RESERVE_SIZE, _OVER)
   if (sver > 1) {
     int16_t keyLen = 0;
@@ -262,6 +265,7 @@ static int32_t mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pOld, SDnodeObj *pNew
     strncpy(pOld->connActive, pNew->connActive, TSDB_CONN_ACTIVE_KEY_LEN);
   }
 #endif
+  pOld->isArbitrator = pNew->isArbitrator;
   return 0;
 }
 
@@ -379,6 +383,7 @@ static void mndGetDnodeEps(SMnode *pMnode, SArray *pDnodeEps) {
     if (mndIsMnode(pMnode, pDnode->id)) {
       dnodeEp.isMnode = 1;
     }
+    dnodeEp.isArbitrator = pDnode->isArbitrator;
     taosArrayPush(pDnodeEps, &dnodeEp);
   }
 }
@@ -406,6 +411,7 @@ void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
     } else {
       dInfo.isMnode = 0;
     }
+    dInfo.isArbitrator = pDnode->isArbitrator;
 
     taosArrayPush(pDnodeInfo, &dInfo);
   }
@@ -759,7 +765,7 @@ _OVER:
   return code;
 }
 
-static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfgReq, int8_t action) {
+static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, int32_t dnodeId, SDCfgDnodeReq *pCfgReq, int8_t action) {
   SSdbRaw   *pRaw = NULL;
   STrans    *pTrans = NULL;
   SDnodeObj *pDnode = NULL;
@@ -775,7 +781,7 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
       pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
       if (pIter == NULL) break;
       ++iter;
-    } else if (!(pDnode = mndAcquireDnode(pMnode, pCfgReq->dnodeId))) {
+    } else if (!(pDnode = mndAcquireDnode(pMnode, dnodeId))) {
       goto _OVER;
     }
 
@@ -820,6 +826,8 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
         if (cfgAll) continue;
         goto _OVER;
       }
+    } else if (action == DND_IS_ARBITRATOR) {
+      tmpDnode.isArbitrator = pCfgReq->value[0] == '1';
     } else {
       terrno = TSDB_CODE_INVALID_CFG;
       goto _OVER;
@@ -1325,7 +1333,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     strcpy(dcfgReq.config, opt == DND_ACTIVE_CODE ? "activeCode" : "cActiveCode");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%s", cfgReq.value);
 
-    if (mndConfigDnode(pMnode, pReq, &cfgReq, opt) != 0) {
+    if (mndConfigDnode(pMnode, pReq, cfgReq.dnodeId, &dcfgReq, opt) != 0) {
       mError("dnode:%d, failed to config activeCode since %s", cfgReq.dnodeId, terrstr());
       tFreeSMCfgDnodeReq(&cfgReq);
       return -1;
@@ -1333,6 +1341,26 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     tFreeSMCfgDnodeReq(&cfgReq);
     return 0;
 #endif
+  } else if (strncasecmp(cfgReq.config, "isArbitrator", 12) == 0) {
+    int32_t optLen = strlen("isArbitrator");
+    int32_t flag = -1;
+    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
+    if (code < 0) return code;
+
+    if (flag < 0 || flag > 1) {
+      mError("dnode:%d, failed to config isArbitrator since value:%d. Valid range: [0, 1]", cfgReq.dnodeId, flag);
+      terrno = TSDB_CODE_INVALID_CFG;
+      return -1;
+    }
+
+    strcpy(dcfgReq.config, "isArbitrator");
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
+
+    if (mndConfigDnode(pMnode, pReq,  cfgReq.dnodeId, &dcfgReq, DND_IS_ARBITRATOR) != 0) {
+      mError("dnode:%d, failed to config activeCode since %s", cfgReq.dnodeId, terrstr());
+      return -1;
+    }
+    return 0;
   } else {
     bool findOpt = false;
     for (int32_t d = 0; d < optionSize; ++d) {
@@ -1488,6 +1516,9 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, buf, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pDnode->isArbitrator, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     int16_t id = mndGetVnodesNum(pMnode, pDnode->id);

@@ -35,6 +35,8 @@ int64_t  mndGetVnodesMemory(SMnode *pMnode, int32_t dnodeId);
 int64_t  mndGetVgroupMemory(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup);
 
 SArray *mndBuildDnodesArray(SMnode *, int32_t exceptDnodeId);
+SArray *mndBuildNormalDnodesArray(SMnode *, int32_t exceptDnodeId);
+SArray *mndBuildArbitratorDnodesArray(SMnode *, int32_t exceptDnodeId);
 int32_t mndAllocSmaVgroup(SMnode *, SDbObj *pDb, SVgObj *pVgroup);
 int32_t mndAllocVgroup(SMnode *, SDbObj *pDb, SVgObj **ppVgroups);
 int32_t mndAddNewVgPrepareAction(SMnode *, STrans *pTrans, SVgObj *pVg);
@@ -54,7 +56,7 @@ void *mndBuildCreateVnodeReq(SMnode *, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *p
 void *mndBuildDropVnodeReq(SMnode *, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen);
 bool  mndVgroupInDb(SVgObj *pVgroup, int64_t dbUid);
 bool  mndVgroupInDnode(SVgObj *pVgroup, int32_t dnodeId);
-int32_t mndBuildRestoreAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *db, SVgObj *pVgroup, 
+int32_t mndBuildRestoreAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *db, SVgObj *pVgroup,
                                         SDnodeObj *pDnode);
 
 int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgroup);

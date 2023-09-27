@@ -171,7 +171,23 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   if (pCreate->selfIndex != -1) {
     pCfg->syncCfg.myIndex = pCreate->selfIndex;
   }
-  for (int32_t i = pCfg->syncCfg.replicaNum; i < pCreate->replica + pCreate->learnerReplica; ++i) {
+
+  if (pCreate->hasArbitrator) {
+    pCfg->syncCfg.hasArbitrator = pCreate->hasArbitrator;
+
+    SNodeInfo *pNode = &pCfg->syncCfg.nodeInfo[pCfg->syncCfg.replicaNum];
+    pNode->nodeId = pCreate->arbitratorReplica.id;
+    pNode->nodePort = pCreate->arbitratorReplica.port;
+    pNode->nodeRole = TAOS_SYNC_ROLE_ARBITRATOR;
+    tstrncpy(pNode->nodeFqdn, pCreate->arbitratorReplica.fqdn, TSDB_FQDN_LEN);
+    tmsgUpdateDnodeInfo(&pNode->nodeId, &pNode->clusterId, pNode->nodeFqdn, &pNode->nodePort);
+    pCfg->syncCfg.replicaNum++;
+  }
+  if (pCreate->arbitratorSelfIndex != -1) {
+    pCfg->syncCfg.myIndex = pCfg->syncCfg.replicaNum - 1;
+  }
+
+  for (int32_t i = pCfg->syncCfg.replicaNum; i < pCfg->syncCfg.replicaNum + pCreate->learnerReplica; ++i) {
     SNodeInfo *pNode = &pCfg->syncCfg.nodeInfo[i];
     pNode->nodeId = pCreate->learnerReplicas[pCfg->syncCfg.totalReplicaNum].id;
     pNode->nodePort = pCreate->learnerReplicas[pCfg->syncCfg.totalReplicaNum].port;
@@ -181,6 +197,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
     pCfg->syncCfg.totalReplicaNum++;
   }
   pCfg->syncCfg.totalReplicaNum += pCfg->syncCfg.replicaNum;
+
   if (pCreate->learnerSelfIndex != -1) {
     pCfg->syncCfg.myIndex = pCreate->replica + pCreate->learnerSelfIndex;
   }
@@ -235,14 +252,14 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       ", days:%d keep0:%d keep1:%d keep2:%d keepTimeOffset%d tsma:%d precision:%d compression:%d minRows:%d maxRows:%d"
       ", wal fsync:%d level:%d retentionPeriod:%d retentionSize:%" PRId64 " rollPeriod:%d segSize:%" PRId64
       ", hash method:%d begin:%u end:%u prefix:%d surfix:%d replica:%d selfIndex:%d "
-      "learnerReplica:%d learnerSelfIndex:%d strict:%d changeVersion:%d",
+      "learnerReplica:%d learnerSelfIndex:%d hasArbitrator:%d arbitratorSelfIndex:%d strict:%d changeVersion:%d",
       req.vgId, TMSG_INFO(pMsg->msgType), req.pages, req.pageSize, req.buffer, req.pageSize * 1024,
       (uint64_t)req.buffer * 1024 * 1024, req.cacheLast, req.cacheLastSize, req.sstTrigger, req.tsdbPageSize,
       req.tsdbPageSize * 1024, req.db, req.dbUid, req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2,
       req.keepTimeOffset, req.isTsma, req.precision, req.compression, req.minRows, req.maxRows, req.walFsyncPeriod,
       req.walLevel, req.walRetentionPeriod, req.walRetentionSize, req.walRollPeriod, req.walSegmentSize, req.hashMethod,
       req.hashBegin, req.hashEnd, req.hashPrefix, req.hashSuffix, req.replica, req.selfIndex, req.learnerReplica,
-      req.learnerSelfIndex, req.strict, req.changeVersion);
+      req.learnerSelfIndex, req.hasArbitrator, req.arbitratorSelfIndex, req.strict, req.changeVersion);
 
   for (int32_t i = 0; i < req.replica; ++i) {
     dInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", req.vgId, i, req.replicas[i].fqdn, req.replicas[i].port,
@@ -250,14 +267,21 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
   for (int32_t i = 0; i < req.learnerReplica; ++i) {
     dInfo("vgId:%d, learnerReplica:%d ep:%s:%u dnode:%d", req.vgId, i, req.learnerReplicas[i].fqdn,
-          req.learnerReplicas[i].port, req.replicas[i].id);
+          req.learnerReplicas[i].port, req.learnerReplicas[i].id);
+  }
+
+  if (req.hasArbitrator) {
+    dInfo("vgId:%d, arbitrator ep:%s:%u dnode:%d", req.vgId, req.arbitratorReplica.fqdn, req.arbitratorReplica.port,
+          req.arbitratorReplica.id);
   }
 
   SReplica *pReplica = NULL;
   if (req.selfIndex != -1) {
     pReplica = &req.replicas[req.selfIndex];
-  } else {
+  } else if (req.learnerSelfIndex != -1) {
     pReplica = &req.learnerReplicas[req.learnerSelfIndex];
+  } else {
+    pReplica = &req.arbitratorReplica;
   }
   if (pReplica->id != pMgmt->pData->dnodeId || pReplica->port != tsServerPort ||
       strcmp(pReplica->fqdn, tsLocalFqdn) != 0) {

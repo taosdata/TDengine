@@ -202,6 +202,7 @@ typedef struct {
   int32_t    numOfVnodes;
   int32_t    numOfOtherNodes;
   int32_t    numOfSupportVnodes;
+  int8_t     isArbitrator;
   float      numOfCores;
   int64_t    memTotal;
   int64_t    memAvail;
@@ -334,6 +335,7 @@ typedef struct {
   int32_t walRollPeriod;
   int64_t walRetentionSize;
   int64_t walSegmentSize;
+  int8_t  arbitrator;
 } SDbCfg;
 
 typedef struct {
@@ -385,6 +387,7 @@ typedef struct {
   void*     pTsma;
   int32_t   numOfCachedTables;
   int32_t   syncConfChangeVer;
+  int8_t    hasArbitrator;
 } SVgObj;
 
 typedef struct {

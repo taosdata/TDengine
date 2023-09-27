@@ -1205,6 +1205,10 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       pDbOptions->keepTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     }
+    case DB_OPTION_ARBITRATOR: {
+      pDbOptions->arbitrator = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+      break;
+    }
     default:
       break;
   }
@@ -1559,7 +1563,7 @@ SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type) {
 SNode* setShowKind(SAstCreateContext* pCxt, SNode* pStmt, EShowKind showKind) {
   if (pStmt == NULL) {
     return NULL;
-  } 
+  }
   SShowStmt* pShow = (SShowStmt*)pStmt;
   pShow->showKind = showKind;
   return pStmt;

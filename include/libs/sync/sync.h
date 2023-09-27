@@ -79,12 +79,14 @@ typedef enum {
   TAOS_SYNC_STATE_LEADER = 102,
   TAOS_SYNC_STATE_ERROR = 103,
   TAOS_SYNC_STATE_LEARNER = 104,
+  TAOS_SYNC_STATE_ARIBRATOR = 105,
 } ESyncState;
 
 typedef enum {
   TAOS_SYNC_ROLE_VOTER = 0,
   TAOS_SYNC_ROLE_LEARNER = 1,
   TAOS_SYNC_ROLE_ERROR = 2,
+  TAOS_SYNC_ROLE_ARBITRATOR = 3,
 } ESyncRole;
 
 typedef struct SNodeInfo {
@@ -102,6 +104,7 @@ typedef struct SSyncCfg {
   SNodeInfo nodeInfo[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
   SyncIndex lastIndex;
   int32_t   changeVersion;
+  int8_t    hasArbitrator;
 } SSyncCfg;
 
 typedef struct SFsmCbMeta {
@@ -169,6 +172,7 @@ typedef struct SSyncFSM {
   void (*FpBecomeLeaderCb)(const struct SSyncFSM* pFsm);
   void (*FpBecomeFollowerCb)(const struct SSyncFSM* pFsm);
   void (*FpBecomeLearnerCb)(const struct SSyncFSM* pFsm);
+  void (*FpBecomeArbitratorCb)(const struct SSyncFSM* pFsm);
 
   int32_t (*FpGetSnapshot)(const struct SSyncFSM* pFsm, SSnapshot* pSnapshot, void* pReaderParam, void** ppReader);
   void (*FpGetSnapshotInfo)(const struct SSyncFSM* pFsm, SSnapshot* pSnapshot);

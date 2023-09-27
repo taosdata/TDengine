@@ -46,9 +46,17 @@
 //
 
 static bool syncNodeOnRequestVoteLogOK(SSyncNode* ths, SyncRequestVote* pMsg) {
-  SyncTerm  myLastTerm = syncNodeGetLastTerm(ths);
   SyncIndex myLastIndex = syncNodeGetLastIndex(ths);
 
+  if(ths->raftCfg.cfg.nodeInfo[ths->raftCfg.cfg.myIndex].nodeRole == TAOS_SYNC_ROLE_ARBITRATOR){
+    sNTrace(ths,
+            "logok:1, {my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
+            ", recv-term:%" PRIu64 "}",
+            myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
+    return true;
+  }
+
+  SyncTerm  myLastTerm = syncNodeGetLastTerm(ths);
   if (myLastTerm == SYNC_TERM_INVALID) {
     sNTrace(ths,
             "logok:0, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64

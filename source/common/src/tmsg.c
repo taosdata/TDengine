@@ -1365,6 +1365,7 @@ int32_t tSerializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
     if (tEncodeI8(&encoder, pDnodeEp->isMnode) < 0) return -1;
     if (tEncodeCStr(&encoder, pDnodeEp->ep.fqdn) < 0) return -1;
     if (tEncodeU16(&encoder, pDnodeEp->ep.port) < 0) return -1;
+    if (tEncodeI8(&encoder, pDnodeEp->isArbitrator) < 0) return -1;
   }
 
   if (tEncodeI32(&encoder, pRsp->statusSeq) < 0) return -1;
@@ -1405,6 +1406,7 @@ int32_t tDeserializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
     if (tDecodeI8(&decoder, &dnodeEp.isMnode) < 0) return -1;
     if (tDecodeCStrTo(&decoder, dnodeEp.ep.fqdn) < 0) return -1;
     if (tDecodeU16(&decoder, &dnodeEp.ep.port) < 0) return -1;
+    if (tDecodeI8(&decoder, &dnodeEp.isArbitrator) < 0) return -1;
     if (taosArrayPush(pRsp->pDnodeEps, &dnodeEp) == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
@@ -2788,6 +2790,7 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   if (tEncodeI32(&encoder, pReq->keepTimeOffset) < 0) return -1;
 
   ENCODESQL();
+  if (tEncodeI8(&encoder, pReq->arbitrator) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2856,6 +2859,10 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   }
 
   DECODESQL();
+  pReq->arbitrator = TSDB_DEFAULT_DB_ARBITRATOR;
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI8(&decoder, &pReq->arbitrator) < 0) return -1;
+  }
 
   tEndDecode(&decoder);
 
@@ -3691,6 +3698,7 @@ int32_t tSerializeSDbCfgRspImpl(SEncoder *encoder, const SDbCfgRsp *pRsp) {
   if (tEncodeI8(encoder, pRsp->schemaless) < 0) return -1;
   if (tEncodeI16(encoder, pRsp->sstTrigger) < 0) return -1;
   if (tEncodeI32(encoder, pRsp->keepTimeOffset) < 0) return -1;
+  if (tEncodeI8(encoder, pRsp->arbitrator) < 0) return -1;
 
   return 0;
 }
@@ -3762,6 +3770,10 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
   pRsp->keepTimeOffset = TSDB_DEFAULT_KEEP_TIME_OFFSET;
   if (!tDecodeIsEnd(decoder)) {
     if (tDecodeI32(decoder, &pRsp->keepTimeOffset) < 0) return -1;
+  }
+  pRsp->arbitrator = TSDB_DEFAULT_DB_ARBITRATOR;
+  if (!tDecodeIsEnd(decoder)) {
+    if (tDecodeI8(decoder, &pRsp->arbitrator) < 0) return -1;
   }
 
   return 0;
@@ -4819,6 +4831,9 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   }
   if (tEncodeI32(&encoder, pReq->changeVersion) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->keepTimeOffset) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->hasArbitrator) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->arbitratorSelfIndex) < 0) return -1;
+  if (tEncodeSReplica(&encoder, &pReq->arbitratorReplica) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -4911,6 +4926,12 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   pReq->keepTimeOffset = TSDB_DEFAULT_KEEP_TIME_OFFSET;
   if (!tDecodeIsEnd(&decoder)) {
     if (tDecodeI32(&decoder, &pReq->keepTimeOffset) < 0) return -1;
+  }
+  pReq->hasArbitrator = 0;
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI8(&decoder, &pReq->hasArbitrator) < 0) return -1;
+    if (tDecodeI8(&decoder, &pReq->arbitratorSelfIndex) < 0) return -1;
+    if (tDecodeSReplica(&decoder, &pReq->arbitratorReplica) < 0) return -1;
   }
 
   tEndDecode(&decoder);

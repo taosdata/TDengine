@@ -81,6 +81,8 @@ static int32_t dmDecodeEps(SJson *pJson, SDnodeData *pData) {
     if (code < 0) return -1;
     tjsonGetInt8ValueFromDouble(dnode, "isMnode", dnodeEp.isMnode, code);
     if (code < 0) return -1;
+    tjsonGetInt8ValueFromDouble(dnode, "isArbitrator", dnodeEp.isArbitrator, code);
+    if (code < 0) return -1;
 
     if (taosArrayPush(pData->dnodeEps, &dnodeEp) == NULL) return -1;
   }
@@ -205,6 +207,7 @@ static int32_t dmEncodeEps(SJson *pJson, SDnodeData *pData) {
     if (tjsonAddStringToObject(dnode, "fqdn", pDnodeEp->ep.fqdn) < 0) return -1;
     if (tjsonAddDoubleToObject(dnode, "port", pDnodeEp->ep.port) < 0) return -1;
     if (tjsonAddDoubleToObject(dnode, "isMnode", pDnodeEp->isMnode) < 0) return -1;
+    if (tjsonAddDoubleToObject(dnode, "isArbitrator", pDnodeEp->isArbitrator) < 0) return -1;
     if (tjsonAddItemToArray(dnodes, dnode) < 0) return -1;
   }
 
