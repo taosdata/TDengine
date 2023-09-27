@@ -316,8 +316,13 @@ void mndUpdateIpWhiteForAllUser(SMnode *pMnode, char *user, char *fqdn, int8_t t
 
   void *pIter = taosHashIterate(ipWhiteMgt.pIpWhiteTab, NULL);
   while (pIter) {
-    char *key = taosHashGetKey(pIter, NULL);
-    update |= mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, key, fqdn, type);
+    size_t klen = 0;
+    char  *key = taosHashGetKey(pIter, &klen);
+
+    char *keyDup = taosMemoryCalloc(1, klen + 1);
+    memcpy(keyDup, key, klen);
+    update |= mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, keyDup, fqdn, type);
+    taosMemoryFree(keyDup);
 
     pIter = taosHashIterate(ipWhiteMgt.pIpWhiteTab, pIter);
   }
