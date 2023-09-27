@@ -29,11 +29,15 @@ class TDTestCase:
 
         print("==============Case 1: add column, restart taosd, drop the same colum then add it back")
         tdSql.execute(
-            "create table st(ts timestamp, speed int) tags(loc nchar(20))")
+            "create table st(ts timestamp, speed int, bb bool, ii int, dd double) tags(loc nchar(20))")
         tdSql.execute(
-            "insert into t1 using st tags('beijing') values(now, 1)")
+            "insert into t1 using st tags('beijing') values('2023-09-27 10:00:00', 1, 'true', 1, 0.123)")
+        tdSql.execute(
+            "insert into t1 using st tags('beijing') values('2023-09-27 11:00:00', 2, 'true', 2, 0.444)")
         tdSql.execute(
             "alter table st add column tbcol binary(20)")
+        tdSql.execute(
+            "alter table st drop column speed")
 
         # restart taosd
         tdDnodes.forcestop(1)
@@ -45,6 +49,9 @@ class TDTestCase:
             "alter table st add column tbcol binary(20)")
 
         tdSql.query("select * from st")
+        tdSql.checkRows(2)
+
+        tdSql.query("select last(bb), stddev(dd), last(dd), last(ii) from st where ts > '2023-09-27' and ts < '2023-09-28' and bb == 'true' and ii > 0")
         tdSql.checkRows(1)
 
         print("==============Case 2: keep adding columns, restart taosd")
