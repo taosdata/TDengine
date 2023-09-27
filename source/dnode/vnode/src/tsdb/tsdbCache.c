@@ -3100,7 +3100,7 @@ int32_t tsdbCacheGetBlockS3(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle)
         taosThreadMutexUnlock(&pTsdb->bMutex);
 
         *handle = NULL;
-        if (!pBlock) {
+        if (code == TSDB_CODE_SUCCESS && !pBlock) {
           code = TSDB_CODE_OUT_OF_MEMORY;
         }
         return code;
