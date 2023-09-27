@@ -234,15 +234,15 @@ groups:
     description: Other configurations.
     params:
       - name: concurrent
-        display: Concurrency
-        description: Number of concurrency while collecting.
+        display: Report Concurrency
+        description: Number of concurrency while reporting.
         hint:
           type: integer
           min: 1
           max: 100
         value: 1
       - name: batch_size
-        display: Batch Size
+        display: Report Batch Size
         hint:
           type: integer
           min: 1
@@ -251,12 +251,12 @@ groups:
         placeholder: 100
         value: 1
       - name: batch_timeout
-        display: Batch Timeout
+        display: Report Wait Timeout
         hint:
           type: integer
           min: 1
           max: 60
-        description: Reporting timeout for a batch in seconds.
+        description: Reporting wait timeout for a batch in seconds.
         placeholder: 20
         value: 1
 
