@@ -777,12 +777,13 @@ bool vnodeIsLeader(SVnode *pVnode) {
 }
 
 int32_t vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnap) {
+  int code = 0;
   pSnap->lastApplyIndex = pVnode->state.committed;
   pSnap->lastApplyTerm = pVnode->state.commitTerm;
   pSnap->lastConfigIndex = -1;
 
-  int32_t code = tsdbSnapGetInfo(pVnode->pTsdb, pSnap);
-
-  pSnap->state = (pSnap->state == TSDB_FS_STATE_INCOMPLETE) ? SYNC_FSM_STATE_INCOMPLETE : SYNC_FSM_STATE_NORMAL;
+  if (pSnap->type == TDMT_SYNC_PREP_SNAPSHOT || pSnap->type == TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
+    code = tsdbSnapGetDetails(pVnode, pSnap);
+  }
   return code;
 }
