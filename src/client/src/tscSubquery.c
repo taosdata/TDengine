@@ -2764,14 +2764,14 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
       SColumn *pCol = taosArrayGetP(pColList, i);
 
       if (pCol->info.flist.numOfFilters > 0) {  // copy to the pNew->cmd.colList if it is filtered.
-        int32_t index1 = tscColumnExists(pNewQueryInfo->colList, pCol->columnIndex, pCol->tableUid);
+        int32_t index1 = tscColumnExists(pNewQueryInfo->colList, pCol->info.colId, pCol->tableUid);
         if (index1 >= 0) {
           SColumn* x = taosArrayGetP(pNewQueryInfo->colList, index1);
           tscColumnCopy(x, pCol);
         } else {
-          SSchema ss = {.type = (uint8_t)pCol->info.type, .bytes = pCol->info.bytes, .colId = (int16_t)pCol->columnIndex};
+          SSchema ss = {.type = (uint8_t)pCol->info.type, .bytes = pCol->info.bytes, .colId = pCol->info.colId};
           tscColumnListInsert(pNewQueryInfo->colList, pCol->columnIndex, pCol->tableUid, &ss);
-          int32_t ti = tscColumnExists(pNewQueryInfo->colList, pCol->columnIndex, pCol->tableUid);
+          int32_t ti = tscColumnExists(pNewQueryInfo->colList, pCol->info.colId, pCol->tableUid);
           assert(ti >= 0);
           SColumn* x = taosArrayGetP(pNewQueryInfo->colList, ti);
           tscColumnCopy(x, pCol);
