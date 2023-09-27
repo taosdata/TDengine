@@ -48,7 +48,7 @@ namespace TDPIConnector.PI
                 throw piSystemConnectionException;
             }
         }
-        internal AFDatabase GetAFDatabase(string afDatabaseName)
+        public AFDatabase GetAFDatabase(string afDatabaseName)
         {
             return piSystem.Databases[afDatabaseName];
         }

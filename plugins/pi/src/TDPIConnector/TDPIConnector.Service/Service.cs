@@ -43,6 +43,11 @@ namespace TDPIConnector.Service
             log.Info("Start Print PI Info");
             appService.PrintPIInfo(pointFilter);
         }
+        public void CheckConfig()
+        {
+            log.Info("Start Check Points and Templates");
+            appService.CheckConfig();
+        }
         public static void PrintPISDKInfo()
         {
             AppService.GetPISDKInfo();
