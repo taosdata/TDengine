@@ -58,7 +58,7 @@ static int32_t  mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
 static void     mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter);
 SHashObj       *mndFetchAllIpWhite(SMnode *pMnode);
 static int32_t  mndProcesSRetrieveIpWhiteReq(SRpcMsg *pReq);
-bool mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t type); 
+bool            mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t type);
 
 void ipWhiteMgtUpdateAll(SMnode *pMnode);
 typedef struct {
@@ -104,6 +104,8 @@ int32_t ipWhiteMgtUpdate(SMnode *pMnode, char *user, SIpWhiteList *pNew) {
   for (int i = 0; i < taosArrayGetSize(fqdns); i++) {
     char *fqdn = taosArrayGetP(fqdns, i);
     mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, TSDB_DEFAULT_USER, fqdn, IP_WHITE_ADD);
+
+    mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, user, fqdn, IP_WHITE_ADD);
   }
 
   for (int i = 0; i < taosArrayGetSize(fqdns); i++) {
@@ -115,8 +117,7 @@ int32_t ipWhiteMgtUpdate(SMnode *pMnode, char *user, SIpWhiteList *pNew) {
   // for (int i = 0; i < taosArrayGetSize(pUserNames); i++) {
   //   taosMemoryFree(taosArrayGetP(pUserNames, i));
   // }
-  //taosArrayDestroy(pUserNames);
-  
+  // taosArrayDestroy(pUserNames);
 
   if (update) ipWhiteMgt.ver++;
 
@@ -302,7 +303,7 @@ int32_t mndRefreshUserIpWhiteList(SMnode *pMnode) {
 
   return 0;
 }
-void mndUpdateIpWhite(SMnode *pMnode, char *user, char *fqdn, int8_t type, int8_t lock) {
+void mndUpdateIpWhiteForAllUser(SMnode *pMnode, char *user, char *fqdn, int8_t type, int8_t lock) {
   if (lock) {
     taosThreadRwlockWrlock(&ipWhiteMgt.rw);
     if (ipWhiteMgt.ver == 0) {
@@ -313,6 +314,23 @@ void mndUpdateIpWhite(SMnode *pMnode, char *user, char *fqdn, int8_t type, int8_
   }
 
   bool update = mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, user, fqdn, type);
+
+  SArray *pUsers = taosArrayInit(24, sizeof(void *));
+  void   *pIter = taosHashIterate(ipWhiteMgt.pIpWhiteTab, NULL);
+  while (pIter) {
+    char *key = taosHashGetKey(pIter, NULL);
+    void *elem = taosStrdup(key);
+    taosArrayPush(pUsers, &elem);
+  }
+
+  for (int i = 0; i < taosArrayGetSize(pUsers); i++) {
+    char *p = taosArrayGetP(pUsers, i);
+    mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, p, fqdn, type);
+
+    taosMemoryFree(p);
+  }
+  taosArrayDestroy(pUsers);
+
   if (update) ipWhiteMgt.ver++;
 
   if (lock) taosThreadRwlockUnlock(&ipWhiteMgt.rw);
