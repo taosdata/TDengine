@@ -2265,7 +2265,7 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   SName name = {0};
   tNameFromString(&name, alterReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  auditRecord(pReq, pMnode->clusterId, "alterStb", name.dbname, alterReq.name, alterReq.sql, alterReq.sqlLen);
+  auditRecord(pReq, pMnode->clusterId, "alterStb", name.dbname, name.tname, alterReq.sql, alterReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
