@@ -194,7 +194,6 @@ class TDTestCase:
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
     def run(self):
-        tdSql.prepare()
         self.prepareTestEnv()
         self.tmqCase1(True)
         self.prepareTestEnv()
