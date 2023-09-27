@@ -188,6 +188,8 @@ static int32_t dmReadVars(SEngineInfo *pInfo) {
 
   dmGetFname(DM_ENGINE_FILE, fname);
 
+  errno = 0;  // clear errno
+
   TdFilePtr pFile = taosOpenFile(fname, TD_FILE_READ);
   if (!pFile) {
     code = TAOS_SYSTEM_ERROR(errno);
@@ -199,20 +201,20 @@ static int32_t dmReadVars(SEngineInfo *pInfo) {
     goto _exit;
   }
 
-  errno = 0;
   int64_t nRead = taosReadFile(pFile, buffer, DM_FILE_HEAD_SIZE);
+  if (nRead < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _exit;
+  }
+
   if (nRead != DM_FILE_HEAD_SIZE) {
-    if (errno != 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-    } else {
-      code = TSDB_CODE_FILE_CORRUPTED;
-    }
-    dTrace("readVars: failed to read %d bytes since %s", DM_FILE_HEAD_SIZE, tstrerror(code));
+    code = TSDB_CODE_FILE_CORRUPTED;
+    dTrace("failed to read %d bytes from vars head since %s", DM_FILE_HEAD_SIZE, tstrerror(code));
     goto _exit;
   }
 
   if (!taosCheckChecksumWhole((uint8_t *)buffer, DM_FILE_HEAD_SIZE)) {
-    dTrace("readVars: header is corrupted since wrong checksum");
+    dTrace("failed to read vars head since wrong checksum");
     code = TSDB_CODE_CHECKSUM_ERROR;
     goto _exit;
   }
@@ -233,20 +235,20 @@ static int32_t dmReadVars(SEngineInfo *pInfo) {
       buffer = tmpBuf;
     }
 
-    errno = 0;
     nRead = (int)taosReadFile(pFile, buffer, dHeader.len);
+    if (nRead < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _exit;
+    }
+
     if (nRead != dHeader.len) {
-      if (errno != 0) {
-        code = TAOS_SYSTEM_ERROR(errno);
-      } else {
-        code = TSDB_CODE_FILE_CORRUPTED;
-      }
-      dTrace("readVars: failed to read %d bytes since %s", dHeader.len, tstrerror(code));
+      code = TSDB_CODE_FILE_CORRUPTED;
+      dTrace("failed to read %d bytes from vars body since %s", dHeader.len, tstrerror(code));
       goto _exit;
     }
 
     if (!taosCheckChecksumWhole((uint8_t *)buffer, dHeader.len)) {
-      dTrace("readVars: file is corrupted since wrong checksum");
+      dTrace("failed to read vars body since wrong checksum");
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _exit;
     }
@@ -260,7 +262,7 @@ static int32_t dmReadVars(SEngineInfo *pInfo) {
 
 _exit:
   if (code != 0) {
-    dError("readVars: failed to read since %s", tstrerror(code));
+    dError("failed to read vars since %s", tstrerror(code));
   }
   taosMemoryFreeClear(buffer);
   taosCloseFile(&pFile);
@@ -282,7 +284,7 @@ int32_t dmInitDndInfo(SDnodeData *pData) {
 
   dmGetFname(DNODE_CFG_FILE, cfname);
   bool fileExist = !(taosStatFile(cfname, NULL, NULL, NULL) < 0);
-  if (fileExist) { // dnode.info must be created before dnode.json
+  if (fileExist) {  // dnode.info must be created before dnode.json
     return code;
   }
   dmGetFname(DM_ENGINE_FILE, cfname);
@@ -468,7 +470,7 @@ static int32_t dmInitVersion(SDnode *pDnode) {
     taosThreadRwlockUnlock(&pDnode->data.lock);
   }
 
-  code = 0; // reset code
+  code = 0;  // reset code
 
 _exit:
   return code;
