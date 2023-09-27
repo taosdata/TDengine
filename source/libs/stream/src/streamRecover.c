@@ -695,8 +695,8 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
         int32_t     hTaskId = pHTaskInfo->id.taskId;
         stDebug(
             "s-task:%s status:%s failed to launch fill-history task:0x%x, retry launch related fill-history task in "
-            "timer, retryCount:%d",
-            pTask->id.idStr, p, pHTaskInfo->retryTimes, hTaskId);
+            "%dms, retryCount:%d",
+            pTask->id.idStr, p, hTaskId, pHTaskInfo->waitInterval, pHTaskInfo->retryTimes);
 
         taosTmrReset(tryLaunchHistoryTask, LAUNCH_HTASK_INTERVAL, pInfo, streamEnv.timer, &pHTaskInfo->pTimer);
         streamMetaReleaseTask(pMeta, pTask);
