@@ -1904,7 +1904,7 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void apercentileTransferInfo(SAPercentileInfo* pInput, SAPercentileInfo* pOutput) {
+static void apercentileTransferInfo(SAPercentileInfo* pInput, SAPercentileInfo* pOutput, bool* hasRes) {
   pOutput->percent = pInput->percent;
   pOutput->algo = pInput->algo;
   if (pOutput->algo == APERCT_ALGO_TDIGEST) {
@@ -1913,6 +1913,10 @@ static void apercentileTransferInfo(SAPercentileInfo* pInput, SAPercentileInfo* 
 
     if (pInput->pTDigest->num_centroids == 0 && pInput->pTDigest->num_buffered_pts == 0) {
       return;
+    }
+
+    if (hasRes) {
+      *hasRes = true;
     }
 
     buildTDigestInfo(pOutput);
@@ -1929,6 +1933,10 @@ static void apercentileTransferInfo(SAPercentileInfo* pInput, SAPercentileInfo* 
     buildHistogramInfo(pInput);
     if (pInput->pHisto->numOfElems <= 0) {
       return;
+    }
+
+    if (hasRes) {
+      *hasRes = true;
     }
 
     buildHistogramInfo(pOutput);
@@ -1970,12 +1978,13 @@ int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
 
   qDebug("%s total %" PRId64 " rows will merge, %p", __FUNCTION__, pInput->numOfRows, pInfo->pHisto);
 
+  bool hasRes = false;
   int32_t start = pInput->startRowIndex;
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
     char* data = colDataGetData(pCol, i);
 
     SAPercentileInfo* pInputInfo = (SAPercentileInfo*)varDataVal(data);
-    apercentileTransferInfo(pInputInfo, pInfo);
+    apercentileTransferInfo(pInputInfo, pInfo, &hasRes);
   }
 
   if (pInfo->algo != APERCT_ALGO_TDIGEST) {
@@ -1984,7 +1993,7 @@ int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
            pInfo->pHisto->numOfEntries, pInfo->pHisto);
   }
 
-  SET_VAL(pResInfo, 1, 1);
+  SET_VAL(pResInfo, hasRes ? 1 : 0, 1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2056,7 +2065,7 @@ int32_t apercentileCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx)
 
   qDebug("%s start to combine apercentile, %p", __FUNCTION__, pDBuf->pHisto);
 
-  apercentileTransferInfo(pSBuf, pDBuf);
+  apercentileTransferInfo(pSBuf, pDBuf, NULL);
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   pDResInfo->isNullRes &= pSResInfo->isNullRes;
   return TSDB_CODE_SUCCESS;
