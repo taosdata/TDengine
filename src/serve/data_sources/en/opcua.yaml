@@ -126,12 +126,12 @@ groups:
           type: file
   - name: Connection
     display_order: 2
-    description: Some configurations used in connecting step.
+    description: Configuration used in OPC connection
     params:
       - name: connect_timeout
         display: Connect Timeout
         description: |-
-          Timeout for connect to endpoint in seconds.
+          Timeout for connect to endpoint in seconds
         placeholder: 10
         value: 1
         hint:
@@ -144,13 +144,13 @@ groups:
           type: integer
           min: 1
           max: 60
-        description: Timeout for a request in seconds.
+        description: Timeout for a request to endpoint in seconds
         placeholder: 10
         value: 1
 
   - name: Collect
     display_order: 3
-    description: Some configurations used in connecting step.
+    description: Configurations for collecting data from OPC
     params:
       - name: interval
         display: Collect interval
@@ -165,7 +165,7 @@ groups:
       - name: limit
         display: Collect limit
         description: |-
-          The upper limit of points for one request for registration
+          Maximum number of points for each request
         hint:
           type: integer
           min: 1
@@ -214,7 +214,7 @@ groups:
   - name: Table Config
     display_order: 4
     description: |
-      Stable Config
+      field in OPC to column in database mapping
 
       - **received_ts**: timestamp opc collector received<br>
       - **original_ts**: timestamp from opc server <br>
@@ -234,29 +234,29 @@ groups:
     description: Other configurations.
     params:
       - name: concurrent
-        display: Report Concurrency
-        description: Number of concurrency while reporting.
+        display: Write Concurrency
+        description: Number of concurrency while writing to database
         hint:
           type: integer
           min: 1
           max: 100
         value: 1
       - name: batch_size
-        display: Report Batch Size
+        display: Write Batch Size
         hint:
           type: integer
           min: 1
           max: 10000
-        description: Max batch size for each record batch while reporting to target.
+        description: Maximum number of records for a batch when writing to database
         placeholder: 100
         value: 1
       - name: batch_timeout
-        display: Report Wait Timeout
+        display: Write Wait Timeout
         hint:
           type: integer
           min: 1
           max: 60
-        description: Reporting wait timeout for a batch in seconds.
+        description: Timeout for writing a batch to database in seconds
         placeholder: 20
         value: 1
 
