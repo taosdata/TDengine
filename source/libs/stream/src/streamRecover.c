@@ -676,7 +676,6 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
 
     if (pHTaskInfo->retryTimes > MAX_RETRY_LAUNCH_HISTORY_TASK) {
       int8_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
-      taosMemoryFree(pInfo);
       streamMetaReleaseTask(pMeta, pTask);
 
       stError("s-task:%s max retry:%d reached, quit from retrying launch related fill-history task timer, ref:%d",
