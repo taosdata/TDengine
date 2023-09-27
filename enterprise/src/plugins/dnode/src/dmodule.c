@@ -199,17 +199,21 @@ static int32_t dmReadVars(SEngineInfo *pInfo) {
     goto _exit;
   }
 
+  errno = 0;
   int64_t nRead = taosReadFile(pFile, buffer, DM_FILE_HEAD_SIZE);
   if (nRead != DM_FILE_HEAD_SIZE) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    if (code == 0) code = TSDB_CODE_FILE_CORRUPTED;
-    dError("readVars: failed to read %d bytes since %s", DM_FILE_HEAD_SIZE, tstrerror(code));
+    if (errno != 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+    } else {
+      code = TSDB_CODE_FILE_CORRUPTED;
+    }
+    dTrace("readVars: failed to read %d bytes since %s", DM_FILE_HEAD_SIZE, tstrerror(code));
     goto _exit;
   }
 
   if (!taosCheckChecksumWhole((uint8_t *)buffer, DM_FILE_HEAD_SIZE)) {
-    dError("readVars: header is corrupted since wrong checksum");
-    code = TSDB_CODE_FILE_CORRUPTED;
+    dTrace("readVars: header is corrupted since wrong checksum");
+    code = TSDB_CODE_CHECKSUM_ERROR;
     goto _exit;
   }
 
@@ -229,16 +233,20 @@ static int32_t dmReadVars(SEngineInfo *pInfo) {
       buffer = tmpBuf;
     }
 
+    errno = 0;
     nRead = (int)taosReadFile(pFile, buffer, dHeader.len);
     if (nRead != dHeader.len) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      if (code == 0) code = TSDB_CODE_FILE_CORRUPTED;
-      dError("readVars: failed to read %d bytes since %s", dHeader.len, tstrerror(code));
+      if (errno != 0) {
+        code = TAOS_SYSTEM_ERROR(errno);
+      } else {
+        code = TSDB_CODE_FILE_CORRUPTED;
+      }
+      dTrace("readVars: failed to read %d bytes since %s", dHeader.len, tstrerror(code));
       goto _exit;
     }
 
     if (!taosCheckChecksumWhole((uint8_t *)buffer, dHeader.len)) {
-      dError("readVars: file is corrupted since wrong checksum");
+      dTrace("readVars: file is corrupted since wrong checksum");
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _exit;
     }
