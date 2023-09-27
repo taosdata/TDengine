@@ -3985,6 +3985,7 @@ _return:
 
 static int32_t fltSclGetTimeStampDatum(SFltSclPoint *point, SFltSclDatum *d) {
   *d = point->val;
+  d->kind = FLT_SCL_DATUM_KIND_INT64;
 
   if (point->val.kind == FLT_SCL_DATUM_KIND_MAX) {
     getDataMax(point->val.type.type, &(d->i));
@@ -3999,7 +4000,6 @@ static int32_t fltSclGetTimeStampDatum(SFltSclPoint *point, SFltSclDatum *d) {
       }
     }
   } else if (point->val.kind == FLT_SCL_DATUM_KIND_FLOAT64) {
-    d->kind = FLT_SCL_DATUM_KIND_INT64;
     double v = d->d;
     if (point->excl) {
       if (point->start) {
@@ -4007,6 +4007,19 @@ static int32_t fltSclGetTimeStampDatum(SFltSclPoint *point, SFltSclDatum *d) {
       }  else {
         d->i = v - 1;
       }
+    } else {
+      d->i = v;
+    }
+  } else if (point->val.kind == FLT_SCL_DATUM_KIND_UINT64) {
+    uint64_t v = d->u;
+    if (point->excl) {
+      if (point->start) {
+        d->i = v + 1;
+      }  else {
+        d->i = v - 1;
+      }
+    } else {
+      d->i = v;
     }
   } else {
     qError("not supported type %d when get datum from point", d->type.type);
