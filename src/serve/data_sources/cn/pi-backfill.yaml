@@ -18,115 +18,135 @@ options:
     required: true
     display: AFDatabaseName
     description: AF 数据库名
-    placeholder: 'Example: Met1'
+    placeholder: "Example: Met1"
 strict: false
 groups:
-- name: PI 系统设置
-  display_order: 2
-  description: PI 系统相关配置项。
-  params:
-  - name: PISystemName
-    display: AF-SERVER-NAME
-    description: |-
-      AF-SERVER-NAME，留空以使用服务器地址。
-    hint:
-      type: str
+  - name: PI 系统设置
+    display_order: 2
+    description: PI 系统相关配置项。
+    params:
+      - name: PISystemName
+        display: AF-SERVER-NAME
+        description: |-
+          AF-SERVER-NAME，留空以使用服务器地址。
+        hint:
+          type: str
 
-- name: 历史填充（Backfill）
-  display_order: 3
-  description: Backfill 参数设置
-  params:
-  - name: FromTDengineLastTime
-    display: 从TDenine已有数据开始
-    description: |-
-      是否从TDengine已有的最后一条数据时间戳开始进行历史数据导入。
-    hint:
-      type: bool
-  - name: ToTDengineFirstTime
-    display: 以TDengine已有数据结束
-    hint:
-      type: bool
+  - name: 点位配置
+    display_order: 1
     description: |
-      是否以TDengine已有的第一条数据时间戳作为历史数据导入的结束时间。
-  - name: BackfillStartTime
-    display: Backfill 开始时间
-    hint:
-      type: time
-    description: |
-      从该时间开始导入历史数据，默认为当前时间 10 天之前。
-    placeholder: "YYYY-MM-DD HH:mm:ss"
-  - name: BackfillEndTime
-    display: Backfill 结束时间
-    hint:
-      type: time
-    description: |
-      导入历史数据以该时间结束，默认是当前时间。
-    placeholder: "YYYY-MM-DD HH:mm:ss"
+      不同类型的点位配置文件。
+    params:
+      - name: point_file
+        display: 点位列表
+        description: 一个单列点位名称列表文件。
+        hint:
+          type: file
+      - name: template_for_pi_point_file
+        display: Point 模式 AF 模板列表
+        description: 一个单列点位名称（AF 模板）列表文件。
+        hint:
+          type: file
+      - name: template_for_af_element_file
+        display: AF 模式模板列表
+        description: 一个单列模板名称列表文件。
+        hint:
+          type: file
+  - name: 历史填充（Backfill）
+    display_order: 3
+    description: Backfill 参数设置
+    params:
+      - name: FromTDengineLastTime
+        display: 从TDenine已有数据开始
+        description: |-
+          是否从TDengine已有的最后一条数据时间戳开始进行历史数据导入。
+        hint:
+          type: bool
+      - name: ToTDengineFirstTime
+        display: 以TDengine已有数据结束
+        hint:
+          type: bool
+        description: |
+          是否以TDengine已有的第一条数据时间戳作为历史数据导入的结束时间。
+      - name: BackfillStartTime
+        display: Backfill 开始时间
+        hint:
+          type: time
+        description: |
+          从该时间开始导入历史数据，默认为当前时间 10 天之前。
+        placeholder: "YYYY-MM-DD HH:mm:ss"
+      - name: BackfillEndTime
+        display: Backfill 结束时间
+        hint:
+          type: time
+        description: |
+          导入历史数据以该时间结束，默认是当前时间。
+        placeholder: "YYYY-MM-DD HH:mm:ss"
 
-- name: 数据队列
-  display_order: 4
-  description: 其他配置
-  params:
-  - name: MaxWaitLen
-    display: 消息队列缓存数
-    description: |-
-      超过该数字消息会立即发送
-    hint:
-      type: integer
-      min: 1
-      max: 10000
-    value: 1000
-  - name: UpdateInterval
-    display: 采集间隔（单位：毫秒）
-    hint:
-      type: integer
-      min: 100
-      max: 60000
-    description: 将批量更新发送到 TDengine 之前等待的最长时间（以毫秒为单位）。
-    placeholder: 10000
-    value: 1000
-  - name: MaxBackfillRangeDays
-    display: 重启补偿时间
-    hint:
-      type: integer
-    description: 每次重启服务时向前补偿该天数的数据，如果缺失的话。
-    placeholder: 1
-    value: 1
+  - name: 数据队列
+    display_order: 4
+    description: 其他配置
+    params:
+      - name: MaxWaitLen
+        display: 消息队列缓存数
+        description: |-
+          超过该数字消息会立即发送
+        hint:
+          type: integer
+          min: 1
+          max: 10000
+        value: 1000
+      - name: UpdateInterval
+        display: 采集间隔（单位：毫秒）
+        hint:
+          type: integer
+          min: 100
+          max: 60000
+        description: 将批量更新发送到 TDengine 之前等待的最长时间（以毫秒为单位）。
+        placeholder: 10000
+        value: 1000
+      - name: MaxBackfillRangeDays
+        display: 重启补偿时间
+        hint:
+          type: integer
+        description: 每次重启服务时向前补偿该天数的数据，如果缺失的话。
+        placeholder: 1
+        value: 1
 
 datasets:
   name: 监测点集
   description: PI 系统模板和点位。
   categories:
-  - category: PointList
-    display: 监测点集合
-    description: |
-      point 模式监测点集合
-    target:
-      name: PointList
-      description: point 模式监测点集合
-      required: false
-      multiple: true
-      editable: true
-      selectable: true
-  - category: TemplateForPIPoint
-    display: Template For PI Point
-    description: |
-      point 模式监测的 AF 模板集合。
-    target:
-      name: TemplateForPIPoint
-      description: point 模式监测的 AF 模板集合。
-      required: false
-      multiple: true
-      editable: true
-      selectable: true
-  - category: TemplateForAFElement
-    display: Template For AF Element
-    description: |
-      AF 模式监测的 AF 模板集合。
-    target:
-      name: TemplateForAFElement
-      description: AF 模式监测的 AF 模板集合。
-      required: false
-      multiple: true
-      editable: true
-      selectable: true
+    - category: PointList
+      display: 监测点集合
+      description: |
+        point 模式监测点集合
+      target:
+        name: PointList
+        description: point 模式监测点集合
+        required: false
+        multiple: true
+        editable: true
+        selectable: true
+    - category: TemplateForPIPoint
+      display: Template For PI Point
+      description: |
+        point 模式监测的 AF 模板集合。
+      target:
+        name: TemplateForPIPoint
+        description: point 模式监测的 AF 模板集合。
+        required: false
+        multiple: true
+        editable: true
+        selectable: true
+    - category: TemplateForAFElement
+      display: Template For AF Element
+      description: |
+        AF 模式监测的 AF 模板集合。
+      target:
+        name: TemplateForAFElement
+        description: AF 模式监测的 AF 模板集合。
+        required: false
+        multiple: true
+        editable: true
+        selectable: true

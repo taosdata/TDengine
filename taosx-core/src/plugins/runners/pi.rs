@@ -11,6 +11,7 @@ use file_rotate::{
 use anyhow::Context;
 use chrono::{Local, NaiveDateTime};
 use itertools::Itertools;
+use serde::Deserialize;
 use serde_json::{Map, Value};
 use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 // use tokio::io::AsyncBufReadExt;
@@ -92,6 +93,10 @@ pub enum PiError {
     ValueConfigError(&'static str, &'static str, &'static str),
     #[error("parse key {0} value error cause {1}")]
     ParseKeyValueError(&'static str, String),
+    #[error("Opening {0} config file {1} error: {2:#}")]
+    ConfigFileIoError(&'static str, String, std::io::Error),
+    #[error("Reading {0} config file {1} error: {2:#}")]
+    ConfigFileParseError(&'static str, String, csv_lib::Error),
     #[error("Parse param error from {1} while parsing parameter {0}: {2}")]
     ParseError(&'static str, String, String),
     #[error("plugin not found: {0}")]
@@ -146,7 +151,7 @@ impl PiConfig {
         }
         let max_backfill_range_days = parse_int_at!("MaxBackfillRangeDays");
 
-        let template_for_pi_point = dsn
+        let mut template_for_pi_point = dsn
             .remove("TemplateForPIPoint")
             .unwrap_or_default()
             .split(',')
@@ -154,7 +159,17 @@ impl PiConfig {
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string())
             .collect_vec();
-        let template_for_af_element = dsn
+        let config_key = "template_for_pi_point_file";
+        template_for_pi_point.extend(
+            super::mqtt::get_string_from_param_or_file(&mut dsn, config_key, false, Some(","))
+                .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
+                .unwrap_or_default()
+                .split(',')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string()),
+        );
+        let mut template_for_af_element = dsn
             .remove("TemplateForAFElement")
             .unwrap_or_default()
             .split(',')
@@ -162,7 +177,18 @@ impl PiConfig {
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string())
             .collect_vec();
-        let point_list =
+        let config_key = "template_for_af_element_file";
+        template_for_af_element.extend(
+            super::mqtt::get_string_from_param_or_file(&mut dsn, config_key, false, Some(","))
+                .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
+                .unwrap_or_default()
+                .split(',')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string()),
+        );
+
+        let mut point_list =
             super::mqtt::get_string_from_param_or_file(&mut dsn, "PointList", false, Some(","))
                 .map_err(|err| PiError::ParseKeyValueError("PointList", err))?
                 .unwrap_or_default()
@@ -171,6 +197,15 @@ impl PiConfig {
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string())
                 .collect_vec();
+        point_list.extend(
+            super::mqtt::get_string_from_param_or_file(&mut dsn, "point_file", false, Some(","))
+                .map_err(|err| PiError::ParseKeyValueError("point_file", err))?
+                .unwrap_or_default()
+                .split(',')
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string()),
+        );
         if is_real_run
             && point_list.is_empty()
             && template_for_af_element.is_empty()
@@ -336,6 +371,91 @@ pub async fn pi_to_taos(
     let temp_path = config_file.into_temp_path();
 
     tracing::info!("Using config file {} \n{}", config_path.display(), toml);
+
+    #[derive(Deserialize, Debug, Default)]
+    struct IsValid {
+        version: Option<String>,
+        available: bool,
+        since: Option<String>,
+        items: Vec<String>,
+    }
+    match driver.as_str() {
+        "pi" => {
+            let mut command = tokio::process::Command::new(pi_exe_path());
+            let output = command
+                .arg("-c")
+                .arg(&config_path)
+                .kill_on_drop(true)
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .context("Check PI connector error")?
+                .wait_with_output()
+                .await
+                .context("Check PI connector error")?;
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(output.stdout.as_slice());
+                tracing::info!("PI connector check result: {}", stdout);
+                let check = serde_json::from_str::<IsValid>(&stdout).map_err(|err| {
+                    anyhow::format_err!(
+                        "PI connector check result parse error: {}",
+                        err.to_string()
+                    )
+                })?;
+                tracing::debug!("{check:?}");
+                if !check.available {
+                    anyhow::bail!(
+                        "PI connector not available since {}:\n{}",
+                        check.since.unwrap_or_default(),
+                        check.items.join(","),
+                    );
+                }
+            } else {
+                let stderr = String::from_utf8_lossy(output.stderr.as_slice());
+                tracing::error!("PI connector check error: {}", stderr);
+                anyhow::bail!("Unable to check PI connector configuration");
+            }
+        }
+        "pibackfill" => {
+            let mut command = tokio::process::Command::new(pi_backfill_exe_path());
+            let output = command
+                .arg("-c")
+                .arg(&config_path)
+                .kill_on_drop(true)
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .context("Check PI-Backfill connector error")?
+                .wait_with_output()
+                .await
+                .context("Check PI-Backfill connector error")?;
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(output.stdout.as_slice());
+                tracing::info!("PI connector check result: {}", stdout);
+                let check = serde_json::from_str::<IsValid>(&stdout).map_err(|err| {
+                    anyhow::format_err!(
+                        "PI-Backfill connector check result parse error: {}",
+                        err.to_string()
+                    )
+                })?;
+                tracing::debug!("{check:?}");
+                if !check.available {
+                    anyhow::bail!(
+                        "PI-Backfill connector not available since {}:\n{}",
+                        check.since.unwrap_or_default(),
+                        check.items.join(","),
+                    );
+                }
+            } else {
+                let stderr = String::from_utf8_lossy(output.stderr.as_slice());
+                tracing::error!("PI-Backfill connector check error: {}", stderr);
+                anyhow::bail!("Unable to check PI connector configuration");
+            }
+        }
+        _ => {
+            anyhow::bail!("wrong driver configured");
+        }
+    }
 
     let server = std::thread::spawn(move || spawn_rest_service(target_pool, sql_port));
 
@@ -638,4 +758,14 @@ fn extend_data_set(
     } else if len > page_index && len < page_index + limit {
         dataset.extend_from_slice(&extended_vec[page_index..]);
     }
+}
+
+#[test]
+fn test_config() {
+    dbg!(std::env::current_dir().unwrap());
+    let dsn: Dsn = "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=@../tests/pi/Points.csv&template_for_af_element_file=@../tests/pi/ElementTemplates2.csv"
+        .parse()
+        .unwrap();
+    let config = PiConfig::new(dsn, "taos".to_string(), 0, 0, false).unwrap();
+    dbg!(config);
 }

@@ -18,118 +18,156 @@ options:
     required: true
     display: AFDatabaseName
     description: AF database name
-    placeholder: 'Example: Met1'
+    placeholder: "Example: Met1"
 strict: false
 groups:
-- name: PI System
-  display_order: 2
-  description: PI system configurations.
-  params:
-  - name: PISystemName
-    display: PI System Name
-    description: |-
-      PI System name, leave it empty to use the same hostname with **Server**.
-    hint:
-      type: str
+  - name: PI System
+    display_order: 2
+    description: PI system configurations.
+    params:
+      - name: PISystemName
+        display: PI System Name
+        description: |-
+          PI System name, leave it empty to use the same hostname with **Server**.
+        hint:
+          type: str
 
-- name: Backfill
-  display_order: 3
-  description: TDBackfill param set.
-  params:
-  - name: FromTDengineLastTime
-    display: From TDengine Last Time
-    description: |-
-      Backfill from the last recorded value in TDengine.
-    hint:
-      type: bool
-  - name: ToTDengineFirstTime
-    display: To TDengine First Time
-    hint:
-      type: bool
+  - name: Data Sets
+    display_order: 1
     description: |
-      Backfill up to the first recorded value in TDengine.
-  - name: BackfillStartTime
-    display: Backfill Start Time
-    hint:
-      type: time
-    description: |
-      The start time for backfilling data.
+      Single column configuration file for point names.
+    params:
+      - name: point_file
+        display: One Table Per Point
+        description: |
+          The config file is a CSV file with one single column without header:
 
-      If not provided, the start time will be the earliest time available(10 days ago from now).
-    placeholder: "YYYY-MM-DD HH:mm:ss"
-  - name: BackfillEndTime
-    display: Backfill End Time
-    hint:
-      type: time
-    description: |
-      The end time for backfilling data. The default is now.
+          | |
+          | ------------------- |
+          | meter_10001_current |
+          | meter_10001_voltage |
+        hint:
+          type: file
+      - name: template_for_pi_point_file
+        display: One Table per PI Point from AF Element Template
+        description: |
+          The config file is a CSV file with one single column without header:
 
-    placeholder: "YYYY-MM-DD HH:mm:ss"
+          | |
+          | ------------------- |
+          | MeterTemplate  |
+          | MeterTemplate1 |
+        hint:
+          type: file
+      - name: template_for_af_element_file
+        display: One Table per AF Element from AF Element Template
+        description: |
+          The config file is a CSV file with one single column without header:
 
-- name: Data Queue
-  display_order: 4
-  description: Other configurations.
-  params:
-  - name: MaxWaitLen
-    display: Max Wait Length
-    description: |-
-      Message Wait queue max length
-    hint:
-      type: integer
-      min: 1
-      max: 10000
-    value: 1000
-  - name: UpdateInterval
-    display: Update Interval (in ms)
-    hint:
-      type: integer
-      min: 100
-      max: 60000
-    description: Pull Data from PI System Interval in `ms`.
-    placeholder: 10000
-    value: 1000
-  - name: MaxBackfillRangeDays
-    display: Max Backfill Range(in days)
-    hint:
-      type: integer
-    description: Max backfill time range in days.
-    placeholder: 1
-    value: 1
+          | |
+          | ------------------- |
+          | MeterTemplate  |
+          | MeterTemplate1 |
+        hint:
+          type: file
+  - name: Backfill
+    display_order: 3
+    description: TDBackfill param set.
+    params:
+      - name: FromTDengineLastTime
+        display: From TDengine Last Time
+        description: |-
+          Backfill from the last recorded value in TDengine.
+        hint:
+          type: bool
+      - name: ToTDengineFirstTime
+        display: To TDengine First Time
+        hint:
+          type: bool
+        description: |
+          Backfill up to the first recorded value in TDengine.
+      - name: BackfillStartTime
+        display: Backfill Start Time
+        hint:
+          type: time
+        description: |
+          The start time for backfilling data.
+
+          If not provided, the start time will be the earliest time available(10 days ago from now).
+        placeholder: "YYYY-MM-DD HH:mm:ss"
+      - name: BackfillEndTime
+        display: Backfill End Time
+        hint:
+          type: time
+        description: |
+          The end time for backfilling data. The default is now.
+
+        placeholder: "YYYY-MM-DD HH:mm:ss"
+
+  - name: Data Queue
+    display_order: 4
+    description: Other configurations.
+    params:
+      - name: MaxWaitLen
+        display: Max Wait Length
+        description: |-
+          Message Wait queue max length
+        hint:
+          type: integer
+          min: 1
+          max: 10000
+        value: 1000
+      - name: UpdateInterval
+        display: Update Interval (in ms)
+        hint:
+          type: integer
+          min: 100
+          max: 60000
+        description: Pull Data from PI System Interval in `ms`.
+        placeholder: 10000
+        value: 1000
+      - name: MaxBackfillRangeDays
+        display: Max Backfill Range(in days)
+        hint:
+          type: integer
+        description: Max backfill time range in days.
+        placeholder: 1
+        value: 1
 
 datasets:
   name: Data Sets
   description: PI System template and points
   categories:
-  - category: PointList
-    display: Point List
-    description: |
-      The point names exists in pi system.
-    target:
-      name: PointList
-      description: Pi System Point List
-      required: false
-      multiple: true
-      editable: true
-      selectable: true
-  - category: TemplateForPIPoint
-    display: Template For PI Point
-    description: |
-      The template names exists in pi system.
-    target:
-      name: TemplateForPIPoint
-      description: Database datasets.
-      required: false
-      multiple: true
-      editable: true
-      selectable: true
-  - category: TemplateForAFElement
-    display: Template For AF Element
-    description: |
-      The template names exists in pi system.
-    target:
-      name: TemplateForAFElement
-      description: Database datasets.
-      required: false
-      multiple: true
-      editable: true
-      selectable: true
+    - category: PointList
+      display: Point List
+      description: |
+        The point names exists in pi system.
+      target:
+        name: PointList
+        description: Pi System Point List
+        required: false
+        multiple: true
+        editable: true
+        selectable: true
+    - category: TemplateForPIPoint
+      display: Template For PI Point
+      description: |
+        The template names exists in pi system.
+      target:
+        name: TemplateForPIPoint
+        description: Database datasets.
+        required: false
+        multiple: true
+        editable: true
+        selectable: true
+    - category: TemplateForAFElement
+      display: Template For AF Element
+      description: |
+        The template names exists in pi system.
+      target:
+        name: TemplateForAFElement
+        description: Database datasets.
+        required: false
+        multiple: true
+        editable: true
+        selectable: true
