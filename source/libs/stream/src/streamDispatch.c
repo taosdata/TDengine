@@ -1043,12 +1043,14 @@ static int32_t handleDispatchSuccessRsp(SStreamTask* pTask, int32_t downstreamId
   pTask->msgInfo.pData = NULL;
 
   int64_t el = taosGetTimestampMs() - pTask->msgInfo.startTs;
-  stDebug("s-task:%s downstream task:0x%x resume to normal from inputQ blocking, blocking time:%" PRId64 "ms",
-          pTask->id.idStr, downstreamId, el);
 
   // put data into inputQ of current task is also allowed
   if (pTask->inputInfo.status == TASK_INPUT_STATUS__BLOCKED) {
     pTask->inputInfo.status = TASK_INPUT_STATUS__NORMAL;
+    stDebug("s-task:%s downstream task:0x%x resume to normal from inputQ blocking, blocking time:%" PRId64 "ms",
+            pTask->id.idStr, downstreamId, el);
+  } else {
+    stDebug("s-task:%s dispatch completed, elapsed time:%"PRId64"ms", pTask->id.idStr, el);
   }
 
   // now ready for next data output
@@ -1110,7 +1112,6 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
 
   int32_t leftRsp = 0;
   if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-    stDebug("s-task:%s waiting rsp:%d", id, pTask->shuffleDispatcher.waitingRspCnt);
     leftRsp = atomic_sub_fetch_32(&pTask->shuffleDispatcher.waitingRspCnt, 1);
     ASSERT(leftRsp >= 0);
 

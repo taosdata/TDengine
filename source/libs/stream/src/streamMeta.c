@@ -549,6 +549,8 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
         (*ppStreamTask)->historyTaskId.taskId = 0;
         (*ppStreamTask)->historyTaskId.streamId = 0;
       }
+    } else {
+      atomic_sub_fetch_32(&pMeta->numOfStreamTasks, 1);
     }
 
     taosHashRemove(pMeta->pTasksMap, &id, sizeof(id));
