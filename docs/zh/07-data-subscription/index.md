@@ -61,7 +61,7 @@ TDengine 提供类似于消息队列产品的数据订阅和消费接口。这�
 ![共享主题示例](./example/share-topic-example.webp)
 
 ### 数据模型和应用接口
-
+<!-- markdownlint-disable MD033 -->
 下面会介绍多种语言的相关数据模型和应用接口
 <Tabs defaultValue="Go" groupId="lang">
 
@@ -222,7 +222,6 @@ $env:TDENGINE_CLOUD_TOKEN='<TDENGINE_CLOUD_TOKEN>'
 
 ### 从实例创建消费者
 
-
 消费者需要通过一系列配置选项创建，基础配置项如下表所示：
 
 |            参数名称            |  类型   | 参数说明                                                 | 备注                                        |
@@ -240,7 +239,6 @@ $env:TDENGINE_CLOUD_TOKEN='<TDENGINE_CLOUD_TOKEN>'
 | `experimental.snapshot.enable` | boolean | 是否允许从 TSDB 消费数据                                 | 实验功能，默认关闭                          |
 |     `msg.with.table.name`      | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句）               | |
 
-
 对于不同编程语言，其设置方式如下：
 
 <Tabs defaultValue="Go" groupId="lang">
@@ -250,8 +248,8 @@ $env:TDENGINE_CLOUD_TOKEN='<TDENGINE_CLOUD_TOKEN>'
 ```go
 import (
   "github.com/taosdata/driver-go/v3/common"
-	tmqcommon "github.com/taosdata/driver-go/v3/common/tmq"
-	"github.com/taosdata/driver-go/v3/ws/tmq"
+  tmqcommon "github.com/taosdata/driver-go/v3/common/tmq"
+  "github.com/taosdata/driver-go/v3/ws/tmq"
 )
 tmqStr := os.Getenv("TDENGINE_CLOUD_TMQ")
 consumer, err := tmq.NewConsumer(&tmqcommon.ConfigMap{
@@ -336,6 +334,7 @@ properties.setProperty(TMQConstants.VALUE_DESERIALIZER, "com.taosdata.jdbc.tmq.M
 
 TaosConsumer<Map<String, Object>> consumer = new TaosConsumer<>(properties));
 ```
+
 </TabItem>
 </Tabs>
 
@@ -468,7 +467,6 @@ while 1:
 ```
 
 </TabItem>
-
 
 <TabItem value="Java" label="Java">
 
