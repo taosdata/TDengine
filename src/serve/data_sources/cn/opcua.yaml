@@ -237,29 +237,29 @@ groups:
     description: 其他配置项。
     params:
       - name: concurrent
-        display: 并行度
-        description: 采集并行度。
+        display: 上报并行度
+        description: 上报数据并行度。
         hint:
           type: integer
           min: 1
           max: 100
         value: 1
       - name: batch_size
-        display: 批次大小
+        display: 上报批次大小
         hint:
           type: integer
           min: 1
           max: 10000
-        description: 每次采集上报的最大数据量。
+        description: 每次上报的最大数据量。
         placeholder: 100
         value: 1
       - name: batch_timeout
-        display: 上报超时
+        display: 上报等待时长
         hint:
           type: integer
           min: 1
           max: 60
-        description: 每批次采集数据上报的超时时间间隔，单位为：秒 (s)。
+        description: 每批次采集数据上报的等待时间间隔，单位为：秒 (s)。
         placeholder: 20
         value: 1
       - name: debug
