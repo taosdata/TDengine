@@ -203,7 +203,7 @@ static int32_t dmReadVars(SEngineInfo *pInfo) {
   if (nRead != DM_FILE_HEAD_SIZE) {
     code = TAOS_SYSTEM_ERROR(errno);
     if (code == 0) code = TSDB_CODE_FILE_CORRUPTED;
-    dError("readVars: failed to read %d bytes from header since %s", DM_FILE_HEAD_SIZE, tstrerror(code));
+    dError("readVars: failed to read %d bytes since %s", DM_FILE_HEAD_SIZE, tstrerror(code));
     goto _exit;
   }
 
@@ -233,7 +233,7 @@ static int32_t dmReadVars(SEngineInfo *pInfo) {
     if (nRead != dHeader.len) {
       code = TAOS_SYSTEM_ERROR(errno);
       if (code == 0) code = TSDB_CODE_FILE_CORRUPTED;
-      dError("readVars: failed to read %d bytes from file since %s", DM_FILE_HEAD_SIZE, tstrerror(code));
+      dError("readVars: failed to read %d bytes since %s", dHeader.len, tstrerror(code));
       goto _exit;
     }
 
@@ -368,7 +368,7 @@ static int32_t dmWriteVars(SEngineInfo *pInfo) {
 _exit:
   taosMemoryFreeClear(pBuf);
   if (code != 0) {
-    dError("failed to write dm vars since %s", tstrerror(code));
+    dError("failed to write vars since %s", tstrerror(code));
     taosCloseFile(&tFile);
     taosRemoveFile(tfname);
   }
@@ -413,6 +413,7 @@ static int32_t dmInitVersion(SDnode *pDnode) {
   }
   taosThreadRwlockUnlock(&pDnode->data.lock);
 
+  code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
   if (pDnode->data.engineVer == 0) {           // dnode.json history version
     if ((eInfo.type & 0x0F) == DM_ETYPE_UN) {  // without DM_ENGINE_FILE, create(handle update from history versin)
       eInfo.type = eType;
@@ -432,13 +433,11 @@ static int32_t dmInitVersion(SDnode *pDnode) {
       goto _exit;
     }
   } else if ((eInfo.type & 0x0F) == DM_ETYPE_UN) {  // not history version, but without DM_ENGINE_FILE, fail
-    dError("failed to init version since lack of file(0x:%x-%x-%x)", eType, eInfo.type, pDnode->data.engineVer);
-    code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
+    dError("failed to init since inconsistent ver");
     goto _exit;
   } else if (pDnode->data.clusterId !=
              eInfo.clusterId) {  // not history version, DM_ENGINE_FILE exists, check clusterId
-    dError("failed to init version since inconsistent cluster");
-    code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
+    dError("failed to init since inconsistent cluster");
     goto _exit;
   } else if (pDnode->data.engineVer != tsVersion) {  // update to latest engineVer
     dmSyncEps(&pDnode->data);
@@ -446,8 +445,7 @@ static int32_t dmInitVersion(SDnode *pDnode) {
 
   if (eType == DM_ETYPE_OS) {        // oss
     if (eInfo.type > DM_ETYPE_OS) {  // enterprise to oss not allowed
-      dError("node:%d, failed to init version since %s(0x:%x-%x-%x)", pDnode->data.dnodeId, tstrerror(code), eType,
-             eInfo.type, pDnode->data.engineVer);
+      dError("failed to init since incompatible ver");
       goto _exit;
     }
   } else if (eInfo.type == DM_ETYPE_OS) {  // update oss to enterprise
@@ -461,6 +459,9 @@ static int32_t dmInitVersion(SDnode *pDnode) {
     }
     taosThreadRwlockUnlock(&pDnode->data.lock);
   }
+
+  code = 0; // reset code
+
 _exit:
   return code;
 #else
