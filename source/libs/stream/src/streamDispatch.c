@@ -18,10 +18,6 @@
 #include "ttimer.h"
 #include "tmisce.h"
 
-#define MAX_BLOCK_NAME_NUM         1024
-#define DISPATCH_RETRY_INTERVAL_MS 300
-#define MAX_CONTINUE_RETRY_COUNT   5
-
 typedef struct SBlockName {
   uint32_t hashValue;
   char     parTbName[TSDB_TABLE_NAME_LEN];
@@ -425,7 +421,7 @@ static void doRetryDispatchData(void* param, void* tmrId) {
   int32_t      msgId = pTask->execInfo.dispatch;
 
   if (streamTaskShouldStop(&pTask->status)) {
-    int8_t ref = atomic_sub_fetch_8(&pTask->status.timerActive, 1);
+    int8_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug("s-task:%s should stop, abort from timer, ref:%d", pTask->id.idStr, ref);
     return;
   }
@@ -487,26 +483,25 @@ static void doRetryDispatchData(void* param, void* tmrId) {
         streamRetryDispatchData(pTask, DISPATCH_RETRY_INTERVAL_MS);
       }
     } else {
-      int32_t ref = atomic_sub_fetch_8(&pTask->status.timerActive, 1);
+      int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
       stDebug("s-task:%s should stop, abort from timer, ref:%d", pTask->id.idStr, ref);
     }
   } else {
-    int8_t ref = atomic_sub_fetch_8(&pTask->status.timerActive, 1);
+    int8_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug("s-task:%s send success, jump out of timer, ref:%d", pTask->id.idStr, ref);
   }
 }
 
 void streamRetryDispatchData(SStreamTask* pTask, int64_t waitDuration) {
-  STaskTimer* pTmr = pTask->pTimer;
   pTask->msgInfo.retryCount++;
 
   stWarn("s-task:%s retry send dispatch data in %" PRId64 "ms, in timer msgId:%d, retryTimes:%d", pTask->id.idStr,
          waitDuration, pTask->execInfo.dispatch, pTask->msgInfo.retryCount);
 
-  if (pTmr->dispatchTimer != NULL) {
-    taosTmrReset(doRetryDispatchData, waitDuration, pTask, streamEnv.timer, &pTmr->dispatchTimer);
+  if (pTask->msgInfo.pTimer != NULL) {
+    taosTmrReset(doRetryDispatchData, waitDuration, pTask, streamEnv.timer, &pTask->msgInfo.pTimer);
   } else {
-    pTmr->dispatchTimer = taosTmrStart(doRetryDispatchData, waitDuration, pTask, streamEnv.timer);
+    pTask->msgInfo.pTimer = taosTmrStart(doRetryDispatchData, waitDuration, pTask, streamEnv.timer);
   }
 }
 
@@ -636,7 +631,7 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
     }
 
     if (++retryCount > MAX_CONTINUE_RETRY_COUNT) {  // add to timer to retry
-      int8_t ref = atomic_add_fetch_8(&pTask->status.timerActive, 1);
+      int8_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
       stDebug("s-task:%s failed to dispatch msg to downstream for %d times, code:%s, add timer to retry in %dms, ref:%d",
              pTask->id.idStr, retryCount, tstrerror(terrno), DISPATCH_RETRY_INTERVAL_MS, ref);
 
@@ -1143,7 +1138,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
         stDebug("s-task:%s waiting rsp set to be %d", id, pTask->shuffleDispatcher.waitingRspCnt);
       }
 
-      int8_t ref = atomic_add_fetch_8(&pTask->status.timerActive, 1);
+      int8_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
       stDebug("s-task:%s failed to dispatch msg to downstream code:%s, add timer to retry in %dms, ref:%d",
               pTask->id.idStr, tstrerror(terrno), DISPATCH_RETRY_INTERVAL_MS, ref);
 

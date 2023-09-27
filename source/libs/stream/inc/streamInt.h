@@ -26,7 +26,19 @@
 extern "C" {
 #endif
 
-#define CHECK_DOWNSTREAM_INTERVAL 100
+#define CHECK_DOWNSTREAM_INTERVAL      100
+#define LAUNCH_HTASK_INTERVAL          100
+#define WAIT_FOR_MINIMAL_INTERVAL      100.00
+#define MAX_RETRY_LAUNCH_HISTORY_TASK  20
+#define RETRY_LAUNCH_INTERVAL_INC_RATE 1.2
+
+#define MAX_BLOCK_NAME_NUM             1024
+#define DISPATCH_RETRY_INTERVAL_MS     300
+#define MAX_CONTINUE_RETRY_COUNT       5
+
+#define META_HB_CHECK_INTERVAL         200
+#define META_HB_SEND_IDLE_COUNTER      25  // send hb every 5 sec
+#define STREAM_TASK_KEY_LEN            ((sizeof(int64_t)) << 1)
 
 // clang-format off
 #define stFatal(...) do { if (stDebugFlag & DEBUG_FATAL) { taosPrintLog("STM FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
@@ -56,11 +68,6 @@ struct STokenBucket {
   double  bytesRemain;    // not consumed bytes per second
   double  bytesRate;      // number of token per second
   int64_t fillTimestamp;  // fill timestamp
-};
-
-struct STaskTimer {
-  void* hTaskLaunchTimer;
-  void* dispatchTimer;
 };
 
 extern SStreamGlobalEnv streamEnv;
@@ -107,6 +114,9 @@ int32_t streamTaskFillHistoryFinished(SStreamTask* pTask);
 int32_t streamTransferStateToStreamTask(SStreamTask* pTask);
 
 int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, int32_t bytesRate);
+STaskId streamTaskExtractKey(const SStreamTask* pTask);
+void    streamTaskInitForLaunchHTask(SHistoryTaskInfo* pInfo);
+void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
 
 SStreamQueue* streamQueueOpen(int64_t cap);
 void          streamQueueClose(SStreamQueue* pQueue, int32_t taskId);
@@ -115,7 +125,7 @@ void          streamQueueProcessFail(SStreamQueue* queue);
 void*         streamQueueNextItem(SStreamQueue* pQueue);
 void          streamFreeQitem(SStreamQueueItem* data);
 
-STaskId extractStreamTaskKey(const SStreamTask* pTask);
+
 
 #ifdef __cplusplus
 }

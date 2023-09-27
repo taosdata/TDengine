@@ -310,7 +310,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
            pStreamTask->id.idStr);
   }
 
-  ASSERT(pStreamTask->historyTaskId.taskId == pTask->id.taskId && pTask->status.appendTranstateBlock == true);
+  ASSERT(pStreamTask->hTaskInfo.id.taskId == pTask->id.taskId && pTask->status.appendTranstateBlock == true);
 
   STimeWindow* pTimeWindow = &pStreamTask->dataRange.window;
 
@@ -361,8 +361,8 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
 
   // 5. clear the link between fill-history task and stream task info
-  pStreamTask->historyTaskId.taskId = 0;
-  pStreamTask->historyTaskId.streamId = 0;
+  pStreamTask->hTaskInfo.id.taskId = 0;
+  pStreamTask->hTaskInfo.id.streamId = 0;
 
   // 6. save to disk
   taosWLockLatch(&pMeta->lock);
