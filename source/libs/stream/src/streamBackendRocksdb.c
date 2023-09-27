@@ -959,6 +959,7 @@ int32_t streamBackendDoCheckpoint(void* arg, uint64_t checkpointId) {
 
   SBackendWrapper* pHandle = taosAcquireRef(streamBackendId, backendRid);
   if (pHandle == NULL || pHandle->db == NULL) {
+    stError("failed to acquire state-backend handle");
     goto _ERROR;
   }
 
