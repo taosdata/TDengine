@@ -63,7 +63,7 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
   }
 
   // not check file size when reading data files.
-  if (flag != TD_FILE_READ) {
+  if (flag != TD_FILE_READ && !pFD->s3File) {
     if (taosStatFile(path, &pFD->szFile, NULL, NULL) < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       // taosMemoryFree(pFD->pBuf);
@@ -130,6 +130,9 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD) {
     }
   }
 
+  if (pFD->s3File) {
+    return code;
+  }
   if (pFD->pgno > 0) {
     int64_t n = taosLSeekFile(pFD->pFD, PAGE_OFFSET(pFD->pgno, pFD->szPage), SEEK_SET);
     if (n < 0) {
@@ -172,9 +175,12 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
     LRUHandle *handle = NULL;
 
     pFD->blkno = (pgno + tsS3BlockSize - 1) / tsS3BlockSize;
-    int32_t code = tsdbCacheGetBlockS3(pFD->pTsdb->bCache, pFD, &handle);
+    code = tsdbCacheGetBlockS3(pFD->pTsdb->bCache, pFD, &handle);
     if (code != TSDB_CODE_SUCCESS || handle == NULL) {
       tsdbBCacheRelease(pFD->pTsdb->bCache, handle);
+      if (code == TSDB_CODE_SUCCESS && !handle) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+      }
       goto _exit;
     }
 
@@ -279,6 +285,9 @@ _exit:
 int32_t tsdbFsyncFile(STsdbFD *pFD) {
   int32_t code = 0;
 
+  if (pFD->s3File) {
+    return code;
+  }
   code = tsdbWriteFilePage(pFD);
   if (code) goto _exit;
 

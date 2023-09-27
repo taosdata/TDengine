@@ -256,7 +256,6 @@ char    tsUdfdLdLibPath[512] = "";
 bool    tsDisableStream = false;
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 bool    tsFilterScalarMode = false;
-int32_t tsKeepTimeOffset = 0;          // latency of data migration
 int     tsResolveFQDNRetryTime = 100;  // seconds
 
 char   tsS3Endpoint[TSDB_FQDN_LEN] = "<endpoint>";
@@ -664,7 +663,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "Compressor", tsCompressor, CFG_SCOPE_SERVER) != 0) return -1;
 
   if (cfgAddBool(pCfg, "filterScalarMode", tsFilterScalarMode, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddInt32(pCfg, "keepTimeOffset", tsKeepTimeOffset, 0, 23, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxStreamBackendCache", tsMaxStreamBackendCache, 16, 1024, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "pqSortMemThreshold", tsPQSortMemThreshold, 1, 10240, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "resolveFQDNRetryTime", tsResolveFQDNRetryTime, 1, 10240, 0) != 0) return -1;
@@ -1093,7 +1091,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsStreamBufferSize = cfgGetItem(pCfg, "streamBufferSize")->i64;
 
   tsFilterScalarMode = cfgGetItem(pCfg, "filterScalarMode")->bval;
-  tsKeepTimeOffset = cfgGetItem(pCfg, "keepTimeOffset")->i32;
   tsMaxStreamBackendCache = cfgGetItem(pCfg, "maxStreamBackendCache")->i32;
   tsPQSortMemThreshold = cfgGetItem(pCfg, "pqSortMemThreshold")->i32;
   tsResolveFQDNRetryTime = cfgGetItem(pCfg, "resolveFQDNRetryTime")->i32;
@@ -1688,13 +1685,6 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     int32_t newS3BlockCacheSize = atoi(value);
     uInfo("s3BlockCacheSize set from %d to %d", tsS3BlockCacheSize, newS3BlockCacheSize);
     tsS3BlockCacheSize = newS3BlockCacheSize;
-    return;
-  }
-
-  if (strcasecmp(option, "keepTimeOffset") == 0) {
-    int32_t newKeepTimeOffset = atoi(value);
-    uInfo("keepTimeOffset set from %d to %d", tsKeepTimeOffset, newKeepTimeOffset);
-    tsKeepTimeOffset = newKeepTimeOffset;
     return;
   }
 
