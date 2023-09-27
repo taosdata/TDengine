@@ -111,14 +111,13 @@ int32_t s3PutObjectFromFile2(const char *file_str, const char *object_str) {
   clt_params = cos_create_resumable_clt_params_content(p, 1024 * 1024, 8, COS_FALSE, NULL);
   s = cos_resumable_upload_file(options, &bucket, &object, &file, headers, NULL, clt_params, NULL, &resp_headers, NULL);
 
+  log_status(s);
   if (!cos_status_is_ok(s)) {
-    vError("s3: %s", s->error_msg);
+    vError("s3: %d(%s)", s->code, s->error_msg);
     vError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-    code = terrno;
+    code = TAOS_SYSTEM_ERROR(EIO);
     return code;
   }
-
-  log_status(s);
 
   cos_pool_destroy(p);
 
@@ -303,7 +302,7 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_
   s = cos_get_object_to_buffer(options, &bucket, &object, headers, NULL, &download_buffer, &resp_headers);
   log_status(s);
   if (!cos_status_is_ok(s)) {
-    vError("s3: %s", s->error_msg);
+    vError("s3: %d(%s)", s->code, s->error_msg);
     vError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
     code = TAOS_SYSTEM_ERROR(EIO);
     return code;
