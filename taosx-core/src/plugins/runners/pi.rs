@@ -439,7 +439,7 @@ pub async fn pi_to_taos(
                     )
                 })?;
                 tracing::debug!("{check:?}");
-                if !check.available {
+                if !check.avaliable {
                     anyhow::bail!(
                         "PI-Backfill connector not available since {}:\n{}",
                         check.since.unwrap_or_default(),
