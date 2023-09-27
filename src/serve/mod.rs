@@ -111,6 +111,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(get_task_metrics_by_id)
             .service(download_files)
             .service(upload_files)
+            .service(metrics::profile)
             .service(filemeta);
     }
 }
@@ -206,6 +207,7 @@ impl Cli {
                 task::get_task_metrics_by_id,
 
                 metrics::metrics_exporter,
+                metrics::profile,
 
                 data_sources_in,
                 data_sources_in_one,

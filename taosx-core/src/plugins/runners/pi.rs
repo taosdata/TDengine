@@ -164,7 +164,7 @@ impl PiConfig {
             super::mqtt::get_string_from_param_or_file(&mut dsn, config_key, false, Some(","))
                 .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
                 .unwrap_or_default()
-                .split(',')
+                .split([',', '\n'])
                 .map(|s| s.trim())
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string()),
@@ -172,7 +172,7 @@ impl PiConfig {
         let mut template_for_af_element = dsn
             .remove("TemplateForAFElement")
             .unwrap_or_default()
-            .split(',')
+            .split([',', '\n'])
             .map(|s| s.trim())
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string())
@@ -182,7 +182,7 @@ impl PiConfig {
             super::mqtt::get_string_from_param_or_file(&mut dsn, config_key, false, Some(","))
                 .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
                 .unwrap_or_default()
-                .split(',')
+                .split([',', '\n'])
                 .map(|s| s.trim())
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string()),
@@ -192,7 +192,7 @@ impl PiConfig {
             super::mqtt::get_string_from_param_or_file(&mut dsn, "PointList", false, Some(","))
                 .map_err(|err| PiError::ParseKeyValueError("PointList", err))?
                 .unwrap_or_default()
-                .split(',')
+                .split([',', '\n'])
                 .map(|s| s.trim())
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string())
@@ -201,7 +201,7 @@ impl PiConfig {
             super::mqtt::get_string_from_param_or_file(&mut dsn, "point_file", false, Some(","))
                 .map_err(|err| PiError::ParseKeyValueError("point_file", err))?
                 .unwrap_or_default()
-                .split(',')
+                .split([',', '\n'])
                 .map(|s| s.trim())
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string()),
@@ -375,7 +375,7 @@ pub async fn pi_to_taos(
     #[derive(Deserialize, Debug, Default)]
     struct IsValid {
         version: Option<String>,
-        available: bool,
+        avaliable: bool,
         since: Option<String>,
         items: Vec<String>,
     }
@@ -403,7 +403,7 @@ pub async fn pi_to_taos(
                     )
                 })?;
                 tracing::debug!("{check:?}");
-                if !check.available {
+                if !check.avaliable {
                     anyhow::bail!(
                         "PI connector not available since {}:\n{}",
                         check.since.unwrap_or_default(),
@@ -767,5 +767,11 @@ fn test_config() {
         .parse()
         .unwrap();
     let config = PiConfig::new(dsn, "taos".to_string(), 0, 0, false).unwrap();
-    dbg!(config);
+    dbg!(&config);
+
+    let dsn: Dsn = "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=app\napp\napp"
+        .parse()
+        .unwrap();
+    let config2 = PiConfig::new(dsn, "taos".to_string(), 0, 0, false).unwrap();
+    dbg!(&config2);
 }
