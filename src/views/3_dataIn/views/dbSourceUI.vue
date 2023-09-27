@@ -398,7 +398,7 @@
           </div> -->
         </div>
       </section>
-      <section
+      <!-- <section
         :class="['groups-dataset', dbsource[0].datasets?.name]"
         v-if="dbsource[0]?.datasets"
       >
@@ -522,7 +522,7 @@
             </el-tab-pane>
           </el-tabs>
         </template>
-      </section>
+      </section> -->
       <template v-for="item in dbsource[0].groups">
         <section :class="['groups', item.name]" :key="item.display_order">
           <div style="flex-direction: column; align-items: baseline">
@@ -535,7 +535,13 @@
             ></div>
           </div>
           <template v-for="(p, pind) in item.params">
-            <div :key="pind">
+            <div :key="pind" v-if="
+              item.name == 'Data Sets'
+              ? (isPiDataArchiveAll 
+                ? true
+                : ['point_file'].includes(p.name))
+              : true
+              ">
               <span :class="['label', p.required ? 'required' : '']">
                 {{ p.display ? p.display : p.name }}
               </span>
@@ -688,6 +694,34 @@
                   >
                   </DatePicker>
                 </template>
+                <template v-if="p.hint && p.hint.type == 'file'">
+                    <el-upload
+                      class="upload-demo"
+                      ref="upload"
+                      accept=".csv"
+                      :limit="limit"
+                      :data="uploadData"
+                      :action="uploadUrl"
+                      :on-success="(response, file, fileList)=>handleSuccess(response, file, fileList,p.name)"
+                      :file-list="p.fileList"
+                      :auto-upload="true"
+                      :on-remove="()=>handleRemove(p.name)"
+                    >
+                      <el-button
+                        slot="trigger"
+                        size="small"
+                        type="primary"
+                        style="margin-right: 20px"
+                        >{{ $t("datasource.selectfile") }}</el-button
+                      >
+                      <template v-if="activeName.includes('PointList')">
+                        <a href="/Points.csv" download>{{ $t('downloadTemplate') }}</a>
+                      </template>
+                      <template v-else>
+                        <a href="/ElementTemplates.csv" download>{{ $t('downloadTemplate') }}</a>
+                      </template>
+                    </el-upload>
+                  </template>
                 <!-- <template v-if="p.hint?.type == 'datetime'">
                   <el-date-picker
                     v-model="p.value"
@@ -883,7 +917,12 @@ export default {
       measurementList: [],
       metricsList:[],
       piSystemConfiguration: 'PI Data Archive and Asset Framework (AF) Server',
-      isPiDataArchiveAll: true
+      isPiDataArchiveAll: true,
+      limit: 1,
+      uploadData: {
+        req_id: new Date().getTime(),
+      },
+      uploadUrl: process.env.VUE_APP_X_API + `/upload`,
     };
   },
   created() {
@@ -941,8 +980,50 @@ export default {
             let newVal = p.value.split();
             p.value = newVal;
           }
+          if (group.name == 'Data Sets') {
+              if(['point_file','template_for_pi_point_file','template_for_af_element_file'].includes(p.name) && p.value) {
+                p.fileList = [].concat({
+                  name: p.value?.substr(p.value.lastIndexOf("/") + 1),
+                  percentage: 100,
+                  raw: File,
+                  response: [].concat(p.value),
+                  size: 87,
+                  status: "success",
+                  uid: 1,
+                });
+                p.value = p.value?.substr(p.value.lastIndexOf("@") + 1)
+              }
+            }
           return p;
         });
+        return group;
+      });
+    },
+    handleSuccess(response, file, fileList, name) {
+      this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
+        if (group.name == 'Data Sets') {
+          group.params.map((p) => {
+            if (p.name == name) {
+              p.fileList = fileList
+              p.value = fileList[0].response[0]
+            }
+            return p;
+          });
+        }
+        return group;
+      });
+    },
+    handleRemove(name) {
+      this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
+        if (group.name == 'Data Sets') {
+          group.params.map((p) => {
+            if (p.name == name) {
+              p.fileList = []
+              p.value = ''
+            }
+            return p;
+          });
+        }
         return group;
       });
     },
@@ -1115,9 +1196,25 @@ export default {
               return;
             } else {
               if (this.handleEmptyValue(data.groups[index].params[g].value)) {
-                querystr +=
-                  `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
-                  "&";
+                if (
+                  // p.hint && p.hint.type == 'file'
+                  data.groups[index].params[g].hint && 
+                  data.groups[index].params[g].hint.type == 'file'
+                  ) {
+                    if (this.isPiDataArchiveAll) {
+                      querystr +=
+                        `${data.groups[index].params[g].name}=@${data.groups[index].params[g].value}` +
+                        "&";
+                    } else {
+                      querystr += 
+                      data.groups[index].params[g].name == 'point_file' 
+                        ? `point_file=@${data.groups[index].params[g].value}&`:''
+                    }
+                } else {
+                  querystr +=
+                    `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
+                    "&";
+                }
               }
             }
           }
@@ -1379,24 +1476,24 @@ export default {
         return cate;
       });
     },
-    handelDataSet(data) {
-      this.activeDataSet = data;
-      let categories = [];
-      if (!Object.hasOwnProperty.call(data, "options")) {
-        categories = this.dbsource[0].datasets.categories.map((cate) => {
-          if (cate.category == data.category) {
-            if (Array.isArray(cate.target.value)) {
-              cate.target.value.push(data.id);
-              cate.target.value = Array.from(new Set(cate.target.value));
-            } else {
-              cate.target.value = data.id;
-            }
-          }
-          return cate;
-        });
-        this.dbsource[0].datasets.categories = categories;
-      }
-    },
+    // handelDataSet(data) {
+    //   this.activeDataSet = data;
+    //   let categories = [];
+    //   if (!Object.hasOwnProperty.call(data, "options")) {
+    //     categories = this.dbsource[0].datasets.categories.map((cate) => {
+    //       if (cate.category == data.category) {
+    //         if (Array.isArray(cate.target.value)) {
+    //           cate.target.value.push(data.id);
+    //           cate.target.value = Array.from(new Set(cate.target.value));
+    //         } else {
+    //           cate.target.value = data.id;
+    //         }
+    //       }
+    //       return cate;
+    //     });
+    //     this.dbsource[0].datasets.categories = categories;
+    //   }
+    // },
     searchDatas: debounce(function (e) {
       try {
         let data = this.dbsource[0];
@@ -1840,6 +1937,8 @@ export default {
       align-items: center;
       width: 200px;
       display: block;
+      white-space: pre-wrap;
+      word-wrap: break-word;
     }
     .no-label {
       align-items: center;
@@ -2063,8 +2162,11 @@ export default {
 
   ::v-deep .el-tabs__item {
     max-width: 230px;
-    text-wrap: wrap;
     line-height: 25px !important;
+    display: table-cell;
+    vertical-align: middle;
+    white-space: pre-wrap;
+    word-wrap: break-word;
   }
 }
 </style>
