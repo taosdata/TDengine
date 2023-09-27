@@ -275,6 +275,12 @@ impl TaskControllerRef {
         }
     }
     pub async fn start_all_with_schedule(&self) -> anyhow::Result<()> {
+        sqlx::query("update tasks set status = ? where status in (?, ?)")
+            .bind(Status::Cancelled)
+            .bind(Status::Running)
+            .bind(Status::Interrupted)
+            .execute(&self.0.pool)
+            .await?;
         let tasks: Vec<Task> = sqlx::query_as::<_, Task>(
             "select * from task_with_labels where via is NULL and status not in (?, ?, ?) and `deleted` != TRUE order by created_at desc")
             .bind(Status::Completed)

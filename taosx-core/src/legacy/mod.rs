@@ -21,7 +21,7 @@ use serde::Deserialize;
 use serde_with::serde_as;
 use taos::*;
 use tokio::sync::oneshot;
-use tracing::{info, instrument, warn, Instrument};
+use tracing::{info, instrument, warn};
 
 use crate::{legacy::scheduler::Todo, Action};
 
@@ -2427,7 +2427,6 @@ pub async fn legacy_to_taos(
     counter!(METRICS_LEGACY_STABLES, todo.stables.len() as u64);
     let metrics_inner = metrics.clone();
     let todo_inner = todo.clone();
-
 
     tracing::info!("Prepare for {} worker scheduler", source_opts.workers);
     let scheduler = scheduler::Scheduler::new(

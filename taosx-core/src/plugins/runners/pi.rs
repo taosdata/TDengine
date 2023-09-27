@@ -93,10 +93,6 @@ pub enum PiError {
     ValueConfigError(&'static str, &'static str, &'static str),
     #[error("parse key {0} value error cause {1}")]
     ParseKeyValueError(&'static str, String),
-    #[error("Opening {0} config file {1} error: {2:#}")]
-    ConfigFileIoError(&'static str, String, std::io::Error),
-    #[error("Reading {0} config file {1} error: {2:#}")]
-    ConfigFileParseError(&'static str, String, csv_lib::Error),
     #[error("Parse param error from {1} while parsing parameter {0}: {2}")]
     ParseError(&'static str, String, String),
     #[error("plugin not found: {0}")]
