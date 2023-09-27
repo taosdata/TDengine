@@ -63,7 +63,7 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
   }
 
   // not check file size when reading data files.
-  if (flag != TD_FILE_READ) {
+  if (flag != TD_FILE_READ && !pFD->s3File) {
     if (taosStatFile(path, &pFD->szFile, NULL, NULL) < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       // taosMemoryFree(pFD->pBuf);
@@ -130,6 +130,9 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD) {
     }
   }
 
+  if (pFD->s3File) {
+    return code;
+  }
   if (pFD->pgno > 0) {
     int64_t n = taosLSeekFile(pFD->pFD, PAGE_OFFSET(pFD->pgno, pFD->szPage), SEEK_SET);
     if (n < 0) {
@@ -282,6 +285,9 @@ _exit:
 int32_t tsdbFsyncFile(STsdbFD *pFD) {
   int32_t code = 0;
 
+  if (pFD->s3File) {
+    return code;
+  }
   code = tsdbWriteFilePage(pFD);
   if (code) goto _exit;
 
