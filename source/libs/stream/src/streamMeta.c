@@ -221,14 +221,16 @@ int32_t streamMetaMayConvertBackendFormat(SStreamMeta* pMeta) {
 }
 
 void* streamMetaGetBackendByTaskKey(SStreamMeta* pMeta, char* key) {
+  taosThreadMutexLock(&pMeta->backendMutex);
   void** ppBackend = taosHashGet(pMeta->pTaskBackendUnique, key, strlen(key));
   if (ppBackend != NULL && *ppBackend != NULL) {
     // add ref later
+    taosThreadMutexUnlock(&pMeta->backendMutex);
     return *ppBackend;
   }
   void* pBackend = streamStateOpenTaskBackend(pMeta->path, key);
   taosHashPut(pMeta->pTaskBackendUnique, key, strlen(key), &pBackend, sizeof(void*));
-
+  taosThreadMutexLock(&pMeta->backendMutex);
   return pBackend;
 }
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId, int64_t stage) {
