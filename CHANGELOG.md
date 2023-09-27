@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.6] - 2023-09-27
+
+**Full Changelog**: [v1.2.5...v1.2.6](https://github.com/taosdata/taosx/compare/v1.2.5...v1.2.6)
+
+### Bug Fixes
+
+- *agent*: Fix agent transfer file with \n ([9d24d72](9d24d72782788cec212efc3d871233c09f6b2a3f))
+
+- Fix opc page description ([1094b5a](1094b5aad423a9c60be4f26e450dd3312bbae948))
+
+
+### Features
+
+- *pi*: Support config file ([cb35cfb](cb35cfb5bd455a4a111cad8126ea75ce2da1f9ab))
+
+
+
+### Refactor
+
+
+- Opc yaml desc modify ([e0442e0](e0442e00d3130028c078bb241e227a303d32a857))
+
+
 ## [1.2.5] - 2023-09-26
 
 **Full Changelog**: [v1.2.4...v1.2.5](https://github.com/taosdata/taosx/compare/v1.2.4...v1.2.5)
@@ -13,13 +36,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - *agent*: Fix pi datasets unexpected value at line .. error ([0a72625](0a7262519584277b43f6c0decf63008ef758ba5a))
 - *legacy*: Sync stable schema cause conflict transactions ([cf5894b](cf5894b891a572f3f096253725a3e1f7cd315dc1))
-- *pi*: Fix mut requires in older rustc ([6bbf9b0](6bbf9b03aa6df507fe2baa51404f846025816cf5))
+- *pi*: Fix mut requires in older rustc ([f8f7ea2](f8f7ea286643f67bdc4e65a4f232ef1bfb7f9a5f))
 - *serve*: Fix agent tasks set as cancelled error ([db14086](db140863151e9d052d9cb7719e30bf2241071f3c))
 
 - Assert enterprise edition ([1bb276d](1bb276d1bc83485476a3fd2b2c82ddb76898e842))
 - Update assert_enterprise msg ([8baf82d](8baf82d431e28a594fc37b470d0de96cf167a93c))
 - Fix mem leak with native connections ([c0fe976](c0fe97645d3ba4815750430a4eca1d68c4b7de00))
 - Sync schema error for some specific 2.x versions ([a95c29e](a95c29ec6a31616b56fbc8d2543c57d1ce6c6378))
+- Fix opc dump and add log ([4f4524d](4f4524d839510c5dd516d7d5c578c9584197edbc))
+- Table not exist occurs since retry time is 2#[TD-26508](https://jira.taosdata.com:18080/browse/TD-26508) ([add39d1](add39d19e0d9f2f04e75e9e84c028d6751c617d0))
 
 
 ### Enhancements
@@ -38,9 +63,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Refactor
 
+- *pi*: Update pi data source yaml (#780) ([91fb6ef](91fb6ef437be9f3e298a0ab6f2ba3f1a6b990d66))
 
 - Make tokio-console optional by compile features ([9e0c106](9e0c106100845e3a59ef3c826aa7764231c0c17e))
 - Use opentelemetry-otlp instead jaeger ([9bc70ce](9bc70ce2ef866526e82d9b181d5dfea4fee8014c))
+- Pi yaml refactor ([c7bbbb3](c7bbbb34aaa6c5cfa9fd6fd6c59b2e7cf755e0a6))
+- Pi dataset header modify ([fb4a1cc](fb4a1cc52718907d54a0990b608507d04c2c27d3))
 
 
 ### Ref
