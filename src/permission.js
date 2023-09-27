@@ -9,6 +9,9 @@ const whiteList = ["Login"];
 router.beforeEach(async (to, from, next) => {
   if (to.name != "Login") {
     let result = await getUrls();
+    if(result.version){
+      localStorage.setItem('agent_version',result.version)
+    }
     if (
       result.cluster != localStorage.getItem("base_url") &&
       to.name != "Login"

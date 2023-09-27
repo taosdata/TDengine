@@ -5,6 +5,7 @@ let grafanagds = process.env.VUE_APP_CUS_NAME &&
   process.env.VUE_APP_CUS_NAME !== "TDengine" ? '' : 'TDengine'
 let taosname = process.env.VUE_APP_CUS_NAME &&
   process.env.VUE_APP_CUS_NAME !== "TDengine" ? process.env.VUE_APP_CUS_PROMPT : 'taos'
+  let agenturl=localStorage.getItem('agent_version')?localStorage.getItem('agent_version'):'latest'
 export default {
   //通用部分
   urlPart: '/docs-en',
@@ -1870,18 +1871,18 @@ export default {
     step3:'Start',
     step4:'Check Status',
     step1linux:'Linux',
-    linuxdesc:`Download agent installer package from <a href='https://www.tdengine.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz'>https://www.tdengine.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz</a> and install.`,
+    linuxdesc:`Download agent installer package from <a href='https://www.tdengine.com/assets-download/3.0/taosx-agent-${agenturl}-linux-x64.tar.gz'>https://www.tdengine.com/assets-download/3.0/taosx-agent-${agenturl}-linux-x64.tar.gz</a> and install.`,
     linuxcode:`cd $TMPDIR
     mkdir agent-installer
     cd agent-installer
-    wget -c https://www.tdengine.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz
+    wget -c https://www.tdengine.com/assets-download/3.0/taosx-agent-${agenturl}-linux-x64.tar.gz
     tar xvf taosx-agent-latest-linux-x64.tar.gz
     cd taosx-agent-*
     ./install.sh
     # remove files
     #cd ../../; rm -rf agent-installer`,
   step1window:'Windows',
-  windowdesc:`Download agent installer from <a href='https://www.tdengine.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe'>https://www.tdengine.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe</a>, and run the installer to install the agent service.`,
+  windowdesc:`Download agent installer from <a href='https://www.tdengine.com/assets-download/3.0/taosx-agent-${agenturl}-windows-x64-installer.exe'>https://www.tdengine.com/assets-download/3.0/taosx-agent-${agenturl}-windows-x64-installer.exe</a>, and run the installer to install the agent service.`,
   step2sub1:'Configuration file path:',
   step2sub2linux:`Configuration file path: <code>/etc/taos/agent.toml</code>`, 
   step2sub2window:`Copy the following lines into configuration file at:<code> C:\\Program Files\\taosX\\config\\agent.toml</code>`,
