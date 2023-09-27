@@ -15,7 +15,7 @@ By subscribing to a topic, a consumer can obtain the latest data in that topic i
 The topic introduces how to share data from TDengine instance through the access control management of TDengine Cloud and the subscription interfaces of each supported connectors. The data owner first creates the topic through the topic wizard. Then adds the users or user groups which he wants to share the data with to the subscribers of the topic. The subscriber of the topic can get the details about how to access the shared data from TDengine in the data subscription way. In this document we will briefly explain these main steps of data sharing.
 
 ## Create Topic
-
+<!-- markdownlint-disable MD033 -->
 You can create the topic in Topics of TDengine Cloud. In the Create Topic dialog, you can choose wizard or SQL way to create the topic. In the wizard way, you need to input the topic name and select the database of the current TDengine instance. Then select the super table or specify the subquery with the super table or sub table. Also you can add fields selections or add result set and condition set for each field. In the following, you can get the detail of how to create the topic in three levels through wizard way.
 
 ### To Database
@@ -65,7 +65,6 @@ You can click User Groups tab to switch to the User Groups page of the Share Top
 The shared user can get all topics which the creator shared with him, when he goes to the Topic page of Data Subscription. The user can click **Sample Code** icon of each topic **Action** area to the **Sample Code** page. Then he can follow the steps of the sample code how to consume the shared topic from TDengine instance.
 
 ![Share topic example](./example/share-topic-example.webp)
-
 
 ### Data Schema and API
 
@@ -231,6 +230,7 @@ $env:TDENGINE_CLOUD_TOKEN='<TDENGINE_CLOUD_TOKEN>'
 :::note IMPORTANT
 Replace <TDENGINE_CLOUD_ENDPOINT> and <TDENGINE_CLOUD_TOKEN> with the real values. To obtain the value of these, please log in [TDengine Cloud](https://cloud.tdengine.com) and click **Topcis** on the left menu, then click **Sample Code** action of the each topic to the **Python** tab of the **Example** part.
 :::
+
 ### Create a Consumer from Instance
 
 You configure the following parameters when creating a consumer:
@@ -259,8 +259,8 @@ The method of specifying these parameters depends on the language used:
 ```go
 import (
   "github.com/taosdata/driver-go/v3/common"
-	tmqcommon "github.com/taosdata/driver-go/v3/common/tmq"
-	"github.com/taosdata/driver-go/v3/ws/tmq"
+  tmqcommon "github.com/taosdata/driver-go/v3/common/tmq"
+  "github.com/taosdata/driver-go/v3/ws/tmq"
 )
 tmqStr := os.Getenv("TDENGINE_CLOUD_TMQ")
 consumer, err := tmq.NewConsumer(&tmqcommon.ConfigMap{
@@ -345,6 +345,7 @@ properties.setProperty(TMQConstants.VALUE_DESERIALIZER, "com.taosdata.jdbc.tmq.M
 
 TaosConsumer<Map<String, Object>> consumer = new TaosConsumer<>(properties));
 ```
+
 </TabItem>
 </Tabs>
 
