@@ -145,6 +145,7 @@ extern bool    tsUseAdapter;
 extern int32_t tsMetaCacheMaxSize;
 extern int32_t tsSlowLogThreshold;
 extern int32_t tsSlowLogScope;
+extern int32_t tsTimeSeriesThreshold;
 
 // client
 extern int32_t tsMinSlidingTime;
@@ -159,10 +160,11 @@ extern char buildinfo[];
 
 // lossy
 extern char     tsLossyColumns[];
-extern double   tsFPrecision;
+extern float    tsFPrecision;
 extern double   tsDPrecision;
 extern uint32_t tsMaxRange;
 extern uint32_t tsCurRange;
+extern bool     tsIfAdtFse;
 extern char     tsCompressor[];
 
 // tfs
@@ -206,7 +208,6 @@ extern int32_t tsRpcRetryInterval;
 extern bool    tsDisableStream;
 extern int64_t tsStreamBufferSize;
 extern bool    tsFilterScalarMode;
-extern int32_t tsKeepTimeOffset;
 extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
 extern int32_t tsResolveFQDNRetryTime;

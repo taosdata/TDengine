@@ -1415,6 +1415,8 @@ static void initClientTopicFromRsp(SMqClientTopic* pTopic, SMqSubTopicEp* pTopic
     STqOffsetVal offsetNew = {0};
     offsetNew.type = tmq->resetOffsetCfg;
 
+    tscInfo("consumer:0x%" PRIx64 ", update topic:%s, new numOfVgs:%d, num:%d, port:%d", tmq->consumerId, pTopic->topicName, vgNumGet, pVgEp->epSet.numOfEps,pVgEp->epSet.eps[pVgEp->epSet.inUse].port);
+
     SMqClientVg clientVg = {
         .pollCnt = 0,
         .vgId = pVgEp->vgId,
@@ -1766,7 +1768,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
         tscError("consumer:0x%" PRIx64 " msg from vgId:%d discarded, since %s", tmq->consumerId, pollRspWrapper->vgId, tstrerror(pRspWrapper->code));
         taosWLockLatch(&tmq->lock);
         SMqClientVg* pVg = getVgInfo(tmq, pollRspWrapper->topicName, pollRspWrapper->vgId);
-        pVg->emptyBlockReceiveTs = taosGetTimestampMs();
+        if(pVg) pVg->emptyBlockReceiveTs = taosGetTimestampMs();
         taosWUnLockLatch(&tmq->lock);
       }
       setVgIdle(tmq, pollRspWrapper->topicName, pollRspWrapper->vgId);
@@ -3103,4 +3105,11 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
   tscInfo("consumer:0x%" PRIx64 "send seek to vgId:%d, return code:%s", tmq->consumerId, vgId, tstrerror(code));
 
   return code;
+}
+
+TAOS *tmq_get_connect(tmq_t *tmq){
+  if (tmq && tmq->pTscObj) {
+    return (TAOS *)(&(tmq->pTscObj->id));
+  }
+  return NULL;
 }

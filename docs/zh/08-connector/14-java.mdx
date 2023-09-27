@@ -142,8 +142,14 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 | BINARY            | byte array         |
 | NCHAR             | java.lang.String   |
 | JSON              | java.lang.String   |
+| VARBINARY         | byte[]             |
+| GEOMETRY          | byte[]             |
 
-**注意**：JSON 类型仅在 tag 中支持。
+**注意**：JSON 类型仅在 tag 中支持。  
+由于历史原因，TDengine中的BINARY底层不是真正的二进制数据，已不建议使用。请用VARBINARY类型代替。  
+GEOMETRY类型是little endian字节序的二进制数据，符合WKB规范。详细信息请参考 [数据类型](/taos-sql/data-type/#数据类型)  
+WKB规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)  
+对于java连接器，可以使用jts库来方便的创建GEOMETRY类型对象，序列化后写入TDengine，这里有一个样例[Geometry示例](https://github.com/taosdata/TDengine/blob/3.0/examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/GeometryDemo.java)  
 
 ## 安装步骤
 
@@ -357,7 +363,7 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_CONFIG_DIR：仅在使用 JDBC 原生连接时生效。客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`。
 - TSDBDriver.PROPERTY_KEY_CHARSET：客户端使用的字符集，默认值为系统字符集。
 - TSDBDriver.PROPERTY_KEY_LOCALE：仅在使用 JDBC 原生连接时生效。 客户端语言环境，默认值系统当前 locale。
-- TSDBDriver.PROPERTY_KEY_TIME_ZONE：仅在使用 JDBC 原生连接时生效。 客户端使用的时区，默认值为系统当前时区。
+- TSDBDriver.PROPERTY_KEY_TIME_ZONE：仅在使用 JDBC 原生连接时生效。 客户端使用的时区，默认值为系统当前时区。因为历史的原因，我们只支持POSIX标准的部分规范，如UTC-8(代表中国上上海), GMT-8，Asia/Shanghai 这几种形式。
 - TSDBDriver.HTTP_CONNECT_TIMEOUT: 连接超时时间，单位 ms， 默认值为 60000。仅在 REST 连接时生效。
 - TSDBDriver.HTTP_SOCKET_TIMEOUT: socket 超时时间，单位 ms，默认值为 60000。仅在 REST 连接且 batchfetch 设置为 false 时生效。
 - TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: 消息超时时间, 单位 ms， 默认值为 60000。 仅在 REST 连接且 batchfetch 设置为 true 时生效。
@@ -459,13 +465,15 @@ public class ParameterBindingDemo {
 
     private static final String host = "127.0.0.1";
     private static final Random random = new Random(System.currentTimeMillis());
-    private static final int BINARY_COLUMN_SIZE = 30;
+    private static final int BINARY_COLUMN_SIZE = 50;
     private static final String[] schemaList = {
             "create table stable1(ts timestamp, f1 tinyint, f2 smallint, f3 int, f4 bigint) tags(t1 tinyint, t2 smallint, t3 int, t4 bigint)",
             "create table stable2(ts timestamp, f1 float, f2 double) tags(t1 float, t2 double)",
             "create table stable3(ts timestamp, f1 bool) tags(t1 bool)",
             "create table stable4(ts timestamp, f1 binary(" + BINARY_COLUMN_SIZE + ")) tags(t1 binary(" + BINARY_COLUMN_SIZE + "))",
-            "create table stable5(ts timestamp, f1 nchar(" + BINARY_COLUMN_SIZE + ")) tags(t1 nchar(" + BINARY_COLUMN_SIZE + "))"
+            "create table stable5(ts timestamp, f1 nchar(" + BINARY_COLUMN_SIZE + ")) tags(t1 nchar(" + BINARY_COLUMN_SIZE + "))",
+            "create table stable6(ts timestamp, f1 varbinary(" + BINARY_COLUMN_SIZE + ")) tags(t1 varbinary(" + BINARY_COLUMN_SIZE + "))",
+            "create table stable7(ts timestamp, f1 geometry(" + BINARY_COLUMN_SIZE + ")) tags(t1 geometry(" + BINARY_COLUMN_SIZE + "))",
     };
     private static final int numOfSubTable = 10, numOfRow = 10;
 
@@ -477,26 +485,30 @@ public class ParameterBindingDemo {
         init(conn);
 
         bindInteger(conn);
-
         bindFloat(conn);
-
         bindBoolean(conn);
-
         bindBytes(conn);
-
         bindString(conn);
+        bindVarbinary(conn);
+        bindGeometry(conn);
 
+        clean(conn);
         conn.close();
     }
 
     private static void init(Connection conn) throws SQLException {
+        clean(conn);
         try (Statement stmt = conn.createStatement()) {
-            stmt.execute("drop database if exists test_parabind");
             stmt.execute("create database if not exists test_parabind");
             stmt.execute("use test_parabind");
             for (int i = 0; i < schemaList.length; i++) {
                 stmt.execute(schemaList[i]);
             }
+        }
+    }
+    private static void clean(Connection conn) throws SQLException {
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("drop database if exists test_parabind");
         }
     }
 
@@ -677,10 +689,84 @@ public class ParameterBindingDemo {
             pstmt.columnDataExecuteBatch();
         }
     }
+
+    private static void bindVarbinary(Connection conn) throws SQLException {
+        String sql = "insert into ? using stable6 tags(?) values(?,?)";
+
+        try (TSDBPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSDBPreparedStatement.class)) {
+
+            for (int i = 1; i <= numOfSubTable; i++) {
+                // set table name
+                pstmt.setTableName("t6_" + i);
+                // set tags
+                byte[] bTag = new byte[]{0,2,3,4,5};
+                bTag[0] = (byte) i;
+                pstmt.setTagVarbinary(0, bTag);
+
+                // set columns
+                ArrayList<Long> tsList = new ArrayList<>();
+                long current = System.currentTimeMillis();
+                for (int j = 0; j < numOfRow; j++)
+                    tsList.add(current + j);
+                pstmt.setTimestamp(0, tsList);
+
+                ArrayList<byte[]> f1List = new ArrayList<>();
+                for (int j = 0; j < numOfRow; j++) {
+                    byte[] v = new byte[]{0,2,3,4,5,6};
+                    v[0] = (byte)j;
+                    f1List.add(v);
+                }
+                pstmt.setVarbinary(1, f1List, BINARY_COLUMN_SIZE);
+
+                // add column
+                pstmt.columnDataAddBatch();
+            }
+            // execute
+            pstmt.columnDataExecuteBatch();
+        }
+    }
+
+    private static void bindGeometry(Connection conn) throws SQLException {
+        String sql = "insert into ? using stable7 tags(?) values(?,?)";
+
+        try (TSDBPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSDBPreparedStatement.class)) {
+
+            byte[] g1 = StringUtils.hexToBytes("0101000000000000000000F03F0000000000000040");
+            byte[] g2 = StringUtils.hexToBytes("0102000020E610000002000000000000000000F03F000000000000004000000000000008400000000000001040");
+            List<byte[]> listGeo = new ArrayList<>();
+            listGeo.add(g1);
+            listGeo.add(g2);
+
+            for (int i = 1; i <= 2; i++) {
+                // set table name
+                pstmt.setTableName("t7_" + i);
+                // set tags
+                pstmt.setTagGeometry(0, listGeo.get(i - 1));
+
+                // set columns
+                ArrayList<Long> tsList = new ArrayList<>();
+                long current = System.currentTimeMillis();
+                for (int j = 0; j < numOfRow; j++)
+                    tsList.add(current + j);
+                pstmt.setTimestamp(0, tsList);
+
+                ArrayList<byte[]> f1List = new ArrayList<>();
+                for (int j = 0; j < numOfRow; j++) {
+                    f1List.add(listGeo.get(i - 1));
+                }
+                pstmt.setGeometry(1, f1List, BINARY_COLUMN_SIZE);
+
+                // add column
+                pstmt.columnDataAddBatch();
+            }
+            // execute
+            pstmt.columnDataExecuteBatch();
+        }
+    }
 }
 ```
 
-**注**：setString 和 setNString 都要求用户在 size 参数里声明表定义中对应列的列宽
+**注**：字符串和数组类型都要求用户在 size 参数里声明表定义中对应列的列宽。
 
 用于设定 VALUES 数据列的取值的方法总共有：
 
@@ -695,6 +781,8 @@ public void setByte(int columnIndex, ArrayList<Byte> list) throws SQLException
 public void setShort(int columnIndex, ArrayList<Short> list) throws SQLException
 public void setString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException
+public void setVarbinary(int columnIndex, ArrayList<byte[]> list, int size) throws SQLException
+public void setGeometry(int columnIndex, ArrayList<byte[]> list, int size) throws SQLException
 ```
 
 </TabItem>
@@ -883,6 +971,9 @@ public void setTagFloat(int index, float value)
 public void setTagDouble(int index, double value)
 public void setTagString(int index, String value)
 public void setTagNString(int index, String value)
+public void setTagJson(int index, String value)
+public void setTagVarbinary(int index, byte[] value)
+public void setTagGeometry(int index, byte[] value)
 ```
 
 ### 无模式写入

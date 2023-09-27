@@ -63,7 +63,8 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_WAL_SEGMENT_SIZE,
   DB_OPTION_STT_TRIGGER,
   DB_OPTION_TABLE_PREFIX,
-  DB_OPTION_TABLE_SUFFIX
+  DB_OPTION_TABLE_SUFFIX,
+  DB_OPTION_KEEP_TIME_OFFSET
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
