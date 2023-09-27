@@ -916,6 +916,8 @@ export default {
   },
 
   datasource: {
+    selecttargetdb:'请选择目标数据源',
+    metrics:'当前指标',
     restarttask:'请重启任务',
     csvconfigtip:'请配置csv信息',
     csvwholeinfo:'请填写完整的csv配置信息（主键，tag，列和列类型）',
@@ -1684,7 +1686,7 @@ export default {
     edittitle:'编辑代理',
     deletetip:`确定删除代理 {id} ?`,
     eidtagent:'编辑代理',
-    createnewagent:'新增代理',
+    createnewagent:'创建新的代理',
     cluster_id:'集群ID',
     connectors:'连接器',
     created_at:'创建时间',

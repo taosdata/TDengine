@@ -100,10 +100,12 @@
         <el-table-column
           :label="$t('datasource.type')"
           prop="localtype"
+          width="150"
         ></el-table-column>
         <el-table-column
           :label="$t('datasource.target')"
           prop="target"
+          width="200"
         ></el-table-column>
         <el-table-column
           :label="$t('datasource.createat')"
@@ -117,9 +119,10 @@
         <el-table-column
           :label="$t('datasource.via')"
           prop="via"
+          width="100"
         ></el-table-column>
 
-        <el-table-column label="Metrics" prop="finished_at">
+        <el-table-column :label="$t('datasource.metrics')" prop="finished_at">
           <template slot-scope="scope">
             <el-button
               @click="checkMetrics(scope.row)"
@@ -131,9 +134,9 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('datasource.status')" prop="status">
+        <el-table-column :label="$t('datasource.status')" prop="status" >
           <template slot-scope="scope">
-            <div class="status-operation">
+            <div class="status-operation" style="display:flex;white-space:nowrap;">
               <el-tooltip
                 v-if="
                   ['stopped', 'finished', 'failed'].includes(
@@ -210,6 +213,7 @@
           :label="$t('datasource.operation')"
           width="150"
           class="action"
+          fixed="right"
         >
           <template slot-scope="scope">
             <el-button

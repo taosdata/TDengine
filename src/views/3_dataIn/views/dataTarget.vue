@@ -1,10 +1,16 @@
 <template>
   <div class="data-target">
-    <el-form :model="ruleForm" ref="ruleForm">
+    <el-form
+      :model="ruleForm"
+      ref="ruleForm"
+      label-width="200px"
+      :rules="rules"
+      class="reqired-change"
+    >
       <el-form-item label="名称" prop="name">
-        <el-input></el-input>
+        <el-input size="small"></el-input>
       </el-form-item>
-      <el-form-item label="类型" prop="type">
+      <el-form-item label="类型" prop="type" size="small">
         <el-select v-model="ruleForm.type">
           <el-option
             v-for="item in dbTypes"
@@ -14,7 +20,7 @@
           ></el-option>
         </el-select>
       </el-form-item>
-      <el-form-item label="代理" prop="'agent'">
+      <el-form-item label="代理" prop="'agent'" size="small">
         <el-select v-model="ruleForm.agent">
           <el-option
             v-for="item in agentList"
@@ -23,9 +29,29 @@
             :value="item.id"
           ></el-option>
         </el-select>
-        <el-button type="primary" @click="createAgent">新增代理</el-button>
+        <el-button
+          type="primary"
+          @click="createAgent"
+          size="small"
+          icon="el-icon-plus"
+          >{{ $t("taosagents.createnewagent") }}</el-button
+        >
       </el-form-item>
-      <el-form-item label="目标数据库" prop="dbName"></el-form-item>
+      <el-form-item label="目标数据库" prop="dbName">
+        <el-select
+          v-model="ruleForm.dbName"
+          placeholder=""
+          style="margin-right: 8px"
+          size="small"
+        >
+          <el-option
+            v-for="db in dbList"
+            :key="db['node-key']"
+            :label="db.name"
+            :value="db.name"
+          ></el-option>
+        </el-select>
+      </el-form-item>
     </el-form>
     <el-dialog
       align="center"
@@ -46,6 +72,7 @@
           <el-input
             v-model.trim="ruleAgentForm.name"
             :maxlength="20"
+            size="small"
           ></el-input>
         </el-form-item>
       </el-form>
@@ -92,6 +119,27 @@ export default {
         agent: "",
         dbName: "",
       },
+      agentrule: [
+        {
+          required: true,
+          trigger: "change",
+          message: this.$t("datasource.agenttip"),
+        },
+      ],
+      rules: {
+        name: [
+          {
+            required: true,
+            trigger: "blur",
+            message: this.$t("datasource.targetnametip"),
+          },
+        ],
+        dbName: {
+          required: true,
+          trigger: "change",
+          message: this.$t("datasource.selecttargetdb"),
+        },
+      },
       ruleAgentForm: {
         name: "",
       },
@@ -133,12 +181,12 @@ export default {
           user_id: localStorage.getItem("username"),
         };
         let res = await addNewAgent(params);
-        if(res.message){
-            Message.error(res.message)
-            return
+        if (res.message) {
+          Message.error(res.message);
+          return;
         }
-        this.getAgentDataType()
-        console.log(res,'新增代理');
+        this.getAgentDataType();
+        console.log(res, "新增代理");
       } catch (error) {
         console.log(error);
       }
@@ -187,3 +235,31 @@ export default {
   },
 };
 </script>
+<style lang="scss">
+.el-form-item__label {
+  text-align: left;
+  font-size: 14px;
+  font-weight: 500;
+  // position: relative;
+  &::before {
+    display: none;
+  }
+  // &.is-required:not(.is-no-asterisk)> .el-form-item__label::after {
+
+  //     content: "*";
+  //     font-size: 12px;
+  //     color: red;
+  //     right: 0px;
+
+  // }
+}
+.el-form-item.is-required:not(.is-no-asterisk) > .el-form-item__label:after,
+.el-form-item.is-required:not(.is-no-asterisk)
+  .el-form-item__label-wrap
+  > .el-form-item__label:after {
+  content: "*";
+  color: #ff4949;
+  font-size: 12px;
+  margin-left: 0px;
+}
+</style>

@@ -6,12 +6,12 @@
         (this.$parent.currentTaskStatus == 'running'&&!this.$parent.isCopyable) ? 'readable' : '',
       ]"
     >
-    <!-- <section>
+    <section>
       <DataTarget></DataTarget>
-    </section> -->
-      <section class="header">
+    </section>
+      <!-- <section class="header">
         <h1>{{ dbsource[0].name ? dbsource[0].name : "" }}</h1>
-      </section>
+      </section> -->
       <div class="source-name" v-if="isEditable">
         <div class="block-title">
           <span>{{ $t("datasource.sourcename") }}</span>
@@ -21,6 +21,7 @@
           <el-input
             v-model="sourceName"
             placeholder=""
+            size="small"
             style="width: 200px"
           ></el-input>
         </div>
@@ -36,6 +37,7 @@
               v-model="dbsource[0].protocol.value"
               placeholder=""
               style="margin-bottom: 8px"
+              size="small"
             >
               <el-option
                 v-for="c in dbsource[0].protocol.choices"
@@ -67,6 +69,7 @@
             <el-select
               v-model="dbsource[0].params[0].value"
               placeholder=""
+              size="small"
               style="margin-bottom: 8px"
               @change="changeSystemConfiguration"
             >
@@ -93,6 +96,7 @@
             >
             <div class="label-value">
               <el-input
+              size="small"
                 v-model="dbsource[0].options.host.value"
                 @change="changeHost(dbsource[0].options.host.display)"
                 :placeholder="dbsource[0].options.host.placeholder"
@@ -118,6 +122,7 @@
 
             <div class="label-value">
               <el-input
+              size="small"
                 v-model="dbsource[0].options.port.value"
                 :placeholder="dbsource[0].options.port.placeholder"
                 @change="changePort"
@@ -144,6 +149,7 @@
           >
           <div class="label-value">
             <el-input
+            size="small"
               :placeholder="dbsource[0].params[1].placeholder"
               v-model="dbsource[0].params[1].value"
               style="margin-bottom: 8px"
@@ -170,6 +176,7 @@
           >
           <div class="label-value">
             <el-input
+            size="small"
               :placeholder="dbsource[0].options.subject.placeholder"
               v-model="dbsource[0].options.subject.value"
               style="margin-bottom: 8px"
@@ -210,6 +217,7 @@
                       }}</span>
                       <div style="flex: 1">
                         <el-input
+                        size="small"
                           style="margin-bottom: 8px"
                           v-model="
                             dbsource[0].authentication.alternatives[0].username
@@ -235,6 +243,7 @@
                       }}</span>
                       <div style="flex: 1">
                         <el-input
+                        size="small"
                           type="password"
                           style="margin-bottom: 8px"
                           v-model="
@@ -276,6 +285,7 @@
                       <el-select
                         v-model="p.value"
                         placeholder=""
+                        size="small"
                         style="margin-left: 0px; width: 100%"
                       >
                         <el-option
@@ -288,6 +298,7 @@
                     </template>
                     <el-input
                       v-else
+                      size="small"
                       v-model="p.value"
                       :type="
                         p.name == 'password' || p.name == 'token'
@@ -306,96 +317,6 @@
             </template>
           </el-tabs>
 
-          <!-- <el-radio-group v-model="dbsource[0].authentication.value">
-            <template v-for="at in dbsource[0].authentication.alternatives">
-              <el-radio :key="at.name" :label="at.name"
-                >{{ at.display }}
-                <span class="des" style="color: #acaab2" v-if="at.description"
-                  >({{ at.description }})</span
-                >
-              </el-radio>
-            </template>
-          </el-radio-group> -->
-          <!-- <div class="authen-details">
-            <template v-if="dbsource[0].authentication.value == 'plain'">
-              <div class="plain">
-                <div class="plain-item">
-                  <span class="label">{{
-                    dbsource[0].authentication.alternatives[0].username.display
-                  }}</span>
-                  <div style="width: 100%">
-                    <el-input
-                      v-model="
-                        dbsource[0].authentication.alternatives[0].username
-                          .value
-                      "
-                    ></el-input>
-                    <p
-                      class="description"
-                      v-html="
-                        transforHtml(
-                          dbsource[0].authentication.alternatives[0].username
-                            .description
-                        )
-                      "
-                    ></p>
-                  </div>
-                </div>
-
-                <div class="plain-item">
-                  <span class="label">{{
-                    dbsource[0].authentication.alternatives[0].password.display
-                  }}</span>
-                  <div style="width: 100%">
-                    <el-input
-                      type="password"
-                      v-model="
-                        dbsource[0].authentication.alternatives[0].password
-                          .value
-                      "
-                    ></el-input>
-                    <p
-                      class="description"
-                      v-html="
-                        transforHtml(
-                          dbsource[0].authentication.alternatives[0].password
-                            .description
-                        )
-                      "
-                    ></p>
-                  </div>
-                </div>
-              </div>
-            </template>
-            <template v-else>
-              <div
-                v-for="al in dbsource[0].authentication.alternatives.filter(
-                  (item) => item.name != 'plain'
-                )"
-                :key="al.name"
-                style="
-                  display: flex;
-                  align-items: baseline;
-                  flex-direction: column;
-                "
-              >
-                <div
-                  v-for="(p, index) in al.params"
-                  :key="index"
-                  style="width: 100%"
-                >
-                  <p>
-                    <span class="label">{{ p.display }}</span>
-                  </p>
-                  <el-input v-model="p.value"></el-input>
-                  <div
-                    class="description"
-                    v-html="transforHtml(p.description)"
-                  ></div>
-                </div>
-              </div>
-            </template>
-          </div> -->
         </div>
       </section>
       <section
@@ -432,6 +353,7 @@
                   ></span>
                   <template v-if="p.target.multiple">
                     <el-select
+                    size="small"
                       v-model="p.target.value"
                       :multiple="p.target.multiple"
                       :allow-create="p.target.editable"
@@ -450,10 +372,10 @@
                     </el-select>
                   </template>
                   <template v-else>
-                    <el-input v-model="p.target.value"></el-input>
+                    <el-input v-model="p.target.value" size="small"></el-input>
                   </template>
                   <el-button
-                    size="medium"
+                    size="small"
                     @click="handleSelBtn"
                     style="height: 42px"
                     >{{ $t("datasource.select") }}</el-button
@@ -461,6 +383,7 @@
                 </div>
                 <div class="configuration" v-if="isShowConfiguration">
                   <el-input
+                  size="small"
                     :placeholder="$t('datasource.regexPlaceholder')"
                     v-model="p.value"
                     @keydown.enter.native="searchDatas"
@@ -502,7 +425,7 @@
                             >
                               {{ o.name }}
                             </span>
-                            <el-input placeholder="" v-model="o.value" />
+                            <el-input placeholder="" v-model="o.value" size="small"/>
                           </div>
                         </div>
                         <div>
@@ -549,6 +472,7 @@
                   "
                 >
                   <el-input
+                  size="small"
                     v-model="p.value"
                     :placeholder="p.placeholder"
                   ></el-input>
@@ -558,6 +482,7 @@
                     <el-select
                       v-if="['bucket', 'measurements','metrics'].includes(p.name)"
                       v-model="p.value"
+                      size="small"
                       placeholder=""
                       :style="
                         p.name === 'bucket'
@@ -585,6 +510,7 @@
                     </el-select>
                     <el-select
                       v-else
+                      size="small"
                       v-model="p.value"
                       placeholder=""
                       style="margin-left: -15px"
@@ -602,7 +528,7 @@
                       <el-button
                         style="margin-left: 10px"
                         v-if="p.name == 'metrics'"
-                        size="medium"
+                        size="small"
                         type="primary"
                         plain
                         :disable="btnLoading"
@@ -613,7 +539,7 @@
                     </template>
                     <el-button
                       v-else-if="p.name === 'bucket'"
-                      size="medium"
+                      size="small"
                       type="primary"
                       plain
                       :disable="btnLoading"
@@ -625,11 +551,6 @@
                   <el-input v-else v-model="p.value"></el-input>
                 </template>
                 <template v-if="p.hint === 'bool' || p.hint.type === 'bool'">
-                  <!-- <el-radio-group v-model="p.value">
-                    <el-radio v-for="c in p.choices" :key="c" :label="c">
-                      {{ c }}
-                    </el-radio>
-                  </el-radio-group> -->
                   <el-checkbox
                     v-model="p.value"
                     true-label="true"
@@ -643,6 +564,7 @@
                   "
                 >
                   <el-input-number
+                  size="small"
                     v-model="p.value"
                     :min="p.hint.min"
                     :max="p.hint.max"
@@ -688,14 +610,6 @@
                   >
                   </DatePicker>
                 </template>
-                <!-- <template v-if="p.hint?.type == 'datetime'">
-                  <el-date-picker
-                    v-model="p.value"
-                    type="datetime"
-                    placeholder="Please select the date"
-                  >
-                  </el-date-picker>
-                </template> -->
                 <div
                   v-html="transforHtml(p.description)"
                   class="description"
@@ -707,11 +621,10 @@
       </template>
 
       <!--未分组显示根节点下的params，显示方式和groups一样-->
-      <!-- <section class="ungrounded" v-if="dbsource[0].params"></section> -->
       <section class="choose-db">
         <span class="label required">{{ this.$t("datasource.targetdb") }}</span>
         <div class="target-db-name">
-          <el-select v-model="dbname" placeholder="" style="margin-right: 8px">
+          <el-select v-model="dbname" placeholder="" style="margin-right: 8px" size="small">
             <el-option
               v-for="db in dblist"
               :key="db['node-key']"
@@ -719,17 +632,16 @@
               :value="db.name"
             ></el-option>
           </el-select>
-          <!-- <span class="desc">{{$t('datasource.influxdbtip')}}</span> -->
         </div>
-        <el-button size="medium" type="primary" plain @click="handleDbBtn">
+        <el-button size="small" type="primary" plain @click="handleDbBtn">
           {{ $t("data.createDatabase") }}
         </el-button>
       </section>
       <section class="bottom">
-        <el-button @click="cancel" class="cancel-btn">{{
+        <el-button @click="cancel" class="cancel-btn" size="small">{{
           $t("cancel")
         }}</el-button>
-        <el-button type="primary" @click="submit" :disabled="disable">{{
+        <el-button type="primary" @click="submit" :disabled="disable" size="small">{{
           $t("submit")
         }}</el-button>
       </section>
@@ -746,7 +658,7 @@
   </div>
 </template>
 <script>
-// import DataTarget from './dataTarget.vue'
+import DataTarget from './dataTarget.vue'
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
 import DatePicker from "@/components/date-picker";
@@ -756,7 +668,7 @@ import { debounce, parsinginZone } from "@/utils/index";
 import DialogCreateDb from "../components/addDbDialog.vue";
 export default {
   name: "DbSourceUI",
-  components: { DatePicker, DialogCreateDb },
+  components: { DatePicker, DialogCreateDb,DataTarget },
   props: {
     // sourceName: {
     //   type: String,
@@ -1820,7 +1732,7 @@ export default {
         }
       }
     }
-    section:not(:first-child) {
+    section {
       border: 1px solid #ececef;
       margin-bottom: 20px;
       border-radius: 12px;
