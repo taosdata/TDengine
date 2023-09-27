@@ -184,7 +184,29 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn profile(args: web::Data<Args>) -> impl Responder {
-    HttpResponse::Ok().json(&args.profile)
+    if args.profile.x_api.is_none() {
+        return HttpResponse::Ok().json(&args.profile);
+    }
+    let mut profile = args.profile.clone();
+    let x = args.profile.x_api.as_deref().unwrap();
+    let url = format!("{x}/profile");
+    let client = awc::Client::builder()
+        .disable_timeout()
+        .wrap(Tracing)
+        .finish();
+    let client = client.get(url);
+    let client = client.timeout(Duration::from_secs(10));
+
+    if let Ok(mut resp) = client.send().await {
+        if let Ok(json) = resp.json::<serde_json::Value>().await {
+            if let Some(version) = json.get("version") {
+                profile
+                    .version
+                    .replace(version.as_str().unwrap_or_default().into());
+            }
+        }
+    }
+    HttpResponse::Ok().json(&profile)
 }
 
 #[post("/rest/sql")]
@@ -393,6 +415,10 @@ struct Profile {
     /// GRPC endpoint of taosX for agents.
     #[clap(short, long, env = "EXPLORER_GRPC")]
     grpc: Option<String>,
+
+    /// taosX version
+    #[clap(skip)]
+    version: Option<String>,
 }
 
 #[derive(Parser, Debug, Clone, Deserialize)]
@@ -560,9 +586,13 @@ impl Args {
             .query("show dnodes")
             .await?
             .deserialize::<RenewLicense>()
-            .all(|l| async move { l.map(|l| {
-                (l.active_code == license.active_code || active_code_empty) && (l.c_active_code == license.c_active_code || c_active_code_empty)
-            }).unwrap_or_default() })
+            .all(|l| async move {
+                l.map(|l| {
+                    (l.active_code == license.active_code || active_code_empty)
+                        && (l.c_active_code == license.c_active_code || c_active_code_empty)
+                })
+                .unwrap_or_default()
+            })
             .await;
 
         if renewed {
