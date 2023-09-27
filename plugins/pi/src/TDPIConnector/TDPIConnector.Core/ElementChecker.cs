@@ -122,5 +122,14 @@ namespace TDPIConnector.Core
             }
             return db != null;
         }
+
+        static public string buildConnectFailedInfo() {
+            var result = new CheckReslut();
+            result.version = PISystemManager.GetPISDKInfo();
+            result.avaliable = false;
+            result.since = "DataAchive or AF Server cannot connect.";
+            string info = JsonConvert.SerializeObject(result);
+            return buildConnectFailedInfo();
+        }
     }
 }

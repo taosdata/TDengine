@@ -364,26 +364,25 @@ namespace TDPIConnector.Core
 
         public void CheckConfig()
         {
+            string info = "";
             try
             {
                 InitializePIConnections();
-                var checker = new PIConfigChecker(piServerManager, piSystemManager);
-                string info = checker.Check();
+            }
+            catch (Exception)
+            {
+                info = PIConfigChecker.buildConnectFailedInfo();
                 Console.OutputEncoding = Encoding.UTF8;
                 Console.WriteLine(info);
                 log.Info(info);
+                return;
             }
-            catch (Exception e)
-            {
-                var result = new PIConfigChecker.CheckReslut();
-                result.version = PISystemManager.GetPISDKInfo();
-                result.avaliable = false;
-                result.since = "DataAchive or AF Server cannot connect.";
-                string info = JsonConvert.SerializeObject(result);
-                Console.OutputEncoding = Encoding.UTF8;
-                Console.WriteLine(e.Message);
-                log.Info(info);
-            }
+            var checker = new PIConfigChecker(piServerManager, piSystemManager);
+            info = checker.Check();
+            Console.OutputEncoding = Encoding.UTF8;
+            Console.WriteLine(info);
+            log.Info(info);
+
             log.Info("Check Config finished!");
         }
 
