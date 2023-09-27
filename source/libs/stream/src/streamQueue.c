@@ -401,14 +401,14 @@ static void fillTokenBucket(STokenBucket* pBucket) {
 
   int32_t incNum = (delta / 1000.0) * pBucket->numRate;
   if (incNum > 0) {
-    pBucket->numOfToken = MIN(pBucket->numOfToken + incNum, pBucket->numCapacity);
+    pBucket->numOfToken = TMIN(pBucket->numOfToken + incNum, pBucket->numCapacity);
     pBucket->fillTimestamp = now;
   }
 
   // increase the new available quota as time goes on
   double incSize = (delta / 1000.0) * pBucket->bytesRate;
   if (incSize > 0) {
-    pBucket->bytesRemain = MIN(pBucket->bytesRemain + incSize, pBucket->bytesCapacity);
+    pBucket->bytesRemain = TMIN(pBucket->bytesRemain + incSize, pBucket->bytesCapacity);
   }
 
   if (incNum > 0) {
@@ -434,7 +434,7 @@ bool streamTaskExtractAvailableToken(STokenBucket* pBucket) {
 }
 
 void streamTaskPutbackToken(STokenBucket* pBucket) {
-  pBucket->numOfToken = MIN(pBucket->numOfToken + 1, pBucket->numCapacity);
+  pBucket->numOfToken = TMIN(pBucket->numOfToken + 1, pBucket->numCapacity);
 }
 
 // size in KB
