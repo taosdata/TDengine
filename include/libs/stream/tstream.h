@@ -270,13 +270,13 @@ typedef struct SCheckpointInfo {
 } SCheckpointInfo;
 
 typedef struct SStreamStatus {
-  int8_t taskStatus;
-  int8_t downstreamReady;  // downstream tasks are all ready now, if this flag is set
-  int8_t schedStatus;
-  int8_t keepTaskStatus;
-  bool   appendTranstateBlock;  // has append the transfer state data block already, todo: remove it
-  int8_t timerActive;           // timer is active
-  int8_t pauseAllowed;          // allowed task status to be set to be paused
+  int8_t  taskStatus;
+  int8_t  downstreamReady;  // downstream tasks are all ready now, if this flag is set
+  int8_t  schedStatus;
+  int8_t  keepTaskStatus;
+  bool    appendTranstateBlock;  // has append the transfer state data block already, todo: remove it
+  int8_t  pauseAllowed;          // allowed task status to be set to be paused
+  int32_t timerActive;           // timer is active
 } SStreamStatus;
 
 typedef struct SDataRange {
@@ -304,6 +304,7 @@ typedef struct SDispatchMsgInfo {
   int32_t retryCount;  // retry send data count
   int64_t startTs;     // dispatch start time, record total elapsed time for dispatch
   SArray* pRetryList;  // current dispatch successfully completed node of downstream
+  void*   pTimer; // used to dispatch data after a given time duration
 } SDispatchMsgInfo;
 
 typedef struct STaskOutputInfo {
@@ -345,7 +346,14 @@ typedef struct STaskExecStatisInfo {
   SSinkRecorder sink;
 } STaskExecStatisInfo;
 
-typedef struct STaskTimer   STaskTimer;
+typedef struct SHistoryTaskInfo {
+  STaskId id;
+  void*   pTimer;
+  int32_t tickCount;
+  int32_t retryTimes;
+  int32_t waitInterval;
+} SHistoryTaskInfo;
+
 typedef struct STokenBucket STokenBucket;
 typedef struct SMetaHbInfo  SMetaHbInfo;
 
@@ -361,7 +369,7 @@ struct SStreamTask {
   SCheckpointInfo  chkInfo;
   STaskExec        exec;
   SDataRange       dataRange;
-  STaskId          historyTaskId;
+  SHistoryTaskInfo hTaskInfo;
   STaskId          streamTaskId;
   STaskExecStatisInfo execInfo;
   SArray*          pReadyMsgList;  // SArray<SStreamChkptReadyInfo*>
@@ -378,7 +386,6 @@ struct SStreamTask {
   };
 
   STokenBucket* pTokenBucket;
-  STaskTimer*   pTimer;
   SMsgCb*       pMsgCb;  // msg handle
   SStreamState* pState;  // state backend
   SArray*       pRspMsgList;

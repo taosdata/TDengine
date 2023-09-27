@@ -96,8 +96,8 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   if (tEncodeI64(pEncoder, pTask->chkInfo.checkpointVer) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->info.fillHistory) < 0) return -1;
 
-  if (tEncodeI64(pEncoder, pTask->historyTaskId.streamId)) return -1;
-  int32_t taskId = pTask->historyTaskId.taskId;
+  if (tEncodeI64(pEncoder, pTask->hTaskInfo.id.streamId)) return -1;
+  int32_t taskId = pTask->hTaskInfo.id.taskId;
   if (tEncodeI32(pEncoder, taskId)) return -1;
 
   if (tEncodeI64(pEncoder, pTask->streamTaskId.streamId)) return -1;
@@ -169,9 +169,9 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   if (tDecodeI64(pDecoder, &pTask->chkInfo.checkpointVer) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->info.fillHistory) < 0) return -1;
 
-  if (tDecodeI64(pDecoder, &pTask->historyTaskId.streamId)) return -1;
+  if (tDecodeI64(pDecoder, &pTask->hTaskInfo.id.streamId)) return -1;
   if (tDecodeI32(pDecoder, &taskId)) return -1;
-  pTask->historyTaskId.taskId = taskId;
+  pTask->hTaskInfo.id.taskId = taskId;
 
   if (tDecodeI64(pDecoder, &pTask->streamTaskId.streamId)) return -1;
   if (tDecodeI32(pDecoder, &taskId)) return -1;
@@ -312,18 +312,14 @@ void tFreeStreamTask(SStreamTask* pTask) {
     pTask->schedInfo.pTimer = NULL;
   }
 
-  if (pTask->pTimer != NULL) {
-    if (pTask->pTimer->hTaskLaunchTimer != NULL) {
-      taosTmrStop(pTask->pTimer->hTaskLaunchTimer);
-      pTask->pTimer->hTaskLaunchTimer = NULL;
-    }
+  if (pTask->hTaskInfo.pTimer != NULL) {
+    taosTmrStop(pTask->hTaskInfo.pTimer);
+    pTask->hTaskInfo.pTimer = NULL;
+  }
 
-    if (pTask->pTimer->dispatchTimer != NULL) {
-      taosTmrStop(pTask->pTimer->dispatchTimer);
-      pTask->pTimer->dispatchTimer = NULL;
-    }
-
-    taosMemoryFreeClear(pTask->pTimer);
+  if (pTask->msgInfo.pTimer != NULL) {
+    taosTmrStop(pTask->msgInfo.pTimer);
+    pTask->msgInfo.pTimer = NULL;
   }
 
   int32_t status = atomic_load_8((int8_t*)&(pTask->status.taskStatus));
@@ -422,12 +418,6 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   pTask->pTokenBucket = taosMemoryCalloc(1, sizeof(STokenBucket));
   if (pTask->pTokenBucket == NULL) {
     stError("s-task:%s failed to prepare the tokenBucket, code:%s", pTask->id.idStr, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  pTask->pTimer = taosMemoryCalloc(1, sizeof(STaskTimer));
-  if (pTask->pTimer == NULL) {
-    stError("s-task:%s failed to prepare the timer, code:%s", pTask->id.idStr, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -689,7 +679,35 @@ int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskI
   return code;
 }
 
-STaskId extractStreamTaskKey(const SStreamTask* pTask) {
+STaskId streamTaskExtractKey(const SStreamTask* pTask) {
   STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
   return id;
+}
+
+void streamTaskInitForLaunchHTask(SHistoryTaskInfo* pInfo) {
+  pInfo->waitInterval = LAUNCH_HTASK_INTERVAL;
+  pInfo->tickCount = ceil(LAUNCH_HTASK_INTERVAL / WAIT_FOR_MINIMAL_INTERVAL);
+  pInfo->retryTimes = 0;
+}
+
+void streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo) {
+  ASSERT(pInfo->tickCount == 0);
+
+  pInfo->waitInterval *= RETRY_LAUNCH_INTERVAL_INC_RATE;
+  pInfo->tickCount = ceil(pInfo->waitInterval / WAIT_FOR_MINIMAL_INTERVAL);
+  pInfo->retryTimes += 1;
+}
+
+const char* streamGetTaskStatusStr(int32_t status) {
+  switch(status) {
+    case TASK_STATUS__NORMAL: return "normal";
+    case TASK_STATUS__SCAN_HISTORY: return "scan-history";
+    case TASK_STATUS__HALT: return "halt";
+    case TASK_STATUS__PAUSE: return "paused";
+    case TASK_STATUS__CK: return "check-point";
+    case TASK_STATUS__DROPPING: return "dropping";
+    case TASK_STATUS__STOP: return "stop";
+    case TASK_STATUS__UNINIT: return "uninitialized";
+    default:return "";
+  }
 }

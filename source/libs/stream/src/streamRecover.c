@@ -29,9 +29,12 @@ typedef struct STaskRecheckInfo {
   void*               checkTimer;
 } STaskRecheckInfo;
 
-static int32_t streamSetParamForScanHistory(SStreamTask* pTask);
-static void    streamTaskSetRangeStreamCalc(SStreamTask* pTask);
-static int32_t initScanHistoryReq(SStreamTask* pTask, SStreamScanHistoryReq* pReq, int8_t igUntreated);
+static int32_t           streamSetParamForScanHistory(SStreamTask* pTask);
+static void              streamTaskSetRangeStreamCalc(SStreamTask* pTask);
+static int32_t           initScanHistoryReq(SStreamTask* pTask, SStreamScanHistoryReq* pReq, int8_t igUntreated);
+static int32_t           getNextRetryInterval(int32_t waitInterval);
+static SLaunchHTaskInfo* createHTaskLaunchInfo(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
+static void              tryLaunchHistoryTask(void* param, void* tmrId);
 
 static void streamTaskSetReady(SStreamTask* pTask, int32_t numOfReqs) {
   SStreamMeta* pMeta = pTask->pMeta;
@@ -54,7 +57,7 @@ static void streamTaskSetReady(SStreamTask* pTask, int32_t numOfReqs) {
 
   taosWLockLatch(&pMeta->lock);
 
-  STaskId id = extractStreamTaskKey(pTask);
+  STaskId id = streamTaskExtractKey(pTask);
   taosHashPut(pMeta->startInfo.pReadyTaskSet, &id, sizeof(id), NULL, 0);
   int32_t numOfTotal = streamMetaGetNumOfTasks(pMeta);
 
@@ -88,20 +91,6 @@ int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated) {
   }
 
   return 0;
-}
-
-const char* streamGetTaskStatusStr(int32_t status) {
-  switch(status) {
-    case TASK_STATUS__NORMAL: return "normal";
-    case TASK_STATUS__SCAN_HISTORY: return "scan-history";
-    case TASK_STATUS__HALT: return "halt";
-    case TASK_STATUS__PAUSE: return "paused";
-    case TASK_STATUS__CK: return "check-point";
-    case TASK_STATUS__DROPPING: return "dropping";
-    case TASK_STATUS__STOP: return "stop";
-    case TASK_STATUS__UNINIT: return "uninitialized";
-    default:return "";
-  }
 }
 
 static int32_t doLaunchScanHistoryTask(SStreamTask* pTask) {
@@ -249,7 +238,7 @@ static void recheckDownstreamTasks(void* param, void* tmrId) {
   }
 
   destroyRecheckInfo(pInfo);
-  int8_t ref = atomic_sub_fetch_8(&pTask->status.timerActive, 1);
+  int8_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
   stDebug("s-task:%s complete send check in timer, ref:%d", pTask->id.idStr, ref);
 }
 
@@ -302,7 +291,7 @@ static void doProcessDownstreamReadyRsp(SStreamTask* pTask, int32_t numOfReqs) {
     if (pTask->info.fillHistory == 1) {
       stDebug("s-task:%s fill-history is set normal when start it, try to remove it,set it task to be dropping", id);
       pTask->status.taskStatus = TASK_STATUS__DROPPING;
-      ASSERT(pTask->historyTaskId.taskId == 0);
+      ASSERT(pTask->hTaskInfo.id.taskId == 0);
     } else {
       stDebug("s-task:%s downstream tasks are ready, now ready for data from wal, status:%s", id, str);
       streamTaskEnablePause(pTask);
@@ -375,7 +364,7 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
     } else {
       STaskRecheckInfo* pInfo = createRecheckInfo(pTask, pRsp);
 
-      int8_t ref = atomic_add_fetch_8(&pTask->status.timerActive, 1);
+      int8_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
       stDebug("s-task:%s downstream taskId:0x%x (vgId:%d) not ready, stage:%d, retry in 100ms, ref:%d ", id,
               pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->oldStage, ref);
 
@@ -462,6 +451,10 @@ int32_t initScanHistoryReq(SStreamTask* pTask, SStreamScanHistoryReq* pReq, int8
   pReq->taskId = pTask->id.taskId;
   pReq->igUntreated = igUntreated;
   return 0;
+}
+
+int32_t getNextRetryInterval(int32_t waitInterval) {
+  return waitInterval * RETRY_LAUNCH_INTERVAL_INC_RATE;
 }
 
 int32_t streamTaskPutTranstateIntoInputQ(SStreamTask* pTask) {
@@ -609,11 +602,46 @@ static void checkFillhistoryTaskStatus(SStreamTask* pTask, SStreamTask* pHTask) 
   doCheckDownstreamStatus(pHTask);
 }
 
+static bool doLaunchHistoryTask(SStreamTask* pTask, SLaunchHTaskInfo* pInfo) {
+  SStreamMeta* pMeta = pTask->pMeta;
+  streamTaskSetRetryInfoForLaunch(&pTask->hTaskInfo);
+
+  stDebug("s-task:%s try launch related fill-history task in timer, retry:%d", pTask->id.idStr,
+          pTask->hTaskInfo.retryTimes);
+
+  ASSERT(pTask->status.timerActive >= 1);
+
+  // abort the timer if intend to stop task
+  SStreamTask* pHTask = streamMetaAcquireTask(pMeta, pTask->hTaskInfo.id.streamId, pTask->hTaskInfo.id.taskId);
+  if (pHTask == NULL && (!streamTaskShouldStop(&pTask->status))) {
+    const char* p = streamGetTaskStatusStr(pTask->status.taskStatus);
+    stWarn(
+        "s-task:%s vgId:%d status:%s failed to launch history task:0x%x, since it may not be built, or may have "
+        "been destroyed, or should stop",
+        pTask->id.idStr, pMeta->vgId, streamGetTaskStatusStr(pTask->status.taskStatus), (int32_t)pTask->hTaskInfo.id.taskId);
+
+    taosTmrReset(tryLaunchHistoryTask, LAUNCH_HTASK_INTERVAL, pInfo, streamEnv.timer, &pTask->hTaskInfo.pTimer);
+    streamMetaReleaseTask(pMeta, pTask);
+    return true;
+  }
+
+  if (pHTask != NULL) {
+    checkFillhistoryTaskStatus(pTask, pHTask);
+    streamMetaReleaseTask(pMeta, pHTask);
+  }
+
+  // not in timer anymore
+  int8_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+  stDebug("s-task:0x%x fill-history task launch completed, retry times:%d, ref:%d", (int32_t)pInfo->id.taskId,
+          pTask->hTaskInfo.retryTimes, ref);
+  streamMetaReleaseTask(pMeta, pTask);
+
+  return false;
+}
+
 static void tryLaunchHistoryTask(void* param, void* tmrId) {
   SLaunchHTaskInfo* pInfo = param;
   SStreamMeta*      pMeta = pInfo->pMeta;
-
-  stDebug("s-task:0x%x in timer to launch related history task", (int32_t) pInfo->id.taskId);
 
   taosWLockLatch(&pMeta->lock);
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &pInfo->id, sizeof(pInfo->id));
@@ -622,10 +650,12 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
 
     if (streamTaskShouldStop(&(*ppTask)->status)) {
       const char* pStatus = streamGetTaskStatusStr((*ppTask)->status.taskStatus);
-      stDebug("s-task:%s status:%s quit timer task", (*ppTask)->id.idStr, pStatus);
+
+      int32_t ref = atomic_sub_fetch_32(&(*ppTask)->status.timerActive, 1);
+      stDebug("s-task:%s status:%s should stop, quit launch fill-history task timer, retry:%d, ref:%d",
+              (*ppTask)->id.idStr, pStatus, (*ppTask)->hTaskInfo.retryTimes, ref);
 
       taosMemoryFree(pInfo);
-      atomic_sub_fetch_8(&(*ppTask)->status.timerActive, 1);
       taosWUnLockLatch(&pMeta->lock);
       return;
     }
@@ -634,78 +664,120 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
 
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, pInfo->id.streamId, pInfo->id.taskId);
   if (pTask != NULL) {
-    ASSERT(pTask->status.timerActive >= 1);
 
-    // abort the timer if intend to stop task
-    SStreamTask* pHTask = streamMetaAcquireTask(pMeta, pTask->historyTaskId.streamId, pTask->historyTaskId.taskId);
-    if (pHTask == NULL && (!streamTaskShouldStop(&pTask->status))) {
-      const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
-      stWarn(
-          "s-task:%s vgId:%d status:%s failed to launch history task:0x%x, since it may not be built, or may have been "
-          "destroyed, or should stop",
-          pTask->id.idStr, pMeta->vgId, pStatus, (int32_t) pTask->historyTaskId.taskId);
+    SHistoryTaskInfo* pHTaskInfo = &pTask->hTaskInfo;
 
-      taosTmrReset(tryLaunchHistoryTask, 100, pInfo, streamEnv.timer, &pTask->pTimer->hTaskLaunchTimer);
+    pHTaskInfo->tickCount -= 1;
+    if (pHTaskInfo->tickCount > 0) {
+      taosTmrReset(tryLaunchHistoryTask, LAUNCH_HTASK_INTERVAL, pInfo, streamEnv.timer, &pHTaskInfo->pTimer);
       streamMetaReleaseTask(pMeta, pTask);
       return;
     }
 
-    if (pHTask != NULL) {
-      checkFillhistoryTaskStatus(pTask, pHTask);
-      streamMetaReleaseTask(pMeta, pHTask);
-    }
+    if (pHTaskInfo->retryTimes > MAX_RETRY_LAUNCH_HISTORY_TASK) {
+      int8_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+      taosMemoryFree(pInfo);
+      streamMetaReleaseTask(pMeta, pTask);
 
-    // not in timer anymore
-    atomic_sub_fetch_8(&pTask->status.timerActive, 1);
-    streamMetaReleaseTask(pMeta, pTask);
+      stError("s-task:%s max retry:%d reached, quit from retrying launch related fill-history task timer, ref:%d",
+              pTask->id.idStr, MAX_RETRY_LAUNCH_HISTORY_TASK, ref);
+
+      pHTaskInfo->id.taskId = 0;
+      pHTaskInfo->id.streamId = 0;
+    } else {  // not reach the limitation yet, let's continue retrying launch related fill-history task.
+      streamTaskSetRetryInfoForLaunch(pHTaskInfo);
+      ASSERT(pTask->status.timerActive >= 1);
+
+      // abort the timer if intend to stop task
+      SStreamTask* pHTask = streamMetaAcquireTask(pMeta, pHTaskInfo->id.streamId, pHTaskInfo->id.taskId);
+      if (pHTask == NULL && (!streamTaskShouldStop(&pTask->status))) {
+        const char* p = streamGetTaskStatusStr(pTask->status.taskStatus);
+        int32_t     hTaskId = pHTaskInfo->id.taskId;
+        stDebug(
+            "s-task:%s status:%s failed to launch fill-history task:0x%x, retry launch related fill-history task in "
+            "timer, retryCount:%d",
+            pTask->id.idStr, p, pHTaskInfo->retryTimes, hTaskId);
+
+        taosTmrReset(tryLaunchHistoryTask, LAUNCH_HTASK_INTERVAL, pInfo, streamEnv.timer, &pHTaskInfo->pTimer);
+        streamMetaReleaseTask(pMeta, pTask);
+        return;
+      }
+
+      if (pHTask != NULL) {
+        checkFillhistoryTaskStatus(pTask, pHTask);
+        streamMetaReleaseTask(pMeta, pHTask);
+      }
+
+      // not in timer anymore
+      int8_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+      stDebug("s-task:0x%x fill-history task launch completed, retry times:%d, ref:%d", (int32_t)pInfo->id.taskId,
+              pHTaskInfo->retryTimes, ref);
+      streamMetaReleaseTask(pMeta, pTask);
+    }
   } else {
-    stError("s-task:0x%x failed to load task, it may have been destroyed", (int32_t) pInfo->id.taskId);
+    stError("s-task:0x%x failed to load task, it may have been destroyed, not launch related fill-history task",
+            (int32_t)pInfo->id.taskId);
   }
 
   taosMemoryFree(pInfo);
 }
 
-// todo fix the bug: 2. race condition
+SLaunchHTaskInfo* createHTaskLaunchInfo(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
+  SLaunchHTaskInfo* pInfo = taosMemoryCalloc(1, sizeof(SLaunchHTaskInfo));
+  if (pInfo == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pInfo->id.taskId = taskId;
+  pInfo->id.streamId = streamId;
+  pInfo->pMeta = pMeta;
+  return pInfo;
+}
+
 // an fill history task needs to be started.
 int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
-  int32_t      hTaskId = pTask->historyTaskId.taskId;
+  int32_t      hTaskId = pTask->hTaskInfo.id.taskId;
   if (hTaskId == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
   ASSERT(pTask->status.downstreamReady == 1);
   stDebug("s-task:%s start to launch related fill-history task:0x%" PRIx64 "-0x%x", pTask->id.idStr,
-         pTask->historyTaskId.streamId, hTaskId);
+          pTask->hTaskInfo.id.streamId, hTaskId);
 
   // Set the execute conditions, including the query time window and the version range
-  SStreamTask** pHTask = taosHashGet(pMeta->pTasksMap, &pTask->historyTaskId, sizeof(pTask->historyTaskId));
+  SStreamTask** pHTask = taosHashGet(pMeta->pTasksMap, &pTask->hTaskInfo.id, sizeof(pTask->hTaskInfo.id));
   if (pHTask == NULL) {
-    stWarn("s-task:%s vgId:%d failed to launch history task:0x%x, since it is not built yet", pTask->id.idStr,
-          pMeta->vgId, hTaskId);
+    stWarn("s-task:%s vgId:%d failed to launch history task:0x%x, since not built yet", pTask->id.idStr, pMeta->vgId,
+           hTaskId);
 
-    SLaunchHTaskInfo* pInfo = taosMemoryCalloc(1, sizeof(SLaunchHTaskInfo));
-    pInfo->id.taskId = pTask->id.taskId;
-    pInfo->id.streamId = pTask->id.streamId;
-    pInfo->pMeta = pTask->pMeta;
+    SLaunchHTaskInfo* pInfo = createHTaskLaunchInfo(pTask->pMeta, pTask->id.streamId, pTask->id.taskId);
+    if (pInfo == NULL) {
+      stError("s-task:%s failed to launch related fill-history task, since Out Of Memory", pTask->id.idStr);
+      return terrno;
+    }
 
-    if (pTask->pTimer->hTaskLaunchTimer == NULL) {
-      pTask->pTimer->hTaskLaunchTimer = taosTmrStart(tryLaunchHistoryTask,  100, pInfo, streamEnv.timer);
-      if (pTask->pTimer->hTaskLaunchTimer == NULL) {
-        // todo failed to create timer
+    streamTaskInitForLaunchHTask(&pTask->hTaskInfo);
+    if (pTask->hTaskInfo.pTimer == NULL) {
+      int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
+      pTask->hTaskInfo.pTimer = taosTmrStart(tryLaunchHistoryTask, WAIT_FOR_MINIMAL_INTERVAL, pInfo, streamEnv.timer);
+      if (pTask->hTaskInfo.pTimer == NULL) {  // todo failed to create timer
+        atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+        stError("s-task:%s failed to start timer, related fill-history task not launched, ref:%d", pTask->id.idStr,
+                pTask->status.timerActive);
         taosMemoryFree(pInfo);
       } else {
-        int32_t ref = atomic_add_fetch_8(&pTask->status.timerActive, 1);// timer is active
-        ASSERT(ref == 1);
+        ASSERT(ref >= 1);
         stDebug("s-task:%s set timer active flag, ref:%d", pTask->id.idStr, ref);
       }
     } else {  // timer exists
-      ASSERT(pTask->status.timerActive == 1);
+      ASSERT(pTask->status.timerActive >= 1);
       stDebug("s-task:%s set timer active flag, task timer not null", pTask->id.idStr);
-      taosTmrReset(tryLaunchHistoryTask, 100, pInfo, streamEnv.timer, &pTask->pTimer->hTaskLaunchTimer);
+      taosTmrReset(tryLaunchHistoryTask, WAIT_FOR_MINIMAL_INTERVAL, pInfo, streamEnv.timer, &pTask->hTaskInfo.pTimer);
     }
 
-    // try again in 100ms
     return TSDB_CODE_SUCCESS;
   }
 
@@ -849,7 +921,7 @@ int32_t tDecodeStreamScanHistoryFinishReq(SDecoder* pDecoder, SStreamScanHistory
 }
 
 void streamTaskSetRangeStreamCalc(SStreamTask* pTask) {
-  if (pTask->historyTaskId.taskId == 0) {
+  if (pTask->hTaskInfo.id.taskId == 0) {
     SDataRange* pRange = &pTask->dataRange;
     if (pTask->info.fillHistory == 1) {
       stDebug("s-task:%s fill-history task, time window:%" PRId64 "-%" PRId64 ", verRange:%" PRId64

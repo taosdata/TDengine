@@ -21,10 +21,6 @@
 #include "tstream.h"
 #include "ttimer.h"
 
-#define META_HB_CHECK_INTERVAL    200
-#define META_HB_SEND_IDLE_COUNTER 25  // send hb every 5 sec
-#define STREAM_TASK_KEY_LEN       ((sizeof(int64_t)) << 1)
-
 static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
 
 int32_t streamBackendId = 0;
@@ -547,8 +543,8 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
       STaskId streamTaskId = {.streamId = (*ppTask)->streamTaskId.streamId, .taskId = (*ppTask)->streamTaskId.taskId};
       SStreamTask** ppStreamTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &streamTaskId, sizeof(streamTaskId));
       if (ppStreamTask != NULL) {
-        (*ppStreamTask)->historyTaskId.taskId = 0;
-        (*ppStreamTask)->historyTaskId.streamId = 0;
+        (*ppStreamTask)->hTaskInfo.id.taskId = 0;
+        (*ppStreamTask)->hTaskInfo.id.streamId = 0;
       }
     } else {
       atomic_sub_fetch_32(&pMeta->numOfStreamTasks, 1);
@@ -698,7 +694,7 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       int32_t taskId = pTask->id.taskId;
       tFreeStreamTask(pTask);
 
-      STaskId id = extractStreamTaskKey(pTask);
+      STaskId id = streamTaskExtractKey(pTask);
 
       taosArrayPush(pRecycleList, &id);
       int32_t total = taosArrayGetSize(pRecycleList);
@@ -807,7 +803,7 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
   return 0;
 }
 
-static bool enoughTimeDuration(SMetaHbInfo* pInfo) {
+static bool waitForEnoughDuration(SMetaHbInfo* pInfo) {
   if ((++pInfo->tickCounter) >= META_HB_SEND_IDLE_COUNTER) { // reset the counter
     pInfo->tickCounter = 0;
     return true;
@@ -844,7 +840,7 @@ void metaHbToMnode(void* param, void* tmrId) {
     pMeta->pHbInfo->hbStart = taosGetTimestampMs();
   }
 
-  if (!enoughTimeDuration(pMeta->pHbInfo)) {
+  if (!waitForEnoughDuration(pMeta->pHbInfo)) {
     taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->pHbInfo->hbTmr);
     taosReleaseRef(streamMetaId, rid);
     return;

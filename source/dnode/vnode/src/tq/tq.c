@@ -867,7 +867,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
            " child id:%d, level:%d, status:%s fill-history:%d, related fill-task:0x%x trigger:%" PRId64 " ms",
            vgId, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
            pTask->info.selfChildId, pTask->info.taskLevel, streamGetTaskStatusStr(pTask->status.taskStatus),
-           pTask->info.fillHistory, (int32_t)pTask->historyTaskId.taskId, pTask->info.triggerParam);
+           pTask->info.fillHistory, (int32_t)pTask->hTaskInfo.id.taskId, pTask->info.triggerParam);
   }
 
   return 0;
@@ -1218,7 +1218,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   } else {
     STimeWindow* pWindow = &pTask->dataRange.window;
 
-    if (pTask->historyTaskId.taskId == 0) {
+    if (pTask->hTaskInfo.id.taskId == 0) {
       *pWindow = (STimeWindow){INT64_MIN, INT64_MAX};
       tqDebug(
           "s-task:%s scan-history in stream time window completed, no related fill-history task, reset the time "
@@ -1432,12 +1432,12 @@ int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   streamTaskPause(pTask, pMeta);
 
   SStreamTask* pHistoryTask = NULL;
-  if (pTask->historyTaskId.taskId != 0) {
-    pHistoryTask = streamMetaAcquireTask(pMeta, pTask->historyTaskId.streamId, pTask->historyTaskId.taskId);
+  if (pTask->hTaskInfo.id.taskId != 0) {
+    pHistoryTask = streamMetaAcquireTask(pMeta, pTask->hTaskInfo.id.streamId, pTask->hTaskInfo.id.taskId);
     if (pHistoryTask == NULL) {
       tqError("vgId:%d process pause req, failed to acquire fill-history task:0x%" PRIx64
               ", it may have been dropped already",
-              pMeta->vgId, pTask->historyTaskId.taskId);
+              pMeta->vgId, pTask->hTaskInfo.id.taskId);
       streamMetaReleaseTask(pMeta, pTask);
 
       // since task is in [STOP|DROPPING] state, it is safe to assume the pause is active
@@ -1506,7 +1506,7 @@ int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   }
 
   SStreamTask* pHistoryTask =
-      streamMetaAcquireTask(pTq->pStreamMeta, pTask->historyTaskId.streamId, pTask->historyTaskId.taskId);
+      streamMetaAcquireTask(pTq->pStreamMeta, pTask->hTaskInfo.id.streamId, pTask->hTaskInfo.id.taskId);
   if (pHistoryTask) {
     code = tqProcessTaskResumeImpl(pTq, pHistoryTask, sversion, pReq->igUntreated);
   }
@@ -1802,8 +1802,8 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   streamSetStatusNormal(pTask);
 
   SStreamTask** ppHTask = NULL;
-  if (pTask->historyTaskId.taskId != 0) {
-    ppHTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &pTask->historyTaskId, sizeof(pTask->historyTaskId));
+  if (pTask->hTaskInfo.id.taskId != 0) {
+    ppHTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &pTask->hTaskInfo.id, sizeof(pTask->hTaskInfo.id));
     if (ppHTask == NULL || *ppHTask == NULL) {
       tqError("vgId:%d failed to acquire fill-history task:0x%x when handling update, it may have been dropped already",
               pMeta->vgId, req.taskId);
