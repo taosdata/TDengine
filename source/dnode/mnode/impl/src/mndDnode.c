@@ -81,10 +81,10 @@ static void    mndCancelGetNextDnode(SMnode *pMnode, void *pIter);
 
 static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t opLen, int32_t *pOutValue);
 
-#ifndef TD_ENTERPRISE
-static int32_t mndUpdClusterInfo(SRpcMsg *pReq) { return 0; }
-#else
+#ifdef _GRANT
 int32_t mndUpdClusterInfo(SRpcMsg *pReq);
+#else
+static int32_t mndUpdClusterInfo(SRpcMsg *pReq) { return 0; }
 #endif
 
 int32_t mndInitDnode(SMnode *pMnode) {
@@ -688,9 +688,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 _OVER:
   mndReleaseDnode(pMnode, pDnode);
   taosArrayDestroy(statusReq.pVloads);
-#ifdef MAKE_JENKINS_HAPPY
   mndUpdClusterInfo(pReq);
-#endif
   return code;
 }
 
@@ -723,9 +721,7 @@ static int32_t mndProcessNotifyReq(SRpcMsg *pReq) {
     }
   }
 _OVER:
-#ifdef MAKE_JENKINS_HAPPY
   mndUpdClusterInfo(pReq);
-#endif
   tFreeSNotifyReq(&notifyReq);
   return code;
 }
@@ -1195,21 +1191,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
     strcpy(dcfgReq.config, "monitor");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
-  } else if (strncasecmp(cfgReq.config, "keeptimeoffset", 14) == 0) {
-    int32_t optLen = strlen("keeptimeoffset");
-    int32_t flag = -1;
-    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
-    if (code < 0) return code;
-
-    if (flag < 0 || flag > 23) {
-      mError("dnode:%d, failed to config keepTimeOffset since value:%d. Valid range: [0, 23]", cfgReq.dnodeId, flag);
-      terrno = TSDB_CODE_INVALID_CFG;
-      return -1;
-    }
-
-    strcpy(dcfgReq.config, "keeptimeoffset");
-    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
-  } else if (strncasecmp(cfgReq.config, "ttlpushinterval", 14) == 0) {
+} else if (strncasecmp(cfgReq.config, "ttlpushinterval", 14) == 0) {
     int32_t optLen = strlen("ttlpushinterval");
     int32_t flag = -1;
     int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);

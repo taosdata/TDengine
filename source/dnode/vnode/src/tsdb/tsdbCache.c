@@ -3061,7 +3061,7 @@ static int32_t tsdbCacheLoadBlockS3(STsdbFD *pFD, uint8_t **ppBlock) {
   code = s3GetObjectBlock(pFD->objName, block_offset, tsS3BlockSize * pFD->szPage, ppBlock);
   if (code != TSDB_CODE_SUCCESS) {
     // taosMemoryFree(pBlock);
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    // code = TSDB_CODE_OUT_OF_MEMORY;
     return code;
   }
 
@@ -3100,7 +3100,10 @@ int32_t tsdbCacheGetBlockS3(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle)
         taosThreadMutexUnlock(&pTsdb->bMutex);
 
         *handle = NULL;
-        return 0;
+        if (code == TSDB_CODE_SUCCESS && !pBlock) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+        }
+        return code;
       }
 
       size_t              charge = tsS3BlockSize * pFD->szPage;
