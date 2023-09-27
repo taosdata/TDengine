@@ -791,6 +791,11 @@ int32_t vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnap) {
   pSnap->lastApplyIndex = pVnode->state.committed;
   pSnap->lastApplyTerm = pVnode->state.commitTerm;
   pSnap->lastConfigIndex = -1;
+  pSnap->state = SYNC_FSM_STATE_NORMAL;
+
+  if (tsdbSnapGetFsState(pVnode) != TSDB_FS_STATE_NORMAL) {
+    pSnap->state = SYNC_FSM_STATE_INCOMPLETE;
+  }
 
   if (pSnap->type == TDMT_SYNC_PREP_SNAPSHOT || pSnap->type == TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
     code = tsdbSnapGetDetails(pVnode, pSnap);
