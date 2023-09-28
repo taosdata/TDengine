@@ -1604,9 +1604,9 @@ STaskBackendWrapper* taskBackendOpen(char* path, char* key) {
   if (cfs != NULL) rocksdb_list_column_families_destroy(cfs, nCf);
 
   taosThreadMutexInit(&pTaskBackend->mutex, NULL);
-  taosMemoryFree(taskPath);
 
   qDebug("succ to init stream backend at %s, backend:%p", taskPath, pTaskBackend);
+  taosMemoryFree(taskPath);
 
   pTaskBackend->refId = taosAddRef(streamBackendCfWrapperId, pTaskBackend);
 
