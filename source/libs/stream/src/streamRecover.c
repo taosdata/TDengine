@@ -66,7 +66,7 @@ static void streamTaskSetReady(SStreamTask* pTask, int32_t numOfReqs) {
     pMeta->startInfo.startedAfterNodeUpdate = 0;
     pMeta->startInfo.elapsedTime = pTask->execInfo.start - pMeta->startInfo.ts;
 
-    stDebug("vgId:%d all %d task(s) are started successfully, last ready task:%s level:%d, total elapsed time:%.2f sec",
+    stDebug("vgId:%d all %d task(s) are started successfully, last ready task:%s level:%d, total elapsed time:%.2fs",
             vgId, numOfTotal, pTask->id.idStr, pTask->info.taskLevel, pMeta->startInfo.elapsedTime / 1000.0);
   }
   taosWUnLockLatch(&pMeta->lock);
@@ -580,15 +580,21 @@ int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask) {
 }
 
 static void checkFillhistoryTaskStatus(SStreamTask* pTask, SStreamTask* pHTask) {
-  pHTask->dataRange.range.minVer = 0;
-  // the query version range should be limited to the already processed data
-  pHTask->dataRange.range.maxVer = pTask->chkInfo.nextProcessVer - 1;
+  SDataRange* pRange = &pHTask->dataRange;
+  pRange->range.minVer = 0;
 
+  // the query version range should be limited to the already processed data
+  pRange->range.maxVer = pTask->chkInfo.nextProcessVer - 1;
+  if (pRange->range.maxVer < pRange->range.minVer) {
+    pRange->range.maxVer = pRange->range.minVer;
+  }
+
+  pHTask->execInfo.init = taosGetTimestampMs();
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     stDebug("s-task:%s set the launch condition for fill-history s-task:%s, window:%" PRId64 " - %" PRId64
-           " ver range:%" PRId64 " - %" PRId64,
-           pTask->id.idStr, pHTask->id.idStr, pHTask->dataRange.window.skey, pHTask->dataRange.window.ekey,
-           pHTask->dataRange.range.minVer, pHTask->dataRange.range.maxVer);
+           " ver range:%" PRId64 " - %" PRId64", init:%"PRId64,
+           pTask->id.idStr, pHTask->id.idStr, pRange->window.skey, pRange->window.ekey,
+           pRange->range.minVer, pRange->range.maxVer, pHTask->execInfo.init);
   } else {
     stDebug("s-task:%s no fill history condition for non-source task:%s", pTask->id.idStr, pHTask->id.idStr);
   }
