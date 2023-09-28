@@ -78,7 +78,7 @@ class TDSql:
         self.cursor.execute(s)
         time.sleep(2)
 
-    def error(self, sql, expectedErrno = None):
+    def error(self, sql, expectedErrno = None, expectErrInfo = None):
         caller = inspect.getframeinfo(inspect.stack()[1][0])
         expectErrNotOccured = True
 
@@ -87,12 +87,9 @@ class TDSql:
         except BaseException as e:
             expectErrNotOccured = False
             self.errno = e.errno
-            self.error_info = repr(e)
-            # print(error_info)
-            # self.error_info = error_info[error_info.index('(')+1:-1].split(",")[0].replace("'","")
+            error_info = repr(e)
+            self.error_info = error_info[error_info.index('(')+1:-1].split(",")[0].replace("'","")
             # self.error_info = (','.join(error_info.split(",")[:-1]).split("(",1)[1:][0]).replace("'","")
-            # print("!!!!!!!!!!!!!!",self.error_info)
-
         if expectErrNotOccured:
             tdLog.exit("%s(%d) failed: sql:%s, expect error not occured" % (caller.filename, caller.lineno, sql))
         else:
@@ -108,8 +105,15 @@ class TDSql:
             else:
               tdLog.info("sql:%s, expect error occured" % (sql))
 
-            return self.error_info
+            if expectErrInfo != None:
+                if  expectErrInfo == self.error_info:
+                    tdLog.info("sql:%s, expected expectErrInfo %s occured" % (sql, expectErrInfo))
+                else:
+                  tdLog.exit("%s(%d) failed: sql:%s, expectErrInfo %s occured, but not expected errno %s" % (caller.filename, caller.lineno, sql, self.error_info, expectErrInfo))
+            else:
+              tdLog.info("sql:%s, expect error occured" % (sql))
 
+            return self.error_info
 
     def query(self, sql, row_tag=None, queryTimes=10, count_expected_res=None):
         self.sql = sql

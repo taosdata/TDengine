@@ -165,7 +165,7 @@ int32_t ctgRefreshTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx*
   }
 
   if (CTG_IS_META_NULL(output->metaType)) {
-    ctgError("no tbmeta got, tbNmae:%s", tNameGetTableName(ctx->pName));
+    ctgError("no tbmeta got, tbName:%s", tNameGetTableName(ctx->pName));
     ctgRemoveTbMetaFromCache(pCtg, ctx->pName, false);
     CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
   }

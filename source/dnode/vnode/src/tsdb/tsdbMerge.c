@@ -447,6 +447,9 @@ int32_t tsdbMerge(void *arg) {
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(tsdb->pVnode), lino, code);
+    tsdbFatal("vgId:%d, failed to merge stt files since %s. code:%d", TD_VID(tsdb->pVnode), terrstr(), code);
+    taosMsleep(100);
+    exit(EXIT_FAILURE);
   } else if (merger->ctx->opened) {
     tsdbDebug("vgId:%d %s done", TD_VID(tsdb->pVnode), __func__);
   }
