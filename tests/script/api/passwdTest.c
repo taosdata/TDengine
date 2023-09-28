@@ -446,9 +446,10 @@ _loop:
     for (int i = 0; i < nTestUsers; ++i) {
       sprintf(users[i], "user%d", i);
       sprintf(qstr, "CREATE USER %s PASS 'taos'", users[i]);
+      fprintf(stderr, "%s:%d create user:%s\n", __func__, __LINE__, users[i]);
       queryDB(taos, qstr);
-      goto _loop;
     }
+    goto _loop;
     // sleep(300);
   }
 }
