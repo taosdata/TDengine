@@ -30,7 +30,7 @@
 
 #define nDup     1
 #define nRoot    10
-#define nUser    1
+#define nUser    10
 #define USER_LEN 24
 #define BUF_LEN  1024
 
