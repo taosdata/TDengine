@@ -286,6 +286,16 @@ def build_and_install_opc_on_windows(mode):
         print("Build OPC failed: ", e.strerror)
         sys.exit()
 
+    opc_gdba_install_path = os.path.join(release_info.InstallPath, "append", "opc_gdba_32")
+    delete_directory(opc_gdba_install_path)
+    opc_gdba_path = os.path.join(script_dir, "append", "opc_gdba_32")
+    try:
+        print(f"Copy OPC gdba from {opc_gdba_path} to {opc_gdba_install_path}.")
+        shutil.copytree(opc_gdba_path, opc_gdba_install_path)
+    except FileNotFoundError as e:
+        print("Copy OPC gdba Failed: ", e.strerror)
+        sys.exit()
+
 
 def build_and_install_mqtt_on_windows(mode):
     print("buildAndInstallMQTT on windows start...")
@@ -523,6 +533,11 @@ def package():
         print('packaging not supported on operating system:', release_info.OS)
         sys.exit()
 
+def delete_directory(path):
+    try:
+        shutil.rmtree(path)
+    except FileNotFoundError:
+        pass
 
 def init_directory(path):
     try:
