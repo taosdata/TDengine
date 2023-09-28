@@ -1253,7 +1253,7 @@ static void grantStatusCheckImpl(SMnode *pMnode) {
     uint32_t last2Dist = GRANT_GET_DIST(pDists, distSize - 2);
     leastDist = lastDist == last2Dist ? lastDist : lastDist - GRANT_DIST_TOLERENCE;
   } else {
-    leastDist = GRANT_CONN_DIST(pDists, distSize - 1);
+    leastDist = GRANT_GET_DIST(pDists, distSize - 1);
   }
 
   GrantStatus status = {0};
