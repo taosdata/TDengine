@@ -1565,7 +1565,7 @@ int32_t taskBackendBuildFullPath(char* path, char* key, char** fullPath) {
   char*   taskPath = taosMemoryCalloc(1, strlen(path) + 128);
   sprintf(taskPath, "%s%s%s%s%s", path, TD_DIRSEP, "state", TD_DIRSEP, key);
   if (!taosDirExist(taskPath)) {
-    code = taosMkDir(taskPath);
+    code = taosMulMkDir(taskPath);
     if (code != 0) {
       qError("failed to create dir: %s, reason:%s", taskPath, tstrerror(code));
       taosMemoryFree(taskPath);

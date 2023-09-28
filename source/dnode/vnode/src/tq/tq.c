@@ -990,7 +990,6 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
 
   if (code < 0) {
     tqError("vgId:%d failed to add s-task:0x%x, total:%d, code:%s", vgId, taskId, numOfTasks, tstrerror(code));
-    tFreeStreamTask(pTask);
     return -1;
   }
 

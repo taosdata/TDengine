@@ -229,9 +229,12 @@ void* streamMetaGetBackendByTaskKey(SStreamMeta* pMeta, char* key) {
     return *ppBackend;
   }
   void* pBackend = taskBackendOpen(pMeta->path, key);
+  if (pBackend == NULL) {
+    taosThreadMutexUnlock(&pMeta->backendMutex);
+    return NULL;
+  }
 
   taosHashPut(pMeta->pTaskBackendUnique, key, strlen(key), &pBackend, sizeof(void*));
-  taosThreadMutexLock(&pMeta->backendMutex);
   return pBackend;
 }
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId, int64_t stage) {
