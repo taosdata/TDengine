@@ -2374,12 +2374,12 @@ SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState, const SWinK
 
 SStreamStateCur* streamStateGetCur_rocksdb(SStreamState* pState, const SWinKey* key) {
   qDebug("streamStateGetCur_rocksdb");
-  SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
+  STaskBackendWrapper* wrapper = pState->pTdbState->pOwner->pBackend;
 
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
   if (pCur == NULL) return NULL;
 
-  pCur->db = wrapper->rocksdb;
+  pCur->db = wrapper->db;
   pCur->iter = streamStateIterCreate(pState, "state", (rocksdb_snapshot_t**)&pCur->snapshot,
                                      (rocksdb_readoptions_t**)&pCur->readOpt);
   pCur->number = pState->number;
@@ -2469,6 +2469,7 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentPrev_rocksdb(SStreamState* pSta
   if (pCur == NULL) {
     return NULL;
   }
+
   pCur->number = pState->number;
   pCur->db = wrapper->db;
   pCur->iter = streamStateIterCreate(pState, "sess", (rocksdb_snapshot_t**)&pCur->snapshot,
