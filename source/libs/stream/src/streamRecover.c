@@ -583,16 +583,12 @@ int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask) {
 
 static void checkFillhistoryTaskStatus(SStreamTask* pTask, SStreamTask* pHTask) {
   SDataRange* pRange = &pHTask->dataRange;
-  pRange->range.minVer = 0;
 
-  // todo remove this
   // the query version range should be limited to the already processed data
+  pRange->range.minVer = 0;
   pRange->range.maxVer = pTask->chkInfo.nextProcessVer - 1;
-  if (pRange->range.maxVer < pRange->range.minVer) {
-    pRange->range.maxVer = pRange->range.minVer;
-  }
-
   pHTask->execInfo.init = taosGetTimestampMs();
+
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     stDebug("s-task:%s set the launch condition for fill-history s-task:%s, window:%" PRId64 " - %" PRId64
            " ver range:%" PRId64 " - %" PRId64", init:%"PRId64,
@@ -890,9 +886,8 @@ void streamTaskSetRangeStreamCalc(SStreamTask* pTask) {
 
   if (pTask->hTaskInfo.id.taskId == 0) {
     if (pTask->info.fillHistory == 1) {
-      stDebug("s-task:%s fill-history task, time window:%" PRId64 "-%" PRId64 ", verRange:%" PRId64
-                 "-%" PRId64,
-             pTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer, pRange->range.maxVer);
+      stDebug("s-task:%s fill-history task, time window:%" PRId64 "-%" PRId64 ", verRange:%" PRId64 "-%" PRId64,
+              pTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer, pRange->range.maxVer);
     } else {
       stDebug(
           "s-task:%s no related fill-history task, stream time window and verRange are not set. default stream time "
@@ -915,9 +910,9 @@ void streamTaskSetRangeStreamCalc(SStreamTask* pTask) {
     pRange->range.maxVer = ver;
 
     stDebug("s-task:%s level:%d related fill-history task exists, update stream calc time window:%" PRId64 " - %" PRId64
-           ", verRang:%" PRId64 " - %" PRId64,
-           pTask->id.idStr, pTask->info.taskLevel, pRange->window.skey, pRange->window.ekey, pRange->range.minVer,
-           pRange->range.maxVer);
+            ", verRang:%" PRId64 " - %" PRId64,
+            pTask->id.idStr, pTask->info.taskLevel, pRange->window.skey, pRange->window.ekey, pRange->range.minVer,
+            pRange->range.maxVer);
   }
 }
 

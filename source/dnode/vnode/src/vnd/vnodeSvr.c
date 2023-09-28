@@ -605,7 +605,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       vnodeProcessDropIndexReq(pVnode, ver, pReq, len, pRsp);
       break;
     case TDMT_VND_STREAM_CHECK_POINT_SOURCE:
-      tqProcessStreamCheckPointSourceReq(pVnode->pTq, pMsg, pRsp);
+      tqProcessTaskCheckPointSourceReq(pVnode->pTq, pMsg, pRsp);
       break;
     case TDMT_VND_STREAM_TASK_UPDATE:
       tqProcessTaskUpdateReq(pVnode->pTq, pMsg);

@@ -1638,7 +1638,7 @@ FAIL:
 }
 
 // todo error code cannot be return, since this is invoked by an mnode-launched transaction.
-int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp) {
+int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
   char*        msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
@@ -1648,9 +1648,18 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRs
   // disable auto rsp to source
   pRsp->info.handle = NULL;
 
+  // todo: add counter to make sure other tasks would not be trapped in checkpoint state
   SStreamCheckpointSourceReq req = {0};
   if (!vnodeIsRoleLeader(pTq->pVnode)) {
     tqDebug("vgId:%d not leader, ignore checkpoint-source msg", vgId);
+    SRpcMsg rsp = {0};
+    buildCheckpointSourceRsp(&req, &pMsg->info, &rsp, 0);
+    tmsgSendRsp(&rsp);   // error occurs
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (!pTq->pVnode->restored) {
+    tqDebug("vgId:%d checkpoint-source msg received during restoring, ignore it", vgId);
     SRpcMsg rsp = {0};
     buildCheckpointSourceRsp(&req, &pMsg->info, &rsp, 0);
     tmsgSendRsp(&rsp);   // error occurs
@@ -1680,6 +1689,7 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRs
     return TSDB_CODE_SUCCESS;
   }
 
+  // todo: handle the partial failure cases
   // downstream not ready, current the stream tasks are not all ready. Ignore this checkpoint req.
   if (pTask->status.downstreamReady != 1) {
     qError("s-task:%s not ready for checkpoint, since downstream not ready, ignore this checkpoint:%" PRId64
@@ -1731,8 +1741,6 @@ int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRs
     return code;
   }
 
-  // todo: when generating checkpoint, no new tasks are allowed to add into current Vnode
-  // todo: when generating checkpoint, leader of mnode has transfer to other DNode?
   streamMetaReleaseTask(pMeta, pTask);
   return code;
 }

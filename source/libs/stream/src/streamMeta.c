@@ -716,9 +716,8 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
 
       taosArrayPush(pMeta->pTaskList, &pTask->id);
     } else {
+      // todo this should replace the existed object put by replay creating stream task msg from mnode
       stError("s-task:0x%x already added into table meta by replaying WAL, need check", pTask->id.taskId);
-      ASSERT(0);
-
       tdbFree(pKey);
       tdbFree(pVal);
       taosMemoryFree(pTask);
