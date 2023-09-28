@@ -68,6 +68,7 @@
   import ResultSet from "./resultSet.vue";
   import { isArray } from "@/utils/validate";
   import WindowClause from "./windowClause.vue";
+  import { TDengineFnReverseGroup } from '@/const';
   export default {
 
     name:'Subquery',
@@ -234,28 +235,29 @@
             const fnList = item.fnList.map(item=>item.options).flat(1) || [];
             const currentFn = fnList.find(ite => ite.label == result.fn)?.filters || [];
             let otherParmas = "";
-            
+            const isReverse = TDengineFnReverseGroup.includes(result.fn);
             if (currentFn.length) {
-              otherParmas = Object.keys(result.params || {})
-                .filter(key => result.params[key] && currentFn.some(ite => ite.field == key))
-                .reduce((pre, cur) => {
-                  const value = result.params[cur];
+              otherParmas = currentFn
+                .reduce((pre, { field }) => {
+                  const value = result.params[field];
                   if (value) {
                     if (isArray(value)) {
-                      pre.push(...(value.map(val=>`\`${val}\``)));
+                      pre.push(...value);
                     } else {
-                      pre.push(`\`${value}\``);
+                      pre.push(value);
                     }
+                    return pre;
                   }
-                  return pre;
                 }, [])
-                .join(",");
-              otherParmas = "," + otherParmas;
+                .join(',');
+              if (otherParmas) {
+                otherParmas = isReverse ? otherParmas + ',' : ',' + otherParmas;
+              }
             }
             if(this.systemFns.includes(result.fn)){
               resultSet.push(`${result.fn}()`);
             }else{
-              resultSet.push(`${result.fn}(${item.field}${otherParmas})`);
+              resultSet.push(`${result.fn}(${isReverse ? otherParmas + item.field : item.field + otherParmas})`);
             }
           } else {
             if (!this.avgFn) {

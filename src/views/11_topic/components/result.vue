@@ -4,7 +4,7 @@
       <!-- <el-select class="w100" v-model="result.fn" clearable placeholder="" size="mini">
         <el-option v-for="item in fnList" :key="item.lable" :value="item.label"></el-option>
       </el-select> -->
-      <el-select class="w100" v-model="result.fn" clearable placeholder="" size="mini">
+      <el-select class="w100" v-model="result.fn" clearable placeholder="" size="mini" filterable>
         <el-option-group
         v-for="group in fnList"
         :key="group.label"
@@ -19,7 +19,7 @@
     </el-form-item>
     <template v-if="currentFn && currentFn.filters">
       <el-form-item v-for="item in currentFn.filters" :label="item.label" :key="item.field">
-        <el-select class="w100" clearable v-if="item.type == 'select'" v-bind="item" v-model="result.params[item.field]">
+        <el-select class="w100" clearable v-if="item.type == 'select'" v-bind="item" v-model="result.params[item.field]" filterable>
           <el-option v-for="ite in getOptions(item)" :key="ite.field" v-bind="ite" :value="ite.field" :label="ite.field"></el-option>
         </el-select>
         <el-input v-else-if="item.type == 'input'" clearable v-model="result.params[item.field]" v-bind="item"></el-input>
