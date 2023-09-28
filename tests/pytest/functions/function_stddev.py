@@ -28,9 +28,21 @@ class TDTestCase:
         self.ts = 1537146000000
         self.stb_prefix = 's'
         self.subtb_prefix = 't'
+
+    def check_TS_4068(self):
+        tdSql.execute("create table st(ts timestamp, c1 int ,c2 bool, c3 int, c4 int, c5 int) tags(area int);")
+        tdSql.execute("create table ta using st tags(1);")
+        tdSql.execute("insert into ta values(now,1,1,1,1,1);")
+        tdSql.execute("insert into ta values(now,2,1,2,2,2);")
+        tdSql.execute("alter table st drop column c3;")
+        # crash 
+        tdSql.execute("select stddev(c4)  from st where c4=1;")
+
         
     def run(self):
         tdSql.prepare()
+        
+        self.check_TS_4068()
 
         intData = []        
         floatData = []
