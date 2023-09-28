@@ -383,6 +383,7 @@ struct SStreamTask {
   struct SStreamMeta* pMeta;
   SSHashObj*          pNameMap;
   void*               pBackend;
+  int64_t             backendRefId;
   char                reserve[256];
 };
 

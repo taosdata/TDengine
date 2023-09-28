@@ -106,20 +106,12 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
   }
 
   SStreamTask* pStreamTask = pTask;
-  // char         statePath[1024];
-  // if (!specPath) {
-  //   sprintf(statePath, "%s%s%d", path, TD_DIRSEP, pStreamTask->id.taskId);
-  // } else {
-  //   memset(statePath, 0, 1024);
-  //   tstrncpy(statePath, path, 1024);
-  // }
-
   pState->taskId = pStreamTask->id.taskId;
   pState->streamId = pStreamTask->id.streamId;
   sprintf(pState->pTdbState->idstr, "0x%" PRIx64 "-%d", pState->streamId, pState->taskId);
 
 #ifdef USE_ROCKSDB
-  // SStreamMeta* pMeta = pStreamTask->pMeta;
+  SStreamMeta* pMeta = pStreamTask->pMeta;
   //  pState->streamBackendRid = pMeta->streamBackendRid;
   //   taosWLockLatch(&pMeta->lock);
   //   taosThreadMutexLock(&pMeta->backendMutex);

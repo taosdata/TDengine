@@ -629,7 +629,7 @@ void streamBackendHandleCleanup(void* arg) {
 
   taosThreadRwlockDestroy(&wrapper->rwLock);
   wrapper->rocksdb = NULL;
-  taosReleaseRef(streamBackendId, wrapper->backendId);
+  // taosReleaseRef(streamBackendId, wrapper->backendId);
 
   qDebug("end to do-close backendwrapper %p, %s", wrapper, wrapper->idstr);
   taosMemoryFree(wrapper);
@@ -776,7 +776,10 @@ int32_t chkpGetAllDbCfHandle(SStreamMeta* pMeta, rocksdb_column_family_handle_t*
     int64_t id = *(int64_t*)pIter;
 
     SBackendCfWrapper* wrapper = taosAcquireRef(streamBackendCfWrapperId, id);
-    if (wrapper == NULL) continue;
+    if (wrapper == NULL) {
+      pIter = taosHashIterate(pMeta->pTaskBackendUnique, pIter);
+      continue;
+    }
 
     taosThreadRwlockRdlock(&wrapper->rwLock);
     for (int i = 0; i < sizeof(ginitDict) / sizeof(ginitDict[0]); i++) {
@@ -788,7 +791,6 @@ int32_t chkpGetAllDbCfHandle(SStreamMeta* pMeta, rocksdb_column_family_handle_t*
     taosThreadRwlockUnlock(&wrapper->rwLock);
 
     taosArrayPush(refs, &id);
-    pIter = taosHashIterate(pMeta->pTaskBackendUnique, pIter);
   }
 
   int32_t nCf = taosArrayGetSize(pHandle);
@@ -1452,35 +1454,72 @@ void destroyRocksdbCfInst(RocksdbCfInst* inst) {
   taosMemoryFree(inst);
 }
 
-STaskBackendWrapper* streamStateOpenTaskBackend(char* path, char* key) {
-  int32_t code = 0;
-
-  char* taskPath = taosMemoryCalloc(1, strlen(path) + 128);
-  sprintf(taskPath, "%s%s%s%s%s", path, TD_DIRSEP, "state", TD_DIRSEP, key);
-  if (!taosDirExist(taskPath)) {
-    code = taosMkDir(taskPath);
-    if (code != 0) {
-      qError("failed to create dir: %s, reason:%s", taskPath, tstrerror(code));
-      taosMemoryFree(taskPath);
-      return NULL;
+int32_t getCfIdx(const char* cfName) {
+  int    idx = -1;
+  size_t len = strlen(cfName);
+  for (int i = 0; i < sizeof(ginitDict) / sizeof(ginitDict[0]); i++) {
+    if (len == ginitDict[i].len && strncmp(cfName, ginitDict[i].key, strlen(cfName)) == 0) {
+      idx = i;
+      break;
     }
   }
-  char* err = NULL;
+  return idx;
+}
+int32_t taskBackendOpenCfs(STaskBackendWrapper* pTask, char* path, char** pCfNames, int32_t nCf) {
+  int32_t code = -1;
+  char*   err = NULL;
 
-  STaskBackendWrapper* pTaskBackend = taosMemoryCalloc(1, sizeof(SBackendWrapper));
-  rocksdb_env_t*       env = rocksdb_create_default_env();
+  rocksdb_options_t**              cfOpts = taosMemoryCalloc(nCf, sizeof(rocksdb_options_t*));
+  rocksdb_column_family_handle_t** cfHandle = taosMemoryCalloc(nCf, sizeof(rocksdb_column_family_handle_t*));
+
+  for (int i = 0; i < nCf; i++) {
+    int32_t idx = getCfIdx(pCfNames[i]);
+    cfOpts[i] = pTask->pCfOpts[idx];
+  }
+
+  rocksdb_t* db = rocksdb_open_column_families(pTask->dbOpt, path, nCf, (const char* const*)pCfNames,
+                                               (const rocksdb_options_t* const*)cfOpts, cfHandle, &err);
+
+  if (err != NULL) {
+    qError("failed to open cf path: %s", err);
+    taosMemoryFree(err);
+    goto _EXIT;
+  }
+
+  for (int i = 0; i < nCf; i++) {
+    int32_t idx = getCfIdx(pCfNames[i]);
+    pTask->pCf[idx] = cfHandle[i];
+  }
+
+  pTask->db = db;
+  code = 0;
+
+_EXIT:
+  taosMemoryFree(cfOpts);
+  taosMemoryFree(cfHandle);
+  return code;
+}
+void taskBackendAddRef(void* pTaskBackend) {
+  STaskBackendWrapper* pBackend = pTaskBackend;
+  taosAcquireRef(streamBackendCfWrapperId, pBackend->refId);
+  return;
+}
+void taskBackendDestroy(STaskBackendWrapper* wrapper);
+
+void taskBackendInitOpt(STaskBackendWrapper* pTaskBackend) {
+  rocksdb_env_t* env = rocksdb_create_default_env();
 
   rocksdb_cache_t*   cache = rocksdb_cache_create_lru(256);
   rocksdb_options_t* opts = rocksdb_options_create();
-  // rocksdb_options_set_env(opts, env);
+  rocksdb_options_set_env(opts, env);
   rocksdb_options_set_create_if_missing(opts, 1);
   rocksdb_options_set_create_missing_column_families(opts, 1);
   // rocksdb_options_set_max_total_wal_size(opts, dbMemLimit);
   rocksdb_options_set_recycle_log_file_num(opts, 6);
   rocksdb_options_set_max_write_buffer_number(opts, 3);
   rocksdb_options_set_info_log_level(opts, 1);
-  // rocksdb_options_set_db_write_buffer_size(opts, dbMemLimit);
-  // rocksdb_options_set_write_buffer_size(opts, dbMemLimit / 2);
+  rocksdb_options_set_db_write_buffer_size(opts, 64 << 20);
+  rocksdb_options_set_write_buffer_size(opts, 32 << 20);
   rocksdb_options_set_atomic_flush(opts, 1);
 
   pTaskBackend->dbOpt = opts;
@@ -1519,46 +1558,86 @@ STaskBackendWrapper* streamStateOpenTaskBackend(char* path, char* key) {
     pTaskBackend->pCfOpts[i] = opt;
     pTaskBackend->pCfParams[i].tableOpt = tableOpt;
   }
+  return;
+}
+int32_t taskBackendBuildFullPath(char* path, char* key, char** fullPath) {
+  int32_t code = 0;
+  char*   taskPath = taosMemoryCalloc(1, strlen(path) + 128);
+  sprintf(taskPath, "%s%s%s%s%s", path, TD_DIRSEP, "state", TD_DIRSEP, key);
+  if (!taosDirExist(taskPath)) {
+    code = taosMkDir(taskPath);
+    if (code != 0) {
+      qError("failed to create dir: %s, reason:%s", taskPath, tstrerror(code));
+      taosMemoryFree(taskPath);
+      return code;
+    }
+  }
+  *fullPath = taskPath;
+  return 0;
+}
+STaskBackendWrapper* taskBackendOpen(char* path, char* key) {
+  char* taskPath = NULL;
+  char* err = NULL;
 
-  char** cfs = rocksdb_list_column_families(opts, taskPath, &nCf, &err);
+  int32_t code = taskBackendBuildFullPath(path, key, &taskPath);
+  if (code != 0) return NULL;
+
+  size_t nCf = 0;
+
+  STaskBackendWrapper* pTaskBackend = taosMemoryCalloc(1, sizeof(STaskBackendWrapper));
+  taskBackendInitOpt(pTaskBackend);
+
+  char** cfs = rocksdb_list_column_families(pTaskBackend->dbOpt, taskPath, &nCf, &err);
   if (nCf == 0 || nCf == 1 || err != NULL) {
     taosMemoryFreeClear(err);
-    pTaskBackend->db = rocksdb_open(opts, taskPath, &err);
+    pTaskBackend->db = rocksdb_open(pTaskBackend->dbOpt, taskPath, &err);
     if (err != NULL) {
       qError("failed to open rocksdb, path:%s, reason:%s", taskPath, err);
       taosMemoryFreeClear(err);
+      code = -1;
+      goto _EXIT;
     }
   } else {
+    code = taskBackendOpenCfs(pTaskBackend, taskPath, cfs, nCf);
+    if (code != 0) goto _EXIT;
   }
-  if (cfs != NULL) {
-    rocksdb_list_column_families_destroy(cfs, nCf);
-  }
+  if (cfs != NULL) rocksdb_list_column_families_destroy(cfs, nCf);
 
   taosThreadMutexInit(&pTaskBackend->mutex, NULL);
   taosMemoryFree(taskPath);
 
   qDebug("succ to init stream backend at %s, backend:%p", taskPath, pTaskBackend);
+
+  pTaskBackend->refId = taosAddRef(streamBackendCfWrapperId, pTaskBackend);
+
   return pTaskBackend;
+_EXIT:
+
+  taskBackendDestroy(pTaskBackend);
+  return NULL;
 }
-void streamStateCloseTaskBackend(STaskBackendWrapper* wrapper) {
+void taskBackendDestroy(STaskBackendWrapper* wrapper) {
   if (wrapper == NULL) return;
 
-  rocksdb_flushoptions_t* flushOpt = rocksdb_flushoptions_create();
-  rocksdb_flushoptions_set_wait(flushOpt, 1);
+  if (wrapper->db && wrapper->pCf) {
+    rocksdb_flushoptions_t* flushOpt = rocksdb_flushoptions_create();
+    rocksdb_flushoptions_set_wait(flushOpt, 1);
 
-  int8_t nCf = sizeof(ginitDict) / sizeof(ginitDict[0]);
-  char*  err = NULL;
-  for (int i = 0; i < nCf; i++) {
-    if (wrapper->pCf[i] != NULL) rocksdb_flush_cf(wrapper->db, flushOpt, wrapper->pCf[i], &err);
-    if (err != NULL) {
-      qError("failed to flush cf:%s, reason:%s", ginitDict[i].key, err);
-      taosMemoryFreeClear(err);
+    int8_t nCf = sizeof(ginitDict) / sizeof(ginitDict[0]);
+    char*  err = NULL;
+    for (int i = 0; i < nCf; i++) {
+      if (wrapper->pCf[i] != NULL) rocksdb_flush_cf(wrapper->db, flushOpt, wrapper->pCf[i], &err);
+      if (err != NULL) {
+        qError("failed to flush cf:%s, reason:%s", ginitDict[i].key, err);
+        taosMemoryFreeClear(err);
+      }
     }
     rocksdb_flushoptions_destroy(flushOpt);
-  }
-  for (int i = 0; i < nCf; i++) {
-    if (wrapper->pCf[i] != NULL) {
-      rocksdb_column_family_handle_destroy(wrapper->pCf[i]);
+
+    for (int i = 0; i < nCf; i++) {
+      if (wrapper->pCf[i] != NULL) {
+        rocksdb_column_family_handle_destroy(wrapper->pCf[i]);
+      }
     }
   }
   rocksdb_options_destroy(wrapper->dbOpt);
@@ -1574,24 +1653,13 @@ void streamStateCloseTaskBackend(STaskBackendWrapper* wrapper) {
 
   taosThreadMutexDestroy(&wrapper->mutex);
 
-  rocksdb_close(wrapper->db);
+  if (wrapper->db) rocksdb_close(wrapper->db);
   taosMemoryFree(wrapper);
 
   return;
 }
 
-int8_t getCfIdx(const char* key) {
-  int    idx = -1;
-  size_t len = strlen(key);
-  for (int i = 0; i < sizeof(ginitDict) / sizeof(ginitDict[0]); i++) {
-    if (len == ginitDict[i].len && strncmp(key, ginitDict[i].key, strlen(key)) == 0) {
-      idx = i;
-      break;
-    }
-  }
-  return idx;
-}
-int32_t taskBackendOpenCf(STaskBackendWrapper* pBackend, const char* key) {
+int32_t taskBackendOpenCfByKey(STaskBackendWrapper* pBackend, const char* key) {
   int32_t code = 0;
   char*   err = NULL;
   int8_t  idx = getCfIdx(key);
@@ -1658,14 +1726,14 @@ int32_t streamStateConvertDataFormat(char* path, char* key, void* pCfInst) {
 
   int32_t code = 0;
 
-  STaskBackendWrapper* pTaskBackend = streamStateOpenTaskBackend(path, key);
+  STaskBackendWrapper* pTaskBackend = taskBackendOpen(path, key);
   RocksdbCfInst*       pSrcBackend = pCfInst;
 
   for (int i = 0; i < nCf; i++) {
     rocksdb_column_family_handle_t* pSrcCf = pSrcBackend->pHandle[i];
     if (pSrcCf == NULL) continue;
 
-    code = taskBackendOpenCf(pTaskBackend, ginitDict[i].key);
+    code = taskBackendOpenCfByKey(pTaskBackend, ginitDict[i].key);
     if (code != 0) goto _EXIT;
 
     code = copyDataAt(pSrcBackend, pTaskBackend, i);
@@ -1673,7 +1741,7 @@ int32_t streamStateConvertDataFormat(char* path, char* key, void* pCfInst) {
   }
 
 _EXIT:
-  streamStateCloseTaskBackend(pTaskBackend);
+  taskBackendDestroy(pTaskBackend);
 
   return code;
 }

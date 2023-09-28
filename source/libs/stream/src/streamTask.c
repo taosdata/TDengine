@@ -388,7 +388,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   taosThreadMutexInit(&pTask->lock, NULL);
   streamTaskOpenAllUpstreamInput(pTask);
 
-  //pTask->pBackend = streamStateOpenTaskBackend(pMeta->path, (char*)pTask->id.idStr);
+  // pTask->pBackend = taskBackendOpen(pMeta->path, (char*)pTask->id.idStr);
 
   return TSDB_CODE_SUCCESS;
 }

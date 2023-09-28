@@ -224,11 +224,12 @@ void* streamMetaGetBackendByTaskKey(SStreamMeta* pMeta, char* key) {
   taosThreadMutexLock(&pMeta->backendMutex);
   void** ppBackend = taosHashGet(pMeta->pTaskBackendUnique, key, strlen(key));
   if (ppBackend != NULL && *ppBackend != NULL) {
-    // add ref later
+    taskBackendAddRef(*ppBackend);
     taosThreadMutexUnlock(&pMeta->backendMutex);
     return *ppBackend;
   }
-  void* pBackend = streamStateOpenTaskBackend(pMeta->path, key);
+  void* pBackend = taskBackendOpen(pMeta->path, key);
+
   taosHashPut(pMeta->pTaskBackendUnique, key, strlen(key), &pBackend, sizeof(void*));
   taosThreadMutexLock(&pMeta->backendMutex);
   return pBackend;

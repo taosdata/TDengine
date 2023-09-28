@@ -65,6 +65,8 @@ typedef struct {
   rocksdb_compactionfilterfactory_t* filterFactory;
   TdThreadMutex                      mutex;
 
+  int64_t refId;
+
 } STaskBackendWrapper;
 
 void*                streamBackendInit(const char* path, int64_t chkpId);
@@ -75,7 +77,9 @@ int32_t              streamBackendDoCheckpoint(void* pMeta, uint64_t checkpointI
 SListNode*           streamBackendAddCompare(void* backend, void* arg);
 void                 streamBackendDelCompare(void* backend, void* arg);
 int32_t              streamStateConvertDataFormat(char* path, char* key, void* cfInst);
-STaskBackendWrapper* streamStateOpenTaskBackend(char* path, char* key);
+STaskBackendWrapper* taskBackendOpen(char* path, char* key);
+
+void taskBackendAddRef(void* pTaskBackend);
 
 int  streamStateOpenBackend(void* backend, SStreamState* pState);
 void streamStateCloseBackend(SStreamState* pState, bool remove);
