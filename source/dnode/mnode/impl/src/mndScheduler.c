@@ -232,7 +232,7 @@ int32_t doAddShuffleSinkTask(SMnode* pMnode, SArray* pTaskList, SStreamObj* pStr
 
 int32_t doAddSinkTask(SStreamObj* pStream, SArray* pTaskList, SMnode* pMnode, int32_t vgId, SVgObj* pVgroup,
                       SEpSet* pEpset, bool isFillhistory) {
-  int64_t uid = (isFillhistory)? pStream->uid:pStream->hTaskUid;
+  int64_t uid = (isFillhistory)? pStream->hTaskUid:pStream->uid;
   SStreamTask* pTask = tNewStreamTask(uid, TASK_LEVEL__SINK, isFillhistory, 0, pTaskList, pStream->conf.fillHistory);
   if (pTask == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

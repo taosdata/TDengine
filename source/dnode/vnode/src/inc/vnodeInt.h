@@ -227,6 +227,7 @@ int     tqScanWalAsync(STQ* pTq, bool ckPause);
 int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp);
 int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskDataVerUpdateReq(STQ* pTq, char* pMsg, int32_t msgLen);
 int32_t tqCheckAndRunStreamTaskAsync(STQ* pTq);
 
 int     tqCommit(STQ*);

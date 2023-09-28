@@ -3091,6 +3091,13 @@ typedef struct {
 } SVDropStreamTaskReq;
 
 typedef struct {
+  SMsgHead head;
+  int64_t  streamId;
+  int32_t  taskId;
+  int64_t  dataVer;
+} SVStreamTaskVerUpdateReq;
+
+typedef struct {
   int8_t reserved;
 } SVDropStreamTaskRsp;
 
