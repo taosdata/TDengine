@@ -5,6 +5,145 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.6] - 2023-09-27
+
+**Full Changelog**: [v1.2.5...v1.2.6](https://github.com/taosdata/taosx/compare/v1.2.5...v1.2.6)
+
+### Bug Fixes
+
+- *agent*: Fix agent transfer file with \n ([9d24d72](9d24d72782788cec212efc3d871233c09f6b2a3f))
+
+- Fix opc page description ([1094b5a](1094b5aad423a9c60be4f26e450dd3312bbae948))
+
+
+### Features
+
+- *pi*: Support config file ([cb35cfb](cb35cfb5bd455a4a111cad8126ea75ce2da1f9ab))
+
+
+
+### Refactor
+
+
+- Opc yaml desc modify ([e0442e0](e0442e00d3130028c078bb241e227a303d32a857))
+
+
+## [1.2.5] - 2023-09-26
+
+**Full Changelog**: [v1.2.4...v1.2.5](https://github.com/taosdata/taosx/compare/v1.2.4...v1.2.5)
+
+### Bug Fixes
+
+- *agent*: Fix pi datasets unexpected value at line .. error ([0a72625](0a7262519584277b43f6c0decf63008ef758ba5a))
+- *legacy*: Sync stable schema cause conflict transactions ([cf5894b](cf5894b891a572f3f096253725a3e1f7cd315dc1))
+- *pi*: Fix mut requires in older rustc ([f8f7ea2](f8f7ea286643f67bdc4e65a4f232ef1bfb7f9a5f))
+- *serve*: Fix agent tasks set as cancelled error ([db14086](db140863151e9d052d9cb7719e30bf2241071f3c))
+
+- Assert enterprise edition ([1bb276d](1bb276d1bc83485476a3fd2b2c82ddb76898e842))
+- Update assert_enterprise msg ([8baf82d](8baf82d431e28a594fc37b470d0de96cf167a93c))
+- Fix mem leak with native connections ([c0fe976](c0fe97645d3ba4815750430a4eca1d68c4b7de00))
+- Sync schema error for some specific 2.x versions ([a95c29e](a95c29ec6a31616b56fbc8d2543c57d1ce6c6378))
+- Fix opc dump and add log ([4f4524d](4f4524d839510c5dd516d7d5c578c9584197edbc))
+- Table not exist occurs since retry time is 2#[TD-26508](https://jira.taosdata.com:18080/browse/TD-26508) ([add39d1](add39d19e0d9f2f04e75e9e84c028d6751c617d0))
+
+
+### Enhancements
+
+- *dev*: Add clean-all and build-sanitizer task [skip ci] ([fe1f887](fe1f8876a94f25e9a43e5badaa26187dd6c9d9ee))
+- *pi*: Improve pi datasets error message ([06f26cb](06f26cbc293bcc209a5c02a52c4ee13eb4a0fbb1))
+
+- Improve error logs in pi datasets ([5db8af9](5db8af981204737d5a6d80098d6a3788ce1a6ff0))
+
+
+### Features
+
+- *legacy*: Support remap options in target ([898e418](898e418069458c74037b86bd356eb977e0188a12))
+
+
+
+### Refactor
+
+- *pi*: Update pi data source yaml (#780) ([91fb6ef](91fb6ef437be9f3e298a0ab6f2ba3f1a6b990d66))
+
+- Make tokio-console optional by compile features ([9e0c106](9e0c106100845e3a59ef3c826aa7764231c0c17e))
+- Use opentelemetry-otlp instead jaeger ([9bc70ce](9bc70ce2ef866526e82d9b181d5dfea4fee8014c))
+- Pi yaml refactor ([c7bbbb3](c7bbbb34aaa6c5cfa9fd6fd6c59b2e7cf755e0a6))
+- Pi dataset header modify ([fb4a1cc](fb4a1cc52718907d54a0990b608507d04c2c27d3))
+
+
+### Ref
+
+- *serve*: Default timeout for datasets to 60s ([b4cf729](b4cf72982e12d2ccf1e7232debbb52fce265b26f))
+
+
+
+## [1.2.4] - 2023-09-20
+
+**Full Changelog**: [v1.2.3...v1.2.4](https://github.com/taosdata/taosx/compare/v1.2.3...v1.2.4)
+
+### Bug Fixes
+
+- *csv*: Fix write with nchar oom ([fb4bdf1](fb4bdf173c48ad057ac6702efe28dfa97c61971e))
+- *legacy*: Try to fix migration oom ([5fbaa4d](5fbaa4d334b084a24be63e7cb9956f4084da2ff2))
+- *serve*: Fix legacy data source options default value error ([a61c56d](a61c56d59ec413778db7caf90b265d1fcc513781))
+- *serve*: Fix metrics display error for multiple starts ([6985239](698523998a6751f97242f1181697116a83ed6a48))
+- *serve*: Fix using files path ([efed071](efed0712e760151d22cfe793544d040a1bee6186))
+
+- Fix opc process still running aftere stopped ([59160e3](59160e3924de165ef23c6cc3020e94ef6b6b705d))
+- Break write loop when encount unrecoverable error ([82bcf9f](82bcf9fd9057da32a5008c43bc86c4fa7a5653f7))
+- Fix list datasets hanging out when use with opcda ([f60c98f](f60c98faaa6709624d851e5bfcdde200d14b0e97))
+
+
+### Documentation
+
+
+- Improve post-install tips ([a1ae88c](a1ae88cb8f7a299353a7b912a83a336d2b203d49))
+
+
+### Enhancements
+
+- *legacy*: Print errors to stdout if fails-to not set ([58155df](58155dfcbab51ee4adda380276f1f897a722ff29))
+
+
+
+### Refactor
+
+
+- [TS-3927](https://jira.taosdata.com:18080/browse/TS-3927) opc dump default keep set to 10 ([6ae6a32](6ae6a32377c821a18b8780115446d4634c362724))
+- [TD-26269](https://jira.taosdata.com:18080/browse/TD-26269) modify default value for opcua ([463082b](463082bca53cee07fd5d107d714ad66439fc081b))
+- Opc csv config column modify ([c60558e](c60558efc7026d862d2dcef644759d1c29f243fa))
+- Modify opcua desc ([2d52a0e](2d52a0e89d8053361692e52f7f247aca6b89882a))
+- Keep backward compatibility ([a4b4074](a4b40745f9a0ef94883fc984f344b4de11f2d406))
+- Opc table config field modify ([4a2c741](4a2c74102ba2bc8f4760d1f4270eb4a361c803c7))
+- Modify opc table config desc ([145e417](145e417fcd2bcd664dece45f829284e3ae60e9ac))
+
+
+## [1.2.3] - 2023-09-17
+
+**Full Changelog**: [v1.2.2...v1.2.3](https://github.com/taosdata/taosx/compare/v1.2.2...v1.2.3)
+
+### Bug Fixes
+
+- *agent*: Ignore edition check in agent ([06f7248](06f7248eae5870b346286fc20362217a57502cc6))
+- *cloud*: Fix enterprise edition check on cloud directly (#736) ([bccabc0](bccabc064058bb220ded7498fa5bef8600cf6063))
+- *opc*: Fix channel closed when taosadapter restart ([4a5a1ac](4a5a1ac2747d1bc8b672641e1457ad7312616379))
+- *opc*: Fix error tracing with specific sql ([c155c9b](c155c9b1c72d21ab6bf7608dedbbf9c586391192))
+
+- Use tini to fix sigterm problem in docker/k8s ([514bdbc](514bdbc41f5d18645db5fe9dfefb855f2e0fa300))
+
+
+### Documentation
+
+- *mqtt*: Improve mqtt payload display docs ([b739116](b73911662c8cd84bbb826184ef5c5bbd17f3655c))
+
+
+
+### Enhancements
+
+
+- Shuffle to writer by node id ([e2c9af2](e2c9af2474f3dda8fa90b1a06bbf8b354da83f92))
+
+
 ## [1.2.2] - 2023-09-15
 
 **Full Changelog**: [v1.2.1...v1.2.2](https://github.com/taosdata/taosx/compare/v1.2.1...v1.2.2)
@@ -20,6 +159,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Simplify opc connector on create arrow writer ([7b20adf](7b20adf1f940c0e5791c1df1f7296cb51384b69a))
 - Use separate runtimes to fix pending issue ([1ef9291](1ef92919c68053c54845bd90ebd96281bec5e325))
 - Opc cause whole program hanging ([aeda527](aeda527c19a2fbf71a3034b44ea8ad476dd39e1b))
+- Change reader to paralle (#727) ([3cb5d95](3cb5d9555a56fc79d656a3af74f6cf8c14778155))
 
 
 ### Documentation

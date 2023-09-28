@@ -1,4 +1,4 @@
-use actix_web::{get, Responder};
+use actix_web::{get, HttpResponse, Responder};
 use metrics::{describe_counter, describe_gauge, gauge, register_counter, register_gauge};
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle, PrometheusRecorder};
 use std::time::Duration;
@@ -124,4 +124,24 @@ impl Metrics {
 async fn metrics_exporter(handle: actix_web::web::Data<PrometheusHandle>) -> impl Responder {
     let output = handle.render();
     output
+}
+
+/// Profile.
+#[utoipa::path(
+    responses(
+        (status = 200, description = "version/commit"),
+    )
+)]
+#[get("/profile")]
+async fn profile() -> HttpResponse {
+    HttpResponse::Ok().json(get_profile())
+}
+
+fn get_profile() -> serde_json::Value {
+    serde_json::json!({
+        "version": crate::build::PKG_VERSION,
+        "commit": crate::build::SHORT_COMMIT,
+        "build_time": crate::build::BUILD_TIME,
+        "build_target": crate::build::BUILD_TARGET,
+    })
 }

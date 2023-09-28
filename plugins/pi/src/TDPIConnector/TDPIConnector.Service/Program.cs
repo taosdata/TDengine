@@ -16,7 +16,8 @@ namespace TDPIConnector.Service
         enum WorkMode {
             Observer,
             Backfill,
-            PrintPIInfo
+            PrintPIInfo,
+            CheckConfig
         };
         private static bool logInit = LogInit();
         private static readonly ILog logger = LogManager.GetLogger(typeof(Program));
@@ -105,6 +106,12 @@ namespace TDPIConnector.Service
                             pointFilter = args[i + 1];
                             i += 2;
                             break;
+                        case "check":
+                        case "c":
+                            tomlConfigFile = args[i + 1].Substring(0);
+                            workMode = WorkMode.CheckConfig;
+                            i += 2;
+                            break;
                         default:
                             logger.Error("Unrecognized parameters");
                             Environment.Exit(0);
@@ -128,6 +135,9 @@ namespace TDPIConnector.Service
 
             if (workMode == WorkMode.PrintPIInfo) {
                 service.PrintPIInfo(pointFilter);
+                return;
+            } else if (workMode == WorkMode.CheckConfig) {
+                service.CheckConfig();
                 return;
             }
             // console mode

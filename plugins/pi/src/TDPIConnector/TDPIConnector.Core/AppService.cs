@@ -9,6 +9,7 @@ using TDPIConnector.TDEngine;
 using TDPIConnector.Core.Tasks;
 using System.Threading.Tasks;
 using TDPIConnector.TDEngine.Models;
+using Newtonsoft.Json;
 
 namespace TDPIConnector.Core
 {
@@ -360,6 +361,31 @@ namespace TDPIConnector.Core
             }
             log.Info("Print PI Info finished!");
         }
+
+        public void CheckConfig()
+        {
+            string info = "";
+            try
+            {
+                InitializePIConnections();
+            }
+            catch (Exception)
+            {
+                info = PIConfigChecker.buildConnectFailedInfo();
+                Console.OutputEncoding = Encoding.UTF8;
+                Console.WriteLine(info);
+                log.Info(info);
+                return;
+            }
+            var checker = new PIConfigChecker(piServerManager, piSystemManager);
+            info = checker.Check();
+            Console.OutputEncoding = Encoding.UTF8;
+            Console.WriteLine(info);
+            log.Info(info);
+
+            log.Info("Check Config finished!");
+        }
+
         public static void GetPISDKInfo()
         {
             try

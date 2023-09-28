@@ -30,20 +30,31 @@ convert_case = "0.6.0"
 csv-async = { version = "1.2.4", features = ["tokio"] }
 dashmap = "5.4.0"
 futures = { version = "0.3", features = ["thread-pool"] }
-itertools = "0.10.4"
+itertools = "0.11.0"
 lazy_static = "1.4"
 linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
 log = "0.4"
 parse_duration = "2.1"
-pretty_env_logger = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9.19"
 sha2 = "0.10"
 thiserror = "1"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = [
+  "rt",
+  "rt-multi-thread",
+  "io-util",
+  "io-std",
+  "net",
+  "time",
+  "process",
+  "macros",
+  "sync",
+  "signal",
+  "fs",
+] }
 tokio-util = { version = "0.7", features = ["full"] }
-tokio-stream = "*"
-toml = "0.7.2"
+tokio-stream = "0.1.14"
+toml = "0.8.0"
 zstd = "0.12.1"
 either = "1.8"
 serde_regex = "1"
@@ -54,7 +65,7 @@ glob = "0.3.1"
 
 file-rotate = "0.7.5"
 ringbuf = { version = "0.3.3" }
-deadpool = "*"
+deadpool = "0.10"
 
 actix-cors = "0.6.4"
 actix-web = "4"
@@ -76,10 +87,9 @@ async-backtrace = "0.2.2"
 dotenv = "0.15.0"
 tracing = { version = "0.1", features = ["log"] }
 
-flume = "0.10"
+flume = "0.11.0"
 futures-util = "0.3"
-r2d2 = "0.8.10"
-serde_with = "3.0.0"
+serde_with = "3.3"
 tokio-cron-scheduler = "0.9.4"
 
 bitvec = "1"
@@ -93,7 +103,7 @@ taos = { workspace = true }
 shadow-rs = { workspace = true }
 
 md5 = "0.7.0"
-kafka = "0.9.0"
+kafka = "0.10.0"
 rand = "0.8"
 base64 = "0.21.2"
 tiberius = { version = "0.12.2", default-features = false, features = [
@@ -122,5 +132,10 @@ disable-enterprise-connector-validation = []
 
 [build-dependencies]
 dotenv = "0.15.0"
+shadow-rs = { workspace = true }
+
+
+[dev-dependencies]
+pretty_env_logger = "0.5.0"
 
 shadow-rs = { workspace = true }

@@ -248,7 +248,7 @@ groups:
         placeholder: 100
         value: 1
       - name: batch_timeout
-        display: 上报超时
+        display: 上报等待时长
         hint:
           type: integer
           min: 1

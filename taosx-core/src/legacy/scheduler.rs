@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fmt::Debug,
     io::Write,
     pin::Pin,
@@ -18,13 +19,17 @@ use tokio::{
 use tracing::{instrument, Instrument};
 
 use crate::{
-    legacy::{split_table_into_time_range_chunks, sync_single_table_partial},
+    legacy::{
+        split_table_into_time_range_chunks, sync_single_table_partial, sync_super_table_schema,
+        transform_sql_with_remap,
+    },
     Action, LegacyMetrics, QueryOpts, TargetOpts, TimeRange, METRICS_LEGACY_CREATED_TABLES,
 };
 
 use super::{sync_normal_table_schema, sync_super_table_schema_with_subs};
 
 pub enum Todo {
+    STable(Arc<String>, oneshot::Sender<anyhow::Result<()>>),
     Meta(
         Option<Arc<String>>,
         Vec<String>,
@@ -32,7 +37,7 @@ pub enum Todo {
     ),
     Data(
         Option<Arc<String>>,
-        String,
+        Arc<String>,
         TimeRange,
         Option<oneshot::Sender<anyhow::Result<()>>>,
     ),
@@ -87,13 +92,82 @@ async fn worker(
     to.exec("select 1")
         .await
         .map_err(|err| anyhow::format_err!("check target connection error: {err:?}"))?;
+    let smooth_fold = (worker as f64 + 1.0).log2() as u32;
+    tokio::time::sleep(query.smooth_init * smooth_fold).await;
     loop {
         let todo = receiver.recv_async().await?;
         match todo {
+            Todo::STable(stable, sender) => {
+                let mut retries = MAX_WS_RETRIES;
+                let remap = opts
+                    .remap
+                    .as_ref()
+                    .and_then(|v| v.get(stable.as_str()).map(Clone::clone));
+                loop {
+                    match sync_super_table_schema(
+                        &from,
+                        &stable,
+                        &to,
+                        remap.as_ref(),
+                        &opts,
+                        &actions,
+                    )
+                    .await
+                    {
+                        Ok(_) => {
+                            let _ = sender.send(Ok(()));
+                            break;
+                        }
+                        Err(err) => {
+                            tracing::warn!("sync STable schema {stable} err: {err:#}");
+                            let err_string = err.to_string();
+                            if (err_string.contains("0xE00")
+                                || err_string.contains("channel closed"))
+                                && retries > 0
+                            {
+                                from = source.get().await?;
+                                to = target.get().await?;
+                                retries -= 1;
+                                tracing::warn!(
+                                            "[worker:{worker}] sync stable {stable} error: {err}, retrying ... {retries} times left"
+                                        );
+                                // wait 5 seconds to avoid too many retries
+                                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                                continue;
+                            }
+
+                            tracing::error!(
+                                        "[worker:{worker}] sync stable schema {stable} error: {err:#}, continue next"
+                                    );
+
+                            if let Some(path) = opts.fails_to.as_ref() {
+                                path.lock().unwrap().write_fmt(format_args!(
+                                    "meta\t{}:\t\t{}\n",
+                                    stable.as_str(),
+                                    format!("{err:#}").replace("\n", " ")
+                                ))?;
+                            } else {
+                                println!(
+                                    "meta\t{}:\t\t{}",
+                                    stable.as_str(),
+                                    format!("{err:#}").replace("\n", " ")
+                                );
+                            }
+
+                            let _ = sender.send(Err(err));
+                            break;
+                        }
+                    }
+                }
+            }
             Todo::Meta(stable, tables, sender) => {
                 match stable {
                     Some(stable) => {
                         let mut retries = MAX_WS_RETRIES;
+                        let remap = opts
+                            .remap
+                            .as_ref()
+                            .and_then(|v| v.get(stable.as_str()).map(Clone::clone));
                         loop {
                             //todo
                             match sync_super_table_schema_with_subs(
@@ -101,12 +175,10 @@ async fn worker(
                                 &stable,
                                 &tables,
                                 &to,
-                                tables.len(),
+                                remap.as_ref(),
                                 &opts,
                                 source_is_v3,
-                                target_is_v3,
                                 &actions,
-                                0,
                                 &metrics,
                             )
                             .await
@@ -118,7 +190,7 @@ async fn worker(
                                     break;
                                 }
                                 Err(err) => {
-                                    tracing::error!(
+                                    tracing::warn!(
                                         "sync_super_table_schema_with_subs {stable} err: {err:#}"
                                     );
                                     let table_count = tables.len();
@@ -149,6 +221,13 @@ async fn worker(
                                             tables.join(","),
                                             format!("{err:#}").replace("\n", " ")
                                         ))?;
+                                    } else {
+                                        println!(
+                                            "meta\t{}:{}\t\t{}",
+                                            stable.as_str(),
+                                            tables.join(","),
+                                            format!("{err:#}").replace("\n", " ")
+                                        );
                                     }
 
                                     if let Some(sender) = sender {
@@ -163,8 +242,9 @@ async fn worker(
                         //normal
                         let mut errors = String::new();
                         for table in &tables {
+                            let remap = opts.remap.as_ref().and_then(|v| v.get(table));
                             if let Err(err) =
-                                sync_normal_table_schema(&from, &table, &actions, &to).await
+                                sync_normal_table_schema(&from, &table, &actions, remap, &to).await
                             {
                                 tracing::error!("Syncing table `{table}` error: {err:?}");
                                 if let Some(path) = opts.fails_to.as_ref() {
@@ -173,6 +253,12 @@ async fn worker(
                                         table.as_str(),
                                         format!("{err:?}").replace("\n", " ")
                                     ))?;
+                                } else {
+                                    println!(
+                                        "meta\t{}\t\t{}",
+                                        table.as_str(),
+                                        format!("{err:?}").replace("\n", " ")
+                                    );
                                 }
                                 errors.extend(format!("- Error of table {table}: {err}\n").chars());
                             } else {
@@ -200,8 +286,19 @@ async fn worker(
                     unit: query.unit,
                     limit: query.limit,
                     select_from_stable: query.select_from_stable,
+                    smooth_init: query.smooth_init,
                 };
                 let mut retries = MAX_WS_RETRIES;
+
+                let remap = opts.remap.as_ref().and_then(|v| {
+                    v.get(
+                        stable
+                            .as_ref()
+                            .map(|s| s.as_str())
+                            .unwrap_or(table.as_str()),
+                    )
+                    .map(Clone::clone)
+                });
 
                 let chunks = split_table_into_time_range_chunks(&from, &table, &query).await;
                 match chunks {
@@ -215,11 +312,12 @@ async fn worker(
                                     source.clone(),
                                     target.clone(),
                                     &from,
-                                    stable.as_ref().map(|s| s.as_str()),
+                                    &stable,
                                     &table,
                                     &to,
                                     &actions,
                                     &query,
+                                    remap.as_ref(),
                                     &opts,
                                     target_is_v3,
                                     metrics.clone(),
@@ -251,9 +349,11 @@ async fn worker(
                                 );
                                             let st = stable.as_ref().map(|s| s.as_str());
                                             if let Some(stable) = st {
-                                                sync_add_column(&from, &to, stable).await?;
+                                                sync_add_column(&from, &to, stable, remap.as_ref())
+                                                    .await?;
                                             } else {
-                                                sync_add_column(&from, &to, &table).await?;
+                                                sync_add_column(&from, &to, &table, remap.as_ref())
+                                                    .await?;
                                             }
                                             continue;
                                         }
@@ -268,6 +368,13 @@ async fn worker(
                                                 query.time_range,
                                                 format!("{err:?}").replace("\n", " ")
                                             ))?;
+                                        } else {
+                                            println!(
+                                                "data\t{}\t{:?}\t{}",
+                                                table.as_str(),
+                                                query.time_range,
+                                                format!("{err:?}").replace("\n", " ")
+                                            );
                                         }
 
                                         break;
@@ -297,6 +404,13 @@ async fn worker(
                                 query.time_range,
                                 format!("{err:?}").replace("\n", " ")
                             ))?;
+                        } else {
+                            println!(
+                                "data\t{}\t{:?}\t{}",
+                                table.as_str(),
+                                query.time_range,
+                                format!("{err:?}").replace("\n", " ")
+                            );
                         }
                     }
                 }
@@ -305,17 +419,30 @@ async fn worker(
     }
 }
 
-pub async fn sync_add_column(from: &Taos, to: &Taos, table: &str) -> anyhow::Result<()> {
-    let des_from = from.describe(table).await?;
-    let des_to = to.describe(table).await?;
+pub async fn sync_add_column(
+    from: &Taos,
+    to: &Taos,
+    table: &str,
+    remap: Option<&Arc<HashMap<String, String>>>,
+) -> anyhow::Result<()> {
+    let l_desc = from.describe(table).await?;
+    let r_desc = to.describe(table).await?;
     let mut add_columns = Vec::new();
-    for col in des_from.iter() {
-        if !col.is_tag() && !des_to.iter().any(|c| c.field() == col.field()) {
-            add_columns.push(col);
+    for l in l_desc.iter() {
+        if !l.is_tag()
+            && !r_desc
+                .iter()
+                .any(|r| r.field() == remap.and_then(|map| map.get(l.field())).unwrap_or(&l.field))
+        {
+            add_columns.push(l);
         }
     }
     for col in add_columns {
-        let sql = format!("ALTER TABLE `{}` ADD COLUMN {}", table, col.sql_repr());
+        let sql = format!(
+            "ALTER TABLE `{}` ADD COLUMN {}",
+            table,
+            transform_sql_with_remap(col.sql_repr(), remap)
+        );
         tracing::info!("add column sql: {sql}");
         if let Err(err) = to.exec(sql.as_str()).await {
             tracing::error!("Add column error: {err:#}");
@@ -326,6 +453,7 @@ pub async fn sync_add_column(from: &Taos, to: &Taos, table: &str) -> anyhow::Res
 }
 
 impl Scheduler {
+    #[instrument(skip_all)]
     pub async fn new(
         source: TaosPool,
         target: TaosPool,

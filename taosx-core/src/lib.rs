@@ -176,7 +176,7 @@ impl TaskOpts {
         self.cancel.cancel();
     }
 
-    #[instrument(skip_all, parent = &self.span)]
+    #[instrument(skip_all, name = "run_task")]
     pub async fn run(&self, port_pool: &PortPool) -> Result<(), anyhow::Error> {
         let Self {
             from,
@@ -195,60 +195,62 @@ impl TaskOpts {
             ..
         } = self;
 
-        // Check if enterprise available
-        #[cfg(not(feature = "disable-enterprise-only-validation"))]
-        match (from.driver.as_str(), to.driver.as_str()) {
-            ("tmq" | "taos", "tmq" | "taos") => {
-                let mut from = from.clone();
-                from.subject.take();
-                let from = TaosBuilder::from_dsn(from)?;
-                let mut to = to.clone();
-                to.subject.take();
-                let to = TaosBuilder::from_dsn(to)?;
+        if with_agent.is_none() {
+            // Check if enterprise available
+            #[cfg(not(feature = "disable-enterprise-only-validation"))]
+            match (from.driver.as_str(), to.driver.as_str()) {
+                ("tmq" | "taos", "tmq" | "taos") => {
+                    let mut from = from.clone();
+                    from.subject.take();
+                    let from = TaosBuilder::from_dsn(from)?;
+                    let mut to = to.clone();
+                    to.subject.take();
+                    let to = TaosBuilder::from_dsn(to)?;
 
-                if !from
-                    .is_enterprise_edition()
-                    .await
-                    .context("Failed to check source edition")?
-                    && !to
+                    if !from
+                        .is_enterprise_edition()
+                        .await
+                        .context("Failed to check source edition")?
+                        && !to
+                            .is_enterprise_edition()
+                            .await
+                            .context("Failed to check target edition")?
+                    {
+                        anyhow::bail!(
+                        "Source or target should be enterprise edition. If it's not your case, please contact us."
+                    )
+                    }
+                }
+                ("tmq" | "taos", _) => {
+                    let mut from = from.clone();
+                    from.subject.take();
+                    let builder = TaosBuilder::from_dsn(from)?;
+                    if !builder
+                        .is_enterprise_edition()
+                        .await
+                        .context("Failed to check source edition")?
+                    {
+                        anyhow::bail!(
+                        "Only enterprise edition is supported. If it's not your case, please contact us."
+                    )
+                    }
+                }
+                (_, "tmq" | "taos") => {
+                    let mut to = to.clone();
+                    to.subject.take();
+                    let builder = TaosBuilder::from_dsn(to)?;
+                    if !builder
                         .is_enterprise_edition()
                         .await
                         .context("Failed to check target edition")?
-                {
-                    anyhow::bail!(
-                        "Source or target should be enterprise edition. If it's not your case, please contact us."
-                    )
-                }
-            }
-            ("tmq" | "taos", _) => {
-                let mut from = from.clone();
-                from.subject.take();
-                let builder = TaosBuilder::from_dsn(from)?;
-                if !builder
-                    .is_enterprise_edition()
-                    .await
-                    .context("Failed to check source edition")?
-                {
-                    anyhow::bail!(
+                    {
+                        anyhow::bail!(
                         "Only enterprise edition is supported. If it's not your case, please contact us."
                     )
+                    }
                 }
+                _ => (),
             }
-            (_, "tmq" | "taos") => {
-                let mut to = to.clone();
-                to.subject.take();
-                let builder = TaosBuilder::from_dsn(to)?;
-                if !builder
-                    .is_enterprise_edition()
-                    .await
-                    .context("Failed to check target edition")?
-                {
-                    anyhow::bail!(
-                        "Only enterprise edition is supported. If it's not your case, please contact us."
-                    )
-                }
-            }
-            _ => (),
         }
 
         // Run task
@@ -279,13 +281,33 @@ impl TaskOpts {
                     .await?;
                 }
                 ("local", "taos") => {
-                    local_to_taos(from.clone(), to.clone(), *jobs, *force).await?;
+                    local_to_taos(from.clone(), to.clone(), *jobs, *force)
+                        .in_current_span()
+                        .await?;
                 }
                 ("taos", "taos") => {
-                    legacy_to_taos(from.clone(), transform.clone(), to.clone(), *jobs).await?;
+                    tokio::select! {
+                        _ = cancel.cancelled() => {
+                            tracing::info!("csv transfer cancelled");
+                            return Ok(())
+                        }
+                        rs = legacy_to_taos(from.clone(), transform.clone(), to.clone(), *jobs, cancel.clone())
+                        // .in_current_span()
+                        .instrument(tracing::info_span!("legacy_to_taos")) => {
+                            rs?;
+                        }
+                    };
                 }
                 ("taos", "csv") => {
-                    query_to_csv(from.clone(), to.clone()).await?;
+                    tokio::select! {
+                        _ = cancel.cancelled() => {
+                            tracing::info!("csv transfer cancelled");
+                            return Ok(())
+                        }
+                        rs = query_to_csv(from.clone(), to.clone()) => {
+                            rs?;
+                        }
+                    };
                 }
                 ("taos", "parquet") => {
                     query_to_parquet(from.clone(), to.clone(), *force).await?;
