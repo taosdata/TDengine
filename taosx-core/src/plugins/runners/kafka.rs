@@ -23,7 +23,7 @@ use tracing::Span;
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, Action, Parser, Transferred};
 
-async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
+fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
     let socket = format!("127.0.0.1:{}", port);
     let stream = std::net::TcpStream::connect(socket)?;
     let schema = build_schema();
@@ -129,9 +129,10 @@ pub async fn kafka_to_taos(
         with_agent,
         transferred,
         span,
-    ).await?;
+    )
+    .await?;
 
-    let worker = tokio::spawn(kafka_worker(from, port));
+    let worker = tokio::task::spawn_blocking(move || kafka_worker(from, port));
     let abort_handle = worker.abort_handle();
 
     let port_pool = port_pool.clone();
