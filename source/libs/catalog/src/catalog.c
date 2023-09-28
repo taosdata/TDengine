@@ -739,11 +739,16 @@ int32_t catalogInit(SCatalogCfg* cfg) {
     if (gCtgMgmt.cfg.stbRentSec == 0) {
       gCtgMgmt.cfg.stbRentSec = CTG_DEFAULT_RENT_SECOND;
     }
+
+    if (gCtgMgmt.cfg.viewRentSec == 0) {
+      gCtgMgmt.cfg.viewRentSec = CTG_DEFAULT_RENT_SECOND;
+    }
   } else {
     gCtgMgmt.cfg.maxDBCacheNum = CTG_DEFAULT_CACHE_DB_NUMBER;
     gCtgMgmt.cfg.maxTblCacheNum = CTG_DEFAULT_CACHE_TBLMETA_NUMBER;
     gCtgMgmt.cfg.dbRentSec = CTG_DEFAULT_RENT_SECOND;
     gCtgMgmt.cfg.stbRentSec = CTG_DEFAULT_RENT_SECOND;
+    gCtgMgmt.cfg.viewRentSec = CTG_DEFAULT_RENT_SECOND;
   }
 
   gCtgMgmt.pCluster = taosHashInit(CTG_DEFAULT_CACHE_CLUSTER_NUMBER, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT),
@@ -828,6 +833,7 @@ int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle) {
 
     CTG_ERR_JRET(ctgMetaRentInit(&clusterCtg->dbRent, gCtgMgmt.cfg.dbRentSec, CTG_RENT_DB, sizeof(SDbCacheInfo)));
     CTG_ERR_JRET(ctgMetaRentInit(&clusterCtg->stbRent, gCtgMgmt.cfg.stbRentSec, CTG_RENT_STABLE, sizeof(SSTableVersion)));
+    CTG_ERR_JRET(ctgMetaRentInit(&clusterCtg->viewRent, gCtgMgmt.cfg.viewRentSec, CTG_RENT_VIEW, sizeof(SViewVersion)));
 
     clusterCtg->dbCache = taosHashInit(gCtgMgmt.cfg.maxDBCacheNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
                                        false, HASH_ENTRY_LOCK);

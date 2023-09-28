@@ -19,6 +19,7 @@
 int32_t mndInitView(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_VIEW, mndProcessCreateViewReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_VIEW, mndProcessDropViewReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_TABLE_META, mndProcessGetViewMetaReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VIEWS, mndRetrieveView);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_VIEWS, mndCancelGetNextView);
@@ -75,6 +76,22 @@ int32_t mndProcessDropViewReq(SRpcMsg *pReq) {
     return mndProcessDropViewReqImpl(&dropViewReq, pReq);
 #endif
 }
+
+static int32_t mndProcessViewMetaReq(SRpcMsg *pReq) {
+#ifndef TD_ENTERPRISE
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#else
+  SViewMetaReq  req = {0};
+
+  if (tDeserializeSViewMetaReq(pReq->pCont, pReq->contLen, &req) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  return mndProcessTableMetaReqImpl(&req, pReq);
+#endif  
+}
+
 
 int32_t mndRetrieveView(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
 #if 0

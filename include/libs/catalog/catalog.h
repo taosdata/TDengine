@@ -39,6 +39,7 @@ enum {
   CTG_DBG_STB_NUM,
   CTG_DBG_DB_RENT_NUM,
   CTG_DBG_STB_RENT_NUM,
+  CTG_DBG_VIEW_RENT_NUM,
 };
 
 typedef enum {
@@ -111,7 +112,7 @@ typedef struct SMetaData {
   SArray*   pTableCfg;    // pRes = STableCfg*
   SArray*   pTableTag;    // pRes = SArray<STagVal>*
   SArray*   pDnodeList;   // pRes = SArray<SEpSet>*
-  SArray*   pView;        // pRes = SViewInfo*
+  SArray*   pView;        // pRes = SViewMeta*
   SMetaRes* pSvrVer;      // pRes = char*
 } SMetaData;
 
@@ -121,12 +122,13 @@ typedef struct SCatalogCfg {
   uint32_t maxUserCacheNum;
   uint32_t dbRentSec;
   uint32_t stbRentSec;
+  uint32_t viewRentSec;
 } SCatalogCfg;
 
 typedef struct SSTableVersion {
   char     dbFName[TSDB_DB_FNAME_LEN];
   char     stbName[TSDB_TABLE_NAME_LEN];
-  uint64_t dbId;
+  int64_t  dbId;
   uint64_t suid;
   int32_t  sversion;
   int32_t  tversion;
@@ -141,6 +143,15 @@ typedef struct SDbCacheInfo {
   int32_t numOfTable;  // unit is TSDB_TABLE_NUM_UNIT
   int64_t stateTs;
 } SDbCacheInfo;
+
+typedef struct SViewVersion {
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  char     viewName[TSDB_VIEW_NAME_LEN];
+  int64_t  dbId;
+  uint64_t viewId;
+  int32_t  version;
+} SViewVersion;
+
 
 typedef struct STbSVersion {
   char*   tbFName;

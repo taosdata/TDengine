@@ -93,6 +93,10 @@ char* ctgTaskTypeStr(CTG_TASK_TYPE type) {
       return "[bget table meta]";
     case CTG_TASK_GET_TB_HASH_BATCH:
       return "[bget table hash]";
+    case CTG_TASK_GET_TB_TAG:
+      return "[get table tag]";
+    case CTG_TASK_GET_VIEW:
+      return "[get view]";
     default:
       return "unknown";
   }
@@ -304,6 +308,7 @@ void ctgFreeInstUserCache(SHashObj* pUserCache) {
 void ctgFreeHandleImpl(SCatalog* pCtg) {
   ctgFreeMetaRent(&pCtg->dbRent);
   ctgFreeMetaRent(&pCtg->stbRent);
+  ctgFreeMetaRent(&pCtg->viewRent);
 
   ctgFreeInstDbCache(pCtg->dbCache);
   ctgFreeInstUserCache(pCtg->userCache);
@@ -320,6 +325,7 @@ void ctgFreeHandle(SCatalog* pCtg) {
 
   ctgFreeMetaRent(&pCtg->dbRent);
   ctgFreeMetaRent(&pCtg->stbRent);
+  ctgFreeMetaRent(&pCtg->viewRent);
 
   ctgFreeInstDbCache(pCtg->dbCache);
   ctgFreeInstUserCache(pCtg->userCache);
@@ -405,12 +411,14 @@ void ctgClearHandle(SCatalog* pCtg) {
   
   ctgFreeMetaRent(&pCtg->dbRent);
   ctgFreeMetaRent(&pCtg->stbRent);
+  ctgFreeMetaRent(&pCtg->viewRent);
 
   ctgFreeInstDbCache(pCtg->dbCache);
   ctgFreeInstUserCache(pCtg->userCache);
 
   ctgMetaRentInit(&pCtg->dbRent, gCtgMgmt.cfg.dbRentSec, CTG_RENT_DB, sizeof(SDbCacheInfo));
   ctgMetaRentInit(&pCtg->stbRent, gCtgMgmt.cfg.stbRentSec, CTG_RENT_STABLE, sizeof(SSTableVersion));
+  ctgMetaRentInit(&pCtg->viewRent, gCtgMgmt.cfg.viewRentSec, CTG_RENT_VIEW, sizeof(SViewVersion));
 
   pCtg->dbCache = taosHashInit(gCtgMgmt.cfg.maxDBCacheNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false,
                                HASH_ENTRY_LOCK);
@@ -510,6 +518,12 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       taosHashCleanup(pOut->readTbs);
       taosHashCleanup(pOut->writeTbs);
       taosHashCleanup(pOut->useDbs);
+      taosMemoryFreeClear(pCtx->out);
+      break;
+    }
+    case TDMT_MND_VIEW_META: {
+      SViewMetaRsp* pOut = (SViewMetaRsp*)pCtx->out;
+      taosMemoryFree(pOut->querySql);
       taosMemoryFreeClear(pCtx->out);
       break;
     }
@@ -1202,6 +1216,17 @@ int32_t ctgDbCacheInfoSearchCompare(const void* key1, const void* key2) {
   }
 }
 
+int32_t ctgViewVersionSearchCompare(const void* key1, const void* key2) {
+  if (*(uint64_t*)key1 < ((SViewVersion*)key2)->viewId) {
+    return -1;
+  } else if (*(uint64_t*)key1 > ((SViewVersion*)key2)->viewId) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+
 int32_t ctgStbVersionSortCompare(const void* key1, const void* key2) {
   if (((SSTableVersion*)key1)->suid < ((SSTableVersion*)key2)->suid) {
     return -1;
@@ -1221,6 +1246,17 @@ int32_t ctgDbCacheInfoSortCompare(const void* key1, const void* key2) {
     return 0;
   }
 }
+
+int32_t ctgViewVersionSortCompare(const void* key1, const void* key2) {
+  if (((SViewVersion*)key1)->viewId < ((SViewVersion*)key2)->viewId) {
+    return -1;
+  } else if (((SViewVersion*)key1)->viewId > ((SViewVersion*)key2)->viewId) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
 
 int32_t ctgMakeVgArray(SDBVgInfo* dbInfo) {
   if (NULL == dbInfo) {
@@ -1758,6 +1794,15 @@ uint64_t ctgGetTbIndexCacheSize(STableIndex *pIndex) {
   return sizeof(*pIndex) + pIndex->indexSize;
 }
 
+uint64_t ctgGetViewMetaCacheSize(SViewMeta *pMeta) {
+  if (NULL == pMeta) {
+    return 0;
+  }
+
+  return sizeof(*pMeta) + strlen(pMeta->querySql) + 1;
+}
+
+
 FORCE_INLINE uint64_t ctgGetTbMetaCacheSize(STableMeta *pMeta) {
   if (NULL == pMeta) {
     return 0;
@@ -1870,6 +1915,7 @@ uint64_t ctgGetClusterCacheSize(SCatalog *pCtg) {
 
   cacheSize += pCtg->dbRent.rentCacheSize;
   cacheSize += pCtg->stbRent.rentCacheSize;
+  cacheSize += pCtg->viewRent.rentCacheSize;
 
   return cacheSize;
 }
@@ -1957,4 +2003,21 @@ void ctgGetGlobalCacheSize(uint64_t *pSize) {
     pIter = taosHashIterate(gCtgMgmt.pCluster, pIter);
   }
 }
+
+int32_t ctgBuildViewNullRes(SCtgTask* pTask, SCtgViewsCtx* pCtx) {
+  int32_t dbNum = taosArrayGetSize(pCtx->pNames);
+  for (int32_t i = 0; i < dbNum; ++i) {
+    STablesReq* pReq = taosArrayGet(pCtx->pNames, i);
+    int32_t viewNum = taosArrayGetSize(pReq->pTables);
+    
+    ctgDebug("start to check views in db %s, viewNum %d", pReq->dbFName, viewNum);
+    
+    for (int32_t m = 0; m < viewNum; ++m) {
+      taosArrayPush(pCtx->pResList, &(SMetaData){0});
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 

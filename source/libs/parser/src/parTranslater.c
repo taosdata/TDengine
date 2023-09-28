@@ -7267,6 +7267,13 @@ static int32_t validateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStm
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VIEW_QUERY, "Invalid view query type");
   }
 
+  STableMeta* pMetaCache = NULL;
+  int32_t code = getTableMeta(pCxt, pStmt->dbName, pStmt->viewName, &pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    taosMemoryFreeClear(pMetaCache);
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_VIEW_CONFLICT_WITH_TABLE, "View name is conflict with table");
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 

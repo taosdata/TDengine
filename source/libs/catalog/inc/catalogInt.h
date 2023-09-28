@@ -67,6 +67,7 @@ typedef enum {
   CTG_CI_USER,
   CTG_CI_UDF,
   CTG_CI_SVR_VER,
+  CTG_CI_VIEW,
   CTG_CI_MAX_VALUE,
 } CTG_CACHE_ITEM;
 
@@ -82,6 +83,7 @@ enum {
 enum {
   CTG_RENT_DB = 1,
   CTG_RENT_STABLE,
+  CTG_RENT_VIEW,
 };
 
 enum {
@@ -96,6 +98,7 @@ enum {
   CTG_OP_UPDATE_VG_EPSET,
   CTG_OP_UPDATE_TB_INDEX,
   CTG_OP_DROP_TB_INDEX,
+  CTG_OP_UPDATE_VIEW_META,
   CTG_OP_CLEAR_CACHE,
   CTG_OP_MAX
 };
@@ -117,6 +120,7 @@ typedef enum {
   CTG_TASK_GET_TB_META_BATCH,
   CTG_TASK_GET_TB_HASH_BATCH,
   CTG_TASK_GET_TB_TAG,
+  CTG_TASK_GET_VIEW,
 } CTG_TASK_TYPE;
 
 typedef enum {
@@ -240,6 +244,14 @@ typedef struct SCtgUserCtx {
   SUserAuthInfo user;
 } SCtgUserCtx;
 
+typedef struct SCtgViewsCtx {
+  int32_t fetchNum;
+  SArray* pNames;
+  SArray* pResList;
+  SArray* pFetchs;
+} SCtgViewsCtx;
+
+
 typedef STableIndexRsp STableIndex;
 
 typedef struct SCtgTbCache {
@@ -259,12 +271,19 @@ typedef struct SCtgCfgCache {
   SDbCfgInfo* cfgInfo;
 } SCtgCfgCache;
 
+typedef struct SCtgViewCache {
+  SRWLatch    viewLock;
+  SViewMeta*  pMeta;
+} SCtgViewCache;
+
+
 typedef struct SCtgDBCache {
   SRWLatch     dbLock;  // RC between destroy tbCache/stbCache and all reads
   uint64_t     dbId;
   int8_t       deleted;
   SCtgVgCache  vgCache;
   SCtgCfgCache cfgCache;
+  SHashObj*    viewCache; // key:viewname, value:SCtgViewCache
   SHashObj*    tbCache;   // key:tbname, value:SCtgTbCache
   SHashObj*    stbCache;  // key:suid, value:char*
   uint64_t     dbCacheNum[CTG_CI_MAX_VALUE];
@@ -300,6 +319,7 @@ typedef struct SCatalog {
   SHashObj*     dbCache;    // key:dbname, value:SCtgDBCache
   SCtgRentMgmt  dbRent;
   SCtgRentMgmt  stbRent;
+  SCtgRentMgmt  viewRent;
   SCtgCacheStat cacheStat;
 } SCatalog;
 
@@ -344,6 +364,7 @@ typedef struct SCtgJob {
   int32_t          tbIndexNum;
   int32_t          tbCfgNum;
   int32_t          svrVerNum;
+  int32_t          viewNum;
 } SCtgJob;
 
 typedef struct SCtgMsgCtx {
@@ -508,6 +529,12 @@ typedef struct SCtgUpdateEpsetMsg {
   int32_t   vgId;
   SEpSet    epSet;
 } SCtgUpdateEpsetMsg;
+
+typedef struct SCtgUpdateViewMetaMsg {
+  SCatalog*         pCtg;
+  SViewMetaRsp*     pRsp;
+} SCtgUpdateViewMetaMsg;
+
 
 typedef struct SCtgCacheOperation {
   int32_t opId;
@@ -686,10 +713,10 @@ typedef struct SCtgCacheItemInfo {
   (CTG_FLAG_IS_UNKNOWN_STB(_flag) || (CTG_FLAG_IS_STB(_flag) && (tbType) == TSDB_SUPER_TABLE) || \
    (CTG_FLAG_IS_NOT_STB(_flag) && (tbType) != TSDB_SUPER_TABLE))
 
+#define CTG_IS_BATCH_TASK(_taskType) ((CTG_TASK_GET_TB_META_BATCH == (_taskType)) || (CTG_TASK_GET_TB_HASH_BATCH == (_taskType)) || (CTG_TASK_GET_VIEW == (_taskType)))
+
 #define CTG_GET_TASK_MSGCTX(_task, _id)                                                             \
-  (((CTG_TASK_GET_TB_META_BATCH == (_task)->type) || (CTG_TASK_GET_TB_HASH_BATCH == (_task)->type)) \
-       ? taosArrayGet((_task)->msgCtxs, (_id))                                                      \
-       : &(_task)->msgCtx)
+  (CTG_IS_BATCH_TASK((_task)->type)  ? taosArrayGet((_task)->msgCtxs, (_id)) : &(_task)->msgCtx)
 
 #define CTG_META_SIZE(pMeta) \
   (sizeof(STableMeta) + ((pMeta)->tableInfo.numOfTags + (pMeta)->tableInfo.numOfColumns) * sizeof(SSchema))

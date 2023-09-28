@@ -318,6 +318,21 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
       qDebug("Got svr ver from mnode");
       break;
     }
+    case TDMT_MND_VIEW_META: {
+      if (TSDB_CODE_SUCCESS != rspCode) {
+        qError("error rsp for get view-meta, error:%s, viewFName:%s", tstrerror(rspCode), target);
+        CTG_ERR_RET(rspCode);
+      }
+
+      code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
+      if (code) {
+        qError("Process get view-meta rsp failed, error:%s, viewFName:%s", tstrerror(code), target);
+        CTG_ERR_RET(code);
+      }
+
+      qDebug("Got view-meta from mnode, viewFName:%s", target);
+      break;
+    }
     default:
       if (TSDB_CODE_SUCCESS != rspCode) {
         qError("Got error rsp, error:%s", tstrerror(rspCode));
@@ -1388,3 +1403,60 @@ int32_t ctgGetSvrVerFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, char** ou
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t ctgGetViewInfoFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pName, SViewMetaOutput* out,
+                                SCtgTaskReq* tReq) {
+  char*     msg = NULL;
+  int32_t   msgLen = 0;
+  int32_t   reqType = TDMT_MND_VIEW_META;
+  SCtgTask* pTask = tReq ? tReq->pTask : NULL;
+  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemoryMalloc : (MallocType)rpcMallocCont;
+  char fullName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(pName, fullName);
+
+  ctgDebug("try to get view info from mnode, viewFName:%s", fullName);
+
+  int32_t code = queryBuildMsg[TMSG_INDEX(reqType)](fullName, &msg, 0, &msgLen, mallocFp);
+  if (code) {
+    ctgError("Build view-meta msg failed, code:%x, viewFName:%s", code, fullName);
+    CTG_ERR_RET(code);
+  }
+
+  if (pTask) {
+    void* pOut = taosMemoryCalloc(1, POINTER_BYTES);
+    if (NULL == pOut) {
+      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+
+    CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, tReq->msgIdx), reqType, pOut, fullName));
+
+#if CTG_BATCH_FETCH
+    CTG_RET(ctgAddBatch(pCtg, 0, pConn, tReq, reqType, msg, msgLen));
+#else
+    SArray* pTaskId = taosArrayInit(1, sizeof(int32_t));
+    if (NULL == pTaskId) {
+      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    taosArrayPush(pTaskId, &pTask->taskId);
+
+    CTG_RET(ctgAsyncSendMsg(pCtg, pConn, pTask->pJob, pTaskId, -1, NULL, NULL, 0, reqType, msg, msgLen));
+#endif
+  }
+
+  SRpcMsg rpcMsg = {
+      .msgType = reqType,
+      .pCont = msg,
+      .contLen = msgLen,
+  };
+
+  SRpcMsg rpcRsp = {0};
+  rpcSendRecv(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp);
+
+  CTG_ERR_RET(ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, fullName));
+
+  rpcFreeCont(rpcRsp.pCont);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+

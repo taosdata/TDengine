@@ -729,7 +729,19 @@ void    tFreeStreamObj(SStreamObj* pObj);
 // } SStreamCheckpointObj;
 
 
-typedef SCMCreateViewReq SViewObj;
+typedef struct {
+  char     fullname[TSDB_VIEW_FNAME_LEN];
+  char     name[TSDB_VIEW_NAME_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  char*    querySql;
+  uint64_t viewId;
+  uint64_t dbId;
+  int32_t  version;
+  int8_t   precision;
+  int32_t  numOfCols;
+  SSchema* pSchema;
+  SRWLatch lock;  
+} SViewObj;
 
 int32_t tEncodeSViewObj(SEncoder* pEncoder, const SViewObj* pObj);
 int32_t tDecodeSViewObj(SDecoder* pDecoder, SViewObj* pObj, int32_t sver);

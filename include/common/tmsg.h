@@ -3912,7 +3912,6 @@ typedef struct {
   int8_t   precision;
   int32_t  numOfCols;
   SSchema* pSchema;
-  SRWLatch lock;  
 } SCMCreateViewReq;
 
 int32_t tSerializeSCMCreateViewReq(void* buf, int32_t bufLen, const SCMCreateViewReq* pReq);
@@ -3930,6 +3929,25 @@ typedef struct {
 int32_t tSerializeSCMDropViewReq(void* buf, int32_t bufLen, const SCMDropViewReq* pReq);
 int32_t tDeserializeSCMDropViewReq(void* buf, int32_t bufLen, SCMDropViewReq* pReq);
 void    tFreeSCMDropViewReq(SCMDropViewReq* pReq);
+
+typedef struct {
+  char   fullname[TSDB_VIEW_FNAME_LEN];
+} SViewMetaReq;
+int32_t tSerializeSViewMetaReq(void* buf, int32_t bufLen, const SViewMetaReq* pReq);
+int32_t tDeserializeSViewMetaReq(void* buf, int32_t bufLen, SViewMetaReq* pReq);
+
+typedef struct {
+  char     name[TSDB_VIEW_NAME_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  uint64_t dbId;
+  uint64_t viewId;
+  char*    querySql;
+  int32_t  version;
+} SViewMetaRsp;
+int32_t tSerializeSViewMetaRsp(void* buf, int32_t bufLen, const SViewMetaRsp* pRsp);
+int32_t tDeserializeSViewMetaRsp(void* buf, int32_t bufLen, SViewMetaRsp* pRsp);
+void    tFreeSViewMetaRsp(SViewMetaRsp* pRsp);
+
 
 #pragma pack(pop)
 

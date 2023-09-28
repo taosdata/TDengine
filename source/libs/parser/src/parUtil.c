@@ -691,9 +691,11 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
   if (TSDB_CODE_SUCCESS == code) {
     code = buildTableReq(pMetaCache->pTableCfg, &pCatalogReq->pTableCfg);
   }
+#ifdef TD_ENTERPRISE
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildTableReqFromDb(pMetaCache->pViews, &pCatalogReq->pView);
+    code = buildTableReqFromDb(pMetaCache->pTableMeta, &pCatalogReq->pView);
   }  
+#endif  
   pCatalogReq->dNodeRequired = pMetaCache->dnodeRequired;
   return code;
 }
@@ -884,14 +886,6 @@ int32_t reserveTableMetaInCache(int32_t acctId, const char* pDb, const char* pTa
 
 int32_t reserveTableMetaInCacheExt(const SName* pName, SParseMetaCache* pMetaCache) {
   return reserveTableReqInDbCache(pName->acctId, pName->dbname, pName->tname, &pMetaCache->pTableMeta);
-}
-
-int32_t reserveViewMetaInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache) {
-  return reserveTableReqInDbCache(acctId, pDb, pTable, &pMetaCache->pViews);
-}
-
-int32_t reserveViewMetaInCacheExt(const SName* pName, SParseMetaCache* pMetaCache) {
-  return reserveTableReqInDbCache(pName->acctId, pName->dbname, pName->tname, &pMetaCache->pViews);
 }
 
 int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta) {

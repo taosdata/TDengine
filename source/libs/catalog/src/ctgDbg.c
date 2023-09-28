@@ -391,6 +391,8 @@ int32_t ctgdGetClusterCacheNum(SCatalog *pCtg, int32_t type) {
       return ctgdGetRentNum(&pCtg->dbRent);
     case CTG_DBG_STB_RENT_NUM:
       return ctgdGetRentNum(&pCtg->stbRent);
+    case CTG_DBG_VIEW_RENT_NUM:
+      return ctgdGetRentNum(&pCtg->viewRent);
     default:
       break;
   }

@@ -119,6 +119,12 @@ typedef struct STableMeta {
 } STableMeta;
 #pragma pack(pop)
 
+typedef struct SViewMeta {
+  int32_t  version;
+  uint64_t viewId;
+  char*    querySql;
+} SViewMeta;
+
 typedef struct SDBVgInfo {
   int32_t   vgVersion;
   int16_t   hashPrefix;
@@ -147,6 +153,15 @@ typedef struct STableMetaOutput {
   SCTableMeta ctbMeta;
   STableMeta* tbMeta;
 } STableMetaOutput;
+
+typedef struct SViewMetaOutput {
+  char     name[TSDB_VIEW_NAME_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  char*    querySql;
+  int8_t   precision;
+  int32_t  numOfCols;
+  SSchema* pSchema;
+} SViewMetaOutput;
 
 typedef struct SDataBuf {
   int32_t  msgType;
