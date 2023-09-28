@@ -392,6 +392,10 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   nStbEntry.stbEntry.schemaTag = pReq->schemaTag;
 
   int32_t deltaCol = pReq->schemaRow.nCols - oStbEntry.stbEntry.schemaRow.nCols;
+  bool    skipStatis = false;
+  if (deltaCol != 0) {
+
+  }
 
   metaWLock(pMeta);
   // compare two entry
@@ -796,9 +800,12 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
 #endif
 
     ++pStats->numOfCTables;
-    int32_t nCols = 0;
-    metaGetStbStats(pMeta->pVnode, me.ctbEntry.suid, 0, &nCols);
-    pStats->numOfTimeSeries += nCols - 1;
+    
+    if (metaTbInFilterCache(pMeta->pVnode, pReq->ctb.stbName, 1)) {
+      int32_t nCols = 0;
+      metaGetStbStats(pMeta->pVnode, me.ctbEntry.suid, 0, &nCols);
+      pStats->numOfTimeSeries += nCols - 1;
+    }
 
     metaWLock(pMeta);
     metaUpdateStbStats(pMeta, me.ctbEntry.suid, 1, 0);
@@ -1059,7 +1066,7 @@ static int metaDeleteTtl(SMeta *pMeta, const SMetaEntry *pME) {
   return ttlMgrDeleteTtl(pMeta->pTtlMgr, &ctx);
 }
 
-static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid) {
+static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid, char* stbName) {
   void      *pData = NULL;
   int        nData = 0;
   int        rc = 0;

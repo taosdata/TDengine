@@ -69,6 +69,7 @@ struct SMetaCache {
 
   struct STbFilterCache {
     SHashObj* pStb;
+    SHashObj* pStbName;
   } STbFilterCache;
 };
 
@@ -178,6 +179,12 @@ int32_t metaCacheOpen(SMeta* pMeta) {
     goto _err2;
   }
 
+  pCache->STbFilterCache.pStbName = taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
+  if (pCache->STbFilterCache.pStbName == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err2;
+  }
+
   pMeta->pCache = pCache;
   return code;
 
@@ -204,6 +211,7 @@ void metaCacheClose(SMeta* pMeta) {
     taosHashCleanup(pMeta->pCache->STbGroupResCache.pTableEntry);
 
     taosHashCleanup(pMeta->pCache->STbFilterCache.pStb);
+    taosHashCleanup(pMeta->pCache->STbFilterCache.pStbName);
 
     taosMemoryFree(pMeta->pCache);
     pMeta->pCache = NULL;
@@ -893,21 +901,29 @@ int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid) {
   return TSDB_CODE_SUCCESS;
 }
 
-bool metaTbInFilterCache(void* pVnode, tb_uid_t suid, int8_t type) {
+bool metaTbInFilterCache(void* pVnode,  void* key, int8_t type) {
   SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
 
-  if (type == 0 && taosHashGet(pMeta->pCache->STbFilterCache.pStb, &suid, sizeof(suid))) {
+  if (type == 0 && taosHashGet(pMeta->pCache->STbFilterCache.pStb, key, sizeof(tb_uid_t))) {
+    return true;
+  }
+
+  if (type == 1 && taosHashGet(pMeta->pCache->STbFilterCache.pStbName, key, strlen(key))) {
     return true;
   }
 
   return false;
 }
 
-int32_t metaPutTbToFilterCache(void* pVnode, tb_uid_t suid, int8_t type) {
+int32_t metaPutTbToFilterCache(void* pVnode, void* key, int8_t type) {
   SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
 
   if (type == 0) {
-    return taosHashPut(pMeta->pCache->STbFilterCache.pStb, &suid, sizeof(suid), NULL, 0);
+    return taosHashPut(pMeta->pCache->STbFilterCache.pStb, key, sizeof(tb_uid_t), NULL, 0);
+  }
+
+  if (type == 1) {
+    return taosHashPut(pMeta->pCache->STbFilterCache.pStbName, key, strlen(key), NULL, 0);
   }
 
   return 0;

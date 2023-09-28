@@ -566,7 +566,7 @@ int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
 }
 
 #ifdef TD_ENTERPRISE
-#define TK_LOG_STB_NUM 19
+#define TK_LOG_STB_NUM 20
 static const char *tkLogStb[TK_LOG_STB_NUM] = {"cluster_info",
                                                "data_dir",
                                                "dnodes_info",
@@ -585,7 +585,8 @@ static const char *tkLogStb[TK_LOG_STB_NUM] = {"cluster_info",
                                                "taosadapter_system_mem_percent",
                                                "temp_dir",
                                                "vgroups_info",
-                                               "vnodes_role"};
+                                               "vnodes_role",
+                                               "operations"};
 
 // exclude stbs of taoskeeper log
 static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
@@ -598,7 +599,7 @@ static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
     for (int32_t i = 0; i < TK_LOG_STB_NUM; ++i) {
       tb_uid_t suid = metaGetTableEntryUidByName(pVnode->pMeta, tkLogStb[i]);
       if (suid != 0) {
-        metaPutTbToFilterCache(pVnode, suid, 0);
+        metaPutTbToFilterCache(pVnode, &suid, 0);
       }
     }
     tbSize = metaSizeOfTbFilterCache(pVnode, 0);
@@ -606,12 +607,20 @@ static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
 
   return tbSize;
 }
+
+bool vnodeSkipTimeSeries(SVnode *pVnode, const char *stbName) {
+  char *dbName = strchr(pVnode->config.dbname, '.');
+  if (!dbName || 0 != strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
+    return 0;
+  }
+
+}
 #endif
 
 static bool vnodeTimeSeriesFilter(void *arg1, void *arg2) {
   SVnode *pVnode = (SVnode *)arg1;
 
-  if (metaTbInFilterCache(pVnode, *(tb_uid_t *)(arg2), 0)) {
+  if (metaTbInFilterCache(pVnode, arg2, 0)) {
     return true;
   }
   return false;

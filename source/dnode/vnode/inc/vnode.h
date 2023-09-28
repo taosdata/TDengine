@@ -89,6 +89,7 @@ int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num);
 int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num);
 int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num);
 int32_t vnodeGetAllCtbNum(SVnode *pVnode, int64_t *num);
+bool    vnodeSkipTimeSeries(SVnode *pVnode, const char *stbName);
 
 void    vnodeResetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
@@ -132,8 +133,8 @@ tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name);
 int32_t  metaGetCachedTbGroup(void *pVnode, tb_uid_t suid, const uint8_t *pKey, int32_t keyLen, SArray **pList);
 int32_t  metaPutTbGroupToCache(void *pVnode, uint64_t suid, const void *pKey, int32_t keyLen, void *pPayload,
                                int32_t payloadLen);
-bool     metaTbInFilterCache(void *pVnode, tb_uid_t suid, int8_t type);
-int32_t  metaPutTbToFilterCache(void *pVnode, tb_uid_t suid, int8_t type);
+bool     metaTbInFilterCache(void *pVnode, void* key, int8_t type);
+int32_t  metaPutTbToFilterCache(void *pVnode, void* key, int8_t type);
 int32_t  metaSizeOfTbFilterCache(void *pVnode, int8_t type);
 
 int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t *numOfCols);
