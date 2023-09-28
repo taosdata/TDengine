@@ -4605,14 +4605,14 @@ static SSDataBlock* doRetrieveDataBlock(STsdbReader* pReader) {
 
   code = doLoadFileBlockData(pReader, &pStatus->blockIter, &pStatus->fileBlockData, pBlockScanInfo->uid);
   if (code != TSDB_CODE_SUCCESS) {
-    tBlockDataDestroy(&pStatus->fileBlockData);
+    tBlockDataReset(&pStatus->fileBlockData);
     terrno = code;
     return NULL;
   }
 
   code = copyBlockDataToSDataBlock(pReader);
   if (code != TSDB_CODE_SUCCESS) {
-    tBlockDataDestroy(&pStatus->fileBlockData);
+    tBlockDataReset(&pStatus->fileBlockData);
     terrno = code;
     return NULL;
   }
