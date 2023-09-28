@@ -239,7 +239,7 @@ groups:
           max: 100
         value: 1
       - name: batch_size
-        display: 批次大小
+        display: 上报批次大小
         hint:
           type: integer
           min: 1
