@@ -36,7 +36,19 @@ tonic = { workspace = true }
 shadow-rs = { workspace = true }
 
 futures = "0.3"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = [
+  "rt",
+  "rt-multi-thread",
+  "io-util",
+  "io-std",
+  "net",
+  "time",
+  "process",
+  "macros",
+  "sync",
+  "signal",
+  "fs",
+] }
 tokio-util = { version = "0.7" }
 tracing = { version = "0.1", features = ["log"] }
 

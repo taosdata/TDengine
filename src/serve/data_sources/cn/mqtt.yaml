@@ -129,15 +129,14 @@ groups:
 parser:
   display: MQTT Payload 解析
   description: |
-    MQTT 连接器会上传以下四列到服务端：<br>
+    MQTT 连接器会上传以下四列到服务端：
 
-    - **ts**: 采集时间戳。<br>
-    - **topic**: 订阅主题名。<br>
-    - **qos**: 采集点质量。<br>
-    - **payload**: 采集数据。<br>
+    - **ts**: 采集时间戳。
+    - **topic**: 订阅主题名。
+    - **qos**: 采集点质量。
+    - **payload**: 采集数据。
 
-    taosX 可以使用 JSON 提取器解析数据，并允许用户在数据库中指定数据模型，<br>
-    包括，指定表名称和超级表名，设置普通列会标签列等。
+    taosX 可以使用 JSON 提取器解析数据，并允许用户在数据库中指定数据模型，包括，指定表名称和超级表名，设置普通列会标签列等。
   fields:
     - name: ts
       description: 时间戳

@@ -111,6 +111,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(get_task_metrics_by_id)
             .service(download_files)
             .service(upload_files)
+            .service(metrics::profile)
             .service(filemeta);
     }
 }
@@ -206,6 +207,7 @@ impl Cli {
                 task::get_task_metrics_by_id,
 
                 metrics::metrics_exporter,
+                metrics::profile,
 
                 data_sources_in,
                 data_sources_in_one,
@@ -239,7 +241,7 @@ impl Cli {
         let debugging_recorder = metrics_util::debugging::DebuggingRecorder::new();
         let snapshotter = Data::new(debugging_recorder.snapshotter());
 
-        let metrics_allowed_labels = ["task.id", "request_id", "client.address"];
+        let metrics_allowed_labels = ["task.id", "client.address"];
         let recorder =
             TracingContextLayer::only_allow(&metrics_allowed_labels).layer(metrics_recorder);
         let debugging =

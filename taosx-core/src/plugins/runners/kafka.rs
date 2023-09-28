@@ -369,27 +369,15 @@ fn parse_fallback_offset(fallback_offset: Option<&str>) -> anyhow::Result<FetchO
     }
 }
 
-fn parse_offset_storage(offset_storage: Option<&str>) -> anyhow::Result<GroupOffsetStorage> {
+fn parse_offset_storage(
+    offset_storage: Option<&str>,
+) -> anyhow::Result<Option<GroupOffsetStorage>> {
     match offset_storage {
-        Some("Kafka") | None => Ok(GroupOffsetStorage::Kafka),
-        Some("Zookeeper") => Ok(GroupOffsetStorage::Zookeeper),
+        Some("Kafka") | None => Ok(Some(GroupOffsetStorage::Kafka)),
+        Some("Zookeeper") => Ok(Some(GroupOffsetStorage::Zookeeper)),
+        Some(s) if s.trim().is_empty() => Ok(None),
         Some(s) => Err(anyhow::anyhow!("invalid offset_storage: {}", s)),
     }
-
-    // if offset_storage.is_none() {
-    //     return GroupOffsetStorage::Kafka;
-    // }
-    //
-    // let offset_storage = offset_storage.unwrap();
-    // if offset_storage.eq(&String::from("Kafka")) {
-    //     return GroupOffsetStorage::Kafka;
-    // }
-    //
-    // if offset_storage.eq(&String::from("")) {
-    //     return GroupOffsetStorage::Zookeeper;
-    // }
-    //
-    // panic!("invalid offset_storage: {}", offset_storage);
 }
 
 #[cfg(test)]

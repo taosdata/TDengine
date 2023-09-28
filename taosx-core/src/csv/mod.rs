@@ -403,6 +403,7 @@ impl CsvSource {
                     continue;
                 }
                 for (i, s) in record.iter().enumerate() {
+                    let s = s.trim();
                     records[i].push(if !s.is_empty() {
                         Some(s.to_string())
                     } else {

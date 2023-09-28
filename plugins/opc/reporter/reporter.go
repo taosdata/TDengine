@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sort"
 	"sync"
 	"time"
 
@@ -31,56 +32,67 @@ func NewDataReporter(config common.Config) (Reporter, error) {
 		batchSize:    config.Report.BatchSize,
 		batchTimeout: time.Duration(config.Report.BatchTimeout) * time.Second,
 		concurrent:   config.Report.Concurrent,
-		points:       len(config.Collect.Ua.Nodes) + len(config.Collect.Da.Tags),
 	}
 	return &r, nil
 }
 
 type DataReporter struct {
-	debug         bool
-	address       *net.TCPAddr
-	batchSize     int
-	batchTimeout  time.Duration
-	concurrent    int
-	wait          sync.WaitGroup
-	once          sync.Once
-	valueChannels sync.Map // key - valueType, value - value channel
-	writers       []writer
-	points        int // point count
+	debug        bool
+	address      *net.TCPAddr
+	batchSize    int
+	batchTimeout time.Duration
+	concurrent   int
+	wait         sync.WaitGroup
+	once         sync.Once
+	writers      sync.Map // key-valueType, value - writer slice
+	sync.Mutex
 }
 
 func (r *DataReporter) Report(ctx context.Context, ch <-chan *common.NodeValue) error {
-	defer func() {
-		logger.Debug("## report value is done.")
-		r.valueChannels.Range(func(key, value any) bool {
-			ch := value.(chan *common.NodeValue)
-			close(ch)
-			return true
-		})
-	}()
-
 	for value := range ch {
-		var valueCh chan *common.NodeValue
-
-		if vc, loaded := r.valueChannels.Load(value.ValueType); loaded {
-			valueCh = vc.(chan *common.NodeValue)
-		} else {
-			// create writer when first time
-			valueCh = make(chan *common.NodeValue, r.points*2)
-			r.valueChannels.Store(value.ValueType, valueCh)
-
-			writers, err := r.createWriters(value.ValueType, valueCh)
-			if err != nil {
-				logger.ErrorF("## create writer error. %v", err)
-				return err
-			}
-			r.writers = append(r.writers, writers...)
-			r.startWriters(ctx, writers)
+		w, err := r.getWriters(ctx, value.Identifier, value.ValueType)
+		if err != nil {
+			logger.ErrorF("## get writer error. %v", err)
+			return err
 		}
-
-		valueCh <- value
+		if err = w.write(ctx, value); err != nil {
+			logger.ErrorF("## write error. %v", err)
+			return err
+		}
 	}
+
 	return nil
+}
+
+func (r *DataReporter) getWriters(ctx context.Context, id string, valueType common.ValueType) (w writer, err error) {
+	writers, err := r.getOrCreateWriters(ctx, valueType)
+	if err != nil {
+		return nil, err
+	}
+
+	return writers[int(common.Hash(id))%len(writers)], nil
+}
+
+func (r *DataReporter) getOrCreateWriters(ctx context.Context, valueType common.ValueType) ([]writer, error) {
+	if ws, loaded := r.writers.Load(valueType); loaded {
+		return ws.([]writer), nil
+	}
+
+	r.Lock()
+	defer r.Unlock()
+
+	if ws, loaded := r.writers.Load(valueType); loaded {
+		return ws.([]writer), nil
+	}
+
+	writers, err := r.createWriters(valueType)
+	if err != nil {
+		return nil, err
+	}
+	r.writers.Store(valueType, writers)
+	r.startWriters(ctx, writers)
+
+	return writers, nil
 }
 
 func (r *DataReporter) startWriters(ctx context.Context, writers []writer) {
@@ -88,17 +100,17 @@ func (r *DataReporter) startWriters(ctx context.Context, writers []writer) {
 		r.wait.Add(1)
 		go func(w writer) {
 			defer r.wait.Done()
-			if err := w.write(ctx); err != nil {
-				logger.PanicF("## write error. %v", err)
+			if err := w.start(ctx); err != nil {
+				logger.PanicF("## start error. %v", err)
 			}
 		}(w)
 	}
 }
 
-func (r *DataReporter) createWriters(valueType common.ValueType, ch chan *common.NodeValue) (writers []writer, err error) {
+func (r *DataReporter) createWriters(valueType common.ValueType) (writers []writer, err error) {
 	logger.DebugF("## create %d writer for %s", r.concurrent, valueType)
 	for i := 0; i < r.concurrent; i++ {
-		w, err := r.createWriter(valueType, ch)
+		w, err := r.createWriter(valueType)
 		if err != nil {
 			return nil, err
 		}
@@ -107,7 +119,7 @@ func (r *DataReporter) createWriters(valueType common.ValueType, ch chan *common
 	return
 }
 
-func (r *DataReporter) createWriter(valueType common.ValueType, ch chan *common.NodeValue) (writer, error) {
+func (r *DataReporter) createWriter(valueType common.ValueType) (writer, error) {
 	schema, err := getSchema(valueType)
 	if err != nil {
 		return nil, fmt.Errorf("create writer error. %v", err)
@@ -116,25 +128,28 @@ func (r *DataReporter) createWriter(valueType common.ValueType, ch chan *common.
 	if err != nil {
 		return nil, fmt.Errorf("create writer error. %v", err)
 	}
-	return NewArrowWriter(r.address, r.debug, r.batchSize, r.batchTimeout, schema, f, ch)
+	return NewArrowWriter(r.address, r.debug, r.batchSize, r.batchTimeout, schema, f)
 }
 
 func (r *DataReporter) Stop(ctx context.Context) {
 	r.once.Do(func() {
 		defer r.wait.Wait()
 
-		for _, w := range r.writers {
-			if w == nil {
-				continue
+		r.writers.Range(func(key, value any) bool {
+			ws := value.([]writer)
+			for _, w := range ws {
+				_ = w.close(ctx)
 			}
-			_ = w.close(ctx)
-		}
+			return true
+		})
 
 		logger.Info("## opc reporter is stopping...")
 	})
 }
 
-func packData(values []*common.NodeValue, schema *arrow.Schema, valueFunc appendFunc) (arrow.Record, error) {
+func packData(values common.NodeValues, schema *arrow.Schema, valueFunc appendFunc) (arrow.Record, error) {
+	sort.Sort(values)
+
 	recordBuilder := array.NewRecordBuilder(memory.NewGoAllocator(), schema)
 	defer recordBuilder.Release()
 

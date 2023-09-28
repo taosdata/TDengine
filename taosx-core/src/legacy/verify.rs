@@ -64,6 +64,10 @@ lazy_static::lazy_static! {
 
 pub fn verify_dsn(dsn: &taos::Dsn) -> anyhow::Result<()> {
     for (k, v) in &dsn.params {
+        if k.trim().is_empty() {
+            // "?&" will be parsed as empty key, so skip it to avoid raise error.
+            continue;
+        }
         if !TAOS_PARAMS.contains(k.as_str()) {
             anyhow::bail!("Unknown parameters: {k}={v}");
         }

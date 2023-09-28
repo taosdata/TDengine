@@ -2,33 +2,30 @@
 id: pi
 name: PI
 description: |
-  The PI System is a suite of software products that are used for data collection, historicizing, finding, analyzing, delivering, and visualizing. It is marketed as an enterprise infrastructure for management of real-time data and events.
+  The Aveva PI System is a suite of software products that are used for data collection, historicizing, finding, analyzing, delivering, and visualizing. It is marketed as an enterprise infrastructure for management of real-time data and events.
 
-  The term PI System is often used to refer to the PI Server but the two are not the same. The PI  System refers to all OSIsoft software products whereas the PI Server is the core product of the PI System. Data can be automatically collected from many sources (control systems, lab equipment, calculations, manual entry or custom software).
-
-  taosX could pull real-time data from PI System by a PI connector plugin.
+  The term PI System is often used to refer to the PI Server but the two are not the same. The PI System refers to all Aveva PI software products whereas the PI Server is the core product of the PI System. Data can be automatically collected from many sources (control systems, lab equipment, calculations, manual entry or custom software).
 type: uri
-
 params:
-- name: system_configuration
-  display: System Configuration
-  display_order: 0
-  description:
-  value: PI Data Archive and Asset Framework (AF) Server
-  hint:
-    type: str
-    choices:
-      - PI Data Archive and Asset Framework (AF) Server
-      - PI Data Archive Only
-- name: PISystemName
-  display: AF Server Name
-  placeholder: pi-af-server-name
-  required: true
-  display_order: 3
-  description: |-
-    PI System(AF Server) name (hostname).
-  hint:
-    type: str
+  - name: system_configuration
+    display: System Configuration
+    display_order: 0
+    description:
+    value: PI Data Archive and Asset Framework (AF) Server
+    hint:
+      type: str
+      choices:
+        - PI Data Archive and Asset Framework (AF) Server
+        - PI Data Archive Only
+  - name: PISystemName
+    display: AF Server Name
+    placeholder: pi-af-server-name
+    required: true
+    display_order: 3
+    description: |-
+      PI System(AF Server) name (hostname).
+    hint:
+      type: str
 options:
   host:
     display: PI Data Archive Server
@@ -38,74 +35,112 @@ options:
   subject:
     display: AF Database Name
     description: AF database name
-    placeholder: 'Example: Met1'
+    placeholder: "Example: Met1"
     required: true
 strict: false
 groups:
-- name: Data Queue
-  display_order: 3
-  description: Batch and auto-backfill configurations.
-  params:
-  - name: MaxWaitLen
-    display: Update Batch Size(count)
-    description: |-
-      Max number of updates (rows) to batch before sending data to TDengine.
-    hint:
-      type: integer
-      min: 1
-      max: 10000
-    value: 1000
-  - name: UpdateInterval
-    display: Update Interval (in ms)
-    hint:
-      type: integer
-      min: 100
-      max: 60000
-    description: Max time to wait before sending batch updates to TDengine (in miliseconds).
-    placeholder: 10000
-    value: 10000
-  - name: MaxBackfillRangeDays
-    display: Max Backfill Range(in days)
-    hint:
-      type: integer
-    description: Max number of days to automatically backfill when connection is lost or on first startup.
-    placeholder: 1
-    value: 1
+  - name: Data Sets
+    display_order: 1
+    description: |
+      Single column configuration file for point names.
+    params:
+      - name: point_file
+        display: One Table Per Point
+        description: |
+          The CSV config file is a CSV file with one single column without header:
+
+          | |
+          | ------------------- |
+          | meter_10001_current |
+          | meter_10001_voltage |
+        hint:
+          type: file
+      - name: template_for_pi_point_file
+        display: One Table per PI Point from AF Element Template
+        description: |
+          The CSV config file is a CSV file with one single column without header:
+
+          | |
+          | ------------------- |
+          | MeterTemplate  |
+          | MeterTemplate1 |
+        hint:
+          type: file
+      - name: template_for_af_element_file
+        display: One Table per AF Element from AF Element Template
+        description: |
+          The CSV config file is a CSV file with one single column without header:
+
+          | |
+          | ------------------- |
+          | MeterTemplate  |
+          | MeterTemplate1 |
+        hint:
+          type: file
+  - name: Data Queue
+    display_order: 3
+    description: Batch and auto-backfill configurations.
+    params:
+      - name: MaxWaitLen
+        display: Update Batch Size(count)
+        description: |-
+          Max number of updates (rows) to batch before sending data to TDengine.
+        hint:
+          type: integer
+          min: 1
+          max: 10000
+        value: 1000
+      - name: UpdateInterval
+        display: Update Interval (in ms)
+        hint:
+          type: integer
+          min: 100
+          max: 60000
+        description: Max time to wait before sending batch updates to TDengine (in miliseconds).
+        placeholder: 10000
+        value: 10000
+      - name: MaxBackfillRangeDays
+        display: Max Backfill Range(in days)
+        hint:
+          type: integer
+        description: Max number of days to automatically backfill when connection is lost or on first startup.
+        placeholder: 1
+        value: 1
 
 datasets:
   name: Data Sets
   description: PI System template and points
   categories:
-  - category: PointList
-    display: One Table per PI Point
-    description: |
-      The point names exists in pi system.
-    target:
-      name: PointList
-      description: Pi System Point List
-      required: false
-      multiple: true
-      editable: true
-      selectable: true
-  - category: TemplateForPIPoint
-    display: One Table per PI Point from AF Element Template
-    description: |
-      The template names exists in pi system.
-    target:
-      name: TemplateForPIPoint
-      description: Database datasets.
-      required: false
-      multiple: true
-      editable: true
-      selectable: true
-  - category: TemplateForAFElement
-    display: One Table per AF Element from AF Element Template
-    description: |
-      The template names exists in pi system.
-    target:
-      name: TemplateForAFElement
-      description: Database datasets.
-      required: false
-      multiple: true
-      editable: true
-      selectable: true
+    - category: PointList
+      display: One Table per PI Point
+      description: |
+        The point names exists in pi system.
+      target:
+        name: PointList
+        description: Pi System Point List
+        required: false
+        multiple: true
+        editable: true
+        selectable: true
+    - category: TemplateForPIPoint
+      display: One Table per PI Point from AF Element Template
+      description: |
+        The template names exists in pi system.
+      target:
+        name: TemplateForPIPoint
+        description: Database datasets.
+        required: false
+        multiple: true
+        editable: true
+        selectable: true
+    - category: TemplateForAFElement
+      display: One Table per AF Element from AF Element Template
+      description: |
+        The template names exists in pi system.
+      target:
+        name: TemplateForAFElement
+        description: Database datasets.
+        required: false
+        multiple: true
+        editable: true
+        selectable: true

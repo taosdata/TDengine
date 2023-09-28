@@ -2,18 +2,21 @@
 id: tmq
 name: TDengine Subscription
 description: |
-  TMQ data source is a reader-only data source for TDengine.
+  TMQ data source is a read-only data source for TDengine.
 
   ## Protocols
 
-  - **ws**: websocket protocol with plain HTTP connection.
-  - **wss**: websocket protocol with TLS http connection.
+  The following protocols are supported.
 
-  Without protocol settings, TMQ will use native connection.
+  - ws: websocket protocol with plain HTTP connection.
+  - wss: websocket protocol with TLS http connection.
+
+  Without protocol settings, TMQ will use the TDengine native connection.
 
   ## Subject
 
-  TMQ data source could subscribe data from a database or a specified table with fully "database.name" format.
+  A TMQ data source can subscribe to data from a database or a specified table. The table must be specified in the "database.tablename" format.
+
 type: uri
 protocol:
   display: Protocol

@@ -9,25 +9,25 @@ description: |
   taosX 可以通过 PI 连接器插件从 PI 系统中提取实时数据。
 type: uri
 params:
-- name: system_configuration
-  display: PI 系统配置
-  display_order: 0
-  description:
-  value: PI Data Archive and Asset Framework (AF) Server
-  hint:
-    type: str
-    choices:
-      - PI Data Archive and Asset Framework (AF) Server
-      - PI Data Archive Only
-- name: PISystemName
-  display: AF Server 名称
-  placeholder: pi-af-server-name
-  display_order: 3
-  required: true
-  description: |-
-    PI 系统(AF Server) 名称 (hostname).
-  hint:
-    type: str
+  - name: system_configuration
+    display: PI 系统配置
+    display_order: 0
+    description:
+    value: PI Data Archive and Asset Framework (AF) Server
+    hint:
+      type: str
+      choices:
+        - PI Data Archive and Asset Framework (AF) Server
+        - PI Data Archive Only
+  - name: PISystemName
+    display: AF Server 名称
+    placeholder: pi-af-server-name
+    display_order: 3
+    required: true
+    description: |-
+      PI 系统(AF Server) 名称 (hostname).
+    hint:
+      type: str
 options:
   host:
     display: PI服务名
@@ -37,74 +37,94 @@ options:
   subject:
     display: AF Database Name
     description: AF 数据库名
-    placeholder: '如: Met1'
+    placeholder: "如: Met1"
     required: true
 strict: false
 groups:
-- name: 数据队列
-  display_order: 3
-  description: 批量和自动回填配置。
-  params:
-  - name: MaxWaitLen
-    display: 消息队列缓存数
-    description: |-
-      将数据发送到 TDengine 之前要批处理的最大更新数（行）。
-    hint:
-      type: integer
-      min: 1
-      max: 10000
-    value: 1000
-  - name: UpdateInterval
-    display: 采集间隔（单位：毫秒）
-    hint:
-      type: integer
-      min: 100
-      max: 60000
-    description: 将批量更新发送到 TDengine 之前等待的最长时间（以毫秒为单位）。
-    placeholder: 10000
-    value: 10000
-  - name: MaxBackfillRangeDays
-    display: 重启补偿时间
-    hint:
-      type: integer
-    description: 连接丢失或首次启动时自动回填的最大天数。
-    placeholder: 1
-    value: 1
+  - name: 点位配置
+    display_order: 1
+    description: |
+      不同类型的点位配置文件。
+    params:
+      - name: point_file
+        display: 点位列表
+        description: 一个单列点位名称列表文件。
+        hint:
+          type: file
+      - name: template_for_pi_point_file
+        display: Point 模式 AF 模板列表
+        description: 一个单列点位名称（AF 模板）列表文件。
+        hint:
+          type: file
+      - name: template_for_af_element_file
+        display: AF 模式模板列表
+        description: 一个单列模板名称列表文件。
+        hint:
+          type: file
+  - name: 数据队列
+    display_order: 3
+    description: 批量和自动回填配置。
+    params:
+      - name: MaxWaitLen
+        display: 消息队列缓存数
+        description: |-
+          将数据发送到 TDengine 之前要批处理的最大更新数（行）。
+        hint:
+          type: integer
+          min: 1
+          max: 10000
+        value: 1000
+      - name: UpdateInterval
+        display: 采集间隔（单位：毫秒）
+        hint:
+          type: integer
+          min: 100
+          max: 60000
+        description: 将批量更新发送到 TDengine 之前等待的最长时间（以毫秒为单位）。
+        placeholder: 10000
+        value: 10000
+      - name: MaxBackfillRangeDays
+        display: 重启补偿时间
+        hint:
+          type: integer
+        description: 连接丢失或首次启动时自动回填的最大天数。
+        placeholder: 1
+        value: 1
 
 datasets:
   name: 监测点集
   description: PI 系统中的模板和点位。
   categories:
-  - category: PointList
-    display: 监测点集合
-    description: |
-      point 模式监测点集合
-    target:
-      name: PointList
-      description: point 模式监测点集合
-      required: false
-      multiple: true
-      editable: true
-      selectable: true
-  - category: TemplateForPIPoint
-    display: Template For PI Point
-    description: |
-      point 模式监测的 AF 模板集合。
-    target:
-      name: TemplateForPIPoint
-      description: point 模式监测的 AF 模板集合。
-      required: false
-      multiple: true
-      editable: true
-      selectable: true
-  - category: TemplateForAFElement
-    display: Template For AF Element
-    description: |
-      AF 模式监测的 AF 模板集合。
-    target:
-      name: TemplateForAFElement
-      description: AF 模式监测的 AF 模板集合。
-      required: false
-      multiple: true
-      editable: true
-      selectable: true
+    - category: PointList
+      display: 监测点集合
+      description: |
+        point 模式监测点集合
+      target:
+        name: PointList
+        description: point 模式监测点集合
+        required: false
+        multiple: true
+        editable: true
+        selectable: true
+    - category: TemplateForPIPoint
+      display: Template For PI Point
+      description: |
+        point 模式监测的 AF 模板集合。
+      target:
+        name: TemplateForPIPoint
+        description: point 模式监测的 AF 模板集合。
+        required: false
+        multiple: true
+        editable: true
+        selectable: true
+    - category: TemplateForAFElement
+      display: Template For AF Element
+      description: |
+        AF 模式监测的 AF 模板集合。
+      target:
+        name: TemplateForAFElement
+        description: AF 模式监测的 AF 模板集合。
+        required: false
+        multiple: true
+        editable: true
+        selectable: true

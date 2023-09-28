@@ -218,6 +218,16 @@ func (r *ReportConfig) Validate() error {
 	return nil
 }
 
+func (c *DumpConfig) Validate() error {
+	if c.Enable && len(c.Path) == 0 {
+		return fmt.Errorf("dump path is null")
+	}
+	if c.Keep == 0 {
+		c.Keep = 7
+	}
+	return nil
+}
+
 type NodeValue struct {
 	Identifier string    `json:"identifier,omitempty"`
 	Name       string    `json:"name,omitempty"`
@@ -231,4 +241,18 @@ type NodeValue struct {
 type Point struct {
 	ID   string `json:"id,omitempty"`
 	Name string `json:"name,omitempty"`
+}
+
+type NodeValues []*NodeValue
+
+func (n NodeValues) Len() int {
+	return len(n)
+}
+
+func (n NodeValues) Less(i, j int) bool {
+	return n[i].Timestamp.Before(n[j].Timestamp)
+}
+
+func (n NodeValues) Swap(i, j int) {
+	n[i], n[j] = n[j], n[i]
 }

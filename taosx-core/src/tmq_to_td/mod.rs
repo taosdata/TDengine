@@ -304,7 +304,6 @@ async fn sync(
     version: String,
 ) -> Result<()> {
     tracing::info!("[{id}] task start");
-    let task_id = tokio::task::try_id();
     let mut stream = consumer.stream();
     let mut rows = 0;
     let mut messages = 0;
@@ -362,7 +361,6 @@ async fn sync(
                     }
                     if let Err(err) = consumer.commit(offset).await {
                         tracing::warn!(
-                            consumer.task.id = ?task_id,
                             consumer.worker.id = id,
                             "[{id}] commit error: {err:?}"
                         );
