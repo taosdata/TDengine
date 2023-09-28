@@ -21,10 +21,6 @@
 #include "tstream.h"
 #include "ttimer.h"
 
-#define META_HB_CHECK_INTERVAL    200
-#define META_HB_SEND_IDLE_COUNTER 25  // send hb every 5 sec
-#define STREAM_TASK_KEY_LEN       ((sizeof(int64_t)) << 1)
-
 static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
 
 int32_t streamBackendId = 0;
@@ -195,11 +191,10 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->chkpId = streamGetLatestCheckpointId(pMeta);
   pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
   while (pMeta->streamBackend == NULL) {
-    taosMsleep(500);
+    taosMsleep(100);
     pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
     if (pMeta->streamBackend == NULL) {
-      stError("vgId:%d failed to init stream backend", pMeta->vgId);
-      stInfo("vgId:%d retry to init stream backend", pMeta->vgId);
+      stInfo("vgId:%d failed to init stream backend, retry in 100ms", pMeta->vgId);
     }
   }
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
@@ -263,11 +258,10 @@ int32_t streamMetaReopen(SStreamMeta* pMeta) {
 
   pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
   while (pMeta->streamBackend == NULL) {
-    taosMsleep(500);
+    taosMsleep(100);
     pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
     if (pMeta->streamBackend == NULL) {
-      stError("vgId:%d failed to init stream backend", pMeta->vgId);
-      stInfo("vgId:%d retry to init stream backend", pMeta->vgId);
+      stInfo("vgId:%d failed to init stream backend, retry in 100ms", pMeta->vgId);
     }
   }
 
@@ -548,9 +542,11 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
       STaskId streamTaskId = {.streamId = (*ppTask)->streamTaskId.streamId, .taskId = (*ppTask)->streamTaskId.taskId};
       SStreamTask** ppStreamTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &streamTaskId, sizeof(streamTaskId));
       if (ppStreamTask != NULL) {
-        (*ppStreamTask)->historyTaskId.taskId = 0;
-        (*ppStreamTask)->historyTaskId.streamId = 0;
+        (*ppStreamTask)->hTaskInfo.id.taskId = 0;
+        (*ppStreamTask)->hTaskInfo.id.streamId = 0;
       }
+    } else {
+      atomic_sub_fetch_32(&pMeta->numOfStreamTasks, 1);
     }
 
     taosHashRemove(pMeta->pTasksMap, &id, sizeof(id));
@@ -697,7 +693,7 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       int32_t taskId = pTask->id.taskId;
       tFreeStreamTask(pTask);
 
-      STaskId id = extractStreamTaskKey(pTask);
+      STaskId id = streamTaskExtractKey(pTask);
 
       taosArrayPush(pRecycleList, &id);
       int32_t total = taosArrayGetSize(pRecycleList);
@@ -806,7 +802,7 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
   return 0;
 }
 
-static bool enoughTimeDuration(SMetaHbInfo* pInfo) {
+static bool waitForEnoughDuration(SMetaHbInfo* pInfo) {
   if ((++pInfo->tickCounter) >= META_HB_SEND_IDLE_COUNTER) { // reset the counter
     pInfo->tickCounter = 0;
     return true;
@@ -843,7 +839,7 @@ void metaHbToMnode(void* param, void* tmrId) {
     pMeta->pHbInfo->hbStart = taosGetTimestampMs();
   }
 
-  if (!enoughTimeDuration(pMeta->pHbInfo)) {
+  if (!waitForEnoughDuration(pMeta->pHbInfo)) {
     taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->pHbInfo->hbTmr);
     taosReleaseRef(streamMetaId, rid);
     return;

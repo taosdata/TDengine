@@ -192,11 +192,9 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
 int32_t streamScanHistoryData(SStreamTask* pTask) {
   ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE);
 
-  int32_t size = 0;
   int32_t code = TSDB_CODE_SUCCESS;
   void*   exec = pTask->exec.pExecutor;
   bool    finished = false;
-  int32_t outputBatchSize = 100;
 
   qSetStreamOpOpen(exec);
 
@@ -213,6 +211,7 @@ int32_t streamScanHistoryData(SStreamTask* pTask) {
       return -1;
     }
 
+    int32_t size = 0;
     int32_t numOfBlocks = 0;
     while (1) {
       if (streamTaskShouldStop(&pTask->status)) {
@@ -247,9 +246,10 @@ int32_t streamScanHistoryData(SStreamTask* pTask) {
 
       size += blockDataGetSize(output) + sizeof(SSDataBlock) + sizeof(SColumnInfoData) * blockDataGetNumOfCols(&block);
 
-      if ((++numOfBlocks) >= outputBatchSize || size >= STREAM_RESULT_DUMP_SIZE_THRESHOLD) {
-        stDebug("s-task:%s scan exec numOfBlocks:%d, output num-limit:%d, size-limit:%d reached", pTask->id.idStr, numOfBlocks,
-            outputBatchSize, STREAM_RESULT_DUMP_SIZE_THRESHOLD);
+      if ((++numOfBlocks) >= STREAM_RESULT_DUMP_THRESHOLD || size >= STREAM_RESULT_DUMP_SIZE_THRESHOLD) {
+        stDebug("s-task:%s scan exec numOfBlocks:%d, size:%.2fKiB output num-limit:%d, size-limit:%.2fKiB reached",
+                pTask->id.idStr, numOfBlocks, SIZE_IN_KiB(size), STREAM_RESULT_DUMP_THRESHOLD,
+                SIZE_IN_KiB(STREAM_RESULT_DUMP_SIZE_THRESHOLD));
         break;
       }
     }
@@ -260,8 +260,6 @@ int32_t streamScanHistoryData(SStreamTask* pTask) {
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
-
-      size = 0;
     } else {
       taosArrayDestroy(pRes);
     }
@@ -312,7 +310,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
            pStreamTask->id.idStr);
   }
 
-  ASSERT(pStreamTask->historyTaskId.taskId == pTask->id.taskId && pTask->status.appendTranstateBlock == true);
+  ASSERT(pStreamTask->hTaskInfo.id.taskId == pTask->id.taskId && pTask->status.appendTranstateBlock == true);
 
   STimeWindow* pTimeWindow = &pStreamTask->dataRange.window;
 
@@ -363,8 +361,8 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
 
   // 5. clear the link between fill-history task and stream task info
-  pStreamTask->historyTaskId.taskId = 0;
-  pStreamTask->historyTaskId.streamId = 0;
+  pStreamTask->hTaskInfo.id.taskId = 0;
+  pStreamTask->hTaskInfo.id.streamId = 0;
 
   // 6. save to disk
   taosWLockLatch(&pMeta->lock);
@@ -524,6 +522,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
   stDebug("s-task:%s start to extract data block from inputQ", id);
 
   while (1) {
+    int32_t           blockSize = 0;
     int32_t           numOfBlocks = 0;
     SStreamQueueItem* pInput = NULL;
     if (streamTaskShouldStop(&pTask->status)) {
@@ -531,7 +530,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
       break;
     }
 
-    /*int32_t code = */ streamTaskGetDataFromInputQ(pTask, &pInput, &numOfBlocks);
+    /*int32_t code = */ streamTaskGetDataFromInputQ(pTask, &pInput, &numOfBlocks, &blockSize);
     if (pInput == NULL) {
       ASSERT(numOfBlocks == 0);
       return 0;
@@ -555,9 +554,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
 
       // here only handle the data block sink operation
       if (type == STREAM_INPUT__DATA_BLOCK) {
-        int32_t blockSize = streamQueueItemGetSize(pInput);
-        pTask->execInfo.sink.bytes += blockSize;
-
+        pTask->execInfo.sink.dataSize += blockSize;
         stDebug("s-task:%s sink task start to sink %d blocks, size:%.2fKiB", id, numOfBlocks, SIZE_IN_KiB(blockSize));
         doOutputResultBlockImpl(pTask, (SStreamDataBlock*)pInput);
         continue;

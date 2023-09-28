@@ -321,7 +321,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   pTask->chkInfo.startTs = 0;  // clear the recorded start time
 
   if (remain == 0) {  // all tasks are ready
-    stDebug("s-task:%s is ready for checkpoint", pTask->id.idStr);
+    stDebug("s-task:%s all downstreams are ready, ready for do checkpoint", pTask->id.idStr);
     streamBackendDoCheckpoint(pMeta, pTask->checkpointingId);
     streamSaveAllTaskStatus(pMeta, pTask->checkpointingId);
     stInfo(

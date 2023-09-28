@@ -296,8 +296,8 @@ static void setHTasksId(SArray* pTaskList, const SArray* pHTaskList) {
     SStreamTask** pStreamTask = taosArrayGet(pTaskList, i);
     SStreamTask** pHTask = taosArrayGet(pHTaskList, i);
 
-    (*pStreamTask)->historyTaskId.taskId = (*pHTask)->id.taskId;
-    (*pStreamTask)->historyTaskId.streamId = (*pHTask)->id.streamId;
+    (*pStreamTask)->hTaskInfo.id.taskId = (*pHTask)->id.taskId;
+    (*pStreamTask)->hTaskInfo.id.streamId = (*pHTask)->id.streamId;
 
     (*pHTask)->streamTaskId.taskId = (*pStreamTask)->id.taskId;
     (*pHTask)->streamTaskId.streamId = (*pStreamTask)->id.streamId;
