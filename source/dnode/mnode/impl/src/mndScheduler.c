@@ -460,7 +460,7 @@ static int32_t addAggTask(SStreamObj* pStream, SMnode* pMnode, SQueryPlan* pPlan
 
     *pHAggTask = NULL;
     code = doAddAggTask(pStream->hTaskUid, pHAggTaskList, pHSinkNodeList, pMnode, pStream, pEpset, pStream->conf.fillHistory,
-                        pHAggTask, false);
+                        pHAggTask, pStream->conf.fillHistory);
     if (code != TSDB_CODE_SUCCESS) {
       if (pSnode != NULL) {
         sdbRelease(pSdb, pSnode);
