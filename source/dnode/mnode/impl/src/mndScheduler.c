@@ -529,7 +529,7 @@ static int32_t addSourceTasksForMultiLevelStream(SMnode* pMnode, SQueryPlan* pPl
 
     if (pStream->conf.fillHistory) {
       code = doAddSourceTask(pHSourceTaskList, true, pStream->hTaskUid, pHDownstreamTask, pMnode, plan, pVgroup, pEpset,
-                             nextWindowSkey, false);
+                             nextWindowSkey, pStream->conf.fillHistory);
       if (code != TSDB_CODE_SUCCESS) {
         sdbRelease(pSdb, pVgroup);
         return code;
