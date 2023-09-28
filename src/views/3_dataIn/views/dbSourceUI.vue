@@ -688,6 +688,8 @@
                     v-model="p.value"
                     true-label="true"
                     false-label="false"
+                    :disabled="p.disabled"
+                    @change="(value) =>handelCheckbox(value,p.name)"
                   ></el-checkbox>
                 </template>
                 <template
@@ -1008,6 +1010,11 @@ export default {
                 p.value = p.value?.substr(p.value.lastIndexOf("@") + 1)
               }
             }
+          if (group.name == 'Backfill') {
+            if (p.name == 'ToTDengineFirstTime' || p.name == 'FromTDengineLastTime') {
+              p.disabled = p.value == 'false' ? true : false 
+            } 
+          }
           return p;
         });
         return group;
@@ -1035,6 +1042,21 @@ export default {
             if (p.name == name) {
               p.fileList = []
               p.value = ''
+            }
+            return p;
+          });
+        }
+        return group;
+      });
+    },
+    handelCheckbox(value,name) {
+      this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
+        if (group.name == 'Backfill') {
+          group.params.map((p) => {
+            if (name == 'FromTDengineLastTime' && p.name == 'ToTDengineFirstTime') {
+              p.disabled = value == 'true' ? true : false 
+            } else if (name == 'ToTDengineFirstTime' && p.name == 'FromTDengineLastTime') {
+              p.disabled = value == 'true' ? true : false 
             }
             return p;
           });
