@@ -119,7 +119,9 @@ int32_t streamTaskLaunchScanHistory(SStreamTask* pTask) {
       streamTaskEnablePause(pTask);
     }
   } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
-    stDebug("s-task:%s sink task do nothing to handle scan-history", pTask->id.idStr);
+    if (pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
+      stDebug("s-task:%s sink task do nothing to handle scan-history", pTask->id.idStr);
+    }
   }
   return 0;
 }
@@ -144,10 +146,10 @@ static int32_t doCheckDownstreamStatus(SStreamTask* pTask) {
     req.downstreamTaskId = pTask->fixedDispatcher.taskId;
     pTask->checkReqId = req.reqId;
 
-    stDebug("s-task:%s stage:%" PRId64 " check single downstream task:0x%x(vgId:%d) ver:%" PRId64 "-%" PRId64
+    stDebug("s-task:%s (vgId:%d) stage:%" PRId64 " check single downstream task:0x%x(vgId:%d) ver:%" PRId64 "-%" PRId64
             " window:%" PRId64 "-%" PRId64 " req:0x%" PRIx64,
-            pTask->id.idStr, req.reqId, req.downstreamTaskId, req.downstreamNodeId, pRange->range.minVer,
-            pRange->range.maxVer, pWindow->skey, pWindow->ekey, req.reqId);
+            pTask->id.idStr, pTask->info.nodeId, req.stage, req.downstreamTaskId, req.downstreamNodeId,
+            pRange->range.minVer, pRange->range.maxVer, pWindow->skey, pWindow->ekey, req.reqId);
 
     streamSendCheckMsg(pTask, &req, pTask->fixedDispatcher.nodeId, &pTask->fixedDispatcher.epSet);
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
@@ -583,6 +585,7 @@ static void checkFillhistoryTaskStatus(SStreamTask* pTask, SStreamTask* pHTask) 
   SDataRange* pRange = &pHTask->dataRange;
   pRange->range.minVer = 0;
 
+  // todo remove this
   // the query version range should be limited to the already processed data
   pRange->range.maxVer = pTask->chkInfo.nextProcessVer - 1;
   if (pRange->range.maxVer < pRange->range.minVer) {
@@ -725,7 +728,7 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
     if (pTask->hTaskInfo.pTimer == NULL) {
       int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
       pTask->hTaskInfo.pTimer = taosTmrStart(tryLaunchHistoryTask, WAIT_FOR_MINIMAL_INTERVAL, pInfo, streamEnv.timer);
-      if (pTask->hTaskInfo.pTimer == NULL) {  // todo failed to create timer
+      if (pTask->hTaskInfo.pTimer == NULL) {
         atomic_sub_fetch_32(&pTask->status.timerActive, 1);
         stError("s-task:%s failed to start timer, related fill-history task not launched, ref:%d", pTask->id.idStr,
                 pTask->status.timerActive);
@@ -883,20 +886,20 @@ int32_t tDecodeStreamScanHistoryFinishReq(SDecoder* pDecoder, SStreamScanHistory
 }
 
 void streamTaskSetRangeStreamCalc(SStreamTask* pTask) {
+  SDataRange* pRange = &pTask->dataRange;
+
   if (pTask->hTaskInfo.id.taskId == 0) {
-    SDataRange* pRange = &pTask->dataRange;
     if (pTask->info.fillHistory == 1) {
       stDebug("s-task:%s fill-history task, time window:%" PRId64 "-%" PRId64 ", verRange:%" PRId64
                  "-%" PRId64,
              pTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer, pRange->range.maxVer);
     } else {
-      stDebug("s-task:%s no related fill-history task, stream time window:%" PRId64 "-%" PRId64 ", verRange:%" PRId64
-             "-%" PRId64,
-             pTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer, pRange->range.maxVer);
+      stDebug(
+          "s-task:%s no related fill-history task, stream time window and verRange are not set. default stream time "
+          "window:%" PRId64 "-%" PRId64 ", verRange:%" PRId64 "-%" PRId64,
+          pTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer, pRange->range.maxVer);
     }
   } else {
-    SDataRange* pRange = &pTask->dataRange;
-
     int64_t ekey = 0;
     if (pRange->window.ekey < INT64_MAX) {
       ekey = pRange->window.ekey + 1;

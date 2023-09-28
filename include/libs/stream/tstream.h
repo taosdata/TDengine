@@ -723,6 +723,7 @@ int32_t     streamTaskReleaseState(SStreamTask* pTask);
 int32_t     streamTaskReloadState(SStreamTask* pTask);
 void        streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
 void        streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
+int32_t     streamTaskUpdateDataVer(SStreamTask* pTask, int64_t ver);
 
 // source level
 int32_t streamSetParamForStreamScannerStep1(SStreamTask* pTask, SVersionRange* pVerRange, STimeWindow* pWindow);
@@ -761,6 +762,7 @@ int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask);
 
 int32_t streamAlignTransferState(SStreamTask* pTask);
 int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId);
+int32_t streamBuildAndSendVerUpdateMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId, int64_t ver);
 int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask,
                                         int8_t isSucceed);
 int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SRpcMsg* pMsg,

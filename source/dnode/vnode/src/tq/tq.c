@@ -964,18 +964,17 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
 
   if (tsDisableStream) {
     tqInfo("vgId:%d stream disabled, not deploy stream tasks", vgId);
-    return 0;
+    return code;
   }
 
   tqDebug("vgId:%d receive new stream task deploy msg, start to build stream task", vgId);
 
   // 1.deserialize msg and build task
-  SStreamTask* pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
+  int32_t size = sizeof(SStreamTask);
+  SStreamTask* pTask = taosMemoryCalloc(1, size);
   if (pTask == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    tqError("vgId:%d failed to create stream task due to out of memory, alloc size:%d", vgId,
-            (int32_t)sizeof(SStreamTask));
-    return -1;
+    tqError("vgId:%d failed to create stream task due to out of memory, alloc size:%d", vgId, size);
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   SDecoder decoder;
@@ -983,9 +982,9 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   code = tDecodeStreamTask(&decoder, pTask);
   tDecoderClear(&decoder);
 
-  if (code < 0) {
+  if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pTask);
-    return -1;
+    return TSDB_CODE_INVALID_MSG;
   }
 
   SStreamMeta* pStreamMeta = pTq->pStreamMeta;
@@ -1001,9 +1000,9 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   taosWUnLockLatch(&pStreamMeta->lock);
 
   if (code < 0) {
-    tqError("vgId:%d failed to add s-task:0x%x, total:%d, code:%s", vgId, taskId, numOfTasks, tstrerror(code));
+    tqError("failed to add s-task:0x%x into vgId:%d meta, total:%d, code:%s", vgId, taskId, numOfTasks, tstrerror(code));
     tFreeStreamTask(pTask);
-    return -1;
+    return code;
   }
 
   // added into meta store, pTask cannot be reference since it may have been destroyed by other threads already now if
@@ -1012,6 +1011,16 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
     // only handled in the leader node
     if (vnodeIsRoleLeader(pTq->pVnode)) {
       tqDebug("vgId:%d s-task:0x%x is deployed and add into meta, numOfTasks:%d", vgId, taskId, numOfTasks);
+#if 0
+      if (pTq->pVnode->restored) {
+        SStreamTask* p = streamMetaAcquireTask(pStreamMeta, streamId, taskId);
+        if (p != NULL) {
+          // send msg to update the nextProcessedVer attribute for this task if it is a stream task
+          streamBuildAndSendVerUpdateMsg(p->pMsgCb, vgId, &p->id, sversion);
+          streamMetaReleaseTask(pStreamMeta, p);
+        }
+      }
+#endif
       SStreamTask* p = streamMetaAcquireTask(pStreamMeta, streamId, taskId);
 
       bool restored = pTq->pVnode->restored;
@@ -1035,7 +1044,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
     tFreeStreamTask(pTask);
   }
 
-  return 0;
+  return code;
 }
 
 int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
@@ -1498,14 +1507,15 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
 
 int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msgLen) {
   SVResumeStreamTaskReq* pReq = (SVResumeStreamTaskReq*)msg;
-  SStreamTask*           pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->streamId, pReq->taskId);
-  int32_t                code = tqProcessTaskResumeImpl(pTq, pTask, sversion, pReq->igUntreated);
+
+  SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->streamId, pReq->taskId);
+  int32_t code = tqProcessTaskResumeImpl(pTq, pTask, sversion, pReq->igUntreated);
   if (code != 0) {
     return code;
   }
 
-  SStreamTask* pHistoryTask =
-      streamMetaAcquireTask(pTq->pStreamMeta, pTask->hTaskInfo.id.streamId, pTask->hTaskInfo.id.taskId);
+  STaskId* pHTaskId = &pTask->hTaskInfo.id;
+  SStreamTask* pHistoryTask = streamMetaAcquireTask(pTq->pStreamMeta, pHTaskId->streamId, pHTaskId->taskId);
   if (pHistoryTask) {
     code = tqProcessTaskResumeImpl(pTq, pHistoryTask, sversion, pReq->igUntreated);
   }
@@ -1524,9 +1534,11 @@ int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg) {
   tDecodeStreamRetrieveReq(&decoder, &req);
   tDecoderClear(&decoder);
 
+  int32_t vgId = pTq->pStreamMeta->vgId;
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, req.streamId, req.dstTaskId);
   if (pTask == NULL) {
-    //    tDeleteStreamDispatchReq(&req);
+    tqError("vgId:%d process retrieve req, failed to acquire task:0x%x, it may have been dropped already", vgId,
+            req.dstTaskId);
     return -1;
   }
 
@@ -1886,4 +1898,36 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 
   taosArrayDestroy(req.pNodeList);
   return rsp.code;
+}
+
+int32_t tqProcessTaskDataVerUpdateReq(STQ* pTq, char* pMsg, int32_t msgLen) {
+  SStreamMeta* pMeta = pTq->pStreamMeta;
+  int32_t vgId = pMeta->vgId;
+
+  SVStreamTaskVerUpdateReq* pReq = (SVStreamTaskVerUpdateReq*) pMsg;
+  tqDebug("vgId:%d receive msg to update task dataVer, task:0x%x dataVer:%" PRId64, vgId, pReq->taskId, pReq->dataVer);
+
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
+  if (pTask == NULL) {
+    tqError("vgId:%d process dataVer msg, failed to find task:0x%x, it may have been destroyed", vgId, pReq->taskId);
+    return -1;
+  }
+
+  // commit the dataVer update
+  streamTaskUpdateDataVer(pTask, pReq->dataVer);
+
+  if (vnodeIsLeader(pTq->pVnode)) {
+    if (pTq->pVnode->restored) {
+      ASSERT(pTask->execInfo.init == 0);
+
+      pTask->execInfo.init = taosGetTimestampMs();
+      tqDebug("s-task:%s set the init ts:%" PRId64, pTask->id.idStr, pTask->execInfo.init);
+      streamTaskCheckDownstream(pTask);
+    } else {
+      tqWarn("s-task:%s not launched since vnode (vgId:%d) not ready", pTask->id.idStr, vgId);
+    }
+  }
+
+  streamMetaReleaseTask(pMeta, pTask);
+  return 0;
 }

@@ -394,27 +394,27 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
   *pAdded = false;
 
   STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
-  void* p = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
-  if (p == NULL) {
-    if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
-      tFreeStreamTask(pTask);
-      return -1;
-    }
-
-    taosArrayPush(pMeta->pTaskList, &pTask->id);
-
-    if (streamMetaSaveTask(pMeta, pTask) < 0) {
-      tFreeStreamTask(pTask);
-      return -1;
-    }
-
-    if (streamMetaCommit(pMeta) < 0) {
-      tFreeStreamTask(pTask);
-      return -1;
-    }
-  } else {
+  void*   p = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
+  if (p != NULL) {
     return 0;
   }
+
+  if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
+    tFreeStreamTask(pTask);
+    return -1;
+  }
+
+  taosArrayPush(pMeta->pTaskList, &pTask->id);
+
+//  if (streamMetaSaveTask(pMeta, pTask) < 0) {
+//    tFreeStreamTask(pTask);
+//    return -1;
+//  }
+//
+//  if (streamMetaCommit(pMeta) < 0) {
+//    tFreeStreamTask(pTask);
+//    return -1;
+//  }
 
   taosHashPut(pMeta->pTasksMap, &id, sizeof(id), &pTask, POINTER_BYTES);
   if (pTask->info.fillHistory == 0) {
@@ -716,6 +716,9 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
 
       taosArrayPush(pMeta->pTaskList, &pTask->id);
     } else {
+      stError("s-task:0x%x already added into table meta by replaying WAL, need check", pTask->id.taskId);
+      ASSERT(0);
+
       tdbFree(pKey);
       tdbFree(pVal);
       taosMemoryFree(pTask);
