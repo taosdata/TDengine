@@ -95,6 +95,15 @@
         </el-col>
       </el-row>
     </el-dialog>
+    <el-dialog
+      align="center"
+      title="新的代理窗口"
+      width="600px"
+      :visible.sync="showAgentdoc"
+      :destroy-on-close="true"
+    >
+      <NewAgent></NewAgent>
+    </el-dialog>
   </div>
 </template>
 <script>
@@ -103,16 +112,18 @@ import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { getAgentsData, addNewAgent } from "@/api/explorer/agent";
 
 import Agents from "../components/agents.vue";
+import NewAgent from "../components/addAgent.vue";
 import { Message } from "element-ui";
 export default {
   name: "DataTarget",
-  components: { Agents },
+  components: { Agents, NewAgent },
   data() {
     return {
       dbTypes: [],
       dbList: [],
       agentList: [],
       showAgent: false,
+      showAgentdoc:false,
       ruleForm: {
         name: "",
         type: "",
@@ -185,6 +196,7 @@ export default {
           Message.error(res.message);
           return;
         }
+        this.showAgentdoc=true
         this.getAgentDataType();
         console.log(res, "新增代理");
       } catch (error) {
@@ -240,6 +252,7 @@ export default {
   text-align: left;
   font-size: 14px;
   font-weight: 500;
+  color: #4259ce;
   // position: relative;
   &::before {
     display: none;

@@ -8,6 +8,8 @@ process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos
 let agenturl=localStorage.getItem('agent_version')?localStorage.getItem('agent_version'):'latest'
 export default {
   //通用部分
+  generateToken: '生成令牌',
+  configure: '配置',
   urlPart: '/docs',
   disbleagent:'不启用代理',
   enableagent:'启用代理',
@@ -150,6 +152,8 @@ export default {
     selectPlan: "选择方案",
   },
   dataIn: {
+    runAgent:'运行代理',
+    downloadInstall: '下载/安装',
     connector: "连接器",
     csvHeaderTip: "CSV 文件内容样例（文件内容不能包含列名）",
     connectorTip:

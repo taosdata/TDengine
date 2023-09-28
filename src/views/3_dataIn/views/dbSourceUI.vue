@@ -1859,12 +1859,13 @@ export default {
       span {
         font-size: 16px;
         color: #4259ce;
-        font-weight: 600;
+        font-weight: 500;
       }
     }
     .label {
       font-size: 14px;
       color: #4259ce;
+      font-weight: 500;
       align-items: center;
       width: 200px;
       display: block;
@@ -1878,13 +1879,13 @@ export default {
     .label.required,
     .no-label.required {
       position: relative;
-      &::before {
+      &::after {
         content: "*";
         // position: absolute;
         color: red;
         font-size: 14px;
         line-height: 25px;
-        left: -10px;
+        right: 0px;
       }
     }
     .header {
