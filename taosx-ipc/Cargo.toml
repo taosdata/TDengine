@@ -37,7 +37,6 @@ tokio = { version = "1", features = [
   "sync",
   "signal",
   "fs",
-  "test-util",
 ] }
 tracing-actix-web = { version = "0.7" }
 tracing-subscriber = { version = "0.3", features = ["registry", "env-filter"] }

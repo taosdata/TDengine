@@ -76,7 +76,6 @@ tokio = { version = "1", features = [
   "sync",
   "signal",
   "fs",
-  "test-util",
 ] }
 tokio-util = { version = "0.7" }
 toml = "0.7.2"
