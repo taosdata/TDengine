@@ -39,7 +39,20 @@ serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9.19"
 sha2 = "0.10"
 thiserror = "1"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = [
+  "rt",
+  "rt-multi-thread",
+  "io-util",
+  "io-std",
+  "net",
+  "time",
+  "process",
+  "macros",
+  "sync",
+  "signal",
+  "fs",
+  "test-util",
+] }
 tokio-util = { version = "0.7", features = ["full"] }
 tokio-stream = "0.1.14"
 toml = "0.8.0"
