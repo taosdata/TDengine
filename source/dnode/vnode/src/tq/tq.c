@@ -1075,12 +1075,11 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   // we have to continue retrying to successfully execute the scan history task.
-  int8_t schedStatus = streamTaskSetSchedStatusWait(pTask);
-  if (schedStatus != TASK_SCHED_STATUS__INACTIVE) {
+  if (!streamTaskSetSchedStatusWait(pTask)) {
     tqError(
         "s-task:%s failed to start scan-history in first stream time window since already started, unexpected "
         "sched-status:%d",
-        id, schedStatus);
+        id, pTask->status.schedStatus);
     streamMetaReleaseTask(pMeta, pTask);
     return 0;
   }

@@ -624,15 +624,20 @@ void streamTaskResetUpstreamStageInfo(SStreamTask* pTask) {
   stDebug("s-task:%s reset all upstream tasks stage info", pTask->id.idStr);
 }
 
-int8_t streamTaskSetSchedStatusWait(SStreamTask* pTask) {
-  taosThreadMutexLock(&pTask->lock);
-  int8_t status = pTask->status.schedStatus;
-  if (status == TASK_SCHED_STATUS__INACTIVE) {
-    pTask->status.schedStatus = TASK_SCHED_STATUS__WAITING;
-  }
-  taosThreadMutexUnlock(&pTask->lock);
+bool streamTaskSetSchedStatusWait(SStreamTask* pTask) {
+  bool ret = false;
 
-  return status;
+  // double check
+  if (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE) {
+    taosThreadMutexLock(&pTask->lock);
+    if (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE) {
+      pTask->status.schedStatus = TASK_SCHED_STATUS__WAITING;
+      ret = true;
+    }
+    taosThreadMutexUnlock(&pTask->lock);
+  }
+
+  return ret;
 }
 
 int8_t streamTaskSetSchedStatusActive(SStreamTask* pTask) {
