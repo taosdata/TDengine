@@ -215,12 +215,6 @@ groups:
     display_order: 4
     description: |
       field in OPC to column in database mapping
-
-      - **received_ts**: timestamp opc collector received<br>
-      - **original_ts**: timestamp from opc server <br>
-      - **value**: point value<br>
-      - **status**: point status<br>
-
     params:
       - name: opc_table_config
         display: OPC Table Config
@@ -251,7 +245,7 @@ groups:
         placeholder: 100
         value: 1
       - name: batch_timeout
-        display: Write Wait Timeout
+        display: Write Batch Timeout
         hint:
           type: integer
           min: 1
