@@ -204,8 +204,12 @@ class TDTestCase:
         for sql in sqls:
             self.query_and_check_with_slimit(sql, 10, 2, offset)
 
+    def test_group_by_operator(self):
+        tdSql.query('select count(*), c1+1 from meters group by tbname, c1+1', 1)
+
     def run(self):
         self.prepareTestEnv()
+        self.test_group_by_operator()
         self.test_interval_limit_offset()
 
     def stop(self):
