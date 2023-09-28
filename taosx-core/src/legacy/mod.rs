@@ -21,6 +21,7 @@ use serde::Deserialize;
 use serde_with::serde_as;
 use taos::*;
 use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 use tracing::{info, instrument, warn};
 
 use crate::{legacy::scheduler::Todo, Action};
@@ -2280,6 +2281,7 @@ pub async fn legacy_to_taos(
     actions: Vec<Action>,
     mut to: Dsn,
     concurrency: usize,
+    cancel: CancellationToken,
 ) -> anyhow::Result<()> {
     tracing::info!("synchronization started in legacy mode");
 
@@ -2447,7 +2449,7 @@ pub async fn legacy_to_taos(
     let rc = Arc::new(task_done);
     let task_done_clone = rc.clone();
     std::thread::spawn(move || loop {
-        if task_done_clone.load(Ordering::Relaxed) {
+        if task_done_clone.load(Ordering::Relaxed) || cancel.is_cancelled(){
             tracing::debug!("stop timer");
             break;
         }

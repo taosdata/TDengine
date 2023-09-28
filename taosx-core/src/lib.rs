@@ -285,13 +285,28 @@ impl TaskOpts {
                         .await?;
                 }
                 ("taos", "taos") => {
-                    legacy_to_taos(from.clone(), transform.clone(), to.clone(), *jobs)
+                    tokio::select! {
+                        _ = cancel.cancelled() => {
+                            tracing::info!("csv transfer cancelled");
+                            return Ok(())
+                        }
+                        rs = legacy_to_taos(from.clone(), transform.clone(), to.clone(), *jobs, cancel.clone())
                         // .in_current_span()
-                        .instrument(tracing::info_span!("legacy_to_taos"))
-                        .await?;
+                        .instrument(tracing::info_span!("legacy_to_taos")) => {
+                            rs?;
+                        }
+                    };
                 }
                 ("taos", "csv") => {
-                    query_to_csv(from.clone(), to.clone()).await?;
+                    tokio::select! {
+                        _ = cancel.cancelled() => {
+                            tracing::info!("csv transfer cancelled");
+                            return Ok(())
+                        }
+                        rs = query_to_csv(from.clone(), to.clone()) => {
+                            rs?;
+                        }
+                    };
                 }
                 ("taos", "parquet") => {
                     query_to_parquet(from.clone(), to.clone(), *force).await?;
