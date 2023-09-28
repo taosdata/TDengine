@@ -20,15 +20,73 @@
 #define MND_VIEW_VER_NUMBER 1
 
 void tFreeViewObj(SViewObj *pView) {
-  taosMemoryFree(pView->sql);
+  taosMemoryFree(pView->querySql);
   taosMemoryFree(pView->pSchema);
 }
+
+int32_t tSerializeSViewObj(void *buf, int32_t bufLen, const SViewObj *pObj) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pObj->fullname) < 0) return -1;
+  if (tEncodeCStr(&encoder, pObj->name) < 0) return -1;
+  if (tEncodeCStr(&encoder, pObj->dbFName) < 0) return -1;
+  if (tEncodeCStr(&encoder, pObj->querySql) < 0) return -1;
+  if (tEncodeU64(&encoder, pObj->dbId) < 0) return -1;
+  if (tEncodeI8(&encoder, pObj->precision) < 0) return -1;
+  if (tEncodeI32(&encoder, pObj->numOfCols) < 0) return -1;
+  for (int32_t i = 0; i < pObj->numOfCols; ++i) {
+    SSchema *pSchema = &pObj->pSchema[i];
+    if (tEncodeSSchema(&encoder, pSchema) < 0) return -1;
+  }
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSViewObj(void *buf, int32_t bufLen, SViewObj *pObj) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pObj->fullname) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pObj->name) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pObj->dbFName) < 0) return -1;
+  if (tDecodeCStrAlloc(&decoder, &pObj->querySql) < 0) return -1;
+  if (tDecodeU64(&decoder, &pObj->dbId) < 0) return -1;
+  if (tDecodeI8(&decoder, &pObj->precision) < 0) return -1;
+  if (tDecodeI32(&decoder, &pObj->numOfCols) < 0) return -1;
+
+  if (pObj->numOfCols > 0) {
+    pObj->pSchema = taosMemoryCalloc(pObj->numOfCols, sizeof(SSchema));
+    if (pObj->pSchema == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    for (int32_t i = 0; i < pObj->numOfCols; ++i) {
+      SSchema* pSchema = pObj->pSchema + i;
+      if (tDecodeSSchema(&decoder, pSchema) < 0) return -1;
+    }
+  }
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+
 
 SSdbRaw *mndViewActionEncode(SViewObj *pView) {
   terrno = TSDB_CODE_SUCCESS;
   void *buf = NULL;
   SSdbRaw *pRaw = NULL;
-  int32_t tlen = tSerializeSCMCreateViewReq(NULL, 0, (SCMCreateViewReq*)pView);
+  int32_t tlen = tSerializeSViewObj(NULL, 0, pView);
   if (tlen < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto VIEW_ENCODE_OVER;
@@ -47,7 +105,7 @@ SSdbRaw *mndViewActionEncode(SViewObj *pView) {
     goto VIEW_ENCODE_OVER;
   }
 
-  tlen = tSerializeSCMCreateViewReq(buf, tlen, (SCMCreateViewReq*)pView);
+  tlen = tSerializeSViewObj(buf, tlen, pView);
   if (tlen < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto VIEW_ENCODE_OVER;
@@ -110,7 +168,7 @@ SSdbRow *mndViewActionDecode(SSdbRaw *pRaw) {
   }
   SDB_GET_BINARY(pRaw, dataPos, buf, tlen, VIEW_DECODE_OVER);
 
-  if (tDeserializeSCMCreateViewReq(buf, tlen, (SCMCreateViewReq*)pView) < 0) {
+  if (tDeserializeSViewObj(buf, tlen, pView) < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto VIEW_DECODE_OVER;
   }
@@ -172,33 +230,77 @@ void mndReleaseView(SMnode *pMnode, SViewObj *pView) {
   sdbRelease(pSdb, pView);
 }
 
+static int32_t mndCreateViewObj(SMnode *pMnode, SViewObj* pView, SCMCreateViewReq* pCreate) {
+  SDbObj* pDb = mndAcquireDb(pMnode, pCreate->dbFName);
+  if (NULL == pDb) {
+    return -1;
+  }
+
+  pView->dbId = pDb->uid;
+  pView->querySql = strdup(pCreate->querySql);
+  if (NULL == pView) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+  pView->pSchema = taosMemoryMalloc(pCreate->numOfCols * sizeof(SSchema));
+  if (NULL == pView->pSchema) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+  memcpy(pView->pSchema, pCreate->pSchema, pCreate->numOfCols * sizeof(SSchema));
+  tstrncpy(pView->fullname, pCreate->fullname, sizeof(pView->fullname));
+  tstrncpy(pView->name, pCreate->name, sizeof(pView->name));
+  tstrncpy(pView->dbFName, pCreate->dbFName, sizeof(pView->dbFName));
+  pView->precision = pCreate->precision;
+  pView->numOfCols = pCreate->numOfCols;
+
+  mndReleaseDb(pMnode, pDb);
+
+  return TSDB_CODE_SUCCESS;
+  
+_OVER:
+
+  tFreeViewObj(pView);
+  mndReleaseDb(pMnode, pDb);
+  return -1;
+}
+
 static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg *pReq) {
-  SViewObj *pView = (SViewObj*)pCreate;
+  SViewObj view = {0};
+  int32_t code = -1;
+  if (mndCreateViewObj(&view, pCreate) != 0) {
+    return -1;
+  }
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-view");
   if (pTrans == NULL) {
     mError("view:%s, failed to create since %s", pCreate->fullname, terrstr());
-    return -1;
+    goto _OVER;
   }
 
   mInfo("trans:%d, used to create view:%s", pTrans->id, pCreate->fullname);
 
-  SSdbRaw *pCommitRaw = mndViewActionEncode(pView);
+  SSdbRaw *pCommitRaw = mndViewActionEncode(&view);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
     sdbFreeRaw(pCommitRaw);
     mndTransDrop(pTrans);
-    return -1;
+    goto _OVER;
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
-    return -1;
+    goto _OVER;
   }
 
   mndTransDrop(pTrans);
+  code = 0;
+
+_OVER:
+  
+  tFreeViewObj(&view);
   
   return 0;
 }
@@ -317,6 +419,53 @@ _OVER:
 
   return code;
 }
+
+int32_t mndProcessViewMetaReqImpl(SViewMetaReq* pMetaReq, SRpcMsg *pReq) {
+  SMnode     *pMnode = pReq->info.node;
+  int32_t     code = -1;
+  SViewObj   *pView = mndAcquireView(pMnode, pMetaReq->fullname);
+  if (pView == NULL) {
+    terrno = TSDB_CODE_MND_VIEW_NOT_EXIST;
+    return -1;
+  }
+
+  SViewMetaRsp rsp = {0};
+  tstrncpy(rsp.name, pView->name, sizeof(rsp.name));
+  tstrncpy(rsp.dbFName, pView->dbFName, sizeof(rsp.dbFName));
+  rsp.dbId = pView->dbId;
+  rsp.viewId = pView->viewId;
+  rsp.querySql = strdup(pView->querySql);
+  rsp.version = pView->version;
+
+  int32_t rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
+  if (rspLen < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  tSerializeSTableMetaRsp(pRsp, rspLen, &metaRsp);
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = rspLen;
+  code = 0;
+
+  mTrace("%s.%s, meta is retrieved", infoReq.dbFName, infoReq.tbName);
+
+_OVER:
+  if (code != 0) {
+    mError("view:%s, failed to retrieve meta since %s", pMetaReq->fullname, terrstr());
+  }
+
+  mndReleaseView(pMnode, pView);
+  tFreeSViewMetaRsp(&rsp);
+  return code;
+}
+
 
 static int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
 #if 0
