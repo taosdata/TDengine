@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
 
 use anyhow::Context;
@@ -12,6 +13,7 @@ use arrow::record_batch::RecordBatch;
 use kafka::client::{KafkaClient, SecurityConfig};
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage, Message, MessageSet};
 use openssl::ssl::{SslConnector, SslFiletype, SslMethod, SslVerifyMode};
+use rand::thread_rng;
 use taos::Dsn;
 use tokio_util::sync::CancellationToken;
 
@@ -21,7 +23,7 @@ use tracing::Span;
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, Action, Parser, Transferred};
 
-async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
+fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
     let socket = format!("127.0.0.1:{}", port);
     let stream = std::net::TcpStream::connect(socket)?;
     let schema = build_schema();
@@ -33,8 +35,7 @@ async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
     loop {
         let message_sets = consumer.poll().context("Kafka polling error")?;
         if message_sets.is_empty() {
-            tokio::task::yield_now().await;
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            thread::sleep(Duration::from_millis(100));
             let now = chrono::Utc::now().timestamp_millis();
             if timeout >= 0 && now - &start > timeout {
                 break;
@@ -52,13 +53,15 @@ async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
 
         for ms in message_sets.iter() {
             for m in ms.messages() {
-                let ts = chrono::Utc::now().timestamp_nanos();
+                let ts = chrono::Utc::now().timestamp_nanos_opt().unwrap();
+
                 let default_print_value = String::from("false");
                 let print_value: bool = from
                     .params
                     .get("print_value")
                     .unwrap_or(&default_print_value)
                     .parse()?;
+
                 if print_value {
                     print_message(&ms, &m, &ts);
                 }
@@ -83,8 +86,6 @@ async fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
                 ],
             )?;
             writer.write(&batch)?;
-            tokio::task::yield_now().await;
-
             consumer.consume_messageset(ms)?;
         }
 
@@ -131,7 +132,7 @@ pub async fn kafka_to_taos(
     )
     .await?;
 
-    let worker = tokio::spawn(kafka_worker(from, port));
+    let worker = tokio::task::spawn_blocking(move || kafka_worker(from, port));
     let abort_handle = worker.abort_handle();
 
     let port_pool = port_pool.clone();
