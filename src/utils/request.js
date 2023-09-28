@@ -1,5 +1,5 @@
 import axios from "axios";
-import { Message, MessageBox } from "element-ui";
+import { Message } from "element-ui";
 import { getToken } from "@/utils/token";
 import router from "@/router/index.js";
 import store from "../store";
@@ -99,11 +99,11 @@ request.interceptors.response.use(
         "Unexpected error";
       Message.error(msg);
       let taosx404en =
-        "The Taosx API is not configured. Please check the explorer configuration";
+        "The TaosX API is not configured. Please check the explorer configuration";
       let taosx500en =
-        "The Taosx API cannot be accessed. Please check the Taosx service status";
+        "The TaosX API cannot be accessed. Please check the taosx service status";
       let taosx404 = "未配置 TaosX API，请检查 Explorer 配置";
-      let taosx500 = "TaosX API 无法访问，请检查 taosx 服务状态";
+      let taosx500 = "TaosX API 无法访问，请检查taosx服务状态";
       // Message.closeAll()
       let isoem = false;
       if (
