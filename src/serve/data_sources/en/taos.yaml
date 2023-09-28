@@ -2,14 +2,16 @@
 id: taos
 name: Legacy TDengine
 description: |
-  Migrate from earlier versions of TDengine.
+  The Legacy TDengine data source can be used to migrate from previous versions (< 3.0) of TDengine.
 
   ## Protocols
 
-  - **ws**: websocket protocol with plain HTTP connection.
-  - **wss**: websocket protocol with TLS http connection.
+  The supported protocols are:
 
-  Without protocol settings, we will use native connection.
+  - ws: websocket protocol with plain HTTP connection.
+  - wss: websocket protocol with TLS http connection.
+
+  If a protocol setting is not specified, a TDengine native connection will be used.
 
 type: uri
 protocol:
