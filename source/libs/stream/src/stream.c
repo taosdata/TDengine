@@ -108,8 +108,7 @@ int32_t streamSetupScheduleTrigger(SStreamTask* pTask) {
 }
 
 int32_t streamSchedExec(SStreamTask* pTask) {
-  int8_t schedStatus = streamTaskSetSchedStatusWait(pTask);
-  if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
+  if (streamTaskSetSchedStatusWait(pTask)) {
     SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
     if (pRunReq == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
