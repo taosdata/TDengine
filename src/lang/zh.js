@@ -5,6 +5,7 @@ let grafanagds=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?'':'TDengine'
 let taosname=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos'
+let agenturl=localStorage.getItem('agent_version')?localStorage.getItem('agent_version'):'latest'
 export default {
   //通用部分
   urlPart: '/docs',
@@ -18,6 +19,7 @@ export default {
   copyright:' Copyright 2023 北京涛思数据科技有限公司',
   sqlPreview: "SQL 预览",
   download: "下载",
+  downloadTemplate: '下载模板',
   isDel: "确定要删除{isDelName}吗？",
   isDisable: "确定要禁用 {isDisableName}?",
   isEnable: "确定要启用 {isDisableName}?",
@@ -1645,18 +1647,18 @@ export default {
     step3:'启动',
     step4:'状态',
     step1linux:'Linux',
-    linuxdesc:`从 <a href='https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz'>https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz</a> 下载代理程序安装包，并进行安装。`,
+    linuxdesc:`从 <a href='https://www.taosdata.com/assets-download/3.0/taosx-agent-${agenturl}-linux-x64.tar.gz'>https://www.taosdata.com/assets-download/3.0/taosx-agent-${agenturl}-linux-x64.tar.gz</a> 下载代理程序安装包，并进行安装。`,
     linuxcode:`cd $TMPDIR
     mkdir agent-installer
     cd agent-installer
-    wget -c https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-linux-x64.tar.gz
+    wget -c https://www.taosdata.com/assets-download/3.0/taosx-agent-${agenturl}-linux-x64.tar.gz
     tar xvf taosx-agent-latest-linux-x64.tar.gz
     cd taosx-agent-*
     ./install.sh
     # remove files
     #cd ../../; rm -rf agent-installer`,
   step1window:'Windows',
-  windowdesc:`从 <a href='https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe'>https://www.taosdata.com/assets-download/3.0/taosx-agent-latest-windows-x64-installer.exe</a> 下载代理安装程序，并运行安装程序以安装代理服务。`,
+  windowdesc:`从 <a href='https://www.taosdata.com/assets-download/3.0/taosx-agent-${agenturl}-windows-x64-installer.exe'>https://www.taosdata.com/assets-download/3.0/taosx-agent-${agenturl}-windows-x64-installer.exe</a> 下载代理安装程序，并运行安装程序以安装代理服务。`,
   step2sub1:'配置文件路径：',
   step2sub2linux:`配置文件路径： <code>/etc/taos/agent.toml</code> 。`,
   step2sub2window:`配置文件路径： <code>C:\\Program Files\\taosX\\config\\agent.toml</code>`,
