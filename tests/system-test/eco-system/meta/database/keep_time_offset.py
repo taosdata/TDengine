@@ -32,10 +32,8 @@ class TDTestCase:
         tdSql.execute(f"create database db {keep_str}")
 
         # check result
-        tdSql.query(" show create database db")
-        create_sql = tdSql.getData(0, 1)
-        if create_sql.find(keep_str) == -1:
-            tdLog.exit(f"create database sql not found {keep_str} sql:{create_sql}")
+        tdSql.query("select `keep_time_offset` from  information_schema.ins_databases where name='db'")
+        tdSql.checkData(0, 0, hours)
 
         # alter
         hours = 4
@@ -43,10 +41,9 @@ class TDTestCase:
         tdSql.execute(f"alter database db {keep_str}")
 
         # check result
-        tdSql.query(" show create database db")
-        create_sql = tdSql.getData(0, 1)        
-        if create_sql.find(keep_str) == -1:
-            tdLog.exit(f"create database sql not found {keep_str} sql:{create_sql}")
+        tdSql.query("select `keep_time_offset` from  information_schema.ins_databases where name='db'")
+        tdSql.checkData(0, 0, hours)
+
 
     def check_old_syntax(self):
         # old syntax would not support again
