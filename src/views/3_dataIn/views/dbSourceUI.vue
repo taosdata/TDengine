@@ -537,7 +537,7 @@
           
           <!-- 这是 groups -->
           <template>
-            <el-tabs v-model="activeName" @tab-click="handleClick" class="pi-tab-item" style="margin-top: 8px" v-if="item.name == 'Data Sets'">
+            <el-tabs v-model="activeName" @tab-click="handleClick" class="pi-tab-item" style="margin-top: 8px" v-if="(item.name == 'Data Sets' || item.name == '点位配置')">
             <el-tab-pane
               v-for="(p, pind) in item.params"
               :label="p.display"
@@ -589,7 +589,7 @@
           </template> 
           <template v-for="(p, pind) in item.params">
             <div :key="pind" v-if="
-              item.name !== 'Data Sets'">
+              (item.name !== 'Data Sets' && item.name !== '点位配置')">
               <span :class="['label', p.required ? 'required' : '']">
                 {{ p.display ? p.display : p.name }}
               </span>
@@ -745,7 +745,6 @@
                   </DatePicker>
                 </template>
                 <div
-                v-if="item.name !== 'Data Sets'"
                 class="description"
                 v-html="transforHtml(p.description)"
               ></div>
@@ -996,7 +995,7 @@ export default {
             let newVal = p.value.split();
             p.value = newVal;
           }
-          if (group.name == 'Data Sets') {
+          if (group.name == 'Data Sets' || group.name == '点位配置') {
               if(['point_file','template_for_pi_point_file','template_for_af_element_file'].includes(p.name) && p.value) {
                 p.fileList = [].concat({
                   name: p.value?.substr(p.value.lastIndexOf("/") + 1),
@@ -1010,7 +1009,7 @@ export default {
                 p.value = p.value?.substr(p.value.lastIndexOf("@") + 1)
               }
             }
-          if (group.name == 'Backfill') {
+          if (group.name == 'Backfill' || group.name == '历史填充（Backfill）') {
             if (p.name == 'ToTDengineFirstTime' || p.name == 'FromTDengineLastTime') {
               p.disabled = p.value == 'false' ? true : false 
             } 
@@ -1021,9 +1020,8 @@ export default {
       });
     },
     handleSuccess(response, file, fileList, name) {
-      console.log('name',name);
       this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
-        if (group.name == 'Data Sets') {
+        if (group.name == 'Data Sets' || group.name == '点位配置') {
           group.params.map((p) => {
             if (p.name == name) {
               p.fileList = fileList
@@ -1037,7 +1035,7 @@ export default {
     },
     handleRemove(name) {
       this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
-        if (group.name == 'Data Sets') {
+        if (group.name == 'Data Sets' || group.name == '点位配置') {
           group.params.map((p) => {
             if (p.name == name) {
               p.fileList = []
@@ -1051,7 +1049,7 @@ export default {
     },
     handelCheckbox(value,name) {
       this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
-        if (group.name == 'Backfill') {
+        if (group.name == 'Backfill' || group.name == '历史填充（Backfill）') {
           group.params.map((p) => {
             if (name == 'FromTDengineLastTime' && p.name == 'ToTDengineFirstTime') {
               p.disabled = value == 'true' ? true : false 
