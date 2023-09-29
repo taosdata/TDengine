@@ -38,6 +38,7 @@ public class Consumer {
           System.out.println();
         }
       }
+      consumer.unsubscribe();
     }
   }
 }

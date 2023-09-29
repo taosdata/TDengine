@@ -237,10 +237,10 @@ You configure the following parameters when creating a consumer:
 
 |            Parameter            |  Type   | Description                                                 | Remarks                                        |
 | :----------------------------: | :-----: | -------------------------------------------------------- | ------------------------------------------- |
-|        `td.connect.ip`         | string  | Used in establishing a connection; same as `taos_connect`                          |                                             |
-|        `td.connect.user`         | string  | Used in establishing a connection; same as `taos_connect`                          |                                             |
-|        `td.connect.pass`         | string  | Used in establishing a connection; same as `taos_connect`                          |                                             |
-|        `td.connect.port`         | string  | Used in establishing a connection; same as `taos_connect`                          |                                             |
+|        `td.connect.ip`         | string  | Used in establishing a connection;                           |                                             |
+|        `td.connect.user`         | string  | Used in establishing a connection;                           |                                             |
+|        `td.connect.pass`         | string  | Used in establishing a connection;                           |                                             |
+|        `td.connect.port`         | string  | Used in establishing a connection;                           |                                             |
 |           `group.id`           | string  | Consumer group ID; consumers with the same ID are in the same group                        | **Required**. Maximum length: 192.                 |
 |          `client.id`           | string  | Client ID                                                | Maximum length: 192.                             |
 |      `auto.offset.reset`       |  enum   | Initial offset for the consumer group                                     | Specify `earliest`, `latest`, or `none`(default) |
@@ -297,18 +297,18 @@ Python programs use the following parameters:
 
 |            Parameter            |  Type   | Description                                                 | Remarks                                        |
 | :----------------------------: | :----: | -------------------------------------------------------- | ------------------------------------------- |
-|        `td_connect_ip`         | string  | Used in establishing a connection; same as `taos_connect`                          |                                             |
-|        `td_connect_user`         | string  | Used in establishing a connection; same as `taos_connect`                          |                                             |
-|        `td_connect_pass`         | string  | Used in establishing a connection; same as `taos_connect`                          |                                             |
-|        `td_connect_port`         | string  | Used in establishing a connection; same as `taos_connect`                          |                                             |
-|           `group_id`           | string  | Consumer group ID; consumers with the same ID are in the same group                        | **Required**. Maximum length: 192.                 |
-|          `client_id`           | string  | Client ID                                                | Maximum length: 192.                             |
-|      `auto_offset_reset`       |  string   | Initial offset for the consumer group                                     | Specify `earliest`, `latest`, or `none`(default) |
-|      `enable_auto_commit`      | string | Commit automatically                                             | Specify `true` or `false`.                   |
-|   `auto_commit_interval_ms`    | string | Interval for automatic commits, in milliseconds                           |
-| `enable_heartbeat_background`  | string | Backend heartbeat; if enabled, the consumer does not go offline even if it has not polled for a long time |  Specify `true` or `false`.                                           |
-| `experimental_snapshot_enable` | string | Specify whether to consume messages from the WAL or from TSBS                    | Specify `true` or `false`.                                            |
-|     `msg_with_table_name`      | string | Specify whether to deserialize table names from messages                                 | Specify `true` or `false`.
+|        `td.connect.ip`         | string  | Used in establishing a connection;                           |                                             |
+|        `td.connect.user`         | string  | Used in establishing a connection;                           |                                             |
+|        `td.connect.pass`         | string  | Used in establishing a connection;                           |                                             |
+|        `td.connect.port`         | string  | Used in establishing a connection;                           |                                             |
+|           `group.id`           | string  | Consumer group ID; consumers with the same ID are in the same group                        | **Required**. Maximum length: 192.                 |
+|          `client.id`           | string  | Client ID                                                | Maximum length: 192.                             |
+|      `auto.offset.reset`       |  string   | Initial offset for the consumer group                                     | Specify `earliest`, `latest`, or `none`(default) |
+|      `enable.auto.commit`      | string | Commit automatically                                             | Specify `true` or `false`.                   |
+|   `auto.commit.interval.ms`    | string | Interval for automatic commits, in milliseconds                           |
+| `enable.heartbeat.background`  | string | Backend heartbeat; if enabled, the consumer does not go offline even if it has not polled for a long time |  Specify `true` or `false`.                                           |
+| `experimental.snapshot.enable` | string | Specify whether to consume messages from the WAL or from TSBS                    | Specify `true` or `false`.                                            |
+|     `msg.with.table.name`      | string | Specify whether to deserialize table names from messages                                 | Specify `true` or `false`.
 |           `timeout`            |  int   | Consumer pull timeout                                     |                                      |
 
 ```python
@@ -532,6 +532,17 @@ consumer.close()
 
 </TabItem>
 
+<TabItem value="Java" label="Java">
+
+```java
+/* Unsubscribe */
+consumer.unsubscribe();
+
+/* Close consumer */
+consumer.close();
+```
+
+</TabItem>
 </Tabs>
 
 ### Sample Code
