@@ -1,10 +1,10 @@
 ---
-sidebar_label: Onlines
-title: Onlines
-description: TDengine Cloud all Onlines
+sidebar_label: Releases
+title: Releases
+description: TDengine Cloud all releases
 ---
 
-The TDengine Cloud all onlines are here.
+The TDengine Cloud all releases are here.
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';
