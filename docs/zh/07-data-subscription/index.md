@@ -184,7 +184,7 @@ $env:TDENGINE_CLOUD_TMQ='<TDENGINE_CLOUD_TMQ>'
 </TabItem>
 </Tabs>
 
-:::note IMPORTANT
+:::note 非常重要
 请使用实际值替换<TDENGINE_CLOUD_TMQ>，格式类似于`wss://<cloud_endpoint>)/rest/tmq?token=<token>`。获取`TDENGINE_CLOUD_TMQ`的实际值，请登录[TDengine Cloud](https://cloud.taosdata.com)，然后在左边菜单点击**数据订阅**，然后再想消费的主题旁边的**示例代码**操作图标进入该主题的**示例代码**部分。
 :::
 
@@ -216,7 +216,7 @@ $env:TDENGINE_CLOUD_TOKEN='<TDENGINE_CLOUD_TOKEN>'
 </TabItem>
 </Tabs>
 
-:::note IMPORTANT
+:::note 非常重要
 请使用实际值替换<TDENGINE_CLOUD_ENDPOINT>和<TDENGINE_CLOUD_TOKEN>。获取这些实际值，请登录[TDengine Cloud](https://cloud.taosdata.com)，然后在左边菜单点击**数据订阅**，然后再想消费的主题旁边的**示例代码**操作图标进入该主题的**示例代码**部分。
 :::
 
@@ -382,7 +382,7 @@ consumer.subscribe(Collections.singletonList("<TDC_TOPIC>"));
 </TabItem>
 </Tabs>
 
-:::note IMPORTANT
+:::note 非常重要
 请使用实际值替换<TDC_TOPIC\>。获取这个实际值，请登录[TDengine Cloud](https://cloud.taosdata.com)，然后在左边菜单点击**数据订阅**，然后复制您想消费的主题名称。
 :::
 
@@ -521,6 +521,17 @@ consumer.close()
 
 </TabItem>
 
+<TabItem value="Java" label="Java">
+
+```java
+/* Unsubscribe */
+consumer.unsubscribe();
+
+/* Close consumer */
+consumer.close();
+```
+
+</TabItem>
 </Tabs>
 
 ### 示例代码
