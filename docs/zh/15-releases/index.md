@@ -4,7 +4,7 @@ title: 发布历史
 description: TDengine Cloud 的发布历史
 ---
 
-TDengine Cloud 的上线历史。
+TDengine Cloud 的发布历史。
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';

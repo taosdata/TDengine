@@ -4,7 +4,7 @@ title: Releases
 description: TDengine Cloud all releases
 ---
 
-The TDengine Cloud all onlines are here.
+The TDengine Cloud all releases are here.
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';
