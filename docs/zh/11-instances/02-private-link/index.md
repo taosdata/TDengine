@@ -55,7 +55,7 @@ PrivateLink 的架构如下：
 
 ### 步骤3: 在 TDengine Cloud 添加私有网络连接
 
-1. 在TDengine Cloud左侧导航面板中，选择**实例**，在右侧页面选择**私有连接**选项卡，点击右上角的**添加私有链接**。 将显示 **添加私有链接** 页面。
+1. 在TDengine Cloud左侧导航面板中，选择**实例**，在右侧页面选择**私有连接**选项卡，点击右上角的**添加私有连接**。 将显示 **添加私有连接** 页面。如下图：
   
    ![添加私有连接](./add-connection.webp)
    <center><figcaption>图5. 添加私有连接</figcaption></center>
