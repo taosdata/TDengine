@@ -1,7 +1,7 @@
 ---
-sidebar_label: 上线历史
-title: 上线历史
-description: TDengine Cloud 的上线历史
+sidebar_label: 发布历史
+title: 发布历史
+description: TDengine Cloud 的发布历史
 ---
 
 TDengine Cloud 的上线历史。

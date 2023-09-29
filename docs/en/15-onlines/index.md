@@ -1,7 +1,7 @@
 ---
-sidebar_label: Onlines
-title: Onlines
-description: TDengine Cloud all Onlines
+sidebar_label: Releases
+title: Releases
+description: TDengine Cloud all releases
 ---
 
 The TDengine Cloud all onlines are here.
