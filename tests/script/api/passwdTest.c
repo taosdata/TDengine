@@ -21,7 +21,6 @@
  *   - Run the test case in clear TDengine environment with default root passwd 'taosdata'
  */
 
-#include <assert.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
