@@ -159,7 +159,7 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
     pInst = &p;
   } else {
     ASSERTS((*pInst) && (*pInst)->pAppHbMgr, "ppInst:%p, pAppHgMgr:%p", *pInst, (*pInst) ? (*pInst)->pAppHbMgr : NULL);
-    // reset to -1 in case of conn with duplicated user key who has ever been dropped.
+    // reset to -1 in case of conn with duplicated user key with its user has ever been dropped.
     atomic_store_8(&(*pInst)->pAppHbMgr->connHbFlag, -1); 
   }
 
