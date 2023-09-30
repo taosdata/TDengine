@@ -20,6 +20,7 @@ use linked_hash_map::LinkedHashMap;
 use metrics::counter;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use sqlx::pool::PoolOptions;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::utils::mask_dsn;
@@ -457,11 +458,14 @@ impl TaskController {
                 }
             }
         }
-        let options = sqlx::sqlite::SqliteConnectOptions::from_str(sqlite)?
+        let connect_options = sqlx::sqlite::SqliteConnectOptions::from_str(sqlite)?
             .create_if_missing(true)
             .busy_timeout(Duration::from_secs(30))
             .journal_mode(SqliteJournalMode::Wal);
-        let pool = sqlx::SqlitePool::connect_with(options).await?;
+        let pool = PoolOptions::new()
+            .min_connections(3)
+            .connect_with(connect_options)
+            .await?;
         MIGRATOR.run(&pool).await?;
         let scheduler = JobScheduler::new().await?;
         scheduler.start().await?;
