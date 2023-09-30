@@ -112,7 +112,8 @@ dependencies = ["clean-plugins", "clean"]
 
 [tasks.docker-cloud]
 script = """
+commit=$(git rev-parse HEAD | cut -c 1-8)
 version=$(toml get Cargo.toml workspace.package.version -r)
-docker build -t image.cloud.taosdata.com/taosx/serve:$version .
+docker build -t image.cloud.taosdata.com/taosx/serve:$version-$commit .
 """
 dependencies = ["plugins"]
