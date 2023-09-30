@@ -460,7 +460,7 @@ impl TaskController {
         }
         let connect_options = sqlx::sqlite::SqliteConnectOptions::from_str(sqlite)?
             .create_if_missing(true)
-            .busy_timeout(Duration::from_secs(7))
+            .busy_timeout(Duration::from_secs(30))
             .journal_mode(SqliteJournalMode::Wal);
         let pool = PoolOptions::new()
             .min_connections(3)
