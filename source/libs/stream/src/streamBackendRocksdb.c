@@ -2065,8 +2065,8 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKe
     if (qDebugFlag & DEBUG_TRACE) ginitDict[i].toStrFunc((void*)key, toString);                                        \
     int32_t                         klen = ginitDict[i].enFunc((void*)key, buf);                                       \
     rocksdb_column_family_handle_t* pHandle = ((rocksdb_column_family_handle_t**)wrapper->pCf)[ginitDict[i].idx];      \
-    rocksdb_t*                      db = wrapper->db;                                                                  \
     rocksdb_writeoptions_t*         opts = wrapper->writeOpt;                                                          \
+    rocksdb_t*                      db = wrapper->db;                                                                  \
     char*                           ttlV = NULL;                                                                       \
     int32_t                         ttlVLen = ginitDict[i].enValueFunc((char*)value, vLen, 0, &ttlV);                  \
     rocksdb_put_cf(db, opts, pHandle, (const char*)buf, klen, (const char*)ttlV, (size_t)ttlVLen, &err);               \
