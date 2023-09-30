@@ -763,8 +763,13 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
   SSdbRaw   *pRaw = NULL;
   STrans    *pTrans = NULL;
   SDnodeObj *pDnode = NULL;
+  SArray    *failRecord = NULL;
   bool       cfgAll = pCfgReq->dnodeId == -1;
   int32_t    iter = 0;
+
+  if (cfgAll && !(failRecord = taosArrayInit(1, sizeof(int32_t)))) {
+    goto _OVER;
+  }
 
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
@@ -774,6 +779,39 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
       if (pIter == NULL) break;
       ++iter;
     } else if (!(pDnode = mndAcquireDnode(pMnode, pCfgReq->dnodeId))) {
+      terrno = TSDB_CODE_MND_INVALID_DNODE_ID;
+      goto _OVER;
+    }
+
+    SDnodeObj tmpDnode = *pDnode;
+    if (action == DND_ACTIVE_CODE) {
+#ifndef MND_MERGE_ACTIVE_CODE
+      strncpy(tmpDnode.active, pCfgReq->value, TSDB_ACTIVE_KEY_LEN);
+#else
+      if (grantAlterActiveCode(pDnode->active, pCfgReq->value, tmpDnode.active, 0) != 0) {
+        if (TSDB_CODE_DUP_KEY != terrno) {
+          mError("dnode:%d, config dnode, cfg:%d, app:%p config:%s value:%s failed since %s", pDnode->id,
+                 pCfgReq->dnodeId, pReq->info.ahandle, pCfgReq->config, pCfgReq->value, terrstr());
+          taosArrayPush(failRecord, pDnode->id);
+          continue;
+        }
+      }
+#endif
+    } else if (action == DND_CONN_ACTIVE_CODE) {
+#ifndef MND_MERGE_ACTIVE_CODE
+      strncpy(tmpDnode.connActive, pCfgReq->value, TSDB_CONN_ACTIVE_KEY_LEN);
+#else
+      if (grantAlterActiveCode(pDnode->connActive, pCfgReq->value, tmpDnode.connActive, 1) != 0) {
+        if (TSDB_CODE_DUP_KEY != terrno) {
+          mError("dnode:%d, config dnode, cfg:%d, app:%p config:%s value:%s failed since %s", pDnode->id,
+                 pCfgReq->dnodeId, pReq->info.ahandle, pCfgReq->config, pCfgReq->value, terrstr());
+          taosArrayPush(failRecord, pDnode->id);
+          continue;
+        }
+      }
+#endif
+    } else {
+      terrno = TSDB_CODE_INVALID_CFG;
       goto _OVER;
     }
 
@@ -781,16 +819,6 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
       pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "config-dnode");
       if (!pTrans) goto _OVER;
       if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
-    }
-
-    SDnodeObj tmpDnode = *pDnode;
-    if (action == DND_ACTIVE_CODE) {
-      strncpy(tmpDnode.active, pCfgReq->value, TSDB_ACTIVE_KEY_LEN);
-    } else if (action == DND_CONN_ACTIVE_CODE) {
-      strncpy(tmpDnode.connActive, pCfgReq->value, TSDB_CONN_ACTIVE_KEY_LEN);
-    } else {
-      terrno = TSDB_CODE_INVALID_CFG;
-      goto _OVER;
     }
 
     pRaw = mndDnodeActionEncode(&tmpDnode);
@@ -816,12 +844,18 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
 _OVER:
   if (cfgAll) {
     sdbRelease(pSdb, pDnode);
+    int32_t nFail = taosArrayGetSize(failRecord);
+    if (nFail > 0) {
+      mError("config dnode, cfg:%d, app:%p config:%s value:%s. total:%d, fail:%d", pCfgReq->dnodeId, pReq->info.ahandle,
+             pCfgReq->config, pCfgReq->value, iter, nFail);
+    }
   } else {
     mndReleaseDnode(pMnode, pDnode);
   }
   sdbCancelFetch(pSdb, pIter);
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
+  taosArrayDestroy(failRecord);
   return terrno;
 }
 
@@ -1262,7 +1296,8 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%s", cfgReq.value);
 
     if (mndConfigDnode(pMnode, pReq, &cfgReq, opt) != 0) {
-      mError("dnode:%d, failed to config activeCode since %s", cfgReq.dnodeId, terrstr());
+      mError("dnode:%d, failed to config activeCode since %s. conf:%s, val:%s", cfgReq.dnodeId, terrstr(),
+             cfgReq.config, cfgReq.value);
       return -1;
     }
     return 0;
