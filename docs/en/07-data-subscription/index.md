@@ -247,7 +247,6 @@ You configure the following parameters when creating a consumer:
 |      `enable.auto.commit`      | boolean | Commit automatically                                             | Specify `true` or `false`.                   |
 |   `auto.commit.interval.ms`    | integer | Interval for automatic commits, in milliseconds                           |
 | `enable.heartbeat.background`  | boolean | Backend heartbeat; if enabled, the consumer does not go offline even if it has not polled for a long time |                                             |
-| `experimental.snapshot.enable` | boolean | Specify whether to consume messages from the WAL or from TSBS                    |                                             |
 |     `msg.with.table.name`      | boolean | Specify whether to deserialize table names from messages                                 |
 
 The method of specifying these parameters depends on the language used:
@@ -307,7 +306,6 @@ Python programs use the following parameters:
 |      `enable.auto.commit`      | string | Commit automatically                                             | Specify `true` or `false`.                   |
 |   `auto.commit.interval.ms`    | string | Interval for automatic commits, in milliseconds                           |
 | `enable.heartbeat.background`  | string | Backend heartbeat; if enabled, the consumer does not go offline even if it has not polled for a long time |  Specify `true` or `false`.                                           |
-| `experimental.snapshot.enable` | string | Specify whether to consume messages from the WAL or from TSBS                    | Specify `true` or `false`.                                            |
 |     `msg.with.table.name`      | string | Specify whether to deserialize table names from messages                                 | Specify `true` or `false`.
 |           `timeout`            |  int   | Consumer pull timeout                                     |                                      |
 
