@@ -464,6 +464,7 @@ impl TaskController {
             .journal_mode(SqliteJournalMode::Wal);
         let pool = PoolOptions::new()
             .min_connections(3)
+            .connect_with(connect_options)
             .await?;
         MIGRATOR.run(&pool).await?;
         let scheduler = JobScheduler::new().await?;
