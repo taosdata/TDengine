@@ -197,6 +197,7 @@ extern int64_t   tsExpireTime;
 
 // for compatibility: grantMain.c could work with machine.o before 3.0.5.0
 SGrantConnObj grantConnObj = {.machine = grantObj.machine, .clusterId = grantObj.clusterId};
+int32_t       grantMachineVer = 0;
 
 static char    *grantSecondsToString(uint32_t seconds);
 static void     dmRefreshGrantCfg();
@@ -2251,4 +2252,24 @@ static int32_t tDeserializeGrantConnMsg(SDecoder *decoder, SGrantConnMsg *pMsg) 
   }
 
   return 0;
+}
+
+int32_t grantAlterActiveCode(const char *old, const char *new, char *out, int8_t type) {
+  int32_t code = 0;
+  if (0 == strncmp(old, new, type == 0 ? TSDB_ACTIVE_KEY_LEN : TSDB_CONN_ACTIVE_KEY_LEN)) {
+    code = TSDB_CODE_DUP_KEY;
+    goto _exit;
+  }
+  if (new[0] == 0) {
+    out[0] = 0;  // clear the code
+    goto _exit;
+  }
+  if (type == 0) {
+    code = grantSelectActiveCode(old, new, out);
+  } else {
+    code = grantConnSelectActiveCode(old, new, out);
+  }
+_exit:
+  if (code != 0) terrno = code;
+  return code;
 }

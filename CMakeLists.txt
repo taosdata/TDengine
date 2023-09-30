@@ -51,6 +51,7 @@ SET(TD_TOPIC TRUE)
 SET(TD_MODULE TRUE)
 SET(TD_BI_SUPPORT TRUE)
 
+
 SET(TD_COVER FALSE)
 SET(TD_MEM_CHECK FALSE)
 
@@ -102,6 +103,7 @@ if(${BUILD_TEST})
 endif(${BUILD_TEST})
 
 ADD_DEFINITIONS(-DTD_ENTERPRISE)
+ADD_DEFINITIONS(-DTD_CHECK_ACTIVE)
 
 add_subdirectory(community/source)
 add_subdirectory(community/tools)
