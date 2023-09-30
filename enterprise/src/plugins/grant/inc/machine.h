@@ -19,6 +19,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define GRANT_MACHINE_V3100 3100
+
 #ifdef GRANT_VALUE
 #define GRANT_VALUE_INT        atoi(GRANT_VALUE)
 #define GRANT_DEFAULT        (GRANT_VALUE_INT*86400)
@@ -29,6 +31,10 @@
 #define GRANT_CONN_NUM_DEFAULT     1
 #define GRANT_CONN_SPEED_DEFAULT   -1
 #define GRANT_CONN_EXPIRE_DEFAULT  14
+
+#define GRANT_CONN_NUM_UNDEF     INT32_MIN
+#define GRANT_CONN_SPEED_UNDEF   INT16_MIN
+#define GRANT_CONN_EXPIRE_UNDEF  0
 
 #if 1
 #define GRANT_TOLERENCE      86400  //86400
@@ -228,5 +234,8 @@ bool  grantConnParseActiveCode(SGrantConnObj *grant);
 bool  grantCheckMachineCode(SGrantObj *grant);
 bool  grantCheckClusterId(SGrantObj *grant);
 void  grantActiveSystem(const char *cfgFile);
+
+int32_t grantSelectActiveCode(const char *old, const char *new, char *out);
+int32_t grantConnSelectActiveCode(const char *old, const char *new, char *out);
 
 #endif
