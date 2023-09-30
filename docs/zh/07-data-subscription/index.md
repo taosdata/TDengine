@@ -236,7 +236,6 @@ $env:TDENGINE_CLOUD_TOKEN='<TDENGINE_CLOUD_TOKEN>'
 |      `enable.auto.commit`      | boolean | 是否启用消费位点自动提交                                 | 合法值：`true`, `false`。                   |
 |   `auto.commit.interval.ms`    | integer | 以毫秒为单位的消费记录自动提交消费位点时间间             | 默认 5000 m                                 |
 | `enable.heartbeat.background`  | boolean | 启用后台心跳，启用后即使长时间不 poll 消息也不会造成离线 | 默认开启                                    |
-| `experimental.snapshot.enable` | boolean | 是否允许从 TSDB 消费数据                                 | 实验功能，默认关闭                          |
 |     `msg.with.table.name`      | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句）               | |
 
 对于不同编程语言，其设置方式如下：
@@ -296,7 +295,6 @@ Python 程序可以配置的参数有：
 | `enable.auto.commit` | string | 启用自动提交 | 合法值：`true`, `false` |
 | `auto.commit.interval.ms` | string | 以毫秒为单位的自动提交时间间隔 | 默认值：5000 ms |
 | `auto.offset.reset` | string | 消费组订阅的初始位置 | 可选：`earliest`(default), `latest`, `none` |
-| `experimental.snapshot.enable` | string | 是否允许从 TSDB 消费数据 | 合法值：`true`, `false` |
 | `enable.heartbeat.background` | string | 启用后台心跳，启用后即使长时间不 poll 消息也不会造成离线 | 合法值：`true`, `false` |
 
 ```python
