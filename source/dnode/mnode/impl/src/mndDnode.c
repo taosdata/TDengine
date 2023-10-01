@@ -765,6 +765,7 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
   SDnodeObj *pDnode = NULL;
   SArray    *failRecord = NULL;
   bool       cfgAll = pCfgReq->dnodeId == -1;
+  int32_t    cfgAllErr = 0;
   int32_t    iter = 0;
 
   if (cfgAll && !(failRecord = taosArrayInit(1, sizeof(int32_t)))) {
@@ -790,11 +791,13 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
 #else
       if (grantAlterActiveCode(pDnode->active, pCfgReq->value, tmpDnode.active, 0) != 0) {
         if (TSDB_CODE_DUP_KEY != terrno) {
-          mError("dnode:%d, config dnode, cfg:%d, app:%p config:%s value:%s failed since %s", pDnode->id,
+          mError("dnode:%d, config dnode:%d, app:%p config:%s value:%s failed since %s", pDnode->id,
                  pCfgReq->dnodeId, pReq->info.ahandle, pCfgReq->config, pCfgReq->value, terrstr());
           if (failRecord) taosArrayPush(failRecord, &pDnode->id);
-          if (!cfgAll) goto _OVER;
+          if (cfgAll && (0 == cfgAllErr)) cfgAllErr = terrno;
         }
+        if (cfgAll) continue;
+        goto _OVER;
       }
 #endif
     } else if (action == DND_CONN_ACTIVE_CODE) {
@@ -803,11 +806,13 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
 #else
       if (grantAlterActiveCode(pDnode->connActive, pCfgReq->value, tmpDnode.connActive, 1) != 0) {
         if (TSDB_CODE_DUP_KEY != terrno) {
-          mError("dnode:%d, config dnode, cfg:%d, app:%p config:%s value:%s failed since %s", pDnode->id,
+          mError("dnode:%d, config dnode:%d, app:%p config:%s value:%s failed since %s", pDnode->id,
                  pCfgReq->dnodeId, pReq->info.ahandle, pCfgReq->config, pCfgReq->value, terrstr());
           if (failRecord) taosArrayPush(failRecord, &pDnode->id);
-          if (!cfgAll) goto _OVER;
+          if (cfgAll && (0 == cfgAllErr)) cfgAllErr = terrno;
         }
+        if (cfgAll) continue;
+        goto _OVER;
       }
 #endif
     } else {
@@ -826,7 +831,7 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
     (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
     pRaw = NULL;
 
-    mInfo("dnode:%d, config dnode, cfg:%d, app:%p config:%s value:%s", pDnode->id, pCfgReq->dnodeId, pReq->info.ahandle,
+    mInfo("dnode:%d, config dnode:%d, app:%p config:%s value:%s", pDnode->id, pCfgReq->dnodeId, pReq->info.ahandle,
           pCfgReq->config, pCfgReq->value);
 
     if (cfgAll) {
@@ -844,6 +849,7 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
 _OVER:
   if (cfgAll) {
     sdbRelease(pSdb, pDnode);
+    if (cfgAllErr != 0) terrno = cfgAllErr;
     int32_t nFail = taosArrayGetSize(failRecord);
     if (nFail > 0) {
       mError("config dnode, cfg:%d, app:%p config:%s value:%s. total:%d, fail:%d", pCfgReq->dnodeId, pReq->info.ahandle,

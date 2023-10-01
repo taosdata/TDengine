@@ -593,7 +593,9 @@ int32_t mndStart(SMnode *pMnode) {
     mndSetRestored(pMnode, true);
   }
 
+#ifndef TD_CHECK_ACTIVE
   grantReset(pMnode, TSDB_GRANT_ALL, 0);
+#endif  
 
   return mndInitTimer(pMnode);
 }
