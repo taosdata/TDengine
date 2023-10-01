@@ -1563,7 +1563,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         }
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataSetVal(pColInfo, numOfRows, (const char *)&level, false);
+        colDataSetVal(pColInfo, numOfRows, (const char *)level, false);
 
         // status
         char status[20 + VARSTR_HEADER_SIZE] = {0};
@@ -1577,11 +1577,30 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         const char* pStatus = streamGetTaskStatusStr(pe->status);
         STR_TO_VARSTR(status, pStatus);
 
+        // status
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        colDataSetVal(pColInfo, numOfRows, (const char *)&status, false);
+        colDataSetVal(pColInfo, numOfRows, (const char *)status, false);
 
+        // stage
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         colDataSetVal(pColInfo, numOfRows, (const char *)&pe->stage, false);
+
+        // input queue
+        char vbuf[30] = {0};
+        char buf[25] = {0};
+        const char* queueInfoStr = "%.2fMiB (%.2f%, %.2fMiB)";
+        sprintf(buf, queueInfoStr, pe->inputQUsed, pe->inputQUsed/pe->inputQCap, pe->inputQCap);
+        STR_TO_VARSTR(vbuf, buf);
+
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        colDataSetVal(pColInfo, numOfRows, (const char*)vbuf, false);
+
+        // output queue
+        sprintf(buf, queueInfoStr, pe->outputQUsed, pe->outputQUsed/pe->outputQCap, pe->outputQCap);
+        STR_TO_VARSTR(vbuf, buf);
+
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        colDataSetVal(pColInfo, numOfRows, (const char*)vbuf, false);
 
         numOfRows++;
       }
@@ -2429,6 +2448,11 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
       }
     } else {
       pEntry->stage = p->stage;
+      pEntry->inputQUsed = p->inputQUsed;
+      pEntry->inputQCap = p->inputQCap;
+      pEntry->outputQUsed = p->outputQUsed;
+      pEntry->outputQCap = p->outputQCap;
+      pEntry->offset = p->offset;
     }
 
     pEntry->status = p->status;

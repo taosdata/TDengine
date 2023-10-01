@@ -73,7 +73,7 @@ int32_t tqCheckAndRunStreamTask(STQ* pTq) {
   taosWLockLatch(&pMeta->lock);
   pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
   taosHashClear(pMeta->startInfo.pReadyTaskSet);
-  pMeta->startInfo.ts = taosGetTimestampMs();
+  pMeta->startInfo.startTs = taosGetTimestampMs();
   taosWUnLockLatch(&pMeta->lock);
 
   // broadcast the check downstream tasks msg
@@ -370,7 +370,7 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    if (streamQueueIsFull(pTask->inputInfo.queue->pQueue, true)) {
+    if (streamQueueGetNumOfItems(pTask->inputInfo.queue)) {
       tqTrace("s-task:%s input queue is full, do nothing", pTask->id.idStr);
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
