@@ -353,7 +353,7 @@ static int32_t addSourceTasksForOneLevelStream(SMnode* pMnode, const SQueryPlan*
     if (pStream->conf.fillHistory) {
       SArray** pHSinkTaskList = taosArrayGet(pStream->pHTasksList, SINK_NODE_LEVEL);
       code = addSourceTask(pMnode, pVgroup, pHTaskList, *pHSinkTaskList, pStream, plan, pStream->hTaskUid,
-                                 pEpset, true, hasExtraSink, nextWindowSkey, false);
+                                 pEpset, true, hasExtraSink, nextWindowSkey, true);
     }
 
     sdbRelease(pSdb, pVgroup);

@@ -58,16 +58,18 @@ static void streamTaskSetReady(SStreamTask* pTask, int32_t numOfReqs) {
 
   STaskId id = streamTaskExtractKey(pTask);
   taosHashPut(pMeta->startInfo.pReadyTaskSet, &id, sizeof(id), NULL, 0);
+
   int32_t numOfTotal = streamMetaGetNumOfTasks(pMeta);
-
   if (taosHashGetSize(pMeta->startInfo.pReadyTaskSet) == numOfTotal) {
-    // reset value for next time start
-    taosHashClear(pMeta->startInfo.pReadyTaskSet);
-    pMeta->startInfo.startedAfterNodeUpdate = 0;
-    pMeta->startInfo.elapsedTime = pTask->execInfo.start - pMeta->startInfo.ts;
+    STaskStartInfo* pStartInfo = &pMeta->startInfo;
+    pStartInfo->readyTs = pTask->execInfo.start;
+    pStartInfo->elapsedTime = pStartInfo->readyTs - pStartInfo->startTs;
+    streamMetaResetStartInfo(pStartInfo);
 
-    stDebug("vgId:%d all %d task(s) are started successfully, last ready task:%s level:%d, total elapsed time:%.2fs",
-            vgId, numOfTotal, pTask->id.idStr, pTask->info.taskLevel, pMeta->startInfo.elapsedTime / 1000.0);
+    stDebug("vgId:%d all %d task(s) are started successfully, last ready task:%s level:%d, startTs:%" PRId64
+            ", readyTs:%" PRId64 " total elapsed time:%.2fs",
+            vgId, numOfTotal, pTask->id.idStr, pTask->info.taskLevel, pStartInfo->startTs, pStartInfo->readyTs,
+            pStartInfo->elapsedTime / 1000.0);
   }
   taosWUnLockLatch(&pMeta->lock);
 }

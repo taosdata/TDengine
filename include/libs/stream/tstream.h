@@ -44,7 +44,8 @@ extern "C" {
 #define NODE_ROLE_LEADER     0x2
 #define NODE_ROLE_FOLLOWER   0x3
 
-typedef struct SStreamTask SStreamTask;
+typedef struct SStreamTask  SStreamTask;
+typedef struct SStreamQueue SStreamQueue;
 
 #define SSTREAM_TASK_VER 2
 enum {
@@ -190,13 +191,6 @@ int32_t         streamQueuePush(SStreamQueue1* pQueue, SStreamQueueItem* pItem);
 SStreamQueueRes streamQueueGetRes(SStreamQueue1* pQueue);
 #endif
 
-typedef struct {
-  STaosQueue* pQueue;
-  STaosQall*  qall;
-  void*       qItem;
-  int8_t      status;
-} SStreamQueue;
-
 int32_t streamInit();
 void    streamCleanUp();
 
@@ -314,7 +308,7 @@ typedef struct STaskOutputInfo {
 } STaskOutputInfo;
 
 typedef struct STaskInputInfo {
-  int8_t status;
+  int8_t        status;
   SStreamQueue* queue;
 } STaskInputInfo;
 
@@ -406,7 +400,8 @@ struct SStreamTask {
 };
 
 typedef struct STaskStartInfo {
-  int64_t   ts;
+  int64_t   startTs;
+  int64_t   readyTs;
   int32_t   startedAfterNodeUpdate;
   SHashObj* pReadyTaskSet;           // tasks that are all ready for running stream processing
   int32_t   elapsedTime;
@@ -463,7 +458,7 @@ int32_t tDecodeStreamTaskId(SDecoder* pDecoder, STaskId* pTaskId);
 int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem);
 int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBlock);
 int32_t streamTaskPutTranstateIntoInputQ(SStreamTask* pTask);
-bool    streamQueueIsFull(const STaosQueue* pQueue, bool inputQ);
+bool    streamQueueIsFull(const SStreamQueue* pQueue, bool inputQ);
 
 typedef struct {
   SMsgHead head;
@@ -602,6 +597,13 @@ typedef struct STaskStatusEntry {
   int32_t status;
   int32_t stage;
   int32_t nodeId;
+  int64_t verStart;     // start version in WAL, only valid for source task
+  int64_t verEnd;       // end version in WAL, only valid for source task
+  int64_t offset;       // only valid for source task
+  double  inputQUsed;   // in MiB
+  double  inputQCap;
+  double  outputQUsed;  // in MiB
+  double  outputQCap;
 } STaskStatusEntry;
 
 typedef struct SStreamHbMsg {
