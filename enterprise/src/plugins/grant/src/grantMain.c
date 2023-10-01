@@ -192,20 +192,22 @@ typedef SGrantMsg    GrantMsg;
 typedef SGrantNotify GrantNotify;
 
 extern SGrantObj grantObj;
+extern int32_t   grantMachineVer;
 extern char      tsVersionName[16];
 extern int64_t   tsExpireTime;
 
 // for compatibility: grantMain.c could work with machine.o before 3.0.5.0
 SGrantConnObj grantConnObj = {.machine = grantObj.machine, .clusterId = grantObj.clusterId};
-int32_t       grantMachineVer = 0;
 
 static char    *grantSecondsToString(uint32_t seconds);
 static void     dmRefreshGrantCfg();
 static void     grantRetrieveGrantInfo(SMnode *pMnode);
 static void     grantResetMaster(SMnode *pMnode);
 static void     grantConnResetMaster(SMnode *pMnode);
+static void     grantConnItemsInit();
 static void     grantSetClusterInfo(SMnode *pMnode);
 static void     grantConnStatusCheck(SMnode *pMnode, uint32_t curTime, SDnodeInfo *pDnodeInfo);
+static uint32_t grantGetClusterCreateTime(SMnode *pMnode);
 static int32_t  mndProcessGrantHB(SRpcMsg *pReq);
 static int32_t  dmGenerateGrantMsg(GrantMsg *pGrant, GrantStatus *pGrantStatus, SDnodeInfo *pInfo, int64_t clusterTime);
 static int32_t  mndSetActiveCodeFromCfg(SDnodeInfo *pDnodeInfo, GrantMsg *pMsg);
@@ -247,6 +249,7 @@ static bool    recheckClusterTime = true;
 static int8_t  grantHbLock = 0;
 static int64_t grantNotifyCnt = 0;
 static int64_t grantNotifyTimeSeries = 0;
+static int64_t grantClusterEpoch = 0;
 int32_t        grantFlag = 0;
 SGrantHandle   grantHandle = {0};
 
@@ -270,6 +273,7 @@ int32_t mndInitGrant(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndCancelGetNextGrant);
   grantSetClusterInfo(pMnode);
+  grantConnItemsInit();
   if (!(grantHandle.pOfficials = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UINT), true, true))) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
@@ -557,6 +561,23 @@ static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus
   return TSDB_CODE_SUCCESS;
 }
 
+static void grantConnActiveFillUndef(SMnode *pMnode, SGrantConnItem *pItems) {
+  if (grantClusterEpoch <= 0) {
+    grantClusterEpoch = grantGetClusterCreateTime(pMnode);
+  }
+
+  SGrantConnItem defaultItem = {.number = GRANT_CONN_NUM_DEFAULT,
+                                .speed = GRANT_CONN_SPEED_DEFAULT,
+                                .expire = ceil((double)grantClusterEpoch / 86400) + GRANT_CONN_EXPIRE_DEFAULT};
+
+  for (int32_t i = 0; i < CONN_TYPE_MAX; ++i) {
+    SGrantConnItem *pItem = pItems + i;
+    if (GRANT_CONN_ITEM_UNDEF(pItem)) {
+      *pItem = defaultItem;
+    }
+  }
+}
+
 /**
  * @brief 1) send grant status to dnode
  *        2) process response (grant msg) from dnode
@@ -607,6 +628,10 @@ static int32_t mndSendGrantStatusToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo,
 
   uDebug("succeed to receive grant msg from dnode:%d %s:%" PRIu16, pDnodeInfo->id, pDnodeInfo->ep.fqdn,
          pDnodeInfo->ep.port);
+  
+  // fill conn grant items from undef to default
+  grantConnActiveFillUndef(pMnode, grantMsgRsp.connectors.items);
+
   mndProcessDnodeSGrantMsg(pMnode, pDnodeInfo, &grantMsgRsp, &gStatus);
 
   mndSetActiveCodeFromCfg(pDnodeInfo, &grantMsgRsp);
@@ -615,6 +640,23 @@ static int32_t mndSendGrantStatusToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo,
 _err:
   rpcFreeCont(rpcRsp.pCont);
   return TSDB_CODE_FAILED;
+}
+
+static void grantCheckClusterInfo(SMnode *pMnode) {
+  if (!recheckClusterTime) return;
+  grantRetrieveGrantInfo(pMnode);
+  uint32_t curTime = taosGetTimestampMs() / 1000;
+  uint32_t clusterCreateTime = grantGetClusterCreateTime(pMnode);
+  if (clusterCreateTime > 0) {
+    if (grantClusterEpoch != clusterCreateTime) grantClusterEpoch = clusterCreateTime;
+    if (clusterCreateTime < curTime) recheckClusterTime = false;
+  }
+
+  if (recheckClusterTime) {
+    tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
+  } else if (tsGrantHBInterval != GRANT_HEART_BEAT_MSG) {
+    tsGrantHBInterval = GRANT_HEART_BEAT_MSG;
+  }
 }
 
 /**
@@ -641,16 +683,7 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
   }
 
 _grant:
-  if (recheckClusterTime) {
-    grantResetMaster(pMnode);  // update recheckClusterTime
-    grantConnResetMaster(pMnode);
-  }
-
-  if (recheckClusterTime) {
-    tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
-  } else if (tsGrantHBInterval != GRANT_HEART_BEAT_MSG) {
-    tsGrantHBInterval = GRANT_HEART_BEAT_MSG;
-  }
+  grantCheckClusterInfo(pMnode);
 
   grantRetrieveGrantInfo(pMnode);
 
@@ -973,7 +1006,7 @@ int32_t mndUpdClusterInfo(SRpcMsg *pReq) {
     }
   } else {
     if (atomic_load_64(&gStatus.curTimeSeries) < atomic_load_64(&grantNotifyTimeSeries) ||
-        0 == atomic_load_64(&grantNotifyTimeSeries)) {
+        (0 == atomic_load_64(&grantNotifyTimeSeries) && 0 != atomic_load_64(&gStatus.curTimeSeries))) {
       mndProcessGrantNotify(pReq);
     }
     if (grantNotifyCnt != 0) atomic_store_64(&grantNotifyCnt, 0);
@@ -982,10 +1015,19 @@ int32_t mndUpdClusterInfo(SRpcMsg *pReq) {
   return 0;
 }
 
+static void grantConnItemsInit() {
+  SGrantConnItem item = {
+      .number = GRANT_CONN_NUM_DEFAULT, .speed = GRANT_CONN_SPEED_DEFAULT, .expire = GRANT_CONN_EXPIRE_LIMITS};
+  for (int32_t i = 0; i < GRANT_CONN_NUM; ++i) {
+    *(gStatus.connectors.items + i) = item;
+  }
+}
+
 static void grantConnResetMaster(SMnode *pMnode) {
   uint32_t clusterCreateTime = grantGetClusterCreateTime(pMnode);
   if (clusterCreateTime > 0) {
     recheckClusterTime = false;
+    if (grantClusterEpoch != clusterCreateTime) grantClusterEpoch = clusterCreateTime;
     SGrantConnItem item = {.number = GRANT_CONN_NUM_DEFAULT,
                            .speed = GRANT_CONN_SPEED_DEFAULT,
                            .expire = ceil((double)clusterCreateTime / 86400) + GRANT_CONN_EXPIRE_DEFAULT};
@@ -1007,6 +1049,7 @@ static void grantResetMaster(SMnode *pMnode) {
   uint32_t clusterCreateTime = grantGetClusterCreateTime(pMnode);
 
   if (clusterCreateTime > 0) {
+    if (grantClusterEpoch != clusterCreateTime) grantClusterEpoch = clusterCreateTime;
     if (clusterCreateTime < curTime) {
       recheckClusterTime = false;
       grantStatus.expireTimeSec = clusterCreateTime + GRANT_DEFAULT;
@@ -1674,6 +1717,26 @@ static int32_t mndSetActiveCodeFromCfg(SDnodeInfo *pDnodeInfo, GrantMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t grantAlterActiveCode(const char *old, const char *new, char *out, int8_t type) {
+  int32_t code = 0;
+  if (0 == strncmp(old, new, type == 0 ? TSDB_ACTIVE_KEY_LEN : TSDB_CONN_ACTIVE_KEY_LEN)) {
+    code = TSDB_CODE_DUP_KEY;
+    goto _exit;
+  }
+  if (new[0] == 0) {
+    out[0] = 0;  // clear the code
+    goto _exit;
+  }
+  if (type == 0) {
+    code = grantSelectActiveCode(old, new, out);
+  } else {
+    code = grantConnSelectActiveCode(old, new, out);
+  }
+_exit:
+  if (code != 0) terrno = code;
+  return code;
+}
+
 static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode *pMnode = pReq->info.node;
   int32_t numOfRows = 0;
@@ -2252,24 +2315,4 @@ static int32_t tDeserializeGrantConnMsg(SDecoder *decoder, SGrantConnMsg *pMsg) 
   }
 
   return 0;
-}
-
-int32_t grantAlterActiveCode(const char *old, const char *new, char *out, int8_t type) {
-  int32_t code = 0;
-  if (0 == strncmp(old, new, type == 0 ? TSDB_ACTIVE_KEY_LEN : TSDB_CONN_ACTIVE_KEY_LEN)) {
-    code = TSDB_CODE_DUP_KEY;
-    goto _exit;
-  }
-  if (new[0] == 0) {
-    out[0] = 0;  // clear the code
-    goto _exit;
-  }
-  if (type == 0) {
-    code = grantSelectActiveCode(old, new, out);
-  } else {
-    code = grantConnSelectActiveCode(old, new, out);
-  }
-_exit:
-  if (code != 0) terrno = code;
-  return code;
 }
