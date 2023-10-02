@@ -14,40 +14,7 @@ Seeq 是制造业和工业互联网（IIOT）高级分析软件。Seeq 支持在
 
 ### Seeq 安装方法
 
-从 [Seeq 官网](https://www.seeq.com/customer-download)下载相关软件，例如 Seeq Server 和 Seeq Data Lab 等。
-
-### Seeq Server 安装和启动
-
-```
-tar xvzf seeq-server-xxx.tar.gz
-cd seeq-server-installer
-sudo ./install
-
-sudo seeq service enable
-sudo seeq start
-```
-
-### Seeq Data Lab Server 安装和启动
-
-Seeq Data Lab 需要安装在和 Seeq Server 不同的服务器上，并通过配置和 Seeq Server 互联。详细安装配置指令参见[Seeq 官方文档](https://support.seeq.com/space/KB/1034059842)。
-
-```
-tar xvf seeq-data-lab-<version>-64bit-linux.tar.gz
-sudo seeq-data-lab-installer/install -f /opt/seeq/seeq-data-lab -g /var/opt/seeq -u seeq
-sudo seeq config set Network/DataLab/Hostname localhost
-sudo seeq config set Network/DataLab/Port 34231 # the port of the Data Lab server (usually 34231)
-sudo seeq config set Network/Hostname <value> # the host IP or URL of the main Seeq Server
-
-# If the main Seeq server is configured to listen over HTTPS
-sudo seeq config set Network/Webserver/SecurePort 443 # the secure port of the main Seeq Server (usually 443)
-
-# If the main Seeq server is NOT configured to listen over HTTPS
-sudo seeq config set Network/Webserver/Port <value>
-
-#On the main Seeq server, open a Seeq Command Prompt and set the hostname of the Data Lab server:
-sudo seeq config set Network/DataLab/Hostname <value> # the host IP (not URL) of the Data Lab server
-sudo seeq config set Network/DataLab/Port 34231 # the port of the Data Lab server (usually 34231
-```
+从 [Seeq 官网](https://www.seeq.com/customer-download)下载相关软件，例如 Seeq Server 和 Seeq Data Lab 等。Seeq Data Lab 需要安装在和 Seeq Server 不同的服务器上，并通过配置和 Seeq Server 互联。详细安装配置指令参见[Seeq 知识库]( https://support.seeq.com/kb/latest/cloud/)。
 
 ## TDengine 本地实例安装方法
 
