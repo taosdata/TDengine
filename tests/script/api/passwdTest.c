@@ -207,8 +207,8 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
   createUsers(taos, argv[1], qstr);
-  // passVerTestMulti(argv[1], qstr);
-  // sysInfoTest(taos, argv[1], qstr);
+  passVerTestMulti(argv[1], qstr);
+  sysInfoTest(taos, argv[1], qstr);
   userDroppedTest(taos, argv[1], qstr);
 
   taos_close(taos);
@@ -391,10 +391,6 @@ _REP:
 void userDroppedTest(TAOS *taos, const char *host, char *qstr) {
   // users
   int nTestUsers = nUser;
-  int nLoop = 0;
-_loop:
-  ++nLoop;
-  printf("%s:%d loop %d\n", __func__, __LINE__, nLoop);
   for (int i = 0; i < nTestUsers; ++i) {
     // sprintf(users[i], "user%d", i);
     taosu[i] = taos_connect(host, users[i], "taos", NULL, 0);
@@ -441,15 +437,5 @@ _loop:
     exit(1);
   }
   fprintf(stderr, "######## %s #########\n", __func__);
-
-  if (nLoop < 5) {
-    for (int i = 0; i < nTestUsers; ++i) {
-      sprintf(users[i], "user%d", i);
-      sprintf(qstr, "CREATE USER %s PASS 'taos'", users[i]);
-      fprintf(stderr, "%s:%d create user:%s\n", __func__, __LINE__, users[i]);
-      queryDB(taos, qstr);
-    }
-    goto _loop;
-    // sleep(300);
-  }
+  // sleep(300);
 }

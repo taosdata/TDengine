@@ -768,10 +768,6 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
   int32_t    cfgAllErr = 0;
   int32_t    iter = 0;
 
-  if (cfgAll && !(failRecord = taosArrayInit(1, sizeof(int32_t)))) {
-    goto _OVER;
-  }
-
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
   while (1) {
@@ -780,7 +776,6 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
       if (pIter == NULL) break;
       ++iter;
     } else if (!(pDnode = mndAcquireDnode(pMnode, pCfgReq->dnodeId))) {
-      terrno = TSDB_CODE_MND_INVALID_DNODE_ID;
       goto _OVER;
     }
 
@@ -791,10 +786,15 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
 #else
       if (grantAlterActiveCode(pDnode->active, pCfgReq->value, tmpDnode.active, 0) != 0) {
         if (TSDB_CODE_DUP_KEY != terrno) {
-          mError("dnode:%d, config dnode:%d, app:%p config:%s value:%s failed since %s", pDnode->id,
-                 pCfgReq->dnodeId, pReq->info.ahandle, pCfgReq->config, pCfgReq->value, terrstr());
-          if (failRecord) taosArrayPush(failRecord, &pDnode->id);
-          if (cfgAll && (0 == cfgAllErr)) cfgAllErr = terrno;
+          mError("dnode:%d, config dnode:%d, app:%p config:%s value:%s failed since %s", pDnode->id, pCfgReq->dnodeId,
+                 pReq->info.ahandle, pCfgReq->config, pCfgReq->value, terrstr());
+          if (cfgAll) {  // alter all dnodes:
+            if (!failRecord) failRecord = taosArrayInit(1, sizeof(int32_t));
+            if (failRecord) taosArrayPush(failRecord, &pDnode->id);
+            if (0 == cfgAllErr) cfgAllErr = terrno;  // output 1st terrno.
+          }
+        } else {
+          terrno = 0;  // no action for dup active code
         }
         if (cfgAll) continue;
         goto _OVER;
@@ -806,10 +806,15 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
 #else
       if (grantAlterActiveCode(pDnode->connActive, pCfgReq->value, tmpDnode.connActive, 1) != 0) {
         if (TSDB_CODE_DUP_KEY != terrno) {
-          mError("dnode:%d, config dnode:%d, app:%p config:%s value:%s failed since %s", pDnode->id,
-                 pCfgReq->dnodeId, pReq->info.ahandle, pCfgReq->config, pCfgReq->value, terrstr());
-          if (failRecord) taosArrayPush(failRecord, &pDnode->id);
-          if (cfgAll && (0 == cfgAllErr)) cfgAllErr = terrno;
+          mError("dnode:%d, config dnode:%d, app:%p config:%s value:%s failed since %s", pDnode->id, pCfgReq->dnodeId,
+                 pReq->info.ahandle, pCfgReq->config, pCfgReq->value, terrstr());
+          if (cfgAll) {
+            if (!failRecord) failRecord = taosArrayInit(1, sizeof(int32_t));
+            if (failRecord) taosArrayPush(failRecord, &pDnode->id);
+            if (0 == cfgAllErr) cfgAllErr = terrno;
+          }
+        } else {
+          terrno = 0;
         }
         if (cfgAll) continue;
         goto _OVER;
