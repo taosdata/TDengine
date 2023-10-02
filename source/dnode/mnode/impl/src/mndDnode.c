@@ -753,6 +753,7 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
         goto _OVER;
       }
 #endif
+    } else {
       terrno = TSDB_CODE_INVALID_CFG;
       goto _OVER;
     }
