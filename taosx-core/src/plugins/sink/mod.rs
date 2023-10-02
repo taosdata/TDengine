@@ -450,21 +450,22 @@ async fn consume_lush_record(
                         let mut count = 0;
                         let mut break_err = Ok(());
                         loop {
-                            let res = taos.as_ref().unwrap().exec(sql.clone()).await;
+                            let res = taos.as_ref().unwrap().exec(&sql).await;
                             match res {
                                 Ok(num) => {
                                     count = count + num;
                                     counter!(INSERT_SQLS, 1);
                                     counter!(RECORDS, num as u64);
-                                    if break_err.is_err() {
-                                        break_err?;
-                                    }
                                     break;
                                 }
                                 Err(err) => {
                                     if retry > 5 {
-                                        tracing::warn!("retry 3 failed continue: {err:#}");
+                                        tracing::warn!("retry write failed continue: {err:#}");
                                         counter!(INSERT_SQL_FAILS, 1);
+
+                                        if break_err.is_err() {
+                                            break_err?;
+                                        }
                                         break;
                                     }
                                     let errstr = format!("{err:#}");
@@ -504,9 +505,13 @@ async fn consume_lush_record(
                                         }
                                     } else if errstr.contains("[0x0E") {
                                         taos.replace(pool.get().await?);
+                                        retry += 1;
+                                    } else {
+                                        retry += 1;
                                     }
-                                    break_err = Err(err);
-                                    retry += 1;
+                                    break_err = Err(err).with_context(|| {
+                                        format!("lush stream error with {retry} retries when execute sql {sql}")
+                                    });
                                 }
                             }
                         }
@@ -515,11 +520,21 @@ async fn consume_lush_record(
                 } else {
                     let sql = format!("insert into ? ({names}) values({marks})");
                     info!("prepare with sql: {sql}");
-                    stmt.prepare(&sql).await?;
+
+                    stmt.prepare(&sql)
+                        .await
+                        .context("lush stream prepare stmt error")?;
                     info!("prepare");
-                    stmt.bind(data.as_slice()).await?;
-                    stmt.add_batch().await?;
-                    let n = stmt.execute().await?;
+                    stmt.bind(data.as_slice())
+                        .await
+                        .context("lush stream bind stmt error")?;
+                    stmt.add_batch()
+                        .await
+                        .context("lush stream add batch error")?;
+                    let n = stmt
+                        .execute()
+                        .await
+                        .context("lush stream stmt execution error")?;
                     info!("written : [{n}] records");
                     if let Some(transferred) = transferred {
                         transferred.records.fetch_add(n as _, Ordering::SeqCst);
