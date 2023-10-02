@@ -1588,15 +1588,15 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         // input queue
         char vbuf[30] = {0};
         char buf[25] = {0};
-        const char* queueInfoStr = "%.2fMiB (%.2f%, %.2fMiB)";
-        sprintf(buf, queueInfoStr, pe->inputQUsed, pe->inputQUsed/pe->inputQCap, pe->inputQCap);
+        const char* queueInfoStr = "%.2fMiB (%.2f%)";
+        sprintf(buf, queueInfoStr, pe->inputQUsed, pe->inputRate);
         STR_TO_VARSTR(vbuf, buf);
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         colDataSetVal(pColInfo, numOfRows, (const char*)vbuf, false);
 
         // output queue
-        sprintf(buf, queueInfoStr, pe->outputQUsed, pe->outputQUsed/pe->outputQCap, pe->outputQCap);
+        sprintf(buf, queueInfoStr, pe->outputQUsed, pe->outputRate);
         STR_TO_VARSTR(vbuf, buf);
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -2449,9 +2449,9 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     } else {
       pEntry->stage = p->stage;
       pEntry->inputQUsed = p->inputQUsed;
-      pEntry->inputQCap = p->inputQCap;
+      pEntry->inputRate = p->inputRate;
       pEntry->outputQUsed = p->outputQUsed;
-      pEntry->outputQCap = p->outputQCap;
+      pEntry->outputRate = p->outputRate;
       pEntry->offset = p->offset;
     }
 
