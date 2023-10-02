@@ -601,9 +601,9 @@ typedef struct STaskStatusEntry {
   int64_t verEnd;       // end version in WAL, only valid for source task
   int64_t offset;       // only valid for source task
   double  inputQUsed;   // in MiB
-  double  inputQCap;
+  double  inputRate;
   double  outputQUsed;  // in MiB
-  double  outputQCap;
+  double  outputRate;
 } STaskStatusEntry;
 
 typedef struct SStreamHbMsg {

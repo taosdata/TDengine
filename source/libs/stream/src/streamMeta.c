@@ -774,9 +774,9 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
     if (tEncodeI32(pEncoder, ps->stage) < 0) return -1;
     if (tEncodeI32(pEncoder, ps->nodeId) < 0) return -1;
     if (tEncodeDouble(pEncoder, ps->inputQUsed) < 0) return -1;
-    if (tEncodeDouble(pEncoder, ps->inputQCap) < 0) return -1;
+    if (tEncodeDouble(pEncoder, ps->inputRate) < 0) return -1;
     if (tEncodeDouble(pEncoder, ps->outputQUsed) < 0) return -1;
-    if (tEncodeDouble(pEncoder, ps->outputQCap) < 0) return -1;
+    if (tEncodeDouble(pEncoder, ps->outputRate) < 0) return -1;
   }
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -798,9 +798,9 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
     if (tDecodeI32(pDecoder, &entry.stage) < 0) return -1;
     if (tDecodeI32(pDecoder, &entry.nodeId) < 0) return -1;
     if (tDecodeDouble(pDecoder, &entry.inputQUsed) < 0) return -1;
-    if (tDecodeDouble(pDecoder, &entry.inputQCap) < 0) return -1;
+    if (tDecodeDouble(pDecoder, &entry.inputRate) < 0) return -1;
     if (tDecodeDouble(pDecoder, &entry.outputQUsed) < 0) return -1;
-    if (tDecodeDouble(pDecoder, &entry.outputQCap) < 0) return -1;
+    if (tDecodeDouble(pDecoder, &entry.outputRate) < 0) return -1;
 
     entry.id.taskId = taskId;
     taosArrayPush(pReq->pTaskStatus, &entry);
@@ -880,10 +880,11 @@ void metaHbToMnode(void* param, void* tmrId) {
         .nodeId = pMeta->vgId,
         .stage = pMeta->stage,
         .inputQUsed = SIZE_IN_MiB(streamQueueGetItemSize((*pTask)->inputInfo.queue)),
-        .inputQCap = STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE,
         .outputQUsed = SIZE_IN_MiB(streamQueueGetItemSize((*pTask)->outputInfo.queue)),
-        .outputQCap = STREAM_TASK_OUTPUT_QUEUE_CAPACITY_IN_SIZE,
     };
+
+    entry.inputRate = entry.inputQUsed*100.0/STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE;
+    entry.outputRate = entry.outputQUsed*100.0/STREAM_TASK_OUTPUT_QUEUE_CAPACITY_IN_SIZE;
 
     taosArrayPush(hbMsg.pTaskStatus, &entry);
 
