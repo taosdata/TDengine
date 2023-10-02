@@ -370,7 +370,7 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    if (streamQueueGetNumOfItems(pTask->inputInfo.queue)) {
+    if (streamQueueIsFull(pTask->inputInfo.queue, true)) {
       tqTrace("s-task:%s input queue is full, do nothing", pTask->id.idStr);
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;
