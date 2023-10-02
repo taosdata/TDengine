@@ -26,6 +26,7 @@
 #define GRANT_DEFAULT        (GRANT_VALUE_INT*86400)
 #else
 #define GRANT_DEFAULT        60*86400
+#endif
 
 #define GRANT_CONN_NUM_DEFAULT     1
 #define GRANT_CONN_SPEED_DEFAULT   -1
