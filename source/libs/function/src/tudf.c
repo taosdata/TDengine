@@ -121,7 +121,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   snprintf(dnodeIdEnvItem, 32, "%s=%d", "DNODE_ID", pData->dnodeId);
 
   float numCpuCores = 4;
-  taosGetCpuCores(&numCpuCores), false;
+  taosGetCpuCores(&numCpuCores, false);
   numCpuCores = TMAX(numCpuCores, 2);
   snprintf(thrdPoolSizeEnvItem, 32, "%s=%d", "UV_THREADPOOL_SIZE", (int)numCpuCores * 2);
 
