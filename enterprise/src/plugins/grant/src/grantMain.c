@@ -204,7 +204,6 @@ static void     dmRefreshGrantCfg();
 static void     grantRetrieveGrantInfo(SMnode *pMnode);
 static void     grantResetMaster(SMnode *pMnode);
 static void     grantConnResetMaster(SMnode *pMnode);
-static void     grantConnItemsInit();
 static void     grantSetClusterInfo(SMnode *pMnode);
 static void     grantConnStatusCheck(SMnode *pMnode, uint32_t curTime, SDnodeInfo *pDnodeInfo);
 static uint32_t grantGetClusterCreateTime(SMnode *pMnode);
@@ -273,7 +272,6 @@ int32_t mndInitGrant(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndCancelGetNextGrant);
   grantSetClusterInfo(pMnode);
-  grantConnItemsInit();
   if (!(grantHandle.pOfficials = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UINT), true, true))) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
@@ -643,17 +641,17 @@ _err:
 }
 
 static void grantCheckClusterInfo(SMnode *pMnode) {
-  if (!recheckClusterTime) return;
-  grantRetrieveGrantInfo(pMnode);
-  uint32_t curTime = taosGetTimestampMs() / 1000;
-  uint32_t clusterCreateTime = grantGetClusterCreateTime(pMnode);
-  if (clusterCreateTime > 0) {
-    if (grantClusterEpoch != clusterCreateTime) grantClusterEpoch = clusterCreateTime;
-    if (clusterCreateTime < curTime) recheckClusterTime = false;
+  if (recheckClusterTime) {
+    grantRetrieveGrantInfo(pMnode);
+    uint32_t curTime = taosGetTimestampMs() / 1000;
+    uint32_t clusterCreateTime = grantGetClusterCreateTime(pMnode);
+    if (clusterCreateTime > 0) {
+      if (grantClusterEpoch != clusterCreateTime) grantClusterEpoch = clusterCreateTime;
+      if (clusterCreateTime < curTime) recheckClusterTime = false;
+    }
   }
 
   if (recheckClusterTime) {
-    tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
   } else if (tsGrantHBInterval != GRANT_HEART_BEAT_MSG) {
     tsGrantHBInterval = GRANT_HEART_BEAT_MSG;
   }
@@ -1013,14 +1011,6 @@ int32_t mndUpdClusterInfo(SRpcMsg *pReq) {
   }
 
   return 0;
-}
-
-static void grantConnItemsInit() {
-  SGrantConnItem item = {
-      .number = GRANT_CONN_NUM_DEFAULT, .speed = GRANT_CONN_SPEED_DEFAULT, .expire = GRANT_CONN_EXPIRE_LIMITS};
-  for (int32_t i = 0; i < GRANT_CONN_NUM; ++i) {
-    *(gStatus.connectors.items + i) = item;
-  }
 }
 
 static void grantConnResetMaster(SMnode *pMnode) {
