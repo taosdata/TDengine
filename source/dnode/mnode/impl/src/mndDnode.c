@@ -712,7 +712,7 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
       goto _OVER;
     }
 
-      SDnodeObj tmpDnode = *pDnode;
+    SDnodeObj tmpDnode = *pDnode;
     if (action == DND_ACTIVE_CODE) {
 #ifndef TD_CHECK_ACTIVE
       strncpy(tmpDnode.active, pCfgReq->value, TSDB_ACTIVE_KEY_LEN);
