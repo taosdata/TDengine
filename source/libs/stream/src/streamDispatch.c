@@ -1128,7 +1128,6 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   // all msg rsp already, continue
   if (leftRsp == 0) {
     ASSERT(pTask->outputInfo.status == TASK_OUTPUT_STATUS__WAIT);
-    stDebug("s-task:%s output status is set to:%d", id, pTask->outputInfo.status);
 
     // we need to re-try send dispatch msg to downstream tasks
     int32_t numOfFailed = taosArrayGetSize(pTask->msgInfo.pRetryList);
