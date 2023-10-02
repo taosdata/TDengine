@@ -20,6 +20,7 @@
 #include "tref.h"
 #include "tstream.h"
 #include "ttimer.h"
+#include "wal.h"
 
 static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
 
@@ -777,6 +778,9 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
     if (tEncodeDouble(pEncoder, ps->inputRate) < 0) return -1;
     if (tEncodeDouble(pEncoder, ps->outputQUsed) < 0) return -1;
     if (tEncodeDouble(pEncoder, ps->outputRate) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->offset) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->verStart) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->verEnd) < 0) return -1;
   }
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -801,6 +805,9 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
     if (tDecodeDouble(pDecoder, &entry.inputRate) < 0) return -1;
     if (tDecodeDouble(pDecoder, &entry.outputQUsed) < 0) return -1;
     if (tDecodeDouble(pDecoder, &entry.outputRate) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.offset) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.verStart) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.verEnd) < 0) return -1;
 
     entry.id.taskId = taskId;
     taosArrayPush(pReq->pTaskStatus, &entry);
@@ -885,6 +892,8 @@ void metaHbToMnode(void* param, void* tmrId) {
 
     entry.inputRate = entry.inputQUsed*100.0/STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE;
     entry.outputRate = entry.outputQUsed*100.0/STREAM_TASK_OUTPUT_QUEUE_CAPACITY_IN_SIZE;
+    entry.offset = walReaderGetCurrentVer((*pTask)->exec.pWalReader);
+    walReaderValidVersionRange((*pTask)->exec.pWalReader, &entry.verStart, &entry.verEnd);
 
     taosArrayPush(hbMsg.pTaskStatus, &entry);
 
