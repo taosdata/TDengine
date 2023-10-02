@@ -893,8 +893,11 @@ void metaHbToMnode(void* param, void* tmrId) {
 
     entry.inputRate = entry.inputQUsed*100.0/STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE;
     entry.outputRate = entry.outputQUsed*100.0/STREAM_TASK_OUTPUT_QUEUE_CAPACITY_IN_SIZE;
-    entry.offset = walReaderGetCurrentVer((*pTask)->exec.pWalReader);
-    walReaderValidVersionRange((*pTask)->exec.pWalReader, &entry.verStart, &entry.verEnd);
+
+    if ((*pTask)->exec.pWalReader != NULL) {
+      entry.offset = walReaderGetCurrentVer((*pTask)->exec.pWalReader);
+      walReaderValidVersionRange((*pTask)->exec.pWalReader, &entry.verStart, &entry.verEnd);
+    }
 
     taosArrayPush(hbMsg.pTaskStatus, &entry);
 
