@@ -30,6 +30,8 @@ extern "C" {
 #define GRANTS_COL_MAX_LEN 196
 #endif
 
+#define GRANT_HEART_BEAT_MIN 2
+
 typedef enum {
   TSDB_GRANT_ALL,
   TSDB_GRANT_TIME,
