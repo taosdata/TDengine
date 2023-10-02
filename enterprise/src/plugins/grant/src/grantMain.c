@@ -247,7 +247,7 @@ typedef struct {
 static bool    recheckClusterTime = true;
 static int8_t  grantHbLock = 0;
 static int64_t grantNotifyCnt = 0;
-static int64_t grantNotifyTimeSeries = 0;
+static int64_t grantNotifyTimeSeries = INT64_MAX;
 static int64_t grantClusterEpoch = 0;
 int32_t        grantFlag = 0;
 SGrantHandle   grantHandle = {0};
@@ -652,6 +652,7 @@ static void grantCheckClusterInfo(SMnode *pMnode) {
   }
 
   if (recheckClusterTime) {
+    tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
   } else if (tsGrantHBInterval != GRANT_HEART_BEAT_MSG) {
     tsGrantHBInterval = GRANT_HEART_BEAT_MSG;
   }
@@ -1003,8 +1004,7 @@ int32_t mndUpdClusterInfo(SRpcMsg *pReq) {
       atomic_store_64(&grantNotifyCnt, grantNotifyCnt & 127);
     }
   } else {
-    if (atomic_load_64(&gStatus.curTimeSeries) < atomic_load_64(&grantNotifyTimeSeries) ||
-        (0 == atomic_load_64(&grantNotifyTimeSeries) && 0 != atomic_load_64(&gStatus.curTimeSeries))) {
+    if (atomic_load_64(&gStatus.curTimeSeries) < atomic_load_64(&grantNotifyTimeSeries)) {
       mndProcessGrantNotify(pReq);
     }
     if (grantNotifyCnt != 0) atomic_store_64(&grantNotifyCnt, 0);
