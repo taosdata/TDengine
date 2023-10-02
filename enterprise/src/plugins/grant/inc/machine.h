@@ -229,7 +229,7 @@ typedef struct {
 
 char *grantGetMachineSerials();
 bool  grantGenActiveCode(SGrantObj *grant);
-bool  grantParseActiveCode(SGrantObj *grant);
+bool  grantParseActiveCode(SGrantObj *grant, char **ppKey);
 bool  grantConnGenActiveCode(SGrantConnObj *grant);
 bool  grantConnParseActiveCode(SGrantConnObj *grant, char **ppKey);
 bool  grantCheckMachineCode(SGrantObj *grant);
