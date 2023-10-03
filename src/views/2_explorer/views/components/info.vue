@@ -33,8 +33,8 @@
           </el-form-item>
         </section>
         <section class="dsn" v-if="infoType === 'database'">
-          <el-form-item :key="'dsn'" :label="'DSN:'">
-            <pre v-on:copy="copyDsn" v-highlight><code class="language-bash">{{ dsn }}</code></pre>
+          <el-form-item :key="`dsn-for-${infoData['name']}`" :label="'DSN:'">
+            <pre v-on:copy="copyDsn" v-highlight><code class="language-bash">{{ dsn + "/" + infoData["name"] }}</code></pre>
           </el-form-item>
         </section>
       </section>
@@ -98,12 +98,6 @@ export default {
     Prism.highlightAll();
   },
   methods: {
-    doNothing(event) {
-      event.preventDefault();
-    },
-    submitForm(event) {
-      alert("submit" + event);
-    },
     copyDsn() {
       copy(this.dsn);
     },
