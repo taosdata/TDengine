@@ -7,6 +7,8 @@ import { Message } from "element-ui";
 import { $bus } from "@/const";
 import CryptoJS from "crypto-js";
 import i18n from "@/lang";
+import _ from "lodash";
+
 let path = require("path");
 export function debounce(func, wait, immediate) {
   let timeout, args, context, timestamp, result;
@@ -276,8 +278,8 @@ export function OpenNewTab(url) {
   a.dispatchEvent(e);
 }
 
- //删除cookie某一项目
- export function deleteCookieItem() {
+//删除cookie某一项目
+export function deleteCookieItem() {
   var cookieItems = document.cookie.split(";");
   for (var i = 0; i < cookieItems.length; i++) {
     var item = cookieItems[i];
@@ -293,22 +295,42 @@ export function OpenNewTab(url) {
   }
 }
 
- //加密
+//加密
 export function encrypt(data) {
+  console.log("encrypt", data);
   let encryptedData = CryptoJS.AES.encrypt(data, `-----BEGIN PUBLIC KEY-----
   MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC//nB6rRTnxCU2bMBGatp1N1Q0
   kuSEZl3Ot2EQMlNwINYTm7izxjTyA1pgmBmotAXVZuZNviJNUZUMBn73bIjso1l2
   qhwe/FcewPjP2ubbdf89yWPnen/wRGo+Q0QRmt1q7eDeVTJMC4LVdetuv6QABnUJ
   +siG1ILDsJ2BsYMBMwIDAQAB
   -----END PUBLIC KEY-----`).toString(); // 使用AES算法加密数据
+  console.log("encrypt", data);
   return encryptedData;
 }
 //解密
 export function decrypt(encryptedData) {
-  let decryptedMessage = CryptoJS.AES.decrypt(encryptedData,'pwd').toString(CryptoJS.enc.Utf8); // 使用AES算法解密数据
+  let decryptedMessage = CryptoJS.AES.decrypt(encryptedData, `-----BEGIN PUBLIC KEY-----
+  MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC//nB6rRTnxCU2bMBGatp1N1Q0
+  kuSEZl3Ot2EQMlNwINYTm7izxjTyA1pgmBmotAXVZuZNviJNUZUMBn73bIjso1l2
+  qhwe/FcewPjP2ubbdf89yWPnen/wRGo+Q0QRmt1q7eDeVTJMC4LVdetuv6QABnUJ
+  +siG1ILDsJ2BsYMBMwIDAQAB
+  -----END PUBLIC KEY-----`).toString(CryptoJS.enc.Utf8); // 使用AES算法解密数据
 
   return decryptedMessage;
 }
+
+// 获取当前集群DSN
+export function getDSN(driver = "tmq") {
+  let url = localStorage.getItem('base_url');
+  let parsed = _.split(url, '://', 2);
+  let scheme = parsed[0];
+  let host = parsed[1];
+  let user = localStorage.getItem('username') || '';
+  let decrypted = encodeURI(decrypt(localStorage.getItem('pwd')));
+  let pass = decrypted || '';
+  return driver + '+' + scheme + '://' + user + ':' + pass + '@' + host;
+}
+
 
 // 获取时区
 export function getLocalTimezone() {
@@ -316,7 +338,7 @@ export function getLocalTimezone() {
 }
 
 // format time
-export function parsinginZone(value,format) {
+export function parsinginZone(value, format) {
   let timezone = getLocalTimezone()
   return momentTimezone(value).tz(timezone).format(format)
 }

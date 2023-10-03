@@ -1255,6 +1255,8 @@ export default {
       <br /> 
       2. In other cases, such as when the data source is isolated from the TDengine cluster network, agents are used to provide cross-network access to the data source.
     `,
+
+    replicationTargetInfo: `Please login TDengine cloud service or open taosExplorer in enterprise edition, click "Explorer", select the database, then click "View Database Config" icon to check it.`,
     select: 'Select',
     add: 'Add',
     regexPlaceholder: 'Regex Pattern Input'
