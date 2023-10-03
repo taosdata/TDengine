@@ -8018,9 +8018,29 @@ static int32_t insertCondIntoSelectStmt(SSelectStmt* pSelect, SNode* pCond) {
   if (pSelect->pWhere == NULL) {
     pSelect->pWhere = pCond;
   } else {
-    SNode* pWhere = NULL;
-    createLogicCondNode(pSelect->pWhere, pCond, &pWhere, LOGIC_COND_TYPE_AND);
-    pSelect->pWhere = pWhere;
+    SNodeList* pLogicCondListWhere = NULL;
+    SNodeList* pLogicCondList2 = NULL;
+    if (nodeType(pSelect->pWhere) == QUERY_NODE_LOGIC_CONDITION &&
+        ((SLogicConditionNode*)pSelect->pWhere)->condType == LOGIC_COND_TYPE_AND) {
+        pLogicCondListWhere = ((SLogicConditionNode*)pSelect->pWhere)->pParameterList;
+    } else {
+      nodesListMakeAppend(&pLogicCondListWhere, pSelect->pWhere);
+    }
+
+    if (nodeType(pCond) == QUERY_NODE_LOGIC_CONDITION &&
+        ((SLogicConditionNode*)pCond)->condType == LOGIC_COND_TYPE_AND) {
+         pLogicCondList2 = ((SLogicConditionNode*)pCond)->pParameterList;
+    } else {
+      nodesListMakeAppend(&pLogicCondList2, pCond);
+    }
+
+    nodesListAppendList(pLogicCondListWhere, pLogicCondList2);
+
+    SLogicConditionNode* pWhere = (SLogicConditionNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+    pWhere->condType = LOGIC_COND_TYPE_AND;
+    pWhere->pParameterList = pLogicCondListWhere;
+
+    pSelect->pWhere = (SNode*)pWhere;
   }
   return TSDB_CODE_SUCCESS;
 }
