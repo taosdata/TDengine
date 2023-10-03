@@ -1025,6 +1025,8 @@ export default {
       <br /> 
       2. 其他情况下，如当数据源与 TDengine 集群网络隔离时，使用代理以提供跨网络访问数据源的能力。
     `,
+
+    replicationTargetInfo: `请登录云服务或打开企业版的taosExplorer，点击"数据浏览器“，选中数据库，然后点击“查看数据库配置”按钮，即可获得。`,
   
     //-------datasourceui的字段,英文版本直接显示的display，暂时不需要转换
     description: '描述',

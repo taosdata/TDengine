@@ -88,8 +88,11 @@
         label-width="auto"
         class="demo-ruleForm"
       >
-        <el-form-item :label="$t('taosuser.fromsource')" prop="source" required>
+        <el-form-item prop="source" required>
           <!-- <el-input v-model.trim="ruleForm.source"></el-input> -->
+          <template slot="label">
+            {{ $t('taosuser.fromsource') }}
+          </template>
           <el-select v-model="ruleForm.source" :placeholder="$t('pleaseSelect')">
             <el-option
               v-for="db in dblist"
@@ -99,7 +102,14 @@
             ></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item :label="$t('taosuser.targetdsn')" prop="target" required>
+        <el-form-item prop="target" required>
+          <template slot="label">
+            {{ $t('taosuser.targetdsn') }}
+            <el-tooltip effect="light" placement="top">
+              <span slot="content" v-html="$t('datasource.replicationTargetInfo')"></span>
+              <i class="el-icon-info"></i>
+            </el-tooltip>
+          </template>
           <el-input
             v-model.trim="ruleForm.target"
             placeholder="taos://192.168.0.1:6030/db2"
@@ -226,7 +236,7 @@ export default {
           to: `${this.ruleForm.target}`,
           from: `tmq+${localStorage.getItem("base_url")}/${
             this.ruleForm.source
-          }`,
+          }?timeout=never`,
         };
         await addReplicationData(id, params).then((res) => {
           if (res) {
@@ -290,7 +300,7 @@ export default {
         await getReplicationList(id).then((result) => {
           this.topicList = result.map((item) => {
             let to_port = _.get(item, "to_expand.port");
-            item["fromdb"] = item.from.split("/").at(-1);
+            item["fromdb"] = _.get(item, "from_expand.subject");
             item["hostport"] =
               _.get(item, "to_expand.host") ||
               "localhost" + (to_port ? `:${to_port}` : "");
