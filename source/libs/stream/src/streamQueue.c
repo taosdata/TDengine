@@ -16,7 +16,6 @@
 #include "streamInt.h"
 
 #define MAX_STREAM_EXEC_BATCH_NUM                 32
-#define MIN_STREAM_EXEC_BATCH_NUM                 4
 #define MAX_SMOOTH_BURST_RATIO                     5     // 20 sec
 
 // todo refactor:
@@ -173,7 +172,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
     SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputInfo.queue);
     if (qItem == NULL) {
       if ((taskLevel == TASK_LEVEL__SOURCE  || taskLevel == TASK_LEVEL__SINK) && (++retryTimes) < MAX_RETRY_TIMES) {
-        taosMsleep(10);
+        taosMsleep(40);
         continue;
       }
 
