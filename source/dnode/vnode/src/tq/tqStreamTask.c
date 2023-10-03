@@ -17,6 +17,7 @@
 #include "vnd.h"
 
 #define MAX_REPEAT_SCAN_THRESHOLD  3
+#define SCAN_WAL_IDLE_DURATION     100
 
 static int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle);
 static int32_t setWalReaderStartOffset(SStreamTask* pTask, int32_t vgId);
@@ -36,12 +37,10 @@ int32_t tqScanWal(STQ* pTq) {
     bool shouldIdle = true;
     doScanWalForAllTasks(pTq->pStreamMeta, &shouldIdle);
 
-    int32_t times = 0;
-
     if (shouldIdle) {
       taosWLockLatch(&pMeta->lock);
 
-      times = (--pMeta->walScanCounter);
+      int32_t times = (--pMeta->walScanCounter);
       ASSERT(pMeta->walScanCounter >= 0);
 
       if (pMeta->walScanCounter <= 0) {
@@ -50,7 +49,8 @@ int32_t tqScanWal(STQ* pTq) {
       }
 
       taosWUnLockLatch(&pMeta->lock);
-      tqDebug("vgId:%d scan wal for stream tasks for %d times", vgId, times);
+      tqDebug("vgId:%d scan wal for stream tasks for %d times in %dms", vgId, times, SCAN_WAL_IDLE_DURATION);
+      taosMsleep(SCAN_WAL_IDLE_DURATION);
     }
   }
 

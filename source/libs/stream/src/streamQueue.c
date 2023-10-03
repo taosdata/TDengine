@@ -16,7 +16,8 @@
 #include "streamInt.h"
 
 #define MAX_STREAM_EXEC_BATCH_NUM                 32
-#define MAX_SMOOTH_BURST_RATIO                     5     // 20 sec
+#define MAX_SMOOTH_BURST_RATIO                    5     // 20 sec
+#define WAIT_FOR_DURATION                         40
 
 // todo refactor:
 // read data from input queue
@@ -172,7 +173,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
     SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputInfo.queue);
     if (qItem == NULL) {
       if ((taskLevel == TASK_LEVEL__SOURCE  || taskLevel == TASK_LEVEL__SINK) && (++retryTimes) < MAX_RETRY_TIMES) {
-        taosMsleep(40);
+        taosMsleep(WAIT_FOR_DURATION);
         continue;
       }
 
