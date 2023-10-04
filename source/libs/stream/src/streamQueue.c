@@ -352,7 +352,7 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
 int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBlock) {
   STaosQueue* pQueue = pTask->outputInfo.queue->pQueue;
 
-  while (streamQueueIsFull(pTask->inputInfo.queue)) {
+  while (streamQueueIsFull(pTask->outputInfo.queue)) {
     if (streamTaskShouldStop(&pTask->status)) {
       stInfo("s-task:%s discard result block due to task stop", pTask->id.idStr);
       return TSDB_CODE_STREAM_EXEC_CANCELLED;
