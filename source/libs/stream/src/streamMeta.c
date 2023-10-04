@@ -890,8 +890,8 @@ void metaHbToMnode(void* param, void* tmrId) {
         .outputQUsed = SIZE_IN_MiB(streamQueueGetItemSize((*pTask)->outputInfo.queue)),
     };
 
-    entry.inputRate = entry.inputQUsed*100.0/STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE;
-    entry.outputRate = entry.outputQUsed*100.0/STREAM_TASK_OUTPUT_QUEUE_CAPACITY_IN_SIZE;
+    entry.inputRate = entry.inputQUsed*100.0/STREAM_TASK_QUEUE_CAPACITY_IN_SIZE;
+    entry.outputRate = entry.outputQUsed*100.0/STREAM_TASK_QUEUE_CAPACITY_IN_SIZE;
 
     if ((*pTask)->exec.pWalReader != NULL) {
       entry.offset = walReaderGetCurrentVer((*pTask)->exec.pWalReader);

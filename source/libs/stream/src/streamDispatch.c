@@ -603,7 +603,6 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   ASSERT(pBlock->type == STREAM_INPUT__DATA_BLOCK || pBlock->type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
          pBlock->type == STREAM_INPUT__TRANS_STATE);
 
-  int32_t retryCount = 0;
   pTask->execInfo.dispatch += 1;
   pTask->msgInfo.startTs = taosGetTimestampMs();
 
@@ -613,6 +612,7 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
   } else { // todo handle build dispatch msg failed
   }
 
+  int32_t retryCount = 0;
   while (1) {
     code = sendDispatchMsg(pTask, pTask->msgInfo.pData);
     if (code == TSDB_CODE_SUCCESS) {

@@ -41,8 +41,7 @@ extern "C" {
 #define STREAM_TASK_KEY_LEN            ((sizeof(int64_t)) << 1)
 
 #define STREAM_TASK_QUEUE_CAPACITY                20480
-#define STREAM_TASK_INPUT_QUEUE_CAPACITY_IN_SIZE  (30)
-#define STREAM_TASK_OUTPUT_QUEUE_CAPACITY_IN_SIZE (50)
+#define STREAM_TASK_QUEUE_CAPACITY_IN_SIZE       (30)
 
 // clang-format off
 #define stFatal(...) do { if (stDebugFlag & DEBUG_FATAL) { taosPrintLog("STM FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
