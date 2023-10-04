@@ -23,7 +23,7 @@ use serde_json::json;
 use sqlx::pool::PoolOptions;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
-use taosx_core::utils::mask_dsn;
+use taosx_core::utils::{mask_dsn, try_mask_dsn};
 use taosx_core::utils::port_pool::PortPool;
 use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
 use tokio::sync::OnceCell;
@@ -1099,8 +1099,8 @@ impl TaskController {
     }
 
     #[instrument(skip_all, name = "task::create", parent = None, fields(
-        task.source = %mask_dsn(&task.from.parse().unwrap()),
-        task.sink = %mask_dsn(&task.to.parse().unwrap()),
+        task.source = try_mask_dsn(&task.from),
+        task.sink = try_mask_dsn(&task.to),
         task.agent = task.via,
     ))]
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
