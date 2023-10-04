@@ -470,10 +470,7 @@ void mndTransDropData(STrans *pTrans) {
     pTrans->param = NULL;
     pTrans->paramLen = 0;
   }
-  if(pTrans->mutex != NULL) {
-    (void)taosThreadMutexDestroy(pTrans->mutex);
-    taosMemoryFreeClear(pTrans->mutex);
-  }
+  (void)taosThreadMutexDestroy(&pTrans->mutex);
 }
 
 static int32_t mndTransDelete(SSdb *pSdb, STrans *pTrans, bool callFunc) {
@@ -547,6 +544,7 @@ STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId) {
   if (pTrans == NULL) {
     terrno = TSDB_CODE_MND_TRANS_NOT_EXIST;
   }
+  taosThreadMutexInit(&pTrans->mutex, NULL);
   return pTrans;
 }
 
@@ -581,8 +579,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
   pTrans->pRpcArray = taosArrayInit(1, sizeof(SRpcHandleInfo));
   pTrans->mTraceId = pReq ? TRACE_GET_ROOTID(&pReq->info.traceId) : tGenIdPI64();
   taosInitRWLatch(&pTrans->lockRpcArray);
-  pTrans->mutex = taosMemoryCalloc(1, sizeof(TdThreadMutex));
-  taosThreadMutexInit(pTrans->mutex, NULL);
+  taosThreadMutexInit(&pTrans->mutex, NULL);
 
   if (pTrans->redoActions == NULL || pTrans->undoActions == NULL || pTrans->commitActions == NULL ||
       pTrans->pRpcArray == NULL) {
@@ -870,11 +867,9 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   pNew->rpcRsp = pTrans->rpcRsp;
   pNew->rpcRspLen = pTrans->rpcRspLen;
   pNew->mTraceId = pTrans->mTraceId;
-  pNew->mutex = pTrans->mutex;
   pTrans->pRpcArray = NULL;
   pTrans->rpcRsp = NULL;
   pTrans->rpcRspLen = 0;
-  pTrans->mutex = NULL;
 
   mndTransExecute(pMnode, pNew);
   mndReleaseTrans(pMnode, pNew);
@@ -1266,10 +1261,10 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
   int32_t numOfActions = taosArrayGetSize(pTrans->redoActions);
   if (numOfActions == 0) return code;
 
-  taosThreadMutexLock(pTrans->mutex);
+  taosThreadMutexLock(&pTrans->mutex);
 
   if (pTrans->redoActionPos >= numOfActions) {
-    taosThreadMutexUnlock(pTrans->mutex);
+    taosThreadMutexUnlock(&pTrans->mutex);
     return code;
   }
 
@@ -1341,7 +1336,7 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
     }
   }
 
-  taosThreadMutexUnlock(pTrans->mutex);
+  taosThreadMutexUnlock(&pTrans->mutex);
 
   return code;
 }
