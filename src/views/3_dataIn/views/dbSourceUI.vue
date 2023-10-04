@@ -1228,7 +1228,8 @@ export default {
           //   }
         }
 
-        if (data.datasets) {
+        // datasets.categories is not used since 9adc5721
+        if (data.datasets && data.datasets.categories) {
           for (
             let index = 0;
             index < data.datasets.categories.length;
@@ -1425,10 +1426,11 @@ export default {
           }
         }
       } catch (err) {
+        console.error(err);
         err.response &&
           err.response.data &&
           err.response.data.message &&
-          Message.error(err.response.data.message);
+          Message.error(err.response.data.message) || Message.error(err);
       }
     },
 
