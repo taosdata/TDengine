@@ -544,7 +544,6 @@ STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId) {
   if (pTrans == NULL) {
     terrno = TSDB_CODE_MND_TRANS_NOT_EXIST;
   }
-  taosThreadMutexInit(&pTrans->mutex, NULL);
   return pTrans;
 }
 
