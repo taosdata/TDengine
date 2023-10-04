@@ -50,8 +50,9 @@ int32_t tqScanWal(STQ* pTq) {
 
       taosWUnLockLatch(&pMeta->lock);
       tqDebug("vgId:%d scan wal for stream tasks for %d times in %dms", vgId, times, SCAN_WAL_IDLE_DURATION);
-      taosMsleep(SCAN_WAL_IDLE_DURATION);
     }
+
+    taosMsleep(SCAN_WAL_IDLE_DURATION);
   }
 
   int64_t el = (taosGetTimestampMs() - st);
