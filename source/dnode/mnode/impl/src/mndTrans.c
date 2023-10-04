@@ -862,6 +862,7 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
     return -1;
   }
 
+  taosThreadMutexInit(&pNew->mutex, NULL);
   pNew->pRpcArray = pTrans->pRpcArray;
   pNew->rpcRsp = pTrans->rpcRsp;
   pNew->rpcRspLen = pTrans->rpcRspLen;
