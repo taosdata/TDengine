@@ -591,28 +591,24 @@ static const char *tkAuditStb[TK_AUDIT_STB_NUM] = {"operations"};
 
 // exclude stbs of taoskeeper log
 static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
-  char *dbName = strchr(pVnode->config.dbname, '.');
-  if (!dbName) {
-    return 0;
-  }
-  int32_t tbSize = 0;
-  ++dbName;
-  if (0 == strncmp(dbName, "log", TSDB_DB_NAME_LEN)) {
-    tbSize = metaSizeOfTbFilterCache(pVnode, 0);
-    if (tbSize < TK_LOG_STB_NUM) {
-      for (int32_t i = 0; i < TK_LOG_STB_NUM; ++i) {
-        tb_uid_t suid = metaGetTableEntryUidByName(pVnode->pMeta, tkLogStb[i]);
-        if (suid != 0) {
-          metaPutTbToFilterCache(pVnode, &suid, 0);
-        }
-      }
-      tbSize = metaSizeOfTbFilterCache(pVnode, 0);
-    }
+  int32_t      tbSize = 0;
+  int32_t      tbNum = 0;
+  const char **pTbArr = NULL;
+  const char  *dbName = NULL;
+
+  if (!(dbName = strchr(((SVnode *)pVnode)->config.dbname, '.'))) return 0;
+  if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
+    tbNum = TK_LOG_STB_NUM;
+    pTbArr = (const char **)&tkLogStb;
   } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN)) {
+    tbNum = TK_AUDIT_STB_NUM;
+    pTbArr = (const char **)&tkAuditStb;
+  }
+  if (tbNum && pTbArr) {
     tbSize = metaSizeOfTbFilterCache(pVnode, 0);
-    if (tbSize < TK_AUDIT_STB_NUM) {
-      for (int32_t i = 0; i < TK_AUDIT_STB_NUM; ++i) {
-        tb_uid_t suid = metaGetTableEntryUidByName(pVnode->pMeta, tkAuditStb[i]);
+    if (tbSize < tbNum) {
+      for (int32_t i = 0; i < tbNum; ++i) {
+        tb_uid_t suid = metaGetTableEntryUidByName(pVnode->pMeta, pTbArr[i]);
         if (suid != 0) {
           metaPutTbToFilterCache(pVnode, &suid, 0);
         }
@@ -625,18 +621,21 @@ static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
 }
 
 int32_t metaInitTbFilterCache(void *pVnode) {
-  char *dbName = strchr(pVnode->config.dbname, '.');
-  if (!dbName) return 0;
-  ++dbName;
-  if (0 == strncmp(dbName, "log", TSDB_DB_NAME_LEN)) {
-    for (int32_t i = 0; i < TK_LOG_STB_NUM; ++i) {
-      if (metaPutTbToFilterCache(pVnode, &tkLogStb[i], strlen(tkLogStb[i])) != 0) {
-        return terrno ? terrno : -1;
-      }
-    }
+  int32_t      tbNum = 0;
+  const char **pTbArr = NULL;
+  const char  *dbName = NULL;
+
+  if (!(dbName = strchr(((SVnode *)pVnode)->config.dbname, '.'))) return 0;
+  if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
+    tbNum = TK_LOG_STB_NUM;
+    pTbArr = (const char **)&tkLogStb;
   } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN)) {
-    for (int32_t i = 0; i < TK_AUDIT_STB_NUM; ++i) {
-      if (metaPutTbToFilterCache(pVnode, &tkLogStb[i], strlen(tkAuditStb[i])) != 0) {
+    tbNum = TK_AUDIT_STB_NUM;
+    pTbArr = (const char **)&tkAuditStb;
+  }
+  if (tbNum && pTbArr) {
+    for (int32_t i = 0; i < tbNum; ++i) {
+      if (metaPutTbToFilterCache(pVnode, &pTbArr[i], strlen(pTbArr[i])) != 0) {
         return terrno ? terrno : -1;
       }
     }
