@@ -206,6 +206,11 @@ typedef struct {
   bool        comp;
 } SMonCfg;
 
+typedef struct {
+  int8_t state;
+  tsem_t sem;
+} SDmNotifyHandle;
+
 int32_t monInit(const SMonCfg *pCfg);
 void    monCleanup();
 void    monRecordLog(int64_t ts, ELogLevel level, const char *content);

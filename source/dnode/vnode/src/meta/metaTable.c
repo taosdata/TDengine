@@ -15,7 +15,7 @@
 
 #include "meta.h"
 
-extern tsem_t dmNotifySem;
+extern SDmNotifyHandle dmNotifyHdl;
 
 static int  metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 static int  metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
@@ -198,7 +198,11 @@ static inline void metaTimeSeriesNotifyCheck(SMeta *pMeta) {
 #if defined(TD_ENTERPRISE) && !defined(_TD_DARWIN_64)
   int64_t nTimeSeries = metaGetTimeSeriesNum(pMeta, 0);
   int64_t deltaTS = nTimeSeries - pMeta->pVnode->config.vndStats.numOfReportedTimeSeries;
-  if (deltaTS > tsTimeSeriesThreshold) tsem_post(&dmNotifySem);
+  if (deltaTS > tsTimeSeriesThreshold) {
+    if (1 != atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 2)) {
+      tsem_post(&dmNotifyHdl.sem);
+    }
+  }
 #endif
 }
 
@@ -1066,7 +1070,7 @@ static int metaDeleteTtl(SMeta *pMeta, const SMetaEntry *pME) {
   return ttlMgrDeleteTtl(pMeta->pTtlMgr, &ctx);
 }
 
-static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid, char* stbName) {
+static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid) { //}, char* stbName) {
   void      *pData = NULL;
   int        nData = 0;
   int        rc = 0;

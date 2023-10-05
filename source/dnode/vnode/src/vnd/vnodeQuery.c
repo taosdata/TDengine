@@ -566,7 +566,8 @@ int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
 }
 
 #ifdef TD_ENTERPRISE
-#define TK_LOG_STB_NUM 20
+#define TK_LOG_STB_NUM   19
+#define TK_AUDIT_STB_NUM 1
 static const char *tkLogStb[TK_LOG_STB_NUM] = {"cluster_info",
                                                "data_dir",
                                                "dnodes_info",
@@ -585,24 +586,38 @@ static const char *tkLogStb[TK_LOG_STB_NUM] = {"cluster_info",
                                                "taosadapter_system_mem_percent",
                                                "temp_dir",
                                                "vgroups_info",
-                                               "vnodes_role",
-                                               "operations"};
+                                               "vnodes_role"};
+static const char *tkAuditStb[TK_AUDIT_STB_NUM] = {"operations"};
 
 // exclude stbs of taoskeeper log
 static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
   char *dbName = strchr(pVnode->config.dbname, '.');
-  if (!dbName || 0 != strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
+  if (!dbName) {
     return 0;
   }
-  int32_t tbSize = metaSizeOfTbFilterCache(pVnode, 0);
-  if (tbSize < TK_LOG_STB_NUM) {
-    for (int32_t i = 0; i < TK_LOG_STB_NUM; ++i) {
-      tb_uid_t suid = metaGetTableEntryUidByName(pVnode->pMeta, tkLogStb[i]);
-      if (suid != 0) {
-        metaPutTbToFilterCache(pVnode, &suid, 0);
-      }
-    }
+  int32_t tbSize = 0;
+  if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
     tbSize = metaSizeOfTbFilterCache(pVnode, 0);
+    if (tbSize < TK_LOG_STB_NUM) {
+      for (int32_t i = 0; i < TK_LOG_STB_NUM; ++i) {
+        tb_uid_t suid = metaGetTableEntryUidByName(pVnode->pMeta, tkLogStb[i]);
+        if (suid != 0) {
+          metaPutTbToFilterCache(pVnode, &suid, 0);
+        }
+      }
+      tbSize = metaSizeOfTbFilterCache(pVnode, 0);
+    }
+  } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN)) {
+    tbSize = metaSizeOfTbFilterCache(pVnode, 0);
+    if (tbSize < TK_AUDIT_STB_NUM) {
+      for (int32_t i = 0; i < TK_AUDIT_STB_NUM; ++i) {
+        tb_uid_t suid = metaGetTableEntryUidByName(pVnode->pMeta, tkAuditStb[i]);
+        if (suid != 0) {
+          metaPutTbToFilterCache(pVnode, &suid, 0);
+        }
+      }
+      tbSize = metaSizeOfTbFilterCache(pVnode, 0);
+    }
   }
 
   return tbSize;

@@ -53,21 +53,28 @@ static void *dmStatusThreadFp(void *param) {
   return NULL;
 }
 
-tsem_t       dmNotifySem;
-static void *dmNotifyThreadFp(void *param) {
+SDmNotifyHandle dmNotifyHdl = {.state = 0};
+static void    *dmNotifyThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-notify");
 
-  if (tsem_init(&dmNotifySem, 0, 0) != 0) {
+  if (tsem_init(&dmNotifyHdl.sem, 0, 0) != 0) {
     return NULL;
   }
 
   while (1) {
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
-    tsem_wait(&dmNotifySem);
+  _wait:
+    tsem_wait(&dmNotifyHdl.sem);
+  _send:
+    atomic_store_8(&dmNotifyHdl.state, 1);
     dmSendNotifyReq(pMgmt);
+    if (1 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 0)) {
+      goto _wait;
+    }
+    goto _send;
   }
 
   return NULL;
@@ -189,11 +196,11 @@ int32_t dmStartNotifyThread(SDnodeMgmt *pMgmt) {
 
 void dmStopNotifyThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->notifyThread)) {
-    tsem_post(&dmNotifySem);
+    tsem_post(&dmNotifyHdl.sem);
     taosThreadJoin(pMgmt->notifyThread, NULL);
     taosThreadClear(&pMgmt->notifyThread);
   }
-  tsem_destroy(&dmNotifySem);
+  tsem_destroy(&dmNotifyHdl.sem);
 }
 
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt) {
