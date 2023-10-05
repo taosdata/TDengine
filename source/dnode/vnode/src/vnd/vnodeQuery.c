@@ -624,14 +624,6 @@ static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
   return tbSize;
 }
 
-bool vnodeSkipTimeSeries(SVnode *pVnode, const char *stbName) {
-  char *dbName = strchr(pVnode->config.dbname, '.');
-  if (!dbName || 0 != strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
-    return 0;
-  }
-
-}
-
 int32_t metaInitTbFilterCache(void *pVnode) {
   char *dbName = strchr(pVnode->config.dbname, '.');
   if (!dbName) return 0;

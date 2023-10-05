@@ -89,7 +89,6 @@ int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num);
 int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num);
 int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num);
 int32_t vnodeGetAllCtbNum(SVnode *pVnode, int64_t *num);
-bool    vnodeSkipTimeSeries(SVnode *pVnode, const char *stbName);
 
 void    vnodeResetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
