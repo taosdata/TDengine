@@ -652,9 +652,9 @@ int32_t metaInitTbFilterCache(void *pVnode) {
 
   return 0;
 }
-#endif
-
+#else
 int32_t metaInitTbFilterCache(void *pVnode) { return 0; }
+#endif
 
 static bool vnodeTimeSeriesFilter(void *arg1, void *arg2) {
   SVnode *pVnode = (SVnode *)arg1;
@@ -674,9 +674,9 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
   }
 
   int32_t tbFilterSize = 0;
-  #ifdef TD_ENTERPRISE
+#ifdef TD_ENTERPRISE
   tbFilterSize = vnodeGetTimeSeriesBlackList(pVnode);
-  #endif
+#endif
 
   if ((!tbFilterSize && vnodeGetStbIdList(pVnode, 0, suidList) < 0) ||
       (tbFilterSize && vnodeGetStbIdListByFilter(pVnode, 0, suidList, vnodeTimeSeriesFilter, pVnode) < 0)) {
