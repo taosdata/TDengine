@@ -199,7 +199,7 @@ static inline void metaTimeSeriesNotifyCheck(SMeta *pMeta) {
   int64_t nTimeSeries = metaGetTimeSeriesNum(pMeta, 0);
   int64_t deltaTS = nTimeSeries - pMeta->pVnode->config.vndStats.numOfReportedTimeSeries;
   if (deltaTS > tsTimeSeriesThreshold) {
-    if (1 != atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 2)) {
+    if (0 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 2)) {
       tsem_post(&dmNotifyHdl.sem);
     }
   }

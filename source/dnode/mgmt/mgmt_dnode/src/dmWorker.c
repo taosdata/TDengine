@@ -56,25 +56,23 @@ static void *dmStatusThreadFp(void *param) {
 SDmNotifyHandle dmNotifyHdl = {.state = 0};
 static void    *dmNotifyThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
-  int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-notify");
 
   if (tsem_init(&dmNotifyHdl.sem, 0, 0) != 0) {
     return NULL;
   }
 
+  bool wait = true;
   while (1) {
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
-
-  _wait:
-    tsem_wait(&dmNotifyHdl.sem);
-  _send:
+    if (wait) tsem_wait(&dmNotifyHdl.sem);
     atomic_store_8(&dmNotifyHdl.state, 1);
     dmSendNotifyReq(pMgmt);
     if (1 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 0)) {
-      goto _wait;
+      wait = true;
+      continue;
     }
-    goto _send;
+    wait = false;
   }
 
   return NULL;
