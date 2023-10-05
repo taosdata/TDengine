@@ -396,10 +396,6 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   nStbEntry.stbEntry.schemaTag = pReq->schemaTag;
 
   int32_t deltaCol = pReq->schemaRow.nCols - oStbEntry.stbEntry.schemaRow.nCols;
-  bool    skipStatis = false;
-  if (deltaCol != 0) {
-
-  }
 
   metaWLock(pMeta);
   // compare two entry
@@ -415,7 +411,7 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
 
   // metaStatsCacheDrop(pMeta, nStbEntry.uid);
 
-  if (deltaCol != 0) {
+  if (deltaCol != 0 && !metaTbInFilterCache(pMeta->pVnode, pReq->name, 1)) {
     metaUpdateStbStats(pMeta, pReq->suid, 0, deltaCol);
   }
   metaULock(pMeta);
@@ -805,7 +801,7 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
 
     ++pStats->numOfCTables;
     
-    if (metaTbInFilterCache(pMeta->pVnode, pReq->ctb.stbName, 1)) {
+    if (!metaTbInFilterCache(pMeta->pVnode, pReq->ctb.stbName, 1)) {
       int32_t nCols = 0;
       metaGetStbStats(pMeta->pVnode, me.ctbEntry.suid, 0, &nCols);
       pStats->numOfTimeSeries += nCols - 1;
@@ -879,7 +875,7 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUi
 
   if (rc < 0) goto _exit;
 
-  if (type == TSDB_CHILD_TABLE && !sysTbl) {
+  if (!sysTbl && type == TSDB_CHILD_TABLE) {
     int32_t      nCols = 0;
     SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
     if (metaGetStbStats(pMeta->pVnode, suid, NULL, &nCols) == 0) {
