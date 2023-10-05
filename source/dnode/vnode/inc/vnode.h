@@ -136,6 +136,7 @@ int32_t  metaPutTbGroupToCache(void *pVnode, uint64_t suid, const void *pKey, in
 bool     metaTbInFilterCache(void *pVnode, void* key, int8_t type);
 int32_t  metaPutTbToFilterCache(void *pVnode, void* key, int8_t type);
 int32_t  metaSizeOfTbFilterCache(void *pVnode, int8_t type);
+int32_t  metaInitTbFilterCache(void *pVnode);
 
 int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t *numOfCols);
 

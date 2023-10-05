@@ -596,7 +596,8 @@ static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
     return 0;
   }
   int32_t tbSize = 0;
-  if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
+  ++dbName;
+  if (0 == strncmp(dbName, "log", TSDB_DB_NAME_LEN)) {
     tbSize = metaSizeOfTbFilterCache(pVnode, 0);
     if (tbSize < TK_LOG_STB_NUM) {
       for (int32_t i = 0; i < TK_LOG_STB_NUM; ++i) {
@@ -630,7 +631,30 @@ bool vnodeSkipTimeSeries(SVnode *pVnode, const char *stbName) {
   }
 
 }
+
+int32_t metaInitTbFilterCache(void *pVnode) {
+  char *dbName = strchr(pVnode->config.dbname, '.');
+  if (!dbName) return 0;
+  ++dbName;
+  if (0 == strncmp(dbName, "log", TSDB_DB_NAME_LEN)) {
+    for (int32_t i = 0; i < TK_LOG_STB_NUM; ++i) {
+      if (metaPutTbToFilterCache(pVnode, &tkLogStb[i], strlen(tkLogStb[i])) != 0) {
+        return terrno ? terrno : -1;
+      }
+    }
+  } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN)) {
+    for (int32_t i = 0; i < TK_AUDIT_STB_NUM; ++i) {
+      if (metaPutTbToFilterCache(pVnode, &tkLogStb[i], strlen(tkAuditStb[i])) != 0) {
+        return terrno ? terrno : -1;
+      }
+    }
+  }
+
+  return 0;
+}
 #endif
+
+int32_t metaInitTbFilterCache(void *pVnode) { return 0; }
 
 static bool vnodeTimeSeriesFilter(void *arg1, void *arg2) {
   SVnode *pVnode = (SVnode *)arg1;

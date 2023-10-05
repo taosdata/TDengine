@@ -179,9 +179,13 @@ int32_t metaCacheOpen(SMeta* pMeta) {
     goto _err2;
   }
 
-  pCache->STbFilterCache.pStbName = taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
+  pCache->STbFilterCache.pStbName =
+      taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
   if (pCache->STbFilterCache.pStbName == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err2;
+  }
+  if ((code = metaInitTbFilterCache(pMeta->pVnode)) != 0) {
     goto _err2;
   }
 
