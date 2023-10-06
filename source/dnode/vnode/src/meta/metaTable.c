@@ -396,6 +396,7 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   nStbEntry.stbEntry.schemaTag = pReq->schemaTag;
 
   int32_t deltaCol = pReq->schemaRow.nCols - oStbEntry.stbEntry.schemaRow.nCols;
+  bool    updStat = deltaCol != 0 && !metaTbInFilterCache(pMeta->pVnode, pReq->name, 1);
 
   metaWLock(pMeta);
   // compare two entry
@@ -411,15 +412,16 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
 
   // metaStatsCacheDrop(pMeta, nStbEntry.uid);
 
-  if (deltaCol != 0 && !metaTbInFilterCache(pMeta->pVnode, pReq->name, 1)) {
+  if (updStat) {
     metaUpdateStbStats(pMeta, pReq->suid, 0, deltaCol);
   }
   metaULock(pMeta);
 
-  if (deltaCol != 0) {
+  if (updStat) {
     int64_t ctbNum;
     metaGetStbStats(pMeta->pVnode, pReq->suid, &ctbNum, NULL);
     pMeta->pVnode->config.vndStats.numOfTimeSeries += (ctbNum * deltaCol);
+    metaTimeSeriesNotifyCheck(pMeta);
   }
 
 _exit:
@@ -828,7 +830,7 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
 
-  if(!sysTbl) metaTimeSeriesNotifyCheck(pMeta);
+  metaTimeSeriesNotifyCheck(pMeta);
 
   if (pMetaRsp) {
     *pMetaRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
