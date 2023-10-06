@@ -764,6 +764,8 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
   }
   metaReaderClear(&mr);
 
+  bool sysTbl = (pReq->type == TSDB_CHILD_TABLE) && metaTbInFilterCache(pMeta->pVnode, pReq->ctb.stbName, 1);
+
   // build SMetaEntry
   SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
   me.version = ver;
@@ -800,8 +802,8 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
 #endif
 
     ++pStats->numOfCTables;
-    
-    if (!metaTbInFilterCache(pMeta->pVnode, pReq->ctb.stbName, 1)) {
+
+    if (!sysTbl) {
       int32_t nCols = 0;
       metaGetStbStats(pMeta->pVnode, me.ctbEntry.suid, 0, &nCols);
       pStats->numOfTimeSeries += nCols - 1;
@@ -826,7 +828,7 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
 
-  metaTimeSeriesNotifyCheck(pMeta);
+  if(!sysTbl) metaTimeSeriesNotifyCheck(pMeta);
 
   if (pMetaRsp) {
     *pMetaRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));

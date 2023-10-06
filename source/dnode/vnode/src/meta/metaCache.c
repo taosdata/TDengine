@@ -14,6 +14,11 @@
  */
 #include "meta.h"
 
+#ifdef TD_ENTERPRISE
+extern const char* tkLogStb[];
+extern const char* tkAuditStb[];
+#endif
+
 #define TAG_FILTER_RES_KEY_LEN  32
 #define META_CACHE_BASE_BUCKET  1024
 #define META_CACHE_STATS_BUCKET 16
@@ -183,9 +188,6 @@ int32_t metaCacheOpen(SMeta* pMeta) {
       taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
   if (pCache->STbFilterCache.pStbName == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err2;
-  }
-  if ((code = metaInitTbFilterCache(pMeta->pVnode)) != 0) {
     goto _err2;
   }
 
@@ -905,7 +907,7 @@ int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid) {
   return TSDB_CODE_SUCCESS;
 }
 
-bool metaTbInFilterCache(void* pVnode,  void* key, int8_t type) {
+bool metaTbInFilterCache(void* pVnode,  const void* key, int8_t type) {
   SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
 
   if (type == 0 && taosHashGet(pMeta->pCache->STbFilterCache.pStb, key, sizeof(tb_uid_t))) {
@@ -919,7 +921,7 @@ bool metaTbInFilterCache(void* pVnode,  void* key, int8_t type) {
   return false;
 }
 
-int32_t metaPutTbToFilterCache(void* pVnode, void* key, int8_t type) {
+int32_t metaPutTbToFilterCache(void* pVnode, const void* key, int8_t type) {
   SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
 
   if (type == 0) {
@@ -938,5 +940,31 @@ int32_t metaSizeOfTbFilterCache(void* pVnode, int8_t type) {
   if (type == 0) {
     return taosHashGetSize(pMeta->pCache->STbFilterCache.pStb);
   }
+  return 0;
+}
+
+int32_t metaInitTbFilterCache(void* pVnode) {
+#ifdef TD_ENTERPRISE
+  int32_t      tbNum = 0;
+  const char** pTbArr = NULL;
+  const char*  dbName = NULL;
+
+  if (!(dbName = strchr(((SVnode*)pVnode)->config.dbname, '.'))) return 0;
+  if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
+    tbNum = TK_LOG_STB_NUM;
+    pTbArr = (const char**)&tkLogStb;
+  } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN)) {
+    tbNum = TK_AUDIT_STB_NUM;
+    pTbArr = (const char**)&tkAuditStb;
+  }
+  if (tbNum && pTbArr) {
+    for (int32_t i = 0; i < tbNum; ++i) {
+      if (metaPutTbToFilterCache(pVnode, pTbArr[i], 1) != 0) {
+        return terrno ? terrno : -1;
+      }
+    }
+  }
+#else
+#endif
   return 0;
 }

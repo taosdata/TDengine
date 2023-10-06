@@ -566,9 +566,7 @@ int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
 }
 
 #ifdef TD_ENTERPRISE
-#define TK_LOG_STB_NUM   19
-#define TK_AUDIT_STB_NUM 1
-static const char *tkLogStb[TK_LOG_STB_NUM] = {"cluster_info",
+const char *tkLogStb[TK_LOG_STB_NUM] = {"cluster_info",
                                                "data_dir",
                                                "dnodes_info",
                                                "d_info",
@@ -587,7 +585,7 @@ static const char *tkLogStb[TK_LOG_STB_NUM] = {"cluster_info",
                                                "temp_dir",
                                                "vgroups_info",
                                                "vnodes_role"};
-static const char *tkAuditStb[TK_AUDIT_STB_NUM] = {"operations"};
+const char *tkAuditStb[TK_AUDIT_STB_NUM] = {"operations"};
 
 // exclude stbs of taoskeeper log
 static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
@@ -619,32 +617,6 @@ static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
 
   return tbSize;
 }
-
-int32_t metaInitTbFilterCache(void *pVnode) {
-  int32_t      tbNum = 0;
-  const char **pTbArr = NULL;
-  const char  *dbName = NULL;
-
-  if (!(dbName = strchr(((SVnode *)pVnode)->config.dbname, '.'))) return 0;
-  if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
-    tbNum = TK_LOG_STB_NUM;
-    pTbArr = (const char **)&tkLogStb;
-  } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN)) {
-    tbNum = TK_AUDIT_STB_NUM;
-    pTbArr = (const char **)&tkAuditStb;
-  }
-  if (tbNum && pTbArr) {
-    for (int32_t i = 0; i < tbNum; ++i) {
-      if (metaPutTbToFilterCache(pVnode, &pTbArr[i], strlen(pTbArr[i])) != 0) {
-        return terrno ? terrno : -1;
-      }
-    }
-  }
-
-  return 0;
-}
-#else
-int32_t metaInitTbFilterCache(void *pVnode) { return 0; }
 #endif
 
 static bool vnodeTimeSeriesFilter(void *arg1, void *arg2) {
