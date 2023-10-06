@@ -16,7 +16,7 @@
 #include "streamInt.h"
 
 #define MAX_STREAM_EXEC_BATCH_NUM                 32
-#define MAX_SMOOTH_BURST_RATIO                    5     // 20 sec
+#define MAX_SMOOTH_BURST_RATIO                    5     // 5 sec
 #define WAIT_FOR_DURATION                         40
 
 // todo refactor:
