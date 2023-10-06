@@ -24,6 +24,7 @@ typedef struct STableSinkInfo {
   tstr     name;
 } STableSinkInfo;
 
+static bool hasOnlySubmitData(const SArray* pBlocks, int32_t numOfBlocks);
 static int32_t tsAscendingSortFn(const void* p1, const void* p2);
 static int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDataBlock, char* stbFullName,
                                   SSubmitTbData* pTableData);
@@ -744,6 +745,17 @@ int32_t setDstTableDataPayload(SStreamTask* pTask, int32_t blockIndex, SSDataBlo
   return code;
 }
 
+bool hasOnlySubmitData(const SArray* pBlocks, int32_t numOfBlocks) {
+  for(int32_t i = 0; i < numOfBlocks; ++i) {
+    SSDataBlock* p = taosArrayGet(pBlocks, i);
+    if (p->info.type == STREAM_DELETE_RESULT || p->info.type == STREAM_CREATE_CHILD_TABLE) {
+      return false;
+    }
+  }
+
+  return  true;
+}
+
 void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
   const SArray* pBlocks = (const SArray*)data;
   SVnode*       pVnode = (SVnode*)vnode;
@@ -755,19 +767,7 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
   int32_t       code = TSDB_CODE_SUCCESS;
   const char*   id = pTask->id.idStr;
 
-  if (pTask->execInfo.start == 0) {
-    pTask->execInfo.start = taosGetTimestampMs();
-  }
-
-  bool onlySubmitData = true;
-  for(int32_t i = 0; i < numOfBlocks; ++i) {
-    SSDataBlock* p = taosArrayGet(pBlocks, i);
-    if (p->info.type == STREAM_DELETE_RESULT || p->info.type == STREAM_CREATE_CHILD_TABLE) {
-      onlySubmitData = false;
-      break;
-    }
-  }
-
+  bool onlySubmitData = hasOnlySubmitData(pBlocks, numOfBlocks);
   if (!onlySubmitData) {
     tqDebug("vgId:%d, s-task:%s write %d stream resBlock(s) into table, has delete block, submit one-by-one", vgId, id,
             numOfBlocks);

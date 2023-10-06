@@ -602,8 +602,8 @@ typedef struct STaskStatusEntry {
   int64_t offset;       // only valid for source task
   double  inputQUsed;   // in MiB
   double  inputRate;
-  double  outputQUsed;  // in MiB
-  double  outputRate;
+  double  sinkQuota;    // existed quota size for sink task
+  double  sinkDataSize; // sink to dest data size
 } STaskStatusEntry;
 
 typedef struct SStreamHbMsg {

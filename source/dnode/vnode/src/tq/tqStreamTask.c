@@ -372,10 +372,7 @@ static bool doPutDataIntoInputQFromWal(SStreamTask* pTask, int64_t maxVer, int32
     SStreamQueueItem* pItem = NULL;
     int32_t code = extractMsgFromWal(pTask->exec.pWalReader, (void**)&pItem, maxVer, id);
 
-    if ((code != TSDB_CODE_SUCCESS || pItem == NULL)/* && (numOfItems + numOfNewItems == 0)*/) {  // failed, continue
-//      handleFillhistoryScanComplete(pTask, walReaderGetCurrentVer(pTask->exec.pWalReader));
-//      streamMetaReleaseTask(pMeta, pTask);
-//      taosThreadMutexUnlock(&pTask->lock);
+    if (code != TSDB_CODE_SUCCESS || pItem == NULL) {  // failed, continue
       break;
     }
 
@@ -459,7 +456,7 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     bool hasNewData = doPutDataIntoInputQFromWal(pTask, maxVer, &numOfItems);
     taosThreadMutexUnlock(&pTask->lock);
 
-    if (/*(code == TSDB_CODE_SUCCESS) || */(numOfItems > 0) || hasNewData) {
+    if ((numOfItems > 0) || hasNewData) {
       noDataInWal = false;
       code = streamSchedExec(pTask);
       if (code != TSDB_CODE_SUCCESS) {
