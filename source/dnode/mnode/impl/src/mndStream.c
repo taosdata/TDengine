@@ -1604,10 +1604,10 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 //        colDataSetVal(pColInfo, numOfRows, (const char*)vbuf, false);
 
         if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
-          const char* sinkStr = "Quota:%2.fMiB, SinkData:%.2fMiB";
+          const char* sinkStr = "SinkData:%.2fMiB";
           sprintf(buf, sinkStr, pe->sinkQuota, pe->sinkDataSize);
         } else if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-          // offset version info
+          // offset info
           const char *offsetStr = "%" PRId64 " [%" PRId64 ", %" PRId64 "]";
           sprintf(buf, offsetStr, pe->offset, pe->verStart, pe->verEnd);
         }
