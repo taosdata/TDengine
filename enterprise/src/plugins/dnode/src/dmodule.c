@@ -310,9 +310,6 @@ int32_t dmInitDndInfo(SDnodeData *pData) {
   if ((code = dmWriteVars(&eInfo)) != 0) goto _exit;
 
 _exit:
-  if (code != 0) {
-    assert(0);
-  }
   return code;
 #else
   return 0;
