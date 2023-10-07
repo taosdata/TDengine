@@ -733,6 +733,7 @@
         <el-button type="primary" @click="submit" :disabled="disable">{{
           $t("submit")
         }}</el-button>
+         <el-button type="primary" @click="checkTask">check</el-button>
       </section>
     </div>
     <div class="right-ui">
@@ -744,11 +745,18 @@
       />
     </div>
     <DialogCreateDb></DialogCreateDb>
+    <ResultDialog
+      :result="checkResult"
+      :loading="checkLoading"
+      :resultVisible="resultVisible"
+      :percentage="percentage"
+      @cancelModal="cancelModal"
+    ></ResultDialog>
   </div>
 </template>
 <script>
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
-import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
+import { AddSource, EditSource, getUaAndDaData, validateTask } from "@/api/explorer/datain";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import marked from "marked";
@@ -759,6 +767,7 @@ import PThreeCheckbox from "../components/pThreeCheckbox.vue";
 import MqttConnector from "../components/newMqttConnector.vue";
 import opcConnector from "../components/opcConnector.vue";
 import DialogCreateDb from "../components/addDbDialog.vue";
+import ResultDialog from "../components/resultDialog.vue"
 export default {
   name: "DbSourceUI",
   components: {
@@ -767,6 +776,7 @@ export default {
     opcConnector,
     CsvData,
     DialogCreateDb,
+    ResultDialog,
   },
   props: {
     echoData: {
@@ -874,6 +884,14 @@ export default {
         disabled: false,
       },
       policyDisabled: true,
+      resultVisible: false,
+      checkLoading: true,
+      percentage: 0,
+      checkResult: {
+        available: 'bool', // 数据源是否可用
+        version: '?string', // 返回数据源版本，不能获得版本则不返回该字段。
+        since: '?string'    // 如数据源不可用，则返回不可用的原因，否则，不返回该字段。
+      }
       // dbsource: [],
     };
   },
@@ -1159,8 +1177,63 @@ export default {
         this.dbprecision = res.data[0][0];
       }
     },
+    cancelModal() {
+      this.resultVisible = false
+    },
+    // 数据源可用性和版本检查
+    async checkTask() {
+      let commonDns = this.getCommonDns(false)
+      let dns = ''
+      try {
+        if (typeof commonDns == 'undefined') {
+          return
+        }
+        dns += commonDns
+        let params = {
+          from:
+            (this.tagName == "mqtt"
+              ? "mqtt"
+              : this.tagName == "csv"
+              ? "csv"
+              : this.tagName == "kafka"
+              ? "kafka"
+              : "opc" + this.protocol) + dns,
+        };
+        this.resultVisible = true
+        this.checkLoading = true
+        // let result = await validateTask(params)
 
-    async submit() {
+        this.timer = setInterval(() => {
+          if (this.percentage <100) {
+            this.percentage += 10
+          }
+          console.log('test-------');
+        }, 500);
+
+        setTimeout(() => {
+          this.checkResult = {
+            available: false,
+            version: 'v-1.2', 
+            since: '数据源可用，版本是 xxxx，当前系统支持此版本，您可以迁移您的数据到 TDengine 数据库。' 
+          }
+          this.checkLoading = false
+          clearInterval(this.timer)
+        }, 3000);
+        
+        
+        // console.log('check:',dns,result);
+      } catch (error) {
+        // this.checkLoading = false
+        // this.checkResult={
+        //   available: false,
+        //   version: 'v-1.2', 
+        //   since: '数据源不可用，请检查您的配置，确保所有内容都正确输入，并且您的网络正常' 
+        // }
+        console.log('err');
+      }
+    },
+
+    getCommonDns(isSubmit=false) {
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
@@ -1226,32 +1299,73 @@ export default {
         let reg = /\s+/g;
         dns = dns.replace(reg, "").trim();
         let querystr = "";
-        for (let index = 0; index < data.groups.length; index++) {
-          for (let g = 0; g < data.groups[index].params.length; g++) {
-            if (
-              Object.hasOwnProperty.call(
-                data.groups[index].params[g],
-                "required"
-              ) &&
-              (data.groups[index].params[g]["value"] == undefined ||
-                data.groups[index].params[g]["value"] == "")
-            ) {
-              if (this.tagName == "mqtt" || this.tagName == "kafka") {
-                if (data.groups[index].collapsed) {
+        if (isSubmit) {
+          console.log('zhixing',isSubmit);
+          for (let index = 0; index < data.groups.length; index++) {
+            for (let g = 0; g < data.groups[index].params.length; g++) {
+              if (
+                Object.hasOwnProperty.call(
+                  data.groups[index].params[g],
+                  "required"
+                ) &&
+                (data.groups[index].params[g]["value"] == undefined ||
+                  data.groups[index].params[g]["value"] == "")
+              ) {
+                if (this.tagName == "mqtt" || this.tagName == "kafka") {
+                  if (data.groups[index].collapsed) {
+                    if (
+                      this.tagName == "mqtt" &&
+                      this.mqttcafile.length > 0 &&
+                      this.mqttcertfile.length > 0 &&
+                      this.mqttcertkeyfile.length > 0
+                    ) {
+                      if (data.groups[index].params[g].name == "ca") {
+                        querystr += `&${data.groups[index].params[g].name}=@${this.mqttcafile[0].response[0]}`;
+                      }
+                      if (data.groups[index].params[g].name == "cert") {
+                        querystr += `&${data.groups[index].params[g].name}=@${this.mqttcertfile[0].response[0]}`;
+                      }
+                      if (data.groups[index].params[g].name == "cert_key") {
+                        querystr += `&${data.groups[index].params[g].name}=@${this.mqttcertkeyfile[0].response[0]}&`;
+                      }
+                    } else {
+                      Message({
+                        type: "warning",
+                        message:
+                          this.$t("datasource.msg") +
+                          ":" +
+                          `${data.groups[index].params[g].display} `,
+                      });
+                      return;
+                    }
+                  }
                   if (
-                    this.tagName == "mqtt" &&
-                    this.mqttcafile.length > 0 &&
-                    this.mqttcertfile.length > 0 &&
-                    this.mqttcertkeyfile.length > 0
+                    data.groups[index].params[g].name == "topics" &&
+                    this.tagName == "mqtt"
                   ) {
-                    if (data.groups[index].params[g].name == "ca") {
-                      querystr += `&${data.groups[index].params[g].name}=@${this.mqttcafile[0].response[0]}`;
-                    }
-                    if (data.groups[index].params[g].name == "cert") {
-                      querystr += `&${data.groups[index].params[g].name}=@${this.mqttcertfile[0].response[0]}`;
-                    }
-                    if (data.groups[index].params[g].name == "cert_key") {
-                      querystr += `&${data.groups[index].params[g].name}=@${this.mqttcertkeyfile[0].response[0]}&`;
+                    Message({
+                      type: "warning",
+                      message:
+                        this.$t("datasource.msg") +
+                        ":" +
+                        `${data.groups[index].params[g].display} `,
+                    });
+                    return;
+                  }
+                } else {
+                  if (this.tagName.includes("opc")) {
+                    if (this.opcPointavalible) {
+                      this.$refs.opcsingleton[0].submit();
+                      if (this.$refs.opcsingleton[0].isReject) {
+                        Message({
+                          type: "warning",
+                          message:
+                            this.$t("datasource.msg") +
+                            ":" +
+                            `${data.groups[index].params[g].display} `,
+                        });
+                        return;
+                      }
                     }
                   } else {
                     Message({
@@ -1264,114 +1378,73 @@ export default {
                     return;
                   }
                 }
-                if (
-                  data.groups[index].params[g].name == "topics" &&
-                  this.tagName == "mqtt"
-                ) {
-                  Message({
-                    type: "warning",
-                    message:
-                      this.$t("datasource.msg") +
-                      ":" +
-                      `${data.groups[index].params[g].display} `,
-                  });
-                  return;
-                }
               } else {
-                if (this.tagName.includes("opc")) {
-                  if (this.opcPointavalible) {
-                    this.$refs.opcsingleton[0].submit();
-                    if (this.$refs.opcsingleton[0].isReject) {
+                if (this.handleEmptyValue(data.groups[index].params[g].value)) {
+                  if (data.groups[index].params[g].name === "use_received_time") {
+                    if (data.groups[index].params[g].value !== 0) {
+                      let value = data.groups[index].params[g].value === 1;
+                      querystr +=
+                        `${data.groups[index].params[g].name}=${value}` + "&";
+                    }
+                  } else if (data.groups[index].params[g].name === "path") {
+                    if (!validPath(data.groups[index].params[g].value)) {
                       Message({
                         type: "warning",
                         message:
-                          this.$t("datasource.msg") +
+                          `${data.groups[index].params[g].display} ` +
                           ":" +
-                          `${data.groups[index].params[g].display} `,
+                          this.$t("formatWrong"),
                       });
                       return;
-                    }
-                  }
-                } else {
-                  Message({
-                    type: "warning",
-                    message:
-                      this.$t("datasource.msg") +
-                      ":" +
-                      `${data.groups[index].params[g].display} `,
-                  });
-                  return;
-                }
-              }
-            } else {
-              if (this.handleEmptyValue(data.groups[index].params[g].value)) {
-                if (data.groups[index].params[g].name === "use_received_time") {
-                  if (data.groups[index].params[g].value !== 0) {
-                    let value = data.groups[index].params[g].value === 1;
-                    querystr +=
-                      `${data.groups[index].params[g].name}=${value}` + "&";
-                  }
-                } else if (data.groups[index].params[g].name === "path") {
-                  if (!validPath(data.groups[index].params[g].value)) {
-                    Message({
-                      type: "warning",
-                      message:
-                        `${data.groups[index].params[g].display} ` +
-                        ":" +
-                        this.$t("formatWrong"),
-                    });
-                    return;
-                  } else {
-                    querystr +=
-                      `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
-                      "&";
-                  }
-                } else {
-                  if (this.tagName == "mqtt") {
-                    if (
-                      !Object.hasOwnProperty.call(
-                        data.groups[index],
-                        "collapsed"
-                      ) ||
-                      data.groups[index].collapsed
-                    ) {
+                    } else {
                       querystr +=
                         `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
                         "&";
                     }
                   } else {
-                    if (
-                      data.groups[index].params[g].name != "opc_table_config"
-                    ) {
+                    if (this.tagName == "mqtt") {
                       if (
-                        data.groups[index].params[g].name == "debug" ||
-                        data.groups[index].params[g].name == "use_csv_config" ||
-                        data.groups[index].params[g].name == "enable"
+                        !Object.hasOwnProperty.call(
+                          data.groups[index],
+                          "collapsed"
+                        ) ||
+                        data.groups[index].collapsed
                       ) {
-                        querystr +=
-                          `${data.groups[index].params[g].name}=${
-                            data.groups[index].params[g].value == 1
-                              ? true
-                              : false
-                          }` + "&";
-                      } else {
                         querystr +=
                           `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
                           "&";
                       }
+                    } else {
+                      if (
+                        data.groups[index].params[g].name != "opc_table_config"
+                      ) {
+                        if (
+                          data.groups[index].params[g].name == "debug" ||
+                          data.groups[index].params[g].name == "use_csv_config" ||
+                          data.groups[index].params[g].name == "enable"
+                        ) {
+                          querystr +=
+                            `${data.groups[index].params[g].name}=${
+                              data.groups[index].params[g].value == 1
+                                ? true
+                                : false
+                            }` + "&";
+                        } else {
+                          querystr +=
+                            `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
+                            "&";
+                        }
+                      }
+  
+                      // }
                     }
-
-                    // }
                   }
                 }
               }
             }
           }
         }
-        if (
-          data.authentication &&
-          data.authentication.value == "certificates"
-        ) {
+        if (data.authentication && data.authentication.value == "certificates") {
           for (
             let i = 0;
             i < data.authentication.alternatives[2].params.length;
@@ -1405,6 +1478,28 @@ export default {
             }
           }
         }
+        if (querystr) {
+          dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
+        }
+        console.log('dns',dns);
+        return dns
+      } catch (error) {
+        console.log('err',error);
+      }
+    },
+
+    async submit() {
+      let dns = "";
+      let id = localStorage.getItem("local_clusterID");
+      let data = this.dbsource[0];
+      let enterTip = this.$t("dataIn.enterTip");
+      try {
+        let commonDns = this.getCommonDns(true)
+        console.log('returen99:',typeof this.getCommonDns(true)== 'string',this.getCommonDns(true));
+        if (typeof commonDns == 'string') {
+          dns += commonDns
+        }
+        let querystr = ''
         if (data.datasets) {
           for (
             let index = 0;
