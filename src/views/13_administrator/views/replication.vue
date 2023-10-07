@@ -188,8 +188,8 @@ export default {
         };
         let res = await addReplicationData(id, params);
         console.log(res);
-        if (res?.code != 0) {
-          Message.error(res?.message);
+        if (_.has(res, "code") && _.has(res, "message") && res.code != 0) {
+          Message.error(res.message);
           return;
         }
         Message.success(this.$t('createSucc'));
@@ -198,7 +198,6 @@ export default {
       } catch (err) {
         console.error(err);
         Message.error(err?.message);
-        // return Promise.reject(err);
       }
     },
     edit(data) {
