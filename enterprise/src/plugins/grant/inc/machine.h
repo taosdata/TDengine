@@ -19,6 +19,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define GRANT_MACHINE_V3106 3106
+
 #ifdef GRANT_VALUE
 #define GRANT_VALUE_INT        atoi(GRANT_VALUE)
 #define GRANT_DEFAULT        (GRANT_VALUE_INT*86400)
@@ -29,6 +31,10 @@
 #define GRANT_CONN_NUM_DEFAULT     1
 #define GRANT_CONN_SPEED_DEFAULT   -1
 #define GRANT_CONN_EXPIRE_DEFAULT  14
+
+#define GRANT_CONN_NUM_UNDEF     INT32_MIN
+#define GRANT_CONN_SPEED_UNDEF   INT16_MIN
+#define GRANT_CONN_EXPIRE_UNDEF  0
 
 #if 1
 #define GRANT_TOLERENCE      86400  //86400
@@ -79,6 +85,7 @@
 #define GRANT_CONN_HASH_LEN            (GRANT_CONN_ACTIVE_RAW_LEN - GRANT_CONN_ACTIVE_ENCRYPT_LEN)
 #define GRANT_CONN_LIMITS              -1
 #define GRANT_CONN_EXPIRE_LIMITS       65535
+#define GRANT_CONN_ITEM_UNDEF(g)       ((g)->number == GRANT_CONN_NUM_UNDEF)
 
 #define GRANT_CUR_TIME                 ((tsDndStart + tsDndUpTime)/1000)
 #define GRANT_DIST_MIN                 1689552000  // 2023-07-17 08:00:00
@@ -222,11 +229,14 @@ typedef struct {
 
 char *grantGetMachineSerials();
 bool  grantGenActiveCode(SGrantObj *grant);
-bool  grantParseActiveCode(SGrantObj *grant);
+bool  grantParseActiveCode(SGrantObj *grant, char **ppKey);
 bool  grantConnGenActiveCode(SGrantConnObj *grant);
-bool  grantConnParseActiveCode(SGrantConnObj *grant);
+bool  grantConnParseActiveCode(SGrantConnObj *grant, char **ppKey);
 bool  grantCheckMachineCode(SGrantObj *grant);
 bool  grantCheckClusterId(SGrantObj *grant);
 void  grantActiveSystem(const char *cfgFile);
+
+int32_t grantSelectActiveCode(const char *old, const char *new, char *out);
+int32_t grantConnSelectActiveCode(const char *old, const char *new, char *out);
 
 #endif
