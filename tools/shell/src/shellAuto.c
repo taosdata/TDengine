@@ -66,6 +66,8 @@ SWords shellCommands[] = {
     {"alter dnode <dnode_id> \"debugFlag\" \"141\";", 0, 0, NULL},
     {"alter dnode <dnode_id> \"monitor\" \"0\";", 0, 0, NULL},
     {"alter dnode <dnode_id> \"monitor\" \"1\";", 0, 0, NULL},
+    {"alter dnode <dnode_id> \"asynclog\" \"0\";", 0, 0, NULL},
+    {"alter dnode <dnode_id> \"asynclog\" \"1\";", 0, 0, NULL},
     {"alter all dnodes \"resetlog\";", 0, 0, NULL},
     {"alter all dnodes \"debugFlag\" \"141\";", 0, 0, NULL},
     {"alter all dnodes \"monitor\" \"0\";", 0, 0, NULL},
@@ -77,6 +79,8 @@ SWords shellCommands[] = {
     {"alter local \"uDebugFlag\" \"143\";", 0, 0, NULL},
     {"alter local \"rpcDebugFlag\" \"143\";", 0, 0, NULL},
     {"alter local \"tmrDebugFlag\" \"143\";", 0, 0, NULL},
+    {"alter local \"asynclog\" \"0\";", 0, 0, NULL},
+    {"alter local \"asynclog\" \"1\";", 0, 0, NULL},
     {"alter topic", 0, 0, NULL},
     {"alter user <user_name> <user_actions> <anyword> ;", 0, 0, NULL},
     // 20
@@ -184,7 +188,7 @@ SWords shellCommands[] = {
     {"show grants;", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
     {"split vgroup ", 0, 0, NULL},
-#endif    
+#endif
     {"insert into <tb_name> values(", 0, 0, NULL},
     {"insert into <tb_name> using <stb_name> tags(", 0, 0, NULL},
     {"insert into <tb_name> using <stb_name> <anyword> values(", 0, 0, NULL},
@@ -391,13 +395,19 @@ void showHelp() {
     alter dnode <dnode_id> 'monitor' '0';\n\
     alter dnode <dnode_id> 'monitor' \"1\";\n\
     alter dnode <dnode_id> \"debugflag\" \"143\";\n\
+    alter dnode <dnode_id> 'asynclog' '0';\n\
+    alter dnode <dnode_id> 'asynclog' \"1\";\n\
     alter all dnodes \"monitor\" \"0\";\n\
     alter all dnodes \"monitor\" \"1\";\n\
     alter all dnodes \"resetlog\";\n\
     alter all dnodes \"debugFlag\" \n\
+    alter all dnodes \"asynclog\" \"0\";\n\
+    alter all dnodes \"asynclog\" \"1\";\n\
     alter table <tb_name> <tb_actions> ;\n\
     alter local \"resetlog\";\n\
     alter local \"DebugFlag\" \"143\";\n\
+    alter local \"asynclog\" \"0\";\n\
+    alter local \"asynclog\" \"1\";\n\
     alter topic\n\
     alter user <user_name> <user_actions> ...\n\
   ----- C ----- \n\
