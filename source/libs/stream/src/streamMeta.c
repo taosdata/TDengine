@@ -237,9 +237,11 @@ void* streamMetaGetBackendByTaskKey(SStreamMeta* pMeta, char* key, int64_t* ref)
     taosThreadMutexUnlock(&pMeta->backendMutex);
     return NULL;
   }
+
   *ref = taosAddRef(taskBackendWrapperId, pBackend);
 
   taosHashPut(pMeta->pTaskBackendUnique, key, strlen(key), &pBackend, sizeof(void*));
+  taosThreadMutexUnlock(&pMeta->backendMutex);
   return pBackend;
 }
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId, int64_t stage) {
