@@ -11,7 +11,7 @@ url = os.environ["TDENGINE_CLOUD_URL"]
 token = os.environ["TDENGINE_CLOUD_TOKEN"]
 
 try:
-    conn = taosrest.connect("%s?token=%s" % (url, token))
+    conn = taosws.connect("%s?token=%s" % (url, token))
 except Exception as e:
     print(str(e))
 # ANCHOR_END: connect
