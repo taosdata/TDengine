@@ -6,9 +6,9 @@
         (this.$parent.currentTaskStatus == 'running'&&!this.$parent.isCopyable) ? 'readable' : '',
       ]"
     >
-    <!-- <section>
+    <section>
       <DataTarget></DataTarget>
-    </section> -->
+    </section>
       <section class="header">
         <h1>{{ dbsource[0].name ? dbsource[0].name : "" }}</h1>
       </section>
@@ -794,7 +794,7 @@
   </div>
 </template>
 <script>
-// import DataTarget from './dataTarget.vue'
+import DataTarget from './dataTarget.vue'
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
 import DatePicker from "@/components/date-picker";
@@ -804,7 +804,7 @@ import { debounce, parsinginZone } from "@/utils/index";
 import DialogCreateDb from "../components/addDbDialog.vue";
 export default {
   name: "DbSourceUI",
-  components: { DatePicker, DialogCreateDb },
+  components: { DatePicker, DialogCreateDb,DataTarget },
   props: {
     // sourceName: {
     //   type: String,

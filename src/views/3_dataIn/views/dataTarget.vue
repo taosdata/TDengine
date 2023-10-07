@@ -34,7 +34,8 @@
       :visible.sync="showAgent"
       :destroy-on-close="true"
     >
-      <el-form
+    <AddAgent></AddAgent>
+      <!-- <el-form
         :model="ruleAgentForm"
         :rules="rulesAgent"
         ref="ruleForm"
@@ -66,7 +67,7 @@
             >{{ $t("confirm") }}</el-button
           >
         </el-col>
-      </el-row>
+      </el-row> -->
     </el-dialog>
   </div>
 </template>
@@ -75,11 +76,11 @@ import { getUIData } from "@/api/explorer/datain";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { getAgentsData, addNewAgent } from "@/api/explorer/agent";
 
-import Agents from "../components/agents.vue";
+import AddAgent from "../components/addAgent.vue";
 import { Message } from "element-ui";
 export default {
   name: "DataTarget",
-  components: { Agents },
+  components: { AddAgent },
   data() {
     return {
       dbTypes: [],

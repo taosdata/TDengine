@@ -8,6 +8,8 @@ let taosname = process.env.VUE_APP_CUS_NAME &&
 let agenturl=localStorage.getItem('agent_version')?localStorage.getItem('agent_version'):'latest'
 export default {
   //通用部分
+  generateToken: 'Generate Token',
+  configure: 'Configure',
   urlPart: '/docs-en',
   disbleagent: 'Disable agent',
   enableagent: 'Enable agent',
@@ -506,6 +508,8 @@ export default {
     renameColumn: 'Change column name'
   },
   dataIn: {
+    runAgent: 'Run Agent',
+    downloadInstall: 'Download/Install',
     dataSources:'Data Source',
     connector: "Connectors",
     connectorTip: `Use the programming language of your choice - The main way to get data in to TDengine  is <a href="https://docs.tdengine.com/develop/insert-data/sql-writing/#insert-using-sql " target="_blank">using SQL to insert</a> data`,

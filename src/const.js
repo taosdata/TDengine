@@ -11,6 +11,7 @@ export const BaseRoute = [
   "/landing",
   "/calculator"
 ];
+export const OfficialSite = window.navigator.language.includes('zh') ? 'https://taosdata.com' : 'https://tdengine.com';
 export const TDengineFnReverseGroup = ['CONCAT_WS'];
 // 不需要切换集群的路由
 export const NoInstanceSelectRoute = ["/billing", "/alert", "/activity", "/profile", "/support", "/user"];
