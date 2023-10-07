@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
+#include "libs/function/tudf.h"
 
 static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
   if (dmStartStatusThread(pMgmt) != 0) {

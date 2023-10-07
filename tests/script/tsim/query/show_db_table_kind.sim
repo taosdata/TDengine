@@ -94,4 +94,14 @@ print $rows
 if $rows != 5 then
   return -1
 endi
+sql show child db2.tables like '%'
+print $rows
+if $rows != 5 then
+  return -1
+endi
+sql show normal db2.tables like '%'
+print $rows
+if $rows != 0 then
+  return -1
+endi
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
