@@ -36,10 +36,10 @@ static int32_t doOutputResultBlockImpl(SStreamTask* pTask, SStreamDataBlock* pBl
   int32_t code = 0;
   int32_t type = pTask->outputInfo.type;
   if (type == TASK_OUTPUT__TABLE) {
-    pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, pBlock->blocks);
+    pTask->outputInfo.tbSink.tbSinkFunc(pTask, pTask->outputInfo.tbSink.vnode, pBlock->blocks);
     destroyStreamDataBlock(pBlock);
   } else if (type == TASK_OUTPUT__SMA) {
-    pTask->smaSink.smaSink(pTask->smaSink.vnode, pTask->smaSink.smaId, pBlock->blocks);
+    pTask->outputInfo.smaSink.smaSink(pTask->outputInfo.smaSink.vnode, pTask->outputInfo.smaSink.smaId, pBlock->blocks);
     destroyStreamDataBlock(pBlock);
   } else {
     ASSERT(type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH);
@@ -487,7 +487,7 @@ int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
     // agg task should dispatch trans-state msg to sink task, to flush all data to sink task.
     if (level == TASK_LEVEL__AGG || level == TASK_LEVEL__SOURCE) {
       pBlock->srcVgId = pTask->pMeta->vgId;
-      code = taosWriteQitem(pTask->outputInfo.queue->pQueue, pBlock);
+      code = taosWriteQitem(pTask->outputq.queue->pQueue, pBlock);
       if (code == 0) {
         streamDispatchStreamBlock(pTask);
       } else {
@@ -607,7 +607,7 @@ bool streamTaskIsIdle(const SStreamTask* pTask) {
           pTask->status.taskStatus == TASK_STATUS__DROPPING);
 }
 
-int32_t streamTryExec(SStreamTask* pTask) {
+int32_t streamExecTask(SStreamTask* pTask) {
   // this function may be executed by multi-threads, so status check is required.
   const char* id = pTask->id.idStr;
 
@@ -615,7 +615,7 @@ int32_t streamTryExec(SStreamTask* pTask) {
   if (schedStatus == TASK_SCHED_STATUS__WAITING) {
     while (1) {
       int32_t code = streamExecForAll(pTask);
-      if (code < 0) {  // todo this status shoudl be removed
+      if (code < 0) {  // todo this status should be removed
         atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__FAILED);
         return -1;
       }
@@ -663,7 +663,7 @@ int32_t streamTaskReloadState(SStreamTask* pTask) {
 }
 
 int32_t streamAlignTransferState(SStreamTask* pTask) {
-  int32_t numOfUpstream = taosArrayGetSize(pTask->pUpstreamInfoList);
+  int32_t numOfUpstream = taosArrayGetSize(pTask->upstreamInfo.pList);
   int32_t old = atomic_val_compare_exchange_32(&pTask->transferStateAlignCnt, 0, numOfUpstream);
   if (old == 0) {
     stDebug("s-task:%s set the transfer state aligncnt %d", pTask->id.idStr, numOfUpstream);

@@ -126,7 +126,7 @@ int32_t streamSchedExec(SStreamTask* pTask) {
     SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
     tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &msg);
   } else {
-    stDebug("s-task:%s not launch task since sched status:%d", pTask->id.idStr, pTask->status.schedStatus);
+    stTrace("s-task:%s not launch task since sched status:%d", pTask->id.idStr, pTask->status.schedStatus);
   }
 
   return 0;
@@ -239,8 +239,9 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
         status = TASK_INPUT_STATUS__BLOCKED;
       } else {
         // This task has received the checkpoint req from the upstream task, from which all the messages should be
-        // blocked
+        // blocked. Note that there is no race condition here.
         if (pReq->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+          atomic_add_fetch_32(&pTask->upstreamInfo.numOfClosed, 1);
           streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
           stDebug("s-task:%s close inputQ for upstream:0x%x, msgId:%d", id, pReq->upstreamTaskId, pReq->msgId);
         }
@@ -274,13 +275,6 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   return 0;
 }
 
-int32_t streamProcessRunReq(SStreamTask* pTask) {
-  if (streamTryExec(pTask) < 0) {
-    return -1;
-  }
-  return 0;
-}
-
 int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, SRpcMsg* pRsp) {
   streamTaskEnqueueRetrieve(pTask, pReq, pRsp);
   ASSERT(pTask->info.taskLevel != TASK_LEVEL__SINK);
@@ -291,15 +285,17 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, S
 void streamTaskInputFail(SStreamTask* pTask) { atomic_store_8(&pTask->inputInfo.status, TASK_INPUT_STATUS__FAILED); }
 
 void streamTaskOpenAllUpstreamInput(SStreamTask* pTask) {
-  int32_t num = taosArrayGetSize(pTask->pUpstreamInfoList);
+  int32_t num = taosArrayGetSize(pTask->upstreamInfo.pList);
   if (num == 0) {
     return;
   }
 
   for (int32_t i = 0; i < num; ++i) {
-    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->pUpstreamInfoList, i);
+    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
     pInfo->dataAllowed = true;
   }
+
+  pTask->upstreamInfo.numOfClosed = 0;
 }
 
 void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId) {
@@ -310,9 +306,9 @@ void streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId) {
 }
 
 SStreamChildEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t taskId) {
-  int32_t num = taosArrayGetSize(pTask->pUpstreamInfoList);
+  int32_t num = taosArrayGetSize(pTask->upstreamInfo.pList);
   for (int32_t i = 0; i < num; ++i) {
-    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->pUpstreamInfoList, i);
+    SStreamChildEpInfo* pInfo = taosArrayGetP(pTask->upstreamInfo.pList, i);
     if (pInfo->taskId == taskId) {
       return pInfo;
     }
