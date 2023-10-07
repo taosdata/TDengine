@@ -10,13 +10,9 @@ description: |
 type: uri
 options:
   endpoint:
-    display: Subscribe Endpoint
+    display: Topic DSN
     required: true
     description: |
-      DSN 连接字符串（示例：`ws://root:taosdata@127.0.0.1:6041/topic1`）。
-
-      格式为 `protocol://username:password@host:port/topic`。
-
       请登录 TDengine 云服务或打开企业版的 Explorer, 点击 Topics，你将看到 Topics 列表，复制 Topic 对应的 DSN 到这里即可。
     placeholder: "Topic 示例: ws://root:taosdata@127.0.0.1:6041/topic1"
 authentication:
