@@ -459,7 +459,7 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
 
     } else {
       stError("failed to start stream backend at %s, reason: %s, restart from default state dir:%s", chkp,
-             tstrerror(TAOS_SYSTEM_ERROR(errno)), state);
+              tstrerror(TAOS_SYSTEM_ERROR(errno)), state);
       taosMkDir(state);
     }
     taosMemoryFree(chkp);
@@ -813,6 +813,10 @@ int32_t chkpGetAllDbCfHandle(SStreamMeta* pMeta, rocksdb_column_family_handle_t*
   }
 
   int32_t nCf = taosArrayGetSize(pHandle);
+  if (nCf == 0) {
+    taosArrayDestroy(pHandle);
+    return nCf;
+  }
 
   rocksdb_column_family_handle_t** ppCf = taosMemoryCalloc(nCf, sizeof(rocksdb_column_family_handle_t*));
   for (int i = 0; i < nCf; i++) {
@@ -845,6 +849,9 @@ _ERROR:
   return code;
 }
 int32_t chkpPreFlushDb(rocksdb_t* db, rocksdb_column_family_handle_t** cf, int32_t nCf) {
+  if (nCf == 0) {
+    return 0;
+  }
   int   code = 0;
   char* err = NULL;
 
@@ -910,7 +917,7 @@ int32_t streamBackendTriggerChkp(void* arg, char* dst) {
       stError("stream backend:%p failed to do checkpoint at:%s", pHandle, dst);
     } else {
       stDebug("stream backend:%p end to do checkpoint at:%s, time cost:%" PRId64 "ms", pHandle, dst,
-             taosGetTimestampMs() - st);
+              taosGetTimestampMs() - st);
     }
   } else {
     stError("stream backend:%p failed to flush db at:%s", pHandle, dst);
@@ -979,15 +986,15 @@ int32_t streamBackendDoCheckpoint(void* arg, uint64_t checkpointId) {
   stDebug("stream backend:%p start to do checkpoint at:%s, cf num: %d ", pHandle, pChkpIdDir, nCf);
 
   code = chkpPreFlushDb(pHandle->db, ppCf, nCf);
-  if (code == 0) {
+  if (code == 0 && nCf != 0) {
     code = chkpDoDbCheckpoint(pHandle->db, pChkpIdDir);
     if (code != 0) {
       stError("stream backend:%p failed to do checkpoint at:%s", pHandle, pChkpIdDir);
     } else {
       stDebug("stream backend:%p end to do checkpoint at:%s, time cost:%" PRId64 "ms", pHandle, pChkpIdDir,
-             taosGetTimestampMs() - st);
+              taosGetTimestampMs() - st);
     }
-  } else {
+  } else if (nCf != 0) {
     stError("stream backend:%p failed to flush db at:%s", pHandle, pChkpIdDir);
   }
   // release all ref to cfWrapper;
@@ -1711,7 +1718,7 @@ void streamStateCloseBackend(SStreamState* pState, bool remove) {
 
   char* status[] = {"close", "drop"};
   stInfo("start to %s state %p on backendWrapper %p %s", status[remove == false ? 0 : 1], pState, wrapper,
-        wrapper->idstr);
+         wrapper->idstr);
   wrapper->remove |= remove;  // update by other pState
   taosReleaseRef(streamBackendCfWrapperId, pState->pTdbState->backendCfWrapperId);
 }
@@ -1783,35 +1790,36 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKe
                                     ((rocksdb_column_family_handle_t**)wrapper->pHandle)[idx]);
 }
 
-#define STREAM_STATE_PUT_ROCKSDB(pState, funcname, key, value, vLen)                                                   \
-  do {                                                                                                                 \
-    code = 0;                                                                                                          \
-    char  buf[128] = {0};                                                                                              \
-    char* err = NULL;                                                                                                  \
-    int   i = streamStateGetCfIdx(pState, funcname);                                                                   \
-    if (i < 0) {                                                                                                       \
-      stWarn("streamState failed to get cf name: %s", funcname);                                                        \
-      code = -1;                                                                                                       \
-      break;                                                                                                           \
-    }                                                                                                                  \
-    SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;                                                 \
-    char               toString[128] = {0};                                                                            \
-    if (qDebugFlag & DEBUG_TRACE) ginitDict[i].toStrFunc((void*)key, toString);                                        \
-    int32_t                         klen = ginitDict[i].enFunc((void*)key, buf);                                       \
-    rocksdb_column_family_handle_t* pHandle = ((rocksdb_column_family_handle_t**)wrapper->pHandle)[ginitDict[i].idx];  \
-    rocksdb_t*                      db = wrapper->rocksdb;                                                             \
-    rocksdb_writeoptions_t*         opts = wrapper->writeOpts;                                                         \
-    char*                           ttlV = NULL;                                                                       \
-    int32_t                         ttlVLen = ginitDict[i].enValueFunc((char*)value, vLen, 0, &ttlV);                  \
-    rocksdb_put_cf(db, opts, pHandle, (const char*)buf, klen, (const char*)ttlV, (size_t)ttlVLen, &err);               \
-    if (err != NULL) {                                                                                                 \
-      stError("streamState str: %s failed to write to %s, err: %s", toString, funcname, err);                           \
-      taosMemoryFree(err);                                                                                             \
-      code = -1;                                                                                                       \
-    } else {                                                                                                           \
-      stTrace("streamState str:%s succ to write to %s, rowValLen:%d, ttlValLen:%d", toString, funcname, vLen, ttlVLen); \
-    }                                                                                                                  \
-    taosMemoryFree(ttlV);                                                                                              \
+#define STREAM_STATE_PUT_ROCKSDB(pState, funcname, key, value, vLen)                                                  \
+  do {                                                                                                                \
+    code = 0;                                                                                                         \
+    char  buf[128] = {0};                                                                                             \
+    char* err = NULL;                                                                                                 \
+    int   i = streamStateGetCfIdx(pState, funcname);                                                                  \
+    if (i < 0) {                                                                                                      \
+      stWarn("streamState failed to get cf name: %s", funcname);                                                      \
+      code = -1;                                                                                                      \
+      break;                                                                                                          \
+    }                                                                                                                 \
+    SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;                                                \
+    char               toString[128] = {0};                                                                           \
+    if (qDebugFlag & DEBUG_TRACE) ginitDict[i].toStrFunc((void*)key, toString);                                       \
+    int32_t                         klen = ginitDict[i].enFunc((void*)key, buf);                                      \
+    rocksdb_column_family_handle_t* pHandle = ((rocksdb_column_family_handle_t**)wrapper->pHandle)[ginitDict[i].idx]; \
+    rocksdb_t*                      db = wrapper->rocksdb;                                                            \
+    rocksdb_writeoptions_t*         opts = wrapper->writeOpts;                                                        \
+    char*                           ttlV = NULL;                                                                      \
+    int32_t                         ttlVLen = ginitDict[i].enValueFunc((char*)value, vLen, 0, &ttlV);                 \
+    rocksdb_put_cf(db, opts, pHandle, (const char*)buf, klen, (const char*)ttlV, (size_t)ttlVLen, &err);              \
+    if (err != NULL) {                                                                                                \
+      stError("streamState str: %s failed to write to %s, err: %s", toString, funcname, err);                         \
+      taosMemoryFree(err);                                                                                            \
+      code = -1;                                                                                                      \
+    } else {                                                                                                          \
+      stTrace("streamState str:%s succ to write to %s, rowValLen:%d, ttlValLen:%d", toString, funcname, vLen,         \
+              ttlVLen);                                                                                               \
+    }                                                                                                                 \
+    taosMemoryFree(ttlV);                                                                                             \
   } while (0);
 
 #define STREAM_STATE_GET_ROCKSDB(pState, funcname, key, pVal, vLen)                                                   \
@@ -1821,7 +1829,7 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKe
     char* err = NULL;                                                                                                 \
     int   i = streamStateGetCfIdx(pState, funcname);                                                                  \
     if (i < 0) {                                                                                                      \
-      stWarn("streamState failed to get cf name: %s", funcname);                                                       \
+      stWarn("streamState failed to get cf name: %s", funcname);                                                      \
       code = -1;                                                                                                      \
       break;                                                                                                          \
     }                                                                                                                 \
@@ -1836,9 +1844,9 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKe
     char* val = rocksdb_get_cf(db, opts, pHandle, (const char*)buf, klen, (size_t*)&len, &err);                       \
     if (val == NULL || len == 0) {                                                                                    \
       if (err == NULL) {                                                                                              \
-        stTrace("streamState str: %s failed to read from %s_%s, err: not exist", toString, wrapper->idstr, funcname);  \
+        stTrace("streamState str: %s failed to read from %s_%s, err: not exist", toString, wrapper->idstr, funcname); \
       } else {                                                                                                        \
-        stError("streamState str: %s failed to read from %s_%s, err: %s", toString, wrapper->idstr, funcname, err);    \
+        stError("streamState str: %s failed to read from %s_%s, err: %s", toString, wrapper->idstr, funcname, err);   \
         taosMemoryFreeClear(err);                                                                                     \
       }                                                                                                               \
       code = -1;                                                                                                      \
@@ -1846,11 +1854,11 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKe
       char*   p = NULL;                                                                                               \
       int32_t tlen = ginitDict[i].deValueFunc(val, len, NULL, (char**)pVal);                                          \
       if (tlen <= 0) {                                                                                                \
-        stError("streamState str: %s failed to read from %s_%s, err: already ttl ", toString, wrapper->idstr,          \
-               funcname);                                                                                             \
+        stError("streamState str: %s failed to read from %s_%s, err: already ttl ", toString, wrapper->idstr,         \
+                funcname);                                                                                            \
         code = -1;                                                                                                    \
       } else {                                                                                                        \
-        stTrace("streamState str: %s succ to read from %s_%s, valLen:%d", toString, wrapper->idstr, funcname, tlen);   \
+        stTrace("streamState str: %s succ to read from %s_%s, valLen:%d", toString, wrapper->idstr, funcname, tlen);  \
       }                                                                                                               \
       taosMemoryFree(val);                                                                                            \
       if (vLen != NULL) *vLen = tlen;                                                                                 \
@@ -1864,7 +1872,7 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKe
     char* err = NULL;                                                                                                 \
     int   i = streamStateGetCfIdx(pState, funcname);                                                                  \
     if (i < 0) {                                                                                                      \
-      stWarn("streamState failed to get cf name: %s_%s", pState->pTdbState->idstr, funcname);                          \
+      stWarn("streamState failed to get cf name: %s_%s", pState->pTdbState->idstr, funcname);                         \
       code = -1;                                                                                                      \
       break;                                                                                                          \
     }                                                                                                                 \
@@ -1877,11 +1885,11 @@ rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfKe
     rocksdb_writeoptions_t*         opts = wrapper->writeOpts;                                                        \
     rocksdb_delete_cf(db, opts, pHandle, (const char*)buf, klen, &err);                                               \
     if (err != NULL) {                                                                                                \
-      stError("streamState str: %s failed to del from %s_%s, err: %s", toString, wrapper->idstr, funcname, err);       \
+      stError("streamState str: %s failed to del from %s_%s, err: %s", toString, wrapper->idstr, funcname, err);      \
       taosMemoryFree(err);                                                                                            \
       code = -1;                                                                                                      \
     } else {                                                                                                          \
-      stTrace("streamState str: %s succ to del from %s_%s", toString, wrapper->idstr, funcname);                       \
+      stTrace("streamState str: %s succ to del from %s_%s", toString, wrapper->idstr, funcname);                      \
     }                                                                                                                 \
   } while (0);
 
