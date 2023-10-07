@@ -19,8 +19,7 @@ class BuildTDengine:
         except FileNotFoundError as e:
             print(f"File not found: {e}")
     
-    def get_commit_id(self):
-        cmd = f"cd {self.path} && git rev-parse --short @ "
+    def get_cmd_output(self, cmd):        
         try:
             # Run the Bash command and capture the output
             result = subprocess.run(cmd, stdout=subprocess.PIPE, shell=True, text=True)
@@ -31,6 +30,3 @@ class BuildTDengine:
             return output.strip()
         except subprocess.CalledProcessError as e:
             print(f"Error running Bash command: {e}")
-    
-bd = BuildTDengine()
-print(bd.get_commit_id())
