@@ -4,6 +4,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -20,4 +21,5 @@ public class TaskConfig {
     private Set<String> metrics;
     private String beginTime;
     private String endTime;
+    private Map<String, Long> breakpoint;
 }
