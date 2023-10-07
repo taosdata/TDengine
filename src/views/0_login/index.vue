@@ -1,6 +1,6 @@
 <template>
   <div class="login">
-    
+
     <section class="content">
       <div class="article">
         <h1 style="font-size: 40px">{{ dataJson.welcome.title }}</h1>
@@ -22,13 +22,8 @@
         <div class="login-title">
           <span class="dynamic-title">{{ $t("systemTitle") }}</span>
         </div>
-        <el-form
-          :model="dynamicValidateForm"
-          ref="dynamicValidateForm"
-          :rules="formRules"
-          label-width="0px"
-          class="demo-dynamic"
-        >
+        <el-form :model="dynamicValidateForm" ref="dynamicValidateForm" :rules="formRules" label-width="0px"
+          class="demo-dynamic">
           <div style="margin-bottom: 20px">
             <p class="lable-form">
               <span>{{ $t("login.username") }}</span>
@@ -42,28 +37,20 @@
               <span>{{ $t("login.password") }}</span>
             </p>
             <el-form-item label prop="password">
-              <el-input
-                v-model="dynamicValidateForm.password"
-                type="password"
-              ></el-input>
+              <el-input v-model="dynamicValidateForm.password" type="password"></el-input>
             </el-form-item>
           </div>
 
           <el-form-item style="margin-bottom: 30px">
-            <el-button
-              type="primary"
-              @click="submitForm('dynamicValidateForm')"
-              class="signin"
-              v-loading="loading"
-              >{{ $t("login.signin") }}</el-button
-            >
+            <el-button type="primary" @click="submitForm('dynamicValidateForm')" class="signin" v-loading="loading">{{
+              $t("login.signin") }}</el-button>
           </el-form-item>
         </el-form>
       </div>
     </section>
-   
+
     <div class="copyright" v-if="!oemName">
-     
+
       <span>{{ $t("copyright") }}</span>
     </div>
   </div>
@@ -89,7 +76,7 @@ export default {
       if (value === "") {
         callback(new Error(this.$t("login.passwordTips")));
       } else {
-       
+
 
         callback();
       }
@@ -168,8 +155,8 @@ export default {
         "Basic " +
         DbBase64.encode(
           this.dynamicValidateForm.username +
-            ":" +
-            this.dynamicValidateForm.password
+          ":" +
+          this.dynamicValidateForm.password
         );
       this.$store.commit("app/SET_TOKEN", token);
       localStorage.setItem("username", this.dynamicValidateForm.username);
@@ -181,29 +168,27 @@ export default {
       });
       try {
         let sql = "select server_version()";
-        await fetchApiByCluster(
+        let res = await fetchApiByCluster(
           this.dynamicValidateForm.cluster,
           token,
           sql
-        ).catch(reason => {
-          Promise.reject(reason);
-        }).then((res) => {
-          if (res && res.code == 0 && !res.desc) {
-            localStorage.setItem("TDengine-Token", token);
-            this.getClusterID();
-            // this.$router.push({
-            //   path: "/explorer"
-            // });
-            this.getUserAuthority();
+        );
+
+        if (res && res.code == 0 && !res.desc) {
+          localStorage.setItem("TDengine-Token", token);
+          await this.getClusterID();
+          // this.$router.push({
+          //   path: "/explorer"
+          // });
+          await this.getUserAuthority();
+        } else {
+          this.loading = false;
+          if (res && res.code == 11) {
+            Message.error(this.$t("login.servTaosdTip"));
           } else {
-            this.loading = false;
-            if (res && res.code == 11) {
-              Message.error(this.$t("login.servTaosdTip"));
-              return;
-            }
             Message.error(res.desc || this.$t("login.errorTip"));
           }
-        });
+        }
       } catch (error) {
         Message.error(this.$t("login.servExceptionTip"));
         this.loading = false;
@@ -221,7 +206,7 @@ export default {
             this.dynamicValidateForm.cluster
           );
         }
-        if(res&&res.version){
+        if (res && res.version) {
           localStorage.setItem("agent_version", res.version);
         }
         if (res && res.dashboard) {
@@ -269,7 +254,7 @@ export default {
         });
       } catch (err) {
         this.loading = false;
-        
+
         if (err && err.code == 11) {
           Message.error(this.$t("login.servTaosdTip"));
           return;
@@ -282,7 +267,7 @@ export default {
     await this.getClusterAndDashboardUrl();
     localStorage.setItem("supportWebsite", this.dataJson.supportWebsite);
     localStorage.setItem("documentWebsite", this.dataJson.documentWebsite);
-    
+
   },
   mounted() {
     this.$nextTick(() => {
@@ -306,12 +291,14 @@ export default {
   flex-direction: column;
   overflow-y: auto;
   height: 100%;
+
   .lable-form {
     font-size: 16px;
     color: #4d6992;
     font-weight: 600;
     margin-bottom: 10px;
   }
+
   .header {
     display: none !important;
     width: 100%;
@@ -324,10 +311,12 @@ export default {
     background-image: url("https://cloud.tdengine.com/static/img/banner-bg.aedcb8e7.webp");
     background-repeat: no-repeat;
     background-size: cover;
+
     .dynamic-title {
       font-size: 28px;
       color: #fff;
     }
+
     .inside-header {
       display: none;
       justify-content: center;
@@ -339,21 +328,25 @@ export default {
       margin-left: auto;
       margin-right: auto;
       flex: 1;
+
       .site-logo {
         width: 200px;
         display: none;
       }
+
       .site-navigation {
         flex: auto;
         display: none;
         justify-content: end;
       }
+
       .main-navigation {
         display: flex;
         white-space: nowrap;
 
         #menu-menu {
           display: flex;
+
           .link a {
             font-size: 17.6px;
             font-weight: 300;
@@ -366,12 +359,14 @@ export default {
       }
     }
   }
+
   .content {
     display: flex;
     flex-direction: row;
     padding: 90px calc(50vw - 600px);
     justify-content: center;
     border: none;
+
     .article {
       padding: 15px;
       flex: 1.5;
@@ -381,36 +376,43 @@ export default {
       display: flex;
       flex-direction: column;
       align-items: center;
+
       article {
         margin-top: 20px;
       }
+
       p {
         margin-bottom: 10px;
         word-spacing: 4px;
       }
     }
+
     .login-content {
       width: 600px;
       height: 500px;
       padding: 70px 55px 55px 55px;
       box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.05);
+
       .dynamic-title {
         width: 500px;
         overflow: hidden;
         display: block;
         text-overflow: ellipsis;
       }
+
       .login-title {
         font-size: 28px;
         font-weight: 500;
         text-align: center;
         margin-bottom: 40px;
+
         span {
           font-size: 28px;
         }
       }
     }
   }
+
   // .plans {
   //   height: 500px;
   // }
@@ -419,9 +421,11 @@ export default {
     background: rgb(65, 138, 217);
     display: none;
     flex-direction: column;
+
     .footer-contract {
       display: flex;
       flex-direction: row;
+
       .inside {
         display: none !important;
         flex-direction: column;
@@ -433,23 +437,29 @@ export default {
         z-index: 1;
         position: relative;
         margin-top: 10px;
+
         .foot-top {
           display: flex;
+
           .left {
             width: 50%;
+
             .profile {
               color: #fff;
               margin-top: 10px;
             }
           }
+
           .right {
             width: 50%;
             display: flex;
             flex-direction: column;
             align-items: flex-end;
+
             .sales {
               display: flex;
               justify-content: flex-end;
+
               .button {
                 white-space: nowrap;
                 background-color: #fff;
@@ -470,6 +480,7 @@ export default {
                   opacity 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
               }
             }
+
             .social {
               text-align: right;
               margin-bottom: 1.5em;
@@ -481,6 +492,7 @@ export default {
               justify-content: flex-end;
               align-items: flex-start;
               clear: both;
+
               .social-btn {
                 display: inline-flex;
                 align-items: center;
@@ -499,6 +511,7 @@ export default {
             }
           }
         }
+
         .foot-bottom {
           display: flex;
           position: relative;
@@ -507,6 +520,7 @@ export default {
           justify-content: space-between;
           box-sizing: 30px;
           box-sizing: border-box;
+
           &::after {
             content: "";
             position: absolute;
@@ -517,9 +531,11 @@ export default {
             height: 2px;
             background: #fff;
           }
+
           .cp-left {
             color: #fff;
           }
+
           .cp-right {
             a {
               color: #fff;
@@ -530,6 +546,7 @@ export default {
       }
     }
   }
+
   .el-button.signin {
     color: #fff;
     background-color: #4259ce;
@@ -540,10 +557,12 @@ export default {
     font-size: 16px;
     margin-top: 25px;
   }
+
   .copyright {
     display: flex;
     justify-content: center;
     margin-bottom: 40px;
+
     span {
       color: #909399;
     }
