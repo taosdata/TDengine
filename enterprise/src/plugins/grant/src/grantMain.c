@@ -1036,18 +1036,19 @@ static void grantResetMaster(SMnode *pMnode) {
   grantRetrieveGrantInfo(pMnode);
 #ifndef GRANTS_CFG
   uint32_t curTime = taosGetTimestampMs() / 1000;
+  uint32_t grantCurTime = TMAX(curTime, GRANT_CUR_TIME);
   uint32_t clusterCreateTime = grantGetClusterCreateTime(pMnode);
 
   if (clusterCreateTime > 0) {
     if (grantClusterEpoch != clusterCreateTime) grantClusterEpoch = clusterCreateTime;
-    if (clusterCreateTime < curTime) {
+    if (clusterCreateTime < grantCurTime) {
       recheckClusterTime = false;
       grantStatus.expireTimeSec = clusterCreateTime + GRANT_DEFAULT;
       grantStatus.expireTimeSec += GRANT_TOLERENCE;
     } else {
       grantStatus.expireTimeSec = 0;
     }
-    if (grantStatus.expireTimeSec > curTime) grantStatus.expired = false;
+    if (grantStatus.expireTimeSec > grantCurTime) grantStatus.expired = false;
 
     char *ts = grantSecondsToString(grantStatus.expireTimeSec);
     uInfo("grant expire time reset to %s %u, current timeseries %" PRIu64, ts, grantStatus.expireTimeSec,
@@ -1463,25 +1464,26 @@ static void grantStatusCheck(SMnode *pMnode, uint32_t curTime, SDnodeInfo *pDnod
   grantStatusCheckImpl(pMnode);
   GrantStatus *pGrantStatus = &gStatus;
   char        *ts = grantSecondsToString(pGrantStatus->expireTimeSec);
-  if (pGrantStatus->expireTimeSec > curTime) {
+  uint32_t     grantCurTime = TMAX(curTime, GRANT_CUR_TIME);
+  if (pGrantStatus->expireTimeSec > grantCurTime) {
     if (pGrantStatus->expired) {
       pGrantStatus->expired = false;
       uInfo("grant message received from dnode:%d, storage:%uGB, timeseries:%" PRIu64
             ", database:%u, user:%u, expire:%s %u, curtime:%u, set to grant state",
             pDnodeInfo ? pDnodeInfo->id : -1, (uint32_t)(pGrantStatus->limitStorage / (int64_t)1073741824),
             pGrantStatus->limitTimeSeries, pGrantStatus->limitDbs, pGrantStatus->limitUsers, ts,
-            pGrantStatus->expireTimeSec, curTime);
+            pGrantStatus->expireTimeSec, grantCurTime);
     } else {
       uTrace("grant message received from dnode:%d, storage:%uGB, timeseries:%" PRIu64
              ", database:%u, user:%u, expire:%s %u, curtime:%u, already in grant state",
              pDnodeInfo ? pDnodeInfo->id : -1, (uint32_t)(pGrantStatus->limitStorage / (int64_t)1073741824),
              pGrantStatus->limitTimeSeries, pGrantStatus->limitDbs, pGrantStatus->limitUsers, ts,
-             pGrantStatus->expireTimeSec, curTime);
+             pGrantStatus->expireTimeSec, grantCurTime);
     }
   } else {
     pGrantStatus->expired = true;
     uError("grant cluster expired at %s %u, curtime: %u, set to un-grant state", ts, pGrantStatus->expireTimeSec,
-           curTime);
+           grantCurTime);
   }
   taosMemoryFree(ts);
 
