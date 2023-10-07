@@ -1590,7 +1590,9 @@ STaskBackendWrapper* taskBackendOpen(char* path, char* key) {
   char** cfNames = NULL;
   size_t nCf = 0;
 
-  if (0 != taskBackendBuildFullPath(path, key, &taskPath)) return NULL;
+  if (taskBackendBuildFullPath(path, key, &taskPath) != 0) {
+    return NULL;
+  }
 
   STaskBackendWrapper* pTaskBackend = taosMemoryCalloc(1, sizeof(STaskBackendWrapper));
   taskBackendInitOpt(pTaskBackend);
@@ -1607,18 +1609,19 @@ STaskBackendWrapper* taskBackendOpen(char* path, char* key) {
   cfNames = rocksdb_list_column_families(pTaskBackend->dbOpt, taskPath, &nCf, &err);
   ASSERT(err != NULL);
 
-  if (0 != taskBackendOpenCfs(pTaskBackend, taskPath, cfNames, nCf)) {
+  if (taskBackendOpenCfs(pTaskBackend, taskPath, cfNames, nCf) != 0) {
     goto _EXIT;
   }
 
-  taosThreadMutexInit(&pTaskBackend->mutex, NULL);
+  if (cfNames != NULL) {
+    rocksdb_list_column_families_destroy(cfNames, nCf);
+  }
 
   qDebug("succ to init stream backend at %s, backend:%p", taskPath, pTaskBackend);
   taosMemoryFree(taskPath);
 
-  if (cfNames != NULL) rocksdb_list_column_families_destroy(cfNames, nCf);
-
   pTaskBackend->idstr = taosStrdup(key);
+  taosThreadMutexInit(&pTaskBackend->mutex, NULL);
   return pTaskBackend;
 
 _EXIT:
@@ -1628,6 +1631,7 @@ _EXIT:
   if (cfNames != NULL) rocksdb_list_column_families_destroy(cfNames, nCf);
   return NULL;
 }
+
 void taskBackendDestroy(void* pBackend) {
   STaskBackendWrapper* wrapper = pBackend;
 
