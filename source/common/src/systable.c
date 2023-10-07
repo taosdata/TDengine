@@ -166,7 +166,7 @@ static const SSysDbTableSchema streamTaskSchema[] = {
     {.name = "stage", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "in_queue", .bytes = 20, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
 //    {.name = "out_queue", .bytes = 20, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "offset", .bytes = 25, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "info", .bytes = 25, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
 };
 
 static const SSysDbTableSchema userTblsSchema[] = {
