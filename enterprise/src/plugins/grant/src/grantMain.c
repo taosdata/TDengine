@@ -646,8 +646,8 @@ static void grantCheckClusterInfo(SMnode *pMnode) {
     uint32_t curTime = taosGetTimestampMs() / 1000;
     uint32_t clusterCreateTime = grantGetClusterCreateTime(pMnode);
     if (clusterCreateTime > 0) {
+      recheckClusterTime = false;
       if (grantClusterEpoch != clusterCreateTime) grantClusterEpoch = clusterCreateTime;
-      if (clusterCreateTime < curTime) recheckClusterTime = false;
     }
   }
 
@@ -1016,7 +1016,6 @@ int32_t mndUpdClusterInfo(SRpcMsg *pReq) {
 static void grantConnResetMaster(SMnode *pMnode) {
   uint32_t clusterCreateTime = grantGetClusterCreateTime(pMnode);
   if (clusterCreateTime > 0) {
-    recheckClusterTime = false;
     if (grantClusterEpoch != clusterCreateTime) grantClusterEpoch = clusterCreateTime;
     SGrantConnItem item = {.number = GRANT_CONN_NUM_DEFAULT,
                            .speed = GRANT_CONN_SPEED_DEFAULT,
@@ -1042,7 +1041,6 @@ static void grantResetMaster(SMnode *pMnode) {
   if (clusterCreateTime > 0) {
     if (grantClusterEpoch != clusterCreateTime) grantClusterEpoch = clusterCreateTime;
     if (clusterCreateTime < grantCurTime) {
-      recheckClusterTime = false;
       grantStatus.expireTimeSec = clusterCreateTime + GRANT_DEFAULT;
       grantStatus.expireTimeSec += GRANT_TOLERENCE;
     } else {
