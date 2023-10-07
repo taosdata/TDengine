@@ -3456,12 +3456,17 @@ static SSDataBlock* doStreamStateAgg(SOperatorInfo* pOperator) {
 
 void streamStateReleaseState(SOperatorInfo* pOperator) {
   SStreamStateAggOperatorInfo* pInfo = pOperator->info;
-  int32_t                      resSize = taosArrayGetSize(pInfo->historyWins) * sizeof(SSessionKey);
+  int32_t                      winSize = taosArrayGetSize(pInfo->historyWins) * sizeof(SSessionKey);
+  int32_t                      resSize = winSize + sizeof(TSKEY);
+  char*                        pBuff = taosMemoryCalloc(1, resSize);
+  memcpy(pBuff, pInfo->historyWins->pData, winSize);
+  memcpy(pBuff + winSize, &pInfo->twAggSup.maxTs, sizeof(TSKEY));
   qDebug("===stream=== relase state. save result count:%d", (int32_t)taosArrayGetSize(pInfo->historyWins));
   pInfo->streamAggSup.stateStore.streamStateSaveInfo(pInfo->streamAggSup.pState, STREAM_STATE_OP_STATE_NAME,
-                                                     strlen(STREAM_STATE_OP_STATE_NAME), pInfo->historyWins->pData,
-                                                     resSize);
+                                                     strlen(STREAM_STATE_OP_STATE_NAME), pBuff, resSize);
   pInfo->streamAggSup.stateStore.streamStateCommit(pInfo->streamAggSup.pState);
+  taosMemoryFreeClear(pBuff);
+
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   if (downstream->fpSet.releaseStreamStateFn) {
     downstream->fpSet.releaseStreamStateFn(downstream);
@@ -3507,10 +3512,15 @@ void streamStateReloadState(SOperatorInfo* pOperator) {
   void*       pBuf = NULL;
   int32_t     code = pAggSup->stateStore.streamStateGetInfo(pAggSup->pState, STREAM_STATE_OP_STATE_NAME,
                                                             strlen(STREAM_STATE_OP_STATE_NAME), &pBuf, &size);
-  int32_t     num = size / sizeof(SSessionKey);
+  int32_t     num = (size - sizeof(TSKEY)) / sizeof(SSessionKey);
   qDebug("===stream=== reload state. get result count:%d", num);
   SSessionKey* pSeKeyBuf = (SSessionKey*)pBuf;
-  ASSERT(size == num * sizeof(SSessionKey));
+  ASSERT(size == num * sizeof(SSessionKey) + sizeof(TSKEY));
+
+  TSKEY ts = *(TSKEY*)((char*)pBuf + size - sizeof(TSKEY));
+  pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, ts);
+  pAggSup->stateStore.streamStateReloadInfo(pAggSup->pState, ts);
+
   if (!pInfo->pSeUpdated && num > 0) {
     _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
     pInfo->pSeUpdated = tSimpleHashInit(64, hashFn);
