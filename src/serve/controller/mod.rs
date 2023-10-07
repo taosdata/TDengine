@@ -23,8 +23,8 @@ use serde_json::json;
 use sqlx::pool::PoolOptions;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
-use taosx_core::utils::{mask_dsn, try_mask_dsn};
 use taosx_core::utils::port_pool::PortPool;
+use taosx_core::utils::{mask_dsn, try_mask_dsn};
 use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
 use tokio::sync::OnceCell;
 use tokio::task::JoinHandle;
@@ -469,6 +469,11 @@ impl TaskController {
         MIGRATOR.run(&pool).await?;
         let scheduler = JobScheduler::new().await?;
         scheduler.start().await?;
+
+        // extra migrations
+        sqlx::query!("UPDATE agent_activities SET status = 'transferring' where status = 'busy'")
+            .execute(&pool)
+            .await?;
         let transferred = Transferred::new(pool.clone(), Duration::from_secs(10));
         Ok(Self {
             pool,
@@ -1681,7 +1686,7 @@ impl TaskController {
             "created",
             None,
         );
-        self.push_agent_activity(&activity).await?;
+        self.push_agent_activity(activity).await?;
         let secret = self.jwt_secret().await?;
         self.get_agent_by_id(id)
             .await
@@ -1727,11 +1732,13 @@ impl TaskController {
     }
 
     /// Update agent activities.
-    pub async fn push_agent_activity(&self, activity: &Activity) -> anyhow::Result<()> {
+    pub async fn push_agent_activity(&self, mut activity: Activity) -> anyhow::Result<()> {
         if activity.status == "pending" {
             self.agent_tasks.write().await.remove(&activity.id);
+        } else if activity.status == "busy" {
+            activity.status = "transferring".to_string();
         }
-        push_agent_activity(&self.pool, activity).await
+        push_agent_activity(&self.pool, &activity).await
     }
 
     pub async fn push_task_activity(&self, activity: &Activity) -> anyhow::Result<()> {
