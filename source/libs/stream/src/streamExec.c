@@ -621,7 +621,7 @@ int32_t streamExecTask(SStreamTask* pTask) {
       }
 
       taosThreadMutexLock(&pTask->lock);
-      if ((streamQueueGetNumOfItems(pTask->inputInfo.queue) > 0) || streamTaskShouldStop(&pTask->status) ||
+      if ((streamQueueGetNumOfItems(pTask->inputInfo.queue) == 0) || streamTaskShouldStop(&pTask->status) ||
           streamTaskShouldPause(&pTask->status)) {
         atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
         taosThreadMutexUnlock(&pTask->lock);
