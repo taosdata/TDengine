@@ -17,7 +17,7 @@
 
 // maximum allowed processed block batches. One block may include several submit blocks
 #define MAX_STREAM_EXEC_BATCH_NUM         32
-#define STREAM_RESULT_DUMP_THRESHOLD      100
+#define STREAM_RESULT_DUMP_THRESHOLD      300
 #define STREAM_RESULT_DUMP_SIZE_THRESHOLD (1048576 * 1)
 
 static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask);
