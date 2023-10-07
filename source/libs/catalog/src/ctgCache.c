@@ -1370,6 +1370,7 @@ int32_t ctgRemoveDBFromCache(SCatalog *pCtg, SCtgDBCache *dbCache, const char *d
 
   atomic_store_8(&dbCache->deleted, 1);
   ctgRemoveStbRent(pCtg, dbCache);
+  ctgRemoveViewRent(pCtg, dbCache);
   ctgFreeDbCache(dbCache);
 
   CTG_UNLOCK(CTG_WRITE, &dbCache->dbLock);
@@ -1582,6 +1583,7 @@ int32_t ctgWriteTbIndexToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNa
 }
 
 int32_t ctgWriteViewMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFName, char *viewName, SViewMeta *pMeta) {
+  int32_t code = TSDB_CODE_SUCCESS;
   if (NULL == dbCache->viewCache) {
     ctgWarn("db is dropping, dbId:0x%" PRIx64, dbCache->dbId);
     CTG_ERR_JRET(TSDB_CODE_CTG_DB_DROPPED);
@@ -1612,7 +1614,7 @@ int32_t ctgWriteViewMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFN
   CTG_LOCK(CTG_WRITE, &pCache->viewLock);
 
   if (pCache->pMeta) {
-    atomic_sub_fetch_64(&dbCache->dbCacheSize, ctgGetTbIndexCacheSize(pCache->pMeta));
+    atomic_sub_fetch_64(&dbCache->dbCacheSize, ctgGetViewMetaCacheSize(pCache->pMeta));
     taosMemoryFree(pCache->pMeta->querySql);
     taosMemoryFree(pCache->pMeta);
   }
@@ -1620,7 +1622,7 @@ int32_t ctgWriteViewMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFN
   pCache->pMeta = pMeta;
   CTG_UNLOCK(CTG_WRITE, &pCache->viewLock);
 
-  atomic_add_fetch_64(&dbCache->dbCacheSize, ctgGetTbIndexCacheSize(pMeta));
+  atomic_add_fetch_64(&dbCache->dbCacheSize, ctgGetViewMetaCacheSize(pMeta));
 
   pMeta = NULL;
 

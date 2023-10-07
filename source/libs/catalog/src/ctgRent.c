@@ -241,6 +241,25 @@ void ctgRemoveStbRent(SCatalog *pCtg, SCtgDBCache *dbCache) {
   }
 }
 
+void ctgRemoveViewRent(SCatalog *pCtg, SCtgDBCache *dbCache) {
+  if (NULL == dbCache->stbCache) {
+    return;
+  }
+
+  void *pIter = taosHashIterate(dbCache->viewCache, NULL);
+  while (pIter) {
+    uint64_t viewId = ((SCtgViewCache*)pIter)->pMeta->viewId;
+
+    if (TSDB_CODE_SUCCESS ==
+        ctgMetaRentRemove(&pCtg->viewRent, viewId, ctgViewVersionSortCompare, ctgViewVersionSearchCompare)) {
+      ctgDebug("view removed from rent, viewId:0x%" PRIx64, viewId);
+    }
+
+    pIter = taosHashIterate(dbCache->viewCache, pIter);
+  }
+}
+
+
 int32_t ctgUpdateRentStbVersion(SCatalog *pCtg, char *dbFName, char *tbName, uint64_t dbId, uint64_t suid,
                                 SCtgTbCache *pCache) {
   SSTableVersion metaRent = {.dbId = dbId, .suid = suid};

@@ -2005,6 +2005,7 @@ void ctgGetGlobalCacheSize(uint64_t *pSize) {
 }
 
 int32_t ctgBuildViewNullRes(SCtgTask* pTask, SCtgViewsCtx* pCtx) {
+  SCatalog* pCtg = pTask->pJob->pCtg;
   int32_t dbNum = taosArrayGetSize(pCtx->pNames);
   for (int32_t i = 0; i < dbNum; ++i) {
     STablesReq* pReq = taosArrayGet(pCtx->pNames, i);

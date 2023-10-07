@@ -77,7 +77,7 @@ int32_t mndProcessDropViewReq(SRpcMsg *pReq) {
 #endif
 }
 
-static int32_t mndProcessViewMetaReq(SRpcMsg *pReq) {
+int32_t mndProcessGetViewMetaReq(SRpcMsg *pReq) {
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
@@ -85,10 +85,10 @@ static int32_t mndProcessViewMetaReq(SRpcMsg *pReq) {
 
   if (tDeserializeSViewMetaReq(pReq->pCont, pReq->contLen, &req) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
+    return -1;
   }
 
-  return mndProcessTableMetaReqImpl(&req, pReq);
+  return mndProcessViewMetaReqImpl(&req, pReq);
 #endif  
 }
 

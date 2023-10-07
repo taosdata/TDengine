@@ -27,6 +27,8 @@ void    mndCleanupView(SMnode *pMnode);
 
 int32_t mndProcessCreateViewReq(SRpcMsg *pReq);
 int32_t mndProcessDropViewReq(SRpcMsg *pReq);
+int32_t mndProcessGetViewMetaReq(SRpcMsg *pReq);
+
 
 #ifdef TD_ENTERPRISE
 SViewObj *mndAcquireView(SMnode *pMnode, char *viewName);
@@ -40,6 +42,8 @@ int32_t mndViewActionUpdate(SSdb *pSdb, SViewObj *pOldView, SViewObj *pNewView);
 
 int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq);
 int32_t mndProcessDropViewReqImpl(SCMDropViewReq* pDropView, SRpcMsg *pReq);
+int32_t mndProcessViewMetaReqImpl(SViewMetaReq* pMetaReq, SRpcMsg *pReq);
+
 
 #endif
 

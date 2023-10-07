@@ -20,6 +20,30 @@
 #include "tref.h"
 #include "trpc.h"
 
+
+void ctgIsTaskDone(SCtgJob* pJob, CTG_TASK_TYPE type, bool* done) {
+  SCtgTask* pTask = NULL;
+
+  *done = true;
+  
+  CTG_LOCK(CTG_READ, &pJob->taskLock);
+
+  int32_t taskNum = taosArrayGetSize(pJob->pTasks);
+  for (int32_t i = 0; i < taskNum; ++i) {
+    pTask = taosArrayGet(pJob->pTasks, i);
+    if (type != pTask->type) {
+      continue;
+    }
+
+    if (pTask->status != CTG_TASK_DONE) {
+      *done = false;
+      break;
+    }
+  }
+
+  CTG_UNLOCK(CTG_READ, &pJob->taskLock);
+}
+
 int32_t ctgInitGetTbMetaTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
   SCtgTbMetaParam* pParam = (SCtgTbMetaParam*)param;
   SName*   name = pParam->pName;
@@ -1029,6 +1053,20 @@ int32_t ctgDumpSvrVer(SCtgTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
+
+int32_t ctgDumpViewsRes(SCtgTask* pTask) {
+  if (pTask->subTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SCtgJob* pJob = pTask->pJob;
+
+  pJob->jobRes.pView = pTask->res;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t ctgCallSubCb(SCtgTask* pTask) {
   int32_t code = 0;
 
@@ -1816,7 +1854,7 @@ int32_t ctgHandleGetViewsRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf*
 
   CTG_ERR_JRET(ctgProcessRspMsg(pMsgCtx->out, reqType, pMsg->pData, pMsg->len, rspCode, pMsgCtx->target));
 
-  SViewMetaRsp* pRsp = (SViewMetaRsp**)pMsgCtx->out;
+  SViewMetaRsp* pRsp = *(SViewMetaRsp**)pMsgCtx->out;
   SViewMeta*    pViewMeta = taosMemoryCalloc(1, sizeof(SViewMeta));
   if (NULL == pViewMeta) {
     CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
@@ -1827,6 +1865,8 @@ int32_t ctgHandleGetViewsRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf*
     taosMemoryFree(pViewMeta);
     CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
+  pViewMeta->version = pRsp->version;
+  pViewMeta->viewId = pRsp->viewId;
 
   ctgUpdateViewMetaToCache(pCtg, pRsp, false);
 
@@ -2680,29 +2720,6 @@ _return:
   CTG_UNLOCK(CTG_WRITE, &pSub->lock);
 
   CTG_RET(code);
-}
-
-void ctgIsTaskDone(SCtgJob* pJob, CTG_TASK_TYPE type, bool* done) {
-  SCtgTask* pTask = NULL;
-
-  *done = true;
-  
-  CTG_LOCK(CTG_READ, &pJob->taskLock);
-
-  int32_t taskNum = taosArrayGetSize(pJob->pTasks);
-  for (int32_t i = 0; i < taskNum; ++i) {
-    pTask = taosArrayGet(pJob->pTasks, i);
-    if (type != pTask->type) {
-      continue;
-    }
-
-    if (pTask->status != CTG_TASK_DONE) {
-      *done = false;
-      break;
-    }
-  }
-
-  CTG_UNLOCK(CTG_READ, &pJob->taskLock);
 }
 
 SCtgTask* ctgGetTask(SCtgJob* pJob, int32_t taskId) {
