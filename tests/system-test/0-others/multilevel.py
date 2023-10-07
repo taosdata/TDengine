@@ -216,7 +216,7 @@ class TDTestCase:
         tdDnodes.deploy(1,cfg)
         tdDnodes.start(1)
 
-        tdSql.execute('create database dbtest')
+        tdSql.execute('create database dbtest duration 3')
         tdSql.execute('use dbtest')
         tdSql.execute('create table stb (ts timestamp,c0 int) tags(t0 int)')
         tdSql.execute('create table tb1 using stb tags(1)')
