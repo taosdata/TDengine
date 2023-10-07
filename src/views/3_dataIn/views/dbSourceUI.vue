@@ -1653,6 +1653,7 @@ export default {
       };
       let result = await getUaAndDaData(obj)
       this.btnLoading=false
+      console.log(result,'kkkk');
       if(result&&result.message){
         Message.error(result.message)
         return

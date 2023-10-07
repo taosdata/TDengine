@@ -328,3 +328,11 @@ export function getBrowserLang() {
   if (browserLang.includes('en')) return 'en';
   return 'zh';
 }
+
+// 根据图表轴的数据判断轴的类型
+export function getAxisType(data) {
+  if (!data) return 'category';
+  if (!isNaN(data)) return 'value';
+  if (new Date(data).toString() != 'Invalid Date') return 'time';
+  return 'category';
+}
