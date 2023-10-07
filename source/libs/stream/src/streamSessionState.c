@@ -500,6 +500,7 @@ int32_t getStateWinResultBuff(SStreamFileState* pFileState, SSessionKey* key, ch
     } else {
       (*pVal) = addNewSessionWindow(pFileState, pWinStates, key);
       code = TSDB_CODE_FAILED;
+      taosMemoryFree(p);
     }
     goto _end;
   }
