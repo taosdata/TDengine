@@ -16,38 +16,7 @@ With the TDengine Java connector, Seeq effortlessly supports querying time serie
 
 Please download Seeq Server and Seeq Data Lab software installation package from the [Seeq official website](https://www.seeq.com/customer-download).
 
-### Install and start Seeq Server
-
-```
-tar xvzf seeq-server-xxx.tar.gz
-cd seeq-server-installer
-sudo ./install
-
-sudo seeq service enable
-sudo seeq start
-```
-
-### Install and start Seeq Data Lab Server
-
-Seeq Data Lab needs to be installed on a separate server from Seeq Server and connected to Seeq Server through configuration. For detailed installation and configuration instructions, please refer to [the official documentation](https://support.seeq.com/space/KB/1034059842).
-
-```
-tar xvf seeq-data-lab-<version>-64bit-linux.tar.gz
-sudo seeq-data-lab-installer/install -f /opt/seeq/seeq-data-lab -g /var/opt/seeq -u seeq
-sudo seeq config set Network/DataLab/Hostname localhost
-sudo seeq config set Network/DataLab/Port 34231 # the port of the Data Lab server (usually 34231)
-sudo seeq config set Network/Hostname <value> # the host IP or URL of the main Seeq Server
-
-# If the main Seeq server is configured to listen over HTTPS
-sudo seeq config set Network/Webserver/SecurePort 443 # the secure port of the main Seeq Server (usually 443)
-
-# If the main Seeq server is NOT configured to listen over HTTPS
-sudo seeq config set Network/Webserver/Port <value>
-
-#On the main Seeq server, open a Seeq Command Prompt and set the hostname of the Data Lab server:
-sudo seeq config set Network/DataLab/Hostname <value> # the host IP (not URL) of the Data Lab server
-sudo seeq config set Network/DataLab/Port 34231 # the port of the Data Lab server (usually 34231
-```
+Please refer to [the Knowledge Base](https://support.seeq.com/kb/latest/cloud/) for Seeq installation and configuration.
 
 ### Install TDengine on-premise instance
 
