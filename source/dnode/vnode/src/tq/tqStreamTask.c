@@ -311,7 +311,6 @@ bool handleFillhistoryScanComplete(SStreamTask* pTask, int64_t ver) {
       double el = (taosGetTimestampMs() - pTask->execInfo.step2Start) / 1000.0;
       qDebug("s-task:%s scan-history from WAL stage(step 2) ended, elapsed time:%.2fs", id, el);
       /*int32_t code = */streamTaskPutTranstateIntoInputQ(pTask);
-//      /*int32_t code = */streamSchedExec(pTask);
       return true;
     } else {
       qWarn("s-task:%s fill-history scan WAL, nextProcessVer:%" PRId64 " out of the maximum ver:%" PRId64 ", not scan wal",
@@ -390,6 +389,7 @@ static bool doPutDataIntoInputQFromWal(SStreamTask* pTask, int64_t maxVer, int32
         }
       } else {
         tqError("s-task:%s append input queue failed, code: too many items, ver:%" PRId64, id, pTask->chkInfo.nextProcessVer);
+        break;
       }
     }
   }

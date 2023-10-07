@@ -891,7 +891,7 @@ void metaHbToMnode(void* param, void* tmrId) {
 
     entry.inputRate = entry.inputQUsed*100.0/STREAM_TASK_QUEUE_CAPACITY_IN_SIZE;
     if ((*pTask)->info.taskLevel == TASK_LEVEL__SINK) {
-      entry.sinkQuota = (*pTask)->pTokenBucket->bytesRate;
+      entry.sinkQuota = (*pTask)->pTokenBucket->quotaRate;
       entry.sinkDataSize = SIZE_IN_MiB((*pTask)->execInfo.sink.dataSize);
     }
 
