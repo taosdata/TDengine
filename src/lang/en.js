@@ -1149,6 +1149,11 @@ export default {
     // opc_alias:'Alias',
     // opc_type:'Type',
     restarttask:'Please restart the task',
+    metricTips:{
+      running:'Metrics are being collected,please wait...',
+      completed:'No metrics information was collected. If necessary, please rerun this task',
+      stopped:'The task has been stopped and no metrics information has been received yet. If necessary,please rerun this task'
+    },
     csvconfigtip:'Please configure csv information',
     csvwholeinfo:'Please fill in the complete csv information(Primary Key,Tag,Coloumn,Column Type)',
     customcolname:'Custom Columns',

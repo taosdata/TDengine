@@ -919,6 +919,11 @@ export default {
 
   datasource: {
     restarttask:'请重启任务',
+    metricTips:{
+      running:'Metrics正在收集中，请等待 ...',
+      completed:'没有收集到Metrics信息，如有需要，请重新运行此任务',
+      stopped:' 任务已被停止，暂未收到Metrics信息，如有需要，请重新运行此任务'
+    },
     csvconfigtip:'请配置csv信息',
     csvwholeinfo:'请填写完整的csv配置信息（主键，tag，列和列类型）',
     customcolname:'自定义列',
