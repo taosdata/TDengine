@@ -98,9 +98,6 @@ typedef struct SQueryNode         SQueryNode;
 #define VND_INFO_FNAME     "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
-#define TK_LOG_STB_NUM   19
-#define TK_AUDIT_STB_NUM 1
-
 // vnd.h
 typedef int32_t (*_query_reseek_func_t)(void* pQHandle);
 struct SQueryNode {

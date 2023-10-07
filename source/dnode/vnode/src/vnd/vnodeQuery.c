@@ -566,26 +566,28 @@ int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
 }
 
 #ifdef TD_ENTERPRISE
-const char *tkLogStb[TK_LOG_STB_NUM] = {"cluster_info",
-                                               "data_dir",
-                                               "dnodes_info",
-                                               "d_info",
-                                               "grants_info",
-                                               "keeper_monitor",
-                                               "logs",
-                                               "log_dir",
-                                               "log_summary",
-                                               "m_info",
-                                               "taosadapter_restful_http_request_fail",
-                                               "taosadapter_restful_http_request_in_flight",
-                                               "taosadapter_restful_http_request_summary_milliseconds",
-                                               "taosadapter_restful_http_request_total",
-                                               "taosadapter_system_cpu_percent",
-                                               "taosadapter_system_mem_percent",
-                                               "temp_dir",
-                                               "vgroups_info",
-                                               "vnodes_role"};
-const char *tkAuditStb[TK_AUDIT_STB_NUM] = {"operations"};
+const char *tkLogStb[] = {"cluster_info",
+                          "data_dir",
+                          "dnodes_info",
+                          "d_info",
+                          "grants_info",
+                          "keeper_monitor",
+                          "logs",
+                          "log_dir",
+                          "log_summary",
+                          "m_info",
+                          "taosadapter_restful_http_request_fail",
+                          "taosadapter_restful_http_request_in_flight",
+                          "taosadapter_restful_http_request_summary_milliseconds",
+                          "taosadapter_restful_http_request_total",
+                          "taosadapter_system_cpu_percent",
+                          "taosadapter_system_mem_percent",
+                          "temp_dir",
+                          "vgroups_info",
+                          "vnodes_role"};
+const char *tkAuditStb[] = {"operations"};
+const int   tkLogStbNum = ARRAY_SIZE(tkLogStb);
+const int   tkAuditStbNum = ARRAY_SIZE(tkAuditStb);
 
 // exclude stbs of taoskeeper log
 static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
@@ -596,10 +598,10 @@ static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
 
   if (!(dbName = strchr(pVnode->config.dbname, '.'))) return 0;
   if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
-    tbNum = TK_LOG_STB_NUM;
+    tbNum = tkLogStbNum;
     pTbArr = (const char **)&tkLogStb;
   } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN)) {
-    tbNum = TK_AUDIT_STB_NUM;
+    tbNum = tkAuditStbNum;
     pTbArr = (const char **)&tkAuditStb;
   }
   if (tbNum && pTbArr) {

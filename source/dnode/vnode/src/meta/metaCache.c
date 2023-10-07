@@ -17,6 +17,8 @@
 #ifdef TD_ENTERPRISE
 extern const char* tkLogStb[];
 extern const char* tkAuditStb[];
+extern const int   tkLogStbNum;
+extern const int   tkAuditStbNum;
 #endif
 
 #define TAG_FILTER_RES_KEY_LEN  32
@@ -946,10 +948,10 @@ int32_t metaInitTbFilterCache(SMeta* pMeta) {
 
   if (!(dbName = strchr(pMeta->pVnode->config.dbname, '.'))) return 0;
   if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
-    tbNum = TK_LOG_STB_NUM;
+    tbNum = tkLogStbNum;
     pTbArr = (const char**)&tkLogStb;
   } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN)) {
-    tbNum = TK_AUDIT_STB_NUM;
+    tbNum = tkAuditStbNum;
     pTbArr = (const char**)&tkAuditStb;
   }
   if (tbNum && pTbArr) {
