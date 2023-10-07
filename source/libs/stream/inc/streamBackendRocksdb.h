@@ -66,6 +66,13 @@ typedef struct {
   TdThreadMutex                      mutex;
   char*                              idstr;
   int64_t                            refId;
+  char*                              path;
+
+  int64_t        chkpId;
+  SArray*        chkpSaved;
+  SArray*        chkpInUse;
+  int32_t        chkpCap;
+  TdThreadRwlock chkpDirLock;
 
 } STaskBackendWrapper;
 

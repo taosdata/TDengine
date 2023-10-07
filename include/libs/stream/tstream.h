@@ -419,9 +419,9 @@ typedef struct SStreamMeta {
   int64_t       rid;
 
   int64_t  chkpId;
+  int32_t  chkpCap;
   SArray*  chkpSaved;
   SArray*  chkpInUse;
-  int32_t  chkpCap;
   SRWLatch chkpDirLock;
   int32_t  pauseTaskNum;
 
