@@ -287,7 +287,7 @@ export default {
         this.isEditable = true;
         this.dbName = dbname;
         this.getData();
-        if (id === "tmq" || id === "taos") {
+        if (id === "taos") {
           if (!this.uidata[0].protocol.value) {
             this.uidata[0].protocol.value =
               this.uidata[0].protocol.choices.filter((item) => {
