@@ -1053,68 +1053,7 @@ _EXIT:
   taosReleaseRef(taskBackendWrapperId, refId);
   return -1;
 }
-int32_t streamBackendDoCheckpoint(void* arg, uint64_t checkpointId) {
-  return 0;
-  //   SStreamMeta* pMeta = arg;
-  //   int64_t      backendRid = pMeta->streamBackendRid;
-  //   int64_t      st = taosGetTimestampMs();
-  //   int32_t      code = -1;
-
-  //   SArray* refs = taosArrayInit(16, sizeof(int64_t));
-
-  //   rocksdb_column_family_handle_t** ppCf = NULL;
-
-  //   char* pChkpDir = NULL;
-  //   char* pChkpIdDir = NULL;
-  //   if (chkpPreCheckDir(pMeta->path, checkpointId, &pChkpDir, &pChkpIdDir) != 0) {
-  //     taosArrayDestroy(refs);
-  //     return code;
-  //   }
-
-  //   SBackendWrapper* pHandle = taosAcquireRef(streamBackendId, backendRid);
-  //   if (pHandle == NULL || pHandle->db == NULL) {
-  //     goto _ERROR;
-  //   }
-
-  //   // Get all cf and acquire cfWrappter
-  //   int32_t nCf = chkpGetAllDbCfHandle(pMeta, &ppCf, refs);
-  //   qDebug("stream backend:%p start to do checkpoint at:%s, cf num: %d ", pHandle, pChkpIdDir, nCf);
-
-  //   code = chkpPreFlushDb(pHandle->db, ppCf, nCf);
-  //   if (code == 0) {
-  //     code = chkpDoDbCheckpoint(pHandle->db, pChkpIdDir);
-  //     if (code != 0) {
-  //       qError("stream backend:%p failed to do checkpoint at:%s", pHandle, pChkpIdDir);
-  //     } else {
-  //       qDebug("stream backend:%p end to do checkpoint at:%s, time cost:%" PRId64 "ms", pHandle, pChkpIdDir,
-  //              taosGetTimestampMs() - st);
-  //     }
-  //   } else {
-  //     qError("stream backend:%p failed to flush db at:%s", pHandle, pChkpIdDir);
-  //   }
-  //   // release all ref to cfWrapper;
-  //   for (int i = 0; i < taosArrayGetSize(refs); i++) {
-  //     int64_t id = *(int64_t*)taosArrayGet(refs, i);
-  //     taosReleaseRef(streamBackendCfWrapperId, id);
-  //   }
-  //   if (code == 0) {
-  //     taosWLockLatch(&pMeta->chkpDirLock);
-  //     taosArrayPush(pMeta->chkpSaved, &checkpointId);
-  //     taosWUnLockLatch(&pMeta->chkpDirLock);
-
-  //     // delete obsolte checkpoint
-  //     delObsoleteCheckpoint(arg, pChkpDir);
-  //     pMeta->chkpId = checkpointId;
-  //   }
-
-  // _ERROR:
-  //   taosReleaseRef(streamBackendId, backendRid);
-  //   taosArrayDestroy(refs);
-  //   taosMemoryFree(ppCf);
-  //   taosMemoryFree(pChkpDir);
-  //   taosMemoryFree(pChkpIdDir);
-  //   return code;
-}
+int32_t streamBackendDoCheckpoint(void* arg, uint64_t chkpId) { return taskBackendDoCheckpoint(arg, chkpId); }
 
 SListNode* streamBackendAddCompare(void* backend, void* arg) {
   SBackendWrapper* pHandle = (SBackendWrapper*)backend;
