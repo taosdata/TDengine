@@ -1599,6 +1599,11 @@ void initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uin
   pScanInfo->twAggSup = *pTwSup;
 }
 
+static TSKEY sesionTs(void* pKey) {
+  SSessionKey* pWinKey = (SSessionKey*)pKey;
+  return pWinKey->win.skey;
+}
+
 int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, int32_t numOfOutput, int64_t gap,
                                SStreamState* pState, int32_t keySize, int16_t keyType, SStateStore* pStore,
                                SReadHandle* pHandle, STimeWindowAggSupp* pTwAggSup, const char* taskIdStr,
@@ -1621,7 +1626,7 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, in
   pSup->stateStore.streamStateSetNumber(pSup->pState, -1);
   int32_t funResSize = getMaxFunResSize(pExpSup, numOfOutput);
   pSup->pState->pFileState = pSup->stateStore.streamFileStateInit(
-      tsStreamBufferSize, sizeof(SSessionKey), pSup->resultRowSize, funResSize, compareTs, pSup->pState,
+      tsStreamBufferSize, sizeof(SSessionKey), pSup->resultRowSize, funResSize, sesionTs, pSup->pState,
       pTwAggSup->deleteMark, taskIdStr, pHandle->checkpointId, STREAM_STATE_BUFF_SORT);
 
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);

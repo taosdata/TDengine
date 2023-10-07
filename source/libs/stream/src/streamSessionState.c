@@ -264,7 +264,6 @@ int32_t deleteSessionWinStateBuffByPosFn(SStreamFileState* pFileState, SRowBuffP
   if (index >= 0) {
     SRowBuffPos* pItemPos = taosArrayGetP(pWinStates, index);
     if (pItemPos == pPos) {
-      pItemPos->beFlushed = true;
       taosArrayRemove(pWinStates, index);
     }
   }

@@ -67,7 +67,7 @@ int32_t stateHashBuffRemoveFn(void* pBuff, const void *pKey, size_t keyLen) {
 }
 
 int32_t stateHashBuffRemoveByPosFn(SStreamFileState* pFileState, SRowBuffPos* pPos) {
-  size_t keyLen = pFileState->rowSize;
+  size_t keyLen = pFileState->keyLen;
   SRowBuffPos** ppPos = tSimpleHashGet(pFileState->rowStateBuff, pPos->pKey, keyLen);
   if (ppPos) {
     if ((*ppPos) == pPos) {
@@ -539,7 +539,7 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
     }
     pPos->beFlushed = true;
 
-    qDebug("===stream===flushed start:%" PRId64 ", end:%" PRId64 , ((SSessionKey*)pPos->pKey)->win.skey, ((SSessionKey*)pPos->pKey)->win.ekey);
+    qDebug("===stream===flushed start:%" PRId64, pFileState->getTs(pPos->pKey));
     if (streamStateGetBatchSize(batch) >= BATCH_LIMIT) {
       streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
       streamStateClearBatch(batch);
