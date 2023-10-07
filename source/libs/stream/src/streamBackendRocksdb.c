@@ -870,6 +870,10 @@ int32_t chkpGetAllDbCfHandle2(STaskBackendWrapper* pBackend, rocksdb_column_fami
     }
   }
   int32_t nCf = taosArrayGetSize(pHandle);
+  if (nCf == 0) {
+    taosArrayDestroy(pHandle);
+    return nCf;
+  }
 
   rocksdb_column_family_handle_t** ppCf = taosMemoryCalloc(nCf, sizeof(rocksdb_column_family_handle_t*));
   for (int i = 0; i < nCf; i++) {
@@ -1031,14 +1035,14 @@ int32_t taskBackendDoCheckpoint(void* arg, uint64_t chkpId) {
   int32_t nCf = chkpGetAllDbCfHandle2(pBackend, &ppCf);
   qDebug("stream backend:%p start to do checkpoint at:%s, cf num: %d ", pBackend, pChkpIdDir, nCf);
 
-  if ((code = chkpPreFlushDb(pBackend->db, ppCf, nCf)) == 0) {
+  if ((code = chkpPreFlushDb(pBackend->db, ppCf, nCf)) == 0 && nCf != 0) {
     if ((code = chkpDoDbCheckpoint(pBackend->db, pChkpIdDir)) != 0) {
       qError("stream backend:%p failed to do checkpoint at:%s", pBackend, pChkpIdDir);
     } else {
       qDebug("stream backend:%p end to do checkpoint at:%s, time cost:%" PRId64 "ms", pBackend, pChkpIdDir,
              taosGetTimestampMs() - st);
     }
-  } else {
+  } else if (nCf != 0) {
     qError("stream backend:%p failed to flush db at:%s", pBackend, pChkpIdDir);
   }
 
