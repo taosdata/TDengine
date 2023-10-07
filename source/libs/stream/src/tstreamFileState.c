@@ -178,7 +178,10 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
   pFileState->maxTs = INT64_MIN;
   pFileState->id = taosStrdup(taskId);
 
-  recoverSnapshot(pFileState, checkpointId);
+  //todo(liuyao) optimize
+  if (type == STREAM_STATE_BUFF_HASH) {
+    recoverSnapshot(pFileState, checkpointId);
+  }
   return pFileState;
 
 _error:
@@ -644,7 +647,6 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
   return code;
 }
 
-//todo(liuyao) session需要支持recover，需要修改下面代码，下面只是interval的。
 int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pFileState->maxTs != INT64_MIN) {
