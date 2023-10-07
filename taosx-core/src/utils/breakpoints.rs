@@ -1,9 +1,9 @@
 use tracing::info;
 
 fn breakpoints_db_dir(task_id: &str) -> String {
-    let path = std::env::var("TAOSX_BREAKPOINTS_HOME")
-        .unwrap_or_else(|_| "/target/breakpoints".to_string());
-    format!("{}/{}.db", path, task_id)
+    let path = std::env::var("TAOSX_DATA_DIR")
+        .unwrap_or_else(|_| "./data".to_string());
+    format!("{}/{}/breakpoints", path, task_id)
 }
 
 pub fn breakpoints_set(task_id: &str, sub_task: &str, breakpoints: &str) -> anyhow::Result<()> {
@@ -53,12 +53,12 @@ mod tests {
     fn test_breakpoints_db_dir() {
         let task_id = "1";
         let path = breakpoints_db_dir(task_id);
-        assert_eq!(path, "./target/breakpoints/1.db");
+        assert_eq!(path, "./data/1/breakpoints");
 
         // set env
-        std::env::set_var("TAOSX_BREAKPOINTS_HOME", "/tmp/breakpoints");
+        std::env::set_var("TAOSX_DATA_DIR", "/tmp/data");
         let path = breakpoints_db_dir(task_id);
-        assert_eq!(path, "/tmp/breakpoints/1.db");
+        assert_eq!(path, "/tmp/data/1/breakpoints");
     }
 
     #[test]
