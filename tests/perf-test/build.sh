@@ -18,3 +18,5 @@ cd $1/debug
 make -j 4
 cd $1/debug
 make install 
+
+systemctl start taosd
