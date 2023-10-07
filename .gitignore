@@ -27,3 +27,5 @@ target
 src/views/0_login/data.json
 package-lock.json
 
+public/docs
+public/docs-en
