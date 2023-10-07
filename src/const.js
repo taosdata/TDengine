@@ -89,7 +89,7 @@ export const DBFILED = {
   wal_level: { type: "number", alter: true, defaultValue: undefined },
   vgroups: { type: "number", alter: false, defaultValue: undefined },
   single_stable: { type: "number", alter: false, defaultValue: undefined },
-  wal_retention_period: { type: "number", alter: false, defaultValue: 0 }, //
+  wal_retention_period: { type: "number", alter: false, defaultValue: 3600 }, //
   wal_retention_size: { type: "number", alter: false, defaultValue: undefined },
   wal_roll_period: { type: "number", alter: false, defaultValue: undefined },
   wal_segment_size: { type: "number", alter: false, defaultValue: undefined },
