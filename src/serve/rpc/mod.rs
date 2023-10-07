@@ -311,10 +311,9 @@ impl FlightService for FlightServiceImpl {
                                                 )
                                             })
                                             .unwrap();
-                                        // dbg!(&activity);
-                                        let _ =
-                                            controller_runner.push_agent_activity(&activity).await;
                                         info!(?activity, "agent activity");
+                                        let _ =
+                                            controller_runner.push_agent_activity(activity).await;
                                     }
                                     "task-activity" => {
                                         let activity: Activity = serde_json::from_str(&context)
@@ -400,7 +399,7 @@ impl FlightService for FlightServiceImpl {
                 "pending",
                 context,
             );
-            let _ = controller_runner.push_agent_activity(&activity).await?;
+            let _ = controller_runner.push_agent_activity(activity).await?;
             tracing::info!(agent = agent_id, "Agent RPC stopped");
 
             controller_runner

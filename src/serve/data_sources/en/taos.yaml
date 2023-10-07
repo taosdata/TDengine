@@ -1,8 +1,8 @@
 ---
 id: taos
-name: Legacy TDengine
+name: TDengine 2.x
 description: |
-  The Legacy TDengine data source can be used to migrate from previous versions (< 3.0) of TDengine.
+  The TDengine 2.x data source can be used to migrate data from previous version to current cluster.
 
   ## Protocols
 

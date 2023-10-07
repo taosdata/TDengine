@@ -367,12 +367,14 @@ impl DataSourceDefinition {
         debug_assert!(self.id == dsn.driver);
         let username_value = dsn.username.clone();
         let password_value = dsn.password.clone();
-        if let Some(val) = dsn.protocol.as_deref() {
-            if let Some(proto) = self.protocol.as_mut() {
-                proto.value.replace(val.to_string());
-            } else {
-                self.protocol
-                    .replace(Protocol::default().value(val.to_string()));
+        if self.protocol.is_some() {
+            if let Some(val) = dsn.protocol.as_deref() {
+                if let Some(proto) = self.protocol.as_mut() {
+                    proto.value.replace(val.to_string());
+                } else {
+                    self.protocol
+                        .replace(Protocol::default().value(val.to_string()));
+                }
             }
         }
 
@@ -405,6 +407,10 @@ impl DataSourceDefinition {
                         password,
                     } => {
                         let mut endpoint_str = String::new();
+                        if let Some(scheme) = dsn.protocol.as_deref() {
+                            endpoint_str.push_str(scheme);
+                            endpoint_str.push_str("://");
+                        }
                         if let Some(addr) = dsn.addresses.first() {
                             if let Some(value) = addr.host.as_ref() {
                                 endpoint_str.push_str(value.as_str());
