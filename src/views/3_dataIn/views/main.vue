@@ -2,11 +2,11 @@
   <div class="page-wrapper">
     <div class="content">
       <el-tabs v-model="active" @tab-click='clickTab'>
-        <el-tab-pane name="datacollection" :label="$t('topic.datacollection')" v-if="!isOem">
-          <DataIn ></DataIn>
-        </el-tab-pane>
         <el-tab-pane name="datasource" :label="$t('topic.datasource')" v-if="!isOem" :disabled='sourceDisabled'>
           <DbSource ref="dbsource"></DbSource>
+        </el-tab-pane>
+        <el-tab-pane name="datacollection" :label="$t('topic.datacollection')" v-if="!isOem">
+          <DataIn ></DataIn>
         </el-tab-pane>
         <!-- <el-tab-pane name="csv" :label="$t('topic.csv')">
           <DataCSV></DataCSV>
@@ -35,15 +35,18 @@ export default {
       piDisable:false,
       opcDisable:false,
       isOem:process.env.VUE_APP_CUS_NAME&&process.env.VUE_APP_CUS_NAME!=='TDengine',
-      active:process.env.VUE_APP_CUS_NAME&&process.env.VUE_APP_CUS_NAME!=='TDengine'?'csv':'datacollection'
+      active:process.env.VUE_APP_CUS_NAME&&process.env.VUE_APP_CUS_NAME!=='TDengine'?'csv':'datasource',
     };
   },
+  mounted(){
+    this.clickTab()
+  },
   methods: {
-    clickTab(){
+    async clickTab(){
       this.$refs.dbsource.currentName='dbsource'
       if(this.active=='datasource'){
-        this.$refs.dbsource.getData()
-        this.$refs.dbsource.reloadTable()
+        await this.$refs.dbsource.getData()
+        await this.$refs.dbsource.reloadTable()
       }
     }
   },

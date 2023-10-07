@@ -320,15 +320,33 @@ export function decrypt(encryptedData) {
 }
 
 // 获取当前集群DSN
-export function getDSN(driver = "tmq") {
+export function getDSN(driver = "tmq", subject = null) {
   let url = localStorage.getItem('base_url');
-  let parsed = _.split(url, '://', 2);
-  let scheme = parsed[0];
-  let host = parsed[1];
-  let user = localStorage.getItem('username') || '';
-  let decrypted = encodeURI(decrypt(localStorage.getItem('pwd')));
-  let pass = decrypted || '';
-  return driver + '+' + scheme + '://' + user + ':' + pass + '@' + host;
+  if (url.includes('://')) {
+    let parsed_url = new URL(url);
+    let scheme = null;
+    if (parsed_url.protocol == 'http:') {
+      scheme = '+ws'
+    } else if (parsed_url.protocol == 'https:') {
+      scheme = '+wss'
+    } else {
+      scheme = '+' + parsed_url.protocol.replace(':', '')
+    }
+
+    let host = parsed_url.host;
+    let user = localStorage.getItem('username') || '';
+    let decrypted = encodeURI(decrypt(localStorage.getItem('pwd')));
+    let pass = decrypted || '';
+    let subjectStr = subject ? '/' + subject : '';
+    return driver + scheme + '://' + user + ':' + pass + '@' + host + subjectStr + parsed_url.search;
+  } else {
+    let host = url;
+    let user = localStorage.getItem('username') || '';
+    let decrypted = encodeURI(decrypt(localStorage.getItem('pwd')));
+    let pass = decrypted || '';
+    let subjectStr = subject ? '/' + subject : '';
+    return driver + '://' + user + ':' + pass + '@' + host + subjectStr;
+  }
 }
 
 
