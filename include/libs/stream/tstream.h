@@ -726,7 +726,7 @@ int32_t      streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId);
 int32_t      streamMetaCommit(SStreamMeta* pMeta);
 int32_t      streamMetaLoadAllTasks(SStreamMeta* pMeta);
 void         streamMetaNotifyClose(SStreamMeta* pMeta);
-void*        streamMetaGetBackendByTaskKey(SStreamMeta* pMeta, char* key);
+void*        streamMetaGetBackendByTaskKey(SStreamMeta* pMeta, char* key, int64_t* ref);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);

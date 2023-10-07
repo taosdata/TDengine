@@ -354,7 +354,11 @@ void tFreeStreamTask(SStreamTask* pTask) {
     taosArrayDestroyEx(pTask->pUpstreamInfoList, freeUpstreamItem);
     pTask->pUpstreamInfoList = NULL;
   }
-
+  if (pTask->pBackend) {
+    taskBackendRemoveRef(pTask->pBackend);
+     
+    pTask->pBackend = NULL;
+  }
   taosThreadMutexDestroy(&pTask->lock);
   taosMemoryFree(pTask);
 

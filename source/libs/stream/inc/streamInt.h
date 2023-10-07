@@ -18,9 +18,9 @@
 
 #include "executor.h"
 #include "query.h"
-#include "tstream.h"
 #include "streamBackendRocksdb.h"
 #include "trpc.h"
+#include "tstream.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,8 +41,9 @@ typedef struct {
 } SStreamContinueExecInfo;
 
 extern SStreamGlobalEnv streamEnv;
-extern int32_t streamBackendId;
-extern int32_t streamBackendCfWrapperId;
+extern int32_t          streamBackendId;
+extern int32_t          streamBackendCfWrapperId;
+extern int32_t          taskBackendWrapperId;
 
 const char* streamGetBlockTypeStr(int32_t type);
 void        streamRetryDispatchStreamBlock(SStreamTask* pTask, int64_t waitDuration);
@@ -68,10 +69,11 @@ int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask);
 int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask);
 int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask);
 
-int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks);
+int32_t           streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks);
 SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem);
 
-int32_t streamTaskBuildScanhistoryRspMsg(SStreamTask* pTask, SStreamScanHistoryFinishReq* pReq, void** pBuffer, int32_t* pLen);
+int32_t streamTaskBuildScanhistoryRspMsg(SStreamTask* pTask, SStreamScanHistoryFinishReq* pReq, void** pBuffer,
+                                         int32_t* pLen);
 int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo, SStreamScanHistoryFinishReq* pReq);
 int32_t streamNotifyUpstreamContinue(SStreamTask* pTask);
 int32_t streamTaskFillHistoryFinished(SStreamTask* pTask);

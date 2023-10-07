@@ -30,6 +30,7 @@ static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
 int32_t streamBackendId = 0;
 int32_t streamBackendCfWrapperId = 0;
 int32_t streamMetaId = 0;
+int32_t taskBackendWrapperId = 0;
 
 static int64_t streamGetLatestCheckpointId(SStreamMeta* pMeta);
 static void    metaHbToMnode(void* param, void* tmrId);
@@ -52,6 +53,7 @@ int32_t metaRefMgtAdd(int64_t vgId, int64_t* rid);
 static void streamMetaEnvInit() {
   streamBackendId = taosOpenRef(64, streamBackendCleanup);
   streamBackendCfWrapperId = taosOpenRef(64, streamBackendHandleCleanup);
+  taskBackendWrapperId = taosOpenRef(64, taskBackendDestroy);
 
   streamMetaId = taosOpenRef(64, streamMetaCloseImpl);
 
@@ -220,19 +222,22 @@ int32_t streamMetaMayConvertBackendFormat(SStreamMeta* pMeta) {
   return 0;
 }
 
-void* streamMetaGetBackendByTaskKey(SStreamMeta* pMeta, char* key) {
+void* streamMetaGetBackendByTaskKey(SStreamMeta* pMeta, char* key, int64_t* ref) {
   taosThreadMutexLock(&pMeta->backendMutex);
   void** ppBackend = taosHashGet(pMeta->pTaskBackendUnique, key, strlen(key));
   if (ppBackend != NULL && *ppBackend != NULL) {
     taskBackendAddRef(*ppBackend);
+    *ref = ((STaskBackendWrapper*)*ppBackend)->refId;
     taosThreadMutexUnlock(&pMeta->backendMutex);
     return *ppBackend;
   }
+
   void* pBackend = taskBackendOpen(pMeta->path, key);
   if (pBackend == NULL) {
     taosThreadMutexUnlock(&pMeta->backendMutex);
     return NULL;
   }
+  *ref = taosAddRef(taskBackendWrapperId, pBackend);
 
   taosHashPut(pMeta->pTaskBackendUnique, key, strlen(key), &pBackend, sizeof(void*));
   return pBackend;
