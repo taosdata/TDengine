@@ -1618,9 +1618,10 @@ STaskBackendWrapper* taskBackendOpen(char* path, char* key) {
 
   if (cfNames != NULL) rocksdb_list_column_families_destroy(cfNames, nCf);
 
+  pTaskBackend->idstr = taosStrdup(key);
   return pTaskBackend;
-_EXIT:
 
+_EXIT:
   taskBackendDestroy(pTaskBackend);
 
   if (err != NULL) taosMemoryFree(err);
@@ -1667,6 +1668,8 @@ void taskBackendDestroy(void* pBackend) {
   taosThreadMutexDestroy(&wrapper->mutex);
 
   if (wrapper->db) rocksdb_close(wrapper->db);
+
+  taosMemoryFree(wrapper->idstr);
   taosMemoryFree(wrapper);
 
   return;
@@ -2024,10 +2027,10 @@ int streamStateGetCfIdx(SStreamState* pState, const char* funcName) {
       cf = rocksdb_create_column_family(wrapper->db, wrapper->pCfOpts[idx], ginitDict[idx].key, &err);
       if (err != NULL) {
         idx = -1;
-        qError("failed to to open cf, %p %s_%s, reason:%s", pState, wrapper->idstr, funcName, err);
+        qError("failed to open cf, %p %s_%s, reason:%s", pState, wrapper->idstr, funcName, err);
         taosMemoryFree(err);
       } else {
-        qDebug("succ to to open cf, %p %s_%s", pState, wrapper->idstr, funcName);
+        qDebug("succ to open cf, %p %s_%s", pState, wrapper->idstr, funcName);
         wrapper->pCf[idx] = cf;
       }
     }
