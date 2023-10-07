@@ -887,7 +887,6 @@ void metaHbToMnode(void* param, void* tmrId) {
         .nodeId = pMeta->vgId,
         .stage = pMeta->stage,
         .inputQUsed = SIZE_IN_MiB(streamQueueGetItemSize((*pTask)->inputInfo.queue)),
-//        .outputQUsed = SIZE_IN_MiB(streamQueueGetItemSize((*pTask)->outputInfo.queue)),
     };
 
     entry.inputRate = entry.inputQUsed*100.0/STREAM_TASK_QUEUE_CAPACITY_IN_SIZE;
@@ -895,8 +894,6 @@ void metaHbToMnode(void* param, void* tmrId) {
       entry.sinkQuota = (*pTask)->pTokenBucket->bytesRate;
       entry.sinkDataSize = SIZE_IN_MiB((*pTask)->execInfo.sink.dataSize);
     }
-
-//    entry.outputRate = entry.outputQUsed*100.0/STREAM_TASK_QUEUE_CAPACITY_IN_SIZE;
 
     if ((*pTask)->exec.pWalReader != NULL) {
       entry.offset = (*pTask)->chkInfo.nextProcessVer;
