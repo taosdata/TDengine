@@ -10,72 +10,60 @@ description: How to use Seeq and TDengine to perform time series data analysis
 
 Seeq is an advanced analytics software for the manufacturing industry and the Industrial Internet of Things (IIoT). Seeq supports the use of machine learning innovations within process manufacturing organizations. These capabilities enable organizations to deploy their own or third-party machine learning algorithms into advanced analytics applications used by frontline process engineers and subject matter experts, thus extending the efforts of a single data scientist to many frontline workers.
 
-With the TDengine Java connector, Seeq effortlessly supports querying time series data provided by TDengine and offers functionalities such as data visualization, analysis, and forecasting.
+TDengine can be added as a data source into Seeq via JDBC connector. Once data source is configured, Seeq can read data from TDengine and offers functionalities such as data visualization, analysis, and forecasting.
 
-### Install Seeq
+## Prerequisite
 
-Please download Seeq Server and Seeq Data Lab software installation package from the [Seeq official website](https://www.seeq.com/customer-download).
+1. Install Seeq Server and Seeq Data Lab software
+2. Register TDengine Cloud service
 
-### Install and start Seeq Server
+## Install TDengine JDBC connector
 
-```
-tar xvzf seeq-server-xxx.tar.gz
-cd seeq-server-installer
-sudo ./install
-
-sudo seeq service enable
-sudo seeq start
-```
-
-### Install and start Seeq Data Lab Server
-
-Seeq Data Lab needs to be installed on a separate server from Seeq Server and connected to Seeq Server through configuration. For detailed installation and configuration instructions, please refer to [the official documentation](https://support.seeq.com/space/KB/1034059842).
-
-```
-tar xvf seeq-data-lab-<version>-64bit-linux.tar.gz
-sudo seeq-data-lab-installer/install -f /opt/seeq/seeq-data-lab -g /var/opt/seeq -u seeq
-sudo seeq config set Network/DataLab/Hostname localhost
-sudo seeq config set Network/DataLab/Port 34231 # the port of the Data Lab server (usually 34231)
-sudo seeq config set Network/Hostname <value> # the host IP or URL of the main Seeq Server
-
-# If the main Seeq server is configured to listen over HTTPS
-sudo seeq config set Network/Webserver/SecurePort 443 # the secure port of the main Seeq Server (usually 443)
-
-# If the main Seeq server is NOT configured to listen over HTTPS
-sudo seeq config set Network/Webserver/Port <value>
-
-#On the main Seeq server, open a Seeq Command Prompt and set the hostname of the Data Lab server:
-sudo seeq config set Network/DataLab/Hostname <value> # the host IP (not URL) of the Data Lab server
-sudo seeq config set Network/DataLab/Port 34231 # the port of the Data Lab server (usually 34231
-```
-
-### Sign up TDengine Cloud
-
-Register for a [TDengine Cloud](https://cloud.tdengine.com) account and log in to your account.
-
-## Make Seeq be able to access TDengine
-
-1. Get data location configuration
-
+1. Lgoin to the server where Seeq is installed, get Seeq data location configuration
 ```
 sudo seeq config get Folders/Data
 ```
-
-2. Download TDengine Java connector from maven.org. Please use the latest version (Current is 3.2.5, https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.5/taos-jdbcdriver-3.2.5-dist.jar).
-
+2. Download the latest TDengine Java connector from maven.org, and copy the JAR file into the_directory_found_in_step_1/plugins/lib/
 3. Restart Seeq server
-
 ```
 sudo seeq restart
 ```
 
-4. Input License
+## Add TDengine into Seeq's data source 
+1. Open Seeq, login as admin, go to Administration, click "Add Data Source"
+2. For connector, choose SQL connector v2
+3. Inside "Additional Configuration" input box, copy and paste the following
 
-Use a browser to access ip:34216 and input the license according to the guide.
+```
+{
+    "QueryDefinitions": []
+    "Type": "GENERIC",
+    "Hostname": null,
+    "Port": 0,
+    "DatabaseName": null,
+    "Username": null,
+    "Password": null,
+    "InitialSql": null,
+    "TimeZone": null,
+    "PrintRows": false,
+    "UseWindowsAuth": false,
+    "SqlFetchBatchSize": 100000,
+    "UseSSL": false,
+    "JdbcProperties": null,
+    "GenericDatabaseConfig": {
+        "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.us-east-1.aws.cloud.tdengine.com?useSSL=true&token=c6bcdb726c7b58880f3e34d1ed0707bb34dfxxxx",
+        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
+        "ResolutionInNanoseconds": 1000,
+        "ZonedColumnTypes": []
+    }
+}
+```
 
-## How to use Seeq to analyze time-series data that TDengine serves
+Note: You need to replace DatabaseJdbcUrl with your setting. Please login TDengine cloud, click programming -> Java to find yours. For the "QueryDefintions", please follow the examples below to write your own.  
 
-This chapter demonstrates how to use Seeq software in conjunction with TDengine for time series data analysis.
+## Use Seeq to analyze time-series data stored inside TDengine
+
+This chapter demonstrates how to use Seeq with TDengine for time series data analysis.
 
 ### Scenario Overview
 
@@ -364,8 +352,6 @@ Example output:
 
 ## Conclusion
 
-By integrating Seeq and TDengine, it is possible to leverage the efficient storage and querying performance of TDengine while also benefiting from Seeq's powerful data visualization and analysis capabilities provided to users.
-
-This integration allows users to take advantage of TDengine's high-performance time-series data storage and retrieval, ensuring efficient handling of large volumes of data. At the same time, Seeq provides advanced analytics features such as data visualization, anomaly detection, correlation analysis, and predictive modeling, enabling users to gain valuable insights and make data-driven decisions.
+By integrating Seeq and TDengine, it allows the users to take advantage of TDengine's high-performance time-series data storage and query, ensuring efficient handling of large volumes of data. At the same time, Seeq provides advanced analytics features such as data visualization, anomaly detection, correlation analysis, and predictive modeling, enabling users to gain valuable insights and make data-driven decisions.
 
 Together, Seeq and TDengine provide a comprehensive solution for time series data analysis in diverse industries such as manufacturing, IIoT, and power systems. The combination of efficient data storage and advanced analytics empowers users to unlock the full potential of their time series data, driving operational improvements, and enabling predictive and prescriptive analytics applications.
