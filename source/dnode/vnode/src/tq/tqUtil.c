@@ -109,6 +109,11 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
         tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey:%s, vgId:%d, (earliest) set offset to be snapshot",
                 consumerId, pHandle->subKey, vgId);
 
+        if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN){
+          tqError("tmq poll column can not use snapshot");
+          terrno = TSDB_CODE_TQ_INVALID_CONFIG;
+          return -1;
+        }
         if (pHandle->fetchMeta) {
           tqOffsetResetToMeta(pOffsetVal, 0);
         } else {
