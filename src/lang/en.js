@@ -472,7 +472,7 @@ export default {
     <li> 1 - The database can contain only one supertable, the default value is 0.</li>
     </ul>
     `,
-    walRetentionPeriodTip: "The time length of keeping WAL files, it determines the data that can be consumed, the unit is second, the default value is 0 which means no data can be consumed，please set to a proper positive value if you want to consume data.",
+    walRetentionPeriodTip: "The time length of keeping WAL files, it determines the data that can be consumed, the unit is second, the default value is 3600 which means no data can be consumed，please set to a proper positive value if you want to consume data.",
     walRetentionSizeTip: "The size of a single WAL file, the unit is KB, the default value is 0, which means it's handled automatically by TDengine.",
     walSegmentSizeTip: "The size of a single WAL file, the unit is KB, the default value is 0, which means it's handled automatically by TDengine.",
     walRollPeriodTip: "The time length of a single WAL file, the unit is second, the default value is 0, which means it's handled automatically by TDengine。",
