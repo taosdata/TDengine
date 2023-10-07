@@ -36,7 +36,9 @@ prepare_repo_taoskeeper() {
 
 checkout_latest_tag() {
   cd build-taoskeeper
-  latest="v1.0.9"
+  git fetch
+  # get latest tag
+  latest=`git tag --sort=-creatordate | head -1`
 
    if [ "$REPO" = "taoskeeper" ]; then
      git checkout $latest
