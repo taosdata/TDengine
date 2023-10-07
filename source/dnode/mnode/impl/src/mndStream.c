@@ -1588,7 +1588,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         // input queue
         char vbuf[30] = {0};
         char buf[25] = {0};
-        const char* queueInfoStr = "%4.2fMiB(%5.2f%)";
+        const char* queueInfoStr = "%4.2fMiB (%5.2f%)";
         sprintf(buf, queueInfoStr, pe->inputQUsed, pe->inputRate);
         STR_TO_VARSTR(vbuf, buf);
 
@@ -1604,7 +1604,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
         if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
           const char* sinkStr = "SinkData:%.2fMiB";
-          sprintf(buf, sinkStr, pe->sinkQuota, pe->sinkDataSize);
+          sprintf(buf, sinkStr, pe->sinkDataSize);
         } else if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
           // offset info
           const char *offsetStr = "%" PRId64 " [%" PRId64 ", %" PRId64 "]";
