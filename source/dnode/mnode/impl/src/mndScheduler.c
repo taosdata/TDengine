@@ -87,15 +87,17 @@ END:
 }
 
 int32_t mndSetSinkTaskInfo(SStreamObj* pStream, SStreamTask* pTask) {
+  STaskOutputInfo* pInfo = &pTask->outputInfo;
+
   if (pStream->smaId != 0) {
-    pTask->outputInfo.type = TASK_OUTPUT__SMA;
-    pTask->smaSink.smaId = pStream->smaId;
+    pInfo->type = TASK_OUTPUT__SMA;
+    pInfo->smaSink.smaId = pStream->smaId;
   } else {
-    pTask->outputInfo.type = TASK_OUTPUT__TABLE;
-    pTask->tbSink.stbUid = pStream->targetStbUid;
-    memcpy(pTask->tbSink.stbFullName, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
-    pTask->tbSink.pSchemaWrapper = tCloneSSchemaWrapper(&pStream->outputSchema);
-    if (pTask->tbSink.pSchemaWrapper == NULL) {
+    pInfo->type = TASK_OUTPUT__TABLE;
+    pInfo->tbSink.stbUid = pStream->targetStbUid;
+    memcpy(pInfo->tbSink.stbFullName, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
+    pInfo->tbSink.pSchemaWrapper = tCloneSSchemaWrapper(&pStream->outputSchema);
+    if (pInfo->tbSink.pSchemaWrapper == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
@@ -113,7 +115,7 @@ int32_t mndAddDispatcherForInternalTask(SMnode* pMnode, SStreamObj* pStream, SAr
       isShuffle = true;
       pTask->outputInfo.type = TASK_OUTPUT__SHUFFLE_DISPATCH;
       pTask->msgInfo.msgType = TDMT_STREAM_TASK_DISPATCH;
-      if (mndExtractDbInfo(pMnode, pDb, &pTask->shuffleDispatcher.dbInfo, NULL) < 0) {
+      if (mndExtractDbInfo(pMnode, pDb, &pTask->outputInfo.shuffleDispatcher.dbInfo, NULL) < 0) {
         return -1;
       }
     }
@@ -124,8 +126,8 @@ int32_t mndAddDispatcherForInternalTask(SMnode* pMnode, SStreamObj* pStream, SAr
   int32_t numOfSinkNodes = taosArrayGetSize(pSinkNodeList);
 
   if (isShuffle) {
-    memcpy(pTask->shuffleDispatcher.stbFullName, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
-    SArray* pVgs = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
+    memcpy(pTask->outputInfo.shuffleDispatcher.stbFullName, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
+    SArray* pVgs = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
 
     int32_t numOfVgroups = taosArrayGetSize(pVgs);
     for (int32_t i = 0; i < numOfVgroups; i++) {
