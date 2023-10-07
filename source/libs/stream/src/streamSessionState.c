@@ -228,7 +228,7 @@ int32_t getSessionFlushedBuff(SStreamFileState* pFileState, SSessionKey* pKey, v
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t deleteSessionWinStateBuff(void* pBuff, const void *key, size_t keyLen, bool invalid) {
+int32_t deleteSessionWinStateBuffFn(void* pBuff, const void *key, size_t keyLen) {
   SSHashObj* pSessionBuff = (SSHashObj*) pBuff;
   SSessionKey* pWinKey = (SSessionKey*) key;
   void** ppBuff = tSimpleHashGet(pSessionBuff, &pWinKey->groupId, sizeof(uint64_t));
@@ -242,9 +242,28 @@ int32_t deleteSessionWinStateBuff(void* pBuff, const void *key, size_t keyLen, b
   if (index >= 0) {
     SRowBuffPos* pPos = taosArrayGetP(pWinStates, index);
     if (inSessionWindow(pPos->pKey, pWinKey->win.skey, gap)) {
-      if (invalid) {
-        pPos->beFlushed = true;
-      }
+      pPos->beFlushed = true;
+      taosArrayRemove(pWinStates, index);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t deleteSessionWinStateBuffByPosFn(SStreamFileState* pFileState, SRowBuffPos* pPos) {
+  SSHashObj* pSessionBuff = getRowStateBuff(pFileState);
+  SSessionKey* pWinKey = (SSessionKey*) pPos->pKey;
+  void** ppBuff = tSimpleHashGet(pSessionBuff, &pWinKey->groupId, sizeof(uint64_t));
+  if (!ppBuff) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SArray* pWinStates = (SArray*)(*ppBuff);
+  int32_t size = taosArrayGetSize(pWinStates);
+  TSKEY gap = 0;
+  int32_t index = binarySearch(pWinStates, size, pWinKey, sessionStateKeyCompare);
+  if (index >= 0) {
+    SRowBuffPos* pItemPos = taosArrayGetP(pWinStates, index);
+    if (pItemPos == pPos) {
+      pItemPos->beFlushed = true;
       taosArrayRemove(pWinStates, index);
     }
   }

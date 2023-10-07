@@ -2642,6 +2642,20 @@ void resetWinRange(STimeWindow* winRange) {
   winRange->ekey = INT64_MAX;
 }
 
+void getSessionWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey, SResultWindowInfo* pWinInfo) {
+  int32_t rowSize = pAggSup->resultRowSize;
+  int32_t code = pAggSup->stateStore.streamStateSessionGet(pAggSup->pState, pKey, (void**)&pWinInfo->pStatePos, &rowSize);
+  if (code == TSDB_CODE_SUCCESS) {
+    pWinInfo->sessionWin = *pKey;
+    pWinInfo->isOutput = true;
+    if (pWinInfo->pStatePos->needFree) {
+      pAggSup->stateStore.streamStateSessionDel(pAggSup->pState, &pWinInfo->sessionWin);
+    }
+  } else {
+    SET_SESSION_WIN_INVALID((*pWinInfo));
+  }
+}
+
 void streamSessionSemiReloadState(SOperatorInfo* pOperator) {
   SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
   SStreamAggSupporter* pAggSup = &pInfo->streamAggSup;
@@ -2657,7 +2671,7 @@ void streamSessionSemiReloadState(SOperatorInfo* pOperator) {
   ASSERT(size == num * sizeof(SSessionKey) + sizeof(TSKEY));
   for (int32_t i = 0; i < num; i++) {
     SResultWindowInfo winInfo = {0};
-    setSessionOutputBuf(pAggSup, pSeKeyBuf[i].win.skey, pSeKeyBuf[i].win.ekey, pSeKeyBuf[i].groupId, &winInfo);
+    getSessionWindowInfoByKey(pAggSup, pSeKeyBuf + i, &winInfo);
     compactSessionSemiWindow(pOperator, &winInfo);
     saveSessionOutputBuf(pAggSup, &winInfo);
   }
@@ -2669,17 +2683,6 @@ void streamSessionSemiReloadState(SOperatorInfo* pOperator) {
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   if (downstream->fpSet.reloadStreamStateFn) {
     downstream->fpSet.reloadStreamStateFn(downstream);
-  }
-}
-
-void getSessionWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey, SResultWindowInfo* pWinInfo) {
-  int32_t rowSize = pAggSup->resultRowSize;
-  int32_t code = pAggSup->stateStore.streamStateSessionGet(pAggSup->pState, pKey, (void**)&pWinInfo->pStatePos, &rowSize);
-  if (code == TSDB_CODE_SUCCESS) {
-    pWinInfo->sessionWin = *pKey;
-    pWinInfo->isOutput = true;
-  } else {
-    SET_SESSION_WIN_INVALID((*pWinInfo));
   }
 }
 
@@ -3059,6 +3062,50 @@ bool compareWinStateKey(SStateKeys* left, SStateKeys* right) {
     return false;
   }
   return compareVal(left->pData, right);
+}
+
+void getStateWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey, SStateWindowInfo* pCurWin,
+                             SStateWindowInfo* pNextWin) {
+  int32_t size = pAggSup->resultRowSize;
+  pCurWin->winInfo.sessionWin.groupId = pKey->groupId;
+  pCurWin->winInfo.sessionWin.win.skey = pKey->win.skey;
+  pCurWin->winInfo.sessionWin.win.ekey = pKey->win.ekey;
+  getSessionWindowInfoByKey(pAggSup, pKey, &pCurWin->winInfo);
+  ASSERT(IS_VALID_SESSION_WIN(pCurWin->winInfo));
+  pCurWin->pStateKey =
+      (SStateKeys*)((char*)pCurWin->winInfo.pStatePos->pRowBuff + (pAggSup->resultRowSize - pAggSup->stateKeySize));
+  pCurWin->pStateKey->bytes = pAggSup->stateKeySize - sizeof(SStateKeys);
+  pCurWin->pStateKey->type = pAggSup->stateKeyType;
+  pCurWin->pStateKey->pData = (char*)pCurWin->pStateKey + sizeof(SStateKeys);
+  pCurWin->pStateKey->isNull = false;
+  pCurWin->winInfo.isOutput = true;
+  if (pCurWin->winInfo.pStatePos->needFree) {
+    pAggSup->stateStore.streamStateSessionDel(pAggSup->pState, &pCurWin->winInfo.sessionWin);
+  }
+
+  qDebug("===stream===get state cur win buff. skey:%" PRId64 ", endkey:%" PRId64, pCurWin->winInfo.sessionWin.win.skey,
+         pCurWin->winInfo.sessionWin.win.ekey);
+
+  pNextWin->winInfo.sessionWin = pCurWin->winInfo.sessionWin;
+  SStreamStateCur* pCur =
+      pAggSup->stateStore.streamStateSessionSeekKeyNext(pAggSup->pState, &pNextWin->winInfo.sessionWin);
+  int32_t nextSize = pAggSup->resultRowSize;
+  int32_t code = pAggSup->stateStore.streamStateSessionGetKVByCur(pCur, &pNextWin->winInfo.sessionWin,
+                                                          (void**)&pNextWin->winInfo.pStatePos, &nextSize);
+  if (code != TSDB_CODE_SUCCESS) {
+    SET_SESSION_WIN_INVALID(pNextWin->winInfo);
+  } else {
+    pNextWin->pStateKey =
+        (SStateKeys*)((char*)pNextWin->winInfo.pStatePos->pRowBuff + (pAggSup->resultRowSize - pAggSup->stateKeySize));
+    pNextWin->pStateKey->bytes = pAggSup->stateKeySize - sizeof(SStateKeys);
+    pNextWin->pStateKey->type = pAggSup->stateKeyType;
+    pNextWin->pStateKey->pData = (char*)pNextWin->pStateKey + sizeof(SStateKeys);
+    pNextWin->pStateKey->isNull = false;
+    pNextWin->winInfo.isOutput = true;
+  }
+  pAggSup->stateStore.streamStateFreeCur(pCur);
+  qDebug("===stream===get state next win buff. skey:%" PRId64 ", endkey:%" PRId64, pNextWin->winInfo.sessionWin.win.skey,
+         pNextWin->winInfo.sessionWin.win.ekey);
 }
 
 void setStateOutputBuf(SStreamAggSupporter* pAggSup, TSKEY ts, uint64_t groupId, char* pKeyData,
@@ -3535,7 +3582,7 @@ void streamStateReloadState(SOperatorInfo* pOperator) {
     SStateWindowInfo dummy = {0};
     qDebug("===stream=== reload state. try process result %" PRId64 ", %" PRIu64 ", index:%d", pSeKeyBuf[i].win.skey,
            pSeKeyBuf[i].groupId, i);
-    setStateOutputBuf(pAggSup, pSeKeyBuf[i].win.skey, pSeKeyBuf[i].groupId, NULL, &curInfo, &nextInfo);
+    getStateWindowInfoByKey(pAggSup, pSeKeyBuf + i, &curInfo, &nextInfo);
     bool cpRes = compareWinStateKey(curInfo.pStateKey, nextInfo.pStateKey);
     qDebug("===stream=== reload state. next window info %" PRId64 ", %" PRIu64 ", compare:%d",
            nextInfo.winInfo.sessionWin.win.skey, nextInfo.winInfo.sessionWin.groupId, cpRes);
