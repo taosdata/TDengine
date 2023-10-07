@@ -399,10 +399,6 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
     goto _err;
   }
 
-  if (metaInitTbFilterCache(pVnode) != 0) {
-    goto _err;
-  }
-
   if (metaUpgrade(pVnode, &pVnode->pMeta) < 0) {
     vError("vgId:%d, failed to upgrade meta since %s", TD_VID(pVnode), tstrerror(terrno));
   }

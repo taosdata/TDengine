@@ -396,7 +396,7 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   nStbEntry.stbEntry.schemaTag = pReq->schemaTag;
 
   int32_t deltaCol = pReq->schemaRow.nCols - oStbEntry.stbEntry.schemaRow.nCols;
-  bool    updStat = deltaCol != 0 && !metaTbInFilterCache(pMeta->pVnode, pReq->name, 1);
+  bool    updStat = deltaCol != 0 && !metaTbInFilterCache(pMeta, pReq->name, 1);
 
   metaWLock(pMeta);
   // compare two entry
@@ -766,7 +766,7 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
   }
   metaReaderClear(&mr);
 
-  bool sysTbl = (pReq->type == TSDB_CHILD_TABLE) && metaTbInFilterCache(pMeta->pVnode, pReq->ctb.stbName, 1);
+  bool sysTbl = (pReq->type == TSDB_CHILD_TABLE) && metaTbInFilterCache(pMeta, pReq->ctb.stbName, 1);
 
   // build SMetaEntry
   SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
@@ -1110,7 +1110,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
         tDecoderInit(&tdc, tData, tLen);
         metaDecodeEntry(&tdc, &stbEntry);
 
-        if (pSysTbl) *pSysTbl = metaTbInFilterCache(pMeta->pVnode, stbEntry.name, 1) ? 1 : 0;
+        if (pSysTbl) *pSysTbl = metaTbInFilterCache(pMeta, stbEntry.name, 1) ? 1 : 0;
 
         SSchema        *pTagColumn = NULL;
         SSchemaWrapper *pTagSchema = &stbEntry.stbEntry.schemaTag;

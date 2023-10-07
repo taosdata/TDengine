@@ -907,9 +907,7 @@ int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid) {
   return TSDB_CODE_SUCCESS;
 }
 
-bool metaTbInFilterCache(void* pVnode,  const void* key, int8_t type) {
-  SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
-
+bool metaTbInFilterCache(SMeta *pMeta, const void* key, int8_t type) {
   if (type == 0 && taosHashGet(pMeta->pCache->STbFilterCache.pStb, key, sizeof(tb_uid_t))) {
     return true;
   }
@@ -921,9 +919,7 @@ bool metaTbInFilterCache(void* pVnode,  const void* key, int8_t type) {
   return false;
 }
 
-int32_t metaPutTbToFilterCache(void* pVnode, const void* key, int8_t type) {
-  SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
-
+int32_t metaPutTbToFilterCache(SMeta *pMeta, const void* key, int8_t type) {
   if (type == 0) {
     return taosHashPut(pMeta->pCache->STbFilterCache.pStb, key, sizeof(tb_uid_t), NULL, 0);
   }
@@ -935,21 +931,20 @@ int32_t metaPutTbToFilterCache(void* pVnode, const void* key, int8_t type) {
   return 0;
 }
 
-int32_t metaSizeOfTbFilterCache(void* pVnode, int8_t type) {
-  SMeta* pMeta = ((SVnode*)pVnode)->pMeta;
+int32_t metaSizeOfTbFilterCache(SMeta *pMeta, int8_t type) {
   if (type == 0) {
     return taosHashGetSize(pMeta->pCache->STbFilterCache.pStb);
   }
   return 0;
 }
 
-int32_t metaInitTbFilterCache(void* pVnode) {
+int32_t metaInitTbFilterCache(SMeta* pMeta) {
 #ifdef TD_ENTERPRISE
   int32_t      tbNum = 0;
   const char** pTbArr = NULL;
   const char*  dbName = NULL;
 
-  if (!(dbName = strchr(((SVnode*)pVnode)->config.dbname, '.'))) return 0;
+  if (!(dbName = strchr(pMeta->pVnode->config.dbname, '.'))) return 0;
   if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
     tbNum = TK_LOG_STB_NUM;
     pTbArr = (const char**)&tkLogStb;
@@ -959,7 +954,7 @@ int32_t metaInitTbFilterCache(void* pVnode) {
   }
   if (tbNum && pTbArr) {
     for (int32_t i = 0; i < tbNum; ++i) {
-      if (metaPutTbToFilterCache(pVnode, pTbArr[i], 1) != 0) {
+      if (metaPutTbToFilterCache(pMeta, pTbArr[i], 1) != 0) {
         return terrno ? terrno : -1;
       }
     }

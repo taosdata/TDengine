@@ -594,7 +594,7 @@ static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
   const char **pTbArr = NULL;
   const char  *dbName = NULL;
 
-  if (!(dbName = strchr(((SVnode *)pVnode)->config.dbname, '.'))) return 0;
+  if (!(dbName = strchr(pVnode->config.dbname, '.'))) return 0;
   if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
     tbNum = TK_LOG_STB_NUM;
     pTbArr = (const char **)&tkLogStb;
@@ -603,15 +603,15 @@ static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
     pTbArr = (const char **)&tkAuditStb;
   }
   if (tbNum && pTbArr) {
-    tbSize = metaSizeOfTbFilterCache(pVnode, 0);
+    tbSize = metaSizeOfTbFilterCache(pVnode->pMeta, 0);
     if (tbSize < tbNum) {
       for (int32_t i = 0; i < tbNum; ++i) {
         tb_uid_t suid = metaGetTableEntryUidByName(pVnode->pMeta, pTbArr[i]);
         if (suid != 0) {
-          metaPutTbToFilterCache(pVnode, &suid, 0);
+          metaPutTbToFilterCache(pVnode->pMeta, &suid, 0);
         }
       }
-      tbSize = metaSizeOfTbFilterCache(pVnode, 0);
+      tbSize = metaSizeOfTbFilterCache(pVnode->pMeta, 0);
     }
   }
 
@@ -622,7 +622,7 @@ static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
 static bool vnodeTimeSeriesFilter(void *arg1, void *arg2) {
   SVnode *pVnode = (SVnode *)arg1;
 
-  if (metaTbInFilterCache(pVnode, arg2, 0)) {
+  if (metaTbInFilterCache(pVnode->pMeta, arg2, 0)) {
     return true;
   }
   return false;
