@@ -1603,7 +1603,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 //        colDataSetVal(pColInfo, numOfRows, (const char*)vbuf, false);
 
         if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
-          const char* sinkStr = "SinkData:%.2fMiB";
+          const char* sinkStr = "%.2fMiB";
           sprintf(buf, sinkStr, pe->sinkDataSize);
         } else if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
           // offset info
