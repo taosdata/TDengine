@@ -15,6 +15,7 @@
 
 #include "mndView.h"
 #include "mndTrans.h"
+#include "mndDb.h"
 #include "audit.h"
 
 #define MND_VIEW_VER_NUMBER 1
@@ -33,7 +34,9 @@ int32_t tSerializeSViewObj(void *buf, int32_t bufLen, const SViewObj *pObj) {
   if (tEncodeCStr(&encoder, pObj->name) < 0) return -1;
   if (tEncodeCStr(&encoder, pObj->dbFName) < 0) return -1;
   if (tEncodeCStr(&encoder, pObj->querySql) < 0) return -1;
+  if (tEncodeU64(&encoder, pObj->viewId) < 0) return -1;
   if (tEncodeU64(&encoder, pObj->dbId) < 0) return -1;
+  if (tEncodeI32(&encoder, pObj->version) < 0) return -1;
   if (tEncodeI8(&encoder, pObj->precision) < 0) return -1;
   if (tEncodeI32(&encoder, pObj->numOfCols) < 0) return -1;
   for (int32_t i = 0; i < pObj->numOfCols; ++i) {
@@ -57,7 +60,9 @@ int32_t tDeserializeSViewObj(void *buf, int32_t bufLen, SViewObj *pObj) {
   if (tDecodeCStrTo(&decoder, pObj->name) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pObj->dbFName) < 0) return -1;
   if (tDecodeCStrAlloc(&decoder, &pObj->querySql) < 0) return -1;
+  if (tDecodeU64(&decoder, &pObj->viewId) < 0) return -1;
   if (tDecodeU64(&decoder, &pObj->dbId) < 0) return -1;
+  if (tDecodeI32(&decoder, &pObj->version) < 0) return -1;
   if (tDecodeI8(&decoder, &pObj->precision) < 0) return -1;
   if (tDecodeI32(&decoder, &pObj->numOfCols) < 0) return -1;
 
@@ -204,11 +209,12 @@ int32_t mndViewActionUpdate(SSdb *pSdb, SViewObj *pOldView, SViewObj *pNewView) 
 
   mTrace("view:%s, perform update action, old row:%p new row:%p", pOldView->fullname, pOldView, pNewView);
 
-  pOldView->orReplace = pNewView->orReplace;
+  pOldView->viewId = pNewView->viewId;
+  pOldView->dbId = pNewView->dbId;
+  pOldView->version = pNewView->version;
   pOldView->precision = pNewView->precision;
   pOldView->numOfCols = pNewView->numOfCols;
   TSWAP(pOldView->querySql, pNewView->querySql);
-  TSWAP(pOldView->sql, pNewView->sql);
   TSWAP(pOldView->pSchema, pNewView->pSchema);
 
   taosWUnLockLatch(&pOldView->lock);
@@ -230,12 +236,13 @@ void mndReleaseView(SMnode *pMnode, SViewObj *pView) {
   sdbRelease(pSdb, pView);
 }
 
-static int32_t mndCreateViewObj(SMnode *pMnode, SViewObj* pView, SCMCreateViewReq* pCreate) {
+static int32_t mndCreateViewObj(SMnode *pMnode, SViewObj* pView, SCMCreateViewReq* pCreate, SViewObj *pOldView) {
   SDbObj* pDb = mndAcquireDb(pMnode, pCreate->dbFName);
   if (NULL == pDb) {
     return -1;
   }
 
+  pView->viewId = mndGenerateUid(pCreate->fullname, strlen(pCreate->fullname));
   pView->dbId = pDb->uid;
   pView->querySql = strdup(pCreate->querySql);
   if (NULL == pView) {
@@ -253,6 +260,11 @@ static int32_t mndCreateViewObj(SMnode *pMnode, SViewObj* pView, SCMCreateViewRe
   tstrncpy(pView->dbFName, pCreate->dbFName, sizeof(pView->dbFName));
   pView->precision = pCreate->precision;
   pView->numOfCols = pCreate->numOfCols;
+  if (NULL != pOldView) {
+    pView->version = pOldView->version + 1;
+  } else {
+    pView->version = 1;
+  }
 
   mndReleaseDb(pMnode, pDb);
 
@@ -265,10 +277,10 @@ _OVER:
   return -1;
 }
 
-static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg *pReq) {
+static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg *pReq, SViewObj *pOldView) {
   SViewObj view = {0};
   int32_t code = -1;
-  if (mndCreateViewObj(&view, pCreate) != 0) {
+  if (mndCreateViewObj(pMnode, &view, pCreate, pOldView) != 0) {
     return -1;
   }
 
@@ -351,12 +363,12 @@ static void mndLogDropViewAudit(SRpcMsg *pReq, SMnode *pMnode, SCMDropViewReq* p
 int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq) {
   SMnode            *pMnode = pReq->info.node;
   int32_t            code = -1;
-  SViewObj          *pView = NULL;
+  SViewObj          *pOldView = NULL;
   SDbObj            *pDb = NULL;
   SViewObj           newObj = {0};
 
-  pView = mndAcquireView(pMnode, pCreateView->fullname);
-  if (pView != NULL) {
+  pOldView = mndAcquireView(pMnode, pCreateView->fullname);
+  if (pOldView != NULL) {
     if (!pCreateView->orReplace) {
       terrno = TSDB_CODE_MND_VIEW_ALREADY_EXIST;
       goto _OVER;
@@ -367,7 +379,7 @@ int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq
     goto _OVER;
   }
 
-  if (mndCreateView(pMnode, pCreateView, pReq) < 0) {
+  if (mndCreateView(pMnode, pCreateView, pReq, pOldView) < 0) {
     mError("view:%s, failed to create since %s", pCreateView->fullname, terrstr());
     goto _OVER;
   }
@@ -381,7 +393,7 @@ _OVER:
     mError("failed to create view %s since %s", pCreateView->fullname, terrstr());
   }
 
-  mndReleaseView(pMnode, pView);
+  mndReleaseView(pMnode, pOldView);
 
   tFreeSCMCreateViewReq(pCreateView);
   return code;
@@ -437,7 +449,7 @@ int32_t mndProcessViewMetaReqImpl(SViewMetaReq* pMetaReq, SRpcMsg *pReq) {
   rsp.querySql = strdup(pView->querySql);
   rsp.version = pView->version;
 
-  int32_t rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
+  int32_t rspLen = tSerializeSViewMetaRsp(NULL, 0, &rsp);
   if (rspLen < 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
@@ -449,12 +461,12 @@ int32_t mndProcessViewMetaReqImpl(SViewMetaReq* pMetaReq, SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  tSerializeSTableMetaRsp(pRsp, rspLen, &metaRsp);
+  tSerializeSViewMetaRsp(pRsp, rspLen, &rsp);
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = rspLen;
   code = 0;
 
-  mTrace("%s.%s, meta is retrieved", infoReq.dbFName, infoReq.tbName);
+  mTrace("view %s meta is retrieved", pMetaReq->fullname);
 
 _OVER:
   if (code != 0) {
