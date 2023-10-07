@@ -67,9 +67,9 @@ struct STokenBucket {
   int32_t numCapacity;    // total capacity, available token per second
   int32_t numOfToken;     // total available tokens
   int32_t numRate;        // number of token per second
-  double  bytesCapacity;  // available capacity for maximum input size, KiloBytes per Second
-  double  bytesRemain;    // not consumed bytes per second
-  double  bytesRate;      // number of token per second
+  double  quotaCapacity;  // available capacity for maximum input size, KiloBytes per Second
+  double  quotaRemain;    // not consumed bytes per second
+  double  quotaRate;      // number of token per second
   int64_t fillTimestamp;  // fill timestamp
 };
 
@@ -122,7 +122,7 @@ int32_t streamNotifyUpstreamContinue(SStreamTask* pTask);
 int32_t streamTaskFillHistoryFinished(SStreamTask* pTask);
 int32_t streamTransferStateToStreamTask(SStreamTask* pTask);
 
-int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, int32_t bytesRate);
+int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, int32_t quotaRate);
 STaskId streamTaskExtractKey(const SStreamTask* pTask);
 void    streamTaskInitForLaunchHTask(SHistoryTaskInfo* pInfo);
 void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
