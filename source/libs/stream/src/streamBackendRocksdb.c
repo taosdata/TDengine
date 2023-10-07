@@ -715,9 +715,10 @@ int32_t delObsoleteCheckpoint(void* arg, const char* path) {
  *  chkpInUse is doing translation, cannot del until
  *  replication is finished
  */
-int32_t chkpDelObsolete(void* arg, char* path) {
+int32_t chkpMayDelObsolete(void* arg, int64_t chkpId, char* path) {
   STaskBackendWrapper* pBackend = arg;
   taosThreadRwlockWrlock(&pBackend->chkpDirLock);
+  taosArrayPush(pBackend->chkpSaved, &chkpId);
 
   SArray* chkpDel = taosArrayInit(8, sizeof(int64_t));
   SArray* chkpDup = taosArrayInit(8, sizeof(int64_t));
@@ -1041,9 +1042,9 @@ int32_t taskBackendDoCheckpoint(void* arg, uint64_t chkpId) {
     qError("stream backend:%p failed to flush db at:%s", pBackend, pChkpIdDir);
   }
 
-  code = chkpDelObsolete(pBackend, pChkpDir);
-  taosReleaseRef(taskBackendWrapperId, refId);
+  code = chkpMayDelObsolete(pBackend, chkpId, pChkpDir);
 
+  taosReleaseRef(taskBackendWrapperId, refId);
   return code;
 
 _EXIT:
