@@ -80,7 +80,46 @@
             ></div>
           </div>
         </div>
-          <div style="width: 100%">
+        <div
+            style="width: 100%"
+            v-if="
+              JSON.stringify(dbsource[0].options) !== '{}' &&
+              JSON.stringify(dbsource[0].options.endpoint) !== '{}'
+            "
+          >
+            <span
+              :class="[
+                'label',
+                dbsource[0].options.endpoint &&
+                dbsource[0].options.endpoint.required
+                  ? 'required'
+                  : '',
+              ]"
+              >{{
+                dbsource[0].options.endpoint
+                  ? dbsource[0].options.endpoint.display
+                  : ""
+              }}</span
+            >
+            <div class="label-value" v-if="dbsource[0].options.endpoint">
+              <el-input
+                style="margin-bottom: 8px"
+                v-model="dbsource[0].options.endpoint.value"
+                :placeholder="
+                  dbsource[0].options.endpoint
+                    ? dbsource[0].options.endpoint.placeholder
+                    : ''
+                "
+              ></el-input>
+              <div
+                v-html="transforHtml(dbsource[0].options.endpoint.description)"
+                class="description"
+              ></div>
+            </div>
+          </div>
+          <div style="width: 100%" v-if="
+              !!dbsource[0].options && !!dbsource[0].options.host
+            ">
             <span
               :class="[
                 'label',
@@ -154,7 +193,7 @@
         <!-- pi 的 AF Database Name 需要根据 System Configuration 值确认-->
         <div
           style="width: 100%"
-          v-if="JSON.stringify(dbsource[0].options.subject) !== '{}'
+          v-if="dbsource[0].options.subject && JSON.stringify(dbsource[0].options.subject) !== '{}'
           && isPiDataArchiveAll
           "
         >
@@ -1132,7 +1171,7 @@ export default {
             return;
           }
         }
-        if (this.tagName === "datasource" || this.tagName === "taos") {
+        if (this.tagName === "taos") {
           if (data.authentication.value == "plain") {
             let userinfo = data.authentication.alternatives.filter(
               (item) => item.name == "plain"
@@ -1159,6 +1198,13 @@ export default {
           // if(this.handleEmptyValue(data.options.host.value)){
           dns += `@${data.options.host.value ? data.options.host.value : ""}`;
           // }
+        } else if (this.tagName == "datasource") {
+          data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+          if (data.options.endpoint.value.includes("://")) {
+            dns = "+" + data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+          } else {
+            dns = "://" + data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+          }
         } else {
           if (this.tagName == "influxdb") {
             this.changeHost(data.options.host.value);
@@ -1183,9 +1229,11 @@ export default {
             `${data.options.port.value ? data.options.port.value : ""}`;
         }
 
-        dns += (data.options.subject.value && this.isPiDataArchiveAll)
-          ? "/" + data.options.subject.value
-          : "";
+        if (data.options.subject) {
+          dns += (data.options.subject.value && this.isPiDataArchiveAll)
+            ? "/" + data.options.subject.value
+            : "";
+        }
         let reg = /\s+/g;
         dns = dns.replace(reg, "").trim();
         let querystr = "";
