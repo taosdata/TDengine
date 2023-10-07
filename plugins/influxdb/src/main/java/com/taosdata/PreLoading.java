@@ -24,6 +24,11 @@ import com.taosdata.utils.HttpUtils;
 import com.taosdata.utils.influxdb.InfluxdbPoolAutoConfig;
 import com.taosdata.utils.influxdbV1.InfluxdbV1PoolAutoConfig;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
@@ -93,7 +98,7 @@ public class PreLoading implements CommandLineRunner {
                 System.exit(1);
             } else if ("-v".equals(args[0].trim().toLowerCase()) || "-version".equals(args[0].trim().toLowerCase())) {
                 System.exit(0);
-            } else if ("-fetch".equals(args[0].trim().toLowerCase()) && args.length >= 2) {
+            } else if ("-fetch".equals(args[0].trim().toLowerCase())) {
                 // 获取并判断版本
                 if (args[1].matches("1.*") && args.length >= 5) {
                     // 获取连接参数
@@ -114,6 +119,34 @@ public class PreLoading implements CommandLineRunner {
                 } else {
                     logger.error("Parameters error, query failed.");
                     System.exit(1);
+                }
+            } else if ("-check".equals(args[0].trim().toLowerCase())) {
+                // 获取并判断版本
+                if (args[1].matches("1.*") && args.length >= 5) {
+                    // 获取连接参数
+                    String url = args[2];
+                    String username = args[3];
+                    String password = args[4];
+                    // 查询结果，仅用于验证连通性
+                    influxdbService.fetchSchemaInfoV1(url, username, password);
+                } else if (args[1].matches("2.*") && args.length >= 4) {
+                    // 获取连接参数
+                    String url = args[2];
+                    String token = args[3];
+                    String orgId = args.length >= 5 ? args[4] : "";
+                    // 查询结果，仅用于验证连通性
+                    influxdbService.fetchSchemaInfo(url, token, orgId);
+                } else {
+                    logger.error("Parameters error, query failed.");
+                    System.exit(1);
+                }
+                // 检查连通性（代码到这里，说明参数正确，可以直接取url）
+                JSONObject result = getInfluxdbVersion(args[2]);
+                if (result.getBooleanValue("available")) {
+                    System.out.println(result.get("version"));
+                    System.exit(0);
+                } else {
+                    System.exit(3);
                 }
             } else {
                 // 加载toml配置文件，覆盖默认配置，第一个参数是外部配置文件路径，配置不正确则默认退出
@@ -148,7 +181,7 @@ public class PreLoading implements CommandLineRunner {
             threadInfo.setDescription(StatusEnums.LOADING.getDesc());
             StatusCache.noteThread(threadInfo);
             // 处理工作模式：普通、恢复
-            initMode();
+            // initMode();
             // 检查连通性
             if (!checkInfluxdb()) {
                 logger.error("Parameters error, failed to check the connectivity of InfluxDB.");
@@ -159,10 +192,10 @@ public class PreLoading implements CommandLineRunner {
             // 记录Netty连接信息
             StatusCache.noteNetty(this.nettyClientConfig.getHost(), this.nettyClientConfig.getPort());
             // 增加退出信号处理方法
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            /*Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 // 处理退出信号
                 processShutdown();
-            }));
+            }));*/
             // 状态默认正常，线程内部会再次更新
             StatusCache.setStatus(StatusEnums.NORMAL.getCode());
             StatusCache.setDescription(StatusEnums.NORMAL.getDesc());
@@ -211,6 +244,11 @@ public class PreLoading implements CommandLineRunner {
             if (StringUtils.isNotEmpty(this.taskConfig.getEndTime()) && !this.taskConfig.getEndTime().matches(DateUtils.PATTERN_YMDHMS_TZ)) {
                 throw new Exception("parameter endTime configuration error.");
             }
+            String breakpoint = tomlParseResult.getString("task.breakpoint", String::new);
+            // 存在断点信息则解析
+            if (StringUtils.isNotEmpty(breakpoint)) {
+                this.taskConfig.setBreakpoint(parseBreakpoint(breakpoint));
+            }
             this.performanceConfig.setReadWindow(tomlParseResult.getString("performance.readWindow", String::new));
             // 如果设置了性能参数，则覆盖默认值
             if (tomlParseResult.getLong("performance.tolerance") != null) {
@@ -233,6 +271,32 @@ public class PreLoading implements CommandLineRunner {
             // 启动失败
             System.exit(2);
         }
+    }
+
+    /**
+     * 解析断点信息，格式为measurement1:timestamp&measurement2:timestamp&...
+     *
+     * @param breakpoint
+     * @return
+     */
+    private Map<String, Long> parseBreakpoint(String breakpoint) {
+        Map<String, Long> breakpointMap = new HashMap<>();
+        try {
+            // 按 & 分割
+            String[] measurementInfoArr = breakpoint.split("&");
+            // 遍历封装map
+            for (String measurementInfo : measurementInfoArr) {
+                // 按 : 分割
+                String[] arr = measurementInfo.split(":");
+                // measurement与timestamp均不为空才赋值
+                if (StringUtils.isNotEmpty(arr[0]) && StringUtils.isNotEmpty(arr[1])) {
+                    breakpointMap.put(arr[0], Long.parseLong(arr[1]));
+                }
+            }
+        } catch (Exception e) {
+            logger.error("An exception occurred during the parsing of breakpoint, breakpoint={}", breakpoint, e);
+        }
+        return breakpointMap;
     }
 
     /**
@@ -309,6 +373,41 @@ public class PreLoading implements CommandLineRunner {
     }
 
     /**
+     * 获取influxdb版本信息
+     *
+     * @param url
+     * @return
+     */
+    private JSONObject getInfluxdbVersion(String url) {
+        JSONObject result = new JSONObject();
+        try {
+            // 建立http客户端
+            CloseableHttpClient httpClient = HttpClients.createDefault();
+            // 创建连接
+            URIBuilder builder = new URIBuilder(url);
+            // 建立httpGet
+            HttpGet httpGet = new HttpGet(builder.build());
+            // 获取响应
+            CloseableHttpResponse response = httpClient.execute(httpGet);
+            // 从header中获取版本信息
+            String version = "";
+            if (response.getHeaders("x-influxdb-build").length > 0) {
+                version += response.getHeaders("x-influxdb-build")[0].getValue() + " ";
+            }
+            if (response.getHeaders("x-influxdb-version").length > 0) {
+                version += response.getHeaders("x-influxdb-version")[0].getValue();
+            }
+            // 封装数据
+            result.put("available", true);
+            result.put("version", version.trim());
+        } catch (Exception e) {
+            result.put("available", false);
+            result.put("version", "");
+        }
+        return result;
+    }
+
+    /**
      * 初始化influxdb及相关线程
      */
     private void initInfluxdb() {
@@ -342,7 +441,7 @@ public class PreLoading implements CommandLineRunner {
                     List<InfluxdbMeasurementEntity> influxdbMeasurementEntityList = influxdbService.selectAllMeasurements(influxdbBucketEntity.getBucketName());
                     // 放入缓存中
                     for (InfluxdbMeasurementEntity influxdbMeasurementEntity : influxdbMeasurementEntityList) {
-                        BucketCache.measurementMap.put(influxdbMeasurementEntity.getBucket() + ":" + influxdbMeasurementEntity.getMeasurement(), influxdbMeasurementEntity);
+                        BucketCache.measurementMap.put(BucketCache.generateBucketDataThreadKey(influxdbMeasurementEntity.getBucket(), influxdbMeasurementEntity.getMeasurement()), influxdbMeasurementEntity);
                     }
                     // 启动BucketThread
                     BucketThread bucket = new BucketThread(influxdbConfig.getOrgId(), influxdbBucketEntity.getBucketName());

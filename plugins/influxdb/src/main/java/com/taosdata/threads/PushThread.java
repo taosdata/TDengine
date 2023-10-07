@@ -166,7 +166,7 @@ public class PushThread implements Runnable {
             // 判断列表不为空
             if (influxdbBucketDataEntityList != null && influxdbBucketDataEntityList.size() > 0) {
                 // 获取内存中最新的measurement信息
-                InfluxdbMeasurementEntity latestMeasurementEntity = BucketCache.measurementMap.get(influxdbBucketDataEntityList.get(0).getInfluxdbMeasurementEntity().getBucket() + ":" + influxdbBucketDataEntityList.get(0).getMeasurement());
+                InfluxdbMeasurementEntity latestMeasurementEntity = BucketCache.measurementMap.get(BucketCache.generateBucketDataThreadKey(influxdbBucketDataEntityList.get(0).getInfluxdbMeasurementEntity().getBucket(), influxdbBucketDataEntityList.get(0).getMeasurement()));
                 // 全局变量本地化
                 Map<String, String> latestFieldMap = new HashMap<>();
                 latestFieldMap.putAll(latestMeasurementEntity.getFieldMap());
