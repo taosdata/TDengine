@@ -169,20 +169,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
   // no available token in bucket for sink task, let's wait for a little bit
   if (taskLevel == TASK_LEVEL__SINK && (!streamTaskExtractAvailableToken(pTask->outputInfo.pTokenBucket, pTask->id.idStr))) {
     stDebug("s-task:%s no available token in bucket for sink data, wait for 50ms", id);
-    taosMsleep(50);
-
-//    if (streamTaskAllUpstreamClosed(pTask)) {
-//      int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
-//      stDebug("s-task:%s try start task in %dms in tmr, since all upstream inputQ is closed, ref:%d", pTask->id.idStr,
-//              SINK_TASK_IDLE_DURATION, ref);
-//
-//      if (pTask->outputInfo.pTimer == NULL) {
-//        pTask->outputInfo.pTimer = taosTmrStart(doLaunchSinkTask, SINK_TASK_IDLE_DURATION, pTask, streamEnv.timer);
-//      } else {
-//        taosTmrReset(doLaunchSinkTask, SINK_TASK_IDLE_DURATION, pTask, streamEnv.timer, &pTask->outputInfo.pTimer);
-//      }
-//    }
-
+    taosMsleep(10);
     return TSDB_CODE_SUCCESS;
   }
 

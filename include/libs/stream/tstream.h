@@ -358,7 +358,7 @@ typedef struct STaskOutputInfo {
     STaskSinkFetch         fetchSink;
   };
 
-  void*         pTimer;   // timer for launch sink tasks
+//  void*         pTimer;   // timer for launch sink tasks
   int8_t        type;
   STokenBucket* pTokenBucket;
 } STaskOutputInfo;
