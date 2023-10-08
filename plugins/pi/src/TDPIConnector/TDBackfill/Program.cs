@@ -117,6 +117,18 @@ namespace TDBackfill
                     piServerManager = new PIServerManager(AppSettings.tomlConfig.PIServerName);
                 }
 
+                AppService appService = new AppService();
+                if (options.workMode == CommandLineOptions.WorkMode.PrintPIInfo)
+                {
+                    appService.PrintPIInfo(options.filter);
+                    return;
+                }
+                else if (options.workMode == CommandLineOptions.WorkMode.CheckConfig)
+                {
+                    appService.CheckConfig();
+                    return;
+                }
+
                 TDEngineProxy tdEngineProxy;
                 if (!AppSettings.TaosXEnabled)
                 {
