@@ -52,16 +52,13 @@ sudo seeq restart
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
         "DatabaseJdbcUrl": "jdbc:TAOS://localhost:6030/?user=root&password=taosdata",
-        "SqlDriverClassName": "com.taosdata.jdbc.TSDBDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }
 }
 ```
 
-Note: You need to replace DatabaseJdbcUrl and SqlDriverClassName with your setting. Please login TDengine cloud or open taosExplorer for enterprise edition, click programming -> Java to find yours.
-
-For the "QueryDefintions", please follow the examples below to write your own.  
+Note: You need to replace DatabaseJdbcUrl with your setting. Please login TDengine cloud or open taosExplorer for enterprise edition, click programming -> Java to find yours. For the "QueryDefintions", please follow the examples below to write your own.  
 
 ## Use Seeq to analyze time-series data stored inside TDengine
 
@@ -136,8 +133,8 @@ Please login with Seeq administrator and create a few data sources as following.
     "Hostname": null,
     "Port": 0,
     "DatabaseName": null,
-    "Username": "root",
-    "Password": "taosdata",
+    "Username": null,
+    "Password": null,
     "InitialSql": null,
     "TimeZone": null,
     "PrintRows": false,
@@ -147,7 +144,6 @@ Please login with Seeq administrator and create a few data sources as following.
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
         "DatabaseJdbcUrl": "jdbc:TAOS-RS://127.0.0.1:6041/power?user=root&password=taosdata",
-        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }
@@ -196,8 +192,8 @@ Please login with Seeq administrator and create a few data sources as following.
     "Hostname": null,
     "Port": 0,
     "DatabaseName": null,
-    "Username": "root",
-    "Password": "taosdata",
+    "Username": null,
+    "Password": null,
     "InitialSql": null,
     "TimeZone": null,
     "PrintRows": false,
@@ -207,7 +203,6 @@ Please login with Seeq administrator and create a few data sources as following.
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
         "DatabaseJdbcUrl": "jdbc:TAOS-RS://127.0.0.1:6041/power?user=root&password=taosdata",
-        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }
@@ -255,8 +250,8 @@ Please login with Seeq administrator and create a few data sources as following.
     "Hostname": null,
     "Port": 0,
     "DatabaseName": null,
-    "Username": "root",
-    "Password": "taosdata",
+    "Username": null,
+    "Password": null,
     "InitialSql": null,
     "TimeZone": null,
     "PrintRows": false,
@@ -266,7 +261,6 @@ Please login with Seeq administrator and create a few data sources as following.
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
         "DatabaseJdbcUrl": "jdbc:TAOS-RS://127.0.0.1:6041/power?user=root&password=taosdata",
-        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }
@@ -395,8 +389,8 @@ Please note that when using TDengine Cloud, you need to specify the database nam
     "Hostname": null,
     "Port": 0,
     "DatabaseName": null,
-    "Username": "root",
-    "Password": "taosdata",
+    "Username": null,
+    "Password": null,
     "InitialSql": null,
     "TimeZone": null,
     "PrintRows": false,
@@ -406,7 +400,6 @@ Please note that when using TDengine Cloud, you need to specify the database nam
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
         "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.cloud.taosdata.com?useSSL=true&token=41ac9d61d641b6b334e8b76f45f5a8XXXXXXXXXX",
-        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }
