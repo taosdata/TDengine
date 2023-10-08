@@ -345,6 +345,10 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
     return NULL;
   }
 
+  if (vnodeMkDir(pTfs, path)) {
+    vError("vgId:%d, failed to prepare vnode dir since %s, path: %s", info.config.vgId, strerror(errno), path);
+    return NULL;
+  }
   // save vnode info on dnode ep changed
   bool      updated = false;
   SSyncCfg *pCfg = &info.config.syncCfg;
