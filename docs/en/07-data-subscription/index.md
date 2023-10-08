@@ -292,23 +292,6 @@ let mut consumer = tmq.build()?;
 
 <TabItem value="Python" label="Python">
 
-Python programs use the following parameters:
-
-|            Parameter            |  Type   | Description                                                 | Remarks                                        |
-| :----------------------------: | :----: | -------------------------------------------------------- | ------------------------------------------- |
-|        `td.connect.ip`         | string  | Used in establishing a connection;                           |                                             |
-|        `td.connect.user`         | string  | Used in establishing a connection;                           |                                             |
-|        `td.connect.pass`         | string  | Used in establishing a connection;                           |                                             |
-|        `td.connect.port`         | string  | Used in establishing a connection;                           |                                             |
-|           `group.id`           | string  | Consumer group ID; consumers with the same ID are in the same group                        | **Required**. Maximum length: 192.                 |
-|          `client.id`           | string  | Client ID                                                | Maximum length: 192.                             |
-|      `auto.offset.reset`       |  string   | Initial offset for the consumer group                                     | Specify `earliest`, `latest`, or `none`(default) |
-|      `enable.auto.commit`      | string | Commit automatically                                             | Specify `true` or `false`.                   |
-|   `auto.commit.interval.ms`    | string | Interval for automatic commits, in milliseconds                           |
-| `enable.heartbeat.background`  | string | Backend heartbeat; if enabled, the consumer does not go offline even if it has not polled for a long time |  Specify `true` or `false`.                                           |
-|     `msg.with.table.name`      | string | Specify whether to deserialize table names from messages                                 | Specify `true` or `false`.
-|           `timeout`            |  int   | Consumer pull timeout                                     |                                      |
-
 ```python
 endpoint = os.environ["TDENGINE_CLOUD_ENDPOINT"]
 token = os.environ["TDENGINE_CLOUD_TOKEN"]
@@ -321,6 +304,10 @@ conf = {
     # consume options
     "group.id": "test_group_py",
     "client.id": "test_consumer_ws_py",
+    "enable.auto.commit": "true",
+    "auto.commit.interval.ms": "1000",
+    "auto.offset.reset": "earliest",
+    "msg.with.table.name": "true",
 }
 consumer = Consumer(conf)
 ```
