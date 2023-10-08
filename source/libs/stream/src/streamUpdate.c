@@ -103,10 +103,12 @@ SUpdateInfo *updateInfoInit(int64_t interval, int32_t precision, int64_t waterma
   pInfo->minTS = -1;
   pInfo->interval = adjustInterval(interval, precision);
   pInfo->watermark = adjustWatermark(pInfo->interval, interval, watermark);
+  pInfo->numSBFs = 0;
 
   uint64_t bfSize = 0;
   if (!igUp) {
     bfSize = (uint64_t)(pInfo->watermark / pInfo->interval);
+    pInfo->numSBFs = bfSize;
 
     pInfo->pTsSBFs = taosArrayInit(bfSize, sizeof(void *));
     if (pInfo->pTsSBFs == NULL) {
@@ -130,7 +132,6 @@ SUpdateInfo *updateInfoInit(int64_t interval, int32_t precision, int64_t waterma
     _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT);
     pInfo->pMap = taosHashInit(DEFAULT_MAP_CAPACITY, hashFn, true, HASH_NO_LOCK);
   }
-  pInfo->numSBFs = bfSize;
   pInfo->maxDataVersion = 0;
   return pInfo;
 }
