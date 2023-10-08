@@ -262,6 +262,9 @@
           </el-tabs>
         </div>
       </section>
+      <section class="check" v-if="tagName !=='csv'">
+        <el-button :loading="checkLoading" type="primary" @click="checkTask">check</el-button>
+      </section>
       <section
         :class="[
           'groups-dataset',
@@ -733,7 +736,6 @@
         <el-button type="primary" @click="submit" :disabled="disable">{{
           $t("submit")
         }}</el-button>
-         <el-button type="primary" @click="checkTask">check</el-button>
       </section>
     </div>
     <div class="right-ui">
@@ -885,7 +887,7 @@ export default {
       },
       policyDisabled: true,
       resultVisible: false,
-      checkLoading: true,
+      checkLoading: false,
       percentage: 0,
       checkResult: {
         available: 'bool', // 数据源是否可用
@@ -1199,31 +1201,28 @@ export default {
               ? "kafka"
               : "opc" + this.protocol) + dns,
         };
-        this.resultVisible = true
+       
         this.checkLoading = true
-        // let result = await validateTask(params)
-
-        this.timer = setInterval(() => {
-          if (this.percentage <100) {
-            this.percentage += 10
-          }
-          console.log('test-------');
-        }, 500);
-
-        setTimeout(() => {
-          this.checkResult = {
-            available: false,
-            version: 'v-1.2', 
-            since: '数据源可用，版本是 xxxx，当前系统支持此版本，您可以迁移您的数据到 TDengine 数据库。' 
-          }
-          this.checkLoading = false
-          clearInterval(this.timer)
-        }, 3000);
+        let result = await validateTask(params)
+        this.resultVisible = true // 展示检测结果
+        this.checkResult = result
         
+        this.checkLoading = false // 检测的 loading 效果
+        
+
+        // setTimeout(() => {
+        //   this.checkResult = {
+        //     available: false,
+        //     version: 'v-1.2', 
+        //     since: '数据源可用，版本是 xxxx，当前系统支持此版本，您可以迁移您的数据到 TDengine 数据库。' 
+        //   }
+        //   this.checkLoading = false
+        //   clearInterval(this.timer)
+        // }, 3000);
         
         // console.log('check:',dns,result);
       } catch (error) {
-        // this.checkLoading = false
+        this.checkLoading = false
         // this.checkResult={
         //   available: false,
         //   version: 'v-1.2', 
@@ -2140,7 +2139,7 @@ export default {
         flex: auto;
       }
     }
-    .bottom {
+    .bottom,.check {
       display: flex;
       border: none !important;
       padding: 0px !important;

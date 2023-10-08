@@ -8,11 +8,11 @@
      <!-- <el-row :class="['flexStart','flexColumn']">
       <div :class="['text','text-awating',result.available ? 'text-success': 'text-error']">数据源连通性及版本检测</div>
      </el-row> -->
-     <el-row v-if="loading" :class="['flexCenter','flexColumn']">
+     <!-- <el-row v-if="loading" :class="['flexCenter','flexColumn']">
       <el-progress type="circle" :percentage="percentage" :color="colors"></el-progress>
       <div :class="['text','text-awating']">正在检测，请稍等。。。</div>
-     </el-row>
-     <el-row v-else :class="['flexCenter','flexColumn']">
+     </el-row> -->
+     <el-row :class="['flexCenter','flexColumn']">
         <!-- <el-progress v-if="result.available" type="circle" :percentage="100" status="success"></el-progress> -->
         <!-- <el-progress v-else type="circle" :percentage="100" status="exception"></el-progress> -->
         <div class="text">
@@ -21,8 +21,8 @@
           <div class="text-content">{{ result.since }}</div>
         </div>
      </el-row>
-     <span slot="footer" class="dialog-footer" v-if="!loading">
-        <el-button :type="result.available ? 'success': 'danger'" size="small" plain @click="handleClose">确 定</el-button>
+     <span slot="footer" class="dialog-footer" v-if="JSON.stringify(result) !== '{}'">
+        <el-button type="primary" size="small" plain @click="handleClose">确 定</el-button>
       </span>
    </el-dialog>
 </template>
