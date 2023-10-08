@@ -889,7 +889,12 @@ pub(super) fn get_string_vec_from_param_or_file(
     dsn: &mut Dsn,
     key: &str,
 ) -> Result<Vec<String>, String> {
-    if let Some(nodes) = dsn.remove(key) {
+    let selec_all_nodes = parse_bool_param_from_dsn(dsn, "select_all_nodes");
+    if let Ok(Some(true)) = selec_all_nodes {
+        // TODO get all nodes
+        
+
+    } else if let Some(nodes) = dsn.remove(key) {
         let (files, mut node_config): (Vec<_>, Vec<_>) = nodes
             .split(",")
             .map(|s| s.trim())
@@ -1205,7 +1210,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         regex: req.pattern.clone(),
     };
     config.points = Some(points_config);
-    let toml = toml::to_string(&config)?;
+    let toml = toml::to_string(&config).with_context(|| format!("toml to_string error encountered"))?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
