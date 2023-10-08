@@ -1,6 +1,7 @@
 # 500 seconds (at most)
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/str/table_str_concat.py --keep --containers
-taostest --use=common_cluster_30.yaml --case=Query/queryscript/scene_query/schema/schema_query.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/scene_query/schema/schema_show.py --keep --containers
+#taostest --use=common_cluster_30.yaml --case=Query/queryscript/scene_query/schema/schema_query.py --keep --containers
 #taostest --use=common_cluster_30.yaml --case=Query/queryscript/scene_query/jishu/jishu.py --keep --containers
 #taostest --use=common_cluster_30.yaml --case=Query/queryscript/scene_query/meters/meters_query.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/scene_query/meters/meters_limit_common.py --keep --containers
