@@ -52,7 +52,6 @@ sudo seeq restart
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
         "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.us-east-1.aws.cloud.tdengine.com?useSSL=true&token=c6bcdb726c7b58880f3e34d1ed0707bb34dfxxxx",
-        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }
@@ -138,8 +137,8 @@ Please login with Seeq administrator and create a few data sources as following.
     "Hostname": null,
     "Port": 0,
     "DatabaseName": null,
-    "Username": "root",
-    "Password": "taosdata",
+    "Username": null,
+    "Password": null,
     "InitialSql": null,
     "TimeZone": null,
     "PrintRows": false,
@@ -149,7 +148,6 @@ Please login with Seeq administrator and create a few data sources as following.
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
         "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.cloud.taosdata.com?useSSL=true&token=41ac9d61d641b6b334e8b76f45f5a8XXXXXXXXXX",
-        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }
@@ -198,8 +196,8 @@ Please login with Seeq administrator and create a few data sources as following.
     "Hostname": null,
     "Port": 0,
     "DatabaseName": null,
-    "Username": "root",
-    "Password": "taosdata",
+    "Username": null,
+    "Password": null,
     "InitialSql": null,
     "TimeZone": null,
     "PrintRows": false,
@@ -209,7 +207,6 @@ Please login with Seeq administrator and create a few data sources as following.
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
         "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.cloud.taosdata.com?useSSL=true&token=41ac9d61d641b6b334e8b76f45f5a8XXXXXXXXXX",
-        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }
@@ -257,8 +254,8 @@ Please login with Seeq administrator and create a few data sources as following.
     "Hostname": null,
     "Port": 0,
     "DatabaseName": null,
-    "Username": "root",
-    "Password": "taosdata",
+    "Username": null,
+    "Password": null,
     "InitialSql": null,
     "TimeZone": null,
     "PrintRows": false,
@@ -268,7 +265,6 @@ Please login with Seeq administrator and create a few data sources as following.
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
         "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.cloud.taosdata.com?useSSL=true&token=41ac9d61d641b6b334e8b76f45f5a8XXXXXXXXXX",
-        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }
@@ -352,6 +348,6 @@ Example output:
 
 ## Conclusion
 
-By integrating Seeq and TDengine, it allows the users to take advantage of TDengine's high-performance time-series data storage and query, ensuring efficient handling of large volumes of data. At the same time, Seeq provides advanced analytics features such as data visualization, anomaly detection, correlation analysis, and predictive modeling, enabling users to gain valuable insights and make data-driven decisions.
+By integrating Seeq and TDengine, the user is able to take advantage of TDengine's high-performance time-series data storage and query, ensuring efficient handling of large volumes of data. At the same time, Seeq provides advanced analytics features such as data visualization, anomaly detection, correlation analysis, and predictive modeling, enabling users to gain valuable insights and make data-driven decisions.
 
 Together, Seeq and TDengine provide a comprehensive solution for time series data analysis in diverse industries such as manufacturing, IIoT, and power systems. The combination of efficient data storage and advanced analytics empowers users to unlock the full potential of their time series data, driving operational improvements, and enabling predictive and prescriptive analytics applications.
