@@ -62,8 +62,8 @@ $keyList = $keyList . ,
 $keyList = $keyList . enable.auto.commit:false
 #$keyList = $keyList . ,
 #$keyList = $keyList . auto.commit.interval.ms:6000
-#$keyList = $keyList . ,
-#$keyList = $keyList . auto.offset.reset:earliest
+$keyList = $keyList . ,
+$keyList = $keyList . auto.offset.reset:earliest
 $keyList = $keyList . '
 print ========== key list:  $keyList
 
