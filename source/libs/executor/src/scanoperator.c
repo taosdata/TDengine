@@ -1881,7 +1881,6 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     return NULL;
   }
 }
-}
 
 static int32_t filterDelBlockByUid(SSDataBlock* pDst, const SSDataBlock* pSrc, SStreamScanInfo* pInfo) {
   STqReader* pReader = pInfo->tqReader;
