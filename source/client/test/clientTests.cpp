@@ -832,8 +832,8 @@ TEST(clientCase, projection_query_tables) {
   for(int32_t i = 0; i < 1000000; ++i) {
     char t[512] = {0};
 
-    sprintf(t, "insert into t1 values(%ld, %ld)", start + i, i);
-    while(1) {
+    sprintf(t, "insert into t1 values(%" PRId64 ", %d)", start + i, i);
+    while (1) {
       void* p = taos_query(pConn, t);
       code = taos_errno(p);
       taos_free_result(p);
@@ -925,7 +925,7 @@ TEST(clientCase, agg_query_tables) {
     char s[256] = {0};
 
     while (1) {
-      sprintf(s, "insert into t1 values(%ld, %d)", st + i, i);
+      sprintf(s, "insert into t1 values(%" PRId64 ", %d)", st + i, i);
       pRes = taos_query(pConn, s);
 
       int32_t ret = taos_errno(pRes);
@@ -936,7 +936,7 @@ TEST(clientCase, agg_query_tables) {
     }
 
     while (1) {
-      sprintf(s, "insert into t2 values(%ld, %d)", st + i, i);
+      sprintf(s, "insert into t2 values(%" PRId64 ", %d)", st + i, i);
       pRes = taos_query(pConn, s);
       int32_t ret = taos_errno(pRes);
 
