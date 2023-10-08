@@ -281,22 +281,6 @@ let mut consumer = tmq.build()?;
 
 <TabItem value="Python" label="Python">
 
-Python 程序可以配置的参数有：
-
-| 参数名称 | 类型 | 参数说明 | 备注 |
-|:------:|:----:|:-------:|:---:|
-| `td.connect.ip` | string | 用于创建连接||
-| `td.connect.user` | string | 用于创建连接||
-| `td.connect.pass` | string | 用于创建连接||
-| `td.connect.port` | string | 用于创建连接||
-| `group.id` | string | 消费组 ID，同一消费组共享消费进度 | **必填项**。最大长度：192 |
-| `client.id` | string | 客户端 ID | 最大长度：192 |
-| `msg.with.table.name` | string | 是否允许从消息中解析表名,不适用于列订阅 | 合法值：`true`, `false` |
-| `enable.auto.commit` | string | 启用自动提交 | 合法值：`true`, `false` |
-| `auto.commit.interval.ms` | string | 以毫秒为单位的自动提交时间间隔 | 默认值：5000 ms |
-| `auto.offset.reset` | string | 消费组订阅的初始位置 | 可选：`earliest`(default), `latest`, `none` |
-| `enable.heartbeat.background` | string | 启用后台心跳，启用后即使长时间不 poll 消息也不会造成离线 | 合法值：`true`, `false` |
-
 ```python
 endpoint = os.environ["TDENGINE_CLOUD_ENDPOINT"]
 token = os.environ["TDENGINE_CLOUD_TOKEN"]
@@ -309,6 +293,10 @@ conf = {
     # consume options
     "group.id": "test_group_py",
     "client.id": "test_consumer_ws_py",
+    "enable.auto.commit": "true",
+    "auto.commit.interval.ms": "1000",
+    "auto.offset.reset": "earliest",
+    "msg.with.table.name": "true",
 }
 consumer = Consumer(conf)
 ```
