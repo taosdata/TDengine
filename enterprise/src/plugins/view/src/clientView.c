@@ -15,14 +15,47 @@
 #include "clientInt.h"
 #include "clientLog.h"
 
+int32_t asyncParseSql(void* param) {
+  doAsyncQuery((SRequestObj*)param, false);
+  return TSDB_CODE_SUCCESS;
+}
 
- int32_t asyncValidateSql(void* param) {
-   doAsyncQuery((SRequestObj*)param, false);
-   return TSDB_CODE_SUCCESS;
- }
+static int32_t buildParseSqlRes(SRequestObj* pRequest, SParseSqlRes* pRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  switch (pRes->resType) {
+    case PARSE_SQL_RES_QUERY: {
+      SParseQueryRes* pQueryRes = &pRes->queryRes;
+      SSqlCallbackWrapper *pWrapper = pRequest->pWrapper;
+      pQueryRes->pQuery = nodesCloneNode(pRequest->pQuery->pRoot);
+      if (NULL == pQueryRes->pQuery) {
+         return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      TSWAP(pQueryRes->pCatalogReq, pWrapper->pCatalogReq);
+      memcpy(&pQueryRes->meta, &pRequest->parseMeta, sizeof(pRequest->parseMeta));
+      memset(&pRequest->parseMeta, 0, sizeof(pRequest->parseMeta));
+      break;
+    } 
+    case PARSE_SQL_RES_SCHEMA: {
+      SQuery* pQuery = pRequest->pQuery;
+      SParseSchemaRes* pSchemaRes = &pRes->schemaRes;
+      pSchemaRes->numOfCols = pQuery->numOfResCols;
+      pSchemaRes->precision = pQuery->precision;
+      pSchemaRes->pSchema = taosMemoryMalloc(pQuery->numOfResCols * sizeof(SSchema));
+      if (NULL == pSchemaRes->pSchema) {
+        code = terrno = TSDB_CODE_OUT_OF_MEMORY;
+      } else {
+        memcpy(pSchemaRes->pSchema, pQuery->pResSchema, pQuery->numOfResCols * sizeof(SSchema));
+      }
+      break;
+    }
+    default:
+      break;
+  }
+
+  return code;
+}
  
- 
- int32_t clientValidateSqlImpl(void* param, const char* sql, SCMCreateViewReq* pReq) {
+int32_t clientParseSqlImpl(void* param, const char* sql, bool parseOnly, SParseSqlRes* pRes) {
    SSqlCallbackWrapper *pWrapper = (SSqlCallbackWrapper *)param;
    SSyncQueryParam* syncParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
    tsem_init(&syncParam->sem, 0, 0);
@@ -34,12 +67,13 @@
      terrno = code;
      return code;
    }
- 
+
+   pNewRequest->parseOnly = parseOnly;
    pNewRequest->body.queryFp = syncQueryFn;
  
-   code = taosAsyncExec(asyncValidateSql, pNewRequest, NULL);
+   code = taosAsyncExec(asyncParseSql, pNewRequest, NULL);
    if (TSDB_CODE_SUCCESS != code) {
-     tscError("failed to sched async validate sql");
+     tscError("failed to sched async parse sql");
      return code;
    }
  
@@ -49,16 +83,7 @@
    pRequest->code = code;
  
    if (TSDB_CODE_SUCCESS == code && NULL != pNewRequest->pQuery) {
-     SQuery* pQuery = pNewRequest->pQuery;
-     
-     pReq->numOfCols = pQuery->numOfResCols;
-     pReq->precision = pQuery->precision;
-     pReq->pSchema = taosMemoryMalloc(pQuery->numOfResCols * sizeof(SSchema));
-     if (NULL == pReq->pSchema) {
-       code = terrno = TSDB_CODE_OUT_OF_MEMORY;
-     } else {
-       memcpy(pReq->pSchema, pQuery->pResSchema, pQuery->numOfResCols * sizeof(SSchema));
-     }
+     code = buildParseSqlRes(pNewRequest, pRes);
    } else if (0 != pNewRequest->msgBuf[0]) {
      strncpy(pRequest->msgBuf, pNewRequest->msgBuf, pRequest->msgBufLen - 1);
      pRequest->msgBuf[pRequest->msgBufLen - 1] = 0;
@@ -68,8 +93,5 @@
    destroyRequest(pNewRequest);
    
    return code;
- }
- 
-
-
+}
 
