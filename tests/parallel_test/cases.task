@@ -815,6 +815,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py
 ,,n,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/insertMix.py -N 3
 ,,n,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/stt.py -N 3
+,,n,system-test,python3 ./test.py -f eco-system/meta/database/keep_time_offset.py
 
 #tsim test
 ,,y,script,./test.sh -f tsim/tmq/basic2Of2ConsOverlap.sim

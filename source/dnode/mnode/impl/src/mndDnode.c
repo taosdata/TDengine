@@ -147,7 +147,7 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
-  mndUpdateIpWhite(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1);
+  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1);
 
 _OVER:
   mndTransDrop(pTrans);
@@ -752,7 +752,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
 
-  mndUpdateIpWhite(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1);
+  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1);
 _OVER:
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
@@ -763,7 +763,9 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
   SSdbRaw   *pRaw = NULL;
   STrans    *pTrans = NULL;
   SDnodeObj *pDnode = NULL;
+  SArray    *failRecord = NULL;
   bool       cfgAll = pCfgReq->dnodeId == -1;
+  int32_t    cfgAllErr = 0;
   int32_t    iter = 0;
 
   SSdb *pSdb = pMnode->pSdb;
@@ -777,20 +779,56 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
       goto _OVER;
     }
 
+    SDnodeObj tmpDnode = *pDnode;
+    if (action == DND_ACTIVE_CODE) {
+#ifndef TD_CHECK_ACTIVE
+      strncpy(tmpDnode.active, pCfgReq->value, TSDB_ACTIVE_KEY_LEN);
+#else
+      if (grantAlterActiveCode(pDnode->active, pCfgReq->value, tmpDnode.active, 0) != 0) {
+        if (TSDB_CODE_DUP_KEY != terrno) {
+          mError("dnode:%d, config dnode:%d, app:%p config:%s value:%s failed since %s", pDnode->id, pCfgReq->dnodeId,
+                 pReq->info.ahandle, pCfgReq->config, pCfgReq->value, terrstr());
+          if (cfgAll) {  // alter all dnodes:
+            if (!failRecord) failRecord = taosArrayInit(1, sizeof(int32_t));
+            if (failRecord) taosArrayPush(failRecord, &pDnode->id);
+            if (0 == cfgAllErr) cfgAllErr = terrno;  // output 1st terrno.
+          }
+        } else {
+          terrno = 0;  // no action for dup active code
+        }
+        if (cfgAll) continue;
+        goto _OVER;
+      }
+#endif
+    } else if (action == DND_CONN_ACTIVE_CODE) {
+#ifndef TD_CHECK_ACTIVE
+      strncpy(tmpDnode.connActive, pCfgReq->value, TSDB_CONN_ACTIVE_KEY_LEN);
+#else
+      if (grantAlterActiveCode(pDnode->connActive, pCfgReq->value, tmpDnode.connActive, 1) != 0) {
+        if (TSDB_CODE_DUP_KEY != terrno) {
+          mError("dnode:%d, config dnode:%d, app:%p config:%s value:%s failed since %s", pDnode->id, pCfgReq->dnodeId,
+                 pReq->info.ahandle, pCfgReq->config, pCfgReq->value, terrstr());
+          if (cfgAll) {
+            if (!failRecord) failRecord = taosArrayInit(1, sizeof(int32_t));
+            if (failRecord) taosArrayPush(failRecord, &pDnode->id);
+            if (0 == cfgAllErr) cfgAllErr = terrno;
+          }
+        } else {
+          terrno = 0;
+        }
+        if (cfgAll) continue;
+        goto _OVER;
+      }
+#endif
+    } else {
+      terrno = TSDB_CODE_INVALID_CFG;
+      goto _OVER;
+    }
+
     if (!pTrans) {
       pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "config-dnode");
       if (!pTrans) goto _OVER;
       if (mndTrancCheckConflict(pMnode, pTrans) != 0) goto _OVER;
-    }
-
-    SDnodeObj tmpDnode = *pDnode;
-    if (action == DND_ACTIVE_CODE) {
-      strncpy(tmpDnode.active, pCfgReq->value, TSDB_ACTIVE_KEY_LEN);
-    } else if (action == DND_CONN_ACTIVE_CODE) {
-      strncpy(tmpDnode.connActive, pCfgReq->value, TSDB_CONN_ACTIVE_KEY_LEN);
-    } else {
-      terrno = TSDB_CODE_INVALID_CFG;
-      goto _OVER;
     }
 
     pRaw = mndDnodeActionEncode(&tmpDnode);
@@ -798,7 +836,7 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
     (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
     pRaw = NULL;
 
-    mInfo("dnode:%d, config dnode, cfg:%d, app:%p config:%s value:%s", pDnode->id, pCfgReq->dnodeId, pReq->info.ahandle,
+    mInfo("dnode:%d, config dnode:%d, app:%p config:%s value:%s", pDnode->id, pCfgReq->dnodeId, pReq->info.ahandle,
           pCfgReq->config, pCfgReq->value);
 
     if (cfgAll) {
@@ -816,12 +854,19 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
 _OVER:
   if (cfgAll) {
     sdbRelease(pSdb, pDnode);
+    if (cfgAllErr != 0) terrno = cfgAllErr;
+    int32_t nFail = taosArrayGetSize(failRecord);
+    if (nFail > 0) {
+      mError("config dnode, cfg:%d, app:%p config:%s value:%s. total:%d, fail:%d", pCfgReq->dnodeId, pReq->info.ahandle,
+             pCfgReq->config, pCfgReq->value, iter, nFail);
+    }
   } else {
     mndReleaseDnode(pMnode, pDnode);
   }
   sdbCancelFetch(pSdb, pIter);
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
+  taosArrayDestroy(failRecord);
   return terrno;
 }
 
@@ -1045,7 +1090,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
-  mndUpdateIpWhite(pMnode, TSDB_DEFAULT_USER, pDnode->fqdn, IP_WHITE_DROP, 1);
+  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, pDnode->fqdn, IP_WHITE_DROP, 1);
   code = 0;
 
 _OVER:
@@ -1191,7 +1236,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
     strcpy(dcfgReq.config, "monitor");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
-} else if (strncasecmp(cfgReq.config, "ttlpushinterval", 14) == 0) {
+  } else if (strncasecmp(cfgReq.config, "ttlpushinterval", 14) == 0) {
     int32_t optLen = strlen("ttlpushinterval");
     int32_t flag = -1;
     int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
@@ -1262,7 +1307,8 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%s", cfgReq.value);
 
     if (mndConfigDnode(pMnode, pReq, &cfgReq, opt) != 0) {
-      mError("dnode:%d, failed to config activeCode since %s", cfgReq.dnodeId, terrstr());
+      mError("dnode:%d, failed to config activeCode since %s. conf:%s, val:%s", cfgReq.dnodeId, terrstr(),
+             cfgReq.config, cfgReq.value);
       return -1;
     }
     return 0;
