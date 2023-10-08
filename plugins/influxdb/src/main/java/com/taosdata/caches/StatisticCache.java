@@ -45,13 +45,12 @@ public class StatisticCache {
     /**
      * 记录已创建的读取数据任务
      *
-     * @param bucket
-     * @param measurement
+     * @param key
      * @param startTime
      * @param stopTime
      */
-    public static void noteCreatedTask(String bucket, String measurement, String startTime, String stopTime) {
-        noteCreatedTask(bucket + "," + measurement + "," + startTime + "," + stopTime);
+    public static void noteCreatedTask(String key, String startTime, String stopTime) {
+        noteCreatedTask(key + "," + startTime + "," + stopTime);
     }
 
     /**

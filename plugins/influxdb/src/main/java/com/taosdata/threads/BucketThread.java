@@ -17,7 +17,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoField;
 import java.util.Date;
 import java.util.List;
 
@@ -91,7 +93,7 @@ public class BucketThread implements Runnable {
                 }
                 logger.debug(this.name + "#Thread start#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
                 // 判断内存中bucket子线程队列大小
-                if (BucketCache.getBucketDataThreadQueueSize(this.bucket) >= this.performanceConfig.getQueueSizeT()) {
+                if (BucketCache.getBucketDataThreadQueueTotal() >= this.performanceConfig.getQueueSizeT()) {
                     // 睡眠后继续
                     sleep(this.performanceConfig.getThread().getCreateBucketFullInterval(), start, StatusEnums.NORMAL);
                     continue;
@@ -124,10 +126,21 @@ public class BucketThread implements Runnable {
                     if (taskConfig.getMeasurements().size() > 0 && !taskConfig.getMeasurements().contains(v.getMeasurement())) {
                         return;
                     }
+                    // 如果任务中有断点信息
+                    if (taskConfig.getBreakpoint() != null && taskConfig.getBreakpoint().containsKey(v.getMeasurement())) {
+                        long timestamp = taskConfig.getBreakpoint().get(v.getMeasurement());
+                        // 如果断点晚于endTime则直接忽略任务
+                        if (timestamp > OffsetDateTime.parse(timeRangeArr[1]).getLong(ChronoField.INSTANT_SECONDS) * 1_000_000_000) {
+                            return;
+                        }
+                    }
                     if (this.bucket.equals(v.getBucket()) && StringUtils.isNotEmpty(v.getMeasurement())) {
-                        BucketCache.addBucketDataThread(this.bucket, new BucketDataThread(this.orgId, this.bucket, v.getMeasurement(), timeRangeArr[0], timeRangeArr[1]));
+                        // 使用bucket+measurement区分任务队列
+                        String key = BucketCache.generateBucketDataThreadKey(this.bucket, v.getMeasurement());
+                        // 生成bucket子线程并放入队列中
+                        BucketCache.addBucketDataThread(key, new BucketDataThread(this.orgId, this.bucket, v.getMeasurement(), timeRangeArr[0], timeRangeArr[1]));
                         // 读取数据任务计数
-                        StatisticCache.noteCreatedTask(this.bucket, v.getMeasurement(), timeRangeArr[0], timeRangeArr[1]);
+                        StatisticCache.noteCreatedTask(key, timeRangeArr[0], timeRangeArr[1]);
                     }
                 });
                 // 更新序号
@@ -210,7 +223,7 @@ public class BucketThread implements Runnable {
             }
             String measurement = influxdbMeasurementEntity.getMeasurement();
             // 如果不在缓存中
-            if (!BucketCache.measurementMap.containsKey(this.bucket + ":" + measurement)) {
+            if (!BucketCache.measurementMap.containsKey(BucketCache.generateBucketDataThreadKey(this.bucket, measurement))) {
                 // 添加从0到index-1的所有时间段
                 for (int i = 0; i < this.index; i++) {
                     try {
@@ -222,16 +235,18 @@ public class BucketThread implements Runnable {
                         }
                         // 拆分时间段
                         String[] timeRangeArr = timeRange.split(",");
+                        // 使用bucket+measurement区分任务队列
+                        String key = BucketCache.generateBucketDataThreadKey(this.bucket, measurement);
                         // 生成bucket子线程并放入队列中
-                        BucketCache.addBucketDataThread(this.bucket, new BucketDataThread(this.orgId, this.bucket, measurement, timeRangeArr[0], timeRangeArr[1]));
+                        BucketCache.addBucketDataThread(key, new BucketDataThread(this.orgId, this.bucket, measurement, timeRangeArr[0], timeRangeArr[1]));
                         // 读取数据任务计数
-                        StatisticCache.noteCreatedTask(this.bucket, measurement, timeRangeArr[0], timeRangeArr[1]);
+                        StatisticCache.noteCreatedTask(key, timeRangeArr[0], timeRangeArr[1]);
                     } catch (Exception e) {
                         logger.error(this.name + "#Thread exception#" + e.getMessage(), e);
                     }
                 }
                 // 添加到缓存中
-                BucketCache.measurementMap.put(this.bucket + ":" + measurement, influxdbMeasurementEntity);
+                BucketCache.measurementMap.put(BucketCache.generateBucketDataThreadKey(this.bucket, measurement), influxdbMeasurementEntity);
             }
         });
     }
