@@ -1,6 +1,7 @@
 # 500 seconds (at most)
 taostest --setup=common_insert.yaml --case=Query/queryscript/table_function/str/table_str_concat.py --keep --containers
-taostest --use=common_insert.yaml --case=Query/queryscript/scene_query/schema/schema_query.py --keep --containers
+taostest --use=common_insert.yaml --case=Query/queryscript/scene_query/schema/schema_show.py --keep --containers
+#taostest --use=common_insert.yaml --case=Query/queryscript/scene_query/schema/schema_query.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_function/str/split/stable_str_concat_2.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/split/stable_query_union_1.py --keep --containers
 taostest --use=common_insert.yaml --case=Query/queryscript/stable_query/split/stable_query_union_2.py --keep --containers
