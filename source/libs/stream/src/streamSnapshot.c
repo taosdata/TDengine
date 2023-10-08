@@ -154,7 +154,6 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chk
 
   TdDirPtr pDir = taosOpenDir(tdir);
   if (NULL == pDir) {
-    taosMemoryFree(tdir);
     stError("%s failed to open %s", STREAM_STATE_TRANSFER, tdir);
     goto _err;
   }
