@@ -165,6 +165,21 @@ _exit:
   return code;
 }
 
+int32_t rsmaSnapWriterPrepareClose(SRSmaSnapWriter* pWriter) {
+  int32_t code = 0;
+  for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
+    if (pWriter->pDataWriter[i]) {
+      code = tsdbSnapWriterPrepareClose(pWriter->pDataWriter[i]);
+      if (code) {
+        smaError("vgId:%d, failed to prepare close tsdbSnapWriter since %s. i: %d", SMA_VID(pWriter->pSma), terrstr(),
+                 i);
+        return -1;
+      }
+    }
+  }
+  return code;
+}
+
 int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback) {
   int32_t          code = 0;
   int32_t          lino = 0;
