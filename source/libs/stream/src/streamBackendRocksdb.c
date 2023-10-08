@@ -922,7 +922,8 @@ int32_t chkpPreFlushDb(rocksdb_t* db, rocksdb_column_family_handle_t** cf, int32
   rocksdb_flushoptions_destroy(flushOpt);
   return code;
 }
-int32_t chkpPreCheckDir(char* path, int64_t chkpId, char** chkpDir, char** chkpIdDir) {
+
+int32_t chkpPreBuildDir(char* path, int64_t chkpId, char** chkpDir, char** chkpIdDir) {
   int32_t code = 0;
   char*   pChkpDir = taosMemoryCalloc(1, 256);
   char*   pChkpIdDir = taosMemoryCalloc(1, 256);
@@ -1026,7 +1027,7 @@ int32_t taskBackendDoCheckpoint(void* arg, uint64_t chkpId) {
 
   char* pChkpDir = NULL;
   char* pChkpIdDir = NULL;
-  if (chkpPreCheckDir(pBackend->path, chkpId, &pChkpDir, &pChkpIdDir) != 0) {
+  if (chkpPreBuildDir(pBackend->path, chkpId, &pChkpDir, &pChkpIdDir) != 0) {
     goto _EXIT;
   }
   // Get all cf and acquire cfWrappter

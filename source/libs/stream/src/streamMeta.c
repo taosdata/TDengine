@@ -806,7 +806,7 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       continue;
     }
 
-    // do duplicate task check.
+    // do duplicate task checke
     int64_t keys[2] = {pTask->id.streamId, pTask->id.taskId};
     void*   p = taosHashGet(pMeta->pTasks, keys, sizeof(keys));
     if (p == NULL) {

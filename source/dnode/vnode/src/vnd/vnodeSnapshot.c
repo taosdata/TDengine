@@ -256,6 +256,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       if (code) {
         pReader->streamStateDone = 1;
         pReader->pStreamStateReader = NULL;
+        code = 0;
         goto _err;
       }
     }
