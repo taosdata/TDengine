@@ -331,9 +331,9 @@ class TDTestCase:
         tdLog.printNoPrefix("======== test case 3 end ...... ")
 
     def run(self):
-        # self.prepareTestEnv()
-        # self.tmqCase1()
-        # self.tmqCase2()
+        self.prepareTestEnv()
+        self.tmqCase1()
+        self.tmqCase2()
         self.prepareTestEnv()
         self.tmqCase3()
 
