@@ -1,11 +1,12 @@
 use std::collections::BTreeMap;
 
+use actix_files::NamedFile;
 use actix_web::{
     get,
     http::header::ContentType,
     post,
     web::{self, Data, Json, Query},
-    HttpResponse, Responder,
+    HttpResponse, Responder, HttpRequest,
 };
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -231,13 +232,25 @@ pub(super) async fn data_source_collection(
 pub(super) async fn download_all_data_set_file(
     controller: Data<TaskControllerRef>,
     data: Json<DataSetsReq>,
+    req: HttpRequest,
 ) -> impl Responder {
+     match download_all_point_csv_file(controller, data).await {
+        Ok(named_file) => named_file.into_response(&req),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: 0xFFFF.into(),
+            message: format!("{:#}", err),
+        }),
+    }
+}
+
+async fn download_all_point_csv_file(
+    controller: Data<TaskControllerRef>,
+    data: Json<DataSetsReq>,
+) -> anyhow::Result<NamedFile> {
     let mut data = data.into_inner();
-    // TODO 
-    // data.limit = usize::MAX;
-    data.limit = 200;
+    data.limit = usize::MAX / 2 - 1;
     use taos::IntoDsn;
-    let from = data.from.clone().into_dsn().unwrap();
+    let from = data.from.clone().into_dsn()?;
     match from.driver.as_str() {
         "pi" | "pibackfill" => data.pattern = Some(String::from("*")),
         _ => data.pattern = Some(String::from(".*"))
@@ -248,23 +261,15 @@ pub(super) async fn download_all_data_set_file(
         list_datasets_from(&data).await
     } {
         Ok(data) => {
-            // 创建一个内存缓冲区，将 CSV 数据写入其中
-            let mut csv_data: Vec<u8> = Vec::new();
-            let mut writer = csv::Writer::from_writer(&mut csv_data);
-            let ids: Vec<String> = data.into_iter().map(|set| set.id).collect();//.for_each(|id| writer.write_record(id));
-            for line in ids {
-                // writer.write_record(line.split(',').map(|s| s.trim()))?;
-                writer.write_record(line.split(',').map(|s| s.trim())).unwrap();
-            }
-            drop(writer);
-            HttpResponse::Ok()
-            .content_type("text/csv")
-            .insert_header(("Content-Disposition", "attachment; filename=data.csv"))
-            .body(csv_data)
-        },
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
-            code: 0xFFFF.into(),
-            message: format!("{:#}", err),
-        }),
+            let ids  = data.into_iter().map(|set| set.id).join("\n");
+            let mut config_file = tempfile::NamedTempFile::new()?;
+            tracing::debug!("temp file path: {}", &config_file.path().to_str().unwrap_or(""));
+            use std::io::Write;
+            write!(config_file, "{}", &ids)?;
+            Ok(NamedFile::open(config_file.path().to_path_buf())?)
+        }
+        Err(err) => Err(err)
     }
+
+    
 }
