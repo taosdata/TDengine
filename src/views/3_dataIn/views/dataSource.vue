@@ -534,15 +534,19 @@ export default {
             type: "warning",
           }
         ).then(async () => {
-          await excuteStop(data.id);
-          this.refresh();
+          let result=await excuteStop(data.id);
+          if(result.message){
+            Message.error(result.message)
+            return
+          }
+          await this.refresh();
         });
       } catch (err) {
         return Promise.reject(err);
       }
     },
     refresh() {
-      this.getList();
+      return this.getList();
     },
     async refreshCurrentTask(data) {
       try {
@@ -626,9 +630,10 @@ export default {
   },
   mounted() {
     if (this.$parent.$parent.$parent.currentName == "datasource") {
-      this.refresh();
+      this.refresh().then(() => {
+        this.typeList = this.sourceList;
+      });
     }
-    this.typeList = this.sourceList;
   },
 };
 </script>
