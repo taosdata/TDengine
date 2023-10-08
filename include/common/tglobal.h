@@ -144,6 +144,7 @@ extern bool    tsUseAdapter;
 extern int32_t tsMetaCacheMaxSize;
 extern int32_t tsSlowLogThreshold;
 extern int32_t tsSlowLogScope;
+extern int32_t tsTimeSeriesThreshold;
 
 // client
 extern int32_t tsMinSlidingTime;

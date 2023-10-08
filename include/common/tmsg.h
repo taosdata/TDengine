@@ -1439,6 +1439,11 @@ typedef struct {
 } SMnodeLoad;
 
 typedef struct {
+  int32_t vgId;
+  int64_t nTimeSeries;
+} SVnodeLoadLite;
+
+typedef struct {
   int32_t dnodeId;
   int64_t numOfProcessedQuery;
   int64_t numOfProcessedCQuery;
@@ -1476,6 +1481,16 @@ typedef struct {
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 void    tFreeSStatusReq(SStatusReq* pReq);
+
+typedef struct {
+  int32_t dnodeId;
+  int64_t clusterId;
+  SArray* pVloads;
+} SNotifyReq;
+
+int32_t tSerializeSNotifyReq(void* buf, int32_t bufLen, SNotifyReq* pReq);
+int32_t tDeserializeSNotifyReq(void* buf, int32_t bufLen, SNotifyReq* pReq);
+void    tFreeSNotifyReq(SNotifyReq* pReq);
 
 typedef struct {
   int32_t dnodeId;

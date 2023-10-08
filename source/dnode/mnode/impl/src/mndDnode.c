@@ -65,6 +65,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp);
 static int32_t mndProcessStatusReq(SRpcMsg *pReq);
+static int32_t mndProcessNotifyReq(SRpcMsg *pReq);
 static int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq);
 
 static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
@@ -73,6 +74,12 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void    mndCancelGetNextDnode(SMnode *pMnode, void *pIter);
 
 static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t opLen, int32_t *pOutValue);
+
+extern int32_t mndUpdClusterInfo(SRpcMsg *pReq);
+
+#ifndef TD_ENTERPRISE
+int32_t mndUpdClusterInfo(SRpcMsg *pReq) { return 0; }
+#endif
 
 int32_t mndInitDnode(SMnode *pMnode) {
   SSdbTable table = {
@@ -91,6 +98,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CONFIG_DNODE, mndProcessConfigDnodeReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CONFIG_DNODE_RSP, mndProcessConfigDnodeRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STATUS, mndProcessStatusReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_NOTIFY, mndProcessNotifyReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DNODE_LIST, mndProcessDnodeListReq);
   mndSetMsgHandle(pMnode, TDMT_MND_SHOW_VARIABLES, mndProcessShowVariablesReq);
   mndSetMsgHandle(pMnode, TDMT_MND_RESTORE_DNODE, mndProcessRestoreDnodeReq);
@@ -525,6 +533,10 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
           pDnode->accessTimes, needCheck, online, reboot, dnodeChanged, statusReq.statusSeq);
 
+  if (reboot) {
+    tsGrantHBInterval = GRANT_HEART_BEAT_MIN;
+  }
+
   for (int32_t v = 0; v < taosArrayGetSize(statusReq.pVloads); ++v) {
     SVnodeLoad *pVload = taosArrayGet(statusReq.pVloads, v);
 
@@ -656,7 +668,42 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
 _OVER:
   mndReleaseDnode(pMnode, pDnode);
+  mndUpdClusterInfo(pReq);
   taosArrayDestroy(statusReq.pVloads);
+  return code;
+}
+
+static int32_t mndProcessNotifyReq(SRpcMsg *pReq) {
+  SMnode    *pMnode = pReq->info.node;
+  SNotifyReq notifyReq = {0};
+  int32_t    code = 0;
+
+  if ((code = tDeserializeSNotifyReq(pReq->pCont, pReq->contLen, &notifyReq)) != 0) {
+    terrno = code;
+    goto _OVER;
+  }
+
+  int64_t clusterid = mndGetClusterId(pMnode);
+  if (notifyReq.clusterId != 0 && notifyReq.clusterId != clusterid) {
+    code = TSDB_CODE_MND_DNODE_DIFF_CLUSTER;
+    mWarn("dnode:%d, its clusterid:%" PRId64 " differ from current cluster:%" PRId64 " since %s", notifyReq.dnodeId,
+          notifyReq.clusterId, clusterid, tstrerror(code));
+    goto _OVER;
+  }
+
+  int32_t nVgroup = taosArrayGetSize(notifyReq.pVloads);
+  for (int32_t v = 0; v < nVgroup; ++v) {
+    SVnodeLoadLite *pVload = taosArrayGet(notifyReq.pVloads, v);
+
+    SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVload->vgId);
+    if (pVgroup != NULL) {
+      pVgroup->numOfTimeSeries = pVload->nTimeSeries;
+      mndReleaseVgroup(pMnode, pVgroup);
+    }
+  }
+  mndUpdClusterInfo(pReq);
+_OVER:
+  tFreeSNotifyReq(&notifyReq);
   return code;
 }
 

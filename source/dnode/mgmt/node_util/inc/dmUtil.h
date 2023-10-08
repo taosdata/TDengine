@@ -120,6 +120,7 @@ typedef struct {
   ProcessDropNodeFp   processDropNodeFp;
   SendMonitorReportFp sendMonitorReportFp;
   GetVnodeLoadsFp     getVnodeLoadsFp;
+  GetVnodeLoadsFp     getVnodeLoadsLiteFp;
   GetMnodeLoadsFp     getMnodeLoadsFp;
   GetQnodeLoadsFp     getQnodeLoadsFp;
 } SMgmtInputOpt;
