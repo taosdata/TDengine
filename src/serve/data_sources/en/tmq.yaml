@@ -20,18 +20,10 @@ description: |
 type: uri
 options:
   endpoint:
-    display: Subscribe Endpoint
+    display: Topic DSN
     required: true
     description: |
-      Connection dsn, such as `ws://root:taosdata@127.0.0.1:6041/topic1`.
-
-      The format is `protocol://username:password@host:port/topic`.
-
       Please login TDengine Cloud or TDengine enterprise, select "topics", under the list of topics, copy DSN and paste it here.
-
-      For native connection, the format is `host:port/database.tablename`.
-
-      For more information, please refer to [Data Subscription](https://docs.tdengine.com/develop/tmq/).
     placeholder: "Topic example: ws://root:taosdata@127.0.0.1:6041/topic1"
 strict: false
 groups:

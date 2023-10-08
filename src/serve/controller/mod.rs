@@ -3,7 +3,7 @@ use std::env;
 use std::fmt::{Debug, Display};
 use std::net::SocketAddr;
 use std::str::FromStr;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::{
     collections::HashMap,
@@ -1781,6 +1781,9 @@ impl TaskController {
             .await?;
         for task in tasks {
             let id = task.id;
+            self.tasks.write().await.remove(&id).map(|(_, token)| {
+                token.cancel();
+            });
             if let Err(err) = sqlx::query(&format!(
                 "UPDATE tasks SET `status` = 'cancelled' WHERE id = {id} AND `status` = 'running'"
             ))
@@ -1799,6 +1802,11 @@ impl TaskController {
             );
             self.push_task_activity(&activity).await?;
         }
+        if let Some(workers) = self.agent_tasks.write().await.remove(&agent_id) {
+            workers.alive.store(false, Ordering::Relaxed);
+            workers.current.clear();
+        }
+
         Ok(())
     }
 
