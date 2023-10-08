@@ -2,16 +2,19 @@ package com.taosdata.threads;
 
 import com.taosdata.ApplicationContextProvider;
 import com.taosdata.caches.MetricCache;
+import com.taosdata.caches.MetricDataCache;
 import com.taosdata.caches.StatusCache;
 import com.taosdata.config.LocalConfig;
 import com.taosdata.config.PerformanceConfig;
 import com.taosdata.config.TaskConfig;
+import com.taosdata.model.entity.OpentsdbMetricEntity;
 import com.taosdata.model.enums.StatusEnums;
 import com.taosdata.utils.DateUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.LinkedHashMap;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -67,7 +70,7 @@ public class ScheduleThread implements Runnable {
                     continue;
                 }
                 // 分配任务
-                createByQueue();
+                createByBlock();
                 // 线程结束
                 sleep(this.performanceConfig.getThread().getScheduleInterval(), start, StatusEnums.NORMAL);
             } catch (InterruptedException e) {
@@ -129,19 +132,26 @@ public class ScheduleThread implements Runnable {
         StatusCache.forgetThread(this.name);
     }
 
-    private void createByQueue() {
-        // 队列方式，一直处理一个
-        while (MetricCache.getMetricDataThreadQueueSize() > 0 && this.threadPoolExecutor.getQueue().size() < this.performanceConfig.getMaxThread()) {
-            // 取出一个子线程
-            MetricDataThread metricDataThread = MetricCache.getMetricDataThread();
-            // 正常则启动
-            if (metricDataThread != null) {
-                if (!LocalConfig.fetchFilterSet.contains(metricDataThread.getKey())) {
+    /**
+     * 阻塞方式：每个Metric的任务依次启动一个，如果相同Metric存在未结束的Read&Push时间段则跳过
+     */
+    private void createByBlock() {
+        // 为防止遍历过程中的更改引发异常，将全局变量本地化
+        LinkedHashMap<String, OpentsdbMetricEntity> metricMap = new LinkedHashMap<>();
+        metricMap.putAll(MetricCache.metricMap);
+        // 读取内存中Metric子线程
+        metricMap.forEach((key, value) -> {
+            // 阻塞方式，等待前一个时间段的数据全部推送完毕（工作队列不满、已读取完成、已推送完成）
+            if (this.threadPoolExecutor.getQueue().size() < this.performanceConfig.getMaxThread() && !MetricCache.isMetricDataThreadBlocked(key) && MetricDataCache.getMetricDataQueueSize(key) == 0) {
+                // 取出一个子线程
+                MetricDataThread metricDataThread = MetricCache.getMetricDataThread(key);
+                // 正常则启动
+                if (metricDataThread != null) {
                     this.threadPoolExecutor.execute(metricDataThread);
-                } else {
-                    logger.info(this.name + "#Ignore Read Data Task: {}", metricDataThread);
+                    // 设置阻塞
+                    MetricCache.setMetricDataThreadBlocked(key);
                 }
             }
-        }
+        });
     }
 }
