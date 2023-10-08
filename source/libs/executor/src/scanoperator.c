@@ -1831,30 +1831,56 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     return NULL;
   }
 
-  ASSERT(pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__LOG);
-  while (1) {
-    bool hasResult = pAPI->tqReaderFn.tqReaderNextBlockInWal(pInfo->tqReader, id);
+  if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
+    SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
+    if (pResult && pResult->info.rows > 0) {
+      tqOffsetResetToData(&pTaskInfo->streamInfo.currentOffset, pResult->info.id.uid, pResult->info.window.ekey);
+      return pResult;
+    }
 
-    SSDataBlock* pRes = pAPI->tqReaderFn.tqGetResultBlock(pInfo->tqReader);
-    struct SWalReader* pWalReader = pAPI->tqReaderFn.tqReaderGetWalReader(pInfo->tqReader);
+    STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
+    pAPI->tsdReader.tsdReaderClose(pTSInfo->base.dataReader);
 
-    // curVersion move to next
-    tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pWalReader->curVersion);
-
-    if (hasResult) {
-      qDebug("doQueueScan get data from log %" PRId64 " rows, version:%" PRId64, pRes->info.rows,
-             pTaskInfo->streamInfo.currentOffset.version);
-      blockDataCleanup(pInfo->pRes);
-      STimeWindow defaultWindow = {.skey = INT64_MIN, .ekey = INT64_MAX};
-      setBlockIntoRes(pInfo, pRes, &defaultWindow, true);
-      if (pInfo->pRes->info.rows > 0) {
-        return pInfo->pRes;
-      }
-    } else {
-      qDebug("doQueueScan get none from log, return, version:%" PRId64, pTaskInfo->streamInfo.currentOffset.version);
+    pTSInfo->base.dataReader = NULL;
+    int64_t validVer = pTaskInfo->streamInfo.snapshotVer + 1;
+    qDebug("queue scan tsdb over, switch to wal ver %" PRId64 "", validVer);
+    if (pAPI->tqReaderFn.tqReaderSeek(pInfo->tqReader, validVer, pTaskInfo->id.str) < 0) {
       return NULL;
     }
+
+    tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, validVer);
   }
+
+  if (pTaskInfo->streamInfo.currentOffset.type == TMQ_OFFSET__LOG) {
+
+    while (1) {
+      bool hasResult = pAPI->tqReaderFn.tqReaderNextBlockInWal(pInfo->tqReader, id);
+
+      SSDataBlock* pRes = pAPI->tqReaderFn.tqGetResultBlock(pInfo->tqReader);
+      struct SWalReader* pWalReader = pAPI->tqReaderFn.tqReaderGetWalReader(pInfo->tqReader);
+
+      // curVersion move to next
+      tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pWalReader->curVersion);
+
+      if (hasResult) {
+        qDebug("doQueueScan get data from log %" PRId64 " rows, version:%" PRId64, pRes->info.rows,
+               pTaskInfo->streamInfo.currentOffset.version);
+        blockDataCleanup(pInfo->pRes);
+        STimeWindow defaultWindow = {.skey = INT64_MIN, .ekey = INT64_MAX};
+        setBlockIntoRes(pInfo, pRes, &defaultWindow, true);
+        if (pInfo->pRes->info.rows > 0) {
+          return pInfo->pRes;
+        }
+      } else {
+        qDebug("doQueueScan get none from log, return, version:%" PRId64, pTaskInfo->streamInfo.currentOffset.version);
+        return NULL;
+      }
+    }
+  } else {
+    qError("unexpected streamInfo prepare type: %d", pTaskInfo->streamInfo.currentOffset.type);
+    return NULL;
+  }
+}
 }
 
 static int32_t filterDelBlockByUid(SSDataBlock* pDst, const SSDataBlock* pSrc, SStreamScanInfo* pInfo) {
