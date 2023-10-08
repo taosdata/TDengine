@@ -522,9 +522,13 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       break;
     }
     case TDMT_MND_VIEW_META: {
-      SViewMetaRsp* pOut = (SViewMetaRsp*)pCtx->out;
-      taosMemoryFree(pOut->querySql);
-      taosMemoryFreeClear(pCtx->out);
+      if (NULL != pCtx->out) {
+        SViewMetaRsp* pOut = *(SViewMetaRsp**)pCtx->out;
+        if (NULL != pOut) {
+          taosMemoryFree(pOut->querySql);
+        }
+        taosMemoryFreeClear(pCtx->out);
+      }
       break;
     }
     default:
@@ -583,6 +587,19 @@ void ctgFreeBatchHash(void* hash) {
 
   SMetaRes* pRes = (SMetaRes*)hash;
   taosMemoryFreeClear(pRes->pRes);
+}
+
+void ctgFreeViewMetaRes(void* res) {
+  if (NULL == res) {
+    return;
+  }
+
+  SMetaRes* pRes = (SMetaRes*)res;
+  if (NULL != pRes->pRes) {
+    SViewMeta* pMeta = (SViewMeta*)pRes->pRes;
+    taosMemoryFreeClear(pMeta->querySql);
+    taosMemoryFreeClear(pRes->pRes);
+  }
 }
 
 void ctgFreeJsonTagVal(void* val) {
@@ -667,6 +684,15 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
       int32_t num = taosArrayGetSize(pArray);
       for (int32_t i = 0; i < num; ++i) {
         ctgFreeBatchHash(taosArrayGet(pArray, i));
+      }
+      *pRes = NULL;  // no need to free it
+      break;
+    }
+    case CTG_TASK_GET_VIEW: {
+      SArray* pArray = (SArray*)*pRes;
+      int32_t num = taosArrayGetSize(pArray);
+      for (int32_t i = 0; i < num; ++i) {
+        ctgFreeViewMetaRes(taosArrayGet(pArray, i));
       }
       *pRes = NULL;  // no need to free it
       break;
@@ -823,22 +849,35 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
       taosMemoryFreeClear(pTask->taskCtx);
       break;
     }
+    case CTG_TASK_GET_VIEW: {
+      SCtgViewsCtx* taskCtx = (SCtgViewsCtx*)pTask->taskCtx;
+      taosArrayDestroyEx(taskCtx->pResList, ctgFreeViewMetaRes);
+      taosArrayDestroy(taskCtx->pFetchs);
+      // NO NEED TO FREE pNames
+
+      taosArrayDestroyEx(pTask->msgCtxs, (FDelete)ctgFreeMsgCtx);
+
+      taosMemoryFreeClear(pTask->taskCtx);
+      break;
+    }    
     default:
       qError("invalid task type %d", pTask->type);
       break;
   }
 }
 
-void ctgFreeTask(SCtgTask* pTask) {
+void ctgFreeTask(SCtgTask* pTask, bool freeRes) {
   ctgFreeMsgCtx(&pTask->msgCtx);
-  ctgFreeTaskRes(pTask->type, &pTask->res);
+  if (freeRes) {
+    ctgFreeTaskRes(pTask->type, &pTask->res);
+  }
   ctgFreeTaskCtx(pTask);
 
   taosArrayDestroy(pTask->pParents);
   ctgClearSubTaskRes(&pTask->subRes);
 }
 
-void ctgFreeTasks(SArray* pArray) {
+void ctgFreeTasks(SArray* pArray, bool freeRes) {
   if (NULL == pArray) {
     return;
   }
@@ -846,7 +885,7 @@ void ctgFreeTasks(SArray* pArray) {
   int32_t num = taosArrayGetSize(pArray);
   for (int32_t i = 0; i < num; ++i) {
     SCtgTask* pTask = taosArrayGet(pArray, i);
-    ctgFreeTask(pTask);
+    ctgFreeTask(pTask, freeRes);
   }
 
   taosArrayDestroy(pArray);
@@ -862,7 +901,7 @@ void ctgFreeJob(void* job) {
   int64_t  rid = pJob->refId;
   uint64_t qid = pJob->queryId;
 
-  ctgFreeTasks(pJob->pTasks);
+  ctgFreeTasks(pJob->pTasks, pJob->jobRes.ctgFree);
   ctgFreeBatchs(pJob->pBatchs);
 
   ctgFreeSMetaData(&pJob->jobRes);
@@ -1763,8 +1802,9 @@ SMetaData* catalogCloneMetaData(SMetaData* pData) {
 
   return pRes;
 }
+#endif
 
-void catalogFreeMetaData(SMetaData* pData) {
+void ctgFreeMetaData(SMetaData* pData) {
   if (NULL == pData) {
     return;
   }
@@ -1784,7 +1824,6 @@ void catalogFreeMetaData(SMetaData* pData) {
   taosMemoryFreeClear(pData->pSvrVer);
   taosMemoryFree(pData);
 }
-#endif
 
 uint64_t ctgGetTbIndexCacheSize(STableIndex *pIndex) {
   if (NULL == pIndex) {

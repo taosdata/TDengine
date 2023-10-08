@@ -1657,6 +1657,10 @@ int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth) {
   CTG_API_LEAVE(ctgUpdateUserEnqueue(pCtg, pAuth, false));
 }
 
+void catalogFreeMetaData(SMetaData * pData) {
+
+}
+
 int32_t catalogClearCache(void) {
   CTG_API_ENTER_NOLOCK();
 

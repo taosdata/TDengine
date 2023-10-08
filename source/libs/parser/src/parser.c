@@ -51,6 +51,10 @@ bool qIsInsertValuesSql(const char* pStr, size_t length) {
 static int32_t analyseSemantic(SParseContext* pCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
   int32_t code = authenticate(pCxt, pQuery, pMetaCache);
 
+  if (pCxt->parseOnly) {
+    return code;
+  }
+
   if (TSDB_CODE_SUCCESS == code && pQuery->placeholderNum > 0) {
     TSWAP(pQuery->pPrepareRoot, pQuery->pRoot);
     return TSDB_CODE_SUCCESS;

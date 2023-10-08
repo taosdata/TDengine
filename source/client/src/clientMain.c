@@ -926,6 +926,7 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
 
   int64_t analyseStart = taosGetTimestampUs();
   pRequest->metric.ctgCostUs = analyseStart - pRequest->metric.ctgStart;
+  pWrapper->pParseCtx->parseOnly = pRequest->parseOnly;
 
   if (TSDB_CODE_SUCCESS == code) {
     code = qAnalyseSqlSemantic(pWrapper->pParseCtx, pWrapper->pCatalogReq, pResultMeta, pQuery);
@@ -933,6 +934,11 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
 
   pRequest->metric.analyseCostUs += taosGetTimestampUs() - analyseStart;
 
+  if (pRequest->parseOnly) {
+    memcpy(&pRequest->parseMeta, pResultMeta, sizeof(*pResultMeta));
+    memset(pResultMeta, 0, sizeof(*pResultMeta));
+  }
+  
   handleQueryAnslyseRes(pWrapper, pResultMeta, code);
 }
 
@@ -1166,8 +1172,8 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .svrVer = pTscObj->sVer,
                            .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
                            .allocatorId = pRequest->allocatorRefId,
-                           .validateSqlFp = clientValidateSql,
-                           .validateSqlParam = pWrapper};
+                           .parseSqlFp = clientParseSql,
+                           .parseSqlParam = pWrapper};
   return TSDB_CODE_SUCCESS;
 }
 

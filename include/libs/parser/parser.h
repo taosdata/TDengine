@@ -22,9 +22,7 @@ extern "C" {
 
 #include "query.h"
 #include "querynodes.h"
-
-struct SCatalogReq;
-struct SMetaData;
+#include "catalog.h"
 
 typedef struct SStmtCallback {
   TAOS_STMT* pStmt;
@@ -33,7 +31,32 @@ typedef struct SStmtCallback {
   int32_t (*getExecInfoFn)(TAOS_STMT*, SHashObj**, SHashObj**);
 } SStmtCallback;
 
-typedef int32_t (*validateSqlFn)(void* param, const char* sql, SCMCreateViewReq* pRes);
+typedef enum {
+  PARSE_SQL_RES_QUERY = 1,
+  PARSE_SQL_RES_SCHEMA,
+} SParseResType;
+
+typedef struct SParseSchemaRes {
+  int8_t        precision;
+  int32_t       numOfCols;
+  SSchema*      pSchema;
+} SParseSchemaRes;
+
+typedef struct SParseQueryRes {
+  SNode*              pQuery;
+  SCatalogReq*        pCatalogReq;
+  SMetaData           meta;
+} SParseQueryRes;
+
+typedef struct SParseSqlRes {
+  SParseResType resType;
+  union {
+    SParseSchemaRes schemaRes;
+    SParseQueryRes  queryRes;
+  };
+} SParseSqlRes;
+
+typedef int32_t (*parseSqlFn)(void*, const char*, bool, SParseSqlRes*);
 
 typedef struct SParseCsvCxt {
   TdFilePtr   fp;           // last parsed file
@@ -57,6 +80,7 @@ typedef struct SParseContext {
   struct SCatalog* pCatalog;
   SStmtCallback*   pStmtCb;
   const char*      pUser;
+  bool             parseOnly;
   bool             isSuperUser;
   bool             enableSysInfo;
   bool             async;
@@ -66,8 +90,8 @@ typedef struct SParseContext {
   SArray*          pTableMetaPos;    // sql table pos => catalog data pos
   SArray*          pTableVgroupPos;  // sql table pos => catalog data pos
   int64_t          allocatorId;
-  validateSqlFn    validateSqlFp;
-  void*            validateSqlParam;
+  parseSqlFn       parseSqlFp;
+  void*            parseSqlParam;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);

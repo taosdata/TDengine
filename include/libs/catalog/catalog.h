@@ -99,6 +99,7 @@ typedef struct SMetaRes {
 } SMetaRes;
 
 typedef struct SMetaData {
+  bool      ctgFree;      // need to freed by catalog module
   SArray*   pDbVgroup;    // pRes = SArray<SVgroupInfo>*
   SArray*   pDbCfg;       // pRes = SDbCfgInfo*
   SArray*   pDbInfo;      // pRes = SDbInfo*

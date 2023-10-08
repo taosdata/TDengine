@@ -264,6 +264,7 @@ typedef struct SRequestObj {
   bool                 syncQuery;     // todo refactor: async query object
   bool                 stableQuery;   // todo refactor
   bool                 validateOnly;  // todo refactor
+  bool                 parseOnly;
   bool                 killed;
   bool                 inRetry;
   bool                 isSubReq;
@@ -274,6 +275,7 @@ typedef struct SRequestObj {
   void*                pPostPlan;
   SReqRelInfo          relation;
   void*                pWrapper;
+  SMetaData            parseMeta;
 } SRequestObj;
 
 typedef struct SSyncQueryParam {
@@ -300,7 +302,7 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
 void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
                                  int64_t reqid);
 void taosAsyncFetchImpl(SRequestObj *pRequest, __taos_async_fn_t fp, void *param);
-int32_t clientValidateSql(void* param, const char* sql, SCMCreateViewReq* pReq);
+int32_t clientParseSql(void* param, const char* sql, bool parseOnly, SParseSqlRes* pRes);
 void syncQueryFn(void* param, void* res, int32_t code);
 
 int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols);
@@ -415,7 +417,7 @@ void    stopAllQueries(SRequestObj *pRequest);
 void    freeQueryParam(SSyncQueryParam* param);
 
 #ifdef TD_ENTERPRISE
-int32_t clientValidateSqlImpl(void* param, const char* sql, SCMCreateViewReq* pReq);
+int32_t clientParseSqlImpl(void* param, const char* sql, bool parseOnly, SParseSqlRes* pRes);
 #endif
 
 #ifdef __cplusplus

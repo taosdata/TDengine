@@ -35,28 +35,6 @@ typedef struct SRewriteTbNameContext {
   char*   pTbName;
 } SRewriteTbNameContext;
 
-typedef struct STranslateContext {
-  SParseContext*   pParseCxt;
-  int32_t          errCode;
-  SMsgBuf          msgBuf;
-  SArray*          pNsLevel;  // element is SArray*, the element of this subarray is STableNode*
-  int32_t          currLevel;
-  int32_t          levelNo;
-  ESqlClause       currClause;
-  SNode*           pCurrStmt;
-  SCmdMsgInfo*     pCmdMsg;
-  SHashObj*        pDbs;
-  SHashObj*        pTables;
-  SHashObj*        pTargetTables;
-  SExplainOptions* pExplainOpt;
-  SParseMetaCache* pMetaCache;
-  bool             createStream;
-  bool             stableQuery;
-  bool             showRewrite;
-  SNode*           pPrevRoot;
-  SNode*           pPostRoot;
-} STranslateContext;
-
 typedef struct SBuildTopicContext {
   bool        colExists;
   bool        colNotFound;
@@ -354,7 +332,7 @@ static int32_t collectUseTable(const SName* pName, SHashObj* pTable) {
   return taosHashPut(pTable, fullName, strlen(fullName), pName, sizeof(SName));
 }
 
-static int32_t getTableMetaImpl(STranslateContext* pCxt, const SName* pName, STableMeta** pMeta) {
+static int32_t getTableMetaImpl(STranslateContext* pCxt, const SName* pName, STableMeta** pMeta, bool couldBeView) {
   SParseContext* pParCxt = pCxt->pParseCxt;
   int32_t        code = collectUseDatabase(pName, pCxt->pDbs);
   if (TSDB_CODE_SUCCESS == code) {
@@ -363,6 +341,11 @@ static int32_t getTableMetaImpl(STranslateContext* pCxt, const SName* pName, STa
   if (TSDB_CODE_SUCCESS == code) {
     if (pParCxt->async) {
       code = getTableMetaFromCache(pCxt->pMetaCache, pName, pMeta);
+#ifdef TD_ENTERPRISE
+      if (TSDB_CODE_SUCCESS != code) {
+        code = getViewMetaFromCache(pCxt->pMetaCache, pName, pMeta);
+      }
+#endif
     } else {
       SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
                                .requestId = pParCxt->requestId,
@@ -380,7 +363,7 @@ static int32_t getTableMetaImpl(STranslateContext* pCxt, const SName* pName, STa
 
 static int32_t getTableMeta(STranslateContext* pCxt, const char* pDbName, const char* pTableName, STableMeta** pMeta) {
   SName name;
-  return getTableMetaImpl(pCxt, toName(pCxt->pParseCxt->acctId, pDbName, pTableName, &name), pMeta);
+  return getTableMetaImpl(pCxt, toName(pCxt->pParseCxt->acctId, pDbName, pTableName, &name), pMeta, false);
 }
 
 static int32_t getTableCfg(STranslateContext* pCxt, const SName* pName, STableCfg** pCfg) {
@@ -2775,21 +2758,26 @@ static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTabl
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
+int32_t translateTable(STranslateContext* pCxt, SNode** pTable) {
   int32_t code = TSDB_CODE_SUCCESS;
-  switch (nodeType(pTable)) {
+  switch (nodeType(*pTable)) {
     case QUERY_NODE_REAL_TABLE: {
-      SRealTableNode* pRealTable = (SRealTableNode*)pTable;
+      SRealTableNode* pRealTable = (SRealTableNode*)*pTable;
       pRealTable->ratio = (NULL != pCxt->pExplainOpt ? pCxt->pExplainOpt->ratio : 1.0);
       // The SRealTableNode created through ROLLUP already has STableMeta.
       if (NULL == pRealTable->pMeta) {
         SName name;
         code = getTableMetaImpl(
             pCxt, toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, &name),
-            &(pRealTable->pMeta));
+            &(pRealTable->pMeta), true);
         if (TSDB_CODE_SUCCESS != code) {
           return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
         }
+#ifdef TD_ENTERPRISE
+        if (TSDB_VIEW_TABLE == pRealTable->pMeta->tableType) {
+          return translateView(pCxt, pTable, &name);
+        }
+#endif        
         code = setTableVgroupList(pCxt, &name, pRealTable);
         if (TSDB_CODE_SUCCESS == code) {
           code = setTableIndex(pCxt, &name, pRealTable);
@@ -2814,7 +2802,7 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
       break;
     }
     case QUERY_NODE_TEMP_TABLE: {
-      STempTableNode* pTempTable = (STempTableNode*)pTable;
+      STempTableNode* pTempTable = (STempTableNode*)*pTable;
       code = translateSubquery(pCxt, pTempTable->pSubquery);
       if (TSDB_CODE_SUCCESS == code) {
         if (QUERY_NODE_SELECT_STMT == nodeType(pTempTable->pSubquery) &&
@@ -2829,10 +2817,10 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
       break;
     }
     case QUERY_NODE_JOIN_TABLE: {
-      SJoinTableNode* pJoinTable = (SJoinTableNode*)pTable;
-      code = translateTable(pCxt, pJoinTable->pLeft);
+      SJoinTableNode* pJoinTable = (SJoinTableNode*)*pTable;
+      code = translateTable(pCxt, &pJoinTable->pLeft);
       if (TSDB_CODE_SUCCESS == code) {
-        code = translateTable(pCxt, pJoinTable->pRight);
+        code = translateTable(pCxt, &pJoinTable->pRight);
       }
       if (TSDB_CODE_SUCCESS == code) {
         code = checkJoinTable(pCxt, pJoinTable);
@@ -3789,7 +3777,7 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   return code;
 }
 
-static int32_t translateFrom(STranslateContext* pCxt, SNode* pTable) {
+static int32_t translateFrom(STranslateContext* pCxt, SNode** pTable) {
   pCxt->currClause = SQL_CLAUSE_FROM;
   return translateTable(pCxt, pTable);
 }
@@ -3918,7 +3906,7 @@ static int32_t translateSelectWithoutFrom(STranslateContext* pCxt, SSelectStmt* 
 
 static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrStmt = (SNode*)pSelect;
-  int32_t code = translateFrom(pCxt, pSelect->pFromTable);
+  int32_t code = translateFrom(pCxt, &pSelect->pFromTable);
   if (TSDB_CODE_SUCCESS == code) {
     pSelect->precision = ((STableNode*)pSelect->pFromTable)->precision;
     code = translateWhere(pCxt, pSelect);
@@ -4141,7 +4129,7 @@ static int32_t translateDeleteWhere(STranslateContext* pCxt, SDeleteStmt* pDelet
 
 static int32_t translateDelete(STranslateContext* pCxt, SDeleteStmt* pDelete) {
   pCxt->pCurrStmt = (SNode*)pDelete;
-  int32_t code = translateFrom(pCxt, pDelete->pFromTable);
+  int32_t code = translateFrom(pCxt, &pDelete->pFromTable);
   if (TSDB_CODE_SUCCESS == code) {
     pDelete->precision = ((STableNode*)pDelete->pFromTable)->precision;
     code = translateDeleteWhere(pCxt, pDelete);
@@ -4234,10 +4222,10 @@ static int32_t translateInsertProject(STranslateContext* pCxt, SInsertStmt* pIns
   return addOrderByPrimaryKeyToQuery(pCxt, pPrimaryKeyExpr, pInsert->pQuery);
 }
 
-static int32_t translateInsertTable(STranslateContext* pCxt, SNode* pTable) {
+static int32_t translateInsertTable(STranslateContext* pCxt, SNode** pTable) {
   int32_t code = translateFrom(pCxt, pTable);
-  if (TSDB_CODE_SUCCESS == code && TSDB_CHILD_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
-      TSDB_NORMAL_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType) {
+  if (TSDB_CODE_SUCCESS == code && TSDB_CHILD_TABLE != ((SRealTableNode*)*pTable)->pMeta->tableType &&
+      TSDB_NORMAL_TABLE != ((SRealTableNode*)*pTable)->pMeta->tableType) {
     code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                    "insert data into super table is not supported");
   }
@@ -4246,7 +4234,7 @@ static int32_t translateInsertTable(STranslateContext* pCxt, SNode* pTable) {
 
 static int32_t translateInsert(STranslateContext* pCxt, SInsertStmt* pInsert) {
   pCxt->pCurrStmt = (SNode*)pInsert;
-  int32_t code = translateInsertTable(pCxt, pInsert->pTable);
+  int32_t code = translateInsertTable(pCxt, &pInsert->pTable);
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInsertCols(pCxt, pInsert);
   }
@@ -6247,7 +6235,7 @@ static int32_t buildQueryForTableTopic(STranslateContext* pCxt, SCreateTopicStmt
                                .mgmtEps = pParCxt->mgmtEpSet};
   SName            name;
   STableMeta*      pMeta = NULL;
-  int32_t code = getTableMetaImpl(pCxt, toName(pParCxt->acctId, pStmt->subDbName, pStmt->subSTbName, &name), &pMeta);
+  int32_t code = getTableMetaImpl(pCxt, toName(pParCxt->acctId, pStmt->subDbName, pStmt->subSTbName, &name), &pMeta, false);
   if (code) {
     taosMemoryFree(pMeta);
     return code;
@@ -7278,11 +7266,15 @@ static int32_t validateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStm
 }
 
 static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStmt) {
+  SParseSqlRes res = {.resType = PARSE_SQL_RES_SCHEMA};
   int32_t code = validateCreateView(pCxt, pStmt);
   if (TSDB_CODE_SUCCESS == code) {    
-    code = (*pCxt->pParseCxt->validateSqlFp)(pCxt->pParseCxt->validateSqlParam, pStmt->pQuerySql, &pStmt->createReq);
+    code = (*pCxt->pParseCxt->parseSqlFp)(pCxt->pParseCxt->parseSqlParam, pStmt->pQuerySql, false, &res);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    pStmt->createReq.precision = res.schemaRes.precision;
+    pStmt->createReq.numOfCols = res.schemaRes.numOfCols;
+    pStmt->createReq.pSchema = res.schemaRes.pSchema;
     strncpy(pStmt->createReq.name, pStmt->viewName, sizeof(pStmt->createReq.name) - 1);
     snprintf(pStmt->createReq.dbFName, sizeof(pStmt->createReq.dbFName) - 1, "%d.%s", pCxt->pParseCxt->acctId, pStmt->dbName);
     snprintf(pStmt->createReq.fullname, sizeof(pStmt->createReq.fullname) - 1, "%s.%s", pStmt->createReq.dbFName, pStmt->viewName);
@@ -7418,7 +7410,7 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
   if (TSDB_CODE_SUCCESS == code) {
     SName name;
     code = getTableMetaImpl(pCxt, toName(pCxt->pParseCxt->acctId, pTable->table.dbName, pTable->table.tableName, &name),
-                            &(pTable->pMeta));
+                            &(pTable->pMeta), false);
     if (code) {
       nodesDestroyNode((SNode*)pTable);
       return code;
@@ -8810,7 +8802,7 @@ static int32_t buildDropTableVgroupHashmap(STranslateContext* pCxt, SDropTableCl
   SName name;
   toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &name);
   STableMeta* pTableMeta = NULL;
-  int32_t     code = getTableMetaImpl(pCxt, &name, &pTableMeta);
+  int32_t     code = getTableMetaImpl(pCxt, &name, &pTableMeta, false);
   if (TSDB_CODE_SUCCESS == code) {
     code = collectUseTable(&name, pCxt->pTargetTables);
   }

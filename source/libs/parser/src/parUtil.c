@@ -719,7 +719,7 @@ SNode* createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode* 
 
 static int32_t putMetaDataToHash(const char* pKey, int32_t len, const SArray* pData, int32_t index, SHashObj** pHash) {
   if (NULL == *pHash) {
-    *pHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    *pHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
     if (NULL == *pHash) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -728,7 +728,7 @@ static int32_t putMetaDataToHash(const char* pKey, int32_t len, const SArray* pD
   return taosHashPut(*pHash, pKey, len, &pRes, POINTER_BYTES);
 }
 
-static int32_t getMetaDataFromHash(const char* pKey, int32_t len, SHashObj* pHash, void** pOutput) {
+int32_t getMetaDataFromHash(const char* pKey, int32_t len, SHashObj* pHash, void** pOutput) {
   SMetaRes** pRes = taosHashGet(pHash, pKey, len);
   if (NULL == pRes || NULL == *pRes) {
     return TSDB_CODE_PAR_INTERNAL_ERROR;
@@ -901,6 +901,23 @@ int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, S
   }
   return code;
 }
+
+int32_t getViewMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta) {
+  char fullName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(pName, fullName);
+  SViewMeta* pViewMeta = NULL;
+  int32_t     code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pViews, (void**)&pViewMeta);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pMeta = taosMemoryCalloc(1, sizeof(STableMeta));
+    if (NULL == *pMeta) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+    (*pMeta)->uid = pViewMeta->viewId;
+    (*pMeta)->tableType = TSDB_VIEW_TABLE;
+  }
+  return code;
+}
+
 
 static int32_t reserveDbReqInCache(int32_t acctId, const char* pDb, SHashObj** pDbs) {
   if (NULL == *pDbs) {

@@ -19,7 +19,7 @@
 int32_t mndInitView(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_VIEW, mndProcessCreateViewReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_VIEW, mndProcessDropViewReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_TABLE_META, mndProcessGetViewMetaReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_VIEW_META, mndProcessGetViewMetaReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VIEWS, mndRetrieveView);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_VIEWS, mndCancelGetNextView);

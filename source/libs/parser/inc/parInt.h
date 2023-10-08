@@ -27,6 +27,29 @@ extern "C" {
 #define QUERY_SMA_OPTIMIZE_DISABLE 0
 #define QUERY_SMA_OPTIMIZE_ENABLE  1
 
+typedef struct STranslateContext {
+  SParseContext*   pParseCxt;
+  int32_t          errCode;
+  SMsgBuf          msgBuf;
+  SArray*          pNsLevel;  // element is SArray*, the element of this subarray is STableNode*
+  int32_t          currLevel;
+  int32_t          levelNo;
+  ESqlClause       currClause;
+  SNode*           pCurrStmt;
+  SCmdMsgInfo*     pCmdMsg;
+  SHashObj*        pDbs;
+  SHashObj*        pTables;
+  SHashObj*        pTargetTables;
+  SExplainOptions* pExplainOpt;
+  SParseMetaCache* pMetaCache;
+  bool             createStream;
+  bool             stableQuery;
+  bool             showRewrite;
+  SNode*           pPrevRoot;
+  SNode*           pPostRoot;
+} STranslateContext;
+
+
 int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatalogReq, const SMetaData* pMetaData);
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery);
 int32_t collectMetaKey(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache);
@@ -37,7 +60,12 @@ int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery);
 int32_t translatePostCreateStream(SParseContext* pParseCxt, SQuery* pQuery, void** pResRow);
 int32_t translatePostCreateSmaIndex(SParseContext* pParseCxt, SQuery* pQuery, void** pResRow);
 int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placeholderNo, SArray* pPlaceholderValues);
+int32_t translateTable(STranslateContext* pCxt, SNode** pTable);
+int32_t getMetaDataFromHash(const char* pKey, int32_t len, SHashObj* pHash, void** pOutput);
 
+#ifdef TD_ENTERPRISE
+int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName);
+#endif
 #ifdef __cplusplus
 }
 #endif

@@ -1111,31 +1111,34 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
 
 static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta,
                                  SSqlCallbackWrapper* pWrapper) {
+  int32_t code = TSDB_CODE_SUCCESS;
   pRequest->type = pQuery->msgType;
-
-  SArray* pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
-
-  SPlanContext cxt = {.queryId = pRequest->requestId,
-                      .acctId = pRequest->pTscObj->acctId,
-                      .mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
-                      .pAstRoot = pQuery->pRoot,
-                      .showRewrite = pQuery->showRewrite,
-                      .pMsg = pRequest->msgBuf,
-                      .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
-                      .pUser = pRequest->pTscObj->user,
-                      .sysInfo = pRequest->pTscObj->sysInfo,
-                      .allocatorId = pRequest->allocatorRefId};
-
-  SQueryPlan* pDag = NULL;
-
+  SArray* pMnodeList = NULL;
+  SQueryPlan* pDag = NULL;  
   int64_t st = taosGetTimestampUs();
-  int32_t code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
-  if (code) {
-    tscError("0x%" PRIx64 " failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
-             pRequest->requestId);
-  } else {
-    pRequest->body.subplanNum = pDag->numOfSubplans;
-    TSWAP(pRequest->pPostPlan, pDag->pPostPlan);
+
+  if (!pRequest->parseOnly) {
+    pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
+
+    SPlanContext cxt = {.queryId = pRequest->requestId,
+                        .acctId = pRequest->pTscObj->acctId,
+                        .mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
+                        .pAstRoot = pQuery->pRoot,
+                        .showRewrite = pQuery->showRewrite,
+                        .pMsg = pRequest->msgBuf,
+                        .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
+                        .pUser = pRequest->pTscObj->user,
+                        .sysInfo = pRequest->pTscObj->sysInfo,
+                        .allocatorId = pRequest->allocatorRefId};
+
+    code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
+    if (code) {
+      tscError("0x%" PRIx64 " failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
+               pRequest->requestId);
+    } else {
+      pRequest->body.subplanNum = pDag->numOfSubplans;
+      TSWAP(pRequest->pPostPlan, pDag->pPostPlan);
+    }
   }
 
   pRequest->metric.execStart = taosGetTimestampUs();
@@ -1188,6 +1191,11 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
 void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta, SSqlCallbackWrapper* pWrapper) {
   int32_t code = 0;
 
+  if (pRequest->parseOnly) {
+    pRequest->body.queryFp(pRequest->body.param, pRequest, 0);
+    return;
+  }
+
   pRequest->body.execMode = pQuery->execMode;
   if (QUERY_EXEC_MODE_SCHEDULE != pRequest->body.execMode) {
     destorySqlCallbackWrapper(pWrapper);
@@ -1221,6 +1229,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       pRequest->body.queryFp(pRequest->body.param, pRequest, 0);
       break;
     default:
+      tscError("0x%" PRIx64 " invalid execMode %d", pRequest->self, pQuery->execMode);
       pRequest->body.queryFp(pRequest->body.param, pRequest, -1);
       break;
   }
@@ -2592,11 +2601,11 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
   schedulerFetchRows(pRequest->body.queryJob, &req);
 }
 
-int32_t clientValidateSql(void* param, const char* sql, SCMCreateViewReq* pReq) {
+int32_t clientParseSql(void* param, const char* sql, bool parseOnly, SParseSqlRes* pRes) {
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_SUCCESS;
 #else
-  return clientValidateSqlImpl(param, sql, pReq);
+  return clientParseSqlImpl(param, sql, parseOnly, pRes);
 #endif
 }
 

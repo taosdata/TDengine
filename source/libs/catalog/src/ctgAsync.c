@@ -606,6 +606,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
 
   SCtgJob* pJob = *job;
 
+  pJob->jobRes.ctgFree = true;
   pJob->subTaskNum = taskNum;
   pJob->queryId = pConn->requestId;
   pJob->userFp = fp;
