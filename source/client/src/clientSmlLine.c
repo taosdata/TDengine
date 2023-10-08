@@ -70,7 +70,7 @@ static int64_t smlParseInfluxTime(SSmlHandle *info, const char *data, int32_t le
   int64_t ts = smlGetTimeValue(data, len, fromPrecision, toPrecision);
   if (unlikely(ts == -1)) {
     smlBuildInvalidDataMsg(&info->msgBuf, "invalid timestamp", data);
-    return -1;
+    return TSDB_CODE_SML_INVALID_DATA;
   }
   return ts;
 }
