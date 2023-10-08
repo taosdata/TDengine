@@ -1595,6 +1595,26 @@ void nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc) {
   nodesFree(pSrc);
 }
 
+void nodesListInsertListAfterPos(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc) {
+  if (NULL == pTarget || NULL == pPos || NULL == pSrc || NULL == pSrc->pHead) {
+    return;
+  }
+
+  if (NULL == pPos->pNext) {
+    pTarget->pTail = pSrc->pHead;
+  } else {
+    pPos->pNext->pPrev = pSrc->pHead;
+  }
+
+  pSrc->pHead->pPrev = pPos;
+  pSrc->pTail->pNext = pPos->pNext;
+
+  pPos->pNext = pSrc->pHead;
+  
+  pTarget->length += pSrc->length;
+  nodesFree(pSrc);  
+}
+
 SNode* nodesListGetNode(SNodeList* pList, int32_t index) {
   SNode* node;
   FOREACH(node, pList) {
@@ -2317,4 +2337,14 @@ SValueNode* nodesMakeValueNodeFromBool(bool b) {
     pValNode->isNull = false;
   }
   return pValNode;
+}
+
+bool nodesIsStar(SNode* pNode) {
+  return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' == ((SColumnNode*)pNode)->tableAlias[0]) &&
+         (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
+}
+
+bool nodesIsTableStar(SNode* pNode) {
+  return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' != ((SColumnNode*)pNode)->tableAlias[0]) &&
+         (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
 }

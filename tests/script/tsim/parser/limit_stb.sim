@@ -32,11 +32,13 @@ sql select * from $stb limit 5
 if $rows != 5 then
   return -1
 endi
-sql select * from $stb limit 5 offset 1
+print select * from $stb order by ts limit 5 offset 1
+sql select * from $stb order by ts limit 5 offset 1
 if $rows != 5 then
   return -1
 endi
-if $data01 != 1 then
+print $data01 $data41
+if $data01 != 0 then
   return -1
 endi
 #if $data41 != 5 then
@@ -48,10 +50,12 @@ if $rows != 5 then
   return -1
 endi
 
+print  select * from $stb order by ts desc limit 5 offset 1
 sql select * from $stb order by ts desc limit 5 offset 1
 if $rows != 5 then
   return -1
 endi
+print $data01 $data11 $data41
 if $data01 != 9 then
   return -1
 endi

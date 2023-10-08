@@ -78,3 +78,10 @@ add_test(
     NAME osAtomicTests
     COMMAND osAtomicTests
 )
+
+add_executable(osSemaphoreTests "osSemaphoreTests.cpp")
+target_link_libraries(osSemaphoreTests os util gtest_main)
+add_test(
+    NAME osSemaphoreTests
+    COMMAND osSemaphoreTests
+)

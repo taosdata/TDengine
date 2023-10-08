@@ -19,88 +19,10 @@
 #include "index.h"
 #include "qworker.h"
 #include "tstream.h"
-
-static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
-  SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
-
-  bool    required = false;
-  int32_t code = (*pWrapper->func.requiredFp)(&input, &required);
-  if (!required) {
-    dDebug("node:%s, does not require startup", pWrapper->name);
-  } else {
-    dDebug("node:%s, required to startup", pWrapper->name);
-  }
-
-  return required;
-}
-
-static int32_t dmInitVars(SDnode *pDnode) {
-  SDnodeData *pData = &pDnode->data;
-  pData->dnodeId = 0;
-  pData->clusterId = 0;
-  pData->dnodeVer = 0;
-  pData->updateTime = 0;
-  pData->rebootTime = taosGetTimestampMs();
-  pData->dropped = 0;
-  pData->stopped = 0;
-
-  pData->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
-  if (pData->dnodeHash == NULL) {
-    dError("failed to init dnode hash");
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  if (dmReadEps(pData) != 0) {
-    dError("failed to read file since %s", terrstr());
-    return -1;
-  }
-
-  if (pData->dropped) {
-    dError("dnode will not start since its already dropped");
-    return -1;
-  }
-
-  taosThreadRwlockInit(&pData->lock, NULL);
-  taosThreadMutexInit(&pDnode->mutex, NULL);
-  return 0;
-}
-
-static void dmClearVars(SDnode *pDnode) {
-  for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
-    taosMemoryFreeClear(pWrapper->path);
-    taosThreadRwlockDestroy(&pWrapper->lock);
-  }
-  if (pDnode->lockfile != NULL) {
-    taosUnLockFile(pDnode->lockfile);
-    taosCloseFile(&pDnode->lockfile);
-    pDnode->lockfile = NULL;
-  }
-
-  SDnodeData *pData = &pDnode->data;
-  taosThreadRwlockWrlock(&pData->lock);
-  if (pData->oldDnodeEps != NULL) {
-    if (dmWriteEps(pData) == 0) {
-      dmRemoveDnodePairs(pData);
-    }
-    taosArrayDestroy(pData->oldDnodeEps);
-    pData->oldDnodeEps = NULL;
-  }
-  if (pData->dnodeEps != NULL) {
-    taosArrayDestroy(pData->dnodeEps);
-    pData->dnodeEps = NULL;
-  }
-  if (pData->dnodeHash != NULL) {
-    taosHashCleanup(pData->dnodeHash);
-    pData->dnodeHash = NULL;
-  }
-  taosThreadRwlockUnlock(&pData->lock);
-
-  taosThreadRwlockDestroy(&pData->lock);
-  taosThreadMutexDestroy(&pDnode->mutex);
-  memset(&pDnode->mutex, 0, sizeof(pDnode->mutex));
-}
+#ifdef TD_TSZ
+#include "tglobal.h"
+#include "tcompression.h"
+#endif
 
 int32_t dmInitDnode(SDnode *pDnode) {
   dDebug("start to create dnode");
@@ -110,6 +32,11 @@ int32_t dmInitDnode(SDnode *pDnode) {
   if (dmInitVars(pDnode) != 0) {
     goto _OVER;
   }
+
+#ifdef TD_TSZ
+  // compress module init
+  tsCompressInit(tsLossyColumns, tsFPrecision, tsDPrecision, tsMaxRange, tsCurRange, (int)tsIfAdtFse, tsCompressor);
+#endif
 
   pDnode->wrappers[DNODE].func = dmGetMgmtFunc();
   pDnode->wrappers[MNODE].func = mmGetMgmtFunc();
@@ -134,22 +61,12 @@ int32_t dmInitDnode(SDnode *pDnode) {
     pWrapper->required = dmRequireNode(pDnode, pWrapper);
   }
 
-  if (dmInitMsgHandle(pDnode) != 0) {
-    dError("failed to init msg handles since %s", terrstr());
-    goto _OVER;
-  }
-
   pDnode->lockfile = dmCheckRunning(tsDataDir);
   if (pDnode->lockfile == NULL) {
     goto _OVER;
   }
 
-  if (dmInitServer(pDnode) != 0) {
-    dError("failed to init transport since %s", terrstr());
-    goto _OVER;
-  }
-
-  if (dmInitClient(pDnode) != 0) {
+  if(dmInitModule(pDnode) != 0) {
     goto _OVER;
   }
 
@@ -180,6 +97,12 @@ void dmCleanupDnode(SDnode *pDnode) {
   streamMetaCleanup();
   indexCleanup();
   taosConvDestroy();
+
+#ifdef TD_TSZ
+  // compress destroy
+  tsCompressExit();
+#endif
+
   dDebug("dnode is closed, ptr:%p", pDnode);
 }
 
