@@ -475,6 +475,10 @@ SSDataBlock* tqGetResultBlock (STqReader* pReader) {
   return pReader->pResBlock;
 }
 
+int64_t tqGetResultBlockTime(STqReader *pReader){
+  return pReader->lastTs;
+}
+
 bool tqNextBlockImpl(STqReader* pReader, const char* idstr) {
   if (pReader->msg.msgStr == NULL) {
     return false;
@@ -641,7 +645,7 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
   int32_t sversion = pSubmitTbData->sver;
   int64_t suid = pSubmitTbData->suid;
   int64_t uid = pSubmitTbData->uid;
-  pReader->lastBlkUid = uid;
+  pReader->lastTs = pSubmitTbData->ctimeMs;
 
   pBlock->info.id.uid = uid;
   pBlock->info.version = pReader->msg.ver;
@@ -783,9 +787,7 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas
   }
 
   int32_t sversion = pSubmitTbData->sver;
-  int64_t suid = pSubmitTbData->suid;
   int64_t uid = pSubmitTbData->uid;
-  pReader->lastBlkUid = uid;
 
   tDeleteSchemaWrapper(pReader->pSchemaWrapper);
   pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1);

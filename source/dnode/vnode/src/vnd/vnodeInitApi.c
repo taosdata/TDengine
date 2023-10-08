@@ -131,6 +131,7 @@ void initTqAPI(SStoreTqReader* pTq) {
   pTq->tqGetResultBlock = tqGetResultBlock;
 
   pTq->tqReaderNextBlockFilterOut = tqNextDataBlockFilterOut;
+  pTq->tqGetResultBlockTime = tqGetResultBlockTime;
 }
 
 void initStateStoreAPI(SStateStore* pStore) {

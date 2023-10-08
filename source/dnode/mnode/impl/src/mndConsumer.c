@@ -18,6 +18,7 @@
 #include "mndPrivilege.h"
 #include "mndVgroup.h"
 #include "mndShow.h"
+#include "mndDb.h"
 #include "mndSubscribe.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
@@ -124,7 +125,7 @@ void mndRebCntDec() {
   }
 }
 
-static int32_t validateTopics(STrans *pTrans, const SArray *pTopicList, SMnode *pMnode, const char *pUser) {
+static int32_t validateTopics(STrans *pTrans, const SArray *pTopicList, SMnode *pMnode, const char *pUser, bool enableReplay) {
   int32_t numOfTopics = taosArrayGetSize(pTopicList);
 
   for (int32_t i = 0; i < numOfTopics; i++) {
@@ -137,6 +138,22 @@ static int32_t validateTopics(STrans *pTrans, const SArray *pTopicList, SMnode *
     if (mndCheckTopicPrivilege(pMnode, pUser, MND_OPER_SUBSCRIBE, pTopic) != 0) {
       mndReleaseTopic(pMnode, pTopic);
       return -1;
+    }
+
+    if(enableReplay){
+      if(pTopic->subType != TOPIC_SUB_TYPE__COLUMN){
+        return TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT;
+      }else if(pTopic->ntbUid == 0 && pTopic->ctbStbUid == 0) {
+        SDbObj *pDb = mndAcquireDb(pMnode, pTopic->db);
+        if (pDb == NULL) {
+          mndReleaseTopic(pMnode, pTopic);
+          return -1;
+        }
+        if (pDb->cfg.numOfVgroups != 1) {
+          return TSDB_CODE_TMQ_REPLAY_NEED_ONE_VGROUP;
+        }
+        mndReleaseDb(pMnode, pDb);
+      }
     }
 
     mndTransSetDbName(pTrans, pOneTopic, NULL);
@@ -177,7 +194,7 @@ static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
   if (pTrans == NULL) {
     goto FAIL;
   }
-  if(validateTopics(pTrans, pConsumer->assignedTopics, pMnode, pMsg->info.conn.user) != 0){
+  if(validateTopics(pTrans, pConsumer->assignedTopics, pMnode, pMsg->info.conn.user, false) != 0){
     goto FAIL;
   }
 
@@ -697,7 +714,7 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     goto _over;
   }
 
-  code = validateTopics(pTrans, pTopicList, pMnode, pMsg->info.conn.user);
+  code = validateTopics(pTrans, pTopicList, pMnode, pMsg->info.conn.user, subscribe.enableReplay);
   if (code != TSDB_CODE_SUCCESS) {
     goto _over;
   }

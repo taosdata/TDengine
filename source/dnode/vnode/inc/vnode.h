@@ -213,7 +213,7 @@ typedef struct STqReader {
   SPackedData     msg;
   SSubmitReq2     submit;
   int32_t         nextBlk;
-  int64_t         lastBlkUid;
+  int64_t         lastTs;
   SWalReader     *pWalReader;
   SMeta          *pVnodeMeta;
   SHashObj       *tbIdHash;
@@ -241,6 +241,7 @@ bool         tqNextBlockInWal(STqReader *pReader, const char *idstr);
 bool         tqNextBlockImpl(STqReader *pReader, const char *idstr);
 SWalReader  *tqGetWalReader(STqReader *pReader);
 SSDataBlock *tqGetResultBlock(STqReader *pReader);
+int64_t      tqGetResultBlockTime(STqReader *pReader);
 
 int32_t extractMsgFromWal(SWalReader *pReader, void **pItem, int64_t maxVer, const char *id);
 int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver);

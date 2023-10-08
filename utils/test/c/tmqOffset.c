@@ -7,18 +7,14 @@
 #include "tlog.h"
 #include "tmsg.h"
 
-typedef struct {
-  int32_t size;
-} STqOffsetHead;
-
 int32_t tqOffsetRestoreFromFile(const char* fname) {
   TdFilePtr pFile = taosOpenFile(fname, TD_FILE_READ);
   if (pFile != NULL) {
-    STqOffsetHead head = {0};
     int32_t       code;
 
     while (1) {
-      if ((code = taosReadFile(pFile, &head, sizeof(STqOffsetHead))) != sizeof(STqOffsetHead)) {
+      int32_t size = 0;
+      if ((code = taosReadFile(pFile, &size, INT_BYTES)) != INT_BYTES) {
         if (code == 0) {
           break;
         } else {
@@ -26,7 +22,6 @@ int32_t tqOffsetRestoreFromFile(const char* fname) {
           return -1;
         }
       }
-      int32_t size = htonl(head.size);
       void*   memBuf = taosMemoryCalloc(1, size);
       if (memBuf == NULL) {
         printf("memBuf == NULL\n");

@@ -298,11 +298,6 @@ static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pOldTopic, SMqTopic
   atomic_exchange_64(&pOldTopic->updateTime, pNewTopic->updateTime);
   atomic_exchange_32(&pOldTopic->version, pNewTopic->version);
 
-  /*taosWLockLatch(&pOldTopic->lock);*/
-
-  // TODO handle update
-
-  /*taosWUnLockLatch(&pOldTopic->lock);*/
   return 0;
 }
 
@@ -318,23 +313,6 @@ SMqTopicObj *mndAcquireTopic(SMnode *pMnode, const char *topicName) {
 void mndReleaseTopic(SMnode *pMnode, SMqTopicObj *pTopic) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pTopic);
-}
-
-static SDDropTopicReq *mndBuildDropTopicMsg(SMnode *pMnode, SVgObj *pVgroup, SMqTopicObj *pTopic) {
-  int32_t contLen = sizeof(SDDropTopicReq);
-
-  SDDropTopicReq *pDrop = taosMemoryCalloc(1, contLen);
-  if (pDrop == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  pDrop->head.contLen = htonl(contLen);
-  pDrop->head.vgId = htonl(pVgroup->vgId);
-  memcpy(pDrop->name, pTopic->name, TSDB_TOPIC_FNAME_LEN);
-  pDrop->tuid = htobe64(pTopic->uid);
-
-  return pDrop;
 }
 
 static int32_t mndCheckCreateTopicReq(SCMCreateTopicReq *pCreate) {

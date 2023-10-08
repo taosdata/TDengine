@@ -15,8 +15,6 @@
 
 #include "tq.h"
 
-#define IS_OFFSET_RESET_TYPE(_t)  ((_t) < 0)
-
 static int32_t tqSendMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq,
                                  const SMqMetaRsp* pRsp, int32_t vgId);
 
@@ -142,7 +140,7 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
   tqInitDataRsp(&dataRsp, *pOffset);
 
   qSetTaskId(pHandle->execHandle.task, consumerId, pRequest->reqId);
-  int code = tqScanData(pTq, pHandle, &dataRsp, pOffset);
+  int code = tqScanData(pTq, pHandle, &dataRsp, pOffset, pRequest);
   if (code != 0 && terrno != TSDB_CODE_WAL_LOG_NOT_EXIST) {
     goto end;
   }

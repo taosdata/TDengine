@@ -330,24 +330,6 @@ void dumpSubscribe(SSdb *pSdb, SJson *json) {
   }
 }
 
-void dumpOffset(SSdb *pSdb, SJson *json) {
-  void  *pIter = NULL;
-  SJson *items = tjsonAddArrayToObject(json, "offsets");
-
-  while (1) {
-    SMqOffsetObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_OFFSET, pIter, (void **)&pObj);
-    if (pIter == NULL) break;
-
-    SJson *item = tjsonCreateObject();
-    tjsonAddItemToArray(items, item);
-    tjsonAddStringToObject(item, "key", pObj->key);
-    tjsonAddStringToObject(item, "dbUid", i642str(pObj->dbUid));
-    tjsonAddStringToObject(item, "offset", i642str(pObj->offset));
-    sdbRelease(pSdb, pObj);
-  }
-}
-
 void dumpStream(SSdb *pSdb, SJson *json) {
   void  *pIter = NULL;
   SJson *items = tjsonAddArrayToObject(json, "streams");
@@ -608,7 +590,7 @@ void mndDumpSdb() {
   dumpTopic(pSdb, json);
   dumpConsumer(pSdb, json);
   dumpSubscribe(pSdb, json);
-  dumpOffset(pSdb, json);
+//  dumpOffset(pSdb, json);
   dumpStream(pSdb, json);
   dumpAcct(pSdb, json);
   dumpAuth(pSdb, json);

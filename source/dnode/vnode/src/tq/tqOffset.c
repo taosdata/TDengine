@@ -37,11 +37,9 @@ int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname) {
 
   int32_t vgId = TD_VID(pStore->pTq->pVnode);
   int64_t code = 0;
-
-  STqOffsetHead head = {0};
-
+  int32_t size = 0;
   while (1) {
-    if ((code = taosReadFile(pFile, &head, sizeof(STqOffsetHead))) != sizeof(STqOffsetHead)) {
+    if ((code = taosReadFile(pFile, &size, INT_BYTES)) != INT_BYTES) {
       if (code == 0) {
         break;
       } else {
@@ -49,7 +47,6 @@ int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname) {
       }
     }
 
-    int32_t size = htonl(head.size);
     void*   pMemBuf = taosMemoryCalloc(1, size);
     if (pMemBuf == NULL) {
       tqError("vgId:%d failed to restore offset from file, since out of memory, malloc size:%d", vgId, size);
@@ -175,11 +172,11 @@ int32_t tqOffsetCommitFile(STqOffsetStore* pStore) {
       return -1;
     }
 
-    int32_t totLen = sizeof(STqOffsetHead) + bodyLen;
+    int32_t totLen = INT_BYTES + bodyLen;
     void*   buf = taosMemoryCalloc(1, totLen);
-    void*   abuf = POINTER_SHIFT(buf, sizeof(STqOffsetHead));
+    void*   abuf = POINTER_SHIFT(buf, INT_BYTES);
 
-    ((STqOffsetHead*)buf)->size = htonl(bodyLen);
+    *(int32_t*)buf = bodyLen;
     SEncoder encoder;
     tEncoderInit(&encoder, abuf, bodyLen);
     tEncodeSTqOffset(&encoder, pOffset);
