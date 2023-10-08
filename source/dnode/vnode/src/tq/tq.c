@@ -1792,12 +1792,12 @@ _end:
       taosWLockLatch(&pMeta->lock);
 
       terrno = 0;
-      int32_t code = streamMetaReopen(pMeta, 0);
-      if (code != 0) {
-        tqError("vgId:%d failed to reopen stream meta", vgId);
-        taosWUnLockLatch(&pMeta->lock);
-        return -1;
-      }
+      // int32_t code = streamMetaReopen(pMeta, 0);
+      // if (code != 0) {
+      //   tqError("vgId:%d failed to reopen stream meta", vgId);
+      //   taosWUnLockLatch(&pMeta->lock);
+      //   return -1;
+      // }
 
       if (streamMetaLoadAllTasks(pTq->pStreamMeta) < 0) {
         tqError("vgId:%d failed to load stream tasks", vgId);
