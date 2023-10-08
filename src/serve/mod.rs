@@ -101,6 +101,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(data_sources_in)
             .service(data_sources_in_one)
             .service(data_source_collection)
+            .service(download_all_data_set_file)
             .service(create_agent)
             .service(update_agent)
             .service(delete_agent)
@@ -212,6 +213,7 @@ impl Cli {
                 data_sources_in,
                 data_sources_in_one,
                 data_source_collection,
+                download_all_data_set_file,
 
                 agent::create_agent,
                 agent::update_agent,
@@ -386,6 +388,7 @@ impl Cli {
                 data_sources_in,
                 data_sources_in_one,
                 data_source_collection,
+                download_all_data_set_file,
 
                 agent::create_agent,
                 agent::update_agent,

@@ -218,3 +218,53 @@ pub(super) async fn data_source_collection(
         }),
     }
 }
+
+#[utoipa::path(
+    tag = "data sources",
+    request_body = DataSetsReq,
+    responses(
+        (status = 200, description = "Available data sources", body = Vec<DataSets>),
+        (status = 500, description = "List data sets error", body = Failed),
+    ),
+)]
+#[post("/ds/in/download/all_data_sets")]
+pub(super) async fn download_all_data_set_file(
+    controller: Data<TaskControllerRef>,
+    data: Json<DataSetsReq>,
+) -> impl Responder {
+    let mut data = data.into_inner();
+    // TODO 
+    // data.limit = usize::MAX;
+    data.limit = 200;
+    use taos::IntoDsn;
+    let from = data.from.clone().into_dsn().unwrap();
+    match from.driver.as_str() {
+        "pi" | "pibackfill" => data.pattern = Some(String::from("*")),
+        _ => data.pattern = Some(String::from(".*"))
+    }
+    match if let Some(agent) = data.via {
+        controller.list_datasets_via_agent(agent, data).await
+    } else {
+        list_datasets_from(&data).await
+    } {
+        Ok(data) => {
+            // 创建一个内存缓冲区，将 CSV 数据写入其中
+            let mut csv_data: Vec<u8> = Vec::new();
+            let mut writer = csv::Writer::from_writer(&mut csv_data);
+            let ids: Vec<String> = data.into_iter().map(|set| set.id).collect();//.for_each(|id| writer.write_record(id));
+            for line in ids {
+                // writer.write_record(line.split(',').map(|s| s.trim()))?;
+                writer.write_record(line.split(',').map(|s| s.trim())).unwrap();
+            }
+            drop(writer);
+            HttpResponse::Ok()
+            .content_type("text/csv")
+            .insert_header(("Content-Disposition", "attachment; filename=data.csv"))
+            .body(csv_data)
+        },
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: 0xFFFF.into(),
+            message: format!("{:#}", err),
+        }),
+    }
+}
