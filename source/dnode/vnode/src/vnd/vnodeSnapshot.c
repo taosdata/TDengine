@@ -518,6 +518,10 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     tsdbSnapWriterPrepareClose(pWriter->pTsdbSnapWriter);
   }
 
+  if (pWriter->pRsmaSnapWriter) {
+    rsmaSnapWriterPrepareClose(pWriter->pRsmaSnapWriter);
+  }
+
   // commit json
   if (!rollback) {
     pWriter->info.state.committed = pWriter->ever;
