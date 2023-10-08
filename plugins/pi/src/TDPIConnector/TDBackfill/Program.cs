@@ -23,7 +23,7 @@ namespace TDBackfill
             XmlConfigurator.Configure(new System.IO.FileInfo("log4net.config"));
             return true;
         }
-        static void PrintVersion(bool writelog)
+        static void PrintVersion(bool showLog)
         {
             Assembly assembly = Assembly.GetExecutingAssembly();
             var cus_ttributes = assembly
@@ -34,15 +34,18 @@ namespace TDBackfill
             AssemblyName assemblyName = assembly.GetName();
             Version version = assemblyName.Version;
 
-            if (writelog) {
+            if (!showLog)
+            {
                 log.Info("PI Backfill version is: " + version);
                 log.Info("PI Backfill commit is: " + commit);
                 log.Info("PI Backfill build at: " + build_time);
             }
-            Console.WriteLine("PI Backfill");
-            Console.WriteLine($"    Version : {version}");
-            Console.WriteLine($"    Commit : {commit}");
-            Console.WriteLine($"    Build Time : {build_time}");
+            else {
+                Console.WriteLine("PI Backfill");
+                Console.WriteLine($"    Version : {version}");
+                Console.WriteLine($"    Commit : {commit}");
+                Console.WriteLine($"    Build Time : {build_time}");
+            }
         }
         static void Main(string[] args)
         {
@@ -50,11 +53,11 @@ namespace TDBackfill
             CommandLineParser parser = new CommandLineParser(args);
             //get the command line options
             CommandLineOptions options = parser.GetCommandLineOptions();
-            if (options.ShowVersion) {
-                PrintVersion(false);
+            PrintVersion(options.ShowVersion);
+            if (options.ShowVersion) {  
                 return;
             }
-            PrintVersion(true);
+
             if (options.Help)
             {
                 //output to console the help message
