@@ -456,7 +456,19 @@ from taos.tmq import Consumer
 # Syntax: `consumer = Consumer(configs)`
 #
 # Example:
-consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
+consumer = Consumer(
+    {
+        "group.id": "local",
+        "client.id": "1",
+        "enable.auto.commit": "true",
+        "auto.commit.interval.ms": "1000",
+        "td.connect.ip": "127.0.0.1",
+        "td.connect.user": "root",
+        "td.connect.pass": "taosdata",
+        "auto.offset.reset": "earliest",
+        "msg.with.table.name": "true",
+    }
+)
 ```
 
 </TabItem>
