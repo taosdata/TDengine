@@ -8,6 +8,26 @@ description: |
 
   taosX 可以通过 PI BACKFILL 连接器插件从 PI 系统中提取历史数据。
 type: uri
+params:
+  - name: system_configuration
+    display: PI 系统配置
+    display_order: 0
+    description:
+    value: PI Data Archive and Asset Framework (AF) Server
+    hint:
+      type: str
+      choices:
+        - PI Data Archive and Asset Framework (AF) Server
+        - PI Data Archive Only
+  - name: PISystemName
+    display: AF Server 名称
+    placeholder: pi-af-server-name
+    display_order: 3
+    required: true
+    description: |-
+      PI 系统(AF Server) 名称 (hostname).
+    hint:
+      type: str
 options:
   host:
     display: PI服务名
@@ -21,17 +41,6 @@ options:
     placeholder: "Example: Met1"
 strict: false
 groups:
-  - name: PI 系统设置
-    display_order: 2
-    description: PI 系统相关配置项。
-    params:
-      - name: PISystemName
-        display: AF-SERVER-NAME
-        description: |-
-          AF-SERVER-NAME，留空以使用服务器地址。
-        hint:
-          type: str
-
   - name: 点位配置
     display_order: 1
     description: |
@@ -90,7 +99,7 @@ groups:
       - name: MaxWaitLen
         display: 消息队列缓存数
         description: |-
-          超过该数字消息会立即发送
+          将数据发送到 TDengine 之前要批处理的最大更新数（行）。
         hint:
           type: integer
           min: 1
@@ -109,7 +118,7 @@ groups:
         display: 重启补偿时间
         hint:
           type: integer
-        description: 每次重启服务时向前补偿该天数的数据，如果缺失的话。
+        description: 连接丢失或首次启动时自动回填的最大天数。
         placeholder: 1
         value: 1
 
