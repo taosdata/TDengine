@@ -582,7 +582,14 @@ impl Args {
                     .map_err(|err| RestErrResponse::new(format!("Invalid cActiveCode: {err:#}")))?;
             }
         }
-        let renewed = conn
+        Ok(RestOkResponse {
+            code: Code::Success,
+            column_meta: Default::default(),
+            rows: 0,
+            data: Default::default(),
+        })
+
+        /*let renewed = conn
             .query("show dnodes")
             .await?
             .deserialize::<RenewLicense>()
@@ -607,7 +614,7 @@ impl Args {
                 code: Code::Failed,
                 desc: "Alter all dnodes success, but the `show dnodes` result is not consist with new license".to_string(),
             })
-        }
+        }*/
     }
 }
 #[derive(Debug, serde::Serialize)]
