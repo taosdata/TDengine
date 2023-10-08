@@ -110,7 +110,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   pInfo->binfo.inputTsOrder = pProjPhyNode->node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pProjPhyNode->node.outputTsOrder;
 
-  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM || pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
     pInfo->mergeDataBlocks = false;
   } else {
     if (!pProjPhyNode->ignoreGroupId) {
@@ -330,6 +330,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       break;
     }
 
+    qDebug("project return %d", pProjectInfo->mergeDataBlocks);
     if (pProjectInfo->mergeDataBlocks) {
       if (pRes->info.rows > 0) {
         pFinalRes->info.id.groupId = 0;  // clear groupId

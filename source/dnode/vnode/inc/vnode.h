@@ -216,7 +216,7 @@ typedef struct STqReader {
   SPackedData     msg;
   SSubmitReq2     submit;
   int32_t         nextBlk;
-  int64_t         lastTs;
+  int64_t         lastBlkUid;
   SWalReader     *pWalReader;
   SMeta          *pVnodeMeta;
   SHashObj       *tbIdHash;
@@ -226,6 +226,7 @@ typedef struct STqReader {
   int64_t         cachedSchemaUid;
   SSchemaWrapper *pSchemaWrapper;
   SSDataBlock    *pResBlock;
+  int64_t         lastTs;
 } STqReader;
 
 STqReader *tqReaderOpen(SVnode *pVnode);

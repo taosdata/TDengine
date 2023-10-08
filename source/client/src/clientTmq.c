@@ -1532,6 +1532,7 @@ void tmqBuildConsumeReqImpl(SMqPollReq* pReq, tmq_t* tmq, int64_t timeout, SMqCl
   pReq->head.vgId = pVg->vgId;
   pReq->useSnapshot = tmq->useSnapshot;
   pReq->reqId = generateRequestId();
+  pReq->enableReplay = tmq->replayEnable;
 }
 
 SMqMetaRspObj* tmqBuildMetaRspFromWrapper(SMqPollRspWrapper* pWrapper) {
