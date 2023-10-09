@@ -139,10 +139,10 @@ export function getFileStream(filepath){
 export function downlaodAllNodes(data){
     return request({
         baseURL:process.env.VUE_APP_X_API,
-        url:`/ds/in/download/all_data_sets`,
-        method:'post',
+        url:`/ds/in/download/all_data_sets?from=${data}`,
+        method:'get',
         responseType: 'blob',
-        data,
+        // data,
         // data: {
         //     "from": "opcua://192.168.0.34:53530/OPCUA/SimulationServer",
         //     "categories": ["nodes"],

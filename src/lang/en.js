@@ -25,6 +25,8 @@ export default {
   sqlPreview: "SQL Preview",
   unknown: "Unknown Error!",
   download: "Download",
+  uploadcsv: 'Upload CSV',
+  allPoints: 'All Points',
   downloadTemplate: 'Template',
   downloadPiPoint: 'List of PI Points',
   downloadAfElement: 'List of AF Element Template',
