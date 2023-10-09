@@ -811,9 +811,8 @@ export default {
       uploadData: {
         req_id: new Date().getTime(),
       },
-      // 提交记得给改回来
-      uploadUrl: process.env.VUE_APP_X_API + `upload`,
-      downloadUrl: process.env.VUE_APP_X_API + `download?file_path=`,
+      uploadUrl: process.env.VUE_APP_X_API + `/upload`,
+      downloadUrl: process.env.VUE_APP_X_API + `/download?file_path=`,
       activeRadio: 'select_file'
     };
   },
