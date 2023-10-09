@@ -249,6 +249,7 @@ pub(super) async fn download_all_data_set_file(
 pub struct DownloadAllPointsParams {
     from: String,
     via: Option<i64>,
+    categories: Vec<String>,
 }
 
 async fn download_all_point_csv_file(
@@ -257,7 +258,7 @@ async fn download_all_point_csv_file(
     params: Query<DownloadAllPointsParams>,
 ) -> anyhow::Result<NamedFile> {
     let params = params.into_inner();
-    let data = get_all_points(params.from, params.via, controller.into_inner()).await?;
+    let data = get_all_points(params.from, params.via, params.categories, controller.into_inner().as_ref()).await?;
     
     let ids  = data.into_iter().map(|set| set.id).join("\n");
     let mut config_file = tempfile::NamedTempFile::new()?;
@@ -267,19 +268,17 @@ async fn download_all_point_csv_file(
     Ok(NamedFile::open(config_file.path().to_path_buf())?)
 }
 
-async fn get_all_points(from: String, via: Option<i64>, controller: Arc<TaskControllerRef>) -> anyhow::Result<Vec<DataSet>> {
+use crate::serve::TaskController;
+pub(crate) async fn get_all_points(from: String, via: Option<i64>, categories: Vec<String>, controller: &TaskController) -> anyhow::Result<Vec<DataSet>> {
     use taos::IntoDsn;
     let from = from.into_dsn()?;
     let pattern;
-    let categories;
     match from.driver.as_str() {
         "pi" | "pibackfill" => {
             pattern = Some(String::from("*"));
-            categories = vec![String::from("Points")];
         },
         _ => {
             pattern = Some(String::from(".*"));
-            categories = vec![String::from("nodes")];
         }
     }
     let limit = usize::MAX / 2 - 1; // cause usize::MAX out of range i64 type when exec toml::to_string()
