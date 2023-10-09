@@ -101,7 +101,7 @@ int32_t tsdbDataFileReaderOpen(const char *fname[], const SDataFileReaderConfig 
   if (fname) {
     for (int32_t i = 0; i < TSDB_FTYPE_MAX; ++i) {
       if (fname[i]) {
-        code = tsdbOpenFile(fname[i], config->szPage, TD_FILE_READ, &reader[0]->fd[i]);
+        code = tsdbOpenFile(fname[i], config->tsdb, TD_FILE_READ, &reader[0]->fd[i]);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
@@ -110,7 +110,7 @@ int32_t tsdbDataFileReaderOpen(const char *fname[], const SDataFileReaderConfig 
       if (config->files[i].exist) {
         char fname1[TSDB_FILENAME_LEN];
         tsdbTFileName(config->tsdb, &config->files[i].file, fname1);
-        code = tsdbOpenFile(fname1, config->szPage, TD_FILE_READ, &reader[0]->fd[i]);
+        code = tsdbOpenFile(fname1, config->tsdb, TD_FILE_READ, &reader[0]->fd[i]);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
@@ -1466,7 +1466,7 @@ static int32_t tsdbDataFileWriterOpenDataFD(SDataFileWriter *writer) {
     }
 
     tsdbTFileName(writer->config->tsdb, &writer->files[ftype], fname);
-    code = tsdbOpenFile(fname, writer->config->szPage, flag, &writer->fd[ftype]);
+    code = tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd[ftype]);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     if (writer->files[ftype].size == 0) {
@@ -1634,7 +1634,7 @@ static int32_t tsdbDataFileWriterOpenTombFD(SDataFileWriter *writer) {
   int32_t flag = (TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
 
   tsdbTFileName(writer->config->tsdb, writer->files + ftype, fname);
-  code = tsdbOpenFile(fname, writer->config->szPage, flag, &writer->fd[ftype]);
+  code = tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd[ftype]);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   uint8_t hdr[TSDB_FHDR_SIZE] = {0};

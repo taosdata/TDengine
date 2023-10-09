@@ -168,6 +168,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -i True
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 6 -M 3 -n 3 -i True
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeTransform.py -N 2 -n 1
+,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit.py -N 2 -n 1
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeReplicate.py -M 3 -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-19201.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py
@@ -200,6 +201,8 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ttl.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ttlChangeOnWrite.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compress_tsz1.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compress_tsz2.py
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 ,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
 ,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
@@ -338,6 +341,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/hyperloglog.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -R
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/irate.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/irate.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/join.py
@@ -569,6 +573,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/arctan.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/nestedQueryInterval.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/stablity_1.py -Q 2
@@ -698,6 +703,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/blockSMA.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/projectionDesc.py -Q 3
@@ -794,6 +800,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsbsQuery.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/interp.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/case_when.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/insert_select.py -R
@@ -809,6 +816,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py
 ,,n,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/insertMix.py -N 3
 ,,n,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/stt.py -N 3
+,,n,system-test,python3 ./test.py -f eco-system/meta/database/keep_time_offset.py
 
 #tsim test
 ,,y,script,./test.sh -f tsim/tmq/basic2Of2ConsOverlap.sim
@@ -1016,6 +1024,7 @@
 ,,y,script,./test.sh -f tsim/query/partitionby.sim
 ,,y,script,./test.sh -f tsim/query/tableCount.sim 
 ,,y,script,./test.sh -f tsim/query/show_db_table_kind.sim 
+,,y,script,./test.sh -f tsim/query/bi_star_table.sim 
 ,,y,script,./test.sh -f tsim/query/tag_scan.sim 
 ,,y,script,./test.sh -f tsim/query/nullColSma.sim
 ,,y,script,./test.sh -f tsim/query/bug3398.sim

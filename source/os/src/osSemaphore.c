@@ -68,37 +68,34 @@ int32_t taosGetAppName(char* name, int32_t* len) {
 }
 
 int32_t tsem_wait(tsem_t* sem) {
-  int ret = 0;
-  do {
-    ret = sem_wait(sem);
-  } while (ret != 0 && errno == EINTR);
-  return ret;
+  return WaitForSingleObject(*sem, INFINITE);
 }
 
-int32_t tsem_timewait(tsem_t* sem, int64_t ms) {
-  struct timespec ts;
-  taosClockGetTime(0, &ts);
+int32_t tsem_timewait(tsem_t* sem, int64_t timeout_ms) {
+  DWORD result = WaitForSingleObject(*sem, timeout_ms);
+  if (result == WAIT_OBJECT_0) {
+    return 0;  // Semaphore acquired
+  } else if (result == WAIT_TIMEOUT) {
+    return -1;  // Timeout reached
+  } else {
+    return result;
+  }
+}
 
-  ts.tv_nsec += ms * 1000000;
-  ts.tv_sec += ts.tv_nsec / 1000000000;
-  ts.tv_nsec %= 1000000000;
-  int rc;
-  while ((rc = sem_timedwait(sem, &ts)) == -1 && errno == EINTR) continue;
-  return rc;
-  /* This should have timed out */
-  // ASSERT(errno == ETIMEDOUT);
-  // ASSERT(rc != 0);
-  // GetSystemTimeAsFileTime(&ft_after);
-  // // We specified a non-zero wait. Time must advance.
-  // if (ft_before.dwLowDateTime == ft_after.dwLowDateTime && ft_before.dwHighDateTime == ft_after.dwHighDateTime)
-  //   {
-  //     printf("nanoseconds: %d, rc: %d, code:0x%x. before filetime: %d, %d; after filetime: %d, %d\n",
-  //         nanosecs, rc, errno,
-  //         (int)ft_before.dwLowDateTime, (int)ft_before.dwHighDateTime,
-  //         (int)ft_after.dwLowDateTime, (int)ft_after.dwHighDateTime);
-  //     printf("time must advance during sem_timedwait.");
-  //     return 1;
-  //   }
+// Inter-process sharing is not currently supported. The pshared parameter is invalid.
+int tsem_init(tsem_t* sem, int pshared, unsigned int value) {
+  *sem = CreateSemaphore(NULL, value, LONG_MAX, NULL);
+  return (*sem != NULL) ? 0 : -1;
+}
+
+int tsem_post(tsem_t* sem) {
+  if (ReleaseSemaphore(*sem, 1, NULL)) return 0;
+  return -1;
+}
+
+int tsem_destroy(tsem_t* sem) {
+  if (CloseHandle(*sem)) return 0;
+  return -1;
 }
 
 #elif defined(_TD_DARWIN_64)
@@ -133,8 +130,7 @@ int tsem_wait(tsem_t *psem) {
 int tsem_timewait(tsem_t *psem, int64_t milis) {
   if (psem == NULL || *psem == NULL) return -1;
   dispatch_time_t time = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(milis * USEC_PER_SEC));
-  dispatch_semaphore_wait(*psem, time);
-  return 0;
+  return dispatch_semaphore_wait(*psem, time);
 }
 
 bool taosCheckPthreadValid(TdThread thread) { return thread != 0; }

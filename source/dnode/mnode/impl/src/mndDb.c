@@ -34,7 +34,7 @@
 #include "audit.h"
 
 #define DB_VER_NUMBER   1
-#define DB_RESERVE_SIZE 46
+#define DB_RESERVE_SIZE 42
 
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
@@ -137,6 +137,7 @@ SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT16(pRaw, dataPos, pDb->cfg.hashSuffix, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.tsdbPageSize, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pDb->compactStartTime, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.keepTimeOffset, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -227,6 +228,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.hashSuffix, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.tsdbPageSize, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pDb->compactStartTime, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.keepTimeOffset, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pDb->lock);
@@ -292,6 +294,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfg.daysToKeep0 = pNew->cfg.daysToKeep0;
   pOld->cfg.daysToKeep1 = pNew->cfg.daysToKeep1;
   pOld->cfg.daysToKeep2 = pNew->cfg.daysToKeep2;
+  pOld->cfg.keepTimeOffset = pNew->cfg.keepTimeOffset;
   pOld->cfg.walFsyncPeriod = pNew->cfg.walFsyncPeriod;
   pOld->cfg.walLevel = pNew->cfg.walLevel;
   pOld->cfg.walRetentionPeriod = pNew->cfg.walRetentionPeriod;
@@ -368,6 +371,7 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->daysToKeep0 < pCfg->daysPerFile) return -1;
   if (pCfg->daysToKeep0 > pCfg->daysToKeep1) return -1;
   if (pCfg->daysToKeep1 > pCfg->daysToKeep2) return -1;
+  if (pCfg->keepTimeOffset < TSDB_MIN_KEEP_TIME_OFFSET || pCfg->keepTimeOffset > TSDB_MAX_KEEP_TIME_OFFSET) return -1;
   if (pCfg->minRows < TSDB_MIN_MINROWS_FBLOCK || pCfg->minRows > TSDB_MAX_MINROWS_FBLOCK) return -1;
   if (pCfg->maxRows < TSDB_MIN_MAXROWS_FBLOCK || pCfg->maxRows > TSDB_MAX_MAXROWS_FBLOCK) return -1;
   if (pCfg->minRows > pCfg->maxRows) return -1;
@@ -413,6 +417,7 @@ static int32_t mndCheckInChangeDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->daysToKeep0 < pCfg->daysPerFile) return -1;
   if (pCfg->daysToKeep0 > pCfg->daysToKeep1) return -1;
   if (pCfg->daysToKeep1 > pCfg->daysToKeep2) return -1;
+  if (pCfg->keepTimeOffset < TSDB_MIN_KEEP_TIME_OFFSET || pCfg->keepTimeOffset > TSDB_MAX_KEEP_TIME_OFFSET) return -1;
   if (pCfg->walFsyncPeriod < TSDB_MIN_FSYNC_PERIOD || pCfg->walFsyncPeriod > TSDB_MAX_FSYNC_PERIOD) return -1;
   if (pCfg->walLevel < TSDB_MIN_WAL_LEVEL || pCfg->walLevel > TSDB_MAX_WAL_LEVEL) return -1;
   if (pCfg->cacheLast < TSDB_CACHE_MODEL_NONE || pCfg->cacheLast > TSDB_CACHE_MODEL_BOTH) return -1;
@@ -445,6 +450,7 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->daysToKeep0 < 0) pCfg->daysToKeep0 = TSDB_DEFAULT_KEEP;
   if (pCfg->daysToKeep1 < 0) pCfg->daysToKeep1 = pCfg->daysToKeep0;
   if (pCfg->daysToKeep2 < 0) pCfg->daysToKeep2 = pCfg->daysToKeep1;
+  if (pCfg->keepTimeOffset < 0) pCfg->keepTimeOffset = TSDB_DEFAULT_KEEP_TIME_OFFSET;
   if (pCfg->minRows < 0) pCfg->minRows = TSDB_DEFAULT_MINROWS_FBLOCK;
   if (pCfg->maxRows < 0) pCfg->maxRows = TSDB_DEFAULT_MAXROWS_FBLOCK;
   if (pCfg->walFsyncPeriod < 0) pCfg->walFsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;
@@ -590,6 +596,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .daysToKeep0 = pCreate->daysToKeep0,
       .daysToKeep1 = pCreate->daysToKeep1,
       .daysToKeep2 = pCreate->daysToKeep2,
+      .keepTimeOffset = pCreate->keepTimeOffset,
       .minRows = pCreate->minRows,
       .maxRows = pCreate->maxRows,
       .walFsyncPeriod = pCreate->walFsyncPeriod,
@@ -680,7 +687,7 @@ _OVER:
 
 static void mndBuildAuditDetailInt32(char* detail, char* tmp, char* format, int32_t para){
   if(para > 0){
-    if(strlen(detail) > 0) strcat(detail, ", "); 
+    if(strlen(detail) > 0) strcat(detail, ", ");
     sprintf(tmp, format, para);
     strcat(detail, tmp);
   }
@@ -688,7 +695,7 @@ static void mndBuildAuditDetailInt32(char* detail, char* tmp, char* format, int3
 
 static void mndBuildAuditDetailInt64(char* detail, char* tmp, char* format, int64_t para){
   if(para > 0){
-    if(strlen(detail) > 0) strcat(detail, ", "); 
+    if(strlen(detail) > 0) strcat(detail, ", ");
     sprintf(tmp, format, para);
     strcat(detail, tmp);
   }
@@ -763,6 +770,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   mndBuildAuditDetailInt32(detail, tmp, "daysToKeep0:%d", createReq.daysToKeep0);
   mndBuildAuditDetailInt32(detail, tmp, "daysToKeep1:%d", createReq.daysToKeep1);
   mndBuildAuditDetailInt32(detail, tmp, "daysToKeep2:%d", createReq.daysToKeep2);
+  mndBuildAuditDetailInt32(detail, tmp, "keepTimeOffset:%d", createReq.keepTimeOffset);
   mndBuildAuditDetailInt32(detail, tmp, "hashPrefix:%d", createReq.hashPrefix);
   mndBuildAuditDetailInt32(detail, tmp, "hashSuffix:%d", createReq.hashSuffix);
   mndBuildAuditDetailInt32(detail, tmp, "ignoreExist:%d", createReq.ignoreExist);
@@ -785,7 +793,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   mndBuildAuditDetailInt32(detail, tmp, "walRetentionSize:%" PRId64, createReq.walRetentionSize);
   mndBuildAuditDetailInt32(detail, tmp, "walRollPeriod:%d", createReq.walRollPeriod);
   mndBuildAuditDetailInt32(detail, tmp, "walSegmentSize:%" PRId64, createReq.walSegmentSize);
-  
+
   SName name = {0};
   tNameFromString(&name, createReq.db, T_NAME_ACCT | T_NAME_DB);
 
@@ -838,6 +846,11 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
 
   if (pAlter->daysToKeep2 > 0 && pAlter->daysToKeep2 != pDb->cfg.daysToKeep2) {
     pDb->cfg.daysToKeep2 = pAlter->daysToKeep2;
+    terrno = 0;
+  }
+
+  if (pAlter->keepTimeOffset >= 0 && pAlter->keepTimeOffset != pDb->cfg.keepTimeOffset) {
+    pDb->cfg.keepTimeOffset = pAlter->keepTimeOffset;
     terrno = 0;
   }
 
@@ -1046,6 +1059,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   mndBuildAuditDetailInt32(detail, tmp, "daysToKeep0:%d", alterReq.daysToKeep0);
   mndBuildAuditDetailInt32(detail, tmp, "daysToKeep1:%d", alterReq.daysToKeep1);
   mndBuildAuditDetailInt32(detail, tmp, "daysToKeep2:%d", alterReq.daysToKeep2);
+  mndBuildAuditDetailInt32(detail, tmp, "keepTimeOffset:%d", alterReq.keepTimeOffset);
   mndBuildAuditDetailInt32(detail, tmp, "minRows:%d", alterReq.minRows);
   mndBuildAuditDetailInt32(detail, tmp, "pages:%d", alterReq.pages);
   mndBuildAuditDetailInt32(detail, tmp, "pageSize:%d", alterReq.pageSize);
@@ -1087,6 +1101,7 @@ static void mndDumpDbCfgInfo(SDbCfgRsp *cfgRsp, SDbObj *pDb) {
   cfgRsp->daysToKeep0 = pDb->cfg.daysToKeep0;
   cfgRsp->daysToKeep1 = pDb->cfg.daysToKeep1;
   cfgRsp->daysToKeep2 = pDb->cfg.daysToKeep2;
+  cfgRsp->keepTimeOffset = pDb->cfg.keepTimeOffset;
   cfgRsp->minRows = pDb->cfg.minRows;
   cfgRsp->maxRows = pDb->cfg.maxRows;
   cfgRsp->walFsyncPeriod = pDb->cfg.walFsyncPeriod;
@@ -1129,7 +1144,7 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
 
     mndDumpDbCfgInfo(&cfgRsp, pDb);
   }
-  
+
   int32_t contLen = tSerializeSDbCfgRsp(NULL, 0, &cfgRsp);
   void   *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
@@ -1559,14 +1574,14 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       if (pDbCacheInfo->vgVersion >= vgVersion) {
         continue;
       }
-      
+
       rsp.useDbRsp = taosMemoryCalloc(1, sizeof(SUseDbRsp));
       memcpy(rsp.useDbRsp->db, pDbCacheInfo->dbFName, TSDB_DB_FNAME_LEN);
       rsp.useDbRsp->pVgroupInfos = taosArrayInit(10, sizeof(SVgroupInfo));
 
       mndBuildDBVgroupInfo(NULL, pMnode, rsp.useDbRsp->pVgroupInfos);
       rsp.useDbRsp->vgVersion = vgVersion++;
-      
+
       rsp.useDbRsp->vgNum = taosArrayGetSize(rsp.useDbRsp->pVgroupInfos);
 
       taosArrayPush(batchRsp.pArray, &rsp);
@@ -1587,7 +1602,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
 
     int32_t numOfTable = mndGetDBTableNum(pDb, pMnode);
 
-    if (pDbCacheInfo->vgVersion >= pDb->vgVersion && 
+    if (pDbCacheInfo->vgVersion >= pDb->vgVersion &&
         pDbCacheInfo->cfgVersion >= pDb->cfgVersion &&
         numOfTable == pDbCacheInfo->numOfTable &&
         pDbCacheInfo->stateTs == pDb->stateTs) {
@@ -1609,7 +1624,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
       mndDumpDbCfgInfo(rsp.cfgRsp, pDb);
     }
 
-    if (pDbCacheInfo->vgVersion < pDb->vgVersion || 
+    if (pDbCacheInfo->vgVersion < pDb->vgVersion ||
         numOfTable != pDbCacheInfo->numOfTable ||
         pDbCacheInfo->stateTs != pDb->stateTs) {
       rsp.useDbRsp = taosMemoryCalloc(1, sizeof(SUseDbRsp));
@@ -2013,6 +2028,9 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.tsdbPageSize, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataSetVal(pColInfo, rows, (const char *)&pDb->cfg.keepTimeOffset, false);
   }
 
   taosMemoryFree(buf);

@@ -75,7 +75,7 @@ static void doSetUserSpecifiedValue(SColumnInfoData* pDst, SVariant* pVar, int32
     double v = 0;
     GET_TYPED_DATA(v, double, pVar->nType, &pVar->d);
     colDataSetVal(pDst, rowIndex, (char*)&v, isNull);
-  } else if (IS_SIGNED_NUMERIC_TYPE(pDst->info.type)) {
+  } else if (IS_SIGNED_NUMERIC_TYPE(pDst->info.type) || pDst->info.type == TSDB_DATA_TYPE_BOOL) {
     int64_t v = 0;
     GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
     colDataSetVal(pDst, rowIndex, (char*)&v, isNull);
@@ -85,7 +85,10 @@ static void doSetUserSpecifiedValue(SColumnInfoData* pDst, SVariant* pVar, int32
     colDataSetVal(pDst, rowIndex, (char*)&v, isNull);
   } else if (pDst->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
     colDataSetVal(pDst, rowIndex, (const char*)&currentKey, isNull);
-  } else {  // varchar/nchar data
+  } else if (pDst->info.type == TSDB_DATA_TYPE_NCHAR || pDst->info.type == TSDB_DATA_TYPE_VARCHAR ||
+             pDst->info.type == TSDB_DATA_TYPE_VARBINARY) {
+    colDataSetVal(pDst, rowIndex, pVar->pz, isNull);
+  } else {  // others data
     colDataSetNULL(pDst, rowIndex);
   }
 }

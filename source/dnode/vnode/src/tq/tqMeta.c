@@ -198,58 +198,51 @@ int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
   int32_t code;
   int32_t vlen;
+  void* buf = NULL;
+  SEncoder encoder;
   tEncodeSize(tEncodeSTqHandle, pHandle, vlen, code);
   if (code < 0) {
-    return -1;
+    goto end;
   }
 
   tqDebug("tq save %s(%d) handle consumer:0x%" PRIx64 " epoch:%d vgId:%d", pHandle->subKey,
           (int32_t)strlen(pHandle->subKey), pHandle->consumerId, pHandle->epoch, TD_VID(pTq->pVnode));
 
-  void* buf = taosMemoryCalloc(1, vlen);
+  buf = taosMemoryCalloc(1, vlen);
   if (buf == NULL) {
-    return -1;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto end;
   }
 
-  SEncoder encoder;
+
   tEncoderInit(&encoder, buf, vlen);
 
-  if (tEncodeSTqHandle(&encoder, pHandle) < 0) {
-    tEncoderClear(&encoder);
-    taosMemoryFree(buf);
-    return -1;
+  code = tEncodeSTqHandle(&encoder, pHandle);
+  if (code < 0) {
+    goto end;
   }
 
-  TXN* txn;
-
-  if (tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) <
-      0) {
-    tEncoderClear(&encoder);
-    taosMemoryFree(buf);
-    return -1;
+  TXN* txn = NULL;
+  code = tdbBegin(pTq->pMetaDB, &txn, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+  if (code < 0) {
+    goto end;
   }
 
-  if (tdbTbUpsert(pTq->pExecStore, key, (int)strlen(key), buf, vlen, txn) < 0) {
-    tEncoderClear(&encoder);
-    taosMemoryFree(buf);
-    return -1;
+  code = tdbTbUpsert(pTq->pExecStore, key, (int)strlen(key), buf, vlen, txn);
+  if (code < 0) {
+    goto end;
   }
 
-  if (tdbCommit(pTq->pMetaDB, txn) < 0) {
-    tEncoderClear(&encoder);
-    taosMemoryFree(buf);
-    return -1;
+  code = tdbCommit(pTq->pMetaDB, txn);
+  if (code < 0) {
+    goto end;
   }
 
-  if (tdbPostCommit(pTq->pMetaDB, txn) < 0) {
-    tEncoderClear(&encoder);
-    taosMemoryFree(buf);
-    return -1;
-  }
-
+  code = tdbPostCommit(pTq->pMetaDB, txn);
+end:
   tEncoderClear(&encoder);
   taosMemoryFree(buf);
-  return 0;
+  return code;
 }
 
 int32_t tqMetaDeleteHandle(STQ* pTq, const char* key) {
@@ -349,15 +342,18 @@ static int buildHandle(STQ* pTq, STqHandle* handle){
 static int restoreHandle(STQ* pTq, void* pVal, int vLen, STqHandle* handle){
   int32_t  vgId = TD_VID(pTq->pVnode);
   SDecoder decoder;
+  int32_t code = 0;
   tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
-  tDecodeSTqHandle(&decoder, handle);
-  tDecoderClear(&decoder);
-
-  if(buildHandle(pTq, handle) < 0){
-    return -1;
-  }
+  code = tDecodeSTqHandle(&decoder, handle);
+  if (code) goto end;
+  code = buildHandle(pTq, handle);
+  if (code) goto end;
   tqInfo("restoreHandle %s consumer 0x%" PRIx64 " vgId:%d", handle->subKey, handle->consumerId, vgId);
-  return taosHashPut(pTq->pHandle, handle->subKey, strlen(handle->subKey), handle, sizeof(STqHandle));
+  code = taosHashPut(pTq->pHandle, handle->subKey, strlen(handle->subKey), handle, sizeof(STqHandle));
+
+end:
+  tDecoderClear(&decoder);
+  return code;
 }
 
 int32_t tqCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle){

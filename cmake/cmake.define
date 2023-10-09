@@ -83,6 +83,16 @@ ELSE ()
     SET(TAOS_LIB taos)
 ENDIF ()
 
+# build TSZ by default
+IF ("${TSZ_ENABLED}" MATCHES "false")
+  set(VAR_TSZ "" CACHE INTERNAL "global variant empty" )
+ELSE()
+  # define add 
+  MESSAGE(STATUS "build with TSZ enabled")
+  ADD_DEFINITIONS(-DTD_TSZ)
+  set(VAR_TSZ "TSZ" CACHE INTERNAL "global variant tsz" )
+ENDIF()
+
 IF (TD_WINDOWS)
     MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
     SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MTd")

@@ -142,6 +142,7 @@ typedef struct SSnapContext {
 typedef struct {
   int64_t uid;
   int64_t ctbNum;
+  int32_t colNum;
 } SMetaStbStats;
 
 // void    tqReaderSetColIdList(STqReader *pReader, SArray *pColIdList);
@@ -285,8 +286,8 @@ typedef struct SStoreMeta {
 
   // db name, vgId, numOfTables, numOfSTables
   int32_t (*getNumOfChildTables)(
-      void* pVnode, int64_t uid,
-      int64_t* numOfTables);  // int32_t metaGetStbStats(SMeta *pMeta, int64_t uid, SMetaStbStats *pInfo);
+      void* pVnode, int64_t uid, int64_t* numOfTables,
+      int32_t* numOfCols);  // int32_t metaGetStbStats(SMeta *pMeta, int64_t uid, SMetaStbStats *pInfo);
   void (*getBasicInfo)(void* pVnode, const char** dbname, int32_t* vgId, int64_t* numOfTables,
                        int64_t* numOfNormalTables);  // vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId) &
                                                      // metaGetTbNum(SMeta *pMeta) & metaGetNtbNum(SMeta *pMeta);

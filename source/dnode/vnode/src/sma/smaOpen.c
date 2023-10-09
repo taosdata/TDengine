@@ -27,6 +27,7 @@ static int32_t rsmaRestore(SSma *pSma);
     pKeepCfg->keep0 = pKeepCfg->keep2;                                                            \
     pKeepCfg->keep1 = pKeepCfg->keep2;                                                            \
     pKeepCfg->days = smaEvalDays(v, pCfg->retentions, l, pCfg->precision, pCfg->days);            \
+    pKeepCfg->keepTimeOffset = 0;                                                                 \
   } while (0)
 
 #define SMA_OPEN_RSMA_IMPL(v, l)                                                             \
