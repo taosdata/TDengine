@@ -22,6 +22,7 @@ import "./permission";
 import mavonEditor from 'mavon-editor'
 import 'mavon-editor/dist/css/index.css'
 import LinkTab from "@/components/LinkTab";
+import VueDOMPurifyHTML from 'vue-dompurify-html';
 Vue.use(mavonEditor)
 Vue.use(directive);
 Vue.use(LazyLoad);
@@ -41,6 +42,11 @@ export function getBrowserLang() {
   return 'en';
 }
 setLang(getBrowserLang())
+Vue.use(VueDOMPurifyHTML, {
+  default: {
+    ALLOWED_ATTR: ['target', 'href', 'title', 'rel']
+  }
+});
 new Vue({
   router,
   store,

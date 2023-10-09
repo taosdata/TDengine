@@ -83,7 +83,10 @@ export default {
   mounted() {
     if (process.env.VUE_APP_CUS_CONFIG) {
       let config = JSON.parse(process.env.VUE_APP_CUS_CONFIG);
-      this.showHeaderLeft = config?.serverVersionDisplay?.hide;
+      if(Object.hasOwnProperty.call(config,'serverVersionDisplay')){
+        this.showHeaderLeft = config?.serverVersionDisplay?.hide;
+      }
+      
       this.clickCount = config?.serverVersionDisplay?.showByClick;
     }
   },

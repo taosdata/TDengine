@@ -8,6 +8,7 @@
         <el-tab-pane name="datacollection" :label="$t('topic.datacollection')" v-if="!isOem">
           <DataIn ></DataIn>
         </el-tab-pane>
+        
         <!-- <el-tab-pane name="csv" :label="$t('topic.csv')">
           <DataCSV></DataCSV>
         </el-tab-pane> -->
@@ -35,7 +36,7 @@ export default {
       piDisable:false,
       opcDisable:false,
       isOem:process.env.VUE_APP_CUS_NAME&&process.env.VUE_APP_CUS_NAME!=='TDengine',
-      active:process.env.VUE_APP_CUS_NAME&&process.env.VUE_APP_CUS_NAME!=='TDengine'?'csv':'datasource',
+      active:process.env.VUE_APP_CUS_NAME&&process.env.VUE_APP_CUS_NAME!=='TDengine'?'csv':'datasource'
     };
   },
   mounted(){
@@ -49,7 +50,7 @@ export default {
         await this.$refs.dbsource.reloadTable()
       }
     }
-  },
+  }
 };
 </script>
 
