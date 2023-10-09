@@ -905,7 +905,6 @@ int32_t streamBackendTriggerChkp(void* arg, char* dst) {
   } else {
     qError("stream backend:%p failed to flush db at:%s", pHandle, dst);
   }
-
   // release all ref to cfWrapper;
   for (int i = 0; i < taosArrayGetSize(refs); i++) {
     int64_t id = *(int64_t*)taosArrayGet(refs, i);
