@@ -63,13 +63,13 @@ class TDCreateData():
             'regular_table_3','regular_table_1','regular_table_2','regular_table_null','stable_2_1','stable_2_2','stable_2_2','stable_1_3','stable_1_4',]
         for i in table_list:
             self.tdSql.execute("delete from {}.{};".format(database, i))
-            self.tdSql.execute("flush database {};".format(database)) #TD-24856
+            self.tdSql.execute("flush database {};".format(database))
             self.tdSql.execute("reset query cache;")
             self.tdSql.query("select * from {}.{};".format(database, i))
             self.tdSql.checkRow(0)
         
         #drop:
-        time.sleep(10)
+        time.sleep(3)
         self.tdSql.execute('''drop database if exists %s ;''' %database)
 
     def data_check(self, elm, expect_elm , throw=True) -> bool:
