@@ -691,10 +691,15 @@ cmd ::= KILL TRANSACTION NK_INTEGER(A).                                         
 
 /************************************************ merge/redistribute/ vgroup ******************************************/
 cmd ::= BALANCE VGROUP.                                                           { pCxt->pRootNode = createBalanceVgroupStmt(pCxt); }
-cmd ::= BALANCE VGROUP LEADER.                                                    { pCxt->pRootNode = createBalanceVgroupLeaderStmt(pCxt); }
+cmd ::= BALANCE VGROUP LEADER on_vgroup_id(A).                                    { pCxt->pRootNode = createBalanceVgroupLeaderStmt(pCxt, &A); }
 cmd ::= MERGE VGROUP NK_INTEGER(A) NK_INTEGER(B).                                 { pCxt->pRootNode = createMergeVgroupStmt(pCxt, &A, &B); }
 cmd ::= REDISTRIBUTE VGROUP NK_INTEGER(A) dnode_list(B).                          { pCxt->pRootNode = createRedistributeVgroupStmt(pCxt, &A, B); }
 cmd ::= SPLIT VGROUP NK_INTEGER(A).                                               { pCxt->pRootNode = createSplitVgroupStmt(pCxt, &A); }
+
+%type on_vgroup_id                                                                { SToken }
+%destructor on_vgroup_id                                                          { }
+on_vgroup_id(A) ::= .                                                             { A = nil_token; }
+on_vgroup_id(A) ::= ON NK_INTEGER(B).                                             { A = B; }
 
 %type dnode_list                                                                  { SNodeList* }
 %destructor dnode_list                                                            { nodesDestroyList($$); }
