@@ -110,7 +110,7 @@ class TDTestCase:
         tdLog.info(shellCmd)
         os.system(shellCmd)
 
-    def create_database(self,tsql, dbName,dropFlag=1,vgroups=4,replica=1):
+    def create_database(self,tsql, dbName,dropFlag=1,vgroups=1,replica=1):
         if dropFlag == 1:
             tsql.execute("drop database if exists %s"%(dbName))
 
@@ -149,21 +149,12 @@ class TDTestCase:
             t = time.time()
             startTs = int(round(t * 1000))
 
-        #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
-        rowsOfSql = 0
-        for i in range(ctbNum):
-            sql += " %s_%d values "%(stbName,i)
-            for j in range(rowsPerTbl):
-                sql += "(%d, %d, 'tmqrow_%d') "%(startTs + j, j, j)
-                rowsOfSql += 1
-                if ((rowsOfSql == batchNum) or (j == rowsPerTbl - 1)):
-                    tsql.execute(sql)
-                    time.sleep(1)
-                    rowsOfSql = 0
-                    if j < rowsPerTbl - 1:
-                        sql = "insert into %s_%d values " %(stbName,i)
-                    else:
-                        sql = "insert into "
+        for j in range(rowsPerTbl):
+            for i in range(ctbNum):
+                sql += " %s_%d values (%d, %d, 'tmqrow_%d') "%(stbName, i, startTs + j + i, j+i, j+i)
+            tsql.execute(sql)
+            time.sleep(1)
+            sql = "insert into "
         #end sql
         if sql != pre_insert:
             #print("insert sql:%s"%sql)
@@ -199,10 +190,10 @@ class TDTestCase:
                          'actionType': 0,        \
                          'dbName':     'db8',    \
                          'dropFlag':   1,        \
-                         'vgroups':    4,        \
+                         'vgroups':    1,        \
                          'replica':    1,        \
                          'stbName':    'stb1',    \
-                         'ctbNum':     1,       \
+                         'ctbNum':     2,       \
                          'rowsPerTbl': 10,    \
                          'batchNum':   1,      \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
@@ -223,7 +214,7 @@ class TDTestCase:
 
         tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s" %(topicFromStb1, parameterDict['dbName'], parameterDict['stbName']))
         consumerId     = 0
-        expectrowcnt   = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"]
+        expectrowcnt   = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] * 2
         topicList      = topicFromStb1
         ifcheckdata    = 0
         ifManualCommit = 1
@@ -247,8 +238,8 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        if totalConsumeRows != 0:
-            tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, 0))
+        if totalConsumeRows != expectrowcnt:
+            tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
             tdLog.exit("tmq consume rows error!")
 
         # tdLog.info("start consume 1 processor")

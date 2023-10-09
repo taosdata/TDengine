@@ -724,6 +724,17 @@ void tmqAssignAskEpTask(void* param, void* tmrId) {
   taosMemoryFree(param);
 }
 
+void tmqReplayTask(void* param, void* tmrId) {
+  int64_t refId = *(int64_t*)param;
+  tmq_t* tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
+  if(tmq == NULL) goto END;
+
+  tsem_post(&tmq->rspSem);
+  taosReleaseRef(tmqMgmt.rsetId, refId);
+END:
+  taosMemoryFree(param);
+}
+
 void tmqAssignDelayedCommitTask(void* param, void* tmrId) {
   int64_t refId = *(int64_t*)param;
   generateTimedTask(refId, TMQ_DELAYED_TASK__COMMIT);
@@ -1144,6 +1155,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   req.autoCommit = tmq->autoCommit;
   req.autoCommitInterval = tmq->autoCommitInterval;
   req.resetOffsetCfg = tmq->resetOffsetCfg;
+  req.enableReplay = tmq->replayEnable;
 
   for (int32_t i = 0; i < sz; i++) {
     char* topic = taosArrayGetP(container, i);
@@ -1823,6 +1835,11 @@ static void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout) {
           if(tmq->replayEnable){
             pVg->blockReceiveTs = taosGetTimestampMs();
             pVg->blockSleepForReplay = pRsp->rsp.sleepTime;
+            if(pVg->blockSleepForReplay > 0){
+              int64_t* pRefId1 = taosMemoryMalloc(sizeof(int64_t));
+              *pRefId1 = tmq->refId;
+              taosTmrStart(tmqReplayTask, pVg->blockSleepForReplay, pRefId1, tmqMgmt.timer);
+            }
           }
           tscDebug("consumer:0x%" PRIx64 " process poll rsp, vgId:%d, offset:%s, blocks:%d, rows:%" PRId64
                    ", vg total:%" PRId64 ", total:%" PRId64 ", reqId:0x%" PRIx64,

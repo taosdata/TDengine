@@ -330,7 +330,6 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       break;
     }
 
-    qDebug("project return %d", pProjectInfo->mergeDataBlocks);
     if (pProjectInfo->mergeDataBlocks) {
       if (pRes->info.rows > 0) {
         pFinalRes->info.id.groupId = 0;  // clear groupId

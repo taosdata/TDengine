@@ -112,8 +112,9 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
         }
         STqOffsetVal offset = {0};
         qStreamExtractOffset(task, &offset);
-        pHandle->block = createDataBlock();
-        copyDataBlock(pHandle->block, pDataBlock);
+        pHandle->block = createOneDataBlock(pDataBlock, true);
+//        pHandle->block = createDataBlock();
+//        copyDataBlock(pHandle->block, pDataBlock);
         pHandle->blockTime = offset.ts;
         code = getDataBlock(task, pHandle, vgId, &pDataBlock);
         if (code != 0){
@@ -129,14 +130,16 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
 
       pRsp->blockNum++;
       if (pDataBlock == NULL) {
-        break;
-      }
-      copyDataBlock(pHandle->block, pDataBlock);
+        blockDataDestroy(pHandle->block);
+        pHandle->block = NULL;
+      }else{
+        copyDataBlock(pHandle->block, pDataBlock);
 
-      STqOffsetVal offset = {0};
-      qStreamExtractOffset(task, &offset);
-      pRsp->sleepTime = offset.ts - pHandle->blockTime;
-      pHandle->blockTime = offset.ts;
+        STqOffsetVal offset = {0};
+        qStreamExtractOffset(task, &offset);
+        pRsp->sleepTime = offset.ts - pHandle->blockTime;
+        pHandle->blockTime = offset.ts;
+      }
       break;
     }else{
       if (pDataBlock == NULL) {
