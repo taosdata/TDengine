@@ -581,9 +581,9 @@ export default {
         return Promise.reject(err);
       }
     },
-    refresh() {
-      this.getList();
-      this.$refs.agents.refresh()
+    async refresh() {
+      await this.getList();
+      await this.$refs.agents.refresh()
     },
     async refreshCurrentTask(data) {
       try {
