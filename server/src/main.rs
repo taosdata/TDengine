@@ -1,4 +1,5 @@
 use actix_cors::Cors;
+use actix_session::{storage::CookieSessionStore, Session, SessionMiddleware};
 use awc::error::JsonPayloadError;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use http_auth_basic::Credentials;
@@ -12,6 +13,7 @@ use tracing_subscriber::fmt::format::FmtSpan;
 
 use actix_embed::Embed;
 use actix_web::{
+    cookie::Key,
     error::{self, PayloadError},
     http::header::{ContentType, AUTHORIZATION},
     middleware::{self, Logger},
@@ -34,6 +36,10 @@ fn log_level_to_tracing_level(level: LevelFilter) -> Option<Level> {
         LevelFilter::Debug => Some(Level::DEBUG),
         LevelFilter::Trace => Some(Level::TRACE),
     }
+}
+
+fn get_secret_key() -> Key {
+    Key::generate()
 }
 
 #[actix_web::main]
@@ -99,6 +105,7 @@ async fn main() -> anyhow::Result<()> {
     let cors = args.cors.unwrap_or_default();
 
     info!("Explorer service at http://0.0.0.0:{port}");
+    let secret_key = get_secret_key();
 
     HttpServer::new(move || {
         let cors = if cors {
@@ -123,6 +130,10 @@ async fn main() -> anyhow::Result<()> {
             .wrap(TracingLogger::default())
             .wrap(Logger::default())
             .wrap(middleware::Compress::default())
+            .wrap(SessionMiddleware::new(
+                CookieSessionStore::default(),
+                secret_key.clone(),
+            ))
             .wrap(cors)
             .app_data(web::Data::new(Client::new()))
             .app_data(args.clone())
@@ -166,13 +177,36 @@ async fn main() -> anyhow::Result<()> {
             )
     })
     .bind(("0.0.0.0", port))?
+    .bind(("::1", port))?
     .run()
     .await?;
     Ok(())
 }
 
 async fn profile(args: web::Data<Args>) -> impl Responder {
-    HttpResponse::Ok().json(&args.profile)
+    if args.profile.x_api.is_none() {
+        return HttpResponse::Ok().json(&args.profile);
+    }
+    let mut profile = args.profile.clone();
+    let x = args.profile.x_api.as_deref().unwrap();
+    let url = format!("{x}/profile");
+    let client = awc::Client::builder()
+        .disable_timeout()
+        .wrap(Tracing)
+        .finish();
+    let client = client.get(url);
+    let client = client.timeout(Duration::from_secs(10));
+
+    if let Ok(mut resp) = client.send().await {
+        if let Ok(json) = resp.json::<serde_json::Value>().await {
+            if let Some(version) = json.get("version") {
+                profile
+                    .version
+                    .replace(version.as_str().unwrap_or_default().into());
+            }
+        }
+    }
+    HttpResponse::Ok().json(&profile)
 }
 
 #[post("/rest/sql")]
@@ -228,12 +262,15 @@ async fn renew_license(
 
 // #[post("/rest/{path:.*}")]
 async fn rest_proxy(
+    session: Session,
     args: web::Data<Args>,
     client: web::Data<Client>,
     path: web::Path<(String,)>,
     req: HttpRequest,
     body: web::Payload,
 ) -> impl Responder {
+    const TOKEN_KEY: &str = "token";
+    let token = session.get::<String>(TOKEN_KEY).unwrap_or_default();
     let (url,) = path.into_inner();
     let x = args.profile.cluster.as_deref().unwrap();
     let method = req.method();
@@ -246,9 +283,20 @@ async fn rest_proxy(
     let builder = client.request(method.clone(), url);
     let mut builder = builder.timeout(Duration::from_secs(std::u64::MAX));
     *builder.headers_mut() = req.headers().clone();
+    let mut auth = builder.headers().get(AUTHORIZATION);
+    if auth.is_none() && token.is_some() {
+        builder = builder.insert_header(("Authorization", token.as_deref().unwrap()));
+        auth = builder.headers().get(AUTHORIZATION);
+    }
+    let auth = auth.map(Clone::clone);
     match builder.send_stream(body).await {
         Ok(mut ok) => match ok.body().limit(1024 * 1024 * 1024).await {
-            Ok(ok) => HttpResponse::Ok().body(ok),
+            Ok(ok) => {
+                if let Some(auth) = auth {
+                    let _ = session.insert(TOKEN_KEY, auth.as_ref());
+                }
+                HttpResponse::Ok().body(ok)
+            }
             Err(err) => HttpResponse::InternalServerError().json(RestErrResponse {
                 code: Code::Failed,
                 desc: err.to_string(),
@@ -367,6 +415,10 @@ struct Profile {
     /// GRPC endpoint of taosX for agents.
     #[clap(short, long, env = "EXPLORER_GRPC")]
     grpc: Option<String>,
+
+    /// taosX version
+    #[clap(skip)]
+    version: Option<String>,
 }
 
 #[derive(Parser, Debug, Clone, Deserialize)]
@@ -534,9 +586,13 @@ impl Args {
             .query("show dnodes")
             .await?
             .deserialize::<RenewLicense>()
-            .all(|l| async move { l.map(|l| {
-                (l.active_code == license.active_code || active_code_empty) && (l.c_active_code == license.c_active_code || c_active_code_empty)
-            }).unwrap_or_default() })
+            .all(|l| async move {
+                l.map(|l| {
+                    (l.active_code == license.active_code || active_code_empty)
+                        && (l.c_active_code == license.c_active_code || c_active_code_empty)
+                })
+                .unwrap_or_default()
+            })
             .await;
 
         if renewed {

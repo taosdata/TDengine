@@ -118,16 +118,16 @@ export function getMetrics(taskId){
     })
 }
 
-export function validateTask(data) {
-   return request({
-    baseURL:process.env.VUE_APP_X_API,
-    url:`/ds/in/validate`,
-    method:'post',
-    data
-   })
+export function getFileStream(filepath){
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        url:`/download?file_path=${filepath}`,
+        method:'get',
+        responseType:'blob'
+    })
 }
 
-export function downloadPoints(data){
+export function downlaodAllNodes(data){
     return request({
         baseURL:process.env.VUE_APP_X_API,
         url:`/ds/in/download/all_data_sets`,

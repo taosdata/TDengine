@@ -33,7 +33,7 @@ export default {
   components: {
     dbsource: DataSource,
     ui: DbSourceUI,
-    opcui: OpcUI,
+    opcui: OpcUI
   },
   data() {
     return {
@@ -44,7 +44,7 @@ export default {
       tagName: "datasource",
       currentName: "",
       sourceList: [],
-      uidata: null,
+      uidata: [],
       editId: 0,
       dbName: "",
       isEditable: false,
@@ -130,15 +130,21 @@ export default {
       // this.currentName = name;
       if (type) {
         //新增
-
         let data = this.sourceList.filter((item) => item.id === type);
+        console.log(data,'复制操作');
         if (type == "mqtt" || type == "kafka") {
-          this.uidata = this.deepClone(data);
+          // this.uidata = this.deepClone(data);
+          this.$set(this.uidata,0,this.deepClone(data)[0])
           this.parserobj = deepClone(this.staticParser);
           this.parserobj.model.columns.push("ts"); //默认新增时候选中ts列
           this.$store.commit("app/SET_MQTT_PARSER", this.parserobj);
         } else {
-          this.uidata = type == "opc" ? data : this.deepClone(data);
+          // this.uidata = type == "opc" ? data : this.deepClone(data);
+          if(type=='opc'){
+            this.$set(this.uidata,0,data[0])
+          }else{
+            this.$set(this.uidata,0,this.deepClone(data)[0])
+          }
           this.opcConfig = deepClone(this.staticOpc);
           this.echoData = deepClone(opcDefaultChecked);
           this.$store.commit("app/SET_OPC_CONFIG", this.opcConfig);
@@ -204,6 +210,7 @@ export default {
             this.tagName = "kafka";
             break;
         }
+        console.log(this.currentName,'当前组件',this.uidata );
       } else {
         switch (id) {
           case "tmq":
@@ -287,7 +294,7 @@ export default {
         this.isEditable = true;
         this.dbName = dbname;
         this.getData();
-        if (id === "tmq" || id === "taos") {
+        if (id === "taos") {
           if (!this.uidata[0].protocol.value) {
             this.uidata[0].protocol.value =
               this.uidata[0].protocol.choices.filter((item) => {
@@ -350,6 +357,17 @@ export default {
         this.opcConfig = val;
       },
     },
+    "$store.state.app.currentDBType":{
+      deep:true,
+      handler(val){
+        this.toggleComponent(val)
+      }
+    }
   },
 };
 </script>
+<style lang="scss" scoped>
+.dbsource{
+  margin-top:10px;
+}
+</style>
