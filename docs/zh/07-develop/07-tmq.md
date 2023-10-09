@@ -348,7 +348,7 @@ CREATE TOPIC topic_name [with meta] AS DATABASE db_name;
 |       `td.connect.port`        | integer | 服务端的端口号                         |  |
 |           `group.id`           | string  | 消费组 ID，同一消费组共享消费进度                        | <br />**必填项**。最大长度：192。<br />每个topic最多可建立100个 consumer group                 |
 |          `client.id`           | string  | 客户端 ID                                                | 最大长度：192。                             |
-|      `auto.offset.reset`       |  enum   | 消费组订阅的初始位置                                     | <br />`earliest`: default(version <= 3.1.1.0);从头开始订阅; <br/>`latest`: default(version > 3.1.1.0);仅从最新数据开始订阅; <br/>`none`: 没有提交的 offset 无法订阅 |
+|      `auto.offset.reset`       |  enum   | 消费组订阅的初始位置                                     | <br />`earliest`: default(version < 3.2.0.0);从头开始订阅; <br/>`latest`: default(version >= 3.2.0.0);仅从最新数据开始订阅; <br/>`none`: 没有提交的 offset 无法订阅 |
 |      `enable.auto.commit`      | boolean | 是否启用消费位点自动提交，true: 自动提交，客户端应用无需commit；false：客户端应用需要自行commit     | 默认值为 true                   |
 |   `auto.commit.interval.ms`    | integer | 消费记录自动提交消费位点时间间隔，单位为毫秒           | 默认值为 5000                                |
 |     `msg.with.table.name`      | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句）               |默认关闭 |
