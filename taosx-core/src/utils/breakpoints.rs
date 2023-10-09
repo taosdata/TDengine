@@ -29,6 +29,21 @@ pub fn breakpoints_get(task_id: &str, sub_task: &str) -> anyhow::Result<Option<S
     }
 }
 
+pub fn breakpoints_get_all(task_id: &str) -> anyhow::Result<Vec<(String, String)>> {
+    let path = breakpoints_db_dir(task_id);
+    // if path not exist, return None to avoid create db file
+    if !std::path::Path::new(&path).exists() {
+        return Ok(vec![]);
+    }
+    let db = sled::open(path).expect("sled open db file failed");
+    let mut result = vec![];
+    for item in db.iter() {
+        let (key, value) = item?;
+        result.push((String::from_utf8(key.to_vec())?, String::from_utf8(value.to_vec())?));
+    }
+    Ok(result)
+}
+
 pub fn breakpoints_remove(task_id: &str, sub_task: &str) -> anyhow::Result<()> {
     let path = breakpoints_db_dir(task_id);
     let db = sled::open(path).expect("sled open db file failed");
@@ -97,7 +112,7 @@ mod tests {
     }
 
     #[test]
-    fn test_breakpoints_all() {
+    fn test_breakpoints_full_routine() {
         let res_not_exist = breakpoints_get("20", "t0001").unwrap();
         assert_eq!(res_not_exist, None);
 
@@ -108,5 +123,28 @@ mod tests {
 
         let result = breakpoints_get(task_id, sub_task).unwrap();
         assert_eq!(result.unwrap(), breakpoints);
+    }
+
+    #[test]
+    fn test_breakpoints_get_all() {
+        let task_id = "1";
+        let sub_task = "t0001";
+        let breakpoints = "2023-01-01 20:00:00";
+        breakpoints_set(task_id, sub_task, breakpoints).unwrap();
+
+        let task_id = "2";
+        let sub_task = "t0002";
+        let breakpoints = "2023-01-01 20:00:00";
+        breakpoints_set(task_id, sub_task, breakpoints).unwrap();
+
+        let result = breakpoints_get_all("1").unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].0, "t0001");
+        assert_eq!(result[0].1, "2023-01-01 20:00:00");
+
+        let result = breakpoints_get_all("2").unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].0, "t0002");
+        assert_eq!(result[0].1, "2023-01-01 20:00:00");
     }
 }

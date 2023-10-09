@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use taosx_core::utils::breakpoints::{breakpoints_get, breakpoints_get_all};
 use taosx_core::utils::mask_dsn;
 use taosx_core::utils::port_pool::PortPool;
 use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
@@ -1003,9 +1004,9 @@ impl TaskController {
 
         #[cfg(not(feature = "disable-enterprise-only-validation"))]
         if let Err(err) = assert_enterprise {
-            anyhow::bail!(
-                format!("{err:?}. A non-expired enterprise edition is required in most of steps.")
-            )
+            anyhow::bail!(format!(
+                "{err:?}. A non-expired enterprise edition is required in most of steps."
+            ))
         }
         // is cloud?
         if to
@@ -1623,12 +1624,46 @@ impl TaskController {
         Ok(())
     }
 
-    pub async fn offsets(
-        &self,
-        id: i64,
-    ) -> anyhow::Result<Option<Arc<DashMap<String, Vec<Assignment>>>>> {
+    pub async fn offsets(&self, id: i64) -> anyhow::Result<Option<String>> {
+        let task = self.get(id).await?;
+        match task {
+            Some(task) => {
+                // dbg!(&task);
+                let from = task.from.parse::<Dsn>()?;
+                let to = task.to.parse::<Dsn>()?;
+                match (from.driver.as_str(), to.driver.as_str()) {
+                    ("tmq", _) => {
+                        let offsets = self.tmq_offsets(id).await?;
+                        Ok(offsets)
+                    }
+                    ("taos", "taos") => {
+                        let offsets = self.taos_offsets(id).await?;
+                        Ok(offsets)
+                    }
+                    _ => Ok(None),
+
+                }
+            }
+            None => Ok(None),
+        }
+    }
+
+    pub async fn taos_offsets(&self, id: i64) -> anyhow::Result<Option<String>> {
+        let offsets = breakpoints_get_all(id.to_string().as_str())?;
+        // dbg!(&offsets);
+        let res = serde_json::to_string(&offsets)?;
+        Ok(Some(res))
+    }
+
+    pub async fn tmq_offsets(&self, id: i64) -> anyhow::Result<Option<String>> {
         let offsets = self.offsets.read().await.get(&id).cloned();
-        Ok(offsets)
+        match offsets {
+            Some(offsets) => {
+                let res = format!("{:?}", offsets);
+                Ok(Some(res))
+            }
+            None => Ok(None),
+        }
     }
 
     pub async fn find_agent_by_name_and_cluster_id(

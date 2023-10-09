@@ -3034,7 +3034,7 @@ mod tests {
             limit: Limit::new((1, Some(1))),
             ..Default::default()
         };
-        legacy_to_taos(v3, vec![], v2, 1, None).await?;
+        legacy_to_taos(v3, vec![], v2, 1, CancellationToken::new(), None).await?;
         Ok(())
     }
 

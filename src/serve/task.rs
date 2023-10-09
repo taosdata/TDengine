@@ -453,7 +453,7 @@ pub(super) async fn get_task_offsets_by_id(
 ) -> impl Responder {
     let id = id.into_inner();
     match task_store.offsets(id).await {
-        Ok(Some(offsets)) => HttpResponse::Ok().body(format!("{:?}", offsets)),
+        Ok(Some(offsets)) => HttpResponse::Ok().body(offsets),
         Ok(None) => HttpResponse::NotFound().finish(),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::FAILED,
