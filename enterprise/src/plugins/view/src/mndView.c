@@ -34,10 +34,30 @@ int32_t tSerializeSViewObj(void *buf, int32_t bufLen, const SViewObj *pObj) {
   if (tEncodeCStr(&encoder, pObj->name) < 0) return -1;
   if (tEncodeCStr(&encoder, pObj->dbFName) < 0) return -1;
   if (tEncodeCStr(&encoder, pObj->querySql) < 0) return -1;
+  if (NULL != pObj->parameters) {
+    if (tEncodeI8(&encoder, 1) < 0) return -1;
+    if (tEncodeCStr(&encoder, pObj->parameters) < 0) return -1;
+  } else {
+    if (tEncodeI8(&encoder, 0) < 0) return -1;
+  }
+  if (NULL != pObj->defaultValues) {
+    if (tEncodeI8(&encoder, 1) < 0) return -1;
+    //TODO
+  } else {
+    if (tEncodeI8(&encoder, 0) < 0) return -1;
+  }
+  if (NULL != pObj->targetTable) {
+    if (tEncodeI8(&encoder, 1) < 0) return -1;
+    if (tEncodeCStr(&encoder, pObj->targetTable) < 0) return -1;
+  } else {
+    if (tEncodeI8(&encoder, 0) < 0) return -1;
+  }
   if (tEncodeU64(&encoder, pObj->viewId) < 0) return -1;
   if (tEncodeU64(&encoder, pObj->dbId) < 0) return -1;
+  if (tEncodeI64(&encoder, pObj->createdTime) < 0) return -1;
   if (tEncodeI32(&encoder, pObj->version) < 0) return -1;
   if (tEncodeI8(&encoder, pObj->precision) < 0) return -1;
+  if (tEncodeI8(&encoder, pObj->type) < 0) return -1;
   if (tEncodeI32(&encoder, pObj->numOfCols) < 0) return -1;
   for (int32_t i = 0; i < pObj->numOfCols; ++i) {
     SSchema *pSchema = &pObj->pSchema[i];
@@ -52,6 +72,7 @@ int32_t tSerializeSViewObj(void *buf, int32_t bufLen, const SViewObj *pObj) {
 }
 
 int32_t tDeserializeSViewObj(void *buf, int32_t bufLen, SViewObj *pObj) {
+  int8_t ex = 0;
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 
@@ -60,10 +81,30 @@ int32_t tDeserializeSViewObj(void *buf, int32_t bufLen, SViewObj *pObj) {
   if (tDecodeCStrTo(&decoder, pObj->name) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pObj->dbFName) < 0) return -1;
   if (tDecodeCStrAlloc(&decoder, &pObj->querySql) < 0) return -1;
+  if (tDecodeI8(&decoder, &ex) < 0) return -1;
+  if (0 != ex) {
+    if (tDecodeCStrAlloc(&decoder, &pObj->parameters) < 0) return -1;
+  } else {
+    pObj->parameters = NULL;
+  }
+  if (tDecodeI8(&decoder, &ex) < 0) return -1;
+  if (0 != ex) {
+    //TODO
+  } else {
+    pObj->defaultValues = NULL;
+  }
+  if (tDecodeI8(&decoder, &ex) < 0) return -1;
+  if (0 != ex) {
+    if (tDecodeCStrAlloc(&decoder, &pObj->targetTable) < 0) return -1;
+  } else {
+    pObj->targetTable = NULL;
+  }
   if (tDecodeU64(&decoder, &pObj->viewId) < 0) return -1;
   if (tDecodeU64(&decoder, &pObj->dbId) < 0) return -1;
+  if (tDecodeI64(&decoder, &pObj->createdTime) < 0) return -1;
   if (tDecodeI32(&decoder, &pObj->version) < 0) return -1;
   if (tDecodeI8(&decoder, &pObj->precision) < 0) return -1;
+  if (tDecodeI8(&decoder, &pObj->type) < 0) return -1;
   if (tDecodeI32(&decoder, &pObj->numOfCols) < 0) return -1;
 
   if (pObj->numOfCols > 0) {
@@ -242,6 +283,7 @@ static int32_t mndCreateViewObj(SMnode *pMnode, SViewObj* pView, SCMCreateViewRe
     return -1;
   }
 
+  pView->createdTime = taosGetTimestampMs();
   pView->viewId = mndGenerateUid(pCreate->fullname, strlen(pCreate->fullname));
   pView->dbId = pDb->uid;
   pView->querySql = strdup(pCreate->querySql);
@@ -478,71 +520,133 @@ _OVER:
   return code;
 }
 
+static void mndGenerateViewTypeStr(char* buf, int8_t type) {
+  if (0 == type) {
+    strcpy(buf, "NORMAL ");
+    return;
+  }
 
-static int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-#if 0
+  *buf = 0;
+  if (type | VIEW_TYPE_UPDATABLE) {
+    strcpy(buf, "UPDATABLE ");
+  }
+  if (type | VIEW_TYPE_MATERIALIZED) {
+    strcat(buf, "MATERIALIZED ");
+  }
+}
+
+static void mndGenerateViewColListStr(char* buf, int32_t bufSize, int32_t colNum, SSchema* pSchema) {
+  int32_t offset = 0;
+  for (int32_t i = 0; i < colNum; ++i) {
+    SSchema* pCol = pSchema + i;
+    if (IS_VAR_DATA_TYPE(pCol->type)) {
+      if (i > 0) {
+        offset += snprintf(buf + offset, bufSize - offset, ", `%s` %s(%lu)", pCol->name, tDataTypes[pCol->type].name, pCol->bytes - VARSTR_HEADER_SIZE);
+      } else {
+        offset += snprintf(buf + offset, bufSize - offset, "`%s` %s(%lu)", pCol->name, tDataTypes[pCol->type].name, pCol->bytes - VARSTR_HEADER_SIZE);
+      }
+    } else {
+      if (i > 0) {
+        offset += snprintf(buf + offset, bufSize - offset, ", `%s` %s", pCol->name, tDataTypes[pCol->type].name);
+      } else {
+        offset += snprintf(buf + offset, bufSize - offset, "`%s` %s", pCol->name, tDataTypes[pCol->type].name);
+      }
+    }
+
+    if (offset >= bufSize) {
+      break;
+    }
+  }
+}
+
+
+static void mndGenerateViewDefValsListStr(char* buf, int32_t bufSize, int32_t colNum, void** pDefVals) {
+  //TODO
+}
+
+
+int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode     *pMnode = pReq->info.node;
   SSdb       *pSdb = pMnode->pSdb;
   int32_t     numOfRows = 0;
-  SViewObj *pView = NULL;
+  SViewObj   *pView = NULL;
+
+  SDbObj *pDb = NULL;
+  if (strlen(pShow->db) > 0) {
+    char *p = strchr(pShow->db, '.');
+    if (p && ((0 == strcmp(p + 1, TSDB_INFORMATION_SCHEMA_DB) || (0 == strcmp(p + 1, TSDB_PERFORMANCE_SCHEMA_DB))))) {
+      return 0;
+    }
+    
+    pDb = mndAcquireDb(pMnode, pShow->db);
+    if (pDb == NULL) return terrno;
+  }
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_VIEW, pShow->pIter, (void **)&pView);
     if (pShow->pIter == NULL) break;
 
+    if (pDb != NULL && pView->dbId != pDb->uid) {
+      sdbRelease(pSdb, pView);
+      continue;
+    }
+
     SColumnInfoData *pColInfo;
     SName            n;
     int32_t          cols = 0;
 
-    char viewName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(viewName, mndGetDbStr(pView->name), sizeof(viewName));
+    char tmpBuf[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(tmpBuf, pView->name, sizeof(tmpBuf));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)viewName, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pView->createTime, false);
+    SName name = {0};
+    tNameFromString(&name, pView->dbFName, T_NAME_ACCT | T_NAME_DB);
+    tNameGetDbName(&name, varDataVal(tmpBuf));
+    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+    colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
 
-    char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(sql, pView->sql, sizeof(sql));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)sql, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)&pView->createdTime, false);
 
-    char status[20 + VARSTR_HEADER_SIZE] = {0};
-    char status2[20] = {0};
-    mndShowViewStatus(status2, pView);
-    STR_WITH_MAXSIZE_TO_VARSTR(status, status2, sizeof(status));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&status, false);
+    mndGenerateViewTypeStr(varDataVal(tmpBuf), pView->type);
+    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+    colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
 
-    char sourceDB[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(sourceDB, mndGetDbStr(pView->sourceDb), sizeof(sourceDB));
+    STR_WITH_MAXSIZE_TO_VARSTR(tmpBuf, pView->querySql, sizeof(tmpBuf));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&sourceDB, false);
+    colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
 
-    char targetDB[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(targetDB, mndGetDbStr(pView->targetDb), sizeof(targetDB));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&targetDB, false);
+    mndGenerateViewColListStr(varDataVal(tmpBuf), sizeof(tmpBuf) - VARSTR_HEADER_SIZE, pView->numOfCols, pView->pSchema);
+    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+    colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
 
-    if (pView->targetSTbName[0] == 0) {
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, NULL, true);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    if (NULL != pView->parameters) {
+      STR_WITH_MAXSIZE_TO_VARSTR(tmpBuf, pView->parameters, sizeof(tmpBuf));
+      colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
     } else {
-      char targetSTB[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      STR_WITH_MAXSIZE_TO_VARSTR(targetSTB, mndGetStbStr(pView->targetSTbName), sizeof(targetSTB));
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&targetSTB, false);
+      colDataSetVal(pColInfo, numOfRows, NULL, true);
     }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pView->conf.watermark, false);
+    if (NULL != pView->defaultValues) {
+      mndGenerateViewDefValsListStr(varDataVal(tmpBuf), sizeof(tmpBuf) - VARSTR_HEADER_SIZE, pView->numOfCols, pView->defaultValues);
+      colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
+    } else {
+      colDataSetVal(pColInfo, numOfRows, NULL, true);
+    }
 
-    char trigger[20 + VARSTR_HEADER_SIZE] = {0};
-    char trigger2[20] = {0};
-    mndShowViewTrigger(trigger2, pView);
-    STR_WITH_MAXSIZE_TO_VARSTR(trigger, trigger2, sizeof(trigger));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&trigger, false);
+    if (NULL != pView->targetTable) {
+      STR_WITH_MAXSIZE_TO_VARSTR(tmpBuf, pView->targetTable, sizeof(tmpBuf));
+      colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
+    } else {
+      colDataSetVal(pColInfo, numOfRows, NULL, true);
+    }
 
     numOfRows++;
     sdbRelease(pSdb, pView);
@@ -550,15 +654,46 @@ static int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
 
   pShow->numOfRows += numOfRows;
   return numOfRows;
-#else
-  return 0;
-#endif
 }
 
 static void mndCancelGetNextViewImpl(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
 }
+
+
+int32_t mndSetDropViewCommitLogs(SMnode *pMnode, STrans *pTrans, SViewObj *pView) {
+  SSdbRaw *pCommitRaw = mndViewActionEncode(pView);
+  if (pCommitRaw == NULL) return -1;
+  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
+  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED) != 0) return -1;
+
+  return 0;
+}
+
+int32_t mndDropViewByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+  SViewObj *pView = NULL;
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_VIEW, pIter, (void **)&pView);
+    if (pIter == NULL) break;
+
+    if (pView->dbId == pDb->uid) {
+      if (mndSetDropViewCommitLogs(pMnode, pTrans, pView) != 0) {
+        sdbRelease(pSdb, pView);
+        sdbCancelFetch(pSdb, pIter);
+        return -1;
+      }
+    }
+
+    sdbRelease(pSdb, pView);
+  }
+
+  return 0;
+}
+
 
 
 
