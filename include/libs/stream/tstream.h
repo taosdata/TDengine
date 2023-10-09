@@ -697,7 +697,7 @@ char* createStreamTaskIdStr(int64_t streamId, int32_t taskId);
 
 // recover and fill history
 void    streamTaskCheckDownstream(SStreamTask* pTask);
-int32_t streamTaskLaunchScanHistory(SStreamTask* pTask);
+int32_t streamTaskStartScanHistory(SStreamTask* pTask);
 int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage);
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList);
 void    streamTaskResetUpstreamStageInfo(SStreamTask* pTask);
