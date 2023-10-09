@@ -583,9 +583,11 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
         goto _err;
       }
     } break;
-    case TDMT_STREAM_TASK_VERUPDATE:
-      tqProcessTaskDataVerUpdateReq(pVnode->pTq, pMsg->pCont, pMsg->contLen);
-      break;
+    case TDMT_VND_STREAM_TASK_RESET: {
+      if (pVnode->restored/* && vnodeIsLeader(pVnode)*/) {
+        tqProcessTaskResetReq(pVnode->pTq, pMsg);
+      }
+    } break;
     case TDMT_VND_ALTER_CONFIRM:
       needCommit = pVnode->config.hashChange;
       if (vnodeProcessAlterConfirmReq(pVnode, ver, pReq, len, pRsp) < 0) {

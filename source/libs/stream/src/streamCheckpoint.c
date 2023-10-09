@@ -143,8 +143,8 @@ int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSo
 
   pTask->execInfo.checkpoint += 1;
 
-  // 2. let's dispatch checkpoint msg to downstream task directly and do nothing else. put the checkpoint block into
-  //    inputQ, to make sure all blocks with less version have been handled by this task already.
+  // 2. Put the checkpoint block into inputQ, to make sure all blocks with less version have been handled by this task
+  //    already.
   int32_t code = appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT_TRIGGER);
   return code;
 }
@@ -264,6 +264,16 @@ int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask) {
   return 0;
 }
 
+void streamTaskClearCheckInfo(SStreamTask* pTask) {
+  pTask->checkpointingId = 0; // clear the checkpoint id
+  pTask->chkInfo.failedId = 0;
+  pTask->chkInfo.startTs = 0;  // clear the recorded start time
+  pTask->checkpointNotReadyTasks = 0;
+  pTask->checkpointAlignCnt = 0;
+  taosArrayClear(pTask->pReadyMsgList);
+  streamTaskOpenAllUpstreamInput(pTask);   // open inputQ for all upstream tasks
+}
+
 int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
   taosWLockLatch(&pMeta->lock);
 
@@ -283,11 +293,11 @@ int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
     ASSERT(p->chkInfo.checkpointId < p->checkpointingId && p->checkpointingId == checkpointId);
 
     p->chkInfo.checkpointId = p->checkpointingId;
+    streamTaskClearCheckInfo(p);
     streamSetStatusNormal(p);
 
     // save the task
     streamMetaSaveTask(pMeta, p);
-    streamTaskOpenAllUpstreamInput(p);   // open inputQ for all upstream tasks
 
     stDebug(
         "vgId:%d s-task:%s level:%d open upstream inputQ, commit task status after checkpoint completed, "
@@ -318,8 +328,6 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   ASSERT(remain >= 0);
 
   double el = (taosGetTimestampMs() - pTask->chkInfo.startTs) / 1000.0;
-  pTask->chkInfo.startTs = 0;  // clear the recorded start time
-
   if (remain == 0) {  // all tasks are ready
     stDebug("s-task:%s all downstreams are ready, ready for do checkpoint", pTask->id.idStr);
     streamBackendDoCheckpoint(pMeta, pTask->checkpointingId);

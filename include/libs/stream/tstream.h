@@ -259,8 +259,9 @@ typedef struct SStreamTaskId {
 typedef struct SCheckpointInfo {
   int64_t startTs;
   int64_t checkpointId;
-  int64_t checkpointVer;  // latest checkpointId version
+  int64_t checkpointVer;      // latest checkpointId version
   int64_t nextProcessVer;     // current offset in WAL, not serialize it
+  int64_t failedId;           // record the latest failed checkpoint id
 } SCheckpointInfo;
 
 typedef struct SStreamStatus {
@@ -603,13 +604,15 @@ typedef struct STaskStatusEntry {
   int32_t status;
   int32_t stage;
   int32_t nodeId;
-  int64_t verStart;     // start version in WAL, only valid for source task
-  int64_t verEnd;       // end version in WAL, only valid for source task
-  int64_t offset;       // only valid for source task
-  double  inputQUsed;   // in MiB
+  int64_t verStart;         // start version in WAL, only valid for source task
+  int64_t verEnd;           // end version in WAL, only valid for source task
+  int64_t processedVer;     // only valid for source task
+  int64_t activeCheckpointId;     // current active checkpoint id
+  bool    checkpointFailed; // denote if the checkpoint is failed or not
+  double  inputQUsed;       // in MiB
   double  inputRate;
-  double  sinkQuota;    // existed quota size for sink task
-  double  sinkDataSize; // sink to dest data size
+  double  sinkQuota;        // existed quota size for sink task
+  double  sinkDataSize;     // sink to dest data size
 } STaskStatusEntry;
 
 typedef struct SStreamHbMsg {
@@ -732,7 +735,9 @@ int32_t     streamTaskReleaseState(SStreamTask* pTask);
 int32_t     streamTaskReloadState(SStreamTask* pTask);
 void        streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
 void        streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
-int32_t     streamTaskUpdateDataVer(SStreamTask* pTask, int64_t ver);
+
+void streamTaskStatusInit(STaskStatusEntry* pEntry, const SStreamTask* pTask);
+void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc);
 
 // source level
 int32_t streamSetParamForStreamScannerStep1(SStreamTask* pTask, SVersionRange* pVerRange, STimeWindow* pWindow);
@@ -768,10 +773,10 @@ void         streamMetaInitForSnode(SStreamMeta* pMeta);
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
 int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask);
+void    streamTaskClearCheckInfo(SStreamTask* pTask);
 
 int32_t streamAlignTransferState(SStreamTask* pTask);
 int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId);
-int32_t streamBuildAndSendVerUpdateMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId, int64_t ver);
 int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask,
                                         int8_t isSucceed);
 int32_t buildCheckpointSourceRsp(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SRpcMsg* pMsg,

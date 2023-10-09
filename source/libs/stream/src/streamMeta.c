@@ -779,9 +779,11 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
     if (tEncodeDouble(pEncoder, ps->inputRate) < 0) return -1;
     if (tEncodeDouble(pEncoder, ps->sinkQuota) < 0) return -1;
     if (tEncodeDouble(pEncoder, ps->sinkDataSize) < 0) return -1;
-    if (tEncodeI64(pEncoder, ps->offset) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->processedVer) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->verStart) < 0) return -1;
     if (tEncodeI64(pEncoder, ps->verEnd) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->activeCheckpointId) < 0) return -1;
+    if (tEncodeI8(pEncoder, ps->checkpointFailed) < 0) return -1;
   }
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -806,9 +808,11 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
     if (tDecodeDouble(pDecoder, &entry.inputRate) < 0) return -1;
     if (tDecodeDouble(pDecoder, &entry.sinkQuota) < 0) return -1;
     if (tDecodeDouble(pDecoder, &entry.sinkDataSize) < 0) return -1;
-    if (tDecodeI64(pDecoder, &entry.offset) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.processedVer) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.verStart) < 0) return -1;
     if (tDecodeI64(pDecoder, &entry.verEnd) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.activeCheckpointId) < 0) return -1;
+    if (tDecodeI8(pDecoder, (int8_t*)&entry.checkpointFailed) < 0) return -1;
 
     entry.id.taskId = taskId;
     taosArrayPush(pReq->pTaskStatus, &entry);
@@ -896,8 +900,13 @@ void metaHbToMnode(void* param, void* tmrId) {
       entry.sinkDataSize = SIZE_IN_MiB((*pTask)->execInfo.sink.dataSize);
     }
 
+    if ((*pTask)->checkpointingId != 0) {
+      entry.checkpointFailed = ((*pTask)->chkInfo.failedId >= (*pTask)->checkpointingId);
+      entry.activeCheckpointId = (*pTask)->checkpointingId;
+    }
+
     if ((*pTask)->exec.pWalReader != NULL) {
-      entry.offset = (*pTask)->chkInfo.nextProcessVer;
+      entry.processedVer = (*pTask)->chkInfo.nextProcessVer - 1;
       walReaderValidVersionRange((*pTask)->exec.pWalReader, &entry.verStart, &entry.verEnd);
     }
 
