@@ -739,7 +739,7 @@ export default {
       }
     };
     return {
-      sourceName: localStorage.getItem("datainName"),
+      // sourceName: localStorage.getItem("datainName"),
       startOption: {
         disabledDate: (time) => startTimeOption(time),
       },
@@ -807,6 +807,14 @@ export default {
     // this.activeName = this.dbsource[0].datasets
     //   ? this.dbsource[0].groups[0].params[0].name
     //   : "";
+  },
+  computed: {
+    agentId() {
+      return this.$store.state.app.currentAgentID || "";
+    },
+    sourceName() {
+      return this.$store.state.app.currentDSName || ""
+    }
   },
   watch: {
     dbsource:{
@@ -1090,8 +1098,8 @@ export default {
         }
 
         dns +=
-          data.options.subject && data.options.subject.value && this.isPiDataArchiveAll
-            ? "/" + data.options.subject.value
+          data.options.subject?.value && this.isPiDataArchiveAll
+            ? "/" + data.options.subject?.value
             : "";
         let reg = /\s+/g;
         dns = dns.replace(reg, "").trim();
@@ -1275,8 +1283,8 @@ export default {
             `user::${localStorage.getItem("username")}`,
           ],
         };
-        if (this.$parent.agentID) {
-          apiParams["via"] = this.$parent.agentID;
+        if (this.agentId) {
+          apiParams["via"] = this.agentId;
         }
         if (this.tagName === "datasource" || this.tagName === "taos") {
           if (this.isEditable) {
@@ -1321,8 +1329,8 @@ export default {
               `user::${localStorage.getItem("username")}`,
             ],
           };
-          if (this.$parent.agentID) {
-            piParams["via"] = this.$parent.agentID;
+          if (this.agentId) {
+            piParams["via"] = this.agentId;
           }
           if (this.isEditable && this.editId) {
             let result = await EditSource(piParams, this.editId);
@@ -1496,7 +1504,7 @@ export default {
         //   limit: 10,
         // };
         // const viaObj = {
-        //   via: this.$parent.agentID,
+        //   via: this.agentId,
         // };
         // if (viaObj.via) {
         //   Object.assign(params, viaObj);
@@ -1519,8 +1527,8 @@ export default {
             querystr ? "?" + querystr.replace(/&$/g, "") : ""}
             &categories=${categories}
           `
-         if (this.$parent.agentID) {
-            from+=`&via=${this.$parent.agentID}`
+         if (this.agentId) {
+            from+=`&via=${this.agentId}`
           }
         this.loading = true;
         // getUaAndDaData(params)
@@ -1743,8 +1751,8 @@ export default {
           offset: 0,
           limit: 10,
         };
-        if (this.$parent.agentID) {
-          apiParams["via"] = this.$parent.agentID;
+        if (this.agentId) {
+          apiParams["via"] = this.agentId;
         }
         if (this.tagName === "datasource") {
           getUaAndDaData(apiParams)
@@ -1774,8 +1782,8 @@ export default {
             offset: 0,
             limit: 10,
           };
-          if (this.$parent.agentID) {
-            piParams["via"] = this.$parent.agentID;
+          if (this.agentId) {
+            piParams["via"] = this.agentId;
           }
           getUaAndDaData(piParams)
             .then((res) => {
