@@ -1034,7 +1034,7 @@ int32_t doStreamIntervalEncodeOpState(void** buf, int32_t len, SOperatorInfo* pO
   while ((pIte = taosHashIterate(pInfo->pPullDataMap, pIte)) != NULL) {
     void* key = taosHashGetKey(pIte, &keyLen);
     tlen += encodeSWinKey(buf, key);
-    SArray* pArray = (SArray*)pIte;
+    SArray* pArray = *(SArray**)pIte;
     int32_t chSize = taosArrayGetSize(pArray);
     tlen += taosEncodeFixedI32(buf, chSize);
     for (int32_t i = 0; i < chSize; i++) {
