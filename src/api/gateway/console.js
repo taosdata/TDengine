@@ -4,7 +4,6 @@ import JSONbig from "json-bigint";
 import { compHeadAndData, getLocalTimezone } from "@/utils";
 export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.appId) {
   return request({
-    baseURL:'',
     url: `/rest/sql?tz=${getLocalTimezone()}`,
     method: 'post',
     headers: {
@@ -29,7 +28,6 @@ export function sendSQLReq(sqlStr, composeData = false, appId = store.getters.ap
 
 export function executeDBOperations(sql, appId = store.getters.appId) {
   return request({
-    baseURL:'',
     url: `/rest/sql?tz=${getLocalTimezone()}`,
     method: "post",
     headers: {
@@ -77,7 +75,6 @@ export async function getPaginationData(countSql, dataSql, currentPage, pageSize
 // 通过token执行sql
 export function executeSQLByToken(sql, token) {
   return request({
-    baseURL:'',
     url: `/rest/sql/token/${token}`,
     method: "post",
     headers: {
@@ -102,7 +99,6 @@ export function executeSQLByToken(sql, token) {
 // 获取个人收藏列表
 export function getFavorites(sql) {
   return request({
-    baseURL:'',
     url: '/rest/sql',
     method: 'post',
     headers: {
@@ -135,7 +131,6 @@ export function delFavorite(id) {
 // 获取共享收藏列表
 export function getSharedFavorites(sql) {
   return request({
-    baseURL:'',
     url: '/rest/sql',
     headers: {
       "Content-Type": "text/plain"
