@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
 
 use actix_files::NamedFile;
 use actix_web::{
@@ -249,7 +249,7 @@ pub(super) async fn download_all_data_set_file(
 pub struct DownloadAllPointsParams {
     from: String,
     via: Option<i64>,
-    categories: Vec<String>,
+    categories: String,
 }
 
 async fn download_all_point_csv_file(
@@ -269,7 +269,7 @@ async fn download_all_point_csv_file(
 }
 
 use crate::serve::TaskController;
-pub(crate) async fn get_all_points(from: String, via: Option<i64>, categories: Vec<String>, controller: &TaskController) -> anyhow::Result<Vec<DataSet>> {
+pub(crate) async fn get_all_points(from: String, via: Option<i64>, categories: String, controller: &TaskController) -> anyhow::Result<Vec<DataSet>> {
     use taos::IntoDsn;
     let from = from.into_dsn()?;
     let pattern;
@@ -284,7 +284,7 @@ pub(crate) async fn get_all_points(from: String, via: Option<i64>, categories: V
     let limit = usize::MAX / 2 - 1; // cause usize::MAX out of range i64 type when exec toml::to_string()
     let data  = DataSetsReq {
         from: from.to_string(),
-        categories,
+        categories: vec![categories],
         via,
         offset: 0,
         pattern,
