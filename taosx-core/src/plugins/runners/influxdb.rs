@@ -86,7 +86,15 @@ struct PerformanceConfig {
     #[serde(rename = "readWindow")]
     performance_read_window: Option<String>,
     #[serde(rename = "delay")]
-    performance_delay: u16,
+    performance_delay: u32,
+    #[serde(rename = "maxThread")]
+    performance_max_thread: u32,
+    #[serde(rename = "queueSizeT")]
+    performance_queue_size_thread: u32,
+    #[serde(rename = "queueSizeD")]
+    performance_queue_size_data: u32,
+    #[serde(rename = "limitSpeed")]
+    performance_limit_speed: u32
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -170,7 +178,11 @@ impl InfluxdbConfig {
 
         // the performance config
         let performance_read_window = dsn.remove("readWindow");
-        let performance_delay = dsn.remove("delay").unwrap().parse::<u16>().unwrap();
+        let performance_delay = dsn.remove("delay").unwrap().parse::<u32>().unwrap();
+        let performance_max_thread = dsn.remove("maxThread").unwrap().parse::<u32>().unwrap();
+        let performance_queue_size_thread = dsn.remove("queueSizeT").unwrap().parse::<u32>().unwrap();
+        let performance_queue_size_data = dsn.remove("queueSizeD").unwrap().parse::<u32>().unwrap();
+        let performance_limit_speed = dsn.remove("limitSpeed").unwrap().parse::<u32>().unwrap();
 
         // agent监听地址
         let ipc_stream = format!("127.0.0.1:{ipc}");
@@ -200,6 +212,10 @@ impl InfluxdbConfig {
         let performance = PerformanceConfig {
             performance_read_window,
             performance_delay,
+            performance_max_thread,
+            performance_queue_size_thread,
+            performance_queue_size_data,
+            performance_limit_speed
         };
 
         Ok(Self {
