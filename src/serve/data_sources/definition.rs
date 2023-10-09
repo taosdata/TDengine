@@ -230,6 +230,8 @@ impl Definitions {
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Default)]
 pub struct DatasetsDefinition {
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display: Option<String>,
     pub description: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
@@ -409,7 +411,11 @@ impl DataSourceDefinition {
                         password,
                     } => {
                         let mut endpoint_str = String::new();
+                        if dsn.driver == "tmq" {
+                            endpoint_str.push_str("tmq");
+                        }
                         if let Some(scheme) = dsn.protocol.as_deref() {
+                            endpoint_str.push('+');
                             endpoint_str.push_str(scheme);
                             endpoint_str.push_str("://");
                         }
@@ -425,6 +431,13 @@ impl DataSourceDefinition {
                         if let Some(value) = dsn.subject.as_ref() {
                             endpoint_str.push_str("/");
                             endpoint_str.push_str(value.as_str());
+                        }
+                        if dsn.driver == "tmq" {
+                            if let Some(value) = dsn.remove("token") {
+                                endpoint_str.push_str("?");
+                                endpoint_str.push_str("token=");
+                                endpoint_str.push_str(value.as_str());
+                            }
                         }
                         endpoint.value.replace(endpoint_str);
 
