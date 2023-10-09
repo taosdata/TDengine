@@ -91,11 +91,11 @@
           prop="localname"
           width="120"
         >
-        <template slot-scope="scope">
-          <el-tooltip :content="scope.row.localname" placement="top-start">
-            <span class="nowrap">{{ scope.row.localname }}</span>
-          </el-tooltip>
-        </template>
+          <template slot-scope="scope">
+            <el-tooltip :content="scope.row.localname" placement="top-start">
+              <span class="nowrap">{{ scope.row.localname }}</span>
+            </el-tooltip>
+          </template>
         </el-table-column>
         <el-table-column
           :label="$t('datasource.type')"
@@ -125,10 +125,13 @@
         <el-table-column :label="$t('datasource.metrics')" prop="finished_at">
           <template slot-scope="scope">
             <el-button
-              @click="checkMetrics(scope.row)"
+              @click="checkMetrics(scope.row, scope.row.status.toLowerCase())"
               size="mini"
               style="font-size: 12px; color: #4d6992"
-              :disabled="scope.row.status.toLowerCase() == 'failed'"
+              :disabled="
+                scope.row.status.toLowerCase() == 'failed' ||
+                scope.row.status.toLowerCase() == 'cancelled'
+              "
               >{{ $t("view") }}</el-button
             >
           </template>
@@ -307,6 +310,7 @@ export default {
       parsinginZone,
       taskActivities: [],
       expandRowKeys: [],
+      metricDisable: false,
     };
   },
   methods: {
@@ -481,9 +485,10 @@ export default {
       }
     },
 
-    async checkMetrics(data) {
+    async checkMetrics(data, status) {
       try {
         let result = await getMetrics(data.id);
+        console.log(result, "8888");
         if (result.message) {
           Message.error(result.message);
           return;
@@ -491,17 +496,24 @@ export default {
         let array = Object.entries(result);
         console.log(Array.from(array).length == 0, "metrics9999");
         if (Array.from(array).length == 0) {
-          Message.error(this.$t("datasource.restarttask"));
-          return;
+          switch (status) {
+            case "running":
+              Message.error(this.$t("datasource.metricTips.running"));
+              return;
+            case "completed":
+              Message.error(this.$t("datasource.metricTips.completed"));
+              return;
+            case "stopped":
+              Message.error(this.$t("datasource.metricTips.stopped"));
+              return;
+          }
         }
         let html = `<ul class='db-metrics'><li >
           <span>${this.$t("name")}</span>
           <span>${this.$t("datasource.value")}</span>
           </li>`;
         array.forEach((item) => {
-          html += `<li ><span>${
-            item.toString().split(",")[0]
-          }</span>
+          html += `<li ><span>${item.toString().split(",")[0]}</span>
               <span>${item.toString().split(",")[1]}</span>
               </li>`;
         });
@@ -548,15 +560,19 @@ export default {
             type: "warning",
           }
         ).then(async () => {
-          await excuteStop(data.id);
-          this.refresh();
+          let result=await excuteStop(data.id);
+          if(result.message){
+            Message.error(result.message)
+            return
+          }
+          await this.refresh();
         });
       } catch (err) {
         return Promise.reject(err);
       }
     },
     refresh() {
-      this.getList();
+      return this.getList();
     },
     async refreshCurrentTask(data) {
       try {
@@ -640,9 +656,10 @@ export default {
   },
   mounted() {
     if (this.$parent.$parent.$parent.currentName == "datasource") {
-      this.refresh();
+      this.refresh().then(() => {
+        this.typeList = this.sourceList;
+      });
     }
-    this.typeList = this.sourceList;
   },
 };
 </script>
@@ -710,21 +727,21 @@ export default {
 </style>
 <style lang="scss">
 .db-metrics {
-  max-height:300px;
-  li{
+  max-height: 300px;
+  li {
     display: flex;
-    span{
+    span {
       display: inline-block;
-      flex:1;
+      flex: 1;
       padding: 3px 10px;
     }
-    &:first-child{
+    &:first-child {
       background: #f5f7fa;
       padding: 4px 10px;
-      border-top:1px solid  #eaeefb;
+      border-top: 1px solid #eaeefb;
     }
-    border:1px solid  #eaeefb;
-    border-top:none;
+    border: 1px solid #eaeefb;
+    border-top: none;
   }
 }
 </style>

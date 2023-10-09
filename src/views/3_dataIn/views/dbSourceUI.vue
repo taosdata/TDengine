@@ -1034,7 +1034,7 @@ export default {
             return;
           }
         }
-        if (this.tagName === "datasource" || this.tagName === "taos") {
+        if (this.tagName === "taos") {
           if (data.authentication.value == "plain") {
             let userinfo = data.authentication.alternatives.filter(
               (item) => item.name == "plain"
@@ -1061,6 +1061,13 @@ export default {
           // if(this.handleEmptyValue(data.options.host.value)){
           dns += `@${data.options.host.value ? data.options.host.value : ""}`;
           // }
+        } else if (this.tagName == "datasource") {
+          data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+          if (data.options.endpoint.value.includes("://")) {
+            dns = "+" + data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+          } else {
+            dns = "://" + data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+          }
         } else {
           if (this.tagName == "influxdb") {
             this.changeHost(data.options.host.value);
@@ -1131,7 +1138,8 @@ export default {
           //   }
         }
 
-        if (data.datasets) {
+        // datasets.categories is not used since 9adc5721
+        if (data.datasets && data.datasets.categories) {
           for (
             let index = 0;
             index < data.datasets.categories.length;
@@ -1325,10 +1333,11 @@ export default {
           }
         }
       } catch (err) {
+        console.error(err);
         err.response &&
           err.response.data &&
           err.response.data.message &&
-          Message.error(err.response.data.message);
+          Message.error(err.response.data.message) || Message.error(err);
       }
     },
 

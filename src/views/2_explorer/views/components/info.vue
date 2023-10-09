@@ -1,70 +1,40 @@
 <template>
   <div class="info">
-    <el-form label-width="180px" label-position="right">
+    <el-form label-width="180px" :action="'#'" label-position="right">
       <section class="info-content">
         <section class="left">
-          <el-form-item
-            v-for="item in leftField"
-            :key="item"
-            :label="item + ':'"
-          >
+          <el-form-item v-for="item in leftField" :key="item" :label="item + ':'">
             {{ infoData[item] }}
           </el-form-item>
-          <el-form-item v-if="infoType !== 'database'" :label="infoData.stable_name?'tags:':'columns:'">
-            <el-table
-              tooltip-effect="light"
-              style="width: 80%"
-              size="mini"
-              :data="tags"
-            >
-              <el-table-column
-                :show-overflow-tooltip="true"
-                min-width="100"
-                label="name"
-                prop="name"
-              >
+          <el-form-item v-if="infoType !== 'database'" :label="infoData.stable_name ? 'tags:' : 'columns:'">
+            <el-table tooltip-effect="light" style="width: 80%" size="mini" :data="tags">
+              <el-table-column :show-overflow-tooltip="true" min-width="100" label="name" prop="name">
               </el-table-column>
-              
-              <el-table-column
-                :show-overflow-tooltip="true"
-                :label="infoType=='stable'?'type':(infoData.stable_name?'value':'type')"
-                :prop="infoType=='stable'?'value':(infoData.stable_name?'value':'type')"
-                :width="infoType == 'stable' ? 100 : 150"
-              >
+
+              <el-table-column :show-overflow-tooltip="true"
+                :label="infoType == 'stable' ? 'type' : (infoData.stable_name ? 'value' : 'type')"
+                :prop="infoType == 'stable' ? 'value' : (infoData.stable_name ? 'value' : 'type')"
+                :width="infoType == 'stable' ? 100 : 150">
               </el-table-column>
             </el-table>
           </el-form-item>
         </section>
         <section class="right">
-          <el-form-item
-            v-for="item in rightField"
-            :key="item"
-            :label="item + ':'"
-          >
+          <el-form-item v-for="item in rightField" :key="item" :label="item + ':'">
             {{ infoData[item] }}
           </el-form-item>
           <el-form-item v-if="infoType == 'stable'" label="columns:">
-            <el-table
-              tooltip-effect="light"
-              style="width: 80%"
-              size="mini"
-              :data="columns"
-            >
-              <el-table-column
-                :show-overflow-tooltip="true"
-                min-width="100"
-                label="name"
-                prop="name"
-              >
+            <el-table tooltip-effect="light" style="width: 80%" size="mini" :data="columns">
+              <el-table-column :show-overflow-tooltip="true" min-width="100" label="name" prop="name">
               </el-table-column>
-              <el-table-column
-                :show-overflow-tooltip="true"
-                width="100"
-                label="type"
-                prop="value"
-              >
+              <el-table-column :show-overflow-tooltip="true" width="100" label="type" prop="value">
               </el-table-column>
             </el-table>
+          </el-form-item>
+        </section>
+        <section class="dsn" v-if="infoType === 'database'">
+          <el-form-item :key="`dsn-for-${infoData['name']}`" :label="'DSN:'">
+            <pre v-on:copy="copyDsn" v-highlight><code class="language-bash">{{ dsn + "/" + infoData["name"] }}</code></pre>
           </el-form-item>
         </section>
       </section>
@@ -73,8 +43,13 @@
 </template>
 
 <script>
+import Prism from "prismjs";
+import "prismjs/themes/prism.css";
+import "prismjs/components/prism-bash";
+import { copy } from "@/utils/index";
 import { getStableStructReq } from "@/api/gateway/data/stables";
 import { getTagValue, getMatrixStructReq } from "@/api/gateway/data/tables";
+import { getDSN } from "@/utils/index";
 const customKey = ["noOperate", "parent", "node-key", "typeName"];
 export default {
   data() {
@@ -94,11 +69,14 @@ export default {
     infoData() {
       return this.$store.state.console.currentInfoData;
     },
+    dsn() {
+      return getDSN("taos");
+    },
     infoField() {
       return this.infoType == "database"
         ? Object.keys(this.infoData).filter((item) => {
-            return !customKey.includes(item);
-          })
+          return !customKey.includes(item);
+        })
         : this.displayMap[this.infoType];
     },
     leftField() {
@@ -116,7 +94,13 @@ export default {
   created() {
     this.getStruct();
   },
+  mounted() {
+    Prism.highlightAll();
+  },
   methods: {
+    copyDsn() {
+      copy(this.dsn);
+    },
     getStruct() {
       switch (this.infoType) {
         case "stable":
@@ -153,11 +137,11 @@ export default {
         selected_db: this.infoData.parent.split(".")[0],
         selected_tb: this.infoData.name,
       }));
-      let tags=[]
-      if(this.infoData.stable_name){
-        tags=result.filter((item) => item.typeName == "tag")
-      }else{
-        tags=result
+      let tags = []
+      if (this.infoData.stable_name) {
+        tags = result.filter((item) => item.typeName == "tag")
+      } else {
+        tags = result
       }
       let data = await getTagValue(
         tags.map((item) => ({ field: item.name })) || [],
@@ -165,7 +149,7 @@ export default {
         this.infoData.name
       ).catch(() => []);
       this.tags = tags.map((item) => {
-        item.value = data[0]?data[0][item.name]:item['dataType'];
+        item.value = data[0] ? data[0][item.name] : item['dataType'];
         return item;
       });
 
@@ -177,15 +161,72 @@ export default {
 <style lang="scss" scoped>
 .info {
   height: 100%;
+
   .info-content {
     display: flex;
     justify-content: space-between;
-    .left,
-    .right {
+    flex-wrap: wrap;
+
+    section.left,
+    section.right {
       width: 48%;
+    }
+
+    section.dsn {
+      width: 100%;
+
+
+      .pre-code {
+        background-color: #f6f8fa;
+        padding: 0px;
+        width: 80%;
+        text-align: left;
+        white-space: break-spaces;
+        margin-top: 0px;
+
+        code {
+          display: inline-flex;
+          width: 100%;
+          padding-left: 0px;
+          background: transparent !important;
+        }
+
+        .copy-icon {
+          visibility: hidden;
+          display: flex;
+          align-items: center;
+          white-space: nowrap;
+          cursor: pointer;
+          color: #4259ce;
+          position: absolute;
+          right: 20px;
+          top: 40px;
+          font-size: 12px;
+        }
+      }
+
+      ::v-deep {
+        code {
+          background: rgba(175, 184, 193, 0.2) !important;
+          border-radius: 6px;
+          padding: 0px;
+        }
+      }
+
+      code {
+        background: transparent !important;
+        line-height: 8px;
+      }
+
+      &:hover {
+        .copy-icon {
+          visibility: visible;
+        }
+      }
     }
   }
 }
+
 .info ::v-deep .el-form-item__label {
   line-height: 20px !important;
   font-size: 16px;
@@ -195,14 +236,17 @@ export default {
   font-size: 16px;
   line-height: 22px;
 }
+
 .info ::v-deep .el-table {
   margin-top: -6px;
-  & th.el-table__cell > .cell {
+
+  & th.el-table__cell>.cell {
     padding-left: 0;
     font-size: 16px;
     font-weight: 500;
   }
-  & td.el-table__cell > .cell {
+
+  & td.el-table__cell>.cell {
     padding-left: 0;
     @extend .nowrap;
     font-size: 16px;

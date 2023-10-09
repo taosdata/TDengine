@@ -421,7 +421,7 @@ export default {
     <li>2 - 数据写入 WAL 且执行 fsync。</li>
     </ul>
     `,
-    walRetentionPeriodTip: "WAL 文件的大保存时长，它决定了能够订阅到的数据，单位是秒，默认值是0，意味着没有没有数据可以消费，如果想订阅数据请设置为合适的正值。",
+    walRetentionPeriodTip: "WAL 文件的大保存时长，它决定了能够订阅到的数据，单位是秒，默认值是3600，意味着没有没有数据可以消费，如果想订阅数据请设置为合适的正值。",
     walRetentionSizeTip: "单个 WAL 文件的大小上限，单位是 KB，默认值为0，意味着 TDengine 会自动处理。",
     pagesTip: "单个 vnode 中缓存元数据的缓存页数，缺省值是 256，该值允许配置的最小值是 64",
     pageSizeTip: "vnode 中元数据缓存的页大小，单位是 KB ，值域是 [1,16384]，缺省值是 4 KB。",
@@ -936,6 +936,11 @@ export default {
     selecttargetdb:'请选择目标数据源',
     metrics:'当前指标',
     restarttask:'请重启任务',
+    metricTips:{
+      running:'Metrics正在收集中，请等待 ...',
+      completed:'没有收集到Metrics信息，如有需要，请重新运行此任务',
+      stopped:' 任务已被停止，暂未收到Metrics信息，如有需要，请重新运行此任务'
+    },
     csvconfigtip:'请配置csv信息',
     csvwholeinfo:'请填写完整的csv配置信息（主键，tag，列和列类型）',
     customcolname:'自定义列',
@@ -1042,6 +1047,8 @@ export default {
       <br /> 
       2. 其他情况下，如当数据源与 TDengine 集群网络隔离时，使用代理以提供跨网络访问数据源的能力。
     `,
+
+    replicationTargetInfo: `请登录云服务或打开企业版的taosExplorer，点击"数据浏览器“，选中数据库，然后点击“查看数据库配置”按钮，即可获得。`,
   
     //-------datasourceui的字段,英文版本直接显示的display，暂时不需要转换
     description: '描述',

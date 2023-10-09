@@ -366,12 +366,14 @@
                     :disable="p.target.selectable"
                     @keydown.enter.native="searchDatas($event, p.value)"
                   >
+
                     <el-button
                     size="small"
                       slot="append"
                       icon="el-icon-search"
                       @click="searchDatas($event, p.value)"
                     ></el-button>
+
                   </el-input>
                   <div class="resultWrap">
                     <div class="searchList" v-loading="loading">
@@ -380,6 +382,7 @@
                         v-if="configurationdata.length <= 0"
                       ></el-empty>
                       <template v-else>
+
                         <el-table
                           :data="configurationdata"
                           size="mini"
@@ -394,6 +397,7 @@
                             prop="name"
                             label="Name"
                           ></el-table-column>
+
                         </el-table>
                       </template>
                     </div>

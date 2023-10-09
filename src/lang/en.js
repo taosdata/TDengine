@@ -477,7 +477,7 @@ export default {
     <li> 1 - The database can contain only one supertable, the default value is 0.</li>
     </ul>
     `,
-    walRetentionPeriodTip: "The time length of keeping WAL files, it determines the data that can be consumed, the unit is second, the default value is 0 which means no data can be consumed，please set to a proper positive value if you want to consume data.",
+    walRetentionPeriodTip: "The time length of keeping WAL files, it determines the data that can be consumed, the unit is second, the default value is 3600 which means no data can be consumed，please set to a proper positive value if you want to consume data.",
     walRetentionSizeTip: "The size of a single WAL file, the unit is KB, the default value is 0, which means it's handled automatically by TDengine.",
     walSegmentSizeTip: "The size of a single WAL file, the unit is KB, the default value is 0, which means it's handled automatically by TDengine.",
     walRollPeriodTip: "The time length of a single WAL file, the unit is second, the default value is 0, which means it's handled automatically by TDengine。",
@@ -1166,6 +1166,11 @@ export default {
     selecttargetdb:'Please select the target database',
     metrics:'Metrics',
     restarttask:'Please restart the task',
+    metricTips:{
+      running:'Metrics are being collected,please wait...',
+      completed:'No metrics information was collected. If necessary, please rerun this task',
+      stopped:'The task has been stopped and no metrics information has been received yet. If necessary,please rerun this task'
+    },
     csvconfigtip:'Please configure csv information',
     csvwholeinfo:'Please fill in the complete csv information(Primary Key,Tag,Coloumn,Column Type)',
     customcolname:'Custom Columns',
@@ -1272,6 +1277,8 @@ export default {
       <br /> 
       2. In other cases, such as when the data source is isolated from the TDengine cluster network, agents are used to provide cross-network access to the data source.
     `,
+
+    replicationTargetInfo: `Please login TDengine cloud service or open taosExplorer in enterprise edition, click "Explorer", select the database, then click "View Database Config" icon to check it.`,
     select: 'Select',
     add: 'Add',
     regexPlaceholder: 'Regex Pattern Input'

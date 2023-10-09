@@ -3,7 +3,7 @@
     :class="[
       'dataOut-wrap',
       'flexStart',
-      (this.$parent.currentTaskStatus != '') && 'readable',
+      (this.$parent.currentTaskStatus == 'running') && 'readable',
     ]"
   > 
     <el-form

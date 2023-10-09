@@ -59,6 +59,7 @@
 </template>
 <script>
 import Echart from "@/components/EChart.vue";
+import { getAxisType } from '@/utils';
 import { mapState } from "vuex";
 export default {
   name: "chart",
@@ -104,20 +105,28 @@ export default {
     drawChart() {
       this.$refs.ruleForm.validate(valid => {
         if (valid) {
+          const firstData = this.data[0] || {};
           this.chartOption = {
             // title: {
             //   text: 'Chart Show'
             // },
-            grid: { right: 30 },
+            grid: { right: 30 ,bottom: 24},
             legend: {},
             tooltip: {
               trigger: "axis"
             },
+            dataZoom: [
+              {
+                type: 'inside',
+                start: 0,
+                end: 20
+              }
+            ],
             xAxis: {
-              type: "category"
+              type: getAxisType(firstData[this.chartForm.label])
             },
             yAxis: {
-              type: "value"
+              type: getAxisType(firstData[this.chartForm.series[0]])
             },
             series: this.handleSeriesChange()
           };

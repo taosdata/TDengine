@@ -103,6 +103,7 @@ const actions = {
     } else {
       params.buffer = 32;
     }
+    if (JSON.stringify(params) === '{}') return
     return execFn(params, name)
       .then(() => {
         if (state.formStatus == "create") {

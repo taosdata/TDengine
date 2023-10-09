@@ -39,17 +39,17 @@ export default {
       active:process.env.VUE_APP_CUS_NAME&&process.env.VUE_APP_CUS_NAME!=='TDengine'?'csv':'datasource'
     };
   },
-  methods: {
-    clickTab(){
-      this.$refs.dbsource.currentName='dbsource'
-      if(this.active=='datasource'){
-        this.$refs.dbsource.getData()
-        this.$refs.dbsource.reloadTable()
-      }
-    }
-  },
   mounted(){
     this.clickTab()
+  },
+  methods: {
+    async clickTab(){
+      this.$refs.dbsource.currentName='dbsource'
+      if(this.active=='datasource'){
+        await this.$refs.dbsource.getData()
+        await this.$refs.dbsource.reloadTable()
+      }
+    }
   }
 };
 </script>
