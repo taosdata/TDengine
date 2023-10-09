@@ -71,7 +71,7 @@
               @change="changeSystemConfiguration"
             >
               <el-option
-                v-for="c in dbsource[0].params[0].hint.choices"
+                v-for="c in dbsource[0].params[0].hint?.choices"
                 :key="c"
                 :label="c"
                 :value="c"
@@ -546,10 +546,16 @@
               lazy
               :disabled="!['point_file'].includes(p.name) && !isPiDataArchiveAll"
             >
-              <div :key="pind" style="margin-bottom: 0px">
-                  <span
+              <div>
+                <el-radio-group v-model="activeRadio">
+                  <el-radio label="select_file">Upload CSV</el-radio>
+                  <el-radio label="all_Points">All Points</el-radio>
+                </el-radio-group>
+              </div>
+              <div :key="pind" style="margin-bottom: 0px" v-if="activeRadio == 'select_file'">
+                  <!-- <span
                     :class="['no-label']"
-                  ></span>
+                  ></span> -->
                   <div>
                     <el-upload
                       class="upload-dataset"
@@ -562,24 +568,44 @@
                       :file-list="p.fileList"
                       :auto-upload="true"
                       :on-remove="()=>handleRemove(p.name)"
+                      :on-preview="()=>handlePreview(p.value)"
                     >
                       <el-button
                         slot="trigger"
                         size="small"
                         type="primary"
                         style="margin-right: 20px"
-                        >{{ $t("datasource.selectfile") }}</el-button
-                      >
-                      <template v-if="activeName.includes('point_file')">
-                        <a href="/Points.csv" download>{{ $t('downloadTemplate') }}</a>
-                      </template>
-                      <template v-else>
-                        <a href="/ElementTemplates.csv" download>{{ $t('downloadTemplate') }}</a>
-                      </template>
+                        >{{ $t("datasource.selectfile") }}
+                      </el-button>
                     </el-upload>
+                    <template v-if="activeName === 'point_file'">
+                      <el-tooltip class="item" effect="light" :content="$t('downloadTemplateTip')" placement="top-start">
+                        <a href="/Points.csv" download style="padding-left: 16px;">
+                          <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadTemplate') }}</a>
+                      </el-tooltip>
+                      <el-tooltip class="item" effect="light" :content="$t('downloadPiPointTip')" placement="top-start">
+                        <el-button type="text" style="padding-left: 16px;" @click="searchDatas($t('downloadPiPoint'))" :disabled="loading">
+                          <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadPiPoint') }}</el-button>
+                      </el-tooltip>
+                    </template>
+                    <template v-else>
+                      <el-tooltip class="item" effect="light" :content="$t('downloadTemplateTip')" placement="top-start">
+                        <a href="/ElementTemplates.csv" download>
+                          <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadTemplate') }}</a>
+                      </el-tooltip>
+                      <el-tooltip class="item" effect="light" :content="$t('downloadAfElementTip')" placement="top-start">
+                        <el-button type="text" style="padding-left: 16px;" @click="searchDatas($t('downloadAfElement'))" :disabled="loading">
+                          <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadAfElement') }}</el-button>
+                      </el-tooltip>
+                    </template>
+                    <el-tooltip v-if="isEditable&&p.value" class="item" effect="light" :content="$t('downloadCSVInUseTip')" placement="top-start">
+                      <a :href="downloadUrl+p.value" download style="padding-left: 16px;">
+                        <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadCSVInUse') }}</a>
+                    </el-tooltip>
                   </div>
-                </div>
-                <div
+              </div>
+              <div
+                v-if="activeRadio == 'select_file'"
                 class="description"
                 v-html="transforHtml(p.description)"
               ></div>
@@ -796,7 +822,7 @@
 <script>
 // import DataTarget from './dataTarget.vue'
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
-import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
+import { AddSource, EditSource, getUaAndDaData, downloadPoints } from "@/api/explorer/datain";
 import DatePicker from "@/components/date-picker";
 import { Message } from "element-ui";
 import marked from "marked";
@@ -936,7 +962,10 @@ export default {
       uploadData: {
         req_id: new Date().getTime(),
       },
-      uploadUrl: process.env.VUE_APP_X_API + `/upload`,
+      // 提交记得给改回来
+      uploadUrl: process.env.VUE_APP_X_API + `upload`,
+      downloadUrl: process.env.VUE_APP_X_API + `download?file_path=`,
+      activeRadio: 'select_file'
     };
   },
   created() {
@@ -948,13 +977,14 @@ export default {
       let defaultVal = (this.dbsource[0]?.params && this.dbsource[0]?.params[0]?.value) || this.piSystemConfiguration
       this.changeSystemConfiguration(defaultVal)
       this.getSchema(false);
+    } else {
+      this.activeName = 'point_file'
     }
   },
   mounted() {
     // this.activeName = this.dbsource[0].datasets
     //   ? this.dbsource[0].groups[0].params[0].name
     //   : "";
-    this.activeName = 'point_file'
   },
   watch: {
     dbName: {
@@ -1006,7 +1036,9 @@ export default {
                   status: "success",
                   uid: 1,
                 });
-                p.value = p.value?.substr(p.value.lastIndexOf("@") + 1)
+                p.value = p.value?.substr(p.value.lastIndexOf("@") + 1),
+                this.activeRadio = 'select_file' // 待定
+                this.activeName = p.name
               }
             }
           if (group.name == 'Backfill' || group.name == '历史填充（Backfill）') {
@@ -1046,6 +1078,14 @@ export default {
         }
         return group;
       });
+    },
+    handlePreview(file_path){
+      let link = document.createElement('a')
+      link.download ='file_name'
+      link.href = this.downloadUrl + file_path
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
     },
     handelCheckbox(value,name) {
       this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
@@ -1525,7 +1565,21 @@ export default {
     //     this.dbsource[0].datasets.categories = categories;
     //   }
     // },
-    searchDatas: debounce(function (e) {
+    downloadAllPoints(data,name) {
+      downloadPoints(data).then(res => {
+        let blob = new Blob([res], { type: "text/csv,charset=UTF-8" });
+        let link = document.createElement("a");
+        link.download = `${name}.csv`;
+        link.style.display = "none";
+        link.href = URL.createObjectURL(blob);
+        document.body.appendChild(link);
+        link.click();
+        URL.revokeObjectURL(link.href);
+        document.body.removeChild(link);
+        this.loading = false;
+      })
+    },
+    searchDatas: debounce(function (name) {
       try {
         let data = this.dbsource[0];
         let host = data.options.host.value ? data.options.host.value : "";
@@ -1580,7 +1634,8 @@ export default {
         params = {
           from: `${this.tagName}://${host}${subject}${querystr ? "?" + querystr.replace(/&$/g, "") : ""}`,
           categories: [this.activeName],
-          pattern: e.target.value,
+          // pattern: e.target.value,
+          pattern: '.*',
           offset: 0,
           limit: 10,
         };
@@ -1591,28 +1646,29 @@ export default {
           Object.assign(params, viaObj);
         }
         this.loading = true;
-        getUaAndDaData(params)
-          .then((res) => {
-            if (res && res.code && res.code != 0) {
-              Message({
-                type: "error",
-                message: res && res.message,
-              });
-            } else {
-              this.configurationdata = res;
-              Message({
-                type: "success",
-                message: this.$t("operateSucc"),
-              });
-            }
-            this.loading = false;
-          })
-          .catch((err) => {
-            Message({
-              type: "error",
-              message: err,
-            });
-          });
+        // getUaAndDaData(params)
+        //   .then((res) => {
+        //     if (res && res.code && res.code != 0) {
+        //       Message({
+        //         type: "error",
+        //         message: res && res.message,
+        //       });
+        //     } else {
+        //       this.configurationdata = res;
+        //       Message({
+        //         type: "success",
+        //         message: this.$t("operateSucc"),
+        //       });
+        //     }
+        //     this.loading = false;
+        //   })
+        //   .catch((err) => {
+        //     Message({
+        //       type: "error",
+        //       message: err,
+        //     });
+        //   });
+        this.downloadAllPoints(params,name)
       } catch (error) {
         this.loading = false;
       }
@@ -2068,6 +2124,9 @@ export default {
       white-space: nowrap;
       align-items: baseline;
       // margin-bottom: 8px;
+    }
+    ::v-deep .el-upload-list__item .el-icon-close-tip {
+      display: none !important;
     }
     .choose-db {
       display: flex;

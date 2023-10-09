@@ -550,6 +550,7 @@ export default {
     },
     refresh() {
       this.getList();
+      this.$refs.agents.refresh()
     },
     async refreshCurrentTask(data) {
       try {
