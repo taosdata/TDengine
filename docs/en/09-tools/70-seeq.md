@@ -52,6 +52,7 @@ sudo seeq restart
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
         "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.us-east-1.aws.cloud.tdengine.com?useSSL=true&token=c6bcdb726c7b58880f3e34d1ed0707bb34dfxxxx",
+        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }
@@ -148,6 +149,7 @@ Please login with Seeq administrator and create a few data sources as following.
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
         "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.cloud.taosdata.com?useSSL=true&token=41ac9d61d641b6b334e8b76f45f5a8XXXXXXXXXX",
+        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }
@@ -265,6 +267,7 @@ Please login with Seeq administrator and create a few data sources as following.
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
         "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.cloud.taosdata.com?useSSL=true&token=41ac9d61d641b6b334e8b76f45f5a8XXXXXXXXXX",
+        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }
