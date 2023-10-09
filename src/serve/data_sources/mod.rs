@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use actix_files::NamedFile;
 use actix_web::{
@@ -12,7 +12,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use taos::Code;
-use taosx_core::{list_datasets_from, DataSetsReq};
+use taosx_core::{list_datasets_from, DataSetsReq, DataSet};
 use utoipa::*;
 
 mod definition;
@@ -222,19 +222,21 @@ pub(super) async fn data_source_collection(
 
 #[utoipa::path(
     tag = "data sources",
-    request_body = DataSetsReq,
+    // request_body = DataSetsReq,
     responses(
         (status = 200, description = "Available data sources", body = Vec<DataSets>),
         (status = 500, description = "List data sets error", body = Failed),
     ),
 )]
-#[post("/ds/in/download/all_data_sets")]
+#[get("/ds/in/download/all_data_sets")]
 pub(super) async fn download_all_data_set_file(
     controller: Data<TaskControllerRef>,
-    data: Json<DataSetsReq>,
+    params: Query<DownloadAllPointsParams>,
+    // data: Query<DataSetsReq>,
     req: HttpRequest,
 ) -> impl Responder {
-     match download_all_point_csv_file(controller, data).await {
+     // match download_all_point_csv_file(controller, data).await {
+     match download_all_point_csv_file(controller, params).await {
         Ok(named_file) => named_file.into_response(&req),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: 0xFFFF.into(),
@@ -243,33 +245,59 @@ pub(super) async fn download_all_data_set_file(
     }
 }
 
+#[derive(Debug, Deserialize, ToSchema, IntoParams)]
+pub struct DownloadAllPointsParams {
+    from: String,
+    via: Option<i64>,
+}
+
 async fn download_all_point_csv_file(
     controller: Data<TaskControllerRef>,
-    data: Json<DataSetsReq>,
+    // data: Query<DataSetsReq>,
+    params: Query<DownloadAllPointsParams>,
 ) -> anyhow::Result<NamedFile> {
-    let mut data = data.into_inner();
-    data.limit = usize::MAX / 2 - 1;
+    let params = params.into_inner();
+    let data = get_all_points(params.from, params.via, controller.into_inner()).await?;
+    
+    let ids  = data.into_iter().map(|set| set.id).join("\n");
+    let mut config_file = tempfile::NamedTempFile::new()?;
+    tracing::debug!("temp file path: {}", &config_file.path().to_str().unwrap_or(""));
+    use std::io::Write;
+    write!(config_file, "{}", &ids)?;
+    Ok(NamedFile::open(config_file.path().to_path_buf())?)
+}
+
+async fn get_all_points(from: String, via: Option<i64>, controller: Arc<TaskControllerRef>) -> anyhow::Result<Vec<DataSet>> {
     use taos::IntoDsn;
-    let from = data.from.clone().into_dsn()?;
+    let from = from.into_dsn()?;
+    let pattern;
+    let categories;
     match from.driver.as_str() {
-        "pi" | "pibackfill" => data.pattern = Some(String::from("*")),
-        _ => data.pattern = Some(String::from(".*"))
+        "pi" | "pibackfill" => {
+            pattern = Some(String::from("*"));
+            categories = vec![String::from("Points")];
+        },
+        _ => {
+            pattern = Some(String::from(".*"));
+            categories = vec![String::from("nodes")];
+        }
     }
+    let limit = usize::MAX / 2 - 1; // cause usize::MAX out of range i64 type when exec toml::to_string()
+    let data  = DataSetsReq {
+        from: from.to_string(),
+        categories,
+        via,
+        offset: 0,
+        pattern,
+        limit,
+        lang: None,
+    };
     match if let Some(agent) = data.via {
         controller.list_datasets_via_agent(agent, data).await
     } else {
         list_datasets_from(&data).await
     } {
-        Ok(data) => {
-            let ids  = data.into_iter().map(|set| set.id).join("\n");
-            let mut config_file = tempfile::NamedTempFile::new()?;
-            tracing::debug!("temp file path: {}", &config_file.path().to_str().unwrap_or(""));
-            use std::io::Write;
-            write!(config_file, "{}", &ids)?;
-            Ok(NamedFile::open(config_file.path().to_path_buf())?)
-        }
-        Err(err) => Err(err)
+        Ok(data) => Ok(data),
+        Err(err) => Err(err),
     }
-
-    
 }
