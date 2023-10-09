@@ -28,12 +28,12 @@ task:
   beginTime: 2023-05-16 08:00:00
   # empty is now
   endTime: 2023-06-30 16:14:00
-  # specify the way of task assignment: 1-queue 2-average
-  assignmentType: 1
+  # specify the way of task assignment: 1-queue 2-average 3-blocked
+  # assignmentType: 3
 
 #performance parameters
 performance:
-  tolerance: 10000
+  delay: 10000
   limitConnect: 2
   limitBatch: 1000
   limitSpeed: 100000

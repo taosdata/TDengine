@@ -61,6 +61,7 @@ public class MonitorThread implements Runnable {
                 StatusCache.noteQueue("Bucket", -1, BucketCache.bucketMap.size());
                 StatusCache.noteQueue("Measurement", -1, BucketCache.measurementMap.size());
                 StatusCache.noteQueue("ThreadQueue", performanceConfig.getQueueSizeT(), BucketCache.getBucketDataThreadQueueTotal());
+                StatusCache.noteQueue("ThreadQueueBlocked", performanceConfig.getQueueSizeT(), BucketCache.getBucketDataThreadQueueBlocked());
                 StatusCache.noteQueue("DataQueue", performanceConfig.getQueueSizeD(), BucketDataCache.getBucketDataQueueTotalSize());
                 StatusCache.noteQueue("ReqMessage", -1, MessageCache.getReqMessageQueueSize());
                 StatusCache.noteQueue("ResMessage", -1, MessageCache.getResMessageQueueSize());

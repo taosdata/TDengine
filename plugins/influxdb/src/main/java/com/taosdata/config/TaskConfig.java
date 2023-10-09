@@ -5,6 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -22,5 +23,6 @@ public class TaskConfig {
     private Set<String> measurements;
     private String beginTime;
     private String endTime;
-    private int assignmentType = 1;
+    private int assignmentType = 3;
+    private Map<String, Long> breakpoint;
 }
