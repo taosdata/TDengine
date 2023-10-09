@@ -39,44 +39,6 @@ options:
     required: true
 strict: false
 groups:
-  - name: Data Sets
-    display_order: 1
-    description: |
-      Single column configuration file for point names.
-    params:
-      - name: point_file
-        display: One Table Per Point
-        description: |
-          The CSV config file is a CSV file with one single column without header:
-
-          | |
-          | ------------------- |
-          | meter_10001_current |
-          | meter_10001_voltage |
-        hint:
-          type: file
-      - name: template_for_pi_point_file
-        display: One Table per PI Point from AF Element Template
-        description: |
-          The CSV config file is a CSV file with one single column without header:
-
-          | |
-          | ------------------- |
-          | MeterTemplate  |
-          | MeterTemplate1 |
-        hint:
-          type: file
-      - name: template_for_af_element_file
-        display: One Table per AF Element from AF Element Template
-        description: |
-          The CSV config file is a CSV file with one single column without header:
-
-          | |
-          | ------------------- |
-          | MeterTemplate  |
-          | MeterTemplate1 |
-        hint:
-          type: file
   - name: Data Queue
     display_order: 3
     description: Batch and auto-backfill configurations.
@@ -109,6 +71,7 @@ groups:
 
 datasets:
   name: Data Sets
+  display: Data Sets
   description: |
     Single column configuration file for point names.
   params:

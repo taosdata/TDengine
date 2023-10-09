@@ -41,26 +41,6 @@ options:
     required: true
 strict: false
 groups:
-  - name: 点位配置
-    display_order: 1
-    description: |
-      不同类型的点位配置文件。
-    params:
-      - name: point_file
-        display: 点位列表
-        description: 一个单列点位名称列表文件。
-        hint:
-          type: file
-      - name: template_for_pi_point_file
-        display: Point 模式 AF 模板列表
-        description: 一个单列点位名称（AF 模板）列表文件。
-        hint:
-          type: file
-      - name: template_for_af_element_file
-        display: AF 模式模板列表
-        description: 一个单列模板名称列表文件。
-        hint:
-          type: file
   - name: 数据队列
     display_order: 3
     description: 批量和自动回填配置。
@@ -92,39 +72,41 @@ groups:
         value: 1
 
 datasets:
-  name: 监测点集
-  description: PI 系统中的模板和点位。
-  categories:
-    - category: PointList
-      display: 监测点集合
+  name: Data Sets
+  display: 监测点集
+  description: |
+    不同类型的点位配置文件，这将决定入库的数据模型。
+  params:
+    - name: point_file
+      display: 单列模式点位列表
       description: |
-        point 模式监测点集合
-      target:
-        name: PointList
-        description: point 模式监测点集合
-        required: false
-        multiple: true
-        editable: true
-        selectable: true
-    - category: TemplateForPIPoint
-      display: Template For PI Point
+        一个单列点位名称列表文件。
+
+        | |
+        | ------------------- |
+        | meter_10001_current |
+        | meter_10001_voltage |
+      hint:
+        type: file
+    - name: template_for_pi_point_file
+      display: 单列模式 AF 模板列表
       description: |
-        point 模式监测的 AF 模板集合。
-      target:
-        name: TemplateForPIPoint
-        description: point 模式监测的 AF 模板集合。
-        required: false
-        multiple: true
-        editable: true
-        selectable: true
-    - category: TemplateForAFElement
-      display: Template For AF Element
+        单列点位名称（AF 模板）列表文件。
+
+        | |
+        | ------------------- |
+        | MeterTemplate  |
+        | MeterTemplate1 |
+      hint:
+        type: file
+    - name: template_for_af_element_file
+      display:  AF 模式模板列表
       description: |
-        AF 模式监测的 AF 模板集合。
-      target:
-        name: TemplateForAFElement
-        description: AF 模式监测的 AF 模板集合。
-        required: false
-        multiple: true
-        editable: true
-        selectable: true
+        单列模板名称列表文件。
+
+        | |
+        | ------------------- |
+        | MeterTemplate  |
+        | MeterTemplate1 |
+      hint:
+        type: file

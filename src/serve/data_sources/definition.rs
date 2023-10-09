@@ -230,6 +230,8 @@ impl Definitions {
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Default)]
 pub struct DatasetsDefinition {
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display: Option<String>,
     pub description: String,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub categories: Vec<DatasetParam>,
