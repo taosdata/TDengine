@@ -452,6 +452,9 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFileReader* pFileRead
   const TBrinBlkArray* pBlkArray = NULL;
 
   int32_t code = tsdbDataFileReadBrinBlk(pFileReader, &pBlkArray);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
 #if 0
   LRUHandle* handle = NULL;
@@ -4588,14 +4591,14 @@ static SSDataBlock* doRetrieveDataBlock(STsdbReader* pReader) {
 
   code = doLoadFileBlockData(pReader, &pStatus->blockIter, &pStatus->fileBlockData, pBlockScanInfo->uid);
   if (code != TSDB_CODE_SUCCESS) {
-    tBlockDataDestroy(&pStatus->fileBlockData);
+    tBlockDataReset(&pStatus->fileBlockData);
     terrno = code;
     return NULL;
   }
 
   code = copyBlockDataToSDataBlock(pReader);
   if (code != TSDB_CODE_SUCCESS) {
-    tBlockDataDestroy(&pStatus->fileBlockData);
+    tBlockDataReset(&pStatus->fileBlockData);
     terrno = code;
     return NULL;
   }
@@ -4882,6 +4885,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
   // alloc
   STsdbReadSnap* pSnap = (STsdbReadSnap*)taosMemoryCalloc(1, sizeof(STsdbReadSnap));
   if (pSnap == NULL) {
+    taosThreadRwlockUnlock(&pTsdb->rwLock);
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
@@ -4891,6 +4895,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
     pSnap->pMem = pTsdb->mem;
     pSnap->pNode = taosMemoryMalloc(sizeof(*pSnap->pNode));
     if (pSnap->pNode == NULL) {
+      taosThreadRwlockUnlock(&pTsdb->rwLock);
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
     }
@@ -4905,6 +4910,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
     pSnap->pIMem = pTsdb->imem;
     pSnap->pINode = taosMemoryMalloc(sizeof(*pSnap->pINode));
     if (pSnap->pINode == NULL) {
+      taosThreadRwlockUnlock(&pTsdb->rwLock);
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
     }
@@ -4915,6 +4921,9 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
     tsdbRefMemTable(pTsdb->imem, pSnap->pINode);
   }
 
+  // unlock 
+  taosThreadRwlockUnlock(&pTsdb->rwLock);
+  
   // fs
   code = tsdbFSCreateRefSnapshot(pTsdb->pFS, &pSnap->pfSetArray);
   if (code == TSDB_CODE_SUCCESS) {
@@ -4922,8 +4931,6 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
   }
 
 _exit:
-  taosThreadRwlockUnlock(&pTsdb->rwLock);
-
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("vgId:%d take read snapshot failed, code:%s", TD_VID(pTsdb->pVnode), tstrerror(code));
 

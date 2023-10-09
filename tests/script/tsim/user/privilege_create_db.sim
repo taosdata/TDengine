@@ -68,10 +68,10 @@ print =============connect with root, revoke read from u1, all from u2
 sql connect
 sql revoke read on u1_d1.* from u1
 sql revoke all on u2_d1.* from u2
-sleep 1000
 
 print =============connect with u1
 sql connect u1
+sql reset query cache
 sql insert into u1_d1.t1 values(now, 1)
 sql_error select * from u1_d1.t1;
 
@@ -85,9 +85,9 @@ sql connect
 sql grant read on u1_d1.* to u1
 sql grant all on u2_d1.* to u2
 
-sleep 1000
 print =============connect with u1
 sql connect u1
+sql reset query cache
 sql select * from u1_d1.t1;
 sql insert into u1_d1.t1 values(now, 2)
 
