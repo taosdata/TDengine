@@ -53,11 +53,11 @@ void tqUpdateNodeStage(STQ* pTq, bool isLeader) {
   }
 }
 
-static int32_t tqInitTaosxRsp(STaosxRsp* pRsp, STqOffsetVal pOffset) {
+static int32_t tqInitTaosxRsp(STaosxRsp* pRsp, STqOffsetVal pOffset, bool withTbName) {
   pRsp->reqOffset = pOffset;
   pRsp->rspOffset = pOffset;
 
-  pRsp->withTbName = 1;
+  pRsp->withTbName = withTbName;
   pRsp->withSchema = 1;
   pRsp->blockData = taosArrayInit(0, sizeof(void*));
   pRsp->blockDataLen = taosArrayInit(0, sizeof(int32_t));
