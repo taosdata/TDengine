@@ -342,39 +342,34 @@
           </el-tabs>
         </div>
       </section>
-      <template v-for="item in dbsource[0].groups">
-        <section :class="['groups', item.name]" :key="item.display_order">
-          <div style="flex-direction: column; align-items: baseline">
-            <div class="block-title">
-              <span>{{ item.display ? item.display : item.name }}</span>
-            </div>
-            <div
-              class="description"
-              v-html="transforHtml(item.description)"
-            ></div>
+      <section
+        class="dataset"
+        v-if="dbsource[0].datasets && (dbsource[0].datasets.display || dbsource[0].datasets.name)"
+      >
+        <div>
+          <div class="block-title">
+            <span>{{ dbsource[0].datasets.display || dbsource[0].datasets.name }}</span>
           </div>
-
-          <!-- 这是 groups -->
-          <template>
+          <div
+            class="description"
+            v-html="transforHtml(dbsource[0].datasets.description)"
+          ></div>
+        </div>
+        <template>
             <el-tabs
               v-model="activeName"
               @tab-click="handleClick"
               class="pi-tab-item"
               style="margin-top: 8px"
-              v-if="item.name == 'Data Sets' || item.name == '点位配置'"
             >
-              <div>
+              <div class="upload-flex">
                 <el-radio-group v-model="activeRadio">
-                  <el-radio label="select_file">Upload CSV</el-radio>
-                  <el-radio label="all_Points">All Points</el-radio>
+                  <el-radio label="select_file">{{ $t('uploadcsv') }}</el-radio>
+                  <el-radio label="all_points">{{ $t('allPoints') }}</el-radio>
                 </el-radio-group>
               </div>
-              <!-- <div :key="pind" style="margin-bottom: 0px" v-if="activeRadio == 'select_file'"> -->
-                  <!-- <span
-                    :class="['no-label']"
-                  ></span> -->
               <el-tab-pane
-                v-for="(p, pind) in item.params"
+                v-for="(p, pind) in dbsource[0].datasets.params"
                 :label="p.display"
                 :name="p.name"
                 :key="p.name"
@@ -383,9 +378,8 @@
                   !['point_file'].includes(p.name) && !isPiDataArchiveAll
                 "
               >
-                <div :key="pind" style="margin-bottom: 0px">
-                  <!-- <span :class="['no-label']"></span> -->
-                  <div>
+                <div :key="pind" style="margin-bottom: 0px" v-if="activeRadio == 'select_file'">
+                  <div class="upload-flex">
                     <el-upload
                       class="upload-dataset"
                       ref="upload"
@@ -444,6 +438,18 @@
             </el-tab-pane>
           </el-tabs>
           </template> 
+      </section>
+      <template v-for="item in dbsource[0].groups">
+        <section :class="['groups', item.name]" :key="item.display_order">
+          <div style="flex-direction: column; align-items: baseline">
+            <div class="block-title">
+              <span>{{ item.display ? item.display : item.name }}</span>
+            </div>
+            <div
+              class="description"
+              v-html="transforHtml(item.description)"
+            ></div>
+          </div>
           <template v-for="(p, pind) in item.params">
             <div
               :key="pind"
@@ -665,7 +671,7 @@
 <script>
 import DataTarget from "./dataTarget.vue";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
-import { AddSource, EditSource, getUaAndDaData, downloadPoints } from "@/api/explorer/datain";
+import { AddSource, EditSource, getUaAndDaData, downlaodAllNodes } from "@/api/explorer/datain";
 import DatePicker from "@/components/date-picker";
 import { Message } from "element-ui";
 import marked from "marked";
@@ -884,29 +890,6 @@ export default {
             let newVal = p.value.split();
             p.value = newVal;
           }
-          if (group.name == "Data Sets" || group.name == "点位配置") {
-            if (
-              [
-                "point_file",
-                "template_for_pi_point_file",
-                "template_for_af_element_file",
-              ].includes(p.name) &&
-              p.value
-            ) {
-              p.fileList = [].concat({
-                name: p.value?.substr(p.value.lastIndexOf("/") + 1),
-                percentage: 100,
-                raw: File,
-                response: [].concat(p.value),
-                size: 87,
-                status: "success",
-                uid: 1,
-              });
-              p.value = p.value?.substr(p.value.lastIndexOf("@") + 1);
-              this.activeRadio = 'select_file' // 待定
-              this.activeName = p.name
-            }
-          }
           if (
             group.name == "Backfill" ||
             group.name == "历史填充（Backfill）"
@@ -922,34 +905,44 @@ export default {
         });
         return group;
       });
+      this.dbsource[0].datasets.params = this.dbsource[0].datasets.
+        params.map((p) => {
+          if (p.value) {
+            p.fileList = [].concat({
+              name: p.value?.substr(p.value.lastIndexOf("/") + 1),
+              percentage: 100,
+              raw: File,
+              response: [].concat(p.value),
+              size: 87,
+              status: "success",
+              uid: 1,
+            });
+            p.value = p.value?.substr(p.value.lastIndexOf("@") + 1);
+            this.activeRadio = p.value.includes('@') ? 'select_file' : 'all_points'
+            this.activeName = p.name
+          }
+        return p;
+      });
     },
     handleSuccess(response, file, fileList, name) {
-      this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
-        if (group.name == "Data Sets" || group.name == "点位配置") {
-          group.params.map((p) => {
-            if (p.name == name) {
-              p.fileList = fileList;
-              p.value = fileList[0].response[0];
-            }
-            return p;
-          });
-        }
-        return group;
+      this.dbsource[0].datasets.params = this.dbsource[0].datasets.
+        params.map((p) => {
+          if (p.name == name) {
+            p.fileList = fileList;
+            p.value = fileList[0].response[0];
+          }
+        return p;
       });
     },
     handleRemove(name) {
-      this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
-        if (group.name == "Data Sets" || group.name == "点位配置") {
-          group.params.map((p) => {
-            if (p.name == name) {
-              p.fileList = [];
-              p.value = "";
-            }
-            return p;
-          });
-        }
-        return group;
-      });
+      this.dbsource[0].datasets.params = this.dbsource[0].datasets.
+        params.map((p) => {
+          if (p.name == name) {
+            p.fileList = [];
+            p.value = "";
+          }
+        return p;
+      }); 
     },
     handlePreview(file_path){
       let link = document.createElement('a')
@@ -1215,6 +1208,26 @@ export default {
             }
           }
         }
+        if (data.datasets && data.datasets.params) {
+          for (
+            let index = 0;
+            index < data.datasets.params.length;
+            index++
+          ) {
+            if (data.datasets.params[index].name == this.activeName) {
+              if (this.activeRadio == 'select_file') {
+                if (this.handleEmptyValue(data.datasets.params[index].value)) {
+                  querystr +=
+                    `${data.datasets.params[index].name}=@${data.datasets.params[index].value}` +
+                    "&";
+                }
+              } else {
+                querystr += `${data.datasets.params[index].name}=*` + "&";
+              }
+            }
+          }
+        }
+        console.log('qurer',querystr);
         if (data.params) {
           if (this.isPiDataArchiveAll) {
             for (let index = 0; index < data.params.length; index++) {
@@ -1452,7 +1465,7 @@ export default {
     //   }
     // },
     downloadAllPoints(data,name) {
-      downloadPoints(data).then(res => {
+      downlaodAllNodes(data).then(res => {
         let blob = new Blob([res], { type: "text/csv,charset=UTF-8" });
         let link = document.createElement("a");
         link.download = `${name}.csv`;
@@ -1515,22 +1528,43 @@ export default {
         }
         console.log("ss", querystr);
         let params = null;
-        params = {
-          from: `${this.tagName}://${host}${subject}${
-            querystr ? "?" + querystr.replace(/&$/g, "") : ""
-          }`,
-          categories: [this.activeName],
-          // pattern: e.target.value,
-          pattern: '.*',
-          offset: 0,
-          limit: 10,
-        };
-        const viaObj = {
-          via: this.$parent.agentID,
-        };
-        if (viaObj.via) {
-          Object.assign(params, viaObj);
+        // params = {
+        //   from: `${this.tagName}://${host}${subject}${
+        //     querystr ? "?" + querystr.replace(/&$/g, "") : ""
+        //   }`,
+        //   categories: [this.activeName],
+        //   pattern: e.target.value,
+        //   pattern: '.*',
+        //   offset: 0,
+        //   limit: 10,
+        // };
+        // const viaObj = {
+        //   via: this.$parent.agentID,
+        // };
+        // if (viaObj.via) {
+        //   Object.assign(params, viaObj);
+        // }
+        let categories = ''
+        switch (this.activeName) {
+          case 'point_file':
+            categories = 'PointList'
+            break;
+          case 'template_for_pi_point_file':
+            categories = 'TemplateForPIPoint'
+            break;
+          case 'template_for_af_element_file':
+            categories = 'TemplateForAFElement'
+            break;
+          default:
+            break;
         }
+        let from = `${this.tagName}://${host}${subject}${
+            querystr ? "?" + querystr.replace(/&$/g, "") : ""}
+            &categories=${categories}
+          `
+         if (this.$parent.agentID) {
+            from+=`&via=${this.$parent.agentID}`
+          }
         this.loading = true;
         // getUaAndDaData(params)
         //   .then((res) => {
@@ -1554,7 +1588,7 @@ export default {
         //       message: err,
         //     });
         //   });
-        this.downloadAllPoints(params,name)
+        this.downloadAllPoints(from,name)
       } catch (error) {
         this.loading = false;
       }
@@ -2014,6 +2048,12 @@ export default {
       white-space: nowrap;
       align-items: baseline;
       // margin-bottom: 8px;
+    }
+    .upload-flex {
+      display: flex;
+      white-space: nowrap;
+      align-items: baseline;
+      margin-bottom: 8px;
     }
     ::v-deep .el-upload-list__item .el-icon-close-tip {
       display: none !important;
