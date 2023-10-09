@@ -329,6 +329,15 @@ static int32_t tsdbMergeFileSetEnd(SMerger *merger) {
   int32_t code = 0;
   int32_t lino = 0;
 
+  code = tsdbMergeFileSetEndCloseWriter(merger);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbMergeFileSetEndCloseIter(merger);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbMergeFileSetEndCloseReader(merger);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   // edit file system
   code = tsdbFSEditBegin(merger->tsdb->pFS, merger->fopArr, TSDB_FEDIT_MERGE);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -340,15 +349,6 @@ static int32_t tsdbMergeFileSetEnd(SMerger *merger) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
   taosThreadRwlockUnlock(&merger->tsdb->rwLock);
-
-  code = tsdbMergeFileSetEndCloseWriter(merger);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbMergeFileSetEndCloseIter(merger);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tsdbMergeFileSetEndCloseReader(merger);
-  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
