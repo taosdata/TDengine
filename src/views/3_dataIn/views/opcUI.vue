@@ -310,11 +310,11 @@
                     class="upload-demo"
                     ref="upload"
                     accept=".csv"
-                    :on-remove="handleRemove"
+                    :on-remove="handleopcRemove"
                     :data="uploadData"
                     :action="uploadUrl"
-                    :on-success="handleSuccess"
-                    :file-list="fileList"
+                    :on-success="handleopcSuccess"
+                    :file-list="opcfileList"
                     :auto-upload="true"
                   >
                     <el-button slot="trigger" size="small" type="primary">{{
@@ -938,8 +938,10 @@ export default {
       uploadData: {
         req_id: new Date().getTime(),
       },
+      opcfileList: [],
+      fileurl: "",
       uploadUrl: process.env.VUE_APP_X_API + `/upload`,
-      sourceName: localStorage.getItem("datainName"),
+      sourceName: this.$store.state.app.SET_CURRENT_DSNAME,
       openSSL: false,
       constmqttCols: [],
       textareas: ["ca", "cert", "cert_key"],
@@ -1113,6 +1115,12 @@ export default {
     },
   },
   methods: {
+    handleopcSuccess(response, file, fileList) {
+      this.opcfileList = fileList;
+    },
+    handleopcRemove(file, filelist) {
+      this.opcfileList = filelist;
+    },
     changeOpcCollectMode(val) {
       if (this.tagName.includes("opc")) {
         let oldData = this.$store.state.app.opcConfig;
@@ -1157,15 +1165,15 @@ export default {
         !Object.is(val, "undefined")
       );
     },
-    getThreeBoxNum(val, item) {
-      if (item.name == "use_csv_config") {
-        if (val == 1) {
-          this.opcPointavalible = false;
-        } else {
-          this.opcPointavalible = true;
-        }
-      }
-    },
+    // getThreeBoxNum(val, item) {
+    //   if (item.name == "use_csv_config") {
+    //     if (val == 1) {
+    //       this.opcPointavalible = false;
+    //     } else {
+    //       this.opcPointavalible = true;
+    //     }
+    //   }
+    // },
     handleCertSuccess(response, file, fileList) {
       this.certfileList = fileList;
     },
@@ -1258,6 +1266,7 @@ export default {
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
       let enterTip = this.$t("dataIn.enterTip");
+      console.log('submit');
       try {
         if (data.protocol && data.protocol.value) {
           dns += Object.is(data.protocol.value, "--")
@@ -1372,19 +1381,19 @@ export default {
                 }
               } else {
                 if (this.tagName.includes("opc")) {
-                  if (this.opcPointavalible) {
-                    this.$refs.opcsingleton[0].submit();
-                    if (this.$refs.opcsingleton[0].isReject) {
-                      Message({
-                        type: "warning",
-                        message:
-                          this.$t("datasource.msg") +
-                          ":" +
-                          `${data.groups[index].params[g].display} `,
-                      });
-                      return;
-                    }
-                  }
+                  // if (this.opcPointavalible) {
+                  //   this.$refs.opcsingleton[0].submit();
+                  //   if (this.$refs.opcsingleton[0].isReject) {
+                  //     Message({
+                  //       type: "warning",
+                  //       message:
+                  //         this.$t("datasource.msg") +
+                  //         ":" +
+                  //         `${data.groups[index].params[g].display} `,
+                  //     });
+                  //     return;
+                  //   }
+                  // }
                 } else {
                   Message({
                     type: "warning",
@@ -1513,7 +1522,7 @@ export default {
                 target.value == undefined ||
                 target.value?.length == 0)
             ) {
-              if (this.tagName.includes("opc") && !this.opcPointavalible) {
+              if (this.tagName.includes("opc")) {
                 console.log("无提示");
               } else {
                 Message({

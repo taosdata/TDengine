@@ -52,11 +52,11 @@
         <p class="custom-placeholder mt10">{{ $t("dataIn.needAgentTip") }}</p>
       </el-form-item>
       <el-form-item :label="$t('stream.targetDB')" prop="dbName">
-        <span style="color:red;font-size:24px;">{{ ruleForm.dbName }}</span>
         <el-select
           v-model="ruleForm.dbName"
           size="small"
           :placeholder="$t('dataIn.palceholders.chooseTargetDbTip')"
+          @change="changeDB"
         >
           <el-option
             v-for="db in dbList"
@@ -168,17 +168,18 @@ export default {
     this.getInitValue();
   },
   methods: {
+    changeDB(){
+      this.$store.commit("app/SET_CURRENT_DBNAME", this.ruleForm.dbName);
+    },
     async getAllPoints(){
         try {
             let result = await downlaodAllNodes()
-            console.log(result,'---====');
         } catch (error) {
             console.log(error);
         }
     },
     //获取初始化时候得值----主要针对类型切换时候需要换ui组件
     getInitValue() {
-      console.log(this.$store.state.app.currentDBName,this.$store.state.app.currentAgentID,'当前数据库名称');
       this.ruleForm.dbName = this.$store.state.app.currentDBName;
       this.ruleForm.agent = this.$store.state.app.currentAgentID;
       this.ruleForm.name = this.$store.state.app.currentDSName;
@@ -267,6 +268,12 @@ export default {
     },
   },
   watch: {
+    "$store.state.app.currentDBName":{
+      deep:true,
+      handler(val){
+        this.ruleForm.dbName=val
+      }
+    },
     "$store.state.app.currentDBType": {
       deep: true,
       handler(val) {
