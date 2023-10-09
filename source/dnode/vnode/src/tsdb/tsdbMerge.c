@@ -67,18 +67,6 @@ static int32_t tsdbMergerClose(SMerger *merger) {
   int32_t lino = 0;
   SVnode *pVnode = merger->tsdb->pVnode;
 
-  // edit file system
-  code = tsdbFSEditBegin(merger->tsdb->pFS, merger->fopArr, TSDB_FEDIT_MERGE);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  taosThreadRwlockWrlock(&merger->tsdb->rwLock);
-  code = tsdbFSEditCommit(merger->tsdb->pFS);
-  if (code) {
-    taosThreadRwlockUnlock(&merger->tsdb->rwLock);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-  taosThreadRwlockUnlock(&merger->tsdb->rwLock);
-
   ASSERT(merger->writer == NULL);
   ASSERT(merger->dataIterMerger == NULL);
   ASSERT(merger->tombIterMerger == NULL);
@@ -296,6 +284,8 @@ static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
   ASSERT(merger->dataIterMerger == NULL);
   ASSERT(merger->writer == NULL);
 
+  TARRAY2_CLEAR(merger->fopArr, NULL);
+
   merger->ctx->tbid->suid = 0;
   merger->ctx->tbid->uid = 0;
 
@@ -347,6 +337,18 @@ static int32_t tsdbMergeFileSetEnd(SMerger *merger) {
 
   code = tsdbMergeFileSetEndCloseReader(merger);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  // edit file system
+  code = tsdbFSEditBegin(merger->tsdb->pFS, merger->fopArr, TSDB_FEDIT_MERGE);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  taosThreadRwlockWrlock(&merger->tsdb->rwLock);
+  code = tsdbFSEditCommit(merger->tsdb->pFS);
+  if (code) {
+    taosThreadRwlockUnlock(&merger->tsdb->rwLock);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  taosThreadRwlockUnlock(&merger->tsdb->rwLock);
 
 _exit:
   if (code) {
