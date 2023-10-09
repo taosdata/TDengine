@@ -1,4 +1,4 @@
-<p>
+<img width="1058" alt="image" src="https://github.com/taosdata/TDengine/assets/74105241/545c623c-2191-4a59-bc0e-c5ffaeeb66cc"><p>
 <p align="center">
   <a href="https://tdengine.com" target="_blank">
   <img
@@ -60,7 +60,7 @@ To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in t
 ### Ubuntu 18.04 and above or Debian
 
 ```bash
-sudo apt-get install -y gcc cmake build-essential git libssl-dev libgflags2.2 libgflags-dev
+sudo apt-get install -y gcc cmake build-essential git libssl-dev libgflags2.2 libgflags-dev libaprutil1 libaprutil1-dev
 ```
 
 #### Install build dependencies for taosTools
