@@ -69,6 +69,8 @@ typedef struct STqSnapReader      STqSnapReader;
 typedef struct STqSnapWriter      STqSnapWriter;
 typedef struct STqOffsetReader    STqOffsetReader;
 typedef struct STqOffsetWriter    STqOffsetWriter;
+typedef struct STqCheckInfoReader STqCheckInfoReader;
+typedef struct STqCheckInfoWriter STqCheckInfoWriter;
 typedef struct SStreamTaskReader  SStreamTaskReader;
 typedef struct SStreamTaskWriter  SStreamTaskWriter;
 typedef struct SStreamStateReader SStreamStateReader;
@@ -168,7 +170,8 @@ int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid);
 int metaAddIndexToSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int metaDropIndexFromSTable(SMeta* pMeta, int64_t version, SDropIndexReq* pReq);
 
-int64_t       metaGetTimeSeriesNum(SMeta* pMeta);
+int64_t       metaGetTimeSeriesNum(SMeta* pMeta, int type);
+void          metaUpdTimeSeriesNum(SMeta* pMeta);
 SMCtbCursor*  metaOpenCtbCursor(void* pVnode, tb_uid_t uid, int lock);
 int32_t       metaResumeCtbCursor(SMCtbCursor* pCtbCur, int8_t first);
 void          metaPauseCtbCursor(SMCtbCursor* pCtbCur);
@@ -308,6 +311,14 @@ int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData);
 int32_t tqSnapWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqSnapWriter** ppWriter);
 int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback);
 int32_t tqSnapWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+// STqCheckInfoshotReader ==
+int32_t tqCheckInfoReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqCheckInfoReader** ppReader);
+int32_t tqCheckInfoReaderClose(STqCheckInfoReader** ppReader);
+int32_t tqCheckInfoRead(STqCheckInfoReader* pReader, uint8_t** ppData);
+// STqCheckInfoshotWriter ======================================
+int32_t tqCheckInfoWriterOpen(STQ* pTq, int64_t sver, int64_t ever, STqCheckInfoWriter** ppWriter);
+int32_t tqCheckInfoWriterClose(STqCheckInfoWriter** ppWriter, int8_t rollback);
+int32_t tqCheckInfoWrite(STqCheckInfoWriter* pWriter, uint8_t* pData, uint32_t nData);
 // STqOffsetReader ========================================
 int32_t tqOffsetReaderOpen(STQ* pTq, int64_t sver, int64_t ever, STqOffsetReader** ppReader);
 int32_t tqOffsetReaderClose(STqOffsetReader** ppReader);
@@ -400,6 +411,7 @@ struct STsdbKeepCfg {
   int32_t keep0;
   int32_t keep1;
   int32_t keep2;
+  int32_t keepTimeOffset;
 };
 
 typedef struct SVCommitSched {
@@ -503,6 +515,7 @@ enum {
   SNAP_DATA_STREAM_TASK_CHECKPOINT = 10,
   SNAP_DATA_STREAM_STATE = 11,
   SNAP_DATA_STREAM_STATE_BACKEND = 12,
+  SNAP_DATA_TQ_CHECKINFO = 13,
 };
 
 struct SSnapDataHdr {

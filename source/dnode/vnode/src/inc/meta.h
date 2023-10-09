@@ -71,7 +71,7 @@ int32_t metaCacheDrop(SMeta* pMeta, int64_t uid);
 int32_t metaStatsCacheUpsert(SMeta* pMeta, SMetaStbStats* pInfo);
 int32_t metaStatsCacheDrop(SMeta* pMeta, int64_t uid);
 int32_t metaStatsCacheGet(SMeta* pMeta, int64_t uid, SMetaStbStats* pInfo);
-void    metaUpdateStbStats(SMeta* pMeta, int64_t uid, int64_t delta);
+void    metaUpdateStbStats(SMeta* pMeta, int64_t uid, int64_t deltaCtb, int32_t deltaCol);
 int32_t metaUidFilterCacheGet(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, LRUHandle** pHandle);
 
 struct SMeta {

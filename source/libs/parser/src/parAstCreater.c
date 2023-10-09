@@ -1216,6 +1216,10 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       nodesDestroyNode((SNode*)pNode);
       break;
     }
+    case DB_OPTION_KEEP_TIME_OFFSET: {
+      pDbOptions->keepTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      break;
+    }
     default:
       break;
   }

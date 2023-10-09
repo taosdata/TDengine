@@ -58,6 +58,7 @@ static int32_t  mndRetrievePrivileges(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
 static void     mndCancelGetNextPrivileges(SMnode *pMnode, void *pIter);
 SHashObj       *mndFetchAllIpWhite(SMnode *pMnode);
 static int32_t  mndProcesSRetrieveIpWhiteReq(SRpcMsg *pReq);
+bool            mndUpdateIpWhiteImpl(SHashObj *pIpWhiteTab, char *user, char *fqdn, int8_t type);
 
 void ipWhiteMgtUpdateAll(SMnode *pMnode);
 typedef struct {
@@ -80,7 +81,7 @@ void ipWhiteMgtCleanup() {
   taosThreadRwlockDestroy(&ipWhiteMgt.rw);
 }
 
-int32_t ipWhiteMgtUpdate(char *user, SIpWhiteList *pNew) {
+int32_t ipWhiteMgtUpdate(SMnode *pMnode, char *user, SIpWhiteList *pNew) {
   bool update = true;
   taosThreadRwlockWrlock(&ipWhiteMgt.rw);
   SIpWhiteList **ppList = taosHashGet(ipWhiteMgt.pIpWhiteTab, user, strlen(user));
@@ -98,6 +99,25 @@ int32_t ipWhiteMgtUpdate(char *user, SIpWhiteList *pNew) {
       taosHashPut(ipWhiteMgt.pIpWhiteTab, user, strlen(user), &p, sizeof(void *));
     }
   }
+  SArray *fqdns = mndGetAllDnodeFqdns(pMnode);
+
+  for (int i = 0; i < taosArrayGetSize(fqdns); i++) {
+    char *fqdn = taosArrayGetP(fqdns, i);
+    update |= mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, TSDB_DEFAULT_USER, fqdn, IP_WHITE_ADD);
+    update |= mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, user, fqdn, IP_WHITE_ADD);
+  }
+
+  for (int i = 0; i < taosArrayGetSize(fqdns); i++) {
+    char *fqdn = taosArrayGetP(fqdns, i);
+    taosMemoryFree(fqdn);
+  }
+  taosArrayDestroy(fqdns);
+
+  // for (int i = 0; i < taosArrayGetSize(pUserNames); i++) {
+  //   taosMemoryFree(taosArrayGetP(pUserNames, i));
+  // }
+  // taosArrayDestroy(pUserNames);
+
   if (update) ipWhiteMgt.ver++;
 
   taosThreadRwlockUnlock(&ipWhiteMgt.rw);
@@ -193,17 +213,17 @@ int64_t mndGetIpWhiteVer(SMnode *pMnode) {
   int64_t ver = 0;
   taosThreadRwlockWrlock(&ipWhiteMgt.rw);
   if (ipWhiteMgt.ver == 0) {
-    // user and dnode r
+    // get user and dnode ip white list
     ipWhiteMgtUpdateAll(pMnode);
     ipWhiteMgt.ver = taosGetTimestampMs();
   }
   ver = ipWhiteMgt.ver;
   taosThreadRwlockUnlock(&ipWhiteMgt.rw);
-  mDebug("ip-white-list on mnode ver: %" PRId64 "", ver);
 
   if (mndEnableIpWhiteList(pMnode) == 0 || tsEnableWhiteList == false) {
-    return 0;
+    ver = 0;
   }
+  mDebug("ip-white-list on mnode ver: %" PRId64 "", ver);
   return ver;
 }
 
@@ -282,7 +302,7 @@ int32_t mndRefreshUserIpWhiteList(SMnode *pMnode) {
 
   return 0;
 }
-void mndUpdateIpWhite(SMnode *pMnode, char *user, char *fqdn, int8_t type, int8_t lock) {
+void mndUpdateIpWhiteForAllUser(SMnode *pMnode, char *user, char *fqdn, int8_t type, int8_t lock) {
   if (lock) {
     taosThreadRwlockWrlock(&ipWhiteMgt.rw);
     if (ipWhiteMgt.ver == 0) {
@@ -293,6 +313,20 @@ void mndUpdateIpWhite(SMnode *pMnode, char *user, char *fqdn, int8_t type, int8_
   }
 
   bool update = mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, user, fqdn, type);
+
+  void *pIter = taosHashIterate(ipWhiteMgt.pIpWhiteTab, NULL);
+  while (pIter) {
+    size_t klen = 0;
+    char  *key = taosHashGetKey(pIter, &klen);
+
+    char *keyDup = taosMemoryCalloc(1, klen + 1);
+    memcpy(keyDup, key, klen);
+    update |= mndUpdateIpWhiteImpl(ipWhiteMgt.pIpWhiteTab, keyDup, fqdn, type);
+    taosMemoryFree(keyDup);
+
+    pIter = taosHashIterate(ipWhiteMgt.pIpWhiteTab, pIter);
+  }
+
   if (update) ipWhiteMgt.ver++;
 
   if (lock) taosThreadRwlockUnlock(&ipWhiteMgt.rw);
@@ -1178,7 +1212,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     mndTransDrop(pTrans);
     goto _OVER;
   }
-  ipWhiteMgtUpdate(userObj.user, userObj.pIpWhiteList);
+  ipWhiteMgtUpdate(pMnode, userObj.user, userObj.pIpWhiteList);
   taosMemoryFree(userObj.pIpWhiteList);
 
   mndTransDrop(pTrans);
@@ -1346,7 +1380,7 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpc
     mndTransDrop(pTrans);
     return -1;
   }
-  ipWhiteMgtUpdate(pNew->user, pNew->pIpWhiteList);
+  ipWhiteMgtUpdate(pMnode, pNew->user, pNew->pIpWhiteList);
   mndTransDrop(pTrans);
   return 0;
 }
@@ -2289,6 +2323,11 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
   for (int32_t i = 0; i < numOfUses; ++i) {
     SUserObj *pUser = mndAcquireUser(pMnode, pUsers[i].user);
     if (pUser == NULL) {
+      if (TSDB_CODE_MND_USER_NOT_EXIST == terrno) {
+        SGetUserAuthRsp rsp = {.dropped = 1};
+        memcpy(rsp.user, pUsers[i].user, TSDB_USER_LEN);
+        taosArrayPush(batchRsp.pArray, &rsp);
+      }
       mError("user:%s, failed to auth user since %s", pUsers[i].user, terrstr());
       continue;
     }

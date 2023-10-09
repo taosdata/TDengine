@@ -731,16 +731,6 @@ The charset that takes effect is UTF-8.
 | Value Range   | 0: not change; 1: change by modification                                      |
 | Default Value | 0                                                                             |
 
-### keepTimeOffset
-
-| Attribute     | Description               |
-| ------------- | ------------------------- |
-| Applicable    | Server Only               |
-| Meaning       | Latency of data migration |
-| Unit          | hour                      |
-| Value Range   | 0-23                      |
-| Default Value | 0                         |
-
 ### tmqMaxTopicNum
 
 | Attribute     | Description               |
@@ -807,4 +797,4 @@ The charset that takes effect is UTF-8.
 | 53  |          udf           | Yes                    | Yes                          |                         |
 | 54  |     enableCoreFile     | Yes                    | Yes                          |                         |
 | 55  |    ttlChangeOnWrite    | No                     | Yes                          |                         |
-| 56  |     keepTimeOffset     | Yes                    | Yes                          |                         |
+| 56  |     keepTimeOffset     | Yes                    | Yes(discarded since 3.2.0.0) |                         |
