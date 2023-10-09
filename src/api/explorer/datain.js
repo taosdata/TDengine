@@ -1,3 +1,4 @@
+import { download } from "@/utils";
 import { request } from "@/utils/request";
 let language=window.navigator.language.includes('zh')?'zh':'en'
 export function getTask(id,type){
@@ -117,6 +118,15 @@ export function getMetrics(taskId){
     })
 }
 
+export function validateTask(data) {
+   return request({
+    baseURL:process.env.VUE_APP_X_API,
+    url:`/ds/in/validate`,
+    method:'post',
+    data
+   })
+}
+
 export function getFileStream(filepath){
     return request({
         baseURL:process.env.VUE_APP_X_API,
@@ -129,10 +139,16 @@ export function getFileStream(filepath){
 export function downlaodAllNodes(data){
     return request({
         baseURL:process.env.VUE_APP_X_API,
-        url:`/ds/in/download/all_data_sets`,
-        method:'post',
-        responseType:'blob',
-        data
-       
+        url:`/ds/in/download/all_data_sets?from=${data}`,
+        method:'get',
+        responseType: 'blob',
+        // data,
+        // data: {
+        //     "from": "opcua://192.168.0.34:53530/OPCUA/SimulationServer",
+        //     "categories": ["nodes"],
+        //     "pattern": ".*",
+        //     "offset": 1,
+        //     "limit": 100
+        //   }
     })
 }

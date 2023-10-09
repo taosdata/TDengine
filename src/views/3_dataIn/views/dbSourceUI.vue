@@ -88,6 +88,7 @@
                 class="description"
               ></div>
             </div>
+
           </div>
           <div style="width: 100%">
             <span
@@ -341,29 +342,34 @@
           </el-tabs>
         </div>
       </section>
-      <template v-for="item in dbsource[0].groups">
-        <section :class="['groups', item.name]" :key="item.display_order">
-          <div style="flex-direction: column; align-items: baseline">
-            <div class="block-title">
-              <span>{{ item.display ? item.display : item.name }}</span>
-            </div>
-            <div
-              class="description"
-              v-html="transforHtml(item.description)"
-            ></div>
+      <section
+        class="dataset"
+        v-if="dbsource[0].datasets && (dbsource[0].datasets.display || dbsource[0].datasets.name)"
+      >
+        <div>
+          <div class="block-title">
+            <span>{{ dbsource[0].datasets.display || dbsource[0].datasets.name }}</span>
           </div>
-
-          <!-- 这是 groups -->
-          <template>
+          <div
+            class="description"
+            v-html="transforHtml(dbsource[0].datasets.description)"
+          ></div>
+        </div>
+        <template>
             <el-tabs
               v-model="activeName"
               @tab-click="handleClick"
               class="pi-tab-item"
               style="margin-top: 8px"
-              v-if="item.name == 'Data Sets' || item.name == '点位配置'"
             >
+              <div class="upload-flex">
+                <el-radio-group v-model="activeRadio">
+                  <el-radio label="select_file">{{ $t('uploadcsv') }}</el-radio>
+                  <el-radio label="all_points">{{ $t('allPoints') }}</el-radio>
+                </el-radio-group>
+              </div>
               <el-tab-pane
-                v-for="(p, pind) in item.params"
+                v-for="(p, pind) in dbsource[0].datasets.params"
                 :label="p.display"
                 :name="p.name"
                 :key="p.name"
@@ -372,9 +378,8 @@
                   !['point_file'].includes(p.name) && !isPiDataArchiveAll
                 "
               >
-                <div :key="pind" style="margin-bottom: 0px">
-                  <span :class="['no-label']"></span>
-                  <div>
+                <div :key="pind" style="margin-bottom: 0px" v-if="activeRadio == 'select_file'">
+                  <div class="upload-flex">
                     <el-upload
                       class="upload-dataset"
                       ref="upload"
@@ -388,35 +393,63 @@
                       "
                       :file-list="p.fileList"
                       :auto-upload="true"
-                      :on-remove="() => handleRemove(p.name)"
+                      :on-remove="()=>handleRemove(p.name)"
+                      :on-preview="()=>handlePreview(p.value)"
                     >
                       <el-button
                         slot="trigger"
                         size="small"
                         type="primary"
                         style="margin-right: 20px"
-                        >{{ $t("datasource.selectfile") }}</el-button
-                      >
-                      <template v-if="activeName.includes('point_file')">
-                        <a href="/Points.csv" download>{{
-                          $t("downloadTemplate")
-                        }}</a>
-                      </template>
-                      <template v-else>
-                        <a href="/ElementTemplates.csv" download>{{
-                          $t("downloadTemplate")
-                        }}</a>
-                      </template>
+                        >{{ $t("datasource.selectfile") }}
+                      </el-button>
                     </el-upload>
+                    <template v-if="activeName === 'point_file'">
+                      <el-tooltip class="item" effect="light" :content="$t('downloadTemplateTip')" placement="top-start">
+                        <a href="/Points.csv" download style="padding-left: 16px;">
+                          <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadTemplate') }}</a>
+                      </el-tooltip>
+                      <el-tooltip class="item" effect="light" :content="$t('downloadPiPointTip')" placement="top-start">
+                        <el-button type="text" style="padding-left: 16px;" @click="searchDatas($t('downloadPiPoint'))" :disabled="loading">
+                          <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadPiPoint') }}</el-button>
+                      </el-tooltip>
+                    </template>
+                    <template v-else>
+                      <el-tooltip class="item" effect="light" :content="$t('downloadTemplateTip')" placement="top-start">
+                        <a href="/ElementTemplates.csv" download>
+                          <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadTemplate') }}</a>
+                      </el-tooltip>
+                      <el-tooltip class="item" effect="light" :content="$t('downloadAfElementTip')" placement="top-start">
+                        <el-button type="text" style="padding-left: 16px;" @click="searchDatas($t('downloadAfElement'))" :disabled="loading">
+                          <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadAfElement') }}</el-button>
+                      </el-tooltip>
+                    </template>
+                    <el-tooltip v-if="isEditable&&p.value" class="item" effect="light" :content="$t('downloadCSVInUseTip')" placement="top-start">
+                      <a :href="downloadUrl+p.value" download style="padding-left: 16px;">
+                        <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadCSVInUse') }}</a>
+                    </el-tooltip>
                   </div>
-                </div>
-                <div
-                  class="description"
-                  v-html="transforHtml(p.description)"
-                ></div>
-              </el-tab-pane>
-            </el-tabs>
-          </template>
+              </div>
+              <div
+                v-if="activeRadio == 'select_file'"
+                class="description"
+                v-html="transforHtml(p.description)"
+              ></div>
+            </el-tab-pane>
+          </el-tabs>
+          </template> 
+      </section>
+      <template v-for="item in dbsource[0].groups">
+        <section :class="['groups', item.name]" :key="item.display_order">
+          <div style="flex-direction: column; align-items: baseline">
+            <div class="block-title">
+              <span>{{ item.display ? item.display : item.name }}</span>
+            </div>
+            <div
+              class="description"
+              v-html="transforHtml(item.description)"
+            ></div>
+          </div>
           <template v-for="(p, pind) in item.params">
             <div
               :key="pind"
@@ -616,7 +649,7 @@
 <script>
 import DataTarget from "./dataTarget.vue";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
-import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
+import { AddSource, EditSource, getUaAndDaData, downlaodAllNodes } from "@/api/explorer/datain";
 import DatePicker from "@/components/date-picker";
 import { Message } from "element-ui";
 import marked from "marked";
@@ -752,6 +785,8 @@ export default {
         req_id: new Date().getTime(),
       },
       uploadUrl: process.env.VUE_APP_X_API + `/upload`,
+      downloadUrl: process.env.VUE_APP_X_API + `/download?file_path=`,
+      activeRadio: 'select_file'
     };
   },
   created() {
@@ -764,13 +799,14 @@ export default {
         this.piSystemConfiguration;
       this.changeSystemConfiguration(defaultVal);
       this.getSchema(false);
+    } else {
+      this.activeName = 'point_file'
     }
   },
   mounted() {
     // this.activeName = this.dbsource[0].datasets
     //   ? this.dbsource[0].groups[0].params[0].name
     //   : "";
-    this.activeName = "point_file";
   },
   watch: {
     dbsource:{
@@ -817,27 +853,6 @@ export default {
             let newVal = p.value.split();
             p.value = newVal;
           }
-          if (group.name == "Data Sets" || group.name == "点位配置") {
-            if (
-              [
-                "point_file",
-                "template_for_pi_point_file",
-                "template_for_af_element_file",
-              ].includes(p.name) &&
-              p.value
-            ) {
-              p.fileList = [].concat({
-                name: p.value?.substr(p.value.lastIndexOf("/") + 1),
-                percentage: 100,
-                raw: File,
-                response: [].concat(p.value),
-                size: 87,
-                status: "success",
-                uid: 1,
-              });
-              p.value = p.value?.substr(p.value.lastIndexOf("@") + 1);
-            }
-          }
           if (
             group.name == "Backfill" ||
             group.name == "历史填充（Backfill）"
@@ -853,36 +868,54 @@ export default {
         });
         return group;
       });
+      this.dbsource[0].datasets.params = this.dbsource[0].datasets.
+        params.map((p) => {
+          if (p.value) {
+            p.fileList = [].concat({
+              name: p.value?.substr(p.value.lastIndexOf("/") + 1),
+              percentage: 100,
+              raw: File,
+              response: [].concat(p.value),
+              size: 87,
+              status: "success",
+              uid: 1,
+            });
+            p.value = p.value?.substr(p.value.lastIndexOf("@") + 1);
+            this.activeRadio = p.value.includes('@') ? 'select_file' : 'all_points'
+            this.activeName = p.name
+          }
+        return p;
+      });
     },
     handleSuccess(response, file, fileList, name) {
-      this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
-        if (group.name == "Data Sets" || group.name == "点位配置") {
-          group.params.map((p) => {
-            if (p.name == name) {
-              p.fileList = fileList;
-              p.value = fileList[0].response[0];
-            }
-            return p;
-          });
-        }
-        return group;
+      this.dbsource[0].datasets.params = this.dbsource[0].datasets.
+        params.map((p) => {
+          if (p.name == name) {
+            p.fileList = fileList;
+            p.value = fileList[0].response[0];
+          }
+        return p;
       });
     },
     handleRemove(name) {
-      this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
-        if (group.name == "Data Sets" || group.name == "点位配置") {
-          group.params.map((p) => {
-            if (p.name == name) {
-              p.fileList = [];
-              p.value = "";
-            }
-            return p;
-          });
-        }
-        return group;
-      });
+      this.dbsource[0].datasets.params = this.dbsource[0].datasets.
+        params.map((p) => {
+          if (p.name == name) {
+            p.fileList = [];
+            p.value = "";
+          }
+        return p;
+      }); 
     },
-    handelCheckbox(value, name) {
+    handlePreview(file_path){
+      let link = document.createElement('a')
+      link.download ='file_name'
+      link.href = this.downloadUrl + file_path
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    },
+    handelCheckbox(value,name) {
       this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
         if (group.name == "Backfill" || group.name == "历史填充（Backfill）") {
           group.params.map((p) => {
@@ -1138,6 +1171,26 @@ export default {
             }
           }
         }
+        if (data.datasets && data.datasets.params) {
+          for (
+            let index = 0;
+            index < data.datasets.params.length;
+            index++
+          ) {
+            if (data.datasets.params[index].name == this.activeName) {
+              if (this.activeRadio == 'select_file') {
+                if (this.handleEmptyValue(data.datasets.params[index].value)) {
+                  querystr +=
+                    `${data.datasets.params[index].name}=@${data.datasets.params[index].value}` +
+                    "&";
+                }
+              } else {
+                querystr += `${data.datasets.params[index].name}=*` + "&";
+              }
+            }
+          }
+        }
+        console.log('qurer',querystr);
         if (data.params) {
           if (this.isPiDataArchiveAll) {
             for (let index = 0; index < data.params.length; index++) {
@@ -1368,7 +1421,21 @@ export default {
     //     this.dbsource[0].datasets.categories = categories;
     //   }
     // },
-    searchDatas: debounce(function (e) {
+    downloadAllPoints(data,name) {
+      downlaodAllNodes(data).then(res => {
+        let blob = new Blob([res], { type: "text/csv,charset=UTF-8" });
+        let link = document.createElement("a");
+        link.download = `${name}.csv`;
+        link.style.display = "none";
+        link.href = URL.createObjectURL(blob);
+        document.body.appendChild(link);
+        link.click();
+        URL.revokeObjectURL(link.href);
+        document.body.removeChild(link);
+        this.loading = false;
+      })
+    },
+    searchDatas: debounce(function (name) {
       try {
         let data = this.dbsource[0];
         let host = data.options.host.value ? data.options.host.value : "";
@@ -1418,44 +1485,67 @@ export default {
         }
         console.log("ss", querystr);
         let params = null;
-        params = {
-          from: `${this.tagName}://${host}${subject}${
-            querystr ? "?" + querystr.replace(/&$/g, "") : ""
-          }`,
-          categories: [this.activeName],
-          pattern: e.target.value,
-          offset: 0,
-          limit: 10,
-        };
-        const viaObj = {
-          via: this.$parent.agentID,
-        };
-        if (viaObj.via) {
-          Object.assign(params, viaObj);
+        // params = {
+        //   from: `${this.tagName}://${host}${subject}${
+        //     querystr ? "?" + querystr.replace(/&$/g, "") : ""
+        //   }`,
+        //   categories: [this.activeName],
+        //   pattern: e.target.value,
+        //   pattern: '.*',
+        //   offset: 0,
+        //   limit: 10,
+        // };
+        // const viaObj = {
+        //   via: this.$parent.agentID,
+        // };
+        // if (viaObj.via) {
+        //   Object.assign(params, viaObj);
+        // }
+        let categories = ''
+        switch (this.activeName) {
+          case 'point_file':
+            categories = 'PointList'
+            break;
+          case 'template_for_pi_point_file':
+            categories = 'TemplateForPIPoint'
+            break;
+          case 'template_for_af_element_file':
+            categories = 'TemplateForAFElement'
+            break;
+          default:
+            break;
         }
+        let from = `${this.tagName}://${host}${subject}${
+            querystr ? "?" + querystr.replace(/&$/g, "") : ""}
+            &categories=${categories}
+          `
+         if (this.$parent.agentID) {
+            from+=`&via=${this.$parent.agentID}`
+          }
         this.loading = true;
-        getUaAndDaData(params)
-          .then((res) => {
-            if (res && res.code && res.code != 0) {
-              Message({
-                type: "error",
-                message: res && res.message,
-              });
-            } else {
-              this.configurationdata = res;
-              Message({
-                type: "success",
-                message: this.$t("operateSucc"),
-              });
-            }
-            this.loading = false;
-          })
-          .catch((err) => {
-            Message({
-              type: "error",
-              message: err,
-            });
-          });
+        // getUaAndDaData(params)
+        //   .then((res) => {
+        //     if (res && res.code && res.code != 0) {
+        //       Message({
+        //         type: "error",
+        //         message: res && res.message,
+        //       });
+        //     } else {
+        //       this.configurationdata = res;
+        //       Message({
+        //         type: "success",
+        //         message: this.$t("operateSucc"),
+        //       });
+        //     }
+        //     this.loading = false;
+        //   })
+        //   .catch((err) => {
+        //     Message({
+        //       type: "error",
+        //       message: err,
+        //     });
+        //   });
+        this.downloadAllPoints(from,name)
       } catch (error) {
         this.loading = false;
       }
@@ -1915,6 +2005,15 @@ export default {
       white-space: nowrap;
       align-items: baseline;
       // margin-bottom: 8px;
+    }
+    .upload-flex {
+      display: flex;
+      white-space: nowrap;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+    ::v-deep .el-upload-list__item .el-icon-close-tip {
+      display: none !important;
     }
     .choose-db {
       display: flex;

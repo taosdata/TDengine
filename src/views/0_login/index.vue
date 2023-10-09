@@ -150,6 +150,16 @@ export default {
         console.log(error);
       }
     },
+    async getVersion() {
+      try {
+        let res = await sendSQLReq('select server_version()')
+        if (res?.code == 0) {
+          localStorage.setItem('serverVersion',res.data[0])
+        }
+      } catch (error) {
+        console.log(error);
+      }
+    },
     async login() {
       let token =
         "Basic " +
@@ -177,6 +187,7 @@ export default {
         if (res && res.code == 0 && !res.desc) {
           localStorage.setItem("TDengine-Token", token);
           await this.getClusterID();
+          await this.getVersion();
           // this.$router.push({
           //   path: "/explorer"
           // });
