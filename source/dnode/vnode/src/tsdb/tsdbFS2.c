@@ -18,6 +18,8 @@
 #include "vnd.h"
 #include "vndCos.h"
 
+#define BLOCK_COMMIT_FACTOR 3
+
 extern int  vnodeScheduleTask(int (*execute)(void *), void *arg);
 extern int  vnodeScheduleTaskEx(int tpid, int (*execute)(void *), void *arg);
 extern void remove_file(const char *fname);
@@ -882,7 +884,7 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
         schedMerge = true;
       }
 
-      if (numFile >= sttTrigger * 2) {
+      if (numFile >= sttTrigger * BLOCK_COMMIT_FACTOR) {
         blockCommit = true;
       }
 
