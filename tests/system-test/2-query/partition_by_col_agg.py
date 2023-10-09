@@ -137,6 +137,10 @@ class TDTestCase:
         if not plan_found:
             tdLog.exit("plan: %s not found in res: [%s]" % (plan_str_expect, str(rows)))
 
+    def check_explain_res_no_row(self, plan_str_not_expect: str, res):
+        for row in res:
+            if str(row).find(plan_str_not_expect) >= 0:
+                tdLog.exit('plan: [%s] found in: [%s]' % (plan_str_not_expect, str(row)))
 
     def test_sort_for_partition_hint(self):
         pass
@@ -146,6 +150,9 @@ class TDTestCase:
 
     def add_hint(self, sql: str) -> str:
         return "select /*+ sort_for_group() */ %s" % sql[6:]
+    
+    def add_remove_partition_hint(self, sql: str) -> str:
+        return "select /*+ remove_partition() */ %s" % sql[6:]
 
     def query_with_time(self, sql):
         start = datetime.now()
@@ -200,8 +207,8 @@ class TDTestCase:
     def check_explain(self, sql):
         sql_hint = self.add_hint(sql)
         explain_res = self.explain_sql(sql)
-        self.check_explain_res_has_row('SortMerge', explain_res)
-        self.check_explain_res_has_row("blocking=0", explain_res)
+        #self.check_explain_res_has_row('SortMerge', explain_res)
+        #self.check_explain_res_has_row("blocking=0", explain_res)
         explain_res = self.explain_sql(sql_hint)
         self.check_explain_res_has_row('SortMerge', explain_res)
         self.check_explain_res_has_row('blocking=0', explain_res)
@@ -233,14 +240,27 @@ class TDTestCase:
             sql_hint = self.add_hint(sql)
             sql = self.add_order_by(sql, ele[3])
             sql_no_slimit = sql_template % (ele[0], ele[1], '')
+
             sql_no_slimit = self.add_order_by(sql_no_slimit, ele[3])
             self.query_and_compare_first_rows(sql_hint, sql_no_slimit)
+
+    def test_remove_partition(self):
+        sql = 'select c1, count(*) from meters partition by c1 slimit 10'
+        explain_res = self.explain_sql(sql)
+        self.check_explain_res_no_row("Partition", explain_res)
+        self.check_explain_res_has_row("blocking=1", explain_res)
+
+        sql = 'select c1, count(*) from meters partition by c1,c2 slimit 10'
+        explain_res = self.explain_sql(sql)
+        self.check_explain_res_no_row("Partition", explain_res)
+        self.check_explain_res_has_row("blocking=1", explain_res)
 
     def run(self):
         self.prepareTestEnv()
         #time.sleep(99999999)
         self.test_pipelined_agg_plan_with_slimit()
         self.test_pipelined_agg_data_with_slimit()
+        self.test_remove_partition()
 
     def stop(self):
         tdSql.close()
