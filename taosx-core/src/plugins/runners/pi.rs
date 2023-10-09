@@ -11,12 +11,13 @@ use file_rotate::{
 use anyhow::Context;
 use chrono::{Local, NaiveDateTime};
 use itertools::Itertools;
+use serde::Deserialize;
 use serde_json::{Map, Value};
 use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
-use tokio::io::AsyncBufReadExt;
+// use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 use toml::value::Datetime;
-use tracing::Span;
+use tracing::{instrument, Span};
 
 use crate::{
     build_ipc, get_log_keep_days,
@@ -146,7 +147,7 @@ impl PiConfig {
         }
         let max_backfill_range_days = parse_int_at!("MaxBackfillRangeDays");
 
-        let template_for_pi_point = dsn
+        let mut template_for_pi_point = dsn
             .remove("TemplateForPIPoint")
             .unwrap_or_default()
             .split(',')
@@ -154,23 +155,53 @@ impl PiConfig {
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string())
             .collect_vec();
-        let template_for_af_element = dsn
+        let config_key = "template_for_pi_point_file";
+        template_for_pi_point.extend(
+            super::mqtt::get_string_from_param_or_file(&mut dsn, config_key, false, Some(","))
+                .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
+                .unwrap_or_default()
+                .split([',', '\n'])
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string()),
+        );
+        let mut template_for_af_element = dsn
             .remove("TemplateForAFElement")
             .unwrap_or_default()
-            .split(',')
+            .split([',', '\n'])
             .map(|s| s.trim())
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string())
             .collect_vec();
-        let point_list =
+        let config_key = "template_for_af_element_file";
+        template_for_af_element.extend(
+            super::mqtt::get_string_from_param_or_file(&mut dsn, config_key, false, Some(","))
+                .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
+                .unwrap_or_default()
+                .split([',', '\n'])
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string()),
+        );
+
+        let mut point_list =
             super::mqtt::get_string_from_param_or_file(&mut dsn, "PointList", false, Some(","))
                 .map_err(|err| PiError::ParseKeyValueError("PointList", err))?
                 .unwrap_or_default()
-                .split(',')
+                .split([',', '\n'])
                 .map(|s| s.trim())
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string())
                 .collect_vec();
+        point_list.extend(
+            super::mqtt::get_string_from_param_or_file(&mut dsn, "point_file", false, Some(","))
+                .map_err(|err| PiError::ParseKeyValueError("point_file", err))?
+                .unwrap_or_default()
+                .split([',', '\n'])
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string()),
+        );
         if is_real_run
             && point_list.is_empty()
             && template_for_af_element.is_empty()
@@ -337,6 +368,91 @@ pub async fn pi_to_taos(
 
     tracing::info!("Using config file {} \n{}", config_path.display(), toml);
 
+    #[derive(Deserialize, Debug, Default)]
+    struct IsValid {
+        version: Option<String>,
+        avaliable: bool,
+        since: Option<String>,
+        items: Vec<String>,
+    }
+    match driver.as_str() {
+        "pi" => {
+            let mut command = tokio::process::Command::new(pi_exe_path());
+            let output = command
+                .arg("-c")
+                .arg(&config_path)
+                .kill_on_drop(true)
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .context("Check PI connector error")?
+                .wait_with_output()
+                .await
+                .context("Check PI connector error")?;
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(output.stdout.as_slice());
+                tracing::info!("PI connector check result: {}", stdout);
+                let check = serde_json::from_str::<IsValid>(&stdout).map_err(|err| {
+                    anyhow::format_err!(
+                        "PI connector check result parse error: {}",
+                        err.to_string()
+                    )
+                })?;
+                tracing::debug!("{check:?}");
+                if !check.avaliable {
+                    anyhow::bail!(
+                        "PI connector not available since {}:\n{}",
+                        check.since.unwrap_or_default(),
+                        check.items.join(","),
+                    );
+                }
+            } else {
+                let stderr = String::from_utf8_lossy(output.stderr.as_slice());
+                tracing::error!("PI connector check error: {}", stderr);
+                anyhow::bail!("Unable to check PI connector configuration");
+            }
+        }
+        "pibackfill" => {
+            let mut command = tokio::process::Command::new(pi_backfill_exe_path());
+            let output = command
+                .arg("-c")
+                .arg(&config_path)
+                .kill_on_drop(true)
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .context("Check PI-Backfill connector error")?
+                .wait_with_output()
+                .await
+                .context("Check PI-Backfill connector error")?;
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(output.stdout.as_slice());
+                tracing::info!("PI connector check result: {}", stdout);
+                let check = serde_json::from_str::<IsValid>(&stdout).map_err(|err| {
+                    anyhow::format_err!(
+                        "PI-Backfill connector check result parse error: {}",
+                        err.to_string()
+                    )
+                })?;
+                tracing::debug!("{check:?}");
+                if !check.avaliable {
+                    anyhow::bail!(
+                        "PI-Backfill connector not available since {}:\n{}",
+                        check.since.unwrap_or_default(),
+                        check.items.join(","),
+                    );
+                }
+            } else {
+                let stderr = String::from_utf8_lossy(output.stderr.as_slice());
+                tracing::error!("PI-Backfill connector check error: {}", stderr);
+                anyhow::bail!("Unable to check PI connector configuration");
+            }
+        }
+        _ => {
+            anyhow::bail!("wrong driver configured");
+        }
+    }
+
     let server = std::thread::spawn(move || spawn_rest_service(target_pool, sql_port));
 
     let mut ipc = build_ipc(
@@ -400,6 +516,7 @@ pub async fn pi_to_taos(
             child_command = command
                 .arg("-f")
                 .arg(&config_path)
+                .kill_on_drop(true)
                 .stdout(std::process::Stdio::inherit())
                 .stderr(std::process::Stdio::piped())
                 .spawn()
@@ -410,6 +527,7 @@ pub async fn pi_to_taos(
             child_command = command
                 .arg("-f")
                 .arg(&config_path)
+                .kill_on_drop(true)
                 .stdout(std::process::Stdio::inherit())
                 .stderr(std::process::Stdio::piped())
                 .spawn()
@@ -427,6 +545,7 @@ pub async fn pi_to_taos(
     tokio::spawn(async move {
         let mut reader = tokio::io::BufReader::new(stderr);
         let mut line = String::new();
+        use tokio::io::AsyncBufReadExt;
         loop {
             // Read a line from stderr
             let bytes_read = reader.read_line(&mut line).await.unwrap();
@@ -501,6 +620,7 @@ fn terminate_child_process(id: u32) -> anyhow::Result<()> {
 }
 
 #[allow(unused_variables, unreachable_code)]
+#[instrument(skip(data), fields(plugin = "pi"))]
 pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     println!("# loading plugin: PI");
     #[cfg(not(target_os = "windows"))]
@@ -553,6 +673,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         .arg(&config_path)
         .arg("-p")
         .arg(point_filter)
+        .kill_on_drop(true)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .output()
@@ -562,7 +683,29 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     // .context("Start PI collector error")?;
     tracing::info!("PI Connector exit with status {}", output.status);
 
-    let json: Value = serde_json::from_slice(&output.stdout)?;
+    let mut lines = output.stdout.lines();
+    let json: Value = lines
+        .find_map(|line| {
+            let line = line.ok()?;
+            if line.is_empty() {
+                return None;
+            }
+            if line.len() < 10 {
+                tracing::warn!("invalid json line: {}", &line);
+                return None;
+            }
+            serde_json::from_str(&line).ok()
+        })
+        .ok_or_else(|| {
+            tracing::error!(
+                "No valid json data returned from PI connector: {}",
+                String::from_utf8_lossy(&output.stdout)
+            );
+            anyhow::format_err!(
+                "No valid json data returned from PI connector: {}",
+                String::from_utf8_lossy(&output.stdout)
+            )
+        })?;
     tracing::debug!("pi dataset: {}", &json);
     let map = json.as_object().unwrap();
     let mut dataset = Vec::new();
@@ -611,4 +754,20 @@ fn extend_data_set(
     } else if len > page_index && len < page_index + limit {
         dataset.extend_from_slice(&extended_vec[page_index..]);
     }
+}
+
+#[test]
+fn test_config() {
+    dbg!(std::env::current_dir().unwrap());
+    let dsn: Dsn = "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=@../tests/pi/Points.csv&template_for_af_element_file=@../tests/pi/ElementTemplates2.csv"
+        .parse()
+        .unwrap();
+    let config = PiConfig::new(dsn, "taos".to_string(), 0, 0, false).unwrap();
+    dbg!(&config);
+
+    let dsn: Dsn = "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=app\napp\napp"
+        .parse()
+        .unwrap();
+    let config2 = PiConfig::new(dsn, "taos".to_string(), 0, 0, false).unwrap();
+    dbg!(&config2);
 }

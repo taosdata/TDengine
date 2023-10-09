@@ -145,6 +145,7 @@
     <Compile Include="Monitoring\MonitoringService.cs" />
     <Compile Include="Monitoring\Models\ResponsesPerCode.cs" />
     <Compile Include="Monitoring\Models\TDEngineInfo.cs" />
+    <Compile Include="ElementChecker.cs" />
     <Compile Include="PIInfoScanner.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="StandbyManager.cs" />

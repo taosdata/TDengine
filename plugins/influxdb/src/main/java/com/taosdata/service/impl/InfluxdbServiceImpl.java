@@ -294,7 +294,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             // 返回列表
             List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = new ArrayList<>();
             // 根据bucket与measurement获取内存中的表结构
-            InfluxdbMeasurementEntity influxdbMeasurementEntity = BucketCache.measurementMap.get(bucket + ":" + measurement);
+            InfluxdbMeasurementEntity influxdbMeasurementEntity = BucketCache.measurementMap.get(BucketCache.generateBucketDataThreadKey(bucket, measurement));
             // 查询语句
             String sql = "from(bucket: \"" + bucket + "\")" +
                     "|> range(start: " + startTime + ", stop: " + stopTime + ")" +
@@ -485,7 +485,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
             // 返回列表
             List<InfluxdbBucketDataEntity> influxdbBucketDataEntityList = new ArrayList<>();
             // 根据bucket与measurement获取内存中的表结构
-            InfluxdbMeasurementEntity influxdbMeasurementEntity = BucketCache.measurementMap.get(bucket + ":" + measurement);
+            InfluxdbMeasurementEntity influxdbMeasurementEntity = BucketCache.measurementMap.get(BucketCache.generateBucketDataThreadKey(bucket, measurement));
             // 查询语句
             String sql = "select * from \"" + measurement + "\" where time >= '" + startTime + "' and time <= '" + stopTime + "' limit " + batch + " offset " + offset;
             // 执行查询
@@ -514,7 +514,7 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                     // 遍历并按照v2.7格式封装
                     for (List<Object> record : values) {
                         // 首先封装公共部分
-                        influxdbBucketDataEntity.setInfluxdbMeasurementEntity(BucketCache.measurementMap.get(bucket + ":" + measurement));
+                        influxdbBucketDataEntity.setInfluxdbMeasurementEntity(BucketCache.measurementMap.get(BucketCache.generateBucketDataThreadKey(bucket, measurement)));
                         influxdbBucketDataEntity.setMeasurement(measurement);
                         influxdbBucketDataEntity.setTable("");
                         for (int i = 0; i < record.size(); i++) {

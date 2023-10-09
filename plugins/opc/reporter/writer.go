@@ -14,11 +14,12 @@ import (
 )
 
 type writer interface {
-	write(ctx context.Context) error
+	write(ctx context.Context, value *common.NodeValue) error
+	start(ctx context.Context) error
 	close(ctx context.Context) error
 }
 
-func NewArrowWriter(address *net.TCPAddr, debug bool, batchSize int, batchTimeout time.Duration, schema *arrow.Schema, af appendFunc, ch chan *common.NodeValue) (*ArrowWriter, error) {
+func NewArrowWriter(address *net.TCPAddr, debug bool, batchSize int, batchTimeout time.Duration, schema *arrow.Schema, af appendFunc) (*ArrowWriter, error) {
 	conn, err := net.DialTCP("tcp", nil, address)
 	if err != nil {
 		return nil, fmt.Errorf("create arrow writer error %v", err)
@@ -37,7 +38,7 @@ func NewArrowWriter(address *net.TCPAddr, debug bool, batchSize int, batchTimeou
 		ipcWriter:    ipcWriter,
 		ipcReader:    ipcReader,
 		af:           af,
-		ch:           ch,
+		ch:           make(chan *common.NodeValue, batchSize),
 		done:         make(chan struct{}, 1),
 		closeWriter:  make(chan struct{}, 1),
 	}, nil
@@ -58,13 +59,24 @@ type ArrowWriter struct {
 
 var _ writer = (*ArrowWriter)(nil)
 
-// write record to arrow ipc writer
+func (w *ArrowWriter) write(ctx context.Context, value *common.NodeValue) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-w.done:
+		return fmt.Errorf("arrow writer closed")
+	case w.ch <- value:
+		return nil
+	}
+}
+
+// start write record to arrow ipc writer
 // read data from channel
 // and pack to arrow record
 // and write to arrow ipc writer
 // when batch size or batch timeout reached
-func (w *ArrowWriter) write(ctx context.Context) (err error) {
-	logger.DebugF("## start write arrow writer %p", w)
+func (w *ArrowWriter) start(ctx context.Context) (err error) {
+	logger.DebugF("## start start arrow writer %p", w)
 
 	ticker := time.NewTicker(w.batchTimeout)
 	defer ticker.Stop()
@@ -91,13 +103,13 @@ func (w *ArrowWriter) write(ctx context.Context) (err error) {
 				continue
 			}
 			if err = w.doWrite(ctx, values); err != nil {
-				logger.ErrorF("## write record error %v", err)
+				logger.ErrorF("## start record error %v", err)
 				return
 			}
 			values = make([]*common.NodeValue, 0, w.batchSize)
 		case <-ticker.C:
 			if err = w.doWrite(ctx, values); err != nil {
-				logger.ErrorF("## write record error %v", err)
+				logger.ErrorF("## start record error %v", err)
 				return
 			}
 			values = make([]*common.NodeValue, 0, w.batchSize)
@@ -124,7 +136,7 @@ func (w *ArrowWriter) doWrite(ctx context.Context, values []*common.NodeValue) e
 	}
 
 	if err = w.writeRecord(ctx, record); err != nil {
-		logger.ErrorF("## write record error %v", err)
+		logger.ErrorF("## start record error %v", err)
 		return err
 	}
 	return nil
@@ -144,7 +156,7 @@ func (w *ArrowWriter) writeRecord(_ context.Context, record arrow.Record) (err e
 	}
 	err = w.ipcWriter.Write(record)
 	if err != nil {
-		return fmt.Errorf("write record to ipc error %v", err)
+		return fmt.Errorf("start record to ipc error %v", err)
 	}
 
 	if !w.ipcReader.Next() {

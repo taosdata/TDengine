@@ -129,12 +129,7 @@ groups:
   - name: 库表配置
     display_order: 4
     description: |
-      超级表创建配置
-
-      - **received_ts**: 采集时间戳。<br>
-      - **original_ts**: 原始时间戳。<br>
-      - **value**: 采集点值。<br>
-      - **status**: 点位质量。<br>
+      OPC 中的字段到数据库中的列映射
 
     params:
       - name: opc_table_config

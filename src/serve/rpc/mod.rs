@@ -295,6 +295,12 @@ impl FlightService for FlightServiceImpl {
                                             .remove(&req.req)
                                         {
                                             let _ = sender.send_async(req.res).await;
+                                        } else {
+                                            warn!(
+                                                agent = agent_id,
+                                                task = ?req.req,
+                                                "List data sets response not found"
+                                            );
                                         }
                                     }
                                     "agent-activity" => {

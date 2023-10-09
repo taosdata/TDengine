@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"hash/fnv"
 	"os"
 )
 
@@ -30,4 +31,10 @@ func MakeDirIfNotExist(path string) error {
 		return fmt.Errorf("path exists and is not a directory")
 	}
 	return nil
+}
+
+func Hash(str string) (hash uint32) {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(str))
+	return h.Sum32()
 }

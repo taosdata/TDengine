@@ -25,9 +25,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Span};
 
 use crate::{
-    build_ipc, get_log_keep_days,
-    utils::{get_string_content_from_param_value, port_pool::PortPool},
-    Action, DataSet, DataSetsReq, Transferred,
+    build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
+    Transferred,
 };
 
 #[derive(Debug, serde::Serialize)]
@@ -347,14 +346,16 @@ impl OPCConfig {
                 let security_mode = dsn.remove("security_mode").unwrap_or("None".to_string());
 
                 let certificate = if let Some(cert) = dsn.remove("certificate") {
-                    get_string_content_from_param_value(&cert, true, false)
-                        .map_err(|err| OpcError::ConfigError("certificate", err.to_string()))?
+                    Some(cert.trim_start_matches('@').to_string())
+                    // get_string_content_from_param_value(&cert, true, false)
+                    //     .map_err(|err| OpcError::ConfigError("certificate", err.to_string()))?
                 } else {
                     None
                 };
                 let private_key = if let Some(private_key) = dsn.remove("private_key") {
-                    get_string_content_from_param_value(&private_key, true, false)
-                        .map_err(|err| OpcError::ConfigError("private_key", err.to_string()))?
+                    Some(private_key.trim_start_matches('@').to_string())
+                    // get_string_content_from_param_value(&private_key, true, false)
+                    //     .map_err(|err| OpcError::ConfigError("private_key", err.to_string()))?
                 } else {
                     None
                 };
@@ -789,11 +790,14 @@ pub async fn generate_opcconfig_from_csv(
                             column_alias: Some(quality_col_name.clone()),
                             is_primary_key: false,
                         });
-                        let received_ts_col = record_map.get("received_ts_col").or(record_map.get("received_time_col"));
+                        let received_ts_col = record_map
+                            .get("received_ts_col")
+                            .or(record_map.get("received_time_col"));
                         let mut has_primary_key = false;
                         if received_ts_col.is_some() {
                             let received_ts_col_name = record_map
-                                .get("received_ts_col").or(record_map.get("received_time_col"))
+                                .get("received_ts_col")
+                                .or(record_map.get("received_time_col"))
                                 .unwrap_or(&"received_ts".to_string())
                                 .clone();
                             check_duplicated(
@@ -1081,6 +1085,7 @@ pub async fn opc_to_taos(
     let child = command
         .arg("collect")
         .arg(format!("--conf={}", &config_path.display()))
+        .kill_on_drop(true)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::piped());
 
@@ -1114,6 +1119,7 @@ pub async fn opc_to_taos(
     tokio::spawn(async move {
         macro_rules! safe_exit {
             () => {
+                let _ = child.kill().await;
                 let _ = ipc_handler.close().await;
                 temp_path.close().unwrap();
                 port_pool.put(ipc_port);
@@ -1141,7 +1147,6 @@ pub async fn opc_to_taos(
                 tracing::info!("opc task cancelled");
             },
         };
-        let _ = child.kill().await;
         tracing::info!("OPC to taos task done");
         safe_exit!();
         Ok(())
@@ -1218,6 +1223,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let output = command
         .arg("points")
         .arg(format!("--conf={}", &config_path.display()))
+        .kill_on_drop(true)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .output()

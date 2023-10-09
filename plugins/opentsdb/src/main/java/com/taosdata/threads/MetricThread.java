@@ -18,6 +18,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.OffsetDateTime;
+import java.time.temporal.ChronoField;
 import java.util.Date;
 import java.util.HashSet;
 
@@ -79,7 +81,7 @@ public class MetricThread implements Runnable {
                 }
                 logger.debug(this.name + "#Thread start#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
                 // 判断内存中metric子线程队列大小
-                if (MetricCache.getMetricDataThreadQueueSize() >= this.performanceConfig.getQueueSizeT()) {
+                if (MetricCache.getMetricDataThreadQueueTotal() >= this.performanceConfig.getQueueSizeT()) {
                     // 睡眠后继续
                     sleep(this.performanceConfig.getThread().getCreateMetricFullInterval(), start, StatusEnums.NORMAL);
                     continue;
@@ -112,8 +114,16 @@ public class MetricThread implements Runnable {
                     if (taskConfig.getMetrics().size() > 0 && !taskConfig.getMetrics().contains(v.getMetric())) {
                         return;
                     }
+                    // 如果任务中有断点信息
+                    if (taskConfig.getBreakpoint() != null && taskConfig.getBreakpoint().containsKey(v.getMetric())) {
+                        long timestamp = taskConfig.getBreakpoint().get(v.getMetric());
+                        // 如果断点晚于endTime则直接忽略任务
+                        if (timestamp > OffsetDateTime.parse(timeRangeArr[1]).getLong(ChronoField.INSTANT_SECONDS) * 1_000_000_000) {
+                            return;
+                        }
+                    }
                     if (StringUtils.isNotEmpty(v.getMetric())) {
-                        MetricCache.addMetricDataThread(new MetricDataThread(v.getMetric(), timeRangeArr[0], timeRangeArr[1]));
+                        MetricCache.addMetricDataThread(v.getMetric(), new MetricDataThread(v.getMetric(), timeRangeArr[0], timeRangeArr[1]));
                         // 读取数据任务计数
                         StatisticCache.noteCreatedTask(v.getMetric(), timeRangeArr[0], timeRangeArr[1]);
                     }
@@ -210,7 +220,7 @@ public class MetricThread implements Runnable {
                         // 拆分时间段
                         String[] timeRangeArr = timeRange.split(",");
                         // 生成metric子线程并放入队列中
-                        MetricCache.addMetricDataThread(new MetricDataThread(metric.toString(), timeRangeArr[0], timeRangeArr[1]));
+                        MetricCache.addMetricDataThread(metric.toString(), new MetricDataThread(metric.toString(), timeRangeArr[0], timeRangeArr[1]));
                         // 读取数据任务计数
                         StatisticCache.noteCreatedTask(metric.toString(), timeRangeArr[0], timeRangeArr[1]);
                     } catch (Exception e) {

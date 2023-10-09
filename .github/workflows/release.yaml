@@ -28,7 +28,7 @@ jobs:
 
       - name: Install compiler
         run: |
-          yum install -y autoconf make automake cmake gcc gcc-g++ openssl-devel
+          yum install -y autoconf make automake cmake gcc gcc-g++ openssl-devel perl-IPC-Cmd
 
       - uses: Swatinem/rust-cache@v2
 

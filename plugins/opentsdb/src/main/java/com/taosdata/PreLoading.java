@@ -19,6 +19,7 @@ import com.taosdata.service.OpentsdbService;
 import com.taosdata.threads.*;
 import com.taosdata.utils.DateUtils;
 import com.taosdata.utils.FileUtils;
+import com.taosdata.utils.HttpUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -82,12 +83,31 @@ public class PreLoading implements CommandLineRunner {
                 System.exit(1);
             } else if ("-v".equals(args[0].trim().toLowerCase()) || "-version".equals(args[0].trim().toLowerCase())) {
                 System.exit(0);
-            } else if ("-fetch".equals(args[0].trim().toLowerCase()) && args.length >= 2) {
-                // 获取连接参数
-                String url = args[1];
-                // 查询所有metric
-                System.out.println(opentsdbService.fetchMetricList(url));
-                System.exit(0);
+            } else if ("-fetch".equals(args[0].trim().toLowerCase())) {
+                if (args.length >= 2) {
+                    // 获取连接参数
+                    String url = args[1];
+                    // 查询所有metric
+                    System.out.println(opentsdbService.fetchMetricList(url));
+                    System.exit(0);
+                } else {
+                    System.exit(1);
+                }
+            } else if ("-check".equals(args[0].trim().toLowerCase())) {
+                if (args.length >= 2) {
+                    // 获取连接参数
+                    String url = args[1];
+                    // 检查连通性
+                    JSONObject result = getOpentsdbVersion(url);
+                    if (result.getBooleanValue("available")) {
+                        System.out.println(result.get("version"));
+                        System.exit(0);
+                    } else {
+                        System.exit(3);
+                    }
+                } else {
+                    System.exit(1);
+                }
             } else {
                 // 加载toml配置文件，覆盖默认配置，第一个参数是外部配置文件路径，配置不正确则默认退出
                 loadToml(args[0].trim());
@@ -115,16 +135,16 @@ public class PreLoading implements CommandLineRunner {
             threadInfo.setDescription(StatusEnums.LOADING.getDesc());
             StatusCache.noteThread(threadInfo);
             // 处理工作模式：普通、恢复
-            initMode();
+            // initMode();
             // OpenTSDB信息，启动MetricThread、ScheduleThread与PushPrepareThread线程
             initOpentsdb();
             // 记录Netty连接信息
             StatusCache.noteNetty(this.nettyClientConfig.getHost(), this.nettyClientConfig.getPort());
             // 增加退出信号处理方法
-            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            /*Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 // 处理退出信号
                 processShutdown();
-            }));
+            }));*/
             // 状态默认正常，线程内部会再次更新
             StatusCache.setStatus(StatusEnums.NORMAL.getCode());
             StatusCache.setDescription(StatusEnums.NORMAL.getDesc());
@@ -134,7 +154,7 @@ public class PreLoading implements CommandLineRunner {
             StatusCache.setStatus(StatusEnums.EXCEPTION.getCode());
             StatusCache.setDescription(StatusEnums.EXCEPTION.getDesc() + ": " + e.getMessage());
             // 启动失败
-            System.exit(1);
+            System.exit(9);
         }
     }
 
@@ -169,6 +189,11 @@ public class PreLoading implements CommandLineRunner {
             if (StringUtils.isNotEmpty(this.taskConfig.getEndTime()) && !this.taskConfig.getEndTime().matches(DateUtils.PATTERN_YMDHMS_TZ)) {
                 throw new Exception("parameter endTime configuration error.");
             }
+            String breakpoint = tomlParseResult.getString("task.breakpoint", String::new);
+            // 存在断点信息则解析
+            if (StringUtils.isNotEmpty(breakpoint)) {
+                this.taskConfig.setBreakpoint(parseBreakpoint(breakpoint));
+            }
             this.performanceConfig.setReadWindow(tomlParseResult.getString("performance.readWindow", String::new));
             // 如果设置了性能参数，则覆盖默认值
             if (tomlParseResult.getLong("performance.tolerance") != null) {
@@ -189,8 +214,34 @@ public class PreLoading implements CommandLineRunner {
             StatusCache.setStatus(StatusEnums.EXCEPTION.getCode());
             StatusCache.setDescription(StatusEnums.EXCEPTION.getDesc() + ": " + e.getMessage());
             // 启动失败
-            System.exit(1);
+            System.exit(2);
         }
+    }
+
+    /**
+     * 解析断点信息，格式为metric1:timestamp&metric2:timestamp&...
+     *
+     * @param breakpoint
+     * @return
+     */
+    private Map<String, Long> parseBreakpoint(String breakpoint) {
+        Map<String, Long> breakpointMap = new HashMap<>();
+        try {
+            // 按 & 分割
+            String[] metricInfoArr = breakpoint.split("&");
+            // 遍历封装map
+            for (String metricInfo : metricInfoArr) {
+                // 按 : 分割
+                String[] arr = metricInfo.split(":");
+                // metric与timestamp均不为空才赋值
+                if (StringUtils.isNotEmpty(arr[0]) && StringUtils.isNotEmpty(arr[1])) {
+                    breakpointMap.put(arr[0], Long.parseLong(arr[1]));
+                }
+            }
+        } catch (Exception e) {
+            logger.error("An exception occurred during the parsing of breakpoint, breakpoint={}", breakpoint, e);
+        }
+        return breakpointMap;
     }
 
     /**
@@ -223,6 +274,33 @@ public class PreLoading implements CommandLineRunner {
                 logger.error("Failed to read breakpoint, task will be executed in normal mode.", e);
             }
         }
+    }
+
+    /**
+     * 获取OpenTSDB版本信息
+     *
+     * @param url
+     * @return
+     */
+    private JSONObject getOpentsdbVersion(String url) {
+        JSONObject result = new JSONObject();
+        // 拼接请求url
+        if (url.endsWith("/")) {
+            url += opentsdbConfig.getApiVersion();
+        } else {
+            url += "/" + opentsdbConfig.getApiVersion();
+        }
+        try {
+            // 获取结果并解析为JSONObject
+            JSONObject object = JSONObject.parseObject(HttpUtils.sendGet(url, ""));
+            // 获取版本并封装数据
+            result.put("available", true);
+            result.put("version", object.get("version"));
+        } catch (Exception e) {
+            result.put("available", false);
+            result.put("version", "");
+        }
+        return result;
     }
 
     /**

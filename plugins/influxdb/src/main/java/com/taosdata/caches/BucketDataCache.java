@@ -148,6 +148,22 @@ public class BucketDataCache {
     }
 
     /**
+     * 根据bucket,measurement获取队列全部大小
+     *
+     * @param key
+     * @return
+     */
+    public static int getBucketDataQueueTotalSize(String key) {
+        AtomicInteger total = new AtomicInteger();
+        bucketDataQueueMap.forEach((k, v) -> {
+            if (k.startsWith(key)) {
+                total.addAndGet(v.size());
+            }
+        });
+        return total.get();
+    }
+
+    /**
      * 获取BucketData的key集合
      *
      * @return

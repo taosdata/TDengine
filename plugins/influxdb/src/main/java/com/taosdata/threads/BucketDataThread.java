@@ -1,6 +1,7 @@
 package com.taosdata.threads;
 
 import com.taosdata.ApplicationContextProvider;
+import com.taosdata.caches.BucketCache;
 import com.taosdata.caches.BucketDataCache;
 import com.taosdata.caches.StatisticCache;
 import com.taosdata.caches.StatusCache;
@@ -176,5 +177,7 @@ public class BucketDataThread implements Runnable {
         logger.debug(this.name + "#Thread completed and exited, timeRange=[{}-{}]#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15) + "", startTime, stopTime);
         // 清除线程信息
         StatusCache.forgetThread(this.name);
+        // 释放阻塞
+        BucketCache.releaseBucketDataThreadBlocked(BucketCache.generateBucketDataThreadKey(this.bucket, this.measurement));
     }
 }

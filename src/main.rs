@@ -8,6 +8,7 @@ use file_rotate::{
     ContentLimit, FileRotate, TimeFrequency,
 };
 use metrics_tracing_context::MetricsLayer;
+use opentelemetry::trace::Tracer;
 use shadow_rs::shadow;
 
 use taosx_core::{
@@ -26,6 +27,7 @@ static GLOBAL: Jemalloc = Jemalloc;
 use mimalloc::MiMalloc;
 
 use time::{macros::format_description, UtcOffset};
+use tracing::Instrument;
 use tracing_subscriber::{
     fmt::{format::FmtSpan, time::OffsetTime},
     prelude::*,
@@ -323,35 +325,64 @@ fn main() -> Result<()> {
             );
         }
 
-        let metrics_layer = MetricsLayer::new();
-        let console_layer = console_subscriber::spawn();
+        let metrics_layer = MetricsLayer::new().boxed();
+        layers.push(metrics_layer);
+        let layered = tracing_subscriber::registry().with(layers);
+        #[cfg(feature = "tokio-tracing")]
+        {
+            layers.push(console_subscriber::spawn().boxed());
+        }
         if args.globals.otel.unwrap_or(false) {
-            let tracer = opentelemetry_jaeger::new_agent_pipeline()
-                .with_service_name("x")
-                // .install_simple()?;
-                .with_auto_split_batch(true)
-                .install_batch(opentelemetry::runtime::Tokio)?;
+            let tracer = opentelemetry_otlp::new_pipeline()
+                .tracing()
+                .with_exporter(
+                    opentelemetry_otlp::new_exporter()
+                        .tonic()
+                )
+                .with_trace_config(
+                    opentelemetry::sdk::trace::config()
+                        .with_sampler(opentelemetry::sdk::trace::Sampler::AlwaysOn)
+                        .with_id_generator(opentelemetry::sdk::trace::RandomIdGenerator::default())
+                        .with_max_events_per_span(64)
+                        .with_max_attributes_per_span(16)
+                        .with_max_events_per_span(16)
+                        .with_resource(opentelemetry::sdk::Resource::new(vec![
+                            opentelemetry::KeyValue::new("service.name", build::CUS_CLI_NAME),
+                        ])),
+                )
+                .install_simple()?;
+                // .install_batch(opentelemetry::runtime::Tokio)?;
 
+            tracer.in_span("init", |_cx| _cx.attach());
             // Create a tracing layer with the configured tracer
-            let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
-
-            tracing_subscriber::registry()
-                .with(console_layer)
-                .with(metrics_layer)
-                .with(layers)
-                .with(telemetry)
-                .init();
+            let telemetry = tracing_opentelemetry::layer::<_>()
+                .with_tracer(tracer)
+                .with_filter(
+                    EnvFilter::builder()
+                        .with_default_directive(level_filter.into())
+                        .with_regex(true)
+                        .from_env_lossy()
+                        .add_directive("tungstenite=warn".parse()?)
+                        .add_directive("tokio=warn".parse()?)
+                        .add_directive("runtime=warn".parse()?)
+                        .add_directive("actix_server=info".parse()?)
+                        .add_directive("actix_http=info".parse()?)
+                        .add_directive("tokio_tungstenite=info".parse()?)
+                        .add_directive("mio=info".parse()?)
+                        .add_directive("h2=info".parse()?),
+                );
+            layered.with(telemetry).try_init()?;
         } else {
-            tracing_subscriber::registry()
-                .with(console_layer)
-                .with(metrics_layer)
-                .with(layers)
-                .init();
+            layered.try_init()?;
         }
 
-        tracing::info!("version: {version}");
-        tracing::info!("commit id: {commit_id}");
-        tracing::info!("build time: {build_time}");
+        let span = tracing::info_span!("info", version, commit_id = build::SHORT_COMMIT);
+        span.in_scope(|| {
+            tracing::info!("version: {version}");
+            tracing::info!("commit id: {commit_id}");
+            tracing::info!("build time: {build_time}");
+        });
+        span.entered().exit();
         anyhow::Ok(())
     })?;
 
@@ -360,8 +391,11 @@ fn main() -> Result<()> {
         .unwrap_or(Commands::Serve(serve::Cli::default()))
     {
         Commands::Run(cli) => {
-            let _ = tracing::info_span!("cli").entered();
-            runtime.block_on(cli.run_with(args.globals))?;
+            // let _ = tracing::info_span!("main").entered();
+
+            let span = tracing::info_span!("main");
+            let _ = span.enter();
+            runtime.block_on(cli.run_with(args.globals).instrument(span))?;
         }
         Commands::Serve(serve) => {
             let _ = tracing::info_span!("serve").entered();
@@ -378,6 +412,10 @@ fn main() -> Result<()> {
         }
         Commands::External(_) => bail!("unknown subcommand"),
     }
-    opentelemetry::global::shutdown_tracer_provider();
+    runtime.block_on(async move {
+        opentelemetry::global::shutdown_tracer_provider();
+    });
+    println!("wait for runtime shutdown");
+    runtime.shutdown_timeout(std::time::Duration::from_secs(5));
     Ok(())
 }

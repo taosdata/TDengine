@@ -6,14 +6,10 @@ description: |
 
   OPC UA is the next generation beyond the classic OPC specification, a platform-independent, service-oriented architecture specification that integrates all functionality from the existing OPC Classic specifications, providing a migration path to a more secure and scalable solution.
 
-  For more about OPC UA we introduce you to read the [OPC Foundation site](https://opcfoundation.org/), and some useful blogs, such as
+  To learn more about OPC, OPC UA and OPC DA, please visit the following links on the [OPC Foundation site](https://opcfoundation.org/):
 
   1. [What is OPC](https://opcfoundation.org/about/what-is-opc/)
   2. [What is OPC UA](https://opcfoundation.org/about/opc-technologies/opc-ua/)
-
-  taosX could pull data from OPC server by a OPC connector plugin.
-
-  Check the help message in each part to see the details.
 type: uri
 
 options:
@@ -215,12 +211,6 @@ groups:
     display_order: 4
     description: |
       field in OPC to column in database mapping
-
-      - **received_ts**: timestamp opc collector received<br>
-      - **original_ts**: timestamp from opc server <br>
-      - **value**: point value<br>
-      - **status**: point status<br>
-
     params:
       - name: opc_table_config
         display: OPC Table Config
@@ -251,7 +241,7 @@ groups:
         placeholder: 100
         value: 1
       - name: batch_timeout
-        display: Write Wait Timeout
+        display: Write Batch Timeout
         hint:
           type: integer
           min: 1

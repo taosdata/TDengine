@@ -218,13 +218,7 @@ groups:
   - name: 库表配置
     display_order: 4
     description: |
-      超级表创建配置
-
-      - **received_ts**: 采集时间戳。<br>
-      - **original_ts**: 原始时间戳。<br>
-      - **value**: 采集点值。<br>
-      - **status**: 点位质量。<br>
-
+      OPC 中的字段到数据库中的列映射
     params:
       - name: opc_table_config
         display: OPC Table Config
@@ -245,7 +239,7 @@ groups:
           max: 100
         value: 1
       - name: batch_size
-        display: 批次大小
+        display: 上报批次大小
         hint:
           type: integer
           min: 1
@@ -254,7 +248,7 @@ groups:
         placeholder: 100
         value: 1
       - name: batch_timeout
-        display: 上报超时
+        display: 上报等待时长
         hint:
           type: integer
           min: 1

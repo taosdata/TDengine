@@ -1210,7 +1210,8 @@ pub fn record_batch_to_column_view(record: &RecordBatch) -> Vec<ColumnView> {
     record
         .columns()
         .iter()
-        .map(|column| match column.data_type() {
+        .zip(record.schema().fields())
+        .map(|(column, field)| match column.data_type() {
             DataType::Null => todo!(),
             DataType::Boolean => {
                 let a = column.as_any().downcast_ref::<BooleanArray>().unwrap();
@@ -1409,48 +1410,39 @@ pub fn record_batch_to_column_view(record: &RecordBatch) -> Vec<ColumnView> {
                     }
                 }
             },
-            DataType::Date32 => todo!(),
-            DataType::Date64 => todo!(),
-            DataType::Time32(_) => todo!(),
-            DataType::Time64(_) => todo!(),
-            DataType::Duration(_) => todo!(),
-            DataType::Interval(_) => todo!(),
             DataType::Binary => {
                 let a = column.as_any().downcast_ref::<BinaryArray>().unwrap();
+                let iter = (0..a.len())
+                    .map(|i| {
+                        if a.is_null(i) {
+                            None
+                        } else {
+                            Some(unsafe { std::str::from_utf8_unchecked(a.value(i)) })
+                        }
+                    })
+                    .collect_vec();
 
-                ColumnView::from_varchar::<&str, _, _, _>(
-                    (0..a.len())
-                        .map(|i| {
-                            if a.is_null(i) {
-                                None
-                            } else {
-                                Some(unsafe { std::str::from_utf8_unchecked(a.value(i)) })
-                            }
-                        })
-                        .collect_vec(),
-                )
+                match field.metadata().get("cast_to").map(|s| s.as_str()) {
+                    Some("NCHAR") => ColumnView::from_nchar::<&str, _, _, _>(iter),
+                    _ => ColumnView::from_varchar::<&str, _, _, _>(iter),
+                }
             }
-            DataType::FixedSizeBinary(_) => todo!(),
-            DataType::LargeBinary => todo!(),
             DataType::Utf8 => {
                 let a = column.as_any().downcast_ref::<StringArray>().unwrap();
-                ColumnView::from_varchar::<&str, _, _, _>(
-                    (0..a.len())
-                        .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                        .collect_vec(),
-                )
+                match field.metadata().get("cast_to").map(|s| s.as_str()) {
+                    Some("NCHAR") => ColumnView::from_nchar::<&str, _, _, _>(
+                        (0..a.len())
+                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                            .collect_vec(),
+                    ),
+                    _ => ColumnView::from_varchar::<&str, _, _, _>(
+                        (0..a.len())
+                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                            .collect_vec(),
+                    ),
+                }
             }
-            DataType::LargeUtf8 => todo!(),
-            DataType::List(_) => todo!(),
-            DataType::FixedSizeList(_, _) => todo!(),
-            DataType::LargeList(_) => todo!(),
-            DataType::Struct(_) => todo!(),
-            DataType::Union(_, _) => todo!(),
-            DataType::Dictionary(_, _) => todo!(),
-            DataType::Decimal128(_, _) => todo!(),
-            DataType::Decimal256(_, _) => todo!(),
-            DataType::Map(_, _) => todo!(),
-            DataType::RunEndEncoded(_, _) => todo!(),
+            _ => todo!(),
         })
         .collect()
 }
