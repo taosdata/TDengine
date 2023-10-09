@@ -57,7 +57,7 @@
           <div
             style="width: 100%"
             v-if="
-              dbsource[0].params &&
+              dbsource[0].params && dbsource[0]?.params[0] &&
               JSON.stringify(dbsource[0]?.params[0]) !== '{}'
             "
           >
@@ -1090,7 +1090,7 @@ export default {
         }
 
         dns +=
-          data.options.subject.value && this.isPiDataArchiveAll
+          data.options.subject && data.options.subject.value && this.isPiDataArchiveAll
             ? "/" + data.options.subject.value
             : "";
         let reg = /\s+/g;
@@ -1253,7 +1253,7 @@ export default {
             return;
           }
         }
-        dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
+        dns += querystr ? (dns.includes("?") ? "&" : "?") + querystr.replace(/&$/g, "") : "";
         
         let apiParams = {
           from:
@@ -1676,7 +1676,7 @@ export default {
         }
 
         dns +=
-          data.options.subject.value && this.isPiDataArchiveAll
+          data.options.subject && data.options.subject.value && this.isPiDataArchiveAll
             ? "/" + data.options.subject.value
             : "";
         let reg = /\s+/g;
@@ -1726,7 +1726,7 @@ export default {
             });
           });
         }
-        dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
+        dns += querystr ? (dns.includes("?") ? "&" : "?") + querystr.replace(/&$/g, "") : "";
 
         let apiParams = {
           from:
