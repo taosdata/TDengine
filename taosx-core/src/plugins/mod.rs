@@ -3,8 +3,8 @@ mod service;
 pub(crate) mod sink;
 mod source;
 mod transform;
-
-mod runners;
+pub mod runners;
+pub mod validation;
 
 use std::sync::Arc;
 

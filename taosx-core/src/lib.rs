@@ -1,3 +1,32 @@
+use std::sync::{
+    Arc,
+    atomic::{AtomicU32, AtomicU64},
+};
+
+use anyhow::Context;
+use chrono::{NaiveDate, Utc};
+use dashmap::DashMap;
+use serde::{Deserialize};
+use serde_with::serde_as;
+use taos::{TaosBuilder, AsyncTBuilder, Dsn, IntoDsn};
+use taos::taos_query::tmq::Assignment;
+use tokio_util::sync::CancellationToken;
+use tracing::{instrument, Instrument};
+
+pub use csv::*;
+pub use legacy::*;
+pub use local_to_taos::local_to_taos;
+pub use parquets::*;
+pub use plugins::*;
+pub use tmq_to_local::tmq_to_local;
+pub use tmq_to_td::tmq_to_td;
+pub use transform::Action;
+use utils::port_pool::PortPool;
+
+use crate::tmq_to_kafka::clean_task;
+pub use crate::tmq_to_kafka::tmq_to_kafka;
+use crate::validation::DataSourceValidation;
+
 mod csv;
 mod legacy;
 mod local_to_taos;
@@ -14,33 +43,7 @@ pub mod utils;
 mod plugins;
 mod tmq_to_kafka;
 
-use anyhow::Context;
-use chrono::{NaiveDate, Utc};
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
-use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
-use tracing::{instrument, Instrument};
-
 mod extensions;
-
-use crate::tmq_to_kafka::clean_task;
-pub use crate::tmq_to_kafka::tmq_to_kafka;
-pub use csv::*;
-use dashmap::DashMap;
-pub use legacy::*;
-pub use local_to_taos::local_to_taos;
-pub use parquets::*;
-pub use plugins::*;
-use std::sync::{
-    atomic::{AtomicU32, AtomicU64},
-    Arc,
-};
-use taos::taos_query::tmq::Assignment;
-pub use tmq_to_local::tmq_to_local;
-pub use tmq_to_td::tmq_to_td;
-use tokio_util::sync::CancellationToken;
-pub use transform::Action;
-use utils::port_pool::PortPool;
 
 shadow_rs::shadow!(build);
 
@@ -108,61 +111,36 @@ impl Drop for TaskOpts {
     }
 }
 
-#[derive(Debug, Serialize)]
-pub struct ValidatedSource {
-    available: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    version: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    since: Option<String>,
-}
-
-pub type ValidatedTarget = ValidatedSource;
-
-impl Default for ValidatedSource {
-    fn default() -> Self {
-        Self {
-            available: true,
-            version: None,
-            since: None,
-        }
-    }
-}
-
-pub async fn validate_source(dsn: impl IntoDsn) -> ValidatedSource {
+pub fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
     let dsn = dsn.into_dsn();
-
     match dsn {
-        Ok(dsn) if dsn.driver.as_str() == "kafka" => {
-            if let Err(err) = is_kafka_available(&dsn).await {
-                ValidatedSource {
-                    available: false,
-                    version: None,
-                    since: Some(format!("{err:#}")),
-                }
-            } else {
-                Default::default()
+        Err(err) => {
+            DataSourceValidation {
+                valid: false,
+                support: false,
+                data_source: "unknown".to_string(),
+                version: None,
+                message: Some(format!("DSN error: {err:#}")),
             }
         }
-        Ok(_) => Default::default(),
-        Err(err) => ValidatedSource {
-            available: false,
-            version: None,
-            since: Some(format!("DSN error: {err:#}")),
-        },
-    }
-}
 
-pub fn validate_target(dsn: impl IntoDsn) -> ValidatedTarget {
-    let dsn = dsn.into_dsn();
-
-    match dsn {
-        Ok(_) => Default::default(),
-        Err(err) => ValidatedSource {
-            available: false,
-            version: None,
-            since: Some(format!("DSN error: {err:#}")),
-        },
+        Ok(d) => {
+            match d.driver.as_str() {
+                // TODO: clickhouse
+                // TODO: historian
+                // TODO: influxdb
+                "kafka" => runners::kafka::is_valid(&d),
+                // TODO: mqtt
+                // TODO: opc da
+                // TODO: opc ua
+                // TODO: opentsdb
+                // TODO: pi
+                // TODO: pi backfill
+                // TODO: taos
+                // TODO: tmq
+                &_ => DataSourceValidation::default()
+            }
+        }
     }
 }
 
@@ -296,7 +274,7 @@ impl TaskOpts {
                         .instrument(tracing::info_span!("legacy_to_taos")) => {
                             rs?;
                         }
-                    };
+                    }
                 }
                 ("taos", "csv") => {
                     tokio::select! {
@@ -307,7 +285,7 @@ impl TaskOpts {
                         rs = query_to_csv(from.clone(), to.clone()) => {
                             rs?;
                         }
-                    };
+                    }
                 }
                 ("taos", "parquet") => {
                     query_to_parquet(from.clone(), to.clone(), *force).await?;

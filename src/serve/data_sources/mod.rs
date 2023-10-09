@@ -11,10 +11,11 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use taos::Code;
-use taosx_core::{list_datasets_from, DataSetsReq};
+use taosx_core::{list_datasets_from, DataSetsReq, validate_dsn};
 use utoipa::*;
 
 mod definition;
+
 pub use definition::*;
 
 use crate::serve::{
@@ -103,6 +104,7 @@ pub enum Lang {
     En,
     Zh,
 }
+
 #[derive(Deserialize, Debug, ToSchema, IntoParams)]
 pub struct LangQuery {
     lang: Option<Lang>,
@@ -217,4 +219,29 @@ pub(super) async fn data_source_collection(
             message: format!("{:#}", err),
         }),
     }
+}
+
+
+/// check data source validation by dsn
+#[utoipa::path(
+    get,
+    path = "/ds/in/validate",
+    responses(
+        (status = 200, description = "data source is valid or not", body = DataSourceValidation),
+        (status = 500, description = "check data source failed", body = Failed),
+    ),
+    params(
+        ("dsn" = DsnQuery, description = "dsn string")
+    ),
+)]
+#[get("/ds/in/validate")]
+pub(super) async fn data_source_is_valid(query: Query<DsnQuery>) -> impl Responder {
+    let dsn = query.into_inner().dsn;
+    let dsv = validate_dsn(dsn);
+    HttpResponse::Ok().content_type(ContentType::json()).json(dsv)
+}
+
+#[derive(Deserialize, Debug, ToSchema, IntoParams)]
+pub struct DsnQuery {
+    dsn: String,
 }
