@@ -1953,7 +1953,7 @@ static int32_t replacePsedudoColumnFuncWithColumn(STranslateContext* pCxt, SNode
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateWindowPseudoColumnFunc2(STranslateContext* pCxt, SNode** ppNode) {
+static int32_t translateWindowPseudoColumnFunc(STranslateContext* pCxt, SNode** ppNode) {
   SFunctionNode* pFunc = (SFunctionNode*)(*ppNode);
   if (!fmIsWindowPseudoColumnFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
@@ -1976,7 +1976,7 @@ static int32_t translateWindowPseudoColumnFunc2(STranslateContext* pCxt, SNode**
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateScanPseudoColumnFunc2(STranslateContext* pCxt, SNode** ppNode) {
+static int32_t translateScanPseudoColumnFunc(STranslateContext* pCxt, SNode** ppNode) {
   SFunctionNode* pFunc = (SFunctionNode*)(*ppNode);
     if (!fmIsScanPseudoColumnFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
@@ -2008,7 +2008,7 @@ static int32_t translateNormalFunction(STranslateContext* pCxt, SNode** ppNode) 
   SFunctionNode* pFunc = (SFunctionNode*)(*ppNode);
   int32_t code = translateAggFunc(pCxt, pFunc);
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateScanPseudoColumnFunc2(pCxt, ppNode);
+    code = translateScanPseudoColumnFunc(pCxt, ppNode);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateIndefiniteRowsFunc(pCxt, pFunc);
@@ -2017,7 +2017,7 @@ static int32_t translateNormalFunction(STranslateContext* pCxt, SNode** ppNode) 
     code = translateForbidFillFunc(pCxt, pFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateWindowPseudoColumnFunc2(pCxt, ppNode);
+    code = translateWindowPseudoColumnFunc(pCxt, ppNode);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateForbidStreamFunc(pCxt, pFunc);
