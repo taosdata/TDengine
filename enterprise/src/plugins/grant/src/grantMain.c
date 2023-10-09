@@ -119,9 +119,10 @@ typedef struct {
   uint32_t      limitDbs;
   uint32_t      limitSTables;
   uint32_t      limitTables;
-  uint32_t      distribute;                        // version 3 since 3.1.0.0
-  char          active[GRANT_ACTIVE_KEY_LEN + 1];  // version 3 since 3.1.0.0
-  SGrantConnMsg connectors;                        // version 2 since 3.0.5.0
+  uint32_t      distribute;                          // version 3 since 3.1.0.0
+  char          active[GRANT_ACTIVE_KEY_LEN + 1];    // version 3 since 3.1.0.0
+  char          machine[GRANT_MACHINE_KEY_LEN + 1];  // version 4 since 3.1.1.7
+  SGrantConnMsg connectors;                          // version 2 since 3.0.5.0
 } SCloudGrantMsg;
 
 typedef struct {
@@ -241,6 +242,7 @@ typedef struct {
 typedef struct {
   uint32_t *lastCheck;
   SHashObj *pOfficials;
+  SHashObj *pMachines;
   SArray   *pDistInfo;
 } SGrantHandle;
 
@@ -276,9 +278,11 @@ int32_t mndInitGrant(SMnode *pMnode) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
+  if (!(grantHandle.pMachines = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UINT), true, true))) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
   if (!(grantHandle.pDistInfo = taosArrayInit(0, sizeof(SGrantDistInfo)))) {
-    taosHashCleanup(grantHandle.pOfficials);
-    grantHandle.pOfficials = NULL;
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
@@ -286,6 +290,7 @@ int32_t mndInitGrant(SMnode *pMnode) {
 _exit:
   if (terrno != 0) {
     uError("grant data initialize failed since %s", tstrerror(terrno));
+    mndCleanupGrant();
   } else {
     uDebug("grant data is initialized");
   }
@@ -295,7 +300,11 @@ _exit:
 
 void mndCleanupGrant() {
   taosHashCleanup(grantHandle.pOfficials);
+  taosHashCleanup(grantHandle.pMachines);
   taosArrayDestroy(grantHandle.pDistInfo);
+  grantHandle.pOfficials = NULL;
+  grantHandle.pMachines = NULL;
+  grantHandle.pDistInfo = NULL;
 }
 
 static void grantSetClusterInfo(SMnode *pMnode) {
@@ -553,6 +562,9 @@ static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus
     strncpy(pGrantMsg->connectors.active, grantConnObj.active, GRANT_CONN_ACTIVE_KEY_LEN + 1);
   }
 
+  // assign machine for activeCode checking in mnode leader
+  strncpy(pGrantMsg->machine, grantObj.machine, GRANT_MACHINE_KEY_LEN + 1);
+
   // clear the activeCodes
   grantResetActiveCodes();
 
@@ -673,6 +685,7 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
 
   SMnode *pMnode = pReq->info.node;
   int32_t dnodeSize = mndGetDnodeSize(pMnode);
+
   SArray *pDnodeInfo = taosArrayInit(dnodeSize, sizeof(SDnodeInfo));
   if (!pDnodeInfo) {
     atomic_store_8(&grantHbLock, 0);
@@ -1537,6 +1550,13 @@ static int32_t grantConnStatusCompare(GrantStatus *p1, GrantStatus *p2) {
 static int32_t mndProcessDnodeSGrantMsg(SMnode *pMnode, SDnodeInfo *pDnodeInfo, GrantMsg *pGrantMsg,
                                         GrantStatus *pGrantStatus) {
   uint32_t curTime = taosGetTimestampMs() / 1000;
+  if (pGrantMsg->machine[0] != 0) {
+    const char *val = taosHashGet(grantHandle.pMachines, &pDnodeInfo->id, sizeof(pDnodeInfo->id));
+    if (!val || 0 != strncmp(val, pGrantMsg->machine, GRANT_MACHINE_KEY_LEN + 1)) {
+      taosHashPut(grantHandle.pMachines, &pDnodeInfo->id, sizeof(pDnodeInfo->id), &pGrantMsg->machine,
+                  strlen(pGrantMsg->machine));
+    }
+  }
 #ifdef GRANTS_CFG
   if (pGrantMsg->updateForced) {
     pGrantStatus->limitTimeSeries = pGrantMsg->limitTimeSeries;
@@ -1707,7 +1727,7 @@ static int32_t mndSetActiveCodeFromCfg(SDnodeInfo *pDnodeInfo, GrantMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t grantAlterActiveCode(const char *old, const char *new, char *out, int8_t type) {
+int32_t grantAlterActiveCode(int32_t did, const char *old, const char *new, char *out, int8_t type) {
   int32_t code = 0;
   if (0 == strncmp(old, new, type == 0 ? TSDB_ACTIVE_KEY_LEN : TSDB_CONN_ACTIVE_KEY_LEN)) {
     code = TSDB_CODE_DUP_KEY;
@@ -1717,10 +1737,13 @@ int32_t grantAlterActiveCode(const char *old, const char *new, char *out, int8_t
     out[0] = 0;  // clear the code
     goto _exit;
   }
+
+  char key[GRANT_MACHINE_KEY_LEN + 1] = "\0";
+  taosHashGetDup(grantHandle.pMachines, &did, sizeof(did), &key);
   if (type == 0) {
-    code = grantSelectActiveCode(old, new, out);
+    code = grantSelectActiveCode(old, new, key, out);
   } else {
-    code = grantConnSelectActiveCode(old, new, out);
+    code = grantConnSelectActiveCode(old, new, key, out);
   }
 _exit:
   if (code != 0) terrno = code;
@@ -1890,13 +1913,23 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = "unlimited";
+    if (grantStatus.limitConns != GRANT_CONNECTION_LIMITS) {
+      sprintf(tmp1, "%u/%u", 0, grantStatus.limitConns);
+      src = tmp1;
+    } else {
+      src = "unlimited";
+    }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataSetVal(pColInfo, numOfRows, tmp, false);  // connections
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = "unlimited";
+    if (grantStatus.limitStreams != GRANT_STREAM_LIMITS) {
+      sprintf(tmp1, "%u/%u", 0, grantStatus.limitStreams);
+      src = tmp1;
+    } else {
+      src = "unlimited";
+    }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataSetVal(pColInfo, numOfRows, tmp, false);  // streams
 
@@ -1913,13 +1946,23 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = "unlimited";
+    if (grantStatus.limitSpeed != GRANT_WRITING_SPEED_LIMITS) {
+      sprintf(tmp1, "%u/%u", grantStatus.curSpeed, grantStatus.limitSpeed);
+      src = tmp1;
+    } else {
+      src = "unlimited";
+    }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataSetVal(pColInfo, numOfRows, tmp, false);  // speed
 
     ++cols;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    src = "unlimited";
+    if (grantStatus.limitQueryTime != GRANT_QUERY_TIME_LIMITS) {
+      sprintf(tmp1, "%u/%u", grantStatus.curQueryTime, grantStatus.limitQueryTime);
+      src = tmp1;
+    } else {
+      src = "unlimited";
+    }
     STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataSetVal(pColInfo, numOfRows, tmp, false);  // querytime
 #endif
@@ -2183,6 +2226,11 @@ int32_t tSerializeGrantMsg(void *buf, int32_t bufLen, GrantMsg *pMsg) {
   if (tEncodeI16v(&encoder, len) < 0) return -1;
   if (len > 0 && tEncodeBinary(&encoder, pMsg->connectors.active, len) < 0) return -1;
 
+  // since 3.1.1.7
+  len = strlen(pMsg->machine);
+  if (tEncodeI16v(&encoder, len) < 0) return -1;
+  if (len > 0 && tEncodeBinary(&encoder, pMsg->machine, len) < 0) return -1;
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2244,6 +2292,16 @@ int32_t tDeserializeGrantMsg(void *buf, int32_t bufLen, GrantMsg *pMsg) {
       char *data = NULL;
       if (tDecodeBinary(&decoder, (uint8_t **)&data, NULL) < 0) return -1;
       if (data) strncpy(pMsg->connectors.active, data, len);
+    }
+  }
+  // since 3.1.1.7
+  if (!tDecodeIsEnd(&decoder)) {
+    int16_t len = 0;
+    if (tDecodeI16v(&decoder, &len) < 0) return -1;
+    if (len > 0) {
+      char *data = NULL;
+      if (tDecodeBinary(&decoder, (uint8_t **)&data, NULL) < 0) return -1;
+      if (data) strncpy(pMsg->machine, data, len);
     }
   }
 
