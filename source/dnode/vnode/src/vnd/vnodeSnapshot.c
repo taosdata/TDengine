@@ -68,7 +68,7 @@ _out:
 }
 
 static TSnapRangeArray **vnodeSnapReaderGetTsdbRanges(SVSnapReader *pReader, int32_t tsdbTyp) {
-  _Static_assert(sizeof(pReader->pRsmaRanges) / sizeof(pReader->pRsmaRanges[0]) == 2, "Unexpected array size");
+  ASSERTS(sizeof(pReader->pRsmaRanges) / sizeof(pReader->pRsmaRanges[0]) == 2, "Unexpected array size");
   switch (tsdbTyp) {
     case SNAP_DATA_TSDB:
       return &pReader->pRanges;
@@ -423,7 +423,7 @@ struct SVSnapWriter {
 };
 
 TSnapRangeArray **vnodeSnapWriterGetTsdbRanges(SVSnapWriter *pWriter, int32_t tsdbTyp) {
-  _Static_assert(sizeof(pWriter->pRsmaRanges) / sizeof(pWriter->pRsmaRanges[0]) == 2, "Unexpected array size");
+  ASSERTS(sizeof(pWriter->pRsmaRanges) / sizeof(pWriter->pRsmaRanges[0]) == 2, "Unexpected array size");
   switch (tsdbTyp) {
     case SNAP_DATA_TSDB:
       return &pWriter->pRanges;
