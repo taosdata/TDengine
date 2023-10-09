@@ -1403,6 +1403,10 @@ impl TaskController {
         };
         opts.delete_task().await?;
 
+        // breakpoints_clear
+        let task_id = id.to_string();
+        taosx_core::utils::breakpoints::breakpoints_clear(&task_id)?;
+
         Ok(Some(task.into()))
     }
 

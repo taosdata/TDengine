@@ -192,8 +192,10 @@ impl TaskOpts {
             offsets,
             transferred,
             span,
+            task_id,
             ..
         } = self;
+        // dbg!(task_id);
 
         // Check if enterprise available
         #[cfg(not(feature = "disable-enterprise-only-validation"))]
@@ -282,7 +284,7 @@ impl TaskOpts {
                     local_to_taos(from.clone(), to.clone(), *jobs, *force).await?;
                 }
                 ("taos", "taos") => {
-                    legacy_to_taos(from.clone(), transform.clone(), to.clone(), *jobs).await?;
+                    legacy_to_taos(from.clone(), transform.clone(), to.clone(), *jobs, task_id.clone()).await?;
                 }
                 ("taos", "csv") => {
                     query_to_csv(from.clone(), to.clone()).await?;

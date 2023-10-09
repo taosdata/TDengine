@@ -1,4 +1,4 @@
-use tracing::info;
+use tracing::{info, debug};
 
 fn breakpoints_db_dir(task_id: &str) -> String {
     let current_dir = std::env::current_dir().unwrap();
@@ -9,8 +9,7 @@ fn breakpoints_db_dir(task_id: &str) -> String {
 
 pub fn breakpoints_set(task_id: &str, sub_task: &str, breakpoints: &str) -> anyhow::Result<()> {
     let path = breakpoints_db_dir(task_id);
-    println!("breakpoints db path: {}", path);
-    info!("breakpoints db path: {}", path);
+    debug!("breakpoints db path: {}, breakponts key: {}, value: {}", path, sub_task, breakpoints);
     let db = sled::open(path).expect("sled open db file failed");
     db.insert(sub_task, breakpoints)?;
     Ok(())
@@ -40,6 +39,7 @@ pub fn breakpoints_remove(task_id: &str, sub_task: &str) -> anyhow::Result<()> {
 pub fn breakpoints_clear(task_id: &str) -> anyhow::Result<()> {
     let path = breakpoints_db_dir(task_id);
     // delete db file
+    info!("delete breakpoints db file: {}", path);
     if std::path::Path::new(&path).exists() {
         std::fs::remove_dir_all(&path)?;
     }
