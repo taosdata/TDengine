@@ -89,6 +89,9 @@ class TDCreateData():
                 return False
                     
     def alter_local_slowlogthreshold(self):
+        
+        os.system("nohup taostest --use=common_insert.yaml --case=Query/queryscript/scene_query/schema/compact_alldb.py --keep --disable_collection --containers &")
+        
         self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
         #local variables 修改验证
         show_sql = 'show local variables;'
