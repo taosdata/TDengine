@@ -103,6 +103,11 @@ struct STFileSystem {
   int32_t       bgTaskNum;
   STFSBgTask    bgTaskQueue[1];
   STFSBgTask   *bgTaskRunning;
+
+  // block commit variables
+  TdThreadMutex commitMutex;
+  TdThreadCond  canCommit;
+  bool          blockCommit;
 };
 
 #ifdef __cplusplus
