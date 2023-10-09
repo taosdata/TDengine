@@ -914,7 +914,7 @@ class TDTestQuery(TDCase):
     def run(self):
         startTime = time.time() 
         
-        os.system("nohup taostest --use=common_insert.yaml --case=Query/queryscript/scene_query/schema/compact_alldb.py --keep --disable_collection --containers &")
+        os.system("nohup taostest --use=common_insert.yaml --case=Query/queryscript/scene_query/schema/compact_alldb.py --keep --disable_collection &")
                 
         self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
          
