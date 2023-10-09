@@ -779,7 +779,10 @@ int32_t chkpGetAllDbCfHandle(SStreamMeta* pMeta, rocksdb_column_family_handle_t*
     int64_t id = *(int64_t*)pIter;
 
     SBackendCfWrapper* wrapper = taosAcquireRef(streamBackendCfWrapperId, id);
-    if (wrapper == NULL) continue;
+    if (wrapper == NULL) {
+      pIter = taosHashIterate(pMeta->pTaskBackendUnique, pIter);
+      continue;
+    }
 
     taosThreadRwlockRdlock(&wrapper->rwLock);
     for (int i = 0; i < sizeof(ginitDict) / sizeof(ginitDict[0]); i++) {
@@ -795,6 +798,10 @@ int32_t chkpGetAllDbCfHandle(SStreamMeta* pMeta, rocksdb_column_family_handle_t*
   }
 
   int32_t nCf = taosArrayGetSize(pHandle);
+  if (nCf == 0) {
+    taosArrayDestroy(pHandle);
+    return nCf;
+  }
 
   rocksdb_column_family_handle_t** ppCf = taosMemoryCalloc(nCf, sizeof(rocksdb_column_family_handle_t*));
   for (int i = 0; i < nCf; i++) {
@@ -827,6 +834,7 @@ _ERROR:
   return code;
 }
 int32_t chkpPreFlushDb(rocksdb_t* db, rocksdb_column_family_handle_t** cf, int32_t nCf) {
+  if (nCf == 0) return 0;
   int   code = 0;
   char* err = NULL;
 
