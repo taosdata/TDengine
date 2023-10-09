@@ -1940,6 +1940,7 @@ int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg) {
   // clear flag set during do checkpoint, and open inputQ for all upstream tasks
   if (pTask->status.taskStatus == TASK_STATUS__CK) {
     streamTaskClearCheckInfo(pTask);
+    taosArrayClear(pTask->pReadyMsgList);
     streamSetStatusNormal(pTask);
   }
 

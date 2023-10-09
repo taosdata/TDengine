@@ -270,7 +270,6 @@ void streamTaskClearCheckInfo(SStreamTask* pTask) {
   pTask->chkInfo.startTs = 0;  // clear the recorded start time
   pTask->checkpointNotReadyTasks = 0;
   pTask->checkpointAlignCnt = 0;
-  taosArrayClear(pTask->pReadyMsgList);
   streamTaskOpenAllUpstreamInput(pTask);   // open inputQ for all upstream tasks
 }
 
