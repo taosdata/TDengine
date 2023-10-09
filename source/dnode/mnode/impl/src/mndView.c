@@ -94,78 +94,10 @@ int32_t mndProcessGetViewMetaReq(SRpcMsg *pReq) {
 
 
 int32_t mndRetrieveView(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-#if 0
-  SMnode     *pMnode = pReq->info.node;
-  SSdb       *pSdb = pMnode->pSdb;
-  int32_t     numOfRows = 0;
-  SViewObj *pView = NULL;
-
-  while (numOfRows < rows) {
-    pShow->pIter = sdbFetch(pSdb, SDB_VIEW, pShow->pIter, (void **)&pView);
-    if (pShow->pIter == NULL) break;
-
-    SColumnInfoData *pColInfo;
-    SName            n;
-    int32_t          cols = 0;
-
-    char viewName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(viewName, mndGetDbStr(pView->name), sizeof(viewName));
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)viewName, false);
-
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pView->createTime, false);
-
-    char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(sql, pView->sql, sizeof(sql));
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)sql, false);
-
-    char status[20 + VARSTR_HEADER_SIZE] = {0};
-    char status2[20] = {0};
-    mndShowViewStatus(status2, pView);
-    STR_WITH_MAXSIZE_TO_VARSTR(status, status2, sizeof(status));
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&status, false);
-
-    char sourceDB[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(sourceDB, mndGetDbStr(pView->sourceDb), sizeof(sourceDB));
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&sourceDB, false);
-
-    char targetDB[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(targetDB, mndGetDbStr(pView->targetDb), sizeof(targetDB));
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&targetDB, false);
-
-    if (pView->targetSTbName[0] == 0) {
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, NULL, true);
-    } else {
-      char targetSTB[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      STR_WITH_MAXSIZE_TO_VARSTR(targetSTB, mndGetStbStr(pView->targetSTbName), sizeof(targetSTB));
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&targetSTB, false);
-    }
-
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&pView->conf.watermark, false);
-
-    char trigger[20 + VARSTR_HEADER_SIZE] = {0};
-    char trigger2[20] = {0};
-    mndShowViewTrigger(trigger2, pView);
-    STR_WITH_MAXSIZE_TO_VARSTR(trigger, trigger2, sizeof(trigger));
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataSetVal(pColInfo, numOfRows, (const char *)&trigger, false);
-
-    numOfRows++;
-    sdbRelease(pSdb, pView);
-  }
-
-  pShow->numOfRows += numOfRows;
-  return numOfRows;
-#else
+#ifndef TD_ENTERPRISE
   return 0;
+#else
+  return mndRetrieveViewImpl(pReq, pShow, pBlock, rows);
 #endif
 }
 

@@ -1569,7 +1569,8 @@ SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
 static bool needDbShowStmt(ENodeType type) {
   return QUERY_NODE_SHOW_TABLES_STMT == type || QUERY_NODE_SHOW_STABLES_STMT == type ||
          QUERY_NODE_SHOW_VGROUPS_STMT == type || QUERY_NODE_SHOW_INDEXES_STMT == type ||
-         QUERY_NODE_SHOW_TAGS_STMT == type || QUERY_NODE_SHOW_TABLE_TAGS_STMT == type;
+         QUERY_NODE_SHOW_TAGS_STMT == type || QUERY_NODE_SHOW_TABLE_TAGS_STMT == type ||
+         QUERY_NODE_SHOW_VIEWS_STMT == type;
 }
 
 SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type) {
@@ -2166,7 +2167,11 @@ SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pVie
   CHECK_PARSER_STATUS(pCxt);
   SCreateViewStmt* pStmt = (SCreateViewStmt*)nodesMakeNode(QUERY_NODE_CREATE_VIEW_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  pStmt->pQuerySql = strdup(pAs->z + pAs->n);
+  int32_t i = pAs->n;
+  while (isspace(*(pAs->z + i))) {
+    ++i;
+  }
+  pStmt->pQuerySql = strdup(pAs->z + i);
   CHECK_OUT_OF_MEM(pStmt->pQuerySql);
   strcpy(pStmt->dbName, ((SViewNode*)pView)->table.dbName);
   strcpy(pStmt->viewName, ((SViewNode*)pView)->table.tableName);

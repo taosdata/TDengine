@@ -500,6 +500,7 @@ cmd ::= SHOW VNODES.                                                            
 // show alive
 cmd ::= SHOW db_name_cond_opt(A) ALIVE.                                           { pCxt->pRootNode = createShowAliveStmt(pCxt, A,    QUERY_NODE_SHOW_DB_ALIVE_STMT); }
 cmd ::= SHOW CLUSTER ALIVE.                                                       { pCxt->pRootNode = createShowAliveStmt(pCxt, NULL, QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT); }
+cmd ::= SHOW db_name_cond_opt(A) VIEWS.                                           { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_VIEWS_STMT, A, NULL, OP_TYPE_LIKE); }
 
 db_name_cond_opt(A) ::= .                                                         { A = createDefaultDatabaseCondValue(pCxt); }
 db_name_cond_opt(A) ::= db_name(B) NK_DOT.                                        { A = createIdentifierValueNode(pCxt, &B); }

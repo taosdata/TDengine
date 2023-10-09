@@ -320,6 +320,11 @@ int32_t ctgdHandleDbgCommand(char *command) {
     CTG_RET(TSDB_CODE_INVALID_PARA);
   }
 
+  if (NULL == param || NULL == option) {
+    taosMemoryFree(dup);
+    CTG_RET(TSDB_CODE_INVALID_PARA);
+  }
+
   bool enable = atoi(param);
 
   int32_t code = ctgdEnableDebug(option, enable);

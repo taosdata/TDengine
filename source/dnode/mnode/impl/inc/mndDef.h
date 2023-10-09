@@ -728,16 +728,23 @@ void    tFreeStreamObj(SStreamObj* pObj);
 //   SArray* childInfo;  // SArray<SStreamChildEpInfo>
 // } SStreamCheckpointObj;
 
+#define VIEW_TYPE_UPDATABLE    (1 << 0)
+#define VIEW_TYPE_MATERIALIZED (1 << 1)
 
 typedef struct {
   char     fullname[TSDB_VIEW_FNAME_LEN];
   char     name[TSDB_VIEW_NAME_LEN];
   char     dbFName[TSDB_DB_FNAME_LEN];
   char*    querySql;
+  char*    parameters;
+  void**   defaultValues;
+  char*    targetTable;
   uint64_t viewId;
   uint64_t dbId;
+  int64_t  createdTime;
   int32_t  version;
   int8_t   precision;
+  int8_t   type;
   int32_t  numOfCols;
   SSchema* pSchema;
   SRWLatch lock;  

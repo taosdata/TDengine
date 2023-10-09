@@ -250,6 +250,12 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
+  { .showType = QUERY_NODE_SHOW_VIEWS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_VIEWS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -343,7 +349,11 @@ static int32_t getTableMetaImpl(STranslateContext* pCxt, const SName* pName, STa
       code = getTableMetaFromCache(pCxt->pMetaCache, pName, pMeta);
 #ifdef TD_ENTERPRISE
       if (TSDB_CODE_SUCCESS != code) {
+        int32_t origCode = code;
         code = getViewMetaFromCache(pCxt->pMetaCache, pName, pMeta);
+        if (TSDB_CODE_SUCCESS != code) {
+          code = origCode;
+        }
       }
 #endif
     } else {
@@ -9335,6 +9345,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
     case QUERY_NODE_SHOW_TAGS_STMT:
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
+    case QUERY_NODE_SHOW_VIEWS_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_VGROUPS_STMT:

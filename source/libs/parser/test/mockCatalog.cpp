@@ -110,6 +110,10 @@ void generateInformationSchema(MockCatalogService* mcs) {
       .addColumn("user_name", TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN)
       .addColumn("privilege", TSDB_DATA_TYPE_BINARY, 10)
       .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_VIEWS, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("view_name", TSDB_DATA_TYPE_BINARY, TSDB_VIEW_NAME_LEN)
+      .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
+      .done();
 }
 
 void generatePerformanceSchema(MockCatalogService* mcs) {
