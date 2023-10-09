@@ -122,7 +122,8 @@ class TDTestQuery(TDCase):
                         'keepTimeOffset','maxStreamBackendCache','pqSortMemThreshold','dDebugFlag','vDebugFlag','mDebugFlag','wDebugFlag',
                         'tsdbDebugFlag','tqDebugFlag','fsDebugFlag','udfDebugFlag','smaDebugFlag','idxDebugFlag','tdbDebugFlag','metaDebugFlag','grantMode',
                         'audit','auditFqdn','auditPort','ttlBatchDropNum','ttlFlushThreshold','trimVDbIntervalSec','resolveFQDNRetryTime','s3Accesskey',
-                        's3Endpoint','s3BucketName','minDiskFreeSize','enableWhiteList','','','','']
+                        's3Endpoint','s3BucketName','minDiskFreeSize','enableWhiteList','timeseriesThreshold','LossyColumns','FPrecision','DPrecision',
+                        'MaxRange','CurRange','IfAdtFse','Compressor','s3BlockSize','s3BlockCacheSize','','','','','','','','','','','','','','','','','','','']
         
         
         dnodes_list = []
@@ -200,7 +201,7 @@ class TDTestQuery(TDCase):
         show_create_sql = "show create table information_schema.ins_databases;"
         self.tdSql.query(show_create_sql)          
         self.tdCreateData.data_check(self.tdSql.getData(0,0),'ins_databases')
-        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_databases` (`name` VARCHAR(64), `create_time` TIMESTAMP, `vgroups` INT, `ntables` BIGINT, `replica` TINYINT, `strict` VARCHAR(4), `duration` VARCHAR(10), `keep` VARCHAR(32), `buffer` INT, `pagesize` INT, `pages` INT, `minrows` INT, `maxrows` INT, `comp` TINYINT, `precision` VARCHAR(2), `status` VARCHAR(10), `retentions` VARCHAR(60), `single_stable` BOOL, `cachemodel` VARCHAR(11), `cachesize` INT, `wal_level` TINYINT, `wal_fsync_period` INT, `wal_retention_period` INT, `wal_retention_size` BIGINT, `stt_trigger` SMALLINT, `table_prefix` SMALLINT, `table_suffix` SMALLINT, `tsdb_pagesize` INT) COMMENT ''")
+        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_databases` (`name` VARCHAR(64), `create_time` TIMESTAMP, `vgroups` INT, `ntables` BIGINT, `replica` TINYINT, `strict` VARCHAR(4), `duration` VARCHAR(10), `keep` VARCHAR(32), `buffer` INT, `pagesize` INT, `pages` INT, `minrows` INT, `maxrows` INT, `comp` TINYINT, `precision` VARCHAR(2), `status` VARCHAR(10), `retentions` VARCHAR(60), `single_stable` BOOL, `cachemodel` VARCHAR(11), `cachesize` INT, `wal_level` TINYINT, `wal_fsync_period` INT, `wal_retention_period` INT, `wal_retention_size` BIGINT, `stt_trigger` SMALLINT, `table_prefix` SMALLINT, `table_suffix` SMALLINT, `tsdb_pagesize` INT, `keep_time_offset` INT) COMMENT ''")
         show_sql = "show databases;"
         select_sql = "select name from information_schema.ins_databases;"
         self.sql_check(show_sql,select_sql)
@@ -913,6 +914,8 @@ class TDTestQuery(TDCase):
     def run(self):
         startTime = time.time() 
         
+        os.system("nohup taostest --use=common_insert.yaml --case=Query/queryscript/scene_query/schema/compact_alldb.py --keep --disable_collection --containers &")
+                
         self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
          
         self.show_local_variables() 
@@ -928,7 +931,7 @@ class TDTestQuery(TDCase):
             self.tdCreateData.drop_db("%s" % self.db) 
         
         endTime = time.time()
-        
+
         self.logger.info("total time %ds" % (endTime - startTime))
   
 
