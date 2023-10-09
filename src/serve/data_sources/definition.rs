@@ -231,6 +231,8 @@ impl Definitions {
 pub struct DatasetsDefinition {
     pub name: String,
     pub description: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub categories: Vec<DatasetParam>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
@@ -247,8 +249,8 @@ pub struct DatasetParam {
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub target: Option<Target>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub param: Option<Param>,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub params: Vec<Param>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Default)]
@@ -587,6 +589,13 @@ impl DataSourceDefinition {
                             } else {
                                 target.value = Some(serde_json::Value::String(value));
                             }
+                        }
+                    }
+                }
+                for param in &mut dataset_param.params {
+                    if let Some(value) = dsn.remove(&param.name) {
+                        if !value.is_empty() {
+                            param.value.replace(value);
                         }
                     }
                 }

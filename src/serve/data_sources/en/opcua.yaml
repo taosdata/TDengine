@@ -89,9 +89,9 @@ authentication:
 datasets:
   name: Data Sets
   description: Data points in OPC server to collect.
-  value: use_csv_config
+  value: csv_config_file
   categories:
-  - category: use_csv_config
+  - category: csv_config_file
     display: Upload CSV
     description: |
       Use OPC UA point configuration file.

@@ -98,9 +98,9 @@ authentication:
 datasets:
   name: 点位集
   description: OPC 采集数据点位列表。
-  value: use_csv_config
+  value: csv_config_file
   categories:
-  - category: use_csv_config
+  - category: csv_config_file
     display: 上传 CSV 配置文件
     description: |
       使用 CSV 文件进行配置。
