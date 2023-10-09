@@ -762,17 +762,6 @@ static int32_t tsdbCompactEnd(SCompactor2 *compactor) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tsdbFSEditBegin(compactor->tsdb->pFS, compactor->fopArr, TSDB_FEDIT_MERGE);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  taosThreadRwlockWrlock(&compactor->tsdb->rwLock);
-  code = tsdbFSEditCommit(compactor->tsdb->pFS);
-  if (code) {
-    taosThreadRwlockUnlock(&compactor->tsdb->rwLock);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-  taosThreadRwlockUnlock(&compactor->tsdb->rwLock);
-
   taosArrayDestroy(compactor->ctx->aSkyLine);
 
   TARRAY2_DESTROY(compactor->ctx->tombIterArr, NULL);
@@ -978,6 +967,8 @@ static int32_t tsdbCompactFSetBegin(SCompactor2 *compactor) {
   int32_t code = 0;
   int32_t lino = 0;
 
+  TARRAY2_CLEAR(compactor->fopArr, NULL);
+
   code = tsdbCompactFSetOpenReader(compactor);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -1009,6 +1000,17 @@ static int32_t tsdbCompactFSetEnd(SCompactor2 *compactor) {
 
   code = tsdbCompactFSetCloseReader(compactor);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbFSEditBegin(compactor->tsdb->pFS, compactor->fopArr, TSDB_FEDIT_MERGE);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  taosThreadRwlockWrlock(&compactor->tsdb->rwLock);
+  code = tsdbFSEditCommit(compactor->tsdb->pFS);
+  if (code) {
+    taosThreadRwlockUnlock(&compactor->tsdb->rwLock);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  taosThreadRwlockUnlock(&compactor->tsdb->rwLock);
 
 _exit:
   if (code) {
