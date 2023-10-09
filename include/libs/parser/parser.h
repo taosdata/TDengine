@@ -92,6 +92,7 @@ typedef struct SParseContext {
   int64_t          allocatorId;
   parseSqlFn       parseSqlFp;
   void*            parseSqlParam;
+  int8_t           biMode;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);

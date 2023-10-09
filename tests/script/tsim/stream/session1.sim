@@ -132,85 +132,85 @@ sql select * from streamt order by s desc;
 
 # row 0
 if $data01 != 2 then
-  print ======$data01
+  print =====data01=$data01
   goto loop2
 endi
 
 if $data02 != 29 then
-  print ======$data02
+  print =====data02=$data02
   goto loop2
 endi
 
 if $data03 != 7 then
-  print ======$data03
+  print =====data03=$data03
   goto loop2
 endi
 
 if $data04 != 22 then
-  print ======$data04
+  print =====data04=$data04
   goto loop2
 endi
 
 # row 1
 if $data11 != 3 then
-  print ======$data11
+  print =====data11=$data11
   goto loop2
 endi
 
 if $data12 != 33 then
-  print ======$data12
+  print =====data12=$data12
   goto loop2
 endi
 
 if $data13 != 8 then
-  print ======$data13
+  print =====data13=$data13
   goto loop2
 endi
 
 if $data14 != 21 then
-  print ======$data14
+  print =====data14=$data14
   goto loop2
 endi
 
 # row 2
 if $data21 != 4 then
-  print ======$data21
+  print =====data21=$data21
   goto loop2
 endi
 
 if $data22 != 25 then
-  print ======$data22
+  print =====data22=$data22
   goto loop2
 endi
 
 if $data23 != 2 then
-  print ======$data23
+  print =====data23=$data23
   goto loop2
 endi
 
 if $data24 != 20 then
-  print ======$data24
+  print =====data24=$data24
   goto loop2
 endi
 
 # row 3
 if $data31 != 10 then
-  print ======$data31
+  print =====data31=$data31
   goto loop2
 endi
 
 if $data32 != 54 then
-  print ======$data32
+  print =====data32=$data32
   goto loop2
 endi
 
 if $data33 != 1 then
-  print ======$data33
+  print =====data33=$data33
   goto loop2
 endi
 
 if $data34 != 19 then
-  print ======$data34
+  print =====data34=$data34
   goto loop2
 endi
 

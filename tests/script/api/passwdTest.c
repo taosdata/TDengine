@@ -47,8 +47,10 @@ typedef uint16_t VarDataLenT;
 void createUsers(TAOS *taos, const char *host, char *qstr);
 void passVerTestMulti(const char *host, char *qstr);
 void sysInfoTest(TAOS *taos, const char *host, char *qstr);
+void userDroppedTest(TAOS *taos, const char *host, char *qstr);
 
 int   nPassVerNotified = 0;
+int   nUserDropped = 0;
 TAOS *taosu[nRoot] = {0};
 char  users[nUser][USER_LEN] = {0};
 
@@ -56,11 +58,16 @@ void __taos_notify_cb(void *param, void *ext, int type) {
   switch (type) {
     case TAOS_NOTIFY_PASSVER: {
       ++nPassVerNotified;
-      printf("%s:%d type:%d user:%s ver:%d\n", __func__, __LINE__, type, param ? (char *)param : "NULL", *(int *)ext);
+      printf("%s:%d type:%d user:%s passVer:%d\n", __func__, __LINE__, type, param ? (char *)param : "NULL", *(int *)ext);
+      break;
+    }
+    case TAOS_NOTIFY_USER_DROPPED: {
+      ++nUserDropped;
+      printf("%s:%d type:%d user:%s dropped\n", __func__, __LINE__, type, param ? (char *)param : "NULL");
       break;
     }
     default:
-      printf("%s:%d unknown type:%d\n", __func__, __LINE__, type);
+      printf("%s:%d unknown notify type:%d\n", __func__, __LINE__, type);
       break;
   }
 }
@@ -202,6 +209,7 @@ int main(int argc, char *argv[]) {
   createUsers(taos, argv[1], qstr);
   passVerTestMulti(argv[1], qstr);
   sysInfoTest(taos, argv[1], qstr);
+  userDroppedTest(taos, argv[1], qstr);
 
   taos_close(taos);
   taos_cleanup();
@@ -223,9 +231,9 @@ void createUsers(TAOS *taos, const char *host, char *qstr) {
     int code = taos_set_notify_cb(taosu[i], __taos_notify_cb, users[i], TAOS_NOTIFY_PASSVER);
 
     if (code != 0) {
-      fprintf(stderr, "failed to run: taos_set_notify_cb for user:%s since %d\n", users[i], code);
+      fprintf(stderr, "failed to run: taos_set_notify_cb(TAOS_NOTIFY_PASSVER) for user:%s since %d\n", users[i], code);
     } else {
-      fprintf(stderr, "success to run: taos_set_notify_cb for user:%s\n", users[i]);
+      fprintf(stderr, "success to run: taos_set_notify_cb(TAOS_NOTIFY_PASSVER) for user:%s\n", users[i]);
     }
 
     // alter pass for users
@@ -290,17 +298,19 @@ void passVerTestMulti(const char *host, char *qstr) {
   }
 
   fprintf(stderr, "######## %s #########\n", __func__);
-  if (nPassVerNotified >= nConn) {
-    fprintf(stderr, ">>> succeed to get passVer notification since nNotify %d >= nConn %d\n", nPassVerNotified,
+  if (nPassVerNotified == nConn) {
+    fprintf(stderr, ">>> succeed to get passVer notification since nNotify %d == nConn %d\n", nPassVerNotified,
             nConn);
   } else {
-    fprintf(stderr, ">>> failed to get passVer notification since nNotify %d < nConn %d\n", nPassVerNotified, nConn);
+    fprintf(stderr, ">>> failed to get passVer notification since nNotify %d != nConn %d\n", nPassVerNotified, nConn);
+    exit(1);
   }
   fprintf(stderr, "######## %s #########\n", __func__);
   // sleep(300);
 }
 
 void sysInfoTest(TAOS *taosRoot, const char *host, char *qstr) {
+  fprintf(stderr, "######## %s entry #########\n", __func__);
   TAOS *taos[nRoot] = {0};
   char  userName[USER_LEN] = "user0";
 
@@ -376,4 +386,56 @@ _REP:
   fprintf(stderr, "######## %s #########\n", __func__);
   fprintf(stderr, ">>> succeed to run sysInfoTest\n");
   fprintf(stderr, "######## %s #########\n", __func__);
+}
+
+void userDroppedTest(TAOS *taos, const char *host, char *qstr) {
+  // users
+  int nTestUsers = nUser;
+  for (int i = 0; i < nTestUsers; ++i) {
+    // sprintf(users[i], "user%d", i);
+    taosu[i] = taos_connect(host, users[i], "taos", NULL, 0);
+    if (taosu[i] == NULL) {
+      printf("failed to connect to server, user:%s, reason:%s\n", users[i], "null taos" /*taos_errstr(taos)*/);
+      exit(1);
+    }
+    int code = taos_set_notify_cb(taosu[i], __taos_notify_cb, users[i], TAOS_NOTIFY_USER_DROPPED);
+    if (code != 0) {
+      fprintf(stderr, "failed to run: taos_set_notify_cb:%d for user:%s since %d\n", TAOS_NOTIFY_USER_DROPPED, users[i],
+              code);
+    } else {
+      fprintf(stderr, "success to run: taos_set_notify_cb:%d for user:%s\n", TAOS_NOTIFY_USER_DROPPED, users[i]);
+    }
+  }
+
+  for (int i = 0; i < nTestUsers; ++i) {
+    // drop user0 ... user${nUser}
+    sprintf(qstr, "drop user %s", users[i]);
+    queryDB(taos, qstr);
+  }
+
+  // calculate the nUserDropped for users
+  int nConn = nTestUsers;
+
+  for (int i = 0; i < 15; ++i) {
+    printf("%s:%d [%d] second(s) elasped, user dropped notification received:%d, total:%d\n", __func__, __LINE__, i,
+           nUserDropped, nConn);
+    if (nUserDropped >= nConn) break;
+    sleep(1);
+  }
+
+  for (int i = 0; i < nTestUsers; ++i) {
+    taos_close(taosu[i]);
+    printf("%s:%d close taosu[%d]\n", __func__, __LINE__, i);
+    sleep(1);
+  }
+
+  fprintf(stderr, "######## %s #########\n", __func__);
+  if (nUserDropped == nConn) {
+    fprintf(stderr, ">>> succeed to get user dropped notification since nNotify %d == nConn %d\n", nUserDropped, nConn);
+  } else {
+    fprintf(stderr, ">>> failed to get user dropped notification since nNotify %d != nConn %d\n", nUserDropped, nConn);
+    exit(1);
+  }
+  fprintf(stderr, "######## %s #########\n", __func__);
+  // sleep(300);
 }

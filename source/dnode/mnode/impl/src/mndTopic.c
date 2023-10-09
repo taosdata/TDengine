@@ -485,12 +485,6 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       topicObj.astLen = strlen(pCreate->ast) + 1;
     }
   }
-  /*} else if (pCreate->subType == TOPIC_SUB_TYPE__DB) {*/
-  /*topicObj.ast = NULL;*/
-  /*topicObj.astLen = 0;*/
-  /*topicObj.physicalPlan = NULL;*/
-  /*topicObj.withTbName = 1;*/
-  /*topicObj.withSchema = 1;*/
 
   SSdbRaw *pCommitRaw = mndTopicActionEncode(&topicObj);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {

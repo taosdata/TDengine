@@ -22,15 +22,21 @@
 extern "C" {
 #endif
 
-extern int8_t tsS3Enabled;
+#define S3_BLOCK_CACHE
+
+extern int8_t  tsS3Enabled;
+extern int32_t tsS3BlockSize;
+extern int32_t tsS3BlockCacheSize;
 
 int32_t s3Init();
 void    s3CleanUp();
 int32_t s3PutObjectFromFile(const char *file, const char *object);
+int32_t s3PutObjectFromFile2(const char *file, const char *object);
 void    s3DeleteObjectsByPrefix(const char *prefix);
 void    s3DeleteObjects(const char *object_name[], int nobject);
 bool    s3Exists(const char *object_name);
 bool    s3Get(const char *object_name, const char *path);
+int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, uint8_t **ppBlock);
 void    s3EvictCache(const char *path, long object_size);
 long    s3Size(const char *object_name);
 

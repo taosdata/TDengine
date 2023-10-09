@@ -114,7 +114,7 @@ static int32_t tsdbCopyFileS3(SRTNer *rtner, const STFileObj *from, const STFile
   TSDB_CHECK_CODE(code, lino, _exit);
 
   char *object_name = taosDirEntryBaseName(fname);
-  code = s3PutObjectFromFile(from->fname, object_name);
+  code = s3PutObjectFromFile2(from->fname, object_name);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   taosCloseFile(&fdFrom);
@@ -372,6 +372,14 @@ static int32_t tsdbDoRetention2(void *arg) {
 
 _exit:
   if (code) {
+    if (TARRAY2_DATA(rtner->fopArr)) {
+      TARRAY2_DESTROY(rtner->fopArr, NULL);
+    }
+    TFileSetArray **fsetArr = &rtner->fsetArr;
+    if (fsetArr[0]) {
+      tsdbFSDestroyCopySnapshot(&rtner->fsetArr);
+    }
+
     TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
   }
   return code;
