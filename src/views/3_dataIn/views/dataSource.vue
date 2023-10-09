@@ -572,7 +572,8 @@ export default {
       }
     },
     refresh() {
-      return this.getList();
+      this.getList();
+      this.$refs.agents.refresh()
     },
     async refreshCurrentTask(data) {
       try {
