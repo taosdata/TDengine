@@ -370,8 +370,12 @@ static bool doPutDataIntoInputQFromWal(SStreamTask* pTask, int64_t maxVer, int32
 
     SStreamQueueItem* pItem = NULL;
     int32_t code = extractMsgFromWal(pTask->exec.pWalReader, (void**)&pItem, maxVer, id);
-
     if (code != TSDB_CODE_SUCCESS || pItem == NULL) {  // failed, continue
+      int64_t currentVer = walReaderGetCurrentVer(pTask->exec.pWalReader);
+      bool itemInFillhistory = handleFillhistoryScanComplete(pTask, currentVer);
+      if (itemInFillhistory) {
+        numOfNewItems += 1;
+      }
       break;
     }
 
