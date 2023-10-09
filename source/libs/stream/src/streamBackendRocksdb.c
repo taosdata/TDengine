@@ -986,7 +986,7 @@ int32_t streamBackendDoCheckpoint(void* arg, uint64_t checkpointId) {
   stDebug("stream backend:%p start to do checkpoint at:%s, cf num: %d ", pHandle, pChkpIdDir, nCf);
 
   code = chkpPreFlushDb(pHandle->db, ppCf, nCf);
-  if (code == 0 && nCf != 0) {
+  if (code == 0) {
     code = chkpDoDbCheckpoint(pHandle->db, pChkpIdDir);
     if (code != 0) {
       stError("stream backend:%p failed to do checkpoint at:%s", pHandle, pChkpIdDir);
@@ -994,7 +994,7 @@ int32_t streamBackendDoCheckpoint(void* arg, uint64_t checkpointId) {
       stDebug("stream backend:%p end to do checkpoint at:%s, time cost:%" PRId64 "ms", pHandle, pChkpIdDir,
               taosGetTimestampMs() - st);
     }
-  } else if (nCf != 0) {
+  } else  {
     stError("stream backend:%p failed to flush db at:%s", pHandle, pChkpIdDir);
   }
   // release all ref to cfWrapper;
