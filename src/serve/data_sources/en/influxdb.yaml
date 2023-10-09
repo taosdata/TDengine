@@ -148,3 +148,39 @@ groups:
           min: 1
           max: 30000
         value: 10000
+      - name: maxThread
+        display: Maximum Read Threads
+        description: Multiple threads read InfluxDB data, allows you to adjust the maximum number of read threads based on server performance.
+        placeholder: Please input the maximum number of read threads
+        hint:
+          type: integer
+          min: 1
+          max: 150
+        value: 50
+      - name: queueSizeT
+        display: Maximum Thread Caches
+        description: Threads are cached in the memory queue, and then started in sequence, allows you to adjust the maximum number of thread caches based on server performance.
+        placeholder: Please input the maximum number of thread caches
+        hint:
+          type: integer
+          min: 10
+          max: 2000
+        value: 1000
+      - name: queueSizeD
+        display: Maximum Data Caches
+        description: InfluxDB datas are cached in the memory queue, and then transmitted downstream, allows you to adjust the maximum number of data caches based on server performance.
+        placeholder: Please input the maximum number of data caches
+        hint:
+          type: integer
+          min: 10000
+          max: 500000
+        value: 200000
+      - name: limitSpeed
+        display: Transmit Speed Limit
+        description: To avoid downstream pressure, the transmit speed needs to be limited, allows you to adjust the upper limit of speed based on server performance.
+        placeholder: Please input the upper limit of transmit speed
+        hint:
+          type: integer
+          min: 5000
+          max: 500000
+        value: 100000
