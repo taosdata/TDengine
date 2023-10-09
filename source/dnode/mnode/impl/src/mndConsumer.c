@@ -126,31 +126,37 @@ void mndRebCntDec() {
 }
 
 static int32_t validateTopics(STrans *pTrans, const SArray *pTopicList, SMnode *pMnode, const char *pUser, bool enableReplay) {
-  int32_t numOfTopics = taosArrayGetSize(pTopicList);
+  SMqTopicObj *pTopic = NULL;
+  int32_t code = 0;
 
+  int32_t numOfTopics = taosArrayGetSize(pTopicList);
   for (int32_t i = 0; i < numOfTopics; i++) {
     char        *pOneTopic = taosArrayGetP(pTopicList, i);
-    SMqTopicObj *pTopic = mndAcquireTopic(pMnode, pOneTopic);
+    pTopic = mndAcquireTopic(pMnode, pOneTopic);
     if (pTopic == NULL) {  // terrno has been set by callee function
-      return -1;
+      code = -1;
+      goto FAILED;
     }
 
     if (mndCheckTopicPrivilege(pMnode, pUser, MND_OPER_SUBSCRIBE, pTopic) != 0) {
-      mndReleaseTopic(pMnode, pTopic);
-      return -1;
+      code = -1;
+      goto FAILED;
     }
 
     if(enableReplay){
       if(pTopic->subType != TOPIC_SUB_TYPE__COLUMN){
-        return TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT;
+        code = TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT;
+        goto FAILED;
       }else if(pTopic->ntbUid == 0 && pTopic->ctbStbUid == 0) {
         SDbObj *pDb = mndAcquireDb(pMnode, pTopic->db);
         if (pDb == NULL) {
-          mndReleaseTopic(pMnode, pTopic);
-          return -1;
+          code = -1;
+          goto FAILED;
         }
         if (pDb->cfg.numOfVgroups != 1) {
-          return TSDB_CODE_TMQ_REPLAY_NEED_ONE_VGROUP;
+          mndReleaseDb(pMnode, pDb);
+          code = TSDB_CODE_TMQ_REPLAY_NEED_ONE_VGROUP;
+          goto FAILED;
         }
         mndReleaseDb(pMnode, pDb);
       }
@@ -158,13 +164,16 @@ static int32_t validateTopics(STrans *pTrans, const SArray *pTopicList, SMnode *
 
     mndTransSetDbName(pTrans, pOneTopic, NULL);
     if(mndTransCheckConflict(pMnode, pTrans) != 0){
-      mndReleaseTopic(pMnode, pTopic);
-      return -1;
+      code = -1;
+      goto FAILED;
     }
     mndReleaseTopic(pMnode, pTopic);
   }
 
   return 0;
+FAILED:
+  mndReleaseTopic(pMnode, pTopic);
+  return code;
 }
 
 static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {

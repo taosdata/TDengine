@@ -40,11 +40,11 @@ void tqUpdateNodeStage(STQ* pTq) {
   tqDebug("vgId:%d update the meta stage to be:%"PRId64, pTq->pStreamMeta->vgId, pTq->pStreamMeta->stage);
 }
 
-static int32_t tqInitTaosxRsp(STaosxRsp* pRsp, STqOffsetVal pOffset, bool withTbName) {
+static int32_t tqInitTaosxRsp(STaosxRsp* pRsp, STqOffsetVal pOffset) {
   pRsp->reqOffset = pOffset;
   pRsp->rspOffset = pOffset;
 
-  pRsp->withTbName = withTbName;
+  pRsp->withTbName = 1;
   pRsp->withSchema = 1;
   pRsp->blockData = taosArrayInit(0, sizeof(void*));
   pRsp->blockDataLen = taosArrayInit(0, sizeof(int32_t));
@@ -177,7 +177,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
   int32_t     vgId = TD_VID(pTq->pVnode);
   SMqMetaRsp  metaRsp = {0};
   STaosxRsp   taosxRsp = {0};
-  tqInitTaosxRsp(&taosxRsp, *offset, pRequest->withTbName);
+  tqInitTaosxRsp(&taosxRsp, *offset);
 
   if (offset->type != TMQ_OFFSET__LOG) {
     if (tqScanTaosx(pTq, pHandle, &taosxRsp, &metaRsp, offset) < 0) {
