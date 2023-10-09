@@ -700,63 +700,6 @@ int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskI
   return code;
 }
 
-int32_t streamBuildAndSendVerUpdateMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId, int64_t ver) {
-  SVStreamTaskVerUpdateReq* pReq = rpcMallocCont(sizeof(SVStreamTaskVerUpdateReq));
-  if (pReq == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  pReq->head.vgId = vgId;
-  pReq->taskId = pTaskId->taskId;
-  pReq->streamId = pTaskId->streamId;
-  pReq->dataVer = ver;
-
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_VERUPDATE, .pCont = pReq, .contLen = sizeof(SVStreamTaskVerUpdateReq)};
-  int32_t code = tmsgPutToQueue(pMsgCb, WRITE_QUEUE, &msg);
-  if (code != TSDB_CODE_SUCCESS) {
-    stError("vgId:%d failed to send update task:0x%x dataVer msg, code:%s", vgId, pTaskId->taskId, tstrerror(code));
-    return code;
-  }
-
-  stDebug("vgId:%d build and send update table:0x%x dataVer:%"PRId64" msg", vgId, pTaskId->taskId, ver);
-  return code;
-}
-
-int32_t streamTaskUpdateDataVer(SStreamTask* pTask, int64_t ver) {
-  SStreamMeta* pMeta = pTask->pMeta;
-
-  // commit the dataVer update
-  int64_t prevVer = 0;
-  taosThreadMutexLock(&pTask->lock);
-
-  if (pTask->chkInfo.checkpointId == 0) {
-    prevVer = pTask->chkInfo.nextProcessVer;
-    pTask->chkInfo.nextProcessVer = ver;
-    taosThreadMutexUnlock(&pTask->lock);
-
-    taosWLockLatch(&pMeta->lock);
-    if (streamMetaSaveTask(pMeta, pTask) < 0) {
-//    return -1;
-    }
-
-    if (streamMetaCommit(pMeta) < 0) {
-      // persist to disk
-    }
-
-    stDebug("s-task:%s nextProcessedVer is update from %" PRId64 " to %" PRId64 " checkpointId:%" PRId64
-            " checkpointVer:%" PRId64,
-            pTask->id.idStr, prevVer, ver, pTask->chkInfo.checkpointId, pTask->chkInfo.checkpointVer);
-    taosWUnLockLatch(&pMeta->lock);
-  } else {
-    stDebug("s-task:%s not update the dataVer, existed:%" PRId64 ", checkpointId:%" PRId64 " checkpointVer:%" PRId64,
-            pTask->id.idStr, pTask->chkInfo.nextProcessVer, pTask->chkInfo.checkpointId, pTask->chkInfo.checkpointVer);
-    taosThreadMutexUnlock(&pTask->lock);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 STaskId streamTaskExtractKey(const SStreamTask* pTask) {
   STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
   return id;
@@ -788,4 +731,25 @@ const char* streamGetTaskStatusStr(int32_t status) {
     case TASK_STATUS__UNINIT: return "uninitialized";
     default:return "";
   }
+}
+
+void streamTaskStatusInit(STaskStatusEntry* pEntry, const SStreamTask* pTask) {
+  pEntry->id.streamId = pTask->id.streamId;
+  pEntry->id.taskId = pTask->id.taskId;
+  pEntry->stage = -1;
+  pEntry->nodeId = pTask->info.nodeId;
+  pEntry->status = TASK_STATUS__STOP;
+}
+
+void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc) {
+  pDst->stage = pSrc->stage;
+  pDst->inputQUsed = pSrc->inputQUsed;
+  pDst->inputRate = pSrc->inputRate;
+  pDst->processedVer = pSrc->processedVer;
+  pDst->verStart = pSrc->verStart;
+  pDst->verEnd = pSrc->verEnd;
+  pDst->sinkQuota = pSrc->sinkQuota;
+  pDst->sinkDataSize = pSrc->sinkDataSize;
+  pDst->activeCheckpointId = pSrc->activeCheckpointId;
+  pDst->checkpointFailed = pSrc->checkpointFailed;
 }

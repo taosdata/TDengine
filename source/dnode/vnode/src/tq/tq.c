@@ -1020,16 +1020,6 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
     // only handled in the leader node
     if (vnodeIsRoleLeader(pTq->pVnode)) {
       tqDebug("vgId:%d s-task:0x%x is deployed and add into meta, numOfTasks:%d", vgId, taskId, numOfTasks);
-#if 0
-      if (pTq->pVnode->restored) {
-        SStreamTask* p = streamMetaAcquireTask(pStreamMeta, streamId, taskId);
-        if (p != NULL) {
-          // send msg to update the nextProcessedVer attribute for this task if it is a stream task
-          streamBuildAndSendVerUpdateMsg(p->pMsgCb, vgId, &p->id, sversion);
-          streamMetaReleaseTask(pStreamMeta, p);
-        }
-      }
-#endif
       SStreamTask* p = streamMetaAcquireTask(pStreamMeta, streamId, taskId);
 
       bool restored = pTq->pVnode->restored;
@@ -1670,7 +1660,7 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   int32_t      len = pMsg->contLen - sizeof(SMsgHead);
   int32_t      code = 0;
 
-  // disable auto rsp to source
+  // disable auto rsp to mnode
   pRsp->info.handle = NULL;
 
   // todo: add counter to make sure other tasks would not be trapped in checkpoint state
@@ -1714,9 +1704,11 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
     return TSDB_CODE_SUCCESS;
   }
 
-  // todo: handle the partial failure cases
   // downstream not ready, current the stream tasks are not all ready. Ignore this checkpoint req.
   if (pTask->status.downstreamReady != 1) {
+    pTask->chkInfo.failedId = req.checkpointId;   // record the latest failed checkpoint id
+    pTask->checkpointingId = req.checkpointId;
+
     qError("s-task:%s not ready for checkpoint, since downstream not ready, ignore this checkpoint:%" PRId64
            ", set it failure", pTask->id.idStr, req.checkpointId);
     streamMetaReleaseTask(pMeta, pTask);
@@ -1932,34 +1924,25 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   return rsp.code;
 }
 
-int32_t tqProcessTaskDataVerUpdateReq(STQ* pTq, char* pMsg, int32_t msgLen) {
+int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg) {
+  SVPauseStreamTaskReq* pReq = (SVPauseStreamTaskReq*) pMsg->pCont;
+
   SStreamMeta* pMeta = pTq->pStreamMeta;
-  int32_t vgId = pMeta->vgId;
-
-  SVStreamTaskVerUpdateReq* pReq = (SVStreamTaskVerUpdateReq*) pMsg;
-  tqDebug("vgId:%d receive msg to update task dataVer, task:0x%x dataVer:%" PRId64, vgId, pReq->taskId, pReq->dataVer);
-
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
   if (pTask == NULL) {
-    tqError("vgId:%d process dataVer msg, failed to find task:0x%x, it may have been destroyed", vgId, pReq->taskId);
-    return -1;
+    tqError("vgId:%d process task-reset req, failed to acquire task:0x%x, it may have been dropped already", pMeta->vgId,
+            pReq->taskId);
+    return TSDB_CODE_SUCCESS;
   }
 
-  // commit the dataVer update
-  streamTaskUpdateDataVer(pTask, pReq->dataVer);
+  tqDebug("s-task:%s receive task-reset msg from mnode, reset status and ready for data processing", pTask->id.idStr);
 
-  if (vnodeIsLeader(pTq->pVnode)) {
-    if (pTq->pVnode->restored) {
-      ASSERT(pTask->execInfo.init == 0);
-
-      pTask->execInfo.init = taosGetTimestampMs();
-      tqDebug("s-task:%s set the init ts:%" PRId64, pTask->id.idStr, pTask->execInfo.init);
-      streamTaskCheckDownstream(pTask);
-    } else {
-      tqWarn("s-task:%s not launched since vnode (vgId:%d) not ready", pTask->id.idStr, vgId);
-    }
+  // clear flag set during do checkpoint, and open inputQ for all upstream tasks
+  if (pTask->status.taskStatus == TASK_STATUS__CK) {
+    streamTaskClearCheckInfo(pTask);
+    streamSetStatusNormal(pTask);
   }
 
   streamMetaReleaseTask(pMeta, pTask);
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
