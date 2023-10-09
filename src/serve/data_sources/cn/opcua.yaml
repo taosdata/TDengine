@@ -234,17 +234,6 @@ groups:
         description: 原始数据的保留天数，若启用保存原始数据需配置。
         value: 10
 
-  - name: 库表配置
-    display_order: 4
-    description: |
-      OPC 中的字段到数据库中的列映射
-    params:
-      - name: opc_table_config
-        display: OPC Table Config
-        required: true
-        placeholder: 10
-        hint:
-          type: json
   - name: 其他
     display_order: 4
     description: 其他配置项。

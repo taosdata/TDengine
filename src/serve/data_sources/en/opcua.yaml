@@ -230,18 +230,6 @@ groups:
         placeholder: 10
         value: 10
 
-  - name: Table Config
-    display_order: 4
-    description: |
-      field in OPC to column in database mapping
-    params:
-      - name: opc_table_config
-        display: OPC Table Config
-        required: true
-        placeholder: 10
-        hint:
-          type: json
-
   - name: Others
     display_order: 5
     description: Other configurations.
