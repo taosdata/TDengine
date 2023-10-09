@@ -381,7 +381,8 @@ class TDTestCase:
         tdSql.execute("use streamdb;")
         tdSql.execute("create table ta(ts timestamp, age int);")
         tdSql.execute("create stream ma into sta as select count(*) from ta interval(1s);")
-        #self.expectSplitError("streamdb")
+        time.sleep(3)
+        self.expectSplitError("streamdb")
         tdSql.execute("drop stream ma;")
         self.expectSplitOk("streamdb")
 
@@ -391,7 +392,9 @@ class TDTestCase:
         tdSql.execute("use topicdb;")
         tdSql.execute("create table ta(ts timestamp, age int);")
         tdSql.execute("create topic toa as select * from ta;")
-        #self.expectSplitError("topicdb")
+        sleep.time(3)
+        
+        self.expectSplitError("topicdb")
         tdSql.execute("drop topic toa;")
         self.expectSplitOk("topicdb")
    
