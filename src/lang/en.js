@@ -974,7 +974,7 @@ export default {
     databases: 'Databases',
     expired: 'Expired',
     querytime: 'Query Time',
-    speed: 'Speed',
+    speed: 'Speed(MB)',
     storage: 'Storage',
     streams: 'Streams',
     timeseries: 'Time Series',

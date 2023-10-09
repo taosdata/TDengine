@@ -815,7 +815,7 @@ export default {
     databases: 'DB 数量',
     expired: '是否过期',
     querytime: '查询时间',
-    speed: '传输速度',
+    speed: '传输速度(MB)',
     storage: '存储',
     streams: 'Stream 数量',
     timeseries: '时间线数量 ',
