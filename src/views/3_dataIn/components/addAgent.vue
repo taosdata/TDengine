@@ -90,6 +90,7 @@ token="{{ token }}"</code></pre>
       ></p> -->
       <el-button
         class="mb20"
+        size="small"
         @click="checkAgentStatus"
         :type="checkBtnType"
         >{{ checkBtnText }}</el-button
@@ -255,7 +256,7 @@ export default {
         .then(({ token }) => {
           this.$set(this.tokenMap, this.name, token);
           this.active++;
-          // this.$store.dispatch('app/getAgentList');
+          this.$store.dispatch('app/getAgentList');
         })
         .catch(() => {})
         .finally(() => {
@@ -263,8 +264,11 @@ export default {
         });
     },
     next() {
-      console.log(this.active,'next');
-      if (this.active == 4) return this.$store.commit('SET_DIALOG_VISIBLE', false);
+
+      if (this.active == 4) {
+        this.$parent.$parent.showAgent=false
+      }
+      // return this.$store.commit('SET_DIALOG_VISIBLE', false);
       if (this.active == 2) {
         this.submit();
       } else {

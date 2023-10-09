@@ -426,10 +426,7 @@ export default {
       try {
         this.requestIng = true
         this.agentList = (
-          await getAgentsData(
-            localStorage.getItem("local_clusterID"),
-            localStorage.getItem("username")
-          )
+          await getAgentsData()
         ).map((item) => {
           item["created_at"] = item.created_at
             ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") + "Z"

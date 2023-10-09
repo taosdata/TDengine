@@ -9,7 +9,7 @@ import {
   setRedirect,
 } from "@/utils/token";
 import {
-  addNewAgent
+  getAgentsData
 } from "@/api/explorer/agent";
 import { objToLine } from "@/utils";
 import {
@@ -248,8 +248,8 @@ const mutations = {
 
 const actions = {
   getAgentList({ commit }) {
-    return addNewAgent().then(res => {
-      commit('SET_AGENT_LIST', res);
+    return getAgentsData().then(res => {
+      commit('SET_AGENT_LISTS', res);
     });
   },
   async getUserInfo({ commit, dispatch }) {

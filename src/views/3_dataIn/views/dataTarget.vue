@@ -84,15 +84,6 @@
     >
       <AddAgent></AddAgent>
     </el-dialog>
-    <el-dialog
-      align="center"
-      title="新的代理窗口"
-      width="600px"
-      :visible.sync="showAgentdoc"
-      :destroy-on-close="true"
-    >
-      <NewAgent></NewAgent>
-    </el-dialog>
   </div>
 </template>
 <script>
@@ -255,10 +246,7 @@ export default {
     },
     async getAgentDataType() {
       try {
-        this.agentList = await getAgentsData(
-          localStorage.getItem("local_clusterID"),
-          localStorage.getItem("username")
-        );
+        this.agentList = await getAgentsData();
         this.agentList = this.agentList.map((agent) => {
           return {
             value: agent.id,
@@ -282,10 +270,17 @@ export default {
     "$store.state.app.currentDBType": {
       deep: true,
       handler(val) {
-        console.log(val, "ffffff");
         this.getInitValue();
       },
     },
+    "$store.state.app.agentLists":{
+      deep:true,
+      handler(val){
+        this.agentList=val
+        this.ruleForm.agent=val.at(-1)
+        console.log(val,'最新的agent列表');
+      }
+    }
   },
 };
 </script>

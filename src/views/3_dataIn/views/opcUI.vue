@@ -19,6 +19,7 @@
         <div class="name">
           <span class="label">{{ $t("name") }}</span>
           <el-input
+          size="small"
             v-model="sourceName"
             placeholder="请输入数据源名称"
             style="width: 200px"
@@ -33,6 +34,7 @@
           <span class="label">{{ dbsource[0].protocol.display }}</span>
           <div class="label-value">
             <el-select
+            size="small"
               v-model="dbsource[0].protocol.value"
               placeholder=""
               style="margin-bottom: 8px"
@@ -74,6 +76,7 @@
             >
             <div class="label-value" v-if="dbsource[0].options.endpoint">
               <el-input
+              size="small"
                 style="margin-bottom: 8px"
                 v-model="dbsource[0].options.endpoint.value"
                 :placeholder="
@@ -122,6 +125,7 @@
                       >
                       <div style="flex: 1">
                         <el-input
+                        size="small"
                           style="margin-bottom: 8px"
                           v-model="at.username.value"
                         ></el-input>
@@ -142,6 +146,7 @@
                       >
                       <div style="flex: 1">
                         <el-input
+                        size="small"
                           type="password"
                           style="margin-bottom: 8px"
                           v-model="at.password.value"
@@ -190,6 +195,7 @@
                     <div style="flex: 1">
                       <template v-if="p.hint && p.hint.choices">
                         <el-select
+                        size="small"
                           v-model="p.value"
                           placeholder=""
                           style="
@@ -238,6 +244,7 @@
                         </el-upload>
                       </template>
                       <el-input
+                      size="small"
                         v-if="
                           p.hint && !p.hint.choices && p.hint.type !== 'file'
                         "
@@ -291,47 +298,90 @@
               :key="p.category"
               lazy
             >
-            <div style="margin-bottom:10px;">
-              <el-radio v-model="radio" label="1">{{ $t('dataIn.uploadcsv') }}</el-radio>
-              <el-radio v-model="radio" label="2">{{ $t('dataIn.allpoints') }}</el-radio>
-            </div>
-            <div style="margin-bottom:10px;display:flex;align-items:baseline;">
-            <el-upload
-              class="upload-demo"
-              ref="upload"
-              accept=".csv"
-              :on-remove="handleRemove"
-              :data="uploadData"
-              :action="uploadUrl"
-              :on-success="handleSuccess"
-              :file-list="fileList"
-              :auto-upload="true"
-            >
-              <el-button slot="trigger" size="small" type="primary">{{
-                $t("datasource.selectfile")
-              }}</el-button>
-            </el-upload>
-            <el-tooltip placement="top" :content="$t('dataIn.downloadtpltip')" effect="light">
-              <span style="display:inline-block;margin-left:20px;color:#4259ce;cursor: pointer;">
-              <i class="el-icon-download"></i>
-              {{ $t('dataIn.downloadtpl') }}
-             </span>
-            </el-tooltip>
-            <el-tooltip placement="top" :content="$t('dataIn.downloadnodestip')" effect="light">
-             <span style="display:inline-block;margin-left:20px;color:#4259ce;cursor: pointer;">
-              <i class="el-icon-download"> </i>
-              {{ $t('dataIn.downloadnodes') }}
-             </span>
-            </el-tooltip>
-             <el-tooltip placement="top" :content="$t('dataIn.csvinusetip')" effect="light">
-             <span style="display:inline-block;margin-left:20px;color:#4259ce;cursor: pointer;">
-              <i class="el-icon-download"></i>
-              {{ $t('dataIn.csvinuse') }}
-             </span>
-            </el-tooltip>
+              <div
+                style="
+                  margin-bottom: 10px;
+                  display: flex;
+                  align-items: baseline;
+                "
+              >
+                <template v-if="p.category == 'csv_config_file'">
+                  <el-upload
+                    class="upload-demo"
+                    ref="upload"
+                    accept=".csv"
+                    :on-remove="handleRemove"
+                    :data="uploadData"
+                    :action="uploadUrl"
+                    :on-success="handleSuccess"
+                    :file-list="fileList"
+                    :auto-upload="true"
+                  >
+                    <el-button slot="trigger" size="small" type="primary">{{
+                      $t("datasource.selectfile")
+                    }}</el-button>
+                  </el-upload>
+                  <el-tooltip
+                    placement="top"
+                    :content="$t('dataIn.downloadtpltip')"
+                    effect="light"
+                  >
+                    <span
+                      style="
+                        display: inline-block;
+                        margin-left: 20px;
+                        color: #4259ce;
+                        cursor: pointer;
+                      "
+                    >
+                      <i class="el-icon-download"></i>
+                      {{ $t("dataIn.downloadtpl") }}
+                    </span>
+                  </el-tooltip>
+                  <el-tooltip
+                    placement="top"
+                    :content="$t('dataIn.downloadnodestip')"
+                    effect="light"
+                  >
+                    <span
+                      style="
+                        display: inline-block;
+                        margin-left: 20px;
+                        color: #4259ce;
+                        cursor: pointer;
+                      "
+                    >
+                      <i class="el-icon-download"> </i>
+                      {{ $t("dataIn.downloadnodes") }}
+                    </span>
+                  </el-tooltip>
+                  <el-tooltip
+                    placement="top"
+                    :content="$t('dataIn.csvinusetip')"
+                    effect="light"
+                  >
+                    <span
+                      style="
+                        display: inline-block;
+                        margin-left: 20px;
+                        color: #4259ce;
+                        cursor: pointer;
+                      "
+                    >
+                      <i class="el-icon-download"></i>
+                      {{ $t("dataIn.csvinuse") }}
+                    </span>
+                  </el-tooltip>
+                </template>
+                <ul v-else style="flex:1;">
+                 <li v-for="(all,ain) in p.params" :key="ain" style="display:flex;margin-bottom:20px;">
+                  <span class="label">{{ all?.display }}</span>
+                  <el-input size="small" v-model="all.value"></el-input>
+                 </li>
 
-            </div>
-             
+                </ul>
+
+              </div>
 
               <div :key="pind">
                 <div
@@ -373,19 +423,18 @@
                 </div>
                 <div class="configuration" v-if="isShowConfiguration">
                   <el-input
+                  size="small"
                     :placeholder="$t('datasource.regexPlaceholder')"
                     v-model="p.value"
                     :disable="p.target.selectable"
                     @keydown.enter.native="searchDatas($event, p.value)"
                   >
-
                     <el-button
-                    size="small"
+                      size="small"
                       slot="append"
                       icon="el-icon-search"
                       @click="searchDatas($event, p.value)"
                     ></el-button>
-
                   </el-input>
                   <div class="resultWrap">
                     <div class="searchList" v-loading="loading">
@@ -394,7 +443,6 @@
                         v-if="configurationdata.length <= 0"
                       ></el-empty>
                       <template v-else>
-
                         <el-table
                           :data="configurationdata"
                           size="mini"
@@ -409,7 +457,6 @@
                             prop="name"
                             label="Name"
                           ></el-table-column>
-
                         </el-table>
                       </template>
                     </div>
@@ -430,7 +477,7 @@
                             >
                               {{ o.display }}
                             </span>
-                            <el-input placeholder="" v-model="o.value" />
+                            <el-input placeholder="" v-model="o.value" size="small"/>
                           </div>
                         </div>
                         <div>
@@ -532,6 +579,7 @@
                     </template>
                     <template v-else>
                       <el-input
+                      size="small"
                         v-model="p.value"
                         :placeholder="p.placeholder ? p.placeholder : ''"
                         :type="text"
@@ -540,7 +588,7 @@
                   </template>
                   <template v-if="p.hint && p.hint.type === 'str'">
                     <template v-if="p.hint.choices">
-                      <el-select v-model="p.value" placeholder="">
+                      <el-select v-model="p.value" placeholder="" size="small">
                         <el-option
                           v-for="c in p.hint.choices"
                           :key="c"
@@ -550,6 +598,7 @@
                       </el-select>
                     </template>
                     <el-input
+                    size="small"
                       v-else
                       v-model="p.value"
                       :placeholder="p.placeholder ? p.placeholder : ''"
@@ -577,7 +626,7 @@
                   </template>
                   <template v-else-if="p.hint && p.hint.type === 'bool'">
                     <!-- <p-three-checkbox :data="checkboxData" v-model="p.value" /> -->
-                    <el-switch  v-model="p.value"></el-switch>
+                    <el-switch v-model="p.value"></el-switch>
                   </template>
                   <template
                     v-if="
@@ -586,7 +635,7 @@
                     "
                   >
                     <el-input-number
-                    size="small"
+                      size="small"
                       v-model="p.value"
                       :min="p.hint.min"
                       :max="p.hint.max"
@@ -639,6 +688,7 @@
                   </template>
                   <template v-if="p.hint === 'str' || p.hint === 'timeout'">
                     <el-input
+                    size="small"
                       v-model="p.value"
                       :placeholder="p.placeholder ? p.placeholder : ''"
                     ></el-input>
@@ -646,6 +696,7 @@
                   <template v-if="p.hint?.type && p.hint?.type === 'str'">
                     <template v-if="p.hint.choices">
                       <el-select
+                      size="small"
                         v-model="p.value"
                         :placeholder="p.placeholder ? p.placeholder : ''"
                         @change="changeOpcCollectMode"
@@ -659,6 +710,7 @@
                       </el-select>
                     </template>
                     <el-input
+                    size="small"
                       v-else
                       v-model="p.value"
                       :placeholder="p.placeholder ? p.placeholder : ''"
@@ -681,9 +733,10 @@
                         true-label="true"
                         false-label="false"
                       ></el-checkbox> -->
-                      <el-switch v-model="p.value"
-                      active-value="true"
-                      inactive-value="false"
+                      <el-switch
+                        v-model="p.value"
+                        active-value="true"
+                        inactive-value="false"
                       ></el-switch>
                     </template>
                   </template>
@@ -693,10 +746,11 @@
                       v-model="p.value"
                       @changeThreeCheckbox="getThreeBoxNum($event, p)"
                     /> -->
-                    <el-switch v-model="p.value"
+                    <el-switch
+                      v-model="p.value"
                       active-value="true"
                       inactive-value="false"
-                      ></el-switch>
+                    ></el-switch>
                   </template>
                   <template
                     v-if="
@@ -705,7 +759,7 @@
                     "
                   >
                     <el-input-number
-                    size="small"
+                      size="small"
                       v-model="p.value"
                       :min="p.hint.min"
                       :max="p.hint.max"
@@ -777,9 +831,13 @@
         <el-button @click="cancel" class="cancel-btn" size="small">{{
           $t("cancel")
         }}</el-button>
-        <el-button type="primary" @click="submit" :disabled="disable" size="small">{{
-          $t("submit")
-        }}</el-button>
+        <el-button
+          type="primary"
+          @click="submit"
+          :disabled="disable"
+          size="small"
+          >{{ $t("submit") }}</el-button
+        >
       </section>
     </div>
     <div class="right-ui">
@@ -864,7 +922,7 @@ export default {
     editId: {
       type: Number,
       default: 0,
-    }
+    },
   },
   data() {
     return {
@@ -1039,7 +1097,7 @@ export default {
       : "";
   },
   watch: {
-    'this.$store.state.app.currentDBName': {
+    "this.$store.state.app.currentDBName": {
       handler() {
         if (this.tagName == "kafka") {
           this.getdbprecision();
@@ -1583,7 +1641,9 @@ export default {
           to:
             "taos+" +
             localStorage.getItem("base_url") +
-            (this.$store.state.app.currentDBName ? "/" + this.$store.state.app.currentDBName : ""),
+            (this.$store.state.app.currentDBName
+              ? "/" + this.$store.state.app.currentDBName
+              : ""),
           labels: [
             "type::datain",
             `cluster-id::${id}`,
@@ -1983,7 +2043,7 @@ export default {
       align-items: center;
       width: 200px;
       display: block;
-      white-space:normal;
+      white-space: normal;
     }
     .no-label {
       align-items: center;
@@ -2188,7 +2248,7 @@ export default {
             align-items: center;
             width: 100px;
             display: block;
-            white-space:normal;
+            white-space: normal;
           }
           .el-input {
             flex: 1;
