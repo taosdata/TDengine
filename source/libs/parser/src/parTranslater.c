@@ -263,6 +263,8 @@ static int32_t  createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMet
 static int32_t  setQuery(STranslateContext* pCxt, SQuery* pQuery);
 static int32_t  setRefreshMate(STranslateContext* pCxt, SQuery* pQuery);
 
+static int32_t replacePsedudoColumnFuncWithColumn(STranslateContext* pCxt, SNode** ppNode);
+
 static bool afterGroupBy(ESqlClause clause) { return clause > SQL_CLAUSE_GROUP_BY; }
 
 static bool beforeHaving(ESqlClause clause) { return clause < SQL_CLAUSE_HAVING; }
@@ -1619,7 +1621,8 @@ static int32_t translateInterpFunc(STranslateContext* pCxt, SFunctionNode* pFunc
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateInterpPseudoColumnFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
+static int32_t translateInterpPseudoColumnFunc(STranslateContext* pCxt, SNode** ppNode) {
+  SFunctionNode* pFunc = (SFunctionNode*)(*ppNode);
   if (!fmIsInterpPseudoColumnFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1630,6 +1633,24 @@ static int32_t translateInterpPseudoColumnFunc(STranslateContext* pCxt, SFunctio
   if (pCxt->currClause == SQL_CLAUSE_WHERE) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
                                    "%s is not allowed in where clause", pFunc->functionName);
+  }
+
+  SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+  SNode* pNode = NULL;
+  bool bFound = false;
+  FOREACH(pNode, pSelect->pProjectionList) {
+    if (nodeType(pNode) == QUERY_NODE_FUNCTION && strcasecmp(((SFunctionNode*)pNode)->functionName, "interp") == 0) {
+      bFound = true;
+      break;
+    }
+  }
+  if (!bFound) {
+    int32_t code = replacePsedudoColumnFuncWithColumn(pCxt, ppNode);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    translateColumn(pCxt, (SColumnNode**)ppNode);
+    return pCxt->errCode;    
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -2017,7 +2038,7 @@ static int32_t translateNormalFunction(STranslateContext* pCxt, SNode** ppNode) 
     code = translateInterpFunc(pCxt, pFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateInterpPseudoColumnFunc(pCxt, pFunc);
+    code = translateInterpPseudoColumnFunc(pCxt, ppNode);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateTimelineFunc(pCxt, pFunc);
