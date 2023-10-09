@@ -48,12 +48,6 @@
         min-width="160"
       ></el-table-column>
 
-      <!-- <el-table-column
-        :label="$t('dataIn.clusterId')"
-        prop="cluster_id"
-        show-overflow-tooltip
-        width="200"
-      ></el-table-column> -->
       <el-table-column
         :label="$t('name')"
         prop="name"
@@ -61,14 +55,6 @@
         min-width="200"
       ></el-table-column>
 
-      <!-- <el-table-column
-        :label="$t('dataIn.connector')"
-        prop="connectors"
-        show-overflow-tooltip
-        width="200"
-      >
-        <template slot-scope="scope"> <RoleDisplay :roles="scope.row.connectors" /> </template
-      ></el-table-column> -->
       <el-table-column
         :label="$t('data.createAt')"
         prop="created_at"
@@ -124,7 +110,7 @@
   </div>
 </template>
 <script>
-import AgentDocs from './taosxAgent.vue';
+import AgentDocs from '@/utils/config/mdx/taosxAgent.vue';
 // import RoleDisplay from '@/views/14_organization/components/roleDisplay.vue';
 import { parseTime } from '@/utils';
 import Activities from './activities.vue';
@@ -162,7 +148,7 @@ export default {
   },
   computed: {
     agentList() {
-      return this.$store.state.dataIn.agentList;
+      return this.$store.state.app.agentLists;
     },
     confirmStatus() {
       if (!this.ruleForm.name) {
@@ -246,7 +232,7 @@ export default {
       this.drawer = true;
     },
     getAgents() {
-      this.$store.dispatch('dataIn/getAgentList');
+      this.$store.dispatch('app/getAgentList');
     },
     async expandChange(row) {
       if (row.id == this.expandRowKeys[0]) {

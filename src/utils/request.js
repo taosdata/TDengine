@@ -99,11 +99,11 @@ request.interceptors.response.use(
         "Unexpected error";
       Message.error(msg);
       let taosx404en =
-        "The Taosx API is not configured. Please check the explorer configuration";
+        "The TaosX API is not configured. Please check the explorer configuration";
       let taosx500en =
-        "The Taosx API cannot be accessed. Please check the Taosx service status";
+        "The TaosX API cannot be accessed. Please check the taosx service status";
       let taosx404 = "未配置 TaosX API，请检查 Explorer 配置";
-      let taosx500 = "TaosX API 无法访问，请检查 taosx 服务状态";
+      let taosx500 = "TaosX API 无法访问，请检查taosx服务状态";
       // Message.closeAll()
       let isoem = false;
       if (
@@ -113,24 +113,26 @@ request.interceptors.response.use(
         isoem = true;
       }
       if (error.config.baseURL.includes("/api/x")) {
+        Message.closeAll()
+        console.log(error.response,'error.response--taosx错误提示');
         if (error.response && error.response.status === 404) {
           Message.error(
             navigator.language.includes("zh")
               ? isoem
-                ? taosx404.replace("Taosx", "")
+                ? taosx404.replace("TaosX", "").replace('taosx','')
                 : taosx404
               : isoem
-              ? taosx404en.replace("Taosx", "")
+              ? taosx404en.replace("TaosX", "").replace('taosx','')
               : taosx404en
           );
         } else if (error.response && error.response.status === 500) {
           Message.error(
             navigator.language.includes("zh")
               ? isoem
-                ? taosx500.replace("Taosx", "")
+                ? taosx500.replace("TaosX", "").replace('taosx','')
                 : taosx500
               : isoem
-              ? taosx500en.replace("Taosx", "")
+              ? taosx500en.replace("TaosX", "").replace('taosx','')
               : taosx500en
           );
         } else {

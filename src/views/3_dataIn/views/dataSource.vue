@@ -446,8 +446,11 @@ export default {
       this.edit(data, status, true);
     },
     addDbSource() {
-      this.dialog = true;
+      // this.dialog = true;
       this.$parent.currentTaskStatus = "";
+      this.$parent.toggleComponent(
+          "opcua"
+        );
     },
     async getList() {
       try {

@@ -436,6 +436,7 @@ export default {
             : "";
           return item;
         });
+        this.$store.commit('app/SET_AGENT_LISTS',this.agentList)
         this.requestIng = false
       } catch (err) {
         this.requestIng = false
@@ -476,22 +477,22 @@ export default {
         }
         await this.getAgents();
 
-        this.$parent.$refs.agentdialog.agentList = this.agentList.map(
-          (agent) => {
-            return {
-              value: agent.id,
-              label:
-                agent.id +
-                "." +
-                agent.name +
-                (new Date(agent.expire_date) < Date.now()
-                  ? "（" + this.$t("datasource.expired") + "）"
-                  : ""),
-              disabled: new Date(agent.expire_date) < Date.now(),
-              ...agent,
-            };
-          }
-        );
+        // this.$parent.$refs.agentdialog.agentList = this.agentList.map(
+        //   (agent) => {
+        //     return {
+        //       value: agent.id,
+        //       label:
+        //         agent.id +
+        //         "." +
+        //         agent.name +
+        //         (new Date(agent.expire_date) < Date.now()
+        //           ? "（" + this.$t("datasource.expired") + "）"
+        //           : ""),
+        //       disabled: new Date(agent.expire_date) < Date.now(),
+        //       ...agent,
+        //     };
+        //   }
+        // );
         if (result.token) {
           this.agenttoken = result.token;
           this.copyDialog = true;

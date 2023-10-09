@@ -7,11 +7,15 @@
       :rules="rules"
       class="reqired-change"
     >
-      <el-form-item label="名称" prop="name">
-        <el-input size="small"></el-input>
+      <el-form-item :label="$t('name')" prop="name">
+        <el-input
+          size="small"
+          v-model="ruleForm.name"
+          :placeholder="$t('dataIn.palceholders.taskName')"
+        ></el-input>
       </el-form-item>
-      <el-form-item label="类型" prop="type" size="small">
-        <el-select v-model="ruleForm.type">
+      <el-form-item :label="$t('type')" prop="type" size="small">
+        <el-select v-model="ruleForm.type" @change="changeDBType">
           <el-option
             v-for="item in dbTypes"
             :label="item.name"
@@ -20,8 +24,16 @@
           ></el-option>
         </el-select>
       </el-form-item>
-      <el-form-item label="代理" prop="'agent'" size="small">
-        <el-select v-model="ruleForm.agent">
+      <el-form-item
+        :label="$t('agent')"
+        prop="'agent'"
+        size="small"
+        v-if="showAgentSelect"
+      >
+        <el-select
+          v-model="ruleForm.agent"
+          :placeholder="$t('dataIn.palceholders.agentPlaceholder')"
+        >
           <el-option
             v-for="item in agentList"
             :label="item.name"
@@ -30,19 +42,20 @@
           ></el-option>
         </el-select>
         <el-button
+          class="ml"
           type="primary"
           @click="createAgent"
           size="small"
           icon="el-icon-plus"
           >{{ $t("taosagents.createnewagent") }}</el-button
         >
+        <p class="custom-placeholder mt10">{{ $t("dataIn.needAgentTip") }}</p>
       </el-form-item>
-      <el-form-item label="目标数据库" prop="dbName">
+      <el-form-item :label="$t('stream.targetDB')" prop="dbName">
         <el-select
           v-model="ruleForm.dbName"
-          placeholder=""
-          style="margin-right: 8px"
           size="small"
+          :placeholder="$t('dataIn.palceholders.chooseTargetDbTip')"
         >
           <el-option
             v-for="db in dbList"
@@ -51,49 +64,24 @@
             :value="db.name"
           ></el-option>
         </el-select>
+        <el-button
+          class="ml"
+          type="primary"
+          @click="handleDbBtn"
+          size="small"
+          icon="el-icon-plus"
+          >{{ $t("data.createDatabase") }}</el-button
+        >
+        <!-- <el-button @click="downloadFile">文件下载</el-button> -->
       </el-form-item>
     </el-form>
     <el-dialog
-      align="center"
-      title="新增代理"
-      width="600px"
+      :title="$t('dataIn.createNewAgent')"
+      width="620px"
       :visible.sync="showAgent"
       :destroy-on-close="true"
     >
-      <el-form
-        :model="ruleAgentForm"
-        :rules="rulesAgent"
-        ref="ruleForm"
-        size="mini"
-        label-width="120px"
-        class="demo-ruleForm"
-      >
-        <el-form-item prop="name" :label="$t('taosagents.name')">
-          <el-input
-            v-model.trim="ruleAgentForm.name"
-            :maxlength="20"
-            size="small"
-          ></el-input>
-        </el-form-item>
-      </el-form>
-
-      <el-row style="margin-top: 20px">
-        <el-col :span="5" :offset="6">
-          <el-button size="small" @click="dialog = false" class="w100">{{
-            $t("cancel")
-          }}</el-button>
-        </el-col>
-        <el-col :span="5" :push="4">
-          <el-button
-            size="small"
-            :disabled="confirmStatus"
-            class="w100"
-            type="primary"
-            @click="addAgent"
-            >{{ $t("confirm") }}</el-button
-          >
-        </el-col>
-      </el-row>
+      <AddAgent></AddAgent>
     </el-dialog>
     <el-dialog
       align="center"
@@ -107,23 +95,31 @@
   </div>
 </template>
 <script>
-import { getUIData } from "@/api/explorer/datain";
+import { getUIData, getFileStream,downlaodAllNodes } from "@/api/explorer/datain";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { getAgentsData, addNewAgent } from "@/api/explorer/agent";
 
-import Agents from "../components/agents.vue";
-import NewAgent from "../components/addAgent.vue";
-import { Message } from "element-ui";
+import AddAgent from "../components/addAgent.vue";
 export default {
   name: "DataTarget",
-  components: { Agents, NewAgent },
+  components: { AddAgent },
   data() {
     return {
       dbTypes: [],
       dbList: [],
       agentList: [],
+      showAgentSelect: false,
       showAgent: false,
-      showAgentdoc:false,
+      showAgentdoc: false,
+      agentTypes: [
+        "pi",
+        "pibackfill",
+        "opcua",
+        "opcda",
+        "influxdb",
+        "opentsdb",
+        "mqtt",
+      ],
       ruleForm: {
         name: "",
         type: "",
@@ -175,38 +171,71 @@ export default {
   },
   mounted() {
     this.getDbTypes();
+
     this.getDBLists();
-    //编辑状态需要调用，新增不需要在mounted中调用
-    // this.getAgentDataType();
+    this.getAgents();
+    this.getInitValue();
   },
   methods: {
+    async getAllPoints(){
+        try {
+            let result = await downlaodAllNodes()
+            console.log(result,'---====');
+        } catch (error) {
+            console.log(error);
+        }
+    },
+    //获取初始化时候得值----主要针对类型切换时候需要换ui组件
+    getInitValue() {
+      this.ruleForm.dbName = this.$store.state.app.currentDBName;
+      this.ruleForm.agent = this.$store.state.app.currentAgentID;
+      this.ruleForm.name = this.$store.state.app.currentDSName;
+      this.ruleForm.type = this.$store.state.app.currentDBType;
+    },
+    handleDbBtn() {
+      this.$store.commit("dbs/HANDLE_ADD_DB");
+      this.$store.commit("dbs/SET_ADD_DB_COMP", "datain");
+      this.$store.commit("dbs/SET_DIALOG_DB_VISABLE", true);
+    },
+    //切换数据源
+    changeDBType() {
+      if (this.agentTypes.includes(this.ruleForm.type)) {
+        this.showAgentSelect = true;
+      } else {
+        this.showAgentSelect = false;
+      }
+      this.$store.commit("app/SET_CURRENT_DBNAME", this.ruleForm.dbName);
+      this.$store.commit("app/SET_CURRENT_AGENT", this.ruleForm.agent);
+      this.$store.commit("app/SET_CURRENT_DSNAME", this.ruleForm.name);
+      this.$store.commit("app/SET_CURRENT_DBTYPE", this.ruleForm.type);
+      console.log("切换数据源", this.ruleForm.type);
+    },
+    getAgents() {
+      this.agentList = this.$store.state.app.agentLists;
+    },
+   
+    async downloadFile() {
+    //   let result = await getFileStream("./files/1696677312509/t1.csv");
+    let result = await downlaodAllNodes()
+      let blob = new Blob([result], { type: "text/csv,charset=UTF-8" });
+      let link = document.createElement("a");
+      link.download = "csv模板文件.csv";
+      link.style.display = "none";
+      link.href = URL.createObjectURL(blob);
+      document.body.appendChild(link);
+      link.click();
+      URL.revokeObjectURL(link.href);
+      document.body.removeChild(link);
+    },
     createAgent() {
       this.showAgent = true;
-    },
-    async addAgent() {
-      try {
-        let params = {
-          cluster_id: localStorage.getItem("local_clusterID"),
-          dsn: localStorage.getItem("base_url"),
-          name: this.ruleAgentForm.name,
-          user_id: localStorage.getItem("username"),
-        };
-        let res = await addNewAgent(params);
-        if (res.message) {
-          Message.error(res.message);
-          return;
-        }
-        this.showAgentdoc=true
-        this.getAgentDataType();
-        console.log(res, "新增代理");
-      } catch (error) {
-        console.log(error);
-      }
     },
     async getDbTypes() {
       try {
         this.dbTypes = await getUIData();
-        console.log(this.dbTypes, "获取数据源类型");
+        if (!this.$store.state.app.currentDBType) {
+          this.ruleForm.type = this.dbTypes[0].id;
+        }
       } catch (error) {
         console.log(error);
       }
@@ -214,7 +243,6 @@ export default {
     async getDBLists() {
       try {
         this.dbList = await getDBListReq();
-        console.log(this.dbList, "查询的数据库");
       } catch (error) {
         console.log(error);
       }
@@ -239,10 +267,18 @@ export default {
             ...agent,
           };
         });
-        console.log(this.agentList, "this.agentListthis.agentList");
       } catch (error) {
         console.log(error);
       }
+    },
+  },
+  watch: {
+    "$store.state.app.currentDBType": {
+      deep: true,
+      handler(val) {
+        console.log(val, "ffffff");
+        this.getInitValue();
+      },
     },
   },
 };
@@ -257,14 +293,6 @@ export default {
   &::before {
     display: none;
   }
-  // &.is-required:not(.is-no-asterisk)> .el-form-item__label::after {
-
-  //     content: "*";
-  //     font-size: 12px;
-  //     color: red;
-  //     right: 0px;
-
-  // }
 }
 .el-form-item.is-required:not(.is-no-asterisk) > .el-form-item__label:after,
 .el-form-item.is-required:not(.is-no-asterisk)
@@ -273,6 +301,14 @@ export default {
   content: "*";
   color: #ff4949;
   font-size: 12px;
-  margin-left: 0px;
+  margin-left: 4px;
+}
+.el-button.ml {
+  margin-left: 10px;
+}
+.custom-placeholder {
+  color: #acaab2;
+  font-size: 14px;
+  margin-top: 10px;
 }
 </style>

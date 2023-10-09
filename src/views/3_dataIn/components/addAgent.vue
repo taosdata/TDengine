@@ -2,7 +2,6 @@
   <section class="markdown-body">
     <el-steps
       :active="active"
-      class="mb20"
       finish-status="success"
     >
       <el-step :title="$t('dataIn.downloadInstall')"> </el-step>
@@ -112,7 +111,10 @@ token="{{ token }}"</code></pre>
 <script>
 import 'github-markdown-css/github-markdown-light.css';
 import { OfficialSite } from '@/const';
-// import { updateAgent, createAgent } from '@/api/agent';
+import {
+  addNewAgent,
+  editAgent,
+} from "@/api/explorer/agent";
 export default {
   props: {
     agent: {
@@ -120,6 +122,7 @@ export default {
       default: () => {}
     }
   },
+  name:'AddAgent',
   components: {},
   data() {
     return {
@@ -132,7 +135,7 @@ export default {
   },
   computed: {
     agentList() {
-      return this.$store.state.dataIn.agentList.filter(item => item.id !== this.agent?.id);
+      return this.$store.state.app.agentLists.filter(item => item.id !== this.agent?.id);
     },
     downloadUrl() {
       const assetsUrl = OfficialSite + '/assets-download/3.0/taosx-agent-1.2.4-';
@@ -148,7 +151,7 @@ export default {
       return this.tokenMap[this.name] ?? '';
     },
     taoxAddress() {
-      return this.$store.state.dataIn.taoxAddress?.[0]?.address ?? '';
+      return localStorage.getItem("local_endpoint") ?? '';
     },
     nextButton() {
       if (this.loading) return true;
@@ -181,19 +184,21 @@ export default {
     submit() {
       if (this.loading) return;
       this.loading = true;
-      // const fn = this.agent?.id ? updateAgent : createAgent;
-      // fn(this.name, this.agent?.id)
-      //   .then(({ token }) => {
-      //     this.$set(this.tokenMap, this.name, token);
-      //     this.active++;
-      //     this.$store.dispatch('dataIn/getAgentList');
-      //   })
-      //   .catch(() => {})
-      //   .finally(() => {
-      //     this.loading = false;
-      //   });
+      const fn = this.agent?.id ? editAgent : addNewAgent;
+      console.log(fn,this.name,this.agent,'====');
+      fn(this.name, this.agent?.id)
+        .then(({ token }) => {
+          this.$set(this.tokenMap, this.name, token);
+          this.active++;
+          // this.$store.dispatch('app/getAgentList');
+        })
+        .catch(() => {})
+        .finally(() => {
+          this.loading = false;
+        });
     },
     next() {
+      console.log(this.active,'next');
       if (this.active == 4) return this.$store.commit('SET_DIALOG_VISIBLE', false);
       if (this.active == 2) {
         this.submit();
@@ -221,6 +226,9 @@ export default {
   }
   p {
     line-height: 24px;
+  }
+  .mb10{
+    margin-bottom:10px;
   }
 }
 </style>
