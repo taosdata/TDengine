@@ -2031,6 +2031,7 @@ typedef struct {
   int32_t useless;
   int32_t sqlLen;
   char*   sql;
+  int32_t vgId;
 } SBalanceVgroupLeaderReq;
 
 int32_t tSerializeSBalanceVgroupLeaderReq(void* buf, int32_t bufLen, SBalanceVgroupLeaderReq* pReq);
