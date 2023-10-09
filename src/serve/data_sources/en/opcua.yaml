@@ -117,16 +117,8 @@ datasets:
       editable: true
       selectable: true
     params:
-      - name: child_table_expression
-        display: Child Table Expression
-        description: |
-          Support <child table prefix>_{ns}_{id} pattern
-        hint:
-          type: str
-        required: true
-
       - name: table_primary_key
-        display: Table Primary Key
+        display: Primary Key
         description: 
         required: true
         hint:
@@ -134,9 +126,16 @@ datasets:
           choices:
             - received_ts
             - original_ts
+      - name: child_table_expression
+        display: Table Name
+        description: |
+          Support <child table prefix>_{ns}_{id} pattern
+        hint:
+          type: str
+        required: true
 
       - name: table_tag_value
-        display: Child Table Tag Value
+        display: Tag Value
         description: 
         hint:
           type: str

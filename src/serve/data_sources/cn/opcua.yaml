@@ -124,16 +124,8 @@ datasets:
       editable: true
       selectable: true
     params:
-      - name: child_table_expression
-        display: 子表名称表达式
-        description: |
-          支持 <child table prefix>_{ns}_{id} 格式
-        hint:
-          type: str
-        required: true
-
       - name: table_primary_key
-        display: 表主键列
+        display: 主键列
         description: 
         required: true
         hint:
@@ -141,9 +133,15 @@ datasets:
           choices:
             - received_ts
             - original_ts
-
+      - name: child_table_expression
+        display: 表名称
+        description: |
+          支持 <child table prefix>_{ns}_{id} 格式
+        hint:
+          type: str
+        required: true
       - name: table_tag_value
-        display: 子表 Tag 列的值
+        display: Tag 值
         description: 
         hint:
           type: str
