@@ -155,6 +155,15 @@ export default {
     selectPlan: "选择方案",
   },
   dataIn: {
+    finish: '结束',
+    uploadcsv:'上传CSV',
+    allpoints:'所有点位',
+    downloadtpl:'下载模板',
+    downloadtpltip:'下载CSV模板文件',
+    downloadnodes:'下载所有点位的列表',
+    downloadnodestip:'现在OPC中所有点位列表',
+    csvinuse:'使用中的CSV',
+    csvinusetip:'下载使用中的配置文件',
     connectionConfiguration: '连接配置',
     createNewAgent: '创建新的代理',
     palceholders:{
@@ -1090,20 +1099,28 @@ export default {
     taosxAgent: {
       1: `请您通过这个地址 <a href="{linuxDL}">Linux</a> 或者 <a href="{windowDL}">Windows</a> 下载 taosx-agent 的下载包到本地环境。<br/><br/>对于Linux系统，请将下载的文件解压到指定的文件夹中，然后执行文件夹中的 <code>install.sh</code>文件。对于Windows，请双击下载的文件安装taox-agent，然后在系统环境的路径变量中添加<code>C:\\Program Files\\taosX\\bin</code>。<br/><br/>打开命令行，请执行下面的命令来检查 taosx-agent 是否安装成功。`,
       2: `请您输入代理的唯一名称，系统将为它生成一个连接令牌。`,
-      3: `重要提示：请在单击“下一步”按钮之前将端点和生成的令牌保存到本地文件。TDengine Cloud 不会在线保存生成的令牌，一旦您单击“下一步”，您将无法检索此令牌，并且必须创建一个新的代理。<br/><br/>
-      为了确保您的 TDx 代理正常工作，您必须对<code>agent.toml</code>文件进行更改。此文件可在以下目录中找到：<br/>
+      // 3: `重要提示：请在单击“下一步”按钮之前将端点和生成的令牌保存到本地文件。TDengine Cloud 不会在线保存生成的令牌，一旦您单击“下一步”，您将无法检索此令牌，并且必须创建一个新的代理。<br/><br/>
+      // 为了确保您的 TDx 代理正常工作，您必须对<code>agent.toml</code>文件进行更改。此文件可在以下目录中找到：<br/>
+      3: `重要提示： 点击 "下一步 "按钮前，请将端点和生成的令牌保存到本地文件中。如果丢失，您将无法找回，并必须创建一个新的代理。<br/><br/>
+      为确保代理正常运行，请将端点和生成的令牌复制到 <code>agent.toml</code> 文件中。该文件可在以下目录中找到：<br/>
       Linux： <code>/etc/taos</code><br/>
 Windows： <code>C:\\Program Files\\taosX\\config</code>`,
       4: `请您在命令行中执行以下命令。`,
       5: `请您在命令行中执行以下命令来检查代理运行状态。`,
       6: `<a target='_blank' href='${DocsUrl}/cloud/data-in/ds/install-agent'>代理配置文档</a>`,
-      7: `如果代理令牌错误，服务将直接退出，您可以使用以下命令在Linux上检查日志：
+      7: '检查代理是否连接正常',
+      8: '正常',
+      9: '失败',
+      10: '正在检查',
+      11: `请通过以下方式检查代理日志：`,
+      12: '并检查是否修复了问题。如果无法解决，请向 TDengine Cloud 团队报告。'
+  //     7: `如果代理令牌错误，服务将直接退出，您可以使用以下命令在Linux上检查日志：
 
-  <code>journalctl -u taosx-agent</code>`,
-      8: `在Windows上，您可以在以下位置检查日志文件：
+  // <code>journalctl -u taosx-agent</code>`,
+  //     8: `在Windows上，您可以在以下位置检查日志文件：
   
-  <code>C:\\Program Files\\taosX\\log\\agent\\</code>`,
-      9: '在资源管理器中刷新代理状态，以检查代理是否正确连接。当代理成功连接时，代理的状态将显示为"Idle"。'
+  // <code>C:\\Program Files\\taosX\\log\\agent\\</code>`,
+  //     9: '在资源管理器中刷新代理状态，以检查代理是否正确连接。当代理成功连接时，代理的状态将显示为"Idle"。'
     },
     connector: {
       desc: "通过封装 SQL 为 REST 请求的 {0} 连接器来连接。",
