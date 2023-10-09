@@ -15,31 +15,7 @@ options:
     description: |
       请登录 TDengine 云服务或打开企业版的 Explorer, 点击 Topics，你将看到 Topics 列表，复制 Topic 对应的 DSN 到这里即可。
     placeholder: "Topic 示例: ws://root:taosdata@127.0.0.1:6041/topic1"
-authentication:
-  display: 认证
-  description: 使用用户名密码或令牌进行认证。
-  value: plain
-  alternatives:
-    - name: plain
-      display: 用户名密码
-      description: 使用用户名和密码进行访问。
-      username:
-        display: 用户名
-        description: TDengine 用户名，默认使用 `root`。
-        placeholder: root
-        value: root
-      password:
-        display: Password
-        description: TDengine 密码，默认为 `taosdata`。
-        placeholder: taosdata
-        value: taosdata
-    - name: token
-      display: 令牌认证
-      description: 使用云服务令牌进行认证。
-      params:
-        - name: token
-          display: 令牌
-          description: 云服务令牌。
+
 strict: false
 groups:
   - name: 订阅设置

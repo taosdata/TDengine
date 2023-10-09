@@ -112,9 +112,13 @@ dependencies = ["clean-plugins", "clean"]
 
 [tasks.docker-cloud]
 script = """
+option="$1"
 commit=$(git rev-parse HEAD | cut -c 1-8)
 version=$(toml get Cargo.toml workspace.package.version -r)
 docker build -t image.cloud.taosdata.com/taosx/serve:$version-$commit .
+if [ "$option" = "--push" ] || [ "$option" = "-p" ]; then
+  docker push image.cloud.taosdata.com/taosx/serve:$version-$commit
+fi
 """
 dependencies = ["plugins"]
 
