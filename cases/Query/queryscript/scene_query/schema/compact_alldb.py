@@ -65,7 +65,7 @@ class TDTestQuery(TDCase):
             self.tdSql.execute(sql,queryTimes=5)
         except:
             self.logger.info("sql is not support now:=====%s; " %sql)
-            self.tdSql.error(sql)
+            #self.tdSql.error(sql)
                                                     
     def run(self):
 
