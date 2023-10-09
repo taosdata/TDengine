@@ -1,9 +1,9 @@
 import { request } from "@/utils/request";
 
-export function getAgentsData(clusterid, userid) {
+export function getAgentsData() {
   return request({
     baseURL: process.env.VUE_APP_X_API,
-    url: `/agents?cluster_id=${clusterid}&user_id=${userid}`,
+    url: `/agents?cluster_id=${localStorage.getItem("local_clusterID")}&user_id=${localStorage.getItem("username")}`,
     method: "get",
   });
 }
