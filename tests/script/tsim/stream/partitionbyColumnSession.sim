@@ -284,6 +284,7 @@ sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into test.streamt2 as select  _wstart c1, count(*) c2, max(a) c3 from st partition by a session(ts, 5s);
 
+sleep 1000
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 sql insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);
@@ -480,6 +481,7 @@ sql create table t3 using st tags(2,2,2);
 sql create table t4 using st tags(2,2,2);
 sql create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into test.streamt4 as select  _wstart c1, count(*) c2, max(a) c3 from st partition by a session(ts, 5s);
 
+sleep 2000
 sql insert into t1 values(1648791213000,2,2,3,1.0);
 sql insert into t2 values(1648791213000,2,2,3,1.0);
 sql insert into t3 values(1648791213000,2,2,3,1.0);
