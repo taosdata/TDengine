@@ -990,7 +990,7 @@ async fn consume_point_record(
                                         Err(err) => {
                                             tracing::warn!("describe error: {err:#}");
                                             let code: i32 = err.code().into();
-                                            let err_str = err.to_string();
+                                            let _err_str = err.to_string();
                                             match code {
                                                 0x0E001 | 0x0E002 | 0x0E003 => {
                                                     taos.replace(pool.get().await?);
@@ -1032,7 +1032,7 @@ async fn consume_point_record(
                                         if let Err(err) = res {
                                             tracing::warn!("describe error: {err:#}");
                                             let code: i32 = err.code().into();
-                                            let err_str = err.to_string();
+                                            let _err_str = err.to_string();
                                             match code {
                                                 0x032C => {
                                                     tracing::warn!(
@@ -1166,7 +1166,6 @@ async fn consume_point_record(
                             } else if errstr.contains("[0xE002]") || errstr.contains("[0xE003]") {
                                 taos.replace(pool.get().await?);
                             } else {
-                                break_err = Err(err);
                                 break;
                             }
                             break_err = Err(err);

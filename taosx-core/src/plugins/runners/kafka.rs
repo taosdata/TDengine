@@ -13,7 +13,6 @@ use arrow::record_batch::RecordBatch;
 use kafka::client::{KafkaClient, SecurityConfig};
 use kafka::consumer::{Consumer, FetchOffset, GroupOffsetStorage, Message, MessageSet};
 use openssl::ssl::{SslConnector, SslFiletype, SslMethod, SslVerifyMode};
-use rand::thread_rng;
 use taos::Dsn;
 use tokio_util::sync::CancellationToken;
 
@@ -54,7 +53,6 @@ fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
         for ms in message_sets.iter() {
             for m in ms.messages() {
                 let ts = chrono::Utc::now().timestamp_nanos_opt().unwrap();
-
                 let default_print_value = String::from("false");
                 let print_value: bool = from
                     .params

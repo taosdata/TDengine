@@ -8,7 +8,8 @@ use arrow::{
     datatypes::{DataType, Field, Schema},
     record_batch::RecordBatch,
 };
-use chrono::TimeZone;
+use chrono::{DateTime, format, ParseResult};
+use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
 use taosx_ipc::prelude::IpcDataType;
 use thiserror::Error;
@@ -120,9 +121,8 @@ impl Parse for Cast {
                                 .ok()
                                 .map(|ts| ts.timestamp_millis())
                         } else {
-                            chrono_tz::Tz::from_str(&tz)
-                                .expect("Invalid tz")
-                                .datetime_from_str(s, with)
+                            let tz = chrono_tz::Tz::from_str(&tz).expect("Invalid tz");
+                            parse_str_without_tz(s, with, &tz)
                                 .ok()
                                 .map(|ts| ts.timestamp_millis())
                         }
@@ -171,6 +171,13 @@ impl Parse for Cast {
         Ok((field, array))
     }
 }
+
+fn parse_str_without_tz(s: &str, fmt: &str, tz: &Tz) -> ParseResult<DateTime<Tz>> {
+    let mut parsed = format::Parsed::new();
+    chrono::format::parse(&mut parsed, s, format::strftime::StrftimeItems::new(fmt))?;
+    parsed.to_datetime_with_timezone(&tz)
+}
+
 
 #[cfg(test)]
 mod tests {

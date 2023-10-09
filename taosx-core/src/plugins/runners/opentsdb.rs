@@ -445,6 +445,7 @@ pub async fn opentsdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     }
 }
 
+#[allow(dead_code)]
 pub async fn opentsdb_validate(dsn: Dsn) -> anyhow::Result<ValidatedSource> {
     let host = dsn
         .addresses

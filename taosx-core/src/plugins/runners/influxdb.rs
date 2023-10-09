@@ -546,6 +546,7 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     }
 }
 
+#[allow(dead_code)]
 pub async fn influxdb_validate(dsn: Dsn) -> anyhow::Result<ValidatedSource> {
     let host = dsn
         .addresses
