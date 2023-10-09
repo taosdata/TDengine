@@ -33,6 +33,7 @@
         <el-select
           v-model="ruleForm.agent"
           :placeholder="$t('dataIn.palceholders.agentPlaceholder')"
+          @change="changeDBType"
         >
           <el-option
             v-for="item in agentList"
@@ -57,6 +58,7 @@
           v-model="ruleForm.dbName"
           size="small"
           :placeholder="$t('dataIn.palceholders.chooseTargetDbTip')"
+          @change="changeDBType"
         >
           <el-option
             v-for="db in dbList"
