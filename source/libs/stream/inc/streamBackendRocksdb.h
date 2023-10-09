@@ -181,5 +181,7 @@ int32_t streamBackendTriggerChkp(void* pMeta, char* dst);
 int32_t streamBackendAddInUseChkp(void* arg, int64_t chkpId);
 int32_t streamBackendDelInUseChkp(void* arg, int64_t chkpId);
 
+int32_t taskBackendBuildSnap(void* arg, int64_t chkpId);
+
 // int32_t streamDefaultIter_rocksdb(SStreamState* pState, const void* start, const void* end, SArray* result);
 #endif

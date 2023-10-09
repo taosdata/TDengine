@@ -950,7 +950,14 @@ int32_t chkpPreBuildDir(char* path, int64_t chkpId, char** chkpDir, char** chkpI
 
   return 0;
 }
-
+int32_t taskBackendBuildSnap(void* arg, int64_t chkpId) {
+  SStreamMeta* pMeta = arg;
+  void*        pIter = taosHashIterate(pMeta->pTaskBackendUnique, NULL);
+  while (pIter) {
+    pIter = taosHashIterate(pMeta->pTaskBackendUnique, pIter);
+  }
+  return 0;
+}
 int32_t streamBackendTriggerChkp(void* arg, char* dst) {
   return 0;
   //   SStreamMeta* pMeta = arg;
