@@ -250,8 +250,8 @@ public class PreLoading implements CommandLineRunner {
                 this.taskConfig.setBreakpoint(parseBreakpoint(breakpoint));
             }
             // 如果设置了性能参数，则覆盖默认值
-            if (StringUtils.isNotEmpty(tomlParseResult.getString("performance.readWindow", String::new))) {
-                this.performanceConfig.setReadWindow(tomlParseResult.getString("performance.readWindow", String::new));
+            if (tomlParseResult.getLong("performance.readWindow") != null) {
+                this.performanceConfig.setReadWindow(tomlParseResult.getLong("performance.readWindow").intValue());
             }
             if (tomlParseResult.getLong("performance.delay") != null) {
                 this.performanceConfig.setDelay(tomlParseResult.getLong("performance.delay").intValue());
@@ -529,17 +529,9 @@ public class PreLoading implements CommandLineRunner {
             Date end = DateUtils.stringToDate(endTime, DateUtils.DATE_FORMAT_15);
             // 相差毫秒数
             long diff = end.getTime() - begin.getTime();
-            // 根据查询窗口类型计算
-            String readWindow = performanceConfig.getReadWindow().toLowerCase();
-            switch (readWindow) {
-                case "d":
-                    return (int) (Math.ceil(diff / (24 * 60 * 60 * 1000) * measurementAmount));
-                case "h":
-                    return (int) (Math.ceil(diff / (60 * 60 * 1000) * measurementAmount));
-                case "m":
-                default:
-                    return (int) (Math.ceil(diff / (60 * 1000) * measurementAmount));
-            }
+            // 根据查询窗口长度计算（单位：分钟）
+            int readWindow = performanceConfig.getReadWindow();
+            return (int) (Math.ceil(diff / (readWindow * 60 * 1000) * measurementAmount));
         } catch (Exception e) {
             // 不处理异常，直接返回-1
             return -1;
