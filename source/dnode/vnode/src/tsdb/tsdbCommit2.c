@@ -562,8 +562,6 @@ int32_t tsdbCommitBegin(STsdb *tsdb, SCommitInfo *info) {
   } else {
     SCommitter2 committer[1];
 
-    tsdbFSCheckCommit(tsdb->pFS);
-
     code = tsdbOpenCommitter(tsdb, info, committer);
     TSDB_CHECK_CODE(code, lino, _exit);
 
