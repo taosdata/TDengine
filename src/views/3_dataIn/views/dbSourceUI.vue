@@ -621,28 +621,6 @@
           </template>
         </section>
       </template>
-      <!--未分组显示根节点下的params，显示方式和groups一样-->
-      <section class="choose-db">
-        <span class="label required">{{ this.$t("datasource.targetdb") }}</span>
-        <div class="target-db-name">
-          <el-select
-            v-model="dbname"
-            placeholder=""
-            style="margin-right: 8px"
-            size="small"
-          >
-            <el-option
-              v-for="db in dblist"
-              :key="db['node-key']"
-              :label="db.name"
-              :value="db.name"
-            ></el-option>
-          </el-select>
-        </div>
-        <el-button size="small" type="primary" plain @click="handleDbBtn">
-          {{ $t("data.createDatabase") }}
-        </el-button>
-      </section>
       <section class="bottom">
         <el-button @click="cancel" class="cancel-btn" size="small">{{
           $t("cancel")
@@ -702,11 +680,7 @@ export default {
     editId: {
       type: Number,
       default: 0,
-    },
-    dbName: {
-      type: String,
-      default: "",
-    },
+    }
   },
 
   data() {
@@ -793,7 +767,6 @@ export default {
       subject: "",
       radio: "",
       dblist: [],
-      dbname: "",
       activeName: "",
       textarea: "",
       isShowConfiguration: false,
@@ -820,7 +793,6 @@ export default {
     this.getDatabases();
     this.dbsource = this.dbsourceList;
     if (this.isEditable) {
-      this.dbname = this.dbName;
       this.handleEditData();
       let defaultVal =
         (this.dbsource[0]?.params && this.dbsource[0]?.params[0]?.value) ||
@@ -850,14 +822,6 @@ export default {
         this.$forceUpdate()
         console.log(val,'当前得tag');
       }
-    },
-    dbName: {
-      deep: true,
-      handler(val) {
-        if (this.isEditable) {
-          this.dbname = this.dbName;
-        }
-      },
     },
     "$store.state.dbs.dialogDbVisible": {
       handler(val) {
@@ -1290,13 +1254,7 @@ export default {
           }
         }
         dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
-        if (!this.dbname) {
-          Message({
-            type: "warning",
-            message: `${enterTip} target database `,
-          });
-          return;
-        }
+        
         let apiParams = {
           from:
             (this.tagName === "datasource" ? "tmq" : "taos") +
@@ -1310,7 +1268,7 @@ export default {
           to:
             "taos+" +
             localStorage.getItem("base_url") +
-            (this.dbname ? "/" + this.dbname : ""),
+            (this.$store.state.app.currentDBName ? "/" + this.$store.state.app.currentDBName : ""),
           labels: [
             "type::datain",
             `cluster-id::${id}`,
@@ -1356,7 +1314,7 @@ export default {
             to:
               "taos+" +
               localStorage.getItem("base_url") +
-              (this.dbname ? "/" + this.dbname : ""),
+              (this.$store.state.app.currentDBName? "/" + this.$store.state.app.currentDBName : ""),
             labels: [
               "type::datain",
               `cluster-id::${id}`,

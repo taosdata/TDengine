@@ -69,7 +69,7 @@ token="{{ token }}"</code></pre>
           <pre v-highlight><code>sc query taosx-agent</code></pre>
         </el-tab-pane>
       </el-tabs>
-      <p v-dompurify-html="$t('docs.taosxAgent.7')"></p>
+      <!-- <p v-dompurify-html="$t('docs.taosxAgent.7')"></p>
       <el-tabs v-model="tabActive">
         <el-tab-pane
           label="Linux"
@@ -87,7 +87,34 @@ token="{{ token }}"</code></pre>
       <p
         style="margin-bottom: 16px"
         v-dompurify-html="$t('docs.taosxAgent.8')"
-      ></p>
+      ></p> -->
+      <el-button
+        class="mb20"
+        @click="checkAgentStatus"
+        :type="checkBtnType"
+        >{{ checkBtnText }}</el-button
+      >
+      <template v-if="agentStatus == 'failed'">
+        <p v-dompurify-html="$t('docs.taosxAgent.11')"></p>
+        <el-tabs v-model="tabActive">
+          <el-tab-pane
+            label="Linux"
+            name="0"
+          >
+            <pre v-highlight><code>journalctl -u taosx-agent</code></pre>
+          </el-tab-pane>
+          <el-tab-pane
+            label="Windows"
+            name="1"
+          >
+            <pre v-highlight><code>C:\Program Files\taosX\log\agent\</code></pre>
+          </el-tab-pane>
+        </el-tabs>
+        <p
+          style="margin-bottom: 16px"
+          v-dompurify-html="$t('docs.taosxAgent.12')"
+        ></p>
+      </template>
     </section>
     <section class="flexCenter">
       <el-button
@@ -130,10 +157,31 @@ export default {
       name: '',
       tokenMap: {},
       loading: false,
-      tabActive: '0'
+      tabActive: '0',
+      agentStatus: 'noCheck',
+      requestIng: false
     };
   },
   computed: {
+    checkBtnText() {
+      return this.$t(
+        'docs.taosxAgent.' +
+          {
+            noCheck: '7',
+            checking: 10,
+            success: 8,
+            failed: 9
+          }[this.agentStatus]
+      );
+    },
+    checkBtnType() {
+      return {
+        noCheck: '',
+        checking: 'primary',
+        success: 'success',
+        failed: 'danger'
+      }[this.agentStatus];
+    },
     agentList() {
       return this.$store.state.app.agentLists.filter(item => item.id !== this.agent?.id);
     },
@@ -181,6 +229,23 @@ export default {
   created() {},
   mounted() {},
   methods: {
+    checkAgentStatus() {
+      if (this.requestIng) return;
+      this.requestIng = true;
+      this.agentStatus = 'checking';
+      this.$store
+        .dispatch('app/getAgentList')
+        .then(() => {
+          const status = this.$store.state.app.agentLists.find(item => item.name == this.name)?.status;
+          this.agentStatus = ['idle', 'busy'].includes(status) ? 'success' : 'failed';
+        })
+        .catch(() => {
+          this.agentStatus = 'noCheck';
+        })
+        .finally(() => {
+          this.requestIng = false;
+        });
+    },
     submit() {
       if (this.loading) return;
       this.loading = true;

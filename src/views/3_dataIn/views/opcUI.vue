@@ -292,29 +292,41 @@
               lazy
             >
             <div style="margin-bottom:10px;">
-              <el-radio v-model="radio" label="1">Upload CSV</el-radio>
-              <el-radio v-model="radio" label="2">All Points</el-radio>
+              <el-radio v-model="radio" label="1">{{ $t('dataIn.uploadcsv') }}</el-radio>
+              <el-radio v-model="radio" label="2">{{ $t('dataIn.allpoints') }}</el-radio>
             </div>
-            <div style="margin-bottom:10px;">
-            <el-button type="primary" size="small">
-              Select File
-            </el-button>
-            <el-tooltip placement="top" content="Download the csv template file" effect="light">
+            <div style="margin-bottom:10px;display:flex;align-items:baseline;">
+            <el-upload
+              class="upload-demo"
+              ref="upload"
+              accept=".csv"
+              :on-remove="handleRemove"
+              :data="uploadData"
+              :action="uploadUrl"
+              :on-success="handleSuccess"
+              :file-list="fileList"
+              :auto-upload="true"
+            >
+              <el-button slot="trigger" size="small" type="primary">{{
+                $t("datasource.selectfile")
+              }}</el-button>
+            </el-upload>
+            <el-tooltip placement="top" :content="$t('dataIn.downloadtpltip')" effect="light">
               <span style="display:inline-block;margin-left:20px;color:#4259ce;cursor: pointer;">
               <i class="el-icon-download"></i>
-              Download Template
+              {{ $t('dataIn.downloadtpl') }}
              </span>
             </el-tooltip>
-            <el-tooltip placement="top" content="Download the list of all in OPC" effect="light">
+            <el-tooltip placement="top" :content="$t('dataIn.downloadnodestip')" effect="light">
              <span style="display:inline-block;margin-left:20px;color:#4259ce;cursor: pointer;">
               <i class="el-icon-download"> </i>
-              Download the List of Nodes
+              {{ $t('dataIn.downloadnodes') }}
              </span>
             </el-tooltip>
-             <el-tooltip placement="top" content="Download the current configuration file in use" effect="light">
+             <el-tooltip placement="top" :content="$t('dataIn.csvinusetip')" effect="light">
              <span style="display:inline-block;margin-left:20px;color:#4259ce;cursor: pointer;">
               <i class="el-icon-download"></i>
-              CSV file in Use
+              {{ $t('dataIn.csvinuse') }}
              </span>
             </el-tooltip>
 
@@ -590,7 +602,7 @@
             </template>
           </template>
           <template v-else>
-            <template v-for="(p, pind) in item.params">
+            <template v-for="p in item.params">
               <div :key="p.name" v-if="!item.name.includes('SSL')">
                 <span :class="['label', p.required ? 'required' : '']">
                   {{ p.display ? p.display : p.name }}
@@ -706,7 +718,7 @@
                   ></div>
                 </div>
               </div>
-              <template v-if="p.name == 'opc_table_config'">
+              <!-- <template v-if="p.name == 'opc_table_config'">
                 <div
                   :key="pind"
                   :class="[
@@ -722,7 +734,7 @@
                     ref="opcsingleton"
                   ></opcConnector>
                 </div>
-              </template>
+              </template> -->
             </template>
           </template>
         </section>
@@ -758,23 +770,8 @@
           :isEditable="isEditable"
           :echoData="echoData"
           ref="csvdata"
-          :dbName="dbName"
           @handleDbBtn="handleDbBtn"
         ></CsvData>
-      </section>
-      <section class="choose-db">
-        <span class="label required">{{ $t("datasource.targetdb") }}</span>
-        <el-select v-model="dbname" placeholder="" style="margin-right: 8px">
-          <el-option
-            v-for="db in dblist"
-            :key="db['node-key']"
-            :label="db.name"
-            :value="db.name"
-          ></el-option>
-        </el-select>
-        <el-button size="small" type="primary" plain @click="handleDbBtn">
-          {{ $t("data.createDatabase") }}
-        </el-button>
       </section>
       <section class="bottom">
         <el-button @click="cancel" class="cancel-btn" size="small">{{
@@ -867,11 +864,7 @@ export default {
     editId: {
       type: Number,
       default: 0,
-    },
-    dbName: {
-      type: String,
-      default: "",
-    },
+    }
   },
   data() {
     return {
@@ -914,7 +907,6 @@ export default {
       subject: "",
       radio: "",
       dblist: [],
-      dbname: "",
       dbprecision: "",
       isShowConfiguration: false,
       loading: false,
@@ -932,7 +924,6 @@ export default {
   created() {
     this.getDatabases();
     if (this.isEditable) {
-      this.dbname = this.dbName;
       if (this.tagName == "mqtt") {
         this.payloadVal = "json";
       }
@@ -1048,15 +1039,7 @@ export default {
       : "";
   },
   watch: {
-    dbName: {
-      deep: true,
-      handler(val) {
-        if (this.isEditable) {
-          this.dbname = this.dbName;
-        }
-      },
-    },
-    dbname: {
+    'this.$store.state.app.currentDBName': {
       handler() {
         if (this.tagName == "kafka") {
           this.getdbprecision();
@@ -1205,7 +1188,7 @@ export default {
 
     async getdbprecision() {
       let res = await sendSQLReq(
-        `select \`precision\` from information_schema.ins_databases where name = '${this.dbname}';`
+        `select \`precision\` from information_schema.ins_databases where name = '${this.$store.state.app.currentDBName}';`
       );
       if (res && res.code == 0) {
         this.dbprecision = res.data[0][0];
@@ -1508,16 +1491,6 @@ export default {
         if (querystr) {
           dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
         }
-        if (this.tagName == "csv") {
-          // this.dbname = this.$refs.csvdata.$refs.param.ruleForm2.dbName;
-        }
-        if (!this.dbname) {
-          Message({
-            type: "warning",
-            message: `${enterTip}  ` + this.$t("datasource.targetdb"),
-          });
-          return;
-        }
         if (this.tagName == "mqtt" || this.tagName == "kafka") {
           if (this.$refs.mqtt) {
             this.$refs.mqtt.submit();
@@ -1610,7 +1583,7 @@ export default {
           to:
             "taos+" +
             localStorage.getItem("base_url") +
-            (this.dbname ? "/" + this.dbname : ""),
+            (this.$store.state.app.currentDBName ? "/" + this.$store.state.app.currentDBName : ""),
           labels: [
             "type::datain",
             `cluster-id::${id}`,
@@ -2010,7 +1983,7 @@ export default {
       align-items: center;
       width: 200px;
       display: block;
-      white-space:noraml;
+      white-space:normal;
     }
     .no-label {
       align-items: center;

@@ -137,9 +137,12 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('datasource.status')" prop="status" >
+        <el-table-column :label="$t('datasource.status')" prop="status">
           <template slot-scope="scope">
-            <div class="status-operation" style="display:flex;white-space:nowrap;">
+            <div
+              class="status-operation"
+              style="display: flex; white-space: nowrap"
+            >
               <el-tooltip
                 v-if="
                   ['stopped', 'finished', 'failed'].includes(
@@ -355,10 +358,16 @@ export default {
       });
     },
     edit(data, status, iscopy) {
+      console.log(data, status, iscopy, "编辑操作");
       this.$parent.sourceName = data.name;
       this.$parent.currentTaskStatus = status;
       this.$parent.agentID = data?.via;
       if (data.from_detail) {
+        this.$store.commit("app/SET_CURRENT_DBTYPE", data.from_detail?.id);
+
+        this.$store.commit("app/SET_CURRENT_DBNAME", data.target);
+        this.$store.commit("app/SET_CURRENT_AGENT", data?.via);
+        this.$store.commit("app/SET_CURRENT_DSNAME", data.from_detail?.name);
         let editDdata = [].concat(data.from_detail);
         if (data.from_expand && data.from_expand.id == "mqtt") {
           let dnsarr = data.from.split("?")[1].split("&");
@@ -450,11 +459,12 @@ export default {
       this.edit(data, status, true);
     },
     addDbSource() {
-      // this.dialog = true;
+      this.$store.commit("app/SET_CURRENT_DBNAME", "");
+      this.$store.commit("app/SET_CURRENT_AGENT", "");
+      this.$store.commit("app/SET_CURRENT_DSNAME", "");
+      this.$store.commit("app/SET_CURRENT_DBTYPE", "tmq");
       this.$parent.currentTaskStatus = "";
-      this.$parent.toggleComponent(
-          "opcua"
-        );
+      this.$parent.toggleComponent("tmq");
     },
     async getList() {
       try {
@@ -560,10 +570,10 @@ export default {
             type: "warning",
           }
         ).then(async () => {
-          let result=await excuteStop(data.id);
-          if(result.message){
-            Message.error(result.message)
-            return
+          let result = await excuteStop(data.id);
+          if (result.message) {
+            Message.error(result.message);
+            return;
           }
           await this.refresh();
         });

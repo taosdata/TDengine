@@ -52,6 +52,7 @@
         <p class="custom-placeholder mt10">{{ $t("dataIn.needAgentTip") }}</p>
       </el-form-item>
       <el-form-item :label="$t('stream.targetDB')" prop="dbName">
+        <span style="color:red;font-size:24px;">{{ ruleForm.dbName }}</span>
         <el-select
           v-model="ruleForm.dbName"
           size="small"
@@ -171,7 +172,6 @@ export default {
   },
   mounted() {
     this.getDbTypes();
-
     this.getDBLists();
     this.getAgents();
     this.getInitValue();
@@ -187,10 +187,16 @@ export default {
     },
     //获取初始化时候得值----主要针对类型切换时候需要换ui组件
     getInitValue() {
+      console.log(this.$store.state.app.currentDBName,this.$store.state.app.currentAgentID,'当前数据库名称');
       this.ruleForm.dbName = this.$store.state.app.currentDBName;
       this.ruleForm.agent = this.$store.state.app.currentAgentID;
       this.ruleForm.name = this.$store.state.app.currentDSName;
       this.ruleForm.type = this.$store.state.app.currentDBType;
+      if (this.agentTypes.includes(this.ruleForm.type)) {
+        this.showAgentSelect = true;
+      } else {
+        this.showAgentSelect = false;
+      }
     },
     handleDbBtn() {
       this.$store.commit("dbs/HANDLE_ADD_DB");

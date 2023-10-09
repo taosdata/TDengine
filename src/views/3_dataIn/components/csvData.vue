@@ -33,7 +33,6 @@
         </el-tab-pane>
         <CsvParameter
           ref="param"
-          :targetName="dbName"
           :echoData="echoData"
           :isEditable="isEditable"
         >
@@ -116,11 +115,7 @@ export default {
       default: () => {
         return [];
       },
-    },
-    dbName: {
-      type: String,
-      default: "",
-    },
+    }
   },
   provide() {
     return {

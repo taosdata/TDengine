@@ -520,6 +520,15 @@ export default {
     renameColumn: 'Change column name'
   },
   dataIn: {
+    finish: 'Finish',
+    uploadcsv:'Upload CSV',
+    allpoints:'All Points',
+    downloadtpl:'Download Template',
+    downloadtpltip:'Download the csv template file ',
+    downloadnodes:'Download List of Nodes',
+    downloadnodestip:'Download the list of all points in OPC',
+    csvinuse:'CSV file in Use',
+    csvinusetip:'Download the current configuration file in use',
     connectionConfiguration: 'Connection Configuration',
     createNewAgent: 'Create New Agent',
     palceholders:{
@@ -1301,15 +1310,23 @@ export default {
     taosxAgent: {
       1: `Download the taosx-agent through the link <a href="{linuxDL}">Linux</a> or <a href="{windowDL}">Windows</a> to your local environment.<br/><br/>For Linux, please decompress the downloaded file to a specified folder and execute the <code>install.sh</code> file inside the folder. For Windows, please double-click the downloaded file to install the taox-agent and then add <code>C:\\Program Files\\taosX\\bin</code> to the Path variable of the system environments.<br/><br/>Open a shell, please execute the following command to check if taosx-agent is installed successfully.`,
       2: 'Input a unique name for the agent. The system will generate a connection token for the agent.',
-      3: `IMPORTANT: Please save the endpoint and generated token to a local file BEFORE clicking on the "Next" button. TDengine Cloud does not save the generated token online and once you click "Next" you cannot retrieve this token and will have to create a new agent.<br/><br/>
-      To ensure your TDx agent works correctly you have to make changes to the <code>agent.toml</code> file. This file can be found in the following directory:<br/>
-      Linux: <code>/etc/taos</code><br/>
+      // 3: `IMPORTANT: Please save the endpoint and generated token to a local file BEFORE clicking on the "Next" button. TDengine Cloud does not save the generated token online and once you click "Next" you cannot retrieve this token and will have to create a new agent.<br/><br/>
+      // To ensure your TDx agent works correctly you have to make changes to the <code>agent.toml</code> file. This file can be found in the following directory:<br/>
+      // Linux: <code>/etc/taos</code><br/>
+      3:`IMPORTANT: Please save the endpoint and the generated token to a local file BEFORE clicking on the "Next" button. You can not retrieve them and will have to create a new agent if you lose it.<br/><br/>
+      To ensure your agent works, please copy the endpoint and the generated token to the <code>agent.toml</code> file. This file can be found in the following directory:<br/>
 Windows: <code>C:\\Program Files\\taosx\\config</code>`,
       4: `Execute the following command in the shell.`,
       5: 'Check the agent running status with the following command in the shell.',
       6: `<a target='_blank' href='${DocsUrl}/cloud/data-in/ds/install-agent'>Configure Agent Documentation</a>`,
-      7: `If the agent token is wrong, the service will exit directly, you can check the logs with: `,
-      8: `Refresh agent status in explorer to check if the agent is connected correctly. The status of an agent will be "Idle" when it has been connected.`
+      7: 'Check Agent Connection',
+      8: 'Success',
+      9: 'Failed',
+      10: 'Checking',
+      11: `Please check the agent logs with:`,
+      12: 'and check if you fix the issue. If you can not, please report it to the TDengine Cloud team.'
+      // 7: `If the agent token is wrong, the service will exit directly, you can check the logs with: `,
+      // 8: `Refresh agent status in explorer to check if the agent is connected correctly. The status of an agent will be "Idle" when it has been connected.`
     },
     connector: {
       desc: "Connect using the {0} to encapsulate SQL as a REST request.",
