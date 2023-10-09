@@ -127,7 +127,16 @@ export function validateTask(data) {
    })
 }
 
-export function downloadPoints(data){
+export function getFileStream(filepath){
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        url:`/download?file_path=${filepath}`,
+        method:'get',
+        responseType:'blob'
+    })
+}
+
+export function downlaodAllNodes(data){
     return request({
         baseURL:process.env.VUE_APP_X_API,
         url:`/ds/in/download/all_data_sets`,

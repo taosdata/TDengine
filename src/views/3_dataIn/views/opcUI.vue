@@ -8,9 +8,10 @@
           : '',
       ]"
     >
-      <section class="header">
-        <h1>{{ dbsource[0].name ? dbsource[0].name : "" }}</h1>
+      <section>
+        <DataTarget></DataTarget>
       </section>
+
       <div class="source-name" v-if="isEditable">
         <div class="block-title">
           <span>{{ $t("datasource.sourcename") }}</span>
@@ -25,6 +26,9 @@
         </div>
       </div>
       <section class="basics" v-if="tagName !== 'csv'">
+        <div class="block-title">
+          <span>{{ $t("dataIn.connectionConfiguration") }}</span>
+        </div>
         <div class="protocol" v-if="dbsource[0].protocol">
           <span class="label">{{ dbsource[0].protocol.display }}</span>
           <div class="label-value">
@@ -287,16 +291,46 @@
               :key="p.category"
               lazy
             >
+            <div style="margin-bottom:10px;">
+              <el-radio v-model="radio" label="1">Upload CSV</el-radio>
+              <el-radio v-model="radio" label="2">All Points</el-radio>
+            </div>
+            <div style="margin-bottom:10px;">
+            <el-button type="primary" size="small">
+              Select File
+            </el-button>
+            <el-tooltip placement="top" content="Download the csv template file" effect="light">
+              <span style="display:inline-block;margin-left:20px;color:#4259ce;cursor: pointer;">
+              <i class="el-icon-download"></i>
+              Download Template
+             </span>
+            </el-tooltip>
+            <el-tooltip placement="top" content="Download the list of all in OPC" effect="light">
+             <span style="display:inline-block;margin-left:20px;color:#4259ce;cursor: pointer;">
+              <i class="el-icon-download"> </i>
+              Download the List of Nodes
+             </span>
+            </el-tooltip>
+             <el-tooltip placement="top" content="Download the current configuration file in use" effect="light">
+             <span style="display:inline-block;margin-left:20px;color:#4259ce;cursor: pointer;">
+              <i class="el-icon-download"></i>
+              CSV file in Use
+             </span>
+            </el-tooltip>
+
+            </div>
+             
+
               <div :key="pind">
                 <div
                   class="description"
                   v-html="transforHtml(p.description)"
                 ></div>
                 <div class="target">
-                  <span
+                  <!-- <span
                     :class="['no-label', p.target.required ? 'required' : '']"
-                  ></span>
-                  <template v-if="p.target.multiple">
+                  ></span> -->
+                  <!-- <template v-if="p.target.multiple">
                     <el-select
                       v-model="p.target.value"
                       :multiple="p.target.multiple"
@@ -317,26 +351,29 @@
                   </template>
                   <template v-else>
                     <el-input v-model="p.target.value"></el-input>
-                  </template>
-                  <el-button
+                  </template> -->
+                  <!-- <el-button
                     size="medium"
                     @click="handleSelBtn"
                     style="height: 42px"
                     >{{ $t("datasource.select") }}</el-button
-                  >
+                  > -->
                 </div>
                 <div class="configuration" v-if="isShowConfiguration">
                   <el-input
                     :placeholder="$t('datasource.regexPlaceholder')"
                     v-model="p.value"
                     :disable="p.target.selectable"
-                    @keydown.enter.native="searchDatas($event,p.value)"
+                    @keydown.enter.native="searchDatas($event, p.value)"
                   >
+
                     <el-button
+                    size="small"
                       slot="append"
                       icon="el-icon-search"
-                      @click="searchDatas($event,p.value)"
+                      @click="searchDatas($event, p.value)"
                     ></el-button>
+
                   </el-input>
                   <div class="resultWrap">
                     <div class="searchList" v-loading="loading">
@@ -345,6 +382,7 @@
                         v-if="configurationdata.length <= 0"
                       ></el-empty>
                       <template v-else>
+
                         <el-table
                           :data="configurationdata"
                           size="mini"
@@ -359,6 +397,7 @@
                             prop="name"
                             label="Name"
                           ></el-table-column>
+
                         </el-table>
                       </template>
                     </div>
@@ -525,7 +564,8 @@
                     </template>
                   </template>
                   <template v-else-if="p.hint && p.hint.type === 'bool'">
-                    <p-three-checkbox :data="checkboxData" v-model="p.value" />
+                    <!-- <p-three-checkbox :data="checkboxData" v-model="p.value" /> -->
+                    <el-switch  v-model="p.value"></el-switch>
                   </template>
                   <template
                     v-if="
@@ -534,6 +574,7 @@
                     "
                   >
                     <el-input-number
+                    size="small"
                       v-model="p.value"
                       :min="p.hint.min"
                       :max="p.hint.max"
@@ -623,19 +664,27 @@
                       </el-radio>
                     </el-radio-group>
                     <template v-else>
-                      <el-checkbox
+                      <!-- <el-checkbox
                         v-model="p.value"
                         true-label="true"
                         false-label="false"
-                      ></el-checkbox>
+                      ></el-checkbox> -->
+                      <el-switch v-model="p.value"
+                      active-value="true"
+                      inactive-value="false"
+                      ></el-switch>
                     </template>
                   </template>
                   <template v-else-if="p.hint?.type && p.hint?.type === 'bool'">
-                    <p-three-checkbox
+                    <!-- <p-three-checkbox
                       :data="checkboxData"
                       v-model="p.value"
                       @changeThreeCheckbox="getThreeBoxNum($event, p)"
-                    />
+                    /> -->
+                    <el-switch v-model="p.value"
+                      active-value="true"
+                      inactive-value="false"
+                      ></el-switch>
                   </template>
                   <template
                     v-if="
@@ -644,6 +693,7 @@
                     "
                   >
                     <el-input-number
+                    size="small"
                       v-model="p.value"
                       :min="p.hint.min"
                       :max="p.hint.max"
@@ -722,15 +772,15 @@
             :value="db.name"
           ></el-option>
         </el-select>
-        <el-button size="medium" type="primary" plain @click="handleDbBtn">
+        <el-button size="small" type="primary" plain @click="handleDbBtn">
           {{ $t("data.createDatabase") }}
         </el-button>
       </section>
       <section class="bottom">
-        <el-button @click="cancel" class="cancel-btn">{{
+        <el-button @click="cancel" class="cancel-btn" size="small">{{
           $t("cancel")
         }}</el-button>
-        <el-button type="primary" @click="submit" :disabled="disable">{{
+        <el-button type="primary" @click="submit" :disabled="disable" size="small">{{
           $t("submit")
         }}</el-button>
       </section>
@@ -747,6 +797,7 @@
   </div>
 </template>
 <script>
+import DataTarget from "./dataTarget.vue";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
 import { sendSQLReq } from "@/api/gateway/console";
@@ -767,6 +818,7 @@ export default {
     opcConnector,
     CsvData,
     DialogCreateDb,
+    DataTarget,
   },
   props: {
     echoData: {
@@ -1756,7 +1808,7 @@ export default {
         this.dbsource[0].datasets.categories = categories;
       }
     },
-    searchDatas: debounce(function (e,val) {
+    searchDatas: debounce(function (e, val) {
       try {
         let data = this.dbsource[0];
         let endpoint = data.options.endpoint.value;
@@ -1883,9 +1935,7 @@ export default {
 </style>
 <style lang="scss" scoped>
 .source-ui {
-  padding-left: 20px;
-  justify-content: space-around;
-  //   padding-right: 300px;
+  justify-content: space-between;
   display: flex;
   :deep {
     .el-input__inner {
@@ -1920,7 +1970,8 @@ export default {
   .left-ui {
     position: relative;
     overflow: auto;
-    min-width: 800px;
+    width: 50%;
+    flex-shrink: 0;
 
     .description {
       max-width: 568px;
@@ -1939,7 +1990,7 @@ export default {
         }
       }
     }
-    section:not(:first-child) {
+    section {
       border: 1px solid #e3e4e6;
       margin-bottom: 20px;
       border-radius: 12px;
@@ -1959,6 +2010,7 @@ export default {
       align-items: center;
       width: 200px;
       display: block;
+      white-space:noraml;
     }
     .no-label {
       align-items: center;
@@ -2074,7 +2126,7 @@ export default {
     :deep {
       .el-input-number__increase,
       .el-input-number__decrease {
-        height: 38px;
+        height: 30px;
         display: flex;
         justify-content: center;
         align-items: center;
@@ -2082,9 +2134,8 @@ export default {
     }
   }
   .right-ui {
-    margin-left: 20px;
-    padding-top: 50px;
-    width: 500px;
+    flex: 1;
+    margin-left: 40px;
     :deep {
       .v-note-panel {
         border-radius: 12px;
@@ -2164,6 +2215,7 @@ export default {
             align-items: center;
             width: 100px;
             display: block;
+            white-space:normal;
           }
           .el-input {
             flex: 1;

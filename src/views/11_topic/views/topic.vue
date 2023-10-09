@@ -19,6 +19,13 @@
         </pre>
         </template>
       </el-table-column>
+      <el-table-column min-width="200" label="DSN" prop="sql">
+        <template slot-scope="scope">
+          <pre v-highlight class="nowrap sql-code pre-code" slot="reference">
+          <code class="language-sql" style="overflow:hidden">{{ scope.row.dsn }} </code>
+        </pre>
+        </template>
+      </el-table-column>
       <el-table-column :label="$t('topic.action')" width="80">
         <template slot-scope="scope">
           <el-button  plain size="small" @click="del(scope.row)" icon="el-icon-delete"></el-button>
@@ -67,6 +74,7 @@
 
 <script>
   import { createTopic, getTopics, delTopic } from "@/api/topic";
+  import { getDSN } from "@/utils/index";
   import { SubscriptionDocsUrl } from "@/const";
   import { parsinginZone } from '@/utils'
   
@@ -141,6 +149,10 @@
         if (this.requestIng) return;
         this.requestIng = true;
         [this.topicList, this.total] = await getTopics({ currentPage: this.currentPage, pageSize: this.pageSize });
+        this.topicList.forEach((item) => {
+          console.log(item);
+          item.dsn = getDSN("tmq") + "/" + item.topic_name;
+        });
         this.requestIng = false;
       },
       handleCreateTopic() {

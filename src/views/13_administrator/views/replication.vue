@@ -1,18 +1,10 @@
 <template>
   <div class="dnode-block">
     <div class="flexEnd">
-      <el-button
-        plain
-        @click="refresh"
-        size="small"
-        icon="el-icon-refresh"
-        :disabled="refreshable"
-      >
+      <el-button plain @click="refresh" size="small" icon="el-icon-refresh" :disabled="refreshable">
         {{ $t("refresh") }}
       </el-button>
-      <el-button plain @click="add" size="small" icon="el-icon-plus"
-        >{{$t('taosuser.addreplication')}}</el-button
-      >
+      <el-button plain @click="add" size="small" icon="el-icon-plus">{{ $t('taosuser.addreplication') }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
       <el-table-column label="ID" width="80" prop="id"></el-table-column>
@@ -30,12 +22,8 @@
       </el-table-column>
       <el-table-column :label="$t('taosuser.operation')" width="110">
         <template slot-scope="scope">
-          <el-switch
-            :value="scope.row.status.toLowerCase() == 'running'"
-            active-color="rgb(66, 89, 206)"
-            inactive-color="#dcdfe6"
-            @change="switchOperation($event, scope.row)"
-          ></el-switch>
+          <el-switch :value="scope.row.status.toLowerCase() == 'running'" active-color="rgb(66, 89, 206)"
+            inactive-color="#dcdfe6" @change="switchOperation($event, scope.row)"></el-switch>
           <!-- <el-button
             plain
             size="small"
@@ -54,56 +42,33 @@
             @click="stop(scope.row, scope.$index)"
             icon="el-icon-tingzhi"
           ></el-button>-->
-          <el-button
-            plain
-            size="small"
-            @click="del(scope.row, scope.$index)"
-            icon="el-icon-delete"
-          ></el-button>
+          <el-button plain size="small" @click="del(scope.row, scope.$index)" icon="el-icon-delete"></el-button>
         </template>
       </el-table-column>
     </el-table>
-    <el-pagination
-      class="pagination"
-      layout="total, prev, pager, next"
-      :current-page.sync="currentPage"
-      :page-size="pageSize"
-      :hide-on-single-page="true"
-      :total="total"
-      @current-change="handlePageChange"
-    ></el-pagination>
-    <el-dialog
-      align="center"
-      :title="$t('taosuser.addreplication')"
-      width="600px"
-      :visible.sync="dialog"
-      @close="closeDialog"
-      :destroy-on-close="true"
-    >
-      <el-form
-        :model="ruleForm"
-        :rules="rules"
-        ref="ruleForm"
-        size="mini"
-        label-width="auto"
-        class="demo-ruleForm"
-      >
-        <el-form-item :label="$t('taosuser.fromsource')" prop="source" required>
+    <el-pagination class="pagination" layout="total, prev, pager, next" :current-page.sync="currentPage"
+      :page-size="pageSize" :hide-on-single-page="true" :total="total" @current-change="handlePageChange"></el-pagination>
+    <el-dialog align="center" :title="$t('taosuser.addreplication')" width="600px" :visible.sync="dialog"
+      @close="closeDialog" :destroy-on-close="true">
+      <el-form :model="ruleForm" :rules="rules" ref="ruleForm" size="mini" label-width="auto" class="demo-ruleForm">
+        <el-form-item prop="source" required>
           <!-- <el-input v-model.trim="ruleForm.source"></el-input> -->
+          <template slot="label">
+            {{ $t('taosuser.fromsource') }}
+          </template>
           <el-select v-model="ruleForm.source" :placeholder="$t('pleaseSelect')">
-            <el-option
-              v-for="db in dblist"
-              :key="db['node-key']"
-              :label="db.name"
-              :value="db.name"
-            ></el-option>
+            <el-option v-for="db in dblist" :key="db['node-key']" :label="db.name" :value="db.name"></el-option>
           </el-select>
         </el-form-item>
-        <el-form-item :label="$t('taosuser.targetdsn')" prop="target" required>
-          <el-input
-            v-model.trim="ruleForm.target"
-            placeholder="taos://192.168.0.1:6030/db2"
-          ></el-input>
+        <el-form-item prop="target" required>
+          <template slot="label">
+            {{ $t('taosuser.targetdsn') }}
+            <el-tooltip effect="light" placement="top">
+              <span slot="content" v-html="$t('datasource.replicationTargetInfo')"></span>
+              <i class="el-icon-info"></i>
+            </el-tooltip>
+          </template>
+          <el-input v-model.trim="ruleForm.target" placeholder="taos://192.168.0.1:6030/db2"></el-input>
         </el-form-item>
       </el-form>
 
@@ -114,14 +79,8 @@
           </el-button>
         </el-col>
         <el-col :span="5" :push="4">
-          <el-button
-            size="small"
-            :disabled="confirmStatus"
-            @click="addReplication"
-            class="w100"
-            type="primary"
-            >{{ $t("confirm") }}</el-button
-          >
+          <el-button size="small" :disabled="confirmStatus" @click="addReplication" class="w100" type="primary">{{
+            $t("confirm") }}</el-button>
         </el-col>
       </el-row>
     </el-dialog>
@@ -181,7 +140,7 @@ export default {
     },
   },
   methods: {
-    handlePageChange() {},
+    handlePageChange() { },
     closeDialog() {
       this.$refs.ruleForm.resetFields();
       this.$refs.ruleForm.clearValidate();
@@ -194,21 +153,21 @@ export default {
     },
     del(data) {
       this.$confirm(
-        this.$t("replication.backupDel").replace("{id}",data.id), 
+        this.$t("replication.backupDel").replace("{id}", data.id),
         this.$t("warning"),
-      {
-        confirmButtonText: this.$t("confirm"),
-        cancelButtonText: this.$t("cancel"),
-        type: "warning",
-      }).then(async () => {
-        await excuteDel(data.id).then(() => {
-          Message({
-            type: "success",
-            message: this.$t('delSucc'),
+        {
+          confirmButtonText: this.$t("confirm"),
+          cancelButtonText: this.$t("cancel"),
+          type: "warning",
+        }).then(async () => {
+          await excuteDel(data.id).then(() => {
+            Message({
+              type: "success",
+              message: this.$t('delSucc'),
+            });
+            this.getReplication();
           });
-          this.getReplication();
         });
-      });
     },
     refresh() {
       this.refreshable = true;
@@ -224,20 +183,21 @@ export default {
             `cluster-id::${localStorage.getItem("local_clusterID")}`,
           ],
           to: `${this.ruleForm.target}`,
-          from: `tmq+${localStorage.getItem("base_url")}/${
-            this.ruleForm.source
-          }`,
+          from: `tmq+${localStorage.getItem("base_url")}/${this.ruleForm.source
+            }?timeout=never`,
         };
-        await addReplicationData(id, params).then((res) => {
-          if (res) {
-            Message.success(this.$t('createSucc'));
-            this.getReplication();
-          }
-          this.dialog = false;
-        });
+        let res = await addReplicationData(id, params);
+        console.log(res);
+        if (_.has(res, "code") && _.has(res, "message") && res.code != 0) {
+          Message.error(res.message);
+          return;
+        }
+        Message.success(this.$t('createSucc'));
+        this.getReplication();
+        this.dialog = false;
       } catch (err) {
+        console.error(err);
         Message.error(err?.message);
-        return Promise.reject(err);
       }
     },
     edit(data) {
@@ -290,7 +250,7 @@ export default {
         await getReplicationList(id).then((result) => {
           this.topicList = result.map((item) => {
             let to_port = _.get(item, "to_expand.port");
-            item["fromdb"] = item.from.split("/").at(-1);
+            item["fromdb"] = _.get(item, "from_expand.subject");
             item["hostport"] =
               _.get(item, "to_expand.host") ||
               "localhost" + (to_port ? `:${to_port}` : "");
@@ -303,10 +263,10 @@ export default {
         this.$parent.$parent.$parent.taosxDisabled = false;
       } catch (error) {
         if (error.response.status == 404) {
-          this.$parent.$parent.$parent.taosxDisabled=true
+          this.$parent.$parent.$parent.taosxDisabled = true
         }
         if (error.response.status === 500) {
-          this.$parent.$parent.$parent.taosxDisabled=true
+          this.$parent.$parent.$parent.taosxDisabled = true
         }
       }
       this.refreshable = false;
@@ -330,6 +290,7 @@ export default {
 .el-select {
   width: 100%;
 }
+
 .el-switch {
   margin-right: 10px;
 }
