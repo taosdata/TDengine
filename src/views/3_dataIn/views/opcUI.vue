@@ -373,11 +373,14 @@
                     </span>
                   </el-tooltip>
                   <el-tooltip
+                  v-if="isEditable&&opcinusefile"
                     placement="top"
                     :content="$t('dataIn.csvinusetip')"
                     effect="light"
                   >
-                    <span
+                  <a :href="downloadUrl+opcinusefile" download style="padding-left: 16px;">
+                        <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadCSVInUse') }}</a>
+                    <!-- <span
                       style="
                         display: inline-block;
                         margin-left: 20px;
@@ -387,7 +390,7 @@
                     >
                       <i class="el-icon-download"></i>
                       {{ $t("dataIn.csvinuse") }}
-                    </span>
+                    </span> -->
                   </el-tooltip>
                 </template>
                 <ul v-else style="flex: 1">
@@ -651,8 +654,8 @@
                     <!-- <p-three-checkbox :data="checkboxData" v-model="p.value" /> -->
                     <el-switch
                       v-model="p.value"
-                      :active-value="true"
-                      :inactive-value="false"
+                      :active-value="'true'"
+                      :inactive-value="'false'"
                     ></el-switch>
                   </template>
                   <template
@@ -760,10 +763,12 @@
                         true-label="true"
                         false-label="false"
                       ></el-checkbox> -->
+                      
+                 
                       <el-switch
                         v-model="p.value"
-                        :active-value="true"
-                        :inactive-value="false"
+                        :active-value="'true'"
+                        :inactive-value="'false'"
                       ></el-switch>
                     </template>
                   </template>
@@ -773,10 +778,11 @@
                       v-model="p.value"
                       @changeThreeCheckbox="getThreeBoxNum($event, p)"
                     /> -->
+                   
                     <el-switch
                       v-model="p.value"
-                      :active-value="true"
-                      :inactive-value="false"
+                      :active-value="'true'"
+                      :inactive-value="'false'"
                     ></el-switch>
                   </template>
                   <template
@@ -967,6 +973,8 @@ export default {
   },
   data() {
     return {
+      opcinusefile:'',
+      downloadUrl: process.env.VUE_APP_X_API + `/download?file_path=`,
       language: window.navigator.language,
       limit: 1,
       opcPointavalible: true,
@@ -1093,12 +1101,13 @@ export default {
         });
       }
     }
-    if (this.tagName.includes("opc") && this.isEditable) {
-      console.log(
+    console.log(
         this.dbsource[0].datasets.categories[0],
         "当前的opc状态",
         this.isEditable
       );
+    if (this.tagName.includes("opc") && this.isEditable) {
+      
       let certitem = this.$store.state.app.opccertfiles[0];
       let privateitem = this.$store.state.app.opcprivatefiles[0];
       if (certitem && privateitem) {
@@ -1125,25 +1134,24 @@ export default {
       // if (flag) {
       // this.opcPointavalible = false;
       let item = this.$store.state.app.opcnodesfiles[0];
-
-      this.opcfileList = [].concat({
-        name: item?.substr(item.lastIndexOf("/") + 1),
-        percentage: 100,
-        raw: File,
-        response: [].concat(item),
-        size: 87,
-        status: "success",
-        uid: 1,
-      });
+      this.opcinusefile=item
+      // this.opcfileList = [].concat({
+      //   name: item?.substr(item.lastIndexOf("/") + 1),
+      //   percentage: 100,
+      //   raw: File,
+      //   response: [].concat(item),
+      //   size: 87,
+      //   status: "success",
+      //   uid: 1,
+      // });
       // } else {
       //   // this.opcPointavalible = true;
       // }
     }
-
+    
     this.activeName = this.dbsource[0].datasets
       ? this.dbsource[0].datasets.categories[0].category
       : "";
-    console.log(this.activeName, "opc--allpoints");
   },
   watch: {
     "this.$store.state.app.currentDBName": {
@@ -1164,12 +1172,16 @@ export default {
   methods: {
     async downloadopcAllponits() {
       try {
+        if(!this.dbsource[0].options.endpoint.value){
+          Message.error(this.$t('taoscluster.endpointRequired'))
+          return
+        }
         // via=${this.$store.state.app.currentAgentID}
         let params = `opcua://${this.dbsource[0].options.endpoint.value}&categories=nodes`;
         let result = await downlaodAllNodes(params);
         let blob = new Blob([result], { type: "text/csv,charset=UTF-8" });
         let link = document.createElement("a");
-        link.download = "csv模板文件.csv";
+        link.download = "template.csv";
         link.style.display = "none";
         link.href = URL.createObjectURL(blob);
         document.body.appendChild(link);
@@ -1735,8 +1747,8 @@ export default {
             this.dbsource[0].datasets.categories[1].params.forEach((item,index)=>{
               allStr+=`${item.name}=${item.value}`+(index<=1?'&':'')
             })
-            dns+='&'+allStr
-            console.log(dns,allStr,'opc---拼接参数',this.protocol);
+            dns+='&'+allStr+`&select_all_points=true`
+            console.log(dns,allStr,'opc---拼接参数','------',this.dbsource[0].datasets);
           }
 
           // }
@@ -2419,7 +2431,7 @@ export default {
   .groups.tableconfig.notallowed {
     display: none;
   }
-  .cancel-btn {
+  .cancel-btn,.edit-btn {
     z-index: 101;
   }
 }
