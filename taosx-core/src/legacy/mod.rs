@@ -131,6 +131,7 @@ impl Default for LegacyMetrics {
         }
     }
 }
+
 impl Display for LegacyMetrics {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use std::sync::atomic::Ordering::SeqCst;
@@ -169,6 +170,7 @@ impl Display for LegacyMetrics {
         Ok(())
     }
 }
+
 /// A paging expression.
 ///
 /// It will be append to query with `LIMIT {limit} OFFSET {offset}`.
@@ -1753,6 +1755,7 @@ impl FromStr for SchemaMode {
         }
     }
 }
+
 #[derive(Debug, Clone)]
 pub struct TargetOpts {
     assert: bool,
@@ -1914,7 +1917,7 @@ impl TargetOpts {
                             }
                             None
                         })
-                            .collect_vec()
+                        .collect_vec()
                     })
                     .flatten_ok()
                     .try_collect::<_, Vec<_>, _>()?
@@ -1952,6 +1955,7 @@ impl TableTodo {
         self.stable.is_some()
     }
 }
+
 pub struct LegacyTodo {
     stables: Vec<Arc<String>>,
     tables: Vec<LegacyTableItem>,
@@ -1977,6 +1981,7 @@ impl LegacyTableItem {
         self.stable.is_none()
     }
 }
+
 impl LegacyTodo {
     pub fn tables_todo(&self) -> usize {
         self.tables.len()
@@ -2348,7 +2353,7 @@ async fn realtime(
     }
 }
 
-pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let builder = <TaosBuilder as sync::TBuilder>::from_dsn(dsn);
     match builder {
         Err(err) => {
@@ -2358,7 +2363,7 @@ pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             )
         }
         Ok(b) => {
-            let conn = b.build();
+            let conn = b.build().await;
             match conn {
                 Err(err) => {
                     DataSourceValidation::invalid(
@@ -2367,7 +2372,24 @@ pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
                     )
                 }
                 Ok(c) => {
-                    DataSourceValidation::default()
+                    let version = c.server_version().await;
+                    match version {
+                        Err(err) => {
+                            DataSourceValidation::invalid(
+                                "taos".to_string(),
+                                format!("failed to get server version from dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
+                            )
+                        }
+                        Ok(v) => {
+                            DataSourceValidation{
+                                valid: true,
+                                support: true,
+                                data_source: "taos".to_string(),
+                                version: Some(v.to_string()),
+                                message: None,
+                            }
+                        }
+                    }
                 }
             }
         }
