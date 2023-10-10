@@ -2044,7 +2044,7 @@ SStreamStateCur* streamStateSeekKeyNext_rocksdb(SStreamState* pState, const SWin
   return NULL;
 }
 
-SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState, const SWinKey* key) {
+SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState) {
   qDebug("streamStateGetCur_rocksdb");
   int32_t code = 0;
 
@@ -2175,7 +2175,7 @@ int32_t streamStateSessionDel_rocksdb(SStreamState* pState, const SSessionKey* k
   return code;
 }
 
-SStreamStateCur* streamStateSessionSeekToLast_rocksdb(SStreamState* pState, const SSessionKey* key) {
+SStreamStateCur* streamStateSessionSeekToLast_rocksdb(SStreamState* pState) {
   qDebug("streamStateSessionSeekToLast_rocksdb");
 
   int32_t code = 0;
