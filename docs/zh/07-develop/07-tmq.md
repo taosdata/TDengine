@@ -60,17 +60,17 @@ import CDemo from "./_sub_c.mdx";
     typedef void(tmq_commit_cb(tmq_t *tmq, int32_t code, void *param));
 
     typedef enum tmq_conf_res_t {
-    TMQ_CONF_UNKNOWN = -2,
-    TMQ_CONF_INVALID = -1,
-    TMQ_CONF_OK = 0,
-} tmq_conf_res_t;
+        TMQ_CONF_UNKNOWN = -2,
+        TMQ_CONF_INVALID = -1,
+        TMQ_CONF_OK = 0,
+    } tmq_conf_res_t;
 
     typedef struct tmq_topic_assignment {
-    int32_t vgId;
-    int64_t currentOffset;
-    int64_t begin;
-    int64_t end;
-} tmq_topic_assignment;
+        int32_t vgId;
+        int64_t currentOffset;
+        int64_t begin;
+        int64_t end;
+    } tmq_topic_assignment;
 
     DLL_EXPORT tmq_conf_t    *tmq_conf_new();
     DLL_EXPORT tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value);
@@ -103,7 +103,7 @@ import CDemo from "./_sub_c.mdx";
     DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
     DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
     DLL_EXPORT int64_t     tmq_get_vgroup_offset(TAOS_RES* res);
-    DLL_EXPORT const char *tmq_err2str(int32_t code);DLL_EXPORT void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param);
+    DLL_EXPORT const char *tmq_err2str(int32_t code);
 ```
 
 下面介绍一下它们的具体用法（超级表和子表结构请参考“数据建模”一节），完整的示例代码请见下面 C 语言的示例代码。
