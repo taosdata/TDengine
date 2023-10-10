@@ -991,11 +991,12 @@ int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr) {
   return 0;
 }
 
-int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TSnapRangeArray *pExclude, TFileSetArray **fsetArr,
+int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TSnapRangeArray *pRanges, TFileSetArray **fsetArr,
                                        TFileOpArray *fopArr) {
   int32_t    code = 0;
   STFileSet *fset;
   STFileSet *fset1;
+  SHashObj  *pHash = NULL;
 
   fsetArr[0] = taosMemoryMalloc(sizeof(TFileSetArray));
   if (fsetArr == NULL) return TSDB_CODE_OUT_OF_MEMORY;
@@ -1003,21 +1004,19 @@ int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TSnapRangeArray *pExclu
   TARRAY2_INIT(fsetArr[0]);
 
   int32_t i = 0;
+  if (pRanges) {
+    pHash = tsdbGetSnapRangeHash(pRanges);
+  }
 
   taosThreadRwlockRdlock(&fs->tsdb->rwLock);
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     int64_t ever = VERSION_MAX;
-    while (pExclude && i < TARRAY2_SIZE(pExclude)) {
-      STSnapRange *u = TARRAY2_GET(pExclude, i);
-      if (fset->fid > u->fid) {
-        i++;
-        continue;
-      }
-      if (fset->fid == u->fid) {
+    if (pHash) {
+      int32_t      fid = fset->fid;
+      STSnapRange *u = taosHashGet(pHash, &fid, sizeof(fid));
+      if (u) {
         ever = u->sver - 1;
-        i++;
       }
-      break;
     }
 
     code = tsdbTFileSetFilteredInitDup(fs->tsdb, fset, ever, &fset1, fopArr);
@@ -1033,7 +1032,29 @@ int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TSnapRangeArray *pExclu
     taosMemoryFree(fsetArr[0]);
     fsetArr[0] = NULL;
   }
+  if (pHash) {
+    taosHashCleanup(pHash);
+    pHash = NULL;
+  }
   return code;
+}
+
+SHashObj *tsdbGetSnapRangeHash(TSnapRangeArray *pRanges) {
+  int32_t   capacity = TARRAY2_SIZE(pRanges) * 2;
+  SHashObj *pHash = taosHashInit(capacity, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
+  if (pHash == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < TARRAY2_SIZE(pRanges); i++) {
+    STSnapRange *u = TARRAY2_GET(pRanges, i);
+    int32_t      fid = u->fid;
+    int32_t      code = taosHashPut(pHash, &fid, sizeof(fid), u, sizeof(*u));
+    ASSERT(code == 0);
+    tsdbDebug("range diff hash fid:%d, sver:%" PRId64 ", ever:%" PRId64, u->fid, u->sver, u->ever);
+  }
+  return pHash;
 }
 
 int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TSnapRangeArray *pRanges,
@@ -1041,6 +1062,7 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
   int32_t      code = -1;
   STFileSet   *fset;
   STSnapRange *fsr1 = NULL;
+  SHashObj    *pHash = NULL;
 
   fsrArr[0] = taosMemoryCalloc(1, sizeof(*fsrArr[0]));
   if (fsrArr[0] == NULL) {
@@ -1048,30 +1070,32 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
     goto _out;
   }
 
-  int32_t i = 0;
+  tsdbInfo("pRanges size:%d", (pRanges == NULL ? 0 : TARRAY2_SIZE(pRanges)));
   code = 0;
+  if (pRanges) {
+    pHash = tsdbGetSnapRangeHash(pRanges);
+  }
 
   taosThreadRwlockRdlock(&fs->tsdb->rwLock);
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     int64_t sver1 = sver;
     int64_t ever1 = ever;
 
-    while (pRanges && i < TARRAY2_SIZE(pRanges)) {
-      STSnapRange *u = TARRAY2_GET(pRanges, i);
-      if (fset->fid > u->fid) {
-        i++;
-        continue;
-      }
-      if (fset->fid == u->fid) {
+    if (pHash) {
+      int32_t      fid = fset->fid;
+      STSnapRange *u = taosHashGet(pHash, &fid, sizeof(fid));
+      if (u) {
         sver1 = u->sver;
-        i++;
+        tsdbDebug("range hash get fid:%d, sver:%" PRId64 ", ever:%" PRId64, u->fid, u->sver, u->ever);
       }
-      break;
     }
 
-    if (sver1 > ever1) continue;
+    if (sver1 > ever1) {
+      tsdbDebug("skip fid:%d, sver:%" PRId64 ", ever:%" PRId64, fset->fid, sver1, ever1);
+      continue;
+    }
 
-    tsdbInfo("fsrArr:%p, fid:%d, sver:%" PRId64 ", ever:%" PRId64, fsrArr, fset->fid, sver1, ever1);
+    tsdbDebug("fsrArr:%p, fid:%d, sver:%" PRId64 ", ever:%" PRId64, fsrArr, fset->fid, sver1, ever1);
 
     code = tsdbTSnapRangeInitRef(fs->tsdb, fset, sver1, ever1, &fsr1);
     if (code) break;
@@ -1090,6 +1114,10 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
   }
 
 _out:
+  if (pHash) {
+    taosHashCleanup(pHash);
+    pHash = NULL;
+  }
   return code;
 }
 
