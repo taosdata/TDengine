@@ -1970,7 +1970,7 @@ int32_t streamStateAddIfNotExist_rocksdb(SStreamState* pState, const SWinKey* ke
   memset(*pVal, 0, size);
   return 0;
 }
-int32_t streamStateCurPrev_rocksdb(SStreamState* pState, SStreamStateCur* pCur) {
+int32_t streamStateCurPrev_rocksdb(SStreamStateCur* pCur) {
   qDebug("streamStateCurPrev_rocksdb");
   if (!pCur) return -1;
 
@@ -2052,7 +2052,7 @@ SStreamStateCur* streamStateSeekKeyNext_rocksdb(SStreamState* pState, const SWin
   return NULL;
 }
 
-SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState, const SWinKey* key) {
+SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState) {
   qDebug("streamStateGetCur_rocksdb");
   int32_t code = 0;
 
@@ -2061,9 +2061,6 @@ SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState, const SWinK
   if (code != 0) {
     return NULL;
   }
-
-  char    buf[128] = {0};
-  int32_t klen = stateKeyEncode((void*)&maxStateKey, buf);
 
   {
     char tbuf[256] = {0};
@@ -2079,6 +2076,8 @@ SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState, const SWinK
   pCur->iter = streamStateIterCreate(pState, "state", (rocksdb_snapshot_t**)&pCur->snapshot,
                                      (rocksdb_readoptions_t**)&pCur->readOpt);
 
+  char    buf[128] = {0};
+  int32_t klen = stateKeyEncode((void*)&maxStateKey, buf);
   rocksdb_iter_seek(pCur->iter, buf, (size_t)klen);
   rocksdb_iter_prev(pCur->iter);
   while (rocksdb_iter_valid(pCur->iter) && iterValueIsStale(pCur->iter)) {
@@ -2183,6 +2182,52 @@ int32_t streamStateSessionDel_rocksdb(SStreamState* pState, const SSessionKey* k
   STREAM_STATE_DEL_ROCKSDB(pState, "sess", &sKey);
   return code;
 }
+
+SStreamStateCur* streamStateSessionSeekToLast_rocksdb(SStreamState* pState) {
+  qDebug("streamStateSessionSeekToLast_rocksdb");
+
+  int32_t code = 0;
+
+  SSessionKey      maxSessionKey = {.groupId = UINT64_MAX, .win = {.skey = INT64_MAX, .ekey = INT64_MAX}};
+  SStateSessionKey maxKey = {.key = maxSessionKey, .opNum = INT64_MAX};
+
+  STREAM_STATE_PUT_ROCKSDB(pState, "sess", &maxKey, "", 0);
+  if (code != 0) {
+    return NULL;
+  }
+
+  SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
+  SStreamStateCur*   pCur = createStreamStateCursor();
+  pCur->number = pState->number;
+  pCur->db = wrapper->rocksdb;
+  pCur->iter = streamStateIterCreate(pState, "sess", (rocksdb_snapshot_t**)&pCur->snapshot,
+                                     (rocksdb_readoptions_t**)&pCur->readOpt);
+
+  char    buf[128] = {0};
+  int32_t klen = stateSessionKeyEncode((void*)&maxKey, buf);
+  rocksdb_iter_seek(pCur->iter, buf, (size_t)klen);
+  rocksdb_iter_prev(pCur->iter);
+  while (rocksdb_iter_valid(pCur->iter) && iterValueIsStale(pCur->iter)) {
+    rocksdb_iter_prev(pCur->iter);
+  }
+
+  if (!rocksdb_iter_valid(pCur->iter)) {
+    streamStateFreeCur(pCur);
+    pCur = NULL;
+  }
+
+  STREAM_STATE_DEL_ROCKSDB(pState, "sess", &maxKey);
+  return pCur;
+}
+
+int32_t streamStateSessionCurPrev_rocksdb(SStreamStateCur* pCur) {
+  qDebug("streamStateCurPrev_rocksdb");
+  if (!pCur) return -1;
+
+  rocksdb_iter_prev(pCur->iter);
+  return 0;
+}
+
 SStreamStateCur* streamStateSessionSeekKeyCurrentPrev_rocksdb(SStreamState* pState, const SSessionKey* key) {
   qDebug("streamStateSessionSeekKeyCurrentPrev_rocksdb");
 
@@ -2301,6 +2346,7 @@ SStreamStateCur* streamStateSessionSeekKeyNext_rocksdb(SStreamState* pState, con
   }
   return pCur;
 }
+
 int32_t streamStateSessionGetKVByCur_rocksdb(SStreamStateCur* pCur, SSessionKey* pKey, void** pVal, int32_t* pVLen) {
   qDebug("streamStateSessionGetKVByCur_rocksdb");
   if (!pCur) {
