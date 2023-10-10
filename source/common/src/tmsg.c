@@ -1077,6 +1077,68 @@ int32_t tDeserializeSMDropFullTextReq(void *buf, int32_t bufLen, SMDropFullTextR
   return 0;
 }
 
+int32_t tSerializeSNotifyReq(void *buf, int32_t bufLen, SNotifyReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  if (tEncodeI32(&encoder, pReq->dnodeId) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->clusterId) < 0) return -1;
+
+  int32_t nVgroup = taosArrayGetSize(pReq->pVloads);
+  if (tEncodeI32(&encoder, nVgroup) < 0) return -1;
+  for (int32_t i = 0; i < nVgroup; ++i) {
+    SVnodeLoadLite *vload = TARRAY_GET_ELEM(pReq->pVloads, i);
+    if (tEncodeI32(&encoder, vload->vgId) < 0) return -1;
+    if (tEncodeI64(&encoder, vload->nTimeSeries) < 0) return -1;
+  }
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSNotifyReq(void *buf, int32_t bufLen, SNotifyReq *pReq) {
+  int32_t  code = TSDB_CODE_INVALID_MSG;
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) goto _exit;
+  if (tDecodeI32(&decoder, &pReq->dnodeId) < 0) goto _exit;
+  if (tDecodeI64(&decoder, &pReq->clusterId) < 0) goto _exit;
+  int32_t nVgroup = 0;
+  if (tDecodeI32(&decoder, &nVgroup) < 0) goto _exit;
+  if (nVgroup > 0) {
+    pReq->pVloads = taosArrayInit(nVgroup, sizeof(SVnodeLoadLite));
+    if (!pReq->pVloads) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+    for (int32_t i = 0; i < nVgroup; ++i) {
+      SVnodeLoadLite vload;
+      if (tDecodeI32(&decoder, &(vload.vgId)) < 0) goto _exit;
+      if (tDecodeI64(&decoder, &(vload.nTimeSeries)) < 0) goto _exit;
+      taosArrayPush(pReq->pVloads, &vload);
+    }
+  }
+
+  code = 0;
+
+_exit:
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSNotifyReq(SNotifyReq *pReq) {
+  if (pReq) {
+    taosArrayDestroy(pReq->pVloads);
+  }
+}
+
 int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
