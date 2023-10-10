@@ -2178,12 +2178,11 @@ int32_t streamStateSessionDel_rocksdb(SStreamState* pState, const SSessionKey* k
 SStreamStateCur* streamStateSessionSeekToLast_rocksdb(SStreamState* pState, const SSessionKey* key) {
   qDebug("streamStateSessionSeekToLast_rocksdb");
 
-  SSessionKey maxSessionKey = {.groupId = UINT64_MAX, .win = {.skey = INT64_MAX, .ekey = INT64_MAX}};
+  int32_t code = 0;
 
+  SSessionKey      maxSessionKey = {.groupId = UINT64_MAX, .win = {.skey = INT64_MAX, .ekey = INT64_MAX}};
   SStateSessionKey maxKey = {.key = maxSessionKey, .opNum = INT64_MAX};
-  int32_t          code = 0;
 
-  // int32_t klen = stateSessionKeyEncode((void*)&maxKey, buf);
   STREAM_STATE_PUT_ROCKSDB(pState, "sess", &maxKey, "", 0);
   if (code != 0) {
     return NULL;
@@ -2334,6 +2333,7 @@ SStreamStateCur* streamStateSessionSeekKeyNext_rocksdb(SStreamState* pState, con
   }
   return pCur;
 }
+
 int32_t streamStateSessionGetKVByCur_rocksdb(SStreamStateCur* pCur, SSessionKey* pKey, void** pVal, int32_t* pVLen) {
   qDebug("streamStateSessionGetKVByCur_rocksdb");
   if (!pCur) {
