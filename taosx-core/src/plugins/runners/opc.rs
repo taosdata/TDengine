@@ -26,7 +26,7 @@ use tracing::{instrument, Span};
 
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
-    Transferred, list_datasets_from,
+    Transferred,
 };
 
 #[derive(Debug, serde::Serialize)]
@@ -323,6 +323,7 @@ impl OPCConfig {
         } else {
             None
         };
+        
         match dsn.protocol.as_deref() {
             Some("ua") => {
                 opc_type = OpcType::OPCUA;
@@ -390,7 +391,6 @@ impl OPCConfig {
                     da: None,
                 };
 
-                let selec_all_points = parse_bool_param_from_dsn(&mut dsn, "select_all_points").map_err(|err| OpcError::ConfigError("select_all_points", err.to_string()))?.unwrap_or(false);
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else if csv_config_file.is_some() {
@@ -410,16 +410,8 @@ impl OPCConfig {
                     }
                     res.1
                 } else {
-                    // if selec_all_points {
-                    //     // TODO get all points
-                    //     let data_req = DataSetsReq {
-
-                    //     };
-                    //     let dataset = list_datasets_from(data);
-                    // } else {
-                        get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
-                        .map_err(|s| OpcError::FileParseFound(s))?
-                    // }
+                    get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
+                    .map_err(|s| OpcError::FileParseFound(s))?
                 };
                 let mut ua_node_config_vec = Vec::new();
                 for i in 0..node_vec.len() {
@@ -880,6 +872,124 @@ pub async fn generate_opcconfig_from_csv(
     ));
 }
 
+async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
+    let child_table_expression = dsn.remove("child_table_expression");
+    if child_table_expression.is_none() {
+        anyhow::bail!("should config child_table_expression");
+    }
+    let child_table_expression = child_table_expression.unwrap();
+    let table_primary_key = dsn.remove("table_primary_key");
+    if table_primary_key.is_none() {
+        anyhow::bail!("should config table_primary_key");
+    }
+    let table_primary_key = table_primary_key.unwrap();
+    let data = DataSetsReq {
+        from: dsn.to_string(),
+        categories: vec![String::from("nodes")],
+        via:None,
+        offset: 0,
+        pattern: Some(String::from(".*")),
+        limit: usize::MAX / 2 - 1,
+        lang: None,
+    };
+    let all_points = opc_datasets(&data).await?;
+    let point_config = all_points.iter().map(|point| {
+        let point_id = point.id.clone();
+        let tbname = if dsn.driver.as_str() == "opcua" {
+            // ns=13;i=1003
+            let mut split = point_id.split(";");
+            let ns = if let Some(ns) = split.next() {
+                if ns.contains("ns=") {
+                    let mut ns_split = ns.split("=");
+                    ns_split.next();
+                    ns_split.next()
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            let id = if let Some(id) = split.next() {
+                if id.contains("i=") {
+                    let mut id_split = id.split("=");
+                    id_split.next();
+                    id_split.next()
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            child_table_expression.clone()
+                .replace("{ns}", ns.unwrap_or(""))
+                .replace("{id}", id.unwrap_or(""))
+        } else {
+            let tag_index = point_id.rfind(".");
+            let tag_name = if let Some(index) = tag_index {
+                // should be Device.DeviceType.TagName pattern
+                &point_id[index+1..]
+            } else {
+                &point_id
+            };
+            child_table_expression.clone().replace("{TagName}", tag_name)
+        };
+        format!("{}::{}", point_id, tbname)
+    }).join(",");
+    if dsn.driver.as_str() == "opcua" {
+        dsn.set("ua.nodes", point_config);
+    } else {
+        dsn.set("da.tags", point_config);
+    }
+    let stable_prefix = Some(String::from("opc"));
+    let mut column_configs = vec![];
+
+    column_configs.push(ColumnConfig {
+        column_name: String::from("val"),
+        column_type: None,
+        column_alias: None,
+        is_primary_key: false,
+    });
+    column_configs.push(ColumnConfig {
+        column_name: String::from("quality"),
+        column_type: Some(Ty::Int),
+        column_alias: None,
+        is_primary_key: false,
+    });
+    let opc_table_config = if table_primary_key == "received_ts" {
+        column_configs.push(ColumnConfig {
+            column_name: String::from("received_ts"),
+            column_type: Some(Ty::Timestamp),
+            column_alias: None,
+            is_primary_key: true,
+        });
+        column_configs.push(ColumnConfig {
+            column_name: String::from("original_ts"),
+            column_type: Some(Ty::Timestamp),
+            column_alias: None,
+            is_primary_key: false,
+        });
+        TableConfig {
+            stable_prefix,
+            column_configs,
+            tag_configs: None,
+        }
+    } else {
+        column_configs.push(ColumnConfig {
+            column_name: String::from("original_ts"),
+            column_type: Some(Ty::Timestamp),
+            column_alias: None,
+            is_primary_key: true,
+        });
+        TableConfig {
+            stable_prefix,
+            column_configs,
+            tag_configs: None,
+        }
+    };
+    dsn.set("opc_table_config", serde_json::to_string(&opc_table_config)?);
+    Ok(())
+}
+
 fn check_duplicated(
     current_tags: &Vec<String>,
     current_columns: Option<&Vec<String>>,
@@ -998,7 +1108,7 @@ pub async fn opc_config_blocking(taos: &Taos, dsn: &Dsn, port: u16) -> anyhow::R
 
 #[instrument(skip_all, fields(taosx.task.from = "opc", taosx.task.jobs = jobs, taosx.task.id = with_agent.as_ref().map(|v| v.0)))]
 pub async fn opc_to_taos(
-    from: Dsn,
+    mut from: Dsn,
     _actions: Vec<Action>,
     to: Dsn,
     jobs: usize,
@@ -1009,7 +1119,6 @@ pub async fn opc_to_taos(
     span: Span,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: OPC");
-    dbg!(&from);
 
     let exe_exists = std::path::Path::new(&exe_path()).exists();
     if !exe_exists {
@@ -1028,6 +1137,11 @@ pub async fn opc_to_taos(
         .ok_or_else(|| anyhow::format_err!("No available port for OPC connection"))?;
     let builder: TaosBuilder = TaosBuilder::from_dsn(&to)?;
     let taos = builder.build().await?;
+
+    let select_all_points = parse_bool_param_from_dsn(&mut from, "select_all_points").map_err(|err| OpcError::ConfigError("select_all_points", err.to_string()))?.unwrap_or(false);
+    if select_all_points {
+        handle_select_all_points(&mut from).await?;
+    }
     let config = OPCConfig::new(from, ipc_port, OPCConfigMode::Collect, Some(&taos)).await?;
     if config.opc_table_config.is_none() {
         anyhow::bail!("should config opc table config");
@@ -1223,12 +1337,6 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 
     tracing::info!("Using opc config file {} \n{}", config_path.display(), toml);
 
-    // TODO use unix socket on unix-like os
-    // let ipc = if cfg!(target_os = "windows") {
-    //     std::thread::spawn(move || sink::listen_tcp_socket(target_pool_for_ipc, socket))
-    // } else {
-    //     std::thread::spawn(move || sink::listen_unix_socket(target_pool_for_ipc, socket))
-    // };
     let mut command = tokio::process::Command::new(exe_path());
     let output = command
         .arg("points")
