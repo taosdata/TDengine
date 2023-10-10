@@ -3,9 +3,8 @@ id: kafka
 name: Kafka
 type: uri
 description: |
-  Apache Kafka是一个开源的分布式事件流平台，被成千上万的公司用于高性能数据管道、流分析、数据集成和关键任务应用程序。
-
-  TaosX 可以高效地读取 Kafka 中的数据，并通过 taosx-kafka 连接器将其写入 TDengine 来实现历史数据迁移或实时数据同步。
+  Apache Kafka 是一个用于流处理、实时数据管道和大规模数据集成的开源分布式流系统。
+  TDengine 可以高效地从 Kafka 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据流入库。
 strict: false
 options:
   endpoint:

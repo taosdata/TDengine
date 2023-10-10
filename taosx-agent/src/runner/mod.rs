@@ -114,7 +114,7 @@ pub fn spawn_runner(
                                 Utc::now(),
                                 LevelFilter::Info,
                                 format!("Start task {}", task.id),
-                                "busy",
+                                "transferring",
                                 json!({
                                     "agent": agent,
                                     "task": task.id,
@@ -207,7 +207,7 @@ pub fn spawn_runner(
                                 } else {
                                     if worker.is_some() {
                                         let status = if working_tasks.load(order) > 0 {
-                                            "busy"
+                                            "transferring"
                                         } else {
                                             "idle"
                                         };
@@ -275,7 +275,7 @@ pub fn spawn_runner(
 
                                 // rebuild status.
                                 let status = if working_tasks.load(order) > 0 {
-                                    "busy"
+                                    "transferring"
                                 } else {
                                     "idle"
                                 };
@@ -311,7 +311,7 @@ pub fn spawn_runner(
 
                                 // rebuild status.
                                 let status = if working_tasks.load(order) > 0 {
-                                    "busy"
+                                    "transferring"
                                 } else {
                                     "idle"
                                 };
@@ -352,7 +352,7 @@ pub fn spawn_runner(
                                 let working_tasks_count = working_tasks.load(order);
                                 // rebuild status.
                                 let status = if working_tasks_count > 0 {
-                                    "busy"
+                                    "transferring"
                                 } else {
                                     "idle"
                                 };
@@ -395,7 +395,7 @@ pub fn spawn_runner(
 
                                 // rebuild status.
                                 let status = if working_tasks.load(order) > 0 {
-                                    "busy"
+                                    "transferring"
                                 } else {
                                     "idle"
                                 };
