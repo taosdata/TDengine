@@ -65,10 +65,10 @@ export default {
   methods: {
     //回显opc的数据
     echoOpcData() {
-      
-      let opcconfigData = this.uidata[0].groups.filter(
+      console.log(this.uidata[0],'opc---99');
+      let opcconfigData = this.uidata[0].datasets.categories.filter(
         (item) => item.name == this.$t("datasource.opcconfig")
-      )[0].params[0];
+      )[0].category[0];
     
       if (!opcconfigData.value) {
         opcconfigData.value = JSON.stringify(constOpc);
@@ -222,7 +222,7 @@ export default {
             this.tagName = "opc";
             this.protocol = "ua";
             // if (this.$store.state.app.opcnodesfiles.length == 0) {
-            this.echoOpcData();
+            // this.echoOpcData();
             // }
 
             break;
@@ -230,7 +230,7 @@ export default {
             this.currentName = "opcui";
             this.tagName = "opc";
             this.protocol = "da";
-            this.echoOpcData();
+            // this.echoOpcData();
             break;
           case "pi":
             this.currentName = "ui";

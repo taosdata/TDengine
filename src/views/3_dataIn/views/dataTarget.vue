@@ -33,7 +33,7 @@
         <el-select
           v-model="ruleForm.agent"
           :placeholder="$t('dataIn.palceholders.agentPlaceholder')"
-          @change="changeDBType"
+          @change="changeAgent"
         >
           <el-option
             v-for="item in agentList"
@@ -53,12 +53,11 @@
         <p class="custom-placeholder mt10">{{ $t("dataIn.needAgentTip") }}</p>
       </el-form-item>
       <el-form-item :label="$t('stream.targetDB')" prop="dbName">
-        <span style="color:red;font-size:24px;">{{ ruleForm.dbName }}</span>
         <el-select
           v-model="ruleForm.dbName"
           size="small"
           :placeholder="$t('dataIn.palceholders.chooseTargetDbTip')"
-          @change="changeDBType"
+          @change="changeDB"
         >
           <el-option
             v-for="db in dbList"
@@ -89,7 +88,11 @@
   </div>
 </template>
 <script>
-import { getUIData, getFileStream,downlaodAllNodes } from "@/api/explorer/datain";
+import {
+  getUIData,
+  getFileStream,
+  downlaodAllNodes,
+} from "@/api/explorer/datain";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { getAgentsData, addNewAgent } from "@/api/explorer/agent";
 
@@ -170,17 +173,21 @@ export default {
     this.getInitValue();
   },
   methods: {
-    async getAllPoints(){
-        try {
-            let result = await downlaodAllNodes()
-            console.log(result,'---====');
-        } catch (error) {
-            console.log(error);
-        }
+    changeAgent() {
+      this.$store.commit("app/SET_CURRENT_AGENT", this.ruleForm.agent);
+    },
+    changeDB() {
+      this.$store.commit("app/SET_CURRENT_DBNAME", this.ruleForm.dbName);
+    },
+    async getAllPoints() {
+      try {
+        let result = await downlaodAllNodes();
+      } catch (error) {
+        console.log(error);
+      }
     },
     //获取初始化时候得值----主要针对类型切换时候需要换ui组件
     getInitValue() {
-      console.log(this.$store.state.app.currentDBName,this.$store.state.app.currentAgentID,'当前数据库名称');
       this.ruleForm.dbName = this.$store.state.app.currentDBName;
       this.ruleForm.agent = this.$store.state.app.currentAgentID;
       this.ruleForm.name = this.$store.state.app.currentDSName;
@@ -212,19 +219,22 @@ export default {
     getAgents() {
       this.agentList = this.$store.state.app.agentLists;
     },
-   
+
     async downloadFile() {
-    //   let result = await getFileStream("./files/1696677312509/t1.csv");
-    let result = await downlaodAllNodes()
-      let blob = new Blob([result], { type: "text/csv,charset=UTF-8" });
-      let link = document.createElement("a");
-      link.download = "csv模板文件.csv";
-      link.style.display = "none";
-      link.href = URL.createObjectURL(blob);
-      document.body.appendChild(link);
-      link.click();
-      URL.revokeObjectURL(link.href);
-      document.body.removeChild(link);
+      try {
+        let result = await downlaodAllNodes();
+        let blob = new Blob([result], { type: "text/csv,charset=UTF-8" });
+        let link = document.createElement("a");
+        link.download = "csv模板文件.csv";
+        link.style.display = "none";
+        link.href = URL.createObjectURL(blob);
+        document.body.appendChild(link);
+        link.click();
+        URL.revokeObjectURL(link.href);
+        document.body.removeChild(link);
+      } catch (error) {
+        console.log(error);
+      }
     },
     createAgent() {
       this.showAgent = true;
@@ -269,20 +279,26 @@ export default {
     },
   },
   watch: {
+    "$store.state.app.currentDBName": {
+      deep: true,
+      handler(val) {
+        this.ruleForm.dbName = val;
+      },
+    },
     "$store.state.app.currentDBType": {
       deep: true,
       handler(val) {
         this.getInitValue();
       },
     },
-    "$store.state.app.agentLists":{
-      deep:true,
-      handler(val){
-        this.agentList=val
-        this.ruleForm.agent=val.at(-1)
-        console.log(val,'最新的agent列表');
-      }
-    }
+    "$store.state.app.agentLists": {
+      deep: true,
+      handler(val) {
+        this.agentList = val;
+        this.ruleForm.agent = val.at(-1);
+        console.log(val, "最新的agent列表");
+      },
+    },
   },
 };
 </script>

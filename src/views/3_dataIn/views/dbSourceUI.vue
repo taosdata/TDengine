@@ -1934,6 +1934,7 @@ export default {
       width: 200px;
       display: block;
       white-space:normal;
+      flex-shrink: 0;
     }
     .no-label {
       align-items: center;
