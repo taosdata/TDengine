@@ -887,8 +887,8 @@ export default {
                 status: "success",
                 uid: 1,
               });
-              p.value = p.value?.substr(p.value.lastIndexOf("@") + 1);
               this.activeRadio = p.value.includes('@') ? 'select_file' : 'all_points'
+              p.value = p.value?.substr(p.value.lastIndexOf("@") + 1);
               this.activeName = p.name
             } else {
               this.activeName = 'point_file'
