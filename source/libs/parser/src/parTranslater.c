@@ -1621,7 +1621,7 @@ static int32_t translateInterpFunc(STranslateContext* pCxt, SFunctionNode* pFunc
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateInterpPseudoColumnFunc(STranslateContext* pCxt, SNode** ppNode) {
+static int32_t translateInterpPseudoColumnFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRewriteToColumn) {
   SFunctionNode* pFunc = (SFunctionNode*)(*ppNode);
   if (!fmIsInterpPseudoColumnFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
@@ -1645,6 +1645,7 @@ static int32_t translateInterpPseudoColumnFunc(STranslateContext* pCxt, SNode** 
     }
   }
   if (!bFound) {
+    *pRewriteToColumn = true;
     int32_t code = replacePsedudoColumnFuncWithColumn(pCxt, ppNode);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -1953,7 +1954,7 @@ static int32_t replacePsedudoColumnFuncWithColumn(STranslateContext* pCxt, SNode
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateWindowPseudoColumnFunc(STranslateContext* pCxt, SNode** ppNode) {
+static int32_t translateWindowPseudoColumnFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRewriteToColumn) {
   SFunctionNode* pFunc = (SFunctionNode*)(*ppNode);
   if (!fmIsWindowPseudoColumnFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
@@ -1966,6 +1967,7 @@ static int32_t translateWindowPseudoColumnFunc(STranslateContext* pCxt, SNode** 
                                    pFunc->functionName);
   }
   if (NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pWindow) {
+    *pRewriteToColumn = true;
     int32_t code = replacePsedudoColumnFuncWithColumn(pCxt, ppNode);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -1976,7 +1978,7 @@ static int32_t translateWindowPseudoColumnFunc(STranslateContext* pCxt, SNode** 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateScanPseudoColumnFunc(STranslateContext* pCxt, SNode** ppNode) {
+static int32_t translateScanPseudoColumnFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRewriteToColumn) {
   SFunctionNode* pFunc = (SFunctionNode*)(*ppNode);
     if (!fmIsScanPseudoColumnFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
@@ -1986,6 +1988,7 @@ static int32_t translateScanPseudoColumnFunc(STranslateContext* pCxt, SNode** pp
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TBNAME);
     }
     if (QUERY_NODE_REAL_TABLE != nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
+      *pRewriteToColumn = true;
       int32_t code = replacePsedudoColumnFuncWithColumn(pCxt, ppNode);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -2008,7 +2011,11 @@ static int32_t translateNormalFunction(STranslateContext* pCxt, SNode** ppNode) 
   SFunctionNode* pFunc = (SFunctionNode*)(*ppNode);
   int32_t code = translateAggFunc(pCxt, pFunc);
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateScanPseudoColumnFunc(pCxt, ppNode);
+    bool bRewriteToColumn = false;
+    code = translateScanPseudoColumnFunc(pCxt, ppNode, &bRewriteToColumn);
+    if (bRewriteToColumn) {
+      return code;
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateIndefiniteRowsFunc(pCxt, pFunc);
@@ -2017,7 +2024,11 @@ static int32_t translateNormalFunction(STranslateContext* pCxt, SNode** ppNode) 
     code = translateForbidFillFunc(pCxt, pFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateWindowPseudoColumnFunc(pCxt, ppNode);
+    bool bRewriteToColumn = false;
+    code = translateWindowPseudoColumnFunc(pCxt, ppNode, &bRewriteToColumn);
+    if (bRewriteToColumn) {
+      return code;
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateForbidStreamFunc(pCxt, pFunc);
@@ -2038,7 +2049,11 @@ static int32_t translateNormalFunction(STranslateContext* pCxt, SNode** ppNode) 
     code = translateInterpFunc(pCxt, pFunc);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateInterpPseudoColumnFunc(pCxt, ppNode);
+    bool bRewriteToColumn = false;
+    code = translateInterpPseudoColumnFunc(pCxt, ppNode, &bRewriteToColumn);
+    if (bRewriteToColumn) {
+      return code;
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateTimelineFunc(pCxt, pFunc);
