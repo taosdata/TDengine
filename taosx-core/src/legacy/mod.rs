@@ -2350,6 +2350,7 @@ pub async fn legacy_to_taos(
     mut to: Dsn,
     concurrency: usize,
     cancel: CancellationToken,
+    task_id: Option<String>,
 ) -> anyhow::Result<()> {
     tracing::info!("synchronization started in legacy mode");
 
@@ -2509,6 +2510,7 @@ pub async fn legacy_to_taos(
         metrics.clone(),
         source_is_v3,
         target_is_v3,
+        task_id,
     )
     // .instrument(tracing::info_span!("scheduler"))
     .await;
@@ -3032,7 +3034,7 @@ mod tests {
             limit: Limit::new((1, Some(1))),
             ..Default::default()
         };
-        legacy_to_taos(v3, vec![], v2, 1).await?;
+        legacy_to_taos(v3, vec![], v2, 1, CancellationToken::new(), None).await?;
         Ok(())
     }
 

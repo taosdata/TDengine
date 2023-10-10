@@ -23,6 +23,7 @@ use crate::{
         split_table_into_time_range_chunks, sync_single_table_partial, sync_super_table_schema,
         transform_sql_with_remap,
     },
+    utils::breakpoints,
     Action, LegacyMetrics, QueryOpts, TargetOpts, TimeRange, METRICS_LEGACY_CREATED_TABLES,
 };
 
@@ -54,6 +55,7 @@ pub struct Scheduler {
     sender: Sender<Todo>,
     receiver: Receiver<Todo>,
     handles: Vec<JoinHandle<anyhow::Result<()>>>,
+    task_id: Option<String>,
 }
 
 impl Debug for Scheduler {
@@ -82,6 +84,7 @@ async fn worker(
     actions: Vec<Action>,
     source_is_v3: bool,
     target_is_v3: bool,
+    task_id: Option<String>,
 ) -> anyhow::Result<()> {
     const MAX_WS_RETRIES: usize = 5;
     let mut from = source.get().await?;
@@ -280,7 +283,18 @@ async fn worker(
                     }
                 }
             }
-            Todo::Data(stable, table, time_range, sender) => {
+            Todo::Data(stable, table, mut time_range, sender) => {
+                // get breakpoints use breakpoints_get
+                if let Some(task_id) = task_id.clone() {
+                    let breakpoint = breakpoints::breakpoints_get(&task_id, &table)?;
+                    // dbg!(&breakpoint);
+                    if let Some(breakpoint) = breakpoint {
+                        time_range.start = Some(breakpoint.parse()?);
+                        // dbg!(&time_range);
+                        tracing::info!("load breakpoint success set time_range: {time_range}");
+                    }
+                }
+
                 let query = QueryOpts {
                     time_range,
                     unit: query.unit,
@@ -307,6 +321,15 @@ async fn worker(
                         for chunk in chunks {
                             let mut query = query.clone();
                             query.time_range = chunk;
+                            let table_inner = table.clone();
+                            // set breakpoint async
+                            if let Some(task_id) = task_id.clone() {
+                                let breakpoint = chunk.start.unwrap().to_string();
+                                // dbg!(&breakpoint);
+                                tokio::spawn(async move {
+                                    breakpoints::breakpoints_set(&task_id, &table_inner, &breakpoint).unwrap();
+                                });
+                            }
                             loop {
                                 match sync_single_table_partial(
                                     source.clone(),
@@ -464,6 +487,7 @@ impl Scheduler {
         metrics: Arc<LegacyMetrics>,
         source_is_v3: bool,
         target_is_v3: bool,
+        task_id: Option<String>,
     ) -> Self {
         let workers = std::cmp::max(1, workers);
         let (sender, receiver) = flume::bounded((workers * 4) as usize);
@@ -481,6 +505,7 @@ impl Scheduler {
                         actions.clone(),
                         source_is_v3,
                         target_is_v3,
+                        task_id.clone(),
                     )
                     .in_current_span(),
                 )
@@ -495,6 +520,7 @@ impl Scheduler {
             sender,
             receiver,
             handles,
+            task_id,
         }
     }
     pub async fn send(&self, todo: Todo) -> Result<(), flume::SendError<Todo>> {
