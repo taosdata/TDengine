@@ -720,8 +720,8 @@ static int32_t mndProcessNotifyReq(SRpcMsg *pReq) {
       mndReleaseVgroup(pMnode, pVgroup);
     }
   }
+    mndUpdClusterInfo(pReq);
 _OVER:
-  mndUpdClusterInfo(pReq);
   tFreeSNotifyReq(&notifyReq);
   return code;
 }
@@ -781,10 +781,11 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
 
     SDnodeObj tmpDnode = *pDnode;
     if (action == DND_ACTIVE_CODE) {
-#ifndef TD_CHECK_ACTIVE
-      strncpy(tmpDnode.active, pCfgReq->value, TSDB_ACTIVE_KEY_LEN);
-#else
+#ifndef TD_GRANT_OPTIMIZE
       if (grantAlterActiveCode(pDnode->active, pCfgReq->value, tmpDnode.active, 0) != 0) {
+#else
+      if (grantAlterActiveCode(pDnode->id, pDnode->active, pCfgReq->value, tmpDnode.active, 0) != 0) {
+#endif
         if (TSDB_CODE_DUP_KEY != terrno) {
           mError("dnode:%d, config dnode:%d, app:%p config:%s value:%s failed since %s", pDnode->id, pCfgReq->dnodeId,
                  pReq->info.ahandle, pCfgReq->config, pCfgReq->value, terrstr());
@@ -799,12 +800,12 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
         if (cfgAll) continue;
         goto _OVER;
       }
-#endif
     } else if (action == DND_CONN_ACTIVE_CODE) {
-#ifndef TD_CHECK_ACTIVE
-      strncpy(tmpDnode.connActive, pCfgReq->value, TSDB_CONN_ACTIVE_KEY_LEN);
-#else
+#ifndef TD_GRANT_OPTIMIZE
       if (grantAlterActiveCode(pDnode->connActive, pCfgReq->value, tmpDnode.connActive, 1) != 0) {
+#else
+      if (grantAlterActiveCode(pDnode->id, pDnode->connActive, pCfgReq->value, tmpDnode.connActive, 1) != 0) {
+#endif
         if (TSDB_CODE_DUP_KEY != terrno) {
           mError("dnode:%d, config dnode:%d, app:%p config:%s value:%s failed since %s", pDnode->id, pCfgReq->dnodeId,
                  pReq->info.ahandle, pCfgReq->config, pCfgReq->value, terrstr());
@@ -819,7 +820,6 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
         if (cfgAll) continue;
         goto _OVER;
       }
-#endif
     } else {
       terrno = TSDB_CODE_INVALID_CFG;
       goto _OVER;
