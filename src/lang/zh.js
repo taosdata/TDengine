@@ -212,7 +212,8 @@ export default {
     level: '活动级别',
     activity: '当前活动',
     context: '活动内容',
-    at: '时间'
+    at: '时间',
+    saveTip: '编辑后重启采集任务可能造成几秒的数据中断，是否确认继续？',
   },
   replication: {
     theTaskWithId: "任务 {id}",

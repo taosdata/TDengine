@@ -3,7 +3,8 @@
     <div
       :class="[
         'left-ui',
-        this.$parent.currentTaskStatus == 'running' && !this.$parent.isCopyable
+        // this.$parent.currentTaskStatus == 'running' && !this.$parent.isCopyable
+        isShowEditBtn
           ? 'readable'
           : '',
       ]"
@@ -608,16 +609,25 @@
         </section>
       </template>
       <section class="bottom">
+        <el-button
+          v-if="isShowEditBtn"
+          class="edit-btn"
+          type="primary"
+          @click="edit"
+          size="small"
+          >{{ $t("edit") }}</el-button
+        >
+        <el-button
+          v-else
+          type="primary"
+          @click="save"
+          :disabled="disable"
+          size="small"
+          >{{ isEditable ? $t("save") : $t("add") }}</el-button
+        >
         <el-button @click="cancel" class="cancel-btn" size="small">{{
           $t("cancel")
         }}</el-button>
-        <el-button
-          type="primary"
-          @click="submit"
-          :disabled="disable"
-          size="small"
-          >{{ $t("submit") }}</el-button
-        >
       </section>
     </div>
 
@@ -772,7 +782,8 @@ export default {
       },
       uploadUrl: process.env.VUE_APP_X_API + `/upload`,
       downloadUrl: process.env.VUE_APP_X_API + `/download?file_path=`,
-      activeRadio: 'select_file'
+      activeRadio: 'select_file',
+      isShowEditBtn: false,
     };
   },
   created() {
@@ -785,6 +796,7 @@ export default {
         this.piSystemConfiguration;
       this.changeSystemConfiguration(defaultVal);
       this.getSchema(false);
+      this.isShowEditBtn = true
     } else {
       this.activeName = 'point_file'
     }
@@ -877,6 +889,8 @@ export default {
             p.value = p.value?.substr(p.value.lastIndexOf("@") + 1);
             this.activeRadio = p.value.includes('@') ? 'select_file' : 'all_points'
             this.activeName = p.name
+          } else {
+            this.activeName = 'point_file'
           }
         return p;
       });
@@ -1000,6 +1014,25 @@ export default {
         !Object.is(val, "undefined")
       );
     },
+    edit() {
+      this.isShowEditBtn = false
+    },
+
+    save() {
+      if (this.isEditable) {
+        this.$confirm(this.$t('dataIn.saveTip'), this.$t("warning"), {
+          confirmButtonText: this.$t('confirm'),
+          cancelButtonText: this.$t('cancel'),
+          type: 'warning'
+        }).then(() => {
+          this.submit()
+        }).catch(() => {         
+        });
+      } else {
+        this.submit()
+      }
+    },
+    
     async submit() {
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
@@ -2145,7 +2178,7 @@ export default {
       }
     }
   }
-  .cancel-btn {
+  .cancel-btn, .edit-btn {
     z-index: 101;
   }
 

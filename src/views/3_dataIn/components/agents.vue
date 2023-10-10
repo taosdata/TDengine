@@ -126,7 +126,7 @@
           </el-switch> -->
           <el-button
             plain
-            size="small"
+            size="mini"
             @click="edit(scope.row, scope.$index)"
             icon="el-icon-edit"
           ></el-button>
@@ -143,8 +143,9 @@
             icon="el-icon-tingzhi"
           ></el-button> -->
           <el-button
+            type="danger"
             plain
-            size="small"
+            size="mini"
             @click="del(scope.row)"
             icon="el-icon-delete"
           ></el-button>

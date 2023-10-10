@@ -224,23 +224,24 @@
           <template slot-scope="scope">
             <el-button
               type="primay"
-              size="small"
+              size="mini"
               :disabled="
                 scope.row.from_detail === undefined ||
                 !getEditStatus(scope.row.labels)
               "
               @click="edit(scope.row, scope.row.status.toLowerCase())"
-              icon="el-icon-edit"
+              icon="el-icon-view"
             ></el-button>
             <el-button
+              type="danger"
               plain
-              size="small"
+              size="mini"
               @click="del(scope.row)"
               icon="el-icon-delete"
             ></el-button>
             <el-button
               plain
-              size="small"
+              size="mini"
               @click="copyTask(scope.row, scope.row.status.toLowerCase())"
               icon="el-icon-copy-document"
             ></el-button>
