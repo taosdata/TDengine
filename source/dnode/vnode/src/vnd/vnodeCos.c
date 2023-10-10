@@ -59,22 +59,65 @@ int32_t s3PutObjectFromFile(const char *file_str, const char *object_str) {
   cos_request_options_t *options = NULL;
   cos_string_t           bucket, object, file;
   cos_table_t           *resp_headers;
-  int                    traffic_limit = 0;
+  // int                    traffic_limit = 0;
 
   cos_pool_create(&p, NULL);
   options = cos_request_options_create(p);
   s3InitRequestOptions(options, is_cname);
   cos_table_t *headers = NULL;
+  /*
   if (traffic_limit) {
     // 限速值设置范围为819200 - 838860800，即100KB/s - 100MB/s，如果超出该范围将返回400错误
     headers = cos_table_make(p, 1);
     cos_table_add_int(headers, "x-cos-traffic-limit", 819200);
   }
+  */
   cos_str_set(&bucket, tsS3BucketName);
   cos_str_set(&file, file_str);
   cos_str_set(&object, object_str);
   s = cos_put_object_from_file(options, &bucket, &object, &file, headers, &resp_headers);
   log_status(s);
+
+  cos_pool_destroy(p);
+
+  if (s->code != 200) {
+    return code = s->code;
+  }
+
+  return code;
+}
+
+int32_t s3PutObjectFromFile2(const char *file_str, const char *object_str) {
+  int32_t                     code = 0;
+  cos_pool_t                 *p = NULL;
+  int                         is_cname = 0;
+  cos_status_t               *s = NULL;
+  cos_request_options_t      *options = NULL;
+  cos_string_t                bucket, object, file;
+  cos_table_t                *resp_headers;
+  int                         traffic_limit = 0;
+  cos_table_t                *headers = NULL;
+  cos_resumable_clt_params_t *clt_params = NULL;
+
+  cos_pool_create(&p, NULL);
+  options = cos_request_options_create(p);
+  s3InitRequestOptions(options, is_cname);
+  headers = cos_table_make(p, 0);
+  cos_str_set(&bucket, tsS3BucketName);
+  cos_str_set(&file, file_str);
+  cos_str_set(&object, object_str);
+
+  // upload
+  clt_params = cos_create_resumable_clt_params_content(p, 1024 * 1024, 8, COS_FALSE, NULL);
+  s = cos_resumable_upload_file(options, &bucket, &object, &file, headers, NULL, clt_params, NULL, &resp_headers, NULL);
+
+  log_status(s);
+  if (!cos_status_is_ok(s)) {
+    vError("s3: %d(%s)", s->code, s->error_msg);
+    vError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    code = TAOS_SYSTEM_ERROR(EIO);
+    return code;
+  }
 
   cos_pool_destroy(p);
 
@@ -217,6 +260,77 @@ bool s3Get(const char *object_name, const char *path) {
   return ret;
 }
 
+int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_size, uint8_t **ppBlock) {
+  int32_t                code = 0;
+  cos_pool_t            *p = NULL;
+  int                    is_cname = 0;
+  cos_status_t          *s = NULL;
+  cos_request_options_t *options = NULL;
+  cos_string_t           bucket;
+  cos_string_t           object;
+  cos_table_t           *resp_headers;
+  cos_table_t           *headers = NULL;
+  cos_buf_t             *content = NULL;
+  // cos_string_t file;
+  // int  traffic_limit = 0;
+  char range_buf[64];
+
+  //创建内存池
+  cos_pool_create(&p, NULL);
+
+  //初始化请求选项
+  options = cos_request_options_create(p);
+  // init_test_request_options(options, is_cname);
+  s3InitRequestOptions(options, is_cname);
+  cos_str_set(&bucket, tsS3BucketName);
+  cos_str_set(&object, object_name);
+  cos_list_t download_buffer;
+  cos_list_init(&download_buffer);
+  /*
+  if (traffic_limit) {
+    // 限速值设置范围为819200 - 838860800，单位默认为 bit/s，即800Kb/s - 800Mb/s，如果超出该范围将返回400错误
+    headers = cos_table_make(p, 1);
+    cos_table_add_int(headers, "x-cos-traffic-limit", 819200);
+  }
+  */
+
+  headers = cos_table_create_if_null(options, headers, 1);
+  apr_snprintf(range_buf, sizeof(range_buf), "bytes=%" APR_INT64_T_FMT "-%" APR_INT64_T_FMT, offset,
+               offset + block_size - 1);
+  apr_table_add(headers, COS_RANGE, range_buf);
+
+  s = cos_get_object_to_buffer(options, &bucket, &object, headers, NULL, &download_buffer, &resp_headers);
+  log_status(s);
+  if (!cos_status_is_ok(s)) {
+    vError("s3: %d(%s)", s->code, s->error_msg);
+    vError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    code = TAOS_SYSTEM_ERROR(EIO);
+    return code;
+  }
+
+  // print_headers(resp_headers);
+  int64_t len = 0;
+  int64_t size = 0;
+  int64_t pos = 0;
+  cos_list_for_each_entry(cos_buf_t, content, &download_buffer, node) { len += cos_buf_size(content); }
+  // char *buf = cos_pcalloc(p, (apr_size_t)(len + 1));
+  char *buf = taosMemoryCalloc(1, (apr_size_t)(len));
+  // buf[len] = '\0';
+  cos_list_for_each_entry(cos_buf_t, content, &download_buffer, node) {
+    size = cos_buf_size(content);
+    memcpy(buf + pos, content->pos, (size_t)size);
+    pos += size;
+  }
+  // cos_warn_log("Download data=%s", buf);
+
+  //销毁内存池
+  cos_pool_destroy(p);
+
+  *ppBlock = buf;
+
+  return code;
+}
+
 typedef struct {
   int64_t size;
   int32_t atime;
@@ -333,10 +447,12 @@ long s3Size(const char *object_name) {
 int32_t s3Init() { return 0; }
 void    s3CleanUp() {}
 int32_t s3PutObjectFromFile(const char *file, const char *object) { return 0; }
+int32_t s3PutObjectFromFile2(const char *file, const char *object) { return 0; }
 void    s3DeleteObjectsByPrefix(const char *prefix) {}
 void    s3DeleteObjects(const char *object_name[], int nobject) {}
 bool    s3Exists(const char *object_name) { return false; }
 bool    s3Get(const char *object_name, const char *path) { return false; }
+int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, uint8_t **ppBlock) { return 0; }
 void    s3EvictCache(const char *path, long object_size) {}
 long    s3Size(const char *object_name) { return 0; }
 

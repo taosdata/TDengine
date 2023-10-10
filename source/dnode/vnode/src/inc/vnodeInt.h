@@ -170,7 +170,8 @@ int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid);
 int metaAddIndexToSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int metaDropIndexFromSTable(SMeta* pMeta, int64_t version, SDropIndexReq* pReq);
 
-int64_t       metaGetTimeSeriesNum(SMeta* pMeta);
+int64_t       metaGetTimeSeriesNum(SMeta* pMeta, int type);
+void          metaUpdTimeSeriesNum(SMeta* pMeta);
 SMCtbCursor*  metaOpenCtbCursor(void* pVnode, tb_uid_t uid, int lock);
 int32_t       metaResumeCtbCursor(SMCtbCursor* pCtbCur, int8_t first);
 void          metaPauseCtbCursor(SMCtbCursor* pCtbCur);
@@ -412,6 +413,7 @@ struct STsdbKeepCfg {
   int32_t keep0;
   int32_t keep1;
   int32_t keep2;
+  int32_t keepTimeOffset;
 };
 
 typedef struct SVCommitSched {

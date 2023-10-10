@@ -40,6 +40,28 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
   taosThreadRwlockUnlock(&pMgmt->lock);
 }
 
+void vmGetVnodeLoadsLite(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
+  pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoadLite));
+  if (!pInfo->pVloads) return;
+
+  taosThreadRwlockRdlock(&pMgmt->lock);
+
+  void *pIter = taosHashIterate(pMgmt->hash, NULL);
+  while (pIter) {
+    SVnodeObj **ppVnode = pIter;
+    if (ppVnode == NULL || *ppVnode == NULL) continue;
+
+    SVnodeObj     *pVnode = *ppVnode;
+    SVnodeLoadLite vload = {0};
+    if (vnodeGetLoadLite(pVnode->pImpl, &vload) == 0) {
+      taosArrayPush(pInfo->pVloads, &vload);
+    }
+    pIter = taosHashIterate(pMgmt->hash, pIter);
+  }
+
+  taosThreadRwlockUnlock(&pMgmt->lock);
+}
+
 void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   SMonVloadInfo vloads = {0};
   vmGetVnodeLoads(pMgmt, &vloads, true);
@@ -104,6 +126,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->tsdbCfg.keep0 = pCreate->daysToKeep0;
   pCfg->tsdbCfg.keep1 = pCreate->daysToKeep1;
   pCfg->tsdbCfg.keep2 = pCreate->daysToKeep2;
+  pCfg->tsdbCfg.keepTimeOffset = pCreate->keepTimeOffset;
   pCfg->tsdbCfg.minRows = pCreate->minRows;
   pCfg->tsdbCfg.maxRows = pCreate->maxRows;
   for (size_t i = 0; i < taosArrayGetSize(pCreate->pRetensions); ++i) {
@@ -209,15 +232,15 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dInfo(
       "vgId:%d, vnode management handle msgType:%s, start to create vnode, page:%d pageSize:%d buffer:%d szPage:%d "
       "szBuf:%" PRIu64 ", cacheLast:%d cacheLastSize:%d sstTrigger:%d tsdbPageSize:%d %d dbname:%s dbId:%" PRId64
-      ", days:%d keep0:%d keep1:%d keep2:%d tsma:%d precision:%d compression:%d minRows:%d maxRows:%d"
+      ", days:%d keep0:%d keep1:%d keep2:%d keepTimeOffset%d tsma:%d precision:%d compression:%d minRows:%d maxRows:%d"
       ", wal fsync:%d level:%d retentionPeriod:%d retentionSize:%" PRId64 " rollPeriod:%d segSize:%" PRId64
       ", hash method:%d begin:%u end:%u prefix:%d surfix:%d replica:%d selfIndex:%d "
       "learnerReplica:%d learnerSelfIndex:%d strict:%d changeVersion:%d",
       req.vgId, TMSG_INFO(pMsg->msgType), req.pages, req.pageSize, req.buffer, req.pageSize * 1024,
       (uint64_t)req.buffer * 1024 * 1024, req.cacheLast, req.cacheLastSize, req.sstTrigger, req.tsdbPageSize,
       req.tsdbPageSize * 1024, req.db, req.dbUid, req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2,
-      req.isTsma, req.precision, req.compression, req.minRows, req.maxRows, req.walFsyncPeriod, req.walLevel,
-      req.walRetentionPeriod, req.walRetentionSize, req.walRollPeriod, req.walSegmentSize, req.hashMethod,
+      req.keepTimeOffset, req.isTsma, req.precision, req.compression, req.minRows, req.maxRows, req.walFsyncPeriod,
+      req.walLevel, req.walRetentionPeriod, req.walRetentionSize, req.walRollPeriod, req.walSegmentSize, req.hashMethod,
       req.hashBegin, req.hashEnd, req.hashPrefix, req.hashSuffix, req.replica, req.selfIndex, req.learnerReplica,
       req.learnerSelfIndex, req.strict, req.changeVersion);
 
@@ -366,7 +389,7 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dInfo("node:%s, catched up leader, continue to process alter-node-type-request", pMgmt->name);
 
   int32_t vgId = req.vgId;
-  dInfo("vgId:%d, start to alter vnode type replica:%d selfIndex:%d strict:%d changeVersion:%d", 
+  dInfo("vgId:%d, start to alter vnode type replica:%d selfIndex:%d strict:%d changeVersion:%d",
         vgId, req.replica, req.selfIndex, req.strict, req.changeVersion);
   for (int32_t i = 0; i < req.replica; ++i) {
     SReplica *pReplica = &req.replicas[i];
@@ -427,7 +450,7 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     dError("vgId:%d, failed to open vnode at %s since %s", vgId, path, terrstr());
     return -1;
   }
-  
+
   if (vmOpenVnode(pMgmt, &wrapperCfg, pImpl) != 0) {
     dError("vgId:%d, failed to open vnode mgmt since %s", vgId, terrstr());
     return -1;
@@ -486,7 +509,7 @@ int32_t vmProcessCheckLearnCatchupReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   dInfo("vgId:%d, vnode management handle msgType:%s, end to process check-learner-catchup-request",
           req.vgId, TMSG_INFO(pMsg->msgType));
-  
+
   return 0;
 }
 

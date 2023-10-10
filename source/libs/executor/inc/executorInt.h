@@ -548,9 +548,9 @@ typedef struct SWindowRowsSup {
 } SWindowRowsSup;
 
 typedef struct SResultWindowInfo {
-  void*       pOutputBuf;
-  SSessionKey sessionWin;
-  bool        isOutput;
+  SRowBuffPos* pStatePos;
+  SSessionKey  sessionWin;
+  bool         isOutput;
 } SResultWindowInfo;
 
 typedef struct SStreamSessionAggOperatorInfo {
@@ -579,6 +579,7 @@ typedef struct SStreamSessionAggOperatorInfo {
   bool                isHistoryOp;
   bool                reCkBlock;
   SSDataBlock*        pCheckpointRes;
+  bool                clearState;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct SStreamStateAggOperatorInfo {
@@ -672,8 +673,6 @@ void    cleanupAggSup(SAggSupporter* pAggSup);
 
 void initResultSizeInfo(SResultInfo* pResultInfo, int32_t numOfRows);
 
-void doBuildStreamResBlock(struct SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo,
-                           SDiskbasedBuf* pBuf);
 void doBuildResultDatablock(struct SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo,
                             SDiskbasedBuf* pBuf);
 
@@ -739,12 +738,6 @@ int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPos
                            SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 
 bool    groupbyTbname(SNodeList* pGroupList);
-int32_t buildDataBlockFromGroupRes(struct SOperatorInfo* pOperator, void* pState, SSDataBlock* pBlock, SExprSupp* pSup,
-                                   SGroupResInfo* pGroupResInfo);
-int32_t saveSessionDiscBuf(void* pState, SSessionKey* key, void* buf, int32_t size, SStateStore* pAPI);
-int32_t buildSessionResultDataBlock(struct SOperatorInfo* pOperator, void* pState, SSDataBlock* pBlock, SExprSupp* pSup,
-                                    SGroupResInfo* pGroupResInfo);
-int32_t releaseOutputBuf(void* pState, SWinKey* pKey, SResultRow* pResult, SStateStore* pAPI);
 void    getNextIntervalWindow(SInterval* pInterval, STimeWindow* tw, int32_t order);
 int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t searchFn, TSKEY ekey, int32_t pos, int32_t order,
                                int64_t* pData);

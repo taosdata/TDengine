@@ -536,6 +536,9 @@ int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc);
 const char* operatorTypeStr(EOperatorType type);
 const char* logicConditionTypeStr(ELogicConditionType type);
 
+bool nodesIsStar(SNode* pNode);
+bool nodesIsTableStar(SNode* pNode);
+
 #ifdef __cplusplus
 }
 #endif

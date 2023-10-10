@@ -17,6 +17,7 @@
 #include "vmInt.h"
 #include "tfs.h"
 #include "vnd.h"
+#include "libs/function/tudf.h"
 
 int32_t vmAllocPrimaryDisk(SVnodeMgmt *pMgmt, int32_t vgId) {
   STfs   *pTfs = pMgmt->pTfs;
