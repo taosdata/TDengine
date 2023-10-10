@@ -29,7 +29,10 @@ params:
 options:
   host:
     display: PI Data Archive Server
-    description: PI Data Archive Server (hostname).
+    description: |-
+      PI Data Archive Server (hostname).
+
+      If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.
     placeholder: pi data archive server
     required: true
   subject:
