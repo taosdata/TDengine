@@ -944,9 +944,9 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
     let mut column_configs = vec![];
 
     column_configs.push(ColumnConfig {
-        column_name: String::from("val"),
+        column_name: String::from("value"),
         column_type: None,
-        column_alias: None,
+        column_alias: Some(String::from("val")),
         is_primary_key: false,
     });
     column_configs.push(ColumnConfig {
