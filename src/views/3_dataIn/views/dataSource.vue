@@ -574,10 +574,12 @@ export default {
             type: "warning",
           }
         ).then(async () => {
+
           let result = await excuteStop(data.id);
           if (result.message) {
             Message.error(result.message);
             return;
+
           }
           await this.refresh();
         });
@@ -585,9 +587,11 @@ export default {
         return Promise.reject(err);
       }
     },
+
     async refresh() {
       await this.getList();
       await this.$refs.agents.refresh()
+
     },
     async refreshCurrentTask(data) {
       try {
