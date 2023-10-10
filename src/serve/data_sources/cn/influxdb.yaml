@@ -5,7 +5,7 @@ name: InfluxDB
 description: |
   InfluxDB 是一种流行的开源时间序列数据库，它针对处理大量时间序列数据进行了优化。
 
-  TaosX 可以通过 `taosx-influxdb` 插件高效地读取 InfluxDB 中的数据，并将其写入 TDengine，以实现历史数据迁移或实时数据同步。
+  TDengine 可以通过 InfluxDB 连接器高效地读取 InfluxDB 中的数据，并将其写入 TDengine，以实现历史数据迁移或实时数据同步。
 strict: false
 protocol:
   display: 连接协议
@@ -49,7 +49,7 @@ authentication:
           required: true
         - name: username
           display: 用户
-          description: InfluxDB 数据库的用户，该用户至少在该组织中拥有读取权限。
+          description: InfluxDB 数据库的用户，该用户必须在该组织中拥有读取权限。
           placeholder: 请输入 InfluxDB 用户
           hint: str
           required: true
@@ -82,13 +82,13 @@ authentication:
           required: true
         - name: orgId
           display: 组织 ID
-          description: InfluxDB 数据库的组织 ID，所有的仪表板、任务、存储桶和用户都属于一个组织。
+          description: InfluxDB 数据库的组织 ID，这是一个由 InfluxDB 生成的十六进制字符串，而不是组织名称，请从 'InfluxDB organization->about' 页面复制并粘贴到这里。
           placeholder: 请输入 InfluxDB 组织 ID
           hint: str
           required: true
         - name: token
           display: 令牌 Token
-          description: InfluxDB 数据库的访问令牌，该令牌至少在该组织中拥有读取权限。
+          description: InfluxDB 数据库的访问令牌，该令牌必须在该组织中拥有读取权限。
           placeholder: 请输入 InfluxDB 令牌
           hint: str
           required: true
@@ -130,7 +130,7 @@ groups:
         hint: time
       - name: readWindow
         display: 读取窗口（分钟）
-        description: 从 InfluxDB 读取数据的时间窗口，请根据 InfluxDB 中存储数据的特点，合理填写时间窗口长度，建议单次读取的数据不超过20万条记录。
+        description: 每次从 InfluxDB 读取数据的最大时间范围，请根据 InfluxDB 中存储数据的特点，合理填写时间窗口长度，建议单次读取的数据不超过20万条记录。
         placeholder: 请输入读取窗口
         hint:
           type: integer
@@ -139,7 +139,7 @@ groups:
         value: 2
       - name: delay
         display: 延迟间隔（毫秒）
-        description: 性能相关参数，同步实时数据时的延迟间隔，为尽量保证数据完整性，当前时间点的数据会在延迟间隔之后的某个时间点进行同步，此参数仅在同步实时数据时有意义。
+        description: 性能相关参数，同步实时数据时的延迟间隔，为了消除乱序数据的影响，TDengine 总是等待这里指定的时长，然后才读取数据。此参数仅在同步实时数据时有意义。
         placeholder: 请输入延迟间隔
         hint:
           type: integer

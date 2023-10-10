@@ -5,7 +5,7 @@ name: OpenTSDB
 description: |
   OpenTSDB 是一个架构在 HBase 系统之上的实时监控信息收集和展示平台。
 
-  TaosX 可以通过 `taosx-opentsdb` 插件高效地读取 OpenTSDB 中的数据，并将其写入 TDengine，以实现历史数据迁移或实时数据同步。
+  TDengine 可以通过 OpenTSDB 连接器高效地读取 OpenTSDB 中的数据，并将其写入 TDengine，以实现历史数据迁移或实时数据同步。
 strict: false
 protocol:
   display: 连接协议
@@ -57,7 +57,7 @@ groups:
         hint: time
       - name: readWindow
         display: 读取窗口（分钟）
-        description: 从 OpenTSDB 读取数据的时间窗口，请根据 OpenTSDB 中存储数据的特点，合理填写时间窗口长度，建议单次读取的数据不超过20万条记录。
+        description: 每次从 OpenTSDB 读取数据的最大时间范围，请根据 OpenTSDB 中存储数据的特点，合理填写时间窗口长度，建议单次读取的数据不超过20万条记录。
         placeholder: 请输入读取窗口
         hint:
           type: integer
@@ -66,7 +66,7 @@ groups:
         value: 2
       - name: delay
         display: 延迟间隔（毫秒）
-        description: 性能相关参数，同步实时数据时的延迟间隔，为尽量保证数据完整性，当前时间点的数据会在延迟间隔之后的某个时间点进行同步，此参数仅在同步实时数据时有意义。
+        description: 性能相关参数，同步实时数据时的延迟间隔，为了消除乱序数据的影响，TDengine 总是等待这里指定的时长，然后才读取数据。此参数仅在同步实时数据时有意义。
         placeholder: 请输入延迟间隔
         hint:
           type: integer
