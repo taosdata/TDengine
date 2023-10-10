@@ -876,6 +876,7 @@ export default {
         this.dbsource[0].datasets.params = this.dbsource[0]?.datasets?.
           params.map((p) => {
             if (p.value) {
+
               if(p.value != '*') {
                 p.fileList = [].concat({
                   name: p.value?.substr(p.value.lastIndexOf("/") + 1),
@@ -887,6 +888,7 @@ export default {
                   uid: 1,
                 });
               }
+
               this.activeRadio = p.value.includes('@') ? 'select_file' : 'all_points'
               p.value = p.value?.substr(p.value.lastIndexOf("@") + 1);
               this.activeName = p.name
