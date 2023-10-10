@@ -565,7 +565,8 @@ export default {
     level: 'Level',
     activity: 'Activity',
     context: 'Context',
-    at: 'Time'
+    at: 'Time',
+    saveTip: 'The data ingestion from this data source will be stopped for a few seconds. If you are fine with it, please continue, otherwise cancel it.',
   },
   replication: {
     theTaskWithId: "the task with id {id}",
