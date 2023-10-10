@@ -3,10 +3,10 @@ use taos::Dsn;
 
 #[derive(Debug, serde::Serialize)]
 pub struct SourceConfig {
-    pub username: String,
-    pub password: String,
     pub host: String,
     pub port: u16,
+    pub username: String,
+    pub password: String,
     pub table: String,
     pub tags: Vec<String>,
     pub begin_date_time: DateTime<Utc>,
@@ -27,6 +27,11 @@ impl SourceConfig {
         };
 
         let config = SourceConfig {
+            host: dsn.addresses[0]
+                .host
+                .clone()
+                .ok_or_else(|| anyhow::anyhow!("host is required, dsn: {:?}", &dsn))?,
+            port: dsn.addresses[0].port.clone().unwrap_or(1433),
             username: dsn
                 .username
                 .clone()
@@ -35,11 +40,6 @@ impl SourceConfig {
                 .password
                 .clone()
                 .ok_or_else(|| anyhow::anyhow!("password is required, dsn: {:?}", &dsn))?,
-            host: dsn.addresses[0]
-                .host
-                .clone()
-                .ok_or_else(|| anyhow::anyhow!("host is required, dsn: {:?}", &dsn))?,
-            port: dsn.addresses[0].port.clone().unwrap_or(1433),
             table: dsn
                 .params
                 .get("table")
@@ -109,7 +109,7 @@ mod tests {
         &endDateTime=2023-08-30T08:01:02.52+08:00\
         &retrieveMode=full",
         )
-        .unwrap();
+            .unwrap();
         let config = SourceConfig::from_dsn(&dsn).unwrap();
         assert_eq!(config.username, "taosdata");
         assert_eq!(config.password, "taosdata");

@@ -127,7 +127,7 @@ pub fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
         Ok(d) => {
             match d.driver.as_str() {
                 // TODO: clickhouse
-                // TODO: historian
+                "historian" => runners::historian::is_valid(&d),
                 // TODO: influxdb
                 "kafka" => runners::kafka::is_valid(&d),
                 // TODO: mqtt
