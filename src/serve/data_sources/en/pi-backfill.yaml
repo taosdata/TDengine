@@ -29,7 +29,10 @@ params:
 options:
   host:
     display: Server
-    description: PI server name (hostname).
+    description: |-
+      PI server name (hostname).
+
+      If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.
     placeholder: server
     required: true
   subject:

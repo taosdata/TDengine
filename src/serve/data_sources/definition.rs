@@ -518,7 +518,7 @@ impl DataSourceDefinition {
         {
             let mut is_current_auth = true;
             for param in &auth_item.params {
-                if !dsn.params.contains_key(&(param.name.clone())) {
+                if !dsn.params.contains_key(&param.name) {
                     is_current_auth = false;
                     break;
                 }
@@ -526,7 +526,7 @@ impl DataSourceDefinition {
             if is_current_auth {
                 self.authentication.value.replace(auth_item.name.clone());
                 for param in auth_item.params.iter_mut() {
-                    if let Some(value) = dsn.remove(param.name.clone()) {
+                    if let Some(value) = dsn.remove(&param.name) {
                         if !value.is_empty() {
                             param.value.replace(value);
                         }
@@ -549,6 +549,42 @@ impl DataSourceDefinition {
         //         }
         //     }
         // }
+        if let Some(datasets) = self.datasets.as_mut() {
+            for dataset_param in datasets.categories.as_mut_slice() {
+                if let Some(target) = dataset_param.target.as_mut() {
+                    if let Some(value) = dsn.remove(&target.name) {
+                        if !value.is_empty() {
+                            if target.multiple == true {
+                                target.value = Some(serde_json::Value::Array(
+                                    value
+                                        .split(",")
+                                        .into_iter()
+                                        .map(|v| serde_json::Value::String(v.to_string()))
+                                        .collect(),
+                                ));
+                            } else {
+                                target.value = Some(serde_json::Value::String(value));
+                            }
+                        }
+                    }
+                }
+                for param in &mut dataset_param.params {
+                    if let Some(value) = dsn.remove(&param.name) {
+                        if !value.is_empty() {
+                            param.value.replace(value);
+                        }
+                    }
+                }
+            }
+            datasets.params.iter_mut().for_each(|param| {
+                if let Some(value) = dsn.remove(&param.name) {
+                    if !value.is_empty() {
+                        param.value.replace(value);
+                    }
+                }
+            });
+        }
+
         for group in self.groups.as_mut_slice() {
             // TD-25111
             match (&group.short_description, &group.description) {
@@ -581,35 +617,6 @@ impl DataSourceDefinition {
                     }
                     if !value.is_empty() {
                         param.value.replace(value);
-                    }
-                }
-            }
-        }
-
-        if let Some(datasets) = self.datasets.as_mut() {
-            for dataset_param in datasets.categories.as_mut_slice() {
-                if let Some(target) = dataset_param.target.as_mut() {
-                    if let Some(value) = dsn.remove(target.name.clone()) {
-                        if !value.is_empty() {
-                            if target.multiple == true {
-                                target.value = Some(serde_json::Value::Array(
-                                    value
-                                        .split(",")
-                                        .into_iter()
-                                        .map(|v| serde_json::Value::String(v.to_string()))
-                                        .collect(),
-                                ));
-                            } else {
-                                target.value = Some(serde_json::Value::String(value));
-                            }
-                        }
-                    }
-                }
-                for param in &mut dataset_param.params {
-                    if let Some(value) = dsn.remove(&param.name) {
-                        if !value.is_empty() {
-                            param.value.replace(value);
-                        }
                     }
                 }
             }
