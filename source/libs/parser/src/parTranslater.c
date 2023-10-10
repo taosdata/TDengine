@@ -1973,7 +1973,11 @@ static int32_t translateWindowPseudoColumnFunc(STranslateContext* pCxt, SNode** 
       return code;
     }
     translateColumn(pCxt, (SColumnNode**)ppNode);
-    return pCxt->errCode;
+    if (pCxt->errCode != TSDB_CODE_SUCCESS) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_PC);
+    } else {
+      return TSDB_CODE_SUCCESS;
+    }
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1994,7 +1998,11 @@ static int32_t translateScanPseudoColumnFunc(STranslateContext* pCxt, SNode** pp
         return code;
       }
       translateColumn(pCxt, (SColumnNode**)ppNode);
-      return pCxt->errCode;
+      if (pCxt->errCode != TSDB_CODE_SUCCESS) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TBNAME);
+      } else {
+        return TSDB_CODE_SUCCESS;
+      }
     }
   } else {
     SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
