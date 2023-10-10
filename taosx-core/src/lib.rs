@@ -6,9 +6,10 @@ use std::sync::{
 use anyhow::Context;
 use chrono::{NaiveDate, Utc};
 use dashmap::DashMap;
-use serde::{Deserialize};
+use serde::Deserialize;
 use serde_with::serde_as;
-use taos::{TaosBuilder, AsyncTBuilder, Dsn, IntoDsn};
+use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
+use taos::sync::Queryable;
 use taos::taos_query::tmq::Assignment;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -115,15 +116,8 @@ pub fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
     let dsn = dsn.into_dsn();
     match dsn {
         Err(err) => {
-            DataSourceValidation {
-                valid: false,
-                support: false,
-                data_source: "unknown".to_string(),
-                version: None,
-                message: Some(format!("DSN error: {err:#}")),
-            }
+            DataSourceValidation::invalid("unknown".to_string(), format!("DSN error: {err:#}"))
         }
-
         Ok(d) => {
             match d.driver.as_str() {
                 // TODO: clickhouse
@@ -136,9 +130,53 @@ pub fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
                 // TODO: opentsdb
                 // TODO: pi
                 // TODO: pi backfill
-                // TODO: taos
-                // TODO: tmq
+                "taos" | "tmq" => {
+                    futures::executor::block_on(is_valid(&d))
+                }
                 &_ => DataSourceValidation::unknown()
+            }
+        }
+    }
+}
+
+pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+    let builder = TaosBuilder::from_dsn(dsn);
+    match builder {
+        Err(err) => {
+            DataSourceValidation::invalid(
+                "taos".to_string(),
+                format!("invalid dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
+            )
+        }
+        Ok(b) => {
+            let conn = b.build().await;
+            match conn {
+                Err(err) => {
+                    DataSourceValidation::invalid(
+                        "taos".to_string(),
+                        format!("failed to connect to dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
+                    )
+                }
+                Ok(c) => {
+                    let version = c.server_version();
+                    match version {
+                        Err(err) => {
+                            DataSourceValidation::invalid(
+                                "taos".to_string(),
+                                format!("failed to get server version from dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
+                            )
+                        }
+                        Ok(v) => {
+                            DataSourceValidation {
+                                valid: true,
+                                support: true,
+                                data_source: "taos".to_string(),
+                                version: Some(v.to_string()),
+                                message: None,
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -435,7 +473,9 @@ impl TaskOpts {
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
+
     use taos::Dsn;
+
     use super::*;
 
     #[test]
@@ -453,5 +493,21 @@ mod tests {
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("kafka", dsv.data_source);
+
+        // taos
+        let dsn = Dsn::from_str("taos+ws://192.168.1.92:6041").unwrap();
+        let dsv = validate_dsn(dsn);
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("taos", dsv.data_source);
+        assert_eq!("3.1.1.3", dsv.version.unwrap());
+
+        // tmq
+        let dsn = Dsn::from_str("tmq+ws://192.168.1.92:6041").unwrap();
+        let dsv = validate_dsn(dsn);
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("taos", dsv.data_source);
+        assert_eq!("3.1.1.3", dsv.version.unwrap());
     }
 }

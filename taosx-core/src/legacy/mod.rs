@@ -25,7 +25,6 @@ use tokio_util::sync::CancellationToken;
 use tracing::{info, instrument, warn};
 
 use crate::{legacy::scheduler::Todo, Action};
-use crate::validation::DataSourceValidation;
 
 use self::scheduler::Scheduler;
 
@@ -131,7 +130,6 @@ impl Default for LegacyMetrics {
         }
     }
 }
-
 impl Display for LegacyMetrics {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use std::sync::atomic::Ordering::SeqCst;
@@ -170,7 +168,6 @@ impl Display for LegacyMetrics {
         Ok(())
     }
 }
-
 /// A paging expression.
 ///
 /// It will be append to query with `LIMIT {limit} OFFSET {offset}`.
@@ -421,7 +418,6 @@ struct WriteContext {
     metrics: Arc<LegacyMetrics>,
     remap: Option<Arc<HashMap<String, String>>>,
 }
-
 async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResult<()> {
     // write block
 
@@ -575,7 +571,6 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
     RawResult::Ok(())
 }
 
-/*
 // #[async_backtrace::framed]
 // async fn sync_single_table(
 //     from: &Taos,
@@ -643,7 +638,6 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
 //     }
 //     Ok(())
 // }
-*/
 
 #[async_backtrace::framed]
 async fn sync_single_table_partial(
@@ -1576,7 +1570,6 @@ pub enum SyncMode {
     /// It means sync history data, monitor the latest, and run forever.
     All,
 }
-
 impl FromStr for SyncMode {
     type Err = anyhow::Error;
 
@@ -1755,7 +1748,6 @@ impl FromStr for SchemaMode {
         }
     }
 }
-
 #[derive(Debug, Clone)]
 pub struct TargetOpts {
     assert: bool,
@@ -1955,7 +1947,6 @@ impl TableTodo {
         self.stable.is_some()
     }
 }
-
 pub struct LegacyTodo {
     stables: Vec<Arc<String>>,
     tables: Vec<LegacyTableItem>,
@@ -1981,7 +1972,6 @@ impl LegacyTableItem {
         self.stable.is_none()
     }
 }
-
 impl LegacyTodo {
     pub fn tables_todo(&self) -> usize {
         self.tables.len()
@@ -2350,49 +2340,6 @@ async fn realtime(
             "tick tasks are all spawned. waiting for next interval tick..."
         );
         let _ = interval.tick().await;
-    }
-}
-
-pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
-    let builder = <TaosBuilder as sync::TBuilder>::from_dsn(dsn);
-    match builder {
-        Err(err) => {
-            DataSourceValidation::invalid(
-                "taos".to_string(),
-                format!("invalid dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
-            )
-        }
-        Ok(b) => {
-            let conn = b.build().await;
-            match conn {
-                Err(err) => {
-                    DataSourceValidation::invalid(
-                        "taos".to_string(),
-                        format!("failed to connect to dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
-                    )
-                }
-                Ok(c) => {
-                    let version = c.server_version().await;
-                    match version {
-                        Err(err) => {
-                            DataSourceValidation::invalid(
-                                "taos".to_string(),
-                                format!("failed to get server version from dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
-                            )
-                        }
-                        Ok(v) => {
-                            DataSourceValidation{
-                                valid: true,
-                                support: true,
-                                data_source: "taos".to_string(),
-                                version: Some(v.to_string()),
-                                message: None,
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
