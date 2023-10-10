@@ -194,19 +194,24 @@ public class PreLoading implements CommandLineRunner {
             if (StringUtils.isNotEmpty(breakpoint)) {
                 this.taskConfig.setBreakpoint(parseBreakpoint(breakpoint));
             }
-            this.performanceConfig.setReadWindow(tomlParseResult.getString("performance.readWindow", String::new));
             // 如果设置了性能参数，则覆盖默认值
+            if (StringUtils.isNotEmpty(tomlParseResult.getString("performance.readWindow", String::new))) {
+                this.performanceConfig.setReadWindow(tomlParseResult.getString("performance.readWindow", String::new));
+            }
             if (tomlParseResult.getLong("performance.delay") != null) {
                 this.performanceConfig.setDelay(tomlParseResult.getLong("performance.delay").intValue());
             }
-            if (tomlParseResult.getLong("performance.limitConnect") != null) {
-                this.performanceConfig.setLimitConnect(tomlParseResult.getLong("performance.limitConnect").intValue());
+            if (tomlParseResult.getLong("performance.maxThread") != null) {
+                this.performanceConfig.setMaxThread(tomlParseResult.getLong("performance.maxThread").intValue());
             }
-            if (tomlParseResult.getLong("performance.limitSpeed") != null) {
-                this.performanceConfig.setLimitSpeed(tomlParseResult.getLong("performance.limitSpeed").intValue());
+            if (tomlParseResult.getLong("performance.queueSizeT") != null) {
+                this.performanceConfig.setQueueSizeT(tomlParseResult.getLong("performance.queueSizeT").longValue());
             }
             if (tomlParseResult.getLong("performance.queueSizeD") != null) {
                 this.performanceConfig.setQueueSizeD(tomlParseResult.getLong("performance.queueSizeD").longValue());
+            }
+            if (tomlParseResult.getLong("performance.limitSpeed") != null) {
+                this.performanceConfig.setLimitSpeed(tomlParseResult.getLong("performance.limitSpeed").intValue());
             }
         } catch (Exception e) {
             logger.error("An exception occurred during the loading of the Toml file, causing startup failure.", e);
