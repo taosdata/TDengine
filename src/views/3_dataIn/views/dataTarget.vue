@@ -18,7 +18,7 @@
         ></el-input>
       </el-form-item>
       <el-form-item :label="$t('type')" prop="type" size="small">
-        <el-select v-model="ruleForm.type" @change="changeDBType">
+        <el-select v-model="ruleForm.type" @change="changeDBType" :disabled="currentEditid?true:false">
           <el-option
             v-for="item in dbTypes"
             :label="item.name"
@@ -105,6 +105,7 @@ export default {
   components: { AddAgent },
   data() {
     return {
+      currentEditid:'',
       dbTypes: [],
       dbList: [],
       agentList: [],
@@ -174,6 +175,7 @@ export default {
     this.getDBLists();
     this.getAgents();
     this.getInitValue();
+    this.currentEditid=this.$store.state.app.currentEditID
   },
   methods: {
     setTaskName(){
@@ -285,6 +287,13 @@ export default {
     },
   },
   watch: {
+    '$store.state.app.currentEditID':{
+      deep:true,
+      handler(val){
+        this.currentEditid=val
+        console.log(val,'编辑得知--id');
+      }
+    },
     "$store.state.app.currentDBName": {
       deep: true,
       handler(val) {
