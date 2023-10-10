@@ -29,7 +29,10 @@ params:
 options:
   host:
     display: Server
-    description: PI server name (hostname).
+    description: |-
+      PI server name (hostname).
+
+      If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.
     placeholder: server
     required: true
   subject:
@@ -39,44 +42,6 @@ options:
     placeholder: "Example: Met1"
 strict: false
 groups:
-  - name: Data Sets
-    display_order: 1
-    description: |
-      Single column configuration file for point names.
-    params:
-      - name: point_file
-        display: One Table Per Point
-        description: |
-          The config file is a CSV file with one single column without header:
-
-          | |
-          | ------------------- |
-          | meter_10001_current |
-          | meter_10001_voltage |
-        hint:
-          type: file
-      - name: template_for_pi_point_file
-        display: One Table per PI Point from AF Element Template
-        description: |
-          The config file is a CSV file with one single column without header:
-
-          | |
-          | ------------------- |
-          | MeterTemplate  |
-          | MeterTemplate1 |
-        hint:
-          type: file
-      - name: template_for_af_element_file
-        display: One Table per AF Element from AF Element Template
-        description: |
-          The config file is a CSV file with one single column without header:
-
-          | |
-          | ------------------- |
-          | MeterTemplate  |
-          | MeterTemplate1 |
-        hint:
-          type: file
   - name: Backfill
     display_order: 3
     description: TDBackfill param set.
@@ -143,38 +108,41 @@ groups:
 
 datasets:
   name: Data Sets
-  description: PI System template and points
-  categories:
-    - category: PointList
-      display: Point List
+  display: Data Sets
+  description: |
+    Single column configuration file for point names.
+  params:
+    - name: point_file
+      display: One Table Per Point
       description: |
-        The point names exists in pi system.
-      target:
-        name: PointList
-        description: Pi System Point List
-        required: false
-        multiple: true
-        editable: true
-        selectable: true
-    - category: TemplateForPIPoint
-      display: Template For PI Point
+        The CSV config file is a CSV file with one single column without header:
+
+        | |
+        | ------------------- |
+        | meter_10001_current |
+        | meter_10001_voltage |
+      hint:
+        type: file
+    - name: template_for_pi_point_file
+      display: One Table per PI Point from AF Element Template
       description: |
-        The template names exists in pi system.
-      target:
-        name: TemplateForPIPoint
-        description: Database datasets.
-        required: false
-        multiple: true
-        editable: true
-        selectable: true
-    - category: TemplateForAFElement
-      display: Template For AF Element
+        The CSV config file is a CSV file with one single column without header:
+
+        | |
+        | ------------------- |
+        | MeterTemplate  |
+        | MeterTemplate1 |
+      hint:
+        type: file
+    - name: template_for_af_element_file
+      display: One Table per AF Element from AF Element Template
       description: |
-        The template names exists in pi system.
-      target:
-        name: TemplateForAFElement
-        description: Database datasets.
-        required: false
-        multiple: true
-        editable: true
-        selectable: true
+        The CSV config file is a CSV file with one single column without header:
+
+        | |
+        | ------------------- |
+        | MeterTemplate  |
+        | MeterTemplate1 |
+      hint:
+        type: file
+

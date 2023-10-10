@@ -31,7 +31,9 @@ params:
 options:
   host:
     display: PI服务名
-    description: PI 服务器地址（通常使用主机名）。
+    description: |-
+      PI 服务器地址（通常使用主机名）。
+      如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。
     placeholder: server
     required: true
   subject:
@@ -41,28 +43,8 @@ options:
     placeholder: "Example: Met1"
 strict: false
 groups:
-  - name: 点位配置
-    display_order: 1
-    description: |
-      不同类型的点位配置文件。
-    params:
-      - name: point_file
-        display: 点位列表
-        description: 一个单列点位名称列表文件。
-        hint:
-          type: file
-      - name: template_for_pi_point_file
-        display: Point 模式 AF 模板列表
-        description: 一个单列点位名称（AF 模板）列表文件。
-        hint:
-          type: file
-      - name: template_for_af_element_file
-        display: AF 模式模板列表
-        description: 一个单列模板名称列表文件。
-        hint:
-          type: file
   - name: 历史填充（Backfill）
-    display_order: 3
+    display_order: 1
     description: Backfill 参数设置
     params:
       - name: FromTDengineLastTime
@@ -93,7 +75,7 @@ groups:
         placeholder: "YYYY-MM-DD HH:mm:ss"
 
   - name: 数据队列
-    display_order: 4
+    display_order: 2
     description: 其他配置
     params:
       - name: MaxWaitLen
@@ -123,39 +105,42 @@ groups:
         value: 1
 
 datasets:
-  name: 监测点集
-  description: PI 系统模板和点位。
-  categories:
-    - category: PointList
-      display: 监测点集合
+  name: Data Sets
+  display: 监测点集
+  description: |
+    不同类型的点位配置文件，这将决定入库的数据模型。
+  params:
+    - name: point_file
+      display: 单列模式点位列表
       description: |
-        point 模式监测点集合
-      target:
-        name: PointList
-        description: point 模式监测点集合
-        required: false
-        multiple: true
-        editable: true
-        selectable: true
-    - category: TemplateForPIPoint
-      display: Template For PI Point
+        一个单列点位名称列表文件。
+
+        | |
+        | ------------------- |
+        | meter_10001_current |
+        | meter_10001_voltage |
+      hint:
+        type: file
+    - name: template_for_pi_point_file
+      display: 单列模式 AF 模板列表
       description: |
-        point 模式监测的 AF 模板集合。
-      target:
-        name: TemplateForPIPoint
-        description: point 模式监测的 AF 模板集合。
-        required: false
-        multiple: true
-        editable: true
-        selectable: true
-    - category: TemplateForAFElement
-      display: Template For AF Element
+        单列点位名称（AF 模板）列表文件。
+
+        | |
+        | ------------------- |
+        | MeterTemplate  |
+        | MeterTemplate1 |
+      hint:
+        type: file
+    - name: template_for_af_element_file
+      display:  AF 模式模板列表
       description: |
-        AF 模式监测的 AF 模板集合。
-      target:
-        name: TemplateForAFElement
-        description: AF 模式监测的 AF 模板集合。
-        required: false
-        multiple: true
-        editable: true
-        selectable: true
+        单列模板名称列表文件。
+
+        | |
+        | ------------------- |
+        | MeterTemplate  |
+        | MeterTemplate1 |
+      hint:
+        type: file
+
