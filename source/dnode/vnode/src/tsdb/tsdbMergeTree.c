@@ -786,6 +786,10 @@ static void adjustValidLDataIters(SArray *pLDIterList, int32_t numOfFileObj) {
   }
 }
 
+int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
+                       STimeWindow *pTimeWindow, SVersionRange *pVerRange, SSttBlockLoadInfo *pBlockLoadInfo,
+                       bool destroyLoadInfo, const char *idStr, bool strictTimeRange, SLDataIter *pLDataIter) {}
+
 int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf) {
   int32_t code = TSDB_CODE_SUCCESS;
 
