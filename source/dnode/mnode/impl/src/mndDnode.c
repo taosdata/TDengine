@@ -77,7 +77,7 @@ static int32_t mndMCfgGetValInt32(SMCfgDnodeReq *pInMCfgReq, int32_t opLen, int3
 
 extern int32_t mndUpdClusterInfo(SRpcMsg *pReq);
 
-#ifndef TD_ENTERPRISE
+#ifndef _GRANT
 int32_t mndUpdClusterInfo(SRpcMsg *pReq) { return 0; }
 #endif
 
