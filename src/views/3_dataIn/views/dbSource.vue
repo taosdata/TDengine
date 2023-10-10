@@ -15,6 +15,7 @@
       :isEditable="isEditable"
       :echoData="echoData"
       :sourceName="sourceName"
+      @setEditData="setEditData"
       ref="table"
     ></component>
   </div>
@@ -27,13 +28,13 @@ import { getUIData } from "@/api/explorer/datain";
 import constparser from "./mqttparser.json";
 import constOpc from "./opcconfig.json";
 import { deepClone } from "@/utils";
-const opcDefaultChecked = ["value", "received_time"];
+const opcDefaultChecked = ["value", "original_ts"];
 export default {
   name: "DbSource",
   components: {
     dbsource: DataSource,
     ui: DbSourceUI,
-    opcui: OpcUI,
+    opcui: OpcUI
   },
   data() {
     return {
@@ -44,7 +45,7 @@ export default {
       tagName: "datasource",
       currentName: "",
       sourceList: [],
-      uidata: null,
+      uidata: [],
       editId: 0,
       dbName: "",
       isEditable: false,
@@ -63,11 +64,16 @@ export default {
     this.getData();
   },
   methods: {
+    //设置编辑时候的数据
+    setEditData(data){
+      this.uidata=deepClone(data)
+    },
     //回显opc的数据
     echoOpcData() {
-      let opcconfigData = this.uidata[0].groups.filter(
+      let opcconfigData = this.uidata[0].datasets.categories.filter(
         (item) => item.name == this.$t("datasource.opcconfig")
-      )[0].params[0];
+      )[0].category[0];
+    
       if (!opcconfigData.value) {
         opcconfigData.value = JSON.stringify(constOpc);
       }
@@ -85,15 +91,29 @@ export default {
         ),
         stable_prefix: JSON.parse(opcconfigData.value).stable_prefix,
       };
-      this.$store.commit("app/SET_OPC_CONFIG", {
-        column_configs: deepClone(
+      let result = ["received_ts", "original_ts", "value", "quality"].map(
+        (item) => {
+          let res = deepClone(
           JSON.parse(opcconfigData.value).column_configs.concat(others)
-        ),
+        ).filter((val) => {
+            if (val.column_name == item) {
+              return val;
+            }
+          })[0];
+          return res;
+        }
+      );
+
+      JSON.parse(opcconfigData.value).column_configs = deepClone(result);
+      this.$store.commit("app/SET_OPC_CONFIG", {
+        column_configs: result,
         stable_prefix: JSON.parse(opcconfigData.value).stable_prefix,
       });
 
       opcconfigData.value = JSON.stringify(newEcho);
+     
       this.opcConfig = deepClone(JSON.parse(opcconfigData.value));
+      this.opcConfig.column_configs = deepClone(result)
     },
     async getData() {
       try {
@@ -111,18 +131,22 @@ export default {
       }
     },
     toggleComponent(type, id, editid, dbname, iscopy) {
-      // this.currentName = name;
-      if (type) {
+      if (type&&!this.isEditable) {
         //新增
-
         let data = this.sourceList.filter((item) => item.id === type);
         if (type == "mqtt" || type == "kafka") {
-          this.uidata = this.deepClone(data);
+          // this.uidata = this.deepClone(data);
+          this.$set(this.uidata,0,this.deepClone(data)[0])
           this.parserobj = deepClone(this.staticParser);
           this.parserobj.model.columns.push("ts"); //默认新增时候选中ts列
           this.$store.commit("app/SET_MQTT_PARSER", this.parserobj);
         } else {
-          this.uidata = type == "opc" ? data : this.deepClone(data);
+          // this.uidata = type == "opc" ? data : this.deepClone(data);
+          if(type=='opc'){
+            this.$set(this.uidata,0,data[0])
+          }else{
+            this.$set(this.uidata,0,this.deepClone(data)[0])
+          }
           this.opcConfig = deepClone(this.staticOpc);
           this.echoData = deepClone(opcDefaultChecked);
           this.$store.commit("app/SET_OPC_CONFIG", this.opcConfig);
@@ -199,7 +223,7 @@ export default {
             this.tagName = "opc";
             this.protocol = "ua";
             // if (this.$store.state.app.opcnodesfiles.length == 0) {
-            this.echoOpcData();
+            // this.echoOpcData();
             // }
 
             break;
@@ -207,7 +231,7 @@ export default {
             this.currentName = "opcui";
             this.tagName = "opc";
             this.protocol = "da";
-            this.echoOpcData();
+            // this.echoOpcData();
             break;
           case "pi":
             this.currentName = "ui";
@@ -334,6 +358,17 @@ export default {
         this.opcConfig = val;
       },
     },
+    "$store.state.app.currentDBType":{
+      deep:true,
+      handler(val){
+        this.toggleComponent(val)
+      }
+    }
   },
 };
 </script>
+<style lang="scss" scoped>
+.dbsource{
+  margin-top:10px;
+}
+</style>

@@ -98,7 +98,6 @@
         <el-input
           v-model="ruleForm.name"
           :placeholder="$t('datasource.nametip')"
-          :maxlength="20"
         ></el-input>
       </el-form-item>
     </el-form>
@@ -248,10 +247,7 @@ export default {
     },
     async getAgentDataType() {
       try {
-        this.agentList = await getAgentsData(
-          localStorage.getItem("local_clusterID"),
-          localStorage.getItem("username")
-        );
+        this.agentList = await getAgentsData();
         this.agentList = this.agentList.map((agent) => {
           return {
             value: agent.id,

@@ -3,7 +3,7 @@
     <p class="title">
       <span>{{ $t("topic.agent") }}</span>
     </p>
-    <div class="flexEnd">
+    <!-- <div class="flexEnd">
       <el-button
         plain
         @click="refresh"
@@ -12,10 +12,10 @@
         :disabled="requestIng"
         >{{ $t("refresh") }}</el-button
       >
-      <!-- <el-button plain @click="add" size="small" icon="el-icon-plus">{{
+      <el-button plain @click="add" size="small" icon="el-icon-plus">{{
         $t("taosagents.createnewagent")
-      }}</el-button> -->
-    </div>
+      }}</el-button>
+    </div> -->
     <el-table
       v-if="agentList?.length > 0"
       style="margin-top: 20px"
@@ -126,7 +126,7 @@
           </el-switch> -->
           <el-button
             plain
-            size="small"
+            size="mini"
             @click="edit(scope.row, scope.$index)"
             icon="el-icon-edit"
           ></el-button>
@@ -143,8 +143,9 @@
             icon="el-icon-tingzhi"
           ></el-button> -->
           <el-button
+            type="danger"
             plain
-            size="small"
+            size="mini"
             @click="del(scope.row)"
             icon="el-icon-delete"
           ></el-button>
@@ -426,16 +427,14 @@ export default {
       try {
         this.requestIng = true
         this.agentList = (
-          await getAgentsData(
-            localStorage.getItem("local_clusterID"),
-            localStorage.getItem("username")
-          )
+          await getAgentsData()
         ).map((item) => {
           item["created_at"] = item.created_at
             ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") + "Z"
             : "";
           return item;
         });
+        this.$store.commit('app/SET_AGENT_LISTS',this.agentList)
         this.requestIng = false
       } catch (err) {
         this.requestIng = false
@@ -476,22 +475,22 @@ export default {
         }
         await this.getAgents();
 
-        this.$parent.$refs.agentdialog.agentList = this.agentList.map(
-          (agent) => {
-            return {
-              value: agent.id,
-              label:
-                agent.id +
-                "." +
-                agent.name +
-                (new Date(agent.expire_date) < Date.now()
-                  ? "（" + this.$t("datasource.expired") + "）"
-                  : ""),
-              disabled: new Date(agent.expire_date) < Date.now(),
-              ...agent,
-            };
-          }
-        );
+        // this.$parent.$refs.agentdialog.agentList = this.agentList.map(
+        //   (agent) => {
+        //     return {
+        //       value: agent.id,
+        //       label:
+        //         agent.id +
+        //         "." +
+        //         agent.name +
+        //         (new Date(agent.expire_date) < Date.now()
+        //           ? "（" + this.$t("datasource.expired") + "）"
+        //           : ""),
+        //       disabled: new Date(agent.expire_date) < Date.now(),
+        //       ...agent,
+        //     };
+        //   }
+        // );
         if (result.token) {
           this.agenttoken = result.token;
           this.copyDialog = true;

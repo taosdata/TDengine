@@ -5,14 +5,19 @@ let grafanagds = process.env.VUE_APP_CUS_NAME &&
   process.env.VUE_APP_CUS_NAME !== "TDengine" ? '' : 'TDengine'
 let taosname = process.env.VUE_APP_CUS_NAME &&
   process.env.VUE_APP_CUS_NAME !== "TDengine" ? process.env.VUE_APP_CUS_PROMPT : 'taos'
-  let agenturl=localStorage.getItem('agent_version')?localStorage.getItem('agent_version'):'latest'
+let agenturl=localStorage.getItem('agent_version')?localStorage.getItem('agent_version'):'latest'
+const DocsUrl=window.navigator.language.includes('zh')?'https://docs.taosdata.com':'https://docs.tdengine.com'
 export default {
   //通用部分
+  pInName: 'Please enter the name',
+  generateToken: 'Generate Token',
+  configure: 'Configure',
   urlPart: '/docs-en',
   disbleagent: 'Disable agent',
   enableagent: 'Enable agent',
   database: 'Database',
   warning: 'Warning',
+  agent:'Agent',
   ok: 'OK',
   changepwdtip: 'Password is successfully changed, please log in again',
   systemTitle: "TDengine Management System",
@@ -20,7 +25,16 @@ export default {
   sqlPreview: "SQL Preview",
   unknown: "Unknown Error!",
   download: "Download",
-  downloadTemplate: 'Download Template File',
+  uploadcsv: 'Upload CSV',
+  allPoints: 'All Points',
+  downloadTemplate: 'Template',
+  downloadPiPoint: 'List of PI Points',
+  downloadAfElement: 'List of AF Element Template',
+  downloadCSVInUse: 'CSV file in Use',
+  downloadTemplateTip: 'Download the csv template file',
+  downloadPiPointTip: 'Download the list of all points in PI system',
+  downloadAfElementTip: 'Download the list of all AF element template',
+  downloadCSVInUseTip: 'Download the current configuration file in use',
   isDel: "Are you sure you want to delete {isDelName}?",
   isDisable: "Are you sure to disable {isDisableName}?",
   isEnable: "Are you sure to enable {isDisableName}?",
@@ -330,7 +344,7 @@ export default {
   dashboard: {
     warnigtip: `Please click on the left <a href="/dashboard"> dashboard</a> to view the settings for TDinsight`,
     createtime: 'Create Time',
-    expiretime: 'Expire Time',
+    expiretime: 'Expiration Time',
     version: 'Version',
     overview: "Overview",
     cluster: "Instance",
@@ -506,6 +520,26 @@ export default {
     renameColumn: 'Change column name'
   },
   dataIn: {
+    agentNameExist: 'Agent name "{0}" already exists',
+    finish: 'Finish',
+    uploadcsv:'Upload CSV',
+    allpoints:'All Points',
+    downloadtpl:'Download Template',
+    downloadtpltip:'Download the csv template file ',
+    downloadnodes:'Download List of Nodes',
+    downloadnodestip:'Download the list of all points in OPC',
+    csvinuse:'CSV file in Use',
+    csvinusetip:'Download the current configuration file in use',
+    connectionConfiguration: 'Connection Configuration',
+    createNewAgent: 'Create New Agent',
+    palceholders:{
+      taskName: 'Task Name',
+      agentPlaceholder: 'Please select an agent',
+      chooseTargetDbTip: 'Please select the target database',
+    },
+    needAgentTip: 'If data source is on a private network, please configure the secured Agent, so VPN is not required or expose data source to outside.From the machine where agent is installed, it must be able to access your TDengine instance',
+    runAgent: 'Run Agent',
+    downloadInstall: 'Download/Install',
     dataSources:'Data Source',
     connector: "Connectors",
     connectorTip: `Use the programming language of your choice - The main way to get data in to TDengine  is <a href="https://docs.tdengine.com/develop/insert-data/sql-writing/#insert-using-sql " target="_blank">using SQL to insert</a> data`,
@@ -532,7 +566,8 @@ export default {
     level: 'Level',
     activity: 'Activity',
     context: 'Context',
-    at: 'Time'
+    at: 'Time',
+    saveTip: 'The data ingestion from this data source will be stopped for a few seconds. If you are fine with it, please continue, otherwise cancel it.',
   },
   replication: {
     theTaskWithId: "the task with id {id}",
@@ -950,7 +985,7 @@ export default {
     databases: 'Databases',
     expired: 'Expired',
     querytime: 'Query Time',
-    speed: 'Speed',
+    speed: 'Speed(MB)',
     storage: 'Storage',
     streams: 'Streams',
     timeseries: 'Time Series',
@@ -962,7 +997,7 @@ export default {
     tables: "Table",
     select_topic_tip: 'Please select the topic',
     add_new_user: 'Add New User',
-    expire_time: 'Expire Time',
+    expire_time: 'Expiration Time',
     user_name: 'User Name',
     shareTopic: 'Share Topic',
     sampleCode: 'Sample Code',
@@ -1130,7 +1165,7 @@ export default {
     refresh: 'Refresh',
     dnodes: 'DNodes',
     health: 'Health',
-    expire_time: 'Expire Time',
+    expire_time: 'Expiration Time',
     uptime: 'Uptime',
     version: 'Version',
     cpu_avg: 'CPU AVG',
@@ -1148,7 +1183,14 @@ export default {
     // opc_filed:'Filed',
     // opc_alias:'Alias',
     // opc_type:'Type',
+    selecttargetdb:'Please select the target database',
+    metrics:'Metrics',
     restarttask:'Please restart the task',
+    metricTips:{
+      running:'Metrics are being collected,please wait...',
+      completed:'No metrics information was collected. If necessary, please rerun this task',
+      stopped:'The task has been stopped and no metrics information has been received yet. If necessary,please rerun this task'
+    },
     csvconfigtip:'Please configure csv information',
     csvwholeinfo:'Please fill in the complete csv information(Primary Key,Tag,Coloumn,Column Type)',
     customcolname:'Custom Columns',
@@ -1177,14 +1219,14 @@ export default {
     refreshsuccess:'Refreshed Scucessfully',
     influxdbtip:'Choose or create a TDengine database with precision of ns',
     taskid:'Task ID',
-    opcconfig:'Table Config',
+    opcconfig:'Upload CSV',
     tmqprotocol:'Native',
     primaryColTagtip:'The primary key column does not support being used as a tag again',
     opcvaluetip:'Please enter the value alias',
     primaryvaluetip:'Primary column and value column can not be canceled',
     stable_prefix:'Stable Prefix',
     stable_prefixtip:'Please enter the super table prefix',
-    warehousing:'Warehousing',
+    warehousing:'Write to DB',
     received_time:'Received Time',
     original_time:'Original Time',
     value:'Value',
@@ -1197,7 +1239,7 @@ export default {
     astag: 'As Tag',
     colname: 'Field(Source)',
     rename: 'Column(Target)',
-    coltype: 'Column Type(Target)',
+    coltype: 'Data Type',
     primarykey:'Primary Key',
     name: 'Child Table Naming Rule',
     normalname:'Normal Table Naming Rule',
@@ -1267,6 +1309,28 @@ export default {
     privilege: 'Privilege'
   },
   docs: {
+    taosxAgent: {
+      1: `Download the taosx-agent through the link <a href="{linuxDL}">Linux</a> or <a href="{windowDL}">Windows</a> to your local environment.<br/><br/>For Linux, please decompress the downloaded file to a specified folder and execute the <code>install.sh</code> file inside the folder. For Windows, please double-click the downloaded file to install the taox-agent and then add <code>C:\\Program Files\\taosX\\bin</code> to the Path variable of the system environments.<br/><br/>Open a shell, please execute the following command to check if taosx-agent is installed successfully.`,
+      2: 'Input a unique name for the agent. The system will generate a connection token for the agent.',
+      // 3: `IMPORTANT: Please save the endpoint and generated token to a local file BEFORE clicking on the "Next" button. TDengine Cloud does not save the generated token online and once you click "Next" you cannot retrieve this token and will have to create a new agent.<br/><br/>
+      // To ensure your TDx agent works correctly you have to make changes to the <code>agent.toml</code> file. This file can be found in the following directory:<br/>
+      // Linux: <code>/etc/taos</code><br/>
+      3:`IMPORTANT: Please save the endpoint and the generated token to a local file BEFORE clicking on the "Next" button. You can not retrieve them and will have to create a new agent if you lose it.<br/><br/>
+      To ensure your agent works, please copy the endpoint and the generated token to the <code>agent.toml</code> file. This file can be found in the following directory:<br/>
+      Linux: <code>/etc/taos</code><br/>
+Windows: <code>C:\\Program Files\\taosx\\config</code>`,
+      4: `Execute the following command in the shell.`,
+      5: 'Check the agent running status with the following command in the shell.',
+      6: `<a target='_blank' href='${DocsUrl}/cloud/data-in/ds/install-agent'>Configure Agent Documentation</a>`,
+      7: 'Check Agent Connection',
+      8: 'Success',
+      9: 'Failed',
+      10: 'Checking',
+      11: `Please check the agent logs with:`,
+      12: 'and check if you fix the issue. If you can not, please report it to the TDengine Cloud team.'
+      // 7: `If the agent token is wrong, the service will exit directly, you can check the logs with: `,
+      // 8: `Refresh agent status in explorer to check if the agent is connected correctly. The status of an agent will be "Idle" when it has been connected.`
+    },
     connector: {
       desc: "Connect using the {0} to encapsulate SQL as a REST request.",
       bottom1: "The client connection is then established.",

@@ -5,11 +5,15 @@ export function getUrls() {
     return request({
         baseURL:process.env.VUE_APP_EXPLORER_API,
         url: `/profile`,
-        method: "get"
+        method: "get",
+        headers: {
+            noAuth: true
+        }
     });
 }
 export function fetchApiByCluster(url, token, data) {
     return request({ 
+        baseURL:'',
         url: `/rest/sql`,
         method: "post",
         headers: {

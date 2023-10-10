@@ -80,6 +80,7 @@
         this.$router.push({
           path:'/login'
         })
+        window.location.reload()
       },
       close() {
         this.dialogVisible = false;

@@ -1,6 +1,14 @@
 <template>
-  <div class="dnode-block">
+  <div class="dnode-block" v-loading="loading">
     <div class="flexEnd">
+      <el-button
+        plain
+        @click="refresh"
+        size="small"
+        icon="el-icon-refresh"
+        :disabled="loading"
+        >{{ $t("refresh") }}</el-button
+      >
       <el-button
         plain
         @click="add"
@@ -27,7 +35,11 @@
         <span>{{ clusterId }}</span>
       </el-descriptions-item>
       <el-descriptions-item v-for="item in licenseList" :key="item.key" :label='$t(`topic.${item.key}`)' :labelStyle='style'>
-        <span style="color:#333;"> {{(item.key == 'expire_time' && item.value !=='unlimited')? parsinginZone(item.value,'YYYY-MM-DD h:mm:ss'): item.value}}</span>
+        <span style="color:#333;" v-if="item.key !== 'version'"> {{(item.key == 'expire_time' && item.value !=='unlimited')? parsinginZone(item.value,'YYYY-MM-DD h:mm:ss'): item.value}}</span>
+        <span style="color:#333;" v-else>
+          <span style="padding-left: 2px;">{{ serverVersion }}</span>
+          {{ item.value }}
+        </span>
       </el-descriptions-item>
     </el-descriptions>
     <p class="title">
@@ -184,6 +196,9 @@ export default {
     },
     clusterId() {
       return localStorage.getItem('local_clusterID') || ''
+    },
+    serverVersion() {
+      return localStorage.getItem('serverVersion') || ''
     }
   },
   created() {
@@ -252,6 +267,8 @@ export default {
           console.log('res',res);
           if (res && res.code == 0) {
             this.$message.success(this.$t('operateSucc'))
+            this.dialog = false
+            this.refresh()
           } else {
             this.$message.error(res?.desc)
           }

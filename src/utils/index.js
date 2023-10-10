@@ -51,7 +51,7 @@ export function deepClone(source) {
   if (!source && typeof source !== "object") {
     throw new Error("error arguments", "deepClone");
   }
-  const targetObj = source.constructor === Array ? [] : {};
+  const targetObj = source?.constructor === Array ? [] : {};
   Object.keys(source).forEach(keys => {
     if (source[keys] && typeof source[keys] === "object") {
       targetObj[keys] = deepClone(source[keys]);
@@ -367,4 +367,12 @@ export function getBrowserLang() {
   if (browserLang.includes('zh')) return 'zh';
   if (browserLang.includes('en')) return 'en';
   return 'zh';
+}
+
+// 根据图表轴的数据判断轴的类型
+export function getAxisType(data) {
+  if (!data) return 'category';
+  if (!isNaN(data)) return 'value';
+  if (new Date(data).toString() != 'Invalid Date') return 'time';
+  return 'category';
 }

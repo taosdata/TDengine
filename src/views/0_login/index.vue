@@ -122,27 +122,13 @@ export default {
   },
   methods: {
     submitForm(formName) {
-      // let reg =
-      //   /^(https?:\/\/)?([\da-z.-]+)(\.([a-z.]{2,6}))?(:[\d]{1,5})?([\/\w.-]*)*\/?$/;
-
-      // if (
-      //   this.dynamicValidateForm.cluster &&
-      //   !reg.test(this.dynamicValidateForm.cluster)
-      // ) {
-      //   Message.error("Please enter the correct cluster url .");
-      //   return;
-      // }
       this.$refs[formName].validate((valid) => {
         if (valid) {
           this.loading = true;
           this.encryptedPwd = encrypt(this.dynamicValidateForm.password);
           setTimeout(() => {
-            // if (!this.taosxStatus) {
-            //   Message.error(this.$t("login.taosxtip"));
-            //   this.loading = false;
-            // } else {
+           
             this.login();
-            // }
           }, 1000);
         } else {
           return false;
@@ -160,6 +146,16 @@ export default {
             localStorage.removeItem("TDengine-Token");
             return Promise.reject(err);
           });
+      } catch (error) {
+        console.log(error);
+      }
+    },
+    async getVersion() {
+      try {
+        let res = await sendSQLReq('select server_version()')
+        if (res?.code == 0) {
+          localStorage.setItem('serverVersion',res.data[0])
+        }
       } catch (error) {
         console.log(error);
       }
@@ -191,6 +187,7 @@ export default {
         if (res && res.code == 0 && !res.desc) {
           localStorage.setItem("TDengine-Token", token);
           await this.getClusterID();
+          await this.getVersion();
           // this.$router.push({
           //   path: "/explorer"
           // });
@@ -235,7 +232,7 @@ export default {
           this.taosxStatus = false;
         }
       } catch (error) {
-        // Message.error(error);
+        Message.error(error);
       }
     },
     //获取登录用户权限
@@ -277,8 +274,8 @@ export default {
       }
     },
   },
-  created() {
-    this.getClusterAndDashboardUrl();
+  async created() {
+    await this.getClusterAndDashboardUrl();
     localStorage.setItem("supportWebsite", this.dataJson.supportWebsite);
     localStorage.setItem("documentWebsite", this.dataJson.documentWebsite);
 

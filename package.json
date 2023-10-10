@@ -45,6 +45,7 @@
     "validator": "^13.7.0",
     "vue": "^2.7.8",
     "vue-codemirror": "^4.0.6",
+    "vue-dompurify-html": "^4.1.4",
     "vue-i18n": "^8.24.5",
     "vue-paycard": "^0.7.0",
     "vue-router": "^3.5.1",

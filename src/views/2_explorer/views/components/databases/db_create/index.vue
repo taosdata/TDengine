@@ -548,6 +548,8 @@
                   type: "success",
                   message: this.$t("createSucc"),
                 });
+              
+                console.log(this.isEdit,this.$store.state.dbs.db_form,'创建');
                 this.cancel()
             })
             .catch((err) => {
@@ -585,6 +587,14 @@
     },
     beforeDestroy(){
       this.$store.commit('dbs/SET_DIALOG_DB_VISABLE', false)
+    },
+    watch:{
+      db_form:{
+        deep:true,
+        handler(val,old){
+          this.$store.commit('app/SET_CURRENT_DBNAME',old.name)
+        }
+      }
     }
   };
 </script>

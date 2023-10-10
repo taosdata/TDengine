@@ -6,20 +6,34 @@ process.env.VUE_APP_CUS_NAME !== "TDengine"?'':'TDengine'
 let taosname=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos'
 let agenturl=localStorage.getItem('agent_version')?localStorage.getItem('agent_version'):'latest'
+const DocsUrl=window.navigator.language.includes('zh')?'https://docs.taosdata.com':'https://docs.tdengine.com'
 export default {
   //通用部分
+  pInName: '请输入名称',
+  generateToken: '生成令牌',
+  configure: '配置',
   urlPart: '/docs',
   disbleagent:'不启用代理',
   enableagent:'启用代理',
   database:'数据库',
   warning:'提醒',
   ok:'确定',
+  agent:'代理',
   changepwdtip:'密码修改成功，请重新登录',
   systemTitle: "TDengine 管理系统",
   copyright:' Copyright 2023 北京涛思数据科技有限公司',
   sqlPreview: "SQL 预览",
   download: "下载",
-  downloadTemplate: '下载模板',
+  uploadcsv: 'CSV 文件上传',
+  allPoints: '所有点',
+  downloadTemplate: '模板',
+  downloadPiPoint: '所有点列表',
+  downloadAfElement: 'AF 元素模版列表',
+  downloadCSVInUse: '使用中的CSV文件',
+  downloadTemplateTip: '下载CSV文件模版',
+  downloadPiPointTip: '下载系统中所有PI点位列表',
+  downloadAfElementTip: '下载所有AF元素模板列表',
+  downloadCSVInUseTip: '下载当前正在使用的配置文件',
   isDel: "确定要删除{isDelName}吗？",
   isDisable: "确定要禁用 {isDisableName}?",
   isEnable: "确定要启用 {isDisableName}?",
@@ -150,6 +164,26 @@ export default {
     selectPlan: "选择方案",
   },
   dataIn: {
+    agentNameExist: '代理名称“{0}”已存在',
+    finish: '结束',
+    uploadcsv:'上传CSV',
+    allpoints:'所有点位',
+    downloadtpl:'下载模板',
+    downloadtpltip:'下载CSV模板文件',
+    downloadnodes:'下载所有点位的列表',
+    downloadnodestip:'现在OPC中所有点位列表',
+    csvinuse:'使用中的CSV',
+    csvinusetip:'下载使用中的配置文件',
+    connectionConfiguration: '连接配置',
+    createNewAgent: '创建新的代理',
+    palceholders:{
+      taskName: '任务名称',
+      agentPlaceholder: '选择代理',
+      chooseTargetDbTip: '请选择目标数据库',
+    },
+    needAgentTip: '如果数据源在私有网络，那么请配置Agent的安全链接，这样无需配置 VPN 或将数据源服务公开到外部网络。',
+    runAgent: '运行代理',
+    downloadInstall: '下载/安装',
     connector: "连接器",
     csvHeaderTip: "CSV 文件内容样例（文件内容不能包含列名）",
     connectorTip:
@@ -179,7 +213,8 @@ export default {
     level: '活动级别',
     activity: '当前活动',
     context: '活动内容',
-    at: '时间'
+    at: '时间',
+    saveTip: '编辑后重启采集任务可能造成几秒的数据中断，是否确认继续？',
   },
   replication: {
     theTaskWithId: "任务 {id}",
@@ -791,7 +826,7 @@ export default {
     databases: 'DB 数量',
     expired: '是否过期',
     querytime: '查询时间',
-    speed: '传输速度',
+    speed: '传输速度(MB)',
     storage: '存储',
     streams: 'Stream 数量',
     timeseries: '时间线数量 ',
@@ -918,7 +953,14 @@ export default {
   },
 
   datasource: {
+    selecttargetdb:'请选择目标数据源',
+    metrics:'当前指标',
     restarttask:'请重启任务',
+    metricTips:{
+      running:'Metrics正在收集中，请等待 ...',
+      completed:'没有收集到Metrics信息，如有需要，请重新运行此任务',
+      stopped:' 任务已被停止，暂未收到Metrics信息，如有需要，请重新运行此任务'
+    },
     csvconfigtip:'请配置csv信息',
     csvwholeinfo:'请填写完整的csv配置信息（主键，tag，列和列类型）',
     customcolname:'自定义列',
@@ -947,7 +989,7 @@ export default {
     refreshsuccess:'刷新成功',
     influxdbtip:'请选择或创建精度为ns的目标TDengine数据库',
     taskid:'任务ID',
-    opcconfig:'库表配置',
+    opcconfig:'上传 CSV 配置文件',
     tmqprotocol:'原生连接',
     primaryColTagtip:'主键列不支持再作为Tag',
     opcvaluetip:'请输入value列的别名',
@@ -965,9 +1007,9 @@ export default {
     createsubtbtip:'选择列(目标)作为模板',
     ascolumn: '作为列',
     astag: '作为Tag',
-    colname:'字段(来源)',
+    colname:'字段(源)',
     rename:'列(目标)',
-    coltype:'列类型(目标)',
+    coltype:'数据类型',
     primarykey:'主键',
     usingtip:'请输入超级表名称',
     name:'子表命名规则',
@@ -1065,6 +1107,32 @@ export default {
     timeoutPlaceholder: 'kafka ack_timeout，默认为 1 s。消息需要 ack，ack 级别=1',
   },
   docs: {
+    taosxAgent: {
+      1: `请您通过这个地址 <a href="{linuxDL}">Linux</a> 或者 <a href="{windowDL}">Windows</a> 下载 taosx-agent 的下载包到本地环境。<br/><br/>对于Linux系统，请将下载的文件解压到指定的文件夹中，然后执行文件夹中的 <code>install.sh</code>文件。对于Windows，请双击下载的文件安装taox-agent，然后在系统环境的路径变量中添加<code>C:\\Program Files\\taosX\\bin</code>。<br/><br/>打开命令行，请执行下面的命令来检查 taosx-agent 是否安装成功。`,
+      2: `请您输入代理的唯一名称，系统将为它生成一个连接令牌。`,
+      // 3: `重要提示：请在单击“下一步”按钮之前将端点和生成的令牌保存到本地文件。TDengine Cloud 不会在线保存生成的令牌，一旦您单击“下一步”，您将无法检索此令牌，并且必须创建一个新的代理。<br/><br/>
+      // 为了确保您的 TDx 代理正常工作，您必须对<code>agent.toml</code>文件进行更改。此文件可在以下目录中找到：<br/>
+      3: `重要提示： 点击 "下一步 "按钮前，请将端点和生成的令牌保存到本地文件中。如果丢失，您将无法找回，并必须创建一个新的代理。<br/><br/>
+      为确保代理正常运行，请将端点和生成的令牌复制到 <code>agent.toml</code> 文件中。该文件可在以下目录中找到：<br/>
+      Linux： <code>/etc/taos</code><br/>
+Windows： <code>C:\\Program Files\\taosX\\config</code>`,
+      4: `请您在命令行中执行以下命令。`,
+      5: `请您在命令行中执行以下命令来检查代理运行状态。`,
+      6: `<a target='_blank' href='${DocsUrl}/cloud/data-in/ds/install-agent'>代理配置文档</a>`,
+      7: '检查代理是否连接正常',
+      8: '正常',
+      9: '失败',
+      10: '正在检查',
+      11: `请通过以下方式检查代理日志：`,
+      12: '并检查是否修复了问题。如果无法解决，请向 TDengine Cloud 团队报告。'
+  //     7: `如果代理令牌错误，服务将直接退出，您可以使用以下命令在Linux上检查日志：
+
+  // <code>journalctl -u taosx-agent</code>`,
+  //     8: `在Windows上，您可以在以下位置检查日志文件：
+  
+  // <code>C:\\Program Files\\taosX\\log\\agent\\</code>`,
+  //     9: '在资源管理器中刷新代理状态，以检查代理是否正确连接。当代理成功连接时，代理的状态将显示为"Idle"。'
+    },
     connector: {
       desc: "通过封装 SQL 为 REST 请求的 {0} 连接器来连接。",
       bottom1: "客户端连接完成。",
@@ -1570,7 +1638,8 @@ export default {
       cont3:'进入 TDinsight for 3.x dashboard 后，选择 taosKeeper 中设置的记录监控指标的数据库。',
       cont4:'然后可以看到监控结果。'
       
-    }
+    },
+    
   },
   health: {
     cpu: 'CPU',
@@ -1688,7 +1757,7 @@ export default {
     edittitle:'编辑代理',
     deletetip:`确定删除代理 {id} ?`,
     eidtagent:'编辑代理',
-    createnewagent:'新增代理',
+    createnewagent:'创建新的代理',
     cluster_id:'集群ID',
     connectors:'连接器',
     created_at:'创建时间',
