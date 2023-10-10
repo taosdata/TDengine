@@ -9,30 +9,28 @@ description: |
 strict: false
 protocol:
   display: 连接协议
-  description: InfluxDB 数据库连接的协议
+  description: InfluxDB 数据库的连接协议，请按实际情况选择，否则无法正常运行任务。
   choices:
     - name: http
       display: HTTP 协议
-      description: 使用 HTTP 协议连接 InfluxDB
     - name: https
       display: HTTPS 协议
-      description: 使用 HTTPS 协议连接 InfluxDB
 options:
   host:
     display: 服务器地址
     description: |-
-      InfluxDB 服务器 IP 地址或域名。
+      InfluxDB 数据库的 IP 地址或域名。
       如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。
     placeholder: 127.0.0.1
     required: true
   port:
     display: 端口
-    description: InfluxDB 服务器端口。
+    description: InfluxDB 数据库的服务端口。
     placeholder: "8086"
     required: true
 authentication:
   display: 认证
-  description: InfluxDB 的身份认证
+  description: InfluxDB 的鉴权认证。
   value: 2.x
   alternatives:
     - name: 1.x
@@ -41,7 +39,7 @@ authentication:
       params:
         - name: version
           display: 版本
-          description: 指定数据库的版本。
+          description: InfluxDB 数据库的版本，由于版本之间存在接口差异，所以请按实际情况选择。
           placeholder: 请选择 InfluxDB 版本
           hint:
             type: str
@@ -51,13 +49,13 @@ authentication:
           required: true
         - name: username
           display: 用户
-          description: 该用户至少在该组织中拥有读取权限。
+          description: InfluxDB 数据库的用户，该用户至少在该组织中拥有读取权限。
           placeholder: 请输入 InfluxDB 用户
           hint: str
           required: true
         - name: password
           display: 密码
-          description: 用户的登陆密码。
+          description: InfluxDB 数据库中用户的登陆密码。
           placeholder: 请输入登陆密码
           hint: str
           required: true
@@ -68,7 +66,7 @@ authentication:
       params:
         - name: version
           display: 版本
-          description: 指定数据库的版本。
+          description: InfluxDB 数据库的版本，由于版本之间存在接口差异，所以请按实际情况选择。
           placeholder: 请选择 InfluxDB 版本
           hint:
             type: str
@@ -84,25 +82,25 @@ authentication:
           required: true
         - name: orgId
           display: 组织 ID
-          description: 所有的仪表板、任务、存储桶和用户都属于一个组织。
+          description: InfluxDB 数据库的组织 ID，所有的仪表板、任务、存储桶和用户都属于一个组织。
           placeholder: 请输入 InfluxDB 组织 ID
           hint: str
           required: true
         - name: token
           display: 令牌 Token
-          description: 该令牌至少在该组织中拥有读取权限。
+          description: InfluxDB 数据库的访问令牌，该令牌至少在该组织中拥有读取权限。
           placeholder: 请输入 InfluxDB 令牌
           hint: str
           required: true
 groups:
   - name: task
-    display: 同步设置
+    display: 任务设置
     display_order: 1
-    description: 配置同步任务的起始时间和所同步的内容。
+    description: 配置同步任务的数据集、时间范围与性能参数等内容。
     params:
       - name: bucket
         display: 桶 Bucket
-        description: 指定需要同步的 Bucket 。
+        description: InfluxDB 数据库中的 Bucket，是存储数据的一个命名空间，每个任务需要指定一个 Bucket。
         placeholder: 请选择 Bucket
         hint:
           type: str
@@ -111,7 +109,7 @@ groups:
         required: true
       - name: measurements
         display: 测量值 Measurements
-        description: 指定需要同步的 Measurements ，未指定则同步全部。
+        description: Bucket 中的测量值，可以指定多个需要同步的 Measurements，未指定则同步该 Bucket 中的全部数据。
         placeholder: 请选择 Measurements
         multiple: true
         editable: true
@@ -121,18 +119,18 @@ groups:
             - "--NONE--"
       - name: beginTime
         display: 起始时间
-        description: 同步数据的起始时间戳。
+        description: 数据的起始时间，同步任务仅读取该指定时间及之后的数据。
         placeholder: YYYY-MM-DD HH:mm:ss
         hint: time
         required: true
       - name: endTime
         display: 结束时间
-        description: 同步数据的结束时间戳，如果未指定，将持续进行数据同步。
+        description: 数据的截止时间，同步任务仅读取该指定时间及之前的数据，如果指定未来时间，任务将持续进行直至到达截止时间，如果未指定，任务将持续进行直至人为结束。
         placeholder: YYYY-MM-DD HH:mm:ss
         hint: time
       - name: readWindow
         display: 读取窗口（分钟）
-        description: InfluxDB 查询数据接口需指定时间范围，如果指定范围内数据量极大（建议不超过20万），则 InfluxDB 服务容易发生故障，如果范围小则查询次数过多，用户需要根据数据密度进行设置。
+        description: 从 InfluxDB 读取数据的时间窗口，请根据 InfluxDB 中存储数据的特点，合理填写时间窗口长度，建议单次读取的数据不超过20万条记录。
         placeholder: 请输入读取窗口
         hint:
           type: integer
@@ -141,7 +139,7 @@ groups:
         value: 2
       - name: delay
         display: 延迟间隔（毫秒）
-        description: 在同步实时数据时，仅同步指定间隔时间之前的数据，以尽量保证数据完整（单位：毫秒）。
+        description: 性能相关参数，同步实时数据时的延迟间隔，为尽量保证数据完整性，当前时间点的数据会在延迟间隔之后的某个时间点进行同步，此参数仅在同步实时数据时有意义。
         placeholder: 请输入延迟间隔
         hint:
           type: integer
@@ -150,7 +148,7 @@ groups:
         value: 10000
       - name: maxThread
         display: 读库线程数量上限
-        description: 程序使用多线程读取 InfluxDB 数据，可根据服务器性能调整读库线程数量上限。
+        description: 性能相关参数，程序使用多线程读取 InfluxDB 数据，请根据服务器性能合理填写读库线程数量上限。
         placeholder: 请输入读库线程数量上限
         hint:
           type: integer
@@ -159,7 +157,7 @@ groups:
         value: 50
       - name: queueSizeT
         display: 线程缓存数量上限
-        description: 读库线程先缓存到内存队列，再由调度线程依次启动，可根据服务器性能调整线程缓存数量上限。
+        description: 性能相关参数，读库线程先缓存到内存队列，再由调度线程依次启动，请根据服务器性能合理填写线程缓存数量上限。
         placeholder: 请输入线程缓存数量上限
         hint:
           type: integer
@@ -168,7 +166,7 @@ groups:
         value: 1000
       - name: queueSizeD
         display: 数据缓存数量上限
-        description: 读取 InfluxDB 数据先缓存到内存队列，再由推送线程向下游传输，可根据服务器性能调整数据缓存数量上限。
+        description: 性能相关参数，读取 InfluxDB 数据先缓存到内存队列，再由推送线程向下游传输，请根据服务器性能合理填写数据缓存数量上限。
         placeholder: 请输入数据缓存数量上限
         hint:
           type: integer
@@ -177,7 +175,7 @@ groups:
         value: 200000
       - name: limitSpeed
         display: 传输速度上限
-        description: InfluxDB 数据向下游传输，为避免下游压力，需要限制传输速度，可根据服务器性能调整速度上限。
+        description: 性能相关参数，数据向下游传输，为避免下游压力过大，需要限制传输速度，请根据服务器性能合理填写速度上限。
         placeholder: 请输入传输速度上限
         hint:
           type: integer
