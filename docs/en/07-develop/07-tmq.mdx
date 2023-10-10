@@ -514,6 +514,24 @@ var consumer = new ConsumerBuilder(cfg).Build();
 
 A consumer group is automatically created when multiple consumers are configured with the same consumer group ID.
 
+Data replay function description:
+- Subscription adds replay function, which replays according to the time of data writing.
+  For example, writing three pieces of data at the following time.
+  ```sql
+    2023/09/22 00:00:00.000
+    2023/09/22 00:00:05.000
+    2023/09/22 00:00:08.000
+    ```
+  After subscribing to the first data for 5 seconds, the second data is returned, and after obtaining the second data for 3 seconds, the third data is returned.
+- Only column subscriptions support data replay.
+  - Replay needs to ensure an independent timeline
+  - If it is a sub table subscription or a normal table subscription, only one vnode has data, ensuring a timeline.
+  - If subscribing to a super table, it is necessary to ensure that the DB has only one vnode, otherwise an error will be reported (because the data subscribed to on multiple vnodes is not on the same timeline).
+- Super table and database subscriptions do not support replay
+- Add the enable.replay parameter. True indicates that the subscription replay function is enabled, while false indicates that the subscription replay function is not enabled by default.
+- Replay does not support progress saving, so when the replay parameter enable, auto commit will automatically close.
+- Due to the processing time required for data replay, there is an error of tens of milliseconds in the accuracy of replay.
+
 ## Subscribe to a Topic
 
 A single consumer can subscribe to multiple topics.
