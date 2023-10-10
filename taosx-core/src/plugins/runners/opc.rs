@@ -26,7 +26,7 @@ use tracing::{instrument, Span};
 
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
-    Transferred,
+    Transferred, list_datasets_from,
 };
 
 #[derive(Debug, serde::Serialize)]
@@ -390,6 +390,7 @@ impl OPCConfig {
                     da: None,
                 };
 
+                let selec_all_points = parse_bool_param_from_dsn(&mut dsn, "select_all_points").map_err(|err| OpcError::ConfigError("select_all_points", err.to_string()))?.unwrap_or(false);
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else if csv_config_file.is_some() {
@@ -409,8 +410,16 @@ impl OPCConfig {
                     }
                     res.1
                 } else {
-                    get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
+                    // if selec_all_points {
+                    //     // TODO get all points
+                    //     let data_req = DataSetsReq {
+
+                    //     };
+                    //     let dataset = list_datasets_from(data);
+                    // } else {
+                        get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
                         .map_err(|s| OpcError::FileParseFound(s))?
+                    // }
                 };
                 let mut ua_node_config_vec = Vec::new();
                 for i in 0..node_vec.len() {
@@ -614,7 +623,7 @@ impl OPCConfig {
     }
 }
 
-fn parse_bool_param_from_dsn(dsn: &mut Dsn, key: &str) -> anyhow::Result<Option<bool>> {
+pub fn parse_bool_param_from_dsn(dsn: &mut Dsn, key: &str) -> anyhow::Result<Option<bool>> {
     if let Some(key) = dsn.remove(key) {
         match key.as_str() {
             "false" => Ok(Some(false)),
@@ -889,12 +898,7 @@ pub(super) fn get_string_vec_from_param_or_file(
     dsn: &mut Dsn,
     key: &str,
 ) -> Result<Vec<String>, String> {
-    let selec_all_nodes = parse_bool_param_from_dsn(dsn, "select_all_nodes");
-    if let Ok(Some(true)) = selec_all_nodes {
-        // TODO get all nodes
-        
-
-    } else if let Some(nodes) = dsn.remove(key) {
+    if let Some(nodes) = dsn.remove(key) {
         let (files, mut node_config): (Vec<_>, Vec<_>) = nodes
             .split(",")
             .map(|s| s.trim())
@@ -1005,6 +1009,7 @@ pub async fn opc_to_taos(
     span: Span,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: OPC");
+    dbg!(&from);
 
     let exe_exists = std::path::Path::new(&exe_path()).exists();
     if !exe_exists {
