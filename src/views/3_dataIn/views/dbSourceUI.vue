@@ -1553,8 +1553,7 @@ export default {
         }
         let from = `${this.tagName}://${host}${subject}${
             querystr ? "?" + querystr.replace(/&$/g, "") : ""}
-            &categories=${categories}
-          `
+            &categories=${categories}`
          if (this.agentId) {
             from+=`&via=${this.agentId}`
           }
