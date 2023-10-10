@@ -1,6 +1,7 @@
 package com.taosdata.threads;
 
 import com.taosdata.ApplicationContextProvider;
+import com.taosdata.caches.MetricCache;
 import com.taosdata.caches.MetricDataCache;
 import com.taosdata.caches.StatisticCache;
 import com.taosdata.caches.StatusCache;
@@ -158,5 +159,7 @@ public class MetricDataThread implements Runnable {
         logger.debug(this.name + "#Thread completed and exited, timeRange=[{}-{}]#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15) + "", startTime, stopTime);
         // 清除线程信息
         StatusCache.forgetThread(this.name);
+        // 释放阻塞
+        MetricCache.releaseMetricDataThreadBlocked(this.metric);
     }
 }

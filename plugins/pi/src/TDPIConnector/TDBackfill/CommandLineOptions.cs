@@ -4,6 +4,13 @@ namespace TDBackfill
 {
     internal class CommandLineOptions
     {
+        public enum WorkMode
+        {
+            Observer,
+            Backfill,
+            PrintPIInfo,
+            CheckConfig
+        };
         public CommandLineOptions()
         {
             Start = DateTime.MinValue;
@@ -18,7 +25,8 @@ namespace TDBackfill
         public DateTime Start { get; internal set; }
         public DateTime End { get; internal set; }
         public string tomlFile { get; internal set; }
-
+        public WorkMode workMode = WorkMode.Backfill;
+        public string filter = "";
     }
 }
 

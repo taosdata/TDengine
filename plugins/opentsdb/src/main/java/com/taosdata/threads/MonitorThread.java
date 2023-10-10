@@ -53,7 +53,8 @@ public class MonitorThread implements Runnable {
                 logger.debug(this.name + "#Thread Start#" + DateUtils.getTime(DateUtils.DATE_FORMAT_15));
                 /* 更新内存队列信息 */
                 StatusCache.noteQueue("Metric", -1, MetricCache.metricMap.size());
-                StatusCache.noteQueue("ThreadQueue", performanceConfig.getQueueSizeT(), MetricCache.getMetricDataThreadQueueSize());
+                StatusCache.noteQueue("ThreadQueue", performanceConfig.getQueueSizeT(), MetricCache.getMetricDataThreadQueueTotal());
+                StatusCache.noteQueue("ThreadQueueBlocked", performanceConfig.getQueueSizeT(), MetricCache.getMetricDataThreadQueueBlocked());
                 StatusCache.noteQueue("DataQueue", performanceConfig.getQueueSizeD(), MetricDataCache.getMetricDataQueueTotalSize());
                 StatusCache.noteQueue("ReqMessage", -1, MessageCache.getReqMessageQueueSize());
                 StatusCache.noteQueue("ResMessage", -1, MessageCache.getResMessageQueueSize());
