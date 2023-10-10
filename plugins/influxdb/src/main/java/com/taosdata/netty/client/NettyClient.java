@@ -21,7 +21,6 @@ import org.springframework.stereotype.Component;
 import javax.annotation.Resource;
 import java.net.InetSocketAddress;
 import java.util.Date;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Netty客户端
@@ -103,10 +102,12 @@ public class NettyClient {
                     StatusCache.noteThread(threadInfo);
                     logger.info("Successfully established connection and created sending thread，thread: {}", threadName);
                 } else {
+                    /*
                     logger.error("Failed to establish connection, will reconnect in 5 seconds.");
                     listener.channel().eventLoop().schedule(() -> connect(new Bootstrap(), eventLoop, dataSourceKey), 5, TimeUnit.SECONDS);
                     // 删除Netty连接信息
-                    StatusCache.forgetNetty(clientId);
+                    StatusCache.forgetNetty(clientId);*/
+                    System.exit(201);
                 }
             });
             // 监听到结束信号后关闭

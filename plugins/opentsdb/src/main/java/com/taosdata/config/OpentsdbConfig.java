@@ -18,4 +18,5 @@ public class OpentsdbConfig {
 
     private String apiMetrics = "suggest";
     private String apiData = "api/query";
+    private String apiVersion = "api/version";
 }

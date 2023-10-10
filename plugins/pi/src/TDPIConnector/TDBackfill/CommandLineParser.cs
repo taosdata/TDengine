@@ -45,6 +45,18 @@ namespace TDBackfill
                     options.tomlFile = args[i + 1];
                     i++;
                 }
+                else if (args[i] == "-c" || args[i] == "--check")
+                {
+                    options.workMode = CommandLineOptions.WorkMode.CheckConfig;
+                    options.tomlFile = args[i + 1];
+                    i++;
+                }
+                else if (args[i] == "-p" || args[i] == "--print")
+                {
+                    options.workMode = CommandLineOptions.WorkMode.PrintPIInfo;
+                    options.filter = args[i + 1];
+                    i++;
+                }
                 else if (args[i] == "-s" || args[i] == "--start")
                 {
                     if (i + 1 < args.Length)
