@@ -1561,7 +1561,6 @@ export default {
             }
           }
         }
-        console.log(querystr, "querystr---opc");
         if (
           data.authentication &&
           data.authentication.value == "certificates"
@@ -1854,13 +1853,14 @@ export default {
               ? `&header=${this.$refs.csvdata.$refs.param.ruleForm.customcol}`
               : "");
         }
-
+        console.log(this.isEditable , this.editId,'编辑-opc');
         if (this.isEditable && this.editId) {
           let result = await EditSource(piParams, this.editId);
           if (result.message) {
             Message.error(result.message);
             return;
           }
+          this.$parent.changeEditable(false)
           this.$parent.toggleComponent("opctable", this.protocol);
         } else {
           let result = await AddSource(piParams);

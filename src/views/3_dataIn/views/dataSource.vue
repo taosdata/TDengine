@@ -361,6 +361,7 @@ export default {
       this.$parent.sourceName = data.name;
       this.$parent.currentTaskStatus = status;
       this.$parent.agentID = data?.via;
+      this.$parent.setEditID(data.id)
       if (data.from_detail) {
         this.$store.commit("app/SET_CURRENT_DBTYPE", data.from_detail?.id);
 

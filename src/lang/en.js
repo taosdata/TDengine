@@ -526,7 +526,7 @@ export default {
     allpoints:'All Points',
     downloadtpl:'Download Template',
     downloadtpltip:'Download the csv template file ',
-    downloadnodes:'Download List of Nodes',
+    downloadnodes:'Download the List of Nodes',
     downloadnodestip:'Download the list of all points in OPC',
     csvinuse:'CSV file in Use',
     csvinusetip:'Download the current configuration file in use',

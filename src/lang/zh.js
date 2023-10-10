@@ -171,7 +171,7 @@ export default {
     downloadtpl:'下载模板',
     downloadtpltip:'下载CSV模板文件',
     downloadnodes:'下载所有点位的列表',
-    downloadnodestip:'现在OPC中所有点位列表',
+    downloadnodestip:'下载OPC中所有点位列表',
     csvinuse:'使用中的CSV',
     csvinusetip:'下载使用中的配置文件',
     connectionConfiguration: '连接配置',
