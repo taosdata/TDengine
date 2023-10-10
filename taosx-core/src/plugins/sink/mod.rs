@@ -1832,7 +1832,7 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
                 .context("write ack error");
         }
     }
-    metrics::counter!("ipc.stream.records", count as u64);
+    // metrics::counter!("ipc.stream.records", count as u64);
     metrics::counter!("ipc.stream.batches", batches as u64);
 
     tracing::Span::current()
