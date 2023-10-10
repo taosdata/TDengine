@@ -481,7 +481,7 @@ static int32_t tsdbDoMerge(SMerger *merger) {
   int32_t lino = 0;
 
   STFileSet *fset;
-  TARRAY2_FOREACH(merger->fsetArr, fset) {
+  TARRAY2_FOREACH_REVERSE(merger->fsetArr, fset) {
     if (TARRAY2_SIZE(fset->lvlArr) == 0) continue;
 
     SSttLvl *lvl = TARRAY2_FIRST(fset->lvlArr);
