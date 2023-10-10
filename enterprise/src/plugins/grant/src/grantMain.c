@@ -73,6 +73,16 @@
     }                                         \
   } while (0)
 
+#define GRANT_ITEMS_INIT(pItems)                  \
+  do {                                            \
+    pItems[0].number = GRANT_CONN_NUM_UNDEF;      \
+    pItems[0].speed = GRANT_CONN_SPEED_UNDEF;     \
+    pItems[0].expire = GRANT_CONN_EXPIRE_UNDEF;   \
+    for (int32_t i = 1; i < CONN_TYPE_MAX; ++i) { \
+      *(pItems + i) = *(pItems + 0);              \
+    }                                             \
+  } while (0)
+
 #ifndef GRANTS_CFG
 #define GRANT_VERSION (grantStatus.officialVersion ? "official" : "trial")
 #define GRANT_EXPIRE (gStatus.expireTimeSec)
@@ -638,9 +648,6 @@ static int32_t mndSendGrantStatusToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo,
 
   uDebug("succeed to receive grant msg from dnode:%d %s:%" PRIu16, pDnodeInfo->id, pDnodeInfo->ep.fqdn,
          pDnodeInfo->ep.port);
-  
-  // fill conn grant items from undef to default
-  grantConnActiveFillUndef(pMnode, grantMsgRsp.connectors.items);
 
   mndProcessDnodeSGrantMsg(pMnode, pDnodeInfo, &grantMsgRsp, &gStatus);
 
@@ -1356,9 +1363,15 @@ static void grantConnStatusAssignLimits(GrantStatus *p1, GrantStatus *p2, bool i
     for (int32_t i = 0; i < GRANT_CONN_NUM; ++i) {
       SGrantConnItem *pItem = GRANT_CONN_ITEM(p1, i);
       SGrantConnItem *qItem = GRANT_CONN_ITEM(p2, i);
-      GRANT_ITEM_SET_VAL(pItem->number, qItem->number, GRANT_CONN_LIMITS);
-      GRANT_ITEM_SET_VAL(pItem->speed, qItem->speed, GRANT_CONN_LIMITS);
-      GRANT_ITEM_SET_VAL(pItem->expire, qItem->expire, GRANT_CONN_EXPIRE_LIMITS);
+      if (!GRANT_CONN_ITEM_UNDEF(qItem)) {
+        if (GRANT_CONN_ITEM_UNDEF(pItem)) {
+          *pItem = *qItem;
+        } else {
+          GRANT_ITEM_SET_VAL(pItem->number, qItem->number, GRANT_CONN_LIMITS);
+          GRANT_ITEM_SET_VAL(pItem->speed, qItem->speed, GRANT_CONN_LIMITS);
+          GRANT_ITEM_SET_VAL(pItem->expire, qItem->expire, GRANT_CONN_EXPIRE_LIMITS);
+        }
+      }
     }
   } else {
     GRANT_CONN_OFFICIAL(p1) = GRANT_CONN_OFFICIAL(p2);
@@ -1392,7 +1405,9 @@ static void grantConnStatusCheckImpl(SMnode *pMnode) {
     leastDist = GRANT_CONN_DIST(pDists, distSize - 1);
   }
 
-  GrantStatus status = {0};
+  GrantStatus     status = {0};
+  SGrantConnItem *pItems = status.connectors.items;
+  GRANT_ITEMS_INIT(pItems);
 
   for (int32_t i = distSize; i > 0;) {
     SGrantDistInfo *pInfo = TARRAY_GET_ELEM(pDists, --i);
@@ -1403,6 +1418,9 @@ static void grantConnStatusCheckImpl(SMnode *pMnode) {
       ++nGrant;
     }
   }
+
+  // fill conn grant items from undef to default
+  grantConnActiveFillUndef(pMnode, pItems);
 
   if (nGrant > 0) grantConnStatusAssignLimits(&gStatus, &status, false);
 
@@ -1428,7 +1446,7 @@ static void grantStatusCheckImpl(SMnode *pMnode) {
     uint32_t last2Dist = GRANT_GET_DIST(pDists, distSize - 2);
     leastDist = lastDist == last2Dist ? lastDist : lastDist - GRANT_DIST_TOLERENCE;
   } else {
-    leastDist = GRANT_CONN_DIST(pDists, distSize - 1);
+    leastDist = GRANT_GET_DIST(pDists, distSize - 1);
   }
 
   GrantStatus status = {0};
