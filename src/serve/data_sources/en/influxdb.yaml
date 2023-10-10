@@ -9,14 +9,12 @@ description: |
 strict: false
 protocol:
   display: Protocol
-  description: The protocol of the InfluxDB connection
+  description: The protocol of the InfluxDB connection, please choose according to the actual situation, otherwise the task cannot run normally.
   choices:
     - name: http
       display: HTTP Protocol
-      description: Connect to OpenTSDB using the HTTP protocol
     - name: https
       display: HTTPS Protocol
-      description: Connect to OpenTSDB using the HTTPS protocol
 options:
   host:
     display: IP address
@@ -39,7 +37,7 @@ authentication:
       params:
         - name: version
           display: Version
-          description: Specify the version of the source database
+          description: The version of InfluxDB, due to interface differences between versions, please choose according to the actual situation.
           placeholder: Please select the version of InfluxDB
           hint:
             type: str
@@ -49,7 +47,7 @@ authentication:
           required: true
         - name: username
           display: Username
-          description: This user can at least have permission to read anything in this organization.
+          description: The user of InfluxDB, which can at least have permission to read anything in this database.
           placeholder: Please input a username in the InfluxDB
           hint: str
           required: true
@@ -66,7 +64,7 @@ authentication:
       params:
         - name: version
           display: Version
-          description: Specify the version of the source database
+          description: The version of InfluxDB, due to interface differences between versions, please choose according to the actual situation.
           placeholder: Please select the version of InfluxDB
           hint:
             type: str
@@ -82,13 +80,13 @@ authentication:
           required: true
         - name: orgId
           display: Organization Id
-          description: It is a workspace for a group of users. All dashboards, tasks, buckets, and users belong to one organization.
+          description: The organization id of InfluxDB, all dashboards, tasks, buckets, and users belong to one organization.
           placeholder: Please input your organization id in the InfluxDB
           hint: str
           required: true
         - name: token
           display: Token
-          description: This token can at least have permission to read anything in this organization.
+          description: The token of InfluxDB, which can at least have permission to read anything in this organization.
           placeholder: Please input your access token in the InfluxDB
           hint: str
           required: true
@@ -100,7 +98,7 @@ groups:
     params:
       - name: bucket
         display: Bucket
-        description: Select a specified bucket to migrate
+        description: A bucket in the InfluxDB is a namespace for storing data, and each task needs to specify a bucket.
         placeholder: Please select the bucket
         hint:
           type: str
@@ -109,7 +107,7 @@ groups:
         required: true
       - name: measurements
         display: Measurements
-        description: Select one or more specified measurements to migrate, if empty, migrate all
+        description: Measurements in the above bucket, select one or more specified measurements to migrate, if empty, migrate all.
         placeholder: Please select the measurements
         multiple: true
         editable: true
@@ -119,18 +117,18 @@ groups:
             - "--NONE--"
       - name: beginTime
         display: Data Begin Time
-        description: Set a data start time
+        description: The starting time of the data, and the task only reads data from the specified time and after.
         placeholder: YYYY-MM-DD HH:mm:ss
         hint: time
         required: true
       - name: endTime
         display: Data End Time
-        description: Set a data end time, if empty, the latest data will always be transmitted
+        description: The stopping time of the data, and the task only reads the data at the specified time and before, If a future time is specified, the task will continue until the deadline is reached. If not specified, the task will continue until it is manually terminated.
         placeholder: YYYY-MM-DD HH:mm:ss
         hint: time
       - name: readWindow
         display: Read Window(m)
-        description: Query InfluxDB needs to specify a timerange. If the range has a large amount of data (exceed 200000), the InfluxDB service is prone to failure. If the range is small, the number of queries is too high. Allows you to set it based on data density.
+        description: The time window for reading data from InfluxDB should be filled in reasonably based on the characteristics of the data stored in InfluxDB. It is recommended that the single read data should not exceed 200000 records.
         placeholder: Please input the read window
         hint:
           type: integer
@@ -139,7 +137,7 @@ groups:
         value: 2
       - name: delay
         display: Delay interval(ms)
-        description: When synchronizing real-time data, only synchronize data before the specified interval time to ensure data integrity
+        description: Performance related parameters, delay interval when synchronizing real-time data. To ensure data integrity as much as possible, the data at the current time point will be synchronized at a certain time point after the delay interval. This parameter is only meaningful when synchronizing real-time data.
         placeholder: Please input the delay interval
         hint:
           type: integer
@@ -148,7 +146,7 @@ groups:
         value: 10000
       - name: maxThread
         display: Maximum Read Threads
-        description: Multiple threads read InfluxDB data, allows you to adjust the maximum number of read threads based on server performance.
+        description: Performance related parameters, multiple threads read InfluxDB data, allows you to adjust the maximum number of read threads based on server performance.
         placeholder: Please input the maximum number of read threads
         hint:
           type: integer
@@ -157,7 +155,7 @@ groups:
         value: 50
       - name: queueSizeT
         display: Maximum Thread Caches
-        description: Threads are cached in the memory queue, and then started in sequence, allows you to adjust the maximum number of thread caches based on server performance.
+        description: Performance related parameters, threads are cached in the memory queue, and then started in sequence, allows you to adjust the maximum number of thread caches based on server performance.
         placeholder: Please input the maximum number of thread caches
         hint:
           type: integer
@@ -166,7 +164,7 @@ groups:
         value: 1000
       - name: queueSizeD
         display: Maximum Data Caches
-        description: InfluxDB datas are cached in the memory queue, and then transmitted downstream, allows you to adjust the maximum number of data caches based on server performance.
+        description: Performance related parameters, InfluxDB datas are cached in the memory queue, and then transmitted downstream, allows you to adjust the maximum number of data caches based on server performance.
         placeholder: Please input the maximum number of data caches
         hint:
           type: integer
@@ -175,7 +173,7 @@ groups:
         value: 200000
       - name: limitSpeed
         display: Transmit Speed Limit
-        description: To avoid downstream pressure, the transmit speed needs to be limited, allows you to adjust the upper limit of speed based on server performance.
+        description: Performance related parameters, to avoid downstream pressure, the transmit speed needs to be limited, allows you to adjust the upper limit of speed based on server performance.
         placeholder: Please input the upper limit of transmit speed
         hint:
           type: integer
