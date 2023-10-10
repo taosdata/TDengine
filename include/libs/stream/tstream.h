@@ -272,6 +272,7 @@ typedef struct SStreamStatus {
   bool    appendTranstateBlock;  // has append the transfer state data block already, todo: remove it
   int8_t  pauseAllowed;          // allowed task status to be set to be paused
   int32_t timerActive;           // timer is active
+  int32_t inScanHistorySentinel;
 } SStreamStatus;
 
 typedef struct SDataRange {
@@ -358,8 +359,6 @@ typedef struct STaskOutputInfo {
     STaskSinkSma           smaSink;
     STaskSinkFetch         fetchSink;
   };
-
-//  void*         pTimer;   // timer for launch sink tasks
   int8_t        type;
   STokenBucket* pTokenBucket;
 } STaskOutputInfo;
@@ -375,7 +374,7 @@ struct SStreamTask {
   SSTaskBasicInfo     info;
   STaskOutputQueue    outputq;
   STaskInputInfo      inputInfo;
-  STaskSchedInfo      schedInfo;  // todo remove it
+  STaskSchedInfo      schedInfo;
   STaskOutputInfo     outputInfo;
   SDispatchMsgInfo    msgInfo;
   SStreamStatus       status;

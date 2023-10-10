@@ -792,24 +792,24 @@ int32_t streamTaskFillHistoryFinished(SStreamTask* pTask) {
   return qStreamInfoResetTimewindowFilter(exec);
 }
 
-bool streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer) {
+bool streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t nextProcessVer) {
   SVersionRange* pRange = &pTask->dataRange.range;
-  ASSERT(latestVer >= pRange->maxVer);
+  ASSERT(nextProcessVer >= pRange->maxVer);
 
-  int64_t nextStartVer = pRange->maxVer + 1;
-  if (nextStartVer > latestVer - 1) {
-    // no input data yet. no need to execute the secondardy scan while stream task halt
+  int64_t walScanStartVer = pRange->maxVer + 1;
+  if (walScanStartVer > nextProcessVer - 1) {
+    // no input data yet. no need to execute the secondary scan while stream task halt
     streamTaskFillHistoryFinished(pTask);
     stDebug(
         "s-task:%s no need to perform secondary scan-history data(step 2), since no data ingest during step1 scan, "
         "related stream task currentVer:%" PRId64,
-        pTask->id.idStr, latestVer);
+        pTask->id.idStr, nextProcessVer);
     return true;
   } else {
     // 2. do secondary scan of the history data, the time window remain, and the version range is updated to
     // [pTask->dataRange.range.maxVer, ver1]
-    pRange->minVer = nextStartVer;
-    pRange->maxVer = latestVer - 1;
+    pRange->minVer = walScanStartVer;
+    pRange->maxVer = nextProcessVer - 1;
     return false;
   }
 }
