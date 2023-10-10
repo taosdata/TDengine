@@ -30,16 +30,16 @@ impl SourceConfig {
             host: dsn.addresses[0]
                 .host
                 .clone()
-                .ok_or_else(|| anyhow::anyhow!("host is required, dsn: {:?}", &dsn))?,
+                .ok_or_else(|| anyhow::anyhow!("host is required"))?,
             port: dsn.addresses[0].port.clone().unwrap_or(1433),
             username: dsn
                 .username
                 .clone()
-                .ok_or_else(|| anyhow::anyhow!("username is required, dsn: {:?}", &dsn))?,
+                .ok_or_else(|| anyhow::anyhow!("username is required"))?,
             password: dsn
                 .password
                 .clone()
-                .ok_or_else(|| anyhow::anyhow!("password is required, dsn: {:?}", &dsn))?,
+                .ok_or_else(|| anyhow::anyhow!("password is required"))?,
             table: dsn
                 .params
                 .get("table")

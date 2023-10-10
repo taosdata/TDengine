@@ -29,12 +29,12 @@ pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
                 support: false,
                 data_source: "historian".to_string(),
                 version: None,
-                message: Some(format!("invalid dsn: {}, cause: {:?}", dsn.to_string(), err)),
+                message: Some(format!("invalid dsn: {}, cause: {}", dsn.to_string(), err.to_string())),
             }
         }
         Ok(c) => {
-            let rt = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
-            let client = rt.block_on(connect(&c.host, c.port, &c.username, &c.password))?;
+            let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+            let client = rt.block_on(connect(&c.host, c.port, &c.username, &c.password));
             match client {
                 Err(err) => {
                     DataSourceValidation {
@@ -42,7 +42,7 @@ pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
                         support: false,
                         data_source: "historian".to_string(),
                         version: None,
-                        message: Some(format!("failed to connect to dsn: {}, cause: {:?}", dsn, err)),
+                        message: Some(format!("failed to connect to dsn: {}, cause: {}", dsn, err.to_string())),
                     }
                 }
                 Ok(_cli) => {
@@ -246,16 +246,39 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn test_is_valid() {
+        let dsn = Dsn::from_str("historian://localhost").unwrap();
+        let res = is_valid(&dsn);
+        assert_eq!(false, res.valid);
+        assert_eq!(false, res.support);
+        assert_eq!("historian", res.data_source);
+        assert_eq!("invalid dsn: historian://localhost, cause: username is required", res.message.unwrap());
+
+        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@127.0.0.1").unwrap();
+        let res = is_valid(&dsn);
+        assert_eq!(false, res.valid);
+        assert_eq!(false, res.support);
+        assert_eq!("historian", res.data_source);
+        assert_eq!("failed to connect to dsn: historian://aaAdmin:aaAdmin@127.0.0.1, cause: Connection refused (os error 61)", res.message.unwrap());
+
+        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433/").unwrap();
+        let res = is_valid(&dsn);
+        assert_eq!(true, res.valid);
+        assert_eq!(true, res.support);
+        assert_eq!("historian", res.data_source);
+    }
+
     #[tokio::test]
     async fn test_connect() {
         let client = connect(
-            "192.168.3.40".as_ref(),
+            &"127.0.0.1".to_string(),
             1433,
-            "aaAdmin".as_ref(),
-            "aaAdmin".as_ref(),
+            &"aaAdmin".to_string(),
+            &"aaAdmin".to_string(),
         ).await;
-
-        assert!(client.is_ok());
+        assert!(client.is_err());
+        assert_eq!("Connection refused (os error 61)", client.unwrap_err().to_string());
     }
 
     #[tokio::test]

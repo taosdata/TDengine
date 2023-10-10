@@ -11,8 +11,18 @@ pub struct DataSourceValidation {
     pub message: Option<String>,
 }
 
-impl Default for DataSourceValidation {
-    fn default() -> Self {
+impl DataSourceValidation {
+    pub fn invalid(data_source: String, message: String) -> DataSourceValidation {
+        DataSourceValidation {
+            valid: false,
+            support: false,
+            data_source,
+            version: None,
+            message: Option::from(message),
+        }
+    }
+
+    pub fn unknown() -> Self {
         Self {
             valid: false,
             support: false,

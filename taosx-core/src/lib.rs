@@ -138,7 +138,7 @@ pub fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
                 // TODO: pi backfill
                 // TODO: taos
                 // TODO: tmq
-                &_ => DataSourceValidation::default()
+                &_ => DataSourceValidation::unknown()
             }
         }
     }
@@ -429,5 +429,29 @@ impl TaskOpts {
             (_, _) => {}
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+    use taos::Dsn;
+    use super::*;
+
+    #[test]
+    fn test_validate_dsn() {
+        // historian
+        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433").unwrap();
+        let dsv = validate_dsn(dsn);
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("historian", dsv.data_source);
+
+        // kafka
+        let dsn = Dsn::from_str("kafka://192.168.1.92:9092").unwrap();
+        let dsv = validate_dsn(dsn);
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("kafka", dsv.data_source);
     }
 }

@@ -325,14 +325,21 @@ mod tests {
     fn test_is_valid() {
         let dsn = Dsn::from_str("kafka://192.168.1.92:9092,jf92:9092").unwrap();
         let result = is_valid(&dsn);
-        assert_eq!(r#"{"valid":true,"support":true,"data_source":"kafka"}"#, result);
+        assert_eq!(true, result.valid);
+        assert_eq!(true, result.support);
+        assert_eq!("kafka", result.data_source);
 
         let dsn = Dsn::from_str("kafka://127.0.0.1:9092").unwrap();
         let result = is_valid(&dsn);
-        assert_eq!(r#"{"valid":false,"support":true,"data_source":"kafka","message":"No host reachable"}"#, result);
+        assert_eq!(false, result.valid);
+        assert_eq!(true, result.support);
+        assert_eq!("kafka", result.data_source);
+        assert_eq!("No host reachable", result.message.unwrap());
 
         let dsn = Dsn::from_str("kafka://127.0.0.1:9092,jf92:9092").unwrap();
         let result = is_valid(&dsn);
-        assert_eq!(r#"{"valid":true,"support":true,"data_source":"kafka"}"#, result);
+        assert_eq!(true, result.valid);
+        assert_eq!(true, result.support);
+        assert_eq!("kafka", result.data_source);
     }
 }

@@ -25,6 +25,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{info, instrument, warn};
 
 use crate::{legacy::scheduler::Todo, Action};
+use crate::validation::DataSourceValidation;
 
 use self::scheduler::Scheduler;
 
@@ -418,6 +419,7 @@ struct WriteContext {
     metrics: Arc<LegacyMetrics>,
     remap: Option<Arc<HashMap<String, String>>>,
 }
+
 async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResult<()> {
     // write block
 
@@ -571,6 +573,7 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
     RawResult::Ok(())
 }
 
+/*
 // #[async_backtrace::framed]
 // async fn sync_single_table(
 //     from: &Taos,
@@ -638,6 +641,7 @@ async fn write_block(mut block: RawBlock, context: Arc<WriteContext>) -> RawResu
 //     }
 //     Ok(())
 // }
+*/
 
 #[async_backtrace::framed]
 async fn sync_single_table_partial(
@@ -1570,6 +1574,7 @@ pub enum SyncMode {
     /// It means sync history data, monitor the latest, and run forever.
     All,
 }
+
 impl FromStr for SyncMode {
     type Err = anyhow::Error;
 
@@ -1909,7 +1914,7 @@ impl TargetOpts {
                             }
                             None
                         })
-                        .collect_vec()
+                            .collect_vec()
                     })
                     .flatten_ok()
                     .try_collect::<_, Vec<_>, _>()?
@@ -2340,6 +2345,32 @@ async fn realtime(
             "tick tasks are all spawned. waiting for next interval tick..."
         );
         let _ = interval.tick().await;
+    }
+}
+
+pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+    let builder = <TaosBuilder as sync::TBuilder>::from_dsn(dsn);
+    match builder {
+        Err(err) => {
+            DataSourceValidation::invalid(
+                "taos".to_string(),
+                format!("invalid dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
+            )
+        }
+        Ok(b) => {
+            let conn = b.build();
+            match conn {
+                Err(err) => {
+                    DataSourceValidation::invalid(
+                        "taos".to_string(),
+                        format!("failed to connect to dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
+                    )
+                }
+                Ok(c) => {
+                    DataSourceValidation::default()
+                }
+            }
+        }
     }
 }
 
@@ -3032,7 +3063,7 @@ mod tests {
             limit: Limit::new((1, Some(1))),
             ..Default::default()
         };
-        legacy_to_taos(v3, vec![], v2, 1).await?;
+        legacy_to_taos(v3, vec![], v2, 1, CancellationToken::default()).await?;
         Ok(())
     }
 
