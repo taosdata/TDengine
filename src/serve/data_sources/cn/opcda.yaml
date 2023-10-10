@@ -70,12 +70,7 @@ datasets:
         hint:
           type: str
         required: true
-      - name: table_tag_value
-        display: Tag 值
-        description: 
-        hint:
-          type: str
-        required: false 
+
 
 groups:
   - name: 连接配置
