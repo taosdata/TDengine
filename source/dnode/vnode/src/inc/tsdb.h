@@ -680,6 +680,7 @@ typedef TARRAY2(STSnapRange *) TSnapRangeArray;  // disjoint snap ranges
 int32_t tSerializeSnapRangeArray(void *buf, int32_t bufLen, TSnapRangeArray *pSnapR);
 int32_t tDeserializeSnapRangeArray(void *buf, int32_t bufLen, TSnapRangeArray *pSnapR);
 void    tsdbSnapRangeArrayDestroy(TSnapRangeArray **ppSnap);
+SHashObj *tsdbGetSnapRangeHash(TSnapRangeArray *pRanges);
 
 // snap partition list
 typedef TARRAY2(SVersionRange) SVerRangeList;

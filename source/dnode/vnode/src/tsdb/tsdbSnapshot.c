@@ -1175,6 +1175,12 @@ static int32_t tVersionRangeCmprFn(SVersionRange* x, SVersionRange* y) {
   return 0;
 }
 
+static int32_t tsdbSnapRangeCmprFn(STSnapRange* x, STSnapRange* y) {
+  if (x->fid < y->fid) return -1;
+  if (x->fid > y->fid) return 1;
+  return 0;
+}
+
 STsdbSnapPartition* tsdbSnapPartitionCreate() {
   STsdbSnapPartition* pSP = taosMemoryCalloc(1, sizeof(STsdbSnapPartition));
   if (pSP == NULL) {
@@ -1478,10 +1484,13 @@ int32_t tsdbSnapPartListToRangeDiff(STsdbSnapPartList* pList, TSnapRangeArray** 
     r->fid = part->fid;
     r->sver = maxVerValid + 1;
     r->ever = VERSION_MAX;
-    tsdbInfo("range diff fid:%" PRId64 ", sver:%" PRId64 ", ever:%" PRId64, part->fid, r->sver, r->ever);
-    TARRAY2_APPEND(pDiff, r);
+    tsdbDebug("range diff fid:%" PRId64 ", sver:%" PRId64 ", ever:%" PRId64, part->fid, r->sver, r->ever);
+    int32_t code = TARRAY2_SORT_INSERT(pDiff, r, tsdbSnapRangeCmprFn);
+    ASSERT(code == 0);
   }
   ppRanges[0] = pDiff;
+
+  tsdbInfo("pDiff size:%d", TARRAY2_SIZE(pDiff));
   return 0;
 
 _err:
