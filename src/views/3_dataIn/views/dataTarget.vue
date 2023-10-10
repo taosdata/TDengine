@@ -12,6 +12,7 @@
           size="small"
           v-model="ruleForm.name"
           :placeholder="$t('dataIn.palceholders.taskName')"
+          @change="changeDBType"
         ></el-input>
       </el-form-item>
       <el-form-item :label="$t('type')" prop="type" size="small">
