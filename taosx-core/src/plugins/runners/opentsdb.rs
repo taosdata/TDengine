@@ -68,7 +68,7 @@ struct TaskConfig {
 #[derive(Debug, serde::Serialize)]
 struct PerformanceConfig {
     #[serde(rename = "readWindow")]
-    performance_read_window: Option<String>,
+    performance_read_window: u32,
     #[serde(rename = "delay")]
     performance_delay: u32,
     #[serde(rename = "maxThread")]
@@ -128,7 +128,7 @@ impl OpentsdbConfig {
         let task_end_ime = dsn.remove("endTime");
 
         // the performance config
-        let performance_read_window = dsn.remove("readWindow");
+        let performance_read_window = dsn.remove("readWindow").unwrap_or(String::from("2")).parse::<u32>().unwrap_or(2);
         let performance_delay = dsn.remove("delay").unwrap_or(String::from("10000")).parse::<u32>().unwrap_or(10000);
         let performance_max_thread = dsn.remove("maxThread").unwrap_or(String::from("50")).parse::<u32>().unwrap_or(50);
         let performance_queue_size_thread = dsn.remove("queueSizeT").unwrap_or(String::from("1000")).parse::<u32>().unwrap_or(1000);

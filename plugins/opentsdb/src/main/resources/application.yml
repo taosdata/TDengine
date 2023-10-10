@@ -37,7 +37,7 @@ performance:
   retryTimes: 3
   # millisecond
   retryInterval: 200
-  readWindow: m
+  readWindow: 1
   maxThread: 50
   queueSizeT: 1000
   queueSizeD: 500000
