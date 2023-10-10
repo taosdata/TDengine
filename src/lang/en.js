@@ -520,6 +520,7 @@ export default {
     renameColumn: 'Change column name'
   },
   dataIn: {
+    agentNameExist: 'Agent name "{0}" already exists',
     finish: 'Finish',
     uploadcsv:'Upload CSV',
     allpoints:'All Points',
@@ -1316,6 +1317,7 @@ export default {
       // Linux: <code>/etc/taos</code><br/>
       3:`IMPORTANT: Please save the endpoint and the generated token to a local file BEFORE clicking on the "Next" button. You can not retrieve them and will have to create a new agent if you lose it.<br/><br/>
       To ensure your agent works, please copy the endpoint and the generated token to the <code>agent.toml</code> file. This file can be found in the following directory:<br/>
+      Linux: <code>/etc/taos</code><br/>
 Windows: <code>C:\\Program Files\\taosx\\config</code>`,
       4: `Execute the following command in the shell.`,
       5: 'Check the agent running status with the following command in the shell.',

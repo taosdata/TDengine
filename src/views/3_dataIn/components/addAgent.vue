@@ -251,7 +251,6 @@ export default {
       if (this.loading) return;
       this.loading = true;
       const fn = this.agent?.id ? editAgent : addNewAgent;
-      console.log(fn,this.name,this.agent,'====');
       fn(this.name, this.agent?.id)
         .then(({ token }) => {
           this.$set(this.tokenMap, this.name, token);
@@ -298,6 +297,9 @@ export default {
   }
   .mb10{
     margin-bottom:10px;
+  }
+  .mb20{
+    margin-bottom:20px;
   }
 }
 </style>

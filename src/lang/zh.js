@@ -164,6 +164,7 @@ export default {
     selectPlan: "选择方案",
   },
   dataIn: {
+    agentNameExist: '代理名称“{0}”已存在',
     finish: '结束',
     uploadcsv:'上传CSV',
     allpoints:'所有点位',
