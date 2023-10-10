@@ -80,13 +80,14 @@ void*      streamBackendInit(const char* path, int64_t chkpId);
 void       streamBackendCleanup(void* arg);
 void       streamBackendHandleCleanup(void* arg);
 int32_t    streamBackendLoadCheckpointInfo(void* pMeta);
-int32_t    streamBackendDoCheckpoint(void* pMeta, uint64_t checkpointId);
+int32_t    streamBackendDoCheckpoint(void* pMeta, int64_t checkpointId);
 SListNode* streamBackendAddCompare(void* backend, void* arg);
 void       streamBackendDelCompare(void* backend, void* arg);
 int32_t    streamStateConvertDataFormat(char* path, char* key, void* cfInst);
 
 STaskBackendWrapper* taskBackendOpen(char* path, char* key);
 void                 taskBackendDestroy(void* pBackend);
+int32_t              taskBackendDoCheckpoint(void* arg, int64_t chkpId);
 
 void* taskBackendAddRef(void* pTaskBackend);
 void  taskBackendRemoveRef(void* pTaskBackend);

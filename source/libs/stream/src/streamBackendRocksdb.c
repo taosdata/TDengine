@@ -953,7 +953,15 @@ int32_t chkpPreBuildDir(char* path, int64_t chkpId, char** chkpDir, char** chkpI
 int32_t taskBackendBuildSnap(void* arg, int64_t chkpId) {
   SStreamMeta* pMeta = arg;
   void*        pIter = taosHashIterate(pMeta->pTaskBackendUnique, NULL);
+  int32_t      code = 0;
+
   while (pIter) {
+    STaskBackendWrapper* pBackend = *(STaskBackendWrapper**)pIter;
+    taskBackendAddRef(pBackend);
+
+    code = taskBackendDoCheckpoint((STaskBackendWrapper*)pBackend, chkpId);
+
+    taskBackendRemoveRef(pBackend);
     pIter = taosHashIterate(pMeta->pTaskBackendUnique, pIter);
   }
   return 0;
@@ -1024,7 +1032,10 @@ int32_t streamBackendDelInUseChkp(void* arg, int64_t chkpId) {
   // taosWUnLockLatch(&pMeta->chkpDirLock);
 }
 
-int32_t taskBackendDoCheckpoint(void* arg, uint64_t chkpId) {
+/*
+   0
+*/
+int32_t taskBackendDoCheckpoint(void* arg, int64_t chkpId) {
   STaskBackendWrapper* pBackend = arg;
   int64_t              st = taosGetTimestampMs();
   int32_t              code = -1;
@@ -1065,7 +1076,7 @@ _EXIT:
   taosReleaseRef(taskBackendWrapperId, refId);
   return code;
 }
-int32_t streamBackendDoCheckpoint(void* arg, uint64_t chkpId) { return taskBackendDoCheckpoint(arg, chkpId); }
+int32_t streamBackendDoCheckpoint(void* arg, int64_t chkpId) { return taskBackendDoCheckpoint(arg, chkpId); }
 
 SListNode* streamBackendAddCompare(void* backend, void* arg) {
   SBackendWrapper* pHandle = (SBackendWrapper*)backend;
@@ -1577,8 +1588,8 @@ void* taskBackendAddRef(void* pTaskBackend) {
   return taosAcquireRef(taskBackendWrapperId, pBackend->refId);
 }
 void taskBackendRemoveRef(void* pTaskBackend) {
-  // STaskBackendWrapper* pBackend = pTaskBackend;
-  // taosReleaseRef(taskBackendWrapperId, pBackend->refId);
+  STaskBackendWrapper* pBackend = pTaskBackend;
+  taosReleaseRef(taskBackendWrapperId, pBackend->refId);
 }
 // void taskBackendDestroy(STaskBackendWrapper* wrapper);
 

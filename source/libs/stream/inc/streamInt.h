@@ -40,6 +40,11 @@ typedef struct {
   SRpcMsg msg;
 } SStreamContinueExecInfo;
 
+typedef struct {
+  int64_t streamId;
+  int64_t taskId;
+  int64_t chkpId;
+} SStreamTaskSnap;
 extern SStreamGlobalEnv streamEnv;
 extern int32_t          streamBackendId;
 extern int32_t          streamBackendCfWrapperId;
