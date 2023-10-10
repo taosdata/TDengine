@@ -68,7 +68,12 @@ public class MetricThread implements Runnable {
     /**
      * 任务结束时间，用于判断进程退出
      */
-    private Date endTime = null;
+    private Date taskEndTime = null;
+
+    /**
+     * 当前时间（计算延迟时间后）
+     */
+    private Date now = null;
 
     @Override
     public void run() {
@@ -86,6 +91,8 @@ public class MetricThread implements Runnable {
                     sleep(this.performanceConfig.getThread().getCreateMetricFullInterval(), start, StatusEnums.NORMAL);
                     continue;
                 }
+                // 更新当前时间
+                this.now = new Date(System.currentTimeMillis() - performanceConfig.getDelay());
                 // 处理新增的metric
                 additionalMetric();
                 // 下一个时间段，英文逗号分割
@@ -93,7 +100,7 @@ public class MetricThread implements Runnable {
                 // 字符串格式不正确则睡眠后继续（应该是没有任务了）
                 if (StringUtils.isEmpty(timeRange) || timeRange.indexOf(",") <= 0) {
                     // 如果设置了endTime并且now>endTime并且任务已运行完成，正常退出进程
-                    if (StringUtils.isNotEmpty(taskConfig.getEndTime()) && this.endTime.before(new Date())) {
+                    if (StringUtils.isNotEmpty(taskConfig.getEndTime()) && this.taskEndTime.before(this.now)) {
                         // 判断是否可以退出进程
                         if (StatisticCache.createdTaskSet.size() >= StatisticCache.totalReadTaskEstimated && StatisticCache.completedTaskSet.size() >= StatisticCache.createdTaskSet.size() && StatisticCache.totalPush.get() >= StatisticCache.totalRead.get()) {
                             Thread.sleep(5000L);
@@ -255,14 +262,14 @@ public class MetricThread implements Runnable {
             throw new Exception("parameter beginTime configuration error.");
         }
         if (StringUtils.isEmpty(endTime)) {
-            endTime = DateUtils.getTime(DateUtils.DATE_FORMAT_21);
+            endTime = DateUtils.dateToString(this.now, DateUtils.DATE_FORMAT_21);
         } else if (!endTime.matches(DateUtils.PATTERN_YMDHMS_TZ)) {
             throw new Exception("parameter endTime configuration error.");
         }
         // 转换格式
         Date begin = DateUtils.stringWithZoneToDate(beginTime);
         Date end = DateUtils.stringWithZoneToDate(endTime);
-        this.endTime = end;
+        this.taskEndTime = end;
         // 默认按分钟拆分
         if (StringUtils.isEmpty(readWindow)) {
             readWindow = "M";
@@ -291,15 +298,13 @@ public class MetricThread implements Runnable {
         // 根据index计算开始时间与结束时间
         long begin = beginTime.getTime() + index * 24 * 60 * 60 * 1000;
         long end = begin + 24 * 60 * 60 * 1000;
-        // 当前时间
-        long now = new Date().getTime();
-        // 如果begin晚于now，返回空
-        if (begin >= now) {
-            return null;
-        }
         // 判断上次结束时间是否完成一个窗口，未完成则回退窗口并继续
         if (begin > this.lastEnd && this.lastEnd > 0) {
             return resumeByLastEnd(begin, endTime.getTime());
+        }
+        // 如果begin晚于now，返回空
+        if (begin >= this.now.getTime()) {
+            return null;
         }
         // 判断是否超过指定时间范围
         if (begin >= endTime.getTime()) {
@@ -309,17 +314,12 @@ public class MetricThread implements Runnable {
         if (end > endTime.getTime()) {
             // end晚于endTime，改为endTime
             end = endTime.getTime();
-        } else if (end > now) {
+        } else if (end > this.now.getTime()) {
             // end晚于now，改为now（设置了一个晚于now的endTime）
-            end = now;
+            end = this.now.getTime();
         }
         // 更新lastEnd
-        if (now - end < performanceConfig.getTolerance()) {
-            // 距离当前时间较近时，调整lastEnd，增加下次查询范围
-            this.lastEnd = end - performanceConfig.getTolerance();
-        } else {
-            this.lastEnd = end;
-        }
+        this.lastEnd = end;
         // 返回时间范围
         return new Date(begin).getTime() + "," + new Date(end).getTime();
     }
@@ -336,15 +336,13 @@ public class MetricThread implements Runnable {
         // 根据index计算开始时间与结束时间
         long begin = beginTime.getTime() + index * 60 * 60 * 1000;
         long end = begin + 60 * 60 * 1000;
-        // 当前时间
-        long now = new Date().getTime();
-        // 如果begin晚于now，返回空
-        if (begin >= now) {
-            return null;
-        }
         // 判断上次结束时间是否完成一个窗口，未完成则回退窗口并继续
         if (begin > this.lastEnd && this.lastEnd > 0) {
             return resumeByLastEnd(begin, endTime.getTime());
+        }
+        // 如果begin晚于now，返回空
+        if (begin >= this.now.getTime()) {
+            return null;
         }
         // 判断是否超过指定时间范围
         if (begin >= endTime.getTime()) {
@@ -354,17 +352,12 @@ public class MetricThread implements Runnable {
         if (end > endTime.getTime()) {
             // end晚于endTime，改为endTime
             end = endTime.getTime();
-        } else if (end > now) {
+        } else if (end > this.now.getTime()) {
             // end晚于now，改为now（设置了一个晚于now的endTime）
-            end = now;
+            end = this.now.getTime();
         }
         // 更新lastEnd
-        if (now - end < performanceConfig.getTolerance()) {
-            // 距离当前时间较近时，调整lastEnd，增加下次查询范围
-            this.lastEnd = end - performanceConfig.getTolerance();
-        } else {
-            this.lastEnd = end;
-        }
+        this.lastEnd = end;
         // 返回时间范围
         return new Date(begin).getTime() + "," + new Date(end).getTime();
     }
@@ -381,15 +374,13 @@ public class MetricThread implements Runnable {
         // 根据index计算开始时间与结束时间
         long begin = beginTime.getTime() + index * 60 * 1000;
         long end = begin + 60 * 1000;
-        // 当前时间
-        long now = new Date().getTime();
-        // 如果begin晚于now，返回空
-        if (begin >= now) {
-            return null;
-        }
         // 判断上次结束时间是否完成一个窗口，未完成则回退窗口并继续
         if (begin > this.lastEnd && this.lastEnd > 0) {
             return resumeByLastEnd(begin, endTime.getTime());
+        }
+        // 如果begin晚于now，返回空
+        if (begin >= this.now.getTime()) {
+            return null;
         }
         // 判断是否超过指定时间范围
         if (begin >= endTime.getTime()) {
@@ -399,17 +390,12 @@ public class MetricThread implements Runnable {
         if (end > endTime.getTime()) {
             // end晚于endTime，改为endTime
             end = endTime.getTime();
-        } else if (end > now) {
+        } else if (end > this.now.getTime()) {
             // end晚于now，改为now（设置了一个晚于now的endTime）
-            end = now;
+            end = this.now.getTime();
         }
         // 更新lastEnd
-        if (now - end < performanceConfig.getTolerance()) {
-            // 距离当前时间较近时，调整lastEnd，增加下次查询范围
-            this.lastEnd = end - performanceConfig.getTolerance();
-        } else {
-            this.lastEnd = end;
-        }
+        this.lastEnd = end;
         // 返回时间范围
         return new Date(begin).getTime() + "," + new Date(end).getTime();
     }
@@ -431,12 +417,7 @@ public class MetricThread implements Runnable {
             // 以min(newBegin, newEnd)为结束
             long end = Math.min(newBegin, newEnd);
             // 更新lastEnd
-            if (System.currentTimeMillis() - end < performanceConfig.getTolerance()) {
-                // 距离当前时间较近时，调整lastEnd，增加下次查询范围
-                this.lastEnd = end - performanceConfig.getTolerance();
-            } else {
-                this.lastEnd = end;
-            }
+            this.lastEnd = end;
             // 返回时间范围
             return new Date(begin).getTime() + "," + new Date(end).getTime();
         } else {
