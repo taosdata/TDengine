@@ -1333,7 +1333,7 @@ export default {
                     : "") +
                   dns
                 : this.tagName == "opentsdb"
-                ? this.tagName + "+" + dns
+                ? this.tagName + (data.protocol?.value ? "+" : '') + dns
                 : this.tagName + dns,
             name: this.sourceName,
             //   + (data.protocol?(Object.is(data.protocol.value, "--") ? "" : "+"):'') + dns,
