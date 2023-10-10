@@ -1399,6 +1399,15 @@ export default {
           }
         }
 
+        if (!this.$store.state.app.currentDSName) {
+          Message.warning(`${enterTip} ${this.$t('name')}`);
+          return;
+        }
+        if (!this.$store.state.app.currentDBName) {
+          Message.warning(`${enterTip} ${this.$t('stream.targetDB')}`);
+          return;
+        }
+
         if (data.authentication && data.authentication.value == "plain") {
           if (
             data.authentication.alternatives[this.tagName == "mqtt" ? 0 : 1]
