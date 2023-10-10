@@ -362,7 +362,6 @@ export default {
       this.$parent.sourceName = data.name;
       this.$parent.currentTaskStatus = status;
       this.$parent.agentID = data?.via;
-      this.$emit('setEditStaus',true)
       if (data.from_detail) {
         this.$store.commit("app/SET_CURRENT_DBTYPE", data.from_detail?.id);
 
@@ -403,7 +402,7 @@ export default {
           this.$store.commit("app/SET_MQTT_PARSER", parser);
           this.$parent.parserobj = deepClone(parser);
         }
-        if (data.from_expand && data.from_expand.id == "opcua") {
+        if (data.from_expand && (data.from_expand.id == "opcua"||data.from_expand.id == "opcda")) {
           let dnsarr = data.from.split("?")[1].split("&");
           let fileindex = dnsarr.findIndex((item) =>
             item.includes("csv_config_file=")
@@ -413,7 +412,10 @@ export default {
               .filter((item) => item.includes("csv_config_file="))[0]
               .split("=")[1]
               .replace("@", "");
+              editDdata[0].datasets.value='csv_config_file'
             this.$store.commit("app/SET_OPC_UANODES", [].concat(file));
+          }else{
+           editDdata[0].datasets.value='select_all_points'
           }
 
           let certfile = dnsarr
@@ -449,7 +451,6 @@ export default {
           this.$emit('setEditData',editDdata)
         // this.$set(this.$parent.uidata,0,editDdata)
         // this.$parent.uidata = editDdata;
-        console.log(data, status, iscopy,editDdata,data.from_detail, "编辑操作");
         localStorage.setItem("datainName", data.name);
         this.$parent.toggleComponent(
           "",
@@ -465,7 +466,6 @@ export default {
       this.edit(data, status, true);
     },
     addDbSource() {
-      this.$emit('setEditStaus',false)
       this.$store.commit("app/SET_CURRENT_DBNAME", "");
       this.$store.commit("app/SET_CURRENT_AGENT", "");
       this.$store.commit("app/SET_CURRENT_DSNAME", "");
@@ -505,13 +505,11 @@ export default {
     async checkMetrics(data, status) {
       try {
         let result = await getMetrics(data.id);
-        console.log(result, "8888");
         if (result.message) {
           Message.error(result.message);
           return;
         }
         let array = Object.entries(result);
-        console.log(Array.from(array).length == 0, "metrics9999");
         if (Array.from(array).length == 0) {
           switch (status) {
             case "running":

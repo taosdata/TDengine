@@ -12,6 +12,7 @@
           size="small"
           v-model="ruleForm.name"
           :placeholder="$t('dataIn.palceholders.taskName')"
+          @change="setTaskName"
         ></el-input>
       </el-form-item>
       <el-form-item :label="$t('type')" prop="type" size="small">
@@ -173,7 +174,11 @@ export default {
     this.getInitValue();
   },
   methods: {
+    setTaskName(){
+      this.$store.commit("app/SET_CURRENT_DSNAME", this.ruleForm.name);
+    },
     changeAgent() {
+      
       this.$store.commit("app/SET_CURRENT_AGENT", this.ruleForm.agent);
     },
     changeDB() {
@@ -214,7 +219,6 @@ export default {
       this.$store.commit("app/SET_CURRENT_AGENT", this.ruleForm.agent);
       this.$store.commit("app/SET_CURRENT_DSNAME", this.ruleForm.name);
       this.$store.commit("app/SET_CURRENT_DBTYPE", this.ruleForm.type);
-      console.log("切换数据源", this.ruleForm.type);
     },
     getAgents() {
       this.agentList = this.$store.state.app.agentLists;
@@ -295,8 +299,8 @@ export default {
       deep: true,
       handler(val) {
         this.agentList = val;
-        this.ruleForm.agent = val.at(-1);
-        console.log(val, "最新的agent列表");
+        this.ruleForm.agent = val[val.length-1].id
+        this.$store.commit("app/SET_CURRENT_AGENT", this.ruleForm.agent);
       },
     },
   },

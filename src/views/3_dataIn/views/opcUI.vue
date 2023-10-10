@@ -652,6 +652,7 @@
                   </template>
                   <template v-else-if="p.hint && p.hint.type === 'bool'">
                     <!-- <p-three-checkbox :data="checkboxData" v-model="p.value" /> -->
+
                     <el-switch
                       v-model="p.value"
                       :active-value="'true'"
@@ -764,7 +765,7 @@
                         false-label="false"
                       ></el-checkbox> -->
                       
-                 
+
                       <el-switch
                         v-model="p.value"
                         :active-value="'true'"
@@ -778,7 +779,7 @@
                       v-model="p.value"
                       @changeThreeCheckbox="getThreeBoxNum($event, p)"
                     /> -->
-                   
+<!-- <span style="color:purple;font-size:36px;">{{ p.name }} </span> -->
                     <el-switch
                       v-model="p.value"
                       :active-value="'true'"
@@ -1101,11 +1102,7 @@ export default {
         });
       }
     }
-    console.log(
-        this.dbsource[0].datasets.categories[0],
-        "当前的opc状态",
-        this.isEditable
-      );
+    
     if (this.tagName.includes("opc") && this.isEditable) {
       
       let certitem = this.$store.state.app.opccertfiles[0];
@@ -1177,7 +1174,7 @@ export default {
           return
         }
         // via=${this.$store.state.app.currentAgentID}
-        let params = `opcua://${this.dbsource[0].options.endpoint.value}&categories=nodes`;
+        let params = `opcua://${this.dbsource[0].options.endpoint.value}&categories=nodes&via=${this.$store.state.app.currentAgentID}`;
         let result = await downlaodAllNodes(params);
         let blob = new Blob([result], { type: "text/csv,charset=UTF-8" });
         let link = document.createElement("a");
@@ -1361,7 +1358,6 @@ export default {
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
       let enterTip = this.$t("dataIn.enterTip");
-      console.log("submit");
       try {
         if (data.protocol && data.protocol.value) {
           dns += Object.is(data.protocol.value, "--")
@@ -1541,9 +1537,9 @@ export default {
                       data.groups[index].params[g].name != "opc_table_config"
                     ) {
                       if (
-                        data.groups[index].params[g].name == "debug" ||
-                        data.groups[index].params[g].name == "use_csv_config" ||
-                        data.groups[index].params[g].name == "enable"
+                        // data.groups[index].params[g].name == "debug" ||
+                        data.groups[index].params[g].name == "use_csv_config" 
+                        // data.groups[index].params[g].name == "enable"
                       ) {
                         querystr +=
                           `${data.groups[index].params[g].name}=${
@@ -1552,7 +1548,6 @@ export default {
                               : false
                           }` + "&";
                       } else {
-                        console.log("haha", data.groups[index].params[g].value);
                         querystr +=
                           `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
                           "&";
@@ -1686,11 +1681,6 @@ export default {
         }
 
         if (this.tagName.includes("opc")) {
-          console.log(
-            "opc----8888",
-            this.opcPointavalible,
-            this.dbsource[0].datasets
-          );
           // if (this.opcPointavalible) {
           // let oldData = this.$store.state.app.opcConfig;
           // let columnCons = oldData.column_configs.filter((item) =>
@@ -1728,7 +1718,6 @@ export default {
             }
             let prefix = dns.split("?")[0];
             let dnsarr = dns.split("?")[1].split("&");
-            console.log(dnsarr, "opc文件上传---0099");
             let ind = dnsarr.findIndex((item) =>
               item.includes("csv_config_file")
             );
@@ -1748,7 +1737,6 @@ export default {
               allStr+=`${item.name}=${item.value}`+(index<=1?'&':'')
             })
             dns+='&'+allStr+`&select_all_points=true`
-            console.log(dns,allStr,'opc---拼接参数','------',this.dbsource[0].datasets);
           }
 
           // }
@@ -1762,7 +1750,7 @@ export default {
               : this.tagName == "kafka"
               ? "kafka"
               : "opc" + this.protocol) + dns,
-          name: this.sourceName,
+          name: this.$store.state.app.currentDSName,
           to:
             "taos+" +
             localStorage.getItem("base_url") +
@@ -1775,7 +1763,6 @@ export default {
             `user::${localStorage.getItem("username")}`,
           ],
         };
-        console.log("拼接参数");
         if (this.tagName == "mqtt") {
           piParams["parser"] = this.$store.state.app.mqttParser;
         }
@@ -1794,7 +1781,6 @@ export default {
             },
           };
         }
-        console.log(this.$store.state.app.currentAgentID, "拼接代理");
         if (this.$store.state.app.currentAgentID) {
           piParams["via"] = this.$store.state.app.currentAgentID;
         }
@@ -1906,7 +1892,6 @@ export default {
     },
 
     handleClick(tab, event) {
-      console.log(tab, event, "切换opc数据源");
       this.isShowConfiguration = false;
       this.configurationdata = [];
       this.activeDataSet = {};
@@ -2050,7 +2035,6 @@ export default {
           offset: 0,
           limit: 10,
         };
-        console.log(this.$store.state.app.currentAgentID, "拼接代理2");
         if (this.$store.state.app.currentAgentID) {
           const viaObj = {
             via: this.$store.state.app.currentAgentID,

@@ -134,7 +134,6 @@ export default {
       if (type&&!this.isEditable) {
         //新增
         let data = this.sourceList.filter((item) => item.id === type);
-        console.log(data,'复制操作');
         if (type == "mqtt" || type == "kafka") {
           // this.uidata = this.deepClone(data);
           this.$set(this.uidata,0,this.deepClone(data)[0])
@@ -213,7 +212,6 @@ export default {
             this.tagName = "kafka";
             break;
         }
-        console.log(this.currentName,'当前组件',this.uidata );
       } else {
         switch (id) {
           case "tmq":
