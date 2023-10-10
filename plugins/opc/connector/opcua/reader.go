@@ -426,7 +426,6 @@ func (r *reader) subscribeNodes(ctx context.Context) (sub *opcua.Subscription, c
 				n.nodeID, ua.AttributeIDValue, uint32(idx))); err != nil {
 				logger.Error("## subscribe monitor for node failed", "node", n.nodeID.String(), "error", err)
 				errCh <- err
-
 			}
 		}(i, node, &wait)
 	}
@@ -593,7 +592,10 @@ func (r *reader) getAllNodes(ctx context.Context) (nodes []common.Point, err err
 		return nil, err
 	}
 	rootNode := r.client.Node(rootId)
+	start := time.Now()
 	nodes, err = r.browse(ctx, rootNode)
+	spend := time.Since(start)
+	logger.InfoF("## browse all nodes spend %dms", spend.Milliseconds())
 	return
 }
 
@@ -646,6 +648,7 @@ BK:
 }
 
 func (r *reader) browseChildrenNode(ctx context.Context, node *opcua.Node) (leaves []*opcua.Node, nodes []*opcua.Node, err error) {
+	start := time.Now()
 	childrenNodes, err := node.ChildrenWithContext(ctx, 0, ua.NodeClassAll)
 	if err != nil {
 		return nil, nil, fmt.Errorf("get child for node %s error %v", node.String(), err)
@@ -662,11 +665,17 @@ func (r *reader) browseChildrenNode(ctx context.Context, node *opcua.Node) (leav
 		nodes = append(nodes, child)
 	}
 
+	if r.debug {
+		spend := time.Since(start)
+		logger.DebugF("## browse children node [%s] length [%d] spend [%d]ms", node.String(), len(nodes), spend.Milliseconds())
+	}
+
 	return
 }
 
 func (r *reader) getNodeName(ctx context.Context, node *opcua.Node) (name string, err error) {
-	if browseName, err := node.BrowseNameWithContext(ctx); err == nil {
+	var browseName *ua.QualifiedName
+	if browseName, err = node.BrowseNameWithContext(ctx); err == nil {
 		name = browseName.Name
 	}
 	return
