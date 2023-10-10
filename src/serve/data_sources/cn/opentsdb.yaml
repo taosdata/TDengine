@@ -58,22 +58,56 @@ groups:
         placeholder: YYYY-MM-DD HH:mm:ss
         hint: time
       - name: readWindow
-        display: 读取窗口
-        description: 选择一个读取窗口类型（D-天、H-小时、M-分钟），如果未指定，默认按“M-分钟”
-        placeholder: 请选择读取窗口类型
-        value: 'M'
+        display: 读取窗口（分钟）
+        description: OpenTSDB 查询数据接口需指定时间范围，如果指定范围内数据量极大（建议不超过20万），则 OpenTSDB 服务容易发生故障，如果范围小则查询次数过多，用户需要根据数据密度进行设置。
+        placeholder: 请输入读取窗口
         hint:
-          type: str
-          choices:
-            - D
-            - H
-            - M
-      - name: tolerance
-        display: 容错间隔（毫秒）
-        description: 在同步实时数据时，每个窗口向前重叠时长，以尽量保证数据完整。
-        placeholder: 请输入容错间隔
+          type: integer
+          min: 1
+          max: 6000
+        value: 2
+      - name: delay
+        display: 延迟间隔（毫秒）
+        description: 在同步实时数据时，仅同步指定间隔时间之前的数据，以尽量保证数据完整（单位：毫秒）。
+        placeholder: 请输入延迟间隔
         hint:
           type: integer
           min: 1
           max: 30000
         value: 10000
+      - name: maxThread
+        display: 读库线程数量上限
+        description: 程序使用多线程读取 OpenTSDB 数据，可根据服务器性能调整读库线程数量上限。
+        placeholder: 请输入读库线程数量上限
+        hint:
+          type: integer
+          min: 1
+          max: 150
+        value: 50
+      - name: queueSizeT
+        display: 线程缓存数量上限
+        description: 读库线程先缓存到内存队列，再由调度线程依次启动，可根据服务器性能调整线程缓存数量上限。
+        placeholder: 请输入线程缓存数量上限
+        hint:
+          type: integer
+          min: 10
+          max: 2000
+        value: 1000
+      - name: queueSizeD
+        display: 数据缓存数量上限
+        description: 读取 OpenTSDB 数据先缓存到内存队列，再由推送线程向下游传输，可根据服务器性能调整数据缓存数量上限。
+        placeholder: 请输入数据缓存数量上限
+        hint:
+          type: integer
+          min: 10000
+          max: 500000
+        value: 200000
+      - name: limitSpeed
+        display: 传输速度上限
+        description: OpenTSDB 数据向下游传输，为避免下游压力，需要限制传输速度，可根据服务器性能调整速度上限。
+        placeholder: 请输入传输速度上限
+        hint:
+          type: integer
+          min: 5000
+          max: 500000
+        value: 100000

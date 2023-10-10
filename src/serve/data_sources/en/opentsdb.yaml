@@ -59,22 +59,56 @@ groups:
         placeholder: YYYY-MM-DD HH:mm:ss
         hint: time
       - name: readWindow
-        display: Read Window
-        description: Select a type of read window(D-Day, H-Hour, M-Minute), if empty, it defaults to "M-Minute"
-        placeholder: Please select the type of read window
-        value: 'M'
+        display: Read Window(m)
+        description: Query OpenTSDB needs to specify a timerange. If the range has a large amount of data (exceed 200000), the OpenTSDB service is prone to failure. If the range is small, the number of queries is too high. Allows you to set it based on data density.
+        placeholder: Please input the read window
         hint:
-          type: str
-          choices:
-            - D
-            - H
-            - M
-      - name: tolerance
-        display: Tolerance interval(ms)
-        description: When synchronizing real-time data, overlap each window forward to ensure data integrity
-        placeholder: Please input the tolerance interval
+          type: integer
+          min: 1
+          max: 6000
+        value: 2
+      - name: delay
+        display: Delay interval(ms)
+        description: When synchronizing real-time data, only synchronize data before the specified interval time to ensure data integrity
+        placeholder: Please input the delay interval
         hint:
           type: integer
           min: 1
           max: 30000
         value: 10000
+      - name: maxThread
+        display: Maximum Read Threads
+        description: Multiple threads read OpenTSDB data, allows you to adjust the maximum number of read threads based on server performance.
+        placeholder: Please input the maximum number of read threads
+        hint:
+          type: integer
+          min: 1
+          max: 150
+        value: 50
+      - name: queueSizeT
+        display: Maximum Thread Caches
+        description: Threads are cached in the memory queue, and then started in sequence, allows you to adjust the maximum number of thread caches based on server performance.
+        placeholder: Please input the maximum number of thread caches
+        hint:
+          type: integer
+          min: 10
+          max: 2000
+        value: 1000
+      - name: queueSizeD
+        display: Maximum Data Caches
+        description: OpenTSDB datas are cached in the memory queue, and then transmitted downstream, allows you to adjust the maximum number of data caches based on server performance.
+        placeholder: Please input the maximum number of data caches
+        hint:
+          type: integer
+          min: 10000
+          max: 500000
+        value: 200000
+      - name: limitSpeed
+        display: Transmit Speed Limit
+        description: To avoid downstream pressure, the transmit speed needs to be limited, allows you to adjust the upper limit of speed based on server performance.
+        placeholder: Please input the upper limit of transmit speed
+        hint:
+          type: integer
+          min: 5000
+          max: 500000
+        value: 100000
