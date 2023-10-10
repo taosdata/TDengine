@@ -411,7 +411,7 @@
                           <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadAfElement') }}</el-button>
                       </el-tooltip>
                     </template>
-                    <el-tooltip v-if="isEditable&&p.value" class="item" effect="light" :content="$t('downloadCSVInUseTip')" placement="top-start">
+                    <el-tooltip v-if="isEditable&&p.value&&p.value!='*'" class="item" effect="light" :content="$t('downloadCSVInUseTip')" placement="top-start">
                       <a :href="downloadUrl+p.value" download style="padding-left: 16px;">
                         <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadCSVInUse') }}</a>
                     </el-tooltip>
@@ -876,15 +876,17 @@ export default {
         this.dbsource[0].datasets.params = this.dbsource[0]?.datasets?.
           params.map((p) => {
             if (p.value) {
-              p.fileList = [].concat({
-                name: p.value?.substr(p.value.lastIndexOf("/") + 1),
-                percentage: 100,
-                raw: File,
-                response: [].concat(p.value),
-                size: 87,
-                status: "success",
-                uid: 1,
-              });
+              if(p.value != '*') {
+                p.fileList = [].concat({
+                  name: p.value?.substr(p.value.lastIndexOf("/") + 1),
+                  percentage: 100,
+                  raw: File,
+                  response: [].concat(p.value),
+                  size: 87,
+                  status: "success",
+                  uid: 1,
+                });
+              }
               this.activeRadio = p.value.includes('@') ? 'select_file' : 'all_points'
               p.value = p.value?.substr(p.value.lastIndexOf("@") + 1);
               this.activeName = p.name
@@ -1470,6 +1472,8 @@ export default {
         URL.revokeObjectURL(link.href);
         document.body.removeChild(link);
         this.loading = false;
+      }).catch(err => {
+        this.loading = false
       })
     },
     searchDatas: debounce(function (name) {
