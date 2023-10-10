@@ -1634,7 +1634,7 @@ impl TaskController {
         Ok(())
     }
 
-    pub async fn offsets(&self, id: i64) -> anyhow::Result<Option<String>> {
+    pub async fn offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
         let task = self.get(id).await?;
         match task {
             Some(task) => {
@@ -1658,18 +1658,18 @@ impl TaskController {
         }
     }
 
-    pub async fn taos_offsets(&self, id: i64) -> anyhow::Result<Option<String>> {
+    pub async fn taos_offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
         let offsets = breakpoints_get_all(id.to_string().as_str())?;
         // dbg!(&offsets);
-        let res = serde_json::to_string(&offsets)?;
+        let res = serde_json::to_value(&offsets)?;
         Ok(Some(res))
     }
 
-    pub async fn tmq_offsets(&self, id: i64) -> anyhow::Result<Option<String>> {
+    pub async fn tmq_offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
         let offsets = self.offsets.read().await.get(&id).cloned();
         match offsets {
             Some(offsets) => {
-                let res = format!("{:?}", offsets);
+                let res = serde_json::from_str(&format!("{:?}", offsets))?;
                 Ok(Some(res))
             }
             None => Ok(None),
