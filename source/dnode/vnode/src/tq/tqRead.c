@@ -788,6 +788,7 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas
 
   int32_t sversion = pSubmitTbData->sver;
   int64_t uid = pSubmitTbData->uid;
+  pReader->lastBlkUid = uid;
 
   tDeleteSchemaWrapper(pReader->pSchemaWrapper);
   pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1);
