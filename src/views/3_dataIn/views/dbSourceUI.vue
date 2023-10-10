@@ -1058,6 +1058,14 @@ export default {
             return;
           }
         }
+        if (!this.sourceName) {
+          Message.warning(`${enterTip} ${this.$t('name')}`);
+          return;
+        }
+        if (!this.$store.state.app.currentDBName) {
+          Message.warning(`${enterTip} ${this.$t('stream.targetDB')}`);
+          return;
+        }
         if (this.tagName === "taos") {
           if (data.authentication.value == "plain") {
             let userinfo = data.authentication.alternatives.filter(
@@ -1286,7 +1294,7 @@ export default {
           from:
             (this.tagName === "datasource" ? "tmq" : "taos") +
             (data.protocol
-              ? Object.is(data.protocol.value, "--")
+              ? (Object.is(data.protocol.value, "--") || !data.protocol.value)
                 ? ""
                 : "+"
               : "") +
