@@ -1,17 +1,18 @@
 use std::collections::BTreeMap;
 
+use actix_files::NamedFile;
 use actix_web::{
     get,
     http::header::ContentType,
     post,
     web::{self, Data, Json, Query},
-    HttpResponse, Responder,
+    HttpResponse, Responder, HttpRequest,
 };
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use taos::Code;
-use taosx_core::{list_datasets_from, DataSetsReq};
+use taosx_core::{list_datasets_from, DataSetsReq, DataSet};
 use utoipa::*;
 
 mod definition;
@@ -216,5 +217,86 @@ pub(super) async fn data_source_collection(
             code: 0xFFFF.into(),
             message: format!("{:#}", err),
         }),
+    }
+}
+
+#[utoipa::path(
+    tag = "data sources",
+    // request_body = DataSetsReq,
+    responses(
+        (status = 200, description = "Available data sources", body = Vec<DataSets>),
+        (status = 500, description = "List data sets error", body = Failed),
+    ),
+)]
+#[get("/ds/in/download/all_data_sets")]
+pub(super) async fn download_all_data_set_file(
+    controller: Data<TaskControllerRef>,
+    params: Query<DownloadAllPointsParams>,
+    // data: Query<DataSetsReq>,
+    req: HttpRequest,
+) -> impl Responder {
+     // match download_all_point_csv_file(controller, data).await {
+     match download_all_point_csv_file(controller, params).await {
+        Ok(named_file) => named_file.into_response(&req),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: 0xFFFF.into(),
+            message: format!("{:#}", err),
+        }),
+    }
+}
+
+#[derive(Debug, Deserialize, ToSchema, IntoParams)]
+pub struct DownloadAllPointsParams {
+    from: String,
+    via: Option<i64>,
+    categories: String,
+}
+
+async fn download_all_point_csv_file(
+    controller: Data<TaskControllerRef>,
+    // data: Query<DataSetsReq>,
+    params: Query<DownloadAllPointsParams>,
+) -> anyhow::Result<NamedFile> {
+    let params = params.into_inner();
+    let data = get_all_points(params.from, params.via, params.categories, controller.into_inner().as_ref()).await?;
+    
+    let ids  = data.into_iter().map(|set| set.id).join("\n");
+    let mut config_file = tempfile::NamedTempFile::new()?;
+    tracing::debug!("temp file path: {}", &config_file.path().to_str().unwrap_or(""));
+    use std::io::Write;
+    write!(config_file, "{}", &ids)?;
+    Ok(NamedFile::open(config_file.path().to_path_buf())?)
+}
+
+use crate::serve::TaskController;
+pub(crate) async fn get_all_points(from: String, via: Option<i64>, categories: String, controller: &TaskController) -> anyhow::Result<Vec<DataSet>> {
+    use taos::IntoDsn;
+    let from = from.into_dsn()?;
+    let pattern;
+    match from.driver.as_str() {
+        "pi" | "pibackfill" => {
+            pattern = Some(String::from("*"));
+        },
+        _ => {
+            pattern = Some(String::from(".*"));
+        }
+    }
+    let limit = usize::MAX / 2 - 1; // cause usize::MAX out of range i64 type when exec toml::to_string()
+    let data  = DataSetsReq {
+        from: from.to_string(),
+        categories: vec![categories],
+        via,
+        offset: 0,
+        pattern,
+        limit,
+        lang: None,
+    };
+    match if let Some(agent) = data.via {
+        controller.list_datasets_via_agent(agent, data).await
+    } else {
+        list_datasets_from(&data).await
+    } {
+        Ok(data) => Ok(data),
+        Err(err) => Err(err),
     }
 }

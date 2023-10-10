@@ -18,60 +18,13 @@ description: |
   A TMQ data source can subscribe to data from a database or a specified table. The table must be specified in the "database.tablename" format.
 
 type: uri
-protocol:
-  display: Protocol
-  description:
-    Choose a protocol scheme for websocket connection, leave it empty for native connection
-  choices:
-    - name: "--"
-      display: Native
-      description: Use libtaos client library for connection
-    - name: ws
-      display: WS
-      description: Use WebSocket with HTTP connection.
-    - name: wss
-      display: WSS
-      description: Use WebSocket with HTTPS connection.
 options:
-  host:
-    display: Host
-    description:
-      TDengine fqdn. Leave it empty if use server localhost(relative to taosX server).
-    placeholder: server
-  port:
-    display: Port
-    description: TDengine connection port, leave it empty if use default port.
-    placeholder: auto
-  subject:
+  endpoint:
+    display: Topic DSN
     required: true
-    display: Topics
-    description: Database name, database.table name or topic name is all available.
-    placeholder: "Example: db1,db1.stb1,topic1"
-authentication:
-  display: Authentication
-  description: Use username/password plain authentication or with **token**.
-  value: plain
-  alternatives:
-    - name: plain
-      display: Plain
-      description: Use username and password.
-      username:
-        display: Username
-        description: TDengine username. The default is root.
-        placeholder: root
-        value: root
-      password:
-        display: Password
-        description: TDengine password. The default is taosdata.
-        placeholder: taosdata
-        value: taosdata
-    - name: token
-      display: Token
-      description: Use token in parameters.
-      params:
-        - name: token
-          display: Token
-          description: Cloud token or custom token.
+    description: |
+      Please login TDengine Cloud or TDengine enterprise, select "topics", under the list of topics, copy DSN and paste it here.
+    placeholder: "Topic example: ws://root:taosdata@127.0.0.1:6041/topic1"
 strict: false
 groups:
   - name: Subscribe Options

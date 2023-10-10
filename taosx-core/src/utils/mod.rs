@@ -15,6 +15,13 @@ pub fn mask_dsn(dsn: &Dsn) -> Dsn {
     dsn
 }
 
+pub fn try_mask_dsn(dsn: &str) -> Option<String> {
+    dsn.parse()
+        .ok()
+        .map(|dsn| mask_dsn(&dsn))
+        .map(|dsn| dsn.to_string())
+}
+
 pub fn stop_thread<T>(handle: JoinHandle<T>) {
     #[cfg(windows)]
     unsafe {

@@ -33,14 +33,14 @@ task:
 
 #performance parameters
 performance:
-  tolerance: 10000
+  delay: 10000
   limitConnect: 2
   limitBatch: 1000
   limitSpeed: 100000
   retryTimes: 3
   # millisecond
   retryInterval: 200
-  readWindow: m
+  readWindow: 1
   maxThread: 50
   queueSizeT: 1000
   queueSizeD: 500000

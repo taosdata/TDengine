@@ -26,40 +26,53 @@ options:
 strict: false
 
 datasets:
-  name: 数据点
+  name: 点位集
   description: OPC 采集数据点位列表。
+  value: csv_config_file
   categories:
-  - category: tags
-    display: DA Tags
+  - category: csv_config_file
+    display: 上传 CSV 配置文件
     description: |
-      OPC DA 点位配置列表。使用 <点位名称>::<点位编码> 的格式配置，多个使用英文逗号分隔，编码可以是任意字符串，产生的子表表名会以超级表前缀_值的类型_编码字符串。
+      使用 CSV 文件进行配置。
     target:
-      name: da.tags
-      display: DA Tags
-      description: |
-        OPC DA 点位配置列表。使用 <点位名称>::<点位编码> 的格式配置，多个使用英文逗号分隔，编码可以是任意字符串，产生的子表表名会以超级表前缀_值的类型_编码字符串。
+      name: csv_config_file
+      description: 
       required: true
       multiple: true
       editable: true
       selectable: true
 
-groups:
-  - name: 点位配置文件
-    display_order: 0
-    description: |
-      CSV 点位及表信息配置文件设置。
+  - category: select_all_points
+    display: 选择所有点位
+    description: 
+    target:
+      name: select_all_points
+      description: |
+        选择 OPC 服务器上面的所有点位。
+      required: true
+      multiple: true
+      editable: true
+      selectable: true
     params:
-      - name: use_csv_config
-        display: 启用 CSV 配置
+      - name: table_primary_key
+        display: 主键列
+        description: 
+        required: true
         hint:
-          type: bool
-        description: 启用 CSV 配置文件。如果上传了 CSV 配置文件需勾选此项。
-      - name: csv_config_file
-        display: CSV 配置文件
+          type: str
+          choices:
+            - received_ts
+            - original_ts
+      - name: child_table_expression
+        display: 表名称
         description: |
-          在启用了 CSV 配置文件之后点位集与库表配置将不再生效。
+          支持 <child table prefix>_{ns}_{id} 格式
         hint:
-          type: file
+          type: str
+        required: true
+
+
+groups:
   - name: 连接配置
     display_order: 1
     description: OPC 连接相关配置
@@ -125,19 +138,6 @@ groups:
         description: 原始数据的保留天数，若启用保存原始数据需配置。
         placeholder: 10
         value: 10
-
-  - name: 库表配置
-    display_order: 4
-    description: |
-      OPC 中的字段到数据库中的列映射
-
-    params:
-      - name: opc_table_config
-        display: OPC Table Config
-        required: true
-        placeholder: 10
-        hint:
-          type: json
 
   - name: 其他
     display_order: 3

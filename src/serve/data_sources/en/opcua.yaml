@@ -89,37 +89,52 @@ authentication:
 datasets:
   name: Data Sets
   description: Data points in OPC server to collect.
+  value: csv_config_file
   categories:
-  - category: nodes
-    display: Nodes
+  - category: csv_config_file
+    display: Upload CSV
     description: |
-      OPC UA point configuration list. Use the format configuration of <point name>::<point code>, multiples are separated by commas, the code can be any string, and the generated sub-table table name will be prefixed with the super table_value type_code string .
+      Use OPC UA point configuration file.
     target:
-      name: ua.nodes
+      name: csv_config_file
       description: |
-        OPC UA point configuration list. Use the format configuration of <point name>::<point code>, multiples are separated by commas, the code can be any string, and the generated sub-table table name will be prefixed with the super table_value type_code string .
+        OPC UA point configuration list.
       required: true
       multiple: true
       editable: true
       selectable: true
 
-groups:
-  - name: DataSet CSV config file
-    display_order: 0
+  - category: select_all_points
+    display: All Points
     description: |
-      CSV dataset and table config file.
+      OPC UA point configuration file.
+    target:
+      name: select_all_points
+      description: |
+        Select All Points on OPC Server.
+      required: true
+      multiple: true
+      editable: true
+      selectable: true
     params:
-      - name: use_csv_config
-        display: Enable CSV Config
+      - name: table_primary_key
+        display: Primary Key
+        description: 
+        required: true
         hint:
-          type: bool
-        description: Enable use CSV config file.
-      - name: csv_config_file
-        display: CSV config file
+          type: str
+          choices:
+            - received_ts
+            - original_ts
+      - name: child_table_expression
+        display: Table Name
         description: |
-          Dataset config and Table Config will be disabled after enable CSV config file.
+          Support <child table prefix>_{ns}_{id} pattern
         hint:
-          type: file
+          type: str
+        required: true
+
+groups:
   - name: Connection
     display_order: 2
     description: Configuration used in OPC connection
@@ -206,18 +221,6 @@ groups:
         description: Original Data Keep Days, should config if enable save data.
         placeholder: 10
         value: 10
-
-  - name: Table Config
-    display_order: 4
-    description: |
-      field in OPC to column in database mapping
-    params:
-      - name: opc_table_config
-        display: OPC Table Config
-        required: true
-        placeholder: 10
-        hint:
-          type: json
 
   - name: Others
     display_order: 5
