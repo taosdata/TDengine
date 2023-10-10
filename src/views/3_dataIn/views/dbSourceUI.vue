@@ -12,20 +12,6 @@
         <DataTarget></DataTarget>
       </section>
 
-      <div class="source-name" v-if="isEditable">
-        <div class="block-title">
-          <span>{{ $t("datasource.sourcename") }}</span>
-        </div>
-        <div class="name">
-          <span class="label">{{ $t("name") }}</span>
-          <el-input
-            v-model="sourceName"
-            placeholder=""
-            size="small"
-            style="width: 200px"
-          ></el-input>
-        </div>
-      </div>
       <section class="basics">
         <div class="block-title">
           <span>{{ $t("dataIn.connectionConfiguration") }}</span>
@@ -1915,6 +1901,7 @@ export default {
       width: 200px;
       display: block;
       white-space:normal;
+      flex-shrink: 0;
     }
     .no-label {
       align-items: center;

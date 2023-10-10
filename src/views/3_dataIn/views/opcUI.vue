@@ -19,7 +19,7 @@
         <div class="name">
           <span class="label">{{ $t("name") }}</span>
           <el-input
-          size="small"
+            size="small"
             v-model="sourceName"
             placeholder="请输入数据源名称"
             style="width: 200px"
@@ -34,7 +34,7 @@
           <span class="label">{{ dbsource[0].protocol.display }}</span>
           <div class="label-value">
             <el-select
-            size="small"
+              size="small"
               v-model="dbsource[0].protocol.value"
               placeholder=""
               style="margin-bottom: 8px"
@@ -76,7 +76,7 @@
             >
             <div class="label-value" v-if="dbsource[0].options.endpoint">
               <el-input
-              size="small"
+                size="small"
                 style="margin-bottom: 8px"
                 v-model="dbsource[0].options.endpoint.value"
                 :placeholder="
@@ -125,7 +125,7 @@
                       >
                       <div style="flex: 1">
                         <el-input
-                        size="small"
+                          size="small"
                           style="margin-bottom: 8px"
                           v-model="at.username.value"
                         ></el-input>
@@ -146,7 +146,7 @@
                       >
                       <div style="flex: 1">
                         <el-input
-                        size="small"
+                          size="small"
                           type="password"
                           style="margin-bottom: 8px"
                           v-model="at.password.value"
@@ -195,7 +195,7 @@
                     <div style="flex: 1">
                       <template v-if="p.hint && p.hint.choices">
                         <el-select
-                        size="small"
+                          size="small"
                           v-model="p.value"
                           placeholder=""
                           style="
@@ -244,7 +244,7 @@
                         </el-upload>
                       </template>
                       <el-input
-                      size="small"
+                        size="small"
                         v-if="
                           p.hint && !p.hint.choices && p.hint.type !== 'file'
                         "
@@ -273,13 +273,7 @@
           </el-tabs>
         </div>
       </section>
-      <section
-        :class="[
-          'groups-dataset',
-          opcPointavalible ? 'avalible' : 'notallowed',
-        ]"
-        v-if="dbsource[0]?.datasets"
-      >
+      <section :class="['groups-dataset']" v-if="dbsource[0]?.datasets">
         <div style="flex-direction: column; align-items: baseline">
           <div class="block-title">
             <span>{{ dbsource[0].datasets.name }}</span>
@@ -290,7 +284,10 @@
           ></div>
         </div>
         <template>
-          <el-tabs v-model="activeName" @tab-click="handleClick">
+          <el-tabs
+            v-model="dbsource[0].datasets.value"
+            @tab-click="handleClick"
+          >
             <el-tab-pane
               v-for="(p, pind) in dbsource[0].datasets.categories"
               :label="p.display"
@@ -326,7 +323,7 @@
                     :content="$t('dataIn.downloadtpltip')"
                     effect="light"
                   >
-                    <span
+                    <!-- <span
                       style="
                         display: inline-block;
                         margin-left: 20px;
@@ -336,7 +333,25 @@
                     >
                       <i class="el-icon-download"></i>
                       {{ $t("dataIn.downloadtpl") }}
-                    </span>
+                    </span> -->
+                    <template v-if="language.includes('zh')">
+                      <a
+                        href="/template-zh.csv"
+                        download
+                        style="margin-left: 15px"
+                        ><i class="el-icon-download"></i
+                        >{{ $t("dataIn.downloadtpl") }}</a
+                      >
+                    </template>
+                    <template v-else>
+                      <a
+                        href="/template-en.csv"
+                        download
+                        style="margin-left: 15px"
+                        ><i class="el-icon-download"></i
+                        >{{ $t("dataIn.downloadtpl") }}</a
+                      >
+                    </template>
                   </el-tooltip>
                   <el-tooltip
                     placement="top"
@@ -350,6 +365,7 @@
                         color: #4259ce;
                         cursor: pointer;
                       "
+                      @click="downloadopcAllponits"
                     >
                       <i class="el-icon-download"> </i>
                       {{ $t("dataIn.downloadnodes") }}
@@ -373,14 +389,16 @@
                     </span>
                   </el-tooltip>
                 </template>
-                <ul v-else style="flex:1;">
-                 <li v-for="(all,ain) in p.params" :key="ain" style="display:flex;margin-bottom:20px;">
-                  <span class="label">{{ all?.display }}</span>
-                  <el-input size="small" v-model="all.value"></el-input>
-                 </li>
-
+                <ul v-else style="flex: 1">
+                  <li
+                    v-for="(all, ain) in p.params"
+                    :key="ain"
+                    style="display: flex; margin-bottom: 20px"
+                  >
+                    <span class="label">{{ all?.display }}</span>
+                    <el-input size="small" v-model="all.value"></el-input>
+                  </li>
                 </ul>
-
               </div>
 
               <div :key="pind">
@@ -423,7 +441,7 @@
                 </div>
                 <div class="configuration" v-if="isShowConfiguration">
                   <el-input
-                  size="small"
+                    size="small"
                     :placeholder="$t('datasource.regexPlaceholder')"
                     v-model="p.value"
                     :disable="p.target.selectable"
@@ -477,7 +495,11 @@
                             >
                               {{ o.display }}
                             </span>
-                            <el-input placeholder="" v-model="o.value" size="small"/>
+                            <el-input
+                              placeholder=""
+                              v-model="o.value"
+                              size="small"
+                            />
                           </div>
                         </div>
                         <div>
@@ -505,10 +527,10 @@
             ['库表配置', 'Table Config'].includes(item.name)
               ? 'tableconfig'
               : item.name,
-            opcPointavalible ? 'avalible' : 'notallowed',
           ]"
           :key="gind"
         >
+          <!-- opcPointavalible ? 'avalible' : 'notallowed', -->
           <div style="flex-direction: column; align-items: baseline">
             <div class="block-title">
               <span>{{ item.name }}</span>
@@ -579,7 +601,7 @@
                     </template>
                     <template v-else>
                       <el-input
-                      size="small"
+                        size="small"
                         v-model="p.value"
                         :placeholder="p.placeholder ? p.placeholder : ''"
                         :type="text"
@@ -598,7 +620,7 @@
                       </el-select>
                     </template>
                     <el-input
-                    size="small"
+                      size="small"
                       v-else
                       v-model="p.value"
                       :placeholder="p.placeholder ? p.placeholder : ''"
@@ -626,7 +648,11 @@
                   </template>
                   <template v-else-if="p.hint && p.hint.type === 'bool'">
                     <!-- <p-three-checkbox :data="checkboxData" v-model="p.value" /> -->
-                    <el-switch v-model="p.value"></el-switch>
+                    <el-switch
+                      v-model="p.value"
+                      :active-value="true"
+                      :inactive-value="false"
+                    ></el-switch>
                   </template>
                   <template
                     v-if="
@@ -688,7 +714,7 @@
                   </template>
                   <template v-if="p.hint === 'str' || p.hint === 'timeout'">
                     <el-input
-                    size="small"
+                      size="small"
                       v-model="p.value"
                       :placeholder="p.placeholder ? p.placeholder : ''"
                     ></el-input>
@@ -696,7 +722,7 @@
                   <template v-if="p.hint?.type && p.hint?.type === 'str'">
                     <template v-if="p.hint.choices">
                       <el-select
-                      size="small"
+                        size="small"
                         v-model="p.value"
                         :placeholder="p.placeholder ? p.placeholder : ''"
                         @change="changeOpcCollectMode"
@@ -710,7 +736,7 @@
                       </el-select>
                     </template>
                     <el-input
-                    size="small"
+                      size="small"
                       v-else
                       v-model="p.value"
                       :placeholder="p.placeholder ? p.placeholder : ''"
@@ -735,8 +761,8 @@
                       ></el-checkbox> -->
                       <el-switch
                         v-model="p.value"
-                        active-value="true"
-                        inactive-value="false"
+                        :active-value="true"
+                        :inactive-value="false"
                       ></el-switch>
                     </template>
                   </template>
@@ -748,8 +774,8 @@
                     /> -->
                     <el-switch
                       v-model="p.value"
-                      active-value="true"
-                      inactive-value="false"
+                      :active-value="true"
+                      :inactive-value="false"
                     ></el-switch>
                   </template>
                   <template
@@ -854,7 +880,12 @@
 <script>
 import DataTarget from "./dataTarget.vue";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
-import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
+import {
+  AddSource,
+  EditSource,
+  getUaAndDaData,
+  downlaodAllNodes,
+} from "@/api/explorer/datain";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
 import marked from "marked";
@@ -941,7 +972,7 @@ export default {
       opcfileList: [],
       fileurl: "",
       uploadUrl: process.env.VUE_APP_X_API + `/upload`,
-      sourceName: this.$store.state.app.SET_CURRENT_DSNAME,
+      sourceName: this.$store.state.app.currentDSName,
       openSSL: false,
       constmqttCols: [],
       textareas: ["ca", "cert", "cert_key"],
@@ -1050,9 +1081,12 @@ export default {
         });
       }
     }
-    if (this.tagName.includes("opc")) {
-      let flag =
-        this.dbsource[0].groups[0].params[0].value == "true" ? true : false;
+    if (this.tagName.includes("opc") && this.isEditable) {
+      console.log(
+        this.dbsource[0].datasets.categories[0],
+        "当前的opc状态",
+        this.isEditable
+      );
       let certitem = this.$store.state.app.opccertfiles[0];
       let privateitem = this.$store.state.app.opcprivatefiles[0];
       if (certitem && privateitem) {
@@ -1076,27 +1110,28 @@ export default {
         });
       }
 
-      if (flag) {
-        this.opcPointavalible = false;
-        let item = this.$store.state.app.opcnodesfiles[0];
+      // if (flag) {
+      // this.opcPointavalible = false;
+      let item = this.$store.state.app.opcnodesfiles[0];
 
-        this.fileList = [].concat({
-          name: item?.substr(item.lastIndexOf("/") + 1),
-          percentage: 100,
-          raw: File,
-          response: [].concat(item),
-          size: 87,
-          status: "success",
-          uid: 1,
-        });
-      } else {
-        this.opcPointavalible = true;
-      }
+      this.opcfileList = [].concat({
+        name: item?.substr(item.lastIndexOf("/") + 1),
+        percentage: 100,
+        raw: File,
+        response: [].concat(item),
+        size: 87,
+        status: "success",
+        uid: 1,
+      });
+      // } else {
+      //   // this.opcPointavalible = true;
+      // }
     }
 
     this.activeName = this.dbsource[0].datasets
       ? this.dbsource[0].datasets.categories[0].category
       : "";
+    console.log(this.activeName, "opc--allpoints");
   },
   watch: {
     "this.$store.state.app.currentDBName": {
@@ -1115,6 +1150,24 @@ export default {
     },
   },
   methods: {
+    async downloadopcAllponits() {
+      try {
+        // via=${this.$store.state.app.currentAgentID}
+        let params = `opcua://${this.dbsource[0].options.endpoint.value}&categories=nodes`;
+        let result = await downlaodAllNodes(params);
+        let blob = new Blob([result], { type: "text/csv,charset=UTF-8" });
+        let link = document.createElement("a");
+        link.download = "csv模板文件.csv";
+        link.style.display = "none";
+        link.href = URL.createObjectURL(blob);
+        document.body.appendChild(link);
+        link.click();
+        URL.revokeObjectURL(link.href);
+        document.body.removeChild(link);
+      } catch (error) {
+        console.log(error);
+      }
+    },
     handleopcSuccess(response, file, fileList) {
       this.opcfileList = fileList;
     },
@@ -1266,7 +1319,7 @@ export default {
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
       let enterTip = this.$t("dataIn.enterTip");
-      console.log('submit');
+      console.log("submit");
       try {
         if (data.protocol && data.protocol.value) {
           dns += Object.is(data.protocol.value, "--")
@@ -1457,6 +1510,7 @@ export default {
                               : false
                           }` + "&";
                       } else {
+                        console.log("haha", data.groups[index].params[g].value);
                         querystr +=
                           `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
                           "&";
@@ -1470,6 +1524,7 @@ export default {
             }
           }
         }
+        console.log(querystr, "querystr---opc");
         if (
           data.authentication &&
           data.authentication.value == "certificates"
@@ -1589,31 +1644,40 @@ export default {
         }
 
         if (this.tagName.includes("opc")) {
-          if (this.opcPointavalible) {
-            let oldData = this.$store.state.app.opcConfig;
-            let columnCons = oldData.column_configs.filter((item) =>
-              this.$parent.echoData.includes(item.column_name)
-            );
-            this.$store.commit("app/SET_OPC_CONFIG", {
-              column_configs: columnCons,
-              stable_prefix: oldData.stable_prefix,
-            });
-            let saveConf = {
-              column_configs: columnCons,
-              stable_prefix: oldData.stable_prefix,
-            };
-            let prefix = dns.split("?")[0];
-            let dnsarr = dns.split("?")[1].split("&");
-            let indx = dnsarr.findIndex((item) =>
-              item.includes("opc_table_config=")
-            );
-            if (indx > -1) {
-              dnsarr.splice(indx, 1);
-              dns = prefix + "?" + dnsarr.join("&");
-            }
-            dns += "&opc_table_config=" + JSON.stringify(saveConf);
-          } else {
-            if (this.fileList.length == 0) {
+          console.log(
+            "opc----8888",
+            this.opcPointavalible,
+            this.dbsource[0].datasets
+          );
+          // if (this.opcPointavalible) {
+          // let oldData = this.$store.state.app.opcConfig;
+          // let columnCons = oldData.column_configs.filter((item) =>
+          //   this.$parent.echoData.includes(item.column_name)
+          // );
+          // this.$store.commit("app/SET_OPC_CONFIG", {
+          //   column_configs: columnCons,
+          //   stable_prefix: oldData.stable_prefix,
+          // });
+          // let saveConf = {
+          //   column_configs: columnCons,
+          //   stable_prefix: oldData.stable_prefix,
+          // };
+          // let prefix = dns.split("?")[0];
+          // let dnsarr = dns.split("?")[1].split("&");
+          // let indx = dnsarr.findIndex((item) =>
+          //   item.includes("opc_table_config=")
+          // );
+          // if (indx > -1) {
+          //   dnsarr.splice(indx, 1);
+          //   dns = prefix + "?" + dnsarr.join("&");
+          // }
+          // dns += "&opc_table_config=" + JSON.stringify(saveConf);
+          // } else {
+          if (this.dbsource[0].datasets.value == "csv_config_file") {
+            if (
+              this.opcfileList.length == 0 &&
+              this.dbsource[0].datasets.value == "csv_config_file"
+            ) {
               Message({
                 type: "warning",
                 message: this.$t("datasource.uploadtip"),
@@ -1622,6 +1686,7 @@ export default {
             }
             let prefix = dns.split("?")[0];
             let dnsarr = dns.split("?")[1].split("&");
+            console.log(dnsarr, "opc文件上传---0099");
             let ind = dnsarr.findIndex((item) =>
               item.includes("csv_config_file")
             );
@@ -1629,13 +1694,22 @@ export default {
               dnsarr.splice(
                 ind,
                 1,
-                `&csv_config_file=@` + this.fileList[0].response[0]
+                `&csv_config_file=@` + this.opcfileList[0].response[0]
               );
               dns = prefix + "?" + dnsarr.join("&");
             } else {
-              dns += `&csv_config_file=@` + this.fileList[0].response[0];
+              dns += `&csv_config_file=@` + this.opcfileList[0].response[0];
             }
+          }else{
+            let allStr=''
+            this.dbsource[0].datasets.categories[1].params.forEach((item,index)=>{
+              allStr+=`${item.name}=${item.value}`+(index<=1?'&':'')
+            })
+            dns+='&'+allStr
+            console.log(dns,allStr,'opc---拼接参数',this.protocol);
           }
+
+          // }
         }
         let piParams = {
           from:
@@ -1659,6 +1733,7 @@ export default {
             `user::${localStorage.getItem("username")}`,
           ],
         };
+        console.log("拼接参数");
         if (this.tagName == "mqtt") {
           piParams["parser"] = this.$store.state.app.mqttParser;
         }
@@ -1677,8 +1752,9 @@ export default {
             },
           };
         }
-        if (this.$parent.agentID) {
-          piParams["via"] = this.$parent.agentID;
+        console.log(this.$store.state.app.currentAgentID, "拼接代理");
+        if (this.$store.state.app.currentAgentID) {
+          piParams["via"] = this.$store.state.app.currentAgentID;
         }
         if (this.tagName == "csv") {
           this.$refs.csvdata.$refs.param.submit();
@@ -1788,6 +1864,7 @@ export default {
     },
 
     handleClick(tab, event) {
+      console.log(tab, event, "切换opc数据源");
       this.isShowConfiguration = false;
       this.configurationdata = [];
       this.activeDataSet = {};
@@ -1931,9 +2008,10 @@ export default {
           offset: 0,
           limit: 10,
         };
-        if (this.$parent.agentID) {
+        console.log(this.$store.state.app.currentAgentID, "拼接代理2");
+        if (this.$store.state.app.currentAgentID) {
           const viaObj = {
-            via: this.$parent.agentID,
+            via: this.$store.state.app.currentAgentID,
           };
           if (viaObj.via) {
             Object.assign(params, viaObj);
@@ -2053,6 +2131,7 @@ export default {
       width: 200px;
       display: block;
       white-space: normal;
+      flex-shrink: 0;
     }
     .no-label {
       align-items: center;
