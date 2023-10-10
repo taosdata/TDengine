@@ -137,7 +137,6 @@ export default {
       this.editId=val
     },
     toggleComponent(type, id, editid, dbname, iscopy) {
-      console.log(type, this.isEditable,'新增还是编辑');
       if (type&&!this.isEditable) {
         //新增
         let data = this.sourceList.filter((item) => item.id === type);

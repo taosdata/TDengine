@@ -4,9 +4,7 @@
       :class="[
         'left-ui',
         // this.$parent.currentTaskStatus == 'running' && !this.$parent.isCopyable
-        isShowEditBtn
-          ? 'readable'
-          : '',
+        isShowEditBtn ? 'readable' : '',
       ]"
     >
       <section>
@@ -360,12 +358,10 @@
                     effect="light"
                   >
                     <span
-                      style="
-                        display: inline-block;
-                        margin-left: 20px;
-                        color: #4259ce;
-                        cursor: pointer;
-                      "
+                      :class="[
+                        'allnodes',
+                        disableallnodeclick ? 'click' : 'noclick',
+                      ]"
                       @click="downloadopcAllponits"
                     >
                       <i class="el-icon-download"> </i>
@@ -373,13 +369,19 @@
                     </span>
                   </el-tooltip>
                   <el-tooltip
-                  v-if="isEditable&&opcinusefile"
+                    v-if="isEditable && opcinusefile"
                     placement="top"
                     :content="$t('dataIn.csvinusetip')"
                     effect="light"
                   >
-                  <a :href="downloadUrl+opcinusefile" download style="padding-left: 16px;">
-                        <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadCSVInUse') }}</a>
+                    <a
+                      :href="downloadUrl + opcinusefile"
+                      download
+                      style="padding-left: 16px"
+                    >
+                      <i class="el-icon-download" style="padding-right: 2px"></i
+                      >{{ $t("downloadCSVInUse") }}</a
+                    >
                     <!-- <span
                       style="
                         display: inline-block;
@@ -764,7 +766,6 @@
                         true-label="true"
                         false-label="false"
                       ></el-checkbox> -->
-                      
 
                       <el-switch
                         v-model="p.value"
@@ -779,7 +780,7 @@
                       v-model="p.value"
                       @changeThreeCheckbox="getThreeBoxNum($event, p)"
                     /> -->
-<!-- <span style="color:purple;font-size:36px;">{{ p.name }} </span> -->
+                    <!-- <span style="color:purple;font-size:36px;">{{ p.name }} </span> -->
                     <el-switch
                       v-model="p.value"
                       :active-value="'true'"
@@ -974,7 +975,8 @@ export default {
   },
   data() {
     return {
-      opcinusefile:'',
+      disableallnodeclick: true,
+      opcinusefile: "",
       downloadUrl: process.env.VUE_APP_X_API + `/download?file_path=`,
       language: window.navigator.language,
       limit: 1,
@@ -1056,7 +1058,7 @@ export default {
             return item;
           });
       }
-      this.isShowEditBtn = true
+      this.isShowEditBtn = true;
     }
   },
   mounted() {
@@ -1102,9 +1104,8 @@ export default {
         });
       }
     }
-    
+
     if (this.tagName.includes("opc") && this.isEditable) {
-      
       let certitem = this.$store.state.app.opccertfiles[0];
       let privateitem = this.$store.state.app.opcprivatefiles[0];
       if (certitem && privateitem) {
@@ -1131,7 +1132,7 @@ export default {
       // if (flag) {
       // this.opcPointavalible = false;
       let item = this.$store.state.app.opcnodesfiles[0];
-      this.opcinusefile=item
+      this.opcinusefile = item;
       // this.opcfileList = [].concat({
       //   name: item?.substr(item.lastIndexOf("/") + 1),
       //   percentage: 100,
@@ -1145,7 +1146,7 @@ export default {
       //   // this.opcPointavalible = true;
       // }
     }
-    
+
     this.activeName = this.dbsource[0].datasets
       ? this.dbsource[0].datasets.categories[0].category
       : "";
@@ -1169,13 +1170,27 @@ export default {
   methods: {
     async downloadopcAllponits() {
       try {
-        if(!this.dbsource[0].options.endpoint.value){
-          Message.error(this.$t('taoscluster.endpointRequired'))
-          return
+        if (!this.dbsource[0].options.endpoint.value) {
+          Message.error(this.$t("taoscluster.endpointRequired"));
+          return;
         }
+        this.disableallnodeclick = false;
         // via=${this.$store.state.app.currentAgentID}
-        let params = `opcua://${this.dbsource[0].options.endpoint.value}&categories=nodes&via=${this.$store.state.app.currentAgentID}`;
-        let result = await downlaodAllNodes(params);
+        console.log(
+          this.$store.state.app.currentAgentID,
+          "this.$store.state.app.currentAgentID"
+        );
+        let params = `opcua://${this.dbsource[0].options.endpoint.value}&categories=nodes`;
+        let result = await downlaodAllNodes(
+          params,
+          this.$store.state.app.currentAgentID
+        );
+        if(result&&result.message){
+          Message.error(result.message);
+          return;
+        }
+        this.disableallnodeclick = true;
+
         let blob = new Blob([result], { type: "text/csv,charset=UTF-8" });
         let link = document.createElement("a");
         link.download = "template.csv";
@@ -1336,21 +1351,22 @@ export default {
     },
 
     edit() {
-      this.isShowEditBtn = false
+      this.isShowEditBtn = false;
     },
 
     save() {
       if (this.isEditable) {
-        this.$confirm(this.$t('dataIn.saveTip'), this.$t("warning"), {
-          confirmButtonText: this.$t('confirm'),
-          cancelButtonText: this.$t('cancel'),
-          type: 'warning'
-        }).then(() => {
-          this.submit()
-        }).catch(() => {         
-        });
+        this.$confirm(this.$t("dataIn.saveTip"), this.$t("warning"), {
+          confirmButtonText: this.$t("confirm"),
+          cancelButtonText: this.$t("cancel"),
+          type: "warning",
+        })
+          .then(() => {
+            this.submit();
+          })
+          .catch(() => {});
       } else {
-        this.submit()
+        this.submit();
       }
     },
     async submit() {
@@ -1538,7 +1554,7 @@ export default {
                     ) {
                       if (
                         // data.groups[index].params[g].name == "debug" ||
-                        data.groups[index].params[g].name == "use_csv_config" 
+                        data.groups[index].params[g].name == "use_csv_config"
                         // data.groups[index].params[g].name == "enable"
                       ) {
                         querystr +=
@@ -1730,12 +1746,15 @@ export default {
             } else {
               dns += `&csv_config_file=@` + this.opcfileList[0].response[0];
             }
-          }else{
-            let allStr=''
-            this.dbsource[0].datasets.categories[1].params.forEach((item,index)=>{
-              allStr+=`${item.name}=${item.value}`+(index<=1?'&':'')
-            })
-            dns+='&'+allStr+`&select_all_points=true`
+          } else {
+            let allStr = "";
+            this.dbsource[0].datasets.categories[1].params.forEach(
+              (item, index) => {
+                allStr +=
+                  `${item.name}=${item.value}` + (index <= 1 ? "&" : "");
+              }
+            );
+            dns += "&" + allStr + `&select_all_points=true`;
           }
 
           // }
@@ -1853,14 +1872,14 @@ export default {
               ? `&header=${this.$refs.csvdata.$refs.param.ruleForm.customcol}`
               : "");
         }
-        console.log(this.isEditable , this.editId,'编辑-opc');
+        console.log(this.isEditable, this.editId, "编辑-opc");
         if (this.isEditable && this.editId) {
           let result = await EditSource(piParams, this.editId);
           if (result.message) {
             Message.error(result.message);
             return;
           }
-          this.$parent.changeEditable(false)
+          this.$parent.changeEditable(false);
           this.$parent.toggleComponent("opctable", this.protocol);
         } else {
           let result = await AddSource(piParams);
@@ -2415,8 +2434,23 @@ export default {
   .groups.tableconfig.notallowed {
     display: none;
   }
-  .cancel-btn,.edit-btn {
+  .cancel-btn,
+  .edit-btn {
     z-index: 101;
+  }
+}
+.allnodes {
+  display: inline-block;
+  margin-left: 20px;
+  color: #4259ce;
+  
+  &.noclick {
+    cursor: not-allowed;
+    pointer-events: none;
+    color:#acaab2;
+  }
+  &.click{
+    cursor: pointer;
   }
 }
 </style>

@@ -136,10 +136,10 @@ export function getFileStream(filepath){
     })
 }
 
-export function downlaodAllNodes(data){
+export function downlaodAllNodes(data,agentid){
     return request({
         baseURL:process.env.VUE_APP_X_API,
-        url:`/ds/in/download/all_data_sets?from=${data}`,
+        url:`/ds/in/download/all_data_sets?from=${data}`+(agentid?`&via=${agentid}`:''),
         method:'get',
         responseType: 'blob',
         // data,
