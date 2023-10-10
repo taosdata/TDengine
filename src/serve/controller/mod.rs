@@ -3,7 +3,7 @@ use std::env;
 use std::fmt::{Debug, Display};
 use std::net::SocketAddr;
 use std::str::FromStr;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::{
     collections::HashMap,
@@ -20,10 +20,11 @@ use linked_hash_map::LinkedHashMap;
 use metrics::counter;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use sqlx::pool::PoolOptions;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
-use taosx_core::utils::mask_dsn;
 use taosx_core::utils::port_pool::PortPool;
+use taosx_core::utils::{mask_dsn, try_mask_dsn};
 use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
 use tokio::sync::OnceCell;
 use tokio::task::JoinHandle;
@@ -457,14 +458,22 @@ impl TaskController {
                 }
             }
         }
-        let options = sqlx::sqlite::SqliteConnectOptions::from_str(sqlite)?
+        let connect_options = sqlx::sqlite::SqliteConnectOptions::from_str(sqlite)?
             .create_if_missing(true)
             .busy_timeout(Duration::from_secs(30))
             .journal_mode(SqliteJournalMode::Wal);
-        let pool = sqlx::SqlitePool::connect_with(options).await?;
+        let pool = PoolOptions::new()
+            .min_connections(3)
+            .connect_with(connect_options)
+            .await?;
         MIGRATOR.run(&pool).await?;
         let scheduler = JobScheduler::new().await?;
         scheduler.start().await?;
+
+        // extra migrations
+        sqlx::query!("UPDATE agent_activities SET status = 'transferring' where status = 'busy'")
+            .execute(&pool)
+            .await?;
         let transferred = Transferred::new(pool.clone(), Duration::from_secs(10));
         Ok(Self {
             pool,
@@ -1095,8 +1104,8 @@ impl TaskController {
     }
 
     #[instrument(skip_all, name = "task::create", parent = None, fields(
-        task.source = %mask_dsn(&task.from.parse().unwrap()),
-        task.sink = %mask_dsn(&task.to.parse().unwrap()),
+        task.source = try_mask_dsn(&task.from),
+        task.sink = try_mask_dsn(&task.to),
         task.agent = task.via,
     ))]
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
@@ -1677,7 +1686,7 @@ impl TaskController {
             "created",
             None,
         );
-        self.push_agent_activity(&activity).await?;
+        self.push_agent_activity(activity).await?;
         let secret = self.jwt_secret().await?;
         self.get_agent_by_id(id)
             .await
@@ -1723,11 +1732,13 @@ impl TaskController {
     }
 
     /// Update agent activities.
-    pub async fn push_agent_activity(&self, activity: &Activity) -> anyhow::Result<()> {
+    pub async fn push_agent_activity(&self, mut activity: Activity) -> anyhow::Result<()> {
         if activity.status == "pending" {
             self.agent_tasks.write().await.remove(&activity.id);
+        } else if activity.status == "busy" {
+            activity.status = "transferring".to_string();
         }
-        push_agent_activity(&self.pool, activity).await
+        push_agent_activity(&self.pool, &activity).await
     }
 
     pub async fn push_task_activity(&self, activity: &Activity) -> anyhow::Result<()> {
@@ -1770,6 +1781,9 @@ impl TaskController {
             .await?;
         for task in tasks {
             let id = task.id;
+            self.tasks.write().await.remove(&id).map(|(_, token)| {
+                token.cancel();
+            });
             if let Err(err) = sqlx::query(&format!(
                 "UPDATE tasks SET `status` = 'cancelled' WHERE id = {id} AND `status` = 'running'"
             ))
@@ -1788,6 +1802,11 @@ impl TaskController {
             );
             self.push_task_activity(&activity).await?;
         }
+        if let Some(workers) = self.agent_tasks.write().await.remove(&agent_id) {
+            workers.alive.store(false, Ordering::Relaxed);
+            workers.current.clear();
+        }
+
         Ok(())
     }
 

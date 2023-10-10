@@ -800,13 +800,14 @@ impl LushMessageInsert {
         data: &Vec<ColumnView>,
         columns: &Vec<String>,
     ) -> Option<(Vec<String>, HashMap<String, IpcDataType>)> {
-        let mut index = None;
-        for (i, f) in self.records.record.schema().fields().iter().enumerate() {
-            if f.name() == __TABLE_NAME__ {
-                index = Some(i);
-                break;
-            }
-        }
+        let index = self
+            .records
+            .record
+            .schema()
+            .fields()
+            .iter()
+            .find_position(|f| f.name() == __TABLE_NAME__)
+            .map(|(i, _)| i);
         match index {
             None => None,
             Some(i) => {
