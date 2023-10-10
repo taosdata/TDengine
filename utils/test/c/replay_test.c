@@ -184,10 +184,9 @@ void test_case1(TAOS* pConn, int32_t* interval, int32_t len){
 
       TAOS_FIELD* fields = taos_fetch_fields(tmqmessage);
       int32_t     numOfFields = taos_field_count(tmqmessage);
-      const char* tbName = tmq_get_table_name(tmqmessage);
       taos_print_row(buf, row, fields, numOfFields);
 
-      printf("%lld tbname:%s, rows[%d]: %s\n", t, (tbName != NULL ? tbName : "null table"), totalRows, buf);
+      printf("time:%" PRId64 " rows[%d]: %s\n", t, totalRows, buf);
       totalRows++;
       taos_free_result(tmqmessage);
     } else {
@@ -259,10 +258,9 @@ void test_case2(TAOS* pConn, int32_t* interval, int32_t len, tsem_t* sem){
 
         TAOS_FIELD* fields = taos_fetch_fields(tmqmessage);
         int32_t     numOfFields = taos_field_count(tmqmessage);
-        const char* tbName = tmq_get_table_name(tmqmessage);
         taos_print_row(buf, row, fields, numOfFields);
 
-        printf("%lld tbname:%s, rows[%d]: %s\n", t, (tbName != NULL ? tbName : "null table"), totalRows, buf);
+        printf("time:%" PRId64 " rows[%d]: %s\n", t, totalRows, buf);
         totalRows++;
       }
 
@@ -349,10 +347,9 @@ void test_case3(TAOS* pConn, int32_t* interval, int32_t len){
 
         TAOS_FIELD* fields = taos_fetch_fields(tmqmessage);
         int32_t     numOfFields = taos_field_count(tmqmessage);
-        const char* tbName = tmq_get_table_name(tmqmessage);
         taos_print_row(buf, row, fields, numOfFields);
 
-        printf("%lld tbname:%s, rows[%d]: %s\n", t, (tbName != NULL ? tbName : "null table"), totalRows, buf);
+        printf("time:%" PRId64 " rows[%d]: %s\n", t, totalRows, buf);
         totalRows++;
       }
 
