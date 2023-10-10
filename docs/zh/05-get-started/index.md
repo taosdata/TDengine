@@ -4,7 +4,7 @@ description: '快速设置 TDengine 环境并体验其高效写入和查询'
 ---
 
 import xiaot from './xiaot.webp'
-import xiaot_new from './xiaot-03.webp'
+import xiaot_new from './xiaot-20231007.png'
 import channel from './channel.webp'
 import official_account from './official-account.webp'
 

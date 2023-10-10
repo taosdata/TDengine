@@ -1668,6 +1668,13 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     return;
   }
 
+  if (strcasecmp(option, "asynclog") == 0) {
+    int32_t newAsynclog = atoi(value);
+    uInfo("asynclog set from %d to %d", tsAsyncLog, newAsynclog);
+    tsAsyncLog = newAsynclog;
+    return;
+  }
+
   const char *options[] = {
       "dDebugFlag",   "vDebugFlag",   "mDebugFlag",   "wDebugFlag",    "sDebugFlag",   "tsdbDebugFlag", "tqDebugFlag",
       "fsDebugFlag",  "udfDebugFlag", "smaDebugFlag", "idxDebugFlag",  "tdbDebugFlag", "tmrDebugFlag",  "uDebugFlag",
