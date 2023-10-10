@@ -798,6 +798,10 @@ int32_t chkpGetAllDbCfHandle(SStreamMeta* pMeta, rocksdb_column_family_handle_t*
   }
 
   int32_t nCf = taosArrayGetSize(pHandle);
+  if (nCf == 0) {
+    taosArrayDestroy(pHandle);
+    return nCf;
+  }
 
   rocksdb_column_family_handle_t** ppCf = taosMemoryCalloc(nCf, sizeof(rocksdb_column_family_handle_t*));
   for (int i = 0; i < nCf; i++) {
@@ -830,6 +834,7 @@ _ERROR:
   return code;
 }
 int32_t chkpPreFlushDb(rocksdb_t* db, rocksdb_column_family_handle_t** cf, int32_t nCf) {
+  if (nCf == 0) return 0;
   int   code = 0;
   char* err = NULL;
 
@@ -900,7 +905,6 @@ int32_t streamBackendTriggerChkp(void* arg, char* dst) {
   } else {
     qError("stream backend:%p failed to flush db at:%s", pHandle, dst);
   }
-
   // release all ref to cfWrapper;
   for (int i = 0; i < taosArrayGetSize(refs); i++) {
     int64_t id = *(int64_t*)taosArrayGet(refs, i);
