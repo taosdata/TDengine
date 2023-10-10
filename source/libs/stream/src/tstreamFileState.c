@@ -641,6 +641,26 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
   return code;
 }
 
+int32_t recoverSesssion(SStreamFileState* pFileState, int64_t ckId) {
+  int              code = TSDB_CODE_SUCCESS;
+  SStreamStateCur* pCur = streamStateSessionSeekToLast_rocksdb(pFileState->pFileStore);
+  if (pCur == NULL) {
+    return -1;
+  }
+  while (code == TSDB_CODE_SUCCESS) {
+    void*       pVal = NULL;
+    int32_t     vlen = 0;
+    SSessionKey key = {0};
+    code = streamStateSessionGetKVByCur_rocksdb(pCur, &key, &pVal, &vlen);
+    if (code != 0) {
+      break;
+    }
+    taosMemoryFree(pVal);
+    code = streamStateSessionCurPrev_rocksdb(pCur);
+  }
+  streamStateFreeCur(pCur);
+  return code;
+}
 int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pFileState->maxTs != INT64_MIN) {
@@ -660,9 +680,9 @@ int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
       break;
     }
     void*        pVal = NULL;
-    int32_t      pVLen = 0;
+    int32_t      vlen = 0;
     SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
-    code = streamStateGetKVByCur_rocksdb(pCur, pNewPos->pKey, (const void**)&pVal, &pVLen);
+    code = streamStateGetKVByCur_rocksdb(pCur, pNewPos->pKey, (const void**)&pVal, &vlen);
     if (code != TSDB_CODE_SUCCESS || pFileState->getTs(pNewPos->pKey) < pFileState->flushMark) {
       destroyRowBuffPos(pNewPos);
       SListNode* pNode = tdListPopTail(pFileState->usedBuffs);
@@ -670,8 +690,8 @@ int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
       taosMemoryFreeClear(pVal);
       break;
     }
-    ASSERT(pVLen == pFileState->rowSize);
-    memcpy(pNewPos->pRowBuff, pVal, pVLen);
+    ASSERT(vlen == pFileState->rowSize);
+    memcpy(pNewPos->pRowBuff, pVal, vlen);
     taosMemoryFreeClear(pVal);
     pNewPos->beFlushed = true;
     code = tSimpleHashPut(pFileState->rowStateBuff, pNewPos->pKey, pFileState->keyLen, &pNewPos, POINTER_BYTES);
@@ -679,7 +699,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
       destroyRowBuffPos(pNewPos);
       break;
     }
-    code = streamStateCurPrev_rocksdb(pFileState->pFileStore, pCur);
+    code = streamStateCurPrev_rocksdb(pCur);
   }
   streamStateFreeCur(pCur);
 
