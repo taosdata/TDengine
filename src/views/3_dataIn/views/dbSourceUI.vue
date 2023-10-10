@@ -411,7 +411,7 @@
                           <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadAfElement') }}</el-button>
                       </el-tooltip>
                     </template>
-                    <el-tooltip v-if="isEditable&&p.value" class="item" effect="light" :content="$t('downloadCSVInUseTip')" placement="top-start">
+                    <el-tooltip v-if="isEditable&&p.value&&p.value!='*'" class="item" effect="light" :content="$t('downloadCSVInUseTip')" placement="top-start">
                       <a :href="downloadUrl+p.value" download style="padding-left: 16px;">
                         <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadCSVInUse') }}</a>
                     </el-tooltip>
@@ -819,14 +819,12 @@ export default {
       deep:true,
       handler(val){
         this.$forceUpdate()
-        console.log(val,'最新的数据');
       }
     },
     tagName:{
       deep:true,
       handler(val){
         this.$forceUpdate()
-        console.log(val,'当前得tag');
       }
     },
     "$store.state.dbs.dialogDbVisible": {
@@ -878,15 +876,19 @@ export default {
         this.dbsource[0].datasets.params = this.dbsource[0]?.datasets?.
           params.map((p) => {
             if (p.value) {
-              p.fileList = [].concat({
-                name: p.value?.substr(p.value.lastIndexOf("/") + 1),
-                percentage: 100,
-                raw: File,
-                response: [].concat(p.value),
-                size: 87,
-                status: "success",
-                uid: 1,
-              });
+
+              if(p.value != '*') {
+                p.fileList = [].concat({
+                  name: p.value?.substr(p.value.lastIndexOf("/") + 1),
+                  percentage: 100,
+                  raw: File,
+                  response: [].concat(p.value),
+                  size: 87,
+                  status: "success",
+                  uid: 1,
+                });
+              }
+
               this.activeRadio = p.value.includes('@') ? 'select_file' : 'all_points'
               p.value = p.value?.substr(p.value.lastIndexOf("@") + 1);
               this.activeName = p.name
@@ -1059,6 +1061,14 @@ export default {
             });
             return;
           }
+        }
+        if (!this.sourceName) {
+          Message.warning(`${enterTip} ${this.$t('name')}`);
+          return;
+        }
+        if (!this.$store.state.app.currentDBName) {
+          Message.warning(`${enterTip} ${this.$t('stream.targetDB')}`);
+          return;
         }
         if (this.tagName === "taos") {
           if (data.authentication.value == "plain") {
@@ -1288,7 +1298,7 @@ export default {
           from:
             (this.tagName === "datasource" ? "tmq" : "taos") +
             (data.protocol
-              ? Object.is(data.protocol.value, "--")
+              ? (Object.is(data.protocol.value, "--") || !data.protocol.value)
                 ? ""
                 : "+"
               : "") +
@@ -1353,13 +1363,15 @@ export default {
           if (this.agentId) {
             piParams["via"] = this.agentId;
           }
+          console.log(this.isEditable , this.editId,'编辑');
           if (this.isEditable && this.editId) {
             let result = await EditSource(piParams, this.editId);
             if (result.message) {
               Message.error(result.message);
               return;
             }
-            this.$parent.toggleComponent("pitable");
+            this.$parent.changeEditable(false)
+            this.$parent.toggleComponent("pitable",'');
           } else {
             let result = await AddSource(piParams);
             if (result.message) {
@@ -1462,6 +1474,8 @@ export default {
         URL.revokeObjectURL(link.href);
         document.body.removeChild(link);
         this.loading = false;
+      }).catch(err => {
+        this.loading = false
       })
     },
     searchDatas: debounce(function (name) {
@@ -1512,7 +1526,6 @@ export default {
             querystr += `${data.params[0].name}=${data.params[0].value}&`;
           }
         }
-        console.log("ss", querystr);
         let params = null;
         // params = {
         //   from: `${this.tagName}://${host}${subject}${
@@ -1546,8 +1559,7 @@ export default {
         }
         let from = `${this.tagName}://${host}${subject}${
             querystr ? "?" + querystr.replace(/&$/g, "") : ""}
-            &categories=${categories}
-          `
+            &categories=${categories}`
          if (this.agentId) {
             from+=`&via=${this.agentId}`
           }

@@ -361,6 +361,8 @@ export default {
       this.$parent.sourceName = data.name;
       this.$parent.currentTaskStatus = status;
       this.$parent.agentID = data?.via;
+      this.$parent.setEditID(data.id)
+      this.$store.commit('app/SET_CURRENT_EDITID',data.id)
       if (data.from_detail) {
         this.$store.commit("app/SET_CURRENT_DBTYPE", data.from_detail?.id);
 
@@ -469,7 +471,9 @@ export default {
       this.$store.commit("app/SET_CURRENT_AGENT", "");
       this.$store.commit("app/SET_CURRENT_DSNAME", "");
       this.$store.commit("app/SET_CURRENT_DBTYPE", "tmq");
+      this.$store.commit('app/SET_CURRENT_EDITID','')
       this.$parent.currentTaskStatus = "";
+      this.$parent.changeEditable(false)
       this.$parent.toggleComponent("tmq");
     },
     async getList() {
