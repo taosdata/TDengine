@@ -18,7 +18,10 @@ protocol:
 options:
   host:
     display: IP address
-    description: The access address of OpenTSDB
+    description: |-
+      The access address of OpenTSDB.
+      If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.
+
     placeholder: 127.0.0.1
     required: true
   port:

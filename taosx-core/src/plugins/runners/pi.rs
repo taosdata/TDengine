@@ -99,16 +99,186 @@ pub enum PiError {
     ExeNotFound(String),
     #[error("pi config error: {0}")]
     ConfigError(String),
+    #[error("Pi get data sets error: {0}")]
+    GetDataSetError(#[from] anyhow::Error),
 }
 
 impl PiConfig {
-    pub fn new(
+    pub async fn parse_connection(
         mut dsn: Dsn,
         td_database: String,
         ipc: u16,
         sql: u16,
         is_real_run: bool,
-    ) -> Result<Self, PiError> {
+    ) -> Result<PiConfig, PiError> {
+        let server_name = dsn
+            .addresses
+            .first()
+            .and_then(|addr| addr.host.clone())
+            .ok_or_else(|| PiError::ServerIsRequired(dsn.clone()))?;
+        let system_name = dsn
+            .remove("PISystemName")
+            .unwrap_or_else(|| server_name.clone());
+        let database = dsn
+            .subject
+            .clone()
+            .ok_or_else(|| PiError::DatabaseIsRequired(dsn.clone()))?;
+        macro_rules! parse_int_at {
+            ($n:expr) => {
+                dsn.remove($n)
+                    .map(|v| {
+                        v.parse::<u32>()
+                            .map_err(|err| PiError::ParseNumberError($n, v, err))
+                    })
+                    .transpose()?
+            };
+        }
+        let pi_data_pipes_instances = parse_int_at!("PIDataPipesInstances");
+        let af_data_pipes_instances = parse_int_at!("AFDataPipesInstances");
+        let max_wait_len = parse_int_at!("MaxWaitLen");
+        if let Some(mwl) = max_wait_len {
+            if mwl < 1 || mwl > 10000 {
+                return Err(PiError::ValueConfigError("MaxWaitLen", "1", "10000"));
+            }
+        }
+        let update_interval = parse_int_at!("UpdateInterval");
+        if let Some(ui) = update_interval {
+            if ui < 100 || ui > 60000 {
+                return Err(PiError::ValueConfigError("UpdateInterval", "100", "60000"));
+            }
+        }
+        let max_backfill_range_days = parse_int_at!("MaxBackfillRangeDays");
+
+        let mut template_for_pi_point = dsn
+            .remove("TemplateForPIPoint")
+            .unwrap_or_default()
+            .split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .collect_vec();
+        let mut template_for_af_element = dsn
+            .remove("TemplateForAFElement")
+            .unwrap_or_default()
+            .split([',', '\n'])
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .collect_vec();
+
+        let mut point_list =
+            super::mqtt::get_string_from_param_or_file(&mut dsn, "PointList", false, Some(","))
+                .map_err(|err| PiError::ParseKeyValueError("PointList", err))?
+                .unwrap_or_default()
+                .split([',', '\n'])
+                .map(|s| s.trim())
+                .filter(|s| !s.is_empty())
+                .map(|s| s.to_string())
+                .collect_vec();
+        if is_real_run
+            && point_list.is_empty()
+            && template_for_af_element.is_empty()
+            && template_for_pi_point.is_empty()
+        {
+            return Err(PiError::ConfigError(format!("TemplateForPIPoint, TemplateForAFElement and PointList should config at least one of them")));
+        }
+        let ipc_stream = format!("127.0.0.1:{ipc}");
+        let sql_api = format!("http://127.0.0.1:{sql}");
+        let from_tdengine_last_time = if let Some(v) = dsn
+            .remove("FromTDengineLastTime")
+            .map(|v| {
+                v.parse::<bool>()
+                    .map_err(|err| PiError::ParseError("FromTDengineLastTime", v, err.to_string()))
+            })
+            .transpose()?
+        {
+            Some(v)
+        } else {
+            None
+        };
+        let to_tdengine_first_time = if let Some(v) = dsn
+            .remove("ToTDengineFirstTime")
+            .map(|v| {
+                v.parse::<bool>()
+                    .map_err(|err| PiError::ParseError("ToTDengineFirstTime", v, err.to_string()))
+            })
+            .transpose()?
+        {
+            Some(v)
+        } else {
+            None
+        };
+
+        let backfill_start_time = if let Some(backfill_start) = dsn.remove("BackfillStartTime") {
+            let parsed_time =
+                NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
+                    .map_err(|err| {
+                        PiError::ParseError(
+                            "BackfillStartTime",
+                            backfill_start.clone(),
+                            err.to_string(),
+                        )
+                    })?
+                    .and_local_timezone(Local)
+                    .unwrap();
+            let parsed_time =
+                Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| {
+                    PiError::ParseError("BackfillStartTime", backfill_start, err.to_string())
+                })?;
+            Some(parsed_time)
+        } else {
+            None
+        };
+        let backfill_end_time = if let Some(backfill_start) = dsn.remove("BackfillEndTime") {
+            let parsed_time =
+                NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
+                    .map_err(|err| {
+                        PiError::ParseError(
+                            "BackfillEndTime",
+                            backfill_start.clone(),
+                            err.to_string(),
+                        )
+                    })?
+                    .and_local_timezone(Local)
+                    .unwrap();
+            let parsed_time =
+                Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| {
+                    PiError::ParseError("BackfillEndTime", backfill_start, err.to_string())
+                })?;
+            Some(parsed_time)
+        } else {
+            None
+        };
+
+        Ok(Self {
+            server_name,
+            system_name,
+            database,
+            pi_data_pipes_instances,
+            af_data_pipes_instances,
+            max_wait_len,
+            update_interval,
+            max_backfill_range_days,
+            ipc_stream,
+            sql_api,
+            td_database,
+            template_for_pi_point,
+            template_for_af_element,
+            point_list,
+            from_tdengine_last_time,
+            to_tdengine_first_time,
+            backfill_start_time,
+            backfill_end_time,
+        })
+    }
+
+    pub async fn new(
+        mut dsn: Dsn,
+        td_database: String,
+        ipc: u16,
+        sql: u16,
+        is_real_run: bool,
+    ) -> Result<PiConfig, PiError> {
         let server_name = dsn
             .addresses
             .first()
@@ -156,15 +326,42 @@ impl PiConfig {
             .map(|s| s.to_string())
             .collect_vec();
         let config_key = "template_for_pi_point_file";
-        template_for_pi_point.extend(
-            super::mqtt::get_string_from_param_or_file(&mut dsn, config_key, false, Some(","))
-                .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
-                .unwrap_or_default()
-                .split([',', '\n'])
-                .map(|s| s.trim())
-                .filter(|s| !s.is_empty())
-                .map(|s| s.to_string()),
-        );
+        let config_category = "TemplateForPIPoint";
+        if let Some(value) = dsn.get(config_key) {
+            if value == "*" {
+                let datasets = pi_datasets(&DataSetsReq {
+                    from: dsn.to_string(),
+                    categories: vec![config_category.to_string()],
+                    pattern: None,
+                    offset: 0,
+                    limit: usize::MAX / 2 - 1,
+                    via: None,
+                    lang: None,
+                })
+                .await?;
+                template_for_pi_point.extend(
+                    datasets
+                        .into_iter()
+                        .map(|ds| ds.id)
+                        .filter(|id| !id.is_empty()),
+                );
+            } else {
+                template_for_pi_point.extend(
+                    super::mqtt::get_string_from_param_or_file(
+                        &mut dsn,
+                        config_key,
+                        false,
+                        Some(","),
+                    )
+                    .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
+                    .unwrap_or_default()
+                    .split([',', '\n'])
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string()),
+                );
+            }
+        }
         let mut template_for_af_element = dsn
             .remove("TemplateForAFElement")
             .unwrap_or_default()
@@ -174,15 +371,42 @@ impl PiConfig {
             .map(|s| s.to_string())
             .collect_vec();
         let config_key = "template_for_af_element_file";
-        template_for_af_element.extend(
-            super::mqtt::get_string_from_param_or_file(&mut dsn, config_key, false, Some(","))
-                .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
-                .unwrap_or_default()
-                .split([',', '\n'])
-                .map(|s| s.trim())
-                .filter(|s| !s.is_empty())
-                .map(|s| s.to_string()),
-        );
+        let config_category = "TemplateForAFElement";
+        if let Some(value) = dsn.get(config_key) {
+            if value == "*" {
+                let datasets = pi_datasets(&DataSetsReq {
+                    from: dsn.to_string(),
+                    categories: vec![config_category.to_string()],
+                    pattern: None,
+                    offset: 0,
+                    limit: usize::MAX / 2 - 1,
+                    via: None,
+                    lang: None,
+                })
+                .await?;
+                template_for_af_element.extend(
+                    datasets
+                        .into_iter()
+                        .map(|ds| ds.id)
+                        .filter(|id| !id.is_empty()),
+                );
+            } else {
+                template_for_af_element.extend(
+                    super::mqtt::get_string_from_param_or_file(
+                        &mut dsn,
+                        config_key,
+                        false,
+                        Some(","),
+                    )
+                    .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
+                    .unwrap_or_default()
+                    .split([',', '\n'])
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string()),
+                );
+            }
+        }
 
         let mut point_list =
             super::mqtt::get_string_from_param_or_file(&mut dsn, "PointList", false, Some(","))
@@ -193,15 +417,44 @@ impl PiConfig {
                 .filter(|s| !s.is_empty())
                 .map(|s| s.to_string())
                 .collect_vec();
-        point_list.extend(
-            super::mqtt::get_string_from_param_or_file(&mut dsn, "point_file", false, Some(","))
-                .map_err(|err| PiError::ParseKeyValueError("point_file", err))?
-                .unwrap_or_default()
-                .split([',', '\n'])
-                .map(|s| s.trim())
-                .filter(|s| !s.is_empty())
-                .map(|s| s.to_string()),
-        );
+        let config_key = "point_file";
+        let config_category = "PointList";
+
+        if let Some(value) = dsn.get(config_key) {
+            if value == "*" {
+                let datasets = pi_datasets(&DataSetsReq {
+                    from: dsn.to_string(),
+                    categories: vec![config_category.to_string()],
+                    pattern: None,
+                    offset: 0,
+                    limit: usize::MAX / 2 - 1,
+                    via: None,
+                    lang: None,
+                })
+                .await?;
+                point_list.extend(
+                    datasets
+                        .into_iter()
+                        .map(|ds| ds.id)
+                        .filter(|id| !id.is_empty()),
+                );
+            } else {
+                point_list.extend(
+                    super::mqtt::get_string_from_param_or_file(
+                        &mut dsn,
+                        "point_file",
+                        false,
+                        Some(","),
+                    )
+                    .map_err(|err| PiError::ParseKeyValueError("point_file", err))?
+                    .unwrap_or_default()
+                    .split([',', '\n'])
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string()),
+                );
+            }
+        }
         if is_real_run
             && point_list.is_empty()
             && template_for_af_element.is_empty()
@@ -356,7 +609,7 @@ pub async fn pi_to_taos(
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for PI connection"))?;
     let driver = from.driver.clone();
-    let config = PiConfig::new(from, td_database.unwrap(), ipc_port, sql_port, true)?;
+    let config = PiConfig::new(from, td_database.unwrap(), ipc_port, sql_port, true).await?;
 
     //toml::ser::ValueSerializer
     let toml = toml::to_string(&config)?;
@@ -628,7 +881,9 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         anyhow::bail!("PI connector support only windows platform");
     }
 
-    let config = PiConfig::new(data.from.clone().into_dsn()?, String::new(), 0, 0, false)?;
+    let config =
+        PiConfig::parse_connection(data.from.clone().into_dsn()?, String::new(), 0, 0, false)
+            .await?;
 
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;

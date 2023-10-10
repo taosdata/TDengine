@@ -18,7 +18,9 @@ protocol:
 options:
   host:
     display: 服务器地址
-    description: InfluxDB 数据库的 IP 地址或域名。
+    description: |-
+      InfluxDB 数据库的 IP 地址或域名。
+      如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。
     placeholder: 127.0.0.1
     required: true
   port:

@@ -18,7 +18,9 @@ protocol:
 options:
   host:
     display: IP address
-    description: The access address of InfluxDB
+    description: |-
+      The access address of InfluxDB.
+      If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.
     placeholder: 127.0.0.1
     required: true
   port:
