@@ -269,7 +269,6 @@ public class BucketThread implements Runnable {
         // 获取配置信息
         String beginTime = this.taskConfig.getBeginTime();
         String endTime = this.taskConfig.getEndTime();
-        String readWindow = this.performanceConfig.getReadWindow();
         // 判断开始时间与结束时间
         if (StringUtils.isEmpty(beginTime)) {
             throw new Exception("parameter beginTime configuration error.");
@@ -285,110 +284,22 @@ public class BucketThread implements Runnable {
         Date begin = DateUtils.stringWithZoneToDate(beginTime);
         Date end = DateUtils.stringWithZoneToDate(endTime);
         this.taskEndTime = end;
-        // 默认按分钟拆分
-        if (StringUtils.isEmpty(readWindow)) {
-            readWindow = "M";
-        }
-        // 根据不同拆分方式得到相应计算结果
-        if (readWindow.equalsIgnoreCase("D")) {
-            return getTimeRangeByDay(begin, end, index);
-        } else if (readWindow.equalsIgnoreCase("H")) {
-            return getTimeRangeByHour(begin, end, index);
-        } else if (readWindow.equalsIgnoreCase("M")) {
-            return getTimeRangeByMinute(begin, end, index);
-        } else {
-            throw new Exception("parameter readWindow configuration error.");
-        }
+        // 得到计算结果
+        return getTimeRange(begin, end, index, this.performanceConfig.getReadWindow());
     }
 
     /**
-     * 根据天得到时间段
+     * 计算时间段
      *
      * @param beginTime
      * @param endTime
      * @param index
      * @return
      */
-    private String getTimeRangeByDay(Date beginTime, Date endTime, int index) {
+    private String getTimeRange(Date beginTime, Date endTime, int index, int readWindow) {
         // 根据index计算开始时间与结束时间
-        long begin = beginTime.getTime() + index * 24 * 60 * 60 * 1000;
-        long end = begin + 24 * 60 * 60 * 1000;
-        // 判断上次结束时间是否完成一个窗口，未完成则回退窗口并继续
-        if (begin > this.lastEnd && this.lastEnd > 0) {
-            return resumeByLastEnd(begin, endTime.getTime());
-        }
-        // 如果begin晚于now，返回空
-        if (begin >= this.now.getTime()) {
-            return null;
-        }
-        // 判断是否超过指定时间范围
-        if (begin >= endTime.getTime()) {
-            return null;
-        }
-        // 调整结束时间
-        if (end > endTime.getTime()) {
-            // end晚于endTime，改为endTime
-            end = endTime.getTime();
-        } else if (end > this.now.getTime()) {
-            // end晚于now，改为now（设置了一个晚于now的endTime）
-            end = this.now.getTime();
-        }
-        // 更新lastEnd
-        this.lastEnd = end;
-        // 返回时间范围
-        return DateUtils.toOffsetDateTime(new Date(begin)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "," + DateUtils.toOffsetDateTime(new Date(end)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-    }
-
-    /**
-     * 根据小时得到时间段
-     *
-     * @param beginTime
-     * @param endTime
-     * @param index
-     * @return
-     */
-    private String getTimeRangeByHour(Date beginTime, Date endTime, int index) {
-        // 根据index计算开始时间与结束时间
-        long begin = beginTime.getTime() + index * 60 * 60 * 1000;
-        long end = begin + 60 * 60 * 1000;
-        // 判断上次结束时间是否完成一个窗口，未完成则回退窗口并继续
-        if (begin > this.lastEnd && this.lastEnd > 0) {
-            return resumeByLastEnd(begin, endTime.getTime());
-        }
-        // 如果begin晚于now，返回空
-        if (begin >= this.now.getTime()) {
-            return null;
-        }
-        // 判断是否超过指定时间范围
-        if (begin >= endTime.getTime()) {
-            return null;
-        }
-        // 调整结束时间
-        if (end > endTime.getTime()) {
-            // end晚于endTime，改为endTime
-            end = endTime.getTime();
-        } else if (end > this.now.getTime()) {
-            // end晚于now，改为now（设置了一个晚于now的endTime）
-            end = this.now.getTime();
-        }
-        // 更新lastEnd
-        this.lastEnd = end;
-        // 返回时间范围
-        return DateUtils.toOffsetDateTime(new Date(begin)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "," + DateUtils.toOffsetDateTime(new Date(end)).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
-    }
-
-    /**
-     * 根据分钟得到时间段
-     *
-     * @param beginTime
-     * @param endTime
-     * @param index
-     * @return
-     */
-    private String getTimeRangeByMinute(Date beginTime, Date endTime, int index) {
-        // 根据index计算开始时间与结束时间
-        long begin = beginTime.getTime() + index * 60 * 1000;
-        long end = begin + 60 * 1000;
+        long begin = beginTime.getTime() + index * (readWindow * 60 * 1000);
+        long end = begin + readWindow * 60 * 1000;
         // 判断上次结束时间是否完成一个窗口，未完成则回退窗口并继续
         if (begin > this.lastEnd && this.lastEnd > 0) {
             return resumeByLastEnd(begin, endTime.getTime());
