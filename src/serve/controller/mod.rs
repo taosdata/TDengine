@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::pool::PoolOptions;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
-use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder, Ty};
 use taosx_core::utils::port_pool::PortPool;
 use taosx_core::utils::{mask_dsn, try_mask_dsn};
 use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
@@ -535,7 +535,7 @@ impl TaskController {
             drop(guard);
         }
 
-        let from = if let Some(topic) = task.oneshot_topic.as_deref() {
+        let mut from = if let Some(topic) = task.oneshot_topic.as_deref() {
             let mut from: Dsn = task.from.parse()?;
             from.set("use.topic.name", topic);
             tracing::info!("Set task from: {from}");
@@ -624,6 +624,134 @@ impl TaskController {
             }
             _ => None,
         };
+
+        match from.driver.as_str() {
+            "opcua" | "opcda" => {
+                // opcua/opcda support get all points here since when run opc_to_taos can't get all points by agent
+                let select_all_points = from.params.get("select_all_points");
+                let select_all_points = if let Some(v) = select_all_points {
+                    match v.as_str() {
+                        "false" => false,
+                        "" | "true" => true,
+                        _ => anyhow::bail!("should config true or false")
+                    }
+                } else {
+                    false
+                };
+                if select_all_points {
+                    use crate::serve::get_all_points;
+                    let child_table_expression = from.remove("child_table_expression");
+                    if child_table_expression.is_none() {
+                        anyhow::bail!("should config child_table_expression");
+                    }
+                    let child_table_expression = child_table_expression.unwrap();
+                    let table_primary_key = from.remove("table_primary_key");
+                    if table_primary_key.is_none() {
+                        anyhow::bail!("should config table_primary_key");
+                    }
+                    let table_primary_key = table_primary_key.unwrap();
+                    let all_points = get_all_points(from.to_string(), task.via.clone(), String::from("nodes"), &self).await?;
+                    let point_config = all_points.iter().map(|point| {
+                        let point_id = point.id.clone();
+                        let tbname = if from.driver.as_str() == "opcua" {
+                            // ns=13;i=1003
+                            let mut split = point_id.split(";");
+                            let ns = if let Some(ns) = split.next() {
+                                if ns.contains("ns=") {
+                                    let mut ns_split = ns.split("=");
+                                    ns_split.next();
+                                    ns_split.next()
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            };
+                            let id = if let Some(id) = split.next() {
+                                if id.contains("i=") {
+                                    let mut id_split = id.split("=");
+                                    id_split.next();
+                                    id_split.next()
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            };
+                            child_table_expression.clone()
+                                .replace("{ns}", ns.unwrap_or(""))
+                                .replace("{id}", id.unwrap_or(""))
+                        } else {
+                            let tag_index = point_id.rfind(".");
+                            let tag_name = if let Some(index) = tag_index {
+                                // should be Device.DeviceType.TagName pattern
+                                &point_id[index+1..]
+                            } else {
+                                &point_id
+                            };
+                            child_table_expression.clone().replace("{TagName}", tag_name)
+                        };
+                        format!("{}::{}", point_id, tbname)
+                    }).join(",");
+                    if from.driver.as_str() == "opcua" {
+                        from.set("ua.nodes", point_config);
+                    } else {
+                        from.set("da.tags", point_config);
+                    }
+                    let stable_prefix = Some(String::from("opc"));
+                    let mut column_configs = vec![];
+                    use taosx_core::TableConfig;
+                    use taosx_core::ColumnConfig;
+
+                    column_configs.push(ColumnConfig {
+                        column_name: String::from("val"),
+                        column_type: None,
+                        column_alias: None,
+                        is_primary_key: false,
+                    });
+                    column_configs.push(ColumnConfig {
+                        column_name: String::from("quality"),
+                        column_type: Some(Ty::Int),
+                        column_alias: None,
+                        is_primary_key: false,
+                    });
+                    let opc_table_config = if table_primary_key == "received_ts" {
+                        column_configs.push(ColumnConfig {
+                            column_name: String::from("received_ts"),
+                            column_type: Some(Ty::Timestamp),
+                            column_alias: None,
+                            is_primary_key: true,
+                        });
+                        column_configs.push(ColumnConfig {
+                            column_name: String::from("original_ts"),
+                            column_type: Some(Ty::Timestamp),
+                            column_alias: None,
+                            is_primary_key: false,
+                        });
+                        TableConfig {
+                            stable_prefix,
+                            column_configs,
+                            tag_configs: None,
+                        }
+                    } else {
+                        column_configs.push(ColumnConfig {
+                            column_name: String::from("original_ts"),
+                            column_type: Some(Ty::Timestamp),
+                            column_alias: None,
+                            is_primary_key: true,
+                        });
+                        TableConfig {
+                            stable_prefix,
+                            column_configs,
+                            tag_configs: None,
+                        }
+                    };
+                    from.set("opc_table_config", serde_json::to_string(&opc_table_config)?);
+                }
+                
+            }
+            _ => ()
+        }
 
         // todo! add trace id to
         let span = tracing::info_span!(
@@ -1907,7 +2035,7 @@ impl TaskController {
         tracing::info!("Send list datasets request to agent");
         agent.send(AgentAction::ListDataSets(req, sender))?;
         tracing::info!("Retrieve datasets result from agent");
-        match tokio::time::timeout(Duration::from_secs(60), recv.recv_async()).await {
+        match tokio::time::timeout(Duration::from_secs(600), recv.recv_async()).await {
             Ok(data) => data?.context("Retrieve datasets result error"),
             Err(err) => {
                 tracing::error!("Retrieve datasets result timeout from agent");

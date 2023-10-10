@@ -134,14 +134,6 @@ datasets:
           type: str
         required: true
 
-      - name: table_tag_value
-        display: Tag Value
-        description: 
-        hint:
-          type: str
-        required: false 
-        
-          
 groups:
   - name: Connection
     display_order: 2
