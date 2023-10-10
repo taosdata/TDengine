@@ -230,11 +230,15 @@ impl Definitions {
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Default)]
 pub struct DatasetsDefinition {
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display: Option<String>,
     pub description: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub categories: Vec<DatasetParam>,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub params: Vec<Param>,
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, Default)]
@@ -367,12 +371,14 @@ impl DataSourceDefinition {
         debug_assert!(self.id == dsn.driver);
         let username_value = dsn.username.clone();
         let password_value = dsn.password.clone();
-        if let Some(val) = dsn.protocol.as_deref() {
-            if let Some(proto) = self.protocol.as_mut() {
-                proto.value.replace(val.to_string());
-            } else {
-                self.protocol
-                    .replace(Protocol::default().value(val.to_string()));
+        if self.protocol.is_some() {
+            if let Some(val) = dsn.protocol.as_deref() {
+                if let Some(proto) = self.protocol.as_mut() {
+                    proto.value.replace(val.to_string());
+                } else {
+                    self.protocol
+                        .replace(Protocol::default().value(val.to_string()));
+                }
             }
         }
 
@@ -405,6 +411,14 @@ impl DataSourceDefinition {
                         password,
                     } => {
                         let mut endpoint_str = String::new();
+                        if dsn.driver == "tmq" {
+                            endpoint_str.push_str("tmq");
+                        }
+                        if let Some(scheme) = dsn.protocol.as_deref() {
+                            endpoint_str.push('+');
+                            endpoint_str.push_str(scheme);
+                            endpoint_str.push_str("://");
+                        }
                         if let Some(addr) = dsn.addresses.first() {
                             if let Some(value) = addr.host.as_ref() {
                                 endpoint_str.push_str(value.as_str());
@@ -417,6 +431,13 @@ impl DataSourceDefinition {
                         if let Some(value) = dsn.subject.as_ref() {
                             endpoint_str.push_str("/");
                             endpoint_str.push_str(value.as_str());
+                        }
+                        if dsn.driver == "tmq" {
+                            if let Some(value) = dsn.remove("token") {
+                                endpoint_str.push_str("?");
+                                endpoint_str.push_str("token=");
+                                endpoint_str.push_str(value.as_str());
+                            }
                         }
                         endpoint.value.replace(endpoint_str);
 
@@ -497,7 +518,7 @@ impl DataSourceDefinition {
         {
             let mut is_current_auth = true;
             for param in &auth_item.params {
-                if !dsn.params.contains_key(&(param.name.clone())) {
+                if !dsn.params.contains_key(&param.name) {
                     is_current_auth = false;
                     break;
                 }
@@ -505,7 +526,7 @@ impl DataSourceDefinition {
             if is_current_auth {
                 self.authentication.value.replace(auth_item.name.clone());
                 for param in auth_item.params.iter_mut() {
-                    if let Some(value) = dsn.remove(param.name.clone()) {
+                    if let Some(value) = dsn.remove(&param.name) {
                         if !value.is_empty() {
                             param.value.replace(value);
                         }
@@ -528,6 +549,42 @@ impl DataSourceDefinition {
         //         }
         //     }
         // }
+        if let Some(datasets) = self.datasets.as_mut() {
+            for dataset_param in datasets.categories.as_mut_slice() {
+                if let Some(target) = dataset_param.target.as_mut() {
+                    if let Some(value) = dsn.remove(&target.name) {
+                        if !value.is_empty() {
+                            if target.multiple == true {
+                                target.value = Some(serde_json::Value::Array(
+                                    value
+                                        .split(",")
+                                        .into_iter()
+                                        .map(|v| serde_json::Value::String(v.to_string()))
+                                        .collect(),
+                                ));
+                            } else {
+                                target.value = Some(serde_json::Value::String(value));
+                            }
+                        }
+                    }
+                }
+                for param in &mut dataset_param.params {
+                    if let Some(value) = dsn.remove(&param.name) {
+                        if !value.is_empty() {
+                            param.value.replace(value);
+                        }
+                    }
+                }
+            }
+            datasets.params.iter_mut().for_each(|param| {
+                if let Some(value) = dsn.remove(&param.name) {
+                    if !value.is_empty() {
+                        param.value.replace(value);
+                    }
+                }
+            });
+        }
+
         for group in self.groups.as_mut_slice() {
             // TD-25111
             match (&group.short_description, &group.description) {
@@ -560,35 +617,6 @@ impl DataSourceDefinition {
                     }
                     if !value.is_empty() {
                         param.value.replace(value);
-                    }
-                }
-            }
-        }
-
-        if let Some(datasets) = self.datasets.as_mut() {
-            for dataset_param in datasets.categories.as_mut_slice() {
-                if let Some(target) = dataset_param.target.as_mut() {
-                    if let Some(value) = dsn.remove(target.name.clone()) {
-                        if !value.is_empty() {
-                            if target.multiple == true {
-                                target.value = Some(serde_json::Value::Array(
-                                    value
-                                        .split(",")
-                                        .into_iter()
-                                        .map(|v| serde_json::Value::String(v.to_string()))
-                                        .collect(),
-                                ));
-                            } else {
-                                target.value = Some(serde_json::Value::String(value));
-                            }
-                        }
-                    }
-                }
-                for param in &mut dataset_param.params {
-                    if let Some(value) = dsn.remove(&param.name) {
-                        if !value.is_empty() {
-                            param.value.replace(value);
-                        }
                     }
                 }
             }

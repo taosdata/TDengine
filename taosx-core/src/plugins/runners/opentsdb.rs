@@ -68,9 +68,17 @@ struct TaskConfig {
 #[derive(Debug, serde::Serialize)]
 struct PerformanceConfig {
     #[serde(rename = "readWindow")]
-    performance_read_window: Option<String>,
-    #[serde(rename = "tolerance")]
-    performance_tolerance: u32,
+    performance_read_window: u32,
+    #[serde(rename = "delay")]
+    performance_delay: u32,
+    #[serde(rename = "maxThread")]
+    performance_max_thread: u32,
+    #[serde(rename = "queueSizeT")]
+    performance_queue_size_thread: u32,
+    #[serde(rename = "queueSizeD")]
+    performance_queue_size_data: u32,
+    #[serde(rename = "limitSpeed")]
+    performance_limit_speed: u32
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -79,8 +87,6 @@ pub enum OpentsdbError {
     OpentsUrlIsRequired(Dsn),
     #[error("The data begin time is required: {0}")]
     TaskBeginTimeIsRequired(Dsn),
-    #[error("Invalid tolerance: {0}")]
-    InvalidTolerance(std::num::ParseIntError),
     #[error("plugin not found: {0}")]
     ExeNotFound(String),
 }
@@ -122,12 +128,12 @@ impl OpentsdbConfig {
         let task_end_ime = dsn.remove("endTime");
 
         // the performance config
-        let performance_read_window = dsn.remove("readWindow");
-        let performance_tolerance = dsn
-            .remove("tolerance")
-            .unwrap_or("10000".to_string())
-            .parse()
-            .map_err(|err| OpentsdbError::InvalidTolerance(err))?;
+        let performance_read_window = dsn.remove("readWindow").unwrap_or(String::from("2")).parse::<u32>().unwrap_or(2);
+        let performance_delay = dsn.remove("delay").unwrap_or(String::from("10000")).parse::<u32>().unwrap_or(10000);
+        let performance_max_thread = dsn.remove("maxThread").unwrap_or(String::from("50")).parse::<u32>().unwrap_or(50);
+        let performance_queue_size_thread = dsn.remove("queueSizeT").unwrap_or(String::from("1000")).parse::<u32>().unwrap_or(1000);
+        let performance_queue_size_data = dsn.remove("queueSizeD").unwrap_or(String::from("200000")).parse::<u32>().unwrap_or(200000);
+        let performance_limit_speed = dsn.remove("limitSpeed").unwrap_or(String::from("100000")).parse::<u32>().unwrap_or(100000);
 
         // agent监听地址
         let ipc_stream = format!("127.0.0.1:{ipc}");
@@ -148,7 +154,11 @@ impl OpentsdbConfig {
 
         let performance = PerformanceConfig {
             performance_read_window,
-            performance_tolerance,
+            performance_delay,
+            performance_max_thread,
+            performance_queue_size_thread,
+            performance_queue_size_data,
+            performance_limit_speed
         };
 
         Ok(Self {

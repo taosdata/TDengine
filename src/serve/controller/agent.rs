@@ -18,7 +18,9 @@ pub enum AgentStatus {
     Pending,
     Alive,
     Idle,
+    // #[@deprecated(note = "use `transferring` instead")]
     Busy,
+    Transferring,
     Error,
 }
 

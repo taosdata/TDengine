@@ -3,11 +3,8 @@ id: kafka
 name: Kafka
 type: uri
 description: |
-  Apache Kafka is an open-source distributed event streaming platform used by thousands of companies for high-performance
-  data pipelines, streaming analytics, data integration, and mission-critical applications.
-
-  TaosX can efficiently read the data from Kafka and write to TDengine through the Taosx Kafka Source to achieve
-  historical data migration or real-time data synchronization.
+  Apache Kafka is an open-source distributed streaming system used for stream processing, real-time data pipelines, and data integration at scale.
+  TDengine can efficiently read the data from Kafka and write to TDengine to achieve historical data migration or real-time data streaming.
 strict: false
 options:
   endpoint:
@@ -41,7 +38,7 @@ groups:
       - name: timeout
         display: Timeout
         description: >
-          Specifies the timeout of the Kafka Source. When no data is consumed from Kafka, the data migration task will exit after timeout. 
+          Specifies the timeout of the Kafka Source. When no data is consumed from Kafka, the data migration task will exit after timeout.
           The default value is 500 ms. When use `timeout=never`, taosx will wait for a usable message forever and never stop the subscription until any error caused.
         placeholder: 500
         required: false
