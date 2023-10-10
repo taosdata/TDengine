@@ -819,14 +819,12 @@ export default {
       deep:true,
       handler(val){
         this.$forceUpdate()
-        console.log(val,'最新的数据');
       }
     },
     tagName:{
       deep:true,
       handler(val){
         this.$forceUpdate()
-        console.log(val,'当前得tag');
       }
     },
     "$store.state.dbs.dialogDbVisible": {
@@ -1353,13 +1351,15 @@ export default {
           if (this.agentId) {
             piParams["via"] = this.agentId;
           }
+          console.log(this.isEditable , this.editId,'编辑');
           if (this.isEditable && this.editId) {
             let result = await EditSource(piParams, this.editId);
             if (result.message) {
               Message.error(result.message);
               return;
             }
-            this.$parent.toggleComponent("pitable");
+            this.$parent.changeEditable(false)
+            this.$parent.toggleComponent("pitable",'');
           } else {
             let result = await AddSource(piParams);
             if (result.message) {
@@ -1512,7 +1512,6 @@ export default {
             querystr += `${data.params[0].name}=${data.params[0].value}&`;
           }
         }
-        console.log("ss", querystr);
         let params = null;
         // params = {
         //   from: `${this.tagName}://${host}${subject}${

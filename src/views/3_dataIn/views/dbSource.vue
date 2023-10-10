@@ -130,7 +130,14 @@ export default {
         }
       }
     },
+    changeEditable(val){
+      this.isEditable=val
+    },
+    setEditID(val){
+      this.editId=val
+    },
     toggleComponent(type, id, editid, dbname, iscopy) {
+      
       if (type&&!this.isEditable) {
         //新增
         let data = this.sourceList.filter((item) => item.id === type);
@@ -290,7 +297,7 @@ export default {
           this.isCopyable = true;
         } else {
           this.isCopyable = false;
-          this.editId = editid;
+          // this.editId = editid;
         }
         this.isEditable = true;
         this.dbName = dbname;
