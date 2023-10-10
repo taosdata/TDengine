@@ -15,6 +15,7 @@
       :isEditable="isEditable"
       :echoData="echoData"
       :sourceName="sourceName"
+      @setEditData="setEditData"
       ref="table"
     ></component>
   </div>
@@ -63,9 +64,12 @@ export default {
     this.getData();
   },
   methods: {
+    //设置编辑时候的数据
+    setEditData(data){
+      this.uidata=deepClone(data)
+    },
     //回显opc的数据
     echoOpcData() {
-      console.log(this.uidata[0],'opc---99');
       let opcconfigData = this.uidata[0].datasets.categories.filter(
         (item) => item.name == this.$t("datasource.opcconfig")
       )[0].category[0];
@@ -127,8 +131,7 @@ export default {
       }
     },
     toggleComponent(type, id, editid, dbname, iscopy) {
-      // this.currentName = name;
-      if (type) {
+      if (type&&!this.isEditable) {
         //新增
         let data = this.sourceList.filter((item) => item.id === type);
         console.log(data,'复制操作');

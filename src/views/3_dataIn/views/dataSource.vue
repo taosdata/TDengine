@@ -359,17 +359,17 @@ export default {
       });
     },
     edit(data, status, iscopy) {
-      console.log(data, status, iscopy, "编辑操作");
       this.$parent.sourceName = data.name;
       this.$parent.currentTaskStatus = status;
       this.$parent.agentID = data?.via;
+      this.$emit('setEditStaus',true)
       if (data.from_detail) {
         this.$store.commit("app/SET_CURRENT_DBTYPE", data.from_detail?.id);
 
         this.$store.commit("app/SET_CURRENT_DBNAME", data.target);
         this.$store.commit("app/SET_CURRENT_AGENT", data?.via);
         this.$store.commit("app/SET_CURRENT_DSNAME", data.name);
-        let editDdata = [].concat(data.from_detail);
+        let editDdata =deepClone([].concat(data.from_detail)) ;
         if (data.from_expand && data.from_expand.id == "mqtt") {
           let dnsarr = data.from.split("?")[1].split("&");
           let caindex = dnsarr.findIndex((item) => item.includes("ca="));
@@ -430,6 +430,8 @@ export default {
             "app/SET_OPC_PRIVATEFILES",
             [].concat(privatefile)
           );
+
+      
         }
 
         if (data.from_expand && data.from_expand.id == "csv") {
@@ -444,7 +446,10 @@ export default {
           data.to_expand && data.to_expand.subject
             ? data.to_expand.subject
             : "";
-        this.$parent.uidata = editDdata;
+          this.$emit('setEditData',editDdata)
+        // this.$set(this.$parent.uidata,0,editDdata)
+        // this.$parent.uidata = editDdata;
+        console.log(data, status, iscopy,editDdata,data.from_detail, "编辑操作");
         localStorage.setItem("datainName", data.name);
         this.$parent.toggleComponent(
           "",
@@ -460,6 +465,7 @@ export default {
       this.edit(data, status, true);
     },
     addDbSource() {
+      this.$emit('setEditStaus',false)
       this.$store.commit("app/SET_CURRENT_DBNAME", "");
       this.$store.commit("app/SET_CURRENT_AGENT", "");
       this.$store.commit("app/SET_CURRENT_DSNAME", "");
