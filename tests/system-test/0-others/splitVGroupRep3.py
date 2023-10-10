@@ -383,7 +383,6 @@ class TDTestCase:
         self.expectSplitError("streamdb")
         tdSql.execute("drop stream ma;")
         self.expectSplitOk("streamdb")
-
         # topic
         tdLog.info("check forbid split having topic...")
         tdSql.execute("create database topicdb wal_retention_period 10;")
