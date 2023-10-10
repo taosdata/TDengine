@@ -73,7 +73,9 @@ const state = {
   currentDBName:'',
   currentAgentID:'',
   currentDBType:'',
-  currentDSName:''
+  currentDSName:'',
+
+  currentEditID:''
 };
 const saveKey = encodeURIComponent("appId");
 const waitTime = 15 * 60 * 1000;
@@ -100,6 +102,9 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_CURRENT_EDITID:(state,data)=>{
+    state.currentEditID=data
+  },
   SET_CURRENT_DBNAME:(state,data)=>{
     state.currentDBName=data
   },
