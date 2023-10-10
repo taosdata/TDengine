@@ -51,7 +51,8 @@ sudo seeq restart
     "UseSSL": false,
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
-        "DatabaseJdbcUrl": "jdbc:TAOS://localhost:6030/?user=root&password=taosdata",
+        "DatabaseJdbcUrl": "jdbc:TAOS-RS://localhost:6030/?user=root&password=taosdata",
+        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }
@@ -144,6 +145,7 @@ Please login with Seeq administrator and create a few data sources as following.
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
         "DatabaseJdbcUrl": "jdbc:TAOS-RS://127.0.0.1:6041/power?user=root&password=taosdata",
+        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }
@@ -203,6 +205,7 @@ Please login with Seeq administrator and create a few data sources as following.
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
         "DatabaseJdbcUrl": "jdbc:TAOS-RS://127.0.0.1:6041/power?user=root&password=taosdata",
+        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }
@@ -261,6 +264,7 @@ Please login with Seeq administrator and create a few data sources as following.
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
         "DatabaseJdbcUrl": "jdbc:TAOS-RS://127.0.0.1:6041/power?user=root&password=taosdata",
+        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }
@@ -350,13 +354,15 @@ Please note that when using TDengine Cloud, you need to specify the database nam
 
 #### The data source of TDengine Cloud example
 
+This data source contains the data from a smart meter in public database smartmeters.
+
 ```
 {
     "QueryDefinitions": [
         {
             "Name": "CloudVoltage",
             "Type": "SIGNAL",
-            "Sql": "SELECT  ts, voltage FROM test.meters",
+            "Sql": "SELECT  ts, voltage FROM smartmeters.d1000",
             "Enabled": true,
             "TestMode": false,
             "TestQueriesDuringSync": true,
@@ -399,7 +405,8 @@ Please note that when using TDengine Cloud, you need to specify the database nam
     "UseSSL": false,
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
-        "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.cloud.taosdata.com?useSSL=true&token=41ac9d61d641b6b334e8b76f45f5a8XXXXXXXXXX",
+        "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.us-west-2.aws.cloud.tdengine.com?useSSL=true&token=42b874395452d36f38dd6bf4317757611b213683",
+        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }
