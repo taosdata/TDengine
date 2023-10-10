@@ -24,6 +24,9 @@
 extern "C" {
 #endif
 
+#define HASH_FUNCTION_1 taosFastHash
+#define HASH_FUNCTION_2 taosDJB2Hash
+
 typedef struct SBloomFilter {
   uint32_t   hashFunctions;
   uint64_t   expectedEntries;
@@ -37,8 +40,9 @@ typedef struct SBloomFilter {
 } SBloomFilter;
 
 SBloomFilter *tBloomFilterInit(uint64_t expectedEntries, double errorRate);
+int32_t       tBloomFilterPutHash(SBloomFilter *pBF, uint64_t hash1, uint64_t hash2);
 int32_t       tBloomFilterPut(SBloomFilter *pBF, const void *keyBuf, uint32_t len);
-int32_t       tBloomFilterNoContain(const SBloomFilter *pBF, const void *keyBuf, uint32_t len);
+int32_t       tBloomFilterNoContain(const SBloomFilter *pBF, uint64_t h1, uint64_t h2);
 void          tBloomFilterDestroy(SBloomFilter *pBF);
 void          tBloomFilterDump(const SBloomFilter *pBF);
 bool          tBloomFilterIsFull(const SBloomFilter *pBF);

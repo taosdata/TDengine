@@ -39,13 +39,31 @@ SScalableBf *tScalableBfInit(uint64_t expectedEntries, double errorRate) {
     return NULL;
   }
   pSBf->growth = DEFAULT_GROWTH;
+  pSBf->hashFn1 = HASH_FUNCTION_1;
+  pSBf->hashFn2 = HASH_FUNCTION_2;
   return pSBf;
 }
 
+int32_t tScalableBfPutNoCheck(SScalableBf *pSBf, const void *keyBuf, uint32_t len) {
+  int32_t size = taosArrayGetSize(pSBf->bfArray);
+  SBloomFilter *pNormalBf = taosArrayGetP(pSBf->bfArray, size - 1);
+  ASSERT(pNormalBf);
+  if (tBloomFilterIsFull(pNormalBf)) {
+    pNormalBf = tScalableBfAddFilter(pSBf, pNormalBf->expectedEntries * pSBf->growth,
+                                     pNormalBf->errorRate * DEFAULT_TIGHTENING_RATIO);
+    if (pNormalBf == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return tBloomFilterPut(pNormalBf, keyBuf, len);
+}
+
 int32_t tScalableBfPut(SScalableBf *pSBf, const void *keyBuf, uint32_t len) {
+  uint64_t h1 = (uint64_t)pSBf->hashFn1(keyBuf, len);
+  uint64_t h2 = (uint64_t)pSBf->hashFn2(keyBuf, len);
   int32_t size = taosArrayGetSize(pSBf->bfArray);
   for (int32_t i = size - 2; i >= 0; --i) {
-    if (tBloomFilterNoContain(taosArrayGetP(pSBf->bfArray, i), keyBuf, len) != TSDB_CODE_SUCCESS) {
+    if (tBloomFilterNoContain(taosArrayGetP(pSBf->bfArray, i), h1, h2) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_FAILED;
     }
   }
@@ -59,13 +77,15 @@ int32_t tScalableBfPut(SScalableBf *pSBf, const void *keyBuf, uint32_t len) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
-  return tBloomFilterPut(pNormalBf, keyBuf, len);
+  return tBloomFilterPutHash(pNormalBf, h1, h2);
 }
 
 int32_t tScalableBfNoContain(const SScalableBf *pSBf, const void *keyBuf, uint32_t len) {
+  uint64_t h1 = (uint64_t)pSBf->hashFn1(keyBuf, len);
+  uint64_t h2 = (uint64_t)pSBf->hashFn2(keyBuf, len);
   int32_t size = taosArrayGetSize(pSBf->bfArray);
   for (int32_t i = size - 1; i >= 0; --i) {
-    if (tBloomFilterNoContain(taosArrayGetP(pSBf->bfArray, i), keyBuf, len) != TSDB_CODE_SUCCESS) {
+    if (tBloomFilterNoContain(taosArrayGetP(pSBf->bfArray, i), h1, h2) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_FAILED;
     }
   }
@@ -113,6 +133,8 @@ int32_t tScalableBfEncode(const SScalableBf *pSBf, SEncoder *pEncoder) {
 
 SScalableBf *tScalableBfDecode(SDecoder *pDecoder) {
   SScalableBf *pSBf = taosMemoryCalloc(1, sizeof(SScalableBf));
+  pSBf->hashFn1 = HASH_FUNCTION_1;
+  pSBf->hashFn2 = HASH_FUNCTION_2;
   pSBf->bfArray = NULL;
   int32_t size = 0;
   if (tDecodeI32(pDecoder, &size) < 0) goto _error;

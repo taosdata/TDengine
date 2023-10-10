@@ -43,12 +43,16 @@ TEST(TD_UTIL_BLOOMFILTER_TEST, normal_bloomFilter) {
 
   for (int64_t i = 0; i < 1000; i++) {
     int64_t ts = i + ts1;
-    GTEST_ASSERT_EQ(tBloomFilterNoContain(pBF4, &ts, sizeof(int64_t)), TSDB_CODE_FAILED);
+    uint64_t h1 = (uint64_t) pBF4->hashFn1((const char*)&ts, sizeof(int64_t));
+    uint64_t h2 = (uint64_t) pBF4->hashFn2((const char*)&ts, sizeof(int64_t));
+    GTEST_ASSERT_EQ(tBloomFilterNoContain(pBF4, h1, h2), TSDB_CODE_FAILED);
   }
 
   for (int64_t i = 2000; i < 3000; i++) {
     int64_t ts = i + ts1;
-    GTEST_ASSERT_EQ(tBloomFilterNoContain(pBF4, &ts, sizeof(int64_t)), TSDB_CODE_SUCCESS);
+    uint64_t h1 = (uint64_t) pBF4->hashFn1((const char*)&ts, sizeof(int64_t));
+    uint64_t h2 = (uint64_t) pBF4->hashFn2((const char*)&ts, sizeof(int64_t));
+    GTEST_ASSERT_EQ(tBloomFilterNoContain(pBF4,  h1, h2), TSDB_CODE_SUCCESS);
   }
 
   tBloomFilterDestroy(pBF1);
