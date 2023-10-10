@@ -21,7 +21,7 @@ public class PerformanceConfig {
     private int limitSpeed = 50000;
     private int retryTimes = 3;
     private long retryInterval = 200;
-    private String readWindow = "M";
+    private int readWindow = 1;
     private int maxThread = 50;
     private long queueSizeT = 1000;
     private long queueSizeD = 200000;
