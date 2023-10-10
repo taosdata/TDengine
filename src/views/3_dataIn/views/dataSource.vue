@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div v-loading="requestIng">
     <p class="title">
       <span>{{ $t("dataIn.dataSources") }}</span>
     </p>
@@ -27,7 +27,6 @@
         size="mini"
         max-height="250"
         row-key="taskid"
-        v-loading="requestIng"
         :expand-row-keys="expandRowKeys"
         @expand-change="expandChange"
       >

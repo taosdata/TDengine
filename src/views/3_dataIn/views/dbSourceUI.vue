@@ -874,26 +874,28 @@ export default {
         });
         return group;
       });
-      this.dbsource[0].datasets.params = this.dbsource[0].datasets.
-        params.map((p) => {
-          if (p.value) {
-            p.fileList = [].concat({
-              name: p.value?.substr(p.value.lastIndexOf("/") + 1),
-              percentage: 100,
-              raw: File,
-              response: [].concat(p.value),
-              size: 87,
-              status: "success",
-              uid: 1,
-            });
-            p.value = p.value?.substr(p.value.lastIndexOf("@") + 1);
-            this.activeRadio = p.value.includes('@') ? 'select_file' : 'all_points'
-            this.activeName = p.name
-          } else {
-            this.activeName = 'point_file'
-          }
-        return p;
-      });
+      if (this.dbsource[0]?.datasets) {
+        this.dbsource[0].datasets.params = this.dbsource[0]?.datasets?.
+          params.map((p) => {
+            if (p.value) {
+              p.fileList = [].concat({
+                name: p.value?.substr(p.value.lastIndexOf("/") + 1),
+                percentage: 100,
+                raw: File,
+                response: [].concat(p.value),
+                size: 87,
+                status: "success",
+                uid: 1,
+              });
+              p.value = p.value?.substr(p.value.lastIndexOf("@") + 1);
+              this.activeRadio = p.value.includes('@') ? 'select_file' : 'all_points'
+              this.activeName = p.name
+            } else {
+              this.activeName = 'point_file'
+            }
+          return p;
+        });
+      }
     },
     handleSuccess(response, file, fileList, name) {
       this.dbsource[0].datasets.params = this.dbsource[0].datasets.
