@@ -422,6 +422,6 @@ func String(v any) (string, error) {
 	case []byte:
 		return *(*string)(unsafe.Pointer(&v)), nil
 	default:
-		return "", fmt.Errorf(typeErrorTemplate, v, "string")
+		return fmt.Sprintf("%v", v), nil
 	}
 }
