@@ -294,6 +294,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfg.daysToKeep0 = pNew->cfg.daysToKeep0;
   pOld->cfg.daysToKeep1 = pNew->cfg.daysToKeep1;
   pOld->cfg.daysToKeep2 = pNew->cfg.daysToKeep2;
+  pOld->cfg.keepTimeOffset = pNew->cfg.keepTimeOffset;
   pOld->cfg.walFsyncPeriod = pNew->cfg.walFsyncPeriod;
   pOld->cfg.walLevel = pNew->cfg.walLevel;
   pOld->cfg.walRetentionPeriod = pNew->cfg.walRetentionPeriod;

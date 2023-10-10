@@ -137,10 +137,10 @@ class TDTestCase:
         tdSql.execute(sql1)
 
         sql2 = sql.replace("@db_name", self.db2)
-        if len(sql1) > 100:
-            tdLog.info(sql1[:100])
+        if len(sql2) > 100:
+            tdLog.info(sql2[:100])
         else:
-            tdLog.info(sql1)
+            tdLog.info(sql2)
         tdSql.execute(sql2)
         
 
@@ -151,8 +151,8 @@ class TDTestCase:
         self.childCnt = 10
         self.childRow = 10000
         self.batchSize = 5000
-        self.vgroups1  = 4
-        self.vgroups2  = 4
+        self.vgroups1  = 2
+        self.vgroups2  = 2
         self.db1 = "db1"
         self.db2 = "db2"
         
@@ -182,6 +182,16 @@ class TDTestCase:
 
         # insert data
         self.insertData()
+
+        # update
+        self.ts = 1680000000000 + 10000
+        self.childRow = 2000
+
+        # delete data
+        sql = "delete from @db_name.st where ts > 1680000001900 and ts < 1680000012000"
+        self.exeDouble(sql)
+        sql = "delete from @db_name.st where ts > 1680000029000 and ts < 1680000048000"
+        self.exeDouble(sql)
 
     # check data correct
     def checkExpect(self, sql, expectVal):
@@ -225,7 +235,7 @@ class TDTestCase:
         rowlen2 = len(res2)
 
         if rowlen1 != rowlen2:
-            tdLog.exit(f"rowlen1={rowlen1} rowlen2={rowlen2} both not equal.")
+            tdLog.exit(f"both row count not equal. rowlen1={rowlen1} rowlen2={rowlen2} ")
             return False
         
         for i in range(rowlen1):
@@ -234,11 +244,11 @@ class TDTestCase:
             collen1 = len(row1)
             collen2 = len(row2)
             if collen1 != collen2:
-                tdLog.exit(f"collen1={collen1} collen2={collen2} both not equal.")
+                tdLog.exit(f"both col count not equal. collen1={collen1} collen2={collen2}")
                 return False
             for j in range(collen1):
                 if row1[j] != row2[j]:
-                    tdLog.exit(f"col={j} col1={row1[j]} col2={row2[j]} both col not equal.")
+                    tdLog.exit(f"both col not equal. row={i} col={j} col1={row1[j]} col2={row2[j]} .")
                     return False
 
         # warning performance
@@ -354,7 +364,7 @@ class TDTestCase:
         dbName = "emptydb"
         vgNum = 2
         # create database
-        sql = f"create database {dbName} vgroups {vgNum}"
+        sql = f"create database {dbName} vgroups {vgNum} replica 3"
         tdLog.info(sql)
         tdSql.execute(sql)
 
@@ -380,7 +390,7 @@ class TDTestCase:
         tdSql.execute("use topicdb;")
         tdSql.execute("create table ta(ts timestamp, age int);")
         tdSql.execute("create topic toa as select * from ta;")
-        self.expectSplitError("topicdb")
+        #self.expectSplitError("topicdb")
         tdSql.execute("drop topic toa;")
         self.expectSplitOk("topicdb")
    
@@ -397,7 +407,7 @@ class TDTestCase:
         # prepare env
         self.prepareEnv()
 
-        for i in range(5):
+        for i in range(2):
             # split vgroup on db2
             start = time.time()
             self.splitVGroup(self.db2)

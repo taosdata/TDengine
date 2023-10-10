@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "parInt.h"
 #include "parTranslater.h"
+#include "parInt.h"
 
 #include "catalog.h"
 #include "cmdnodes.h"
@@ -1209,37 +1209,37 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
       break;
     }
     case TSDB_DATA_TYPE_VARBINARY: {
-      if (pVal->node.resType.type != TSDB_DATA_TYPE_BINARY){
+      if (pVal->node.resType.type != TSDB_DATA_TYPE_BINARY) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
       }
 
-      void* data = NULL;
+      void*    data = NULL;
       uint32_t size = 0;
-      bool isHexChar = isHex(pVal->literal, strlen(pVal->literal));
-      if(isHexChar){
-        if(!isValidateHex(pVal->literal, strlen(pVal->literal))){
+      bool     isHexChar = isHex(pVal->literal, strlen(pVal->literal));
+      if (isHexChar) {
+        if (!isValidateHex(pVal->literal, strlen(pVal->literal))) {
           return TSDB_CODE_PAR_INVALID_VARBINARY;
         }
-        if(taosHex2Ascii(pVal->literal, strlen(pVal->literal), &data, &size) < 0){
+        if (taosHex2Ascii(pVal->literal, strlen(pVal->literal), &data, &size) < 0) {
           return TSDB_CODE_OUT_OF_MEMORY;
         }
-      }else{
+      } else {
         size = pVal->node.resType.bytes;
         data = pVal->literal;
       }
 
       if (size + VARSTR_HEADER_SIZE > targetDt.bytes) {
-        if(isHexChar) taosMemoryFree(data);
+        if (isHexChar) taosMemoryFree(data);
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_VALUE_TOO_LONG, pVal->literal);
       }
       pVal->datum.p = taosMemoryCalloc(1, size + VARSTR_HEADER_SIZE);
       if (NULL == pVal->datum.p) {
-        if(isHexChar) taosMemoryFree(data);
+        if (isHexChar) taosMemoryFree(data);
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
       }
       varDataSetLen(pVal->datum.p, size);
       memcpy(varDataVal(pVal->datum.p), data, size);
-      if(isHexChar)  taosMemoryFree(data);
+      if (isHexChar) taosMemoryFree(data);
       break;
     }
     case TSDB_DATA_TYPE_VARCHAR:
@@ -1788,7 +1788,6 @@ static int32_t translateBlockDistFunc(STranslateContext* pCtx, SFunctionNode* pF
   }
   return TSDB_CODE_SUCCESS;
 }
-
 
 static bool isStarParam(SNode* pNode) { return nodesIsStar(pNode) || nodesIsTableStar(pNode); }
 
@@ -2811,7 +2810,8 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
         pJoinTable->table.precision = calcJoinTablePrecision(pJoinTable);
         pJoinTable->table.singleTable = joinTableIsSingleTable(pJoinTable);
         code = translateExpr(pCxt, &pJoinTable->pOnCond);
-        pJoinTable->hasSubQuery = (nodeType(pJoinTable->pLeft) != QUERY_NODE_REAL_TABLE) || (nodeType(pJoinTable->pRight) != QUERY_NODE_REAL_TABLE);
+        pJoinTable->hasSubQuery = (nodeType(pJoinTable->pLeft) != QUERY_NODE_REAL_TABLE) ||
+                                  (nodeType(pJoinTable->pRight) != QUERY_NODE_REAL_TABLE);
         if (nodeType(pJoinTable->pLeft) == QUERY_NODE_JOIN_TABLE) {
           ((SJoinTableNode*)pJoinTable->pLeft)->isLowLevelJoin = true;
         }
@@ -2827,7 +2827,7 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
   return code;
 }
 
-static int32_t  createAllColumns(STranslateContext* pCxt, bool igTags, SNodeList** pCols) {
+static int32_t createAllColumns(STranslateContext* pCxt, bool igTags, SNodeList** pCols) {
   *pCols = nodesMakeList();
   if (NULL == *pCols) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY);
@@ -2870,7 +2870,7 @@ static SNode* createMultiResFunc(SFunctionNode* pSrcFunc, SExprNode* pExpr) {
     } else {
       len = snprintf(buf, sizeof(buf) - 1, "%s(%s.%s)", pSrcFunc->functionName, pCol->tableAlias, pCol->colName);
       taosCreateMD5Hash(buf, len);
-      strncpy(pFunc->node.aliasName, buf, TSDB_COL_NAME_LEN  - 1);
+      strncpy(pFunc->node.aliasName, buf, TSDB_COL_NAME_LEN - 1);
       len = snprintf(buf, sizeof(buf) - 1, "%s(%s)", pSrcFunc->functionName, pCol->colName);
       // note: userAlias could be truncated here
       strncpy(pFunc->node.userAlias, buf, TSDB_COL_NAME_LEN - 1);
@@ -2992,11 +2992,8 @@ static int32_t createTags(STranslateContext* pCxt, SNodeList** pOutput) {
   return TSDB_CODE_SUCCESS;
 }
 
-
 #ifndef TD_ENTERPRISE
-int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  return TSDB_CODE_SUCCESS;
-}
+int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect) { return TSDB_CODE_SUCCESS; }
 #endif
 
 static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -3712,7 +3709,8 @@ static int32_t removeConstantValueFromList(SNodeList** pList) {
   SNode* pNode = NULL;
   WHERE_EACH(pNode, *pList) {
     if (nodeType(pNode) == QUERY_NODE_VALUE ||
-        (nodeType(pNode) == QUERY_NODE_FUNCTION && fmIsConstantResFunc((SFunctionNode*)pNode) && fmIsScalarFunc(((SFunctionNode*)pNode)->funcId))) {
+        (nodeType(pNode) == QUERY_NODE_FUNCTION && fmIsConstantResFunc((SFunctionNode*)pNode) &&
+         fmIsScalarFunc(((SFunctionNode*)pNode)->funcId))) {
       ERASE_NODE(*pList);
       continue;
     }
@@ -4557,9 +4555,9 @@ static int32_t checkOptionsDependency(STranslateContext* pCxt, const char* pDbNa
     daysPerFile = (-1 == daysPerFile ? dbCfg.daysPerFile : daysPerFile);
     daysToKeep0 = (-1 == daysToKeep0 ? dbCfg.daysToKeep0 : daysToKeep0);
   }
-  if (daysPerFile > daysToKeep0) {
+  if (daysPerFile > daysToKeep0 / 3) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                   "Invalid duration value, should be keep2 >= keep1 >= keep0 >= duration");
+                                   "Invalid duration value, should be keep2 >= keep1 >= keep0 >= 3 * duration");
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -8018,9 +8016,29 @@ static int32_t insertCondIntoSelectStmt(SSelectStmt* pSelect, SNode* pCond) {
   if (pSelect->pWhere == NULL) {
     pSelect->pWhere = pCond;
   } else {
-    SNode* pWhere = NULL;
-    createLogicCondNode(pSelect->pWhere, pCond, &pWhere, LOGIC_COND_TYPE_AND);
-    pSelect->pWhere = pWhere;
+    SNodeList* pLogicCondListWhere = NULL;
+    SNodeList* pLogicCondList2 = NULL;
+    if (nodeType(pSelect->pWhere) == QUERY_NODE_LOGIC_CONDITION &&
+        ((SLogicConditionNode*)pSelect->pWhere)->condType == LOGIC_COND_TYPE_AND) {
+        pLogicCondListWhere = ((SLogicConditionNode*)pSelect->pWhere)->pParameterList;
+    } else {
+      nodesListMakeAppend(&pLogicCondListWhere, pSelect->pWhere);
+    }
+
+    if (nodeType(pCond) == QUERY_NODE_LOGIC_CONDITION &&
+        ((SLogicConditionNode*)pCond)->condType == LOGIC_COND_TYPE_AND) {
+         pLogicCondList2 = ((SLogicConditionNode*)pCond)->pParameterList;
+    } else {
+      nodesListMakeAppend(&pLogicCondList2, pCond);
+    }
+
+    nodesListAppendList(pLogicCondListWhere, pLogicCondList2);
+
+    SLogicConditionNode* pWhere = (SLogicConditionNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+    pWhere->condType = LOGIC_COND_TYPE_AND;
+    pWhere->pParameterList = pLogicCondListWhere;
+
+    pSelect->pWhere = (SNode*)pWhere;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -8093,7 +8111,6 @@ static int32_t addShowKindCond(const SShowStmt* pShow, SSelectStmt* pSelect) {
   }
   return TSDB_CODE_SUCCESS;
 }
-
 
 static int32_t createShowCondition(const SShowStmt* pShow, SSelectStmt* pSelect) {
   SNode* pDbCond = NULL;
