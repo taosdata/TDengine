@@ -8,6 +8,37 @@ endfunction(cat IN_FILE OUT_FILE)
 
 if(${TD_LINUX})
 
+  if(${BUILD_WITH_S3})
+
+set(CONTRIB_TMP_FILE3 "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in3")
+configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
+
+if(${BUILD_WITH_COS})
+    file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.1/)
+    cat("${TD_SUPPORT_DIR}/ssl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
+endif(${BUILD_WITH_COS})
+
+configure_file(${CONTRIB_TMP_FILE3} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
+execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
+        WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
+execute_process(COMMAND "${CMAKE_COMMAND}" --build .
+        WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
+
+set(CONTRIB_TMP_FILE2 "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in2")
+configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE2})
+
+if(${BUILD_WITH_COS})
+    cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE2})
+endif(${BUILD_WITH_COS})
+
+configure_file(${CONTRIB_TMP_FILE2} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
+execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
+        WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
+execute_process(COMMAND "${CMAKE_COMMAND}" --build .
+        WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
+
+else()
+
 set(CONTRIB_TMP_FILE3 "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in3")
 configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
 
@@ -36,6 +67,8 @@ execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
         WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
 execute_process(COMMAND "${CMAKE_COMMAND}" --build .
         WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
+
+endif(${BUILD_WITH_S3})
 
 endif(${TD_LINUX})
 
@@ -155,6 +188,18 @@ if(${BUILD_WITH_SQLITE})
     cat("${TD_SUPPORT_DIR}/sqlite_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(${BUILD_WITH_SQLITE})
 
+# s3
+if(${BUILD_WITH_S3})
+    #cat("${TD_SUPPORT_DIR}/mxml_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    #cat("${TD_SUPPORT_DIR}/apr_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    #cat("${TD_SUPPORT_DIR}/apr-util_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    #cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    #INCLUDE_DIRECTORIES($ENV{HOME}/.cos-local.1/include)
+    cat("${TD_SUPPORT_DIR}/libs3_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    add_definitions(-DUSE_S3)
+
+else()
+
 # cos
 if(${BUILD_WITH_COS})
     #cat("${TD_SUPPORT_DIR}/mxml_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -164,6 +209,8 @@ if(${BUILD_WITH_COS})
     cat("${TD_SUPPORT_DIR}/cos_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     add_definitions(-DUSE_COS)
 endif(${BUILD_WITH_COS})
+
+endif(${BUILD_WITH_S3})
 
 # lucene
 if(${BUILD_WITH_LUCENE})
@@ -390,6 +437,11 @@ if (${BUILD_WITH_ROCKSDB})
     endif()
 endif()
 
+if(${BUILD_WITH_S3})
+    INCLUDE_DIRECTORIES($ENV{HOME}/.cos-local.1/include)
+
+else()
+
 # cos
 if(${BUILD_WITH_COS})
   if(${TD_LINUX})
@@ -414,6 +466,8 @@ if(${BUILD_WITH_COS})
 
   endif(${TD_LINUX})
 endif(${BUILD_WITH_COS})
+
+endif(${BUILD_WITH_S3})
 
 # lucene
 # To support build on ubuntu: sudo apt-get install libboost-all-dev
