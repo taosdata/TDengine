@@ -130,7 +130,7 @@ groups:
         hint: time
       - name: readWindow
         display: Read Window(m)
-        description: The maximum time range every time when retrieving data from InfluxDB, should be filled in reasonably based on the characteristics of the data stored in InfluxDB. It is recommended that the single read data should not exceed 200000 records.
+        description: The maximum time range when retrieving data from InfluxDB each time, should be chosen reasonably based on the characteristics of the data stored in InfluxDB. No more than 200,000 records for each query is recommended.
         placeholder: Please input the read window
         hint:
           type: integer
