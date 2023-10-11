@@ -208,8 +208,10 @@ impl TaskOpts {
             offsets,
             transferred,
             span,
+            task_id,
             ..
         } = self;
+        // dbg!(task_id);
 
         if with_agent.is_none() {
             // Check if enterprise available
@@ -307,7 +309,7 @@ impl TaskOpts {
                             tracing::info!("csv transfer cancelled");
                             return Ok(())
                         }
-                        rs = legacy_to_taos(from.clone(), transform.clone(), to.clone(), *jobs, cancel.clone())
+                        rs = legacy_to_taos(from.clone(), transform.clone(), to.clone(), *jobs, cancel.clone(), task_id.clone())
                         // .in_current_span()
                         .instrument(tracing::info_span!("legacy_to_taos")) => {
                             rs?;
