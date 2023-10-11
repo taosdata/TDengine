@@ -88,7 +88,7 @@ authentication:
           required: true
         - name: token
           display: Token
-          description: The token of InfluxDB, which must have permission to read anything in this organization.
+          description: The token of InfluxDB, which must have read permission in this organization.
           placeholder: Please input your access token in the InfluxDB
           hint: str
           required: true
