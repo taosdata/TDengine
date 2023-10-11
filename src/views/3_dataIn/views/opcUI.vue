@@ -401,8 +401,29 @@
                     :key="ain"
                     style="display: flex; margin-bottom: 20px"
                   >
-                    <span class="label">{{ all?.display }}</span>
-                    <el-input size="small" v-model="all.value"></el-input>
+                    <span :class="['label', all.required ? 'required' : '']">{{
+                      all?.display
+                    }}</span>
+                    <div style="flex:1;">
+                      <template v-if="all?.hint.choices">
+                        <el-select v-model="all.value" size="small" style="width:100%;">
+                          <el-option
+                            v-for="item in all.hint.choices"
+                            :key="item"
+                            :value="item"
+                            :label="item"
+                          ></el-option>
+                        </el-select>
+                      </template>
+                      <template v-else>
+                        <el-input size="small" v-model="all.value" style="margin-bottom:8px;"></el-input>
+                      </template>
+                      <div
+                      
+                        class="description"
+                        v-html="transforHtml(all.description)"
+                      ></div>
+                    </div>
                   </li>
                 </ul>
               </div>
@@ -714,7 +735,7 @@
                       </template>
                       <template v-else>
                         <a href="/template-en.csv" download
-                          >Download Template File</a
+                          >Template</a
                         >
                       </template>
                     </el-upload>
@@ -1185,7 +1206,7 @@ export default {
           params,
           this.$store.state.app.currentAgentID
         );
-        if(result&&result.message){
+        if (result && result.message) {
           Message.error(result.message);
           return;
         }
@@ -1400,11 +1421,11 @@ export default {
         }
 
         if (!this.$store.state.app.currentDSName) {
-          Message.warning(`${enterTip} ${this.$t('name')}`);
+          Message.warning(`${enterTip} ${this.$t("name")}`);
           return;
         }
         if (!this.$store.state.app.currentDBName) {
-          Message.warning(`${enterTip} ${this.$t('stream.targetDB')}`);
+          Message.warning(`${enterTip} ${this.$t("stream.targetDB")}`);
           return;
         }
 
@@ -2194,13 +2215,12 @@ export default {
     .label.required,
     .no-label.required {
       position: relative;
-      &::before {
+      &::after {
         content: "*";
-        // position: absolute;
         color: red;
         font-size: 14px;
         line-height: 25px;
-        left: -10px;
+        margin-left: 4px;
       }
     }
 
@@ -2452,13 +2472,13 @@ export default {
   display: inline-block;
   margin-left: 20px;
   color: #4259ce;
-  
+
   &.noclick {
     cursor: not-allowed;
     pointer-events: none;
-    color:#acaab2;
+    color: #acaab2;
   }
-  &.click{
+  &.click {
     cursor: pointer;
   }
 }

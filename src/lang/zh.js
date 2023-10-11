@@ -1125,7 +1125,7 @@ Windows： <code>C:\\Program Files\\taosX\\config</code>`,
       9: '失败',
       10: '正在检查',
       11: `请通过以下方式检查代理日志：`,
-      12: '并检查是否修复了问题。如果无法解决，请向 TDengine Cloud 团队报告。'
+      12: '从日志里看是否自己能修复问题。如果无法解决，请向 TDengine Cloud 团队报告。'
   //     7: `如果代理令牌错误，服务将直接退出，您可以使用以下命令在Linux上检查日志：
 
   // <code>journalctl -u taosx-agent</code>`,

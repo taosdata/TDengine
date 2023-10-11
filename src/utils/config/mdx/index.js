@@ -22,3 +22,4 @@ export { default as topicRustDoc } from "./topic/rust.vue";
 export { default as topicJavaDoc } from "./topic/java.vue";
 
 export {default as dashboardDoc} from './dashboard.vue'
+export {default as taosDumpDoc} from './taosdump.vue'
