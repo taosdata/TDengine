@@ -725,6 +725,7 @@ void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
 int32_t      streamMetaReopen(SStreamMeta* pMeta, int64_t chkpId);
 int32_t      streamMetaCommit(SStreamMeta* pMeta);
 int32_t      streamMetaLoadAllTasks(SStreamMeta* pMeta);
+int32_t      streamMetaReloadAllTasks(SStreamMeta* pMeta);
 void         streamMetaNotifyClose(SStreamMeta* pMeta);
 void*        streamMetaGetBackendByTaskKey(SStreamMeta* pMeta, char* key, int64_t* ref);
 

@@ -756,6 +756,22 @@ static void doClear(void* pKey, void* pVal, TBC* pCur, SArray* pRecycleList) {
   taosArrayDestroy(pRecycleList);
 }
 
+int32_t streamMetaReloadAllTasks(SStreamMeta* pMeta) {
+  if (pMeta == NULL) return 0;
+
+  void* pIter = taosHashIterate(pMeta->pTaskBackendUnique, NULL);
+  while (pIter) {
+    STaskBackendWrapper* taskBackend = *(STaskBackendWrapper**)pIter;
+    if (taskBackend != NULL) {
+      taskBackendRemoveRef(taskBackend);
+    }
+    pIter = taosHashIterate(pMeta->pTaskBackendUnique, pIter);
+  }
+  taosHashClear(pMeta->pTaskBackendUnique);
+
+  
+  return 0;
+}
 int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   TBC* pCur = NULL;
 
