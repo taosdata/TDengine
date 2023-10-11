@@ -56,7 +56,7 @@ SWalReader *walOpenReader(SWal *pWal, SWalFilterCond *cond, int64_t id) {
 }
 
 void walCloseReader(SWalReader *pReader) {
-  if(pReader == NULL) return NULL;
+  if(pReader == NULL) return;
 
   taosCloseFile(&pReader->pIdxFile);
   taosCloseFile(&pReader->pLogFile);
