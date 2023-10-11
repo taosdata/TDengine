@@ -16,11 +16,15 @@
 #include "catalog.h"
 #include "cmdnodes.h"
 
-int32_t getViewMeta(STranslateContext* pCxt, SName* pName, char** querySql) {
+int32_t getViewMeta(STranslateContext* pCxt, SName* pName, SViewMeta** ppViewMeta) {
   char fullName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(pName, fullName);
+  return getMetaDataFromHash(fullName, strlen(fullName), pCxt->pMetaCache->pViews, (void**)ppViewMeta);
+}
+
+int32_t getViewQuerySql(STranslateContext* pCxt, SName* pName, char** querySql) {
   SViewMeta* pViewMeta = NULL;
-  int32_t     code = getMetaDataFromHash(fullName, strlen(fullName), pCxt->pMetaCache->pViews, (void**)&pViewMeta);
+  int32_t     code = getViewMeta(pCxt, pName, &pViewMeta);
   if (TSDB_CODE_SUCCESS == code) {
     *querySql = strdup(pViewMeta->querySql);
     if (NULL == *querySql) {
@@ -30,11 +34,11 @@ int32_t getViewMeta(STranslateContext* pCxt, SName* pName, char** querySql) {
   return code;
 }
  
- int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName) {
+int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName) {
    SRealTableNode* pRealTable = (SRealTableNode*)*pTable;
    char* querySql = NULL;
    SParseSqlRes res = {.resType = PARSE_SQL_RES_QUERY};
-   int32_t code = getViewMeta(pCxt, pName, &querySql);
+   int32_t code = getViewQuerySql(pCxt, pName, &querySql);
    if (TSDB_CODE_SUCCESS != code) {
      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
      goto _exit;
@@ -71,7 +75,7 @@ int32_t getViewMeta(STranslateContext* pCxt, SName* pName, char** querySql) {
    nodesDestroyNode(res.queryRes.pQuery);
    
    return code;
- }
+}
 
 
 
