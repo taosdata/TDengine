@@ -99,8 +99,8 @@ public class PreLoading implements CommandLineRunner {
                     String url = args[1];
                     // 检查连通性
                     JSONObject result = getOpentsdbVersion(url);
-                    if (result.getBooleanValue("available")) {
-                        System.out.println(result.get("version"));
+                    if (result.getBooleanValue("valid")) {
+                        System.out.println(result.toJSONString());
                         System.exit(0);
                     } else {
                         System.exit(3);
@@ -299,11 +299,15 @@ public class PreLoading implements CommandLineRunner {
             // 获取结果并解析为JSONObject
             JSONObject object = JSONObject.parseObject(HttpUtils.sendGet(url, ""));
             // 获取版本并封装数据
-            result.put("available", true);
+            result.put("valid", true);
+            result.put("support", true);
             result.put("version", object.get("version"));
+            result.put("message", "Your data source is availabe, its version is " + object.get("version") + ", which is supported, you can proceed to transfer your data to TDengine.");
         } catch (Exception e) {
-            result.put("available", false);
+            result.put("valid", false);
+            result.put("support", false);
             result.put("version", "");
+            result.put("message", e.getMessage());
         }
         return result;
     }
