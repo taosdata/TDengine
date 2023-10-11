@@ -48,7 +48,7 @@ typedef struct {
 extern SStreamGlobalEnv streamEnv;
 extern int32_t          streamBackendId;
 extern int32_t          streamBackendCfWrapperId;
-extern int32_t          taskBackendWrapperId;
+extern int32_t          taskDbWrapperId;
 
 const char* streamGetBlockTypeStr(int32_t type);
 void        streamRetryDispatchStreamBlock(SStreamTask* pTask, int64_t waitDuration);

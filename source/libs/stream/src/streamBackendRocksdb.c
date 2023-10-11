@@ -950,18 +950,18 @@ int32_t chkpPreBuildDir(char* path, int64_t chkpId, char** chkpDir, char** chkpI
 
   return 0;
 }
-int32_t taskBackendBuildSnap(void* arg, int64_t chkpId) {
+int32_t taskDbBuildSnap(void* arg, int64_t chkpId) {
   SStreamMeta* pMeta = arg;
   void*        pIter = taosHashIterate(pMeta->pTaskBackendUnique, NULL);
   int32_t      code = 0;
 
   while (pIter) {
-    STaskDbWrapper* pBackend = *(STaskDbWrapper**)pIter;
-    taskDbAddRef(pBackend);
+    STaskDbWrapper* pTaskDb = *(STaskDbWrapper**)pIter;
+    taskDbAddRef(pTaskDb);
 
-    code = taskBackendDoCheckpoint((STaskDbWrapper*)pBackend, chkpId);
+    code = taskDbDoCheckpoint((STaskDbWrapper*)pTaskDb, chkpId);
 
-    taskDbRemoveRef(pBackend);
+    taskDbRemoveRef(pTaskDb);
     pIter = taosHashIterate(pMeta->pTaskBackendUnique, pIter);
   }
   return 0;
@@ -1035,48 +1035,48 @@ int32_t streamBackendDelInUseChkp(void* arg, int64_t chkpId) {
 /*
    0
 */
-int32_t taskBackendDoCheckpoint(void* arg, int64_t chkpId) {
-  STaskDbWrapper* pBackend = arg;
+int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId) {
+  STaskDbWrapper* pTaskDb = arg;
   int64_t         st = taosGetTimestampMs();
   int32_t         code = -1;
-  int64_t         refId = pBackend->refId;
+  int64_t         refId = pTaskDb->refId;
 
-  if (taosAcquireRef(taskBackendWrapperId, refId) == NULL) {
+  if (taosAcquireRef(taskDbWrapperId, refId) == NULL) {
     return -1;
   }
 
   char* pChkpDir = NULL;
   char* pChkpIdDir = NULL;
-  if (chkpPreBuildDir(pBackend->path, chkpId, &pChkpDir, &pChkpIdDir) != 0) {
+  if (chkpPreBuildDir(pTaskDb->path, chkpId, &pChkpDir, &pChkpIdDir) != 0) {
     code = -1;
     goto _EXIT;
   }
   // Get all cf and acquire cfWrappter
   rocksdb_column_family_handle_t** ppCf = NULL;
 
-  int32_t nCf = chkpGetAllDbCfHandle2(pBackend, &ppCf);
-  qDebug("stream backend:%p start to do checkpoint at:%s, cf num: %d ", pBackend, pChkpIdDir, nCf);
+  int32_t nCf = chkpGetAllDbCfHandle2(pTaskDb, &ppCf);
+  qDebug("stream backend:%p start to do checkpoint at:%s, cf num: %d ", pTaskDb, pChkpIdDir, nCf);
 
-  if ((code = chkpPreFlushDb(pBackend->db, ppCf, nCf)) == 0) {
-    if ((code = chkpDoDbCheckpoint(pBackend->db, pChkpIdDir)) != 0) {
-      qError("stream backend:%p failed to do checkpoint at:%s", pBackend, pChkpIdDir);
+  if ((code = chkpPreFlushDb(pTaskDb->db, ppCf, nCf)) == 0) {
+    if ((code = chkpDoDbCheckpoint(pTaskDb->db, pChkpIdDir)) != 0) {
+      qError("stream backend:%p failed to do checkpoint at:%s", pTaskDb, pChkpIdDir);
     } else {
-      qDebug("stream backend:%p end to do checkpoint at:%s, time cost:%" PRId64 "ms", pBackend, pChkpIdDir,
+      qDebug("stream backend:%p end to do checkpoint at:%s, time cost:%" PRId64 "ms", pTaskDb, pChkpIdDir,
              taosGetTimestampMs() - st);
     }
   } else {
-    qError("stream backend:%p failed to flush db at:%s", pBackend, pChkpIdDir);
+    qError("stream backend:%p failed to flush db at:%s", pTaskDb, pChkpIdDir);
   }
 
-  code = chkpMayDelObsolete(pBackend, chkpId, pChkpDir);
+  code = chkpMayDelObsolete(pTaskDb, chkpId, pChkpDir);
 
 _EXIT:
   taosMemoryFree(pChkpDir);
   taosMemoryFree(pChkpIdDir);
-  taosReleaseRef(taskBackendWrapperId, refId);
+  taosReleaseRef(taskDbWrapperId, refId);
   return code;
 }
-int32_t streamBackendDoCheckpoint(void* arg, int64_t chkpId) { return taskBackendDoCheckpoint(arg, chkpId); }
+int32_t streamBackendDoCheckpoint(void* arg, int64_t chkpId) { return taskDbDoCheckpoint(arg, chkpId); }
 
 SListNode* streamBackendAddCompare(void* backend, void* arg) {
   SBackendWrapper* pHandle = (SBackendWrapper*)backend;
@@ -1585,11 +1585,11 @@ _EXIT:
 }
 void* taskDbAddRef(void* pTaskDb) {
   STaskDbWrapper* pBackend = pTaskDb;
-  return taosAcquireRef(taskBackendWrapperId, pBackend->refId);
+  return taosAcquireRef(taskDbWrapperId, pBackend->refId);
 }
 void taskDbRemoveRef(void* pTaskDb) {
   STaskDbWrapper* pBackend = pTaskDb;
-  taosReleaseRef(taskBackendWrapperId, pBackend->refId);
+  taosReleaseRef(taskDbWrapperId, pBackend->refId);
 }
 // void taskDbDestroy(STaskDbWrapper* wrapper);
 
@@ -1647,19 +1647,19 @@ void taskDbInitDBOpt(STaskDbWrapper* pTaskDb) {
   }
   return;
 }
-void taskDbInitChkpOpt(STaskDbWrapper* pBackend) {
-  pBackend->chkpId = -1;
-  pBackend->chkpCap = 4;
-  pBackend->chkpSaved = taosArrayInit(4, sizeof(int64_t));
-  pBackend->chkpInUse = taosArrayInit(4, sizeof(int64_t));
+void taskDbInitChkpOpt(STaskDbWrapper* pTaskDb) {
+  pTaskDb->chkpId = -1;
+  pTaskDb->chkpCap = 4;
+  pTaskDb->chkpSaved = taosArrayInit(4, sizeof(int64_t));
+  pTaskDb->chkpInUse = taosArrayInit(4, sizeof(int64_t));
 
-  taosThreadRwlockInit(&pBackend->chkpDirLock, NULL);
+  taosThreadRwlockInit(&pTaskDb->chkpDirLock, NULL);
 }
 
-void taskDbDestroyChkpOpt(STaskDbWrapper* pBackend) {
-  taosArrayDestroy(pBackend->chkpSaved);
-  taosArrayDestroy(pBackend->chkpInUse);
-  taosThreadRwlockDestroy(&pBackend->chkpDirLock);
+void taskDbDestroyChkpOpt(STaskDbWrapper* pTaskDb) {
+  taosArrayDestroy(pTaskDb->chkpSaved);
+  taosArrayDestroy(pTaskDb->chkpInUse);
+  taosThreadRwlockDestroy(&pTaskDb->chkpDirLock);
 }
 
 int32_t taskDbBuildFullPath(char* path, char* key, char** dbFullPath, char** stateFullPath) {
@@ -1692,7 +1692,7 @@ int32_t taskDbBuildFullPath(char* path, char* key, char** dbFullPath, char** sta
   *stateFullPath = statePath;
   return 0;
 }
-STaskDbWrapper* taskBackendOpen(char* path, char* key) {
+STaskDbWrapper* taskDbOpen(char* path, char* key) {
   char*  statePath = NULL;
   char*  err = NULL;
   char*  dbPath = NULL;
@@ -1866,7 +1866,7 @@ int32_t streamStateConvertDataFormat(char* path, char* key, void* pCfInst) {
 
   int32_t code = 0;
 
-  STaskDbWrapper* pTaskDb = taskBackendOpen(path, key);
+  STaskDbWrapper* pTaskDb = taskDbOpen(path, key);
   RocksdbCfInst*  pSrcBackend = pCfInst;
 
   for (int i = 0; i < nCf; i++) {
