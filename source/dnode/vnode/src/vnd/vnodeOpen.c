@@ -329,6 +329,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   char       dir[TSDB_FILENAME_LEN] = {0};
   char       tdir[TSDB_FILENAME_LEN * 2] = {0};
   int32_t    ret = 0;
+  terrno = TSDB_CODE_SUCCESS;
 
   if (vnodeCheckDisk(diskPrimary, pTfs)) {
     vError("failed to open vnode from %s since %s. diskPrimary:%d", path, terrstr(), diskPrimary);
@@ -342,6 +343,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
     vError("failed to open vnode from %s since %s", path, tstrerror(terrno));
+    terrno = TSDB_CODE_VND_NOT_EXIST;
     return NULL;
   }
 
@@ -514,7 +516,10 @@ void vnodeClose(SVnode *pVnode) {
 }
 
 // start the sync timer after the queue is ready
-int32_t vnodeStart(SVnode *pVnode) { return vnodeSyncStart(pVnode); }
+int32_t vnodeStart(SVnode *pVnode) {
+  ASSERT(pVnode);
+  return vnodeSyncStart(pVnode);
+}
 
 int32_t vnodeIsCatchUp(SVnode *pVnode) { return syncIsCatchUp(pVnode->sync); }
 

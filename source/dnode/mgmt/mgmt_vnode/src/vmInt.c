@@ -111,6 +111,7 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   pVnode->diskPrimary = pCfg->diskPrimary;
   pVnode->refCount = 0;
   pVnode->dropped = 0;
+  pVnode->failed = 0;
   pVnode->path = taosStrdup(pCfg->path);
   pVnode->pImpl = pImpl;
 
@@ -120,11 +121,15 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
     return -1;
   }
 
-  if (vmAllocQueue(pMgmt, pVnode) != 0) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    taosMemoryFree(pVnode->path);
-    taosMemoryFree(pVnode);
-    return -1;
+  if (pImpl) {
+    if (vmAllocQueue(pMgmt, pVnode) != 0) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      taosMemoryFree(pVnode->path);
+      taosMemoryFree(pVnode);
+      return -1;
+    }
+  } else {
+    pVnode->failed = 1;
   }
 
   taosThreadRwlockWrlock(&pMgmt->lock);
@@ -270,8 +275,10 @@ static void *vmOpenVnodeInThread(void *param) {
 
     if (pImpl == NULL) {
       dError("vgId:%d, failed to open vnode by thread:%d since %s", pCfg->vgId, pThread->threadIndex, terrstr());
-      pThread->failed++;
-      continue;
+      if (terrno != TSDB_CODE_VND_NOT_EXIST) {
+        pThread->failed++;
+        continue;
+      }
     }
 
     if (vmOpenVnode(pMgmt, pCfg, pImpl) != 0) {
@@ -378,6 +385,7 @@ static void *vmCloseVnodeInThread(void *param) {
 
   for (int32_t v = 0; v < pThread->vnodeNum; ++v) {
     SVnodeObj *pVnode = pThread->ppVnodes[v];
+    if (pVnode->failed) continue;
 
     char stepDesc[TSDB_STEP_DESC_LEN] = {0};
     snprintf(stepDesc, TSDB_STEP_DESC_LEN, "vgId:%d, start to close, %d of %d have been closed", pVnode->vgId,
@@ -472,7 +480,9 @@ static void vmCheckSyncTimeout(SVnodeMgmt *pMgmt) {
   if (ppVnodes != NULL) {
     for (int32_t i = 0; i < numOfVnodes; ++i) {
       SVnodeObj *pVnode = ppVnodes[i];
-      vnodeSyncCheckTimeout(pVnode->pImpl);
+      if (!pVnode->failed) {
+        vnodeSyncCheckTimeout(pVnode->pImpl);
+      }
       vmReleaseVnode(pMgmt, pVnode);
     }
     taosMemoryFree(ppVnodes);
@@ -604,6 +614,12 @@ static void *vmRestoreVnodeInThread(void *param) {
 
   for (int32_t v = 0; v < pThread->vnodeNum; ++v) {
     SVnodeObj *pVnode = pThread->ppVnodes[v];
+    if (pVnode->failed) {
+      dError("vgId:%d, skip restoring vnode in failure mode.", pVnode->vgId);
+      continue;
+    }
+
+    ASSERT(pVnode->pImpl);
 
     char stepDesc[TSDB_STEP_DESC_LEN] = {0};
     snprintf(stepDesc, TSDB_STEP_DESC_LEN, "vgId:%d, start to restore, %d of %d have been restored", pVnode->vgId,
