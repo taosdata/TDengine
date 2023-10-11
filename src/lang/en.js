@@ -27,6 +27,7 @@ export default {
   download: "Download",
   uploadcsv: 'Upload CSV',
   allPoints: 'All Points',
+  allTemplate: 'All AF Element Template',
   downloadTemplate: 'Template',
   downloadPiPoint: 'List of PI Points',
   downloadAfElement: 'List of AF Element Template',

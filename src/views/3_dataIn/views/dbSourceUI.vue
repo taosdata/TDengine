@@ -352,7 +352,7 @@
               <div class="upload-flex">
                 <el-radio-group v-model="activeRadio">
                   <el-radio label="select_file">{{ $t('uploadcsv') }}</el-radio>
-                  <el-radio label="all_points">{{ $t('allPoints') }}</el-radio>
+                  <el-radio label="all_points">{{ activeName === 'point_file' ? $t('allPoints') : $t('allTemplate') }}</el-radio>
                 </el-radio-group>
               </div>
               <el-tab-pane
