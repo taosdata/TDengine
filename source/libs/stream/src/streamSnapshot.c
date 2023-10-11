@@ -140,19 +140,21 @@ TdFilePtr streamOpenFile(char* path, char* name, int32_t opt) {
 int32_t streamBackendGetSnapInfo(void* arg, char* path, int64_t chkpId) { return taskBackendBuildSnap(arg, chkpId); }
 
 void snapFileDebugInfo(SBackendSnapFile2* pSnapFile) {
-  char* buf = taosMemoryCalloc(1, 512);
-  sprintf(buf, "[current: %s,", pSnapFile->pCurrent);
-  sprintf(buf + strlen(buf), "MANIFEST: %s,", pSnapFile->pMainfest);
-  sprintf(buf + strlen(buf), "options: %s,", pSnapFile->pOptions);
+  if (qDebugFlag & DEBUG_DEBUG) {
+    char* buf = taosMemoryCalloc(1, 512);
+    sprintf(buf, "[current: %s,", pSnapFile->pCurrent);
+    sprintf(buf + strlen(buf), "MANIFEST: %s,", pSnapFile->pMainfest);
+    sprintf(buf + strlen(buf), "options: %s,", pSnapFile->pOptions);
 
-  for (int i = 0; i < taosArrayGetSize(pSnapFile->pSst); i++) {
-    char* name = taosArrayGetP(pSnapFile->pSst, i);
-    sprintf(buf + strlen(buf), "%s,", name);
+    for (int i = 0; i < taosArrayGetSize(pSnapFile->pSst); i++) {
+      char* name = taosArrayGetP(pSnapFile->pSst, i);
+      sprintf(buf + strlen(buf), "%s,", name);
+    }
+    sprintf(buf + strlen(buf) - 1, "]");
+
+    qInfo("%s get file list: %s", STREAM_STATE_TRANSFER, buf);
+    taosMemoryFree(buf);
   }
-  sprintf(buf + strlen(buf) - 1, "]");
-
-  qInfo("%s get file list: %s", STREAM_STATE_TRANSFER, buf);
-  taosMemoryFree(buf);
 }
 
 int32_t snapFileCvtMeta(SBackendSnapFile2* pSnapFile) {
@@ -308,6 +310,7 @@ void streamSnapHandleDestroy(SStreamSnapHandle* handle) {
   if (handle->pBackendSnapSet) {
     for (int i = 0; i < taosArrayGetSize(handle->pBackendSnapSet); i++) {
       SBackendSnapFile2* pSnapFile = taosArrayGet(handle->pBackendSnapSet, i);
+      snapFileDebugInfo(pSnapFile);
       snapFileDestroy(pSnapFile);
     }
     taosArrayDestroy(handle->pBackendSnapSet);
@@ -581,25 +584,20 @@ int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nDa
 }
 int32_t streamSnapWriterClose(SStreamSnapWriter* pWriter, int8_t rollback) {
   SStreamSnapHandle* handle = &pWriter->handle;
-  if (qDebugFlag & DEBUG_DEBUG) {
-    char* buf = (char*)taosMemoryMalloc(1024);
-    int   n = sprintf(buf, "[");
-    for (int i = 0; i < taosArrayGetSize(handle->pFileList); i++) {
-      SBackendFileItem* item = taosArrayGet(handle->pFileList, i);
-      if (i != taosArrayGetSize(handle->pFileList) - 1) {
-        n += sprintf(buf + n, "%s %" PRId64 ",", item->name, item->size);
-      } else {
-        n += sprintf(buf + n, "%s %" PRId64 "]", item->name, item->size);
-      }
-    }
-    qDebug("%s snap get file list, %s", STREAM_STATE_TRANSFER, buf);
-    taosMemoryFree(buf);
-  }
-
-  for (int i = 0; i < taosArrayGetSize(handle->pFileList); i++) {
-    SBackendFileItem* item = taosArrayGet(handle->pFileList, i);
-    taosMemoryFree(item->name);
-  }
+  // if (qDebugFlag & DEBUG_DEBUG) {
+  //   char* buf = (char*)taosMemoryMalloc(1024);
+  //   int   n = sprintf(buf, "[");
+  //   for (int i = 0; i < taosArrayGetSize(handle->pFileList); i++) {
+  //     SBackendFileItem* item = taosArrayGet(handle->pFileList, i);
+  //     if (i != taosArrayGetSize(handle->pFileList) - 1) {
+  //       n += sprintf(buf + n, "%s %" PRId64 ",", item->name, item->size);
+  //     } else {
+  //       n += sprintf(buf + n, "%s %" PRId64 "]", item->name, item->size);
+  //     }
+  //   }
+  //   qDebug("%s snap get file list, %s", STREAM_STATE_TRANSFER, buf);
+  //   taosMemoryFree(buf);
+  // }
 
   streamSnapHandleDestroy(handle);
   taosMemoryFree(pWriter);
