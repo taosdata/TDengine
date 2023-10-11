@@ -28,6 +28,7 @@ typedef struct SDnodeMgmt {
   const char         *path;
   const char         *name;
   TdThread            statusThread;
+  TdThread            notifyThread;
   TdThread            monitorThread;
   TdThread            crashReportThread;
   SSingleWorker       mgmtWorker;
@@ -36,6 +37,7 @@ typedef struct SDnodeMgmt {
   ProcessDropNodeFp   processDropNodeFp;
   SendMonitorReportFp sendMonitorReportFp;
   GetVnodeLoadsFp     getVnodeLoadsFp;
+  GetVnodeLoadsFp     getVnodeLoadsLiteFp;
   GetMnodeLoadsFp     getMnodeLoadsFp;
   GetQnodeLoadsFp     getQnodeLoadsFp;
   int32_t             statusSeq;
@@ -44,17 +46,21 @@ typedef struct SDnodeMgmt {
 // dmHandle.c
 SArray *dmGetMsgHandles();
 void    dmSendStatusReq(SDnodeMgmt *pMgmt);
+void    dmSendNotifyReq(SDnodeMgmt *pMgmt);
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg);
+int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg);
 
 // dmWorker.c
 int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmStartStatusThread(SDnodeMgmt *pMgmt);
 void    dmStopStatusThread(SDnodeMgmt *pMgmt);
+int32_t dmStartNotifyThread(SDnodeMgmt *pMgmt);
+void    dmStopNotifyThread(SDnodeMgmt *pMgmt);
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt);
 void    dmStopMonitorThread(SDnodeMgmt *pMgmt);
 int32_t dmStartCrashReportThread(SDnodeMgmt *pMgmt);

@@ -747,6 +747,16 @@ static int32_t execAlterCmd(char* cmd, char* value, bool* processed) {
       return code;
     }
     qInfo("memory dbg disabled");
+  } else if (0 == strcasecmp(cmd, COMMAND_ASYNCLOG)) {
+    int newAsyncLogValue = (strlen(value) == 0) ? 1 : atoi(value);
+    if (newAsyncLogValue != 0 && newAsyncLogValue != 1) {
+      code = TSDB_CODE_INVALID_CFG_VALUE;
+      qError("failed to alter asynclog, error:%s", tstrerror(code));
+      goto _return;
+    }
+
+    code = TSDB_CODE_SUCCESS;
+    tsAsyncLog = newAsyncLogValue;
   } else {
     goto _return;
   }
@@ -946,7 +956,7 @@ int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieve
       return execSelectWithoutFrom((SSelectStmt*)pStmt, pRsp);
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
     case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
-      return execShowAliveStatus(pConnId, (SShowAliveStmt*)pStmt, pRsp);       
+      return execShowAliveStatus(pConnId, (SShowAliveStmt*)pStmt, pRsp);
     default:
       break;
   }

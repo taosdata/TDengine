@@ -1579,6 +1579,10 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
     return -1;
   }
 
+  if ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) != 0) {
+    return -1;
+  }
+
   pNew->numOfColumns = pNew->numOfColumns + ncols;
   if (mndAllocStbSchemas(pOld, pNew) != 0) {
     return -1;

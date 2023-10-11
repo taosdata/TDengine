@@ -30,6 +30,8 @@ extern "C" {
 #define GRANTS_COL_MAX_LEN 196
 #endif
 
+#define GRANT_HEART_BEAT_MIN 2
+
 typedef enum {
   TSDB_GRANT_ALL,
   TSDB_GRANT_TIME,
@@ -49,6 +51,11 @@ typedef enum {
 } EGrantType;
 
 int32_t grantCheck(EGrantType grant);
+#ifndef TD_GRANT_OPTIMIZE
+int32_t grantAlterActiveCode(const char* old, const char* new, char* out, int8_t type);
+#else
+int32_t grantAlterActiveCode(int32_t did, const char* old, const char* new, char* out, int8_t type);
+#endif
 
 #ifndef GRANTS_CFG
 #ifdef TD_ENTERPRISE

@@ -497,6 +497,7 @@ typedef struct SBalanceVgroupStmt {
 
 typedef struct SBalanceVgroupLeaderStmt {
   ENodeType type;
+  int32_t   vgId;
 } SBalanceVgroupLeaderStmt;
 
 typedef struct SMergeVgroupStmt {

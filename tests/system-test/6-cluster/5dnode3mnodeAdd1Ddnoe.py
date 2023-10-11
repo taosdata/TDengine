@@ -66,32 +66,6 @@ class TDTestCase:
     def stopThread(self,thread):
         self._async_raise(thread.ident, SystemExit)
 
-
-    def insertData(self,countstart,countstop):
-        # fisrt add data : db\stable\childtable\general table
-
-        for couti in range(countstart,countstop):
-            tdLog.debug("drop database if exists db%d" %couti)
-            tdSql.execute("drop database if exists db%d" %couti, 20)
-            print("create database if not exists db%d replica 1 duration 300" %couti)
-            tdSql.execute("create database if not exists db%d replica 1 duration 300" %couti)
-            tdSql.execute("use db%d" %couti)
-            tdSql.execute(
-            '''create table stb1
-            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
-            tags (t1 int)
-            '''
-            )
-            tdSql.execute(
-                '''
-                create table t1
-                (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
-                '''
-            )
-            for i in range(4):
-                tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
-
-
     def fiveDnodeThreeMnode(self,dnodeNumbers,mnodeNums,restartNumbers,stopRole):
         tdLog.printNoPrefix("======== test case 1: ")
         paraDict = {'dbName':     'db0_0',
@@ -195,9 +169,9 @@ class TDTestCase:
 
             # dnodeNumbers don't include database of schema
             if clusterComCheck.checkDnodes(dnodeNumbers):
-                tdLog.info("123")
+                tdLog.info("check dnode success")
             else:
-                print("456")
+                print("check dnode failed")
 
                 self.stopThread(threads)
                 tdLog.exit("one or more of dnodes failed to start ")
@@ -209,6 +183,7 @@ class TDTestCase:
         clusterComCheck.checkDnodes(dnodeNumbers)
         clusterComCheck.checkDbRows(dbNumbers)
         # clusterComCheck.checkDb(dbNumbers,1,paraDict["dbName"])
+        clusterComCheck.check_vgroups_status(vgroup_numbers=paraDict["vgroups"], db_replica=self.replicaVar, db_name=paraDict["dbName"], count_number=20)
 
         tdSql.execute("use %s" %(paraDict["dbName"]))
         tdSql.query("show stables")

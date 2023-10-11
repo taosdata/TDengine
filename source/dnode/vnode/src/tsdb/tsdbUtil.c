@@ -516,10 +516,13 @@ int32_t tGetDelData(uint8_t *p, void *ph) {
 }
 
 int32_t tsdbKeyFid(TSKEY key, int32_t minutes, int8_t precision) {
+  int64_t fid;
   if (key < 0) {
-    return (int)((key + 1) / tsTickPerMin[precision] / minutes - 1);
+    fid = ((key + 1) / tsTickPerMin[precision] / minutes - 1);
+    return (fid < INT32_MIN) ? INT32_MIN : (int32_t)fid;
   } else {
-    return (int)((key / tsTickPerMin[precision] / minutes));
+    fid = ((key / tsTickPerMin[precision] / minutes));
+    return (fid > INT32_MAX) ? INT32_MAX : (int32_t)fid;
   }
 }
 
