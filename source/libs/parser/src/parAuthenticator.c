@@ -207,6 +207,12 @@ static int32_t authShowCreateTable(SAuthCxt* pCxt, SShowCreateTableStmt* pStmt) 
   return checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_READ, &pTagCond);
 }
 
+static int32_t authShowCreateView(SAuthCxt* pCxt, SShowCreateViewStmt* pStmt) {
+  SNode* pTagCond = NULL;
+  // todo check tag condition for subtable
+  return checkViewAuth(pCxt, pStmt->dbName, pStmt->viewName, AUTH_TYPE_READ, &pTagCond);
+}
+
 static int32_t authCreateTable(SAuthCxt* pCxt, SCreateTableStmt* pStmt) {
   SNode* pTagCond = NULL;
   // todo check tag condition for subtable
@@ -302,6 +308,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return authShowCreateTable(pCxt, (SShowCreateTableStmt*)pStmt);
+    case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
+      return authShowCreateView(pCxt, (SShowCreateViewStmt*)pStmt);
     case QUERY_NODE_CREATE_VIEW_STMT:
       return authCreateView(pCxt, (SCreateViewStmt*)pStmt);
     case QUERY_NODE_DROP_VIEW_STMT:

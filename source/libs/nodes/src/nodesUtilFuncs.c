@@ -452,6 +452,8 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return makeNode(type, sizeof(SShowCreateTableStmt));
+    case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
+      return makeNode(type, sizeof(SShowCreateViewStmt));
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       return makeNode(type, sizeof(SShowTableDistributedStmt));
     case QUERY_NODE_KILL_QUERY_STMT:
@@ -1085,6 +1087,7 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFreeClear(((SShowCreateTableStmt*)pNode)->pDbCfg);
       destroyTableCfg((STableCfg*)(((SShowCreateTableStmt*)pNode)->pTableCfg));
       break;
+    case QUERY_NODE_SHOW_CREATE_VIEW_STMT:        // no pointer field
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:  // no pointer field
     case QUERY_NODE_KILL_CONNECTION_STMT:         // no pointer field
     case QUERY_NODE_KILL_QUERY_STMT:              // no pointer field

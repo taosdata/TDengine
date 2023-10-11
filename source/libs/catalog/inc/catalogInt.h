@@ -99,6 +99,7 @@ enum {
   CTG_OP_UPDATE_TB_INDEX,
   CTG_OP_DROP_TB_INDEX,
   CTG_OP_UPDATE_VIEW_META,
+  CTG_OP_DROP_VIEW_META,
   CTG_OP_CLEAR_CACHE,
   CTG_OP_MAX
 };
@@ -535,6 +536,13 @@ typedef struct SCtgUpdateViewMetaMsg {
   SViewMetaRsp*     pRsp;
 } SCtgUpdateViewMetaMsg;
 
+typedef struct SCtgDropViewMetaMsg {
+  SCatalog* pCtg;
+  char      dbFName[TSDB_DB_FNAME_LEN];
+  char      viewName[TSDB_VIEW_NAME_LEN];
+  uint64_t  dbId;
+} SCtgDropViewMetaMsg;
+
 
 typedef struct SCtgCacheOperation {
   int32_t opId;
@@ -897,6 +905,7 @@ int32_t ctgOpDropDbCache(SCtgCacheOperation* action);
 int32_t ctgOpDropDbVgroup(SCtgCacheOperation* action);
 int32_t ctgOpDropStbMeta(SCtgCacheOperation* action);
 int32_t ctgOpDropTbMeta(SCtgCacheOperation* action);
+int32_t ctgOpDropViewMeta(SCtgCacheOperation* action);
 int32_t ctgOpUpdateUser(SCtgCacheOperation* action);
 int32_t ctgOpUpdateEpset(SCtgCacheOperation* operation);
 int32_t ctgAcquireVgInfoFromCache(SCatalog* pCtg, const char* dbFName, SCtgDBCache** pCache);
@@ -918,6 +927,7 @@ int32_t ctgUpdateTbMetaEnqueue(SCatalog* pCtg, STableMetaOutput* output, bool sy
 int32_t ctgUpdateUserEnqueue(SCatalog* pCtg, SGetUserAuthRsp* pAuth, bool syncReq);
 int32_t ctgUpdateVgEpsetEnqueue(SCatalog* pCtg, char* dbFName, int32_t vgId, SEpSet* pEpSet);
 int32_t ctgUpdateTbIndexEnqueue(SCatalog* pCtg, STableIndex** pIndex, bool syncOp);
+int32_t ctgDropViewMetaEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId, const char *viewName, bool syncOp);
 int32_t ctgClearCacheEnqueue(SCatalog* pCtg, bool clearMeta, bool freeCtg, bool stopQueue, bool syncOp);
 int32_t ctgMetaRentInit(SCtgRentMgmt* mgmt, uint32_t rentSec, int8_t type, int32_t size);
 int32_t ctgMetaRentAdd(SCtgRentMgmt* mgmt, void* meta, int64_t id, int32_t size);
@@ -1017,6 +1027,7 @@ void    ctgClearSubTaskRes(SCtgSubRes* pRes);
 void    ctgFreeQNode(SCtgQNode* node);
 void    ctgClearHandle(SCatalog* pCtg);
 void    ctgFreeTbCacheImpl(SCtgTbCache* pCache, bool lock);
+void    ctgFreeViewCacheImpl(SCtgViewCache* pCache, bool lock);
 int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName);
 int32_t ctgRemoveCacheUser(SCatalog* pCtg, const char* user);
 int32_t ctgGetTbHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SVgroupInfo* pVgroup,

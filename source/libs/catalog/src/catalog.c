@@ -665,8 +665,33 @@ _return:
   CTG_RET(code);
 }
 
+
+int32_t ctgRemoveViewMeta(SCatalog* pCtg, SName* pViewName) {
+  int32_t code = 0;
+
+  if (NULL == pCtg || NULL == pViewName) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  if (NULL == pCtg->dbCache) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char dbFName[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(pViewName, dbFName);
+  CTG_ERR_JRET(ctgDropViewMetaEnqueue(pCtg, dbFName, 0, pViewName->tname, true));
+
+_return:
+
+  CTG_RET(code);
+}
+
+
 void ctgProcessTimerEvent(void *param, void *tmrId) {
   CTG_API_NENTER();
+
+  ctgdShowCacheInfo();
+  ctgdShowStatInfo();
 
   int32_t cacheMaxSize = atomic_load_32(&tsMetaCacheMaxSize);
   if (cacheMaxSize >= 0) {
@@ -1660,6 +1685,13 @@ int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth) {
 void catalogFreeMetaData(SMetaData * pData) {
 
 }
+
+int32_t catalogRemoveViewMeta(SCatalog* pCtg, SName* pViewName) {
+  CTG_API_ENTER();
+
+  CTG_API_LEAVE(ctgRemoveViewMeta(pCtg, pViewName));
+}
+
 
 int32_t catalogClearCache(void) {
   CTG_API_ENTER_NOLOCK();

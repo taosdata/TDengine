@@ -36,6 +36,11 @@ extern "C" {
 #define SHOW_CREATE_TB_RESULT_FIELD1_LEN (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_CREATE_TB_RESULT_FIELD2_LEN (TSDB_MAX_ALLOWED_SQL_LEN * 3)
 
+#define SHOW_CREATE_VIEW_RESULT_COLS       2
+#define SHOW_CREATE_VIEW_RESULT_FIELD1_LEN (TSDB_VIEW_FNAME_LEN + 4 + VARSTR_HEADER_SIZE)
+#define SHOW_CREATE_VIEW_RESULT_FIELD2_LEN (TSDB_MAX_ALLOWED_SQL_LEN + VARSTR_HEADER_SIZE)
+
+
 #define SHOW_LOCAL_VARIABLES_RESULT_COLS       3
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
@@ -296,6 +301,13 @@ typedef struct SShowCreateTableStmt {
   void*     pDbCfg;     // SDbCfgInfo
   void*     pTableCfg;  // STableCfg
 } SShowCreateTableStmt;
+
+typedef struct SShowCreateViewStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      viewName[TSDB_VIEW_NAME_LEN];
+  void*     pViewMeta;
+} SShowCreateViewStmt;
 
 typedef struct SShowTableDistributedStmt {
   ENodeType type;

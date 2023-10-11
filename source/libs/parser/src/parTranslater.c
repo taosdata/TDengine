@@ -7603,6 +7603,16 @@ static int32_t translateShowCreateTable(STranslateContext* pCxt, SShowCreateTabl
   return code;
 }
 
+static int32_t translateShowCreateView(STranslateContext* pCxt, SShowCreateViewStmt* pStmt) {
+#ifndef TD_ENTERPRISE
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#else 
+  SName name;
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->viewName, &name);
+  return getViewMeta(pCxt, &name, (SViewMeta**)&pStmt->pViewMeta);
+#endif
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -7761,6 +7771,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       code = translateShowCreateTable(pCxt, (SShowCreateTableStmt*)pNode);
       break;
+    case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
+      code = translateShowCreateView(pCxt, (SShowCreateViewStmt*)pNode);
+      break;
     case QUERY_NODE_RESTORE_DNODE_STMT:
     case QUERY_NODE_RESTORE_QNODE_STMT:
     case QUERY_NODE_RESTORE_MNODE_STMT:
@@ -7912,6 +7925,25 @@ static int32_t extractShowCreateTableResultSchema(int32_t* numOfCols, SSchema** 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t extractShowCreateViewResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+  *numOfCols = SHOW_CREATE_VIEW_RESULT_COLS;
+  *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
+  if (NULL == (*pSchema)) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[0].bytes = SHOW_CREATE_VIEW_RESULT_FIELD1_LEN;
+  strcpy((*pSchema)[0].name, "View");
+
+  (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[1].bytes = SHOW_CREATE_VIEW_RESULT_FIELD2_LEN;
+  strcpy((*pSchema)[1].name, "Create View");
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = 3;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
@@ -7955,6 +7987,8 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return extractShowCreateTableResultSchema(numOfCols, pSchema);
+    case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
+      return extractShowCreateViewResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
     case QUERY_NODE_SHOW_VARIABLES_STMT:
       return extractShowVariablesResultSchema(numOfCols, pSchema);
@@ -9596,6 +9630,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
+    case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_LOCAL;
       pQuery->haveResultSet = true;

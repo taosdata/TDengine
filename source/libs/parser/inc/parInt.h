@@ -43,6 +43,7 @@ int32_t getMetaDataFromHash(const char* pKey, int32_t len, SHashObj* pHash, void
 
 #ifdef TD_ENTERPRISE
 int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName);
+int32_t getViewMeta(STranslateContext* pCxt, SName* pName, SViewMeta** ppViewMeta);
 #endif
 #ifdef __cplusplus
 }

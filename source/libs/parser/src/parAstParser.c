@@ -617,6 +617,23 @@ static int32_t collectMetaKeyFromShowCreateTable(SCollectMetaKeyCxt* pCxt, SShow
   return code;
 }
 
+static int32_t collectMetaKeyFromShowCreateView(SCollectMetaKeyCxt* pCxt, SShowCreateViewStmt* pStmt) {
+  SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
+  strcpy(name.dbname, pStmt->dbName);
+  strcpy(name.tname, pStmt->viewName);
+  int32_t code = catalogRemoveViewMeta(pCxt->pParseCxt->pCatalog, &name);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveViewUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->viewName,
+                                  AUTH_TYPE_READ, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->viewName, pCxt->pMetaCache);
+  }
+  
+  return code;
+}
+
+
 static int32_t collectMetaKeyFromShowApps(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_APPS,
                                  pCxt->pMetaCache);
@@ -783,6 +800,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return collectMetaKeyFromShowCreateTable(pCxt, (SShowCreateTableStmt*)pStmt);
+    case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
+      return collectMetaKeyFromShowCreateView(pCxt, (SShowCreateViewStmt*)pStmt);
     case QUERY_NODE_SHOW_APPS_STMT:
       return collectMetaKeyFromShowApps(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:

@@ -358,6 +358,8 @@ SMetaData* catalogCloneMetaData(SMetaData* pData);
 
 void catalogFreeMetaData(SMetaData* pData);
 
+int32_t catalogRemoveViewMeta(SCatalog* pCtg, SName* pViewName);
+
 int32_t ctgdEnableDebug(char* option, bool enable);
 
 int32_t ctgdHandleDbgCommand(char* command);

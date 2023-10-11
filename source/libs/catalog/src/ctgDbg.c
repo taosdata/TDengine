@@ -253,6 +253,12 @@ int32_t ctgdEnableDebug(char *option, bool enable) {
     return TSDB_CODE_SUCCESS;
   }
 
+  if (0 == strcasecmp(option, "stat")) {
+    gCTGDebug.statEnable = enable;
+    qDebug("catalog stat debug set to %d", enable);
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (0 == strcasecmp(option, "stopUpdate")) {
     SCatalog *pCtg = NULL;
     

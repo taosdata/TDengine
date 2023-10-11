@@ -239,6 +239,19 @@ void ctgFreeTbCacheImpl(SCtgTbCache* pCache, bool lock) {
   }
 }
 
+void ctgFreeViewCacheImpl(SCtgViewCache* pCache, bool lock) {
+  if (lock) { 
+    CTG_LOCK(CTG_WRITE, &pCache->viewLock);
+  }
+  if (pCache->pMeta) {
+    taosMemoryFree(pCache->pMeta->querySql);
+    taosMemoryFreeClear(pCache->pMeta);
+  }
+  if (lock) { 
+    CTG_UNLOCK(CTG_WRITE, &pCache->viewLock);
+  }
+}
+
 void ctgFreeTbCache(SCtgDBCache* dbCache) {
   if (NULL == dbCache->tbCache) {
     return;

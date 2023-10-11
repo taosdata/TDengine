@@ -831,9 +831,11 @@ int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMet
   if (TSDB_CODE_SUCCESS == code) {
     code = putTableDataToCache(pCatalogReq->pTableCfg, pMetaData->pTableCfg, &pMetaCache->pTableCfg);
   }
+#ifdef TD_ENTERPRISE
   if (TSDB_CODE_SUCCESS == code) {
     code = putDbTableDataToCache(pCatalogReq->pView, pMetaData->pView, &pMetaCache->pViews);
   }
+#endif  
   pMetaCache->pDnodes = pMetaData->pDnodeList;
   return code;
 }
