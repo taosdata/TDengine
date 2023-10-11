@@ -82,7 +82,7 @@ authentication:
           required: true
         - name: orgId
           display: 组织 ID
-          description: InfluxDB 数据库的组织 ID，这是一个由 InfluxDB 生成的十六进制字符串，而不是组织名称，请从 'InfluxDB organization->about' 页面复制并粘贴到这里。
+          description: InfluxDB 数据库的组织 ID, 它是一个由十六进制字符组成的字符串，而不是组织名称，可以从 InfluxDB 控制台的Organization -> About页面获取。
           placeholder: 请输入 InfluxDB 组织 ID
           hint: str
           required: true
