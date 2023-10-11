@@ -540,12 +540,15 @@ void tLDataIterNextBlock(SLDataIter *pIter, const char *idStr) {
 
   pIter->pSttBlk = NULL;
   if (index != -1) {
+    SSttBlk *p = taosArrayGet(pIter->pBlockLoadInfo->aSttBlk, index);
+
     pIter->iSttBlk = index;
     pIter->pSttBlk = (SSttBlk *)taosArrayGet(pIter->pBlockLoadInfo->aSttBlk, pIter->iSttBlk);
-    tsdbDebug("try next last file block:%d from stt fileVer:%" PRId64 ", trigger by uid:%" PRIu64 ", file index:%d, %s",
-              pIter->iSttBlk, oldIndex, pIter->uid, pIter->cid, idStr);
+    tsdbDebug("try next stt-file block:%d from %d, trigger by uid:%" PRIu64 ", stt-fileVer:%" PRId64 ", uidMin:%" PRId64
+              " - uidMax:%" PRId64 " %s",
+              pIter->iSttBlk, oldIndex, pIter->uid, pIter->cid, p->minUid, p->maxUid, idStr);
   } else {
-    tsdbDebug("no more last block qualified, uid:%" PRIu64 ", file index:%d, %s", pIter->uid, oldIndex, idStr);
+    tsdbDebug("no more last block qualified, uid:%" PRIu64 ", stt-file block:%d, %s", pIter->uid, oldIndex, idStr);
   }
 }
 
