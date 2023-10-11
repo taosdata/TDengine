@@ -34,9 +34,9 @@ class VnodeRedistribute(TDCase):
         self.result_file_name = ""
         self._tmp_dir: str = os.path.join(self.run_log_dir, "tmp")
         self.replica = int(os.environ["DATABASE_REPLICAS"]) if "DATABASE_REPLICAS" in os.environ else 1
-        self.vgroups = 20
+        self.vgroups = 10
         self.create_table_thread_count = 40
-        self.thread_count = 40
+        self.thread_count = 200
         self.num_of_records_per_req = 10
         self.childtable_count = 10000
         self.insert_rows = 1000000000
@@ -51,9 +51,11 @@ class VnodeRedistribute(TDCase):
         self.wal_retention_period = 0
         self.stream_drop = "yes"
         self.keep_trying = -1
-        self.trying_interval = 100
+        self.trying_interval = 10
+        self.interlace_rows = 0
         self.stream_sql = f"select ts,max(c1) from {self.dbname}.{self.stbname} where c1>0 partition by tbname interval(1s) sliding(1s)"
-        self.fill_history_rows = 10
+        self.fill_history_rows = 3000000
+        self.pre_num_of_records_per_req = 10000
         self.json_file_name = "insert0.json"
         self.json_data_list = list()
         self.json_filename_list = list()
@@ -64,10 +66,9 @@ class VnodeRedistribute(TDCase):
         self.dnode_id_list = list()
         self.vgid_dnodeid_kv_list = list()
         self.redistributed_list = list()
-        self.start_redistribute_row_count = 200000000
-        self.scheduler_interval = 60
-        self.redistribute_interval = 60
-        self.restore_timeout = 300
+        self.start_redistribute_row_count = self.fill_history_rows * self.childtable_count
+        self.scheduler_interval = 300
+        self.restore_timeout = 10800
         self.loop_redistribute_times = 10
         self.tdSql.query('show dnodes')
         self.source_dnode_id_list = list(map(lambda x:x[0], self.tdSql.query_data))
@@ -110,6 +111,7 @@ class VnodeRedistribute(TDCase):
         return list(map(lambda x:x[3], self.tdSql.query_data)) if self.replica == 1 else list(map(lambda x:[x[3], x[5], x[7]], self.tdSql.query_data))
 
     def add_reserve_dnodes(self):
+        self._remote._logger.info('------- add reserve dnodes -------')
         for reserve_dnodes_index in range(len(self.reserve_dnode_list)):
             self.taosd.configure_and_start_specified_dnode(self._tmp_dir, self.taosd_setting, self.taosd_setting["spec"]["reserve_dnodes"][reserve_dnodes_index])
 
@@ -135,10 +137,10 @@ class VnodeRedistribute(TDCase):
 
     def prepare_fill_history_data(self):
         dbinfo = self.tdCom.setDBinfo(name=self.dbname, replica=self.replica, vgroups=self.vgroups, drop=self.db_drop, wal_retention_period=self.wal_retention_period)
-        stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.fill_history_rows, start_timestamp=self.start_timestamp, child_table_exists=self.child_table_exists, name=self.stbname, keep_trying=self.keep_trying, trying_interval=self.trying_interval)]
+        stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.fill_history_rows, start_timestamp=self.start_timestamp, child_table_exists=self.child_table_exists, name=self.stbname, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows)]
         database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
         host = self.get_fqdn("taosd")[0]
-        json_info = self.tdCom.setJsoninfo(host=host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, num_of_records_per_req=self.num_of_records_per_req)
+        json_info = self.tdCom.setJsoninfo(host=host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, num_of_records_per_req=self.pre_num_of_records_per_req)
         self.tdCom.genBenchmarkJson(self.run_log_dir, self.json_file_name, json_info)
         self.json_data_list.append(json_info)
         self.tdCom.put_file(self._remote, self.taosBenchmark_iplist, self.json_data_list, self.json_filename_list, self.run_log_dir)
@@ -152,7 +154,7 @@ class VnodeRedistribute(TDCase):
             stream_db_info = self.tdCom.setStreamDBinfo(vgroups=1)
             stream_info = self.tdCom.setStreams(stream_name=self.stream_name, stream_stb=f'{self.dbname}.{self.stream_stbname}', trigger_mode=self.trigger_mode, drop=self.stream_drop, source_sql=self.stream_sql)
         dbinfo = self.tdCom.setDBinfo(name=self.dbname, replica=self.replica, vgroups=self.vgroups, drop=self.db_drop)
-        stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.insert_rows, start_timestamp=self.start_timestamp, child_table_exists=self.child_table_exists, keep_trying=self.keep_trying, trying_interval=self.trying_interval)]
+        stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.insert_rows, start_timestamp=self.start_timestamp, child_table_exists=self.child_table_exists, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows)]
         database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
         host = self.get_fqdn("taosd")[0]
         if self.use_stream:
@@ -174,8 +176,8 @@ class VnodeRedistribute(TDCase):
     def redistribute_vnode(self, reserver_dnode_count=1):
         self.tdSql.query(f'select count(*) from {self.dbname}.{self.stbname}')
         if self.tdSql.query_data[0][0] >= self.start_redistribute_row_count:
-            print(self.tdSql.query_data[0][0])
-            print(self.start_redistribute_row_count)
+            self._remote._logger.info(f"------self.tdSql.query_data[0][0]: {self.tdSql.query_data[0][0]}")
+            self._remote._logger.info(f"------self.start_redistribute_row_count: {self.start_redistribute_row_count}")
             self.add_reserve_dnodes()
             if self.redistribute_status == 0:
                 # start redistribute
@@ -184,7 +186,6 @@ class VnodeRedistribute(TDCase):
                     for vgid_dnodeid_kv in self.vgid_dnodeid_kv_list:
                         for vgid, dnodeid in vgid_dnodeid_kv.items():
                             dnode_id_list = deepcopy(self.dnode_id_list)
-
                             if self.replica == 1:
                                 dnode_id_list.remove(dnodeid)
                                 redistribute_dnode_id = random.choice(dnode_id_list)
@@ -198,7 +199,6 @@ class VnodeRedistribute(TDCase):
                                     redistribute_dnode_id_str += f"dnode {redistribute_dnode_id} "
                                 self.redistribute_status = 1
                                 self.tdSql.execute(f'redistribute vgroup {vgid} {redistribute_dnode_id_str}')
-                                # time.sleep(self.redistribute_interval)
                                 self.check_restored_true()
                     # restore redistribute
                     for vgid_dnodeid_kv in self.vgid_dnodeid_kv_list:
@@ -211,7 +211,6 @@ class VnodeRedistribute(TDCase):
                                 for redistribute_dnode_id in dnode_id_list:
                                     redistribute_dnode_id_str += f"dnode {redistribute_dnode_id} "
                                 self.tdSql.execute(f'redistribute vgroup {vgid} {redistribute_dnode_id_str}')
-                                # time.sleep(self.redistribute_interval)
                                 self.check_restored_true()
                         # else:
                         #     print("----rep3")
