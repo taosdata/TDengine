@@ -74,7 +74,7 @@ typedef struct {
   int32_t        chkpCap;
   TdThreadRwlock chkpDirLock;
 
-} STaskBackendWrapper;
+} STaskDbWrapper;
 
 void*      streamBackendInit(const char* path, int64_t chkpId);
 void       streamBackendCleanup(void* arg);
@@ -85,12 +85,12 @@ SListNode* streamBackendAddCompare(void* backend, void* arg);
 void       streamBackendDelCompare(void* backend, void* arg);
 int32_t    streamStateConvertDataFormat(char* path, char* key, void* cfInst);
 
-STaskBackendWrapper* taskBackendOpen(char* path, char* key);
-void                 taskBackendDestroy(void* pBackend);
-int32_t              taskBackendDoCheckpoint(void* arg, int64_t chkpId);
+STaskDbWrapper* taskBackendOpen(char* path, char* key);
+void            taskDbDestroy(void* pBackend);
+int32_t         taskBackendDoCheckpoint(void* arg, int64_t chkpId);
 
-void* taskBackendAddRef(void* pTaskBackend);
-void  taskBackendRemoveRef(void* pTaskBackend);
+void* taskDbAddRef(void* pTaskDb);
+void  taskDbRemoveRef(void* pTaskDb);
 
 int  streamStateOpenBackend(void* backend, SStreamState* pState);
 void streamStateCloseBackend(SStreamState* pState, bool remove);

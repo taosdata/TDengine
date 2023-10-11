@@ -425,7 +425,7 @@ typedef struct SStreamMeta {
   SRWLatch chkpDirLock;
   int32_t  pauseTaskNum;
 
-  // SHashObj* pTaskBackend;
+  // SHashObj* pTaskDb;
 } SStreamMeta;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);

@@ -355,8 +355,8 @@ void tFreeStreamTask(SStreamTask* pTask) {
     pTask->pUpstreamInfoList = NULL;
   }
   if (pTask->pBackend) {
-    taskBackendRemoveRef(pTask->pBackend);
-     
+    taskDbRemoveRef(pTask->pBackend);
+
     pTask->pBackend = NULL;
   }
   taosThreadMutexDestroy(&pTask->lock);

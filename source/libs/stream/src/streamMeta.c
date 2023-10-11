@@ -53,7 +53,7 @@ int32_t metaRefMgtAdd(int64_t vgId, int64_t* rid);
 static void streamMetaEnvInit() {
   streamBackendId = taosOpenRef(64, streamBackendCleanup);
   streamBackendCfWrapperId = taosOpenRef(64, streamBackendHandleCleanup);
-  taskBackendWrapperId = taosOpenRef(64, taskBackendDestroy);
+  taskBackendWrapperId = taosOpenRef(64, taskDbDestroy);
 
   streamMetaId = taosOpenRef(64, streamMetaCloseImpl);
 
@@ -226,8 +226,8 @@ void* streamMetaGetBackendByTaskKey(SStreamMeta* pMeta, char* key, int64_t* ref)
   taosThreadMutexLock(&pMeta->backendMutex);
   void** ppBackend = taosHashGet(pMeta->pTaskBackendUnique, key, strlen(key));
   if (ppBackend != NULL && *ppBackend != NULL) {
-    taskBackendAddRef(*ppBackend);
-    *ref = ((STaskBackendWrapper*)*ppBackend)->refId;
+    taskDbAddRef(*ppBackend);
+    *ref = ((STaskDbWrapper*)*ppBackend)->refId;
     taosThreadMutexUnlock(&pMeta->backendMutex);
     return *ppBackend;
   }
@@ -761,9 +761,9 @@ int32_t streamMetaReloadAllTasks(SStreamMeta* pMeta) {
 
   // void* pIter = taosHashIterate(pMeta->pTaskBackendUnique, NULL);
   // while (pIter) {
-  //   STaskBackendWrapper* taskBackend = *(STaskBackendWrapper**)pIter;
+  //   STaskDbWrapper* taskBackend = *(STaskDbWrapper**)pIter;
   //   if (taskBackend != NULL) {
-  //     taskBackendRemoveRef(taskBackend);
+  //     taskDbRemoveRef(taskBackend);
   //   }
   //   pIter = taosHashIterate(pMeta->pTaskBackendUnique, pIter);
   // }
