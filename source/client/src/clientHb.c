@@ -60,9 +60,7 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
 
   if (numOfBatchs > 0) hbUpdateUserAuthInfo(pAppHbMgr, &batchRsp);
 
-  if (-1 == atomic_val_compare_exchange_8(&pAppHbMgr->connHbFlag, 1, 2)) {
-    atomic_store_8(&pAppHbMgr->connHbFlag, 0);
-  }
+  atomic_val_compare_exchange_8(&pAppHbMgr->connHbFlag, 1, 2);
 
   taosArrayDestroy(batchRsp.pArray);
   return TSDB_CODE_SUCCESS;
@@ -809,7 +807,7 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
-      atomic_val_compare_exchange_8(&hbParam->pAppHbMgr->connHbFlag, 0, 1);
+      atomic_store_8(&hbParam->pAppHbMgr->connHbFlag, 1);
     }
 
     code = hbGetExpiredDBInfo(connKey, pCatalog, req);
