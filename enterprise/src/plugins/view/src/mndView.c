@@ -489,7 +489,16 @@ int32_t mndProcessViewMetaReqImpl(SViewMetaReq* pMetaReq, SRpcMsg *pReq) {
   rsp.dbId = pView->dbId;
   rsp.viewId = pView->viewId;
   rsp.querySql = strdup(pView->querySql);
+  rsp.precision = pView->precision;
+  rsp.type = pView->type;
   rsp.version = pView->version;
+  rsp.numOfCols = pView->numOfCols;
+  rsp.pSchema = taosMemoryMalloc(pView->numOfCols * sizeof(SSchema));
+  if (rsp.pSchema == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  memcpy(rsp.pSchema, pView->pSchema, pView->numOfCols * sizeof(SSchema));
 
   int32_t rspLen = tSerializeSViewMetaRsp(NULL, 0, &rsp);
   if (rspLen < 0) {
