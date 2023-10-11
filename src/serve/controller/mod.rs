@@ -535,7 +535,7 @@ impl TaskController {
             drop(guard);
         }
 
-        let mut from = if let Some(topic) = task.oneshot_topic.as_deref() {
+        let from = if let Some(topic) = task.oneshot_topic.as_deref() {
             let mut from: Dsn = task.from.parse()?;
             from.set("use.topic.name", topic);
             tracing::info!("Set task from: {from}");
