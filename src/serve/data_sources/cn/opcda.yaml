@@ -37,7 +37,7 @@ datasets:
       使用 CSV 文件进行配置。
     target:
       name: csv_config_file
-      description: 
+      description:
       required: true
       multiple: true
       editable: true
@@ -45,7 +45,7 @@ datasets:
 
   - category: select_all_points
     display: 选择所有点位
-    description: 
+    description:
     target:
       name: select_all_points
       description: |
@@ -57,7 +57,7 @@ datasets:
     params:
       - name: table_primary_key
         display: 主键列
-        description: 
+        description:
         required: true
         value: original_ts
         hint:

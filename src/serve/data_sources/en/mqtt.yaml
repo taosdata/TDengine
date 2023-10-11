@@ -18,6 +18,7 @@ options:
     required: true
     description: |
       Mqtt server endpoint. e.g: 127.0.0.1:1883
+      If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.
     placeholder: 127.0.0.1:1883
 
 authentication:

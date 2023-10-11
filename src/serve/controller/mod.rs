@@ -625,7 +625,6 @@ impl TaskController {
             _ => None,
         };
 
-
         // todo! add trace id to
         let span = tracing::info_span!(
             "task::spawned",
@@ -1013,9 +1012,9 @@ impl TaskController {
 
         #[cfg(not(feature = "disable-enterprise-only-validation"))]
         if let Err(err) = assert_enterprise {
-            anyhow::bail!(
-                format!("{err:?}. A non-expired enterprise edition is required in most of steps.")
-            )
+            anyhow::bail!(format!(
+                "{err:?}. A non-expired enterprise edition is required in most of steps."
+            ))
         }
         // is cloud?
         if to
@@ -1154,6 +1153,18 @@ impl TaskController {
         }
         task.patch_labels();
         let now = chrono::Utc::now();
+        if let Some(name) = &task.name {
+            let tasks = self
+                .tasks(TaskFilter {
+                    name: Some(name.clone()),
+                    labels: task.labels.as_ref().map(|s| s.join(",")),
+                    ..Default::default()
+                })
+                .await?;
+            if tasks.len() > 0 {
+                anyhow::bail!("Task name {:?} already exists", name);
+            }
+        }
         let res = sqlx::query(
             "INSERT INTO tasks (`name`, `from`, `oneshot_topic`, `to`, `jobs`, `compression_level`, \
                  `created_at`, `status`, `after_delete`, `trigger`, `via`, `parser`) \
