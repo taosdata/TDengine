@@ -30,9 +30,11 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
     if (ppVnode == NULL || *ppVnode == NULL) continue;
 
     SVnodeObj *pVnode = *ppVnode;
-    SVnodeLoad vload = {0};
-    vnodeGetLoad(pVnode->pImpl, &vload);
-    if (isReset) vnodeResetLoad(pVnode->pImpl, &vload);
+    SVnodeLoad vload = {.vgId = pVnode->vgId};
+    if (!pVnode->failed) {
+      vnodeGetLoad(pVnode->pImpl, &vload);
+      if (isReset) vnodeResetLoad(pVnode->pImpl, &vload);
+    }
     taosArrayPush(pInfo->pVloads, &vload);
     pIter = taosHashIterate(pMgmt->hash, pIter);
   }
@@ -52,9 +54,11 @@ void vmGetVnodeLoadsLite(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
     if (ppVnode == NULL || *ppVnode == NULL) continue;
 
     SVnodeObj     *pVnode = *ppVnode;
-    SVnodeLoadLite vload = {0};
-    if (vnodeGetLoadLite(pVnode->pImpl, &vload) == 0) {
-      taosArrayPush(pInfo->pVloads, &vload);
+    if (!pVnode->failed) {
+      SVnodeLoadLite vload = {0};
+      if (vnodeGetLoadLite(pVnode->pImpl, &vload) == 0) {
+        taosArrayPush(pInfo->pVloads, &vload);
+      }
     }
     pIter = taosHashIterate(pMgmt->hash, pIter);
   }
@@ -278,7 +282,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   vmGenerateWrapperCfg(pMgmt, &req, &wrapperCfg);
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, req.vgId);
-  if (pVnode != NULL) {
+  if (pVnode != NULL && !pVnode->failed) {
     dError("vgId:%d, already exist", req.vgId);
     tFreeSCreateVnodeReq(&req);
     vmReleaseVnode(pMgmt, pVnode);
@@ -287,7 +291,9 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return 0;
   }
 
-  wrapperCfg.diskPrimary = vmAllocPrimaryDisk(pMgmt, vnodeCfg.vgId);
+  ASSERT(pVnode == NULL || pVnode->failed);
+
+  wrapperCfg.diskPrimary = pVnode ? pVnode->diskPrimary : vmAllocPrimaryDisk(pMgmt, vnodeCfg.vgId);
   int32_t diskPrimary = wrapperCfg.diskPrimary;
 
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
@@ -364,9 +370,10 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
         TMSG_INFO(pMsg->msgType));
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, req.vgId);
-  if (pVnode == NULL) {
+  if (pVnode == NULL || pVnode->failed) {
     dError("vgId:%d, failed to alter vnode type since %s", req.vgId, terrstr());
     terrno = TSDB_CODE_VND_NOT_EXIST;
+    if (pVnode) vmReleaseVnode(pMgmt, pVnode);
     return -1;
   }
 
@@ -481,9 +488,10 @@ int32_t vmProcessCheckLearnCatchupReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
           req.vgId, TMSG_INFO(pMsg->msgType));
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, req.vgId);
-  if (pVnode == NULL) {
+  if (pVnode == NULL || pVnode->failed) {
     dError("vgId:%d, failed to alter vnode type since %s", req.vgId, terrstr());
     terrno = TSDB_CODE_VND_NOT_EXIST;
+    if (pVnode) vmReleaseVnode(pMgmt, pVnode);
     return -1;
   }
 
@@ -523,9 +531,10 @@ int32_t vmProcessDisableVnodeWriteReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dInfo("vgId:%d, vnode write disable:%d", req.vgId, req.disable);
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, req.vgId);
-  if (pVnode == NULL) {
+  if (pVnode == NULL || pVnode->failed) {
     dError("vgId:%d, failed to disable write since %s", req.vgId, terrstr());
     terrno = TSDB_CODE_VND_NOT_EXIST;
+    if (pVnode) vmReleaseVnode(pMgmt, pVnode);
     return -1;
   }
 
@@ -555,9 +564,10 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dInfo("vgId:%d, start to alter vnode hashrange:[%u, %u], dstVgId:%d", req.srcVgId, req.hashBegin, req.hashEnd,
         req.dstVgId);
   pVnode = vmAcquireVnode(pMgmt, srcVgId);
-  if (pVnode == NULL) {
+  if (pVnode == NULL || pVnode->failed) {
     dError("vgId:%d, failed to alter hashrange since %s", srcVgId, terrstr());
     terrno = TSDB_CODE_VND_NOT_EXIST;
+    if (pVnode) vmReleaseVnode(pMgmt, pVnode);
     return -1;
   }
 
@@ -669,9 +679,10 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
-  if (pVnode == NULL) {
+  if (pVnode == NULL || pVnode->failed) {
     dError("vgId:%d, failed to alter replica since %s", vgId, terrstr());
     terrno = TSDB_CODE_VND_NOT_EXIST;
+    if (pVnode) vmReleaseVnode(pMgmt, pVnode);
     return -1;
   }
 
