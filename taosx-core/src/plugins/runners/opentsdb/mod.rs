@@ -158,7 +158,7 @@ impl OpentsdbConfig {
             performance_max_thread,
             performance_queue_size_thread,
             performance_queue_size_data,
-            performance_limit_speed
+            performance_limit_speed,
         };
 
         Ok(Self {
@@ -486,4 +486,8 @@ pub async fn opentsdb_validate(dsn: Dsn) -> anyhow::Result<DataSourceValidation>
             message: Some(result.err().unwrap().source().unwrap().to_string()),
         })
     }
+}
+
+pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+    DataSourceValidation::unknown()
 }

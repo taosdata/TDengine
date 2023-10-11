@@ -19,7 +19,7 @@ use crate::{
     get_log_keep_days, Transferred, utils::port_pool::PortPool,
 };
 use crate::validation::DataSourceValidation;
-use crate::plugins::mask_dsn;
+use crate::utils::mask_dsn;
 
 use super::get_plugin_dir;
 
@@ -320,8 +320,7 @@ pub async fn influxdb_to_taos(
         with_agent,
         transferred,
         span,
-    )
-    .await?;
+    ).await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
     // 连接器路径
     let connector_path = influxdb_jar_path();
@@ -600,4 +599,8 @@ pub async fn influxdb_validate(dsn: Dsn) -> anyhow::Result<DataSourceValidation>
             message: Some(result.err().unwrap().source().unwrap().to_string()),
         })
     }
+}
+
+pub fn is_valid(dsn: &Dsn) -> DataSourceValidation{
+    DataSourceValidation::unknown()
 }

@@ -25,6 +25,7 @@ use crate::{
     utils::{port_pool::PortPool, stop_thread},
     Action, DataSet, DataSetsReq, Transferred,
 };
+use crate::validation::DataSourceValidation;
 
 #[derive(Debug, serde::Serialize)]
 struct PiConfig {
@@ -1011,18 +1012,27 @@ fn extend_data_set(
     }
 }
 
-#[tokio::test]
-async fn test_config() {
-    dbg!(std::env::current_dir().unwrap());
-    let dsn: Dsn = "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=@../tests/pi/Points.csv&template_for_af_element_file=@../tests/pi/ElementTemplates2.csv"
-        .parse()
-        .unwrap();
-    let config = PiConfig::new(dsn, "taos".to_string(), 0, 0, false).await.unwrap();
-    dbg!(&config);
+pub fn is_valid(dsn: &Dsn) -> DataSourceValidation{
+    DataSourceValidation::unknown()
+}
 
-    let dsn: Dsn = "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=app\napp\napp"
-        .parse()
-        .unwrap();
-    let config2 = PiConfig::new(dsn, "taos".to_string(), 0, 0, false).await.unwrap();
-    dbg!(&config2);
+#[cfg(test)]
+mod tests {
+    use taos::Dsn;
+    use super::*;
+    #[tokio::test]
+    async fn test_config() {
+        dbg!(std::env::current_dir().unwrap());
+        let dsn: Dsn = "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=@../tests/pi/Points.csv&template_for_af_element_file=@../tests/pi/ElementTemplates2.csv"
+            .parse()
+            .unwrap();
+        let config = PiConfig::new(dsn, "taos".to_string(), 0, 0, false).await.unwrap();
+        dbg!(&config);
+
+        let dsn: Dsn = "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=app\napp\napp"
+            .parse()
+            .unwrap();
+        let config2 = PiConfig::new(dsn, "taos".to_string(), 0, 0, false).await.unwrap();
+        dbg!(&config2);
+    }
 }

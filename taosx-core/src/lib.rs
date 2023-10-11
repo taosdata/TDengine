@@ -112,76 +112,6 @@ impl Drop for TaskOpts {
     }
 }
 
-pub fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
-    let dsn = dsn.into_dsn();
-    match dsn {
-        Err(err) => {
-            DataSourceValidation::invalid("unknown".to_string(), format!("DSN error: {err:#}"))
-        }
-        Ok(d) => {
-            match d.driver.as_str() {
-                // TODO: clickhouse
-                "historian" => runners::historian::is_valid(&d),
-                // TODO: influxdb
-                "kafka" => runners::kafka::is_valid(&d),
-                // TODO: mqtt
-                // TODO: opc da
-                // TODO: opc ua
-                // TODO: opentsdb
-                // TODO: pi
-                // TODO: pi backfill
-                "taos" | "tmq" => {
-                    futures::executor::block_on(is_valid(&d))
-                }
-                &_ => DataSourceValidation::unknown()
-            }
-        }
-    }
-}
-
-pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
-    let builder = TaosBuilder::from_dsn(dsn);
-    match builder {
-        Err(err) => {
-            DataSourceValidation::invalid(
-                "taos".to_string(),
-                format!("invalid dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
-            )
-        }
-        Ok(b) => {
-            let conn = b.build().await;
-            match conn {
-                Err(err) => {
-                    DataSourceValidation::invalid(
-                        "taos".to_string(),
-                        format!("failed to connect to dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
-                    )
-                }
-                Ok(c) => {
-                    let version = c.server_version();
-                    match version {
-                        Err(err) => {
-                            DataSourceValidation::invalid(
-                                "taos".to_string(),
-                                format!("failed to get server version from dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
-                            )
-                        }
-                        Ok(v) => {
-                            DataSourceValidation {
-                                valid: true,
-                                support: true,
-                                data_source: "taos".to_string(),
-                                version: Some(v.to_string()),
-                                message: None,
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 pub const METRICS_TIME_START: &str = "metrics.time_started_timestamp";
 pub const METRICS_TIME_START_DATE: &str = "metrics.time_started_date";
 pub const METRICS_TIME_COST: &str = "metrics.time_cost";
@@ -283,9 +213,7 @@ impl TaskOpts {
                         *jobs,
                         cancel.clone(),
                         offsets.clone(),
-                    )
-                    .in_current_span()
-                    .await?;
+                    ).in_current_span().await?;
                 }
                 ("tmq", "local") => {
                     tmq_to_local(
@@ -295,8 +223,7 @@ impl TaskOpts {
                         *force,
                         cancel.clone(),
                         offsets.clone(),
-                    )
-                    .await?;
+                    ).await?;
                 }
                 ("local", "taos") => {
                     local_to_taos(from.clone(), to.clone(), *jobs, *force)
@@ -331,7 +258,7 @@ impl TaskOpts {
                     query_to_parquet(from.clone(), to.clone(), *force).await?;
                 }
                 ("pi" | "pibackfill", "taos") => {
-                    plugins::pi_to_taos(
+                    pi_to_taos(
                         from.clone(),
                         transform.clone(),
                         to.clone(),
@@ -341,11 +268,10 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                    )
-                    .await?;
+                    ).await?;
                 }
                 ("opc" | "opcda" | "opcua", "taos") => {
-                    plugins::opc_to_taos(
+                    opc_to_taos(
                         from.clone(),
                         transform.clone(),
                         to.clone(),
@@ -355,11 +281,10 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                    )
-                    .await?;
+                    ).await?;
                 }
                 ("mqtt", "taos") => {
-                    plugins::mqtt_to_taos(
+                    mqtt_to_taos(
                         from.clone(),
                         parser.clone(),
                         to.clone(),
@@ -369,11 +294,10 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                    )
-                    .await?;
+                    ).await?;
                 }
                 ("influxdb", "taos") => {
-                    plugins::influxdb_to_taos(
+                    influxdb_to_taos(
                         from.clone(),
                         transform.clone(),
                         to.clone(),
@@ -383,11 +307,10 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                    )
-                    .await?;
+                    ).await?;
                 }
                 ("opentsdb", "taos") => {
-                    plugins::opentsdb_to_taos(
+                    opentsdb_to_taos(
                         from.clone(),
                         transform.clone(),
                         to.clone(),
@@ -397,8 +320,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                    )
-                    .await?;
+                    ).await?;
                 }
                 ("csv", "taos") => {
                     csv_to_taos(
@@ -410,8 +332,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                    )
-                    .await?;
+                    ).await?;
                 }
                 ("tmq", "kafka") => {
                     let mut from = from.clone();
@@ -432,8 +353,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                    )
-                    .await?;
+                    ).await?;
                 }
                 ("historian", "taos") => {
                     historian_to_taos(
@@ -447,8 +367,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                    )
-                    .await?;
+                    ).await?;
                 }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }
@@ -469,6 +388,72 @@ impl TaskOpts {
             (_, _) => {}
         }
         Ok(())
+    }
+}
+
+pub fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
+    let dsn = dsn.into_dsn();
+    match dsn {
+        Err(err) => {
+            DataSourceValidation::invalid("unknown".to_string(), format!("DSN error: {err:#}"))
+        }
+        Ok(d) => {
+            match d.driver.as_str() {
+                // TODO: clickhouse
+                "historian" => runners::historian::is_valid(&d),
+                "influxdb" => runners::influxdb::is_valid(&d),
+                "kafka" => runners::kafka::is_valid(&d),
+                "mqtt" => runners::mqtt::is_valid(&d),
+                "opc" | "opcda" | "opcua" => runners::opc::is_valid(&d),
+                "opentsdb" => runners::opentsdb::is_valid(&d),
+                "pi" | "pibackfill" => runners::pi::is_valid(&d),
+                "taos" | "tmq" => futures::executor::block_on(is_valid(&d)),
+                &_ => DataSourceValidation::unknown()
+            }
+        }
+    }
+}
+
+pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+    let builder = TaosBuilder::from_dsn(dsn);
+    match builder {
+        Err(err) => {
+            DataSourceValidation::invalid(
+                "taos".to_string(),
+                format!("invalid dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
+            )
+        }
+        Ok(b) => {
+            let conn = b.build().await;
+            match conn {
+                Err(err) => {
+                    DataSourceValidation::invalid(
+                        "taos".to_string(),
+                        format!("failed to connect to dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
+                    )
+                }
+                Ok(c) => {
+                    let version = c.server_version();
+                    match version {
+                        Err(err) => {
+                            DataSourceValidation::invalid(
+                                "taos".to_string(),
+                                format!("failed to get server version from dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
+                            )
+                        }
+                        Ok(v) => {
+                            DataSourceValidation {
+                                valid: true,
+                                support: true,
+                                data_source: "taos".to_string(),
+                                version: Some(v.to_string()),
+                                message: None,
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

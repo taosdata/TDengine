@@ -10,10 +10,9 @@ use std::{
 
 use file_rotate::{
     compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
+    ContentLimit,
+    FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
 };
-
 use itertools::Itertools;
 use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
@@ -21,9 +20,10 @@ use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
 use crate::{
-    build_ipc, get_log_keep_days, plugins::runners::get_plugin_dir, utils::port_pool::PortPool,
-    Parser, Transferred,
+    build_ipc, get_log_keep_days, Parser, plugins::runners::get_plugin_dir,
+    Transferred, utils::port_pool::PortPool,
 };
+use crate::validation::DataSourceValidation;
 
 #[derive(Debug, serde::Serialize)]
 struct MqttConfig {
@@ -227,8 +227,7 @@ pub async fn mqtt_to_taos(
         with_agent,
         transferred,
         span,
-    )
-    .await?;
+    ).await?;
     let mqtt = mqtt_exe_path();
     let mut command = tokio::process::Command::new(mqtt);
 
@@ -328,8 +327,7 @@ pub async fn mqtt_to_taos(
         tracing::info!("mqtt to taos task done");
         safe_exit!();
         Ok(())
-    })
-    .await??;
+    }).await??;
     Ok(())
 }
 
@@ -387,13 +385,17 @@ pub(super) fn get_string_from_param_or_file(
     }
 }
 
+pub fn is_valid(dsn: &Dsn) -> DataSourceValidation{
+    DataSourceValidation::unknown()
+}
+
 #[cfg(test)]
 mod tests {
-
     use taos::IntoDsn;
 
-    use super::*;
     use crate::TaskOpts;
+
+    use super::*;
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_mqtt_parser() {
@@ -430,8 +432,7 @@ mod tests {
                     }
                 }
                 "#,
-                )
-                .unwrap(),
+                ).unwrap(),
             ),
             jobs: 0,
             compression_level: None,
