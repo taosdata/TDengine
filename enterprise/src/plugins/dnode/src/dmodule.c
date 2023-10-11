@@ -310,9 +310,6 @@ int32_t dmInitDndInfo(SDnodeData *pData) {
   if ((code = dmWriteVars(&eInfo)) != 0) goto _exit;
 
 _exit:
-  if (code != 0) {
-    assert(0);
-  }
   return code;
 #else
   return 0;
@@ -395,7 +392,7 @@ _exit:
 static void dmFetchEType(int8_t *type) {
   int8_t eType = DM_ETYPE_UN;
   if (STR_STR_CMP(tsVersionName, STR_STR_SIGN)) {
-    if (strncmp(tsVersionName, "t", 1)) {
+    if (!strncmp(tsVersionName, "t", 1)) {
       eType = DM_ETYPE_TR;
     } else {
       eType = DM_ETYPE_EN;
