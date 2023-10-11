@@ -244,7 +244,7 @@
                     if (isArray(value)) {
                       pre.push(...value);
                     } else {
-                      pre.push(value);
+                      isReverse ? pre.push(`'${value}'`) : pre.push(value);
                     }
                     return pre;
                   }
