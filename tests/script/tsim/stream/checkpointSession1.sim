@@ -63,7 +63,7 @@ sql insert into t2 values(1648791233003,4,2,3,1.1);
 $loop_count = 0
 
 loop1:
-sleep 1000
+sleep 2000
 
 sql select * from streamt;
 
