@@ -26,6 +26,7 @@ export default {
   download: "下载",
   uploadcsv: 'CSV 文件上传',
   allPoints: '所有点',
+  allTemplate: '所有 AF 元素模版',
   downloadTemplate: '模板',
   downloadPiPoint: '所有点列表',
   downloadAfElement: 'AF 元素模版列表',
@@ -441,7 +442,7 @@ export default {
     <li>2 - 数据写入 WAL 且执行 fsync。</li>
     </ul>
     `,
-    walRetentionPeriodTip: "WAL 文件的大保存时长，它决定了能够订阅到的数据，单位是秒，默认值是3600，意味着没有没有数据可以消费，如果想订阅数据请设置为合适的正值。",
+    walRetentionPeriodTip: "WAL 文件的大保存时长，它决定了能够订阅到的数据，单位是秒，默认值是3600，值为0时意味着没有没有数据可以消费，如果想订阅数据请设置为合适的正值。",
     walRetentionSizeTip: "单个 WAL 文件的大小上限，单位是 KB，默认值为0，意味着 TDengine 会自动处理。",
     pagesTip: "单个 vnode 中缓存元数据的缓存页数，缺省值是 256，该值允许配置的最小值是 64",
     pageSizeTip: "vnode 中元数据缓存的页大小，单位是 KB ，值域是 [1,16384]，缺省值是 4 KB。",
