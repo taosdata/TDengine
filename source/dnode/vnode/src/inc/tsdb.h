@@ -625,7 +625,7 @@ struct SDFileSet {
   SDataFile *pDataF;
   SSmaFile  *pSmaF;
   uint8_t    nSttF;
-  SSttFile  *aSttF[TSDB_MAX_STT_TRIGGER];
+  SSttFile  *aSttF[TSDB_STT_TRIGGER_ARRAY_SIZE];
 };
 
 struct STSDBRowIter {
@@ -694,7 +694,7 @@ struct SDataFWriter {
   SHeadFile fHead;
   SDataFile fData;
   SSmaFile  fSma;
-  SSttFile  fStt[TSDB_MAX_STT_TRIGGER];
+  SSttFile  fStt[TSDB_STT_TRIGGER_ARRAY_SIZE];
 
   uint8_t *aBuf[4];
 };
@@ -705,7 +705,7 @@ struct SDataFReader {
   STsdbFD   *pHeadFD;
   STsdbFD   *pDataFD;
   STsdbFD   *pSmaFD;
-  STsdbFD   *aSttFD[TSDB_MAX_STT_TRIGGER];
+  STsdbFD   *aSttFD[TSDB_STT_TRIGGER_ARRAY_SIZE];
   uint8_t   *aBuf[3];
 };
 

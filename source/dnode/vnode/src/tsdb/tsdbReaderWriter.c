@@ -1000,7 +1000,7 @@ int32_t tsdbDataFReaderClose(SDataFReader **ppReader) {
   tsdbCloseFile(&(*ppReader)->pSmaFD);
 
   // stt
-  for (int32_t iStt = 0; iStt < TSDB_MAX_STT_TRIGGER; iStt++) {
+  for (int32_t iStt = 0; iStt < TSDB_STT_TRIGGER_ARRAY_SIZE; iStt++) {
     if ((*ppReader)->aSttFD[iStt]) {
       tsdbCloseFile(&(*ppReader)->aSttFD[iStt]);
     }
