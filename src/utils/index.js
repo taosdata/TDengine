@@ -7,6 +7,8 @@ import { Message } from "element-ui";
 import { $bus } from "@/const";
 import CryptoJS from "crypto-js";
 import i18n from "@/lang";
+import _ from "lodash";
+
 let path = require("path");
 export function debounce(func, wait, immediate) {
   let timeout, args, context, timestamp, result;
@@ -49,7 +51,7 @@ export function deepClone(source) {
   if (!source && typeof source !== "object") {
     throw new Error("error arguments", "deepClone");
   }
-  const targetObj = source.constructor === Array ? [] : {};
+  const targetObj = source?.constructor === Array ? [] : {};
   Object.keys(source).forEach(keys => {
     if (source[keys] && typeof source[keys] === "object") {
       targetObj[keys] = deepClone(source[keys]);
@@ -276,8 +278,8 @@ export function OpenNewTab(url) {
   a.dispatchEvent(e);
 }
 
- //删除cookie某一项目
- export function deleteCookieItem() {
+//删除cookie某一项目
+export function deleteCookieItem() {
   var cookieItems = document.cookie.split(";");
   for (var i = 0; i < cookieItems.length; i++) {
     var item = cookieItems[i];
@@ -293,22 +295,60 @@ export function OpenNewTab(url) {
   }
 }
 
- //加密
+//加密
 export function encrypt(data) {
+  console.log("encrypt", data);
   let encryptedData = CryptoJS.AES.encrypt(data, `-----BEGIN PUBLIC KEY-----
   MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC//nB6rRTnxCU2bMBGatp1N1Q0
   kuSEZl3Ot2EQMlNwINYTm7izxjTyA1pgmBmotAXVZuZNviJNUZUMBn73bIjso1l2
   qhwe/FcewPjP2ubbdf89yWPnen/wRGo+Q0QRmt1q7eDeVTJMC4LVdetuv6QABnUJ
   +siG1ILDsJ2BsYMBMwIDAQAB
   -----END PUBLIC KEY-----`).toString(); // 使用AES算法加密数据
+  console.log("encrypt", data);
   return encryptedData;
 }
 //解密
 export function decrypt(encryptedData) {
-  let decryptedMessage = CryptoJS.AES.decrypt(encryptedData,'pwd').toString(CryptoJS.enc.Utf8); // 使用AES算法解密数据
+  let decryptedMessage = CryptoJS.AES.decrypt(encryptedData, `-----BEGIN PUBLIC KEY-----
+  MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC//nB6rRTnxCU2bMBGatp1N1Q0
+  kuSEZl3Ot2EQMlNwINYTm7izxjTyA1pgmBmotAXVZuZNviJNUZUMBn73bIjso1l2
+  qhwe/FcewPjP2ubbdf89yWPnen/wRGo+Q0QRmt1q7eDeVTJMC4LVdetuv6QABnUJ
+  +siG1ILDsJ2BsYMBMwIDAQAB
+  -----END PUBLIC KEY-----`).toString(CryptoJS.enc.Utf8); // 使用AES算法解密数据
 
   return decryptedMessage;
 }
+
+// 获取当前集群DSN
+export function getDSN(driver = "tmq", subject = null) {
+  let url = localStorage.getItem('base_url');
+  if (url.includes('://')) {
+    let parsed_url = new URL(url);
+    let scheme = null;
+    if (parsed_url.protocol == 'http:') {
+      scheme = '+ws'
+    } else if (parsed_url.protocol == 'https:') {
+      scheme = '+wss'
+    } else {
+      scheme = '+' + parsed_url.protocol.replace(':', '')
+    }
+
+    let host = parsed_url.host;
+    let user = localStorage.getItem('username') || '';
+    let decrypted = encodeURI(decrypt(localStorage.getItem('pwd')));
+    let pass = decrypted || '';
+    let subjectStr = subject ? '/' + subject : '';
+    return driver + scheme + '://' + user + ':' + pass + '@' + host + subjectStr + parsed_url.search;
+  } else {
+    let host = url;
+    let user = localStorage.getItem('username') || '';
+    let decrypted = encodeURI(decrypt(localStorage.getItem('pwd')));
+    let pass = decrypted || '';
+    let subjectStr = subject ? '/' + subject : '';
+    return driver + '://' + user + ':' + pass + '@' + host + subjectStr;
+  }
+}
+
 
 // 获取时区
 export function getLocalTimezone() {
@@ -316,7 +356,7 @@ export function getLocalTimezone() {
 }
 
 // format time
-export function parsinginZone(value,format) {
+export function parsinginZone(value, format) {
   let timezone = getLocalTimezone()
   return momentTimezone(value).tz(timezone).format(format)
 }
@@ -327,4 +367,12 @@ export function getBrowserLang() {
   if (browserLang.includes('zh')) return 'zh';
   if (browserLang.includes('en')) return 'en';
   return 'zh';
+}
+
+// 根据图表轴的数据判断轴的类型
+export function getAxisType(data) {
+  if (!data) return 'category';
+  if (!isNaN(data)) return 'value';
+  if (new Date(data).toString() != 'Invalid Date') return 'time';
+  return 'category';
 }

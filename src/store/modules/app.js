@@ -8,6 +8,9 @@ import {
   removeAppID,
   setRedirect,
 } from "@/utils/token";
+import {
+  getAgentsData
+} from "@/api/explorer/agent";
 import { objToLine } from "@/utils";
 import {
   getClusterListReq,
@@ -64,7 +67,15 @@ const state = {
   mqttcafile: [],
   mqttcertfile: [],
   mqttcertkeyfile: [],
-  showcsvStable:false
+  showcsvStable:false,
+  agentLists:[],
+  //以下四个是保存置顶的数据源的四个值(有两个ui界面导致的)
+  currentDBName:'',
+  currentAgentID:'',
+  currentDBType:'',
+  currentDSName:'',
+
+  currentEditID:''
 };
 const saveKey = encodeURIComponent("appId");
 const waitTime = 15 * 60 * 1000;
@@ -91,6 +102,24 @@ let refreshCount = 0;
 const refresTime = 15000;
 let timer = null;
 const mutations = {
+  SET_CURRENT_EDITID:(state,data)=>{
+    state.currentEditID=data
+  },
+  SET_CURRENT_DBNAME:(state,data)=>{
+    state.currentDBName=data
+  },
+  SET_CURRENT_AGENT:(state,data)=>{
+    state.currentAgentID=data
+  },
+  SET_CURRENT_DSNAME:(state,data)=>{
+    state.currentDSName=data
+  },
+  SET_CURRENT_DBTYPE:(state,data)=>{
+    state.currentDBType=data
+  },
+  SET_AGENT_LISTS:(state,data)=>{
+    state.agentLists=data
+  },
   //所有数据源上传的文件类型置空
   SET_FILE_EMPTY:(state,data)=>{
     state.csvfiles=data
@@ -223,6 +252,11 @@ const mutations = {
 };
 
 const actions = {
+  getAgentList({ commit }) {
+    return getAgentsData().then(res => {
+      commit('SET_AGENT_LISTS', res);
+    });
+  },
   async getUserInfo({ commit, dispatch }) {
     if (!state.userInfo) {
       let userName = localStorage.getItem("username");

@@ -217,10 +217,7 @@ export default {
     },
     async getAgentDataType() {
       try {
-        this.agentList = await getAgentsData(
-          localStorage.getItem("local_clusterID"),
-          localStorage.getItem("username")
-        );
+        this.agentList = await getAgentsData();
         this.agentList = this.agentList.map((agent) => {
           return {
             value: agent.id,

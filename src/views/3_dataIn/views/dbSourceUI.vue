@@ -3,31 +3,19 @@
     <div
       :class="[
         'left-ui',
-        (this.$parent.currentTaskStatus == 'running'&&!this.$parent.isCopyable) ? 'readable' : '',
+        // this.$parent.currentTaskStatus == 'running' && !this.$parent.isCopyable
+        isShowEditBtn
+          ? 'readable'
+          : '',
       ]"
     >
-    <!-- <section>
-      <DataTarget></DataTarget>
-    </section> -->
-      <section class="header">
-        <h1>{{ dbsource[0].name ? dbsource[0].name : "" }}</h1>
+      <section>
+        <DataTarget></DataTarget>
       </section>
-      <div class="source-name" v-if="isEditable">
-        <div class="block-title">
-          <span>{{ $t("datasource.sourcename") }}</span>
-        </div>
-        <div class="name">
-          <span class="label">{{ $t("name") }}</span>
-          <el-input
-            v-model="sourceName"
-            placeholder=""
-            style="width: 200px"
-          ></el-input>
-        </div>
-      </div>
+
       <section class="basics">
         <div class="block-title">
-          <span>{{ dbsource[0].options.display }}</span>
+          <span>{{ $t("dataIn.connectionConfiguration") }}</span>
         </div>
         <div class="protocol" v-if="dbsource[0].protocol">
           <span class="label">{{ dbsource[0].protocol.display }}</span>
@@ -36,6 +24,7 @@
               v-model="dbsource[0].protocol.value"
               placeholder=""
               style="margin-bottom: 8px"
+              size="small"
             >
               <el-option
                 v-for="c in dbsource[0].protocol.choices"
@@ -54,52 +43,81 @@
           <!-- 根节点下的 params 参数 -->
           <div
             style="width: 100%"
-            v-if="dbsource[0].params && JSON.stringify(dbsource[0]?.params[0]) !== '{}'"
+            v-if="
+              dbsource[0].params && dbsource[0]?.params[0] &&
+              JSON.stringify(dbsource[0]?.params[0]) !== '{}'
+            "
           >
-          <span
-            :class="[
-              'label',
-              dbsource[0].params[0].required ? 'required' : '',
-            ]"
-            >{{ dbsource[0].params[0].display }}</span
-          >
-          <div class="label-value">
-            <el-select
-              v-model="dbsource[0].params[0].value"
-              placeholder=""
-              style="margin-bottom: 8px"
-              @change="changeSystemConfiguration"
+            <span
+              :class="[
+                'label',
+                dbsource[0].params[0].required ? 'required' : '',
+              ]"
+              >{{ dbsource[0].params[0].display }}</span
             >
-              <el-option
-                v-for="c in dbsource[0].params[0].hint.choices"
-                :key="c"
-                :label="c"
-                :value="c"
-              ></el-option>
-            </el-select>
-            <div
-              v-html="transforHtml(dbsource[0].params[0].description)"
-              class="description"
-            ></div>
+            <div class="label-value">
+              <el-select
+                v-model="dbsource[0].params[0].value"
+                placeholder=""
+                size="small"
+                style="margin-bottom: 8px"
+                @change="changeSystemConfiguration"
+              >
+                <el-option
+                  v-for="c in dbsource[0].params[0].hint.choices"
+                  :key="c"
+                  :label="c"
+                  :value="c"
+                ></el-option>
+              </el-select>
+              <div
+                v-html="transforHtml(dbsource[0].params[0].description)"
+                class="description"
+              ></div>
+            </div>
+
           </div>
-        </div>
           <div style="width: 100%">
             <span
               :class="[
                 'label',
-                dbsource[0].options.host.required ? 'required' : '',
+                dbsource[0].options?.endpoint?.required ? 'required' : '',
               ]"
-              >{{ dbsource[0].options.host.display }}</span
+              >{{ dbsource[0].options?.endpoint?.display }}</span
             >
-            <div class="label-value">
+            <div class="label-value" v-if="dbsource[0]?.options?.endpoint">
               <el-input
-                v-model="dbsource[0].options.host.value"
-                @change="changeHost(dbsource[0].options.host.display)"
-                :placeholder="dbsource[0].options.host.placeholder"
+                size="small"
+                v-model="dbsource[0].options.endpoint.value"
+                @change="changeHost(dbsource[0].options?.endpoint?.display)"
+                :placeholder="dbsource[0].options?.endpoint?.placeholder"
                 style="margin-bottom: 8px"
               ></el-input>
               <div
-                v-html="transforHtml(dbsource[0].options.host.description)"
+                v-html="transforHtml(dbsource[0].options?.endpoint?.description)"
+                class="description"
+              ></div>
+            </div>
+          </div>
+          <div style="width: 100%">
+            <span
+              :class="[
+                'label',
+                dbsource[0].options?.host?.required ? 'required' : '',
+              ]"
+              >{{ dbsource[0].options?.host?.display }}</span
+            >
+           
+            <div class="label-value" v-if="dbsource[0]?.options?.host">
+              <el-input
+                size="small"
+                v-model="dbsource[0].options.host.value"
+                @change="changeHost(dbsource[0].options?.host?.display)"
+                :placeholder="dbsource[0].options?.host?.placeholder"
+                style="margin-bottom: 8px"
+              ></el-input>
+              <div
+                v-html="transforHtml(dbsource[0].options?.host?.description)"
                 class="description"
               ></div>
             </div>
@@ -118,6 +136,7 @@
 
             <div class="label-value">
               <el-input
+                size="small"
                 v-model="dbsource[0].options.port.value"
                 :placeholder="dbsource[0].options.port.placeholder"
                 @change="changePort"
@@ -136,14 +155,12 @@
           v-if="dbsource[0].params && isPiDataArchiveAll"
         >
           <span
-            :class="[
-              'label',
-              dbsource[0].params[1].required ? 'required' : '',
-            ]"
+            :class="['label', dbsource[0].params[1].required ? 'required' : '']"
             >{{ dbsource[0].params[1].display }}</span
           >
           <div class="label-value">
             <el-input
+              size="small"
               :placeholder="dbsource[0].params[1].placeholder"
               v-model="dbsource[0].params[1].value"
               style="margin-bottom: 8px"
@@ -157,19 +174,21 @@
         <!-- pi 的 AF Database Name 需要根据 System Configuration 值确认-->
         <div
           style="width: 100%"
-          v-if="JSON.stringify(dbsource[0].options.subject) !== '{}'
-          && isPiDataArchiveAll
+          v-if="
+            JSON.stringify(dbsource[0].options.subject) !== '{}' &&
+            isPiDataArchiveAll
           "
         >
           <span
             :class="[
               'label',
-              dbsource[0].options.subject.required ? 'required' : '',
+              dbsource[0].options?.subject?.required ? 'required' : '',
             ]"
-            >{{ dbsource[0].options.subject.display }}</span
+            >{{ dbsource[0].options?.subject?.display }}</span
           >
-          <div class="label-value">
+          <div class="label-value" v-if="dbsource[0]?.options?.subject">
             <el-input
+              size="small"
               :placeholder="dbsource[0].options.subject.placeholder"
               v-model="dbsource[0].options.subject.value"
               style="margin-bottom: 8px"
@@ -210,6 +229,7 @@
                       }}</span>
                       <div style="flex: 1">
                         <el-input
+                          size="small"
                           style="margin-bottom: 8px"
                           v-model="
                             dbsource[0].authentication.alternatives[0].username
@@ -235,6 +255,7 @@
                       }}</span>
                       <div style="flex: 1">
                         <el-input
+                          size="small"
                           type="password"
                           style="margin-bottom: 8px"
                           v-model="
@@ -257,7 +278,6 @@
                 </template>
 
                 <div
-                  v-else
                   v-for="(p, index) in at.params"
                   :key="index"
                   style="
@@ -276,6 +296,7 @@
                       <el-select
                         v-model="p.value"
                         placeholder=""
+                        size="small"
                         style="margin-left: 0px; width: 100%"
                       >
                         <el-option
@@ -288,6 +309,7 @@
                     </template>
                     <el-input
                       v-else
+                      size="small"
                       v-model="p.value"
                       :type="
                         p.name == 'password' || p.name == 'token'
@@ -305,106 +327,15 @@
               </el-tab-pane>
             </template>
           </el-tabs>
-
-          <!-- <el-radio-group v-model="dbsource[0].authentication.value">
-            <template v-for="at in dbsource[0].authentication.alternatives">
-              <el-radio :key="at.name" :label="at.name"
-                >{{ at.display }}
-                <span class="des" style="color: #acaab2" v-if="at.description"
-                  >({{ at.description }})</span
-                >
-              </el-radio>
-            </template>
-          </el-radio-group> -->
-          <!-- <div class="authen-details">
-            <template v-if="dbsource[0].authentication.value == 'plain'">
-              <div class="plain">
-                <div class="plain-item">
-                  <span class="label">{{
-                    dbsource[0].authentication.alternatives[0].username.display
-                  }}</span>
-                  <div style="width: 100%">
-                    <el-input
-                      v-model="
-                        dbsource[0].authentication.alternatives[0].username
-                          .value
-                      "
-                    ></el-input>
-                    <p
-                      class="description"
-                      v-html="
-                        transforHtml(
-                          dbsource[0].authentication.alternatives[0].username
-                            .description
-                        )
-                      "
-                    ></p>
-                  </div>
-                </div>
-
-                <div class="plain-item">
-                  <span class="label">{{
-                    dbsource[0].authentication.alternatives[0].password.display
-                  }}</span>
-                  <div style="width: 100%">
-                    <el-input
-                      type="password"
-                      v-model="
-                        dbsource[0].authentication.alternatives[0].password
-                          .value
-                      "
-                    ></el-input>
-                    <p
-                      class="description"
-                      v-html="
-                        transforHtml(
-                          dbsource[0].authentication.alternatives[0].password
-                            .description
-                        )
-                      "
-                    ></p>
-                  </div>
-                </div>
-              </div>
-            </template>
-            <template v-else>
-              <div
-                v-for="al in dbsource[0].authentication.alternatives.filter(
-                  (item) => item.name != 'plain'
-                )"
-                :key="al.name"
-                style="
-                  display: flex;
-                  align-items: baseline;
-                  flex-direction: column;
-                "
-              >
-                <div
-                  v-for="(p, index) in al.params"
-                  :key="index"
-                  style="width: 100%"
-                >
-                  <p>
-                    <span class="label">{{ p.display }}</span>
-                  </p>
-                  <el-input v-model="p.value"></el-input>
-                  <div
-                    class="description"
-                    v-html="transforHtml(p.description)"
-                  ></div>
-                </div>
-              </div>
-            </template>
-          </div> -->
         </div>
       </section>
-      <!-- <section
-        :class="['groups-dataset', dbsource[0].datasets?.name]"
-        v-if="dbsource[0]?.datasets"
+      <section
+        class="dataset"
+        v-if="dbsource[0].datasets && (dbsource[0].datasets.display || dbsource[0].datasets.name)"
       >
-        <div style="flex-direction: column; align-items: baseline">
+        <div>
           <div class="block-title">
-            <span>{{ dbsource[0].datasets.name }}</span>
+            <span>{{ dbsource[0].datasets.display || dbsource[0].datasets.name }}</span>
           </div>
           <div
             class="description"
@@ -412,117 +343,89 @@
           ></div>
         </div>
         <template>
-          <el-tabs v-model="activeName" @tab-click="handleClick" class="pi-tab-item">
-            <el-tab-pane
-              v-for="(p, pind) in dbsource[0].datasets.categories"
-              :label="p.display"
-              :name="p.category"
-              :key="p.category"
-              lazy
-              :disabled="!['PointList'].includes(p.category) && !isPiDataArchiveAll"
+            <el-tabs
+              v-model="activeName"
+              @tab-click="handleClick"
+              class="pi-tab-item"
+              style="margin-top: 8px"
             >
-              <div :key="pind">
-                <div
-                  class="description"
-                  v-html="transforHtml(p.description)"
-                ></div>
-                <div class="target">
-                  <span
-                    :class="['no-label', p.target.required ? 'required' : '']"
-                  ></span>
-                  <template v-if="p.target.multiple">
-                    <el-select
-                      v-model="p.target.value"
-                      :multiple="p.target.multiple"
-                      :allow-create="p.target.editable"
-                      :placeholder="p.target.placeholder"
-                      filterable
-                      default-first-option
-                    >
-                      <el-option
-                        v-for="(t, tind) in p.target.value"
-                        :key="tind"
-                        :value="tind"
-                        disabled
-                      >
-                        {{ t }}
-                      </el-option>
-                    </el-select>
-                  </template>
-                  <template v-else>
-                    <el-input v-model="p.target.value"></el-input>
-                  </template>
-                  <el-button
-                    size="medium"
-                    @click="handleSelBtn"
-                    style="height: 42px"
-                    >{{ $t("datasource.select") }}</el-button
-                  >
-                </div>
-                <div class="configuration" v-if="isShowConfiguration">
-                  <el-input
-                    :placeholder="$t('datasource.regexPlaceholder')"
-                    v-model="p.value"
-                    @keydown.enter.native="searchDatas"
-                  >
-                    <el-button slot="append" icon="el-icon-search" @click="searchDatas"></el-button>
-                  </el-input>
-                  <div class="resultWrap">
-                    <div class="searchList" v-loading="loading">
-                      <el-empty
-                        :image-size="80"
-                        v-if="configurationdata.length <= 0"
-                      ></el-empty>
-                      <template v-else>
-                        <el-table 
-                          :data="configurationdata" 
-                          size="mini" 
-                          @row-click="handelDataSet"
-                          highlight-current-row
-                          >
-                          <el-table-column prop="id" label="Id"></el-table-column>
-                          <el-table-column prop="name" label="Name"></el-table-column>
-                        </el-table>
-                      </template>
-                    </div>
-                    <template
-                      v-if="
-                        Object.hasOwnProperty.call(activeDataSet, 'options')
-                      "
-                    >
-                      <div class="options-wrap">
-                        <div class="option-list">
-                          <div
-                            class="option-item"
-                            v-for="o in activeDataSet.options"
-                            :key="o.name"
-                          >
-                            <span
-                              :class="['label', o.required ? 'required' : '']"
-                            >
-                              {{ o.name }}
-                            </span>
-                            <el-input placeholder="" v-model="o.value" />
-                          </div>
-                        </div>
-                        <div>
-                          <el-button
-                            size="small"
-                            type="primary"
-                            plain
-                            @click="addOption"
-                            >{{ $t("datasource.add") }}</el-button
-                          >
-                        </div>
-                      </div>
-                    </template>
-                  </div>
-                </div>
+              <div class="upload-flex">
+                <el-radio-group v-model="activeRadio">
+                  <el-radio label="select_file">{{ $t('uploadcsv') }}</el-radio>
+                  <el-radio label="all_points">{{ $t('allPoints') }}</el-radio>
+                </el-radio-group>
               </div>
+              <el-tab-pane
+                v-for="(p, pind) in dbsource[0].datasets.params"
+                :label="p.display"
+                :name="p.name"
+                :key="p.name"
+                lazy
+                :disabled="
+                  !['point_file'].includes(p.name) && !isPiDataArchiveAll
+                "
+              >
+                <div :key="pind" style="margin-bottom: 0px" v-if="activeRadio == 'select_file'">
+                  <div class="upload-flex">
+                    <el-upload
+                      class="upload-dataset"
+                      ref="upload"
+                      accept=".csv"
+                      :limit="limit"
+                      :data="uploadData"
+                      :action="uploadUrl"
+                      :on-success="
+                        (response, file, fileList) =>
+                          handleSuccess(response, file, fileList, p.name)
+                      "
+                      :file-list="p.fileList"
+                      :auto-upload="true"
+                      :on-remove="()=>handleRemove(p.name)"
+                      :on-preview="()=>handlePreview(p.value)"
+                    >
+                      <el-button
+                        slot="trigger"
+                        size="small"
+                        type="primary"
+                        style="margin-right: 20px"
+                        >{{ $t("datasource.selectfile") }}
+                      </el-button>
+                    </el-upload>
+                    <template v-if="activeName === 'point_file'">
+                      <el-tooltip class="item" effect="light" :content="$t('downloadTemplateTip')" placement="top-start">
+                        <a href="/Points.csv" download style="padding-left: 16px;">
+                          <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadTemplate') }}</a>
+                      </el-tooltip>
+                      <el-tooltip class="item" effect="light" :content="$t('downloadPiPointTip')" placement="top-start">
+                        <el-button type="text" style="padding-left: 16px;" @click="searchDatas($t('downloadPiPoint'))" :disabled="loading">
+                          <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadPiPoint') }}</el-button>
+                      </el-tooltip>
+                    </template>
+                    <template v-else>
+                      <el-tooltip class="item" effect="light" :content="$t('downloadTemplateTip')" placement="top-start">
+                        <a href="/ElementTemplates.csv" download>
+                          <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadTemplate') }}</a>
+                      </el-tooltip>
+                      <el-tooltip class="item" effect="light" :content="$t('downloadAfElementTip')" placement="top-start">
+                        <el-button type="text" style="padding-left: 16px;" @click="searchDatas($t('downloadAfElement'))" :disabled="loading">
+                          <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadAfElement') }}</el-button>
+                      </el-tooltip>
+                    </template>
+                    <el-tooltip v-if="isEditable&&p.value&&p.value!='*'" class="item" effect="light" :content="$t('downloadCSVInUseTip')" placement="top-start">
+                      <a :href="downloadUrl+p.value" download style="padding-left: 16px;">
+                        <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadCSVInUse') }}</a>
+                    </el-tooltip>
+                  </div>
+              </div>
+              <div
+                v-if="activeRadio == 'select_file'"
+                class="description"
+                v-html="transforHtml(p.description)"
+              ></div>
             </el-tab-pane>
           </el-tabs>
-        </template>
-      </section> -->
+          </template> 
+      </section>
       <template v-for="item in dbsource[0].groups">
         <section :class="['groups', item.name]" :key="item.display_order">
           <div style="flex-direction: column; align-items: baseline">
@@ -534,62 +437,11 @@
               v-html="transforHtml(item.description)"
             ></div>
           </div>
-          
-          <!-- 这是 groups -->
-          <template>
-            <el-tabs v-model="activeName" @tab-click="handleClick" class="pi-tab-item" style="margin-top: 8px" v-if="(item.name == 'Data Sets' || item.name == '点位配置')">
-            <el-tab-pane
-              v-for="(p, pind) in item.params"
-              :label="p.display"
-              :name="p.name"
-              :key="p.name"
-              lazy
-              :disabled="!['point_file'].includes(p.name) && !isPiDataArchiveAll"
-            >
-              <div :key="pind" style="margin-bottom: 0px">
-                  <span
-                    :class="['no-label']"
-                  ></span>
-                  <div>
-                    <el-upload
-                      class="upload-dataset"
-                      ref="upload"
-                      accept=".csv"
-                      :limit="limit"
-                      :data="uploadData"
-                      :action="uploadUrl"
-                      :on-success="(response, file, fileList)=>handleSuccess(response, file, fileList,p.name)"
-                      :file-list="p.fileList"
-                      :auto-upload="true"
-                      :on-remove="()=>handleRemove(p.name)"
-                    >
-                      <el-button
-                        slot="trigger"
-                        size="small"
-                        type="primary"
-                        style="margin-right: 20px"
-                        >{{ $t("datasource.selectfile") }}</el-button
-                      >
-                      <template v-if="activeName.includes('point_file')">
-                        <a href="/Points.csv" download>{{ $t('downloadTemplate') }}</a>
-                      </template>
-                      <template v-else>
-                        <a href="/ElementTemplates.csv" download>{{ $t('downloadTemplate') }}</a>
-                      </template>
-                    </el-upload>
-                  </div>
-                </div>
-                <div
-                class="description"
-                v-html="transforHtml(p.description)"
-              ></div>
-            </el-tab-pane>
-          </el-tabs>
-
-          </template> 
           <template v-for="(p, pind) in item.params">
-            <div :key="pind" v-if="
-              (item.name !== 'Data Sets' && item.name !== '点位配置')">
+            <div
+              :key="pind"
+              v-if="item.name !== 'Data Sets' && item.name !== '点位配置'"
+            >
               <span :class="['label', p.required ? 'required' : '']">
                 {{ p.display ? p.display : p.name }}
               </span>
@@ -603,6 +455,7 @@
                   "
                 >
                   <el-input
+                    size="small"
                     v-model="p.value"
                     :placeholder="p.placeholder"
                   ></el-input>
@@ -610,8 +463,11 @@
                 <template v-if="p.hint.type && p.hint.type === 'str'">
                   <div v-if="p.hint.choices" class="select-with-btn">
                     <el-select
-                      v-if="['bucket', 'measurements','metrics'].includes(p.name)"
+                      v-if="
+                        ['bucket', 'measurements', 'metrics'].includes(p.name)
+                      "
                       v-model="p.value"
+                      size="small"
                       placeholder=""
                       :style="
                         p.name === 'bucket'
@@ -631,7 +487,9 @@
                       <el-option
                         v-for="c in p.name == 'bucket'
                           ? bucketList
-                          : p.name=='metrics'?metricsList:measurementList[0]?.children"
+                          : p.name == 'metrics'
+                          ? metricsList
+                          : measurementList[0]?.children"
                         :key="c.id || c"
                         :label="c.id || c"
                         :value="c.id || c"
@@ -639,6 +497,7 @@
                     </el-select>
                     <el-select
                       v-else
+                      size="small"
                       v-model="p.value"
                       placeholder=""
                       style="margin-left: -15px"
@@ -656,7 +515,7 @@
                       <el-button
                         style="margin-left: 10px"
                         v-if="p.name == 'metrics'"
-                        size="medium"
+                        size="small"
                         type="primary"
                         plain
                         :disable="btnLoading"
@@ -667,7 +526,7 @@
                     </template>
                     <el-button
                       v-else-if="p.name === 'bucket'"
-                      size="medium"
+                      size="small"
                       type="primary"
                       plain
                       :disable="btnLoading"
@@ -679,17 +538,12 @@
                   <el-input v-else v-model="p.value"></el-input>
                 </template>
                 <template v-if="p.hint === 'bool' || p.hint.type === 'bool'">
-                  <!-- <el-radio-group v-model="p.value">
-                    <el-radio v-for="c in p.choices" :key="c" :label="c">
-                      {{ c }}
-                    </el-radio>
-                  </el-radio-group> -->
                   <el-checkbox
                     v-model="p.value"
                     true-label="true"
                     false-label="false"
                     :disabled="p.disabled"
-                    @change="(value) =>handelCheckbox(value,p.name)"
+                    @change="(value) => handelCheckbox(value, p.name)"
                   ></el-checkbox>
                 </template>
                 <template
@@ -699,6 +553,7 @@
                   "
                 >
                   <el-input-number
+                    size="small"
                     v-model="p.value"
                     :min="p.hint.min"
                     :max="p.hint.max"
@@ -745,43 +600,37 @@
                   </DatePicker>
                 </template>
                 <div
-                class="description"
-                v-html="transforHtml(p.description)"
-              ></div>
+                  class="description"
+                  v-html="transforHtml(p.description)"
+                ></div>
               </div>
             </div>
           </template>
         </section>
       </template>
-
-      <!--未分组显示根节点下的params，显示方式和groups一样-->
-      <!-- <section class="ungrounded" v-if="dbsource[0].params"></section> -->
-      <section class="choose-db">
-        <span class="label required">{{ this.$t("datasource.targetdb") }}</span>
-        <div class="target-db-name">
-          <el-select v-model="dbname" placeholder="" style="margin-right: 8px">
-            <el-option
-              v-for="db in dblist"
-              :key="db['node-key']"
-              :label="db.name"
-              :value="db.name"
-            ></el-option>
-          </el-select>
-          <!-- <span class="desc">{{$t('datasource.influxdbtip')}}</span> -->
-        </div>
-        <el-button size="medium" type="primary" plain @click="handleDbBtn">
-          {{ $t("data.createDatabase") }}
-        </el-button>
-      </section>
       <section class="bottom">
-        <el-button @click="cancel" class="cancel-btn">{{
+        <el-button
+          v-if="isShowEditBtn"
+          class="edit-btn"
+          type="primary"
+          @click="edit"
+          size="small"
+          >{{ $t("edit") }}</el-button
+        >
+        <el-button
+          v-else
+          type="primary"
+          @click="save"
+          :disabled="disable"
+          size="small"
+          >{{ isEditable ? $t("save") : $t("add") }}</el-button
+        >
+        <el-button @click="cancel" class="cancel-btn" size="small">{{
           $t("cancel")
-        }}</el-button>
-        <el-button type="primary" @click="submit" :disabled="disable">{{
-          $t("submit")
         }}</el-button>
       </section>
     </div>
+
     <div class="right-ui">
       <mavon-editor
         v-model="dbsource[0].description"
@@ -794,9 +643,9 @@
   </div>
 </template>
 <script>
-// import DataTarget from './dataTarget.vue'
+import DataTarget from "./dataTarget.vue";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
-import { AddSource, EditSource, getUaAndDaData } from "@/api/explorer/datain";
+import { AddSource, EditSource, getUaAndDaData, downlaodAllNodes } from "@/api/explorer/datain";
 import DatePicker from "@/components/date-picker";
 import { Message } from "element-ui";
 import marked from "marked";
@@ -804,7 +653,7 @@ import { debounce, parsinginZone } from "@/utils/index";
 import DialogCreateDb from "../components/addDbDialog.vue";
 export default {
   name: "DbSourceUI",
-  components: { DatePicker, DialogCreateDb },
+  components: { DatePicker, DialogCreateDb, DataTarget },
   props: {
     // sourceName: {
     //   type: String,
@@ -827,11 +676,7 @@ export default {
     editId: {
       type: Number,
       default: 0,
-    },
-    dbName: {
-      type: String,
-      default: "",
-    },
+    }
   },
 
   data() {
@@ -868,7 +713,7 @@ export default {
     };
     const backfillStart = (time) => {
       let end = this.dbsource[0].groups
-        .filter((val) => val.name.includes('Backfill'))[0]
+        .filter((val) => val.name.includes("Backfill"))[0]
         .params.filter((item) => item.name == "BackfillEndTime");
       if (end[0].value) {
         return time.getTime() > new Date(end[0].value).getTime();
@@ -878,7 +723,7 @@ export default {
     };
     const backfillEnd = (time) => {
       let start = this.dbsource[0].groups
-        .filter((val) => val.name.includes('Backfill'))[0]
+        .filter((val) => val.name.includes("Backfill"))[0]
         .params.filter((item) => item.name == "BackfillStartTime");
       if (start[0].value) {
         return (
@@ -890,7 +735,7 @@ export default {
       }
     };
     return {
-      sourceName: localStorage.getItem("datainName"),
+      // sourceName: localStorage.getItem("datainName"),
       startOption: {
         disabledDate: (time) => startTimeOption(time),
       },
@@ -918,7 +763,6 @@ export default {
       subject: "",
       radio: "",
       dblist: [],
-      dbname: "",
       activeName: "",
       textarea: "",
       isShowConfiguration: false,
@@ -929,41 +773,59 @@ export default {
       btnLoading: false,
       bucketList: [],
       measurementList: [],
-      metricsList:[],
-      piSystemConfiguration: 'PI Data Archive and Asset Framework (AF) Server',
+      metricsList: [],
+      piSystemConfiguration: "PI Data Archive and Asset Framework (AF) Server",
       isPiDataArchiveAll: true,
       limit: 1,
       uploadData: {
         req_id: new Date().getTime(),
       },
       uploadUrl: process.env.VUE_APP_X_API + `/upload`,
+      downloadUrl: process.env.VUE_APP_X_API + `/download?file_path=`,
+      activeRadio: 'select_file',
+      isShowEditBtn: false,
     };
   },
   created() {
     this.getDatabases();
     this.dbsource = this.dbsourceList;
     if (this.isEditable) {
-      this.dbname = this.dbName;
       this.handleEditData();
-      let defaultVal = (this.dbsource[0]?.params && this.dbsource[0]?.params[0]?.value) || this.piSystemConfiguration
-      this.changeSystemConfiguration(defaultVal)
+      let defaultVal =
+        (this.dbsource[0]?.params && this.dbsource[0]?.params[0]?.value) ||
+        this.piSystemConfiguration;
+      this.changeSystemConfiguration(defaultVal);
       this.getSchema(false);
+      this.isShowEditBtn = true
+    } else {
+      this.activeName = 'point_file'
     }
   },
   mounted() {
     // this.activeName = this.dbsource[0].datasets
     //   ? this.dbsource[0].groups[0].params[0].name
     //   : "";
-    this.activeName = 'point_file'
+  },
+  computed: {
+    agentId() {
+      return this.$store.state.app.currentAgentID || "";
+    },
+    sourceName() {
+      return this.$store.state.app.currentDSName || ""
+    }
   },
   watch: {
-    dbName: {
-      deep: true,
-      handler(val) {
-        if (this.isEditable) {
-          this.dbname = this.dbName;
-        }
-      },
+    dbsource:{
+      deep:true,
+      handler(val){
+        this.$forceUpdate()
+      }
+    },
+    tagName:{
+      deep:true,
+      handler(val){
+        this.$forceUpdate()
+      }
     },
     "$store.state.dbs.dialogDbVisible": {
       handler(val) {
@@ -995,8 +857,26 @@ export default {
             let newVal = p.value.split();
             p.value = newVal;
           }
-          if (group.name == 'Data Sets' || group.name == '点位配置') {
-              if(['point_file','template_for_pi_point_file','template_for_af_element_file'].includes(p.name) && p.value) {
+          if (
+            group.name == "Backfill" ||
+            group.name == "历史填充（Backfill）"
+          ) {
+            if (
+              p.name == "ToTDengineFirstTime" ||
+              p.name == "FromTDengineLastTime"
+            ) {
+              p.disabled = p.value == "false" ? true : false;
+            }
+          }
+          return p;
+        });
+        return group;
+      });
+      if (this.dbsource[0]?.datasets) {
+        this.dbsource[0].datasets.params = this.dbsource[0]?.datasets?.
+          params.map((p) => {
+            if (p.value) {
+              if(p.value != '*') {
                 p.fileList = [].concat({
                   name: p.value?.substr(p.value.lastIndexOf("/") + 1),
                   percentage: 100,
@@ -1006,55 +886,59 @@ export default {
                   status: "success",
                   uid: 1,
                 });
-                p.value = p.value?.substr(p.value.lastIndexOf("@") + 1)
               }
+              this.activeRadio = p.value.includes('@') ? 'select_file' : 'all_points'
+              p.value = p.value?.substr(p.value.lastIndexOf("@") + 1);
+              this.activeName = p.name
+            } else {
+              this.activeName = 'point_file'
             }
-          if (group.name == 'Backfill' || group.name == '历史填充（Backfill）') {
-            if (p.name == 'ToTDengineFirstTime' || p.name == 'FromTDengineLastTime') {
-              p.disabled = p.value == 'false' ? true : false 
-            } 
-          }
           return p;
         });
-        return group;
-      });
+      }
     },
     handleSuccess(response, file, fileList, name) {
-      this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
-        if (group.name == 'Data Sets' || group.name == '点位配置') {
-          group.params.map((p) => {
-            if (p.name == name) {
-              p.fileList = fileList
-              p.value = fileList[0].response[0]
-            }
-            return p;
-          });
-        }
-        return group;
+      this.dbsource[0].datasets.params = this.dbsource[0].datasets.
+        params.map((p) => {
+          if (p.name == name) {
+            p.fileList = fileList;
+            p.value = fileList[0].response[0];
+          }
+        return p;
       });
     },
     handleRemove(name) {
-      this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
-        if (group.name == 'Data Sets' || group.name == '点位配置') {
-          group.params.map((p) => {
-            if (p.name == name) {
-              p.fileList = []
-              p.value = ''
-            }
-            return p;
-          });
-        }
-        return group;
-      });
+      this.dbsource[0].datasets.params = this.dbsource[0].datasets.
+        params.map((p) => {
+          if (p.name == name) {
+            p.fileList = [];
+            p.value = "";
+          }
+        return p;
+      }); 
+    },
+    handlePreview(file_path){
+      let link = document.createElement('a')
+      link.download ='file_name'
+      link.href = this.downloadUrl + file_path
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
     },
     handelCheckbox(value,name) {
       this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
-        if (group.name == 'Backfill' || group.name == '历史填充（Backfill）') {
+        if (group.name == "Backfill" || group.name == "历史填充（Backfill）") {
           group.params.map((p) => {
-            if (name == 'FromTDengineLastTime' && p.name == 'ToTDengineFirstTime') {
-              p.disabled = value == 'true' ? true : false 
-            } else if (name == 'ToTDengineFirstTime' && p.name == 'FromTDengineLastTime') {
-              p.disabled = value == 'true' ? true : false 
+            if (
+              name == "FromTDengineLastTime" &&
+              p.name == "ToTDengineFirstTime"
+            ) {
+              p.disabled = value == "true" ? true : false;
+            } else if (
+              name == "ToTDengineFirstTime" &&
+              p.name == "FromTDengineLastTime"
+            ) {
+              p.disabled = value == "true" ? true : false;
             }
             return p;
           });
@@ -1077,11 +961,12 @@ export default {
       }
     },
     changeSystemConfiguration(val) {
-      this.piSystemConfiguration = val
-      this.isPiDataArchiveAll = val == 'PI Data Archive and Asset Framework (AF) Server'
-        if(val == 'PI Data Archive Only') {
-          this.activeName = 'point_file'
-        }
+      this.piSystemConfiguration = val;
+      this.isPiDataArchiveAll =
+        val == "PI Data Archive and Asset Framework (AF) Server";
+      if (val == "PI Data Archive Only") {
+        this.activeName = "point_file";
+      }
     },
     changeHost(host) {
       if (this.tagName == "influxdb") {
@@ -1131,6 +1016,25 @@ export default {
         !Object.is(val, "undefined")
       );
     },
+    edit() {
+      this.isShowEditBtn = false
+    },
+
+    save() {
+      if (this.isEditable) {
+        this.$confirm(this.$t('dataIn.saveTip'), this.$t("warning"), {
+          confirmButtonText: this.$t('confirm'),
+          cancelButtonText: this.$t('cancel'),
+          type: 'warning'
+        }).then(() => {
+          this.submit()
+        }).catch(() => {         
+        });
+      } else {
+        this.submit()
+      }
+    },
+    
     async submit() {
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
@@ -1147,7 +1051,7 @@ export default {
             Object.hasOwnProperty.call(data.options[key], "required") &&
             (data.options[key]["value"] == "" ||
               data.options[key]["value"] == undefined) &&
-              this.isPiDataArchiveAll
+            this.isPiDataArchiveAll
           ) {
             Message({
               type: "warning",
@@ -1156,7 +1060,15 @@ export default {
             return;
           }
         }
-        if (this.tagName === "datasource" || this.tagName === "taos") {
+        if (!this.sourceName) {
+          Message.warning(`${enterTip} ${this.$t('name')}`);
+          return;
+        }
+        if (!this.$store.state.app.currentDBName) {
+          Message.warning(`${enterTip} ${this.$t('stream.targetDB')}`);
+          return;
+        }
+        if (this.tagName === "taos") {
           if (data.authentication.value == "plain") {
             let userinfo = data.authentication.alternatives.filter(
               (item) => item.name == "plain"
@@ -1183,6 +1095,13 @@ export default {
           // if(this.handleEmptyValue(data.options.host.value)){
           dns += `@${data.options.host.value ? data.options.host.value : ""}`;
           // }
+        } else if (this.tagName == "datasource") {
+          data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+          if (data.options.endpoint.value.includes("://")) {
+            dns = "+" + data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+          } else {
+            dns = "://" + data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+          }
         } else {
           if (this.tagName == "influxdb") {
             this.changeHost(data.options.host.value);
@@ -1207,9 +1126,10 @@ export default {
             `${data.options.port.value ? data.options.port.value : ""}`;
         }
 
-        dns += (data.options.subject.value && this.isPiDataArchiveAll)
-          ? "/" + data.options.subject.value
-          : "";
+        dns +=
+          data.options.subject?.value && this.isPiDataArchiveAll
+            ? "/" + data.options.subject?.value
+            : "";
         let reg = /\s+/g;
         dns = dns.replace(reg, "").trim();
         let querystr = "";
@@ -1233,14 +1153,14 @@ export default {
               if (this.handleEmptyValue(data.groups[index].params[g].value)) {
                 if (
                   // p.hint && p.hint.type == 'file'
-                  data.groups[index].params[g].hint && 
-                  data.groups[index].params[g].hint.type == 'file'
-                  ) {
-                    if (data.groups[index].params[g].name == this.activeName) {
-                      querystr +=
-                        `${data.groups[index].params[g].name}=@${data.groups[index].params[g].value}` +
-                        "&";
-                    } 
+                  data.groups[index].params[g].hint &&
+                  data.groups[index].params[g].hint.type == "file"
+                ) {
+                  if (data.groups[index].params[g].name == this.activeName) {
+                    querystr +=
+                      `${data.groups[index].params[g].name}=@${data.groups[index].params[g].value}` +
+                      "&";
+                  }
                 } else {
                   querystr +=
                     `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
@@ -1252,7 +1172,8 @@ export default {
           //   }
         }
 
-        if (data.datasets) {
+        // datasets.categories is not used since 9adc5721
+        if (data.datasets && data.datasets.categories) {
           for (
             let index = 0;
             index < data.datasets.categories.length;
@@ -1287,14 +1208,31 @@ export default {
             }
           }
         }
+        if (data.datasets && data.datasets.params) {
+          for (
+            let index = 0;
+            index < data.datasets.params.length;
+            index++
+          ) {
+            if (data.datasets.params[index].name == this.activeName) {
+              if (this.activeRadio == 'select_file') {
+                if (this.handleEmptyValue(data.datasets.params[index].value)) {
+                  querystr +=
+                    `${data.datasets.params[index].name}=@${data.datasets.params[index].value}` +
+                    "&";
+                }
+              } else {
+                querystr += `${data.datasets.params[index].name}=*` + "&";
+              }
+            }
+          }
+        }
+        console.log('qurer',querystr);
         if (data.params) {
           if (this.isPiDataArchiveAll) {
             for (let index = 0; index < data.params.length; index++) {
               if (
-                Object.hasOwnProperty.call(
-                  data.params[index],
-                  "required"
-                ) &&
+                Object.hasOwnProperty.call(data.params[index], "required") &&
                 data.params[index]["value"] == ""
               ) {
                 Message({
@@ -1311,7 +1249,7 @@ export default {
               }
             }
           } else {
-            querystr += `${data.params[0].name}=${data.params[0].value}&`
+            querystr += `${data.params[0].name}=${data.params[0].value}&`;
           }
         }
         if (this.tagName == "influxdb") {
@@ -1352,19 +1290,13 @@ export default {
             return;
           }
         }
-        dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
-        if (!this.dbname) {
-          Message({
-            type: "warning",
-            message: `${enterTip} target database `,
-          });
-          return;
-        }
+        dns += querystr ? (dns.includes("?") ? "&" : "?") + querystr.replace(/&$/g, "") : "";
+        
         let apiParams = {
           from:
             (this.tagName === "datasource" ? "tmq" : "taos") +
             (data.protocol
-              ? Object.is(data.protocol.value, "--")
+              ? (Object.is(data.protocol.value, "--") || !data.protocol.value)
                 ? ""
                 : "+"
               : "") +
@@ -1373,15 +1305,15 @@ export default {
           to:
             "taos+" +
             localStorage.getItem("base_url") +
-            (this.dbname ? "/" + this.dbname : ""),
+            (this.$store.state.app.currentDBName ? "/" + this.$store.state.app.currentDBName : ""),
           labels: [
             "type::datain",
             `cluster-id::${id}`,
             `user::${localStorage.getItem("username")}`,
           ],
         };
-        if (this.$parent.agentID) {
-          apiParams["via"] = this.$parent.agentID;
+        if (this.agentId) {
+          apiParams["via"] = this.agentId;
         }
         if (this.tagName === "datasource" || this.tagName === "taos") {
           if (this.isEditable) {
@@ -1411,7 +1343,7 @@ export default {
                     : "") +
                   dns
                 : this.tagName == "opentsdb"
-                ? this.tagName + "+" + dns
+                ? this.tagName + (data.protocol?.value ? "+" : '') + dns
                 : this.tagName + dns,
             name: this.sourceName,
             //   + (data.protocol?(Object.is(data.protocol.value, "--") ? "" : "+"):'') + dns,
@@ -1419,23 +1351,25 @@ export default {
             to:
               "taos+" +
               localStorage.getItem("base_url") +
-              (this.dbname ? "/" + this.dbname : ""),
+              (this.$store.state.app.currentDBName? "/" + this.$store.state.app.currentDBName : ""),
             labels: [
               "type::datain",
               `cluster-id::${id}`,
               `user::${localStorage.getItem("username")}`,
             ],
           };
-          if (this.$parent.agentID) {
-            piParams["via"] = this.$parent.agentID;
+          if (this.agentId) {
+            piParams["via"] = this.agentId;
           }
+          console.log(this.isEditable , this.editId,'编辑');
           if (this.isEditable && this.editId) {
             let result = await EditSource(piParams, this.editId);
             if (result.message) {
               Message.error(result.message);
               return;
             }
-            this.$parent.toggleComponent("pitable");
+            this.$parent.changeEditable(false)
+            this.$parent.toggleComponent("pitable",'');
           } else {
             let result = await AddSource(piParams);
             if (result.message) {
@@ -1449,10 +1383,11 @@ export default {
           }
         }
       } catch (err) {
+        console.error(err);
         err.response &&
           err.response.data &&
           err.response.data.message &&
-          Message.error(err.response.data.message);
+          Message.error(err.response.data.message) || Message.error(err);
       }
     },
 
@@ -1525,13 +1460,30 @@ export default {
     //     this.dbsource[0].datasets.categories = categories;
     //   }
     // },
-    searchDatas: debounce(function (e) {
+    downloadAllPoints(data,name) {
+      downlaodAllNodes(data).then(res => {
+        let blob = new Blob([res], { type: "text/csv,charset=UTF-8" });
+        let link = document.createElement("a");
+        link.download = `${name}.csv`;
+        link.style.display = "none";
+        link.href = URL.createObjectURL(blob);
+        document.body.appendChild(link);
+        link.click();
+        URL.revokeObjectURL(link.href);
+        document.body.removeChild(link);
+        this.loading = false;
+      }).catch(err => {
+        this.loading = false
+      })
+    },
+    searchDatas: debounce(function (name) {
       try {
         let data = this.dbsource[0];
         let host = data.options.host.value ? data.options.host.value : "";
-        let subject = (data.options.subject.value && this.isPiDataArchiveAll)
-          ? "/" + data.options.subject.value
-          : "";
+        let subject =
+          data.options.subject.value && this.isPiDataArchiveAll
+            ? "/" + data.options.subject.value
+            : "";
         let enterTip = this.$t("dataIn.enterTip");
         if (!host) {
           Message({
@@ -1547,15 +1499,12 @@ export default {
           });
           return;
         }
-        let querystr = ''
+        let querystr = "";
         if (data.params) {
           if (this.isPiDataArchiveAll) {
             for (let index = 0; index < data.params.length; index++) {
               if (
-                Object.hasOwnProperty.call(
-                  data.params[index],
-                  "required"
-                ) &&
+                Object.hasOwnProperty.call(data.params[index], "required") &&
                 data.params[index]["value"] == ""
               ) {
                 Message({
@@ -1572,47 +1521,70 @@ export default {
               }
             }
           } else {
-            querystr += `${data.params[0].name}=${data.params[0].value}&`
+            querystr += `${data.params[0].name}=${data.params[0].value}&`;
           }
         }
-        console.log('ss',querystr);
         let params = null;
-        params = {
-          from: `${this.tagName}://${host}${subject}${querystr ? "?" + querystr.replace(/&$/g, "") : ""}`,
-          categories: [this.activeName],
-          pattern: e.target.value,
-          offset: 0,
-          limit: 10,
-        };
-        const viaObj = {
-          via: this.$parent.agentID,
-        };
-        if (viaObj.via) {
-          Object.assign(params, viaObj);
+        // params = {
+        //   from: `${this.tagName}://${host}${subject}${
+        //     querystr ? "?" + querystr.replace(/&$/g, "") : ""
+        //   }`,
+        //   categories: [this.activeName],
+        //   pattern: e.target.value,
+        //   pattern: '.*',
+        //   offset: 0,
+        //   limit: 10,
+        // };
+        // const viaObj = {
+        //   via: this.agentId,
+        // };
+        // if (viaObj.via) {
+        //   Object.assign(params, viaObj);
+        // }
+        let categories = ''
+        switch (this.activeName) {
+          case 'point_file':
+            categories = 'PointList'
+            break;
+          case 'template_for_pi_point_file':
+            categories = 'TemplateForPIPoint'
+            break;
+          case 'template_for_af_element_file':
+            categories = 'TemplateForAFElement'
+            break;
+          default:
+            break;
         }
+        let from = `${this.tagName}://${host}${subject}${
+            querystr ? "?" + querystr.replace(/&$/g, "") : ""}
+            &categories=${categories}`
+         if (this.agentId) {
+            from+=`&via=${this.agentId}`
+          }
         this.loading = true;
-        getUaAndDaData(params)
-          .then((res) => {
-            if (res && res.code && res.code != 0) {
-              Message({
-                type: "error",
-                message: res && res.message,
-              });
-            } else {
-              this.configurationdata = res;
-              Message({
-                type: "success",
-                message: this.$t("operateSucc"),
-              });
-            }
-            this.loading = false;
-          })
-          .catch((err) => {
-            Message({
-              type: "error",
-              message: err,
-            });
-          });
+        // getUaAndDaData(params)
+        //   .then((res) => {
+        //     if (res && res.code && res.code != 0) {
+        //       Message({
+        //         type: "error",
+        //         message: res && res.message,
+        //       });
+        //     } else {
+        //       this.configurationdata = res;
+        //       Message({
+        //         type: "success",
+        //         message: this.$t("operateSucc"),
+        //       });
+        //     }
+        //     this.loading = false;
+        //   })
+        //   .catch((err) => {
+        //     Message({
+        //       type: "error",
+        //       message: err,
+        //     });
+        //   });
+        this.downloadAllPoints(from,name)
       } catch (error) {
         this.loading = false;
       }
@@ -1643,7 +1615,8 @@ export default {
           "opentsdb+" +
           data.protocol.value +
           "://" +
-          data.options.host.value +':'+
+          data.options.host.value +
+          ":" +
           data.options.port.value,
         name: "",
         categories: ["nodes"],
@@ -1651,13 +1624,13 @@ export default {
         offset: 0,
         limit: 10,
       };
-      let result = await getUaAndDaData(obj)
-      this.btnLoading=false
-      if(result&&result.message){
-        Message.error(result.message)
-        return
+      let result = await getUaAndDaData(obj);
+      this.btnLoading = false;
+      if (result && result.message) {
+        Message.error(result.message);
+        return;
       }
-      this.metricsList=JSON.parse(result[0].id)
+      this.metricsList = JSON.parse(result[0].id);
     },
     getSchema(isNeedTip) {
       this.btnLoading = true;
@@ -1677,7 +1650,7 @@ export default {
             Object.hasOwnProperty.call(data.options[key], "required") &&
             (data.options[key]["value"] == "" ||
               data.options[key]["value"] == undefined) &&
-              this.isPiDataArchiveAll
+            this.isPiDataArchiveAll
           ) {
             Message({
               type: "warning",
@@ -1741,9 +1714,10 @@ export default {
             `${data.options.port.value ? data.options.port.value : ""}`;
         }
 
-        dns += (data.options.subject.value && this.isPiDataArchiveAll)
-          ? "/" + data.options.subject.value
-          : "";
+        dns +=
+          data.options.subject && data.options.subject.value && this.isPiDataArchiveAll
+            ? "/" + data.options.subject.value
+            : "";
         let reg = /\s+/g;
         dns = dns.replace(reg, "").trim();
         let querystr = "";
@@ -1791,7 +1765,7 @@ export default {
             });
           });
         }
-        dns += querystr ? "?" + querystr.replace(/&$/g, "") : "";
+        dns += querystr ? (dns.includes("?") ? "&" : "?") + querystr.replace(/&$/g, "") : "";
 
         let apiParams = {
           from:
@@ -1808,8 +1782,8 @@ export default {
           offset: 0,
           limit: 10,
         };
-        if (this.$parent.agentID) {
-          apiParams["via"] = this.$parent.agentID;
+        if (this.agentId) {
+          apiParams["via"] = this.agentId;
         }
         if (this.tagName === "datasource") {
           getUaAndDaData(apiParams)
@@ -1839,8 +1813,8 @@ export default {
             offset: 0,
             limit: 10,
           };
-          if (this.$parent.agentID) {
-            piParams["via"] = this.$parent.agentID;
+          if (this.agentId) {
+            piParams["via"] = this.agentId;
           }
           getUaAndDaData(piParams)
             .then((res) => {
@@ -1887,8 +1861,8 @@ export default {
 </script>
 <style lang="scss" scoped>
 .source-ui {
-  padding-left: 20px;
-  justify-content: space-around;
+  // padding-left: 20px;
+  justify-content: space-between;
   //   padding-right: 300px;
   display: flex;
   :deep {
@@ -1920,7 +1894,8 @@ export default {
   }
 
   .left-ui {
-    min-width: 800px;
+    width: 50%;
+    flex-shrink: 0;
     .description {
       max-width: 568px;
       overflow: auto;
@@ -1948,7 +1923,7 @@ export default {
         }
       }
     }
-    section:not(:first-child) {
+    section {
       border: 1px solid #ececef;
       margin-bottom: 20px;
       border-radius: 12px;
@@ -1956,6 +1931,7 @@ export default {
       // border-bottom: 1px solid #ececef;
     }
     .block-title {
+      margin-bottom:10px;
       span {
         font-size: 16px;
         color: #4259ce;
@@ -1965,11 +1941,12 @@ export default {
     .label {
       font-size: 14px;
       color: #4259ce;
+      font-weight: 500;
       align-items: center;
       width: 200px;
       display: block;
-      white-space: pre-wrap;
-      word-wrap: break-word;
+      white-space:normal;
+      flex-shrink: 0;
     }
     .no-label {
       align-items: center;
@@ -1978,13 +1955,13 @@ export default {
     .label.required,
     .no-label.required {
       position: relative;
-      &::before {
+      &::after {
         content: "*";
         // position: absolute;
         color: red;
         font-size: 14px;
         line-height: 25px;
-        left: -10px;
+        right: 0px;
       }
     }
     .header {
@@ -2063,11 +2040,20 @@ export default {
       }
     }
 
-    .upload-dataset{
+    .upload-dataset {
       display: flex;
       white-space: nowrap;
       align-items: baseline;
       // margin-bottom: 8px;
+    }
+    .upload-flex {
+      display: flex;
+      white-space: nowrap;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+    ::v-deep .el-upload-list__item .el-icon-close-tip {
+      display: none !important;
     }
     .choose-db {
       display: flex;
@@ -2105,7 +2091,7 @@ export default {
     :deep {
       .el-input-number__increase,
       .el-input-number__decrease {
-        height: 38px;
+        height: 30px;
         display: flex;
         justify-content: center;
         align-items: center;
@@ -2113,8 +2099,8 @@ export default {
     }
   }
   .right-ui {
-    margin-left: 20px;
-    padding-top: 50px;
+    flex: 1;
+    margin-left:40px;
     :deep {
       .v-note-panel {
         border-radius: 12px;
@@ -2191,6 +2177,7 @@ export default {
             align-items: center;
             width: 100px;
             display: block;
+            white-space:normal;
           }
           .el-input {
             flex: 1;
@@ -2203,7 +2190,7 @@ export default {
       }
     }
   }
-  .cancel-btn {
+  .cancel-btn, .edit-btn {
     z-index: 101;
   }
 

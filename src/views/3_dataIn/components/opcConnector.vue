@@ -5,13 +5,13 @@
         <span>
           {{ $t("datasource.primarykey") }}
         </span>
-        <el-tooltip
+        <!-- <el-tooltip
           effect="light"
           :content="$t('datasource.primarytip')"
           placement="right-start"
         >
           <i class="el-icon-info"></i>
-        </el-tooltip>
+        </el-tooltip> -->
       </li>
       <li>
         <span>{{ $t("datasource.warehousing") }}</span>
@@ -43,17 +43,18 @@
         ></el-checkbox>
       </li>
       <li>
-        <span>{{ item.column_name }}</span>
+        <span style="color:#4d6992;">{{ item.column_name }}</span>
       </li>
       <li>
         <el-input
+          class="mini"
           v-model.trim="item.column_alias"
           size="mini"
           :disabled="isEditable"
         ></el-input>
       </li>
       <li>
-        <span>{{ item.column_type }}</span>
+        <span style="color:#4d6992;">{{ item.column_type }}</span>
       </li>
     </ul>
 
@@ -68,7 +69,7 @@
         :label="$t('datasource.stable_prefix')"
         prop="stable_prefix"
       >
-        <el-input v-model="opcConfig.stable_prefix"></el-input>
+        <el-input v-model="opcConfig.stable_prefix" size="small"></el-input>
       </el-form-item>
     </el-form>
   </div>
@@ -189,18 +190,21 @@ export default {
     currentPrimary: {
       deep: true,
       handler(newval, oldval) {
-        if(this.saveFileds.includes(oldval)&&!this.saveFileds.includes(newval)){
-          this.saveFileds.splice(this.saveFileds.indexOf(oldval),1,newval)
+        if (
+          this.saveFileds.includes(oldval) &&
+          !this.saveFileds.includes(newval)
+        ) {
+          this.saveFileds.splice(this.saveFileds.indexOf(oldval), 1, newval);
         }
-        let oldData=this.$store.state.app.opcConfig
-        oldData.column_configs.map(item=>{
-          if(item.column_name==newval){
-            item.is_primary_key=true
-          }else{
-            item.is_primary_key=false
+        let oldData = this.$store.state.app.opcConfig;
+        oldData.column_configs.map((item) => {
+          if (item.column_name == newval) {
+            item.is_primary_key = true;
+          } else {
+            item.is_primary_key = false;
           }
-          return item
-        })
+          return item;
+        });
       },
     },
   },
@@ -216,32 +220,45 @@ export default {
 }
 .singleton-header {
   display: grid;
+  box-sizing: border-box;
   grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
-  column-gap: 10px;
-  border-top: 1px solid #ebeef5;
-  padding-top: 8px;
-  padding-bottom: 8px;
+  // column-gap: 10px;
+  border: 1px solid #dfe6ec;
+
   width: 100%;
-  background: #f5f7fa;
   li {
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
     align-content: center;
+    position: relative;
+    border-right: 1px solid #dfe6ec;
+    padding: 8px 8px;
   }
 }
 .singleton-cols {
   display: grid;
   width: 100%;
   grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
-  border-bottom: 1px solid #ebeef5;
+  border: 1px solid #dfe6ec;
+
   border-top: none;
   li {
+    box-sizing: border-box;
+    padding: 8px 8px;
+    height: 35px;
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
     align-content: center;
-    // border-top: 1px solid #ebeef5;
-    padding-top: 8px;
-    padding-bottom: 8px;
+    border-right: 1px solid #dfe6ec;
+  }
+}
+::v-deep {
+  .mini.el-input.el-input--mini {
+    .el-input__inner {
+      border: 1px solid #dfe6ec !important;
+      height: 24px;
+      box-shadow: none;
+    }
   }
 }
 </style>

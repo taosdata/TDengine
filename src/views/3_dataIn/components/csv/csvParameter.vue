@@ -66,10 +66,6 @@ import { getDBListReq } from "@/api/gateway/data/dbs.js";
 export default {
   name: "CsvParameter",
   props: {
-    targetName: {
-      type: String,
-      default: "",
-    },
     isEditable: {
       type: Boolean,
       default: false,
@@ -168,7 +164,6 @@ export default {
   },
   mounted() {
     if (this.isEditable) {
-      // this.ruleForm2.dbName = this.targetName;
       this.ruleForm2.subname = this.echoData[0].model.name;
       this.ruleForm2.tableName = this.echoData[0].model.using;
       this.ruleForm.customcol = Object.keys(this.echoData[0].parse).join(",");

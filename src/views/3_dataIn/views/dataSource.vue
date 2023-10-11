@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div v-loading="requestIng">
     <p class="title">
       <span>{{ $t("dataIn.dataSources") }}</span>
     </p>
@@ -27,7 +27,6 @@
         size="mini"
         max-height="250"
         row-key="taskid"
-        v-loading="requestIng"
         :expand-row-keys="expandRowKeys"
         @expand-change="expandChange"
       >
@@ -91,19 +90,21 @@
           prop="localname"
           width="120"
         >
-        <template slot-scope="scope">
-          <el-tooltip :content="scope.row.localname" placement="top-start">
-            <span class="nowrap">{{ scope.row.localname }}</span>
-          </el-tooltip>
-        </template>
+          <template slot-scope="scope">
+            <el-tooltip :content="scope.row.localname" placement="top-start">
+              <span class="nowrap">{{ scope.row.localname }}</span>
+            </el-tooltip>
+          </template>
         </el-table-column>
         <el-table-column
           :label="$t('datasource.type')"
           prop="localtype"
+          width="150"
         ></el-table-column>
         <el-table-column
           :label="$t('datasource.target')"
           prop="target"
+          width="200"
         ></el-table-column>
         <el-table-column
           :label="$t('datasource.createat')"
@@ -117,15 +118,19 @@
         <el-table-column
           :label="$t('datasource.via')"
           prop="via"
+          width="100"
         ></el-table-column>
 
-        <el-table-column label="Metrics" prop="finished_at">
+        <el-table-column :label="$t('datasource.metrics')" prop="finished_at">
           <template slot-scope="scope">
             <el-button
-              @click="checkMetrics(scope.row)"
+              @click="checkMetrics(scope.row, scope.row.status.toLowerCase())"
               size="mini"
               style="font-size: 12px; color: #4d6992"
-              :disabled="scope.row.status.toLowerCase() == 'failed'"
+              :disabled="
+                scope.row.status.toLowerCase() == 'failed' ||
+                scope.row.status.toLowerCase() == 'cancelled'
+              "
               >{{ $t("view") }}</el-button
             >
           </template>
@@ -133,7 +138,10 @@
 
         <el-table-column :label="$t('datasource.status')" prop="status">
           <template slot-scope="scope">
-            <div class="status-operation">
+            <div
+              class="status-operation"
+              style="display: flex; white-space: nowrap"
+            >
               <el-tooltip
                 v-if="
                   ['stopped', 'finished', 'failed'].includes(
@@ -210,27 +218,29 @@
           :label="$t('datasource.operation')"
           width="150"
           class="action"
+          fixed="right"
         >
           <template slot-scope="scope">
             <el-button
               type="primay"
-              size="small"
+              size="mini"
               :disabled="
                 scope.row.from_detail === undefined ||
                 !getEditStatus(scope.row.labels)
               "
               @click="edit(scope.row, scope.row.status.toLowerCase())"
-              icon="el-icon-edit"
+              icon="el-icon-view"
             ></el-button>
             <el-button
+              type="danger"
               plain
-              size="small"
+              size="mini"
               @click="del(scope.row)"
               icon="el-icon-delete"
             ></el-button>
             <el-button
               plain
-              size="small"
+              size="mini"
               @click="copyTask(scope.row, scope.row.status.toLowerCase())"
               icon="el-icon-copy-document"
             ></el-button>
@@ -303,6 +313,7 @@ export default {
       parsinginZone,
       taskActivities: [],
       expandRowKeys: [],
+      metricDisable: false,
     };
   },
   methods: {
@@ -350,8 +361,15 @@ export default {
       this.$parent.sourceName = data.name;
       this.$parent.currentTaskStatus = status;
       this.$parent.agentID = data?.via;
+      this.$parent.setEditID(data.id)
+      this.$store.commit('app/SET_CURRENT_EDITID',data.id)
       if (data.from_detail) {
-        let editDdata = [].concat(data.from_detail);
+        this.$store.commit("app/SET_CURRENT_DBTYPE", data.from_detail?.id);
+
+        this.$store.commit("app/SET_CURRENT_DBNAME", data.target);
+        this.$store.commit("app/SET_CURRENT_AGENT", data?.via);
+        this.$store.commit("app/SET_CURRENT_DSNAME", data.name);
+        let editDdata =deepClone([].concat(data.from_detail)) ;
         if (data.from_expand && data.from_expand.id == "mqtt") {
           let dnsarr = data.from.split("?")[1].split("&");
           let caindex = dnsarr.findIndex((item) => item.includes("ca="));
@@ -385,7 +403,7 @@ export default {
           this.$store.commit("app/SET_MQTT_PARSER", parser);
           this.$parent.parserobj = deepClone(parser);
         }
-        if (data.from_expand && data.from_expand.id == "opcua") {
+        if (data.from_expand && (data.from_expand.id == "opcua"||data.from_expand.id == "opcda")) {
           let dnsarr = data.from.split("?")[1].split("&");
           let fileindex = dnsarr.findIndex((item) =>
             item.includes("csv_config_file=")
@@ -395,7 +413,10 @@ export default {
               .filter((item) => item.includes("csv_config_file="))[0]
               .split("=")[1]
               .replace("@", "");
+              editDdata[0].datasets.value='csv_config_file'
             this.$store.commit("app/SET_OPC_UANODES", [].concat(file));
+          }else{
+           editDdata[0].datasets.value='select_all_points'
           }
 
           let certfile = dnsarr
@@ -412,6 +433,8 @@ export default {
             "app/SET_OPC_PRIVATEFILES",
             [].concat(privatefile)
           );
+
+      
         }
 
         if (data.from_expand && data.from_expand.id == "csv") {
@@ -426,7 +449,9 @@ export default {
           data.to_expand && data.to_expand.subject
             ? data.to_expand.subject
             : "";
-        this.$parent.uidata = editDdata;
+          this.$emit('setEditData',editDdata)
+        // this.$set(this.$parent.uidata,0,editDdata)
+        // this.$parent.uidata = editDdata;
         localStorage.setItem("datainName", data.name);
         this.$parent.toggleComponent(
           "",
@@ -442,8 +467,14 @@ export default {
       this.edit(data, status, true);
     },
     addDbSource() {
-      this.dialog = true;
+      this.$store.commit("app/SET_CURRENT_DBNAME", "");
+      this.$store.commit("app/SET_CURRENT_AGENT", "");
+      this.$store.commit("app/SET_CURRENT_DSNAME", "");
+      this.$store.commit("app/SET_CURRENT_DBTYPE", "tmq");
+      this.$store.commit('app/SET_CURRENT_EDITID','')
       this.$parent.currentTaskStatus = "";
+      this.$parent.changeEditable(false)
+      this.$parent.toggleComponent("tmq");
     },
     async getList() {
       try {
@@ -474,7 +505,7 @@ export default {
       }
     },
 
-    async checkMetrics(data) {
+    async checkMetrics(data, status) {
       try {
         let result = await getMetrics(data.id);
         if (result.message) {
@@ -482,19 +513,25 @@ export default {
           return;
         }
         let array = Object.entries(result);
-        console.log(Array.from(array).length == 0, "metrics9999");
         if (Array.from(array).length == 0) {
-          Message.error(this.$t("datasource.restarttask"));
-          return;
+          switch (status) {
+            case "running":
+              Message.error(this.$t("datasource.metricTips.running"));
+              return;
+            case "completed":
+              Message.error(this.$t("datasource.metricTips.completed"));
+              return;
+            case "stopped":
+              Message.error(this.$t("datasource.metricTips.stopped"));
+              return;
+          }
         }
         let html = `<ul class='db-metrics'><li >
           <span>${this.$t("name")}</span>
           <span>${this.$t("datasource.value")}</span>
           </li>`;
         array.forEach((item) => {
-          html += `<li ><span>${
-            item.toString().split(",")[0]
-          }</span>
+          html += `<li ><span>${item.toString().split(",")[0]}</span>
               <span>${item.toString().split(",")[1]}</span>
               </li>`;
         });
@@ -541,15 +578,24 @@ export default {
             type: "warning",
           }
         ).then(async () => {
-          await excuteStop(data.id);
-          this.refresh();
+
+          let result = await excuteStop(data.id);
+          if (result.message) {
+            Message.error(result.message);
+            return;
+
+          }
+          await this.refresh();
         });
       } catch (err) {
         return Promise.reject(err);
       }
     },
-    refresh() {
-      this.getList();
+
+    async refresh() {
+      await this.getList();
+      await this.$refs.agents.refresh()
+
     },
     async refreshCurrentTask(data) {
       try {
@@ -633,9 +679,10 @@ export default {
   },
   mounted() {
     if (this.$parent.$parent.$parent.currentName == "datasource") {
-      this.refresh();
+      this.refresh().then(() => {
+        this.typeList = this.sourceList;
+      });
     }
-    this.typeList = this.sourceList;
   },
 };
 </script>
@@ -703,21 +750,21 @@ export default {
 </style>
 <style lang="scss">
 .db-metrics {
-  max-height:300px;
-  li{
+  max-height: 300px;
+  li {
     display: flex;
-    span{
+    span {
       display: inline-block;
-      flex:1;
+      flex: 1;
       padding: 3px 10px;
     }
-    &:first-child{
+    &:first-child {
       background: #f5f7fa;
       padding: 4px 10px;
-      border-top:1px solid  #eaeefb;
+      border-top: 1px solid #eaeefb;
     }
-    border:1px solid  #eaeefb;
-    border-top:none;
+    border: 1px solid #eaeefb;
+    border-top: none;
   }
 }
 </style>
