@@ -218,6 +218,7 @@ print $rows
 if $rows != 32 then
   return -1
 endi
+sql_error select abs(c2) from st interval(1m);
 sql drop database test0828
 print =============== clear
 #sql drop database $db

@@ -746,6 +746,10 @@ static bool isVectorFunc(const SNode* pNode) {
   return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsVectorFunc(((SFunctionNode*)pNode)->funcId));
 }
 
+static bool isScalarFunc(const SNode* pNode) {
+  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsScalarFunc(((SFunctionNode*)pNode)->funcId));
+}
+
 static bool isDistinctOrderBy(STranslateContext* pCxt) {
   return (SQL_CLAUSE_ORDER_BY == pCxt->currClause && isSelectStmt(pCxt->pCurrStmt) &&
           ((SSelectStmt*)pCxt->pCurrStmt)->isDistinct);
@@ -2326,6 +2330,9 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   }
   if (isVectorFunc(*pNode) && !isDistinctOrderBy(pCxt)) {
     return DEAL_RES_IGNORE_CHILD;
+  }
+  if (isScalarFunc(*pNode)) {
+    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_OPTR_USAGE, ((SExprNode*)(*pNode))->userAlias);
   }
   SNode* pGroupNode = NULL;
   FOREACH(pGroupNode, getGroupByList(pCxt)) {
