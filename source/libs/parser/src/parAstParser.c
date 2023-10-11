@@ -381,6 +381,11 @@ static int32_t collectMetaKeyFromDescribe(SCollectMetaKeyCxt* pCxt, SDescribeStm
   strcpy(name.dbname, pStmt->dbName);
   strcpy(name.tname, pStmt->tableName);
   int32_t code = catalogRemoveTableMeta(pCxt->pParseCxt->pCatalog, &name);
+#ifdef TD_ENTERPRISE
+  if (TSDB_CODE_SUCCESS == code) {
+    code = catalogRemoveViewMeta(pCxt->pParseCxt->pCatalog, &name);
+  }
+#endif
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
   }

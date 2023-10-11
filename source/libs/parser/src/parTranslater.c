@@ -349,7 +349,7 @@ static int32_t getTableMetaImpl(STranslateContext* pCxt, const SName* pName, STa
     if (pParCxt->async) {
       code = getTableMetaFromCache(pCxt->pMetaCache, pName, pMeta);
 #ifdef TD_ENTERPRISE
-      if (TSDB_CODE_SUCCESS != code) {
+      if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
         int32_t origCode = code;
         code = getViewMetaFromCache(pCxt->pMetaCache, pName, pMeta);
         if (TSDB_CODE_SUCCESS != code) {
@@ -417,6 +417,15 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
 
     code = catalogRefreshGetTableMeta(pParCxt->pCatalog, &conn, &name, pMeta, false);
   }
+#ifdef TD_ENTERPRISE
+  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
+    int32_t origCode = code;
+    code = getViewMetaFromCache(pCxt->pMetaCache, &name, pMeta);
+    if (TSDB_CODE_SUCCESS != code) {
+      code = origCode;
+    }
+  }
+#endif  
   if (TSDB_CODE_SUCCESS != code) {
     parserError("0x%" PRIx64 " catalogRefreshGetTableMeta error, code:%s, dbName:%s, tbName:%s",
                 pCxt->pParseCxt->requestId, tstrerror(code), pDbName, pTableName);

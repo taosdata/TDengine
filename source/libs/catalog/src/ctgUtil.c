@@ -19,6 +19,15 @@
 #include "tname.h"
 #include "trpc.h"
 
+void ctgFreeSViewMeta(SViewMeta* pMeta) {
+  if (NULL == pMeta) {
+    return;
+  }
+
+  taosMemoryFree(pMeta->querySql);
+  taosMemoryFree(pMeta->pSchema);
+}
+
 void ctgFreeMsgSendParam(void* param) {
   if (NULL == param) {
     return;
@@ -554,7 +563,7 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       if (NULL != pCtx->out) {
         SViewMetaRsp* pOut = *(SViewMetaRsp**)pCtx->out;
         if (NULL != pOut) {
-          taosMemoryFree(pOut->querySql);
+          tFreeSViewMetaRsp(pOut);
         }
         taosMemoryFreeClear(pCtx->out);
       }
@@ -626,7 +635,7 @@ void ctgFreeViewMetaRes(void* res) {
   SMetaRes* pRes = (SMetaRes*)res;
   if (NULL != pRes->pRes) {
     SViewMeta* pMeta = (SViewMeta*)pRes->pRes;
-    taosMemoryFreeClear(pMeta->querySql);
+    ctgFreeSViewMeta(pMeta);
     taosMemoryFreeClear(pRes->pRes);
   }
 }
@@ -1867,7 +1876,7 @@ uint64_t ctgGetViewMetaCacheSize(SViewMeta *pMeta) {
     return 0;
   }
 
-  return sizeof(*pMeta) + strlen(pMeta->querySql) + 1;
+  return sizeof(*pMeta) + strlen(pMeta->querySql) + 1 + pMeta->numOfCols * sizeof(SSchema);
 }
 
 
@@ -2088,5 +2097,25 @@ int32_t ctgBuildViewNullRes(SCtgTask* pTask, SCtgViewsCtx* pCtx) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t dupViewMetaFromRsp(SViewMetaRsp* pRsp, SViewMeta* pViewMeta) {
+  pViewMeta->querySql = strdup(pRsp->querySql);
+  if (NULL == pViewMeta->querySql) {
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  pViewMeta->version = pRsp->version;
+  pViewMeta->viewId = pRsp->viewId;
+  pViewMeta->precision = pRsp->precision;
+  pViewMeta->type = pRsp->type;
+  pViewMeta->numOfCols = pRsp->numOfCols;
+  pViewMeta->pSchema = taosMemoryMalloc(pViewMeta->numOfCols * sizeof(SSchema));
+  if (pViewMeta->pSchema == NULL) {
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  memcpy(pViewMeta->pSchema, pRsp->pSchema, pViewMeta->numOfCols * sizeof(SSchema));
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 

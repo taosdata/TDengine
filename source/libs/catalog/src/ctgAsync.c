@@ -1860,14 +1860,13 @@ int32_t ctgHandleGetViewsRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf*
   if (NULL == pViewMeta) {
     CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
-  
-  pViewMeta->querySql = strdup(pRsp->querySql);
-  if (NULL == pViewMeta->querySql) {
+
+  dupViewMetaFromRsp(pRsp, pViewMeta);
+  if (TSDB_CODE_SUCCESS != (code = dupViewMetaFromRsp(pRsp, pViewMeta))) {
+    ctgFreeSViewMeta(pViewMeta);
     taosMemoryFree(pViewMeta);
-    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_JRET(code);
   }
-  pViewMeta->version = pRsp->version;
-  pViewMeta->viewId = pRsp->viewId;
 
   ctgUpdateViewMetaToCache(pCtg, pRsp, false);
 

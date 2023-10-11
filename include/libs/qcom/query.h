@@ -120,9 +120,13 @@ typedef struct STableMeta {
 #pragma pack(pop)
 
 typedef struct SViewMeta {
-  int32_t  version;
   uint64_t viewId;
   char*    querySql;
+  int8_t   precision;
+  int8_t   type;
+  int32_t  version;
+  int32_t  numOfCols;
+  SSchema* pSchema;
 } SViewMeta;
 
 typedef struct SDBVgInfo {

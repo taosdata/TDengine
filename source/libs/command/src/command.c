@@ -112,7 +112,11 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
     colDataSetVal(pCol2, pBlock->info.rows, buf, false);
     int32_t bytes = getSchemaBytes(pMeta->schema + i);
     colDataSetVal(pCol3, pBlock->info.rows, (const char*)&bytes, false);
-    STR_TO_VARSTR(buf, i >= pMeta->tableInfo.numOfColumns ? "TAG" : "");
+    if (TSDB_VIEW_TABLE != pMeta->tableType) {
+      STR_TO_VARSTR(buf, i >= pMeta->tableInfo.numOfColumns ? "TAG" : "");
+    } else {
+      STR_TO_VARSTR(buf, "VIEW");
+    }
     colDataSetVal(pCol4, pBlock->info.rows, buf, false);
     ++(pBlock->info.rows);
   }

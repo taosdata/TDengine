@@ -8631,7 +8631,14 @@ int32_t tSerializeSViewMetaRsp(void* buf, int32_t bufLen, const SViewMetaRsp* pR
   if (tEncodeU64(&encoder, pRsp->dbId) < 0) return -1;
   if (tEncodeU64(&encoder, pRsp->viewId) < 0) return -1;
   if (tEncodeCStr(&encoder, pRsp->querySql) < 0) return -1;
+  if (tEncodeI8(&encoder, pRsp->precision) < 0) return -1;
+  if (tEncodeI8(&encoder, pRsp->type) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->version) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->numOfCols) < 0) return -1;
+  for (int32_t i = 0; i < pRsp->numOfCols; ++i) {
+    SSchema *pSchema = &pRsp->pSchema[i];
+    if (tEncodeSSchema(&encoder, pSchema) < 0) return -1;
+  }
 
   tEndEncode(&encoder);
 
@@ -8650,7 +8657,22 @@ int32_t tDeserializeSViewMetaRsp(void* buf, int32_t bufLen, SViewMetaRsp* pRsp) 
   if (tDecodeU64(&decoder, &pRsp->dbId) < 0) return -1;
   if (tDecodeU64(&decoder, &pRsp->viewId) < 0) return -1;
   if (tDecodeCStrAlloc(&decoder, &pRsp->querySql) < 0) return -1;
+  if (tDecodeI8(&decoder, &pRsp->precision) < 0) return -1;
+  if (tDecodeI8(&decoder, &pRsp->type) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->version) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->numOfCols) < 0) return -1;
+  if (pRsp->numOfCols > 0) {
+    pRsp->pSchema = taosMemoryCalloc(pRsp->numOfCols, sizeof(SSchema));
+    if (pRsp->pSchema == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    for (int32_t i = 0; i < pRsp->numOfCols; ++i) {
+      SSchema* pSchema = pRsp->pSchema + i;
+      if (tDecodeSSchema(&decoder, pSchema) < 0) return -1;
+    }
+  }
 
   tEndDecode(&decoder);
 
@@ -8664,6 +8686,7 @@ void    tFreeSViewMetaRsp(SViewMetaRsp* pRsp) {
   }
 
   taosMemoryFree(pRsp->querySql);
+  taosMemoryFree(pRsp->pSchema);
 }
 
 

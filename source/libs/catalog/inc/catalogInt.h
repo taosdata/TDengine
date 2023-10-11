@@ -993,6 +993,7 @@ int32_t ctgLaunchSubTask(SCtgTask** ppTask, CTG_TASK_TYPE type, ctgSubTaskCbFp f
 int32_t ctgGetTbCfgCb(SCtgTask* pTask);
 void    ctgFreeHandle(SCatalog* pCatalog);
 
+void    ctgFreeSViewMeta(SViewMeta* pMeta);
 void    ctgFreeMsgSendParam(void* param);
 void    ctgFreeBatch(SCtgBatch* pBatch);
 void    ctgFreeBatchs(SHashObj* pBatchs);
@@ -1048,6 +1049,7 @@ void    ctgReleaseTbMetaToCache(SCatalog* pCtg, SCtgDBCache* dbCache, SCtgTbCach
 void    ctgGetGlobalCacheStat(SCtgCacheStat* pStat);
 int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res);
 int32_t ctgBuildViewNullRes(SCtgTask* pTask, SCtgViewsCtx* pCtx);
+int32_t dupViewMetaFromRsp(SViewMetaRsp* pRsp, SViewMeta* pViewMeta);
 void    ctgGetGlobalCacheSize(uint64_t *pSize);
 uint64_t ctgGetTbIndexCacheSize(STableIndex *pIndex);
 uint64_t ctgGetViewMetaCacheSize(SViewMeta *pMeta);

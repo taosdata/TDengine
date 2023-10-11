@@ -3939,7 +3939,11 @@ typedef struct {
   uint64_t dbId;
   uint64_t viewId;
   char*    querySql;
+  int8_t   precision;
+  int8_t   type;
   int32_t  version;
+  int32_t  numOfCols;
+  SSchema* pSchema;
 } SViewMetaRsp;
 int32_t tSerializeSViewMetaRsp(void* buf, int32_t bufLen, const SViewMetaRsp* pRsp);
 int32_t tDeserializeSViewMetaRsp(void* buf, int32_t bufLen, SViewMetaRsp* pRsp);

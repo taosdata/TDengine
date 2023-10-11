@@ -2325,33 +2325,31 @@ int32_t ctgOpUpdateViewMeta(SCtgCacheOperation *operation) {
   SViewMetaRsp          *pRsp = msg->pRsp;
   SCtgDBCache           *dbCache = NULL;
 
+  taosMemoryFreeClear(msg);
+
   if (pCtg->stopUpdate) {
-    goto _return;
+    return TSDB_CODE_SUCCESS;
   }
 
-  CTG_ERR_JRET(ctgGetAddDBCache(pCtg, pRsp->dbFName, pRsp->dbId, &dbCache));
+  CTG_ERR_RET(ctgGetAddDBCache(pCtg, pRsp->dbFName, pRsp->dbId, &dbCache));
   if (NULL == dbCache) {
     ctgInfo("conflict db update, ignore this update, dbFName:%s, dbId:0x%" PRIx64, pRsp->dbFName, pRsp->dbId);
-    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
   SViewMeta *pMeta = taosMemoryCalloc(1, sizeof(SViewMeta));
   if (NULL == pMeta) {
-    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
-  pMeta->querySql = strdup(pRsp->querySql);
-  if (NULL == pMeta->querySql) {
-    taosMemoryFree(pMeta);
-    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
-  }
-  pMeta->viewId = pRsp->viewId;
-  pMeta->version = pRsp->version;
 
-  CTG_ERR_JRET(ctgWriteViewMetaToCache(pCtg, dbCache, pRsp->dbFName, pRsp->name, pMeta));
+  CTG_ERR_JRET(dupViewMetaFromRsp(pRsp, pMeta));
+
+  CTG_RET(ctgWriteViewMetaToCache(pCtg, dbCache, pRsp->dbFName, pRsp->name, pMeta));
 
 _return:
 
-  taosMemoryFreeClear(msg);
+  ctgFreeSViewMeta(pMeta);
+  taosMemoryFree(pMeta);
 
   CTG_RET(code);
 }
@@ -3057,14 +3055,22 @@ int32_t ctgGetViewsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgViewsC
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
 
+    memcpy(pViewMeta, pCache->pMeta, sizeof(*pViewMeta));
     pViewMeta->querySql = strdup(pCache->pMeta->querySql);
     if (NULL == pViewMeta->querySql) {
       ctgReleaseViewMetaToCache(pCtg, dbCache, pCache);
+      pViewMeta->pSchema = NULL;
       taosMemoryFree(pViewMeta);
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }
-    pViewMeta->version = pCache->pMeta->version;
-    pViewMeta->viewId = pCache->pMeta->viewId;
+    pViewMeta->pSchema = taosMemoryMalloc(pViewMeta->numOfCols * sizeof(SSchema));
+    if (pViewMeta->pSchema == NULL) {
+      ctgReleaseViewMetaToCache(pCtg, dbCache, pCache);
+      ctgFreeSViewMeta(pViewMeta);
+      taosMemoryFree(pViewMeta);
+      CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    memcpy(pViewMeta->pSchema, pCache->pMeta->pSchema, pViewMeta->numOfCols * sizeof(SSchema));
 
     CTG_UNLOCK(CTG_READ, &pCache->viewLock);
     taosHashRelease(dbCache->viewCache, pCache);

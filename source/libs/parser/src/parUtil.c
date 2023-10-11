@@ -910,12 +910,22 @@ int32_t getViewMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, ST
   SViewMeta* pViewMeta = NULL;
   int32_t     code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pViews, (void**)&pViewMeta);
   if (TSDB_CODE_SUCCESS == code) {
-    *pMeta = taosMemoryCalloc(1, sizeof(STableMeta));
+    *pMeta = taosMemoryCalloc(1, sizeof(STableMeta) + pViewMeta->numOfCols * sizeof(SSchema));
     if (NULL == *pMeta) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
     (*pMeta)->uid = pViewMeta->viewId;
+    (*pMeta)->vgId = MNODE_HANDLE;
     (*pMeta)->tableType = TSDB_VIEW_TABLE;
+    (*pMeta)->sversion = pViewMeta->version;
+    (*pMeta)->tversion = pViewMeta->version;
+    (*pMeta)->tableInfo.precision = pViewMeta->precision;
+    (*pMeta)->tableInfo.numOfColumns = pViewMeta->numOfCols;
+    memcpy((*pMeta)->schema, pViewMeta->pSchema, sizeof(SSchema) * pViewMeta->numOfCols);
+
+    for (int32_t i = 0; i < pViewMeta->numOfCols; ++i) {
+      (*pMeta)->tableInfo.rowSize += (*pMeta)->schema[i].bytes;
+    }    
   }
   return code;
 }
