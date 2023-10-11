@@ -92,6 +92,8 @@ class TDTestCase:
         else:
             range_count = self.tdCom.range_count
 
+        time.sleep(1)
+
         for i in range(range_count):
             latency = 0
             tag_value_list = list()

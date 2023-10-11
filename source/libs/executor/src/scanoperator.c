@@ -1317,8 +1317,9 @@ static STimeWindow getSlidingWindow(TSKEY* startTsCol, TSKEY* endTsCol, uint64_t
 }
 
 static SSDataBlock* doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32_t tsColIndex, int32_t* pRowIndex) {
-  qInfo("do stream range scan. windows index:%d", *pRowIndex);
+  qDebug("do stream range scan. windows index:%d", *pRowIndex);
   bool prepareRes = true;
+
   while (1) {
     SSDataBlock* pResult = NULL;
     pResult = doTableScan(pInfo->pTableScanOp);

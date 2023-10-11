@@ -20,6 +20,7 @@
 #include "tref.h"
 #include "tstream.h"
 #include "ttimer.h"
+#include "wal.h"
 
 static TdThreadOnce streamMetaModuleInit = PTHREAD_ONCE_INIT;
 
@@ -393,27 +394,32 @@ int32_t streamMetaRemoveTask(SStreamMeta* pMeta, STaskId* pTaskId) {
 int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask, bool* pAdded) {
   *pAdded = false;
 
-  STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
+  STaskId id = streamTaskExtractKey(pTask);
   void*   p = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
-  if (p == NULL) {
-    if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
-      tFreeStreamTask(pTask);
-      return -1;
-    }
-
-    taosArrayPush(pMeta->pTaskList, &pTask->id);
-
-    if (streamMetaSaveTask(pMeta, pTask) < 0) {
-      tFreeStreamTask(pTask);
-      return -1;
-    }
-
-    if (streamMetaCommit(pMeta) < 0) {
-      tFreeStreamTask(pTask);
-      return -1;
-    }
-  } else {
+  if (p != NULL) {
     return 0;
+  }
+
+  if (pTask->info.fillHistory == 1) {
+    stDebug("s-task:0x%x initial nextProcessVer is set to 1 for fill-history task", pTask->id.taskId);
+    ver = 1;
+  }
+
+  if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
+    tFreeStreamTask(pTask);
+    return -1;
+  }
+
+  taosArrayPush(pMeta->pTaskList, &pTask->id);
+
+  if (streamMetaSaveTask(pMeta, pTask) < 0) {
+    tFreeStreamTask(pTask);
+    return -1;
+  }
+
+  if (streamMetaCommit(pMeta) < 0) {
+    tFreeStreamTask(pTask);
+    return -1;
   }
 
   taosHashPut(pMeta->pTasksMap, &id, sizeof(id), &pTask, POINTER_BYTES);
@@ -708,9 +714,7 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
     STaskId id = {.streamId = pTask->id.streamId, .taskId = pTask->id.taskId};
     void*   p = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
     if (p == NULL) {
-      // pTask->chkInfo.checkpointVer may be 0, when a follower is become a leader
-      // In this case, we try not to start fill-history task anymore.
-      if (pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.checkpointVer) < 0) {
+      if (pMeta->expandFunc(pMeta->ahandle, pTask, pTask->chkInfo.checkpointVer + 1) < 0) {
         doClear(pKey, pVal, pCur, pRecycleList);
         tFreeStreamTask(pTask);
         return -1;
@@ -718,6 +722,8 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
 
       taosArrayPush(pMeta->pTaskList, &pTask->id);
     } else {
+      // todo this should replace the existed object put by replay creating stream task msg from mnode
+      stError("s-task:0x%x already added into table meta by replaying WAL, need check", pTask->id.taskId);
       tdbFree(pKey);
       tdbFree(pVal);
       taosMemoryFree(pTask);
@@ -776,6 +782,15 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
     if (tEncodeI32(pEncoder, ps->status) < 0) return -1;
     if (tEncodeI32(pEncoder, ps->stage) < 0) return -1;
     if (tEncodeI32(pEncoder, ps->nodeId) < 0) return -1;
+    if (tEncodeDouble(pEncoder, ps->inputQUsed) < 0) return -1;
+    if (tEncodeDouble(pEncoder, ps->inputRate) < 0) return -1;
+    if (tEncodeDouble(pEncoder, ps->sinkQuota) < 0) return -1;
+    if (tEncodeDouble(pEncoder, ps->sinkDataSize) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->processedVer) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->verStart) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->verEnd) < 0) return -1;
+    if (tEncodeI64(pEncoder, ps->activeCheckpointId) < 0) return -1;
+    if (tEncodeI8(pEncoder, ps->checkpointFailed) < 0) return -1;
   }
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -796,6 +811,15 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
     if (tDecodeI32(pDecoder, &entry.status) < 0) return -1;
     if (tDecodeI32(pDecoder, &entry.stage) < 0) return -1;
     if (tDecodeI32(pDecoder, &entry.nodeId) < 0) return -1;
+    if (tDecodeDouble(pDecoder, &entry.inputQUsed) < 0) return -1;
+    if (tDecodeDouble(pDecoder, &entry.inputRate) < 0) return -1;
+    if (tDecodeDouble(pDecoder, &entry.sinkQuota) < 0) return -1;
+    if (tDecodeDouble(pDecoder, &entry.sinkDataSize) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.processedVer) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.verStart) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.verEnd) < 0) return -1;
+    if (tDecodeI64(pDecoder, &entry.activeCheckpointId) < 0) return -1;
+    if (tDecodeI8(pDecoder, (int8_t*)&entry.checkpointFailed) < 0) return -1;
 
     entry.id.taskId = taskId;
     taosArrayPush(pReq->pTaskStatus, &entry);
@@ -863,12 +887,36 @@ void metaHbToMnode(void* param, void* tmrId) {
     STaskId* pId = taosArrayGet(pMeta->pTaskList, i);
 
     SStreamTask** pTask = taosHashGet(pMeta->pTasksMap, pId, sizeof(*pId));
+
+    // not report the status of fill-history task
     if ((*pTask)->info.fillHistory == 1) {
       continue;
     }
 
     STaskStatusEntry entry = {
-        .id = *pId, .status = (*pTask)->status.taskStatus, .nodeId = pMeta->vgId, .stage = pMeta->stage};
+        .id = *pId,
+        .status = (*pTask)->status.taskStatus,
+        .nodeId = pMeta->vgId,
+        .stage = pMeta->stage,
+        .inputQUsed = SIZE_IN_MiB(streamQueueGetItemSize((*pTask)->inputInfo.queue)),
+    };
+
+    entry.inputRate = entry.inputQUsed*100.0/STREAM_TASK_QUEUE_CAPACITY_IN_SIZE;
+    if ((*pTask)->info.taskLevel == TASK_LEVEL__SINK) {
+      entry.sinkQuota = (*pTask)->outputInfo.pTokenBucket->quotaRate;
+      entry.sinkDataSize = SIZE_IN_MiB((*pTask)->execInfo.sink.dataSize);
+    }
+
+    if ((*pTask)->checkpointingId != 0) {
+      entry.checkpointFailed = ((*pTask)->chkInfo.failedId >= (*pTask)->checkpointingId);
+      entry.activeCheckpointId = (*pTask)->checkpointingId;
+    }
+
+    if ((*pTask)->exec.pWalReader != NULL) {
+      entry.processedVer = (*pTask)->chkInfo.nextProcessVer - 1;
+      walReaderValidVersionRange((*pTask)->exec.pWalReader, &entry.verStart, &entry.verEnd);
+    }
+
     taosArrayPush(hbMsg.pTaskStatus, &entry);
 
     if (!hasValEpset) {
@@ -1004,4 +1052,9 @@ void streamMetaStartHb(SStreamMeta* pMeta) {
 void streamMetaInitForSnode(SStreamMeta* pMeta) {
   pMeta->stage = 0;
   pMeta->role = NODE_ROLE_LEADER;
+}
+
+void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {
+  taosHashClear(pStartInfo->pReadyTaskSet);
+  pStartInfo->startedAfterNodeUpdate = 0;
 }

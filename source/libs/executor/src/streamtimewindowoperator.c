@@ -370,10 +370,25 @@ static void doBuildDeleteResult(SStreamIntervalOperatorInfo* pInfo, SArray* pWin
   }
 }
 
+void clearGroupResInfo(SGroupResInfo* pGroupResInfo) {
+  if (pGroupResInfo->freeItem) {
+    int32_t size = taosArrayGetSize(pGroupResInfo->pRows);
+    for (int32_t i = pGroupResInfo->index; i < size; i++) {
+      void* pVal = taosArrayGetP(pGroupResInfo->pRows, i);
+      taosMemoryFree(pVal);
+    }
+    pGroupResInfo->freeItem = false;
+  }
+  pGroupResInfo->pRows = taosArrayDestroy(pGroupResInfo->pRows);
+  pGroupResInfo->index = 0;
+}
+
 void destroyStreamFinalIntervalOperatorInfo(void* param) {
   SStreamIntervalOperatorInfo* pInfo = (SStreamIntervalOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   cleanupAggSup(&pInfo->aggSup);
+  clearGroupResInfo(&pInfo->groupResInfo);
+
   // it should be empty.
   void* pIte = NULL;
   while ((pIte = taosHashIterate(pInfo->pPullDataMap, pIte)) != NULL) {
@@ -390,7 +405,6 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
 
   nodesDestroyNode((SNode*)pInfo->pPhyNode);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
-  pInfo->groupResInfo.pRows = taosArrayDestroy(pInfo->groupResInfo.pRows);
   cleanupExprSupp(&pInfo->scalarSupp);
   tSimpleHashCleanup(pInfo->pUpdatedMap);
   pInfo->pUpdatedMap = NULL;
@@ -1536,6 +1550,7 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
   cleanupBasicInfo(&pInfo->binfo);
   destroyStreamAggSupporter(&pInfo->streamAggSup);
   cleanupExprSupp(&pInfo->scalarSupp);
+  clearGroupResInfo(&pInfo->groupResInfo);
 
   if (pInfo->pChildren != NULL) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
@@ -2862,7 +2877,7 @@ void destroyStreamStateOperatorInfo(void* param) {
   SStreamStateAggOperatorInfo* pInfo = (SStreamStateAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   destroyStreamAggSupporter(&pInfo->streamAggSup);
-  cleanupGroupResInfo(&pInfo->groupResInfo);
+  clearGroupResInfo(&pInfo->groupResInfo);
   cleanupExprSupp(&pInfo->scalarSupp);
   if (pInfo->pChildren != NULL) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);

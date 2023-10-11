@@ -92,7 +92,7 @@ int32_t tDecodeStreamCheckpointReadyMsg(SDecoder* pDecoder, SStreamCheckpointRea
 }
 
 static int32_t streamAlignCheckpoint(SStreamTask* pTask) {
-  int32_t num = taosArrayGetSize(pTask->pUpstreamInfoList);
+  int32_t num = taosArrayGetSize(pTask->upstreamInfo.pList);
   int64_t old = atomic_val_compare_exchange_32(&pTask->checkpointAlignCnt, 0, num);
   if (old == 0) {
     stDebug("s-task:%s set initial align upstream num:%d", pTask->id.idStr, num);
@@ -143,8 +143,8 @@ int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSo
 
   pTask->execInfo.checkpoint += 1;
 
-  // 2. let's dispatch checkpoint msg to downstream task directly and do nothing else. put the checkpoint block into
-  //    inputQ, to make sure all blocks with less version have been handled by this task already.
+  // 2. Put the checkpoint block into inputQ, to make sure all blocks with less version have been handled by this task
+  //    already.
   int32_t code = appendCheckpointIntoInputQ(pTask, STREAM_INPUT__CHECKPOINT_TRIGGER);
   return code;
 }
@@ -153,7 +153,7 @@ static int32_t continueDispatchCheckpointBlock(SStreamDataBlock* pBlock, SStream
   pBlock->srcTaskId = pTask->id.taskId;
   pBlock->srcVgId = pTask->pMeta->vgId;
 
-  int32_t code = taosWriteQitem(pTask->outputInfo.queue->pQueue, pBlock);
+  int32_t code = taosWriteQitem(pTask->outputq.queue->pQueue, pBlock);
   if (code == 0) {
     streamDispatchStreamBlock(pTask);
   } else {
@@ -192,14 +192,14 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
   int32_t taskLevel = pTask->info.taskLevel;
   if (taskLevel == TASK_LEVEL__SOURCE) {
     if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
-      stDebug("s-task:%s set childIdx:%d, and add checkpoint block into outputQ", id, pTask->info.selfChildId);
+      stDebug("s-task:%s set childIdx:%d, and add checkpoint-trigger block into outputQ", id, pTask->info.selfChildId);
       continueDispatchCheckpointBlock(pBlock, pTask);
     } else {  // only one task exists, no need to dispatch downstream info
       streamProcessCheckpointReadyMsg(pTask);
       streamFreeQitem((SStreamQueueItem*)pBlock);
     }
   } else if (taskLevel == TASK_LEVEL__SINK || taskLevel == TASK_LEVEL__AGG) {
-    ASSERT(taosArrayGetSize(pTask->pUpstreamInfoList) > 0);
+    ASSERT(taosArrayGetSize(pTask->upstreamInfo.pList) > 0);
     if (pTask->chkInfo.startTs == 0) {
       pTask->chkInfo.startTs = taosGetTimestampMs();
       pTask->execInfo.checkpoint += 1;
@@ -210,7 +210,7 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
 
     // there are still some upstream tasks not send checkpoint request, do nothing and wait for then
     int32_t notReady = streamAlignCheckpoint(pTask);
-    int32_t num = taosArrayGetSize(pTask->pUpstreamInfoList);
+    int32_t num = taosArrayGetSize(pTask->upstreamInfo.pList);
     if (notReady > 0) {
       stDebug("s-task:%s received checkpoint block, idx:%d, %d upstream tasks not send checkpoint info yet, total:%d",
              id, pTask->info.selfChildId, notReady, num);
@@ -264,6 +264,15 @@ int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask) {
   return 0;
 }
 
+void streamTaskClearCheckInfo(SStreamTask* pTask) {
+  pTask->checkpointingId = 0; // clear the checkpoint id
+  pTask->chkInfo.failedId = 0;
+  pTask->chkInfo.startTs = 0;  // clear the recorded start time
+  pTask->checkpointNotReadyTasks = 0;
+  pTask->checkpointAlignCnt = 0;
+  streamTaskOpenAllUpstreamInput(pTask);   // open inputQ for all upstream tasks
+}
+
 int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
   taosWLockLatch(&pMeta->lock);
 
@@ -283,11 +292,11 @@ int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
     ASSERT(p->chkInfo.checkpointId < p->checkpointingId && p->checkpointingId == checkpointId);
 
     p->chkInfo.checkpointId = p->checkpointingId;
+    streamTaskClearCheckInfo(p);
     streamSetStatusNormal(p);
 
     // save the task
     streamMetaSaveTask(pMeta, p);
-    streamTaskOpenAllUpstreamInput(p);   // open inputQ for all upstream tasks
 
     stDebug(
         "vgId:%d s-task:%s level:%d open upstream inputQ, commit task status after checkpoint completed, "
@@ -318,8 +327,6 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   ASSERT(remain >= 0);
 
   double el = (taosGetTimestampMs() - pTask->chkInfo.startTs) / 1000.0;
-  pTask->chkInfo.startTs = 0;  // clear the recorded start time
-
   if (remain == 0) {  // all tasks are ready
     stDebug("s-task:%s all downstreams are ready, ready for do checkpoint", pTask->id.idStr);
     streamBackendDoCheckpoint(pMeta, pTask->checkpointingId);
