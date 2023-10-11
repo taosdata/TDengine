@@ -1,29 +1,7 @@
-mod config;
-mod service;
-pub(crate) mod sink;
-mod source;
-mod transform;
-pub mod runners;
-pub mod validation;
-
 use std::sync::Arc;
 
 use anyhow::Context;
 use futures::TryStreamExt;
-pub use runners::historian::*;
-pub use runners::influxdb::influxdb_datasets;
-pub use runners::influxdb::influxdb_to_taos;
-pub use runners::kafka::*;
-pub use runners::mqtt::mqtt_to_taos;
-use runners::opc::opc_datasets;
-pub use runners::opc::opc_to_taos;
-pub use runners::opc::OPCConfig;
-pub use runners::opc::TableConfig;
-pub use runners::opc::ColumnConfig;
-pub use runners::opentsdb::opentsdb_datasets;
-pub use runners::opentsdb::opentsdb_to_taos;
-pub use runners::pi::pi_to_taos;
-pub use sink::IpcStreamWorker;
 use taos::Dsn;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
@@ -31,20 +9,39 @@ use tracing::instrument;
 use tracing::Instrument;
 use tracing::Span;
 
-use crate::plugins::runners::pi::pi_datasets;
 use crate::utils::mask_dsn;
 use crate::Transferred;
-pub use taosx_ipc::types::*;
-
-pub use transform::Parser;
-
+pub use runners::historian::*;
+pub use runners::influxdb::*;
+pub use runners::kafka::*;
+pub use runners::mqtt::mqtt_to_taos;
+use runners::opc::opc_datasets;
+pub use runners::opc::opc_to_taos;
+pub use runners::opc::ColumnConfig;
+pub use runners::opc::OPCConfig;
+pub use runners::opc::TableConfig;
+pub use runners::opentsdb::opentsdb_datasets;
+pub use runners::opentsdb::opentsdb_to_taos;
+use runners::pi::pi_datasets;
+pub use runners::pi::pi_to_taos;
 pub use runners::{
     get_log_dir, get_log_keep_days, get_plugins_info, valid_env_log_keep_days,
     ENV_TAOSX_LOGS_KEEP_DAYS,
 };
+pub use sink::IpcStreamWorker;
+pub use taosx_ipc::types::*;
+pub use transform::Parser;
 
 use self::runners::opc::OpcTableConfig;
 use self::sink::IpcHandler;
+
+mod config;
+pub mod runners;
+mod service;
+pub(crate) mod sink;
+mod source;
+mod transform;
+pub mod validation;
 
 /// ipc stream metrics
 /// be careful to modify, in case other crate use string value. for now POINTS value used in taosx-ipc.

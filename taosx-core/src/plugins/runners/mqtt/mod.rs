@@ -13,13 +13,13 @@ use file_rotate::{
     suffix::{AppendTimestamp, DateFrom, FileLimit},
     ContentLimit, FileRotate, TimeFrequency,
 };
-
 use itertools::Itertools;
 use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
+use crate::validation::DataSourceValidation;
 use crate::{
     build_ipc, get_log_keep_days, plugins::runners::get_plugin_dir, utils::port_pool::PortPool,
     Parser, Transferred,
@@ -328,8 +328,7 @@ pub async fn mqtt_to_taos(
         tracing::info!("mqtt to taos task done");
         safe_exit!();
         Ok(())
-    })
-    .await??;
+    }).await??;
     Ok(())
 }
 
@@ -387,13 +386,17 @@ pub(super) fn get_string_from_param_or_file(
     }
 }
 
+pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+    DataSourceValidation::unknown()
+}
+
 #[cfg(test)]
 mod tests {
-
     use taos::IntoDsn;
 
-    use super::*;
     use crate::TaskOpts;
+
+    use super::*;
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_mqtt_parser() {

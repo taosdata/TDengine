@@ -323,7 +323,7 @@ impl OPCConfig {
         } else {
             None
         };
-        
+
         match dsn.protocol.as_deref() {
             Some("ua") => {
                 opc_type = OpcType::OPCUA;
@@ -411,7 +411,7 @@ impl OPCConfig {
                     res.1
                 } else {
                     get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
-                    .map_err(|s| OpcError::FileParseFound(s))?
+                        .map_err(|s| OpcError::FileParseFound(s))?
                 };
                 let mut ua_node_config_vec = Vec::new();
                 for i in 0..node_vec.len() {
@@ -629,7 +629,9 @@ pub fn parse_bool_param_from_dsn(dsn: &mut Dsn, key: &str) -> anyhow::Result<Opt
 
 const CSV_CONFIG_COLUMNS: [&str; 4] = ["point_id", "tbname", "type", "stable"];
 
+use crate::validation::DataSourceValidation;
 pub use tokio_stream::StreamExt;
+
 /// return opctableconfig, node_config, tables_to_drop
 pub async fn generate_opcconfig_from_csv(
     csv_config_file: &str,
@@ -886,55 +888,61 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
     let data = DataSetsReq {
         from: dsn.to_string(),
         categories: vec![String::from("nodes")],
-        via:None,
+        via: None,
         offset: 0,
         pattern: Some(String::from(".*")),
         limit: usize::MAX / 2 - 1,
         lang: None,
     };
     let all_points = opc_datasets(&data).await?;
-    let point_config = all_points.iter().map(|point| {
-        let point_id = point.id.clone();
-        let tbname = if dsn.driver.as_str() == "opcua" {
-            // ns=13;i=1003
-            let mut split = point_id.split(";");
-            let ns = if let Some(ns) = split.next() {
-                if ns.contains("ns=") {
-                    let mut ns_split = ns.split("=");
-                    ns_split.next();
-                    ns_split.next()
+    let point_config = all_points
+        .iter()
+        .map(|point| {
+            let point_id = point.id.clone();
+            let tbname = if dsn.driver.as_str() == "opcua" {
+                // ns=13;i=1003
+                let mut split = point_id.split(";");
+                let ns = if let Some(ns) = split.next() {
+                    if ns.contains("ns=") {
+                        let mut ns_split = ns.split("=");
+                        ns_split.next();
+                        ns_split.next()
+                    } else {
+                        None
+                    }
                 } else {
                     None
-                }
-            } else {
-                None
-            };
-            let id = if let Some(id) = split.next() {
-                if id.contains("i=") {
-                    let mut id_split = id.split("=");
-                    id_split.next();
-                    id_split.next()
+                };
+                let id = if let Some(id) = split.next() {
+                    if id.contains("i=") {
+                        let mut id_split = id.split("=");
+                        id_split.next();
+                        id_split.next()
+                    } else {
+                        None
+                    }
                 } else {
                     None
-                }
+                };
+                child_table_expression
+                    .clone()
+                    .replace("{ns}", ns.unwrap_or(""))
+                    .replace("{id}", id.unwrap_or(""))
             } else {
-                None
+                let tag_index = point_id.rfind(".");
+                let tag_name = if let Some(index) = tag_index {
+                    // should be Device.DeviceType.TagName pattern
+                    &point_id[index + 1..]
+                } else {
+                    &point_id
+                };
+                child_table_expression
+                    .clone()
+                    .replace("{TagName}", tag_name)
             };
-            child_table_expression.clone()
-                .replace("{ns}", ns.unwrap_or(""))
-                .replace("{id}", id.unwrap_or(""))
-        } else {
-            let tag_index = point_id.rfind(".");
-            let tag_name = if let Some(index) = tag_index {
-                // should be Device.DeviceType.TagName pattern
-                &point_id[index+1..]
-            } else {
-                &point_id
-            };
-            child_table_expression.clone().replace("{TagName}", tag_name)
-        };
-        format!("{}::{}", point_id, tbname)
-    }).join(",");
+            format!("{}::{}", point_id, tbname)
+        })
+        .join(",");
     if dsn.driver.as_str() == "opcua" {
         dsn.set("ua.nodes", point_config);
     } else {
@@ -986,7 +994,10 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
             tag_configs: None,
         }
     };
-    dsn.set("opc_table_config", serde_json::to_string(&opc_table_config)?);
+    dsn.set(
+        "opc_table_config",
+        serde_json::to_string(&opc_table_config)?,
+    );
     Ok(())
 }
 
@@ -1138,7 +1149,9 @@ pub async fn opc_to_taos(
     let builder: TaosBuilder = TaosBuilder::from_dsn(&to)?;
     let taos = builder.build().await?;
 
-    let select_all_points = parse_bool_param_from_dsn(&mut from, "select_all_points").map_err(|err| OpcError::ConfigError("select_all_points", err.to_string()))?.unwrap_or(false);
+    let select_all_points = parse_bool_param_from_dsn(&mut from, "select_all_points")
+        .map_err(|err| OpcError::ConfigError("select_all_points", err.to_string()))?
+        .unwrap_or(false);
     if select_all_points {
         handle_select_all_points(&mut from).await?;
     }
@@ -1270,7 +1283,7 @@ pub async fn opc_to_taos(
             _ = cancel.cancelled() => {
                 tracing::info!("opc task cancelled");
             },
-        };
+        }
         tracing::info!("OPC to taos task done");
         safe_exit!();
         Ok(())
@@ -1279,25 +1292,27 @@ pub async fn opc_to_taos(
     Ok(())
 }
 
+/*
 /// check field type
 /// return true if matched
 /// if type equals return true else false
 /// if type is binary|varchar|nchar check whether type configed contains those characters
-// fn check_field_type(field_type_config: &String, field_type: String) -> bool {
-//     let field_type_config = field_type_config.to_ascii_lowercase();
-//     if field_type.contains("binary")
-//         || field_type.contains("varchar")
-//         || field_type.contains("nchar")
-//     {
-//         field_type_config.contains("binary")
-//             || field_type_config.contains("varchar")
-//             || field_type_config.contains("nchar")
-//     } else if field_type_config == field_type {
-//         true
-//     } else {
-//         false
-//     }
-// }
+fn check_field_type(field_type_config: &String, field_type: String) -> bool {
+    let field_type_config = field_type_config.to_ascii_lowercase();
+    if field_type.contains("binary")
+        || field_type.contains("varchar")
+        || field_type.contains("nchar")
+    {
+        field_type_config.contains("binary")
+            || field_type_config.contains("varchar")
+            || field_type_config.contains("nchar")
+    } else if field_type_config == field_type {
+        true
+    } else {
+        false
+    }
+}
+*/
 
 #[derive(Clone, Debug)]
 pub struct OpcTableConfig {
@@ -1329,7 +1344,8 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         regex: req.pattern.clone(),
     };
     config.points = Some(points_config);
-    let toml = toml::to_string(&config).with_context(|| format!("toml to_string error encountered"))?;
+    let toml =
+        toml::to_string(&config).with_context(|| format!("toml to_string error encountered"))?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
@@ -1445,109 +1461,118 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     }
 }
 
-#[tokio::test]
-async fn test_opc_config_to_toml() -> anyhow::Result<()> {
-    let mut map = HashMap::new();
-    map.insert(
-        String::from("123"),
-        PointConfig {
-            code: "567".to_string(),
-            stable: None,
-            tag_values: None,
-            value_type: None,
-        },
-    );
-    let mut column_configs = Vec::new();
-    let column_config = ColumnConfig {
-        column_name: String::from("received_time"),
-        column_type: Some(Ty::Timestamp),
-        column_alias: Some("ts".to_string()),
-        is_primary_key: true,
-    };
-    column_configs.push(column_config);
-    let column_config = ColumnConfig {
-        column_name: String::from("original_time"),
-        column_type: Some(Ty::Timestamp),
-        column_alias: None,
-        is_primary_key: false,
-    };
-    column_configs.push(column_config);
-    let column_config = ColumnConfig {
-        column_name: String::from("value"),
-        column_type: Some(Ty::Timestamp),
-        column_alias: None,
-        is_primary_key: true,
-    };
-    column_configs.push(column_config);
-    let opc_table_config = TableConfig {
-        stable_prefix: Some("meters".to_string()),
-        column_configs,
-        tag_configs: None,
-    };
-    let config = OPCConfig {
-        opc_type: OpcType::OPCUA,
-        debug: true,
-        points: Some(PointsConfig {
-            limit: 32,
-            regex: Some(String::from("123")),
-        }),
-        // use_received_time: true,
-        connect: ConnectConfig {
-            ua: Some(UaConnectConfig {
-                endpoint: String::from("endpoint.123"),
-                connect_timeout: Some(10),
-                request_timeout: Some(20),
-                security_policy: String::from("None"),
-                security_mode: String::from("None"),
-                certificate: None,
-                private_key: None,
-                auth_method: AuthMethod::Anonymous,
-                username: None,
-                password: None,
+pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+    DataSourceValidation::unknown()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[tokio::test]
+    async fn test_opc_config_to_toml() -> anyhow::Result<()> {
+        let mut map = HashMap::new();
+        map.insert(
+            String::from("123"),
+            PointConfig {
+                code: "567".to_string(),
+                stable: None,
+                tag_values: None,
+                value_type: None,
+            },
+        );
+        let mut column_configs = Vec::new();
+        let column_config = ColumnConfig {
+            column_name: String::from("received_time"),
+            column_type: Some(Ty::Timestamp),
+            column_alias: Some("ts".to_string()),
+            is_primary_key: true,
+        };
+        column_configs.push(column_config);
+        let column_config = ColumnConfig {
+            column_name: String::from("original_time"),
+            column_type: Some(Ty::Timestamp),
+            column_alias: None,
+            is_primary_key: false,
+        };
+        column_configs.push(column_config);
+        let column_config = ColumnConfig {
+            column_name: String::from("value"),
+            column_type: Some(Ty::Timestamp),
+            column_alias: None,
+            is_primary_key: true,
+        };
+        column_configs.push(column_config);
+        let opc_table_config = TableConfig {
+            stable_prefix: Some("meters".to_string()),
+            column_configs,
+            tag_configs: None,
+        };
+        let config = OPCConfig {
+            opc_type: OpcType::OPCUA,
+            debug: true,
+            points: Some(PointsConfig {
+                limit: 32,
+                regex: Some(String::from("123")),
             }),
-            da: Some(DaConnectConfig {
-                server: String::from("server.server"),
-                nodes: vec![String::from("localhost")],
-            }),
-        },
-        collect: CollectConfig {
-            interval: Some(10),
-            limit: Some(10),
-            ua: Some(UaCollectConfig {
-                collect_mode: "observe"
-                    .to_string()
-                    .parse::<CollectMode>()
-                    .map_err(|err| OpcError::ParseError("collect_mode", err))?,
-                nodes: vec![UANodeConfig {
-                    id: String::from("1"),
-                    // value_type: String::from("DOUBLE"),
-                }],
-            }),
-            da: Some(DaCollectConfig {
-                tags: vec![DaNodeConfig {
-                    tag: String::from("123"),
-                    // value_type: String::from("VARCHAR"),
-                }],
-            }),
-            dump: Some(DumpConfig {
-                enable: true,
-                path: Some("/usr/loacl/taosx/".to_string()),
-                keep: Some(10 as usize),
-            }),
-        },
-        report: ReportConfig {
-            remote: String::from("remote.remote"),
-            concurrent: Some(10),
-            batch_size: None,
-            batch_timeout: Some(100),
-        },
-        param_mapping: map,
-        // table_info: HashMap::new(),
-        opc_table_config: Some(opc_table_config),
-    };
-    let toml = toml::to_string(&config)?;
-    assert_eq!(
-        r#"opc_type = "opcua"
+            // use_received_time: true,
+            connect: ConnectConfig {
+                ua: Some(UaConnectConfig {
+                    endpoint: String::from("endpoint.123"),
+                    connect_timeout: Some(10),
+                    request_timeout: Some(20),
+                    security_policy: String::from("None"),
+                    security_mode: String::from("None"),
+                    certificate: None,
+                    private_key: None,
+                    auth_method: AuthMethod::Anonymous,
+                    username: None,
+                    password: None,
+                }),
+                da: Some(DaConnectConfig {
+                    server: String::from("server.server"),
+                    nodes: vec![String::from("localhost")],
+                }),
+            },
+            collect: CollectConfig {
+                interval: Some(10),
+                limit: Some(10),
+                ua: Some(UaCollectConfig {
+                    collect_mode: "observe"
+                        .to_string()
+                        .parse::<CollectMode>()
+                        .map_err(|err| OpcError::ParseError("collect_mode", err))?,
+                    nodes: vec![UANodeConfig {
+                        id: String::from("1"),
+                        // value_type: String::from("DOUBLE"),
+                    }],
+                }),
+                da: Some(DaCollectConfig {
+                    tags: vec![DaNodeConfig {
+                        tag: String::from("123"),
+                        // value_type: String::from("VARCHAR"),
+                    }],
+                }),
+                dump: Some(DumpConfig {
+                    enable: true,
+                    path: Some("/usr/loacl/taosx/".to_string()),
+                    keep: Some(10 as usize),
+                }),
+            },
+            report: ReportConfig {
+                remote: String::from("remote.remote"),
+                concurrent: Some(10),
+                batch_size: None,
+                batch_timeout: Some(100),
+            },
+            param_mapping: map,
+            // table_info: HashMap::new(),
+            opc_table_config: Some(opc_table_config),
+        };
+        let toml = toml::to_string(&config)?;
+        assert_eq!(
+            r#"opc_type = "opcua"
 debug = true
 
 [connect.ua]
@@ -1589,58 +1614,60 @@ remote = "remote.remote"
 concurrent = 10
 batch_timeout = 100
 "#,
-        toml
-    );
-    Ok(())
-}
-#[tokio::test]
-async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> {
-    use taos::IntoDsn;
-    let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double".into_dsn()?;
-    let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
-        .map_err(|s| OpcError::FileParseFound(s))?;
-    assert_eq!(
-        vec_string,
-        vec![
-            String::from("ns=3;i=1004::ntb1::c0::double"),
-            String::from("ns=3;i=1008::ntb1::c1::double")
-        ]
-    );
-    let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double,@/Users/zmlgirl/Downloads/test_opc.csv".into_dsn()?;
-    let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
-        .map_err(|s| OpcError::FileParseFound(s))?;
-    assert_eq!(
-        vec_string,
-        vec![
-            String::from("ns=3;i=1004::ntb1::c0::double"),
-            String::from("ns=3;i=1008::ntb1::c1::double"),
-            String::from("ns=2;i=2::ntb2::c1::double"),
-            String::from("ns=2;i=3::ntb3::c2::int")
-        ]
-    );
-    Ok(())
-}
+            toml
+        );
+        Ok(())
+    }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn test_with_agent() -> anyhow::Result<()> {
-    std::env::set_var("RUST_LOG", "debug");
-    pretty_env_logger::init();
-    let opc = "opc+ua://192.168.0.133:53530/OPCUA/SimulationServer?\
+    #[tokio::test]
+    async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> {
+        use taos::IntoDsn;
+        let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double".into_dsn()?;
+        let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
+            .map_err(|s| OpcError::FileParseFound(s))?;
+        assert_eq!(
+            vec_string,
+            vec![
+                String::from("ns=3;i=1004::ntb1::c0::double"),
+                String::from("ns=3;i=1008::ntb1::c1::double"),
+            ]
+        );
+        let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double,@/Users/zmlgirl/Downloads/test_opc.csv".into_dsn()?;
+        let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
+            .map_err(|s| OpcError::FileParseFound(s))?;
+        assert_eq!(
+            vec_string,
+            vec![
+                String::from("ns=3;i=1004::ntb1::c0::double"),
+                String::from("ns=3;i=1008::ntb1::c1::double"),
+                String::from("ns=2;i=2::ntb2::c1::double"),
+                String::from("ns=2;i=3::ntb3::c2::int"),
+            ]
+        );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_with_agent() -> anyhow::Result<()> {
+        std::env::set_var("RUST_LOG", "debug");
+        pretty_env_logger::init();
+        let opc = "opc+ua://192.168.0.133:53530/OPCUA/SimulationServer?\
     ua.nodes=ns=10;i=1004::t1::c1::double&connect_timeout=5&request_timeout=5&\
     concurrent=1&batch_size=5&batch_timeout=5&debug=true";
-    let target = "taos:///opcua";
-    let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
-    opc_to_taos(
-        opc.parse().unwrap(),
-        vec![],
-        target.parse().unwrap(),
-        1,
-        &PortPool::default(),
-        CancellationToken::new(),
-        Some((2, "http://127.0.0.1:6051".into(), "".into())),
-        None,
-        span.clone(),
-    )
-    .await?;
-    Ok(())
+        let target = "taos:///opcua";
+        let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
+        opc_to_taos(
+            opc.parse().unwrap(),
+            vec![],
+            target.parse().unwrap(),
+            1,
+            &PortPool::default(),
+            CancellationToken::new(),
+            Some((2, "http://127.0.0.1:6051".into(), "".into())),
+            None,
+            span.clone(),
+        )
+        .await?;
+        Ok(())
+    }
 }

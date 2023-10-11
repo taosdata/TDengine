@@ -10,11 +10,11 @@ use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
-use crate::{Action, build_ipc, Parser, Transferred};
 use crate::plugins::runners::historian::arrow::ArrowDataAppender;
 use crate::plugins::runners::historian::config::SourceConfig;
 use crate::utils::port_pool::PortPool;
 use crate::validation::DataSourceValidation;
+use crate::{build_ipc, Action, Parser, Transferred};
 
 mod arrow;
 mod config;
@@ -23,37 +23,42 @@ mod tag;
 pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let config = SourceConfig::from_dsn(dsn);
     match config {
-        Err(err) => {
-            DataSourceValidation {
-                valid: false,
-                support: false,
-                data_source: "historian".to_string(),
-                version: None,
-                message: Some(format!("invalid dsn: {}, cause: {}", dsn.to_string(), err.to_string())),
-            }
-        }
+        Err(err) => DataSourceValidation {
+            valid: false,
+            support: false,
+            data_source: "historian".to_string(),
+            version: None,
+            message: Some(format!(
+                "invalid dsn: {}, cause: {}",
+                dsn.to_string(),
+                err.to_string()
+            )),
+        },
         Ok(c) => {
-            let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
             let client = rt.block_on(connect(&c.host, c.port, &c.username, &c.password));
             match client {
-                Err(err) => {
-                    DataSourceValidation {
-                        valid: false,
-                        support: false,
-                        data_source: "historian".to_string(),
-                        version: None,
-                        message: Some(format!("failed to connect to dsn: {}, cause: {}", dsn, err.to_string())),
-                    }
-                }
-                Ok(_cli) => {
-                    DataSourceValidation {
-                        valid: true,
-                        support: true,
-                        data_source: "historian".to_string(),
-                        version: None,
-                        message: None,
-                    }
-                }
+                Err(err) => DataSourceValidation {
+                    valid: false,
+                    support: false,
+                    data_source: "historian".to_string(),
+                    version: None,
+                    message: Some(format!(
+                        "failed to connect to dsn: {}, cause: {}",
+                        dsn,
+                        err.to_string()
+                    )),
+                },
+                Ok(_cli) => DataSourceValidation {
+                    valid: true,
+                    support: true,
+                    data_source: "historian".to_string(),
+                    version: None,
+                    message: None,
+                },
             }
         }
     }
@@ -87,7 +92,7 @@ pub async fn historian_to_taos(
         transferred,
         span,
     )
-        .await?;
+    .await?;
 
     let port_pool = port_pool.clone();
 
@@ -216,11 +221,24 @@ async fn historian_worker(from: Dsn, port: u16) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn connect_by_config(source_config: &SourceConfig) -> anyhow::Result<Client<Compat<TcpStream>>> {
-    connect(&source_config.host, source_config.port, &source_config.username, &source_config.password).await
+async fn connect_by_config(
+    source_config: &SourceConfig,
+) -> anyhow::Result<Client<Compat<TcpStream>>> {
+    connect(
+        &source_config.host,
+        source_config.port,
+        &source_config.username,
+        &source_config.password,
+    )
+    .await
 }
 
-async fn connect(host: &String, port: u16, username: &String, password: &String) -> anyhow::Result<Client<Compat<TcpStream>>> {
+async fn connect(
+    host: &String,
+    port: u16,
+    username: &String,
+    password: &String,
+) -> anyhow::Result<Client<Compat<TcpStream>>> {
     let mut config = Config::new();
     config.host(host);
     config.port(port);
@@ -253,7 +271,10 @@ mod tests {
         assert_eq!(false, res.valid);
         assert_eq!(false, res.support);
         assert_eq!("historian", res.data_source);
-        assert_eq!("invalid dsn: historian://localhost, cause: username is required", res.message.unwrap());
+        assert_eq!(
+            "invalid dsn: historian://localhost, cause: username is required",
+            res.message.unwrap()
+        );
 
         let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@127.0.0.1").unwrap();
         let res = is_valid(&dsn);
@@ -276,9 +297,13 @@ mod tests {
             1433,
             &"aaAdmin".to_string(),
             &"aaAdmin".to_string(),
-        ).await;
+        )
+        .await;
         assert!(client.is_err());
-        assert_eq!("Connection refused (os error 61)", client.unwrap_err().to_string());
+        assert_eq!(
+            "Connection refused (os error 61)",
+            client.unwrap_err().to_string()
+        );
     }
 
     #[tokio::test]
@@ -309,7 +334,8 @@ mod tests {
             None,
             None,
             Span::current(),
-        ).await;
+        )
+        .await;
 
         assert!(res.is_ok());
     }

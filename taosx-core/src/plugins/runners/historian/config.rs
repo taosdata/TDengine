@@ -109,7 +109,7 @@ mod tests {
         &endDateTime=2023-08-30T08:01:02.52+08:00\
         &retrieveMode=full",
         )
-            .unwrap();
+        .unwrap();
         let config = SourceConfig::from_dsn(&dsn).unwrap();
         assert_eq!(config.username, "taosdata");
         assert_eq!(config.password, "taosdata");

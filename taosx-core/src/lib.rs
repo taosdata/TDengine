@@ -1,6 +1,6 @@
 use std::sync::{
-    Arc,
     atomic::{AtomicU32, AtomicU64},
+    Arc,
 };
 
 use anyhow::Context;
@@ -8,9 +8,9 @@ use chrono::{NaiveDate, Utc};
 use dashmap::DashMap;
 use serde::Deserialize;
 use serde_with::serde_as;
-use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use taos::sync::Queryable;
 use taos::taos_query::tmq::Assignment;
+use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
@@ -108,76 +108,6 @@ impl Drop for TaskOpts {
     fn drop(&mut self) {
         if !self.cancel.is_cancelled() {
             self.cancel.cancel();
-        }
-    }
-}
-
-pub fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
-    let dsn = dsn.into_dsn();
-    match dsn {
-        Err(err) => {
-            DataSourceValidation::invalid("unknown".to_string(), format!("DSN error: {err:#}"))
-        }
-        Ok(d) => {
-            match d.driver.as_str() {
-                // TODO: clickhouse
-                "historian" => runners::historian::is_valid(&d),
-                // TODO: influxdb
-                "kafka" => runners::kafka::is_valid(&d),
-                // TODO: mqtt
-                // TODO: opc da
-                // TODO: opc ua
-                // TODO: opentsdb
-                // TODO: pi
-                // TODO: pi backfill
-                "taos" | "tmq" => {
-                    futures::executor::block_on(is_valid(&d))
-                }
-                &_ => DataSourceValidation::unknown()
-            }
-        }
-    }
-}
-
-pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
-    let builder = TaosBuilder::from_dsn(dsn);
-    match builder {
-        Err(err) => {
-            DataSourceValidation::invalid(
-                "taos".to_string(),
-                format!("invalid dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
-            )
-        }
-        Ok(b) => {
-            let conn = b.build().await;
-            match conn {
-                Err(err) => {
-                    DataSourceValidation::invalid(
-                        "taos".to_string(),
-                        format!("failed to connect to dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
-                    )
-                }
-                Ok(c) => {
-                    let version = c.server_version();
-                    match version {
-                        Err(err) => {
-                            DataSourceValidation::invalid(
-                                "taos".to_string(),
-                                format!("failed to get server version from dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
-                            )
-                        }
-                        Ok(v) => {
-                            DataSourceValidation {
-                                valid: true,
-                                support: true,
-                                data_source: "taos".to_string(),
-                                version: Some(v.to_string()),
-                                message: None,
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 }
@@ -331,7 +261,7 @@ impl TaskOpts {
                     query_to_parquet(from.clone(), to.clone(), *force).await?;
                 }
                 ("pi" | "pibackfill", "taos") => {
-                    plugins::pi_to_taos(
+                    pi_to_taos(
                         from.clone(),
                         transform.clone(),
                         to.clone(),
@@ -345,7 +275,7 @@ impl TaskOpts {
                     .await?;
                 }
                 ("opc" | "opcda" | "opcua", "taos") => {
-                    plugins::opc_to_taos(
+                    opc_to_taos(
                         from.clone(),
                         transform.clone(),
                         to.clone(),
@@ -359,7 +289,7 @@ impl TaskOpts {
                     .await?;
                 }
                 ("mqtt", "taos") => {
-                    plugins::mqtt_to_taos(
+                    mqtt_to_taos(
                         from.clone(),
                         parser.clone(),
                         to.clone(),
@@ -373,7 +303,7 @@ impl TaskOpts {
                     .await?;
                 }
                 ("influxdb", "taos") => {
-                    plugins::influxdb_to_taos(
+                    influxdb_to_taos(
                         from.clone(),
                         transform.clone(),
                         to.clone(),
@@ -387,7 +317,7 @@ impl TaskOpts {
                     .await?;
                 }
                 ("opentsdb", "taos") => {
-                    plugins::opentsdb_to_taos(
+                    opentsdb_to_taos(
                         from.clone(),
                         transform.clone(),
                         to.clone(),
@@ -469,6 +399,76 @@ impl TaskOpts {
             (_, _) => {}
         }
         Ok(())
+    }
+}
+
+pub fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
+    let dsn = dsn.into_dsn();
+    match dsn {
+        Err(err) => {
+            DataSourceValidation::invalid("unknown".to_string(), format!("DSN error: {err:#}"))
+        }
+        Ok(d) => {
+            match d.driver.as_str() {
+                // TODO: clickhouse
+                "historian" => runners::historian::is_valid(&d),
+                "influxdb" => runners::influxdb::is_valid(&d),
+                "kafka" => runners::kafka::is_valid(&d),
+                "mqtt" => runners::mqtt::is_valid(&d),
+                "opc" | "opcda" | "opcua" => runners::opc::is_valid(&d),
+                "opentsdb" => runners::opentsdb::is_valid(&d),
+                "pi" | "pibackfill" => runners::pi::is_valid(&d),
+                "taos" | "tmq" => futures::executor::block_on(is_valid(&d)),
+                &_ => DataSourceValidation::unknown(),
+            }
+        }
+    }
+}
+
+pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+    let builder = TaosBuilder::from_dsn(dsn);
+    match builder {
+        Err(err) => DataSourceValidation::invalid(
+            "taos".to_string(),
+            format!(
+                "invalid dsn: {}, cause: {}",
+                dsn.to_string(),
+                err.to_string()
+            ),
+        ),
+        Ok(b) => {
+            let conn = b.build().await;
+            match conn {
+                Err(err) => DataSourceValidation::invalid(
+                    "taos".to_string(),
+                    format!(
+                        "failed to connect to dsn: {}, cause: {}",
+                        dsn.to_string(),
+                        err.to_string()
+                    ),
+                ),
+                Ok(c) => {
+                    let version = c.server_version();
+                    match version {
+                        Err(err) => DataSourceValidation::invalid(
+                            "taos".to_string(),
+                            format!(
+                                "failed to get server version from dsn: {}, cause: {}",
+                                dsn.to_string(),
+                                err.to_string()
+                            ),
+                        ),
+                        Ok(v) => DataSourceValidation {
+                            valid: true,
+                            support: true,
+                            data_source: "taos".to_string(),
+                            version: Some(v.to_string()),
+                            message: None,
+                        },
+                    }
+                }
+            }
+        }
     }
 }
 
