@@ -524,9 +524,9 @@ export default {
     finish: 'Finish',
     uploadcsv:'Upload CSV',
     allpoints:'All Points',
-    downloadtpl:'Download Template',
+    downloadtpl:'Template',
     downloadtpltip:'Download the csv template file ',
-    downloadnodes:'Download the List of Nodes',
+    downloadnodes:'The List of Nodes',
     downloadnodestip:'Download the list of all points in OPC',
     csvinuse:'CSV file in Use',
     csvinusetip:'Download the current configuration file in use',
@@ -818,42 +818,7 @@ export default {
     topicPlaceholder: 'The Topic must be an existing Topic in Kafka.',
     timeoutPlaceholder: 'kafka ack_timeout. Default value 1s. The message requires an ack. The ack level is 1.',
   },
-  dataout: {
-    dump: {
-      desc: "创建可序列化的数据备份。",
-      step1: "简介",
-      step1desc: "taosdump 是一个支持从运行中的 TDengine 集群备份数据并将备份的数据恢复到相同或另一个运行中的 TDengine 集群中的工具应用程序。",
-      step1desc1:
-        "taosdump 可以用数据库、超级表或普通表作为逻辑数据单元进行备份，也可以对数据库、超级表和普通表中指定时间段内的数据记录进行备份。使用时可以指定数据备份的目录路径，如果不指定位置，taosdump 默认会将数据备份到当前目录。",
-      step1desc2: "使用时可以指定数据备份的目录路径，如果不指定位置，taosdump 默认会将数据备份到当前目录。",
-      step1desc3:
-        "如果指定的位置已经有数据文件，taosdump 会提示用户并立即退出，避免数据被覆盖。这意味着同一路径只能被用于一次备份。如果看到相关提示，请小心操作。",
-      step1desc4: "taosdump 是一个逻辑备份工具，它不应被用于备份任何原始数据、环境设置、硬件信息、服务端配置或集群的拓扑结构。taosdump 使用",
-      step1desc5: "作为数据文件格式来存储备份数据。",
-      step2: "安装",
-      step2desc: "使用 taosdump，您需要下载并安装 ",
-      step2desc1: "。注意，在安装 taosTools 之前，请首先下载和安装 ",
-      step2desc2: "解压下载的包并安装。",
-      step2desc3: "设置环境变量",
-      step3: "常用使用场景",
-      step31: "taosdump 备份数据",
-      step31desc: "备份所有数据库：指定 `-A` 或 `--all-databases` 参数；",
-      step31desc1: "备份多个指定数据库：使用 `-D db1,db2,...` 参数；",
-      step31desc2:
-        "备份指定数据库中的某些超级表或普通表：使用 `dbname stbname1 stbname2 tbname1 tbname2 ...` 参数，注意这种输入序列第一个参数为数据库名称，且只支持一个数据库，第二个和之后的参数为该数据库中的超级表或普通表名称，中间以空格分隔；",
-      step31desc3:
-        "备份系统 log 库：TDengine 集群通常会包含一个系统数据库，名为 `log`，这个数据库内的数据为 TDengine 自我运行的数据，taosdump 默认不会对 log 库进行备份。如果有特定需求对 log 库进行备份，可以使用 `-a` 或 `--allow-sys` 命令行参数。",
-      step31desc4:
-        "“宽容”模式备份：taosdump 1.4.1 之后的版本提供 `-n` 参数和 `-L` 参数，用于备份数据时不使用转义字符和“宽容”模式，可以在表名、列名、标签名没使用转义字符的情况下减少备份数据时间和备份数据占用空间。如果不确定符合使用 `-n` 和 `-L` 条件时请使用默认参数进行“严格”模式进行备份。转义字符的说明请参考",
-      step31desc5: "官方文档",
-      step31desc6: "。",
-      step32: "taosdump 恢复数据",
-      step32desc:
-        "恢复指定路径下的数据文件：使用 `-i` 参数加上数据文件所在路径。如前面提及，不应该使用同一个目录备份不同数据集合，也不应该在同一路径多次备份同一数据集，否则备份数据会造成覆盖或多次备份。",
-      step4: "详细命令行参数列表",
-      step4desc: "以下为 taosdump 详细命令行参数列表：",
-    },
-  },
+ 
   auth: {},
   register: {
     beforeUse: "Before using TDengine  service, please fill out the form below:",
@@ -1327,7 +1292,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
       9: 'Failed',
       10: 'Checking',
       11: `Please check the agent logs with:`,
-      12: 'and check if you fix the issue. If you can not, please report it to the TDengine Cloud team.'
+      12: 'and check if can you fix the issue by yourself. If you can not, please report it to the TDengine team. If you can not, please report it to the TDengine Cloud team.'
       // 7: `If the agent token is wrong, the service will exit directly, you can check the logs with: `,
       // 8: `Refresh agent status in explorer to check if the agent is connected correctly. The status of an agent will be "Idle" when it has been connected.`
     },

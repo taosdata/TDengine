@@ -35,6 +35,9 @@ export default {
     },
   },
   computed: {},
+  mounted(){
+    console.log(this.docsList,'tools---pppsss');
+  },
   methods: {
     getUrl(name) {
       return this.parentUrl + this.urlPre + encodeURIComponent(name);

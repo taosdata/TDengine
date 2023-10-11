@@ -117,9 +117,10 @@ export default {
             },
             dataZoom: [
               {
-                type: 'inside',
-                start: 0,
-                end: 20
+                type: 'inside'
+              },
+              {
+                type: 'slider'
               }
             ],
             xAxis: {
