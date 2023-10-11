@@ -65,36 +65,52 @@ impl SourceConfig {
     }
 
     fn parse_use_ssl(dsn: &Dsn) -> anyhow::Result<bool> {
-        dsn.params.get("use_ssl")
+        dsn.params
+            .get("use_ssl")
             .unwrap_or(&"false".to_string())
             .parse()
             .map_err(|e| {
-                anyhow::anyhow!("invalid use_ssl: {}, cause: {}", dsn.params.get("use_ssl").unwrap(), e)
+                anyhow::anyhow!(
+                    "invalid use_ssl: {}, cause: {}",
+                    dsn.params.get("use_ssl").unwrap(),
+                    e
+                )
             })
     }
 
     fn parse_certification(dsn: &Dsn) -> anyhow::Result<(Option<PathBuf>, Option<PathBuf>)> {
         let cert = dsn.params.get("cert").map(|s| Path::new(s).to_path_buf());
-        let cert_key = dsn.params.get("cert_key").map(|s| Path::new(s).to_path_buf());
+        let cert_key = dsn
+            .params
+            .get("cert_key")
+            .map(|s| Path::new(s).to_path_buf());
 
         if cert.is_none() || !cert.clone().unwrap().exists() {
-            return Err(anyhow::anyhow!("Kafka source CA config read error, cause: cert file not found"));
+            return Err(anyhow::anyhow!(
+                "Kafka source CA config read error, cause: cert file not found"
+            ));
         }
         if cert_key.is_none() || !cert_key.clone().unwrap().exists() {
-            return Err(anyhow::anyhow!("Kafka source CA config read error, cause: cert_key file not found"));
+            return Err(anyhow::anyhow!(
+                "Kafka source CA config read error, cause: cert_key file not found"
+            ));
         }
 
         Ok((cert, cert_key))
     }
 
     fn parse_group(dsn: &Dsn) -> String {
-        dsn.params.get("group").unwrap_or(&"".to_string()).to_string()
+        dsn.params
+            .get("group")
+            .unwrap_or(&"".to_string())
+            .to_string()
     }
 
     fn parse_topics(dsn: &Dsn) -> Option<Vec<String>> {
-        let topics = dsn.params.get("topics").map(|s| {
-            s.split(",").map(|s| s.to_string()).collect::<Vec<String>>()
-        });
+        let topics = dsn
+            .params
+            .get("topics")
+            .map(|s| s.split(",").map(|s| s.to_string()).collect::<Vec<String>>());
         topics
     }
 
@@ -119,10 +135,16 @@ impl SourceConfig {
                         return Err(anyhow::anyhow!("invalid partition range: {}", partition));
                     }
                     let partitions = (start..=end).collect::<Vec<i32>>();
-                    topic_map.entry(topic.to_string()).or_insert(vec![]).extend(partitions);
+                    topic_map
+                        .entry(topic.to_string())
+                        .or_insert(vec![])
+                        .extend(partitions);
                 } else {
                     let partition = partition.parse::<i32>()?;
-                    topic_map.entry(topic.to_string()).or_insert(vec![]).push(partition);
+                    topic_map
+                        .entry(topic.to_string())
+                        .or_insert(vec![])
+                        .push(partition);
                 }
             } else {
                 let topic = tp;
@@ -139,14 +161,19 @@ impl SourceConfig {
         match fallback_offset {
             Some("Earliest") | None => Ok(FetchOffset::Earliest),
             Some("Latest") => Ok(FetchOffset::Latest),
-            Some(s) => s.parse::<i64>()
+            Some(s) => s
+                .parse::<i64>()
                 .map(FetchOffset::ByTime)
                 .map_err(|e| anyhow::anyhow!("invalid fallback_offset: {}, cause: {}", s, e)),
         }
     }
 
     pub fn parse_timeout(dsn: &Dsn) -> anyhow::Result<i64> {
-        let timeout = dsn.params.get("timeout").map(String::as_str).unwrap_or("500ms");
+        let timeout = dsn
+            .params
+            .get("timeout")
+            .map(String::as_str)
+            .unwrap_or("500ms");
         if timeout.eq("never") {
             return Ok(-1);
         }
@@ -154,7 +181,11 @@ impl SourceConfig {
         let result = parse_duration::parse(timeout);
         return match result {
             Ok(d) => Ok(d.as_millis() as i64),
-            Err(e) => Err(anyhow::anyhow!("invalid timeout: {}, cause: {}", timeout, e))
+            Err(e) => Err(anyhow::anyhow!(
+                "invalid timeout: {}, cause: {}",
+                timeout,
+                e
+            )),
         };
     }
 }
@@ -190,13 +221,18 @@ mod tests {
         let dsn = Dsn::from_str("kafka://?use_ssl=invalid").unwrap();
         let result = SourceConfig::parse_use_ssl(&dsn);
         assert!(result.is_err());
-        assert_eq!("invalid use_ssl: invalid, cause: provided string was not `true` or `false`", result.unwrap_err().to_string());
+        assert_eq!(
+            "invalid use_ssl: invalid, cause: provided string was not `true` or `false`",
+            result.unwrap_err().to_string()
+        );
     }
 
     #[test]
     fn test_parse_certification() {
         dbg!(std::env::current_dir().unwrap());
-        let dsn = Dsn::from_str("kafka://?cert=../tests/kafka/ca.pem&cert_key=../tests/kafka/ca.key").unwrap();
+        let dsn =
+            Dsn::from_str("kafka://?cert=../tests/kafka/ca.pem&cert_key=../tests/kafka/ca.key")
+                .unwrap();
         let (cert, cert_key) = SourceConfig::parse_certification(&dsn).unwrap();
         assert_eq!(Path::new("../tests/kafka/ca.pem"), cert.unwrap());
         assert_eq!(Path::new("../tests/kafka/ca.key"), cert_key.unwrap());
@@ -204,12 +240,18 @@ mod tests {
         let dsn = Dsn::from_str("kafka://").unwrap();
         let result = SourceConfig::parse_certification(&dsn);
         assert!(result.is_err());
-        assert_eq!("Kafka source CA config read error, cause: cert file not found", result.unwrap_err().to_string());
+        assert_eq!(
+            "Kafka source CA config read error, cause: cert file not found",
+            result.unwrap_err().to_string()
+        );
 
         let dsn = Dsn::from_str("kafka://?cert=../tests/kafka/ca.pem").unwrap();
         let result = SourceConfig::parse_certification(&dsn);
         assert!(result.is_err());
-        assert_eq!("Kafka source CA config read error, cause: cert_key file not found", result.unwrap_err().to_string());
+        assert_eq!(
+            "Kafka source CA config read error, cause: cert_key file not found",
+            result.unwrap_err().to_string()
+        );
     }
 
     #[test]
@@ -269,7 +311,10 @@ mod tests {
         let dsn = Dsn::from_str("kafka://:?topic_partitions=tp7:5..2").unwrap();
         let topic_partitions = SourceConfig::parse_topic_partitions(&dsn);
         assert!(topic_partitions.is_err());
-        assert_eq!("invalid partition range: 5..2", topic_partitions.unwrap_err().to_string());
+        assert_eq!(
+            "invalid partition range: 5..2",
+            topic_partitions.unwrap_err().to_string()
+        );
     }
 
     #[test]
@@ -293,7 +338,10 @@ mod tests {
         let dsn = Dsn::from_str("kafka://:?fallback_offset=invalid").unwrap();
         let result = SourceConfig::parse_fallback_offset(&dsn);
         assert!(result.is_err());
-        assert_eq!("invalid fallback_offset: invalid, cause: invalid digit found in string", result.unwrap_err().to_string());
+        assert_eq!(
+            "invalid fallback_offset: invalid, cause: invalid digit found in string",
+            result.unwrap_err().to_string()
+        );
     }
 
     #[test]

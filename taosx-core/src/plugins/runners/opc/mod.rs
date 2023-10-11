@@ -411,7 +411,7 @@ impl OPCConfig {
                     res.1
                 } else {
                     get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
-                    .map_err(|s| OpcError::FileParseFound(s))?
+                        .map_err(|s| OpcError::FileParseFound(s))?
                 };
                 let mut ua_node_config_vec = Vec::new();
                 for i in 0..node_vec.len() {
@@ -629,8 +629,8 @@ pub fn parse_bool_param_from_dsn(dsn: &mut Dsn, key: &str) -> anyhow::Result<Opt
 
 const CSV_CONFIG_COLUMNS: [&str; 4] = ["point_id", "tbname", "type", "stable"];
 
-pub use tokio_stream::StreamExt;
 use crate::validation::DataSourceValidation;
+pub use tokio_stream::StreamExt;
 
 /// return opctableconfig, node_config, tables_to_drop
 pub async fn generate_opcconfig_from_csv(
@@ -895,48 +895,54 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
         lang: None,
     };
     let all_points = opc_datasets(&data).await?;
-    let point_config = all_points.iter().map(|point| {
-        let point_id = point.id.clone();
-        let tbname = if dsn.driver.as_str() == "opcua" {
-            // ns=13;i=1003
-            let mut split = point_id.split(";");
-            let ns = if let Some(ns) = split.next() {
-                if ns.contains("ns=") {
-                    let mut ns_split = ns.split("=");
-                    ns_split.next();
-                    ns_split.next()
+    let point_config = all_points
+        .iter()
+        .map(|point| {
+            let point_id = point.id.clone();
+            let tbname = if dsn.driver.as_str() == "opcua" {
+                // ns=13;i=1003
+                let mut split = point_id.split(";");
+                let ns = if let Some(ns) = split.next() {
+                    if ns.contains("ns=") {
+                        let mut ns_split = ns.split("=");
+                        ns_split.next();
+                        ns_split.next()
+                    } else {
+                        None
+                    }
                 } else {
                     None
-                }
-            } else {
-                None
-            };
-            let id = if let Some(id) = split.next() {
-                if id.contains("i=") {
-                    let mut id_split = id.split("=");
-                    id_split.next();
-                    id_split.next()
+                };
+                let id = if let Some(id) = split.next() {
+                    if id.contains("i=") {
+                        let mut id_split = id.split("=");
+                        id_split.next();
+                        id_split.next()
+                    } else {
+                        None
+                    }
                 } else {
                     None
-                }
+                };
+                child_table_expression
+                    .clone()
+                    .replace("{ns}", ns.unwrap_or(""))
+                    .replace("{id}", id.unwrap_or(""))
             } else {
-                None
+                let tag_index = point_id.rfind(".");
+                let tag_name = if let Some(index) = tag_index {
+                    // should be Device.DeviceType.TagName pattern
+                    &point_id[index + 1..]
+                } else {
+                    &point_id
+                };
+                child_table_expression
+                    .clone()
+                    .replace("{TagName}", tag_name)
             };
-            child_table_expression.clone()
-                .replace("{ns}", ns.unwrap_or(""))
-                .replace("{id}", id.unwrap_or(""))
-        } else {
-            let tag_index = point_id.rfind(".");
-            let tag_name = if let Some(index) = tag_index {
-                // should be Device.DeviceType.TagName pattern
-                &point_id[index+1..]
-            } else {
-                &point_id
-            };
-            child_table_expression.clone().replace("{TagName}", tag_name)
-        };
-        format!("{}::{}", point_id, tbname)
-    }).join(",");
+            format!("{}::{}", point_id, tbname)
+        })
+        .join(",");
     if dsn.driver.as_str() == "opcua" {
         dsn.set("ua.nodes", point_config);
     } else {
@@ -988,7 +994,10 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
             tag_configs: None,
         }
     };
-    dsn.set("opc_table_config", serde_json::to_string(&opc_table_config)?);
+    dsn.set(
+        "opc_table_config",
+        serde_json::to_string(&opc_table_config)?,
+    );
     Ok(())
 }
 
@@ -1140,7 +1149,9 @@ pub async fn opc_to_taos(
     let builder: TaosBuilder = TaosBuilder::from_dsn(&to)?;
     let taos = builder.build().await?;
 
-    let select_all_points = parse_bool_param_from_dsn(&mut from, "select_all_points").map_err(|err| OpcError::ConfigError("select_all_points", err.to_string()))?.unwrap_or(false);
+    let select_all_points = parse_bool_param_from_dsn(&mut from, "select_all_points")
+        .map_err(|err| OpcError::ConfigError("select_all_points", err.to_string()))?
+        .unwrap_or(false);
     if select_all_points {
         handle_select_all_points(&mut from).await?;
     }
@@ -1333,7 +1344,8 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         regex: req.pattern.clone(),
     };
     config.points = Some(points_config);
-    let toml = toml::to_string(&config).with_context(|| format!("toml to_string error encountered"))?;
+    let toml =
+        toml::to_string(&config).with_context(|| format!("toml to_string error encountered"))?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
@@ -1449,14 +1461,14 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     }
 }
 
-pub fn is_valid(dsn: &Dsn) -> DataSourceValidation{
+pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     DataSourceValidation::unknown()
 }
 
 #[cfg(test)]
-mod tests{
-    use std::collections::HashMap;
+mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     #[tokio::test]
     async fn test_opc_config_to_toml() -> anyhow::Result<()> {
@@ -1655,7 +1667,7 @@ batch_timeout = 100
             None,
             span.clone(),
         )
-            .await?;
+        .await?;
         Ok(())
     }
 }

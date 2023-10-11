@@ -63,6 +63,9 @@ mod tests {
         };
         let json = serde_json::to_string(&dsv).unwrap();
         print!("{}", json);
-        assert_eq!(r#"{"valid":false,"support":true,"data_source":"kafka"}"#, json);
+        assert_eq!(
+            r#"{"valid":false,"support":true,"data_source":"kafka"}"#,
+            json
+        );
     }
 }

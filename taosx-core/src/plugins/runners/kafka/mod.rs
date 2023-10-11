@@ -4,7 +4,9 @@ use std::thread;
 use std::time::Duration;
 
 use anyhow::Context;
-use arrow::array::{BinaryBuilder, Int32Builder, Int64Builder, StringBuilder, TimestampNanosecondBuilder};
+use arrow::array::{
+    BinaryBuilder, Int32Builder, Int64Builder, StringBuilder, TimestampNanosecondBuilder,
+};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow::ipc::writer::StreamWriter;
 use arrow::record_batch::RecordBatch;
@@ -17,48 +19,42 @@ use tracing::Span;
 
 use taosx_ipc::prelude::ArrowDataType;
 
-use crate::{Action, build_ipc, Parser, Transferred};
 use crate::plugins::runners::kafka::config::SourceConfig;
 use crate::plugins::validation::DataSourceValidation;
 use crate::utils::port_pool::PortPool;
+use crate::{build_ipc, Action, Parser, Transferred};
 
 mod config;
 
 pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let config = SourceConfig::from_dsn(dsn);
     match config {
-        Err(err) => {
-            DataSourceValidation {
-                valid: false,
-                support: true,
-                data_source: "kafka".to_string(),
-                version: None,
-                message: Some(err.to_string()),
-            }
-        }
+        Err(err) => DataSourceValidation {
+            valid: false,
+            support: true,
+            data_source: "kafka".to_string(),
+            version: None,
+            message: Some(err.to_string()),
+        },
         Ok(c) => {
             let mut client = KafkaClient::new(c.bootstrap_servers);
             let result = client.load_metadata_all();
             match result {
-                Ok(()) => {
-                    DataSourceValidation {
-                        valid: true,
-                        support: true,
-                        data_source: "kafka".to_string(),
-                        version: None,
-                        message: None,
-                    }
-                }
+                Ok(()) => DataSourceValidation {
+                    valid: true,
+                    support: true,
+                    data_source: "kafka".to_string(),
+                    version: None,
+                    message: None,
+                },
                 //
-                Err(err) => {
-                    DataSourceValidation {
-                        valid: false,
-                        support: true,
-                        data_source: "kafka".to_string(),
-                        version: None,
-                        message: Some(err.to_string()),
-                    }
-                }
+                Err(err) => DataSourceValidation {
+                    valid: false,
+                    support: true,
+                    data_source: "kafka".to_string(),
+                    version: None,
+                    message: Some(err.to_string()),
+                },
             }
         }
     }
@@ -97,7 +93,7 @@ pub async fn kafka_to_taos(
         transferred,
         span,
     )
-        .await?;
+    .await?;
 
     let worker = tokio::task::spawn_blocking(move || kafka_worker(from, port));
     let abort_handle = worker.abort_handle();
@@ -288,14 +284,19 @@ fn build_client(config: &SourceConfig) -> anyhow::Result<KafkaClient> {
     if config.use_ssl {
         let mut ssl_builder = SslConnector::builder(SslMethod::tls())?;
         ssl_builder.set_cipher_list("DEFAULT")?;
-        ssl_builder.set_certificate_file(config.cert.clone().unwrap().as_path(), SslFiletype::PEM)?;
-        ssl_builder.set_private_key_file(config.cert_key.clone().unwrap().as_path(), SslFiletype::PEM)?;
+        ssl_builder
+            .set_certificate_file(config.cert.clone().unwrap().as_path(), SslFiletype::PEM)?;
+        ssl_builder
+            .set_private_key_file(config.cert_key.clone().unwrap().as_path(), SslFiletype::PEM)?;
         ssl_builder.check_private_key()?;
         ssl_builder.set_default_verify_paths()?;
         ssl_builder.set_verify(SslVerifyMode::PEER);
         let connector = ssl_builder.build();
 
-        client = KafkaClient::new_secure(config.bootstrap_servers.clone(), SecurityConfig::new(connector));
+        client = KafkaClient::new_secure(
+            config.bootstrap_servers.clone(),
+            SecurityConfig::new(connector),
+        );
     } else {
         client = KafkaClient::new(config.bootstrap_servers.clone());
     }

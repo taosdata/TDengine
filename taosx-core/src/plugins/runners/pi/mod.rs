@@ -19,13 +19,13 @@ use tokio_util::sync::CancellationToken;
 use toml::value::Datetime;
 use tracing::{instrument, Span};
 
+use crate::validation::DataSourceValidation;
 use crate::{
     build_ipc, get_log_keep_days,
     plugins::service::spawn_rest_service,
     utils::{port_pool::PortPool, stop_thread},
     Action, DataSet, DataSetsReq, Transferred,
 };
-use crate::validation::DataSourceValidation;
 
 #[derive(Debug, serde::Serialize)]
 struct PiConfig {
@@ -1012,27 +1012,31 @@ fn extend_data_set(
     }
 }
 
-pub fn is_valid(dsn: &Dsn) -> DataSourceValidation{
+pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     DataSourceValidation::unknown()
 }
 
 #[cfg(test)]
 mod tests {
-    use taos::Dsn;
     use super::*;
+    use taos::Dsn;
     #[tokio::test]
     async fn test_config() {
         dbg!(std::env::current_dir().unwrap());
         let dsn: Dsn = "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=@../tests/pi/Points.csv&template_for_af_element_file=@../tests/pi/ElementTemplates2.csv"
             .parse()
             .unwrap();
-        let config = PiConfig::new(dsn, "taos".to_string(), 0, 0, false).await.unwrap();
+        let config = PiConfig::new(dsn, "taos".to_string(), 0, 0, false)
+            .await
+            .unwrap();
         dbg!(&config);
 
         let dsn: Dsn = "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=app\napp\napp"
             .parse()
             .unwrap();
-        let config2 = PiConfig::new(dsn, "taos".to_string(), 0, 0, false).await.unwrap();
+        let config2 = PiConfig::new(dsn, "taos".to_string(), 0, 0, false)
+            .await
+            .unwrap();
         dbg!(&config2);
     }
 }

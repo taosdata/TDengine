@@ -17,8 +17,8 @@ use crate::{
 };
 
 use super::get_plugin_dir;
-use std::error::Error;
 use crate::validation::DataSourceValidation;
+use std::error::Error;
 
 #[derive(Debug, serde::Serialize)]
 struct OpentsdbConfig {
@@ -78,7 +78,7 @@ struct PerformanceConfig {
     #[serde(rename = "queueSizeD")]
     performance_queue_size_data: u32,
     #[serde(rename = "limitSpeed")]
-    performance_limit_speed: u32
+    performance_limit_speed: u32,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -128,12 +128,36 @@ impl OpentsdbConfig {
         let task_end_ime = dsn.remove("endTime");
 
         // the performance config
-        let performance_read_window = dsn.remove("readWindow").unwrap_or(String::from("2")).parse::<u32>().unwrap_or(2);
-        let performance_delay = dsn.remove("delay").unwrap_or(String::from("10000")).parse::<u32>().unwrap_or(10000);
-        let performance_max_thread = dsn.remove("maxThread").unwrap_or(String::from("50")).parse::<u32>().unwrap_or(50);
-        let performance_queue_size_thread = dsn.remove("queueSizeT").unwrap_or(String::from("1000")).parse::<u32>().unwrap_or(1000);
-        let performance_queue_size_data = dsn.remove("queueSizeD").unwrap_or(String::from("200000")).parse::<u32>().unwrap_or(200000);
-        let performance_limit_speed = dsn.remove("limitSpeed").unwrap_or(String::from("100000")).parse::<u32>().unwrap_or(100000);
+        let performance_read_window = dsn
+            .remove("readWindow")
+            .unwrap_or(String::from("2"))
+            .parse::<u32>()
+            .unwrap_or(2);
+        let performance_delay = dsn
+            .remove("delay")
+            .unwrap_or(String::from("10000"))
+            .parse::<u32>()
+            .unwrap_or(10000);
+        let performance_max_thread = dsn
+            .remove("maxThread")
+            .unwrap_or(String::from("50"))
+            .parse::<u32>()
+            .unwrap_or(50);
+        let performance_queue_size_thread = dsn
+            .remove("queueSizeT")
+            .unwrap_or(String::from("1000"))
+            .parse::<u32>()
+            .unwrap_or(1000);
+        let performance_queue_size_data = dsn
+            .remove("queueSizeD")
+            .unwrap_or(String::from("200000"))
+            .parse::<u32>()
+            .unwrap_or(200000);
+        let performance_limit_speed = dsn
+            .remove("limitSpeed")
+            .unwrap_or(String::from("100000"))
+            .parse::<u32>()
+            .unwrap_or(100000);
 
         // agent监听地址
         let ipc_stream = format!("127.0.0.1:{ipc}");

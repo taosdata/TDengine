@@ -1,11 +1,11 @@
-use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 use std::error::Error;
+use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use file_rotate::{
     compression::Compression,
-    ContentLimit,
-    FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
 };
 use itertools::Itertools;
 use taos::Dsn;
@@ -13,13 +13,11 @@ use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument, Span};
 
-use crate::{
-    Action, build_ipc,
-    DataSet,
-    get_log_keep_days, Transferred, utils::port_pool::PortPool,
-};
-use crate::validation::DataSourceValidation;
 use crate::utils::mask_dsn;
+use crate::validation::DataSourceValidation;
+use crate::{
+    build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
+};
 
 use super::get_plugin_dir;
 
@@ -96,7 +94,7 @@ struct PerformanceConfig {
     #[serde(rename = "queueSizeD")]
     performance_queue_size_data: u32,
     #[serde(rename = "limitSpeed")]
-    performance_limit_speed: u32
+    performance_limit_speed: u32,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -179,12 +177,36 @@ impl InfluxdbConfig {
         let task_end_ime = dsn.remove("endTime");
 
         // the performance config
-        let performance_read_window = dsn.remove("readWindow").unwrap_or(String::from("2")).parse::<u32>().unwrap_or(2);
-        let performance_delay = dsn.remove("delay").unwrap_or(String::from("10000")).parse::<u32>().unwrap_or(10000);
-        let performance_max_thread = dsn.remove("maxThread").unwrap_or(String::from("50")).parse::<u32>().unwrap_or(50);
-        let performance_queue_size_thread = dsn.remove("queueSizeT").unwrap_or(String::from("1000")).parse::<u32>().unwrap_or(1000);
-        let performance_queue_size_data = dsn.remove("queueSizeD").unwrap_or(String::from("200000")).parse::<u32>().unwrap_or(200000);
-        let performance_limit_speed = dsn.remove("limitSpeed").unwrap_or(String::from("100000")).parse::<u32>().unwrap_or(100000);
+        let performance_read_window = dsn
+            .remove("readWindow")
+            .unwrap_or(String::from("2"))
+            .parse::<u32>()
+            .unwrap_or(2);
+        let performance_delay = dsn
+            .remove("delay")
+            .unwrap_or(String::from("10000"))
+            .parse::<u32>()
+            .unwrap_or(10000);
+        let performance_max_thread = dsn
+            .remove("maxThread")
+            .unwrap_or(String::from("50"))
+            .parse::<u32>()
+            .unwrap_or(50);
+        let performance_queue_size_thread = dsn
+            .remove("queueSizeT")
+            .unwrap_or(String::from("1000"))
+            .parse::<u32>()
+            .unwrap_or(1000);
+        let performance_queue_size_data = dsn
+            .remove("queueSizeD")
+            .unwrap_or(String::from("200000"))
+            .parse::<u32>()
+            .unwrap_or(200000);
+        let performance_limit_speed = dsn
+            .remove("limitSpeed")
+            .unwrap_or(String::from("100000"))
+            .parse::<u32>()
+            .unwrap_or(100000);
 
         // agent监听地址
         let ipc_stream = format!("127.0.0.1:{ipc}");
@@ -217,7 +239,7 @@ impl InfluxdbConfig {
             performance_max_thread,
             performance_queue_size_thread,
             performance_queue_size_data,
-            performance_limit_speed
+            performance_limit_speed,
         };
 
         Ok(Self {
@@ -320,7 +342,8 @@ pub async fn influxdb_to_taos(
         with_agent,
         transferred,
         span,
-    ).await?;
+    )
+    .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
     // 连接器路径
     let connector_path = influxdb_jar_path();
@@ -601,6 +624,6 @@ pub async fn influxdb_validate(dsn: Dsn) -> anyhow::Result<DataSourceValidation>
     }
 }
 
-pub fn is_valid(dsn: &Dsn) -> DataSourceValidation{
+pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     DataSourceValidation::unknown()
 }

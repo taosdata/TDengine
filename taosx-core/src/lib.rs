@@ -1,6 +1,6 @@
 use std::sync::{
-    Arc,
     atomic::{AtomicU32, AtomicU64},
+    Arc,
 };
 
 use anyhow::Context;
@@ -8,9 +8,9 @@ use chrono::{NaiveDate, Utc};
 use dashmap::DashMap;
 use serde::Deserialize;
 use serde_with::serde_as;
-use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use taos::sync::Queryable;
 use taos::taos_query::tmq::Assignment;
+use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
@@ -213,7 +213,9 @@ impl TaskOpts {
                         *jobs,
                         cancel.clone(),
                         offsets.clone(),
-                    ).in_current_span().await?;
+                    )
+                    .in_current_span()
+                    .await?;
                 }
                 ("tmq", "local") => {
                     tmq_to_local(
@@ -223,7 +225,8 @@ impl TaskOpts {
                         *force,
                         cancel.clone(),
                         offsets.clone(),
-                    ).await?;
+                    )
+                    .await?;
                 }
                 ("local", "taos") => {
                     local_to_taos(from.clone(), to.clone(), *jobs, *force)
@@ -268,7 +271,8 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                    ).await?;
+                    )
+                    .await?;
                 }
                 ("opc" | "opcda" | "opcua", "taos") => {
                     opc_to_taos(
@@ -281,7 +285,8 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                    ).await?;
+                    )
+                    .await?;
                 }
                 ("mqtt", "taos") => {
                     mqtt_to_taos(
@@ -294,7 +299,8 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                    ).await?;
+                    )
+                    .await?;
                 }
                 ("influxdb", "taos") => {
                     influxdb_to_taos(
@@ -307,7 +313,8 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                    ).await?;
+                    )
+                    .await?;
                 }
                 ("opentsdb", "taos") => {
                     opentsdb_to_taos(
@@ -320,7 +327,8 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                    ).await?;
+                    )
+                    .await?;
                 }
                 ("csv", "taos") => {
                     csv_to_taos(
@@ -332,7 +340,8 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                    ).await?;
+                    )
+                    .await?;
                 }
                 ("tmq", "kafka") => {
                     let mut from = from.clone();
@@ -353,7 +362,8 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                    ).await?;
+                    )
+                    .await?;
                 }
                 ("historian", "taos") => {
                     historian_to_taos(
@@ -367,7 +377,8 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                    ).await?;
+                    )
+                    .await?;
                 }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }
@@ -408,7 +419,7 @@ pub fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
                 "opentsdb" => runners::opentsdb::is_valid(&d),
                 "pi" | "pibackfill" => runners::pi::is_valid(&d),
                 "taos" | "tmq" => futures::executor::block_on(is_valid(&d)),
-                &_ => DataSourceValidation::unknown()
+                &_ => DataSourceValidation::unknown(),
             }
         }
     }
@@ -417,39 +428,43 @@ pub fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let builder = TaosBuilder::from_dsn(dsn);
     match builder {
-        Err(err) => {
-            DataSourceValidation::invalid(
-                "taos".to_string(),
-                format!("invalid dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
-            )
-        }
+        Err(err) => DataSourceValidation::invalid(
+            "taos".to_string(),
+            format!(
+                "invalid dsn: {}, cause: {}",
+                dsn.to_string(),
+                err.to_string()
+            ),
+        ),
         Ok(b) => {
             let conn = b.build().await;
             match conn {
-                Err(err) => {
-                    DataSourceValidation::invalid(
-                        "taos".to_string(),
-                        format!("failed to connect to dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
-                    )
-                }
+                Err(err) => DataSourceValidation::invalid(
+                    "taos".to_string(),
+                    format!(
+                        "failed to connect to dsn: {}, cause: {}",
+                        dsn.to_string(),
+                        err.to_string()
+                    ),
+                ),
                 Ok(c) => {
                     let version = c.server_version();
                     match version {
-                        Err(err) => {
-                            DataSourceValidation::invalid(
-                                "taos".to_string(),
-                                format!("failed to get server version from dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
-                            )
-                        }
-                        Ok(v) => {
-                            DataSourceValidation {
-                                valid: true,
-                                support: true,
-                                data_source: "taos".to_string(),
-                                version: Some(v.to_string()),
-                                message: None,
-                            }
-                        }
+                        Err(err) => DataSourceValidation::invalid(
+                            "taos".to_string(),
+                            format!(
+                                "failed to get server version from dsn: {}, cause: {}",
+                                dsn.to_string(),
+                                err.to_string()
+                            ),
+                        ),
+                        Ok(v) => DataSourceValidation {
+                            valid: true,
+                            support: true,
+                            data_source: "taos".to_string(),
+                            version: Some(v.to_string()),
+                            message: None,
+                        },
                     }
                 }
             }
