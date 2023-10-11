@@ -23,6 +23,7 @@ options:
     required: true
     description: |
       OPC server endpoint, such as `127.0.0.1<,localhost>/Matrikon.OPC.Simulation.1`.
+      If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.
     placeholder: 127.0.0.1/Matrikon.OPC.Simulation.1
 
 strict: false
@@ -35,11 +36,11 @@ datasets:
   - category: csv_config_file
     display: Upload CSV
     description: |
-      Use OPC UA point configuration file.
+      Use OPC DA point configuration file.
     target:
       name: csv_config_file
       description: |
-        OPC UA point configuration list.
+        OPC DA point configuration list.
       required: true
       multiple: true
       editable: true
@@ -48,7 +49,7 @@ datasets:
   - category: select_all_points
     display: All Points
     description: |
-      OPC UA point configuration file.
+      OPC DA point configuration file.
     target:
       name: select_all_points
       description: |
@@ -62,6 +63,7 @@ datasets:
         display: Primary Key
         description: 
         required: true
+        value: original_ts
         hint:
           type: str
           choices:
@@ -69,8 +71,9 @@ datasets:
             - original_ts
       - name: child_table_expression
         display: Table Name
+        value: Meter_{TagName}
         description: |
-          Support <child table prefix>_{ns}_{id} pattern
+          Support <child table prefix>_{TagName} pattern
         hint:
           type: str
         required: true
