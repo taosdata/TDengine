@@ -1119,19 +1119,24 @@ partition_item(A) ::= expr_or_subquery(B) column_alias(C).                      
 partition_item(A) ::= expr_or_subquery(B) AS column_alias(C).                     { A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &C); }
 
 twindow_clause_opt(A) ::= .                                                       { A = NULL; }
-twindow_clause_opt(A) ::=
-  SESSION NK_LP column_reference(B) NK_COMMA duration_literal(C) NK_RP.           { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
+twindow_clause_opt(A) ::= SESSION NK_LP column_reference(B) NK_COMMA
+  interval_sliding_duration_literal(C) NK_RP.                                     { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
 twindow_clause_opt(A) ::= STATE_WINDOW NK_LP expr_or_subquery(B) NK_RP.           { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B)); }
+twindow_clause_opt(A) ::= INTERVAL NK_LP interval_sliding_duration_literal(B)
+  NK_RP sliding_opt(C) fill_opt(D).                                               { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, B), NULL, C, D); }
 twindow_clause_opt(A) ::=
-  INTERVAL NK_LP duration_literal(B) NK_RP sliding_opt(C) fill_opt(D).            { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, B), NULL, C, D); }
-twindow_clause_opt(A) ::=
-  INTERVAL NK_LP duration_literal(B) NK_COMMA duration_literal(C) NK_RP
+  INTERVAL NK_LP interval_sliding_duration_literal(B) NK_COMMA
+  interval_sliding_duration_literal(C) NK_RP
   sliding_opt(D) fill_opt(E).                                                     { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C), D, E); }
 twindow_clause_opt(A) ::=
   EVENT_WINDOW START WITH search_condition(B) END WITH search_condition(C).       { A = createEventWindowNode(pCxt, B, C); }
 
 sliding_opt(A) ::= .                                                              { A = NULL; }
-sliding_opt(A) ::= SLIDING NK_LP duration_literal(B) NK_RP.                       { A = releaseRawExprNode(pCxt, B); }
+sliding_opt(A) ::= SLIDING NK_LP interval_sliding_duration_literal(B) NK_RP.      { A = releaseRawExprNode(pCxt, B); }
+
+interval_sliding_duration_literal(A) ::= NK_VARIABLE(B).                          { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
+interval_sliding_duration_literal(A) ::= NK_STRING(B).                            { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
+interval_sliding_duration_literal(A) ::= NK_INTEGER(B).                           { A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
 
 fill_opt(A) ::= .                                                                 { A = NULL; }
 fill_opt(A) ::= FILL NK_LP fill_mode(B) NK_RP.                                    { A = createFillNode(pCxt, B, NULL); }
