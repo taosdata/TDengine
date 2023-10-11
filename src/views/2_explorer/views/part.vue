@@ -53,13 +53,13 @@
       </el-button>
     </div>
     <el-tabs @tab-click="tabClick" v-model="$store.state.console.partActive" type="border-card">
-      <el-tab-pane name="wizard" label="Wizard">
+      <!-- <el-tab-pane name="wizard" label="Wizard">
         <section class="sql-wrapper">
           <Wizard ref="wizard"></Wizard>
           <div id="bar" class="bar"></div>
           <PanelView @refresh="refresh"></PanelView>
         </section>
-      </el-tab-pane>      
+      </el-tab-pane>       -->
       <el-tab-pane name="sql" label="Sql">
         <section class="sql-wrapper">
           <Sql ref="sql"></Sql>
