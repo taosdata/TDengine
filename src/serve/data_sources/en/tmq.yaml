@@ -38,6 +38,7 @@ groups:
 
           - *earliest*: Subscribe from begin.
           - *latest*: Subscribe from latest data.
+        value: latest
         hint:
           type: str
           choices:

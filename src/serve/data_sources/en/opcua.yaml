@@ -18,6 +18,7 @@ options:
     required: true
     description: |
       OPC-UA server endpoint, such as `127.0.0.1:6666/OPCUA/ServerPath`.
+      If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.
     placeholder: 127.0.0.1:6666/OPCUA/ServerPath
 
 strict: false
@@ -119,7 +120,7 @@ datasets:
     params:
       - name: table_primary_key
         display: Primary Key
-        description: 
+        description:
         required: true
         hint:
           type: str

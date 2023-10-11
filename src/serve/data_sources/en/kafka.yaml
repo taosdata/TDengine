@@ -9,7 +9,9 @@ strict: false
 options:
   endpoint:
     display: bootstrap-servers
-    description: kafka bootstrap-servers
+    description: |-
+      kafka bootstrap-servers.
+      If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.
     placeholder: 127.0.0.1:9092
     required: true
 groups:

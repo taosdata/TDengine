@@ -21,6 +21,7 @@ options:
     required: true
     description: |
       OPC 服务器地址。如： `127.0.0.1<,localhost>/Matrikon.OPC.Simulation.1`。
+      如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。
     placeholder: 127.0.0.1/Matrikon.OPC.Simulation.1
 
 strict: false
@@ -36,7 +37,7 @@ datasets:
       使用 CSV 文件进行配置。
     target:
       name: csv_config_file
-      description: 
+      description:
       required: true
       multiple: true
       editable: true
@@ -44,7 +45,7 @@ datasets:
 
   - category: select_all_points
     display: 选择所有点位
-    description: 
+    description:
     target:
       name: select_all_points
       description: |
@@ -56,7 +57,7 @@ datasets:
     params:
       - name: table_primary_key
         display: 主键列
-        description: 
+        description:
         required: true
         hint:
           type: str
