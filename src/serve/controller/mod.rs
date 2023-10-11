@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::pool::PoolOptions;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
-use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder, Ty};
+use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder, };
 use taosx_core::utils::port_pool::PortPool;
 use taosx_core::utils::{mask_dsn, try_mask_dsn};
 use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
@@ -535,7 +535,7 @@ impl TaskController {
             drop(guard);
         }
 
-        let mut from = if let Some(topic) = task.oneshot_topic.as_deref() {
+        let from = if let Some(topic) = task.oneshot_topic.as_deref() {
             let mut from: Dsn = task.from.parse()?;
             from.set("use.topic.name", topic);
             tracing::info!("Set task from: {from}");
