@@ -1,3 +1,33 @@
+use std::sync::{
+    Arc,
+    atomic::{AtomicU32, AtomicU64},
+};
+
+use anyhow::Context;
+use chrono::{NaiveDate, Utc};
+use dashmap::DashMap;
+use serde::Deserialize;
+use serde_with::serde_as;
+use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
+use taos::sync::Queryable;
+use taos::taos_query::tmq::Assignment;
+use tokio_util::sync::CancellationToken;
+use tracing::{instrument, Instrument};
+
+pub use csv::*;
+pub use legacy::*;
+pub use local_to_taos::local_to_taos;
+pub use parquets::*;
+pub use plugins::*;
+pub use tmq_to_local::tmq_to_local;
+pub use tmq_to_td::tmq_to_td;
+pub use transform::Action;
+use utils::port_pool::PortPool;
+
+use crate::tmq_to_kafka::clean_task;
+pub use crate::tmq_to_kafka::tmq_to_kafka;
+use crate::validation::DataSourceValidation;
+
 mod csv;
 mod legacy;
 mod local_to_taos;
@@ -14,33 +44,7 @@ pub mod utils;
 mod plugins;
 mod tmq_to_kafka;
 
-use anyhow::Context;
-use chrono::{NaiveDate, Utc};
-use serde::{Deserialize, Serialize};
-use serde_with::serde_as;
-use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
-use tracing::{instrument, Instrument};
-
 mod extensions;
-
-use crate::tmq_to_kafka::clean_task;
-pub use crate::tmq_to_kafka::tmq_to_kafka;
-pub use csv::*;
-use dashmap::DashMap;
-pub use legacy::*;
-pub use local_to_taos::local_to_taos;
-pub use parquets::*;
-pub use plugins::*;
-use std::sync::{
-    atomic::{AtomicU32, AtomicU64},
-    Arc,
-};
-use taos::taos_query::tmq::Assignment;
-pub use tmq_to_local::tmq_to_local;
-pub use tmq_to_td::tmq_to_td;
-use tokio_util::sync::CancellationToken;
-pub use transform::Action;
-use utils::port_pool::PortPool;
 
 shadow_rs::shadow!(build);
 
@@ -108,61 +112,73 @@ impl Drop for TaskOpts {
     }
 }
 
-#[derive(Debug, Serialize)]
-pub struct ValidatedSource {
-    available: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    version: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    since: Option<String>,
-}
-
-pub type ValidatedTarget = ValidatedSource;
-
-impl Default for ValidatedSource {
-    fn default() -> Self {
-        Self {
-            available: true,
-            version: None,
-            since: None,
-        }
-    }
-}
-
-pub async fn validate_source(dsn: impl IntoDsn) -> ValidatedSource {
+pub fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
     let dsn = dsn.into_dsn();
-
     match dsn {
-        Ok(dsn) if dsn.driver.as_str() == "kafka" => {
-            if let Err(err) = is_kafka_available(&dsn).await {
-                ValidatedSource {
-                    available: false,
-                    version: None,
-                    since: Some(format!("{err:#}")),
+        Err(err) => {
+            DataSourceValidation::invalid("unknown".to_string(), format!("DSN error: {err:#}"))
+        }
+        Ok(d) => {
+            match d.driver.as_str() {
+                // TODO: clickhouse
+                "historian" => runners::historian::is_valid(&d),
+                // TODO: influxdb
+                "kafka" => runners::kafka::is_valid(&d),
+                // TODO: mqtt
+                // TODO: opc da
+                // TODO: opc ua
+                // TODO: opentsdb
+                // TODO: pi
+                // TODO: pi backfill
+                "taos" | "tmq" => {
+                    futures::executor::block_on(is_valid(&d))
                 }
-            } else {
-                Default::default()
+                &_ => DataSourceValidation::unknown()
             }
         }
-        Ok(_) => Default::default(),
-        Err(err) => ValidatedSource {
-            available: false,
-            version: None,
-            since: Some(format!("DSN error: {err:#}")),
-        },
     }
 }
 
-pub fn validate_target(dsn: impl IntoDsn) -> ValidatedTarget {
-    let dsn = dsn.into_dsn();
-
-    match dsn {
-        Ok(_) => Default::default(),
-        Err(err) => ValidatedSource {
-            available: false,
-            version: None,
-            since: Some(format!("DSN error: {err:#}")),
-        },
+pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+    let builder = TaosBuilder::from_dsn(dsn);
+    match builder {
+        Err(err) => {
+            DataSourceValidation::invalid(
+                "taos".to_string(),
+                format!("invalid dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
+            )
+        }
+        Ok(b) => {
+            let conn = b.build().await;
+            match conn {
+                Err(err) => {
+                    DataSourceValidation::invalid(
+                        "taos".to_string(),
+                        format!("failed to connect to dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
+                    )
+                }
+                Ok(c) => {
+                    let version = c.server_version();
+                    match version {
+                        Err(err) => {
+                            DataSourceValidation::invalid(
+                                "taos".to_string(),
+                                format!("failed to get server version from dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
+                            )
+                        }
+                        Ok(v) => {
+                            DataSourceValidation {
+                                valid: true,
+                                support: true,
+                                data_source: "taos".to_string(),
+                                version: Some(v.to_string()),
+                                message: None,
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -298,7 +314,7 @@ impl TaskOpts {
                         .instrument(tracing::info_span!("legacy_to_taos")) => {
                             rs?;
                         }
-                    };
+                    }
                 }
                 ("taos", "csv") => {
                     tokio::select! {
@@ -309,7 +325,7 @@ impl TaskOpts {
                         rs = query_to_csv(from.clone(), to.clone()) => {
                             rs?;
                         }
-                    };
+                    }
                 }
                 ("taos", "parquet") => {
                     query_to_parquet(from.clone(), to.clone(), *force).await?;
@@ -453,5 +469,47 @@ impl TaskOpts {
             (_, _) => {}
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use taos::Dsn;
+
+    use super::*;
+
+    #[test]
+    fn test_validate_dsn() {
+        // historian
+        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433").unwrap();
+        let dsv = validate_dsn(dsn);
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("historian", dsv.data_source);
+
+        // kafka
+        let dsn = Dsn::from_str("kafka://192.168.1.92:9092").unwrap();
+        let dsv = validate_dsn(dsn);
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("kafka", dsv.data_source);
+
+        // taos
+        let dsn = Dsn::from_str("taos+ws://192.168.1.92:6041").unwrap();
+        let dsv = validate_dsn(dsn);
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("taos", dsv.data_source);
+        assert_eq!("3.1.1.3", dsv.version.unwrap());
+
+        // tmq
+        let dsn = Dsn::from_str("tmq+ws://192.168.1.92:6041").unwrap();
+        let dsv = validate_dsn(dsn);
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("taos", dsv.data_source);
+        assert_eq!("3.1.1.3", dsv.version.unwrap());
     }
 }

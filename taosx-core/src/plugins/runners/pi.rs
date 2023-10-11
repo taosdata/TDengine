@@ -1011,18 +1011,18 @@ fn extend_data_set(
     }
 }
 
-#[test]
-fn test_config() {
+#[tokio::test]
+async fn test_config() {
     dbg!(std::env::current_dir().unwrap());
     let dsn: Dsn = "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=@../tests/pi/Points.csv&template_for_af_element_file=@../tests/pi/ElementTemplates2.csv"
         .parse()
         .unwrap();
-    let config = PiConfig::new(dsn, "taos".to_string(), 0, 0, false).unwrap();
+    let config = PiConfig::new(dsn, "taos".to_string(), 0, 0, false).await.unwrap();
     dbg!(&config);
 
     let dsn: Dsn = "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=app\napp\napp"
         .parse()
         .unwrap();
-    let config2 = PiConfig::new(dsn, "taos".to_string(), 0, 0, false).unwrap();
+    let config2 = PiConfig::new(dsn, "taos".to_string(), 0, 0, false).await.unwrap();
     dbg!(&config2);
 }

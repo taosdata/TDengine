@@ -1,10 +1,11 @@
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
+use std::error::Error;
 
 use anyhow::Context;
 use file_rotate::{
     compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
+    ContentLimit,
+    FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
 };
 use itertools::Itertools;
 use taos::Dsn;
@@ -13,13 +14,14 @@ use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument, Span};
 
 use crate::{
-    build_ipc, get_log_keep_days,
-    utils::{mask_dsn, port_pool::PortPool},
-    Action, DataSet, Transferred, ValidatedSource,
+    Action, build_ipc,
+    DataSet,
+    get_log_keep_days, Transferred, utils::port_pool::PortPool,
 };
+use crate::validation::DataSourceValidation;
+use crate::plugins::mask_dsn;
 
 use super::get_plugin_dir;
-use std::error::Error;
 
 const INFLUXDB_V1: [&str; 2] = ["1.7", "1.8"];
 const INFLUXDB_V2: [&str; 8] = ["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7"];
@@ -440,7 +442,7 @@ pub async fn influxdb_to_taos(
             _ = cancel.cancelled() => {
                 tracing::info!("InfluxDB task cancelled");
             }
-        };
+        }
         // stop the connector
         let _ = child.kill().await;
         tracing::info!("InfluxDB task Done");
@@ -546,7 +548,7 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     }
 }
 
-pub async fn influxdb_validate(dsn: Dsn) -> anyhow::Result<ValidatedSource> {
+pub async fn influxdb_validate(dsn: Dsn) -> anyhow::Result<DataSourceValidation> {
     let host = dsn
         .addresses
         .first()
@@ -568,8 +570,10 @@ pub async fn influxdb_validate(dsn: Dsn) -> anyhow::Result<ValidatedSource> {
         let response = result.unwrap();
         let headers = response.headers();
         // 组装结果
-        Ok(ValidatedSource {
-            available: true,
+        Ok(DataSourceValidation {
+            valid: true,
+            support: true,
+            data_source: "influxdb".to_string(),
             version: Some(format!(
                 "{} - {}",
                 headers
@@ -585,13 +589,15 @@ pub async fn influxdb_validate(dsn: Dsn) -> anyhow::Result<ValidatedSource> {
                     .unwrap()
                     .to_string()
             )),
-            since: Some(String::from("")),
+            message: Some(String::from("")),
         })
     } else {
-        Ok(ValidatedSource {
-            available: false,
+        Ok(DataSourceValidation {
+            valid: false,
+            support: false,
+            data_source: "influxdb".to_string(),
             version: Some(String::from("")),
-            since: Some(result.err().unwrap().source().unwrap().to_string()),
+            message: Some(result.err().unwrap().source().unwrap().to_string()),
         })
     }
 }

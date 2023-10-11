@@ -14,11 +14,11 @@ use tracing::{Instrument, Span};
 
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
-    ValidatedSource,
 };
 
 use super::get_plugin_dir;
 use std::error::Error;
+use crate::validation::DataSourceValidation;
 
 #[derive(Debug, serde::Serialize)]
 struct OpentsdbConfig {
@@ -445,7 +445,7 @@ pub async fn opentsdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     }
 }
 
-pub async fn opentsdb_validate(dsn: Dsn) -> anyhow::Result<ValidatedSource> {
+pub async fn opentsdb_validate(dsn: Dsn) -> anyhow::Result<DataSourceValidation> {
     let host = dsn
         .addresses
         .first()
@@ -470,16 +470,20 @@ pub async fn opentsdb_validate(dsn: Dsn) -> anyhow::Result<ValidatedSource> {
         // 转换为json格式
         let json: serde_json::Value = serde_json::from_str(&text).unwrap();
         // 组装结果
-        Ok(ValidatedSource {
-            available: true,
+        Ok(DataSourceValidation {
+            valid: true,
+            support: true,
+            data_source: "opentsdb".to_string(),
             version: Some(json.get("version").unwrap().to_string()),
-            since: Some(String::from("")),
+            message: Some(String::from("")),
         })
     } else {
-        Ok(ValidatedSource {
-            available: false,
+        Ok(DataSourceValidation {
+            valid: false,
+            support: false,
+            data_source: "opentsdb".to_string(),
             version: Some(String::from("")),
-            since: Some(result.err().unwrap().source().unwrap().to_string()),
+            message: Some(result.err().unwrap().source().unwrap().to_string()),
         })
     }
 }
