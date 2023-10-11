@@ -50,6 +50,7 @@ pub enum AgentStatus {
     Alive,
     Idle,
     Busy,
+    Transferring,
     Error,
 }
 #[derive(Debug, Clone, Deserialize)]
