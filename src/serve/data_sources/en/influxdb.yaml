@@ -139,7 +139,7 @@ groups:
         value: 2
       - name: delay
         display: Delay interval(ms)
-        description: Performance related parameters, delay interval when synchronizing real-time data. To migrate the out of order data, TDengine connector always waits for time specified here before reading them. This parameter is only meaningful when synchronizing real-time data.
+        description: Performance related parameters, delay interval when synchronizing real-time data. To support the out-of-order data scenario, TDengine connector always waits for time specified here before reading them. Valid only for real-time data.
         placeholder: Please input the delay interval
         hint:
           type: integer
