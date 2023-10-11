@@ -49,7 +49,7 @@ authentication:
           required: true
         - name: username
           display: Username
-          description: The user of InfluxDB, which must have permission to read anything in this organization.
+          description: The user of InfluxDB, which must have read permission in this organization.
           placeholder: Please input a username in the InfluxDB
           hint: str
           required: true
