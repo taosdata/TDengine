@@ -89,13 +89,13 @@ struct STFSBgTask {
 
 /* Exposed Structs */
 struct STFileSystem {
-  STsdb        *tsdb;
-  tsem_t        canEdit;
-  int32_t       state;
-  int64_t       neid;
-  EFEditT       etype;
-  TFileSetArray fSetArr[1];
-  TFileSetArray fSetArrTmp[1];
+  STsdb           *tsdb;
+  tsem_t           canEdit;
+  int32_t          state;
+  volatile int64_t neid;
+  EFEditT          etype;
+  TFileSetArray    fSetArr[1];
+  TFileSetArray    fSetArrTmp[1];
 
   // background task queue
   TdThreadMutex mutex[1];
