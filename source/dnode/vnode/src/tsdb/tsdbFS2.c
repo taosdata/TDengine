@@ -1000,12 +1000,14 @@ int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TSnapRangeArray *pRange
 
   fsetArr[0] = taosMemoryMalloc(sizeof(TFileSetArray));
   if (fsetArr == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-
   TARRAY2_INIT(fsetArr[0]);
 
-  int32_t i = 0;
   if (pRanges) {
     pHash = tsdbGetSnapRangeHash(pRanges);
+    if (pHash == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _out;
+    }
   }
 
   taosThreadRwlockRdlock(&fs->tsdb->rwLock);
@@ -1027,6 +1029,7 @@ int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TSnapRangeArray *pRange
   }
   taosThreadRwlockUnlock(&fs->tsdb->rwLock);
 
+_out:
   if (code) {
     TARRAY2_DESTROY(fsetArr[0], tsdbTFileSetClear);
     taosMemoryFree(fsetArr[0]);
@@ -1059,7 +1062,7 @@ SHashObj *tsdbGetSnapRangeHash(TSnapRangeArray *pRanges) {
 
 int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TSnapRangeArray *pRanges,
                                       TSnapRangeArray **fsrArr) {
-  int32_t      code = -1;
+  int32_t      code = 0;
   STFileSet   *fset;
   STSnapRange *fsr1 = NULL;
   SHashObj    *pHash = NULL;
@@ -1071,9 +1074,12 @@ int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ev
   }
 
   tsdbInfo("pRanges size:%d", (pRanges == NULL ? 0 : TARRAY2_SIZE(pRanges)));
-  code = 0;
   if (pRanges) {
     pHash = tsdbGetSnapRangeHash(pRanges);
+    if (pHash == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _out;
+    }
   }
 
   taosThreadRwlockRdlock(&fs->tsdb->rwLock);
