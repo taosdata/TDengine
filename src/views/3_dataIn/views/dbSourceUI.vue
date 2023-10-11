@@ -329,6 +329,9 @@
           </el-tabs>
         </div>
       </section>
+      <section class="check">
+        <el-button :loading="checkLoading" type="primary" @click="clickCheckBtn">check</el-button>
+      </section>
       <section
         class="dataset"
         v-if="dbsource[0].datasets && (dbsource[0].datasets.display || dbsource[0].datasets.name)"
@@ -640,20 +643,30 @@
       />
     </div>
     <DialogCreateDb></DialogCreateDb>
+    <ResultDialog
+      :result="checkResult"
+      :loading="checkLoading"
+      :resultVisible="resultVisible"
+      :percentage="percentage"
+      @cancelModal="cancelModal"
+    ></ResultDialog>
   </div>
 </template>
 <script>
 import DataTarget from "./dataTarget.vue";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
-import { AddSource, EditSource, getUaAndDaData, downlaodAllNodes } from "@/api/explorer/datain";
+import { AddSource, EditSource, getUaAndDaData, downlaodAllNodes,
+  validateTask
+ } from "@/api/explorer/datain";
 import DatePicker from "@/components/date-picker";
 import { Message } from "element-ui";
 import marked from "marked";
 import { debounce, parsinginZone } from "@/utils/index";
 import DialogCreateDb from "../components/addDbDialog.vue";
+import ResultDialog from "../components/resultDialog.vue";
 export default {
   name: "DbSourceUI",
-  components: { DatePicker, DialogCreateDb, DataTarget },
+  components: { DatePicker, DialogCreateDb, DataTarget, ResultDialog, },
   props: {
     // sourceName: {
     //   type: String,
@@ -784,6 +797,15 @@ export default {
       downloadUrl: process.env.VUE_APP_X_API + `/download?file_path=`,
       activeRadio: 'select_file',
       isShowEditBtn: false,
+      resultVisible: false,
+      checkLoading: false,
+      percentage: 0,
+      checkResult: {
+        valid: false,
+        support: false,
+        data_source: '',
+        version: '', // 返回数据源版本，不能获得版本则不返回该字段。
+      }
     };
   },
   created() {
@@ -1027,15 +1049,35 @@ export default {
           cancelButtonText: this.$t('cancel'),
           type: 'warning'
         }).then(() => {
-          this.submit()
+          this.submit(true)
         }).catch(() => {         
         });
       } else {
-        this.submit()
+        this.submit(true)
       }
     },
-    
-    async submit() {
+    cancelModal() {
+      this.resultVisible = false
+    },
+    clickCheckBtn() {
+      this.submit(false)
+    },
+    // 数据源可用性和版本检查
+    async getValidateResult(dns) {
+      try {
+        this.checkLoading = true
+        let result = await validateTask(dns)
+        console.log('result',result);
+        this.resultVisible = true // 展示检测结果
+        this.checkResult = result
+        this.checkLoading = false // 检测的 loading 效果
+      } catch (error) {
+        this.checkLoading = false
+        console.log('err');
+      }
+    },
+
+    async submit(isSubmit) {
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
@@ -1134,46 +1176,48 @@ export default {
         dns = dns.replace(reg, "").trim();
         let querystr = "";
 
-        for (let index = 0; index < data.groups.length; index++) {
-          //   for (let j = 0; j < data.groups[index].params.length; j++) {
-          for (let g of Object.keys(data.groups[index].params)) {
-            if (
-              Object.hasOwnProperty.call(
-                data.groups[index].params[g],
-                "required"
-              ) &&
-              data.groups[index].params[g]["value"] == ""
-            ) {
-              Message({
-                type: "warning",
-                message: `${enterTip} ${data.groups[index].params[g].name} `,
-              });
-              return;
-            } else {
-              if (this.handleEmptyValue(data.groups[index].params[g].value)) {
-                if (
-                  // p.hint && p.hint.type == 'file'
-                  data.groups[index].params[g].hint &&
-                  data.groups[index].params[g].hint.type == "file"
-                ) {
-                  if (data.groups[index].params[g].name == this.activeName) {
+        if (data.groups && isSubmit) {
+          for (let index = 0; index < data.groups.length; index++) {
+            //   for (let j = 0; j < data.groups[index].params.length; j++) {
+            for (let g of Object.keys(data.groups[index].params)) {
+              if (
+                Object.hasOwnProperty.call(
+                  data.groups[index].params[g],
+                  "required"
+                ) &&
+                data.groups[index].params[g]["value"] == ""
+              ) {
+                Message({
+                  type: "warning",
+                  message: `${enterTip} ${data.groups[index].params[g].name} `,
+                });
+                return;
+              } else {
+                if (this.handleEmptyValue(data.groups[index].params[g].value)) {
+                  if (
+                    // p.hint && p.hint.type == 'file'
+                    data.groups[index].params[g].hint &&
+                    data.groups[index].params[g].hint.type == "file"
+                  ) {
+                    if (data.groups[index].params[g].name == this.activeName) {
+                      querystr +=
+                        `${data.groups[index].params[g].name}=@${data.groups[index].params[g].value}` +
+                        "&";
+                    }
+                  } else {
                     querystr +=
-                      `${data.groups[index].params[g].name}=@${data.groups[index].params[g].value}` +
+                      `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
                       "&";
                   }
-                } else {
-                  querystr +=
-                    `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
-                    "&";
                 }
               }
             }
+            //   }
           }
-          //   }
         }
 
         // datasets.categories is not used since 9adc5721
-        if (data.datasets && data.datasets.categories) {
+        if (data.datasets && data.datasets.categories && isSubmit) {
           for (
             let index = 0;
             index < data.datasets.categories.length;
@@ -1208,7 +1252,7 @@ export default {
             }
           }
         }
-        if (data.datasets && data.datasets.params) {
+        if (data.datasets && data.datasets.params && isSubmit) {
           for (
             let index = 0;
             index < data.datasets.params.length;
@@ -1362,24 +1406,29 @@ export default {
             piParams["via"] = this.agentId;
           }
           console.log(this.isEditable , this.editId,'编辑');
-          if (this.isEditable && this.editId) {
-            let result = await EditSource(piParams, this.editId);
-            if (result.message) {
-              Message.error(result.message);
-              return;
+          if (isSubmit) {
+            if (this.isEditable && this.editId) {
+              let result = await EditSource(piParams, this.editId);
+              if (result.message) {
+                Message.error(result.message);
+                return;
+              }
+              this.$parent.changeEditable(false)
+              this.$parent.toggleComponent("pitable",'');
+            } else {
+              let result = await AddSource(piParams);
+              if (result.message) {
+                Message.error(result.message);
+                return;
+              }
+              if (result && result.id) {
+                this.$parent.toggleComponent("pitable");
+                Message.success("Operation Successfully!");
+              }
             }
-            this.$parent.changeEditable(false)
-            this.$parent.toggleComponent("pitable",'');
           } else {
-            let result = await AddSource(piParams);
-            if (result.message) {
-              Message.error(result.message);
-              return;
-            }
-            if (result && result.id) {
-              this.$parent.toggleComponent("pitable");
-              Message.success("Operation Successfully!");
-            }
+            console.log('ss',piParams);
+            this.getValidateResult(piParams.from)
           }
         }
       } catch (err) {
@@ -2062,7 +2111,7 @@ export default {
         flex: auto;
       }
     }
-    .bottom {
+    .bottom,.check {
       display: flex;
       border: none !important;
       padding: 0px !important;

@@ -568,6 +568,10 @@ export default {
     context: 'Context',
     at: 'Time',
     saveTip: 'The data ingestion from this data source will be stopped for a few seconds. If you are fine with it, please continue, otherwise cancel it.',
+    successTip: 'Your data source is availabe, you can proceed to transfer your data to TDengine.',
+    successVersionTip: 'Your data source is availabe, its version is xxxx, which is supported, you can proceed to transfer your data to TDengine.',
+    unSupportTip:'Your data source is available, its version is {version}, which is not supported for now. We are sorry for your inconvenience, please contact TDengine team, we will add the support for your data source version in future.',
+    failTip: 'Your data source is not reachable, please check your configuration, make sure everything is correctly input and your network is fine. Error message: ',
   },
   replication: {
     theTaskWithId: "the task with id {id}",

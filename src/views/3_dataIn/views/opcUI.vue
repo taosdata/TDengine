@@ -272,7 +272,7 @@
           </el-tabs>
         </div>
       </section>
-      <section class="check" v-if="tagName !=='csv'">
+      <section class="check">
         <el-button :loading="checkLoading" type="primary" @click="checkTask">check</el-button>
       </section>
       <section :class="['groups-dataset']" v-if="dbsource[0]?.datasets">
@@ -906,7 +906,7 @@ import {
   EditSource,
   getUaAndDaData,
   downlaodAllNodes,
-  validateTask
+  validateTask,
 } from "@/api/explorer/datain";
 import { sendSQLReq } from "@/api/gateway/console";
 import { Message } from "element-ui";
@@ -2326,7 +2326,7 @@ export default {
         flex: auto;
       }
     }
-    .bottom {
+    .bottom,.check {
       display: flex;
       border: none !important;
       padding: 0px !important;
