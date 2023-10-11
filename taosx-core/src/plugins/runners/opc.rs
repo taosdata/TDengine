@@ -395,7 +395,7 @@ impl OPCConfig {
                     vec![]
                 } else if csv_config_file.is_some() {
                     let res =
-                        generate_opcconfig_from_csv(csv_config_file.clone().unwrap().as_str())
+                        generate_opcconfig_from_csv("opcua", csv_config_file.clone().unwrap().as_str())
                             .await
                             .map_err(|err| {
                                 OpcError::ConfigError("csv_config_file", err.to_string())
@@ -485,7 +485,7 @@ impl OPCConfig {
                     vec![]
                 } else if csv_config_file.is_some() {
                     let res =
-                        generate_opcconfig_from_csv(csv_config_file.clone().unwrap().as_str())
+                        generate_opcconfig_from_csv("opcda", csv_config_file.clone().unwrap().as_str())
                             .await
                             .map_err(|err| {
                                 OpcError::ConfigError("csv_config_file", err.to_string())
@@ -627,11 +627,12 @@ pub fn parse_bool_param_from_dsn(dsn: &mut Dsn, key: &str) -> anyhow::Result<Opt
     }
 }
 
-const CSV_CONFIG_COLUMNS: [&str; 4] = ["point_id", "tbname", "type", "stable"];
+const CSV_CONFIG_COLUMNS: [&str; 2] = ["point_id", "tbname"];
 
 pub use tokio_stream::StreamExt;
 /// return opctableconfig, node_config, tables_to_drop
 pub async fn generate_opcconfig_from_csv(
+    ty: &str,
     csv_config_file: &str,
 ) -> anyhow::Result<(OpcTableConfig, Vec<String>, Vec<String>)> {
     let files_or_strings = csv_config_file
@@ -646,6 +647,7 @@ pub async fn generate_opcconfig_from_csv(
     let mut node_config_old = Vec::new();
     let mut tables_to_drop = Vec::new();
     let mut current_tag_names = Vec::new();
+    let mut stable_prefix = None;
     for mut file in files_or_strings {
         tracing::info!(
             "current log: {}",
@@ -740,11 +742,23 @@ pub async fn generate_opcconfig_from_csv(
                         }
                     }
 
-                    let stable = record_map.get("stable").unwrap().clone();
-                    if record_map.get("tbname").unwrap().contains("{") { // maybe should use pattern match?
-                         // should be a expression d00{point_id}_{tag1}_{tag2}
-                         // TODO PATTERN HANDLE and reset tbname
+                    let point_id = record_map.get_mut("point_id").unwrap();
+                    let pointid = point_id.clone();
+                    drop(point_id);
+                    let tb_name = record_map.get_mut("tbname").unwrap();
+                    if tb_name.contains("{") { // maybe should use pattern match?
+                         *tb_name = generate_tbname_from_pattern(ty, tb_name, &pointid);
                     }
+                    drop(tb_name);
+                    let point_id = record_map.get("point_id").unwrap();
+                    let stable = if let Some(stable_name) = record_map.get("stable") {
+                        Some(stable_name.clone())
+                    } else {
+                        if stable_prefix.is_none() {
+                            stable_prefix = Some(String::from("opc"));
+                        }
+                        None
+                    };
                     let code = record_map.get("tbname").unwrap();
                     let enabled_column = record_map.get("enabled");
                     if enabled_column.is_some() {
@@ -755,8 +769,11 @@ pub async fn generate_opcconfig_from_csv(
                             continue;
                         }
                     }
-                    let column_type = IpcDataType::from_str(record_map.get("type").unwrap())
-                        .map_err(|err| anyhow::Error::msg(err))?;
+                    let column_type = if let Some(ty) = record_map.get("type") {
+                        Some(IpcDataType::from_str(ty).map_err(|err| anyhow::Error::msg(err))?)
+                    } else {
+                        None
+                    };
                     let mut current_columns = Vec::new();
                     if !column_config_init {
                         let value_column_name = record_map
@@ -830,7 +847,6 @@ pub async fn generate_opcconfig_from_csv(
                         column_config_init = true;
                     }
 
-                    let point_id = record_map.get("point_id").unwrap();
 
                     let tag_values = if tag_values_map.len() == 0 {
                         None
@@ -841,9 +857,9 @@ pub async fn generate_opcconfig_from_csv(
                         point_id.clone(),
                         PointConfig {
                             code: code.clone(),
-                            stable: Some(stable),
+                            stable: stable,
                             tag_values,
-                            value_type: Some(column_type),
+                            value_type: column_type,
                         },
                     );
                     node_config_old.push(format!("{point_id}::{code}"))
@@ -862,7 +878,7 @@ pub async fn generate_opcconfig_from_csv(
         OpcTableConfig {
             id_code_map,
             table_config: TableConfig {
-                stable_prefix: None,
+                stable_prefix,
                 column_configs: column_config,
                 tag_configs,
             },
@@ -895,44 +911,7 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
     let all_points = opc_datasets(&data).await?;
     let point_config = all_points.iter().map(|point| {
         let point_id = point.id.clone();
-        let tbname = if dsn.driver.as_str() == "opcua" {
-            // ns=13;i=1003
-            let mut split = point_id.split(";");
-            let ns = if let Some(ns) = split.next() {
-                if ns.contains("ns=") {
-                    let mut ns_split = ns.split("=");
-                    ns_split.next();
-                    ns_split.next()
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-            let id = if let Some(id) = split.next() {
-                if id.contains("i=") {
-                    let mut id_split = id.split("=");
-                    id_split.next();
-                    id_split.next()
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
-            child_table_expression.clone()
-                .replace("{ns}", ns.unwrap_or(""))
-                .replace("{id}", id.unwrap_or(""))
-        } else {
-            let tag_index = point_id.rfind(".");
-            let tag_name = if let Some(index) = tag_index {
-                // should be Device.DeviceType.TagName pattern
-                &point_id[index+1..]
-            } else {
-                &point_id
-            };
-            child_table_expression.clone().replace("{TagName}", tag_name)
-        };
+        let tbname = generate_tbname_from_pattern(&dsn.driver, &child_table_expression, &point_id);
         format!("{}::{}", point_id, tbname)
     }).join(",");
     if dsn.driver.as_str() == "opcua" {
@@ -988,6 +967,52 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
     };
     dsn.set("opc_table_config", serde_json::to_string(&opc_table_config)?);
     Ok(())
+}
+
+/// TODO should support more complicated pattern
+/// a expression like d00{point_id}_{tag1}_{tag2}
+/// for now only support <table_prfix>_{ns}_{id}_<table_suffix> for opcua
+/// <table_prfix>_{TagName}_<table_suffix> for opcda
+fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> String {
+    let tbname = if ty == "opcua" {
+        // ns=13;i=1003
+        let mut split = point_id.split(";");
+        let ns = if let Some(ns) = split.next() {
+            if ns.contains("ns=") {
+                let mut ns_split = ns.split("=");
+                ns_split.next();
+                ns_split.next()
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let id = if let Some(id) = split.next() {
+            if id.contains("i=") {
+                let mut id_split = id.split("=");
+                id_split.next();
+                id_split.next()
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        tb_name.clone()
+            .replace("{ns}", ns.unwrap_or(""))
+            .replace("{id}", id.unwrap_or(""))
+    } else {
+        let tag_index = point_id.rfind(".");
+        let tag_name = if let Some(index) = tag_index {
+            // should be Device.DeviceType.TagName pattern
+            &point_id[index+1..]
+        } else {
+            &point_id
+        };
+        tb_name.clone().replace("{TagName}", tag_name)
+    };
+    tbname
 }
 
 fn check_duplicated(

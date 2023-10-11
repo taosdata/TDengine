@@ -28,7 +28,7 @@ params:
       type: str
 options:
   host:
-    display: Server
+    display: PI Data Archive Server
     description: |-
       PI server name (hostname).
 

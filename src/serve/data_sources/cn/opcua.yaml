@@ -129,6 +129,7 @@ datasets:
         display: 主键列
         description:
         required: true
+        value: original_ts
         hint:
           type: str
           choices:
@@ -136,8 +137,9 @@ datasets:
             - original_ts
       - name: child_table_expression
         display: 表名称
+        value: Meter_{ns}_{id}
         description: |
-          支持 <child table prefix>_{ns}_{id} 格式
+          支持 <child table prefix>_{ns}_{id} 格式，如何 NodeId 中不存在 ns 或 id 将置为空
         hint:
           type: str
         required: true

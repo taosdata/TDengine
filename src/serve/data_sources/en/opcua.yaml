@@ -122,6 +122,7 @@ datasets:
         display: Primary Key
         description:
         required: true
+        value: original_ts
         hint:
           type: str
           choices:
@@ -129,6 +130,7 @@ datasets:
             - original_ts
       - name: child_table_expression
         display: Table Name
+        value: meter_{ns}_{id}
         description: |
           Support <child table prefix>_{ns}_{id} pattern
         hint:
