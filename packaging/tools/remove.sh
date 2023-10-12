@@ -123,11 +123,10 @@ function clean_bin() {
   ${csudo}rm -f ${bin_link_dir}/set_core || :
   ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
   ${csudo}rm -f ${bin_link_dir}/${keeperName2}      || :
-  
+  ${csudo}rm -f ${bin_link_dir}/${xName2}           || :
+  ${csudo}rm -f ${bin_link_dir}/${explorerName2}    || :
 
-  if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
-    ${csudo}rm -f ${bin_link_dir}/${xName2}           || :
-    ${csudo}rm -f ${bin_link_dir}/${explorerName2}    || :
+  if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then  
     ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
     ${csudo}rm -f ${bin_link_dir}/${benchmarkName2} || :
     ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :

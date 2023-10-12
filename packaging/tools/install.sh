@@ -34,6 +34,7 @@ benchmarkName="taosBenchmark"
 dumpName="taosdump"
 demoName="taosdemo"
 xname="taosx"
+xnameAgent="taosx-agent"
 
 clientName2="taos"
 serverName2="${clientName2}d"
@@ -41,6 +42,7 @@ configFile2="${clientName2}.cfg"
 productName2="TDengine"
 emailName2="taosdata.com"
 xname2="${clientName2}x"
+xnameAgent2="${clientName2}x-agent"
 adapterName2="${clientName2}adapter"
 
 explorerName="${clientName2}-explorer"
@@ -198,6 +200,7 @@ function install_main_path() {
   ${csudo}mkdir -p ${install_main_dir}/driver
   ${csudo}mkdir -p ${install_main_dir}/examples
   ${csudo}mkdir -p ${install_main_dir}/include
+  ${csudo}mkdir -p ${install_main_dir}/plugins
   #  ${csudo}mkdir -p ${install_main_dir}/init.d
   if [ "$verMode" == "cluster" ]; then
     ${csudo}mkdir -p ${install_main_dir}/share
@@ -220,6 +223,9 @@ function install_bin() {
   ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
   ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
+  ${csudo}rm -f ${bin_link_dir}/${xname2} || :
+  ${csudo}rm -f ${bin_link_dir}/${xnameAgent2} || :
+  ${csudo}rm -f ${bin_link_dir}/${explorerName} || :
 
   ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo}chmod 0555 ${install_main_dir}/bin/*
 
@@ -236,14 +242,11 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
   fi
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
+  [ -x ${install_main_dir}/bin/${xname2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${xname2} ${bin_link_dir}/${xname2} || :
+  [ -x ${install_main_dir}/bin/${xnameAgent2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${xnameAgent2} ${bin_link_dir}/${xnameAgent2} || :
+  [ -x ${install_main_dir}/bin/${explorerName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${explorerName} ${bin_link_dir}/${explorerName} || :
 
   if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
-    ${csudo}rm -f ${bin_link_dir}/${xname2} || :
-    ${csudo}rm -f ${bin_link_dir}/${explorerName} || :
-
-    #Make link
-    [ -x ${install_main_dir}/bin/${xname2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${xname2} ${bin_link_dir}/${xname2} || :
-    [ -x ${install_main_dir}/bin/${explorerName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${explorerName} ${bin_link_dir}/${explorerName} || :
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript2} || :
   fi
 }
@@ -610,6 +613,12 @@ function install_connector() {
   fi
 }
 
+function install_plugins() {
+  if [ -d "${script_dir}/plugins/" ]; then
+    ${csudo}cp -rf ${script_dir}/plugins/ ${install_main_dir}/ || echo "failed to copy plugins"
+  fi
+}
+
 function install_examples() {
   if [ -d ${script_dir}/examples ]; then
     ${csudo}cp -rf ${script_dir}/examples/* ${install_main_dir}/examples || echo "failed to copy examples"
@@ -702,29 +711,38 @@ function clean_service_on_systemd() {
   fi
   ${csudo}systemctl disable tarbitratord &>/dev/null || echo &>/dev/null
   ${csudo}rm -f ${tarbitratord_service_config}
-  
-  if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
-    x_service_config="${service_config_dir}/${xName2}.service"
-    if [ -e "$x_service_config" ]; then
-      if systemctl is-active --quiet ${xName2}; then
-        echo "${productName2} ${xName2} is running, stopping it..."
-        ${csudo}systemctl stop ${xName2} &>/dev/null || echo &>/dev/null
-      fi
-      ${csudo}systemctl disable ${xName2} &>/dev/null || echo &>/dev/null
-      ${csudo}rm -f ${x_service_config}
+    
+  x_service_config="${service_config_dir}/${xname2}.service"
+  if [ -e "$x_service_config" ]; then
+    if systemctl is-active --quiet ${xname2}; then
+      echo "${productName2} ${xname2} is running, stopping it..."
+      ${csudo}systemctl stop ${xname2} &>/dev/null || echo &>/dev/null
     fi
-
-    explorer_service_config="${service_config_dir}/${explorerName2}.service"
-    if [ -e "$explorer_service_config" ]; then
-      if systemctl is-active --quiet ${explorerName2}; then
-        echo "${productName2} ${explorerName2} is running, stopping it..."
-        ${csudo}systemctl stop ${explorerName2} &>/dev/null || echo &>/dev/null
-      fi
-      ${csudo}systemctl disable ${explorerName2} &>/dev/null || echo &>/dev/null
-      ${csudo}rm -f ${explorer_service_config}
-      ${csudo}rm -f /etc/${clientName2}/explorer.toml
-    fi
+    ${csudo}systemctl disable ${xname2} &>/dev/null || echo &>/dev/null
+    ${csudo}rm -f ${x_service_config}
   fi
+
+  x_service_config="${service_config_dir}/${xnameAgent2}.service"
+  if [ -e "$x_service_config" ]; then
+    if systemctl is-active --quiet ${xnameAgent2}; then
+      echo "${productName2} ${xnameAgent2} is running, stopping it..."
+      ${csudo}systemctl stop ${xnameAgent2} &>/dev/null || echo &>/dev/null
+    fi
+    ${csudo}systemctl disable ${xnameAgent2} &>/dev/null || echo &>/dev/null
+    ${csudo}rm -f ${x_service_config}
+  fi
+
+  explorer_service_config="${service_config_dir}/${explorerName}.service"
+  if [ -e "$explorer_service_config" ]; then
+    if systemctl is-active --quiet ${explorerName}; then
+      echo "${productName2} ${explorerName} is running, stopping it..."
+      ${csudo}systemctl stop ${explorerName} &>/dev/null || echo &>/dev/null
+    fi
+    ${csudo}systemctl disable ${explorerName} &>/dev/null || echo &>/dev/null
+    ${csudo}rm -f ${explorer_service_config}
+    ${csudo}rm -f /etc/${clientName2}/explorer.toml
+  fi
+  
 }
 
 function install_service_on_systemd() {
@@ -893,6 +911,7 @@ function updateProduct() {
 
   if [ "$verMode" == "cluster" ]; then
       install_connector
+      install_plugins
   fi
 
   install_examples

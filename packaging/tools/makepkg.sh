@@ -93,12 +93,14 @@ else
   fi
 
   [ -f ${build_dir}/bin/taosx ] && taosx_bin="${build_dir}/bin/taosx"
+  taosx_agent_bin="${build_dir}/bin/taosx-agent"
   explorer_bin_files=$(find ${build_dir}/bin/ -name '*-explorer')
 
   bin_files="${build_dir}/bin/${serverName} \
       ${build_dir}/bin/${clientName} \
       ${taostools_bin_files} \
       ${taosx_bin} \
+      ${taosx_agent_bin} \
       ${explorer_bin_files} \
       ${build_dir}/bin/${clientName}adapter \
       ${build_dir}/bin/udfd \
@@ -333,7 +335,7 @@ mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo 
 # Copy connector
 if [ "$verMode" == "cluster" ]; then
     connector_dir="${code_dir}/connector"
-    mkdir -p ${install_dir}/connector
+    mkdir -p ${install_dir}/connector    
     if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
         tmp_pwd=`pwd`
     	  cd ${install_dir}/connector
@@ -366,6 +368,7 @@ if [ "$verMode" == "cluster" ]; then
 
         # cp -r ${connector_dir}/python ${install_dir}/connector
         # cp -r ${connector_dir}/nodejs ${install_dir}/connector
+        cp -r ${top_dir}/../enterprise/src/plugins/taosx/plugins/ ${install_dir}/ 
     fi
 fi
 
