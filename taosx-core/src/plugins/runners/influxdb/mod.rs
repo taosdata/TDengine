@@ -1,11 +1,10 @@
-use std::error::Error;
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use file_rotate::{
     compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
+    ContentLimit,
+    FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
 };
 use itertools::Itertools;
 use taos::Dsn;
@@ -13,11 +12,11 @@ use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument, Span};
 
-use crate::utils::mask_dsn;
-use crate::validation::DataSourceValidation;
 use crate::{
-    build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
+    Action, build_ipc, DataSet, get_log_keep_days, Transferred, utils::port_pool::PortPool,
 };
+use crate::plugins::mask_dsn;
+use crate::validation::DataSourceValidation;
 
 use super::get_plugin_dir;
 
@@ -29,11 +28,11 @@ struct InfluxdbConfig {
     // the datasource config
     influx: InfluxConfig,
     // the addr for connector to agent
-    taosx: TaosxConfig,
+    taosx: Option<TaosxConfig>,
     // the task config
-    task: TaskConfig,
+    task: Option<TaskConfig>,
     // the performance config
-    performance: PerformanceConfig,
+    performance: Option<PerformanceConfig>,
 
     // others
     #[serde(skip)]
@@ -244,11 +243,64 @@ impl InfluxdbConfig {
 
         Ok(Self {
             influx,
-            taosx,
-            task,
-            performance,
+            taosx: Some(taosx),
+            task: Some(task),
+            performance: Some(performance),
             td_database,
             ipc_stream,
+        })
+    }
+
+    pub fn new_less(mut dsn: Dsn) -> Result<Self, InfluxdbError> {
+        debug_assert!(dsn.driver == "influxdb");
+        // the datasource config
+        let host = dsn
+            .addresses
+            .first()
+            .and_then(|addr| addr.host.clone())
+            .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
+        let port = dsn
+            .addresses
+            .first()
+            .and_then(|addr| addr.port.clone())
+            .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
+        let protocol = dsn.protocol.as_deref().unwrap_or("http");
+        let influx_url = format!("{}://{}:{}/", protocol, host, port);
+        let influx_version = dsn
+            .remove("version")
+            .ok_or_else(|| InfluxdbError::InfluxVersionIsRequired(dsn.clone()))?;
+        // On version 1.x, only username/password mode can be used
+        // On version 2.x, only access token mode can be used.
+        let influx_org_id = dsn.remove("orgId").unwrap_or("".to_string());
+        let influx_username = dsn.remove("username").unwrap_or("".to_string());
+        let influx_password = dsn.remove("password").unwrap_or("".to_string());
+        let influx_token = dsn.remove("token").unwrap_or("".to_string());
+        if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_username == "" {
+            return Err(InfluxdbError::InfluxUsernameIsRequired(dsn.clone()));
+        } else if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_password == "" {
+            return Err(InfluxdbError::InfluxPasswordIsRequired(dsn.clone()));
+        } else if INFLUXDB_V2.contains(&influx_version.as_str()) && influx_org_id == "" {
+            return Err(InfluxdbError::InfluxOrgIdIsRequired(dsn.clone()));
+        } else if INFLUXDB_V2.contains(&influx_version.as_str()) && influx_token == "" {
+            return Err(InfluxdbError::InfluxTokenIsRequired(dsn.clone()));
+        }
+
+        let influx = InfluxConfig {
+            influx_url,
+            influx_version,
+            influx_username,
+            influx_password,
+            influx_token,
+            influx_org_id,
+        };
+
+        Ok(Self {
+            influx,
+            taosx: None,
+            task: None,
+            performance: None,
+            td_database: "".to_string(),
+            ipc_stream: "".to_string(),
         })
     }
 }
@@ -475,36 +527,103 @@ pub async fn influxdb_to_taos(
     Ok(())
 }
 
-pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
-    let host = dsn
-        .addresses
-        .first()
-        .and_then(|addr| addr.host.clone())
-        .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
-    let port = dsn
-        .addresses
-        .first()
-        .and_then(|addr| addr.port.clone())
-        .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
-    let protocol = dsn.protocol.as_deref().unwrap_or("http");
-    let influx_url = format!("{}://{}:{}/", protocol, host, port);
-    let influx_version = dsn.remove("version").unwrap_or("".to_string());
-    if influx_version == "" {
-        anyhow::bail!("The version is required");
+pub async fn influxdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
+    let config = InfluxdbConfig::new_less(dsn);
+    match config {
+        Err(err) => {
+            anyhow::bail!(err)
+        }
+        Ok(c) => {
+            // 连接器路径
+            let connector_path = influxdb_jar_path();
+            // startup the connector
+            let mut command = tokio::process::Command::new("java");
+            // 查询命令
+            let output;
+            // 不同版本不同参数
+            if INFLUXDB_V1.contains(&c.influx.influx_version.as_str()) {
+                // 查询命令
+                output = command
+                    .arg("-jar")
+                    .arg(&connector_path)
+                    .arg("-fetch")
+                    .arg(&c.influx.influx_version)
+                    .arg(&c.influx.influx_url)
+                    .arg(&c.influx.influx_username)
+                    .arg(&c.influx.influx_password)
+                    .stdout(std::process::Stdio::inherit())
+                    .stderr(std::process::Stdio::piped())
+                    .output()
+                    .await
+                    .with_context(|| "Start InfluxDB collector error")?;
+            } else {
+                output = command
+                    .arg("-jar")
+                    .arg(&connector_path)
+                    .arg("-fetch")
+                    .arg(&c.influx.influx_version)
+                    .arg(&c.influx.influx_url)
+                    .arg(&c.influx.influx_token)
+                    .arg(&c.influx.influx_org_id)
+                    .stdout(std::process::Stdio::inherit())
+                    .stderr(std::process::Stdio::piped())
+                    .output()
+                    .await
+                    .with_context(|| "Start InfluxDB collector error")?;
+            }
+            if output.status.success() {
+                let s = String::from_utf8(output.stdout.clone())?;
+                if s == "" {
+                    anyhow::bail!("InfluxDB connector returns OK, but result is nothing");
+                }
+                let mut vec = Vec::new();
+                vec.push(DataSet {
+                    id: s,
+                    name: None,
+                    category: None,
+                    r#type: None,
+                    options: None,
+                    format: None,
+                });
+                Ok(vec)
+            } else {
+                match output.status.code() {
+                    Some(101) => anyhow::bail!("Failed to connect, ip or port error"),
+                    Some(102) => anyhow::bail!("Unauthorized access"),
+                    Some(103) => anyhow::bail!("Organization not found"),
+                    None => anyhow::bail!("InfluxDB connector closed by signal"),
+                    Some(exit) => {
+                        anyhow::bail!(
+                            "Unknown exit code {exit}, maybe failed to connect, ip or port error"
+                        )
+                    }
+                }
+            }
+        }
     }
-    // On version 1.x, only username/password mode can be used
-    // On version 2.x, only access token mode can be used.
-    let influx_username = dsn.remove("username").unwrap_or("".to_string());
-    let influx_password = dsn.remove("password").unwrap_or("".to_string());
-    let influx_token = dsn.remove("token").unwrap_or("".to_string());
-    let influx_org_id = dsn.remove("orgId").unwrap_or("".to_string());
-    if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_username == "" {
-        anyhow::bail!("The username is required");
-    } else if INFLUXDB_V1.contains(&influx_version.as_str()) && influx_password == "" {
-        anyhow::bail!("The password is required");
-    } else if INFLUXDB_V2.contains(&influx_version.as_str()) && influx_token == "" {
-        anyhow::bail!("The access token is required");
+}
+
+pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+    let config = InfluxdbConfig::new_less(dsn.clone());
+    match config {
+        Err(err) => DataSourceValidation::invalid(
+            "influxdb".to_string(),
+            format!("invalid dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
+        ),
+        Ok(c) => {
+            let result = validate_source_influxdb(c).await;
+            match result {
+                Err(err) => DataSourceValidation::invalid(
+                    "influxdb".to_string(),
+                    format!("failed to connect to , cause: {}", err.to_string()),
+                ),
+                Ok(validate) => validate,
+            }
+        }
     }
+}
+
+async fn validate_source_influxdb(config: InfluxdbConfig) -> anyhow::Result<DataSourceValidation> {
     // 连接器路径
     let connector_path = influxdb_jar_path();
     // startup the connector
@@ -512,16 +631,16 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     // 查询命令
     let output;
     // 不同版本不同参数
-    if INFLUXDB_V1.contains(&influx_version.as_str()) {
+    if INFLUXDB_V1.contains(&config.influx.influx_version.as_str()) {
         // 查询命令
         output = command
             .arg("-jar")
             .arg(&connector_path)
-            .arg("-fetch")
-            .arg(&influx_version)
-            .arg(&influx_url)
-            .arg(&influx_username)
-            .arg(&influx_password)
+            .arg("-check")
+            .arg(config.influx.influx_version)
+            .arg(config.influx.influx_url)
+            .arg(config.influx.influx_username)
+            .arg(config.influx.influx_password)
             .stdout(std::process::Stdio::inherit())
             .stderr(std::process::Stdio::piped())
             .output()
@@ -531,11 +650,10 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
         output = command
             .arg("-jar")
             .arg(&connector_path)
-            .arg("-fetch")
-            .arg(&influx_version)
-            .arg(&influx_url)
-            .arg(&influx_token)
-            .arg(&influx_org_id)
+            .arg("-check")
+            .arg(config.influx.influx_version)
+            .arg(config.influx.influx_url)
+            .arg(config.influx.influx_token)
             .stdout(std::process::Stdio::inherit())
             .stderr(std::process::Stdio::piped())
             .output()
@@ -543,87 +661,23 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
             .with_context(|| "Start InfluxDB collector error")?;
     }
     if output.status.success() {
-        let s = String::from_utf8(output.stdout.clone())?;
-        if s == "" {
-            anyhow::bail!("InfluxDB connector returns OK, but result is nothing");
-        }
-        let mut vec = Vec::new();
-        vec.push(DataSet {
-            id: s,
-            name: None,
-            category: None,
-            r#type: None,
-            options: None,
-            format: None,
-        });
-        Ok(vec)
-    } else {
-        match output.status.code() {
-            Some(101) => anyhow::bail!("Failed to connect, ip or port error"),
-            Some(102) => anyhow::bail!("Unauthorized access"),
-            Some(103) => anyhow::bail!("Organization not found"),
-            None => anyhow::bail!("InfluxDB connector closed by signal"),
-            Some(exit) => {
-                anyhow::bail!("Unknown exit code {exit}, maybe failed to connect, ip or port error")
-            }
-        }
-    }
-}
-
-pub async fn influxdb_validate(dsn: Dsn) -> anyhow::Result<DataSourceValidation> {
-    let host = dsn
-        .addresses
-        .first()
-        .and_then(|addr| addr.host.clone())
-        .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
-    let port = dsn
-        .addresses
-        .first()
-        .and_then(|addr| addr.port.clone())
-        .ok_or_else(|| InfluxdbError::InfluxUrlIsRequired(dsn.clone()))?;
-    let protocol = dsn.protocol.as_deref().unwrap_or("http");
-    let influx_url = format!("{}://{}:{}/", protocol, host, port);
-    // http 客户端
-    let client = reqwest::Client::new();
-    // 发送请求，获取结果
-    let result = client.get(influx_url).send().await;
-    // 请求成功
-    if result.is_ok() {
-        let response = result.unwrap();
-        let headers = response.headers();
+        let result = String::from_utf8(output.stdout.clone()).unwrap_or(String::from("{}"));
+        let result: serde_json::Value = serde_json::from_str(&result).unwrap();
         // 组装结果
         Ok(DataSourceValidation {
-            valid: true,
-            support: true,
-            data_source: "influxdb".to_string(),
-            version: Some(format!(
-                "{} - {}",
-                headers
-                    .get("x-influxdb-build")
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-                    .to_string(),
-                headers
-                    .get("x-influxdb-version")
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-                    .to_string()
-            )),
-            message: Some(String::from("")),
+            valid: result["valid"].as_bool().unwrap_or(false),
+            support: result["support"].as_bool().unwrap_or(false),
+            data_source: String::from("influxdb"),
+            version: result["version"].as_str().map(|s| s.to_string()),
+            message: result["message"].as_str().map(|s| s.to_string()),
         })
     } else {
         Ok(DataSourceValidation {
             valid: false,
             support: false,
-            data_source: "influxdb".to_string(),
+            data_source: String::from("influxdb"),
             version: Some(String::from("")),
-            message: Some(result.err().unwrap().source().unwrap().to_string()),
+            message: Some(output.status.to_string()),
         })
     }
-}
-
-pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
-    DataSourceValidation::unknown()
 }

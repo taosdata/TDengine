@@ -18,18 +18,17 @@ use crate::{
 
 use super::get_plugin_dir;
 use crate::validation::DataSourceValidation;
-use std::error::Error;
 
 #[derive(Debug, serde::Serialize)]
 struct OpentsdbConfig {
     // the datasource config
     opents: OpentsConfig,
     // the addr for connector to agent
-    taosx: TaosxConfig,
+    taosx: Option<TaosxConfig>,
     // the task config
-    task: TaskConfig,
+    task: Option<TaskConfig>,
     // the performance config
-    performance: PerformanceConfig,
+    performance: Option<PerformanceConfig>,
 
     // others
     #[serde(skip)]
@@ -187,11 +186,39 @@ impl OpentsdbConfig {
 
         Ok(Self {
             opents,
-            taosx,
-            task,
-            performance,
+            taosx: Some(taosx),
+            task: Some(task),
+            performance: Some(performance),
             td_database,
             ipc_stream,
+        })
+    }
+
+    pub fn new_less(dsn: Dsn) -> Result<Self, OpentsdbError> {
+        debug_assert!(dsn.driver == "opentsdb");
+        // the datasource config
+        let host = dsn
+            .addresses
+            .first()
+            .and_then(|addr| addr.host.clone())
+            .ok_or_else(|| OpentsdbError::OpentsUrlIsRequired(dsn.clone()))?;
+        let port = dsn
+            .addresses
+            .first()
+            .and_then(|addr| addr.port.clone())
+            .ok_or_else(|| OpentsdbError::OpentsUrlIsRequired(dsn.clone()))?;
+        let protocol = dsn.protocol.as_deref().unwrap_or("http");
+        let opents_url = format!("{}://{}:{}/", protocol, host, port);
+
+        let opents = OpentsConfig { opents_url };
+
+        Ok(Self {
+            opents,
+            taosx: None,
+            task: None,
+            performance: None,
+            td_database: "".to_string(),
+            ipc_stream: "".to_string(),
         })
     }
 }
@@ -413,18 +440,87 @@ pub async fn opentsdb_to_taos(
 }
 
 pub async fn opentsdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
-    let host = dsn
-        .addresses
-        .first()
-        .and_then(|addr| addr.host.clone())
-        .ok_or_else(|| OpentsdbError::OpentsUrlIsRequired(dsn.clone()))?;
-    let port = dsn
-        .addresses
-        .first()
-        .and_then(|addr| addr.port.clone())
-        .ok_or_else(|| OpentsdbError::OpentsUrlIsRequired(dsn.clone()))?;
-    let protocol = dsn.protocol.as_deref().unwrap_or("http");
-    let opents_url = format!("{}://{}:{}/", protocol, host, port);
+    let config = OpentsdbConfig::new_less(dsn);
+    match config {
+        Err(err) => {
+            anyhow::bail!(err)
+        }
+        Ok(c) => {
+            // 连接器路径
+            let connector_path = opentsdb_jar_path();
+            // startup the connector
+            let mut command = tokio::process::Command::new("java");
+            // 查询命令
+            let output = command
+                .arg("-jar")
+                .arg(&connector_path)
+                .arg("-fetch")
+                .arg(&c.opents.opents_url)
+                .kill_on_drop(true)
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::piped())
+                .output()
+                .await
+                .with_context(|| "Start OpenTSDB collector error")?;
+            if output.status.success() {
+                let s = String::from_utf8(output.stdout.clone())?;
+                if s == "" {
+                    anyhow::bail!("OpenTSDB connector returns OK, but result is nothing");
+                }
+                let mut vec = Vec::new();
+                vec.push(DataSet {
+                    id: s,
+                    name: None,
+                    category: None,
+                    r#type: None,
+                    options: None,
+                    format: None,
+                });
+                Ok(vec)
+            } else {
+                match output.status.code() {
+                    Some(101) => anyhow::bail!("Failed to connect, ip or port error"),
+                    Some(102) => anyhow::bail!("Protocol error"),
+                    Some(103) => anyhow::bail!("Params error or service mismatch"),
+                    None => anyhow::bail!("OpenTSDB connector closed by signal"),
+                    Some(exit) => {
+                        anyhow::bail!(
+                            "Unknown exit code {exit}, maybe failed to connect, ip or port error"
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+    let config = OpentsdbConfig::new_less(dsn.clone());
+    match config {
+        Err(err) => DataSourceValidation {
+            valid: false,
+            support: false,
+            data_source: String::from("opentsdb"),
+            version: Some(String::from("")),
+            message: Some(format!("{:?}", err)),
+        },
+        Ok(c) => {
+            let result = validate_source_opentsdb(c).await;
+            match result {
+                Err(err) => DataSourceValidation {
+                    valid: false,
+                    support: false,
+                    data_source: String::from("opentsdb"),
+                    version: Some(String::from("")),
+                    message: Some(format!("{:?}", err)),
+                },
+                Ok(validate) => validate,
+            }
+        }
+    }
+}
+
+async fn validate_source_opentsdb(config: OpentsdbConfig) -> anyhow::Result<DataSourceValidation> {
     // 连接器路径
     let connector_path = opentsdb_jar_path();
     // startup the connector
@@ -433,85 +529,31 @@ pub async fn opentsdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     let output = command
         .arg("-jar")
         .arg(&connector_path)
-        .arg("-fetch")
-        .arg(&opents_url)
-        .kill_on_drop(true)
+        .arg("-check")
+        .arg(&config.opents.opents_url)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::piped())
         .output()
         .await
         .with_context(|| "Start OpenTSDB collector error")?;
     if output.status.success() {
-        let s = String::from_utf8(output.stdout.clone())?;
-        if s == "" {
-            anyhow::bail!("OpenTSDB connector returns OK, but result is nothing");
-        }
-        let mut vec = Vec::new();
-        vec.push(DataSet {
-            id: s,
-            name: None,
-            category: None,
-            r#type: None,
-            options: None,
-            format: None,
-        });
-        Ok(vec)
-    } else {
-        match output.status.code() {
-            Some(101) => anyhow::bail!("Failed to connect, ip or port error"),
-            Some(102) => anyhow::bail!("Protocol error"),
-            Some(103) => anyhow::bail!("Params error or service mismatch"),
-            None => anyhow::bail!("OpenTSDB connector closed by signal"),
-            Some(exit) => {
-                anyhow::bail!("Unknown exit code {exit}, maybe failed to connect, ip or port error")
-            }
-        }
-    }
-}
-
-pub async fn opentsdb_validate(dsn: Dsn) -> anyhow::Result<DataSourceValidation> {
-    let host = dsn
-        .addresses
-        .first()
-        .and_then(|addr| addr.host.clone())
-        .ok_or_else(|| OpentsdbError::OpentsUrlIsRequired(dsn.clone()))?;
-    let port = dsn
-        .addresses
-        .first()
-        .and_then(|addr| addr.port.clone())
-        .ok_or_else(|| OpentsdbError::OpentsUrlIsRequired(dsn.clone()))?;
-    let protocol = dsn.protocol.as_deref().unwrap_or("http");
-    let opents_url = format!("{}://{}:{}/api/version", protocol, host, port);
-    // http 客户端
-    let client = reqwest::Client::new();
-    // 发送请求，获取结果
-    let result = client.get(opents_url).send().await; // reqwest send
-
-    if result.is_ok() {
-        // 请求成功
-        let response = result.unwrap();
-        let text = response.text().await.unwrap();
-        // 转换为json格式
-        let json: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let result = String::from_utf8(output.stdout.clone()).unwrap_or(String::from("{}"));
+        let result: serde_json::Value = serde_json::from_str(&result).unwrap();
         // 组装结果
         Ok(DataSourceValidation {
-            valid: true,
-            support: true,
-            data_source: "opentsdb".to_string(),
-            version: Some(json.get("version").unwrap().to_string()),
-            message: Some(String::from("")),
+            valid: result["valid"].as_bool().unwrap_or(false),
+            support: result["support"].as_bool().unwrap_or(false),
+            data_source: String::from("opentsdb"),
+            version: result["version"].as_str().map(|s| s.to_string()),
+            message: result["message"].as_str().map(|s| s.to_string()),
         })
     } else {
         Ok(DataSourceValidation {
             valid: false,
             support: false,
-            data_source: "opentsdb".to_string(),
+            data_source: String::from("opentsdb"),
             version: Some(String::from("")),
-            message: Some(result.err().unwrap().source().unwrap().to_string()),
+            message: Some(output.status.to_string()),
         })
     }
-}
-
-pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
-    DataSourceValidation::unknown()
 }

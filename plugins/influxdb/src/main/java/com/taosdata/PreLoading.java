@@ -142,8 +142,8 @@ public class PreLoading implements CommandLineRunner {
                 }
                 // 检查连通性（代码到这里，说明参数正确，可以直接取url）
                 JSONObject result = getInfluxdbVersion(args[2]);
-                if (result.getBooleanValue("available")) {
-                    System.out.println(result.get("version"));
+                if (result.getBooleanValue("valid")) {
+                    System.out.println(result.toJSONString());
                     System.exit(0);
                 } else {
                     System.exit(3);
@@ -403,11 +403,15 @@ public class PreLoading implements CommandLineRunner {
                 version += response.getHeaders("x-influxdb-version")[0].getValue();
             }
             // 封装数据
-            result.put("available", true);
+            result.put("valid", true);
+            result.put("support", true);
             result.put("version", version.trim());
+            result.put("message", "Your data source is availabe, its version is " + version.trim() + ", which is supported, you can proceed to transfer your data to TDengine.");
         } catch (Exception e) {
-            result.put("available", false);
+            result.put("valid", false);
+            result.put("support", false);
             result.put("version", "");
+            result.put("message", e.getMessage());
         }
         return result;
     }
