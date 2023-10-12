@@ -718,23 +718,22 @@ int taos_init() {
 }
 
 int taos_options_imp(TSDB_OPTION option, const char *str) {
-#ifndef WINDOWS
-  int  len = strlen(str);
-  if (len > 1 && str[0] != '"' && str[0] != '\'') {
-      if (len + 2 >= PATH_MAX) {
-      tscError("Too long path %s", str);
-      return -1;
-    }
-    char newstr[PATH_MAX];
-    newstr[0] = '"';
-    strncpy(newstr+1, str, len);
-    newstr[len + 1] = '"';
-    newstr[len + 2] = '\0';
-    str = newstr;
-  }
-#endif
-
   if (option == TSDB_OPTION_CONFIGDIR) {
+#ifndef WINDOWS
+    int  len = strlen(str);
+    if (len > 1 && str[0] != '"' && str[0] != '\'') {
+        if (len + 2 >= PATH_MAX) {
+        tscError("Too long path %s", str);
+        return -1;
+      }
+      char newstr[PATH_MAX];
+      newstr[0] = '"';
+      strncpy(newstr+1, str, len);
+      newstr[len + 1] = '"';
+      newstr[len + 2] = '\0';
+      str = newstr;
+    }
+#endif
     tstrncpy(configDir, str, PATH_MAX);
     tscInfo("set cfg:%s to %s", configDir, str);
     return 0;
