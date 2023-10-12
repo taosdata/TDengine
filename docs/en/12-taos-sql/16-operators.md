@@ -54,6 +54,7 @@ LIKE is used together with wildcards to match strings. Its usage is described as
 MATCH and NMATCH are used together with regular expressions to match strings. Their usage is described as follows:
 
 - Use POSIX regular expression syntax. For more information, see Regular Expressions.
+- The `MATCH` operator returns true when the regular expression is matched. The `NMATCH` operator returns true when the regular expression is not matched.
 - Regular expression can be used against only table names, i.e. `tbname`, and tags/columns of binary/nchar types.
 - The maximum length of regular expression string is 128 bytes. Configuration parameter `maxRegexStringLen` can be used to set the maximum allowed regular expression. It's a configuration parameter on the client side, and will take effect after restarting the client.
 
