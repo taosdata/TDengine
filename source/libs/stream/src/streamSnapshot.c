@@ -110,7 +110,7 @@ const char*    ROCKSDB_CURRENT = "CURRENT";
 const char*    ROCKSDB_CHECKPOINT_META = "CHECKPOINT";
 static int64_t kBlockSize = 64 * 1024;
 
-int32_t streamSnapHandleInit(SStreamSnapHandle* handle, char* path, int64_t chkpId, void* pMeta);
+int32_t streamSnapHandleInit(SStreamSnapHandle* handle, char* path, void* pMeta);
 void    streamSnapHandleDestroy(SStreamSnapHandle* handle);
 
 // static void streamBuildFname(char* path, char* file, char* fullname)
@@ -139,7 +139,7 @@ TdFilePtr streamOpenFile(char* path, char* name, int32_t opt) {
   return taosOpenFile(fullname, opt);
 }
 
-int32_t streamBackendGetSnapInfo(void* arg, char* path, int64_t chkpId) { return taskDbBuildSnap(arg, chkpId); }
+int32_t streamTaskDbGetSnapInfo(void* arg, char* path) { return taskDbBuildSnap(arg); }
 
 void snapFileDebugInfo(SBackendSnapFile2* pSnapFile) {
   if (qDebugFlag & DEBUG_DEBUG) {
@@ -235,20 +235,23 @@ int32_t snapFileReadMeta(SBackendSnapFile2* pSnapFile) {
   taosCloseDir(&pDir);
   return 0;
 }
-int32_t streamBackendSnapInitFile(char* path, SStreamTaskSnap* pSnap, SBackendSnapFile2* pSnapFile) {
+int32_t streamBackendSnapInitFile(char* metaPath, SStreamTaskSnap* pSnap, SBackendSnapFile2* pSnapFile) {
   // SBanckendFile* pFile = taosMemoryCalloc(1, sizeof(SBanckendFile));
   int32_t code = -1;
 
-  char* snapPath = taosMemoryCalloc(1, strlen(path) + 256);
-  sprintf(snapPath, "%s%s%" PRId64 "_%" PRId64 "%s%s%s%s%scheckpoint%" PRId64 "", path, TD_DIRSEP, pSnap->streamId,
-          pSnap->taskId, TD_DIRSEP, "state", TD_DIRSEP, "checkpoints", TD_DIRSEP, pSnap->chkpId);
-  if (taosIsDir(snapPath)) {
+  char* path = taosMemoryCalloc(1, strlen(metaPath) + 256);
+  char  idstr[64] = {0};
+  sprintf(idstr, "0x%" PRIx64 "-0x%x", pSnap->streamId, (int32_t)(pSnap->taskId));
+
+  sprintf(path, "%s%s%s%s%s%s%s%" PRId64 "", metaPath, TD_DIRSEP, idstr, TD_DIRSEP, "checkpoints", TD_DIRSEP,
+          "checkpoint", pSnap->chkpId);
+  if (taosIsDir(path)) {
     goto _ERROR;
   }
 
   pSnapFile->pSst = taosArrayInit(16, sizeof(void*));
   pSnapFile->pFileList = taosArrayInit(64, sizeof(SBackendFileItem));
-  pSnapFile->path = snapPath;
+  pSnapFile->path = path;
   pSnapFile->snapInfo = *pSnap;
   if ((code = snapFileReadMeta(pSnapFile)) != 0) {
     goto _ERROR;
@@ -262,7 +265,7 @@ int32_t streamBackendSnapInitFile(char* path, SStreamTaskSnap* pSnap, SBackendSn
   code = 0;
 
 _ERROR:
-  taosMemoryFree(snapPath);
+  taosMemoryFree(path);
   return code;
 }
 void snapFileDestroy(SBackendSnapFile2* pSnap) {
@@ -288,11 +291,11 @@ void snapFileDestroy(SBackendSnapFile2* pSnap) {
 
   return;
 }
-int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chkpId, void* pMeta) {
+int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, void* pMeta) {
   // impl later
 
   SArray* pSnapSet = NULL;
-  int32_t code = streamBackendGetSnapInfo(pMeta, path, chkpId);
+  int32_t code = streamTaskDbGetSnapInfo(pMeta, path);
   if (code != 0) {
     return -1;
   }
@@ -339,7 +342,7 @@ int32_t streamSnapReaderOpen(void* pMeta, int64_t sver, int64_t chkpId, char* pa
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  if (streamSnapHandleInit(&pReader->handle, (char*)path, chkpId, pMeta) < 0) {
+  if (streamSnapHandleInit(&pReader->handle, (char*)path, pMeta) < 0) {
     taosMemoryFree(pReader);
     return -1;
   }
@@ -531,9 +534,16 @@ int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nDa
 
   SBackendSnapFile2* pDbSnapFile = taosArrayGet(pHandle->pDbSnapSet, pHandle->currIdx);
   if (pDbSnapFile->inited == 0) {
+    char idstr[64] = {0};
+    sprintf(idstr, "0x%" PRIx64 "-0x%x", snapInfo.streamId, (int32_t)(snapInfo.taskId));
+
     char* path = taosMemoryCalloc(1, strlen(pHandle->metaPath) + 256);
-    sprintf(path, "%s%s%" PRId64 "_%" PRId64 "%s%s%s%s%scheckpoint%" PRId64 "", path, TD_DIRSEP, snapInfo.streamId,
-            snapInfo.taskId, TD_DIRSEP, "state", TD_DIRSEP, "checkpoints", TD_DIRSEP, snapInfo.chkpId);
+    sprintf(path, "%s%s%s%s%s%s%s%" PRId64 "", path, TD_DIRSEP, idstr, TD_DIRSEP, "checkpoints", TD_DIRSEP,
+            "checkpoint", snapInfo.chkpId);
+    if (!taosIsDir(path)) {
+      code = taosMulMkDir(path);
+      ASSERT(code == 0);
+    }
 
     pDbSnapFile->path = path;
     pDbSnapFile->snapInfo = snapInfo;

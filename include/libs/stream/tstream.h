@@ -410,7 +410,7 @@ typedef struct SStreamMeta {
   int32_t       walScanCounter;
   void*         streamBackend;
   int64_t       streamBackendRid;
-  SHashObj*     pTaskBackendUnique;
+  SHashObj*     pTaskDbUnique;
   TdThreadMutex backendMutex;
   SMetaHbInfo   hbInfo;
   int32_t       closedTask;
@@ -727,7 +727,7 @@ int32_t      streamMetaCommit(SStreamMeta* pMeta);
 int32_t      streamMetaLoadAllTasks(SStreamMeta* pMeta);
 int32_t      streamMetaReloadAllTasks(SStreamMeta* pMeta);
 void         streamMetaNotifyClose(SStreamMeta* pMeta);
-void*        streamMetaGetBackendByTaskKey(SStreamMeta* pMeta, char* key, int64_t* ref);
+void*        streamMetaGetBackendByTaskKey(SStreamMeta* pMeta, char* key, int64_t chkpId, int64_t* ref);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);

@@ -116,7 +116,7 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
   //   taosWLockLatch(&pMeta->lock);
   //   taosThreadMutexLock(&pMeta->backendMutex);
   //   void* uniqueId =
-  //       taosHashGet(pMeta->pTaskBackendUnique, pState->pTdbState->idstr, strlen(pState->pTdbState->idstr) + 1);
+  //       taosHashGet(pMeta->pTaskDbUnique, pState->pTdbState->idstr, strlen(pState->pTdbState->idstr) + 1);
   //   if (uniqueId == NULL) {
   //     int code = streamStateOpenBackend(pMeta->streamBackend, pState);
   //     if (code == -1) {
@@ -124,7 +124,7 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
   //       taosMemoryFree(pState);
   //       return NULL;
   //     }
-  //     taosHashPut(pMeta->pTaskBackendUnique, pState->pTdbState->idstr, strlen(pState->pTdbState->idstr) + 1,
+  //     taosHashPut(pMeta->pTaskDbUnique, pState->pTdbState->idstr, strlen(pState->pTdbState->idstr) + 1,
   //                 &pState->pTdbState->backendCfWrapperId, sizeof(pState->pTdbState->backendCfWrapperId));
   //   } else {
   //     int64_t id = *(int64_t*)uniqueId;

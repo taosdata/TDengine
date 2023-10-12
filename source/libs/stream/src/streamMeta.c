@@ -182,7 +182,7 @@ int32_t streamMetaCheckBackendCompatible(SStreamMeta* pMeta) {
   return ret;
 }
 
-int32_t streamMetaConvertBackendFormat(SStreamMeta* pMeta) {
+int32_t streamMetaCvtDbFormat(SStreamMeta* pMeta) {
   int32_t          code = 0;
   int64_t          chkpId = streamGetLatestCheckpointId(pMeta);
   SBackendWrapper* pBackend = streamBackendInit(pMeta->path, chkpId);
@@ -190,7 +190,7 @@ int32_t streamMetaConvertBackendFormat(SStreamMeta* pMeta) {
   void* pIter = taosHashIterate(pBackend->cfInst, NULL);
   while (pIter) {
     void* key = taosHashGetKey(pIter, NULL);
-    code = streamStateConvertDataFormat(pMeta->path, key, *(void**)pIter);
+    code = streamStateCvtDataFormat(pMeta->path, key, *(void**)pIter);
     if (code != 0) {
       qError("failed to cvt data");
       goto _EXIT;
@@ -210,7 +210,7 @@ int32_t streamMetaMayCvtDbFormat(SStreamMeta* pMeta) {
   } else if (compatible == STREAM_STATA_NEED_CONVERT) {
     qInfo("stream state need covert backend format");
 
-    return streamMetaConvertBackendFormat(pMeta);
+    return streamMetaCvtDbFormat(pMeta);
   } else if (compatible == STREAM_STATA_NO_COMPATIBLE) {
     qError(
         "stream read incompatible data, rm %s/vnode/vnode*/tq/stream if taosd cannot start, and rebuild stream "
@@ -222,9 +222,9 @@ int32_t streamMetaMayCvtDbFormat(SStreamMeta* pMeta) {
   return 0;
 }
 
-void* streamMetaGetBackendByTaskKey(SStreamMeta* pMeta, char* key, int64_t* ref) {
+void* streamMetaGetBackendByTaskKey(SStreamMeta* pMeta, char* key, int64_t chkpId, int64_t* ref) {
   taosThreadMutexLock(&pMeta->backendMutex);
-  void** ppBackend = taosHashGet(pMeta->pTaskBackendUnique, key, strlen(key));
+  void** ppBackend = taosHashGet(pMeta->pTaskDbUnique, key, strlen(key));
   if (ppBackend != NULL && *ppBackend != NULL) {
     taskDbAddRef(*ppBackend);
     *ref = ((STaskDbWrapper*)*ppBackend)->refId;
@@ -232,7 +232,7 @@ void* streamMetaGetBackendByTaskKey(SStreamMeta* pMeta, char* key, int64_t* ref)
     return *ppBackend;
   }
 
-  void* pBackend = taskDbOpen(pMeta->path, key);
+  void* pBackend = taskDbOpen(pMeta->path, key, chkpId);
   if (pBackend == NULL) {
     taosThreadMutexUnlock(&pMeta->backendMutex);
     return NULL;
@@ -240,7 +240,7 @@ void* streamMetaGetBackendByTaskKey(SStreamMeta* pMeta, char* key, int64_t* ref)
 
   *ref = taosAddRef(taskDbWrapperId, pBackend);
 
-  taosHashPut(pMeta->pTaskBackendUnique, key, strlen(key), &pBackend, sizeof(void*));
+  taosHashPut(pMeta->pTaskDbUnique, key, strlen(key), &pBackend, sizeof(void*));
   taosThreadMutexUnlock(&pMeta->backendMutex);
   return pBackend;
 }
@@ -301,8 +301,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->hbInfo.tickCounter = 0;
   pMeta->hbInfo.stopFlag = 0;
 
-  pMeta->pTaskBackendUnique =
-      taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  pMeta->pTaskDbUnique = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
 
   // start backend
   // taosInitRWLatch(&pMeta->chkpDirLock);
@@ -411,7 +410,7 @@ void streamMetaClear(SStreamMeta* pMeta) {
   taosRemoveRef(streamBackendId, pMeta->streamBackendRid);
 
   taosHashClear(pMeta->pTasks);
-  taosHashClear(pMeta->pTaskBackendUnique);
+  taosHashClear(pMeta->pTaskDbUnique);
 
   taosArrayClear(pMeta->pTaskList);
   taosArrayClear(pMeta->chkpSaved);
@@ -452,7 +451,7 @@ void streamMetaCloseImpl(void* arg) {
   taosArrayDestroy(pMeta->chkpInUse);
 
   taosHashCleanup(pMeta->pTasks);
-  taosHashCleanup(pMeta->pTaskBackendUnique);
+  taosHashCleanup(pMeta->pTaskDbUnique);
 
   taosMemoryFree(pMeta->path);
   taosThreadMutexDestroy(&pMeta->backendMutex);

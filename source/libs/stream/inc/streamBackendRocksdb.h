@@ -83,11 +83,13 @@ int32_t    streamBackendLoadCheckpointInfo(void* pMeta);
 int32_t    streamBackendDoCheckpoint(void* pMeta, int64_t checkpointId);
 SListNode* streamBackendAddCompare(void* backend, void* arg);
 void       streamBackendDelCompare(void* backend, void* arg);
-int32_t    streamStateConvertDataFormat(char* path, char* key, void* cfInst);
+int32_t    streamStateCvtDataFormat(char* path, char* key, void* cfInst);
 
-STaskDbWrapper* taskDbOpen(char* path, char* key);
+STaskDbWrapper* taskDbOpen(char* path, char* key, int64_t chkpId);
 void            taskDbDestroy(void* pBackend);
 int32_t         taskDbDoCheckpoint(void* arg, int64_t chkpId);
+
+void taskDbUpdateChkpId(void* pTaskDb, int64_t chkpId);
 
 void* taskDbAddRef(void* pTaskDb);
 void  taskDbRemoveRef(void* pTaskDb);
@@ -182,7 +184,7 @@ int32_t streamBackendTriggerChkp(void* pMeta, char* dst);
 int32_t streamBackendAddInUseChkp(void* arg, int64_t chkpId);
 int32_t streamBackendDelInUseChkp(void* arg, int64_t chkpId);
 
-int32_t taskDbBuildSnap(void* arg, int64_t chkpId);
+int32_t taskDbBuildSnap(void* arg);
 
 // int32_t streamDefaultIter_rocksdb(SStreamState* pState, const void* start, const void* end, SArray* result);
 #endif
