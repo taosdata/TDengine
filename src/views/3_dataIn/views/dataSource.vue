@@ -1,12 +1,9 @@
 <template>
   <div v-loading="requestIng">
-    <p class="title">
+    <div class="title">
       <span>{{ $t("dataIn.dataSources") }}</span>
-    </p>
-    <div class="data-source">
       <div class="flexEnd">
         <el-button
-          plain
           @click="refresh"
           size="small"
           icon="el-icon-refresh"
@@ -14,13 +11,15 @@
           >{{ $t("refresh") }}</el-button
         >
         <el-button
-          plain
           @click="addDbSource"
           size="small"
           icon="el-icon-plus"
           >{{ $t("datasource.addsource") }}</el-button
         >
       </div>
+    </div>
+    <div class="data-source">
+     
       <el-table
         style="margin-top: 20px"
         :data="topicList"
@@ -169,7 +168,7 @@
                 <el-tooltip
                   placement="bottom"
                   effect="light"
-                  :content="$t('datasource.excutestart')"
+                  :content="$t('datasource.excutestart').replace('{name}',scope.row.name)"
                 >
                   <el-button
                     plain
@@ -183,7 +182,7 @@
                 <el-tooltip
                   placement="bottom"
                   effect="light"
-                  :content="$t('datasource.excutestop')"
+                  :content="$t('datasource.excutestop').replace('{name}',scope.row.name)"
                 >
                   <el-button
                     plain
@@ -221,6 +220,11 @@
           fixed="right"
         >
           <template slot-scope="scope">
+            <el-tooltip
+                  placement="bottom"
+                  effect="light"
+                  :content="$t('datasource.viewconfig')"
+                >
             <el-button
               type="primay"
               size="mini"
@@ -231,18 +235,31 @@
               @click="edit(scope.row, scope.row.status.toLowerCase())"
               icon="el-icon-view"
             ></el-button>
+            </el-tooltip>
+            <el-tooltip
+                  placement="bottom"
+                  effect="light"
+                  :content="$t('delete')"
+                >
             <el-button
               plain
               size="mini"
               @click="del(scope.row)"
               icon="el-icon-delete"
             ></el-button>
+            </el-tooltip>
+            <el-tooltip
+                  placement="bottom"
+                  effect="light"
+                  :content="$t('refresh')"
+                >
             <el-button
               plain
               size="mini"
               @click="copyTask(scope.row, scope.row.status.toLowerCase())"
               icon="el-icon-copy-document"
             ></el-button>
+            </el-tooltip>
           </template>
         </el-table-column>
       </el-table>
@@ -686,6 +703,7 @@ export default {
 };
 </script>
 <style lang="scss">
+
 .el-tooltip__popper {
   max-width: 450px !important;
 }
@@ -717,16 +735,23 @@ export default {
   border-radius: 4px;
   font-size: 16px;
   margin: 10px 0;
-  padding: 8px 16px;
+  padding: 12px 16px;
 }
 .flexEnd {
   position: absolute;
-  top: 15px;
+  top: 16px;
   z-index: 9999;
   right: 10px;
   .el-button {
-    border: none;
+    border: 1px solid transparent;
     background: transparent;
+    color:#4259ce;
+    font-size:14px;
+    &:hover{
+      background:#fff;
+      border: 1px solid #4259ce;
+      
+    }
   }
 }
 
@@ -765,5 +790,6 @@ export default {
     border: 1px solid #eaeefb;
     border-top: none;
   }
+  
 }
 </style>
