@@ -7,7 +7,7 @@ from util.dnodes import *
 
 class TDTestCase:
     updatecfgDict = {'ttlUnit': 1, "ttlPushInterval": 1, "ttlChangeOnWrite": 0}
-    
+
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
@@ -21,7 +21,8 @@ class TDTestCase:
         tdSql.execute(f'create table {self.dbname}.t2(ts timestamp, c1 int) ttl {self.ttl}')
         tdSql.query(f'show {self.dbname}.tables')
         tdSql.checkRows(2)
-        
+        tdSql.execute(f'flush database {self.dbname}')
+
         time.sleep(self.ttl + 2)
         tdSql.query(f'show {self.dbname}.tables')
         tdSql.checkRows(1)

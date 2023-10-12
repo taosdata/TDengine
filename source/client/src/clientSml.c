@@ -683,7 +683,7 @@ static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols, bool 
     SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, i);
     if (taosHashGet(hashTmp, kv->key, kv->keyLen) == NULL) {
       taosHashCleanup(hashTmp);
-      return -1;
+      return TSDB_CODE_SML_INVALID_DATA;
     }
   }
   taosHashCleanup(hashTmp);
