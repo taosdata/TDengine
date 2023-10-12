@@ -20,6 +20,13 @@
 
 #define MND_VIEW_VER_NUMBER 1
 
+SDynViewVersion gViewVer = {0};
+
+void initDynViewVersion(void) {
+  gViewVer.svrBootTs = taosGetTimestampMs();
+  gViewVer.dynViewVer = 1;
+}
+
 void tFreeViewObj(SViewObj *pView) {
   taosMemoryFree(pView->querySql);
   taosMemoryFree(pView->pSchema);
@@ -236,12 +243,14 @@ VIEW_DECODE_OVER:
 
 int32_t mndViewActionInsert(SSdb *pSdb, SViewObj *pView) {
   mTrace("view:%s, perform insert action", pView->fullname);
+  atomic_add_fetch_64(&gViewVer.dynViewVer, 1);
   return 0;
 }
 
 int32_t mndViewActionDelete(SSdb *pSdb, SViewObj *pView) {
   mTrace("view:%s, perform delete action", pView->fullname);
   tFreeViewObj(pView);
+  atomic_add_fetch_64(&gViewVer.dynViewVer, 1);
   return 0;
 }
 
@@ -259,6 +268,8 @@ int32_t mndViewActionUpdate(SSdb *pSdb, SViewObj *pOldView, SViewObj *pNewView) 
   TSWAP(pOldView->pSchema, pNewView->pSchema);
 
   taosWUnLockLatch(&pOldView->lock);
+
+  atomic_add_fetch_64(&gViewVer.dynViewVer, 1);
 
   return 0;
 }
@@ -703,6 +714,105 @@ int32_t mndDropViewByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   return 0;
 }
 
+void mndValidateDynViewVersion(SMnode *pMnode, SDynViewVersion* pDynViewVer, bool *needCheck) {
+  if (pDynViewVer->svrBootTs != gViewVer.svrBootTs || pDynViewVer->dynViewVer != gViewVer.dynViewVer) {
+    *needCheck = true;
+    pDynViewVer->svrBootTs = gViewVer.svrBootTs;
+    pDynViewVer->dynViewVer = atomic_load_64(&gViewVer.dynViewVer);
+    return;
+  }
 
+  *needCheck = false;
+}
+
+int32_t mndValidateViewInfo(SMnode *pMnode, SViewVersion *pViewVersions, int32_t numOfViews, void **ppRsp,
+                           int32_t *pRspLen) {
+/*
+  SSTbHbRsp hbRsp = {0};
+  hbRsp.pMetaRsp = taosArrayInit(numOfStbs, sizeof(STableMetaRsp));
+  if (hbRsp.pMetaRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  hbRsp.pIndexRsp = taosArrayInit(numOfStbs, sizeof(STableIndexRsp));
+  if (NULL == hbRsp.pIndexRsp) {
+    taosArrayDestroy(hbRsp.pMetaRsp);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  for (int32_t i = 0; i < numOfStbs; ++i) {
+    SSTableVersion *pStbVersion = &pStbVersions[i];
+    pStbVersion->suid = be64toh(pStbVersion->suid);
+    pStbVersion->sversion = ntohs(pStbVersion->sversion);
+    pStbVersion->tversion = ntohs(pStbVersion->tversion);
+    pStbVersion->smaVer = ntohl(pStbVersion->smaVer);
+
+    STableMetaRsp metaRsp = {0};
+    int32_t       smaVer = 0;
+    mInfo("stb:%s.%s, start to retrieve meta", pStbVersion->dbFName, pStbVersion->stbName);
+    if (mndBuildStbSchema(pMnode, pStbVersion->dbFName, pStbVersion->stbName, &metaRsp, &smaVer) != 0) {
+      metaRsp.numOfColumns = -1;
+      metaRsp.suid = pStbVersion->suid;
+      tstrncpy(metaRsp.dbFName, pStbVersion->dbFName, sizeof(metaRsp.dbFName));
+      tstrncpy(metaRsp.tbName, pStbVersion->stbName, sizeof(metaRsp.tbName));
+      tstrncpy(metaRsp.stbName, pStbVersion->stbName, sizeof(metaRsp.stbName));
+      taosArrayPush(hbRsp.pMetaRsp, &metaRsp);
+      continue;
+    }
+
+    if (pStbVersion->sversion != metaRsp.sversion || pStbVersion->tversion != metaRsp.tversion) {
+      taosArrayPush(hbRsp.pMetaRsp, &metaRsp);
+    } else {
+      tFreeSTableMetaRsp(&metaRsp);
+    }
+
+    if (pStbVersion->smaVer && pStbVersion->smaVer != smaVer) {
+      bool           exist = false;
+      char           tbFName[TSDB_TABLE_FNAME_LEN];
+      STableIndexRsp indexRsp = {0};
+      indexRsp.pIndex = taosArrayInit(10, sizeof(STableIndexInfo));
+      if (NULL == indexRsp.pIndex) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
+      }
+
+      sprintf(tbFName, "%s.%s", pStbVersion->dbFName, pStbVersion->stbName);
+      int32_t code = mndGetTableSma(pMnode, tbFName, &indexRsp, &exist);
+      if (code || !exist) {
+        indexRsp.suid = pStbVersion->suid;
+        indexRsp.version = -1;
+        indexRsp.pIndex = NULL;
+      }
+
+      strcpy(indexRsp.dbFName, pStbVersion->dbFName);
+      strcpy(indexRsp.tbName, pStbVersion->stbName);
+
+      taosArrayPush(hbRsp.pIndexRsp, &indexRsp);
+    }
+  }
+
+  int32_t rspLen = tSerializeSSTbHbRsp(NULL, 0, &hbRsp);
+  if (rspLen < 0) {
+    tFreeSSTbHbRsp(&hbRsp);
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  void *pRsp = taosMemoryMalloc(rspLen);
+  if (pRsp == NULL) {
+    tFreeSSTbHbRsp(&hbRsp);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSSTbHbRsp(pRsp, rspLen, &hbRsp);
+  tFreeSSTbHbRsp(&hbRsp);
+  *ppRsp = pRsp;
+  *pRspLen = rspLen;
+*/  
+  return 0;
+}
 
 
