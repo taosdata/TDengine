@@ -1364,7 +1364,8 @@ TEST(clientCase, td_25129) {
   }
 
   for(int i = 0; i < numOfAssign; i++){
-    printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+    printf("assign i:%d, vgId:%d, offset:%lld, start:%"PRId64", end:%"PRId64"\n", i, pAssign[i].vgId, pAssign[i].currentOffset,
+           pAssign[i].begin, pAssign[i].end);
   }
 
   tmq_free_assignment(pAssign);
