@@ -449,14 +449,14 @@ int32_t streamSnapWriterOpen(void* pMeta, int64_t sver, int64_t ever, char* path
   if (pWriter == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  SBackendSnapFile2 snapFile = {0};
 
   SStreamSnapHandle* pHandle = &pWriter->handle;
-  pHandle->pDbSnapSet = taosArrayInit(8, sizeof(SBackendSnapFile2));
-
-  taosArrayPush(pHandle->pDbSnapSet, &snapFile);
   pHandle->currIdx = 0;
   pHandle->metaPath = taosStrdup(path);
+  pHandle->pDbSnapSet = taosArrayInit(8, sizeof(SBackendSnapFile2));
+
+  SBackendSnapFile2 snapFile = {0};
+  taosArrayPush(pHandle->pDbSnapSet, &snapFile);
 
   *ppWriter = pWriter;
   return 0;
