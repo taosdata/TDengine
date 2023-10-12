@@ -55,11 +55,18 @@ else
     fi
     while true; do
         es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check)
-        echo ${es}
+        echo "Try to connect to first ep with return: ${es}"
         if [ "${es%%:*}" -eq 2 ]; then
-            echo "execute create dnode"
-            taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create dnode \"$FQDN:$SERVER_PORT\";"
-            break
+            echo "execute to create dnode after connected to first ep"
+            ENDPOINT=$FQDN:$SERVER_PORT
+            taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create dnode \"$ENDPOINT\";"
+            DNODETmp=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "set max_binary_display_width 2000;show dnodes;" | grep -E "$ENDPOINT" | awk '{split($0,a,"|");print a[1]}')
+            DNODEID=$(echo "$DNODETmp" | sed -e 's/^[[:space:]]*//')
+            if [[ "$DNODEID" != "" ]]; then
+                taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT -s "create mnode on dnode $DNODEID;"
+                echo "Created the mnode for dnode $DNODEID"
+                break
+            fi
         fi
         sleep 1s
     done

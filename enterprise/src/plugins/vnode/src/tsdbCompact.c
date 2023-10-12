@@ -762,17 +762,6 @@ static int32_t tsdbCompactEnd(SCompactor2 *compactor) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = tsdbFSEditBegin(compactor->tsdb->pFS, compactor->fopArr, TSDB_FEDIT_MERGE);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  taosThreadRwlockWrlock(&compactor->tsdb->rwLock);
-  code = tsdbFSEditCommit(compactor->tsdb->pFS);
-  if (code) {
-    taosThreadRwlockUnlock(&compactor->tsdb->rwLock);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-  taosThreadRwlockUnlock(&compactor->tsdb->rwLock);
-
   taosArrayDestroy(compactor->ctx->aSkyLine);
 
   TARRAY2_DESTROY(compactor->ctx->tombIterArr, NULL);
@@ -978,13 +967,7 @@ static int32_t tsdbCompactFSetBegin(SCompactor2 *compactor) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  int32_t expLevel = 0;
-  tsdbFidLevel(compactor->ctx->fset->fid, &compactor->tsdb->keepCfg, taosGetTimestampSec());
-  code = tfsAllocDisk(compactor->tsdb->pVnode->pTfs, expLevel, &compactor->ctx->did);
-  if (code) {
-    code = TAOS_SYSTEM_ERROR(code);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
+  TARRAY2_CLEAR(compactor->fopArr, NULL);
 
   code = tsdbCompactFSetOpenReader(compactor);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -1017,6 +1000,17 @@ static int32_t tsdbCompactFSetEnd(SCompactor2 *compactor) {
 
   code = tsdbCompactFSetCloseReader(compactor);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  code = tsdbFSEditBegin(compactor->tsdb->pFS, compactor->fopArr, TSDB_FEDIT_MERGE);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  taosThreadRwlockWrlock(&compactor->tsdb->rwLock);
+  code = tsdbFSEditCommit(compactor->tsdb->pFS);
+  if (code) {
+    taosThreadRwlockUnlock(&compactor->tsdb->rwLock);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  taosThreadRwlockUnlock(&compactor->tsdb->rwLock);
 
 _exit:
   if (code) {
@@ -1189,7 +1183,19 @@ int32_t tsdbDoCompact(void *arg) {
       continue;
     }
 
-    // check if the file set should be compacted
+    // OPT: check if the file set should be compacted
+
+    // allocate disk
+    int32_t expLevel = tsdbFidLevel(compactor->ctx->fset->fid, &compactor->tsdb->keepCfg, taosGetTimestampSec());
+    if (expLevel < 0) {
+      continue;
+    }
+    code = tfsAllocDisk(compactor->tsdb->pVnode->pTfs, expLevel, &compactor->ctx->did);
+    if (code) {
+      code = TAOS_SYSTEM_ERROR(code);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
     code = tsdbCompactFSetBegin(compactor);
     TSDB_CHECK_CODE(code, lino, _exit);
 

@@ -5,7 +5,7 @@ sidebar_label: 部署 Agent
 
 ## 简介
 
-本节讲述如何部署 Agent (for tasoX)。在安装了 TDengine Pro Tools 安装包后，系统中就具备了 Agent，细节请参考 [安装与配置](../install)。
+本节讲述如何部署 Agent (for tasoX)。在安装了 taosX 安装包后，系统中就具备了 Agent，细节请参考 [安装与配置](../install)。
 
 ## 配置
 

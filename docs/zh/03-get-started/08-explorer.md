@@ -5,7 +5,7 @@ sidebar_label: 部署 Explorer
 
 ## 简介
 
-如果想通过图形化界面使用和管理 TDengine，或者通过图形化界面管理数据接入，则需要部署 taos explorer。在系统中安装了 TDengine Pro Tools 之后，系统中就具备了 taos explorer，细节请参考 [安装与配置](../install)。
+如果想通过图形化界面使用和管理 TDengine，或者通过图形化界面管理数据接入，则需要部署 taos explorer。在系统中安装了 taosX 安装包 之后，系统中就具备了 taos explorer，细节请参考 [安装与配置](../install)。
 
 ## 准备工作
 

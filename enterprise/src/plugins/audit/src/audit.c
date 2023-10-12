@@ -20,27 +20,37 @@
 #include "tjson.h"
 #include "tglobal.h"
 
-#define AUDTI_DETAIL_MAX 1000
-
 extern char *tsAuditUri;
 extern SAudit tsAudit;
 
-void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, char *detail) {
-  /*
-  if(len > AUDTI_DETAIL_MAX){
+void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
+                    char *detail, int32_t len) {
+  if (!tsEnableAudit || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
+
+  if(len > AUDIT_DETAIL_MAX){
     uError("can't record audit since detail is too long, len:%d, operation:%s, target1:%s, target2:%s", 
             len, operation, target1, target2);
   }
-  int32_t min = len > AUDTI_DETAIL_MAX ? AUDTI_DETAIL_MAX : len;
-  char* buf = taosMemoryMalloc(min  + 1);
-  memcpy(buf, detail, min);
-  */
+  int32_t min = len >= AUDIT_DETAIL_MAX ? AUDIT_DETAIL_MAX : len + 1;
+  char* buf = taosMemoryMalloc(min);
+  memset(buf, 0, min);
+  if(detail == NULL && len > 0){
+    uError("audit detail shound not be null, len:%d", len);
+  }
+  if(detail != NULL && len > 0){
+    if(len >= AUDIT_DETAIL_MAX){
+      memcpy(buf, detail, min - 1);
+    }
+    else{
+      memcpy(buf, detail, len);
+    }
+  }
 
   char *user = pReq->info.conn.user;
 
-  if (!tsEnableAudit || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
   SJson *pJson = tjsonCreateObject();
   if (pJson == NULL) {
+    taosMemoryFreeClear(buf);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return;
   }
@@ -58,11 +68,11 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
   tjsonAddStringToObject(pJson, "operation", operation);
   tjsonAddStringToObject(pJson, "target_1", target1);
   tjsonAddStringToObject(pJson, "target_2", target2);
-  tjsonAddStringToObject(pJson, "details", detail);
+  tjsonAddStringToObject(pJson, "details", buf);
 
   auditSend(pJson);
 
-  //taosMemoryFree(buf);
+  taosMemoryFreeClear(buf);
 }
 
 void auditSend(SJson *pJson) {
