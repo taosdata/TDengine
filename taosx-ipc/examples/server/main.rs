@@ -6,13 +6,13 @@ use std::{
     path::Path,
 };
 use taos::sync::*;
-use taos_query::{AsyncFetchable, AsyncQueryable};
+use taos_query::AsyncQueryable;
 use taosx_ipc::{
     ack::{AckWriter, AckWriterBuilder},
     stream::{flat::FlatMessage, point::PointMessage},
 };
 use tokio::runtime::Runtime;
-use tracing::{info, instrument, log};
+use tracing::{info, instrument};
 
 use taosx_ipc::prelude::*;
 
