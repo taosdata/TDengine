@@ -999,7 +999,7 @@ export default {
       disableallnodeclick: true,
       opcinusefile: "",
       downloadUrl: process.env.VUE_APP_X_API + `/download?file_path=`,
-      language: window.navigator.language,
+      language:  this.$i18n.locale,
       limit: 1,
       opcPointavalible: true,
       mqttcafile: [],

@@ -33,7 +33,7 @@ export default {
   data() {
     return {
       isCollapse: false,
-      language: window.navigator.language,
+      language:  this.$i18n.locale,
       permission_routes: [
           {
             path: "/dashboard",

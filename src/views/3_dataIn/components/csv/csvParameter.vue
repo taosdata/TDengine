@@ -80,7 +80,7 @@ export default {
   data() {
     return {
       showStable: false,
-      language: window.navigator.language,
+      language:  this.$i18n.locale,
       showcustom: true,
       isAllValid: true,
       ruleForm: {

@@ -16,6 +16,8 @@
         </li>
       </ul>
     </div>
+    <el-button @click="switchLanguage">语言切换</el-button>
+
     <div class="headerRight">
       <Timezone></Timezone>
       <Document v-if="docUrl"></Document>
@@ -38,6 +40,7 @@
 
 <script>
 import { sendSQLReq } from "@/api/gateway/console";
+
 import {
   Avatar,
   ClusterSelector,
@@ -91,6 +94,10 @@ export default {
     }
   },
   methods: {
+    switchLanguage(){
+      this.$i18n.locale = 'zh'
+      window.location.reload()
+    },
     clickShowVersion() {
       if (process.env.VUE_APP_CUS_CONFIG) {
         this.clickNum++;

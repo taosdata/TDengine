@@ -125,7 +125,7 @@ export default {
   filter: {},
   data() {
     return {
-      language: window.navigator.language,
+      language:  this.$i18n.locale,
       showConfig: false,
       csvParserConf: {},
       uploadData: {

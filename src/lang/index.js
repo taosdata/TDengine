@@ -36,4 +36,5 @@ export function setLang(lang) {
   i18n.locale = lang || "en";
 }
 locale.i18n((key, value) => i18n.t(key, value));
+console.log(i18n,'i18n语言');
 export default i18n;

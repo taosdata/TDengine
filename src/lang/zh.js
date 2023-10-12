@@ -1,3 +1,4 @@
+import i18n from '@/lang/index'
 let agreementUrl = process.env.VUE_APP_AGREEMENT_URL;
 let oem=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_NAME:'TDengine'
@@ -6,7 +7,7 @@ process.env.VUE_APP_CUS_NAME !== "TDengine"?'':'TDengine'
 let taosname=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos'
 let agenturl=localStorage.getItem('agent_version')?localStorage.getItem('agent_version'):'latest'
-const DocsUrl=window.navigator.language.includes('zh')?'https://docs.taosdata.com':'https://docs.tdengine.com'
+const DocsUrl=i18n.locale.includes('zh')?'https://docs.taosdata.com':'https://docs.tdengine.com'
 export default {
   //通用部分
   clone:'复制',
