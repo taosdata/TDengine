@@ -1665,6 +1665,7 @@ int32_t tDeserializeRetrieveIpWhite(void *buf, int32_t bufLen, SRetrieveIpWhiteR
 
 void tFreeSCreateUserReq(SCreateUserReq *pReq) {
   FREESQL();
+  taosMemoryFreeClear(pReq->pIpRanges);
 }
 
 int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) {
