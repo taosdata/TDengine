@@ -145,6 +145,11 @@ typedef struct SDbCacheInfo {
   int64_t stateTs;
 } SDbCacheInfo;
 
+typedef struct SDynViewVersion {
+  int64_t  svrBootTs;
+  uint64_t dynViewVer;
+} SDynViewVersion;
+
 typedef struct SViewVersion {
   char     dbFName[TSDB_DB_FNAME_LEN];
   char     viewName[TSDB_VIEW_NAME_LEN];
@@ -321,6 +326,8 @@ int32_t catalogGetQnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray*
 int32_t catalogGetDnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray** pDnodeList);
 
 int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableVersion** stables, uint32_t* num);
+
+int32_t catalogGetExpiredViews(SCatalog* pCtg, SViewVersion** views, uint32_t* num, SDynViewVersion** dynViewVersion);
 
 int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbCacheInfo** dbs, uint32_t* num);
 

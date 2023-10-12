@@ -25,6 +25,8 @@ int32_t mndInitView(SMnode *pMnode) {
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_VIEWS, mndCancelGetNextView);
 
 #ifdef TD_ENTERPRISE
+  initDynViewVersion();
+
   SSdbTable table = {
       .sdbType = SDB_VIEW,
       .keyType = SDB_KEY_BINARY,

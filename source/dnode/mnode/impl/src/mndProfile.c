@@ -23,6 +23,7 @@
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndUser.h"
+#include "mndView.h"
 #include "tglobal.h"
 #include "tversion.h"
 #include "audit.h"
@@ -466,7 +467,9 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
   SClientHbRsp  hbRsp = {.connKey = pHbReq->connKey, .status = 0, .info = NULL, .query = NULL};
   SRpcConnInfo  connInfo = pMsg->info.conn;
 
-  mndUpdateAppInfo(pMnode, pHbReq, &connInfo);
+  if (0 != pHbReq->app.appId) {
+    mndUpdateAppInfo(pMnode, pHbReq, &connInfo);
+  }
 
   if (pHbReq->query) {
     SQueryHbReqBasic *pBasic = pHbReq->query;
@@ -529,6 +532,21 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     return -1;
   }
 
+#ifdef TD_ENTERPRISE
+  bool needCheck = true;
+  int32_t key = HEARTBEAT_KEY_DYN_VIEW;
+  SDynViewVersion* pDynViewVer = NULL;
+  SKv* pKv = taosHashGet(pHbReq->info, &key, sizeof(key));
+  if (NULL != pKv) {
+    pDynViewVer = pKv->value;
+    mndValidateDynViewVersion(pMnode, pDynViewVer, &needCheck);
+    if (needCheck) {
+      SKv kv1 = {.key = HEARTBEAT_KEY_DYN_VIEW, .valueLen = sizeof(*pDynViewVer), .value = pDynViewVer};
+      taosArrayPush(hbRsp.info, &kv1);
+    }
+  }
+#endif
+
   void *pIter = taosHashIterate(pHbReq->info, NULL);
   while (pIter != NULL) {
     SKv *kv = pIter;
@@ -564,6 +582,25 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
         }
         break;
       }
+#ifdef TD_ENTERPRISE
+      case HEARTBEAT_KEY_DYN_VIEW: {
+        break;
+      }
+      case HEARTBEAT_KEY_VIEWINFO: {
+        if (!needCheck) {
+          break;
+        }
+        
+        void   *rspMsg = NULL;
+        int32_t rspLen = 0;
+        mndValidateViewInfo(pMnode, kv->value, kv->valueLen / sizeof(SViewVersion), &rspMsg, &rspLen);
+        if (rspMsg && rspLen > 0) {
+          SKv kv1 = {.key = HEARTBEAT_KEY_VIEWINFO, .valueLen = rspLen, .value = rspMsg};
+          taosArrayPush(hbRsp.info, &kv1);
+        }
+        break;
+      }
+#endif
       default:
         mError("invalid kv key:%d", kv->key);
         hbRsp.status = TSDB_CODE_APP_ERROR;

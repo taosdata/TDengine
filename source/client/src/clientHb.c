@@ -740,8 +740,8 @@ int32_t hbGetExpiredStbInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SC
   for (int32_t i = 0; i < stbNum; ++i) {
     SSTableVersion *stb = &stbs[i];
     stb->suid = htobe64(stb->suid);
-    stb->sversion = htons(stb->sversion);
-    stb->tversion = htons(stb->tversion);
+    stb->sversion = htonl(stb->sversion);
+    stb->tversion = htonl(stb->tversion);
     stb->smaVer = htonl(stb->smaVer);
   }
 
@@ -762,6 +762,55 @@ int32_t hbGetExpiredStbInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SC
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t hbGetExpiredViewInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SClientHbReq *req) {
+  SViewVersion    *views = NULL;
+  uint32_t         viewNum = 0;
+  int32_t          code = 0;
+  SDynViewVersion *pDynViewVer = NULL;
+
+  code = catalogGetExpiredViews(pCatalog, &views, &viewNum, &pDynViewVer);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosMemoryFree(views);
+    taosMemoryFree(pDynViewVer);
+    return code;
+  }
+
+  if (viewNum <= 0) {
+    taosMemoryFree(views);
+    taosMemoryFree(pDynViewVer);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < viewNum; ++i) {
+    SViewVersion *view = &views[i];
+    view->viewId = htobe64(view->viewId);
+    view->version = htonl(view->version);
+  }
+
+  tscDebug("hb got %d expired view, valueLen:%lu", viewNum, sizeof(SViewVersion) * viewNum);
+
+  if (NULL == req->info) {
+    req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
+  }
+
+  SKv kv = {
+      .key = HEARTBEAT_KEY_DYN_VIEW,
+      .valueLen = sizeof(SDynViewVersion),
+      .value = pDynViewVer,
+  };
+
+  taosHashPut(req->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv));
+
+  kv.key = HEARTBEAT_KEY_VIEWINFO;
+  kv.valueLen = sizeof(SViewVersion) * viewNum;
+  kv.value = views;
+
+  taosHashPut(req->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t hbGetAppInfo(int64_t clusterId, SClientHbReq *req) {
   SAppHbReq *pApp = taosHashGet(clientHbMgr.appSummary, &clusterId, sizeof(clusterId));
   if (NULL != pApp) {
@@ -781,19 +830,17 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
   SHbParam *hbParam = (SHbParam *)param;
   SCatalog *pCatalog = NULL;
 
+  hbGetQueryBasicInfo(connKey, req);
+
   if (hbParam->reqCnt == 0) {
     code = catalogGetHandle(hbParam->clusterId, &pCatalog);
     if (code != TSDB_CODE_SUCCESS) {
       tscWarn("catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
       return code;
     }
-  }
 
-  hbGetAppInfo(hbParam->clusterId, req);
+    hbGetAppInfo(hbParam->clusterId, req);
 
-  hbGetQueryBasicInfo(connKey, req);
-
-  if (hbParam->reqCnt == 0) {
     if (!taosHashGet(clientHbMgr.appHbHash, &hbParam->clusterId, sizeof(hbParam->clusterId))) {
       code = hbGetExpiredUserInfo(connKey, pCatalog, req);
       if (TSDB_CODE_SUCCESS != code) {
@@ -819,6 +866,15 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
+
+#ifdef TD_ENTERPRISE
+    code = hbGetExpiredViewInfo(connKey, pCatalog, req);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+#endif    
+  } else {
+    req->app.appId = 0;
   }
 
   ++hbParam->reqCnt;  // success to get catalog info

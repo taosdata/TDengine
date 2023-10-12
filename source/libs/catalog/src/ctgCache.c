@@ -2155,7 +2155,7 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
 
     return TSDB_CODE_SUCCESS;
   } else if (msg->userAuth.dropped == 1) {
-    if (ctgRemoveCacheUser(pCtg, msg->userAuth.user) == 0) {
+    if (ctgRemoveCacheUser(pCtg, pUser, msg->userAuth.user) == 0) {
       CTG_CACHE_NUM_DEC(CTG_CI_USER, 1);
     }
     goto _return;

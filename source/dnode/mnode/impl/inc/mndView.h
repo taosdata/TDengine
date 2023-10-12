@@ -31,6 +31,9 @@ int32_t mndProcessGetViewMetaReq(SRpcMsg *pReq);
 
 
 #ifdef TD_ENTERPRISE
+
+void initDynViewVersion(void);
+
 SViewObj *mndAcquireView(SMnode *pMnode, char *viewName);
 void      mndReleaseView(SMnode *pMnode, SViewObj *pView);
 
@@ -45,6 +48,9 @@ int32_t mndProcessDropViewReqImpl(SCMDropViewReq* pDropView, SRpcMsg *pReq);
 int32_t mndProcessViewMetaReqImpl(SViewMetaReq* pMetaReq, SRpcMsg *pReq);
 int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 int32_t mndDropViewByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
+void    mndValidateDynViewVersion(SMnode *pMnode, SDynViewVersion* pDynViewVer, bool *needCheck);
+int32_t mndValidateViewInfo(SMnode *pMnode, SViewVersion *pViewVersions, int32_t numOfViews, void **ppRsp,
+                           int32_t *pRspLen);
 
 #endif
 

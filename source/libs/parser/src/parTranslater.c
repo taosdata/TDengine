@@ -349,7 +349,7 @@ static int32_t getTableMetaImpl(STranslateContext* pCxt, const SName* pName, STa
     if (pParCxt->async) {
       code = getTableMetaFromCache(pCxt->pMetaCache, pName, pMeta);
 #ifdef TD_ENTERPRISE
-      if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
+      if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code && couldBeView) {
         int32_t origCode = code;
         code = getViewMetaFromCache(pCxt->pMetaCache, pName, pMeta);
         if (TSDB_CODE_SUCCESS != code) {
