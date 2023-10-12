@@ -70,7 +70,7 @@
                   ></i>
                 </el-tooltip>
                 <template v-if="!data.noOperate">
-                  <el-tooltip
+                  <!-- <el-tooltip
                     effect="light"
                     placement="top"
                     :content="getTooltip(data, 'search')"
@@ -82,7 +82,7 @@
                       class="el-icon-query"
                       @click.stop="search(data, node)"
                     ></i>
-                  </el-tooltip>
+                  </el-tooltip> -->
                   <el-tooltip
                     effect="light"
                     placement="top"
