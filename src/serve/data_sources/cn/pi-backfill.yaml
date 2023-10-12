@@ -47,18 +47,6 @@ groups:
     display_order: 1
     description: Backfill 参数设置
     params:
-      - name: FromTDengineLastTime
-        display: 从TDenine已有数据开始
-        description: |-
-          是否从TDengine已有的最后一条数据时间戳开始进行历史数据导入。
-        hint:
-          type: bool
-      - name: ToTDengineFirstTime
-        display: 以TDengine已有数据结束
-        hint:
-          type: bool
-        description: |
-          是否以TDengine已有的第一条数据时间戳作为历史数据导入的结束时间。
       - name: BackfillStartTime
         display: Backfill 开始时间
         hint:
@@ -67,7 +55,7 @@ groups:
             selected: true
           - type: constant
             value: auto
-            display: "使用数据库中最后一条数据的时间戳"
+            display: 从TDengine存储的记录的最晚时间戳开始
             selected: false
         description: |
           从该时间开始导入历史数据，默认为当前时间 10 天之前。
@@ -80,7 +68,7 @@ groups:
             selected: true
           - type: constant
             value: auto
-            display: "使用数据库中第一条数据的时间戳"
+            display: 到TDengine存储的记录的最早的时间戳结束
             selected: false
         description: |
           导入历史数据以该时间结束，默认是当前时间。

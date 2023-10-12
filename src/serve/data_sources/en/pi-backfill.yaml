@@ -46,18 +46,6 @@ groups:
     display_order: 3
     description: TDBackfill param set.
     params:
-      - name: FromTDengineLastTime
-        display: From TDengine Last Time
-        description: |-
-          Backfill from the last recorded value in TDengine.
-        hint:
-          type: bool
-      - name: ToTDengineFirstTime
-        display: To TDengine First Time
-        hint:
-          type: bool
-        description: |
-          Backfill up to the first recorded value in TDengine.
       - name: BackfillStartTime
         display: Backfill Start Time
         hint:
@@ -66,7 +54,7 @@ groups:
             selected: true
           - type: constant
             value: auto
-            display: "Use the last record timestamp automatically"
+            display: "start from the latest timestamp of records stored in TDengine"
             selected: false
         description: |
           The start time for backfilling data.
@@ -81,7 +69,7 @@ groups:
             selected: true
           - type: constant
             value: auto
-            display: "Use the first record timestamp"
+            display: end at the earliest timestamp of records stored in TDengine
             selected: false
         description: |
           The end time for backfilling data. The default is now.
