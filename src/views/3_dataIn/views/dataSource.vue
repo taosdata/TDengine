@@ -378,6 +378,7 @@ export default {
       this.$parent.currentTaskStatus = status;
       this.$parent.agentID = data?.via;
       this.$parent.setEditID(data.id)
+      this.$parent.isCopyable = iscopy
       this.$store.commit('app/SET_CURRENT_EDITID',data.id)
       if (data.from_detail) {
         this.$store.commit("app/SET_CURRENT_DBTYPE", data.from_detail?.id);
@@ -480,6 +481,7 @@ export default {
     },
     //copy一个新的task
     copyTask(data, status) {
+      this.$parent.isCopyable = true
       this.edit(data, status, true);
     },
     addDbSource() {
@@ -489,6 +491,7 @@ export default {
       this.$store.commit("app/SET_CURRENT_DBTYPE", "tmq");
       this.$store.commit('app/SET_CURRENT_EDITID','')
       this.$parent.currentTaskStatus = "";
+      this.$parent.isCopyable = false
       this.$parent.changeEditable(false)
       this.$parent.toggleComponent("tmq");
     },

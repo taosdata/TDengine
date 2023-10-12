@@ -582,22 +582,29 @@
                     @change="(value) => handleTime(value, p.name)"
                   >
                   </DatePicker>
-                  <DatePicker
-                    v-model="p.value"
-                    value-format="yyyy-MM-dd HH:mm:ss"
-                    type="datetime"
-                    v-if="
-                      p.name == 'BackfillStartTime' ||
-                      p.name == 'BackfillEndTime'
-                    "
-                    :picker-options="
-                      p.name == 'BackfillStartTime'
-                        ? backfillStartOption
-                        : backfillEndOption
-                    "
-                    :placeholder="p.placeholder"
-                  >
-                  </DatePicker>
+                </template>
+                <template v-if="p.hint && Array.isArray(p.hint)">
+                  <el-radio-group v-model="p.value">
+                    <el-radio v-for="r in p.hint" :key="r.display" :label="r.type == 'constant' ? r.value: 'select_time'" class="radio-flex">
+                      <DatePicker
+                        v-model="r.value"
+                        value-format="yyyy-MM-dd HH:mm:ss"
+                        type="datetime"
+                        v-if="
+                          r.type == 'time'
+                        "
+                        :picker-options="
+                          p.name == 'BackfillStartTime'
+                            ? backfillStartOption
+                            : backfillEndOption
+                        "
+                        :placeholder="p.placeholder"
+                        size="small"
+                      >
+                    </DatePicker>
+                    <span v-else>{{ r.display }}</span>
+                    </el-radio>
+                  </el-radio-group>
                 </template>
                 <div
                   class="description"
@@ -623,7 +630,7 @@
           @click="save"
           :disabled="disable"
           size="small"
-          >{{ isEditable ? $t("save") : $t("add") }}</el-button
+          >{{ (isEditable && !isCopyable) ? $t("save") : $t("add") }}</el-button
         >
         <el-button @click="cancel" class="cancel-btn" size="small">{{
           $t("cancel")
@@ -676,6 +683,9 @@ export default {
     editId: {
       type: Number,
       default: 0,
+    },
+    isCopyable: {
+      type: Boolean,
     }
   },
 
@@ -714,8 +724,8 @@ export default {
     const backfillStart = (time) => {
       let end = this.dbsource[0].groups
         .filter((val) => val.name.includes("Backfill"))[0]
-        .params.filter((item) => item.name == "BackfillEndTime");
-      if (end[0].value) {
+        .params.filter((item) => item.name == "BackfillEndTime")
+      if (end[0]?.hint[0]?.value) {
         return time.getTime() > new Date(end[0].value).getTime();
       } else {
         return false;
@@ -725,7 +735,7 @@ export default {
       let start = this.dbsource[0].groups
         .filter((val) => val.name.includes("Backfill"))[0]
         .params.filter((item) => item.name == "BackfillStartTime");
-      if (start[0].value) {
+      if (start[0]?.hint[0]?.value) {
         return (
           time.getTime() <
           new Date(start[0].value).getTime() - 24 * 60 * 60 * 1000
@@ -796,7 +806,7 @@ export default {
         this.piSystemConfiguration;
       this.changeSystemConfiguration(defaultVal);
       this.getSchema(false);
-      this.isShowEditBtn = true
+      this.isShowEditBtn = this.isCopyable ? false: true
     } else {
       this.activeName = 'point_file'
     }
@@ -858,14 +868,12 @@ export default {
             p.value = newVal;
           }
           if (
-            group.name == "Backfill" ||
-            group.name == "历史填充（Backfill）"
+            p.name == "BackfillStartTime" ||
+            p.name == "BackfillEndTime"
           ) {
-            if (
-              p.name == "ToTDengineFirstTime" ||
-              p.name == "FromTDengineLastTime"
-            ) {
-              p.disabled = p.value == "false" ? true : false;
+            if (p.value && p.value !== 'auto') {
+              p.hint[0].value = p.value
+              p.value = 'select_time'
             }
           }
           return p;
@@ -1013,7 +1021,8 @@ export default {
         !Object.is(val, null) &&
         !Object.is(val, undefined) &&
         !Object.is(val, "") &&
-        !Object.is(val, "undefined")
+        !Object.is(val, "undefined") &&
+        !Object.is(val, "null")
       );
     },
     edit() {
@@ -1021,7 +1030,7 @@ export default {
     },
 
     save() {
-      if (this.isEditable) {
+      if (this.isEditable && !this.isCopyable) {
         this.$confirm(this.$t('dataIn.saveTip'), this.$t("warning"), {
           confirmButtonText: this.$t('confirm'),
           cancelButtonText: this.$t('cancel'),
@@ -1152,14 +1161,21 @@ export default {
             } else {
               if (this.handleEmptyValue(data.groups[index].params[g].value)) {
                 if (
-                  // p.hint && p.hint.type == 'file'
-                  data.groups[index].params[g].hint &&
-                  data.groups[index].params[g].hint.type == "file"
+                  data.groups[index].params[g].hint 
+                  && Array.isArray(data.groups[index].params[g].hint) 
                 ) {
-                  if (data.groups[index].params[g].name == this.activeName) {
+                  if (data.groups[index].params[g].value == 'auto') {
                     querystr +=
-                      `${data.groups[index].params[g].name}=@${data.groups[index].params[g].value}` +
+                      `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
                       "&";
+                  } else {
+                    // debugger
+                    console.log('hhh',data.groups[index].params[g].hint[0]);
+                    if (this.handleEmptyValue(data.groups[index].params[g].hint[0].value)) {
+                      querystr +=
+                        `${data.groups[index].params[g].name}=${data.groups[index].params[g].hint[0].value}` +
+                        "&";
+                    }
                   }
                 } else {
                   querystr +=
@@ -1362,7 +1378,7 @@ export default {
             piParams["via"] = this.agentId;
           }
           console.log(this.isEditable , this.editId,'编辑');
-          if (this.isEditable && this.editId) {
+          if ((this.isEditable && this.editId) && !this.isCopyable) {
             let result = await EditSource(piParams, this.editId);
             if (result.message) {
               Message.error(result.message);
@@ -1377,7 +1393,8 @@ export default {
               return;
             }
             if (result && result.id) {
-              this.$parent.toggleComponent("pitable");
+              this.$parent.changeEditable(false)
+              this.$parent.toggleComponent("pitable",'');
               Message.success("Operation Successfully!");
             }
           }
@@ -2037,6 +2054,10 @@ export default {
       .el-select {
         margin-left: 0px !important;
         width: 100%;
+      }
+      .radio-flex {
+        display: flex;
+        align-items: baseline;
       }
     }
 
