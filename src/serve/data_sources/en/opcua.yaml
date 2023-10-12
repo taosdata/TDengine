@@ -18,6 +18,7 @@ options:
     required: true
     description: |
       OPC-UA server endpoint, such as `127.0.0.1:6666/OPCUA/ServerPath`.
+      If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.
     placeholder: 127.0.0.1:6666/OPCUA/ServerPath
 
 strict: false
@@ -121,6 +122,7 @@ datasets:
         display: Primary Key
         description: 
         required: true
+        value: original_ts
         hint:
           type: str
           choices:
@@ -128,6 +130,7 @@ datasets:
             - original_ts
       - name: child_table_expression
         display: Table Name
+        value: meter_{ns}_{id}
         description: |
           Support <child table prefix>_{ns}_{id} pattern
         hint:

@@ -3,9 +3,9 @@ use std::{io::BufRead, path::Path, thread::JoinHandle};
 use futures::TryStreamExt;
 use taos::*;
 
-pub mod breakpoints;
 pub mod files;
 pub mod port_pool;
+pub mod breakpoints;
 
 pub fn mask_dsn(dsn: &Dsn) -> Dsn {
     let mut dsn = dsn.clone();

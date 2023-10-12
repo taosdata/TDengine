@@ -327,12 +327,7 @@ async fn worker(
                                 let breakpoint = chunk.start.unwrap().to_string();
                                 // dbg!(&breakpoint);
                                 tokio::spawn(async move {
-                                    breakpoints::breakpoints_set(
-                                        &task_id,
-                                        &table_inner,
-                                        &breakpoint,
-                                    )
-                                    .unwrap();
+                                    breakpoints::breakpoints_set(&task_id, &table_inner, &breakpoint).unwrap();
                                 });
                             }
                             loop {

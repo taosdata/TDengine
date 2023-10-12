@@ -2519,7 +2519,7 @@ pub async fn legacy_to_taos(
     let rc = Arc::new(task_done);
     let task_done_clone = rc.clone();
     std::thread::spawn(move || loop {
-        if task_done_clone.load(Ordering::Relaxed) || cancel.is_cancelled() {
+        if task_done_clone.load(Ordering::Relaxed) || cancel.is_cancelled(){
             tracing::debug!("stop timer");
             break;
         }
