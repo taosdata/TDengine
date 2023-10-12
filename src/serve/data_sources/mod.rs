@@ -12,7 +12,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use taos::Code;
-use taosx_core::{list_datasets_from, DataSetsReq,, validate_dsn};
+use taosx_core::{list_datasets_from, DataSetsReq, validate_dsn};
 use utoipa::*;
 
 mod definition;
