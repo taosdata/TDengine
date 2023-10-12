@@ -23,7 +23,7 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.execute(f'flush database {self.dbname}')
 
-    time.sleep(self.ttl + 2)
+        time.sleep(self.ttl + 2)
         tdSql.query(f'show {self.dbname}.tables')
         tdSql.checkRows(1)
 
