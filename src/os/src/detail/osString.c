@@ -24,8 +24,24 @@ int64_t taosStr2int64(char *str) {
 
 #if !(defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32))
 
+// use slower version of ucs4 compare function, instead of wcsncmp to avoid crash of client for certain cases.
 int32_t tasoUcs4Compare(void *f1_ucs4, void *f2_ucs4, int32_t bytes) {
-  return wcsncmp((wchar_t *)f1_ucs4, (wchar_t *)f2_ucs4, bytes / TSDB_NCHAR_SIZE);
+  for (int32_t i = 0; i < bytes; i += TSDB_NCHAR_SIZE) {
+    int32_t f1 = *(int32_t *)((char *)f1_ucs4 + i);
+    int32_t f2 = *(int32_t *)((char *)f2_ucs4 + i);
+
+    if ((f1 == 0 && f2 != 0) || (f1 != 0 && f2 == 0)) {
+      return f1 - f2;
+    } else if (f1 == 0 && f2 == 0) {
+      return 0;
+    }
+
+    if (f1 != f2) {
+      return f1 - f2;
+    }
+  }
+
+  return 0;
 }
 
 #endif
