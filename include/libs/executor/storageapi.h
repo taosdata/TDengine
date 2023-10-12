@@ -38,6 +38,9 @@ extern "C" {
 
 #define META_READER_NOLOCK 0x1
 
+#define  STREAM_STATE_BUFF_HASH 1
+#define  STREAM_STATE_BUFF_SORT 2
+
 typedef struct SMeta SMeta;
 typedef TSKEY (*GetTsFun)(void*);
 
@@ -115,6 +118,7 @@ typedef struct SRowBuffPos {
   void* pKey;
   bool  beFlushed;
   bool  beUsed;
+  bool  needFree;
 } SRowBuffPos;
 
 // tq
@@ -333,6 +337,8 @@ typedef struct {
   void*   db;        //  rocksdb_t*             db;
   void*   pCur;
   int64_t number;
+  void*   pStreamFileState;
+  int32_t buffIndex;
 } SStreamStateCur;
 
 typedef struct SStateStore {
@@ -340,7 +346,8 @@ typedef struct SStateStore {
   int32_t (*streamStateGetParName)(SStreamState* pState, int64_t groupId, void** pVal);
 
   int32_t (*streamStateAddIfNotExist)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
-  int32_t (*streamStateReleaseBuf)(SStreamState* pState, const SWinKey* key, void* pVal);
+  int32_t (*streamStateReleaseBuf)(SStreamState* pState, void* pVal, bool used);
+  int32_t (*streamStateClearBuff)(SStreamState* pState, void* pVal);
   void (*streamStateFreeVal)(void* val);
 
   int32_t (*streamStatePut)(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
@@ -371,7 +378,7 @@ typedef struct SStateStore {
 
   int32_t (*streamStateSessionAddIfNotExist)(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal,
                                              int32_t* pVLen);
-  int32_t (*streamStateSessionPut)(SStreamState* pState, const SSessionKey* key, const void* value, int32_t vLen);
+  int32_t (*streamStateSessionPut)(SStreamState* pState, const SSessionKey* key, void* value, int32_t vLen);
   int32_t (*streamStateSessionGet)(SStreamState* pState, SSessionKey* key, void** pVal, int32_t* pVLen);
   int32_t (*streamStateSessionDel)(SStreamState* pState, const SSessionKey* key);
   int32_t (*streamStateSessionClear)(SStreamState* pState);
@@ -400,7 +407,7 @@ typedef struct SStateStore {
 
   struct SStreamFileState* (*streamFileStateInit)(int64_t memSize, uint32_t keySize, uint32_t rowSize,
                                                   uint32_t selectRowSize, GetTsFun fp, void* pFile, TSKEY delMark,
-                                                  const char* id, int64_t ckId);
+                                                  const char* id, int64_t ckId, int8_t type);
 
   void (*streamFileStateDestroy)(struct SStreamFileState* pFileState);
   void (*streamFileStateClear)(struct SStreamFileState* pFileState);

@@ -195,7 +195,7 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
 }
 
 static inline void metaTimeSeriesNotifyCheck(SMeta *pMeta) {
-#if defined(TD_ENTERPRISE) && !defined(_TD_DARWIN_64)
+#if defined(TD_ENTERPRISE)
   int64_t nTimeSeries = metaGetTimeSeriesNum(pMeta, 0);
   int64_t deltaTS = nTimeSeries - pMeta->pVnode->config.vndStats.numOfReportedTimeSeries;
   if (deltaTS > tsTimeSeriesThreshold) {

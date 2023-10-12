@@ -1057,7 +1057,7 @@ void appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTagSup
   } else {
     memcpy(pSrcBlock->info.parTbName, pValue, TSDB_TABLE_NAME_LEN);
   }
-  pAPI->streamStateReleaseBuf(pState, NULL, pValue);
+  pAPI->streamStateFreeVal(pValue);
 }
 
 static SSDataBlock* buildStreamCreateTableResult(SOperatorInfo* pOperator) {

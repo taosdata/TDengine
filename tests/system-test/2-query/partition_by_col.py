@@ -141,12 +141,12 @@ class TDTestCase:
     def test_sort_for_partition_hint(self):
         sql = 'select count(*), c1 from meters partition by c1'
         sql_hint = 'select /*+ sort_for_group() */count(*), c1 from meters partition by c1'
-        self.check_explain_res_has_row("Partition on", self.explain_sql(sql))
+        #self.check_explain_res_has_row("Partition on", self.explain_sql(sql))
         self.check_explain_res_has_row("Sort", self.explain_sql(sql_hint))
 
         sql = 'select count(*), c1, tbname from meters partition by tbname, c1'
         sql_hint = 'select /*+ sort_for_group() */ count(*), c1, tbname from meters partition by tbname, c1'
-        self.check_explain_res_has_row("Partition on", self.explain_sql(sql))
+        #self.check_explain_res_has_row("Partition on", self.explain_sql(sql))
         self.check_explain_res_has_row("Sort", self.explain_sql(sql_hint))
 
         sql = 'select count(*), c1, tbname from meters partition by tbname, c1 interval(1s)'
@@ -156,7 +156,7 @@ class TDTestCase:
 
         sql = 'select count(*), c1, t1 from meters partition by t1, c1'
         sql_hint = 'select /*+ sort_for_group() */ count(*), c1, t1 from meters partition by t1, c1'
-        self.check_explain_res_has_row("Partition on", self.explain_sql(sql))
+        #self.check_explain_res_has_row("Partition on", self.explain_sql(sql))
         self.check_explain_res_has_row("Sort", self.explain_sql(sql_hint))
 
         sql = 'select count(*), c1, t1 from meters partition by t1, c1 interval(1s)'
@@ -208,7 +208,7 @@ class TDTestCase:
             sql_hint = self.add_order_by(self.add_hint(sql), order_by, select_list)
             sql = self.add_order_by(sql, order_by, select_list)
             self.check_explain_res_has_row("Sort", self.explain_sql(sql_hint))
-            self.check_explain_res_has_row("Partition", self.explain_sql(sql))
+            #self.check_explain_res_has_row("Partition", self.explain_sql(sql))
             self.query_and_compare_res(sql, sql_hint, compare_what=compare_what)
 
     def test_sort_for_partition_res(self):

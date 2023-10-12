@@ -2322,10 +2322,13 @@ SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt) {
   return (SNode*)pStmt;
 }
 
-SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt) {
+SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt, const SToken* pVgId) {
   CHECK_PARSER_STATUS(pCxt);
   SBalanceVgroupLeaderStmt* pStmt = (SBalanceVgroupLeaderStmt*)nodesMakeNode(QUERY_NODE_BALANCE_VGROUP_LEADER_STMT);
   CHECK_OUT_OF_MEM(pStmt);
+  if (NULL != pVgId && NULL != pVgId->z) {
+    pStmt->vgId = taosStr2Int32(pVgId->z, NULL, 10);
+  }
   return (SNode*)pStmt;
 }
 
