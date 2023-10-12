@@ -670,7 +670,7 @@ int32_t streamStateCurNext(SStreamState* pState, SStreamStateCur* pCur) {
 
 int32_t streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur) {
 #ifdef USE_ROCKSDB
-  return streamStateCurPrev_rocksdb(pState, pCur);
+  return streamStateCurPrev_rocksdb(pCur);
 #else
   if (!pCur) {
     return -1;
@@ -714,7 +714,7 @@ void streamStateFreeVal(void* val) {
 
 int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, void* value, int32_t vLen) {
 #ifdef USE_ROCKSDB
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t      code = TSDB_CODE_SUCCESS;
   SRowBuffPos* pos = (SRowBuffPos*)value;
   if (pos->needFree) {
     if (isFlushedState(pState->pFileState, key->win.ekey, 0)) {
@@ -725,7 +725,7 @@ int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, void
       streamStateReleaseBuf(pState, pos, true);
       putFreeBuff(pState->pFileState, pos);
       qDebug("===stream===save skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64 ".code:%d", key->win.skey,
-            key->win.ekey, key->groupId, code);
+             key->win.ekey, key->groupId, code);
     } else {
       code = putSessionWinResultBuff(pState->pFileState, value);
     }

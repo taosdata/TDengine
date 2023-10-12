@@ -48,6 +48,7 @@ void createUsers(TAOS *taos, const char *host, char *qstr);
 void passVerTestMulti(const char *host, char *qstr);
 void sysInfoTest(TAOS *taos, const char *host, char *qstr);
 void userDroppedTest(TAOS *taos, const char *host, char *qstr);
+void clearTestEnv(TAOS *taos, const char *host, char *qstr);
 
 int   nPassVerNotified = 0;
 int   nUserDropped = 0;
@@ -210,6 +211,7 @@ int main(int argc, char *argv[]) {
   passVerTestMulti(argv[1], qstr);
   sysInfoTest(taos, argv[1], qstr);
   userDroppedTest(taos, argv[1], qstr);
+  clearTestEnv(taos, argv[1], qstr);
 
   taos_close(taos);
   taos_cleanup();
@@ -267,9 +269,9 @@ void passVerTestMulti(const char *host, char *qstr) {
   queryDB(taos[0], "create database if not exists demo2 vgroups 1 minrows 10");
   queryDB(taos[0], "create database if not exists demo3 vgroups 1 minrows 10");
 
-  queryDB(taos[0], "create table demo1.stb (ts timestamp, c1 int) tags(t1 int)");
-  queryDB(taos[0], "create table demo2.stb (ts timestamp, c1 int) tags(t1 int)");
-  queryDB(taos[0], "create table demo3.stb (ts timestamp, c1 int) tags(t1 int)");
+  queryDB(taos[0], "create table if not exists demo1.stb (ts timestamp, c1 int) tags(t1 int)");
+  queryDB(taos[0], "create table if not exists demo2.stb (ts timestamp, c1 int) tags(t1 int)");
+  queryDB(taos[0], "create table if not exists demo3.stb (ts timestamp, c1 int) tags(t1 int)");
 
   strcpy(qstr, "alter user root pass 'taos'");
   queryDB(taos[0], qstr);
@@ -326,9 +328,9 @@ void sysInfoTest(TAOS *taosRoot, const char *host, char *qstr) {
   queryDB(taosRoot, "create database if not exists demo12 vgroups 1 minrows 10");
   queryDB(taosRoot, "create database if not exists demo13 vgroups 1 minrows 10");
 
-  queryDB(taosRoot, "create table demo11.stb (ts timestamp, c1 int) tags(t1 int)");
-  queryDB(taosRoot, "create table demo12.stb (ts timestamp, c1 int) tags(t1 int)");
-  queryDB(taosRoot, "create table demo13.stb (ts timestamp, c1 int) tags(t1 int)");
+  queryDB(taosRoot, "create table if not exists demo11.stb (ts timestamp, c1 int) tags(t1 int)");
+  queryDB(taosRoot, "create table if not exists demo12.stb (ts timestamp, c1 int) tags(t1 int)");
+  queryDB(taosRoot, "create table if not exists demo13.stb (ts timestamp, c1 int) tags(t1 int)");
 
   sprintf(qstr, "show grants");
   char      output[BUF_LEN];
@@ -387,10 +389,14 @@ _REP:
   fprintf(stderr, ">>> succeed to run sysInfoTest\n");
   fprintf(stderr, "######## %s #########\n", __func__);
 }
-
+static bool isDropUser = true;
 void userDroppedTest(TAOS *taos, const char *host, char *qstr) {
   // users
   int nTestUsers = nUser;
+  int nLoop = 0;
+_loop:
+  ++nLoop;
+  printf("\n\n%s:%d LOOP %d, nTestUsers:%d\n", __func__, __LINE__, nLoop, nTestUsers);
   for (int i = 0; i < nTestUsers; ++i) {
     // sprintf(users[i], "user%d", i);
     taosu[i] = taos_connect(host, users[i], "taos", NULL, 0);
@@ -426,7 +432,6 @@ void userDroppedTest(TAOS *taos, const char *host, char *qstr) {
   for (int i = 0; i < nTestUsers; ++i) {
     taos_close(taosu[i]);
     printf("%s:%d close taosu[%d]\n", __func__, __LINE__, i);
-    sleep(1);
   }
 
   fprintf(stderr, "######## %s #########\n", __func__);
@@ -437,5 +442,32 @@ void userDroppedTest(TAOS *taos, const char *host, char *qstr) {
     exit(1);
   }
   fprintf(stderr, "######## %s #########\n", __func__);
-  // sleep(300);
+
+  if (nLoop < 5) {
+    nUserDropped = 0;
+    for (int i = 0; i < nTestUsers; ++i) {
+      sprintf(users[i], "user%d", i);
+      sprintf(qstr, "CREATE USER %s PASS 'taos'", users[i]);
+      fprintf(stderr, "%s:%d create user:%s\n", __func__, __LINE__, users[i]);
+      queryDB(taos, qstr);
+    }
+    goto _loop;
+  }
+  isDropUser = false;
+}
+
+void clearTestEnv(TAOS *taos, const char *host, char *qstr) {
+  fprintf(stderr, "######## %s start #########\n", __func__);
+  // restore  password
+  sprintf(qstr, "alter user root pass 'taosdata'");
+  queryDB(taos, qstr);
+
+  if (isDropUser) {
+    for (int i = 0; i < nUser; ++i) {
+      sprintf(qstr, "drop user %s", users[i]);
+      queryDB(taos, qstr);
+    }
+  }
+  // sleep(3000);
+  fprintf(stderr, "######## %s end #########\n", __func__);
 }
