@@ -1768,6 +1768,7 @@ STaskDbWrapper* taskDbOpen(char* path, char* key, int64_t chkpId) {
   STaskDbWrapper* pTaskDb = taosMemoryCalloc(1, sizeof(STaskDbWrapper));
   pTaskDb->idstr = taosStrdup(key);
   pTaskDb->path = statePath;
+
   taosThreadMutexInit(&pTaskDb->mutex, NULL);
   taskDbInitChkpOpt(pTaskDb);
   taskDbInitDBOpt(pTaskDb);
