@@ -20,6 +20,7 @@ from taostest.util.remote import Remote
 from datetime import datetime
 from copy import deepcopy
 import random
+import pandas as pd
 import time
 
 class VnodeRedistribute(TDCase):
@@ -37,7 +38,7 @@ class VnodeRedistribute(TDCase):
         self.vgroups = 10
         self.create_table_thread_count = 40
         self.thread_count = 200
-        self.num_of_records_per_req = 10
+        self.num_of_records_per_req = 1
         self.childtable_count = 10000
         self.insert_rows = 1000000000
         self.start_timestamp = "2020-01-01 00:00:00"
@@ -54,7 +55,8 @@ class VnodeRedistribute(TDCase):
         self.trying_interval = 10
         self.interlace_rows = 0
         self.stream_sql = f"select ts,max(c1) from {self.dbname}.{self.stbname} where c1>0 partition by tbname interval(1s) sliding(1s)"
-        self.fill_history_rows = 3000000
+        self.fill_history_rows = 2000000
+        # self.fill_history_rows = 3000
         self.pre_num_of_records_per_req = 10000
         self.json_file_name = "insert0.json"
         self.json_data_list = list()
@@ -64,10 +66,13 @@ class VnodeRedistribute(TDCase):
         self.json_filename_list.append(self.json_file_name)
         self.redistribute_status = 0
         self.dnode_id_list = list()
+        self.vgid = 1
         self.vgid_dnodeid_kv_list = list()
         self.redistributed_list = list()
         self.start_redistribute_row_count = self.fill_history_rows * self.childtable_count
         self.scheduler_interval = 300
+        # self.scheduler_interval = 30
+        self.query_vgid_interval = 60
         self.restore_timeout = 10800
         self.loop_redistribute_times = 10
         self.tdSql.query('show dnodes')
@@ -173,6 +178,12 @@ class VnodeRedistribute(TDCase):
         res2 = self.tdSql.query_data[0][0]
         return [res1, res2]
 
+    def get_vgid_info(self):
+        if self.redistribute_status == 1:
+            self._remote._logger.info(f'------------query vgroup_id: {self.vgid}')
+            self.tdSql.query(f'select * from information_schema.ins_vnodes where vgroup_id = {self.vgid};')
+            self._remote._logger.info(pd.DataFrame(self.tdSql.query_data, columns=["dnode_id", "vgroup_id", "dbname", "status", "role_time", "start_time", "restored"]))
+
     def redistribute_vnode(self, reserver_dnode_count=1):
         self.tdSql.query(f'select count(*) from {self.dbname}.{self.stbname}')
         if self.tdSql.query_data[0][0] >= self.start_redistribute_row_count:
@@ -191,6 +202,7 @@ class VnodeRedistribute(TDCase):
                                 redistribute_dnode_id = random.choice(dnode_id_list)
                                 self.redistributed_list.append(redistribute_dnode_id)
                                 self.redistribute_status = 1
+                                self.vgid = vgid
                                 self.tdSql.execute(f'redistribute vgroup {vgid} dnode {redistribute_dnode_id}')
                             else:
                                 self.get_cluster_to_redistribute_list(reserver_dnode_count)
@@ -198,6 +210,7 @@ class VnodeRedistribute(TDCase):
                                 for redistribute_dnode_id in self.cluster_to_redistribute_list:
                                     redistribute_dnode_id_str += f"dnode {redistribute_dnode_id} "
                                 self.redistribute_status = 1
+                                self.vgid = vgid
                                 self.tdSql.execute(f'redistribute vgroup {vgid} {redistribute_dnode_id_str}')
                                 self.check_restored_true()
                     # restore redistribute
@@ -228,6 +241,7 @@ class VnodeRedistribute(TDCase):
         self.prepare_fill_history_data()
         self.get_vgid_dnodeid_kv_list()
         self.tdCom.add_back_ground_scheduler(self.redistribute_vnode, "interval", seconds=self.scheduler_interval, max_instances=1, args=[])
+        self.tdCom.add_back_ground_scheduler(self.get_vgid_info, "interval", seconds=self.query_vgid_interval, max_instances=1, args=[])
         self.insert_data()
         initial_res1, initial_res2 = self.get_query_result()
         self.get_dnode_id_list()
