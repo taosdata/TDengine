@@ -794,7 +794,7 @@ int32_t tsdbCloseFS(STFileSystem **fs) {
 }
 
 int64_t tsdbFSAllocEid(STFileSystem *fs) {
-  taosThreadRwlockRdlock(&fs->tsdb->rwLock);
+  taosThreadRwlockWrlock(&fs->tsdb->rwLock);
   int64_t cid = ++fs->neid;
   taosThreadRwlockUnlock(&fs->tsdb->rwLock);
   return cid;
