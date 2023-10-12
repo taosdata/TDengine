@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net"
 	"net/http"
 	"taosainternal/config"
 
@@ -18,12 +19,17 @@ func main() {
 	ssl := config.SSl{}
 	ssl.SetValue()
 	system.Start(router, func(server *http.Server) {
+		ln, err := net.Listen("tcp4", server.Addr)
+		if err != nil {
+			logger.Fatalf("listen: %s\n", err)
+		}
 		if ssl.Enable {
-			if err := server.ListenAndServeTLS(ssl.CertFile, ssl.KeyFile); err != nil && err != http.ErrServerClosed {
+			defer ln.Close()
+			if err := server.ServeTLS(ln, ssl.CertFile, ssl.KeyFile); err != nil && err != http.ErrServerClosed {
 				logger.Fatalf("listen: %s\n", err)
 			}
 		} else {
-			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			if err := server.Serve(ln); err != nil && err != http.ErrServerClosed {
 				logger.Fatalf("listen: %s\n", err)
 			}
 		}
