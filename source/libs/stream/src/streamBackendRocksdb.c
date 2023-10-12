@@ -469,7 +469,7 @@ int32_t rebuildDirFromChkp2(const char* path, char* key, int64_t chkpId, char** 
   }
 
   char* defaultPath = taosMemoryCalloc(1, strlen(path) + 256);
-  sprintf(defaultPath, "%s%s%s", prefixPath, TD_DIRSEP, "defaultPath");
+  sprintf(defaultPath, "%s%s%s", prefixPath, TD_DIRSEP, "state");
   if (!taosIsDir(defaultPath)) {
     taosMulMkDir(defaultPath);
   }
