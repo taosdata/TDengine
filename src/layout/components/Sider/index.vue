@@ -60,22 +60,22 @@ export default {
               show: true,
             },
           },
-          {
-            path: "/dataOut",
-            title: i18n.t("route.dataOut"),
-            icon: "dataOut",
-            meta: {
-              show: flag ? false : true,
-            },
-          },
-          {
-            path: "/visualize",
-            title: i18n.t("route.visualize"),
-            icon: "visualize",
-            meta: {
-              show: flag ? false : true,
-            },
-          },
+          // {
+          //   path: "/dataOut",
+          //   title: i18n.t("route.dataOut"),
+          //   icon: "dataOut",
+          //   meta: {
+          //     show: flag ? false : true,
+          //   },
+          // },
+          // {
+          //   path: "/visualize",
+          //   title: i18n.t("route.visualize"),
+          //   icon: "visualize",
+          //   meta: {
+          //     show: flag ? false : true,
+          //   },
+          // },
           {
             path: "/stream",
             title: i18n.t("route.stream"),

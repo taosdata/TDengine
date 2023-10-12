@@ -143,7 +143,6 @@
             icon="el-icon-tingzhi"
           ></el-button> -->
           <el-button
-            type="danger"
             plain
             size="mini"
             @click="del(scope.row)"

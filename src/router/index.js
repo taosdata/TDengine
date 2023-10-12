@@ -74,36 +74,36 @@ const layoutCommonChildren = [
     ],
   },
 
-  {
-    path: "dataOut",
-    component: () => import("@/views/6_dataOut"),
-    children: [
-      {
-        path: "",
-        component: () => import("@/views/6_dataOut/views/main.vue"),
-      },
-      {
-        path: "docs/:category/:lang",
-        props: true,
-        component: () => import("@/views/docs/index.vue"),
-      },
-    ],
-  },
-  {
-    path: "visualize",
-    component: () => import("@/views/visualize"),
-    children: [
-      {
-        path: "",
-        component: () => import("@/views/visualize/views/main.vue"),
-      },
-      {
-        path: "docs/:category/:lang",
-        props: true,
-        component: () => import("@/views/docs/index.vue"),
-      },
-    ],
-  },
+  // {
+  //   path: "dataOut",
+  //   component: () => import("@/views/6_dataOut"),
+  //   children: [
+  //     {
+  //       path: "",
+  //       component: () => import("@/views/6_dataOut/views/main.vue"),
+  //     },
+  //     {
+  //       path: "docs/:category/:lang",
+  //       props: true,
+  //       component: () => import("@/views/docs/index.vue"),
+  //     },
+  //   ],
+  // },
+  // {
+  //   path: "visualize",
+  //   component: () => import("@/views/visualize"),
+  //   children: [
+  //     {
+  //       path: "",
+  //       component: () => import("@/views/visualize/views/main.vue"),
+  //     },
+  //     {
+  //       path: "docs/:category/:lang",
+  //       props: true,
+  //       component: () => import("@/views/docs/index.vue"),
+  //     },
+  //   ],
+  // },
   {
     path: "profile",
     component: () => import("@/views/profile"),
