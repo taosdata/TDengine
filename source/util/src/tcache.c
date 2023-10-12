@@ -25,7 +25,7 @@
 
 static TdThread      cacheRefreshWorker = {0};
 static TdThreadOnce  cacheThreadInit = PTHREAD_ONCE_INIT;
-static TdThreadMutex guard = TD_PTHREAD_MUTEX_INITIALIZER;
+static TdThreadMutex guard;
 static SArray       *pCacheArrayList = NULL;
 static bool          stopRefreshWorker = false;
 static bool          refreshWorkerNormalStopped = false;
@@ -154,6 +154,8 @@ static void *taosCacheTimedRefresh(void *handle);
 
 static void doInitRefreshThread(void) {
   pCacheArrayList = taosArrayInit(4, POINTER_BYTES);
+
+  taosThreadMutexInit(&guard, NULL);
 
   TdThreadAttr thattr;
   taosThreadAttrInit(&thattr);

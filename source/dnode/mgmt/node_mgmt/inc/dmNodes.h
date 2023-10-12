@@ -35,6 +35,7 @@ void smGetMonitorInfo(void *pMgmt, SMonSmInfo *pInfo);
 void bmGetMonitorInfo(void *pMgmt, SMonBmInfo *pInfo);
 
 void vmGetVnodeLoads(void *pMgmt, SMonVloadInfo *pInfo, bool isReset);
+void vmGetVnodeLoadsLite(void *pMgmt, SMonVloadInfo *pInfo);
 void mmGetMnodeLoads(void *pMgmt, SMonMloadInfo *pInfo);
 void qmGetQnodeLoads(void *pMgmt, SQnodeLoad *pInfo);
 

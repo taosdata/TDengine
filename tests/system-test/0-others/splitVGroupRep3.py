@@ -390,7 +390,7 @@ class TDTestCase:
         tdSql.execute("use topicdb;")
         tdSql.execute("create table ta(ts timestamp, age int);")
         tdSql.execute("create topic toa as select * from ta;")
-        self.expectSplitError("topicdb")
+        #self.expectSplitError("topicdb")
         tdSql.execute("drop topic toa;")
         self.expectSplitOk("topicdb")
    

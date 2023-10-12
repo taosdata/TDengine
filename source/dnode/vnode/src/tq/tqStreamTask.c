@@ -354,7 +354,7 @@ static bool taskReadyForDataFromWal(SStreamTask* pTask) {
     tqDebug("s-task:%s inputQ is blocked, do nothing", pTask->id.idStr);
     return false;
   }
-  
+
   return true;
 }
 

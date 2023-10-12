@@ -130,6 +130,7 @@ typedef struct SMnode {
   SGrantInfo     grant;
   MndMsgFp       msgFp[TDMT_MAX];
   SMsgCb         msgCb;
+  int64_t        ipWhiteVer;
 } SMnode;
 
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
@@ -139,6 +140,8 @@ void mndSetRestored(SMnode *pMnode, bool restored);
 bool mndGetRestored(SMnode *pMnode);
 void mndSetStop(SMnode *pMnode);
 bool mndGetStop(SMnode *pMnode);
+
+SArray *mndGetAllDnodeFqdns(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

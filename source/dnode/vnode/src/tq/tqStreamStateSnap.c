@@ -104,6 +104,7 @@ int32_t streamStateSnapRead(SStreamStateReader* pReader, uint8_t** ppData) {
   pHdr->type = SNAP_DATA_STREAM_STATE_BACKEND;
   pHdr->size = len;
   memcpy(pHdr->data, rowData, len);
+  taosMemoryFree(rowData);
   tqDebug("vgId:%d, vnode stream-state snapshot read data success", TD_VID(pReader->pTq->pVnode));
   taosMemoryFree(rowData);
   return code;

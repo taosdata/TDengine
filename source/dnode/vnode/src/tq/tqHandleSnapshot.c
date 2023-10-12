@@ -75,29 +75,13 @@ int32_t tqSnapReaderClose(STqSnapReader** ppReader) {
 
 int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData) {
   int32_t     code = 0;
-  const void* pKey = NULL;
-  const void* pVal = NULL;
+  void* pKey = NULL;
+  void* pVal = NULL;
   int32_t     kLen = 0;
   int32_t     vLen = 0;
-  SDecoder    decoder;
-  STqHandle   handle;
 
-  *ppData = NULL;
-  for (;;) {
-    if (tdbTbcGet(pReader->pCur, &pKey, &kLen, &pVal, &vLen)) {
-      goto _exit;
-    }
-
-    tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
-    tDecodeSTqHandle(&decoder, &handle);
-    tDecoderClear(&decoder);
-
-    if (handle.snapshotVer <= pReader->sver && handle.snapshotVer >= pReader->ever) {
-      tdbTbcMoveToNext(pReader->pCur);
-      break;
-    } else {
-      tdbTbcMoveToNext(pReader->pCur);
-    }
+  if (tdbTbcNext(pReader->pCur, &pKey, &kLen, &pVal, &vLen)) {
+    goto _exit;
   }
 
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + vLen);
@@ -111,13 +95,15 @@ int32_t tqSnapRead(STqSnapReader* pReader, uint8_t** ppData) {
   pHdr->size = vLen;
   memcpy(pHdr->data, pVal, vLen);
 
-  tqInfo("vgId:%d, vnode snapshot tq read data, version:%" PRId64 " subKey: %s vLen:%d", TD_VID(pReader->pTq->pVnode),
-         handle.snapshotVer, handle.subKey, vLen);
-
 _exit:
+  tdbFree(pKey);
+  tdbFree(pVal);
+  tqInfo("vgId:%d, vnode snapshot tq read data, vLen:%d", TD_VID(pReader->pTq->pVnode), vLen);
   return code;
 
 _err:
+  tdbFree(pKey);
+  tdbFree(pVal);
   tqError("vgId:%d, vnode snapshot tq read data failed since %s", TD_VID(pReader->pTq->pVnode), tstrerror(code));
   return code;
 }
@@ -173,20 +159,13 @@ int32_t tqSnapWriterClose(STqSnapWriter** ppWriter, int8_t rollback) {
     if (code) goto _err;
   }
 
-  int vgId = TD_VID(pWriter->pTq->pVnode);
-
   taosMemoryFree(pWriter);
   *ppWriter = NULL;
-
-  // restore from metastore
-  if (tqMetaRestoreHandle(pTq) < 0) {
-    goto _err;
-  }
 
   return code;
 
 _err:
-  tqError("vgId:%d, tq snapshot writer close failed since %s", vgId, tstrerror(code));
+  tqError("vgId:%d, tq snapshot writer close failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
   return code;
 }
 
@@ -195,21 +174,18 @@ int32_t tqSnapWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   STQ*      pTq = pWriter->pTq;
   SDecoder  decoder = {0};
   SDecoder* pDecoder = &decoder;
-  STqHandle handle;
+  STqHandle handle = {0};
 
   tDecoderInit(pDecoder, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
   code = tDecodeSTqHandle(pDecoder, &handle);
-  if (code) goto _err;
+  if (code) goto end;
   taosWLockLatch(&pTq->lock);
   code = tqMetaSaveHandle(pTq, handle.subKey, &handle);
   taosWUnLockLatch(&pTq->lock);
-  if (code < 0) goto _err;
-  tDecoderClear(pDecoder);
 
-  return code;
-
-_err:
+end:
   tDecoderClear(pDecoder);
-  tqError("vgId:%d, vnode snapshot tq write failed since %s", TD_VID(pTq->pVnode), tstrerror(code));
+  tqDestroyTqHandle(&handle);
+  tqInfo("vgId:%d, vnode snapshot tq write result:%d", TD_VID(pTq->pVnode), code);
   return code;
 }

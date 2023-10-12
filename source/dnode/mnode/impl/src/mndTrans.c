@@ -543,6 +543,8 @@ STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId) {
   STrans *pTrans = sdbAcquire(pMnode->pSdb, SDB_TRANS, &transId);
   if (pTrans == NULL) {
     terrno = TSDB_CODE_MND_TRANS_NOT_EXIST;
+  } else {
+    taosThreadMutexInit(&pTrans->mutex, NULL);
   }
   return pTrans;
 }

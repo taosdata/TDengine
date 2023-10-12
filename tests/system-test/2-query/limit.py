@@ -291,8 +291,8 @@ class TDTestCase:
         tdSql.checkData(0, 7, 1)
         tdSql.checkData(0, 8, "binary5")
         tdSql.checkData(0, 9, "nchar5")
-        tdSql.checkData(1, 8, None)
-        tdSql.checkData(1, 9, None)
+        tdSql.checkData(1, 8, "-8")
+        tdSql.checkData(1, 9, "-9")
 
 
         limit = paraDict["rowsPerTbl"]

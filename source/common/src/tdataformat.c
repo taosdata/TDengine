@@ -1561,11 +1561,13 @@ STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
 
 // SColData ========================================
 void tColDataDestroy(void *ph) {
-  SColData *pColData = (SColData *)ph;
+  if (ph) {
+    SColData *pColData = (SColData *)ph;
 
-  tFree(pColData->pBitMap);
-  tFree(pColData->aOffset);
-  tFree(pColData->pData);
+    tFree(pColData->pBitMap);
+    tFree(pColData->aOffset);
+    tFree(pColData->pData);
+  }
 }
 
 void tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn) {

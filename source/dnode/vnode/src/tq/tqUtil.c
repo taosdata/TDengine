@@ -226,8 +226,8 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
     uint64_t st = taosGetTimestampMs();
     int totalRows = 0;
     while (1) {
-//      int32_t savedEpoch = atomic_load_32(&pHandle->epoch);
-//      ASSERT (savedEpoch <= pRequest->epoch);
+      int32_t savedEpoch = atomic_load_32(&pHandle->epoch);
+      ASSERT(savedEpoch <= pRequest->epoch);
 
       if (tqFetchLog(pTq, pHandle, &fetchVer, pRequest->reqId) < 0) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);

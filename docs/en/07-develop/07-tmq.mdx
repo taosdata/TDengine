@@ -45,6 +45,9 @@ The following are some explanations about data subscription, which require some 
 
 This document does not provide any further introduction to the knowledge of message queues themselves. If you need to know more, please search for it yourself.
 
+Starting from version 3.2.0.0, data subscription supports vnode migration and splitting.
+Due to the dependence of data subscription on wal files, wal does not synchronize during vnode migration and splitting. Therefore, after migration or splitting, wal data that has not been consumed before cannot be consumed. So please ensure that all data has been consumed before proceeding with vnode migration or splitting, otherwise data loss may occur during consumption.
+
 ## Data Schema and API
 
 The related schemas and APIs in various languages are described as follows:
