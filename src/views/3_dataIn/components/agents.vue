@@ -1,21 +1,22 @@
 <template>
   <div class="data-agent">
-    <p class="title">
+    <div class="title">
       <span>{{ $t("topic.agent") }}</span>
-    </p>
-    <!-- <div class="flexEnd">
-      <el-button
+      <div class="flexEnd">
+        <!-- <el-button
         plain
         @click="refresh"
         size="small"
         icon="el-icon-refresh"
         :disabled="requestIng"
         >{{ $t("refresh") }}</el-button
-      >
-      <el-button plain @click="add" size="small" icon="el-icon-plus">{{
-        $t("taosagents.createnewagent")
-      }}</el-button>
-    </div> -->
+      > -->
+        <el-button plain @click="add" size="small" icon="el-icon-plus">{{
+          $t("taosagents.createnewagent")
+        }}</el-button>
+      </div>
+    </div>
+
     <el-table
       v-if="agentList?.length > 0"
       style="margin-top: 20px"
@@ -27,13 +28,31 @@
       @expand-change="expandChange"
     >
       <el-table-column type="expand">
-        <template >
+        <template>
           <div>
-            <el-table :data="agentActivities" size="mini" class="tabel-expand"  max-height="160">
-              <el-table-column prop="level" :label="$t('dataIn.level')"  width="100">
-                <span slot-scope="scope" :style="getLevelStyle(scope.row.level)">
-                  <i class="el-icon-warning" v-if="scope.row.level == 'warn'"></i>
-                  <i class="el-icon-error" v-if="scope.row.level == 'error'"></i>
+            <el-table
+              :data="agentActivities"
+              size="mini"
+              class="tabel-expand"
+              max-height="160"
+            >
+              <el-table-column
+                prop="level"
+                :label="$t('dataIn.level')"
+                width="100"
+              >
+                <span
+                  slot-scope="scope"
+                  :style="getLevelStyle(scope.row.level)"
+                >
+                  <i
+                    class="el-icon-warning"
+                    v-if="scope.row.level == 'warn'"
+                  ></i>
+                  <i
+                    class="el-icon-error"
+                    v-if="scope.row.level == 'error'"
+                  ></i>
                   <i class="el-icon-info" v-if="scope.row.level == 'info'"></i>
                   {{ scope.row.level }}
                 </span>
@@ -43,8 +62,14 @@
                   parsinginZone(scope.row.at)
                 }}</span>
               </el-table-column>
-              <el-table-column prop="activity" :label="$t('dataIn.activity')"></el-table-column>
-              <el-table-column prop="context" :label="$t('dataIn.context')"></el-table-column>
+              <el-table-column
+                prop="activity"
+                :label="$t('dataIn.activity')"
+              ></el-table-column>
+              <el-table-column
+                prop="context"
+                :label="$t('dataIn.context')"
+              ></el-table-column>
             </el-table>
           </div>
         </template>
@@ -209,7 +234,7 @@
       :before-close="beforeClose"
       :close-on-click-modal="false"
     >
-      <AgentDoc :token="agenttoken" ></AgentDoc>
+      <AgentDoc :token="agenttoken"></AgentDoc>
       <!-- <el-alert
         :title="$t('copyagentWaring')"
         type="warning"
@@ -223,6 +248,15 @@
           {{ $t("copy") }}
         </span>
       </div> -->
+    </el-dialog>
+    <el-dialog
+      :title="dialogTitle"
+      width="620px"
+      :visible.sync="showAgent"
+      :destroy-on-close="true"
+      @close="closeDialog"
+    >
+      <AddAgent :agent="currentRow" :key="showAgent"></AddAgent>
     </el-dialog>
   </div>
 </template>
@@ -238,9 +272,11 @@ import { getUIData, getAgentActivities } from "@/api/explorer/datain";
 import { Message } from "element-ui";
 import { parsinginZone } from "@/utils";
 import AgentDoc from "./agentDoc.vue";
+import AddAgent from "./addAgent.vue";
+import EditAgent from "./agent.vue";
 export default {
   name: "Agent",
-  components: { AgentDoc },
+  components: { AgentDoc, AddAgent, EditAgent },
   data() {
     return {
       expireTimeOPtion: {
@@ -248,9 +284,10 @@ export default {
           return time.getTime() < Date.now();
         },
       },
-
+      currentAgent: "",
+      showeditAgent: false,
       agenttoken: "",
-
+      showAgent: false,
       requestIng: false,
       dblist: [],
       isEditDialog: false,
@@ -280,7 +317,7 @@ export default {
       connectorList: [],
       parsinginZone,
       agentActivities: [],
-      expandRowKeys:[]
+      expandRowKeys: [],
     };
   },
   computed: {
@@ -292,25 +329,27 @@ export default {
     },
   },
   methods: {
-    beforeClose(){
-      this.$confirm(this.$t('datasource.copytokentip'),this.$t('tips'),{
-        confirmButtonText:this.$t('datasource.ok'),
-        cancelButtonText:this.$t('datasource.cancel'),
-        type:'warning',
-        center:true
-      }).then(()=>{
-        this.copyToken(this.agenttoken)
-        this.copyDialog=false
-      }).catch(()=>{
-        this.copyDialog=true
+    closeDialog() {
+      this.$store.commit("app/SET_AGENT_DIALOG", false);
+    },
+
+    beforeClose() {
+      this.$confirm(this.$t("datasource.copytokentip"), this.$t("tips"), {
+        confirmButtonText: this.$t("datasource.ok"),
+        cancelButtonText: this.$t("datasource.cancel"),
+        type: "warning",
+        center: true,
       })
+        .then(() => {
+          this.copyToken(this.agenttoken);
+          this.copyDialog = false;
+        })
+        .catch(() => {
+          this.copyDialog = true;
+        });
     },
     handlePageChange() {},
-    closeDialog() {
-      this.$refs.ruleForm.resetFields();
-      this.$refs.ruleForm.clearValidate();
-      this.dialog = false;
-    },
+    
     del(data) {
       this.$confirm(
         this.$t("taosagents.deletetip").replace(/{id}/, data.id),
@@ -340,18 +379,22 @@ export default {
       });
     },
     add() {
+      this.$set(this, "currentRow", null);
+      this.$store.commit("app/SET_AGENT_DIALOG", true);
       this.dialogTitle = this.$t("taosagents.createnewagent");
       this.isEditDialog = false;
-      this.dialog = true;
+      // this.dialog = true;
       this.ruleForm.name = "";
+      console.log(this.currentRow, "当前传参数");
     },
     refresh() {
       this.getAgents();
     },
     edit(data) {
       this.dialogTitle = this.$t("taosagents.edittitle");
-      this.isEditDialog = true;
-      this.dialog = true;
+      // this.isEditDialog = true;
+      // this.dialog = true;
+      this.$store.commit("app/SET_AGENT_DIALOG", true);
       this.ruleForm.name = data.name;
       this.currentRow = data;
     },
@@ -424,19 +467,18 @@ export default {
     },
     async getAgents() {
       try {
-        this.requestIng = true
-        this.agentList = (
-          await getAgentsData()
-        ).map((item) => {
+        this.requestIng = true;
+        this.agentList = (await getAgentsData()).map((item) => {
           item["created_at"] = item.created_at
             ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") + "Z"
             : "";
           return item;
         });
-        this.$store.commit('app/SET_AGENT_LISTS',this.agentList)
-        this.requestIng = false
+        this.$store.commit("app/SET_AGENT_LISTS", this.agentList);
+        console.log(this.agentList, "最新的agent");
+        this.requestIng = false;
       } catch (err) {
-        this.requestIng = false
+        this.requestIng = false;
         err.response.data.message && Message.error(err.response.data.message);
       }
     },
@@ -498,49 +540,65 @@ export default {
         err.response.data.message && Message.error(err.response.data.message);
       }
     },
-    async expandChange(row,expandedRows) {
+    async expandChange(row, expandedRows) {
       if (row.id == this.expandRowKeys[0]) {
-        this.expandRowKeys = []
-        return 
-      } 
-      this.agentActivities = []
-      let res =  await getAgentActivities(row.id)
-      this.expandRowKeys = [row.id]
+        this.expandRowKeys = [];
+        return;
+      }
+      this.agentActivities = [];
+      let res = await getAgentActivities(row.id);
+      this.expandRowKeys = [row.id];
       if (res && res.code && res.code != 0) {
         Message({
           type: "error",
           message: res && res.message,
-        }); 
-        return
+        });
+        return;
       }
-      this.refresh()
-      let activitList = res.map(item => {
-        if (item.status == 'failed') {
-          item.context = item.context.message
+      this.refresh();
+      let activitList = res.map((item) => {
+        if (item.status == "failed") {
+          item.context = item.context.message;
         }
-        if (typeof item.context == 'object') {
-          item.context = null
+        if (typeof item.context == "object") {
+          item.context = null;
         }
-        return item
-      })
-      this.agentActivities = activitList
+        return item;
+      });
+      this.agentActivities = activitList;
     },
     getLevelStyle(level) {
-      let style = ''
+      let style = "";
       switch (level) {
-        case 'info': style = 'color: #67c23a'
-        break;
-        case 'warn': style = 'color: #e6a23c'
-        break;
-        case 'error': style = 'color: #fe6c6c'
-        break;
+        case "info":
+          style = "color: #67c23a";
+          break;
+        case "warn":
+          style = "color: #e6a23c";
+          break;
+        case "error":
+          style = "color: #fe6c6c";
+          break;
       }
-      return style
-    }
+      return style;
+    },
   },
   created() {
     this.getAgents();
     this.getConnectorTypes();
+  },
+  watch: {
+    "$store.state.app.agentLists": {
+      deep: true,
+      handler(val) {
+        this.$set(this, "agentList", val);
+      },
+    },
+    "$store.state.app.agentDialog": {
+      handler(val) {
+        this.showAgent = val;
+      },
+    },
   },
 };
 </script>
@@ -593,7 +651,7 @@ export default {
   border-radius: 4px;
   font-size: 16px;
   margin: 10px 0;
-  padding: 8px 16px;
+  padding: 12px 16px;
 }
 .data-agent {
   position: relative;
@@ -604,31 +662,36 @@ export default {
   z-index: 9999;
   right: 10px;
   .el-button {
-    border: none;
+    border: 1px solid transparent;
     background: transparent;
+    color: #4259ce;
+    font-size: 14px;
+    &:hover {
+      background: #fff;
+      border: 1px solid #4259ce;
+    }
   }
 }
 .tabel-expand {
-   width: 64%;
-   margin-left: 40px;
-   padding: 0px 5px;
-   ::v-deep.el-table th.el-table__cell.is-leaf {
+  width: 64%;
+  margin-left: 40px;
+  padding: 0px 5px;
+  ::v-deep.el-table th.el-table__cell.is-leaf {
     border: none !important;
-   }
-   ::v-deep.el-table td.el-table__cell {
-    border: none !important;
-   }
-   ::v-deep.el-table td.el-table__cell div {
-     word-wrap: break-word;
-     word-break: break-word;
-    }
   }
-
+  ::v-deep.el-table td.el-table__cell {
+    border: none !important;
+  }
+  ::v-deep.el-table td.el-table__cell div {
+    word-wrap: break-word;
+    word-break: break-word;
+  }
+}
 </style>
 <style lang="scss">
-.el-message-box__btns{
-  .el-button{
-    width:80px;
+.el-message-box__btns {
+  .el-button {
+    width: 80px;
   }
 }
 </style>
