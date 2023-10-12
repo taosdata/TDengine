@@ -203,7 +203,7 @@ _EXIT:
   streamBackendCleanup((void*)pBackend);
   return code;
 }
-int32_t streamMetaMayConvertBackendFormat(SStreamMeta* pMeta) {
+int32_t streamMetaMayCvtDbFormat(SStreamMeta* pMeta) {
   int8_t compatible = streamMetaCheckBackendCompatible(pMeta);
   if (compatible == STREAM_STATA_COMPATIBLE) {
     return 0;
@@ -263,7 +263,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
     goto _err;
   }
 
-  if (streamMetaMayConvertBackendFormat(pMeta) < 0) {
+  if (streamMetaMayCvtDbFormat(pMeta) < 0) {
     goto _err;
   }
 
@@ -758,16 +758,6 @@ static void doClear(void* pKey, void* pVal, TBC* pCur, SArray* pRecycleList) {
 
 int32_t streamMetaReloadAllTasks(SStreamMeta* pMeta) {
   if (pMeta == NULL) return 0;
-
-  // void* pIter = taosHashIterate(pMeta->pTaskBackendUnique, NULL);
-  // while (pIter) {
-  //   STaskDbWrapper* taskBackend = *(STaskDbWrapper**)pIter;
-  //   if (taskBackend != NULL) {
-  //     taskDbRemoveRef(taskBackend);
-  //   }
-  //   pIter = taosHashIterate(pMeta->pTaskBackendUnique, pIter);
-  // }
-  // taosHashClear(pMeta->pTaskBackendUnique);
 
   return streamMetaLoadAllTasks(pMeta);
 }
