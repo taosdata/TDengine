@@ -898,7 +898,7 @@
           @click="save"
           :disabled="disable"
           size="small"
-          >{{ isEditable ? $t("save") : $t("add") }}</el-button
+          >{{ (isEditable && !isCopyable) ? $t("save") : $t("add") }}</el-button
         >
         <el-button @click="cancel" class="cancel-btn" size="small">{{
           $t("cancel")
@@ -993,6 +993,9 @@ export default {
       type: Number,
       default: 0,
     },
+    isCopyable: {
+      type: Boolean,
+    }
   },
   data() {
     return {
@@ -1079,7 +1082,7 @@ export default {
             return item;
           });
       }
-      this.isShowEditBtn = true;
+      this.isShowEditBtn = this.isCopyable ? false: true;
     }
   },
   mounted() {
@@ -1376,7 +1379,7 @@ export default {
     },
 
     save() {
-      if (this.isEditable) {
+      if (this.isEditable && !this.isCopyable) {
         this.$confirm(this.$t("dataIn.saveTip"), this.$t("warning"), {
           confirmButtonText: this.$t("confirm"),
           cancelButtonText: this.$t("cancel"),
@@ -1903,7 +1906,7 @@ export default {
               : "");
         }
         console.log(this.isEditable, this.editId, "编辑-opc");
-        if (this.isEditable && this.editId) {
+        if ((this.isEditable && this.editId) && !this.isCopyable) {
           let result = await EditSource(piParams, this.editId);
           if (result.message) {
             Message.error(result.message);
@@ -1918,6 +1921,7 @@ export default {
             return;
           }
           if (result && result.id) {
+            this.$parent.changeEditable(false);
             this.$parent.toggleComponent("opctable", "");
             Message.success(this.$t("datasource.successtip"));
           }

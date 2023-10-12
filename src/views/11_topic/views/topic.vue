@@ -26,8 +26,33 @@
       <el-table-column width="210" :label="$t('createTime')" prop="create_time">
         <span slot-scope="scope">{{ parsinginZone(scope.row.create_time) }}</span>
       </el-table-column>
-      <el-table-column :label="$t('topic.action')" width="80">
+     <!-- 云服务有自己的用户管理，企业版没有，从 schema 中无法获取 topic 的创建用户 -->
+      <el-table-column :label="$t('topic.action')" width="140">
         <template slot-scope="scope">
+          <el-tooltip
+            effect="light"
+            :content="$t('sampleCode')"
+            placement="top"
+          >
+            <el-button
+              class="mini-btn"
+              size="mini"
+              @click="document(scope.row)"
+              icon="el-icon-document"
+            ></el-button>
+          </el-tooltip>
+          <el-tooltip
+            effect="light"
+            :content="$t('topic.shareTopic')"
+            placement="top"
+          >
+            <el-button
+              class="mini-btn"
+              size="mini"
+              @click="manage(scope.row)"
+              icon="el-icon-share"
+            ></el-button>
+          </el-tooltip>
           <el-button  plain size="small" @click="del(scope.row)" icon="el-icon-delete"></el-button>
         </template>
       </el-table-column>
@@ -205,6 +230,22 @@
         this.dialog = false;
         this.getTopics();
       },
+      manage(data) {
+      this.$router.push({
+        path: '/topic/share',
+        query: {
+          topicId: data.topicId
+        }
+      });
+    },
+    document(data) {
+      this.$router.push({
+        path: '/topic/example',
+        query: {
+          topicId: data.topicId
+        }
+      });
+    }
     },
   };
 </script>

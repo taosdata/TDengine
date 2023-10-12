@@ -16,6 +16,7 @@
       :echoData="echoData"
       :sourceName="sourceName"
       @setEditData="setEditData"
+      :isCopyable="isCopyable"
       ref="table"
     ></component>
   </div>
@@ -136,7 +137,7 @@ export default {
     setEditID(val){
       this.editId=val
     },
-    toggleComponent(type, id, editid, dbname, iscopy) {
+    toggleComponent(type, id, editid, dbname) {
       if (type&&!this.isEditable) {
         //新增
         let data = this.sourceList.filter((item) => item.id === type);
@@ -292,12 +293,7 @@ export default {
 
             break;
         }
-        if (iscopy) {
-          this.isCopyable = true;
-        } else {
-          this.isCopyable = false;
-          // this.editId = editid;
-        }
+    
         this.isEditable = true;
         this.dbName = dbname;
         this.getData();
