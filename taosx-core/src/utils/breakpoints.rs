@@ -1,4 +1,4 @@
-use tracing::{info, debug};
+use tracing::{debug, info};
 
 fn breakpoints_db_dir(task_id: &str) -> String {
     let current_dir = std::env::current_dir().unwrap();
@@ -9,7 +9,10 @@ fn breakpoints_db_dir(task_id: &str) -> String {
 
 pub fn breakpoints_set(task_id: &str, sub_task: &str, breakpoints: &str) -> anyhow::Result<()> {
     let path = breakpoints_db_dir(task_id);
-    debug!("breakpoints db path: {}, breakponts key: {}, value: {}", path, sub_task, breakpoints);
+    debug!(
+        "breakpoints db path: {}, breakponts key: {}, value: {}",
+        path, sub_task, breakpoints
+    );
     let db = sled::open(path).expect("sled open db file failed");
     db.insert(sub_task, breakpoints)?;
     Ok(())
@@ -39,7 +42,10 @@ pub fn breakpoints_get_all(task_id: &str) -> anyhow::Result<Vec<(String, String)
     let mut result = vec![];
     for item in db.iter() {
         let (key, value) = item?;
-        result.push((String::from_utf8(key.to_vec())?, String::from_utf8(value.to_vec())?));
+        result.push((
+            String::from_utf8(key.to_vec())?,
+            String::from_utf8(value.to_vec())?,
+        ));
     }
     Ok(result)
 }

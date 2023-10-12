@@ -29,13 +29,10 @@ mod config;
 pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let config = SourceConfig::from_dsn(dsn);
     match config {
-        Err(err) => DataSourceValidation {
-            valid: false,
-            support: true,
-            data_source: "kafka".to_string(),
-            version: None,
-            message: Some(err.to_string()),
-        },
+        Err(err) => DataSourceValidation::invalid(
+            "kafka".to_string(),
+            format!("invalid dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
+        ),
         Ok(c) => {
             let mut client = KafkaClient::new(c.bootstrap_servers);
             let result = client.load_metadata_all();
@@ -93,7 +90,7 @@ pub async fn kafka_to_taos(
         transferred,
         span,
     )
-    .await?;
+        .await?;
 
     let worker = tokio::task::spawn_blocking(move || kafka_worker(from, port));
     let abort_handle = worker.abort_handle();

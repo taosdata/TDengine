@@ -18,7 +18,6 @@ use crate::{
 
 use super::get_plugin_dir;
 use crate::validation::DataSourceValidation;
-use std::error::Error;
 
 #[derive(Debug, serde::Serialize)]
 struct OpentsdbConfig {
@@ -195,7 +194,7 @@ impl OpentsdbConfig {
         })
     }
 
-    pub fn new_less(mut dsn: Dsn) -> Result<Self, OpentsdbError> {
+    pub fn new_less(dsn: Dsn) -> Result<Self, OpentsdbError> {
         debug_assert!(dsn.driver == "opentsdb");
         // the datasource config
         let host = dsn
@@ -485,7 +484,9 @@ pub async fn opentsdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
                     Some(103) => anyhow::bail!("Params error or service mismatch"),
                     None => anyhow::bail!("OpenTSDB connector closed by signal"),
                     Some(exit) => {
-                        anyhow::bail!("Unknown exit code {exit}, maybe failed to connect, ip or port error")
+                        anyhow::bail!(
+                            "Unknown exit code {exit}, maybe failed to connect, ip or port error"
+                        )
                     }
                 }
             }
@@ -493,33 +494,27 @@ pub async fn opentsdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     }
 }
 
-pub async fn is_valid(dsn: Dsn) -> DataSourceValidation {
-    let config = OpentsdbConfig::new_less(dsn);
+pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+    let config = OpentsdbConfig::new_less(dsn.clone());
     match config {
-        Err(err) => {
-            DataSourceValidation {
-                valid: false,
-                support: false,
-                data_source: String::from("opentsdb"),
-                version: Some(String::from("")),
-                message: Some(format!("{:?}", err)),
-            }
-        }
+        Err(err) => DataSourceValidation {
+            valid: false,
+            support: false,
+            data_source: String::from("opentsdb"),
+            version: Some(String::from("")),
+            message: Some(format!("{:?}", err)),
+        },
         Ok(c) => {
             let result = validate_source_opentsdb(c).await;
             match result {
-                Err(err) => {
-                    DataSourceValidation {
-                        valid: false,
-                        support: false,
-                        data_source: String::from("opentsdb"),
-                        version: Some(String::from("")),
-                        message: Some(format!("{:?}", err)),
-                    }
-                }
-                Ok(validate) => {
-                    validate
-                }
+                Err(err) => DataSourceValidation {
+                    valid: false,
+                    support: false,
+                    data_source: String::from("opentsdb"),
+                    version: Some(String::from("")),
+                    message: Some(format!("{:?}", err)),
+                },
+                Ok(validate) => validate,
             }
         }
     }

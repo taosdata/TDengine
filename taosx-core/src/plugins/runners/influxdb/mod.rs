@@ -1,11 +1,10 @@
-use std::error::Error;
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use file_rotate::{
     compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
+    ContentLimit,
+    FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
 };
 use itertools::Itertools;
 use taos::Dsn;
@@ -13,11 +12,11 @@ use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument, Span};
 
-use crate::utils::mask_dsn;
-use crate::validation::DataSourceValidation;
 use crate::{
-    build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
+    Action, build_ipc, DataSet, get_log_keep_days, Transferred, utils::port_pool::PortPool,
 };
+use crate::plugins::mask_dsn;
+use crate::validation::DataSourceValidation;
 
 use super::get_plugin_dir;
 
@@ -292,7 +291,7 @@ impl InfluxdbConfig {
             influx_username,
             influx_password,
             influx_token,
-            influx_org_id
+            influx_org_id,
         };
 
         Ok(Self {
@@ -301,7 +300,7 @@ impl InfluxdbConfig {
             task: None,
             performance: None,
             td_database: "".to_string(),
-            ipc_stream: "".to_string()
+            ipc_stream: "".to_string(),
         })
     }
 }
@@ -528,7 +527,7 @@ pub async fn influxdb_to_taos(
     Ok(())
 }
 
-pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
+pub async fn influxdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     let config = InfluxdbConfig::new_less(dsn);
     match config {
         Err(err) => {
@@ -594,7 +593,9 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
                     Some(103) => anyhow::bail!("Organization not found"),
                     None => anyhow::bail!("InfluxDB connector closed by signal"),
                     Some(exit) => {
-                        anyhow::bail!("Unknown exit code {exit}, maybe failed to connect, ip or port error")
+                        anyhow::bail!(
+                            "Unknown exit code {exit}, maybe failed to connect, ip or port error"
+                        )
                     }
                 }
             }
@@ -602,33 +603,21 @@ pub async fn influxdb_datasets(mut dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     }
 }
 
-pub async fn is_valid(mut dsn: Dsn) -> DataSourceValidation {
-    let config = InfluxdbConfig::new_less(dsn);
+pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+    let config = InfluxdbConfig::new_less(dsn.clone());
     match config {
-        Err(err) => {
-            DataSourceValidation {
-                valid: false,
-                support: false,
-                data_source: String::from("influxdb"),
-                version: Some(String::from("")),
-                message: Some(format!("{:?}", err)),
-            }
-        }
+        Err(err) => DataSourceValidation::invalid(
+            "influxdb".to_string(),
+            format!("invalid dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
+        ),
         Ok(c) => {
             let result = validate_source_influxdb(c).await;
             match result {
-                Err(err) => {
-                    DataSourceValidation {
-                        valid: false,
-                        support: false,
-                        data_source: String::from("influxdb"),
-                        version: Some(String::from("")),
-                        message: Some(format!("{:?}", err)),
-                    }
-                }
-                Ok(validate) => {
-                    validate
-                }
+                Err(err) => DataSourceValidation::invalid(
+                    "influxdb".to_string(),
+                    format!("failed to connect to , cause: {}", err.to_string()),
+                ),
+                Ok(validate) => validate,
             }
         }
     }
