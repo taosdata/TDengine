@@ -47,7 +47,7 @@ void printSubResults(void* pRes, int32_t* totalRows) {
     int32_t precision = taos_result_precision(pRes);
     taos_print_row(buf, row, fields, numOfFields);
     *totalRows += 1;
-    printf("vgId: %d, offset: %lld, precision: %d, row content: %s\n", vgId, offset, precision, buf);
+    printf("vgId: %d, offset: %"PRId64", precision: %d, row content: %s\n", vgId, offset, precision, buf);
   }
 
 //  taos_free_result(pRes);
@@ -832,7 +832,7 @@ TEST(clientCase, projection_query_tables) {
   for(int32_t i = 0; i < 1000000; ++i) {
     char t[512] = {0};
 
-    sprintf(t, "insert into t1 values(now, %ld)", i);
+    sprintf(t, "insert into t1 values(now, %d)", i);
     while(1) {
       void* p = taos_query(pConn, t);
       code = taos_errno(p);
@@ -1167,16 +1167,16 @@ TEST(clientCase, tmq_commit) {
   }
 
   for(int i = 0; i < numOfAssign; i++){
-    printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+    printf("assign i:%d, vgId:%d, offset:%"PRId64", start:%"PRId64", end:%"PRId64"\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
 
     int64_t committed = tmq_committed(tmq, topicName, pAssign[i].vgId);
-    printf("committed vgId:%d, committed:%lld\n", pAssign[i].vgId, committed);
+    printf("committed vgId:%d, committed:%"PRId64"\n", pAssign[i].vgId, committed);
 
     int64_t position = tmq_position(tmq, topicName, pAssign[i].vgId);
-    printf("position vgId:%d, position:%lld\n", pAssign[i].vgId, position);
+    printf("position vgId:%d, position:%"PRId64"\n", pAssign[i].vgId, position);
     tmq_offset_seek(tmq, topicName, pAssign[i].vgId, 1);
     position = tmq_position(tmq, topicName, pAssign[i].vgId);
-    printf("after seek 1, position vgId:%d, position:%lld\n", pAssign[i].vgId, position);
+    printf("after seek 1, position vgId:%d, position:%"PRId64"\n", pAssign[i].vgId, position);
   }
 
   while (1) {
@@ -1191,12 +1191,12 @@ TEST(clientCase, tmq_commit) {
     tmq_commit_sync(tmq, pRes);
     for(int i = 0; i < numOfAssign; i++) {
       int64_t committed = tmq_committed(tmq, topicName, pAssign[i].vgId);
-      printf("committed vgId:%d, committed:%lld\n", pAssign[i].vgId, committed);
+      printf("committed vgId:%d, committed:%"PRId64"\n", pAssign[i].vgId, committed);
       if(committed > 0){
         int32_t code = tmq_commit_offset_sync(tmq, topicName, pAssign[i].vgId, 4);
         printf("tmq_commit_offset_sync vgId:%d, offset:4, code:%d\n", pAssign[i].vgId, code);
         int64_t committed = tmq_committed(tmq, topicName, pAssign[i].vgId);
-        printf("after tmq_commit_offset_sync, committed vgId:%d, committed:%lld\n", pAssign[i].vgId, committed);
+        printf("after tmq_commit_offset_sync, committed vgId:%d, committed:%"PRId64"\n", pAssign[i].vgId, committed);
       }
     }
     if (pRes != NULL) {
@@ -1264,7 +1264,7 @@ TEST(clientCase, td_25129) {
   }
 
   for(int i = 0; i < numOfAssign; i++){
-    printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+    printf("assign i:%d, vgId:%d, offset:%"PRId64", start:%"PRId64", end:%"PRId64"\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
   }
 
 //  tmq_offset_seek(tmq, "tp", pAssign[0].vgId, 4);
@@ -1281,7 +1281,7 @@ TEST(clientCase, td_25129) {
   }
 
   for(int i = 0; i < numOfAssign; i++){
-    printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+    printf("assign i:%d, vgId:%d, offset:%"PRId64", start:%"PRId64", end:%"PRId64"\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
   }
 
   tmq_free_assignment(pAssign);
@@ -1298,7 +1298,7 @@ TEST(clientCase, td_25129) {
 
   for(int i = 0; i < numOfAssign; i++){
     int64_t committed = tmq_committed(tmq, topicName, pAssign[i].vgId);
-    printf("assign i:%d, vgId:%d, committed:%lld, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, committed, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+    printf("assign i:%d, vgId:%d, committed:%"PRId64", offset:%"PRId64", start:%"PRId64", end:%"PRId64"\n", i, pAssign[i].vgId, committed, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
   }
 
   while (1) {
@@ -1328,7 +1328,7 @@ TEST(clientCase, td_25129) {
       }
 
       for(int i = 0; i < numOfAssign; i++){
-        printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+        printf("assign i:%d, vgId:%d, offset:%"PRId64", start:%"PRId64", end:%"PRId64"\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
       }
     } else {
       for(int i = 0; i < numOfAssign; i++) {
@@ -1364,7 +1364,7 @@ TEST(clientCase, td_25129) {
   }
 
   for(int i = 0; i < numOfAssign; i++){
-    printf("assign i:%d, vgId:%d, offset:%lld, start:%"PRId64", end:%"PRId64"\n", i, pAssign[i].vgId, pAssign[i].currentOffset,
+    printf("assign i:%d, vgId:%d, offset:%"PRId64", start:%"PRId64", end:%"PRId64"\n", i, pAssign[i].vgId, pAssign[i].currentOffset,
            pAssign[i].begin, pAssign[i].end);
   }
 
