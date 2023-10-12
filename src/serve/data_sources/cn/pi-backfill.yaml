@@ -62,17 +62,34 @@ groups:
       - name: BackfillStartTime
         display: Backfill 开始时间
         hint:
-          type: time
+          - type: time
+            display: "请选择开始时间"
+            selected: true
+          - type: constant
+            value: auto
+            display: "使用数据库中最后一条数据的时间戳"
+            selected: false
         description: |
           从该时间开始导入历史数据，默认为当前时间 10 天之前。
         placeholder: "YYYY-MM-DD HH:mm:ss"
       - name: BackfillEndTime
         display: Backfill 结束时间
         hint:
-          type: time
+          - type: time
+            display: "请选择开始时间"
+            selected: true
+          - type: constant
+            value: auto
+            display: "使用数据库中第一条数据的时间戳"
+            selected: false
         description: |
           导入历史数据以该时间结束，默认是当前时间。
         placeholder: "YYYY-MM-DD HH:mm:ss"
+
+        conflicts_with:
+          - name: BackfillStartTime
+            value: auto
+            when: auto
 
   - name: 数据队列
     display_order: 2
@@ -96,13 +113,6 @@ groups:
         description: 将批量更新发送到 TDengine 之前等待的最长时间（以毫秒为单位）。
         placeholder: 10000
         value: 1000
-      - name: MaxBackfillRangeDays
-        display: 重启补偿时间
-        hint:
-          type: integer
-        description: 连接丢失或首次启动时自动回填的最大天数。
-        placeholder: 1
-        value: 1
 
 datasets:
   name: Data Sets

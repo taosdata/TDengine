@@ -1,3 +1,5 @@
+use std::{path::PathBuf, str::FromStr};
+
 use serde::{Deserialize, Serialize};
 
 use taos::Dsn;
@@ -87,6 +89,12 @@ pub enum DataSourceOptions {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub struct ConflictsWith {
+    pub name: String,
+    pub value: Option<String>,
+    pub when: Option<String>,
+}
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct Param {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -115,6 +123,8 @@ pub struct Param {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r#if: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub conflicts_with: Option<Vec<ConflictsWith>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub alternatives: Option<Vec<ParamAlternatives>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub params: Option<Vec<Param>>,
@@ -134,6 +144,128 @@ pub struct ParamAlternatives {
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+#[serde(tag = "type")]
+#[serde(rename_all = "snake_case")]
+pub enum HintType {
+    Constant {
+        value: String,
+    },
+    Integer {
+        value: Option<i64>,
+        min: Option<i64>,
+        max: Option<i64>,
+        default: Option<i64>,
+    },
+    Str {
+        value: Option<String>,
+        choices: Vec<String>,
+        default: Option<String>,
+    },
+    Time {
+        value: Option<String>,
+        default: Option<String>,
+    },
+    Duration {
+        value: Option<String>,
+        default: Option<String>,
+    },
+    File {
+        value: Option<PathBuf>,
+        default: Option<PathBuf>,
+    },
+    Bool {
+        value: Option<bool>,
+        default: Option<bool>,
+    },
+}
+
+impl HintType {
+    pub fn parse_value(&mut self, v: &str) -> bool {
+        match self {
+            HintType::Constant { value } => {
+                if value == v {
+                    true
+                } else {
+                    false
+                }
+            }
+            HintType::Integer {
+                value, min, max, ..
+            } => {
+                if let Ok(v) = v.parse() {
+                    if let Some(min) = min {
+                        if v < *min {
+                            return false;
+                        }
+                    }
+                    if let Some(max) = max {
+                        if v > *max {
+                            return false;
+                        }
+                    }
+                    value.replace(v);
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            HintType::Str { value, choices, .. } => {
+                if choices.len() > 0 {
+                    if choices.contains(&v.to_string()) {
+                        value.replace(v.to_string());
+                        return true;
+                    } else {
+                        return false;
+                    }
+                } else {
+                    value.replace(v.to_string());
+                    return true;
+                }
+            }
+            HintType::Time { value, .. } => {
+                if let Ok(time) = chrono::DateTime::parse_from_rfc3339(v) {
+                    value.replace(time.to_rfc3339());
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            HintType::Duration { value, .. } => {
+                if let Ok(duration) = parse_duration::parse(v) {
+                    value.replace(format!("{:?}", duration));
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            HintType::File { value, .. } => {
+                if let Ok(path) = PathBuf::from_str(v) {
+                    value.replace(path);
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            HintType::Bool { value, .. } => {
+                if let Ok(b) = v.parse() {
+                    value.replace(b);
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+        }
+    }
+}
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+pub struct HintItem {
+    selected: bool,
+    display: Option<String>,
+    #[serde(flatten)]
+    r#type: HintType,
+}
+
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 #[serde(untagged)]
 pub enum Hint {
     Named(String),
@@ -146,6 +278,7 @@ pub enum Hint {
         #[serde(skip_serializing_if = "Option::is_none")]
         max: Option<i64>,
     },
+    OneOf(Vec<HintItem>),
 }
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
@@ -611,12 +744,35 @@ impl DataSourceDefinition {
                     }
                     _ => (),
                 }
-                if let Some(value) = dsn.remove(&param.name) {
+                if let Some(v) = dsn.remove(&param.name) {
                     if group.collapsible {
                         group.collapsed.replace(true);
                     }
-                    if !value.is_empty() {
-                        param.value.replace(value);
+                    if !v.is_empty() {
+                        // for hint type recognition.
+                        if let Some(hint) = &mut param.hint {
+                            match hint {
+                                Hint::Named(_) => (),
+                                Hint::Flat { .. } => (),
+                                Hint::OneOf(items) => {
+                                    let has_selected = false;
+                                    for item in items {
+                                        if has_selected {
+                                            // if has selected item, then unselect all.
+                                            item.selected = false;
+                                        }
+                                        if item.r#type.parse_value(&v) {
+                                            // if value is valid, then select it.
+                                            item.selected = true;
+                                        } else {
+                                            item.selected = false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        param.value.replace(v);
                     }
                 }
             }
@@ -646,6 +802,7 @@ impl DataSourceDefinition {
                 r#if: None,
                 alternatives: None,
                 params: None,
+                conflicts_with: None,
             })
         }
         self
@@ -764,6 +921,49 @@ fn test_legacy() {
     // let tmq = &mut def[0];
     let ds = def.values_from(dsn);
     dbg!(ds);
+}
+
+#[test]
+fn test_pi_backfill() {
+    use std::str::FromStr;
+
+    let hint_item = HintItem {
+        selected: false,
+        display: None,
+        r#type: HintType::Constant {
+            value: "auto".to_string(),
+        },
+    };
+    let s = serde_json::to_string_pretty(&hint_item).unwrap();
+    println!("hint: {}", &s);
+
+    let json = include_str!("en/pi-backfill.yaml");
+    let mut def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
+    let json2 = serde_json::to_string(&def).unwrap();
+    dbg!(&json2);
+    let toml = toml::to_string_pretty(&def).unwrap();
+    println!("{}", &toml);
+
+    let dsn = "pibackfill://PIserver?BackfillStartTime=auto";
+    let dsn = Dsn::from_str(&dsn).unwrap();
+    let tmq = &mut def;
+    let new = tmq.clone().values_from(dsn);
+    dbg!(&tmq, &new);
+    assert_eq!(new.groups[0].params[2].value, Some("auto".to_string()));
+    let dsn = "pibackfill://PIserver?BackfillStartTime=2023-01-01T00:00:00Z";
+    let dsn = Dsn::from_str(&dsn).unwrap();
+    let tmq = &mut def;
+    let new = tmq.clone().values_from(dsn);
+    dbg!(&tmq, &new);
+    assert_eq!(
+        new.groups[0].params[2].value,
+        Some("2023-01-01T00:00:00Z".to_string())
+    );
+
+    assert_eq!(
+        new.groups[0].params[2].hint[0],
+        Some("2023-01-01T00:00:00Z".to_string())
+    );
 }
 #[test]
 fn test_values() {
