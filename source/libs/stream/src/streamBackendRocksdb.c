@@ -476,7 +476,7 @@ int32_t rebuildDirFromChkp2(const char* path, char* key, int64_t chkpId, char** 
 
   if (chkpId != 0) {
     char* chkpPath = taosMemoryCalloc(1, strlen(path) + 256);
-    sprintf(chkpPath, "%s%s%s%s%" PRId64 "", prefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP, "checkpoint", chkpId);
+    sprintf(chkpPath, "%s%s%s%s%s%" PRId64 "", prefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP, "checkpoint", chkpId);
     if (taosIsDir(chkpPath) && isValidCheckpoint(chkpPath)) {
       if (taosIsDir(defaultPath)) {
         // remove dir if exists
