@@ -102,6 +102,7 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
     for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
       pCreateReq = req.pReqs + iReq;
       taosMemoryFreeClear(pCreateReq->comment);
+      taosMemoryFreeClear(pCreateReq->sql);
       if (pCreateReq->type == TSDB_CHILD_TABLE) {
         taosArrayDestroy(pCreateReq->ctb.tagName);
       }
@@ -268,6 +269,8 @@ STqReader* tqReaderOpen(SVnode* pVnode) {
 }
 
 void tqReaderClose(STqReader* pReader) {
+  if (pReader == NULL) return;
+
   // close wal reader
   if (pReader->pWalReader) {
     walCloseReader(pReader->pWalReader);
@@ -1118,6 +1121,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
           taosArrayDestroy(list);
           taosHashCancelIterate(pTq->pHandle, pIter);
           taosWUnLockLatch(&pTq->lock);
+
           return ret;
         }
         tqReaderSetTbUidList(pTqHandle->execHandle.pTqReader, list, NULL);
@@ -1128,6 +1132,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
     }
   }
   taosWUnLockLatch(&pTq->lock);
+
   // update the table list handle for each stream scanner/wal reader
   taosWLockLatch(&pTq->pStreamMeta->lock);
   while (1) {

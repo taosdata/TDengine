@@ -107,6 +107,7 @@ class TDTestCase:
             tdLog.debug("case passed")
         else:
             tdLog.exit("The privilege number in information_schema.ins_user_privileges is incorrect")
+        tdSql.query("select * from information_schema.ins_columns where db_name='{self.dbname}';")
 
     def stop(self):
         # remove the privilege

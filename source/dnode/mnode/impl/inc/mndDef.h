@@ -672,6 +672,7 @@ typedef struct {
   char name[TSDB_STREAM_FNAME_LEN];
   // ctl
   SRWLatch lock;
+
   // create info
   int64_t createTime;
   int64_t updateTime;

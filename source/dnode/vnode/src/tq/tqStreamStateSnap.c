@@ -91,7 +91,7 @@ int32_t streamStateSnapRead(SStreamStateReader* pReader, uint8_t** ppData) {
   uint8_t* rowData = NULL;
   int64_t  len;
   code = streamSnapRead(pReader->pReaderImpl, &rowData, &len);
-  if (rowData == NULL || len == 0) {
+  if (code != 0 || rowData == NULL || len == 0) {
     return code;
   }
   *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + len);
@@ -104,8 +104,8 @@ int32_t streamStateSnapRead(SStreamStateReader* pReader, uint8_t** ppData) {
   pHdr->type = SNAP_DATA_STREAM_STATE_BACKEND;
   pHdr->size = len;
   memcpy(pHdr->data, rowData, len);
-  taosMemoryFree(rowData);
   tqDebug("vgId:%d, vnode stream-state snapshot read data success", TD_VID(pReader->pTq->pVnode));
+  taosMemoryFree(rowData);
   return code;
 
 _err:

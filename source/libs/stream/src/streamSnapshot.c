@@ -17,6 +17,7 @@
 #include "query.h"
 #include "rocksdb/c.h"
 #include "streamBackendRocksdb.h"
+#include "streamInt.h"
 #include "tcommon.h"
 #include "streamInt.h"
 
@@ -126,7 +127,8 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chk
       stInfo("%s start to read snap %s", STREAM_STATE_TRANSFER, tdir);
       streamBackendAddInUseChkp(pMeta, chkpId);
     } else {
-      stWarn("%s failed to read from %s, reason: dir not exist,retry to default state dir", STREAM_STATE_TRANSFER, tdir);
+      stWarn("%s failed to read from %s, reason: dir not exist,retry to default state dir", STREAM_STATE_TRANSFER,
+             tdir);
     }
   }
 
@@ -271,7 +273,7 @@ void streamSnapHandleDestroy(SStreamSnapHandle* handle) {
 
   if (handle->checkpointId == 0) {
     // del tmp dir
-    if (taosIsDir(pFile->path)) {
+    if (pFile && taosIsDir(pFile->path)) {
       taosRemoveDir(pFile->path);
     }
   } else {
@@ -335,27 +337,27 @@ int32_t streamSnapRead(SStreamSnapReader* pReader, uint8_t** ppData, int64_t* si
     } else {
       pHandle->fd = streamOpenFile(pFile->path, item->name, TD_FILE_READ);
       stDebug("%s open file %s, current offset:%" PRId64 ", size:% " PRId64 ", file no.%d", STREAM_STATE_TRANSFER,
-             item->name, (int64_t)pHandle->offset, item->size, pHandle->currFileIdx);
+              item->name, (int64_t)pHandle->offset, item->size, pHandle->currFileIdx);
     }
   }
 
   stDebug("%s start to read file %s, current offset:%" PRId64 ", size:%" PRId64 ", file no.%d", STREAM_STATE_TRANSFER,
-         item->name, (int64_t)pHandle->offset, item->size, pHandle->currFileIdx);
+          item->name, (int64_t)pHandle->offset, item->size, pHandle->currFileIdx);
   uint8_t* buf = taosMemoryCalloc(1, sizeof(SStreamSnapBlockHdr) + kBlockSize);
   if(buf == NULL){
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   int64_t  nread = taosPReadFile(pHandle->fd, buf + sizeof(SStreamSnapBlockHdr), kBlockSize, pHandle->offset);
   if (nread == -1) {
+    taosMemoryFree(buf);
     code = TAOS_SYSTEM_ERROR(terrno);
     stError("%s snap failed to read snap, file name:%s, type:%d,reason:%s", STREAM_STATE_TRANSFER, item->name,
-           item->type, tstrerror(code));
-    taosMemoryFree(buf);
+            item->type, tstrerror(code));
     return -1;
   } else if (nread > 0 && nread <= kBlockSize) {
     // left bytes less than kBlockSize
     stDebug("%s read file %s, current offset:%" PRId64 ",size:% " PRId64 ", file no.%d", STREAM_STATE_TRANSFER,
-           item->name, (int64_t)pHandle->offset, item->size, pHandle->currFileIdx);
+            item->name, (int64_t)pHandle->offset, item->size, pHandle->currFileIdx);
     pHandle->offset += nread;
     if (pHandle->offset >= item->size || nread < kBlockSize) {
       taosCloseFile(&pHandle->fd);
@@ -364,7 +366,7 @@ int32_t streamSnapRead(SStreamSnapReader* pReader, uint8_t** ppData, int64_t* si
     }
   } else {
     stDebug("%s no data read, close file no.%d, move to next file, open and read", STREAM_STATE_TRANSFER,
-           pHandle->currFileIdx);
+            pHandle->currFileIdx);
     taosCloseFile(&pHandle->fd);
     pHandle->offset = 0;
     pHandle->currFileIdx += 1;
@@ -383,7 +385,7 @@ int32_t streamSnapRead(SStreamSnapReader* pReader, uint8_t** ppData, int64_t* si
     pHandle->offset += nread;
 
     stDebug("%s open file and read file %s, current offset:%" PRId64 ", size:% " PRId64 ", file no.%d",
-           STREAM_STATE_TRANSFER, item->name, (int64_t)pHandle->offset, item->size, pHandle->currFileIdx);
+            STREAM_STATE_TRANSFER, item->name, (int64_t)pHandle->offset, item->size, pHandle->currFileIdx);
   }
 
   SStreamSnapBlockHdr* pHdr = (SStreamSnapBlockHdr*)buf;
@@ -438,8 +440,8 @@ int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nDa
     pHandle->fd = streamOpenFile(pFile->path, pItem->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
     if (pHandle->fd == NULL) {
       code = TAOS_SYSTEM_ERROR(terrno);
-      stError("%s failed to open file name:%s%s%s, reason:%s", STREAM_STATE_TRANSFER, pFile->path, TD_DIRSEP, pHdr->name,
-             tstrerror(code));
+      stError("%s failed to open file name:%s%s%s, reason:%s", STREAM_STATE_TRANSFER, pFile->path, TD_DIRSEP,
+              pHdr->name, tstrerror(code));
     }
   }
 
@@ -465,8 +467,8 @@ int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nDa
     pHandle->fd = streamOpenFile(pFile->path, pItem->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
     if (pHandle->fd == NULL) {
       code = TAOS_SYSTEM_ERROR(terrno);
-      stError("%s failed to open file name:%s%s%s, reason:%s", STREAM_STATE_TRANSFER, pFile->path, TD_DIRSEP, pHdr->name,
-             tstrerror(code));
+      stError("%s failed to open file name:%s%s%s, reason:%s", STREAM_STATE_TRANSFER, pFile->path, TD_DIRSEP,
+              pHdr->name, tstrerror(code));
     }
 
     taosPWriteFile(pHandle->fd, pHdr->data, pHdr->size, pHandle->offset);

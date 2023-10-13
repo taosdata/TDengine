@@ -24,7 +24,7 @@ SELECT [hints] [DISTINCT] select_list
 hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN   
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP
 
 select_list:
     select_expr [, select_expr] ...
@@ -87,15 +87,17 @@ Hints are a means of user control over query optimization for individual stateme
 
 The list of currently supported Hints is as follows:
 
-|    **Hint**   |    **Params**  |         **Comment**        |       **Scopt**            |  
-| :-----------: | -------------- | -------------------------- | -------------------------- |
-| BATCH_SCAN    | None           | Batch table scan           | JOIN statment for stable   |         
-| NO_BATCH_SCAN | None           | Sequential table scan      | JOIN statment for stable   |         
+|    **Hint**   |    **Params**  |         **Comment**        |       **Scopt**            |
+| :-----------: | -------------- | -------------------------- | -----------------------------------|
+| BATCH_SCAN    | None           | Batch table scan           | JOIN statment for stable           |
+| NO_BATCH_SCAN | None           | Sequential table scan      | JOIN statment for stable           |
+| SORT_FOR_GROUP| None           | Use sort for partition     | With normal column in partition by list |
 
 For example:
 
 ```sql
 SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
+SELECT /*+ SORT_FOR_GROUP() */ count(*), c1 FROM stable1 PARTITION BY c1;
 ```
 
 ## Lists

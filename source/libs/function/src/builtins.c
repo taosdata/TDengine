@@ -651,7 +651,7 @@ static int32_t translateApercentileImpl(SFunctionNode* pFunc, char* pErrBuf, int
         (SDataType){.bytes = getApercentileMaxSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
   } else {
     // original percent param is reserved
-    if (2 != numOfParams) {
+    if (3 != numOfParams && 2 != numOfParams) {
       return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
     }
     uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
@@ -659,6 +659,19 @@ static int32_t translateApercentileImpl(SFunctionNode* pFunc, char* pErrBuf, int
     if (TSDB_DATA_TYPE_BINARY != para1Type || !IS_INTEGER_TYPE(para2Type)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
+
+    if (3 == numOfParams) {
+      uint8_t para3Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type;
+      if (!IS_STR_DATA_TYPE(para3Type)) {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+      }
+      
+      SNode* pParamNode2 = nodesListGetNode(pFunc->pParameterList, 2);
+      if (QUERY_NODE_VALUE != nodeType(pParamNode2) || !validateApercentileAlgo((SValueNode*)pParamNode2)) {
+        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                               "Third parameter algorithm of apercentile must be 'default' or 't-digest'");
+      }
+      }
 
     pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   }
@@ -744,7 +757,11 @@ int32_t topBotCreateMergeParam(SNodeList* pRawParameters, SNode* pPartialRes, SN
 }
 
 int32_t apercentileCreateMergeParam(SNodeList* pRawParameters, SNode* pPartialRes, SNodeList** pParameters) {
-  return reserveFirstMergeParam(pRawParameters, pPartialRes, pParameters);
+  int32_t code = reserveFirstMergeParam(pRawParameters, pPartialRes, pParameters);
+  if (TSDB_CODE_SUCCESS == code && pRawParameters->length >= 3) {
+    code = nodesListStrictAppend(*pParameters, nodesCloneNode(nodesListGetNode(pRawParameters, 2)));
+  }
+  return code;
 }
 
 static int32_t translateSpread(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -1786,7 +1803,7 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   }
 
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-  if (!IS_SIGNED_NUMERIC_TYPE(colType) && !IS_FLOAT_TYPE(colType) && TSDB_DATA_TYPE_BOOL != colType &&
+  if (!IS_INTEGER_TYPE(colType) && !IS_FLOAT_TYPE(colType) && TSDB_DATA_TYPE_BOOL != colType &&
       !IS_TIMESTAMP_TYPE(colType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
@@ -1815,6 +1832,8 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   uint8_t resType;
   if (IS_SIGNED_NUMERIC_TYPE(colType) || IS_TIMESTAMP_TYPE(colType) || TSDB_DATA_TYPE_BOOL == colType) {
     resType = TSDB_DATA_TYPE_BIGINT;
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(colType)) {
+    resType = TSDB_DATA_TYPE_UBIGINT;
   } else {
     resType = TSDB_DATA_TYPE_DOUBLE;
   }

@@ -712,7 +712,7 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
         continue;
       }
       if (pHandle->consumerId == req.newConsumerId) {  // do nothing
-        tqInfo("vgId:%d no switch consumer:0x%" PRIx64 " remains", req.vgId, req.newConsumerId);
+        tqInfo("vgId:%d no switch consumer:0x%" PRIx64 " remains, because redo wal log", req.vgId, req.newConsumerId);
       } else {
         tqInfo("vgId:%d switch consumer from Id:0x%" PRIx64 " to Id:0x%" PRIx64, req.vgId, pHandle->consumerId,
             req.newConsumerId);

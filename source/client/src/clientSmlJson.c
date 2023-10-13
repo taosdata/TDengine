@@ -256,7 +256,8 @@ int smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset) {
     }
 
     if (unlikely(index >= OTD_JSON_FIELDS_NUM)) {
-      uError("index >= %d, %s", OTD_JSON_FIELDS_NUM, *start) return -1;
+      uError("index >= %d, %s", OTD_JSON_FIELDS_NUM, *start);
+      return TSDB_CODE_TSC_INVALID_JSON;
     }
 
     char *sTmp = *start;
@@ -367,7 +368,8 @@ int smlJsonParseObjFirst(char **start, SSmlLineInfo *element, int8_t *offset) {
 
   if (unlikely(index != OTD_JSON_FIELDS_NUM) || element->tags == NULL || element->cols == NULL ||
       element->measure == NULL || element->timestamp == NULL) {
-    uError("elements != %d or element parse null", OTD_JSON_FIELDS_NUM) return -1;
+    uError("elements != %d or element parse null", OTD_JSON_FIELDS_NUM);
+    return TSDB_CODE_TSC_INVALID_JSON;
   }
   return 0;
 }
@@ -381,7 +383,8 @@ int smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset) {
     }
 
     if (unlikely(index >= OTD_JSON_FIELDS_NUM)) {
-      uError("index >= %d, %s", OTD_JSON_FIELDS_NUM, *start) return -1;
+      uError("index >= %d, %s", OTD_JSON_FIELDS_NUM, *start);
+      return TSDB_CODE_TSC_INVALID_JSON;
     }
 
     if ((*start)[1] == 'm') {
@@ -448,7 +451,8 @@ int smlJsonParseObj(char **start, SSmlLineInfo *element, int8_t *offset) {
   }
 
   if (unlikely(index != 0 && index != OTD_JSON_FIELDS_NUM)) {
-    uError("elements != %d", OTD_JSON_FIELDS_NUM) return -1;
+    uError("elements != %d", OTD_JSON_FIELDS_NUM);
+    return TSDB_CODE_TSC_INVALID_JSON;
   }
   return 0;
 }
@@ -477,7 +481,7 @@ static int32_t smlGetJsonElements(cJSON *root, cJSON ***marks) {
     }
     if (*marks[i] == NULL) {
       uError("smlGetJsonElements error, not find mark:%d:%s", i, jsonName[i]);
-      return -1;
+      return TSDB_CODE_TSC_INVALID_JSON;
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -816,25 +820,25 @@ static int64_t smlParseTSFromJSONObj(SSmlHandle *info, cJSON *root, int32_t toPr
   int32_t size = cJSON_GetArraySize(root);
   if (unlikely(size != OTD_JSON_SUB_FIELDS_NUM)) {
     smlBuildInvalidDataMsg(&info->msgBuf, "invalidate json", NULL);
-    return -1;
+    return TSDB_CODE_TSC_INVALID_JSON;
   }
 
   cJSON *value = cJSON_GetObjectItem(root, "value");
   if (unlikely(!cJSON_IsNumber(value))) {
     smlBuildInvalidDataMsg(&info->msgBuf, "invalidate json", NULL);
-    return -1;
+    return TSDB_CODE_TSC_INVALID_JSON;
   }
 
   cJSON *type = cJSON_GetObjectItem(root, "type");
   if (unlikely(!cJSON_IsString(type))) {
     smlBuildInvalidDataMsg(&info->msgBuf, "invalidate json", NULL);
-    return -1;
+    return TSDB_CODE_TSC_INVALID_JSON;
   }
 
   double timeDouble = value->valuedouble;
   if (unlikely(smlDoubleToInt64OverFlow(timeDouble))) {
     smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
-    return -1;
+    return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
   }
 
   if (timeDouble == 0) {
@@ -849,32 +853,29 @@ static int64_t smlParseTSFromJSONObj(SSmlHandle *info, cJSON *root, int32_t toPr
   size_t  typeLen = strlen(type->valuestring);
   if (typeLen == 1 && (type->valuestring[0] == 's' || type->valuestring[0] == 'S')) {
     // seconds
-    int8_t fromPrecision = TSDB_TIME_PRECISION_SECONDS;
+//    int8_t fromPrecision = TSDB_TIME_PRECISION_SECONDS;
     if (smlFactorS[toPrecision] < INT64_MAX / tsInt64) {
       return tsInt64 * smlFactorS[toPrecision];
     }
-    return -1;
+    return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
   } else if (typeLen == 2 && (type->valuestring[1] == 's' || type->valuestring[1] == 'S')) {
     switch (type->valuestring[0]) {
       case 'm':
       case 'M':
         // milliseconds
         return convertTimePrecision(tsInt64, TSDB_TIME_PRECISION_MILLI, toPrecision);
-        break;
       case 'u':
       case 'U':
         // microseconds
         return convertTimePrecision(tsInt64, TSDB_TIME_PRECISION_MICRO, toPrecision);
-        break;
       case 'n':
       case 'N':
         return convertTimePrecision(tsInt64, TSDB_TIME_PRECISION_NANO, toPrecision);
-        break;
       default:
-        return -1;
+        return TSDB_CODE_TSC_INVALID_JSON_TYPE;
     }
   } else {
-    return -1;
+    return TSDB_CODE_TSC_INVALID_JSON_TYPE;
   }
 }
 
@@ -895,7 +896,7 @@ static int64_t smlParseTSFromJSON(SSmlHandle *info, cJSON *timestamp) {
     double timeDouble = timestamp->valuedouble;
     if (unlikely(smlDoubleToInt64OverFlow(timeDouble))) {
       smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
-      return -1;
+      return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
     }
 
     if (unlikely(timeDouble < 0)) {
@@ -911,14 +912,14 @@ static int64_t smlParseTSFromJSON(SSmlHandle *info, cJSON *timestamp) {
     if (unlikely(fromPrecision == -1)) {
       smlBuildInvalidDataMsg(&info->msgBuf,
                              "timestamp precision can only be seconds(10 digits) or milli seconds(13 digits)", NULL);
-      return -1;
+      return TSDB_CODE_SML_INVALID_DATA;
     }
     int64_t tsInt64 = timeDouble;
     if (fromPrecision == TSDB_TIME_PRECISION_SECONDS) {
       if (smlFactorS[toPrecision] < INT64_MAX / tsInt64) {
         return tsInt64 * smlFactorS[toPrecision];
       }
-      return -1;
+      return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
     } else {
       return convertTimePrecision(timeDouble, fromPrecision, toPrecision);
     }
@@ -926,7 +927,7 @@ static int64_t smlParseTSFromJSON(SSmlHandle *info, cJSON *timestamp) {
     return smlParseTSFromJSONObj(info, timestamp, toPrecision);
   } else {
     smlBuildInvalidDataMsg(&info->msgBuf, "invalidate json", NULL);
-    return -1;
+    return TSDB_CODE_TSC_INVALID_JSON;
   }
 }
 

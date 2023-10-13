@@ -80,15 +80,18 @@ int32_t mmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   if (pInput->pData->dnodeId != 0 && dropReq.dnodeId != pInput->pData->dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dGError("failed to drop mnode since %s", terrstr());
+    tFreeSMCreateQnodeReq(&dropReq);
     return -1;
   }
 
   SMnodeOpt option = {.deploy = false};
   if (mmWriteFile(pInput->path, &option) != 0) {
     dGError("failed to write mnode file since %s", terrstr());
+    tFreeSMCreateQnodeReq(&dropReq);
     return -1;
   }
 
+  tFreeSMCreateQnodeReq(&dropReq);
   return 0;
 }
 

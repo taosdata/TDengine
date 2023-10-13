@@ -2218,7 +2218,9 @@ FETCH_NEXT_BLOCK:
         if (pSDB) {
           STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
           pSDB->info.type = pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER_RANGE ? STREAM_NORMAL : STREAM_PULL_DATA;
-          checkUpdateData(pInfo, true, pSDB, false);
+          if (!pInfo->igCheckUpdate && pInfo->pUpdateInfo) {
+            checkUpdateData(pInfo, true, pSDB, false);
+          }
           printSpecDataBlock(pSDB, getStreamOpName(pOperator->operatorType), "update", GET_TASKID(pTaskInfo));
           calBlockTbName(pInfo, pSDB);
           return pSDB;

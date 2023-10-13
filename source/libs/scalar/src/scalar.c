@@ -1671,6 +1671,9 @@ static int32_t sclGetJsonOperatorResType(SOperatorNode *pOp) {
 }
 
 static int32_t sclGetBitwiseOperatorResType(SOperatorNode *pOp) {
+  if (!pOp->pLeft || !pOp->pRight) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
   SDataType ldt = ((SExprNode *)(pOp->pLeft))->resType;
   SDataType rdt = ((SExprNode *)(pOp->pRight))->resType;
   if(TSDB_DATA_TYPE_VARBINARY == ldt.type || TSDB_DATA_TYPE_VARBINARY == rdt.type){

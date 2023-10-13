@@ -6,9 +6,9 @@ from util.dnodes import *
 
 
 class TDTestCase:
-    updatecfgDict = {'ttlUnit': 1, "ttlPushInterval": 3, "ttlChangeOnWrite": 1, "trimVDbIntervalSec": 360, 
+    updatecfgDict = {'ttlUnit': 1, "ttlPushInterval": 3, "ttlChangeOnWrite": 1, "trimVDbIntervalSec": 360,
                      "ttlFlushThreshold": 100, "ttlBatchDropNum": 10}
-    
+
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
@@ -16,15 +16,16 @@ class TDTestCase:
         self.ttl = 5
         self.tables = 100
         self.dbname = "test"
-        
+
     def check_batch_drop_num(self):
         tdSql.execute(f'create database {self.dbname} vgroups 1')
         tdSql.execute(f'use {self.dbname}')
         tdSql.execute(f'create table stb(ts timestamp, c1 int) tags(t1 int)')
         for i in range(self.tables):
             tdSql.execute(f'create table t{i} using stb tags({i}) ttl {self.ttl}')
-        
-        time.sleep(self.ttl + 3)
+
+        tdSql.execute(f'flush database {self.dbname}')
+        time.sleep(self.ttl + self.updatecfgDict['ttlPushInterval'] + 1)
         tdSql.query('show tables')
         tdSql.checkRows(90)
 
@@ -35,14 +36,17 @@ class TDTestCase:
         tdSql.execute(f'create table {self.dbname}.t2(ts timestamp, c1 int) ttl {self.ttl}')
         tdSql.query(f'show {self.dbname}.tables')
         tdSql.checkRows(2)
-        
-        time.sleep(self.ttl)
+
+        tdSql.execute(f'flush database {self.dbname}')
+        time.sleep(self.ttl - 1)
         tdSql.execute(f'insert into {self.dbname}.t2 values(now, 1)');
-        
-        time.sleep(self.ttl)
+
+        tdSql.execute(f'flush database {self.dbname}')
+        time.sleep(self.ttl - 1)
         tdSql.query(f'show {self.dbname}.tables')
         tdSql.checkRows(2)
-        
+
+        tdSql.execute(f'flush database {self.dbname}')
         time.sleep(self.ttl * 2)
         tdSql.query(f'show {self.dbname}.tables')
         tdSql.checkRows(1)

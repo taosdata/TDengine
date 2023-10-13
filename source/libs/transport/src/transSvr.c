@@ -1498,7 +1498,10 @@ int transSendResponse(const STransMsg* msg) {
     return 0;
   }
   SExHandle* exh = msg->info.handle;
-  int64_t    refId = msg->info.refId;
+  if (exh == NULL) {
+    return 0;
+  }
+  int64_t refId = msg->info.refId;
   ASYNC_CHECK_HANDLE(exh, refId);
 
   STransMsg tmsg = *msg;
