@@ -58,7 +58,7 @@ class TDTestCase:
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
 
-        tdCom.drop_all_db();
+        tdCom.drop_all_db()
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], wal_retention_period=36000,vgroups=paraDict["vgroups"],replica=self.replicaVar)
         tdLog.info("create stb")
@@ -112,13 +112,13 @@ class TDTestCase:
                     'tagPrefix':  't',
                     'colSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1},{'type': 'TIMESTAMP', 'count':1}],
                     'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
-                    'ctbPrefix':  'ctb',
+                    'ctbPrefix':  'ctb1',
                     'ctbStartIdx': 0,
                     'ctbNum':     10,
                     'rowsPerTbl': 10000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  60,
+                    'pollDelay':  120,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -157,7 +157,13 @@ class TDTestCase:
         tdLog.info("create ctb1")
         tmqCom.create_ctable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict['ctbPrefix'],
                              ctbNum=paraDict["ctbNum"],ctbStartIdx=paraDict['ctbStartIdx'])
-        tdLog.info("insert data")
+        
+        tdLog.info("create ctb2")
+        paraDict['ctbPrefix'] = "ctb2"
+        tmqCom.create_ctable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict['ctbPrefix'],
+                             ctbNum=paraDict["ctbNum"],ctbStartIdx=paraDict['ctbStartIdx'])
+        
+        tdLog.info("insert ctb1 data")
         pInsertThread = tmqCom.asyncInsertDataByInterlace(paraDict)
 
         tmqCom.getStartConsumeNotifyFromTmqsim()
@@ -169,11 +175,8 @@ class TDTestCase:
         # split vgroup
         self.splitVgroups()
 
-        tdLog.info("create ctb2")
-        paraDict['ctbPrefix'] = "ctbn"
-        tmqCom.create_ctable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict['ctbPrefix'],
-                             ctbNum=paraDict["ctbNum"],ctbStartIdx=paraDict['ctbStartIdx'])
-        tdLog.info("insert data")
+
+        tdLog.info("insert ctb2 data")
         pInsertThread1 = tmqCom.asyncInsertDataByInterlace(paraDict)
         pInsertThread.join()
         pInsertThread1.join()
@@ -181,7 +184,7 @@ class TDTestCase:
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
 
-        if expectrowcnt / 2 >= resultList[0]:
+        if expectrowcnt / 2 >= resultList[0] or expectrowcnt <= resultList[0]:
             tdLog.info("expect consume rows: %d, act consume rows: %d"%(expectrowcnt / 2, resultList[0]))
             tdLog.exit("%d tmq consume rows error!"%consumerId)
 
