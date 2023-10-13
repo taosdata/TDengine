@@ -1595,7 +1595,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step221desc3: "In fact, you can speed up the data loading in your report by using these filters.",
         step221desc4:
           `Click &quot;CONNECT&quot; once configuration is complete, then you can connect to your &quot;${grafanagds} &quot; with the given database and table.`,
-        step3: "Connector Configuration",
+        step3: "Create Report Or Dashboard",
         step3desc: `Unlock the power of your data with interactive dashboards and beautiful reports with the data stored in ${grafanagds}.`,
         step3desc1: "And refer to",
         step3desc2: "documentation",

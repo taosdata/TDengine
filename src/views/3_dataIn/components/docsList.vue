@@ -39,10 +39,19 @@ export default {
       localDocList:[]
     }
   },
-  computed: {},
+  computed: {
+    language() {
+      return this.$i18n.locale;
+    },
+  },
+  watch: {
+    language() {
+      this.localDocList=this.docsList()
+    },
+  },
   mounted(){
     this.localDocList=this.docsList()
-    console.log(this.docsList,'tools---pppsss',this.localDocList);
+    console.log(this.docsList,'tools---pppsss',this.localDocList,this.docsList());
   },
   methods: {
     getUrl(name) {

@@ -6,7 +6,7 @@ export default () => [
     type: "client",
     desc: i18n.t("docs.connector.desc", ["taos-jdbc"]),
     docs: {
-      zh: "",
+      zh: mdx.javaDoc,
       en: mdx.javaDoc,
     },
     steps: [
@@ -20,7 +20,7 @@ export default () => [
     type: "client",
     desc: i18n.t("docs.connector.desc", ["driver-go"]),
     docs: {
-      zh: "",
+      zh: mdx.goDoc,
       en: mdx.goDoc,
     },
     steps: [
@@ -35,7 +35,7 @@ export default () => [
     type: "client",
     desc: i18n.t("docs.connector.desc", ["taospy"]),
     docs: {
-      zh: "",
+      zh: mdx.pythonDoc,
       en: mdx.pythonDoc,
     },
     steps: [
@@ -50,7 +50,7 @@ export default () => [
     type: "client",
     desc: i18n.t("docs.connector.desc", ["@tdengine/rest"]),
     docs: {
-      zh: "",
+      zh: mdx.nodeDoc,
       en: mdx.nodeDoc,
     },
     steps: [
@@ -65,7 +65,7 @@ export default () => [
     type: "client",
     desc: i18n.t("docs.connector.desc", ["TDengine.Connector"]),
     docs: {
-      zh: "",
+      zh: mdx.csharpDoc,
       en: mdx.csharpDoc,
     },
     steps: [
@@ -79,7 +79,7 @@ export default () => [
     type: "client",
     desc: i18n.t("docs.connector.rust.desc"),
     docs: {
-      zh: "",
+      zh: mdx.rustDoc,
       en: mdx.rustDoc,
     },
     steps: [
@@ -94,7 +94,7 @@ export default () => [
     type: "client",
     desc: i18n.t("docs.connector.rest.desc"),
     docs: {
-      zh: "",
+      zh: mdx.restDoc,
       en: mdx.restDoc,
     },
     steps: [
