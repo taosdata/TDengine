@@ -2111,11 +2111,12 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
     void *p = taosHashGet(pChangeInfo->pDBMap, pStream->targetDb, strlen(pStream->targetDb));
     void *p1 = taosHashGet(pChangeInfo->pDBMap, pStream->sourceDb, strlen(pStream->sourceDb));
     if (p == NULL && p1 == NULL) {
+      mDebug("stream:0x%"PRIx64" %s not involved nodeUpdate, ignore", pStream->uid, pStream->name);
       mndReleaseStream(pMnode, pStream);
       continue;
     }
 
-    mDebug("stream:0x%" PRIx64 " involved node changed, create update trans", pStream->uid);
+    mDebug("stream:0x%" PRIx64 " %s involved node changed, create update trans", pStream->uid, pStream->name);
     int32_t code = createStreamUpdateTrans(pMnode, pStream, pChangeInfo);
     if (code != TSDB_CODE_SUCCESS) {
       sdbCancelFetch(pSdb, pIter);
