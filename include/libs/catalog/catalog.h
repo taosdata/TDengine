@@ -119,6 +119,7 @@ typedef struct SMetaData {
 
 typedef struct SCatalogCfg {
   uint32_t maxTblCacheNum;
+  uint32_t maxViewCacheNum;
   uint32_t maxDBCacheNum;
   uint32_t maxUserCacheNum;
   uint32_t dbRentSec;
@@ -365,7 +366,13 @@ SMetaData* catalogCloneMetaData(SMetaData* pData);
 
 void catalogFreeMetaData(SMetaData* pData);
 
-int32_t catalogRemoveViewMeta(SCatalog* pCtg, SName* pViewName);
+int32_t catalogRemoveViewMeta(SCatalog* pCtg, const char* dbFName, uint64_t dbId, const char* viewName, uint64_t viewId);
+
+int32_t catalogUpdateDynViewVer(SCatalog* pCtg, SDynViewVersion* pVer);
+
+int32_t catalogUpdateViewMeta(SCatalog* pCtg, SViewMetaRsp* pMsg);
+
+int32_t catalogAsyncUpdateViewMeta(SCatalog* pCtg, SViewMetaRsp* pMsg);
 
 int32_t ctgdEnableDebug(char* option, bool enable);
 

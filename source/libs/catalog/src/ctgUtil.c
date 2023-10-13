@@ -261,12 +261,25 @@ void ctgFreeViewCacheImpl(SCtgViewCache* pCache, bool lock) {
   }
 }
 
+void ctgFreeViewCache(SCtgDBCache* dbCache) {
+  if (NULL == dbCache->viewCache) {
+    return;
+  }
+
+  SCtgViewCache* pCache = taosHashIterate(dbCache->viewCache, NULL);
+  while (NULL != pCache) {
+    ctgFreeViewCacheImpl(pCache, false);
+    pCache = taosHashIterate(dbCache->viewCache, pCache);
+  }
+  taosHashCleanup(dbCache->viewCache);
+  dbCache->viewCache = NULL;
+}
+
 void ctgFreeTbCache(SCtgDBCache* dbCache) {
   if (NULL == dbCache->tbCache) {
     return;
   }
 
-  int32_t      tblNum = taosHashGetSize(dbCache->tbCache);
   SCtgTbCache* pCache = taosHashIterate(dbCache->tbCache, NULL);
   while (NULL != pCache) {
     ctgFreeTbCacheImpl(pCache, false);
@@ -288,6 +301,7 @@ void ctgFreeDbCache(SCtgDBCache* dbCache) {
   ctgFreeCfgInfoCache(dbCache);
   ctgFreeStbMetaCache(dbCache);
   ctgFreeTbCache(dbCache);
+  ctgFreeViewCache(dbCache);
 }
 
 void ctgFreeInstDbCache(SHashObj* pDbCache) {

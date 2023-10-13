@@ -383,7 +383,9 @@ static int32_t collectMetaKeyFromDescribe(SCollectMetaKeyCxt* pCxt, SDescribeStm
   int32_t code = catalogRemoveTableMeta(pCxt->pParseCxt->pCatalog, &name);
 #ifdef TD_ENTERPRISE
   if (TSDB_CODE_SUCCESS == code) {
-    code = catalogRemoveViewMeta(pCxt->pParseCxt->pCatalog, &name);
+    char dbFName[TSDB_DB_FNAME_LEN];
+    tNameGetFullDbName(&name, dbFName);
+    code = catalogRemoveViewMeta(pCxt->pParseCxt->pCatalog, dbFName, 0, pStmt->tableName, 0);
   }
 #endif
   if (TSDB_CODE_SUCCESS == code) {
@@ -626,7 +628,9 @@ static int32_t collectMetaKeyFromShowCreateView(SCollectMetaKeyCxt* pCxt, SShowC
   SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
   strcpy(name.dbname, pStmt->dbName);
   strcpy(name.tname, pStmt->viewName);
-  int32_t code = catalogRemoveViewMeta(pCxt->pParseCxt->pCatalog, &name);
+  char dbFName[TSDB_DB_FNAME_LEN];
+  tNameGetFullDbName(&name, dbFName);
+  int32_t code = catalogRemoveViewMeta(pCxt->pParseCxt->pCatalog, dbFName, 0, pStmt->viewName, 0);
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveViewUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->viewName,
                                   AUTH_TYPE_READ, pCxt->pMetaCache);

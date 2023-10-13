@@ -53,7 +53,7 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
   int32_t numOfBatchs = taosArrayGetSize(batchRsp.pArray);
   for (int32_t i = 0; i < numOfBatchs; ++i) {
     SGetUserAuthRsp *rsp = taosArrayGet(batchRsp.pArray, i);
-    tscDebug("hb user auth rsp, user:%s, version:%d", rsp->user, rsp->version);
+    tscDebug("hb to update user auth, user:%s, version:%d", rsp->user, rsp->version);
 
     catalogUpdateUserAuthInfo(pCatalog, rsp);
   }
@@ -205,6 +205,7 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
         rsp->useDbRsp->db, rsp->useDbRsp->vgVersion, rsp->useDbRsp->stateTs, rsp->useDbRsp->uid);
 
       if (rsp->useDbRsp->vgVersion < 0) {
+        tscDebug("hb to remove db, db:%s", rsp->useDbRsp->db);
         code = catalogRemoveDB(pCatalog, rsp->useDbRsp->db, rsp->useDbRsp->uid);
       } else {
         SDBVgInfo *vgInfo = NULL;
@@ -212,6 +213,8 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
         if (TSDB_CODE_SUCCESS != code) {
           goto _return;
         }
+
+        tscDebug("hb to update db vgInfo, db:%s", rsp->useDbRsp->db);
 
         catalogUpdateDBVgInfo(pCatalog, rsp->useDbRsp->db, rsp->useDbRsp->uid, vgInfo);
 
@@ -253,10 +256,10 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
     STableMetaRsp *rsp = taosArrayGet(hbRsp.pMetaRsp, i);
 
     if (rsp->numOfColumns < 0) {
-      tscDebug("hb remove stb, db:%s, stb:%s", rsp->dbFName, rsp->stbName);
+      tscDebug("hb to remove stb, db:%s, stb:%s", rsp->dbFName, rsp->stbName);
       catalogRemoveStbMeta(pCatalog, rsp->dbFName, rsp->dbId, rsp->stbName, rsp->suid);
     } else {
-      tscDebug("hb update stb, db:%s, stb:%s", rsp->dbFName, rsp->stbName);
+      tscDebug("hb to update stb, db:%s, stb:%s", rsp->dbFName, rsp->stbName);
       if (rsp->pSchemas[0].colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
         tscError("invalid colId[%" PRIi16 "] for the first column in table meta rsp msg", rsp->pSchemas[0].colId);
         tFreeSSTbHbRsp(&hbRsp);
@@ -279,6 +282,96 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
 
   tFreeSSTbHbRsp(&hbRsp);
   return TSDB_CODE_SUCCESS;
+}
+
+
+static int32_t hbProcessDynViewRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
+  return catalogUpdateDynViewVer(pCatalog, (SDynViewVersion*)value);
+}
+
+static int32_t hbProcessViewInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
+  int32_t code = 0;
+
+  SViewHbRsp hbRsp = {0};
+  if (tDeserializeSViewHbRsp(value, valueLen, &hbRsp) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  int32_t numOfMeta = taosArrayGetSize(hbRsp.pViewRsp);
+  for (int32_t i = 0; i < numOfMeta; ++i) {
+    SViewMetaRsp *rsp = taosArrayGet(hbRsp.pViewRsp, i);
+
+    if (rsp->numOfCols < 0) {
+      tscDebug("hb to remove view, db:%s, view:%s", rsp->dbFName, rsp->name);
+      catalogRemoveViewMeta(pCatalog, rsp->dbFName, rsp->dbId, rsp->name, rsp->viewId);
+    } else {
+      tscDebug("hb to update view, db:%s, view:%s", rsp->dbFName, rsp->name);
+      catalogUpdateViewMeta(pCatalog, rsp);
+    }
+  }
+
+  tFreeSViewHbRsp(&hbRsp);
+  return TSDB_CODE_SUCCESS;
+}
+
+
+static void hbProcessQueryRspKvs(int32_t kvNum, SArray* pKvs, struct SCatalog *pCatalog, SAppHbMgr *pAppHbMgr) {
+  for (int32_t i = 0; i < kvNum; ++i) {
+    SKv *kv = taosArrayGet(pKvs, i);
+    switch (kv->key) {
+      case HEARTBEAT_KEY_USER_AUTHINFO: {
+        if (kv->valueLen <= 0 || NULL == kv->value) {
+          tscError("invalid hb user auth info, len:%d, value:%p", kv->valueLen, kv->value);
+          break;
+        }
+
+        hbProcessUserAuthInfoRsp(kv->value, kv->valueLen, pCatalog, pAppHbMgr);
+        break;
+      }
+      case HEARTBEAT_KEY_DBINFO: {
+        if (kv->valueLen <= 0 || NULL == kv->value) {
+          tscError("invalid hb db info, len:%d, value:%p", kv->valueLen, kv->value);
+          break;
+        }
+
+        hbProcessDBInfoRsp(kv->value, kv->valueLen, pCatalog);
+        break;
+      }
+      case HEARTBEAT_KEY_STBINFO: {
+        if (kv->valueLen <= 0 || NULL == kv->value) {
+          tscError("invalid hb stb info, len:%d, value:%p", kv->valueLen, kv->value);
+          break;
+        }
+
+        hbProcessStbInfoRsp(kv->value, kv->valueLen, pCatalog);
+        break;
+      }
+#ifdef TD_ENTERPRISE
+      case HEARTBEAT_KEY_DYN_VIEW: {
+        if (kv->valueLen <= 0 || NULL == kv->value) {
+          tscError("invalid dyn view info, len:%d, value:%p", kv->valueLen, kv->value);
+          break;
+        }
+
+        hbProcessDynViewRsp(kv->value, kv->valueLen, pCatalog);
+        break;
+      }
+      case HEARTBEAT_KEY_VIEWINFO: {
+        if (kv->valueLen <= 0 || NULL == kv->value) {
+          tscError("invalid view info, len:%d, value:%p", kv->valueLen, kv->value);
+          break;
+        }
+
+        hbProcessViewInfoRsp(kv->value, kv->valueLen, pCatalog);
+        break;
+      }
+#endif
+      default:
+        tscError("invalid hb key type:%d", kv->key);
+        break;
+    }
+  }
 }
 
 static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
@@ -338,66 +431,16 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
 
   tscDebug("hb got %d rsp kv", kvNum);
 
-  for (int32_t i = 0; i < kvNum; ++i) {
-    SKv *kv = taosArrayGet(pRsp->info, i);
-    switch (kv->key) {
-      case HEARTBEAT_KEY_USER_AUTHINFO: {
-        if (kv->valueLen <= 0 || NULL == kv->value) {
-          tscError("invalid hb user auth info, len:%d, value:%p", kv->valueLen, kv->value);
-          break;
-        }
-
-        struct SCatalog *pCatalog = NULL;
-
-        int32_t code = catalogGetHandle(pReq->clusterId, &pCatalog);
-        if (code != TSDB_CODE_SUCCESS) {
-          tscWarn("catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pReq->clusterId, tstrerror(code));
-          break;
-        }
-
-        hbProcessUserAuthInfoRsp(kv->value, kv->valueLen, pCatalog, pAppHbMgr);
-        break;
-      }
-      case HEARTBEAT_KEY_DBINFO: {
-        if (kv->valueLen <= 0 || NULL == kv->value) {
-          tscError("invalid hb db info, len:%d, value:%p", kv->valueLen, kv->value);
-          break;
-        }
-
-        struct SCatalog *pCatalog = NULL;
-
-        int32_t code = catalogGetHandle(pReq->clusterId, &pCatalog);
-        if (code != TSDB_CODE_SUCCESS) {
-          tscWarn("catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pReq->clusterId, tstrerror(code));
-          break;
-        }
-
-        hbProcessDBInfoRsp(kv->value, kv->valueLen, pCatalog);
-        break;
-      }
-      case HEARTBEAT_KEY_STBINFO: {
-        if (kv->valueLen <= 0 || NULL == kv->value) {
-          tscError("invalid hb stb info, len:%d, value:%p", kv->valueLen, kv->value);
-          break;
-        }
-
-        struct SCatalog *pCatalog = NULL;
-
-        int32_t code = catalogGetHandle(pReq->clusterId, &pCatalog);
-        if (code != TSDB_CODE_SUCCESS) {
-          tscWarn("catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pReq->clusterId, tstrerror(code));
-          break;
-        }
-
-        hbProcessStbInfoRsp(kv->value, kv->valueLen, pCatalog);
-        break;
-      }
-      default:
-        tscError("invalid hb key type:%d", kv->key);
-        break;
+  if (kvNum > 0) {
+    struct SCatalog *pCatalog = NULL;
+    int32_t code = catalogGetHandle(pReq->clusterId, &pCatalog);
+    if (code != TSDB_CODE_SUCCESS) {
+      tscWarn("catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pReq->clusterId, tstrerror(code));
+    } else {
+      hbProcessQueryRspKvs(kvNum, pRsp->info, pCatalog, pAppHbMgr);
     }
   }
-
+  
   taosHashRelease(pAppHbMgr->activeInfo, pReq);
 
   return TSDB_CODE_SUCCESS;
@@ -783,6 +826,7 @@ int32_t hbGetExpiredViewInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, S
 
   for (int32_t i = 0; i < viewNum; ++i) {
     SViewVersion *view = &views[i];
+    view->dbId = htobe64(view->dbId);
     view->viewId = htobe64(view->viewId);
     view->version = htonl(view->version);
   }

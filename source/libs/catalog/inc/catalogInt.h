@@ -30,6 +30,7 @@ extern "C" {
 #define CTG_DEFAULT_CACHE_VGROUP_NUMBER  100
 #define CTG_DEFAULT_CACHE_DB_NUMBER      20
 #define CTG_DEFAULT_CACHE_TBLMETA_NUMBER 1000
+#define CTG_DEFAULT_CACHE_VIEW_NUMBER    256
 #define CTG_DEFAULT_RENT_SECOND          10
 #define CTG_DEFAULT_RENT_SLOT_SIZE       10
 #define CTG_DEFAULT_MAX_RETRY_TIMES      3
@@ -542,6 +543,7 @@ typedef struct SCtgDropViewMetaMsg {
   char      dbFName[TSDB_DB_FNAME_LEN];
   char      viewName[TSDB_VIEW_NAME_LEN];
   uint64_t  dbId;
+  uint64_t  viewId;
 } SCtgDropViewMetaMsg;
 
 
@@ -928,7 +930,7 @@ int32_t ctgUpdateTbMetaEnqueue(SCatalog* pCtg, STableMetaOutput* output, bool sy
 int32_t ctgUpdateUserEnqueue(SCatalog* pCtg, SGetUserAuthRsp* pAuth, bool syncReq);
 int32_t ctgUpdateVgEpsetEnqueue(SCatalog* pCtg, char* dbFName, int32_t vgId, SEpSet* pEpSet);
 int32_t ctgUpdateTbIndexEnqueue(SCatalog* pCtg, STableIndex** pIndex, bool syncOp);
-int32_t ctgDropViewMetaEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId, const char *viewName, bool syncOp);
+int32_t ctgDropViewMetaEnqueue(SCatalog *pCtg, const char *dbFName, uint64_t dbId, const char *viewName, uint64_t viewId, bool syncOp);
 int32_t ctgClearCacheEnqueue(SCatalog* pCtg, bool clearMeta, bool freeCtg, bool stopQueue, bool syncOp);
 int32_t ctgMetaRentInit(SCtgRentMgmt* mgmt, uint32_t rentSec, int8_t type, int32_t size);
 int32_t ctgMetaRentAdd(SCtgRentMgmt* mgmt, void* meta, int64_t id, int32_t size);

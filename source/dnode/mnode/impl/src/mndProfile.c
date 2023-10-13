@@ -539,10 +539,17 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
   SKv* pKv = taosHashGet(pHbReq->info, &key, sizeof(key));
   if (NULL != pKv) {
     pDynViewVer = pKv->value;
-    mndValidateDynViewVersion(pMnode, pDynViewVer, &needCheck);
+    mTrace("recv view dyn ver, bootTs:%" PRId64 ", ver:%" PRIu64, pDynViewVer->svrBootTs, pDynViewVer->dynViewVer);
+
+    SDynViewVersion* pRspVer = NULL;
+    if (0 != mndValidateDynViewVersion(pMnode, pDynViewVer, &needCheck, &pRspVer)) {
+      return -1;
+    }
+    
     if (needCheck) {
-      SKv kv1 = {.key = HEARTBEAT_KEY_DYN_VIEW, .valueLen = sizeof(*pDynViewVer), .value = pDynViewVer};
+      SKv kv1 = {.key = HEARTBEAT_KEY_DYN_VIEW, .valueLen = sizeof(*pDynViewVer), .value = pRspVer};
       taosArrayPush(hbRsp.info, &kv1);
+      mTrace("need to check view ver, lastest bootTs:%" PRId64 ", ver:%" PRIu64, pRspVer->svrBootTs, pRspVer->dynViewVer);
     }
   }
 #endif

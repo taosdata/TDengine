@@ -1792,6 +1792,15 @@ int32_t tDeserializeSSTbHbRsp(void* buf, int32_t bufLen, SSTbHbRsp* pRsp);
 void    tFreeSSTbHbRsp(SSTbHbRsp* pRsp);
 
 typedef struct {
+  SArray* pViewRsp;  // Array of SViewMetaRsp;
+} SViewHbRsp;
+
+int32_t tSerializeSViewHbRsp(void* buf, int32_t bufLen, SViewHbRsp* pRsp);
+int32_t tDeserializeSViewHbRsp(void* buf, int32_t bufLen, SViewHbRsp* pRsp);
+void    tFreeSViewHbRsp(SViewHbRsp* pRsp);
+
+
+typedef struct {
   int32_t numOfTables;
   int32_t numOfVgroup;
   int32_t numOfUdf;
