@@ -495,9 +495,9 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks) {
       tColDataSortMerge(pTableCxt->pData->aCol);
     } else {
       if (!pTableCxt->ordered) {
-        tRowSort(pTableCxt->pData->aRowP);
+        code = tRowSort(pTableCxt->pData->aRowP);
       }
-      if (!pTableCxt->ordered || pTableCxt->duplicateTs) {
+      if (code == TSDB_CODE_SUCCESS && (!pTableCxt->ordered || pTableCxt->duplicateTs)) {
         code = tRowMerge(pTableCxt->pData->aRowP, pTableCxt->pSchema, 0);
       }
     }

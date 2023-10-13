@@ -439,6 +439,7 @@ sql create table ts1 using st tags(1,1,1);
 sql create table ts2 using st tags(2,2,2);
 sql create stream stream_t2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 watermark 20s into streamtST1 as select  _wstart, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6 from st interval(10s) ;
 
+sleep 2000
 sql insert into ts1 values(1648791211000,1,2,3);
 sql insert into ts1 values(1648791222001,2,2,3);
 sql insert into ts2 values(1648791211000,1,2,3);

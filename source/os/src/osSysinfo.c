@@ -852,13 +852,12 @@ void taosGetProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, i
 }
 
 int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
-#ifdef WINDOWS
   *receive_bytes = 0;
   *transmit_bytes = 0;
+
+#ifdef WINDOWS
   return 0;
 #elif defined(_TD_DARWIN_64)
-  *receive_bytes = 0;
-  *transmit_bytes = 0;
   return 0;
 #else
   TdFilePtr pFile = taosOpenFile(tsSysNetFile, TD_FILE_READ | TD_FILE_STREAM);
@@ -895,8 +894,8 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
            "%s %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64 " %" PRId64
            " %" PRId64,
            nouse0, &o_rbytes, &rpackts, &nouse1, &nouse2, &nouse3, &nouse4, &nouse5, &nouse6, &o_tbytes, &tpackets);
-    *receive_bytes = o_rbytes;
-    *transmit_bytes = o_tbytes;
+    *receive_bytes += o_rbytes;
+    *transmit_bytes += o_tbytes;
   }
 
   taosCloseFile(&pFile);
@@ -908,8 +907,8 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
 void taosGetCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes) {
   static int64_t last_receive_bytes = 0;
   static int64_t last_transmit_bytes = 0;
-  static int64_t cur_receive_bytes = 0;
-  static int64_t cur_transmit_bytes = 0;
+  int64_t cur_receive_bytes = 0;
+  int64_t cur_transmit_bytes = 0;
   if (taosGetCardInfo(&cur_receive_bytes, &cur_transmit_bytes) == 0) {
     *receive_bytes = cur_receive_bytes - last_receive_bytes;
     *transmit_bytes = cur_transmit_bytes - last_transmit_bytes;

@@ -293,9 +293,9 @@ if $rows != 1 then
 endi
 
 #$drop_name=`$data[0][0]`
-#sql drop index `$data[0][0]\` 
+#sql drop index `$data[0][0]\`
 
-#if $rows != 0 then 
+#if $rows != 0 then
 #  return -1
 #endi
 
