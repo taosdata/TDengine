@@ -109,7 +109,7 @@ if __name__ == "__main__":
     websocket = False
     replicaVar = 1
     asan = False
-    independentMnode = True
+    independentMnode = False
     previousCluster = False
     opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RWD:n:i:aP', [
         'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums','restful','websocket','adaptercfgupdate','replicaVar','independentMnode','previous'])
@@ -202,7 +202,7 @@ if __name__ == "__main__":
             createDnodeNums = value
 
         if key in ['-i', '--independentMnode']:
-            independentMnode = False
+            independentMnode = value
 
         if key in ['-R', '--restful']:
             restful = True

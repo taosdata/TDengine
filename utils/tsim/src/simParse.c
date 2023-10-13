@@ -745,6 +745,25 @@ bool simParseSystemContentCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
   return true;
 }
 
+bool simParseSetBIModeCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
+  char   *token;
+  int32_t tokenLen;
+
+  cmdLine[numOfLines].cmdno = SIM_CMD_SET_BI_MODE;
+  cmdLine[numOfLines].lineNum = lineNum;
+
+  paGetToken(rest, &token, &tokenLen);
+  if (tokenLen > 0) {
+    cmdLine[numOfLines].optionOffset = optionOffset;
+    memcpy(optionBuffer + optionOffset, token, tokenLen);
+    optionOffset += tokenLen + 1;
+    *(optionBuffer + optionOffset - 1) = 0;
+  }
+
+  numOfLines++;
+  return true;
+}
+
 bool simParseSleepCmd(char *rest, SCommand *pCmd, int32_t lineNum) {
   char   *token;
   int32_t tokenLen;
@@ -1072,6 +1091,14 @@ void simInitsimCmdList() {
   simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
   simCmdList[cmdno].parseCmd = simParseReturnCmd;
   simCmdList[cmdno].executeCmd = simExecuteReturnCmd;
+  simAddCmdIntoHash(&(simCmdList[cmdno]));
+
+  cmdno = SIM_CMD_SET_BI_MODE;
+  simCmdList[cmdno].cmdno = cmdno;
+  strcpy(simCmdList[cmdno].name, "set_bi_mode");
+  simCmdList[cmdno].nlen = (int16_t)strlen(simCmdList[cmdno].name);
+  simCmdList[cmdno].parseCmd = simParseSetBIModeCmd;
+  simCmdList[cmdno].executeCmd = simExecuteSetBIModeCmd;
   simAddCmdIntoHash(&(simCmdList[cmdno]));
 
 #if 0

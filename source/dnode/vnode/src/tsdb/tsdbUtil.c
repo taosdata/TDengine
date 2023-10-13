@@ -542,7 +542,7 @@ int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t nowSec) {
     ASSERT(0);
   }
 
-  nowSec = nowSec - tsKeepTimeOffset * tsTickPerHour[pKeepCfg->precision];
+  nowSec = nowSec - pKeepCfg->keepTimeOffset * tsTickPerHour[pKeepCfg->precision];
 
   key = nowSec - pKeepCfg->keep0 * tsTickPerMin[pKeepCfg->precision];
   aFid[0] = tsdbKeyFid(key, pKeepCfg->days, pKeepCfg->precision);

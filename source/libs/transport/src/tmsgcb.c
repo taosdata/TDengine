@@ -26,6 +26,10 @@ void tmsgSetDefault(const SMsgCb* msgcb) { defaultMsgCb = *msgcb; }
 int32_t tmsgPutToQueue(const SMsgCb* msgcb, EQueueType qtype, SRpcMsg* pMsg) {
   int32_t code = (*msgcb->putToQueueFp)(msgcb->mgmt, qtype, pMsg);
   if (code != 0) {
+    SRpcMsg rsp = {.code = code, .info = pMsg->info};
+    if (rsp.info.handle != NULL) {
+      tmsgSendRsp(&rsp);
+    }
     rpcFreeCont(pMsg->pCont);
     pMsg->pCont = NULL;
   }

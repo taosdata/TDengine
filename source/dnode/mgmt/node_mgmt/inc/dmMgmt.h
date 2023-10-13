@@ -95,6 +95,10 @@ void          dmCleanupDnode(SDnode *pDnode);
 SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType nType);
 int32_t       dmMarkWrapper(SMgmtWrapper *pWrapper);
 void          dmReleaseWrapper(SMgmtWrapper *pWrapper);
+int32_t       dmInitVars(SDnode *pDnode);
+void          dmClearVars(SDnode *pDnode);
+int32_t       dmInitModule(SDnode *pDnode);
+bool          dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper);
 SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper);
 void          dmSetStatus(SDnode *pDnode, EDndRunStatus stype);
 void          dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg);
@@ -119,6 +123,7 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 // dmMonitor.c
 void dmSendMonitorReport();
 void dmGetVnodeLoads(SMonVloadInfo *pInfo);
+void dmGetVnodeLoadsLite(SMonVloadInfo *pInfo);
 void dmGetMnodeLoads(SMonMloadInfo *pInfo);
 void dmGetQnodeLoads(SQnodeLoad *pInfo);
 

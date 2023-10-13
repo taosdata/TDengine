@@ -1749,6 +1749,8 @@ static int32_t createSortPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pSortKeys = NULL;
   int32_t    code = rewritePrecalcExprs(pCxt, pSortLogicNode->pSortKeys, &pPrecalcExprs, &pSortKeys);
+  pSort->calcGroupId = pSortLogicNode->calcGroupId;
+  pSort->excludePkCol = pSortLogicNode->excludePkCol;
 
   SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
   // push down expression to pOutputDataBlockDesc of child node
@@ -1797,6 +1799,7 @@ static int32_t createPartitionPhysiNodeImpl(SPhysiPlanContext* pCxt, SNodeList* 
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pPartitionKeys = NULL;
   int32_t    code = rewritePrecalcExprs(pCxt, pPartLogicNode->pPartitionKeys, &pPrecalcExprs, &pPartitionKeys);
+  pPart->needBlockOutputTsOrder = pPartLogicNode->needBlockOutputTsOrder;
 
   SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
   // push down expression to pOutputDataBlockDesc of child node
@@ -1816,6 +1819,22 @@ static int32_t createPartitionPhysiNodeImpl(SPhysiPlanContext* pCxt, SNodeList* 
     if (TSDB_CODE_SUCCESS == code) {
       code = addDataBlockSlots(pCxt, pPart->pTargets, pPart->node.pOutputDataBlockDesc);
     }
+  }
+
+  if (pPart->needBlockOutputTsOrder) {
+    SNode* node;
+    bool found = false;
+    FOREACH(node, pPartLogicNode->node.pTargets) {
+      if (nodeType(node) == QUERY_NODE_COLUMN) {
+        SColumnNode* pCol = (SColumnNode*)node;
+        if (pCol->tableId == pPartLogicNode->pkTsColTbId && pCol->colId == pPartLogicNode->pkTsColId) {
+          pPart->tsSlotId = pCol->slotId;
+          found = true;
+          break;
+        }
+      }
+    }
+    if (!found) code = TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -1944,6 +1963,7 @@ static int32_t createMergePhysiNode(SPhysiPlanContext* pCxt, SMergeLogicNode* pM
   pMerge->srcGroupId = pMergeLogicNode->srcGroupId;
   pMerge->groupSort = pMergeLogicNode->groupSort;
   pMerge->ignoreGroupId = pMergeLogicNode->ignoreGroupId;
+  pMerge->inputWithGroupId = pMergeLogicNode->inputWithGroupId;
 
   int32_t code = addDataBlockSlots(pCxt, pMergeLogicNode->pInputs, pMerge->node.pOutputDataBlockDesc);
 
