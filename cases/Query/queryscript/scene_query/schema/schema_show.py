@@ -164,7 +164,7 @@ class TDTestQuery(TDCase):
         show_create_sql = "show create table information_schema.ins_dnodes;"
         self.tdSql.query(show_create_sql)          
         self.tdCreateData.data_check(self.tdSql.getData(0,0),'ins_dnodes')
-        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_dnodes` (`id` INT, `endpoint` VARCHAR(134), `vnodes` SMALLINT, `support_vnodes` SMALLINT, `status` VARCHAR(10), `create_time` TIMESTAMP, `reboot_time` TIMESTAMP, `note` VARCHAR(256)) COMMENT ''")
+        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_dnodes` (`id` INT, `endpoint` VARCHAR(134), `vnodes` SMALLINT, `support_vnodes` SMALLINT, `status` VARCHAR(10), `create_time` TIMESTAMP, `reboot_time` TIMESTAMP, `note` VARCHAR(256), `active_code` VARCHAR(109), `c_active_code` VARCHAR(255)) COMMENT ''")
         show_sql = "show dnodes;"
         select_sql = "select * from information_schema.ins_dnodes;"
         self.sql_check(show_sql,select_sql)
@@ -247,7 +247,7 @@ class TDTestQuery(TDCase):
         show_create_sql = "show create table information_schema.ins_grants;"
         self.tdSql.query(show_create_sql)          
         self.tdCreateData.data_check(self.tdSql.getData(0,0),'ins_grants')
-        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_grants` (`version` VARCHAR(9), `expire_time` VARCHAR(19), `expired` VARCHAR(5), `storage` VARCHAR(21), `timeseries` VARCHAR(21), `databases` VARCHAR(10), `users` VARCHAR(10), `accounts` VARCHAR(10), `dnodes` VARCHAR(10), `connections` VARCHAR(11), `streams` VARCHAR(9), `cpu_cores` VARCHAR(9), `speed` VARCHAR(9), `querytime` VARCHAR(9)) COMMENT ''")
+        self.tdCreateData.data_check(self.tdSql.getData(0,1),"CREATE TABLE `ins_grants` (`version` VARCHAR(9), `expire_time` VARCHAR(19), `expired` VARCHAR(5), `storage` VARCHAR(21), `timeseries` VARCHAR(21), `databases` VARCHAR(10), `users` VARCHAR(10), `accounts` VARCHAR(10), `dnodes` VARCHAR(10), `connections` VARCHAR(11), `streams` VARCHAR(9), `cpu_cores` VARCHAR(9), `speed` VARCHAR(9), `querytime` VARCHAR(9), `opc_da` VARCHAR(196), `opc_ua` VARCHAR(196), `pi` VARCHAR(196), `kafka` VARCHAR(196), `influxdb` VARCHAR(196), `mqtt` VARCHAR(196)) COMMENT ''")
         
         show_create_sql = "show create table information_schema.ins_vgroups;"
         self.tdSql.query(show_create_sql)          
@@ -914,7 +914,7 @@ class TDTestQuery(TDCase):
     def run(self):
         startTime = time.time() 
         
-        os.system("nohup taostest --use=common_insert.yaml --case=Query/queryscript/scene_query/schema/compact_alldb.py --keep --disable_collection &")
+        #os.system("nohup taostest --use=common_insert.yaml --case=Query/queryscript/scene_query/schema/compact_alldb.py --keep --disable_collection &")
                 
         self.tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
          
