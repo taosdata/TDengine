@@ -554,7 +554,7 @@ struct ModifyStructForPointMessage {
     value_cloumn_length: usize,
 }
 
-#[instrument(skip_all)]
+#[instrument(skip_all, fields(target_precision = ?target_precision))]
 async fn consume_point_record(
     pool: &TaosPool,
     taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
@@ -562,11 +562,15 @@ async fn consume_point_record(
     record: &PointMessage,
     count: &mut usize,
     config: &OpcTableConfig,
+    target_precision: taos::Precision,
 ) -> anyhow::Result<usize> {
     let mut points = 0;
     metrics::counter!(RECORD_BATCHES, 1);
     for message in record.records() {
-        let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(message.record());
+        let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(
+            message.record(),
+            target_precision,
+        );
         // process id, name, ts, value, status
         let schema = message.schema();
         let id_index = schema.index_of("id")?;
@@ -1190,6 +1194,7 @@ async fn consume_flat_record(
     parser: Option<&Parser>,
     license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
+    target_precision: taos::Precision,
 ) -> anyhow::Result<()> {
     if let Some((_license, transferred)) = license.zip(transferred) {
         let _used = transferred.records.load(Ordering::SeqCst);
@@ -1229,6 +1234,7 @@ async fn consume_flat_record(
                         tracing::debug!("Write records with rows {}", records.records.num_rows());
                         let views = taosx_ipc::stream::reader::record_batch_to_column_view(
                             &records.records,
+                            target_precision,
                         );
                         // dbg!(&views);
                         let schema = records.records.schema();
@@ -1616,7 +1622,7 @@ async fn consume_flat_record(
                 }
             }
         } else {
-            let _ = taosx_ipc::stream::reader::record_batch_to_column_view(batch);
+            let _ = taosx_ipc::stream::reader::record_batch_to_column_view(batch, target_precision);
             // let mut stmt = Stmt::init(&taos)?;
             // process id, ts, value
             // dbg!(&cv_vec);
@@ -1718,6 +1724,7 @@ async fn ipc_point_reader<R: Read, W: Write>(
     config: Option<OpcTableConfig>,
     license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
+    target_precision: taos::Precision,
 ) -> anyhow::Result<()> {
     let taos = pool.get().await?;
     let mut count = 0;
@@ -1747,6 +1754,7 @@ async fn ipc_point_reader<R: Read, W: Write>(
                 &record,
                 &mut count,
                 config.as_ref().unwrap(),
+                target_precision,
             )
             .await?;
 
@@ -1770,6 +1778,7 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
     parser: Option<&Parser>,
     license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
+    target_precision: taos::Precision,
 ) -> anyhow::Result<()> {
     let mut count = 0;
     let mut batches = 0;
@@ -1793,6 +1802,7 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
             parser,
             license,
             transferred,
+            target_precision,
         )
         .await
         {
@@ -1903,6 +1913,26 @@ pub fn generate_alter_sql_diff_desc(
     }
 }
 
+async fn get_current_precision(conn: &Taos) -> anyhow::Result<taos::Precision> {
+    let database: String = conn
+        .query_one("select database()")
+        .await?
+        .expect("target database should be set");
+    let precision = conn
+        .query_one(format!(
+            "select `precision` from information_schema.ins_databases where name = '{}'",
+            database
+        ))
+        .await?
+        .unwrap_or("ms".to_string());
+    let target_precision = match precision.as_str() {
+        "ms" => taos::Precision::Millisecond,
+        "us" => taos::Precision::Microsecond,
+        "ns" => taos::Precision::Nanosecond,
+        _ => bail!("Unknown precision: {precision}"),
+    };
+    Ok(target_precision)
+}
 #[framed]
 #[instrument(skip_all, fields(client, connector))]
 async fn ipc_process<R: Read + Send + 'static, W: Write>(
@@ -1918,6 +1948,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
 ) -> anyhow::Result<()> {
     info!(client, "IPC stream processing...");
     let taos = pool.get().await?;
+    let target_precision = get_current_precision(&taos).await?;
 
     let license: Option<ConnectorLicense> = if let Some(connector) = connector {
         #[cfg(feature = "disable-enterprise-connector-validation")]
@@ -1971,6 +2002,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 parser.as_ref(),
                 license.as_ref(),
                 transferred.as_deref(),
+                target_precision,
             )
             .await?
         }
@@ -1992,6 +2024,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 config,
                 license.as_ref(),
                 transferred.as_deref(),
+                target_precision,
             )
             .await?
         }
@@ -2118,6 +2151,8 @@ impl IpcStreamWorker {
         parser: Option<&Parser>,
     ) -> anyhow::Result<usize> {
         let taos = self.pool.get().await?;
+        let target_precision = get_current_precision(&taos).await?;
+
         if let Some(sql) = self.parser.metadata().init_sql_string() {
             let guard = self.lock.lock().await;
             let init = self.parser.metadata.init().unwrap();
@@ -2160,6 +2195,7 @@ impl IpcStreamWorker {
                     parser, // todo: license
                     self.license.as_ref(),
                     self.transferred.as_ref(),
+                    target_precision,
                 )
                 .await?;
                 Ok(count)
@@ -2254,6 +2290,7 @@ impl IpcStreamWorker {
                     self.opc_table_config
                         .get()
                         .ok_or_else(|| anyhow::format_err!("OPC table config not found"))?,
+                    target_precision,
                 )
                 .await?;
                 if let Some(transferred) = &self.transferred {
