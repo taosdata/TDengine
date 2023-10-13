@@ -19,7 +19,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define GRANT_MACHINE_V3106 3106
+#define GRANT_MACHINE_V3117 3117
 
 #ifdef GRANT_VALUE
 #define GRANT_VALUE_INT        atoi(GRANT_VALUE)
@@ -224,6 +224,7 @@ typedef struct {
   };
   uint32_t      reserveKey2;
   char          active[GRANT_ACTIVE_KEY_LEN + 1];
+  char          machine[GRANT_MACHINE_KEY_LEN + 1]; // since 3.1.1.7
   SGrantConnMsg connectors;
 } SGrantMsg;
 
@@ -236,7 +237,7 @@ bool  grantCheckMachineCode(SGrantObj *grant);
 bool  grantCheckClusterId(SGrantObj *grant);
 void  grantActiveSystem(const char *cfgFile);
 
-int32_t grantSelectActiveCode(const char *old, const char *new, char *out);
-int32_t grantConnSelectActiveCode(const char *old, const char *new, char *out);
+int32_t grantSelectActiveCode(const char *old, const char *new, const char* key, char *out);
+int32_t grantConnSelectActiveCode(const char *old, const char *new, const char* key, char *out);
 
 #endif
