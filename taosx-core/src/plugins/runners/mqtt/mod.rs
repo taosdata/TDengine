@@ -442,6 +442,7 @@ mod tests {
             cancel: CancellationToken::new(),
             // port_pool: ONCE,
             with_agent: None,
+            breakpoints: None,
             offsets: Default::default(),
             transferred: Some(transferred),
             span: tracing::info_span!("test_mqtt"),
