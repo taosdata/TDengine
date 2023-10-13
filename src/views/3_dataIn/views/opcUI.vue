@@ -404,9 +404,13 @@
                     <span :class="['label', all.required ? 'required' : '']">{{
                       all?.display
                     }}</span>
-                    <div style="flex:1;">
+                    <div style="flex: 1">
                       <template v-if="all?.hint.choices">
-                        <el-select v-model="all.value" size="small" style="width:100%;">
+                        <el-select
+                          v-model="all.value"
+                          size="small"
+                          style="width: 100%"
+                        >
                           <el-option
                             v-for="item in all.hint.choices"
                             :key="item"
@@ -416,10 +420,13 @@
                         </el-select>
                       </template>
                       <template v-else>
-                        <el-input size="small" v-model="all.value" style="margin-bottom:8px;"></el-input>
+                        <el-input
+                          size="small"
+                          v-model="all.value"
+                          style="margin-bottom: 8px"
+                        ></el-input>
                       </template>
                       <div
-                      
                         class="description"
                         v-html="transforHtml(all.description)"
                       ></div>
@@ -734,9 +741,7 @@
                         <a href="/template-zh.csv" download>下载模板</a>
                       </template>
                       <template v-else>
-                        <a href="/template-en.csv" download
-                          >Template</a
-                        >
+                        <a href="/template-en.csv" download>Template</a>
                       </template>
                     </el-upload>
                   </template>
@@ -898,7 +903,7 @@
           @click="save"
           :disabled="disable"
           size="small"
-          >{{ (isEditable && !isCopyable) ? $t("save") : $t("add") }}</el-button
+          >{{ isEditable && !isCopyable ? $t("save") : $t("add") }}</el-button
         >
         <el-button @click="cancel" class="cancel-btn" size="small">{{
           $t("cancel")
@@ -995,7 +1000,7 @@ export default {
     },
     isCopyable: {
       type: Boolean,
-    }
+    },
   },
   data() {
     return {
@@ -1082,7 +1087,7 @@ export default {
             return item;
           });
       }
-      this.isShowEditBtn = this.isCopyable ? false: true;
+      this.isShowEditBtn = this.isCopyable ? false : true;
     }
   },
   mounted() {
@@ -1749,9 +1754,11 @@ export default {
           // dns += "&opc_table_config=" + JSON.stringify(saveConf);
           // } else {
           if (this.dbsource[0].datasets.value == "csv_config_file") {
+            
             if (
               this.opcfileList.length == 0 &&
-              this.dbsource[0].datasets.value == "csv_config_file"
+              this.dbsource[0].datasets.value == "csv_config_file" &&
+              !this.isEditable
             ) {
               Message({
                 type: "warning",
@@ -1764,15 +1771,25 @@ export default {
             let ind = dnsarr.findIndex((item) =>
               item.includes("csv_config_file")
             );
-            if (ind > -1) {
+            if (this.isEditable) {
               dnsarr.splice(
-                ind,
-                1,
-                `&csv_config_file=@` + this.opcfileList[0].response[0]
-              );
-              dns = prefix + "?" + dnsarr.join("&");
+                  ind,
+                  1,
+                  `&csv_config_file=@` + (this.opcfileList.length>0?this.opcfileList[0].response[0]:this.opcinusefile)
+                );
+                dns = prefix + "?" + dnsarr.join("&");
+              // dns += `&csv_config_file=@` + (this.opcfileList.lenght>0?this.opcfileList[0].response[0]:this.opcinusefile);
             } else {
-              dns += `&csv_config_file=@` + this.opcfileList[0].response[0];
+              if (ind > -1) {
+                dnsarr.splice(
+                  ind,
+                  1,
+                  `&csv_config_file=@` + this.opcfileList[0].response[0]
+                );
+                dns = prefix + "?" + dnsarr.join("&");
+              } else {
+                dns += `&csv_config_file=@` + this.opcfileList[0].response[0];
+              }
             }
           } else {
             let allStr = "";
@@ -1900,8 +1917,7 @@ export default {
               ? `&header=${this.$refs.csvdata.$refs.param.ruleForm.customcol}`
               : "");
         }
-        console.log(this.isEditable, this.editId, "编辑-opc");
-        if ((this.isEditable && this.editId) && !this.isCopyable) {
+        if (this.isEditable && this.editId && !this.isCopyable) {
           let result = await EditSource(piParams, this.editId);
           if (result.message) {
             Message.error(result.message);
