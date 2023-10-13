@@ -273,7 +273,12 @@ SBrinRecord* getNextBrinRecord(SBrinRecordIter* pIter) {
     pIter->pCurrentBlk = taosArrayGet(pIter->pBrinBlockList, pIter->blockIndex);
 
     tBrinBlockClear(&pIter->block);
-    tsdbDataFileReadBrinBlock(pIter->pReader, pIter->pCurrentBlk, &pIter->block);
+    int32_t code = tsdbDataFileReadBrinBlock(pIter->pReader, pIter->pCurrentBlk, &pIter->block);
+    if (code != TSDB_CODE_SUCCESS) {
+      tsdbError("failed to read brinBlock from file, code:%s", tstrerror(code));
+      return NULL;
+    }
+
     pIter->recordIndex = -1;
   }
 
@@ -481,10 +486,15 @@ typedef enum {
 } ETombBlkCheckEnum;
 
 static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_t numOfTables, int32_t* j,
-                                STableBlockScanInfo** pScanInfo, ETombBlkCheckEnum* pRet) {
+                                ETombBlkCheckEnum* pRet) {
   int32_t     code = 0;
   STombRecord record = {0};
+
   uint64_t    uid = pReader->status.uidList.tableUidList[*j];
+  STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, uid, pReader->idStr);
+  if (pScanInfo->pFileDelData == NULL) {
+    pScanInfo->pFileDelData = taosArrayInit(4, sizeof(SDelData));
+  }
 
   for (int32_t k = 0; k < TARRAY2_SIZE(pBlock->suid); ++k) {
     code = tTombBlockGet(pBlock, k, &record);
@@ -502,11 +512,9 @@ static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_
       return TSDB_CODE_SUCCESS;
     }
 
-    bool newTable = false;
     if (uid < record.uid) {
       while ((*j) < numOfTables && pReader->status.uidList.tableUidList[*j] < record.uid) {
         (*j) += 1;
-        newTable = true;
       }
 
       if ((*j) >= numOfTables) {
@@ -515,6 +523,10 @@ static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_
       }
 
       uid = pReader->status.uidList.tableUidList[*j];
+      pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, uid, pReader->idStr);
+      if (pScanInfo->pFileDelData == NULL) {
+        pScanInfo->pFileDelData = taosArrayInit(4, sizeof(SDelData));
+      }
     }
 
     if (record.uid < uid) {
@@ -523,16 +535,9 @@ static int32_t doCheckTombBlock(STombBlock* pBlock, STsdbReader* pReader, int32_
 
     ASSERT(record.suid == pReader->info.suid && uid == record.uid);
 
-    if (newTable) {
-      (*pScanInfo) = getTableBlockScanInfo(pReader->status.pTableMap, uid, pReader->idStr);
-      if ((*pScanInfo)->pFileDelData == NULL) {
-        (*pScanInfo)->pFileDelData = taosArrayInit(4, sizeof(SDelData));
-      }
-    }
-
     if (record.version <= pReader->info.verRange.maxVer) {
       SDelData delData = {.version = record.version, .sKey = record.skey, .eKey = record.ekey};
-      taosArrayPush((*pScanInfo)->pFileDelData, &delData);
+      taosArrayPush(pScanInfo->pFileDelData, &delData);
     }
   }
 
@@ -576,15 +581,15 @@ static int32_t doLoadTombDataFromTombBlk(const TTombBlkArray* pTombBlkArray, STs
       return code;
     }
 
-    uint64_t uid = pReader->status.uidList.tableUidList[j];
+//    uint64_t uid = pReader->status.uidList.tableUidList[j];
 
-    STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, uid, pReader->idStr);
-    if (pScanInfo->pFileDelData == NULL) {
-      pScanInfo->pFileDelData = taosArrayInit(4, sizeof(SDelData));
-    }
+//    STableBlockScanInfo* pScanInfo = getTableBlockScanInfo(pReader->status.pTableMap, uid, pReader->idStr);
+//    if (pScanInfo->pFileDelData == NULL) {
+//      pScanInfo->pFileDelData = taosArrayInit(4, sizeof(SDelData));
+//    }
 
     ETombBlkCheckEnum ret = 0;
-    code = doCheckTombBlock(&block, pReader, numOfTables, &j, &pScanInfo, &ret);
+    code = doCheckTombBlock(&block, pReader, numOfTables, &j, &ret);
 
     tTombBlockDestroy(&block);
     if (code != TSDB_CODE_SUCCESS || ret == BLK_CHECK_QUIT) {

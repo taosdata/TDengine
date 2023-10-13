@@ -35,7 +35,8 @@ const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                                .maxRows = 4096,
                                                .keep2 = 5256000,
                                                .keep0 = 5256000,
-                                               .keep1 = 5256000},
+                                               .keep1 = 5256000,
+                                               .keepTimeOffset = TSDB_DEFAULT_KEEP_TIME_OFFSET},
                                    .walCfg =
                                        {
                                            .vgId = -1,
@@ -104,6 +105,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "keep0", pCfg->tsdbCfg.keep0) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "keep1", pCfg->tsdbCfg.keep1) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "keep2", pCfg->tsdbCfg.keep2) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "keepTimeOffset", pCfg->tsdbCfg.keepTimeOffset) < 0) return -1;
   if (pCfg->tsdbCfg.retentions[0].freq > 0) {
     int32_t nRetention = 1;
     if (pCfg->tsdbCfg.retentions[1].freq > 0) {
@@ -152,7 +154,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   SJson *nodeInfo = tjsonCreateArray();
   if (nodeInfo == NULL) return -1;
   if (tjsonAddItemToObject(pJson, "syncCfg.nodeInfo", nodeInfo) < 0) return -1;
-  vDebug("vgId:%d, encode config, replicas:%d totalReplicas:%d selfIndex:%d changeVersion:%d", 
+  vDebug("vgId:%d, encode config, replicas:%d totalReplicas:%d selfIndex:%d changeVersion:%d",
         pCfg->vgId, pCfg->syncCfg.replicaNum,
          pCfg->syncCfg.totalReplicaNum, pCfg->syncCfg.myIndex, pCfg->syncCfg.changeVersion);
   for (int i = 0; i < pCfg->syncCfg.totalReplicaNum; ++i) {
@@ -218,6 +220,8 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "keep1", pCfg->tsdbCfg.keep1, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "keep2", pCfg->tsdbCfg.keep2, code);
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "keepTimeOffset", pCfg->tsdbCfg.keepTimeOffset, code);
   if (code < 0) return -1;
   SJson  *pNodeRetentions = tjsonGetObjectItem(pJson, "retentions");
   int32_t nRetention = tjsonGetArraySize(pNodeRetentions);

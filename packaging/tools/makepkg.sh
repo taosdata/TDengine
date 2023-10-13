@@ -89,7 +89,7 @@ else
       ${build_dir}/bin/taosBenchmark \
       ${build_dir}/bin/TDinsight.sh \
       ${build_dir}/bin/tdengine-datasource.zip \
-      ${build_dir}/bin/tdengine-datasource.zip.md5sum"
+      ${build_dir}/bin/tdengine-datasource.zip.md5"
   fi
 
   [ -f ${build_dir}/bin/taosx ] && taosx_bin="${build_dir}/bin/taosx"

@@ -1317,8 +1317,9 @@ static STimeWindow getSlidingWindow(TSKEY* startTsCol, TSKEY* endTsCol, uint64_t
 }
 
 static SSDataBlock* doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32_t tsColIndex, int32_t* pRowIndex) {
-  qInfo("do stream range scan. windows index:%d", *pRowIndex);
+  qDebug("do stream range scan. windows index:%d", *pRowIndex);
   bool prepareRes = true;
+
   while (1) {
     SSDataBlock* pResult = NULL;
     pResult = doTableScan(pInfo->pTableScanOp);
@@ -2217,7 +2218,9 @@ FETCH_NEXT_BLOCK:
         if (pSDB) {
           STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
           pSDB->info.type = pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER_RANGE ? STREAM_NORMAL : STREAM_PULL_DATA;
-          checkUpdateData(pInfo, true, pSDB, false);
+          if (!pInfo->igCheckUpdate && pInfo->pUpdateInfo) {
+            checkUpdateData(pInfo, true, pSDB, false);
+          }
           printSpecDataBlock(pSDB, getStreamOpName(pOperator->operatorType), "update", GET_TASKID(pTaskInfo));
           calBlockTbName(pInfo, pSDB);
           return pSDB;
@@ -3928,7 +3931,7 @@ static void buildVnodeFilteredTbCount(SOperatorInfo* pOperator, STableCountScanO
       pAPI->metaFn.getTableUidByName(pInfo->readHandle.vnode, pSupp->stbNameFilter, &uid);
 
       int64_t numOfChildTables = 0;
-      pAPI->metaFn.getNumOfChildTables(pInfo->readHandle.vnode, uid, &numOfChildTables);
+      pAPI->metaFn.getNumOfChildTables(pInfo->readHandle.vnode, uid, &numOfChildTables, NULL);
 
       fillTableCountScanDataBlock(pSupp, dbName, pSupp->stbNameFilter, numOfChildTables, pRes);
     } else {
@@ -3979,7 +3982,7 @@ static void buildVnodeGroupedStbTableCount(STableCountScanOperatorInfo* pInfo, S
   pRes->info.id.groupId = groupId;
 
   int64_t ctbNum = 0;
-  int32_t code = pAPI->metaFn.getNumOfChildTables(pInfo->readHandle.vnode, stbUid, &ctbNum);
+  int32_t code = pAPI->metaFn.getNumOfChildTables(pInfo->readHandle.vnode, stbUid, &ctbNum, NULL);
   fillTableCountScanDataBlock(pSupp, dbName, varDataVal(stbName), ctbNum, pRes);
 }
 

@@ -21,7 +21,7 @@ TDengine Source Connector is used to read data from TDengine in real-time and se
 1. Linux operating system
 2. Java 8 and Maven installed
 3. Git/curl/vi is installed
-4. TDengine is installed and started. If not, please refer to [Installation and Uninstallation](/operation/pkg-install)
+4. TDengine is installed and started. If not, please refer to [Installation and Uninstallation](../../operation/pkg-install)
 
 ## Install Kafka
 

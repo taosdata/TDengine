@@ -36,10 +36,21 @@ int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
   return 0;
 }
 
-void tqUpdateNodeStage(STQ* pTq) {
-  SSyncState state = syncGetState(pTq->pVnode->sync);
-  pTq->pStreamMeta->stage = state.term;
-  tqDebug("vgId:%d update the meta stage to be:%"PRId64, pTq->pStreamMeta->vgId, pTq->pStreamMeta->stage);
+void tqUpdateNodeStage(STQ* pTq, bool isLeader) {
+  SSyncState   state = syncGetState(pTq->pVnode->sync);
+  SStreamMeta* pMeta = pTq->pStreamMeta;
+  int64_t      stage = pMeta->stage;
+
+  pMeta->stage = state.term;
+  pMeta->role = (isLeader)? NODE_ROLE_LEADER:NODE_ROLE_FOLLOWER;
+  if (isLeader) {
+    tqInfo("vgId:%d update meta stage:%" PRId64 ", prev:%" PRId64 " leader:%d, start to send Hb", pMeta->vgId,
+           state.term, stage, isLeader);
+    streamMetaStartHb(pMeta);
+  } else {
+    tqInfo("vgId:%d update meta stage:%" PRId64 " prev:%" PRId64 " leader:%d", pMeta->vgId, state.term, stage,
+           isLeader);
+  }
 }
 
 static int32_t tqInitTaosxRsp(STaosxRsp* pRsp, STqOffsetVal pOffset) {
@@ -97,7 +108,6 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
       if (pRequest->useSnapshot) {
         tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey:%s, vgId:%d, (earliest) set offset to be snapshot",
                 consumerId, pHandle->subKey, vgId);
-
         if (pHandle->fetchMeta) {
           tqOffsetResetToMeta(pOffsetVal, 0);
         } else {
@@ -213,11 +223,11 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
     walReaderVerifyOffset(pHandle->pWalReader, offset);
     int64_t fetchVer = offset->version;
 
-//    uint64_t st = taosGetTimestampMs();
+    uint64_t st = taosGetTimestampMs();
     int totalRows = 0;
     while (1) {
-//      int32_t savedEpoch = atomic_load_32(&pHandle->epoch);
-//      ASSERT (savedEpoch <= pRequest->epoch);
+      int32_t savedEpoch = atomic_load_32(&pHandle->epoch);
+      ASSERT(savedEpoch <= pRequest->epoch);
 
       if (tqFetchLog(pTq, pHandle, &fetchVer, pRequest->reqId) < 0) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
@@ -260,8 +270,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
         goto end;
       }
 
-//      if (totalRows >= 4096 || taosxRsp.createTableNum > 0 || (taosGetTimestampMs() - st > 5)) {
-      if (totalRows >= 4096 || taosxRsp.createTableNum > 0) {
+      if (totalRows >= 4096 || taosxRsp.createTableNum > 0 || (taosGetTimestampMs() - st > 1000)) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer + 1);
         code = tqSendDataRsp(pHandle, pMsg, pRequest, (SMqDataRsp*)&taosxRsp, taosxRsp.createTableNum > 0 ? TMQ_MSG_TYPE__POLL_DATA_META_RSP : TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
         goto end;
@@ -437,6 +446,8 @@ int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStream
   taosArrayDestroy(pRes->uidList);
   *pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
   if (*pRefBlock == NULL) {
+    blockDataCleanup(pDelBlock);
+    taosMemoryFree(pDelBlock);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 

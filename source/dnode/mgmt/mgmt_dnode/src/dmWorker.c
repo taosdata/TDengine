@@ -53,6 +53,31 @@ static void *dmStatusThreadFp(void *param) {
   return NULL;
 }
 
+SDmNotifyHandle dmNotifyHdl = {.state = 0};
+static void    *dmNotifyThreadFp(void *param) {
+  SDnodeMgmt *pMgmt = param;
+  setThreadName("dnode-notify");
+
+  if (tsem_init(&dmNotifyHdl.sem, 0, 0) != 0) {
+    return NULL;
+  }
+
+  bool wait = true;
+  while (1) {
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
+    if (wait) tsem_wait(&dmNotifyHdl.sem);
+    atomic_store_8(&dmNotifyHdl.state, 1);
+    dmSendNotifyReq(pMgmt);
+    if (1 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 0)) {
+      wait = true;
+      continue;
+    }
+    wait = false;
+  }
+
+  return NULL;
+}
+
 static void *dmMonitorThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
@@ -132,7 +157,6 @@ static void *dmCrashReportThreadFp(void *param) {
   return NULL;
 }
 
-
 int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
   TdThreadAttr thAttr;
   taosThreadAttrInit(&thAttr);
@@ -152,6 +176,29 @@ void dmStopStatusThread(SDnodeMgmt *pMgmt) {
     taosThreadJoin(pMgmt->statusThread, NULL);
     taosThreadClear(&pMgmt->statusThread);
   }
+}
+
+int32_t dmStartNotifyThread(SDnodeMgmt *pMgmt) {
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  if (taosThreadCreate(&pMgmt->notifyThread, &thAttr, dmNotifyThreadFp, pMgmt) != 0) {
+    dError("failed to create notify thread since %s", strerror(errno));
+    return -1;
+  }
+
+  taosThreadAttrDestroy(&thAttr);
+  tmsgReportStartup("dnode-notify", "initialized");
+  return 0;
+}
+
+void dmStopNotifyThread(SDnodeMgmt *pMgmt) {
+  if (taosCheckPthreadValid(pMgmt->notifyThread)) {
+    tsem_post(&dmNotifyHdl.sem);
+    taosThreadJoin(pMgmt->notifyThread, NULL);
+    taosThreadClear(&pMgmt->notifyThread);
+  }
+  tsem_destroy(&dmNotifyHdl.sem);
 }
 
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt) {
@@ -204,7 +251,6 @@ void dmStopCrashReportThread(SDnodeMgmt *pMgmt) {
   }
 }
 
-
 static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SDnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
@@ -250,6 +296,9 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
     case TDMT_MND_GRANT:
       code = dmProcessGrantReq(&pMgmt->pData->clusterId, pMsg);
+      break;
+    case TDMT_MND_GRANT_NOTIFY:
+      code = dmProcessGrantNotify(NULL, pMsg);
       break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;

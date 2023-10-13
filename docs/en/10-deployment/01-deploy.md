@@ -12,7 +12,7 @@ The FQDN of all hosts must be setup properly. For e.g. FQDNs may have to be conf
 
 ### Step 1
 
-If any previous version of TDengine has been installed and configured on any host, the installation needs to be removed and the data needs to be cleaned up. For details about uninstalling please refer to [Install and Uninstall](/operation/pkg-install). To clean up the data, please use `rm -rf /var/lib/taos/\*` assuming the `dataDir` is configured as `/var/lib/taos`.
+If any previous version of TDengine has been installed and configured on any host, the installation needs to be removed and the data needs to be cleaned up. For details about uninstalling please refer to [Install and Uninstall](../../operation/pkg-install). To clean up the data, please use `rm -rf /var/lib/taos/\*` assuming the `dataDir` is configured as `/var/lib/taos`.
 
 :::note
 FQDN information is written to file. If you have started TDengine without configuring or changing the FQDN, ensure that data is backed up or no longer needed before running the `rm -rf /var/lib\taos/\*` command.

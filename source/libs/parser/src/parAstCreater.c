@@ -13,8 +13,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
 #include <regex.h>
+#include <uv.h>
 
 #include "parAst.h"
 #include "parUtil.h"
@@ -359,6 +359,9 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
       }
       break;
     }
+    case HINT_SORT_FOR_GROUP:
+      if (paramNum > 0) return true;
+      break;
     default:
       return true;
   }
@@ -420,6 +423,14 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
           break;
         }
         opt = HINT_NO_BATCH_SCAN;
+        break;
+      case TK_SORT_FOR_GROUP:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_SORT_FOR_GROUP;
         break;
       case TK_NK_LP:
         lastComma = false;
@@ -1190,6 +1201,10 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       nodesDestroyNode((SNode*)pNode);
       break;
     }
+    case DB_OPTION_KEEP_TIME_OFFSET: {
+      pDbOptions->keepTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      break;
+    }
     default:
       break;
   }
@@ -1541,6 +1556,15 @@ SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type) {
   return (SNode*)pStmt;
 }
 
+SNode* setShowKind(SAstCreateContext* pCxt, SNode* pStmt, EShowKind showKind) {
+  if (pStmt == NULL) {
+    return NULL;
+  } 
+  SShowStmt* pShow = (SShowStmt*)pStmt;
+  pShow->showKind = showKind;
+  return pStmt;
+}
+
 SNode* createShowStmtWithCond(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbName,
                               EOperatorType tableCondType) {
   CHECK_PARSER_STATUS(pCxt);
@@ -1555,6 +1579,19 @@ SNode* createShowStmtWithCond(SAstCreateContext* pCxt, ENodeType type, SNode* pD
   pStmt->pTbName = pTbName;
   pStmt->tableCondType = tableCondType;
   return (SNode*)pStmt;
+}
+
+SNode* createShowTablesStmt(SAstCreateContext* pCxt, SShowTablesOption option, SNode* pTbName, EOperatorType tableCondType) {
+  CHECK_PARSER_STATUS(pCxt);
+  SNode* pDbName = NULL;
+  if (option.dbName.type == TK_NK_NIL) {
+    pDbName = createDefaultDatabaseCondValue(pCxt);
+  } else {
+    pDbName = createIdentifierValueNode(pCxt, &option.dbName);
+  }
+  SNode* pStmt = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_TABLES_STMT, pDbName, pTbName, tableCondType);
+  setShowKind(pCxt, pStmt, option.kind);
+  return pStmt;
 }
 
 SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
@@ -1653,6 +1690,84 @@ SNode* createShowTableTagsStmt(SAstCreateContext* pCxt, SNode* pTbName, SNode* p
   return (SNode*)pStmt;
 }
 
+static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  char*   ipCopy = taosStrdup(ipRange);
+  char*   slash = strchr(ipCopy, '/');
+  if (slash) {
+    *slash = '\0';
+    struct in_addr addr;
+    if (uv_inet_pton(AF_INET, ipCopy, &addr) == 0) {
+      int prefix = atoi(slash + 1);
+      if (prefix < 0 || prefix > 32) {
+        code = TSDB_CODE_PAR_INVALID_IP_RANGE;
+      } else {
+        pIpRange->ip = addr.s_addr;
+        pIpRange->mask = prefix;
+        code = TSDB_CODE_SUCCESS;
+      }
+    } else {
+      code = TSDB_CODE_PAR_INVALID_IP_RANGE;
+    }
+  } else {
+    struct in_addr addr;
+    if (uv_inet_pton(AF_INET, ipCopy, &addr) == 0) {
+      pIpRange->ip = addr.s_addr;
+      pIpRange->mask = 32;
+      code = TSDB_CODE_SUCCESS;
+    } else {
+      code = TSDB_CODE_PAR_INVALID_IP_RANGE;
+    }
+  }
+
+  taosMemoryFreeClear(ipCopy);
+  return code;
+}
+
+static int32_t fillIpRangesFromWhiteList(SAstCreateContext* pCxt, SNodeList* pIpRangesNodeList, SIpV4Range* pIpRanges) {
+  int32_t i = 0;
+  int32_t code = 0;
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pIpRangesNodeList) {
+    if (QUERY_NODE_VALUE != nodeType(pNode)) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IP_RANGE);
+      return TSDB_CODE_PAR_INVALID_IP_RANGE;
+    }
+    SValueNode* pValNode = (SValueNode*)(pNode);
+    code = getIpV4RangeFromWhitelistItem(pValNode->literal, pIpRanges + i);
+    ++i;
+    if (code != TSDB_CODE_SUCCESS) {
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Invalid IP range %s", pValNode->literal);
+      return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+SNode* addCreateUserStmtWhiteList(SAstCreateContext* pCxt, SNode* pCreateUserStmt, SNodeList* pIpRangesNodeList) {
+  if (NULL == pCreateUserStmt || NULL == pIpRangesNodeList) {
+    return pCreateUserStmt;
+  }
+
+  ((SCreateUserStmt*)pCreateUserStmt)->pNodeListIpRanges = pIpRangesNodeList;
+  SCreateUserStmt* pCreateUser = (SCreateUserStmt*)pCreateUserStmt;
+  pCreateUser->numIpRanges = LIST_LENGTH(pIpRangesNodeList);
+  pCreateUser->pIpRanges = taosMemoryMalloc(pCreateUser->numIpRanges * sizeof(SIpV4Range));
+  if (NULL == pCreateUser->pIpRanges) {
+    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    nodesDestroyNode(pCreateUserStmt);
+    return NULL;
+  }
+
+  int32_t code = fillIpRangesFromWhiteList(pCxt, pIpRangesNodeList, pCreateUser->pIpRanges);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pCreateUserStmt);
+    return NULL;
+  }
+  return pCreateUserStmt;
+}
+
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword, int8_t sysinfo) {
   CHECK_PARSER_STATUS(pCxt);
   char password[TSDB_USET_PASSWORD_LEN + 3] = {0};
@@ -1667,7 +1782,7 @@ SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const ST
   return (SNode*)pStmt;
 }
 
-SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t alterType, const SToken* pVal) {
+SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t alterType, void* pAlterInfo) {
   CHECK_PARSER_STATUS(pCxt);
   if (!checkUserName(pCxt, pUserName)) {
     return NULL;
@@ -1678,7 +1793,8 @@ SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t al
   pStmt->alterType = alterType;
   switch (alterType) {
     case TSDB_ALTER_USER_PASSWD: {
-      char password[TSDB_USET_PASSWORD_LEN] = {0};
+      char    password[TSDB_USET_PASSWORD_LEN] = {0};
+      SToken* pVal = pAlterInfo;
       if (!checkPassword(pCxt, pVal, password)) {
         nodesDestroyNode((SNode*)pStmt);
         return NULL;
@@ -1686,12 +1802,35 @@ SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t al
       strcpy(pStmt->password, password);
       break;
     }
-    case TSDB_ALTER_USER_ENABLE:
+    case TSDB_ALTER_USER_ENABLE: {
+      SToken* pVal = pAlterInfo;
       pStmt->enable = taosStr2Int8(pVal->z, NULL, 10);
       break;
-    case TSDB_ALTER_USER_SYSINFO:
+    }
+    case TSDB_ALTER_USER_SYSINFO: {
+      SToken* pVal = pAlterInfo;
       pStmt->sysinfo = taosStr2Int8(pVal->z, NULL, 10);
       break;
+    }
+    case TSDB_ALTER_USER_ADD_WHITE_LIST:
+    case TSDB_ALTER_USER_DROP_WHITE_LIST: {
+      SNodeList* pIpRangesNodeList = pAlterInfo;
+      pStmt->pNodeListIpRanges = pIpRangesNodeList;
+      pStmt->numIpRanges = LIST_LENGTH(pIpRangesNodeList);
+      pStmt->pIpRanges = taosMemoryMalloc(pStmt->numIpRanges * sizeof(SIpV4Range));
+      if (NULL == pStmt->pIpRanges) {
+        pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+        nodesDestroyNode((SNode*)pStmt);
+        return NULL;
+      }
+
+      int32_t code = fillIpRangesFromWhiteList(pCxt, pIpRangesNodeList, pStmt->pIpRanges);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pStmt);
+        return NULL;
+      }
+      break;
+    }
     default:
       break;
   }
@@ -2168,10 +2307,13 @@ SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt) {
   return (SNode*)pStmt;
 }
 
-SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt) {
+SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt, const SToken* pVgId) {
   CHECK_PARSER_STATUS(pCxt);
   SBalanceVgroupLeaderStmt* pStmt = (SBalanceVgroupLeaderStmt*)nodesMakeNode(QUERY_NODE_BALANCE_VGROUP_LEADER_STMT);
   CHECK_OUT_OF_MEM(pStmt);
+  if (NULL != pVgId && NULL != pVgId->z) {
+    pStmt->vgId = taosStr2Int32(pVgId->z, NULL, 10);
+  }
   return (SNode*)pStmt;
 }
 

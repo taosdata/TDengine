@@ -12,7 +12,7 @@ sys.path.append("./7-tmq")
 from tmqCommon import *
 
 class TDTestCase:
-    updatecfgDict = {'debugFlag': 135}    
+    # updatecfgDict = {'debugFlag': 135}
     
     def __init__(self):
         self.vgroups    = 2
@@ -252,7 +252,6 @@ class TDTestCase:
                 break
         
         tdLog.info("all consumers status into 'lost'")
-        
         # drop consumer groups
         tdLog.info("drop all consumers")
         for i in range(len(groupIdList)): 

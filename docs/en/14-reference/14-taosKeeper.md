@@ -16,7 +16,7 @@ taosKeeper is a tool for TDengine that exports monitoring metrics. With taosKeep
 There are two ways to install taosKeeper:
 Methods of installing taosKeeper:
 
-- Installing the official TDengine installer will automatically install taosKeeper. Please refer to [TDengine installation](/operation/pkg-install) for details.
+- Installing the official TDengine installer will automatically install taosKeeper. Please refer to [TDengine installation](../../operation/pkg-install) for details.
 
 - You can compile taosKeeper separately and install it. Please refer to the [taosKeeper](https://github.com/taosdata/taoskeeper) repository for details.
 ## Configuration and Launch

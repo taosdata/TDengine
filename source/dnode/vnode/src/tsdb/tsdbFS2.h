@@ -67,6 +67,7 @@ int32_t tsdbFSDisableBgTask(STFileSystem *fs);
 int32_t tsdbFSEnableBgTask(STFileSystem *fs);
 // other
 int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset);
+int32_t tsdbFSCheckCommit(STFileSystem *fs);
 
 struct STFSBgTask {
   EFSBgTaskT type;
@@ -103,6 +104,11 @@ struct STFileSystem {
   int32_t       bgTaskNum;
   STFSBgTask    bgTaskQueue[1];
   STFSBgTask   *bgTaskRunning;
+
+  // block commit variables
+  TdThreadMutex commitMutex;
+  TdThreadCond  canCommit;
+  bool          blockCommit;
 };
 
 #ifdef __cplusplus

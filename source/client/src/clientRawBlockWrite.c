@@ -377,6 +377,7 @@ _exit:
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
     taosMemoryFreeClear(pCreateReq->comment);
+    taosMemoryFreeClear(pCreateReq->sql);
     if (pCreateReq->type == TSDB_CHILD_TABLE) {
       taosArrayDestroy(pCreateReq->ctb.tagName);
     }
@@ -1411,7 +1412,7 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
   code = smlBuildOutput(pQuery, pVgHash);
   if (code != TSDB_CODE_SUCCESS) {
     uError("smlBuildOutput failed");
-    return code;
+    goto end;
   }
 
   launchQueryImpl(pRequest, pQuery, true, NULL);
@@ -1496,7 +1497,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
   code = smlBuildOutput(pQuery, pVgHash);
   if (code != TSDB_CODE_SUCCESS) {
     uError("smlBuildOutput failed");
-    return code;
+    goto end;
   }
 
   launchQueryImpl(pRequest, pQuery, true, NULL);

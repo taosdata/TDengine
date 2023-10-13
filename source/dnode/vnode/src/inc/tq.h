@@ -39,7 +39,6 @@ extern "C" {
 #define tqInfo(...)  do { if (tqDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
 #define tqDebug(...) do { if (tqDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); }} while(0)
 #define tqTrace(...) do { if (tqDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ  ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
-
 // clang-format on
 
 typedef struct STqOffsetStore STqOffsetStore;
@@ -88,14 +87,10 @@ typedef struct {
   int64_t     snapshotVer;
   SWalReader* pWalReader;
   SWalRef*    pRef;
-  //  STqPushHandle pushHandle;    // push
   STqExecHandle    execHandle;  // exec
   SRpcMsg*         msg;
   tq_handle_status status;
 } STqHandle;
-typedef struct {
-  int64_t snapshotVer;
-} SStreamHandle;
 
 struct STQ {
   SVnode*         pVnode;
@@ -138,7 +133,7 @@ int32_t tqMetaOpen(STQ* pTq);
 int32_t tqMetaClose(STQ* pTq);
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle);
 int32_t tqMetaDeleteHandle(STQ* pTq, const char* key);
-int32_t tqMetaRestoreHandle(STQ* pTq);
+//int32_t tqMetaRestoreHandle(STQ* pTq);
 int32_t tqMetaSaveCheckInfo(STQ* pTq, const char* key, const void* value, int32_t vLen);
 int32_t tqMetaDeleteCheckInfo(STQ* pTq, const char* key);
 int32_t tqMetaRestoreCheckInfo(STQ* pTq);
@@ -155,7 +150,7 @@ int32_t         tqOffsetCommitFile(STqOffsetStore* pStore);
 // tqSink
 int32_t tqBuildDeleteReq(const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
                          const char* pIdStr);
-void    tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, void* data);
+void    tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data);
 
 // tqOffset
 char*   tqOffsetBuildFName(const char* path, int32_t fVer);
@@ -174,7 +169,7 @@ int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequ
 int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                         int32_t type, int64_t sver, int64_t ever);
 int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset);
-void    tqUpdateNodeStage(STQ* pTq);
+void    tqUpdateNodeStage(STQ* pTq, bool isLeader);
 
 #ifdef __cplusplus
 }

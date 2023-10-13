@@ -102,6 +102,7 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
     for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
       pCreateReq = req.pReqs + iReq;
       taosMemoryFreeClear(pCreateReq->comment);
+      taosMemoryFreeClear(pCreateReq->sql);
       if (pCreateReq->type == TSDB_CHILD_TABLE) {
         taosArrayDestroy(pCreateReq->ctb.tagName);
       }
@@ -268,6 +269,8 @@ STqReader* tqReaderOpen(SVnode* pVnode) {
 }
 
 void tqReaderClose(STqReader* pReader) {
+  if (pReader == NULL) return;
+
   // close wal reader
   if (pReader->pWalReader) {
     walCloseReader(pReader->pWalReader);
@@ -308,7 +311,7 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
     SWalCont* pCont = &pReader->pHead->head;
     int64_t   ver = pCont->version;
     if (ver > maxVer) {
-      tqDebug("maxVer in WAL:%" PRId64 " reached current:%" PRId64 ", do not scan wal anymore, %s", maxVer, ver, id);
+      tqDebug("maxVer in WAL:%" PRId64 " reached, current:%" PRId64 ", do not scan wal anymore, %s", maxVer, ver, id);
       return TSDB_CODE_SUCCESS;
     }
 
@@ -367,7 +370,7 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
 bool tqNextBlockInWal(STqReader* pReader, const char* id) {
   SWalReader* pWalReader = pReader->pWalReader;
 
-//  uint64_t st = taosGetTimestampMs();
+  uint64_t st = taosGetTimestampMs();
   while (1) {
     SArray* pBlockList = pReader->submit.aSubmitTbData;
     if (pBlockList == NULL || pReader->nextBlk >= taosArrayGetSize(pBlockList)) {
@@ -442,9 +445,9 @@ bool tqNextBlockInWal(STqReader* pReader, const char* id) {
 
     pReader->msg.msgStr = NULL;
 
-//    if(taosGetTimestampMs() - st > 5){
-//      return false;
-//    }
+    if(taosGetTimestampMs() - st > 1000){
+      return false;
+    }
   }
 }
 
@@ -1087,6 +1090,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
   int32_t vgId = TD_VID(pTq->pVnode);
 
   // update the table list for each consumer handle
+  taosWLockLatch(&pTq->lock);
   while (1) {
     pIter = taosHashIterate(pTq->pHandle, pIter);
     if (pIter == NULL) {
@@ -1116,6 +1120,8 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
           tqError("qGetTableList in tqUpdateTbUidList error:%d handle %s consumer:0x%" PRIx64, ret, pTqHandle->subKey, pTqHandle->consumerId);
           taosArrayDestroy(list);
           taosHashCancelIterate(pTq->pHandle, pIter);
+          taosWUnLockLatch(&pTq->lock);
+
           return ret;
         }
         tqReaderSetTbUidList(pTqHandle->execHandle.pTqReader, list, NULL);
@@ -1125,11 +1131,12 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
       }
     }
   }
+  taosWUnLockLatch(&pTq->lock);
 
   // update the table list handle for each stream scanner/wal reader
   taosWLockLatch(&pTq->pStreamMeta->lock);
   while (1) {
-    pIter = taosHashIterate(pTq->pStreamMeta->pTasks, pIter);
+    pIter = taosHashIterate(pTq->pStreamMeta->pTasksMap, pIter);
     if (pIter == NULL) {
       break;
     }

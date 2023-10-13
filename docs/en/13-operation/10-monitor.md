@@ -11,8 +11,6 @@ The collection of the monitoring information is enabled by default, but can be d
 
 TDinsight is a complete solution which uses the monitoring database `log` mentioned previously, and Grafana, to monitor a TDengine cluster.
 
-Please refer to [TDinsight Grafana Dashboard](../../reference/tdinsight) to learn more details about using TDinsight to monitor TDengine.
-
 A script `TDinsight.sh` is provided to deploy TDinsight automatically.
 
 Download `TDinsight.sh` with the below command:
@@ -106,22 +104,22 @@ The data of tdinsight dashboard is stored in `log` database (default. You can ch
 |field|type|is\_tag|comment|
 |:----|:---|:-----|:------|
 |ts|TIMESTAMP||timestamp|
-|uptime|FLOAT||dnode uptime|
+|uptime|FLOAT||dnode uptime in `days`|
 |cpu\_engine|FLOAT||cpu usage of tdengine. read from `/proc/<taosd_pid>/stat`|
 |cpu\_system|FLOAT||cpu usage of server. read from `/proc/stat`|
 |cpu\_cores|FLOAT||cpu cores of server|
 |mem\_engine|INT||memory usage of tdengine. read from `/proc/<taosd_pid>/status`|
-|mem\_system|INT||available memory on the server|
+|mem\_system|INT||available memory on the server in `KB`|
 |mem\_total|INT||total memory of server in `KB`|
 |disk\_engine|INT|||
 |disk\_used|BIGINT||usage of data dir in `bytes`|
 |disk\_total|BIGINT||the capacity of data dir in `bytes`|
-|net\_in|FLOAT||network throughput rate in kb/s. read from `/proc/net/dev`|
-|net\_out|FLOAT||network throughput rate in kb/s. read from `/proc/net/dev`|
-|io\_read|FLOAT||io throughput rate in kb/s. read from `/proc/<taosd_pid>/io`|
-|io\_write|FLOAT||io throughput rate in kb/s. read from `/proc/<taosd_pid>/io`|
-|io\_read\_disk|FLOAT||io throughput rate of disk in kb/s. read from `/proc/<taosd_pid>/io`|
-|io\_write\_disk|FLOAT||io throughput rate of disk in kb/s. read from `/proc/<taosd_pid>/io`|
+|net\_in|FLOAT||network throughput rate in byte/s. read from `/proc/net/dev`|
+|net\_out|FLOAT||network throughput rate in byte/s. read from `/proc/net/dev`|
+|io\_read|FLOAT||io throughput rate in byte/s. read from `/proc/<taosd_pid>/io`|
+|io\_write|FLOAT||io throughput rate in byte/s. read from `/proc/<taosd_pid>/io`|
+|io\_read\_disk|FLOAT||io throughput rate of disk in byte/s. read from `/proc/<taosd_pid>/io`|
+|io\_write\_disk|FLOAT||io throughput rate of disk in byte/s. read from `/proc/<taosd_pid>/io`|
 |req\_select|INT||number of select queries received per dnode|
 |req\_select\_rate|FLOAT||number of select queries received per dnode divided by monitor interval.|
 |req\_insert|INT||number of insert queries received per dnode|
@@ -150,9 +148,9 @@ The data of tdinsight dashboard is stored in `log` database (default. You can ch
 |ts|TIMESTAMP||timestamp|
 |name|NCHAR||data directory. default is `/var/lib/taos`|
 |level|INT||level for multi-level storage|
-|avail|BIGINT||available space for data directory|
-|used|BIGINT||used space for data directory| 
-|total|BIGINT||total space for data directory|
+|avail|BIGINT||available space for data directory in `bytes`|
+|used|BIGINT||used space for data directory in `bytes`| 
+|total|BIGINT||total space for data directory in `bytes`|
 |dnode\_id|INT|TAG|dnode id|
 |dnode\_ep|NCHAR|TAG|dnode endpoint|
 |cluster\_id|NCHAR|TAG|cluster id|
@@ -165,9 +163,9 @@ The data of tdinsight dashboard is stored in `log` database (default. You can ch
 |:----|:---|:-----|:------|
 |ts|TIMESTAMP||timestamp|
 |name|NCHAR||log directory. default is `/var/log/taos/`|
-|avail|BIGINT||available space for log directory|
-|used|BIGINT||used space for data directory|
-|total|BIGINT||total space for data directory|
+|avail|BIGINT||available space for log directory in `bytes`|
+|used|BIGINT||used space for data directory in `bytes`|
+|total|BIGINT||total space for data directory in `bytes`|
 |dnode\_id|INT|TAG|dnode id|
 |dnode\_ep|NCHAR|TAG|dnode endpoint|
 |cluster\_id|NCHAR|TAG|cluster id|
@@ -180,9 +178,9 @@ The data of tdinsight dashboard is stored in `log` database (default. You can ch
 |:----|:---|:-----|:------|
 |ts|TIMESTAMP||timestamp|
 |name|NCHAR||temp directory. default is `/tmp/`|
-|avail|BIGINT||available space for temp directory|
-|used|BIGINT||used space for temp directory|
-|total|BIGINT||total space for temp directory|
+|avail|BIGINT||available space for temp directory in `bytes`|
+|used|BIGINT||used space for temp directory in `bytes`|
+|total|BIGINT||total space for temp directory in `bytes`|
 |dnode\_id|INT|TAG|dnode id|
 |dnode\_ep|NCHAR|TAG|dnode endpoint|
 |cluster\_id|NCHAR|TAG|cluster id|

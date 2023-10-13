@@ -76,11 +76,18 @@ int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *
   }
 
   STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, tbName, strlen(tbName));
-  if (NULL == pMeta || (!sysinfo && pMeta->sysInfo)) {
+  if (NULL == pMeta) {
     mError("invalid information schema table name:%s", tbName);
     terrno = TSDB_CODE_MND_INVALID_SYS_TABLENAME;
     return -1;
   }
+
+  if (!sysinfo && pMeta->sysInfo) {
+    mError("no permission to get schema of table name:%s", tbName);
+    terrno = TSDB_CODE_PAR_PERMISSION_DENIED;
+    return -1;
+  }
+
 
   *pRsp = *pMeta;
 
