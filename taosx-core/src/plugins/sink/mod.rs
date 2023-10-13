@@ -27,7 +27,7 @@ use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::{debug, error, info, instrument, Instrument, Span};
 
-use crate::{ConnectorLicense, OPCConfig, Parser, Transferred};
+use crate::{ConnectorLicense, OPCConfig, Parser, Transferred, utils::breakpoints::breakpoints_set};
 
 use super::runners::opc::{opc_config_blocking, ColumnConfig, OpcTableConfig};
 use super::*;
@@ -285,6 +285,7 @@ async fn consume_lush_record(
     records: &mut usize,
     _license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
+    task: Option<i64>,
 ) -> anyhow::Result<()> {
     counter!(RECORD_BATCHES, 1);
     match record {
@@ -442,6 +443,20 @@ async fn consume_lush_record(
                 // RawBlock
                 // taos.write_raw_block()
                 let sqls = record.generate_insert_sql_from_tablename(&data, columns);
+                if let Some((task, stable, sqls)) = task
+                    .and_then(|task| record.stable_name().map(|stable| (task, stable)))
+                    .and_then(|(task, stable)| {
+                        sqls.as_ref().map(|(sqls, _)| (task, stable, sqls))
+                    })
+                {
+                    for sql in sqls {
+                        if let Some(ts) = get_ts_from_sql(sql) {
+                            tracing::info!("task: {} stable: {} ts: {}", &task, &stable, &ts);
+                            breakpoints_set(&task.to_string(), &stable, &ts).unwrap();
+                            break;
+                        }
+                    }
+                }
                 if let Some((sqls, field_map)) = sqls {
                     for sql in sqls {
                         tracing::debug!("insert sql: {sql}");
@@ -548,6 +563,18 @@ async fn consume_lush_record(
     }
     info!("consume lush record done");
     Ok(())
+}
+
+fn get_ts_from_sql(sql: &str) -> Option<String> {
+    let re = regex::Regex::new(r"VALUES \((\d+),[^,]*\)").unwrap();
+
+    if let Some(caps) = re.captures(sql) {
+        if let Some(value) = caps.get(1) {
+            return Some(value.as_str().to_string());
+        }
+    }
+
+    None
 }
 
 struct ModifyStructForPointMessage {
@@ -1673,6 +1700,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             &mut count,
             license,
             transferred,
+            None,
         )
         .in_current_span()
         .await
@@ -2083,6 +2111,7 @@ impl IpcStreamWorker {
         license: Option<ConnectorLicense>,
         transferred: Option<Transferred>,
         span: tracing::Span,
+        task: Option<i64>,
         // license: Option<>
     ) -> anyhow::Result<Self> {
         let config = if from.driver.starts_with("opc") {
@@ -2097,8 +2126,8 @@ impl IpcStreamWorker {
             pool,
             from,
             parser: IpcParser::new(schema),
-            lock: lock,
-            task: None,
+            lock,
+            task,
             config,
             opc_table_config: OnceCell::const_new(),
             license,
@@ -2185,6 +2214,8 @@ impl IpcStreamWorker {
                 .map_err(|_| anyhow::format_err!("Unable to read lush message"))?;
                 let mut taos = Some(self.pool.get().await?);
                 // let stmt = unsafe { &mut *self.stmt.get() };
+                let task = self.task;
+                tracing::trace!("consume lush record task: {task:?}");
                 consume_lush_record(
                     &self.pool,
                     &mut taos,
@@ -2196,6 +2227,7 @@ impl IpcStreamWorker {
                     &mut count,
                     self.license.as_ref(),
                     self.transferred.as_ref(),
+                    task,
                 )
                 .await?;
                 Ok(count)
@@ -2589,4 +2621,17 @@ pub async fn listen_tcp_socket(
         .instrument(tracing::info_span!("plain_ipc_listener_abort_handle")),
     );
     Ok(IpcHandler::new(notify, handle, error_receiver))
+}
+
+#[test]
+fn test_get_ts_from_sql() {
+    let sql1 = "INSERT INTO `table` (`time`,`field0`) VALUES (123, 'string')";
+    let sql2 = "INSERT INTO `table` (`time`,`field0`) VALUES (456, 7.89)";
+    let sql3 = "INSERT INTO `table` (`time`,`field0`) VALUES (789, '2023-10-13')";
+    let sql4 = "INSERT INTO `table` (`time`,`field0`) VALUES (101, 0.123)";
+
+    assert_eq!(get_ts_from_sql(sql1), Some("123".to_string()));
+    assert_eq!(get_ts_from_sql(sql2), Some("456".to_string()));
+    assert_eq!(get_ts_from_sql(sql3), Some("789".to_string()));
+    assert_eq!(get_ts_from_sql(sql4), Some("101".to_string()));
 }

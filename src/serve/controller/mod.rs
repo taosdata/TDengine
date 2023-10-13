@@ -634,6 +634,21 @@ impl TaskController {
             trace_id = tracing::field::Empty
         );
         // span.record("request", value)
+
+        let mut breakpoints = None;
+        let task_id = task.id.to_string();
+        let bp = taosx_core::utils::breakpoints::breakpoints_get_all(&task_id);
+        if let Ok(bp) = bp {
+            let formatted_pairs: Vec<String> = bp
+                .iter()
+                .map(|(first, second)| format!("{}:{}", first, second))
+                .collect();
+
+            let output = formatted_pairs.join("&");
+            breakpoints = Some(output);
+        }
+        
+
         let opts = TaskOpts {
             transform: vec![],
             from: from.clone(),
@@ -648,6 +663,7 @@ impl TaskController {
             cancel: CancellationToken::new(),
             // port_pool: ONCE,
             with_agent: None,
+            breakpoints,
             offsets,
             transferred,
             span: span.clone(),
@@ -1408,6 +1424,7 @@ impl TaskController {
             force: false,
             cancel: Default::default(),
             with_agent: None,
+            breakpoints: None,
             offsets: Arc::new(Default::default()),
             transferred: None,
             span: tracing::info_span!(
@@ -1650,6 +1667,10 @@ impl TaskController {
                         let offsets = self.taos_offsets(id).await?;
                         Ok(offsets)
                     }
+                    ("influxdb", "taos") => {
+                        let offsets = self.influxdb_offsets(id).await?;
+                        Ok(offsets)
+                    }
                     _ => Ok(None),
 
                 }
@@ -1659,6 +1680,13 @@ impl TaskController {
     }
 
     pub async fn taos_offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
+        let offsets = breakpoints_get_all(id.to_string().as_str())?;
+        // dbg!(&offsets);
+        let res = serde_json::to_value(&offsets)?;
+        Ok(Some(res))
+    }
+
+    pub async fn influxdb_offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
         let offsets = breakpoints_get_all(id.to_string().as_str())?;
         // dbg!(&offsets);
         let res = serde_json::to_value(&offsets)?;

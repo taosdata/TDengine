@@ -78,6 +78,7 @@ struct TaskConfig {
     task_begin_time: String,
     #[serde(rename = "endTime")]
     task_end_time: Option<String>,
+    breakpoints: Option<String>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -119,7 +120,7 @@ pub enum InfluxdbError {
 }
 
 impl InfluxdbConfig {
-    pub fn new(mut dsn: Dsn, td_database: String, ipc: u16) -> Result<Self, InfluxdbError> {
+    pub fn new(mut dsn: Dsn, td_database: String, ipc: u16, breakpoints: Option<String>) -> Result<Self, InfluxdbError> {
         debug_assert!(dsn.driver == "influxdb");
         // the datasource config
         let host = dsn
@@ -230,7 +231,11 @@ impl InfluxdbConfig {
             task_measurements,
             task_begin_time,
             task_end_time: task_end_ime,
+            breakpoints,
         };
+
+        tracing::debug!("task_config: {:?} ", &task);
+        dbg!(&task);
 
         let performance = PerformanceConfig {
             performance_read_window,
@@ -350,6 +355,7 @@ pub async fn influxdb_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    breakpoints: Option<String>,
 ) -> anyhow::Result<()> {
     // let _ = info_span!("influxdb_to_taos", x.influxdb.source = %mask_dsn(&from), x.influxdb.sink = %mask_dsn(&to)).entered();
     println!("# loading plugin: InfluxDB");
@@ -372,7 +378,7 @@ pub async fn influxdb_to_taos(
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for InfluxDB connection"))?;
     // generate config
-    let config = InfluxdbConfig::new(from, td_database.unwrap(), ipc_port)?;
+    let config = InfluxdbConfig::new(from, td_database.unwrap(), ipc_port, breakpoints)?;
     // transform to toml
     let toml = toml::to_string(&config)?;
     // write to a temporary file
