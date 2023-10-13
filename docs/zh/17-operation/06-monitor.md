@@ -102,22 +102,22 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |field|type|is\_tag|comment|
 |:----|:---|:-----|:------|
 |ts|TIMESTAMP||timestamp|
-|uptime|FLOAT||dnode uptime|
+|uptime|FLOAT||dnode uptime，单位：天|
 |cpu\_engine|FLOAT||taosd cpu 使用率，从 `/proc/<taosd_pid>/stat` 读取|
 |cpu\_system|FLOAT||服务器 cpu 使用率，从 `/proc/stat` 读取|
 |cpu\_cores|FLOAT||服务器 cpu 核数|
 |mem\_engine|INT||taosd 内存使用率，从 `/proc/<taosd_pid>/status` 读取|
-|mem\_system|INT||服务器可用内存|
+|mem\_system|INT||服务器可用内存，单位 KB|
 |mem\_total|INT||服务器内存总量，单位 KB|
-|disk\_engine|INT|||
+|disk\_engine|INT||单位 bytes|
 |disk\_used|BIGINT||data dir 挂载的磁盘使用量，单位 bytes|
 |disk\_total|BIGINT||data dir 挂载的磁盘总容量，单位 bytes|
-|net\_in|FLOAT||网络吞吐率，从 `/proc/net/dev` 中读取的 received bytes。单位 kb/s|
-|net\_out|FLOAT||网络吞吐率，从 `/proc/net/dev` 中读取的 transmit bytes。单位 kb/s|
-|io\_read|FLOAT||io 吞吐率，从 `/proc/<taosd_pid>/io` 中读取的 rchar 与上次数值计算之后，计算得到速度。单位 kb/s|
-|io\_write|FLOAT||io 吞吐率，从 `/proc/<taosd_pid>/io` 中读取的 wchar 与上次数值计算之后，计算得到速度。单位 kb/s|
-|io\_read\_disk|FLOAT||磁盘 io 吞吐率，从 `/proc/<taosd_pid>/io` 中读取的 read_bytes。单位 kb/s|
-|io\_write\_disk|FLOAT||磁盘 io 吞吐率，从 `/proc/<taosd_pid>/io` 中读取的 write_bytes。单位 kb/s|
+|net\_in|FLOAT||网络吞吐率，从 `/proc/net/dev` 中读取的 received bytes。单位 byte/s|
+|net\_out|FLOAT||网络吞吐率，从 `/proc/net/dev` 中读取的 transmit bytes。单位 byte/s|
+|io\_read|FLOAT||io 吞吐率，从 `/proc/<taosd_pid>/io` 中读取的 rchar 与上次数值计算之后，计算得到速度。单位 byte/s|
+|io\_write|FLOAT||io 吞吐率，从 `/proc/<taosd_pid>/io` 中读取的 wchar 与上次数值计算之后，计算得到速度。单位 byte/s|
+|io\_read\_disk|FLOAT||磁盘 io 吞吐率，从 `/proc/<taosd_pid>/io` 中读取的 read_bytes。单位 byte/s|
+|io\_write\_disk|FLOAT||磁盘 io 吞吐率，从 `/proc/<taosd_pid>/io` 中读取的 write_bytes。单位 byte/s|
 |req\_select|INT||两个间隔内发生的查询请求数目|
 |req\_select\_rate|FLOAT||两个间隔内的查询请求速度 = `req_select / monitorInterval`|
 |req\_insert|INT||两个间隔内发生的写入请求，包含的单条数据数目|
@@ -146,9 +146,9 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |ts|TIMESTAMP||timestamp|
 |name|NCHAR||data 目录，一般为 `/var/lib/taos`|
 |level|INT||0、1、2 多级存储级别|
-|avail|BIGINT||data 目录可用空间|
-|used|BIGINT||data 目录已使用空间|
-|total|BIGINT||data 目录空间|
+|avail|BIGINT||data 目录可用空间。单位 byte|
+|used|BIGINT||data 目录已使用空间。单位 byte|
+|total|BIGINT||data 目录空间。单位 byte|
 |dnode\_id|INT|TAG|dnode id|
 |dnode\_ep|NCHAR|TAG|dnode endpoint|
 |cluster\_id|NCHAR|TAG|cluster id|
@@ -161,9 +161,9 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |:----|:---|:-----|:------|
 |ts|TIMESTAMP||timestamp|
 |name|NCHAR||log 目录名，一般为 `/var/log/taos/`|
-|avail|BIGINT||log 目录可用空间|
-|used|BIGINT||log 目录已使用空间|
-|total|BIGINT||log 目录空间|
+|avail|BIGINT||log 目录可用空间。单位 byte|
+|used|BIGINT||log 目录已使用空间。单位 byte|
+|total|BIGINT||log 目录空间。单位 byte|
 |dnode\_id|INT|TAG|dnode id|
 |dnode\_ep|NCHAR|TAG|dnode endpoint|
 |cluster\_id|NCHAR|TAG|cluster id|
@@ -176,9 +176,9 @@ TDinsight dashboard 数据来源于 log 库（存放监控数据的默认db，�
 |:----|:---|:-----|:------|
 |ts|TIMESTAMP||timestamp|
 |name|NCHAR||temp 目录名，一般为 `/tmp/`|
-|avail|BIGINT||temp 目录可用空间|
-|used|BIGINT||temp 目录已使用空间|
-|total|BIGINT||temp 目录空间|
+|avail|BIGINT||temp 目录可用空间。单位 byte|
+|used|BIGINT||temp 目录已使用空间。单位 byte|
+|total|BIGINT||temp 目录空间。单位 byte|
 |dnode\_id|INT|TAG|dnode id|
 |dnode\_ep|NCHAR|TAG|dnode endpoint|
 |cluster\_id|NCHAR|TAG|cluster id|

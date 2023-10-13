@@ -189,7 +189,7 @@ int64_t      tsdbGetNumOfRowsInMemTable2(STsdbReader *pHandle);
 void        *tsdbGetIdx2(SMeta *pMeta);
 void        *tsdbGetIvtIdx2(SMeta *pMeta);
 uint64_t     tsdbGetReaderMaxVersion2(STsdbReader *pReader);
-void         tsdbReaderSetCloseFlag2(STsdbReader *pReader);
+void         tsdbReaderSetCloseFlag(STsdbReader *pReader);
 int64_t      tsdbGetLastTimestamp2(SVnode *pVnode, void *pTableList, int32_t numOfTables, const char *pIdStr);
 //======================================================================================================================
 

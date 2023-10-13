@@ -227,9 +227,10 @@ int     tqPushMsg(STQ*, tmsg_t msgType);
 int     tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
 int     tqUnregisterPushHandle(STQ* pTq, void* pHandle);
 int     tqScanWalAsync(STQ* pTq, bool ckPause);
-int32_t tqProcessStreamCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessStreamTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp);
+int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqCheckAndRunStreamTaskAsync(STQ* pTq);
 
 int     tqCommit(STQ*);
@@ -249,11 +250,11 @@ int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg);
 
 // tq-stream
 int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessTaskDropReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskCheckReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskCheckRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec);
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
@@ -262,7 +263,6 @@ int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskScanHistoryFinishReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskScanHistoryFinishRsp(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqCheckLogInWal(STQ* pTq, int64_t version);
 
 // sma
 int32_t smaInit();

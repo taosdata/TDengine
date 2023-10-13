@@ -197,6 +197,7 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
   SyncIndex       index = toIndex;
   SSyncRaftEntry* pEntry = NULL;
   bool            takeDummy = false;
+  int             emptySize = (TSDB_SYNC_LOG_BUFFER_SIZE >> 1);
 
   while (true) {
     if (index <= pBuf->commitIndex) {
@@ -210,7 +211,6 @@ int32_t syncLogBufferInitWithoutLock(SSyncLogBuffer* pBuf, SSyncNode* pNode) {
     }
 
     bool taken = false;
-    int  emptySize = 5;
     if (toIndex - index + 1 <= pBuf->size - emptySize) {
       SSyncLogBufEntry tmp = {.pItem = pEntry, .prevLogIndex = -1, .prevLogTerm = -1};
       pBuf->entries[index % pBuf->size] = tmp;

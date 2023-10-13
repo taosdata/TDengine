@@ -1016,21 +1016,16 @@ end:
 }
 
 int metaTtlFindExpired(SMeta *pMeta, int64_t timePointMs, SArray *tbUids, int32_t ttlDropMaxCount) {
-  metaWLock(pMeta);
-  int ret = ttlMgrFlush(pMeta->pTtlMgr, pMeta->txn);
-  if (ret != 0) {
-    metaError("ttl failed to flush, ret:%d", ret);
-    goto _err;
-  }
+  metaRLock(pMeta);
 
-  ret = ttlMgrFindExpired(pMeta->pTtlMgr, timePointMs, tbUids, ttlDropMaxCount);
+  int ret = ttlMgrFindExpired(pMeta->pTtlMgr, timePointMs, tbUids, ttlDropMaxCount);
+
+  metaULock(pMeta);
+
   if (ret != 0) {
     metaError("ttl failed to find expired table, ret:%d", ret);
-    goto _err;
   }
 
-_err:
-  metaULock(pMeta);
   return ret;
 }
 
