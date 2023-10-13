@@ -817,6 +817,16 @@ static int32_t execAlterCmd(char* cmd, char* value, bool* processed) {
       return code;
     }
     qInfo("memory dbg disabled");
+  } else if (0 == strcasecmp(cmd, COMMAND_ASYNCLOG)) {
+    int newAsyncLogValue = (strlen(value) == 0) ? 1 : atoi(value);
+    if (newAsyncLogValue != 0 && newAsyncLogValue != 1) {
+      code = TSDB_CODE_INVALID_CFG_VALUE;
+      qError("failed to alter asynclog, error:%s", tstrerror(code));
+      goto _return;
+    }
+
+    code = TSDB_CODE_SUCCESS;
+    tsAsyncLog = newAsyncLogValue;
   } else {
     goto _return;
   }

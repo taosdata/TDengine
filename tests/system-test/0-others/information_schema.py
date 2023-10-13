@@ -22,7 +22,7 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), True)
         self.setsql = TDSetSql()
         self.dbname = 'db'
         self.stbname = 'stb'
@@ -217,7 +217,7 @@ class TDTestCase:
             tdSql.checkEqual(20470,len(tdSql.queryResult))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
-        tdSql.checkEqual(195, len(tdSql.queryResult))
+        tdSql.checkEqual(198, len(tdSql.queryResult))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
         tdSql.checkEqual(54, len(tdSql.queryResult))
@@ -242,7 +242,7 @@ class TDTestCase:
         self.str510 = self.str255 + self.str255
         tdSql.error('alter dnode 1 "activeCode" "a"')
         tdSql.error('alter dnode 1 "activeCode" "' + self.str107 + '"')
-        # tdSql.error('alter all dnodes "activeCode" "' + self.str108 + '"')
+        tdSql.error('alter all dnodes "activeCode" "' + self.str108 + '"')
         tdSql.error('alter dnode 1 "activeCode" "' + self.str109 + '"')
         tdSql.error('alter all dnodes "activeCode" "' + self.str510 + '"')
         tdSql.query(f'select * from information_schema.ins_dnodes')
@@ -257,12 +257,12 @@ class TDTestCase:
         tdSql.error('alter all dnodes "cActiveCode" "' + self.str255 + '"')
         tdSql.error('alter all dnodes "cActiveCode" "' + self.str256 + '"')
         tdSql.error('alter all dnodes "cActiveCode" "' + self.str257 + '"')
-        # tdSql.error('alter all dnodes "cActiveCode" "' + self.str254 + '"')
+        tdSql.error('alter all dnodes "cActiveCode" "' + self.str254 + '"')
         tdSql.error('alter dnode 1 "cActiveCode" "' + self.str510 + '"')
         tdSql.query(f'select active_code,c_active_code from information_schema.ins_dnodes')
         tdSql.checkEqual(tdSql.queryResult[0][0],"")
         tdSql.checkEqual(tdSql.queryResult[0][1],"")
-        # tdSql.error('alter dnode 1 "cActiveCode" "' + self.str109 + '"')
+        tdSql.error('alter dnode 1 "cActiveCode" "' + self.str109 + '"')
         tdSql.query(f'show dnodes')
         tdSql.checkEqual(tdSql.queryResult[0][9],"")
         tdSql.execute('alter all dnodes "cActiveCode" ""')

@@ -260,7 +260,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     if (pDb == NULL) {
       if (0 != strcmp(connReq.db, TSDB_INFORMATION_SCHEMA_DB) &&
           (0 != strcmp(connReq.db, TSDB_PERFORMANCE_SCHEMA_DB))) {
-        terrno = TSDB_CODE_MND_INVALID_DB;
+        terrno = TSDB_CODE_MND_DB_NOT_EXIST;
         mGError("user:%s, failed to login from %s while use db:%s since %s", pReq->info.conn.user, ip, connReq.db,
                 terrstr());
         goto _OVER;
@@ -315,10 +315,10 @@ _CONNECT:
   sprintf(obj, "%s:%d", ip, pConn->port);
 
   char detail[1000] = {0};
-  sprintf(detail, "connType:%d, db:%s, pid:%d, startTime:%" PRId64 ", sVer:%s, app:%s", 
+  sprintf(detail, "connType:%d, db:%s, pid:%d, startTime:%" PRId64 ", sVer:%s, app:%s",
           connReq.connType, connReq.db, connReq.pid, connReq.startTime, connReq.sVer, connReq.app);
 
-  auditRecord(pReq, pMnode->clusterId, "login", connReq.user, obj, detail);
+  auditRecord(pReq, pMnode->clusterId, "login", connReq.user, obj, detail, strlen(detail));
 
 _OVER:
 

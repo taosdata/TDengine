@@ -775,12 +775,14 @@ int32_t ctgGetCachedStbNameFromSuid(SCatalog* pCtg, char* dbFName, uint64_t suid
   char *stb = taosHashAcquire(dbCache->stbCache, &suid, sizeof(suid));
   if (NULL == stb) {
     ctgDebug("stb 0x%" PRIx64 " not in cache, dbFName:%s", suid, dbFName);
+    ctgReleaseDBCache(pCtg, dbCache);
     return TSDB_CODE_SUCCESS;
   }
 
   *stbName = taosStrdup(stb);
 
   taosHashRelease(dbCache->stbCache, stb);
+  ctgReleaseDBCache(pCtg, dbCache);
 
   return TSDB_CODE_SUCCESS;
 }
