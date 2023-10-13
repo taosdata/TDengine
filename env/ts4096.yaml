@@ -1,58 +1,58 @@
 settings:
   - name: taosd
-    fqdn: [u1-54]
+    fqdn: [u1-55, u1-56, u1-57]
     spec:
       version: 3.0.0.0  # 默认最新版
       config: # common config for all dnodes
-        firstEP: u1-54:6030
+        firstEP: u1-55:6030
       dnodes:
-        - endpoint: u1-54:6030
-          config_dir: /root/jayden/config/dnode1
+        - endpoint: u1-55:6030
+          config_dir: /etc/taos
           config: # will write into taos.cfg
             supportVnodes: 128
-            dataDir: /root/jayden/lib/taos/dnode1
-            logDir: /root/jayden/log/taos/dnode1
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
             qDebugFlag: 131
             tqDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
-        - endpoint: u1-54:6031
-          config_dir: /root/jayden/config/dnode2
+        - endpoint: u1-56:6030
+          config_dir: /etc/taos
           config: # will write into taos.cfg
             supportVnodes: 128
-            dataDir: /root/jayden/lib/taos/dnode2
-            logDir: /root/jayden/log/taos/dnode2
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
             qDebugFlag: 131
             tqDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
-        - endpoint: u1-54:6032
-          config_dir: /root/jayden/config/dnode3
+        - endpoint: u1-57:6030
+          config_dir: /etc/taos
           config: # will write into taos.cfg
             supportVnodes: 128
-            dataDir: /root/jayden/lib/taos/dnode3
-            logDir: /root/jayden/log/taos/dnode3
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
             qDebugFlag: 131
             tqDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
       reserve_dnodes:
-        - endpoint: u1-58:6033
-          config_dir: /root/jayden/config/dnode4
+        - endpoint: u1-54:6030
+          config_dir: /etc/taos
           config: # will write into taos.cfg
             supportVnodes: 128
-            dataDir: /root/jayden/lib/taos/dnode4
-            logDir: /root/jayden/log/taos/dnode4
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
             qDebugFlag: 131
             tqDebugFlag: 131
             asyncLog: 0
             numOfLogLines: 2000000000
-        - endpoint: u1-58:6034
-          config_dir: /root/jayden/config/dnode5
+        - endpoint: u1-58:6030
+          config_dir: /etc/taos
           config: # will write into taos.cfg
             supportVnodes: 128
-            dataDir: /root/jayden/lib/taos/dnode5
-            logDir: /root/jayden/log/taos/dnode5
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
             qDebugFlag: 131
             tqDebugFlag: 131
             asyncLog: 0
@@ -68,23 +68,23 @@ settings:
         #     asyncLog: 0
         #     numOfLogLines: 2000000000
   - name: taosBenchmark
-    fqdn: [u1-54]
+    fqdn: [u1-53]
     spec:
       version: 3.0.0.0
       taos_version: 3.0.0.0
-      config_dir: /root/jayden/config/dnode1
+      config_dir: /etc/taos
       taos_config:
-        firstEP: u1-54:6030
-        logDir: /root/jayden/log/taos/dnode1
+        firstEP: u1-55:6030
+        logDir: /var/log/taos
         debugFlag: 131
   - name: taospy
-    fqdn: [u1-54]
+    fqdn: [u1-53]
     spec:
       version: 3.0.0.0
       client_version: 3.0.0.0
       config:
-        firstEP: u1-54:6030
-        dataDir: /root/jayden/lib/taos/dnode1
-        logDir: /root/jayden/log/taos/dnode1
+        firstEP: u1-55:6030
+        dataDir: /var/lib/taos
+        logDir: /var/log/taos
         debugFlag: 131
         asynclog: 0
