@@ -80,7 +80,7 @@ export default {
   data() {
     return {
       showStable: false,
-      language:  this.$i18n.locale,
+      language:  localStorage.getItem('local_language'),
       showcustom: true,
       isAllValid: true,
       ruleForm: {

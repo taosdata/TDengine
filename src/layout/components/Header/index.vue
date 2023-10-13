@@ -16,12 +16,12 @@
         </li>
       </ul>
     </div>
-    <el-button @click="switchLanguage">语言切换</el-button>
-
+    <el-button @click="switchLanguage">语言切换zh</el-button>
+    <el-button @click="switchLanguageen">语言切换en</el-button>
     <div class="headerRight">
       <Timezone></Timezone>
       <Document v-if="docUrl"></Document>
-
+<!-- <International></International> -->
       <!-- <Support v-if="supportUrl"></Support>
       <Document v-if="docUrl"></Document> -->
       <!-- <Github></Github> -->
@@ -48,9 +48,10 @@ import {
   Support,
   Document,
   Timezone,
+  International
 } from "./components";
 export default {
-  components: { Avatar, ClusterSelector, Help, Support, Document, Timezone },
+  components: { Avatar, ClusterSelector, Help, Support, Document, Timezone,International },
   data() {
     return {
       showHeaderLeft: true,
@@ -96,7 +97,12 @@ export default {
   methods: {
     switchLanguage(){
       this.$i18n.locale = 'zh'
-      window.location.reload()
+      localStorage.setItem('local_language','zh')
+      // window.location.reload()
+    },
+    switchLanguageen(){
+      this.$i18n.locale = 'en'
+      localStorage.setItem('local_language','en')
     },
     clickShowVersion() {
       if (process.env.VUE_APP_CUS_CONFIG) {

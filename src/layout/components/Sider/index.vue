@@ -1,5 +1,6 @@
 <template>
   <div class="sider" :class="sider_style">
+    <span style="color:red;font-size:24px;">{{ $t("route.board") }}</span>
     <SlideHeader />
     <el-menu
       ref="elMenu"
@@ -33,11 +34,11 @@ export default {
   data() {
     return {
       isCollapse: false,
-      language:  this.$i18n.locale,
+      language:  localStorage.getItem('local_language'),
       permission_routes: [
           {
             path: "/dashboard",
-            title: i18n.t("route.board"),
+            title: this.$t("route.board"),
             icon: "dashboard",
             meta: {
               show: flag ? false : true,
@@ -158,6 +159,7 @@ export default {
         }
         return item;
       });
+      console.log(this.permission_routes,'this.permission_routes');
     }
   },
 };

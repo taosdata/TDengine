@@ -42,7 +42,11 @@ export function getBrowserLang() {
   if (browserLang.includes('en')) return 'en';
   return 'en';
 }
-setLang(getBrowserLang())
+
+if(!localStorage.getItem('local_language')){
+  setLang(getBrowserLang())
+}
+
 Vue.use(VueDOMPurifyHTML, {
   default: {
     ALLOWED_ATTR: ['target', 'href', 'title', 'rel']

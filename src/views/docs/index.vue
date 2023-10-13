@@ -5,6 +5,7 @@
         <img class="image-contains" :src="getImg(config.name, config.icon)" alt="" />
       </section>
       <section class="right">
+        <span style="color:red;font-size:36px;">步骤条{{ steps }}</span>
         <el-steps align-center :active="activeTab" finish-status="success">
           <el-step @click.native="handleClickStep(index)" v-for="(item, index) in steps" :key="item.title" :title="item.title"></el-step>
         </el-steps>
@@ -33,8 +34,8 @@
     },
     computed: {
       language() {
-        // return this.$store.state.app.userInfo.language || "en";
-        return "en";
+        return localStorage.getItem('local_language') || "en";
+        // return "en";
       },
       config() {
         let lang = window.decodeURIComponent(this.lang);
@@ -84,6 +85,7 @@
       },
     },
     mounted() {
+      console.log(this.config.docs,'this.config.docs',this.lang,this.category,this.config,config);
       // 在这里保存元素
       this.$nextTick(() => {
         this.domList = this.steps.map(item => document.getElementById(item.dom));

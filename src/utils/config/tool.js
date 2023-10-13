@@ -1,12 +1,13 @@
 import * as mdx from "./mdx";
 import i18n from "@/lang";
+console.log(i18n,'i18ni18n----tool----i18ni18n',i18n.t("docs.tool.cli.step1"));
 export default [
   {
     name: "TDengine CLI",
     logo: "https://img1.baidu.com/it/u=3903506244,1663450695&fm=253&fmt=auto&app=138&f=GIF?w=500&h=310",
     desc: i18n.t("docs.tool.cli.desc"),
     docs: {
-      zh: "",
+      zh: mdx.TDCLIDoc,
       en: mdx.TDCLIDoc,
     },
     steps: [

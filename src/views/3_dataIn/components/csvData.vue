@@ -125,7 +125,7 @@ export default {
   filter: {},
   data() {
     return {
-      language:  this.$i18n.locale,
+      language:  localStorage.getItem('local_language'),
       showConfig: false,
       csvParserConf: {},
       uploadData: {
