@@ -284,6 +284,16 @@ function clean_service() {
   fi
 }
 
+function uninstall_taosx() {
+  if [ -f /usr/local/taosx/uninstall.sh ]; then
+    cd /usr/local/taosx
+    bash uninstall.sh > /dev/null
+
+    echo -e "${GREEN}${xName2}x is removed successfully!${NC}"
+    echo -e "${GREEN}${explorerName2}x is removed successfully!${NC}"
+  fi
+}
+
 # Stop service and disable booting start.
 clean_service
 # Remove binary file and links
@@ -323,4 +333,5 @@ if [ "$osType" = "Darwin" ]; then
 fi
 
 echo -e "${GREEN}${productName2} is removed successfully!${NC}"
+uninstall_taosx
 echo
