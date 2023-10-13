@@ -1564,6 +1564,7 @@ int32_t tsdbSnapGetDetails(SVnode* pVnode, SSnapshot* pSnap) {
   head->len = 0;
   head->typ = pSnap->type;
   int32_t offset = sizeof(SSyncTLV);
+  int32_t tlen = 0;
 
   // fill snapshot info
   for (int32_t j = 0; j < tsdbMaxCnt; ++j) {
@@ -1575,7 +1576,6 @@ int32_t tsdbSnapGetDetails(SVnode* pVnode, SSnapshot* pSnap) {
     subHead->typ = subTyps[j];
     ASSERT(subHead->val == (char*)data + offset + sizeof(SSyncTLV));
 
-    int32_t tlen = 0;
     if ((tlen = tSerializeTsdbSnapPartList(subHead->val, bufLen - offset - sizeof(SSyncTLV), pLists[j])) < 0) {
       tsdbError("vgId:%d, failed to serialize snap partition list of tsdb %d since %s", TD_VID(pVnode), j, terrstr());
       goto _out;
@@ -1584,7 +1584,8 @@ int32_t tsdbSnapGetDetails(SVnode* pVnode, SSnapshot* pSnap) {
     offset += sizeof(SSyncTLV) + tlen;
   }
 
-  head->len = offset;
+  head->len = offset - sizeof(SSyncTLV);
+  ASSERT(offset <= bufLen);
   code = 0;
 
 _out:
