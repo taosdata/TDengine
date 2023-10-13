@@ -4,11 +4,11 @@ description: This document introduces the major features, competitive advantages
 toc_max_heading_level: 2
 ---
 
-TDengine is an [open source](https://tdengine.com/tdengine/open-source-time-series-database/), [high-performance](https://tdengine.com/tdengine/high-performance-time-series-database/), [cloud native](https://tdengine.com/tdengine/cloud-native-time-series-database/) [time-series database](https://tdengine.com/tsdb/) optimized for Internet of Things (IoT), Connected Cars, and Industrial IoT. Its code, including its cluster feature is open source under GNU AGPL v3.0. Besides the database engine, it provides [caching](../develop/cache), [stream processing](../develop/stream), [data subscription](../develop/tmq) and other functionalities to reduce the system complexity and cost of development and operation.
+TDengine is a big data platform designed and optimized for IoT (Internet of Things) and Industrial Internet. It can safely and effetively converge, store, process and distribute high volume data (TB or even PB) generated everyday by a lot of devices and data acquisition units, monitor and alert business operation status in real time and provide real time business insight. The core component of TDengine is TDengine OSS, which is a high performance, open source, cloud native and simplified time series database. 
 
 This section introduces the major features, competitive advantages, typical use-cases and benchmarks to help you get a high level overview of TDengine.
 
-## Major Features
+## Major Features of TDengine OSS
 
 The major features are listed below:
 
@@ -132,3 +132,9 @@ As a high-performance, scalable and SQL supported time-series database, TDengine
 - [Introduction to Time-Series Database](https://tdengine.com/tsdb/)
 - [Introduction to TDengine competitive advantages](https://tdengine.com/tdengine/)
 
+
+## Products
+
+There are two products offered by TDengine: TDengine Enterprise and TDengine Cloud, for details please refer to 
+- [TDengine Enterprise](https://www.taosdata.com/tdengine-pro)
+- [TDengine Cloud](https://cloud.taosdata.com/?utm_source=menu&utm_medium=webcn)
