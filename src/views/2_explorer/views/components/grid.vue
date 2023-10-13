@@ -5,6 +5,7 @@
       :key="key"
       stripe
       tooltip-effect="light"
+      @cell-dblclick="handleCellDblclick"
       size="mini"
       v-load-more.expand.immediate="{
         func: load,
@@ -20,13 +21,18 @@
 
       <template v-if="head.length">
         <el-table-column
-          v-for="(field, index) of head"
-          :key="field"
-          :prop="index + ''"
-          min-width="170px"
+          v-for="item in head"
+          :key="item"
+          :prop="item"
+          :min-width="item.length + 'px'"
           :show-overflow-tooltip="true"
-          :label="field"
+          :label="item"
         >
+          <template slot-scope="{ row }">
+            <el-tooltip :content="$t('console.cellCopyTip')">
+              <span>{{ row[item] }}</span>
+            </el-tooltip>
+          </template>
         </el-table-column>
       </template>
     </el-table>
@@ -34,6 +40,7 @@
 </template>
 <script>
 import { mapState } from "vuex";
+import { copy } from '@/utils';
 export default {
   name: "grid",
   data() {
@@ -64,13 +71,7 @@ export default {
     dataSource: {
       handler(val) {
         this.key++;
-        this.currentTableData = val.slice(0, this.pageSize).map((item) => {
-          const obj = {};
-          for (const key in item) {
-            obj[this.headMap[key]] = item[key];
-          }
-          return obj;
-        });
+        this.currentTableData = val.slice(0,this.pageSize)
         this.currentPage = 1;
       },
       immediate: true,
@@ -78,6 +79,10 @@ export default {
   },
   mounted() {},
   methods: {
+    handleCellDblclick(row, column) {
+      console.log(row, column,'row, column');
+      copy(row[column.property]);
+    },
     load() {
       if (this.currentTableData.length === this.dataSource.length) return;
       this.currentPage++;

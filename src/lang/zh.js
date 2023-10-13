@@ -508,6 +508,7 @@ export default {
     generateTokenTip: "没有任何 API 令牌，您必须生成一个才能连接到 TDengine ",
   },
   console: {
+    cellCopyTip: '双击单元格进行复制',
     exec: "执行",
     addFavorites: "收藏",
     delFavirote: "删除收藏",

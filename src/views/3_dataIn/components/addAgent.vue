@@ -185,7 +185,7 @@ export default {
       return this.nameValid();
     },
     token() {
-      return this.tokenMap[this.name] ?? '';
+      return localStorage.getItem('TDengine-Token') ?? '';
     },
     taoxAddress() {
       return localStorage.getItem("local_endpoint") ?? '';

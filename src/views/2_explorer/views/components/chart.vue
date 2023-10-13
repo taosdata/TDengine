@@ -110,7 +110,7 @@ export default {
             // title: {
             //   text: 'Chart Show'
             // },
-            grid: { right: 30 ,bottom: 24},
+            grid: { right: 30 ,bottom: 70},
             legend: {},
             tooltip: {
               trigger: "axis"

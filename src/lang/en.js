@@ -599,6 +599,7 @@ export default {
     start: "Start",
   },
   console: {
+    cellCopyTip: 'Double-click the cell to copy the content',
     exec: "Exec",
     addFavorites: "Favorite",
     output: "output",
@@ -1297,7 +1298,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
       9: 'Failed',
       10: 'Checking',
       11: `Please check the agent logs with:`,
-      12: 'and check if can you fix the issue by yourself. If you can not, please report it to the TDengine team. If you can not, please report it to the TDengine Cloud team.'
+      12: 'and check if can you fix the issue by yourself. If you can not, please report it to the TDengine team. '
       // 7: `If the agent token is wrong, the service will exit directly, you can check the logs with: `,
       // 8: `Refresh agent status in explorer to check if the agent is connected correctly. The status of an agent will be "Idle" when it has been connected.`
     },
@@ -1814,14 +1815,38 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
       enddesc2: 'Data Subscription'
     },
     dashboard: {
+      desc: `${grafanagds} can be integrated with the open-source data visualization system  Grafana  to build a data monitoring and alerting system seamlessly without a line of code.  And you can visualize the data stored inside ${grafanagds} on a dashboard.Learn more about using the ${grafanagds} plugin on GitHub.`,
+        topdesc: `${grafanagds} can be integrated with the open-source data visualization system`,
+        topdesc1:
+          `  to build a data monitoring and alerting system seamlessly without a line of code.  And you can visualize the data stored inside ${grafanagds} on a dashboard.Learn more about using the ${grafanagds} plugin on  `,
+        topdesc2: ``,
+        topdesc3: ".",
+        step1: "Install Grafana",
+        step1desc:
+          `${grafanagds} currently supports Grafana versions 7.5 and above. Please go to the Grafana official website to download the installation package`,
+        pluginsdesc:`Open Grafana from browser, click the three horizontal bar icon, click "Connections", inside the search bar, search ${grafanagds}, then "${grafanagds} Data Source" should pop up. Click "Install" to install the ${grafanagds} plugin. Once it's installed, you can add ${grafanagds} data source right away.`,
+        script1:`If you can access Github easily, please run below script from Linux terminal to install ${grafanagds} Datasource plugin.`,
+        script2:`After that completed, please restart grafana-server.`,
+        step2: `Install ${grafanagds} plugin`,
+        step2desc:
+          `Please copy the following shell commands to export \`${grafanagds}_URL\` and  \`${grafanagds}_TOKEN\` for the data source installation.`,
+        step2desc1: `Run below script from Linux terminal to install ${grafanagds} data source plugin.`,
+        step2desc2: "After that completed, please restart grafana-server.",
+        step3: "Add Data Source",
+        step3desc1: 'Host:',
+        step3desc2: 'Token:',
+        step3desc3: `Then click "Save & Test" button to verify if ${grafanagds} data source works. `,
+        step3desc:
+          `Inside Grafana data source configuration page, copy the host and token listed below and paste them into Grafana's corresponding input box. `,
+        step4: "Use Grafana",
+        step4desc: `Please add new dashboard or import exist dashboard to explore the data stored in the ${grafanagds}.`,
+        step4desc1: "You can refer to the ",
+        step4desc2: "documentation",
+        step4desc3: "for more details.",
       monitortip:'You can use Grafana to monitor the TDengine running status, please follow the steps below:',
       dashboarddesc: `We recommend using the latest<a href='https://grafana.com/'> Grafana</a> version 8 or 9 here.You can install Grafana on any<a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/#supported-operating-systems'> supported operating system</a> by following the <a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/'>official Grafana documentation Instructions </a>.`,
-      step1: 'Install Grafana',
-      step2: 'Install TDengine Plugin',
-      step3: 'Start Grafana',
-      step4: 'Login Grafana',
-      step5: 'Add Data Source',
-      step6: 'Import Dashboard',
+     
+      step5: 'Load TDinsight Dashboard',
       tab2: 'Install Grafana on CentOS / RHEL',
       tab1: 'Installing Grafana on Debian / Ubuntu',
       tab2sub: 'Or install it with RPM package.',

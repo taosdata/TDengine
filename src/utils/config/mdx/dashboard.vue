@@ -1,117 +1,118 @@
 <template>
   <div>
-    <div class="float">
-      {{ $t("docs.dashboard.monitortip") }}
-    </div>
-
-    <p v-html="$t('docs.dashboard.dashboarddesc')"></p>
-
-    <h2 id="install-grafana">{{ $t("docs.dashboard.step1") }}</h2>
-    <el-tabs value="tab1">
-      <el-tab-pane name="tab1" :label="$t('docs.dashboard.tab1')">
+    <p>
+      {{ $t("docs.virtual.grafana.topdesc")
+      }}<a href="https://www.grafana.com/"> Grafana</a
+      >{{ $t("docs.virtual.grafana.topdesc1") }}<a
+        href="https://github.com/taosdata/grafanaplugin/blob/master/README.md"
+        >GitHub</a
+      >.
+    </p>
+    <!-- <p>
+      {{ $t("docs.virtual.grafana.topdesc2")
+      }}<a
+        href="https://github.com/taosdata/grafanaplugin/blob/master/README.md"
+        >GitHub</a
+      >.
+    </p> -->
+  
+    <h2 id="install-grafana">{{ $t("docs.virtual.grafana.step1") }}</h2>
+    <p>
+        {{ $t("docs.virtual.grafana.step1desc")
+      }}(<a href="https://grafana.com/grafana/download"
+        >https://grafana.com/grafana/download</a
+      >).
+    </p>
+    <h2 id="install-tdengine-plugin">{{ $t("docs.virtual.grafana.step2") }}</h2>
+    <el-tabs v-model="activeTab">
+    <el-tab-pane name="plugins" label="Plugins">
+      <p>{{$t('docs.virtual.grafana.pluginsdesc')}}</p>
+    </el-tab-pane>
+    <el-tab-pane name="script" label="Script"><p>{{ $t('docs.virtual.grafana.script1') }}</p>
+    <pre
+          v-highlight="
+            `bash -c &quot;$(curl -fsSL https://raw.githubusercontent.com/taosdata/grafanaplugin/master/install.sh)&quot;
+`
+          "
+        ><code class="language-bash"></code></pre>
+        <p>{{ $t('docs.virtual.grafana.script2') }}</p>
         <pre
-          class="first"
-        ><code class="language-bash">sudo apt-get install -y apt-transport-https
-sudo apt-get install -y software-properties-common wget
-wget -q -O - https://packages.grafana.com/gpg.key |\
-  sudo apt-key add -
-echo "deb https://packages.grafana.com/oss/deb stable main" |\
-  sudo tee -a /etc/apt/sources.list.d/grafana.list
-sudo apt-get update
-sudo apt-get install grafana
-</code>
-<span class="copy-icon" @click="copyCode('first')">
-          <i class="el-icon-copy-document"></i>
-          {{ $t("copy") }}
-        </span>
-</pre>
-      </el-tab-pane>
-      <el-tab-pane name="tab2" :label="$t('docs.dashboard.tab2')">
-        <pre
-          class="second"
-        ><code class="language-bash">sudo tee /etc/yum.repos.d/grafana.repo &lt;&lt; EOF
-[grafana]
-name=grafana
-baseurl=https://packages.grafana.com/oss/rpm
-repo_gpgcheck=1
-enabled=1
-gpgcheck=1
-gpgkey=https://packages.grafana.com/gpg.key
-sslverify=1
-sslcacert=/etc/pki/tls/certs/ca-bundle.crt
-EOF
-sudo yum install grafana
-</code>
- <span class="copy-icon2" @click="copyCode('second')">
-          <i class="el-icon-copy-document"></i>
-          {{ $t("copy") }}
-        </span>
-</pre>
-        <p>{{ $t("docs.dashboard.tab2sub") }}</p>
+          v-highlight="
+            `sudo systemctl restart grafana-server.service
+`
+          "
+        ><code class="language-bash"></code></pre>
 
-        <pre class="third">
-<code class="language-bash">wget https://dl.grafana.com/oss/release/grafana-7.5.11-1.x86_64.rpm
-sudo yum install grafana-7.5.11-1.x86_64.rpm
-# or
-sudo yum install \
-  https://dl.grafana.com/oss/release/grafana-7.5.11-1.x86_64.rpm</code>
-  <span class="copy-icon3" @click="copyCode('third')">
-          <i class="el-icon-copy-document"></i>
-          {{ $t("copy") }}
-        </span>
-</pre>
-      </el-tab-pane>
+    </el-tab-pane>
+    
     </el-tabs>
-
-    <h2 id="install-tdengine-plugin">{{ $t("docs.dashboard.step2") }}</h2>
-    <el-tabs value="tb1">
-      <el-tab-pane name="tb1" :label="$t('docs.dashboard.pluginname1')">
-        <p v-html="$t('docs.dashboard.plugin2')"></p>
-        <pre class="fifth">
-<code class="language-bash">wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh
-chmod +x TDinsight.sh
-./TDinsight.sh</code>
-<span class="copy-icon5" @click="copyCode('fifth')">
-          <i class="el-icon-copy-document"></i>
-          {{ $t("copy") }}
-        </span>
-        </pre>
-        <p v-html="$t('docs.dashboard.pluginsub2')"></p>
-      </el-tab-pane>
-
-      <el-tab-pane name="tb2" :label="$t('docs.dashboard.pluginname2')">
-        <p v-html="$t('docs.dashboard.plugin1')"></p>
-        <pre class="fourth">
-<code class="language-bash">get_latest_release() {
-  curl --silent "https://api.github.com/repos/taosdata/grafanaplugin/releases/latest" |
-    grep '"tag_name":' |
-    sed -E 's/.*"v([^"]+)".*/\1/'
-}
-TDENGINE_PLUGIN_VERSION=$(get_latest_release)
-sudo grafana-cli \
-  --pluginUrl https://github.com/taosdata/grafanaplugin/releases/download/v$TDENGINE_PLUGIN_VERSION/tdengine-datasource-$TDENGINE_PLUGIN_VERSION.zip \
-  plugins install tdengine-datasource
-        </code>
-        <span class="copy-icon4" @click="copyCode('fourth')">
-          <i class="el-icon-copy-document"></i>
-          {{ $t("copy") }}
-        </span>
-      </pre>
-      </el-tab-pane>
-    </el-tabs>
-
-    <h2 id="start-grafana-server">{{ $t("docs.dashboard.step3") }}</h2>
-    <pre class="sixth">
-<code class="language-bash">sudo systemctl start grafana-server
-sudo systemctl enable grafana-server</code>
-<span class="copy-icon6" @click="copyCode('sixth')">
-          <i class="el-icon-copy-document"></i>
-          {{ $t("copy") }}
-        </span>
-    </pre>
-    <h2 id="login-in-grafana">{{ $t("docs.dashboard.step4") }}</h2>
-    <p v-html="$t('docs.dashboard.logingrafana')"></p>
-    <h2 id="add-grafana-dbsource">{{ $t("docs.dashboard.step5") }}</h2>
+    <!-- <p>{{ $t("docs.virtual.grafana.step2desc") }}</p>
+    <pre
+      v-highlight="
+    
+        `export ${replaceTDENGINE}_TOKEN=&quot;${token}&quot;
+export ${replaceTDENGINE}_URL=&quot;${url}&quot;
+`
+      "
+    ><code class="language-bash"></code></pre> -->
+    <!-- <p>{{ $t("docs.virtual.grafana.step2desc1") }}</p>
+    <pre
+      v-highlight="
+        `bash -c &quot;$(curl -fsSL https://raw.githubusercontent.com/taosdata/grafanaplugin/master/install.sh)&quot;
+`
+      "
+    ><code class="language-bash"></code></pre>
+    <p>{{ $t("docs.virtual.grafana.step2desc2") }}</p>
+    <pre
+      v-highlight="
+        `sudo systemctl restart grafana-server.service
+`
+      "
+    ><code class="language-bash"></code></pre> -->
+    <h2 id="verify-plugin">{{ $t("docs.virtual.grafana.step3") }}</h2>
+    <p>{{ $t('docs.virtual.grafana.step3desc') }}</p>
+    <p style="display:flex;align-items: baseline;margin-bottom: 0px;">
+        <span style="width:60px;">{{ $t('docs.virtual.grafana.step3desc1') }}</span>
+      <pre
+          v-highlight="
+       
+            `${url}
+`
+          "
+        ><code class="language-bash"></code></pre>
+    </p>
+    <p style="display:flex;align-items: baseline;margin-bottom: 0px;">
+        <span style="width:60px;">{{ $t('docs.virtual.grafana.step3desc2') }}</span>
+      <pre
+          v-highlight="
+            `${token}
+`
+          "
+        ><code class="language-bash"></code></pre>
+    </p>
+     
+   
+  
+  
+    <p>{{ $t('docs.virtual.grafana.step3desc3') }}</p>
+    <!-- <p>{{ $t("docs.virtual.grafana.step3desc") }}</p>
+    <p v-if="!isOEM">
+      <img
+        src="./assets/grafana/verifying-tdengine-datasource.webp"
+        alt="Verify TDengine data source"
+      />
+    </p> -->
+    <h2 id="use-grafana">{{ $t("docs.virtual.grafana.step4") }}</h2>
+    <p>{{ $t("docs.virtual.grafana.step4desc") }}
+    <span v-if="!isOEM">
+      {{ $t("docs.virtual.grafana.step4desc1")
+      }}
+      <a
+        :href="`${$t('urlPart')}/third-party/grafana#create-dashboard`"
+        >{{ $t("docs.virtual.grafana.step4desc2") }}</a
+      >   {{ $t("docs.virtual.grafana.step4desc3") }}</span>
+    </p>
+    <!-- <h2 id="add-grafana-dbsource">{{ $t("docs.dashboard.step5") }}</h2>
     <p v-html="$t('docs.dashboard.nav')"></p>
     <p>
       <img
@@ -139,8 +140,8 @@ sudo systemctl enable grafana-server</code>
         src="./assets/dashboard/done.webp"
         alt="TDengine Database TDinsight 添加数据源按钮"
       />
-    </p>
-    <h2 id="import-dashboard">{{ $t("docs.dashboard.step6") }}</h2>
+    </p> -->
+    <h2 id="import-dashboard">{{ $t("docs.dashboard.step5") }}</h2>
 
     <p v-html="$t('docs.dashboard.import')"></p>
     <p>
@@ -183,9 +184,11 @@ export default {
       type: String,
       default: "",
     },
+    
   },
   data() {
     return {
+      activeTab:'plugins',
       isOEM:
         process.env.VUE_APP_CUS_NAME &&
         process.env.VUE_APP_CUS_NAME !== "TDengine",

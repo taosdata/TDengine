@@ -5,6 +5,16 @@
         <div class="flexCenter" slot="label">
           <Icon name="table" class="tab_icon"></Icon>
           <span>{{ $t("console.grid") }}</span>
+          <el-tooltip
+            effect="light"
+            :content="$t('console.cellCopyTip')"
+            placement="bottom"
+          >
+            <i
+              size="mini"
+              class="el-icon-info info-icon"
+            ></i>
+          </el-tooltip>
         </div>
         <GridView></GridView>
       </el-tab-pane>
