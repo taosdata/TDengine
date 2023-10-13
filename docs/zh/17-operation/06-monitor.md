@@ -9,8 +9,6 @@ TDengine 通过 [taosKeeper](/reference/taosKeeper/) 将服务器的 CPU、内�
 
 ## TDinsight - 使用监控数据库 + Grafana 对 TDengine 进行监控的解决方案
 
-监控数据库将提供更多的监控项，您可以从 [TDinsight Grafana Dashboard](/reference/tdinsight/) 了解如何使用 TDinsight 方案对 TDengine 进行监控。
-
 我们提供了一个自动化脚本 `TDinsight.sh` 对 TDinsight 进行部署。
 
 下载 `TDinsight.sh`：
@@ -36,8 +34,6 @@ chmod +x TDinsight.sh
      ```
 
 运行程序并重启 Grafana 服务，打开面板：`http://localhost:3000/d/tdinsight`。
-
-更多使用场景和限制请参考[TDinsight](/reference/tdinsight/) 文档。
 
 ## log 库
 
