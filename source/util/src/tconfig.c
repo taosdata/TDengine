@@ -321,6 +321,7 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
     case CFG_DTYPE_INT64:
       return cfgSetInt64(pItem, value, stype);
     case CFG_DTYPE_FLOAT:
+    case CFG_DTYPE_DOUBLE:
       return cfgSetFloat(pItem, value, stype);
     case CFG_DTYPE_STRING:
       return cfgSetString(pItem, value, stype);
@@ -405,13 +406,23 @@ int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, double minval, double maxval, int8_t scope) {
+int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, float minval, float maxval, int8_t scope) {
   if (defaultVal < minval || defaultVal > maxval) {
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
 
   SConfigItem item = {.dtype = CFG_DTYPE_FLOAT, .fval = defaultVal, .fmin = minval, .fmax = maxval, .scope = scope};
+  return cfgAddItem(pCfg, &item, name);
+}
+
+int32_t cfgAddDouble(SConfig *pCfg, const char *name, double defaultVal, double minval, double maxval, int8_t scope) {
+  if (defaultVal < minval || defaultVal > maxval) {
+    terrno = TSDB_CODE_OUT_OF_RANGE;
+    return -1;
+  }
+
+  SConfigItem item = {.dtype = CFG_DTYPE_DOUBLE, .dval = defaultVal, .fmin = minval, .fmax = maxval, .scope = scope};
   return cfgAddItem(pCfg, &item, name);
 }
 
@@ -496,6 +507,8 @@ const char *cfgDtypeStr(ECfgDataType type) {
       return "int64";
     case CFG_DTYPE_FLOAT:
       return "float";
+    case CFG_DTYPE_DOUBLE:
+      return "double";
     case CFG_DTYPE_STRING:
       return "string";
     case CFG_DTYPE_DIR:
@@ -524,6 +537,7 @@ void cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *p
       len = snprintf(buf, bufSize, "%" PRId64, pItem->i64);
       break;
     case CFG_DTYPE_FLOAT:
+    case CFG_DTYPE_DOUBLE:
       len = snprintf(buf, bufSize, "%f", pItem->fval);
       break;
     case CFG_DTYPE_STRING:
@@ -621,6 +635,7 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
         }
         break;
       case CFG_DTYPE_FLOAT:
+      case CFG_DTYPE_DOUBLE:
         if (dump) {
           printf("%s %s %.2f", src, name, pItem->fval);
           printf("\n");

@@ -142,8 +142,15 @@ TDengine currently supports timestamp, number, character, Boolean type, and the 
 | BINARY            | byte array         |
 | NCHAR             | java.lang.String   |
 | JSON              | java.lang.String   |
+| VARBINARY         | byte[]             |
+| GEOMETRY          | byte[]             |
 
 **Note**: Only TAG supports JSON types
+Due to historical reasons, the BINARY type data in TDengine is not truly binary data and is no longer recommended for use. Please use VARBINARY type instead.  
+GEOMETRY type is binary data in little endian byte order, which complies with the WKB specification. For detailed information, please refer to [Data Type] (/tao-sql/data-type/#Data Types)  
+For WKB specifications, please refer to [Well Known Binary (WKB)]（ https://libgeos.org/specifications/wkb/ ）  
+For Java connector, the jts library can be used to easily create GEOMETRY type objects, serialize them, and write them to TDengine. Here is an example [Geometry example]（https://github.com/taosdata/TDengine/blob/3.0/examples/JDBC/JDBCDemo/src/main/java/com/taosdata/example/GeometryDemo.java）  
+
 
 ## Installation Steps
 
@@ -354,7 +361,7 @@ The configuration parameters in properties are as follows.
 - TSDBDriver.PROPERTY_KEY_CONFIG_DIR: only works when using JDBC native connection. Client configuration file directory path, default value `/etc/taos` on Linux OS, default value `C:/TDengine/cfg` on Windows OS, default value `/etc/taos` on macOS.
 - TSDBDriver.PROPERTY_KEY_CHARSET: In the character set used by the client, the default value is the system character set.
 - TSDBDriver.PROPERTY_KEY_LOCALE: this only takes effect when using JDBC native connection. Client language environment, the default value is system current locale.
-- TSDBDriver.PROPERTY_KEY_TIME_ZONE: only takes effect when using JDBC native connection. In the time zone used by the client, the default value is the system's current time zone.
+- TSDBDriver.PROPERTY_KEY_TIME_ZONE: only takes effect when using JDBC native connection. In the time zone used by the client, the default value is the system's current time zone. Due to historical reasons, we only support some specifications of the POSIX standard, such as UTC-8 (representing timezone Shanghai in China), GMT-7, Europe/Paris.
 - TSDBDriver.HTTP_CONNECT_TIMEOUT: REST connection timeout in milliseconds, the default value is 60000 ms. It only takes effect when using JDBC REST connection.
 - TSDBDriver.HTTP_SOCKET_TIMEOUT: socket timeout in milliseconds, the default value is 60000 ms. It only takes effect when using JDBC REST connection and batchfetch is false.
 - TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT: message transmission timeout in milliseconds, the default value is 60000 ms. It only takes effect when using JDBC REST connection and batchfetch is true.
@@ -456,13 +463,15 @@ public class ParameterBindingDemo {
 
     private static final String host = "127.0.0.1";
     private static final Random random = new Random(System.currentTimeMillis());
-    private static final int BINARY_COLUMN_SIZE = 20;
+    private static final int BINARY_COLUMN_SIZE = 50;
     private static final String[] schemaList = {
             "create table stable1(ts timestamp, f1 tinyint, f2 smallint, f3 int, f4 bigint) tags(t1 tinyint, t2 smallint, t3 int, t4 bigint)",
             "create table stable2(ts timestamp, f1 float, f2 double) tags(t1 float, t2 double)",
             "create table stable3(ts timestamp, f1 bool) tags(t1 bool)",
             "create table stable4(ts timestamp, f1 binary(" + BINARY_COLUMN_SIZE + ")) tags(t1 binary(" + BINARY_COLUMN_SIZE + "))",
-            "create table stable5(ts timestamp, f1 nchar(" + BINARY_COLUMN_SIZE + ")) tags(t1 nchar(" + BINARY_COLUMN_SIZE + "))"
+            "create table stable5(ts timestamp, f1 nchar(" + BINARY_COLUMN_SIZE + ")) tags(t1 nchar(" + BINARY_COLUMN_SIZE + "))",
+            "create table stable6(ts timestamp, f1 varbinary(" + BINARY_COLUMN_SIZE + ")) tags(t1 varbinary(" + BINARY_COLUMN_SIZE + "))",
+            "create table stable7(ts timestamp, f1 geometry(" + BINARY_COLUMN_SIZE + ")) tags(t1 geometry(" + BINARY_COLUMN_SIZE + "))",
     };
     private static final int numOfSubTable = 10, numOfRow = 10;
 
@@ -474,26 +483,30 @@ public class ParameterBindingDemo {
         init(conn);
 
         bindInteger(conn);
-
         bindFloat(conn);
-
         bindBoolean(conn);
-
         bindBytes(conn);
-
         bindString(conn);
+        bindVarbinary(conn);
+        bindGeometry(conn);
 
+        clean(conn);
         conn.close();
     }
 
     private static void init(Connection conn) throws SQLException {
+        clean(conn);
         try (Statement stmt = conn.createStatement()) {
-            stmt.execute("drop database if exists test_parabind");
             stmt.execute("create database if not exists test_parabind");
             stmt.execute("use test_parabind");
             for (int i = 0; i < schemaList.length; i++) {
                 stmt.execute(schemaList[i]);
             }
+        }
+    }
+    private static void clean(Connection conn) throws SQLException {
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("drop database if exists test_parabind");
         }
     }
 
@@ -674,10 +687,84 @@ public class ParameterBindingDemo {
             pstmt.columnDataExecuteBatch();
         }
     }
+
+    private static void bindVarbinary(Connection conn) throws SQLException {
+        String sql = "insert into ? using stable6 tags(?) values(?,?)";
+
+        try (TSDBPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSDBPreparedStatement.class)) {
+
+            for (int i = 1; i <= numOfSubTable; i++) {
+                // set table name
+                pstmt.setTableName("t6_" + i);
+                // set tags
+                byte[] bTag = new byte[]{0,2,3,4,5};
+                bTag[0] = (byte) i;
+                pstmt.setTagVarbinary(0, bTag);
+
+                // set columns
+                ArrayList<Long> tsList = new ArrayList<>();
+                long current = System.currentTimeMillis();
+                for (int j = 0; j < numOfRow; j++)
+                    tsList.add(current + j);
+                pstmt.setTimestamp(0, tsList);
+
+                ArrayList<byte[]> f1List = new ArrayList<>();
+                for (int j = 0; j < numOfRow; j++) {
+                    byte[] v = new byte[]{0,2,3,4,5,6};
+                    v[0] = (byte)j;
+                    f1List.add(v);
+                }
+                pstmt.setVarbinary(1, f1List, BINARY_COLUMN_SIZE);
+
+                // add column
+                pstmt.columnDataAddBatch();
+            }
+            // execute
+            pstmt.columnDataExecuteBatch();
+        }
+    }
+
+    private static void bindGeometry(Connection conn) throws SQLException {
+        String sql = "insert into ? using stable7 tags(?) values(?,?)";
+
+        try (TSDBPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSDBPreparedStatement.class)) {
+
+            byte[] g1 = StringUtils.hexToBytes("0101000000000000000000F03F0000000000000040");
+            byte[] g2 = StringUtils.hexToBytes("0102000020E610000002000000000000000000F03F000000000000004000000000000008400000000000001040");
+            List<byte[]> listGeo = new ArrayList<>();
+            listGeo.add(g1);
+            listGeo.add(g2);
+
+            for (int i = 1; i <= 2; i++) {
+                // set table name
+                pstmt.setTableName("t7_" + i);
+                // set tags
+                pstmt.setTagGeometry(0, listGeo.get(i - 1));
+
+                // set columns
+                ArrayList<Long> tsList = new ArrayList<>();
+                long current = System.currentTimeMillis();
+                for (int j = 0; j < numOfRow; j++)
+                    tsList.add(current + j);
+                pstmt.setTimestamp(0, tsList);
+
+                ArrayList<byte[]> f1List = new ArrayList<>();
+                for (int j = 0; j < numOfRow; j++) {
+                    f1List.add(listGeo.get(i - 1));
+                }
+                pstmt.setGeometry(1, f1List, BINARY_COLUMN_SIZE);
+
+                // add column
+                pstmt.columnDataAddBatch();
+            }
+            // execute
+            pstmt.columnDataExecuteBatch();
+        }
+    }
 }
 ```
 
-**Note**: both setString and setNString require the user to declare the width of the corresponding column in the size parameter of the table definition
+**Note**: both String and byte[] require the user to declare the width of the corresponding column in the size parameter of the table definition
 
 The methods to set VALUES columns:
 
@@ -692,6 +779,8 @@ public void setByte(int columnIndex, ArrayList<Byte> list) throws SQLException
 public void setShort(int columnIndex, ArrayList<Short> list) throws SQLException
 public void setString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException
+public void setVarbinary(int columnIndex, ArrayList<byte[]> list, int size) throws SQLException
+public void setGeometry(int columnIndex, ArrayList<byte[]> list, int size) throws SQLException
 ```
 
 </TabItem>
@@ -880,6 +969,9 @@ public void setTagFloat(int index, float value)
 public void setTagDouble(int index, double value)
 public void setTagString(int index, String value)
 public void setTagNString(int index, String value)
+public void setTagJson(int index, String value)
+public void setTagVarbinary(int index, byte[] value)
+public void setTagGeometry(int index, byte[] value)
 ```
 
 ### Schemaless Writing

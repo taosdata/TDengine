@@ -18,12 +18,13 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
     PRIVATE "${TD_SOURCE_DIR}/include/common"
     PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
+    PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/sz/inc"
 )
 target_link_libraries(
     util
     PUBLIC os
     PUBLIC lz4_static
-    PUBLIC api cjson geos_c
+    PUBLIC api cjson geos_c TSZ
 )
 
 if(${BUILD_TEST})

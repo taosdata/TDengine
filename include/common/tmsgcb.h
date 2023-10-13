@@ -52,6 +52,7 @@ typedef struct {
   void*                   data;
   void*                   mgmt;
   void*                   clientRpc;
+  void*                   serverRpc;
   PutToQueueFp            putToQueueFp;
   GetQueueSizeFp          qsizeFp;
   SendReqFp               sendReqFp;

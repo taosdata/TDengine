@@ -123,6 +123,7 @@ enum {
   SIM_CMD_RETURN,
   SIM_CMD_LINE_INSERT,
   SIM_CMD_LINE_INSERT_ERROR,
+  SIM_CMD_SET_BI_MODE,
   SIM_CMD_END
 };
 
@@ -161,6 +162,7 @@ typedef struct _script_t {
   bool              killed;
   void             *taos;
   char              rows[12];                                                         // number of rows data retrieved
+  char              cols[12];                                                        // number of columns data retrieved
   char              data[MAX_QUERY_ROW_NUM][MAX_QUERY_COL_NUM][MAX_QUERY_VALUE_LEN];  // query results
   char              system_exit_code[12];
   char              system_ret_content[MAX_SYSTEM_RESULT_LEN];
@@ -210,6 +212,7 @@ bool     simExecuteSqlSlowCmd(SScript *script, char *option);
 bool     simExecuteRestfulCmd(SScript *script, char *rest);
 bool     simExecuteLineInsertCmd(SScript *script, char *option);
 bool     simExecuteLineInsertErrorCmd(SScript *script, char *option);
+bool     simExecuteSetBIModeCmd(SScript *script, char *option);
 void     simVisuallizeOption(SScript *script, char *src, char *dst);
 
 #endif /*_TD_SIM_INT_H_*/

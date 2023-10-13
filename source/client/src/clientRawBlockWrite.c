@@ -1412,7 +1412,7 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
   code = smlBuildOutput(pQuery, pVgHash);
   if (code != TSDB_CODE_SUCCESS) {
     uError("smlBuildOutput failed");
-    return code;
+    goto end;
   }
 
   launchQueryImpl(pRequest, pQuery, true, NULL);
@@ -1497,7 +1497,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
   code = smlBuildOutput(pQuery, pVgHash);
   if (code != TSDB_CODE_SUCCESS) {
     uError("smlBuildOutput failed");
-    return code;
+    goto end;
   }
 
   launchQueryImpl(pRequest, pQuery, true, NULL);

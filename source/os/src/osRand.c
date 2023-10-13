@@ -86,6 +86,7 @@ void taosRandStr(char* str, int32_t size) {
 }
 
 void taosRandStr2(char* str, int32_t size) {
+
   const char* set = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ@";
   int32_t     len = strlen(set);
 

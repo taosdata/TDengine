@@ -45,9 +45,9 @@ class TMQCom:
         tdSql.init(conn.cursor())
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def initConsumerTable(self,cdbName='cdb'):
+    def initConsumerTable(self,cdbName='cdb', replicaVar=1):
         tdLog.info("create consume database, and consume info table, and consume result table")
-        tdSql.query("create database if not exists %s vgroups 1"%(cdbName))
+        tdSql.query("create database if not exists %s vgroups 1 replica %d"%(cdbName,replicaVar))
         tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
         tdSql.query("drop table if exists %s.consumeresult "%(cdbName))
         tdSql.query("drop table if exists %s.notifyinfo "%(cdbName))

@@ -129,7 +129,15 @@ void    grantParseParameter() { mError("can't parsed parameter k"); }
 void    grantReset(SMnode *pMnode, EGrantType grant, uint64_t value) {}
 void    grantAdd(EGrantType grant, uint64_t value) {}
 void    grantRestore(EGrantType grant, uint64_t value) {}
-int32_t dmProcessGrantReq(void* pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
+int32_t dmProcessGrantReq(void *pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
+int32_t dmProcessGrantNotify(void *pInfo, SRpcMsg *pMsg) { return TSDB_CODE_SUCCESS; }
+#ifndef TD_GRANT_OPTIMIZE
+int32_t grantAlterActiveCode(const char *old, const char *new, char *out, int8_t type) { return TSDB_CODE_SUCCESS; }
+#else
+int32_t grantAlterActiveCode(int32_t did, const char *old, const char *new, char *out, int8_t type) {
+  return TSDB_CODE_SUCCESS;
+}
+#endif
 
 #endif
 
