@@ -79,7 +79,7 @@ fn main() {
         let file = dsn.replacen("sqlite:", "", 1);
         println!("cargo:rerun-if-changed={file}");
 
-        sqlx::test_block_on(init_sqlx(&dsn)).unwrap();
+        let _ = sqlx::test_block_on(init_sqlx(&dsn));
     } else {
         let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         let root = std::path::Path::new(&manifest_dir);

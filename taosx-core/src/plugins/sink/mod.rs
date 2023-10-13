@@ -29,7 +29,7 @@ use tracing::{debug, error, info, instrument, Instrument, Span};
 
 use crate::{ConnectorLicense, OPCConfig, Parser, Transferred};
 
-use super::runners::opc::{opc_config_blocking, ColumnConfig, OpcTableConfig};
+use super::runners::opc::{ColumnConfig, OpcTableConfig};
 use super::*;
 use metrics::*;
 use taosx_ipc::{
@@ -45,7 +45,7 @@ use taosx_ipc::{
 //     Records(Vec<(String, Vec<ColumnView>)>),
 // }
 
-#[instrument(skip(stream, cancel, token))]
+#[instrument(skip(stream, cancel, token, config))]
 async fn ipc_tcp_forward(
     client: String,
     stream: std::net::TcpStream, // socket2::Socket,
@@ -53,6 +53,7 @@ async fn ipc_tcp_forward(
     remote: String, // "http://127.0.0.1:6051"
     token: String,
     task_id: i64,
+    config: Option<OpcTableConfig>,
 ) -> anyhow::Result<()> {
     use md5;
     tracing::info!("token: {}", format!("{:x}", md5::compute(token.clone())));
@@ -71,31 +72,20 @@ async fn ipc_tcp_forward(
         tokio::task::spawn_blocking(move || AckWriterBuilder::new(ack).open(stream)).await?;
 
     let schema = ipc_reader.schema.clone();
-    // dbg!(&schema);
-    // let (sender, receiver) = flume::bounded(5);
+    let mut schema = schema.as_ref().clone();
+    if let Some(config) = config.as_ref() {
+        schema.metadata.insert(
+            "config".to_string(),
+            serde_json::to_string(&config).unwrap(),
+        );
+    }
+    // info!(schema = ?schema, "append table config to schema");
+    let schema: Arc<Schema> = Arc::new(schema);
 
     info!(client, remote, "reading batches");
-    // tokio::spawn(async move {
-    //     let mut batches = ipc_reader.into_raw_stream();
-    //     while let Some(res) = batches.next().await {
-    //         dbg!(&res);
-    //         if sender
-    //             .send_async(res.map_err(FlightError::from))
-    //             .await
-    //             .is_err()
-    //         {
-    //             tracing::info!("IPC remote handler has been closed");
-    //             break;
-    //         }
-    //     }
-    //     tracing::info!("[task:{task_id}] stopped");
-    // });
-    // tokio::task::yield_now().await;
 
     let ipc_stream = ipc_reader.into_raw_stream();
 
-    // let max_retries_in_one_minutes = 3;
-    // let last_retry_time = Arc::new(AtomicUsize::new(0));
     'start: loop {
         let data_stream = ipc_stream.clone();
         let data = FlightDataEncoderBuilder::new()
@@ -103,7 +93,11 @@ async fn ipc_tcp_forward(
             .with_options(
                 IpcWriteOptions::try_new(8, false, arrow::ipc::MetadataVersion::V5).unwrap(),
             )
-            .build(data_stream.map_err(FlightError::from));
+            .build(
+                data_stream
+                    .inspect(|v| debug!("{:?}", v))
+                    .map_err(FlightError::from),
+            );
 
         const MAX_RETRIES: usize = 3;
         const RETRY_DELAY: Duration = Duration::from_secs(5);
@@ -123,6 +117,7 @@ async fn ipc_tcp_forward(
                 }
             }
         };
+        let alive = std::time::Instant::now();
         let mut client = FlightClient::new(channel);
         client.add_header("x-task-id", &task_id.to_string())?;
         client.add_header("x-token", &token)?;
@@ -155,16 +150,17 @@ async fn ipc_tcp_forward(
                         if status
                             .message()
                             .contains("stream closed because of a broken pipe")
+                            || status.message() == "ExternalError(Disconnected)"
                         {
-                            tracing::warn!("Disconnected, retry after one second: {err:#}");
+                            tracing::warn!(alive = ?alive.elapsed(), "Disconnected, retry after one second: {err:#}");
                             tokio::time::sleep(Duration::from_secs(1)).await;
                             continue 'start;
                         }
-                        tracing::error!("Tonic error: {status}");
+                        tracing::error!(alive = ?alive.elapsed(), "Tonic error: {status}");
                         Err(err).context("Got server response with error")?;
                     }
                     _ => {
-                        tracing::error!("Other error: {err:#}");
+                        tracing::error!(alive = ?alive.elapsed(), "Other error: {err:#}");
                         Err(err).context("Got server response with error")?;
                     }
                 },
@@ -172,7 +168,7 @@ async fn ipc_tcp_forward(
             let _ = ipc_ack_writer.write_ok();
         }
 
-        info!("[{task_id}] Putting stream finished");
+        info!(alive = ?alive.elapsed(), "[{task_id}] Putting stream finished");
         break;
     }
     Ok(())
@@ -181,8 +177,9 @@ async fn ipc_tcp_forward(
 async fn try_establish_channel(remote: String) -> anyhow::Result<Channel> {
     let endpoint = tonic::transport::Endpoint::try_from(remote)?
         .keep_alive_while_idle(true)
-        .keep_alive_timeout(Duration::from_secs(120))
-        .http2_keep_alive_interval(Duration::from_secs(13));
+        .keep_alive_timeout(Duration::from_secs(300))
+        .http2_keep_alive_interval(Duration::from_secs(13))
+        .tcp_keepalive(Some(Duration::from_secs(7)));
     let channel = endpoint.connect().await?;
     Ok(channel)
 }
@@ -679,7 +676,7 @@ async fn consume_point_record(
                 anyhow::bail!("id: {id} failded to get stable");
             };
             let child_table_name = format!("{}", point_config.code);
-            
+
             // child_table_name.push_str(format!("_{}", point_config.code).as_str());
             // let mut insert_sql = format!("insert into `{child_table_name}` ");
             let mut values = String::new();
@@ -2084,12 +2081,14 @@ impl IpcStreamWorker {
         span: tracing::Span,
         // license: Option<>
     ) -> anyhow::Result<Self> {
-        let config = if from.driver.starts_with("opc") {
-            let taos = pool.get().await?;
-            Some(opc_config_blocking(&taos, &from, 1).await?)
-        } else {
-            None
-        };
+        let opc_table_config = OnceCell::const_new();
+        if let Some(config) = schema.metadata().get("config") {
+            opc_table_config
+                .get_or_try_init(|| async {
+                    serde_json::from_str::<OpcTableConfig>(config).context("config error")
+                })
+                .await?;
+        }
 
         // let stmt = Stmt::init(&taos)?;
         Ok(Self {
@@ -2098,8 +2097,8 @@ impl IpcStreamWorker {
             parser: IpcParser::new(schema),
             lock: lock,
             task: None,
-            config,
-            opc_table_config: OnceCell::const_new(),
+            config: None,
+            opc_table_config,
             license,
             transferred, // stmt: Arc::new(UnsafeCell::new(stmt)),
             span,
@@ -2219,27 +2218,44 @@ impl IpcStreamWorker {
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
                 })
                 .unwrap();
-                let config = self
-                    .config
-                    .as_ref()
-                    .ok_or_else(|| anyhow::format_err!("OPC table config not found"))?;
+                // let config = self
+                //     .config
+                //     .as_ref()
+                //     .ok_or_else(|| anyhow::format_err!("OPC table config not found"))?;
 
-                let guard = self.lock.lock().await;
-                let res = self.opc_table_config.get();
-                let config = match res {
-                    Some(config) => config,
-                    None => {
-                        let _v = config.parse_tables_with(&taos).await?;
-                        self.opc_table_config
-                            .get_or_try_init(|| async { config.parse_tables_with(&taos).await })
-                            .await?
-                    }
-                };
-                drop(guard);
+                // let guard = self.lock.lock().await;
+                // let res = self.opc_table_config.get();
+                // let config = match res {
+                //     Some(config) => config,
+                //     None => {
+                //         // let _v = config.parse_tables_with(&taos).await?;
+                //         // let schema = record.schema();
+
+                //         self.opc_table_config
+                //             .get_or_try_init(|| async {
+                //                 if let Some(config) = schema.metadata().get("config") {
+                //                     serde_json::from_str::<OpcTableConfig>(config)
+                //                         .context("config error")
+                //                 } else {
+                //                     config.parse_tables_with(&taos).await
+                //                 }
+                //             })
+                //             .await?
+                //     }
+                // };
+                // drop(guard);
                 let mut taos = Some(self.pool.get().await?);
-                let _n =
-                    consume_point_record(&self.pool, &mut taos, stmt, &record, &mut count, config)
-                        .await?;
+                let _n = consume_point_record(
+                    &self.pool,
+                    &mut taos,
+                    stmt,
+                    &record,
+                    &mut count,
+                    self.opc_table_config
+                        .get()
+                        .ok_or_else(|| anyhow::format_err!("OPC table config not found"))?,
+                )
+                .await?;
                 if let Some(transferred) = &self.transferred {
                     transferred.points.fetch_add(_n as _, Ordering::SeqCst);
                 }
@@ -2324,6 +2340,7 @@ pub async fn listen_tcp_socket_with_agent(
     socket: impl AsRef<str>,
     cancel: CancellationToken,
     with_agent: (i64, String, String),
+    config: Option<OpcTableConfig>,
 ) -> anyhow::Result<IpcHandler> {
     let addr = socket.as_ref();
 
@@ -2348,11 +2365,12 @@ pub async fn listen_tcp_socket_with_agent(
                 let se = sender.clone();
                 let cancel = cancel.clone();
                 let (id, remote, token) = with_agent.clone();
+                    let config = config.clone();
 
                 tokio::spawn(async move {
                     let client = addr.to_string();
                     let res =
-                        ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id).await;
+                        ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id, config).await;
                     if let Err(err) = res {
                         tracing::error!("{:?}", err);
                         let r = se.send(format!("{err:?}")).await;
@@ -2497,8 +2515,9 @@ pub async fn listen_tcp_socket(
                 let cancel = cancel.clone();
 
                 if let Some((id, server, token)) = with_agent.clone() {
+                    let config = config.clone();
                     tokio::spawn(async move {
-                        let res = ipc_tcp_forward(client, stream, cancel, server, token, id).await;
+                        let res = ipc_tcp_forward(client, stream, cancel, server, token, id, config).await;
                         if let Err(err) = res {
                             // panic!("{err:?}");
                             tracing::error!("ipc read err: {}", err);

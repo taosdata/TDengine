@@ -149,7 +149,7 @@ impl PiConfig {
         }
         let max_backfill_range_days = parse_int_at!("MaxBackfillRangeDays");
 
-        let mut template_for_pi_point = dsn
+        let template_for_pi_point = dsn
             .remove("TemplateForPIPoint")
             .unwrap_or_default()
             .split(',')
@@ -157,7 +157,7 @@ impl PiConfig {
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string())
             .collect_vec();
-        let mut template_for_af_element = dsn
+        let template_for_af_element = dsn
             .remove("TemplateForAFElement")
             .unwrap_or_default()
             .split([',', '\n'])
@@ -166,7 +166,7 @@ impl PiConfig {
             .map(|s| s.to_string())
             .collect_vec();
 
-        let mut point_list =
+        let point_list =
             super::mqtt::get_string_from_param_or_file(&mut dsn, "PointList", false, Some(","))
                 .map_err(|err| PiError::ParseKeyValueError("PointList", err))?
                 .unwrap_or_default()
@@ -1032,18 +1032,22 @@ fn extend_data_set(
     }
 }
 
-#[test]
-fn test_config() {
+#[tokio::test]
+async fn test_config() {
     dbg!(std::env::current_dir().unwrap());
     let dsn: Dsn = "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=@../tests/pi/Points.csv&template_for_af_element_file=@../tests/pi/ElementTemplates2.csv"
         .parse()
         .unwrap();
-    let config = PiConfig::new(dsn, "taos".to_string(), 0, 0, false).unwrap();
+    let config = PiConfig::new(dsn, "taos".to_string(), 0, 0, false)
+        .await
+        .unwrap();
     dbg!(&config);
 
     let dsn: Dsn = "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=app\napp\napp"
         .parse()
         .unwrap();
-    let config2 = PiConfig::new(dsn, "taos".to_string(), 0, 0, false).unwrap();
+    let config2 = PiConfig::new(dsn, "taos".to_string(), 0, 0, false)
+        .await
+        .unwrap();
     dbg!(&config2);
 }

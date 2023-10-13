@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::serve::check_parser_timestamp_precision;
@@ -9,7 +9,7 @@ use clap::Parser;
 use metrics_util::debugging::Snapshotter;
 use taos::*;
 use taosx_core::utils::{self};
-use taosx_core::{Action, METRICS_TIME_START, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND};
+use taosx_core::{Action, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND, METRICS_TIME_START};
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
 
@@ -108,7 +108,7 @@ impl Cli {
                 bail!("parser should have same timestamp precision");
             }
         }
-        let span = tracing::info_span!("cli");
+        // let span = tracing::info_span!("cli");
         let cancel = CancellationToken::new();
         let span = tracing::Span::current();
         // let _ = span.clone().entered();
@@ -148,7 +148,7 @@ impl Cli {
                 std::thread::sleep(Duration::from_secs(5));
             }
         });
-        
+
         let port_pool = Default::default();
         tokio::select! {
             res = task_opt.run(&port_pool).in_current_span() => {
@@ -169,24 +169,29 @@ impl Cli {
 /// difference with metrics info get is time process
 fn print_metrics(snapshotter: Arc<Snapshotter>) -> Result<()> {
     let snapshot = snapshotter.snapshot();
-    let mut map = snapshot.into_hashmap().into_iter().map(|(k, v)| {
-        (
-            k.key().name().to_string(),
-            match v.2 {
-                metrics_util::debugging::DebugValue::Gauge(c) => {
-                    serde_json::Number::from_f64(c.0)
-                }
-                metrics_util::debugging::DebugValue::Counter(c) => Some(c.into()),
-                _ => None,
-            },
-        )
-    })
-    .collect::<std::collections::BTreeMap<_, _>>();
+    let mut map = snapshot
+        .into_hashmap()
+        .into_iter()
+        .map(|(k, v)| {
+            (
+                k.key().name().to_string(),
+                match v.2 {
+                    metrics_util::debugging::DebugValue::Gauge(c) => {
+                        serde_json::Number::from_f64(c.0)
+                    }
+                    metrics_util::debugging::DebugValue::Counter(c) => Some(c.into()),
+                    _ => None,
+                },
+            )
+        })
+        .collect::<std::collections::BTreeMap<_, _>>();
     let task_started_timestamp = map.get(METRICS_TIME_START);
     if task_started_timestamp.is_some() {
         let task_started_timestamp = task_started_timestamp.clone().unwrap().clone().unwrap();
         let time_elapsed_in_seconds = {
-            let time_elasped = (Utc::now().timestamp_millis() - task_started_timestamp.as_f64().unwrap() as i64) / 1000;
+            let time_elasped = (Utc::now().timestamp_millis()
+                - task_started_timestamp.as_f64().unwrap() as i64)
+                / 1000;
             if time_elasped < 1 {
                 Some(1)
             } else {
@@ -194,13 +199,30 @@ fn print_metrics(snapshotter: Arc<Snapshotter>) -> Result<()> {
             }
         };
         if time_elapsed_in_seconds.is_some() {
-            map.insert(METRICS_TIME_COST.to_string(), Some((time_elapsed_in_seconds.unwrap()).into()));
-            let records_vec = map.iter().filter(|(k, _v)| k.contains("records")).map(|(_k, v)| v).collect_vec();
+            map.insert(
+                METRICS_TIME_COST.to_string(),
+                Some((time_elapsed_in_seconds.unwrap()).into()),
+            );
+            let records_vec = map
+                .iter()
+                .filter(|(k, _v)| k.contains("records"))
+                .map(|(_k, v)| v)
+                .collect_vec();
             let records = records_vec.get(0);
             if records.is_some() {
                 // should be safe
-                let records = records.unwrap().clone().clone().unwrap().clone().as_i64().unwrap();
-                map.insert(METRICS_TIME_RECORDS_PER_SECOND.to_string(), Some((records / time_elapsed_in_seconds.unwrap()).into()));
+                let records = records
+                    .as_ref()
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+                    .clone()
+                    .as_i64()
+                    .unwrap();
+                map.insert(
+                    METRICS_TIME_RECORDS_PER_SECOND.to_string(),
+                    Some((records / time_elapsed_in_seconds.unwrap()).into()),
+                );
             }
         }
     }
