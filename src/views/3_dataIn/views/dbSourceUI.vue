@@ -624,7 +624,7 @@
           v-else
           type="primary"
           @click="save"
-          :disabled="disable"
+          :disabled="!checkResult.valid && !checkResult.support"
           size="small"
           >{{ isEditable ? $t("save") : $t("add") }}</el-button
         >
@@ -834,6 +834,9 @@ export default {
     },
     sourceName() {
       return this.$store.state.app.currentDSName || ""
+    },
+    targetDatabase() {
+      return this.$store.state.app.currentDBName || ""
     }
   },
   watch: {
@@ -1060,13 +1063,14 @@ export default {
       this.resultVisible = false
     },
     clickCheckBtn() {
+      this.checkResult = this.$options.data().checkResult
       this.submit(false)
     },
     // 数据源可用性和版本检查
     async getValidateResult(dns) {
       try {
         this.checkLoading = true
-        let result = await validateTask(dns)
+        let result = await validateTask(dns,this.agentId)
         console.log('result',result);
         this.resultVisible = true // 展示检测结果
         this.checkResult = result
@@ -1102,11 +1106,11 @@ export default {
             return;
           }
         }
-        if (!this.sourceName) {
+        if (!this.sourceName && isSubmit) {
           Message.warning(`${enterTip} ${this.$t('name')}`);
           return;
         }
-        if (!this.$store.state.app.currentDBName) {
+        if (!this.targetDatabase && isSubmit) {
           Message.warning(`${enterTip} ${this.$t('stream.targetDB')}`);
           return;
         }
@@ -1185,7 +1189,7 @@ export default {
                   data.groups[index].params[g],
                   "required"
                 ) &&
-                data.groups[index].params[g]["value"] == ""
+                !this.handleEmptyValue(data.groups[index].params[g]["value"])
               ) {
                 Message({
                   type: "warning",
@@ -1316,23 +1320,6 @@ export default {
               }
             });
           });
-          this.dbsource[0].groups.forEach((group) => {
-            group.params.forEach((p) => {
-              if (
-                Object.hasOwnProperty.call(p, "required") &&
-                p.value == null
-              ) {
-                requireTip += `${p.display}` + ",";
-              }
-            });
-          });
-          if (requireTip != "") {
-            Message({
-              type: "warning",
-              message: `${enterTip} ${requireTip.replace(/,$/g, "")} `,
-            });
-            return;
-          }
         }
         dns += querystr ? (dns.includes("?") ? "&" : "?") + querystr.replace(/&$/g, "") : "";
         
@@ -1349,7 +1336,7 @@ export default {
           to:
             "taos+" +
             localStorage.getItem("base_url") +
-            (this.$store.state.app.currentDBName ? "/" + this.$store.state.app.currentDBName : ""),
+            (this.targetDatabase ? "/" + this.targetDatabase : ""),
           labels: [
             "type::datain",
             `cluster-id::${id}`,
@@ -1360,20 +1347,24 @@ export default {
           apiParams["via"] = this.agentId;
         }
         if (this.tagName === "datasource" || this.tagName === "taos") {
-          if (this.isEditable) {
-            let result = await EditSource(apiParams, this.editId);
-            if (result.message) {
-              Message.error(result.message);
-              return;
+          if (isSubmit) {
+            if (this.isEditable) {
+              let result = await EditSource(apiParams, this.editId);
+              if (result.message) {
+                Message.error(result.message);
+                return;
+              }
+              this.$parent.toggleComponent("tmqtable");
+            } else {
+              let result = await AddSource(apiParams);
+              if (result.message) {
+                Message.error(result.message);
+                return;
+              }
+              this.$parent.toggleComponent("tmqtable");
             }
-            this.$parent.toggleComponent("tmqtable");
           } else {
-            let result = await AddSource(apiParams);
-            if (result.message) {
-              Message.error(result.message);
-              return;
-            }
-            this.$parent.toggleComponent("tmqtable");
+            this.getValidateResult(apiParams.from)
           }
         } else {
           let piParams = {
@@ -1395,7 +1386,7 @@ export default {
             to:
               "taos+" +
               localStorage.getItem("base_url") +
-              (this.$store.state.app.currentDBName? "/" + this.$store.state.app.currentDBName : ""),
+              (this.targetDatabase? "/" + this.targetDatabase : ""),
             labels: [
               "type::datain",
               `cluster-id::${id}`,

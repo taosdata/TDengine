@@ -3,24 +3,26 @@
     :visible.sync="resultVisible"
     width="500px"
     :show-close="false"
-    title="数据源连通性及版本检测"
+    title="提示"
   >
-    <p class="text">
-      {{ content }}
-    </p>
+    <div class="text">
+      <i :class="content.icon"></i>
+      <span>{{ content.contentText  }}</span>
+    </div>
     <span
       slot="footer"
       class="dialog-footer"
       v-if="JSON.stringify(result) !== '{}'"
     >
       <el-button type="primary" size="small" plain @click="handleClose"
-        >确 定</el-button
+        >{{ $t('confirm') }}</el-button
       >
     </span>
   </el-dialog>
 </template>
 
 <script>
+
 export default {
   name: "ResultDialog",
   props: {
@@ -61,23 +63,28 @@ export default {
       },
     },
     content() {
-      let contentText = "";
+      let contentText = '';
+      let icon = ''
       const { valid, support, version, message } = this.result;
       if (valid) {
         if (support) {
           contentText = version
             ? this.$t("dataIn.successVersionTip").replace("{version}", version)
             : this.$t("dataIn.successTip");
+          icon = 'el-icon-success'
         } else {
           contentText = this.$t("dataIn.unSupportTip").replace(
             "{version}",
             version
           );
+          icon = 'el-icon-error'
         }
       } else {
         contentText = this.$t("dataIn.failTip") + message;
+        icon = 'el-icon-error'
       }
-      return contentText;
+      console.log('tyy');
+      return {contentText,icon};
     },
   },
   methods: {
@@ -89,7 +96,7 @@ export default {
 };
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 ::v-deep .el-progress.is-success .el-progress__text {
   color: #33b169 !important;
   font-size: 28px !important;
@@ -107,24 +114,28 @@ export default {
 }
 
 .text {
+  display: flex;
+  align-items: center;
   text-align: left;
   font-size: 16px;
   font-weight: 500;
   padding: 10px;
-  white-space: pre-wrap;
-  word-break: break-all;
-  word-wrap: break-word;
+  >span{
+    white-space: pre-wrap;
+    word-break: break-all;
+    word-wrap: break-word;
+  }
 }
 
-.text-success {
-  color: #33b169;
-  padding-bottom: 10px;
-}
-.text-error {
+.el-icon-error {
   color: #ff2e4d;
-  padding-bottom: 10px;
+  font-size: 20px;
+  margin-right: 10px;
 }
-.text-content {
-  padding-left: 20px;
+.el-icon-success{
+  color: #33b169;
+  font-size: 20px;
+  margin-right: 10px;
 }
+
 </style>
