@@ -2303,7 +2303,7 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
     return;
   }
 
-  sTrace("vgId:%d, eq peer hb timer, rid:%" PRId64 " addr:%" PRId64, pSyncNode->vgId, hbDataRid, pData->destId.addr);
+  sTrace("vgId:%d, eq peer hb timer, rid:%" PRId64 " addr:%" PRIu64, pSyncNode->vgId, hbDataRid, pData->destId.addr);
 
   if (pSyncNode->totalReplicaNum > 1) {
     int64_t timerLogicClock = atomic_load_64(&pSyncTimer->logicClock);

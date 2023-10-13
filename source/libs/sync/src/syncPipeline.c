@@ -605,6 +605,9 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
   SSyncRaftEntry* pNextEntry = NULL;
   bool            nextInBuf = false;
 
+  // sError("vgId:%d, syncLogBufferCommit. current:%" PRId64 ", notified:%" PRId64 "", vgId, pBuf->commitIndex,
+  //        commitIndex);
+
   if (commitIndex <= pBuf->commitIndex) {
     sDebug("vgId:%d, stale commit index. current:%" PRId64 ", notified:%" PRId64 "", vgId, pBuf->commitIndex,
            commitIndex);

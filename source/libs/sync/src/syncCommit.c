@@ -60,7 +60,8 @@ bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index) {
   ASSERT(pNode->replicaNum == pMatches->replicaNum);
 
   for (int i = 0; i < pNode->totalReplicaNum; i++) {
-    if(pNode->raftCfg.cfg.nodeInfo[i].nodeRole == TAOS_SYNC_ROLE_VOTER){
+    if (pNode->raftCfg.cfg.nodeInfo[i].nodeRole == TAOS_SYNC_ROLE_VOTER ||
+        pNode->raftCfg.cfg.nodeInfo[i].nodeRole == TAOS_SYNC_ROLE_ARBITRATOR) {
       SyncIndex matchIndex = pMatches->index[i];
       if (matchIndex >= index) {
         count++;
