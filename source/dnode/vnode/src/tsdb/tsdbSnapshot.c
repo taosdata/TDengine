@@ -424,7 +424,10 @@ int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type,
   reader[0]->ever = ever;
   reader[0]->type = type;
 
+  taosThreadRwlockRdlock(&tsdb->rwLock);
   code = tsdbFSCreateRefSnapshot(tsdb->pFS, &reader[0]->fsetArr);
+  taosThreadRwlockUnlock(&tsdb->rwLock);
+
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -1045,6 +1048,7 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWr
   writer[0]->precision = pTsdb->keepCfg.precision;
   writer[0]->minRow = pTsdb->pVnode->config.tsdbCfg.minRows;
   writer[0]->maxRow = pTsdb->pVnode->config.tsdbCfg.maxRows;
+  writer[0]->cmprAlg = pTsdb->pVnode->config.tsdbCfg.compression;
   writer[0]->commitID = tsdbFSAllocEid(pTsdb->pFS);
   writer[0]->szPage = pTsdb->pVnode->config.tsdbPageSize;
   writer[0]->compactVersion = INT64_MAX;

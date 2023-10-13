@@ -63,17 +63,17 @@ import CDemo from "./_sub_c.mdx";
     typedef void(tmq_commit_cb(tmq_t *tmq, int32_t code, void *param));
 
     typedef enum tmq_conf_res_t {
-    TMQ_CONF_UNKNOWN = -2,
-    TMQ_CONF_INVALID = -1,
-    TMQ_CONF_OK = 0,
-} tmq_conf_res_t;
+        TMQ_CONF_UNKNOWN = -2,
+        TMQ_CONF_INVALID = -1,
+        TMQ_CONF_OK = 0,
+    } tmq_conf_res_t;
 
     typedef struct tmq_topic_assignment {
-    int32_t vgId;
-    int64_t currentOffset;
-    int64_t begin;
-    int64_t end;
-} tmq_topic_assignment;
+        int32_t vgId;
+        int64_t currentOffset;
+        int64_t begin;
+        int64_t end;
+    } tmq_topic_assignment;
 
     DLL_EXPORT tmq_conf_t    *tmq_conf_new();
     DLL_EXPORT tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value);
@@ -106,7 +106,7 @@ import CDemo from "./_sub_c.mdx";
     DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
     DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
     DLL_EXPORT int64_t     tmq_get_vgroup_offset(TAOS_RES* res);
-    DLL_EXPORT const char *tmq_err2str(int32_t code);DLL_EXPORT void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param);
+    DLL_EXPORT const char *tmq_err2str(int32_t code);
 ```
 
 下面介绍一下它们的具体用法（超级表和子表结构请参考“数据建模”一节），完整的示例代码请见下面 C 语言的示例代码。
@@ -351,10 +351,10 @@ CREATE TOPIC topic_name [with meta] AS DATABASE db_name;
 |       `td.connect.port`        | integer | 服务端的端口号                         |  |
 |           `group.id`           | string  | 消费组 ID，同一消费组共享消费进度                        | <br />**必填项**。最大长度：192。<br />每个topic最多可建立100个 consumer group                 |
 |          `client.id`           | string  | 客户端 ID                                                | 最大长度：192。                             |
-|      `auto.offset.reset`       |  enum   | 消费组订阅的初始位置                                     | <br />`earliest`: default;从头开始订阅; <br/>`latest`: 仅从最新数据开始订阅; <br/>`none`: 没有提交的 offset 无法订阅 |
+|      `auto.offset.reset`       |  enum   | 消费组订阅的初始位置                                     | <br />`earliest`: default(version < 3.2.0.0);从头开始订阅; <br/>`latest`: default(version >= 3.2.0.0);仅从最新数据开始订阅; <br/>`none`: 没有提交的 offset 无法订阅 |
 |      `enable.auto.commit`      | boolean | 是否启用消费位点自动提交，true: 自动提交，客户端应用无需commit；false：客户端应用需要自行commit     | 默认值为 true                   |
 |   `auto.commit.interval.ms`    | integer | 消费记录自动提交消费位点时间间隔，单位为毫秒           | 默认值为 5000                                |
-|     `msg.with.table.name`      | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句）               |默认关闭 |
+|     `msg.with.table.name`      | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句）（从3.2.0.0版本该参数废弃，恒为true）               |默认关闭 |
 
 对于不同编程语言，其设置方式如下：
 
@@ -459,7 +459,19 @@ from taos.tmq import Consumer
 # Syntax: `consumer = Consumer(configs)`
 #
 # Example:
-consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
+consumer = Consumer(
+    {
+        "group.id": "local",
+        "client.id": "1",
+        "enable.auto.commit": "true",
+        "auto.commit.interval.ms": "1000",
+        "td.connect.ip": "127.0.0.1",
+        "td.connect.user": "root",
+        "td.connect.pass": "taosdata",
+        "auto.offset.reset": "earliest",
+        "msg.with.table.name": "true",
+    }
+)
 ```
 
 </TabItem>
