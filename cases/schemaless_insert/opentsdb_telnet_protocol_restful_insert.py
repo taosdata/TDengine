@@ -215,7 +215,7 @@ class TestOpentsdbTelnetRestfulInsert(TDCase):
         input_sql = f'{stb_name} 1626006833640 t t1={self.tdCom.get_long_name(legal_length+1)}'
         res = self.tdRest.schemalessApiPost(sql=input_sql, url_type="telnet", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("Invalid binary/nchar column/tag length", res.text)
+        self.tdSql.checkIn("Invalid varbinary/binary/nchar column/tag length", res.text)
 
     def col_value_length_check(self):
         """

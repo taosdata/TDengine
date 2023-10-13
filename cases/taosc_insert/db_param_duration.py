@@ -56,6 +56,12 @@ class TestDuration(TDCase):
         for param_value in self.cfg["boundary"]:
             dbname = self.tdCom.get_long_name()
             kv_dict = {test_param: param_value}
+            int_part = int(''.join(list(filter(str.isdigit, str(param_value).strip()))))
+            str_part = str(''.join(list(filter(str.isalpha, str(param_value).strip()))))
+            new_keep_value = str(int_part * 3) + str_part
+            if int_part < 1440:
+                new_keep_value = str(1440) + str_part
+            kv_dict["keep"] = new_keep_value
             self.tdCom.createDb(dbname, **kv_dict)
             self.tdSql.query('select * from information_schema.ins_databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
@@ -84,7 +90,7 @@ class TestDuration(TDCase):
             self.tdSql.execute(f'drop database {dbname}')
         for error_value in self.error_value_list:
             self.tdSql.error(f'create database if not exists {dbname} {test_param} {error_value}')
-        
+
     def run(self) -> bool:
         self.duration_check()
 

@@ -237,7 +237,7 @@ class TestInfluxdbLineRestfulInsert(TDCase):
         input_sql = f'{stb_name},t0=t,t1={self.tdCom.get_long_name(self.tdCom.boundary_config["NCHAR_MAX_LENGTH"]+1)} c0=f 1626006833639000000'
         res = self.tdRest.schemalessApiPost(sql=input_sql, precision="ns", dbname=self.dbname)
         self.tdSql.checkEqual(res.status_code, 500)
-        self.tdSql.checkIn("Invalid binary/nchar column/tag length", res.text)
+        self.tdSql.checkIn("Invalid varbinary/binary/nchar column/tag length", res.text)
 
     def col_value_length_check(self):
         """
