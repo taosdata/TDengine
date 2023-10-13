@@ -1,6 +1,6 @@
 import * as mdx from "./mdx";
 import i18n from "@/lang";
-export default [
+export default () => [
   {
     name: "taosDump",
     logo: "https://img1.baidu.com/it/u=3903506244,1663450695&fm=253&fmt=auto&app=138&f=GIF?w=500&h=310",

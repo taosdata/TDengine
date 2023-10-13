@@ -34,13 +34,13 @@
     },
     computed: {
       language() {
-        return localStorage.getItem('local_language') || "en";
+        return this.$i18n.locale;
         // return "en";
       },
       config() {
         let lang = window.decodeURIComponent(this.lang);
         return (
-          config[this.category].find(item => {
+          config[this.category](this.language).find(item => {
             return item.name == lang;
           }) || {}
         );
@@ -81,7 +81,7 @@
     watch: {
       language() {
         //语言切换刷新页面
-        window.location.reload();
+        // window.location.reload();
       },
     },
     mounted() {

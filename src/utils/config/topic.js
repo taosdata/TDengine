@@ -1,7 +1,7 @@
 import * as mdx from "./mdx";
 import i18n from "@/lang";
 
-export default [
+export default () => [
   {
     name: "Python",
     docs: mdx.topicPythonDoc,
