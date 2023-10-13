@@ -1199,12 +1199,7 @@ export default {
           return;
         }
         this.disableallnodeclick = false;
-        // via=${this.$store.state.app.currentAgentID}
-        console.log(
-          this.$store.state.app.currentAgentID,
-          "this.$store.state.app.currentAgentID"
-        );
-        let params = `opcua://${this.dbsource[0].options.endpoint.value}&categories=nodes`;
+        let params = `${this.$store.state.app.currentDBType}://${this.dbsource[0].options.endpoint.value}&categories=nodes`;
         let result = await downlaodAllNodes(
           params,
           this.$store.state.app.currentAgentID

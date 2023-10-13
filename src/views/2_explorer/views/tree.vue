@@ -978,7 +978,7 @@ export default {
 }
 .dbs-tree-container {
   flex: 1;
-  overflow: hidden;
+  overflow: auto;
 }
 .table_wrapper {
   color: #333;

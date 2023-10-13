@@ -223,7 +223,7 @@
             <el-tooltip
                   placement="bottom"
                   effect="light"
-                  :content="$t('datasource.viewconfig')"
+                  :content="$t('datasource.viewconfig').replace('{name}',scope.row.name)"
                 >
             <el-button
               type="primay"
@@ -251,7 +251,7 @@
             <el-tooltip
                   placement="bottom"
                   effect="light"
-                  :content="$t('refresh')"
+                  :content="$t('clone')"
                 >
             <el-button
               plain

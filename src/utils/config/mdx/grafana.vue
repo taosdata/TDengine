@@ -26,7 +26,11 @@
     <h2 id="install-tdengine-plugin">{{ $t("docs.virtual.grafana.step2") }}</h2>
     <el-tabs v-model="activeTab">
     <el-tab-pane name="plugins" label="Plugins">
-      <p>{{$t('docs.virtual.grafana.pluginsdesc')}}</p>
+      <!-- <p>{{$t('docs.virtual.grafana.pluginsdesc')}}</p> -->
+      <p>{{ $t('docs.virtual.grafana.plugin1desc') }}</p>
+      <p>{{ $t('docs.virtual.grafana.plugin2desc') }}</p>
+      <p>{{ $t('docs.virtual.grafana.plugin3desc') }}</p>
+      <p>{{ $t('docs.virtual.grafana.plugin4desc') }}</p>
     </el-tab-pane>
     <el-tab-pane name="script" label="Script"><p>{{ $t('docs.virtual.grafana.script1') }}</p>
     <pre
