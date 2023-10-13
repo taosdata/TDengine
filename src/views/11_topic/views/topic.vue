@@ -9,18 +9,16 @@
     <el-table style="margin-top: 20px" :data="topicList" size="mini" row-key="topic_name">
       <el-table-column width="150" :label="$t('topic.topicName')" prop="topic_name"></el-table-column>
       <el-table-column width="150" :label="$t('topic.DBName')" prop="db_name"></el-table-column>
-      <el-table-column min-width="200" label="SQL" prop="sql">
+      <el-table-column min-width="200" label="SQL" prop="sql" show-overflow-tooltip>
         <template slot-scope="scope">
           <pre v-highlight class="nowrap sql-code pre-code" slot="reference">
           <code class="language-sql" style="overflow:hidden">{{ scope.row.sql }} </code>
         </pre>
         </template>
       </el-table-column>
-      <el-table-column min-width="200" label="DSN" prop="sql">
+      <el-table-column min-width="200" label="DSN" prop="dsn" show-overflow-tooltip>
         <template slot-scope="scope">
-          <pre v-highlight class="nowrap sql-code pre-code" slot="reference">
-          <code class="language-sql" style="overflow:hidden">{{ scope.row.dsn }} </code>
-        </pre>
+        <copy-text :text="scope.row.dsn" isShowBtnText></copy-text>
         </template>
       </el-table-column>
       <el-table-column width="210" :label="$t('createTime')" prop="create_time">
@@ -53,7 +51,13 @@
               icon="el-icon-share"
             ></el-button>
           </el-tooltip>
+          <el-tooltip
+            effect="light"
+            :content="$t('delete')"
+            placement="top"
+          >
           <el-button  plain size="small" @click="del(scope.row)" icon="el-icon-delete"></el-button>
+          </el-tooltip>
         </template>
       </el-table-column>
     </el-table>
@@ -102,11 +106,13 @@
   import { getDSN } from "@/utils/index";
   import { SubscriptionDocsUrl } from "@/const";
   import { parsinginZone } from '@/utils'
+  import CopyText from '@/components/CopyText.vue'
   
   export default {
     components: {
       AddTopic: () => import("../components/addTopic.vue"),
       ManageTopic: () => import("../components/manageTopic.vue"),
+      CopyText
     },
     data() {
       return {

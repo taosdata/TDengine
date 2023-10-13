@@ -4,9 +4,7 @@
       :class="[
         'left-ui',
         // this.$parent.currentTaskStatus == 'running' && !this.$parent.isCopyable
-        isShowEditBtn
-          ? 'readable'
-          : '',
+        isShowEditBtn ? 'readable' : '',
       ]"
     >
       <section>
@@ -44,7 +42,8 @@
           <div
             style="width: 100%"
             v-if="
-              dbsource[0].params && dbsource[0]?.params[0] &&
+              dbsource[0].params &&
+              dbsource[0]?.params[0] &&
               JSON.stringify(dbsource[0]?.params[0]) !== '{}'
             "
           >
@@ -75,7 +74,6 @@
                 class="description"
               ></div>
             </div>
-
           </div>
           <div style="width: 100%">
             <span
@@ -94,7 +92,9 @@
                 style="margin-bottom: 8px"
               ></el-input>
               <div
-                v-html="transforHtml(dbsource[0].options?.endpoint?.description)"
+                v-html="
+                  transforHtml(dbsource[0].options?.endpoint?.description)
+                "
                 class="description"
               ></div>
             </div>
@@ -107,7 +107,7 @@
               ]"
               >{{ dbsource[0].options?.host?.display }}</span
             >
-           
+
             <div class="label-value" v-if="dbsource[0]?.options?.host">
               <el-input
                 size="small"
@@ -331,11 +331,16 @@
       </section>
       <section
         class="dataset"
-        v-if="dbsource[0].datasets && (dbsource[0].datasets.display || dbsource[0].datasets.name)"
+        v-if="
+          dbsource[0].datasets &&
+          (dbsource[0].datasets.display || dbsource[0].datasets.name)
+        "
       >
         <div>
           <div class="block-title">
-            <span>{{ dbsource[0].datasets.display || dbsource[0].datasets.name }}</span>
+            <span>{{
+              dbsource[0].datasets.display || dbsource[0].datasets.name
+            }}</span>
           </div>
           <div
             class="description"
@@ -343,79 +348,149 @@
           ></div>
         </div>
         <template>
-            <el-tabs
-              v-model="activeName"
-              @tab-click="handleClick"
-              class="pi-tab-item"
-              style="margin-top: 8px"
+          <el-tabs
+            v-model="activeName"
+            @tab-click="handleClick"
+            class="pi-tab-item"
+            style="margin-top: 8px"
+          >
+            <div class="upload-flex">
+              <el-radio-group v-model="activeRadio">
+                <el-radio label="select_file">{{ $t("uploadcsv") }}</el-radio>
+                <el-radio label="all_points">{{
+                  activeName === "point_file"
+                    ? $t("allPoints")
+                    : $t("allTemplate")
+                }}</el-radio>
+              </el-radio-group>
+            </div>
+            <el-tab-pane
+              v-for="(p, pind) in dbsource[0].datasets.params"
+              :label="p.display"
+              :name="p.name"
+              :key="p.name"
+              lazy
+              :disabled="
+                !['point_file'].includes(p.name) && !isPiDataArchiveAll
+              "
             >
-              <div class="upload-flex">
-                <el-radio-group v-model="activeRadio">
-                  <el-radio label="select_file">{{ $t('uploadcsv') }}</el-radio>
-                  <el-radio label="all_points">{{ activeName === 'point_file' ? $t('allPoints') : $t('allTemplate') }}</el-radio>
-                </el-radio-group>
-              </div>
-              <el-tab-pane
-                v-for="(p, pind) in dbsource[0].datasets.params"
-                :label="p.display"
-                :name="p.name"
-                :key="p.name"
-                lazy
-                :disabled="
-                  !['point_file'].includes(p.name) && !isPiDataArchiveAll
-                "
+              <div
+                :key="pind"
+                style="margin-bottom: 0px"
+                v-if="activeRadio == 'select_file'"
               >
-                <div :key="pind" style="margin-bottom: 0px" v-if="activeRadio == 'select_file'">
-                  <div class="upload-flex">
-                    <el-upload
-                      class="upload-dataset"
-                      ref="upload"
-                      accept=".csv"
-                      :limit="limit"
-                      :data="uploadData"
-                      :action="uploadUrl"
-                      :on-success="
-                        (response, file, fileList) =>
-                          handleSuccess(response, file, fileList, p.name)
-                      "
-                      :file-list="p.fileList"
-                      :auto-upload="true"
-                      :on-remove="()=>handleRemove(p.name)"
-                      :on-preview="()=>handlePreview(p.value)"
+                <div class="upload-flex">
+                  <el-upload
+                    class="upload-dataset"
+                    ref="upload"
+                    accept=".csv"
+                    :limit="limit"
+                    :data="uploadData"
+                    :action="uploadUrl"
+                    :on-success="
+                      (response, file, fileList) =>
+                        handleSuccess(response, file, fileList, p.name)
+                    "
+                    :file-list="p.fileList"
+                    :auto-upload="true"
+                    :on-remove="() => handleRemove(p.name)"
+                    :on-preview="() => handlePreview(p.value)"
+                  >
+                    <el-button
+                      slot="trigger"
+                      size="small"
+                      type="primary"
+                      style="margin-right: 20px"
+                      >{{ $t("datasource.selectfile") }}
+                    </el-button>
+                  </el-upload>
+                  <template v-if="activeName === 'point_file'">
+                    <el-tooltip
+                      class="item"
+                      effect="light"
+                      :content="$t('downloadTemplateTip')"
+                      placement="top-start"
+                    >
+                      <a href="/Points.csv" download style="padding-left: 16px">
+                        <i
+                          class="el-icon-download"
+                          style="padding-right: 2px"
+                        ></i
+                        >{{ $t("downloadTemplate") }}</a
+                      >
+                    </el-tooltip>
+                    <el-tooltip
+                      class="item"
+                      effect="light"
+                      :content="$t('downloadPiPointTip')"
+                      placement="top-start"
                     >
                       <el-button
-                        slot="trigger"
-                        size="small"
-                        type="primary"
-                        style="margin-right: 20px"
-                        >{{ $t("datasource.selectfile") }}
-                      </el-button>
-                    </el-upload>
-                    <template v-if="activeName === 'point_file'">
-                      <el-tooltip class="item" effect="light" :content="$t('downloadTemplateTip')" placement="top-start">
-                        <a href="/Points.csv" download style="padding-left: 16px;">
-                          <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadTemplate') }}</a>
-                      </el-tooltip>
-                      <el-tooltip class="item" effect="light" :content="$t('downloadPiPointTip')" placement="top-start">
-                        <el-button type="text" style="padding-left: 16px;" @click="searchDatas($t('downloadPiPoint'))" :disabled="loading">
-                          <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadPiPoint') }}</el-button>
-                      </el-tooltip>
-                    </template>
-                    <template v-else>
-                      <el-tooltip class="item" effect="light" :content="$t('downloadTemplateTip')" placement="top-start">
-                        <a href="/ElementTemplates.csv" download>
-                          <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadTemplate') }}</a>
-                      </el-tooltip>
-                      <el-tooltip class="item" effect="light" :content="$t('downloadAfElementTip')" placement="top-start">
-                        <el-button type="text" style="padding-left: 16px;" @click="searchDatas($t('downloadAfElement'))" :disabled="loading">
-                          <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadAfElement') }}</el-button>
-                      </el-tooltip>
-                    </template>
-                    <el-tooltip v-if="isEditable&&p.value&&p.value!='*'" class="item" effect="light" :content="$t('downloadCSVInUseTip')" placement="top-start">
-                      <a :href="downloadUrl+p.value" download style="padding-left: 16px;">
-                        <i class="el-icon-download" style="padding-right: 2px;"></i>{{ $t('downloadCSVInUse') }}</a>
+                        type="text"
+                        style="padding-left: 16px"
+                        @click="searchDatas($t('downloadPiPoint'))"
+                        :disabled="loading"
+                      >
+                        <i
+                          class="el-icon-download"
+                          style="padding-right: 2px"
+                        ></i
+                        >{{ $t("downloadPiPoint") }}</el-button
+                      >
                     </el-tooltip>
-                  </div>
+                  </template>
+                  <template v-else>
+                    <el-tooltip
+                      class="item"
+                      effect="light"
+                      :content="$t('downloadTemplateTip')"
+                      placement="top-start"
+                    >
+                      <a href="/ElementTemplates.csv" download>
+                        <i
+                          class="el-icon-download"
+                          style="padding-right: 2px"
+                        ></i
+                        >{{ $t("downloadTemplate") }}</a
+                      >
+                    </el-tooltip>
+                    <el-tooltip
+                      class="item"
+                      effect="light"
+                      :content="$t('downloadAfElementTip')"
+                      placement="top-start"
+                    >
+                      <el-button
+                        type="text"
+                        style="padding-left: 16px"
+                        @click="searchDatas($t('downloadAfElement'))"
+                        :disabled="loading"
+                      >
+                        <i
+                          class="el-icon-download"
+                          style="padding-right: 2px"
+                        ></i
+                        >{{ $t("downloadAfElement") }}</el-button
+                      >
+                    </el-tooltip>
+                  </template>
+                  <el-tooltip
+                    v-if="isEditable && p.value && p.value != '*'"
+                    class="item"
+                    effect="light"
+                    :content="$t('downloadCSVInUseTip')"
+                    placement="top-start"
+                  >
+                    <a
+                      :href="downloadUrl + p.value"
+                      download
+                      style="padding-left: 16px"
+                    >
+                      <i class="el-icon-download" style="padding-right: 2px"></i
+                      >{{ $t("downloadCSVInUse") }}</a
+                    >
+                  </el-tooltip>
+                </div>
               </div>
               <div
                 v-if="activeRadio == 'select_file'"
@@ -424,7 +499,7 @@
               ></div>
             </el-tab-pane>
           </el-tabs>
-          </template> 
+        </template>
       </section>
       <template v-for="item in dbsource[0].groups">
         <section :class="['groups', item.name]" :key="item.display_order">
@@ -438,10 +513,7 @@
             ></div>
           </div>
           <template v-for="(p, pind) in item.params">
-            <div
-              :key="pind"
-              v-if="item.name !== 'Data Sets' && item.name !== '点位配置'"
-            >
+            <div :key="pind">
               <span :class="['label', p.required ? 'required' : '']">
                 {{ p.display ? p.display : p.name }}
               </span>
@@ -584,29 +656,38 @@
                   </DatePicker>
                 </template>
                 <template v-if="p.hint && Array.isArray(p.hint)">
-                  <el-radio-group v-model="p.value">
-                    <el-radio v-for="r in p.hint" :key="r.display" :label="r.type == 'constant' ? r.value: 'select_time'" class="radio-flex">
+                  <el-radio-group v-model="p.value" class="radio-custom">
+                    <el-radio
+                      v-for="r in p.hint"
+                      :key="r.display"
+                      :label="r.type == 'constant' ? r.value : 'select_time'"
+                      class="radio-flex"
+                    >
                       <DatePicker
                         v-model="r.value"
                         value-format="yyyy-MM-dd HH:mm:ss"
                         type="datetime"
-                        v-if="
-                          r.type == 'time'
-                        "
+                        v-if="r.type == 'time'"
                         :picker-options="
                           p.name == 'BackfillStartTime'
                             ? backfillStartOption
                             : backfillEndOption
                         "
-                        :placeholder="p.placeholder"
+                        :placeholder="r.display"
                         size="small"
                       >
-                    </DatePicker>
-                    <span v-else>{{ r.display }}</span>
+                      </DatePicker>
+                      <span class="text-wrap" v-else>{{ r.display }}</span>
                     </el-radio>
                   </el-radio-group>
                 </template>
                 <div
+                  v-if="p.name == 'BackfillStartTime'"
+                  class="description"
+                  v-html="transforHtml(p.short_description)"
+                ></div>
+                <div
+                  v-else
                   class="description"
                   v-html="transforHtml(p.description)"
                 ></div>
@@ -630,7 +711,7 @@
           @click="save"
           :disabled="disable"
           size="small"
-          >{{ (isEditable && !isCopyable) ? $t("save") : $t("add") }}</el-button
+          >{{ isEditable && !isCopyable ? $t("save") : $t("add") }}</el-button
         >
         <el-button @click="cancel" class="cancel-btn" size="small">{{
           $t("cancel")
@@ -652,7 +733,12 @@
 <script>
 import DataTarget from "./dataTarget.vue";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
-import { AddSource, EditSource, getUaAndDaData, downlaodAllNodes } from "@/api/explorer/datain";
+import {
+  AddSource,
+  EditSource,
+  getUaAndDaData,
+  downlaodAllNodes,
+} from "@/api/explorer/datain";
 import DatePicker from "@/components/date-picker";
 import { Message } from "element-ui";
 import marked from "marked";
@@ -686,7 +772,7 @@ export default {
     },
     isCopyable: {
       type: Boolean,
-    }
+    },
   },
 
   data() {
@@ -724,9 +810,9 @@ export default {
     const backfillStart = (time) => {
       let end = this.dbsource[0].groups
         .filter((val) => val.name.includes("Backfill"))[0]
-        .params.filter((item) => item.name == "BackfillEndTime")
+        .params.filter((item) => item.name == "BackfillEndTime");
       if (end[0]?.hint[0]?.value) {
-        return time.getTime() > new Date(end[0].value).getTime();
+        return time.getTime() > new Date(end[0]?.hint[0]?.value).getTime();
       } else {
         return false;
       }
@@ -738,7 +824,7 @@ export default {
       if (start[0]?.hint[0]?.value) {
         return (
           time.getTime() <
-          new Date(start[0].value).getTime() - 24 * 60 * 60 * 1000
+          new Date(start[0]?.hint[0]?.value).getTime() - 24 * 60 * 60 * 1000
         );
       } else {
         return false;
@@ -792,7 +878,7 @@ export default {
       },
       uploadUrl: process.env.VUE_APP_X_API + `/upload`,
       downloadUrl: process.env.VUE_APP_X_API + `/download?file_path=`,
-      activeRadio: 'select_file',
+      activeRadio: "select_file",
       isShowEditBtn: false,
     };
   },
@@ -806,9 +892,9 @@ export default {
         this.piSystemConfiguration;
       this.changeSystemConfiguration(defaultVal);
       this.getSchema(false);
-      this.isShowEditBtn = this.isCopyable ? false: true
+      this.isShowEditBtn = this.isCopyable ? false : true;
     } else {
-      this.activeName = 'point_file'
+      this.activeName = "point_file";
     }
   },
   mounted() {
@@ -821,21 +907,21 @@ export default {
       return this.$store.state.app.currentAgentID || "";
     },
     sourceName() {
-      return this.$store.state.app.currentDSName || ""
-    }
+      return this.$store.state.app.currentDSName || "";
+    },
   },
   watch: {
-    dbsource:{
-      deep:true,
-      handler(val){
-        this.$forceUpdate()
-      }
+    dbsource: {
+      deep: true,
+      handler(val) {
+        this.$forceUpdate();
+      },
     },
-    tagName:{
-      deep:true,
-      handler(val){
-        this.$forceUpdate()
-      }
+    tagName: {
+      deep: true,
+      handler(val) {
+        this.$forceUpdate();
+      },
     },
     "$store.state.dbs.dialogDbVisible": {
       handler(val) {
@@ -844,6 +930,13 @@ export default {
         }
       },
     },
+    "$store.state.app.currentDBType": {
+      handler(val) {
+        if (!this.isEditable && val == 'pibackfill') {
+          this.handelAddData()
+        }
+      } 
+    }
   },
   methods: {
     handleEditData() {
@@ -867,13 +960,12 @@ export default {
             let newVal = p.value.split();
             p.value = newVal;
           }
-          if (
-            p.name == "BackfillStartTime" ||
-            p.name == "BackfillEndTime"
-          ) {
-            if (p.value && p.value !== 'auto') {
-              p.hint[0].value = p.value
-              p.value = 'select_time'
+          if (p.name == "BackfillStartTime" || p.name == "BackfillEndTime") {
+            if (p.value && p.value !== "auto") {
+              p.hint[0].value = p.value;
+              p.value = "select_time";
+            } else {
+              p.value = "select_time"
             }
           }
           return p;
@@ -881,10 +973,10 @@ export default {
         return group;
       });
       if (this.dbsource[0]?.datasets) {
-        this.dbsource[0].datasets.params = this.dbsource[0]?.datasets?.
-          params.map((p) => {
+        this.dbsource[0].datasets.params =
+          this.dbsource[0]?.datasets?.params.map((p) => {
             if (p.value) {
-              if(p.value != '*') {
+              if (p.value != "*") {
                 p.fileList = [].concat({
                   name: p.value?.substr(p.value.lastIndexOf("/") + 1),
                   percentage: 100,
@@ -895,45 +987,60 @@ export default {
                   uid: 1,
                 });
               }
-              this.activeRadio = p.value.includes('@') ? 'select_file' : 'all_points'
+              this.activeRadio = p.value.includes("@")
+                ? "select_file"
+                : "all_points";
               p.value = p.value?.substr(p.value.lastIndexOf("@") + 1);
-              this.activeName = p.name
+              this.activeName = p.name;
             } else {
-              this.activeName = 'point_file'
+              this.activeName = "point_file";
             }
-          return p;
-        });
+            return p;
+          });
       }
     },
+    handelAddData() {
+      this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
+        group.params.map((p) => {
+          if (p.name == "BackfillStartTime" || p.name == "BackfillEndTime") {
+            p.value = "select_time";
+          }
+          return p;
+        })
+        return group
+      })
+    },
     handleSuccess(response, file, fileList, name) {
-      this.dbsource[0].datasets.params = this.dbsource[0].datasets.
-        params.map((p) => {
+      this.dbsource[0].datasets.params = this.dbsource[0].datasets.params.map(
+        (p) => {
           if (p.name == name) {
             p.fileList = fileList;
             p.value = fileList[0].response[0];
           }
-        return p;
-      });
+          return p;
+        }
+      );
     },
     handleRemove(name) {
-      this.dbsource[0].datasets.params = this.dbsource[0].datasets.
-        params.map((p) => {
+      this.dbsource[0].datasets.params = this.dbsource[0].datasets.params.map(
+        (p) => {
           if (p.name == name) {
             p.fileList = [];
             p.value = "";
           }
-        return p;
-      }); 
+          return p;
+        }
+      );
     },
-    handlePreview(file_path){
-      let link = document.createElement('a')
-      link.download ='file_name'
-      link.href = this.downloadUrl + file_path
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
+    handlePreview(file_path) {
+      let link = document.createElement("a");
+      link.download = "file_name";
+      link.href = this.downloadUrl + file_path;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     },
-    handelCheckbox(value,name) {
+    handelCheckbox(value, name) {
       this.dbsource[0].groups = this.dbsource[0].groups.map((group) => {
         if (group.name == "Backfill" || group.name == "历史填充（Backfill）") {
           group.params.map((p) => {
@@ -1026,24 +1133,25 @@ export default {
       );
     },
     edit() {
-      this.isShowEditBtn = false
+      this.isShowEditBtn = false;
     },
 
     save() {
       if (this.isEditable && !this.isCopyable) {
-        this.$confirm(this.$t('dataIn.saveTip'), this.$t("warning"), {
-          confirmButtonText: this.$t('confirm'),
-          cancelButtonText: this.$t('cancel'),
-          type: 'warning'
-        }).then(() => {
-          this.submit()
-        }).catch(() => {         
-        });
+        this.$confirm(this.$t("dataIn.saveTip"), this.$t("warning"), {
+          confirmButtonText: this.$t("confirm"),
+          cancelButtonText: this.$t("cancel"),
+          type: "warning",
+        })
+          .then(() => {
+            this.submit();
+          })
+          .catch(() => {});
       } else {
-        this.submit()
+        this.submit();
       }
     },
-    
+
     async submit() {
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
@@ -1070,11 +1178,11 @@ export default {
           }
         }
         if (!this.sourceName) {
-          Message.warning(`${enterTip} ${this.$t('name')}`);
+          Message.warning(`${enterTip} ${this.$t("name")}`);
           return;
         }
         if (!this.$store.state.app.currentDBName) {
-          Message.warning(`${enterTip} ${this.$t('stream.targetDB')}`);
+          Message.warning(`${enterTip} ${this.$t("stream.targetDB")}`);
           return;
         }
         if (this.tagName === "taos") {
@@ -1107,9 +1215,12 @@ export default {
         } else if (this.tagName == "datasource") {
           data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
           if (data.options.endpoint.value.includes("://")) {
-            dns = "+" + data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+            dns =
+              "+" + data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
           } else {
-            dns = "://" + data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+            dns =
+              "://" +
+              data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
           }
         } else {
           if (this.tagName == "influxdb") {
@@ -1161,17 +1272,21 @@ export default {
             } else {
               if (this.handleEmptyValue(data.groups[index].params[g].value)) {
                 if (
-                  data.groups[index].params[g].hint 
-                  && Array.isArray(data.groups[index].params[g].hint) 
+                  data.groups[index].params[g].hint &&
+                  Array.isArray(data.groups[index].params[g].hint)
                 ) {
-                  if (data.groups[index].params[g].value == 'auto') {
+                  if (data.groups[index].params[g].value == "auto") {
                     querystr +=
                       `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
                       "&";
                   } else {
                     // debugger
-                    console.log('hhh',data.groups[index].params[g].hint[0]);
-                    if (this.handleEmptyValue(data.groups[index].params[g].hint[0].value)) {
+                    console.log("hhh", data.groups[index].params[g].hint[0]);
+                    if (
+                      this.handleEmptyValue(
+                        data.groups[index].params[g].hint[0].value
+                      )
+                    ) {
                       querystr +=
                         `${data.groups[index].params[g].name}=${data.groups[index].params[g].hint[0].value}` +
                         "&";
@@ -1225,13 +1340,9 @@ export default {
           }
         }
         if (data.datasets && data.datasets.params) {
-          for (
-            let index = 0;
-            index < data.datasets.params.length;
-            index++
-          ) {
+          for (let index = 0; index < data.datasets.params.length; index++) {
             if (data.datasets.params[index].name == this.activeName) {
-              if (this.activeRadio == 'select_file') {
+              if (this.activeRadio == "select_file") {
                 if (this.handleEmptyValue(data.datasets.params[index].value)) {
                   querystr +=
                     `${data.datasets.params[index].name}=@${data.datasets.params[index].value}` +
@@ -1243,7 +1354,7 @@ export default {
             }
           }
         }
-        console.log('qurer',querystr);
+        console.log("qurer", querystr);
         if (data.params) {
           if (this.isPiDataArchiveAll) {
             for (let index = 0; index < data.params.length; index++) {
@@ -1306,13 +1417,15 @@ export default {
             return;
           }
         }
-        dns += querystr ? (dns.includes("?") ? "&" : "?") + querystr.replace(/&$/g, "") : "";
-        
+        dns += querystr
+          ? (dns.includes("?") ? "&" : "?") + querystr.replace(/&$/g, "")
+          : "";
+
         let apiParams = {
           from:
             (this.tagName === "datasource" ? "tmq" : "taos") +
             (data.protocol
-              ? (Object.is(data.protocol.value, "--") || !data.protocol.value)
+              ? Object.is(data.protocol.value, "--") || !data.protocol.value
                 ? ""
                 : "+"
               : "") +
@@ -1321,7 +1434,9 @@ export default {
           to:
             "taos+" +
             localStorage.getItem("base_url") +
-            (this.$store.state.app.currentDBName ? "/" + this.$store.state.app.currentDBName : ""),
+            (this.$store.state.app.currentDBName
+              ? "/" + this.$store.state.app.currentDBName
+              : ""),
           labels: [
             "type::datain",
             `cluster-id::${id}`,
@@ -1359,7 +1474,7 @@ export default {
                     : "") +
                   dns
                 : this.tagName == "opentsdb"
-                ? this.tagName + (data.protocol?.value ? "+" : '') + dns
+                ? this.tagName + (data.protocol?.value ? "+" : "") + dns
                 : this.tagName + dns,
             name: this.sourceName,
             //   + (data.protocol?(Object.is(data.protocol.value, "--") ? "" : "+"):'') + dns,
@@ -1367,7 +1482,9 @@ export default {
             to:
               "taos+" +
               localStorage.getItem("base_url") +
-              (this.$store.state.app.currentDBName? "/" + this.$store.state.app.currentDBName : ""),
+              (this.$store.state.app.currentDBName
+                ? "/" + this.$store.state.app.currentDBName
+                : ""),
             labels: [
               "type::datain",
               `cluster-id::${id}`,
@@ -1377,15 +1494,15 @@ export default {
           if (this.agentId) {
             piParams["via"] = this.agentId;
           }
-          console.log(this.isEditable , this.editId,'编辑');
-          if ((this.isEditable && this.editId) && !this.isCopyable) {
+          console.log(this.isEditable, this.editId, "编辑");
+          if (this.isEditable && this.editId && !this.isCopyable) {
             let result = await EditSource(piParams, this.editId);
             if (result.message) {
               Message.error(result.message);
               return;
             }
-            this.$parent.changeEditable(false)
-            this.$parent.toggleComponent("pitable",'');
+            this.$parent.changeEditable(false);
+            this.$parent.toggleComponent("pitable", "");
           } else {
             let result = await AddSource(piParams);
             if (result.message) {
@@ -1393,18 +1510,19 @@ export default {
               return;
             }
             if (result && result.id) {
-              this.$parent.changeEditable(false)
-              this.$parent.toggleComponent("pitable",'');
+              this.$parent.changeEditable(false);
+              this.$parent.toggleComponent("pitable", "");
               Message.success("Operation Successfully!");
             }
           }
         }
       } catch (err) {
         console.error(err);
-        err.response &&
+        (err.response &&
           err.response.data &&
           err.response.data.message &&
-          Message.error(err.response.data.message) || Message.error(err);
+          Message.error(err.response.data.message)) ||
+          Message.error(err);
       }
     },
 
@@ -1477,21 +1595,23 @@ export default {
     //     this.dbsource[0].datasets.categories = categories;
     //   }
     // },
-    downloadAllPoints(data,name) {
-      downlaodAllNodes(data).then(res => {
-        let blob = new Blob([res], { type: "text/csv,charset=UTF-8" });
-        let link = document.createElement("a");
-        link.download = `${name}.csv`;
-        link.style.display = "none";
-        link.href = URL.createObjectURL(blob);
-        document.body.appendChild(link);
-        link.click();
-        URL.revokeObjectURL(link.href);
-        document.body.removeChild(link);
-        this.loading = false;
-      }).catch(err => {
-        this.loading = false
-      })
+    downloadAllPoints(data, name) {
+      downlaodAllNodes(data)
+        .then((res) => {
+          let blob = new Blob([res], { type: "text/csv,charset=UTF-8" });
+          let link = document.createElement("a");
+          link.download = `${name}.csv`;
+          link.style.display = "none";
+          link.href = URL.createObjectURL(blob);
+          document.body.appendChild(link);
+          link.click();
+          URL.revokeObjectURL(link.href);
+          document.body.removeChild(link);
+          this.loading = false;
+        })
+        .catch((err) => {
+          this.loading = false;
+        });
     },
     searchDatas: debounce(function (name) {
       try {
@@ -1558,26 +1678,27 @@ export default {
         // if (viaObj.via) {
         //   Object.assign(params, viaObj);
         // }
-        let categories = ''
+        let categories = "";
         switch (this.activeName) {
-          case 'point_file':
-            categories = 'PointList'
+          case "point_file":
+            categories = "PointList";
             break;
-          case 'template_for_pi_point_file':
-            categories = 'TemplateForPIPoint'
+          case "template_for_pi_point_file":
+            categories = "TemplateForPIPoint";
             break;
-          case 'template_for_af_element_file':
-            categories = 'TemplateForAFElement'
+          case "template_for_af_element_file":
+            categories = "TemplateForAFElement";
             break;
           default:
             break;
         }
         let from = `${this.tagName}://${host}${subject}${
-            querystr ? "?" + querystr.replace(/&$/g, "") : ""}
-            &categories=${categories}`
-         if (this.agentId) {
-            from+=`&via=${this.agentId}`
-          }
+          querystr ? "?" + querystr.replace(/&$/g, "") : ""
+        }
+            &categories=${categories}`;
+        if (this.agentId) {
+          from += `&via=${this.agentId}`;
+        }
         this.loading = true;
         // getUaAndDaData(params)
         //   .then((res) => {
@@ -1601,7 +1722,7 @@ export default {
         //       message: err,
         //     });
         //   });
-        this.downloadAllPoints(from,name)
+        this.downloadAllPoints(from, name);
       } catch (error) {
         this.loading = false;
       }
@@ -1732,7 +1853,9 @@ export default {
         }
 
         dns +=
-          data.options.subject && data.options.subject.value && this.isPiDataArchiveAll
+          data.options.subject &&
+          data.options.subject.value &&
+          this.isPiDataArchiveAll
             ? "/" + data.options.subject.value
             : "";
         let reg = /\s+/g;
@@ -1782,7 +1905,9 @@ export default {
             });
           });
         }
-        dns += querystr ? (dns.includes("?") ? "&" : "?") + querystr.replace(/&$/g, "") : "";
+        dns += querystr
+          ? (dns.includes("?") ? "&" : "?") + querystr.replace(/&$/g, "")
+          : "";
 
         let apiParams = {
           from:
@@ -1948,7 +2073,7 @@ export default {
       // border-bottom: 1px solid #ececef;
     }
     .block-title {
-      margin-bottom:10px;
+      margin-bottom: 10px;
       span {
         font-size: 16px;
         color: #4259ce;
@@ -1962,7 +2087,7 @@ export default {
       align-items: center;
       width: 200px;
       display: block;
-      white-space:normal;
+      white-space: normal;
       flex-shrink: 0;
     }
     .no-label {
@@ -2057,7 +2182,7 @@ export default {
       }
       .radio-flex {
         display: flex;
-        align-items: baseline;
+        align-items: center;
       }
     }
 
@@ -2121,7 +2246,7 @@ export default {
   }
   .right-ui {
     flex: 1;
-    margin-left:40px;
+    margin-left: 40px;
     :deep {
       .v-note-panel {
         border-radius: 12px;
@@ -2198,7 +2323,7 @@ export default {
             align-items: center;
             width: 100px;
             display: block;
-            white-space:normal;
+            white-space: normal;
           }
           .el-input {
             flex: 1;
@@ -2211,7 +2336,8 @@ export default {
       }
     }
   }
-  .cancel-btn, .edit-btn {
+  .cancel-btn,
+  .edit-btn {
     z-index: 101;
   }
 
@@ -2222,6 +2348,15 @@ export default {
     vertical-align: middle;
     white-space: pre-wrap;
     word-wrap: break-word;
+  }
+  .text-wrap {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  ::v-deep .radio-custom {
+    display: flex;
+    flex-direction: column;
   }
 }
 </style>
