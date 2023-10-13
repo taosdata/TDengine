@@ -748,14 +748,14 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     SStreamTask* pStateTask = pTask;
-    SStreamTask  task = {0};
-    if (pTask->info.fillHistory) {
-      task.id = pTask->streamTaskId;
-      task.pMeta = pTask->pMeta;
-      pStateTask = &task;
-    }
+    // SStreamTask  task = {0};
+    // if (pTask->info.fillHistory) {
+    //   task.id = pTask->streamTaskId;
+    //   task.pMeta = pTask->pMeta;
+    //   pStateTask = &task;
+    // }
 
-    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pStateTask, false, -1, -1);
+    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false, -1, -1);
     if (pTask->pState == NULL) {
       tqError("s-task:%s (vgId:%d) failed to open state for task", pTask->id.idStr, vgId);
       return -1;
@@ -782,14 +782,14 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
     qSetTaskId(pTask->exec.pExecutor, pTask->id.taskId, pTask->id.streamId);
   } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
     SStreamTask* pSateTask = pTask;
-    SStreamTask  task = {0};
-    if (pTask->info.fillHistory) {
-      task.id = pTask->streamTaskId;
-      task.pMeta = pTask->pMeta;
-      pSateTask = &task;
-    }
+    // SStreamTask  task = {0};
+    // if (pTask->info.fillHistory) {
+    //   task.id = pTask->streamTaskId;
+    //   task.pMeta = pTask->pMeta;
+    //   pSateTask = &task;
+    // }
 
-    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pSateTask, false, -1, -1);
+    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false, -1, -1);
     if (pTask->pState == NULL) {
       tqError("s-task:%s (vgId:%d) failed to open state for task", pTask->id.idStr, vgId);
       return -1;
