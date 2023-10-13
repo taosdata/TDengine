@@ -2,13 +2,206 @@
 
 #include "vndCos.h"
 
-extern char tsS3Endpoint[];
-extern char tsS3AccessKeyId[];
-extern char tsS3AccessKeySecret[];
-extern char tsS3BucketName[];
-extern char tsS3AppId[];
+extern char   tsS3Endpoint[];
+extern char   tsS3AccessKeyId[];
+extern char   tsS3AccessKeySecret[];
+extern char   tsS3BucketName[];
+extern char   tsS3AppId[];
+extern char   tsS3Hostname[];
+extern int8_t tsS3Https;
 
-#ifdef USE_COS
+#if defined(USE_S3)
+
+#include "libs3.h"
+
+static int         verifyPeerG = 0;
+static const char *awsRegionG = NULL;
+static int         forceG = 0;
+static int         showResponsePropertiesG = 0;
+static S3Protocol  protocolG = S3ProtocolHTTPS;
+//  static S3Protocol protocolG = S3ProtocolHTTP;
+static S3UriStyle uriStyleG = S3UriStylePath;
+static int        retriesG = 5;
+static int        timeoutMsG = 0;
+
+static int32_t s3Begin() {
+  S3Status    status;
+  const char *hostname = tsS3Hostname;
+  const char *env_hn = getenv("S3_HOSTNAME");
+
+  if (env_hn) {
+    hostname = env_hn;
+  }
+
+  if ((status = S3_initialize("s3", verifyPeerG | S3_INIT_ALL, hostname)) != S3StatusOK) {
+    vError("Failed to initialize libs3: %s\n", S3_get_status_name(status));
+    return -1;
+  }
+
+  protocolG = !tsS3Https;
+
+  return 0;
+}
+
+static void s3End() { S3_deinitialize(); }
+int32_t     s3Init() { return s3Begin(); }
+
+void s3CleanUp() { s3End(); }
+
+static int should_retry() {
+  /*
+  if (retriesG--) {
+    // Sleep before next retry; start out with a 1 second sleep
+    static int retrySleepInterval = 1 * SLEEP_UNITS_PER_SECOND;
+    sleep(retrySleepInterval);
+    // Next sleep 1 second longer
+    retrySleepInterval++;
+    return 1;
+  }
+  */
+
+  return 0;
+}
+
+typedef struct {
+  uint64_t content_length;
+  int      status;
+  char    *buf;
+  char     err_msg[4096];
+} TS3SizeCBD;
+
+static S3Status responsePropertiesCallback(const S3ResponseProperties *properties, void *callbackData) {
+  //(void)callbackData;
+  TS3SizeCBD *cbd = callbackData;
+  if (properties->contentLength > 0) {
+    cbd->content_length = properties->contentLength;
+  } else {
+    cbd->content_length = 0;
+  }
+
+  return S3StatusOK;
+}
+
+static void responseCompleteCallback(S3Status status, const S3ErrorDetails *error, void *callbackData) {
+  TS3SizeCBD *cbd = callbackData;
+  cbd->status = status;
+
+  int       len = 0;
+  const int elen = sizeof(cbd->err_msg);
+  if (error) {
+    if (error->message) {
+      len += snprintf(&(cbd->err_msg[len]), elen - len, "  Message: %s\n", error->message);
+    }
+    if (error->resource) {
+      len += snprintf(&(cbd->err_msg[len]), elen - len, "  Resource: %s\n", error->resource);
+    }
+    if (error->furtherDetails) {
+      len += snprintf(&(cbd->err_msg[len]), elen - len, "  Further Details: %s\n", error->furtherDetails);
+    }
+    if (error->extraDetailsCount) {
+      len += snprintf(&(cbd->err_msg[len]), elen - len, "%s", "  Extra Details:\n");
+      for (int i = 0; i < error->extraDetailsCount; i++) {
+        len += snprintf(&(cbd->err_msg[len]), elen - len, "    %s: %s\n", error->extraDetails[i].name,
+                        error->extraDetails[i].value);
+      }
+    }
+  }
+}
+
+int32_t s3PutObjectFromFile2(const char *file, const char *object) { return 0; }
+void    s3DeleteObjectsByPrefix(const char *prefix) {}
+
+void s3DeleteObjects(const char *object_name[], int nobject) {
+  int               status = 0;
+  S3BucketContext   bucketContext = {0, tsS3BucketName, protocolG, uriStyleG, tsS3AccessKeyId, tsS3AccessKeySecret,
+                                     0, awsRegionG};
+  S3ResponseHandler responseHandler = {0, &responseCompleteCallback};
+
+  for (int i = 0; i < nobject; ++i) {
+    TS3SizeCBD cbd = {0};
+    do {
+      S3_delete_object(&bucketContext, object_name[i], 0, timeoutMsG, &responseHandler, &cbd);
+    } while (S3_status_is_retryable(cbd.status) && should_retry());
+
+    if ((cbd.status != S3StatusOK) && (cbd.status != S3StatusErrorPreconditionFailed)) {
+      vError("%s: %d(%s)", __func__, cbd.status, cbd.err_msg);
+    }
+  }
+}
+
+static S3Status getObjectDataCallback(int bufferSize, const char *buffer, void *callbackData) {
+  TS3SizeCBD *cbd = callbackData;
+  if (cbd->content_length != bufferSize) {
+    cbd->status = S3StatusAbortedByCallback;
+    return S3StatusAbortedByCallback;
+  }
+
+  char *buf = taosMemoryCalloc(1, bufferSize);
+  if (buf) {
+    memcpy(buf, buffer, bufferSize);
+
+    cbd->status = S3StatusOK;
+    return S3StatusOK;
+  } else {
+    cbd->status = S3StatusAbortedByCallback;
+    return S3StatusAbortedByCallback;
+  }
+}
+
+int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, uint8_t **ppBlock) {
+  int         status = 0;
+  int64_t     ifModifiedSince = -1, ifNotModifiedSince = -1;
+  const char *ifMatch = 0, *ifNotMatch = 0;
+
+  S3BucketContext    bucketContext = {0, tsS3BucketName, protocolG, uriStyleG, tsS3AccessKeyId, tsS3AccessKeySecret,
+                                      0, awsRegionG};
+  S3GetConditions    getConditions = {ifModifiedSince, ifNotModifiedSince, ifMatch, ifNotMatch};
+  S3GetObjectHandler getObjectHandler = {{&responsePropertiesCallback, &responseCompleteCallback},
+                                         &getObjectDataCallback};
+
+  TS3SizeCBD cbd = {0};
+  cbd.content_length = size;
+  do {
+    S3_get_object(&bucketContext, object_name, &getConditions, offset, size, 0, 0, &getObjectHandler, &cbd);
+  } while (S3_status_is_retryable(cbd.status) && should_retry());
+
+  if (cbd.status != S3StatusOK) {
+    vError("%s: %d(%s)", __func__, cbd.status, cbd.err_msg);
+    return TAOS_SYSTEM_ERROR(EIO);
+  }
+
+  *ppBlock = cbd.buf;
+
+  return 0;
+}
+
+long s3Size(const char *object_name) {
+  long size = 0;
+  int  status = 0;
+
+  S3BucketContext bucketContext = {0, tsS3BucketName, protocolG, uriStyleG, tsS3AccessKeyId, tsS3AccessKeySecret,
+                                   0, awsRegionG};
+
+  S3ResponseHandler responseHandler = {&responsePropertiesCallback, &responseCompleteCallback};
+
+  TS3SizeCBD cbd = {0};
+  do {
+    S3_head_object(&bucketContext, object_name, 0, 0, &responseHandler, &cbd);
+  } while (S3_status_is_retryable(cbd.status) && should_retry());
+
+  if ((cbd.status != S3StatusOK) && (cbd.status != S3StatusErrorPreconditionFailed)) {
+    vError("%s: %d(%s)", __func__, cbd.status, cbd.err_msg);
+  }
+
+  size = cbd.content_length;
+
+  return size;
+}
+
+void s3EvictCache(const char *path, long object_size) {}
+
+#elif defined(USE_COS)
+
 #include "cos_api.h"
 #include "cos_http_io.h"
 #include "cos_log.h"

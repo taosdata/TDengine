@@ -15,12 +15,12 @@
 
 #define _DEFAULT_SOURCE
 #include "tglobal.h"
+#include "defines.h"
 #include "os.h"
 #include "tconfig.h"
 #include "tgrant.h"
 #include "tlog.h"
 #include "tmisce.h"
-#include "defines.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -221,7 +221,7 @@ float    tsFPrecision = 1E-8;                   // float column precision
 double   tsDPrecision = 1E-16;                  // double column precision
 uint32_t tsMaxRange = 500;                      // max quantization intervals
 uint32_t tsCurRange = 100;                      // current quantization intervals
-bool     tsIfAdtFse = false;                     // ADT-FSE algorithom or original huffman algorithom
+bool     tsIfAdtFse = false;                    // ADT-FSE algorithom or original huffman algorithom
 char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 
 // udf
@@ -266,6 +266,9 @@ char   tsS3BucketName[TSDB_FQDN_LEN] = "<bucketname>";
 char   tsS3AppId[TSDB_FQDN_LEN] = "<appid>";
 int8_t tsS3Enabled = false;
 
+int8_t tsS3Https = true;
+char   tsS3Hostname[TSDB_FQDN_LEN] = "<hostname>";
+
 int32_t tsS3BlockSize = 4096;     // number of tsdb pages
 int32_t tsS3BlockCacheSize = 16;  // number of blocks
 
@@ -307,6 +310,14 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   tstrncpy(tsS3AccessKeySecret, colon + 1, TSDB_FQDN_LEN);
   tstrncpy(tsS3Endpoint, cfgGetItem(pCfg, "s3Endpoint")->str, TSDB_FQDN_LEN);
   tstrncpy(tsS3BucketName, cfgGetItem(pCfg, "s3BucketName")->str, TSDB_FQDN_LEN);
+  char *proto = strstr(tsS3Endpoint, "https://");
+  if (!proto) {
+    tsS3Https = false;
+    tstrncpy(tsS3Hostname, tsS3Endpoint + 7, TSDB_FQDN_LEN);
+  } else {
+    tstrncpy(tsS3Hostname, tsS3Endpoint + 8, TSDB_FQDN_LEN);
+  }
+
   char *cos = strstr(tsS3Endpoint, "cos.");
   if (cos) {
     char *appid = strrchr(tsS3BucketName, '-');
@@ -1085,7 +1096,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsCurRange = cfgGetItem(pCfg, "CurRange")->i32;
   tsIfAdtFse = cfgGetItem(pCfg, "IfAdtFse")->bval;
   tstrncpy(tsCompressor, cfgGetItem(pCfg, "Compressor")->str, sizeof(tsCompressor));
-
 
   tsDisableStream = cfgGetItem(pCfg, "disableStream")->bval;
   tsStreamBufferSize = cfgGetItem(pCfg, "streamBufferSize")->i64;

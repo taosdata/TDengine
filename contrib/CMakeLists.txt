@@ -13,10 +13,8 @@ if(${TD_LINUX})
 set(CONTRIB_TMP_FILE3 "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in3")
 configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
 
-if(${BUILD_WITH_COS})
     file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.1/)
     cat("${TD_SUPPORT_DIR}/ssl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
-endif(${BUILD_WITH_COS})
 
 configure_file(${CONTRIB_TMP_FILE3} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
 execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
@@ -27,9 +25,7 @@ execute_process(COMMAND "${CMAKE_COMMAND}" --build .
 set(CONTRIB_TMP_FILE2 "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in2")
 configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE2})
 
-if(${BUILD_WITH_COS})
     cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE2})
-endif(${BUILD_WITH_COS})
 
 configure_file(${CONTRIB_TMP_FILE2} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
 execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
@@ -129,6 +125,9 @@ if(${BUILD_TEST})
     cat("${TD_SUPPORT_DIR}/stub_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(${BUILD_TEST})
 
+# xml2
+cat("${TD_SUPPORT_DIR}/xml2_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+
 # lz4
 cat("${TD_SUPPORT_DIR}/lz4_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
@@ -195,6 +194,7 @@ if(${BUILD_WITH_S3})
     #cat("${TD_SUPPORT_DIR}/apr-util_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     #cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     #INCLUDE_DIRECTORIES($ENV{HOME}/.cos-local.1/include)
+    cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE2})
     cat("${TD_SUPPORT_DIR}/libs3_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     add_definitions(-DUSE_S3)
 
@@ -294,6 +294,9 @@ target_include_directories(
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cJson>
 )
 unset(CMAKE_PROJECT_INCLUDE_BEFORE)
+
+# xml2
+add_subdirectory(xml2 EXCLUDE_FROM_ALL)
 
 # lz4
 add_subdirectory(lz4/build/cmake EXCLUDE_FROM_ALL)
@@ -439,6 +442,7 @@ endif()
 
 if(${BUILD_WITH_S3})
     INCLUDE_DIRECTORIES($ENV{HOME}/.cos-local.1/include)
+    MESSAGE("build with s3: ${BUILD_WITH_S3}")
 
 else()
 
@@ -449,7 +453,7 @@ if(${BUILD_WITH_COS})
     #ADD_DEFINITIONS(-DMINIXML_LIBRARY=${CMAKE_BINARY_DIR}/build/lib/libxml.a)
     option(ENABLE_TEST "Enable the tests" OFF)
     INCLUDE_DIRECTORIES($ENV{HOME}/.cos-local.1/include)
-    MESSAGE("$ENV{HOME}/.cos-local.1/include")
+    #MESSAGE("$ENV{HOME}/.cos-local.1/include")
 
     set(CMAKE_BUILD_TYPE debug)
     set(ORIG_CMAKE_PROJECT_NAME ${CMAKE_PROJECT_NAME})

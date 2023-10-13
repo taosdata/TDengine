@@ -162,9 +162,34 @@ target_link_libraries(
 )
 
 if(${TD_LINUX})
-    if(${BUILD_WITH_S3})
 
-    endif(${BUILD_WITH_S3})
+if(${BUILD_WITH_S3})
+  MESSAGE("build with s3: ${BUILD_WITH_S3}")
+  target_include_directories(
+    vnode
+
+    PUBLIC "$ENV{HOME}/.cos-local.1/include"
+    )
+
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+  set(CMAKE_PREFIX_PATH $ENV{HOME}/.cos-local.1)
+  find_library(S3_LIBRARY s3)
+  find_library(CURL_LIBRARY curl)
+  find_library(SSL_LIBRARY ssl PATHS $ENV{HOME}/.cos-local.1/lib64)
+  find_library(CRYPTO_LIBRARY crypto PATHS $ENV{HOME}/.cos-local.1/lib64)
+  target_link_libraries(
+    vnode
+
+    # s3
+    PUBLIC ${S3_LIBRARY}
+    PUBLIC ${CURL_LIBRARY}
+    PUBLIC ${SSL_LIBRARY}
+    PUBLIC ${CRYPTO_LIBRARY}
+    PUBLIC xml2
+  )
+
+  add_definitions(-DUSE_S3)
+endif(${BUILD_WITH_S3})
 
 if(${BUILD_WITH_COS})
 
