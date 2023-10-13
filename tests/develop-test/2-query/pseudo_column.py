@@ -47,6 +47,14 @@ class TDTestCase:
         tdSql.checkData(2, 0, 'ct2')
         tdSql.checkData(2, 0, 'ct2')
 
+        tdSql.query('select `tbname` from (select tbname from st) order by tbname')
+        tdSql.checkCols(1)
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 'ct1')
+        tdSql.checkData(1, 0, 'ct1')
+        tdSql.checkData(2, 0, 'ct2')
+        tdSql.checkData(2, 0, 'ct2')
+
         tdSql.query('select `st.tbname` from (select st.tbname from st) order by `st.tbname`')
         tdSql.checkCols(1)
         tdSql.checkRows(4)
