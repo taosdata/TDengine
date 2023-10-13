@@ -97,10 +97,14 @@ def get_taosx_agent_version():
     return version
 
 def get_install_path():
+    target = "taosx"
+    if release_info.Target == "agent":
+        target = taosx_agent_name
+
     if release_info.OS == 'Windows':  # Windows操作系统
         return f'C:\\Program Files\\taosX'
     else:
-        return taosx_agent_name
+        return os.path.join(taosx_dir,"release","{0}-{1}-linux-{2}".format(target, release_info.TaosXVersion, release_info.CpuType.lower()))
 
 def get_package_name():
     target = "taosx"
@@ -188,6 +192,7 @@ def init_build_info():
         release_info.TaosXVersion = get_taosx_version()
     else:
         release_info.TaosXVersion = get_taosx_agent_version()
+    release_info.InstallPath = get_install_path()
 
     sub_module.append(SubmoduleBuildInfo(taosx_agent_name, release_info.DefaultBuildMode))
     if args.connector_list:
