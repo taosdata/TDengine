@@ -1541,6 +1541,10 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step1desc:
           `${grafanagds} currently supports Grafana versions 7.5 and above. Please go to the Grafana official website to download the installation package`,
         pluginsdesc:`Open Grafana from browser, click the three horizontal bar icon, click "Connections", inside the search bar, search ${grafanagds}, then "${grafanagds} Data Source" should pop up. Click "Install" to install the ${grafanagds} plugin. Once it's installed, you can add ${grafanagds} data source right away.`,
+        plugin1desc:`1. Open Grafana from browser, click the three horizontal bar icon, then "Connections".`,
+        plugin2desc:`2. Inside the search bar, search TDengine, then "TDengine Data Source" should pop up. `,
+        plugin3desc:`3. Click "Install" to install the TDengine plugin. `,
+        plugin4desc:`4. Once it's installed, you can add TDengine data source right away.`,
         script1:`If you can access Github easily, please run below script from Linux terminal to install ${grafanagds} Datasource plugin.`,
         script2:`After that completed, please restart grafana-server.`,
         step2: `Install ${grafanagds} plugin`,
@@ -1780,6 +1784,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
           ": The SQL command to be executed. For the query SQL of super table, keep &quot;xxxx&quot; in the SQL command. The program will automatically replace it with all the sub-table names of the super table. Replace it with all the sub-table names in the super table.",
         step410desc5: ": The file to save the query result. If not specified, taosBenchmark will not save result.",
       },
+     
     },
     topic: {
 
@@ -1825,6 +1830,10 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step1desc:
           `${grafanagds} currently supports Grafana versions 7.5 and above. Please go to the Grafana official website to download the installation package`,
         pluginsdesc:`Open Grafana from browser, click the three horizontal bar icon, click "Connections", inside the search bar, search ${grafanagds}, then "${grafanagds} Data Source" should pop up. Click "Install" to install the ${grafanagds} plugin. Once it's installed, you can add ${grafanagds} data source right away.`,
+        plugin1desc:`1. Open Grafana from browser, click the three horizontal bar icon, then "Connections".`,
+        plugin2desc:`2. Inside the search bar, search TDengine, then "TDengine Data Source" should pop up. `,
+        plugin3desc:`3. Click "Install" to install the TDengine plugin. `,
+        plugin4desc:`4. Once it's installed, you can add TDengine data source right away.`,
         script1:`If you can access Github easily, please run below script from Linux terminal to install ${grafanagds} Datasource plugin.`,
         script2:`After that completed, please restart grafana-server.`,
         step2: `Install ${grafanagds} plugin`,
@@ -1838,15 +1847,19 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step3desc3: `Then click "Save & Test" button to verify if ${grafanagds} data source works. `,
         step3desc:
           `Inside Grafana data source configuration page, copy the host and token listed below and paste them into Grafana's corresponding input box. `,
-        step4: "Use Grafana",
-        step4desc: `Please add new dashboard or import exist dashboard to explore the data stored in the ${grafanagds}.`,
-        step4desc1: "You can refer to the ",
-        step4desc2: "documentation",
-        step4desc3: "for more details.",
+        // step4: "Use Grafana",
+        // step4desc: `Please add new dashboard or import exist dashboard to explore the data stored in the ${grafanagds}.`,
+        // step4desc1: "You can refer to the ",
+        // step4desc2: "documentation",
+        // step4desc3: "for more details.",
       monitortip:'You can use Grafana to monitor the TDengine running status, please follow the steps below:',
       dashboarddesc: `We recommend using the latest<a href='https://grafana.com/'> Grafana</a> version 8 or 9 here.You can install Grafana on any<a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/#supported-operating-systems'> supported operating system</a> by following the <a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/'>official Grafana documentation Instructions </a>.`,
      
-      step5: 'Load TDinsight Dashboard',
+      step5: 'Add Dashboard',
+      desc51:`1. Once the data source works, click the "Dashboards" tab on the data source configuration page.`,
+      desc52:`2. Choose TDengine for 3.xand click import.`,
+      desc53:`3. Click the three horizontal bar icon, then "Dashboards", search "TDinsight", and click it.`,
+      desc54:`4. Now, you can see the nice dashboard`,
       tab2: 'Install Grafana on CentOS / RHEL',
       tab1: 'Installing Grafana on Debian / Ubuntu',
       tab2sub: 'Or install it with RPM package.',
@@ -1871,7 +1884,41 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
       cont3: 'In the <code>TDinsight for 3.x</code> dashboard, choose the database used by taosKeeper to store monitoring data. ',
       cont4: 'You can see the monitoring result.'
 
+    },
+    tools:{
+      seeq: {
+        desc: 'Designed specifically for analyzing process data, Seeq works across all verticals with time series data in historians or other storage platforms.',
+        topdesc: 'Designed specifically for analyzing process data, ',
+        topdesc1:
+          ' works across all verticals with time series data in historians or other storage platforms. TDengine can be added as a data source into Seeq via JDBC connector. Once data source is configured, Seeq can read data from TDengine and offers functionalities such as data visualization, analysis, and forecasting.',
+        step1: 'Prerequisite',
+        step1desc: 'Install Seeq Server and Seeq Data Lab software (check ',
+        step1desc1: ').',
+        step2: 'Install TDengine Java Connector',
+        step2desc: 'Get Seeq data location configuration. For Linux, execute the command below:',
+        step2desc11: 'Download the latest TDengine Java connector from ',
+        step2desc12: ' (current version is ',
+        step2desc13: '), and copy the JAR file into the_directory_found_in_step_1/plugins/lib/ .',
+        step2desc2: 'Restart Seeq server. For Linux, execute the command below:',
+        step3: 'Add TDengine Data Source',
+        step3full: "Add TDengine into Seeq's data source",
+        step3desc: 'Open Seeq, login as admin, go to Administration, click "Add Data Source"',
+        step3desc1: 'For connector, choose SQL connector v2',
+        step3desc2: 'Inside the "Additional Configuration" input box, copy and paste the following:',
+        step3desc3: 'For the "QueryDefintions", please follow the examples below to write your own.',
+        step4: 'Smart Meter Example',
+        step4full: 'Import a large number of time series: smart meter example',
+        step4desc:
+          'TDengine has its own unique data model. It requires creating a table for each data collection point by using a super table as its template. Each table can be associated with up to 128 labels (static attributes). A database may contain one million or even one billion tables. Through variables in Seeq, you can import all the time series (tables) under a super table into Seeq by querying a super table instead of an individual table. In addition, you can import the labels associated with tables stored inside TDengine into Seeq, so you can find a time series easily by searching those labels.',
+        step4desc1: 'Based on the classical smart meter example in the TDengine document, the following configuration can be used to retrieve all the time series under super table meters.',
+        step4desc2: 'In the above example, tablename, location and groupid are retrieved via SQL: ',
+        step4desc3: 'The query results are assigned to variable tablename, location and groupid. Based on the query results, Seeq will expand this query configuration into many time series. ',
+        step4desc4: 'TDengine supports multiple columns, and you can use Seeq variables to generate a time series for each column. For more information about Seeq variables, please check ',
+        step4desc41: 'Seeq documentation',
+        step4desc42: '.'
+      }
     }
+   
   },
   component: {
     docConfig: {

@@ -26,7 +26,11 @@
     <h2 id="install-tdengine-plugin">{{ $t("docs.virtual.grafana.step2") }}</h2>
     <el-tabs v-model="activeTab">
     <el-tab-pane name="plugins" label="Plugins">
-      <p>{{$t('docs.virtual.grafana.pluginsdesc')}}</p>
+      <!-- <p>{{$t('docs.virtual.grafana.pluginsdesc')}}</p> -->
+      <p>{{ $t('docs.virtual.grafana.plugin1desc') }}</p>
+      <p>{{ $t('docs.virtual.grafana.plugin2desc') }}</p>
+      <p>{{ $t('docs.virtual.grafana.plugin3desc') }}</p>
+      <p>{{ $t('docs.virtual.grafana.plugin4desc') }}</p>
     </el-tab-pane>
     <el-tab-pane name="script" label="Script"><p>{{ $t('docs.virtual.grafana.script1') }}</p>
     <pre
@@ -102,7 +106,7 @@ export ${replaceTDENGINE}_URL=&quot;${url}&quot;
         alt="Verify TDengine data source"
       />
     </p> -->
-    <h2 id="use-grafana">{{ $t("docs.virtual.grafana.step4") }}</h2>
+    <!-- <h2 id="use-grafana">{{ $t("docs.virtual.grafana.step4") }}</h2>
     <p>{{ $t("docs.virtual.grafana.step4desc") }}
     <span v-if="!isOEM">
       {{ $t("docs.virtual.grafana.step4desc1")
@@ -111,7 +115,7 @@ export ${replaceTDENGINE}_URL=&quot;${url}&quot;
         :href="`${$t('urlPart')}/third-party/grafana#create-dashboard`"
         >{{ $t("docs.virtual.grafana.step4desc2") }}</a
       >   {{ $t("docs.virtual.grafana.step4desc3") }}</span>
-    </p>
+    </p> -->
     <!-- <h2 id="add-grafana-dbsource">{{ $t("docs.dashboard.step5") }}</h2>
     <p v-html="$t('docs.dashboard.nav')"></p>
     <p>
@@ -142,8 +146,11 @@ export ${replaceTDENGINE}_URL=&quot;${url}&quot;
       />
     </p> -->
     <h2 id="import-dashboard">{{ $t("docs.dashboard.step5") }}</h2>
-
-    <p v-html="$t('docs.dashboard.import')"></p>
+    <p v-html="$t('docs.dashboard.desc51')"></p>
+    <p v-html="$t('docs.dashboard.desc52')"></p>
+    <p v-html="$t('docs.dashboard.desc53')"></p>
+    <p v-html="$t('docs.dashboard.desc54')"></p>
+    <!-- <p v-html="$t('docs.dashboard.import')"></p>
     <p>
       <img
         src="./assets/dashboard/import.webp"
@@ -165,7 +172,7 @@ export ${replaceTDENGINE}_URL=&quot;${url}&quot;
         alt="TDengine Database TDinsight 添加数据源按钮"
       />
     </p>
-    <p>{{ $t("docs.dashboard.cont4") }}</p>
+    <p>{{ $t("docs.dashboard.cont4") }}</p> -->
   </div>
 </template>
 
