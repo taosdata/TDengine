@@ -185,7 +185,7 @@ export default {
       return this.nameValid();
     },
     token() {
-      return localStorage.getItem('TDengine-Token') ?? '';
+      return this.tokenMap[this.name] ?? '';
     },
     taoxAddress() {
       return localStorage.getItem("local_endpoint") ?? '';
@@ -242,13 +242,17 @@ export default {
         });
     },
     next() {
-
+   
       if (this.active == 4) {
         this.agentStatus = 'noCheck';
-        this.submit();
+        // this.submit();
         this.$store.commit('app/SET_AGENT_DIALOG',false)
         
-      }else{
+      }
+      if(this.active==2){
+        this.submit();
+      }
+      else{
         this.active++;
       }
     },
