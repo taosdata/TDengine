@@ -43,7 +43,7 @@ version = "1.0.0"
 - -t: 脚本快速测试，单独测试某一过程（仅支持 windows, 支持 taosx,agent,opc,pi,mqtt,package, explorer）
 - -t pi: 示例，测试 pi 编译安装
 - -t package: 已经安装好的服务打包测试( taosx taosx-agent 必须已经编译安装过)
-- -ob only_build: 仅将 build 结果写入指定目录，不打包。如果没有指定目录参数，则使用默认目录。如果没有 -ob 选项，正常打包
+- -ob only_build: 仅将 build 结果写入指定目录(绝对路径)，不打包。如果没有指定目录参数，则使用默认目录。如果没有 -ob 选项，正常打包
 - - Windows 默认目录: C:\\Program Files\\taosX
 - - Linux 默认目录: taosx -> release -> 相应版本目录
 - 连接器可带版本号编译，和连接器名空格隔开
