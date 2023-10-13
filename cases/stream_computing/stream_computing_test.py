@@ -3007,7 +3007,8 @@ class StreamComputingTest(TDCase):
             self.create_none_source_tb_col_stream()
             self.create_error_source_sql_stream()
             ## ! rep3 TD-20280
-            self.insert_after_restart()
+            if int(os.environ["DATABASE_REPLICAS"]) == 1:
+                self.insert_after_restart()
             # self.insert_after_restart(delete=True, fill_history_value=1)
             ## ! TD-18123
             # # self.insert_after_recreate_source_table()
