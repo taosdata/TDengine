@@ -8,7 +8,7 @@ use arrow::{
     datatypes::{DataType, Field, Schema},
     record_batch::RecordBatch,
 };
-use chrono::{DateTime, format, ParseResult};
+use chrono::{format, DateTime, ParseResult};
 use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
 use taosx_ipc::prelude::IpcDataType;
@@ -177,7 +177,6 @@ fn parse_str_without_tz(s: &str, fmt: &str, tz: &Tz) -> ParseResult<DateTime<Tz>
     chrono::format::parse(&mut parsed, s, format::strftime::StrftimeItems::new(fmt))?;
     parsed.to_datetime_with_timezone(&tz)
 }
-
 
 #[cfg(test)]
 mod tests {

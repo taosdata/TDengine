@@ -17,9 +17,9 @@ pub use runners::kafka::*;
 pub use runners::mqtt::mqtt_to_taos;
 use runners::opc::opc_datasets;
 pub use runners::opc::opc_to_taos;
+pub use runners::opc::ColumnConfig;
 pub use runners::opc::OPCConfig;
 pub use runners::opc::TableConfig;
-pub use runners::opc::ColumnConfig;
 pub use runners::opentsdb::opentsdb_datasets;
 pub use runners::opentsdb::opentsdb_to_taos;
 pub use runners::pi::pi_to_taos;
@@ -94,7 +94,7 @@ pub async fn build_ipc(
         .in_current_span()
         .await?
     } else {
-        sink::listen_tcp_socket_with_agent(socket, cancel.clone(), with_agent.unwrap())
+        sink::listen_tcp_socket_with_agent(socket, cancel.clone(), with_agent.unwrap(), config)
             .in_current_span()
             .await?
     };

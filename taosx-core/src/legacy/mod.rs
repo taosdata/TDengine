@@ -2517,7 +2517,7 @@ pub async fn legacy_to_taos(
     let rc = Arc::new(task_done);
     let task_done_clone = rc.clone();
     std::thread::spawn(move || loop {
-        if task_done_clone.load(Ordering::Relaxed) || cancel.is_cancelled(){
+        if task_done_clone.load(Ordering::Relaxed) || cancel.is_cancelled() {
             tracing::debug!("stop timer");
             break;
         }
@@ -3032,7 +3032,7 @@ mod tests {
             limit: Limit::new((1, Some(1))),
             ..Default::default()
         };
-        legacy_to_taos(v3, vec![], v2, 1).await?;
+        legacy_to_taos(v3, vec![], v2, 1, Default::default()).await?;
         Ok(())
     }
 

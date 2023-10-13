@@ -17,6 +17,7 @@ use file_rotate::{
 
 use anyhow::{bail, Context};
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, Taos, TaosBuilder, Ty};
 use taosx_ipc::{prelude::IpcDataType, types::OptionSet};
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
@@ -323,7 +324,12 @@ impl OPCConfig {
         } else {
             None
         };
-        
+
+        let select_all_points = dsn
+            .remove("select_all_points")
+            .map(|v| v.parse::<bool>().ok().unwrap_or(true))
+            .unwrap_or(false);
+
         match dsn.protocol.as_deref() {
             Some("ua") => {
                 opc_type = OpcType::OPCUA;
@@ -394,12 +400,12 @@ impl OPCConfig {
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else if csv_config_file.is_some() {
-                    let res =
-                        generate_opcconfig_from_csv("opcua", csv_config_file.clone().unwrap().as_str())
-                            .await
-                            .map_err(|err| {
-                                OpcError::ConfigError("csv_config_file", err.to_string())
-                            })?;
+                    let res = generate_opcconfig_from_csv(
+                        "opcua",
+                        csv_config_file.clone().unwrap().as_str(),
+                    )
+                    .await
+                    .map_err(|err| OpcError::ConfigError("csv_config_file", err.to_string()))?;
                     opc_table_config = Some(res.0);
                     for child_table_name in res.2.iter() {
                         let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
@@ -409,9 +415,13 @@ impl OPCConfig {
                         })?;
                     }
                     res.1
+                } else if select_all_points {
+                    // TODO: all points returns empty.
+                    // warn!("select_all_points is not implemented");
+                    Vec::new()
                 } else {
                     get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
-                    .map_err(|s| OpcError::FileParseFound(s))?
+                        .map_err(|s| OpcError::FileParseFound(s))?
                 };
                 let mut ua_node_config_vec = Vec::new();
                 for i in 0..node_vec.len() {
@@ -484,12 +494,12 @@ impl OPCConfig {
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else if csv_config_file.is_some() {
-                    let res =
-                        generate_opcconfig_from_csv("opcda", csv_config_file.clone().unwrap().as_str())
-                            .await
-                            .map_err(|err| {
-                                OpcError::ConfigError("csv_config_file", err.to_string())
-                            })?;
+                    let res = generate_opcconfig_from_csv(
+                        "opcda",
+                        csv_config_file.clone().unwrap().as_str(),
+                    )
+                    .await
+                    .map_err(|err| OpcError::ConfigError("csv_config_file", err.to_string()))?;
                     opc_table_config = Some(res.0);
                     for child_table_name in res.2.iter() {
                         let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
@@ -572,17 +582,21 @@ impl OPCConfig {
             table_config = None;
         } else {
             if opc_table_config.is_none() {
-                let config = dsn.remove("opc_table_config");
-                if config.is_none() {
-                    return Err(OpcError::ConfigError(
-                        "opc_table_config",
-                        "should config opc_table_config or use csv config file".to_string(),
-                    ));
+                if select_all_points {
+                    table_config = None;
+                } else {
+                    let config = dsn.remove("opc_table_config");
+                    if config.is_none() {
+                        return Err(OpcError::ConfigError(
+                            "opc_table_config",
+                            "should config opc_table_config or use csv config file".to_string(),
+                        ));
+                    }
+                    table_config =
+                        Some(serde_json::from_str(config.unwrap().as_str()).map_err(|v| {
+                            OpcError::ParseError("opc_table_config", v.to_string())
+                        })?);
                 }
-                table_config = Some(
-                    serde_json::from_str(config.unwrap().as_str())
-                        .map_err(|v| OpcError::ParseError("opc_table_config", v.to_string()))?,
-                );
             } else {
                 let opc_table_config = opc_table_config.unwrap();
                 table_config = Some(opc_table_config.table_config.clone());
@@ -744,12 +758,11 @@ pub async fn generate_opcconfig_from_csv(
 
                     let point_id = record_map.get_mut("point_id").unwrap();
                     let pointid = point_id.clone();
-                    drop(point_id);
                     let tb_name = record_map.get_mut("tbname").unwrap();
-                    if tb_name.contains("{") { // maybe should use pattern match?
-                         *tb_name = generate_tbname_from_pattern(ty, tb_name, &pointid);
+                    if tb_name.contains("{") {
+                        // maybe should use pattern match?
+                        *tb_name = generate_tbname_from_pattern(ty, tb_name, &pointid);
                     }
-                    drop(tb_name);
                     let point_id = record_map.get("point_id").unwrap();
                     let stable = if let Some(stable_name) = record_map.get("stable") {
                         Some(stable_name.clone())
@@ -847,7 +860,6 @@ pub async fn generate_opcconfig_from_csv(
                         column_config_init = true;
                     }
 
-
                     let tag_values = if tag_values_map.len() == 0 {
                         None
                     } else {
@@ -888,6 +900,7 @@ pub async fn generate_opcconfig_from_csv(
     ));
 }
 
+#[instrument(skip(dsn))]
 async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
     let child_table_expression = dsn.remove("child_table_expression");
     if child_table_expression.is_none() {
@@ -902,18 +915,22 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
     let data = DataSetsReq {
         from: dsn.to_string(),
         categories: vec![String::from("nodes")],
-        via:None,
+        via: None,
         offset: 0,
         pattern: Some(String::from(".*")),
         limit: usize::MAX / 2 - 1,
         lang: None,
     };
     let all_points = opc_datasets(&data).await?;
-    let point_config = all_points.iter().map(|point| {
-        let point_id = point.id.clone();
-        let tbname = generate_tbname_from_pattern(&dsn.driver, &child_table_expression, &point_id);
-        format!("{}::{}", point_id, tbname)
-    }).join(",");
+    let point_config = all_points
+        .iter()
+        .map(|point| {
+            let point_id = point.id.clone();
+            let tbname =
+                generate_tbname_from_pattern(&dsn.driver, &child_table_expression, &point_id);
+            format!("{}::{}", point_id, tbname)
+        })
+        .join(",");
     if dsn.driver.as_str() == "opcua" {
         dsn.set("ua.nodes", point_config);
     } else {
@@ -965,7 +982,10 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
             tag_configs: None,
         }
     };
-    dsn.set("opc_table_config", serde_json::to_string(&opc_table_config)?);
+    dsn.set(
+        "opc_table_config",
+        serde_json::to_string(&opc_table_config)?,
+    );
     Ok(())
 }
 
@@ -999,18 +1019,18 @@ fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> Stri
         } else {
             None
         };
-        tb_name.clone()
+        tb_name
             .replace("{ns}", ns.unwrap_or(""))
             .replace("{id}", id.unwrap_or(""))
     } else {
         let tag_index = point_id.rfind(".");
         let tag_name = if let Some(index) = tag_index {
             // should be Device.DeviceType.TagName pattern
-            &point_id[index+1..]
+            &point_id[index + 1..]
         } else {
             &point_id
         };
-        tb_name.clone().replace("{TagName}", tag_name)
+        tb_name.replace("{TagName}", tag_name)
     };
     tbname
 }
@@ -1126,17 +1146,12 @@ pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
     ))
 }
 
-pub async fn opc_config_blocking(taos: &Taos, dsn: &Dsn, port: u16) -> anyhow::Result<OPCConfig> {
-    let config = OPCConfig::new(dsn.clone(), port, OPCConfigMode::Collect, Some(taos)).await?;
-    Ok::<_, anyhow::Error>(config)
-}
-
-#[instrument(skip_all, fields(taosx.task.from = "opc", taosx.task.jobs = jobs, taosx.task.id = with_agent.as_ref().map(|v| v.0)))]
+#[instrument(skip_all, fields(task.id = with_agent.as_ref().map(|v| v.0)))]
 pub async fn opc_to_taos(
     mut from: Dsn,
     _actions: Vec<Action>,
     to: Dsn,
-    jobs: usize,
+    _jobs: usize,
     port_pool: &PortPool,
     cancel: CancellationToken,
     with_agent: Option<(i64, String, String)>,
@@ -1163,7 +1178,9 @@ pub async fn opc_to_taos(
     let builder: TaosBuilder = TaosBuilder::from_dsn(&to)?;
     let taos = builder.build().await?;
 
-    let select_all_points = parse_bool_param_from_dsn(&mut from, "select_all_points").map_err(|err| OpcError::ConfigError("select_all_points", err.to_string()))?.unwrap_or(false);
+    let select_all_points = parse_bool_param_from_dsn(&mut from, "select_all_points")
+        .map_err(|err| OpcError::ConfigError("select_all_points", err.to_string()))?
+        .unwrap_or(false);
     if select_all_points {
         handle_select_all_points(&mut from).await?;
     }
@@ -1180,11 +1197,7 @@ pub async fn opc_to_taos(
 
     tracing::info!("Using opc config file {}", config_path.display());
 
-    let table_config = if with_agent.is_none() {
-        Some(config.parse_tables_with(&taos).await?)
-    } else {
-        None
-    };
+    let table_config = Some(config.parse_tables_with(&taos).await?);
     let connector = match config.opc_type {
         OpcType::FAKE => None,
         OpcType::OPCDA => Some("opc_da"),
@@ -1324,7 +1337,7 @@ pub async fn opc_to_taos(
 //     }
 // }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct OpcTableConfig {
     // id, (code, stable, enabled)
     // code for child table name, stable maybe none when use ui config, casue stabel_prefix exists
@@ -1334,7 +1347,7 @@ pub struct OpcTableConfig {
     pub(crate) table_config: TableConfig,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub(crate) struct PointConfig {
     pub code: String,
     pub stable: Option<String>,
@@ -1354,7 +1367,8 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         regex: req.pattern.clone(),
     };
     config.points = Some(points_config);
-    let toml = toml::to_string(&config).with_context(|| format!("toml to_string error encountered"))?;
+    let toml =
+        toml::to_string(&config).with_context(|| format!("toml to_string error encountered"))?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
@@ -1397,6 +1411,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         tracing::error!(
             plugin = "opc",
             module = "datasets",
+            stdout = ?bytes::Bytes::from(output.stdout),
             "Get OPC datasets error:\n{}",
             error
         );
@@ -1654,6 +1669,30 @@ async fn test_with_agent() -> anyhow::Result<()> {
     ua.nodes=ns=10;i=1004::t1::c1::double&connect_timeout=5&request_timeout=5&\
     concurrent=1&batch_size=5&batch_timeout=5&debug=true";
     let target = "taos:///opcua";
+    let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
+    opc_to_taos(
+        opc.parse().unwrap(),
+        vec![],
+        target.parse().unwrap(),
+        1,
+        &PortPool::default(),
+        CancellationToken::new(),
+        Some((2, "http://127.0.0.1:6051".into(), "".into())),
+        None,
+        span.clone(),
+    )
+    .await?;
+    Ok(())
+}
+
+//
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_with_agent_all_nodes() -> anyhow::Result<()> {
+    std::env::set_var("RUST_LOG", "debug");
+    tracing_subscriber::fmt::init();
+    let opc = "opcua://192.168.0.34:53530/OPCUA/SimulationServer?connect_timeout=1&request_timeout=1&interval=10&collect_mode=observe&enable=false&keep=10&concurrent=1&batch_size=1&batch_timeout=1&debug=false&select_all_points=true&table_primary_key=original_ts&child_table_expression=meter_{ns}_{id}&&select_all_points=true";
+    let target = "taos:///opc";
     let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
     opc_to_taos(
         opc.parse().unwrap(),

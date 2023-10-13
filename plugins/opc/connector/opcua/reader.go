@@ -586,7 +586,7 @@ func (r *reader) getAllNodes(ctx context.Context) (nodes []common.Point, err err
 		return nil, err
 	}
 
-	rootId, err := ua.ParseNodeID("i=84") // root node
+	rootId, err := ua.ParseNodeID("i=85") // objects node
 	if err != nil {
 		return nil, err
 	}
