@@ -788,10 +788,10 @@ struct SDiskDataBuilder {
   SBlkInfo     bi;
 };
 
-typedef struct SLDataIter {
+struct SLDataIter {
   SRBTreeNode            node;
   SSttBlk               *pSttBlk;
-  int32_t                iStt;  // for debug purpose
+  int64_t                cid;  // for debug purpose
   int8_t                 backward;
   int32_t                iSttBlk;
   int32_t                iRow;
@@ -802,7 +802,7 @@ typedef struct SLDataIter {
   SSttBlockLoadInfo     *pBlockLoadInfo;
   bool                   ignoreEarlierTs;
   struct SSttFileReader *pReader;
-} SLDataIter;
+};
 
 #define tMergeTreeGetRow(_t) (&((_t)->pIter->rInfo.row))
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,

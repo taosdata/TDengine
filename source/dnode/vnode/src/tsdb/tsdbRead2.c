@@ -524,7 +524,7 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
   int64_t st = taosGetTimestampUs();
 
   // clear info for the new file
-  cleanupInfoFoxNextFileset(pReader->status.pTableMap);
+  cleanupInfoForNextFileset(pReader->status.pTableMap);
 
   int32_t      k = 0;
   int32_t      numOfTables = tSimpleHashGetSize(pReader->status.pTableMap);
@@ -1424,7 +1424,6 @@ static bool tryCopyDistinctRowFromSttBlock(TSDBROW* fRow, SLastBlockReader* pLas
                                            STableBlockScanInfo* pScanInfo, int64_t ts, STsdbReader* pReader,
                                            bool* copied) {
   int32_t code = TSDB_CODE_SUCCESS;
-
   *copied = false;
 
   bool hasVal = nextRowFromLastBlocks(pLastBlockReader, pScanInfo, &pReader->info.verRange);
@@ -1506,12 +1505,6 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
     STSchema* ps = getTableSchemaImpl(pReader, pBlockScanInfo->uid);
     if (ps == NULL) {
       return terrno;
-    }
-
-    int32_t code = tsdbRowMergerInit(pMerger, ps);
-    if (code != TSDB_CODE_SUCCESS) {
-      tsdbError("failed to init row merger, code:%s", tstrerror(code));
-      return code;
     }
   }
 
@@ -1655,7 +1648,7 @@ static int32_t doMergeFileBlockAndLastBlock(SLastBlockReader* pLastBlockReader, 
   tsdbTrace("fRow ptr:%p, %d, uid:%" PRIu64 ", ts:%" PRId64 " %s", pRow->pBlockData, pRow->iRow, pLastBlockReader->uid,
             fRow.pBlockData->aTSKEY[fRow.iRow], pReader->idStr);
 
-  // only last block exists
+  // only stt block exists
   if ((!mergeBlockData) || (tsLastBlock != pBlockData->aTSKEY[pDumpInfo->rowIndex])) {
     code = tryCopyDistinctRowFromSttBlock(&fRow, pLastBlockReader, pBlockScanInfo, tsLastBlock, pReader, &copied);
     if (code) {
@@ -1733,12 +1726,6 @@ static int32_t mergeFileBlockAndLastBlock(STsdbReader* pReader, SLastBlockReader
     STSchema* ps = getTableSchemaImpl(pReader, pBlockScanInfo->uid);
     if (ps == NULL) {
       return terrno;
-    }
-
-    int32_t code = tsdbRowMergerInit(pMerger, ps);
-    if (code != TSDB_CODE_SUCCESS) {
-      tsdbError("failed to init row merger, code:%s", tstrerror(code));
-      return code;
     }
   }
 
@@ -1840,12 +1827,6 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     STSchema* ps = getTableSchemaImpl(pReader, pBlockScanInfo->uid);
     if (ps == NULL) {
       return terrno;
-    }
-
-    code = tsdbRowMergerInit(pMerger, ps);
-    if (code != TSDB_CODE_SUCCESS) {
-      tsdbError("failed to init row merger, code:%s", tstrerror(code));
-      return code;
     }
   }
 
@@ -2168,12 +2149,6 @@ int32_t mergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pBloc
     STSchema* ps = getTableSchemaImpl(pReader, pBlockScanInfo->uid);
     if (ps == NULL) {
       return terrno;
-    }
-
-    code = tsdbRowMergerInit(pMerger, ps);
-    if (code != TSDB_CODE_SUCCESS) {
-      tsdbError("failed to init row merger, code:%s", tstrerror(code));
-      return code;
     }
   }
 
