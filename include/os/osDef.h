@@ -225,7 +225,10 @@ void syslog(int unused, const char *format, ...);
 #endif
 #else
 // Windows
-#define setThreadName(name)
+#define setThreadName(name)                       \
+  do {                                            \
+    pthread_setname_np(taosThreadSelf(), (name)); \
+  } while (0)
 #endif
 
 #if defined(_WIN32)
