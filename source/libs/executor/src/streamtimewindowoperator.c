@@ -3590,7 +3590,6 @@ void streamStateReloadState(SOperatorInfo* pOperator) {
   for (int32_t i = 0; i < num; i++) {
     SStateWindowInfo curInfo = {0};
     SStateWindowInfo nextInfo = {0};
-    SStateWindowInfo dummy = {0};
     qDebug("===stream=== reload state. try process result %" PRId64 ", %" PRIu64 ", index:%d", pSeKeyBuf[i].win.skey,
            pSeKeyBuf[i].groupId, i);
     getStateWindowInfoByKey(pAggSup, pSeKeyBuf + i, &curInfo, &nextInfo);
