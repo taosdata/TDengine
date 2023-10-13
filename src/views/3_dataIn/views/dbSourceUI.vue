@@ -682,6 +682,12 @@
                   </el-radio-group>
                 </template>
                 <div
+                  v-if="p.name == 'BackfillStartTime'"
+                  class="description"
+                  v-html="transforHtml(p.short_description)"
+                ></div>
+                <div
+                  v-else
                   class="description"
                   v-html="transforHtml(p.description)"
                 ></div>
