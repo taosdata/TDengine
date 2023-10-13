@@ -607,6 +607,8 @@ function install_data() {
 function install_connector() {
   if [ -d "${script_dir}/connector/" ]; then
     ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/ || echo "failed to copy connector"
+    ${csudo}cp ${script_dir}/start-all.sh ${install_main_dir}/ || echo "failed to copy start-all.sh"
+    ${csudo}cp ${script_dir}/stop-all.sh ${install_main_dir}/ || echo "failed to copy stop-all.sh"
   fi
 }
 
@@ -619,6 +621,13 @@ function install_examples() {
 function install_web() {
   if [ -d "${script_dir}/share" ]; then
     ${csudo}cp -rf ${script_dir}/share/* ${install_main_dir}/share > /dev/null 2>&1 ||:
+  fi
+}
+
+function install_taosx() {
+  if [ -f "${script_dir}/taosx/install.sh" ]; then    
+    cd ${script_dir}/taosx
+    echo y | bash install.sh > /dev/null
   fi
 }
 
@@ -893,6 +902,7 @@ function updateProduct() {
 
   if [ "$verMode" == "cluster" ]; then
       install_connector
+      install_taosx
   fi
 
   install_examples
@@ -910,6 +920,9 @@ function updateProduct() {
     echo -e "${GREEN_DARK}To configure ${productName2} ${NC}\t: edit ${cfg_install_dir}/${configFile2}"
     [ -f ${configDir}/${clientName2}adapter.toml ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
       echo -e "${GREEN_DARK}To configure ${clientName2}Adapter ${NC}\t: edit ${configDir}/${clientName2}adapter.toml"
+    if [ "$verMode" == "cluster" ]; then
+      echo -e "${GREEN_DARK}To configure ${clientName2}-explorer ${NC}\t: edit ${configDir}/explorer.toml"
+    fi
     if ((${service_mod} == 0)); then
       echo -e "${GREEN_DARK}To start ${productName2}     ${NC}\t: ${csudo}systemctl start ${serverName2}${NC}"
       [ -f ${service_config_dir}/${clientName2}adapter.service ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
@@ -925,6 +938,10 @@ function updateProduct() {
     fi
     
     echo -e "${GREEN_DARK}To enable ${clientName2}keeper ${NC}\t: sudo systemctl enable ${clientName2}keeper ${NC}"
+    if [ "$verMode" == "cluster" ];then
+      echo -e "${GREEN_DARK}To start ${clientName2}x ${NC}\t: sudo systemctl start ${clientName2}x ${NC}"
+      echo -e "${GREEN_DARK}To start ${clientName2}-explorer ${NC}\t: sudo systemctl start ${clientName2}-explorer ${NC}"
+    fi
 
     if [ ${openresty_work} = 'true' ]; then
       echo -e "${GREEN_DARK}To access ${productName2}    ${NC}\t: use ${GREEN_UNDERLINE}${clientName2} -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${web_port}${NC}"
@@ -937,8 +954,11 @@ function updateProduct() {
       echo -e "${RED}Please run '${serverName2} --force-keep-file' at first time for the exist ${productName2} $exist_version!${NC}"
     fi
     echo
+    echo -e "\033[44;32;1mTo start all the components\t: sudo ./start-all.sh${NC}"
     echo -e "\033[44;32;1m${productName2} is updated successfully!${NC}"
-    echo -e "\033[44;32;1mTo manage ${productName2} instance, view documentation or explorer features, please install ${clientName2}Explorer ${NC}"
+    echo -e "\033[44;32;1mTo access command line interface\t: taos -h ubuntu${NC}"
+    echo -e "\033[44;32;1mTo access the management system\t: http://ubuntu:6060${NC}"
+    echo -e "\033[44;32;1mTo read the user manual\t: http://ubuntu:6060/docs${NC}"
   else
     install_bin
     install_config
@@ -947,7 +967,8 @@ function updateProduct() {
     echo -e "\033[44;32;1m${productName2} client is updated successfully!${NC}"
   fi
 
-  rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
+  cd $script_dir
+  rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/") 
 }
 
 function installProduct() {
@@ -975,6 +996,7 @@ function installProduct() {
 
   if [ "$verMode" == "cluster" ]; then
       install_connector
+      install_taosx    
   fi
   install_examples  
   install_web
@@ -994,6 +1016,9 @@ function installProduct() {
     echo -e "${GREEN_DARK}To configure ${productName2} ${NC}\t: edit ${cfg_install_dir}/${configFile2}"
     [ -f ${configDir}/${clientName2}adapter.toml ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
       echo -e "${GREEN_DARK}To configure ${clientName2}Adapter ${NC}\t: edit ${configDir}/${clientName2}adapter.toml"
+    if [ "$verMode" == "cluster" ]; then
+      echo -e "${GREEN_DARK}To configure ${clientName2}-explorer ${NC}\t: edit ${configDir}/explorer.toml"
+    fi
     if ((${service_mod} == 0)); then
       echo -e "${GREEN_DARK}To start ${productName2}     ${NC}\t: ${csudo}systemctl start ${serverName2}${NC}"
       [ -f ${service_config_dir}/${clientName2}adapter.service ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
@@ -1009,6 +1034,11 @@ function installProduct() {
     fi
 
     echo -e "${GREEN_DARK}To enable ${clientName2}keeper ${NC}\t: sudo systemctl enable ${clientName2}keeper ${NC}"
+    
+    if [ "$verMode" == "cluster" ];then
+      echo -e "${GREEN_DARK}To start ${clientName2}x ${NC}\t: sudo systemctl start ${clientName2}x ${NC}"
+      echo -e "${GREEN_DARK}To start ${clientName2}-explorer ${NC}\t: sudo systemctl start ${clientName2}-explorer ${NC}"
+    fi
 
     if [ ! -z "$firstEp" ]; then
       tmpFqdn=${firstEp%%:*}
@@ -1030,8 +1060,12 @@ function installProduct() {
       echo
     fi
 
+    echo -e "\033[44;32;1mTo start all the components\t: sudo ./start-all.sh${NC}"
+
     echo -e "\033[44;32;1m${productName2} is installed successfully!${NC}"
-    echo -e "\033[44;32;1mTo manage ${productName2} instance, view documentation or explorer features, please install ${clientName2}Explorer ${NC}"
+    echo -e "\033[44;32;1mTo access command line interface: taos -h ubuntu${NC}"
+    echo -e "\033[44;32;1mTo access the management system: http://ubuntu:6060${NC}"
+    echo -e "\033[44;32;1mTo read the user manual: http://ubuntu:6060/docs${NC}"
     echo
   else # Only install client
     install_bin
@@ -1039,7 +1073,8 @@ function installProduct() {
     echo
     echo -e "\033[44;32;1m${productName2} client is installed successfully!${NC}"
   fi
-
+  
+  cd $script_dir
   touch ~/.${historyFile}
   rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
 }
