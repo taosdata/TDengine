@@ -31,15 +31,21 @@ export default [
       { title: i18n.t("docs.tool.benchmark.step4"), dom: "configuration-file-parameters-in-detailed" },
     ]
   },
-  // {
-  //   name: "taosDump",
-  //   logo: "https://img1.baidu.com/it/u=3903506244,1663450695&fm=253&fmt=auto&app=138&f=GIF?w=500&h=310",
-  //   desc: "",
-  //   docs: {
-  //     zh: "",
-  //     en: mdx.taosDump,
-  //   },
-  // },
+  {
+    name: "taosDump",
+    logo: "https://img1.baidu.com/it/u=3903506244,1663450695&fm=253&fmt=auto&app=138&f=GIF?w=500&h=310",
+    desc: i18n.t('docs.dataout.dump.desc'),
+    docs: {
+      zh: "",
+      en: mdx.taosDumpDoc,
+    },
+    steps: [
+      { title: i18n.t("docs.dataout.dump.step1"), dom: "introduction" },
+      { title: i18n.t("docs.dataout.dump.step2"), dom: "installation" },
+      { title: i18n.t("docs.dataout.dump.step3"), dom: "run" },
+      { title: i18n.t("docs.dataout.dump.step4"), dom: "configuration-file-parameters-in-detailed" },
+    ]
+  },
   // {
   //   name: "taosX",
   //   logo: "https://img1.baidu.com/it/u=3903506244,1663450695&fm=253&fmt=auto&app=138&f=GIF?w=500&h=310",
@@ -49,4 +55,31 @@ export default [
   //     en: "https://spiderio.cn/docs-en/07-tools/04-taosx.md",
   //   },
   // },
+  {
+    name: "Grafana",
+    desc: i18n.t("docs.virtual.grafana.desc"),
+    docs: {
+      zh: "",
+      en: mdx.grafanaDoc,
+    },
+    steps: [
+      { title: i18n.t("docs.virtual.grafana.step1"), dom: "install-grafana" },
+      { title: i18n.t("docs.virtual.grafana.step2"), dom: "install-tdengine-plugin" },
+      { title: i18n.t("docs.virtual.grafana.step3"), dom: "verify-plugin" },
+      { title: i18n.t("docs.virtual.grafana.step4"), dom: "use-grafana" },
+    ],
+  },
+  {
+    name: "Google Data Studio",
+    desc: i18n.t("docs.virtual.gds.desc"),
+    docs: {
+      zh:'',
+      en:mdx.gdsDoc
+    },
+    steps: [
+      {title: i18n.t("docs.virtual.gds.step1"), dom: "choose-data-source"},
+      {title: i18n.t("docs.virtual.gds.step2"), dom: "connector-configuration"},
+      {title: i18n.t("docs.virtual.gds.step3"), dom: "create-report-or-dashboard"},
+    ]
+  }
 ];

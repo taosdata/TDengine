@@ -9,9 +9,6 @@
     <el-table style="margin-top: 20px" :data="topicList" size="mini" row-key="topic_name">
       <el-table-column width="150" :label="$t('topic.topicName')" prop="topic_name"></el-table-column>
       <el-table-column width="150" :label="$t('topic.DBName')" prop="db_name"></el-table-column>
-      <el-table-column width="210" :label="$t('createTime')" prop="create_time">
-        <span slot-scope="scope">{{ parsinginZone(scope.row.create_time) }}</span>
-      </el-table-column>
       <el-table-column min-width="200" label="SQL" prop="sql">
         <template slot-scope="scope">
           <pre v-highlight class="nowrap sql-code pre-code" slot="reference">
@@ -25,6 +22,9 @@
           <code class="language-sql" style="overflow:hidden">{{ scope.row.dsn }} </code>
         </pre>
         </template>
+      </el-table-column>
+      <el-table-column width="210" :label="$t('createTime')" prop="create_time">
+        <span slot-scope="scope">{{ parsinginZone(scope.row.create_time) }}</span>
       </el-table-column>
       <el-table-column :label="$t('topic.action')" width="80">
         <template slot-scope="scope">

@@ -232,7 +232,6 @@
               icon="el-icon-view"
             ></el-button>
             <el-button
-              type="danger"
               plain
               size="mini"
               @click="del(scope.row)"

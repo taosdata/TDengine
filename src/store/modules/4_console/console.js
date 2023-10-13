@@ -14,7 +14,7 @@ const state = {
   result: [],
   head: [],
   addSql: "",
-  partActive: "wizard",
+  partActive: "sql",
   currentComponent: "",
   treeKey: 0,
   currentInfoType: "database",

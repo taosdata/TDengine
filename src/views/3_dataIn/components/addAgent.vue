@@ -69,25 +69,7 @@ token="{{ token }}"</code></pre>
           <pre v-highlight><code>sc query taosx-agent</code></pre>
         </el-tab-pane>
       </el-tabs>
-      <!-- <p v-dompurify-html="$t('docs.taosxAgent.7')"></p>
-      <el-tabs v-model="tabActive">
-        <el-tab-pane
-          label="Linux"
-          name="0"
-        >
-          <pre v-highlight><code>journalctl -u taosx-agent</code></pre>
-        </el-tab-pane>
-        <el-tab-pane
-          label="Windows"
-          name="1"
-        >
-          <pre v-highlight><code>C:\Program Files\taosX\log\agent\</code></pre>
-        </el-tab-pane>
-      </el-tabs>
-      <p
-        style="margin-bottom: 16px"
-        v-dompurify-html="$t('docs.taosxAgent.8')"
-      ></p> -->
+   
       <el-button
         class="mb20"
         size="small"
@@ -95,6 +77,13 @@ token="{{ token }}"</code></pre>
         :type="checkBtnType"
         >{{ checkBtnText }}</el-button
       >
+      <el-tag
+        v-if="statusMap[agentStatus]"
+        class="ml20"
+        :type="statusMap[agentStatus].type"
+      >
+        {{ $t(statusMap[agentStatus].label) }}
+      </el-tag>
       <template v-if="agentStatus == 'failed'">
         <p v-dompurify-html="$t('docs.taosxAgent.11')"></p>
         <el-tabs v-model="tabActive">
@@ -147,41 +136,40 @@ export default {
   props: {
     agent: {
       type: Object,
-      default: () => {}
+      default: () => ({})
     }
   },
   name:'AddAgent',
   components: {},
   data() {
+    this.statusMap = {
+      failed: {
+        label: 'docs.taosxAgent.9',
+        type: 'danger'
+      },
+      success: {
+        label: 'docs.taosxAgent.8',
+        type: 'success'
+      }
+    };
     return {
+      oldActive:0,
       active: 1,
       name: '',
       tokenMap: {},
       loading: false,
       tabActive: '0',
-      agentStatus: 'noCheck',
-      requestIng: false
+      agentStatus: '',
+      requestIng: false,
+      checkIng: false
     };
   },
   computed: {
     checkBtnText() {
-      return this.$t(
-        'docs.taosxAgent.' +
-          {
-            noCheck: '7',
-            checking: 10,
-            success: 8,
-            failed: 9
-          }[this.agentStatus]
-      );
+      return this.$t('docs.taosxAgent.' + (this.checkIng ? '10' : '7'));
     },
     checkBtnType() {
-      return {
-        noCheck: '',
-        checking: 'primary',
-        success: 'success',
-        failed: 'danger'
-      }[this.agentStatus];
+      return this.checkIng ? 'primary' : '';
     },
     agentList() {
       return this.$store.state.app.agentLists.filter(item => item.id !== this.agent?.id);
@@ -215,25 +203,16 @@ export default {
       return this.active == 4 ? this.$t('dataIn.finish') : this.$t('next');
     }
   },
-  watch: {
-    agent: {
-      handler(val) {
-        if (val) {
-          this.name = val.name;
-          this.active = 2;
-        }
-      },
-      deep: true,
-      immediate: true
+  mounted() {
+    if (this.agent?.id) {
+      this.name = this.agent.name;
+      this.active = 2;
     }
   },
-  created() {},
-  mounted() {},
   methods: {
     checkAgentStatus() {
-      if (this.requestIng) return;
-      this.requestIng = true;
-      this.agentStatus = 'checking';
+      if (this.checkIng) return;
+      this.checkIng = true;
       this.$store
         .dispatch('app/getAgentList')
         .then(() => {
@@ -241,10 +220,10 @@ export default {
           this.agentStatus = ['idle', 'busy'].includes(status) ? 'success' : 'failed';
         })
         .catch(() => {
-          this.agentStatus = 'noCheck';
+          this.agentStatus = '';
         })
         .finally(() => {
-          this.requestIng = false;
+          this.checkIng = false;
         });
     },
     submit() {
@@ -252,10 +231,15 @@ export default {
       this.loading = true;
       const fn = this.agent?.id ? editAgent : addNewAgent;
       fn(this.name, this.agent?.id)
-        .then(({ token }) => {
+        .then(({ token,id }) => {
           this.$set(this.tokenMap, this.name, token);
           this.active++;
           this.$store.dispatch('app/getAgentList');
+          Object.assign(
+            this.agent,
+            this.$store.state.app.agentList.find(item => item.id == id)
+          );
+          this.$emit('submit');
         })
         .catch(() => {})
         .finally(() => {
@@ -265,9 +249,9 @@ export default {
     next() {
 
       if (this.active == 4) {
+        this.agentStatus = 'noCheck';
         this.$parent.$parent.showAgent=false
       }
-      // return this.$store.commit('SET_DIALOG_VISIBLE', false);
       if (this.active == 2) {
         this.submit();
       } else {
@@ -275,10 +259,18 @@ export default {
       }
     },
     nameValid() {
-      if (this.name) {
+      if ((this.name&&this.oldActive!=3)&&this.oldActive!=1) {
         return this.agentList.some(item => item.name == this.name);
       } else {
         return false;
+      }
+    }
+  },
+  watch:{
+    active:{
+      deep:true,
+      handler(val,oldval){
+        this.oldActive=oldval
       }
     }
   }
@@ -300,6 +292,9 @@ export default {
   }
   .mb20{
     margin-bottom:20px;
+  }
+  .ml20{
+    margin-left:20px;
   }
 }
 </style>
