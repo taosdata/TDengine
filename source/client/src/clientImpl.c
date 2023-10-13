@@ -1009,7 +1009,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
 
   tscDebug("schedulerExecCb request type %s", TMSG_INFO(pRequest->type));
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
-    removeMeta(pTscObj, pRequest->targetTableList);
+    removeMeta(pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type));
   }
 
   pRequest->metric.execCostUs = taosGetTimestampUs() - pRequest->metric.execStart;
@@ -1097,7 +1097,7 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
   }
 
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
-    removeMeta(pRequest->pTscObj, pRequest->targetTableList);
+    removeMeta(pRequest->pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type));
   }
 
   handleQueryExecRsp(pRequest);
@@ -1281,7 +1281,7 @@ int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
   return code;
 }
 
-int32_t removeMeta(STscObj* pTscObj, SArray* tbList) {
+int32_t removeMeta(STscObj* pTscObj, SArray* tbList, bool isView) {
   SCatalog* pCatalog = NULL;
   int32_t   tbNum = taosArrayGetSize(tbList);
   int32_t   code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
@@ -1289,9 +1289,18 @@ int32_t removeMeta(STscObj* pTscObj, SArray* tbList) {
     return code;
   }
 
-  for (int32_t i = 0; i < tbNum; ++i) {
-    SName* pTbName = taosArrayGet(tbList, i);
-    catalogRemoveTableMeta(pCatalog, pTbName);
+  if (isView) {
+    for (int32_t i = 0; i < tbNum; ++i) {
+      SName* pViewName = taosArrayGet(tbList, i);
+      char dbFName[TSDB_DB_FNAME_LEN];
+      tNameGetFullDbName(pViewName, dbFName);
+      catalogRemoveViewMeta(pCatalog, dbFName, 0, pViewName->tname, 0);
+    }
+  } else {
+    for (int32_t i = 0; i < tbNum; ++i) {
+      SName* pTbName = taosArrayGet(tbList, i);
+      catalogRemoveTableMeta(pCatalog, pTbName);
+    }
   }
 
   return TSDB_CODE_SUCCESS;

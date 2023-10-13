@@ -993,7 +993,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
 
   launchQueryImpl(pRequest, pQuery, true, NULL);
   if (pRequest->code == TSDB_CODE_SUCCESS) {
-    removeMeta(pTscObj, pRequest->tableList);
+    removeMeta(pTscObj, pRequest->tableList, false);
   }
 
   code = pRequest->code;
@@ -1139,7 +1139,7 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
 
   launchQueryImpl(pRequest, pQuery, true, NULL);
   if (pRequest->code == TSDB_CODE_SUCCESS) {
-    removeMeta(pTscObj, pRequest->tableList);
+    removeMeta(pTscObj, pRequest->tableList, false);
   }
   code = pRequest->code;
 

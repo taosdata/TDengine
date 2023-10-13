@@ -1,0 +1,20 @@
+sql connect
+sql use test;
+
+sql create view view1 as select * from st;
+sql drop view view1;
+
+sql create or replace view view2 as select f from ct1;
+sql drop view if exists view2;
+sql drop view if exists view3;
+sql_error drop view view2;
+sql_error drop view view3;
+
+sql create view view3 as select avg(f) from st2;
+sql create or replace view view3 as select f fa from st;
+sql_error create view view3 as select * from st2;
+sql create view view4 as select * from view3;
+sql create or replace view view4 as select fa from view3;
+sql drop view view3;
+sql_error create view view5 as select * from view3;
+sql drop view view4;

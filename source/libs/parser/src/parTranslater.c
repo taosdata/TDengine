@@ -7456,6 +7456,11 @@ static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pSt
     code = (*pCxt->pParseCxt->parseSqlFp)(pCxt->pParseCxt->parseSqlParam, pStmt->pQuerySql, false, &res);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    SName name;
+    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->viewName, &name);
+    code = collectUseTable(&name, pCxt->pTargetTables);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     pStmt->createReq.precision = res.schemaRes.precision;
     pStmt->createReq.numOfCols = res.schemaRes.numOfCols;
     pStmt->createReq.pSchema = res.schemaRes.pSchema;
@@ -7490,6 +7495,13 @@ static int32_t translateDropView(STranslateContext* pCxt, SDropViewStmt* pStmt) 
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   dropReq.igNotExists = pStmt->ignoreNotExists;
+
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->viewName, &name);
+  int32_t code = collectUseTable(&name, pCxt->pTargetTables);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  
   return buildCmdMsg(pCxt, TDMT_MND_DROP_VIEW, (FSerializeFunc)tSerializeSCMDropViewReq, &dropReq);
 }
 
