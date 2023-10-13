@@ -1366,7 +1366,7 @@ END:
   taosReleaseRef(tmqMgmt.rsetId, refId);
 
 FAIL:
-  tsem_post(&tmq->rspSem);
+  if(tmq) tsem_post(&tmq->rspSem);
   taosMemoryFree(pParam);
   if(pMsg) taosMemoryFreeClear(pMsg->pData);
   if(pMsg) taosMemoryFreeClear(pMsg->pEpSet);
