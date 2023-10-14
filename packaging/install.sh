@@ -10,6 +10,7 @@ SERVICE_CONFIG_DIR="/etc/systemd/system"
 agentname="${PREFIX}x-agent"
 explorerName="${PREFIX}-explorer"
 csudo=""
+explorerEndpoint="localhost"
 
 target=""
 
@@ -173,6 +174,28 @@ print_tips(){
     fi
 }
 
+getUserInputEndpoint() {
+  echo "Set publicly accessible IP address or domain name you want expose to."
+  echo "If you do not set it and press Enter directly, the default 'localhost' will be used."
+  echo -n "Input: "
+  read endpoint
+  if [ -z "$endpoint" ]; then
+    explorerEndpoint="localhost"
+    echo "Explorer Endpoint default:${explorerEndpoint}"
+  else
+    explorerEndpoint="$endpoint"
+    echo "You have set explorer Endpoint:${explorerEndpoint}"
+  fi
+}
+
+function replaceExplorerEndpoint() {
+  local FileName=$1
+    if [ -f "$FileName" ]; then
+        sed -i "s/cluster = \"http\:\/\/localhost\:6041\"/cluster = \"http\:\/\/${explorerEndpoint}\:6041\"/g" $FileName
+        sed -i "s/x_api = \"http\:\/\/localhost\:6050\"/x_api = \"http\:\/\/${explorerEndpoint}\:6050\"/g" $FileName
+    fi
+}
+
 # install new taosx and taosx-agent
 install_taosx() {
     echo "install starting..."
@@ -188,6 +211,7 @@ install_taosx() {
     ${csudo}systemctl daemon-reload
 
     check_and_create_directory "${CONFIG_DIR}"
+    getUserInputEndpoint
     # copy config to /etc/taos
     if [ -f ${CONFIG_DIR}/agent.toml ]; then
         ${csudo}cp -f ./etc/taos/agent.toml ${CONFIG_DIR}/agent.toml.new
@@ -198,8 +222,10 @@ install_taosx() {
     if [ -f ./etc/taos/explorer.toml ]; then
         if [ -f ${CONFIG_DIR}/explorer.toml ]; then
             ${csudo}cp -f ./etc/taos/explorer.toml ${CONFIG_DIR}/explorer.toml.new
+            replaceExplorerEndpoint ${CONFIG_DIR}/explorer.toml.new
         else
             ${csudo}cp -f ./etc/taos/explorer.toml ${CONFIG_DIR}/
+            replaceExplorerEndpoint ${CONFIG_DIR}/explorer.toml
         fi
     fi
     print_tips

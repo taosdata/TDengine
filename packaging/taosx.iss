@@ -47,11 +47,13 @@ RunOnceId: "deltaos-explorer"; Filename: "{app}\\bin\\taos-explorer-srv.exe"; Pa
 [CODE]
 var
   OutputMsgCheckJava: TOutputMsgMemoWizardPage;
+  InputQueryPage: TInputQueryWizardPage;
   OutputMsgCheckPISDK: TOutputMsgMemoWizardPage;
   JavaVersionString: String;
   PISDKVersionString: string;
   JavaReady: Boolean;
   OPCInstallFileFlag: Boolean;
+  ExplorerAddInput: string;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var
@@ -67,12 +69,47 @@ begin
   end;
 end;
 
+function ReplaceLineInFile(FileName, SearchText, ReplaceText: String): Boolean;
+var
+  Lines: TArrayOfString;
+  I: Integer;
+  Found: Boolean;
+begin
+  Result := False;
+  if LoadStringsFromFile(FileName, Lines) then
+  begin
+    Found := False;
+    for I := 0 to GetArrayLength(Lines) - 1 do
+    begin
+      if Pos(SearchText, Lines[I]) > 0 then
+      begin
+        Lines[I] := ReplaceText;
+        Found := True;
+        Break;
+      end;
+    end;
+
+    if Found then
+    begin
+      Result := SaveStringsToFile(FileName, Lines, False);
+    end;
+  end;
+end;
+
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   //if CurPageID = InputDirWizardPage.ID then begin
   //    WizardForm.DirEdit.Text := InputDirWizardPage.Values[0] + '/{#SubDirectory}';
   //    WizardForm.DirEdit.Update;
   //end;
+  if CurPageID = InputQueryPage.ID then
+  begin
+    ExplorerAddInput := InputQueryPage.Values[0];
+    begin
+      ReplaceLineInFile(ExpandConstant('{app}\config\') + 'explorer.toml', 'cluster = "http://localhost:6041"', 'cluster = "http://' + ExplorerAddInput + ':6041"')
+      ReplaceLineInFile(ExpandConstant('{app}\config\') + 'explorer.toml', 'x_api ="http://localhost:6050"', 'x_api = "http://' + ExplorerAddInput + ':6050"')
+    end;
+  end;
   Result := True;
 end;
 
@@ -200,6 +237,12 @@ begin
   OutputMsgCheckJava := CreateOutputMsgMemoPage(AfterID, 'Check Java for influxdb/opentsdb Connector', 'The InfluxDB/OpenTSDB connector depends on the Java environment.'
   + ' If you use this connector, please make sure to install the required version.', 'Java 1.8+ required', JavaVersionString);
   AfterID := OutputMsgCheckJava.ID;
+
+  InputQueryPage := CreateInputQueryPage(AfterID, 'Config Page', '', 'Set publicly accessible IP address or domain name you want expose to.');
+  InputQueryPage.Add('&Default:localhost', False);
+  InputQueryPage.Values[0] := 'localhost';
+  AfterID := InputQueryPage.ID;
+
 end;
 
 procedure CurPageChanged(CurPageID: Integer);
