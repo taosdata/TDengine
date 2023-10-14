@@ -944,23 +944,24 @@ function updateProduct() {
       echo -e "${GREEN_DARK}To start ${clientName2}-explorer ${NC}\t\t: sudo systemctl start ${clientName2}-explorer ${NC}"
     fi
 
-    if [ ${openresty_work} = 'true' ]; then
-      echo -e "${GREEN_DARK}To access ${productName2}    ${NC}\t\t: use ${GREEN_UNDERLINE}${clientName2} -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${web_port}${NC}"
-    else
-      echo -e "${GREEN_DARK}To access ${productName2}    ${NC}\t\t: use ${GREEN_UNDERLINE}${clientName2} -h $serverFqdn${NC} in shell${NC}"
-    fi
+    # if [ ${openresty_work} = 'true' ]; then
+    #   echo -e "${GREEN_DARK}To access ${productName2}    ${NC}\t\t: use ${GREEN_UNDERLINE}${clientName2} -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${web_port}${NC}"
+    # else
+    #   echo -e "${GREEN_DARK}To access ${productName2}    ${NC}\t\t: use ${GREEN_UNDERLINE}${clientName2} -h $serverFqdn${NC} in shell${NC}"
+    # fi
 
-    if ((${prompt_force} == 1)); then
-      echo ""
-      echo -e "${RED}Please run '${serverName2} --force-keep-file' at first time for the exist ${productName2} $exist_version!${NC}"
-    fi
+    # if ((${prompt_force} == 1)); then
+    #   echo ""
+    #   echo -e "${RED}Please run '${serverName2} --force-keep-file' at first time for the exist ${productName2} $exist_version!${NC}"
+    # fi
 
+    echo
     echo -e "\033[44;32;1m${productName2} is updated successfully!${NC}"
     echo
-    echo -e "\033[44;32;1mTo start all the components       : sudo ./start-all.sh${NC}"
-    echo -e "\033[44;32;1mTo access command line interface  : taos -h $serverFqdn${NC}"
-    echo -e "\033[44;32;1mTo access the management system   : http://$serverFqdn:6060${NC}"
-    echo -e "\033[44;32;1mTo read the user manual           : http://$serverFqdn:6060/docs${NC}"
+    echo -e "\033[44;32;1mTo start all the components  \t: sudo ./start-all.sh${NC}"
+    echo -e "\033[44;32;1mTo access ${productName2}  \t\t: ${clientName2} -h $serverFqdn${NC}"
+    echo -e "\033[44;32;1mTo access the management system \t: http://$serverFqdn:6060${NC}"
+    echo -e "\033[44;32;1mTo read the user manual          \t: http://$serverFqdn:6060/docs${NC}"
   else
     install_bin
     install_config
@@ -1024,7 +1025,7 @@ function installProduct() {
     if ((${service_mod} == 0)); then
       echo -e "${GREEN_DARK}To start ${productName2}     ${NC}\t\t: ${csudo}systemctl start ${serverName2}${NC}"
       [ -f ${service_config_dir}/${clientName2}adapter.service ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
-        echo -e "${GREEN_DARK}To start ${clientName2}Adapter ${NC}\\tt: ${csudo}systemctl start ${clientName2}adapter ${NC}"
+        echo -e "${GREEN_DARK}To start ${clientName2}Adapter ${NC}\t\t: ${csudo}systemctl start ${clientName2}adapter ${NC}"
     elif ((${service_mod} == 1)); then
       echo -e "${GREEN_DARK}To start ${productName2}     ${NC}\t\t: ${csudo}service ${serverName2} start${NC}"
       [ -f ${service_config_dir}/${clientName2}adapter.service ] && [ -f ${installDir}/bin/${clientName2}adapter ] && \
@@ -1042,32 +1043,32 @@ function installProduct() {
       echo -e "${GREEN_DARK}To start ${clientName2}-explorer ${NC}\t\t: sudo systemctl start ${clientName2}-explorer ${NC}"
     fi
 
-    if [ ! -z "$firstEp" ]; then
-      tmpFqdn=${firstEp%%:*}
-      substr=":"
-      if [[ $firstEp =~ $substr ]]; then
-        tmpPort=${firstEp#*:}
-      else
-        tmpPort=""
-      fi
-      if [[ "$tmpPort" != "" ]]; then
-        echo -e "${GREEN_DARK}To access ${productName2}    ${NC}\t\t: ${clientName2} -h $tmpFqdn -P $tmpPort${GREEN_DARK} to login into cluster, then${NC}"
-      else
-        echo -e "${GREEN_DARK}To access ${productName2}    ${NC}\t\t: ${clientName2} -h $tmpFqdn${GREEN_DARK} to login into cluster, then${NC}"
-      fi
-      echo -e "${GREEN_DARK}execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}to add this new node${NC}"
-      echo
-    elif [ ! -z "$serverFqdn" ]; then
-      echo -e "${GREEN_DARK}To access ${productName2}    ${NC}\t\t: ${clientName2} -h $serverFqdn${GREEN_DARK} to login into ${productName2} server${NC}"
-      echo
-    fi
-
-    echo -e "\033[44;32;1m${productName2} is updated successfully!${NC}"
+    # if [ ! -z "$firstEp" ]; then
+    #   tmpFqdn=${firstEp%%:*}
+    #   substr=":"
+    #   if [[ $firstEp =~ $substr ]]; then
+    #     tmpPort=${firstEp#*:}
+    #   else
+    #     tmpPort=""
+    #   fi
+    #   if [[ "$tmpPort" != "" ]]; then
+    #     echo -e "${GREEN_DARK}To access ${productName2}    ${NC}\t\t: ${clientName2} -h $tmpFqdn -P $tmpPort${GREEN_DARK} to login into cluster, then${NC}"
+    #   else
+    #     echo -e "${GREEN_DARK}To access ${productName2}    ${NC}\t\t: ${clientName2} -h $tmpFqdn${GREEN_DARK} to login into cluster, then${NC}"
+    #   fi
+    #   echo -e "${GREEN_DARK}execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}to add this new node${NC}"
+    #   echo
+    # elif [ ! -z "$serverFqdn" ]; then
+    #   echo -e "${GREEN_DARK}To access ${productName2}    ${NC}\t\t: ${clientName2} -h $serverFqdn${GREEN_DARK} to login into ${productName2} server${NC}"
+    #   echo
+    # fi
     echo
-    echo -e "\033[44;32;1mTo start all the components       : sudo ./start-all.sh${NC}"
-    echo -e "\033[44;32;1mTo access command line interface  : taos -h $serverFqdn${NC}"
-    echo -e "\033[44;32;1mTo access the management system   : http://$serverFqdn:6060${NC}"
-    echo -e "\033[44;32;1mTo read the user manual           : http://$serverFqdn:6060/docs${NC}"
+    echo -e "\033[44;32;1m${productName2} is installed successfully!${NC}"
+    echo
+    echo -e "\033[44;32;1mTo start all the components  \t: sudo ./start-all.sh${NC}"
+    echo -e "\033[44;32;1mTo access ${productName2}  \t\t: ${clientName2} -h $serverFqdn${NC}"
+    echo -e "\033[44;32;1mTo access the management system \t: http://$serverFqdn:6060${NC}"
+    echo -e "\033[44;32;1mTo read the user manual          \t: http://$serverFqdn:6060/docs${NC}"
     echo
   else # Only install client
     install_bin
