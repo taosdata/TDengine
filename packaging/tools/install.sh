@@ -628,7 +628,7 @@ function install_web() {
 function install_taosx() {
   if [ -f "${script_dir}/taosx/install.sh" ]; then    
     cd ${script_dir}/taosx
-    echo y | bash install.sh > /dev/null
+    bash install_taosx.sh 
   fi
 }
 
