@@ -372,7 +372,7 @@ if [ "$verMode" == "cluster" ]; then
         # copy taosx
         if [ -d ${top_dir}/../enterprise/src/plugins/taosx/release/taosx ]; then
           cp -r ${top_dir}/../enterprise/src/plugins/taosx/release/taosx ${install_dir}
-          cp ${top_dir}/../enterprise/src/plugins/taosx/packaging/install.sh ${install_dir}/taosx
+          cp ${top_dir}/../enterprise/packaging/install_taosx.sh ${install_dir}/taosx
           cp ${top_dir}/../enterprise/src/plugins/taosx/packaging/uninstall.sh ${install_dir}/taosx
         else
           echo "taox package not found"
