@@ -289,8 +289,8 @@ function uninstall_taosx() {
     cd /usr/local/taosx
     bash uninstall.sh > /dev/null
 
-    echo -e "${GREEN}${xName2}x is removed successfully!${NC}"
-    echo -e "${GREEN}${explorerName2}x is removed successfully!${NC}"
+    echo -e "${GREEN}${xName2} is removed successfully!${NC}"
+    echo -e "${GREEN}${explorerName2} is removed successfully!${NC}"
   fi
 }
 
