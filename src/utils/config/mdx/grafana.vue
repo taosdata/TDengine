@@ -27,10 +27,10 @@
     <el-tabs v-model="activeTab">
     <el-tab-pane name="plugins" label="Plugins">
       <!-- <p>{{$t('docs.virtual.grafana.pluginsdesc')}}</p> -->
-      <p>{{ $t('docs.virtual.grafana.plugin1desc') }}</p>
-      <p>{{ $t('docs.virtual.grafana.plugin2desc') }}</p>
-      <p>{{ $t('docs.virtual.grafana.plugin3desc') }}</p>
-      <p>{{ $t('docs.virtual.grafana.plugin4desc') }}</p>
+      <p v-html="$t('docs.virtual.grafana.plugin1desc')"></p>
+      <p v-html="$t('docs.virtual.grafana.plugin2desc')"></p>
+      <p v-html="$t('docs.virtual.grafana.plugin3desc')"></p>
+      <p v-html="$t('docs.virtual.grafana.plugin4desc')"></p>
     </el-tab-pane>
     <el-tab-pane name="script" label="Script"><p>{{ $t('docs.virtual.grafana.script1') }}</p>
     <pre
@@ -76,7 +76,7 @@ export ${replaceTDENGINE}_URL=&quot;${url}&quot;
     <h2 id="verify-plugin">{{ $t("docs.virtual.grafana.step3") }}</h2>
     <p>{{ $t('docs.virtual.grafana.step3desc') }}</p>
     <p style="display:flex;align-items: baseline;margin-bottom: 0px;">
-        <span style="width:60px;">{{ $t('docs.virtual.grafana.step3desc1') }}</span>
+        <span style="width:100px;">{{ $t('docs.virtual.grafana.step3desc1') }}</span>
       <pre
           v-highlight="
        
@@ -85,20 +85,29 @@ export ${replaceTDENGINE}_URL=&quot;${url}&quot;
           "
         ><code class="language-bash"></code></pre>
     </p>
-    <p style="display:flex;align-items: baseline;margin-bottom: 0px;">
-        <span style="width:60px;">{{ $t('docs.virtual.grafana.step3desc2') }}</span>
+    <!-- <p style="display:flex;align-items: baseline;margin-bottom: 0px;">
+        <span style="width:100px;">{{ $t('docs.virtual.grafana.step3username') }}</span>
       <pre
           v-highlight="
-            `${token}
+            `${username}
 `
           "
         ><code class="language-bash"></code></pre>
-    </p>
+    </p> -->
+    <!-- <p style="display:flex;align-items: baseline;margin-bottom: 0px;">
+        <span style="width:100px;">{{ $t('docs.virtual.grafana.ste3pwd') }}</span>
+      <pre
+          v-highlight="
+            `${pwd}
+`
+          "
+        ><code class="language-bash"></code></pre>
+    </p> -->
      
    
   
   
-    <p>{{ $t('docs.virtual.grafana.step3desc3') }}</p>
+    <p v-html="$t('docs.virtual.grafana.step3desc3')"></p>
     <!-- <p>{{ $t("docs.virtual.grafana.step3desc") }}</p>
     <p v-if="!isOEM">
       <img
@@ -127,7 +136,6 @@ export ${replaceTDENGINE}_URL=&quot;${url}&quot;
 </template>
 
 <script>
-import { IsAliyun } from "@/const";
 export default {
   props: {
     token: {
@@ -141,6 +149,8 @@ export default {
   },
   data(){
     return {
+      username:localStorage.getItem('username'),
+      pwd:localStorage.getItem('pwd'),
       activeTab:'plugins',
       isOEM:
         process.env.VUE_APP_CUS_NAME &&

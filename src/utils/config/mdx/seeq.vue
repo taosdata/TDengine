@@ -43,7 +43,7 @@
         <pre
           v-highlight="
             `{
-    &quot;QueryDefinitions&quot;: []
+    &quot;QueryDefinitions&quot;: [],
     &quot;Type&quot;: &quot;GENERIC&quot;,
     &quot;Hostname&quot;: null,
     &quot;Port&quot;: 0,
@@ -174,7 +174,8 @@ export default {
   },
   computed: {
     jdbcURL() {
-      return 'jdbc:TAOS-RS://' + this.url.replace(/https?:\/\//, '') + '?usessl=' + this.url.startsWith('https') + '&token=' + this.token;
+      return 'jdbc:TAOS-RS://' + this.url?.replace(/https?:\/\//, '') + '?usessl=false&user=' + `${localStorage.getItem('username')}&password=${localStorage.getItem('cleartextPwd')}`;
+      // return `jdbc:TAOS-RS://localhost:6041?useSSL=false&user=root&password=taosdata`
     }
   }
 };

@@ -358,6 +358,7 @@
                     effect="light"
                   >
                     <span
+                    v-loading='allnodesloading'
                       :class="[
                         'allnodes',
                         disableallnodeclick ? 'click' : 'noclick',
@@ -1004,6 +1005,7 @@ export default {
   },
   data() {
     return {
+      allnodesloading:false,
       disableallnodeclick: true,
       opcinusefile: "",
       downloadUrl: process.env.VUE_APP_X_API + `/download?file_path=`,
@@ -1199,21 +1201,24 @@ export default {
   methods: {
     async downloadopcAllponits() {
       try {
+        this.allnodesloading=true
+        this.disableallnodeclick=false
         if (!this.dbsource[0].options.endpoint.value) {
           Message.error(this.$t("taoscluster.endpointRequired"));
           return;
         }
-        this.disableallnodeclick = false;
         let params = `${this.$store.state.app.currentDBType}://${this.dbsource[0].options.endpoint.value}&categories=nodes`;
         let result = await downlaodAllNodes(
           params,
           this.$store.state.app.currentAgentID
         );
+        this.allnodesloading = false;
+        this.disableallnodeclick=true
         if (result && result.message) {
           Message.error(result.message);
           return;
         }
-        this.disableallnodeclick = true;
+        
 
         let blob = new Blob([result], { type: "text/csv,charset=UTF-8" });
         let link = document.createElement("a");
@@ -1225,6 +1230,8 @@ export default {
         URL.revokeObjectURL(link.href);
         document.body.removeChild(link);
       } catch (error) {
+        this.this.allnodesloading = false;
+        this.disableallnodeclick=true
         console.log(error);
       }
     },
