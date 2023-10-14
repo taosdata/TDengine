@@ -106,8 +106,8 @@ begin
   begin
     ExplorerAddInput := InputQueryPage.Values[0];
     begin
-      ReplaceLineInFile(ExpandConstant('{app}\config\') + 'explorer.toml', 'cluster = "http://localhost:6041', 'cluster = "http://' + ExplorerAddInput + ':6041')
-      ReplaceLineInFile(ExpandConstant('{app}\config\') + 'explorer.toml', 'x_api ="http://localhost:6050"', 'x_api = "http://' + ExplorerAddInput + ':6050')
+      ReplaceLineInFile(ExpandConstant('{app}\config\') + 'explorer.toml', 'cluster = "http://localhost:6041"', 'cluster = "http://' + ExplorerAddInput + ':6041"')
+      ReplaceLineInFile(ExpandConstant('{app}\config\') + 'explorer.toml', 'x_api ="http://localhost:6050"', 'x_api = "http://' + ExplorerAddInput + ':6050"')
     end;
   end;
   Result := True;
