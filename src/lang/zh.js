@@ -1096,7 +1096,7 @@ export default {
     privilege:'权限'
   },
   dataOut: {
-    connectorTip: "使用您选择的编程语言<a target='_blank' href='https://docs.taosdata.com/taos-sql/select/'>使用SQL</a>查询数据。",
+    connectorTip: "使用您选择的编程语言<a target='_blank' href='/docs/taos-sql/select/'>使用SQL</a>查询数据。",
     toolsTip: "数据转储——使用taosDump将表、表的一部分或超级表写入文件。",
     subscriptionTitle: `订阅数据更新使用`,
     subscriptions:'数据订阅',
