@@ -14,10 +14,10 @@ description: |
 type: uri
 options:
   endpoint:
-    display: Mqtt Server endpoint
+    display: MQTT Server endpoint
     required: true
     description: |
-      Mqtt server endpoint. e.g: 127.0.0.1:1883
+      MQTT server endpoint. e.g: 127.0.0.1:1883
       If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.
     placeholder: 127.0.0.1:1883
 
@@ -64,7 +64,7 @@ groups:
     description: Some configurations used in connecting step.
     params:
       - name: version
-        display: Mqtt protocol version
+        display: MQTT protocol version
         value: "3.1"
         required: true
         description: |-
