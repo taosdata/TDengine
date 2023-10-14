@@ -1,12 +1,13 @@
 <template>
   <div>
     <p>
-      {{ $t("docs.virtual.grafana.topdesc")
+      {{ $t("docs.dashboard.topdesc")
       }}<a href="https://www.grafana.com/"> Grafana</a
-      >{{ $t("docs.virtual.grafana.topdesc1") }}<a
+      >{{ $t("docs.dashboard.topdesc1") }}
+      <!-- <a
         href="https://github.com/taosdata/grafanaplugin/blob/master/README.md"
         >GitHub</a
-      >.
+      >. -->
     </p>
     <!-- <p>
       {{ $t("docs.virtual.grafana.topdesc2")
@@ -27,10 +28,10 @@
     <el-tabs v-model="activeTab">
     <el-tab-pane name="plugins" label="Plugins">
       <!-- <p>{{$t('docs.virtual.grafana.pluginsdesc')}}</p> -->
-      <p>{{ $t('docs.virtual.grafana.plugin1desc') }}</p>
-      <p>{{ $t('docs.virtual.grafana.plugin2desc') }}</p>
-      <p>{{ $t('docs.virtual.grafana.plugin3desc') }}</p>
-      <p>{{ $t('docs.virtual.grafana.plugin4desc') }}</p>
+      <p v-html="$t('docs.virtual.grafana.plugin1desc') "></p>
+      <p v-html="$t('docs.virtual.grafana.plugin2desc')"></p>
+      <p v-html="$t('docs.virtual.grafana.plugin3desc')"></p>
+      <p v-html="$t('docs.virtual.grafana.plugin4desc')"></p>
     </el-tab-pane>
     <el-tab-pane name="script" label="Script"><p>{{ $t('docs.virtual.grafana.script1') }}</p>
     <pre
@@ -39,7 +40,7 @@
 `
           "
         ><code class="language-bash"></code></pre>
-        <p>{{ $t('docs.virtual.grafana.script2') }}</p>
+        <p v-html="$t('docs.virtual.grafana.script2') "></p>
         <pre
           v-highlight="
             `sudo systemctl restart grafana-server.service
@@ -85,7 +86,7 @@ export ${replaceTDENGINE}_URL=&quot;${url}&quot;
           "
         ><code class="language-bash"></code></pre>
     </p>
-    <p style="display:flex;align-items: baseline;margin-bottom: 0px;">
+    <!-- <p style="display:flex;align-items: baseline;margin-bottom: 0px;">
         <span style="width:60px;">{{ $t('docs.virtual.grafana.step3desc2') }}</span>
       <pre
           v-highlight="
@@ -93,12 +94,12 @@ export ${replaceTDENGINE}_URL=&quot;${url}&quot;
 `
           "
         ><code class="language-bash"></code></pre>
-    </p>
+    </p> -->
      
    
   
   
-    <p>{{ $t('docs.virtual.grafana.step3desc3') }}</p>
+    <p v-html="$t('docs.virtual.grafana.step3desc3')"></p>
     <!-- <p>{{ $t("docs.virtual.grafana.step3desc") }}</p>
     <p v-if="!isOEM">
       <img
