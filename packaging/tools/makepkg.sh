@@ -287,6 +287,7 @@ chmod a+x ${install_dir}/install.sh
 if [[ $dbName == "taos" ]]; then  
   cp ${top_dir}/../enterprise/packaging/start-all.sh ${install_dir}
   cp ${top_dir}/../enterprise/packaging/stop-all.sh ${install_dir}
+  cp ${top_dir}/../enterprise/packaging/README.md ${install_dir}
   chmod a+x ${install_dir}/start-all.sh
   chmod a+x ${install_dir}/stop-all.sh
   # Copy example code  

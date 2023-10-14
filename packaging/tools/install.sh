@@ -609,6 +609,7 @@ function install_connector() {
     ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/ || echo "failed to copy connector"
     ${csudo}cp ${script_dir}/start-all.sh ${install_main_dir}/ || echo "failed to copy start-all.sh"
     ${csudo}cp ${script_dir}/stop-all.sh ${install_main_dir}/ || echo "failed to copy stop-all.sh"
+    ${csudo}cp ${script_dir}/README.md ${install_main_dir}/ || echo "failed to copy stop-all.sh"
   fi
 }
 
