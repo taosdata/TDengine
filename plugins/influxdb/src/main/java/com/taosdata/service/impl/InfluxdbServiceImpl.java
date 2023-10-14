@@ -624,6 +624,10 @@ public class InfluxdbServiceImpl implements InfluxdbService {
                 break;
             } else {
                 bucketAll.addAll(buckets);
+                // InfluxDB接口存在缺陷，当token仅拥有少量bucket权限时，可多次查到重复数据，为避免这一情况，结果集小于limit时直接结束
+                if (buckets.size() < 100) {
+                    break;
+                }
             }
         }
         return bucketAll;
