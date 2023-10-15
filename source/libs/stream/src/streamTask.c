@@ -612,7 +612,7 @@ int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList) {
 
   p->latestUpdateTs = taosGetTimestampMs();
   p->updateCount += 1;
-  stDebug("s-task:%s update task nodeEp epset, updatedNodes:%d, updateCount:%d, prevTs:%" PRId64, pTask->id.idStr,
+  stDebug("s-task:0x%x update task nodeEp epset, updatedNodes:%d, updateCount:%d, prevTs:%" PRId64, pTask->id.taskId,
          numOfNodes, p->updateCount, prevTs);
 
   for (int32_t i = 0; i < taosArrayGetSize(pNodeList); ++i) {
