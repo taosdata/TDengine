@@ -86,7 +86,7 @@ export ${replaceTDENGINE}_URL=&quot;${url}&quot;
           "
         ><code class="language-bash"></code></pre>
     </p>
-    <!-- <p style="display:flex;align-items: baseline;margin-bottom: 0px;">
+    <p style="display:flex;align-items: baseline;margin-bottom: 0px;">
         <span style="width:60px;">{{ $t('docs.virtual.grafana.step3desc2') }}</span>
       <pre
           v-highlight="
@@ -94,7 +94,7 @@ export ${replaceTDENGINE}_URL=&quot;${url}&quot;
 `
           "
         ><code class="language-bash"></code></pre>
-    </p> -->
+    </p>
      
    
   

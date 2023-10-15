@@ -1222,7 +1222,7 @@ export default {
 
         let blob = new Blob([result], { type: "text/csv,charset=UTF-8" });
         let link = document.createElement("a");
-        link.download = "template.csv";
+        link.download = "list_of_all_nodes.csv";
         link.style.display = "none";
         link.href = URL.createObjectURL(blob);
         document.body.appendChild(link);
@@ -2503,5 +2503,11 @@ export default {
   &.click {
     cursor: pointer;
   }
+}
+.upload-demo{
+  display: flex;
+}
+.el-upload-list__item{
+  margin-top:5px!important;
 }
 </style>

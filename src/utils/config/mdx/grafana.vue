@@ -85,15 +85,15 @@ export ${replaceTDENGINE}_URL=&quot;${url}&quot;
           "
         ><code class="language-bash"></code></pre>
     </p>
-    <!-- <p style="display:flex;align-items: baseline;margin-bottom: 0px;">
-        <span style="width:100px;">{{ $t('docs.virtual.grafana.step3username') }}</span>
+    <p style="display:flex;align-items: baseline;margin-bottom: 0px;">
+        <span style="width:100px;">{{ $t('docs.virtual.grafana.step3desc2') }}</span>
       <pre
           v-highlight="
             `${username}
 `
           "
         ><code class="language-bash"></code></pre>
-    </p> -->
+    </p>
     <!-- <p style="display:flex;align-items: baseline;margin-bottom: 0px;">
         <span style="width:100px;">{{ $t('docs.virtual.grafana.ste3pwd') }}</span>
       <pre
