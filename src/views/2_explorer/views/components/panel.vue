@@ -42,7 +42,7 @@
     </el-tabs>
     <div class="panel-right">
       <p class="data-nums">{{ dataSource.length }} rows</p>
-      <el-button :disabled="dataSource.length == 0" @click="exportFile" plain size="mini">{{ $t("console.export") }}</el-button>
+      <el-button :disabled="dataSource.length == 0" @click="exportFile" plain size="mini" style="font-size:14px;">{{ $t("console.export") }}</el-button>
     </div>
   </div>
 </template>
