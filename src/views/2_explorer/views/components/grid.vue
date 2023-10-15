@@ -24,7 +24,6 @@
           v-for="item in head"
           :key="item"
           :prop="item"
-          :min-width="item.length + 'px'"
           :show-overflow-tooltip="true"
           :label="item"
         >
@@ -36,6 +35,23 @@
         </el-table-column>
       </template>
     </el-table>
+    <section
+      v-if="currentHistory && currentTableData.length"
+      class="time-wrapper"
+    >
+      <div class="time-block">
+        <span class="title">{{ $t('execute') }}:</span>
+        <span class="value">{{ currentHistory.time }} ms</span>
+      </div>
+      <!-- <div class="time-block">
+        <span class="title">{{ $t('network') }}:</span>
+        <span class="value">{{ currentHistory.networkTime }} ms</span>
+      </div>
+      <div class="time-block">
+        <span class="title">{{ $t('total') }}:</span>
+        <span class="value">{{ currentHistory.totalTime }} ms</span>
+      </div> -->
+    </section>
   </div>
 </template>
 <script>
@@ -56,6 +72,10 @@ export default {
     ...mapState({
       dataSource: (state) => state.console.result,
       head: (state) => state.console.head,
+      currentHistory: state => {
+        const currentHistory = state.console.history[state.console.history.length - 1];
+        if (currentHistory && currentHistory.type == 1) return currentHistory;
+      }
     }),
     headMap() {
       if (Array.isArray(this.head)) {
@@ -113,4 +133,24 @@ export default {
     height: 0;
   }
 }
+.time-wrapper {
+    position: absolute;
+    bottom: -27px;
+    left: 0;
+    right: 0;
+    .time-block {
+      display: inline-block;
+      margin-right: 20px;
+      line-height: 20px;
+      .title {
+        font-size: 16px;
+        margin-right: 5px;
+        color: #4d6992;
+      }
+      .value {
+        font-size: 14px;
+        color: #999;
+      }
+    }
+  }
 </style>
