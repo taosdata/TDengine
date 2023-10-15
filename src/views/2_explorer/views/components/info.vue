@@ -34,7 +34,19 @@
         </section>
         <section class="dsn" v-if="infoType === 'database'">
           <el-form-item :key="`dsn-for-${infoData['name']}`" :label="'DSN:'">
-            <pre v-on:copy="copyDsn" v-highlight><code class="language-bash">{{ dsn + "/" + infoData["name"] }}</code></pre>
+            <div class="copy-wrapper">
+              <div class="nowrap">{{ dsn + "/" + infoData["name"] }}</div> 
+              <el-tooltip
+                placement="top"
+                :content="$t('copyDsn')"
+                effect="light"
+              >
+                <el-button class="copy-btn" :title="$t('copy')" type="text" size="mini" @click="copyDsn">
+                  <el-icon class="el-icon-document-copy"></el-icon>
+                  {{ $t("copy") }}
+                </el-button>
+              </el-tooltip>
+            </div>
           </el-form-item>
         </section>
       </section>
@@ -176,53 +188,53 @@ export default {
       width: 100%;
 
 
-      .pre-code {
-        background-color: #f6f8fa;
-        padding: 0px;
-        width: 80%;
-        text-align: left;
-        white-space: break-spaces;
-        margin-top: 0px;
+      // .pre-code {
+      //   background-color: #f6f8fa;
+      //   padding: 0px;
+      //   width: 80%;
+      //   text-align: left;
+      //   white-space: break-spaces;
+      //   margin-top: 0px;
 
-        code {
-          display: inline-flex;
-          width: 100%;
-          padding-left: 0px;
-          background: transparent !important;
-        }
+      //   code {
+      //     display: inline-flex;
+      //     width: 100%;
+      //     padding-left: 0px;
+      //     background: transparent !important;
+      //   }
 
-        .copy-icon {
-          visibility: hidden;
-          display: flex;
-          align-items: center;
-          white-space: nowrap;
-          cursor: pointer;
-          color: #4259ce;
-          position: absolute;
-          right: 20px;
-          top: 40px;
-          font-size: 12px;
-        }
-      }
+      //   .copy-icon {
+      //     visibility: hidden;
+      //     display: flex;
+      //     align-items: center;
+      //     white-space: nowrap;
+      //     cursor: pointer;
+      //     color: #4259ce;
+      //     position: absolute;
+      //     right: 20px;
+      //     top: 40px;
+      //     font-size: 12px;
+      //   }
+      // }
 
-      ::v-deep {
-        code {
-          background: rgba(175, 184, 193, 0.2) !important;
-          border-radius: 6px;
-          padding: 0px;
-        }
-      }
+      // ::v-deep {
+      //   code {
+      //     background: rgba(175, 184, 193, 0.2) !important;
+      //     border-radius: 6px;
+      //     padding: 0px;
+      //   }
+      // }
 
-      code {
-        background: transparent !important;
-        line-height: 8px;
-      }
+      // code {
+      //   background: transparent !important;
+      //   line-height: 8px;
+      // }
 
-      &:hover {
-        .copy-icon {
-          visibility: visible;
-        }
-      }
+      // &:hover {
+      //   .copy-icon {
+      //     visibility: visible;
+      //   }
+      // }
     }
   }
 }
@@ -230,11 +242,13 @@ export default {
 .info ::v-deep .el-form-item__label {
   line-height: 20px !important;
   font-size: 16px;
+  text-align: right;
 }
 
 .info ::v-deep .el-form-item__content {
   font-size: 16px;
   line-height: 22px;
+  color: rgb(144, 147, 153);
 }
 
 .info ::v-deep .el-table {
@@ -251,5 +265,24 @@ export default {
     @extend .nowrap;
     font-size: 16px;
   }
+}
+.dsn ::v-deep .el-form-item {
+  display: flex;
+  align-items: center;
+}
+.dsn ::v-deep .el-form-item__content {
+ margin-left: 0 !important;
+}
+.copy-wrapper {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  >div {
+   max-width: 700px;
+  }
+}
+.copy-btn {
+  font-size: 14px;
+  cursor: pointer;
 }
 </style>

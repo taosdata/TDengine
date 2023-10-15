@@ -7,9 +7,10 @@
         size="small"
         icon="el-icon-refresh"
         :disabled="requestIng"
+        style="font-size:14px;"
         >{{ $t("refresh") }}</el-button
       >
-      <el-button plain @click="add" size="small" icon="el-icon-plus"
+      <el-button plain @click="add" size="small" icon="el-icon-plus" style="font-size:14px;"
         >{{$t('taosuser.createbackup')}}</el-button
       >
     </div>
