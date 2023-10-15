@@ -7,6 +7,7 @@
         size="small"
         icon="el-icon-refresh"
         :disabled="requestIng"
+        style="font-size:14px;"
         >{{ $t("refresh") }}</el-button
       >
     </div>

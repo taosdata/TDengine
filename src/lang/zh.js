@@ -9,6 +9,7 @@ let agenturl=localStorage.getItem('agent_version')?localStorage.getItem('agent_v
 const DocsUrl=window.navigator.language.includes('zh')?'https://docs.taosdata.com':'https://docs.tdengine.com'
 export default {
   //通用部分
+  copyDsn: '复制 DSN',
   clone:'复制',
   delete:'删除',
   pInName: '请输入名称',
@@ -578,7 +579,7 @@ export default {
     alertDetail: "告警详情",
   },
   setting: {
-    profile: "个人信息",
+    profile: "修改密码",
     invoice: "发票",
     saveChange: "保存修改",
     invoiceCode: "发票编号",
