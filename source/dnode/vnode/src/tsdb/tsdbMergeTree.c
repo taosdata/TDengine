@@ -22,38 +22,6 @@
 static void tLDataIterClose2(SLDataIter *pIter);
 
 // SLDataIter =================================================
-SSttBlockLoadInfo *tCreateLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols,
-                                            int32_t numOfSttTrigger) {
-  SSttBlockLoadInfo *pLoadInfo = taosMemoryCalloc(numOfSttTrigger, sizeof(SSttBlockLoadInfo));
-  if (pLoadInfo == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  for (int32_t i = 0; i < numOfSttTrigger; ++i) {
-    pLoadInfo[i].blockIndex[0] = -1;
-    pLoadInfo[i].blockIndex[1] = -1;
-    pLoadInfo[i].currentLoadBlockIndex = 1;
-
-    int32_t code = tBlockDataCreate(&pLoadInfo[i].blockData[0]);
-    if (code) {
-      terrno = code;
-    }
-
-    code = tBlockDataCreate(&pLoadInfo[i].blockData[1]);
-    if (code) {
-      terrno = code;
-    }
-
-    pLoadInfo[i].aSttBlk = taosArrayInit(4, sizeof(SSttBlk));
-    pLoadInfo[i].pSchema = pSchema;
-    pLoadInfo[i].colIds = colList;
-    pLoadInfo[i].numOfCols = numOfCols;
-  }
-
-  return pLoadInfo;
-}
-
 SSttBlockLoadInfo *tCreateOneLastBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols) {
   SSttBlockLoadInfo *pLoadInfo = taosMemoryCalloc(1, sizeof(SSttBlockLoadInfo));
   if (pLoadInfo == NULL) {
@@ -82,25 +50,6 @@ SSttBlockLoadInfo *tCreateOneLastBlockLoadInfo(STSchema *pSchema, int16_t *colLi
   pLoadInfo->numOfCols = numOfCols;
 
   return pLoadInfo;
-}
-
-void resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo) {
-  for (int32_t i = 0; i < 1; ++i) {
-    pLoadInfo[i].currentLoadBlockIndex = 1;
-    pLoadInfo[i].blockIndex[0] = -1;
-    pLoadInfo[i].blockIndex[1] = -1;
-
-    taosArrayClear(pLoadInfo[i].aSttBlk);
-
-    pLoadInfo[i].cost.loadBlocks = 0;
-    pLoadInfo[i].cost.blockElapsedTime = 0;
-    pLoadInfo[i].cost.statisElapsedTime = 0;
-    pLoadInfo[i].cost.loadStatisBlocks = 0;
-    pLoadInfo[i].statisBlockIndex = -1;
-    tStatisBlockDestroy(pLoadInfo[i].statisBlock);
-
-    pLoadInfo[i].sttBlockLoaded = false;
-  }
 }
 
 void getSttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, SSttBlockLoadCostInfo* pLoadCost) {
@@ -182,8 +131,9 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
   SSttBlockLoadInfo *pInfo = pIter->pBlockLoadInfo;
   if (pInfo->blockData[0].sttBlockIndex == pIter->iSttBlk) {
     if (pInfo->currentLoadBlockIndex != 0) {
-      tsdbDebug("current load index is set to 0, block index:%d, file index:%d, due to uid:%" PRIu64 ", load data, %s",
-                pIter->iSttBlk, pIter->iStt, pIter->uid, idStr);
+      tsdbDebug("current load index is set to 0, block index:%d, fileVer:%" PRId64 ", due to uid:%" PRIu64
+                ", load data, %s",
+                pIter->iSttBlk, pIter->cid, pIter->uid, idStr);
       pInfo->currentLoadBlockIndex = 0;
     }
     return &pInfo->blockData[0].data;
@@ -191,8 +141,9 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
 
   if (pInfo->blockData[1].sttBlockIndex == pIter->iSttBlk) {
     if (pInfo->currentLoadBlockIndex != 1) {
-      tsdbDebug("current load index is set to 1, block index:%d, file index:%d, due to uid:%" PRIu64 ", load data, %s",
-                pIter->iSttBlk, pIter->iStt, pIter->uid, idStr);
+      tsdbDebug("current load index is set to 1, block index:%d, fileVer:%" PRId64 ", due to uid:%" PRIu64
+                ", load data, %s",
+                pIter->iSttBlk, pIter->cid, pIter->uid, idStr);
       pInfo->currentLoadBlockIndex = 1;
     }
     return &pInfo->blockData[1].data;
@@ -216,10 +167,12 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
   pInfo->cost.blockElapsedTime += el;
   pInfo->cost.loadBlocks += 1;
 
-  tsdbDebug("read last block, total load:%"PRId64", trigger by uid:%" PRIu64
-            ", last file index:%d, last block index:%d, entry:%d, rows:%d, %p, elapsed time:%.2f ms, %s",
-            pInfo->cost.loadBlocks, pIter->uid, pIter->iStt, pIter->iSttBlk, pInfo->currentLoadBlockIndex, pBlock->nRow,
-            pBlock, el, idStr);
+  tsdbDebug("read last block, total load:%" PRId64 ", trigger by uid:%" PRIu64 ", stt-fileVer:%" PRId64
+            ", last block index:%d, entry:%d, rows:%d, uidRange:%" PRId64 "-%" PRId64 " tsRange:%" PRId64 "-%" PRId64
+            " %p, elapsed time:%.2f ms, %s",
+            pInfo->cost.loadBlocks, pIter->uid, pIter->cid, pIter->iSttBlk, pInfo->currentLoadBlockIndex, pBlock->nRow,
+            pIter->pSttBlk->minUid, pIter->pSttBlk->maxUid, pIter->pSttBlk->minKey, pIter->pSttBlk->maxKey, pBlock, el,
+            idStr);
 
   pInfo->blockData[pInfo->currentLoadBlockIndex].sttBlockIndex = pIter->iSttBlk;
   pIter->iRow = (pIter->backward) ? pInfo->blockData[pInfo->currentLoadBlockIndex].data.nRow : -1;
@@ -503,7 +456,7 @@ int32_t tLDataIterOpen2(SLDataIter *pIter, SSttFileReader *pSttFileReader, int32
   int32_t code = TSDB_CODE_SUCCESS;
 
   pIter->uid = uid;
-  pIter->iStt = iStt;
+  pIter->cid = iStt;
   pIter->backward = backward;
   pIter->verRange.minVer = pRange->minVer;
   pIter->verRange.maxVer = pRange->maxVer;
@@ -610,10 +563,13 @@ void tLDataIterNextBlock(SLDataIter *pIter, const char *idStr) {
 
   pIter->pSttBlk = NULL;
   if (index != -1) {
+    SSttBlk *p = taosArrayGet(pIter->pBlockLoadInfo->aSttBlk, index);
+
     pIter->iSttBlk = index;
     pIter->pSttBlk = (SSttBlk *)taosArrayGet(pIter->pBlockLoadInfo->aSttBlk, pIter->iSttBlk);
-    tsdbDebug("try next last file block:%d from stt fileIdx:%d, trigger by uid:%" PRIu64 ", file index:%d, %s",
-              pIter->iSttBlk, oldIndex, pIter->uid, pIter->iStt, idStr);
+    tsdbDebug("try next stt-file block:%d from %d, trigger by uid:%" PRIu64 ", stt-fileVer:%" PRId64
+              ", uidRange:%" PRId64 "-%" PRId64 " %s",
+              pIter->iSttBlk, oldIndex, pIter->uid, pIter->cid, p->minUid, p->maxUid, idStr);
   } else {
     tsdbDebug("no more last block qualified, uid:%" PRIu64 ", file index:%d, %s", pIter->uid, oldIndex, idStr);
   }
