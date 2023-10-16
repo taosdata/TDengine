@@ -1,16 +1,16 @@
 # Install
 
-- Run ./install.sh should install all components including taosd, taosadapter, taosx, taos-explorer, etc.
+- Run ./install.sh to install all TDengine components.
 
 # Start
 
 ## Start service manualy
-- Start taosd service: systemctl start taosd
-- Start taosadapter service: systemctl start taosadapter
-- Start taosx service: systemctl start taosx
-- Start taos-explorer service: systemctl start taos-explorer
+- Start taosd service: sudo systemctl start taosd
+- Start taosadapter service: sudo systemctl start taosadapter
+- Start taosx service: sudo systemctl start taosx
+- Start taos-explorer service: sudo systemctl start taos-explorer
 ## Start all the services by using script
-- Run sudo ./start-all.sh
+- Run ./start-all.sh
 
 # Stop
 
@@ -20,12 +20,16 @@
 - Stop taosx service: systemctl stop taosx
 - Stop taos-explorer service: systemctl stop taos-explorer
 ## Stop all the services by using script
-- Run sudo ./stop-all.sh
+- Run ./stop-all.sh
 
 # Uninstall
 
-- Running rmtaos should uninstall all the components
+- Run rmtaos to remove all the TDengine components
 
 # Documentation
 
--  You need to start all the components using start_all.sh. If it's started successfully, you can get the service end point of taos Explorer from the output of the script. Please use your web browser to log into Taos Explorer, click the documentation icon on the top-right corner of the console screen, then you can be redirected to the documentation.
+- Start all the services by executing start-all.sh and follow the instructions on installation
+
+# Deploy a TDengine cluster
+
+- Follow the steps in "Install/Setup" section in TDengine documentation
