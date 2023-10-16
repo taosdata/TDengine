@@ -40,6 +40,9 @@ extern "C" {
 #define META_HB_SEND_IDLE_COUNTER      25  // send hb every 5 sec
 #define STREAM_TASK_KEY_LEN            ((sizeof(int64_t)) << 1)
 
+#define STREAM_TASK_QUEUE_CAPACITY         20480
+#define STREAM_TASK_QUEUE_CAPACITY_IN_SIZE (30)
+
 // clang-format off
 #define stFatal(...) do { if (stDebugFlag & DEBUG_FATAL) { taosPrintLog("STM FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
 #define stError(...) do { if (stDebugFlag & DEBUG_ERROR) { taosPrintLog("STM ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
@@ -64,10 +67,17 @@ struct STokenBucket {
   int32_t numCapacity;    // total capacity, available token per second
   int32_t numOfToken;     // total available tokens
   int32_t numRate;        // number of token per second
-  double  bytesCapacity;  // available capacity for maximum input size, KiloBytes per Second
-  double  bytesRemain;    // not consumed bytes per second
-  double  bytesRate;      // number of token per second
+  double  quotaCapacity;  // available capacity for maximum input size, KiloBytes per Second
+  double  quotaRemain;    // not consumed bytes per second
+  double  quotaRate;      // number of token per second
   int64_t fillTimestamp;  // fill timestamp
+};
+
+struct SStreamQueue {
+  STaosQueue* pQueue;
+  STaosQall*  qall;
+  void*       qItem;
+  int8_t      status;
 };
 
 extern SStreamGlobalEnv streamEnv;
@@ -100,7 +110,6 @@ int32_t streamTaskSendCheckpointSourceRsp(SStreamTask* pTask);
 int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask);
 
 int32_t     streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks, int32_t* blockSize);
-int32_t     streamQueueGetNumOfItemsInQueue(const SStreamQueue* pQueue);
 int32_t     streamQueueItemGetSize(const SStreamQueueItem* pItem);
 void        streamQueueItemIncSize(const SStreamQueueItem* pItem, int32_t size);
 const char* streamQueueItemGetTypeStr(int32_t type);
@@ -113,10 +122,12 @@ int32_t streamNotifyUpstreamContinue(SStreamTask* pTask);
 int32_t streamTaskFillHistoryFinished(SStreamTask* pTask);
 int32_t streamTransferStateToStreamTask(SStreamTask* pTask);
 
-int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, int32_t bytesRate);
+int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, int32_t quotaRate);
 STaskId streamTaskExtractKey(const SStreamTask* pTask);
 void    streamTaskInitForLaunchHTask(SHistoryTaskInfo* pInfo);
 void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
+
+void    streamMetaResetStartInfo(STaskStartInfo* pMeta);
 
 SStreamQueue* streamQueueOpen(int64_t cap);
 void          streamQueueClose(SStreamQueue* pQueue, int32_t taskId);
@@ -124,8 +135,7 @@ void          streamQueueProcessSuccess(SStreamQueue* queue);
 void          streamQueueProcessFail(SStreamQueue* queue);
 void*         streamQueueNextItem(SStreamQueue* pQueue);
 void          streamFreeQitem(SStreamQueueItem* data);
-
-
+int32_t       streamQueueGetItemSize(const SStreamQueue* pQueue);
 
 #ifdef __cplusplus
 }

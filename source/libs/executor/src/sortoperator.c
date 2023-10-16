@@ -19,18 +19,28 @@
 #include "querytask.h"
 #include "tdatablock.h"
 
+typedef struct SSortOpGroupIdCalc {
+  STupleHandle* pSavedTuple;
+  SArray*       pSortColsArr;
+  char*         keyBuf;
+  int32_t       lastKeysLen; // default to be 0
+  uint64_t      lastGroupId;
+  bool          excludePKCol;
+} SSortOpGroupIdCalc;
+
 typedef struct SSortOperatorInfo {
-  SOptrBasicInfo binfo;
-  uint32_t       sortBufSize;  // max buffer size for in-memory sort
-  SArray*        pSortInfo;
-  SSortHandle*   pSortHandle;
-  SColMatchInfo  matchInfo;
-  int32_t        bufPageSize;
-  int64_t        startTs;      // sort start time
-  uint64_t       sortElapsed;  // sort elapsed time, time to flush to disk not included.
-  SLimitInfo     limitInfo;
-  uint64_t       maxTupleLength;
-  int64_t        maxRows;
+  SOptrBasicInfo      binfo;
+  uint32_t            sortBufSize;  // max buffer size for in-memory sort
+  SArray*             pSortInfo;
+  SSortHandle*        pSortHandle;
+  SColMatchInfo       matchInfo;
+  int32_t             bufPageSize;
+  int64_t             startTs;      // sort start time
+  uint64_t            sortElapsed;  // sort elapsed time, time to flush to disk not included.
+  SLimitInfo          limitInfo;
+  uint64_t            maxTupleLength;
+  int64_t             maxRows;
+  SSortOpGroupIdCalc* pGroupIdCalc;
 } SSortOperatorInfo;
 
 static SSDataBlock* doSort(SOperatorInfo* pOperator);
@@ -39,6 +49,8 @@ static int32_t      getExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain
 
 static void destroySortOperatorInfo(void* param);
 static int32_t calcSortOperMaxTupleLength(SSortOperatorInfo* pSortOperInfo, SNodeList* pSortKeys);
+
+static void destroySortOpGroupIdCalc(SSortOpGroupIdCalc* pCalc);
 
 // todo add limit/offset impl
 SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortNode, SExecTaskInfo* pTaskInfo) {
@@ -78,6 +90,34 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
 
   pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
   pInfo->pSortInfo = createSortInfo(pSortNode->pSortKeys);
+
+  if (pSortNode->calcGroupId) {
+    int32_t keyLen;
+    SSortOpGroupIdCalc* pGroupIdCalc = pInfo->pGroupIdCalc = taosMemoryCalloc(1, sizeof(SSortOpGroupIdCalc));
+    if (!pGroupIdCalc) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _error;
+    }
+    SNodeList* pSortColsNodeArr = makeColsNodeArrFromSortKeys(pSortNode->pSortKeys);
+    if (!pSortColsNodeArr) code = TSDB_CODE_OUT_OF_MEMORY;
+    if (TSDB_CODE_SUCCESS == code) {
+      pGroupIdCalc->pSortColsArr = makeColumnArrayFromList(pSortColsNodeArr);
+      if (!pGroupIdCalc->pSortColsArr) code = TSDB_CODE_OUT_OF_MEMORY;
+      nodesClearList(pSortColsNodeArr);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      // PK ts col should always at last, see partColOptCreateSort
+      if (pSortNode->excludePkCol) taosArrayPop(pGroupIdCalc->pSortColsArr);
+      keyLen = extractKeysLen(pGroupIdCalc->pSortColsArr);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      pGroupIdCalc->lastKeysLen = 0;
+      pGroupIdCalc->keyBuf = taosMemoryCalloc(1, keyLen);
+      if (!pGroupIdCalc->keyBuf) code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  if (code != TSDB_CODE_SUCCESS) goto _error;
+
   pInfo->binfo.inputTsOrder = pSortNode->node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pSortNode->node.outputTsOrder;
   initLimitInfo(pSortNode->node.pLimit, pSortNode->node.pSlimit, &pInfo->limitInfo);
@@ -129,6 +169,52 @@ void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
   pBlock->info.rows += 1;
 }
 
+/**
+ * @brief get next tuple with group id attached, here assume that all tuples are sorted by group keys
+ * @param [in, out] pBlock the output block, the group id will be saved in it
+ * @retval NULL if next group tuple arrived and this new group tuple will be saved in pInfo.pSavedTuple
+ * @retval NULL if no more tuples
+ */
+static STupleHandle* nextTupleWithGroupId(SSortHandle* pHandle, SSortOperatorInfo* pInfo, SSDataBlock* pBlock) {
+  STupleHandle* retTuple = pInfo->pGroupIdCalc->pSavedTuple;
+  if (!retTuple) {
+    retTuple = tsortNextTuple(pHandle);
+  }
+
+  if (retTuple) {
+    int32_t newGroup;
+    if (pInfo->pGroupIdCalc->pSavedTuple) {
+      newGroup = true;
+      pInfo->pGroupIdCalc->pSavedTuple = NULL;
+    } else {
+      newGroup = tsortCompAndBuildKeys(pInfo->pGroupIdCalc->pSortColsArr, pInfo->pGroupIdCalc->keyBuf,
+                                       &pInfo->pGroupIdCalc->lastKeysLen, retTuple);
+    }
+    bool emptyBlock = pBlock->info.rows == 0;
+    if (newGroup) {
+      if (!emptyBlock) {
+        // new group arrived, and we have already copied some tuples for cur group, save the new group tuple, return
+        // NULL. Note that the keyBuf and lastKeysLen has been updated to new value
+        pInfo->pGroupIdCalc->pSavedTuple = retTuple;
+        retTuple = NULL;
+      } else {
+        // new group with empty block
+        pInfo->pGroupIdCalc->lastGroupId = pBlock->info.id.groupId =
+            calcGroupId(pInfo->pGroupIdCalc->keyBuf, pInfo->pGroupIdCalc->lastKeysLen);
+      }
+    } else {
+      if (emptyBlock) {
+        // new block but not new group, assign last group id to it
+        pBlock->info.id.groupId = pInfo->pGroupIdCalc->lastGroupId;
+      } else {
+        // not new group and not empty block and ret NOT NULL, just return the tuple
+      }
+    }
+  }
+
+  return retTuple;
+}
+
 SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo,
                                 SSortOperatorInfo* pInfo) {
   blockDataCleanup(pDataBlock);
@@ -140,8 +226,13 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
 
   blockDataEnsureCapacity(p, capacity);
 
+  STupleHandle* pTupleHandle;
   while (1) {
-    STupleHandle* pTupleHandle = tsortNextTuple(pHandle);
+    if (pInfo->pGroupIdCalc) {
+      pTupleHandle = nextTupleWithGroupId(pHandle, pInfo, p);
+    } else {
+      pTupleHandle = tsortNextTuple(pHandle);
+    }
     if (pTupleHandle == NULL) {
       break;
     }
@@ -168,6 +259,7 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
     pDataBlock->info.dataLoad = 1;
     pDataBlock->info.rows = p->info.rows;
     pDataBlock->info.scanFlag = p->info.scanFlag;
+    pDataBlock->info.id.groupId = p->info.id.groupId;
   }
 
   blockDataDestroy(p);
@@ -281,6 +373,7 @@ void destroySortOperatorInfo(void* param) {
   tsortDestroySortHandle(pInfo->pSortHandle);
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->matchInfo.pList);
+  destroySortOpGroupIdCalc(pInfo->pGroupIdCalc);
   taosMemoryFreeClear(param);
 }
 
@@ -307,6 +400,14 @@ static int32_t calcSortOperMaxTupleLength(SSortOperatorInfo* pSortOperInfo, SNod
     pSortOperInfo->maxTupleLength += ((SColumnNode*)pOrderExprNode->pExpr)->node.resType.bytes;
   }
   return TSDB_CODE_SUCCESS;
+}
+
+static void destroySortOpGroupIdCalc(SSortOpGroupIdCalc* pCalc) {
+  if (pCalc) {
+    taosArrayDestroy(pCalc->pSortColsArr);
+    taosMemoryFree(pCalc->keyBuf);
+    taosMemoryFree(pCalc);
+  }
 }
 
 //=====================================================================================
@@ -591,6 +692,7 @@ typedef struct SMultiwayMergeOperatorInfo {
   bool           ignoreGroupId;
   uint64_t       groupId;
   STupleHandle*  prefetchedTuple;
+  bool           inputWithGroupId;
 } SMultiwayMergeOperatorInfo;
 
 int32_t openMultiwayMergeOperator(SOperatorInfo* pOperator) {
@@ -641,7 +743,7 @@ static void doGetSortedBlockData(SMultiwayMergeOperatorInfo* pInfo, SSortHandle*
 
   while (1) {
     STupleHandle* pTupleHandle = NULL;
-    if (pInfo->groupSort) {
+    if (pInfo->groupSort || pInfo->inputWithGroupId) {
       if (pInfo->prefetchedTuple == NULL) {
         pTupleHandle = tsortNextTuple(pHandle);
       } else {
@@ -662,7 +764,7 @@ static void doGetSortedBlockData(SMultiwayMergeOperatorInfo* pInfo, SSortHandle*
       break;
     }
 
-    if (pInfo->groupSort) {
+    if (pInfo->groupSort || pInfo->inputWithGroupId) {
       uint64_t tupleGroupId = tsortGetGroupId(pTupleHandle);
       if (pInfo->groupId == 0 || pInfo->groupId == tupleGroupId) {
         appendOneRowToDataBlock(p, pTupleHandle);
@@ -842,6 +944,7 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   pInfo->sortBufSize = pInfo->bufPageSize * (numStreams + 1);  // one additional is reserved for merged result.
   pInfo->binfo.inputTsOrder = pMergePhyNode->node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pMergePhyNode->node.outputTsOrder;
+  pInfo->inputWithGroupId = pMergePhyNode->inputWithGroupId;
 
   setOperatorInfo(pOperator, "MultiwayMergeOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE, false, OP_NOT_OPENED, pInfo, pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(openMultiwayMergeOperator, doMultiwayMerge, NULL,

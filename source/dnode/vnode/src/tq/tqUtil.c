@@ -108,7 +108,6 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
       if (pRequest->useSnapshot) {
         tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey:%s, vgId:%d, (earliest) set offset to be snapshot",
                 consumerId, pHandle->subKey, vgId);
-
         if (pHandle->fetchMeta) {
           tqOffsetResetToMeta(pOffsetVal, 0);
         } else {
@@ -227,8 +226,8 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
     uint64_t st = taosGetTimestampMs();
     int totalRows = 0;
     while (1) {
-//      int32_t savedEpoch = atomic_load_32(&pHandle->epoch);
-//      ASSERT (savedEpoch <= pRequest->epoch);
+      int32_t savedEpoch = atomic_load_32(&pHandle->epoch);
+      ASSERT(savedEpoch <= pRequest->epoch);
 
       if (tqFetchLog(pTq, pHandle, &fetchVer, pRequest->reqId) < 0) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);

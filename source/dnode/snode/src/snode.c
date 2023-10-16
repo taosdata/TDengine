@@ -53,9 +53,9 @@ FAIL:
   taosFreeQitem(pMsg);
 }
 
-int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
-  ASSERT(pTask->info.taskLevel == TASK_LEVEL__AGG && taosArrayGetSize(pTask->pUpstreamInfoList) != 0);
-  int32_t code = streamTaskInit(pTask, pSnode->pMeta, &pSnode->msgCb, ver);
+int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer) {
+  ASSERT(pTask->info.taskLevel == TASK_LEVEL__AGG && taosArrayGetSize(pTask->upstreamInfo.pList) != 0);
+  int32_t code = streamTaskInit(pTask, pSnode->pMeta, &pSnode->msgCb, nextProcessVer);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -70,7 +70,7 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t ver) {
     qDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
   }
 
-  int32_t numOfChildEp = taosArrayGetSize(pTask->pUpstreamInfoList);
+  int32_t numOfChildEp = taosArrayGetSize(pTask->upstreamInfo.pList);
   SReadHandle handle = { .vnode = NULL, .numOfVgroups = numOfChildEp, .pStateBackend = pTask->pState, .fillHistory = pTask->info.fillHistory };
   initStreamStateAPI(&handle.api);
 
@@ -203,7 +203,7 @@ int32_t sndProcessTaskRunReq(SSnode *pSnode, SRpcMsg *pMsg) {
 
   SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, pReq->streamId, pReq->taskId);
   if (pTask) {
-    streamProcessRunReq(pTask);
+    streamExecTask(pTask);
     streamMetaReleaseTask(pSnode->pMeta, pTask);
     return 0;
   } else {

@@ -64,6 +64,7 @@ typedef struct SParseContext {
   SArray*          pTableMetaPos;    // sql table pos => catalog data pos
   SArray*          pTableVgroupPos;  // sql table pos => catalog data pos
   int64_t          allocatorId;
+  int8_t           biMode;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);

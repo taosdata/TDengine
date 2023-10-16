@@ -11,8 +11,6 @@ The collection of the monitoring information is enabled by default, but can be d
 
 TDinsight is a complete solution which uses the monitoring database `log` mentioned previously, and Grafana, to monitor a TDengine cluster.
 
-Please refer to [TDinsight Grafana Dashboard](../../reference/tdinsight) to learn more details about using TDinsight to monitor TDengine.
-
 A script `TDinsight.sh` is provided to deploy TDinsight automatically.
 
 Download `TDinsight.sh` with the below command:
@@ -40,8 +38,6 @@ An existing Grafana Notification Channel can be specified with parameter `-E`, t
      ```
 
 Launch `TDinsight.sh` with the command above and restart Grafana, then open Dashboard `http://localhost:3000/d/tdinsight`.
-
-For more use cases and restrictions please refer to [TDinsight](/reference/tdinsight/).
 
 ## log database
 

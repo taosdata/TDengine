@@ -51,17 +51,15 @@ sudo seeq restart
     "UseSSL": false,
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
-        "DatabaseJdbcUrl": "jdbc:TAOS://localhost:6030/?user=root&password=taosdata",
-        "SqlDriverClassName": "com.taosdata.jdbc.TSDBDriver",
+        "DatabaseJdbcUrl": "jdbc:TAOS-RS://localhost:6030/?user=root&password=taosdata",
+        "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []
     }
 }
 ```
 
-Note: You need to replace DatabaseJdbcUrl and SqlDriverClassName with your setting. Please login TDengine cloud or open taosExplorer for enterprise edition, click programming -> Java to find yours.
-
-For the "QueryDefintions", please follow the examples below to write your own.  
+Note: You need to replace DatabaseJdbcUrl with your setting. Please login TDengine cloud or open taosExplorer for enterprise edition, click programming -> Java to find yours. For the "QueryDefintions", please follow the examples below to write your own.  
 
 ## Use Seeq to analyze time-series data stored inside TDengine
 
@@ -136,8 +134,8 @@ Please login with Seeq administrator and create a few data sources as following.
     "Hostname": null,
     "Port": 0,
     "DatabaseName": null,
-    "Username": "root",
-    "Password": "taosdata",
+    "Username": null,
+    "Password": null,
     "InitialSql": null,
     "TimeZone": null,
     "PrintRows": false,
@@ -196,8 +194,8 @@ Please login with Seeq administrator and create a few data sources as following.
     "Hostname": null,
     "Port": 0,
     "DatabaseName": null,
-    "Username": "root",
-    "Password": "taosdata",
+    "Username": null,
+    "Password": null,
     "InitialSql": null,
     "TimeZone": null,
     "PrintRows": false,
@@ -255,8 +253,8 @@ Please login with Seeq administrator and create a few data sources as following.
     "Hostname": null,
     "Port": 0,
     "DatabaseName": null,
-    "Username": "root",
-    "Password": "taosdata",
+    "Username": null,
+    "Password": null,
     "InitialSql": null,
     "TimeZone": null,
     "PrintRows": false,
@@ -356,13 +354,15 @@ Please note that when using TDengine Cloud, you need to specify the database nam
 
 #### The data source of TDengine Cloud example
 
+This data source contains the data from a smart meter in public database smartmeters.
+
 ```
 {
     "QueryDefinitions": [
         {
             "Name": "CloudVoltage",
             "Type": "SIGNAL",
-            "Sql": "SELECT  ts, voltage FROM test.meters",
+            "Sql": "SELECT  ts, voltage FROM smartmeters.d1000",
             "Enabled": true,
             "TestMode": false,
             "TestQueriesDuringSync": true,
@@ -395,8 +395,8 @@ Please note that when using TDengine Cloud, you need to specify the database nam
     "Hostname": null,
     "Port": 0,
     "DatabaseName": null,
-    "Username": "root",
-    "Password": "taosdata",
+    "Username": null,
+    "Password": null,
     "InitialSql": null,
     "TimeZone": null,
     "PrintRows": false,
@@ -405,7 +405,7 @@ Please note that when using TDengine Cloud, you need to specify the database nam
     "UseSSL": false,
     "JdbcProperties": null,
     "GenericDatabaseConfig": {
-        "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.cloud.taosdata.com?useSSL=true&token=41ac9d61d641b6b334e8b76f45f5a8XXXXXXXXXX",
+        "DatabaseJdbcUrl": "jdbc:TAOS-RS://gw.us-west-2.aws.cloud.tdengine.com?useSSL=true&token=42b874395452d36f38dd6bf4317757611b213683",
         "SqlDriverClassName": "com.taosdata.jdbc.rs.RestfulDriver",
         "ResolutionInNanoseconds": 1000,
         "ZonedColumnTypes": []

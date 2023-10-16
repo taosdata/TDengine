@@ -243,7 +243,7 @@ static void doCleanupInfoForNextFileset(STableBlockScanInfo* pScanInfo) {
   taosArrayClear(pScanInfo->pFileDelData);  // del data from each file set
 }
 
-void cleanupInfoFoxNextFileset(SSHashObj* pTableMap) {
+void cleanupInfoForNextFileset(SSHashObj* pTableMap) {
   STableBlockScanInfo** p = NULL;
 
   int32_t iter = 0;

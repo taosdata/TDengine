@@ -63,7 +63,8 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_WAL_SEGMENT_SIZE,
   DB_OPTION_STT_TRIGGER,
   DB_OPTION_TABLE_PREFIX,
-  DB_OPTION_TABLE_SUFFIX
+  DB_OPTION_TABLE_SUFFIX,
+  DB_OPTION_KEEP_TIME_OFFSET
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
@@ -86,6 +87,11 @@ typedef struct STokenPair {
   SToken first;
   SToken second;
 } STokenPair;
+
+typedef struct SShowTablesOption {
+  EShowKind kind;
+  SToken dbName;
+} SShowTablesOption;
 
 extern SToken nil_token;
 
@@ -181,9 +187,11 @@ SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int
 SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, SToken* pTagName, SNode* pVal);
 SNode* setAlterSuperTableType(SNode* pStmt);
 SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
+SNode* setShowKind(SAstCreateContext* pCxt, SNode* pStmt, EShowKind showKind);
 SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type);
 SNode* createShowStmtWithCond(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbName,
                               EOperatorType tableCondType);
+SNode* createShowTablesStmt(SAstCreateContext* pCxt, SShowTablesOption option, SNode* pTbName, EOperatorType tableCondType);                              
 SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createShowAliveStmt(SAstCreateContext* pCxt, SNode* pDbName, ENodeType type);
 SNode* createShowCreateTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
@@ -192,7 +200,8 @@ SNode* createShowDnodeVariablesStmt(SAstCreateContext* pCxt, SNode* pDnodeId, SN
 SNode* createShowVnodesStmt(SAstCreateContext* pCxt, SNode* pDnodeId, SNode* pDnodeEndpoint);
 SNode* createShowTableTagsStmt(SAstCreateContext* pCxt, SNode* pTbName, SNode* pDbName, SNodeList* pTags);
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword, int8_t sysinfo);
-SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t alterType, const SToken* pVal);
+SNode* addCreateUserStmtWhiteList(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pIpRangesNodeList);
+SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t alterType, void* pAlterInfo);
 SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName);
 SNode* createCreateDnodeStmt(SAstCreateContext* pCxt, const SToken* pFqdn, const SToken* pPort);
 SNode* createDropDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, bool force, bool unsafe);
@@ -235,7 +244,7 @@ SNode* createResumeStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, boo
 SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId);
 SNode* createKillQueryStmt(SAstCreateContext* pCxt, const SToken* pQueryId);
 SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt);
-SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt);
+SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt, const SToken* pVgId);
 SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, const SToken* pVgId2);
 SNode* createRedistributeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, SNodeList* pDnodes);
 SNode* createSplitVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId);

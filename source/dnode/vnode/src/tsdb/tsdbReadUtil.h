@@ -146,7 +146,6 @@ typedef struct SLastBlockReader {
   int32_t            order;
   uint64_t           uid;
   SMergeTree         mergeTree;
-  SSttBlockLoadInfo* pInfo;
   int64_t            currentKey;
 } SLastBlockReader;
 
@@ -238,7 +237,7 @@ SSHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, SBlockInfoBuf* pBuf
 void       clearBlockScanInfo(STableBlockScanInfo* p);
 void       destroyAllBlockScanInfo(SSHashObj* pTableMap);
 void       resetAllDataBlockScanInfo(SSHashObj* pTableMap, int64_t ts, int32_t step);
-void       cleanupInfoFoxNextFileset(SSHashObj* pTableMap);
+void       cleanupInfoForNextFileset(SSHashObj* pTableMap);
 int32_t    ensureBlockScanInfoBuf(SBlockInfoBuf* pBuf, int32_t numOfTables);
 void       clearBlockScanInfoBuf(SBlockInfoBuf* pBuf);
 void*      getPosInBlockInfoBuf(SBlockInfoBuf* pBuf, int32_t index);

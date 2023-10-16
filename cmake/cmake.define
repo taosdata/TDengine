@@ -83,6 +83,18 @@ ELSE ()
     SET(TAOS_LIB taos)
 ENDIF ()
 
+# build TSZ by default
+IF ("${TSZ_ENABLED}" MATCHES "false")
+  set(VAR_TSZ "" CACHE INTERNAL "global variant empty" )
+ELSE()
+  # define add 
+  MESSAGE(STATUS "build with TSZ enabled")
+  ADD_DEFINITIONS(-DTD_TSZ)
+  set(VAR_TSZ "TSZ" CACHE INTERNAL "global variant tsz" )
+ENDIF()
+
+# force set all platform to JEMALLOC_ENABLED = false
+SET(JEMALLOC_ENABLED OFF)
 IF (TD_WINDOWS)
     MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
     SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MTd")
@@ -105,8 +117,6 @@ IF (TD_WINDOWS)
 
     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS}")
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS}")
-
-    SET(JEMALLOC_ENABLED OFF)
 
 ELSE ()
     IF (${TD_DARWIN})

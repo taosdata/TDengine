@@ -468,7 +468,6 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
   void   *ptr = NULL;
   void   *pReq;
   int32_t len;
-  int32_t ret;
 
   if (ver <= pVnode->state.applied) {
     vError("vgId:%d, duplicate write request. ver: %" PRId64 ", applied: %" PRId64 "", TD_VID(pVnode), ver,
@@ -561,12 +560,14 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       }
       break;
     case TDMT_STREAM_TASK_DEPLOY: {
-      if (tqProcessTaskDeployReq(pVnode->pTq, ver, pReq, len) < 0) {
+      int32_t code = tqProcessTaskDeployReq(pVnode->pTq, ver, pReq, len);
+      if (code != TSDB_CODE_SUCCESS) {
+        terrno = code;
         goto _err;
       }
     } break;
     case TDMT_STREAM_TASK_DROP: {
-      if (tqProcessTaskDropReq(pVnode->pTq, ver, pMsg->pCont, pMsg->contLen) < 0) {
+      if (tqProcessTaskDropReq(pVnode->pTq, pMsg->pCont, pMsg->contLen) < 0) {
         goto _err;
       }
     } break;
@@ -582,13 +583,17 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
         goto _err;
       }
     } break;
+    case TDMT_VND_STREAM_TASK_RESET: {
+      if (pVnode->restored/* && vnodeIsLeader(pVnode)*/) {
+        tqProcessTaskResetReq(pVnode->pTq, pMsg);
+      }
+    } break;
     case TDMT_VND_ALTER_CONFIRM:
       needCommit = pVnode->config.hashChange;
       if (vnodeProcessAlterConfirmReq(pVnode, ver, pReq, len, pRsp) < 0) {
         goto _err;
       }
       break;
-
     case TDMT_VND_ALTER_CONFIG:
       vnodeProcessAlterConfigReq(pVnode, ver, pReq, len, pRsp);
       break;
@@ -602,7 +607,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       vnodeProcessDropIndexReq(pVnode, ver, pReq, len, pRsp);
       break;
     case TDMT_VND_STREAM_CHECK_POINT_SOURCE:
-      tqProcessStreamCheckPointSourceReq(pVnode->pTq, pMsg, pRsp);
+      tqProcessTaskCheckPointSourceReq(pVnode->pTq, pMsg, pRsp);
       break;
     case TDMT_VND_STREAM_TASK_UPDATE:
       tqProcessTaskUpdateReq(pVnode->pTq, pMsg);
@@ -1715,11 +1720,11 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
   }
 
   vInfo("vgId:%d, start to alter vnode config, page:%d pageSize:%d buffer:%d szPage:%d szBuf:%" PRIu64
-        " cacheLast:%d cacheLastSize:%d days:%d keep0:%d keep1:%d keep2:%d fsync:%d level:%d walRetentionPeriod:%d "
-        "walRetentionSize:%d",
+        " cacheLast:%d cacheLastSize:%d days:%d keep0:%d keep1:%d keep2:%d keepTimeOffset:%d fsync:%d level:%d "
+        "walRetentionPeriod:%d walRetentionSize:%d",
         TD_VID(pVnode), req.pages, req.pageSize, req.buffer, req.pageSize * 1024, (uint64_t)req.buffer * 1024 * 1024,
         req.cacheLast, req.cacheLastSize, req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2,
-        req.walFsyncPeriod, req.walLevel, req.walRetentionPeriod, req.walRetentionSize);
+        req.keepTimeOffset, req.walFsyncPeriod, req.walLevel, req.walRetentionPeriod, req.walRetentionSize);
 
   if (pVnode->config.cacheLastSize != req.cacheLastSize) {
     pVnode->config.cacheLastSize = req.cacheLastSize;
@@ -1783,6 +1788,13 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
 
   if (pVnode->config.tsdbCfg.keep2 != req.daysToKeep2) {
     pVnode->config.tsdbCfg.keep2 = req.daysToKeep2;
+    if (!VND_IS_RSMA(pVnode)) {
+      tsdbChanged = true;
+    }
+  }
+
+  if (pVnode->config.tsdbCfg.keepTimeOffset != req.keepTimeOffset) {
+    pVnode->config.tsdbCfg.keepTimeOffset = req.keepTimeOffset;
     if (!VND_IS_RSMA(pVnode)) {
       tsdbChanged = true;
     }
