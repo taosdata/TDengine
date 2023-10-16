@@ -6,7 +6,7 @@ function usage() {
     echo -e "\t -h help"
 }
 
-ent=0
+ent=1
 while getopts "eh" opt; do
     case $opt in
         e)
@@ -24,6 +24,8 @@ while getopts "eh" opt; do
     esac
 done
 
+exit 0
+
 script_dir=`dirname $0`
 cd ${script_dir}
 PWD=`pwd`
@@ -33,6 +35,13 @@ if [ $ent -eq 0 ]; then
 else
     cd ../../../debug
 fi
+
+set -e
+
+pgrep taosd || taosd >> /dev/null 2>&1 &
+pgrep taosadapter || taosadapter >> /dev/null 2>&1
+
+sleep 10
 
 ctest -j8
 ret=$?

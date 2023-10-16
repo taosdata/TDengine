@@ -198,6 +198,7 @@ typedef struct SRequestSendRecvBody {
   __taos_async_fn_t fetchFp;
   EQueryExecMode    execMode;
   void*             param;
+  bool              paramCreatedInternal;
   SDataBuf          requestMsg;
   int64_t           queryJob;  // query job, created according to sql query DAG.
   int32_t           subplanNum;
@@ -407,6 +408,7 @@ int32_t buildPreviousRequest(SRequestObj *pRequest, const char* sql, SRequestObj
 int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *pRequest, bool updateMetaForce);
 void    returnToUser(SRequestObj* pRequest);
 void    stopAllQueries(SRequestObj *pRequest);
+void    doRequestCallback(SRequestObj* pRequest, int32_t code);
 
 #ifdef __cplusplus
 }

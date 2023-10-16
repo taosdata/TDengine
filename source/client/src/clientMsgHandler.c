@@ -41,7 +41,7 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
   taosMemoryFree(pMsg->pEpSet);
   taosMemoryFree(pMsg->pData);
   if (pRequest->body.queryFp != NULL) {
-    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    doRequestCallback(pRequest, code);
   } else {
     tsem_post(&pRequest->body.rspSem);
   }
@@ -198,7 +198,7 @@ int32_t processCreateDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if (pRequest->body.queryFp) {
-    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    doRequestCallback(pRequest, code);
   } else {
     tsem_post(&pRequest->body.rspSem);
   }
@@ -234,7 +234,8 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     setErrno(pRequest, code);
 
     if (pRequest->body.queryFp != NULL) {
-      pRequest->body.queryFp(pRequest->body.param, pRequest, pRequest->code);
+      doRequestCallback(pRequest, pRequest->code);
+
     } else {
       tsem_post(&pRequest->body.rspSem);
     }
@@ -298,7 +299,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
-    pRequest->body.queryFp(pRequest->body.param, pRequest, pRequest->code);
+    doRequestCallback(pRequest, pRequest->code);
   } else {
     tsem_post(&pRequest->body.rspSem);
   }
@@ -342,7 +343,7 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
       }
     }
 
-    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    doRequestCallback(pRequest, code);
   } else {
     tsem_post(&pRequest->body.rspSem);
   }
@@ -379,7 +380,7 @@ int32_t processDropDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
-    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    doRequestCallback(pRequest, code);
   } else {
     tsem_post(&pRequest->body.rspSem);
   }
@@ -419,7 +420,7 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       }
     }
 
-    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    doRequestCallback(pRequest, code);
   } else {
     tsem_post(&pRequest->body.rspSem);
   }
@@ -533,7 +534,7 @@ int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
   taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
-    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    doRequestCallback(pRequest, code);
   } else {
     tsem_post(&pRequest->body.rspSem);
   }

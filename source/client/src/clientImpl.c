@@ -208,6 +208,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
     tsem_init(&newpParam->sem, 0, 0);
     newpParam->pRequest = (*pRequest);
     param = newpParam;
+    (*pRequest)->body.paramCreatedInternal = true;
   }
 
   (*pRequest)->body.param = param;
@@ -335,7 +336,7 @@ static SAppInstInfo* getAppInfo(SRequestObj* pRequest) { return pRequest->pTscOb
 void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
   if (pRequest->validateOnly) {
-    pRequest->body.queryFp(pRequest->body.param, pRequest, 0);
+    doRequestCallback(pRequest, 0);
     return;
   }
 
@@ -357,18 +358,18 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
              pRequest->requestId);
   }
 
-  pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+  doRequestCallback(pRequest, code);
 }
 
 int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   if (pRequest->validateOnly) {
-    pRequest->body.queryFp(pRequest->body.param, pRequest, 0);
+    doRequestCallback(pRequest, 0);
     return TSDB_CODE_SUCCESS;
   }
 
   // drop table if exists not_exists_table
   if (NULL == pQuery->pCmdMsg) {
-    pRequest->body.queryFp(pRequest->body.param, pRequest, 0);
+    doRequestCallback(pRequest, 0);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -383,7 +384,7 @@ int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   int64_t transporterId = 0;
   int32_t code = asyncSendMsgToServer(pAppInfo->pTransporter, &pMsgInfo->epSet, &transporterId, pSendMsg);
   if (code) {
-    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    doRequestCallback(pRequest, code);
   }
   return code;
 }
@@ -912,7 +913,7 @@ void continuePostSubQuery(SRequestObj* pRequest, TAOS_ROW row) {
 void returnToUser(SRequestObj* pRequest) {
   if (pRequest->relation.userRefId == pRequest->self || 0 == pRequest->relation.userRefId) {
     // return to client
-    pRequest->body.queryFp(pRequest->body.param, pRequest, pRequest->code);
+    doRequestCallback(pRequest, pRequest->code);
     return;
   }
 
@@ -920,7 +921,7 @@ void returnToUser(SRequestObj* pRequest) {
   if (pUserReq) {
     pUserReq->code = pRequest->code;
     // return to client
-    pUserReq->body.queryFp(pUserReq->body.param, pUserReq, pUserReq->code);
+    doRequestCallback(pUserReq, pUserReq->code);
     releaseRequest(pRequest->relation.userRefId);
     return;
   } else {
@@ -1030,7 +1031,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
     pRequest->pWrapper = NULL;
 
     // return to client
-    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    doRequestCallback(pRequest, code);
   }
 }
 
@@ -1180,7 +1181,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
       pRequest->code = terrno;
     }
 
-    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+    doRequestCallback(pRequest, code);
   }
 
   // todo not to be released here
@@ -1222,10 +1223,10 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
     }
     case QUERY_EXEC_MODE_EMPTY_RESULT:
       pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
-      pRequest->body.queryFp(pRequest->body.param, pRequest, 0);
+      doRequestCallback(pRequest, 0);
       break;
     default:
-      pRequest->body.queryFp(pRequest->body.param, pRequest, -1);
+      doRequestCallback(pRequest, -1);
       break;
   }
 }
@@ -2557,12 +2558,13 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
 }
 
 void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param) {
-  if (pRequest->syncQuery && pRequest->body.param != param) {
+  if ((pRequest->syncQuery || pRequest->body.paramCreatedInternal) && pRequest->body.param != param) {
     if (pRequest->body.param) {
       tsem_destroy(&((SSyncQueryParam *)pRequest->body.param)->sem);
     }
     taosMemoryFree(pRequest->body.param);
     pRequest->syncQuery = false;
+    pRequest->body.paramCreatedInternal = false;
   }
 
   pRequest->body.fetchFp = fp;
@@ -2602,4 +2604,12 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
   };
 
   schedulerFetchRows(pRequest->body.queryJob, &req);
+}
+
+void doRequestCallback(SRequestObj* pRequest, int32_t code) {
+  if (pRequest->body.paramCreatedInternal) {
+    pRequest->body.queryFp(NULL, pRequest, code);
+  } else {
+    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+  }
 }
