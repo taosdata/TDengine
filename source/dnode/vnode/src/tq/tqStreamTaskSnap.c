@@ -206,10 +206,6 @@ int32_t streamTaskSnapWriterClose(SStreamTaskWriter* pWriter, int8_t rollback) {
     code = tdbPostCommit(pTq->pStreamMeta->db, pTq->pStreamMeta->txn);
     if (code) goto _err;
   }
-  if (tdbBegin(pTq->pStreamMeta->db, &pTq->pStreamMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL, 0) < 0) {
-    code = -1;
-    goto _err;
-  }
 
   if (tdbBegin(pTq->pStreamMeta->db, &pTq->pStreamMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL, 0) < 0) {
     code = -1;
