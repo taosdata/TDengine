@@ -114,26 +114,25 @@ stop_explore_service(){
 
 # remove old taosx and taosx-agent
 remove_taosx() {
-    echo "stop ${target} related services..."
     stop_taosx_agent_service
     stop_taosx_service
     stop_explore_service
 
-    echo "delete related files..."
     ${csudo}rm -rf ${INSTALL_DIR}/${xName}
+    echo "${xName} is removed successfully!"
     ${csudo}rm -rf ${INSTALL_DIR}/${explorerName}
+    echo "${explorerName} is removed successfully!"
 
     ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
+    echo "${agentname} is removed successfully!"
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
 }
 
 # remove taosx-agent
 remove_taos_agent() {
-    echo "stop ${target} service..."
     stop_taosx_agent_service
 
-    echo "delete related files..."
     ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
     ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
@@ -148,4 +147,3 @@ remove_target() {
 }
 
 remove_target
-echo "${target} has been removed successfully!"
