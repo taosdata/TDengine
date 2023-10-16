@@ -1420,6 +1420,14 @@ static bool nextRowFromLastBlocks(SLastBlockReader* pLastBlockReader, STableBloc
   }
 }
 
+static void doPinSttBlock(SLastBlockReader* pLastBlockReader) {
+  tMergeTreePinSttBlock(&pLastBlockReader->mergeTree);
+}
+
+static void doUnpinSttBlock(SLastBlockReader* pLastBlockReader) {
+  tMergeTreeUnpinSttBlock(&pLastBlockReader->mergeTree);
+}
+
 static bool tryCopyDistinctRowFromSttBlock(TSDBROW* fRow, SLastBlockReader* pLastBlockReader,
                                            STableBlockScanInfo* pScanInfo, int64_t ts, STsdbReader* pReader,
                                            bool* copied) {
@@ -1427,7 +1435,10 @@ static bool tryCopyDistinctRowFromSttBlock(TSDBROW* fRow, SLastBlockReader* pLas
 
   *copied = false;
 
+  // avoid the fetch next row replace the referenced stt block in buffer
+  doPinSttBlock(pLastBlockReader);
   bool hasVal = nextRowFromLastBlocks(pLastBlockReader, pScanInfo, &pReader->info.verRange);
+  doUnpinSttBlock(pLastBlockReader);
   if (hasVal) {
     int64_t next1 = getCurrentKeyInLastBlock(pLastBlockReader);
     if (next1 != ts) {

@@ -146,7 +146,6 @@ typedef struct SLastBlockReader {
   int32_t            order;
   uint64_t           uid;
   SMergeTree         mergeTree;
-  SSttBlockLoadInfo* pInfo;
   int64_t            currentKey;
 } SLastBlockReader;
 
