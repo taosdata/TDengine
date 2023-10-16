@@ -54,7 +54,7 @@ class ConfigureyCluster:
             # configure  dnoe of independent mnodes
             if num <= self.mnodeNums and self.mnodeNums != 0 and independentMnode == True :
                 tdLog.info(f"set mnode:{num} supportVnodes 0")
-                dnode.addExtraCfg("supportVnodes", 0)            
+                dnode.addExtraCfg("supportVnodes", 0)
             # print(dnode)
             self.dnodes.append(dnode)
         return self.dnodes

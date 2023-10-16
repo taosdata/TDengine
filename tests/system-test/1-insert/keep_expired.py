@@ -15,7 +15,7 @@ class TDTestCase:
         self.stbname = "stb"
         self.ctbname = "ctb"
         self.keep_value = "2d,2d,2d"
-        self.duration_value = "1d"
+        self.duration_value = "16h"
         self.offset_time = 5
         self.sleep_time = self.offset_time*2
 

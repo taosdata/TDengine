@@ -69,7 +69,7 @@ typedef struct {
     SDataIter *pIter;
     SRBTree    rbt;
     SDataIter  dataIter;
-    SDataIter  aDataIter[TSDB_MAX_STT_TRIGGER];
+    SDataIter  aDataIter[TSDB_STT_TRIGGER_ARRAY_SIZE];
     int8_t     toLastOnly;
   };
   struct {
@@ -501,7 +501,6 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   int32_t    lino = 0;
   STsdb     *pTsdb = pCommitter->pTsdb;
   SDFileSet *pRSet = NULL;
-
   // memory
   pCommitter->commitFid = tsdbKeyFid(pCommitter->nextKey, pCommitter->minutes, pCommitter->precision);
   pCommitter->expLevel = tsdbFidLevel(pCommitter->commitFid, &pCommitter->pTsdb->keepCfg, taosGetTimestampSec());
@@ -799,7 +798,6 @@ static int32_t tsdbCommitFileData(SCommitter *pCommitter) {
   int32_t    lino = 0;
   STsdb     *pTsdb = pCommitter->pTsdb;
   SMemTable *pMemTable = pTsdb->imem;
-
   // commit file data start
   code = tsdbCommitFileDataStart(pCommitter);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -867,7 +865,7 @@ static int32_t tsdbCommitDataStart(SCommitter *pCommitter) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // merger
-  for (int32_t iStt = 0; iStt < TSDB_MAX_STT_TRIGGER; iStt++) {
+  for (int32_t iStt = 0; iStt < TSDB_STT_TRIGGER_ARRAY_SIZE; iStt++) {
     SDataIter *pIter = &pCommitter->aDataIter[iStt];
     pIter->aSttBlk = taosArrayInit(0, sizeof(SSttBlk));
     if (pIter->aSttBlk == NULL) {
@@ -917,7 +915,7 @@ static void tsdbCommitDataEnd(SCommitter *pCommitter) {
   tBlockDataDestroy(&pCommitter->dReader.bData);
 
   // merger
-  for (int32_t iStt = 0; iStt < TSDB_MAX_STT_TRIGGER; iStt++) {
+  for (int32_t iStt = 0; iStt < TSDB_STT_TRIGGER_ARRAY_SIZE; iStt++) {
     SDataIter *pIter = &pCommitter->aDataIter[iStt];
     taosArrayDestroy(pIter->aSttBlk);
     tBlockDataDestroy(&pIter->bData);

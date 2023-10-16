@@ -88,8 +88,9 @@ static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
   return code;
 }
 
-static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock, int32_t numOfRows, STableMeta* pMeta) {
-  blockDataEnsureCapacity(pBlock, numOfRows);
+static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock, int32_t numOfRows, STableMeta* pMeta, int8_t biMode) {
+  int32_t blockCap = (biMode != 0) ? numOfRows + 1 : numOfRows;
+  blockDataEnsureCapacity(pBlock, blockCap);
   pBlock->info.rows = 0;
 
   // field
@@ -115,6 +116,17 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
     colDataSetVal(pCol4, pBlock->info.rows, buf, false);
     ++(pBlock->info.rows);
   }
+  if (pMeta->tableType == TSDB_SUPER_TABLE && biMode != 0) {
+    STR_TO_VARSTR(buf, "tbname");
+    colDataSetVal(pCol1, pBlock->info.rows, buf, false);
+    STR_TO_VARSTR(buf, "VARCHAR");
+    colDataSetVal(pCol2, pBlock->info.rows, buf, false);
+    int32_t bytes = TSDB_TABLE_NAME_LEN - 1;
+    colDataSetVal(pCol3, pBlock->info.rows, (const char*)&bytes, false);
+    STR_TO_VARSTR(buf, "TAG");
+    colDataSetVal(pCol4, pBlock->info.rows, buf, false);
+    ++(pBlock->info.rows);
+  }
   if (pBlock->info.rows <= 0) {
     qError("no permission to view any columns");
     return TSDB_CODE_PAR_PERMISSION_DENIED;
@@ -122,14 +134,14 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp) {
+static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp, int8_t biMode) {
   SDescribeStmt* pDesc = (SDescribeStmt*)pStmt;
   int32_t        numOfRows = TABLE_TOTAL_COL_NUM(pDesc->pMeta);
 
   SSDataBlock* pBlock = NULL;
   int32_t      code = buildDescResultDataBlock(&pBlock);
   if (TSDB_CODE_SUCCESS == code) {
-    code = setDescResultIntoDataBlock(sysInfoUser, pBlock, numOfRows, pDesc->pMeta);
+    code = setDescResultIntoDataBlock(sysInfoUser, pBlock, numOfRows, pDesc->pMeta, biMode);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS, pRsp);
@@ -300,11 +312,12 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName, ch
         "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' COMP %d DURATION %dm "
         "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d STT_TRIGGER %d KEEP %dm,%dm,%dm PAGES %d PAGESIZE %d PRECISION '%s' REPLICA %d "
         "WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d TABLE_PREFIX %d TABLE_SUFFIX %d TSDB_PAGESIZE %d "
-        "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64,
+        "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64 " KEEP_TIME_OFFSET %d",
         dbName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->compression, pCfg->daysPerFile,
         pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows,  pCfg->sstTrigger, pCfg->daysToKeep0, pCfg->daysToKeep1, pCfg->daysToKeep2,
         pCfg->pages, pCfg->pageSize, prec, pCfg->replications, pCfg->walLevel, pCfg->numOfVgroups,
-        1 == pCfg->numOfStables, hashPrefix, pCfg->hashSuffix, pCfg->tsdbPageSize, pCfg->walRetentionPeriod, pCfg->walRetentionSize);
+        1 == pCfg->numOfStables, hashPrefix, pCfg->hashSuffix, pCfg->tsdbPageSize, pCfg->walRetentionPeriod, pCfg->walRetentionSize,
+        pCfg->keepTimeOffset);
 
     if (retentions) {
       len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, " RETENTIONS %s", retentions);
@@ -936,10 +949,10 @@ static int32_t execSelectWithoutFrom(SSelectStmt* pSelect, SRetrieveTableRsp** p
   return code;
 }
 
-int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp) {
+int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp, int8_t biMode) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_DESCRIBE_STMT:
-      return execDescribe(sysInfoUser, pStmt, pRsp);
+      return execDescribe(sysInfoUser, pStmt, pRsp, biMode);
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:
       return execResetQueryCache();
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:

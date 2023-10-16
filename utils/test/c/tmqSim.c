@@ -696,7 +696,7 @@ static int32_t g_once_commit_flag = 0;
 static void tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
   taosFprintfFile(g_fp, "tmq_commit_cb_print() commit %d\n", code);
 
-  if (0 == g_once_commit_flag) {
+  if (0 == g_once_commit_flag && code == 0) {
     g_once_commit_flag = 1;
     notifyMainScript((SThreadInfo*)param, (int32_t)NOTIFY_CMD_START_COMMIT);
   }

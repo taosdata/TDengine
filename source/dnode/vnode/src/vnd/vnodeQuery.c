@@ -388,7 +388,7 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
   pLoad->numOfCachedTables = tsdbCacheGetElems(pVnode);
   pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
-  pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta);
+  pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1);
   pLoad->totalStorage = (int64_t)3 * 1073741824;
   pLoad->compStorage = (int64_t)2 * 1073741824;
   pLoad->pointsWritten = 100;
@@ -400,6 +400,15 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   return 0;
 }
 
+int32_t vnodeGetLoadLite(SVnode *pVnode, SVnodeLoadLite *pLoad) {
+  SSyncState syncState = syncGetState(pVnode->sync);
+  if (syncState.state == TAOS_SYNC_STATE_LEADER) {
+    pLoad->vgId = TD_VID(pVnode);
+    pLoad->nTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1);
+    return 0;
+  }
+  return -1;
+}
 /**
  * @brief Reset the statistics value by monitor interval
  *
@@ -544,14 +553,11 @@ int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
-  STSchema *pTSchema = metaGetTbTSchema(pVnode->pMeta, suid, -1, 1);
-  // metaGetTbTSchemaEx(pVnode->pMeta, suid, suid, -1, &pTSchema);
-
-  if (pTSchema) {
-    *num = pTSchema->numOfCols;
-
-    taosMemoryFree(pTSchema);
+int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
+  SSchemaWrapper *pSW = metaGetTableSchema(pVnode->pMeta, suid, -1, 0);
+  if (pSW) {
+    *num = pSW->nCols;
+    tDeleteSchemaWrapper(pSW);
   } else {
     *num = 2;
   }
@@ -560,42 +566,55 @@ static int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
 }
 
 #ifdef TD_ENTERPRISE
-#define TK_LOG_STB_NUM 19
-static const char *tkLogStb[TK_LOG_STB_NUM] = {"cluster_info",
-                                               "data_dir",
-                                               "dnodes_info",
-                                               "d_info",
-                                               "grants_info",
-                                               "keeper_monitor",
-                                               "logs",
-                                               "log_dir",
-                                               "log_summary",
-                                               "m_info",
-                                               "taosadapter_restful_http_request_fail",
-                                               "taosadapter_restful_http_request_in_flight",
-                                               "taosadapter_restful_http_request_summary_milliseconds",
-                                               "taosadapter_restful_http_request_total",
-                                               "taosadapter_system_cpu_percent",
-                                               "taosadapter_system_mem_percent",
-                                               "temp_dir",
-                                               "vgroups_info",
-                                               "vnodes_role"};
+const char *tkLogStb[] = {"cluster_info",
+                          "data_dir",
+                          "dnodes_info",
+                          "d_info",
+                          "grants_info",
+                          "keeper_monitor",
+                          "logs",
+                          "log_dir",
+                          "log_summary",
+                          "m_info",
+                          "taosadapter_restful_http_request_fail",
+                          "taosadapter_restful_http_request_in_flight",
+                          "taosadapter_restful_http_request_summary_milliseconds",
+                          "taosadapter_restful_http_request_total",
+                          "taosadapter_system_cpu_percent",
+                          "taosadapter_system_mem_percent",
+                          "temp_dir",
+                          "vgroups_info",
+                          "vnodes_role"};
+const char *tkAuditStb[] = {"operations"};
+const int   tkLogStbNum = ARRAY_SIZE(tkLogStb);
+const int   tkAuditStbNum = ARRAY_SIZE(tkAuditStb);
 
 // exclude stbs of taoskeeper log
 static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
-  char *dbName = strchr(pVnode->config.dbname, '.');
-  if (!dbName || 0 != strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
-    return 0;
+  int32_t      tbSize = 0;
+  int32_t      tbNum = 0;
+  const char **pTbArr = NULL;
+  const char  *dbName = NULL;
+
+  if (!(dbName = strchr(pVnode->config.dbname, '.'))) return 0;
+  if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
+    tbNum = tkLogStbNum;
+    pTbArr = (const char **)&tkLogStb;
+  } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN)) {
+    tbNum = tkAuditStbNum;
+    pTbArr = (const char **)&tkAuditStb;
   }
-  int32_t tbSize = metaSizeOfTbFilterCache(pVnode, 0);
-  if (tbSize < TK_LOG_STB_NUM) {
-    for (int32_t i = 0; i < TK_LOG_STB_NUM; ++i) {
-      tb_uid_t suid = metaGetTableEntryUidByName(pVnode->pMeta, tkLogStb[i]);
-      if (suid != 0) {
-        metaPutTbToFilterCache(pVnode, suid, 0);
+  if (tbNum && pTbArr) {
+    tbSize = metaSizeOfTbFilterCache(pVnode->pMeta, 0);
+    if (tbSize < tbNum) {
+      for (int32_t i = 0; i < tbNum; ++i) {
+        tb_uid_t suid = metaGetTableEntryUidByName(pVnode->pMeta, pTbArr[i]);
+        if (suid != 0) {
+          metaPutTbToFilterCache(pVnode->pMeta, &suid, 0);
+        }
       }
+      tbSize = metaSizeOfTbFilterCache(pVnode->pMeta, 0);
     }
-    tbSize = metaSizeOfTbFilterCache(pVnode, 0);
   }
 
   return tbSize;
@@ -605,7 +624,7 @@ static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode) {
 static bool vnodeTimeSeriesFilter(void *arg1, void *arg2) {
   SVnode *pVnode = (SVnode *)arg1;
 
-  if (metaTbInFilterCache(pVnode, *(tb_uid_t *)(arg2), 0)) {
+  if (metaTbInFilterCache(pVnode->pMeta, arg2, 0)) {
     return true;
   }
   return false;
@@ -620,9 +639,9 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
   }
 
   int32_t tbFilterSize = 0;
-  #ifdef TD_ENTERPRISE
+#ifdef TD_ENTERPRISE
   tbFilterSize = vnodeGetTimeSeriesBlackList(pVnode);
-  #endif
+#endif
 
   if ((!tbFilterSize && vnodeGetStbIdList(pVnode, 0, suidList) < 0) ||
       (tbFilterSize && vnodeGetStbIdListByFilter(pVnode, 0, suidList, vnodeTimeSeriesFilter, pVnode) < 0)) {
@@ -637,10 +656,8 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
     tb_uid_t suid = *(tb_uid_t *)taosArrayGet(suidList, i);
 
     int64_t ctbNum = 0;
-    metaGetStbStats(pVnode, suid, &ctbNum);
-
-    int numOfCols = 0;
-    vnodeGetStbColumnNum(pVnode, suid, &numOfCols);
+    int32_t numOfCols = 0;
+    metaGetStbStats(pVnode, suid, &ctbNum, &numOfCols);
 
     *num += ctbNum * (numOfCols - 1);
   }
