@@ -425,9 +425,7 @@ int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type,
   reader[0]->ever = ever;
   reader[0]->type = type;
 
-  taosThreadRwlockRdlock(&tsdb->rwLock);
   code = tsdbFSCreateRefRangedSnapshot(tsdb->pFS, sver, ever, (TSnapRangeArray*)pRanges, &reader[0]->fsrArr);
-  taosThreadRwlockUnlock(&tsdb->rwLock);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
