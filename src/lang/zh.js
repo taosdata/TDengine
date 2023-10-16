@@ -10,6 +10,11 @@ let agenturl=localStorage.getItem('agent_version')?localStorage.getItem('agent_v
 const DocsUrl=localStorage.getItem('local_language')?.includes('zh')?'https://docs.taosdata.com':'https://docs.tdengine.com'
 export default {
   //通用部分
+
+  execute:'执行',
+
+  copyDsn: '复制 DSN',
+
   clone:'复制',
   delete:'删除',
   pInName: '请输入名称',
@@ -62,6 +67,7 @@ export default {
   create: "创建",
   success: "成功",
   createSucc: "创建成功!",
+  createBy: '创建者',
   refresh: "刷新",
   search: "搜索",
   operate: "操作",
@@ -445,7 +451,7 @@ export default {
     <li>2 - 数据写入 WAL 且执行 fsync。</li>
     </ul>
     `,
-    walRetentionPeriodTip: "WAL 文件的大保存时长，它决定了能够订阅到的数据，单位是秒，默认值是3600，值为0时意味着没有没有数据可以消费，如果想订阅数据请设置为合适的正值。",
+    walRetentionPeriodTip: "WAL 文件的大保存时长，它决定了能够订阅到的数据，单位是秒，默认值是3600，值为0时意味着没有数据可以消费，如果想订阅数据请设置为合适的正值。",
     walRetentionSizeTip: "单个 WAL 文件的大小上限，单位是 KB，默认值为0，意味着 TDengine 会自动处理。",
     pagesTip: "单个 vnode 中缓存元数据的缓存页数，缺省值是 256，该值允许配置的最小值是 64",
     pageSizeTip: "vnode 中元数据缓存的页大小，单位是 KB ，值域是 [1,16384]，缺省值是 4 KB。",
@@ -508,6 +514,7 @@ export default {
     generateTokenTip: "没有任何 API 令牌，您必须生成一个才能连接到 TDengine ",
   },
   console: {
+    cellCopyTip: '双击单元格进行复制',
     exec: "执行",
     addFavorites: "收藏",
     delFavirote: "删除收藏",
@@ -577,7 +584,7 @@ export default {
     alertDetail: "告警详情",
   },
   setting: {
-    profile: "个人信息",
+    profile: "修改密码",
     invoice: "发票",
     saveChange: "保存修改",
     invoiceCode: "发票编号",
@@ -808,7 +815,7 @@ export default {
     sourceDB: "源数据库",
     targetDB: "目标数据库",
     targetTable: "目标表",
-    watermark: "水印",
+    watermark: "watermark",
     trigger: "触发器",
     output: '输出',
     learnMoreTip: "要了解更多关于流计算的信息，请查看<a target='_blank' href=\"docsUrl\">文档</a>",
@@ -859,7 +866,7 @@ export default {
     csv: "CSV文件",
     stable: "超级表",
     pageTitle: "数据订阅",
-    createTopic: "新增新主题",
+    createTopic: "添加新主题",
     consumer: "消费者",
     topicName: "主题名称",
     topic: "主题",
@@ -1021,10 +1028,10 @@ export default {
     using:'超级表名',
     targetdb:'目标数据库',
     expired:'已过期',
-    payloadtip:'请选择mqtt payload',
+    payloadtip:'请选择 MQTT payload',
     keep:'Keep',
     agentexpiretip:'过期时间必须大于当前时间',
-    mqttparsertip:'确保mqtt parser的必输项目都已填写完毕',
+    mqttparsertip:'确保 MQTT parser的必输项目都已填写完毕',
     // mqtttitle:'MQTT Payload Parser',
     
     addmqtttip:'字段，列，列类型不为空才能进行添加',
@@ -1073,7 +1080,7 @@ export default {
       2. 其他情况下，如当数据源与 TDengine 集群网络隔离时，使用代理以提供跨网络访问数据源的能力。
     `,
 
-    replicationTargetInfo: `请登录云服务或打开企业版的taosExplorer，点击"数据浏览器“，选中数据库，然后点击“查看数据库配置”按钮，即可获得。`,
+    replicationTargetInfo: `请登录云服务或打开企业版的taosExplorer，点击"数据浏览器“，选中数据库，然后点击“查看数据库配置”按钮。复制粘贴页面底部的DSN。`,
   
     //-------datasourceui的字段,英文版本直接显示的display，暂时不需要转换
     description: '描述',
@@ -1095,7 +1102,7 @@ export default {
     privilege:'权限'
   },
   dataOut: {
-    connectorTip: "使用您选择的编程语言<a target='_blank' href='https://docs.taosdata.com/taos-sql/select/'>使用SQL</a>查询数据。",
+    connectorTip: "使用您选择的编程语言<a target='_blank' href='/docs/taos-sql/select/'>使用SQL</a>查询数据。",
     toolsTip: "数据转储——使用taosDump将表、表的一部分或超级表写入文件。",
     subscriptionTitle: `订阅数据更新使用`,
     subscriptions:'数据订阅',
@@ -1363,50 +1370,28 @@ Windows： <code>C:\\Program Files\\taosX\\config</code>`,
         topdesc: `${grafanagds} 能够与开源数据可视化系统`,
         topdesc1:
           `   快速集成搭建数据监测报警系统，整个过程无需任何代码开发。${grafanagds} 中数据表的内容可以在仪表盘(DashBoard)上进行可视化展现。关于 ${grafanagds} 插件的使用您可以在 GitHub. `,
-        // topdesc2: ``,
-        // topdesc3: ".",
-        // step1: "Install Grafana",
-        // step1desc:
-        //   `${grafanagds} currently supports Grafana versions 7.5 and above. Please go to the Grafana official website to download the installation package`,
-        // pluginsdesc:`Open Grafana from browser, click the three horizontal bar icon, click "Connections", inside the search bar, search ${grafanagds}, then "${grafanagds} Data Source" should pop up. Click "Install" to install the ${grafanagds} plugin. Once it's installed, you can add ${grafanagds} data source right away.`,
-        // script1:`If you can access Github easily, please run below script from Linux terminal to install ${grafanagds} Datasource plugin.`,
-        // script2:`After that completed, please restart grafana-server.`,
-        // step2: `Install ${grafanagds} plugin`,
-        // step2desc:
-        //   `Please copy the following shell commands to export \`${grafanagds}_URL\` and  \`${grafanagds}_TOKEN\` for the data source installation.`,
-        // step2desc1: `Run below script from Linux terminal to install ${grafanagds} data source plugin.`,
-        // step2desc2: "After that completed, please restart grafana-server.",
-        // step3: "Add Data Source",
-        // step3desc1: 'Host:',
-        // step3desc2: 'Token:',
-        // step3desc3: `Then click "Save & Test" button to verify if ${grafanagds} data source works. `,
-        // step3desc:
-        //   `Inside Grafana data source configuration page, copy the host and token listed below and paste them into Grafana's corresponding input box. `,
-        // step4: "Use Grafana",
-        // step4desc: `Please add new dashboard or import exist dashboard to explore the data stored in the ${grafanagds}.`,
-        // step4desc1: "You can refer to the ",
-        // step4desc2: "documentation",
-        // step4desc3: "for more details.",
-        // desc: `${grafanagds} 能够快速地与开源数据可视化系统 Grafana 集成来构件一个数据的监控和告警系统。整个过程无需进行任何代码开发，您就可以通过可视化您在 TDengine 的数据展示在仪表盘里面。`,
-        // topdesc: `${grafanagds} 能够与开源数据可视化系统 `,
-        // topdesc1: `快速集成搭建数据监测报警系统，整个过程无需任何代码开发，${grafanagds} 中数据表的内容可以在仪表盘(DashBoard)上进行可视化展现。`,
+       
         topdesc2: `关于 ${grafanagds} 插件的使用您可以在 `,
         topdesc3: "中了解更多。",
         step1: "安装 Grafana",
         step1desc: `目前 ${grafanagds} 支持 Grafana 7.5 以上的版本。请您到 Grafana 官网下载安装包`,
-        pluginsdesc :`在浏览器打开 Grafana 后点击三个横条图标，然后再点击 “Connections”。在弹出页面的搜索栏内搜索 ${grafanagds}，然后会弹出 "${grafanagds} Data Source"。最后点击 “Install” 按钮安装 ${grafanagds} 插件。安装完成后，就可以立即添加 ${grafanagds} 数据源。`,
+        pluginsdesc :`在浏览器打开 Grafana 后点击三个横条图标，然后再点击 <code>Connections</code>。在弹出页面的搜索栏内搜索 ${grafanagds}，然后会弹出 "${grafanagds} Data Source"。最后点击 “Install” 按钮安装 ${grafanagds} 插件。安装完成后，就可以立即添加 ${grafanagds} 数据源。`,
+        plugin1desc:`1. 在浏览器打开 Grafana 后点击三个横条图标，然后再点击 <code>Connections</code>。`,
+        plugin2desc:`2. 在弹出页面的搜索栏内搜索 ${grafanagds}，然后会弹出 <code>${grafanagds} Data Source</code>"。 `,
+        plugin3desc:`3. 最后点击 <code>Install</code> 按钮安装 ${grafanagds} 插件。`,
+        plugin4desc:`4. 安装完成后，就可以立即添加 ${grafanagds} 数据源。`,
         script1:`如果本地访问 Github 比较方便，可以从 Linux 终端运行下面的脚本来安装 ${grafanagds} 数据源插件。`,
-        script2:`安装结束以后，请重启 grafana-server。`,
+        script2:`安装结束以后，请重启 <code>grafana-server</code>。`,
         step2: `安装 ${grafanagds} 插件`,
         step3desc1: 'Host:',
-        step3desc2: 'Token:',
-        step3desc3:`然后点击 "Save & Test" 按钮来验证 ${grafanagds} 是否能够工作。`,
+        step3desc2: 'User:',
+        step3desc3:`输入密码登陆${grafanagds}，然后点击 <code>Save & Test</code> 按钮来验证 ${grafanagds} 是否能够工作。`,
         step2desc: `请复制下面的脚本命令来为数据源安装设置 \`${grafanagds}_URL\` 和 \`${grafanagds}_TOKEN\` 的环境变量：`,
         step2desc1: `从 Linux 终端运行下面的脚本来安装 ${grafanagds} 数据源插件。`,
         step2desc2: "安装结束以后，请重启 grafana-server。",
         step3: "添加数据源",
         step3desc:
-          `在打开的 Grafana 数据源配置页面中，复制下面列出的主机和令牌值，然后粘贴到 Grafana 的相应输入框中。`,
+          `在Grafana数据源配置页面中，复制如下所示的主机和用户，并将其输入相应的输入框。`,
         step4: "使用 Grafana",
         step4desc: `请创建一个新的仪表盘，或者导入存在的仪表盘来展示 ${grafanagds} 里面的数据`,
         step4desc1: "同时更多细节请参考",
@@ -1645,14 +1630,43 @@ Windows： <code>C:\\Program Files\\taosX\\config</code>`,
       enddesc2: '数据订阅'
     },
     dashboard:{
+      desc: `要监控${grafanagds}运行状态并在出现问题时获得警报，请使用Grafana。${grafanagds}可以与Grafana顺利集成，无需一行代码。`,
+        topdesc: `要监控${grafanagds}运行状态并在出现问题时获得警报，请使用`,
+        topdesc1:
+          `。${grafanagds} 可以与 Grafana 顺利集成，无需一行代码。 `,
+       
+        topdesc2: `关于 ${grafanagds} 插件的使用您可以在 `,
+        topdesc3: "中了解更多。",
+        step1: "安装 Grafana",
+        step1desc: `目前 ${grafanagds} 支持 Grafana 7.5 以上的版本。请您到 Grafana 官网下载安装包`,
+        pluginsdesc :`在浏览器打开 Grafana 后点击三个横条图标，然后再点击 <code>Connections</code>。在弹出页面的搜索栏内搜索 ${grafanagds}，然后会弹出 "${grafanagds} Data Source"。最后点击 “Install” 按钮安装 ${grafanagds} 插件。安装完成后，就可以立即添加 ${grafanagds} 数据源。`,
+        plugin1desc:`1. 在浏览器打开 Grafana 后点击三个横条图标，然后再点击 <code>Connections</code>。`,
+        plugin2desc:`2. 在弹出页面的搜索栏内搜索 ${grafanagds}，然后会弹出 "${grafanagds} Data Source"。 `,
+        plugin3desc:`3. 最后点击 <strong>Install</strong> 按钮安装 ${grafanagds} 插件。`,
+        plugin4desc:`4. 安装完成后，就可以立即添加 ${grafanagds} 数据源。`,
+        script1:`如果本地访问 Github 比较方便，可以从 Linux 终端运行下面的脚本来安装 ${grafanagds} 数据源插件。`,
+        script2:`安装结束以后，请重启 <code>grafana-server</code>。`,
+        step2: `安装 ${grafanagds} 插件`,
+        step3desc1: 'Host:',
+        step3desc2: 'User:',
+        step3desc3:`输入密码登陆${grafanagds}，然后点击 <code>Save & Test</code> 按钮来验证 ${grafanagds} 是否能够工作。`,
+        step2desc: `请复制下面的脚本命令来为数据源安装设置 \`${grafanagds}_URL\` 和 \`${grafanagds}_TOKEN\` 的环境变量：`,
+        step2desc1: `从 Linux 终端运行下面的脚本来安装 ${grafanagds} 数据源插件。`,
+        step2desc2: "安装结束以后，请重启 grafana-server。",
+        step3: "添加数据源",
+        step3desc:
+          `在Grafana数据源配置页面中，复制如下所示的主机和用户，并将其输入相应的输入框。`,
+        step4: "使用 Grafana",
+        step4desc: `请创建一个新的仪表盘，或者导入存在的仪表盘来展示 ${grafanagds} 里面的数据`,
+        step4desc1: "同时更多细节请参考",
+        step4desc2: "文档",
+        step4desc3: "。",
+
       monitortip:'请遵循以下步骤用Grafana去监控TDengine的运行状态',
       dashboarddesc:`我们建议在此处使用最新的<a href='https://grafana.com/'>Grafana</a> 8 或 9 版本。您可以在任何<a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/#supported-operating-systems'>支持的操作系统</a>中，按照 <a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/'>Grafana官方文档安装说明</a>  安装 <a href='https://grafana.com/'>Grafana</a>。`,
-      step1:'安装 Grafana',
-      step2:'安装 TDengine 插件',
-      step3:'启动 Grafana 服务',
-      step4:'登录到 Grafana',
-      step5:'添加 TDengine 数据源',
-      step6:'导入仪表盘',
+      
+      
+      
       tab1:'基于 Debian 或 Ubuntu 系统',
       tab2:'基于 CentOS / RHEL 系统',
       tab2sub:'或者用 RPM 安装',
@@ -1675,10 +1689,48 @@ Windows： <code>C:\\Program Files\\taosX\\config</code>`,
       cont1:'选择 <code>TDengine for 3.x</code>，并点击 <code>import</code>。',
       cont2:`导入完成后，在搜索界面已经出现了 <strong>TDinsight for 3.x</strong> dashboard。`,
       cont3:'进入 TDinsight for 3.x dashboard 后，选择 taosKeeper 中设置的记录监控指标的数据库。',
-      cont4:'然后可以看到监控结果。'
+      cont4:'然后可以看到监控结果。',
+
+      step5: '添加Dashboard',
+      desc51:`1. 数据源工作后，单击数据源配置页面上的<strong>仪表板</strong>选项卡。`,
+      desc52:`2. 选择<code>TDengine for 3.x</code>点击导入。`,
+      desc53:`3. 单击三个水平条图标，然后单击“Dashboards”，搜索<code>TDinsight</code>，然后单击它。`,
+      desc54:`4. 现在你可以看到完整的仪表盘`,
       
     },
-    
+    tools:{
+      seeq: {
+        desc: 'Seeq 是专门为分析流程数据而设计，同时它可以与历史数据或者其他存储平台中的时序数据一起用于所有垂直行业。TDengine 可以通过 JDBC 连接器作为数据源添加到 Seeq 中。完成数据源配置后，Seeq 就能从 TDengine 读取数据，并提供数据展示、分析和预测等功能。',
+        topdesc: '',
+        topdesc1:
+          ' 是专门为分析流程数据而设计，同时它可以与历史数据或者其他存储平台中的时序数据一起用于所有垂直行业。TDengine 可以通过 JDBC 连接器作为数据源添加到 Seeq 中。完成数据源配置后，Seeq 就能从 TDengine 读取数据，并提供数据展示、分析和预测等功能。',
+        step1: '前置条件',
+        step1desc: '安装 Seeq Server 和 Seeq Data Lab 软件，请从官方下载地址下载安装 ',
+        step1desc1: ' 。',
+        step2: '安装 TDengine Java 连接器',
+        step2desc: '获取 Seeq 数据地址配置。在 Linux 上，可以执行下面的命令获取：',
+        step2desc11: '首先从 ',
+        step2desc12: ' 可以下载最新的 TDengine Java 连接器（目前的版本是 ',
+        step2desc13: '），然后复制下载的 JAR 文件到这个文件目录 the_directory_found_in_step_1/plugins/lib/ 。',
+        step2desc2: '重启 Seeq 服务器。在 Linux 上，可以执行下面的命令：',
+        step3: '添加 TDengine 数据源',
+        step3full: '把 TDengine 数据源添加到 Seeq 数据源',
+        step3desc: '打开 Seeq，以 admin 用户登录，然后打开 Administration，点击“Add Data Source”',
+        step3desc1: '对于连接器，请选择 SQL connector v2',
+        step3desc2: '在“Additional Configuration”的输入框, 请复制和粘贴下面的内容：',
+        step3desc3: '对于“QueryDefintions”，请参考下面的例子来完成您自己的查询定义。',
+        step4: '智能电表样例',
+        step4full: '导入大量时序数据：智能电表样例',
+        step4desc:
+          'TDengine 有自己独特的数据模型。它要求使用超级表作为模板，为每个数据采集点创建一个表。每个表最多可关联 128 个标签（静态属性）。一个数据库可能包含一百万甚至十亿个表。通过 Seeq 中的变量，您可以通过直接查询超级表而不是单个表，将超级表下的所有时序数据（表）导入到 Seeq 中。此外，您还可以将存储在 TDengine 中的表的相关标签导入 Seeq 中，这样您就可以通过搜索这些标签轻松找到想查询的时序数据。',
+        step4desc1: '根据 TDengine 文档中的经典智能电表样例，可以使用下面配置来搜索超级表 meters 下的所有时序数据。',
+        step4desc2: '在上面的例子中，tablename、location 和 groupid 可以通过下面的 SQL 语句获取：',
+        step4desc3: '查询结果将分配给变量 tablename、location 和 groupid。根据查询结果，Seeq 会将此查询配置扩展为多个时间序列。',
+        step4desc4: 'TDengine 支持多数据列，您可以使用 Seeq 变量为每一列生成一个时间序列。更多关于 Seeq 变量的信息，请查阅 ',
+        step4desc41: 'Seeq 文档',
+        step4desc42: '。'
+      }
+    }
   },
   health: {
     cpu: 'CPU',
@@ -1726,10 +1778,10 @@ Windows： <code>C:\\Program Files\\taosX\\config</code>`,
     password: '密码',
     subscription: '主题',
     subscribe: '订阅',
-    createbackup: '新增备份',
+    createbackup: '创建新备份',
     backupcycle: '备份周期',
     directory: '目录',
-    addreplication: '新增同步',
+    addreplication: '添加新的复制',
     fromsource: '来源',
     targetdsn: '目标DSN',
     changebackup: '选择备份周期',

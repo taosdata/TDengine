@@ -85,7 +85,7 @@
       },
     },
     mounted() {
-      console.log(this.config.docs,'this.config.docs',this.lang,this.category,this.config,config);
+      console.log(config,this.category,'文件加载');
       // 在这里保存元素
       this.$nextTick(() => {
         this.domList = this.steps.map(item => document.getElementById(item.dom));

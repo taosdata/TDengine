@@ -358,6 +358,7 @@
                     effect="light"
                   >
                     <span
+                    v-loading='allnodesloading'
                       :class="[
                         'allnodes',
                         disableallnodeclick ? 'click' : 'noclick',
@@ -404,9 +405,13 @@
                     <span :class="['label', all.required ? 'required' : '']">{{
                       all?.display
                     }}</span>
-                    <div style="flex:1;">
+                    <div style="flex: 1">
                       <template v-if="all?.hint.choices">
-                        <el-select v-model="all.value" size="small" style="width:100%;">
+                        <el-select
+                          v-model="all.value"
+                          size="small"
+                          style="width: 100%"
+                        >
                           <el-option
                             v-for="item in all.hint.choices"
                             :key="item"
@@ -416,10 +421,13 @@
                         </el-select>
                       </template>
                       <template v-else>
-                        <el-input size="small" v-model="all.value" style="margin-bottom:8px;"></el-input>
+                        <el-input
+                          size="small"
+                          v-model="all.value"
+                          style="margin-bottom: 8px"
+                        ></el-input>
                       </template>
                       <div
-                      
                         class="description"
                         v-html="transforHtml(all.description)"
                       ></div>
@@ -734,9 +742,7 @@
                         <a href="/template-zh.csv" download>下载模板</a>
                       </template>
                       <template v-else>
-                        <a href="/template-en.csv" download
-                          >Template</a
-                        >
+                        <a href="/template-en.csv" download>Template</a>
                       </template>
                     </el-upload>
                   </template>
@@ -898,7 +904,7 @@
           @click="save"
           :disabled="disable"
           size="small"
-          >{{ isEditable ? $t("save") : $t("add") }}</el-button
+          >{{ isEditable && !isCopyable ? $t("save") : $t("add") }}</el-button
         >
         <el-button @click="cancel" class="cancel-btn" size="small">{{
           $t("cancel")
@@ -993,9 +999,13 @@ export default {
       type: Number,
       default: 0,
     },
+    isCopyable: {
+      type: Boolean,
+    },
   },
   data() {
     return {
+      allnodesloading:false,
       disableallnodeclick: true,
       opcinusefile: "",
       downloadUrl: process.env.VUE_APP_X_API + `/download?file_path=`,
@@ -1079,7 +1089,7 @@ export default {
             return item;
           });
       }
-      this.isShowEditBtn = true;
+      this.isShowEditBtn = this.isCopyable ? false : true;
     }
   },
   mounted() {
@@ -1191,30 +1201,28 @@ export default {
   methods: {
     async downloadopcAllponits() {
       try {
+        this.allnodesloading=true
+        this.disableallnodeclick=false
         if (!this.dbsource[0].options.endpoint.value) {
           Message.error(this.$t("taoscluster.endpointRequired"));
           return;
         }
-        this.disableallnodeclick = false;
-        // via=${this.$store.state.app.currentAgentID}
-        console.log(
-          this.$store.state.app.currentAgentID,
-          "this.$store.state.app.currentAgentID"
-        );
-        let params = `opcua://${this.dbsource[0].options.endpoint.value}&categories=nodes`;
+        let params = `${this.$store.state.app.currentDBType}://${this.dbsource[0].options.endpoint.value}&categories=nodes`;
         let result = await downlaodAllNodes(
           params,
           this.$store.state.app.currentAgentID
         );
+        this.allnodesloading = false;
+        this.disableallnodeclick=true
         if (result && result.message) {
           Message.error(result.message);
           return;
         }
-        this.disableallnodeclick = true;
+        
 
         let blob = new Blob([result], { type: "text/csv,charset=UTF-8" });
         let link = document.createElement("a");
-        link.download = "template.csv";
+        link.download = "list_of_all_nodes.csv";
         link.style.display = "none";
         link.href = URL.createObjectURL(blob);
         document.body.appendChild(link);
@@ -1222,6 +1230,8 @@ export default {
         URL.revokeObjectURL(link.href);
         document.body.removeChild(link);
       } catch (error) {
+        this.this.allnodesloading = false;
+        this.disableallnodeclick=true
         console.log(error);
       }
     },
@@ -1376,7 +1386,7 @@ export default {
     },
 
     save() {
-      if (this.isEditable) {
+      if (this.isEditable && !this.isCopyable) {
         this.$confirm(this.$t("dataIn.saveTip"), this.$t("warning"), {
           confirmButtonText: this.$t("confirm"),
           cancelButtonText: this.$t("cancel"),
@@ -1751,9 +1761,11 @@ export default {
           // dns += "&opc_table_config=" + JSON.stringify(saveConf);
           // } else {
           if (this.dbsource[0].datasets.value == "csv_config_file") {
+            
             if (
               this.opcfileList.length == 0 &&
-              this.dbsource[0].datasets.value == "csv_config_file"
+              this.dbsource[0].datasets.value == "csv_config_file" &&
+              !this.isEditable
             ) {
               Message({
                 type: "warning",
@@ -1766,15 +1778,25 @@ export default {
             let ind = dnsarr.findIndex((item) =>
               item.includes("csv_config_file")
             );
-            if (ind > -1) {
+            if (this.isEditable) {
               dnsarr.splice(
-                ind,
-                1,
-                `&csv_config_file=@` + this.opcfileList[0].response[0]
-              );
-              dns = prefix + "?" + dnsarr.join("&");
+                  ind,
+                  1,
+                  `&csv_config_file=@` + (this.opcfileList.length>0?this.opcfileList[0].response[0]:this.opcinusefile)
+                );
+                dns = prefix + "?" + dnsarr.join("&");
+              // dns += `&csv_config_file=@` + (this.opcfileList.lenght>0?this.opcfileList[0].response[0]:this.opcinusefile);
             } else {
-              dns += `&csv_config_file=@` + this.opcfileList[0].response[0];
+              if (ind > -1) {
+                dnsarr.splice(
+                  ind,
+                  1,
+                  `&csv_config_file=@` + this.opcfileList[0].response[0]
+                );
+                dns = prefix + "?" + dnsarr.join("&");
+              } else {
+                dns += `&csv_config_file=@` + this.opcfileList[0].response[0];
+              }
             }
           } else {
             let allStr = "";
@@ -1902,8 +1924,7 @@ export default {
               ? `&header=${this.$refs.csvdata.$refs.param.ruleForm.customcol}`
               : "");
         }
-        console.log(this.isEditable, this.editId, "编辑-opc");
-        if (this.isEditable && this.editId) {
+        if (this.isEditable && this.editId && !this.isCopyable) {
           let result = await EditSource(piParams, this.editId);
           if (result.message) {
             Message.error(result.message);
@@ -1918,6 +1939,7 @@ export default {
             return;
           }
           if (result && result.id) {
+            this.$parent.changeEditable(false);
             this.$parent.toggleComponent("opctable", "");
             Message.success(this.$t("datasource.successtip"));
           }
@@ -2481,5 +2503,11 @@ export default {
   &.click {
     cursor: pointer;
   }
+}
+.upload-demo{
+  display: flex;
+}
+.el-upload-list__item{
+  margin-top:5px!important;
 }
 </style>

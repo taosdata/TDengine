@@ -7,12 +7,14 @@
         size="small"
         icon="el-icon-refresh"
         :disabled="loading"
+        style="font-size:14px;"
         >{{ $t("refresh") }}</el-button
       >
       <el-button
         plain
         @click="add"
         size="small"
+        style="font-size:14px;"
         >{{ $t("taosuser.activationLicense") }}</el-button
       >
     </div>
@@ -176,7 +178,7 @@ export default {
       return {
         'font-size':'14px',
         'color':'#4d6992',
-        'min-width': '82px',
+        'min-width': '104px',
         'display': 'inline-block',
         'text-align': 'right'
       }

@@ -1,10 +1,10 @@
 <template>
   <div class="dnode-block">
     <div class="flexEnd">
-      <el-button plain @click="refresh" size="small" icon="el-icon-refresh" :disabled="refreshable">
+      <el-button plain @click="refresh" size="small" icon="el-icon-refresh" :disabled="refreshable" style="font-size:14px;">
         {{ $t("refresh") }}
       </el-button>
-      <el-button plain @click="add" size="small" icon="el-icon-plus">{{ $t('taosuser.addreplication') }}</el-button>
+      <el-button plain @click="add" size="small" icon="el-icon-plus" style="font-size:14px;">{{ $t('taosuser.addreplication') }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
       <el-table-column label="ID" width="80" prop="id"></el-table-column>

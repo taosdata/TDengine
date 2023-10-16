@@ -9,26 +9,55 @@
     <el-table style="margin-top: 20px" :data="topicList" size="mini" row-key="topic_name">
       <el-table-column width="150" :label="$t('topic.topicName')" prop="topic_name"></el-table-column>
       <el-table-column width="150" :label="$t('topic.DBName')" prop="db_name"></el-table-column>
-      <el-table-column min-width="200" label="SQL" prop="sql">
+      <el-table-column min-width="200" label="SQL" prop="sql" show-overflow-tooltip>
         <template slot-scope="scope">
           <pre v-highlight class="nowrap sql-code pre-code" slot="reference">
           <code class="language-sql" style="overflow:hidden">{{ scope.row.sql }} </code>
         </pre>
         </template>
       </el-table-column>
-      <el-table-column min-width="200" label="DSN" prop="sql">
+      <el-table-column min-width="200" label="DSN" prop="dsn" show-overflow-tooltip>
         <template slot-scope="scope">
-          <pre v-highlight class="nowrap sql-code pre-code" slot="reference">
-          <code class="language-sql" style="overflow:hidden">{{ scope.row.dsn }} </code>
-        </pre>
+        <copy-text :text="scope.row.dsn" isShowBtnText></copy-text>
         </template>
       </el-table-column>
       <el-table-column width="210" :label="$t('createTime')" prop="create_time">
         <span slot-scope="scope">{{ parsinginZone(scope.row.create_time) }}</span>
       </el-table-column>
-      <el-table-column :label="$t('topic.action')" width="80">
+     <!-- 云服务有自己的用户管理，企业版没有，从 schema 中无法获取 topic 的创建用户 -->
+      <el-table-column :label="$t('topic.action')" width="140">
         <template slot-scope="scope">
+          <el-tooltip
+            effect="light"
+            :content="$t('sampleCode')"
+            placement="top"
+          >
+            <el-button
+              class="mini-btn"
+              size="mini"
+              @click="document(scope.row)"
+              icon="el-icon-document"
+            ></el-button>
+          </el-tooltip>
+          <el-tooltip
+            effect="light"
+            :content="$t('topic.shareTopic')"
+            placement="top"
+          >
+            <el-button
+              class="mini-btn"
+              size="mini"
+              @click="manage(scope.row)"
+              icon="el-icon-share"
+            ></el-button>
+          </el-tooltip>
+          <el-tooltip
+            effect="light"
+            :content="$t('delete')"
+            placement="top"
+          >
           <el-button  plain size="small" @click="del(scope.row)" icon="el-icon-delete"></el-button>
+          </el-tooltip>
         </template>
       </el-table-column>
     </el-table>
@@ -77,11 +106,13 @@
   import { getDSN } from "@/utils/index";
   import { SubscriptionDocsUrl } from "@/const";
   import { parsinginZone } from '@/utils'
+  import CopyText from '@/components/CopyText.vue'
   
   export default {
     components: {
       AddTopic: () => import("../components/addTopic.vue"),
       ManageTopic: () => import("../components/manageTopic.vue"),
+      CopyText
     },
     data() {
       return {
@@ -205,6 +236,22 @@
         this.dialog = false;
         this.getTopics();
       },
+      manage(data) {
+      this.$router.push({
+        path: '/topic/share',
+        query: {
+          topicId: data.topicId
+        }
+      });
+    },
+    document(data) {
+      this.$router.push({
+        path: '/topic/example',
+        query: {
+          topicId: data.topicId
+        }
+      });
+    }
     },
   };
 </script>

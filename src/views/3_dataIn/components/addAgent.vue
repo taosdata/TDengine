@@ -242,13 +242,17 @@ export default {
         });
     },
     next() {
-
+   
       if (this.active == 4) {
         this.agentStatus = 'noCheck';
-        this.submit();
+        // this.submit();
         this.$store.commit('app/SET_AGENT_DIALOG',false)
         
-      }else{
+      }
+      if(this.active==2){
+        this.submit();
+      }
+      else{
         this.active++;
       }
     },
