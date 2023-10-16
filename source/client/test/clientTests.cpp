@@ -43,14 +43,15 @@ void printSubResults(void* pRes, int32_t* totalRows) {
     }
 
     TAOS_FIELD* fields = taos_fetch_fields(pRes);
-    int32_t numOfFields = taos_field_count(pRes);
-    int32_t precision = taos_result_precision(pRes);
+    int32_t     numOfFields = taos_field_count(pRes);
+    int32_t     precision = taos_result_precision(pRes);
     taos_print_row(buf, row, fields, numOfFields);
     *totalRows += 1;
-    printf("vgId: %d, offset: %lld, precision: %d, row content: %s\n", vgId, offset, precision, buf);
+    std::cout << "vgId:" << vgId << ", offset:" << offset << ", precision:" << precision << ", row content:" << buf
+              << std::endl;
   }
 
-//  taos_free_result(pRes);
+  //  taos_free_result(pRes);
 }
 
 void showDB(TAOS* pConn) {
@@ -188,7 +189,7 @@ void* queryThread(void* arg) {
 int32_t numOfThreads = 1;
 
 void tmq_commit_cb_print(tmq_t* pTmq, int32_t code, void* param) {
-//  printf("auto commit success, code:%d\n", code);
+  //  printf("auto commit success, code:%d\n", code);
 }
 
 void* doConsumeData(void* param) {
@@ -829,10 +830,10 @@ TEST(clientCase, projection_query_tables) {
   int64_t start = 1685959190000;
 
   int32_t code = -1;
-  for(int32_t i = 0; i < 1000000; ++i) {
+  for (int32_t i = 0; i < 1000000; ++i) {
     char t[512] = {0};
 
-    sprintf(t, "insert into t1 values(%" PRId64 ", %d)", start + i, i);
+    sprintf(t, "insert into t1 values(now, %d)", i);
     while (1) {
       void* p = taos_query(pConn, t);
       code = taos_errno(p);
@@ -947,12 +948,12 @@ TEST(clientCase, agg_query_tables) {
     }
   }
 
-//  pRes = taos_query(pConn, "show table distributed tup");
-//  if (taos_errno(pRes) != 0) {
-//    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
-//    taos_free_result(pRes);
-//    ASSERT_TRUE(false);
-//  }
+  //  pRes = taos_query(pConn, "show table distributed tup");
+  //  if (taos_errno(pRes) != 0) {
+  //    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
+  //    taos_free_result(pRes);
+  //    ASSERT_TRUE(false);
+  //  }
 
   printResult(pRes);
   taos_free_result(pRes);
@@ -1069,7 +1070,7 @@ TEST(clientCase, sub_db_test) {
   // 创建订阅 topics 列表
   tmq_list_t* topicList = tmq_list_new();
   tmq_list_append(topicList, "topic_t1");
-//  tmq_list_append(topicList, "topic_s2");
+  //  tmq_list_append(topicList, "topic_s2");
 
   // 启动订阅
   tmq_subscribe(tmq, topicList);
@@ -1122,7 +1123,7 @@ TEST(clientCase, sub_db_test) {
 }
 
 TEST(clientCase, tmq_commit) {
-//  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
+  //  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
 
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
@@ -1149,12 +1150,12 @@ TEST(clientCase, tmq_commit) {
   tmq_subscribe(tmq, topicList);
   tmq_list_destroy(topicList);
 
-  int32_t     totalRows = 0;
-  int32_t     msgCnt = 0;
-  int32_t     timeout = 2000;
+  int32_t totalRows = 0;
+  int32_t msgCnt = 0;
+  int32_t timeout = 2000;
 
   tmq_topic_assignment* pAssign = NULL;
-  int32_t numOfAssign = 0;
+  int32_t               numOfAssign = 0;
 
   int32_t code = tmq_get_topic_assignment(tmq, topicName, &pAssign, &numOfAssign);
   if (code != 0) {
@@ -1166,17 +1167,20 @@ TEST(clientCase, tmq_commit) {
     return;
   }
 
-  for(int i = 0; i < numOfAssign; i++){
-    printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+  for (int i = 0; i < numOfAssign; i++) {
+    tmq_topic_assignment* pa = &pAssign[i];
+    std::cout << "assign i:" << i << ", vgId:" << pa->vgId << ", offset:" << pa->currentOffset << ", start:%"
+              << pa->begin << ", end:%" << pa->end << std::endl;
 
-    int64_t committed = tmq_committed(tmq, topicName, pAssign[i].vgId);
-    printf("committed vgId:%d, committed:%lld\n", pAssign[i].vgId, committed);
+    int64_t committed = tmq_committed(tmq, topicName, pa->vgId);
+    std::cout << "committed vgId:" << pa->vgId << " committed:" << committed << std::endl;
 
-    int64_t position = tmq_position(tmq, topicName, pAssign[i].vgId);
-    printf("position vgId:%d, position:%lld\n", pAssign[i].vgId, position);
-    tmq_offset_seek(tmq, topicName, pAssign[i].vgId, 1);
-    position = tmq_position(tmq, topicName, pAssign[i].vgId);
-    printf("after seek 1, position vgId:%d, position:%lld\n", pAssign[i].vgId, position);
+    int64_t position = tmq_position(tmq, topicName, pa->vgId);
+    std::cout << "position vgId:" << pa->vgId << ", position:" << position << std::endl;
+
+    tmq_offset_seek(tmq, topicName, pa->vgId, 1);
+    position = tmq_position(tmq, topicName, pa->vgId);
+    std::cout << "after seek 1, position vgId:" << pa->vgId << " position:" << position << std::endl;
   }
 
   while (1) {
@@ -1189,21 +1193,23 @@ TEST(clientCase, tmq_commit) {
     }
 
     tmq_commit_sync(tmq, pRes);
-    for(int i = 0; i < numOfAssign; i++) {
+    for (int i = 0; i < numOfAssign; i++) {
       int64_t committed = tmq_committed(tmq, topicName, pAssign[i].vgId);
-      printf("committed vgId:%d, committed:%lld\n", pAssign[i].vgId, committed);
-      if(committed > 0){
+      std::cout << "committed vgId:" << pAssign[i].vgId << " , committed:" << committed << std::endl;
+      if (committed > 0) {
         int32_t code = tmq_commit_offset_sync(tmq, topicName, pAssign[i].vgId, 4);
         printf("tmq_commit_offset_sync vgId:%d, offset:4, code:%d\n", pAssign[i].vgId, code);
         int64_t committed = tmq_committed(tmq, topicName, pAssign[i].vgId);
-        printf("after tmq_commit_offset_sync, committed vgId:%d, committed:%lld\n", pAssign[i].vgId, committed);
+
+        std::cout << "after tmq_commit_offset_sync, committed vgId:" << pAssign[i].vgId << ", committed:" << committed
+                  << std::endl;
       }
     }
     if (pRes != NULL) {
       taos_free_result(pRes);
     }
 
-//    tmq_offset_seek(tmq, "tp", pAssign[0].vgId, pAssign[0].begin);
+    //    tmq_offset_seek(tmq, "tp", pAssign[0].vgId, pAssign[0].begin);
   }
 
   tmq_free_assignment(pAssign);
@@ -1212,9 +1218,14 @@ TEST(clientCase, tmq_commit) {
   taos_close(pConn);
   fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
 }
-
+namespace {
+void doPrintInfo(tmq_topic_assignment* pa, int32_t index) {
+  std::cout << "assign i:" << index << ", vgId:" << pa->vgId << ", offset:%" << pa->currentOffset << ", start:%"
+            << pa->begin << ", end:%" << pa->end << std::endl;
+}
+}  // namespace
 TEST(clientCase, td_25129) {
-//  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
+  //  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
 
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
@@ -1251,7 +1262,7 @@ TEST(clientCase, td_25129) {
   int32_t count = 0;
 
   tmq_topic_assignment* pAssign = NULL;
-  int32_t numOfAssign = 0;
+  int32_t               numOfAssign = 0;
 
   int32_t code = tmq_get_topic_assignment(tmq, topicName, &pAssign, &numOfAssign);
   if (code != 0) {
@@ -1263,11 +1274,11 @@ TEST(clientCase, td_25129) {
     return;
   }
 
-  for(int i = 0; i < numOfAssign; i++){
-    printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+  for (int i = 0; i < numOfAssign; i++) {
+    doPrintInfo(&pAssign[i], i);
   }
 
-//  tmq_offset_seek(tmq, "tp", pAssign[0].vgId, 4);
+  //  tmq_offset_seek(tmq, "tp", pAssign[0].vgId, 4);
   tmq_free_assignment(pAssign);
 
   code = tmq_get_topic_assignment(tmq, topicName, &pAssign, &numOfAssign);
@@ -1280,8 +1291,8 @@ TEST(clientCase, td_25129) {
     return;
   }
 
-  for(int i = 0; i < numOfAssign; i++){
-    printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+  for (int i = 0; i < numOfAssign; i++) {
+    doPrintInfo(&pAssign[i], i);
   }
 
   tmq_free_assignment(pAssign);
@@ -1296,9 +1307,9 @@ TEST(clientCase, td_25129) {
     return;
   }
 
-  for(int i = 0; i < numOfAssign; i++){
+  for (int i = 0; i < numOfAssign; i++) {
     int64_t committed = tmq_committed(tmq, topicName, pAssign[i].vgId);
-    printf("assign i:%d, vgId:%d, committed:%lld, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, committed, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+    doPrintInfo(&pAssign[i], i);
   }
 
   while (1) {
@@ -1308,12 +1319,12 @@ TEST(clientCase, td_25129) {
       char buf[128];
 
       const char* topicName = tmq_get_topic_name(pRes);
-//      const char* dbName = tmq_get_db_name(pRes);
-//      int32_t     vgroupId = tmq_get_vgroup_id(pRes);
-//
-//      printf("topic: %s\n", topicName);
-//      printf("db: %s\n", dbName);
-//      printf("vgroup id: %d\n", vgroupId);
+      //      const char* dbName = tmq_get_db_name(pRes);
+      //      int32_t     vgroupId = tmq_get_vgroup_id(pRes);
+      //
+      //      printf("topic: %s\n", topicName);
+      //      printf("db: %s\n", dbName);
+      //      printf("vgroup id: %d\n", vgroupId);
 
       printSubResults(pRes, &totalRows);
 
@@ -1327,18 +1338,18 @@ TEST(clientCase, td_25129) {
         return;
       }
 
-      for(int i = 0; i < numOfAssign; i++){
-        printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+      for (int i = 0; i < numOfAssign; i++) {
+        doPrintInfo(&pAssign[i], i);
       }
     } else {
-      for(int i = 0; i < numOfAssign; i++) {
+      for (int i = 0; i < numOfAssign; i++) {
         tmq_offset_seek(tmq, topicName, pAssign[i].vgId, pAssign[i].currentOffset);
       }
       tmq_commit_sync(tmq, pRes);
       break;
     }
 
-//    tmq_commit_sync(tmq, pRes);
+    //    tmq_commit_sync(tmq, pRes);
     if (pRes != NULL) {
       taos_free_result(pRes);
       //      if ((++count) > 1) {
@@ -1348,7 +1359,7 @@ TEST(clientCase, td_25129) {
       break;
     }
 
-//    tmq_offset_seek(tmq, "tp", pAssign[0].vgId, pAssign[0].begin);
+    //    tmq_offset_seek(tmq, "tp", pAssign[0].vgId, pAssign[0].begin);
   }
 
   tmq_free_assignment(pAssign);
@@ -1363,8 +1374,8 @@ TEST(clientCase, td_25129) {
     return;
   }
 
-  for(int i = 0; i < numOfAssign; i++){
-    printf("assign i:%d, vgId:%d, offset:%lld, start:%lld, end:%lld\n", i, pAssign[i].vgId, pAssign[i].currentOffset, pAssign[i].begin, pAssign[i].end);
+  for (int i = 0; i < numOfAssign; i++) {
+    doPrintInfo(&pAssign[i], i);
   }
 
   tmq_free_assignment(pAssign);
@@ -1381,8 +1392,8 @@ TEST(clientCase, sub_tb_test) {
 
   tmq_conf_t* conf = tmq_conf_new();
 
-  int32_t ts = taosGetTimestampMs()%INT32_MAX;
-  char consumerGroupid[128] = {0};
+  int32_t ts = taosGetTimestampMs() % INT32_MAX;
+  char    consumerGroupid[128] = {0};
   sprintf(consumerGroupid, "group_id_%d", ts);
 
   tmq_conf_set(conf, "enable.auto.commit", "true");
@@ -1416,7 +1427,7 @@ TEST(clientCase, sub_tb_test) {
   int32_t count = 0;
 
   tmq_topic_assignment* pAssign = NULL;
-  int32_t numOfAssign = 0;
+  int32_t               numOfAssign = 0;
 
   int32_t code = tmq_get_topic_assignment(tmq, "t1", &pAssign, &numOfAssign);
   if (code != 0) {
@@ -1444,17 +1455,17 @@ TEST(clientCase, sub_tb_test) {
       char buf[128];
 
       const char* topicName = tmq_get_topic_name(pRes);
-//      const char* dbName = tmq_get_db_name(pRes);
-//      int32_t     vgroupId = tmq_get_vgroup_id(pRes);
-//
-//      printf("topic: %s\n", topicName);
-//      printf("db: %s\n", dbName);
-//      printf("vgroup id: %d\n", vgroupId);
+      //      const char* dbName = tmq_get_db_name(pRes);
+      //      int32_t     vgroupId = tmq_get_vgroup_id(pRes);
+      //
+      //      printf("topic: %s\n", topicName);
+      //      printf("db: %s\n", dbName);
+      //      printf("vgroup id: %d\n", vgroupId);
 
       printSubResults(pRes, &totalRows);
     } else {
-//      tmq_offset_seek(tmq, "topic_t1", pAssign[0].vgroupHandle, pAssign[0].begin);
-//      break;
+      //      tmq_offset_seek(tmq, "topic_t1", pAssign[0].vgroupHandle, pAssign[0].begin);
+      //      break;
     }
 
     tmq_commit_sync(tmq, pRes);

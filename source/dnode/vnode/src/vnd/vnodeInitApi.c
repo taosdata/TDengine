@@ -52,7 +52,7 @@ void initTsdbReaderAPI(TsdReader* pReader) {
 
   pReader->tsdReaderRetrieveBlockSMAInfo = tsdbRetrieveDatablockSMA2;
 
-  pReader->tsdReaderNotifyClosing = tsdbReaderSetCloseFlag;
+  pReader->tsdReaderNotifyClosing = tsdbReaderSetCloseFlag2;
   pReader->tsdReaderResetStatus = tsdbReaderReset2;
 
   pReader->tsdReaderGetDataBlockDistInfo = tsdbGetFileBlocksDistInfo2;
@@ -88,7 +88,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->getTableTypeByName = metaGetTableTypeByName;
   pMeta->getTableNameByUid = metaGetTableNameByUid;
 
-  pMeta->getTableSchema = tsdbGetTableSchema;  // todo refactor
+  pMeta->getTableSchema = tsdbGetTableSchema2;  // todo refactor
   pMeta->storeGetTableList = vnodeGetTableList;
 
   pMeta->getCachedTableList = metaGetCachedTableUidList;
