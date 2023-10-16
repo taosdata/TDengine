@@ -190,10 +190,10 @@ getUserInputEndpoint() {
 
 function replaceExplorerEndpoint() {
   local FileName=$1
-    if [ -f "$FileName" ]; then
-        sed -i "s/cluster = \"http\:\/\/localhost\:6041\"/cluster = \"http\:\/\/${explorerEndpoint}\:6041\"/g" $FileName
-        sed -i "s/x_api = \"http\:\/\/localhost\:6050\"/x_api = \"http\:\/\/${explorerEndpoint}\:6050\"/g" $FileName
-    fi
+  ehco ${FileName}
+  if [ -f "$FileName" ]; then
+      ${csudo}sed -i "s/localhost/${explorerEndpoint}/g" $FileName
+  fi
 }
 
 # install new taosx and taosx-agent
@@ -207,6 +207,23 @@ install_taosx() {
     ${csudo}cp uninstall.sh ${TAOSX_ROOT_DIR}
     echo "install services to ${SERVICE_CONFIG_DIR}..."
     ${csudo}cp -fr etc/systemd/system/* ${SERVICE_CONFIG_DIR}
+
+    ${csudo}systemctl daemon-reload
+
+    x_service_config="${SERVICE_CONFIG_DIR}/${xName}.service"
+    if [ -e "$x_service_config" ]; then
+      ${csudo}systemctl enable ${xName}
+    fi
+
+    agent_service_config="${SERVICE_CONFIG_DIR}/${agentname}.service"
+    if [ -e "$agent_service_config" ]; then
+      ${csudo}systemctl enable ${agentname}
+    fi
+
+    explore_service_config="${SERVICE_CONFIG_DIR}/${explorerName}.service"
+    if [ -e "$explore_service_config" ]; then
+      ${csudo}systemctl enable ${explorerName}
+    fi
 
     ${csudo}systemctl daemon-reload
 

@@ -72,7 +72,7 @@ end;
 function ReplaceLineInFile(FileName, SearchText, ReplaceText: String): Boolean;
 var
   Lines: TArrayOfString;
-  I: Integer;
+  I， PosSearch: Integer;
   Found: Boolean;
 begin
   Result := False;
@@ -81,11 +81,12 @@ begin
     Found := False;
     for I := 0 to GetArrayLength(Lines) - 1 do
     begin
-      if Pos(SearchText, Lines[I]) > 0 then
+      PosSearch := Pos(SearchText, Lines[I]);
+      if PosSearch > 0 then
       begin
-        Lines[I] := ReplaceText;
+        Delete(Lines[I], PosSearch, Length(SearchText));
+        Insert(ReplaceText, Lines[I], PosSearch);
         Found := True;
-        Break;
       end;
     end;
 
@@ -106,8 +107,7 @@ begin
   begin
     ExplorerAddInput := InputQueryPage.Values[0];
     begin
-      ReplaceLineInFile(ExpandConstant('{app}\config\') + 'explorer.toml', 'cluster = "http://localhost:6041"', 'cluster = "http://' + ExplorerAddInput + ':6041"')
-      ReplaceLineInFile(ExpandConstant('{app}\config\') + 'explorer.toml', 'x_api ="http://localhost:6050"', 'x_api = "http://' + ExplorerAddInput + ':6050"')
+      ReplaceLineInFile(ExpandConstant('{app}\config\') + 'explorer.toml', 'localhost', ExplorerAddInput);
     end;
   end;
   Result := True;
