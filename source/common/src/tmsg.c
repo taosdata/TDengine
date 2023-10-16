@@ -1691,6 +1691,7 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
     if (tEncodeU32(&encoder, pReq->pIpRanges[i].ip) < 0) return -1;
     if (tEncodeU32(&encoder, pReq->pIpRanges[i].mask) < 0) return -1;
   }
+  if (tEncodeI64(&encoder, pReq->privileges) < 0) return -1;
   ENCODESQL();
   tEndEncode(&encoder);
 
@@ -1728,6 +1729,7 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
     if (tDecodeU32(&decoder, &(pReq->pIpRanges[i].ip)) < 0) return -1;
     if (tDecodeU32(&decoder, &(pReq->pIpRanges[i].mask)) < 0) return -1;
   }
+  if (tDecodeI64(&decoder, &pReq->privileges) < 0) return -1;
   DECODESQL();
   tEndDecode(&decoder);
 

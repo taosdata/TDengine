@@ -171,14 +171,19 @@ typedef enum _mgmt_table {
 
 #define TSDB_ALTER_USER_PASSWD                 0x1
 #define TSDB_ALTER_USER_SUPERUSER              0x2
+#define TSDB_ALTER_USER_ENABLE                 0x3
+#define TSDB_ALTER_USER_SYSINFO                0x4
+#define TSDB_ALTER_USER_PRIVILEGES             0x5
+#define TSDB_ALTER_USER_ADD_WHITE_LIST         0x6
+#define TSDB_ALTER_USER_DROP_WHITE_LIST        0x7
+
+#define ALTER_USER_PRIVILEGE_ADD_READ_DB(_type, _priv) (_type) == TSDB_ALTER_USER_PRIVILEGES && (_priv)
 #define TSDB_ALTER_USER_ADD_READ_DB            0x3
 #define TSDB_ALTER_USER_REMOVE_READ_DB         0x4
 #define TSDB_ALTER_USER_ADD_WRITE_DB           0x5
 #define TSDB_ALTER_USER_REMOVE_WRITE_DB        0x6
 #define TSDB_ALTER_USER_ADD_ALL_DB             0x7
 #define TSDB_ALTER_USER_REMOVE_ALL_DB          0x8
-#define TSDB_ALTER_USER_ENABLE                 0x9
-#define TSDB_ALTER_USER_SYSINFO                0xA
 #define TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC    0xB
 #define TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC 0xC
 #define TSDB_ALTER_USER_ADD_READ_TABLE         0xD
@@ -187,10 +192,7 @@ typedef enum _mgmt_table {
 #define TSDB_ALTER_USER_REMOVE_WRITE_TABLE     0x10
 #define TSDB_ALTER_USER_ADD_ALL_TABLE          0x11
 #define TSDB_ALTER_USER_REMOVE_ALL_TABLE       0x12
-#define TSDB_ALTER_USER_ADD_WHITE_LIST         0x13
-#define TSDB_ALTER_USER_DROP_WHITE_LIST        0x14
 
-#define TSDB_ALTER_USER_PRIVILEGES 0x2
 
 #define TSDB_KILL_MSG_LEN 30
 
@@ -959,6 +961,7 @@ typedef struct {
   int32_t tagCondLen;
   int32_t     numIpRanges;
   SIpV4Range* pIpRanges;
+  int64_t     privileges;
   int32_t sqlLen;
   char*   sql;
 } SAlterUserReq;

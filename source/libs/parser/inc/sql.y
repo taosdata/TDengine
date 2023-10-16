@@ -132,6 +132,7 @@ priv_type_list(A) ::= priv_type_list(B) NK_COMMA priv_type(C).                  
 %destructor priv_type                                                             { }
 priv_type(A) ::= READ.                                                            { A = PRIVILEGE_TYPE_READ; }
 priv_type(A) ::= WRITE.                                                           { A = PRIVILEGE_TYPE_WRITE; }
+priv_type(A) ::= ALTER.                                                           { A = PRIVILEGE_TYPE_ALTER; }
 
 %type priv_level                                                                  { STokenPair }
 %destructor priv_level                                                            { }

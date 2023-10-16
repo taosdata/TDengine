@@ -6593,6 +6593,20 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
   }
 
+#ifdef TD_ENTERPRISE
+  SRealTableNode* pRealTable = (SRealTableNode*)((SSelectStmt*)pStmt->pQuery)->pFromTable;
+  SName name;
+  int32_t code = getTableMetaImpl(
+      pCxt, toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, &name),
+      &(pRealTable->pMeta), true);
+  if (TSDB_CODE_SUCCESS != code) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
+  }
+  if (TSDB_VIEW_TABLE == pRealTable->pMeta->tableType) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
+  }
+#endif  
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -7641,17 +7655,9 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
 
 static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
   SAlterUserReq req = {0};
-  if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_ALL) ||
-      (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ) &&
-       BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE))) {
-    req.alterType = ('\0' == pStmt->tabName[0] ? TSDB_ALTER_USER_ADD_ALL_DB : TSDB_ALTER_USER_ADD_ALL_TABLE);
-  } else if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ)) {
-    req.alterType = ('\0' == pStmt->tabName[0] ? TSDB_ALTER_USER_ADD_READ_DB : TSDB_ALTER_USER_ADD_READ_TABLE);
-  } else if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE)) {
-    req.alterType = ('\0' == pStmt->tabName[0] ? TSDB_ALTER_USER_ADD_WRITE_DB : TSDB_ALTER_USER_ADD_WRITE_TABLE);
-  } else if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_SUBSCRIBE)) {
-    req.alterType = TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC;
-  }
+  req.alterType = TSDB_ALTER_USER_PRIVILEGES;
+  req.privileges = pStmt->privileges;
+
   strcpy(req.user, pStmt->userName);
   sprintf(req.objname, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
   sprintf(req.tabName, "%s", pStmt->tabName);
