@@ -999,7 +999,7 @@ static int32_t mndProcessGrantNotify(SRpcMsg *pReq) {
 
   mndGetDnodeData(pMnode, pDnodeInfo);
 
-  int64_t notifyTimeSeries = atomic_load_64(&grantStatus.curTimeSeries);
+  int64_t notifyTimeSeries = atomic_load_64(&gStatus.curTimeSeries);
   atomic_store_64(&grantNotifyTimeSeries, notifyTimeSeries);
 
   SGrantNotify notify = {.curTimeSeries = notifyTimeSeries};
