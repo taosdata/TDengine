@@ -276,11 +276,9 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
       strcpy(pExpr->aliasName, ((SColumnNode*)pExpr)->colName);
       strcpy(pExpr->userAlias, ((SColumnNode*)pExpr)->colName);
     } else if (pRawExpr->isPseudoColumn) {
-      int32_t len = TMIN(sizeof(pExpr->aliasName) - 1, pRawExpr->n);
-      strncpy(pExpr->userAlias, pRawExpr->p, len);
-      pExpr->userAlias[len] = '\0';
-      strncpy(pExpr->aliasName, pRawExpr->p, len);
-      pExpr->aliasName[len] = '\0';      
+      // all pseudo column are translate to function with same name
+      strcpy(pExpr->userAlias, ((SFunctionNode*)pExpr)->functionName);
+      strcpy(pExpr->aliasName, ((SFunctionNode*)pExpr)->functionName);     
     } else {
       int32_t len = TMIN(sizeof(pExpr->aliasName) - 1, pRawExpr->n);
 

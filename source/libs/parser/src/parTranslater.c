@@ -1942,6 +1942,22 @@ static int32_t replacePsedudoColumnFuncWithColumn(STranslateContext* pCxt, SNode
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   SExprNode* pOldExpr = (SExprNode*)(*ppNode);
+  //rewrite a.tbname == tbname(a)
+  if (nodeType(*ppNode) == QUERY_NODE_FUNCTION && ((SFunctionNode*)(*ppNode))->funcType == FUNCTION_TYPE_TBNAME) {
+    SFunctionNode* pFunc = (SFunctionNode*)(*ppNode);
+    if (0 != LIST_LENGTH(pFunc->pParameterList)) {
+      SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
+      pCol->node.resType = pOldExpr->resType;
+      strcpy(pCol->tableAlias, pVal->literal);
+      strcpy(pCol->colName, pFunc->functionName);
+      strcpy(pCol->node.aliasName, pCol->colName);
+      strcpy(pCol->node.userAlias, pCol->colName);
+      nodesDestroyNode(*ppNode);
+      *ppNode = (SNode*)pCol;
+
+      return TSDB_CODE_SUCCESS;      
+    }
+  }
   pCol->node.resType = pOldExpr->resType;
   strcpy(pCol->node.aliasName, pOldExpr->aliasName);
   strcpy(pCol->node.userAlias, pOldExpr->userAlias);
@@ -1951,6 +1967,19 @@ static int32_t replacePsedudoColumnFuncWithColumn(STranslateContext* pCxt, SNode
   *ppNode = (SNode*)pCol;
 
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t rewriteToColumnAndRetranslate(STranslateContext* pCxt, SNode** ppNode, int32_t errCode) {
+    int32_t code = replacePsedudoColumnFuncWithColumn(pCxt, ppNode);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    translateColumn(pCxt, (SColumnNode**)ppNode);
+    if (pCxt->errCode != TSDB_CODE_SUCCESS) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, errCode);
+    } else {
+      return TSDB_CODE_SUCCESS;
+    }  
 }
 
 static int32_t translateWindowPseudoColumnFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRewriteToColumn) {
@@ -1967,16 +1996,7 @@ static int32_t translateWindowPseudoColumnFunc(STranslateContext* pCxt, SNode** 
   }
   if (NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pWindow) {
     *pRewriteToColumn = true;
-    int32_t code = replacePsedudoColumnFuncWithColumn(pCxt, ppNode);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-    translateColumn(pCxt, (SColumnNode**)ppNode);
-    if (pCxt->errCode != TSDB_CODE_SUCCESS) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_PC);
-    } else {
-      return TSDB_CODE_SUCCESS;
-    }
+    return rewriteToColumnAndRetranslate(pCxt, ppNode, TSDB_CODE_PAR_INVALID_WINDOW_PC);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1992,23 +2012,18 @@ static int32_t translateScanPseudoColumnFunc(STranslateContext* pCxt, SNode** pp
     }
     if (QUERY_NODE_REAL_TABLE != nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
       *pRewriteToColumn = true;
-      int32_t code = replacePsedudoColumnFuncWithColumn(pCxt, ppNode);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-      translateColumn(pCxt, (SColumnNode**)ppNode);
-      if (pCxt->errCode != TSDB_CODE_SUCCESS) {
-        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TBNAME);
-      } else {
-        return TSDB_CODE_SUCCESS;
-      }
+      return rewriteToColumnAndRetranslate(pCxt, ppNode, TSDB_CODE_PAR_INVALID_TBNAME);
     }
   } else {
     SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
     STableNode* pTable = NULL;
     pCxt->errCode = findTable(pCxt, pVal->literal, &pTable);
-    if (TSDB_CODE_SUCCESS != pCxt->errCode || (NULL == pTable || QUERY_NODE_REAL_TABLE != nodeType(pTable))) {
+    if (TSDB_CODE_SUCCESS != pCxt->errCode || (NULL == pTable)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TBNAME);
+    } 
+    if (nodeType(pTable) != QUERY_NODE_REAL_TABLE) {
+      *pRewriteToColumn = true;
+      return rewriteToColumnAndRetranslate(pCxt, ppNode, TSDB_CODE_PAR_INVALID_TBNAME);
     }
   }
   return TSDB_CODE_SUCCESS;
