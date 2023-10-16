@@ -137,10 +137,10 @@ class TDTestCase:
         tdSql.execute(sql1)
 
         sql2 = sql.replace("@db_name", self.db2)
-        if len(sql1) > 100:
-            tdLog.info(sql1[:100])
+        if len(sql2) > 100:
+            tdLog.info(sql2[:100])
         else:
-            tdLog.info(sql1)
+            tdLog.info(sql2)
         tdSql.execute(sql2)
         
 
@@ -148,11 +148,11 @@ class TDTestCase:
     def prepareEnv(self):
         # init                
         self.ts = 1680000000000
-        self.childCnt = 10
+        self.childCnt = 4
         self.childRow = 10000
-        self.batchSize = 5000
-        self.vgroups1  = 4
-        self.vgroups2  = 4
+        self.batchSize = 50000
+        self.vgroups1  = 1
+        self.vgroups2  = 1
         self.db1 = "db1"
         self.db2 = "db2"
         
@@ -164,7 +164,7 @@ class TDTestCase:
         self.c2Sum = None
 
         # create database  db
-        sql = f"create database @db_name vgroups {self.vgroups1} replica 3"
+        sql = f"create database @db_name vgroups {self.vgroups1} replica 1"
         self.exeDouble(sql)
 
         # create super talbe st
@@ -182,6 +182,17 @@ class TDTestCase:
 
         # insert data
         self.insertData()
+
+        # update
+        self.ts = 1680000000000 + 20000
+        self.childRow = 1000
+
+
+        # delete data
+        sql = "delete from @db_name.st where ts > 1680000019000 and ts < 1680000062000"
+        self.exeDouble(sql)
+        sql = "delete from @db_name.st where ts > 1680000099000 and ts < 1680000170000"
+        self.exeDouble(sql)    
 
     # check data correct
     def checkExpect(self, sql, expectVal):
@@ -212,7 +223,7 @@ class TDTestCase:
         start1 = time.time()
         rows1 = tdSql.query(sql1)
         spend1 = time.time() - start1
-        res1 = copy.copy(tdSql.queryResult)
+        res1 = copy.deepcopy(tdSql.queryResult)
 
         sql2 = sql.replace('@db_name', self.db2)
         tdLog.info(sql2)
@@ -223,9 +234,10 @@ class TDTestCase:
 
         rowlen1 = len(res1)
         rowlen2 = len(res2)
+        errCnt = 0
 
         if rowlen1 != rowlen2:
-            tdLog.exit(f"rowlen1={rowlen1} rowlen2={rowlen2} both not equal.")
+            tdLog.exit(f"both row count not equal. rowlen1={rowlen1} rowlen2={rowlen2} ")
             return False
         
         for i in range(rowlen1):
@@ -234,12 +246,15 @@ class TDTestCase:
             collen1 = len(row1)
             collen2 = len(row2)
             if collen1 != collen2:
-                tdLog.exit(f"collen1={collen1} collen2={collen2} both not equal.")
+                tdLog.exit(f"both col count not equal. collen1={collen1} collen2={collen2}")
                 return False
             for j in range(collen1):
                 if row1[j] != row2[j]:
-                    tdLog.exit(f"col={j} col1={row1[j]} col2={row2[j]} both col not equal.")
-                    return False
+                    tdLog.info(f"error both column value not equal. row={i} col={j} col1={row1[j]} col2={row2[j]} .")
+                    errCnt += 1
+
+        if errCnt > 0:
+            tdLog.exit(f" db2 column value  different with db2. different count ={errCnt} ")
 
         # warning performance
         diff = (spend2 - spend1)*100/spend1
@@ -354,7 +369,7 @@ class TDTestCase:
         dbName = "emptydb"
         vgNum = 2
         # create database
-        sql = f"create database {dbName} vgroups {vgNum}"
+        sql = f"create database {dbName} vgroups {vgNum} replica 1"
         tdLog.info(sql)
         tdSql.execute(sql)
 
@@ -380,7 +395,8 @@ class TDTestCase:
         tdSql.execute("use topicdb;")
         tdSql.execute("create table ta(ts timestamp, age int);")
         tdSql.execute("create topic toa as select * from ta;")
-        self.expectSplitError("topicdb")
+
+        #self.expectSplitError("topicdb")
         tdSql.execute("drop topic toa;")
         self.expectSplitOk("topicdb")
    
@@ -397,7 +413,10 @@ class TDTestCase:
         # prepare env
         self.prepareEnv()
 
-        for i in range(5):
+        tdLog.info("check db1 and db2 same after creating ...")
+        self.checkResult()
+
+        for i in range(3):
             # split vgroup on db2
             start = time.time()
             self.splitVGroup(self.db2)

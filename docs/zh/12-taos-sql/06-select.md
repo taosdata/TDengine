@@ -24,7 +24,7 @@ SELECT [hints] [DISTINCT] select_list
 hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN   
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP
 
 select_list:
     select_expr [, select_expr] ...
@@ -87,15 +87,17 @@ Hints 是用户控制单个语句查询优化的一种手段，当 Hint 不适�
 
 目前支持的 Hints 列表如下：
 
-|    **Hint**   |    **参数**    |         **说明**           |       **适用范围**         |  
-| :-----------: | -------------- | -------------------------- | -------------------------- |
-| BATCH_SCAN    | 无             | 采用批量读表的方式         | 超级表 JOIN 语句           |         
-| NO_BATCH_SCAN | 无             | 采用顺序读表的方式         | 超级表 JOIN 语句           |         
+|    **Hint**   |    **参数**    |         **说明**           |       **适用范围**         |
+| :-----------: | -------------- | -------------------------- | -----------------------------|
+| BATCH_SCAN    | 无             | 采用批量读表的方式         | 超级表 JOIN 语句             |
+| NO_BATCH_SCAN | 无             | 采用顺序读表的方式         | 超级表 JOIN 语句             |
+| SORT_FOR_GROUP| 无             | 采用sort方式进行分组       | partition by 列表有普通列时  |
 
 举例： 
 
 ```sql
 SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
+SELECT /*+ SORT_FOR_GROUP() */ count(*), c1 FROM stable1 PARTITION BY c1;
 ```
 
 ## 列表

@@ -1057,7 +1057,7 @@ void appendCreateTableRow(void* pState, SExprSupp* pTableSup, SExprSupp* pTagSup
   } else {
     memcpy(pSrcBlock->info.parTbName, pValue, TSDB_TABLE_NAME_LEN);
   }
-  pAPI->streamStateReleaseBuf(pState, NULL, pValue);
+  pAPI->streamStateFreeVal(pValue);
 }
 
 static SSDataBlock* buildStreamCreateTableResult(SOperatorInfo* pOperator) {
@@ -1145,7 +1145,8 @@ static SSDataBlock* doStreamHashPartition(SOperatorInfo* pOperator) {
       } break;
       case STREAM_CREATE_CHILD_TABLE:
       case STREAM_RETRIEVE:
-      case STREAM_CHECKPOINT: {
+      case STREAM_CHECKPOINT: 
+      case STREAM_GET_ALL: {
         return pBlock;
       }
       default:

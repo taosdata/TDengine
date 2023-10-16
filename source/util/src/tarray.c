@@ -417,6 +417,10 @@ void taosArraySort(SArray* pArray, __compar_fn_t compar) {
   taosSort(pArray->pData, pArray->size, pArray->elemSize, compar);
 }
 
+int32_t taosArrayMSort(SArray* pArray, __compar_fn_t compar) {
+  return taosMergeSort(pArray->pData, pArray->size, pArray->elemSize, compar);
+}
+
 void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t comparFn, int32_t flags) {
   return taosbsearch(key, pArray->pData, pArray->size, pArray->elemSize, comparFn, flags);
 }

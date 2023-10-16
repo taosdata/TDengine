@@ -26,8 +26,7 @@
 
 #define EMPTY_BLOCK_POLL_IDLE_DURATION 10
 #define DEFAULT_AUTO_COMMIT_INTERVAL   5000
-
-#define OFFSET_IS_RESET_OFFSET(_of)  ((_of) < 0)
+#define DEFAULT_HEARTBEAT_INTERVAL   3000
 
 struct SMqMgmt {
   int8_t  inited;
@@ -64,7 +63,6 @@ struct tmq_conf_t {
   int8_t         withTbName;
   int8_t         snapEnable;
   int8_t         replayEnable;
-  bool           hbBgEnable;
   uint16_t       port;
   int32_t        autoCommitInterval;
   char*          ip;
@@ -85,7 +83,6 @@ struct tmq_t {
   int8_t         resetOffsetCfg;
   int8_t         replayEnable;
   uint64_t       consumerId;
-  bool           hbBgEnable;
   tmq_commit_cb* commitCb;
   void*          commitCbUserParam;
 
@@ -266,8 +263,7 @@ tmq_conf_t* tmq_conf_new() {
   conf->withTbName = false;
   conf->autoCommit = true;
   conf->autoCommitInterval = DEFAULT_AUTO_COMMIT_INTERVAL;
-  conf->resetOffset = TMQ_OFFSET__RESET_EARLIEST;
-  conf->hbBgEnable = true;
+  conf->resetOffset = TMQ_OFFSET__RESET_LATEST;
 
   return conf;
 }
@@ -824,7 +820,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
 
 OVER:
   tDeatroySMqHbReq(&req);
-  taosTmrReset(tmqSendHbReq, 1000, param, tmqMgmt.timer, &tmq->hbLiveTimer);
+  taosTmrReset(tmqSendHbReq, DEFAULT_HEARTBEAT_INTERVAL, param, tmqMgmt.timer, &tmq->hbLiveTimer);
   taosReleaseRef(tmqMgmt.rsetId, refId);
 }
 
@@ -1083,8 +1079,6 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   }
   taosInitRWLatch(&pTmq->lock);
 
-  pTmq->hbBgEnable = conf->hbBgEnable;
-
   // assign consumerId
   pTmq->consumerId = tGenIdPI64();
 
@@ -1108,19 +1102,16 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
     goto _failed;
   }
 
-  if (pTmq->hbBgEnable) {
-    int64_t* pRefId = taosMemoryMalloc(sizeof(int64_t));
-    *pRefId = pTmq->refId;
-    pTmq->hbLiveTimer = taosTmrStart(tmqSendHbReq, 1000, pRefId, tmqMgmt.timer);
-  }
+  int64_t* pRefId = taosMemoryMalloc(sizeof(int64_t));
+  *pRefId = pTmq->refId;
+  pTmq->hbLiveTimer = taosTmrStart(tmqSendHbReq, DEFAULT_HEARTBEAT_INTERVAL, pRefId, tmqMgmt.timer);
 
   char         buf[TSDB_OFFSET_LEN] = {0};
   STqOffsetVal offset = {.type = pTmq->resetOffsetCfg};
   tFormatOffset(buf, tListLen(buf), &offset);
   tscInfo("consumer:0x%" PRIx64 " is setup, refId:%" PRId64
-          ", groupId:%s, snapshot:%d, autoCommit:%d, commitInterval:%dms, offset:%s, backgroudHB:%d",
-          pTmq->consumerId, pTmq->refId, pTmq->groupId, pTmq->useSnapshot, pTmq->autoCommit, pTmq->autoCommitInterval,
-          buf, pTmq->hbBgEnable);
+          ", groupId:%s, snapshot:%d, autoCommit:%d, commitInterval:%dms, offset:%s",
+          pTmq->consumerId, pTmq->refId, pTmq->groupId, pTmq->useSnapshot, pTmq->autoCommit, pTmq->autoCommitInterval, buf);
 
   return pTmq;
 
@@ -1382,7 +1373,7 @@ END:
   taosReleaseRef(tmqMgmt.rsetId, refId);
 
 FAIL:
-  tsem_post(&tmq->rspSem);
+  if(tmq) tsem_post(&tmq->rspSem);
   taosMemoryFree(pParam);
   if(pMsg) taosMemoryFreeClear(pMsg->pData);
   if(pMsg) taosMemoryFreeClear(pMsg->pEpSet);
