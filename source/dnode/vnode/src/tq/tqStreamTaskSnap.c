@@ -211,8 +211,6 @@ int32_t streamTaskSnapWriterClose(SStreamTaskWriter* pWriter, int8_t rollback) {
     goto _err;
   }
 
-  taosWUnLockLatch(&pTq->pStreamMeta->lock);
-
   if (tdbBegin(pTq->pStreamMeta->db, &pTq->pStreamMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL, 0) < 0) {
     code = -1;
     taosMemoryFree(pWriter);
