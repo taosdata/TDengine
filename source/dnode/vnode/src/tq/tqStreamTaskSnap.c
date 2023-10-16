@@ -212,9 +212,7 @@ int32_t streamTaskSnapWriterClose(SStreamTaskWriter* pWriter, int8_t rollback) {
     taosMemoryFree(pWriter);
     goto _err;
   }
-
   taosWUnLockLatch(&pTq->pStreamMeta->lock);
-
   taosMemoryFree(pWriter);
   return code;
 
