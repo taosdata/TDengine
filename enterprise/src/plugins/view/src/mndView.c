@@ -398,18 +398,11 @@ static int32_t mndDropView(SMnode *pMnode, SRpcMsg *pReq, SViewObj *pView) {
 
 
 static void mndLogCreateViewAudit(SRpcMsg *pReq, SMnode *pMnode, SCMCreateViewReq* pCreateViewReq) {
-  char detail[2000] = {0};
-  sprintf(detail, "orReplace:%d, precision:%d, numOfCols:%d",
-          pCreateViewReq->orReplace, pCreateViewReq->precision, pCreateViewReq->numOfCols);
-
-  auditRecord(pReq, pMnode->clusterId, "createView", pCreateViewReq->dbFName, pCreateViewReq->name, detail);
+  auditRecord(pReq, pMnode->clusterId, "createView", pCreateViewReq->dbFName, pCreateViewReq->name, pCreateViewReq->sql, strlen(pCreateViewReq->sql));
 }
 
 static void mndLogDropViewAudit(SRpcMsg *pReq, SMnode *pMnode, SCMDropViewReq* pDropViewReq) {
-  char detail[100] = {0};
-  sprintf(detail, "igNotExists:%d", pDropViewReq->igNotExists);
-
-  auditRecord(pReq, pMnode->clusterId, "dropView", pDropViewReq->dbFName, pDropViewReq->name, detail);
+  auditRecord(pReq, pMnode->clusterId, "dropView", pDropViewReq->dbFName, pDropViewReq->name, pDropViewReq->sql, strlen(pDropViewReq->sql));
 }
 
 static int32_t dumpViewMetaRspFromView(SViewMetaRsp *pRsp, SViewObj* pView) {
