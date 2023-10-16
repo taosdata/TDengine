@@ -2606,7 +2606,7 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   if (pRequest->body.paramCreatedInternal) {
     pRequest->body.queryFp(NULL, pRequest, code);
     if (pRequest->body.param != NULL) {
-      free(pRequest->body.param);
+      taosMemoryFree(pRequest->body.param);
       pRequest->body.param = NULL;
     }
   } else {
