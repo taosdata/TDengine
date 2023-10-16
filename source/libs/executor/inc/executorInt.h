@@ -636,6 +636,7 @@ typedef struct SStreamFillSupporter {
   SSHashObj*     pResMap;
   bool           hasDelete;
   SStorageAPI*   pAPI;
+  STimeWindow    winRange;
 } SStreamFillSupporter;
 
 typedef struct SStreamFillOperatorInfo {
@@ -770,6 +771,7 @@ SSDataBlock* getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int
 bool inSlidingWindow(SInterval* pInterval, STimeWindow* pWin, SDataBlockInfo* pBlockInfo);
 bool inCalSlidingWindow(SInterval* pInterval, STimeWindow* pWin, TSKEY calStart, TSKEY calEnd, EStreamType blockType);
 bool compareVal(const char* v, const SStateKeys* pKey);
+bool inWinRange(STimeWindow* range, STimeWindow* cur);
 
 int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
                                TSKEY* primaryKeys, int32_t prevPosition, int32_t order);
