@@ -60,6 +60,15 @@ export default {
               show: true,
             },
           },
+          {
+            path: "/programming",
+            title: i18n.t("route.programming"),
+            icon: "programming",
+            parting: false,
+            meta: {
+              show: flag ? false : true,
+            },
+          },
           // {
           //   path: "/dataOut",
           //   title: i18n.t("route.dataOut"),
@@ -92,15 +101,6 @@ export default {
             role: ["1"],
             meta: {
               show: true,
-            },
-          },
-          {
-            path: "/programming",
-            title: i18n.t("route.programming"),
-            icon: "programming",
-            parting: false,
-            meta: {
-              show: flag ? false : true,
             },
           },
           {

@@ -98,12 +98,16 @@
         <el-table-column
           :label="$t('datasource.type')"
           prop="localtype"
-          width="150"
+          width="180"
+          show-overflow-tooltip
+          :filters="filterMap.type"
+          :filter-method="filterHandler"
         ></el-table-column>
         <el-table-column
           :label="$t('datasource.target')"
           prop="target"
           width="200"
+          show-overflow-tooltip
         ></el-table-column>
         <el-table-column
           :label="$t('datasource.createat')"
@@ -118,9 +122,13 @@
           :label="$t('datasource.via')"
           prop="via"
           width="100"
-        ></el-table-column>
+        >
+          <template slot-scope="{ row }">
+            {{ agentMap[row.via] }}
+          </template>
+        </el-table-column>
 
-        <el-table-column :label="$t('datasource.metrics')" prop="finished_at">
+        <el-table-column :label="$t('dataIn.metrics')" prop="finished_at">
           <template slot-scope="scope">
             <el-button
               @click="checkMetrics(scope.row, scope.row.status.toLowerCase())"
@@ -297,6 +305,7 @@ import {
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
 import Agents from "../components/agents.vue";
+import Metrics from '../components/metrics.vue';
 import { deepClone, parsinginZone } from "@/utils";
 export default {
   name: "DataSource",
@@ -331,6 +340,19 @@ export default {
       expandRowKeys: [],
       metricDisable: false,
     };
+  },
+  computed: {
+    filterMap() {
+      return {
+        type: this.typeList.map(item => ({ text: item.name, value: item.name }))
+      };
+    },
+    agentMap() {
+      return this.$store.state.app.agentLists.reduce((pre, cur) => {
+        pre[cur.id] = cur.name;
+        return pre;
+      }, {});
+    }
   },
   methods: {
     handlePageChange() {},
@@ -531,7 +553,7 @@ export default {
           Message.error(result.message);
           return;
         }
-        let array = Object.entries(result);
+        let array = Object.entries(result).map(item => ({ name: item[0], value: item[1] }));
         if (Array.from(array).length == 0) {
           switch (status) {
             case "running":
@@ -545,19 +567,20 @@ export default {
               return;
           }
         }
-        let html = `<ul class='db-metrics'><li >
-          <span>${this.$t("name")}</span>
-          <span>${this.$t("datasource.value")}</span>
-          </li>`;
-        array.forEach((item) => {
-          html += `<li ><span>${item.toString().split(",")[0]}</span>
-              <span>${item.toString().split(",")[1]}</span>
-              </li>`;
-        });
-        html += `</ul>`;
-        this.$alert(html, "", {
-          confirmButtonText: this.$t("ok"),
-          dangerouslyUseHTMLString: true,
+        this.$store.commit('SET_DIALOG', {
+          component: Metrics,
+          params: {
+            data: array
+          },
+          config: {
+            title: this.$t('dataIn.metrics'),
+            width: '800px'
+          },
+          listeners: {
+            close: () => {
+              this.$store.commit('SET_DIALOG_VISIBLE', false);
+            }
+          }
         });
       } catch (error) {
         console.log(error);
@@ -694,6 +717,10 @@ export default {
           break;
       }
       return style;
+    },
+    filterHandler(value, row, column) {
+      const property = column['property'];
+      return row[property] === value;
     },
   },
   mounted() {
