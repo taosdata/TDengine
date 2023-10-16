@@ -10,7 +10,7 @@ SERVICE_CONFIG_DIR="/etc/systemd/system"
 agentname="${PREFIX}x-agent"
 explorerName="${PREFIX}-explorer"
 csudo=""
-explorerEndpoint="localhost"
+explorerEndpoint=""
 
 target=""
 
@@ -175,25 +175,31 @@ print_tips(){
 }
 
 getUserInputEndpoint() {
+  if [ -n "$explorerEndpoint" ]; then
+    return
+  fi
+
   echo "Set publicly accessible IP address or domain name you want expose to."
   echo "If you do not set it and press Enter directly, the default 'localhost' will be used."
-  echo -n "Input: "
-  read endpoint
-  if [ -z "$endpoint" ]; then
-    explorerEndpoint="localhost"
-    echo "Explorer Endpoint default:${explorerEndpoint}"
-  else
-    explorerEndpoint="$endpoint"
-    echo "You have set explorer Endpoint:${explorerEndpoint}"
-  fi
+  while true; do
+    echo -n "Please enter fqdn or ip: "
+    read endpoint
+    if [ -z "$endpoint" ]; then
+      echo "You need to enter explorer‘s fqdn or IP address!"
+    else
+      explorerEndpoint="$endpoint"
+      echo "You have set explorer's fqdn or ip:${explorerEndpoint}"
+      return
+    fi
+  done
 }
 
 function replaceExplorerEndpoint() {
   local FileName=$1
-    if [ -f "$FileName" ]; then
-        sed -i "s/cluster = \"http\:\/\/localhost\:6041\"/cluster = \"http\:\/\/${explorerEndpoint}\:6041\"/g" $FileName
-        sed -i "s/x_api = \"http\:\/\/localhost\:6050\"/x_api = \"http\:\/\/${explorerEndpoint}\:6050\"/g" $FileName
-    fi
+  ehco ${FileName}
+  if [ -f "$FileName" ]; then
+      ${csudo}sed -i "s/localhost/${explorerEndpoint}/g" $FileName
+  fi
 }
 
 # install new taosx and taosx-agent
@@ -207,6 +213,18 @@ install_taosx() {
     ${csudo}cp uninstall.sh ${TAOSX_ROOT_DIR}
     echo "install services to ${SERVICE_CONFIG_DIR}..."
     ${csudo}cp -fr etc/systemd/system/* ${SERVICE_CONFIG_DIR}
+
+    ${csudo}systemctl daemon-reload
+
+    x_service_config="${SERVICE_CONFIG_DIR}/${xName}.service"
+    if [ -e "$x_service_config" ]; then
+      ${csudo}systemctl enable ${xName}
+    fi
+
+    explore_service_config="${SERVICE_CONFIG_DIR}/${explorerName}.service"
+    if [ -e "$explore_service_config" ]; then
+      ${csudo}systemctl enable ${explorerName}
+    fi
 
     ${csudo}systemctl daemon-reload
 
@@ -253,10 +271,23 @@ check_java_env() {
   fi
 }
 
+while getopts "e:" arg; do
+  case $arg in
+    e)
+      explorerEndpoint=$(echo $OPTARG)
+      echo "explorer fqdn has been set to  $explorerEndpoint"
+      ;;
+    ?)
+      echo "Usage: $0 [-e]"
+      ;;
+  esac
+done
+
 check_install_env(){
     echo "Check Java env for InfluxDB/OpenTSDB Connector"
     check_java_env
 }
+getUserInputEndpoint
 check_install_env
 
 # main entry point
