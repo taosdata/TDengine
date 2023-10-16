@@ -63,9 +63,17 @@ static int should_retry() {
   return 0;
 }
 
+static void s3PrintError(const char *func, S3Status status, char error_details[]) {
+  if (status < S3StatusErrorAccessDenied) {
+    vError("%s: %s", __func__, S3_get_status_name(status));
+  } else {
+    vError("%s: %s, %s", __func__, S3_get_status_name(status), error_details);
+  }
+}
+
 typedef struct {
   uint64_t content_length;
-  int      status;
+  S3Status status;
   char    *buf;
   char     err_msg[4096];
 } TS3SizeCBD;
@@ -109,7 +117,86 @@ static void responseCompleteCallback(S3Status status, const S3ErrorDetails *erro
 }
 
 int32_t s3PutObjectFromFile2(const char *file, const char *object) { return 0; }
-void    s3DeleteObjectsByPrefix(const char *prefix) {}
+
+typedef struct list_bucket_callback_data {
+  int      isTruncated;
+  char     nextMarker[1024];
+  int      keyCount;
+  int      allDetails;
+  S3Status status;
+  char     err_msg[4096];
+} list_bucket_callback_data;
+
+static S3Status listBucketCallback(int isTruncated, const char *nextMarker, int contentsCount,
+                                   const S3ListBucketContent *contents, int commonPrefixesCount,
+                                   const char **commonPrefixes, void *callbackData) {
+  list_bucket_callback_data *data = (list_bucket_callback_data *)callbackData;
+
+  data->isTruncated = isTruncated;
+  if ((!nextMarker || !nextMarker[0]) && contentsCount) {
+    nextMarker = contents[contentsCount - 1].key;
+  }
+  if (nextMarker) {
+    snprintf(data->nextMarker, sizeof(data->nextMarker), "%s", nextMarker);
+  } else {
+    data->nextMarker[0] = 0;
+  }
+
+  if (contentsCount && !data->keyCount) {
+    // printListBucketHeader(data->allDetails);
+  }
+
+  int i;
+  for (i = 0; i < contentsCount; ++i) {
+    const S3ListBucketContent *content = &(contents[i]);
+    printf("%-50s", content->key);
+  }
+  data->keyCount += contentsCount;
+
+  for (i = 0; i < commonPrefixesCount; i++) {
+    // printf("\nCommon Prefix: %s\n", commonPrefixes[i]);
+  }
+
+  return S3StatusOK;
+}
+
+void s3DeleteObjectsByPrefix(const char *prefix) {
+  S3BucketContext     bucketContext = {0, tsS3BucketName, protocolG, uriStyleG, tsS3AccessKeyId, tsS3AccessKeySecret,
+                                       0, awsRegionG};
+  S3ListBucketHandler listBucketHandler = {{&responsePropertiesCallback, &responseCompleteCallback},
+                                           &listBucketCallback};
+
+  const char               *marker = 0, *delimiter = 0;
+  int                       maxkeys = 0, allDetails = 0;
+  list_bucket_callback_data data;
+
+  if (marker) {
+    snprintf(data.nextMarker, sizeof(data.nextMarker), "%s", marker);
+  } else {
+    data.nextMarker[0] = 0;
+  }
+  data.keyCount = 0;
+  data.allDetails = allDetails;
+
+  do {
+    data.isTruncated = 0;
+    do {
+      S3_list_bucket(&bucketContext, prefix, data.nextMarker, delimiter, maxkeys, 0, timeoutMsG, &listBucketHandler,
+                     &data);
+    } while (S3_status_is_retryable(data.status) && should_retry());
+    if (data.status != S3StatusOK) {
+      break;
+    }
+  } while (data.isTruncated && (!maxkeys || (data.keyCount < maxkeys)));
+
+  if (data.status == S3StatusOK) {
+    if (!data.keyCount) {
+      // printListBucketHeader(allDetails);
+    }
+  } else {
+    s3PrintError(__func__, data.status, data.err_msg);
+  }
+}
 
 void s3DeleteObjects(const char *object_name[], int nobject) {
   int               status = 0;
@@ -124,7 +211,7 @@ void s3DeleteObjects(const char *object_name[], int nobject) {
     } while (S3_status_is_retryable(cbd.status) && should_retry());
 
     if ((cbd.status != S3StatusOK) && (cbd.status != S3StatusErrorPreconditionFailed)) {
-      vError("%s: %d(%s)", __func__, cbd.status, cbd.err_msg);
+      s3PrintError(__func__, cbd.status, cbd.err_msg);
     }
   }
 }
