@@ -89,7 +89,7 @@ else
       ${build_dir}/bin/taosBenchmark \
       ${build_dir}/bin/TDinsight.sh \
       ${build_dir}/bin/tdengine-datasource.zip \
-      ${build_dir}/bin/tdengine-datasource.zip.md5sum"
+      ${build_dir}/bin/tdengine-datasource.zip.md5"
   fi
 
   [ -f ${build_dir}/bin/taosx ] && taosx_bin="${build_dir}/bin/taosx"
@@ -284,8 +284,13 @@ if [ "$pagMode" == "lite" ]; then
 fi
 chmod a+x ${install_dir}/install.sh
 
-if [[ $dbName == "taos" ]]; then
-  # Copy example code
+if [[ $dbName == "taos" ]]; then  
+  cp ${top_dir}/../enterprise/packaging/start-all.sh ${install_dir}
+  cp ${top_dir}/../enterprise/packaging/stop-all.sh ${install_dir}
+  cp ${top_dir}/../enterprise/packaging/README.md ${install_dir}
+  chmod a+x ${install_dir}/start-all.sh
+  chmod a+x ${install_dir}/stop-all.sh
+  # Copy example code  
   mkdir -p ${install_dir}/examples
   examples_dir="${top_dir}/examples"
   cp -r ${examples_dir}/c ${install_dir}/examples
@@ -330,8 +335,8 @@ fi
 mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo "${versionComp}" >${install_dir}/driver/vercomp.txt
 [ -f ${wslib_files} ] && cp ${wslib_files} ${install_dir}/driver || :
 
-# Copy connector
-if [ "$verMode" == "cluster" ]; then
+# Copy connector && taosx
+if [ "$verMode" == "cluster" ]; then    
     connector_dir="${code_dir}/connector"
     mkdir -p ${install_dir}/connector
     if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
@@ -364,8 +369,15 @@ if [ "$verMode" == "cluster" ]; then
         git clone --depth 1 https://github.com/taosdata/taos-connector-rust ${install_dir}/connector/rust
         rm -rf ${install_dir}/connector/rust/.git ||:
 
-        # cp -r ${connector_dir}/python ${install_dir}/connector
-        # cp -r ${connector_dir}/nodejs ${install_dir}/connector
+        # copy taosx
+        if [ -d ${top_dir}/../enterprise/src/plugins/taosx/release/taosx ]; then
+          cp -r ${top_dir}/../enterprise/src/plugins/taosx/release/taosx ${install_dir}
+          cp ${top_dir}/../enterprise/packaging/install_taosx.sh ${install_dir}/taosx
+          cp ${top_dir}/../enterprise/src/plugins/taosx/packaging/uninstall.sh ${install_dir}/taosx
+        else
+          echo "taox package not found"
+          exit 1
+        fi
     fi
 fi
 

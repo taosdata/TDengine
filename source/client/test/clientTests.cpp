@@ -926,7 +926,7 @@ TEST(clientCase, agg_query_tables) {
     char s[256] = {0};
 
     while (1) {
-      sprintf(s, "insert into t1 values(%ld, %d)", st + i, i);
+      sprintf(s, "insert into t1 values(%" PRId64 ", %d)", st + i, i);
       pRes = taos_query(pConn, s);
 
       int32_t ret = taos_errno(pRes);
@@ -937,7 +937,7 @@ TEST(clientCase, agg_query_tables) {
     }
 
     while (1) {
-      sprintf(s, "insert into t2 values(%ld, %d)", st + i, i);
+      sprintf(s, "insert into t2 values(%" PRId64 ", %d)", st + i, i);
       pRes = taos_query(pConn, s);
       int32_t ret = taos_errno(pRes);
 

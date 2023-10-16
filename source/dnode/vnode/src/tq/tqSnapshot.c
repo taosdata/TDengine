@@ -200,7 +200,9 @@ int32_t tqSnapWrite(STqSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   tDecoderInit(pDecoder, pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
   code = tDecodeSTqHandle(pDecoder, &handle);
   if (code) goto _err;
+  taosWLockLatch(&pTq->lock);
   code = tqMetaSaveHandle(pTq, handle.subKey, &handle);
+  taosWUnLockLatch(&pTq->lock);
   if (code < 0) goto _err;
   tDecoderClear(pDecoder);
 

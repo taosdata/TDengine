@@ -610,9 +610,13 @@ _exit:
   return code;
 }
 
-void tRowSort(SArray *aRowP) {
-  if (TARRAY_SIZE(aRowP) <= 1) return;
-  taosArraySort(aRowP, tRowPCmprFn);
+int32_t tRowSort(SArray *aRowP) {
+  if (TARRAY_SIZE(aRowP) <= 1) return 0;
+  int32_t code = taosArrayMSort(aRowP, tRowPCmprFn);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("taosArrayMSort failed caused by %d", code);
+  }
+  return code;
 }
 
 int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag) {
@@ -2460,10 +2464,10 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_NULL](pColData, NULL, 0);
         if (code) goto _exit;
       } else {
-        if (ASSERT(varDataTLen(data + offset) <= bytes)) {
+        if (varDataTLen(data + offset) > bytes) {
           uError("var data length invalid, varDataTLen(data + offset):%d <= bytes:%d", (int)varDataTLen(data + offset),
                  bytes);
-          code = TSDB_CODE_INVALID_PARA;
+          code = TSDB_CODE_PAR_VALUE_TOO_LONG;
           goto _exit;
         }
         code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, (uint8_t *)varDataVal(data + offset),
@@ -3588,5 +3592,5 @@ void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_
     NULL,                          // TSDB_DATA_TYPE_DECIMAL
     NULL,                          // TSDB_DATA_TYPE_BLOB
     NULL,                          // TSDB_DATA_TYPE_MEDIUMBLOB
-    NULL                           // TSDB_DATA_TYPE_GEOMETRY
+    tColDataCalcSMAVarType         // TSDB_DATA_TYPE_GEOMETRY
 };

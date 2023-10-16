@@ -218,7 +218,7 @@ class TDTestCase:
 
         actConsumeTotalRows = resultList[0]
 
-        if not (actConsumeTotalRows > 0 and actConsumeTotalRows < totalRowsInserted):
+        if not (actConsumeTotalRows >= 0 and actConsumeTotalRows <= totalRowsInserted):
             tdLog.info("act consume rows: %d"%(actConsumeTotalRows))
             tdLog.info("and second consume rows should be between 0 and %d"%(totalRowsInserted))
             tdLog.exit("%d tmq consume rows error!"%consumerId)

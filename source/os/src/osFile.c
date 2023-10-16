@@ -434,10 +434,18 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
     return -1;
   }
 #ifdef WINDOWS
-  size_t pos = _lseeki64(pFile->fd, 0, SEEK_CUR);
-  _lseeki64(pFile->fd, offset, SEEK_SET);
-  int64_t ret = _read(pFile->fd, buf, count);
-  _lseeki64(pFile->fd, pos, SEEK_SET);
+  DWORD      ret = 0;
+  OVERLAPPED ol = {0};
+  ol.OffsetHigh = (uint32_t)((offset & 0xFFFFFFFF00000000LL) >> 0x20);
+  ol.Offset = (uint32_t)(offset & 0xFFFFFFFFLL);
+
+  HANDLE handle = (HANDLE)_get_osfhandle(pFile->fd);
+  SetLastError(0);
+  BOOL result = ReadFile(handle, buf, count, &ret, &ol);
+  if (!result && GetLastError() != ERROR_HANDLE_EOF) {
+    errno = GetLastError();
+    ret = -1;
+  }
 #else
   int64_t ret = pread(pFile->fd, buf, count, offset);
 #endif
@@ -501,10 +509,18 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
     return 0;
   }
 #ifdef WINDOWS
-  size_t pos = _lseeki64(pFile->fd, 0, SEEK_CUR);
-  _lseeki64(pFile->fd, offset, SEEK_SET);
-  int64_t ret = _write(pFile->fd, buf, count);
-  _lseeki64(pFile->fd, pos, SEEK_SET);
+  DWORD      ret = 0;
+  OVERLAPPED ol = {0};
+  ol.OffsetHigh = (uint32_t)((offset & 0xFFFFFFFF00000000LL) >> 0x20);
+  ol.Offset = (uint32_t)(offset & 0xFFFFFFFFLL);
+
+  HANDLE handle = (HANDLE)_get_osfhandle(pFile->fd);
+  SetLastError(0);
+  BOOL result = WriteFile(handle, buf, count, &ret, &ol);
+  if (!result) {
+    errno = GetLastError();
+    ret = -1;
+  }
 #else
   int64_t ret = pwrite(pFile->fd, buf, count, offset);
 #endif
@@ -819,14 +835,38 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
     return -1;
   }
 #ifdef WINDOWS
-  *ptrBuf = taosMemoryMalloc(1024);
+  size_t bufferSize = 512;
+  *ptrBuf = taosMemoryMalloc(bufferSize);
   if (*ptrBuf == NULL) return -1;
-  if (fgets(*ptrBuf, 1023, pFile->fp) == NULL) {
-    taosMemoryFreeClear(*ptrBuf);
-    return -1;
+
+  size_t bytesRead = 0;
+  size_t totalBytesRead = 0;
+
+  while (1) {
+    char *result = fgets(*ptrBuf + totalBytesRead, bufferSize - totalBytesRead, pFile->fp);
+    if (result == NULL) {
+      taosMemoryFreeClear(*ptrBuf);
+      return -1;
+    }
+    bytesRead = strlen(*ptrBuf + totalBytesRead);
+    totalBytesRead += bytesRead;
+
+    if (totalBytesRead < bufferSize - 1 || (*ptrBuf)[totalBytesRead - 1] == '\n') {
+      break;
+    }
+
+    bufferSize += 512;
+    void* newBuf = taosMemoryRealloc(*ptrBuf, bufferSize);
+    if (newBuf == NULL) {
+      taosMemoryFreeClear(*ptrBuf);
+      return -1;
+    }
+
+    *ptrBuf = newBuf;
   }
-  (*ptrBuf)[1023] = 0;
-  return strlen(*ptrBuf);
+
+  (*ptrBuf)[totalBytesRead] = '\0';
+  return totalBytesRead;
 #else
   size_t len = 0;
   return getline(ptrBuf, &len, pFile->fp);
@@ -904,10 +944,16 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
     goto cmp_end;
   }
 
-  dstFp = gzdopen(pFile->fd, "wb6f");
+  // Both gzclose() and fclose() will close the associated fd, so they need to have different fds.
+  FileFd gzFd = dup(pFile->fd);
+  if (gzFd < 0) {
+    ret = -4;
+    goto cmp_end;
+  }
+  dstFp = gzdopen(gzFd, "wb6f");
   if (dstFp == NULL) {
     ret = -3;
-    taosCloseFile(&pFile);
+    close(gzFd);
     goto cmp_end;
   }
 
@@ -931,4 +977,13 @@ cmp_end:
   taosMemoryFree(data);
 
   return ret;
+}
+
+int32_t taosSetFileHandlesLimit() {
+#ifdef WINDOWS
+  const int max_handles = 8192;
+  int       res = _setmaxstdio(max_handles);
+  return res == max_handles ? 0 : -1;
+#endif
+  return 0;
 }

@@ -143,6 +143,7 @@ bool    tsUseAdapter = false;
 int32_t tsMetaCacheMaxSize = -1;  // MB
 int32_t tsSlowLogThreshold = 3;   // seconds
 int32_t tsSlowLogScope = SLOW_LOG_TYPE_ALL;
+int32_t tsTimeSeriesThreshold = 50;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -477,7 +478,7 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   if (cfgAddTimezone(pCfg, "timezone", tsTimezoneStr, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddLocale(pCfg, "locale", tsLocale, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddCharset(pCfg, "charset", tsCharset, CFG_SCOPE_BOTH) != 0) return -1;
-  if (cfgAddBool(pCfg, "assert", 1, CFG_SCOPE_BOTH) != 0) return -1;
+  if (cfgAddBool(pCfg, "assert", tsAssert, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddBool(pCfg, "enableCoreFile", 1, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddFloat(pCfg, "numOfCores", tsNumOfCores, 1, 100000, CFG_SCOPE_BOTH) != 0) return -1;
 
@@ -629,6 +630,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "trimVDbIntervalSec", tsTrimVDbIntervalSec, 1, 100000, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "uptimeInterval", tsUptimeInterval, 1, 100000, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryRsmaTolerance", tsQueryRsmaTolerance, 0, 900000, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "timeseriesThreshold", tsTimeSeriesThreshold, 0, 2000, CFG_SCOPE_SERVER) != 0) return -1;
 
   if (cfgAddInt64(pCfg, "walFsyncDataSizeLimit", tsWalFsyncDataSizeLimit, 100 * 1024 * 1024, INT64_MAX,
                   CFG_SCOPE_SERVER) != 0)
@@ -1034,6 +1036,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsTrimVDbIntervalSec = cfgGetItem(pCfg, "trimVDbIntervalSec")->i32;
   tsUptimeInterval = cfgGetItem(pCfg, "uptimeInterval")->i32;
   tsQueryRsmaTolerance = cfgGetItem(pCfg, "queryRsmaTolerance")->i32;
+  tsTimeSeriesThreshold = cfgGetItem(pCfg, "timeseriesThreshold")->i32;
 
   tsWalFsyncDataSizeLimit = cfgGetItem(pCfg, "walFsyncDataSizeLimit")->i64;
 
@@ -1445,6 +1448,8 @@ int32_t taosApplyLocalCfg(SConfig *pCfg, char *name) {
         tqDebugFlag = cfgGetItem(pCfg, "tqDebugFlag")->i32;
       } else if (strcasecmp("ttlFlushThreshold", name) == 0) {
         tsTtlFlushThreshold = cfgGetItem(pCfg, "ttlFlushThreshold")->i32;
+      } else if (strcasecmp("timeseriesThreshold", name) == 0) {
+        tsTimeSeriesThreshold = cfgGetItem(pCfg, "timeseriesThreshold")->i32;
       }
       break;
     }
@@ -1598,6 +1603,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
     if (taosSetS3Cfg(tsCfg) != 0) return -1;
   }
   taosSetSystemCfg(tsCfg);
+  if (taosSetFileHandlesLimit() != 0) return -1;
 
   cfgDumpCfg(tsCfg, tsc, false);
 
@@ -1664,6 +1670,13 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     int32_t newSupportVnodes = atoi(value);
     uInfo("supportVnodes set from %d to %d", tsNumOfSupportVnodes, newSupportVnodes);
     tsNumOfSupportVnodes = newSupportVnodes;
+    return;
+  }
+
+  if (strcasecmp(option, "asynclog") == 0) {
+    int32_t newAsynclog = atoi(value);
+    uInfo("asynclog set from %d to %d", tsAsyncLog, newAsynclog);
+    tsAsyncLog = newAsynclog;
     return;
   }
 

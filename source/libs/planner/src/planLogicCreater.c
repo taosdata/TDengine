@@ -88,6 +88,7 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
             pCxt->pOutputs[index] = true;
             break;
           }
+          index++;
         }
       }
       break;
@@ -174,6 +175,7 @@ static int32_t cloneRewriteExprs(SNodeList* pExprs, bool* pOutputs, SNodeList** 
         break;
       }
     }
+    index++;
   }
   return code;
 }

@@ -270,7 +270,7 @@ void streamSnapHandleDestroy(SStreamSnapHandle* handle) {
 
   if (handle->checkpointId == 0) {
     // del tmp dir
-    if (taosIsDir(pFile->path)) {
+    if (pFile && taosIsDir(pFile->path)) {
       taosRemoveDir(pFile->path);
     }
   } else {

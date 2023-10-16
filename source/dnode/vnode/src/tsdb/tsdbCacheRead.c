@@ -415,6 +415,9 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
 _end:
   tsdbUntakeReadSnap2((STsdbReader*)pr, pr->pReadSnap, true);
+  if (pr->pCurFileSet) {
+    pr->pCurFileSet = NULL;
+  }
 
   taosThreadMutexUnlock(&pr->readerMutex);
 

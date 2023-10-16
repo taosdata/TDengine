@@ -873,27 +873,15 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char detail[2000] = {0};
-  sprintf(detail,
-          "checkpointFreq:%" PRId64 ", createStb:%d, deleteMark:%" PRId64
-          ", "
-          "fillHistory:%d, igExists:%d, "
-          "igExpired:%d, igUpdate:%d, lastTs:%" PRId64
-          ", "
-          "maxDelay:%" PRId64
-          ", numOfTags:%d, sourceDB:%s, "
-          "targetStbFullName:%s, triggerType:%d, watermark:%" PRId64,
-          createStreamReq.checkpointFreq, createStreamReq.createStb, createStreamReq.deleteMark,
-          createStreamReq.fillHistory, createStreamReq.igExists, createStreamReq.igExpired, createStreamReq.igUpdate,
-          createStreamReq.lastTs, createStreamReq.maxDelay, createStreamReq.numOfTags, createStreamReq.sourceDB,
-          createStreamReq.targetStbFullName, createStreamReq.triggerType, createStreamReq.watermark);
-
   SName name = {0};
   tNameFromString(&name, createStreamReq.name, T_NAME_ACCT | T_NAME_DB);
   //reuse this function for stream
-
-  auditRecord(pReq, pMnode->clusterId, "createStream", name.dbname, "", detail);
-
+  
+  //TODO
+  if (createStreamReq.sql != NULL) {
+    auditRecord(pReq, pMnode->clusterId, "createStream", name.dbname, "", 
+                createStreamReq.sql, strlen(createStreamReq.sql));
+  }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
@@ -1115,7 +1103,7 @@ static int32_t mndAddStreamCheckpointToTrans(STrans *pTrans, SStreamObj *pStream
 
   pStream->checkpointId = checkpointId;
   pStream->checkpointFreq = taosGetTimestampMs();
-  atomic_store_64(&pStream->currentTick, 0);
+  pStream->currentTick = 0;
   // 3. commit log: stream checkpoint info
   pStream->version = pStream->version + 1;
 
@@ -1272,15 +1260,18 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     if (dropReq.igNotExists) {
       mInfo("stream:%s, not exist, ignore not exist is set", dropReq.name);
       sdbRelease(pMnode->pSdb, pStream);
+      tFreeSMDropStreamReq(&dropReq);
       return 0;
     } else {
       terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
+      tFreeSMDropStreamReq(&dropReq);
       return -1;
     }
   }
 
   if (mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pStream->targetDb) != 0) {
     sdbRelease(pMnode->pSdb, pStream);
+    tFreeSMDropStreamReq(&dropReq);
     return -1;
   }
 
@@ -1288,6 +1279,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   if (pTrans == NULL) {
     mError("stream:%s, failed to drop since %s", dropReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
+    tFreeSMDropStreamReq(&dropReq);
     return -1;
   }
 
@@ -1297,6 +1289,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   if (mndTransCheckConflict(pMnode, pTrans) != 0) {
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
+    tFreeSMDropStreamReq(&dropReq);
     return -1;
   }
   // mndTransSetSerial(pTrans);
@@ -1306,6 +1299,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     mError("stream:%s, failed to drop task since %s", dropReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
+    tFreeSMDropStreamReq(&dropReq);
     return -1;
   }
 
@@ -1313,6 +1307,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   if (mndPersistDropStreamLog(pMnode, pTrans, pStream) < 0) {
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
+    tFreeSMDropStreamReq(&dropReq);
     return -1;
   }
 
@@ -1320,20 +1315,19 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     mError("trans:%d, failed to prepare drop stream trans since %s", pTrans->id, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
+    tFreeSMDropStreamReq(&dropReq);
     return -1;
   }
-
-  char detail[100] = {0};
-  sprintf(detail, "igNotExists:%d", dropReq.igNotExists);
 
   SName name = {0};
   tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB);
   //reuse this function for stream
 
-  auditRecord(pReq, pMnode->clusterId, "dropStream", name.dbname, "", detail);
+  auditRecord(pReq, pMnode->clusterId, "dropStream", name.dbname, "", dropReq.sql, dropReq.sqlLen);
 
   sdbRelease(pMnode->pSdb, pStream);
   mndTransDrop(pTrans);
+  tFreeSMDropStreamReq(&dropReq);
 
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }

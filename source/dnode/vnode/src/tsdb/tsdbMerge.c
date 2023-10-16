@@ -15,6 +15,8 @@
 
 #include "tsdbMerge.h"
 
+#define TSDB_MAX_LEVEL 6  // means max level is 7
+
 typedef struct {
   STsdb         *tsdb;
   TFileSetArray *fsetArr;
@@ -34,7 +36,6 @@ typedef struct {
     STFileSet *fset;
     bool       toData;
     int32_t    level;
-    SSttLvl   *lvl;
     TABLEID    tbid[1];
   } ctx[1];
 
@@ -68,18 +69,6 @@ static int32_t tsdbMergerClose(SMerger *merger) {
   int32_t lino = 0;
   SVnode *pVnode = merger->tsdb->pVnode;
 
-  // edit file system
-  code = tsdbFSEditBegin(merger->tsdb->pFS, merger->fopArr, TSDB_FEDIT_MERGE);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  taosThreadRwlockWrlock(&merger->tsdb->rwLock);
-  code = tsdbFSEditCommit(merger->tsdb->pFS);
-  if (code) {
-    taosThreadRwlockUnlock(&merger->tsdb->rwLock);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-  taosThreadRwlockUnlock(&merger->tsdb->rwLock);
-
   ASSERT(merger->writer == NULL);
   ASSERT(merger->dataIterMerger == NULL);
   ASSERT(merger->tombIterMerger == NULL);
@@ -101,58 +90,142 @@ _exit:
 }
 
 static int32_t tsdbMergeFileSetBeginOpenReader(SMerger *merger) {
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  SSttLvl *lvl;
 
-  merger->ctx->toData = true;
-  merger->ctx->level = 0;
-
-  // TODO: optimize merge strategy
-  for (int32_t i = 0;; ++i) {
-    if (i >= TARRAY2_SIZE(merger->ctx->fset->lvlArr)) {
-      merger->ctx->lvl = NULL;
+  bool hasLevelLargerThanMax = false;
+  TARRAY2_FOREACH_REVERSE(merger->ctx->fset->lvlArr, lvl) {
+    if (lvl->level <= TSDB_MAX_LEVEL) {
+      break;
+    } else if (TARRAY2_SIZE(lvl->fobjArr) > 0) {
+      hasLevelLargerThanMax = true;
       break;
     }
+  }
 
-    merger->ctx->lvl = TARRAY2_GET(merger->ctx->fset->lvlArr, i);
-    if (merger->ctx->lvl->level != merger->ctx->level ||
-        TARRAY2_SIZE(merger->ctx->lvl->fobjArr) + 1 < merger->sttTrigger) {
-      merger->ctx->toData = false;
-      merger->ctx->lvl = NULL;
-      break;
+  if (hasLevelLargerThanMax) {
+    // merge all stt files
+    merger->ctx->toData = true;
+    merger->ctx->level = TSDB_MAX_LEVEL;
+
+    TARRAY2_FOREACH(merger->ctx->fset->lvlArr, lvl) {
+      int32_t numMergeFile = TARRAY2_SIZE(lvl->fobjArr);
+
+      for (int32_t i = 0; i < numMergeFile; ++i) {
+        STFileObj *fobj = TARRAY2_GET(lvl->fobjArr, i);
+
+        STFileOp op = {
+            .optype = TSDB_FOP_REMOVE,
+            .fid = merger->ctx->fset->fid,
+            .of = fobj->f[0],
+        };
+        code = TARRAY2_APPEND(merger->fopArr, op);
+        TSDB_CHECK_CODE(code, lino, _exit);
+
+        SSttFileReader      *reader;
+        SSttFileReaderConfig config = {
+            .tsdb = merger->tsdb,
+            .szPage = merger->szPage,
+            .file[0] = fobj->f[0],
+        };
+
+        code = tsdbSttFileReaderOpen(fobj->fname, &config, &reader);
+        TSDB_CHECK_CODE(code, lino, _exit);
+
+        code = TARRAY2_APPEND(merger->sttReaderArr, reader);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+    }
+  } else {
+    // do regular merge
+    merger->ctx->toData = true;
+    merger->ctx->level = 0;
+
+    // find the highest level that can be merged to
+    for (int32_t i = 0, numCarry = 0;;) {
+      int32_t numFile = numCarry;
+      if (i < TARRAY2_SIZE(merger->ctx->fset->lvlArr) &&
+          merger->ctx->level == TARRAY2_GET(merger->ctx->fset->lvlArr, i)->level) {
+        numFile += TARRAY2_SIZE(TARRAY2_GET(merger->ctx->fset->lvlArr, i)->fobjArr);
+        i++;
+      }
+
+      numCarry = numFile / merger->sttTrigger;
+      if (numCarry == 0) {
+        break;
+      } else {
+        merger->ctx->level++;
+      }
     }
 
-    merger->ctx->level++;
+    ASSERT(merger->ctx->level > 0);
 
-    STFileObj *fobj;
-    int32_t    numFile = 0;
-    TARRAY2_FOREACH(merger->ctx->lvl->fobjArr, fobj) {
-      if (numFile == merger->sttTrigger) {
+    if (merger->ctx->level <= TSDB_MAX_LEVEL) {
+      TARRAY2_FOREACH_REVERSE(merger->ctx->fset->lvlArr, lvl) {
+        if (TARRAY2_SIZE(lvl->fobjArr) == 0) {
+          continue;
+        }
+
+        if (lvl->level >= merger->ctx->level) {
+          merger->ctx->toData = false;
+        }
+        break;
+      }
+    }
+
+    // get number of level-0 files to merge
+    int32_t numFile = pow(merger->sttTrigger, merger->ctx->level);
+    TARRAY2_FOREACH(merger->ctx->fset->lvlArr, lvl) {
+      if (lvl->level == 0) continue;
+      if (lvl->level >= merger->ctx->level) break;
+
+      numFile = numFile - TARRAY2_SIZE(lvl->fobjArr) * pow(merger->sttTrigger, lvl->level);
+    }
+
+    ASSERT(numFile >= 0);
+
+    // get file system operations
+    TARRAY2_FOREACH(merger->ctx->fset->lvlArr, lvl) {
+      if (lvl->level >= merger->ctx->level) {
         break;
       }
 
-      STFileOp op = {
-          .optype = TSDB_FOP_REMOVE,
-          .fid = merger->ctx->fset->fid,
-          .of = fobj->f[0],
-      };
-      code = TARRAY2_APPEND(merger->fopArr, op);
-      TSDB_CHECK_CODE(code, lino, _exit);
+      int32_t numMergeFile;
+      if (lvl->level == 0) {
+        numMergeFile = numFile;
+      } else {
+        numMergeFile = TARRAY2_SIZE(lvl->fobjArr);
+      }
 
-      SSttFileReader      *reader;
-      SSttFileReaderConfig config = {
-          .tsdb = merger->tsdb,
-          .szPage = merger->szPage,
-          .file[0] = fobj->f[0],
-      };
+      for (int32_t i = 0; i < numMergeFile; ++i) {
+        STFileObj *fobj = TARRAY2_GET(lvl->fobjArr, i);
 
-      code = tsdbSttFileReaderOpen(fobj->fname, &config, &reader);
-      TSDB_CHECK_CODE(code, lino, _exit);
+        STFileOp op = {
+            .optype = TSDB_FOP_REMOVE,
+            .fid = merger->ctx->fset->fid,
+            .of = fobj->f[0],
+        };
+        code = TARRAY2_APPEND(merger->fopArr, op);
+        TSDB_CHECK_CODE(code, lino, _exit);
 
-      code = TARRAY2_APPEND(merger->sttReaderArr, reader);
-      TSDB_CHECK_CODE(code, lino, _exit);
+        SSttFileReader      *reader;
+        SSttFileReaderConfig config = {
+            .tsdb = merger->tsdb,
+            .szPage = merger->szPage,
+            .file[0] = fobj->f[0],
+        };
 
-      numFile++;
+        code = tsdbSttFileReaderOpen(fobj->fname, &config, &reader);
+        TSDB_CHECK_CODE(code, lino, _exit);
+
+        code = TARRAY2_APPEND(merger->sttReaderArr, reader);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+    }
+
+    if (merger->ctx->level > TSDB_MAX_LEVEL) {
+      merger->ctx->level = TSDB_MAX_LEVEL;
     }
   }
 
@@ -265,6 +338,8 @@ static int32_t tsdbMergeFileSetBegin(SMerger *merger) {
   ASSERT(merger->dataIterMerger == NULL);
   ASSERT(merger->writer == NULL);
 
+  TARRAY2_CLEAR(merger->fopArr, NULL);
+
   merger->ctx->tbid->suid = 0;
   merger->ctx->tbid->uid = 0;
 
@@ -316,6 +391,18 @@ static int32_t tsdbMergeFileSetEnd(SMerger *merger) {
 
   code = tsdbMergeFileSetEndCloseReader(merger);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  // edit file system
+  code = tsdbFSEditBegin(merger->tsdb->pFS, merger->fopArr, TSDB_FEDIT_MERGE);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  taosThreadRwlockWrlock(&merger->tsdb->rwLock);
+  code = tsdbFSEditCommit(merger->tsdb->pFS);
+  if (code) {
+    taosThreadRwlockUnlock(&merger->tsdb->rwLock);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  taosThreadRwlockUnlock(&merger->tsdb->rwLock);
 
 _exit:
   if (code) {
@@ -434,7 +521,9 @@ int32_t tsdbMerge(void *arg) {
       .sttTrigger = tsdb->pVnode->config.sttTrigger,
   }};
 
-  ASSERT(merger->sttTrigger > 1);
+  if (merger->sttTrigger <= 1) {
+    return 0;
+  }
 
   code = tsdbFSCreateCopySnapshot(tsdb->pFS, &merger->fsetArr);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -447,6 +536,9 @@ int32_t tsdbMerge(void *arg) {
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(tsdb->pVnode), lino, code);
+    tsdbFatal("vgId:%d, failed to merge stt files since %s. code:%d", TD_VID(tsdb->pVnode), terrstr(), code);
+    taosMsleep(100);
+    exit(EXIT_FAILURE);
   } else if (merger->ctx->opened) {
     tsdbDebug("vgId:%d %s done", TD_VID(tsdb->pVnode), __func__);
   }

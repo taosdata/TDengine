@@ -96,6 +96,19 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         }
       }
 
+      if (pRsp->dropped == 1) {
+        if (atomic_val_compare_exchange_8(&pTscObj->dropped, 0, 1) == 0) {
+          if (pTscObj->userDroppedInfo.fp) {
+            SPassInfo *dropInfo = &pTscObj->userDroppedInfo;
+            if (dropInfo->fp) {
+              (*dropInfo->fp)(dropInfo->param, NULL, TAOS_NOTIFY_USER_DROPPED);
+            }
+          }
+        }
+        releaseTscObj(pReq->connKey.tscRid);
+        continue;
+      }
+
       pTscObj->authVer = pRsp->version;
 
       if (pTscObj->sysInfo != pRsp->sysInfo) {
@@ -829,7 +842,8 @@ SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
     SClientHbKey *connKey = &pOneReq->connKey;
     STscObj      *pTscObj = (STscObj *)acquireTscObj(connKey->tscRid);
 
-    if (!pTscObj) {
+    if (!pTscObj || atomic_load_8(&pTscObj->dropped) == 1) {
+      if (pTscObj) releaseTscObj(connKey->tscRid);
       continue;
     }
 

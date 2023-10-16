@@ -1066,83 +1066,6 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
   return TSDB_CODE_SUCCESS;
 }
 
-static char* mndAuditFieldTypeStr(int32_t type){
-  switch (type)
-  {
-  case TSDB_DATA_TYPE_NULL:
-    return "null";
-  case TSDB_DATA_TYPE_BOOL:
-    return "bool";
-  case TSDB_DATA_TYPE_TINYINT:
-    return "tinyint";
-  case TSDB_DATA_TYPE_SMALLINT:
-    return "smallint";
-  case TSDB_DATA_TYPE_INT:
-    return "int";
-  case TSDB_DATA_TYPE_BIGINT:
-    return "bigint";
-  case TSDB_DATA_TYPE_FLOAT:
-    return "float";
-  case TSDB_DATA_TYPE_DOUBLE:
-    return "double";
-  case TSDB_DATA_TYPE_VARCHAR:
-    return "varchar";
-  case TSDB_DATA_TYPE_TIMESTAMP:
-    return "timestamp";
-  case TSDB_DATA_TYPE_NCHAR:
-    return "nchar";
-  case TSDB_DATA_TYPE_UTINYINT:
-    return "utinyint";
-  case TSDB_DATA_TYPE_USMALLINT:
-    return "usmallint";
-  case TSDB_DATA_TYPE_UINT:
-    return "uint";
-  case TSDB_DATA_TYPE_UBIGINT:
-    return "ubigint";
-  case TSDB_DATA_TYPE_JSON:
-    return "json";
-  case TSDB_DATA_TYPE_VARBINARY:
-    return "varbinary";
-  case TSDB_DATA_TYPE_DECIMAL:
-    return "decimal";
-  case TSDB_DATA_TYPE_BLOB:
-    return "blob";
-  case TSDB_DATA_TYPE_MEDIUMBLOB:
-    return "mediumblob";
-  case TSDB_DATA_TYPE_GEOMETRY:
-    return "geometry";
-
-  default:
-    return "error";
-  }
-}
-
-static void mndAuditFieldStr(char* detail, SArray *arr, int32_t len, int32_t max){
-  int32_t detialLen = strlen(detail);
-  int32_t fieldLen = 0;
-  for (int32_t i = 0; i < len; ++i) {
-    SField *pField = taosArrayGet(arr, i);
-    char field[TSDB_COL_NAME_LEN + 20] = {0};
-    fieldLen = strlen(", ");
-    if(detialLen > 0 && detialLen < max-fieldLen-1) {
-      strcat(detail, ", ");
-      detialLen += fieldLen;
-    }
-    else{
-      break;
-    }
-    sprintf(field, "%s:%s", pField->name, mndAuditFieldTypeStr(pField->type));
-    fieldLen = strlen(field);
-    if(detialLen < max-fieldLen-1) {
-      strcat(detail, field);
-      detialLen += fieldLen;
-    }
-    else{
-      break;
-    }
-  }
-}
-
 static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
@@ -1251,23 +1174,10 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   }
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char detail[AUDIT_DETAIL_MAX] = {0};
-  sprintf(detail, "colVer:%d, delay1:%" PRId64 ", delay2:%" PRId64 ", deleteMark1:%" PRId64 ", "
-          "deleteMark2:%" PRId64 ", igExists:%d, numOfColumns:%d, numOfFuncs:%d, numOfTags:%d, "
-          "source:%d, suid:%" PRId64 ", tagVer:%d, ttl:%d, "
-          "watermark1:%" PRId64 ", watermark2:%" PRId64, 
-          createReq.colVer, createReq.delay1, createReq.delay2, createReq.deleteMark1, 
-          createReq.deleteMark2, createReq.igExists, createReq.numOfColumns, createReq.numOfFuncs, createReq.numOfTags,
-          createReq.source, createReq.suid, createReq.tagVer, createReq.ttl,
-          createReq.watermark1, createReq.watermark2);
-  
-  mndAuditFieldStr(detail, createReq.pColumns, createReq.numOfColumns, AUDIT_DETAIL_MAX);
-  mndAuditFieldStr(detail, createReq.pTags, createReq.numOfTags, AUDIT_DETAIL_MAX);
-
   SName name = {0};
   tNameFromString(&name, createReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  auditRecord(pReq, pMnode->clusterId, "createStb", name.dbname, name.tname, detail);
+  auditRecord(pReq, pMnode->clusterId, "createStb", name.dbname, name.tname, createReq.sql, createReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -1666,6 +1576,10 @@ static int32_t mndAlterStbTagBytes(SMnode *pMnode, const SStbObj *pOld, SStbObj 
 static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray *pFields, int32_t ncols) {
   if (pOld->numOfColumns + ncols + pOld->numOfTags > TSDB_MAX_COLUMNS) {
     terrno = TSDB_CODE_MND_TOO_MANY_COLUMNS;
+    return -1;
+  }
+
+  if ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) != 0) {
     return -1;
   }
 
@@ -2337,14 +2251,10 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
   code = mndAlterStb(pMnode, pReq, &alterReq, pDb, pStb);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char detail[2000] = {0};
-  sprintf(detail, "alterType:%d, numOfFields:%d, ttl:%d" ,
-          alterReq.alterType, alterReq.numOfFields, alterReq.ttl);
-
   SName name = {0};
   tNameFromString(&name, alterReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  auditRecord(pReq, pMnode->clusterId, "alterStb", name.dbname, name.tname, detail);
+  auditRecord(pReq, pMnode->clusterId, "alterStb", name.dbname, name.tname, alterReq.sql, alterReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -2436,6 +2346,7 @@ static int32_t mndDropStb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *p
   if (mndSetDropStbRedoActions(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
   if (mndDropIdxsByStb(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
   if (mndDropSmasByStb(pMnode, pTrans, pDb, pStb) != 0) goto _OVER;
+  if (mndUserRemoveStb(pMnode, pTrans, pStb->name) != 0) goto _OVER;  
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
 
@@ -2607,14 +2518,10 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   code = mndDropStb(pMnode, pReq, pDb, pStb);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char detail[2000] = {0};
-  sprintf(detail, "igNotExists:%d, source:%d" ,
-          dropReq.igNotExists, dropReq.source);
- 
   SName name = {0};
   tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  auditRecord(pReq, pMnode->clusterId, "dropStb", name.dbname, name.tname, detail);
+  auditRecord(pReq, pMnode->clusterId, "dropStb", name.dbname, name.tname, dropReq.sql, dropReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -2623,6 +2530,7 @@ _OVER:
 
   mndReleaseDb(pMnode, pDb);
   mndReleaseStb(pMnode, pStb);
+  tFreeSMDropStbReq(&dropReq);
   return code;
 }
 

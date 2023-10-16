@@ -798,6 +798,10 @@ int32_t chkpGetAllDbCfHandle(SStreamMeta* pMeta, rocksdb_column_family_handle_t*
   }
 
   int32_t nCf = taosArrayGetSize(pHandle);
+  if (nCf == 0) {
+    taosArrayDestroy(pHandle);
+    return nCf;
+  }
 
   rocksdb_column_family_handle_t** ppCf = taosMemoryCalloc(nCf, sizeof(rocksdb_column_family_handle_t*));
   for (int i = 0; i < nCf; i++) {
@@ -830,6 +834,7 @@ _ERROR:
   return code;
 }
 int32_t chkpPreFlushDb(rocksdb_t* db, rocksdb_column_family_handle_t** cf, int32_t nCf) {
+  if (nCf == 0) return 0;
   int   code = 0;
   char* err = NULL;
 
@@ -900,7 +905,6 @@ int32_t streamBackendTriggerChkp(void* arg, char* dst) {
   } else {
     qError("stream backend:%p failed to flush db at:%s", pHandle, dst);
   }
-
   // release all ref to cfWrapper;
   for (int i = 0; i < taosArrayGetSize(refs); i++) {
     int64_t id = *(int64_t*)taosArrayGet(refs, i);
@@ -1713,27 +1717,27 @@ int streamStateGetCfIdx(SStreamState* pState, const char* funcName) {
     }
   }
   if (pState != NULL && idx != -1) {
-    SBackendCfWrapper*              wrapper = pState->pTdbState->pBackendCfWrapper;
-    rocksdb_column_family_handle_t* cf = NULL;
-    taosThreadRwlockRdlock(&wrapper->rwLock);
-    cf = wrapper->pHandle[idx];
-    taosThreadRwlockUnlock(&wrapper->rwLock);
-    if (cf == NULL) {
-      char buf[128] = {0};
-      GEN_COLUMN_FAMILY_NAME(buf, wrapper->idstr, ginitDict[idx].key);
-      char* err = NULL;
+    SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
 
-      taosThreadRwlockWrlock(&wrapper->rwLock);
+    char buf[128] = {0};
+    GEN_COLUMN_FAMILY_NAME(buf, wrapper->idstr, ginitDict[idx].key);
+    char* err = NULL;
+
+    taosThreadRwlockWrlock(&wrapper->rwLock);
+    rocksdb_column_family_handle_t* cf = NULL;
+    cf = wrapper->pHandle[idx];
+    if (cf == NULL) {
       cf = rocksdb_create_column_family(wrapper->rocksdb, wrapper->cfOpts[idx], buf, &err);
       if (err != NULL) {
         idx = -1;
         qError("failed to to open cf, %p %s_%s, reason:%s", pState, wrapper->idstr, funcName, err);
         taosMemoryFree(err);
       } else {
+        qDebug("succ to open cf, %p %s_%s", pState, wrapper->idstr, funcName);
         wrapper->pHandle[idx] = cf;
       }
-      taosThreadRwlockUnlock(&wrapper->rwLock);
     }
+    taosThreadRwlockUnlock(&wrapper->rwLock);
   }
 
   return idx;

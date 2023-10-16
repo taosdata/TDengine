@@ -696,19 +696,30 @@ int64_t metaGetTbNum(SMeta *pMeta) {
   return pMeta->pVnode->config.vndStats.numOfCTables + pMeta->pVnode->config.vndStats.numOfNTables;
 }
 
-// N.B. Called by statusReq per second
-int64_t metaGetTimeSeriesNum(SMeta *pMeta) {
-  // sum of (number of columns of stable -  1) * number of ctables (excluding timestamp column)
-  if (pMeta->pVnode->config.vndStats.numOfTimeSeries <= 0 ||
-      ++pMeta->pVnode->config.vndStats.itvTimeSeries % (60 * 5) == 0) {
-    int64_t num = 0;
-    vnodeGetTimeSeriesNum(pMeta->pVnode, &num);
-    pMeta->pVnode->config.vndStats.numOfTimeSeries = num;
+void metaUpdTimeSeriesNum(SMeta *pMeta) {
+  int64_t nCtbTimeSeries = 0;
+  if (vnodeGetTimeSeriesNum(pMeta->pVnode, &nCtbTimeSeries) == 0) {
+    atomic_store_64(&pMeta->pVnode->config.vndStats.numOfTimeSeries, nCtbTimeSeries);
+  }
+}
 
-    pMeta->pVnode->config.vndStats.itvTimeSeries = (TD_VID(pMeta->pVnode) % 100) * 2;
+static FORCE_INLINE int64_t metaGetTimeSeriesNumImpl(SMeta *pMeta, bool forceUpd) {
+  // sum of (number of columns of stable -  1) * number of ctables (excluding timestamp column)
+  SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
+  if (forceUpd || pStats->numOfTimeSeries <= 0) {
+    metaUpdTimeSeriesNum(pMeta);
   }
 
-  return pMeta->pVnode->config.vndStats.numOfTimeSeries + pMeta->pVnode->config.vndStats.numOfNTimeSeries;
+  return pStats->numOfTimeSeries + pStats->numOfNTimeSeries;
+}
+
+// type: 1 reported timeseries
+int64_t metaGetTimeSeriesNum(SMeta *pMeta, int type) {
+  int64_t nTimeSeries = metaGetTimeSeriesNumImpl(pMeta, false);
+  if (type == 1) {
+    atomic_store_64(&pMeta->pVnode->config.vndStats.numOfReportedTimeSeries, nTimeSeries);
+  }
+  return nTimeSeries;
 }
 
 typedef struct {
@@ -1506,9 +1517,10 @@ _exit:
   return code;
 }
 
-int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables) {
+int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t *numOfCols) {
   int32_t code = 0;
-  *numOfTables = 0;
+
+  if (!numOfTables && !numOfCols) goto _exit;
 
   SVnode *pVnodeObj = pVnode;
   metaRLock(pVnodeObj->pMeta);
@@ -1517,19 +1529,26 @@ int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables) {
   SMetaStbStats state = {0};
   if (metaStatsCacheGet(pVnodeObj->pMeta, uid, &state) == TSDB_CODE_SUCCESS) {
     metaULock(pVnodeObj->pMeta);
-    *numOfTables = state.ctbNum;
+    if (numOfTables) *numOfTables = state.ctbNum;
+    if (numOfCols) *numOfCols = state.colNum;
+    ASSERTS(state.colNum > 0, "vgId:%d, suid:%" PRIi64 " nCols:%d <= 0 in metaCache", TD_VID(pVnodeObj), uid,
+            state.colNum);
     goto _exit;
   }
 
   // slow path: search TDB
   int64_t ctbNum = 0;
+  int32_t colNum = 0;
   vnodeGetCtbNum(pVnode, uid, &ctbNum);
-
+  vnodeGetStbColumnNum(pVnode, uid, &colNum);
   metaULock(pVnodeObj->pMeta);
-  *numOfTables = ctbNum;
+
+  if (numOfTables) *numOfTables = ctbNum;
+  if (numOfCols) *numOfCols = colNum;
 
   state.uid = uid;
   state.ctbNum = ctbNum;
+  state.colNum = colNum;
 
   // upsert the cache
   metaWLock(pVnodeObj->pMeta);
@@ -1540,12 +1559,12 @@ _exit:
   return code;
 }
 
-void metaUpdateStbStats(SMeta *pMeta, int64_t uid, int64_t delta) {
+void metaUpdateStbStats(SMeta *pMeta, int64_t uid, int64_t deltaCtb, int32_t deltaCol) {
   SMetaStbStats stats = {0};
 
   if (metaStatsCacheGet(pMeta, uid, &stats) == TSDB_CODE_SUCCESS) {
-    stats.ctbNum += delta;
-
+    stats.ctbNum += deltaCtb;
+    stats.colNum += deltaCol;
     metaStatsCacheUpsert(pMeta, &stats);
   }
 }
