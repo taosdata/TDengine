@@ -900,16 +900,18 @@ static void tLDataIterPinSttBlock(SLDataIter* pIter, const char* id) {
   if (pInfo->blockData[0].sttBlockIndex == pIter->iSttBlk) {
     pInfo->blockData[0].pin = true;
     ASSERT(!pInfo->blockData[1].pin);
+    tsdbDebug("pin stt-block, blockIndex:%d, stt-fileVer:%" PRId64 " %s", pIter->iSttBlk, pIter->cid, id);
     return;
   }
 
   if (pInfo->blockData[1].sttBlockIndex == pIter->iSttBlk) {
     pInfo->blockData[1].pin = true;
     ASSERT(!pInfo->blockData[0].pin);
+    tsdbDebug("pin stt-block, blockIndex:%d, stt-fileVer:%"PRId64" %s", pIter->iSttBlk, pIter->cid, id);
     return;
   }
 
-  tsdbError("failed to pin any stt block, sttBlock:%d, %s", pIter->iSttBlk, id);
+  tsdbError("failed to pin any stt block, sttBlock:%d stt-fileVer:%"PRId64" %s", pIter->iSttBlk, pIter->cid, id);
 }
 
 static void tLDataIterUnpinSttBlock(SLDataIter* pIter, const char* id) {
@@ -917,33 +919,39 @@ static void tLDataIterUnpinSttBlock(SLDataIter* pIter, const char* id) {
   if (pInfo->blockData[0].pin) {
     ASSERT(!pInfo->blockData[1].pin);
     pInfo->blockData[0].pin = false;
+    tsdbDebug("unpin stt-block, blockIndex:%d, stt-fileVer:%"PRId64" %s", pInfo->blockData[1].sttBlockIndex,
+        pIter->cid, id);
     return;
   }
 
   if (pInfo->blockData[1].pin) {
     ASSERT(!pInfo->blockData[0].pin);
     pInfo->blockData[1].pin = false;
+    tsdbDebug("pin stt-block, blockIndex:%d, stt-fileVer:%" PRId64 " %s", pInfo->blockData[1].sttBlockIndex, pIter->cid,
+              id);
     return;
   }
 
-  tsdbError("failed to unpin any stt block, sttBlock:%d, %s", pIter->iSttBlk, id);
+  tsdbError("failed to unpin any stt block, sttBlock:%d stt-fileVer:%" PRId64 " %s", pIter->iSttBlk, pIter->cid, id);
 }
 
 void tMergeTreePinSttBlock(SMergeTree *pMTree) {
   if (pMTree->pIter == NULL) {
-      return;
+    return;
   }
 
-  SLDataIter* pIter = pMTree->pIter;
+  SLDataIter *pIter = pMTree->pIter;
+  pMTree->pPinnedBlockIter = pIter;
   tLDataIterPinSttBlock(pIter, pMTree->idStr);
 }
 
 void tMergeTreeUnpinSttBlock(SMergeTree *pMTree) {
-  if (pMTree->pIter == NULL) {
+  if (pMTree->pPinnedBlockIter == NULL) {
     return;
   }
 
-  SLDataIter* pIter = pMTree->pIter;
+  SLDataIter* pIter = pMTree->pPinnedBlockIter;
+  pMTree->pPinnedBlockIter = NULL;
   tLDataIterUnpinSttBlock(pIter, pMTree->idStr);
 }
 
@@ -981,8 +989,5 @@ bool tMergeTreeNext(SMergeTree *pMTree) {
 
 void tMergeTreeClose(SMergeTree *pMTree) {
   pMTree->pIter = NULL;
-  if (pMTree->destroyLoadInfo) {
-    pMTree->pLoadInfo = destroyLastBlockLoadInfo(pMTree->pLoadInfo);
-    pMTree->destroyLoadInfo = false;
-  }
+  pMTree->pPinnedBlockIter = NULL;
 }
