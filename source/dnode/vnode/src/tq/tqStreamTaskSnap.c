@@ -198,8 +198,6 @@ int32_t streamTaskSnapWriterClose(SStreamTaskWriter* pWriter, int8_t rollback) {
 
   taosWLockLatch(&pTq->pStreamMeta->lock);
   tqDebug("vgId:%d, vnode stream-task snapshot writer closed", TD_VID(pTq->pVnode));
-
-  taosWLockLatch(&pTq->pStreamMeta->lock);
   if (rollback) {
     tdbAbort(pTq->pStreamMeta->db, pTq->pStreamMeta->txn);
   } else {
