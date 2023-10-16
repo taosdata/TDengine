@@ -746,13 +746,12 @@ typedef struct SSttBlockLoadInfo {
 } SSttBlockLoadInfo;
 
 typedef struct SMergeTree {
-  int8_t             backward;
-  SRBTree            rbt;
-  SLDataIter        *pIter;
-  bool               destroyLoadInfo;
-  SSttBlockLoadInfo *pLoadInfo;
-  const char        *idStr;
-  bool               ignoreEarlierTs;
+  int8_t      backward;
+  SRBTree     rbt;
+  SLDataIter *pIter;
+  SLDataIter *pPinnedBlockIter;
+  const char *idStr;
+  bool        ignoreEarlierTs;
 } SMergeTree;
 
 typedef struct {
