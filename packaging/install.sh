@@ -221,11 +221,6 @@ install_taosx() {
       ${csudo}systemctl enable ${xName}
     fi
 
-    agent_service_config="${SERVICE_CONFIG_DIR}/${agentname}.service"
-    if [ -e "$agent_service_config" ]; then
-      ${csudo}systemctl enable ${agentname}
-    fi
-
     explore_service_config="${SERVICE_CONFIG_DIR}/${explorerName}.service"
     if [ -e "$explore_service_config" ]; then
       ${csudo}systemctl enable ${explorerName}
