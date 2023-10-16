@@ -27,6 +27,7 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "msg.with.table.name", "true");
   tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set(conf, "enable.replay", "true");
+  tmq_conf_set(conf, "auto.offset.reset", "earliest");
 
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
   assert(tmq);
