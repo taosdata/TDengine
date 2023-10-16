@@ -307,7 +307,6 @@ typedef struct STagScanInfo {
   SSDataBlock*          pRes;
   SColMatchInfo         matchInfo;
   int32_t               curPos;
-  SLimitNode*           pSlimit;
   SReadHandle           readHandle;
   STableListInfo*       pTableListInfo;
   uint64_t              suid;
@@ -318,6 +317,7 @@ typedef struct STagScanInfo {
   SArray*               aUidTags;     // SArray<STUidTagInfo>
   SArray*               aFilterIdxs;  // SArray<int32_t>
   SStorageAPI*          pStorageAPI;
+  SLimitInfo           limitInfo;
 } STagScanInfo;
 
 typedef enum EStreamScanMode {
