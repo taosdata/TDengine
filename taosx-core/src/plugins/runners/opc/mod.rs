@@ -394,12 +394,12 @@ impl OPCConfig {
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else if csv_config_file.is_some() {
-                    let res =
-                        generate_opcconfig_from_csv("opcua", csv_config_file.clone().unwrap().as_str())
-                            .await
-                            .map_err(|err| {
-                                OpcError::ConfigError("csv_config_file", err.to_string())
-                            })?;
+                    let res = generate_opcconfig_from_csv(
+                        "opcua",
+                        csv_config_file.clone().unwrap().as_str(),
+                    )
+                    .await
+                    .map_err(|err| OpcError::ConfigError("csv_config_file", err.to_string()))?;
                     opc_table_config = Some(res.0);
                     for child_table_name in res.2.iter() {
                         let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
@@ -484,12 +484,12 @@ impl OPCConfig {
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else if csv_config_file.is_some() {
-                    let res =
-                        generate_opcconfig_from_csv("opcda", csv_config_file.clone().unwrap().as_str())
-                            .await
-                            .map_err(|err| {
-                                OpcError::ConfigError("csv_config_file", err.to_string())
-                            })?;
+                    let res = generate_opcconfig_from_csv(
+                        "opcda",
+                        csv_config_file.clone().unwrap().as_str(),
+                    )
+                    .await
+                    .map_err(|err| OpcError::ConfigError("csv_config_file", err.to_string()))?;
                     opc_table_config = Some(res.0);
                     for child_table_name in res.2.iter() {
                         let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
@@ -629,6 +629,7 @@ pub fn parse_bool_param_from_dsn(dsn: &mut Dsn, key: &str) -> anyhow::Result<Opt
 
 const CSV_CONFIG_COLUMNS: [&str; 2] = ["point_id", "tbname"];
 
+use crate::runners::log_rotation;
 use crate::validation::DataSourceValidation;
 pub use tokio_stream::StreamExt;
 
@@ -748,8 +749,9 @@ pub async fn generate_opcconfig_from_csv(
                     let pointid = point_id.clone();
                     drop(point_id);
                     let tb_name = record_map.get_mut("tbname").unwrap();
-                    if tb_name.contains("{") { // maybe should use pattern match?
-                         *tb_name = generate_tbname_from_pattern(ty, tb_name, &pointid);
+                    if tb_name.contains("{") {
+                        // maybe should use pattern match?
+                        *tb_name = generate_tbname_from_pattern(ty, tb_name, &pointid);
                     }
                     drop(tb_name);
                     let point_id = record_map.get("point_id").unwrap();
@@ -849,7 +851,6 @@ pub async fn generate_opcconfig_from_csv(
                         column_config_init = true;
                     }
 
-
                     let tag_values = if tag_values_map.len() == 0 {
                         None
                     } else {
@@ -911,11 +912,15 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
         lang: None,
     };
     let all_points = opc_datasets(&data).await?;
-    let point_config = all_points.iter().map(|point| {
-        let point_id = point.id.clone();
-        let tbname = generate_tbname_from_pattern(&dsn.driver, &child_table_expression, &point_id);
-        format!("{}::{}", point_id, tbname)
-    }).join(",");
+    let point_config = all_points
+        .iter()
+        .map(|point| {
+            let point_id = point.id.clone();
+            let tbname =
+                generate_tbname_from_pattern(&dsn.driver, &child_table_expression, &point_id);
+            format!("{}::{}", point_id, tbname)
+        })
+        .join(",");
     if dsn.driver.as_str() == "opcua" {
         dsn.set("ua.nodes", point_config);
     } else {
@@ -1004,14 +1009,15 @@ fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> Stri
         } else {
             None
         };
-        tb_name.clone()
+        tb_name
+            .clone()
             .replace("{ns}", ns.unwrap_or(""))
             .replace("{id}", id.unwrap_or(""))
     } else {
         let tag_index = point_id.rfind(".");
         let tag_name = if let Some(index) = tag_index {
             // should be Device.DeviceType.TagName pattern
-            &point_id[index+1..]
+            &point_id[index + 1..]
         } else {
             &point_id
         };
@@ -1225,18 +1231,7 @@ pub async fn opc_to_taos(
 
     let log_keep_days = get_log_keep_days();
 
-    let mut log_rotation = FileRotate::new(
-        &log_path,
-        AppendTimestamp::with_format(
-            "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::days(log_keep_days)),
-            DateFrom::DateYesterday,
-        ),
-        ContentLimit::Time(TimeFrequency::Daily),
-        Compression::None,
-        #[cfg(unix)]
-        None,
-    );
+    let mut log_rotation = log_rotation(&log_path, log_keep_days);
 
     let child = command
         .arg("collect")

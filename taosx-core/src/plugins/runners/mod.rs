@@ -1,5 +1,9 @@
+use file_rotate::compression::Compression;
+use file_rotate::suffix::{AppendTimestamp, DateFrom, FileLimit};
+use file_rotate::{ContentLimit, FileRotate, TimeFrequency};
 use std::path::{Path, PathBuf};
 
+mod config;
 pub mod historian;
 pub mod influxdb;
 pub mod kafka;
@@ -91,6 +95,21 @@ pub fn get_plugins_info() -> Vec<(&'static str, PathBuf, String)> {
         plugins.push(info)
     }
     plugins
+}
+
+pub fn log_rotation(log_path: &PathBuf, log_keep_days: i64) -> FileRotate<AppendTimestamp> {
+    FileRotate::new(
+        &log_path,
+        AppendTimestamp::with_format(
+            "%Y-%m-%d",
+            FileLimit::Age(chrono::Duration::days(log_keep_days)),
+            DateFrom::DateYesterday,
+        ),
+        ContentLimit::Time(TimeFrequency::Daily),
+        Compression::None,
+        #[cfg(unix)]
+        None,
+    )
 }
 
 #[test]

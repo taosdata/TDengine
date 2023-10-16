@@ -1,17 +1,14 @@
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
-use file_rotate::{
-    compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
-};
 use itertools::Itertools;
 use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, Span};
 
+use crate::runners::config::PerformanceConfig;
+use crate::runners::log_rotation;
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
 };
@@ -64,22 +61,6 @@ struct TaskConfig {
     task_end_time: Option<String>,
 }
 
-#[derive(Debug, serde::Serialize)]
-struct PerformanceConfig {
-    #[serde(rename = "readWindow")]
-    performance_read_window: u32,
-    #[serde(rename = "delay")]
-    performance_delay: u32,
-    #[serde(rename = "maxThread")]
-    performance_max_thread: u32,
-    #[serde(rename = "queueSizeT")]
-    performance_queue_size_thread: u32,
-    #[serde(rename = "queueSizeD")]
-    performance_queue_size_data: u32,
-    #[serde(rename = "limitSpeed")]
-    performance_limit_speed: u32,
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum OpentsdbError {
     #[error("The access address of OpenTSDB is required: {0}")]
@@ -127,36 +108,7 @@ impl OpentsdbConfig {
         let task_end_ime = dsn.remove("endTime");
 
         // the performance config
-        let performance_read_window = dsn
-            .remove("readWindow")
-            .unwrap_or(String::from("2"))
-            .parse::<u32>()
-            .unwrap_or(2);
-        let performance_delay = dsn
-            .remove("delay")
-            .unwrap_or(String::from("10000"))
-            .parse::<u32>()
-            .unwrap_or(10000);
-        let performance_max_thread = dsn
-            .remove("maxThread")
-            .unwrap_or(String::from("50"))
-            .parse::<u32>()
-            .unwrap_or(50);
-        let performance_queue_size_thread = dsn
-            .remove("queueSizeT")
-            .unwrap_or(String::from("1000"))
-            .parse::<u32>()
-            .unwrap_or(1000);
-        let performance_queue_size_data = dsn
-            .remove("queueSizeD")
-            .unwrap_or(String::from("200000"))
-            .parse::<u32>()
-            .unwrap_or(200000);
-        let performance_limit_speed = dsn
-            .remove("limitSpeed")
-            .unwrap_or(String::from("100000"))
-            .parse::<u32>()
-            .unwrap_or(100000);
+        let performance = PerformanceConfig::from_dsn(&dsn)?;
 
         // agent监听地址
         let ipc_stream = format!("127.0.0.1:{ipc}");
@@ -173,15 +125,6 @@ impl OpentsdbConfig {
             task_metrics,
             task_begin_time,
             task_end_time: task_end_ime,
-        };
-
-        let performance = PerformanceConfig {
-            performance_read_window,
-            performance_delay,
-            performance_max_thread,
-            performance_queue_size_thread,
-            performance_queue_size_data,
-            performance_limit_speed,
         };
 
         Ok(Self {
@@ -324,18 +267,7 @@ pub async fn opentsdb_to_taos(
 
     let log_keep_days = get_log_keep_days();
 
-    let mut log_rotation = FileRotate::new(
-        &log_path,
-        AppendTimestamp::with_format(
-            "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::days(log_keep_days)),
-            DateFrom::DateYesterday,
-        ),
-        ContentLimit::Time(TimeFrequency::Daily),
-        Compression::None,
-        #[cfg(unix)]
-        None,
-    );
+    let mut log_rotation = log_rotation(&log_path, log_keep_days);
 
     // get the version of jdk
     let get_jdk_version = tokio::process::Command::new("java")

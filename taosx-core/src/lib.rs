@@ -489,6 +489,14 @@ mod tests {
         assert_eq!(true, dsv.support);
         assert_eq!("historian", dsv.data_source);
 
+        // influxdb
+        let dsn = Dsn::from_str("influxdb://").unwrap();
+        let dsv = validate_dsn(dsn);
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("influxdb", dsv.data_source);
+        assert_eq!("", dsv.version.unwrap());
+
         // kafka
         let dsn = Dsn::from_str("kafka://192.168.1.92:9092").unwrap();
         let dsv = validate_dsn(dsn);

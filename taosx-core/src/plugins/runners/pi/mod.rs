@@ -14,11 +14,11 @@ use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::{Map, Value};
 use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
-// use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 use toml::value::Datetime;
 use tracing::{instrument, Span};
 
+use crate::runners::log_rotation;
 use crate::validation::DataSourceValidation;
 use crate::{
     build_ipc, get_log_keep_days,
@@ -749,18 +749,7 @@ pub async fn pi_to_taos(
 
     let log_keep_days = get_log_keep_days();
 
-    let mut log_rotation = FileRotate::new(
-        &log_path,
-        AppendTimestamp::with_format(
-            "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::days(log_keep_days)),
-            DateFrom::DateYesterday,
-        ),
-        ContentLimit::Time(TimeFrequency::Daily),
-        Compression::None,
-        #[cfg(unix)]
-        None,
-    );
+    let mut log_rotation = log_rotation(&log_path, log_keep_days);
 
     let mut child_command;
 

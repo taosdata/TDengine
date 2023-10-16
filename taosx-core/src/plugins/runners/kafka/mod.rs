@@ -31,7 +31,11 @@ pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match config {
         Err(err) => DataSourceValidation::invalid(
             "kafka".to_string(),
-            format!("invalid dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
+            format!(
+                "invalid dsn: {}, cause: {}",
+                dsn.to_string(),
+                err.to_string()
+            ),
         ),
         Ok(c) => {
             let mut client = KafkaClient::new(c.bootstrap_servers);
