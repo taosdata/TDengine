@@ -123,6 +123,7 @@ typedef struct list_bucket_callback_data {
   char     nextMarker[1024];
   int      keyCount;
   int      allDetails;
+  SArray  *objectArray;
   S3Status status;
   char     err_msg[4096];
 } list_bucket_callback_data;
@@ -149,7 +150,9 @@ static S3Status listBucketCallback(int isTruncated, const char *nextMarker, int 
   int i;
   for (i = 0; i < contentsCount; ++i) {
     const S3ListBucketContent *content = &(contents[i]);
-    printf("%-50s", content->key);
+    // printf("%-50s", content->key);
+    char *object_key = strdup(content->key);
+    taosArrayPush(data->objectArray, &object_key);
   }
   data->keyCount += contentsCount;
 
@@ -158,6 +161,11 @@ static S3Status listBucketCallback(int isTruncated, const char *nextMarker, int 
   }
 
   return S3StatusOK;
+}
+
+static void s3FreeObjectKey(void *pItem) {
+  char *key = (char *)pItem;
+  taosMemoryFree(key);
 }
 
 void s3DeleteObjectsByPrefix(const char *prefix) {
@@ -169,7 +177,11 @@ void s3DeleteObjectsByPrefix(const char *prefix) {
   const char               *marker = 0, *delimiter = 0;
   int                       maxkeys = 0, allDetails = 0;
   list_bucket_callback_data data;
-
+  data.objectArray = taosArrayInit(32, POINTER_BYTES);
+  if (!data.objectArray) {
+    vError("%s: %s", __func__, "out of memoty");
+    return;
+  }
   if (marker) {
     snprintf(data.nextMarker, sizeof(data.nextMarker), "%s", marker);
   } else {
@@ -192,10 +204,13 @@ void s3DeleteObjectsByPrefix(const char *prefix) {
   if (data.status == S3StatusOK) {
     if (!data.keyCount) {
       // printListBucketHeader(allDetails);
+      s3DeleteObjects(TARRAY_DATA(data.objectArray), TARRAY_SIZE(data.objectArray));
     }
   } else {
     s3PrintError(__func__, data.status, data.err_msg);
   }
+
+  taosArrayDestroyEx(data.objectArray, s3FreeObjectKey);
 }
 
 void s3DeleteObjects(const char *object_name[], int nobject) {
