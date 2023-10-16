@@ -18,7 +18,7 @@
 #define MAX_STREAM_EXEC_BATCH_NUM                 32
 #define MAX_SMOOTH_BURST_RATIO                    5     // 5 sec
 #define WAIT_FOR_DURATION                         40
-#define SINK_TASK_IDLE_DURATION                   200   // 200 ms
+#define OUTPUT_QUEUE_FULL_WAIT_DURATION           500   // 500 ms
 
 // todo refactor:
 // read data from input queue
@@ -117,14 +117,6 @@ int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue) {
   int32_t numOfItems2 = taosQallItemSize(pQueue->qall);
 
   return numOfItems1 + numOfItems2;
-}
-
-int32_t streamQueueGetAvailableSpace(const SStreamQueue* pQueue, int32_t* availNum, double* availSize) {
-  int32_t num = streamQueueGetNumOfItems(pQueue);
-  *availNum = STREAM_TASK_QUEUE_CAPACITY - num;
-
-  *availSize = STREAM_TASK_QUEUE_CAPACITY_IN_SIZE - taosQueueMemorySize(pQueue->pQueue);
-  return 0;
 }
 
 // todo: fix it: data in Qall is not included here
@@ -362,9 +354,10 @@ int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBloc
     int32_t total = streamQueueGetNumOfItems(pTask->outputq.queue);
     double  size = SIZE_IN_MiB(taosQueueMemorySize(pQueue));
     // let's wait for there are enough space to hold this result pBlock
-    stDebug("s-task:%s outputQ is full, wait for 500ms and retry, outputQ items:%d, size:%.2fMiB", pTask->id.idStr,
-           total, size);
-    taosMsleep(500);
+    stDebug("s-task:%s outputQ is full, wait for %dms and retry, outputQ items:%d, size:%.2fMiB", pTask->id.idStr,
+            OUTPUT_QUEUE_FULL_WAIT_DURATION, total, size);
+
+    taosMsleep(OUTPUT_QUEUE_FULL_WAIT_DURATION);
   }
 
   int32_t code = taosWriteQitem(pQueue, pBlock);
@@ -381,7 +374,7 @@ int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBloc
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, int32_t quotaRate) {
+int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate) {
   if (numCap < 10 || numRate < 10 || pBucket == NULL) {
     stError("failed to init sink task bucket, cap:%d, rate:%d", numCap, numRate);
     return TSDB_CODE_INVALID_PARA;
