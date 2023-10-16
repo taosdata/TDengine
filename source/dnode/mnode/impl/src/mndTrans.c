@@ -470,7 +470,6 @@ void mndTransDropData(STrans *pTrans) {
     pTrans->param = NULL;
     pTrans->paramLen = 0;
   }
-  (void)taosThreadMutexDestroy(&pTrans->mutex);
 }
 
 static int32_t mndTransDelete(SSdb *pSdb, STrans *pTrans, bool callFunc) {
@@ -543,10 +542,6 @@ STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId) {
   STrans *pTrans = sdbAcquire(pMnode->pSdb, SDB_TRANS, &transId);
   if (pTrans == NULL) {
     terrno = TSDB_CODE_MND_TRANS_NOT_EXIST;
-  } else {
-    #ifdef WINDOWS
-    taosThreadMutexInit(&pTrans->mutex, NULL);
-    #endif
   }
   return pTrans;
 }
@@ -582,7 +577,6 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
   pTrans->pRpcArray = taosArrayInit(1, sizeof(SRpcHandleInfo));
   pTrans->mTraceId = pReq ? TRACE_GET_ROOTID(&pReq->info.traceId) : tGenIdPI64();
   taosInitRWLatch(&pTrans->lockRpcArray);
-  taosThreadMutexInit(&pTrans->mutex, NULL);
 
   if (pTrans->redoActions == NULL || pTrans->undoActions == NULL || pTrans->commitActions == NULL ||
       pTrans->pRpcArray == NULL) {
@@ -1264,10 +1258,10 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
   int32_t numOfActions = taosArrayGetSize(pTrans->redoActions);
   if (numOfActions == 0) return code;
 
-  taosThreadMutexLock(&pTrans->mutex);
+  if (atomic_val_compare_exchange_8(&pTrans->lock, 0, 1) != 0) return code;
 
   if (pTrans->redoActionPos >= numOfActions) {
-    taosThreadMutexUnlock(&pTrans->mutex);
+    atomic_store_8(&pTrans->lock, 0);
     return code;
   }
 
@@ -1339,7 +1333,7 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
     }
   }
 
-  taosThreadMutexUnlock(&pTrans->mutex);
+  atomic_store_8(&pTrans->lock, 0);
 
   return code;
 }
