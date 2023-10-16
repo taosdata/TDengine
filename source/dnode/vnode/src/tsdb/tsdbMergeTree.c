@@ -909,7 +909,7 @@ static void tLDataIterPinSttBlock(SLDataIter* pIter, const char* id) {
     return;
   }
 
-  tsdbError("failed to pin any stt block, sttBlock:%d", pIter->iSttBlk, id);
+  tsdbError("failed to pin any stt block, sttBlock:%d, %s", pIter->iSttBlk, id);
 }
 
 static void tLDataIterUnpinSttBlock(SLDataIter* pIter, const char* id) {
@@ -926,7 +926,7 @@ static void tLDataIterUnpinSttBlock(SLDataIter* pIter, const char* id) {
     return;
   }
 
-  tsdbError("failed to unpin any stt block, sttBlock:%d", pIter->iSttBlk, id);
+  tsdbError("failed to unpin any stt block, sttBlock:%d, %s", pIter->iSttBlk, id);
 }
 
 void tMergeTreePinSttBlock(SMergeTree *pMTree) {
