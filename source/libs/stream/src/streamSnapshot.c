@@ -19,6 +19,7 @@
 #include "streamBackendRocksdb.h"
 #include "streamInt.h"
 #include "tcommon.h"
+#include "streamInt.h"
 
 enum SBackendFileType {
   ROCKSDB_OPTIONS_TYPE = 1,
