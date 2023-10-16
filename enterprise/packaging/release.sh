@@ -255,7 +255,7 @@ if [[ -z "${cusName}" ]] && [[  -z "${cusPrompt}" ]] && [[ -z "${cusEmail}" ]]; 
   cusPrompt="taos"
   cusEmail="support@taosdata.com"
   BUILD_TAOSX=false
-  BUILD_EXPLORER=false  
+  BUILD_EXPLORER=false
 else
   BUILD_TAOSX=true
   BUILD_EXPLORER=true
@@ -351,7 +351,7 @@ if [ "$osType" != "Darwin" ]; then
     fi
   fi
 
-  if [[ "$verMode" == "cluster" ]]; then
+  if [[ "$verMode" == "cluster" ]] && [[ "$verMode" != "cloud" ]]; then
     echo "==== generate taosx package ===="
     cd ${top_dir}/enterprise/src/plugins/taosx/packaging
     python3 release.py -ob

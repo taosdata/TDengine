@@ -36,7 +36,7 @@ rm -rf debs/*
 rm -rf rpms/*
 
 if [ "$cpuType" == "x64" ]; then
-  allocator=jemalloc
+  allocator=glibc
 fi
 # generate lite version in x64
 if [ "$cpuType" == "x64" ]; then
