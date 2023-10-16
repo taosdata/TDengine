@@ -865,16 +865,14 @@ static void tLDataIterUnpinSttBlock(SLDataIter* pIter, const char* id) {
   if (pInfo->blockData[0].pin) {
     ASSERT(!pInfo->blockData[1].pin);
     pInfo->blockData[0].pin = false;
-    tsdbDebug("unpin stt-block, blockIndex:%d, stt-fileVer:%"PRId64" %s", pInfo->blockData[1].sttBlockIndex,
-        pIter->cid, id);
+    tsdbTrace("unpin stt-block:%d, stt-fileVer:%" PRId64 " %s", pInfo->blockData[0].sttBlockIndex, pIter->cid, id);
     return;
   }
 
   if (pInfo->blockData[1].pin) {
     ASSERT(!pInfo->blockData[0].pin);
     pInfo->blockData[1].pin = false;
-    tsdbDebug("pin stt-block, blockIndex:%d, stt-fileVer:%" PRId64 " %s", pInfo->blockData[1].sttBlockIndex, pIter->cid,
-              id);
+    tsdbTrace("unpin stt-block:%d, stt-fileVer:%" PRId64 " %s", pInfo->blockData[1].sttBlockIndex, pIter->cid, id);
     return;
   }
 
