@@ -2790,7 +2790,7 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   if (tEncodeI32(&encoder, pReq->keepTimeOffset) < 0) return -1;
 
   ENCODESQL();
-  if (tEncodeI8(&encoder, pReq->arbitrator) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->withArbitrator) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2859,9 +2859,9 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   }
 
   DECODESQL();
-  pReq->arbitrator = TSDB_DEFAULT_DB_ARBITRATOR;
+  pReq->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
   if (!tDecodeIsEnd(&decoder)) {
-    if (tDecodeI8(&decoder, &pReq->arbitrator) < 0) return -1;
+    if (tDecodeI8(&decoder, &pReq->withArbitrator) < 0) return -1;
   }
 
   tEndDecode(&decoder);
@@ -3698,7 +3698,7 @@ int32_t tSerializeSDbCfgRspImpl(SEncoder *encoder, const SDbCfgRsp *pRsp) {
   if (tEncodeI8(encoder, pRsp->schemaless) < 0) return -1;
   if (tEncodeI16(encoder, pRsp->sstTrigger) < 0) return -1;
   if (tEncodeI32(encoder, pRsp->keepTimeOffset) < 0) return -1;
-  if (tEncodeI8(encoder, pRsp->arbitrator) < 0) return -1;
+  if (tEncodeI8(encoder, pRsp->withArbitrator) < 0) return -1;
 
   return 0;
 }
@@ -3771,9 +3771,9 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
   if (!tDecodeIsEnd(decoder)) {
     if (tDecodeI32(decoder, &pRsp->keepTimeOffset) < 0) return -1;
   }
-  pRsp->arbitrator = TSDB_DEFAULT_DB_ARBITRATOR;
+  pRsp->withArbitrator = TSDB_DEFAULT_DB_WITH_ARBITRATOR;
   if (!tDecodeIsEnd(decoder)) {
-    if (tDecodeI8(decoder, &pRsp->arbitrator) < 0) return -1;
+    if (tDecodeI8(decoder, &pRsp->withArbitrator) < 0) return -1;
   }
 
   return 0;

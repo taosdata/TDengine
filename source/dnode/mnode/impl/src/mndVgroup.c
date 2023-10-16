@@ -913,7 +913,7 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
 
   pNormalArray = mndBuildNormalDnodesArray(pMnode, 0);
   if (pNormalArray == NULL) goto _OVER;
-  if (pDb->cfg.arbitrator) {
+  if (pDb->cfg.withArbitrator) {
     pArbitratorArray = mndBuildArbitratorDnodesArray(pMnode, 0);
     if (pArbitratorArray == NULL) goto _OVER;
   }
@@ -944,8 +944,8 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
 
     memcpy(pVgroup->dbName, pDb->name, TSDB_DB_FNAME_LEN);
     pVgroup->dbUid = pDb->uid;
-    pVgroup->hasArbitrator = pDb->cfg.arbitrator;
-    pVgroup->replica = pDb->cfg.arbitrator ? pDb->cfg.replications + 1 : pDb->cfg.replications;
+    pVgroup->hasArbitrator = pDb->cfg.withArbitrator;
+    pVgroup->replica = pDb->cfg.withArbitrator ? pDb->cfg.replications + 1 : pDb->cfg.replications;
 
     if (mndGetAvailableDnode(pMnode, pDb, pVgroup, pNormalArray, pArbitratorArray) != 0) {
       goto _OVER;

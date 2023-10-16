@@ -1174,11 +1174,7 @@ int32_t syncNodeStart(SSyncNode* pSyncNode) {
   // start raft
   if (pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodeRole == TAOS_SYNC_ROLE_LEARNER) {
     syncNodeBecomeLearner(pSyncNode, "first start");
-  // } else if (pSyncNode->myNodeInfo.nodeRole == TAOS_SYNC_ROLE_ARBITRATOR) {
-  //   syncNodeBecomeArbitrator(pSyncNode, "first start");
-  //
-  }
-  else {
+  } else {
     if (pSyncNode->replicaNum == 1) {
       raftStoreNextTerm(pSyncNode);
       syncNodeBecomeLeader(pSyncNode, "one replica start");
@@ -1693,12 +1689,8 @@ void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term) {
     raftStoreSetTerm(pSyncNode, term);
     char tmpBuf[64];
     snprintf(tmpBuf, sizeof(tmpBuf), "update term to %" PRId64, term);
-    // if (pSyncNode->myNodeInfo.nodeRole == TAOS_SYNC_ROLE_ARBITRATOR) {
-    //   syncNodeBecomeArbitrator(pSyncNode, "step down");
-    // } else
-    {
-      syncNodeBecomeFollower(pSyncNode, "step down");
-    }
+  } else {
+    syncNodeBecomeFollower(pSyncNode, "step down");
     raftStoreClearVote(pSyncNode);
   }
 }
@@ -1724,21 +1716,11 @@ void syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm) {
     raftStoreSetTerm(pSyncNode, newTerm);
     char tmpBuf[64];
     snprintf(tmpBuf, sizeof(tmpBuf), "step down, update term to %" PRId64, newTerm);
-    // if (pSyncNode->myNodeInfo.nodeRole == TAOS_SYNC_ROLE_ARBITRATOR) {
-    //   syncNodeBecomeArbitrator(pSyncNode, "step down");
-    // } else
-    {
-      syncNodeBecomeFollower(pSyncNode, "step down");
-    }
+    syncNodeBecomeFollower(pSyncNode, "step down");
     raftStoreClearVote(pSyncNode);
   } else {
     if (pSyncNode->state != TAOS_SYNC_STATE_FOLLOWER) {
-      // if (pSyncNode->myNodeInfo.nodeRole == TAOS_SYNC_ROLE_ARBITRATOR) {
-      //   syncNodeBecomeArbitrator(pSyncNode, "step down");
-      // } else
-      {
         syncNodeBecomeFollower(pSyncNode, "step down");
-      }
     }
   }
 }
@@ -1891,41 +1873,6 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
 
   // trace log
   sNInfo(pSyncNode, "become leader %s", debugStr);
-}
-
-void syncNodeBecomeArbitrator(SSyncNode* pSyncNode, const char* debugStr) {
-  syncNodeBecomeFollower(pSyncNode, debugStr);
-  // // maybe clear leader cache
-  // if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
-  //   pSyncNode->leaderCache = EMPTY_RAFT_ID;
-  // }
-
-  // pSyncNode->hbSlowNum = 0;
-
-  // // state change
-  // pSyncNode->state = TAOS_SYNC_STATE_ARIBRATOR;
-  // pSyncNode->roleTimeMs = taosGetTimestampMs();
-  // syncNodeStopHeartbeatTimer(pSyncNode);
-
-  // // trace log
-  // sNTrace(pSyncNode, "become arbitrator %s", debugStr);
-
-  // // send rsp to client
-  // syncNodeLeaderChangeRsp(pSyncNode);
-
-  // // call back
-  // if (pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpBecomeArbitratorCb != NULL) {
-  //   pSyncNode->pFsm->FpBecomeArbitratorCb(pSyncNode->pFsm);
-  // }
-
-  // // min match index
-  // pSyncNode->minMatchIndex = SYNC_INDEX_INVALID;
-
-  // // reset log buffer
-  // syncLogBufferReset(pSyncNode->pLogBuf, pSyncNode);
-
-  // // reset elect timer
-  // syncNodeResetElectTimer(pSyncNode);
 }
 
 void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {

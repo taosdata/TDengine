@@ -4314,7 +4314,7 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->tsdbPageSize = pStmt->pOptions->tsdbPageSize;
   pReq->keepTimeOffset = pStmt->pOptions->keepTimeOffset;
   pReq->ignoreExist = pStmt->ignoreExists;
-  pReq->arbitrator = pStmt->pOptions->arbitrator;
+  pReq->withArbitrator = pStmt->pOptions->withArbitrator;
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
 
@@ -4655,7 +4655,7 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
     code = checkDbTbPrefixSuffixOptions(pCxt, pOptions->tablePrefix, pOptions->tableSuffix);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbEnumOption(pCxt, "arbitrator", pOptions->arbitrator, TSDB_MIN_DB_ARBITRATOR, TSDB_MAX_DB_ARBITRATOR);
+    code = checkDbEnumOption(pCxt, "arbitrator", pOptions->withArbitrator, TSDB_MIN_DB_WITH_ARBITRATOR, TSDB_MAX_DB_WITH_ARBITRATOR);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkOptionsDependency(pCxt, pDbName, pOptions);
@@ -4861,7 +4861,6 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   pReq->minRows = pStmt->pOptions->minRowsPerBlock;
   pReq->walRetentionPeriod = pStmt->pOptions->walRetentionPeriod;
   pReq->walRetentionSize = pStmt->pOptions->walRetentionSize;
-  pReq->arbitrator = pStmt->pOptions->arbitrator;
   return;
 }
 

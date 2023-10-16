@@ -281,7 +281,6 @@ void syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm);
 void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr);
 void syncNodeBecomeLearner(SSyncNode* pSyncNode, const char* debugStr);
 void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr);
-void syncNodeBecomeArbitrator(SSyncNode* pSyncNode, const char* debugStr);
 void syncNodeCandidate2Leader(SSyncNode* pSyncNode);
 void syncNodeFollower2Candidate(SSyncNode* pSyncNode);
 void syncNodeLeader2Follower(SSyncNode* pSyncNode);

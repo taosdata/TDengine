@@ -65,7 +65,7 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_TABLE_PREFIX,
   DB_OPTION_TABLE_SUFFIX,
   DB_OPTION_KEEP_TIME_OFFSET,
-  DB_OPTION_ARBITRATOR,
+  DB_OPTION_WITH_ARBITRATOR,
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {

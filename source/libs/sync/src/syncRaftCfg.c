@@ -83,6 +83,10 @@ static int32_t syncEncodeSyncCfg(const void *pObj, SJson *pJson) {
     if (tjsonAddStringToObject(info, "nodeFqdn", pCfg->nodeInfo[i].nodeFqdn) < 0) return -1;
     if (tjsonAddIntegerToObject(info, "nodeId", pCfg->nodeInfo[i].nodeId) < 0) return -1;
     if (tjsonAddIntegerToObject(info, "clusterId", pCfg->nodeInfo[i].clusterId) < 0) return -1;
+    {
+      // for compatibility
+      if (tjsonAddStringToObject(info, "isReplica", syncRoleToStr(pCfg->nodeInfo[i].nodeRole)) < 0) return -1;
+    }
     if (tjsonAddStringToObject(info, "syncRole", syncRoleToStrV2(pCfg->nodeInfo[i].nodeRole)) < 0) return -1;
     if (tjsonAddItemToArray(nodeInfo, info) < 0) return -1;
   }

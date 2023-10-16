@@ -256,7 +256,7 @@ db_options(A) ::= db_options(B) STT_TRIGGER NK_INTEGER(C).                      
 db_options(A) ::= db_options(B) TABLE_PREFIX signed(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_TABLE_PREFIX, C); }
 db_options(A) ::= db_options(B) TABLE_SUFFIX signed(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_TABLE_SUFFIX, C); }
 db_options(A) ::= db_options(B) KEEP_TIME_OFFSET NK_INTEGER(C).                   { A = setDatabaseOption(pCxt, B, DB_OPTION_KEEP_TIME_OFFSET, &C); }
-db_options(A) ::= db_options(B) ARBITRATOR NK_INTEGER(C).                         { A = setDatabaseOption(pCxt, B, DB_OPTION_ARBITRATOR, &C); }
+db_options(A) ::= db_options(B) WITH_ARBITRATOR.                                  { A = setDatabaseOption(pCxt, B, DB_OPTION_WITH_ARBITRATOR, NULL); }
 
 alter_db_options(A) ::= alter_db_option(B).                                       { A = createAlterDatabaseOptions(pCxt); A = setAlterDatabaseOption(pCxt, A, &B); }
 alter_db_options(A) ::= alter_db_options(B) alter_db_option(C).                   { A = setAlterDatabaseOption(pCxt, B, &C); }
@@ -288,7 +288,6 @@ alter_db_option(A) ::= WAL_RETENTION_SIZE NK_MINUS(B) NK_INTEGER(C).            
                                                                                     A.type = DB_OPTION_WAL_RETENTION_SIZE; A.val = t;
                                                                                   }
 alter_db_option(A) ::= KEEP_TIME_OFFSET NK_INTEGER(B).                            { A.type = DB_OPTION_KEEP_TIME_OFFSET; A.val = B; }
-alter_db_option(A) ::= ARBITRATOR NK_INTEGER(B).                                  { A.type = DB_OPTION_ARBITRATOR; A.val = B; }
 
 %type integer_list                                                                { SNodeList* }
 %destructor integer_list                                                          { nodesDestroyList($$); }

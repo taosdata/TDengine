@@ -116,7 +116,7 @@
 #define TK_TABLE_PREFIX                    97
 #define TK_TABLE_SUFFIX                    98
 #define TK_KEEP_TIME_OFFSET                99
-#define TK_ARBITRATOR                     100
+#define TK_WITH_ARBITRATOR                100
 #define TK_NK_COLON                       101
 #define TK_BWLIMIT                        102
 #define TK_START                          103

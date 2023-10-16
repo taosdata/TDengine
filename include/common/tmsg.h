@@ -1132,7 +1132,7 @@ typedef struct {
   int16_t hashPrefix;
   int16_t hashSuffix;
   int32_t tsdbPageSize;
-  int8_t  arbitrator;
+  int8_t  withArbitrator;
   int32_t sqlLen;
   char*   sql;
 } SCreateDbReq;
@@ -1161,7 +1161,6 @@ typedef struct {
   int32_t minRows;
   int32_t walRetentionPeriod;
   int32_t walRetentionSize;
-  int8_t  arbitrator;
   int32_t sqlLen;
   char*   sql;
 } SAlterDbReq;
@@ -1286,7 +1285,7 @@ typedef struct {
   SArray* pRetensions;
   int8_t  schemaless;
   int16_t sstTrigger;
-  int8_t  arbitrator;
+  int8_t  withArbitrator;
 } SDbCfgRsp;
 
 typedef SDbCfgRsp SDbCfgInfo;
