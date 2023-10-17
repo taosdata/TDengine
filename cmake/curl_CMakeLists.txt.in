@@ -7,6 +7,7 @@ ExternalProject_Add(curl
         #GIT_REPOSITORY https://github.com/curl/curl.git
         #GIT_TAG curl-7_88_1
         SOURCE_DIR "${TD_CONTRIB_DIR}/curl"
+        DEPENDS openssl
         BUILD_IN_SOURCE TRUE
         BUILD_ALWAYS 1
         #UPDATE_COMMAND ""

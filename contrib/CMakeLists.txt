@@ -277,7 +277,6 @@ if(${BUILD_TEST})
         )
     endif(${TD_DARWIN})
 
-
 endif(${BUILD_TEST})
 
 # cJson
