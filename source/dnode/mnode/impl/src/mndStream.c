@@ -937,7 +937,7 @@ static int32_t mndBuildStreamCheckpointSourceReq2(void **pBuf, int32_t *pLen, in
 }
 // static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStream, int64_t checkpointId) {
 //   int64_t timestampMs = taosGetTimestampMs();
-//   if (timestampMs - pStream->checkpointFreq < tsStreamCheckpointTickInterval * 1000) {
+//   if (timestampMs - pStream->checkpointFreq < tsStreamCheckpointInterval * 1000) {
 //     return -1;
 //   }
 
