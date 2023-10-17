@@ -244,7 +244,7 @@ int32_t tsTtlBatchDropNum = 10000;   // number of tables dropped per batch
 // internal
 int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
-int32_t tsStreamCheckpointTickInterval = 300;
+int32_t tsStreamCheckpointInterval = 300;
 double  tsSinkDataRate = 2.0;
 int32_t tsStreamNodeCheckInterval = 30;
 int32_t tsTtlUnit = 86400;
@@ -269,8 +269,6 @@ int8_t tsS3Enabled = false;
 
 int32_t tsS3BlockSize = 4096;     // number of tsdb pages
 int32_t tsS3BlockCacheSize = 16;  // number of blocks
-
-int32_t tsCheckpointInterval = 300;
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -651,19 +649,18 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddBool(pCfg, "disableStream", tsDisableStream, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt64(pCfg, "streamBufferSize", tsStreamBufferSize, 0, INT64_MAX, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddInt64(pCfg, "checkpointInterval", tsStreamCheckpointTickInterval, 60, 1200, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt64(pCfg, "streamcheckpointInterval", tsStreamCheckpointInterval, 60, 1200, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddDouble(pCfg, "streamSinkDataRate", tsSinkDataRate, 0.1, 5, CFG_SCOPE_SERVER) != 0) return -1;
 
-  if (cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, CFG_SCOPE_SERVER) != 0)
-    return -1;
+  if (cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, CFG_SCOPE_SERVER) != 0) return -1;
 
-  if (cfgAddString(pCfg, "LossyColumns", tsLossyColumns, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddFloat(pCfg, "FPrecision", tsFPrecision, 0.0f, 100000.0f, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddDouble(pCfg, "DPrecision", tsDPrecision, 0.0f, 1000000.0f, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddInt32(pCfg, "MaxRange", tsMaxRange, 0, 65536, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddInt32(pCfg, "CurRange", tsCurRange, 0, 65536, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddBool(pCfg, "IfAdtFse", tsIfAdtFse, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddString(pCfg, "Compressor", tsCompressor, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddString(pCfg, "lossyColumns", tsLossyColumns, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddFloat(pCfg, "fPrecision", tsFPrecision, 0.0f, 100000.0f, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddDouble(pCfg, "dPrecision", tsDPrecision, 0.0f, 1000000.0f, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxRange", tsMaxRange, 0, 65536, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "curRange", tsCurRange, 0, 65536, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddBool(pCfg, "ifAdtFse", tsIfAdtFse, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddString(pCfg, "compressor", tsCompressor, CFG_SCOPE_SERVER) != 0) return -1;
 
   if (cfgAddBool(pCfg, "filterScalarMode", tsFilterScalarMode, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxStreamBackendCache", tsMaxStreamBackendCache, 16, 1024, CFG_SCOPE_SERVER) != 0) return -1;
@@ -1082,17 +1079,18 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsCacheLazyLoadThreshold = cfgGetItem(pCfg, "cacheLazyLoadThreshold")->i32;
 
-  tstrncpy(tsLossyColumns, cfgGetItem(pCfg, "LossyColumns")->str, sizeof(tsLossyColumns));
-  tsFPrecision = cfgGetItem(pCfg, "FPrecision")->fval;
-  tsDPrecision = cfgGetItem(pCfg, "DPrecision")->dval;
-  tsMaxRange = cfgGetItem(pCfg, "MaxRange")->i32;
-  tsCurRange = cfgGetItem(pCfg, "CurRange")->i32;
-  tsIfAdtFse = cfgGetItem(pCfg, "IfAdtFse")->bval;
-  tstrncpy(tsCompressor, cfgGetItem(pCfg, "Compressor")->str, sizeof(tsCompressor));
-
+  tstrncpy(tsLossyColumns, cfgGetItem(pCfg, "lossyColumns")->str, sizeof(tsLossyColumns));
+  tsFPrecision = cfgGetItem(pCfg, "fPrecision")->fval;
+  tsDPrecision = cfgGetItem(pCfg, "dPrecision")->dval;
+  tsMaxRange = cfgGetItem(pCfg, "maxRange")->i32;
+  tsCurRange = cfgGetItem(pCfg, "curRange")->i32;
+  tsIfAdtFse = cfgGetItem(pCfg, "ifAdtFse")->bval;
+  tstrncpy(tsCompressor, cfgGetItem(pCfg, "compressor")->str, sizeof(tsCompressor));
 
   tsDisableStream = cfgGetItem(pCfg, "disableStream")->bval;
   tsStreamBufferSize = cfgGetItem(pCfg, "streamBufferSize")->i64;
+  tsStreamCheckpointInterval = cfgGetItem(pCfg, "streamcheckpointInterval")->i32;
+  tsSinkDataRate = cfgGetItem(pCfg, "streamSinkDataRate")->dval;
 
   tsFilterScalarMode = cfgGetItem(pCfg, "filterScalarMode")->bval;
   tsMaxStreamBackendCache = cfgGetItem(pCfg, "maxStreamBackendCache")->i32;
