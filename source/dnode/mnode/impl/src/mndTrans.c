@@ -428,6 +428,8 @@ static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans) {
   mInfo("trans:%d, perform insert action, row:%p stage:%s, callfunc:1, startFunc:%d", pTrans->id, pTrans,
         mndTransStr(pTrans->stage), pTrans->startFunc);
 
+  taosThreadMutexInit(&pTrans->mutex, NULL);
+
   if (pTrans->startFunc > 0) {
     TransCbFp fp = mndTransGetCbFp(pTrans->startFunc);
     if (fp) {
@@ -1258,10 +1260,10 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
   int32_t numOfActions = taosArrayGetSize(pTrans->redoActions);
   if (numOfActions == 0) return code;
 
-  if (atomic_val_compare_exchange_8(&pTrans->lock, 0, 1) != 0) return code;
+  taosThreadMutexLock(&pTrans->mutex);
 
   if (pTrans->redoActionPos >= numOfActions) {
-    atomic_store_8(&pTrans->lock, 0);
+    taosThreadMutexUnlock(&pTrans->mutex);
     return code;
   }
 
@@ -1333,7 +1335,7 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
     }
   }
 
-  atomic_store_8(&pTrans->lock, 0);
+  taosThreadMutexUnlock(&pTrans->mutex);
 
   return code;
 }
