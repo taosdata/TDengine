@@ -999,7 +999,7 @@ static int32_t mndProcessGrantNotify(SRpcMsg *pReq) {
 
   mndGetDnodeData(pMnode, pDnodeInfo);
 
-  int64_t notifyTimeSeries = atomic_load_64(&grantStatus.curTimeSeries);
+  int64_t notifyTimeSeries = atomic_load_64(&gStatus.curTimeSeries);
   atomic_store_64(&grantNotifyTimeSeries, notifyTimeSeries);
 
   SGrantNotify notify = {.curTimeSeries = notifyTimeSeries};
@@ -1016,6 +1016,8 @@ int32_t mndUpdClusterInfo(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
 
   gStatus.curTimeSeries = grantGetClusterCurTimeSeries(pMnode);
+
+#ifndef GRANTS_CFG
   if (gStatus.curTimeSeries > gStatus.limitTimeSeries) {
     if ((atomic_fetch_add_64(&grantNotifyCnt, 1) & 127) < 3) {
       mndProcessGrantNotify(pReq);
@@ -1029,6 +1031,7 @@ int32_t mndUpdClusterInfo(SRpcMsg *pReq) {
     }
     if (grantNotifyCnt != 0) atomic_store_64(&grantNotifyCnt, 0);
   }
+#endif
 
   return 0;
 }
