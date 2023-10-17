@@ -19,6 +19,7 @@
 #include "tstream.h"
 #include "ttimer.h"
 #include "wal.h"
+#include "streamsm.h"
 
 static void streamTaskDestroyUpstreamInfo(SUpstreamInfo* pUpstreamInfo);
 
@@ -34,8 +35,11 @@ SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, bool fillHistory
   SStreamTask* pTask = (SStreamTask*)taosMemoryCalloc(1, sizeof(SStreamTask));
   if (pTask == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    stError("s-task:0x%" PRIx64 " failed malloc new stream task, size:%d, code:%s", streamId,
+            (int32_t)sizeof(SStreamTask), tstrerror(terrno));
     return NULL;
   }
+
   pTask->ver = SSTREAM_TASK_VER;
   pTask->id.taskId = tGenIdPI32();
   pTask->id.streamId = streamId;
@@ -43,12 +47,18 @@ SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, bool fillHistory
   pTask->info.fillHistory = fillHistory;
   pTask->info.triggerParam = triggerParam;
 
+  pTask->status.pSM = streamCreateStateMachine(pTask);
+  if (pTask->status.pSM == NULL) {
+    taosMemoryFreeClear(pTask);
+    return NULL;
+  }
+
   char buf[128] = {0};
   sprintf(buf, "0x%" PRIx64 "-%d", pTask->id.streamId, pTask->id.taskId);
 
   pTask->id.idStr = taosStrdup(buf);
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
-  pTask->status.taskStatus = (fillHistory || hasFillhistory)? TASK_STATUS__SCAN_HISTORY:TASK_STATUS__NORMAL;
+  pTask->status.taskStatus = (fillHistory || hasFillhistory) ? TASK_STATUS__SCAN_HISTORY : TASK_STATUS__NORMAL;
   pTask->inputInfo.status = TASK_INPUT_STATUS__NORMAL;
   pTask->outputq.status = TASK_OUTPUT_STATUS__NORMAL;
 
