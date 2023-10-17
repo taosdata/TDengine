@@ -634,7 +634,7 @@ impl TaskController {
             trace_id = tracing::field::Empty
         );
         // span.record("request", value)    
-        dbg!(&task);
+
         let breakpoints = task.breakpoints.clone();    
 
         let opts = TaskOpts {
@@ -657,7 +657,6 @@ impl TaskController {
             span: span.clone(),
             task_id: Some(id.to_string()),
         };
-        dbg!(&opts);
         // dbg!(&agent_task_worker);
 
         // if let Some(atomic) = &runnings {

@@ -235,7 +235,6 @@ impl InfluxdbConfig {
         };
 
         tracing::debug!("task_config: {:?} ", &task);
-        dbg!(&task);
 
         let performance = PerformanceConfig {
             performance_read_window,
