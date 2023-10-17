@@ -139,7 +139,7 @@ pub fn spawn_runner(
                                     endpoint.to_string(),
                                     token.to_string(),
                                 )),
-                                breakpoints: None,
+                                breakpoints: task.breakpoints,
                                 offsets: Default::default(),
                                 transferred: None,
                                 span: tracing::info_span!("agent::tasks::run"),

@@ -477,7 +477,6 @@ impl Client {
                     "run" => {
                         let task: Task = serde_json::from_str(&context).unwrap();
                         info!("Start task {}", task.id);
-                        dbg!(&task);
                         sender.send_async(Action::Run(task)).await?;
                     }
                     "stop" => {
