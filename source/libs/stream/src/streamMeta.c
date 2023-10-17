@@ -237,8 +237,9 @@ void* streamMetaGetBackendByTaskKey(SStreamMeta* pMeta, char* key, int64_t chkpI
     taosThreadMutexUnlock(&pMeta->backendMutex);
     return NULL;
   }
-
-  *ref = taosAddRef(taskDbWrapperId, pBackend);
+  int64_t tref = taosAddRef(taskDbWrapperId, pBackend);
+  *ref = tref;
+  ((STaskDbWrapper*)pBackend)->refId = tref;
 
   taosHashPut(pMeta->pTaskDbUnique, key, strlen(key), &pBackend, sizeof(void*));
   taosThreadMutexUnlock(&pMeta->backendMutex);
@@ -824,8 +825,6 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
 
       taosArrayPush(pMeta->pTaskList, &pTask->id);
     } else {
-      tdbFree(pKey);
-      tdbFree(pVal);
       taosMemoryFree(pTask);
       continue;
     }

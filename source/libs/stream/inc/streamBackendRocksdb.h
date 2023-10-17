@@ -65,8 +65,8 @@ typedef struct {
   rocksdb_compactionfilterfactory_t* filterFactory;
   TdThreadMutex                      mutex;
   char*                              idstr;
-  int64_t                            refId;
   char*                              path;
+  int64_t                            refId;
 
   int64_t        chkpId;
   SArray*        chkpSaved;
