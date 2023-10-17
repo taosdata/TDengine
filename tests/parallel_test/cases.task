@@ -399,7 +399,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/smaTest.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/sma_index.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml_TS-3724.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml_TD19291.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml-TD19291.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/varbinary.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/sml.py -R
