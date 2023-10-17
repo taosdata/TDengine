@@ -181,11 +181,11 @@ if(${BUILD_WITH_S3})
     vnode
 
     # s3
-    PRIVATE ${S3_LIBRARY}
-    PRIVATE ${CURL_LIBRARY}
-    PRIVATE ${SSL_LIBRARY}
-    PRIVATE ${CRYPTO_LIBRARY}
-    PRIVATE xml2
+    PUBLIC ${S3_LIBRARY}
+    PUBLIC ${CURL_LIBRARY}
+    PUBLIC ${SSL_LIBRARY}
+    PUBLIC ${CRYPTO_LIBRARY}
+    PUBLIC xml2
   )
 
   add_definitions(-DUSE_S3)
