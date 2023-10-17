@@ -44,8 +44,9 @@ extern "C" {
 #define NODE_ROLE_LEADER     0x2
 #define NODE_ROLE_FOLLOWER   0x3
 
-typedef struct SStreamTask  SStreamTask;
-typedef struct SStreamQueue SStreamQueue;
+typedef struct SStreamTask   SStreamTask;
+typedef struct SStreamQueue  SStreamQueue;
+typedef struct SStreamTaskSM SStreamTaskSM;
 
 #define SSTREAM_TASK_VER 2
 enum {
@@ -265,14 +266,15 @@ typedef struct SCheckpointInfo {
 } SCheckpointInfo;
 
 typedef struct SStreamStatus {
-  int8_t  taskStatus;
-  int8_t  downstreamReady;  // downstream tasks are all ready now, if this flag is set
-  int8_t  schedStatus;
-  int8_t  keepTaskStatus;
-  bool    appendTranstateBlock;  // has append the transfer state data block already, todo: remove it
-  int8_t  pauseAllowed;          // allowed task status to be set to be paused
-  int32_t timerActive;           // timer is active
-  int32_t inScanHistorySentinel;
+  SStreamTaskSM* pSM;
+  int8_t         taskStatus;
+  int8_t         downstreamReady;  // downstream tasks are all ready now, if this flag is set
+  int8_t         schedStatus;
+  int8_t         keepTaskStatus;
+  bool           appendTranstateBlock;  // has append the transfer state data block already, todo: remove it
+  int8_t         pauseAllowed;          // allowed task status to be set to be paused
+  int32_t        timerActive;           // timer is active
+  int32_t        inScanHistorySentinel;
 } SStreamStatus;
 
 typedef struct SDataRange {
