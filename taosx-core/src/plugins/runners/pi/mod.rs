@@ -470,6 +470,7 @@ fn extend_data_set(
     }
 }
 
+#[allow(unused_variables, unreachable_code)]
 pub async fn is_pi_valid(dsn: &Dsn) -> DataSourceValidation {
     #[cfg(not(target_os = "windows"))]
     {
@@ -548,6 +549,7 @@ async fn validate_pi(config: PiConfig) -> anyhow::Result<DataSourceValidation> {
     }
 }
 
+#[allow(unused_variables, unreachable_code)]
 pub async fn is_pi_backfill_valid(dsn: &Dsn) -> DataSourceValidation {
     #[cfg(not(target_os = "windows"))]
     {

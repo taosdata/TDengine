@@ -10,6 +10,7 @@ use dashmap::DashMap;
 use metrics::counter;
 use taos::taos_query::tmq::Assignment;
 
+#[instrument(skip_all, fields(table, rows))]
 async fn write_data(
     id: usize,
     rows: &mut usize,

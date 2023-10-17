@@ -23,7 +23,6 @@ use taosx_core::{
     get_file_upload_home_dir, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND,
     METRICS_TIME_START,
 };
-use tokio_cron_scheduler::Job;
 use utoipa::*;
 
 use super::controller::agent::AgentActivityFilter;
@@ -182,45 +181,7 @@ pub(super) async fn create_task(
     }
     let controller = task_store.into_inner();
     match controller.create(task).await {
-        Ok(task) => {
-            // dbg!(&task.trigger);
-            if let Some(trigger) = task.trigger.as_deref() {
-                let schedule = trigger.trim_start_matches("schedule:");
-                let sched = controller.scheduler.clone();
-                let id = task.id;
-                match Job::new_async(schedule, move |uuid, mut l| {
-                    let controller = controller.clone();
-                    Box::pin(async move {
-                        tracing::info!("waiting for next tick");
-                        let next_tick = l.next_tick_for_job(uuid).await;
-                        match next_tick {
-                            Ok(Some(ts)) => {
-                                tracing::info!("Next tick is {:?}", ts);
-                                let _ = controller.start(id).await;
-                            }
-                            _ => tracing::warn!("Could not get next tick"),
-                        }
-                    })
-                }) {
-                    Ok(job) => {
-                        tracing::info!("add job for task: {task:?}");
-                        if let Err(_err) = sched.add(job).await {
-                            return Err(Failed {
-                                code: Code::FAILED,
-                                message: format!(
-                                    "invalid trigger format: `{trigger}`, only `schedule:<crontab>` is supported"
-                                ),
-                            });
-                        }
-                        // sched.start().await.unwrap();
-                    }
-                    Err(err) => {
-                        tracing::error!("Scheduler task error: {err:?}, task:{task:?}");
-                    }
-                }
-            }
-            Ok(HttpResponse::Created().json(task.decorate(&decorator)))
-        }
+        Ok(task) => Ok(HttpResponse::Created().json(task.decorate(&decorator))),
         Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err),
@@ -537,6 +498,7 @@ pub(super) async fn get_task_metrics_by_id(
     let mut map = snapshot
         .into_iter()
         .filter(|(k, _)| {
+
             k.key()
                 .labels()
                 .find(|label| label.key() == "task.id" && label.value() == id.to_string())
@@ -544,6 +506,7 @@ pub(super) async fn get_task_metrics_by_id(
         })
         .map(|(k, v)| {
             (
+                // k.key().description().to_string(),
                 k.key().name().to_string(),
                 match v.2 {
                     metrics_util::debugging::DebugValue::Gauge(c) => {

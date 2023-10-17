@@ -1,0 +1,746 @@
+use std::{
+    fmt::{Debug, Display},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
+
+use anyhow::bail;
+use dashmap::DashMap;
+use metrics::atomics::AtomicU64;
+use multi_index_map::MultiIndexMap;
+use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use taosx_core::{get_data_dir, utils::port_pool::PortPool, ConnectorLicense, DataSet, TaskOpts};
+use tokio::sync::{oneshot, Mutex, RwLock};
+use tokio_cron_scheduler::JobScheduler;
+use tokio_util::sync::CancellationToken;
+use tracing::{error, info, instrument, Instrument};
+use uuid::Uuid;
+
+use crate::serve::controller::{
+    trigger::{Schedule, StopCondition, Strategy},
+    AgentAction, Status, Task, TaskActivity,
+};
+
+use super::{
+    agent::{AgentState, AgentTask, AgentWorker},
+    NotifySender,
+};
+
+#[instrument(skip_all)]
+#[async_backtrace::framed]
+async fn task_opts_init(task: &Task) -> anyhow::Result<TaskOpts> {
+    let id = task.id;
+    let from = if let Some(topic) = task.oneshot_topic.as_deref() {
+        let mut from: Dsn = task.from.parse()?;
+        from.set("use.topic.name", topic);
+        tracing::info!("Set task from: {from}");
+        from
+    } else {
+        task.from.parse()?
+    };
+    let to_dsn: Dsn = task.to.parse()?;
+
+    let token = tokio_util::sync::CancellationToken::new();
+    let cloned_token = token.clone();
+    let offsets = Arc::new(DashMap::new());
+
+    match from.driver.as_str() {
+        "opcua" | "opcda" | "influxdb" | "opentsdb" | "pi" | "mqtt" | "kafka" => {
+            let taos = TaosBuilder::from_dsn(&to_dsn)?.build().await?;
+            let cluster_id: Option<i64> = taos
+                .query_one("select id from information_schema.ins_cluster")
+                .await
+                .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))
+                .unwrap_or_default();
+            // let license = taos.query_one(sql)
+            let connector = match from.driver.as_str() {
+                "opcua" => "opc_ua",
+                "opcda" => "opc_da",
+                "influxdb" => "influxdb",
+                "opentsdb" => "opentsdb",
+                "pi" => "pi",
+                "kafka" => "kafka",
+                "mqtt" => "mqtt",
+                _ => unreachable!(),
+            };
+            let license: Option<ConnectorLicense> = taos
+                .query_one::<_, String>(format!(
+                    "select `{connector}` from information_schema.ins_grants"
+                ))
+                .await
+                .unwrap_or(None)
+                .and_then(|s| serde_json::from_str(&s).ok());
+
+            if let Some(license) = license {
+                if license.is_expired() {
+                    anyhow::bail!(
+                            "Connector {connector} expired, please contact the database administrator for license",
+                        )
+                }
+            }
+        }
+        _ => {}
+    }
+
+    // todo! add trace id to
+    let span = tracing::info_span!(
+        "task::spawned",
+        task.id = id,
+        trace_id = tracing::field::Empty
+    );
+
+    let breakpoints = task.breakpoints.clone();
+
+    Ok(TaskOpts {
+        transform: vec![],
+        from: from.clone(),
+        to: to_dsn.clone(),
+        parser: task
+            .parser
+            .as_ref()
+            .map(|v| serde_json::from_value(v.clone()).unwrap()),
+        jobs: 0,
+        compression_level: None,
+        force: true,
+        cancel: CancellationToken::new(),
+        // port_pool: ONCE,
+        with_agent: None,
+        breakpoints,
+        offsets,
+        transferred: None,
+        span: span.clone(),
+        task_id: Some(id.to_string()),
+    })
+}
+
+async fn start_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyhow::Result<()> {
+    let state = task;
+    let task = &state.task;
+
+    let opts = task_opts_init(task).await?;
+    tracing::info!("start worker");
+    // set current dir for upload files
+    let path = get_data_dir();
+    let _ = std::env::set_current_dir(&path);
+    let instant = std::time::Instant::now();
+    let res = if let Some(agent_id) = task.via {
+        if !global.agent_runtime.agent_is_alive(agent_id).await {
+            bail!("Agent {} is not alive", agent_id);
+        }
+        global
+            .agent_runtime
+            .push_action(agent_id, AgentAction::Run(task.id))
+            .await?;
+        let waiter = state.agent_waiter.as_ref().unwrap();
+        loop {
+            let mut recv = waiter.agent_activities.write().await;
+            match recv.recv().await {
+                Some(activity) => match activity.status.as_str() {
+                    "started" => {
+                        tracing::info!("task started");
+                    }
+                    "suspended" => {
+                        tracing::info!("task suspended");
+                        break Ok(());
+                    }
+                    "completed" => {
+                        tracing::info!("task completed");
+                        break Ok(());
+                    }
+                    "failed" => {
+                        tracing::info!("task failed");
+                        break Err(anyhow::anyhow!("{}", activity.activity));
+                    }
+                    status => {
+                        tracing::info!("task {}: {}", status, activity.activity);
+                    }
+                },
+                None => {
+                    break Err(anyhow::anyhow!("All agent activities sender dropped"));
+                }
+            }
+        }
+    } else {
+        opts.run(&global.port_pool).in_current_span().await
+    };
+    tracing::Span::current().record("task.elapsed", tracing::field::debug(instant.elapsed()));
+    if let Err(error) = res {
+        error!(task.elapsed = ?instant.elapsed(), %error);
+        Err(error)
+    } else {
+        tracing::info!(task.elapsed = ?instant.elapsed(), "task finished");
+        Ok(())
+    }
+}
+
+// pub type JobLock = Arc<Mutex<u32>>;
+
+// pub type TaskErrorSender = tokio::sync::mpsc::Sender<anyhow::Error>;
+// pub type TaskErrorReceiver = tokio::sync::mpsc::Receiver<anyhow::Error>;
+
+pub type TaskId = i64;
+pub type AgentId = i64;
+pub type AgentTaskActivitiesReceiver = tokio::sync::broadcast::Receiver<TaskActivity>;
+pub type AgentActionsSender = tokio::sync::mpsc::Sender<(AgentId, AgentAction)>;
+pub type AgentClientSender = tokio::sync::mpsc::Sender<Status>;
+
+pub struct AgentServer {
+    pub(crate) agent_actions_sender: AgentActionsSender,
+    pub(crate) task_activities: AgentTaskActivitiesReceiver,
+}
+
+#[derive(Debug)]
+pub enum AgentIntegrationChannel {
+    Server(AgentWorker),
+    Client(AgentClientSender),
+}
+
+#[derive(Debug, Clone)]
+pub enum AgentRuntimeRef {
+    Server(AgentWorker),
+    Client(Arc<RwLock<AgentClientSender>>),
+}
+
+impl AgentRuntimeRef {
+    fn new(runtime: AgentIntegrationChannel) -> Self {
+        match runtime {
+            AgentIntegrationChannel::Server(rt) => Self::Server(rt),
+            AgentIntegrationChannel::Client(rt) => Self::Client(Arc::new(RwLock::new(rt))),
+        }
+    }
+
+    pub(crate) async fn list_data_sets(
+        &self,
+        agent_id: i64,
+        req: taosx_core::DataSetsReq,
+    ) -> anyhow::Result<Vec<DataSet>> {
+        match self {
+            Self::Server(rt) => rt.list_data_sets(agent_id, req).await,
+            Self::Client(_) => {
+                bail!("not implemented")
+            }
+        }
+    }
+
+    async fn insert(&self, task: AgentTask) {
+        match self {
+            Self::Server(rt) => {
+                rt.insert(task).await;
+            }
+            Self::Client(_) => {}
+        }
+    }
+    async fn remove(&self, task_id: TaskId) {
+        match self {
+            Self::Server(rt) => {
+                rt.remove(task_id).await;
+            }
+            Self::Client(_) => {}
+        }
+    }
+    async fn cancel(&self, task_id: TaskId) {
+        match self {
+            Self::Server(rt) => {
+                rt.cancel(task_id).await;
+            }
+            Self::Client(_) => {}
+        }
+    }
+    pub async fn agent_is_alive(&self, agent_id: AgentId) -> bool {
+        match self {
+            Self::Server(rt) => rt.agent_is_alive(agent_id).await,
+            Self::Client(_) => true,
+        }
+    }
+    pub async fn push_action(&self, agent_id: i64, action: AgentAction) -> anyhow::Result<()> {
+        match self {
+            Self::Server(rt) => rt.push_action(agent_id, action).await,
+            Self::Client(_) => {
+                // todo! implement client
+                Ok(())
+            }
+        }
+    }
+}
+#[derive(Clone)]
+pub struct GlobalState {
+    /// Global aliveness flag.
+    pub(crate) alive: Arc<AtomicBool>,
+    /// Global job scheduler.
+    pub(crate) scheduler: JobScheduler,
+    /// Global task activities notify sender.
+    pub(crate) notify_sender: NotifySender,
+    /// Global port pool.
+    pub(crate) port_pool: PortPool,
+    /// Global Agent task manager
+    pub(crate) agent_runtime: AgentRuntimeRef,
+}
+
+impl Debug for GlobalState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GlobalState")
+            .field("scheduler", &"..")
+            .field("sender", &self.notify_sender)
+            .field("port_pool", &self.port_pool)
+            .finish()
+    }
+}
+
+impl GlobalState {
+    pub fn new(
+        scheduler: JobScheduler,
+        notify_sender: NotifySender,
+        agent_runtime: AgentIntegrationChannel,
+    ) -> Self {
+        Self {
+            alive: Arc::new(AtomicBool::new(true)),
+            scheduler,
+            notify_sender,
+            port_pool: PortPool::default(),
+            agent_runtime: AgentRuntimeRef::new(agent_runtime),
+        }
+    }
+
+    pub fn send_task_activity(&self, activity: TaskActivity) {
+        if let Err(err) = self
+            .notify_sender
+            .upgrade()
+            .map(|sender| sender.send(activity))
+            .transpose()
+        {
+            error!("send task activity error: {:#}", err);
+        }
+    }
+    pub fn is_alive(&self) -> bool {
+        self.alive.load(Ordering::Relaxed)
+    }
+
+    #[inline]
+    pub fn ensure_alive(&self) -> anyhow::Result<()> {
+        if !self.is_alive() {
+            bail!("Scheduler is not alive");
+        }
+        Ok(())
+    }
+
+    pub async fn go_die(&self) -> anyhow::Result<()> {
+        self.alive.store(false, Ordering::Relaxed);
+        self.scheduler.clone().shutdown().await?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct AgentWaiter {
+    /// Agent state if task is running on agent.
+    agent_state: Arc<RwLock<AgentState>>,
+    /// Agent task activities receiver.
+    agent_activities: Arc<RwLock<tokio::sync::mpsc::Receiver<TaskActivity>>>,
+    /// Agent close waiter.
+    agent_close_waiter: Arc<Mutex<Option<oneshot::Receiver<anyhow::Result<()>>>>>,
+}
+
+/// Inner state of task under job scheduler.
+///
+/// 1. Initial state is `Scheduled`.
+/// 2. When task is spawned, the state will be `Running`.
+/// 3. When task is stopped, the state will be `Stopped`.
+/// 4. When task is completed, the state will be `Completed`.
+/// 5. When task is failed, the state will be `Failed`.
+#[derive(Debug, Clone, Default)]
+pub enum InnerState {
+    #[default]
+    /// Task is scheduled
+    Scheduled,
+    /// Task is running.
+    Running,
+    /// Task is stopping.
+    Stopping,
+    /// Task is stopped.
+    Stopped,
+    /// Task is completed.
+    Completed,
+    /// Task is failed.
+    Failed(String),
+}
+
+impl InnerState {
+    pub fn is_running(&self) -> bool {
+        matches!(self, InnerState::Running)
+    }
+    pub fn is_scheduled(&self) -> bool {
+        matches!(self, InnerState::Scheduled)
+    }
+    pub fn start(&mut self) -> anyhow::Result<&mut Self> {
+        match self {
+            InnerState::Running => Ok(self),
+            InnerState::Stopping => bail!("Task is stopping"),
+
+            _ => {
+                *self = Self::Running;
+                Ok(self)
+            }
+        }
+    }
+    pub fn stop(&mut self) -> anyhow::Result<&mut Self> {
+        match self {
+            InnerState::Stopping => Ok(self),
+            InnerState::Stopped => Ok(self),
+            _ => {
+                *self = Self::Stopping;
+                Ok(self)
+            }
+        }
+    }
+    pub fn completed(&mut self) -> &mut Self {
+        *self = Self::Completed;
+        self
+    }
+
+    pub fn fail(&mut self, message: impl Display) -> &mut Self {
+        *self = Self::Failed(format!("{}", message));
+        self
+    }
+}
+#[derive(Debug, Clone)]
+pub struct TaskState {
+    /// Current job run times.
+    runs: Arc<AtomicU64>,
+    /// Task details.
+    pub(crate) task: Arc<Task>,
+
+    pub(crate) state: Arc<RwLock<InnerState>>,
+
+    /// Job schedule.
+    schedule: Arc<Schedule>,
+    /// Stop condition of current job.
+    stop_condition: StopCondition,
+    /// Stop a running task by sending a cancellation signal.
+    cancellation: CancellationToken,
+
+    /// Agent state if task is running on agent.
+    agent_waiter: Option<AgentWaiter>,
+
+    /// Last state
+    ///
+    /// When task finished unexpectedly, the last state will be None.
+    ///
+    /// When task finished successfully, the last state will be one of
+    /// `Done`, `Stopped` or `Error`.
+    last_state: Arc<RwLock<Option<LastState>>>,
+
+    /// Job listener.
+    last_waiter: Arc<Mutex<Option<oneshot::Receiver<bool>>>>,
+}
+
+impl TaskState {
+    pub async fn new(task: Task, global: &GlobalState) -> Self {
+        let strategy = task.trigger.as_ref().unwrap_or(Strategy::DEFAULT);
+        let schedule = strategy.schedule();
+        let task_id = task.id;
+
+        let stop_condition = strategy.stop_condition();
+        let cancellation = CancellationToken::new();
+
+        let agent_waiter = if let Some(via) = task.via {
+            let agent_state = Arc::new(RwLock::new(AgentState::default()));
+            let (sender, agent_activities) = tokio::sync::mpsc::channel(100);
+            let (stop_sender, stop_waiter) = tokio::sync::oneshot::channel();
+            let task = AgentTask {
+                agent_id: via,
+                task_id: task_id,
+                agent_state: agent_state.clone(),
+                sender,
+                stop_sender: Arc::new(stop_sender),
+            };
+            global.agent_runtime.insert(task).await;
+            Some(AgentWaiter {
+                agent_state,
+                agent_activities: Arc::new(RwLock::new(agent_activities)),
+                agent_close_waiter: Arc::new(Mutex::new(Some(stop_waiter))),
+            })
+        } else {
+            None
+        };
+        Self {
+            runs: Arc::new(AtomicU64::new(0)),
+            task: Arc::new(task),
+            state: Arc::new(RwLock::new(InnerState::Scheduled)),
+            schedule: Arc::new(schedule),
+            stop_condition,
+            cancellation,
+            agent_waiter,
+            last_state: Arc::new(RwLock::new(None)),
+            last_waiter: Arc::new(Mutex::new(None)),
+        }
+    }
+
+    pub fn schedule(&self) -> &Schedule {
+        &self.schedule
+    }
+}
+
+#[derive(Debug)]
+pub enum LastState {
+    Done,
+    Stopped,
+    Error(anyhow::Error),
+}
+
+impl Display for LastState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LastState::Done => write!(f, "Done"),
+            LastState::Stopped => write!(f, "Stopped"),
+            LastState::Error(err) => write!(f, "Error: {:#}", err),
+        }
+    }
+}
+
+/// Task job runner with shared state and global state.
+#[derive(MultiIndexMap, Debug, Clone)]
+pub struct TaskJob {
+    #[multi_index(hashed_unique)]
+    pub task_id: i64,
+    #[multi_index(hashed_unique)]
+    pub job_id: Uuid,
+
+    /// The task that is associated with this job and shared amount all ticks of this job.
+    pub task: TaskState,
+
+    /// Global shared state across all jobs/tasks.
+    pub global: GlobalState,
+}
+
+impl Debug for MultiIndexTaskJobMap {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MultiIndexTaskJobMap")
+            .field("capacity", &self.capacity())
+            .field("len", &self.len())
+            .field(
+                "items",
+                &self.iter().map(|(_, task)| task).collect::<Vec<_>>(),
+            )
+            .finish()
+    }
+}
+
+pub type MultiIndexTaskJobMapRef = Arc<RwLock<MultiIndexTaskJobMap>>;
+
+impl TaskJob {
+    /// Create a new task job runner.
+    pub fn new(job_id: Uuid, task: TaskState, global_state: GlobalState) -> Self {
+        let task_id = task.task.id;
+        Self {
+            task_id,
+            job_id: job_id,
+            task,
+            global: global_state,
+        }
+    }
+
+    /// Check if a task is running.
+    pub async fn is_running(&self) -> bool {
+        self.task.state.read().await.is_running()
+    }
+
+    /// Cancel a job.
+    pub async fn cancel(&self) {
+        // Remove job from scheduler.
+        if let Err(err) = self.global.scheduler.remove(&self.job_id).await {
+            error!("remove job error: {:#}", err);
+        }
+        // Send cancellation signal to running task.
+        self.task.cancellation.cancel();
+        // Remove agent task.
+        if self.task.task.via.is_some() {
+            self.global.agent_runtime.cancel(self.task.task.id).await;
+        }
+    }
+
+    /// ## Cancellation safety.
+    ///
+    /// If the task is cancelled, the task running future will be dropped.
+    /// But there're still some staff doing in background,
+    /// release sockets, close connections, push offsets,
+    /// persist checkpoints/caches etc.
+    ///
+    /// It should not be a problem, and the task is ok to be resumed.
+    ///
+    /// (: We pretend that no remaining staff could prevent task to be resumed.
+    pub async fn spawn(&self) {
+        let opts = self.task.clone();
+        let jid = self.job_id;
+        let global = self.global.clone();
+
+        let (tx, rx) = tokio::sync::oneshot::channel();
+
+        tokio::spawn(async move {
+            global.send_task_activity(TaskActivity::started(opts.task.id, jid));
+            let runs = opts.runs.load(Ordering::Relaxed);
+            let span = tracing::info_span!(
+                "run_task",
+                task.id = opts.task.id,
+                task.jid = %jid,
+                task.rid = runs,
+                task.agent = opts.task.via
+            );
+            let future = start_task(&global, &opts, &jid).instrument(span);
+
+            let stop_condition = opts.stop_condition.clone();
+            let last_state = opts.last_state.clone();
+
+            let handler = move |result| async move {
+                info!("task finished");
+                if let Err(err) = &result {
+                    error!(error = %err, backtrace = ?err);
+                }
+                let should_stop = stop_condition.should_stop_with(&result);
+                match result {
+                    Ok(_) => {
+                        last_state.write().await.replace(LastState::Done);
+                    }
+                    Err(err) => {
+                        last_state.write().await.replace(LastState::Error(err));
+                    }
+                }
+                return should_stop;
+            };
+
+            let mut should_stop = tokio::select! {
+                _ = opts.cancellation.cancelled() => {
+                    tracing::info!("task cancelled");
+                    opts.last_state.write().await.replace(LastState::Stopped);
+                    true
+                }
+                result = future => {
+                    handler(result).await
+                }
+            };
+
+            if !should_stop {
+                should_stop = opts.stop_condition.should_stop();
+            }
+
+            // let current_run = opts.runs.load(Ordering::Relaxed);
+            if should_stop {
+                // If task should stop schedule, the last state will be the final state.
+                match opts.last_state.read().await.as_ref() {
+                    Some(LastState::Done) => {
+                        global.send_task_activity(TaskActivity::completed(opts.task.id, jid));
+                    }
+                    Some(LastState::Stopped) => {
+                        global.send_task_activity(TaskActivity::suspended(opts.task.id, jid));
+                    }
+                    Some(LastState::Error(err)) => {
+                        global.send_task_activity(TaskActivity::failed(
+                            opts.task.id,
+                            format!("{err:#}"),
+                        ));
+                    }
+                    None => unreachable!("task should have a last state"),
+                }
+            } else {
+                // If task should not stop schedule, the last state is tempera.
+                match opts.last_state.read().await.as_ref() {
+                    Some(LastState::Done) => {
+                        global.send_task_activity(TaskActivity::tick(opts.task.id, jid));
+                    }
+                    Some(LastState::Stopped) => {
+                        global.send_task_activity(TaskActivity::suspended(opts.task.id, jid));
+                    }
+                    Some(LastState::Error(err)) => {
+                        global.send_task_activity(TaskActivity::interrupted(
+                            opts.task.id,
+                            format!("{err:#}"),
+                        ));
+                    }
+                    None => unreachable!("task should have a last state"),
+                }
+            }
+            opts.runs.fetch_add(1, Ordering::Release);
+            let _ = tx.send(should_stop);
+        });
+        self.task.last_waiter.lock().await.replace(rx);
+    }
+
+    pub async fn wait(&self) -> Option<LastState> {
+        // wait for spawned task finished.
+        let mut waiter = { self.task.last_waiter.lock().await.take() };
+
+        match waiter.take().unwrap().await {
+            Ok(should_stop) => {
+                if should_stop {
+                    if let Err(err) = self.global.scheduler.remove(&self.job_id).await {
+                        error!("remove job error: {:#}", err);
+                    }
+                }
+            }
+            Err(err) => {
+                error!("waiter error: {:#}", err);
+            }
+        }
+        // Use last state to send task activities.
+        self.task.last_state.write().await.take()
+    }
+}
+pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalState>) {
+    if task.stop_condition.should_stop() {
+        tracing::error!("stop condition reached");
+        if let Err(err) = global_state.scheduler.remove(&jid).await {
+            error!("remove job error: {:#}", err);
+        }
+        return;
+    }
+    {
+        if let Err(err) = task.state.write().await.start() {
+            error!("task start error: {:#}", err);
+            return;
+        }
+    }
+    let (tx, rx) = oneshot::channel::<()>();
+    let opts = TaskJob::new(jid, task.clone(), global_state.as_ref().clone());
+
+    let opts_cancellation_handler = opts.clone();
+    tokio::spawn(async move {
+        match rx.await {
+            Ok(_) => {
+                // Normally completed.
+                tracing::debug!("task finished successfully");
+            }
+            Err(err) => {
+                tracing::warn!(
+                    "task is stopped unexpectedly, gracefully release job resources for {}",
+                    opts_cancellation_handler.job_id
+                );
+                error!("task error: {:#}", err);
+                opts_cancellation_handler.cancel().await;
+            }
+        }
+    });
+
+    opts.spawn().await;
+
+    let completed = opts.wait().await;
+    tracing::info!("task completed: {:?}", completed);
+    match completed {
+        Some(LastState::Done) => {
+            tracing::info!("task completed");
+            let _ = task.state.write().await.completed();
+        }
+        Some(LastState::Stopped) => {
+            tracing::info!("task stopped");
+            let _ = task.state.write().await.stop();
+        }
+        Some(LastState::Error(err)) => {
+            tracing::info!("task error: {:#}", err);
+            task.state.write().await.fail(&err);
+        }
+        None => {
+            tracing::info!("task finished unexpectedly");
+        }
+    }
+    debug_assert!(tx.send(()).is_ok());
+}

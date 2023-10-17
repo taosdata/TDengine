@@ -55,6 +55,7 @@ pub struct Scheduler {
     sender: Sender<Todo>,
     receiver: Receiver<Todo>,
     handles: Vec<JoinHandle<anyhow::Result<()>>>,
+    #[allow(dead_code)]
     task_id: Option<String>,
 }
 

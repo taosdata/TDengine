@@ -106,7 +106,7 @@ pub struct ArgsParser {
     config: Option<PathBuf>,
 
     #[clap(flatten)]
-    configArgs: ConfigArgs,
+    config_args: ConfigArgs,
 }
 
 #[derive(Debug, Error)]

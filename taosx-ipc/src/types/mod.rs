@@ -46,6 +46,7 @@ pub struct OptionSet {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ListResponse {
+    pub req_id: u64,
     pub req: DataSetsReq,
     pub res: Response<Vec<DataSet>>,
 }
@@ -146,6 +147,7 @@ pub enum RespAction {
     Heartbeat,
     HeartbeatOk(HeartbeatResponse),
     TaskError(i64),
+    /// ReqId, Resp
     ListOk(ListResponse),
     AgentActivity(Activity),
     TaskActivity(Activity),
