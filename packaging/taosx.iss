@@ -72,7 +72,7 @@ end;
 function ReplaceLineInFile(FileName, SearchText, ReplaceText: String): Boolean;
 var
   Lines: TArrayOfString;
-  I， PosSearch: Integer;
+  I, PosSearch: Integer;
   Found: Boolean;
 begin
   Result := False;
