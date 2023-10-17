@@ -123,6 +123,7 @@ impl Cli {
             force: opts.yes_i_really_mean_it,
             cancel: cancel.clone(),
             with_agent: None,
+            breakpoints: None,
             offsets: Default::default(),
             transferred: Default::default(),
             span: span.clone(),

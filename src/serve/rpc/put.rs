@@ -170,6 +170,7 @@ impl PutStream {
                     license,
                     None,
                     span.clone(),
+                    Some(task.id),
                 )
                 .await?;
                 let parser: Option<Parser> = task

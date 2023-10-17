@@ -23,7 +23,7 @@ use serde_json::json;
 use sqlx::pool::PoolOptions;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder, };
-use taosx_core::utils::breakpoints::{breakpoints_get, breakpoints_get_all};
+use taosx_core::utils::breakpoints::breakpoints_get_all;
 use taosx_core::utils::{mask_dsn, try_mask_dsn};
 use taosx_core::utils::port_pool::PortPool;
 use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
@@ -633,7 +633,10 @@ impl TaskController {
             task.id = id,
             trace_id = tracing::field::Empty
         );
-        // span.record("request", value)
+        // span.record("request", value)    
+
+        let breakpoints = task.breakpoints.clone();    
+
         let opts = TaskOpts {
             transform: vec![],
             from: from.clone(),
@@ -648,12 +651,12 @@ impl TaskController {
             cancel: CancellationToken::new(),
             // port_pool: ONCE,
             with_agent: None,
+            breakpoints,
             offsets,
             transferred,
             span: span.clone(),
             task_id: Some(id.to_string()),
         };
-        // dbg!(&opts);
         // dbg!(&agent_task_worker);
 
         // if let Some(atomic) = &runnings {
@@ -1329,6 +1332,21 @@ impl TaskController {
                 t.backport_labels();
                 t
             })
+            // set breakpoints
+            .map(|mut t| {
+                let task_id = id.to_string();
+                let breakpoints_res = breakpoints_get_all(&task_id);
+                if let Ok(breakpoints) = breakpoints_res {
+                    let formatted_pairs: Vec<String> = breakpoints
+                        .iter()
+                        .map(|(first, second)| format!("{}:{}", first, second))
+                        .collect();
+
+                    let output = formatted_pairs.join("&");
+                    t.breakpoints = Some(output);
+                }
+                t
+            })
             .map(Into::into))
     }
     #[instrument(skip_all, name = "task::delete", parent = None, fields(task.id = id))]
@@ -1408,6 +1426,7 @@ impl TaskController {
             force: false,
             cancel: Default::default(),
             with_agent: None,
+            breakpoints: None,
             offsets: Arc::new(Default::default()),
             transferred: None,
             span: tracing::info_span!(
@@ -1650,6 +1669,10 @@ impl TaskController {
                         let offsets = self.taos_offsets(id).await?;
                         Ok(offsets)
                     }
+                    ("influxdb", "taos") => {
+                        let offsets = self.influxdb_offsets(id).await?;
+                        Ok(offsets)
+                    }
                     _ => Ok(None),
 
                 }
@@ -1659,6 +1682,13 @@ impl TaskController {
     }
 
     pub async fn taos_offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
+        let offsets = breakpoints_get_all(id.to_string().as_str())?;
+        // dbg!(&offsets);
+        let res = serde_json::to_value(&offsets)?;
+        Ok(Some(res))
+    }
+
+    pub async fn influxdb_offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
         let offsets = breakpoints_get_all(id.to_string().as_str())?;
         // dbg!(&offsets);
         let res = serde_json::to_value(&offsets)?;
@@ -2258,6 +2288,12 @@ pub struct Task {
     #[sqlx(try_from = "String", default)]
     // #[serde(deserialize_with = "labels_serde::deserialize")]
     pub labels: Labels,
+
+    /// break points
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub breakpoints: Option<String>,
 }
 /// Task Activity
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::FromRow)]
@@ -2537,6 +2573,10 @@ impl Task {
                 }
             }
         }
+    }
+
+    fn set_breakpoints(&mut self, breakpoints: Option<String>) {
+        self.breakpoints = breakpoints;
     }
 }
 #[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq, PartialOrd, ToSchema)]
