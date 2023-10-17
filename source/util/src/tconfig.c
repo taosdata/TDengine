@@ -416,16 +416,6 @@ int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, float min
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddDouble(SConfig *pCfg, const char *name, double defaultVal, double minval, double maxval, int8_t scope) {
-  if (defaultVal < minval || defaultVal > maxval) {
-    terrno = TSDB_CODE_OUT_OF_RANGE;
-    return -1;
-  }
-
-  SConfigItem item = {.dtype = CFG_DTYPE_DOUBLE, .dval = defaultVal, .fmin = minval, .fmax = maxval, .scope = scope};
-  return cfgAddItem(pCfg, &item, name);
-}
-
 int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope) {
   SConfigItem item = {.dtype = CFG_DTYPE_STRING, .scope = scope};
   item.str = taosStrdup(defaultVal);
@@ -631,18 +621,12 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
           uInfo("%s %s %" PRId64, src, name, pItem->i64);
         }
         break;
+      case CFG_DTYPE_DOUBLE:
       case CFG_DTYPE_FLOAT:
         if (dump) {
           printf("%s %s %.2f\n", src, name, pItem->fval);
         } else {
           uInfo("%s %s %.2f", src, name, pItem->fval);
-        }
-        break;
-      case CFG_DTYPE_DOUBLE:
-        if (dump) {
-          printf("%s %s %.2f\n", src, name, pItem->dval);
-        } else {
-          uInfo("%s %s %.2f", src, name, pItem->dval);
         }
         break;
       case CFG_DTYPE_STRING:
