@@ -17,6 +17,28 @@ from util.cases import *
 from util.sql import *
 from util.common import *
 from util.sqlset import *
+import glob
+
+def scanFiles(pattern):
+    res = []
+    for f in glob.iglob(pattern):
+        res += [f]
+    return res
+
+def checkFiles(pattern, state):
+    res = scanFiles(pattern)
+    tdLog.info(res)
+    num = len(res)
+    if num:
+        if state:
+            tdLog.info("%s: %d files exist. expect: files exist" % (pattern, num))
+        else:
+            tdLog.exit("%s: %d files exist. expect: files not exist." % (pattern, num))
+    else:
+        if state:
+            tdLog.exit("%s: %d files exist. expect: files exist" % (pattern, num))
+        else:
+            tdLog.info("%s: %d files exist. expect: files not exist." % (pattern, num))
 
 class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
@@ -41,8 +63,8 @@ class TDTestCase:
         tdDnodes.start(1)
         
         tdLog.info("================= step2")
-        tdSql.haveFile('/mnt/data1/',1)
-        tdSql.haveFile('/mnt/data2/',0)
+        checkFiles(r'/mnt/data1/*/*',1)
+        checkFiles(r'/mnt/data2/*/*',0)
         tdDnodes.stop(1)
     def dir_not_exist(self):
         tdLog.info("============== dir_not_exist test ===============")
@@ -156,9 +178,9 @@ class TDTestCase:
         tdDnodes.start(1)
         for i in dir_list:
             if i == '/mnt/data000':
-                tdSql.haveFile(i,1)
+                checkFiles("%s/*/*" % i, 1)
             else:
-                tdSql.haveFile(i,0)
+                checkFiles("%s/*/*" % i, 0)
     
     def more_than_16_disks(self):
         tdLog.info("============== more_than_16_disks test ===============")
@@ -223,7 +245,8 @@ class TDTestCase:
         for i in range(10,30):
             tdSql.execute(f'insert into tb1 values(now-{i}d,10)')
         tdSql.execute('flush database dbtest')
-        tdSql.haveFile('/mnt/data1/',1)
+        time.sleep(3)
+        checkFiles('/mnt/data1/vnode/*/tsdb/v*',1)
         tdDnodes.stop(1)
         cfg={
             '/mnt/data1 0 1' : 'dataDir',
@@ -234,14 +257,14 @@ class TDTestCase:
         tdSql.createDir('/mnt/data3')
         tdDnodes.deploy(1,cfg)
         tdDnodes.start(1)
-        tdSql.haveFile('/mnt/data1/',1)
-        tdSql.haveFile('/mnt/data2/',0)
-        tdSql.haveFile('/mnt/data3/',0)
+        checkFiles('/mnt/data1/vnode/*/tsdb/v*',1)
+        checkFiles('/mnt/data2/vnode/*/tsdb/v*',0)
+        checkFiles('/mnt/data3/vnode/*/tsdb/v*',0)
         tdSql.execute('alter database dbtest keep 10d,365d,3650d')
         tdSql.execute('trim database dbtest')
         time.sleep(3)
-        tdSql.haveFile('/mnt/data1/',1)
-        tdSql.haveFile('/mnt/data2/',1)
+        checkFiles('/mnt/data1/vnode/*/tsdb/v*',1)
+        checkFiles('/mnt/data2/vnode/*/tsdb/v*',1)
 
     def run(self):
         self.basic()
