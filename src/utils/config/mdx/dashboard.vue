@@ -90,7 +90,7 @@ export ${replaceTDENGINE}_URL=&quot;${url}&quot;
         <span style="width:60px;">{{ $t('docs.virtual.grafana.step3desc2') }}</span>
       <pre
           v-highlight="
-            `${token}
+            `${username}
 `
           "
         ><code class="language-bash"></code></pre>
@@ -196,6 +196,7 @@ export default {
   },
   data() {
     return {
+      username:localStorage.getItem('username'),
       activeTab:'plugins',
       isOEM:
         process.env.VUE_APP_CUS_NAME &&
