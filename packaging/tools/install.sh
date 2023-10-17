@@ -377,13 +377,14 @@ function add_newHostname_to_hosts() {
 }
 
 function set_hostname() {
-  echo -e -n "${GREEN}Please enter one hostname(must not be 'localhost')${NC}:"
+  echo -e -n "${GREEN}Enter the public accessible IP address or fully qualified domain name TDengine will expose to users or applications (must not be 'localhost') :${NC}"
   read newHostname
   while true; do
     if [[ ! -z "$newHostname" && "$newHostname" != "localhost" ]]; then
       break
     else
-      read -p "Please enter one hostname(must not be 'localhost'):" newHostname
+      echo -e -n "${GREEN}Enter the public accessible IP address or fully qualified domain name TDengine will expose to users or applications (must not be 'localhost') :${NC}"
+      read newHostname
     fi
   done
 
@@ -476,34 +477,7 @@ function local_fqdn_check() {
   echo
   echo -e -n "System hostname is: ${GREEN}$serverFqdn${NC}"
   echo
-  if [[ "$serverFqdn" == "" ]] || [[ "$serverFqdn" == "localhost" ]]; then
-    echo -e -n "${GREEN}It is strongly recommended to configure a hostname for this machine ${NC}"
-    echo
-
-    while true; do
-      read -r -p "Set hostname now? [Y/n] " input
-      if [ ! -n "$input" ]; then
-        set_hostname
-        break
-      else
-        case $input in
-        [yY][eE][sS] | [yY])
-          set_hostname
-          break
-          ;;
-
-        [nN][oO] | [nN])
-          set_ipAsFqdn
-          break
-          ;;
-
-        *)
-          echo "Invalid input..."
-          ;;
-        esac
-      fi
-    done
-  fi
+  set_hostname  
 }
 
 function install_adapter_config() {
@@ -525,11 +499,19 @@ function install_adapter_config() {
 
 function install_config() {
 
+  local_fqdn_check
+
   if [ ! -f "${cfg_install_dir}/${configFile2}" ]; then
     ${csudo}mkdir -p ${cfg_install_dir}
-    [ -f ${script_dir}/cfg/${configFile2} ] && ${csudo}cp ${script_dir}/cfg/${configFile2} ${cfg_install_dir}
+    if [ -f ${script_dir}/cfg/${configFile2} ]; then
+      ${csudo} echo "monitor 1" >> ${script_dir}/cfg/${configFile2}
+      ${csudo} echo "monitorFQDN ${serverFqdn}" >> ${script_dir}/cfg/${configFile2}
+      ${csudo}cp ${script_dir}/cfg/${configFile2} ${cfg_install_dir}
+    fi
     ${csudo}chmod 644 ${cfg_install_dir}/*
   else
+    ${csudo} echo "monitor 1" >> ${script_dir}/cfg/${configFile2}
+    ${csudo} echo "monitorFQDN ${serverFqdn}" >> ${script_dir}/cfg/${configFile2}
     ${csudo}cp -f ${script_dir}/cfg/${configFile2} ${cfg_install_dir}/${configFile2}.new
   fi
 
@@ -537,15 +519,15 @@ function install_config() {
 
   [ ! -z $1 ] && return 0 || : # only install client
 
-  if ((${update_flag} == 1)); then
-    return 0
-  fi
+  
 
-  if [ "$interactiveFqdn" == "no" ]; then
-    return 0
-  fi
+  # if ((${update_flag} == 1)); then
+  #   return 0
+  # fi
 
-  local_fqdn_check
+  # if [ "$interactiveFqdn" == "no" ]; then
+  #   return 0
+  # fi
 
   echo
   echo -e -n "${GREEN}Enter FQDN:port (like h1.${emailName2}:6030) of an existing ${productName2} cluster node to join${NC}"
@@ -629,7 +611,7 @@ function install_taosx() {
   if [ -f "${script_dir}/taosx/install_taosx.sh" ]; then    
     cd ${script_dir}/taosx
     chmod a+x install_taosx.sh
-    bash install_taosx.sh
+    bash install_taosx.sh -e $serverFqdn
   fi
 }
 
@@ -712,30 +694,7 @@ function clean_service_on_systemd() {
     ${csudo}systemctl stop tarbitratord &>/dev/null || echo &>/dev/null
   fi
   ${csudo}systemctl disable tarbitratord &>/dev/null || echo &>/dev/null
-  ${csudo}rm -f ${tarbitratord_service_config}
-  
-  if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
-    x_service_config="${service_config_dir}/${xName2}.service"
-    if [ -e "$x_service_config" ]; then
-      if systemctl is-active --quiet ${xName2}; then
-        echo "${productName2} ${xName2} is running, stopping it..."
-        ${csudo}systemctl stop ${xName2} &>/dev/null || echo &>/dev/null
-      fi
-      ${csudo}systemctl disable ${xName2} &>/dev/null || echo &>/dev/null
-      ${csudo}rm -f ${x_service_config}
-    fi
-
-    explorer_service_config="${service_config_dir}/${explorerName2}.service"
-    if [ -e "$explorer_service_config" ]; then
-      if systemctl is-active --quiet ${explorerName2}; then
-        echo "${productName2} ${explorerName2} is running, stopping it..."
-        ${csudo}systemctl stop ${explorerName2} &>/dev/null || echo &>/dev/null
-      fi
-      ${csudo}systemctl disable ${explorerName2} &>/dev/null || echo &>/dev/null
-      ${csudo}rm -f ${explorer_service_config}
-      ${csudo}rm -f /etc/${clientName2}/explorer.toml
-    fi
-  fi
+  ${csudo}rm -f ${tarbitratord_service_config}  
 }
 
 function install_service_on_systemd() {
@@ -756,15 +715,27 @@ function install_service_on_systemd() {
   ${csudo}systemctl daemon-reload
 
   ${csudo}systemctl enable ${serverName2}
-
   ${csudo}systemctl daemon-reload
 }
 
 function install_adapter_service() {
   if ((${service_mod} == 0)); then
-    [ -f ${script_dir}/cfg/${adapterName}.service ] &&
-      ${csudo}cp ${script_dir}/cfg/${adapterName}.service \
+    [ -f ${script_dir}/cfg/${adapterName2}.service ] &&
+      ${csudo}cp ${script_dir}/cfg/${adapterName2}.service \
         ${service_config_dir}/ || :
+    
+    ${csudo}systemctl enable ${adapterName2}
+    ${csudo}systemctl daemon-reload
+  fi
+}
+
+function install_keeper_service() {
+  if ((${service_mod} == 0)); then
+    [ -f ${script_dir}/cfg/${clientName2}keeper.service ] &&
+      ${csudo}cp ${script_dir}/cfg/${clientName2}keeper.service \
+        ${service_config_dir}/ || :
+    
+    ${csudo}systemctl enable ${clientName2}keeper
     ${csudo}systemctl daemon-reload
   fi
 }
@@ -901,6 +872,7 @@ function updateProduct() {
   install_log
   install_header
   install_lib
+  install_config
 
   if [ "$verMode" == "cluster" ]; then
       install_connector
@@ -912,9 +884,9 @@ function updateProduct() {
   if [ -z $1 ]; then
     install_bin
     install_service
-    install_adapter_service
-    install_config
+    install_adapter_service    
     install_adapter_config
+    install_keeper_service
 
     openresty_work=false
 
@@ -957,19 +929,18 @@ function updateProduct() {
     # fi
 
     echo
-    echo -e "\033[44;32;1m${productName2} is updated successfully!${NC}"
+    echo "${productName2} is updated successfully!"
     echo
     if [ "$verMode" == "cluster" ];then
-      echo -e "\033[44;32;1mTo start all the components  \t: sudo ./start-all.sh${NC}"
+      echo -e "\033[44;32;1mTo start all the components       : sudo ./start-all.sh${NC}"
     fi
-    echo -e "\033[44;32;1mTo access ${productName2}  \t\t: ${clientName2} -h $serverFqdn${NC}"
+    echo -e "\033[44;32;1mTo access ${productName2}                : ${clientName2} -h $serverFqdn${NC}"
     if [ "$verMode" == "cluster" ];then
-      echo -e "\033[44;32;1mTo access the management system \t: http://$serverFqdn:6060${NC}"
-      echo -e "\033[44;32;1mTo read the user manual          \t: http://$serverFqdn:6060/docs${NC}"
+      echo -e "\033[44;32;1mTo access the management system   : http://$serverFqdn:6060${NC}"
+      echo -e "\033[44;32;1mTo read the user manual           : http://$serverFqdn:6060/docs${NC}"
     fi
   else
-    install_bin
-    install_config
+    install_bin    
 
     echo
     echo -e "\033[44;32;1m${productName2} client is updated successfully!${NC}"
@@ -1001,6 +972,7 @@ function installProduct() {
   install_jemalloc
   #install_avro lib
   #install_avro lib64
+  install_config
 
   if [ "$verMode" == "cluster" ]; then
       install_connector
@@ -1014,10 +986,10 @@ function installProduct() {
     install_service
     install_adapter_service
     install_adapter_config
+    install_keeper_service
 
     openresty_work=false
 
-    install_config
 
     # Ask if to start the service
     echo
@@ -1068,20 +1040,20 @@ function installProduct() {
     #   echo
     # fi
     echo
-    echo -e "\033[44;32;1m${productName2} is installed successfully!${NC}"
+    echo "${productName2} is installed successfully!"
     echo
     if [ "$verMode" == "cluster" ];then
-      echo -e "\033[44;32;1mTo start all the components  \t: sudo ./start-all.sh${NC}"
+      echo -e "\033[44;32;1mTo start all the components       : sudo ./start-all.sh${NC}"
     fi
-    echo -e "\033[44;32;1mTo access ${productName2}  \t\t: ${clientName2} -h $serverFqdn${NC}"
+    echo -e "\033[44;32;1mTo access ${productName2}                : ${clientName2} -h $serverFqdn${NC}"
     if [ "$verMode" == "cluster" ];then
-      echo -e "\033[44;32;1mTo access the management system \t: http://$serverFqdn:6060${NC}"
-      echo -e "\033[44;32;1mTo read the user manual          \t: http://$serverFqdn:6060/docs${NC}"
+      echo -e "\033[44;32;1mTo access the management system   : http://$serverFqdn:6060${NC}"
+      echo -e "\033[44;32;1mTo read the user manual           : http://$serverFqdn:6060/docs${NC}"
     fi
     echo
   else # Only install client
     install_bin
-    install_config
+        
     echo
     echo -e "\033[44;32;1m${productName2} client is installed successfully!${NC}"
   fi
@@ -1118,3 +1090,5 @@ elif [ "$verType" == "client" ]; then
 else
   echo "please input correct verType"
 fi
+
+
