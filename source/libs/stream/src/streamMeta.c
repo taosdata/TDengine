@@ -680,8 +680,6 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
 
       taosArrayPush(pMeta->pTaskList, &pTask->id);
     } else {
-      tdbFree(pKey);
-      tdbFree(pVal);
       taosMemoryFree(pTask);
       continue;
     }
