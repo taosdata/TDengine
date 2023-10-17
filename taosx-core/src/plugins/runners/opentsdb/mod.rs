@@ -537,8 +537,13 @@ async fn validate_source_opentsdb(config: OpentsdbConfig) -> anyhow::Result<Data
         .await
         .with_context(|| "Start OpenTSDB collector error")?;
     if output.status.success() {
-        let result = String::from_utf8(output.stdout.clone()).unwrap_or(String::from("{}"));
-        let result: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let result: serde_json::Value =
+            serde_json::from_slice(&output.stdout).with_context(|| {
+                format!(
+                    "Deserialize opentsdb validation result error: {}",
+                    String::from_utf8_lossy(&output.stdout)
+                )
+            })?;
         // 组装结果
         Ok(DataSourceValidation {
             valid: result["valid"].as_bool().unwrap_or(false),

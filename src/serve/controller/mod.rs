@@ -626,16 +626,15 @@ impl TaskController {
             _ => None,
         };
 
-
         // todo! add trace id to
         let span = tracing::info_span!(
             "task::spawned",
             task.id = id,
             trace_id = tracing::field::Empty
         );
-        // span.record("request", value)    
+        // span.record("request", value)
 
-        let breakpoints = task.breakpoints.clone();    
+        let breakpoints = task.breakpoints.clone();
 
         let opts = TaskOpts {
             transform: vec![],
@@ -1158,6 +1157,18 @@ impl TaskController {
         }
         task.patch_labels();
         let now = chrono::Utc::now();
+        if let Some(name) = &task.name {
+            let tasks = self
+                .tasks(TaskFilter {
+                    name: Some(name.clone()),
+                    labels: task.labels.as_ref().map(|s| s.join(",")),
+                    ..Default::default()
+                })
+                .await?;
+            if tasks.len() > 0 {
+                anyhow::bail!("Task name {:?} already exists", name);
+            }
+        }
         let res = sqlx::query(
             "INSERT INTO tasks (`name`, `from`, `oneshot_topic`, `to`, `jobs`, `compression_level`, \
                  `created_at`, `status`, `after_delete`, `trigger`, `via`, `parser`) \

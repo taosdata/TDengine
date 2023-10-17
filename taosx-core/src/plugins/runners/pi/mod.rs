@@ -465,7 +465,8 @@ impl PiConfig {
         }
         let ipc_stream = format!("127.0.0.1:{ipc}");
         let sql_api = format!("http://127.0.0.1:{sql}");
-        let from_tdengine_last_time = if let Some(v) = dsn
+
+        let mut from_tdengine_last_time = if let Some(v) = dsn
             .remove("FromTDengineLastTime")
             .map(|v| {
                 v.parse::<bool>()
@@ -477,7 +478,7 @@ impl PiConfig {
         } else {
             None
         };
-        let to_tdengine_first_time = if let Some(v) = dsn
+        let mut to_tdengine_first_time = if let Some(v) = dsn
             .remove("ToTDengineFirstTime")
             .map(|v| {
                 v.parse::<bool>()
@@ -491,45 +492,65 @@ impl PiConfig {
         };
 
         let backfill_start_time = if let Some(backfill_start) = dsn.remove("BackfillStartTime") {
-            let parsed_time =
-                NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
-                    .map_err(|err| {
-                        PiError::ParseError(
-                            "BackfillStartTime",
-                            backfill_start.clone(),
-                            err.to_string(),
-                        )
-                    })?
-                    .and_local_timezone(Local)
-                    .unwrap();
-            let parsed_time =
-                Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| {
-                    PiError::ParseError("BackfillStartTime", backfill_start, err.to_string())
-                })?;
-            Some(parsed_time)
+            if backfill_start == "auto" {
+                from_tdengine_last_time.replace(true);
+                None
+            } else {
+                let parsed_time =
+                    NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
+                        .map_err(|err| {
+                            PiError::ParseError(
+                                "BackfillStartTime",
+                                backfill_start.clone(),
+                                err.to_string(),
+                            )
+                        })?
+                        .and_local_timezone(Local)
+                        .unwrap();
+                let parsed_time =
+                    Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| {
+                        PiError::ParseError("BackfillStartTime", backfill_start, err.to_string())
+                    })?;
+                Some(parsed_time)
+            }
         } else {
             None
         };
         let backfill_end_time = if let Some(backfill_start) = dsn.remove("BackfillEndTime") {
-            let parsed_time =
-                NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
-                    .map_err(|err| {
-                        PiError::ParseError(
-                            "BackfillEndTime",
-                            backfill_start.clone(),
-                            err.to_string(),
-                        )
-                    })?
-                    .and_local_timezone(Local)
-                    .unwrap();
-            let parsed_time =
-                Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| {
-                    PiError::ParseError("BackfillEndTime", backfill_start, err.to_string())
-                })?;
-            Some(parsed_time)
+            if backfill_start == "auto" {
+                to_tdengine_first_time.replace(true);
+                None
+            } else {
+                let parsed_time =
+                    NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
+                        .map_err(|err| {
+                            PiError::ParseError(
+                                "BackfillEndTime",
+                                backfill_start.clone(),
+                                err.to_string(),
+                            )
+                        })?
+                        .and_local_timezone(Local)
+                        .unwrap();
+                let parsed_time =
+                    Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| {
+                        PiError::ParseError("BackfillEndTime", backfill_start, err.to_string())
+                    })?;
+                Some(parsed_time)
+            }
         } else {
             None
         };
+
+        match (from_tdengine_last_time, to_tdengine_first_time) {
+            (Some(true), Some(true)) => {
+                return Err(PiError::ConfigError(
+                    "Only one of the BackfillStartTime and BackfillEndTime can be automatically set"
+                        .to_string(),
+                ));
+            }
+            _ => {}
+        }
 
         Ok(Self {
             server_name,

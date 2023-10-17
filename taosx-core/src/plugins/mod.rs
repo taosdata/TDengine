@@ -91,7 +91,7 @@ pub async fn build_ipc(
         .in_current_span()
         .await?
     } else {
-        sink::listen_tcp_socket_with_agent(socket, cancel.clone(), with_agent.unwrap())
+        sink::listen_tcp_socket_with_agent(socket, cancel.clone(), with_agent.unwrap(), config)
             .in_current_span()
             .await?
     };

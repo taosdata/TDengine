@@ -9,7 +9,9 @@ strict: false
 options:
   endpoint:
     display: bootstrap-servers
-    description: Kafka Server 地址
+    description: |
+      Kafka Server 地址。
+      如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。
     placeholder: 127.0.0.1:9092
     required: true
 groups:

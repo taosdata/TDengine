@@ -47,6 +47,7 @@ class ReleaseInfo:
         self.Branch = ""
         self.Commit = ""
         self.BuildTime = ""
+        self.OnlyBuild = False
     def print(self):
         for attr in dir(self):
             if not attr.startswith("__"):
@@ -96,10 +97,16 @@ def get_taosx_agent_version():
     return version
 
 def get_install_path():
+    target = "taosx"
+    if release_info.Target == "agent":
+        target = taosx_agent_name
+
     if release_info.OS == 'Windows':  # Windows操作系统
         return f'C:\\Program Files\\taosX'
+    elif release_info.OnlyBuild:
+        return os.path.join(taosx_dir,"release","taosx")
     else:
-        return taosx_agent_name
+        return os.path.join(taosx_dir,"release","{0}-{1}-linux-{2}".format(target, release_info.TaosXVersion, release_info.CpuType.lower()))
 
 def get_package_name():
     target = "taosx"
@@ -159,6 +166,7 @@ def init_build_info():
     parser.add_argument('-c', '--cpu_type', help='cpu [aarch32 | aarch64 | x64 | x86 | mips64 | loongarch64 ...] ')
     parser.add_argument('-o', '--objective', choices=['taosx', 'agent'], help='target package type(taosx, agent)')
     parser.add_argument('-t', '--test_process', help='test single process(pi,opc,mqtt,taosx, package)')
+    parser.add_argument('-ob', '--only_build', nargs='?', const=get_install_path(), help='only build taosx into this path.)')
 
     args, unknown_args = parser.parse_known_args()
 
@@ -169,6 +177,9 @@ def init_build_info():
     release_info.InstallPath = get_install_path()
     release_info.ReleasePath = os.path.abspath(os.path.join(script_dir, "..", "release"))
     release_info.CpuType = GetCpuType()
+    if args.only_build:
+        release_info.OnlyBuild = True
+        release_info.InstallPath = args.only_build
     if args.objective:
         release_info.Target = args.objective
     if args.build_mode:
@@ -183,6 +194,7 @@ def init_build_info():
         release_info.TaosXVersion = get_taosx_version()
     else:
         release_info.TaosXVersion = get_taosx_agent_version()
+    release_info.InstallPath = get_install_path()
 
     sub_module.append(SubmoduleBuildInfo(taosx_agent_name, release_info.DefaultBuildMode))
     if args.connector_list:
@@ -630,8 +642,6 @@ def test_handle(process):
             build_and_install_taos_explorer("Release")
         linux_release.test_handle(release_info, process)
 
-
-
 if __name__ == '__main__':
     init_build_info()
     print_param()
@@ -673,6 +683,9 @@ if __name__ == '__main__':
                 print("build taos_explorer")
                 build_and_install_taos_explorer(task.VersionMode)
         init_release_directory()
-        package()
+        if release_info.OnlyBuild:
+            print("taosx and it's submodule build finished.")
+        else:
+            package()
     else:
         raise Exception("Unsupported operating system: {}".format(release_info.OS))
