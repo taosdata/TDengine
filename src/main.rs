@@ -1,19 +1,28 @@
-use std::path::PathBuf;
 use anyhow::{bail, Result};
 use chrono::Local;
 use clap::{Parser, Subcommand};
 use const_format::concatcp;
 use file_rotate::{
     compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
+    ContentLimit,
+    FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
 };
 use metrics_tracing_context::MetricsLayer;
+#[cfg(feature = "mimalloc")]
+use mimalloc::MiMalloc;
 use opentelemetry::trace::Tracer;
 use shadow_rs::shadow;
+use time::{macros::format_description, UtcOffset};
+use tracing::Instrument;
+use tracing::Subscriber;
+use tracing_subscriber::{
+    EnvFilter,
+    fmt::{format::FmtSpan, time::OffsetTime},
+    prelude::*,
+};
 
 use taosx_core::{
-    get_log_dir, get_log_keep_days, valid_env_log_keep_days, ENV_TAOSX_LOGS_KEEP_DAYS,
+    ENV_TAOSX_LOGS_KEEP_DAYS, get_log_dir, get_log_keep_days, valid_env_log_keep_days,
 };
 #[cfg(feature = "tikv_jemallocator")]
 #[cfg(not(target_env = "msvc"))]
@@ -23,18 +32,6 @@ use tikv_jemallocator::Jemalloc;
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
-
-#[cfg(feature = "mimalloc")]
-use mimalloc::MiMalloc;
-
-use time::{macros::format_description, UtcOffset};
-use tracing::Instrument;
-use tracing_subscriber::{
-    fmt::{format::FmtSpan, time::OffsetTime},
-    prelude::*,
-    EnvFilter,
-};
-use taosx_ipc::types::LevelFilter;
 
 #[cfg(feature = "mimalloc")]
 #[global_allocator]
@@ -184,181 +181,12 @@ fn build_runtime(
         .build()
 }
 
-async fn init_tracing(args: &Args, version: &str, commit_id: &str, build_time: &str,
-                      log_path: &PathBuf, log_keep_days: i64, timezone_offset: i8) -> Result<()> {
-    let mut layers = Vec::new();
-    // Create Level Filter
-    let level_filter = args.globals.verbose.log_level_filter();
-    use tracing_subscriber::filter::LevelFilter;
-    let level_filter = match level_filter {
-        clap_verbosity_flag::LevelFilter::Off => LevelFilter::OFF,
-        clap_verbosity_flag::LevelFilter::Error => LevelFilter::ERROR,
-        clap_verbosity_flag::LevelFilter::Warn => LevelFilter::WARN,
-        clap_verbosity_flag::LevelFilter::Info => LevelFilter::INFO,
-        clap_verbosity_flag::LevelFilter::Debug => LevelFilter::DEBUG,
-        clap_verbosity_flag::LevelFilter::Trace => LevelFilter::TRACE,
-    };
-    let display_file_and_line_number = level_filter == LevelFilter::DEBUG
-        || level_filter == LevelFilter::TRACE;
-
-    // Format timestamp
-    let timer = OffsetTime::new(
-        UtcOffset::from_hms(timezone_offset, 0, 0).unwrap(),
-        format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:6]"),
-    );
-
-    // Create event filter to filter out unnecessary logs from third-party crates.
-    let event_filter = EnvFilter::builder()
-        .with_default_directive(level_filter.into())
-        .with_regex(true)
-        .from_env_lossy()
-        .add_directive("tungstenite=warn".parse()?)
-        .add_directive("tokio=warn".parse()?)
-        .add_directive("runtime=warn".parse()?)
-        .add_directive("actix_server=info".parse()?)
-        .add_directive("actix_http=info".parse()?)
-        .add_directive("tokio_tungstenite=info".parse()?)
-        .add_directive("mio=info".parse()?)
-        .add_directive("h2=info".parse()?);
-
-    let span_events = args.globals.tracing_events.clone();
-
-    // Create layer for rotating file log
-    let (non_blocking, _guard) = tracing_appender::non_blocking(FileRotate::new(
-        &log_path,
-        AppendTimestamp::with_format(
-            "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::days(log_keep_days)),
-            DateFrom::DateYesterday,
-        ),
-        ContentLimit::Time(TimeFrequency::Daily),
-        Compression::None,
-        #[cfg(unix)]
-            None,
-    ));
-    layers.push(
-        tracing_subscriber::fmt::layer()
-            .with_timer(timer.clone())
-            .with_level(true)
-            .with_thread_ids(true)
-            .with_thread_names(true)
-            .with_span_events(span_events.clone())
-            .with_ansi(false)
-            .with_writer(non_blocking)
-            // .with_file(display_file_and_line_number)
-            // .with_line_number(display_file_and_line_number)
-            // .compact()
-            .with_filter(level_filter)
-            .boxed(),
-    );
-
-    // Create layer for print log to Stdout and Stderr.
-    if atty::is(atty::Stream::Stderr) {
-        layers.push(
-            tracing_subscriber::fmt::layer()
-                .with_timer(timer.clone())
-                .with_level(true)
-                .with_thread_ids(true)
-                .with_writer(std::io::stderr)
-                // .with_file(display_file_and_line_number)
-                // .with_line_number(display_file_and_line_number)
-                .with_span_events(span_events)
-                .with_ansi(true)
-                .pretty()
-                .with_filter(event_filter)
-                .boxed(),
-        );
-    } else {
-        layers.push(
-            tracing_subscriber::fmt::layer()
-                .with_timer(timer.clone())
-                .with_level(true)
-                .with_thread_ids(true)
-                .with_writer(std::io::stderr)
-                // .with_file(display_file_and_line_number)
-                // .with_line_number(display_file_and_line_number)
-                .with_span_events(span_events)
-                .with_ansi(false)
-                .compact()
-                .with_filter(event_filter)
-                .boxed(),
-        );
-    }
-
-    // Create layer for tracing-metrics
-    let metrics_layer = MetricsLayer::new().boxed();
-    layers.push(metrics_layer);
-
-    // Create event subscriber
-    let layered = tracing_subscriber::registry().with(layers);
-
-    // Enable console subscriber
-    #[cfg(feature = "tokio-tracing")]
-    {
-        layers.push(console_subscriber::spawn().boxed());
-    }
-
-    // Enable opentelemetry
-    if args.globals.otel.unwrap_or(false) {
-        let tracer = opentelemetry_otlp::new_pipeline()
-            .tracing()
-            .with_exporter(
-                opentelemetry_otlp::new_exporter()
-                    .tonic()
-            )
-            .with_trace_config(
-                opentelemetry::sdk::trace::config()
-                    .with_sampler(opentelemetry::sdk::trace::Sampler::AlwaysOn)
-                    .with_id_generator(opentelemetry::sdk::trace::RandomIdGenerator::default())
-                    .with_max_events_per_span(64)
-                    .with_max_attributes_per_span(16)
-                    .with_max_events_per_span(16)
-                    .with_resource(opentelemetry::sdk::Resource::new(vec![
-                        opentelemetry::KeyValue::new("service.name", build::CUS_CLI_NAME),
-                    ])),
-            )
-            .install_simple()?;
-        tracer.in_span("init", |_cx| _cx.attach());
-        // Create a tracing layer with the configured tracer
-        let telemetry = tracing_opentelemetry::layer::<_>()
-            .with_tracer(tracer)
-            .with_filter(
-                EnvFilter::builder()
-                    .with_default_directive(level_filter.into())
-                    .with_regex(true)
-                    .from_env_lossy()
-                    .add_directive("tungstenite=warn".parse()?)
-                    .add_directive("tokio=warn".parse()?)
-                    .add_directive("runtime=warn".parse()?)
-                    .add_directive("actix_server=info".parse()?)
-                    .add_directive("actix_http=info".parse()?)
-                    .add_directive("tokio_tungstenite=info".parse()?)
-                    .add_directive("mio=info".parse()?)
-                    .add_directive("h2=info".parse()?),
-            );
-        layered.with(telemetry).try_init()?;
-    } else {
-        layered.try_init()?;
-    }
-
-    // Print some infos.
-    let span = tracing::info_span!("info");
-    span.in_scope(|| {
-        tracing::info!("version: {version}");
-        tracing::info!("commit id: {commit_id}");
-        tracing::info!("build time: {build_time}");
-    });
-    span.entered().exit();
-    anyhow::Ok(())
-}
-
 fn main() -> Result<()> {
     dotenv::dotenv().ok();
     let args = Args::parse();
     let version = build::PKG_VERSION;
     let commit_id = build::COMMIT_HASH;
     let build_time = build::BUILD_TIME;
-    // println!("taosx version: {CLAP_SHORT_VERSION}");
     println!("taosx version: {version}");
     println!("commit id: {commit_id}");
     println!("build time: {build_time}");
@@ -395,10 +223,171 @@ fn main() -> Result<()> {
         / chrono::Duration::hours(1).num_seconds() as i32) as i8;
 
     println!("local timezone offset: {}", timezone_offset);
-
     let worker_threads = args.globals.executor_worker_threads();
     let runtime = build_runtime(worker_threads)?;
-    runtime.block_on(init_tracing(&args, version, commit_id, build_time, &log_path, log_keep_days, timezone_offset))?;
+
+    //======================================initialize tracing event subscribers===================
+    let span_events = args.globals.tracing_events.clone();
+    let level_filter = args.globals.verbose.log_level_filter();
+    let log_rotation = FileRotate::new(
+        &log_path,
+        AppendTimestamp::with_format(
+            "%Y-%m-%d",
+            FileLimit::Age(chrono::Duration::days(log_keep_days)),
+            DateFrom::DateYesterday,
+        ),
+        ContentLimit::Time(TimeFrequency::Daily),
+        Compression::None,
+        #[cfg(unix)]
+            None,
+    );
+
+    let (non_blocking, _guard) = tracing_appender::non_blocking(log_rotation);
+    runtime.block_on(async move {
+        let mut layers = Vec::new();
+        use tracing_subscriber::filter::LevelFilter;
+        let level_filter = match level_filter {
+            clap_verbosity_flag::LevelFilter::Off => LevelFilter::OFF,
+            clap_verbosity_flag::LevelFilter::Error => LevelFilter::ERROR,
+            clap_verbosity_flag::LevelFilter::Warn => LevelFilter::WARN,
+            clap_verbosity_flag::LevelFilter::Info => LevelFilter::INFO,
+            clap_verbosity_flag::LevelFilter::Debug => LevelFilter::DEBUG,
+            clap_verbosity_flag::LevelFilter::Trace => LevelFilter::TRACE,
+        };
+        let chrono_local = Local::now();
+        let timezone_offset = (chrono_local.offset().local_minus_utc()
+            / chrono::Duration::hours(1).num_seconds() as i32) as i8;
+        let timer = OffsetTime::new(
+            UtcOffset::from_hms(timezone_offset, 0, 0).unwrap(),
+            format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:6]"),
+        );
+        layers.push(
+            tracing_subscriber::fmt::layer()
+                .with_timer(timer.clone())
+                .with_level(true)
+                .with_thread_ids(false)
+                .with_thread_names(true)
+                .with_span_events(span_events.clone())
+                .with_ansi(false)
+                .with_writer(non_blocking)
+                .with_file(false)
+                .with_line_number(false)
+                .compact()
+                .with_filter(level_filter)
+                .boxed(),
+        );
+
+        let event_filter = EnvFilter::builder()
+            .with_default_directive(level_filter.into())
+            .with_regex(true)
+            .from_env_lossy()
+            .add_directive("tungstenite=warn".parse()?)
+            .add_directive("tokio=warn".parse()?)
+            .add_directive("runtime=warn".parse()?)
+            .add_directive("actix_server=info".parse()?)
+            .add_directive("actix_http=info".parse()?)
+            .add_directive("tokio_tungstenite=info".parse()?)
+            .add_directive("mio=info".parse()?)
+            .add_directive("h2=info".parse()?);
+
+        // Create layer for print log to Stdout and Stderr.
+        if atty::is(atty::Stream::Stderr) {
+            layers.push(
+                tracing_subscriber::fmt::layer()
+                    .with_timer(timer.clone())
+                    .with_level(true)
+                    .with_thread_ids(false)
+                    .with_thread_names(true)
+                    .with_writer(std::io::stderr)
+                    .with_span_events(span_events)
+                    .with_ansi(true)
+                    .pretty()
+                    .with_filter(event_filter)
+                    .boxed(),
+            );
+        } else {
+            layers.push(
+                tracing_subscriber::fmt::layer()
+                    .with_timer(timer.clone())
+                    .with_level(true)
+                    .with_thread_ids(false)
+                    .with_thread_names(true)
+                    .with_writer(std::io::stderr)
+                    .with_span_events(span_events)
+                    .with_ansi(false)
+                    .compact()
+                    .with_filter(event_filter)
+                    .boxed(),
+            );
+        }
+
+        // Create layer for tracing-metrics
+        let metrics_layer = MetricsLayer::new().boxed();
+        layers.push(metrics_layer);
+
+        // Create event subscriber
+        let layered = tracing_subscriber::registry().with(layers);
+
+        // Enable console subscriber
+        #[cfg(feature = "tokio-tracing")]
+        {
+            layers.push(console_subscriber::spawn().boxed());
+        }
+
+        // Enable opentelemetry
+        if args.globals.otel.unwrap_or(false) {
+            let tracer = opentelemetry_otlp::new_pipeline()
+                .tracing()
+                .with_exporter(
+                    opentelemetry_otlp::new_exporter()
+                        .tonic()
+                )
+                .with_trace_config(
+                    opentelemetry::sdk::trace::config()
+                        .with_sampler(opentelemetry::sdk::trace::Sampler::AlwaysOn)
+                        .with_id_generator(opentelemetry::sdk::trace::RandomIdGenerator::default())
+                        .with_max_events_per_span(64)
+                        .with_max_attributes_per_span(16)
+                        .with_max_events_per_span(16)
+                        .with_resource(opentelemetry::sdk::Resource::new(vec![
+                            opentelemetry::KeyValue::new("service.name", build::CUS_CLI_NAME),
+                        ])),
+                )
+                .install_simple()?;
+            tracer.in_span("init", |_cx| _cx.attach());
+            // Create a tracing layer with the configured tracer
+            let telemetry = tracing_opentelemetry::layer::<_>()
+                .with_tracer(tracer)
+                .with_filter(
+                    EnvFilter::builder()
+                        .with_default_directive(level_filter.into())
+                        .with_regex(true)
+                        .from_env_lossy()
+                        .add_directive("tungstenite=warn".parse()?)
+                        .add_directive("tokio=warn".parse()?)
+                        .add_directive("runtime=warn".parse()?)
+                        .add_directive("actix_server=info".parse()?)
+                        .add_directive("actix_http=info".parse()?)
+                        .add_directive("tokio_tungstenite=info".parse()?)
+                        .add_directive("mio=info".parse()?)
+                        .add_directive("h2=info".parse()?),
+                );
+            layered.with(telemetry).try_init()?;
+        } else {
+            layered.try_init()?;
+        }
+
+        // Print some infos.
+        let span = tracing::info_span!("info");
+        span.in_scope(|| {
+            tracing::info!("version: {version}");
+            tracing::info!("commit id: {commit_id}");
+            tracing::info!("build time: {build_time}");
+        });
+        span.entered().exit();
+        anyhow::Ok(())
+    })?;
+    //======================================initialize tracing done==================
 
     match args
         .commands
