@@ -9,7 +9,7 @@ ExternalProject_Add(openssl
         #BUILD_ALWAYS 1
         #UPDATE_COMMAND ""
         CONFIGURE_COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.1 -static #--no-shared
-        BUILD_COMMAND make -j
-        INSTALL_COMMAND make install
+        BUILD_COMMAND ""
+        INSTALL_COMMAND make install_sw -j
         TEST_COMMAND ""
 )
