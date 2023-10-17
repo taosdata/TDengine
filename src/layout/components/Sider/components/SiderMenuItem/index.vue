@@ -4,7 +4,7 @@
       :disabled="opened"
       class="item"
       effect="dark"
-      :content="item.title"
+      :content="$t(item.title)"
       placement="right"
     >
       <el-menu-item
@@ -12,10 +12,9 @@
         @contextmenu.native.prevent="menuRight(item.path)"
         :disabled="!isDisabled(item.path)"
         class="menuItem"
-        @click="menuClick(item.title)"
+        @click="menuClick($t(item.title))"
         style="display:flex;align-items:center"
       >
-      <!-- <span style="color:red;font-size:24px;">{{ item.title }}</span> -->
         <div :aria-data="item.path">
           <span>
             <Icon
@@ -26,7 +25,7 @@
             <!-- <img src="https://enncdn.oss-cn-beijing.aliyuncs.com/bg/test.jpg" alt="" style="width:24px;height:24px;"> -->
           </span>
           <span class="menuItem_title" v-if="opened">
-            {{ item.title }}
+            {{ $t(item.title) }}
           </span>
         </div>
       </el-menu-item>

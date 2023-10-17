@@ -48,7 +48,7 @@ export default {
   name: "Dcoument",
   computed: {
     docsUrl() {
-      return window.navigator.language.includes('zh')
+      return  localStorage.getItem('local_language').includes('zh')
         ?"/docs/":"/docs-en/";
     },
     discordUrl() {

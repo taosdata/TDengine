@@ -24,7 +24,7 @@
         :url="url"
         :token="token"
         :topic="topic"
-        :is="component"
+        :is="componentName"
         :user="username"
         :password="decryptPwd"
       ></component>
@@ -59,15 +59,15 @@ export default {
     config() {
       let lang = window.decodeURIComponent(this.lang);
       return (
-        config[this.category].find((item) => {
+        config[this.category]().find((item) => {
           return item.name == lang;
         }) || {}
       );
     },
-    component() {
+    componentName() {
       return typeof this.config.docs === "string" || !this.config.docs
         ? ""
-        : this.config.docs;
+        : this.config.docs.en;
     },
     steps() {
       return this.config.steps || [];

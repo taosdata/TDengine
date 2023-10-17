@@ -79,14 +79,14 @@
           plain
           @click="addRow"
         ></el-button>
-        <el-tooltip
+        <!-- <el-tooltip
           effect="light"
           :content="$t('datasource.addmqtttip')"
           placement="right-start"
           style="position: absolute; left: 0px"
         >
           <i class="el-icon-info"></i>
-        </el-tooltip>
+        </el-tooltip> -->
       </div>
     </div>
 
@@ -300,8 +300,8 @@ export default {
   }
   .footer {
     .el-button {
-      width: 95%;
-      margin-left:40px;
+      width: 100%;
+      // margin-left:40px;
     }
   }
   .col-content {

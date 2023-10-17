@@ -19,7 +19,7 @@
     <div class="headerRight">
       <Timezone></Timezone>
       <Document v-if="docUrl"></Document>
-
+      <!-- <International></International> -->
       <!-- <Support v-if="supportUrl"></Support>
       <Document v-if="docUrl"></Document> -->
       <!-- <Github></Github> -->
@@ -32,12 +32,15 @@
       </el-tooltip>
       <Help></Help> -->
       <Avatar></Avatar>
+
+      <div class="language" @click="switchLanguage">{{ locallanguage }}</div>
     </div>
   </div>
 </template>
 
 <script>
 import { sendSQLReq } from "@/api/gateway/console";
+
 import {
   Avatar,
   ClusterSelector,
@@ -45,9 +48,18 @@ import {
   Support,
   Document,
   Timezone,
+  International,
 } from "./components";
 export default {
-  components: { Avatar, ClusterSelector, Help, Support, Document, Timezone },
+  components: {
+    Avatar,
+    ClusterSelector,
+    Help,
+    Support,
+    Document,
+    Timezone,
+    International,
+  },
   data() {
     return {
       showHeaderLeft: true,
@@ -76,6 +88,13 @@ export default {
     hasAlert() {
       return this.$store.getters.role == "1";
     },
+    locallanguage(){
+      if(this.$i18n.locale=='zh'){
+        return 'EN'
+      }else{
+        return '中'
+      }
+    },
   },
   created() {
     this.getLicense();
@@ -83,14 +102,28 @@ export default {
   mounted() {
     if (process.env.VUE_APP_CUS_CONFIG) {
       let config = JSON.parse(process.env.VUE_APP_CUS_CONFIG);
-      if(Object.hasOwnProperty.call(config,'serverVersionDisplay')){
+      if (Object.hasOwnProperty.call(config, "serverVersionDisplay")) {
         this.showHeaderLeft = config?.serverVersionDisplay?.hide;
       }
-      
+
       this.clickCount = config?.serverVersionDisplay?.showByClick;
     }
   },
   methods: {
+    switchLanguage() {
+      if(this.$i18n.locale=='zh'){
+        this.$i18n.locale='en'
+        localStorage.setItem("local_language", "en");
+      }else{
+        this.$i18n.locale='zh'
+        localStorage.setItem("local_language", "zh");
+      }
+      console.log(this.$i18n.locale,'语言切换n');
+      // this.$i18n.locale = "zh";
+      // localStorage.setItem("local_language", "zh");
+      // window.location.reload()
+    },
+   
     clickShowVersion() {
       if (process.env.VUE_APP_CUS_CONFIG) {
         this.clickNum++;
@@ -218,5 +251,18 @@ export default {
 }
 .headerLeft.hidden {
   opacity: 0;
+}
+.language {
+  margin-top: 4px;
+  margin-left:20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid #4259ce;
+  border-radius: 50%;
+  color: #4259ce;
 }
 </style>

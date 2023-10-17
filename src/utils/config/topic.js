@@ -1,10 +1,13 @@
 import * as mdx from "./mdx";
 import i18n from "@/lang";
 
-export default [
+export default () => [
   {
     name: "Python",
-    docs: mdx.topicPythonDoc,
+    docs: {
+      zh:mdx.topicPythonDoc,
+      en:mdx.topicPythonDoc
+    },
     steps: [
       { title: i18n.t("docs.topic.python.step1"), dom: "py-install-module" },
       { title: i18n.t("docs.topic.step2"), dom: "py-config" },
@@ -16,7 +19,10 @@ export default [
   },
   {
     name: "Go",
-    docs: mdx.topicGoDoc,
+    docs: {
+      zh:mdx.topicGoDoc,
+      en:mdx.topicGoDoc
+    },
     steps: [
       { title: i18n.t("docs.topic.go.step1"), dom: "go-initialize-module-depend" },
       { title: i18n.t("docs.topic.step2"), dom: "go-config" },
@@ -28,7 +34,11 @@ export default [
   },
   {
     name: "Rust",
-    docs: mdx.topicRustDoc,
+    docs: {
+      zh:mdx.topicRustDoc,
+      en:mdx.topicRustDoc
+      
+    },
     steps: [
       { title: i18n.t("docs.topic.rust.step1"), dom: "rust-create-project" },
       { title: i18n.t("docs.topic.step2"), dom: "rust-config" },
@@ -40,7 +50,10 @@ export default [
   },
   {
     name: 'Java',
-    docs: mdx.topicJavaDoc,
+    docs: {
+      zh:mdx.topicJavaDoc,
+      en:mdx.topicJavaDoc
+    },
     steps: [
       { title: i18n.t('docs.topic.createProject'), dom: 'init' },
       { title: i18n.t('docs.topic.step2'), dom: 'config' },

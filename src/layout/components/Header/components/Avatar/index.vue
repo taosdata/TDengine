@@ -76,6 +76,7 @@
         localStorage.removeItem('TDengine-Token')
         localStorage.removeItem('username')
         localStorage.removeItem('pwd')
+        localStorage.removeItem('local_language')
         this.$store.dispatch("app/logout");
         this.$router.push({
           path:'/login'

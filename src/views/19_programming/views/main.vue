@@ -32,6 +32,7 @@ export default {
     };
   },
   created(){
+    console.log(connector,'connector')
   },
   computed: {
     toolName() {

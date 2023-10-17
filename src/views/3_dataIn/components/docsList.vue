@@ -1,7 +1,7 @@
 <template>
   <div class="connector">
     <ul class="client-list">
-      <li v-for="(item, index) in docsList" :title="item.name" :key="index">
+      <li v-for="(item, index) in localDocList" :title="item.name" :key="index">
         
         <router-link class="client-item" :to="getUrl(item.name, item.icon)">
           <h2 class="title">
@@ -26,7 +26,7 @@ export default {
       default: "",
     },
     docsList: {
-      type: Array,
+      type: Function,
       default: () => [],
     },
     urlPre: {
@@ -34,9 +34,24 @@ export default {
       default: "",
     },
   },
-  computed: {},
+  data(){
+    return {
+      localDocList:[]
+    }
+  },
+  computed: {
+    language() {
+      return this.$i18n.locale;
+    },
+  },
+  watch: {
+    language() {
+      this.localDocList=this.docsList()
+    },
+  },
   mounted(){
-    console.log(this.docsList,'tools---pppsss');
+    this.localDocList=this.docsList()
+    console.log(this.docsList,'tools---pppsss',this.localDocList,this.docsList());
   },
   methods: {
     getUrl(name) {

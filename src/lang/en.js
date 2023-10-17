@@ -1387,6 +1387,23 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step3desc:
           "Following command below show how to query data into from table ins_databases of the database information_schema via the command line utility curl.",
       },
+      r: {
+        step1: 'Install RJDBC',
+        step11desc:
+          "First of all, RJDBC depends on Java environment, please download the JDK from Oracle's official website that is suitable for your operating system, and follow the installation guide to install it.",
+        step12desc: 'Then execute the following command to install RJDBC libaray in the R console:',
+        step13desc: 'In the end, download the latest ',
+        step13desc1: 'TDengine JDBC Driver',
+        step13desc2: ' to a specified local directory:',
+        step2: 'Config',
+        step21desc: 'Then load RJDBC and other libraries in the R script:',
+        step22desc: 'In the end, set the JDBC driver and TDengine JDBC URL:',
+        step23desc:
+          'Note: Please replace "[path]" with the absolute path of the local system where the actual TDengine JDBC driver is downloaded to, and replace "taos-jdbcdriver-X.X.X-dist.jar" with the full file name of the actual downloaded driver.',
+        step3: 'Connect',
+        step31desc: 'First of all, please load JDBC driver as the following:',
+        step32desc: 'Then execute the following script to create the connection with TDengine  instance:'
+      },
     },
     party: {
       prometheus: {
