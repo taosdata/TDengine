@@ -245,7 +245,7 @@ int32_t tsTtlBatchDropNum = 10000;   // number of tables dropped per batch
 int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
 int32_t tsStreamCheckpointInterval = 300;
-double  tsSinkDataRate = 2.0;
+float   tsSinkDataRate = 2.0;
 int32_t tsStreamNodeCheckInterval = 30;
 int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushIntervalSec = 10;
@@ -650,13 +650,13 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "disableStream", tsDisableStream, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt64(pCfg, "streamBufferSize", tsStreamBufferSize, 0, INT64_MAX, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt64(pCfg, "checkpointInterval", tsStreamCheckpointInterval, 60, 1200, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddDouble(pCfg, "streamSinkDataRate", tsSinkDataRate, 0.1, 5, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddFloat(pCfg, "streamSinkDataRate", tsSinkDataRate, 0.1, 5, CFG_SCOPE_SERVER) != 0) return -1;
 
   if (cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, CFG_SCOPE_SERVER) != 0) return -1;
 
   if (cfgAddString(pCfg, "lossyColumns", tsLossyColumns, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddFloat(pCfg, "fPrecision", tsFPrecision, 0.0f, 100000.0f, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddDouble(pCfg, "dPrecision", tsDPrecision, 0.0f, 1000000.0f, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddFloat(pCfg, "dPrecision", tsDPrecision, 0.0f, 1000000.0f, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxRange", tsMaxRange, 0, 65536, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "curRange", tsCurRange, 0, 65536, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddBool(pCfg, "ifAdtFse", tsIfAdtFse, CFG_SCOPE_SERVER) != 0) return -1;
@@ -1081,7 +1081,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tstrncpy(tsLossyColumns, cfgGetItem(pCfg, "lossyColumns")->str, sizeof(tsLossyColumns));
   tsFPrecision = cfgGetItem(pCfg, "fPrecision")->fval;
-  tsDPrecision = cfgGetItem(pCfg, "dPrecision")->dval;
+  tsDPrecision = cfgGetItem(pCfg, "dPrecision")->fval;
   tsMaxRange = cfgGetItem(pCfg, "maxRange")->i32;
   tsCurRange = cfgGetItem(pCfg, "curRange")->i32;
   tsIfAdtFse = cfgGetItem(pCfg, "ifAdtFse")->bval;
@@ -1090,7 +1090,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsDisableStream = cfgGetItem(pCfg, "disableStream")->bval;
   tsStreamBufferSize = cfgGetItem(pCfg, "streamBufferSize")->i64;
   tsStreamCheckpointInterval = cfgGetItem(pCfg, "checkpointInterval")->i32;
-  tsSinkDataRate = cfgGetItem(pCfg, "streamSinkDataRate")->dval;
+  tsSinkDataRate = cfgGetItem(pCfg, "streamSinkDataRate")->fval;
 
   tsFilterScalarMode = cfgGetItem(pCfg, "filterScalarMode")->bval;
   tsMaxStreamBackendCache = cfgGetItem(pCfg, "maxStreamBackendCache")->i32;
