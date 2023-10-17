@@ -577,6 +577,9 @@ export default {
     context: 'Context',
     at: 'Time',
     saveTip: 'The data ingestion from this data source will be stopped for a few seconds. If you are fine with it, please continue, otherwise cancel it.',
+    metrics: 'Current Metrics',
+    metricName: 'Metrics Name',
+    metricValue: 'Metrics Value',
   },
   replication: {
     theTaskWithId: "the task with id {id}",
@@ -1259,7 +1262,7 @@ export default {
     type: 'Type',
     target: 'Target',
     createat: 'Create At',
-    via: 'Agent ID',
+    via: 'Agent',
     status: 'Status',
     operation: 'Operation',
     addsource: 'Add Source',
@@ -1310,7 +1313,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
     connector: {
       desc: "Connect using the {0} to encapsulate SQL as a REST request.",
       bottom1: "The client connection is then established.",
-      bottom2: "The client connection is then established. For how to write data and query data, please refer to ",
+      bottom2: "For how to write data and query data, please refer to ",
       bottom2_1: "Insert Data",
       bottom2_2: "Query Data",
       bottomand: " and ",
@@ -1411,7 +1414,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
           "Prometheus provides `remote_write` interface to leverage other database products as its storage engine. To enable users of the Prometheus ecosystem to take advantage of TDengine&#39;s efficient writing, TDengine also provides support for this interface so that Prometheus data can be stored in TDengine via the `remote_write` interface with proper configuration to take full advantage of TDengine&#39;s efficient storage performance and clustering capabilities for time-series data.",
         step1: "Prerequisites",
         step1desc:
-          "In your TDengine  instance, click &quot;Explorer&quot; on the left panel, then click &quot;+&quot; besides Databases, to create a new database named as &quot;prometheus_data&quot;. Then execute `show databases` to confirm the database has been created successfully.",
+          "In your TDengine  instance, click 'Explorer' on the left panel, then click '+' besides Databases, to create a new database named as 'prometheus_data'. Then execute `show databases` to confirm the database has been created successfully.",
         step2: "Install Prometheus",
         step2desc: "Supposed that you use Linux system with architecture amd64:",
         step21: "Download",
@@ -1429,7 +1432,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step4desc1:
           ". If you want to access the web server from a browser which is not running on the same host as Prometheus, please change `localhost` to correct hostname, FQDN or IP address, depending on your network environment.",
         step5: "Verify Remote Write",
-        step5desc: "Log in TDengine , click &quot;Explorer&quot; on the left navigation bar. You will see metrics collected by prometheus.",
+        step5desc: "Log in TDengine , click 'Explorer' on the left navigation bar. You will see metrics collected by prometheus.",
         step5desc1: "TDengine will automatically create unique IDs for sub-table names by the rule.",
       },
       telegraf: {
@@ -1441,7 +1444,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step1: "Prerequisites",
         step2: "Install Telegraf",
         step2desc:
-          "Before telegraf can write data into TDengine  service, you need to firstly manually create a database. Log in TDengine , click &quot;Explorer&quot; on the left navigation bar, then click the &quot;+&quot; button besides &quot;Databases&quot; to add a database named as &quot;telegraf&quot; using all default parameters.",
+          "Before telegraf can write data into TDengine  service, you need to firstly manually create a database. Log in TDengine , click 'Explorer' on the left navigation bar, then click the '+' button besides 'Databases' to add a database named as 'telegraf' using all default parameters.",
         step2desc1: "Supposed that you use Ubuntu system:",
         step2desc2: "After installation, telegraf service should have been started. Lets stop it:",
         step2end: "For installation instructions on other platforms please refer to the",
@@ -1449,9 +1452,9 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step3: "Configure",
         step3desc: "Run this command in your terminal to save TDengine  token and URL as zariables:",
         step3desc1: "Then run this command to generate new telegraf.conf.",
-        step3desc2: "Edit section &quot;outputs.http&quot;.",
+        step3desc2: "Edit section 'outputs.http'.",
         step3desc3:
-          "The resulting configuration will collect CPU and memory data and sends it to TDengine database named &quot;telegraf&quot;. Database &quot;telegraf&quot; will be created automatically if it dose not exist in advance.",
+          "The resulting configuration will collect CPU and memory data and sends it to TDengine database named 'telegraf'. Database 'telegraf' will be created automatically if it dose not exist in advance.",
         step4: "Start Telegraf",
         step4desc: "Start telegraf using new generated telegraf.conf file.",
         step5: "Verify",
@@ -1487,7 +1490,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step31: "Insert Example",
         step32: "Query Example with SQL",
         step32desc: "`measurement` is the super table name.",
-        step32desc1: "you can filter data by tag, like:`where host=&quot;host1&quot;`.",
+        step32desc1: "you can filter data by tag, like:`where host='host1'`.",
       },
       opentsdbjson: {
         title: "OpenTSDB JSON Protocol",
@@ -1541,7 +1544,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step31desc3:
           "back up the system log database: TDengine clusters usually contain a system database named `log`. The data in this database is the data that TDengine runs itself, and the taosdump will not back up the log database by default. If users need to back up the log database, users can use the `-a` or `-allow-sys command-line parameter.",
         step31desc4:
-          "Loose mode backup: taosdump version 1.4.1 onwards provides `-n` and `-L` parameters for backing up data without using escape characters and &quot;loose&quot; mode, which can reduce the number of backups if table names, column names, tag names do not use escape characters. This can also reduce the backup data time and backup data footprint. If you are unsure about using `-n` and `-L` conditions, please use the default parameters for &quot;strict&quot; mode backup. See the",
+          "Loose mode backup: taosdump version 1.4.1 onwards provides `-n` and `-L` parameters for backing up data without using escape characters and 'loose' mode, which can reduce the number of backups if table names, column names, tag names do not use escape characters. This can also reduce the backup data time and backup data footprint. If you are unsure about using `-n` and `-L` conditions, please use the default parameters for 'strict' mode backup. See the",
         step31desc5: "official documentation",
         step31desc6: " for a description of escaped characters.",
         step32: "taosdump recover data",
@@ -1600,7 +1603,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step1desc: "The current ",
         step1desc1: "connector",
         step1desc2:
-          `supports two different types of data sources: ${grafanagds} Server and ${grafanagds} . Select &quot;${grafanagds} &quot; and then click &quot;NEXT&quot;.`,
+          `supports two different types of data sources: ${grafanagds} Server and ${grafanagds} . Select '${grafanagds} ' and then click 'NEXT'.`,
         step2: "Connector Configuration",
         step21: "Mandatory Config",
         step21desc: `${grafanagds}  URL:`,
@@ -1615,14 +1618,14 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step22: "Optional config",
         step221: "Query range start date &amp; end date",
         step221desc:
-          "The page where we configure our connector has two text boxes.These two date filter conditions are used to limit the amount of data that will be retrieved, and the date should be entered in the format &quot;YYYY-MM-DD HH:MM:SS.&quot; e.g.",
+          "The page where we configure our connector has two text boxes.These two date filter conditions are used to limit the amount of data that will be retrieved, and the date should be entered in the format 'YYYY-MM-DD HH:MM:SS.' e.g.",
         step221desc1:
           "The query result&#39;s start timestamp is defined by the `start date`. To put it another way, records from before this `start date` won&#39;t be received.",
         step221desc2:
           "The `end time` indicates the query result&#39;s end timestamp. Therefore, records that were written after this end date cannot be retrieved. These conditions are utilized in the where clause in SQL statements, such as:",
         step221desc3: "In fact, you can speed up the data loading in your report by using these filters.",
         step221desc4:
-          `Click &quot;CONNECT&quot; once configuration is complete, then you can connect to your &quot;${grafanagds} &quot; with the given database and table.`,
+          `Click 'CONNECT' once configuration is complete, then you can connect to your '${grafanagds} ' with the given database and table.`,
         step3: "Connector Configuration",
         step3desc: `Unlock the power of your data with interactive dashboards and beautiful reports with the data stored in ${grafanagds}.`,
         step3desc1: "And refer to",
@@ -1708,21 +1711,21 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step44desc: "The parameters for creating super tables are configured in `super_tables` in the json configuration file, as shown below.",
         step44desc1: ": Super table name, mandatory, no default value.",
         step44desc2:
-          ": whether the child table already exists, default value is &quot;no&quot;, optional value is &quot;yes&quot; or &quot;no&quot;.",
+          ": whether the child table already exists, default value is 'no', optional value is 'yes' or 'no'.",
         step44desc3: ": The number of child tables, the default value is 10.",
         step44desc4: ": The prefix of the child table name, mandatory configuration item, no default value.",
         step44desc5:
-          ": specify the super table and child table names containing escape characters. The value can be &quot;yes&quot; or &quot;no&quot;. The default is &quot;no&quot;.",
+          ": specify the super table and child table names containing escape characters. The value can be 'yes' or 'no'. The default is 'no'.",
         step44desc6:
-          ": only when insert_mode is taosc, rest, stmt, and childtable_exists is &quot;no&quot;. &quot;yes&quot; means taosBenchmark will automatically create non-existent tables when inserting data; &quot;no&quot; means that taosBenchmark will create all tables before inserting.",
+          ": only when insert_mode is taosc, rest, stmt, and childtable_exists is 'no'. 'yes' means taosBenchmark will automatically create non-existent tables when inserting data; 'no' means that taosBenchmark will create all tables before inserting.",
         step44desc7:
           ": the number of tables per batch when creating sub-tables, default is 10. Note: the actual number of batches may not be the same as this value. If the executed SQL statement is larger than the maximum length supported, it will be automatically truncated and re-executed to continue creating.",
         step44desc8:
-          ": specify the source of data-generation. Default is taosBenchmark randomly generated. Users can configure it as &quot;rand&quot; and &quot;sample&quot;. When &quot;sample&quot; is used, taosBenchmark will use the data in the file specified by the `sample_file` parameter.",
+          ": specify the source of data-generation. Default is taosBenchmark randomly generated. Users can configure it as 'rand' and 'sample'. When 'sample' is used, taosBenchmark will use the data in the file specified by the `sample_file` parameter.",
         step44desc9:
           ": insertion mode with options taosc, rest, stmt, sml, sml-rest, corresponding to normal write, restful interface write, parameter binding interface write, schemaless interface write, restful schemaless interface write (provided by taosAdapter). The default value is taosc.",
         step44desc10:
-          ": Specify whether to keep writing. If &quot;yes&quot;, insert_rows will be disabled, and writing will not stop until Ctrl + C stops the program. The default value is &quot;no&quot;, i.e., taosBenchmark will stop the writing after the specified number of rows are written. Note: insert_rows must be configured as a non-zero positive integer even if it fails in continuous write mode.",
+          ": Specify whether to keep writing. If 'yes', insert_rows will be disabled, and writing will not stop until Ctrl + C stops the program. The default value is 'no', i.e., taosBenchmark will stop the writing after the specified number of rows are written. Note: insert_rows must be configured as a non-zero positive integer even if it fails in continuous write mode.",
         step44desc11:
           ": Insert data using line protocol. Only works when insert_mode is sml or sml-rest. The value can be `line`, `telnet`, or `json`.",
         step44desc12:
@@ -1745,7 +1748,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step44desc21:
           ": The timestamp step for inserting data in each child table, in units consistent with the `precision` of the database. For e.g. if the `precision` is milliseconds, the timestamp step will be in milliseconds. The default value is 1.",
         step44desc22: ": The timestamp start value of each sub-table, the default value is now.",
-        step44desc23: ": The type of the sample data file; for now only &quot;csv&quot; is supported.",
+        step44desc23: ": The type of the sample data file; for now only 'csv' is supported.",
         step44desc24:
           ": Specify a CSV format file as the data source. It only works when data_source is a sample. If the number of rows in the CSV file is less than or equal to prepared_rand, then taosBenchmark will read the CSV file data cyclically until it is the same as prepared_rand; otherwise, taosBenchmark will read only the rows with the number of prepared_rand. The final number of rows of data generated is the smaller of the two.",
         step44desc25:
@@ -1768,9 +1771,9 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step46desc2:
           ": Specifies the length of this data type, valid for NCHAR, BINARY, and JSON data types. If this parameter is configured for other data types, a value of 0 means that the column is always written with a null value; if it is not 0, it is ignored.",
         step46desc3:
-          ": Specifies the number of consecutive occurrences of the column type, e.g., &quot;count&quot;: 4096 generates 4096 columns of the specified type.",
+          ": Specifies the number of consecutive occurrences of the column type, e.g., 'count': 4096 generates 4096 columns of the specified type.",
         step46desc4:
-          ": The name of the column, if used together with count, e.g. &quot;name&quot;: &quot;current&quot;, &quot;count&quot;:3, then the names of the 3 columns are current, current_2. current_3.",
+          ": The name of the column, if used together with count, e.g. 'name': 'current', 'count':3, then the names of the 3 columns are current, current_2. current_3.",
         step46desc5: ": The minimum value of the column/label of the data type.",
         step46desc6: ": The maximum value of the column/label of the data type.",
         step46desc7: ": The value field of the nchar/binary column/label, which will be chosen randomly from the values.",
@@ -1805,7 +1808,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step410desc2: ": The query interval in seconds, the default value is 0.",
         step410desc3: ": The number of threads to execute the query SQL, the default value is 1.",
         step410desc4:
-          ": The SQL command to be executed. For the query SQL of super table, keep &quot;xxxx&quot; in the SQL command. The program will automatically replace it with all the sub-table names of the super table. Replace it with all the sub-table names in the super table.",
+          ": The SQL command to be executed. For the query SQL of super table, keep 'xxxx' in the SQL command. The program will automatically replace it with all the sub-table names of the super table. Replace it with all the sub-table names in the super table.",
         step410desc5: ": The file to save the query result. If not specified, taosBenchmark will not save result.",
       },
      

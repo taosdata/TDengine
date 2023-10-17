@@ -225,6 +225,9 @@ export default {
     context: '活动内容',
     at: '时间',
     saveTip: '编辑后重启采集任务可能造成几秒的数据中断，是否确认继续？',
+    metrics: '当前指标',
+    metricName: '指标名称',
+    metricValue: '指标值',
   },
   replication: {
     theTaskWithId: "任务 {id}",
@@ -1065,7 +1068,7 @@ export default {
     type: '类型',
     target: '目标数据库',
     createat: '创建时间',
-    via:'代理ID',
+    via:'代理',
     status: '状态',
     operation: '操作',
     addsource: '新增数据源',

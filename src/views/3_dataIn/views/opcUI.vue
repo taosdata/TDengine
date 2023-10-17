@@ -1166,7 +1166,8 @@ export default {
       : "";
   },
   watch: {
-    "this.$store.state.app.currentDBName": {
+    "$store.state.app.currentDBName": {
+      immediate: true,
       handler() {
         if (this.tagName == "kafka") {
           this.getdbprecision();

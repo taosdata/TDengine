@@ -282,7 +282,7 @@ export default {
   }
 }
 .copy-btn {
-  font-size: 14px;
+  font-size: 12px;
   cursor: pointer;
 }
 </style>
