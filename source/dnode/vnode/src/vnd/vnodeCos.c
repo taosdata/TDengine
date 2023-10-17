@@ -116,7 +116,255 @@ static void responseCompleteCallback(S3Status status, const S3ErrorDetails *erro
   }
 }
 
-int32_t s3PutObjectFromFile2(const char *file, const char *object) { return 0; }
+typedef struct growbuffer {
+  // The total number of bytes, and the start byte
+  int size;
+  // The start byte
+  int start;
+  // The blocks
+  char               data[64 * 1024];
+  struct growbuffer *prev, *next;
+} growbuffer;
+
+// returns nonzero on success, zero on out of memory
+static int growbuffer_append(growbuffer **gb, const char *data, int dataLen) {
+  int origDataLen = dataLen;
+  while (dataLen) {
+    growbuffer *buf = *gb ? (*gb)->prev : 0;
+    if (!buf || (buf->size == sizeof(buf->data))) {
+      buf = (growbuffer *)malloc(sizeof(growbuffer));
+      if (!buf) {
+        return 0;
+      }
+      buf->size = 0;
+      buf->start = 0;
+      if (*gb && (*gb)->prev) {
+        buf->prev = (*gb)->prev;
+        buf->next = *gb;
+        (*gb)->prev->next = buf;
+        (*gb)->prev = buf;
+      } else {
+        buf->prev = buf->next = buf;
+        *gb = buf;
+      }
+    }
+
+    int toCopy = (sizeof(buf->data) - buf->size);
+    if (toCopy > dataLen) {
+      toCopy = dataLen;
+    }
+
+    memcpy(&(buf->data[buf->size]), data, toCopy);
+
+    buf->size += toCopy, data += toCopy, dataLen -= toCopy;
+  }
+
+  return origDataLen;
+}
+
+static void growbuffer_read(growbuffer **gb, int amt, int *amtReturn, char *buffer) {
+  *amtReturn = 0;
+
+  growbuffer *buf = *gb;
+
+  if (!buf) {
+    return;
+  }
+
+  *amtReturn = (buf->size > amt) ? amt : buf->size;
+
+  memcpy(buffer, &(buf->data[buf->start]), *amtReturn);
+
+  buf->start += *amtReturn, buf->size -= *amtReturn;
+
+  if (buf->size == 0) {
+    if (buf->next == buf) {
+      *gb = 0;
+    } else {
+      *gb = buf->next;
+      buf->prev->next = buf->next;
+      buf->next->prev = buf->prev;
+    }
+    free(buf);
+    buf = NULL;
+  }
+}
+
+static void growbuffer_destroy(growbuffer *gb) {
+  growbuffer *start = gb;
+
+  while (gb) {
+    growbuffer *next = gb->next;
+    free(gb);
+    gb = (next == start) ? 0 : next;
+  }
+}
+
+typedef struct put_object_callback_data {
+  // FILE       *infile;
+  TdFilePtr   infileFD;
+  growbuffer *gb;
+  uint64_t    contentLength, originalContentLength;
+  uint64_t    totalContentLength, totalOriginalContentLength;
+  int         noStatus;
+  S3Status    status;
+  char        err_msg[4096];
+} put_object_callback_data;
+
+static int putObjectDataCallback(int bufferSize, char *buffer, void *callbackData) {
+  put_object_callback_data *data = (put_object_callback_data *)callbackData;
+
+  int ret = 0;
+
+  if (data->contentLength) {
+    int toRead = ((data->contentLength > (unsigned)bufferSize) ? (unsigned)bufferSize : data->contentLength);
+    if (data->gb) {
+      growbuffer_read(&(data->gb), toRead, &ret, buffer);
+    } else if (data->infileFD) {
+      // ret = fread(buffer, 1, toRead, data->infile);
+      ret = taosReadFile(data->infileFD, buffer, toRead);
+    }
+  }
+
+  data->contentLength -= ret;
+  data->totalContentLength -= ret;
+
+  if (data->contentLength && !data->noStatus) {
+    vTrace("%llu bytes remaining ", (unsigned long long)data->totalContentLength);
+    vTrace("(%d%% complete) ...\n", (int)(((data->totalOriginalContentLength - data->totalContentLength) * 100) /
+                                          data->totalOriginalContentLength));
+  }
+
+  return ret;
+}
+
+#define MULTIPART_CHUNK_SIZE (768 << 20)  // multipart is 768M
+
+typedef struct UploadManager {
+  // used for initial multipart
+  char *upload_id;
+
+  // used for upload part object
+  char **etags;
+  int    next_etags_pos;
+
+  // used for commit Upload
+  growbuffer *gb;
+  int         remaining;
+} UploadManager;
+
+typedef struct MultipartPartData {
+  put_object_callback_data put_object_data;
+  int                      seq;
+  UploadManager           *manager;
+} MultipartPartData;
+
+S3Status initial_multipart_callback(const char *upload_id, void *callbackData) {
+  UploadManager *manager = (UploadManager *)callbackData;
+  manager->upload_id = strdup(upload_id);
+  return S3StatusOK;
+}
+
+S3Status MultipartResponseProperiesCallback(const S3ResponseProperties *properties, void *callbackData) {
+  responsePropertiesCallback(properties, callbackData);
+
+  MultipartPartData *data = (MultipartPartData *)callbackData;
+  int                seq = data->seq;
+  const char        *etag = properties->eTag;
+  data->manager->etags[seq - 1] = strdup(etag);
+  data->manager->next_etags_pos = seq;
+  return S3StatusOK;
+}
+
+static int multipartPutXmlCallback(int bufferSize, char *buffer, void *callbackData) {
+  UploadManager *manager = (UploadManager *)callbackData;
+  int            ret = 0;
+
+  if (manager->remaining) {
+    int toRead = ((manager->remaining > bufferSize) ? bufferSize : manager->remaining);
+    growbuffer_read(&(manager->gb), toRead, &ret, buffer);
+  }
+  manager->remaining -= ret;
+  return ret;
+}
+
+static int try_get_parts_info(const char *bucketName, const char *key, UploadManager *manager) {
+  //
+
+  return 0;
+}
+
+int32_t s3PutObjectFromFile2(const char *file, const char *object) {
+  int32_t                  code = 0;
+  const char              *key = object;
+  const char              *uploadId = 0;
+  const char              *filename = 0;
+  uint64_t                 contentLength = 0;
+  const char              *cacheControl = 0, *contentType = 0, *md5 = 0;
+  const char              *contentDispositionFilename = 0, *contentEncoding = 0;
+  int64_t                  expires = -1;
+  S3CannedAcl              cannedAcl = S3CannedAclPrivate;
+  int                      metaPropertiesCount = 0;
+  S3NameValue              metaProperties[S3_MAX_METADATA_COUNT];
+  char                     useServerSideEncryption = 0;
+  int                      noStatus = 0;
+  put_object_callback_data data;
+
+  // data.infile = 0;
+  data.infileFD = NULL;
+  data.gb = 0;
+  data.noStatus = noStatus;
+
+  if (taosStatFile(file, &contentLength, NULL, NULL) < 0) {
+    vError("ERROR: %s Failed to stat file %s: ", __func__, file);
+    code = TAOS_SYSTEM_ERROR(errno);
+    return code;
+  }
+
+  if (!(data.infileFD = taosOpenFile(file, TD_FILE_READ))) {
+    vError("ERROR: %s Failed to open file %s: ", __func__, file);
+    code = TAOS_SYSTEM_ERROR(errno);
+    return code;
+  }
+
+  data.totalContentLength = data.totalOriginalContentLength = data.contentLength = data.originalContentLength =
+      contentLength;
+
+  S3BucketContext bucketContext = {0, tsS3BucketName, protocolG, uriStyleG, tsS3AccessKeyId, tsS3AccessKeySecret,
+                                   0, awsRegionG};
+
+  S3PutProperties putProperties = {contentType,     md5,
+                                   cacheControl,    contentDispositionFilename,
+                                   contentEncoding, expires,
+                                   cannedAcl,       metaPropertiesCount,
+                                   metaProperties,  useServerSideEncryption};
+
+  if (contentLength <= MULTIPART_CHUNK_SIZE) {
+    S3PutObjectHandler putObjectHandler = {{&responsePropertiesCallback, &responseCompleteCallback},
+                                           &putObjectDataCallback};
+
+    do {
+      S3_put_object(&bucketContext, key, contentLength, &putProperties, 0, 0, &putObjectHandler, &data);
+    } while (S3_status_is_retryable(data.status) && should_retry());
+
+    if (data.infileFD) {
+      taosCloseFile(&data.infileFD);
+    } else if (data.gb) {
+      growbuffer_destroy(data.gb);
+    }
+
+    if (data.status != S3StatusOK) {
+      s3PrintError(__func__, data.status, data.err_msg);
+    } else if (data.contentLength) {
+      vError("ERROR: %s Failed to read remaining %llu bytes from input", __func__,
+             (unsigned long long)data.contentLength);
+    }
+  } else {
+    uint64_t totalContentLength = contentLength;
+    uint64_t todoContentLength = contentLength;
+  }
+  return 0;
+}
 
 typedef struct list_bucket_callback_data {
   int      isTruncated;
