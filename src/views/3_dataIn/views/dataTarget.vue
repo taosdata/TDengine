@@ -85,8 +85,9 @@
       width="620px"
       :visible.sync="showAgent"
       :destroy-on-close="true"
+      @close="closeDialog"
     >
-      <AddAgent></AddAgent>
+      <AddAgent :key="showAgent"></AddAgent>
     </el-dialog>
   </div>
 </template>
@@ -178,6 +179,9 @@ export default {
     this.currentEditid=this.$store.state.app.currentEditID
   },
   methods: {
+    closeDialog() {
+      this.$store.commit("app/SET_AGENT_DIALOG", false);
+    },
     setTaskName(){
       this.$store.commit("app/SET_CURRENT_DSNAME", this.ruleForm.name);
     },
@@ -245,7 +249,7 @@ export default {
       }
     },
     createAgent() {
-      this.showAgent = true;
+      this.$store.commit("app/SET_AGENT_DIALOG", true);
     },
     async getDbTypes() {
       try {
@@ -287,11 +291,15 @@ export default {
     },
   },
   watch: {
+    '$store.state.app.agentDialog':{
+      handler(val){
+        this.showAgent=val
+      }
+    },
     '$store.state.app.currentEditID':{
       deep:true,
       handler(val){
         this.currentEditid=val
-        console.log(val,'编辑得知--id');
       }
     },
     "$store.state.app.currentDBName": {

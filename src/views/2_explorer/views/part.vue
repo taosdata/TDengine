@@ -19,7 +19,7 @@
       <el-tooltip class="item" effect="light" placement="bottom-end">
         <div slot="content" class="flexCenter">
           <span>{{ $t("data.runSqlTip") }}</span>
-          <Icon class="icon-shift" name="shift" />
+          <Icon class="icon-shift" name="shift" />+
           <Icon class="icon-shift" name="enter" />
         </div>
         <el-button

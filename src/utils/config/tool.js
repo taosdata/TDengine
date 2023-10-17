@@ -70,6 +70,20 @@ export default [
     ],
   },
   {
+    name: 'Seeq',
+    desc: i18n.t('docs.tools.seeq.desc'),
+    docs: {
+      zh:'',
+      en:mdx.seeqDoc
+    },
+    steps: [
+      { title: i18n.t('docs.tools.seeq.step1'), dom: 'seeq-repare' },
+      { title: i18n.t('docs.tools.seeq.step2'), dom: 'seeq-install' },
+      { title: i18n.t('docs.tools.seeq.step3'), dom: 'seeq-add-ds' },
+      { title: i18n.t('docs.tools.seeq.step4'), dom: 'seeq-example' }
+    ]
+  },
+  {
     name: "Google Data Studio",
     desc: i18n.t("docs.virtual.gds.desc"),
     docs: {

@@ -9,11 +9,11 @@
       <el-step :title="$t('configure')"></el-step>
       <el-step :title="$t('dataIn.runAgent')"></el-step>
     </el-steps>
-    <section v-if="active == 1">
+    <section v-if="active == 1" class="mt20">
       <p v-dompurify-html="$t('docs.taosxAgent.1', downloadUrl)"></p>
       <pre v-highlight><code>taosx-agent -V</code></pre>
     </section>
-    <section v-else-if="active == 2">
+    <section v-else-if="active == 2" class="mt20">
       <p v-dompurify-html="$t('docs.taosxAgent.2')"></p>
       <el-input
         v-model="name"
@@ -29,7 +29,7 @@
         {{ $t('dataIn.agentNameExist', [this.name]) }}
       </p>
     </section>
-    <section v-else-if="active == 3">
+    <section v-else-if="active == 3" class="mt20">
       <p v-dompurify-html="$t('docs.taosxAgent.3')"></p>
       <pre v-highlight><code>endpoint="{{ taoxAddress }}"
 token="{{ token }}"</code></pre>
@@ -235,11 +235,6 @@ export default {
           this.$set(this.tokenMap, this.name, token);
           this.active++;
           this.$store.dispatch('app/getAgentList');
-          Object.assign(
-            this.agent,
-            this.$store.state.app.agentList.find(item => item.id == id)
-          );
-          this.$emit('submit');
         })
         .catch(() => {})
         .finally(() => {
@@ -247,14 +242,17 @@ export default {
         });
     },
     next() {
-
+   
       if (this.active == 4) {
         this.agentStatus = 'noCheck';
-        this.$parent.$parent.showAgent=false
+        // this.submit();
+        this.$store.commit('app/SET_AGENT_DIALOG',false)
+        
       }
-      if (this.active == 2) {
+      if(this.active==2){
         this.submit();
-      } else {
+      }
+      else{
         this.active++;
       }
     },
@@ -295,6 +293,9 @@ export default {
   }
   .ml20{
     margin-left:20px;
+  }
+  .mt20,.step4{
+    margin-top:20px;
   }
 }
 </style>

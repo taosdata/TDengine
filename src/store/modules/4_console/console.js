@@ -38,7 +38,7 @@ const mutations = {
     state.currentOutput = record;
     state.history.push(record);
     state.history = state.history.slice(-100);
-    localStorage.setItem("record_history" + appId, JSON.stringify(state.history));
+    localStorage.setItem("record_history", JSON.stringify(state.history));
   },
   SET_USE_DB: (state, useDB) => {
     state.useDB = useDB;

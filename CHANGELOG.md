@@ -5,12 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] - 2023-08-04
+## [1.2.7] - 2023-10-10
 
-**Full Changelog**: [v1.0.0...v1.1.0](https://github.com/taosdata/taosx/compare/v1.0.0...v1.1.0)
+**Full Changelog**: [v1.0.0...v1.2.7](https://github.com/taosdata/taosx/compare/v1.0.0...v1.2.7)
 
 ### Bug Fixes
 
+- *docs*: Update docs-en ([9a27f22](9a27f227c997dee46c543211b3bb04024fb8f32c))
+- *docs*: Use docs-en/ instead of docs-en/index ([1f9b94e](1f9b94eeab77145c17f8632b6a71cc5c2c75a4ed))
+- *pi*: Fix pi submit no response ([1de57e0](1de57e00d2393878eac930442b12637ad156be93))
+- *replication*: Raise error when dsn is invalid ([66f1154](66f1154d3ed3d99583122880da01f46842f8c831))
+- *replication*: Fix error message even success ([e33f383](e33f383496602281bd083db59d62d36583ce8e7f))
+- *tmq*: Fix data source dsn broken with cloud dsn ([94adc58](94adc58883a524c0a95c5eb3c996b1942acd9325))
 
 - Hidden some tips ([50d9dd9](50d9dd9b198df1c5c0cf4bd191a24142b060fb92))
 - Csv完整功能，自定义header ([2e5993a](2e5993a768ddec5be1fdfae8fafa3e5d006499e5))
@@ -20,6 +26,148 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kafka keep 参数 ([f9ffc0c](f9ffc0c688841f3376fdf3c35dd82c28206c3204))
 - Csv的布局，windwos路径验证 ([ffc936e](ffc936e8ea13847cd8e92cf971ef965e35f2c947))
 - Csv using and name ([d835683](d835683d2cebf5757d568fcf13fab6ff4aa08a7d))
+- Fix some ui ([ef1af15](ef1af15441fdfc46768d84d2db126177593d654e))
+- Dashboard webp ([ed125dc](ed125dcbb08a66b57d9f58c319563f31acdc9c78))
+- Optimize tips and agent ui ([b9ba901](b9ba901c2ff199e42afde58c09f12d808a1226bd))
+- Ui的补充修改 ([357aa8f](357aa8fc992597eb3b17e2e07d6419529b646237))
+- Hidden linux code ([e46aa5a](e46aa5a8763330324bb65fb2ffb86112540e1b06))
+- Optimize csv ([806a51d](806a51d2f06e1dbe7de81679742ff96afe87d6a9))
+- Conflict ([6e2d71b](6e2d71ba4871d474de532051fa81baf60c5021f0))
+- Add csv normal table ([796a0a5](796a0a5e6f04d1fd6aa445211e62c09546dc336c))
+- 数据库名必填 ([f25c741](f25c74104ee2fe0f01edb3045edbf30b6c0398af))
+- Fix two columns in csv and optimize target db position ([8d9994b](8d9994bbee0c5cd929d84a7112f9c4e1446b30bd))
+- Fix file type and sort column ([0390ef1](0390ef161822310d66352f7fe0710b24ce34b197))
+- Influxdb提交参数 ([170f3e9](170f3e9152fbd4ecefa60233fd1608f91d86a46a))
+- Influxdb提交参数 ([eb1a347](eb1a34741de968f9e71111fa22b2005236b1155f))
+- Change the task api function name ([43c4dd0](43c4dd03fd91183c87c592001970c8f79076e59b))
+- Add explorer search ([4cf7152](4cf71525baa1ef787e0e2d773552d76d7ea01e04))
+- Fix csv tip and explorer grid ([7fb308b](7fb308b63235f50ffe7388a4c9f6a4b2d46ec7d9))
+- Fix csv directory ([4cb8fcb](4cb8fcb292e934bdc11b04140ba05ff1165834a9))
+- Copy a task ([dd64791](dd647917c40f5b2ed8367b1ffc653a01285cdf1d))
+- Fix merge ([1a45bb5](1a45bb5111157396fc9d64f507649c6d75098c5b))
+- Add opentsdb ([7833f87](7833f8786b98c6415bfc11696a0246b795e107ff))
+- Fix copy task when status is running ([7ac6b7b](7ac6b7b28b92a97a46c2a7818cb1147826b8b2bc))
+- 创建数据库样式 ([9971266](99712666e40128386bfab2de9e62e1835a73d423))
+- Oem ([870f421](870f421550329720686b8311efebdc1df9913743))
+- Sql 编辑器优化 ([7084d4e](7084d4e3adeb9ff1e3073296eaee65f7251b74ff))
+- 更改开始/结束时间交互 ([24c37e3](24c37e3c6a5b371944bfa7fa8433ed7a95fbf973))
+- Add metrics ([204bc31](204bc31cab75711f07bf1203d27182977e7ef053))
+- Fix bigint ([0d2a14b](0d2a14b4c154630a2dbfb3edfb9cebc5b404dd1f))
+- Fix /rest/sql bigint ([381df7a](381df7aba76a4d4624346ee107220df6d675a060))
+- 更改 offset 为 soffset ([a92ac71](a92ac71fccb502493b80209da315caccc5814407))
+- 调整 limi 位置 ([2e0a206](2e0a206e9226ebdc5cd9d67d8669e0ce08eab627))
+- Add empty metrics tip ([9551e03](9551e0317f529598f169965014b1cdf307dfea4b))
+- 修改校验错误 ([d0bdc18](d0bdc18f101246a36c24edfc85c25109015c2319))
+- Range 增加引号 ([450f46b](450f46b15d6214796675f7d91c868473db90869c))
+- Range1 增加引号 ([3dd6908](3dd6908581441b55fffaba1a6a01e973b1d6037c))
+- Filter db types that do not require agent ([799f87c](799f87c821b8d07131dc2a788e3a5296cfc6eea5))
+- Typos in src/lang/en.js ([1ec54d5](1ec54d5ab3988434dc7511b55ea98baffc309fa2))
+- Fix between and is null ([71d730d](71d730d478cb6bd3843074c125953748075b8dee))
+- Fix is null ([b52e3d7](b52e3d7a9eafcca17e015c899a7aff098766f50b))
+- 修改 docs url ([606ad76](606ad7636af37d7062621c80a1e3269ef50db09e))
+- 调整 kafka 中英文 ([09ef411](09ef4119cb2e845794459f651f1d684467e57984))
+- 修改文档路径 ([f07b478](f07b478a990fa89677be824a86b028b6151cc327))
+- Update docs-en ([531f618](531f618a248755e363a57dcd3d33676a78f00705))
+- Update docs-en ([e8405d9](e8405d9ff6ac1df0cd7c19a99ca8cf912a4b3742))
+- Update docs-en ([bd1e771](bd1e771493079039b2811d3addd0aac9069f15cd))
+- Translate chinese to english ([6e5b285](6e5b2850d681850369d4189bd2c1afcd02977f1d))
+- Change sample ([1db9e96](1db9e9658a840f30fb323d72aa43e3a3393234f3))
+- Fix agent deacription ([8bb70cb](8bb70cba292f457b3c5e507cf964ce8570b1485d))
+- Fix cookie ([5dda154](5dda1540505ff8701da9f17885b20cdf396703a7))
+- Fix messagebox ([f5032c0](f5032c090fe8ed80555b16b7765bc5399aae8de7))
+- Fix create db dialog ([0af69dd](0af69dd7ac75c85f430e9a4f2a2bc0a0deefbb6a))
+- Ignore empty active code. #[TD-26351](https://jira.taosdata.com:18080/browse/TD-26351) ([dcdc56b](dcdc56b47dcf0534bcf0cd3ae6ea58490f1446b2))
+- Ignore empty active code. #[TD-26351](https://jira.taosdata.com:18080/browse/TD-26351) ([9797330](9797330a458f635f7982ea3d3c17bf1c7dbf2163))
+- Add template csv file ([c8acb3e](c8acb3e0789e9c6ca79a32d8b4e00863bf7e7de9))
+- Csv template file ([15994a0](15994a046b5ad2c77795010ec2ad59aaf4ffe1dd))
+- Modify the comparison of result ([ac57e5e](ac57e5ea0bbebe84b334ad26a1ce3cb5ff6c91f8))
+- Modify the comparison of result ([d56920a](d56920ab8653a3d55571587aede61212c27693ab))
+- Modify the comparison of result. #[TD-26351](https://jira.taosdata.com:18080/browse/TD-26351) ([ccae517](ccae517c1f5eb62fcb1f23c49c277d386d828d75))
+- Modify the comparison of result ([516e1f1](516e1f1d771a55d640c1838e0d7d0c5367d6625b))
+- Fix no english ([2975503](29755038867555daa97b5ac46b8db6ce823bb4ec))
+- Download template opc file ([1974a44](1974a44cfb245319a5fd64ee0ac7d45cafd54439))
+- Fix mqtt zone ([05ce13b](05ce13b302ea9019cdcc294349f729efd6176693))
+- Fix opc collect mode and payload ([b5397a2](b5397a23f0356553197811217f65bc100b4d60e6))
+- Fix login direct ([7071fc6](7071fc64d311ea6115ae1bde46dbee42c1c41c63))
+- Fix direct ([a509614](a509614da30c3a21aba1ea497b9c51703806638c))
+- 修改跳转和pibackfill中文版时间选择 ([c38e971](c38e971bfee7ec48ffb310e153e0ccc475d98a55))
+- Fix opc regex ([ef56571](ef56571fc0af68190f4fc46bc7fc12fc30162b2b))
+- Pi 参数 ([a84ad4e](a84ad4e2dbcc8f332d4b0688bb43902b02c9b6ee))
+- Pi 参数 ([ccb6294](ccb6294d18fc8ed01e8905bc42c27ec0edceaf45))
+- Dataset tab 样式 ([f7b8c5f](f7b8c5f6b57fe31b69ac05d395db34b01da00078))
+- Dataset tab 样式 ([25565aa](25565aaf8868857fdc36396e2bcbf47d8f857a82))
+- Upload url ([5f437f0](5f437f0ae5475c9b9865967741f545d0b08b814f))
+- Upload url ([73b80db](73b80db25139e35788038c0d0a7dcf007596be03))
+- Dataset ui ([880566b](880566b4e94f3fb286c32b9ad6d3c09aac0d99c9))
+- Dataset ui ([ba56e8e](ba56e8ea944c9d318ff75c57349ba9e28b93daba))
+- Fix agent version ([8957fe8](8957fe898d2a23f1569820e1d090fada250ab59f))
+- Fix agent version ([cc8dba7](cc8dba79a65925118acc708e4876191751e6fdb4))
+- 中文版 dataset ([85e25cc](85e25cc863b70a0391c9d358baa96b9ed12b68b0))
+- Oem TaosX hidden ([4b2c2e1](4b2c2e1cc7bbb5f05a122405dd460f828f2cc996))
+- Oem taosx tip ([2cd97f3](2cd97f3f8c068ca7eef2efb9a7eb43f869d7f12b))
+- Fix echarts x axis and metric tips ([985ef71](985ef715d7da80e8597c5479c991b898f2f0833e))
+- Do not compare active code. ([325ae71](325ae71d936503f14d826e0150672764cf2cd3c3))
+- Do not compare active code. ([e3d721a](e3d721a4f6e00722a9589f49e0446d24231ecda7))
+- Opc ui ([3e1dd5b](3e1dd5bd1580f8c509c073c95d9b9df33982aac9))
+- Ui conflict ([a34ae13](a34ae1399b58763d5ef8bf62c00a7fb3cff6f989))
+- Conflict ([fe1b453](fe1b453ef79a0e31f5f5fa6da335030f746d5f42))
+- Conflict ([4e90f7f](4e90f7fa5837182bbfa5014930e0ff4a82b32f1f))
+- Conflict ([d6a99ee](d6a99ee2181fff3cde7dec2ee2a33e6c5e555b61))
+- 传输速度加单位MB ([9e85a0e](9e85a0e845044d3a5d8abcaa7d9c7693376e9611))
+- Upload/download url ([0a1b632](0a1b63297a624305f79e08dfcf87b9806156c34b))
+- Fix ue ([30187dc](30187dc9837fc6f90d05b2e5049279f7bf1b8e0b))
+- Dns 参数 ([5f32c4e](5f32c4ed4bfd7eb92e18dbf44f6ce427023c552f))
+- Fix ui ([3290646](32906461814e7b4bdefe11821fb65c11e43de4fe))
+- 新增编辑数据源名称、代理、数据库等参数 ([309538a](309538ad4453376deb7e173b0b290e6263097544))
+- Opcua ([a1afe72](a1afe72d610a97d8f630e142f2e96250108585ba))
+- Opc fix ([ed30f7b](ed30f7b004d059db3c056a76eb2802ab4bfde88b))
+- Opentsdb dns ([697bf8c](697bf8ceccc12b512878eae13aaf3eda9ab21401))
+- Datain loading ui ([1ab0975](1ab097595880ce4f0133f4562a03276fff0455da))
+- Fix agent ([40ba7cd](40ba7cd63f7c605270e61980b68315a3066fcd1b))
+- Dataset radio value ([8567ad2](8567ad257214f963e36d22e2b35103ff5ff6de81))
+- Dataset radio value ([a55c7e0](a55c7e0ec16abfd60fd393c299017303fa4ab862))
+- Fix edit direct ([6969767](69697670d03a92590b4208602c153131783ee0c1))
+- Can not edit type in editing status ([f77674d](f77674d3b81ce847d1c38448d8ed3ee25c7ed222))
+- 去除空格 ([abe508d](abe508dea877e447698a6ec8e1f622d76696ca15))
+- AllPoint does not show csv in use ([b41526e](b41526eff337476aa85843db9c460509b5ffbf87))
+- Add tip when download all points ([206f2be](206f2bef7c89501b74447fe6e08ae8e5d68d1b67))
+
+
+### Documentation
+
+
+- Add changelog for v1.1.0 ([d6cb56f](d6cb56fd90c8ef4d2f99c567ce10d0a48d427726))
+- Update en docs ([166d9fb](166d9fbabcfa1200fe43e85935ebe4fff19814e0))
+
+
+### Enhancements
+
+- *tmq*: Update subscription data source ui ([e717052](e71705207aa0beb39ce84bcd1db042497a47c5a9))
+
+- Support new oem param CUS_CONFIG ([d331d7b](d331d7b7fbe19abbe0bc1c490c2f8c54030c53fc))
+- Bind server to ipv6 address ([7b65281](7b65281887ca116d8d135c0d864ac309c62df2aa))
+
+
+### Features
+
+- *server*: Add /docs/ route ([50e07cc](50e07cc6c05b31479dd4fa33aea656cd5efc5d5c))
+- *server*: Add /docs-en/ route ([7c88986](7c88986dc968804208cee37e4748cb609b8c10c1))
+- *test*: Add docs-en ([81aedcb](81aedcb3ae8022b97a172fe305ed567a5cb77915))
+
+- Add topic_suffix filed ([967daf8](967daf82b67fede20901746f73d84959a11287e8))
+- 去掉 topic_suffix ([14fe48d](14fe48dbcabd4bdf23110e331acc669eae47ec56))
+- Dataset 配置增加 csv ([b553617](b5536173a6e58962b21e2b6d446aaf3286d9306e))
+- Dataset 配置增加 csv ([108f394](108f3944482ecdc28cfff252d023954011dcd757))
+- Add versin in profile ([6c3844c](6c3844ce45ba9990b56b9b96390bf02c6dff40e4))
+- Add dsn info and tips for copy dsn ([4e8a0f1](4e8a0f1d8b07f5c44f5d59036779c3b9afe0bd9c))
+- Dataset 中文文案 ([59d45f6](59d45f6b796285d6d6c262b08c0bcd3314980078))
+- Datain submit/edit ux ([ed92880](ed92880783fc612b5fb6614667404fc060606006))
+
+
+### Refactor
+
+
+- Modify error hint ([7a32641](7a3264196bcdf786147814cead001cdd98a18a48))
 
 
 ## [1.0.0] - 2023-08-01
@@ -227,6 +375,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 重构mqtt parser，重新梳理主键，tag合column之间的关系和交互 ([42ba7cf](42ba7cff8e341f9e489ea0daafc3fa6dab0eaf9e))
 - Add cors option in config file ([8de63bd](8de63bd510218da58cded1ad2f2c1e3bef450b5c))
 - Add cors option in config file ([9b0260b](9b0260bf763ca4c362b7631346097127f9a06040))
+- Add dataout ui ([accbb05](accbb055f8fbecd4eb04ff72bd69579b1181f2b1))
 - Csv opc mqtt upload file ([2a1a823](2a1a8239ca6dfb1da88e45a015a9b093db41394e))
 - Csv opc mqtt upload file ([f4db1aa](f4db1aa6dcaef3865548310a061a6d2c4bb82925))
 

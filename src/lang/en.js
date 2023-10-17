@@ -9,6 +9,13 @@ let agenturl=localStorage.getItem('agent_version')?localStorage.getItem('agent_v
 const DocsUrl=window.navigator.language.includes('zh')?'https://docs.taosdata.com':'https://docs.tdengine.com'
 export default {
   //通用部分
+
+  execute:'Execute',
+
+  copyDsn: 'Copy DSN',
+
+  clone:'Clone',
+  delete:'Delete',
   pInName: 'Please enter the name',
   generateToken: 'Generate Token',
   configure: 'Configure',
@@ -55,9 +62,10 @@ export default {
   cancel: "Cancel",
   create: "Create",
   createSucc: "Create Success!",
+  createBy: 'Create By',
   refresh: "Refresh",
   search: "Search",
-  operate: "Operate",
+  operate: "Action",
   success: "Success",
   fail: "Failed",
   email: "Email",
@@ -512,7 +520,7 @@ export default {
     selectAll: "Select All",
     checkFail: "Please check the field name or type",
     tableNameTip: "Table names can only consist of letters, numbers and underscores, and cannot start with numbers, and are not case-sensitive",
-    runSqlTip: "Run SQL statement",
+    runSqlTip: "Run the first or selected SQL statement",
     performanceRelatedParameters: "Performance Related Parameters",
     dataPersistenceParameters: "Data Persistence Parameters",
     walParameters: "WAL Parameters",
@@ -573,6 +581,9 @@ export default {
     successVersionTip: 'Your data source is availabe, its version is xxxx, which is supported, you can proceed to transfer your data to TDengine.',
     unSupportTip:'Your data source is available, its version is {version}, which is not supported for now. We are sorry for your inconvenience, please contact TDengine team, we will add the support for your data source version in future.',
     failTip: 'Your data source is not reachable, please check your configuration, make sure everything is correctly input and your network is fine. Error message: ',
+    metrics: 'Current Metrics',
+    metricName: 'Metrics Name',
+    metricValue: 'Metrics Value',
   },
   replication: {
     theTaskWithId: "the task with id {id}",
@@ -600,6 +611,7 @@ export default {
     start: "Start",
   },
   console: {
+    cellCopyTip: 'Double-click the cell to copy the content',
     exec: "Exec",
     addFavorites: "Favorite",
     output: "output",
@@ -671,7 +683,7 @@ export default {
     alertDetail: "Message Detail",
   },
   setting: {
-    profile: "Profile",
+    profile: "Change Password",
     invoice: "Invoice",
     saveChange: "Save Changes",
     invoiceCode: "Invoice Code",
@@ -807,7 +819,7 @@ export default {
   },
   dataOut: {
     tools: "Tools",
-    connectorTip: `Use the programming language of your choice to <a target='_blank' href='https://docs.tdengine.com/develop/query-data/#down-sampling-and-interpolation'>query data using SQL</a>`,
+    connectorTip: `Use the programming language of your choice to <a target='_blank' href='/docs-en/develop/query-data/#down-sampling-and-interpolation'>query data using SQL</a>`,
     toolsTip: "Data Dump - use taosDump to write a table, a portion of a table, or a super table to a file.",
     subscriptionTitle: `Subscribe to data updates using`,
     subscriptions: 'data subscriptions',
@@ -1216,10 +1228,10 @@ export default {
     using: 'SuperTable Name',
     targetdb: 'Target Database',
     expired: 'Expired',
-    payloadtip: 'Please select mqtt payload',
+    payloadtip: 'Please select MQTT payload',
     keep: 'Keep',
     agentexpiretip: 'The expiration time must be greater than the current time',
-    mqttparsertip: 'Ensure that all required items for the mqtt parser have been filled out',
+    mqttparsertip: 'Ensure that all required items for the MQTT parser have been filled out',
     mqtttitle: 'MQTT Payload Parser',
 
     addmqtttip: 'Field, Column and Column Type cannot be empty before adding',
@@ -1241,8 +1253,9 @@ export default {
     msg: 'Please enter',
     starttip: `Are you sure to start the {dataname} task?`,
     stoptip: `Are you sure to stop the {dataname} task?`,
-    excutestart: 'Excute Start',
-    excutestop: 'Excute Stop',
+    excutestart: `Start the data source "{name}"`,
+    excutestop: 'Start the data source "{name}"',
+    viewconfig:'View the "{name}" data source configuration',
     agent: 'Agent',
     agenttip: 'Please select the agent.',
     typetip: 'Please select the source type',
@@ -1253,7 +1266,7 @@ export default {
     type: 'Type',
     target: 'Target',
     createat: 'Create At',
-    via: 'Agent ID',
+    via: 'Agent',
     status: 'Status',
     operation: 'Operation',
     addsource: 'Add Source',
@@ -1268,7 +1281,7 @@ export default {
       2. In other cases, such as when the data source is isolated from the TDengine cluster network, agents are used to provide cross-network access to the data source.
     `,
 
-    replicationTargetInfo: `Please login TDengine cloud service or open taosExplorer in enterprise edition, click "Explorer", select the database, then click "View Database Config" icon to check it.`,
+    replicationTargetInfo: `Please login TDengine cloud service or open taosExplorer in enterprise edition, click "Explorer", select the database, click "View Database Config" icon. At the bottom of the page, DSN is shown there, copy and paste it into this box.`,
     select: 'Select',
     add: 'Add',
     regexPlaceholder: 'Regex Pattern Input'
@@ -1297,14 +1310,14 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
       9: 'Failed',
       10: 'Checking',
       11: `Please check the agent logs with:`,
-      12: 'and check if can you fix the issue by yourself. If you can not, please report it to the TDengine team. If you can not, please report it to the TDengine Cloud team.'
+      12: 'and check if can you fix the issue by yourself. If you can not, please report it to the TDengine team. '
       // 7: `If the agent token is wrong, the service will exit directly, you can check the logs with: `,
       // 8: `Refresh agent status in explorer to check if the agent is connected correctly. The status of an agent will be "Idle" when it has been connected.`
     },
     connector: {
       desc: "Connect using the {0} to encapsulate SQL as a REST request.",
       bottom1: "The client connection is then established.",
-      bottom2: "The client connection is then established. For how to write data and query data, please refer to ",
+      bottom2: "For how to write data and query data, please refer to ",
       bottom2_1: "Insert Data",
       bottom2_2: "Query Data",
       bottomand: " and ",
@@ -1388,7 +1401,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
           "Prometheus provides `remote_write` interface to leverage other database products as its storage engine. To enable users of the Prometheus ecosystem to take advantage of TDengine&#39;s efficient writing, TDengine also provides support for this interface so that Prometheus data can be stored in TDengine via the `remote_write` interface with proper configuration to take full advantage of TDengine&#39;s efficient storage performance and clustering capabilities for time-series data.",
         step1: "Prerequisites",
         step1desc:
-          "In your TDengine  instance, click &quot;Explorer&quot; on the left panel, then click &quot;+&quot; besides Databases, to create a new database named as &quot;prometheus_data&quot;. Then execute `show databases` to confirm the database has been created successfully.",
+          "In your TDengine  instance, click 'Explorer' on the left panel, then click '+' besides Databases, to create a new database named as 'prometheus_data'. Then execute `show databases` to confirm the database has been created successfully.",
         step2: "Install Prometheus",
         step2desc: "Supposed that you use Linux system with architecture amd64:",
         step21: "Download",
@@ -1406,7 +1419,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step4desc1:
           ". If you want to access the web server from a browser which is not running on the same host as Prometheus, please change `localhost` to correct hostname, FQDN or IP address, depending on your network environment.",
         step5: "Verify Remote Write",
-        step5desc: "Log in TDengine , click &quot;Explorer&quot; on the left navigation bar. You will see metrics collected by prometheus.",
+        step5desc: "Log in TDengine , click 'Explorer' on the left navigation bar. You will see metrics collected by prometheus.",
         step5desc1: "TDengine will automatically create unique IDs for sub-table names by the rule.",
       },
       telegraf: {
@@ -1418,7 +1431,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step1: "Prerequisites",
         step2: "Install Telegraf",
         step2desc:
-          "Before telegraf can write data into TDengine  service, you need to firstly manually create a database. Log in TDengine , click &quot;Explorer&quot; on the left navigation bar, then click the &quot;+&quot; button besides &quot;Databases&quot; to add a database named as &quot;telegraf&quot; using all default parameters.",
+          "Before telegraf can write data into TDengine  service, you need to firstly manually create a database. Log in TDengine , click 'Explorer' on the left navigation bar, then click the '+' button besides 'Databases' to add a database named as 'telegraf' using all default parameters.",
         step2desc1: "Supposed that you use Ubuntu system:",
         step2desc2: "After installation, telegraf service should have been started. Lets stop it:",
         step2end: "For installation instructions on other platforms please refer to the",
@@ -1426,9 +1439,9 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step3: "Configure",
         step3desc: "Run this command in your terminal to save TDengine  token and URL as zariables:",
         step3desc1: "Then run this command to generate new telegraf.conf.",
-        step3desc2: "Edit section &quot;outputs.http&quot;.",
+        step3desc2: "Edit section 'outputs.http'.",
         step3desc3:
-          "The resulting configuration will collect CPU and memory data and sends it to TDengine database named &quot;telegraf&quot;. Database &quot;telegraf&quot; will be created automatically if it dose not exist in advance.",
+          "The resulting configuration will collect CPU and memory data and sends it to TDengine database named 'telegraf'. Database 'telegraf' will be created automatically if it dose not exist in advance.",
         step4: "Start Telegraf",
         step4desc: "Start telegraf using new generated telegraf.conf file.",
         step5: "Verify",
@@ -1464,7 +1477,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step31: "Insert Example",
         step32: "Query Example with SQL",
         step32desc: "`measurement` is the super table name.",
-        step32desc1: "you can filter data by tag, like:`where host=&quot;host1&quot;`.",
+        step32desc1: "you can filter data by tag, like:`where host='host1'`.",
       },
       opentsdbjson: {
         title: "OpenTSDB JSON Protocol",
@@ -1518,7 +1531,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step31desc3:
           "back up the system log database: TDengine clusters usually contain a system database named `log`. The data in this database is the data that TDengine runs itself, and the taosdump will not back up the log database by default. If users need to back up the log database, users can use the `-a` or `-allow-sys command-line parameter.",
         step31desc4:
-          "Loose mode backup: taosdump version 1.4.1 onwards provides `-n` and `-L` parameters for backing up data without using escape characters and &quot;loose&quot; mode, which can reduce the number of backups if table names, column names, tag names do not use escape characters. This can also reduce the backup data time and backup data footprint. If you are unsure about using `-n` and `-L` conditions, please use the default parameters for &quot;strict&quot; mode backup. See the",
+          "Loose mode backup: taosdump version 1.4.1 onwards provides `-n` and `-L` parameters for backing up data without using escape characters and 'loose' mode, which can reduce the number of backups if table names, column names, tag names do not use escape characters. This can also reduce the backup data time and backup data footprint. If you are unsure about using `-n` and `-L` conditions, please use the default parameters for 'strict' mode backup. See the",
         step31desc5: "official documentation",
         step31desc6: " for a description of escaped characters.",
         step32: "taosdump recover data",
@@ -1530,26 +1543,38 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
     },
     virtual: {
       grafana: {
-        desc: `${grafanagds} can be quickly integrated with the open-source data visualization system Grafana to build a data monitoring and alerting system. The whole process does not require any code development. And you can visualize the contents of the data tables in ${grafanagds} on a dashboard.`,
-        topdesc: `${grafanagds} can be quickly integrated with the open-source data visualization system `,
+        desc: `${grafanagds} can be integrated with the open-source data visualization system  Grafana  to build a data monitoring and alerting system seamlessly without a line of code.  And you can visualize the data stored inside ${grafanagds} on a dashboard.Learn more about using the ${grafanagds} plugin on GitHub.`,
+        topdesc: `${grafanagds} can be integrated with the open-source data visualization system`,
         topdesc1:
-          `  to build a data monitoring and alerting system. The whole process does not require any code development. And you can visualize the contents of the data tables in ${grafanagds} on a dashboard.`,
-        topdesc2: `You can learn more about using the ${grafanagds} plugin on `,
+          `  to build a data monitoring and alerting system seamlessly without a line of code.  And you can visualize the data stored inside ${grafanagds} on a dashboard.Learn more about using the ${grafanagds} plugin on  `,
+        topdesc2: ``,
         topdesc3: ".",
         step1: "Install Grafana",
         step1desc:
-          `${grafanagds} currently supports Grafana versions 7.5 and above. Users can go to the Grafana official website to download the installation package and execute the installation according to the current operating system. The download address is as follows:`,
+          `${grafanagds} currently supports Grafana versions 7.5 and above. Please go to the Grafana official website to download the installation package`,
+        pluginsdesc:`Open Grafana from browser, click the three horizontal bar icon, click <code>Connections</code>, inside the search bar, search ${grafanagds}, then "${grafanagds} Data Source" should pop up. Click <code>Install</code> to install the ${grafanagds} plugin. Once it's installed, you can add ${grafanagds} data source right away.`,
+        plugin1desc:`1. Open Grafana from browser, click the three horizontal bar icon, then <code>Connections</code>.`,
+        plugin2desc:`2. Inside the search bar, search TDengine, then <code>TDengine Data Source</code> should pop up. `,
+        plugin3desc:`3. Click <code>Install</code> to install the TDengine plugin. `,
+        plugin4desc:`4. Once it's installed, you can add TDengine data source right away.`,
+        script1:`If you can access Github easily, please run below script from Linux terminal to install ${grafanagds} Datasource plugin.`,
+        script2:`After that completed, please restart grafana-server.`,
         step2: `Install ${grafanagds} plugin`,
         step2desc:
           `Please copy the following shell commands to export \`${grafanagds}_URL\` and  \`${grafanagds}_TOKEN\` for the data source installation.`,
         step2desc1: `Run below script from Linux terminal to install ${grafanagds} data source plugin.`,
         step2desc2: "After that completed, please restart grafana-server.",
-        step3: "Verify Plugin",
+        step3: "Add Data Source",
+        step3desc1: 'Host:',
+        step3desc2: 'User:',
+        step3username:'UserName',
+        ste3pwd:'Pawword',
+        step3desc3: `Input your password to login to TDengine,then click <code>Save & Test</code> button to verify if ${grafanagds} data source works. `,
         step3desc:
-          `Users can log in to the Grafana server (initial username/password:admin/admin) directly through the URL \`http://localhost:3000\`. Click \`Configuration -&gt; Data Sources\` on the left side. Then click \`Test\` button to verify if ${grafanagds} data source works. You should see a success message if the test worked.`,
+          `    Inside Grafana data source configuration page, copy the host and user shown below and past them into the corresponding input boxes: `,
         step4: "Use Grafana",
-        step4desc: `Please add new dashboard or import exist dashboard to illustrate the data you store in the ${grafanagds}.`,
-        step4desc1: "And refer to the ",
+        step4desc: `Please add new dashboard or import exist dashboard to explore the data stored in the ${grafanagds}.`,
+        step4desc1: "You can refer to the ",
         step4desc2: "documentation",
         step4desc3: "for more details.",
       },
@@ -1565,7 +1590,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step1desc: "The current ",
         step1desc1: "connector",
         step1desc2:
-          `supports two different types of data sources: ${grafanagds} Server and ${grafanagds} . Select &quot;${grafanagds} &quot; and then click &quot;NEXT&quot;.`,
+          `supports two different types of data sources: ${grafanagds} Server and ${grafanagds} . Select '${grafanagds} ' and then click 'NEXT'.`,
         step2: "Connector Configuration",
         step21: "Mandatory Config",
         step21desc: `${grafanagds}  URL:`,
@@ -1580,14 +1605,14 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step22: "Optional config",
         step221: "Query range start date &amp; end date",
         step221desc:
-          "The page where we configure our connector has two text boxes.These two date filter conditions are used to limit the amount of data that will be retrieved, and the date should be entered in the format &quot;YYYY-MM-DD HH:MM:SS.&quot; e.g.",
+          "The page where we configure our connector has two text boxes.These two date filter conditions are used to limit the amount of data that will be retrieved, and the date should be entered in the format 'YYYY-MM-DD HH:MM:SS.' e.g.",
         step221desc1:
           "The query result&#39;s start timestamp is defined by the `start date`. To put it another way, records from before this `start date` won&#39;t be received.",
         step221desc2:
           "The `end time` indicates the query result&#39;s end timestamp. Therefore, records that were written after this end date cannot be retrieved. These conditions are utilized in the where clause in SQL statements, such as:",
         step221desc3: "In fact, you can speed up the data loading in your report by using these filters.",
         step221desc4:
-          `Click &quot;CONNECT&quot; once configuration is complete, then you can connect to your &quot;${grafanagds} &quot; with the given database and table.`,
+          `Click 'CONNECT' once configuration is complete, then you can connect to your '${grafanagds} ' with the given database and table.`,
         step3: "Connector Configuration",
         step3desc: `Unlock the power of your data with interactive dashboards and beautiful reports with the data stored in ${grafanagds}.`,
         step3desc1: "And refer to",
@@ -1627,7 +1652,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         desc: "The tool for benchmark testing of inserting or querying data.",
         step1: "Introduction",
         step1desc:
-          "taosBenchmark (formerly taosdemo ) is a tool for testing the performance of TDengine products. taosBenchmark can test the performance of TDengine&#39;s insert, query, and subscription functions and simulate large amounts of data generated by many devices. taosBenchmark can be configured to generate user defined databases, supertables, subtables, and the time series data to populate these for performance benchmarking. taosBenchmark is highly configurable and some of the configurations include the time interval for inserting data, the number of working threads and the capability to insert disordered data. The installer provides taosdemo as a soft link to taosBenchmark for compatibility with past users.",
+          "taosBenchmark (formerly taosdemo ) is a tool for testing the performance of TDengine products. taosBenchmark can test the performance of TDengine's insert, query, and subscription functions and simulate large amounts of data generated by many devices. taosBenchmark can be configured to generate user defined databases, supertables, subtables, and the time series data to populate these for performance benchmarking. taosBenchmark is highly configurable and some of the configurations include the time interval for inserting data, the number of working threads and the capability to insert disordered data. The installer provides taosdemo as a soft link to taosBenchmark for compatibility with past users.",
         step1desc1:
           "Please be noted that in the context of TDengine  service, non privileged user can't create database using any tool, including taosBenchmark. The database needs to be firstly created in the data explorer in TDengine  service console. For any content about creating database in this document, the user needs to ignore and create the database manually inside TDengine  service.",
         step2: "Installation",
@@ -1643,7 +1668,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
           "taosBenchmark supports the complete performance testing of TDengine by providing functionally to write, query, and subscribe. These three functions are mutually exclusive, users can only select one of them each time taosBenchmark runs. The query and subscribe functionalities are only configurable using a json configuration file by specifying the parameter `filetype`, while write can be performed through both the command-line and a configuration file. If you want to test the performance of queries configure taosBenchmark with the configuration file. You can modify the value of the `filetype` parameter to specify the function that you want to test.",
         step31desc3: "Make sure that the TDengine cluster is running correctly before running taosBenchmark.",
         step32: "Run with the configuration file",
-        step32desc: "A sample configuration file is provided in the taosBenchmark installation package under `&lt;install_directory&gt;/examples`.",
+        step32desc: "A sample configuration file is provided in the taosBenchmark installation package under `<install_directory>/examples`.",
         step32desc1: "  Use the following command-line to run taosBenchmark and control its behavior via a configuration file.",
         step33: "Sample configuration files",
         step34: "Configuration file examples",
@@ -1673,21 +1698,21 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step44desc: "The parameters for creating super tables are configured in `super_tables` in the json configuration file, as shown below.",
         step44desc1: ": Super table name, mandatory, no default value.",
         step44desc2:
-          ": whether the child table already exists, default value is &quot;no&quot;, optional value is &quot;yes&quot; or &quot;no&quot;.",
+          ": whether the child table already exists, default value is 'no', optional value is 'yes' or 'no'.",
         step44desc3: ": The number of child tables, the default value is 10.",
         step44desc4: ": The prefix of the child table name, mandatory configuration item, no default value.",
         step44desc5:
-          ": specify the super table and child table names containing escape characters. The value can be &quot;yes&quot; or &quot;no&quot;. The default is &quot;no&quot;.",
+          ": specify the super table and child table names containing escape characters. The value can be 'yes' or 'no'. The default is 'no'.",
         step44desc6:
-          ": only when insert_mode is taosc, rest, stmt, and childtable_exists is &quot;no&quot;. &quot;yes&quot; means taosBenchmark will automatically create non-existent tables when inserting data; &quot;no&quot; means that taosBenchmark will create all tables before inserting.",
+          ": only when insert_mode is taosc, rest, stmt, and childtable_exists is 'no'. 'yes' means taosBenchmark will automatically create non-existent tables when inserting data; 'no' means that taosBenchmark will create all tables before inserting.",
         step44desc7:
           ": the number of tables per batch when creating sub-tables, default is 10. Note: the actual number of batches may not be the same as this value. If the executed SQL statement is larger than the maximum length supported, it will be automatically truncated and re-executed to continue creating.",
         step44desc8:
-          ": specify the source of data-generation. Default is taosBenchmark randomly generated. Users can configure it as &quot;rand&quot; and &quot;sample&quot;. When &quot;sample&quot; is used, taosBenchmark will use the data in the file specified by the `sample_file` parameter.",
+          ": specify the source of data-generation. Default is taosBenchmark randomly generated. Users can configure it as 'rand' and 'sample'. When 'sample' is used, taosBenchmark will use the data in the file specified by the `sample_file` parameter.",
         step44desc9:
           ": insertion mode with options taosc, rest, stmt, sml, sml-rest, corresponding to normal write, restful interface write, parameter binding interface write, schemaless interface write, restful schemaless interface write (provided by taosAdapter). The default value is taosc.",
         step44desc10:
-          ": Specify whether to keep writing. If &quot;yes&quot;, insert_rows will be disabled, and writing will not stop until Ctrl + C stops the program. The default value is &quot;no&quot;, i.e., taosBenchmark will stop the writing after the specified number of rows are written. Note: insert_rows must be configured as a non-zero positive integer even if it fails in continuous write mode.",
+          ": Specify whether to keep writing. If 'yes', insert_rows will be disabled, and writing will not stop until Ctrl + C stops the program. The default value is 'no', i.e., taosBenchmark will stop the writing after the specified number of rows are written. Note: insert_rows must be configured as a non-zero positive integer even if it fails in continuous write mode.",
         step44desc11:
           ": Insert data using line protocol. Only works when insert_mode is sml or sml-rest. The value can be `line`, `telnet`, or `json`.",
         step44desc12:
@@ -1710,7 +1735,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step44desc21:
           ": The timestamp step for inserting data in each child table, in units consistent with the `precision` of the database. For e.g. if the `precision` is milliseconds, the timestamp step will be in milliseconds. The default value is 1.",
         step44desc22: ": The timestamp start value of each sub-table, the default value is now.",
-        step44desc23: ": The type of the sample data file; for now only &quot;csv&quot; is supported.",
+        step44desc23: ": The type of the sample data file; for now only 'csv' is supported.",
         step44desc24:
           ": Specify a CSV format file as the data source. It only works when data_source is a sample. If the number of rows in the CSV file is less than or equal to prepared_rand, then taosBenchmark will read the CSV file data cyclically until it is the same as prepared_rand; otherwise, taosBenchmark will read only the rows with the number of prepared_rand. The final number of rows of data generated is the smaller of the two.",
         step44desc25:
@@ -1733,9 +1758,9 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step46desc2:
           ": Specifies the length of this data type, valid for NCHAR, BINARY, and JSON data types. If this parameter is configured for other data types, a value of 0 means that the column is always written with a null value; if it is not 0, it is ignored.",
         step46desc3:
-          ": Specifies the number of consecutive occurrences of the column type, e.g., &quot;count&quot;: 4096 generates 4096 columns of the specified type.",
+          ": Specifies the number of consecutive occurrences of the column type, e.g., 'count': 4096 generates 4096 columns of the specified type.",
         step46desc4:
-          ": The name of the column, if used together with count, e.g. &quot;name&quot;: &quot;current&quot;, &quot;count&quot;:3, then the names of the 3 columns are current, current_2. current_3.",
+          ": The name of the column, if used together with count, e.g. 'name': 'current', 'count':3, then the names of the 3 columns are current, current_2. current_3.",
         step46desc5: ": The minimum value of the column/label of the data type.",
         step46desc6: ": The maximum value of the column/label of the data type.",
         step46desc7: ": The value field of the nchar/binary column/label, which will be chosen randomly from the values.",
@@ -1770,9 +1795,10 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step410desc2: ": The query interval in seconds, the default value is 0.",
         step410desc3: ": The number of threads to execute the query SQL, the default value is 1.",
         step410desc4:
-          ": The SQL command to be executed. For the query SQL of super table, keep &quot;xxxx&quot; in the SQL command. The program will automatically replace it with all the sub-table names of the super table. Replace it with all the sub-table names in the super table.",
+          ": The SQL command to be executed. For the query SQL of super table, keep 'xxxx' in the SQL command. The program will automatically replace it with all the sub-table names of the super table. Replace it with all the sub-table names in the super table.",
         step410desc5: ": The file to save the query result. If not specified, taosBenchmark will not save result.",
       },
+     
     },
     topic: {
 
@@ -1808,14 +1834,48 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
       enddesc2: 'Data Subscription'
     },
     dashboard: {
+      desc: `To monitor ${grafanagds} running status and get alerts if something goes wrong, please use Grafana. ${grafanagds} can be integrated with Grafana smoothly without a line of code. `,
+        topdesc: `To monitor ${grafanagds} running status and get alerts if something goes wrong, please use `,
+        topdesc1:
+          ` . ${grafanagds} can be integrated with Grafana smoothly without a line of code. `,
+        topdesc2: ``,
+        topdesc3: ".",
+        step1: "Install Grafana",
+        step1desc:
+          `${grafanagds} currently supports Grafana versions 7.5 and above. Please go to the Grafana official website to download the installation package`,
+        pluginsdesc:`Open Grafana from browser, click the three horizontal bar icon, click <code>Connections</code>, inside the search bar, search ${grafanagds}, then "${grafanagds} Data Source" should pop up. Click <code>Install</code> to install the ${grafanagds} plugin. Once it's installed, you can add ${grafanagds} data source right away.`,
+        plugin1desc:`1. Open Grafana from browser, click the three horizontal bar icon, then <code>Connections</code>.`,
+        plugin2desc:`2. Inside the search bar, search TDengine, then <code>TDengine Data Source</code> should pop up. `,
+        plugin3desc:`3. Click <code>Install</code> to install the TDengine plugin. `,
+        plugin4desc:`4. Once it's installed, you can add TDengine data source right away.`,
+        script1:`If you can access Github easily, please run below script from Linux terminal to install ${grafanagds} Datasource plugin.`,
+        script2:`After that completed, please restart grafana-server.`,
+        step2: `Install ${grafanagds} plugin`,
+        step2desc:
+          `Please copy the following shell commands to export \`${grafanagds}_URL\` and  \`${grafanagds}_TOKEN\` for the data source installation.`,
+        step2desc1: `Run below script from Linux terminal to install ${grafanagds} data source plugin.`,
+        step2desc2: "After that completed, please restart grafana-server.",
+        step3: "Add Data Source",
+        step3desc1: 'Host:',
+        step3desc2: 'User:',
+        step3username:'UserName',
+        ste3pwd:'Password',
+        step3desc3: `Input your password to login to TDengine,then click <code>Save & Test</code> button to verify if ${grafanagds} data source works. `,
+        step3desc:
+          `    Inside Grafana data source configuration page, copy the host and user shown below and past them into the corresponding input boxes: `,
+        // step4: "Use Grafana",
+        // step4desc: `Please add new dashboard or import exist dashboard to explore the data stored in the ${grafanagds}.`,
+        // step4desc1: "You can refer to the ",
+        // step4desc2: "documentation",
+        // step4desc3: "for more details.",
       monitortip:'You can use Grafana to monitor the TDengine running status, please follow the steps below:',
       dashboarddesc: `We recommend using the latest<a href='https://grafana.com/'> Grafana</a> version 8 or 9 here.You can install Grafana on any<a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/#supported-operating-systems'> supported operating system</a> by following the <a href='https://grafana.com/docs/grafana/latest/setup-grafana/installation/'>official Grafana documentation Instructions </a>.`,
-      step1: 'Install Grafana',
-      step2: 'Install TDengine Plugin',
-      step3: 'Start Grafana',
-      step4: 'Login Grafana',
-      step5: 'Add Data Source',
-      step6: 'Import Dashboard',
+     
+      step5: 'Add Dashboard',
+      desc51:`1. Once the data source works, click the <strong>Dashboards</strong> tab on the data source configuration page.`,
+      desc52:`2. Choose <code>TDengine for 3.x</code> and click import.`,
+      desc53:`3. Click the three horizontal bar icon, then <strong>Dashboards</strong>, search <code>TDinsight</code>, and click it.`,
+      desc54:`4. Now, you can see the nice dashboard`,
       tab2: 'Install Grafana on CentOS / RHEL',
       tab1: 'Installing Grafana on Debian / Ubuntu',
       tab2sub: 'Or install it with RPM package.',
@@ -1840,7 +1900,41 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
       cont3: 'In the <code>TDinsight for 3.x</code> dashboard, choose the database used by taosKeeper to store monitoring data. ',
       cont4: 'You can see the monitoring result.'
 
+    },
+    tools:{
+      seeq: {
+        desc: 'Designed specifically for analyzing process data, Seeq works across all verticals with time series data in historians or other storage platforms.',
+        topdesc: 'Designed specifically for analyzing process data, ',
+        topdesc1:
+          ' works across all verticals with time series data in historians or other storage platforms. TDengine can be added as a data source into Seeq via JDBC connector. Once data source is configured, Seeq can read data from TDengine and offers functionalities such as data visualization, analysis, and forecasting.',
+        step1: 'Prerequisite',
+        step1desc: 'Install Seeq Server and Seeq Data Lab software (check ',
+        step1desc1: ').',
+        step2: 'Install TDengine Java Connector',
+        step2desc: 'Get Seeq data location configuration. For Linux, execute the command below:',
+        step2desc11: 'Download the latest TDengine Java connector from ',
+        step2desc12: ' (current version is ',
+        step2desc13: '), and copy the JAR file into the_directory_found_in_step_1/plugins/lib/ .',
+        step2desc2: 'Restart Seeq server. For Linux, execute the command below:',
+        step3: 'Add TDengine Data Source',
+        step3full: "Add TDengine into Seeq's data source",
+        step3desc: 'Open Seeq, login as admin, go to Administration, click "Add Data Source"',
+        step3desc1: 'For connector, choose SQL connector v2',
+        step3desc2: 'Inside the "Additional Configuration" input box, copy and paste the following:',
+        step3desc3: 'For the "QueryDefintions", please follow the examples below to write your own.',
+        step4: 'Smart Meter Example',
+        step4full: 'Import a large number of time series: smart meter example',
+        step4desc:
+          'TDengine has its own unique data model. It requires creating a table for each data collection point by using a super table as its template. Each table can be associated with up to 128 labels (static attributes). A database may contain one million or even one billion tables. Through variables in Seeq, you can import all the time series (tables) under a super table into Seeq by querying a super table instead of an individual table. In addition, you can import the labels associated with tables stored inside TDengine into Seeq, so you can find a time series easily by searching those labels.',
+        step4desc1: 'Based on the classical smart meter example in the TDengine document, the following configuration can be used to retrieve all the time series under super table meters.',
+        step4desc2: 'In the above example, tablename, location and groupid are retrieved via SQL: ',
+        step4desc3: 'The query results are assigned to variable tablename, location and groupid. Based on the query results, Seeq will expand this query configuration into many time series. ',
+        step4desc4: 'TDengine supports multiple columns, and you can use Seeq variables to generate a time series for each column. For more information about Seeq variables, please check ',
+        step4desc41: 'Seeq documentation',
+        step4desc42: '.'
+      }
     }
+   
   },
   component: {
     docConfig: {

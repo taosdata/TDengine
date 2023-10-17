@@ -84,7 +84,7 @@
       },
     },
     mounted() {
-      console.log('文档dump---0000',this.config);
+      console.log(config,this.category,'文件加载');
       // 在这里保存元素
       this.$nextTick(() => {
         this.domList = this.steps.map(item => document.getElementById(item.dom));

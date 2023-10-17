@@ -1,12 +1,9 @@
 <template>
   <div v-loading="requestIng">
-    <p class="title">
+    <div class="title">
       <span>{{ $t("dataIn.dataSources") }}</span>
-    </p>
-    <div class="data-source">
       <div class="flexEnd">
         <el-button
-          plain
           @click="refresh"
           size="small"
           icon="el-icon-refresh"
@@ -14,13 +11,15 @@
           >{{ $t("refresh") }}</el-button
         >
         <el-button
-          plain
           @click="addDbSource"
           size="small"
           icon="el-icon-plus"
           >{{ $t("datasource.addsource") }}</el-button
         >
       </div>
+    </div>
+    <div class="data-source">
+     
       <el-table
         style="margin-top: 20px"
         :data="topicList"
@@ -99,12 +98,16 @@
         <el-table-column
           :label="$t('datasource.type')"
           prop="localtype"
-          width="150"
+          width="180"
+          show-overflow-tooltip
+          :filters="filterMap.type"
+          :filter-method="filterHandler"
         ></el-table-column>
         <el-table-column
           :label="$t('datasource.target')"
           prop="target"
           width="200"
+          show-overflow-tooltip
         ></el-table-column>
         <el-table-column
           :label="$t('datasource.createat')"
@@ -119,9 +122,13 @@
           :label="$t('datasource.via')"
           prop="via"
           width="100"
-        ></el-table-column>
+        >
+          <template slot-scope="{ row }">
+            {{ agentMap[row.via] }}
+          </template>
+        </el-table-column>
 
-        <el-table-column :label="$t('datasource.metrics')" prop="finished_at">
+        <el-table-column :label="$t('dataIn.metrics')" prop="finished_at">
           <template slot-scope="scope">
             <el-button
               @click="checkMetrics(scope.row, scope.row.status.toLowerCase())"
@@ -169,7 +176,7 @@
                 <el-tooltip
                   placement="bottom"
                   effect="light"
-                  :content="$t('datasource.excutestart')"
+                  :content="$t('datasource.excutestart').replace('{name}',scope.row.name)"
                 >
                   <el-button
                     plain
@@ -183,7 +190,7 @@
                 <el-tooltip
                   placement="bottom"
                   effect="light"
-                  :content="$t('datasource.excutestop')"
+                  :content="$t('datasource.excutestop').replace('{name}',scope.row.name)"
                 >
                   <el-button
                     plain
@@ -221,6 +228,11 @@
           fixed="right"
         >
           <template slot-scope="scope">
+            <el-tooltip
+                  placement="bottom"
+                  effect="light"
+                  :content="$t('datasource.viewconfig').replace('{name}',scope.row.name)"
+                >
             <el-button
               type="primay"
               size="mini"
@@ -231,18 +243,31 @@
               @click="edit(scope.row, scope.row.status.toLowerCase())"
               icon="el-icon-view"
             ></el-button>
+            </el-tooltip>
+            <el-tooltip
+                  placement="bottom"
+                  effect="light"
+                  :content="$t('delete')"
+                >
             <el-button
               plain
               size="mini"
               @click="del(scope.row)"
               icon="el-icon-delete"
             ></el-button>
+            </el-tooltip>
+            <el-tooltip
+                  placement="bottom"
+                  effect="light"
+                  :content="$t('clone')"
+                >
             <el-button
               plain
               size="mini"
               @click="copyTask(scope.row, scope.row.status.toLowerCase())"
               icon="el-icon-copy-document"
             ></el-button>
+            </el-tooltip>
           </template>
         </el-table-column>
       </el-table>
@@ -280,6 +305,7 @@ import {
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
 import Agents from "../components/agents.vue";
+import Metrics from '../components/metrics.vue';
 import { deepClone, parsinginZone } from "@/utils";
 export default {
   name: "DataSource",
@@ -314,6 +340,19 @@ export default {
       expandRowKeys: [],
       metricDisable: false,
     };
+  },
+  computed: {
+    filterMap() {
+      return {
+        type: this.typeList.map(item => ({ text: item.name, value: item.name }))
+      };
+    },
+    agentMap() {
+      return this.$store.state.app.agentLists.reduce((pre, cur) => {
+        pre[cur.id] = cur.name;
+        return pre;
+      }, {});
+    }
   },
   methods: {
     handlePageChange() {},
@@ -361,6 +400,7 @@ export default {
       this.$parent.currentTaskStatus = status;
       this.$parent.agentID = data?.via;
       this.$parent.setEditID(data.id)
+      this.$parent.isCopyable = iscopy
       this.$store.commit('app/SET_CURRENT_EDITID',data.id)
       if (data.from_detail) {
         this.$store.commit("app/SET_CURRENT_DBTYPE", data.from_detail?.id);
@@ -463,6 +503,7 @@ export default {
     },
     //copy一个新的task
     copyTask(data, status) {
+      this.$parent.isCopyable = true
       this.edit(data, status, true);
     },
     addDbSource() {
@@ -472,6 +513,7 @@ export default {
       this.$store.commit("app/SET_CURRENT_DBTYPE", "tmq");
       this.$store.commit('app/SET_CURRENT_EDITID','')
       this.$parent.currentTaskStatus = "";
+      this.$parent.isCopyable = false
       this.$parent.changeEditable(false)
       this.$parent.toggleComponent("tmq");
     },
@@ -511,7 +553,7 @@ export default {
           Message.error(result.message);
           return;
         }
-        let array = Object.entries(result);
+        let array = Object.entries(result).map(item => ({ name: item[0], value: item[1] }));
         if (Array.from(array).length == 0) {
           switch (status) {
             case "running":
@@ -525,19 +567,20 @@ export default {
               return;
           }
         }
-        let html = `<ul class='db-metrics'><li >
-          <span>${this.$t("name")}</span>
-          <span>${this.$t("datasource.value")}</span>
-          </li>`;
-        array.forEach((item) => {
-          html += `<li ><span>${item.toString().split(",")[0]}</span>
-              <span>${item.toString().split(",")[1]}</span>
-              </li>`;
-        });
-        html += `</ul>`;
-        this.$alert(html, "", {
-          confirmButtonText: this.$t("ok"),
-          dangerouslyUseHTMLString: true,
+        this.$store.commit('SET_DIALOG', {
+          component: Metrics,
+          params: {
+            data: array
+          },
+          config: {
+            title: this.$t('dataIn.metrics'),
+            width: '800px'
+          },
+          listeners: {
+            close: () => {
+              this.$store.commit('SET_DIALOG_VISIBLE', false);
+            }
+          }
         });
       } catch (error) {
         console.log(error);
@@ -675,6 +718,10 @@ export default {
       }
       return style;
     },
+    filterHandler(value, row, column) {
+      const property = column['property'];
+      return row[property] === value;
+    },
   },
   mounted() {
     if (this.$parent.$parent.$parent.currentName == "datasource") {
@@ -686,6 +733,7 @@ export default {
 };
 </script>
 <style lang="scss">
+
 .el-tooltip__popper {
   max-width: 450px !important;
 }
@@ -717,16 +765,23 @@ export default {
   border-radius: 4px;
   font-size: 16px;
   margin: 10px 0;
-  padding: 8px 16px;
+  padding: 12px 16px;
 }
 .flexEnd {
   position: absolute;
-  top: 15px;
+  top: 16px;
   z-index: 9999;
   right: 10px;
   .el-button {
-    border: none;
+    border: 1px solid transparent;
     background: transparent;
+    color:#4259ce;
+    font-size:14px;
+    &:hover{
+      background:#fff;
+      border: 1px solid #4259ce;
+      
+    }
   }
 }
 
@@ -765,5 +820,6 @@ export default {
     border: 1px solid #eaeefb;
     border-top: none;
   }
+  
 }
 </style>

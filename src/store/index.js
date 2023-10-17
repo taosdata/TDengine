@@ -24,6 +24,11 @@ const store = new Vuex.Store({
     contactDialogVisible: false, //联系客服弹窗
     upgradeDialogVisible: false, //升级弹窗
     language: process.env.VUE_APP_LANGUAGE || "en",
+    dialogVisible: false, //弹窗
+    dialogConfig: {}, //弹窗配置
+    dialogParams: {}, //弹窗参数
+    dialogListenters: {}, //弹窗监听
+    dialogComponent: null, //弹窗组件
   },
   mutations: {
     SET_CONTACT_DIALOG_VISIBLE(state, visible) {
@@ -34,6 +39,17 @@ const store = new Vuex.Store({
     },
     SET_LANGUAGE: (state, language) => {
       state.language = language;
+    },
+    SET_DIALOG_VISIBLE(state, visible) {
+      state.dialogVisible = visible;
+    },
+    SET_DIALOG(state, payload) {
+      const { component, params, config, listeners } = payload;
+      state.dialogComponent = component;
+      state.dialogParams = params;
+      state.dialogConfig = config;
+      state.dialogListenters = listeners;
+      state.dialogVisible = true;
     },
   },
 });

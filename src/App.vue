@@ -1,16 +1,43 @@
 <template>
   <div id="app">
     <router-view :key="key"></router-view>
+    <el-dialog
+      :visible.sync="dialogVisible"
+      :close-on-click-modal="false"
+      v-bind="dialogConfig"
+    >
+      <component
+        :is="dialogComponent"
+        v-on="dialogListenter"
+        @close="dialogVisible = false"
+        v-bind="dialogParams"
+      ></component>
+    </el-dialog>
   </div>
 </template>
 
 <script>
+import { mapState } from 'vuex';
 export default {
   name: "App",
   components: {},
   computed: {
     key() {
       return this.$store.state.app.current_cluster?.id || "";
+    },
+    ...mapState({
+      dialogConfig: state => state.dialogConfig,
+      dialogParams: state => state.dialogParams,
+      dialogListenter: state => state.dialogListenters,
+      dialogComponent: state => state.dialogComponent,
+    }),
+    dialogVisible: {
+      get() {
+        return this.$store.state.dialogVisible;
+      },
+      set(val) {
+        this.$store.commit('SET_DIALOG_VISIBLE', val);
+      }
     }
   },
   mounted() {
