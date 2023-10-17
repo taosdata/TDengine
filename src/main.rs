@@ -214,7 +214,7 @@ fn main() -> Result<()> {
 
     set_env_log_keep_days(args.globals.log_keep_days);
     let mut log_path = get_log_dir("server");
-    log_path.push("server.log");
+    log_path.push("taosx-server.log");
     println!("log path: {}", log_path.to_str().unwrap());
     let log_keep_days = get_log_keep_days();
     println!("log keep days: {}", &log_keep_days);
