@@ -373,7 +373,12 @@ function add_newHostname_to_hosts() {
       return
     fi
   done
-  ${csudo}echo "127.0.0.1  $1" >>/etc/hosts || :
+
+  if grep -q "127.0.0.1  $1" /etc/hosts; then
+    return
+  else
+    ${csudo}echo "127.0.0.1  $1" >>/etc/hosts
+  fi
 }
 
 function set_hostname() {
@@ -388,28 +393,32 @@ function set_hostname() {
     fi
   done
 
-  ${csudo}hostname $newHostname || :
-  retval=$(echo $?)
-  if [[ $retval != 0 ]]; then
-    echo
-    echo "set hostname fail!"
-    return
-  fi
+  # ${csudo}hostname $newHostname || :
+  # retval=$(echo $?)
+  # if [[ $retval != 0 ]]; then
+  #   echo
+  #   echo "set hostname fail!"
+  #   return
+  # fi
 
-  #ubuntu/centos /etc/hostname
-  if [[ -e /etc/hostname ]]; then
-    ${csudo}echo $newHostname >/etc/hostname || :
-  fi
+  # #ubuntu/centos /etc/hostname
+  # if [[ -e /etc/hostname ]]; then
+  #   ${csudo}echo $newHostname >/etc/hostname || :
+  # fi
 
-  #debian: #HOSTNAME=yourname
-  if [[ -e /etc/sysconfig/network ]]; then
-    ${csudo}sed -i -r "s/#*\s*(HOSTNAME=\s*).*/\1$newHostname/" /etc/sysconfig/network || :
-  fi
+  # #debian: #HOSTNAME=yourname
+  # if [[ -e /etc/sysconfig/network ]]; then
+  #   ${csudo}sed -i -r "s/#*\s*(HOSTNAME=\s*).*/\1$newHostname/" /etc/sysconfig/network || :
+  # fi
 
-  ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$newHostname/" ${cfg_install_dir}/${configFile2}
+  if [ -f ${cfg_install_dir}/${configFile2} ]; then
+    ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$newHostname/" ${cfg_install_dir}/${configFile2}
+  else
+    ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$newHostname/" ${script_dir}/cfg/${configFile2}
+  fi
   serverFqdn=$newHostname
 
-  if [[ -e /etc/hosts ]]; then
+  if [[ -e /etc/hosts ]] && [[ ! $newHostname =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
     add_newHostname_to_hosts $newHostname
   fi
 }
@@ -440,7 +449,12 @@ function set_ipAsFqdn() {
     echo -e -n "${GREEN}Unable to get local ip, use 127.0.0.1${NC}"
     localFqdn="127.0.0.1"
     # Write the local FQDN to configuration file
-    ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/${configFile2}
+    
+    if [ -f ${cfg_install_dir}/${configFile2} ]; then
+      ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/${configFile2}
+    else
+      ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${script_dir}/cfg/${configFile2}
+    fi
     serverFqdn=$localFqdn
     echo
     return
@@ -461,8 +475,12 @@ function set_ipAsFqdn() {
       if [[ $retval != 0 ]]; then
         read -p "Please choose an IP from local IP list:" localFqdn
       else
-        # Write the local FQDN to configuration file
-        ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/${configFile2}
+        # Write the local FQDN to configuration file        
+        if [ -f ${cfg_install_dir}/${configFile2} ]; then
+          ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/${configFile2}
+        else
+          ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${script_dir}/cfg/${configFile2}
+        fi
         serverFqdn=$localFqdn
         break
       fi
@@ -481,6 +499,9 @@ function local_fqdn_check() {
 }
 
 function install_adapter_config() {
+  if [ -f ${script_dir}/cfg/${adapterName}.toml ]; then
+    ${csudo}sed -i -r "s/localhost/${serverFqdn}/g" ${script_dir}/cfg/${adapterName}.toml
+  fi
   if [ ! -f "${cfg_install_dir}/${adapterName}.toml" ]; then
     ${csudo}mkdir -p ${cfg_install_dir}
     [ -f ${script_dir}/cfg/${adapterName}.toml ] && ${csudo}cp ${script_dir}/cfg/${adapterName}.toml ${cfg_install_dir}
@@ -536,7 +557,11 @@ function install_config() {
   read firstEp
   while true; do
     if [ ! -z "$firstEp" ]; then
-      ${csudo}sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${cfg_install_dir}/${configFile2}
+      if [ -f ${cfg_install_dir}/${configFile2} ]; then
+        ${csudo}sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${cfg_install_dir}/${configFile2}
+      else
+        ${csudo}sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${script_dir}/cfg/${configFile2}
+      fi
       break
     else
       break
@@ -854,7 +879,7 @@ function updateProduct() {
   tar -zxf ${tarName}
   install_jemalloc
 
-  echo -e "${GREEN}Start to update ${productName2}...${NC}"
+  echo "Start to update ${productName2}..."
   # Stop the service if running
   if ps aux | grep -v grep | grep ${serverName2} &>/dev/null; then
     if ((${service_mod} == 0)); then
@@ -958,7 +983,7 @@ function installProduct() {
   fi
   tar -zxf ${tarName}
 
-  echo -e "${GREEN}Start to install ${productName2}...${NC}"
+  echo "Start to install ${productName2}..."
 
   install_main_path
 
