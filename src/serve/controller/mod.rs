@@ -633,21 +633,9 @@ impl TaskController {
             task.id = id,
             trace_id = tracing::field::Empty
         );
-        // span.record("request", value)
-
-        let mut breakpoints = None;
-        let task_id = task.id.to_string();
-        let bp = taosx_core::utils::breakpoints::breakpoints_get_all(&task_id);
-        if let Ok(bp) = bp {
-            let formatted_pairs: Vec<String> = bp
-                .iter()
-                .map(|(first, second)| format!("{}:{}", first, second))
-                .collect();
-
-            let output = formatted_pairs.join("&");
-            breakpoints = Some(output);
-        }
-        
+        // span.record("request", value)    
+        dbg!(&task);
+        let breakpoints = task.breakpoints.clone();    
 
         let opts = TaskOpts {
             transform: vec![],
@@ -669,7 +657,7 @@ impl TaskController {
             span: span.clone(),
             task_id: Some(id.to_string()),
         };
-        // dbg!(&opts);
+        dbg!(&opts);
         // dbg!(&agent_task_worker);
 
         // if let Some(atomic) = &runnings {
@@ -1343,6 +1331,21 @@ impl TaskController {
         Ok(task
             .map(|mut t| {
                 t.backport_labels();
+                t
+            })
+            // set breakpoints
+            .map(|mut t| {
+                let task_id = id.to_string();
+                let bp = taosx_core::utils::breakpoints::breakpoints_get_all(&task_id);
+                if let Ok(bp) = bp {
+                    let formatted_pairs: Vec<String> = bp
+                        .iter()
+                        .map(|(first, second)| format!("{}:{}", first, second))
+                        .collect();
+
+                    let output = formatted_pairs.join("&");
+                    t.breakpoints = Some(output);
+                }
                 t
             })
             .map(Into::into))
@@ -2286,6 +2289,12 @@ pub struct Task {
     #[sqlx(try_from = "String", default)]
     // #[serde(deserialize_with = "labels_serde::deserialize")]
     pub labels: Labels,
+
+    /// break points
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[sqlx(default)]
+    pub breakpoints: Option<String>,
 }
 /// Task Activity
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug, sqlx::FromRow)]
@@ -2565,6 +2574,10 @@ impl Task {
                 }
             }
         }
+    }
+
+    fn set_breakpoints(&mut self, breakpoints: Option<String>) {
+        self.breakpoints = breakpoints;
     }
 }
 #[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq, PartialOrd, ToSchema)]

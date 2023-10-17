@@ -141,6 +141,10 @@ pub struct Task {
     // #[serde(deserialize_with = "labels_serde::deserialize")]
     // #[serde(default)]
     // labels: Vec<(String, Option<String>)>,
+
+    /// break points
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub breakpoints: Option<String>,
 }
 const fn is_false(b: &bool) -> bool {
     *b
@@ -473,6 +477,7 @@ impl Client {
                     "run" => {
                         let task: Task = serde_json::from_str(&context).unwrap();
                         info!("Start task {}", task.id);
+                        dbg!(&task);
                         sender.send_async(Action::Run(task)).await?;
                     }
                     "stop" => {
