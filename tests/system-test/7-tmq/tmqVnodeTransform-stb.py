@@ -256,7 +256,7 @@ class TDTestCase:
         tdLog.printNoPrefix("======== test case 2 end ...... ")
 
     def tmqCaseStableSelect(self):
-        tdLog.printNoPrefix("======== test case subscrib column start : ")
+        tdLog.printNoPrefix("======== test case 3 subscrib column start : ")
         paraDict = {'dbName':     'dbt',
                     'dropFlag':   1,
                     'event':      '',
@@ -315,7 +315,7 @@ class TDTestCase:
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
         tdLog.info("wait the consume result")
 
-        time.sleep(5)
+        time.sleep(1)
         #restart dnode & remove wal
         # self.restartAndRemoveWal()
 
@@ -332,10 +332,10 @@ class TDTestCase:
         for i in range(len(topicNameList)):
             tdSql.query("drop topic %s"%topicNameList[i])
 
-        tdLog.printNoPrefix("======== test case subscrib column end ...... ")
+        tdLog.printNoPrefix("======== test case 3 subscrib column end ...... ")
 
     def tmqCaseDbname(self):
-        tdLog.printNoPrefix("======== test case subscrib Dbname start: ")
+        tdLog.printNoPrefix("======== test case  4 subscrib Dbname start: ")
         paraDict = {'dbName':     'dbt',
                     'dropFlag':   1,
                     'event':      '',
@@ -394,7 +394,7 @@ class TDTestCase:
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
         tdLog.info("wait the consume result")
 
-        time.sleep(5)
+        time.sleep(1)
         #restart dnode & remove wal
         # self.restartAndRemoveWal()
 
@@ -411,7 +411,7 @@ class TDTestCase:
         for i in range(len(topicNameList)):
             tdSql.query("drop topic %s"%topicNameList[i])
 
-        tdLog.printNoPrefix("======== test case subscrib Dbname end ...... ")
+        tdLog.printNoPrefix("======== test case 4 subscrib Dbname end ...... ")
 
     def run(self):
         self.prepareTestEnv()
