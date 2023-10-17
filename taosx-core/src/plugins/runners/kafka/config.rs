@@ -1,30 +1,41 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
-use kafka::consumer::FetchOffset;
+use kafka::consumer::{FetchOffset, GroupOffsetStorage};
 use taos::Dsn;
 
 #[derive(Debug)]
 pub struct SourceConfig {
     // kafka brokers
     pub bootstrap_servers: Vec<String>,
-    // use SSL or not
-    pub use_ssl: bool,
-    // certification file path
-    pub cert: Option<PathBuf>,
-    // certification key file path
-    pub cert_key: Option<PathBuf>,
 
     pub group: String,
     pub topics: Option<Vec<String>>,
     pub topic_partitions: Option<HashMap<String, Vec<i32>>>,
+
+    // certification file path
+    pub cert: Option<PathBuf>,
+    // certification key file path
+    pub cert_key: Option<PathBuf>,
+    // use SSL or not
+    pub use_ssl: bool,
+
     pub fallback_offset: FetchOffset,
+    pub fetch_max_wait_time: Option<Duration>,
+    pub fetch_min_bytes: Option<i32>,
+    pub fetch_max_bytes_per_partition: Option<i32>,
+    pub fetch_crc_validation: Option<bool>,
+    pub offset_storage: Option<GroupOffsetStorage>,
+    pub retry_max_bytes_limit: Option<i32>,
+    pub connection_idle_timeout: Option<Duration>,
+    pub client_id: Option<String>,
+
     pub timeout: i64,
 }
 
 impl SourceConfig {
     pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
-        let bootstrap_servers = Self::parse_bootstrap_servers(dsn);
         let use_ssl = Self::parse_use_ssl(dsn)?;
         let (cert, cert_key) = if use_ssl {
             Self::parse_certification(dsn)?
@@ -32,22 +43,24 @@ impl SourceConfig {
             (None, None)
         };
 
-        let group = Self::parse_group(dsn);
-        let topics = Self::parse_topics(dsn);
-        let topic_partitions = Self::parse_topic_partitions(dsn)?;
-        let fallback_offset = Self::parse_fallback_offset(dsn)?;
-        let timeout = Self::parse_timeout(dsn)?;
-
         let config = SourceConfig {
-            bootstrap_servers,
+            bootstrap_servers: Self::parse_bootstrap_servers(dsn),
+            group: Self::parse_group(dsn),
+            topics: Self::parse_topics(dsn),
+            topic_partitions: Self::parse_topic_partitions(dsn)?,
             use_ssl,
             cert,
             cert_key,
-            group,
-            topics,
-            topic_partitions,
-            fallback_offset,
-            timeout,
+            fallback_offset: Self::parse_fallback_offset(dsn)?,
+            fetch_max_wait_time: Self::parse_fetch_max_wait_time(dsn)?,
+            fetch_min_bytes: Self::parse_fetch_min_bytes(dsn)?,
+            fetch_max_bytes_per_partition: Self::parse_fetch_max_bytes_per_partition(dsn)?,
+            fetch_crc_validation: Self::parse_fetch_crc_validation(dsn)?,
+            offset_storage: Self::parse_offset_storage(dsn)?,
+            retry_max_bytes_limit: Self::parse_retry_max_bytes_limit(dsn)?,
+            connection_idle_timeout: Self::parse_connection_idle_timeout(dsn)?,
+            client_id: Self::parse_client_id(dsn)?,
+            timeout: Self::parse_timeout(dsn)?,
         };
         Ok(config)
     }
@@ -166,6 +179,143 @@ impl SourceConfig {
                 .map(FetchOffset::ByTime)
                 .map_err(|e| anyhow::anyhow!("invalid fallback_offset: {}, cause: {}", s, e)),
         }
+    }
+
+    fn parse_fetch_max_wait_time(dsn: &Dsn) -> anyhow::Result<Option<Duration>> {
+        dsn.params
+            .get("fetch_max_wait_time")
+            .map(String::as_str)
+            .map(|s| {
+                let result = parse_duration::parse(s);
+                match result {
+                    Ok(d) => Ok(Some(d)),
+                    Err(e) => Err(anyhow::anyhow!(
+                        "invalid fetch_max_wait_time: {}, cause: {}",
+                        s,
+                        e
+                    )),
+                }
+            })
+            .unwrap_or(Ok(None))
+    }
+
+    fn parse_fetch_min_bytes(dsn: &Dsn) -> anyhow::Result<Option<i32>> {
+        dsn.params
+            .get("fetch_min_bytes")
+            .map(String::as_str)
+            .map(|s| {
+                let result = s.parse::<i32>();
+                match result {
+                    Ok(d) => Ok(Some(d)),
+                    Err(e) => Err(anyhow::anyhow!(
+                        "invalid fetch_min_bytes: {}, cause: {}",
+                        s,
+                        e
+                    )),
+                }
+            })
+            .unwrap_or(Ok(None))
+    }
+
+    fn parse_fetch_max_bytes_per_partition(dsn: &Dsn) -> anyhow::Result<Option<i32>> {
+        dsn.params
+            .get("fetch_max_bytes_per_partition")
+            .map(String::as_str)
+            .map(|s| {
+                let result = s.parse::<i32>();
+                match result {
+                    Ok(d) => Ok(Some(d)),
+                    Err(e) => Err(anyhow::anyhow!(
+                        "invalid fetch_max_bytes_per_partition: {}, cause: {}",
+                        s,
+                        e
+                    )),
+                }
+            })
+            .unwrap_or(Ok(None))
+    }
+
+    fn parse_fetch_crc_validation(dsn: &Dsn) -> anyhow::Result<Option<bool>> {
+        dsn.params
+            .get("fetch_crc_validation")
+            .map(String::as_str)
+            .map(|s| {
+                let result = s.parse::<bool>();
+                match result {
+                    Ok(d) => Ok(Some(d)),
+                    Err(e) => Err(anyhow::anyhow!(
+                        "invalid fetch_crc_validation: {}, cause: {}",
+                        s,
+                        e
+                    )),
+                }
+            })
+            .unwrap_or(Ok(None))
+    }
+
+    fn parse_offset_storage(dsn: &Dsn) -> anyhow::Result<Option<GroupOffsetStorage>> {
+        dsn.params.get("offset_storage").map(String::as_str).map(|s| {
+            match s {
+                "Zookeeper" => Ok(Some(GroupOffsetStorage::Zookeeper)),
+                "Kafka" => Ok(Some(GroupOffsetStorage::Kafka)),
+                _ => {
+                    Err(anyhow::anyhow!(
+                        "invalid offset_storage: {}, cause: provided string was not `Zookeeper` or `Kafka`",
+                        s
+                    ))
+                }
+            }
+        }).unwrap_or(Ok(None))
+    }
+
+    fn parse_retry_max_bytes_limit(dsn: &Dsn) -> anyhow::Result<Option<i32>> {
+        dsn.params
+            .get("retry_max_bytes_limit")
+            .map(String::as_str)
+            .map(|s| {
+                let result = s.parse::<i32>();
+                match result {
+                    Ok(d) => Ok(Some(d)),
+                    Err(e) => Err(anyhow::anyhow!(
+                        "invalid retry_max_bytes_limit: {}, cause: {}",
+                        s,
+                        e
+                    )),
+                }
+            })
+            .unwrap_or(Ok(None))
+    }
+
+    fn parse_connection_idle_timeout(dsn: &Dsn) -> anyhow::Result<Option<Duration>> {
+        dsn.params
+            .get("connection_idle_timeout")
+            .map(String::as_str)
+            .map(|s| {
+                let result = parse_duration::parse(s);
+                match result {
+                    Ok(d) => Ok(Some(d)),
+                    Err(e) => Err(anyhow::anyhow!(
+                        "invalid connection_idle_timeout: {}, cause: {}",
+                        s,
+                        e
+                    )),
+                }
+            })
+            .unwrap_or(Ok(None))
+    }
+
+    fn parse_client_id(dsn: &Dsn) -> anyhow::Result<Option<String>> {
+        dsn.params
+            .get("client_id")
+            .map(String::as_str)
+            .map(|s| {
+                let result = s.parse::<String>();
+                match result {
+                    Ok(d) => Ok(Some(d)),
+                    Err(e) => Err(anyhow::anyhow!("invalid client_id: {}, cause: {}", s, e)),
+                }
+            })
+            .unwrap_or(Ok(None))
     }
 
     pub fn parse_timeout(dsn: &Dsn) -> anyhow::Result<i64> {
@@ -342,6 +492,149 @@ mod tests {
             "invalid fallback_offset: invalid, cause: invalid digit found in string",
             result.unwrap_err().to_string()
         );
+    }
+
+    #[test]
+    fn test_parse_fetch_max_wait_time() {
+        let dsn = Dsn::from_str("kafka://?fetch_max_wait_time=1h").unwrap();
+        let result = SourceConfig::parse_fetch_max_wait_time(&dsn).unwrap();
+        assert!(result.is_some());
+        assert_eq!(3600, result.unwrap().as_secs());
+
+        let dsn = Dsn::from_str("kafka://").unwrap();
+        let result = SourceConfig::parse_fetch_max_wait_time(&dsn).unwrap();
+        assert!(result.is_none());
+
+        let dsn = Dsn::from_str("kafka://?fetch_max_wait_time=invalid").unwrap();
+        let result = SourceConfig::parse_fetch_max_wait_time(&dsn);
+        assert!(result.is_err());
+        assert_eq!("invalid fetch_max_wait_time: invalid, cause: NoValueFoundError: no value found in the string \"invalid\"", result.unwrap_err().to_string());
+    }
+
+    #[test]
+    fn test_parse_fetch_min_bytes() {
+        let dsn = Dsn::from_str("kafka://?fetch_min_bytes=100").unwrap();
+        let result = SourceConfig::parse_fetch_min_bytes(&dsn).unwrap();
+        assert!(result.is_some());
+        assert_eq!(100, result.unwrap());
+
+        let dsn = Dsn::from_str("kafka://").unwrap();
+        let result = SourceConfig::parse_fetch_min_bytes(&dsn).unwrap();
+        assert!(result.is_none());
+
+        let dsn = Dsn::from_str("kafka://?fetch_min_bytes=invalid").unwrap();
+        let result = SourceConfig::parse_fetch_min_bytes(&dsn);
+        assert!(result.is_err());
+        assert_eq!(
+            "invalid fetch_min_bytes: invalid, cause: invalid digit found in string",
+            result.unwrap_err().to_string()
+        );
+    }
+
+    #[test]
+    fn test_parse_fetch_max_bytes_per_partition() {
+        let dsn = Dsn::from_str("kafka://?fetch_max_bytes_per_partition=100").unwrap();
+        let config = SourceConfig::parse_fetch_max_bytes_per_partition(&dsn).unwrap();
+        assert!(config.is_some());
+        assert_eq!(100, config.unwrap());
+
+        let dsn = Dsn::from_str("kafka://").unwrap();
+        let config = SourceConfig::parse_fetch_max_bytes_per_partition(&dsn).unwrap();
+        assert!(config.is_none());
+
+        let dsn = Dsn::from_str("kafka://?fetch_max_bytes_per_partition=invalid").unwrap();
+        let result = SourceConfig::parse_fetch_max_bytes_per_partition(&dsn);
+        assert!(result.is_err());
+        assert_eq!(
+            "invalid fetch_max_bytes_per_partition: invalid, cause: invalid digit found in string",
+            result.unwrap_err().to_string()
+        );
+    }
+
+    #[test]
+    fn test_parse_fetch_crc_validation() {
+        let dsn = Dsn::from_str("kafka://?fetch_crc_validation=true").unwrap();
+        let config = SourceConfig::parse_fetch_crc_validation(&dsn).unwrap();
+        assert!(config.is_some());
+        assert_eq!(true, config.unwrap());
+
+        let dsn = Dsn::from_str("kafka://").unwrap();
+        let config = SourceConfig::parse_fetch_crc_validation(&dsn).unwrap();
+        assert!(config.is_none());
+
+        let dsn = Dsn::from_str("kafka://?fetch_crc_validation=invalid").unwrap();
+        let result = SourceConfig::parse_fetch_crc_validation(&dsn);
+        assert!(result.is_err());
+        assert_eq!("invalid fetch_crc_validation: invalid, cause: provided string was not `true` or `false`", result.unwrap_err().to_string());
+    }
+
+    #[test]
+    fn test_parse_offset_storage() {
+        let dsn = Dsn::from_str("kafka://?offset_storage=Kafka").unwrap();
+        let config = SourceConfig::parse_offset_storage(&dsn).unwrap();
+        assert!(config.is_some());
+        assert_eq!("Kafka", format!("{:?}", config.unwrap()));
+
+        let dsn = Dsn::from_str("kafka://").unwrap();
+        let config = SourceConfig::parse_offset_storage(&dsn).unwrap();
+        assert!(config.is_none());
+
+        let dsn = Dsn::from_str("kafka://?offset_storage=invalid").unwrap();
+        let result = SourceConfig::parse_offset_storage(&dsn);
+        assert!(result.is_err());
+        assert_eq!("invalid offset_storage: invalid, cause: provided string was not `Zookeeper` or `Kafka`", result.unwrap_err().to_string());
+    }
+
+    #[test]
+    fn test_parse_retry_max_bytes_limit() {
+        let dsn = Dsn::from_str("kafka://?retry_max_bytes_limit=100").unwrap();
+        let config = SourceConfig::parse_retry_max_bytes_limit(&dsn).unwrap();
+        assert!(config.is_some());
+        assert_eq!(100, config.unwrap());
+
+        let dsn = Dsn::from_str("kafka://").unwrap();
+        let config = SourceConfig::parse_retry_max_bytes_limit(&dsn).unwrap();
+        assert!(config.is_none());
+
+        let dsn = Dsn::from_str("kafka://?retry_max_bytes_limit=invalid").unwrap();
+        let result = SourceConfig::parse_retry_max_bytes_limit(&dsn);
+        assert!(result.is_err());
+        assert_eq!(
+            "invalid retry_max_bytes_limit: invalid, cause: invalid digit found in string",
+            result.unwrap_err().to_string()
+        );
+    }
+
+    #[test]
+    fn test_parse_connection_idle_timeout() {
+        let dsn = Dsn::from_str("kafka://?connection_idle_timeout=1h").unwrap();
+        let result = SourceConfig::parse_connection_idle_timeout(&dsn).unwrap();
+        assert!(result.is_some());
+
+        let dsn = Dsn::from_str("kafka://").unwrap();
+        let result = SourceConfig::parse_connection_idle_timeout(&dsn).unwrap();
+        assert!(result.is_none());
+
+        let dsn = Dsn::from_str("kafka://?connection_idle_timeout=invalid").unwrap();
+        let result = SourceConfig::parse_connection_idle_timeout(&dsn);
+        assert!(result.is_err());
+        assert_eq!("invalid connection_idle_timeout: invalid, cause: NoValueFoundError: no value found in the string \"invalid\"", result.unwrap_err().to_string());
+    }
+
+    #[test]
+    fn test_parse_client_id() {
+        let dsn = Dsn::from_str("kafka://?client_id=client1").unwrap();
+        let result = SourceConfig::parse_client_id(&dsn).unwrap();
+        assert!(result.is_some());
+        assert_eq!("client1", result.unwrap());
+
+        let dsn = Dsn::from_str("kafka://").unwrap();
+        let result = SourceConfig::parse_client_id(&dsn).unwrap();
+        assert!(result.is_none());
+
+        let dsn = Dsn::from_str("kafka://?client_id=").unwrap();
+        let result = SourceConfig::parse_client_id(&dsn).unwrap();
+        assert_eq!("", result.unwrap().as_str());
     }
 
     #[test]
