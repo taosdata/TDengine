@@ -4932,11 +4932,11 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
     tsdbRefMemTable(pTsdb->imem, pSnap->pINode);
   }
 
-  // unlock 
-  taosThreadRwlockUnlock(&pTsdb->rwLock);
-  
   // fs
   code = tsdbFSCreateRefSnapshot(pTsdb->pFS, &pSnap->pfSetArray);
+
+  // unlock 
+  taosThreadRwlockUnlock(&pTsdb->rwLock);
   if (code == TSDB_CODE_SUCCESS) {
     tsdbTrace("vgId:%d, take read snapshot", TD_VID(pTsdb->pVnode));
   }
