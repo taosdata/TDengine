@@ -1207,7 +1207,10 @@ pub fn parse_column_view_with_types(
         .collect()
 }
 
-pub fn record_batch_to_column_view(record: &RecordBatch) -> Vec<ColumnView> {
+pub fn record_batch_to_column_view(
+    record: &RecordBatch,
+    target_precision: taos_query::prelude::Precision,
+) -> Vec<ColumnView> {
     record
         .columns()
         .iter()
@@ -1363,54 +1366,72 @@ pub fn record_batch_to_column_view(record: &RecordBatch) -> Vec<ColumnView> {
                     )
                 }
             }
-            DataType::Timestamp(u, _) => match u {
-                arrow::datatypes::TimeUnit::Second => todo!(),
-                arrow::datatypes::TimeUnit::Millisecond => {
-                    let a = column
-                        .as_any()
-                        .downcast_ref::<TimestampMillisecondArray>()
-                        .unwrap();
-                    if a.null_count() == 0 {
-                        let v = a.values();
-                        ColumnView::from_millis_timestamp(v.to_vec())
-                    } else {
-                        let values = (0..a.len())
-                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                            .collect();
-                        ColumnView::from_millis_timestamp(values)
+            DataType::Timestamp(_, _) => {
+                let precision = match target_precision {
+                    taos_query::prelude::Precision::Millisecond => {
+                        arrow::datatypes::TimeUnit::Millisecond
+                    }
+                    taos_query::prelude::Precision::Microsecond => {
+                        arrow::datatypes::TimeUnit::Microsecond
+                    }
+                    taos_query::prelude::Precision::Nanosecond => {
+                        arrow::datatypes::TimeUnit::Nanosecond
+                    }
+                };
+                let column =
+                    arrow::compute::cast(column, &DataType::Timestamp(precision.clone(), None))
+                        .expect("timestamp to timestamp cast should always success");
+                match precision {
+                    arrow::datatypes::TimeUnit::Second => {
+                        unreachable!("TDengine does not support second precision")
+                    }
+                    arrow::datatypes::TimeUnit::Millisecond => {
+                        let a = column
+                            .as_any()
+                            .downcast_ref::<TimestampMillisecondArray>()
+                            .unwrap();
+                        if a.null_count() == 0 {
+                            let v = a.values();
+                            ColumnView::from_millis_timestamp(v.to_vec())
+                        } else {
+                            let values = (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect();
+                            ColumnView::from_millis_timestamp(values)
+                        }
+                    }
+                    arrow::datatypes::TimeUnit::Microsecond => {
+                        let a = column
+                            .as_any()
+                            .downcast_ref::<TimestampMicrosecondArray>()
+                            .unwrap();
+                        if a.null_count() == 0 {
+                            let v = a.values();
+                            ColumnView::from_micros_timestamp(v.to_vec())
+                        } else {
+                            let values = (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect();
+                            ColumnView::from_micros_timestamp(values)
+                        }
+                    }
+                    arrow::datatypes::TimeUnit::Nanosecond => {
+                        let a = column
+                            .as_any()
+                            .downcast_ref::<TimestampNanosecondArray>()
+                            .unwrap();
+                        if a.null_count() == 0 {
+                            let v = a.values();
+                            ColumnView::from_nanos_timestamp(v.to_vec())
+                        } else {
+                            let values = (0..a.len())
+                                .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
+                                .collect();
+                            ColumnView::from_nanos_timestamp(values)
+                        }
                     }
                 }
-                arrow::datatypes::TimeUnit::Microsecond => {
-                    let a = column
-                        .as_any()
-                        .downcast_ref::<TimestampMicrosecondArray>()
-                        .unwrap();
-                    if a.null_count() == 0 {
-                        let v = a.values();
-                        ColumnView::from_micros_timestamp(v.to_vec())
-                    } else {
-                        let values = (0..a.len())
-                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                            .collect();
-                        ColumnView::from_micros_timestamp(values)
-                    }
-                }
-                arrow::datatypes::TimeUnit::Nanosecond => {
-                    let a = column
-                        .as_any()
-                        .downcast_ref::<TimestampNanosecondArray>()
-                        .unwrap();
-                    if a.null_count() == 0 {
-                        let v = a.values();
-                        ColumnView::from_nanos_timestamp(v.to_vec())
-                    } else {
-                        let values = (0..a.len())
-                            .map(|i| if a.is_null(i) { None } else { Some(a.value(i)) })
-                            .collect();
-                        ColumnView::from_millis_timestamp(values)
-                    }
-                }
-            },
+            }
             DataType::Binary => {
                 let a = column.as_any().downcast_ref::<BinaryArray>().unwrap();
                 let iter = (0..a.len())

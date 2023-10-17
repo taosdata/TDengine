@@ -39,8 +39,13 @@ def release(release_info,build_info):
             build_and_install_taosx_agent_on_linux(info.VersionMode)
         if info.Name =='taos-explorer':
             install_taos_explorer_on_linux(info.VersionMode)
-    make_tar_package(release_info)
-    logging.info("release successfully")
+
+    chmodReleaseDir(release_info)
+    if release_info.OnlyBuild:
+        logging.info("taosx and it's submodule build finished.")
+    else:
+        make_tar_package(release_info)
+        logging.info("release successfully")
 
 
 def init_release_dir(release_info):
@@ -48,7 +53,7 @@ def init_release_dir(release_info):
     global release_dir, systemd_path, target
     if release_info.Target == "agent":
         target = "taosx-agent"
-    release_dir = os.path.join(top_dir,"release","{0}-{1}-linux-{2}".format(target, release_info.TaosXVersion, release_info.CpuType.lower()))
+    release_dir = release_info.InstallPath
     check_directory(release_dir)
     systemd_path = os.path.join(release_dir,"etc", "systemd", "system")
     check_directory(systemd_path)
@@ -226,6 +231,10 @@ def replace_file_content(file, pattern, new_attribute):
     with open(file, "w") as f:
         f.write(new_content)
 
+def chmodReleaseDir(release_info):
+    os.chmod(os.path.join(release_dir,"bin"),0o755)
+    os.chmod(os.path.join(release_dir,"plugins"),0o755)
+
 def make_tar_package(release_info):
     logging.info("making tar package")
     shutil.copy(os.path.join(script_dir,"uninstall.sh"),release_dir)
@@ -235,8 +244,7 @@ def make_tar_package(release_info):
 
     os.chmod(os.path.join(release_dir,"uninstall.sh"),0o755)
     os.chmod(os.path.join(release_dir,"install.sh"),0o755)
-    os.chmod(os.path.join(release_dir,"bin"),0o755)
-    os.chmod(os.path.join(release_dir,"plugins"),0o755)
+
 
     os.chdir(os.path.join(release_dir,".."))
     code = os.system("tar -czvf {0}.tar.gz $(basename {1}) --remove-files".format(release_dir,release_dir))
@@ -256,6 +264,7 @@ def test_handle(release_info, process):
         build_and_install_mqtt_on_linux(release_info, "Debug")
     elif process == "package":
         print("Calling Package function...")
+        chmodReleaseDir(release_info)
         make_tar_package(release_info)
     elif process == "taosx":
         print("Calling taosx function...")

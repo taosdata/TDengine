@@ -335,10 +335,7 @@ fn main() -> Result<()> {
         if args.globals.otel.unwrap_or(false) {
             let tracer = opentelemetry_otlp::new_pipeline()
                 .tracing()
-                .with_exporter(
-                    opentelemetry_otlp::new_exporter()
-                        .tonic()
-                )
+                .with_exporter(opentelemetry_otlp::new_exporter().tonic())
                 .with_trace_config(
                     opentelemetry::sdk::trace::config()
                         .with_sampler(opentelemetry::sdk::trace::Sampler::AlwaysOn)
@@ -351,7 +348,7 @@ fn main() -> Result<()> {
                         ])),
                 )
                 .install_simple()?;
-                // .install_batch(opentelemetry::runtime::Tokio)?;
+            // .install_batch(opentelemetry::runtime::Tokio)?;
 
             tracer.in_span("init", |_cx| _cx.attach());
             // Create a tracing layer with the configured tracer

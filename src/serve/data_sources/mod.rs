@@ -6,13 +6,13 @@ use actix_web::{
     http::header::ContentType,
     post,
     web::{self, Data, Json, Query},
-    HttpResponse, Responder, HttpRequest,
+    HttpRequest, HttpResponse, Responder,
 };
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use taos::Code;
-use taosx_core::{list_datasets_from, DataSetsReq, validate_dsn};
+use taosx_core::{list_datasets_from, validate_dsn, DataSetsReq};
 use utoipa::*;
 
 mod definition;
@@ -238,7 +238,9 @@ pub(super) async fn data_source_collection(
 pub(super) async fn data_source_is_valid(query: Query<DsnQuery>) -> impl Responder {
     let dsn = query.into_inner().dsn;
     let dsv = validate_dsn(dsn);
-    HttpResponse::Ok().content_type(ContentType::json()).json(dsv)
+    HttpResponse::Ok()
+        .content_type(ContentType::json())
+        .json(dsv)
 }
 
 #[derive(Deserialize, Debug, ToSchema, IntoParams)]
@@ -261,8 +263,8 @@ pub(super) async fn download_all_data_set_file(
     // data: Query<DataSetsReq>,
     req: HttpRequest,
 ) -> impl Responder {
-     // match download_all_point_csv_file(controller, data).await {
-     match download_all_point_csv_file(controller, params).await {
+    // match download_all_point_csv_file(controller, data).await {
+    match download_all_point_csv_file(controller, params).await {
         Ok(named_file) => named_file.into_response(&req),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: 0xFFFF.into(),
@@ -284,30 +286,44 @@ async fn download_all_point_csv_file(
     params: Query<DownloadAllPointsParams>,
 ) -> anyhow::Result<NamedFile> {
     let params = params.into_inner();
-    let data = get_all_points(params.from, params.via, params.categories, controller.into_inner().as_ref()).await?;
-    
+    let data = get_all_points(
+        params.from,
+        params.via,
+        params.categories,
+        controller.into_inner().as_ref(),
+    )
+    .await?;
+
     let mut config_file = tempfile::NamedTempFile::new()?;
-    tracing::debug!("temp file path: {}", &config_file.path().to_str().unwrap_or(""));
+    tracing::debug!(
+        "temp file path: {}",
+        &config_file.path().to_str().unwrap_or("")
+    );
     use std::io::Write;
     write!(config_file, "{}", &data)?;
     Ok(NamedFile::open(config_file.path().to_path_buf())?)
 }
 
 use crate::serve::TaskController;
-pub(crate) async fn get_all_points(from: String, via: Option<i64>, categories: String, controller: &TaskController) -> anyhow::Result<String> {
+pub(crate) async fn get_all_points(
+    from: String,
+    via: Option<i64>,
+    categories: String,
+    controller: &TaskController,
+) -> anyhow::Result<String> {
     use taos::IntoDsn;
     let from = from.into_dsn()?;
     let pattern;
     match from.driver.as_str() {
         "pi" | "pibackfill" => {
             pattern = Some(String::from("*"));
-        },
+        }
         _ => {
             pattern = Some(String::from(".*"));
         }
     }
     let limit = usize::MAX / 2 - 1; // cause usize::MAX out of range i64 type when exec toml::to_string()
-    let data  = DataSetsReq {
+    let data = DataSetsReq {
         from: from.to_string(),
         categories: vec![categories],
         via,
@@ -329,17 +345,21 @@ pub(crate) async fn get_all_points(from: String, via: Option<i64>, categories: S
                     let mut result = String::new();
                     result.push_str("Point Code(Required and will be point child table name),OPC Point Id (Required)\ntbname,point_id\n");
                     let data = if from.driver.eq("opcua") {
-                        data.into_iter().map(|set| format!("Meter_{{ns}}_{{id}},{}", set.id)).join("\n")
+                        data.into_iter()
+                            .map(|set| format!("Meter_{{ns}}_{{id}},{}", set.id))
+                            .join("\n")
                     } else {
-                        data.into_iter().map(|set| format!("Meter_{{TagName}},{}", set.id)).join("\n")
+                        data.into_iter()
+                            .map(|set| format!("Meter_{{TagName}},{}", set.id))
+                            .join("\n")
                     };
                     result.push_str(data.as_str());
                     result
-                },
+                }
                 _ => unimplemented!(),
             };
             Ok(data)
-        },
+        }
         Err(err) => Err(err),
     }
 }

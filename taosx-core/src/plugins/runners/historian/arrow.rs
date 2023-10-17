@@ -65,7 +65,7 @@ impl ArrowDataAppender {
                                 .as_any_mut()
                                 .downcast_mut::<array::TimestampNanosecondBuilder>()
                                 .unwrap()
-                                .append_value(val.timestamp_nanos());
+                                .append_value(val.timestamp_nanos_opt().expect("value can not be represented in a timestamp with nanosecond precision."));
                         }
                     }
                 }

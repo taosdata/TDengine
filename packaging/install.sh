@@ -10,6 +10,7 @@ SERVICE_CONFIG_DIR="/etc/systemd/system"
 agentname="${PREFIX}x-agent"
 explorerName="${PREFIX}-explorer"
 csudo=""
+explorerEndpoint=""
 
 target=""
 
@@ -173,6 +174,33 @@ print_tips(){
     fi
 }
 
+getUserInputEndpoint() {
+  if [ -n "$explorerEndpoint" ]; then
+    return
+  fi
+
+  echo "Set publicly accessible IP address or domain name you want expose to."
+  echo "If you do not set it and press Enter directly, the default 'localhost' will be used."
+  while true; do
+    echo -n "Please enter fqdn or ip: "
+    read endpoint
+    if [ -z "$endpoint" ]; then
+      echo "You need to enter explorer‘s fqdn or IP address!"
+    else
+      explorerEndpoint="$endpoint"
+      echo "You have set explorer's fqdn or ip:${explorerEndpoint}"
+      return
+    fi
+  done
+}
+
+function replaceExplorerEndpoint() {
+  local FileName=$1
+  if [ -f "$FileName" ]; then
+      ${csudo}sed -i "s/localhost/${explorerEndpoint}/g" $FileName
+  fi
+}
+
 # install new taosx and taosx-agent
 install_taosx() {
     echo "install starting..."
@@ -187,7 +215,20 @@ install_taosx() {
 
     ${csudo}systemctl daemon-reload
 
+    x_service_config="${SERVICE_CONFIG_DIR}/${xName}.service"
+    if [ -e "$x_service_config" ]; then
+      ${csudo}systemctl enable ${xName}
+    fi
+
+    explore_service_config="${SERVICE_CONFIG_DIR}/${explorerName}.service"
+    if [ -e "$explore_service_config" ]; then
+      ${csudo}systemctl enable ${explorerName}
+    fi
+
+    ${csudo}systemctl daemon-reload
+
     check_and_create_directory "${CONFIG_DIR}"
+    getUserInputEndpoint
     # copy config to /etc/taos
     if [ -f ${CONFIG_DIR}/agent.toml ]; then
         ${csudo}cp -f ./etc/taos/agent.toml ${CONFIG_DIR}/agent.toml.new
@@ -198,8 +239,10 @@ install_taosx() {
     if [ -f ./etc/taos/explorer.toml ]; then
         if [ -f ${CONFIG_DIR}/explorer.toml ]; then
             ${csudo}cp -f ./etc/taos/explorer.toml ${CONFIG_DIR}/explorer.toml.new
+            replaceExplorerEndpoint ${CONFIG_DIR}/explorer.toml.new
         else
             ${csudo}cp -f ./etc/taos/explorer.toml ${CONFIG_DIR}/
+            replaceExplorerEndpoint ${CONFIG_DIR}/explorer.toml
         fi
     fi
     print_tips
@@ -227,10 +270,23 @@ check_java_env() {
   fi
 }
 
+while getopts "e:" arg; do
+  case $arg in
+    e)
+      explorerEndpoint=$(echo $OPTARG)
+      echo "explorer fqdn has been set to  $explorerEndpoint"
+      ;;
+    ?)
+      echo "Usage: $0 [-e]"
+      ;;
+  esac
+done
+
 check_install_env(){
     echo "Check Java env for InfluxDB/OpenTSDB Connector"
     check_java_env
 }
+getUserInputEndpoint
 check_install_env
 
 # main entry point
