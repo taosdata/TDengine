@@ -97,7 +97,7 @@
     },
     data() {
       return {
-        watermarkdetail:this.$t("stream.watermark")+"（ms）",
+        watermarkdetail:this.$t("stream.watermark"),
         name:'Stream',
         isOEM:
         process.env.VUE_APP_CUS_NAME &&

@@ -1,7 +1,7 @@
 <template>
   <div class="dnode-block">
     <div class="flexEnd">
-      <el-button plain @click="showDialog" size="small" icon="el-icon-plus" :disabled='!isDisable'>{{ $t("add") }}</el-button>
+      <el-button plain @click="showDialog" size="small" icon="el-icon-plus" :disabled='!isDisable' style="font-size:14px;">{{ $t("add") }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="usersList" size="mini" v-loading="loading">
       <el-table-column :label="$t('userName')" prop="name"></el-table-column>

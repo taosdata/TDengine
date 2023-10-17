@@ -6,6 +6,7 @@
         @click="refresh"
         size="small"
         icon="el-icon-refresh"
+        style="font-size:14px;"
         >{{ $t("refresh") }}</el-button
       >
     </div>

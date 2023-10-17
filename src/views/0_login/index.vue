@@ -126,6 +126,7 @@ export default {
         if (valid) {
           this.loading = true;
           this.encryptedPwd = encrypt(this.dynamicValidateForm.password);
+          localStorage.setItem('cleartextPwd',this.dynamicValidateForm.password)
           setTimeout(() => {
            
             this.login();

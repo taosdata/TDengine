@@ -5,6 +5,16 @@
         <div class="flexCenter" slot="label">
           <Icon name="table" class="tab_icon"></Icon>
           <span>{{ $t("console.grid") }}</span>
+          <el-tooltip
+            effect="light"
+            :content="$t('console.cellCopyTip')"
+            placement="bottom"
+          >
+            <i
+              size="mini"
+              class="el-icon-info info-icon"
+            ></i>
+          </el-tooltip>
         </div>
         <GridView></GridView>
       </el-tab-pane>
@@ -32,7 +42,7 @@
     </el-tabs>
     <div class="panel-right">
       <p class="data-nums">{{ dataSource.length }} rows</p>
-      <el-button :disabled="dataSource.length == 0" @click="exportFile" plain size="mini">{{ $t("console.export") }}</el-button>
+      <el-button :disabled="dataSource.length == 0" @click="exportFile" plain size="mini" style="font-size:14px;">{{ $t("console.export") }}</el-button>
     </div>
   </div>
 </template>

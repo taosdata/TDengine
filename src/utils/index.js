@@ -304,7 +304,6 @@ export function encrypt(data) {
   qhwe/FcewPjP2ubbdf89yWPnen/wRGo+Q0QRmt1q7eDeVTJMC4LVdetuv6QABnUJ
   +siG1ILDsJ2BsYMBMwIDAQAB
   -----END PUBLIC KEY-----`).toString(); // 使用AES算法加密数据
-  console.log("encrypt", data);
   return encryptedData;
 }
 //解密
