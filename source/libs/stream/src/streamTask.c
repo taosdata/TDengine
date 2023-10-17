@@ -356,6 +356,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
   if (pTask->pBackend) {
     taskDbRemoveRef(pTask->pBackend);
+    
 
     pTask->pBackend = NULL;
   }
@@ -390,6 +391,10 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
 
   streamTaskInitTokenBucket(&pTask->tokenBucket, 150, 100);
   taosThreadMutexInit(&pTask->lock, NULL);
+
+  if (streamTaskSetDb(pMeta, pTask) != 0) {
+    return -1;
+  }
   streamTaskOpenAllUpstreamInput(pTask);
 
   return TSDB_CODE_SUCCESS;

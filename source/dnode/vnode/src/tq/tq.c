@@ -738,11 +738,9 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   int32_t code = streamTaskInit(pTask, pTq->pStreamMeta, &pTq->pVnode->msgCb, ver);
   if (code != TSDB_CODE_SUCCESS) return code;
 
-  pTask->pBackend = streamMetaGetBackendByTaskKey(pTq->pStreamMeta, (char*)pTask->id.idStr, pTask->checkpointingId,
-                                                  &pTask->backendRefId);
-
-  // taskDbUpdateChkpId(pTask->pBackend, pTask->checkpointingId);
-  if (pTask->pBackend == NULL) return -1;
+  // code = streamTaskSetDb(pTq->pStreamMeta, pTask);
+  //  taskDbUpdateChkpId(pTask->pBackend, pTask->checkpointingId);
+  // if (pTask->pBackend == NULL) return -1;
 
   streamTaskOpenAllUpstreamInput(pTask);
 

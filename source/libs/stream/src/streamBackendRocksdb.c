@@ -1004,7 +1004,7 @@ int32_t chkpPreBuildDir(char* path, int64_t chkpId, char** chkpDir, char** chkpI
 
   return 0;
 }
-int32_t taskDbBuildSnap(void* arg) {
+int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
   SStreamMeta* pMeta = arg;
   void*        pIter = taosHashIterate(pMeta->pTaskDbUnique, NULL);
   int32_t      code = 0;
@@ -1017,6 +1017,13 @@ int32_t taskDbBuildSnap(void* arg) {
 
     taskDbRemoveRef(pTaskDb);
     pIter = taosHashIterate(pMeta->pTaskDbUnique, pIter);
+
+    SStreamTask*    pTask = pTaskDb->pTask;
+    SStreamTaskSnap snap = {.streamId = pTask->id.streamId,
+                            .taskId = pTask->id.taskId,
+                            .chkpId = pTaskDb->chkpId,
+                            .dbPrefixPath = taosStrdup(pTaskDb->path)};
+    taosArrayPush(pSnap, &snap);
   }
   return 0;
 }

@@ -222,28 +222,40 @@ int32_t streamMetaMayCvtDbFormat(SStreamMeta* pMeta) {
   return 0;
 }
 
-void* streamMetaGetBackendByTaskKey(SStreamMeta* pMeta, char* key, int64_t chkpId, int64_t* ref) {
+int32_t streamTaskSetDb(SStreamMeta* pMeta, void* arg) {
+  SStreamTask* pTask = arg;
+
+  char*   key = (char*)pTask->id.idStr;
+  int64_t chkpId = pTask->checkpointingId;
+
   taosThreadMutexLock(&pMeta->backendMutex);
   void** ppBackend = taosHashGet(pMeta->pTaskDbUnique, key, strlen(key));
   if (ppBackend != NULL && *ppBackend != NULL) {
     taskDbAddRef(*ppBackend);
-    *ref = ((STaskDbWrapper*)*ppBackend)->refId;
+
+    STaskDbWrapper* pBackend = *ppBackend;
+
+    pTask->backendRefId = pBackend->refId;
+    pTask->pBackend = pBackend;
     taosThreadMutexUnlock(&pMeta->backendMutex);
-    return *ppBackend;
+    return 0;
   }
 
-  void* pBackend = taskDbOpen(pMeta->path, key, chkpId);
+  STaskDbWrapper* pBackend = taskDbOpen(pMeta->path, key, chkpId);
   if (pBackend == NULL) {
     taosThreadMutexUnlock(&pMeta->backendMutex);
-    return NULL;
+    return -1;
   }
+
   int64_t tref = taosAddRef(taskDbWrapperId, pBackend);
-  *ref = tref;
-  ((STaskDbWrapper*)pBackend)->refId = tref;
+  pTask->backendRefId = tref;
+  pTask->pBackend = pBackend;
+  pBackend->refId = tref;
+  pBackend->pTask = pTask;
 
   taosHashPut(pMeta->pTaskDbUnique, key, strlen(key), &pBackend, sizeof(void*));
   taosThreadMutexUnlock(&pMeta->backendMutex);
-  return pBackend;
+  return 0;
 }
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId, int64_t stage) {
   int32_t      code = -1;

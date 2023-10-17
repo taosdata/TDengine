@@ -139,7 +139,7 @@ TdFilePtr streamOpenFile(char* path, char* name, int32_t opt) {
   return taosOpenFile(fullname, opt);
 }
 
-int32_t streamTaskDbGetSnapInfo(void* arg, char* path) { return taskDbBuildSnap(arg); }
+int32_t streamTaskDbGetSnapInfo(void* arg, char* path, SArray* pSnap) { return taskDbBuildSnap(arg, pSnap); }
 
 void snapFileDebugInfo(SBackendSnapFile2* pSnapFile) {
   if (qDebugFlag & DEBUG_DEBUG) {
@@ -236,16 +236,13 @@ int32_t snapFileReadMeta(SBackendSnapFile2* pSnapFile) {
   return 0;
 }
 int32_t streamBackendSnapInitFile(char* metaPath, SStreamTaskSnap* pSnap, SBackendSnapFile2* pSnapFile) {
-  // SBanckendFile* pFile = taosMemoryCalloc(1, sizeof(SBanckendFile));
   int32_t code = -1;
 
-  char* path = taosMemoryCalloc(1, strlen(metaPath) + 256);
-  char  idstr[64] = {0};
-  sprintf(idstr, "0x%" PRIx64 "-0x%x", pSnap->streamId, (int32_t)(pSnap->taskId));
-
-  sprintf(path, "%s%s%s%s%s%s%s%" PRId64 "", metaPath, TD_DIRSEP, idstr, TD_DIRSEP, "checkpoints", TD_DIRSEP,
-          "checkpoint", pSnap->chkpId);
-  if (taosIsDir(path)) {
+  char* path = taosMemoryCalloc(1, strlen(pSnap->dbPrefixPath) + 256);
+  // char  idstr[64] = {0};
+  sprintf(path, "%s%s%s%s%s%" PRId64 "", pSnap->dbPrefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP, "checkpoint",
+          pSnap->chkpId);
+  if (!taosIsDir(path)) {
     goto _ERROR;
   }
 
@@ -261,7 +258,7 @@ int32_t streamBackendSnapInitFile(char* metaPath, SStreamTaskSnap* pSnap, SBacke
   }
 
   snapFileDebugInfo(pSnapFile);
-
+  path = NULL;
   code = 0;
 
 _ERROR:
@@ -294,8 +291,8 @@ void snapFileDestroy(SBackendSnapFile2* pSnap) {
 int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, void* pMeta) {
   // impl later
 
-  SArray* pSnapSet = NULL;
-  int32_t code = streamTaskDbGetSnapInfo(pMeta, path);
+  SArray* pSnapSet = taosArrayInit(4, sizeof(SStreamTaskSnap));
+  int32_t code = streamTaskDbGetSnapInfo(pMeta, path, pSnapSet);
   if (code != 0) {
     return -1;
   }
@@ -310,6 +307,11 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, void* pMeta
     ASSERT(code == 0);
     taosArrayPush(pDbSnapSet, &snapFile);
   }
+  for (int i = 0; i < taosArrayGetSize(pSnapSet); i++) {
+    SStreamTaskSnap* pSnap = taosArrayGet(pSnapSet, i);
+    taosMemoryFree(pSnap->dbPrefixPath);
+  }
+  taosArrayDestroy(pSnapSet);
 
   pHandle->pDbSnapSet = pDbSnapSet;
   pHandle->currIdx = 0;
@@ -389,6 +391,7 @@ _NEXT:
              item->name, (int64_t)pSnapFile->offset, item->size, pSnapFile->currFileIdx);
     }
   }
+  item = taosArrayGet(pSnapFile->pFileList, pSnapFile->currFileIdx);
 
   qDebug("%s start to read file %s, current offset:%" PRId64 ", size:%" PRId64 ", file no.%d", STREAM_STATE_TRANSFER,
          item->name, (int64_t)pSnapFile->offset, item->size, pSnapFile->currFileIdx);

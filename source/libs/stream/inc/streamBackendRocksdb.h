@@ -66,8 +66,11 @@ typedef struct {
   TdThreadMutex                      mutex;
   char*                              idstr;
   char*                              path;
-  int64_t                            refId;
+  int64_t refId;
 
+  void*          pTask;
+  int64_t        streamId;
+  int64_t        taskId;
   int64_t        chkpId;
   SArray*        chkpSaved;
   SArray*        chkpInUse;
@@ -184,7 +187,7 @@ int32_t streamBackendTriggerChkp(void* pMeta, char* dst);
 int32_t streamBackendAddInUseChkp(void* arg, int64_t chkpId);
 int32_t streamBackendDelInUseChkp(void* arg, int64_t chkpId);
 
-int32_t taskDbBuildSnap(void* arg);
+int32_t taskDbBuildSnap(void* arg, SArray* pSnap);
 
 // int32_t streamDefaultIter_rocksdb(SStreamState* pState, const void* start, const void* end, SArray* result);
 #endif

@@ -44,6 +44,7 @@ typedef struct {
   int64_t streamId;
   int64_t taskId;
   int64_t chkpId;
+  char*   dbPrefixPath;
 } SStreamTaskSnap;
 extern SStreamGlobalEnv streamEnv;
 extern int32_t          streamBackendId;
