@@ -428,6 +428,8 @@ static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans) {
   mInfo("trans:%d, perform insert action, row:%p stage:%s, callfunc:1, startFunc:%d", pTrans->id, pTrans,
         mndTransStr(pTrans->stage), pTrans->startFunc);
 
+  taosThreadMutexInit(&pTrans->mutex, NULL);
+
   if (pTrans->startFunc > 0) {
     TransCbFp fp = mndTransGetCbFp(pTrans->startFunc);
     if (fp) {
