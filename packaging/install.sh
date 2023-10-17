@@ -196,7 +196,6 @@ getUserInputEndpoint() {
 
 function replaceExplorerEndpoint() {
   local FileName=$1
-  ehco ${FileName}
   if [ -f "$FileName" ]; then
       ${csudo}sed -i "s/localhost/${explorerEndpoint}/g" $FileName
   fi
