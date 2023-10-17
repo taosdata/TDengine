@@ -12,7 +12,7 @@ explorerName="${PREFIX}-explorer"
 csudo=""
 explorerEndpoint=""
 
-target=""
+target="taosx"
 
 if command -v sudo >/dev/null; then
   csudo="sudo "
@@ -195,8 +195,7 @@ getUserInputEndpoint() {
 }
 
 function replaceExplorerEndpoint() {
-  local FileName=$1
-  ehco ${FileName}
+  local FileName=$1  
   if [ -f "$FileName" ]; then
       ${csudo}sed -i "s/localhost/${explorerEndpoint}/g" $FileName
   fi
@@ -294,12 +293,11 @@ check_install_env
 if [ -x ${INSTALL_DIR}/${target} ]; then
     echo "${target} is already installed, do you want to reinstall it? [y/n]"
     read answer
-    if [ $answer == "y" ]; then
+    if [ X$answer == X"y" ]; then
         remove_target
         install_taosx
     else
         echo "${target} installation is cancelled"
-        exit 1
     fi
 else
     check_and_create_directory "${INSTALL_DIR}"
