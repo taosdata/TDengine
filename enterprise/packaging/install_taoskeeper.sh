@@ -8,14 +8,17 @@ else
   if [ -f "${configDir}/keeper.toml" ]; then
     echo "The file keeper.toml will be renamed to taoskeeper.toml"
     ${csudo}tar -C /tmp --strip-components 2 -xzf $tarName ./cfg/taoskeeper.toml > /dev/null
+    ${csudo}sed -i "s/127.0.0.1/${serverFqdn}/g" /tmp/taoskeeper.toml
     ${csudo}mv /tmp/taoskeeper.toml ${configDir}/taoskeeper.toml.new
     ${csudo}mv ${configDir}/keeper.toml ${configDir}/taoskeeper.toml
   elif [ -f "${configDir}/taoskeeper.toml" ]; then
     # "taoskeeper.toml exists,new config is taoskeeper.toml.new" 
     ${csudo}tar -C /tmp --strip-components 2 -xzf $tarName ./cfg/taoskeeper.toml > /dev/null
+    ${csudo}sed -i "s/127.0.0.1/${serverFqdn}/g" /tmp/taoskeeper.toml
     ${csudo}mv /tmp/taoskeeper.toml ${configDir}/taoskeeper.toml.new
   else
     ${csudo}tar -C ${configDir}/ --strip-components 2 -xzf $tarName ./cfg/taoskeeper.toml
+    ${csudo}sed -i "s/127.0.0.1/${serverFqdn}/g" ${configDir}/taoskeeper.toml
   fi
   command -v systemctl >/dev/null 2>&1 && ${csudo}systemctl daemon-reload >/dev/null 2>&1 || true
 
