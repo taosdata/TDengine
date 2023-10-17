@@ -437,7 +437,7 @@ void doDestroyRequest(void *p) {
     deregisterRequest(pRequest);
   }
 
-  if (pRequest->syncQuery) {
+  if (pRequest->syncQuery || pRequest->body.paramCreatedInternal) {
     if (pRequest->body.param) {
       tsem_destroy(&((SSyncQueryParam *)pRequest->body.param)->sem);
     }
