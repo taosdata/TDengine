@@ -1983,7 +1983,7 @@ export default {
         }
         console.log(this.isEditable, this.editId, "编辑-opc");
         if (isSubmit) {
-          if (this.isEditable && this.editId && && !this.isCopyable) {
+          if (this.isEditable && this.editId && !this.isCopyable) {
             let result = await EditSource(piParams, this.editId);
             if (result.message) {
               Message.error(result.message);

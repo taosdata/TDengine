@@ -1312,23 +1312,15 @@ export default {
                 return;
               } else {
                 if (this.handleEmptyValue(data.groups[index].params[g].value)) {
-                  if (
-                    // p.hint && p.hint.type == 'file'
-                    data.groups[index].params[g].hint &&
-                    data.groups[index].params[g].hint.type == "file"
-                  ) {
-                    if (data.groups[index].params[g].name == this.activeName) {
-                      querystr +=
-                        `${data.groups[index].params[g].name}=@${data.groups[index].params[g].value}` +
-                        "&";
-                    }
-                  } else {
+                if (
+                  data.groups[index].params[g].hint &&
+                  Array.isArray(data.groups[index].params[g].hint)
+                ) {
+                  if (data.groups[index].params[g].value == "auto") {
                     querystr +=
                       `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
                       "&";
                   } else {
-                    // debugger
-                    console.log("hhh", data.groups[index].params[g].hint[0]);
                     if (
                       this.handleEmptyValue(
                         data.groups[index].params[g].hint[0].value
@@ -1339,7 +1331,12 @@ export default {
                         "&";
                     }
                   }
+                } else {
+                  querystr +=
+                    `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
+                    "&";
                 }
+              }
               }
             }
             //   }
