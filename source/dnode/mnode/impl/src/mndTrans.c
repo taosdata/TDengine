@@ -472,6 +472,7 @@ void mndTransDropData(STrans *pTrans) {
     pTrans->param = NULL;
     pTrans->paramLen = 0;
   }
+  (void)taosThreadMutexDestroy(&pTrans->mutex);
 }
 
 static int32_t mndTransDelete(SSdb *pSdb, STrans *pTrans, bool callFunc) {
@@ -579,6 +580,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
   pTrans->pRpcArray = taosArrayInit(1, sizeof(SRpcHandleInfo));
   pTrans->mTraceId = pReq ? TRACE_GET_ROOTID(&pReq->info.traceId) : tGenIdPI64();
   taosInitRWLatch(&pTrans->lockRpcArray);
+  taosThreadMutexInit(&pTrans->mutex, NULL);
 
   if (pTrans->redoActions == NULL || pTrans->undoActions == NULL || pTrans->commitActions == NULL ||
       pTrans->pRpcArray == NULL) {
