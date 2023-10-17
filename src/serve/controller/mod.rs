@@ -23,7 +23,7 @@ use serde_json::json;
 use sqlx::pool::PoolOptions;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder, };
-use taosx_core::utils::breakpoints::{breakpoints_get, breakpoints_get_all};
+use taosx_core::utils::breakpoints::breakpoints_get_all;
 use taosx_core::utils::{mask_dsn, try_mask_dsn};
 use taosx_core::utils::port_pool::PortPool;
 use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
@@ -1335,9 +1335,9 @@ impl TaskController {
             // set breakpoints
             .map(|mut t| {
                 let task_id = id.to_string();
-                let bp = taosx_core::utils::breakpoints::breakpoints_get_all(&task_id);
-                if let Ok(bp) = bp {
-                    let formatted_pairs: Vec<String> = bp
+                let breakpoints_res = breakpoints_get_all(&task_id);
+                if let Ok(breakpoints) = breakpoints_res {
+                    let formatted_pairs: Vec<String> = breakpoints
                         .iter()
                         .map(|(first, second)| format!("{}:{}", first, second))
                         .collect();
