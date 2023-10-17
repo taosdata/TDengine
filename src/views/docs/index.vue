@@ -5,7 +5,6 @@
         <img class="image-contains" :src="getImg(config.name, config.icon)" alt="" />
       </section>
       <section class="right">
-        <span style="color:red;font-size:36px;">步骤条{{ steps }}</span>
         <el-steps align-center :active="activeTab" finish-status="success">
           <el-step @click.native="handleClickStep(index)" v-for="(item, index) in steps" :key="item.title" :title="item.title"></el-step>
         </el-steps>
@@ -85,7 +84,6 @@
       },
     },
     mounted() {
-      console.log(config,this.category,'文件加载');
       // 在这里保存元素
       this.$nextTick(() => {
         this.domList = this.steps.map(item => document.getElementById(item.dom));

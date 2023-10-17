@@ -1,6 +1,5 @@
 import * as mdx from "./mdx";
 import i18n from "@/lang";
-console.log(i18n,'i18ni18n----tool----i18ni18n',i18n.t("docs.tool.cli.step1"));
 export default () => [
   {
     name: "TDengine CLI",

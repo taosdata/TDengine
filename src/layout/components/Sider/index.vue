@@ -1,6 +1,5 @@
 <template>
   <div class="sider" :class="sider_style">
-    <span style="color:red;font-size:24px;">{{ $t("route.board") }}</span>
     <SlideHeader />
     <el-menu
       ref="elMenu"

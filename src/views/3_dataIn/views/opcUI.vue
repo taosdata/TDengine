@@ -317,84 +317,67 @@
                       $t("datasource.selectfile")
                     }}</el-button>
                   </el-upload>
-                  <el-tooltip
-                    placement="top"
-                    :content="$t('dataIn.downloadtpltip')"
-                    effect="light"
-                  >
-                    <!-- <span
-                      style="
-                        display: inline-block;
-                        margin-left: 20px;
-                        color: #4259ce;
-                        cursor: pointer;
-                      "
+                  <div class="download_typefiles">
+                    <el-tooltip
+                      placement="top"
+                      :content="$t('dataIn.downloadtpltip')"
+                      effect="light"
                     >
-                      <i class="el-icon-download"></i>
-                      {{ $t("dataIn.downloadtpl") }}
-                    </span> -->
-                    <template v-if="language.includes('zh')">
-                      <a
-                        href="/template-zh.csv"
-                        download
-                        style="margin-left: 15px"
-                        ><i class="el-icon-download"></i
-                        >{{ $t("dataIn.downloadtpl") }}</a
+                      <template v-if="language.includes('zh')">
+                        <a
+                          href="/template-zh.csv"
+                          download
+                          style="margin-left: 15px"
+                          ><i class="el-icon-download"></i
+                          >{{ $t("dataIn.downloadtpl") }}</a
+                        >
+                      </template>
+                      <template v-else>
+                        <a
+                          href="/template-en.csv"
+                          download
+                          style="margin-left: 15px"
+                          ><i class="el-icon-download"></i
+                          >{{ $t("dataIn.downloadtpl") }}</a
+                        >
+                      </template>
+                    </el-tooltip>
+                    <el-tooltip
+                      placement="top"
+                      :content="$t('dataIn.downloadnodestip')"
+                      effect="light"
+                    >
+                      <span
+                        v-loading="allnodesloading"
+                        :class="[
+                          'allnodes',
+                          disableallnodeclick ? 'click' : 'noclick',
+                        ]"
+                        @click="downloadopcAllponits"
                       >
-                    </template>
-                    <template v-else>
+                        <i class="el-icon-download"> </i>
+                        {{ $t("dataIn.downloadnodes") }}
+                      </span>
+                    </el-tooltip>
+                    <el-tooltip
+                      v-if="isEditable && opcinusefile"
+                      placement="top"
+                      :content="$t('dataIn.csvinusetip')"
+                      effect="light"
+                    >
                       <a
-                        href="/template-en.csv"
+                        :href="downloadUrl + opcinusefile"
                         download
-                        style="margin-left: 15px"
-                        ><i class="el-icon-download"></i
-                        >{{ $t("dataIn.downloadtpl") }}</a
+                        style="padding-left: 16px"
                       >
-                    </template>
-                  </el-tooltip>
-                  <el-tooltip
-                    placement="top"
-                    :content="$t('dataIn.downloadnodestip')"
-                    effect="light"
-                  >
-                    <span
-                    v-loading='allnodesloading'
-                      :class="[
-                        'allnodes',
-                        disableallnodeclick ? 'click' : 'noclick',
-                      ]"
-                      @click="downloadopcAllponits"
-                    >
-                      <i class="el-icon-download"> </i>
-                      {{ $t("dataIn.downloadnodes") }}
-                    </span>
-                  </el-tooltip>
-                  <el-tooltip
-                    v-if="isEditable && opcinusefile"
-                    placement="top"
-                    :content="$t('dataIn.csvinusetip')"
-                    effect="light"
-                  >
-                    <a
-                      :href="downloadUrl + opcinusefile"
-                      download
-                      style="padding-left: 16px"
-                    >
-                      <i class="el-icon-download" style="padding-right: 2px"></i
-                      >{{ $t("downloadCSVInUse") }}</a
-                    >
-                    <!-- <span
-                      style="
-                        display: inline-block;
-                        margin-left: 20px;
-                        color: #4259ce;
-                        cursor: pointer;
-                      "
-                    >
-                      <i class="el-icon-download"></i>
-                      {{ $t("dataIn.csvinuse") }}
-                    </span> -->
-                  </el-tooltip>
+                        <i
+                          class="el-icon-download"
+                          style="padding-right: 2px"
+                        ></i
+                        >{{ $t("downloadCSVInUse") }}</a
+                      >
+                    </el-tooltip>
+                  </div>
                 </template>
                 <ul v-else style="flex: 1">
                   <li
@@ -1005,11 +988,11 @@ export default {
   },
   data() {
     return {
-      allnodesloading:false,
+      allnodesloading: false,
       disableallnodeclick: true,
       opcinusefile: "",
       downloadUrl: process.env.VUE_APP_X_API + `/download?file_path=`,
-      language:  localStorage.getItem('local_language'),
+      language: localStorage.getItem("local_language"),
       limit: 1,
       opcPointavalible: true,
       mqttcafile: [],
@@ -1201,8 +1184,8 @@ export default {
   methods: {
     async downloadopcAllponits() {
       try {
-        this.allnodesloading=true
-        this.disableallnodeclick=false
+        this.allnodesloading = true;
+        this.disableallnodeclick = false;
         if (!this.dbsource[0].options.endpoint.value) {
           Message.error(this.$t("taoscluster.endpointRequired"));
           return;
@@ -1213,12 +1196,11 @@ export default {
           this.$store.state.app.currentAgentID
         );
         this.allnodesloading = false;
-        this.disableallnodeclick=true
+        this.disableallnodeclick = true;
         if (result && result.message) {
           Message.error(result.message);
           return;
         }
-        
 
         let blob = new Blob([result], { type: "text/csv,charset=UTF-8" });
         let link = document.createElement("a");
@@ -1231,7 +1213,7 @@ export default {
         document.body.removeChild(link);
       } catch (error) {
         this.this.allnodesloading = false;
-        this.disableallnodeclick=true
+        this.disableallnodeclick = true;
         console.log(error);
       }
     },
@@ -1761,7 +1743,6 @@ export default {
           // dns += "&opc_table_config=" + JSON.stringify(saveConf);
           // } else {
           if (this.dbsource[0].datasets.value == "csv_config_file") {
-            
             if (
               this.opcfileList.length == 0 &&
               this.dbsource[0].datasets.value == "csv_config_file" &&
@@ -1780,11 +1761,14 @@ export default {
             );
             if (this.isEditable) {
               dnsarr.splice(
-                  ind,
-                  1,
-                  `&csv_config_file=@` + (this.opcfileList.length>0?this.opcfileList[0].response[0]:this.opcinusefile)
-                );
-                dns = prefix + "?" + dnsarr.join("&");
+                ind,
+                1,
+                `&csv_config_file=@` +
+                  (this.opcfileList.length > 0
+                    ? this.opcfileList[0].response[0]
+                    : this.opcinusefile)
+              );
+              dns = prefix + "?" + dnsarr.join("&");
               // dns += `&csv_config_file=@` + (this.opcfileList.lenght>0?this.opcfileList[0].response[0]:this.opcinusefile);
             } else {
               if (ind > -1) {
@@ -2183,6 +2167,10 @@ export default {
       bottom: 0;
       z-index: 100;
     }
+    .download_typefiles {
+      position: relative;
+      z-index: 999;
+    }
   }
   .left-ui {
     position: relative;
@@ -2504,10 +2492,10 @@ export default {
     cursor: pointer;
   }
 }
-.upload-demo{
+.upload-demo {
   display: flex;
 }
-.el-upload-list__item{
-  margin-top:5px!important;
+.el-upload-list__item {
+  margin-top: 5px !important;
 }
 </style>

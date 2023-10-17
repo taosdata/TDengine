@@ -90,6 +90,20 @@ export default () => [
     ],
   },
   {
+    name: 'R',
+    type: 'client',
+    desc: i18n.t('docs.connector.desc', ['taos']),
+    docs: {
+      zh:mdx.rDoc,
+      en:mdx.rDoc
+    },
+    steps: [
+      { title: i18n.t('docs.connector.r.step1'), dom: 'create-project' },
+      { title: i18n.t('docs.connector.r.step2'), dom: 'config' },
+      { title: i18n.t('docs.connector.r.step3'), dom: 'connect' }
+    ]
+  },
+  {
     name: "REST API",
     type: "client",
     desc: i18n.t("docs.connector.rest.desc"),
