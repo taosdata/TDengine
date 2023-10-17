@@ -724,8 +724,6 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
     } else {
       // todo this should replace the existed object put by replay creating stream task msg from mnode
       stError("s-task:0x%x already added into table meta by replaying WAL, need check", pTask->id.taskId);
-      tdbFree(pKey);
-      tdbFree(pVal);
       taosMemoryFree(pTask);
       continue;
     }
@@ -901,7 +899,7 @@ void metaHbToMnode(void* param, void* tmrId) {
         .inputQUsed = SIZE_IN_MiB(streamQueueGetItemSize((*pTask)->inputInfo.queue)),
     };
 
-    entry.inputRate = entry.inputQUsed*100.0/STREAM_TASK_QUEUE_CAPACITY_IN_SIZE;
+    entry.inputRate = entry.inputQUsed * 100.0 / STREAM_TASK_QUEUE_CAPACITY_IN_SIZE;
     if ((*pTask)->info.taskLevel == TASK_LEVEL__SINK) {
       entry.sinkQuota = (*pTask)->outputInfo.pTokenBucket->quotaRate;
       entry.sinkDataSize = SIZE_IN_MiB((*pTask)->execInfo.sink.dataSize);
