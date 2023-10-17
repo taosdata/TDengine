@@ -24,7 +24,7 @@ execute_process(COMMAND "${CMAKE_COMMAND}" --build .
 set(CONTRIB_TMP_FILE2 "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in2")
 configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE2})
 
-    cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE2})
+    #cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE2})
 
 configure_file(${CONTRIB_TMP_FILE2} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
 execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
@@ -294,7 +294,9 @@ target_include_directories(
 unset(CMAKE_PROJECT_INCLUDE_BEFORE)
 
 # xml2
-add_subdirectory(xml2 EXCLUDE_FROM_ALL)
+if(${BUILD_WITH_S3})
+  add_subdirectory(xml2 EXCLUDE_FROM_ALL)
+endif(${BUILD_WITH_S3})
 
 # lz4
 add_subdirectory(lz4/build/cmake EXCLUDE_FROM_ALL)
