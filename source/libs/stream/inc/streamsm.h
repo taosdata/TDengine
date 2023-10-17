@@ -55,6 +55,7 @@ struct SStreamTaskSM {
   SArray*          pTransList;  // SArray<STaskStateTrans>
   int64_t          stateTs;
   SStreamTask*     pTask;
+  STaskStateTrans* pActiveTrans;
 };
 
 typedef struct SStreamEventInfo {
