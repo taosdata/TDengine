@@ -318,12 +318,13 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   // todo. the dropping status should be append to the status after the halt completed.
   // It must be halted for a source stream task, since when the related scan-history-data task start scan the history
   // for the step 2.
-  int8_t status = pStreamTask->status.taskStatus;
+  int8_t status = streamTaskGetStatus(pStreamTask, NULL);//pStreamTask->status.taskStatus;
   if (pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     ASSERT(status == TASK_STATUS__HALT || status == TASK_STATUS__DROPPING);
   } else {
     ASSERT(status == TASK_STATUS__NORMAL);
-    pStreamTask->status.taskStatus = TASK_STATUS__HALT;
+    streamTaskHandleEvent(pStreamTask->status.pSM, TASK_EVENT_HALT);
+//    pStreamTask->status.taskStatus = TASK_STATUS__HALT;
     stDebug("s-task:%s halt by related fill-history task:%s", pStreamTask->id.idStr, pTask->id.idStr);
   }
 
@@ -337,9 +338,9 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   if (pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     // update the scan data range for source task.
     stDebug("s-task:%s level:%d stream task window %" PRId64 " - %" PRId64 " update to %" PRId64 " - %" PRId64
-           ", status:%s, sched-status:%d",
-           pStreamTask->id.idStr, TASK_LEVEL__SOURCE, pTimeWindow->skey, pTimeWindow->ekey, INT64_MIN,
-           pTimeWindow->ekey, streamGetTaskStatusStr(TASK_STATUS__NORMAL), pStreamTask->status.schedStatus);
+            ", status:normal, sched-status:%d",
+            pStreamTask->id.idStr, TASK_LEVEL__SOURCE, pTimeWindow->skey, pTimeWindow->ekey, INT64_MIN,
+            pTimeWindow->ekey, pStreamTask->status.schedStatus);
   } else {
     stDebug("s-task:%s no need to update time window for non-source task", pStreamTask->id.idStr);
   }
@@ -362,8 +363,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
 
   // 5. clear the link between fill-history task and stream task info
-  pStreamTask->hTaskInfo.id.taskId = 0;
-  pStreamTask->hTaskInfo.id.streamId = 0;
+  CLEAR_RELATED_FILLHISTORY_TASK(pStreamTask);
 
   // 6. save to disk
   taosWLockLatch(&pMeta->lock);
@@ -505,7 +505,7 @@ int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
     code = streamTransferStateToStreamTask(pTask);
 
     if (code != TSDB_CODE_SUCCESS) {
-      /*int8_t status = */ streamTaskSetSchedStatusInActive(pTask);
+      /*int8_t status = */ streamTaskSetSchedStatusInactive(pTask);
     }
   }
 
@@ -592,8 +592,9 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     // todo other thread may change the status
     // do nothing after sync executor state to storage backend, untill the vnode-level checkpoint is completed.
     if (type == STREAM_INPUT__CHECKPOINT) {
-      stDebug("s-task:%s checkpoint block received, set status:%s", pTask->id.idStr,
-              streamGetTaskStatusStr(pTask->status.taskStatus));
+      char* p = NULL;
+      streamTaskGetStatus(pTask, &p);
+      stDebug("s-task:%s checkpoint block received, set status:%s", pTask->id.idStr, p);
       streamTaskBuildCheckpoint(pTask);
       return 0;
     }
@@ -628,15 +629,18 @@ int32_t streamExecTask(SStreamTask* pTask) {
         atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
         taosThreadMutexUnlock(&pTask->lock);
 
-        stDebug("s-task:%s exec completed, status:%s, sched-status:%d", id,
-               streamGetTaskStatusStr(pTask->status.taskStatus), pTask->status.schedStatus);
+        char* p = NULL;
+        streamTaskGetStatus(pTask, &p);
+        stDebug("s-task:%s exec completed, status:%s, sched-status:%d", id, p, pTask->status.schedStatus);
         return 0;
       }
       taosThreadMutexUnlock(&pTask->lock);
     }
   } else {
-    stDebug("s-task:%s already started to exec by other thread, status:%s, sched-status:%d", id,
-           streamGetTaskStatusStr(pTask->status.taskStatus), pTask->status.schedStatus);
+    char* p = NULL;
+    streamTaskGetStatus(pTask, &p);
+    stDebug("s-task:%s already started to exec by other thread, status:%s, sched-status:%d", id, p,
+            pTask->status.schedStatus);
   }
 
   return 0;

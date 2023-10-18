@@ -127,7 +127,7 @@ int32_t streamSchedExec(SStreamTask* pTask) {
     SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
     if (pRunReq == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
-      /*int8_t status = */streamTaskSetSchedStatusInActive(pTask);
+      /*int8_t status = */streamTaskSetSchedStatusInactive(pTask);
       stError("failed to create msg to aunch s-task:%s, reason out of memory", pTask->id.idStr);
       return -1;
     }
