@@ -1196,7 +1196,7 @@ export default {
     getmetrics:'Get Metrics',
     refreshsuccess:'Refreshed Scucessfully',
     influxdbtip:'Choose or create a TDengine database with precision of ns',
-    taskid:'Task ID',
+    taskid:'ID',
     opcconfig:'Upload CSV',
     tmqprotocol:'Native',
     primaryColTagtip:'The primary key column does not support being used as a tag again',
