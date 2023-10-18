@@ -9,7 +9,9 @@ strict: false
 options:
   endpoint:
     display: bootstrap-servers
-    description: kafka bootstrap-servers
+    description: |-
+      kafka bootstrap-servers.
+      If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.
     placeholder: 127.0.0.1:9092
     required: true
 groups:
@@ -94,27 +96,31 @@ groups:
             - ByTime
         value: Earliest
       - name: fetch_max_wait_time
-        display: fetch_max_wait_time
+        display: Maximum time to wait for data
         description: >
           Sets the maximum time in milliseconds to wait for insufficient data to become available when fetching messages.(e.g. fetch_max_wait_time=500ms)
           
           default is 100ms.
+        placeholder: 100ms
         required: false
         hint:
           type: duration
       - name: fetch_min_bytes
-        display: fetch_min_bytes
+        display: Minimum bytes to wait for data
         description: >
           Sets the minimum number of bytes of available data to wait for as long as specified by KafkaClient::set_fetch_max_wait_time when fetching messages.
 
           By setting higher values in combination with the timeout the consumer can tune for throughput and trade a little additional latency for reading only large chunks of data (e.g. setting MaxWaitTime to 100 ms and setting MinBytes to 64k would allow the server to wait up to 100ms to try to accumulate 64k of data before responding).
           
           default is 4096.
+        placeholder: 4096
         required: false
         hint:
           type: int
+          min: 0
+          max: 2147483647
       - name: fetch_max_bytes_per_partition
-        display: fetch_max_bytes_per_partition
+        display: Maximum bytes to fetch per partition
         description: >
           Sets the default maximum number of bytes to obtain from a single kafka partition when fetching messages.
 
@@ -124,18 +130,22 @@ groups:
 
           This client will use this setting by default for all queried partitions, however, fetch_messages does allow you to override this setting for a particular partition being queried.
           
-          default is 32 * 1024.
+          default is 1024 * 1024.
+        placeholder: 1048576
         required: false
         hint:
           type: int
+          min: 0
+          max: 2147483647
       - name: fetch_crc_validation
-        display:
+        display: CRC Validation
         description: >
           Specifies whether the to perform CRC validation on fetched messages.
 
           This ensures detection of on-the-wire or on-disk corruption to fetched messages. This check adds some overhead, so it may be disabled in cases seeking extreme performance.
           
           default is true.
+        placeholder: true
         required: false
         hint:
           type: bool
@@ -157,29 +167,34 @@ groups:
             - Zookeeper
             - Kafka
       - name: retry_max_bytes_limit
-        display: retry_max_bytes_limit
+        display: Maximum bytes limit when retrying fetch request
         description: >
           Specifies the upper bound of data bytes to allow fetching from a kafka partition when retrying a fetch request due to a too big message in the partition.
           
           default is 0.
+        placeholder: 0
         required: false
         hint:
           type: int
+          min: 0
+          max: 2147483647
       - name: connection_idle_timeout
-        display: connection_idle_timeout
+        display: Connection idle timeout
         description: >
           Specifies the timeout for idle connections.
           
           default is 540000ms
+        placeholder: 540000ms
         required: false
         hint:
           type: duration
       - name: client_id
-        display: client_id
+        display: Client ID
         description: >
           Specifies a client_id to be sent along every request to Kafka brokers. 
           
           default is None.
+        placeholder: None
         required: false
         hint:
           type: str

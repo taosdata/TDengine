@@ -3,8 +3,8 @@ use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 use anyhow::Context;
 use file_rotate::{
     compression::Compression,
-    ContentLimit,
-    FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
 };
 use itertools::Itertools;
 use taos::Dsn;
@@ -12,11 +12,11 @@ use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument, Span};
 
-use crate::{
-    Action, build_ipc, DataSet, get_log_keep_days, Transferred, utils::port_pool::PortPool,
-};
 use crate::plugins::mask_dsn;
 use crate::validation::DataSourceValidation;
+use crate::{
+    build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
+};
 
 use super::get_plugin_dir;
 
@@ -120,7 +120,12 @@ pub enum InfluxdbError {
 }
 
 impl InfluxdbConfig {
-    pub fn new(mut dsn: Dsn, td_database: String, ipc: u16, breakpoints: Option<String>) -> Result<Self, InfluxdbError> {
+    pub fn new(
+        mut dsn: Dsn,
+        td_database: String,
+        ipc: u16,
+        breakpoints: Option<String>,
+    ) -> Result<Self, InfluxdbError> {
         debug_assert!(dsn.driver == "influxdb");
         // the datasource config
         let host = dsn
@@ -577,13 +582,13 @@ pub async fn influxdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
                     .with_context(|| "Start InfluxDB collector error")?;
             }
             if output.status.success() {
-                let s = String::from_utf8(output.stdout.clone())?;
+                let s = String::from_utf8_lossy(&output.stdout);
                 if s == "" {
                     anyhow::bail!("InfluxDB connector returns OK, but result is nothing");
                 }
                 let mut vec = Vec::new();
                 vec.push(DataSet {
-                    id: s,
+                    id: s.to_string(),
                     name: None,
                     category: None,
                     r#type: None,
@@ -613,7 +618,11 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match config {
         Err(err) => DataSourceValidation::invalid(
             "influxdb".to_string(),
-            format!("invalid dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
+            format!(
+                "invalid dsn: {}, cause: {}",
+                dsn.to_string(),
+                err.to_string()
+            ),
         ),
         Ok(c) => {
             let result = validate_source_influxdb(c).await;
@@ -666,8 +675,13 @@ async fn validate_source_influxdb(config: InfluxdbConfig) -> anyhow::Result<Data
             .with_context(|| "Start InfluxDB collector error")?;
     }
     if output.status.success() {
-        let result = String::from_utf8(output.stdout.clone()).unwrap_or(String::from("{}"));
-        let result: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let result: serde_json::Value =
+            serde_json::from_slice(&output.stdout).with_context(|| {
+                format!(
+                    "Deserialize influxdb validation result error: {}",
+                    String::from_utf8_lossy(&output.stdout)
+                )
+            })?;
         // 组装结果
         Ok(DataSourceValidation {
             valid: result["valid"].as_bool().unwrap_or(false),

@@ -9,7 +9,9 @@ strict: false
 options:
   endpoint:
     display: bootstrap-servers
-    description: Kafka Server 地址
+    description: |
+      Kafka Server 地址。
+      如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。
     placeholder: 127.0.0.1:9092
     required: true
 groups:
@@ -93,27 +95,31 @@ groups:
             - Latest
             - ByTime
       - name: fetch_max_wait_time
-        display: fetch_max_wait_time
+        display: 获取消息时等待数据的最大时长
         description: >
           设置获取消息时等待数据不足的最长时间（以毫秒为单位）。
 
           默认值为 100ms
+        placeholder: 100ms
         required: false
         hint:
           type: duration
       - name: fetch_min_bytes
-        display: fetch_min_bytes
+        display: 获取消息时的最小字节数
         description: >
           设置获取消息时等待 KafkaClient::set_fetch_max_wait_time 指定的可用数据的最小字节数。
 
-          通过结合超时设置更高的值，消费者可以调整吞吐量并牺牲一点额外的延迟来只读取大块数据（例如，将 MaxWaitTime 设置为 100 ms，将 MinBytes 设置为 64k 将允许服务器等待最多 100 ms尝试在响应之前累积 64k 数据）。
+          通过结合设置fetch_max_wait_time更高的值，消费者可以调整吞吐量并牺牲一点额外的延迟来只读取大块数据（例如，将 fetch_max_wait_time 设置为 100 ms，将 fetch_min_bytes 设置为 64k 将允许服务器等待最多 100 ms尝试在响应之前累积 64k 数据）。
           
           默认值为 4096。
+        placeholder: 4096
         required: false
         hint:
           type: int
+          min: 0
+          max: 2147483647
       - name: fetch_max_bytes_per_partition
-        display: fetch_max_bytes_per_partition
+        display: 获取消息时从单个 kafka 分区获取的默认最大字节数
         description: >
           设置获取消息时从单个 kafka 分区获取的默认最大字节数。
 
@@ -123,23 +129,27 @@ groups:
 
           默认情况下，此客户端将为所有查询的分区使用此设置，但是，fetch_messages 确实允许您为正在查询的特定分区覆盖此设置。
           
-          默认值为 32 * 1024。
+          默认值为 1024 * 1024。
+        placeholder: 1048576
         required: false
         hint:
           type: int
+          min: 0
+          max: 2147483647
       - name: fetch_crc_validation
-        display:
+        display: 获取消息时是否执行 CRC 验证
         description: >
           指定是否对获取的消息执行 CRC 验证。
 
           这可确保检测到所获取消息的在线或磁盘损坏。此检查会增加一些开销，因此在寻求极端性能的情况下可能会禁用它。
           
           默认值为 true。
+        placeholder: true
         required: false
         hint:
           type: bool
       - name: offset_storage
-        display: Offset Storage
+        display: 获取或提交组偏移量时要使用的可用存储类型
         description: >
           定义在获取或提交组偏移量时要使用的可用存储类型。
 
@@ -156,29 +166,34 @@ groups:
             - Zookeeper
             - Kafka
       - name: retry_max_bytes_limit
-        display:
+        display: 重试提取请求时从 kafka 分区中提取数据的最大次数
         description: >
           指定数据字节的上限，以允许在由于分区中的消息太大而重试提取请求时从 kafka 分区中提取数据。
           
           默认值是 0。
+        placeholder: 0
         required: false
         hint:
           type: int
+          min: 0
+          max: 2147483647
       - name: connection_idle_timeout
-        display: connection_idle_timeout
+        display: 空闲连接的超时时间
         description: >
           指定空闲连接的超时时间。
           
           默认值是 540000ms。
+        placeholder: 540000ms
         required: false
         hint:
           type: duration
       - name: client_id
-        display: client_id
+        display: 客户端ID
         description: >
           指定要随每个请求发送到 Kafka 代理的 client_id。
           
           默认是 None。
+        placeholder: None
         required: false
         hint:
           type: str

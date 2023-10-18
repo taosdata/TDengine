@@ -32,6 +32,7 @@ func NewOpcPointer(config common.Config) (pointer Pointer, err error) {
 		c, err = opcda.NewConnector(config)
 	}
 	if err != nil {
+		err = fmt.Errorf("new opc connector error: %s", err)
 		return
 	}
 	if c == nil {

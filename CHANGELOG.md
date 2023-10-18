@@ -5,6 +5,95 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.7] - 2023-10-10
+
+**Full Changelog**: [v1.2.6...v1.2.7](https://github.com/taosdata/taosx/compare/v1.2.6...v1.2.7)
+
+### Bug Fixes
+
+- *agent*: Cannot resume tasks with agent in status cancelled ([4aa2046](4aa2046f5375de5002138500eb356505e5b0787b))
+- *api*: Fix panic when create with invalid dsn ([8bed630](8bed630d31ade0f7dc5c0f959e92f9fdf3feeecd))
+- *legacy*: Fix cancellation ops in legacy to taos ([213531b](213531b62a27f01c220241b12b1d3afb03e24991))
+- *pi*: Produce false 0x2653 error when error resolved ([79d6109](79d61094ec4535004552edaa56b11e5a7386d6b8))
+- *pi*: Support all points mode ([704b56b](704b56be1b6e6ca798a4146459a383cb482f584a))
+- *tmq*: Use a fully version of endpoint ([f27097b](f27097ba4822e0809ec3a7e64863180a554fa3ba))
+
+- Agent auto exit without err lgo ([1715fb5](1715fb5770d70a840f9bab3018fa52ec23d6b7bf))
+- Ignore sigpipe ([712c01b](712c01b775ea368d4696d65fec882521f5c9b484))
+- Realtime data migration#[TD-26429](https://jira.taosdata.com:18080/browse/TD-26429) ([55b058d](55b058d0b81a74a4b518e7ca0bb85a6018dc451b))
+- Compile error ([b8705d6](b8705d64043328bc8814c1771446270461a18f30))
+- Optimize code ([3746ce2](3746ce2d6fc690bfdaae456a21ad684c76b91355))
+- Fix value not exists ([6156922](615692256babfa9197fd3b1ae992218ea165ff01))
+- Fix confilct ([97c4b6e](97c4b6efdba87bb17d7141c70295f4f98259636b))
+- Fix opc select all points error ([f2188c9](f2188c98a15e2ec135946a649cc575f78fe0c8df))
+- Fix opc select all points error ([0d28b5b](0d28b5b8708748fcd0118dead511e6e9467a717d))
+- Add log and fix string type case ([167d04e](167d04e4fd4957771ae2fd57d5d3491346006837))
+- Fix value name error ([aa80af6](aa80af6eff2952f63d591f37c83184cca5f9f83d))
+
+
+### Documentation
+
+
+- Update data source description in en language ([af6dd65](af6dd654165a77a4a9d03c850e46c57d48f3b401))
+
+
+### Enhancements
+
+- *ds*: Data source host tips for agent ([8dc350e](8dc350e7e6f0cf481664072b7bb6f1b2bf3f0ae0))
+- *pi*: Use consist data sets in data source yaml ([b5584a5](b5584a50b36effb1ae0a8a7a1f690353474d33eb))
+
+- Support download all nodes as a csv file ([6357ed0](6357ed02fd0e33e938356f0df50ecc3712a5bf33))
+- Support download all nodes as a csv file ([60d89b4](60d89b477e3f3e2adb633b7a46a9c136cc6020e7))
+- Support select all points from opc ([2f8e0be](2f8e0be20b5b5f5f549384e82c937b2731ccc525))
+- Support select all points from opc ([9fe6fd7](9fe6fd7d10fe675a6971b04306248cd1df3099e7))
+
+
+### Features
+
+
+- Support breakpoint continuation. #[TD-26424](https://jira.taosdata.com:18080/browse/TD-26424) ([6771b82](6771b82b8475f3b31634fe7acd5fb17b9a5c9467))
+- Support breakpoint continuation. #[TD-26425](https://jira.taosdata.com:18080/browse/TD-26425) ([1944b27](1944b275a0ed4c1073ef489dda69686d9c5e82cb))
+- Change tolerance to delay. ([7329da9](7329da93f51014f87fcc16300710105fdaec222e))
+- Configure performance params on the page. #[TD-26643](https://jira.taosdata.com:18080/browse/TD-26643) ([2b61f10](2b61f1092c4f2cf471a394a0f5c8540a85fe0d0f))
+- Modify parameter read window ([cd57846](cd57846ee1f16f71c53599fbbfca05f5b89afe7f))
+- Change tolerance to delay. ([8fe3708](8fe37083069b25b819540ddf192db59fec3d7904))
+- Configure performance params on the page. ([1493c37](1493c3748aa688eef55f2a08b3b6e9aa3a05d55a))
+- Modify parameter read window ([5fb60f8](5fb60f8c6c8a0c2dc43c8548462220f8338eb7df))
+- Modify field descriptions ([1f24dda](1f24ddad17ea88175ca4dc67783d73408e8149d5))
+
+
+### Refactor
+
+- *agent*: Rename busy status to transferring ([f17b4c3](f17b4c3e2789d1fd293d3fc9eb4d1107b7e5fde0))
+
+- Opc desc amend ([bd4398d](bd4398d338e552dacd5f66f6992f47388ad9a6d1))
+- Opc desc amend ([7f8fc51](7f8fc51ad66ba711a6aeaf3397838d10e0937ba4))
+- Opc desc/display amend ([93ad37b](93ad37b371014e21a340b0b164a2c594a83432dd))
+- Update some data sources(tmq,taos,kafka) ([5298e41](5298e4160ba979d060f1733e902f38ae4bf01724))
+- Modify pibackfill yaml config ([ac5a847](ac5a847d070e793f2afcc805eed7d6a165b82b94))
+- Modify pibackfill yaml config ([0c42c53](0c42c5324101e9626782b3ff6fa1287b4e5bd229))
+- Modify data set all points file download ([eb803d9](eb803d935d7ca598317fe5c378e7303f81044a97))
+- Modify download_all_point_csv_file  post to get ([0b24838](0b24838bd891ab50ae5d032b7ca305d086b18c80))
+- Add categories param ([dce2c0e](dce2c0e5c56cf30445a356a7c2271f4e90547cc7))
+- Param type modify ([ce6a4fd](ce6a4fd023df4110f9c8137dee2290fd4bdb4d80))
+- Opc ua yaml modify ([b61374b](b61374b44b2b52e3df9a249e0df9e470e22de303))
+- Modify param desc ([9052c07](9052c07986ceca8f84f6aa9840d6aea3859ba3e6))
+- Remove table config ([ff1ecd4](ff1ecd4600cb67b0a29a5e3b12d534178107bebc))
+- Modify data set all points file download ([37a7d94](37a7d94fbe8ad37eecb891195d2f0a92a6243fcf))
+- Modify download_all_point_csv_file  post to get ([bb68207](bb68207bdd884a4853fa8f13ce161cd08fadeeca))
+- Add categories param ([e1d54be](e1d54be5c309bb317c2a8b1a7a108bdf429e28ca))
+- Param type modify ([2f30f66](2f30f66bef4ab87aebc09c82668099ca16698b10))
+- Opc ua yaml modify ([461f33c](461f33c7f422e623ed9fbc6b9fee38fd08a04a68))
+- Modify param desc ([c288173](c28817352f82bb4a2a793f8a09cc42005b6ecf80))
+- Remove table config ([a742239](a74223985e4189a0e4e6cc9a8f9e4685e0f68034))
+
+
+### Revert
+
+
+- Busy timeout to 30 ([9addd9b](9addd9b3c3e3e9220e212e8421416c1199244f3f))
+
+
 ## [1.2.6] - 2023-09-27
 
 **Full Changelog**: [v1.2.5...v1.2.6](https://github.com/taosdata/taosx/compare/v1.2.5...v1.2.6)
@@ -26,6 +115,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 - Opc yaml desc modify ([e0442e0](e0442e00d3130028c078bb241e227a303d32a857))
+- Opc yaml desc modify ([0d5b07d](0d5b07d9c1c8028c3ced995e22fe4122b69c49ba))
 
 
 ## [1.2.5] - 2023-09-26
@@ -41,9 +131,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Assert enterprise edition ([1bb276d](1bb276d1bc83485476a3fd2b2c82ddb76898e842))
 - Update assert_enterprise msg ([8baf82d](8baf82d431e28a594fc37b470d0de96cf167a93c))
+- Assert enterprise edition ([2fd5ed2](2fd5ed2fe3879f5b43180bb62772a2238e7a3975))
+- Update assert_enterprise msg ([19ac0ae](19ac0aeafa6685f38f9c1b49c1acdc4c33282222))
 - Fix mem leak with native connections ([c0fe976](c0fe97645d3ba4815750430a4eca1d68c4b7de00))
 - Sync schema error for some specific 2.x versions ([a95c29e](a95c29ec6a31616b56fbc8d2543c57d1ce6c6378))
 - Fix opc dump and add log ([4f4524d](4f4524d839510c5dd516d7d5c578c9584197edbc))
+- Table not exist occurs since retry time is 2#[TD-26508](https://jira.taosdata.com:18080/browse/TD-26508) ([ccdf70e](ccdf70e9a253aa3b3e92719abbb7b5081a34a90e))
 - Table not exist occurs since retry time is 2#[TD-26508](https://jira.taosdata.com:18080/browse/TD-26508) ([add39d1](add39d19e0d9f2f04e75e9e84c028d6751c617d0))
 
 
@@ -64,10 +157,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Refactor
 
 - *pi*: Update pi data source yaml (#780) ([91fb6ef](91fb6ef437be9f3e298a0ab6f2ba3f1a6b990d66))
+- *pi*: Update pi data source yaml (#781) ([9fb8325](9fb83259d57bbdc11ef354ed79ce79f57cf043cc))
 
 - Make tokio-console optional by compile features ([9e0c106](9e0c106100845e3a59ef3c826aa7764231c0c17e))
 - Use opentelemetry-otlp instead jaeger ([9bc70ce](9bc70ce2ef866526e82d9b181d5dfea4fee8014c))
 - Pi yaml refactor ([c7bbbb3](c7bbbb34aaa6c5cfa9fd6fd6c59b2e7cf755e0a6))
+- Pi yaml refactor ([b286b10](b286b105f7267020c0fe1bb4be584a4d06b7f362))
+- Pi dataset header modify ([93ddaa3](93ddaa3288704400a0b89fca0ba4cb79a0288f1f))
 - Pi dataset header modify ([fb4a1cc](fb4a1cc52718907d54a0990b608507d04c2c27d3))
 
 
@@ -90,6 +186,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *serve*: Fix using files path ([efed071](efed0712e760151d22cfe793544d040a1bee6186))
 
 - Fix opc process still running aftere stopped ([59160e3](59160e3924de165ef23c6cc3020e94ef6b6b705d))
+- Break write loop when encount unrecoverable error ([81df63d](81df63dc8d27ca63d7f73dbe85a16e176ef177b1))
 - Break write loop when encount unrecoverable error ([82bcf9f](82bcf9fd9057da32a5008c43bc86c4fa7a5653f7))
 - Fix list datasets hanging out when use with opcda ([f60c98f](f60c98faaa6709624d851e5bfcdde200d14b0e97))
 
@@ -109,13 +206,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Refactor
 
 
+- [TS-3927](https://jira.taosdata.com:18080/browse/TS-3927) opc dump default keep set to 10 ([934917d](934917dc64f711eb3f83d5bede6f076b23514d0c))
+- [TD-26269](https://jira.taosdata.com:18080/browse/TD-26269) modify default value for opcua ([e8fb0fd](e8fb0fd14b8e2a06efeb28cf3744b62d3249857d))
+- Opc csv config column modify ([9e69797](9e6979749f2c7762b234b759d80bef28ff43fa59))
+- Modify log print ([d3bce32](d3bce32a4b34eb8817c9d2d9005a59cfdbd74d4f))
+- Modify opcua desc ([58e63c7](58e63c7997c807e8d4b38d6c5db192f5f88e6971))
+- Keep backward compatibility ([2ed5f53](2ed5f53fe7a3f2dfcb0ce337227bbea6d7e2c67a))
 - [TS-3927](https://jira.taosdata.com:18080/browse/TS-3927) opc dump default keep set to 10 ([6ae6a32](6ae6a32377c821a18b8780115446d4634c362724))
 - [TD-26269](https://jira.taosdata.com:18080/browse/TD-26269) modify default value for opcua ([463082b](463082bca53cee07fd5d107d714ad66439fc081b))
 - Opc csv config column modify ([c60558e](c60558efc7026d862d2dcef644759d1c29f243fa))
 - Modify opcua desc ([2d52a0e](2d52a0e89d8053361692e52f7f247aca6b89882a))
 - Keep backward compatibility ([a4b4074](a4b40745f9a0ef94883fc984f344b4de11f2d406))
+- Opc table config field modify ([46ba1ad](46ba1adf53c1236aee409676bce79fd87c4b9098))
 - Opc table config field modify ([4a2c741](4a2c74102ba2bc8f4760d1f4270eb4a361c803c7))
 - Modify opc table config desc ([145e417](145e417fcd2bcd664dece45f829284e3ae60e9ac))
+- Modify opc table config desc ([2bb126c](2bb126c455d84e46ecd7723a21ffde259b3d394e))
 
 
 ## [1.2.3] - 2023-09-17
@@ -171,6 +276,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Enhancements
 
 
+- Support print metrics in run mode ([7a693f0](7a693f0861aed4c65a1d4536c62e047313d0ac2a))
 - Add more cargo-make tasks ([33e8f65](33e8f65f02d9c0cda6e4a414be6136cbba5532c9))
 
 
@@ -179,12 +285,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *grpc*: Abort grpc connection when version not match (#733) ([dbdf37f](dbdf37fab0d5327e046405bb7931538e90714a7b))
 - *legacy*: Add workers for query and concurrent-limit for write ([ef676bc](ef676bc31d6ab59a444b3a2317d118f59eb7055d))
 
+- Add range for tolerance. [TD-26190](https://jira.taosdata.com:18080/browse/TD-26190) ([57b881a](57b881af49a15f764195c0144dcafb90a901fc65))
 - Add range for tolerance. [TD-26190](https://jira.taosdata.com:18080/browse/TD-26190) ([d38397d](d38397db28e1cb73a5ddab4a0e4240429fac93f0))
 
 
 ### Refactor
 
 
+- Opc desc modify ([1ff1704](1ff1704f66cb2fddf11e0d29274da7b94518741b))
 - Opc desc modify ([0031995](00319959e3089009e4dc0ff05c962d29b135cae4))
 
 
@@ -223,6 +331,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - *source*: Add historian data source #[TS-3802](https://jira.taosdata.com:18080/browse/TS-3802) (#664) ([a04d189](a04d1895a1e39bce8ffc909a0ee00abb0ec34eda))
 
+
+
+### Refactor
+
+
+- Add schedular for metrics print when execute run ([be3c813](be3c813c293370f0c202eafaa61ef47155cb72ff))
+- Add print function ([44eab83](44eab83369c03376a4c246561134f53c1808a33d))
 
 
 ## [1.2.0] - 2023-09-06
