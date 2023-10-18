@@ -371,7 +371,7 @@ export const AppIDKey = "AppID";
 export const TokenKey = "TDengine-Token";
 export const BusinessEmail = "business@tdengine.com";
 
-console.log(i18n,'i18ni18n');
+
 export const StreamDocsUrl = i18n.locale?.includes('en') ? "https://docs.tdengine.com/develop/stream/" : 'https://docs.taosdata.com/develop/stream/';
 export const DocsUrl = "https://docs.tdengine.com"
 

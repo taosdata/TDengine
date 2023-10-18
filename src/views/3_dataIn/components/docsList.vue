@@ -51,7 +51,6 @@ export default {
   },
   mounted(){
     this.localDocList=this.docsList()
-    console.log(this.docsList,'tools---pppsss',this.localDocList,this.docsList());
   },
   methods: {
     getUrl(name) {
