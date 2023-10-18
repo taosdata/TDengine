@@ -232,7 +232,7 @@ impl SourceConfig {
                     )),
                 }
             })
-            .unwrap_or(Ok(None))
+            .unwrap_or(Ok(Some(1024 * 1024)))
     }
 
     fn parse_fetch_crc_validation(dsn: &Dsn) -> anyhow::Result<Option<bool>> {
@@ -540,7 +540,8 @@ mod tests {
 
         let dsn = Dsn::from_str("kafka://").unwrap();
         let config = SourceConfig::parse_fetch_max_bytes_per_partition(&dsn).unwrap();
-        assert!(config.is_none());
+        assert!(config.is_some());
+        assert_eq!(1024*1024, config.unwrap());
 
         let dsn = Dsn::from_str("kafka://?fetch_max_bytes_per_partition=invalid").unwrap();
         let result = SourceConfig::parse_fetch_max_bytes_per_partition(&dsn);
