@@ -136,7 +136,6 @@ TdFilePtr streamOpenFile(char* path, char* name, int32_t opt) {
   char fullname[256] = {0};
 
   STREAM_ROCKSDB_BUILD_FULLNAME(path, name, fullname);
-  qInfo("stream open file %s", fullname);
   return taosOpenFile(fullname, opt);
 }
 
