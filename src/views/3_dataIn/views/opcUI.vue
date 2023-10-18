@@ -2495,8 +2495,11 @@ export default {
 }
 .upload-demo {
   display: flex;
+  align-items: baseline;
 }
-.el-upload-list__item {
-  margin-top: 5px !important;
+::v-deep {
+  .el-upload-list__item {
+    margin-top: 1px !important;
+  }
 }
 </style>

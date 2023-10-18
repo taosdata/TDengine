@@ -6,7 +6,7 @@ let grafanagds = process.env.VUE_APP_CUS_NAME &&
 let taosname = process.env.VUE_APP_CUS_NAME &&
   process.env.VUE_APP_CUS_NAME !== "TDengine" ? process.env.VUE_APP_CUS_PROMPT : 'taos'
 let agenturl=localStorage.getItem('agent_version')?localStorage.getItem('agent_version'):'latest'
-const DocsUrl=window.navigator.language.includes('zh')?'https://docs.taosdata.com':'https://docs.tdengine.com'
+const DocsUrl=localStorage.getItem('local_language').includes('zh')?'https://docs.taosdata.com':'https://docs.tdengine.com'
 export default {
   //通用部分
 
@@ -1401,6 +1401,8 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step23desc:
           'Note: Please replace "[path]" with the absolute path of the local system where the actual TDengine JDBC driver is downloaded to, and replace "taos-jdbcdriver-X.X.X-dist.jar" with the full file name of the actual downloaded driver.',
         step3: 'Connect',
+        insertdata:'Insert Data',
+        querydata:'Query Data',
         step31desc: 'First of all, please load JDBC driver as the following:',
         step32desc: 'Then execute the following script to create the connection with TDengine  instance:'
       },
@@ -1888,7 +1890,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
       desc51:`1. Once the data source works, click the <strong>Dashboards</strong> tab on the data source configuration page.`,
       desc52:`2. Choose <code>TDengine for 3.x</code> and click import.`,
       desc53:`3. Click the three horizontal bar icon, then <strong>Dashboards</strong>, search <code>TDinsight</code>, and click it.`,
-      desc54:`4. Now, you can see the nice dashboard`,
+      desc54:`4. Now, you can see the nice dashboard.`,
       tab2: 'Install Grafana on CentOS / RHEL',
       tab1: 'Installing Grafana on Debian / Ubuntu',
       tab2sub: 'Or install it with RPM package.',

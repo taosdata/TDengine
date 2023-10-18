@@ -17,7 +17,7 @@
         :href="`https://${urlPart}.com/assets-download/3.0/taosTools-2.4.9-Linux-x64-comp3.tar.gz`"
         >taosTools</a
       >{{ $t("docs.dataout.dump.step2desc1")
-      }}&nbsp;&nbsp;<a :href="`https://docs.${urlPart}.com/reference/taos-shell`"
+      }}&nbsp;&nbsp;<a :href="`${$t('urlPart')}/reference/taos-shell`"
         >TDengine CLI</a
       >{{ $t("docs.connector.bottom3end") }}
     </p>
@@ -42,7 +42,7 @@ sudo ./install-taostools.sh
       <li>{{ $t("docs.dataout.dump.step31desc3") }}</li>
       <li>
         {{ $t("docs.dataout.dump.step31desc4")
-        }}&nbsp;&nbsp;<a :href="`https://docs.${urlPart}.com/taos-sql/escape/`">{{
+        }}&nbsp;&nbsp;<a :href="`${$t('urlPart')}/taos-sql/escape/`">{{
           $t("docs.dataout.dump.step31desc5")
         }}</a>
         {{ $t("docs.dataout.dump.step31desc6") }}
@@ -121,7 +121,6 @@ Report bugs to &lt;support@taosdata.com&gt;.
 </template>
 
 <script>
-import { IsAliyun } from "@/const";
 export default {
   props: {
     token: {
@@ -149,8 +148,8 @@ export default {
       return `taos://${this.user}:${this.password}@${this.url.replace(/https?:\/\//, "")}`;
     },
     urlPart() {
-      return navigator.language.includes('en') ?"tdengine": "taosdata";
-    },
+      return this.$i18n.locale.includes('en') ?"tdengine": "taosdata";
+    }
   },
 };
 </script>

@@ -62,7 +62,7 @@ export default {
           },
           {
             path: "/programming",
-            title: i18n.t("route.programming"),
+            title: "route.programming",
             icon: "programming",
             parting: false,
             meta: {
@@ -103,15 +103,7 @@ export default {
               show: true,
             },
           },
-          {
-            path: "/programming",
-            title: "route.programming",
-            icon: "programming",
-            parting: false,
-            meta: {
-              show: flag ? false : true,
-            },
-          },
+          
           {
             path: "/tools",
             title: "route.tool",

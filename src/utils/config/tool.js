@@ -73,7 +73,7 @@ export default () => [
     name: 'Seeq',
     desc: i18n.t('docs.tools.seeq.desc'),
     docs: {
-      zh:'',
+      zh:mdx.seeqDoc,
       en:mdx.seeqDoc
     },
     steps: [
