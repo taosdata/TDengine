@@ -1001,7 +1001,7 @@ export default {
     getmetrics:'获取Metrics',
     refreshsuccess:'刷新成功',
     influxdbtip:'请选择或创建精度为ns的目标TDengine数据库',
-    taskid:'任务ID',
+    taskid:'ID',
     opcconfig:'上传 CSV 配置文件',
     tmqprotocol:'原生连接',
     primaryColTagtip:'主键列不支持再作为Tag',
