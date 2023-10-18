@@ -1710,10 +1710,10 @@ Windows： <code>C:\\Program Files\\taosX\\config</code>`,
       cont4:'然后可以看到监控结果。',
 
       step5: '添加Dashboard',
-      desc51:`1. 数据源工作后，单击数据源配置页面上的<strong>仪表板</strong>选项卡。`,
+      desc51:`1. 数据源工作后，单击数据源配置页面上的 <strong>仪表板</strong> 选项卡。`,
       desc52:`2. 选择<code>TDengine for 3.x</code>点击导入。`,
-      desc53:`3. 单击三个水平条图标，然后单击“Dashboards”，搜索<code>TDinsight</code>，然后单击它。`,
-      desc54:`4. 现在你可以看到完整的仪表盘`,
+      desc53:`3. 单击三个水平条图标，然后单击“Dashboards”，搜索 <code>TDinsight</code>，然后单击它。`,
+      desc54:`4. 现在你可以看到完整的仪表盘。`,
       
     },
     tools:{
