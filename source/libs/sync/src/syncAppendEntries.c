@@ -137,26 +137,26 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     goto _IGNORE;
   }
 
-  pEntry = syncEntryBuildFromAppendEntries(pMsg);
-  if (pEntry == NULL) {
-    sError("vgId:%d, failed to get raft entry from append entries since %s", ths->vgId, terrstr());
-    goto _IGNORE;
-  }
-
-  if (pMsg->prevLogIndex + 1 != pEntry->index || pEntry->term < 0) {
-    sError("vgId:%d, invalid previous log index in msg. index:%" PRId64 ",  term:%" PRId64 ", prevLogIndex:%" PRId64
-           ", prevLogTerm:%" PRId64,
-           ths->vgId, pEntry->index, pEntry->term, pMsg->prevLogIndex, pMsg->prevLogTerm);
-    goto _IGNORE;
-  }
-
-  sTrace("vgId:%d, recv append entries msg. index:%" PRId64 ", term:%" PRId64 ", preLogIndex:%" PRId64
-         ", prevLogTerm:%" PRId64 " commitIndex:%" PRId64 " entryterm:%" PRId64,
-         pMsg->vgId, pMsg->prevLogIndex + 1, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex,
-         pEntry->term);
-
-  // accept
   if (ths->raftCfg.cfg.nodeInfo[ths->raftCfg.cfg.myIndex].nodeRole != TAOS_SYNC_ROLE_ARBITRATOR) {
+    pEntry = syncEntryBuildFromAppendEntries(pMsg);
+    if (pEntry == NULL) {
+      sError("vgId:%d, failed to get raft entry from append entries since %s", ths->vgId, terrstr());
+      goto _IGNORE;
+    }
+
+    if (pMsg->prevLogIndex + 1 != pEntry->index || pEntry->term < 0) {
+      sError("vgId:%d, invalid previous log index in msg. index:%" PRId64 ",  term:%" PRId64 ", prevLogIndex:%" PRId64
+             ", prevLogTerm:%" PRId64,
+             ths->vgId, pEntry->index, pEntry->term, pMsg->prevLogIndex, pMsg->prevLogTerm);
+      goto _IGNORE;
+    }
+
+    sTrace("vgId:%d, recv append entries msg. index:%" PRId64 ", term:%" PRId64 ", preLogIndex:%" PRId64
+           ", prevLogTerm:%" PRId64 " commitIndex:%" PRId64 " entryterm:%" PRId64,
+           pMsg->vgId, pMsg->prevLogIndex + 1, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex,
+           pEntry->term);
+
+    // accept
     if (syncLogBufferAccept(ths->pLogBuf, ths, pEntry, pMsg->prevLogTerm) < 0) {
       goto _SEND_RESPONSE;
     }
