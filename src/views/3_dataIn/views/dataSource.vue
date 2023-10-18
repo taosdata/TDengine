@@ -88,7 +88,7 @@
         <el-table-column
           :label="$t('datasource.name2')"
           prop="localname"
-          width="100"
+          min-width="100"
           show-overflow-tooltip
         >
           <template slot-scope="scope">
@@ -108,7 +108,7 @@
         <el-table-column
           :label="$t('datasource.target')"
           prop="target"
-          width="100"
+          min-width="100"
           show-overflow-tooltip
         ></el-table-column>
         <el-table-column
@@ -123,7 +123,8 @@
         <el-table-column
           :label="$t('datasource.via')"
           prop="via"
-          width="100"
+          min-width="100"
+          show-overflow-tooltip
         >
           <template slot-scope="{ row }">
             {{ agentMap[row.via] }}
