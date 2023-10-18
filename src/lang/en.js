@@ -1,3 +1,4 @@
+import i18n from 'vue-i18n'
 let agreementUrl = process.env.VUE_APP_AGREEMENT_URL;
 let oem = process.env.VUE_APP_CUS_NAME &&
   process.env.VUE_APP_CUS_NAME !== "TDengine" ? process.env.VUE_APP_CUS_NAME : 'TDengine'
@@ -6,7 +7,7 @@ let grafanagds = process.env.VUE_APP_CUS_NAME &&
 let taosname = process.env.VUE_APP_CUS_NAME &&
   process.env.VUE_APP_CUS_NAME !== "TDengine" ? process.env.VUE_APP_CUS_PROMPT : 'taos'
 let agenturl=localStorage.getItem('agent_version')?localStorage.getItem('agent_version'):'latest'
-const DocsUrl=localStorage.getItem('local_language').includes('zh')?'https://docs.taosdata.com':'https://docs.tdengine.com'
+const DocsUrl=localStorage.getItem('local_language')?.includes('zh')?'https://docs.taosdata.com':'https://docs.tdengine.com'
 export default {
   //通用部分
 
