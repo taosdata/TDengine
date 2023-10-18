@@ -1307,7 +1307,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
       9: 'Failed',
       10: 'Checking',
       11: `Please check the agent logs with:`,
-      12: 'and check if can you fix the issue by yourself. If you can not, please report it to the TDengine team. '
+      12: 'and check if  you can  fix the issue by yourself. If you can not, please report it to the TDengine team. '
       // 7: `If the agent token is wrong, the service will exit directly, you can check the logs with: `,
       // 8: `Refresh agent status in explorer to check if the agent is connected correctly. The status of an agent will be "Idle" when it has been connected.`
     },
