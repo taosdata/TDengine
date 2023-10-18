@@ -298,7 +298,7 @@ export default {
       dialog: false,
       copyDialog: false,
       operateStatus: true,
-      currentRow: null,
+      currentRow: {},
       clusterid: localStorage.getItem("local_clusterID"),
       ruleForm: {
         name: "",
@@ -379,7 +379,7 @@ export default {
       });
     },
     add() {
-      this.$set(this, "currentRow", null);
+      this.$set(this, "currentRow", {});
       this.$store.commit("app/SET_AGENT_DIALOG", true);
       this.dialogTitle = this.$t("taosagents.createnewagent");
       this.isEditDialog = false;

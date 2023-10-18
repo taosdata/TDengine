@@ -136,7 +136,9 @@ export default {
   props: {
     agent: {
       type: Object,
-      default: () => ({})
+      default: () => {
+        return {}
+      }
     }
   },
   name:'AddAgent',
@@ -161,7 +163,8 @@ export default {
       tabActive: '0',
       agentStatus: '',
       requestIng: false,
-      checkIng: false
+      checkIng: false,
+      oldAgent:[]
     };
   },
   computed: {
@@ -208,6 +211,7 @@ export default {
       this.name = this.agent.name;
       this.active = 2;
     }
+    this.$set(this,'oldAgent',this.agentList)
   },
   methods: {
     checkAgentStatus() {
@@ -230,11 +234,16 @@ export default {
       if (this.loading) return;
       this.loading = true;
       const fn = this.agent?.id ? editAgent : addNewAgent;
+      
       fn(this.name, this.agent?.id)
-        .then(({ token,id }) => {
+        .then(async({ token,id }) => {
           this.$set(this.tokenMap, this.name, token);
           this.active++;
-          this.$store.dispatch('app/getAgentList');
+         await this.$store.dispatch('app/getAgentList');
+         Object.assign(
+            this.agent,
+            this.$store.state.app.agentLists.find(item => item.id == id)
+          );
         })
         .catch(() => {})
         .finally(() => {
@@ -242,10 +251,8 @@ export default {
         });
     },
     next() {
-   
       if (this.active == 4) {
         this.agentStatus = 'noCheck';
-        // this.submit();
         this.$store.commit('app/SET_AGENT_DIALOG',false)
         
       }
@@ -257,7 +264,7 @@ export default {
       }
     },
     nameValid() {
-      if ((this.name&&this.oldActive!=3)&&this.oldActive!=1) {
+      if (this.name) {
         return this.agentList.some(item => item.name == this.name);
       } else {
         return false;
@@ -269,6 +276,12 @@ export default {
       deep:true,
       handler(val,oldval){
         this.oldActive=oldval
+      }
+    },
+    '$store.state.app.agentLists':{
+      deep:true,
+      handler(val,oldval){
+        this.$set(this,'oldAgent',oldval)
       }
     }
   }

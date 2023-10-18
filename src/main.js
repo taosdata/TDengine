@@ -41,9 +41,15 @@ export function getBrowserLang() {
   if (browserLang.includes('en')) return 'en';
   return 'en';
 }
+function setTitle() {
+  const lang = getBrowserLang()
+  const title = lang === 'en' ? 'TDengine Enterprise' : 'TDengine企业版'
+  document.title = title
+}
 
 
 setLang(getBrowserLang())
+setTitle()
 
 Vue.use(VueDOMPurifyHTML, {
   default: {
