@@ -64,6 +64,13 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs
   info.state.applied = -1;
   info.state.commitID = 0;
 
+  SVnodeInfo oldInfo = {0};
+  oldInfo.config = vnodeCfgDefault;
+  if (vnodeLoadInfo(dir, &oldInfo) == 0) {
+    vWarn("vgId:%d, vnode config info already exists at %s.", oldInfo.config.vgId, dir);
+    return (oldInfo.config.dbId == info.config.dbId) ? 0 : -1;
+  }
+
   vInfo("vgId:%d, save config while create", info.config.vgId);
   if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir) < 0) {
     vError("vgId:%d, failed to save vnode config since %s", pCfg ? pCfg->vgId : 0, tstrerror(terrno));
