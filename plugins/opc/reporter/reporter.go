@@ -3,6 +3,7 @@ package reporter
 import (
 	"collector/common"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"sort"
@@ -21,6 +22,10 @@ type Reporter interface {
 }
 
 func NewDataReporter(config common.Config) (Reporter, error) {
+	if config.Report.Fake {
+		return newFakeReport(), nil
+	}
+
 	address, err := net.ResolveTCPAddr("tcp", config.Report.Remote)
 	if err != nil {
 		return nil, fmt.Errorf("create opc reporter error. %v", err)
@@ -147,7 +152,7 @@ func (r *DataReporter) Stop(ctx context.Context) {
 	})
 }
 
-func packData(values common.NodeValues, schema *arrow.Schema, valueFunc appendFunc) (arrow.Record, error) {
+func packData(values common.NodeValues, schema *arrow.Schema, valueFunc appendFunc) arrow.Record {
 	sort.Sort(values)
 
 	recordBuilder := array.NewRecordBuilder(memory.NewGoAllocator(), schema)
@@ -175,13 +180,14 @@ func packData(values common.NodeValues, schema *arrow.Schema, valueFunc appendFu
 		if value.Value == nil {
 			field4.AppendNull() // value
 		} else if err := valueFunc(field4, value.Identifier, value.Value); err != nil { // value
-			return nil, fmt.Errorf("append value field error %v", err)
+			logger.WarnF("## append value field error %v", err)
+			field4.AppendNull()
 		}
 
 		field5.Append(value.Status) // status
 	}
 
-	return recordBuilder.NewRecord(), nil
+	return recordBuilder.NewRecord()
 }
 
 var meta = arrow.MetadataFrom(map[string]string{
@@ -415,4 +421,25 @@ func appendTime(builder array.Builder, id string, value any) error {
 	}
 	builder.(*array.TimestampBuilder).Append(arrow.Timestamp(v.UnixNano()))
 	return nil
+}
+
+type FakeReport struct {
+}
+
+func newFakeReport() Reporter {
+	return &FakeReport{}
+}
+
+var _ Reporter = (*FakeReport)(nil)
+
+func (f *FakeReport) Report(_ context.Context, value <-chan *common.NodeValue) error {
+	for v := range value {
+		j, _ := json.Marshal(v)
+		logger.InfoF("## report message [%s]", string(j))
+	}
+	return nil
+}
+
+func (f *FakeReport) Stop(_ context.Context) {
+	logger.WarnF("## fake report stop")
 }

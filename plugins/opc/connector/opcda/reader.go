@@ -233,13 +233,17 @@ func (r *reader) readItems(tags map[string]*daTag) (values []*common.NodeValue) 
 		value := item.Value
 		valueType := tags[id].valueType
 		logger.DebugF("## read opc da item [%s] value [%v] type [%v] spend [%d]ms", id, value, valueType, spent)
+		if value == nil {
+			logger.DebugF("## read data for identifier %q. value is nil", id)
+			continue
+		}
 
 		if valueType == common.Invalid {
 			t := reflect.TypeOf(value).Kind()
 			var err error
 			valueType, err = toValueType(t)
 			if err != nil {
-				logger.Warn("## read data for identifier %q. value type %T is not supported", id, value)
+				logger.WarnF("## read data for identifier %q. value type %T is not supported", id, value)
 				continue
 			}
 			tags[id].valueType = valueType
@@ -348,30 +352,5 @@ func toValueType(k reflect.Kind) (common.ValueType, error) {
 		return common.VARCHAR, nil
 	default:
 		return common.Invalid, fmt.Errorf("unsupported type %s", k.String())
-	}
-}
-
-func opcDaStatusString(status int64) string {
-	switch status {
-	case 0:
-		return "Bad"
-	case 192, 216:
-		return "Good"
-	case 64:
-		return "Uncertain"
-	case 6:
-		return "Disconnected"
-	case 2:
-		return "Failed"
-	case 3:
-		return "Noconfig"
-	case 1:
-		return "Running"
-	case 4:
-		return "Suspended"
-	case 5:
-		return "Test"
-	default:
-		return "Unknown"
 	}
 }

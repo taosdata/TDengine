@@ -52,8 +52,13 @@ type DaConnectConfig struct {
 
 // PointsConfig is used for collecting points
 type PointsConfig struct {
-	Limit int    `json:"limit,omitempty" yaml:"limit" toml:"limit"`
-	Regex string `json:"regex,omitempty" yaml:"regex" toml:"regex"`
+	Limit int            `json:"limit,omitempty" yaml:"limit" toml:"limit"`
+	Regex string         `json:"regex,omitempty" yaml:"regex" toml:"regex"`
+	Ua    UaPointsConfig `json:"ua,omitempty" yaml:"ua" toml:"ua"`
+}
+
+type UaPointsConfig struct {
+	Root string `json:"root,omitempty" yaml:"root" toml:"root"` // root path for points, default is 'i=85'
 }
 
 type CollectConfig struct {
@@ -91,6 +96,7 @@ type TagConfig struct {
 }
 
 type ReportConfig struct {
+	Fake         bool   `json:"fake,omitempty" yaml:"fake" toml:"fake"`
 	Remote       string `json:"remote,omitempty" yaml:"remote" toml:"remote"` //  taosx's address. ip:port
 	Concurrent   int    `json:"concurrent,omitempty" yaml:"concurrent" toml:"concurrent"`
 	BatchSize    int    `json:"batch_size,omitempty" yaml:"batch_size" toml:"batch_size"`
@@ -226,6 +232,12 @@ func (c *DumpConfig) Validate() error {
 		c.Keep = 7
 	}
 	return nil
+}
+
+func (c *PointsConfig) Validate() {
+	if len(c.Ua.Root) == 0 {
+		c.Ua.Root = "i=85"
+	}
 }
 
 type NodeValue struct {
