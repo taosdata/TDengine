@@ -87,7 +87,7 @@ typedef enum {
 } ESyncRole;
 
 typedef enum {
-  SYNC_FSM_STATE_NORMAL = 0,
+  SYNC_FSM_STATE_COMPLETE = 0,
   SYNC_FSM_STATE_INCOMPLETE,
 } ESyncFsmState;
 
