@@ -31,9 +31,10 @@
         </router-link>
       </el-tooltip>
       <Help></Help> -->
+      <div class="language" @click="switchLanguage">{{ locallanguage }}</div>
       <Avatar></Avatar>
 
-      <div class="language" @click="switchLanguage">{{ locallanguage }}</div>
+     
     </div>
   </div>
 </template>
@@ -118,10 +119,6 @@ export default {
         this.$i18n.locale='zh'
         localStorage.setItem("local_language", "zh");
       }
-      console.log(this.$i18n.locale,'语言切换n');
-      // this.$i18n.locale = "zh";
-      // localStorage.setItem("local_language", "zh");
-      // window.location.reload()
     },
    
     clickShowVersion() {
@@ -254,7 +251,7 @@ export default {
 }
 .language {
   margin-top: 4px;
-  margin-left:20px;
+  margin-right:20px;
   cursor: pointer;
   display: flex;
   align-items: center;
