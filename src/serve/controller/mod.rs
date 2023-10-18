@@ -832,7 +832,7 @@ impl TaskController {
 
                                             break;
                                         }
-                                        e if e.contains("WebSocket protocol error") || e.contains("WebSocket internal error") || e.contains("0x000B") || e.contains("0xE002") => {
+                                        e if e.contains("WebSocket protocol error") || e.contains("WebSocket internal error") || e.contains("0x000B") || e.contains("0xE002") || e.contains("0xE003") => {
                                             tracing::warn!("run task {id} failed: {err}, wait for resume...");
                                             let err = format!("{err:#}");
                                             let now = Utc::now();
