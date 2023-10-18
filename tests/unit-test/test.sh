@@ -6,7 +6,7 @@ function usage() {
     echo -e "\t -h help"
 }
 
-ent=0
+ent=1
 while getopts "eh" opt; do
     case $opt in
         e)
