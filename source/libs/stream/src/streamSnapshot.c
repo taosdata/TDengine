@@ -400,7 +400,13 @@ _NEXT:
 
   uint8_t* buf = taosMemoryCalloc(1, sizeof(SStreamSnapBlockHdr) + kBlockSize);
   int64_t  nread = taosPReadFile(pHandle->fd, buf + sizeof(SStreamSnapBlockHdr), kBlockSize, pSnapFile->offset);
-  if (nread == -1) {
+
+  qInfo("%s read impl %d, file name: %s", STREAM_STATE_TRANSFER, (int)nread, item->name);
+  if (nread == 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    qError("%s snap failed to read snap, file name:%s, type:%d,reason:%s", STREAM_STATE_TRANSFER, item->name,
+           item->type, tstrerror(code));
+  } else if (nread == -1) {
     code = TAOS_SYSTEM_ERROR(terrno);
     qError("%s snap failed to read snap, file name:%s, type:%d,reason:%s", STREAM_STATE_TRANSFER, item->name,
            item->type, tstrerror(code));
@@ -509,6 +515,8 @@ int32_t streamSnapWriteImpl(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t
       code = TAOS_SYSTEM_ERROR(terrno);
       qError("%s failed to write snap, file name:%s, reason:%s", STREAM_STATE_TRANSFER, pHdr->name, tstrerror(code));
       return code;
+    } else {
+      qInfo("succ to write data %s", pItem->name);
     }
     pSnapFile->offset += bytes;
   } else {
@@ -531,6 +539,7 @@ int32_t streamSnapWriteImpl(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t
     }
 
     taosPWriteFile(pSnapFile->fd, pHdr->data, pHdr->size, pSnapFile->offset);
+    qInfo("succ to write data %s", pItem->name);
     pSnapFile->offset += pHdr->size;
   }
   code = 0;

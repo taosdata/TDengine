@@ -492,8 +492,30 @@ int32_t rebuildDirFromChkp2(const char* path, char* key, int64_t chkpId, char** 
       }
 
     } else {
-      qError("failed to start stream backend at %s, reason: %s, restart from default defaultPath dir:%s", chkpPath,
-             tstrerror(TAOS_SYSTEM_ERROR(errno)), defaultPath);
+      qInfo("failed to start stream backend at %s, reason: %s, restart from default defaultPath dir:%s", chkpPath,
+            tstrerror(TAOS_SYSTEM_ERROR(errno)), defaultPath);
+      taosMkDir(defaultPath);
+    }
+    taosMemoryFree(chkpPath);
+  } else {
+    char* chkpPath = taosMemoryCalloc(1, strlen(path) + 256);
+    sprintf(chkpPath, "%s%s%s%s%s%" PRId64 "", prefixPath, TD_DIRSEP, "checkpoints", TD_DIRSEP, "checkpoint",
+            (int64_t)-1);
+    qInfo("no chkp id specified, try to restart from received chkp id -1, dir: %s", chkpPath);
+    if (taosIsDir(chkpPath) && isValidCheckpoint(chkpPath)) {
+      if (taosIsDir(defaultPath)) {
+        taosRemoveDir(defaultPath);
+      }
+      taosMkDir(defaultPath);
+      code = copyFiles(chkpPath, defaultPath);
+      if (code != 0) {
+        qError("failed to restart stream backend from %s, reason: %s", chkpPath, tstrerror(TAOS_SYSTEM_ERROR(errno)));
+      } else {
+        qInfo("start to restart stream backend at checkpoint path: %s", chkpPath);
+      }
+    } else {
+      qInfo("failed to start stream backend at %s, reason: %s, restart from default defaultPath dir:%s", chkpPath,
+            tstrerror(TAOS_SYSTEM_ERROR(errno)), defaultPath);
       taosMkDir(defaultPath);
     }
     taosMemoryFree(chkpPath);
