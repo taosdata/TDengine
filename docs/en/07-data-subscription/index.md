@@ -237,10 +237,8 @@ You configure the following parameters when creating a consumer:
 
 |            Parameter            |  Type   | Description                                                 | Remarks                                        |
 | :----------------------------: | :-----: | -------------------------------------------------------- | ------------------------------------------- |
-|        `td.connect.ip`         | string  | Used in establishing a connection;                           |                                             |
-|        `td.connect.user`         | string  | Used in establishing a connection;                           |                                             |
-|        `td.connect.pass`         | string  | Used in establishing a connection;                           |                                             |
-|        `td.connect.port`         | string  | Used in establishing a connection;                           |                                             |
+|        `td.connect.ip`         | string  | TDengine Cloud instance endpoint used in Python, such as "gw.us-central-1.gcp.cloud.tdengine.com";                           |                                             |
+|        `td.connect.token`         | string  | The Cloud instance token used in Python;                           |                                             |
 |           `group.id`           | string  | Consumer group ID; consumers with the same ID are in the same group                        | **Required**. Maximum length: 192.                 |
 |          `client.id`           | string  | Client ID                                                | Maximum length: 192.                             |
 |      `auto.offset.reset`       |  enum   | Initial offset for the consumer group                                     | Specify `earliest`, `latest`, or `none`(default) |
