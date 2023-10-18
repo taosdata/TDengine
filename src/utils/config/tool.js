@@ -42,8 +42,8 @@ export default () => [
     steps: [
       { title: i18n.t("docs.dataout.dump.step1"), dom: "introduction" },
       { title: i18n.t("docs.dataout.dump.step2"), dom: "installation" },
-      { title: i18n.t("docs.dataout.dump.step3"), dom: "run" },
-      { title: i18n.t("docs.dataout.dump.step4"), dom: "configuration-file-parameters-in-detailed" },
+      { title: i18n.t("docs.dataout.dump.step3"), dom: "common-usage-scenarios" },
+      { title: i18n.t("docs.dataout.dump.step4"), dom: "detailed-command-line-parameter-list" },
     ]
   },
   // {
