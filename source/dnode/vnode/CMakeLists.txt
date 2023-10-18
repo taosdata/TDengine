@@ -164,7 +164,6 @@ target_link_libraries(
 if(${TD_LINUX})
 
 if(${BUILD_WITH_S3})
-  MESSAGE("build with s3: ${BUILD_WITH_S3}")
   target_include_directories(
     vnode
 
