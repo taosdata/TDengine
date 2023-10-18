@@ -1349,14 +1349,14 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
 
   SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
   if (!pRequest) {
-    uError("WriteRaw:createRequest error request is null");
+    uError("taos_write_raw_block_with_fields:createRequest error request is null");
     code = terrno;
     goto end;
   }
 
   pRequest->syncQuery = true;
   if (!pRequest->pDb) {
-    uError("WriteRaw:not use db");
+    uError("taos_write_raw_block_with_fields:not use db");
     code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
     goto end;
   }
@@ -1369,7 +1369,7 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
   struct SCatalog* pCatalog = NULL;
   code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
-    uError("WriteRaw: get gatlog error");
+    uError("taos_write_raw_block_with_fields: get gatlog error");
     goto end;
   }
 
@@ -1382,13 +1382,13 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
   SVgroupInfo vgData = {0};
   code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vgData);
   if (code != TSDB_CODE_SUCCESS) {
-    uError("WriteRaw:catalogGetTableHashVgroup failed. table name: %s", tbname);
+    uError("taos_write_raw_block_with_fields:catalogGetTableHashVgroup failed. table name: %s", tbname);
     goto end;
   }
 
   code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
   if (code != TSDB_CODE_SUCCESS) {
-    uError("WriteRaw:catalogGetTableMeta failed. table name: %s", tbname);
+    uError("taos_write_raw_block_with_fields:catalogGetTableMeta failed. table name: %s", tbname);
     goto end;
   }
   //  uError("td23101 0vgId:%d, vgId:%d, name:%s, uid:%"PRIu64, vgData.vgId, pTableMeta->vgId, tbname, pTableMeta->uid);
@@ -1405,13 +1405,13 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
 
   code = rawBlockBindData(pQuery, pTableMeta, pData, NULL, fields, numFields, false);
   if (code != TSDB_CODE_SUCCESS) {
-    uError("WriteRaw:rawBlockBindData failed");
+    uError("taos_write_raw_block_with_fields:rawBlockBindData failed");
     goto end;
   }
 
   code = smlBuildOutput(pQuery, pVgHash);
   if (code != TSDB_CODE_SUCCESS) {
-    uError("smlBuildOutput failed");
+    uError("taos_write_raw_block_with_fields:smlBuildOutput failed");
     goto end;
   }
 
@@ -1438,14 +1438,14 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
   uDebug("taos_write_raw_block called");
   SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
   if (!pRequest) {
-    uError("WriteRaw:createRequest error request is null");
+    uError("taos_write_raw_block:createRequest error request is null");
     code = terrno;
     goto end;
   }
 
   pRequest->syncQuery = true;
   if (!pRequest->pDb) {
-    uError("WriteRaw:not use db");
+    uError("taos_write_raw_block:not use db");
     code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
     goto end;
   }
@@ -1458,7 +1458,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
   struct SCatalog* pCatalog = NULL;
   code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
-    uError("WriteRaw: get gatlog error");
+    uError("taos_write_raw_block: get gatlog error");
     goto end;
   }
 
@@ -1471,13 +1471,13 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
   SVgroupInfo vgData = {0};
   code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vgData);
   if (code != TSDB_CODE_SUCCESS) {
-    uError("WriteRaw:catalogGetTableHashVgroup failed. table name: %s", tbname);
+    uError("taos_write_raw_block:catalogGetTableHashVgroup failed. table name: %s", tbname);
     goto end;
   }
 
   code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
   if (code != TSDB_CODE_SUCCESS) {
-    uError("WriteRaw:catalogGetTableMeta failed. table name: %s", tbname);
+    uError("taos_write_raw_block:catalogGetTableMeta failed. table name: %s", tbname);
     goto end;
   }
   pQuery = smlInitHandle();
@@ -1490,13 +1490,13 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
 
   code = rawBlockBindData(pQuery, pTableMeta, pData, NULL, NULL, 0, false);
   if (code != TSDB_CODE_SUCCESS) {
-    uError("WriteRaw:rawBlockBindData failed");
+    uError("taos_write_raw_block:rawBlockBindData failed");
     goto end;
   }
 
   code = smlBuildOutput(pQuery, pVgHash);
   if (code != TSDB_CODE_SUCCESS) {
-    uError("smlBuildOutput failed");
+    uError("taos_write_raw_block:smlBuildOutput failed");
     goto end;
   }
 
@@ -1518,12 +1518,12 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   SMqRspObj   rspObj = {0};
   SDecoder    decoder = {0};
   STableMeta* pTableMeta = NULL;
-  uDebug("tmqWriteRawDataImpl called");
+  uDebug("writeraw data called");
 
   terrno = TSDB_CODE_SUCCESS;
   SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
   if (!pRequest) {
-    uError("WriteRaw:createRequest error request is null");
+    uError("writeraw data:createRequest error request is null");
     return terrno;
   }
 
@@ -1534,13 +1534,13 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   tDecoderInit(&decoder, data, dataLen);
   code = tDecodeMqDataRsp(&decoder, &rspObj.rsp);
   if (code != 0) {
-    uError("WriteRaw:decode smqDataRsp error");
+    uError("writeraw data:decode smqDataRsp error");
     code = TSDB_CODE_INVALID_MSG;
     goto end;
   }
 
   if (!pRequest->pDb) {
-    uError("WriteRaw:not use db");
+    uError("writeraw data:not use db");
     code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
     goto end;
   }
@@ -1548,7 +1548,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   struct SCatalog* pCatalog = NULL;
   code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
-    uError("WriteRaw: get gatlog error");
+    uError("writeraw data: get gatlog error");
     goto end;
   }
 
@@ -1564,22 +1564,22 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
     goto end;
   }
   pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
-  uDebug("tmqWriteRawDataImpl raw data block num:%d", rspObj.rsp.blockNum);
+  uDebug("writeraw data raw data block num:%d", rspObj.rsp.blockNum);
   while (++rspObj.resIter < rspObj.rsp.blockNum) {
     SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(rspObj.rsp.blockData, rspObj.resIter);
     if (!rspObj.rsp.withSchema) {
-      uError("WriteRaw:no schema, iter:%d", rspObj.resIter);
+      uError("writeraw data:no schema, iter:%d", rspObj.resIter);
       goto end;
     }
 
     const char* tbName = (const char*)taosArrayGetP(rspObj.rsp.blockTbName, rspObj.resIter);
     if (!tbName) {
-      uError("WriteRaw: tbname is null");
+      uError("writeraw data: tbname is null");
       code = TSDB_CODE_TMQ_INVALID_MSG;
       goto end;
     }
 
-    uDebug("tmqWriteRawDataImpl raw data tbname:%s", tbName);
+    uDebug("writeraw data raw data tbname:%s", tbName);
     SName pName = {TSDB_TABLE_NAME_T, pRequest->pTscObj->acctId, {0}, {0}};
     strcpy(pName.dbname, pRequest->pDb);
     strcpy(pName.tname, tbName);
@@ -1591,14 +1591,14 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
 //      continue;
 //    }
     if (code != TSDB_CODE_SUCCESS) {
-      uError("WriteRaw:catalogGetTableMeta failed. table name: %s", tbName);
+      uError("writeraw data:catalogGetTableMeta failed. table name: %s", tbName);
       goto end;
     }
 
     SVgroupInfo vg;
     code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vg);
     if (code != TSDB_CODE_SUCCESS) {
-      uError("WriteRaw:catalogGetTableHashVgroup failed. table name: %s", tbName);
+      uError("writeraw data:catalogGetTableHashVgroup failed. table name: %s", tbName);
       goto end;
     }
 
@@ -1620,7 +1620,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
     code = rawBlockBindData(pQuery, pTableMeta, pRetrieve->data, NULL, fields, pSW->nCols, true);
     taosMemoryFree(fields);
     if (code != TSDB_CODE_SUCCESS) {
-      uError("WriteRaw:rawBlockBindData failed");
+      uError("writeraw data:rawBlockBindData failed");
       goto end;
     }
     taosMemoryFreeClear(pTableMeta);
@@ -1628,7 +1628,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
 
   code = smlBuildOutput(pQuery, pVgHash);
   if (code != TSDB_CODE_SUCCESS) {
-    uError("smlBuildOutput failed");
+    uError("writeraw data:smlBuildOutput failed");
     goto end;
   }
 
@@ -1653,12 +1653,12 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   SDecoder       decoder = {0};
   STableMeta*    pTableMeta = NULL;
   SVCreateTbReq* pCreateReqDst = NULL;
-  uDebug("tmqWriteRawMetaDataImpl called");
+  uDebug("writeraw meta data called");
 
   terrno = TSDB_CODE_SUCCESS;
   SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
   if (!pRequest) {
-    uError("WriteRaw:createRequest error request is null");
+    uError("writeraw meta data:createRequest error request is null");
     return terrno;
   }
 
@@ -1669,13 +1669,13 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   tDecoderInit(&decoder, data, dataLen);
   code = tDecodeSTaosxRsp(&decoder, &rspObj.rsp);
   if (code != 0) {
-    uError("WriteRaw:decode smqDataRsp error");
+    uError("writeraw meta data:decode smqDataRsp error");
     code = TSDB_CODE_INVALID_MSG;
     goto end;
   }
 
   if (!pRequest->pDb) {
-    uError("WriteRaw:not use db");
+    uError("writeraw meta data:not use db");
     code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
     goto end;
   }
@@ -1683,7 +1683,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   struct SCatalog* pCatalog = NULL;
   code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
-    uError("WriteRaw: get gatlog error");
+    uError("writeraw meta data: get gatlog error");
     goto end;
   }
 
@@ -1700,22 +1700,22 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   }
   pVgHash = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
 
-  uDebug("tmqWriteRawMetaDataImpl raw data block num:%d", rspObj.rsp.blockNum);
+  uDebug("writeraw meta data raw data block num:%d", rspObj.rsp.blockNum);
   while (++rspObj.resIter < rspObj.rsp.blockNum) {
     SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(rspObj.rsp.blockData, rspObj.resIter);
     if (!rspObj.rsp.withSchema) {
-      uError("WriteRaw:no schema, iter:%d", rspObj.resIter);
+      uError("writeraw meta data:no schema, iter:%d", rspObj.resIter);
       goto end;
     }
 
     const char* tbName = (const char*)taosArrayGetP(rspObj.rsp.blockTbName, rspObj.resIter);
     if (!tbName) {
-      uError("WriteRaw: tbname is null");
+      uError("writeraw meta data: tbname is null");
       code = TSDB_CODE_TMQ_INVALID_MSG;
       goto end;
     }
 
-    uDebug("tmqWriteRawMetaDataImpl raw data tbname:%s\n", tbName);
+    uDebug("writeraw meta data raw data tbname:%s\n", tbName);
     SName pName = {TSDB_TABLE_NAME_T, pRequest->pTscObj->acctId, {0}, {0}};
     strcpy(pName.dbname, pRequest->pDb);
     strcpy(pName.tname, tbName);
@@ -1731,13 +1731,13 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       if (tDecodeSVCreateTbReq(&decoderTmp, &pCreateReq) < 0) {
         tDecoderClear(&decoderTmp);
         tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
-        uError("WriteRaw: tDecodeSVCreateTbReq error");
+        uError("writeraw meta data: tDecodeSVCreateTbReq error");
         code = TSDB_CODE_TMQ_INVALID_MSG;
         goto end;
       }
 
       if (pCreateReq.type != TSDB_CHILD_TABLE) {
-        uError("WriteRaw:pCreateReq.type != TSDB_CHILD_TABLE. table name: %s", tbName);
+        uError("writeraw meta data:pCreateReq.type != TSDB_CHILD_TABLE. table name: %s", tbName);
         code = TSDB_CODE_TSC_INVALID_VALUE;
         tDecoderClear(&decoderTmp);
         tDestroySVCreateTbReq(&pCreateReq, TSDB_MSG_FLG_DECODE);
@@ -1757,7 +1757,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     SVgroupInfo vg;
     code = catalogGetTableHashVgroup(pCatalog, &conn, &pName, &vg);
     if (code != TSDB_CODE_SUCCESS) {
-      uError("WriteRaw:catalogGetTableHashVgroup failed. table name: %s", tbName);
+      uError("writeraw meta data:catalogGetTableHashVgroup failed. table name: %s", tbName);
       goto end;
     }
 
@@ -1771,7 +1771,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
 //      continue;
 //    }
     if (code != TSDB_CODE_SUCCESS) {
-      uError("WriteRaw:catalogGetTableMeta failed. table name: %s", tbName);
+      uError("writeraw meta data:catalogGetTableMeta failed. table name: %s", tbName);
       goto end;
     }
 
@@ -1798,7 +1798,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     code = rawBlockBindData(pQuery, pTableMeta, pRetrieve->data, pCreateReqDst, fields, pSW->nCols, true);
     taosMemoryFree(fields);
     if (code != TSDB_CODE_SUCCESS) {
-      uError("WriteRaw:rawBlockBindData failed");
+      uError("writeraw meta data:rawBlockBindData failed");
       goto end;
     }
     pCreateReqDst = NULL;
@@ -1807,7 +1807,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
 
   code = smlBuildOutput(pQuery, pVgHash);
   if (code != TSDB_CODE_SUCCESS) {
-    uError("smlBuildOutput failed");
+    uError("writeraw meta data:smlBuildOutput failed");
     goto end;
   }
 
