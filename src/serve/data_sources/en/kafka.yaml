@@ -93,6 +93,52 @@ groups:
             - Latest
             - ByTime
         value: Earliest
+      - name: fetch_max_wait_time
+        display: fetch_max_wait_time
+        description: >
+          Sets the maximum time in milliseconds to wait for insufficient data to become available when fetching messages.(e.g. fetch_max_wait_time=500ms)
+          
+          default is 100ms.
+        required: false
+        hint:
+          type: duration
+      - name: fetch_min_bytes
+        display: fetch_min_bytes
+        description: >
+          Sets the minimum number of bytes of available data to wait for as long as specified by KafkaClient::set_fetch_max_wait_time when fetching messages.
+
+          By setting higher values in combination with the timeout the consumer can tune for throughput and trade a little additional latency for reading only large chunks of data (e.g. setting MaxWaitTime to 100 ms and setting MinBytes to 64k would allow the server to wait up to 100ms to try to accumulate 64k of data before responding).
+          
+          default is 4096.
+        required: false
+        hint:
+          type: int
+      - name: fetch_max_bytes_per_partition
+        display: fetch_max_bytes_per_partition
+        description: >
+          Sets the default maximum number of bytes to obtain from a single kafka partition when fetching messages.
+
+          This basically determines the maximum message size this client will be able to fetch. If a topic partition contains a message larger than this specified number of bytes, the server will not deliver it.
+
+          Note that this setting is related to a single partition. The overall potential data size in a fetch messages response will thus be determined by the number of partitions in the fetch messages request times this “max bytes per partitions.”
+
+          This client will use this setting by default for all queried partitions, however, fetch_messages does allow you to override this setting for a particular partition being queried.
+          
+          default is 32 * 1024.
+        required: false
+        hint:
+          type: int
+      - name: fetch_crc_validation
+        display:
+        description: >
+          Specifies whether the to perform CRC validation on fetched messages.
+
+          This ensures detection of on-the-wire or on-disk corruption to fetched messages. This check adds some overhead, so it may be disabled in cases seeking extreme performance.
+          
+          default is true.
+        required: false
+        hint:
+          type: bool
       - name: offset_storage
         display: Offset Storage
         description: >
@@ -110,7 +156,33 @@ groups:
           choices:
             - Zookeeper
             - Kafka
-
+      - name: retry_max_bytes_limit
+        display: retry_max_bytes_limit
+        description: >
+          Specifies the upper bound of data bytes to allow fetching from a kafka partition when retrying a fetch request due to a too big message in the partition.
+          
+          default is 0.
+        required: false
+        hint:
+          type: int
+      - name: connection_idle_timeout
+        display: connection_idle_timeout
+        description: >
+          Specifies the timeout for idle connections.
+          
+          default is 540000ms
+        required: false
+        hint:
+          type: duration
+      - name: client_id
+        display: client_id
+        description: >
+          Specifies a client_id to be sent along every request to Kafka brokers. 
+          
+          default is None.
+        required: false
+        hint:
+          type: str
 parser:
   display: Kafka Message Parser
   description: |

@@ -92,6 +92,52 @@ groups:
             - Earliest
             - Latest
             - ByTime
+      - name: fetch_max_wait_time
+        display: fetch_max_wait_time
+        description: >
+          设置获取消息时等待数据不足的最长时间（以毫秒为单位）。
+
+          默认值为 100ms
+        required: false
+        hint:
+          type: duration
+      - name: fetch_min_bytes
+        display: fetch_min_bytes
+        description: >
+          设置获取消息时等待 KafkaClient::set_fetch_max_wait_time 指定的可用数据的最小字节数。
+
+          通过结合超时设置更高的值，消费者可以调整吞吐量并牺牲一点额外的延迟来只读取大块数据（例如，将 MaxWaitTime 设置为 100 ms，将 MinBytes 设置为 64k 将允许服务器等待最多 100 ms尝试在响应之前累积 64k 数据）。
+          
+          默认值为 4096。
+        required: false
+        hint:
+          type: int
+      - name: fetch_max_bytes_per_partition
+        display: fetch_max_bytes_per_partition
+        description: >
+          设置获取消息时从单个 kafka 分区获取的默认最大字节数。
+
+          这基本上决定了该客户端能够获取的最大消息大小。如果主题分区包含的消息大于指定的字节数，服务器将不会传送它。
+
+          请注意，此设置与单个分区相关。因此，获取消息响应中的总体潜在数据大小将由获取消息请求中的分区数量乘以“每个分区的最大字节数”来确定。
+
+          默认情况下，此客户端将为所有查询的分区使用此设置，但是，fetch_messages 确实允许您为正在查询的特定分区覆盖此设置。
+          
+          默认值为 32 * 1024。
+        required: false
+        hint:
+          type: int
+      - name: fetch_crc_validation
+        display:
+        description: >
+          指定是否对获取的消息执行 CRC 验证。
+
+          这可确保检测到所获取消息的在线或磁盘损坏。此检查会增加一些开销，因此在寻求极端性能的情况下可能会禁用它。
+          
+          默认值为 true。
+        required: false
+        hint:
+          type: bool
       - name: offset_storage
         display: Offset Storage
         description: >
@@ -109,6 +155,33 @@ groups:
           choices:
             - Zookeeper
             - Kafka
+      - name: retry_max_bytes_limit
+        display:
+        description: >
+          指定数据字节的上限，以允许在由于分区中的消息太大而重试提取请求时从 kafka 分区中提取数据。
+          
+          默认值是 0。
+        required: false
+        hint:
+          type: int
+      - name: connection_idle_timeout
+        display: connection_idle_timeout
+        description: >
+          指定空闲连接的超时时间。
+          
+          默认值是 540000ms。
+        required: false
+        hint:
+          type: duration
+      - name: client_id
+        display: client_id
+        description: >
+          指定要随每个请求发送到 Kafka 代理的 client_id。
+          
+          默认是 None。
+        required: false
+        hint:
+          type: str
 parser:
   display: Payload 解析
   description: |
