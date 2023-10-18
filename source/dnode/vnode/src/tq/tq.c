@@ -1196,7 +1196,11 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       pStreamTask->status.keepTaskStatus = status;
       pStreamTask->status.taskStatus = TASK_STATUS__HALT;
 
+      // wal scan not start yet, reset it to be the start position
       nextProcessedVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
+      if (nextProcessedVer == -1) {
+        nextProcessedVer = pStreamTask->dataRange.range.maxVer + 1;
+      }
 
       tqDebug("s-task:%s level:%d nextProcessedVer:%" PRId64 ", sched-status:%d is halt by fill-history task:%s",
               pStreamTask->id.idStr, pStreamTask->info.taskLevel, nextProcessedVer, pStreamTask->status.schedStatus,
