@@ -34,6 +34,13 @@ else
     cd ../../../debug
 fi
 
+set -e
+
+taosd >>/dev/null 2>&1 &
+taosadapter >>/dev/null 2>&1
+
+sleep 10
+
 ctest -j8
 ret=$?
 exit $ret
