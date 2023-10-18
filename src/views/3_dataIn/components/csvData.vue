@@ -125,7 +125,7 @@ export default {
   filter: {},
   data() {
     return {
-      language: window.navigator.language,
+      language:  localStorage.getItem('local_language'),
       showConfig: false,
       csvParserConf: {},
       uploadData: {

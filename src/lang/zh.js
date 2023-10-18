@@ -1,3 +1,4 @@
+
 let agreementUrl = process.env.VUE_APP_AGREEMENT_URL;
 let oem=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_NAME:'TDengine'
@@ -6,7 +7,7 @@ process.env.VUE_APP_CUS_NAME !== "TDengine"?'':'TDengine'
 let taosname=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos'
 let agenturl=localStorage.getItem('agent_version')?localStorage.getItem('agent_version'):'latest'
-const DocsUrl=window.navigator.language.includes('zh')?'https://docs.taosdata.com':'https://docs.tdengine.com'
+const DocsUrl=localStorage.getItem('local_language')?.includes('zh')?'https://docs.taosdata.com':'https://docs.tdengine.com'
 export default {
   //通用部分
 
@@ -1220,6 +1221,21 @@ Windows： <code>C:\\Program Files\\taosX\\config</code>`,
         step2desc: "请按照下面的命令通过命令行工具 curl 往数据库 test 的表 d1001 中插入数据：",
         step3: "查询",
         step3desc: "请按照下面的命令通过命令行工具 curl 从数据库 information_schema 的表 ins_databases 中查询数据：",
+      },
+      r: {
+        step1: '安装RJDBC库',
+        step11desc: '首先该库需要依赖Java环境，请先从Oracle官方网站下载适合您操作系统的JDK，并按照安装指南进行安装。',
+        step12desc: '然后在 R 控制台中执行以下命令来安装RJDBC库：',
+        step13desc: '最后到下载地址去下载最新的 ',
+        step13desc1: 'TDengine JDBC 驱动程序',
+        step13desc2: '到本地计算机的一个合适位置：',
+        step2: '配置',
+        step21desc: '然后在 R 脚本中加载 RJDBC 和其他必要的库：',
+        step22desc: '最后设置 JDBC 驱动程序和 TDengine JDBC URL：',
+        step23desc: '注意：请替换“[path]”为实际 TDengine JDBC 驱动程序下载到的系统绝对路径，同时替换“taos-jdbcdriver-X.X.X-dist.jar”为实际下载的驱动程序完整文件名称。',
+        step3: '建立连接',
+        step31desc: '首先按照下面程序加载 JDBC 驱动程序：',
+        step32desc: '然后您可以执行下面程序创建和 TDengine Cloud 实例连接：'
       },
     },
     party: {

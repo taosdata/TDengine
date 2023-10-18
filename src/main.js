@@ -37,11 +37,16 @@ Vue.prototype.$BusOnAndAutoOff = BusOnAndAutoOff;
 export function getBrowserLang() {
   const nav = window.navigator;
   const browserLang = (nav.language || nav.browserLanguage || '').toLowerCase();
+  console.log(browserLang,'browserLang');
   if (browserLang.includes('zh')) return 'zh';
   if (browserLang.includes('en')) return 'en';
   return 'en';
 }
-setLang(getBrowserLang())
+
+if(!localStorage.getItem('local_language')){
+  setLang(getBrowserLang())
+}
+
 Vue.use(VueDOMPurifyHTML, {
   default: {
     ALLOWED_ATTR: ['target', 'href', 'title', 'rel']

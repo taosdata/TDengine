@@ -9,23 +9,23 @@
           }}</el-button>
         </div>
         <el-table style="margin-top: 20px" size="mini" :data="streamList">
-          <el-table-column :label="$t('stream.streamName')" width="200" prop="stream_name"></el-table-column>
-          <el-table-column :label="$t('createTime')" width="200" prop="create_time">
+          <el-table-column :label="$t('stream.streamName')" width="200" prop="stream_name" show-overflow-tooltip></el-table-column>
+          <el-table-column :label="$t('createTime')" width="210" prop="create_time" show-overflow-tooltip>
             <span slot-scope="scope">{{ parsinginZone(scope.row.create_time) }}</span>
           </el-table-column>
-          <el-table-column label="sql" min-width="200" prop="sql">
+          <el-table-column label="sql" min-width="200" prop="sql" show-overflow-tooltip>
             <template slot-scope="scope">
               <pre v-highlight class="nowrap sql-code pre-code" slot="reference">
           <code class="language-sql" style="overflow:hidden">{{ scope.row.sql }} </code>
         </pre>
             </template>
           </el-table-column>
-          <el-table-column width="100" :label="$t('status')" prop="status"></el-table-column>
-          <el-table-column width="120" :label="$t('stream.sourceDB')" prop="source_db"></el-table-column>
-          <el-table-column width="120" :label="$t('stream.targetDB')" prop="target_db"></el-table-column>
-          <el-table-column width="120" :label="$t('stream.targetTable')" prop="target_table"></el-table-column>
-          <el-table-column width="140" :label="watermarkdetail" prop="watermark"></el-table-column>
-          <el-table-column width="100" :label="$t('stream.trigger')" prop="trigger"></el-table-column>
+          <el-table-column width="100" :label="$t('status')" prop="status" show-overflow-tooltip></el-table-column>
+          <el-table-column width="120" :label="$t('stream.sourceDB')" prop="source_db" show-overflow-tooltip></el-table-column>
+          <el-table-column width="120" :label="$t('stream.targetDB')" prop="target_db" show-overflow-tooltip></el-table-column>
+          <el-table-column width="120" :label="$t('stream.targetTable')" prop="target_table" show-overflow-tooltip></el-table-column>
+          <el-table-column width="140" :label="watermarkdetail" prop="watermark" show-overflow-tooltip></el-table-column>
+          <el-table-column width="110" :label="$t('stream.trigger')" prop="trigger" show-overflow-tooltip></el-table-column>
 
           <el-table-column :label="$t('operate')" width="80">
             <template slot-scope="scope">

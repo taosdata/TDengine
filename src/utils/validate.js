@@ -123,7 +123,7 @@ export function validDir(arg) {
 export function validPath(arg) {
   if((String.raw`${arg}`).includes('\\')){//windows路径
     arg=(String.raw`${arg}`).replace(/\\/g,'\\\\')
-    return /^[a-zA-Z]:(\/|\\)[A-Za-z0-9_\(/|\\)]*$/g.test(arg)
+    return /^[a-zA-Z]:(\/|\\)[A-Za-z0-9_]*/g.test(arg)
   }else{
     return /^(\/|\\)[A-Za-z0-9_\(/|\\)]*$/g.test(arg)
   }

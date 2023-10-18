@@ -33,11 +33,11 @@ export default {
   data() {
     return {
       isCollapse: false,
-      language: window.navigator.language,
+      language:  localStorage.getItem('local_language'),
       permission_routes: [
           {
             path: "/dashboard",
-            title: i18n.t("route.board"),
+            title: "route.board",
             icon: "dashboard",
             meta: {
               show: flag ? false : true,
@@ -46,7 +46,7 @@ export default {
           },
           {
             path: "/dataIn",
-            title: i18n.t("route.dataIn"),
+            title: "route.dataIn",
             icon: "dataIn",
             meta: {
               show: flag ? false : true, //目前oem暂时不支持datain，后续根据taosx修改需要开放
@@ -54,7 +54,7 @@ export default {
           },
           {
             path: "/explorer",
-            title: i18n.t("route.console"),
+            title: "route.console",
             icon: "explorer",
             meta: {
               show: true,
@@ -71,7 +71,7 @@ export default {
           },
           // {
           //   path: "/dataOut",
-          //   title: i18n.t("route.dataOut"),
+          //   title: "route.dataOut",
           //   icon: "dataOut",
           //   meta: {
           //     show: flag ? false : true,
@@ -79,7 +79,7 @@ export default {
           // },
           // {
           //   path: "/visualize",
-          //   title: i18n.t("route.visualize"),
+          //   title: "route.visualize",
           //   icon: "visualize",
           //   meta: {
           //     show: flag ? false : true,
@@ -87,7 +87,7 @@ export default {
           // },
           {
             path: "/stream",
-            title: i18n.t("route.stream"),
+            title: "route.stream",
             icon: "stream",
             role: ["1"],
             meta: {
@@ -96,7 +96,7 @@ export default {
           },
           {
             path: "/topic",
-            title: i18n.t("route.topic"),
+            title: "route.topic",
             icon: "topic",
             role: ["1"],
             meta: {
@@ -104,8 +104,17 @@ export default {
             },
           },
           {
+            path: "/programming",
+            title: "route.programming",
+            icon: "programming",
+            parting: false,
+            meta: {
+              show: flag ? false : true,
+            },
+          },
+          {
             path: "/tools",
-            title: i18n.t("route.tool"),
+            title: "route.tool",
             icon: "tool",
             parting: true,
             meta: {
@@ -116,7 +125,7 @@ export default {
 
           {
             path: "/management",
-            title: i18n.t("route.admin"),
+            title: "route.admin",
             icon: "users",
             parting: false,
             meta: {
@@ -158,6 +167,7 @@ export default {
         }
         return item;
       });
+      console.log(this.permission_routes,'this.permission_routes');
     }
   },
 };
