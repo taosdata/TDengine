@@ -155,7 +155,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
          pMsg->vgId, pMsg->prevLogIndex + 1, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex,
          pEntry->term);
 
-  if (ths->fsmState != SYNC_FSM_STATE_NORMAL) {
+  if (ths->fsmState == SYNC_FSM_STATE_INCOMPLETE) {
     pReply->fsmState = ths->fsmState;
     sWarn("vgId:%d, unable to accept, due to incomplete fsm state. index:%" PRId64, ths->vgId, pEntry->index);
     syncEntryDestroy(pEntry);
