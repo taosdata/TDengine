@@ -136,6 +136,7 @@ TdFilePtr streamOpenFile(char* path, char* name, int32_t opt) {
   char fullname[256] = {0};
 
   STREAM_ROCKSDB_BUILD_FULLNAME(path, name, fullname);
+  qInfo("stream open file %s", fullname);
   return taosOpenFile(fullname, opt);
 }
 
@@ -399,14 +400,9 @@ _NEXT:
          (int)taosArrayGetSize(pHandle->pDbSnapSet), pHandle->currIdx);
 
   uint8_t* buf = taosMemoryCalloc(1, sizeof(SStreamSnapBlockHdr) + kBlockSize);
-  int64_t  nread = taosPReadFile(pHandle->fd, buf + sizeof(SStreamSnapBlockHdr), kBlockSize, pSnapFile->offset);
+  int64_t  nread = taosPReadFile(pSnapFile->fd, buf + sizeof(SStreamSnapBlockHdr), kBlockSize, pSnapFile->offset);
 
-  qInfo("%s read impl %d, file name: %s", STREAM_STATE_TRANSFER, (int)nread, item->name);
-  if (nread == 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    qError("%s snap failed to read snap, file name:%s, type:%d,reason:%s", STREAM_STATE_TRANSFER, item->name,
-           item->type, tstrerror(code));
-  } else if (nread == -1) {
+  if (nread == -1) {
     code = TAOS_SYSTEM_ERROR(terrno);
     qError("%s snap failed to read snap, file name:%s, type:%d,reason:%s", STREAM_STATE_TRANSFER, item->name,
            item->type, tstrerror(code));
