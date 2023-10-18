@@ -8,7 +8,7 @@ use futures_util::StreamExt;
 use taos::{AsyncBindable, AsyncQueryable, AsyncTBuilder, Dsn, Stmt, TaosBuilder};
 use taosx_core::{ConnectorLicense, IpcStreamWorker, Parser, METRICS_TIME_START};
 use tonic::{Status, Streaming};
-use tracing::Instrument;
+use tracing::{debug, Instrument};
 
 use crate::serve::controller::{transferred::ConnectorTransferred, TaskControllerRef, TaskDetail};
 
@@ -80,6 +80,7 @@ impl PutStream {
             .await?
             .ok_or_else(|| anyhow::format_err!("Invalid IPC stream"))?;
         if let arrow_flight::decode::DecodedPayload::Schema(schema) = schema.payload {
+            debug!(schema = ?schema, "parsing put stream schema");
             let taos = pool.get().await?;
             let from_dsn: Dsn = task.from.parse()?;
             let to_dsn: Dsn = task.to.parse()?;
@@ -170,6 +171,7 @@ impl PutStream {
                     license,
                     None,
                     span.clone(),
+                    Some(task.id),
                 )
                 .await?;
                 let parser: Option<Parser> = task
@@ -180,7 +182,8 @@ impl PutStream {
                 loop {
                     match rx.recv_async().await {
                         Ok(record) => {
-                            tracing::info!("Start writing records: {record:?}");
+                            tracing::info!(columns = ?record.columns(), num.rows = record.num_rows(), num.columns = record.num_columns(),
+                                "Start writing records");
                             if let Err(err) = worker
                                 .process_record(&mut stmt, record, parser.as_ref())
                                 .await
@@ -200,7 +203,7 @@ impl PutStream {
             }
             tokio::spawn(
                 async move {
-                    ipc_stream_writer(
+                    if let Err(err) = ipc_stream_writer(
                         task,
                         &pool,
                         lock,
@@ -213,6 +216,9 @@ impl PutStream {
                     )
                     .in_current_span()
                     .await
+                    {
+                        tracing::warn!("IPC stream writer stopped, err:{:?}", err);
+                    }
                 }
                 .instrument(span_clone),
             );
@@ -248,6 +254,10 @@ impl PutStream {
                                         .recv_async()
                                         .await
                                         .map_err(|err| {
+                                            tracing::warn!(
+                                                "IPC stream worker stopped, err:{}",
+                                                err.to_string()
+                                            );
                                             FlightError::from_external_error(Box::new(err))
                                         })
                                         .and_then(|res| {
@@ -264,7 +274,10 @@ impl PutStream {
                             }
                         }
                     }
-                    Err(err) => Some(Err(err)),
+                    Err(err) => {
+                        tracing::warn!("Flight error: {:#}", err);
+                        Some(Err(err))
+                    }
                 };
 
                 if let Some(item) = item {

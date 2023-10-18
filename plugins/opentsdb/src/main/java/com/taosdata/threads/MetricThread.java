@@ -92,7 +92,7 @@ public class MetricThread implements Runnable {
                     continue;
                 }
                 // 更新当前时间
-                this.now = new Date(System.currentTimeMillis() - performanceConfig.getDelay());
+                this.now = new Date(System.currentTimeMillis() - performanceConfig.getDelay() * 1000);
                 // 处理新增的metric
                 additionalMetric();
                 // 下一个时间段，英文逗号分割

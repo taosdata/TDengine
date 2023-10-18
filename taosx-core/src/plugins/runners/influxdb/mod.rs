@@ -1,6 +1,7 @@
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
+
 use itertools::Itertools;
 use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
@@ -60,12 +61,12 @@ pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
 
 /// InfluxDB DSN example: "influxdb://127.0.0.1:8086/?token=abc&orgId=def&mode=normal&beginTime=2023-05-01&endTime="
 #[instrument(
-skip_all,
-fields(
-x.influxdb.source = % mask_dsn(& from),
-x.influxdb.sink = % mask_dsn(& to),
-x.influxdb.agent = with_agent.as_ref().map(| a | a.0),
-)
+    skip_all,
+    fields(
+        x.influxdb.source = % mask_dsn(& from),
+        x.influxdb.sink = % mask_dsn(& to),
+        x.influxdb.agent = with_agent.as_ref().map(| a | a.0),
+    )
 )]
 pub async fn influxdb_to_taos(
     from: Dsn,
@@ -77,6 +78,7 @@ pub async fn influxdb_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    breakpoints: Option<String>,
 ) -> anyhow::Result<()> {
     let jar_path = influxdb_jar_path();
     if !jar_path.exists() {
@@ -242,7 +244,6 @@ pub async fn influxdb_to_taos(
 
 pub async fn influxdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     let c = ConnectionConfig::from_dsn(&dsn)?;
-
     // 连接器路径
     let connector_path = influxdb_jar_path();
     // startup the connector
@@ -377,8 +378,13 @@ async fn validate_source_influxdb(
             .with_context(|| "Start InfluxDB collector error")?;
     }
     if output.status.success() {
-        let result = String::from_utf8(output.stdout.clone()).unwrap_or(String::from("{}"));
-        let result: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let result: serde_json::Value =
+            serde_json::from_slice(&output.stdout).with_context(|| {
+                format!(
+                    "Deserialize influxdb validation result error: {}",
+                    String::from_utf8_lossy(&output.stdout)
+                )
+            })?;
         // 组装结果
         Ok(DataSourceValidation {
             valid: result["valid"].as_bool().unwrap_or(false),

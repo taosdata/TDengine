@@ -276,6 +276,32 @@ fn build_consumer(dsn: &Dsn) -> anyhow::Result<Consumer> {
     // offset_storage: use Kafka as Default
     builder = builder.with_offset_storage(Some(GroupOffsetStorage::Kafka));
 
+    if config.fetch_max_wait_time.is_some() {
+        builder = builder.with_fetch_max_wait_time(config.fetch_max_wait_time.unwrap());
+    }
+    if config.fetch_min_bytes.is_some() {
+        builder = builder.with_fetch_min_bytes(config.fetch_min_bytes.unwrap());
+    }
+    if config.fetch_max_bytes_per_partition.is_some() {
+        builder = builder
+            .with_fetch_max_bytes_per_partition(config.fetch_max_bytes_per_partition.unwrap());
+    }
+    if config.fetch_crc_validation.is_some() {
+        builder = builder.with_fetch_crc_validation(config.fetch_crc_validation.unwrap());
+    }
+    if config.offset_storage.is_some() {
+        builder = builder.with_offset_storage(config.offset_storage);
+    }
+    if config.retry_max_bytes_limit.is_some() {
+        builder = builder.with_retry_max_bytes_limit(config.retry_max_bytes_limit.unwrap());
+    }
+    if config.connection_idle_timeout.is_some() {
+        builder = builder.with_connection_idle_timeout(config.connection_idle_timeout.unwrap());
+    }
+    if config.client_id.is_some() {
+        builder = builder.with_client_id(config.client_id.unwrap());
+    }
+
     let consumer = builder.create()?;
     Ok(consumer)
 }

@@ -120,7 +120,7 @@ datasets:
     params:
       - name: table_primary_key
         display: Primary Key
-        description: 
+        description:
         required: true
         value: original_ts
         hint:

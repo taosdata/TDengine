@@ -132,7 +132,6 @@ func (r *reader) connect(ctx context.Context) error {
 	}
 
 	r.state = opcua.Connected
-	//logger.InfoF("## create reader %p and connected to opc ua server", "reader", r)
 	return nil
 }
 
@@ -587,7 +586,7 @@ func (r *reader) getAllNodes(ctx context.Context) (nodes []common.Point, err err
 		return nil, err
 	}
 
-	rootId, err := ua.ParseNodeID("i=84") // root node
+	rootId, err := ua.ParseNodeID("i=85") // objects node
 	if err != nil {
 		return nil, err
 	}
@@ -605,6 +604,7 @@ func (r *reader) browse(ctx context.Context, root *opcua.Node) (points []common.
 
 	//pointMap := make(map[string]common.Point)
 	nodeMap := make(map[string]*opcua.Node)
+	browsedNodes := make(map[string]struct{})
 
 BK:
 	for {
@@ -634,6 +634,11 @@ BK:
 		}
 
 		for _, n := range nodes {
+			nodeID := n.String()
+			if _, ok := browsedNodes[nodeID]; ok {
+				continue
+			}
+			browsedNodes[nodeID] = struct{}{}
 			l.PushBack(n)
 		}
 	}

@@ -91,5 +91,4 @@ async fn main() -> Result<()> {
         // }
         ms += 1;
     }
-    Ok(())
 }

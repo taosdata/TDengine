@@ -99,6 +99,7 @@ pub struct TaskOpts {
     pub with_agent: Option<(i64, String, String)>,
     // pub port_pool: OnceCell<PortPool>
     pub offsets: Arc<DashMap<String, Vec<Assignment>>>,
+    pub breakpoints: Option<String>,
     pub transferred: Option<Arc<Transferred>>,
     pub span: tracing::Span,
     pub task_id: Option<String>,
@@ -135,6 +136,7 @@ impl TaskOpts {
             cancel,
             with_agent,
             // port_pool,
+            breakpoints,
             offsets,
             transferred,
             span,
@@ -313,6 +315,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
+                        breakpoints.clone(),
                     )
                     .await?;
                 }

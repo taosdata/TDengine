@@ -1,6 +1,7 @@
-use crate::runners::config::PerformanceConfig;
 use itertools::Itertools;
 use taos::Dsn;
+
+use crate::runners::config::PerformanceConfig;
 
 pub const INFLUXDB_V1: [&str; 2] = ["1.7", "1.8"];
 pub const INFLUXDB_V2: [&str; 8] = ["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6", "2.7"];
@@ -8,20 +9,13 @@ pub const INFLUXDB_V2: [&str; 8] = ["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2
 #[derive(Debug, serde::Serialize)]
 pub struct InfluxdbConfig {
     // the datasource config
-    pub connect: ConnectionConfig,
+    pub influx: ConnectionConfig,
     // the addr for connector to agent
-    taosx: Option<TaosxConfig>,
+    pub taosx: Option<TaosxConfig>,
     // the task config
-    task: Option<TaskConfig>,
+    pub task: Option<TaskConfig>,
     // the performance config
     pub performance: Option<PerformanceConfig>,
-
-    // others
-    #[serde(skip)]
-    #[allow(dead_code)]
-    pub td_database: String,
-    #[serde(skip)]
-    pub ipc_stream: String,
 }
 
 impl InfluxdbConfig {
@@ -49,12 +43,10 @@ impl InfluxdbConfig {
         let ipc_stream = format!("127.0.0.1:{ipc}");
 
         Ok(Self {
-            connect,
+            influx: connect,
             taosx: Some(taosx),
             task: Some(task),
             performance: Some(performance),
-            td_database,
-            ipc_stream,
         })
     }
 }
@@ -128,7 +120,6 @@ impl ConnectionConfig {
 
         Ok(influx)
     }
-
     fn parse_url(dsn: &Dsn) -> anyhow::Result<String> {
         let host = dsn
             .addresses
@@ -204,16 +195,18 @@ impl TaskConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::str::FromStr;
+
     use taos::Dsn;
+
+    use super::*;
 
     #[test]
     fn test_influxdb_config_from_dsn() {
-        let dsn = Dsn::from_str("influxdb://").unwrap();
+        let dsn = Dsn::from_str("invalid://").unwrap();
         let config = InfluxdbConfig::new(dsn, "td".to_string(), 0);
         assert!(config.is_err());
-        assert_eq!("invalid driver, ", config.unwrap_err().to_string());
+        assert_eq!("invalid driver: invalid", config.unwrap_err().to_string());
     }
 
     #[test]
@@ -239,7 +232,7 @@ mod tests {
         let dsn = Dsn::from_str(
             "influxdb://?bucket=abc&beginTime=2023-11-11T12:00:00Z&measurements=m1,m2,m3",
         )
-        .unwrap();
+            .unwrap();
         let config = TaskConfig::from_dsn(&dsn).unwrap();
         assert_eq!("normal", config.mode);
         assert_eq!("abc", config.bucket);
