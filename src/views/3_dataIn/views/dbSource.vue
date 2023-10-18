@@ -25,7 +25,8 @@
 import DataSource from "./dataSource.vue";
 import DbSourceUI from "./dbSourceUI.vue";
 import OpcUI from "./opcUI.vue";
-import { getUIData } from "@/api/explorer/datain";
+
+import { getUIData, getTask } from "@/api/explorer/datain";
 import constparser from "./mqttparser.json";
 import constOpc from "./opcconfig.json";
 import { deepClone } from "@/utils";
@@ -35,7 +36,7 @@ export default {
   components: {
     dbsource: DataSource,
     ui: DbSourceUI,
-    opcui: OpcUI
+    opcui: OpcUI,
   },
   data() {
     return {
@@ -66,15 +67,15 @@ export default {
   },
   methods: {
     //设置编辑时候的数据
-    setEditData(data){
-      this.uidata=deepClone(data)
+    setEditData(data) {
+      this.uidata = deepClone(data);
     },
     //回显opc的数据
     echoOpcData() {
       let opcconfigData = this.uidata[0].datasets.categories.filter(
         (item) => item.name == this.$t("datasource.opcconfig")
       )[0].category[0];
-    
+
       if (!opcconfigData.value) {
         opcconfigData.value = JSON.stringify(constOpc);
       }
@@ -95,8 +96,8 @@ export default {
       let result = ["received_ts", "original_ts", "value", "quality"].map(
         (item) => {
           let res = deepClone(
-          JSON.parse(opcconfigData.value).column_configs.concat(others)
-        ).filter((val) => {
+            JSON.parse(opcconfigData.value).column_configs.concat(others)
+          ).filter((val) => {
             if (val.column_name == item) {
               return val;
             }
@@ -112,47 +113,40 @@ export default {
       });
 
       opcconfigData.value = JSON.stringify(newEcho);
-     
+
       this.opcConfig = deepClone(JSON.parse(opcconfigData.value));
-      this.opcConfig.column_configs = deepClone(result)
+      this.opcConfig.column_configs = deepClone(result);
     },
     async getData() {
       try {
-        await getUIData().then((result) => {
-          this.sourceList = result;
-        });
-        this.$parent.$parent.$parent.sourceDisabled = false;
+        let result = await getUIData();
+        this.$set(this, "sourceList", result);
       } catch (error) {
-        if (error.response && error.response.status == 404) {
-          this.$parent.$parent.$parent.sourceDisabled = true;
-        }
-        if (error.response && error.response.status === 500) {
-          this.$parent.$parent.$parent.sourceDisabled = true;
-        }
+        console.log(error);
       }
     },
-    changeEditable(val){
-      this.isEditable=val
+    changeEditable(val) {
+      this.isEditable = val;
     },
-    setEditID(val){
-      this.editId=val
+    setEditID(val) {
+      this.editId = val;
     },
     toggleComponent(type, id, editid, dbname) {
-      if (type&&!this.isEditable) {
+      if (type && !this.isEditable) {
         //新增
         let data = this.sourceList.filter((item) => item.id === type);
         if (type == "mqtt" || type == "kafka") {
           // this.uidata = this.deepClone(data);
-          this.$set(this.uidata,0,this.deepClone(data)[0])
+          this.$set(this.uidata, 0, this.deepClone(data)[0]);
           this.parserobj = deepClone(this.staticParser);
           this.parserobj.model.columns.push("ts"); //默认新增时候选中ts列
           this.$store.commit("app/SET_MQTT_PARSER", this.parserobj);
         } else {
           // this.uidata = type == "opc" ? data : this.deepClone(data);
-          if(type=='opc'){
-            this.$set(this.uidata,0,data[0])
-          }else{
-            this.$set(this.uidata,0,this.deepClone(data)[0])
+          if (type == "opc") {
+            this.$set(this.uidata, 0, data[0]);
+          } else {
+            this.$set(this.uidata, 0, this.deepClone(data)[0]);
           }
           this.opcConfig = deepClone(this.staticOpc);
           this.echoData = deepClone(opcDefaultChecked);
@@ -293,7 +287,7 @@ export default {
 
             break;
         }
-    
+
         this.isEditable = true;
         this.dbName = dbname;
         this.getData();
@@ -348,6 +342,26 @@ export default {
     },
   },
   watch: {
+    "$i18n.locale": {
+      deep: true,
+      async handler(val) {
+        if (this.isEditable) {
+          let result = await getTask(
+            localStorage.getItem("local_clusterID"),
+            "datain"
+          );
+          let data = result.filter((item) => item.id == this.editId)[0]?.from_detail
+;
+          this.$set(this, "uidata", [].concat(data));
+        } else {
+          await this.getData();
+          let data = this.sourceList.filter(
+            (item) => item.id === this.$store.state.app.currentDBType
+          );
+          this.$set(this, "uidata", data);
+        }
+      },
+    },
     "$store.state.app.mqttParser": {
       deep: true,
       handler(val) {
@@ -360,17 +374,17 @@ export default {
         this.opcConfig = val;
       },
     },
-    "$store.state.app.currentDBType":{
-      deep:true,
-      handler(val){
-        this.toggleComponent(val)
-      }
-    }
+    "$store.state.app.currentDBType": {
+      deep: true,
+      handler(val) {
+        this.toggleComponent(val);
+      },
+    },
   },
 };
 </script>
 <style lang="scss" scoped>
-.dbsource{
-  margin-top:10px;
+.dbsource {
+  margin-top: 10px;
 }
 </style>
