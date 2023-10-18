@@ -57,23 +57,23 @@ groups:
         placeholder: YYYY-MM-DD HH:mm:ss
         hint: time
       - name: readWindow
-        display: Read Window(m)
-        description: The maximum time range when retrieving data from OpenTSDB each time, should be chosen reasonably based on the characteristics of the data stored in OpenTSDB. No more than 200,000 records for each query is recommended.
-        placeholder: Please input the read window
+        display: Time range per read in minutes
+        description: The maximum time range every time when retrieving data from OpenTSDB.
+        placeholder: Please input the time range
         hint:
           type: integer
           min: 1
           max: 6000
-        value: 2
+        value: 60
       - name: delay
-        display: Delay interval(ms)
-        description: Performance related parameters, delay interval when synchronizing real-time data. To support the out-of-order data scenario, TDengine connector always waits for time specified here before reading them. Valid only for real-time data.
-        placeholder: Please input the delay interval
+        display: Delay in seconds
+        description: To migrate the out of order data, TDengine connector always waits for time specified here before reading them.
+        placeholder: Please input the delay
         hint:
           type: integer
           min: 1
-          max: 30000
-        value: 10000
+          max: 30
+        value: 10
       - name: maxThread
         display: Maximum Read Threads
         description: Performance related parameters, multiple threads read OpenTSDB data, allows you to adjust the maximum number of read threads based on server performance.
