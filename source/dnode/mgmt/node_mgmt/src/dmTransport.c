@@ -358,6 +358,50 @@ int32_t dmInitClient(SDnode *pDnode) {
   dDebug("dnode rpc client is initialized");
   return 0;
 }
+int32_t dmInitStatusClient(SDnode *pDnode) {
+  SDnodeTrans *pTrans = &pDnode->trans;
+
+  SRpcInit rpcInit = {0};
+  rpcInit.label = "DND-STATUS-C";
+  rpcInit.numOfThreads = 1;
+  rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
+  rpcInit.sessions = 1024;
+  rpcInit.connType = TAOS_CONN_CLIENT;
+  rpcInit.user = TSDB_DEFAULT_USER;
+  rpcInit.idleTime = tsShellActivityTimer * 1000;
+  rpcInit.parent = pDnode;
+  rpcInit.rfp = rpcRfp;
+  rpcInit.compressSize = tsCompressMsgSize;
+
+  rpcInit.retryMinInterval = tsRedirectPeriod;
+  rpcInit.retryStepFactor = tsRedirectFactor;
+  rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
+  rpcInit.retryMaxTimeout = tsMaxRetryWaitTime;
+
+  rpcInit.failFastInterval = 5000;  // interval threshold(ms)
+  rpcInit.failFastThreshold = 3;    // failed threshold
+  rpcInit.ffp = dmFailFastFp;
+
+  int32_t connLimitNum = 100;
+  connLimitNum = TMAX(connLimitNum, 10);
+  connLimitNum = TMIN(connLimitNum, 500);
+
+  rpcInit.connLimitNum = connLimitNum;
+  rpcInit.connLimitLock = 1;
+  rpcInit.supportBatch = 1;
+  rpcInit.batchSize = 8 * 1024;
+  rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
+  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+
+  pTrans->statusClientRpc = rpcOpen(&rpcInit);
+  if (pTrans->statusClientRpc == NULL) {
+    dError("failed to init dnode rpc status client");
+    return -1;
+  }
+
+  dDebug("dnode rpc status client is initialized");
+  return 0;
+}
 
 void dmCleanupClient(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
@@ -365,6 +409,14 @@ void dmCleanupClient(SDnode *pDnode) {
     rpcClose(pTrans->clientRpc);
     pTrans->clientRpc = NULL;
     dDebug("dnode rpc client is closed");
+  }
+}
+void dmCleanupStatusClient(SDnode *pDnode) {
+  SDnodeTrans *pTrans = &pDnode->trans;
+  if (pTrans->statusClientRpc) {
+    rpcClose(pTrans->statusClientRpc);
+    pTrans->statusClientRpc = NULL;
+    dDebug("dnode rpc status client is closed");
   }
 }
 
@@ -405,6 +457,7 @@ void dmCleanupServer(SDnode *pDnode) {
 SMsgCb dmGetMsgcb(SDnode *pDnode) {
   SMsgCb msgCb = {
       .clientRpc = pDnode->trans.clientRpc,
+      .statusClientRpc = pDnode->trans.statusClientRpc,
       .serverRpc = pDnode->trans.serverRpc,
       .sendReqFp = dmSendReq,
       .sendRspFp = dmSendRsp,
