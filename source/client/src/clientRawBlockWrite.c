@@ -1585,11 +1585,11 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
     strcpy(pName.tname, tbName);
 
     code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
-    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-      uError("WriteRaw:catalogGetTableMeta table not exist. table name: %s", tbName);
-      code = TSDB_CODE_SUCCESS;
-      continue;
-    }
+//    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+//      uError("WriteRaw:catalogGetTableMeta table not exist. table name: %s", tbName);
+//      code = TSDB_CODE_SUCCESS;
+//      continue;
+//    }
     if (code != TSDB_CODE_SUCCESS) {
       uError("WriteRaw:catalogGetTableMeta failed. table name: %s", tbName);
       goto end;
@@ -1765,11 +1765,11 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       strcpy(pName.tname, pCreateReqDst->ctb.stbName);
     }
     code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
-    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-      uError("WriteRaw:catalogGetTableMeta table not exist. table name: %s", tbName);
-      code = TSDB_CODE_SUCCESS;
-      continue;
-    }
+//    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+//      uError("WriteRaw:catalogGetTableMeta table not exist. table name: %s", tbName);
+//      code = TSDB_CODE_SUCCESS;
+//      continue;
+//    }
     if (code != TSDB_CODE_SUCCESS) {
       uError("WriteRaw:catalogGetTableMeta failed. table name: %s", tbName);
       goto end;
