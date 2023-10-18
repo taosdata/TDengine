@@ -28,34 +28,26 @@ typedef struct SStreamTaskState {
   char*       name;
 } SStreamTaskState;
 
-typedef enum EStreamTaskEvent {
-  TASK_EVENT_INIT = 0x1,
-  TASK_EVENT_START = 0x2,
-  TASK_EVENT_STOP = 0x3,
-  TASK_EVENT_GEN_CHECKPOINT = 0x4,
-  TASK_EVENT_PAUSE = 0x5,
-  TASK_EVENT_RESUME = 0x6,
-  TASK_EVENT_HALT = 0x7,
-  TASK_EVENT_TRANS_STATE = 0x8,
-  TASK_EVENT_SCAN_TSDB = 0x9,
-  TASK_EVENT_SCAN_WAL = 0x10,
-} EStreamTaskEvent;
-
 typedef int32_t (*__state_trans_fn)(SStreamTask*);
+typedef int32_t (*__state_trans_succ_fn)(SStreamTask*);
 
 typedef struct STaskStateTrans {
+  bool             autoInvokeEndFn;
   SStreamTaskState state;
   EStreamTaskEvent event;
   SStreamTaskState next;
+  __state_trans_fn preAction;
   __state_trans_fn pAction;
+  __state_trans_succ_fn pSuccAction;
 } STaskStateTrans;
 
 struct SStreamTaskSM {
-  SStreamTaskState current;
-  SArray*          pTransList;  // SArray<STaskStateTrans>
-  int64_t          stateTs;
   SStreamTask*     pTask;
+  SArray*          pTransList;  // SArray<STaskStateTrans>
   STaskStateTrans* pActiveTrans;
+  int64_t          startTs;
+  SStreamTaskState current;
+  SStreamTaskState prev;
 };
 
 typedef struct SStreamEventInfo {

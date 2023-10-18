@@ -99,12 +99,8 @@ int32_t tqCheckAndRunStreamTask(STQ* pTq) {
       continue;
     }
 
-    pTask->execInfo.init = taosGetTimestampMs();
-    tqDebug("s-task:%s start check downstream tasks, set the init ts:%"PRId64, pTask->id.idStr, pTask->execInfo.init);
-
-    streamSetStatusNormal(pTask);
-    streamTaskCheckDownstream(pTask);
-
+    EStreamTaskEvent event = (pTask->hTaskInfo.id.taskId == 0) ? TASK_EVENT_INIT : TASK_EVENT_INIT_SCAN_HISTORY;
+    streamTaskHandleEvent(pTask->status.pSM, event);
     streamMetaReleaseTask(pMeta, pTask);
   }
 
@@ -113,8 +109,8 @@ int32_t tqCheckAndRunStreamTask(STQ* pTq) {
 }
 
 int32_t tqCheckAndRunStreamTaskAsync(STQ* pTq) {
-  int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
+  int32_t      vgId = pMeta->vgId;
 
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
   if (numOfTasks == 0) {
@@ -328,9 +324,11 @@ static bool taskReadyForDataFromWal(SStreamTask* pTask) {
   }
 
   // not in ready state, do not handle the data from wal
-  int32_t status = pTask->status.taskStatus;
-  if (status != TASK_STATUS__NORMAL) {
-    tqTrace("s-task:%s not ready for submit block in wal, status:%s", pTask->id.idStr, streamGetTaskStatusStr(status));
+//  int32_t status = pTask->status.taskStatus;
+  char* p = NULL;
+  int32_t status = streamTaskGetStatus(pTask, &p);
+  if (streamTaskGetStatus(pTask, &p) != TASK_STATUS__NORMAL) {
+    tqTrace("s-task:%s not ready for submit block in wal, status:%s", pTask->id.idStr, p);
     return false;
   }
 
@@ -449,9 +447,10 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
 
     taosThreadMutexLock(&pTask->lock);
 
-    const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
-    if (pTask->status.taskStatus != TASK_STATUS__NORMAL) {
-      tqDebug("s-task:%s not ready for submit block from wal, status:%s", pTask->id.idStr, pStatus);
+    char* p = NULL;
+    ETaskStatus status = streamTaskGetStatus(pTask, &p);
+    if (status != TASK_STATUS__NORMAL) {
+      tqDebug("s-task:%s not ready for submit block from wal, status:%s", pTask->id.idStr, p);
       taosThreadMutexUnlock(&pTask->lock);
       streamMetaReleaseTask(pStreamMeta, pTask);
       continue;

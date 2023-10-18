@@ -304,11 +304,11 @@ static void freeUpstreamItem(void* p) {
 
 void tFreeStreamTask(SStreamTask* pTask) {
   int32_t taskId = pTask->id.taskId;
+  char* p = NULL;
+  streamTaskGetStatus(pTask, &p);
 
   STaskExecStatisInfo* pStatis = &pTask->execInfo;
-
-  stDebug("start to free s-task:0x%x, %p, state:%p, status:%s", taskId, pTask, pTask->pState,
-         streamGetTaskStatusStr(pTask->status.taskStatus));
+  stDebug("start to free s-task:0x%x, %p, state:%p, status:%s", taskId, pTask, pTask->pState, p);
 
   stDebug("s-task:0x%x task exec summary: create:%" PRId64 ", init:%" PRId64 ", start:%" PRId64
          ", updateCount:%d latestUpdate:%" PRId64 ", latestCheckPoint:%" PRId64 ", ver:%" PRId64
@@ -417,6 +417,13 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  pTask->status.pSM = streamCreateStateMachine(pTask);
+  if (pTask->status.pSM == NULL) {
+    stError("s-task:%s failed create state-machine for stream task, initialization failed, code:%s", pTask->id.idStr,
+        tstrerror(terrno));
+    return terrno;
+  }
+
   pTask->execInfo.created = taosGetTimestampMs();
   pTask->inputInfo.status = TASK_INPUT_STATUS__NORMAL;
   pTask->outputq.status = TASK_OUTPUT_STATUS__NORMAL;
@@ -463,7 +470,9 @@ int32_t streamTaskGetNumOfDownstream(const SStreamTask* pTask) {
     return 0;
   } else {
     int32_t type = pTask->outputInfo.type;
-    if (type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__TABLE) {
+    if (type == TASK_OUTPUT__TABLE) {
+      return 0;
+    } else if (type == TASK_OUTPUT__FIXED_DISPATCH) {
       return 1;
     } else {
       SArray* vgInfo = pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos;
@@ -677,7 +686,7 @@ int8_t streamTaskSetSchedStatusActive(SStreamTask* pTask) {
   return status;
 }
 
-int8_t streamTaskSetSchedStatusInActive(SStreamTask* pTask) {
+int8_t streamTaskSetSchedStatusInactive(SStreamTask* pTask) {
   taosThreadMutexLock(&pTask->lock);
   int8_t status = pTask->status.schedStatus;
   ASSERT(status == TASK_SCHED_STATUS__WAITING || status == TASK_SCHED_STATUS__ACTIVE ||

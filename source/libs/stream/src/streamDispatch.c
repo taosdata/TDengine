@@ -662,8 +662,10 @@ int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask) {
     int32_t numOfVgs = taosArrayGetSize(vgInfo);
     pTask->notReadyTasks = numOfVgs;
 
+    char* p = NULL;
+    streamTaskGetStatus(pTask, &p);
     stDebug("s-task:%s send scan-history data complete msg to downstream (shuffle-dispatch) %d tasks, status:%s", pTask->id.idStr,
-           numOfVgs, streamGetTaskStatusStr(pTask->status.taskStatus));
+           numOfVgs, p);
     for (int32_t i = 0; i < numOfVgs; i++) {
       SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
       req.downstreamTaskId = pVgInfo->taskId;
@@ -775,8 +777,9 @@ int32_t doDispatchScanHistoryFinishMsg(SStreamTask* pTask, const SStreamScanHist
   initRpcMsg(&msg, TDMT_VND_STREAM_SCAN_HISTORY_FINISH, buf, tlen + sizeof(SMsgHead));
 
   tmsgSendReq(pEpSet, &msg);
-  const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
-  stDebug("s-task:%s status:%s dispatch scan-history finish msg to taskId:0x%x (vgId:%d)", pTask->id.idStr, pStatus,
+  char* p = NULL;
+  streamTaskGetStatus(pTask, &p);
+  stDebug("s-task:%s status:%s dispatch scan-history finish msg to taskId:0x%x (vgId:%d)", pTask->id.idStr, p,
          pReq->downstreamTaskId, vgId);
   return 0;
 }

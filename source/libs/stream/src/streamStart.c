@@ -17,6 +17,7 @@
 #include "trpc.h"
 #include "ttimer.h"
 #include "wal.h"
+#include "streamsm.h"
 
 typedef struct SLaunchHTaskInfo {
   SStreamMeta* pMeta;
@@ -34,16 +35,17 @@ static void              streamTaskSetRangeStreamCalc(SStreamTask* pTask);
 static int32_t           initScanHistoryReq(SStreamTask* pTask, SStreamScanHistoryReq* pReq, int8_t igUntreated);
 static SLaunchHTaskInfo* createHTaskLaunchInfo(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 static void              tryLaunchHistoryTask(void* param, void* tmrId);
+static int32_t           updateTaskReadyInMeta(SStreamTask* pTask);
 
-static void streamTaskSetReady(SStreamTask* pTask, int32_t numOfReqs) {
-  SStreamMeta* pMeta = pTask->pMeta;
-  int32_t      vgId = pMeta->vgId;
+int32_t streamTaskSetReady(SStreamTask* pTask) {
+  char*       p = NULL;
+  int32_t     numOfDowns = streamTaskGetNumOfDownstream(pTask);
+  ETaskStatus status = streamTaskGetStatus(pTask, &p);
 
-  if (pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY && pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
+  if (status == TASK_STATUS__SCAN_HISTORY && pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
     pTask->numOfWaitingUpstream = taosArrayGetSize(pTask->upstreamInfo.pList);
     stDebug("s-task:%s level:%d task wait for %d upstream tasks complete scan-history procedure, status:%s",
-           pTask->id.idStr, pTask->info.taskLevel, pTask->numOfWaitingUpstream,
-           streamGetTaskStatusStr(pTask->status.taskStatus));
+           pTask->id.idStr, pTask->info.taskLevel, pTask->numOfWaitingUpstream, p);
   }
 
   ASSERT(pTask->status.downstreamReady == 0);
@@ -52,34 +54,10 @@ static void streamTaskSetReady(SStreamTask* pTask, int32_t numOfReqs) {
   pTask->execInfo.start = taosGetTimestampMs();
   int64_t el = (pTask->execInfo.start - pTask->execInfo.init);
   stDebug("s-task:%s all %d downstream ready, init completed, elapsed time:%" PRId64 "ms, task status:%s",
-          pTask->id.idStr, numOfReqs, el, streamGetTaskStatusStr(pTask->status.taskStatus));
+          pTask->id.idStr, numOfDowns, el, p);
 
-  taosWLockLatch(&pMeta->lock);
-
-  STaskId id = streamTaskExtractKey(pTask);
-  taosHashPut(pMeta->startInfo.pReadyTaskSet, &id, sizeof(id), NULL, 0);
-
-  int32_t numOfTotal = streamMetaGetNumOfTasks(pMeta);
-
-  if (taosHashGetSize(pMeta->startInfo.pReadyTaskSet) == numOfTotal) {
-    STaskStartInfo* pStartInfo = &pMeta->startInfo;
-    pStartInfo->readyTs = pTask->execInfo.start;
-
-    if (pStartInfo->startTs != 0) {
-      pStartInfo->elapsedTime = pStartInfo->readyTs - pStartInfo->startTs;
-    } else {
-      pStartInfo->elapsedTime = 0;
-    }
-
-    streamMetaResetStartInfo(pStartInfo);
-
-    stDebug("vgId:%d all %d task(s) are started successfully, last ready task:%s level:%d, startTs:%" PRId64
-            ", readyTs:%" PRId64 " total elapsed time:%.2fs",
-            vgId, numOfTotal, pTask->id.idStr, pTask->info.taskLevel, pStartInfo->startTs, pStartInfo->readyTs,
-            pStartInfo->elapsedTime / 1000.0);
-  }
-
-  taosWUnLockLatch(&pMeta->lock);
+  updateTaskReadyInMeta(pTask);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated) {
@@ -114,28 +92,19 @@ static int32_t doStartScanHistoryTask(SStreamTask* pTask) {
 }
 
 int32_t streamTaskStartScanHistory(SStreamTask* pTask) {
-  ASSERT(pTask->status.downstreamReady == 1);
+  ASSERT(pTask->status.downstreamReady == 1 && streamTaskGetStatus(pTask, NULL) == TASK_STATUS__SCAN_HISTORY);
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    if (pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
-      return doStartScanHistoryTask(pTask);
-    } else {
-      ASSERT(pTask->status.taskStatus == TASK_STATUS__NORMAL);
-      stDebug("s-task:%s no need to scan-history data, status:%s, sched-status:%d, ver:%" PRId64, pTask->id.idStr,
-              streamGetTaskStatusStr(pTask->status.taskStatus), pTask->status.schedStatus,
-              walReaderGetCurrentVer(pTask->exec.pWalReader));
-      streamTaskEnablePause(pTask);
-    }
+    return doStartScanHistoryTask(pTask);
   } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
     if (pTask->info.fillHistory) {
       streamSetParamForScanHistory(pTask);
       streamTaskEnablePause(pTask);
     }
   } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
-    if (pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
-      stDebug("s-task:%s sink task do nothing to handle scan-history", pTask->id.idStr);
-    }
+    stDebug("s-task:%s sink task do nothing to handle scan-history", pTask->id.idStr);
   }
+
   return 0;
 }
 
@@ -151,6 +120,8 @@ static int32_t doCheckDownstreamStatus(SStreamTask* pTask) {
       .childId = pTask->info.selfChildId,
       .stage = pTask->pMeta->stage,
   };
+
+  ASSERT(pTask->status.downstreamReady == 0);
 
   // serialize streamProcessScanHistoryFinishRsp
   if (pTask->outputInfo.type == TASK_OUTPUT__FIXED_DISPATCH) {
@@ -187,11 +158,7 @@ static int32_t doCheckDownstreamStatus(SStreamTask* pTask) {
     }
   } else {
     stDebug("s-task:%s (vgId:%d) set downstream ready, since no downstream", pTask->id.idStr, pTask->info.nodeId);
-
-    streamTaskSetReady(pTask, 0);
-    streamTaskSetRangeStreamCalc(pTask);
-    streamTaskStartScanHistory(pTask);
-    streamLaunchFillHistoryTask(pTask);
+    streamTaskOnHandleEventSuccess(pTask->status.pSM);
   }
 
   return 0;
@@ -288,8 +255,57 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
   }
 }
 
-static void doProcessDownstreamReadyRsp(SStreamTask* pTask, int32_t numOfReqs) {
-  streamTaskSetReady(pTask, numOfReqs);
+int32_t onNormalTaskReady(SStreamTask* pTask) {
+  const char* id = pTask->id.idStr;
+
+  streamTaskSetReady(pTask);
+  streamTaskSetRangeStreamCalc(pTask);
+
+  char* p = NULL;
+  ETaskStatus status = streamTaskGetStatus(pTask, &p);
+  ASSERT(status == TASK_STATUS__NORMAL);
+
+  // todo refactor: remove this later
+  if (pTask->info.fillHistory == 1) {
+    stDebug("s-task:%s fill-history is set normal when start it, try to remove it,set it task to be dropping", id);
+    pTask->status.taskStatus = TASK_STATUS__DROPPING;
+    ASSERT(pTask->hTaskInfo.id.taskId == 0);
+  }
+
+  stDebug("s-task:%s no need to scan-history data, status:%s, sched-status:%d, ready for data from wal ver:%" PRId64,
+          id, p, pTask->status.schedStatus, walReaderGetCurrentVer(pTask->exec.pWalReader));
+
+  streamTaskEnablePause(pTask);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t onScanhistoryTaskReady(SStreamTask* pTask) {
+  const char* id = pTask->id.idStr;
+
+  // set the state to be ready
+  streamTaskSetReady(pTask);
+  streamTaskSetRangeStreamCalc(pTask);
+
+  char* p = NULL;
+  ETaskStatus status = streamTaskGetStatus(pTask, &p);
+  ASSERT(status == TASK_STATUS__SCAN_HISTORY);
+
+  stDebug("s-task:%s enter into scan-history data stage, status:%s", id, p);
+  streamTaskStartScanHistory(pTask);
+
+  // start the related fill-history task, when current task is ready
+  if (pTask->hTaskInfo.id.taskId != 0) {
+    streamLaunchFillHistoryTask(pTask);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// todo: refactor this function.
+static void doProcessDownstreamReadyRsp(SStreamTask* pTask) {
+  streamTaskOnHandleEventSuccess(pTask->status.pSM);
+
+#if 0
   const char* id = pTask->id.idStr;
 
   int8_t      status = pTask->status.taskStatus;
@@ -314,6 +330,7 @@ static void doProcessDownstreamReadyRsp(SStreamTask* pTask, int32_t numOfReqs) {
       streamTaskEnablePause(pTask);
     }
   }
+#endif
 }
 
 int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRsp) {
@@ -349,7 +366,7 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
         taosArrayDestroy(pTask->checkReqIds);
         pTask->checkReqIds = NULL;
 
-        doProcessDownstreamReadyRsp(pTask, numOfReqs);
+        doProcessDownstreamReadyRsp(pTask);
       } else {
         int32_t total = taosArrayGetSize(pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos);
         stDebug("s-task:%s (vgId:%d) recv check rsp from task:0x%x (vgId:%d) status:%d, total:%d not ready:%d", id,
@@ -361,7 +378,7 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
         return -1;
       }
 
-      doProcessDownstreamReadyRsp(pTask, 1);
+      doProcessDownstreamReadyRsp(pTask);
     }
   } else {  // not ready, wait for 100ms and retry
     if (pRsp->status == TASK_DOWNSTREAM_NOT_LEADER) {
@@ -438,18 +455,6 @@ int32_t streamSetStatusNormal(SStreamTask* pTask) {
   }
 }
 
-int32_t streamSetStatusUnint(SStreamTask* pTask) {
-  int32_t status = atomic_load_8(&pTask->status.taskStatus);
-  if (status == TASK_STATUS__DROPPING) {
-    stError("s-task:%s cannot be set uninit, since in dropping state", pTask->id.idStr);
-    return -1;
-  } else {
-    stDebug("s-task:%s set task status to be uninit, prev:%s", pTask->id.idStr, streamGetTaskStatusStr(status));
-    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__UNINIT);
-    return 0;
-  }
-}
-
 // source
 int32_t streamSetParamForStreamScannerStep1(SStreamTask* pTask, SVersionRange *pVerRange, STimeWindow* pWindow) {
   return qStreamSourceScanParamForHistoryScanStep1(pTask->exec.pExecutor, pVerRange, pWindow);
@@ -515,9 +520,11 @@ int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistory
   int32_t taskLevel = pTask->info.taskLevel;
   ASSERT(taskLevel == TASK_LEVEL__AGG || taskLevel == TASK_LEVEL__SINK);
 
-  if (pTask->status.taskStatus != TASK_STATUS__SCAN_HISTORY) {
+  char* p = NULL;
+  ETaskStatus status = streamTaskGetStatus(pTask, &p);
+  if (status != TASK_STATUS__SCAN_HISTORY) {
     stError("s-task:%s not in scan-history status, status:%s return upstream:0x%x scan-history finish directly",
-           pTask->id.idStr, streamGetTaskStatusStr(pTask->status.taskStatus), pReq->upstreamTaskId);
+           pTask->id.idStr, p, pReq->upstreamTaskId);
 
     void*   pBuf = NULL;
     int32_t len = 0;
@@ -571,12 +578,12 @@ int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistory
 }
 
 int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask) {
-  ASSERT(pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY);
+  ASSERT(/*pTask->status.taskStatus*/ streamTaskGetStatus(pTask, NULL) == TASK_STATUS__SCAN_HISTORY);
   SStreamMeta* pMeta = pTask->pMeta;
 
   // execute in the scan history complete call back msg, ready to process data from inputQ
-  streamSetStatusNormal(pTask);
-  streamTaskSetSchedStatusInActive(pTask);
+  streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_COMPLETED);
+  streamTaskSetSchedStatusInactive(pTask);
 
   taosWLockLatch(&pMeta->lock);
   streamMetaSaveTask(pMeta, pTask);
@@ -604,15 +611,15 @@ static void checkFillhistoryTaskStatus(SStreamTask* pTask, SStreamTask* pHTask) 
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     stDebug("s-task:%s set the launch condition for fill-history s-task:%s, window:%" PRId64 " - %" PRId64
-           " ver range:%" PRId64 " - %" PRId64", init:%"PRId64,
+           " verRange:%" PRId64 " - %" PRId64", init:%"PRId64,
            pTask->id.idStr, pHTask->id.idStr, pRange->window.skey, pRange->window.ekey,
            pRange->range.minVer, pRange->range.maxVer, pHTask->execInfo.init);
   } else {
-    stDebug("s-task:%s no fill history condition for non-source task:%s", pTask->id.idStr, pHTask->id.idStr);
+    stDebug("s-task:%s no fill-history condition for non-source task:%s", pTask->id.idStr, pHTask->id.idStr);
   }
 
   // check if downstream tasks have been ready
-  doCheckDownstreamStatus(pHTask);
+  streamTaskHandleEvent(pHTask->status.pSM, TASK_EVENT_INIT_SCAN_HISTORY);
 }
 
 static void tryLaunchHistoryTask(void* param, void* tmrId) {
@@ -625,11 +632,11 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
     ASSERT((*ppTask)->status.timerActive >= 1);
 
     if (streamTaskShouldStop(&(*ppTask)->status)) {
-      const char* pStatus = streamGetTaskStatusStr((*ppTask)->status.taskStatus);
-
+      char* p = NULL;
+      streamTaskGetStatus((*ppTask), &p);
       int32_t ref = atomic_sub_fetch_32(&(*ppTask)->status.timerActive, 1);
       stDebug("s-task:%s status:%s should stop, quit launch fill-history task timer, retry:%d, ref:%d",
-              (*ppTask)->id.idStr, pStatus, (*ppTask)->hTaskInfo.retryTimes, ref);
+              (*ppTask)->id.idStr, p, (*ppTask)->hTaskInfo.retryTimes, ref);
 
       taosMemoryFree(pInfo);
       taosWUnLockLatch(&pMeta->lock);
@@ -666,8 +673,10 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
       // abort the timer if intend to stop task
       SStreamTask* pHTask = streamMetaAcquireTask(pMeta, pHTaskInfo->id.streamId, pHTaskInfo->id.taskId);
       if (pHTask == NULL && (!streamTaskShouldStop(&pTask->status))) {
-        const char* p = streamGetTaskStatusStr(pTask->status.taskStatus);
-        int32_t     hTaskId = pHTaskInfo->id.taskId;
+        char*   p = NULL;
+        int32_t hTaskId = pHTaskInfo->id.taskId;
+
+        streamTaskGetStatus(pTask, &p);
         stDebug(
             "s-task:%s status:%s failed to launch fill-history task:0x%x, retry launch:%dms, retryCount:%d",
             pTask->id.idStr, p, hTaskId, pHTaskInfo->waitInterval, pHTaskInfo->retryTimes);
@@ -713,11 +722,8 @@ SLaunchHTaskInfo* createHTaskLaunchInfo(SStreamMeta* pMeta, int64_t streamId, in
 int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
   int32_t      hTaskId = pTask->hTaskInfo.id.taskId;
-  if (hTaskId == 0) {
-    return TSDB_CODE_SUCCESS;
-  }
 
-  ASSERT(pTask->status.downstreamReady == 1);
+  ASSERT((hTaskId != 0) && (pTask->status.downstreamReady == 1));
   stDebug("s-task:%s start to launch related fill-history task:0x%" PRIx64 "-0x%x", pTask->id.idStr,
           pTask->hTaskInfo.id.streamId, hTaskId);
 
@@ -931,12 +937,12 @@ void streamTaskSetRangeStreamCalc(SStreamTask* pTask) {
 
 // only the downstream tasks are ready, set the task to be ready to work.
 void streamTaskCheckDownstream(SStreamTask* pTask) {
-  if (pTask->info.fillHistory) {
-    stDebug("s-task:%s fill history task, wait for being launched", pTask->id.idStr);
-    return;
-  }
+//  if (pTask->info.fillHistory) {
+//    ASSERT(0);
+//    stDebug("s-task:%s fill history task, wait for being launched", pTask->id.idStr);
+//    return;
+//  }
 
-  ASSERT(pTask->status.downstreamReady == 0);
   doCheckDownstreamStatus(pTask);
 }
 
@@ -1047,13 +1053,50 @@ void streamTaskEnablePause(SStreamTask* pTask) {
 
 void streamTaskResumeFromHalt(SStreamTask* pTask) {
   const char* id = pTask->id.idStr;
-  int8_t status = pTask->status.taskStatus;
-  if (status != TASK_STATUS__HALT) {
-    stError("s-task:%s not in halt status, status:%s", id, streamGetTaskStatusStr(status));
-    return;
+  char* p = NULL;
+
+  ASSERT(streamTaskGetStatus(pTask, NULL) == TASK_STATUS__HALT);
+//  int8_t status = pTask->status.taskStatus;
+//  if (status != TASK_STATUS__HALT) {
+//    stError("s-task:%s not in halt status, status:%s", id, streamGetTaskStatusStr(status));
+//    return;
+//  }
+
+//  pTask->status.taskStatus = pTask->status.keepTaskStatus;
+//  pTask->status.keepTaskStatus = TASK_STATUS__NORMAL;
+  streamTaskRestoreStatus(pTask);
+  streamTaskGetStatus(pTask, &p);
+  stDebug("s-task:%s resume from halt, current status:%s", id, p);
+}
+
+int32_t updateTaskReadyInMeta(SStreamTask* pTask) {
+  SStreamMeta* pMeta = pTask->pMeta;
+
+  taosWLockLatch(&pMeta->lock);
+
+  STaskId id = streamTaskExtractKey(pTask);
+  taosHashPut(pMeta->startInfo.pReadyTaskSet, &id, sizeof(id), NULL, 0);
+
+  int32_t numOfTotal = streamMetaGetNumOfTasks(pMeta);
+
+  if (taosHashGetSize(pMeta->startInfo.pReadyTaskSet) == numOfTotal) {
+    STaskStartInfo* pStartInfo = &pMeta->startInfo;
+    pStartInfo->readyTs = pTask->execInfo.start;
+
+    if (pStartInfo->startTs != 0) {
+      pStartInfo->elapsedTime = pStartInfo->readyTs - pStartInfo->startTs;
+    } else {
+      pStartInfo->elapsedTime = 0;
+    }
+
+    streamMetaResetStartInfo(pStartInfo);
+
+    stDebug("vgId:%d all %d task(s) are started successfully, last ready task:%s level:%d, startTs:%" PRId64
+            ", readyTs:%" PRId64 " total elapsed time:%.2fs",
+            pMeta->vgId, numOfTotal, pTask->id.idStr, pTask->info.taskLevel, pStartInfo->startTs, pStartInfo->readyTs,
+            pStartInfo->elapsedTime / 1000.0);
   }
 
-  pTask->status.taskStatus = pTask->status.keepTaskStatus;
-  pTask->status.keepTaskStatus = TASK_STATUS__NORMAL;
-  stDebug("s-task:%s resume from halt, current status:%s", id, streamGetTaskStatusStr(pTask->status.taskStatus));
+  taosWUnLockLatch(&pMeta->lock);
+  return TSDB_CODE_SUCCESS;
 }
