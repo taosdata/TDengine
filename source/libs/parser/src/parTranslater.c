@@ -3318,9 +3318,6 @@ static int32_t checkProjectAlias(STranslateContext* pCxt, SNodeList* pProjection
 }
 
 static int32_t translateProjectionList(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (pSelect->isSubquery) {
-    return checkProjectAlias(pCxt, pSelect->pProjectionList, NULL);
-  }
   return rewriteProjectAlias(pSelect->pProjectionList);
 }
 
