@@ -433,6 +433,7 @@ int32_t rebuildDirFromCheckpoint(const char* path, int64_t chkpId, char** dst) {
       }
       taosMkDir(state);
       code = copyFiles(chkp, state);
+      qInfo("copy snap file from %s to %s", chkp, state);
       if (code != 0) {
         qError("failed to restart stream backend from %s, reason: %s", chkp, tstrerror(TAOS_SYSTEM_ERROR(errno)));
       } else {
@@ -508,6 +509,7 @@ int32_t rebuildDirFromChkp2(const char* path, char* key, int64_t chkpId, char** 
       }
       taosMkDir(defaultPath);
       code = copyFiles(chkpPath, defaultPath);
+      qInfo("copy snap file from %s to %s", chkpPath, defaultPath);
       if (code != 0) {
         qError("failed to restart stream backend from %s, reason: %s", chkpPath, tstrerror(TAOS_SYSTEM_ERROR(errno)));
       } else {
@@ -1805,6 +1807,7 @@ STaskDbWrapper* taskDbOpen(char* path, char* key, int64_t chkpId) {
 
   cfNames = rocksdb_list_column_families(pTaskDb->dbOpt, dbPath, &nCf, &err);
   if (nCf == 0) {
+    qInfo("newly create db, need to restart");
     // pre create db
     pTaskDb->db = rocksdb_open(pTaskDb->pCfOpts[0], dbPath, &err);
     rocksdb_close(pTaskDb->db);
