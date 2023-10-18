@@ -145,7 +145,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('datasource.status')" prop="status" width="170">
+        <el-table-column :label="$t('datasource.status')" prop="status" min-width="170">
           <template slot-scope="scope">
             <div
               class="status-operation"
