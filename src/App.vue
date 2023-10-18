@@ -56,6 +56,10 @@ export default {
         link.remove();
       }
     });
+    window.onbeforeunload=function(){
+      localStorage.clear()
+      sessionStorage.clear()
+    }
   }
 };
 </script>
