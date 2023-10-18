@@ -48,11 +48,11 @@ export default {
   name: "Dcoument",
   computed: {
     docsUrl() {
-      return  localStorage.getItem('local_language').includes('zh')
+      return  this.$i18n.locale.includes('zh')
         ?"/docs/":"/docs-en/";
     },
     discordUrl() {
-      return this.$store.state.language == "en"
+      return this.$i18n.locale.includes("en")
         ? "https://discord.com/invite/VZdSuUg4pS?utm_id=discord"
         : "https://discord.com/invite/VZdSuUg4pS?utm_id=discord";
     },
