@@ -24,6 +24,7 @@ use tracing_subscriber::{
 use taosx_core::{
     ENV_TAOSX_LOGS_KEEP_DAYS, get_log_dir, get_log_keep_days, valid_env_log_keep_days,
 };
+use taosx_core::utils::log_format::TaosXLogFormatter;
 #[cfg(feature = "tikv_jemallocator")]
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
@@ -261,21 +262,13 @@ fn main() -> Result<()> {
             UtcOffset::from_hms(timezone_offset, 0, 0).unwrap(),
             format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:6]"),
         );
-        layers.push(
-            tracing_subscriber::fmt::layer()
-                .with_timer(timer.clone())
-                .with_level(true)
-                .with_thread_ids(false)
-                .with_thread_names(true)
-                .with_span_events(span_events.clone())
-                .with_ansi(false)
-                .with_writer(non_blocking)
-                .with_file(false)
-                .with_line_number(false)
-                .compact()
-                .with_filter(level_filter)
-                .boxed(),
-        );
+
+        // Create customized layer for taosX's rotating file log.
+        layers.push(tracing_subscriber::fmt::layer()
+            .event_format(TaosXLogFormatter{timer: timer.clone()})
+            .with_writer(non_blocking)
+            .with_filter(level_filter)
+            .boxed());
 
         let event_filter = EnvFilter::builder()
             .with_default_directive(level_filter.into())
@@ -295,8 +288,6 @@ fn main() -> Result<()> {
             layers.push(
                 tracing_subscriber::fmt::layer()
                     .with_timer(timer.clone())
-                    .with_level(true)
-                    .with_thread_ids(false)
                     .with_thread_names(true)
                     .with_writer(std::io::stderr)
                     .with_span_events(span_events)
@@ -309,13 +300,10 @@ fn main() -> Result<()> {
             layers.push(
                 tracing_subscriber::fmt::layer()
                     .with_timer(timer.clone())
-                    .with_level(true)
-                    .with_thread_ids(false)
                     .with_thread_names(true)
                     .with_writer(std::io::stderr)
                     .with_span_events(span_events)
                     .with_ansi(false)
-                    .compact()
                     .with_filter(event_filter)
                     .boxed(),
             );
