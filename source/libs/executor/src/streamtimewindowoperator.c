@@ -373,8 +373,11 @@ void clearGroupResInfo(SGroupResInfo* pGroupResInfo) {
   if (pGroupResInfo->freeItem) {
     int32_t size = taosArrayGetSize(pGroupResInfo->pRows);
     for (int32_t i = pGroupResInfo->index; i < size; i++) {
-      void* pVal = taosArrayGetP(pGroupResInfo->pRows, i);
-      taosMemoryFree(pVal);
+      SRowBuffPos* pPos = taosArrayGetP(pGroupResInfo->pRows, i);
+      if (!pPos->needFree && !pPos->pRowBuff) {
+        taosMemoryFreeClear(pPos->pKey);
+        taosMemoryFree(pPos);
+      }
     }
     pGroupResInfo->freeItem = false;
   }
