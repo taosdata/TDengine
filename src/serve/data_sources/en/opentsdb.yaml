@@ -5,7 +5,7 @@ name: OpenTSDB
 description: |
   OpenTSDB is a real-time monitoring information collection and display platform based on the HBase system.
 
-  TaosX can efficiently read the data in OpenTSDB and write it to TDengine through the taosx-opentsdb plugin to achieve historical data migration or real-time data synchronization.
+  TDengine can efficiently read the data in OpenTSDB and write it to TDengine through the OpenTSDB connector to achieve historical data migration or real-time data synchronization.
 strict: false
 protocol:
   display: Protocol
@@ -57,23 +57,23 @@ groups:
         placeholder: YYYY-MM-DD HH:mm:ss
         hint: time
       - name: readWindow
-        display: Read Window(m)
-        description: The time window for reading data from OpenTSDB should be filled in reasonably based on the characteristics of the data stored in OpenTSDB. It is recommended that the single read data should not exceed 200000 records.
-        placeholder: Please input the read window
+        display: Time range per read in minutes
+        description: The maximum time range every time when retrieving data from OpenTSDB.
+        placeholder: Please input the time range
         hint:
           type: integer
           min: 1
           max: 6000
-        value: 2
+        value: 60
       - name: delay
-        display: Delay interval(ms)
-        description: Performance related parameters, delay interval when synchronizing real-time data. To ensure data integrity as much as possible, the data at the current time point will be synchronized at a certain time point after the delay interval. This parameter is only meaningful when synchronizing real-time data.
-        placeholder: Please input the delay interval
+        display: Delay in seconds
+        description: To migrate the out of order data, TDengine connector always waits for time specified here before reading them.
+        placeholder: Please input the delay
         hint:
           type: integer
           min: 1
-          max: 30000
-        value: 10000
+          max: 30
+        value: 10
       - name: maxThread
         display: Maximum Read Threads
         description: Performance related parameters, multiple threads read OpenTSDB data, allows you to adjust the maximum number of read threads based on server performance.
