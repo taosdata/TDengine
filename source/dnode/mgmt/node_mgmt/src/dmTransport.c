@@ -362,7 +362,7 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
   SRpcInit rpcInit = {0};
-  rpcInit.label = "DND-STATUS-C";
+  rpcInit.label = "DND-STATUS";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
   rpcInit.sessions = 1024;
