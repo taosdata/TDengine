@@ -677,7 +677,10 @@ _exit:
 }
 
 static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
-  if(taos == NULL || meta == NULL) return TSDB_CODE_INVALID_PARA;
+  if(taos == NULL || meta == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
   SVCreateStbReq req = {0};
   SDecoder       coder;
   SMCreateStbReq pReq = {0};
@@ -686,6 +689,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
 
   code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest, 0);
   if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
     return code;
   }
   uDebug(LOG_ID_TAG" create stable, meta:%p, metaLen:%d", LOG_ID_VALUE, meta, metaLen);
@@ -766,11 +770,15 @@ end:
   destroyRequest(pRequest);
   tFreeSMCreateStbReq(&pReq);
   tDecoderClear(&coder);
+  terrno = code;
   return code;
 }
 
 static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
-  if(taos == NULL || meta == NULL) return TSDB_CODE_INVALID_PARA;
+  if(taos == NULL || meta == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
   SVDropStbReq req = {0};
   SDecoder     coder = {0};
   SMDropStbReq pReq = {0};
@@ -779,6 +787,7 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
 
   code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest, 0);
   if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
     return code;
   }
 
@@ -864,6 +873,7 @@ end:
   uDebug(LOG_ID_TAG" drop stable return, msg:%s", LOG_ID_VALUE, tstrerror(code));
   destroyRequest(pRequest);
   tDecoderClear(&coder);
+  terrno = code;
   return code;
 }
 
@@ -879,7 +889,10 @@ static void destroyCreateTbReqBatch(void* data) {
 }
 
 static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
-  if(taos == NULL || meta == NULL) return TSDB_CODE_INVALID_PARA;
+  if(taos == NULL || meta == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
   SVCreateTbBatchReq req = {0};
   SDecoder           coder = {0};
   int32_t            code = TSDB_CODE_SUCCESS;
@@ -889,6 +902,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
 
   code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest, 0);
   if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
     return code;
   }
 
@@ -1023,6 +1037,7 @@ end:
   destroyRequest(pRequest);
   tDecoderClear(&coder);
   qDestroyQuery(pQuery);
+  terrno = code;
   return code;
 }
 
@@ -1038,7 +1053,10 @@ static void destroyDropTbReqBatch(void* data) {
 }
 
 static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
-  if(taos == NULL || meta == NULL) return TSDB_CODE_INVALID_PARA;
+  if(taos == NULL || meta == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
   SVDropTbBatchReq req = {0};
   SDecoder         coder = {0};
   int32_t          code = TSDB_CODE_SUCCESS;
@@ -1048,6 +1066,7 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
 
   code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest, 0);
   if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
     return code;
   }
   uDebug(LOG_ID_TAG " drop table, meta:%p, len:%d", LOG_ID_VALUE, meta, metaLen);
@@ -1162,6 +1181,7 @@ end:
   destroyRequest(pRequest);
   tDecoderClear(&coder);
   qDestroyQuery(pQuery);
+  terrno = code;
   return code;
 }
 
@@ -1198,7 +1218,10 @@ end:
 //}
 
 static int32_t taosDeleteData(TAOS* taos, void* meta, int32_t metaLen) {
-  if(taos == NULL || meta == NULL) return TSDB_CODE_INVALID_PARA;
+  if(taos == NULL || meta == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
   SDeleteRes req      = {0};
   SDecoder   coder    = {0};
   char       sql[256] = {0};
@@ -1230,11 +1253,15 @@ static int32_t taosDeleteData(TAOS* taos, void* meta, int32_t metaLen) {
 end:
   uDebug("connId:0x%"PRIx64" delete data sql:%s, code:%s", *(int64_t*)taos, sql, tstrerror(code));
   tDecoderClear(&coder);
+  terrno = code;
   return code;
 }
 
 static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
-  if(taos == NULL || meta == NULL) return TSDB_CODE_INVALID_PARA;
+  if(taos == NULL || meta == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
   SVAlterTbReq   req = {0};
   SDecoder       coder = {0};
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -1245,6 +1272,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
 
   code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest, 0);
   if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
     return code;
   }
   uDebug(LOG_ID_TAG " alter table, meta:%p, len:%d", LOG_ID_VALUE, meta, metaLen);
@@ -1348,13 +1376,15 @@ end:
   destroyRequest(pRequest);
   tDecoderClear(&coder);
   qDestroyQuery(pQuery);
+  terrno = code;
   return code;
 }
 
 int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const char* tbname, TAOS_FIELD* fields,
                                      int numFields) {
   if (!taos || !pData || !tbname) {
-    return TSDB_CODE_INVALID_PARA;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
   int32_t     code = TSDB_CODE_SUCCESS;
   STableMeta* pTableMeta = NULL;
@@ -1430,12 +1460,14 @@ end:
   qDestroyQuery(pQuery);
   destroyRequest(pRequest);
   taosHashCleanup(pVgHash);
+  terrno = code;
   return code;
 }
 
 int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) {
   if (!taos || !pData || !tbname) {
-    return TSDB_CODE_INVALID_PARA;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
   int32_t     code = TSDB_CODE_SUCCESS;
   STableMeta* pTableMeta = NULL;
@@ -1444,8 +1476,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
 
   SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
   if (!pRequest) {
-    code = terrno;
-    return code;
+    return terrno;
   }
 
   uDebug(LOG_ID_TAG " write raw block, rows:%d, pData:%p, tbname:%s", LOG_ID_VALUE, rows, pData, tbname);
@@ -1509,10 +1540,15 @@ end:
   qDestroyQuery(pQuery);
   destroyRequest(pRequest);
   taosHashCleanup(pVgHash);
+  terrno = code;
   return code;
 }
 
 static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
+  if(taos == NULL || data == NULL){
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
   int32_t     code = TSDB_CODE_SUCCESS;
   SHashObj*   pVgHash = NULL;
   SQuery*     pQuery = NULL;
@@ -1632,10 +1668,15 @@ end:
   destroyRequest(pRequest);
   taosHashCleanup(pVgHash);
   taosMemoryFreeClear(pTableMeta);
+  terrno = code;
   return code;
 }
 
 static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) {
+  if(taos == NULL || data == NULL){
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
   int32_t        code = TSDB_CODE_SUCCESS;
   SHashObj*      pVgHash = NULL;
   SQuery*        pQuery = NULL;
@@ -1803,6 +1844,7 @@ end:
     tdDestroySVCreateTbReq(pCreateReqDst);
     taosMemoryFree(pCreateReqDst);
   }
+  terrno = code;
   return code;
 }
 
@@ -1844,7 +1886,8 @@ void tmq_free_json_meta(char* jsonMeta) { taosMemoryFreeClear(jsonMeta); }
 
 int32_t tmq_get_raw(TAOS_RES* res, tmq_raw_data* raw) {
   if (!raw || !res) {
-    return TSDB_CODE_INVALID_PARA;
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
   }
   if (TD_RES_TMQ_META(res)) {
     SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)res;
@@ -1894,7 +1937,8 @@ int32_t tmq_get_raw(TAOS_RES* res, tmq_raw_data* raw) {
     uDebug("tmq get raw type metadata:%p", raw);
   } else {
     uError("tmq get raw error type:%d", *(int8_t*)res);
-    return TSDB_CODE_TMQ_INVALID_MSG;
+    terrno = TSDB_CODE_TMQ_INVALID_MSG;
+    return terrno;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1908,7 +1952,7 @@ void tmq_free_raw(tmq_raw_data raw) {
 
 int32_t tmq_write_raw(TAOS* taos, tmq_raw_data raw) {
   if (!taos) {
-    return TSDB_CODE_INVALID_PARA;
+    goto end;
   }
 
   if (raw.raw_type == TDMT_VND_CREATE_STB) {
@@ -1930,5 +1974,8 @@ int32_t tmq_write_raw(TAOS* taos, tmq_raw_data raw) {
   } else if (raw.raw_type == RES_TYPE__TMQ_METADATA) {
     return tmqWriteRawMetaDataImpl(taos, raw.raw, raw.raw_len);
   }
-  return TSDB_CODE_INVALID_PARA;
+
+end:
+  terrno = TSDB_CODE_INVALID_PARA;
+  return terrno;
 }
