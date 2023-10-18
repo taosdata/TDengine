@@ -242,9 +242,9 @@
                   const value = result.params[field];
                   if (value) {
                     if (isArray(value)) {
-                      pre.push(...value);
+                      isReverse ? value.forEach(v => pre.push(JSON.stringify(v))) : pre.push(...value);
                     } else {
-                      isReverse ? pre.push(`'${value}'`) : pre.push(value);
+                      isReverse ? pre.push(JSON.stringify(value)) : pre.push(value);
                     }
                     return pre;
                   }
@@ -257,7 +257,7 @@
             if(this.systemFns.includes(result.fn)){
               resultSet.push(`${result.fn}()`);
             }else{
-              resultSet.push(`${result.fn}(${isReverse ? otherParmas + item.field : item.field + otherParmas})`);
+              resultSet.push(`${result.fn}(${isReverse ? otherParmas + JSON.stringify(item.name) : item.field + otherParmas})`);
             }
           } else {
             if (!this.avgFn) {

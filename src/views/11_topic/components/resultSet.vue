@@ -57,7 +57,7 @@
       :title="title"
       :visible.sync="dialog"
     >
-      <component :is="comp" v-bind="dialogParams"></component>
+      <component :is="comp" v-bind="dialogParams" :field="field"></component>
       <section slot="footer">
         <el-button @click="dialog = false">{{ $t("cancel") }}</el-button>
         <el-button @click="confirm" type="primary">{{
@@ -163,6 +163,7 @@ export default {
       dialogParams: {},
       currentRowIndex: -1,
       tags: [],
+      field: ''
     };
   },
   computed: {
@@ -288,11 +289,11 @@ export default {
         .map((item) => item.options)
         .flat(1)
         .map((val) => {
-          let type = row.type.toLowerCase().includes("varchar")
+          let type = row.type?.toLowerCase().includes("varchar")
             ? "varchar"
-            : row.type.toLowerCase().includes("nchar")
+            : row.type?.toLowerCase().includes("nchar")
             ? "nchar"
-            : row.type.toLowerCase();
+            : row.type?.toLowerCase();
           if (!val.supportDatatype.includes(type)) {
             if (
               val.supportDatatype[0] == "all" ||
@@ -309,6 +310,7 @@ export default {
 
       let result = deepClone(row);
       this.dialogParams = result;
+      this.field = result.name;
     },
 
     confirm() {

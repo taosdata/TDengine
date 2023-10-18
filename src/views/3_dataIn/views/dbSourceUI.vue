@@ -2337,7 +2337,8 @@ export default {
     }
   }
   .cancel-btn,
-  .edit-btn {
+  .edit-btn,
+  .upload-flex .item {
     z-index: 101;
   }
 
