@@ -1,21 +1,20 @@
-import { download } from "@/utils";
+
 import { request } from "@/utils/request";
 import i18n from '@/lang/index'
 let language=i18n.locale.includes('zh')?'zh':'en'
 export function getTask(id,type){
     return request({
         baseURL:process.env.VUE_APP_X_API,
-        url: `/tasks?lang=${language}&detail=true&labels=type::${type},cluster-id::${id}`,
+        url: `/tasks?lang=${i18n.locale}&detail=true&labels=type::${type},cluster-id::${id}`,
         method: "get"
     });
 }
 
 
 export function getUIData(){
-    let language=i18n.locale.includes('zh')?'zh':'en'
     return request({
         baseURL:process.env.VUE_APP_X_API,
-        url:`/ds/in?lang=${language}`,
+        url:`/ds/in?lang=${i18n.locale}`,
         method:'get'
     })
 }

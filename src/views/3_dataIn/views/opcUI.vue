@@ -721,6 +721,7 @@
                         style="margin-right: 20px"
                         >{{ $t("datasource.selectfile") }}</el-button
                       >
+                     
                       <template v-if="language.includes('zh')">
                         <a href="/template-zh.csv" download>下载模板</a>
                       </template>
@@ -992,7 +993,7 @@ export default {
       disableallnodeclick: true,
       opcinusefile: "",
       downloadUrl: process.env.VUE_APP_X_API + `/download?file_path=`,
-      language: localStorage.getItem("local_language"),
+      language: this.$i18n.locale,
       limit: 1,
       opcPointavalible: true,
       mqttcafile: [],
@@ -1166,6 +1167,12 @@ export default {
       : "";
   },
   watch: {
+    "$i18n.locale":{
+      deep:true,
+      handler(val){
+        this.language=val
+      }
+    },
     "$store.state.app.currentDBName": {
       immediate: true,
       handler() {

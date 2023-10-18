@@ -6,7 +6,6 @@
           name="datasource"
           :label="$t('topic.datasource')"
           v-if="!isOem"
-          :disabled="sourceDisabled"
         >
           <DbSource ref="dbsource"></DbSource>
         </el-tab-pane>
@@ -40,17 +39,12 @@ export default {
   },
   data() {
     return {
-      sourceDisabled: true,
       piDisable: false,
       opcDisable: false,
       isOem:
         process.env.VUE_APP_CUS_NAME &&
         process.env.VUE_APP_CUS_NAME !== "TDengine",
-      active:
-        process.env.VUE_APP_CUS_NAME &&
-        process.env.VUE_APP_CUS_NAME !== "TDengine"
-          ? "csv"
-          : "datasource",
+      active:"datasource",
     };
   },
   mounted() {
