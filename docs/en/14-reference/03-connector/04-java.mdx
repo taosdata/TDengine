@@ -1193,7 +1193,7 @@ public abstract class ConsumerLoop {
         config.setProperty("bootstrap.servers", "localhost:6030");
         config.setProperty("td.connect.user", "root");
         config.setProperty("td.connect.pass", "taosdata");
-        config.setProperty("auto.offset.reset", "earliest");
+        config.setProperty("auto.offset.reset", "latest");
         config.setProperty("msg.with.table.name", "true");
         config.setProperty("enable.auto.commit", "true");
         config.setProperty("auto.commit.interval.ms", "1000");
@@ -1276,7 +1276,7 @@ public abstract class ConsumerLoop {
         config.setProperty("bootstrap.servers", "localhost:6041");
         config.setProperty("td.connect.user", "root");
         config.setProperty("td.connect.pass", "taosdata");
-        config.setProperty("auto.offset.reset", "earliest");
+        config.setProperty("auto.offset.reset", "latest");
         config.setProperty("msg.with.table.name", "true");
         config.setProperty("enable.auto.commit", "true");
         config.setProperty("auto.commit.interval.ms", "1000");
