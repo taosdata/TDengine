@@ -644,7 +644,7 @@ static S3Status listBucketCallback(int isTruncated, const char *nextMarker, int 
 }
 
 static void s3FreeObjectKey(void *pItem) {
-  char *key = (char *)pItem;
+  char *key = *(char **)pItem;
   taosMemoryFree(key);
 }
 
@@ -682,7 +682,7 @@ void s3DeleteObjectsByPrefix(const char *prefix) {
   } while (data.isTruncated && (!maxkeys || (data.keyCount < maxkeys)));
 
   if (data.status == S3StatusOK) {
-    if (!data.keyCount) {
+    if (data.keyCount > 0) {
       // printListBucketHeader(allDetails);
       s3DeleteObjects(TARRAY_DATA(data.objectArray), TARRAY_SIZE(data.objectArray));
     }
