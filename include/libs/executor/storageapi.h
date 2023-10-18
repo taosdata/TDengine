@@ -227,6 +227,7 @@ typedef struct SStoreTqReader {
   bool (*tqReaderNextBlockInWal)();
   bool (*tqNextBlockImpl)();  // todo remove it
   SSDataBlock* (*tqGetResultBlock)();
+  int64_t (*tqGetResultBlockTime)();
 
   void (*tqReaderSetColIdList)();
   int32_t (*tqReaderSetQueryTableList)();

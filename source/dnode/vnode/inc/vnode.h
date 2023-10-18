@@ -226,6 +226,7 @@ typedef struct STqReader {
   int64_t         cachedSchemaUid;
   SSchemaWrapper *pSchemaWrapper;
   SSDataBlock    *pResBlock;
+  int64_t         lastTs;
 } STqReader;
 
 STqReader *tqReaderOpen(SVnode *pVnode);
@@ -244,6 +245,7 @@ bool         tqNextBlockInWal(STqReader *pReader, const char *idstr);
 bool         tqNextBlockImpl(STqReader *pReader, const char *idstr);
 SWalReader  *tqGetWalReader(STqReader *pReader);
 SSDataBlock *tqGetResultBlock(STqReader *pReader);
+int64_t      tqGetResultBlockTime(STqReader *pReader);
 
 int32_t extractMsgFromWal(SWalReader *pReader, void **pItem, int64_t maxVer, const char *id);
 int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver);
