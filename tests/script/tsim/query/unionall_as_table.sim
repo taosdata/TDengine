@@ -1,5 +1,6 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c keepColumnName -v 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
@@ -48,6 +49,16 @@ sql insert into ctcount(ts) values(now)(now+1s);
 sql select count(*) from (select f from ctcount);
 print $data00
 if $data00 != 2 then
+  return -1
+endi
+sql select count(*) from (select f, f from ctcount)
+print $data00
+if $data00 != 2 then
+  return -1
+endi
+sql select count(*) from (select last(ts), first(ts) from ctcount);
+print $data00
+if $data00 != 1 then
   return -1
 endi
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
