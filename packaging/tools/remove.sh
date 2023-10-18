@@ -113,8 +113,10 @@ function clean_bin() {
   # Remove link
   ${csudo}rm -f ${bin_link_dir}/${clientName} || :
   ${csudo}rm -f ${bin_link_dir}/${serverName} || :
+  echo "${serverName} is removed successfully"
   ${csudo}rm -f ${bin_link_dir}/udfd || :
   ${csudo}rm -f ${bin_link_dir}/${adapterName2}     || :
+  echo "${adapterName2} is removed successfully"
   ${csudo}rm -f ${bin_link_dir}/${benchmarkName2}   || :
   ${csudo}rm -f ${bin_link_dir}/${demoName2}        || :
   ${csudo}rm -f ${bin_link_dir}/${dumpName2}        || :
@@ -175,7 +177,7 @@ function clean_log() {
 function clean_service_on_systemd() {
   taosd_service_config="${service_config_dir}/${taos_service_name}.service"
   if systemctl is-active --quiet ${taos_service_name}; then
-    echo "${productName2} ${serverName2} is running, stopping it..."
+    echo "${taos_service_name} is running, stopping it..."
     ${csudo}systemctl stop ${taos_service_name} &>/dev/null || echo &>/dev/null
   fi
   ${csudo}systemctl disable ${taos_service_name} &>/dev/null || echo &>/dev/null
@@ -183,7 +185,7 @@ function clean_service_on_systemd() {
 
   taosadapter_service_config="${service_config_dir}/${clientName2}adapter.service"
   if systemctl is-active --quiet ${taosadapter_service_name}; then
-    echo "${productName2}  ${clientName2}Adapter is running, stopping it..."
+    echo "${clientName2}Adapter is running, stopping it..."
     ${csudo}systemctl stop ${taosadapter_service_name} &>/dev/null || echo &>/dev/null
   fi
   ${csudo}systemctl disable ${taosadapter_service_name} &>/dev/null || echo &>/dev/null
@@ -196,33 +198,11 @@ function clean_service_on_systemd() {
   fi
   ${csudo}systemctl disable ${tarbitrator_service_name} &>/dev/null || echo &>/dev/null
   
-  if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
-    x_service_config="${service_config_dir}/${xName2}.service"
-    if [ -e "$x_service_config" ]; then
-      if systemctl is-active --quiet ${xName2}; then
-        echo "${productName2} ${xName2} is running, stopping it..."
-        ${csudo}systemctl stop ${xName2} &>/dev/null || echo &>/dev/null
-      fi
-      ${csudo}systemctl disable ${xName2} &>/dev/null || echo &>/dev/null
-      ${csudo}rm -f ${x_service_config}
-    fi
-
-    explorer_service_config="${service_config_dir}/${explorerName2}.service"
-    if [ -e "$explorer_service_config" ]; then
-      if systemctl is-active --quiet ${explorerName2}; then
-        echo "${productName2} ${explorerName2} is running, stopping it..."
-        ${csudo}systemctl stop ${explorerName2} &>/dev/null || echo &>/dev/null
-      fi
-      ${csudo}systemctl disable ${explorerName2} &>/dev/null || echo &>/dev/null
-      ${csudo}rm -f ${explorer_service_config}
-      ${csudo}rm -f /etc/${clientName2}/explorer.toml
-    fi
-  fi
 }
 
 function clean_service_on_sysvinit() {
   if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
-    echo "${productName2} ${serverName2} is running, stopping it..."
+    echo "${serverName2} is running, stopping it..."
     ${csudo}service ${serverName} stop || :
   fi
 
@@ -287,10 +267,7 @@ function clean_service() {
 function uninstall_taosx() {
   if [ -f /usr/local/taosx/uninstall.sh ]; then
     cd /usr/local/taosx
-    bash uninstall.sh > /dev/null
-
-    echo -e "${GREEN}${xName2} is removed successfully!${NC}"
-    echo -e "${GREEN}${explorerName2} is removed successfully!${NC}"
+    bash uninstall.sh
   fi
 }
 
@@ -332,8 +309,75 @@ if [ "$osType" = "Darwin" ]; then
   ${csudo}rm -rf /Applications/TDengine.app
 fi
 
-echo -e "${GREEN}${productName2} is removed successfully!${NC}"
+_kill_service_of() {
+  _service=$1
+  pid=$(ps -ef | grep "$_service" | grep -v "grep" | awk '{print $2}')
+  if [ -n "$pid" ]; then
+    ${csudo}kill -9 $pid || :
+  fi
+}
+
+_clean_service_on_systemd_of() {
+  _service=$1
+  _service_config="${service_config_dir}/${_service}.service"
+  if systemctl is-active --quiet ${_service}; then
+    echo "taoskeeper is running, stopping it..."
+    ${csudo}systemctl stop ${_service} &>/dev/null || echo &>/dev/null
+  fi
+  ${csudo}systemctl disable ${_service} &>/dev/null || echo &>/dev/null
+  ${csudo}rm -f ${_service_config}
+}
+_clean_service_on_sysvinit_of() {
+  _service=$1
+  if pidof ${_service} &>/dev/null; then
+    echo "${_service} is running, stopping it..."
+    ${csudo}service ${_service} stop || :
+  fi
+  if ((${initd_mod} == 1)); then
+    if [ -e ${service_config_dir}/${_service} ]; then
+      ${csudo}chkconfig --del ${_service} || :
+    fi
+  elif ((${initd_mod} == 2)); then
+    if [ -e ${service_config_dir}/${_service} ]; then
+      ${csudo}insserv -r ${_service} || :
+    fi
+  elif ((${initd_mod} == 3)); then
+    if [ -e ${service_config_dir}/${_service} ]; then
+      ${csudo}update-rc.d -f ${_service} remove || :
+    fi
+  fi
+
+  ${csudo}rm -f ${service_config_dir}/${_service} || :
+
+  if $(which init &>/dev/null); then
+    ${csudo}init q || :
+  fi
+}
+
+_clean_service_of() {
+  _service=$1
+  if ((${service_mod} == 0)); then
+    _clean_service_on_systemd_of $_service
+  elif ((${service_mod} == 1)); then
+    _clean_service_on_sysvinit_of $_service
+  else
+    _kill_service_of $_service
+  fi
+}
+
+remove_taoskeeper() {
+  # remove taoskeeper bin
+  _clean_service_of taoskeeper
+  [ -e "${bin_link_dir}/taoskeeper" ] && ${csudo}rm -rf ${bin_link_dir}/taoskeeper
+  [ -e "${cfg_link_dir}/metrics.toml" ] || ${csudo}rm -rf ${cfg_link_dir}/metrics.toml
+  echo "taosKeeper is removed successfully!"
+}
+remove_taoskeeper
+
 if [ "$verMode" == "cluster" ]; then
   uninstall_taosx
 fi
+
+echo 
+echo "${productName2} is removed successfully!"
 echo

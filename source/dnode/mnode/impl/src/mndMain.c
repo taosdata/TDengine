@@ -281,7 +281,7 @@ static void *mndThreadFp(void *param) {
       mndCalMqRebalance(pMnode);
     }
 
-    if (sec % tsStreamCheckpointTickInterval == 0) {
+    if (sec % tsStreamCheckpointInterval == 0) {
       mndStreamCheckpointTick(pMnode, sec);
     }
 
