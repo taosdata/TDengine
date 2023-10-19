@@ -892,7 +892,7 @@ void metaHbToMnode(void* param, void* tmrId) {
 
     STaskStatusEntry entry = {
         .id = *pId,
-        .status = (*pTask)->status.taskStatus,
+        .status = streamTaskGetStatus(*pTask, NULL),
         .nodeId = pMeta->vgId,
         .stage = pMeta->stage,
         .inputQUsed = SIZE_IN_MiB(streamQueueGetItemSize((*pTask)->inputInfo.queue)),

@@ -75,6 +75,7 @@ typedef enum ETaskStatus {
   TASK_STATUS__HALT,          // pause, but not be manipulated by user command
   TASK_STATUS__PAUSE,         // pause
   TASK_STATUS__CK,            // stream task is in checkpoint status, no data are allowed to put into inputQ anymore
+  TASK_STATUS_STREAM_SCAN_HISTORY,
 } ETaskStatus;
 
 enum {
@@ -129,17 +130,18 @@ enum {
 
 typedef enum EStreamTaskEvent {
   TASK_EVENT_INIT = 0x1,
-  TASK_EVENT_INIT_SCAN_HISTORY = 0x2,
-  TASK_EVENT_SCANHIST_COMPLETED = 0x3,
-  TASK_EVENT_START = 0x4,
+  TASK_EVENT_INIT_SCANHIST = 0x2,
+  TASK_EVENT_INIT_STREAM_SCANHIST = 0x3,
+  TASK_EVENT_SCANHIST_DONE = 0x4,
   TASK_EVENT_STOP = 0x5,
   TASK_EVENT_GEN_CHECKPOINT = 0x6,
-  TASK_EVENT_PAUSE = 0x7,
-  TASK_EVENT_RESUME = 0x8,
-  TASK_EVENT_HALT = 0x9,
-  TASK_EVENT_TRANS_STATE = 0xA,
-  TASK_EVENT_SCAN_TSDB = 0xB,
-  TASK_EVENT_SCAN_WAL = 0xC,
+  TASK_EVENT_CHECKPOINT_DONE = 0x7,
+  TASK_EVENT_PAUSE = 0x8,
+  TASK_EVENT_RESUME = 0x9,
+  TASK_EVENT_HALT = 0xA,
+  TASK_EVENT_TRANS_STATE = 0xB,
+  TASK_EVENT_SCAN_TSDB = 0xC,
+  TASK_EVENT_SCAN_WAL = 0xD,
 } EStreamTaskEvent;
 
 typedef struct {

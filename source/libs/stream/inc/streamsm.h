@@ -31,14 +31,19 @@ typedef struct SStreamTaskState {
 typedef int32_t (*__state_trans_fn)(SStreamTask*);
 typedef int32_t (*__state_trans_succ_fn)(SStreamTask*);
 
-typedef struct STaskStateTrans {
-  bool             autoInvokeEndFn;
-  SStreamTaskState state;
+typedef struct SAttachedEventInfo {
+  ETaskStatus      status;
   EStreamTaskEvent event;
-  SStreamTaskState next;
-  __state_trans_fn preAction;
-  __state_trans_fn pAction;
+} SAttachedEventInfo;
+
+typedef struct STaskStateTrans {
+  bool                  autoInvokeEndFn;
+  SStreamTaskState      state;
+  EStreamTaskEvent      event;
+  SStreamTaskState      next;
+  __state_trans_fn      pAction;
   __state_trans_succ_fn pSuccAction;
+  SAttachedEventInfo    attachEvent;
 } STaskStateTrans;
 
 struct SStreamTaskSM {
@@ -48,6 +53,8 @@ struct SStreamTaskSM {
   int64_t          startTs;
   SStreamTaskState current;
   SStreamTaskState prev;
+  // register the next handled event, if current state is not allowed to handle this event
+  SArray*          eventList;
 };
 
 typedef struct SStreamEventInfo {
@@ -57,7 +64,7 @@ typedef struct SStreamEventInfo {
 } SStreamEventInfo;
 
 SStreamTaskSM* streamCreateStateMachine(SStreamTask* pTask);
-
+void* streamDestroyStateMachine(SStreamTaskSM* pSM);
 #ifdef __cplusplus
 }
 #endif

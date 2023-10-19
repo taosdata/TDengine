@@ -304,11 +304,9 @@ static void freeUpstreamItem(void* p) {
 
 void tFreeStreamTask(SStreamTask* pTask) {
   int32_t taskId = pTask->id.taskId;
-  char* p = NULL;
-  streamTaskGetStatus(pTask, &p);
 
   STaskExecStatisInfo* pStatis = &pTask->execInfo;
-  stDebug("start to free s-task:0x%x, %p, state:%p, status:%s", taskId, pTask, pTask->pState, p);
+  stDebug("start to free s-task:0x%x, %p, state:%p", taskId, pTask, pTask->pState);
 
   stDebug("s-task:0x%x task exec summary: create:%" PRId64 ", init:%" PRId64 ", start:%" PRId64
          ", updateCount:%d latestUpdate:%" PRId64 ", latestCheckPoint:%" PRId64 ", ver:%" PRId64
@@ -393,6 +391,8 @@ void tFreeStreamTask(SStreamTask* pTask) {
     taosArrayDestroyEx(pTask->pRspMsgList, freeItem);
     pTask->pRspMsgList = NULL;
   }
+
+  pTask->status.pSM = streamDestroyStateMachine(pTask->status.pSM);
 
   streamTaskDestroyUpstreamInfo(&pTask->upstreamInfo);
 

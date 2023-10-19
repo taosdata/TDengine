@@ -324,7 +324,6 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   } else {
     ASSERT(status == TASK_STATUS__NORMAL);
     streamTaskHandleEvent(pStreamTask->status.pSM, TASK_EVENT_HALT);
-//    pStreamTask->status.taskStatus = TASK_STATUS__HALT;
     stDebug("s-task:%s halt by related fill-history task:%s", pStreamTask->id.idStr, pTask->id.idStr);
   }
 
@@ -375,7 +374,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
 
   // 7. pause allowed.
   streamTaskEnablePause(pStreamTask);
-  if (taosQueueEmpty(pStreamTask->inputInfo.queue->pQueue)) {
+  if ((pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) && taosQueueEmpty(pStreamTask->inputInfo.queue->pQueue)) {
     SStreamRefDataBlock* pItem = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
 
     SSDataBlock* pDelBlock = createSpecialDataBlock(STREAM_DELETE_DATA);
@@ -492,7 +491,7 @@ int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
       code = taosWriteQitem(pTask->outputq.queue->pQueue, pBlock);
       if (code == 0) {
         streamDispatchStreamBlock(pTask);
-      } else {
+      } else {  // todo put into queue failed, retry
         streamFreeQitem((SStreamQueueItem*)pBlock);
       }
     } else {  // level == TASK_LEVEL__SINK

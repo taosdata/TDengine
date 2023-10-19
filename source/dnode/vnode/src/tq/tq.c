@@ -1029,7 +1029,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
 
       bool restored = pTq->pVnode->restored;
       if (p != NULL && restored && p->info.fillHistory == 0) {
-        EStreamTaskEvent event = (p->hTaskInfo.id.taskId == 0) ? TASK_EVENT_INIT : TASK_EVENT_INIT_SCAN_HISTORY;
+        EStreamTaskEvent event = (p->hTaskInfo.id.taskId == 0) ? TASK_EVENT_INIT : TASK_EVENT_INIT_SCANHIST;
         streamTaskHandleEvent(p->status.pSM, event);
       } else if (!restored) {
         tqWarn("s-task:%s not launched since vnode(vgId:%d) not ready", p->id.idStr, vgId);
@@ -1259,7 +1259,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       }
 #endif
 
-      streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_COMPLETED);
+      streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
       tqScanWalAsync(pTq, false);
     }
     streamMetaReleaseTask(pMeta, pStreamTask);
@@ -1683,7 +1683,6 @@ FAIL:
   return -1;
 }
 
-// todo error code cannot be return, since this is invoked by an mnode-launched transaction.
 int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
@@ -1694,7 +1693,6 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   // disable auto rsp to mnode
   pRsp->info.handle = NULL;
 
-  // todo: add counter to make sure other tasks would not be trapped in checkpoint state
   SStreamCheckpointSourceReq req = {0};
   if (!vnodeIsRoleLeader(pTq->pVnode)) {
     tqDebug("vgId:%d not leader, ignore checkpoint-source msg", vgId);
@@ -1725,6 +1723,7 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   }
   tDecoderClear(&decoder);
 
+  // todo handle failure to reset from checkpoint procedure
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, req.taskId);
   if (pTask == NULL) {
     tqError("vgId:%d failed to find s-task:0x%x, ignore checkpoint msg. it may have been destroyed already", vgId,
@@ -1735,6 +1734,7 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
     return TSDB_CODE_SUCCESS;
   }
 
+  // todo handle failure to reset from checkpoint procedure
   // downstream not ready, current the stream tasks are not all ready. Ignore this checkpoint req.
   if (pTask->status.downstreamReady != 1) {
     pTask->chkInfo.failedId = req.checkpointId;   // record the latest failed checkpoint id
@@ -1750,8 +1750,9 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
     return TSDB_CODE_SUCCESS;
   }
 
+  // todo save the checkpoint failed info
   taosThreadMutexLock(&pTask->lock);
-  if (pTask->status.taskStatus == TASK_STATUS__HALT) {
+  if (streamTaskGetStatus(pTask, NULL) == TASK_STATUS__HALT) {
     qError("s-task:%s not ready for checkpoint, since it is halt, ignore this checkpoint:%" PRId64 ", set it failure",
            pTask->id.idStr, req.checkpointId);
     taosThreadMutexUnlock(&pTask->lock);
