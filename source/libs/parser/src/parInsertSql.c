@@ -1168,7 +1168,14 @@ static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt
 }
 
 static int32_t preParseTargetTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SToken* pTbName) {
-  return insCreateSName(&pStmt->targetTableName, pTbName, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg);
+  int32_t code = insCreateSName(&pStmt->targetTableName, pTbName, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (IS_SYS_DBNAME(pStmt->targetTableName.dbname)) {
+      return TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED;
+    }
+  }
+
+  return code;
 }
 
 // input pStmt->pSql:

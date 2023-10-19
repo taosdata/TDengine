@@ -75,5 +75,19 @@ endi
 sql drop view view1;
 sql drop view view2;
 
+sql use information_schema;
+sql create view view1 as select * from ins_views;
+sql select * from view1;
+if $rows != 1 then
+  return -1
+endi
+sql drop view view1;
+sql use testa;
+sql create view information_schema.view1 as select * from information_schema.ins_views;
+sql select * from information_schema.view1;
+if $rows != 1 then
+  return -1
+endi
+sql drop view information_schema.view1;
 
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT

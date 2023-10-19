@@ -1804,10 +1804,12 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
 
   int32_t numOfReadTbs = taosHashGetSize(pRsp->readTbs);
   int32_t numOfWriteTbs = taosHashGetSize(pRsp->writeTbs);
-  int32_t numOfUseTbs = taosHashGetSize(pRsp->useDbs);
+  int32_t numOfAlterTbs = taosHashGetSize(pRsp->alterTbs);
+  int32_t numOfUseDbs = taosHashGetSize(pRsp->useDbs);
   if (tEncodeI32(pEncoder, numOfReadTbs) < 0) return -1;
   if (tEncodeI32(pEncoder, numOfWriteTbs) < 0) return -1;
-  if (tEncodeI32(pEncoder, numOfUseTbs) < 0) return -1;
+  if (tEncodeI32(pEncoder, numOfAlterTbs) < 0) return -1;
+  if (tEncodeI32(pEncoder, numOfUseDbs) < 0) return -1;
 
   char *tb = taosHashIterate(pRsp->readTbs, NULL);
   while (tb != NULL) {
@@ -1837,6 +1839,21 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
     if (tEncodeCStr(pEncoder, tb) < 0) return -1;
 
     tb = taosHashIterate(pRsp->writeTbs, tb);
+  }
+
+  tb = taosHashIterate(pRsp->alterTbs, NULL);
+  while (tb != NULL) {
+    size_t keyLen = 0;
+    void  *key = taosHashGetKey(tb, &keyLen);
+    if (tEncodeI32(pEncoder, keyLen) < 0) return -1;
+    if (tEncodeCStr(pEncoder, key) < 0) return -1;
+
+    size_t valueLen = 0;
+    valueLen = strlen(tb);
+    if (tEncodeI32(pEncoder, valueLen) < 0) return -1;
+    if (tEncodeCStr(pEncoder, tb) < 0) return -1;
+
+    tb = taosHashIterate(pRsp->alterTbs, tb);
   }
 
   int32_t *useDb = taosHashIterate(pRsp->useDbs, NULL);
@@ -1878,9 +1895,10 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
   pRsp->writeDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   pRsp->readTbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   pRsp->writeTbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  pRsp->alterTbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   pRsp->useDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (pRsp->createdDbs == NULL || pRsp->readDbs == NULL || pRsp->writeDbs == NULL || pRsp->readTbs == NULL ||
-      pRsp->writeTbs == NULL || pRsp->useDbs == NULL) {
+      pRsp->writeTbs == NULL || pRsp->alterTbs == NULL || pRsp->useDbs == NULL) {
     goto _err;
   }
 
@@ -1922,9 +1940,11 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
   if (!tDecodeIsEnd(pDecoder)) {
     int32_t numOfReadTbs = 0;
     int32_t numOfWriteTbs = 0;
+    int32_t numOfAlterTbs = 0;
     int32_t numOfUseDbs = 0;
     if (tDecodeI32(pDecoder, &numOfReadTbs) < 0) goto _err;
     if (tDecodeI32(pDecoder, &numOfWriteTbs) < 0) goto _err;
+    if (tDecodeI32(pDecoder, &numOfAlterTbs) < 0) goto _err;
     if (tDecodeI32(pDecoder, &numOfUseDbs) < 0) goto _err;
 
     for (int32_t i = 0; i < numOfReadTbs; ++i) {
@@ -1960,6 +1980,25 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
       if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
 
       taosHashPut(pRsp->writeTbs, key, strlen(key), value, valuelen + 1);
+
+      taosMemoryFreeClear(key);
+      taosMemoryFreeClear(value);
+    }
+
+    for (int32_t i = 0; i < numOfAlterTbs; ++i) {
+      int32_t keyLen = 0;
+      if (tDecodeI32(pDecoder, &keyLen) < 0) goto _err;
+
+      key = taosMemoryCalloc(keyLen + 1, sizeof(char));
+      if (tDecodeCStrTo(pDecoder, key) < 0) goto _err;
+
+      int32_t valuelen = 0;
+      if (tDecodeI32(pDecoder, &valuelen) < 0) goto _err;
+
+      value = taosMemoryCalloc(valuelen + 1, sizeof(char));
+      if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
+
+      taosHashPut(pRsp->alterTbs, key, strlen(key), value, valuelen + 1);
 
       taosMemoryFreeClear(key);
       taosMemoryFreeClear(value);
@@ -2024,6 +2063,7 @@ void tFreeSGetUserAuthRsp(SGetUserAuthRsp *pRsp) {
   taosHashCleanup(pRsp->writeDbs);
   taosHashCleanup(pRsp->writeTbs);
   taosHashCleanup(pRsp->readTbs);
+  taosHashCleanup(pRsp->alterTbs);
   taosHashCleanup(pRsp->useDbs);
 }
 

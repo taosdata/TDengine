@@ -77,7 +77,7 @@ static int32_t checkAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabNa
 }
 
 static int32_t checkViewAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, AUTH_TYPE type, SNode** pCond) {
-  return checkAuthImpl(pCxt, pDbName, pTabName, type, pCond, true);
+  return checkAuthImpl(pCxt, pDbName, pTabName, type, NULL, true);
 }
 
 
@@ -208,9 +208,11 @@ static int32_t authShowCreateTable(SAuthCxt* pCxt, SShowCreateTableStmt* pStmt) 
 }
 
 static int32_t authShowCreateView(SAuthCxt* pCxt, SShowCreateViewStmt* pStmt) {
-  SNode* pTagCond = NULL;
-  // todo check tag condition for subtable
-  return checkViewAuth(pCxt, pStmt->dbName, pStmt->viewName, AUTH_TYPE_READ, &pTagCond);
+#ifndef TD_ENTERPRISE
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t authCreateTable(SAuthCxt* pCxt, SCreateTableStmt* pStmt) {
@@ -256,10 +258,26 @@ static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
 }
 
 static int32_t authCreateView(SAuthCxt* pCxt, SCreateViewStmt* pStmt) {
-  return checkAuth(pCxt, pStmt->dbName, NULL, AUTH_TYPE_WRITE, NULL);
+#ifndef TD_ENTERPRISE
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+  int32_t code = checkAuth(pCxt, pStmt->dbName, NULL, AUTH_TYPE_WRITE, NULL);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkViewAuth(pCxt, pStmt->dbName, pStmt->viewName, AUTH_TYPE_ALTER, NULL);
+    if (TSDB_CODE_SUCCESS != code) {
+      if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
+        return TSDB_CODE_SUCCESS;
+      }
+      return code;
+    }
+  }
+  return code;
 }
 
 static int32_t authDropView(SAuthCxt* pCxt, SDropViewStmt* pStmt) {
+#ifndef TD_ENTERPRISE
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
   return checkViewAuth(pCxt, pStmt->dbName, pStmt->viewName, AUTH_TYPE_WRITE, NULL);
 }
 
@@ -308,8 +326,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return authShowCreateTable(pCxt, (SShowCreateTableStmt*)pStmt);
-    case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
-      return authShowCreateView(pCxt, (SShowCreateViewStmt*)pStmt);
+//    case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
+//      return authShowCreateView(pCxt, (SShowCreateViewStmt*)pStmt);
     case QUERY_NODE_CREATE_VIEW_STMT:
       return authCreateView(pCxt, (SCreateViewStmt*)pStmt);
     case QUERY_NODE_DROP_VIEW_STMT:

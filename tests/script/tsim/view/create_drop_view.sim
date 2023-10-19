@@ -32,3 +32,9 @@ sql_error create view view1 as show tables;
 sql_error create view view1 as desc sta1;
 sql_error create view view1 as select * from st;
 sql_error create view view1 as select count(*) from sta1 group by f interval(1s);
+
+sql use information_schema;
+sql create view view1 as select * from ins_tables;
+sql drop view view1;
+sql create view information_schema.view1 as select * from ins_tags;
+sql drop view information_schema.view1;

@@ -297,6 +297,10 @@ typedef struct {
   SHashObj* topics;
   SHashObj* readTbs;
   SHashObj* writeTbs;
+  SHashObj* alterTbs;
+  SHashObj* readViews;
+  SHashObj* writeViews;
+  SHashObj* alterViews;
   SHashObj* useDbs;
   SRWLatch  lock;
 } SUserObj;
@@ -737,6 +741,7 @@ typedef struct {
   char     fullname[TSDB_VIEW_FNAME_LEN];
   char     name[TSDB_VIEW_NAME_LEN];
   char     dbFName[TSDB_DB_FNAME_LEN];
+  char     user[TSDB_USER_LEN];
   char*    querySql;
   char*    parameters;
   void**   defaultValues;

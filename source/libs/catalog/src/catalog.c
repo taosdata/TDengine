@@ -1762,6 +1762,11 @@ _return:
   CTG_API_LEAVE(code);
 }
 
+int32_t catalogGetViewMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pViewName, STableMeta** pTableMeta) {
+  CTG_API_ENTER();
+
+  CTG_API_LEAVE(TSDB_CODE_OPS_NOT_SUPPORT);
+}
 
 int32_t catalogClearCache(void) {
   CTG_API_ENTER_NOLOCK();

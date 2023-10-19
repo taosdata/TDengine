@@ -2177,6 +2177,7 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
   taosHashCleanup(pUser->userAuth.writeDbs);
   taosHashCleanup(pUser->userAuth.readTbs);
   taosHashCleanup(pUser->userAuth.writeTbs);
+  taosHashCleanup(pUser->userAuth.alterTbs);
   taosHashCleanup(pUser->userAuth.useDbs);
 
   memcpy(&pUser->userAuth, &msg->userAuth, sizeof(msg->userAuth));
@@ -2186,6 +2187,7 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
   msg->userAuth.writeDbs = NULL;
   msg->userAuth.readTbs = NULL;
   msg->userAuth.writeTbs = NULL;
+  msg->userAuth.alterTbs = NULL;
   msg->userAuth.useDbs = NULL;
 
   CTG_UNLOCK(CTG_WRITE, &pUser->lock);
@@ -2199,6 +2201,7 @@ _return:
   taosHashCleanup(msg->userAuth.writeDbs);
   taosHashCleanup(msg->userAuth.readTbs);
   taosHashCleanup(msg->userAuth.writeTbs);
+  taosHashCleanup(msg->userAuth.alterTbs);
   taosHashCleanup(msg->userAuth.useDbs);
 
   taosMemoryFreeClear(msg);
@@ -2536,6 +2539,7 @@ void ctgFreeCacheOperationData(SCtgCacheOperation *op) {
       taosHashCleanup(msg->userAuth.writeDbs);
       taosHashCleanup(msg->userAuth.readTbs);
       taosHashCleanup(msg->userAuth.writeTbs);
+      taosHashCleanup(msg->userAuth.alterTbs);
       taosHashCleanup(msg->userAuth.useDbs);
       taosMemoryFreeClear(op->data);
       break;

@@ -339,31 +339,67 @@ static int32_t collectUseTable(const SName* pName, SHashObj* pTable) {
   return taosHashPut(pTable, fullName, strlen(fullName), pName, sizeof(SName));
 }
 
-static int32_t getTableMetaImpl(STranslateContext* pCxt, const SName* pName, STableMeta** pMeta, bool couldBeView) {
+static int32_t getViewMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta) {
+#ifndef TD_ENTERPRISE
+  return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+#endif
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  
+  if (pParCxt->async) {
+    code = getViewMetaFromCache(pMetaCache, pName, pMeta);
+  } else {
+    SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                             .requestId = pParCxt->requestId,
+                             .requestObjRefId = pParCxt->requestRid,
+                             .mgmtEps = pParCxt->mgmtEpSet};
+    code = catalogGetViewMeta(pParCxt->pCatalog, &conn, pName, pMeta);
+  }
+    
+  if (TSDB_CODE_SUCCESS != code && TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
+    parserError("0x%" PRIx64 " catalogGetViewMeta error, code:%s, dbName:%s, viewName:%s", pParCxt->requestId,
+                tstrerror(code), pName->dbname, pName->tname);
+  }
+  return code;
+}
+
+static int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta, bool couldBeView) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  
+  if (pParCxt->async) {
+    code = getTableMetaFromCache(pMetaCache, pName, pMeta);
+#ifdef TD_ENTERPRISE
+    if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code && couldBeView) {
+      int32_t origCode = code;
+      code = getViewMetaFromCache(pMetaCache, pName, pMeta);
+      if (TSDB_CODE_SUCCESS != code) {
+        code = origCode;
+      }
+    }
+#endif
+  } else {
+    SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                             .requestId = pParCxt->requestId,
+                             .requestObjRefId = pParCxt->requestRid,
+                             .mgmtEps = pParCxt->mgmtEpSet};
+    code = catalogGetTableMeta(pParCxt->pCatalog, &conn, pName, pMeta);
+  }
+    
+  if (TSDB_CODE_SUCCESS != code && TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
+    parserError("0x%" PRIx64 " catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", pParCxt->requestId,
+                tstrerror(code), pName->dbname, pName->tname);
+  }
+  return code;
+}
+
+static int32_t getTargetMeta(STranslateContext* pCxt, const SName* pName, STableMeta** pMeta, bool couldBeView) {
   SParseContext* pParCxt = pCxt->pParseCxt;
   int32_t        code = collectUseDatabase(pName, pCxt->pDbs);
   if (TSDB_CODE_SUCCESS == code) {
     code = collectUseTable(pName, pCxt->pTables);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    if (pParCxt->async) {
-      code = getTableMetaFromCache(pCxt->pMetaCache, pName, pMeta);
-#ifdef TD_ENTERPRISE
-      if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code && couldBeView) {
-        int32_t origCode = code;
-        code = getViewMetaFromCache(pCxt->pMetaCache, pName, pMeta);
-        if (TSDB_CODE_SUCCESS != code) {
-          code = origCode;
-        }
-      }
-#endif
-    } else {
-      SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
-                               .requestId = pParCxt->requestId,
-                               .requestObjRefId = pParCxt->requestRid,
-                               .mgmtEps = pParCxt->mgmtEpSet};
-      code = catalogGetTableMeta(pParCxt->pCatalog, &conn, pName, pMeta);
-    }
+    code = getTargetMetaImpl(pParCxt, pCxt->pMetaCache, pName, pMeta, couldBeView);
   }
   if (TSDB_CODE_SUCCESS != code && TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
     parserError("0x%" PRIx64 " catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", pCxt->pParseCxt->requestId,
@@ -374,7 +410,7 @@ static int32_t getTableMetaImpl(STranslateContext* pCxt, const SName* pName, STa
 
 static int32_t getTableMeta(STranslateContext* pCxt, const char* pDbName, const char* pTableName, STableMeta** pMeta) {
   SName name;
-  return getTableMetaImpl(pCxt, toName(pCxt->pParseCxt->acctId, pDbName, pTableName, &name), pMeta, false);
+  return getTargetMeta(pCxt, toName(pCxt->pParseCxt->acctId, pDbName, pTableName, &name), pMeta, false);
 }
 
 static int32_t getTableCfg(STranslateContext* pCxt, const SName* pName, STableCfg** pCfg) {
@@ -2777,7 +2813,7 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable) {
       // The SRealTableNode created through ROLLUP already has STableMeta.
       if (NULL == pRealTable->pMeta) {
         SName name;
-        code = getTableMetaImpl(
+        code = getTargetMeta(
             pCxt, toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, &name),
             &(pRealTable->pMeta), true);
         if (TSDB_CODE_SUCCESS != code) {
@@ -6414,7 +6450,7 @@ static int32_t buildQueryForTableTopic(STranslateContext* pCxt, SCreateTopicStmt
                                .mgmtEps = pParCxt->mgmtEpSet};
   SName            name;
   STableMeta*      pMeta = NULL;
-  int32_t code = getTableMetaImpl(pCxt, toName(pParCxt->acctId, pStmt->subDbName, pStmt->subSTbName, &name), &pMeta, false);
+  int32_t code = getTargetMeta(pCxt, toName(pParCxt->acctId, pStmt->subDbName, pStmt->subSTbName, &name), &pMeta, false);
   if (code) {
     taosMemoryFree(pMeta);
     return code;
@@ -6596,7 +6632,7 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
 #ifdef TD_ENTERPRISE
   SRealTableNode* pRealTable = (SRealTableNode*)((SSelectStmt*)pStmt->pQuery)->pFromTable;
   SName name;
-  int32_t code = getTableMetaImpl(
+  int32_t code = getTargetMeta(
       pCxt, toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, &name),
       &(pRealTable->pMeta), true);
   if (TSDB_CODE_SUCCESS != code) {
@@ -7619,7 +7655,7 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
   int32_t code = createRealTableForGrantTable(pStmt, &pTable);
   if (TSDB_CODE_SUCCESS == code) {
     SName name;
-    code = getTableMetaImpl(pCxt, toName(pCxt->pParseCxt->acctId, pTable->table.dbName, pTable->table.tableName, &name),
+    code = getTargetMeta(pCxt, toName(pCxt->pParseCxt->acctId, pTable->table.dbName, pTable->table.tableName, &name),
                             &(pTable->pMeta), false);
     if (code) {
       nodesDestroyNode((SNode*)pTable);
@@ -7655,7 +7691,7 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
 
 static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
   SAlterUserReq req = {0};
-  req.alterType = TSDB_ALTER_USER_PRIVILEGES;
+  req.alterType = TSDB_ALTER_USER_ADD_PRIVILEGES;
   req.privileges = pStmt->privileges;
 
   strcpy(req.user, pStmt->userName);
@@ -7671,17 +7707,9 @@ static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
 
 static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
   SAlterUserReq req = {0};
-  if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_ALL) ||
-      (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ) &&
-       BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE))) {
-    req.alterType = ('\0' == pStmt->tabName[0] ? TSDB_ALTER_USER_REMOVE_ALL_DB : TSDB_ALTER_USER_REMOVE_ALL_TABLE);
-  } else if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ)) {
-    req.alterType = ('\0' == pStmt->tabName[0] ? TSDB_ALTER_USER_REMOVE_READ_DB : TSDB_ALTER_USER_REMOVE_READ_TABLE);
-  } else if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE)) {
-    req.alterType = ('\0' == pStmt->tabName[0] ? TSDB_ALTER_USER_REMOVE_WRITE_DB : TSDB_ALTER_USER_REMOVE_WRITE_TABLE);
-  } else if (BIT_FLAG_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_SUBSCRIBE)) {
-    req.alterType = TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC;
-  }
+  req.alterType = TSDB_ALTER_USER_DEL_PRIVILEGES;
+  req.privileges = pStmt->privileges;
+  
   strcpy(req.user, pStmt->userName);
   sprintf(req.objname, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
   sprintf(req.tabName, "%s", pStmt->tabName);
@@ -7793,7 +7821,7 @@ static int32_t translateShowCreateView(STranslateContext* pCxt, SShowCreateViewS
 #else 
   SName name;
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->viewName, &name);
-  return getViewMeta(pCxt, &name, (SViewMeta**)&pStmt->pViewMeta);
+  return getViewMetaFromMetaCache(pCxt, &name, (SViewMeta**)&pStmt->pViewMeta);
 #endif
 }
 
@@ -9151,7 +9179,7 @@ static int32_t buildDropTableVgroupHashmap(STranslateContext* pCxt, SDropTableCl
   SName name;
   toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &name);
   STableMeta* pTableMeta = NULL;
-  int32_t     code = getTableMetaImpl(pCxt, &name, &pTableMeta, false);
+  int32_t     code = getTargetMeta(pCxt, &name, &pTableMeta, false);
   if (TSDB_CODE_SUCCESS == code) {
     code = collectUseTable(&name, pCxt->pTargetTables);
   }

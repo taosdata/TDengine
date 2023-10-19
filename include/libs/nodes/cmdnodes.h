@@ -503,10 +503,6 @@ typedef struct SDropFunctionStmt {
   bool      ignoreNotExists;
 } SDropFunctionStmt;
 
-typedef struct SQueryResInfo {
-
-} SQueryResInfo;
-
 typedef struct SCreateViewStmt {
   ENodeType           type;
   char                dbName[TSDB_DB_NAME_LEN];

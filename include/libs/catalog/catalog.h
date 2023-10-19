@@ -45,6 +45,7 @@ enum {
 typedef enum {
   AUTH_TYPE_READ = 1,
   AUTH_TYPE_WRITE,
+  AUTH_TYPE_ALTER,
   AUTH_TYPE_OTHER,
   AUTH_TYPE_READ_OR_WRITE,
 } AUTH_TYPE;
@@ -373,6 +374,8 @@ int32_t catalogUpdateDynViewVer(SCatalog* pCtg, SDynViewVersion* pVer);
 int32_t catalogUpdateViewMeta(SCatalog* pCtg, SViewMetaRsp* pMsg);
 
 int32_t catalogAsyncUpdateViewMeta(SCatalog* pCtg, SViewMetaRsp* pMsg);
+
+int32_t catalogGetViewMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pViewName, STableMeta** pTableMeta);
 
 int32_t ctgdEnableDebug(char* option, bool enable);
 

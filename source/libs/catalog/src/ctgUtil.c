@@ -195,6 +195,7 @@ void ctgFreeSCtgUserAuth(SCtgUserAuth* userCache) {
   taosHashCleanup(userCache->userAuth.writeDbs);
   taosHashCleanup(userCache->userAuth.readTbs);
   taosHashCleanup(userCache->userAuth.writeTbs);
+  taosHashCleanup(userCache->userAuth.alterTbs);
   taosHashCleanup(userCache->userAuth.useDbs);
 }
 
@@ -565,6 +566,7 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       taosHashCleanup(pOut->writeDbs);
       taosHashCleanup(pOut->readTbs);
       taosHashCleanup(pOut->writeTbs);
+      taosHashCleanup(pOut->alterTbs);
       taosHashCleanup(pOut->useDbs);
       taosMemoryFreeClear(pCtx->out);
       break;
@@ -1965,6 +1967,15 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp *pAuth) {
     cacheSize += len + strlen(p);
 
     p = taosHashIterate(pAuth->writeTbs, p);
+  } 
+
+  p = taosHashIterate(pAuth->alterTbs, NULL);
+  while (p != NULL) {
+    size_t len = 0;
+    void*  key = taosHashGetKey(p, &len);
+    cacheSize += len + strlen(p);
+
+    p = taosHashIterate(pAuth->alterTbs, p);
   } 
 
   int32_t *ref = taosHashIterate(pAuth->useDbs, NULL);
