@@ -1310,7 +1310,7 @@ impl TaskController {
 
         if res.rows_affected() == 1 {
             let task = self.get(id).await?.unwrap();
-
+            self.stop(task.task.id.clone()).await?;
             self.start_task(&task.task).await?;
             Ok(Some(task.into()))
         } else {
