@@ -92,6 +92,12 @@ authentication:
           placeholder: Please input your access token in the InfluxDB
           hint: str
           required: true
+        - name: addDbrp
+          display: Add DBRP
+          description: InfluxQL requires a database and retention policy (DBRP) combination in order to query data. In InfluxDB Cloud and some 2.x require manual addition of this mapping relationship. By turning on this switch, the connector can be automatically added during task execution.
+          hint:
+            type: bool
+          value: false
 groups:
   - name: task
     display: Task
