@@ -393,11 +393,11 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
 
-  pTrans->statusClientRpc = rpcOpen(&rpcInit);
-  if (pTrans->statusClientRpc == NULL) {
-    dError("failed to init dnode rpc status client");
-    return -1;
-  }
+  // pTrans->statusClientRpc = rpcOpen(&rpcInit);
+  // if (pTrans->statusClientRpc == NULL) {
+  //   dError("failed to init dnode rpc status client");
+  //   return -1;
+  // }
 
   dDebug("dnode rpc status client is initialized");
   return 0;
@@ -413,11 +413,11 @@ void dmCleanupClient(SDnode *pDnode) {
 }
 void dmCleanupStatusClient(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
-  if (pTrans->statusClientRpc) {
-    rpcClose(pTrans->statusClientRpc);
-    pTrans->statusClientRpc = NULL;
-    dDebug("dnode rpc status client is closed");
-  }
+  // if (pTrans->statusClientRpc) {
+  //   rpcClose(pTrans->statusClientRpc);
+  //   pTrans->statusClientRpc = NULL;
+  //   dDebug("dnode rpc status client is closed");
+  // }
 }
 
 int32_t dmInitServer(SDnode *pDnode) {
@@ -457,7 +457,6 @@ void dmCleanupServer(SDnode *pDnode) {
 SMsgCb dmGetMsgcb(SDnode *pDnode) {
   SMsgCb msgCb = {
       .clientRpc = pDnode->trans.clientRpc,
-      .statusClientRpc = pDnode->trans.statusClientRpc,
       .serverRpc = pDnode->trans.serverRpc,
       .sendReqFp = dmSendReq,
       .sendRspFp = dmSendRsp,

@@ -48,7 +48,6 @@ typedef struct {
 typedef struct {
   void        *serverRpc;
   void        *clientRpc;
-  void        *statusClientRpc;
   SDnodeHandle msgHandles[TDMT_MAX];
 } SDnodeTrans;
 
