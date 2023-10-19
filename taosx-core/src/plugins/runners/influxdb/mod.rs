@@ -20,33 +20,11 @@ use super::get_plugin_dir;
 
 mod config;
 
-#[derive(Debug, thiserror::Error)]
-pub enum InfluxdbError {
-    #[error("The access address of InfluxDB is required: {0}")]
-    InfluxUrlIsRequired(Dsn),
-    #[error("The version of InfluxDB is required: {0}")]
-    InfluxVersionIsRequired(Dsn),
-    #[error("The username is required: {0}")]
-    InfluxUsernameIsRequired(Dsn),
-    #[error("The password is required: {0}")]
-    InfluxPasswordIsRequired(Dsn),
-    #[error("The access token is required: {0}")]
-    InfluxTokenIsRequired(Dsn),
-    #[error("The organization id is required: {0}")]
-    InfluxOrgIdIsRequired(Dsn),
-    #[error("The data begin time is required: {0}")]
-    TaskBeginTimeIsRequired(Dsn),
-    #[error("The bucket is required: {0}")]
-    TaskBucketIsRequired(Dsn),
-    #[error("plugin not found: {0}")]
-    ExeNotFound(String),
-}
-
 const EXE: &'static str = "taosx-influxdb.jar";
 const LOG_FILE: &str = "influxdb.log";
 
-pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
-    let path = influxdb_jar_path();
+pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
+    let path = influxdb_jar_path()?;
     let output = std::process::Command::new("java")
         .arg("-jar")
         .arg(&path)
@@ -80,30 +58,18 @@ pub async fn influxdb_to_taos(
     span: Span,
     breakpoints: Option<String>,
 ) -> anyhow::Result<()> {
-    let jar_path = influxdb_jar_path();
-    if !jar_path.exists() {
-        let err_msg = format!("plugin not found {:?}", jar_path.to_str());
-        tracing::error!(err_msg);
-        return Err(anyhow::anyhow!(err_msg));
-    }
+    let connector_path = influxdb_jar_path()?;
 
-    // tdengine
-    let td_database = to.subject.clone();
-    // a random port
     let ipc_port = port_pool
         .get()
         .ok_or(anyhow::anyhow!("No available port for InfluxDB connection"))?;
 
-    // agent监听地址
-    let ipc_stream = format!("127.0.0.1:{ipc_port}");
-
     // generate config
-    let config = InfluxdbConfig::new(from, td_database.unwrap(), ipc_port)?;
+    let config = InfluxdbConfig::from(&from, ipc_port)?;
     // transform to toml
     let toml = toml::to_string(&config)?;
     // write to a temporary file
     let mut config_file = tempfile::NamedTempFile::new()?;
-    // dbg!(&config_file);
     write!(config_file, "{}", &toml)?;
     // get the path of the temporary file
     let config_path = config_file.path().to_path_buf();
@@ -111,7 +77,7 @@ pub async fn influxdb_to_taos(
     tracing::info!("Using config file {}", config_path.display());
     // create socket channel
     let mut ipc = build_ipc(
-        ipc_stream.as_str(),
+        format!("127.0.0.1:{ipc_port}").as_str(),
         None,
         &to,
         Some("influxdb"),
@@ -122,9 +88,8 @@ pub async fn influxdb_to_taos(
         span,
     )
     .await?;
+
     tokio::time::sleep(Duration::from_millis(500)).await;
-    // 连接器路径
-    let connector_path = influxdb_jar_path();
 
     let mut log_path = log_path();
 
@@ -245,7 +210,8 @@ pub async fn influxdb_to_taos(
 pub async fn influxdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     let c = ConnectionConfig::from_dsn(&dsn)?;
     // 连接器路径
-    let connector_path = influxdb_jar_path();
+    let path = influxdb_jar_path()?;
+
     // startup the connector
     let mut command = tokio::process::Command::new("java");
     // 查询命令
@@ -255,7 +221,7 @@ pub async fn influxdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
         // 查询命令
         output = command
             .arg("-jar")
-            .arg(&connector_path)
+            .arg(&path)
             .arg("-fetch")
             .arg(&c.version)
             .arg(&c.url)
@@ -269,7 +235,7 @@ pub async fn influxdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
     } else {
         output = command
             .arg("-jar")
-            .arg(&connector_path)
+            .arg(&path)
             .arg("-fetch")
             .arg(&c.version)
             .arg(&c.url)
@@ -342,7 +308,8 @@ async fn validate_source_influxdb(
     config: ConnectionConfig,
 ) -> anyhow::Result<DataSourceValidation> {
     // 连接器路径
-    let connector_path = influxdb_jar_path();
+    let connector_path = influxdb_jar_path()?;
+
     // startup the connector
     let mut command = tokio::process::Command::new("java");
     // 查询命令
@@ -398,7 +365,7 @@ async fn validate_source_influxdb(
             valid: false,
             support: false,
             data_source: String::from("influxdb"),
-            version: Some(String::from("")),
+            version: None,
             message: Some(output.status.to_string()),
         })
     }
@@ -408,12 +375,43 @@ fn log_path() -> PathBuf {
     super::get_log_dir("influxdb")
 }
 
-fn influxdb_jar_path() -> PathBuf {
-    get_plugin_dir("influxdb").join(EXE)
+fn influxdb_jar_path() -> anyhow::Result<PathBuf> {
+    let path = get_plugin_dir("influxdb").join(EXE);
+    if !path.exists() {
+        return Err(anyhow::anyhow!(format!(
+            "influxdb plugin not found {:?}",
+            path.to_str()
+        )));
+    }
+    Ok(path)
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use std::str::FromStr;
+    use taos::Dsn;
+
     #[tokio::test]
-    async fn test_is_valid() {}
+    async fn test_is_valid() {
+        let dsn = Dsn::from_str("influxdb://?version=2.7").unwrap();
+        let validation = is_valid(&dsn).await;
+        assert_eq!(false, validation.valid);
+        assert_eq!(false, validation.support);
+        assert_eq!("influxdb", validation.data_source);
+        assert!(validation.version.is_none());
+        assert_eq!(
+            "invalid dsn: influxdb://?version=2.7, cause: orgId is required",
+            validation.message.unwrap()
+        );
+
+        let dsn =
+            Dsn::from_str("influxdb://127.0.0.1:8086?version=2.7&orgId=abc&token=123").unwrap();
+        let validation = is_valid(&dsn).await;
+        assert_eq!(false, validation.valid);
+        assert_eq!(false, validation.support);
+        assert_eq!("influxdb", validation.data_source);
+        assert!(validation.version.is_none());
+        assert!(validation.message.unwrap().contains("plugin not found"));
+    }
 }

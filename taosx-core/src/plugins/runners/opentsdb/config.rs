@@ -1,6 +1,6 @@
+use crate::runners::config::PerformanceConfig;
 use itertools::Itertools;
 use taos::Dsn;
-use crate::runners::config::PerformanceConfig;
 
 #[derive(Debug, serde::Serialize)]
 pub struct OpentsdbConfig {
@@ -51,7 +51,9 @@ impl ConnectionConfig {
             return Err(anyhow::anyhow!("invalid protocol: {}", protocol));
         }
 
-        Ok(ConnectionConfig { url: format!("{}://{}:{}/", protocol, host, port) })
+        Ok(ConnectionConfig {
+            url: format!("{}://{}:{}/", protocol, host, port),
+        })
     }
 }
 
@@ -102,10 +104,7 @@ impl TaskConfig {
                 .get("beginTime")
                 .ok_or(anyhow::anyhow!("beginTime is required"))?
                 .to_string(),
-            end_time: dsn
-                .params
-                .get("endTime")
-                .map(|s| s.to_string()),
+            end_time: dsn.params.get("endTime").map(|s| s.to_string()),
         })
     }
 }
@@ -119,7 +118,8 @@ mod tests {
 
     #[test]
     fn test_opentsdb_config_from() {
-        let dsn = Dsn::from_str("opentsdb://127.0.0.1:6060/?beginTime=2023-11-22T12:11:22Z").unwrap();
+        let dsn =
+            Dsn::from_str("opentsdb://127.0.0.1:6060/?beginTime=2023-11-22T12:11:22Z").unwrap();
         let config = OpentsdbConfig::from(&dsn, 6061).unwrap();
         assert_eq!("http://127.0.0.1:6060/", config.opents.url);
         let taosx = config.taosx.unwrap();

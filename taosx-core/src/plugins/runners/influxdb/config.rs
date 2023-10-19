@@ -19,7 +19,7 @@ pub struct InfluxdbConfig {
 }
 
 impl InfluxdbConfig {
-    pub fn new(mut dsn: Dsn, td_database: String, ipc: u16) -> anyhow::Result<Self> {
+    pub fn from(dsn: &Dsn, ipc: u16) -> anyhow::Result<Self> {
         if dsn.driver != "influxdb" {
             return Err(anyhow::anyhow!("invalid driver: {}", dsn.driver));
         }
@@ -38,9 +38,6 @@ impl InfluxdbConfig {
 
         // the performance config
         let performance = PerformanceConfig::from_dsn(&dsn)?;
-
-        // agent监听地址
-        let ipc_stream = format!("127.0.0.1:{ipc}");
 
         Ok(Self {
             influx: connect,
@@ -204,7 +201,7 @@ mod tests {
     #[test]
     fn test_influxdb_config_from_dsn() {
         let dsn = Dsn::from_str("invalid://").unwrap();
-        let config = InfluxdbConfig::new(dsn, "td".to_string(), 0);
+        let config = InfluxdbConfig::from(&dsn, 0);
         assert!(config.is_err());
         assert_eq!("invalid driver: invalid", config.unwrap_err().to_string());
     }
@@ -232,7 +229,7 @@ mod tests {
         let dsn = Dsn::from_str(
             "influxdb://?bucket=abc&beginTime=2023-11-11T12:00:00Z&measurements=m1,m2,m3",
         )
-            .unwrap();
+        .unwrap();
         let config = TaskConfig::from_dsn(&dsn).unwrap();
         assert_eq!("normal", config.mode);
         assert_eq!("abc", config.bucket);

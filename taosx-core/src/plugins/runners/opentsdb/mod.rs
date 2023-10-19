@@ -7,31 +7,25 @@ use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, Span};
 
-use crate::{
-    Action, build_ipc, DataSet, get_log_keep_days, Transferred, utils::port_pool::PortPool,
-};
 use crate::runners::log_rotation;
 use crate::runners::opentsdb::config::{ConnectionConfig, OpentsdbConfig};
 use crate::validation::DataSourceValidation;
+use crate::{
+    build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
+};
 
 use super::get_plugin_dir;
 
 mod config;
 
-#[derive(Debug, thiserror::Error)]
-pub enum OpentsdbError {
-    #[error("The access address of OpenTSDB is required: {0}")]
-    OpentsUrlIsRequired(Dsn),
-    #[error("The data begin time is required: {0}")]
-    TaskBeginTimeIsRequired(Dsn),
-    #[error("plugin not found: {0}")]
-    ExeNotFound(String),
-}
-
 const EXE: &'static str = "taosx-opentsdb.jar";
 
-fn opentsdb_jar_path() -> PathBuf {
-    get_plugin_dir("opentsdb").join(EXE)
+fn opentsdb_jar_path() -> anyhow::Result<PathBuf> {
+    let path = get_plugin_dir("opentsdb").join(EXE);
+    if !path.exists() {
+        anyhow::bail!(format!("opentsdb plugin not found {:?}", path))
+    }
+    Ok(path)
 }
 
 const LOG_FILE: &str = "opentsdb.log";
@@ -40,8 +34,8 @@ fn log_path() -> PathBuf {
     super::get_log_dir("opentsdb")
 }
 
-pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
-    let path = opentsdb_jar_path();
+pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
+    let path = opentsdb_jar_path()?;
     let output = std::process::Command::new("java")
         .arg("-jar")
         .arg(&path)
@@ -66,22 +60,8 @@ pub async fn opentsdb_to_taos(
     transferred: Option<Arc<Transferred>>,
     span: Span,
 ) -> anyhow::Result<()> {
-    println!("# loading plugin: OpentsDB");
+    let path = opentsdb_jar_path()?;
 
-    let exe_exists = std::path::Path::new(&opentsdb_jar_path()).exists();
-    if !exe_exists {
-        tracing::error!("plugin not found {}", opentsdb_jar_path().to_str().unwrap());
-        Err(OpentsdbError::ExeNotFound(format!(
-            "{}",
-            opentsdb_jar_path().to_str().unwrap()
-        )))?;
-    }
-
-    // tdengine
-    let td_database = to.subject.clone();
-    // let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(&to)?.pool()?;
-    // let target_pool_for_ipc = target_pool.clone();
-    // a random port
     let ipc_port = port_pool
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for OpenTSDB connection"))?;
@@ -100,10 +80,9 @@ pub async fn opentsdb_to_taos(
     let exec_span = tracing::info_span!("extern plugin exec", plugin.name = "opentsdb");
     exec_span.follows_from(&span);
 
-    let ipc_stream =  format!("127.0.0.1:{}", ipc_port);
     // create socket channel
     let mut ipc_handler = build_ipc(
-        &ipc_stream,
+        &format!("127.0.0.1:{}", ipc_port),
         None,
         &to,
         Some("opentsdb"),
@@ -113,11 +92,11 @@ pub async fn opentsdb_to_taos(
         transferred,
         span,
     )
-        .await?;
+    .await?;
 
     tokio::time::sleep(Duration::from_millis(500)).await;
     // 连接器路径
-    let connector_path = opentsdb_jar_path();
+    let connector_path = opentsdb_jar_path()?;
 
     let mut log_path = log_path();
 
@@ -243,7 +222,7 @@ pub async fn opentsdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
         }
         Ok(c) => {
             // 连接器路径
-            let connector_path = opentsdb_jar_path();
+            let connector_path = opentsdb_jar_path()?;
             // startup the connector
             let mut command = tokio::process::Command::new("java");
             // 查询命令
@@ -293,32 +272,36 @@ pub async fn opentsdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let config = ConnectionConfig::from_dsn(dsn);
     match config {
-        Err(err) => DataSourceValidation {
-            valid: false,
-            support: false,
-            data_source: String::from("opentsdb"),
-            version: Some(String::from("")),
-            message: Some(format!("{:?}", err)),
-        },
+        Err(err) => DataSourceValidation::invalid(
+            "opentsdb".to_string(),
+            format!(
+                "invalid dsn: {}, cause: {}",
+                dsn.to_string(),
+                err.to_string()
+            ),
+        ),
         Ok(c) => {
             let result = validate_source_opentsdb(c).await;
             match result {
-                Err(err) => DataSourceValidation {
-                    valid: false,
-                    support: false,
-                    data_source: String::from("opentsdb"),
-                    version: Some(String::from("")),
-                    message: Some(format!("{:?}", err)),
-                },
+                Err(err) => DataSourceValidation::invalid(
+                    "opentsdb".to_string(),
+                    format!(
+                        "failed to connect to dsn: {}, cause: {}",
+                        dsn.to_string(),
+                        err.to_string()
+                    ),
+                ),
                 Ok(validate) => validate,
             }
         }
     }
 }
 
-async fn validate_source_opentsdb(config: ConnectionConfig) -> anyhow::Result<DataSourceValidation> {
+async fn validate_source_opentsdb(
+    config: ConnectionConfig,
+) -> anyhow::Result<DataSourceValidation> {
     // 连接器路径
-    let connector_path = opentsdb_jar_path();
+    let connector_path = opentsdb_jar_path()?;
     // startup the connector
     let mut command = tokio::process::Command::new("java");
     // 查询命令
@@ -356,5 +339,38 @@ async fn validate_source_opentsdb(config: ConnectionConfig) -> anyhow::Result<Da
             version: Some(String::from("")),
             message: Some(output.status.to_string()),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+    use taos::Dsn;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_is_valid() {
+        let dsn = Dsn::from_str("opentsdb://").unwrap();
+        let validation = is_valid(&dsn).await;
+        assert_eq!(false, validation.valid);
+        assert_eq!(false, validation.support);
+        assert_eq!("opentsdb", validation.data_source);
+        assert_eq!(None, validation.version);
+        assert_eq!(
+            "invalid dsn: opentsdb://, cause: host is required",
+            validation.message.unwrap()
+        );
+
+        let dsn = Dsn::from_str("opentsdb://127.0.0.1:6060").unwrap();
+        let validation = is_valid(&dsn).await;
+        assert_eq!(false, validation.valid);
+        assert_eq!(false, validation.support);
+        assert_eq!("opentsdb", validation.data_source);
+        assert_eq!(None, validation.version);
+        assert!(validation
+            .message
+            .unwrap()
+            .contains("cause: opentsdb plugin not found"));
     }
 }
