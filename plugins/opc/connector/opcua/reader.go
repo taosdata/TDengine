@@ -608,7 +608,8 @@ BK:
 		node := l.Remove(front).(*opcua.Node)
 		leaves, nodes, err := r.browseChildrenNode(ctx, node)
 		if err != nil {
-			return nil, fmt.Errorf("get child for node %s error %v", root.String(), err)
+			logger.WarnF("## browse children node for node %s error %v", node.String(), err)
+			continue
 		}
 
 		for _, n := range leaves {
@@ -653,7 +654,7 @@ func (r *reader) browseChildrenNode(ctx context.Context, node *opcua.Node) (leav
 	for _, child := range childrenNodes {
 		nodeClass, err := child.NodeClassWithContext(ctx)
 		if err != nil {
-			return nil, nil, fmt.Errorf("get node class for node %s error %v", child.String(), err)
+			logger.WarnF("## get node class for node %s error %v", child.String(), err)
 		}
 		if nodeClass == ua.NodeClassVariable {
 			leaves = append(leaves, child)
