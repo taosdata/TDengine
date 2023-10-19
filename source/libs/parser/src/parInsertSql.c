@@ -1068,6 +1068,7 @@ static int32_t getTargetTableMetaAndVgroup(SInsertParseContext* pCxt, SVnodeModi
         if (NULL != pStmt->pTableMeta) {
           if (pStmt->pTableMeta->tableType == TSDB_SUPER_TABLE) {
             pStmt->stbSyntax = true;
+            tNameAssign(&pStmt->superTableName, &pStmt->targetTableName);
           } else {
             code = taosHashPut(pStmt->pVgroupsHashObj, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg));
           }
@@ -1081,6 +1082,7 @@ static int32_t getTargetTableMetaAndVgroup(SInsertParseContext* pCxt, SVnodeModi
     if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
       if (TSDB_SUPER_TABLE == pStmt->pTableMeta->tableType) {
         pStmt->stbSyntax = true;
+        tNameAssign(&pStmt->superTableName, &pStmt->targetTableName);
       }
       if (!pStmt->stbSyntax) {
         code = getTableVgroup(pCxt->pComCxt, pStmt, false, &pCxt->missCache);
@@ -1795,6 +1797,7 @@ static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStm
   pStmt->usingTableProcessing = false;
   pStmt->fileProcessing = false;
   pStmt->usingTableName.type = 0;
+  pStmt->stbSyntax = false;
 }
 
 // input pStmt->pSql: [(field1_name, ...)] [ USING ... ] VALUES ... | FILE ...
@@ -1802,8 +1805,14 @@ static int32_t parseInsertTableClause(SInsertParseContext* pCxt, SVnodeModifyOpS
   resetEnvPreTable(pCxt, pStmt);
   int32_t code = parseSchemaClauseTop(pCxt, pStmt, pTbName);
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
-    code = parseInsertTableClauseBottom(pCxt, pStmt);
+    if (!pStmt->stbSyntax) {
+      code = parseInsertTableClauseBottom(pCxt, pStmt);
+    } else {
+      //code = parseInsertStbClauseBottom(pCxt, pStmt);
+      code = TSDB_CODE_SUCCESS;
+    }
   }
+
   return code;
 }
 
@@ -2142,7 +2151,7 @@ static int32_t initInsertQuery(SInsertParseContext* pCxt, SCatalogReq* pCatalogR
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t setRefreshMate(SQuery* pQuery) {
+static int32_t setRefreshMeta(SQuery* pQuery) {
   SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
 
   if (taosHashGetSize(pStmt->pTableNameHashObj) > 0) {
@@ -2315,7 +2324,7 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
   }
   if ((TSDB_CODE_SUCCESS == code || NEED_CLIENT_HANDLE_ERROR(code)) &&
       QUERY_EXEC_STAGE_SCHEDULE == (*pQuery)->execStage) {
-    code = setRefreshMate(*pQuery);
+    code = setRefreshMeta(*pQuery);
   }
   insDestroyBoundColInfo(&context.tags);
   return code;
