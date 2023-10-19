@@ -24,6 +24,8 @@ while getopts "eh" opt; do
     esac
 done
 
+exit 0
+
 script_dir=`dirname $0`
 cd ${script_dir}
 PWD=`pwd`
