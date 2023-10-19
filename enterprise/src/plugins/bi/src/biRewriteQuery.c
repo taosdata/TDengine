@@ -24,22 +24,27 @@ static void biMakeAliasNameInMD5(char* pExprStr, int32_t len, char* pAlias) {
 }
 
 static SNode* biMakeTbnameProjectAstNode(char* funcName, char* tableAlias) {
-  SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
-  val->literal = strdup(tableAlias);
-  val->node.resType.type = TSDB_DATA_TYPE_BINARY;
-  val->node.resType.bytes = strlen(val->literal);
-  val->isDuration = false;
-  val->translate = false;
-
-  SNodeList* paramList = nodesMakeList();
-  nodesListAppend(paramList, (SNode*)val);
+  SValueNode* valNode = NULL;
+  if (tableAlias != NULL) {
+    SValueNode* n = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+    n->literal = strdup(tableAlias);
+    n->node.resType.type = TSDB_DATA_TYPE_BINARY;
+    n->node.resType.bytes = strlen(n->literal);
+    n->isDuration = false;
+    n->translate = false;
+    valNode = n;
+  }
 
   SFunctionNode* tbNameFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   strncpy(tbNameFunc->functionName, "tbname", strlen("tbname"));
-  nodesListMakeAppend(&tbNameFunc->pParameterList, (SNode*)val);
+  if (valNode != NULL) {
+    nodesListMakeAppend(&tbNameFunc->pParameterList, (SNode*)valNode);
+  }
+  snprintf(tbNameFunc->node.userAlias, sizeof(tbNameFunc->node.userAlias), 
+                (tableAlias)? "%s.tbname" : "%stbname", 
+                (tableAlias)? tableAlias : "");
+  strcpy(tbNameFunc->node.aliasName, tbNameFunc->functionName);
 
-  snprintf(tbNameFunc->node.userAlias, sizeof(tbNameFunc->node.userAlias), "%s.tbname", tableAlias);
-  biMakeAliasNameInMD5(tbNameFunc->node.userAlias, strlen(tbNameFunc->node.userAlias), tbNameFunc->node.aliasName);
   if (funcName == NULL) {
     return (SNode*)tbNameFunc;
   } else {
@@ -47,8 +52,18 @@ static SNode* biMakeTbnameProjectAstNode(char* funcName, char* tableAlias) {
     strncpy(multiResFunc->functionName, funcName, strlen(funcName));
     nodesListMakeAppend(&multiResFunc->pParameterList, (SNode*)tbNameFunc);
 
-    snprintf(multiResFunc->node.userAlias, sizeof(multiResFunc->node.userAlias), "%s(%s.tbname)", funcName, tableAlias);
-    biMakeAliasNameInMD5(multiResFunc->node.userAlias, strlen(multiResFunc->node.userAlias), multiResFunc->node.aliasName);
+    if (tsKeepColumnName) {
+      snprintf(multiResFunc->node.userAlias, sizeof(tbNameFunc->node.userAlias), 
+                (tableAlias)? "%s.tbname" : "%stbname", 
+                (tableAlias)? tableAlias : "");
+      strcpy(multiResFunc->node.aliasName, tbNameFunc->functionName);
+    } else {
+      snprintf(multiResFunc->node.userAlias, sizeof(multiResFunc->node.userAlias), 
+              tableAlias? "%s(%s.tbname)" : "%s(%stbname)", funcName, 
+              tableAlias? tableAlias: "");
+      biMakeAliasNameInMD5(multiResFunc->node.userAlias, strlen(multiResFunc->node.userAlias), multiResFunc->node.aliasName);
+    }
+
     return (SNode*)multiResFunc;
   }
 }
@@ -70,7 +85,7 @@ static int32_t biRewriteSelectFuncParamStar(STranslateContext* pCxt, SSelectStmt
           STableNode* pTable = taosArrayGetP(pTables, i);
           if (nodeType(pTable) == QUERY_NODE_REAL_TABLE && ((SRealTableNode*)pTable)->pMeta != NULL &&
               ((SRealTableNode*)pTable)->pMeta->tableType == TSDB_SUPER_TABLE) {
-            SNode* pTbnameNode = biMakeTbnameProjectAstNode(pFunc->functionName, pTable->tableAlias);
+            SNode* pTbnameNode = biMakeTbnameProjectAstNode(pFunc->functionName, NULL);
             nodesListAppend(pTbnameNodeList, pTbnameNode);
           }
         }
@@ -110,7 +125,7 @@ int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
         if (nodeType(pTable) == QUERY_NODE_REAL_TABLE && 
             ((SRealTableNode*)pTable)->pMeta != NULL && 
             ((SRealTableNode*)pTable)->pMeta->tableType == TSDB_SUPER_TABLE) {
-          SNode* pTbnameNode = biMakeTbnameProjectAstNode(NULL, pTable->tableAlias);
+          SNode* pTbnameNode = biMakeTbnameProjectAstNode(NULL, NULL);
           nodesListAppend(pTbnameNodeList, pTbnameNode);
         }
       }
