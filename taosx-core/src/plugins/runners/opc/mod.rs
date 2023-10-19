@@ -643,6 +643,7 @@ pub fn parse_bool_param_from_dsn(dsn: &mut Dsn, key: &str) -> anyhow::Result<Opt
 
 const CSV_CONFIG_COLUMNS: [&str; 2] = ["point_id", "tbname"];
 
+use crate::runners::log_rotation;
 use crate::validation::DataSourceValidation;
 pub use tokio_stream::StreamExt;
 
@@ -785,7 +786,10 @@ pub async fn generate_opcconfig_from_csv(
                         }
                     }
                     let column_type = if let Some(ty) = record_map.get("type") {
-                        Some(IpcDataType::from_str(ty).map_err(|err| anyhow::Error::msg(err))?)
+                        Some(
+                            IpcDataType::from_str(ty)
+                                .map_err(|err| anyhow::Error::msg(err.clone()))?,
+                        )
                     } else {
                         None
                     };
@@ -1233,18 +1237,7 @@ pub async fn opc_to_taos(
 
     let log_keep_days = get_log_keep_days();
 
-    let mut log_rotation = FileRotate::new(
-        &log_path,
-        AppendTimestamp::with_format(
-            "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::days(log_keep_days)),
-            DateFrom::DateYesterday,
-        ),
-        ContentLimit::Time(TimeFrequency::Daily),
-        Compression::None,
-        #[cfg(unix)]
-        None,
-    );
+    let mut log_rotation = log_rotation(&log_path, log_keep_days);
 
     let child = command
         .arg("collect")
@@ -1490,6 +1483,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 }
 
 pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+    dbg!(dsn);
     DataSourceValidation::unknown()
 }
 

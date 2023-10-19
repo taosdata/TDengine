@@ -306,7 +306,7 @@ impl TaskOpts {
                 }
                 ("influxdb", "taos") => {
                     influxdb_to_taos(
-                        from.clone(),
+                        Self::append_breakpoints_in_dsn(breakpoints, from),
                         transform.clone(),
                         to.clone(),
                         *jobs,
@@ -315,13 +315,12 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                        breakpoints.clone(),
                     )
                     .await?;
                 }
                 ("opentsdb", "taos") => {
                     opentsdb_to_taos(
-                        from.clone(),
+                        Self::append_breakpoints_in_dsn(breakpoints, from),
                         transform.clone(),
                         to.clone(),
                         *jobs,
@@ -402,6 +401,17 @@ impl TaskOpts {
             (_, _) => {}
         }
         Ok(())
+    }
+
+    fn append_breakpoints_in_dsn(breakpoints: &Option<String>, from: &Dsn) -> Dsn {
+        match breakpoints {
+            None => from.clone(),
+            Some(b) => {
+                let mut from = from.clone();
+                from.params.insert("breakpoints".to_string(), b.clone());
+                from
+            }
+        }
     }
 }
 
@@ -484,6 +494,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_append_breakpoints_in_dsn() {
+        let dsn = Dsn::from_str("opentsdb://?param1=abc&param2=123").unwrap();
+        let dsn = TaskOpts::append_breakpoints_in_dsn(&Some(String::from("abc")), &dsn);
+        assert_eq!("abc", dsn.params.get("breakpoints").unwrap());
+
+        let dsn = Dsn::from_str("opentsdb://?param1=abc&param2=123").unwrap();
+        let dsn = TaskOpts::append_breakpoints_in_dsn(&None, &dsn);
+        assert_eq!(None, dsn.params.get("breakpoints"));
+    }
+
+    #[test]
+    #[ignore]
     fn test_validate_dsn() {
         // historian
         let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433").unwrap();
@@ -492,12 +514,28 @@ mod tests {
         assert_eq!(true, dsv.support);
         assert_eq!("historian", dsv.data_source);
 
+        // influxdb
+        let dsn = Dsn::from_str("influxdb://192.168.1.107:8086/?version=2.7&orgId=f3af42a3895a5e33&token=wido5N7w7PutOEuVtoEe5kxjkov5XZm1Uxqe1bEKKBSN4_4XjQfg0hc9BNGDR7xiMs3BaNtHsWjKCvGWMn8fDA==").unwrap();
+        let dsv = validate_dsn(dsn);
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("influxdb", dsv.data_source);
+        assert_eq!("2.7", dsv.version.unwrap());
+
         // kafka
         let dsn = Dsn::from_str("kafka://192.168.1.92:9092").unwrap();
         let dsv = validate_dsn(dsn);
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("kafka", dsv.data_source);
+
+        // opentsdb
+        let dsn = Dsn::from_str("opentsdb://192.168.2.12:4242").unwrap();
+        let dsv = validate_dsn(dsn);
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("opentsdb", dsv.data_source);
+        assert_eq!("", dsv.version.unwrap());
 
         // taos
         let dsn = Dsn::from_str("taos+ws://192.168.1.92:6041").unwrap();

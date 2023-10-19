@@ -359,8 +359,9 @@ mod tests {
         let mut rng = rand::thread_rng();
 
         for i in 0..total_records {
-            let naive = NaiveDateTime::from_timestamp_opt(ts + (i * gap_sec), 0);
-            let dt: DateTime<Utc> = DateTime::from_utc(naive.unwrap(), Utc);
+            let dt: DateTime<Utc> = NaiveDateTime::from_timestamp_opt(ts + (i * gap_sec), 0)
+                .unwrap()
+                .and_utc();
             let date_time = dt.format("%Y/%m/%d|%H:%M:%S").to_string();
             let date_value = rng.gen_range(0.0..100.0);
             file.write_all(
