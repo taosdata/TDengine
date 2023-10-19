@@ -330,7 +330,7 @@ static int32_t vnodeCheckDisk(int32_t diskPrimary, STfs *pTfs) {
   return 0;
 }
 
-SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgCb) {
+SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgCb, bool force) {
   SVnode    *pVnode = NULL;
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
@@ -350,7 +350,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
     vError("failed to open vnode from %s since %s", path, tstrerror(terrno));
-    terrno = TSDB_CODE_VND_NOT_EXIST;
+    terrno = TSDB_CODE_NEED_RETRY;
     return NULL;
   }
 
@@ -419,7 +419,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   // open tsdb
-  if (!VND_IS_RSMA(pVnode) && tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback) < 0) {
+  if (!VND_IS_RSMA(pVnode) && tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback, force) < 0) {
     vError("vgId:%d, failed to open vnode tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
@@ -453,7 +453,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   // open sma
-  if (smaOpen(pVnode, rollback)) {
+  if (smaOpen(pVnode, rollback, force)) {
     vError("vgId:%d, failed to open vnode sma since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }

@@ -305,7 +305,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     goto _OVER;
   }
 
-  SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb);
+  SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb, true);
   if (pImpl == NULL) {
     dError("vgId:%d, failed to open vnode since %s", req.vgId, terrstr());
     code = terrno;
@@ -452,7 +452,7 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("vgId:%d, begin to open vnode", vgId);
-  SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb);
+  SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb, false);
   if (pImpl == NULL) {
     dError("vgId:%d, failed to open vnode at %s since %s", vgId, path, terrstr());
     return -1;
@@ -602,7 +602,7 @@ int32_t vmProcessAlterHashRangeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("vgId:%d, open vnode", dstVgId);
-  SVnode *pImpl = vnodeOpen(dstPath, diskPrimary, pMgmt->pTfs, pMgmt->msgCb);
+  SVnode *pImpl = vnodeOpen(dstPath, diskPrimary, pMgmt->pTfs, pMgmt->msgCb, false);
 
   if (pImpl == NULL) {
     dError("vgId:%d, failed to open vnode at %s since %s", dstVgId, dstPath, terrstr());
@@ -707,7 +707,7 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("vgId:%d, begin to open vnode", vgId);
-  SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb);
+  SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb, false);
   if (pImpl == NULL) {
     dError("vgId:%d, failed to open vnode at %s since %s", vgId, path, terrstr());
     return -1;
