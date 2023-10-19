@@ -16,7 +16,7 @@
 #include "catalog.h"
 #include "cmdnodes.h"
 
-int32_t getViewMeta(STranslateContext* pCxt, SName* pName, SViewMeta** ppViewMeta) {
+int32_t getViewMetaFromMetaCache(STranslateContext* pCxt, SName* pName, SViewMeta** ppViewMeta) {
   char fullName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(pName, fullName);
   return getMetaDataFromHash(fullName, strlen(fullName), pCxt->pMetaCache->pViews, (void**)ppViewMeta);
@@ -24,7 +24,7 @@ int32_t getViewMeta(STranslateContext* pCxt, SName* pName, SViewMeta** ppViewMet
 
 int32_t getViewQuerySql(STranslateContext* pCxt, SName* pName, char** querySql) {
   SViewMeta* pViewMeta = NULL;
-  int32_t     code = getViewMeta(pCxt, pName, &pViewMeta);
+  int32_t     code = getViewMetaFromMetaCache(pCxt, pName, &pViewMeta);
   if (TSDB_CODE_SUCCESS == code) {
     *querySql = strdup(pViewMeta->querySql);
     if (NULL == *querySql) {

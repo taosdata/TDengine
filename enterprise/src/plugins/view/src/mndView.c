@@ -15,6 +15,7 @@
 
 #include "mndView.h"
 #include "mndTrans.h"
+#include "mndUser.h"
 #include "mndDb.h"
 #include "audit.h"
 
@@ -289,14 +290,22 @@ void mndReleaseView(SMnode *pMnode, SViewObj *pView) {
 }
 
 static int32_t mndCreateViewObj(SMnode *pMnode, SViewObj* pView, SCMCreateViewReq* pCreate, SViewObj *pOldView) {
-  SDbObj* pDb = mndAcquireDb(pMnode, pCreate->dbFName);
-  if (NULL == pDb) {
-    return -1;
+  char* dbFName = pCreate->dbFName;
+  char* sep = strchr(pCreate->dbFName, '.');
+  if (NULL != sep && IS_SYS_DBNAME(sep + 1)) {
+    pView->dbId = 0;
+    dbFName = sep + 1;
+  } else {
+    SDbObj* pDb = mndAcquireDb(pMnode, pCreate->dbFName);
+    if (NULL == pDb) {
+      return -1;
+    }
+    pView->dbId = pDb->uid;
+    mndReleaseDb(pMnode, pDb);
   }
 
   pView->createdTime = taosGetTimestampMs();
   pView->viewId = mndGenerateUid(pCreate->fullname, strlen(pCreate->fullname));
-  pView->dbId = pDb->uid;
   pView->querySql = strdup(pCreate->querySql);
   if (NULL == pView) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -310,7 +319,7 @@ static int32_t mndCreateViewObj(SMnode *pMnode, SViewObj* pView, SCMCreateViewRe
   memcpy(pView->pSchema, pCreate->pSchema, pCreate->numOfCols * sizeof(SSchema));
   tstrncpy(pView->fullname, pCreate->fullname, sizeof(pView->fullname));
   tstrncpy(pView->name, pCreate->name, sizeof(pView->name));
-  tstrncpy(pView->dbFName, pCreate->dbFName, sizeof(pView->dbFName));
+  tstrncpy(pView->dbFName, dbFName, strlen(dbFName) + 1);
   pView->precision = pCreate->precision;
   pView->numOfCols = pCreate->numOfCols;
   if (NULL != pOldView) {
@@ -319,22 +328,48 @@ static int32_t mndCreateViewObj(SMnode *pMnode, SViewObj* pView, SCMCreateViewRe
     pView->version = 1;
   }
 
-  mndReleaseDb(pMnode, pDb);
 
   return TSDB_CODE_SUCCESS;
   
 _OVER:
 
   tFreeViewObj(pView);
-  mndReleaseDb(pMnode, pDb);
   return -1;
+}
+
+static int32_t mndCreateViewOldUser() {
+
 }
 
 static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg *pReq, SViewObj *pOldView) {
   SViewObj view = {0};
   int32_t code = -1;
-  if (mndCreateViewObj(pMnode, &view, pCreate, pOldView) != 0) {
+  SUserObj *pUser = NULL;
+  SUserObj newUserObj = {0}, *pNewUserDuped = NULL;
+  SUserObj oldUserObj = {0}, *pOldUserDuped = NULL;
+
+  pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
+  if (pUser == NULL) {
     return -1;
+  }
+
+  if (0 != strcmp(pReq->info.conn.user, pOldView->user)) {
+    if (mndCreateViewOldUser(pMnode, &view, pCreate, pOldView) != 0) {
+      goto _OVER;
+    }
+  }
+
+  if (mndCreateViewObj(pMnode, &view, pCreate, pOldView) != 0) {
+    goto _OVER;
+  }
+
+  // add view privileges for user
+  if (!pUser->superUser) {
+    if (mndUserDupObj(pUser, &newUserObj) != 0) goto _OVER;
+    taosHashPut(newUserObj.readViews, pCreate->fullname, strlen(pCreate->fullname) + 1, "v", 2);
+    taosHashPut(newUserObj.writeViews, pCreate->fullname, strlen(pCreate->fullname) + 1, "v", 2);
+    taosHashPut(newUserObj.alterViews, pCreate->fullname, strlen(pCreate->fullname) + 1, "v", 2);
+    pNewUserDuped = &newUserObj;
   }
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-view");
@@ -347,12 +382,23 @@ static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg 
 
   SSdbRaw *pCommitRaw = mndViewActionEncode(&view);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
+    mError("trans:%d, failed to append view commit log since %s", pTrans->id, terrstr());
     sdbFreeRaw(pCommitRaw);
     mndTransDrop(pTrans);
     goto _OVER;
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+
+  if (NULL != pNewUserDuped) {
+    SSdbRaw *pUserRaw = mndUserActionEncode(pNewUserDuped);
+    if (pUserRaw == NULL || mndTransAppendCommitlog(pTrans, pUserRaw) != 0) {
+      mError("trans:%d, failed to append user commit log since %s", pTrans->id, terrstr());
+      sdbFreeRaw(pUserRaw);
+      mndTransDrop(pTrans);
+      goto _OVER;
+    }    
+    (void)sdbSetRawStatus(pUserRaw, SDB_STATUS_READY);
+  }
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -364,7 +410,10 @@ static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg 
   code = 0;
 
 _OVER:
-  
+
+  mndReleaseUser(pMnode, pUser);
+
+  mndUserFreeObj(&newUserObj);  
   tFreeViewObj(&view);
   
   return 0;
@@ -386,6 +435,7 @@ static int32_t mndDropView(SMnode *pMnode, SRpcMsg *pReq, SViewObj *pView) {
   }
   (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
 
+  mndUserRemoveView(pMnode, pTrans, pView->fullname);
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
@@ -595,23 +645,29 @@ int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock,
   SSdb       *pSdb = pMnode->pSdb;
   int32_t     numOfRows = 0;
   SViewObj   *pView = NULL;
+  char       *sep = NULL;
 
   SDbObj *pDb = NULL;
   if (strlen(pShow->db) > 0) {
-    char *p = strchr(pShow->db, '.');
-    if (p && ((0 == strcmp(p + 1, TSDB_INFORMATION_SCHEMA_DB) || (0 == strcmp(p + 1, TSDB_PERFORMANCE_SCHEMA_DB))))) {
-      return 0;
+    sep = strchr(pShow->db, '.');
+    if (sep && ((0 == strcmp(sep + 1, TSDB_INFORMATION_SCHEMA_DB) || (0 == strcmp(sep + 1, TSDB_PERFORMANCE_SCHEMA_DB))))) {
+      sep++;
+    } else {
+      pDb = mndAcquireDb(pMnode, pShow->db);
+      if (pDb == NULL) return terrno;
     }
-    
-    pDb = mndAcquireDb(pMnode, pShow->db);
-    if (pDb == NULL) return terrno;
   }
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_VIEW, pShow->pIter, (void **)&pView);
     if (pShow->pIter == NULL) break;
 
-    if (pDb != NULL && pView->dbId != pDb->uid) {
+    if (pDb != NULL) {
+      if (pView->dbId != pDb->uid) {
+        sdbRelease(pSdb, pView);
+        continue;
+      }
+    } else if (0 != strcmp(pView->dbFName, sep)) {
       sdbRelease(pSdb, pView);
       continue;
     }
@@ -626,9 +682,13 @@ int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock,
     colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    SName name = {0};
-    tNameFromString(&name, pView->dbFName, T_NAME_ACCT | T_NAME_DB);
-    tNameGetDbName(&name, varDataVal(tmpBuf));
+    if (pDb != NULL) {
+      SName name = {0};
+      tNameFromString(&name, pView->dbFName, T_NAME_ACCT | T_NAME_DB);
+      tNameGetDbName(&name, varDataVal(tmpBuf));
+    } else {
+      strncpy(varDataVal(tmpBuf), pView->dbFName, strlen(pView->dbFName) + 1);
+    }
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
     colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
 
