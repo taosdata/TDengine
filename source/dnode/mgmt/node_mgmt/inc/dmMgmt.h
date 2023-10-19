@@ -112,6 +112,8 @@ int32_t dmInitServer(SDnode *pDnode);
 void    dmCleanupServer(SDnode *pDnode);
 int32_t dmInitClient(SDnode *pDnode);
 void    dmCleanupClient(SDnode *pDnode);
+int32_t dmInitStatusClient(SDnode *pDnode);
+void    dmCleanupStatusClient(SDnode *pDnode);
 SMsgCb  dmGetMsgcb(SDnode *pDnode);
 int32_t dmInitMsgHandle(SDnode *pDnode);
 int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);

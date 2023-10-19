@@ -184,7 +184,7 @@ typedef enum ELogicConditionType {
 #define TSDB_UNI_LEN  24
 #define TSDB_USER_LEN TSDB_UNI_LEN
 
-#define TSDB_POINTER_PRINT_BYTES 18 // 0x1122334455667788
+#define TSDB_POINTER_PRINT_BYTES 18  // 0x1122334455667788
 // ACCOUNT is a 32 bit positive integer
 // this is the length of its string representation, including the terminator zero
 #define TSDB_ACCT_ID_LEN 11
@@ -248,7 +248,7 @@ typedef enum ELogicConditionType {
 #define TSDB_PASSWORD_LEN      32
 #define TSDB_USET_PASSWORD_LEN 129
 #define TSDB_VERSION_LEN       32
-#define TSDB_LABEL_LEN         8
+#define TSDB_LABEL_LEN         12
 #define TSDB_JOB_STATUS_LEN    32
 
 #define TSDB_CLUSTER_ID_LEN       40
@@ -378,13 +378,13 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_STT_TRIGGER     1
 #define TSDB_DEFAULT_SST_TRIGGER 1
 #endif
-#define TSDB_STT_TRIGGER_ARRAY_SIZE     16 // maximum of TSDB_MAX_STT_TRIGGER of TD_ENTERPRISE and TD_COMMUNITY
-#define TSDB_MIN_HASH_PREFIX     (2 - TSDB_TABLE_NAME_LEN)
-#define TSDB_MAX_HASH_PREFIX     (TSDB_TABLE_NAME_LEN - 2)
-#define TSDB_DEFAULT_HASH_PREFIX 0
-#define TSDB_MIN_HASH_SUFFIX     (2 - TSDB_TABLE_NAME_LEN)
-#define TSDB_MAX_HASH_SUFFIX     (TSDB_TABLE_NAME_LEN - 2)
-#define TSDB_DEFAULT_HASH_SUFFIX 0
+#define TSDB_STT_TRIGGER_ARRAY_SIZE 16  // maximum of TSDB_MAX_STT_TRIGGER of TD_ENTERPRISE and TD_COMMUNITY
+#define TSDB_MIN_HASH_PREFIX        (2 - TSDB_TABLE_NAME_LEN)
+#define TSDB_MAX_HASH_PREFIX        (TSDB_TABLE_NAME_LEN - 2)
+#define TSDB_DEFAULT_HASH_PREFIX    0
+#define TSDB_MIN_HASH_SUFFIX        (2 - TSDB_TABLE_NAME_LEN)
+#define TSDB_MAX_HASH_SUFFIX        (TSDB_TABLE_NAME_LEN - 2)
+#define TSDB_DEFAULT_HASH_SUFFIX    0
 
 #define TSDB_DB_MIN_WAL_RETENTION_PERIOD -1
 #define TSDB_REP_DEF_DB_WAL_RET_PERIOD   3600
@@ -418,7 +418,7 @@ typedef enum ELogicConditionType {
 #define TSDB_EXPLAIN_RESULT_ROW_SIZE    (16 * 1024)
 #define TSDB_EXPLAIN_RESULT_COLUMN_NAME "QUERY_PLAN"
 
-#define TSDB_MAX_FIELD_LEN    65519               // 16384:65519
+#define TSDB_MAX_FIELD_LEN     65519               // 16384:65519
 #define TSDB_MAX_BINARY_LEN    TSDB_MAX_FIELD_LEN  // 16384-8:65519
 #define TSDB_MAX_NCHAR_LEN     TSDB_MAX_FIELD_LEN  // 16384-8:65519
 #define TSDB_MAX_GEOMETRY_LEN  TSDB_MAX_FIELD_LEN  // 16384-8:65519
