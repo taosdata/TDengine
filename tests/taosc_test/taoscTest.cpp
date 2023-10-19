@@ -126,6 +126,7 @@ TEST_F(taoscTest, Connect) {
   tsem_wait(&query_sem);
 
   ASSERT_EQ(getRecordCounts, insertCounts);
+  taos_close(taos);
 
   printf("Connect test finished.\n");
 }
