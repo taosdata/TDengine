@@ -182,7 +182,7 @@ impl PutStream {
                 loop {
                     match rx.recv_async().await {
                         Ok(record) => {
-                            tracing::info!(columns = ?record.columns(), num.rows = record.num_rows(), num.columns = record.num_columns(),
+                            tracing::debug!(columns = ?record.columns(), num.rows = record.num_rows(), num.columns = record.num_columns(),
                                 "Start writing records");
                             if let Err(err) = worker
                                 .process_record(&mut stmt, record, parser.as_ref())

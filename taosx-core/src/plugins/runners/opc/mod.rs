@@ -1696,7 +1696,7 @@ batch_timeout = 100
 #[tokio::test(flavor = "multi_thread")]
 async fn test_with_agent_all_nodes() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "debug");
-    tracing_subscriber::fmt::init();
+    // tracing_subscriber::fmt::init();
     let opc = "opcua://192.168.0.34:53530/OPCUA/SimulationServer?connect_timeout=1&request_timeout=1&interval=10&collect_mode=observe&enable=false&keep=10&concurrent=1&batch_size=1&batch_timeout=1&debug=false&select_all_points=true&table_primary_key=original_ts&child_table_expression=meter_{ns}_{id}&&select_all_points=true";
     let target = "taos:///opc";
     let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
