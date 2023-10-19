@@ -691,9 +691,7 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       tFreeStreamTask(pTask);
       stError(
           "vgId:%d stream read incompatible data, rm %s/vnode/vnode*/tq/stream if taosd cannot start, and rebuild "
-          "stream "
-          "manually",
-          vgId, tsDataDir);
+          "stream manually", vgId, tsDataDir);
       return -1;
     }
     tDecoderClear(&decoder);

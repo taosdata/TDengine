@@ -759,32 +759,36 @@ typedef struct SSttBlockLoadCostInfo {
   double  statisElapsedTime;
 } SSttBlockLoadCostInfo;
 
+typedef struct SBlockDataInfo {
+  SBlockData data;
+  bool       pin;
+  int32_t    sttBlockIndex;
+} SBlockDataInfo;
+
 typedef struct SSttBlockLoadInfo {
-  SBlockData blockData[2];      // buffered block data
-  int32_t    statisBlockIndex;  // buffered statistics block index
-  void      *statisBlock;       // buffered statistics block data
-  void      *pSttStatisBlkArray;
-  SArray    *aSttBlk;
-  int32_t    blockIndex[2];  // to denote the loaded block in the corresponding position.
-  int32_t    currentLoadBlockIndex;
-  STSchema  *pSchema;
-  int16_t   *colIds;
-  int32_t    numOfCols;
-  bool       checkRemainingRow;  // todo: no assign value?
-  bool       isLast;
-  bool       sttBlockLoaded;
+  SBlockDataInfo blockData[2];      // buffered block data
+  int32_t        statisBlockIndex;  // buffered statistics block index
+  void          *statisBlock;       // buffered statistics block data
+  void          *pSttStatisBlkArray;
+  SArray        *aSttBlk;
+  int32_t        currentLoadBlockIndex;
+  STSchema      *pSchema;
+  int16_t       *colIds;
+  int32_t        numOfCols;
+  bool           checkRemainingRow;  // todo: no assign value?
+  bool           isLast;
+  bool           sttBlockLoaded;
 
   SSttBlockLoadCostInfo cost;
 } SSttBlockLoadInfo;
 
 typedef struct SMergeTree {
-  int8_t             backward;
-  SRBTree            rbt;
-  SLDataIter        *pIter;
-  bool               destroyLoadInfo;
-  SSttBlockLoadInfo *pLoadInfo;
-  const char        *idStr;
-  bool               ignoreEarlierTs;
+  int8_t      backward;
+  SRBTree     rbt;
+  SLDataIter *pIter;
+  SLDataIter *pPinnedBlockIter;
+  const char *idStr;
+  bool        ignoreEarlierTs;
 } SMergeTree;
 
 typedef struct {
@@ -828,7 +832,7 @@ struct SDiskDataBuilder {
 typedef struct SLDataIter {
   SRBTreeNode            node;
   SSttBlk               *pSttBlk;
-  int32_t                iStt;  // for debug purpose
+  int64_t                cid;  // for debug purpose
   int8_t                 backward;
   int32_t                iSttBlk;
   int32_t                iRow;
@@ -842,9 +846,6 @@ typedef struct SLDataIter {
 } SLDataIter;
 
 #define tMergeTreeGetRow(_t) (&((_t)->pIter->rInfo.row))
-int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
-                       STimeWindow *pTimeWindow, SVersionRange *pVerRange, SSttBlockLoadInfo *pBlockLoadInfo,
-                       bool destroyLoadInfo, const char *idStr, bool strictTimeRange, SLDataIter *pLDataIter);
 
 struct SSttFileReader;
 typedef int32_t (*_load_tomb_fn)(STsdbReader *pReader, struct SSttFileReader *pSttFileReader,
@@ -867,10 +868,13 @@ typedef struct {
   void         *pReader;
   void         *idstr;
 } SMergeTreeConf;
+
 int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf);
 
 void tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
 bool tMergeTreeNext(SMergeTree *pMTree);
+void tMergeTreePinSttBlock(SMergeTree* pMTree);
+void tMergeTreeUnpinSttBlock(SMergeTree* pMTree);
 bool tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree);
 void tMergeTreeClose(SMergeTree *pMTree);
 

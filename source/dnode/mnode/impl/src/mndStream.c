@@ -857,10 +857,10 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   SName name = {0};
   tNameFromString(&name, createStreamReq.name, T_NAME_ACCT | T_NAME_DB);
   //reuse this function for stream
-  
+
   //TODO
   if (createStreamReq.sql != NULL) {
-    auditRecord(pReq, pMnode->clusterId, "createStream", name.dbname, "", 
+    auditRecord(pReq, pMnode->clusterId, "createStream", name.dbname, "",
                 createStreamReq.sql, strlen(createStreamReq.sql));
   }
 _OVER:

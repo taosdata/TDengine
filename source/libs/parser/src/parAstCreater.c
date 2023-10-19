@@ -257,6 +257,15 @@ SNode* createRawExprNodeExt(SAstCreateContext* pCxt, const SToken* pStart, const
   return (SNode*)target;
 }
 
+SNode* setRawExprNodeIsPseudoColumn(SAstCreateContext* pCxt, SNode* pNode, bool isPseudoColumn) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pNode || QUERY_NODE_RAW_EXPR != nodeType(pNode)) {
+    return pNode;
+  }
+  ((SRawExprNode*)pNode)->isPseudoColumn = isPseudoColumn;
+  return pNode;
+}
+
 SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
   CHECK_PARSER_STATUS(pCxt);
   SRawExprNode* pRawExpr = (SRawExprNode*)pNode;
@@ -266,6 +275,10 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
     if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
       strcpy(pExpr->aliasName, ((SColumnNode*)pExpr)->colName);
       strcpy(pExpr->userAlias, ((SColumnNode*)pExpr)->colName);
+    } else if (pRawExpr->isPseudoColumn) {
+      // all pseudo column are translate to function with same name
+      strcpy(pExpr->userAlias, ((SFunctionNode*)pExpr)->functionName);
+      strcpy(pExpr->aliasName, ((SFunctionNode*)pExpr)->functionName);     
     } else {
       int32_t len = TMIN(sizeof(pExpr->aliasName) - 1, pRawExpr->n);
 
