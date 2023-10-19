@@ -1225,7 +1225,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     if (done) {
       qDebug("s-task:%s scan-history from WAL stage(step 2) ended, elapsed time:%.2fs", id, 0.0);
       streamTaskPutTranstateIntoInputQ(pTask);
-      streamTaskRestoreStatus(pTask);
+//      streamTaskRestoreStatus(pTask);
 
 //      if (pTask->status.taskStatus == TASK_STATUS__PAUSE) {
 //        pTask->status.keepTaskStatus = TASK_STATUS__READY;
@@ -1259,6 +1259,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       }
 #endif
 
+      // now the fill-history task starts to scan data from wal files.
       streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
       tqScanWalAsync(pTq, false);
     }
@@ -1271,8 +1272,8 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     // Not update the fill-history time window until the state transfer is completed if the related fill-history task
     // exists.
     tqDebug(
-        "s-task:%s scan-history in stream time window completed, now start to handle data from WAL, start "
-        "ver:%" PRId64 ", window:%" PRId64 " - %" PRId64,
+        "s-task:%s scan-history in stream time window completed, now start to handle data from WAL, startVer:%" PRId64
+        ", window:%" PRId64 " - %" PRId64,
         id, pTask->chkInfo.nextProcessVer, pWindow->skey, pWindow->ekey);
 
     code = streamTaskScanHistoryDataComplete(pTask);

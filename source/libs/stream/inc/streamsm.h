@@ -32,8 +32,8 @@ typedef int32_t (*__state_trans_fn)(SStreamTask*);
 typedef int32_t (*__state_trans_succ_fn)(SStreamTask*);
 
 typedef struct SAttachedEventInfo {
-  ETaskStatus      status;
-  EStreamTaskEvent event;
+  ETaskStatus      status;    // required status that this event can be handled
+  EStreamTaskEvent event;     // the delayed handled event
 } SAttachedEventInfo;
 
 typedef struct STaskStateTrans {
@@ -48,13 +48,15 @@ typedef struct STaskStateTrans {
 
 struct SStreamTaskSM {
   SStreamTask*     pTask;
-//  SArray*          pTransList;  // SArray<STaskStateTrans>
   STaskStateTrans* pActiveTrans;
   int64_t          startTs;
   SStreamTaskState current;
-  SStreamTaskState prev;
+  struct {
+    SStreamTaskState state;
+    EStreamTaskEvent evt;
+  } prev;
   // register the next handled event, if current state is not allowed to handle this event
-  SArray*          eventList;
+  SArray* pWaitingEventList;
 };
 
 typedef struct SStreamEventInfo {
