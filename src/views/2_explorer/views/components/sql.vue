@@ -260,4 +260,11 @@
     height: 15px;
     color: #fff;
   }
+  ::v-deep .CodeMirror-lint-markers {
+    display: none;
+  }
+
+  ::v-deep .CodeMirror-lines {
+    padding: 4px 4px;
+  }
 </style>
