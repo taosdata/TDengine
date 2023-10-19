@@ -2576,12 +2576,14 @@ int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMs
   STransMsg* pTransRsp = taosMemoryCalloc(1, sizeof(STransMsg));
   if (pTransInst == NULL) {
     transFreeMsg(pReq->pCont);
+    taosMemoryFree(pTransRsp);
     return -1;
   }
 
   SCliThrd* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle);
   if (pThrd == NULL) {
     transFreeMsg(pReq->pCont);
+    taosMemoryFree(pTransRsp);
     transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
     return TSDB_CODE_RPC_BROKEN_LINK;
   }
@@ -2644,12 +2646,14 @@ int transSendRecvWithTimeout(void* shandle, const SEpSet* pEpSet, STransMsg* pRe
   STransMsg* pTransMsg = taosMemoryCalloc(1, sizeof(STransMsg));
   if (pTransInst == NULL) {
     transFreeMsg(pReq->pCont);
+    taosMemoryFree(pTransMsg);
     return -1;
   }
 
   SCliThrd* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle);
   if (pThrd == NULL) {
     transFreeMsg(pReq->pCont);
+    taosMemoryFree(pTransMsg);
     transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
     return TSDB_CODE_RPC_BROKEN_LINK;
   }
