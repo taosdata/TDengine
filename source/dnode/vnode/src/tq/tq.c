@@ -1122,6 +1122,9 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     tqDebug("s-task:%s level:%d sched-status:%d is halt by fill-history task:%s", pStreamTask->id.idStr,
             pStreamTask->info.taskLevel, pStreamTask->status.schedStatus, id);
     latestVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
+    if (latestVer == -1) {
+      latestVer = pStreamTask->dataRange.range.maxVer + 1;
+    }
     taosThreadMutexUnlock(&pStreamTask->lock);
 
     // if it's an source task, extract the last version in wal.
