@@ -461,7 +461,7 @@ SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t
   STaskId       id = {.streamId = streamId, .taskId = taskId};
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (ppTask != NULL) {
-    if (!streamTaskShouldStop(&(*ppTask)->status)) {
+    if (!streamTaskShouldStop(*ppTask)) {
       int32_t ref = atomic_add_fetch_32(&(*ppTask)->refCnt, 1);
       taosRUnLockLatch(&pMeta->lock);
       stTrace("s-task:%s acquire task, ref:%d", (*ppTask)->id.idStr, ref);
@@ -478,7 +478,7 @@ void streamMetaReleaseTask(SStreamMeta* UNUSED_PARAM(pMeta), SStreamTask* pTask)
   if (ref > 0) {
     stTrace("s-task:%s release task, ref:%d", pTask->id.idStr, ref);
   } else if (ref == 0) {
-    ASSERT(streamTaskShouldStop(&pTask->status));
+    ASSERT(streamTaskShouldStop(pTask));
     stTrace("s-task:%s all refs are gone, free it", pTask->id.idStr);
     tFreeStreamTask(pTask);
   } else if (ref < 0) {
@@ -506,11 +506,15 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (ppTask) {
     pTask = *ppTask;
-    if (streamTaskShouldPause(&pTask->status)) {
+
+    // desc the paused task counter
+    if (streamTaskShouldPause(pTask)) {
       int32_t num = atomic_sub_fetch_32(&pMeta->numOfPausedTasks, 1);
       stInfo("vgId:%d s-task:%s drop stream task. pause task num:%d", pMeta->vgId, pTask->id.idStr, num);
     }
-    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__DROPPING);
+
+    // handle the dropping event
+    streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_DROPPING);
   } else {
     stDebug("vgId:%d failed to find the task:0x%x, it may be dropped already", pMeta->vgId, taskId);
     taosWUnLockLatch(&pMeta->lock);
@@ -522,8 +526,8 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
 
   while (1) {
     taosRLockLatch(&pMeta->lock);
-    ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
 
+    ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
     if (ppTask) {
       if ((*ppTask)->status.timerActive == 0) {
         taosRUnLockLatch(&pMeta->lock);
@@ -548,15 +552,13 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
       STaskId streamTaskId = {.streamId = (*ppTask)->streamTaskId.streamId, .taskId = (*ppTask)->streamTaskId.taskId};
       SStreamTask** ppStreamTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &streamTaskId, sizeof(streamTaskId));
       if (ppStreamTask != NULL) {
-        (*ppStreamTask)->hTaskInfo.id.taskId = 0;
-        (*ppStreamTask)->hTaskInfo.id.streamId = 0;
+        CLEAR_RELATED_FILLHISTORY_TASK((*ppStreamTask));
       }
     } else {
       atomic_sub_fetch_32(&pMeta->numOfStreamTasks, 1);
     }
 
     taosHashRemove(pMeta->pTasksMap, &id, sizeof(id));
-    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__DROPPING);
 
     ASSERT(pTask->status.timerActive == 0);
     doRemoveIdFromList(pMeta, (int32_t)taosArrayGetSize(pMeta->pTaskList), &pTask->id);
@@ -700,8 +702,8 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       tFreeStreamTask(pTask);
 
       STaskId id = streamTaskExtractKey(pTask);
-
       taosArrayPush(pRecycleList, &id);
+
       int32_t total = taosArrayGetSize(pRecycleList);
       stDebug("s-task:0x%x is already dropped, add into recycle list, total:%d", taskId, total);
       continue;
@@ -737,7 +739,7 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       atomic_add_fetch_32(&pMeta->numOfStreamTasks, 1);
     }
 
-    if (streamTaskShouldPause(&pTask->status)) {
+    if (streamTaskShouldPause(pTask)) {
       atomic_add_fetch_32(&pMeta->numOfPausedTasks, 1);
     }
 

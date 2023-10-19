@@ -60,7 +60,7 @@ int32_t tqScanWal(STQ* pTq) {
   return 0;
 }
 
-int32_t tqCheckAndRunStreamTask(STQ* pTq) {
+int32_t tqStartStreamTask(STQ* pTq) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
 
@@ -99,7 +99,7 @@ int32_t tqCheckAndRunStreamTask(STQ* pTq) {
       continue;
     }
 
-    EStreamTaskEvent event = (pTask->hTaskInfo.id.taskId == 0) ? TASK_EVENT_INIT : TASK_EVENT_INIT_SCANHIST;
+    EStreamTaskEvent event = (pTask->hTaskInfo.id.taskId == 0) ? TASK_EVENT_INIT : TASK_EVENT_INIT_STREAM_SCANHIST;
     streamTaskHandleEvent(pTask->status.pSM, event);
     streamMetaReleaseTask(pMeta, pTask);
   }
@@ -240,9 +240,8 @@ int32_t tqStartStreamTasks(STQ* pTq) {
     STaskId id = {.streamId = pTaskId->streamId, .taskId = pTaskId->taskId};
     SStreamTask** pTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
 
-    int8_t status = (*pTask)->status.taskStatus;
-    if (status == TASK_STATUS__STOP && (*pTask)->info.fillHistory != 1) {
-      streamSetStatusNormal(*pTask);
+    if ((*pTask)->info.fillHistory != 1) {
+      streamTaskResetStatus(*pTask);
     }
   }
 
@@ -327,14 +326,14 @@ static bool taskReadyForDataFromWal(SStreamTask* pTask) {
 //  int32_t status = pTask->status.taskStatus;
   char* p = NULL;
   int32_t status = streamTaskGetStatus(pTask, &p);
-  if (streamTaskGetStatus(pTask, &p) != TASK_STATUS__NORMAL) {
+  if (streamTaskGetStatus(pTask, &p) != TASK_STATUS__READY) {
     tqTrace("s-task:%s not ready for submit block in wal, status:%s", pTask->id.idStr, p);
     return false;
   }
 
   // fill-history task has entered into the last phase, no need to anything
   if ((pTask->info.fillHistory == 1) && pTask->status.appendTranstateBlock) {
-    ASSERT(status == TASK_STATUS__NORMAL);
+    ASSERT(status == TASK_STATUS__READY);
     // the maximum version of data in the WAL has reached already, the step2 is done
     tqDebug("s-task:%s fill-history reach the maximum ver:%" PRId64 ", not scan wal anymore", pTask->id.idStr,
             pTask->dataRange.range.maxVer);
@@ -449,7 +448,7 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
 
     char* p = NULL;
     ETaskStatus status = streamTaskGetStatus(pTask, &p);
-    if (status != TASK_STATUS__NORMAL) {
+    if (status != TASK_STATUS__READY) {
       tqDebug("s-task:%s not ready for submit block from wal, status:%s", pTask->id.idStr, p);
       taosThreadMutexUnlock(&pTask->lock);
       streamMetaReleaseTask(pStreamMeta, pTask);

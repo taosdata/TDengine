@@ -420,7 +420,7 @@ static void doRetryDispatchData(void* param, void* tmrId) {
   const char*  id = pTask->id.idStr;
   int32_t      msgId = pTask->execInfo.dispatch;
 
-  if (streamTaskShouldStop(&pTask->status)) {
+  if (streamTaskShouldStop(pTask)) {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug("s-task:%s should stop, abort from timer, ref:%d", pTask->id.idStr, ref);
     return;
@@ -474,10 +474,10 @@ static void doRetryDispatchData(void* param, void* tmrId) {
   }
 
   if (code != TSDB_CODE_SUCCESS) {
-    if (!streamTaskShouldStop(&pTask->status)) {
+    if (!streamTaskShouldStop(pTask)) {
 //      stDebug("s-task:%s reset the waitRspCnt to be 0 before launch retry dispatch", pTask->id.idStr);
 //      atomic_store_32(&pTask->outputInfo.shuffleDispatcher.waitingRspCnt, 0);
-      if (streamTaskShouldPause(&pTask->status)) {
+      if (streamTaskShouldPause(pTask)) {
         streamRetryDispatchData(pTask, DISPATCH_RETRY_INTERVAL_MS * 10);
       } else {
         streamRetryDispatchData(pTask, DISPATCH_RETRY_INTERVAL_MS);

@@ -847,11 +847,11 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
     pTask->exec.pWalReader = walOpenReader(pTq->pVnode->pWal, &cond, pTask->id.taskId);
   }
 
-  // reset the task status from unfinished transaction
-  if (pTask->status.taskStatus == TASK_STATUS__PAUSE) {
-    tqWarn("s-task:%s reset task status to be normal, status kept in taskMeta: Paused", pTask->id.idStr);
-    pTask->status.taskStatus = TASK_STATUS__NORMAL;
-  }
+//  // reset the task status from unfinished transaction
+//  if (pTask->status.taskStatus == TASK_STATUS__PAUSE) {
+//    tqWarn("s-task:%s reset task status to be normal, status kept in taskMeta: Paused", pTask->id.idStr);
+//    pTask->status.taskStatus = TASK_STATUS__READY;
+//  }
 
   streamTaskResetUpstreamStageInfo(pTask);
   streamSetupScheduleTrigger(pTask);
@@ -1029,7 +1029,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
 
       bool restored = pTq->pVnode->restored;
       if (p != NULL && restored && p->info.fillHistory == 0) {
-        EStreamTaskEvent event = (p->hTaskInfo.id.taskId == 0) ? TASK_EVENT_INIT : TASK_EVENT_INIT_SCANHIST;
+        EStreamTaskEvent event = (p->hTaskInfo.id.taskId == 0) ? TASK_EVENT_INIT : TASK_EVENT_INIT_STREAM_SCANHIST;
         streamTaskHandleEvent(p->status.pSM, event);
       } else if (!restored) {
         tqWarn("s-task:%s not launched since vnode(vgId:%d) not ready", p->id.idStr, vgId);
@@ -1118,7 +1118,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   streamScanHistoryData(pTask);
 
   double el = (taosGetTimestampMs() - pTask->execInfo.step1Start) / 1000.0;
-  if (pTask->status.taskStatus == TASK_STATUS__PAUSE) {
+  if (streamTaskGetStatus(pTask, NULL) == TASK_STATUS__PAUSE) {
     int8_t status = streamTaskSetSchedStatusInactive(pTask);
     tqDebug("s-task:%s is paused in the step1, elapsed time:%.2fs, sched-status:%d", pTask->id.idStr, el, status);
 
@@ -1228,7 +1228,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       streamTaskRestoreStatus(pTask);
 
 //      if (pTask->status.taskStatus == TASK_STATUS__PAUSE) {
-//        pTask->status.keepTaskStatus = TASK_STATUS__NORMAL;
+//        pTask->status.keepTaskStatus = TASK_STATUS__READY;
 //        qDebug("s-task:%s prev status is %s, update the kept status to be:%s when after step 2", id,
 //               streamGetTaskStatusStr(TASK_STATUS__PAUSE), streamGetTaskStatusStr(pTask->status.keepTaskStatus));
 //      }
@@ -1352,7 +1352,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t vgId = TD_VID(pTq->pVnode);
 
   if (taskId == STREAM_EXEC_TASK_STATUS_CHECK_ID) {
-    tqCheckAndRunStreamTask(pTq);
+    tqStartStreamTask(pTq);
     return 0;
   }
 
@@ -1365,7 +1365,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   if (pTask != NULL) { // even in halt status, the data in inputQ must be processed
     char* p = NULL;
     ETaskStatus st = streamTaskGetStatus(pTask, &p);
-    if (st == TASK_STATUS__NORMAL || st == TASK_STATUS__SCAN_HISTORY || st == TASK_STATUS__CK) {
+    if (st == TASK_STATUS__READY || st == TASK_STATUS__SCAN_HISTORY || st == TASK_STATUS__CK) {
       tqDebug("vgId:%d s-task:%s start to process block from inputQ, next checked ver:%" PRId64, vgId, pTask->id.idStr,
               pTask->chkInfo.nextProcessVer);
       streamExecTask(pTask);
@@ -1514,7 +1514,6 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
     return -1;
   }
 
-  // todo: handle the case: resume from halt to pause/ from halt to normal/ from pause to normal
   streamTaskResume(pTask, pTq->pStreamMeta);
 
   int32_t level = pTask->info.taskLevel;
@@ -1523,8 +1522,8 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
     return 0;
   }
 
-  int8_t  status = pTask->status.taskStatus;
-  if (status == TASK_STATUS__NORMAL || status == TASK_STATUS__SCAN_HISTORY || status == TASK_STATUS__CK) {
+  ETaskStatus status = streamTaskGetStatus(pTask, NULL);
+  if (status == TASK_STATUS__READY || status == TASK_STATUS__SCAN_HISTORY || status == TASK_STATUS__CK) {
     // no lock needs to secure the access of the version
     if (igUntreated && level == TASK_LEVEL__SOURCE && !pTask->info.fillHistory) {
       // discard all the data  when the stream task is suspended.
@@ -1537,8 +1536,7 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
               vgId, pTask->id.idStr, pTask->chkInfo.nextProcessVer, sversion, pTask->status.schedStatus);
     }
 
-    if (level == TASK_LEVEL__SOURCE && pTask->info.fillHistory &&
-        pTask->status.taskStatus == TASK_STATUS__SCAN_HISTORY) {
+    if (level == TASK_LEVEL__SOURCE && pTask->info.fillHistory && status == TASK_STATUS__SCAN_HISTORY) {
       streamStartScanHistoryAsync(pTask, igUntreated);
     } else if (level == TASK_LEVEL__SOURCE && (streamQueueGetNumOfItems(pTask->inputInfo.queue) == 0)) {
       tqScanWalAsync(pTq, false);
@@ -1867,7 +1865,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   tqDebug("s-task:%s receive nodeEp update msg from mnode", pTask->id.idStr);
 
   streamTaskUpdateEpsetInfo(pTask, req.pNodeList);
-  streamSetStatusNormal(pTask);
+  streamTaskResetStatus(pTask);
 
   SStreamTask** ppHTask = NULL;
   if (pTask->hTaskInfo.id.taskId != 0) {
@@ -1971,10 +1969,10 @@ int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg) {
   tqDebug("s-task:%s receive task-reset msg from mnode, reset status and ready for data processing", pTask->id.idStr);
 
   // clear flag set during do checkpoint, and open inputQ for all upstream tasks
-  if (pTask->status.taskStatus == TASK_STATUS__CK) {
+  if (streamTaskGetStatus(pTask, NULL) == TASK_STATUS__CK) {
     streamTaskClearCheckInfo(pTask);
     taosArrayClear(pTask->pReadyMsgList);
-    streamSetStatusNormal(pTask);
+    streamTaskSetStatusReady(pTask);
   }
 
   streamMetaReleaseTask(pMeta, pTask);

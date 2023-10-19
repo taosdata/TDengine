@@ -48,7 +48,7 @@ typedef struct STaskStateTrans {
 
 struct SStreamTaskSM {
   SStreamTask*     pTask;
-  SArray*          pTransList;  // SArray<STaskStateTrans>
+//  SArray*          pTransList;  // SArray<STaskStateTrans>
   STaskStateTrans* pActiveTrans;
   int64_t          startTs;
   SStreamTaskState current;

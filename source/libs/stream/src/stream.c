@@ -64,7 +64,7 @@ static void streamSchedByTimer(void* param, void* tmrId) {
   int8_t status = atomic_load_8(&pTask->schedInfo.status);
   stDebug("s-task:%s in scheduler, trigger status:%d, next:%dms", id, status, nextTrigger);
 
-  if (streamTaskShouldStop(&pTask->status) || streamTaskShouldPause(&pTask->status)) {
+  if (streamTaskShouldStop(pTask) || streamTaskShouldPause(pTask)) {
     stDebug("s-task:%s jump out of schedTimer", id);
     return;
   }

@@ -263,14 +263,14 @@ int32_t onNormalTaskReady(SStreamTask* pTask) {
 
   char* p = NULL;
   ETaskStatus status = streamTaskGetStatus(pTask, &p);
-  ASSERT(status == TASK_STATUS__NORMAL);
+  ASSERT(status == TASK_STATUS__READY);
 
   // todo refactor: remove this later
-  if (pTask->info.fillHistory == 1) {
-    stDebug("s-task:%s fill-history is set normal when start it, try to remove it,set it task to be dropping", id);
-    pTask->status.taskStatus = TASK_STATUS__DROPPING;
-    ASSERT(pTask->hTaskInfo.id.taskId == 0);
-  }
+//  if (pTask->info.fillHistory == 1) {
+//    stDebug("s-task:%s fill-history is set normal when start it, try to remove it,set it task to be dropping", id);
+//    pTask->status.taskStatus = TASK_STATUS__DROPPING;
+//    ASSERT(pTask->hTaskInfo.id.taskId == 0);
+//  }
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     stDebug("s-task:%s no need to scan-history data, status:%s, sched-status:%d, ready for data from wal ver:%" PRId64,
@@ -315,7 +315,7 @@ static void doProcessDownstreamReadyRsp(SStreamTask* pTask) {
   int8_t      status = pTask->status.taskStatus;
   const char* str = streamGetTaskStatusStr(status);
 
-  ASSERT(status == TASK_STATUS__SCAN_HISTORY || status == TASK_STATUS__NORMAL);
+  ASSERT(status == TASK_STATUS__SCAN_HISTORY || status == TASK_STATUS__READY);
   streamTaskSetRangeStreamCalc(pTask);
 
   if (status == TASK_STATUS__SCAN_HISTORY) {
@@ -341,7 +341,7 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
   ASSERT(pTask->id.taskId == pRsp->upstreamTaskId);
   const char* id = pTask->id.idStr;
 
-  if (streamTaskShouldStop(&pTask->status)) {
+  if (streamTaskShouldStop(pTask)) {
     stDebug("s-task:%s should stop, do not do check downstream again", id);
     return TSDB_CODE_SUCCESS;
   }
@@ -445,18 +445,6 @@ int32_t streamSetParamForScanHistory(SStreamTask* pTask) {
 int32_t streamRestoreParam(SStreamTask* pTask) {
   stDebug("s-task:%s restore operator param after scan-history", pTask->id.idStr);
   return qRestoreStreamOperatorOption(pTask->exec.pExecutor);
-}
-
-int32_t streamSetStatusNormal(SStreamTask* pTask) {
-  int32_t status = atomic_load_8(&pTask->status.taskStatus);
-  if (status == TASK_STATUS__DROPPING) {
-    stError("s-task:%s cannot be set normal, since in dropping state", pTask->id.idStr);
-    return -1;
-  } else {
-    stDebug("s-task:%s set task status to be normal, prev:%s", pTask->id.idStr, streamGetTaskStatusStr(status));
-    atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__NORMAL);
-    return 0;
-  }
 }
 
 // source
@@ -636,7 +624,7 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
   if (ppTask) {
     ASSERT((*ppTask)->status.timerActive >= 1);
 
-    if (streamTaskShouldStop(&(*ppTask)->status)) {
+    if (streamTaskShouldStop(*ppTask)) {
       char* p = NULL;
       streamTaskGetStatus((*ppTask), &p);
       int32_t ref = atomic_sub_fetch_32(&(*ppTask)->status.timerActive, 1);
@@ -677,7 +665,7 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
 
       // abort the timer if intend to stop task
       SStreamTask* pHTask = streamMetaAcquireTask(pMeta, pHTaskInfo->id.streamId, pHTaskInfo->id.taskId);
-      if (pHTask == NULL && (!streamTaskShouldStop(&pTask->status))) {
+      if (pHTask == NULL && (!streamTaskShouldStop(pTask))) {
         char*   p = NULL;
         int32_t hTaskId = pHTaskInfo->id.taskId;
 
@@ -776,7 +764,7 @@ int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
 }
 
 int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask) {
-  if (atomic_load_8(&pTask->status.taskStatus) == TASK_STATUS__DROPPING) {
+  if (streamTaskGetStatus(pTask, NULL) == TASK_STATUS__DROPPING) {
     return 0;
   }
 
@@ -1049,7 +1037,7 @@ void streamTaskResume(SStreamTask* pTask, SStreamMeta* pMeta) {
   int8_t status = pTask->status.taskStatus;
   if (status == TASK_STATUS__PAUSE) {
     pTask->status.taskStatus = pTask->status.keepTaskStatus;
-    pTask->status.keepTaskStatus = TASK_STATUS__NORMAL;
+    pTask->status.keepTaskStatus = TASK_STATUS__READY;
     int32_t num = atomic_sub_fetch_32(&pMeta->numOfPausedTasks, 1);
     stInfo("vgId:%d s-task:%s resume from pause, status:%s. pause task num:%d", pMeta->vgId, pTask->id.idStr, streamGetTaskStatusStr(status), num);
   } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
@@ -1065,14 +1053,14 @@ void streamTaskResume(SStreamTask* pTask, SStreamMeta* pMeta) {
 // todo fix race condition
 void streamTaskDisablePause(SStreamTask* pTask) {
   // pre-condition check
-  const char* id = pTask->id.idStr;
-  while (pTask->status.taskStatus == TASK_STATUS__PAUSE) {
-    stDebug("s-task:%s already in pause, wait for pause being cancelled, and set pause disabled, recheck in 100ms", id);
-    taosMsleep(100);
-  }
-
-  stDebug("s-task:%s disable task pause", id);
-  pTask->status.pauseAllowed = 0;
+//  const char* id = pTask->id.idStr;
+//  while (pTask->status.taskStatus == TASK_STATUS__PAUSE) {
+//    stDebug("s-task:%s already in pause, wait for pause being cancelled, and set pause disabled, recheck in 100ms", id);
+//    taosMsleep(100);
+//  }
+//
+//  stDebug("s-task:%s disable task pause", id);
+//  pTask->status.pauseAllowed = 0;
 }
 
 void streamTaskEnablePause(SStreamTask* pTask) {
@@ -1092,7 +1080,7 @@ void streamTaskResumeFromHalt(SStreamTask* pTask) {
 //  }
 
 //  pTask->status.taskStatus = pTask->status.keepTaskStatus;
-//  pTask->status.keepTaskStatus = TASK_STATUS__NORMAL;
+//  pTask->status.keepTaskStatus = TASK_STATUS__READY;
   streamTaskRestoreStatus(pTask);
   streamTaskGetStatus(pTask, &p);
   stDebug("s-task:%s resume from halt, current status:%s", id, p);

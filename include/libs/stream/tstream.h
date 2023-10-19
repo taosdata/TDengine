@@ -67,7 +67,7 @@ enum {
 };
 
 typedef enum ETaskStatus {
-  TASK_STATUS__NORMAL = 0,
+  TASK_STATUS__READY = 0,
   TASK_STATUS__DROPPING,
   TASK_STATUS__UNINIT,  // not used, an placeholder
   TASK_STATUS__STOP,
@@ -139,7 +139,7 @@ typedef enum EStreamTaskEvent {
   TASK_EVENT_PAUSE = 0x8,
   TASK_EVENT_RESUME = 0x9,
   TASK_EVENT_HALT = 0xA,
-  TASK_EVENT_TRANS_STATE = 0xB,
+  TASK_EVENT_DROPPING = 0xB,
   TASK_EVENT_SCAN_TSDB = 0xC,
   TASK_EVENT_SCAN_WAL = 0xD,
 } EStreamTaskEvent;
@@ -714,12 +714,14 @@ SStreamChildEpInfo* streamTaskGetUpstreamTaskEpInfo(SStreamTask* pTask, int32_t 
 void    streamTaskInputFail(SStreamTask* pTask);
 int32_t streamExecTask(SStreamTask* pTask);
 int32_t streamSchedExec(SStreamTask* pTask);
-bool    streamTaskShouldStop(const SStreamStatus* pStatus);
-bool    streamTaskShouldPause(const SStreamStatus* pStatus);
+bool    streamTaskShouldStop(const SStreamTask* pStatus);
+bool    streamTaskShouldPause(const SStreamTask* pStatus);
 bool    streamTaskIsIdle(const SStreamTask* pTask);
 
 char*       createStreamTaskIdStr(int64_t streamId, int32_t taskId);
-ETaskStatus streamTaskGetStatus(SStreamTask* pTask, char** pStr);
+ETaskStatus streamTaskGetStatus(const SStreamTask* pTask, char** pStr);
+void        streamTaskResetStatus(SStreamTask* pTask);
+void        streamTaskSetStatusReady(SStreamTask* pTask);
 
 void    initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen);
 
@@ -753,7 +755,6 @@ int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue);
 
 // common
 int32_t     streamRestoreParam(SStreamTask* pTask);
-int32_t     streamSetStatusNormal(SStreamTask* pTask);
 int32_t     streamSetStatusUnint(SStreamTask* pTask);
 const char* streamGetTaskStatusStr(int32_t status);
 void        streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta);

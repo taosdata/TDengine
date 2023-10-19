@@ -58,7 +58,7 @@ SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, bool fillHistory
 
   pTask->id.idStr = taosStrdup(buf);
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
-  pTask->status.taskStatus = (fillHistory || hasFillhistory) ? TASK_STATUS__SCAN_HISTORY : TASK_STATUS__NORMAL;
+  pTask->status.taskStatus = (fillHistory || hasFillhistory) ? TASK_STATUS__SCAN_HISTORY : TASK_STATUS__READY;
   pTask->inputInfo.status = TASK_INPUT_STATUS__NORMAL;
   pTask->outputq.status = TASK_OUTPUT_STATUS__NORMAL;
 
@@ -581,13 +581,7 @@ int32_t streamTaskStop(SStreamTask* pTask) {
   int64_t      st = taosGetTimestampMs();
   const char*  id = pTask->id.idStr;
 
-  taosThreadMutexLock(&pTask->lock);
-  if (pTask->status.taskStatus == TASK_STATUS__CK) {
-    stDebug("s-task:%s in checkpoint will be discarded since task is stopped", id);
-  }
-  pTask->status.taskStatus = TASK_STATUS__STOP;
-  taosThreadMutexUnlock(&pTask->lock);
-
+  streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_STOP);
   qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
   while (/*pTask->status.schedStatus != TASK_SCHED_STATUS__INACTIVE */ !streamTaskIsIdle(pTask)) {
     stDebug("s-task:%s level:%d wait for task to be idle and then close, check again in 100ms", id,
@@ -740,7 +734,7 @@ void streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo) {
 
 const char* streamGetTaskStatusStr(int32_t status) {
   switch(status) {
-    case TASK_STATUS__NORMAL: return "normal";
+    case TASK_STATUS__READY: return "normal";
     case TASK_STATUS__SCAN_HISTORY: return "scan-history";
     case TASK_STATUS__HALT: return "halt";
     case TASK_STATUS__PAUSE: return "paused";

@@ -592,7 +592,7 @@ int32_t doWaitForDstTableCreated(SVnode* pVnode, SStreamTask* pTask, STableSinkI
   const char* id = pTask->id.idStr;
 
   while (pTableSinkInfo->uid == 0) {
-    if (streamTaskShouldStop(&pTask->status)) {
+    if (streamTaskShouldStop(pTask)) {
       tqDebug("s-task:%s task will stop, quit from waiting for table:%s create", id, dstTableName);
       return TSDB_CODE_STREAM_EXEC_CANCELLED;
     }
@@ -773,7 +773,7 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
             numOfBlocks);
 
     for(int32_t i = 0; i < numOfBlocks; ++i) {
-      if (streamTaskShouldStop(&pTask->status)) {
+      if (streamTaskShouldStop(pTask)) {
         return;
       }
 
@@ -823,7 +823,7 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
 
     bool hasSubmit = false;
     for (int32_t i = 0; i < numOfBlocks; i++) {
-      if (streamTaskShouldStop(&pTask->status)) {
+      if (streamTaskShouldStop(pTask)) {
         taosHashCleanup(pTableIndexMap);
         tDestroySubmitReq(&submitReq, TSDB_MSG_FLG_ENCODE);
         return;
