@@ -483,6 +483,89 @@ return_timestamp: {
 - The precision of the returned timestamp is same as the precision set for the current data base in use
 - return_timestamp indicates whether the returned value type is TIMESTAMP or not. If this parameter set to 1, function will return TIMESTAMP type. Otherwise function will return BIGINT type. If parameter is omitted, default return value type is BIGINT.
 
+#### TO_CHAR
+
+```sql
+TO_CHAR(ts, str_literal)
+```
+
+**Description**: Convert a ts column to string as the format specified
+
+**Return value type**: VARCHAR
+
+**Applicable column types**: TIMESTAMP
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**Supported Formats**
+
+| **Format** | **Comment**| **example** |
+| --- | --- | --- |
+|AM,am,PM,pm| Meridiem indicator(without periods) | 07:00:00am|
+|A.M.,a.m.,P.M.,p.m.| Meridiem indicator(with periods)| 07:00:00a.m.|
+|YYYY,yyyy|year, 4 or more digits| 2023-10-10|
+|YYY,yyy| year, last 3 digits| 023-10-10|
+|YY,yy| year, last 2 digits| 23-10-10|
+|Y,y| year, last digit| 3-10-10|
+|MONTH|full uppercase of month| 2023-JANUARY-01|
+|Month|full capitalized month| 2023-January-01|
+|month|full lowercase of month| 2023-january-01|
+|MON| abbreviated uppercase of month(3 char)| JAN, SEP|
+|Mon| abbreviated capitalized month| Jan, Sep|
+|mon|abbreviated lowercase of month| jan, sep|
+|MM,mm|month number 01-12|2023-01-01|
+|DD,dd|month day, 01-31||
+|DAY|full uppercase of week day|MONDAY|
+|Day|full capitalized week day|Monday|
+|day|full lowercase of week day|monday|
+|DY|abbreviated uppercase of week day|MON|
+|Dy|abbreviated capitalized week day|Mon|
+|dy|abbreviated lowercase of week day|mon|
+|DDD|year day, 001-366||
+|D,d|week day number, 1-7, Sunday(1) to Saturday(7)||
+|HH24,hh24|hour of day, 00-23|2023-01-30 23:59:59|
+|hh12,HH12, hh, HH| hour of day, 01-12|2023-01-30 12:59:59PM|
+|MI,mi|minute, 00-59||
+|SS,ss|second, 00-59||
+|MS,ms|milli second, 000-999||
+|US,us|micro second, 000000-999999||
+|NS,ns|nano second, 000000000-999999999||
+|TZH,tzh|time zone hour|2023-01-30 11:59:59PM +08|
+
+**More explanations**:
+- The output format of `Month`, `Day` are left aligined, like`2023-OCTOBER  -01`, `2023-SEPTEMBER-01`, `September` is the longest, no paddings. Week days are slimilar.
+- When `ms`,`us`,`ns` are used in `to_char`, like `to_char(ts, 'yyyy-mm-dd hh:mi:ss.ms.us.ns')`, The time of `ms`,`us`,`ns` corresponds to the same fraction seconds. When ts is `1697182085123`, the output of `ms` is `123`, `us` is `123000`, `ns` is `123000000`.
+- If we want to output some characters of format without converting, surround it with double quotes. `to_char(ts, 'yyyy-mm-dd "is formated by yyyy-mm-dd"')`. If want to output double quotes, add a back slash before double quote, like `to_char(ts, '\"yyyy-mm-dd\"')` will output `"2023-10-10"`.
+- For formats that output digits, the uppercase and lowercase formats are the same.
+
+#### TO_TIMESTAMP
+
+```sql
+TO_TIMESTAMP(str_literal, str_literal)
+```
+
+**Description**: Convert a formated timestamp string to a timestamp
+
+**Return value type**: TIMESTAMP
+
+**Applicable column types**: VARCHAR
+
+**Nested query**: It can be used in both the outer query and inner query in a nested query.
+
+**Applicable table types**: standard tables and supertables
+
+**Supported Formats**: The same as `TO_CHAR`.
+
+**More explanations**:
+- When `ms`, `us`, `ns` are used in `to_timestamp`, if multi of them are specified, the results are accumulated. For example, `to_timestamp('2023-10-10 10:10:10.123.000456.000000789', 'yyyy-mm-dd hh:mi:ss.ms.us.ns')` will output the timestamp of `2023-10-10 10:10:10.123456789`.
+- The uppercase or lowercase of `MONTH`, `MON`, `DAY`, `DY` and formtas that output digits have same effect when used in `to_timestamp`, like `to_timestamp('2023-JANUARY-01', 'YYYY-month-dd')`, `month` can be replaced by `MONTH`, or `month`. The cases are ignored.
+- If multi times are specified for one component, the previous will be overwritten. Like `to_timestamp('2023-22-10-10', 'yyyy-yy-MM-dd')`, the output year will be `2022`.
+- The default timetsamp if some components are not specified will be: `1970-01-01 00:00:00` with your local timezone.
+- If `AM` or `PM` is specified in formats, the Hour must between `1-12`.
+- In some cases, `to_timestamp` can convert correctly even the format and the timestamp string are not totally matched. Like `to_timetamp('200101/2', 'yyyyMM1/dd')`, the digit `1` in format string are ignored, and the output timestsamp is `2001-01-02 00:00:00`. Spaces and tabs in formats and tiemstamp string are also ignored automatically.
+
 
 ### Time and Date Functions
 

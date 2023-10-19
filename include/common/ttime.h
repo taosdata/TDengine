@@ -90,6 +90,27 @@ int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec
 
 void taosFormatUtcTime(char* buf, int32_t bufLen, int64_t ts, int32_t precision);
 
+struct STm {
+  struct tm tm;
+  int64_t   fsec;  // in NANOSECOND
+};
+
+int32_t taosTs2Tm(int64_t ts, int32_t precision, struct STm* tm);
+int32_t taosTm2Ts(struct STm* tm, int64_t* ts, int32_t precision);
+
+/// @brief convert a timestamp to a formatted string
+/// @param format the timestamp format, must null terminated
+void taosTs2Char(const char* format, int64_t ts, int32_t precision, char* out);
+/// @brief convert a formatted timestamp string to a timestamp
+/// @param format must null terminated
+/// @param tsStr must null terminated
+/// @retval 0 for success, otherwise error occured
+int32_t taosChar2Ts(const char* format, const char* tsStr, int64_t* ts, int32_t precision, char* errMsg,
+                    int32_t errMsgLen);
+
+void    TEST_ts2char(const char* format, int64_t ts, int32_t precision, char* out);
+int32_t TEST_char2ts(const char* format, int64_t* ts, int32_t precision, const char* tsStr);
+
 #ifdef __cplusplus
 }
 #endif
