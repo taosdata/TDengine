@@ -1095,7 +1095,7 @@ TaosConsumer consumer = new TaosConsumer<>(config);
 - httpConnectTimeout: 创建连接超时参数，单位 ms，默认为 5000 ms。仅在 WebSocket 连接下有效。
 - messageWaitTimeout: 数据传输超时参数，单位 ms，默认为 10000 ms。仅在 WebSocket 连接下有效。
 - httpPoolSize: 同一个连接下最大并行请求数。仅在 WebSocket 连接下有效。
-  其他参数请参考：[Consumer 参数列表](../../develop/tmq#创建-consumer-以及consumer-group)
+  其他参数请参考：[Consumer 参数列表](../../develop/tmq#创建-consumer-以及consumer-group)， 注意TDengine服务端自3.2.0.0版本开始消息订阅中的auto.offset.reset默认值发生变化。
 
 #### 订阅消费数据
 
@@ -1193,7 +1193,7 @@ public abstract class ConsumerLoop {
         config.setProperty("bootstrap.servers", "localhost:6030");
         config.setProperty("td.connect.user", "root");
         config.setProperty("td.connect.pass", "taosdata");
-        config.setProperty("auto.offset.reset", "earliest");
+        config.setProperty("auto.offset.reset", "latest");
         config.setProperty("msg.with.table.name", "true");
         config.setProperty("enable.auto.commit", "true");
         config.setProperty("auto.commit.interval.ms", "1000");
@@ -1201,7 +1201,6 @@ public abstract class ConsumerLoop {
         config.setProperty("client.id", "1");
         config.setProperty("value.deserializer", "com.taosdata.jdbc.tmq.ConsumerTest.ConsumerLoop$ResultDeserializer");
         config.setProperty("value.deserializer.encoding", "UTF-8");
-        config.setProperty("experimental.snapshot.enable", "true");
 
         this.consumer = new TaosConsumer<>(config);
         this.topics = Collections.singletonList("topic_speed");
@@ -1279,7 +1278,7 @@ public abstract class ConsumerLoop {
         config.setProperty("bootstrap.servers", "localhost:6041");
         config.setProperty("td.connect.user", "root");
         config.setProperty("td.connect.pass", "taosdata");
-        config.setProperty("auto.offset.reset", "earliest");
+        config.setProperty("auto.offset.reset", "latest");
         config.setProperty("msg.with.table.name", "true");
         config.setProperty("enable.auto.commit", "true");
         config.setProperty("auto.commit.interval.ms", "1000");
@@ -1287,7 +1286,6 @@ public abstract class ConsumerLoop {
         config.setProperty("client.id", "1");
         config.setProperty("value.deserializer", "com.taosdata.jdbc.tmq.ConsumerTest.ConsumerLoop$ResultDeserializer");
         config.setProperty("value.deserializer.encoding", "UTF-8");
-        config.setProperty("experimental.snapshot.enable", "true");
 
         this.consumer = new TaosConsumer<>(config);
         this.topics = Collections.singletonList("topic_speed");
