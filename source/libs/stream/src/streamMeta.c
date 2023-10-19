@@ -348,6 +348,7 @@ void streamMetaCloseImpl(void* arg) {
   stDebug("end to close stream meta");
 }
 
+// todo let's check the status for each task
 int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   void*   buf = NULL;
   int32_t len;

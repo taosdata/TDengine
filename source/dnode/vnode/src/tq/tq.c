@@ -1446,7 +1446,7 @@ int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen) {
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId);
   if (pTask != NULL) {
     // drop the related fill-history task firstly
-    if (pTask->hTaskInfo.id.taskId != 0) {
+    if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
       STaskId* pHTaskId = &pTask->hTaskInfo.id;
       streamMetaUnregisterTask(pMeta, pHTaskId->streamId, pHTaskId->taskId);
       tqDebug("vgId:%d drop fill-history task:0x%x dropped firstly", vgId, (int32_t)pHTaskId->taskId);
@@ -1486,7 +1486,7 @@ int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   streamTaskPause(pTask, pMeta);
 
   SStreamTask* pHistoryTask = NULL;
-  if (pTask->hTaskInfo.id.taskId != 0) {
+  if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
     pHistoryTask = streamMetaAcquireTask(pMeta, pTask->hTaskInfo.id.streamId, pTask->hTaskInfo.id.taskId);
     if (pHistoryTask == NULL) {
       tqError("vgId:%d process pause req, failed to acquire fill-history task:0x%" PRIx64
@@ -1868,7 +1868,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   streamTaskResetStatus(pTask);
 
   SStreamTask** ppHTask = NULL;
-  if (pTask->hTaskInfo.id.taskId != 0) {
+  if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
     ppHTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &pTask->hTaskInfo.id, sizeof(pTask->hTaskInfo.id));
     if (ppHTask == NULL || *ppHTask == NULL) {
       tqError("vgId:%d failed to acquire fill-history task:0x%x when handling update, it may have been dropped already",

@@ -732,20 +732,6 @@ void streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo) {
   pInfo->retryTimes += 1;
 }
 
-const char* streamGetTaskStatusStr(int32_t status) {
-  switch(status) {
-    case TASK_STATUS__READY: return "normal";
-    case TASK_STATUS__SCAN_HISTORY: return "scan-history";
-    case TASK_STATUS__HALT: return "halt";
-    case TASK_STATUS__PAUSE: return "paused";
-    case TASK_STATUS__CK: return "check-point";
-    case TASK_STATUS__DROPPING: return "dropping";
-    case TASK_STATUS__STOP: return "stop";
-    case TASK_STATUS__UNINIT: return "uninitialized";
-    default:return "";
-  }
-}
-
 void streamTaskStatusInit(STaskStatusEntry* pEntry, const SStreamTask* pTask) {
   pEntry->id.streamId = pTask->id.streamId;
   pEntry->id.taskId = pTask->id.taskId;

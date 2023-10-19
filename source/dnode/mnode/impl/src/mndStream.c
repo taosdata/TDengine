@@ -1183,7 +1183,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
 
       if (pEntry->status != TASK_STATUS__READY) {
         mDebug("s-task:0x%" PRIx64 "-0x%x (nodeId:%d) status:%s not ready, checkpoint msg not issued",
-              pEntry->id.streamId, (int32_t)pEntry->id.taskId, 0, streamGetTaskStatusStr(pEntry->status));
+              pEntry->id.streamId, (int32_t)pEntry->id.taskId, 0, streamTaskGetStatusStr(pEntry->status));
         ready = false;
         break;
       }
@@ -1567,7 +1567,7 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
           continue;
         }
 
-        const char* pStatus = streamGetTaskStatusStr(pe->status);
+        const char* pStatus = streamTaskGetStatusStr(pe->status);
         STR_TO_VARSTR(status, pStatus);
 
         // status
@@ -2615,7 +2615,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
     pEntry->status = p->status;
     if (p->status != TASK_STATUS__READY) {
-      mDebug("received s-task:0x%"PRIx64" not in ready status:%s", p->id.taskId, streamGetTaskStatusStr(p->status));
+      mDebug("received s-task:0x%"PRIx64" not in ready status:%s", p->id.taskId, streamTaskGetStatusStr(p->status));
     }
   }
 
