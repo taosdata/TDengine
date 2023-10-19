@@ -1170,7 +1170,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
     }
   }
 
-  {  // check if all tasks are in TASK_STATUS__NORMAL status
+  {  // check if all tasks are in TASK_STATUS__READY status
     bool ready = true;
 
     taosThreadMutexLock(&execNodeList.lock);
@@ -1181,7 +1181,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
         continue;
       }
 
-      if (pEntry->status != TASK_STATUS__NORMAL) {
+      if (pEntry->status != TASK_STATUS__READY) {
         mDebug("s-task:0x%" PRIx64 "-0x%x (nodeId:%d) status:%s not ready, checkpoint msg not issued",
               pEntry->id.streamId, (int32_t)pEntry->id.taskId, 0, streamGetTaskStatusStr(pEntry->status));
         ready = false;
@@ -2614,7 +2614,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     }
 
     pEntry->status = p->status;
-    if (p->status != TASK_STATUS__NORMAL) {
+    if (p->status != TASK_STATUS__READY) {
       mDebug("received s-task:0x%"PRIx64" not in ready status:%s", p->id.taskId, streamGetTaskStatusStr(p->status));
     }
   }
