@@ -106,12 +106,3 @@ impl<S, N, T> FormatEvent<S, N> for TaosXLogFormatter<T>
     }
 }
 
-struct MyLayer;
-impl<S, N, E, W> tracing_subscriber::layer::Layer<S> for tracing_subscriber::fmt::Layer<S, N, E, W>
-    where
-        S: Subscriber + for<'a> LookupSpan<'a>,
-        N: for<'writer> FormatFields<'writer> + 'static,
-        E: FormatEvent<S, N> + 'static,
-        W: for<'writer> MakeWriter<'writer> + 'static,
-{}
-

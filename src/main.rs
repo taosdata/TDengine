@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+use arrow::compute::filter;
 use chrono::Local;
 use clap::{Parser, Subcommand};
 use const_format::concatcp;
@@ -24,7 +25,8 @@ use tracing_subscriber::{
 use taosx_core::{
     ENV_TAOSX_LOGS_KEEP_DAYS, get_log_dir, get_log_keep_days, valid_env_log_keep_days,
 };
-use taosx_core::utils::log_format::TaosXLogFormatter;
+use taosx_core::utils:: {log_format::TaosXLogFormatter, trace::TaosXLayer};
+
 #[cfg(feature = "tikv_jemallocator")]
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
@@ -263,13 +265,18 @@ fn main() -> Result<()> {
             format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:6]"),
         );
 
-        // Create customized layer for taosX's rotating file log.
-        layers.push(tracing_subscriber::fmt::layer()
-            .event_format(TaosXLogFormatter{timer: timer.clone()})
+        layers.push(TaosXLayer::new()
             .with_writer(non_blocking)
-            .with_ansi(false)
             .with_filter(level_filter)
             .boxed());
+
+        // Create customized layer for taosX's rotating file log.
+        // layers.push(tracing_subscriber::fmt::layer()
+        //     .event_format(TaosXLogFormatter{timer: timer.clone()})
+        //     .with_writer(non_blocking)
+        //     .with_ansi(false)
+        //     .with_filter(level_filter)
+        //     .boxed());
 
         let event_filter = EnvFilter::builder()
             .with_default_directive(level_filter.into())
