@@ -169,6 +169,9 @@ int rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, in
 int rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
   return transSendRecv(shandle, pEpSet, pMsg, pRsp);
 }
+int rpcSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp, int32_t timeoutMs) {
+  return transSendRecvWithTimeout(shandle, pEpSet, pMsg, pRsp, timeoutMs);
+}
 
 int rpcSendResponse(const SRpcMsg* pMsg) { return transSendResponse(pMsg); }
 
