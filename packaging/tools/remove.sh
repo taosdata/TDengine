@@ -63,6 +63,10 @@ service_config_dir="/etc/systemd/system"
 taos_service_name=${serverName2}
 taosadapter_service_name="${clientName2}adapter"
 tarbitrator_service_name="tarbitratord"
+
+config_dir="/etc/${clientName2}"
+
+
 csudo=""
 if command -v sudo >/dev/null; then
   csudo="sudo "
@@ -264,6 +268,20 @@ function clean_service() {
   fi
 }
 
+function remove_data_and_config() {
+  data_dir=`grep dataDir /etc/taos/taos.cfg | grep -v '#' | tail -n 1 | awk {'print $2'}`
+  if [ X"$data_dir" == X"" ]; then
+    data_dir="/var/lib/taos"
+  fi
+  log_dir=`grep logDir /etc/taos/taos.cfg | grep -v '#' | tail -n 1 | awk {'print $2'}`
+  if [ X"$log_dir" == X"" ]; then
+    log_dir="/var/lib/taos"
+  fi
+  ${csudo}rm -rf ${config_dir}/*
+  ${csudo}rm -rf ${data_dir}/*
+  ${csudo}rm -rf ${log_dir}/*
+}
+
 function uninstall_taosx() {
   if [ -f /usr/local/taosx/uninstall.sh ]; then
     cd /usr/local/taosx
@@ -373,6 +391,14 @@ remove_taoskeeper() {
   echo "taosKeeper is removed successfully!"
 }
 remove_taoskeeper
+
+echo 
+echo "Do you want to remove all the data, log and configuration files? [y/n]"
+read answer
+if [ X$answer == X"y" ] || [ X$answer == X"Y" ]; then
+    remove_data_and_config
+fi
+
 
 if [ "$verMode" == "cluster" ]; then
   uninstall_taosx
