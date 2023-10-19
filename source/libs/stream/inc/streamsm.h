@@ -62,7 +62,6 @@ struct SStreamTaskSM {
 typedef struct SStreamEventInfo {
   EStreamTaskEvent event;
   const char*      name;
-  bool             isTrans;
 } SStreamEventInfo;
 
 SStreamTaskSM* streamCreateStateMachine(SStreamTask* pTask);
