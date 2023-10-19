@@ -11,9 +11,9 @@ pub struct InfluxdbConfig {
     // the datasource config
     pub influx: ConnectionConfig,
     // the addr for connector to agent
-    pub taosx: Option<TaosxConfig>,
+    taosx: Option<TaosxConfig>,
     // the task config
-    pub task: Option<TaskConfig>,
+    task: Option<TaskConfig>,
     // the performance config
     pub performance: Option<PerformanceConfig>,
 }
@@ -156,6 +156,7 @@ struct TaskConfig {
     begin_time: String,
     #[serde(rename = "endTime")]
     end_time: Option<String>,
+    breakpoints: Option<String>,
 }
 
 impl TaskConfig {
@@ -186,6 +187,7 @@ impl TaskConfig {
                 .ok_or(anyhow::anyhow!("beginTime is required"))?
                 .to_string(),
             end_time: dsn.params.get("endTime").map(|s| s.to_string()),
+            breakpoints: dsn.params.get("breakpoints").map(|s| s.to_string()),
         })
     }
 }
@@ -225,17 +227,18 @@ mod tests {
         assert_eq!(Vec::<String>::new(), config.measurements);
         assert_eq!("2023-11-11T12:00:00Z", config.begin_time);
         assert_eq!(None, config.end_time);
+        assert_eq!(None, config.breakpoints);
 
         let dsn = Dsn::from_str(
-            "influxdb://?bucket=abc&beginTime=2023-11-11T12:00:00Z&measurements=m1,m2,m3",
-        )
-        .unwrap();
+            "influxdb://?bucket=abc&beginTime=2023-11-11T12:00:00Z&measurements=m1,m2,m3&breakpoints=abc",
+        ).unwrap();
         let config = TaskConfig::from_dsn(&dsn).unwrap();
         assert_eq!("normal", config.mode);
         assert_eq!("abc", config.bucket);
         assert_eq!(vec!["m1", "m2", "m3"], config.measurements);
         assert_eq!("2023-11-11T12:00:00Z", config.begin_time);
         assert_eq!(None, config.end_time);
+        assert_eq!("abc", config.breakpoints.unwrap());
     }
 
     #[test]

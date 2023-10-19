@@ -56,10 +56,7 @@ pub async fn influxdb_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
-    breakpoints: Option<String>,
 ) -> anyhow::Result<()> {
-    let connector_path = influxdb_jar_path()?;
-
     let ipc_port = port_pool
         .get()
         .ok_or(anyhow::anyhow!("No available port for InfluxDB connection"))?;
@@ -116,6 +113,7 @@ pub async fn influxdb_to_taos(
     let mut command = tokio::process::Command::new("java");
     let child;
 
+    let connector_path = influxdb_jar_path()?;
     if jdk_version.contains("build 1.") {
         child = command
             .arg("-jar")

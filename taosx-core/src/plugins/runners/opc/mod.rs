@@ -786,7 +786,10 @@ pub async fn generate_opcconfig_from_csv(
                         }
                     }
                     let column_type = if let Some(ty) = record_map.get("type") {
-                        Some(IpcDataType::from_str(ty).map_err(|err| anyhow::Error::msg(err.clone()))?)
+                        Some(
+                            IpcDataType::from_str(ty)
+                                .map_err(|err| anyhow::Error::msg(err.clone()))?,
+                        )
                     } else {
                         None
                     };
@@ -1023,7 +1026,6 @@ fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> Stri
             None
         };
         tb_name
-            .clone()
             .replace("{ns}", ns.unwrap_or(""))
             .replace("{id}", id.unwrap_or(""))
     } else {
@@ -1481,6 +1483,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 }
 
 pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+    dbg!(dsn);
     DataSourceValidation::unknown()
 }
 

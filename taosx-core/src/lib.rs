@@ -306,7 +306,7 @@ impl TaskOpts {
                 }
                 ("influxdb", "taos") => {
                     influxdb_to_taos(
-                        from.clone(),
+                        Self::append_breakpoints_in_dsn(breakpoints, from),
                         transform.clone(),
                         to.clone(),
                         *jobs,
@@ -315,13 +315,12 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
-                        breakpoints.clone(),
                     )
                     .await?;
                 }
                 ("opentsdb", "taos") => {
                     opentsdb_to_taos(
-                        from.clone(),
+                        Self::append_breakpoints_in_dsn(breakpoints, from),
                         transform.clone(),
                         to.clone(),
                         *jobs,
@@ -403,6 +402,17 @@ impl TaskOpts {
         }
         Ok(())
     }
+
+    fn append_breakpoints_in_dsn(breakpoints: &Option<String>, from: &Dsn) -> Dsn {
+        match breakpoints {
+            None => from.clone(),
+            Some(b) => {
+                let mut from = from.clone();
+                from.params.insert("breakpoints".to_string(), b.clone());
+                from
+            }
+        }
+    }
 }
 
 pub fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
@@ -482,6 +492,17 @@ mod tests {
     use taos::Dsn;
 
     use super::*;
+
+    #[test]
+    fn test_append_breakpoints_in_dsn() {
+        let dsn = Dsn::from_str("opentsdb://?param1=abc&param2=123").unwrap();
+        let dsn = TaskOpts::append_breakpoints_in_dsn(&Some(String::from("abc")), &dsn);
+        assert_eq!("abc", dsn.params.get("breakpoints").unwrap());
+
+        let dsn = Dsn::from_str("opentsdb://?param1=abc&param2=123").unwrap();
+        let dsn = TaskOpts::append_breakpoints_in_dsn(&None, &dsn);
+        assert_eq!(None, dsn.params.get("breakpoints"));
+    }
 
     #[test]
     #[ignore]

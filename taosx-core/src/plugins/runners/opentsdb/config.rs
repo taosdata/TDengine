@@ -80,6 +80,7 @@ pub struct TaskConfig {
     pub begin_time: String,
     #[serde(rename = "endTime")]
     pub end_time: Option<String>,
+    pub breakpoints: Option<String>,
 }
 
 impl TaskConfig {
@@ -105,6 +106,7 @@ impl TaskConfig {
                 .ok_or(anyhow::anyhow!("beginTime is required"))?
                 .to_string(),
             end_time: dsn.params.get("endTime").map(|s| s.to_string()),
+            breakpoints: dsn.params.get("breakpoints").map(|s| s.to_string()),
         })
     }
 }

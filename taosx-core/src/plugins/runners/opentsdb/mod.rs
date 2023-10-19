@@ -60,8 +60,6 @@ pub async fn opentsdb_to_taos(
     transferred: Option<Arc<Transferred>>,
     span: Span,
 ) -> anyhow::Result<()> {
-    let path = opentsdb_jar_path()?;
-
     let ipc_port = port_pool
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for OpenTSDB connection"))?;
