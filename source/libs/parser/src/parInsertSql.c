@@ -989,12 +989,12 @@ static int32_t checkAuthForStable(SParseContext* pCxt, SName* pTbName, bool* pMi
   return checkAuth(pCxt, pTbName, pMissCache, pTagCond);
 }
 
-static int32_t getTableMeta(SInsertParseContext* pCxt, SName* pTbName, bool isStb, STableMeta** pTableMeta,
-                            bool* pMissCache) {
+static int32_t getTableMeta(SInsertParseContext* pCxt, SName* pTbName, STableMeta** pTableMeta,
+                            bool* pMissCache, bool bUsingTable) {
   SParseContext* pComCxt = pCxt->pComCxt;
   int32_t        code = TSDB_CODE_SUCCESS;
   if (pComCxt->async) {
-    if (isStb) {
+    if (bUsingTable) {
       code = catalogGetCachedSTableMeta(pComCxt->pCatalog, pTbName, pTableMeta);
     } else {
       code = catalogGetCachedTableMeta(pComCxt->pCatalog, pTbName, pTableMeta);
@@ -1004,7 +1004,7 @@ static int32_t getTableMeta(SInsertParseContext* pCxt, SName* pTbName, bool isSt
                              .requestId = pComCxt->requestId,
                              .requestObjRefId = pComCxt->requestRid,
                              .mgmtEps = pComCxt->mgmtEpSet};
-    if (isStb) {
+    if (bUsingTable) {
       code = catalogGetSTableMeta(pComCxt->pCatalog, &conn, pTbName, pTableMeta);
     } else {
       code = catalogGetTableMeta(pComCxt->pCatalog, &conn, pTbName, pTableMeta);
@@ -1013,10 +1013,8 @@ static int32_t getTableMeta(SInsertParseContext* pCxt, SName* pTbName, bool isSt
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL == *pTableMeta) {
       *pMissCache = true;
-    } else if (isStb && TSDB_SUPER_TABLE != (*pTableMeta)->tableType) {
+    } else if (bUsingTable && TSDB_SUPER_TABLE != (*pTableMeta)->tableType) {
       code = buildInvalidOperationMsg(&pCxt->msg, "create table only from super table is allowed");
-    } else if (!isStb && TSDB_SUPER_TABLE == (*pTableMeta)->tableType) {
-      code = buildInvalidOperationMsg(&pCxt->msg, "insert data into super table is not supported");
     }
   }
   return code;
@@ -1047,7 +1045,7 @@ static int32_t getTableVgroup(SParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bo
   return code;
 }
 
-static int32_t getTableMetaAndVgroupImpl(SParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bool* pMissCache) {
+static int32_t getTargetTableMetaAndVgroupImpl(SParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bool* pMissCache) {
   SVgroupInfo vg;
   int32_t     code = catalogGetCachedTableVgMeta(pCxt->pCatalog, &pStmt->targetTableName, &vg, &pStmt->pTableMeta);
   if (TSDB_CODE_SUCCESS == code) {
@@ -1059,15 +1057,34 @@ static int32_t getTableMetaAndVgroupImpl(SParseContext* pCxt, SVnodeModifyOpStmt
   return code;
 }
 
-static int32_t getTableMetaAndVgroup(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bool* pMissCache) {
+static int32_t getTargetTableMetaAndVgroup(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bool* pMissCache) {
   SParseContext* pComCxt = pCxt->pComCxt;
   int32_t        code = TSDB_CODE_SUCCESS;
   if (pComCxt->async) {
-    code = getTableMetaAndVgroupImpl(pComCxt, pStmt, pMissCache);
+    {
+      SVgroupInfo vg;
+      code = catalogGetCachedTableVgMeta(pComCxt->pCatalog, &pStmt->targetTableName, &vg, &pStmt->pTableMeta);
+      if (TSDB_CODE_SUCCESS == code) {
+        if (NULL != pStmt->pTableMeta) {
+          if (pStmt->pTableMeta->tableType == TSDB_SUPER_TABLE) {
+            pStmt->stbSyntax = true;
+          } else {
+            code = taosHashPut(pStmt->pVgroupsHashObj, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg));
+          }
+        }
+        *pMissCache = (NULL == pStmt->pTableMeta);
+      }
+    }
   } else {
-    code = getTableMeta(pCxt, &pStmt->targetTableName, false, &pStmt->pTableMeta, pMissCache);
+    bool bUsingTable = false;
+    code = getTableMeta(pCxt, &pStmt->targetTableName, &pStmt->pTableMeta, pMissCache, bUsingTable);
     if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
-      code = getTableVgroup(pCxt->pComCxt, pStmt, false, &pCxt->missCache);
+      if (TSDB_SUPER_TABLE == pStmt->pTableMeta->tableType) {
+        pStmt->stbSyntax = true;
+      }
+      if (!pStmt->stbSyntax) {
+        code = getTableVgroup(pCxt->pComCxt, pStmt, false, &pCxt->missCache);
+      }
     }
   }
   return code;
@@ -1093,7 +1110,7 @@ static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStm
 
   int32_t code = checkAuthForTable(pCxt->pComCxt, &pStmt->targetTableName, &pCxt->missCache, &pCxt->needTableTagVal);
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
-    code = getTableMetaAndVgroup(pCxt, pStmt, &pCxt->missCache);
+    code = getTargetTableMetaAndVgroup(pCxt, pStmt, &pCxt->missCache);
   }
   if (TSDB_CODE_SUCCESS == code && !pCxt->pComCxt->async) {
     code = collectUseDatabase(&pStmt->targetTableName, pStmt->pDbFNameHashObj);
@@ -1116,7 +1133,8 @@ static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt
 
   int32_t code = checkAuthForStable(pCxt->pComCxt, &pStmt->usingTableName, &pCxt->missCache, &pStmt->pTagCond);
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
-    code = getTableMeta(pCxt, &pStmt->usingTableName, true, &pStmt->pTableMeta, &pCxt->missCache);
+    bool bUsingTable = true;
+    code = getTableMeta(pCxt, &pStmt->usingTableName, &pStmt->pTableMeta, &pCxt->missCache, bUsingTable);
   }
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTableVgroup(pCxt->pComCxt, pStmt, true, &pCxt->missCache);
@@ -2024,13 +2042,10 @@ static int32_t checkSubtablePrivilegeForTable(const SArray* pTables, SVnodeModif
   return code;
 }
 
-static int32_t getTableSchemaFromMetaData(SInsertParseContext* pCxt, const SMetaData* pMetaData,
+static int32_t processTableSchemaFromMetaData(SInsertParseContext* pCxt, const SMetaData* pMetaData,
                                           SVnodeModifyOpStmt* pStmt, bool isStb) {
-  int32_t code = checkAuthFromMetaData(pMetaData->pUser, &pStmt->pTagCond);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = getTableMetaFromMetaData(pMetaData->pTableMeta, &pStmt->pTableMeta);
-  }
-  if (TSDB_CODE_SUCCESS == code && !isStb && TSDB_SUPER_TABLE == pStmt->pTableMeta->tableType) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (!isStb && TSDB_SUPER_TABLE == pStmt->pTableMeta->tableType) {
     code = buildInvalidOperationMsg(&pCxt->msg, "insert data into super table is not supported");
   }
   if (TSDB_CODE_SUCCESS == code && isStb) {
@@ -2068,11 +2083,17 @@ static void clearCatalogReq(SCatalogReq* pCatalogReq) {
 static int32_t setVnodeModifOpStmt(SInsertParseContext* pCxt, SCatalogReq* pCatalogReq, const SMetaData* pMetaData,
                                    SVnodeModifyOpStmt* pStmt) {
   clearCatalogReq(pCatalogReq);
-
-  if (pStmt->usingTableProcessing) {
-    return getTableSchemaFromMetaData(pCxt, pMetaData, pStmt, true);
+  int32_t code = checkAuthFromMetaData(pMetaData->pUser, &pStmt->pTagCond);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = getTableMetaFromMetaData(pMetaData->pTableMeta, &pStmt->pTableMeta);
+    if (code == TSDB_CODE_SUCCESS && pStmt->pTableMeta->tableType == TSDB_SUPER_TABLE && !pStmt->usingTableProcessing) {
+      pStmt->stbSyntax = true;
+    }
   }
-  return getTableSchemaFromMetaData(pCxt, pMetaData, pStmt, false);
+  if (pStmt->usingTableProcessing || pStmt->stbSyntax) {
+    return processTableSchemaFromMetaData(pCxt, pMetaData, pStmt, true);
+  }
+  return processTableSchemaFromMetaData(pCxt, pMetaData, pStmt, false);
 }
 
 static int32_t resetVnodeModifOpStmt(SInsertParseContext* pCxt, SQuery* pQuery) {

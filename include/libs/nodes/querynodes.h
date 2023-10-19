@@ -439,6 +439,7 @@ typedef struct SVnodeModifyOpStmt {
   FFreeVgourpBlockArray freeArrayFunc;
   bool                  usingTableProcessing;
   bool                  fileProcessing;
+  bool                  stbSyntax;
 } SVnodeModifyOpStmt;
 
 typedef struct SExplainOptions {
