@@ -61,4 +61,5 @@ print $data00
 if $data00 != 1 then
   return -1
 endi
+sql_error select f from (select f, f from ctcount);
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
