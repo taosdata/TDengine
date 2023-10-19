@@ -371,7 +371,7 @@ struct STsdb {
   char                *path;
   SVnode              *pVnode;
   STsdbKeepCfg         keepCfg;
-  TdThreadRwlock       rwLock;
+  TdThreadMutex        mutex;
   SMemTable           *mem;
   SMemTable           *imem;
   STsdbFS              fs;  // old
@@ -660,8 +660,8 @@ struct SDelFWriter {
 };
 
 #include "tarray2.h"
-//#include "tsdbFS2.h"
-// struct STFileSet;
+// #include "tsdbFS2.h"
+//  struct STFileSet;
 typedef struct STFileSet STFileSet;
 typedef TARRAY2(STFileSet *) TFileSetArray;
 
@@ -829,8 +829,8 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf);
 
 void tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
 bool tMergeTreeNext(SMergeTree *pMTree);
-void tMergeTreePinSttBlock(SMergeTree* pMTree);
-void tMergeTreeUnpinSttBlock(SMergeTree* pMTree);
+void tMergeTreePinSttBlock(SMergeTree *pMTree);
+void tMergeTreeUnpinSttBlock(SMergeTree *pMTree);
 bool tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree);
 void tMergeTreeClose(SMergeTree *pMTree);
 

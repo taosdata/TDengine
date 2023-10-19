@@ -794,9 +794,9 @@ int32_t tsdbCloseFS(STFileSystem **fs) {
 }
 
 int64_t tsdbFSAllocEid(STFileSystem *fs) {
-  taosThreadRwlockWrlock(&fs->tsdb->rwLock);
+  taosThreadMutexLock(&fs->tsdb->mutex);
   int64_t cid = ++fs->neid;
-  taosThreadRwlockUnlock(&fs->tsdb->rwLock);
+  taosThreadMutexUnlock(&fs->tsdb->mutex);
   return cid;
 }
 
@@ -933,7 +933,7 @@ int32_t tsdbFSCreateCopySnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
 
   TARRAY2_INIT(fsetArr[0]);
 
-  taosThreadRwlockRdlock(&fs->tsdb->rwLock);
+  taosThreadMutexLock(&fs->tsdb->mutex);
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     code = tsdbTFileSetInitDup(fs->tsdb, fset, &fset1);
     if (code) break;
@@ -941,7 +941,7 @@ int32_t tsdbFSCreateCopySnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
     code = TARRAY2_APPEND(fsetArr[0], fset1);
     if (code) break;
   }
-  taosThreadRwlockUnlock(&fs->tsdb->rwLock);
+  taosThreadMutexUnlock(&fs->tsdb->mutex);
 
   if (code) {
     TARRAY2_DESTROY(fsetArr[0], tsdbTFileSetClear);

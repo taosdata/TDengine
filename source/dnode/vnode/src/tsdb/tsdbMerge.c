@@ -396,13 +396,13 @@ static int32_t tsdbMergeFileSetEnd(SMerger *merger) {
   code = tsdbFSEditBegin(merger->tsdb->pFS, merger->fopArr, TSDB_FEDIT_MERGE);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  taosThreadRwlockWrlock(&merger->tsdb->rwLock);
+  taosThreadMutexLock(&merger->tsdb->mutex);
   code = tsdbFSEditCommit(merger->tsdb->pFS);
   if (code) {
-    taosThreadRwlockUnlock(&merger->tsdb->rwLock);
+    taosThreadMutexUnlock(&merger->tsdb->mutex);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-  taosThreadRwlockUnlock(&merger->tsdb->rwLock);
+  taosThreadMutexUnlock(&merger->tsdb->mutex);
 
 _exit:
   if (code) {

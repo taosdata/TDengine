@@ -259,15 +259,15 @@ static int32_t tsdbDoRetentionEnd(SRTNer *rtner) {
   code = tsdbFSEditBegin(rtner->tsdb->pFS, rtner->fopArr, TSDB_FEDIT_MERGE);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  taosThreadRwlockWrlock(&rtner->tsdb->rwLock);
+  taosThreadMutexLock(&rtner->tsdb->mutex);
 
   code = tsdbFSEditCommit(rtner->tsdb->pFS);
   if (code) {
-    taosThreadRwlockUnlock(&rtner->tsdb->rwLock);
+    taosThreadMutexUnlock(&rtner->tsdb->mutex);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  taosThreadRwlockUnlock(&rtner->tsdb->rwLock);
+  taosThreadMutexUnlock(&rtner->tsdb->mutex);
 
   TARRAY2_DESTROY(rtner->fopArr, NULL);
 
