@@ -2427,6 +2427,8 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
         memcpy(pSyncMsg->pRsp, (char*)pResp, sizeof(*pResp));
         tsem_post(pSyncMsg->pSem);
         taosReleaseRef(transGetSyncMsgMgt(), pCtx->syncMsgRef);
+      } else {
+        rpcFreeCont(pResp->pCont);
       }
     }
   } else {
