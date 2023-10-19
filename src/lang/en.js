@@ -7,7 +7,7 @@ let grafanagds = process.env.VUE_APP_CUS_NAME &&
 let taosname = process.env.VUE_APP_CUS_NAME &&
   process.env.VUE_APP_CUS_NAME !== "TDengine" ? process.env.VUE_APP_CUS_PROMPT : 'taos'
 let agenturl=localStorage.getItem('agent_version')?localStorage.getItem('agent_version'):'latest'
-const DocsUrl=localStorage.getItem('local_language')?.includes('zh')?'https://docs.taosdata.com':'https://docs.tdengine.com'
+const DocsUrl=window.location.origin+(localStorage.getItem('local_language')?.includes('zh')?'/docs':'/docs-en')
 export default {
   //通用部分
 
@@ -1301,7 +1301,7 @@ export default {
 Windows: <code>C:\\Program Files\\taosx\\config</code>`,
       4: `Execute the following command in the shell.`,
       5: 'Check the agent running status with the following command in the shell.',
-      6: `<a target='_blank' href='${DocsUrl}/cloud/data-in/ds/install-agent'>Configure Agent Documentation</a>`,
+      6: `<a target='_blank' href='{agenturl}'>Configure Agent Documentation</a>`,
       7: 'Check Agent Connection',
       8: 'Success',
       9: 'Failed',

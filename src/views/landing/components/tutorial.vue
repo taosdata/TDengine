@@ -27,8 +27,51 @@
 
 <script>
   import { loadImage } from "@/utils/load";
-  import { createLanding } from './utils';
-
+  import i18n from "@/lang";
+  function createLanding() {
+  return [
+    {
+      title: i18n.t("landing.metricTitle"),
+      desc: i18n.t("landing.metricDesc"),
+      img: "/static/landing/metric.jpg",
+    },
+    {
+      title: i18n.t("landing.labelTitle"),
+      desc: i18n.t("landing.labelDesc"),
+      img: "/static/landing/label.jpg",
+    },
+    {
+      title: i18n.t("landing.dataCollectionTitle"),
+      desc: i18n.t("landing.dataCollectionDesc"),
+      img: "/static/landing/dcp.jpg",
+    },
+    {
+      title: i18n.t("landing.tableTitle"),
+      desc: i18n.t("landing.tableDesc"),
+      img: "/static/landing/sample.png",
+    },
+    {
+      title: i18n.t("landing.superTableTitle"),
+      desc: i18n.t("landing.superTableDesc"),
+      img: "/static/landing/stable.jpg",
+    },
+    {
+      title: i18n.t("landing.subtableTitle"),
+      desc: i18n.t("landing.subtableDesc"),
+      img: "/static/landing/subtable.jpg",
+    },
+    {
+      title: i18n.t("landing.databaseTitle"),
+      desc: i18n.t("landing.databaseDesc"),
+      img: "/static/landing/database.png",
+    },
+    {
+      title: i18n.t("landing.instanceTitle"),
+      desc: i18n.t("landing.instanceDesc"),
+      img: "/static/landing/instances.png",
+    },
+  ];
+}
   export default {
     data() {
       return {

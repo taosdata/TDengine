@@ -7,7 +7,7 @@ process.env.VUE_APP_CUS_NAME !== "TDengine"?'':'TDengine'
 let taosname=process.env.VUE_APP_CUS_NAME &&
 process.env.VUE_APP_CUS_NAME !== "TDengine"?process.env.VUE_APP_CUS_PROMPT:'taos'
 let agenturl=localStorage.getItem('agent_version')?localStorage.getItem('agent_version'):'latest'
-const DocsUrl=localStorage.getItem('local_language')?.includes('zh')?'https://docs.taosdata.com':'https://docs.tdengine.com'
+const DocsUrl=window.location.origin+(localStorage.getItem('local_language')?.includes('zh')?'/docs':'/docs-en')
 export default {
   //通用部分
 
@@ -1133,7 +1133,7 @@ export default {
 Windows： <code>C:\\Program Files\\taosX\\config</code>`,
       4: `请您在命令行中执行以下命令。`,
       5: `请您在命令行中执行以下命令来检查代理运行状态。`,
-      6: `<a target='_blank' href='${DocsUrl}/cloud/data-in/ds/install-agent'>代理配置文档</a>`,
+      6: `<a target='_blank' href='{agenturl}'>代理配置文档</a>`,
       7: '检查代理是否连接正常',
       8: '正常',
       9: '失败',

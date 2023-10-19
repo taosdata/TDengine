@@ -33,7 +33,7 @@
       <p v-dompurify-html="$t('docs.taosxAgent.3')"></p>
       <pre v-highlight><code>endpoint="{{ taoxAddress }}"
 token="{{ token }}"</code></pre>
-      <p v-dompurify-html="$t('docs.taosxAgent.6')"></p>
+      <p v-dompurify-html="$t('docs.taosxAgent.6',agentAddress)"></p>
     </section>
     <section
       v-else-if="active == 4"
@@ -168,6 +168,12 @@ export default {
     };
   },
   computed: {
+    agentAddress(){
+      let agenturl= window.location.origin+(this.$i18n.locale.includes('en')?'/docs-en/get-started/agent/':'/docs/get-started/agent/')
+      return  {
+        agenturl
+      }
+    },
     checkBtnText() {
       return this.$t('docs.taosxAgent.' + (this.checkIng ? '10' : '7'));
     },
