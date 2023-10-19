@@ -200,7 +200,7 @@ typedef struct SMetaInfo {
 int32_t metaGetInfo(SMeta* pMeta, int64_t uid, SMetaInfo* pInfo, SMetaReader* pReader);
 
 // tsdb
-int     tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg, int8_t rollback);
+int     tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg, int8_t rollback, bool force);
 int     tsdbClose(STsdb** pTsdb);
 int32_t tsdbBegin(STsdb* pTsdb);
 // int32_t tsdbPrepareCommit(STsdb* pTsdb);
@@ -265,7 +265,7 @@ int32_t tqCheckLogInWal(STQ* pTq, int64_t version);
 // sma
 int32_t smaInit();
 void    smaCleanUp();
-int32_t smaOpen(SVnode* pVnode, int8_t rollback);
+int32_t smaOpen(SVnode* pVnode, int8_t rollback, bool force);
 int32_t smaClose(SSma* pSma);
 int32_t smaBegin(SSma* pSma);
 int32_t smaPrepareAsyncCommit(SSma* pSma);

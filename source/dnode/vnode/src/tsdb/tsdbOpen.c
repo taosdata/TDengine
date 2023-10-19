@@ -34,7 +34,7 @@ int32_t tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
  * @param dir
  * @return int
  */
-int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKeepCfg, int8_t rollback) {
+int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKeepCfg, int8_t rollback, bool force) {
   STsdb *pTsdb = NULL;
   int    slen = 0;
 
@@ -68,6 +68,11 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
 
   // open tsdb
   if (tsdbOpenFS(pTsdb, &pTsdb->pFS, rollback) < 0) {
+    goto _err;
+  }
+
+  if (pTsdb->pFS->fsstate == TSDB_FS_STATE_INCOMPLETE && force == false) {
+    terrno = TSDB_CODE_NEED_RETRY;
     goto _err;
   }
 

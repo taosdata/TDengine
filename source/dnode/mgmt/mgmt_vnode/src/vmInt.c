@@ -271,11 +271,11 @@ static void *vmOpenVnodeInThread(void *param) {
     int32_t diskPrimary = pCfg->diskPrimary;
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pCfg->vgId);
 
-    SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb);
+    SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, pMgmt->msgCb, false);
 
     if (pImpl == NULL) {
       dError("vgId:%d, failed to open vnode by thread:%d since %s", pCfg->vgId, pThread->threadIndex, terrstr());
-      if (terrno != TSDB_CODE_VND_NOT_EXIST) {
+      if (terrno != TSDB_CODE_NEED_RETRY) {
         pThread->failed++;
         continue;
       }
