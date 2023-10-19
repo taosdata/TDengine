@@ -1011,7 +1011,7 @@ int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo,
   taosThreadMutexUnlock(&pTask->lock);
 
   int32_t num = taosArrayGetSize(pTask->pRspMsgList);
-  stDebug("s-task:%s add scan history finish rsp msg for task:0x%x, total:%d", pTask->id.idStr, pReq->upstreamTaskId,
+  stDebug("s-task:%s add scan-history finish rsp msg for task:0x%x, total:%d", pTask->id.idStr, pReq->upstreamTaskId,
          num);
   return TSDB_CODE_SUCCESS;
 }
@@ -1027,7 +1027,7 @@ int32_t streamNotifyUpstreamContinue(SStreamTask* pTask) {
     SStreamContinueExecInfo* pInfo = taosArrayGet(pTask->pRspMsgList, i);
     tmsgSendRsp(&pInfo->msg);
 
-    stDebug("s-task:%s level:%d notify upstream:0x%x continuing scan data in WAL", id, level, pInfo->taskId);
+    stDebug("s-task:%s level:%d notify upstream:0x%x continuing handle data in WAL", id, level, pInfo->taskId);
   }
 
   taosArrayClear(pTask->pRspMsgList);
