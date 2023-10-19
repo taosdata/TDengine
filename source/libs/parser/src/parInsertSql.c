@@ -2089,11 +2089,12 @@ static int32_t setVnodeModifOpStmt(SInsertParseContext* pCxt, SCatalogReq* pCata
     if (code == TSDB_CODE_SUCCESS && pStmt->pTableMeta->tableType == TSDB_SUPER_TABLE && !pStmt->usingTableProcessing) {
       pStmt->stbSyntax = true;
     }
+  if (code == TSDB_CODE_SUCCESS) {
+    if (pStmt->usingTableProcessing || pStmt->stbSyntax) {
+      return processTableSchemaFromMetaData(pCxt, pMetaData, pStmt, true);
+    }
+    return processTableSchemaFromMetaData(pCxt, pMetaData, pStmt, false);
   }
-  if (pStmt->usingTableProcessing || pStmt->stbSyntax) {
-    return processTableSchemaFromMetaData(pCxt, pMetaData, pStmt, true);
-  }
-  return processTableSchemaFromMetaData(pCxt, pMetaData, pStmt, false);
 }
 
 static int32_t resetVnodeModifOpStmt(SInsertParseContext* pCxt, SQuery* pQuery) {
