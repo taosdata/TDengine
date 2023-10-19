@@ -111,7 +111,7 @@ export default {
   },
   methods: {
     copyDsn() {
-      copy(this.dsn);
+      copy(this.dsn +"/" + this.infoData["name"]);
     },
     getStruct() {
       switch (this.infoType) {
