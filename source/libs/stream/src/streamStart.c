@@ -42,7 +42,8 @@ int32_t streamTaskSetReady(SStreamTask* pTask) {
   int32_t     numOfDowns = streamTaskGetNumOfDownstream(pTask);
   ETaskStatus status = streamTaskGetStatus(pTask, &p);
 
-  if (status == TASK_STATUS__SCAN_HISTORY && pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
+  if ((status == TASK_STATUS__SCAN_HISTORY || status == TASK_STATUS__STREAM_SCAN_HISTORY) &&
+      pTask->info.taskLevel != TASK_LEVEL__SOURCE) {
     pTask->numOfWaitingUpstream = taosArrayGetSize(pTask->upstreamInfo.pList);
     stDebug("s-task:%s level:%d task wait for %d upstream tasks complete scan-history procedure, status:%s",
            pTask->id.idStr, pTask->info.taskLevel, pTask->numOfWaitingUpstream, p);
@@ -92,16 +93,20 @@ static int32_t doStartScanHistoryTask(SStreamTask* pTask) {
 }
 
 int32_t streamTaskStartScanHistory(SStreamTask* pTask) {
-  ASSERT(pTask->status.downstreamReady == 1 && streamTaskGetStatus(pTask, NULL) == TASK_STATUS__SCAN_HISTORY);
+  int32_t level = pTask->info.taskLevel;
+  ETaskStatus status = streamTaskGetStatus(pTask, NULL);
 
-  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+  ASSERT(pTask->status.downstreamReady == 1 &&
+         ((status == TASK_STATUS__SCAN_HISTORY) || (status == TASK_STATUS__STREAM_SCAN_HISTORY)));
+
+  if (level == TASK_LEVEL__SOURCE) {
     return doStartScanHistoryTask(pTask);
-  } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
+  } else if (level == TASK_LEVEL__AGG) {
     if (pTask->info.fillHistory) {
       streamSetParamForScanHistory(pTask);
       streamTaskEnablePause(pTask);
     }
-  } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
+  } else if (level == TASK_LEVEL__SINK) {
     stDebug("s-task:%s sink task do nothing to handle scan-history", pTask->id.idStr);
   }
 
@@ -292,13 +297,13 @@ int32_t onScanhistoryTaskReady(SStreamTask* pTask) {
 
   char* p = NULL;
   ETaskStatus status = streamTaskGetStatus(pTask, &p);
-  ASSERT(status == TASK_STATUS__SCAN_HISTORY);
+  ASSERT(status == TASK_STATUS__SCAN_HISTORY || status == TASK_STATUS__STREAM_SCAN_HISTORY);
 
   stDebug("s-task:%s enter into scan-history data stage, status:%s", id, p);
   streamTaskStartScanHistory(pTask);
 
   // start the related fill-history task, when current task is ready
-  if (pTask->hTaskInfo.id.taskId != 0) {
+  if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
     streamLaunchFillHistoryTask(pTask);
   }
 
@@ -516,7 +521,7 @@ int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistory
   char*       p = NULL;
   ETaskStatus status = streamTaskGetStatus(pTask, &p);
 
-  if (status != TASK_STATUS__SCAN_HISTORY) {
+  if (status != TASK_STATUS__SCAN_HISTORY && status != TASK_STATUS__STREAM_SCAN_HISTORY) {
     stError("s-task:%s not in scan-history status, status:%s return upstream:0x%x scan-history finish directly",
            id, p, pReq->upstreamTaskId);
 
@@ -571,7 +576,9 @@ int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistory
 }
 
 int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask) {
-  ASSERT(/*pTask->status.taskStatus*/ streamTaskGetStatus(pTask, NULL) == TASK_STATUS__SCAN_HISTORY);
+  ETaskStatus status = streamTaskGetStatus(pTask, NULL);
+
+  ASSERT(status == TASK_STATUS__SCAN_HISTORY || status == TASK_STATUS__STREAM_SCAN_HISTORY);
   SStreamMeta* pMeta = pTask->pMeta;
 
   // execute in the scan history complete call back msg, ready to process data from inputQ
@@ -939,9 +946,7 @@ void streamTaskCheckDownstream(SStreamTask* pTask) {
   doCheckDownstreamStatus(pTask);
 }
 
-// normal -> pause, pause/stop/dropping -> pause, halt -> pause, scan-history -> pause
 void streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta) {
-  int64_t st = taosGetTimestampMs();
 #if 0
   int8_t status = pTask->status.taskStatus;
   if (status == TASK_STATUS__DROPPING) {
@@ -1013,9 +1018,7 @@ void streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta) {
     qKillTask(pExecutor, TSDB_CODE_SUCCESS);
   }
 
-  int64_t el = taosGetTimestampMs() - st;
-  stDebug("vgId:%d s-task:%s set pause flag, prev:%s, pause elapsed time:%dms", pMeta->vgId, pTask->id.idStr,
-         streamGetTaskStatusStr(pTask->status.keepTaskStatus), (int32_t)el);
+  stDebug("vgId:%d s-task:%s set pause flag and pause task", pMeta->vgId, pTask->id.idStr);
 }
 
 void streamTaskResume(SStreamTask* pTask, SStreamMeta* pMeta) {

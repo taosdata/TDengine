@@ -75,7 +75,7 @@ typedef enum ETaskStatus {
   TASK_STATUS__HALT,          // pause, but not be manipulated by user command
   TASK_STATUS__PAUSE,         // pause
   TASK_STATUS__CK,            // stream task is in checkpoint status, no data are allowed to put into inputQ anymore
-  TASK_STATUS_STREAM_SCAN_HISTORY,
+  TASK_STATUS__STREAM_SCAN_HISTORY,
 } ETaskStatus;
 
 enum {
@@ -720,6 +720,7 @@ bool    streamTaskIsIdle(const SStreamTask* pTask);
 
 char*       createStreamTaskIdStr(int64_t streamId, int32_t taskId);
 ETaskStatus streamTaskGetStatus(const SStreamTask* pTask, char** pStr);
+const char* streamTaskGetStatusStr(ETaskStatus status);
 void        streamTaskResetStatus(SStreamTask* pTask);
 void        streamTaskSetStatusReady(SStreamTask* pTask);
 
@@ -755,8 +756,6 @@ int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue);
 
 // common
 int32_t     streamRestoreParam(SStreamTask* pTask);
-int32_t     streamSetStatusUnint(SStreamTask* pTask);
-const char* streamGetTaskStatusStr(int32_t status);
 void        streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta);
 void        streamTaskResume(SStreamTask* pTask, SStreamMeta* pMeta);
 void        streamTaskResumeFromHalt(SStreamTask* pTask);
