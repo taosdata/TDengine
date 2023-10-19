@@ -420,7 +420,7 @@ public class MetersDeserializer extends ReferenceDeserializer<Meters> {
 ```go
 conf := &tmq.ConfigMap{
  "group.id":                     "test",
- "auto.offset.reset":            "earliest",
+ "auto.offset.reset":            "latest",
  "td.connect.ip":                "127.0.0.1",
  "td.connect.user":              "root",
  "td.connect.pass":              "taosdata",
@@ -511,7 +511,7 @@ var cfg = new ConsumerConfig
     GourpId = "TDengine-TMQ-C#",
     TDConnectUser = "root",
     TDConnectPasswd = "taosdata",
-    AutoOffsetReset = "earliest"
+    AutoOffsetReset = "latest"
     MsgWithTableName = "true",
     TDConnectIp = "127.0.0.1",
     TDConnectPort = "6030"
