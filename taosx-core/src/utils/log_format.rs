@@ -54,28 +54,24 @@ impl<S, N, T> FormatEvent<S, N> for TaosXLogFormatter<T>
 
         // part 2: level
         let metadata = event.metadata();
-        let level_str = fmt_level(metadata.level());
-        write!(&mut writer, "{} ", metadata.level())?;
+        let level = fmt_level(metadata.level());
+        write!(&mut writer, "{} ", level)?;
 
         // part3: threadId:threadName
         let current_thread = std::thread::current();
-        match current_thread.name() {
-            Some(name) => {
-                write!(writer, "[{:?}#{}]", current_thread.id(), name)?;
-            }
-            None => {
-                write!(writer, "[{:?}]", current_thread.id())?;
-            }
+        if let Some(name) = current_thread.name() {
+            write!(writer, "[{}] ", name)?;
         }
 
         // part4: Trace ID
-        event.metadata()
+        // 暂时无法单独提取出来
 
-        // Format all the spans in the event's span context.
+        // part5: Format all the spans in the event's span context.
+        let mut span_buf = String::new();
         if let Some(scope) = ctx.event_scope() {
+            span_buf.push('[');
             for span in scope.from_root() {
-                write!(writer, "{}", span.name())?;
-
+                span_buf.push_str(span.name());
                 // `FormattedFields` is a formatted representation of the span's
                 // fields, which is stored in its extensions by the `fmt` layer's
                 // `new_span` method. The fields will have been formatted
@@ -88,15 +84,34 @@ impl<S, N, T> FormatEvent<S, N> for TaosXLogFormatter<T>
 
                 // Skip formatting the fields if the span had no fields.
                 if !fields.is_empty() {
-                    write!(writer, "{{{}}}", fields)?;
+                    span_buf.push('{');
+                    span_buf.push_str(fields.as_str());
+                    span_buf.push('}');
+                    // write!(writer, "{{{}}}", fields)?;
                 }
-                write!(writer, ": ")?;
+                span_buf.push(':');
+                span_buf.push(':');
             }
+            span_buf.pop();
+            span_buf.pop();
+            span_buf.push(']');
+            write!(writer, "{} ", span_buf)?;
+        } else {
+            write!(writer, "[{}] ", event.metadata().target())?;
         }
-
         // Write fields on the event
         ctx.field_format().format_fields(writer.by_ref(), event)?;
 
         writeln!(writer)
     }
 }
+
+struct MyLayer;
+impl<S, N, E, W> tracing_subscriber::layer::Layer<S> for tracing_subscriber::fmt::Layer<S, N, E, W>
+    where
+        S: Subscriber + for<'a> LookupSpan<'a>,
+        N: for<'writer> FormatFields<'writer> + 'static,
+        E: FormatEvent<S, N> + 'static,
+        W: for<'writer> MakeWriter<'writer> + 'static,
+{}
+

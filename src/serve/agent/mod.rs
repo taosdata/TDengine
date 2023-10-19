@@ -25,7 +25,7 @@ use taosx_core::utils::trace_id::set_trace_id;
     )
 )]
 #[post("/agents")]
-#[instrument(skip_all, fields(traceId), parent=None)]
+#[instrument(skip_all, fields(TID), parent=None)]
 pub(super) async fn create_agent(
     task_store: Data<TaskControllerRef>,
     agent: Json<AgentProps>,

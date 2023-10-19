@@ -267,6 +267,7 @@ fn main() -> Result<()> {
         layers.push(tracing_subscriber::fmt::layer()
             .event_format(TaosXLogFormatter{timer: timer.clone()})
             .with_writer(non_blocking)
+            .with_ansi(false)
             .with_filter(level_filter)
             .boxed());
 
