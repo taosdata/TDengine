@@ -448,8 +448,17 @@ async fn consume_lush_record(
                 {
                     for sql in sqls {
                         if let Some(ts) = get_ts_from_sql(sql) {
-                            tracing::info!("task: {} stable: {} ts: {}", &task, &stable, &ts);
-                            breakpoints_set(&task.to_string(), &stable, &ts).unwrap();
+                            let task_clone = task.to_string();
+                            let stable_clone = stable.to_string();
+                            let ts_clone = ts.clone();
+
+                            std::thread::spawn(move || {
+                                tracing::debug!("breakpoints set start, task: {} stable: {} ts: {}", &task_clone, &stable_clone, &ts_clone);
+                                let res = breakpoints_set(&task_clone, &stable_clone, &ts_clone);
+                                if res.is_err() {
+                                    tracing::debug!("breakpoints set error, task: {} stable: {} \n{:#?}", &task_clone, &stable_clone, res);
+                                }
+                            });
                             break;
                         }
                     }
@@ -2158,7 +2167,7 @@ impl IpcStreamWorker {
             from,
             parser: IpcParser::new(schema),
             lock: lock,
-            task: None,
+            task,
             config: None,
             opc_table_config,
             license,
@@ -2249,7 +2258,7 @@ impl IpcStreamWorker {
                 let mut taos = Some(self.pool.get().await?);
                 // let stmt = unsafe { &mut *self.stmt.get() };
                 let task = self.task;
-                tracing::trace!("consume lush record task: {task:?}");
+                tracing::debug!("consume lush record task: {task:?}");
                 consume_lush_record(
                     &self.pool,
                     &mut taos,

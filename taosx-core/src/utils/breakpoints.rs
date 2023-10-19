@@ -1,4 +1,4 @@
-use tracing::{info, debug};
+use tracing::{debug, info};
 
 fn breakpoints_db_dir(task_id: &str) -> String {
     let current_dir = std::env::current_dir().unwrap();
@@ -9,8 +9,12 @@ fn breakpoints_db_dir(task_id: &str) -> String {
 
 pub fn breakpoints_set(task_id: &str, sub_task: &str, breakpoints: &str) -> anyhow::Result<()> {
     let path = breakpoints_db_dir(task_id);
-    debug!("breakpoints db path: {}, breakponts key: {}, value: {}", path, sub_task, breakpoints);
-    let db = sled::open(path).expect("sled open db file failed");
+    debug!(
+        "breakpoints db path: {}, breakponts key: {}, value: {}",
+        path, sub_task, breakpoints
+    );
+    let db =
+        sled::open(path).map_err(|err| anyhow::anyhow!("sled open db file failed: {:?}", err))?;
     db.insert(sub_task, breakpoints)?;
     Ok(())
 }
@@ -21,7 +25,8 @@ pub fn breakpoints_get(task_id: &str, sub_task: &str) -> anyhow::Result<Option<S
     if !std::path::Path::new(&path).exists() {
         return Ok(None);
     }
-    let db = sled::open(path).expect("sled open db file failed");
+    let db =
+        sled::open(path).map_err(|err| anyhow::anyhow!("sled open db file failed: {:?}", err))?;
     let result = db.get(sub_task)?;
     match result {
         Some(v) => Ok(Some(String::from_utf8(v.to_vec())?)),
@@ -35,18 +40,23 @@ pub fn breakpoints_get_all(task_id: &str) -> anyhow::Result<Vec<(String, String)
     if !std::path::Path::new(&path).exists() {
         return Ok(vec![]);
     }
-    let db = sled::open(path).expect("sled open db file failed");
+    let db =
+        sled::open(path).map_err(|err| anyhow::anyhow!("sled open db file failed: {:?}", err))?;
     let mut result = vec![];
     for item in db.iter() {
         let (key, value) = item?;
-        result.push((String::from_utf8(key.to_vec())?, String::from_utf8(value.to_vec())?));
+        result.push((
+            String::from_utf8(key.to_vec())?,
+            String::from_utf8(value.to_vec())?,
+        ));
     }
     Ok(result)
 }
 
 pub fn breakpoints_remove(task_id: &str, sub_task: &str) -> anyhow::Result<()> {
     let path = breakpoints_db_dir(task_id);
-    let db = sled::open(path).expect("sled open db file failed");
+    let db =
+        sled::open(path).map_err(|err| anyhow::anyhow!("sled open db file failed: {:?}", err))?;
     db.remove(sub_task)?;
     Ok(())
 }
@@ -146,5 +156,48 @@ mod tests {
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].0, "t0002");
         assert_eq!(result[0].1, "2023-01-01 20:00:00");
+    }
+
+    #[test]
+    fn test_breakpoints_set_muti_thread() {
+        use std::thread;
+        let mut handles = vec![];
+        let n = 10;
+        for i in 0..n {
+            let task_id = format!("task{}", i);
+            let sub_task = format!("sub_task{}", i);
+            let breakpoints = format!("breakpoints{}", i);
+
+            let handle = thread::spawn(move || {
+                // 调用 breakpoints_set 函数
+                match breakpoints_set(&task_id, &sub_task, &breakpoints) {
+                    Ok(()) => println!("Thread {} succeeded", i),
+                    Err(err) => println!("Thread {} failed: {}", i, err),
+                }
+            });
+
+            handles.push(handle);
+        }
+
+        // 等待所有线程完成
+        for handle in handles {
+            handle.join().unwrap();
+        }
+
+        // 验证所有数据都写入成功
+        for i in 0..n {
+            let task_id = format!("task{}", i);
+            let sub_task = format!("sub_task{}", i);
+            let breakpoints = format!("breakpoints{}", i);
+
+            let result = breakpoints_get(&task_id, &sub_task).unwrap();
+            assert_eq!(result.unwrap(), breakpoints);
+        }
+
+        // 清理数据
+        for i in 0..n {
+            let task_id = format!("task{}", i);
+            breakpoints_clear(&task_id).unwrap();
+        }
     }
 }
