@@ -42,7 +42,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   }
   if (pInit->label) {
     int len = strlen(pInit->label) > sizeof(pRpc->label) ? sizeof(pRpc->label) : strlen(pInit->label);
-    tstrncpy(pRpc->label, pInit->label, len);
+    memcpy(pRpc->label, pInit->label, len);
   }
 
   pRpc->compressSize = pInit->compressSize;
