@@ -160,7 +160,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
-  rpcSendRecv(pMgmt->msgCb.statusClientRpc, &epSet, &rpcMsg, &rpcRsp);
+  rpcSendRecvWithTimeout(pMgmt->msgCb.statusClientRpc, &epSet, &rpcMsg, &rpcRsp, 1000);
   if (rpcRsp.code != 0) {
     dmRotateMnodeEpSet(pMgmt->pData);
     char tbuf[256];
