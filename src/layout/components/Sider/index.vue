@@ -159,7 +159,6 @@ export default {
         }
         return item;
       });
-      console.log(this.permission_routes,'this.permission_routes');
     }
   },
 };

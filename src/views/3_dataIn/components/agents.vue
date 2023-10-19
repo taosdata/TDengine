@@ -385,7 +385,6 @@ export default {
       this.isEditDialog = false;
       // this.dialog = true;
       this.ruleForm.name = "";
-      console.log(this.currentRow, "当前传参数");
     },
     refresh() {
       this.getAgents();
@@ -475,7 +474,6 @@ export default {
           return item;
         });
         this.$store.commit("app/SET_AGENT_LISTS", this.agentList);
-        console.log(this.agentList, "最新的agent");
         this.requestIng = false;
       } catch (err) {
         this.requestIng = false;

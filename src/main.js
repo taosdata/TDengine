@@ -23,6 +23,7 @@ import mavonEditor from 'mavon-editor'
 import 'mavon-editor/dist/css/index.css'
 import LinkTab from "@/components/LinkTab";
 import VueDOMPurifyHTML from 'vue-dompurify-html';
+import { clearLoginStateWhenReopen } from '@/utils/token';
 Vue.use(mavonEditor)
 Vue.use(directive);
 Vue.use(LazyLoad);
@@ -48,8 +49,9 @@ function setTitle() {
 }
 
 
-setLang(getBrowserLang())
+setLang(localStorage.getItem('local_language') || getBrowserLang())
 setTitle()
+clearLoginStateWhenReopen()
 
 Vue.use(VueDOMPurifyHTML, {
   default: {
