@@ -132,14 +132,17 @@ func (r *reader) connect(_ context.Context) error {
 		r.client.Close()
 	}
 
-	tags := make([]string, 0, len(r.tags))
-	for _, t := range r.tags {
-		tags = append(tags, t.tag)
-	}
-	conn, err := opc.NewConnection(r.server, r.nodes, tags)
+	conn, err := opc.NewConnection(r.server, r.nodes, nil)
 	if err != nil {
 		return fmt.Errorf("connect to opc da error. %v", err)
 	}
+
+	for _, t := range r.tags {
+		if err := conn.Add(t.tag); err != nil {
+			logger.WarnF("## add opc da tag [%s] error %v", t.tag, err)
+		}
+	}
+
 	r.client = conn
 	r.state = connected
 	return nil
