@@ -68,7 +68,6 @@ export function setRedirect(url) {
 const loginSignKey = 'login_TDC'
 /** 设置登陆标志位 */
 export function setLoginSign() {
-  console.log('------- 设置标志位')
   Cookies.set(loginSignKey, 'true')
 }
 

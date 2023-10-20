@@ -297,7 +297,6 @@ export function deleteCookieItem() {
 
 //加密
 export function encrypt(data) {
-  console.log("encrypt", data);
   let encryptedData = CryptoJS.AES.encrypt(data, `-----BEGIN PUBLIC KEY-----
   MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC//nB6rRTnxCU2bMBGatp1N1Q0
   kuSEZl3Ot2EQMlNwINYTm7izxjTyA1pgmBmotAXVZuZNviJNUZUMBn73bIjso1l2

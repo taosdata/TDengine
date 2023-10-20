@@ -30,7 +30,6 @@ router.beforeEach(async (to, from, next) => {
         }
       }
     }else{
-      console.log(to,from,'刷新');
 
       // localStorage.removeItem('local_language')
     }
