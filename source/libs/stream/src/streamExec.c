@@ -352,7 +352,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
 
   // 3. resume the state of stream task, after this function, the stream task will run immidately. But it can not be
   // pause, since the pause allowed attribute is not set yet.
-  streamTaskResumeFromHalt(pStreamTask);  // todo refactor: use streamTaskResume.
+  streamTaskResume(pStreamTask);  // todo refactor: use streamTaskResume.
 
   stDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", pTask->id.idStr);
 
@@ -608,6 +608,12 @@ bool streamTaskIsIdle(const SStreamTask* pTask) {
   ETaskStatus status = streamTaskGetStatus(pTask, NULL);
   return (pTask->status.schedStatus == TASK_SCHED_STATUS__INACTIVE || status == TASK_STATUS__STOP ||
           status == TASK_STATUS__DROPPING);
+}
+
+bool streamTaskReadyToRun(const SStreamTask* pTask, char** pStatus) {
+  ETaskStatus st = streamTaskGetStatus(pTask, NULL);
+  return (st == TASK_STATUS__READY || st == TASK_STATUS__SCAN_HISTORY || st == TASK_STATUS__STREAM_SCAN_HISTORY ||
+          st == TASK_STATUS__CK);
 }
 
 int32_t streamExecTask(SStreamTask* pTask) {

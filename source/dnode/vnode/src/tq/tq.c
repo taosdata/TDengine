@@ -1365,8 +1365,7 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTask* pTask = streamMetaAcquireTask(pTq->pStreamMeta, pReq->streamId, taskId);
   if (pTask != NULL) { // even in halt status, the data in inputQ must be processed
     char* p = NULL;
-    ETaskStatus st = streamTaskGetStatus(pTask, &p);
-    if (st == TASK_STATUS__READY || st == TASK_STATUS__SCAN_HISTORY || st == TASK_STATUS__CK) {
+    if (streamTaskReadyToRun(pTask, &p)) {
       tqDebug("vgId:%d s-task:%s start to process block from inputQ, next checked ver:%" PRId64, vgId, pTask->id.idStr,
               pTask->chkInfo.nextProcessVer);
       streamExecTask(pTask);
@@ -1515,7 +1514,7 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
     return -1;
   }
 
-  streamTaskResume(pTask, pTq->pStreamMeta);
+  streamTaskResume(pTask);
 
   int32_t level = pTask->info.taskLevel;
   if (level == TASK_LEVEL__SINK) {
@@ -1874,6 +1873,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
     if (ppHTask == NULL || *ppHTask == NULL) {
       tqError("vgId:%d failed to acquire fill-history task:0x%x when handling update, it may have been dropped already",
               pMeta->vgId, req.taskId);
+      CLEAR_RELATED_FILLHISTORY_TASK(pTask);
     } else {
       tqDebug("s-task:%s fill-history task update nodeEp along with stream task", (*ppHTask)->id.idStr);
       streamTaskUpdateEpsetInfo(*ppHTask, req.pNodeList);
