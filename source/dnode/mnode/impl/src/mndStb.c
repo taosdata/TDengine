@@ -859,21 +859,6 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   return 0;
 }
 static int32_t mndGenIdxNameForFirstTag(char *fullname, char *dbname, char *tagname) {
-  char    randStr[TSDB_COL_NAME_LEN] = {0};
-  int32_t left = TSDB_COL_NAME_LEN - strlen(tagname) - 1;
-  if (left <= 1) {
-    sprintf(fullname, "%s.%s", dbname, tagname);
-  } else {
-    int8_t start = left < 8 ? 0 : 8;
-    int8_t end = left >= 24 ? 24 : left - 1;
-    // gen rand str len [base:end]
-    // note: ignore rand performance issues
-    taosSeedRand(taosSafeRand());
-
-    int64_t len = taosRand() % (end - start + 1) + start;
-    taosRandStr2(randStr, len);
-    sprintf(fullname, "%s.%s_%s", dbname, tagname, randStr);
-  }
 
   return 0;
 }
