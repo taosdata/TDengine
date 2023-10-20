@@ -91,7 +91,7 @@ int32_t tqStartStreamTask(STQ* pTq) {
       continue;
     }
 
-    if (pTask->status.downstreamReady == 1) {
+    if (pTask->status.downstreamReady == 1 && HAS_RELATED_FILLHISTORY_TASK(pTask)) {
       tqDebug("s-task:%s downstream ready, no need to check downstream, check only related fill-history task",
               pTask->id.idStr);
       streamLaunchFillHistoryTask(pTask);

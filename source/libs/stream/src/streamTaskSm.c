@@ -33,7 +33,7 @@ SStreamTaskState StreamTaskStatusList[9] = {
 };
 
 SStreamEventInfo StreamTaskEventList[12] = {
-    {},  // dummy event, place holder
+    {.event = 0, .name = ""},  // dummy event, place holder
     {.event = TASK_EVENT_INIT, .name = "initialize"},
     {.event = TASK_EVENT_INIT_SCANHIST, .name = "scan-history-init"},
     {.event = TASK_EVENT_INIT_STREAM_SCANHIST, .name = "stream-scan-history-init"},
