@@ -498,10 +498,9 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
     manager.gb = 0;
 
     // div round up
-    int seq;
-    // uint64_t chunk_size = MULTIPART_CHUNK_SIZE >> 8;
-    int totalSeq = ((contentLength + MULTIPART_CHUNK_SIZE - 1) / MULTIPART_CHUNK_SIZE);
-    // int totalSeq = ((contentLength + chunk_size - 1) / chunk_size);
+    int      seq;
+    uint64_t chunk_size = MULTIPART_CHUNK_SIZE >> 8;
+    int      totalSeq = ((contentLength + chunk_size - 1) / chunk_size);
 
     MultipartPartData partData;
     memset(&partData, 0, sizeof(MultipartPartData));
@@ -543,14 +542,14 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
     }
 
   upload:
-    todoContentLength -= MULTIPART_CHUNK_SIZE * manager.next_etags_pos;
+    todoContentLength -= chunk_size * manager.next_etags_pos;
     for (seq = manager.next_etags_pos + 1; seq <= totalSeq; seq++) {
       partData.manager = &manager;
       partData.seq = seq;
       if (partData.put_object_data.gb == NULL) {
         partData.put_object_data = data;
       }
-      partContentLength = ((contentLength > MULTIPART_CHUNK_SIZE) ? MULTIPART_CHUNK_SIZE : contentLength);
+      partContentLength = ((contentLength > chunk_size) ? chunk_size : contentLength);
       // printf("%s Part Seq %d, length=%d\n", srcSize ? "Copying" : "Sending", seq, partContentLength);
       partData.put_object_data.contentLength = partContentLength;
       partData.put_object_data.originalContentLength = partContentLength;
@@ -566,8 +565,8 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
         code = TAOS_SYSTEM_ERROR(EIO);
         goto clean;
       }
-      contentLength -= MULTIPART_CHUNK_SIZE;
-      todoContentLength -= MULTIPART_CHUNK_SIZE;
+      contentLength -= chunk_size;
+      todoContentLength -= chunk_size;
     }
 
     int i;
