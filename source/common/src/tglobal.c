@@ -1683,14 +1683,14 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     }
     return;
   }
-
+  /* cannot alter s3BlockSize
   if (strcasecmp(option, "s3BlockSize") == 0) {
     int32_t newS3BlockSize = atoi(value);
     uInfo("s3BlockSize set from %d to %d", tsS3BlockSize, newS3BlockSize);
     tsS3BlockSize = newS3BlockSize;
     return;
   }
-
+  */
   if (strcasecmp(option, "s3BlockCacheSize") == 0) {
     int32_t newS3BlockCacheSize = atoi(value);
     uInfo("s3BlockCacheSize set from %d to %d", tsS3BlockCacheSize, newS3BlockCacheSize);
