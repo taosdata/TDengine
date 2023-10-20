@@ -177,7 +177,9 @@ int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo* pInfo) {
   if (NULL == pInfo->pColIndex) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  initBoundCols(numOfBound, pInfo->pColIndex);
+  for (int32_t i = 0; i < numOfBound; ++i) {
+    pInfo->pColIndex[i] = i;
+  }
   return TSDB_CODE_SUCCESS;
 }
 

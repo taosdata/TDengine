@@ -1783,6 +1783,25 @@ static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStm
   pStmt->stbSyntax = false;
 }
 
+static int32_t parseStbBoundColumnsClause(SInsertParseContext* pCxt, const char* pBoundCols, 
+                                          STableMeta* pTableMeta, SBoundColInfo* pBoundColsInfo) {
+      return TSDB_CODE_SUCCESS;
+}
+
+static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  STableComInfo tblInfo = getTableInfo(pStmt->pTableMeta);
+  SBoundColInfo stbBoundColInfo;
+  insInitBoundColsInfo(tblInfo.numOfColumns + tblInfo.numOfTags + 1, &stbBoundColInfo);
+  if (!pStmt->pBoundCols) {
+    return buildSyntaxErrMsg(&pCxt->msg, "(...tbname...) bounded cols is expected", pStmt->pSql);
+  }
+  SToken token;
+  int32_t index = 0;
+  parseStbBoundColumnsClause(pCxt, pStmt->pBoundCols, pStmt->pTableMeta, &stbBoundColInfo);
+  return code;
+}
+
 // input pStmt->pSql: [(field1_name, ...)] [ USING ... ] VALUES ... | FILE ...
 static int32_t parseInsertTableClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SToken* pTbName) {
   resetEnvPreTable(pCxt, pStmt);
@@ -1791,8 +1810,7 @@ static int32_t parseInsertTableClause(SInsertParseContext* pCxt, SVnodeModifyOpS
     if (!pStmt->stbSyntax) {
       code = parseInsertTableClauseBottom(pCxt, pStmt);
     } else {
-      //code = parseInsertStbClauseBottom(pCxt, pStmt);
-      code = TSDB_CODE_SUCCESS;
+      code = parseInsertStbClauseBottom(pCxt, pStmt);
     }
   }
 
