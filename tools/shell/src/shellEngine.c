@@ -758,6 +758,7 @@ int64_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
     numOfRows++;
     row = taos_fetch_row(tres);
   } while (row != NULL);
+  numOfRows += doAsyncGetLeftRowsNum(tres);
 
   return numOfRows;
 }
@@ -906,11 +907,13 @@ int64_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
       printf("         You can use Ctrl+C to stop the underway fetching.\r\n");
       printf("\r\n");
       showMore = 0;
+      break;
     }
 
     numOfRows++;
     row = taos_fetch_row(tres);
   } while (row != NULL);
+  numOfRows += doAsyncGetLeftRowsNum(tres);
 
   return numOfRows;
 }
@@ -1290,4 +1293,36 @@ int32_t shellExecute() {
   taos_close(shell.conn);
 
   return 0;
+}
+
+typedef struct {
+  int num;
+  tsem_t sem;
+} asyn_num;
+
+void retrieve_callback(void *param, TAOS_RES *tres, int numOfRows) {
+  asyn_num* pasyn_num = (asyn_num*) param;
+  if (numOfRows > 0) {
+    pasyn_num->num += numOfRows;
+    taos_fetch_rows_a(tres, retrieve_callback, param);
+  } else {
+    if (numOfRows < 0) {
+      printf("\033[31masync retrieve failed, code: %d\033[0m\n", numOfRows);
+    } else {
+      printf("async retrieve completed\n");
+      tsem_post(pasyn_num->sem);
+    }
+  }
+}
+
+int32_t doAsyncGetLeftRowsNum(TAOS_RES *res) {
+  if (res == NULL) {
+    return NULL;
+  }
+
+  asyn_num asynNum;
+  tsem_init(&asynNum.sem, 0, 0);
+  taos_fetch_rows_a(res, retrieve_callback, &asynNum);
+  tsem_wait(&asynNum.sem);
+  return asynNum.num;
 }
