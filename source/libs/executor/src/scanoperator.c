@@ -1863,6 +1863,9 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       // curVersion move to next
       tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pWalReader->curVersion);
 
+      // use ts to pass time when replay, because ts not used if type is log
+      pTaskInfo->streamInfo.currentOffset.ts = pAPI->tqReaderFn.tqGetResultBlockTime(pInfo->tqReader);
+
       if (hasResult) {
         qDebug("doQueueScan get data from log %" PRId64 " rows, version:%" PRId64, pRes->info.rows,
                pTaskInfo->streamInfo.currentOffset.version);
@@ -3060,7 +3063,12 @@ static SSDataBlock* doTagScanFromCtbIdx(SOperatorInfo* pOperator) {
     setOperatorCompleted(pOperator);
   }
   pRes->info.rows = count;
-  pOperator->resultInfo.totalRows += count;
+
+  bool bLimitReached = applyLimitOffset(&pInfo->limitInfo, pRes, pTaskInfo);
+  if (bLimitReached) {
+    setOperatorCompleted(pOperator);
+  }
+  pOperator->resultInfo.totalRows += pRes->info.rows;
   return (pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
 
@@ -3094,28 +3102,20 @@ static SSDataBlock* doTagScanFromMetaEntry(SOperatorInfo* pOperator) {
     if (++pInfo->curPos >= size) {
       setOperatorCompleted(pOperator);
     }
-    // each table with tbname is a group, hence its own block, but only group when slimit exists for performance reason.
-    if (pInfo->pSlimit != NULL) {
-      if (pInfo->curPos < pInfo->pSlimit->offset) {
-        continue;
-      }
-      pInfo->pRes->info.id.groupId = calcGroupId(mr.me.name, strlen(mr.me.name));
-      if (pInfo->curPos >= (pInfo->pSlimit->offset + pInfo->pSlimit->limit) - 1) {
-        setOperatorCompleted(pOperator);
-      }
-      break;
-    }
   }
+  pRes->info.rows = count;
 
   pAPI->metaReaderFn.clearReader(&mr);
-
+  bool bLimitReached = applyLimitOffset(&pInfo->limitInfo, pRes, pTaskInfo);
+  if (bLimitReached) {
+    setOperatorCompleted(pOperator);
+  }
   // qDebug("QInfo:0x%"PRIx64" create tag values results completed, rows:%d", GET_TASKID(pRuntimeEnv), count);
   if (pOperator->status == OP_EXEC_DONE) {
     setTaskStatus(pTaskInfo, TASK_COMPLETED);
   }
 
-  pRes->info.rows = count;
-  pOperator->resultInfo.totalRows += count;
+  pOperator->resultInfo.totalRows += pRes->info.rows;
 
   return (pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
@@ -3169,8 +3169,8 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
   pInfo->pRes = createDataBlockFromDescNode(pDescNode);
   pInfo->readHandle = *pReadHandle;
   pInfo->curPos = 0;
-  pInfo->pSlimit = (SLimitNode*)pPhyNode->node.pSlimit; //TODO: slimit now only indicate group
 
+  initLimitInfo(pPhyNode->node.pLimit, pPhyNode->node.pSlimit, &pInfo->limitInfo);
   setOperatorInfo(pOperator, "TagScanOperator", QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   initResultSizeInfo(&pOperator->resultInfo, 4096);

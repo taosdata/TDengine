@@ -2059,7 +2059,6 @@ typedef struct SCollectFuncsCxt {
   char*           tableAlias;
   FFuncClassifier classifier;
   SNodeList*      pFuncs;
-  SHashObj*       pFuncsSet;
 } SCollectFuncsCxt;
 
 static EDealRes collectFuncs(SNode* pNode, void* pContext) {
@@ -2074,9 +2073,15 @@ static EDealRes collectFuncs(SNode* pNode, void* pContext) {
       }
     }
     SExprNode* pExpr = (SExprNode*)pNode;
-    if (NULL == taosHashGet(pCxt->pFuncsSet, &pExpr, sizeof(SExprNode*))) {
+    bool bFound = false;
+    SNode* pn = NULL;
+    FOREACH(pn, pCxt->pFuncs) {
+      if (nodesEqualNode(pn, pNode)) {
+        bFound = true;
+      }
+    }
+    if (!bFound) {
       pCxt->errCode = nodesListStrictAppend(pCxt->pFuncs, nodesCloneNode(pNode));
-      taosHashPut(pCxt->pFuncsSet, &pExpr, POINTER_BYTES, &pExpr, POINTER_BYTES);
     }
     return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
   }
@@ -2103,12 +2108,10 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAl
   SCollectFuncsCxt cxt = {.errCode = TSDB_CODE_SUCCESS,
                           .classifier = classifier,
                           .tableAlias = tableAlias,
-                          .pFuncs = (NULL == *pFuncs ? nodesMakeList() : *pFuncs),
-                          .pFuncsSet = taosHashInit(4, funcNodeHash, false, false)};
-  if (NULL == cxt.pFuncs || NULL == cxt.pFuncsSet) {
+                          .pFuncs = (NULL == *pFuncs ? nodesMakeList() : *pFuncs)};
+  if (NULL == cxt.pFuncs) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  taosHashSetEqualFp(cxt.pFuncsSet, funcNodeEqual);
   *pFuncs = NULL;
   nodesWalkSelectStmt(pSelect, clause, collectFuncs, &cxt);
   if (TSDB_CODE_SUCCESS == cxt.errCode) {
@@ -2120,7 +2123,6 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAl
   } else {
     nodesDestroyList(cxt.pFuncs);
   }
-  taosHashCleanup(cxt.pFuncsSet);
 
   return cxt.errCode;
 }

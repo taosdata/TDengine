@@ -2374,17 +2374,6 @@ int32_t tSerializeSCMCreateStreamReq(void* buf, int32_t bufLen, const SCMCreateS
 int32_t tDeserializeSCMCreateStreamReq(void* buf, int32_t bufLen, SCMCreateStreamReq* pReq);
 void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);
 
-typedef struct {
-  char    name[TSDB_STREAM_FNAME_LEN];
-  int64_t streamId;
-  char*   sql;
-  char*   executorMsg;
-} SMVCreateStreamReq, SMSCreateStreamReq;
-
-typedef struct {
-  int64_t streamId;
-} SMVCreateStreamRsp, SMSCreateStreamRsp;
-
 enum {
   TOPIC_SUB_TYPE__DB = 1,
   TOPIC_SUB_TYPE__TABLE,
@@ -2407,15 +2396,8 @@ int32_t tDeserializeSCMCreateTopicReq(void* buf, int32_t bufLen, SCMCreateTopicR
 void    tFreeSCMCreateTopicReq(SCMCreateTopicReq* pReq);
 
 typedef struct {
-  int64_t topicId;
-} SCMCreateTopicRsp;
-
-int32_t tSerializeSCMCreateTopicRsp(void* buf, int32_t bufLen, const SCMCreateTopicRsp* pRsp);
-int32_t tDeserializeSCMCreateTopicRsp(void* buf, int32_t bufLen, SCMCreateTopicRsp* pRsp);
-
-typedef struct {
   int64_t consumerId;
-} SMqConsumerLostMsg, SMqConsumerRecoverMsg, SMqConsumerClearMsg;
+} SMqConsumerRecoverMsg, SMqConsumerClearMsg;
 
 typedef struct {
   int64_t consumerId;
@@ -2427,6 +2409,7 @@ typedef struct {
   int8_t  autoCommit;
   int32_t autoCommitInterval;
   int8_t  resetOffsetCfg;
+  int8_t  enableReplay;
 } SCMSubscribeReq;
 
 static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubscribeReq* pReq) {
@@ -2446,6 +2429,7 @@ static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubsc
   tlen += taosEncodeFixedI8(buf, pReq->autoCommit);
   tlen += taosEncodeFixedI32(buf, pReq->autoCommitInterval);
   tlen += taosEncodeFixedI8(buf, pReq->resetOffsetCfg);
+  tlen += taosEncodeFixedI8(buf, pReq->enableReplay);
 
   return tlen;
 }
@@ -2469,71 +2453,7 @@ static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq
   buf = taosDecodeFixedI8(buf, &pReq->autoCommit);
   buf = taosDecodeFixedI32(buf, &pReq->autoCommitInterval);
   buf = taosDecodeFixedI8(buf, &pReq->resetOffsetCfg);
-  return buf;
-}
-
-typedef struct SMqSubTopic {
-  int32_t vgId;
-  int64_t topicId;
-  SEpSet  epSet;
-} SMqSubTopic;
-
-typedef struct {
-  int32_t     topicNum;
-  SMqSubTopic topics[];
-} SCMSubscribeRsp;
-
-static FORCE_INLINE int32_t tSerializeSCMSubscribeRsp(void** buf, const SCMSubscribeRsp* pRsp) {
-  int32_t tlen = 0;
-  tlen += taosEncodeFixedI32(buf, pRsp->topicNum);
-  for (int32_t i = 0; i < pRsp->topicNum; i++) {
-    tlen += taosEncodeFixedI32(buf, pRsp->topics[i].vgId);
-    tlen += taosEncodeFixedI64(buf, pRsp->topics[i].topicId);
-    tlen += taosEncodeSEpSet(buf, &pRsp->topics[i].epSet);
-  }
-  return tlen;
-}
-
-static FORCE_INLINE void* tDeserializeSCMSubscribeRsp(void* buf, SCMSubscribeRsp* pRsp) {
-  buf = taosDecodeFixedI32(buf, &pRsp->topicNum);
-  for (int32_t i = 0; i < pRsp->topicNum; i++) {
-    buf = taosDecodeFixedI32(buf, &pRsp->topics[i].vgId);
-    buf = taosDecodeFixedI64(buf, &pRsp->topics[i].topicId);
-    buf = taosDecodeSEpSet(buf, &pRsp->topics[i].epSet);
-  }
-  return buf;
-}
-
-typedef struct {
-  int64_t topicId;
-  int64_t consumerId;
-  int64_t consumerGroupId;
-  int64_t offset;
-  char*   sql;
-  char*   logicalPlan;
-  char*   physicalPlan;
-} SMVSubscribeReq;
-
-static FORCE_INLINE int32_t tSerializeSMVSubscribeReq(void** buf, SMVSubscribeReq* pReq) {
-  int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pReq->topicId);
-  tlen += taosEncodeFixedI64(buf, pReq->consumerId);
-  tlen += taosEncodeFixedI64(buf, pReq->consumerGroupId);
-  tlen += taosEncodeFixedI64(buf, pReq->offset);
-  tlen += taosEncodeString(buf, pReq->sql);
-  tlen += taosEncodeString(buf, pReq->logicalPlan);
-  tlen += taosEncodeString(buf, pReq->physicalPlan);
-  return tlen;
-}
-
-static FORCE_INLINE void* tDeserializeSMVSubscribeReq(void* buf, SMVSubscribeReq* pReq) {
-  buf = taosDecodeFixedI64(buf, &pReq->topicId);
-  buf = taosDecodeFixedI64(buf, &pReq->consumerId);
-  buf = taosDecodeFixedI64(buf, &pReq->consumerGroupId);
-  buf = taosDecodeFixedI64(buf, &pReq->offset);
-  buf = taosDecodeString(buf, &pReq->sql);
-  buf = taosDecodeString(buf, &pReq->logicalPlan);
-  buf = taosDecodeString(buf, &pReq->physicalPlan);
+  buf = taosDecodeFixedI8(buf, &pReq->enableReplay);
   return buf;
 }
 
@@ -3629,6 +3549,7 @@ typedef struct {
   int64_t      consumerId;
   int64_t      timeout;
   STqOffsetVal reqOffset;
+  int8_t       enableReplay;
 } SMqPollReq;
 
 int32_t tSerializeSMqPollReq(void* buf, int32_t bufLen, SMqPollReq* pReq);
@@ -3688,6 +3609,7 @@ typedef struct {
   SArray*      blockData;
   SArray*      blockTbName;
   SArray*      blockSchema;
+  int64_t      sleepTime;
 } SMqDataRsp;
 
 int32_t tEncodeMqDataRsp(SEncoder* pEncoder, const SMqDataRsp* pRsp);
