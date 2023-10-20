@@ -1064,6 +1064,7 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
                             .dbPrefixPath = taosStrdup(pTaskDb->path)};
     taosArrayPush(pSnap, &snap);
   }
+  return code;
 }
 int32_t streamBackendAddInUseChkp(void* arg, int64_t chkpId) {
   // if (arg == NULL) return 0;
