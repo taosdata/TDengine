@@ -1015,7 +1015,7 @@ export default {
       styleobj: {
         width: "100%",
         display: "flex",
-        "align-items": "baseline",
+        //"align-items": "baseline",
         "margin-bottom": "8px",
       },
       styleareaobj: {

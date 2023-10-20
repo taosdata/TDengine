@@ -138,16 +138,13 @@ export default {
     },
     async getClusterID() {
       try {
-        return sendSQLReq(`select id from information_schema.ins_cluster;`)
-          .then((res) => {
-            let id = res.data.flat(Infinity).toString();
+        let res= sendSQLReq(`select id from information_schema.ins_cluster;`)
+        if(res&&res.data){
+          let id = res.data.flat(Infinity).toString();
             localStorage.setItem("local_clusterID", id);
-          })
-          .catch((err) => {
-            localStorage.removeItem("TDengine-Token");
-            return Promise.reject(err);
-          });
+        }
       } catch (error) {
+        localStorage.removeItem("TDengine-Token");
         console.log(error);
       }
     },
@@ -189,9 +186,6 @@ export default {
           localStorage.setItem("TDengine-Token", token);
           await this.getClusterID();
           await this.getVersion();
-          // this.$router.push({
-          //   path: "/explorer"
-          // });
           await this.getUserAuthority();
         } else {
           this.loading = false;
@@ -202,6 +196,7 @@ export default {
           }
         }
       } catch (error) {
+        console.log(error,'login---error');
         Message.error(this.$t("login.servExceptionTip"));
         this.loading = false;
         deleteCookieItem();
@@ -239,13 +234,11 @@ export default {
     //获取登录用户权限
     async getUserAuthority() {
       try {
-        return await sendSQLReq(
-          // `select version, (expire_time < now) as valid from information_schema.ins_cluster`
+        let res=await sendSQLReq(
           `select server_version(), version, (expire_time < now) as valid from information_schema.ins_cluster;`
-        ).then((res) => {
-          this.loading = false;
-          if (res) {
-            let result = res.data.map((data) => {
+        )
+        if(res&&res.data){
+          let result = res.data.map((data) => {
               return Object.fromEntries(
                 res.column_meta.map((item, index) => {
                   return [item[0], data[index]];
@@ -262,8 +255,8 @@ export default {
             } else {
               Message.error(this.$t("login.versiontip"));
             }
-          }
-        });
+        }
+        
       } catch (err) {
         this.loading = false;
 
