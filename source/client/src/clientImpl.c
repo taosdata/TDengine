@@ -2566,6 +2566,7 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
   pRequest->body.fetchFp = fp;
   if(pRequest->body.paramCreatedInternal && pRequest->body.param) {
     taosMemoryFree(pRequest->body.param);
+    pRequest->body.paramCreatedInternal = false;
   }
   pRequest->body.param = param;
 
