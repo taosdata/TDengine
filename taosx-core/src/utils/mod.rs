@@ -6,8 +6,6 @@ use taos::*;
 pub mod files;
 pub mod port_pool;
 pub mod breakpoints;
-pub mod trace_id;
-pub mod log_format;
 pub mod trace;
 
 pub fn mask_dsn(dsn: &Dsn) -> Dsn {

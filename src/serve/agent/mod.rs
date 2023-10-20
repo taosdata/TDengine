@@ -14,7 +14,6 @@ use crate::serve::{
     },
     task::Failed,
 };
-use taosx_core::utils::trace_id::set_trace_id;
 
 /// Create new agent with cluster id/ user id and privileges
 #[utoipa::path(
@@ -30,8 +29,7 @@ pub(super) async fn create_agent(
     task_store: Data<TaskControllerRef>,
     agent: Json<AgentProps>,
 ) -> impl Responder {
-    set_trace_id();
-    tracing::info!("create agent with name={} dsn={}", agent.name, agent.dsn);
+    tracing::info!("create agent name={} dsn={}", agent.name, agent.dsn);
     match task_store.create_agent(agent.into_inner()).await {
         Ok(agent) => HttpResponse::Ok().json(&agent),
         Err(err) => {
