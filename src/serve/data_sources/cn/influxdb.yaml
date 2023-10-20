@@ -92,6 +92,12 @@ authentication:
           placeholder: 请输入 InfluxDB 令牌
           hint: str
           required: true
+        - name: addDbrp
+          display: 添加数据库保留策略
+          description: InfluxQL 需要数据库与保留策略（DBRP）的组合才能查询数据，InfluxDB 的 Cloud 版本及某些 2.x 版本需要人工添加这个映射关系，打开这个开关，连接器可以在执行任务时自动添加。
+          hint:
+            type: bool
+          value: false
 groups:
   - name: task
     display: 任务设置

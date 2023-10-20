@@ -57,6 +57,8 @@ pub struct ConnectionConfig {
     pub token: Option<String>,
     #[serde(rename = "orgId")]
     pub org_id: Option<String>,
+    #[serde(rename = "addDbrp")]
+    pub add_dbrp: bool,
 }
 
 impl ConnectionConfig {
@@ -105,6 +107,10 @@ impl ConnectionConfig {
         } else {
             return Err(anyhow::anyhow!("invalid version: {}", version));
         }
+        let add_dbrp = dsn.params
+            .get("addDbrp")
+            .map(|s| match s.as_str() { "true" => true, _ => false })
+            .unwrap_or(false);
 
         let influx = ConnectionConfig {
             url: Self::parse_url(dsn)?,
@@ -113,6 +119,7 @@ impl ConnectionConfig {
             password,
             token,
             org_id,
+            add_dbrp
         };
 
         Ok(influx)

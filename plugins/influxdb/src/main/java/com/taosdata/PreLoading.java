@@ -26,7 +26,9 @@ import com.taosdata.utils.influxdbV1.InfluxdbV1PoolAutoConfig;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.slf4j.Logger;
@@ -225,6 +227,7 @@ public class PreLoading implements CommandLineRunner {
             this.influxdbConfig.setPassword(tomlParseResult.getString("influx.password", String::new));
             this.influxdbConfig.setToken(tomlParseResult.getString("influx.token", String::new));
             this.influxdbConfig.setOrgId(tomlParseResult.getString("influx.orgId", String::new));
+            this.influxdbConfig.setAddDbrp(tomlParseResult.getBoolean("influx.addDbrp"));
             this.nettyClientConfig.setHost(tomlParseResult.getString("taosx.host", String::new));
             this.nettyClientConfig.setPort((int) tomlParseResult.getLong("taosx.port", () -> 0L));
             this.taskConfig.setMode(tomlParseResult.getString("task.mode", String::new));
@@ -446,6 +449,10 @@ public class PreLoading implements CommandLineRunner {
                 // 放入缓存中
                 BucketCache.bucketMap.put(influxdbBucketEntity.getBucketName(), influxdbBucketEntity);
                 try {
+                    // 创建DBRP
+                    if (this.influxdbConfig.isAddDbrp()) {
+                        createDbrp(influxdbBucketEntity);
+                    }
                     // 查询bucket中所有measurement信息
                     List<InfluxdbMeasurementEntity> influxdbMeasurementEntityList = influxdbService.selectAllMeasurements(influxdbBucketEntity.getBucketName());
                     // 放入缓存中
@@ -499,6 +506,48 @@ public class PreLoading implements CommandLineRunner {
             StatusCache.noteThread(threadInfo);
         } catch (Exception e) {
             logger.error("An exception occurred during the initialization of InfluxDB and related threads.", e);
+        }
+    }
+
+    /**
+     * 创建DBRP
+     *
+     * @param influxdbBucketEntity
+     */
+    private void createDbrp(InfluxdbBucketEntity influxdbBucketEntity) {
+        // 请求地址
+        String url = this.influxdbConfig.getUrl();
+        if (url.endsWith("/")) {
+            url += "api/v2/dbrps";
+        } else {
+            url += "/api/v2/dbrps";
+        }
+        // 请求参数
+        JSONObject params = new JSONObject();
+        params.put("bucketID", influxdbBucketEntity.getBucketId());
+        params.put("database", influxdbBucketEntity.getBucketName());
+        params.put("default", true);
+        params.put("orgID", influxdbBucketEntity.getOrgId());
+        params.put("retention_policy", "autogen");
+        try {
+            // 建立http客户端
+            CloseableHttpClient httpClient = HttpClients.createDefault();
+            // 建立httpPost
+            HttpPost httpPost = new HttpPost(url);
+            // 解决中文乱码问题
+            StringEntity entity = new StringEntity(params.toJSONString(), "utf-8");
+            // 设置编码格式
+            entity.setContentEncoding("UTF-8");
+            // 设置参数类型为json
+            entity.setContentType("application/json");
+            // 添加参数
+            httpPost.setEntity(entity);
+            // 添加token
+            httpPost.addHeader("Authorization", "Token " + this.influxdbConfig.getToken());
+            // 只执行不获取响应
+            httpClient.execute(httpPost);
+        } catch (Exception e) {
+            logger.error("添加DBRP过程中发生异常，exception={}", e.getMessage());
         }
     }
 
