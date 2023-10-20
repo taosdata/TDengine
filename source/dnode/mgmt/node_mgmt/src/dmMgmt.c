@@ -174,6 +174,7 @@ void dmCleanupDnode(SDnode *pDnode) {
   if (pDnode == NULL) return;
 
   dmCleanupClient(pDnode);
+  dmCleanupStatusClient(pDnode);
   dmCleanupServer(pDnode);
   dmClearVars(pDnode);
   rpcCleanup();
