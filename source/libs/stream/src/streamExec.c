@@ -309,7 +309,9 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
            pStreamTask->id.idStr);
   }
 
-  ASSERT(pStreamTask->hTaskInfo.id.taskId == pTask->id.taskId && pTask->status.appendTranstateBlock == true);
+  ASSERT(((pStreamTask->status.taskStatus == TASK_STATUS__STOP) ||
+          (pStreamTask->hTaskInfo.id.taskId == pTask->id.taskId)) &&
+         pTask->status.appendTranstateBlock == true);
 
   STimeWindow* pTimeWindow = &pStreamTask->dataRange.window;
 
