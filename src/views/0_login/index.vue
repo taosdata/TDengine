@@ -138,7 +138,7 @@ export default {
     },
     async getClusterID() {
       try {
-        let res= sendSQLReq(`select id from information_schema.ins_cluster;`)
+        let res=await sendSQLReq(`select id from information_schema.ins_cluster;`)
         if(res&&res.data){
           let id = res.data.flat(Infinity).toString();
             localStorage.setItem("local_clusterID", id);
@@ -196,7 +196,6 @@ export default {
           }
         }
       } catch (error) {
-        console.log(error,'login---error');
         Message.error(this.$t("login.servExceptionTip"));
         this.loading = false;
         deleteCookieItem();
