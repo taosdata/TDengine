@@ -49,7 +49,7 @@ extern "C" {
   do {                                     \
     (_t)->hTaskInfo.id.taskId = 0;         \
     (_t)->hTaskInfo.id.streamId = 0;       \
-  } while (0);
+  } while (0)
 
 typedef struct SStreamTask   SStreamTask;
 typedef struct SStreamQueue  SStreamQueue;
@@ -739,6 +739,7 @@ bool    streamTaskAllUpstreamClosed(SStreamTask* pTask);
 bool    streamTaskSetSchedStatusWait(SStreamTask* pTask);
 int8_t  streamTaskSetSchedStatusActive(SStreamTask* pTask);
 int8_t  streamTaskSetSchedStatusInactive(SStreamTask* pTask);
+int32_t streamTaskClearHTaskAttr(SStreamTask* pTask);
 
 int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event);
 int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM);

@@ -1029,7 +1029,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
 
       bool restored = pTq->pVnode->restored;
       if (p != NULL && restored && p->info.fillHistory == 0) {
-        EStreamTaskEvent event = (p->hTaskInfo.id.taskId == 0) ? TASK_EVENT_INIT : TASK_EVENT_INIT_STREAM_SCANHIST;
+        EStreamTaskEvent event = (HAS_RELATED_FILLHISTORY_TASK(p)) ? TASK_EVENT_INIT_STREAM_SCANHIST : TASK_EVENT_INIT;
         streamTaskHandleEvent(p->status.pSM, event);
       } else if (!restored) {
         tqWarn("s-task:%s not launched since vnode(vgId:%d) not ready", p->id.idStr, vgId);

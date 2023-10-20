@@ -691,6 +691,25 @@ int8_t streamTaskSetSchedStatusInactive(SStreamTask* pTask) {
   return status;
 }
 
+int32_t streamTaskClearHTaskAttr(SStreamTask* pTask) {
+  SStreamMeta* pMeta = pTask->pMeta;
+  if (pTask->info.fillHistory == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  STaskId sTaskId = {.streamId = pTask->streamTaskId.streamId, .taskId = pTask->streamTaskId.taskId};
+  SStreamTask** ppStreamTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &sTaskId, sizeof(sTaskId));
+
+  if (ppStreamTask != NULL) {
+    CLEAR_RELATED_FILLHISTORY_TASK((*ppStreamTask));
+    streamMetaSaveTask(pMeta, *ppStreamTask);
+    stDebug("s-task:%s clear the related stream task:0x%x attr to fill-history task", pTask->id.idStr,
+            (int32_t)sTaskId.taskId);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId) {
   SVDropStreamTaskReq *pReq = rpcMallocCont(sizeof(SVDropStreamTaskReq));
   if (pReq == NULL) {
@@ -709,7 +728,7 @@ int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskI
     return code;
   }
 
-  stDebug("vgId:%d build and send drop table:0x%x msg", vgId, pTaskId->taskId);
+  stDebug("vgId:%d build and send drop task:0x%x msg", vgId, pTaskId->taskId);
   return code;
 }
 
