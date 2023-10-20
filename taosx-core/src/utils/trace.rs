@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use chrono::prelude::*;
 use rand::random;
 use tracing::Subscriber;
-use tracing_core::{Event, Level, Metadata};
+use tracing_core::{Event, Level};
 use tracing_core::span::{Attributes, Id, Record};
 use tracing_subscriber::fmt::{FormatFields, FormattedFields, MakeWriter};
 use tracing_subscriber::fmt::format::DefaultFields;
@@ -149,16 +149,14 @@ impl<S, N, W> layer::Layer<S> for TaosXLayer<S, N, W> where
                 buf.push('[');
                 buf.push_str(name);
                 buf.push(']');
-                buf.push(' ');
             }
-            // Part 4 and Part 5: (module path or span) and (TID or QID)
+            // Part 4 and Part 5:  span and TID or QID
             if let Some(scope) = ctx.event_scope(event) {
+                buf.push(' ');
                 Self::fmt_span_and_trace_id(&mut buf, scope);
-            } else {
-                Self::fmt_module(&mut buf, metadata);
             }
-            buf.push_str(" - ");
             // Part 6: write event content
+            buf.push_str(" - ");
             let mut fake_fields = FormattedFields::<N>::new(String::new());
             self.fmt_fields.format_fields(fake_fields.as_writer(), event).expect("write event content error");
             buf.push_str(fake_fields.fields.as_str());
@@ -232,11 +230,5 @@ impl<S, N, W> TaosXLayer<S, N, W> where
             buf.push(' ');
             buf.push_str(trace_buf.as_str());
         }
-    }
-
-    fn fmt_module(buf: &mut String, metadata: &Metadata) {
-        buf.push('[');
-        buf.push_str(metadata.target());
-        buf.push(']');
     }
 }
