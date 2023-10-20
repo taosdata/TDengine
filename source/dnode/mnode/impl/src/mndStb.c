@@ -868,6 +868,9 @@ static int32_t mndGenIdxNameForFirstTag(char *fullname, char *dbname, char *tagn
     int8_t end = left >= 24 ? 24 : left - 1;
     // gen rand str len [base:end]
     // note: ignore rand performance issues
+
+    taosSeedRand(taosSafeRand());
+
     int64_t len = taosRand() % (end - start + 1) + start;
     taosRandStr2(randStr, len);
     sprintf(fullname, "%s.%s_%s", dbname, tagname, randStr);
