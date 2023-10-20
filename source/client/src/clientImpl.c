@@ -2555,19 +2555,16 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
 }
 
 void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param) {
-  if (pRequest->syncQuery && pRequest->body.param != param) {
+  if ((pRequest->syncQuery || pRequest->body.paramCreatedInternal) && pRequest->body.param) {
     if (pRequest->body.param) {
       tsem_destroy(&((SSyncQueryParam *)pRequest->body.param)->sem);
     }
     taosMemoryFree(pRequest->body.param);
     pRequest->syncQuery = false;
+    pRequest->body.paramCreatedInternal = false;
   }
   
   pRequest->body.fetchFp = fp;
-  if(pRequest->body.paramCreatedInternal && pRequest->body.param) {
-    taosMemoryFree(pRequest->body.param);
-    pRequest->body.paramCreatedInternal = false;
-  }
   pRequest->body.param = param;
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
