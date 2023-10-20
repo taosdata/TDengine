@@ -717,6 +717,7 @@ int32_t streamSchedExec(SStreamTask* pTask);
 bool    streamTaskShouldStop(const SStreamTask* pStatus);
 bool    streamTaskShouldPause(const SStreamTask* pStatus);
 bool    streamTaskIsIdle(const SStreamTask* pTask);
+bool    streamTaskReadyToRun(const SStreamTask* pTask, char** pStatus);
 
 char*       createStreamTaskIdStr(int64_t streamId, int32_t taskId);
 ETaskStatus streamTaskGetStatus(const SStreamTask* pTask, char** pStr);
@@ -758,8 +759,7 @@ int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue);
 // common
 int32_t     streamRestoreParam(SStreamTask* pTask);
 void        streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta);
-void        streamTaskResume(SStreamTask* pTask, SStreamMeta* pMeta);
-void        streamTaskResumeFromHalt(SStreamTask* pTask);
+void        streamTaskResume(SStreamTask* pTask);
 void        streamTaskDisablePause(SStreamTask* pTask);
 void        streamTaskEnablePause(SStreamTask* pTask);
 int32_t     streamTaskSetUpstreamInfo(SStreamTask* pTask, const SStreamTask* pUpstreamTask);

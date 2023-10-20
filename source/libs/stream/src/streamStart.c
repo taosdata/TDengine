@@ -1021,36 +1021,25 @@ void streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta) {
   stDebug("vgId:%d s-task:%s set pause flag and pause task", pMeta->vgId, pTask->id.idStr);
 }
 
-void streamTaskResume(SStreamTask* pTask, SStreamMeta* pMeta) {
-  char* p = NULL;
-  ETaskStatus status = streamTaskGetStatus(pTask, &p);
+void streamTaskResume(SStreamTask* pTask) {
+  char*        p = NULL;
+  ETaskStatus  status = streamTaskGetStatus(pTask, &p);
+  SStreamMeta* pMeta = pTask->pMeta;
 
-  if (status == TASK_STATUS__PAUSE) {
+  if (status == TASK_STATUS__PAUSE || status == TASK_STATUS__HALT) {
     streamTaskRestoreStatus(pTask);
 
-    streamTaskGetStatus(pTask, &p);
-    int32_t num = atomic_sub_fetch_32(&pMeta->numOfPausedTasks, 1);
-    stInfo("vgId:%d s-task:%s sink task.resume from pause, status:%s. pause task num:%d", pMeta->vgId, pTask->id.idStr,
-           p, num);
+    char* pNew = NULL;
+    streamTaskGetStatus(pTask, &pNew);
+    if (status == TASK_STATUS__PAUSE) {
+      int32_t num = atomic_sub_fetch_32(&pMeta->numOfPausedTasks, 1);
+      stInfo("s-task:%s status:%s resume from %s, paused task(s):%d", pTask->id.idStr, pNew, p, num);
+    } else {
+      stInfo("s-task:%s status:%s resume from %s", pTask->id.idStr, pNew, p);
+    }
   } else {
-    stDebug("s-task:%s status:%s not in pause status, no need to resume", pTask->id.idStr, p);
+    stDebug("s-task:%s status:%s not in pause/halt status, no need to resume", pTask->id.idStr, p);
   }
-
-#if 0
-  int8_t status = pTask->status.taskStatus;
-  if (status == TASK_STATUS__PAUSE) {
-    pTask->status.taskStatus = pTask->status.keepTaskStatus;
-    pTask->status.keepTaskStatus = TASK_STATUS__READY;
-    int32_t num = atomic_sub_fetch_32(&pMeta->numOfPausedTasks, 1);
-    stInfo("vgId:%d s-task:%s resume from pause, status:%s. pause task num:%d", pMeta->vgId, pTask->id.idStr, streamGetTaskStatusStr(status), num);
-  } else if (pTask->info.taskLevel == TASK_LEVEL__SINK) {
-    int32_t num = atomic_sub_fetch_32(&pMeta->numOfPausedTasks, 1);
-    stInfo("vgId:%d s-task:%s sink task.resume from pause, status:%s. pause task num:%d", pMeta->vgId, pTask->id.idStr, streamGetTaskStatusStr(status), num);
-  } else {
-    stError("s-task:%s not in pause, failed to resume, status:%s", pTask->id.idStr, streamGetTaskStatusStr(status));
-  }
-#endif
-
 }
 
 // todo fix race condition
@@ -1069,24 +1058,6 @@ void streamTaskDisablePause(SStreamTask* pTask) {
 void streamTaskEnablePause(SStreamTask* pTask) {
   stDebug("s-task:%s enable task pause", pTask->id.idStr);
   pTask->status.pauseAllowed = 1;
-}
-
-void streamTaskResumeFromHalt(SStreamTask* pTask) {
-  const char* id = pTask->id.idStr;
-  char* p = NULL;
-
-  ASSERT(streamTaskGetStatus(pTask, NULL) == TASK_STATUS__HALT);
-//  int8_t status = pTask->status.taskStatus;
-//  if (status != TASK_STATUS__HALT) {
-//    stError("s-task:%s not in halt status, status:%s", id, streamGetTaskStatusStr(status));
-//    return;
-//  }
-
-//  pTask->status.taskStatus = pTask->status.keepTaskStatus;
-//  pTask->status.keepTaskStatus = TASK_STATUS__READY;
-  streamTaskRestoreStatus(pTask);
-  streamTaskGetStatus(pTask, &p);
-  stDebug("s-task:%s resume from halt, current status:%s", id, p);
 }
 
 int32_t updateTaskReadyInMeta(SStreamTask* pTask) {
