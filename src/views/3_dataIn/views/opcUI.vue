@@ -11,20 +11,7 @@
         <DataTarget></DataTarget>
       </section>
 
-      <div class="source-name" v-if="isEditable">
-        <div class="block-title">
-          <span>{{ $t("datasource.sourcename") }}</span>
-        </div>
-        <div class="name">
-          <span class="label">{{ $t("name") }}</span>
-          <el-input
-            size="small"
-            v-model="sourceName"
-            placeholder="请输入数据源名称"
-            style="width: 200px"
-          ></el-input>
-        </div>
-      </div>
+      
       <section class="basics" v-if="tagName !== 'csv'">
         <div class="block-title">
           <span>{{ $t("dataIn.connectionConfiguration") }}</span>

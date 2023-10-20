@@ -1255,7 +1255,7 @@ export default {
     starttip: `Are you sure to start the {dataname} task?`,
     stoptip: `Are you sure to stop the {dataname} task?`,
     excutestart: `Start the data source "{name}"`,
-    excutestop: 'Start the data source "{name}"',
+    excutestop: 'Stop the data source "{name}"',
     viewconfig:'View the "{name}" data source configuration',
     agent: 'Agent',
     agenttip: 'Please select the agent.',
