@@ -18,7 +18,7 @@ use tokio_util::sync::CancellationToken;
 use toml::value::Datetime;
 use tracing::{instrument, Span};
 
-use crate::runners::log_rotation;
+use crate::runners::{get_string_from_param_or_file, log_rotation};
 use crate::validation::DataSourceValidation;
 use crate::{
     build_ipc, get_log_keep_days,
@@ -168,7 +168,7 @@ impl PiConfig {
             .collect_vec();
 
         let point_list =
-            super::mqtt::get_string_from_param_or_file(&mut dsn, "PointList", false, Some(","))
+            get_string_from_param_or_file(&mut dsn, "PointList", false, Some(","))
                 .map_err(|err| PiError::ParseKeyValueError("PointList", err))?
                 .unwrap_or_default()
                 .split([',', '\n'])
@@ -339,7 +339,7 @@ impl PiConfig {
                     via: None,
                     lang: None,
                 })
-                .await?;
+                    .await?;
                 template_for_pi_point.extend(
                     datasets
                         .into_iter()
@@ -348,18 +348,18 @@ impl PiConfig {
                 );
             } else {
                 template_for_pi_point.extend(
-                    super::mqtt::get_string_from_param_or_file(
+                    get_string_from_param_or_file(
                         &mut dsn,
                         config_key,
                         false,
                         Some(","),
                     )
-                    .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
-                    .unwrap_or_default()
-                    .split([',', '\n'])
-                    .map(|s| s.trim())
-                    .filter(|s| !s.is_empty())
-                    .map(|s| s.to_string()),
+                        .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
+                        .unwrap_or_default()
+                        .split([',', '\n'])
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty())
+                        .map(|s| s.to_string()),
                 );
             }
         }
@@ -384,7 +384,7 @@ impl PiConfig {
                     via: None,
                     lang: None,
                 })
-                .await?;
+                    .await?;
                 template_for_af_element.extend(
                     datasets
                         .into_iter()
@@ -393,24 +393,24 @@ impl PiConfig {
                 );
             } else {
                 template_for_af_element.extend(
-                    super::mqtt::get_string_from_param_or_file(
+                    get_string_from_param_or_file(
                         &mut dsn,
                         config_key,
                         false,
                         Some(","),
                     )
-                    .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
-                    .unwrap_or_default()
-                    .split([',', '\n'])
-                    .map(|s| s.trim())
-                    .filter(|s| !s.is_empty())
-                    .map(|s| s.to_string()),
+                        .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
+                        .unwrap_or_default()
+                        .split([',', '\n'])
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty())
+                        .map(|s| s.to_string()),
                 );
             }
         }
 
         let mut point_list =
-            super::mqtt::get_string_from_param_or_file(&mut dsn, "PointList", false, Some(","))
+            get_string_from_param_or_file(&mut dsn, "PointList", false, Some(","))
                 .map_err(|err| PiError::ParseKeyValueError("PointList", err))?
                 .unwrap_or_default()
                 .split([',', '\n'])
@@ -432,7 +432,7 @@ impl PiConfig {
                     via: None,
                     lang: None,
                 })
-                .await?;
+                    .await?;
                 point_list.extend(
                     datasets
                         .into_iter()
@@ -441,18 +441,18 @@ impl PiConfig {
                 );
             } else {
                 point_list.extend(
-                    super::mqtt::get_string_from_param_or_file(
+                    get_string_from_param_or_file(
                         &mut dsn,
                         "point_file",
                         false,
                         Some(","),
                     )
-                    .map_err(|err| PiError::ParseKeyValueError("point_file", err))?
-                    .unwrap_or_default()
-                    .split([',', '\n'])
-                    .map(|s| s.trim())
-                    .filter(|s| !s.is_empty())
-                    .map(|s| s.to_string()),
+                        .map_err(|err| PiError::ParseKeyValueError("point_file", err))?
+                        .unwrap_or_default()
+                        .split([',', '\n'])
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty())
+                        .map(|s| s.to_string()),
                 );
             }
         }
@@ -741,7 +741,7 @@ pub async fn pi_to_taos(
         transferred,
         span,
     )
-    .await?;
+        .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     let client = reqwest::Client::new();
@@ -863,7 +863,7 @@ pub async fn pi_to_taos(
         safe_exit!();
         Ok(())
     })
-    .await??;
+        .await??;
     // stop_thread(ipc);
     // let _ = ipc.send(());
     // stop_thread(server);
@@ -931,7 +931,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         ContentLimit::Time(TimeFrequency::Daily),
         Compression::None,
         #[cfg(unix)]
-        None,
+            None,
     );
 
     let output = command
@@ -1031,6 +1031,7 @@ pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 mod tests {
     use super::*;
     use taos::Dsn;
+
     #[tokio::test]
     async fn test_config() {
         dbg!(std::env::current_dir().unwrap());

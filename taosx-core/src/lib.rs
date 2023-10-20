@@ -427,7 +427,7 @@ pub fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
                 "historian" => runners::historian::is_valid(&d),
                 "influxdb" => futures::executor::block_on(runners::influxdb::is_valid(&d)),
                 "kafka" => runners::kafka::is_valid(&d),
-                "mqtt" => runners::mqtt::is_valid(&d),
+                "mqtt" => futures::executor::block_on(runners::mqtt::is_valid(&d)),
                 "opc" | "opcda" | "opcua" => runners::opc::is_valid(&d),
                 "opentsdb" => futures::executor::block_on(runners::opentsdb::is_valid(&d)),
                 "pi" | "pibackfill" => runners::pi::is_valid(&d),
@@ -528,6 +528,13 @@ mod tests {
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("kafka", dsv.data_source);
+
+        //mqtt
+        let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?clean_session=true&keep_alive=60&version=3.0").unwrap();
+        let dsv = validate_dsn(dsn);
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("mqtt", dsv.data_source);
 
         // opentsdb
         let dsn = Dsn::from_str("opentsdb://192.168.2.12:4242").unwrap();

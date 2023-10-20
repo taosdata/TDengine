@@ -1,7 +1,10 @@
+use std::io::BufRead;
 use file_rotate::compression::Compression;
 use file_rotate::suffix::{AppendTimestamp, DateFrom, FileLimit};
 use file_rotate::{ContentLimit, FileRotate, TimeFrequency};
 use std::path::{Path, PathBuf};
+use itertools::Itertools;
+use taos::Dsn;
 
 mod config;
 pub mod historian;
@@ -108,12 +111,152 @@ pub fn log_rotation(log_path: &PathBuf, log_keep_days: i64) -> FileRotate<Append
         ContentLimit::Time(TimeFrequency::Daily),
         Compression::None,
         #[cfg(unix)]
-        None,
+            None,
     )
 }
 
-#[test]
-fn info() {
-    let info = get_plugins_info();
-    dbg!(info);
+/// get string value from dsn's key
+///
+/// line_break: push \n between lines if is true
+///
+/// append_line: push append_line between lines if is not None
+pub fn get_string_from_param_or_file(dsn: &mut Dsn, key: &str, line_break: bool, append_line: Option<&str>) -> Result<Option<String>, String> {
+    if let Some(value) = dsn.remove(key) {
+        let (files, config): (Vec<_>, Vec<_>) = value
+            .split(",")
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .partition(|v| v.starts_with("@"));
+        let mut result = String::new();
+        for config_str in config {
+            if line_break && !result.is_empty() {
+                result.push_str("\n");
+            }
+            if append_line.is_some() && !result.is_empty() {
+                result.push_str(append_line.unwrap());
+            }
+            result.push_str(&config_str);
+        }
+        for file in files {
+            let f = std::fs::File::open(&file[1..]);
+            if f.is_err() {
+                return Err("file read error".to_string());
+            }
+            let buf = std::io::BufReader::new(f.unwrap());
+            let file_data = buf.lines().collect_vec();
+            file_data
+                .iter()
+                .filter_map(|r| r.as_ref().ok())
+                .for_each(|v| {
+                    if line_break && !result.is_empty() {
+                        result.push_str("\n");
+                    }
+                    if append_line.is_some() && !result.is_empty() {
+                        result.push_str(append_line.unwrap());
+                    }
+                    result.push_str(v.as_str());
+                });
+        }
+        Ok(Some(result))
+    } else {
+        Ok(None)
+    }
 }
+
+/// get string vector from dsn's key. if value starts with @, read file.
+/// the first line in file will be skipped, the rest will be read as a string per line, replace `,` with `::` and push to vector
+/// if value not starts with @, the value will split by `,` and push to vector
+pub fn get_string_vec_from_param_or_file(dsn: &mut Dsn, key: &str) -> Result<Vec<String>, String> {
+    if let Some(nodes) = dsn.remove(key) {
+        let (files, mut node_config): (Vec<_>, Vec<_>) = nodes
+            .split(",")
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .partition(|v| v.starts_with("@"));
+        for file in files {
+            tracing::info!(
+                "current log: {}",
+                std::env::current_dir().unwrap().to_str().unwrap()
+            );
+            let f = std::fs::File::open(&file[1..]);
+            if f.is_err() {
+                tracing::warn!("file: {} read error, cause: {}", &file[1..], f.err().unwrap());
+                continue;
+            }
+            let buf = std::io::BufReader::new(f.unwrap());
+            let mut file_data = buf.lines().collect_vec();
+            // remove header
+            if file_data.remove(0).is_err() {
+                tracing::warn!("file: {} content length < 1", file);
+            }
+
+            node_config.extend(
+                file_data
+                    .iter()
+                    .filter_map(|r| r.as_ref().ok())
+                    .map(|s| s.replace(",", "::")),
+            );
+        }
+        if node_config.len() == 0 {
+            tracing::warn!("node config is empty");
+            // return Err(format!("node config set but is empty: {nodes}"));
+        }
+        return Ok(node_config);
+    }
+    return Err("Nodes not set".to_string());
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+    use super::*;
+
+    #[test]
+    fn info() {
+        let info = get_plugins_info();
+        dbg!(info);
+    }
+
+    #[test]
+    fn test_get_string_vec_from_param_or_file() {
+        let mut dsn = Dsn::from_str("driver://?topics=1,2,3").unwrap();
+        let topics = get_string_vec_from_param_or_file(&mut dsn, "topics").unwrap();
+        assert_eq!(vec!["1", "2", "3"], topics);
+
+        let mut dsn = Dsn::from_str("driver://?topics=@../tests/mqtt/topics").unwrap();
+        let topics = get_string_vec_from_param_or_file(&mut dsn, "topics").unwrap();
+        assert_eq!(vec!["a::b::c", "1::2::3"], topics);
+    }
+
+    #[test]
+    fn test_get_string_from_param_or_file() {
+        let mut dsn = Dsn::from_str("driver:///?ca=123,456,@../tests/mqtt/ca,@../tests/mqtt/ca").unwrap();
+        let result = get_string_from_param_or_file(&mut dsn, "ca", true, None).unwrap().unwrap();
+        assert_eq!(
+            "123
+456
+-----BEGIN CERTIFICATE-----
+MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV
+-----END CERTIFICATE-----
+-----BEGIN CERTIFICATE-----
+MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV
+-----END CERTIFICATE-----",
+            result
+        );
+
+        let mut dsn = Dsn::from_str("driver:///?ca=123,456,@../tests/mqtt/ca,@../tests/mqtt/ca").unwrap();
+        let result = get_string_from_param_or_file(&mut dsn, "ca", false, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!("123456-----BEGIN CERTIFICATE-----MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV-----END CERTIFICATE----------BEGIN CERTIFICATE-----MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV-----END CERTIFICATE-----", result);
+
+        let mut dsn = Dsn::from_str("driver:///?ca=123,456,@../tests/mqtt/ca,@../tests/mqtt/ca").unwrap();
+        let result = get_string_from_param_or_file(&mut dsn, "ca", false, Some(","))
+            .unwrap()
+            .unwrap();
+        assert_eq!("123,456,-----BEGIN CERTIFICATE-----,MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV,-----END CERTIFICATE-----,-----BEGIN CERTIFICATE-----,MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV,-----END CERTIFICATE-----", result);
+    }
+}
+
