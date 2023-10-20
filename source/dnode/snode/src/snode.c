@@ -183,8 +183,9 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
   qDebug("snode:%d s-task:%s is deployed on snode and add into meta, status:%s, numOfTasks:%d", SNODE_HANDLE,
          pTask->id.idStr, p, numOfTasks);
 
-  ASSERT(0);
-//  streamTaskCheckDownstream(pTask);
+  EStreamTaskEvent event = (HAS_RELATED_FILLHISTORY_TASK(pTask)) ? TASK_EVENT_INIT_STREAM_SCANHIST : TASK_EVENT_INIT;
+  streamTaskHandleEvent(pTask->status.pSM, event);
+  streamTaskCheckDownstream(pTask);
   return 0;
 }
 

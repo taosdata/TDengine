@@ -360,16 +360,16 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
 
   // 5. clear the link between fill-history task and stream task info
-  CLEAR_RELATED_FILLHISTORY_TASK(pStreamTask);
+//  CLEAR_RELATED_FILLHISTORY_TASK(pStreamTask);
 
   // 6. save to disk
   taosWLockLatch(&pMeta->lock);
 
   pStreamTask->status.taskStatus = streamTaskGetStatus(pStreamTask, NULL);
-  streamMetaSaveTask(pMeta, pStreamTask);
-  if (streamMetaCommit(pMeta) < 0) {
+//  streamMetaSaveTask(pMeta, pStreamTask);
+//  if (streamMetaCommit(pMeta) < 0) {
     // persist to disk
-  }
+//  }
   taosWUnLockLatch(&pMeta->lock);
 
   // 7. pause allowed.
@@ -499,10 +499,10 @@ int32_t streamProcessTranstateBlock(SStreamTask* pTask, SStreamDataBlock* pBlock
     }
   } else {  // non-dispatch task, do task state transfer directly
     streamFreeQitem((SStreamQueueItem*)pBlock);
-    stDebug("s-task:%s non-dispatch task, start to transfer state directly", id);
+    stDebug("s-task:%s non-dispatch task, level:%d start to transfer state directly", id, pTask->info.taskLevel);
     ASSERT(pTask->info.fillHistory == 1);
-    code = streamTransferStateToStreamTask(pTask);
 
+    code = streamTransferStateToStreamTask(pTask);
     if (code != TSDB_CODE_SUCCESS) {
       /*int8_t status = */ streamTaskSetSchedStatusInactive(pTask);
     }

@@ -261,14 +261,14 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM) {
               StreamTaskEventList[pEvtInfo->event].name, pSM->current.name);
 
       STaskStateTrans* pNextTrans = streamTaskFindTransform(pSM, pEvtInfo->event);
-      ASSERT(pSM->pActiveTrans == NULL);
+      ASSERT(pSM->pActiveTrans == NULL && pNextTrans != NULL);
+
       pSM->pActiveTrans = pNextTrans;
       pSM->startTs = taosGetTimestampMs();
-
       taosThreadMutexUnlock(&pTask->lock);
-
+      
       int32_t code = pNextTrans->pAction(pSM->pTask);
-      if (pTrans->autoInvokeEndFn) {
+      if (pNextTrans->autoInvokeEndFn) {
         return streamTaskOnHandleEventSuccess(pSM);
       } else {
         return code;

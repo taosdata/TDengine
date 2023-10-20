@@ -99,7 +99,7 @@ int32_t tqStartStreamTask(STQ* pTq) {
       continue;
     }
 
-    EStreamTaskEvent event = (pTask->hTaskInfo.id.taskId == 0) ? TASK_EVENT_INIT : TASK_EVENT_INIT_STREAM_SCANHIST;
+    EStreamTaskEvent event = (HAS_RELATED_FILLHISTORY_TASK(pTask)) ? TASK_EVENT_INIT_STREAM_SCANHIST : TASK_EVENT_INIT;
     streamTaskHandleEvent(pTask->status.pSM, event);
     streamMetaReleaseTask(pMeta, pTask);
   }

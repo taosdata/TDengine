@@ -548,21 +548,19 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   taosWLockLatch(&pMeta->lock);
   ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (ppTask) {
+    pTask = *ppTask;
+
     // it is an fill-history task, remove the related stream task's id that points to it
-    if ((*ppTask)->info.fillHistory == 1) {
-      STaskId streamTaskId = {.streamId = (*ppTask)->streamTaskId.streamId, .taskId = (*ppTask)->streamTaskId.taskId};
-      SStreamTask** ppStreamTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &streamTaskId, sizeof(streamTaskId));
-      if (ppStreamTask != NULL) {
-        CLEAR_RELATED_FILLHISTORY_TASK((*ppStreamTask));
-      }
+    if (pTask->info.fillHistory == 1) {
+      streamTaskClearHTaskAttr(pTask);
     } else {
       atomic_sub_fetch_32(&pMeta->numOfStreamTasks, 1);
     }
 
     taosHashRemove(pMeta->pTasksMap, &id, sizeof(id));
+    doRemoveIdFromList(pMeta, (int32_t)taosArrayGetSize(pMeta->pTaskList), &pTask->id);
 
     ASSERT(pTask->status.timerActive == 0);
-    doRemoveIdFromList(pMeta, (int32_t)taosArrayGetSize(pMeta->pTaskList), &pTask->id);
 
     if (pTask->info.triggerParam != 0 && pTask->info.fillHistory == 0) {
       stDebug("s-task:%s stop schedTimer, and (before) desc ref:%d", pTask->id.idStr, pTask->refCnt);
