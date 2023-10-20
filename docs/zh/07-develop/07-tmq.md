@@ -356,7 +356,6 @@ CREATE TOPIC topic_name [with meta] AS DATABASE db_name;
 |   `auto.commit.interval.ms`    | integer | 消费记录自动提交消费位点时间间隔，单位为毫秒           | 默认值为 5000                                |
 |     `msg.with.table.name`      | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句）（从3.2.0.0版本该参数废弃，恒为true）               |默认关闭 |
 
-
 对于不同编程语言，其设置方式如下：
 
 <Tabs defaultValue="java" groupId="lang">
