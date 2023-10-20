@@ -17,38 +17,41 @@ use crate::serve::{
 
 /// Create new agent with cluster id/ user id and privileges
 #[utoipa::path(
-    tag = "agents",
-    request_body = AgentProps,
-    responses(
-        (status = 200, description = "Tasks count (deleted tasks will not be included by default)", body = AgentWithToken)
-    )
+tag = "agents",
+request_body = AgentProps,
+responses(
+(status = 200, description = "Tasks count (deleted tasks will not be included by default)", body = AgentWithToken)
+)
 )]
 #[post("/agents")]
-#[instrument(skip_all, fields(TID), parent=None)]
+#[instrument(skip_all, fields(TID), parent = None)]
 pub(super) async fn create_agent(
     task_store: Data<TaskControllerRef>,
     agent: Json<AgentProps>,
 ) -> impl Responder {
     tracing::info!("create agent name={} dsn={}", agent.name, agent.dsn);
     match task_store.create_agent(agent.into_inner()).await {
-        Ok(agent) => HttpResponse::Ok().json(&agent),
+        Ok(agent) => {
+            tracing::info!("create agent success, agent.id={}, agent.token={}", agent.id, agent.token);
+            HttpResponse::Ok().json(&agent)
+        }
         Err(err) => {
             tracing::error!("{:#}", err);
             HttpResponse::InternalServerError().json(Failed {
                 code: Code::FAILED,
                 message: format!("{:#}", err),
             })
-        },
+        }
     }
 }
 
 /// Create new agent with cluster id / user id and privileges
 #[utoipa::path(
-    tag = "agents",
-    responses(
-        (status = 200, description = "Deleted", body = ()),
-				(status = 500, description = "Error", body = Failed)
-    )
+tag = "agents",
+responses(
+(status = 200, description = "Deleted", body = ()),
+(status = 500, description = "Error", body = Failed)
+)
 )]
 #[delete("/agents/{agent_id}")]
 pub(super) async fn delete_agent(
@@ -67,13 +70,13 @@ pub(super) async fn delete_agent(
 /// List agents with specified `cluster_id` and `user_id`
 ///
 #[utoipa::path(
-    tag = "agents",
-    responses(
-        (status = 200, description = "List current agents items", body = [Agent])
-    ),
-    params(
-        AgentFilter,
-    )
+tag = "agents",
+responses(
+(status = 200, description = "List current agents items", body = [Agent])
+),
+params(
+AgentFilter,
+)
 )]
 #[get("/agents")]
 pub(super) async fn get_agents(
@@ -94,10 +97,10 @@ pub(super) async fn get_agents(
 /// Get agent by id.
 ///
 #[utoipa::path(
-    tag = "agents",
-    responses(
-        (status = 200, description = "List current agents items", body = Agent)
-    )
+tag = "agents",
+responses(
+(status = 200, description = "List current agents items", body = Agent)
+)
 )]
 #[get("/agents/{agent_id}")]
 pub(super) async fn get_agent_by_id(
@@ -116,13 +119,13 @@ pub(super) async fn get_agent_by_id(
 /// List agents with specified `cluster_id` and `user_id`
 ///
 #[utoipa::path(
-    tag = "agents",
-    responses(
-        (status = 200, description = "List current agents items", body = [TaskDetail])
-    ),
-    params(
-        AgentFilter,
-    )
+tag = "agents",
+responses(
+(status = 200, description = "List current agents items", body = [TaskDetail])
+),
+params(
+AgentFilter,
+)
 )]
 #[get("/agents/{agent_id}/tasks")]
 pub(super) async fn get_agent_tasks(
@@ -143,11 +146,11 @@ pub(super) async fn get_agent_tasks(
 /// Get agent activities by id
 ///
 #[utoipa::path(
-    tag = "agents",
-    responses(
-        (status = 200, description = "List current agents items", body = [Activity])
-    ),
-    params(AgentActivityFilter)
+tag = "agents",
+responses(
+(status = 200, description = "List current agents items", body = [Activity])
+),
+params(AgentActivityFilter)
 )]
 #[get("/agents/{agent_id}/activities")]
 pub(super) async fn get_agent_activities(
@@ -172,11 +175,11 @@ pub(super) async fn get_agent_activities(
 /// Update an agent by id but and get new token.
 ///
 #[utoipa::path(
-    tag = "agents",
-    request_body = AgentUpdates,
-    responses(
-        (status = 200, description = "List current agents items", body = [AgentWithToken])
-    )
+tag = "agents",
+request_body = AgentUpdates,
+responses(
+(status = 200, description = "List current agents items", body = [AgentWithToken])
+)
 )]
 #[patch("/agents/{agent_id}")]
 pub(super) async fn update_agent(

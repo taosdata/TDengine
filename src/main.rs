@@ -1,3 +1,5 @@
+use std::future::Future;
+use std::path::PathBuf;
 use anyhow::{bail, Result};
 use chrono::Local;
 use clap::{Parser, Subcommand};
@@ -7,6 +9,7 @@ use file_rotate::{
     ContentLimit,
     FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
 };
+use log::LevelFilter;
 use metrics_tracing_context::MetricsLayer;
 #[cfg(feature = "mimalloc")]
 use mimalloc::MiMalloc;
@@ -15,6 +18,7 @@ use shadow_rs::shadow;
 use time::{macros::format_description, UtcOffset};
 use tracing::Instrument;
 use tracing::Subscriber;
+use tracing_appender::non_blocking::NonBlocking;
 use tracing_subscriber::{
     EnvFilter,
     fmt::{format::FmtSpan, time::OffsetTime},
@@ -182,6 +186,143 @@ fn build_runtime(
         .build()
 }
 
+fn create_rotating_log_writer(log_path: &PathBuf, log_keep_days: i64) -> FileRotate<AppendTimestamp> {
+    FileRotate::new(
+        &log_path,
+        AppendTimestamp::with_format(
+            "%Y-%m-%d",
+            FileLimit::Age(chrono::Duration::days(log_keep_days)),
+            DateFrom::DateYesterday,
+        ),
+        ContentLimit::Time(TimeFrequency::Daily),
+        Compression::None,
+        #[cfg(unix)]
+            None,
+    )
+}
+
+async fn init_tracing_layers(args: &Args, span_events: FmtSpan, level_filter: LevelFilter, non_blocking: NonBlocking) -> Result<(), anyhow::Error> {
+    let mut layers = Vec::new();
+    use tracing_subscriber::filter::LevelFilter;
+    let level_filter = match level_filter {
+        clap_verbosity_flag::LevelFilter::Off => LevelFilter::OFF,
+        clap_verbosity_flag::LevelFilter::Error => LevelFilter::ERROR,
+        clap_verbosity_flag::LevelFilter::Warn => LevelFilter::WARN,
+        clap_verbosity_flag::LevelFilter::Info => LevelFilter::INFO,
+        clap_verbosity_flag::LevelFilter::Debug => LevelFilter::DEBUG,
+        clap_verbosity_flag::LevelFilter::Trace => LevelFilter::TRACE,
+    };
+    // Add layer for rotating logs
+    layers.push(TaosXLayer::new()
+        .with_writer(non_blocking)
+        .with_filter(level_filter)
+        .boxed());
+
+    let event_filter = EnvFilter::builder()
+        .with_default_directive(level_filter.into())
+        .with_regex(true)
+        .from_env_lossy()
+        .add_directive("tungstenite=warn".parse()?)
+        .add_directive("tokio=warn".parse()?)
+        .add_directive("runtime=warn".parse()?)
+        .add_directive("actix_server=info".parse()?)
+        .add_directive("actix_http=info".parse()?)
+        .add_directive("tokio_tungstenite=info".parse()?)
+        .add_directive("mio=info".parse()?)
+        .add_directive("h2=info".parse()?);
+
+    let chrono_local = Local::now();
+    let timezone_offset = (chrono_local.offset().local_minus_utc()
+        / chrono::Duration::hours(1).num_seconds() as i32) as i8;
+    let timer = OffsetTime::new(
+        UtcOffset::from_hms(timezone_offset, 0, 0).unwrap(),
+        format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:6]"),
+    );
+
+    // Add layer for printing log to terminal.
+    if atty::is(atty::Stream::Stderr) {
+        layers.push(
+            tracing_subscriber::fmt::layer()
+                .with_timer(timer.clone())
+                .with_thread_names(true)
+                .with_writer(std::io::stderr)
+                .with_span_events(span_events)
+                .with_ansi(true)
+                .pretty()
+                .with_filter(event_filter)
+                .boxed(),
+        );
+    } else {
+        layers.push(
+            tracing_subscriber::fmt::layer()
+                .with_timer(timer.clone())
+                .with_thread_names(true)
+                .with_writer(std::io::stderr)
+                .with_span_events(span_events)
+                .with_ansi(false)
+                .with_filter(event_filter)
+                .boxed(),
+        );
+    }
+
+    // Add layer for tracing-metrics
+    let metrics_layer = MetricsLayer::new().boxed();
+    layers.push(metrics_layer);
+
+    // Create event subscriber
+    let layered = tracing_subscriber::registry().with(layers);
+
+    // Enable console subscriber
+    #[cfg(feature = "tokio-tracing")]
+    {
+        layers.push(console_subscriber::spawn().boxed());
+    }
+
+    // Enable opentelemetry layer
+    if args.globals.otel.unwrap_or(false) {
+        let tracer = opentelemetry_otlp::new_pipeline()
+            .tracing()
+            .with_exporter(
+                opentelemetry_otlp::new_exporter()
+                    .tonic()
+            )
+            .with_trace_config(
+                opentelemetry::sdk::trace::config()
+                    .with_sampler(opentelemetry::sdk::trace::Sampler::AlwaysOn)
+                    .with_id_generator(opentelemetry::sdk::trace::RandomIdGenerator::default())
+                    .with_max_events_per_span(64)
+                    .with_max_attributes_per_span(16)
+                    .with_max_events_per_span(16)
+                    .with_resource(opentelemetry::sdk::Resource::new(vec![
+                        opentelemetry::KeyValue::new("service.name", build::CUS_CLI_NAME),
+                    ])),
+            )
+            .install_simple()?;
+        tracer.in_span("init", |_cx| _cx.attach());
+        // Create a tracing layer with the configured tracer
+        let telemetry = tracing_opentelemetry::layer::<_>()
+            .with_tracer(tracer)
+            .with_filter(
+                EnvFilter::builder()
+                    .with_default_directive(level_filter.into())
+                    .with_regex(true)
+                    .from_env_lossy()
+                    .add_directive("tungstenite=warn".parse()?)
+                    .add_directive("tokio=warn".parse()?)
+                    .add_directive("runtime=warn".parse()?)
+                    .add_directive("actix_server=info".parse()?)
+                    .add_directive("actix_http=info".parse()?)
+                    .add_directive("tokio_tungstenite=info".parse()?)
+                    .add_directive("mio=info".parse()?)
+                    .add_directive("h2=info".parse()?),
+            );
+        layered.with(telemetry).try_init()?;
+    } else {
+        layered.try_init()?;
+    }
+    Ok(())
+}
+
 fn main() -> Result<()> {
     dotenv::dotenv().ok();
     let args = Args::parse();
@@ -227,150 +368,17 @@ fn main() -> Result<()> {
     let worker_threads = args.globals.executor_worker_threads();
     let runtime = build_runtime(worker_threads)?;
 
-    //======================================initialize tracing event subscribers===================
+    // Initialize tracing layers
     let span_events = args.globals.tracing_events.clone();
     let level_filter = args.globals.verbose.log_level_filter();
-    let log_rotation = FileRotate::new(
-        &log_path,
-        AppendTimestamp::with_format(
-            "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::days(log_keep_days)),
-            DateFrom::DateYesterday,
-        ),
-        ContentLimit::Time(TimeFrequency::Daily),
-        Compression::None,
-        #[cfg(unix)]
-            None,
-    );
-
+    let log_rotation = create_rotating_log_writer(&mut log_path, log_keep_days);
     let (non_blocking, _guard) = tracing_appender::non_blocking(log_rotation);
-    runtime.block_on(async move {
-        let mut layers = Vec::new();
-        use tracing_subscriber::filter::LevelFilter;
-        let level_filter = match level_filter {
-            clap_verbosity_flag::LevelFilter::Off => LevelFilter::OFF,
-            clap_verbosity_flag::LevelFilter::Error => LevelFilter::ERROR,
-            clap_verbosity_flag::LevelFilter::Warn => LevelFilter::WARN,
-            clap_verbosity_flag::LevelFilter::Info => LevelFilter::INFO,
-            clap_verbosity_flag::LevelFilter::Debug => LevelFilter::DEBUG,
-            clap_verbosity_flag::LevelFilter::Trace => LevelFilter::TRACE,
-        };
+    runtime.block_on(init_tracing_layers(&args, span_events, level_filter, non_blocking))?;
 
-        layers.push(TaosXLayer::new()
-            .with_writer(non_blocking)
-            .with_filter(level_filter)
-            .boxed());
-
-        let event_filter = EnvFilter::builder()
-            .with_default_directive(level_filter.into())
-            .with_regex(true)
-            .from_env_lossy()
-            .add_directive("tungstenite=warn".parse()?)
-            .add_directive("tokio=warn".parse()?)
-            .add_directive("runtime=warn".parse()?)
-            .add_directive("actix_server=info".parse()?)
-            .add_directive("actix_http=info".parse()?)
-            .add_directive("tokio_tungstenite=info".parse()?)
-            .add_directive("mio=info".parse()?)
-            .add_directive("h2=info".parse()?);
-
-        let chrono_local = Local::now();
-        let timezone_offset = (chrono_local.offset().local_minus_utc()
-            / chrono::Duration::hours(1).num_seconds() as i32) as i8;
-        let timer = OffsetTime::new(
-            UtcOffset::from_hms(timezone_offset, 0, 0).unwrap(),
-            format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:6]"),
-        );
-
-        // Create layer for print log to Stdout and Stderr.
-        if atty::is(atty::Stream::Stderr) {
-            layers.push(
-                tracing_subscriber::fmt::layer()
-                    .with_timer(timer.clone())
-                    .with_thread_names(true)
-                    .with_writer(std::io::stderr)
-                    .with_span_events(span_events)
-                    .with_ansi(true)
-                    .pretty()
-                    .with_filter(event_filter)
-                    .boxed(),
-            );
-        } else {
-            layers.push(
-                tracing_subscriber::fmt::layer()
-                    .with_timer(timer.clone())
-                    .with_thread_names(true)
-                    .with_writer(std::io::stderr)
-                    .with_span_events(span_events)
-                    .with_ansi(false)
-                    .with_filter(event_filter)
-                    .boxed(),
-            );
-        }
-
-        // Create layer for tracing-metrics
-        let metrics_layer = MetricsLayer::new().boxed();
-        layers.push(metrics_layer);
-
-        // Create event subscriber
-        let layered = tracing_subscriber::registry().with(layers);
-
-        // Enable console subscriber
-        #[cfg(feature = "tokio-tracing")]
-        {
-            layers.push(console_subscriber::spawn().boxed());
-        }
-
-        // Enable opentelemetry
-        if args.globals.otel.unwrap_or(false) {
-            let tracer = opentelemetry_otlp::new_pipeline()
-                .tracing()
-                .with_exporter(
-                    opentelemetry_otlp::new_exporter()
-                        .tonic()
-                )
-                .with_trace_config(
-                    opentelemetry::sdk::trace::config()
-                        .with_sampler(opentelemetry::sdk::trace::Sampler::AlwaysOn)
-                        .with_id_generator(opentelemetry::sdk::trace::RandomIdGenerator::default())
-                        .with_max_events_per_span(64)
-                        .with_max_attributes_per_span(16)
-                        .with_max_events_per_span(16)
-                        .with_resource(opentelemetry::sdk::Resource::new(vec![
-                            opentelemetry::KeyValue::new("service.name", build::CUS_CLI_NAME),
-                        ])),
-                )
-                .install_simple()?;
-            tracer.in_span("init", |_cx| _cx.attach());
-            // Create a tracing layer with the configured tracer
-            let telemetry = tracing_opentelemetry::layer::<_>()
-                .with_tracer(tracer)
-                .with_filter(
-                    EnvFilter::builder()
-                        .with_default_directive(level_filter.into())
-                        .with_regex(true)
-                        .from_env_lossy()
-                        .add_directive("tungstenite=warn".parse()?)
-                        .add_directive("tokio=warn".parse()?)
-                        .add_directive("runtime=warn".parse()?)
-                        .add_directive("actix_server=info".parse()?)
-                        .add_directive("actix_http=info".parse()?)
-                        .add_directive("tokio_tungstenite=info".parse()?)
-                        .add_directive("mio=info".parse()?)
-                        .add_directive("h2=info".parse()?),
-                );
-            layered.with(telemetry).try_init()?;
-        } else {
-            layered.try_init()?;
-        }
-
-        // Print some infos.
-        tracing::info!("version: {version}");
-        tracing::info!("commit id: {commit_id}");
-        tracing::info!("build time: {build_time}");
-        anyhow::Ok(())
-    })?;
-    //======================================initialize tracing done==================
+    // Print build info in log file.
+    tracing::info!("version: {version}");
+    tracing::info!("commit id: {commit_id}");
+    tracing::info!("build time: {build_time}");
 
     match args
         .commands

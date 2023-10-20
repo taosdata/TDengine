@@ -228,6 +228,7 @@ impl<S, N, W> TaosXLayer<S, N, W> where
         span_buf.push(']');
         buf.push_str(span_buf.as_str());
         if !trace_buf.is_empty() {
+            trace_buf.pop();
             buf.push(' ');
             buf.push_str(trace_buf.as_str());
         }
