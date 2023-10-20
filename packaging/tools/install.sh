@@ -154,7 +154,7 @@ interactiveFqdn=yes # [yes | no]
 verType=server      # [server | client]
 initType=systemd    # [systemd | service | ...]
 
-while getopts "hv:e:i:" arg; do
+while getopts "hv:e:" arg; do
   case $arg in
   e)
     #echo "interactiveFqdn=$OPTARG"
@@ -163,10 +163,6 @@ while getopts "hv:e:i:" arg; do
   v)
     #echo "verType=$OPTARG"
     verType=$(echo $OPTARG)
-    ;;
-  i)
-    #echo "initType=$OPTARG"
-    initType=$(echo $OPTARG)
     ;;
   h)
     echo "Usage: $(basename $0) -v [server | client]  -e [yes | no]"
@@ -385,7 +381,10 @@ function set_hostname() {
   echo -e -n "${GREEN}Enter the public accessible IP address or fully qualified domain name TDengine will expose to users or applications (must not be 'localhost') :${NC}"
   read newHostname
   while true; do
-    if [[ ! -z "$newHostname" && "$newHostname" != "localhost" ]]; then
+    if [ -z "$newHostname" ]; then
+      newHostname=$(hostname)
+      break
+    elif [ "$newHostname" != "localhost" ]; then
       break
     else
       echo -e -n "${GREEN}Enter the public accessible IP address or fully qualified domain name TDengine will expose to users or applications (must not be 'localhost') :${NC}"
@@ -518,9 +517,7 @@ function install_adapter_config() {
 
 }
 
-function install_config() {
-
-  local_fqdn_check
+function install_config() {  
 
   if [ ! -f "${cfg_install_dir}/${configFile2}" ]; then
     ${csudo}mkdir -p ${cfg_install_dir}
@@ -542,13 +539,15 @@ function install_config() {
 
   
 
-  # if ((${update_flag} == 1)); then
-  #   return 0
-  # fi
+  if ((${update_flag} == 1)); then
+    return 0
+  fi
 
-  # if [ "$interactiveFqdn" == "no" ]; then
-  #   return 0
-  # fi
+  if [ "$interactiveFqdn" == "no" ]; then
+    return 0
+  fi
+
+  local_fqdn_check
 
   echo
   echo -e -n "${GREEN}Enter FQDN:port (like h1.${emailName2}:6030) of an existing ${productName2} cluster node to join${NC}"
@@ -1073,7 +1072,7 @@ function installProduct() {
     echo -e "\033[44;32;1mTo access ${productName2}                : ${clientName2} -h $serverFqdn${NC}"
     if [ "$verMode" == "cluster" ];then
       echo -e "\033[44;32;1mTo access the management system   : http://$serverFqdn:6060${NC}"
-      echo -e "\033[44;32;1mTo read the user manual           : http://$serverFqdn:6060/docs${NC}"
+      echo -e "\033[44;32;1mTo read the user manual           : http://$serverFqdn:6060/docs-en${NC}"
     fi
     echo
   else # Only install client
