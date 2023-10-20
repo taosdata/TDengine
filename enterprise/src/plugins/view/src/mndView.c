@@ -42,6 +42,7 @@ int32_t tSerializeSViewObj(void *buf, int32_t bufLen, const SViewObj *pObj) {
   if (tEncodeCStr(&encoder, pObj->fullname) < 0) return -1;
   if (tEncodeCStr(&encoder, pObj->name) < 0) return -1;
   if (tEncodeCStr(&encoder, pObj->dbFName) < 0) return -1;
+  if (tEncodeCStr(&encoder, pObj->user) < 0) return -1;
   if (tEncodeCStr(&encoder, pObj->querySql) < 0) return -1;
   if (NULL != pObj->parameters) {
     if (tEncodeI8(&encoder, 1) < 0) return -1;
@@ -89,6 +90,7 @@ int32_t tDeserializeSViewObj(void *buf, int32_t bufLen, SViewObj *pObj) {
   if (tDecodeCStrTo(&decoder, pObj->fullname) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pObj->name) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pObj->dbFName) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pObj->user) < 0) return -1;
   if (tDecodeCStrAlloc(&decoder, &pObj->querySql) < 0) return -1;
   if (tDecodeI8(&decoder, &ex) < 0) return -1;
   if (0 != ex) {
