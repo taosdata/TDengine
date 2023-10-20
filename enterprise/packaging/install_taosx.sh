@@ -3,14 +3,16 @@ set -e
 
 PREFIX="taos"
 xName="${PREFIX}x"
-INSTALL_DIR="/usr/bin"
-TAOSX_ROOT_DIR="/usr/local/${xName}"
+INSTALL_DIR="/usr/local/${PREFIX}/bin"
+TAOSX_ROOT_DIR="/usr/local/${PREFIX}"
 CONFIG_DIR="/etc/${PREFIX}"
 SERVICE_CONFIG_DIR="/etc/systemd/system"
+BIN_LINK_DIR="/usr/bin"
 agentname="${PREFIX}x-agent"
 explorerName="${PREFIX}-explorer"
 csudo=""
 explorerEndpoint=""
+services=(${xName} ${explorerName} ${agentname})
 
 target="taosx"
 
@@ -82,77 +84,48 @@ check_and_create_directory() {
   fi
 }
 
-stop_taosx_service(){
-    x_service_config="${SERVICE_CONFIG_DIR}/${xName}.service"
-    if [ -e "$x_service_config" ]; then
-      if systemctl is-active --quiet ${xName}; then
-        echo "${xName} is running, stopping it..."
-        ${csudo}systemctl stop ${xName} &>/dev/null || echo &>/dev/null
-      fi
-      ${csudo}systemctl disable ${xName} &>/dev/null || echo &>/dev/null
-      ${csudo}rm -f ${x_service_config}
+stop_service(){
+  service_config="${SERVICE_CONFIG_DIR}/$1.service"
+  if [ -e "$service_config" ]; then
+    if systemctl is-active --quiet $1; then
+      echo "$1 is running, stopping it..."
+      ${csudo}systemctl stop $1 &>/dev/null || echo &>/dev/null
     fi
-}
-
-stop_taosx_agent_service(){
-    agent_service_config="${SERVICE_CONFIG_DIR}/${agentname}.service"
-    if [ -e "$agent_service_config" ]; then
-      if systemctl is-active --quiet ${agentname}; then
-        echo "${agentname} is running, stopping it..."
-        ${csudo}systemctl stop ${agentname} &>/dev/null || echo &>/dev/null
-      fi
-      ${csudo}systemctl disable ${agentname} &>/dev/null || echo &>/dev/null
-      ${csudo}rm -f ${agent_service_config}
-    fi
-}
-
-stop_explore_service(){
-    explore_service_config="${SERVICE_CONFIG_DIR}/${explorerName}.service"
-    if [ -e "$explore_service_config" ]; then
-      if systemctl is-active --quiet ${explorerName}; then
-        echo "${explorerName} is running, stopping it..."
-        ${csudo}systemctl stop ${explorerName} &>/dev/null || echo &>/dev/null
-      fi
-      ${csudo}systemctl disable ${explorerName} &>/dev/null || echo &>/dev/null
-      ${csudo}rm -f ${explore_service_config}
-    fi
+    ${csudo}systemctl disable $1 &>/dev/null || echo &>/dev/null
+    ${csudo}rm -f ${service_config}
+  fi
 }
 
 
 # remove old taosx and taosx-agent
-remove_taosx() {
-    if [ -f ./bin/${xName} ]; then
-        stop_taosx_service
-        ${csudo}rm -rf ${INSTALL_DIR}/${xName}
+remove_taosx() { 
+  for service in "${services[@]}"; do
+    if [ -f ./bin/${service} ]; then
+        stop_service ${service}
+        ${csudo}rm -rf ${INSTALL_DIR}/${service}
     fi
-    if [ -f ./bin/${explorerName} ]; then
-        stop_explore_service
-        ${csudo}rm -rf ${INSTALL_DIR}/${explorerName}
-    fi
-    if [ -f ./bin/${agentname} ]; then
-        stop_taosx_agent_service
-        ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
-    fi
-    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
-    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
+  done
+
+  ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
+  ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
 }
 
 # remove taosx-agent
 remove_taos_agent() {
-    if [ -f ./bin/${agentname} ]; then
-        stop_taosx_agent_service
-        ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
-    fi
-    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
-    ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
+  if [ -f ./bin/${agentname} ]; then
+      stop_taosx_agent_service
+      ${csudo}rm -rf ${INSTALL_DIR}/${agentname}
+  fi
+  ${csudo}rm -rf ${TAOSX_ROOT_DIR}/plugins
+  ${csudo}rm -rf ${TAOSX_ROOT_DIR}/uninstall.sh
 }
 
 remove_target() {
-    if [ "$target" = "taosx" ]; then
-      remove_taosx
-    else
-      remove_taos_agent
-    fi
+  if [ "$target" = "taosx" ]; then
+    remove_taosx
+  else
+    remove_taos_agent
+  fi
 }
 
 print_tips(){
@@ -201,6 +174,11 @@ function replaceExplorerEndpoint() {
   fi
 }
 
+install_bin() {
+  ${csudo}rm -f ${BIN_LINK_DIR}/$1 || :
+  [ -x ${INSTALL_DIR}/$1 ] && ${csudo}ln -sf ${INSTALL_DIR}/$1 ${BIN_LINK_DIR}/$1 || :
+}
+
 # install new taosx and taosx-agent
 install_taosx() {
     echo "taosx install starting..."
@@ -212,6 +190,10 @@ install_taosx() {
     ${csudo}cp uninstall.sh ${TAOSX_ROOT_DIR}
     # echo "install services to ${SERVICE_CONFIG_DIR}..."
     ${csudo}cp -fr etc/systemd/system/* ${SERVICE_CONFIG_DIR}
+
+    for service in "${services[@]}"; do
+      install_bin $service
+    done
 
     ${csudo}systemctl daemon-reload
 
