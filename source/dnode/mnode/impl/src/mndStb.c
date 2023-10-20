@@ -858,7 +858,10 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   }
   return 0;
 }
-static int32_t mndGenIdxNameForFirstTag(char *fullname, char *dbname, char *tagname) {
+static int32_t mndGenIdxNameForFirstTag(char *fullname, char *dbname, char *stbname, char *tagname) {
+  SName name = {0};
+  tNameFromString(&name, stbname, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  return snprintf(fullname, TSDB_INDEX_FNAME_LEN - 1, "%s.%s_%s", dbname, tagname, tNameGetTableName(&name));
 
   return 0;
 }
@@ -876,7 +879,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   if (mndBuildStbFromReq(pMnode, &stbObj, pCreate, pDb) != 0) goto _OVER;
 
   SSchema *pSchema = &(stbObj.pTags[0]);
-  mndGenIdxNameForFirstTag(fullIdxName, pDb->name, pSchema->name);
+  mndGenIdxNameForFirstTag(fullIdxName, pDb->name, stbObj.name, pSchema->name);
   SSIdx idx = {0};
   if (mndAcquireGlobalIdx(pMnode, fullIdxName, SDB_IDX, &idx) == 0 && idx.pIdx != NULL) {
     terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
