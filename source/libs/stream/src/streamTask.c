@@ -317,7 +317,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
 
   // remove the ref by timer
   while (pTask->status.timerActive > 0) {
-    stDebug("s-task:%s wait for task stop timer activities", pTask->id.idStr);
+    stDebug("s-task:%s wait for task stop timer activities, ref:%d", pTask->id.idStr, pTask->status.timerActive);
     taosMsleep(10);
   }
 
