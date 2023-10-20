@@ -284,12 +284,12 @@ int32_t __catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* d
 }
 
 int32_t __catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pAuth, SUserAuthRes* pRes) {
-  pRes->pass = true;
+  pRes->pass[0] = true;
   return 0;
 }
 
 int32_t __catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth,        SUserAuthRes* pRes, bool* exists) {
-  pRes->pass = true;
+  pRes->pass[0] = true;
   *exists = true;
   return 0;
 }

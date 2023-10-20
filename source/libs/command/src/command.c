@@ -115,7 +115,7 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
     if (TSDB_VIEW_TABLE != pMeta->tableType) {
       STR_TO_VARSTR(buf, i >= pMeta->tableInfo.numOfColumns ? "TAG" : "");
     } else {
-      STR_TO_VARSTR(buf, "VIEW");
+      STR_TO_VARSTR(buf, "VIEW COL");
     }
     colDataSetVal(pCol4, pBlock->info.rows, buf, false);
     ++(pBlock->info.rows);

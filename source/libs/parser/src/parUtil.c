@@ -563,6 +563,7 @@ static void stringToUserAuth(const char* pStr, int32_t len, SUserAuthInfo* pUser
     pUserAuth->tbName.type = TSDB_DB_NAME_T;
   }
   pUserAuth->type = getIntegerFromAuthStr(p, &p);
+  pUserAuth->isView = getIntegerFromAuthStr(p, &p);
 }
 
 static int32_t buildTableReq(SHashObj* pTablesHash, SArray** pTables) {

@@ -937,6 +937,7 @@ typedef struct {
   int8_t  superUser;
   int8_t  sysInfo;
   int8_t  enable;
+  int8_t  isView;
   char    user[TSDB_USER_LEN];
   char    pass[TSDB_USET_PASSWORD_LEN];
   char    objname[TSDB_DB_FNAME_LEN];  // db or topic
@@ -975,6 +976,9 @@ typedef struct {
   SHashObj* readTbs;
   SHashObj* writeTbs;
   SHashObj* alterTbs;
+  SHashObj* readViews;
+  SHashObj* writeViews;
+  SHashObj* alterViews;  
   SHashObj* useDbs;
   int64_t whiteListVer;
 } SGetUserAuthRsp;
@@ -4000,6 +4004,7 @@ int32_t tDeserializeSViewMetaReq(void* buf, int32_t bufLen, SViewMetaReq* pReq);
 typedef struct {
   char     name[TSDB_VIEW_NAME_LEN];
   char     dbFName[TSDB_DB_FNAME_LEN];
+  char*    user;
   uint64_t dbId;
   uint64_t viewId;
   char*    querySql;

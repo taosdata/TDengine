@@ -213,7 +213,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     if (pMeta == NULL) {
       pMeta = taosHashGet(pMnode->perfsMeta, retrieveReq.tb, strlen(retrieveReq.tb));
       if (pMeta == NULL) {
-        terrno = TSDB_CODE_MND_INVALID_SYS_TABLENAME;
+        terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
         mError("failed to process show-retrieve req:%p since %s", pShow, terrstr());
         return -1;
       }

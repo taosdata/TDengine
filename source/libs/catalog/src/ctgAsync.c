@@ -1861,7 +1861,6 @@ int32_t ctgHandleGetViewsRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf*
     CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  dupViewMetaFromRsp(pRsp, pViewMeta);
   if (TSDB_CODE_SUCCESS != (code = dupViewMetaFromRsp(pRsp, pViewMeta))) {
     ctgFreeSViewMeta(pViewMeta);
     taosMemoryFree(pViewMeta);
@@ -2446,7 +2445,8 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
   if (inCache) {
     pTask->res = rsp.pRawRes;
 
-    ctgTaskDebug("Final res got, pass:%d, pCond:%p", rsp.pRawRes->pass, rsp.pRawRes->pCond);
+    ctgTaskDebug("Final res got, pass:[%d,%d], pCond:[%p,%p]", 
+      rsp.pRawRes->pass[0], rsp.pRawRes->pass[1], rsp.pRawRes->pCond[0], rsp.pRawRes->pCond[1]);
 
     CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
     return TSDB_CODE_SUCCESS;

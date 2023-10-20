@@ -167,6 +167,12 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
     code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pDb, pTable, authType,
                                   pCxt->pMetaCache);
   }
+#ifdef TD_ENTERPRISE
+  if (TSDB_CODE_SUCCESS == code && NULL != pCxt->pParseCxt->pEffectiveUser) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pEffectiveUser, pDb, pTable, authType,
+                                  pCxt->pMetaCache);
+  }
+#endif  
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, pDb, pCxt->pMetaCache);
   }

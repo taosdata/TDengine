@@ -24,6 +24,7 @@ void ctgFreeSViewMeta(SViewMeta* pMeta) {
     return;
   }
 
+  taosMemoryFree(pMeta->user);
   taosMemoryFree(pMeta->querySql);
   taosMemoryFree(pMeta->pSchema);
 }
@@ -196,6 +197,9 @@ void ctgFreeSCtgUserAuth(SCtgUserAuth* userCache) {
   taosHashCleanup(userCache->userAuth.readTbs);
   taosHashCleanup(userCache->userAuth.writeTbs);
   taosHashCleanup(userCache->userAuth.alterTbs);
+  taosHashCleanup(userCache->userAuth.readViews);
+  taosHashCleanup(userCache->userAuth.writeViews);
+  taosHashCleanup(userCache->userAuth.alterViews);
   taosHashCleanup(userCache->userAuth.useDbs);
 }
 
@@ -567,6 +571,9 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       taosHashCleanup(pOut->readTbs);
       taosHashCleanup(pOut->writeTbs);
       taosHashCleanup(pOut->alterTbs);
+      taosHashCleanup(pOut->readViews);
+      taosHashCleanup(pOut->writeViews);
+      taosHashCleanup(pOut->alterViews);
       taosHashCleanup(pOut->useDbs);
       taosMemoryFreeClear(pCtx->out);
       break;
@@ -697,7 +704,9 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
     case CTG_TASK_GET_USER: {
       if (*pRes) {
         SUserAuthRes* pAuth = (SUserAuthRes*)*pRes;
-        nodesDestroyNode(pAuth->pCond);
+        for (int32_t i = 0; i < AUTH_RES_MAX_VALUE; ++i) {
+          nodesDestroyNode(pAuth->pCond[i]);
+        }
         taosMemoryFreeClear(*pRes);
       }
       break;
@@ -1635,15 +1644,15 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
     char* pCond = taosHashGet(pTbs, tbFName, strlen(tbFName));
     if (pCond) {
       if (strlen(pCond) > 1) {
-        CTG_ERR_JRET(nodesStringToNode(pCond, &res->pRawRes->pCond));
+        CTG_ERR_JRET(nodesStringToNode(pCond, &res->pRawRes->pCond[AUTH_RES_BASIC]));
       }
 
-      res->pRawRes->pass = true;
+      res->pRawRes->pass[AUTH_RES_BASIC] = true;
       goto _return;
     }
 
     if (stbName) {
-      res->pRawRes->pass = false;
+      res->pRawRes->pass[AUTH_RES_BASIC] = false;
       goto _return;
     }
 
@@ -1663,7 +1672,7 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
     }
 
     if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType) {
-      res->pRawRes->pass = false;
+      res->pRawRes->pass[AUTH_RES_BASIC] = false;
       goto _return;
     }
 
@@ -1695,27 +1704,27 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
+int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   int32_t          code = 0;
   SUserAuthInfo*   pReq = req->pRawReq;
   SUserAuthRes*    pRes = res->pRawRes;
   SGetUserAuthRsp* pInfo = &req->authInfo;
 
-  pRes->pass = false;
-  pRes->pCond = NULL;
+  pRes->pass[AUTH_RES_BASIC] = false;
+  pRes->pCond[AUTH_RES_BASIC] = NULL;
 
   if (!pInfo->enable) {
-    pRes->pass = false;
+    pRes->pass[AUTH_RES_BASIC] = false;
     return TSDB_CODE_SUCCESS;
   }
 
   if (pInfo->superAuth) {
-    pRes->pass = true;
+    pRes->pass[AUTH_RES_BASIC] = true;
     return TSDB_CODE_SUCCESS;
   }
 
   if (IS_SYS_DBNAME(pReq->tbName.dbname)) {
-    pRes->pass = true;
+    pRes->pass[AUTH_RES_BASIC] = true;
     ctgDebug("sysdb %s, pass", pReq->tbName.dbname);
     return TSDB_CODE_SUCCESS;
   }
@@ -1736,13 +1745,13 @@ int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
       if (pReq->tbName.type == TSDB_TABLE_NAME_T && pInfo->readTbs && taosHashGetSize(pInfo->readTbs) > 0) {
         req->singleType = AUTH_TYPE_READ;
         CTG_ERR_RET(ctgChkSetTbAuthRes(pCtg, req, res));
-        if (pRes->pass || res->metaNotExists) {
+        if (pRes->pass[AUTH_RES_BASIC] || res->metaNotExists) {
           return TSDB_CODE_SUCCESS;
         }
       }
 
       if (pInfo->readDbs && taosHashGet(pInfo->readDbs, dbFName, strlen(dbFName))) {
-        pRes->pass = true;
+        pRes->pass[AUTH_RES_BASIC] = true;
         return TSDB_CODE_SUCCESS;
       }
 
@@ -1752,13 +1761,13 @@ int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
       if (pReq->tbName.type == TSDB_TABLE_NAME_T && pInfo->writeTbs && taosHashGetSize(pInfo->writeTbs) > 0) {
         req->singleType = AUTH_TYPE_WRITE;
         CTG_ERR_RET(ctgChkSetTbAuthRes(pCtg, req, res));
-        if (pRes->pass || res->metaNotExists) {
+        if (pRes->pass[AUTH_RES_BASIC] || res->metaNotExists) {
           return TSDB_CODE_SUCCESS;
         }
       }
 
       if (pInfo->writeDbs && taosHashGet(pInfo->writeDbs, dbFName, strlen(dbFName))) {
-        pRes->pass = true;
+        pRes->pass[AUTH_RES_BASIC] = true;
         return TSDB_CODE_SUCCESS;
       }
 
@@ -1768,7 +1777,7 @@ int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
       if ((pInfo->readDbs && taosHashGet(pInfo->readDbs, dbFName, strlen(dbFName))) ||
           (pInfo->writeDbs && taosHashGet(pInfo->writeDbs, dbFName, strlen(dbFName))) ||
           (pInfo->useDbs && taosHashGet(pInfo->useDbs, dbFName, strlen(dbFName)))) {
-        pRes->pass = true;
+        pRes->pass[AUTH_RES_BASIC] = true;
         return TSDB_CODE_SUCCESS;
       }
 
@@ -1779,6 +1788,79 @@ int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgChkSetViewAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
+  int32_t          code = 0;
+  SUserAuthInfo*   pReq = req->pRawReq;
+  SUserAuthRes*    pRes = res->pRawRes;
+  SGetUserAuthRsp* pInfo = &req->authInfo;
+
+  pRes->pass[AUTH_RES_VIEW] = false;
+  pRes->pCond[AUTH_RES_VIEW] = NULL;
+
+  if (!pInfo->enable) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pInfo->superAuth) {
+    pRes->pass[AUTH_RES_VIEW] = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pReq->tbName.type != TSDB_TABLE_NAME_T) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char viewFName[TSDB_VIEW_FNAME_LEN];
+  if (IS_SYS_DBNAME(req->pRawReq->tbName.dbname)) {
+    snprintf(viewFName, sizeof(viewFName), "%s.%s", req->pRawReq->tbName.dbname, req->pRawReq->tbName.tname);
+  } else {
+    tNameExtractFullName(&req->pRawReq->tbName, viewFName);
+  }
+  int32_t len = strlen(viewFName) + 1;
+
+  switch (pReq->type) {
+    case AUTH_TYPE_READ: {
+      char *value = taosHashGet(pInfo->readViews, viewFName, len);
+      if (NULL != value) {
+        pRes->pass[AUTH_RES_VIEW] = true;
+        return TSDB_CODE_SUCCESS;
+      }
+      break;
+    }
+    case AUTH_TYPE_WRITE: {
+      char *value = taosHashGet(pInfo->writeViews, viewFName, len);
+      if (NULL != value) {
+        pRes->pass[AUTH_RES_VIEW] = true;
+        return TSDB_CODE_SUCCESS;
+      }
+      break;
+    }
+    case AUTH_TYPE_ALTER: {
+      char *value = taosHashGet(pInfo->alterViews, viewFName, len);
+      if (NULL != value) {
+        pRes->pass[AUTH_RES_VIEW] = true;
+        return TSDB_CODE_SUCCESS;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
+#ifdef TD_ENTERPRISE
+  CTG_ERR_RET(ctgChkSetBasicAuthRes(pCtg, req, res));
+  if (req->pRawReq->isView) {
+    return TSDB_CODE_SUCCESS;
+  }
+#endif
+
+  CTG_RET(ctgChkSetViewAuthRes(pCtg, req, res));
 }
 
 #if 0
@@ -1888,7 +1970,7 @@ uint64_t ctgGetViewMetaCacheSize(SViewMeta *pMeta) {
     return 0;
   }
 
-  return sizeof(*pMeta) + strlen(pMeta->querySql) + 1 + pMeta->numOfCols * sizeof(SSchema);
+  return sizeof(*pMeta) + strlen(pMeta->querySql) + 1 + strlen(pMeta->user) + 1 + pMeta->numOfCols * sizeof(SSchema);
 }
 
 
@@ -1976,6 +2058,33 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp *pAuth) {
     cacheSize += len + strlen(p);
 
     p = taosHashIterate(pAuth->alterTbs, p);
+  } 
+
+  p = taosHashIterate(pAuth->readViews, NULL);
+  while (p != NULL) {
+    size_t len = 0;
+    void*  key = taosHashGetKey(p, &len);
+    cacheSize += len + strlen(p);
+
+    p = taosHashIterate(pAuth->readViews, p);
+  } 
+
+  p = taosHashIterate(pAuth->writeViews, NULL);
+  while (p != NULL) {
+    size_t len = 0;
+    void*  key = taosHashGetKey(p, &len);
+    cacheSize += len + strlen(p);
+
+    p = taosHashIterate(pAuth->writeViews, p);
+  } 
+
+  p = taosHashIterate(pAuth->alterViews, NULL);
+  while (p != NULL) {
+    size_t len = 0;
+    void*  key = taosHashGetKey(p, &len);
+    cacheSize += len + strlen(p);
+
+    p = taosHashIterate(pAuth->alterViews, p);
   } 
 
   int32_t *ref = taosHashIterate(pAuth->useDbs, NULL);
@@ -2122,6 +2231,10 @@ int32_t ctgBuildViewNullRes(SCtgTask* pTask, SCtgViewsCtx* pCtx) {
 int32_t dupViewMetaFromRsp(SViewMetaRsp* pRsp, SViewMeta* pViewMeta) {
   pViewMeta->querySql = strdup(pRsp->querySql);
   if (NULL == pViewMeta->querySql) {
+    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  pViewMeta->user = strdup(pRsp->user);
+  if (NULL == pViewMeta->user) {
     CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
   pViewMeta->version = pRsp->version;

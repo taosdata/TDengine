@@ -2178,6 +2178,9 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
   taosHashCleanup(pUser->userAuth.readTbs);
   taosHashCleanup(pUser->userAuth.writeTbs);
   taosHashCleanup(pUser->userAuth.alterTbs);
+  taosHashCleanup(pUser->userAuth.readViews);
+  taosHashCleanup(pUser->userAuth.writeViews);
+  taosHashCleanup(pUser->userAuth.alterViews);
   taosHashCleanup(pUser->userAuth.useDbs);
 
   memcpy(&pUser->userAuth, &msg->userAuth, sizeof(msg->userAuth));
@@ -2188,6 +2191,9 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
   msg->userAuth.readTbs = NULL;
   msg->userAuth.writeTbs = NULL;
   msg->userAuth.alterTbs = NULL;
+  msg->userAuth.readViews = NULL;
+  msg->userAuth.writeViews = NULL;
+  msg->userAuth.alterViews = NULL;
   msg->userAuth.useDbs = NULL;
 
   CTG_UNLOCK(CTG_WRITE, &pUser->lock);
@@ -2202,6 +2208,9 @@ _return:
   taosHashCleanup(msg->userAuth.readTbs);
   taosHashCleanup(msg->userAuth.writeTbs);
   taosHashCleanup(msg->userAuth.alterTbs);
+  taosHashCleanup(msg->userAuth.readViews);
+  taosHashCleanup(msg->userAuth.writeViews);
+  taosHashCleanup(msg->userAuth.alterViews);
   taosHashCleanup(msg->userAuth.useDbs);
 
   taosMemoryFreeClear(msg);
@@ -2540,6 +2549,9 @@ void ctgFreeCacheOperationData(SCtgCacheOperation *op) {
       taosHashCleanup(msg->userAuth.readTbs);
       taosHashCleanup(msg->userAuth.writeTbs);
       taosHashCleanup(msg->userAuth.alterTbs);
+      taosHashCleanup(msg->userAuth.readViews);
+      taosHashCleanup(msg->userAuth.writeViews);
+      taosHashCleanup(msg->userAuth.alterViews);
       taosHashCleanup(msg->userAuth.useDbs);
       taosMemoryFreeClear(op->data);
       break;
@@ -3075,9 +3087,12 @@ int32_t ctgGetViewsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgViewsC
 
     memcpy(pViewMeta, pCache->pMeta, sizeof(*pViewMeta));
     pViewMeta->querySql = strdup(pCache->pMeta->querySql);
-    if (NULL == pViewMeta->querySql) {
+    pViewMeta->user = strdup(pCache->pMeta->user);
+    if (NULL == pViewMeta->querySql || NULL == pViewMeta->user) {
       ctgReleaseViewMetaToCache(pCtg, dbCache, pCache);
       pViewMeta->pSchema = NULL;
+      taosMemoryFree(pViewMeta->querySql);
+      taosMemoryFree(pViewMeta->user);
       taosMemoryFree(pViewMeta);
       CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
     }

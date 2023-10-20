@@ -57,9 +57,15 @@ typedef struct SUserAuthInfo {
   AUTH_TYPE type;
 } SUserAuthInfo;
 
+typedef enum {
+  AUTH_RES_BASIC = 0,
+  AUTH_RES_VIEW,
+  AUTH_RES_MAX_VALUE
+} AUTH_RES_TYPE;
+
 typedef struct SUserAuthRes {
-  bool   pass;
-  SNode* pCond;
+  bool   pass[AUTH_RES_MAX_VALUE];
+  SNode* pCond[AUTH_RES_MAX_VALUE];
 } SUserAuthRes;
 
 typedef struct SDbInfo {

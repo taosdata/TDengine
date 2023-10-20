@@ -363,7 +363,7 @@ static int32_t getViewMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCac
   return code;
 }
 
-static int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta, bool couldBeView) {
+int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta, bool couldBeView) {
   int32_t code = TSDB_CODE_SUCCESS;
   
   if (pParCxt->async) {
@@ -7489,21 +7489,27 @@ static int32_t validateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStm
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VIEW_QUERY, "Invalid view query type");
   }
 
+/*
   STableMeta* pMetaCache = NULL;
   int32_t code = getTableMeta(pCxt, pStmt->dbName, pStmt->viewName, &pMetaCache);
   if (TSDB_CODE_SUCCESS == code) {
     taosMemoryFreeClear(pMetaCache);
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_VIEW_CONFLICT_WITH_TABLE, "View name is conflict with table");
   }
+*/
 
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStmt) {
+#ifndef TD_ENTERPRISE
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+
   SParseSqlRes res = {.resType = PARSE_SQL_RES_SCHEMA};
   int32_t code = validateCreateView(pCxt, pStmt);
   if (TSDB_CODE_SUCCESS == code) {    
-    code = (*pCxt->pParseCxt->parseSqlFp)(pCxt->pParseCxt->parseSqlParam, pStmt->pQuerySql, false, &res);
+    code = (*pCxt->pParseCxt->parseSqlFp)(pCxt->pParseCxt->parseSqlParam, pStmt->pQuerySql, false, NULL, &res);
   }
   if (TSDB_CODE_SUCCESS == code) {
     SName name;
@@ -7534,6 +7540,10 @@ static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pSt
 
 
 static int32_t translateDropView(STranslateContext* pCxt, SDropViewStmt* pStmt) {
+#ifndef TD_ENTERPRISE
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+
   SCMDropViewReq   dropReq = {0};
   SName           name;
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
@@ -7690,14 +7700,30 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
 }
 
 static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
+  int32_t code = 0;
   SAlterUserReq req = {0};
   req.alterType = TSDB_ALTER_USER_ADD_PRIVILEGES;
   req.privileges = pStmt->privileges;
+#ifdef TD_ENTERPRISE
+  SName name;
+  STableMeta* pTableMeta = NULL;
+  code = getTargetMeta(pCxt, toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name), &pTableMeta, true);
+  if (TSDB_CODE_SUCCESS != code) {
+    if (TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
+    }
+  } else if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
+    req.isView = true;
+  }
+  taosMemoryFree(pTableMeta);
+#endif
 
   strcpy(req.user, pStmt->userName);
   sprintf(req.objname, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
   sprintf(req.tabName, "%s", pStmt->tabName);
-  int32_t code = translateGrantTagCond(pCxt, pStmt, &req);
+  if (!req.isView) {
+    code = translateGrantTagCond(pCxt, pStmt, &req);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
   }
@@ -7706,14 +7732,29 @@ static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
 }
 
 static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
+  int32_t code = 0;
   SAlterUserReq req = {0};
   req.alterType = TSDB_ALTER_USER_DEL_PRIVILEGES;
   req.privileges = pStmt->privileges;
+
+#ifdef TD_ENTERPRISE
+  SName name;
+  STableMeta* pTableMeta = NULL;
+  code = getTargetMeta(pCxt, toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name), &pTableMeta, true);
+  if (TSDB_CODE_SUCCESS != code) {
+    if (TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
+    }
+  } else if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
+    req.isView = true;
+  }
+  taosMemoryFree(pTableMeta);
+#endif
   
   strcpy(req.user, pStmt->userName);
   sprintf(req.objname, "%d.%s", pCxt->pParseCxt->acctId, pStmt->objName);
   sprintf(req.tabName, "%s", pStmt->tabName);
-  int32_t code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
+  code = buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
   tFreeSAlterUserReq(&req);
   return code;
 }

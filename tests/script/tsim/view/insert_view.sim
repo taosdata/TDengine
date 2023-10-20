@@ -1,0 +1,11 @@
+sql connect
+sql use testa;
+
+sql create view view1 as select * from cta11;
+sql_error insert into view1 values (now, 1);
+sql create table ctat using sta1 tags(1);
+sql insert into ctat select * from view1;
+sql drop view view1;
+sql drop table ctat;
+
+#system sh/exec.sh -n dnode1 -s stop -x SIGINT

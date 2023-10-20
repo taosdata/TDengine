@@ -75,6 +75,31 @@ endi
 sql drop view view1;
 sql drop view view2;
 
+sql create view view1 as select * from sta1;
+sql create view view2 as select * from sta2;
+sql create view view3 as select a.ts ts, a.f af, b.f bf from view1 a join view2 b on a.ts = b.ts;
+sql create view view3a as select a.ts ts, a.f, b.f from view1 a join view2 b on a.ts = b.ts;
+sql create view view4 as select _wstart, avg(bf) - avg(af) as b from view3 interval(1s);
+sql_error create view view4a as select _wstart, avg(b.f) - avg(a.f) as b from view3 interval(1s);
+sql create view view5 as select count(*),avg(b) from view4 interval(1s) having avg(b) > 0;
+sql select * from view5; 
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 1 then
+  print $data00
+  return -1
+endi
+if $data01 != 110.000000000 then
+  return -1
+endi
+sql drop view view1;
+sql drop view view2;
+sql drop view view3;
+sql drop view view3a;
+sql drop view view4;
+sql drop view view5;
+
 sql use information_schema;
 sql create view view1 as select * from ins_views;
 sql select * from view1;
