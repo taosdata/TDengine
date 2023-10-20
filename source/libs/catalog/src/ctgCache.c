@@ -760,12 +760,14 @@ int32_t ctgGetCachedStbNameFromSuid(SCatalog* pCtg, char* dbFName, uint64_t suid
   char *stb = taosHashAcquire(dbCache->stbCache, &suid, sizeof(suid));
   if (NULL == stb) {
     ctgDebug("stb 0x%" PRIx64 " not in cache, dbFName:%s", suid, dbFName);
+    ctgReleaseDBCache(pCtg, dbCache);
     return TSDB_CODE_SUCCESS;
   }
 
   *stbName = taosStrdup(stb);
 
   taosHashRelease(dbCache->stbCache, stb);
+  ctgReleaseDBCache(pCtg, dbCache);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2243,11 +2245,15 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
 
   SCtgUserAuth *pUser = (SCtgUserAuth *)taosHashGet(pCtg->userCache, msg->userAuth.user, strlen(msg->userAuth.user));
   if (NULL == pUser) {
+    if (msg->userAuth.dropped == 1) {
+      goto _return;
+    }
+
     SCtgUserAuth userAuth = {0};
 
     memcpy(&userAuth.userAuth, &msg->userAuth, sizeof(msg->userAuth));
     userAuth.userCacheSize = ctgGetUserCacheSize(&userAuth.userAuth);
-    
+
     if (taosHashPut(pCtg->userCache, msg->userAuth.user, strlen(msg->userAuth.user), &userAuth, sizeof(userAuth))) {
       ctgError("taosHashPut user %s to cache failed", msg->userAuth.user);
       CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
@@ -2258,6 +2264,11 @@ int32_t ctgOpUpdateUser(SCtgCacheOperation *operation) {
     CTG_CACHE_NUM_INC(CTG_CI_USER, 1);
 
     return TSDB_CODE_SUCCESS;
+  } else if (msg->userAuth.dropped == 1) {
+    if (ctgRemoveCacheUser(pCtg, msg->userAuth.user) == 0) {
+      CTG_CACHE_NUM_DEC(CTG_CI_USER, 1);
+    }
+    goto _return;
   }
 
   CTG_LOCK(CTG_WRITE, &pUser->lock);

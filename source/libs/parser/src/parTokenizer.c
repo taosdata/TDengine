@@ -57,6 +57,7 @@ static SKeyword keywordTable[] = {
     {"CACHESIZE",            TK_CACHESIZE},
     {"CASE",                 TK_CASE},
     {"CAST",                 TK_CAST},
+    {"CHILD",                TK_CHILD},
     {"CLIENT_VERSION",       TK_CLIENT_VERSION},
     {"CLUSTER",              TK_CLUSTER},
     {"COLUMN",               TK_COLUMN},
@@ -149,6 +150,7 @@ static SKeyword keywordTable[] = {
     {"MNODES",               TK_MNODES},
     {"MODIFY",               TK_MODIFY},
     {"MODULES",              TK_MODULES},
+    {"NORMAL",               TK_NORMAL},
     {"NCHAR",                TK_NCHAR},
     {"NEXT",                 TK_NEXT},
     {"NMATCH",               TK_NMATCH},
@@ -224,6 +226,7 @@ static SKeyword keywordTable[] = {
     {"SUBSCRIPTIONS",        TK_SUBSCRIPTIONS},
     {"SUBTABLE",             TK_SUBTABLE},
     {"SYSINFO",              TK_SYSINFO},
+    {"SYSTEM",               TK_SYSTEM},
     {"TABLE",                TK_TABLE},
     {"TABLES",               TK_TABLES},
     {"TABLE_PREFIX",         TK_TABLE_PREFIX},
@@ -290,6 +293,7 @@ static SKeyword keywordTable[] = {
     {"_WSTART",              TK_WSTART},
     {"ALIVE",                TK_ALIVE},
     {"VARBINARY",            TK_VARBINARY},
+    {"KEEP_TIME_OFFSET",     TK_KEEP_TIME_OFFSET},
 };
 // clang-format on
 

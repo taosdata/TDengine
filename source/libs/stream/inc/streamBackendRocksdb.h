@@ -110,11 +110,11 @@ int32_t streamStateCurNext_rocksdb(SStreamState* pState, SStreamStateCur* pCur);
 int32_t streamStateGetFirst_rocksdb(SStreamState* pState, SWinKey* key);
 int32_t streamStateGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 int32_t streamStateAddIfNotExist_rocksdb(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
-int32_t streamStateCurPrev_rocksdb(SStreamState* pState, SStreamStateCur* pCur);
+int32_t streamStateCurPrev_rocksdb(SStreamStateCur* pCur);
 int32_t streamStateGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 SStreamStateCur* streamStateGetAndCheckCur_rocksdb(SStreamState* pState, SWinKey* key);
 SStreamStateCur* streamStateSeekKeyNext_rocksdb(SStreamState* pState, const SWinKey* key);
-SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState, const SWinKey* key);
+SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState);
 SStreamStateCur* streamStateGetCur_rocksdb(SStreamState* pState, const SWinKey* key);
 
 // func cf
@@ -129,10 +129,14 @@ int32_t streamStateSessionDel_rocksdb(SStreamState* pState, const SSessionKey* k
 SStreamStateCur* streamStateSessionSeekKeyCurrentPrev_rocksdb(SStreamState* pState, const SSessionKey* key);
 SStreamStateCur* streamStateSessionSeekKeyCurrentNext_rocksdb(SStreamState* pState, SSessionKey* key);
 SStreamStateCur* streamStateSessionSeekKeyNext_rocksdb(SStreamState* pState, const SSessionKey* key);
+SStreamStateCur* streamStateSessionSeekToLast_rocksdb(SStreamState* pState);
+int32_t          streamStateSessionCurPrev_rocksdb(SStreamStateCur* pCur);
+
 int32_t streamStateSessionGetKVByCur_rocksdb(SStreamStateCur* pCur, SSessionKey* pKey, void** pVal, int32_t* pVLen);
 int32_t streamStateSessionGetKeyByRange_rocksdb(SStreamState* pState, const SSessionKey* key, SSessionKey* curKey);
 int32_t streamStateSessionAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal,
                                                 int32_t* pVLen);
+
 int32_t streamStateSessionClear_rocksdb(SStreamState* pState);
 
 int32_t streamStateStateAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey* key, char* pKeyData,

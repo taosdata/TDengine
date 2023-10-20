@@ -23,6 +23,7 @@ int32_t tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
   pKeepCfg->keep0 = pCfg->keep0;
   pKeepCfg->keep1 = pCfg->keep1;
   pKeepCfg->keep2 = pCfg->keep2;
+  pKeepCfg->keepTimeOffset = pCfg->keepTimeOffset;
   return 0;
 }
 
@@ -34,7 +35,7 @@ int32_t tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
  * @param dir
  * @return int
  */
-int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKeepCfg, int8_t rollback) {
+int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKeepCfg, int8_t rollback, bool force) {
   STsdb *pTsdb = NULL;
   int    slen = 0;
 
@@ -71,12 +72,18 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
     goto _err;
   }
 
+  if (pTsdb->pFS->fsstate == TSDB_FS_STATE_INCOMPLETE && force == false) {
+    terrno = TSDB_CODE_NEED_RETRY;
+    goto _err;
+  }
+
   if (tsdbOpenCache(pTsdb) < 0) {
     goto _err;
   }
 
-  tsdbDebug("vgId:%d, tsdb is opened at %s, days:%d, keep:%d,%d,%d", TD_VID(pVnode), pTsdb->path, pTsdb->keepCfg.days,
-            pTsdb->keepCfg.keep0, pTsdb->keepCfg.keep1, pTsdb->keepCfg.keep2);
+  tsdbDebug("vgId:%d, tsdb is opened at %s, days:%d, keep:%d,%d,%d, keepTimeoffset:%d", TD_VID(pVnode), pTsdb->path,
+            pTsdb->keepCfg.days, pTsdb->keepCfg.keep0, pTsdb->keepCfg.keep1, pTsdb->keepCfg.keep2,
+            pTsdb->keepCfg.keepTimeOffset);
 
   *ppTsdb = pTsdb;
   return 0;
@@ -89,8 +96,9 @@ _err:
 int tsdbClose(STsdb **pTsdb) {
   if (*pTsdb) {
     STsdb *pdb = *pTsdb;
-    tsdbDebug("vgId:%d, tsdb is close at %s, days:%d, keep:%d,%d,%d", TD_VID(pdb->pVnode), pdb->path, pdb->keepCfg.days,
-              pdb->keepCfg.keep0, pdb->keepCfg.keep1, pdb->keepCfg.keep2);
+    tsdbDebug("vgId:%d, tsdb is close at %s, days:%d, keep:%d,%d,%d, keepTimeOffset:%d", TD_VID(pdb->pVnode), pdb->path,
+              pdb->keepCfg.days, pdb->keepCfg.keep0, pdb->keepCfg.keep1, pdb->keepCfg.keep2,
+              pdb->keepCfg.keepTimeOffset);
     taosThreadRwlockWrlock(&(*pTsdb)->rwLock);
     tsdbMemTableDestroy((*pTsdb)->mem, true);
     (*pTsdb)->mem = NULL;

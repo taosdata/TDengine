@@ -54,8 +54,15 @@ extern "C" {
 #ifdef TD_TSZ
 extern bool lossyFloat;
 extern bool lossyDouble;
-int32_t     tsCompressInit();
-void        tsCompressExit();
+int32_t tsCompressInit(char* lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals, uint32_t intervals,
+                       int32_t ifAdtFse, const char* compressor);
+
+void    tsCompressExit();
+
+int32_t tsCompressFloatLossyImp(const char *const input, const int32_t nelements, char *const output);
+int32_t tsDecompressFloatLossyImp(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output);
+int32_t tsCompressDoubleLossyImp(const char *const input, const int32_t nelements, char *const output);
+int32_t tsDecompressDoubleLossyImp(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output);
 
 static FORCE_INLINE int32_t tsCompressFloatLossy(const char *const input, int32_t inputSize, const int32_t nelements,
                                                  char *const output, int32_t outputSize, char algorithm,

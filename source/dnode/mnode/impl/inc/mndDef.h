@@ -312,6 +312,7 @@ typedef struct {
   int32_t daysToKeep0;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
+  int32_t keepTimeOffset;
   int32_t minRows;
   int32_t maxRows;
   int32_t walFsyncPeriod;
@@ -491,32 +492,6 @@ typedef struct {
 } SShowObj;
 
 typedef struct {
-  int64_t id;
-  int8_t  type;
-  int8_t  replica;
-  int16_t numOfColumns;
-  int32_t rowSize;
-  int32_t numOfRows;
-  int32_t numOfReads;
-  int32_t payloadLen;
-  void*   pIter;
-  SMnode* pMnode;
-  char    db[TSDB_DB_FNAME_LEN];
-  int16_t offset[TSDB_MAX_COLUMNS];
-  int32_t bytes[TSDB_MAX_COLUMNS];
-  char    payload[];
-} SSysTableRetrieveObj;
-
-typedef struct {
-  char    key[TSDB_PARTITION_KEY_LEN];
-  int64_t dbUid;
-  int64_t offset;
-} SMqOffsetObj;
-
-int32_t tEncodeSMqOffsetObj(void** buf, const SMqOffsetObj* pOffset);
-void*   tDecodeSMqOffsetObj(void* buf, SMqOffsetObj* pOffset);
-
-typedef struct {
   char           name[TSDB_TOPIC_FNAME_LEN];
   char           db[TSDB_DB_FNAME_LEN];
   char           createUser[TSDB_USER_LEN];
@@ -671,6 +646,7 @@ typedef struct {
   char name[TSDB_STREAM_FNAME_LEN];
   // ctl
   SRWLatch lock;
+
   // create info
   int64_t createTime;
   int64_t updateTime;

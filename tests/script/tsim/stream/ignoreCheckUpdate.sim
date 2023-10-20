@@ -206,6 +206,8 @@ print create stream streams3 trigger at_once ignore update 1 into streamt3 as se
 
 sql create stream streams3 trigger at_once ignore update 1 into streamt3 as select  _wstart c1, count(*) c2, max(b) c3 from st interval(10s);
 
+sleep 2000
+
 sql insert into t1 values(1648791213000,1,1,1);
 sql insert into t1 values(1648791213000,2,2,2);
 

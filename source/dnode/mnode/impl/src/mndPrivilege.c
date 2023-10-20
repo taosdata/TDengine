@@ -35,7 +35,6 @@ int32_t mndCheckTopicPrivilegeByName(SMnode *pMnode, const char *user, EOperType
 }
 
 
-// TODO: for community version use the commented version
 int32_t mndSetUserWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhiteListRsp *pWhiteListRsp) {
   memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
   pWhiteListRsp->numWhiteLists = 1;
@@ -43,14 +42,26 @@ int32_t mndSetUserWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhiteLis
   if (pWhiteListRsp->pWhiteLists == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-   memset(pWhiteListRsp->pWhiteLists, 0, pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
-  // pWhiteListRsp->numWhiteLists = pUser->pIpWhiteList->num;
-  // pWhiteListRsp->pWhiteLists = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
-  // if (pWhiteListRsp->pWhiteLists == NULL) {
-  //   return TSDB_CODE_OUT_OF_MEMORY;
-  // }
-  // memcpy(pWhiteListRsp->pWhiteLists, pUser->pIpWhiteList->pIpRange,
-  //        pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
+  memset(pWhiteListRsp->pWhiteLists, 0, pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
+
+//  if (tsEnableWhiteList) {
+//    memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
+//    pWhiteListRsp->numWhiteLists = pUser->pIpWhiteList->num;
+//    pWhiteListRsp->pWhiteLists = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
+//    if (pWhiteListRsp->pWhiteLists == NULL) {
+//      return TSDB_CODE_OUT_OF_MEMORY;
+//    }
+//    memcpy(pWhiteListRsp->pWhiteLists, pUser->pIpWhiteList->pIpRange,
+//           pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
+//  } else {
+//   memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
+//   pWhiteListRsp->numWhiteLists = 1;
+//   pWhiteListRsp->pWhiteLists = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
+//   if (pWhiteListRsp->pWhiteLists == NULL) {
+//     return TSDB_CODE_OUT_OF_MEMORY;
+//   }
+//   memset(pWhiteListRsp->pWhiteLists, 0, pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
+//  }
 
   return 0;
 }
@@ -66,7 +77,7 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   return 0;
 }
 
-int32_t mndEnableIpWhiteList(SMnode *pMnode) { return 1; }
+int32_t mndEnableIpWhiteList(SMnode *pMnode) { return 0; }
 
 int32_t mndFetchIpWhiteList(SIpWhiteList *ipList, char **buf) {
   *buf = NULL;

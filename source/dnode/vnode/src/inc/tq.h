@@ -39,7 +39,6 @@ extern "C" {
 #define tqInfo(...)  do { if (tqDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
 #define tqDebug(...) do { if (tqDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); }} while(0)
 #define tqTrace(...) do { if (tqDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ  ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
-
 // clang-format on
 
 typedef struct STqOffsetStore STqOffsetStore;
@@ -47,6 +46,7 @@ typedef struct STqOffsetStore STqOffsetStore;
 // tqPush
 #define STREAM_EXEC_EXTRACT_DATA_IN_WAL_ID (-1)
 #define STREAM_EXEC_TASK_STATUS_CHECK_ID     (-2)
+#define IS_OFFSET_RESET_TYPE(_t)  ((_t) < 0)
 
 // tqExec
 typedef struct {
@@ -91,6 +91,10 @@ typedef struct {
   STqExecHandle    execHandle;  // exec
   SRpcMsg*         msg;
   tq_handle_status status;
+
+  // for replay
+  SSDataBlock* block;
+  int64_t      blockTime;
 } STqHandle;
 
 struct STQ {
@@ -108,17 +112,13 @@ struct STQ {
   SStreamMeta*    pStreamMeta;
 };
 
-typedef struct {
-  int32_t size;
-} STqOffsetHead;
-
 int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle);
 int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
 void    tqDestroyTqHandle(void* data);
 
 // tqRead
 int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMetaRsp* pMetaRsp, STqOffsetVal* offset);
-int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset);
+int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset, const SMqPollReq* pRequest);
 int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t reqId);
 
 // tqExec
@@ -134,7 +134,7 @@ int32_t tqMetaOpen(STQ* pTq);
 int32_t tqMetaClose(STQ* pTq);
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle);
 int32_t tqMetaDeleteHandle(STQ* pTq, const char* key);
-int32_t tqMetaRestoreHandle(STQ* pTq);
+//int32_t tqMetaRestoreHandle(STQ* pTq);
 int32_t tqMetaSaveCheckInfo(STQ* pTq, const char* key, const void* value, int32_t vLen);
 int32_t tqMetaDeleteCheckInfo(STQ* pTq, const char* key);
 int32_t tqMetaRestoreCheckInfo(STQ* pTq);
@@ -170,7 +170,7 @@ int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequ
 int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                         int32_t type, int64_t sver, int64_t ever);
 int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset);
-void    tqUpdateNodeStage(STQ* pTq);
+void    tqUpdateNodeStage(STQ* pTq, bool isLeader);
 
 #ifdef __cplusplus
 }

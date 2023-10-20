@@ -1595,6 +1595,26 @@ void nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc) {
   nodesFree(pSrc);
 }
 
+void nodesListInsertListAfterPos(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc) {
+  if (NULL == pTarget || NULL == pPos || NULL == pSrc || NULL == pSrc->pHead) {
+    return;
+  }
+
+  if (NULL == pPos->pNext) {
+    pTarget->pTail = pSrc->pHead;
+  } else {
+    pPos->pNext->pPrev = pSrc->pHead;
+  }
+
+  pSrc->pHead->pPrev = pPos;
+  pSrc->pTail->pNext = pPos->pNext;
+
+  pPos->pNext = pSrc->pHead;
+  
+  pTarget->length += pSrc->length;
+  nodesFree(pSrc);  
+}
+
 SNode* nodesListGetNode(SNodeList* pList, int32_t index) {
   SNode* node;
   FOREACH(node, pList) {
@@ -2013,7 +2033,6 @@ typedef struct SCollectFuncsCxt {
   char*           tableAlias;
   FFuncClassifier classifier;
   SNodeList*      pFuncs;
-  SHashObj*       pFuncsSet;
 } SCollectFuncsCxt;
 
 static EDealRes collectFuncs(SNode* pNode, void* pContext) {
@@ -2028,9 +2047,15 @@ static EDealRes collectFuncs(SNode* pNode, void* pContext) {
       }
     }
     SExprNode* pExpr = (SExprNode*)pNode;
-    if (NULL == taosHashGet(pCxt->pFuncsSet, &pExpr, sizeof(SExprNode*))) {
+    bool bFound = false;
+    SNode* pn = NULL;
+    FOREACH(pn, pCxt->pFuncs) {
+      if (nodesEqualNode(pn, pNode)) {
+        bFound = true;
+      }
+    }
+    if (!bFound) {
       pCxt->errCode = nodesListStrictAppend(pCxt->pFuncs, nodesCloneNode(pNode));
-      taosHashPut(pCxt->pFuncsSet, &pExpr, POINTER_BYTES, &pExpr, POINTER_BYTES);
     }
     return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
   }
@@ -2057,12 +2082,10 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAl
   SCollectFuncsCxt cxt = {.errCode = TSDB_CODE_SUCCESS,
                           .classifier = classifier,
                           .tableAlias = tableAlias,
-                          .pFuncs = (NULL == *pFuncs ? nodesMakeList() : *pFuncs),
-                          .pFuncsSet = taosHashInit(4, funcNodeHash, false, false)};
-  if (NULL == cxt.pFuncs || NULL == cxt.pFuncsSet) {
+                          .pFuncs = (NULL == *pFuncs ? nodesMakeList() : *pFuncs)};
+  if (NULL == cxt.pFuncs) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  taosHashSetEqualFp(cxt.pFuncsSet, funcNodeEqual);
   *pFuncs = NULL;
   nodesWalkSelectStmt(pSelect, clause, collectFuncs, &cxt);
   if (TSDB_CODE_SUCCESS == cxt.errCode) {
@@ -2074,7 +2097,6 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAl
   } else {
     nodesDestroyList(cxt.pFuncs);
   }
-  taosHashCleanup(cxt.pFuncsSet);
 
   return cxt.errCode;
 }
@@ -2283,4 +2305,48 @@ const char* dataOrderStr(EDataOrderLevel order) {
       break;
   }
   return "unknown";
+}
+
+SValueNode* nodesMakeValueNodeFromString(char* literal) {
+  int32_t lenStr = strlen(literal);
+  SValueNode* pValNode = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  if (pValNode) {
+    pValNode->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+    pValNode->node.resType.bytes = lenStr + VARSTR_HEADER_SIZE;
+    char* p = taosMemoryMalloc(lenStr + 1  + VARSTR_HEADER_SIZE);
+    if (p == NULL) {
+      return NULL;
+    }
+    varDataSetLen(p, lenStr);
+    memcpy(varDataVal(p), literal, lenStr + 1);
+    pValNode->datum.p = p;
+    pValNode->literal = tstrdup(literal);
+    pValNode->translate = true;
+    pValNode->isDuration = false;
+    pValNode->isNull = false;
+  }
+  return pValNode;
+}
+
+SValueNode* nodesMakeValueNodeFromBool(bool b) {
+  SValueNode* pValNode = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  if (pValNode) {
+    pValNode->node.resType.type = TSDB_DATA_TYPE_BOOL;
+    pValNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+    nodesSetValueNodeValue(pValNode, &b);
+    pValNode->translate = true;
+    pValNode->isDuration = false;
+    pValNode->isNull = false;
+  }
+  return pValNode;
+}
+
+bool nodesIsStar(SNode* pNode) {
+  return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' == ((SColumnNode*)pNode)->tableAlias[0]) &&
+         (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
+}
+
+bool nodesIsTableStar(SNode* pNode) {
+  return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' != ((SColumnNode*)pNode)->tableAlias[0]) &&
+         (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
 }

@@ -290,7 +290,6 @@ void snapFileDestroy(SBackendSnapFile2* pSnap) {
 }
 int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, void* pMeta) {
   // impl later
-
   SArray* pSnapSet = taosArrayInit(4, sizeof(SStreamTaskSnap));
   int32_t code = streamTaskDbGetSnapInfo(pMeta, path, pSnapSet);
   if (code != 0) {
@@ -387,8 +386,8 @@ _NEXT:
     } else {
       item = taosArrayGet(pSnapFile->pFileList, pSnapFile->currFileIdx);
       pSnapFile->fd = streamOpenFile(pSnapFile->path, item->name, TD_FILE_READ);
-      qDebug("%s open file %s, current offset:%" PRId64 ", size:% " PRId64 ", file no.%d", STREAM_STATE_TRANSFER,
-             item->name, (int64_t)pSnapFile->offset, item->size, pSnapFile->currFileIdx);
+      stDebug("%s open file %s, current offset:%" PRId64 ", size:% " PRId64 ", file no.%d", STREAM_STATE_TRANSFER,
+              item->name, (int64_t)pSnapFile->offset, item->size, pSnapFile->currFileIdx);
     }
   }
   item = taosArrayGet(pSnapFile->pFileList, pSnapFile->currFileIdx);
@@ -402,14 +401,15 @@ _NEXT:
   int64_t  nread = taosPReadFile(pSnapFile->fd, buf + sizeof(SStreamSnapBlockHdr), kBlockSize, pSnapFile->offset);
 
   if (nread == -1) {
+    taosMemoryFree(buf);
     code = TAOS_SYSTEM_ERROR(terrno);
-    qError("%s snap failed to read snap, file name:%s, type:%d,reason:%s", STREAM_STATE_TRANSFER, item->name,
-           item->type, tstrerror(code));
+    stError("%s snap failed to read snap, file name:%s, type:%d,reason:%s", STREAM_STATE_TRANSFER, item->name,
+            item->type, tstrerror(code));
     return -1;
   } else if (nread > 0 && nread <= kBlockSize) {
     // left bytes less than kBlockSize
-    qDebug("%s read file %s, current offset:%" PRId64 ",size:% " PRId64 ", file no.%d", STREAM_STATE_TRANSFER,
-           item->name, (int64_t)pSnapFile->offset, item->size, pSnapFile->currFileIdx);
+    stDebug("%s read file %s, current offset:%" PRId64 ",size:% " PRId64 ", file no.%d", STREAM_STATE_TRANSFER,
+            item->name, (int64_t)pSnapFile->offset, item->size, pSnapFile->currFileIdx);
     pSnapFile->offset += nread;
     if (pSnapFile->offset >= item->size || nread < kBlockSize) {
       taosCloseFile(&pSnapFile->fd);
@@ -417,8 +417,8 @@ _NEXT:
       pSnapFile->currFileIdx += 1;
     }
   } else {
-    qDebug("%s no data read, close file no.%d, move to next file, open and read", STREAM_STATE_TRANSFER,
-           pSnapFile->currFileIdx);
+    stDebug("%s no data read, close file no.%d, move to next file, open and read", STREAM_STATE_TRANSFER,
+            pSnapFile->currFileIdx);
     taosCloseFile(&pSnapFile->fd);
     pSnapFile->offset = 0;
     pSnapFile->currFileIdx += 1;
@@ -442,8 +442,8 @@ _NEXT:
     nread = taosPReadFile(pSnapFile->fd, buf + sizeof(SStreamSnapBlockHdr), kBlockSize, pSnapFile->offset);
     pSnapFile->offset += nread;
 
-    qDebug("%s open file and read file %s, current offset:%" PRId64 ", size:% " PRId64 ", file no.%d",
-           STREAM_STATE_TRANSFER, item->name, (int64_t)pSnapFile->offset, item->size, pSnapFile->currFileIdx);
+    stDebug("%s open file and read file %s, current offset:%" PRId64 ", size:% " PRId64 ", file no.%d",
+            STREAM_STATE_TRANSFER, item->name, (int64_t)pSnapFile->offset, item->size, pSnapFile->currFileIdx);
   }
 
   SStreamSnapBlockHdr* pHdr = (SStreamSnapBlockHdr*)buf;
@@ -500,15 +500,15 @@ int32_t streamSnapWriteImpl(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t
     pSnapFile->fd = streamOpenFile(pSnapFile->path, pItem->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
     if (pSnapFile->fd == NULL) {
       code = TAOS_SYSTEM_ERROR(terrno);
-      qError("%s failed to open file name:%s%s%s, reason:%s", STREAM_STATE_TRANSFER, pHandle->metaPath, TD_DIRSEP,
-             pHdr->name, tstrerror(code));
+      stError("%s failed to open file name:%s%s%s, reason:%s", STREAM_STATE_TRANSFER, pHandle->metaPath, TD_DIRSEP,
+              pHdr->name, tstrerror(code));
     }
   }
   if (strlen(pHdr->name) == strlen(pItem->name) && strcmp(pHdr->name, pItem->name) == 0) {
     int64_t bytes = taosPWriteFile(pSnapFile->fd, pHdr->data, pHdr->size, pSnapFile->offset);
     if (bytes != pHdr->size) {
       code = TAOS_SYSTEM_ERROR(terrno);
-      qError("%s failed to write snap, file name:%s, reason:%s", STREAM_STATE_TRANSFER, pHdr->name, tstrerror(code));
+      stError("%s failed to write snap, file name:%s, reason:%s", STREAM_STATE_TRANSFER, pHdr->name, tstrerror(code));
       return code;
     } else {
       qInfo("succ to write data %s", pItem->name);
@@ -529,8 +529,8 @@ int32_t streamSnapWriteImpl(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t
     pSnapFile->fd = streamOpenFile(pSnapFile->path, pItem->name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
     if (pSnapFile->fd == NULL) {
       code = TAOS_SYSTEM_ERROR(terrno);
-      qError("%s failed to open file name:%s%s%s, reason:%s", STREAM_STATE_TRANSFER, pSnapFile->path, TD_DIRSEP,
-             pHdr->name, tstrerror(code));
+      stError("%s failed to open file name:%s%s%s, reason:%s", STREAM_STATE_TRANSFER, pSnapFile->path, TD_DIRSEP,
+              pHdr->name, tstrerror(code));
     }
 
     taosPWriteFile(pSnapFile->fd, pHdr->data, pHdr->size, pSnapFile->offset);

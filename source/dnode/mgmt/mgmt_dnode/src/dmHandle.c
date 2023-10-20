@@ -160,7 +160,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
-  rpcSendRecv(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp);
+  rpcSendRecvWithTimeout(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp, 5000);
   if (rpcRsp.code != 0) {
     dmRotateMnodeEpSet(pMgmt->pData);
     char tbuf[256];
@@ -168,6 +168,36 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
     dError("failed to send status req since %s, epSet:%s, inUse:%d", tstrerror(rpcRsp.code), tbuf, epSet.inUse);
   }
   dmProcessStatusRsp(pMgmt, &rpcRsp);
+}
+
+void dmSendNotifyReq(SDnodeMgmt *pMgmt) {
+  SNotifyReq req = {0};
+
+  taosThreadRwlockRdlock(&pMgmt->pData->lock);
+  req.dnodeId = pMgmt->pData->dnodeId;
+  taosThreadRwlockUnlock(&pMgmt->pData->lock);
+
+  req.clusterId = pMgmt->pData->clusterId;
+
+  SMonVloadInfo vinfo = {0};
+  (*pMgmt->getVnodeLoadsLiteFp)(&vinfo);
+  req.pVloads = vinfo.pVloads;
+
+  int32_t contLen = tSerializeSNotifyReq(NULL, 0, &req);
+  void   *pHead = rpcMallocCont(contLen);
+  tSerializeSNotifyReq(pHead, contLen, &req);
+  tFreeSNotifyReq(&req);
+
+  SRpcMsg rpcMsg = {.pCont = pHead,
+                    .contLen = contLen,
+                    .msgType = TDMT_MND_NOTIFY,
+                    .info.ahandle = (void *)0x9527,
+                    .info.refId = 0,
+                    .info.noResp = 1};
+
+  SEpSet epSet = {0};
+  dmGetMnodeEpSet(pMgmt->pData, &epSet);
+  rpcSendRequest(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, NULL);
 }
 
 int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
@@ -395,6 +425,7 @@ SArray *dmGetMsgHandles() {
 
   // Requests handled by MNODE
   if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT_NOTIFY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_AUTH_RSP, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
   code = 0;

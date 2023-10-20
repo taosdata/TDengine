@@ -70,20 +70,13 @@ bool lossyFloat = false;
 bool lossyDouble = false;
 
 // init call
-int32_t tsCompressInit() {
+int32_t tsCompressInit(char* lossyColumns, float fPrecision, double dPrecision, uint32_t maxIntervals, uint32_t intervals,
+                       int32_t ifAdtFse, const char* compressor) {
   // config
-  if (lossyColumns[0] == 0) {
-    lossyFloat = false;
-    lossyDouble = false;
-    return 0;
-  }
-
   lossyFloat = strstr(lossyColumns, "float") != NULL;
   lossyDouble = strstr(lossyColumns, "double") != NULL;
 
-  if (lossyFloat == false && lossyDouble == false) return 0;
-
-  tdszInit(fPrecision, dPrecision, maxRange, curRange, Compressor);
+  tdszInit(fPrecision, dPrecision, maxIntervals, intervals, ifAdtFse, compressor);
   if (lossyFloat) uTrace("lossy compression float  is opened. ");
   if (lossyDouble) uTrace("lossy compression double is opened. ");
   return 1;
@@ -2377,7 +2370,7 @@ int32_t tsCompressFloat(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_
 int32_t tsDecompressFloat(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
                           int32_t nBuf) {
 #ifdef TD_TSZ
-  if (HEAD_ALGO(pIn[0]) == ALGO_SZ_LOSSY) {
+  if (HEAD_ALGO(((uint8_t *)pIn)[0]) == ALGO_SZ_LOSSY) {
     // decompress lossy
     return tsDecompressFloatLossyImp(pIn, nIn, nEle, pOut);
   } else {
@@ -2424,7 +2417,7 @@ int32_t tsCompressDouble(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32
 int32_t tsDecompressDouble(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
                            int32_t nBuf) {
 #ifdef TD_TSZ
-  if (HEAD_ALGO(input[0]) == ALGO_SZ_LOSSY) {
+  if (HEAD_ALGO(((uint8_t *)pIn)[0]) == ALGO_SZ_LOSSY) {
     // decompress lossy
     return tsDecompressDoubleLossyImp(pIn, nIn, nEle, pOut);
   } else {

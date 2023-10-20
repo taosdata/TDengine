@@ -23,20 +23,30 @@ By subscribing to a topic, a consumer can obtain the latest data in that topic i
 
 To implement these features, TDengine indexes its write-ahead log (WAL) file for fast random access and provides configurable methods for replacing and retaining this file. You can define a retention period and size for this file. For information, see the CREATE DATABASE statement. In this way, the WAL file is transformed into a persistent storage engine that remembers the order in which events occur. However, note that configuring an overly long retention period for your WAL files makes database compression inefficient. TDengine then uses the WAL file instead of the time-series database as its storage engine for queries in the form of topics. TDengine reads the data from the WAL file; uses a unified query engine instance to perform filtering, transformations, and other operations; and finally pushes the data to consumers.
 
-Tips:(c interface for example)
-1. A consumption group consumes all data under the same topic, and different consumption groups are independent of each other;
-2. A consumption group consumes all vgroups of the same topic, which can be composed of multiple consumers, but a vgroup is only consumed by one consumer. If the number of consumers exceeds the number of vgroups, the excess consumers do not consume data;
-3. On the server side, only one offset is saved for each vgroup, and the offsets for each vgroup are monotonically increasing, but not necessarily continuous. There is no correlation between the offsets of various vgroups;
-4. Each poll server will return a result block, which belongs to a vgroup and may contain data from multiple versions of wal. This block can be accessed through tmq_get_vgroup_offset. The offset interface obtains the offset of the first record in the block;
-5. If a consumer group has never committed an offset, when its member consumers restart and pull data again, they start consuming from the set value of the parameter auto.offset.reset; In a consumer lifecycle, the client locally records the offset of the most recent pull data and will not pull duplicate data;
-6. If a consumer terminates abnormally (without calling tmq_close), they need to wait for about 12 seconds to trigger their consumer group rebalance. The consumer's status on the server will change to LOST, and after about 1 day, the consumer will be automatically deleted; Exit normally, and after exiting, the consumer will be deleted; Add a new consumer, wait for about 2 seconds to trigger Rebalance, and the consumer's status on the server will change to ready;
-7. The consumer group Rebalance will reassign Vgroups to all consumer members in the ready state of the group, and consumers can only assign/see/commit/poll operations to the Vgroups they are responsible for;
-8. Consumers can tmq_position to obtain the offset of the current consumption, seek to the specified offset, and consume again;
-9. Seek points the position to the specified offset without executing the commit operation. Once the seek is successful, it can poll the specified offset and subsequent data;
-10. Before the seek operation, tmq must be call tmq_get_topic_assignment, The assignment interface obtains the vgroup ID and offset range of the consumer. The seek operation will detect whether the vgroup ID and offset are legal, and if they are illegal, an error will be reported;
-11. Due to the existence of a WAL expiration deletion mechanism, even if the seek operation is successful, it is possible that the offset has expired when polling data. If the offset of poll is less than the WAL minimum version number, it will be consumed from the WAL minimum version number;
-12. The tmq_get_vgroup_offset interface obtains the offset of the first data in the result block where the record is located. When seeking to this offset, it will consume all the data in this block. Refer to point four;
-13. Data subscription is to consume data from the wal. If some wal files are deleted according to WAL retention policy, the deleted data can't be consumed any more. So you need to set a reasonable value for parameter `WAL_RETENTION_PERIOD` or `WAL_RETENTION_SIZE` when creating the database and make sure your application consume the data in a timely way to make sure there is no data loss. This behavior is similar to Kafka and other widely used message queue products.
+The following are some explanations about data subscription, which require some understanding of the architecture of TDengine and the use of various language linker interfaces.
+- A consumption group consumes all data under the same topic, and different consumption groups are independent of each other;
+- A consumption group consumes all vgroups of the same topic, which can be composed of multiple consumers, but a vgroup is only consumed by one consumer. If the number of consumers exceeds the number of vgroups, the excess consumers do not consume data;
+- On the server side, only one offset is saved for each vgroup, and the offsets for each vgroup are monotonically increasing, but not necessarily continuous. There is no correlation between the offsets of various vgroups;
+- Each poll server will return a result block, which belongs to a vgroup and may contain data from multiple versions of wal. This block can be accessed through offset interface. The offset interface obtains the offset of the first record in the block;
+- If a consumer group has never committed an offset, when its member consumers restart and pull data again, they start consuming from the set value of the parameter auto.offset.reset; In a consumer lifecycle, the client locally records the offset of the most recent pull data and will not pull duplicate data;
+- If a consumer terminates abnormally (without calling tmq_close), they need to wait for about 12 seconds to trigger their consumer group rebalance. The consumer's status on the server will change to LOST, and after about 1 day, the consumer will be automatically deleted; Exit normally, and after exiting, the consumer will be deleted; Add a new consumer, wait for about 2 seconds to trigger Rebalance, and the consumer's status on the server will change to ready;
+- The consumer group Rebalance will reassign Vgroups to all consumer members in the ready state of the group, and consumers can only assign/see/commit/poll operations to the Vgroups they are responsible for;
+- Consumers can call position interface to obtain the offset of the current consumption, seek to the specified offset, and consume again;
+- Seek points the position to the specified offset without executing the commit operation. Once the seek is successful, it can poll the specified offset and subsequent data;
+- Position is to obtain the current consumption position, which is the position to be taken next time, not the current consumption position
+- Commit is the submission of the consumption location. Without parameters, it is the submission of the current consumption location (the location to be taken next time, not the current consumption location). With parameters, it is the location in the submission parameters (i.e. the location to be taken after the next exit and restart)
+- Seek is to set the consumer's consumption position. Wherever the seek goes, the position will be returned, all of which are the positions to be taken next time
+- Seek does not affect commit, commit does not affect seek, independent of each other, the two are different concepts
+- The begin interface is the offset of the first data in wal, and the end interface is the offset+1 of the last data in wal10.
+- Before the seek operation, tmq must be call assignment interface, The assignment interface obtains the vgroup ID and offset range of the consumer. The seek operation will detect whether the vgroup ID and offset are legal, and if they are illegal, an error will be reported;
+- Due to the existence of a WAL expiration deletion mechanism, even if the seek operation is successful, it is possible that the offset has expired when polling data. If the offset of poll is less than the WAL minimum version number, it will be consumed from the WAL minimum version number;
+- The offset interface obtains the offset of the first data in the result block where the record is located. When seeking to this offset, it will consume all the data in this block. Refer to point four;
+- Data subscription is to consume data from the wal. If some wal files are deleted according to WAL retention policy, the deleted data can't be consumed any more. So you need to set a reasonable value for parameter `WAL_RETENTION_PERIOD` or `WAL_RETENTION_SIZE` when creating the database and make sure your application consume the data in a timely way to make sure there is no data loss. This behavior is similar to Kafka and other widely used message queue products.
+
+This document does not provide any further introduction to the knowledge of message queues themselves. If you need to know more, please search for it yourself.
+
+Starting from version 3.2.0.0, data subscription supports vnode migration and splitting.
+Due to the dependence of data subscription on wal files, wal does not synchronize during vnode migration and splitting. Therefore, after migration or splitting, wal data that has not been consumed before cannot be consumed. So please ensure that all data has been consumed before proceeding with vnode migration or splitting, otherwise data loss may occur during consumption.
 
 ## Data Schema and API
 
@@ -342,10 +352,11 @@ You configure the following parameters when creating a consumer:
 |        `td.connect.port`         | string  | Port of the server side            |   |
 |           `group.id`           | string  | Consumer group ID; consumers with the same ID are in the same group                        | **Required**. Maximum length: 192. Each topic can create up to 100 consumer groups.                 |
 |          `client.id`           | string  | Client ID                                                | Maximum length: 192.                             |
-|      `auto.offset.reset`       |  enum   | Initial offset for the consumer group                                     | `earliest`: subscribe from the earliest data, this is the default behavior; `latest`: subscribe from the latest data; or `none`: can't subscribe without committed offset|
+|      `auto.offset.reset`       |  enum   | Initial offset for the consumer group                                     | `earliest`: subscribe from the earliest data, this is the default behavior(version < 3.2.0.0); `latest`: subscribe from the latest data, this is the default behavior(version >= 3.2.0.0); or `none`: can't subscribe without committed offset|
 |      `enable.auto.commit`      | boolean | Commit automatically; true: user application doesn't need to explicitly commit; false: user application need to handle commit by itself                                           | Default value is true                  |
 |   `auto.commit.interval.ms`    | integer | Interval for automatic commits, in milliseconds                           |
-|     `msg.with.table.name`      | boolean | Specify whether to deserialize table names from messages                                 | default value: false
+|     `msg.with.table.name`      | boolean | Specify whether to deserialize table names from messages. Not applicable if subscribe to a column (tbname can be written as a column in the subquery statement during column subscriptions) (This parameter has been deprecated since version 3.2.0.0 and remains true)                                 | default value: false
+|     `enable.replay`            | boolean | Specify whether data replay function enabled or not                   |default value: false |
 
 The method of specifying these parameters depends on the language used:
 
@@ -361,7 +372,7 @@ tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
 tmq_conf_set(conf, "group.id", "cgrpName");
 tmq_conf_set(conf, "td.connect.user", "root");
 tmq_conf_set(conf, "td.connect.pass", "taosdata");
-tmq_conf_set(conf, "auto.offset.reset", "earliest");
+tmq_conf_set(conf, "auto.offset.reset", "latest");
 tmq_conf_set(conf, "msg.with.table.name", "true");
 tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
 
@@ -391,7 +402,7 @@ properties.setProperty("group.id", "cgrpName");
 properties.setProperty("bootstrap.servers", "127.0.0.1:6030");
 properties.setProperty("td.connect.user", "root");
 properties.setProperty("td.connect.pass", "taosdata");
-properties.setProperty("auto.offset.reset", "earliest");
+properties.setProperty("auto.offset.reset", "latest");
 properties.setProperty("msg.with.table.name", "true");
 properties.setProperty("value.deserializer", "com.taos.example.MetersDeserializer");
 
@@ -411,7 +422,7 @@ public class MetersDeserializer extends ReferenceDeserializer<Meters> {
 ```go
 conf := &tmq.ConfigMap{
  "group.id":                     "test",
- "auto.offset.reset":            "earliest",
+ "auto.offset.reset":            "latest",
  "td.connect.ip":                "127.0.0.1",
  "td.connect.user":              "root",
  "td.connect.pass":              "taosdata",
@@ -431,7 +442,7 @@ consumer, err := NewConsumer(conf)
 let mut dsn: Dsn = "taos://".parse()?;
 dsn.set("group.id", "group1");
 dsn.set("client.id", "test");
-dsn.set("auto.offset.reset", "earliest");
+dsn.set("auto.offset.reset", "latest");
 
 let tmq = TmqBuilder::from_dsn(dsn)?;
 
@@ -448,7 +459,19 @@ from taos.tmq import Consumer
 # Syntax: `consumer = Consumer(configs)`
 #
 # Example:
-consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
+consumer = Consumer(
+    {
+        "group.id": "local",
+        "client.id": "1",
+        "enable.auto.commit": "true",
+        "auto.commit.interval.ms": "1000",
+        "td.connect.ip": "127.0.0.1",
+        "td.connect.user": "root",
+        "td.connect.pass": "taosdata",
+        "auto.offset.reset": "latest",
+        "msg.with.table.name": "true",
+    }
+)
 ```
 
 </TabItem>
@@ -465,7 +488,7 @@ let consumer = taos.consumer({
   'group.id': 'tg2',
   'td.connect.user': 'root',
   'td.connect.pass': 'taosdata',
-  'auto.offset.reset','earliest',
+  'auto.offset.reset','latest',
   'msg.with.table.name': 'true',
   'td.connect.ip','127.0.0.1',
   'td.connect.port','6030'  
@@ -488,7 +511,7 @@ var cfg = new ConsumerConfig
     GourpId = "TDengine-TMQ-C#",
     TDConnectUser = "root",
     TDConnectPasswd = "taosdata",
-    AutoOffsetReset = "earliest"
+    AutoOffsetReset = "latest"
     MsgWithTableName = "true",
     TDConnectIp = "127.0.0.1",
     TDConnectPort = "6030"
@@ -503,6 +526,24 @@ var consumer = new ConsumerBuilder(cfg).Build();
 </Tabs>
 
 A consumer group is automatically created when multiple consumers are configured with the same consumer group ID.
+
+Data replay function description:
+- Subscription adds replay function, which replays according to the time of data writing.
+  For example, writing three pieces of data at the following time.
+  ```sql
+    2023/09/22 00:00:00.000
+    2023/09/22 00:00:05.000
+    2023/09/22 00:00:08.000
+    ```
+  After subscribing to the first data for 5 seconds, the second data is returned, and after obtaining the second data for 3 seconds, the third data is returned.
+- Only column subscriptions support data replay.
+  - Replay needs to ensure an independent timeline
+  - If it is a sub table subscription or a normal table subscription, only one vnode has data, ensuring a timeline.
+  - If subscribing to a super table, it is necessary to ensure that the DB has only one vnode, otherwise an error will be reported (because the data subscribed to on multiple vnodes is not on the same timeline).
+- Super table and database subscriptions do not support replay
+- Add the enable.replay parameter. True indicates that the subscription replay function is enabled, while false indicates that the subscription replay function is not enabled by default.
+- Replay does not support progress saving, so when the replay parameter enable, auto commit will automatically close.
+- Due to the processing time required for data replay, there is an error of tens of milliseconds in the accuracy of replay.
 
 ## Subscribe to a Topic
 

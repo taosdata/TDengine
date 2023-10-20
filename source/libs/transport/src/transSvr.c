@@ -325,7 +325,7 @@ bool uvWhiteListFilte(SIpWhiteListTab* pWhite, char* user, uint32_t ip, int64_t 
 }
 bool uvWhiteListCheckConn(SIpWhiteListTab* pWhite, SSvrConn* pConn) {
   if (pConn->inType == TDMT_MND_STATUS || pConn->inType == TDMT_MND_RETRIEVE_IP_WHITE ||
-      pConn->serverIp == pConn->clientIp ||  
+      pConn->serverIp == pConn->clientIp ||
       pWhite->ver == pConn->whiteListVer /*|| strncmp(pConn->user, "_dnd", strlen("_dnd")) == 0*/)
     return true;
 
@@ -1382,6 +1382,7 @@ void uvHandleUpdate(SSvrMsg* msg, SWorkThrd* thrd) {
     tFreeSUpdateIpWhiteReq(req);
     taosMemoryFree(req);
   } else {
+    tInfo("ip-white-list disable on trans");
     thrd->enableIpWhiteList = 0;
   }
   taosMemoryFree(msg);
@@ -1497,7 +1498,10 @@ int transSendResponse(const STransMsg* msg) {
     return 0;
   }
   SExHandle* exh = msg->info.handle;
-  int64_t    refId = msg->info.refId;
+  if (exh == NULL) {
+    return 0;
+  }
+  int64_t refId = msg->info.refId;
   ASYNC_CHECK_HANDLE(exh, refId);
 
   STransMsg tmsg = *msg;

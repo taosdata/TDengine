@@ -27,9 +27,10 @@ static int32_t rsmaRestore(SSma *pSma);
     pKeepCfg->keep0 = pKeepCfg->keep2;                                                            \
     pKeepCfg->keep1 = pKeepCfg->keep2;                                                            \
     pKeepCfg->days = smaEvalDays(v, pCfg->retentions, l, pCfg->precision, pCfg->days);            \
+    pKeepCfg->keepTimeOffset = 0;                                                                 \
   } while (0)
 
-#define SMA_OPEN_RSMA_IMPL(v, l)                                                             \
+#define SMA_OPEN_RSMA_IMPL(v, l, force)                                                             \
   do {                                                                                       \
     SRetention *r = (SRetention *)VND_RETENTIONS(v) + l;                                     \
     if (!RETENTION_VALID(r)) {                                                               \
@@ -41,7 +42,7 @@ static int32_t rsmaRestore(SSma *pSma);
     }                                                                                        \
     code = smaSetKeepCfg(v, &keepCfg, pCfg, TSDB_TYPE_RSMA_L##l);                            \
     TSDB_CHECK_CODE(code, lino, _exit);                                                      \
-    if (tsdbOpen(v, &SMA_RSMA_TSDB##l(pSma), VNODE_RSMA##l##_DIR, &keepCfg, rollback) < 0) { \
+    if (tsdbOpen(v, &SMA_RSMA_TSDB##l(pSma), VNODE_RSMA##l##_DIR, &keepCfg, rollback, force) < 0) { \
       code = terrno;                                                                         \
       TSDB_CHECK_CODE(code, lino, _exit);                                                    \
     }                                                                                        \
@@ -117,7 +118,7 @@ int smaSetKeepCfg(SVnode *pVnode, STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int ty
   return terrno;
 }
 
-int32_t smaOpen(SVnode *pVnode, int8_t rollback) {
+int32_t smaOpen(SVnode *pVnode, int8_t rollback, bool force) {
   int32_t   code = 0;
   int32_t   lino = 0;
   STsdbCfg *pCfg = &pVnode->config.tsdbCfg;
@@ -138,11 +139,11 @@ int32_t smaOpen(SVnode *pVnode, int8_t rollback) {
     STsdbKeepCfg keepCfg = {0};
     for (int32_t i = 0; i < TSDB_RETENTION_MAX; ++i) {
       if (i == TSDB_RETENTION_L0) {
-        SMA_OPEN_RSMA_IMPL(pVnode, 0);
+        SMA_OPEN_RSMA_IMPL(pVnode, 0, force);
       } else if (i == TSDB_RETENTION_L1) {
-        SMA_OPEN_RSMA_IMPL(pVnode, 1);
+        SMA_OPEN_RSMA_IMPL(pVnode, 1, force);
       } else if (i == TSDB_RETENTION_L2) {
-        SMA_OPEN_RSMA_IMPL(pVnode, 2);
+        SMA_OPEN_RSMA_IMPL(pVnode, 2, force);
       }
     }
 

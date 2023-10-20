@@ -1,0 +1,24 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database test;
+sql use test;
+sql create table st(ts timestamp, f int) tags(t int);
+sql insert into ct1 using st tags(1) values(now, 0)(now+1s, 1)(now+2s, 10)(now+3s, 11)
+sql insert into ct2 using st tags(2) values(now+2s, 2)(now+3s, 3)
+sql insert into ct3 using st tags(3) values(now+4s, 4)(now+5s, 5)
+sql insert into ct4 using st tags(4) values(now+6s, 6)(now+7s, 7)
+
+sql select count(*), spread(ts) from st where tbname='ct1' 
+print $data00, $data01
+if $data00 != @4@ then
+  return -1
+endi
+if $data01 != @3000.000000000@ then
+  return -1
+endi
+
+sql drop database test;
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
