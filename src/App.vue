@@ -67,3 +67,8 @@ export default {
   color: #c0c4cc;
 }
 </style>
+<style lang="scss">
+.el-table th.el-table__cell > .cell{
+  white-space: nowrap;
+}
+</style>
