@@ -311,6 +311,9 @@ void streamTaskResetStatus(SStreamTask* pTask) {
   pSM->current = StreamTaskStatusList[TASK_STATUS__UNINIT];
   pSM->pActiveTrans = NULL;
   taosArrayClear(pSM->pWaitingEventList);
+
+  // clear the downstream ready status
+  pTask->status.downstreamReady = 0;
 }
 
 void streamTaskSetStatusReady(SStreamTask* pTask) {
