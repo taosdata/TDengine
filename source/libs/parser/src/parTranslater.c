@@ -7799,17 +7799,19 @@ static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
   req.alterType = TSDB_ALTER_USER_ADD_PRIVILEGES;
   req.privileges = pStmt->privileges;
 #ifdef TD_ENTERPRISE
-  SName name;
-  STableMeta* pTableMeta = NULL;
-  code = getTargetMeta(pCxt, toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name), &pTableMeta, true);
-  if (TSDB_CODE_SUCCESS != code) {
-    if (TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
+  if (0 != pStmt->tabName[0]) {
+    SName name;
+    STableMeta* pTableMeta = NULL;
+    code = getTargetMeta(pCxt, toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name), &pTableMeta, true);
+    if (TSDB_CODE_SUCCESS != code) {
+      if (TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
+      }
+    } else if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
+      req.isView = true;
     }
-  } else if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
-    req.isView = true;
+    taosMemoryFree(pTableMeta);
   }
-  taosMemoryFree(pTableMeta);
 #endif
 
   strcpy(req.user, pStmt->userName);
@@ -7832,17 +7834,19 @@ static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
   req.privileges = pStmt->privileges;
 
 #ifdef TD_ENTERPRISE
-  SName name;
-  STableMeta* pTableMeta = NULL;
-  code = getTargetMeta(pCxt, toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name), &pTableMeta, true);
-  if (TSDB_CODE_SUCCESS != code) {
-    if (TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
+  if (0 != pStmt->tabName[0]) {
+    SName name;
+    STableMeta* pTableMeta = NULL;
+    code = getTargetMeta(pCxt, toName(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, &name), &pTableMeta, true);
+    if (TSDB_CODE_SUCCESS != code) {
+      if (TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
+      }
+    } else if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
+      req.isView = true;
     }
-  } else if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
-    req.isView = true;
+    taosMemoryFree(pTableMeta);
   }
-  taosMemoryFree(pTableMeta);
 #endif
   
   strcpy(req.user, pStmt->userName);

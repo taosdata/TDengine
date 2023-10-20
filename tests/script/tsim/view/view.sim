@@ -34,8 +34,9 @@ sql insert into ctb22 using stb2 tags(2) values('2023-10-16 09:10:12', 110222);
 sql insert into ctb23 using stb2 tags(3) values('2023-10-16 09:10:13', 110223);
 sql insert into ctb24 using stb2 tags(4) values('2023-10-16 09:10:14', 110224);
 
-run tsim/view/create_drop_view.sim
-run tsim/view/query_view.sim
+run tsim/view/privilege_view.sim
+#run tsim/view/create_drop_view.sim
+#run tsim/view/query_view.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -88,6 +88,10 @@ static int32_t checkAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabNa
   return checkAuthImpl(pCxt, pDbName, pTabName, type, pCond, false, false);
 }
 
+static int32_t checkEffectiveAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, AUTH_TYPE type, SNode** pCond) {
+  return checkAuthImpl(pCxt, pDbName, pTabName, type, NULL, false, true);
+}
+
 static int32_t checkViewAuth(SAuthCxt* pCxt, const char* pDbName, const char* pTabName, AUTH_TYPE type, SNode** pCond) {
   return checkAuthImpl(pCxt, pDbName, pTabName, type, NULL, true, false);
 }
@@ -175,6 +179,9 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
 #endif
     if (!isView) {
       pAuthCxt->errCode = checkAuth(pAuthCxt, pTable->dbName, pTable->tableName, AUTH_TYPE_READ, &pTagCond);
+      if (TSDB_CODE_SUCCESS != pAuthCxt->errCode && NULL != pAuthCxt->pParseCxt->pEffectiveUser) {
+        pAuthCxt->errCode = checkEffectiveAuth(pAuthCxt, pTable->dbName, pTable->tableName, AUTH_TYPE_READ, NULL);
+      }
       if (TSDB_CODE_SUCCESS == pAuthCxt->errCode && NULL != pTagCond) {
         pAuthCxt->errCode = rewriteAppendStableTagCond(&pCxt->pSelect->pWhere, pTagCond, pTable);
       }

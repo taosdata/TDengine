@@ -2023,7 +2023,7 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
       value = taosMemoryCalloc(valuelen + 1, sizeof(char));
       if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
 
-      taosHashPut(pRsp->readTbs, key, strlen(key), value, valuelen + 1);
+      taosHashPut(pRsp->readTbs, key, keyLen, value, valuelen + 1);
 
       taosMemoryFreeClear(key);
       taosMemoryFreeClear(value);
@@ -2042,7 +2042,7 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
       value = taosMemoryCalloc(valuelen + 1, sizeof(char));
       if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
 
-      taosHashPut(pRsp->writeTbs, key, strlen(key), value, valuelen + 1);
+      taosHashPut(pRsp->writeTbs, key, keyLen, value, valuelen + 1);
 
       taosMemoryFreeClear(key);
       taosMemoryFreeClear(value);
@@ -2061,7 +2061,7 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
       value = taosMemoryCalloc(valuelen + 1, sizeof(char));
       if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
 
-      taosHashPut(pRsp->alterTbs, key, strlen(key), value, valuelen + 1);
+      taosHashPut(pRsp->alterTbs, key, keyLen, value, valuelen + 1);
 
       taosMemoryFreeClear(key);
       taosMemoryFreeClear(value);
@@ -2080,7 +2080,7 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
       value = taosMemoryCalloc(valuelen + 1, sizeof(char));
       if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
 
-      taosHashPut(pRsp->readViews, key, strlen(key), value, valuelen + 1);
+      taosHashPut(pRsp->readViews, key, keyLen, value, valuelen + 1);
 
       taosMemoryFreeClear(key);
       taosMemoryFreeClear(value);
@@ -2099,7 +2099,7 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
       value = taosMemoryCalloc(valuelen + 1, sizeof(char));
       if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
 
-      taosHashPut(pRsp->writeViews, key, strlen(key), value, valuelen + 1);
+      taosHashPut(pRsp->writeViews, key, keyLen, value, valuelen + 1);
 
       taosMemoryFreeClear(key);
       taosMemoryFreeClear(value);
@@ -2118,7 +2118,7 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
       value = taosMemoryCalloc(valuelen + 1, sizeof(char));
       if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
 
-      taosHashPut(pRsp->alterViews, key, strlen(key), value, valuelen + 1);
+      taosHashPut(pRsp->alterViews, key, keyLen, value, valuelen + 1);
 
       taosMemoryFreeClear(key);
       taosMemoryFreeClear(value);
@@ -2134,7 +2134,7 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
       int32_t ref = 0;
       if (tDecodeI32(pDecoder, &ref) < 0) goto _err;
 
-      taosHashPut(pRsp->useDbs, key, strlen(key), &ref, sizeof(ref));
+      taosHashPut(pRsp->useDbs, key, keyLen, &ref, sizeof(ref));
       taosMemoryFreeClear(key);
     }
     // since 3.0.7.0
