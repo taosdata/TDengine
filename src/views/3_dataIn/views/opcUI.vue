@@ -980,7 +980,7 @@ export default {
       disableallnodeclick: true,
       opcinusefile: "",
       downloadUrl: process.env.VUE_APP_X_API + `/download?file_path=`,
-      language: this.$i18n.locale,
+      language: localStorage.getItem('local_language'),
       limit: 1,
       opcPointavalible: true,
       mqttcafile: [],
@@ -2493,6 +2493,9 @@ export default {
 ::v-deep {
   .el-upload-list__item {
     margin-top: 1px !important;
+  }
+  .el-upload-list__item-name{
+    max-width:120px;
   }
 }
 </style>
