@@ -92,6 +92,12 @@ authentication:
           placeholder: 请输入 InfluxDB 令牌
           hint: str
           required: true
+        - name: addDbrp
+          display: 添加数据库保留策略
+          description: InfluxQL 需要数据库与保留策略（DBRP）的组合才能查询数据，InfluxDB 的 Cloud 版本及某些 2.x 版本需要人工添加这个映射关系，打开这个开关，连接器可以在执行任务时自动添加。
+          hint:
+            type: bool
+          value: false
 groups:
   - name: task
     display: 任务设置
@@ -129,23 +135,23 @@ groups:
         placeholder: YYYY-MM-DD HH:mm:ss
         hint: time
       - name: readWindow
-        display: 读取窗口（分钟）
-        description: 每次从 InfluxDB 读取数据的最大时间范围，请根据 InfluxDB 中存储数据的特点，合理填写时间窗口长度，建议单次读取的数据不超过20万条记录。
-        placeholder: 请输入读取窗口
+        display: 每次读取的时间范围（分钟）
+        description: 每次从 InfluxDB 读取数据时，最大的时间范围。
+        placeholder: 请输入读取时间范围
         hint:
           type: integer
           min: 1
           max: 6000
-        value: 2
+        value: 60
       - name: delay
-        display: 延迟间隔（毫秒）
-        description: 性能相关参数，同步实时数据时的延迟间隔，为了消除乱序数据的影响，TDengine 总是等待这里指定的时长，然后才读取数据。此参数仅在同步实时数据时有意义。
-        placeholder: 请输入延迟间隔
+        display: 延迟（秒）
+        description: 为了消除乱序数据的影响，TDengine 总是等待这里指定的时长，然后才读取数据。
+        placeholder: 请输入延迟时长
         hint:
           type: integer
           min: 1
-          max: 30000
-        value: 10000
+          max: 30
+        value: 10
       - name: maxThread
         display: 读库线程数量上限
         description: 性能相关参数，程序使用多线程读取 InfluxDB 数据，请根据服务器性能合理填写读库线程数量上限。

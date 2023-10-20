@@ -29,6 +29,7 @@ groups:
 
           - *earliest*: 从最早的数据开始订阅。
           - *latest*: 从最新的数据开始订阅。
+        value: latest
         hint:
           type: str
           choices:

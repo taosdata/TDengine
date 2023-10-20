@@ -6,6 +6,7 @@ influx:
   password: taosdata
   token: _FnpTYi30Mc4eCZcuATp4AkUMf6Yp3xI4blP_zkXhwh3fgK3wHe2y6TOjnjGS8kEFM9Pm2NKRY1sOnkJeTtLTg==
   orgId: f3af42a3895a5e33
+  addDbrp: false
   maxTotal: 20
   maxIdle: 10
   minIdle: 5

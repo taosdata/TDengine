@@ -1,232 +1,31 @@
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
-use file_rotate::{
-    compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
-};
 use itertools::Itertools;
 use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, Span};
 
+use crate::runners::log_rotation;
+use crate::runners::opentsdb::config::{ConnectionConfig, OpentsdbConfig};
+use crate::validation::DataSourceValidation;
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
 };
 
 use super::get_plugin_dir;
-use crate::validation::DataSourceValidation;
 
-#[derive(Debug, serde::Serialize)]
-struct OpentsdbConfig {
-    // the datasource config
-    opents: OpentsConfig,
-    // the addr for connector to agent
-    taosx: Option<TaosxConfig>,
-    // the task config
-    task: Option<TaskConfig>,
-    // the performance config
-    performance: Option<PerformanceConfig>,
-
-    // others
-    #[serde(skip)]
-    #[allow(dead_code)]
-    td_database: String,
-    #[serde(skip)]
-    ipc_stream: String,
-}
-
-#[derive(Debug, serde::Serialize)]
-struct OpentsConfig {
-    #[serde(rename = "url")]
-    opents_url: String,
-}
-
-#[derive(Debug, serde::Serialize)]
-struct TaosxConfig {
-    #[serde(rename = "host")]
-    taosx_host: String,
-    #[serde(rename = "port")]
-    taosx_port: u16,
-}
-
-#[derive(Debug, serde::Serialize)]
-struct TaskConfig {
-    #[serde(rename = "mode")]
-    task_mode: String,
-    #[serde(rename = "metrics")]
-    task_metrics: Vec<String>,
-    #[serde(rename = "beginTime")]
-    task_begin_time: String,
-    #[serde(rename = "endTime")]
-    task_end_time: Option<String>,
-}
-
-#[derive(Debug, serde::Serialize)]
-struct PerformanceConfig {
-    #[serde(rename = "readWindow")]
-    performance_read_window: u32,
-    #[serde(rename = "delay")]
-    performance_delay: u32,
-    #[serde(rename = "maxThread")]
-    performance_max_thread: u32,
-    #[serde(rename = "queueSizeT")]
-    performance_queue_size_thread: u32,
-    #[serde(rename = "queueSizeD")]
-    performance_queue_size_data: u32,
-    #[serde(rename = "limitSpeed")]
-    performance_limit_speed: u32,
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum OpentsdbError {
-    #[error("The access address of OpenTSDB is required: {0}")]
-    OpentsUrlIsRequired(Dsn),
-    #[error("The data begin time is required: {0}")]
-    TaskBeginTimeIsRequired(Dsn),
-    #[error("plugin not found: {0}")]
-    ExeNotFound(String),
-}
-
-impl OpentsdbConfig {
-    pub fn new(mut dsn: Dsn, td_database: String, ipc: u16) -> Result<Self, OpentsdbError> {
-        debug_assert!(dsn.driver == "opentsdb");
-        // the datasource config
-        let host = dsn
-            .addresses
-            .first()
-            .and_then(|addr| addr.host.clone())
-            .ok_or_else(|| OpentsdbError::OpentsUrlIsRequired(dsn.clone()))?;
-        let port = dsn
-            .addresses
-            .first()
-            .and_then(|addr| addr.port.clone())
-            .ok_or_else(|| OpentsdbError::OpentsUrlIsRequired(dsn.clone()))?;
-        let protocol = dsn.protocol.as_deref().unwrap_or("http");
-        let opents_url = format!("{}://{}:{}/", protocol, host, port);
-
-        // the addr for connector to agent
-        let taosx_host = String::from("127.0.0.1");
-        let taosx_port = ipc;
-
-        // the task config
-        let task_mode = dsn.remove("mode").unwrap_or("normal".to_string());
-        let task_metrics = dsn
-            .remove("metrics")
-            .unwrap_or_default()
-            .split(',')
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .collect_vec();
-        let task_begin_time = dsn
-            .remove("beginTime")
-            .ok_or_else(|| OpentsdbError::TaskBeginTimeIsRequired(dsn.clone()))?;
-        let task_end_ime = dsn.remove("endTime");
-
-        // the performance config
-        let performance_read_window = dsn
-            .remove("readWindow")
-            .unwrap_or(String::from("2"))
-            .parse::<u32>()
-            .unwrap_or(2);
-        let performance_delay = dsn
-            .remove("delay")
-            .unwrap_or(String::from("10000"))
-            .parse::<u32>()
-            .unwrap_or(10000);
-        let performance_max_thread = dsn
-            .remove("maxThread")
-            .unwrap_or(String::from("50"))
-            .parse::<u32>()
-            .unwrap_or(50);
-        let performance_queue_size_thread = dsn
-            .remove("queueSizeT")
-            .unwrap_or(String::from("1000"))
-            .parse::<u32>()
-            .unwrap_or(1000);
-        let performance_queue_size_data = dsn
-            .remove("queueSizeD")
-            .unwrap_or(String::from("200000"))
-            .parse::<u32>()
-            .unwrap_or(200000);
-        let performance_limit_speed = dsn
-            .remove("limitSpeed")
-            .unwrap_or(String::from("100000"))
-            .parse::<u32>()
-            .unwrap_or(100000);
-
-        // agent监听地址
-        let ipc_stream = format!("127.0.0.1:{ipc}");
-
-        let opents = OpentsConfig { opents_url };
-
-        let taosx = TaosxConfig {
-            taosx_host,
-            taosx_port,
-        };
-
-        let task = TaskConfig {
-            task_mode,
-            task_metrics,
-            task_begin_time,
-            task_end_time: task_end_ime,
-        };
-
-        let performance = PerformanceConfig {
-            performance_read_window,
-            performance_delay,
-            performance_max_thread,
-            performance_queue_size_thread,
-            performance_queue_size_data,
-            performance_limit_speed,
-        };
-
-        Ok(Self {
-            opents,
-            taosx: Some(taosx),
-            task: Some(task),
-            performance: Some(performance),
-            td_database,
-            ipc_stream,
-        })
-    }
-
-    pub fn new_less(dsn: Dsn) -> Result<Self, OpentsdbError> {
-        debug_assert!(dsn.driver == "opentsdb");
-        // the datasource config
-        let host = dsn
-            .addresses
-            .first()
-            .and_then(|addr| addr.host.clone())
-            .ok_or_else(|| OpentsdbError::OpentsUrlIsRequired(dsn.clone()))?;
-        let port = dsn
-            .addresses
-            .first()
-            .and_then(|addr| addr.port.clone())
-            .ok_or_else(|| OpentsdbError::OpentsUrlIsRequired(dsn.clone()))?;
-        let protocol = dsn.protocol.as_deref().unwrap_or("http");
-        let opents_url = format!("{}://{}:{}/", protocol, host, port);
-
-        let opents = OpentsConfig { opents_url };
-
-        Ok(Self {
-            opents,
-            taosx: None,
-            task: None,
-            performance: None,
-            td_database: "".to_string(),
-            ipc_stream: "".to_string(),
-        })
-    }
-}
+mod config;
 
 const EXE: &'static str = "taosx-opentsdb.jar";
 
-fn opentsdb_jar_path() -> PathBuf {
-    get_plugin_dir("opentsdb").join(EXE)
+fn opentsdb_jar_path() -> anyhow::Result<PathBuf> {
+    let path = get_plugin_dir("opentsdb").join(EXE);
+    if !path.exists() {
+        anyhow::bail!(format!("opentsdb plugin not found {:?}", path))
+    }
+    Ok(path)
 }
 
 const LOG_FILE: &str = "opentsdb.log";
@@ -235,8 +34,8 @@ fn log_path() -> PathBuf {
     super::get_log_dir("opentsdb")
 }
 
-pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
-    let path = opentsdb_jar_path();
+pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
+    let path = opentsdb_jar_path()?;
     let output = std::process::Command::new("java")
         .arg("-jar")
         .arg(&path)
@@ -261,27 +60,11 @@ pub async fn opentsdb_to_taos(
     transferred: Option<Arc<Transferred>>,
     span: Span,
 ) -> anyhow::Result<()> {
-    println!("# loading plugin: OpentsDB");
-
-    let exe_exists = std::path::Path::new(&opentsdb_jar_path()).exists();
-    if !exe_exists {
-        tracing::error!("plugin not found {}", opentsdb_jar_path().to_str().unwrap());
-        Err(OpentsdbError::ExeNotFound(format!(
-            "{}",
-            opentsdb_jar_path().to_str().unwrap()
-        )))?;
-    }
-
-    // tdengine
-    let td_database = to.subject.clone();
-    // let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(&to)?.pool()?;
-    // let target_pool_for_ipc = target_pool.clone();
-    // a random port
     let ipc_port = port_pool
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for OpenTSDB connection"))?;
     // generate config
-    let config = OpentsdbConfig::new(from, td_database.unwrap(), ipc_port)?;
+    let config = OpentsdbConfig::from(&from, ipc_port)?;
     // transform to toml
     let toml = toml::to_string(&config)?;
     // write to a temporary file
@@ -294,9 +77,10 @@ pub async fn opentsdb_to_taos(
 
     let exec_span = tracing::info_span!("extern plugin exec", plugin.name = "opentsdb");
     exec_span.follows_from(&span);
+
     // create socket channel
     let mut ipc_handler = build_ipc(
-        &config.ipc_stream,
+        &format!("127.0.0.1:{}", ipc_port),
         None,
         &to,
         Some("opentsdb"),
@@ -310,7 +94,7 @@ pub async fn opentsdb_to_taos(
 
     tokio::time::sleep(Duration::from_millis(500)).await;
     // 连接器路径
-    let connector_path = opentsdb_jar_path();
+    let connector_path = opentsdb_jar_path()?;
 
     let mut log_path = log_path();
 
@@ -324,18 +108,7 @@ pub async fn opentsdb_to_taos(
 
     let log_keep_days = get_log_keep_days();
 
-    let mut log_rotation = FileRotate::new(
-        &log_path,
-        AppendTimestamp::with_format(
-            "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::days(log_keep_days)),
-            DateFrom::DateYesterday,
-        ),
-        ContentLimit::Time(TimeFrequency::Daily),
-        Compression::None,
-        #[cfg(unix)]
-        None,
-    );
+    let mut log_rotation = log_rotation(&log_path, log_keep_days);
 
     // get the version of jdk
     let get_jdk_version = tokio::process::Command::new("java")
@@ -440,14 +213,14 @@ pub async fn opentsdb_to_taos(
 }
 
 pub async fn opentsdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
-    let config = OpentsdbConfig::new_less(dsn);
+    let config = ConnectionConfig::from_dsn(&dsn);
     match config {
         Err(err) => {
             anyhow::bail!(err)
         }
         Ok(c) => {
             // 连接器路径
-            let connector_path = opentsdb_jar_path();
+            let connector_path = opentsdb_jar_path()?;
             // startup the connector
             let mut command = tokio::process::Command::new("java");
             // 查询命令
@@ -455,7 +228,7 @@ pub async fn opentsdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
                 .arg("-jar")
                 .arg(&connector_path)
                 .arg("-fetch")
-                .arg(&c.opents.opents_url)
+                .arg(&c.url)
                 .kill_on_drop(true)
                 .stdout(std::process::Stdio::inherit())
                 .stderr(std::process::Stdio::piped())
@@ -495,34 +268,38 @@ pub async fn opentsdb_datasets(dsn: Dsn) -> anyhow::Result<Vec<DataSet>> {
 }
 
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
-    let config = OpentsdbConfig::new_less(dsn.clone());
+    let config = ConnectionConfig::from_dsn(dsn);
     match config {
-        Err(err) => DataSourceValidation {
-            valid: false,
-            support: false,
-            data_source: String::from("opentsdb"),
-            version: Some(String::from("")),
-            message: Some(format!("{:?}", err)),
-        },
+        Err(err) => DataSourceValidation::invalid(
+            "opentsdb".to_string(),
+            format!(
+                "invalid dsn: {}, cause: {}",
+                dsn.to_string(),
+                err.to_string()
+            ),
+        ),
         Ok(c) => {
             let result = validate_source_opentsdb(c).await;
             match result {
-                Err(err) => DataSourceValidation {
-                    valid: false,
-                    support: false,
-                    data_source: String::from("opentsdb"),
-                    version: Some(String::from("")),
-                    message: Some(format!("{:?}", err)),
-                },
+                Err(err) => DataSourceValidation::invalid(
+                    "opentsdb".to_string(),
+                    format!(
+                        "failed to connect to dsn: {}, cause: {}",
+                        dsn.to_string(),
+                        err.to_string()
+                    ),
+                ),
                 Ok(validate) => validate,
             }
         }
     }
 }
 
-async fn validate_source_opentsdb(config: OpentsdbConfig) -> anyhow::Result<DataSourceValidation> {
+async fn validate_source_opentsdb(
+    config: ConnectionConfig,
+) -> anyhow::Result<DataSourceValidation> {
     // 连接器路径
-    let connector_path = opentsdb_jar_path();
+    let connector_path = opentsdb_jar_path()?;
     // startup the connector
     let mut command = tokio::process::Command::new("java");
     // 查询命令
@@ -530,15 +307,20 @@ async fn validate_source_opentsdb(config: OpentsdbConfig) -> anyhow::Result<Data
         .arg("-jar")
         .arg(&connector_path)
         .arg("-check")
-        .arg(&config.opents.opents_url)
+        .arg(&config.url)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::piped())
         .output()
         .await
         .with_context(|| "Start OpenTSDB collector error")?;
     if output.status.success() {
-        let result = String::from_utf8(output.stdout.clone()).unwrap_or(String::from("{}"));
-        let result: serde_json::Value = serde_json::from_str(&result).unwrap();
+        let result: serde_json::Value =
+            serde_json::from_slice(&output.stdout).with_context(|| {
+                format!(
+                    "Deserialize opentsdb validation result error: {}",
+                    String::from_utf8_lossy(&output.stdout)
+                )
+            })?;
         // 组装结果
         Ok(DataSourceValidation {
             valid: result["valid"].as_bool().unwrap_or(false),
@@ -555,5 +337,38 @@ async fn validate_source_opentsdb(config: OpentsdbConfig) -> anyhow::Result<Data
             version: Some(String::from("")),
             message: Some(output.status.to_string()),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+    use taos::Dsn;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_is_valid() {
+        let dsn = Dsn::from_str("opentsdb://").unwrap();
+        let validation = is_valid(&dsn).await;
+        assert_eq!(false, validation.valid);
+        assert_eq!(false, validation.support);
+        assert_eq!("opentsdb", validation.data_source);
+        assert_eq!(None, validation.version);
+        assert_eq!(
+            "invalid dsn: opentsdb://, cause: host is required",
+            validation.message.unwrap()
+        );
+
+        let dsn = Dsn::from_str("opentsdb://127.0.0.1:6060").unwrap();
+        let validation = is_valid(&dsn).await;
+        assert_eq!(false, validation.valid);
+        assert_eq!(false, validation.support);
+        assert_eq!("opentsdb", validation.data_source);
+        assert_eq!(None, validation.version);
+        assert!(validation
+            .message
+            .unwrap()
+            .contains("cause: opentsdb plugin not found"));
     }
 }

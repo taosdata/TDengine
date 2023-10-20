@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::{
     collections::HashMap,
     fs,
@@ -7,18 +8,12 @@ use std::{
     str::ParseBoolError,
     sync::Arc,
 };
-
-use file_rotate::{
-    compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
-};
-use itertools::Itertools;
 use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
+use crate::runners::log_rotation;
 use crate::validation::DataSourceValidation;
 use crate::{
     build_ipc, get_log_keep_days, plugins::runners::get_plugin_dir, utils::port_pool::PortPool,
@@ -244,18 +239,7 @@ pub async fn mqtt_to_taos(
 
     let log_keep_days = get_log_keep_days();
 
-    let mut log_rotation = FileRotate::new(
-        &log_path,
-        AppendTimestamp::with_format(
-            "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::days(log_keep_days)),
-            DateFrom::DateYesterday,
-        ),
-        ContentLimit::Time(TimeFrequency::Daily),
-        Compression::None,
-        #[cfg(unix)]
-        None,
-    );
+    let mut log_rotation = log_rotation(&log_path, log_keep_days);
 
     let child = command
         .arg("-c")
@@ -387,6 +371,8 @@ pub(super) fn get_string_from_param_or_file(
 }
 
 pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+    // TODO
+    dbg!(dsn);
     DataSourceValidation::unknown()
 }
 
@@ -442,6 +428,7 @@ mod tests {
             cancel: CancellationToken::new(),
             // port_pool: ONCE,
             with_agent: None,
+            breakpoints: None,
             offsets: Default::default(),
             transferred: Some(transferred),
             span: tracing::info_span!("test_mqtt"),

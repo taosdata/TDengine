@@ -1,6 +1,6 @@
 [config]
-load_cargo_aliases = true
-skip_core_tasks = false
+load_cargo_aliases = false
+skip_core_tasks = true
 default_to_workspace = false
 
 [tasks.taosx]

@@ -275,11 +275,11 @@ impl FlightService for FlightServiceImpl {
                                     context.value(0),
                                 );
 
-                                info!(
-                                    action,
-                                    agent = agent_id,
-                                    "At [{ts}] action `{action}` triggered"
-                                );
+                                // info!(
+                                //     action,
+                                //     agent = agent_id,
+                                //     "At [{ts}] action `{action}` triggered"
+                                // );
                                 match action {
                                     "list" => {
                                         let req: ListResponse =
