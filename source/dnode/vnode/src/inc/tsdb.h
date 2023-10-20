@@ -309,7 +309,7 @@ void    tsdbUntakeReadSnap(STsdbReader *pReader, STsdbReadSnap *pSnap, bool proa
 int32_t tsdbTakeReadSnap2(STsdbReader *pReader, _query_reseek_func_t reseek, STsdbReadSnap **ppSnap);
 void    tsdbUntakeReadSnap2(STsdbReader *pReader, STsdbReadSnap *pSnap, bool proactive);
 // tsdbMerge.c ==============================================================================================
-int32_t tsdbMerge(void *arg);
+int32_t tsdbSchedMerge(STsdb *tsdb, int32_t fid);
 
 // tsdbDiskData ==============================================================================================
 int32_t tDiskDataBuilderCreate(SDiskDataBuilder **ppBuilder);
