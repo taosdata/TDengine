@@ -98,6 +98,24 @@ impl<S, N, W> layer::Layer<S> for TaosXLayer<S, N, W> where
         }
     }
 
+    fn on_record(&self, id: &Id, values: &Record<'_>, ctx: Context<'_, S>) {
+        let span = ctx.span(id).expect("Span not found, this is a bug");
+        let mut extensions = span.extensions_mut();
+        if let Some(fields) = extensions.get_mut::<FormattedFields<N>>() {
+            let _ = self.fmt_fields.add_fields(fields, values);
+            return;
+        }
+
+        let mut fields = FormattedFields::<N>::new(String::new());
+        if self
+            .fmt_fields
+            .format_fields(fields.as_writer(), values)
+            .is_ok()
+        {
+            extensions.insert(fields);
+        }
+    }
+
     fn on_event(&self, event: &Event<'_>, ctx: Context<'_, S>) {
         thread_local! {
             static BUF: RefCell<String> = RefCell::new(String::new());
@@ -153,24 +171,6 @@ impl<S, N, W> layer::Layer<S> for TaosXLayer<S, N, W> where
             }
             buf.clear();
         });
-    }
-
-    fn on_record(&self, id: &Id, values: &Record<'_>, ctx: Context<'_, S>) {
-        let span = ctx.span(id).expect("Span not found, this is a bug");
-        let mut extensions = span.extensions_mut();
-        if let Some(fields) = extensions.get_mut::<FormattedFields<N>>() {
-            let _ = self.fmt_fields.add_fields(fields, values);
-            return;
-        }
-
-        let mut fields = FormattedFields::<N>::new(String::new());
-        if self
-            .fmt_fields
-            .format_fields(fields.as_writer(), values)
-            .is_ok()
-        {
-            extensions.insert(fields);
-        }
     }
 }
 
