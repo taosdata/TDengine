@@ -22,12 +22,16 @@ int32_t getViewMetaFromMetaCache(STranslateContext* pCxt, SName* pName, SViewMet
   return getMetaDataFromHash(fullName, strlen(fullName), pCxt->pMetaCache->pViews, (void**)ppViewMeta);
 }
 
-int32_t getViewQuerySql(STranslateContext* pCxt, SName* pName, char** querySql) {
+int32_t getViewQuerySqlUser(STranslateContext* pCxt, SName* pName, char** querySql, char** user) {
   SViewMeta* pViewMeta = NULL;
   int32_t     code = getViewMetaFromMetaCache(pCxt, pName, &pViewMeta);
   if (TSDB_CODE_SUCCESS == code) {
     *querySql = strdup(pViewMeta->querySql);
     if (NULL == *querySql) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    *user = strdup(pViewMeta->user);
+    if (NULL == *user) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
@@ -37,13 +41,14 @@ int32_t getViewQuerySql(STranslateContext* pCxt, SName* pName, char** querySql) 
 int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName) {
    SRealTableNode* pRealTable = (SRealTableNode*)*pTable;
    char* querySql = NULL;
+   char* user = NULL;
    SParseSqlRes res = {.resType = PARSE_SQL_RES_QUERY};
-   int32_t code = getViewQuerySql(pCxt, pName, &querySql);
+   int32_t code = getViewQuerySqlUser(pCxt, pName, &querySql, &user);
    if (TSDB_CODE_SUCCESS != code) {
      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
      goto _exit;
    }
-   code = (*pCxt->pParseCxt->parseSqlFp)(pCxt->pParseCxt->parseSqlParam, querySql, true, &res);
+   code = (*pCxt->pParseCxt->parseSqlFp)(pCxt->pParseCxt->parseSqlParam, querySql, true, user, &res);
    if (TSDB_CODE_SUCCESS != code) {
      goto _exit;
    }
@@ -72,6 +77,7 @@ int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName) {
  _exit:
  
    taosMemoryFree(querySql);
+   taosMemoryFree(user);
    nodesDestroyNode(res.queryRes.pQuery);
    
    return code;

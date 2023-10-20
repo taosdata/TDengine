@@ -17,6 +17,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndDb.h"
+#include "mndPrivilege.h"
 #include "audit.h"
 
 #define MND_VIEW_VER_NUMBER 1
@@ -265,8 +266,14 @@ int32_t mndViewActionUpdate(SSdb *pSdb, SViewObj *pOldView, SViewObj *pNewView) 
   pOldView->version = pNewView->version;
   pOldView->precision = pNewView->precision;
   pOldView->numOfCols = pNewView->numOfCols;
+  pOldView->createdTime = pNewView->createdTime;
+  pOldView->type = pNewView->type;
   TSWAP(pOldView->querySql, pNewView->querySql);
+  TSWAP(pOldView->parameters, pNewView->parameters);
+  TSWAP(pOldView->defaultValues, pNewView->defaultValues);
+  TSWAP(pOldView->targetTable, pNewView->targetTable);
   TSWAP(pOldView->pSchema, pNewView->pSchema);
+  tstrncpy(pOldView->user, pNewView->user, sizeof(pOldView->user));
 
   taosWUnLockLatch(&pOldView->lock);
 
@@ -289,7 +296,7 @@ void mndReleaseView(SMnode *pMnode, SViewObj *pView) {
   sdbRelease(pSdb, pView);
 }
 
-static int32_t mndCreateViewObj(SMnode *pMnode, SViewObj* pView, SCMCreateViewReq* pCreate, SViewObj *pOldView) {
+static int32_t mndCreateViewObj(SMnode *pMnode, SViewObj* pView, SCMCreateViewReq* pCreate, SViewObj *pOldView, char* user) {
   char* dbFName = pCreate->dbFName;
   char* sep = strchr(pCreate->dbFName, '.');
   if (NULL != sep && IS_SYS_DBNAME(sep + 1)) {
@@ -319,7 +326,8 @@ static int32_t mndCreateViewObj(SMnode *pMnode, SViewObj* pView, SCMCreateViewRe
   memcpy(pView->pSchema, pCreate->pSchema, pCreate->numOfCols * sizeof(SSchema));
   tstrncpy(pView->fullname, pCreate->fullname, sizeof(pView->fullname));
   tstrncpy(pView->name, pCreate->name, sizeof(pView->name));
-  tstrncpy(pView->dbFName, dbFName, strlen(dbFName) + 1);
+  tstrncpy(pView->dbFName, dbFName, sizeof(pView->dbFName));
+  tstrncpy(pView->user, user, sizeof(pView->user));
   pView->precision = pCreate->precision;
   pView->numOfCols = pCreate->numOfCols;
   if (NULL != pOldView) {
@@ -337,29 +345,18 @@ _OVER:
   return -1;
 }
 
-static int32_t mndCreateViewOldUser() {
-
-}
-
 static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg *pReq, SViewObj *pOldView) {
   SViewObj view = {0};
   int32_t code = -1;
   SUserObj *pUser = NULL;
   SUserObj newUserObj = {0}, *pNewUserDuped = NULL;
-  SUserObj oldUserObj = {0}, *pOldUserDuped = NULL;
 
   pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
   if (pUser == NULL) {
     return -1;
   }
 
-  if (0 != strcmp(pReq->info.conn.user, pOldView->user)) {
-    if (mndCreateViewOldUser(pMnode, &view, pCreate, pOldView) != 0) {
-      goto _OVER;
-    }
-  }
-
-  if (mndCreateViewObj(pMnode, &view, pCreate, pOldView) != 0) {
+  if (mndCreateViewObj(pMnode, &view, pCreate, pOldView, pReq->info.conn.user) != 0) {
     goto _OVER;
   }
 
@@ -458,6 +455,11 @@ static void mndLogDropViewAudit(SRpcMsg *pReq, SMnode *pMnode, SCMDropViewReq* p
 static int32_t dumpViewMetaRspFromView(SViewMetaRsp *pRsp, SViewObj* pView) {
   tstrncpy(pRsp->name, pView->name, sizeof(pRsp->name));
   tstrncpy(pRsp->dbFName, pView->dbFName, sizeof(pRsp->dbFName));
+  pRsp->user = strdup(pView->user);
+  if (pRsp->user == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
   pRsp->dbId = pView->dbId;
   pRsp->viewId = pView->viewId;
   pRsp->querySql = strdup(pView->querySql);
@@ -480,11 +482,25 @@ static int32_t dumpViewMetaRspFromView(SViewMetaRsp *pRsp, SViewObj* pView) {
 }
 
 int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq) {
-  SMnode            *pMnode = pReq->info.node;
-  int32_t            code = -1;
-  SViewObj          *pOldView = NULL;
-  SDbObj            *pDb = NULL;
-  SViewObj           newObj = {0};
+  SMnode   *pMnode = pReq->info.node;
+  int32_t   code = -1;
+  SViewObj *pOldView = NULL;
+  SViewObj  newObj = {0};
+  SDbObj   *pDb = NULL;
+  char* dbFName = pCreateView->dbFName;
+  char* sep = strchr(pCreateView->dbFName, '.');
+  if (NULL != sep && IS_SYS_DBNAME(sep + 1)) {
+    //DO NOTHING
+  } else {
+    pDb = mndAcquireDb(pMnode, pCreateView->dbFName);
+    if (NULL == pDb) {
+      goto _OVER;
+    }
+    
+    if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, pDb) != 0) {
+      goto _OVER;
+    }
+  }
 
   pOldView = mndAcquireView(pMnode, pCreateView->fullname);
   if (pOldView != NULL) {
@@ -512,6 +528,7 @@ _OVER:
     mError("failed to create view %s since %s", pCreateView->fullname, terrstr());
   }
 
+  mndReleaseDb(pMnode, pDb);
   mndReleaseView(pMnode, pOldView);
 
   tFreeSCMCreateViewReq(pCreateView);
@@ -667,7 +684,7 @@ int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock,
         sdbRelease(pSdb, pView);
         continue;
       }
-    } else if (0 != strcmp(pView->dbFName, sep)) {
+    } else if (NULL != sep && 0 != strcmp(pView->dbFName, sep)) {
       sdbRelease(pSdb, pView);
       continue;
     }
@@ -690,6 +707,10 @@ int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock,
       strncpy(varDataVal(tmpBuf), pView->dbFName, strlen(pView->dbFName) + 1);
     }
     varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+    colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
+
+    STR_WITH_MAXSIZE_TO_VARSTR(tmpBuf, pView->user, sizeof(tmpBuf));
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -827,6 +848,7 @@ int32_t mndValidateViewInfo(SMnode *pMnode, SViewVersion *pViewVersions, int32_t
       metaRsp.numOfCols = -1;
       metaRsp.viewId = pViewVersion->viewId;
       metaRsp.dbId = pViewVersion->dbId;
+      metaRsp.user = taosMemoryCalloc(0, 0);
       metaRsp.querySql = taosMemoryCalloc(0, 0);
       tstrncpy(metaRsp.dbFName, pViewVersion->dbFName, sizeof(metaRsp.dbFName));
       tstrncpy(metaRsp.name, pViewVersion->viewName, sizeof(metaRsp.name));
@@ -841,6 +863,7 @@ int32_t mndValidateViewInfo(SMnode *pMnode, SViewVersion *pViewVersions, int32_t
       metaRsp.numOfCols = -1;
       metaRsp.viewId = pViewVersion->viewId;
       metaRsp.dbId = pViewVersion->dbId;
+      metaRsp.user = taosMemoryCalloc(0, 0);
       metaRsp.querySql = taosMemoryCalloc(0, 0);
       tstrncpy(metaRsp.dbFName, pViewVersion->dbFName, sizeof(metaRsp.dbFName));
       tstrncpy(metaRsp.name, pViewVersion->viewName, sizeof(metaRsp.name));
@@ -854,7 +877,8 @@ int32_t mndValidateViewInfo(SMnode *pMnode, SViewVersion *pViewVersions, int32_t
     SViewMetaRsp rsp = {0};
     int32_t code = dumpViewMetaRspFromView(&rsp, pView);
     if (TSDB_CODE_SUCCESS != code) {
-      mndReleaseView(pMnode, pView);
+      mndReleaseView(pMnode, pView);      
+      tFreeSViewMetaRsp(&rsp);
       goto _OVER;
     }
 

@@ -55,7 +55,7 @@ static int32_t buildParseSqlRes(SRequestObj* pRequest, SParseSqlRes* pRes) {
   return code;
 }
  
-int32_t clientParseSqlImpl(void* param, const char* sql, bool parseOnly, SParseSqlRes* pRes) {
+int32_t clientParseSqlImpl(void* param, const char* sql, bool parseOnly, const char* effeciveUser, SParseSqlRes* pRes) {
    SSqlCallbackWrapper *pWrapper = (SSqlCallbackWrapper *)param;
    SSyncQueryParam* syncParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
    tsem_init(&syncParam->sem, 0, 0);
@@ -68,6 +68,10 @@ int32_t clientParseSqlImpl(void* param, const char* sql, bool parseOnly, SParseS
      return code;
    }
 
+   if (NULL != effeciveUser) {
+     pNewRequest->effectiveUser = strdup(effeciveUser);
+   }
+   
    pNewRequest->parseOnly = parseOnly;
    pNewRequest->body.queryFp = syncQueryFn;
  
