@@ -370,7 +370,7 @@ tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
 tmq_conf_set(conf, "group.id", "cgrpName");
 tmq_conf_set(conf, "td.connect.user", "root");
 tmq_conf_set(conf, "td.connect.pass", "taosdata");
-tmq_conf_set(conf, "auto.offset.reset", "earliest");
+tmq_conf_set(conf, "auto.offset.reset", "latest");
 tmq_conf_set(conf, "msg.with.table.name", "true");
 tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
 
@@ -400,7 +400,7 @@ properties.setProperty("group.id", "cgrpName");
 properties.setProperty("bootstrap.servers", "127.0.0.1:6030");
 properties.setProperty("td.connect.user", "root");
 properties.setProperty("td.connect.pass", "taosdata");
-properties.setProperty("auto.offset.reset", "earliest");
+properties.setProperty("auto.offset.reset", "latest");
 properties.setProperty("msg.with.table.name", "true");
 properties.setProperty("value.deserializer", "com.taos.example.MetersDeserializer");
 
@@ -440,7 +440,7 @@ consumer, err := NewConsumer(conf)
 let mut dsn: Dsn = "taos://".parse()?;
 dsn.set("group.id", "group1");
 dsn.set("client.id", "test");
-dsn.set("auto.offset.reset", "earliest");
+dsn.set("auto.offset.reset", "latest");
 
 let tmq = TmqBuilder::from_dsn(dsn)?;
 
@@ -468,7 +468,7 @@ consumer = Consumer(
         "td.connect.ip": "127.0.0.1",
         "td.connect.user": "root",
         "td.connect.pass": "taosdata",
-        "auto.offset.reset": "earliest",
+        "auto.offset.reset": "latest",
         "msg.with.table.name": "true",
     }
 )
@@ -488,7 +488,7 @@ let consumer = taos.consumer({
   'group.id': 'tg2',
   'td.connect.user': 'root',
   'td.connect.pass': 'taosdata',
-  'auto.offset.reset','earliest',
+  'auto.offset.reset','latest',
   'msg.with.table.name': 'true',
   'td.connect.ip','127.0.0.1',
   'td.connect.port','6030'  
