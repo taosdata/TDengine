@@ -12,7 +12,7 @@
       <el-table-column :label="$t('taosuser.toinstance')" prop="hostport" show-overflow-tooltip></el-table-column>
       <el-table-column :label="$t('taosuser.todb')" prop="db" show-overflow-tooltip></el-table-column>
 
-      <el-table-column :label="$t('taosuser.status')" prop="status" show-overflow-tooltip></el-table-column>
+      <el-table-column :label="$t('taosuser.status')" prop="status" show-overflow-tooltip width="80"></el-table-column>
       <el-table-column :label="$t('taosuser.reason')" prop="reason" show-overflow-tooltip></el-table-column>
       <el-table-column :label="$t('taosuser.finishat')" prop="finished_at" width="210" show-overflow-tooltip>
         <span slot-scope="scope">{{ parsinginZone(scope.row.finished_at) }}</span>
