@@ -1,4 +1,5 @@
 import mitt from "mitt";
+import i18n from '@/lang/index'
 export const BaseRoute = [
   "/instances",
   "/billing",
@@ -11,8 +12,10 @@ export const BaseRoute = [
   "/landing",
   "/calculator"
 ];
-export const OfficialSite = window.navigator.language.includes('zh') ? 'https://taosdata.com' : 'https://tdengine.com';
-export const TDengineFnReverseGroup = ['CONCAT_WS'];
+
+export const OfficialSite = i18n.locale.includes('zh') ? 'https://taosdata.com' : 'https://tdengine.com';
+export const TDengineFnReverseGroup = ['CONCAT_WS','CONCAT'];
+
 // 不需要切换集群的路由
 export const NoInstanceSelectRoute = ["/billing", "/alert", "/activity", "/profile", "/support", "/user"];
 
@@ -368,11 +371,12 @@ export const AppIDKey = "AppID";
 export const TokenKey = "TDengine-Token";
 export const BusinessEmail = "business@tdengine.com";
 
-export const StreamDocsUrl = navigator.language.includes('en') ? "https://docs.tdengine.com/develop/stream/" : 'https://docs.taosdata.com/develop/stream/';
+
+export const StreamDocsUrl = i18n.locale?.includes('en') ? "https://docs.tdengine.com/develop/stream/" : 'https://docs.taosdata.com/develop/stream/';
 export const DocsUrl = "https://docs.tdengine.com"
 
 export const TdengineVersion = "3.0.3.2";
-export const SubscriptionDocsUrl = navigator.language.includes('en') ? "https://docs.tdengine.com/taos-sql/tmq/#create-a-topic" : 'https://docs.taosdata.com/taos-sql/tmq/#create-a-topic';
+export const SubscriptionDocsUrl = i18n.locale?.includes('en') ? "https://docs.tdengine.com/taos-sql/tmq/#create-a-topic" : 'https://docs.taosdata.com/taos-sql/tmq/#create-a-topic';
 export const TDengineTimeUnit = [
   {
     label: "nanosecond",

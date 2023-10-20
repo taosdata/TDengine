@@ -12,7 +12,7 @@
         :href="`https://${urlPart}.com/assets-download/3.0/taosTools-2.4.9-Linux-x64-comp3.tar.gz`"
         >taosTools</a
       >{{ $t("docs.tool.benchmark.step2desc1") }}
-      <a :href="`https://docs.${urlPart}.com/operation/pkg-install/`">{{
+      <a :href="`${$t('urlPart')}/reference/taosbenchmark`">{{
         $t("docs.tool.benchmark.step2desc2")
       }}</a
       >{{ $t("docs.connector.bottom3end") }}
@@ -631,7 +631,7 @@ export default {
       return `taos://${this.user}:${this.password}@${this.url.replace(/https?:\/\//, "")}`;
     },
     urlPart() {
-      return navigator.language.includes('en') ?"tdengine": "taosdata";
+      return this.$i18n.locale.includes('en') ?"tdengine": "taosdata";
     }
   },
 };

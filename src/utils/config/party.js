@@ -1,12 +1,12 @@
 import * as mdx from "./mdx";
 import i18n from "@/lang";
-export default [
+export default () => [
   {
     name: "Prometheus",
     desc: i18n.t("docs.party.prometheus.desc"),
 
     docs: {
-      zh: "",
+      zh: mdx.prometheusDoc,
       en: mdx.prometheusDoc,
     },
     steps: [
@@ -22,7 +22,7 @@ export default [
     desc: i18n.t("docs.party.telegraf.desc"),
 
     docs: {
-      zh: "",
+      zh: mdx.telegrafDoc,
       en: mdx.telegrafDoc,
     },
     steps: [
@@ -38,7 +38,7 @@ export default [
     icon: "influxDB",
     desc: i18n.t("docs.party.influxdb.desc", [i18n.t("docs.party.influxdb.title")]),
     docs:{
-      zh:'',
+      zh:mdx.influxDBDoc,
       en:mdx.influxDBDoc
     },
     steps: [
@@ -51,7 +51,7 @@ export default [
     name: i18n.t("docs.party.opentsdbjson.title"),
     desc:i18n.t("docs.party.influxdb.desc", [i18n.t("docs.party.opentsdbjson.title")]),
     docs: {
-      zh: "",
+      zh: mdx.opentsJSONDoc,
       en: mdx.opentsJSONDoc,
     },
     steps: [
@@ -64,7 +64,7 @@ export default [
     name: i18n.t("docs.party.opentsdbtelnet.title"),
     desc: i18n.t("docs.party.influxdb.desc", [i18n.t("docs.party.opentsdbtelnet.title")]),
     docs: {
-      zh: "",
+      zh: mdx.opentsTelnetDoc,
       en: mdx.opentsTelnetDoc,
     },
     steps: [

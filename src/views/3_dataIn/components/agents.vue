@@ -298,7 +298,7 @@ export default {
       dialog: false,
       copyDialog: false,
       operateStatus: true,
-      currentRow: null,
+      currentRow: {},
       clusterid: localStorage.getItem("local_clusterID"),
       ruleForm: {
         name: "",
@@ -379,13 +379,12 @@ export default {
       });
     },
     add() {
-      this.$set(this, "currentRow", null);
+      this.$set(this, "currentRow", {});
       this.$store.commit("app/SET_AGENT_DIALOG", true);
       this.dialogTitle = this.$t("taosagents.createnewagent");
       this.isEditDialog = false;
       // this.dialog = true;
       this.ruleForm.name = "";
-      console.log(this.currentRow, "当前传参数");
     },
     refresh() {
       this.getAgents();
@@ -475,7 +474,6 @@ export default {
           return item;
         });
         this.$store.commit("app/SET_AGENT_LISTS", this.agentList);
-        console.log(this.agentList, "最新的agent");
         this.requestIng = false;
       } catch (err) {
         this.requestIng = false;

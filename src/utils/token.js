@@ -10,6 +10,7 @@ export function getToken() {
 }
 
 export function setToken(token) {
+  setLoginSign();
   return Cookies.set(TokenKey, token, {
     domain: Domain,
     expires: TokenExpire,
@@ -62,4 +63,21 @@ export function setRedirect(url) {
   return Cookies.set(RedirectKey, url, {
     domain: Domain,
   });
+}
+
+const loginSignKey = 'login_TDC'
+/** 设置登陆标志位 */
+export function setLoginSign() {
+  Cookies.set(loginSignKey, 'true')
+}
+
+/** 判断是否存在登陆标志位 */
+export function isLogin() {
+  return !!Cookies.get(loginSignKey)
+}
+
+export function clearLoginStateWhenReopen() {
+  if (!isLogin()) {
+    removeToken()
+  }
 }

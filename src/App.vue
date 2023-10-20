@@ -17,7 +17,7 @@
 </template>
 
 <script>
-import { mapState } from 'vuex';
+import { mapState } from "vuex";
 export default {
   name: "App",
   components: {},
@@ -26,22 +26,21 @@ export default {
       return this.$store.state.app.current_cluster?.id || "";
     },
     ...mapState({
-      dialogConfig: state => state.dialogConfig,
-      dialogParams: state => state.dialogParams,
-      dialogListenter: state => state.dialogListenters,
-      dialogComponent: state => state.dialogComponent,
+      dialogConfig: (state) => state.dialogConfig,
+      dialogParams: (state) => state.dialogParams,
+      dialogListenter: (state) => state.dialogListenters,
+      dialogComponent: (state) => state.dialogComponent,
     }),
     dialogVisible: {
       get() {
         return this.$store.state.dialogVisible;
       },
       set(val) {
-        this.$store.commit('SET_DIALOG_VISIBLE', val);
-      }
-    }
+        this.$store.commit("SET_DIALOG_VISIBLE", val);
+      },
+    },
   },
   mounted() {
-
     this.$nextTick(() => {
       if (
         process.env.VUE_APP_CUS_NAME &&
@@ -56,7 +55,10 @@ export default {
         link.remove();
       }
     });
-  }
+
+  },
+ 
+
 };
 </script>
 

@@ -87,7 +87,7 @@
       :destroy-on-close="true"
       @close="closeDialog"
     >
-      <AddAgent :key="showAgent"></AddAgent>
+      <AddAgent :key="showAgent" :agent="{}"></AddAgent>
     </el-dialog>
   </div>
 </template>

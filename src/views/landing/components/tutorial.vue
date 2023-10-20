@@ -27,53 +27,57 @@
 
 <script>
   import { loadImage } from "@/utils/load";
+  import i18n from "@/lang";
+  function createLanding() {
+  return [
+    {
+      title: i18n.t("landing.metricTitle"),
+      desc: i18n.t("landing.metricDesc"),
+      img: "/static/landing/metric.jpg",
+    },
+    {
+      title: i18n.t("landing.labelTitle"),
+      desc: i18n.t("landing.labelDesc"),
+      img: "/static/landing/label.jpg",
+    },
+    {
+      title: i18n.t("landing.dataCollectionTitle"),
+      desc: i18n.t("landing.dataCollectionDesc"),
+      img: "/static/landing/dcp.jpg",
+    },
+    {
+      title: i18n.t("landing.tableTitle"),
+      desc: i18n.t("landing.tableDesc"),
+      img: "/static/landing/sample.png",
+    },
+    {
+      title: i18n.t("landing.superTableTitle"),
+      desc: i18n.t("landing.superTableDesc"),
+      img: "/static/landing/stable.jpg",
+    },
+    {
+      title: i18n.t("landing.subtableTitle"),
+      desc: i18n.t("landing.subtableDesc"),
+      img: "/static/landing/subtable.jpg",
+    },
+    {
+      title: i18n.t("landing.databaseTitle"),
+      desc: i18n.t("landing.databaseDesc"),
+      img: "/static/landing/database.png",
+    },
+    {
+      title: i18n.t("landing.instanceTitle"),
+      desc: i18n.t("landing.instanceDesc"),
+      img: "/static/landing/instances.png",
+    },
+  ];
+}
   export default {
     data() {
-      this.landing = [
-        {
-          title: this.$t("landing.metricTitle"),
-          desc: this.$t("landing.metricDesc"),
-          img: "/static/landing/metric.jpg",
-        },
-        {
-          title: this.$t("landing.labelTitle"),
-          desc: this.$t("landing.labelDesc"),
-          img: "/static/landing/label.jpg",
-        },
-        {
-          title: this.$t("landing.dataCollectionTitle"),
-          desc: this.$t("landing.dataCollectionDesc"),
-          img: "/static/landing/dcp.jpg",
-        },
-        {
-          title: this.$t("landing.tableTitle"),
-          desc: this.$t("landing.tableDesc"),
-          img: "/static/landing/sample.png",
-        },
-        {
-          title: this.$t("landing.superTableTitle"),
-          desc: this.$t("landing.superTableDesc"),
-          img: "/static/landing/stable.jpg",
-        },
-        {
-          title: this.$t("landing.subtableTitle"),
-          desc: this.$t("landing.subtableDesc"),
-          img: "/static/landing/subtable.jpg",
-        },
-        {
-          title: this.$t("landing.databaseTitle"),
-          desc: this.$t("landing.databaseDesc"),
-          img: "/static/landing/database.png",
-        },
-        {
-          title: this.$t("landing.instanceTitle"),
-          desc: this.$t("landing.instanceDesc"),
-          img: "/static/landing/instances.png",
-        },
-      ];
       return {
         step: 0,
         loading: false,
+        landing: createLanding()
       };
     },
     computed: {
@@ -92,6 +96,13 @@
         });
       },
     },
+    watch:{
+      "$i18n.locale":{
+        handler(val){
+          this.landing = createLanding()
+        }
+      }
+    }
   };
 </script>
 

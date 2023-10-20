@@ -1,5 +1,6 @@
 import { request } from "@/utils/request";
-let language=window.navigator.language.includes('zh')?'zh':'en'
+import i18n from '@/lang/index'
+let language=i18n.locale.includes('zh')?'zh':'en'
 //获取backup列表
 export function getBackupList(id) {
     return request({

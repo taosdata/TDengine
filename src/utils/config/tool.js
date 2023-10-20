@@ -1,12 +1,12 @@
 import * as mdx from "./mdx";
 import i18n from "@/lang";
-export default [
+export default () => [
   {
     name: "TDengine CLI",
     logo: "https://img1.baidu.com/it/u=3903506244,1663450695&fm=253&fmt=auto&app=138&f=GIF?w=500&h=310",
     desc: i18n.t("docs.tool.cli.desc"),
     docs: {
-      zh: "",
+      zh: mdx.TDCLIDoc,
       en: mdx.TDCLIDoc,
     },
     steps: [
@@ -21,7 +21,7 @@ export default [
     logo: "https://img1.baidu.com/it/u=3903506244,1663450695&fm=253&fmt=auto&app=138&f=GIF?w=500&h=310",
     desc: i18n.t("docs.tool.benchmark.desc"),
     docs: {
-      zh: "",
+      zh: mdx.benchmarkDoc,
       en: mdx.benchmarkDoc,
     },
     steps: [
@@ -36,14 +36,14 @@ export default [
     logo: "https://img1.baidu.com/it/u=3903506244,1663450695&fm=253&fmt=auto&app=138&f=GIF?w=500&h=310",
     desc: i18n.t('docs.dataout.dump.desc'),
     docs: {
-      zh: "",
+      zh: mdx.taosDumpDoc,
       en: mdx.taosDumpDoc,
     },
     steps: [
       { title: i18n.t("docs.dataout.dump.step1"), dom: "introduction" },
       { title: i18n.t("docs.dataout.dump.step2"), dom: "installation" },
-      { title: i18n.t("docs.dataout.dump.step3"), dom: "run" },
-      { title: i18n.t("docs.dataout.dump.step4"), dom: "configuration-file-parameters-in-detailed" },
+      { title: i18n.t("docs.dataout.dump.step3"), dom: "common-usage-scenarios" },
+      { title: i18n.t("docs.dataout.dump.step4"), dom: "detailed-command-line-parameter-list" },
     ]
   },
   // {
@@ -59,7 +59,7 @@ export default [
     name: "Grafana",
     desc: i18n.t("docs.virtual.grafana.desc"),
     docs: {
-      zh: "",
+      zh: mdx.grafanaDoc,
       en: mdx.grafanaDoc,
     },
     steps: [
@@ -73,7 +73,7 @@ export default [
     name: 'Seeq',
     desc: i18n.t('docs.tools.seeq.desc'),
     docs: {
-      zh:'',
+      zh:mdx.seeqDoc,
       en:mdx.seeqDoc
     },
     steps: [
@@ -87,7 +87,7 @@ export default [
     name: "Google Data Studio",
     desc: i18n.t("docs.virtual.gds.desc"),
     docs: {
-      zh:'',
+      zh:mdx.gdsDoc,
       en:mdx.gdsDoc
     },
     steps: [

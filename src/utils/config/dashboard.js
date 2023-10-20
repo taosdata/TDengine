@@ -1,10 +1,13 @@
 import * as mdx from "./mdx";
 import i18n from "@/lang";
 
-export default [
+export default () => [
   {
     name: "Dashboard",
-    docs: mdx.dashboardDoc,
+    docs: {
+      zh:mdx.dashboardDoc,
+      en:mdx.dashboardDoc
+    },
     steps: [
       { title: i18n.t("docs.dashboard.step1"), dom: "install-grafana" },
       { title: i18n.t("docs.dashboard.step2"), dom: "install-tdengine-plugin" },

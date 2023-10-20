@@ -111,7 +111,7 @@ export default {
   },
   methods: {
     copyDsn() {
-      copy(this.dsn);
+      copy(this.dsn +"/" + this.infoData["name"]);
     },
     getStruct() {
       switch (this.infoType) {
@@ -186,59 +186,12 @@ export default {
 
     section.dsn {
       width: 100%;
-
-
-      // .pre-code {
-      //   background-color: #f6f8fa;
-      //   padding: 0px;
-      //   width: 80%;
-      //   text-align: left;
-      //   white-space: break-spaces;
-      //   margin-top: 0px;
-
-      //   code {
-      //     display: inline-flex;
-      //     width: 100%;
-      //     padding-left: 0px;
-      //     background: transparent !important;
-      //   }
-
-      //   .copy-icon {
-      //     visibility: hidden;
-      //     display: flex;
-      //     align-items: center;
-      //     white-space: nowrap;
-      //     cursor: pointer;
-      //     color: #4259ce;
-      //     position: absolute;
-      //     right: 20px;
-      //     top: 40px;
-      //     font-size: 12px;
-      //   }
-      // }
-
-      // ::v-deep {
-      //   code {
-      //     background: rgba(175, 184, 193, 0.2) !important;
-      //     border-radius: 6px;
-      //     padding: 0px;
-      //   }
-      // }
-
-      // code {
-      //   background: transparent !important;
-      //   line-height: 8px;
-      // }
-
-      // &:hover {
-      //   .copy-icon {
-      //     visibility: visible;
-      //   }
-      // }
     }
   }
 }
-
+.info ::v-deep .el-form-item {
+  margin-bottom: 8px !important;
+}
 .info ::v-deep .el-form-item__label {
   line-height: 20px !important;
   font-size: 16px;

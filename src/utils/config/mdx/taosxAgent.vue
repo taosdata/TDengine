@@ -39,7 +39,8 @@ export default {
     },
     taoxAddress() {
       return this.$store.state.dataIn.taoxAddress?.[0]?.address ?? '';
-    }
+    },
+    
   },
   watch: {},
   created() {},

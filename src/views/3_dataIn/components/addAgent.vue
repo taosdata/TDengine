@@ -33,7 +33,7 @@
       <p v-dompurify-html="$t('docs.taosxAgent.3')"></p>
       <pre v-highlight><code>endpoint="{{ taoxAddress }}"
 token="{{ token }}"</code></pre>
-      <p v-dompurify-html="$t('docs.taosxAgent.6')"></p>
+      <p v-dompurify-html="$t('docs.taosxAgent.6',agentAddress)"></p>
     </section>
     <section
       v-else-if="active == 4"
@@ -136,7 +136,9 @@ export default {
   props: {
     agent: {
       type: Object,
-      default: () => ({})
+      default: () => {
+        return {}
+      }
     }
   },
   name:'AddAgent',
@@ -161,10 +163,17 @@ export default {
       tabActive: '0',
       agentStatus: '',
       requestIng: false,
-      checkIng: false
+      checkIng: false,
+      oldAgent:[]
     };
   },
   computed: {
+    agentAddress(){
+      let agenturl= window.location.origin+(this.$i18n.locale.includes('en')?'/docs-en/get-started/agent/':'/docs/get-started/agent/')
+      return  {
+        agenturl
+      }
+    },
     checkBtnText() {
       return this.$t('docs.taosxAgent.' + (this.checkIng ? '10' : '7'));
     },
@@ -208,6 +217,7 @@ export default {
       this.name = this.agent.name;
       this.active = 2;
     }
+    this.$set(this,'oldAgent',this.agentList)
   },
   methods: {
     checkAgentStatus() {
@@ -230,11 +240,16 @@ export default {
       if (this.loading) return;
       this.loading = true;
       const fn = this.agent?.id ? editAgent : addNewAgent;
+      
       fn(this.name, this.agent?.id)
-        .then(({ token,id }) => {
+        .then(async({ token,id }) => {
           this.$set(this.tokenMap, this.name, token);
           this.active++;
-          this.$store.dispatch('app/getAgentList');
+         await this.$store.dispatch('app/getAgentList');
+         Object.assign(
+            this.agent,
+            this.$store.state.app.agentLists.find(item => item.id == id)
+          );
         })
         .catch(() => {})
         .finally(() => {
@@ -242,10 +257,8 @@ export default {
         });
     },
     next() {
-   
       if (this.active == 4) {
         this.agentStatus = 'noCheck';
-        // this.submit();
         this.$store.commit('app/SET_AGENT_DIALOG',false)
         
       }
@@ -257,7 +270,7 @@ export default {
       }
     },
     nameValid() {
-      if ((this.name&&this.oldActive!=3)&&this.oldActive!=1) {
+      if (this.name) {
         return this.agentList.some(item => item.name == this.name);
       } else {
         return false;
@@ -269,6 +282,12 @@ export default {
       deep:true,
       handler(val,oldval){
         this.oldActive=oldval
+      }
+    },
+    '$store.state.app.agentLists':{
+      deep:true,
+      handler(val,oldval){
+        this.$set(this,'oldAgent',oldval)
       }
     }
   }

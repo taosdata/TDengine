@@ -114,10 +114,9 @@ request.interceptors.response.use(
       }
       if (error.config.baseURL.includes("/api/x")) {
         Message.closeAll()
-        console.log(error.response,'error.response--taosx错误提示');
         if (error.response && error.response.status === 404) {
           Message.error(
-            navigator.language.includes("zh")
+            localStorage.getItem('local_language')?.includes("zh")
               ? isoem
                 ? taosx404.replace("TaosX", "").replace('taosx','')
                 : taosx404
@@ -127,7 +126,7 @@ request.interceptors.response.use(
           );
         } else if (error.response && error.response.status === 500) {
           Message.error(
-            navigator.language.includes("zh")
+            localStorage.getItem('local_language')?.includes("zh")
               ? isoem
                 ? taosx500.replace("TaosX", "").replace('taosx','')
                 : taosx500
