@@ -272,7 +272,8 @@ def build_and_install_pi(mode):
     for filename in os.listdir(connector_path):
         filepath = os.path.join(connector_path, filename)
         if os.path.isfile(filepath):
-            shutil.copy2(filepath, pi_install_path)
+            if not filename.endswith("OSIsoft.AFSDK.dll"):
+                shutil.copy2(filepath, pi_install_path)
 
 def build_and_install_opc_on_windows(mode):
     print("buildAndInstallOPC on windows start...")
