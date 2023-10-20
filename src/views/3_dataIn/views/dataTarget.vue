@@ -12,13 +12,15 @@
           size="small"
           v-model="ruleForm.name"
           :placeholder="$t('dataIn.palceholders.taskName')"
-
           @change="changeDBType"
-
         ></el-input>
       </el-form-item>
       <el-form-item :label="$t('type')" prop="type" size="small">
-        <el-select v-model="ruleForm.type" @change="changeDBType" :disabled="currentEditid?true:false">
+        <el-select
+          v-model="ruleForm.type"
+          @change="changeDBType"
+          :disabled="currentEditid ? true : false"
+        >
           <el-option
             v-for="item in dbTypes"
             :label="item.name"
@@ -33,30 +35,34 @@
         size="small"
         v-if="showAgentSelect"
       >
-        <el-select
-          v-model="ruleForm.agent"
-          :placeholder="$t('dataIn.palceholders.agentPlaceholder')"
-          @change="changeAgent"
-        >
-          <el-option
-            v-for="item in agentList"
-            :label="item.name"
-            :key="item.id"
-            :value="item.id"
-          ></el-option>
-        </el-select>
-        <el-button
-          class="ml"
-          type="primary"
-          @click="createAgent"
-          size="small"
-          icon="el-icon-plus"
-          >{{ $t("taosagents.createnewagent") }}</el-button
-        >
+        <div class="transverse">
+          <el-select
+            v-model="ruleForm.agent"
+            :placeholder="$t('dataIn.palceholders.agentPlaceholder')"
+            @change="changeAgent"
+          >
+            <el-option
+              v-for="item in agentList"
+              :label="item.name"
+              :key="item.id"
+              :value="item.id"
+            ></el-option>
+          </el-select>
+          <el-button
+            class="ml"
+            type="primary"
+            @click="createAgent"
+            size="small"
+            icon="el-icon-plus"
+            >{{ $t("taosagents.createnewagent") }}</el-button
+          >
+        </div>
+
         <p class="custom-placeholder mt10">{{ $t("dataIn.needAgentTip") }}</p>
       </el-form-item>
       <el-form-item :label="$t('stream.targetDB')" prop="dbName">
-        <el-select
+        <div class="transverse">
+          <el-select
           v-model="ruleForm.dbName"
           size="small"
           :placeholder="$t('dataIn.palceholders.chooseTargetDbTip')"
@@ -77,6 +83,8 @@
           icon="el-icon-plus"
           >{{ $t("data.createDatabase") }}</el-button
         >
+        </div>
+        
         <!-- <el-button @click="downloadFile">文件下载</el-button> -->
       </el-form-item>
     </el-form>
@@ -106,7 +114,7 @@ export default {
   components: { AddAgent },
   data() {
     return {
-      currentEditid:'',
+      currentEditid: "",
       dbTypes: [],
       dbList: [],
       agentList: [],
@@ -176,17 +184,16 @@ export default {
     this.getDBLists();
     this.getAgents();
     this.getInitValue();
-    this.currentEditid=this.$store.state.app.currentEditID
+    this.currentEditid = this.$store.state.app.currentEditID;
   },
   methods: {
     closeDialog() {
       this.$store.commit("app/SET_AGENT_DIALOG", false);
     },
-    setTaskName(){
+    setTaskName() {
       this.$store.commit("app/SET_CURRENT_DSNAME", this.ruleForm.name);
     },
     changeAgent() {
-      
       this.$store.commit("app/SET_CURRENT_AGENT", this.ruleForm.agent);
     },
     changeDB() {
@@ -291,16 +298,16 @@ export default {
     },
   },
   watch: {
-    '$store.state.app.agentDialog':{
-      handler(val){
-        this.showAgent=val
-      }
+    "$store.state.app.agentDialog": {
+      handler(val) {
+        this.showAgent = val;
+      },
     },
-    '$store.state.app.currentEditID':{
-      deep:true,
-      handler(val){
-        this.currentEditid=val
-      }
+    "$store.state.app.currentEditID": {
+      deep: true,
+      handler(val) {
+        this.currentEditid = val;
+      },
     },
     "$store.state.app.currentDBName": {
       deep: true,
@@ -318,7 +325,7 @@ export default {
       deep: true,
       handler(val) {
         this.agentList = val;
-        this.ruleForm.agent = val[val.length-1].id
+        this.ruleForm.agent = val[val.length - 1].id;
         this.$store.commit("app/SET_CURRENT_AGENT", this.ruleForm.agent);
       },
     },
@@ -352,5 +359,8 @@ export default {
   color: #acaab2;
   font-size: 14px;
   margin-top: 10px;
+}
+.transverse{
+  display:flex;
 }
 </style>
