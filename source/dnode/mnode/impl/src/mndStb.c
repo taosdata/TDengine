@@ -862,8 +862,6 @@ static int32_t mndGenIdxNameForFirstTag(char *fullname, char *dbname, char *stbn
   SName name = {0};
   tNameFromString(&name, stbname, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
   return snprintf(fullname, TSDB_INDEX_FNAME_LEN - 1, "%s.%s_%s", dbname, tagname, tNameGetTableName(&name));
-
-  return 0;
 }
 
 static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCreate, SDbObj *pDb) {
