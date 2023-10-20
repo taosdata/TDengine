@@ -415,7 +415,7 @@ impl TaskOpts {
     }
 }
 
-pub fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
+pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
     let dsn = dsn.into_dsn();
     match dsn {
         Err(err) => {
@@ -425,13 +425,13 @@ pub fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
             match d.driver.as_str() {
                 // TODO: clickhouse
                 "historian" => runners::historian::is_valid(&d),
-                "influxdb" => futures::executor::block_on(runners::influxdb::is_valid(&d)),
+                "influxdb" => runners::influxdb::is_valid(&d).await,
                 "kafka" => runners::kafka::is_valid(&d),
-                "mqtt" => futures::executor::block_on(runners::mqtt::is_valid(&d)),
+                "mqtt" => runners::mqtt::is_valid(&d).await,
                 "opc" | "opcda" | "opcua" => runners::opc::is_valid(&d),
-                "opentsdb" => futures::executor::block_on(runners::opentsdb::is_valid(&d)),
+                "opentsdb" => runners::opentsdb::is_valid(&d).await,
                 "pi" | "pibackfill" => runners::pi::is_valid(&d),
-                "taos" | "tmq" => futures::executor::block_on(is_valid(&d)),
+                "taos" | "tmq" => is_valid(&d).await,
                 &_ => DataSourceValidation::unknown(),
             }
         }
@@ -504,19 +504,19 @@ mod tests {
         assert_eq!(None, dsn.params.get("breakpoints"));
     }
 
-    #[test]
     #[ignore]
-    fn test_validate_dsn() {
+    #[tokio::test]
+    async fn test_validate_dsn() {
         // historian
         let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433").unwrap();
-        let dsv = validate_dsn(dsn);
+        let dsv = validate_dsn(dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("historian", dsv.data_source);
 
         // influxdb
         let dsn = Dsn::from_str("influxdb://192.168.1.107:8086/?version=2.7&orgId=f3af42a3895a5e33&token=wido5N7w7PutOEuVtoEe5kxjkov5XZm1Uxqe1bEKKBSN4_4XjQfg0hc9BNGDR7xiMs3BaNtHsWjKCvGWMn8fDA==").unwrap();
-        let dsv = validate_dsn(dsn);
+        let dsv = validate_dsn(dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("influxdb", dsv.data_source);
@@ -524,21 +524,23 @@ mod tests {
 
         // kafka
         let dsn = Dsn::from_str("kafka://192.168.1.92:9092").unwrap();
-        let dsv = validate_dsn(dsn);
+        let dsv = validate_dsn(dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("kafka", dsv.data_source);
 
         //mqtt
-        let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?clean_session=true&keep_alive=60&version=3.0").unwrap();
-        let dsv = validate_dsn(dsn);
+        let dsn =
+            Dsn::from_str("mqtt://127.0.0.1:1833?clean_session=true&keep_alive=60&version=3.0")
+                .unwrap();
+        let dsv = validate_dsn(dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("mqtt", dsv.data_source);
 
         // opentsdb
         let dsn = Dsn::from_str("opentsdb://192.168.2.12:4242").unwrap();
-        let dsv = validate_dsn(dsn);
+        let dsv = validate_dsn(dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("opentsdb", dsv.data_source);
@@ -546,7 +548,7 @@ mod tests {
 
         // taos
         let dsn = Dsn::from_str("taos+ws://192.168.1.92:6041").unwrap();
-        let dsv = validate_dsn(dsn);
+        let dsv = validate_dsn(dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("taos", dsv.data_source);
@@ -554,7 +556,7 @@ mod tests {
 
         // tmq
         let dsn = Dsn::from_str("tmq+ws://192.168.1.92:6041").unwrap();
-        let dsv = validate_dsn(dsn);
+        let dsv = validate_dsn(dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("taos", dsv.data_source);

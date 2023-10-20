@@ -404,8 +404,8 @@ impl OPCConfig {
                         "opcua",
                         csv_config_file.clone().unwrap().as_str(),
                     )
-                        .await
-                        .map_err(|err| OpcError::ConfigError("csv_config_file", err.to_string()))?;
+                    .await
+                    .map_err(|err| OpcError::ConfigError("csv_config_file", err.to_string()))?;
                     opc_table_config = Some(res.0);
                     for child_table_name in res.2.iter() {
                         let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
@@ -498,8 +498,8 @@ impl OPCConfig {
                         "opcda",
                         csv_config_file.clone().unwrap().as_str(),
                     )
-                        .await
-                        .map_err(|err| OpcError::ConfigError("csv_config_file", err.to_string()))?;
+                    .await
+                    .map_err(|err| OpcError::ConfigError("csv_config_file", err.to_string()))?;
                     opc_table_config = Some(res.0);
                     for child_table_name in res.2.iter() {
                         let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
@@ -1085,7 +1085,7 @@ pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
     ))
 }
 
-#[instrument(skip_all, fields(task.id = with_agent.as_ref().map(| v | v.0)))]
+#[instrument(skip_all, fields(task.id = with_agent.as_ref().map(|v| v.0)))]
 pub async fn opc_to_taos(
     mut from: Dsn,
     _actions: Vec<Action>,
@@ -1154,7 +1154,7 @@ pub async fn opc_to_taos(
         transferred,
         span,
     )
-        .await?;
+    .await?;
 
     let port_pool = port_pool.clone();
     let mut command = tokio::process::Command::new(exe_path());
@@ -1330,7 +1330,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         ContentLimit::Time(TimeFrequency::Daily),
         Compression::None,
         #[cfg(unix)]
-            None,
+        None,
     );
 
     write!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr)).unwrap();
@@ -1385,10 +1385,10 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
             .filter(|set| {
                 regex.is_match(&set.id)
                     || set
-                    .name
-                    .as_deref()
-                    .map(|s| regex.is_match(s))
-                    .unwrap_or(false)
+                        .name
+                        .as_deref()
+                        .map(|s| regex.is_match(s))
+                        .unwrap_or(false)
             })
             .map(|mut set| {
                 set.category = Some(req.categories[0].clone());
@@ -1622,7 +1622,7 @@ batch_timeout = 100
             None,
             span.clone(),
         )
-            .await?;
+        .await?;
         Ok(())
     }
 }
@@ -1645,6 +1645,6 @@ async fn test_with_agent_all_nodes() -> anyhow::Result<()> {
         None,
         span.clone(),
     )
-        .await?;
+    .await?;
     Ok(())
 }

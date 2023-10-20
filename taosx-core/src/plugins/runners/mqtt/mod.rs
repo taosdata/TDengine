@@ -1,9 +1,4 @@
-use std::{
-    fs,
-    io::Write,
-    path::PathBuf,
-    sync::Arc,
-};
+use std::{fs, io::Write, path::PathBuf, sync::Arc};
 
 use anyhow::Context;
 use itertools::Itertools;
@@ -12,13 +7,13 @@ use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
-use crate::{
-    build_ipc, get_log_keep_days, Parser, plugins::runners::get_plugin_dir,
-    Transferred, utils::port_pool::PortPool,
-};
 use crate::runners::log_rotation;
 use crate::runners::mqtt::config::{MqttConfig, MqttConnectConfig};
 use crate::validation::DataSourceValidation;
+use crate::{
+    build_ipc, get_log_keep_days, plugins::runners::get_plugin_dir, utils::port_pool::PortPool,
+    Parser, Transferred,
+};
 
 mod config;
 
@@ -94,7 +89,8 @@ pub async fn mqtt_to_taos(
         with_agent,
         transferred,
         span,
-    ).await?;
+    )
+    .await?;
 
     let mqtt = mqtt_exe_path()?;
     let mut command = tokio::process::Command::new(mqtt);
@@ -189,14 +185,22 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     match config {
         Err(err) => DataSourceValidation::invalid(
             "mqtt".to_string(),
-            format!("invalid mqtt dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
+            format!(
+                "invalid mqtt dsn: {}, cause: {}",
+                dsn.to_string(),
+                err.to_string()
+            ),
         ),
         Ok(c) => {
             let valid = validate_mqtt(c).await;
             match valid {
                 Err(err) => DataSourceValidation::invalid(
                     "mqtt".to_string(),
-                    format!("failed to connect to dsn: {}, cause: {}", dsn.to_string(), err.to_string()),
+                    format!(
+                        "failed to connect to dsn: {}, cause: {}",
+                        dsn.to_string(),
+                        err.to_string()
+                    ),
                 ),
                 Ok(v) => v,
             }
@@ -223,12 +227,13 @@ async fn validate_mqtt(config: MqttConnectConfig) -> anyhow::Result<DataSourceVa
         .with_context(|| format!("failed to execute mqtt: {:?}", mqtt.as_path()))?;
 
     if output.status.success() {
-        let result: serde_json::Value = serde_json::from_slice(&output.stdout).with_context(|| {
-            format!(
-                "Deserialize mqtt validation result error: {}",
-                String::from_utf8_lossy(&output.stdout)
-            )
-        })?;
+        let result: serde_json::Value =
+            serde_json::from_slice(&output.stdout).with_context(|| {
+                format!(
+                    "Deserialize mqtt validation result error: {}",
+                    String::from_utf8_lossy(&output.stdout)
+                )
+            })?;
         Ok(DataSourceValidation {
             valid: result["valid"].as_bool().unwrap_or(false),
             support: result["support"].as_bool().unwrap_or(false),
@@ -239,7 +244,10 @@ async fn validate_mqtt(config: MqttConnectConfig) -> anyhow::Result<DataSourceVa
     } else {
         Ok(DataSourceValidation::invalid(
             "mqtt".to_string(),
-            format!("failed to execute mqtt: {}", String::from_utf8_lossy(&output.stderr)),
+            format!(
+                "failed to execute mqtt: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ),
         ))
     }
 }
@@ -260,9 +268,14 @@ mod tests {
         assert_eq!(false, validation.support);
         assert_eq!("mqtt", validation.data_source);
         assert_eq!(None, validation.version);
-        assert_eq!("invalid mqtt dsn: mqtt://, cause: host is required", validation.message.unwrap());
+        assert_eq!(
+            "invalid mqtt dsn: mqtt://, cause: host is required",
+            validation.message.unwrap()
+        );
 
-        let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?clean_session=true&keep_alive=60&version=3.0").unwrap();
+        let dsn =
+            Dsn::from_str("mqtt://127.0.0.1:1833?clean_session=true&keep_alive=60&version=3.0")
+                .unwrap();
         let validation = is_valid(&dsn).await;
         assert_eq!(false, validation.valid);
         assert_eq!(false, validation.support);
@@ -307,7 +320,7 @@ mod tests {
                 }
                 "#,
                 )
-                    .unwrap(),
+                .unwrap(),
             ),
             jobs: 0,
             compression_level: None,

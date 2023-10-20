@@ -167,15 +167,14 @@ impl PiConfig {
             .map(|s| s.to_string())
             .collect_vec();
 
-        let point_list =
-            get_string_from_param_or_file(&mut dsn, "PointList", false, Some(","))
-                .map_err(|err| PiError::ParseKeyValueError("PointList", err))?
-                .unwrap_or_default()
-                .split([',', '\n'])
-                .map(|s| s.trim())
-                .filter(|s| !s.is_empty())
-                .map(|s| s.to_string())
-                .collect_vec();
+        let point_list = get_string_from_param_or_file(&mut dsn, "PointList", false, Some(","))
+            .map_err(|err| PiError::ParseKeyValueError("PointList", err))?
+            .unwrap_or_default()
+            .split([',', '\n'])
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .collect_vec();
         if is_real_run
             && point_list.is_empty()
             && template_for_af_element.is_empty()
@@ -339,7 +338,7 @@ impl PiConfig {
                     via: None,
                     lang: None,
                 })
-                    .await?;
+                .await?;
                 template_for_pi_point.extend(
                     datasets
                         .into_iter()
@@ -352,14 +351,14 @@ impl PiConfig {
                         &mut dsn,
                         config_key,
                         false,
-                        Some(","),
+                        Some(",")
                     )
-                        .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
-                        .unwrap_or_default()
-                        .split([',', '\n'])
-                        .map(|s| s.trim())
-                        .filter(|s| !s.is_empty())
-                        .map(|s| s.to_string()),
+                    .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
+                    .unwrap_or_default()
+                    .split([',', '\n'])
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string()),
                 );
             }
         }
@@ -384,7 +383,7 @@ impl PiConfig {
                     via: None,
                     lang: None,
                 })
-                    .await?;
+                .await?;
                 template_for_af_element.extend(
                     datasets
                         .into_iter()
@@ -397,27 +396,31 @@ impl PiConfig {
                         &mut dsn,
                         config_key,
                         false,
-                        Some(","),
+                        Some(",")
                     )
-                        .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
-                        .unwrap_or_default()
-                        .split([',', '\n'])
-                        .map(|s| s.trim())
-                        .filter(|s| !s.is_empty())
-                        .map(|s| s.to_string()),
+                    .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
+                    .unwrap_or_default()
+                    .split([',', '\n'])
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string()),
                 );
             }
         }
 
-        let mut point_list =
-            get_string_from_param_or_file(&mut dsn, "PointList", false, Some(","))
-                .map_err(|err| PiError::ParseKeyValueError("PointList", err))?
-                .unwrap_or_default()
-                .split([',', '\n'])
-                .map(|s| s.trim())
-                .filter(|s| !s.is_empty())
-                .map(|s| s.to_string())
-                .collect_vec();
+        let mut point_list = get_string_from_param_or_file(
+            &mut dsn,
+            "PointList",
+            false,
+            Some(",")
+        )
+        .map_err(|err| PiError::ParseKeyValueError("PointList", err))?
+        .unwrap_or_default()
+        .split([',', '\n'])
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect_vec();
         let config_key = "point_file";
         let config_category = "PointList";
 
@@ -432,7 +435,7 @@ impl PiConfig {
                     via: None,
                     lang: None,
                 })
-                    .await?;
+                .await?;
                 point_list.extend(
                     datasets
                         .into_iter()
@@ -445,14 +448,14 @@ impl PiConfig {
                         &mut dsn,
                         "point_file",
                         false,
-                        Some(","),
+                        Some(",")
                     )
-                        .map_err(|err| PiError::ParseKeyValueError("point_file", err))?
-                        .unwrap_or_default()
-                        .split([',', '\n'])
-                        .map(|s| s.trim())
-                        .filter(|s| !s.is_empty())
-                        .map(|s| s.to_string()),
+                    .map_err(|err| PiError::ParseKeyValueError("point_file", err))?
+                    .unwrap_or_default()
+                    .split([',', '\n'])
+                    .map(|s| s.trim())
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_string()),
                 );
             }
         }
@@ -741,7 +744,7 @@ pub async fn pi_to_taos(
         transferred,
         span,
     )
-        .await?;
+    .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     let client = reqwest::Client::new();
@@ -863,7 +866,7 @@ pub async fn pi_to_taos(
         safe_exit!();
         Ok(())
     })
-        .await??;
+    .await??;
     // stop_thread(ipc);
     // let _ = ipc.send(());
     // stop_thread(server);
@@ -931,7 +934,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         ContentLimit::Time(TimeFrequency::Daily),
         Compression::None,
         #[cfg(unix)]
-            None,
+        None,
     );
 
     let output = command

@@ -1,9 +1,9 @@
-use std::io::BufRead;
 use file_rotate::compression::Compression;
 use file_rotate::suffix::{AppendTimestamp, DateFrom, FileLimit};
 use file_rotate::{ContentLimit, FileRotate, TimeFrequency};
-use std::path::{Path, PathBuf};
 use itertools::Itertools;
+use std::io::BufRead;
+use std::path::{Path, PathBuf};
 use taos::Dsn;
 
 mod config;
@@ -111,16 +111,19 @@ pub fn log_rotation(log_path: &PathBuf, log_keep_days: i64) -> FileRotate<Append
         ContentLimit::Time(TimeFrequency::Daily),
         Compression::None,
         #[cfg(unix)]
-            None,
+        None,
     )
 }
 
 /// get string value from dsn's key
-///
 /// line_break: push \n between lines if is true
-///
 /// append_line: push append_line between lines if is not None
-pub fn get_string_from_param_or_file(dsn: &mut Dsn, key: &str, line_break: bool, append_line: Option<&str>) -> Result<Option<String>, String> {
+pub fn get_string_from_param_or_file(
+    dsn: &mut Dsn,
+    key: &str,
+    line_break: bool,
+    append_line: Option<&str>,
+) -> Result<Option<String>, String> {
     if let Some(value) = dsn.remove(key) {
         let (files, config): (Vec<_>, Vec<_>) = value
             .split(",")
@@ -182,7 +185,11 @@ pub fn get_string_vec_from_param_or_file(dsn: &mut Dsn, key: &str) -> Result<Vec
             );
             let f = std::fs::File::open(&file[1..]);
             if f.is_err() {
-                tracing::warn!("file: {} read error, cause: {}", &file[1..], f.err().unwrap());
+                tracing::warn!(
+                    "file: {} read error, cause: {}",
+                    &file[1..],
+                    f.err().unwrap()
+                );
                 continue;
             }
             let buf = std::io::BufReader::new(f.unwrap());
@@ -210,8 +217,8 @@ pub fn get_string_vec_from_param_or_file(dsn: &mut Dsn, key: &str) -> Result<Vec
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
     use super::*;
+    use std::str::FromStr;
 
     #[test]
     fn info() {
@@ -232,8 +239,11 @@ mod tests {
 
     #[test]
     fn test_get_string_from_param_or_file() {
-        let mut dsn = Dsn::from_str("driver:///?ca=123,456,@../tests/mqtt/ca,@../tests/mqtt/ca").unwrap();
-        let result = get_string_from_param_or_file(&mut dsn, "ca", true, None).unwrap().unwrap();
+        let mut dsn =
+            Dsn::from_str("driver:///?ca=123,456,@../tests/mqtt/ca,@../tests/mqtt/ca").unwrap();
+        let result = get_string_from_param_or_file(&mut dsn, "ca", true, None)
+            .unwrap()
+            .unwrap();
         assert_eq!(
             "123
 456
@@ -246,17 +256,18 @@ MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV
             result
         );
 
-        let mut dsn = Dsn::from_str("driver:///?ca=123,456,@../tests/mqtt/ca,@../tests/mqtt/ca").unwrap();
+        let mut dsn =
+            Dsn::from_str("driver:///?ca=123,456,@../tests/mqtt/ca,@../tests/mqtt/ca").unwrap();
         let result = get_string_from_param_or_file(&mut dsn, "ca", false, None)
             .unwrap()
             .unwrap();
         assert_eq!("123456-----BEGIN CERTIFICATE-----MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV-----END CERTIFICATE----------BEGIN CERTIFICATE-----MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV-----END CERTIFICATE-----", result);
 
-        let mut dsn = Dsn::from_str("driver:///?ca=123,456,@../tests/mqtt/ca,@../tests/mqtt/ca").unwrap();
+        let mut dsn =
+            Dsn::from_str("driver:///?ca=123,456,@../tests/mqtt/ca,@../tests/mqtt/ca").unwrap();
         let result = get_string_from_param_or_file(&mut dsn, "ca", false, Some(","))
             .unwrap()
             .unwrap();
         assert_eq!("123,456,-----BEGIN CERTIFICATE-----,MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV,-----END CERTIFICATE-----,-----BEGIN CERTIFICATE-----,MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV,-----END CERTIFICATE-----", result);
     }
 }
-

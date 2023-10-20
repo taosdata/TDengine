@@ -23,12 +23,19 @@ impl MqttConfig {
         for i in 0..topics_vec.len() {
             let pair = topics_vec[i].split("::").collect_vec();
             if pair.len() != 2 {
-                return Err(anyhow::anyhow!("invalid topic: {}, cause: the format of topic is name::qos",topics_vec[i]));
+                return Err(anyhow::anyhow!(
+                    "invalid topic: {}, cause: the format of topic is name::qos",
+                    topics_vec[i]
+                ));
             }
             let topic = String::from(pair[0]);
-            let qos = pair[1]
-                .parse::<u8>()
-                .map_err(|err| anyhow::anyhow!("invalid qos: {} in topic, cause: {}", pair[1].to_string(), err.to_string()))?;
+            let qos = pair[1].parse::<u8>().map_err(|err| {
+                anyhow::anyhow!(
+                    "invalid qos: {} in topic, cause: {}",
+                    pair[1].to_string(),
+                    err.to_string()
+                )
+            })?;
             topics.insert(topic, qos);
         }
 
@@ -61,18 +68,26 @@ pub struct MqttConnectConfig {
 
 impl MqttConnectConfig {
     pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Self> {
-        let ca = get_string_from_param_or_file(&mut dsn.clone(), "ca", true, None)
-            .map_err(|err| anyhow::anyhow!("failed to read ca config, cause: {}", err.to_string()))?;
-        let cert = get_string_from_param_or_file(&mut dsn.clone(), "cert", true, None)
-            .map_err(|err| anyhow::anyhow!("failed to read cert config, cause: {}", err.to_string()))?;
+        let ca =
+            get_string_from_param_or_file(&mut dsn.clone(), "ca", true, None).map_err(|err| {
+                anyhow::anyhow!("failed to read ca config, cause: {}", err.to_string())
+            })?;
+        let cert =
+            get_string_from_param_or_file(&mut dsn.clone(), "cert", true, None).map_err(|err| {
+                anyhow::anyhow!("failed to read cert config, cause: {}", err.to_string())
+            })?;
         let cert_key = get_string_from_param_or_file(&mut dsn.clone(), "cert_key", true, None)
-            .map_err(|err| anyhow::anyhow!("failed to read cert_key config, cause: {}", err.to_string()))?;
+            .map_err(|err| {
+                anyhow::anyhow!("failed to read cert_key config, cause: {}", err.to_string())
+            })?;
 
-        let host = dsn.addresses
+        let host = dsn
+            .addresses
             .first()
             .and_then(|addr| addr.host.clone())
             .ok_or(anyhow::anyhow!("host is required"))?;
-        let port = dsn.addresses
+        let port = dsn
+            .addresses
             .first()
             .and_then(|addr| addr.port.clone())
             .ok_or(anyhow::anyhow!("port is required"))?;
@@ -100,8 +115,13 @@ impl MqttConnectConfig {
                 .params
                 .get("keep_alive")
                 .map(|v| {
-                    v.parse::<usize>()
-                        .map_err(|err| anyhow::anyhow!("invalid keep_alive: {}, cause: {}", v.to_string(), err.to_string()))
+                    v.parse::<usize>().map_err(|err| {
+                        anyhow::anyhow!(
+                            "invalid keep_alive: {}, cause: {}",
+                            v.to_string(),
+                            err.to_string()
+                        )
+                    })
                 })
                 .transpose()?
                 .ok_or(anyhow::anyhow!("keep_alive is required"))?,
@@ -109,8 +129,13 @@ impl MqttConnectConfig {
                 .params
                 .get("clean_session")
                 .map(|v| {
-                    v.parse::<bool>()
-                        .map_err(|err| anyhow::anyhow!("invalid clean_session: {}, cause: {}", v.to_string(), err.to_string()))
+                    v.parse::<bool>().map_err(|err| {
+                        anyhow::anyhow!(
+                            "invalid clean_session: {}, cause: {}",
+                            v.to_string(),
+                            err.to_string()
+                        )
+                    })
                 })
                 .transpose()?
                 .ok_or(anyhow::anyhow!("clean_session is required"))?,
@@ -152,14 +177,22 @@ mod tests {
         let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=60").unwrap();
         let config = MqttConnectConfig::from_dsn(&dsn);
         assert!(config.is_err());
-        assert_eq!("clean_session is required", config.err().unwrap().to_string());
+        assert_eq!(
+            "clean_session is required",
+            config.err().unwrap().to_string()
+        );
 
         let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=abc").unwrap();
         let config = MqttConnectConfig::from_dsn(&dsn);
         assert!(config.is_err());
-        assert_eq!("invalid keep_alive: abc, cause: invalid digit found in string", config.err().unwrap().to_string());
+        assert_eq!(
+            "invalid keep_alive: abc, cause: invalid digit found in string",
+            config.err().unwrap().to_string()
+        );
 
-        let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true").unwrap();
+        let dsn =
+            Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true")
+                .unwrap();
         let config = MqttConnectConfig::from_dsn(&dsn).unwrap();
         assert_eq!("tcp://127.0.0.1:1833", config.address);
         assert_eq!("3.0", config.version);
@@ -175,22 +208,42 @@ mod tests {
 
     #[test]
     fn test_mqtt_config_from() {
-        let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true").unwrap();
+        let dsn =
+            Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true")
+                .unwrap();
         let config = MqttConfig::from(&dsn, Some(10086));
         assert!(config.is_err());
-        assert_eq!("invalid topics, cause: Nodes not set", config.err().unwrap().to_string());
+        assert_eq!(
+            "invalid topics, cause: Nodes not set",
+            config.err().unwrap().to_string()
+        );
 
-        let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=a,b,c").unwrap();
+        let dsn = Dsn::from_str(
+            "mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=a,b,c",
+        )
+        .unwrap();
         let config = MqttConfig::from(&dsn, Some(10086));
         assert!(config.is_err());
-        assert_eq!("invalid topic: a, cause: the format of topic is name::qos", config.err().unwrap().to_string());
+        assert_eq!(
+            "invalid topic: a, cause: the format of topic is name::qos",
+            config.err().unwrap().to_string()
+        );
 
-        let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=tp1::abc").unwrap();
+        let dsn = Dsn::from_str(
+            "mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=tp1::abc",
+        )
+        .unwrap();
         let config = MqttConfig::from(&dsn, Some(10086));
         assert!(config.is_err());
-        assert_eq!("invalid qos: abc in topic, cause: invalid digit found in string", config.err().unwrap().to_string());
+        assert_eq!(
+            "invalid qos: abc in topic, cause: invalid digit found in string",
+            config.err().unwrap().to_string()
+        );
 
-        let dsn = Dsn::from_str("mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=tp1::0").unwrap();
+        let dsn = Dsn::from_str(
+            "mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=tp1::0",
+        )
+        .unwrap();
         let config = MqttConfig::from(&dsn, Some(10086));
         assert!(config.is_err());
         assert_eq!("log_level is required", config.err().unwrap().to_string());
