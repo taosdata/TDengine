@@ -1,3 +1,4 @@
+import i18n from 'vue-i18n'
 let agreementUrl = process.env.VUE_APP_AGREEMENT_URL;
 let oem = process.env.VUE_APP_CUS_NAME &&
   process.env.VUE_APP_CUS_NAME !== "TDengine" ? process.env.VUE_APP_CUS_NAME : 'TDengine'
@@ -6,7 +7,7 @@ let grafanagds = process.env.VUE_APP_CUS_NAME &&
 let taosname = process.env.VUE_APP_CUS_NAME &&
   process.env.VUE_APP_CUS_NAME !== "TDengine" ? process.env.VUE_APP_CUS_PROMPT : 'taos'
 let agenturl=localStorage.getItem('agent_version')?localStorage.getItem('agent_version'):'latest'
-const DocsUrl=window.navigator.language.includes('zh')?'https://docs.taosdata.com':'https://docs.tdengine.com'
+const DocsUrl=window.location.origin+(localStorage.getItem('local_language')?.includes('zh')?'/docs':'/docs-en')
 export default {
   //通用部分
 
@@ -1200,7 +1201,7 @@ export default {
     getmetrics:'Get Metrics',
     refreshsuccess:'Refreshed Scucessfully',
     influxdbtip:'Choose or create a TDengine database with precision of ns',
-    taskid:'Task ID',
+    taskid:'ID',
     opcconfig:'Upload CSV',
     tmqprotocol:'Native',
     primaryColTagtip:'The primary key column does not support being used as a tag again',
@@ -1304,13 +1305,13 @@ export default {
 Windows: <code>C:\\Program Files\\taosx\\config</code>`,
       4: `Execute the following command in the shell.`,
       5: 'Check the agent running status with the following command in the shell.',
-      6: `<a target='_blank' href='${DocsUrl}/cloud/data-in/ds/install-agent'>Configure Agent Documentation</a>`,
+      6: `<a target='_blank' href='{agenturl}'>Configure Agent Documentation</a>`,
       7: 'Check Agent Connection',
       8: 'Success',
       9: 'Failed',
       10: 'Checking',
       11: `Please check the agent logs with:`,
-      12: 'and check if can you fix the issue by yourself. If you can not, please report it to the TDengine team. '
+      12: 'Check if  you can  fix the issue by yourself. If you can not, please report it to the TDengine team. '
       // 7: `If the agent token is wrong, the service will exit directly, you can check the logs with: `,
       // 8: `Refresh agent status in explorer to check if the agent is connected correctly. The status of an agent will be "Idle" when it has been connected.`
     },
@@ -1391,6 +1392,25 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step3desc:
           "Following command below show how to query data into from table ins_databases of the database information_schema via the command line utility curl.",
       },
+      r: {
+        step1: 'Install RJDBC',
+        step11desc:
+          "First of all, RJDBC depends on Java environment, please download the JDK from Oracle's official website that is suitable for your operating system, and follow the installation guide to install it.",
+        step12desc: 'Then execute the following command to install RJDBC libaray in the R console:',
+        step13desc: 'In the end, download the latest ',
+        step13desc1: 'TDengine JDBC Driver',
+        step13desc2: ' to a specified local directory:',
+        step2: 'Config',
+        step21desc: 'Then load RJDBC and other libraries in the R script:',
+        step22desc: 'In the end, set the JDBC driver and TDengine JDBC URL:',
+        step23desc:
+          'Note: Please replace "[path]" with the absolute path of the local system where the actual TDengine JDBC driver is downloaded to, and replace "taos-jdbcdriver-X.X.X-dist.jar" with the full file name of the actual downloaded driver.',
+        step3: 'Connect',
+        insertdata:'Insert Data',
+        querydata:'Query Data',
+        step31desc: 'First of all, please load JDBC driver as the following:',
+        step32desc: 'Then execute the following script to create the connection with TDengine  instance:'
+      },
     },
     party: {
       prometheus: {
@@ -1398,7 +1418,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         totaldesc1:
           "Prometheus is a widespread open-source monitoring and alerting system. Prometheus joined the Cloud Native Computing Foundation (CNCF) in 2016 as the second incubated project after Kubernetes, which has a very active developer and user community.",
         totaldesc2:
-          "Prometheus provides `remote_write` interface to leverage other database products as its storage engine. To enable users of the Prometheus ecosystem to take advantage of TDengine&#39;s efficient writing, TDengine also provides support for this interface so that Prometheus data can be stored in TDengine via the `remote_write` interface with proper configuration to take full advantage of TDengine&#39;s efficient storage performance and clustering capabilities for time-series data.",
+          "Prometheus provides `remote_write` interface to leverage other database products as its storage engine. To enable users of the Prometheus ecosystem to take advantage of TDengine's efficient writing, TDengine also provides support for this interface so that Prometheus data can be stored in TDengine via the `remote_write` interface with proper configuration to take full advantage of TDengine's efficient storage performance and clustering capabilities for time-series data.",
         step1: "Prerequisites",
         step1desc:
           "In your TDengine  instance, click 'Explorer' on the left panel, then click '+' besides Databases, to create a new database named as 'prometheus_data'. Then execute `show databases` to confirm the database has been created successfully.",
@@ -1427,7 +1447,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         totaldesc1:
           "Telegraf is an open-source, metrics collection software. Telegraf can collect the operation information of various components without having to write any scripts to collect regularly, reducing the difficulty of data acquisition.",
         totaldesc2:
-          "Telegraf&#39;s data can be written to TDengine by simply adding the output configuration of Telegraf to the URL corresponding to taosAdapter and modifying several configuration items. The presence of Telegraf data in TDengine can take advantage of TDengine&#39;s efficient storage query performance and clustering capabilities for time-series data.",
+          "Telegraf's data can be written to TDengine by simply adding the output configuration of Telegraf to the URL corresponding to taosAdapter and modifying several configuration items. The presence of Telegraf data in TDengine can take advantage of TDengine's efficient storage query performance and clustering capabilities for time-series data.",
         step1: "Prerequisites",
         step2: "Install Telegraf",
         step2desc:
@@ -1453,7 +1473,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step5desc2format: "other formats",
         step5desc2end: "data to Telegraf then forward to TDengine.",
         step5desc3:
-          "TDengine take influxdb format data and create unique ID for table names by the rule. The user can configure `smlChildTableName` parameter to generate specified table names if he/she needs. And he/she also need to insert data with specified data format. For example, Add `smlChildTableName=tname` in the taos.cfg file. Insert data `st,tname=cpu1,t1=4 c1=3 1626006833639000000` then the table name will be cpu1. If there are multiple lines has same tname but different tag_set, the first line&#39;s tag_set will be used to automatically creating table and ignore other lines. Please refer to",
+          "TDengine take influxdb format data and create unique ID for table names by the rule. The user can configure `smlChildTableName` parameter to generate specified table names if he/she needs. And he/she also need to insert data with specified data format. For example, Add `smlChildTableName=tname` in the taos.cfg file. Insert data `st,tname=cpu1,t1=4 c1=3 1626006833639000000` then the table name will be cpu1. If there are multiple lines has same tname but different tag_set, the first line's tag_set will be used to automatically creating table and ignore other lines. Please refer to",
         step5desc3end: "TDengine Schemaless",
       },
       influxdb: {
@@ -1463,7 +1483,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step1desc: "Run this command in your terminal to save the TDengine  token and URL as variables:",
         step2: "Insert",
         step2desc:
-          "You can use any client that supports the http protocol to access the RESTful interface address `&lt;_url&gt;/influxdb/v1/write` to write data in InfluxDB compatible format to TDengine. The EndPoint is as follows:",
+          "You can use any client that supports the http protocol to access the RESTful interface address `<_url>/influxdb/v1/write` to write data in InfluxDB compatible format to TDengine. The EndPoint is as follows:",
         step2desc1: "Support InfluxDB query parameters as follows.",
         step2desc2: "`db` specifies the database name used by TDengine",
         step2desc3: "`precision` the time precision used by TDengine",
@@ -1484,7 +1504,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step1: "Config",
         step2: "Insert",
         step2desc:
-          "You can use any client that supports the http protocol to access the RESTful interface address `&lt;_url&gt;/opentsdb/v1/put` to write data in OpenTSDB compatible format to TDengine. The EndPoint is as follows:",
+          "You can use any client that supports the http protocol to access the RESTful interface address `<_url>/opentsdb/v1/put` to write data in OpenTSDB compatible format to TDengine. The EndPoint is as follows:",
         step3: "Examples",
         step31: "Insert Example",
         step32: "Query Example with SQL",
@@ -1569,7 +1589,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step3desc2: 'User:',
         step3username:'UserName',
         ste3pwd:'Pawword',
-        step3desc3: `Input your password to login to TDengine,then click <code>Save & Test</code> button to verify if ${grafanagds} data source works. `,
+        step3desc3: `Input your password to login to TDengine, then click <code>Save & Test</code> button to verify if ${grafanagds} data source works. `,
         step3desc:
           `    Inside Grafana data source configuration page, copy the host and user shown below and past them into the corresponding input boxes: `,
         step4: "Use Grafana",
@@ -1603,13 +1623,13 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step213desc1: "Notice",
         step213desc2: " The maximum amount of records that may currently be retrieved is 1000000 rows.",
         step22: "Optional config",
-        step221: "Query range start date &amp; end date",
+        step221: "Query range start date & end date",
         step221desc:
           "The page where we configure our connector has two text boxes.These two date filter conditions are used to limit the amount of data that will be retrieved, and the date should be entered in the format 'YYYY-MM-DD HH:MM:SS.' e.g.",
         step221desc1:
-          "The query result&#39;s start timestamp is defined by the `start date`. To put it another way, records from before this `start date` won&#39;t be received.",
+          "The query result's start timestamp is defined by the `start date`. To put it another way, records from before this `start date` won't be received.",
         step221desc2:
-          "The `end time` indicates the query result&#39;s end timestamp. Therefore, records that were written after this end date cannot be retrieved. These conditions are utilized in the where clause in SQL statements, such as:",
+          "The `end time` indicates the query result's end timestamp. Therefore, records that were written after this end date cannot be retrieved. These conditions are utilized in the where clause in SQL statements, such as:",
         step221desc3: "In fact, you can speed up the data loading in your report by using these filters.",
         step221desc4:
           `Click 'CONNECT' once configuration is complete, then you can connect to your '${grafanagds} ' with the given database and table.`,
@@ -1678,7 +1698,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step41desc: "The parameters listed in this section apply to all function modes.",
         step41desc1:
           ": The function to be tested, with optional values `insert`, `query`. These correspond to the insert and query, respectively. Users can specify only one of these in each configuration file.",
-        step41desc2: ": specify the TDengine cluster configuration file&#39;s directory. The default path is /etc/taos.",
+        step41desc2: ": specify the TDengine cluster configuration file's directory. The default path is /etc/taos.",
         step41desc3: ": Specify the FQDN of the TDengine server to connect. The default value is `localhost`.",
         step41desc4: ": The port number of the TDengine server to connect to, the default value is `6030`.",
         step41desc5: ": The user name of the TDengine server to connect to, the default is `root`.",
@@ -1805,8 +1825,8 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
       topdesc: "You can follow the following steps to consume the topic `{2}` from the selected instance `{1}` of the organization `{0}`.",
       python: {
         step1: "Install Module",
-        step1desc: "First, you need to install the `taos-ws-py` module version &gt;= `0.2.1`. Run the command below in your terminal.",
-        step1desc1: "You&#39;ll need to have Python3 installed.",
+        step1desc: "First, you need to install the `taos-ws-py` module version >= `0.2.1`. Run the command below in your terminal.",
+        step1desc1: "You'll need to have Python3 installed.",
       },
       go: {
         step1: "Initialize",
@@ -1860,7 +1880,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step3desc2: 'User:',
         step3username:'UserName',
         ste3pwd:'Password',
-        step3desc3: `Input your password to login to TDengine,then click <code>Save & Test</code> button to verify if ${grafanagds} data source works. `,
+        step3desc3: `Input your password to login to TDengine, then click <code>Save & Test</code> button to verify if ${grafanagds} data source works. `,
         step3desc:
           `    Inside Grafana data source configuration page, copy the host and user shown below and past them into the corresponding input boxes: `,
         // step4: "Use Grafana",
@@ -1875,7 +1895,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
       desc51:`1. Once the data source works, click the <strong>Dashboards</strong> tab on the data source configuration page.`,
       desc52:`2. Choose <code>TDengine for 3.x</code> and click import.`,
       desc53:`3. Click the three horizontal bar icon, then <strong>Dashboards</strong>, search <code>TDinsight</code>, and click it.`,
-      desc54:`4. Now, you can see the nice dashboard`,
+      desc54:`4. Now, you can see the nice dashboard.`,
       tab2: 'Install Grafana on CentOS / RHEL',
       tab1: 'Installing Grafana on Debian / Ubuntu',
       tab2sub: 'Or install it with RPM package.',

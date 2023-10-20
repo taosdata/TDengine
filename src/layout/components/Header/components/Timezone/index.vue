@@ -18,22 +18,25 @@
     name: "timezone",         
     data() {
       return {
-        timezone: moment.tz.guess(true),// 获取浏览器的时区
+        timezone: localStorage.getItem("timezone") || moment.tz.guess(true),// 获取浏览器的时区
         timezones: moment.tz.names(),
       };
     },
     mounted() {
-      localStorage.setItem("timezone", this.timezone)
+      this.setTimezone(this.timezone)
     },
     computed: {},
     methods: {
       handChange(value) {
         this.isShow = false 
-        localStorage.setItem("timezone", value)
-        this.$store.commit("app/SET_TIME_ZONE", value);
+        this.setTimezone(value)
       },
       getAdditions(string) {
         return moment.tz(string).format("Z")
+      },
+      setTimezone(value) {
+        localStorage.setItem("timezone", value)
+        this.$store.commit("app/SET_TIME_ZONE", value);
       }
     },
   };

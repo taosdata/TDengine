@@ -570,7 +570,7 @@ impl Args {
                 let sql = format!("alter all dnodes 'activeCode' '{active_code}'");
                 conn.exec(&sql)
                     .await
-                    .map_err(|err| RestErrResponse::new(format!("Invalid activeCode: {err:#}")))?;
+                    .map_err(|err| RestErrResponse::new(format!("Invalid cluster activation code: {err:#}")))?;
             }
         }
         if let Some(c_active_code) = license.c_active_code.as_ref() {
@@ -579,7 +579,7 @@ impl Args {
                 let sql = format!("alter all dnodes 'cActiveCode' '{c_active_code}'");
                 conn.exec(&sql)
                     .await
-                    .map_err(|err| RestErrResponse::new(format!("Invalid cActiveCode: {err:#}")))?;
+                    .map_err(|err| RestErrResponse::new(format!("Invalid connector activation code: {err:#}")))?;
             }
         }
         Ok(RestOkResponse {

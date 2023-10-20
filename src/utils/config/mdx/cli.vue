@@ -130,7 +130,7 @@ export default {
       return `taos://${this.user}:${this.password}@${this.url.replace(/https?:\/\//, "")}`;
     },
     urlPart() {
-      return navigator.language.includes('en') ?"tdengine": "taosdata";
+      return this.$i18n.locale.includes('en') ?"tdengine": "taosdata";
     },
     installUrlLinux() {
       const urlPart = this.urlPart;

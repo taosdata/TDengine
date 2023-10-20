@@ -297,7 +297,6 @@ export function deleteCookieItem() {
 
 //加密
 export function encrypt(data) {
-  console.log("encrypt", data);
   let encryptedData = CryptoJS.AES.encrypt(data, `-----BEGIN PUBLIC KEY-----
   MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC//nB6rRTnxCU2bMBGatp1N1Q0
   kuSEZl3Ot2EQMlNwINYTm7izxjTyA1pgmBmotAXVZuZNviJNUZUMBn73bIjso1l2
@@ -361,11 +360,7 @@ export function parsinginZone(value, format) {
 }
 
 export function getBrowserLang() {
-  const nav = window.navigator;
-  const browserLang = (nav.language || nav.browserLanguage || '').toLowerCase();
-  if (browserLang.includes('zh')) return 'zh';
-  if (browserLang.includes('en')) return 'en';
-  return 'zh';
+  return i18n.locale.includes('zh')?'zh':'en';
 }
 
 // 根据图表轴的数据判断轴的类型

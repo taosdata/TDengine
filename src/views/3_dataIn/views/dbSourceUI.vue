@@ -307,6 +307,14 @@
                         ></el-option>
                       </el-select>
                     </template>
+                    <template v-else-if="p.hint && p.hint.type == 'bool'">
+                      <el-switch
+                        v-model="p.value"
+                        :active-value="'true'"
+                        :inactive-value="'false'"
+                      >
+                      </el-switch>
+                    </template>
                     <el-input
                       v-else
                       size="small"
@@ -952,11 +960,11 @@ export default {
     },
     "$store.state.app.currentDBType": {
       handler(val) {
-        if (!this.isEditable && val == 'pibackfill') {
-          this.handelAddData()
+        if (!this.isEditable && val == "pibackfill") {
+          this.handelAddData();
         }
-      } 
-    }
+      },
+    },
   },
   methods: {
     handleEditData() {
@@ -985,7 +993,7 @@ export default {
               p.hint[0].value = p.value;
               p.value = "select_time";
             } else {
-              p.value = "select_time"
+              p.value = "select_time";
             }
           }
           return p;
@@ -1026,9 +1034,9 @@ export default {
             p.value = "select_time";
           }
           return p;
-        })
-        return group
-      })
+        });
+        return group;
+      });
     },
     handleSuccess(response, file, fileList, name) {
       this.dbsource[0].datasets.params = this.dbsource[0].datasets.params.map(
@@ -2368,7 +2376,8 @@ export default {
     }
   }
   .cancel-btn,
-  .edit-btn {
+  .edit-btn,
+  .upload-flex .item {
     z-index: 101;
   }
 

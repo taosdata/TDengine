@@ -23,11 +23,15 @@ router.beforeEach(async (to, from, next) => {
       const hasToken = getToken();
       if (!hasToken) {
         if (whiteList.includes(to.name)) {
+          console.log('登录页面');
           next();
         } else {
           next(`/login`);
         }
       }
+    }else{
+
+      // localStorage.removeItem('local_language')
     }
     
   

@@ -6,6 +6,7 @@ import locale from "element-ui/lib/locale";
 import enLocale from "./en";
 import zhLocale from "./zh";
 
+
 Vue.use(VueI18n);
 
 const messages = {
@@ -29,11 +30,13 @@ window.languageList = [
   },
 ];
 const i18n = new VueI18n({
-  locale: "en",
+  locale:  localStorage.getItem('local_language') || "en",
   messages,
 });
+
 export function setLang(lang) {
   i18n.locale = lang || "en";
+  localStorage.setItem('local_language',i18n.locale)
 }
 locale.i18n((key, value) => i18n.t(key, value));
 export default i18n;

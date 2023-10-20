@@ -82,12 +82,14 @@
         <el-table-column
           :label="$t('datasource.taskid')"
           prop="taskid"
-          width="100"
+          width="40"
+          show-overflow-tooltip
         ></el-table-column>
         <el-table-column
           :label="$t('datasource.name2')"
           prop="localname"
-          width="120"
+          min-width="100"
+          show-overflow-tooltip
         >
           <template slot-scope="scope">
             <el-tooltip :content="scope.row.localname" placement="top-start">
@@ -106,7 +108,7 @@
         <el-table-column
           :label="$t('datasource.target')"
           prop="target"
-          width="200"
+          min-width="100"
           show-overflow-tooltip
         ></el-table-column>
         <el-table-column
@@ -121,14 +123,15 @@
         <el-table-column
           :label="$t('datasource.via')"
           prop="via"
-          width="100"
+          min-width="100"
+          show-overflow-tooltip
         >
           <template slot-scope="{ row }">
             {{ agentMap[row.via] }}
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('dataIn.metrics')" prop="finished_at">
+        <el-table-column :label="$t('dataIn.metrics')" prop="finished_at" width="120">
           <template slot-scope="scope">
             <el-button
               @click="checkMetrics(scope.row, scope.row.status.toLowerCase())"
@@ -143,7 +146,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('datasource.status')" prop="status">
+        <el-table-column :label="$t('datasource.status')" prop="status" min-width="170">
           <template slot-scope="scope">
             <div
               class="status-operation"
@@ -180,7 +183,7 @@
                 >
                   <el-button
                     plain
-                    size="small"
+                    size="mini"
                     @click="start(scope.row)"
                     icon="el-icon-qidong"
                   ></el-button>
@@ -194,7 +197,7 @@
                 >
                   <el-button
                     plain
-                    size="small"
+                    size="mini"
                     @click="stop(scope.row)"
                     icon="el-icon-tingzhi"
                   ></el-button
@@ -208,7 +211,7 @@
                 >
                   <el-button
                     plain
-                    size="small"
+                    size="mini"
                     @click="refreshCurrentTask(scope.row)"
                     icon="el-icon-refresh"
                   ></el-button

@@ -127,10 +127,10 @@ export default {
       );
     },
     urlPart() {
-      return navigator.language.includes('en') ?"tdengine": "taosdata";
+      return this.$i18n.locale.includes('en') ?"tdengine": "taosdata";
     },
     restapi(){
-      return navigator.language.includes('en') ?"reference": "connector";
+      return this.$i18n.locale.includes('en') ?"reference": "connector";
     }
   },
 };

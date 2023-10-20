@@ -120,7 +120,7 @@ export default {
   },
   data() {
     return {
-      nativeLanguage:navigator.language,
+      nativeLanguage:this.$i18n.locale,
       zhDomain:'https://docs.taosdata.com',
       enDomain:'https://docs.tdengine.com'
     };

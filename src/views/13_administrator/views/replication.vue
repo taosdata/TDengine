@@ -7,17 +7,17 @@
       <el-button plain @click="add" size="small" icon="el-icon-plus" style="font-size:14px;">{{ $t('taosuser.addreplication') }}</el-button>
     </div>
     <el-table style="margin-top: 20px" :data="topicList" size="mini">
-      <el-table-column label="ID" width="80" prop="id"></el-table-column>
-      <el-table-column :label="$t('taosuser.fromdb')" prop="fromdb"></el-table-column>
-      <el-table-column :label="$t('taosuser.toinstance')" prop="hostport"></el-table-column>
-      <el-table-column :label="$t('taosuser.todb')" prop="db"></el-table-column>
+      <el-table-column label="ID" width="60" prop="id" show-overflow-tooltip></el-table-column>
+      <el-table-column :label="$t('taosuser.fromdb')" prop="fromdb" show-overflow-tooltip></el-table-column>
+      <el-table-column :label="$t('taosuser.toinstance')" prop="hostport" show-overflow-tooltip></el-table-column>
+      <el-table-column :label="$t('taosuser.todb')" prop="db" show-overflow-tooltip></el-table-column>
 
-      <el-table-column :label="$t('taosuser.status')" prop="status"></el-table-column>
-      <el-table-column :label="$t('taosuser.reason')" prop="reason"></el-table-column>
-      <el-table-column :label="$t('taosuser.finishat')" prop="finished_at">
+      <el-table-column :label="$t('taosuser.status')" prop="status" show-overflow-tooltip></el-table-column>
+      <el-table-column :label="$t('taosuser.reason')" prop="reason" show-overflow-tooltip></el-table-column>
+      <el-table-column :label="$t('taosuser.finishat')" prop="finished_at" width="210" show-overflow-tooltip>
         <span slot-scope="scope">{{ parsinginZone(scope.row.finished_at) }}</span>
       </el-table-column>
-      <el-table-column :label="$t('taosuser.createat')" prop="created_at">
+      <el-table-column :label="$t('taosuser.createat')" prop="created_at" width="210" show-overflow-tooltip>
         <span slot-scope="scope">{{ parsinginZone(scope.row.created_at) }}</span>
       </el-table-column>
       <el-table-column :label="$t('taosuser.operation')" width="110">
@@ -177,7 +177,7 @@ export default {
       try {
         let id = localStorage.getItem("local_clusterID");
         let params = {
-          name: "replication",
+          name: "",
           labels: [
             "type::replication",
             `cluster-id::${localStorage.getItem("local_clusterID")}`,

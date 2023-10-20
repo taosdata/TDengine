@@ -23,6 +23,7 @@ import mavonEditor from 'mavon-editor'
 import 'mavon-editor/dist/css/index.css'
 import LinkTab from "@/components/LinkTab";
 import VueDOMPurifyHTML from 'vue-dompurify-html';
+import { clearLoginStateWhenReopen } from '@/utils/token';
 Vue.use(mavonEditor)
 Vue.use(directive);
 Vue.use(LazyLoad);
@@ -41,7 +42,17 @@ export function getBrowserLang() {
   if (browserLang.includes('en')) return 'en';
   return 'en';
 }
-setLang(getBrowserLang())
+function setTitle() {
+  const lang = getBrowserLang()
+  const title = lang === 'en' ? 'TDengine Enterprise' : 'TDengine企业版'
+  document.title = title
+}
+
+
+setLang(localStorage.getItem('local_language') || getBrowserLang())
+setTitle()
+clearLoginStateWhenReopen()
+
 Vue.use(VueDOMPurifyHTML, {
   default: {
     ALLOWED_ATTR: ['target', 'href', 'title', 'rel']

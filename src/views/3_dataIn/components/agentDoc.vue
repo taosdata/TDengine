@@ -103,7 +103,7 @@ export default {
   },
   data() {
     return {
-      language: window.navigator.language,
+      language: this.$i18n.locale,
       activeTab: "tab1",
       endpoint: localStorage.getItem("local_endpoint"),
     };
