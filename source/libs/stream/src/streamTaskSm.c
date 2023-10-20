@@ -115,7 +115,11 @@ static STaskStateTrans* streamTaskFindTransform(const SStreamTaskSM* pState, con
     }
   }
 
-  ASSERT(0);
+  if (event == TASK_EVENT_CHECKPOINT_DONE && pState->current.state == TASK_STATUS__STOP) {
+
+  } else {
+    ASSERT(0);
+  }
   return NULL;
 }
 
@@ -183,8 +187,13 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
   taosThreadMutexLock(&pTask->lock);
 
   STaskStateTrans* pTrans = streamTaskFindTransform(pSM, event);
-  stDebug("s-task:%s start to handle event:%s, state:%s", pTask->id.idStr, StreamTaskEventList[event].name,
-          pSM->current.name);
+  if (pTrans == NULL) {
+    stWarn("s-task:%s status:%s not allowed handle event:%s", pTask->id.idStr, pSM->current.name, StreamTaskEventList[event].name);
+    return -1;
+  } else {
+    stDebug("s-task:%s start to handle event:%s, state:%s", pTask->id.idStr, StreamTaskEventList[event].name,
+            pSM->current.name);
+  }
 
   if (pTrans->attachEvent.event != 0) {
     attachEvent(pTask, &pTrans->attachEvent);

@@ -276,6 +276,8 @@ void streamTaskClearCheckInfo(SStreamTask* pTask) {
 }
 
 int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
+  int32_t vgId = pMeta->vgId;
+
   taosWLockLatch(&pMeta->lock);
 
   for (int32_t i = 0; i < taosArrayGetSize(pMeta->pTaskList); ++i) {
@@ -297,10 +299,15 @@ int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
 
     char* str = NULL;
     streamTaskGetStatus(p, &str);
-    streamTaskHandleEvent(p->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
 
-    // save the task
-    streamMetaSaveTask(pMeta, p);
+    int32_t code = streamTaskHandleEvent(p->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
+    if (code != TSDB_CODE_SUCCESS) {
+      stDebug("s-task:%s vgId:%d save task status failed, since handle event failed", p->id.idStr, vgId);
+      taosWUnLockLatch(&pMeta->lock);
+      return -1;
+    } else { // save the task
+      streamMetaSaveTask(pMeta, p);
+    }
 
     stDebug(
         "vgId:%d s-task:%s level:%d open upstream inputQ, commit task status after checkpoint completed, "
