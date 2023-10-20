@@ -882,7 +882,6 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   if (mndAcquireGlobalIdx(pMnode, fullIdxName, SDB_IDX, &idx) == 0 && idx.pIdx != NULL) {
     terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
     mndReleaseIdx(pMnode, idx.pIdx);
-
     goto _OVER;
   }
 
