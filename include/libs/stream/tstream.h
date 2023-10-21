@@ -38,7 +38,7 @@ extern "C" {
 #define TASK_DOWNSTREAM_READY       0x0
 #define TASK_DOWNSTREAM_NOT_READY   0x1
 #define TASK_DOWNSTREAM_NOT_LEADER  0x2
-#define TASK_SELF_NEW_STAGE         0x3
+#define TASK_UPSTREAM_NEW_STAGE     0x3
 
 #define NODE_ROLE_UNINIT     0x1
 #define NODE_ROLE_LEADER     0x2

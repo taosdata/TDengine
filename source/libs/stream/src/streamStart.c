@@ -252,7 +252,7 @@ int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_
   }
 
   if (pInfo->stage != stage) {
-    return TASK_SELF_NEW_STAGE;
+    return TASK_UPSTREAM_NEW_STAGE;
   } else if (pTask->status.downstreamReady != 1) {
     return TASK_DOWNSTREAM_NOT_READY;
   } else {
@@ -396,7 +396,7 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
           "roll-back needed",
           id, pRsp->downstreamTaskId, pRsp->downstreamNodeId);
     } else {
-      if (pRsp->status == TASK_SELF_NEW_STAGE) {
+      if (pRsp->status == TASK_UPSTREAM_NEW_STAGE) {
         stError(
             "s-task:%s vnode-transfer/leader-change/restart detected, old stage:%d, current stage:%d, continue check "
             "till downstream nodeUpdate",
