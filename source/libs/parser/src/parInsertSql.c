@@ -1755,33 +1755,6 @@ static int32_t parseDataClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is expected", token.z);
 }
 
-// input pStmt->pSql:
-//   1. [(tag1_name, ...)] ...
-//   2. VALUES ... | FILE ...
-static int32_t parseInsertTableClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  STableDataCxt* pTableCxt = NULL;
-  int32_t        code = parseSchemaClauseBottom(pCxt, pStmt, &pTableCxt);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = parseDataClause(pCxt, pStmt, pTableCxt);
-  }
-  return code;
-}
-
-static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  insDestroyBoundColInfo(&pCxt->tags);
-  taosMemoryFreeClear(pStmt->pTableMeta);
-  nodesDestroyNode(pStmt->pTagCond);
-  taosArrayDestroy(pStmt->pTableTag);
-  tdDestroySVCreateTbReq(pStmt->pCreateTblReq);
-  taosMemoryFreeClear(pStmt->pCreateTblReq);
-  pCxt->missCache = false;
-  pCxt->usingDuplicateTable = false;
-  pStmt->pBoundCols = NULL;
-  pStmt->usingTableProcessing = false;
-  pStmt->fileProcessing = false;
-  pStmt->usingTableName.type = 0;
-  pStmt->stbSyntax = false;
-}
 
 static int32_t parseStbBoundColumnsClause(SInsertParseContext* pCxt, const char* pBoundCols, 
                                           STableMeta* pTableMeta, SBoundColInfo* pBoundColsInfo) {
@@ -1802,16 +1775,45 @@ static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModif
   return code;
 }
 
+// input pStmt->pSql:
+//   1. [(tag1_name, ...)] ...
+//   2. VALUES ... | FILE ...
+static int32_t parseInsertTableClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+  if (!pStmt->stbSyntax) {
+    STableDataCxt* pTableCxt = NULL;
+    int32_t        code = parseSchemaClauseBottom(pCxt, pStmt, &pTableCxt);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = parseDataClause(pCxt, pStmt, pTableCxt);
+    }
+    return code;
+  } else {
+    int32_t code = parseInsertStbClauseBottom(pCxt, pStmt);
+    return code;
+  }
+}
+
+static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+  insDestroyBoundColInfo(&pCxt->tags);
+  taosMemoryFreeClear(pStmt->pTableMeta);
+  nodesDestroyNode(pStmt->pTagCond);
+  taosArrayDestroy(pStmt->pTableTag);
+  tdDestroySVCreateTbReq(pStmt->pCreateTblReq);
+  taosMemoryFreeClear(pStmt->pCreateTblReq);
+  pCxt->missCache = false;
+  pCxt->usingDuplicateTable = false;
+  pStmt->pBoundCols = NULL;
+  pStmt->usingTableProcessing = false;
+  pStmt->fileProcessing = false;
+  pStmt->usingTableName.type = 0;
+  pStmt->stbSyntax = false;
+}
+
 // input pStmt->pSql: [(field1_name, ...)] [ USING ... ] VALUES ... | FILE ...
 static int32_t parseInsertTableClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SToken* pTbName) {
   resetEnvPreTable(pCxt, pStmt);
   int32_t code = parseSchemaClauseTop(pCxt, pStmt, pTbName);
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
-    if (!pStmt->stbSyntax) {
-      code = parseInsertTableClauseBottom(pCxt, pStmt);
-    } else {
-      code = parseInsertStbClauseBottom(pCxt, pStmt);
-    }
+    code = parseInsertTableClauseBottom(pCxt, pStmt);
   }
 
   return code;
