@@ -299,6 +299,9 @@ void streamMetaClear(SStreamMeta* pMeta) {
   taosArrayClear(pMeta->chkpInUse);
   pMeta->numOfStreamTasks = 0;
   pMeta->numOfPausedTasks = 0;
+  pMeta->chkptNotReadyTasks = 0;
+
+  streamMetaResetStartInfo(&pMeta->startInfo);
 }
 
 void streamMetaClose(SStreamMeta* pMeta) {
