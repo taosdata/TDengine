@@ -1,5 +1,5 @@
-use std::future::Future;
 use std::path::PathBuf;
+
 use anyhow::{bail, Result};
 use chrono::Local;
 use clap::{Parser, Subcommand};
@@ -15,9 +15,11 @@ use metrics_tracing_context::MetricsLayer;
 use mimalloc::MiMalloc;
 use opentelemetry::trace::Tracer;
 use shadow_rs::shadow;
+#[cfg(feature = "tikv_jemallocator")]
+#[cfg(not(target_env = "msvc"))]
+use tikv_jemallocator::Jemalloc;
 use time::{macros::format_description, UtcOffset};
 use tracing::Instrument;
-use tracing::Subscriber;
 use tracing_appender::non_blocking::NonBlocking;
 use tracing_subscriber::{
     EnvFilter,
@@ -29,9 +31,6 @@ use taosx_core::{
     ENV_TAOSX_LOGS_KEEP_DAYS, get_log_dir, get_log_keep_days, valid_env_log_keep_days,
 };
 use taosx_core::utils::trace::TaosXLayer;
-#[cfg(feature = "tikv_jemallocator")]
-#[cfg(not(target_env = "msvc"))]
-use tikv_jemallocator::Jemalloc;
 
 #[cfg(feature = "tikv_jemallocator")]
 #[cfg(not(target_env = "msvc"))]
