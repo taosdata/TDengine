@@ -2632,9 +2632,12 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   // current checkpoint is failed, rollback from the checkpoint trans
   // kill the checkpoint trans and then set all tasks status to be normal
   if (checkpointFailed && activeCheckpointId != 0) {
-    ASSERT(execInfo.activeCheckpoint == activeCheckpointId);
+    // if the execInfo.activeCheckpoint == 0, the checkpoint is restoring from wal
+    if (execInfo.activeCheckpoint != 0) {
+      ASSERT(execInfo.activeCheckpoint == activeCheckpointId);
+    }
+
     mInfo("checkpointId:%" PRId64 " failed, issue task-reset trans to reset all tasks status", activeCheckpointId);
-    //      execInfo.activeCheckpoint = activeCheckpointId;
     mndResetFromCheckpoint(pMnode);
     //    } else {
     //      mDebug("checkpoint:%"PRId64" reset has issued already, ignore it", activeCheckpointId);
