@@ -119,9 +119,8 @@ int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue) {
   return numOfItems1 + numOfItems2;
 }
 
-// todo: fix it: data in Qall is not included here
 int32_t streamQueueGetItemSize(const SStreamQueue* pQueue) {
-  return taosQueueMemorySize(pQueue->pQueue);
+  return taosQueueMemorySize(pQueue->pQueue) + taosQallMemSize(pQueue->qall);
 }
 
 int32_t streamQueueItemGetSize(const SStreamQueueItem* pItem) {
