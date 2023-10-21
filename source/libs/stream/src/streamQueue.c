@@ -120,7 +120,7 @@ int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue) {
 }
 
 int32_t streamQueueGetItemSize(const SStreamQueue* pQueue) {
-  return taosQueueMemorySize(pQueue->pQueue) + taosQallMemSize(pQueue->qall);
+  return taosQueueMemorySize(pQueue->pQueue) + taosQallUnAccessedMemSize(pQueue->qall);
 }
 
 int32_t streamQueueItemGetSize(const SStreamQueueItem* pItem) {
