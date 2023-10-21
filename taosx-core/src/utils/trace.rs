@@ -7,9 +7,9 @@ use rand::random;
 use tracing::Subscriber;
 use tracing_core::{Event, Level};
 use tracing_core::span::{Attributes, Id, Record};
+use tracing_subscriber::{layer, Registry};
 use tracing_subscriber::fmt::{FormatFields, FormattedFields, MakeWriter};
 use tracing_subscriber::fmt::format::DefaultFields;
-use tracing_subscriber::layer;
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::{LookupSpan, Scope};
 
@@ -21,12 +21,12 @@ const ERROR_STR: &str = "ERROR";
 
 
 /// Hex string representation of Trace ID stored in its [extensions]
-struct TraceID {
-    pub hex: String,
+pub struct TraceID {
+    pub id: String,
 }
 
 /// Hex string representation of Query ID stored in its [extensions]
-struct QueryID {
+pub struct QueryID {
     pub hex: String,
 }
 
@@ -79,7 +79,7 @@ impl<S, N, W> layer::Layer<S> for TaosXLayer<S, N, W> where
         if let Some(_) = attrs.fields().field("TID") {
             let u32_id = random::<u32>();
             let hex_id = format!("{:#08x}", u32_id);
-            extensions.insert(TraceID { hex: hex_id });
+            extensions.insert(TraceID { id: hex_id });
         }
         if extensions.get_mut::<FormattedFields<N>>().is_none() {
             let mut fields = FormattedFields::<N>::new(String::new());
@@ -211,7 +211,7 @@ impl<S, N, W> TaosXLayer<S, N, W> where
             // collect trace id
             if let Some(trace_id) = extension.get::<TraceID>() {
                 trace_buf.push_str("TID:");
-                trace_buf.push_str(trace_id.hex.as_str());
+                trace_buf.push_str(trace_id.id.as_str());
                 trace_buf.push(',')
             }
             // collect query id
@@ -231,4 +231,31 @@ impl<S, N, W> TaosXLayer<S, N, W> where
             buf.push_str(trace_buf.as_str());
         }
     }
+}
+
+pub fn set_trace_id_for_current_span(tid: &str) {
+    tracing::dispatcher::get_default(|dispatch| {
+        let registry = dispatch.downcast_ref::<Registry>().expect("no global default dispatcher found");
+        if let Some((id, meta)) = dispatch.current_span().into_inner() {
+            let span = registry.span(&id).unwrap();
+            let mut ext = span.extensions_mut();
+            ext.replace(TraceID{id: String::from(tid)});
+        }
+    });
+}
+
+/// TODO: 生成 Query ID
+pub fn create_query_id() -> u64 {
+    0
+}
+pub fn set_query_id_for_current_span(query_id: u64) {
+    let hex_query_id = format!("{:#016x}", query_id);
+    tracing::dispatcher::get_default(|dispatch| {
+        let registry = dispatch.downcast_ref::<Registry>().expect("no global default dispatcher found");
+        if let Some((id, meta)) = dispatch.current_span().into_inner() {
+            let span = registry.span(&id).unwrap();
+            let mut ext = span.extensions_mut();
+            ext.replace(QueryID{hex: hex_query_id});
+        }
+    });
 }
