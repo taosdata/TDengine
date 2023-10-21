@@ -249,10 +249,10 @@ pub fn create_query_id() -> u64 {
     0
 }
 pub fn set_query_id_for_current_span(query_id: u64) {
-    let hex_query_id = format!("{:#016x}", query_id);
     tracing::dispatcher::get_default(|dispatch| {
         let registry = dispatch.downcast_ref::<Registry>().expect("no global default dispatcher found");
-        if let Some((id, meta)) = dispatch.current_span().into_inner() {
+        if let Some((id, _meta)) = dispatch.current_span().into_inner() {
+            let hex_query_id = format!("{:#016x}", query_id);
             let span = registry.span(&id).unwrap();
             let mut ext = span.extensions_mut();
             ext.replace(QueryID{hex: hex_query_id});
