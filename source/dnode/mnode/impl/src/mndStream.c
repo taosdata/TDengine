@@ -2633,15 +2633,8 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   // kill the checkpoint trans and then set all tasks status to be normal
   if (checkpointFailed && activeCheckpointId != 0) {
     // if the execInfo.activeCheckpoint == 0, the checkpoint is restoring from wal
-    if (execInfo.activeCheckpoint != 0) {
-      ASSERT(execInfo.activeCheckpoint == activeCheckpointId);
-    }
-
-    mInfo("checkpointId:%" PRId64 " failed, issue task-reset trans to reset all tasks status", activeCheckpointId);
+    mInfo("checkpointId:%" PRId64 " failed, issue task-reset trans to reset all tasks status", execInfo.activeCheckpoint);
     mndResetFromCheckpoint(pMnode);
-    //    } else {
-    //      mDebug("checkpoint:%"PRId64" reset has issued already, ignore it", activeCheckpointId);
-    //    }
   }
 
   taosThreadMutexUnlock(&execInfo.lock);
