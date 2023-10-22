@@ -338,7 +338,7 @@ bool    waitAutoFill = false;
 #define WT_VAR_ANYWORD        17
 #define WT_VAR_TBOPTION       18
 #define WT_VAR_USERACTION     19
-#define WT_VAR_KEYSELECT      10
+#define WT_VAR_KEYSELECT      20
 #define WT_VAR_SYSTABLE       21
 #define WT_VAR_LANGUAGE       22
 
@@ -689,9 +689,9 @@ bool shellAutoInit() {
   // generate varType
   GenerateVarType(WT_VAR_FUNC, functions, sizeof(functions) / sizeof(char*));
   GenerateVarType(WT_VAR_KEYWORD, keywords, sizeof(keywords) / sizeof(char*));
+  GenerateVarType(WT_VAR_TBACTION, tb_actions, sizeof(tb_actions) / sizeof(char*));
   GenerateVarType(WT_VAR_DBOPTION, db_options, sizeof(db_options) / sizeof(char*));
   GenerateVarType(WT_VAR_ALTER_DBOPTION, alter_db_options, sizeof(alter_db_options) / sizeof(char*));
-  GenerateVarType(WT_VAR_TBACTION, tb_actions, sizeof(tb_actions) / sizeof(char*));
   GenerateVarType(WT_VAR_DATATYPE, data_types, sizeof(data_types) / sizeof(char*));
   GenerateVarType(WT_VAR_KEYTAGS, key_tags, sizeof(key_tags) / sizeof(char*));
   GenerateVarType(WT_VAR_TBOPTION, tb_options, sizeof(tb_options) / sizeof(char*));
