@@ -1755,10 +1755,73 @@ static int32_t parseDataClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is expected", token.z);
 }
 
+static int32_t parseBoundStbColumnsClause(SInsertParseContext* pCxt, const char** pSql,
+                                          STableMeta* pTableMeta, SBoundColInfo* pBoundInfo) {
+  // tbname schema index == (pBoundInfo->numOfCols - 1) == (tiInfo.numOfColumns + tiInfo.numOfTags)
+  if (pBoundInfo->numOfCols != pTableMeta->tableInfo.numOfTags + pTableMeta->tableInfo.numOfColumns + 1) {
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+  int32_t tbnameSchemaIndex = pTableMeta->tableInfo.numOfTags + pTableMeta->tableInfo.numOfColumns;
 
-static int32_t parseStbBoundColumnsClause(SInsertParseContext* pCxt, const char* pBoundCols, 
-                                          STableMeta* pTableMeta, SBoundColInfo* pBoundColsInfo) {
-      return TSDB_CODE_SUCCESS;
+  bool* pUseCols = taosMemoryCalloc(pBoundInfo->numOfCols, sizeof(bool));
+  if (NULL == pUseCols) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pBoundInfo->numOfBound = 0;
+
+  int16_t lastColIdx = -1;  // last column found
+  int32_t code = TSDB_CODE_SUCCESS;
+  while (TSDB_CODE_SUCCESS == code) {
+    SToken token;
+    NEXT_TOKEN(*pSql, token);
+
+    if (TK_NK_RP == token.type) {
+      break;
+    }
+
+    char tmpTokenBuf[TSDB_COL_NAME_LEN + 2] = {0};  // used for deleting Escape character backstick(`)
+    strncpy(tmpTokenBuf, token.z, token.n);
+    token.z = tmpTokenBuf;
+    token.n = strdequote(token.z);
+
+    if (token.n == strlen("tbname") && (strcasecmp(token.z, "tbname") == 0)) {
+      pBoundInfo->pColIndex[pBoundInfo->numOfBound] = tbnameSchemaIndex;
+      pUseCols[tbnameSchemaIndex] = true;
+      ++pBoundInfo->numOfBound;
+      continue;
+    }
+
+    int16_t t = lastColIdx + 1;
+    int16_t index = insFindCol(&token, t, pBoundInfo->numOfCols, pTableMeta->schema);
+    if (index < 0 && t > 0) {
+      index = insFindCol(&token, 0, t, pTableMeta->schema);
+    }
+    if (index < 0) {
+      code = generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_INVALID_COLUMN, token.z);
+    } else if (pUseCols[index]) {
+      code = buildSyntaxErrMsg(&pCxt->msg, "duplicated column name", token.z);
+    } else {
+      lastColIdx = index;
+      pUseCols[index] = true;
+      pBoundInfo->pColIndex[pBoundInfo->numOfBound] = index;
+      ++pBoundInfo->numOfBound;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code && !pUseCols[0]) {
+    code = buildInvalidOperationMsg(&pCxt->msg, "primary timestamp column can not be null");
+  }
+  if (TSDB_CODE_SUCCESS == code && !pUseCols[tbnameSchemaIndex]) {
+    code = buildInvalidOperationMsg(&pCxt->msg, "tbname column can not be null");
+  }
+  taosMemoryFree(pUseCols);
+
+  return code;
+}
+
+static int32_t parseDataStbClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SBoundColInfo* pBoundColInfo) {
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
@@ -1771,7 +1834,10 @@ static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModif
   }
   SToken token;
   int32_t index = 0;
-  parseStbBoundColumnsClause(pCxt, pStmt->pBoundCols, pStmt->pTableMeta, &stbBoundColInfo);
+  code = parseBoundStbColumnsClause(pCxt, &pStmt->pBoundCols, pStmt->pTableMeta, &stbBoundColInfo);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = parseDataStbClause(pCxt, pStmt, &stbBoundColInfo);
+  }
   return code;
 }
 
