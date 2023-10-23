@@ -1892,6 +1892,7 @@ static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModif
   SBoundColInfo stbBoundColInfo;
   insInitBoundColsInfo(tblInfo.numOfColumns + tblInfo.numOfTags + 1, &stbBoundColInfo);
   if (!pStmt->pBoundCols) {
+    insDestroyBoundColInfo(&stbBoundColInfo);
     return buildSyntaxErrMsg(&pCxt->msg, "(...tbname...) bounded cols is expected", pStmt->pSql);
   }
   SToken token;
@@ -1906,6 +1907,7 @@ static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModif
   if (TSDB_CODE_SUCCESS == code) {
     code = parseDataClause(pCxt, pStmt, rowsDataCxt);
   }
+  insDestroyBoundColInfo(&stbBoundColInfo);
 
   return code;
 }
