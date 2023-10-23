@@ -293,6 +293,8 @@ typedef enum ELogicConditionType {
 #define TSDB_SYNC_APPLYQ_SIZE_LIMIT    512
 #define TSDB_SYNC_NEGOTIATION_WIN      512
 
+#define TSDB_SYNC_SNAP_BUFFER_SIZE 2048
+
 #define TSDB_TBNAME_COLUMN_INDEX     (-1)
 #define TSDB_MULTI_TABLEMETA_MAX_NUM 100000  // maximum batch size allowed to load table meta
 
