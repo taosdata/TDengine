@@ -125,6 +125,9 @@ void monCleanup() {
   tFreeSMonQmInfo(&tsMonitor.qmInfo);
   tFreeSMonBmInfo(&tsMonitor.bmInfo);
   taosThreadMutexDestroy(&tsMonitor.lock);
+
+  taos_collector_registry_destroy(TAOS_COLLECTOR_REGISTRY_DEFAULT);
+  TAOS_COLLECTOR_REGISTRY_DEFAULT = NULL;
 }
 
 static void monCleanupMonitorInfo(SMonInfo *pMonitor) {
