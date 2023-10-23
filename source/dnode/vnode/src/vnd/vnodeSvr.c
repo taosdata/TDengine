@@ -20,6 +20,7 @@
 #include "vnode.h"
 #include "vnodeInt.h"
 #include "audit.h"
+#include "taos_monitor.h"
 
 static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -39,6 +40,8 @@ static int32_t vnodeProcessCreateIndexReq(SVnode *pVnode, int64_t ver, void *pRe
 static int32_t vnodeProcessDropIndexReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessCompactVnodeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessConfigChangeReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
+
+taos_counter_t *insert_counter = NULL;
 
 static int32_t vnodePreprocessCreateTableReq(SVnode *pVnode, SDecoder *pCoder, int64_t btime, int64_t *pUid) {
   int32_t code = 0;
@@ -1612,6 +1615,19 @@ _exit:
     atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
     tdProcessRSmaSubmit(pVnode->pSma, ver, pSubmitReq, pReq, len, STREAM_INPUT__DATA_SUBMIT);
   }
+
+  if(insert_counter == NULL){
+    int32_t label_count =1;
+    const char *sample_labels[] = {"vgid"};
+    insert_counter = taos_counter_new("insert_counter", "counter for insert sql",  label_count, sample_labels);
+    insert_counter = taos_collector_registry_must_register_metric(insert_counter);
+  }
+
+  char vgId[50];
+  sprintf(vgId, "%"PRId32, TD_VID(pVnode));
+  const char *sample_labels[] = {vgId};
+
+  taos_counter_inc(insert_counter, sample_labels);
 
   // clear
   taosArrayDestroy(newTbUids);

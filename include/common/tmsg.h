@@ -1545,6 +1545,15 @@ int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 void    tFreeSStatusReq(SStatusReq* pReq);
 
 typedef struct {
+  int32_t     contLen;
+  char*       pCont;
+} SStatisReq;
+
+int32_t tSerializeSStatisReq(void* buf, int32_t bufLen, SStatisReq* pReq);
+int32_t tDeserializeSStatisReq(void* buf, int32_t bufLen, SStatisReq* pReq);
+void tFreeSStatisReq(SStatisReq *pReq);
+
+typedef struct {
   int32_t dnodeId;
   int64_t clusterId;
   SArray* pVloads;

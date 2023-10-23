@@ -73,6 +73,7 @@ static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp);
 static int32_t mndProcessStatusReq(SRpcMsg *pReq);
 static int32_t mndProcessNotifyReq(SRpcMsg *pReq);
 static int32_t mndProcessRestoreDnodeReq(SRpcMsg *pReq);
+static int32_t mndProcessStatisReq(SRpcMsg *pReq);
 
 static int32_t mndRetrieveConfigs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextConfig(SMnode *pMnode, void *pIter);
@@ -108,6 +109,7 @@ int32_t mndInitDnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DNODE_LIST, mndProcessDnodeListReq);
   mndSetMsgHandle(pMnode, TDMT_MND_SHOW_VARIABLES, mndProcessShowVariablesReq);
   mndSetMsgHandle(pMnode, TDMT_MND_RESTORE_DNODE, mndProcessRestoreDnodeReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_STATIS, mndProcessStatisReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndRetrieveConfigs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONFIGS, mndCancelGetNextConfig);
@@ -487,6 +489,23 @@ static bool mndUpdateMnodeState(SMnodeObj *pObj, SMnodeLoad *pMload) {
     stateChanged = true;
   }
   return stateChanged;
+}
+
+static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
+  SMnode    *pMnode = pReq->info.node;
+  SStatisReq statisReq = {0};
+  int32_t    code = -1;
+
+  if (tDeserializeSStatisReq(pReq->pCont, pReq->contLen, &statisReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  monSendContent(pReq->pCont);
+
+_OVER:
+  tFreeSStatisReq(&statisReq);
+  return code;
 }
 
 static int32_t mndProcessStatusReq(SRpcMsg *pReq) {

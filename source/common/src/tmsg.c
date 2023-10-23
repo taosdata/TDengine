@@ -1423,6 +1423,44 @@ int32_t tDeserializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
 
 void tFreeSStatusRsp(SStatusRsp *pRsp) { taosArrayDestroy(pRsp->pDnodeEps); }
 
+int32_t tSerializeSStatisReq(void *buf, int32_t bufLen, SStatisReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  if (tEncodeI32(&encoder, pReq->contLen) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->pCont) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSStatisReq(void *buf, int32_t bufLen, SStatisReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+
+  if (tDecodeI32(&decoder, &pReq->contLen) < 0) return -1;
+  if (pReq->contLen > 0) {
+    pReq->pCont = taosMemoryMalloc(pReq->contLen + 1);
+    if (pReq->pCont == NULL) return -1;
+    if (tDecodeCStrTo(&decoder, pReq->pCont) < 0) return -1;
+  }
+
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSStatisReq(SStatisReq *pReq) {
+  taosMemoryFreeClear(pReq->pCont);
+}
+
 int32_t tSerializeSCreateAcctReq(void *buf, int32_t bufLen, SCreateAcctReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
