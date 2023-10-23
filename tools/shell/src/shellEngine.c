@@ -1333,9 +1333,8 @@ void get_left_rows_num_callback(void *param, TAOS_RES *tres, int numOfRows) {
   } else {
     if (numOfRows < 0) {
       printf("\033[31masync retrieve failed, code: %d\033[0m\n", numOfRows);
-    } else {
-      tsem_post(&pasyn_num->sem);
     }
+    tsem_post(&pasyn_num->sem);
   }
 }
 
