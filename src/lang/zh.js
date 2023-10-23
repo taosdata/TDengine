@@ -178,7 +178,7 @@ export default {
     finish: '结束',
     uploadcsv:'上传CSV',
     allpoints:'所有点位',
-    downloadtpl:'下载模板',
+    downloadtpl:'CSV模板',
     downloadtpltip:'下载CSV模板文件',
     downloadnodes:'下载所有点位的列表',
     downloadnodestip:'下载OPC中所有点位列表',

@@ -14,7 +14,7 @@
     <p>
       {{ $t("docs.dataout.dump.step2desc")
       }}&nbsp;&nbsp;<a
-        :href="`https://${urlPart}.com/assets-download/3.0/taosTools-2.4.9-Linux-x64-comp3.tar.gz`"
+        :href="`https://${urlPart}.com/assets-download/3.0/taosTools-${version}-Linux-x64-comp3.tar.gz`"
         >taosTools</a
       >{{ $t("docs.dataout.dump.step2desc1")
       }}&nbsp;&nbsp;<a :href="`${$t('urlPart')}/reference/taos-shell`"
@@ -22,9 +22,7 @@
       >{{ $t("docs.connector.bottom3end") }}
     </p>
     <p>{{ $t("docs.dataout.dump.step2desc2") }}</p>
-    <pre v-highlight><code>tar -xzf taosTools-2.4.9-Linux-x64-comp3.tar.gz
-cd taosTools-2.4.9-Linux-x64-comp3
-sudo ./install-taostools.sh
+    <pre v-highlight><code>{{ linuxcode }}
 </code></pre>
     <p>{{ $t("docs.dataout.dump.step2desc3") }}</p>
     <pre
@@ -141,7 +139,12 @@ export default {
     }
   },
   data() {
-    return {};
+    return {
+      version:localStorage.getItem('agent_version'),
+      linuxcode:`tar -xzf taosTools-${localStorage.getItem('agent_version')}-Linux-x64-comp3.tar.gz
+cd taosTools-${localStorage.getItem('agent_version')}-Linux-x64-comp3
+sudo ./install-taostools.sh`
+    };
   },
   computed: {
     DSN() {
