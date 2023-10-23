@@ -2411,6 +2411,7 @@ int32_t createStreamResetStatusTrans(SMnode *pMnode, SStreamObj *pStream) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         mError("failed to malloc in reset stream, size:%" PRIzu ", code:%s", sizeof(SVResetStreamTaskReq),
                tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+        taosWUnLockLatch(&pStream->lock);
         return terrno;
       }
 
@@ -2495,7 +2496,7 @@ int32_t mndResetFromCheckpoint(SMnode *pMnode) {
       break;
     }
     mDebug("stream:%s (0x%" PRIx64 ") reset checkpoint procedure, create reset trans", pStream->name, pStream->uid);
-    int32_t code = createStreamResetStatusTrans(pMnode, pStream);
+    code = createStreamResetStatusTrans(pMnode, pStream);
     if (code != TSDB_CODE_SUCCESS) {
       sdbCancelFetch(pSdb, pIter);
       return code;
