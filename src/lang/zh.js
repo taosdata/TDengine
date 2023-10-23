@@ -981,7 +981,7 @@ export default {
     customcol:'请输入自定义列',
     uploadcsvtip:'请上传文件或输入文件地址',
     copytokentip:'拷贝Token到Agent配置文件',
-    uploadtip:'请上传csv文件',
+    uploadtip:'请上传 CSV 文件',
     uploadcsv:'上传CSV文件',
     configcsv:'配置CSV地址',
     upfile:'上传文件',

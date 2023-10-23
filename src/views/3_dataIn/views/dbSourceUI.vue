@@ -1359,7 +1359,7 @@ export default {
                 } else {
                   Message({
                     type: "warning",
-                    message: `${enterTip} ${data.datasets.params[index].display}`,
+                    message: this.$t('datasource.uploadtip'),
                   });
                   return
                 }
