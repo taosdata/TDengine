@@ -432,7 +432,7 @@ shadow_rs::shadow!(build);
 
 const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN && const_str::equal!("main", build::BRANCH) {
     const_format::concatcp!(
-        build::PKG_VERSION,
+        build::TD_VERSION,
         "-",
         build::SHORT_COMMIT,
         " (built ",
@@ -443,7 +443,7 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN && const_str::equal!("main"
     )
 } else {
     const_format::concatcp!(
-        build::PKG_VERSION,
+        build::TD_VERSION,
         "-",
         build::BRANCH,
         "-",
