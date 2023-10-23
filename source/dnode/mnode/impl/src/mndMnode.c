@@ -23,7 +23,6 @@
 #include "mndTrans.h"
 #include "tmisce.h"
 #include "audit.h"
-#include "taos_monitor.h"
 
 #define MNODE_VER_NUMBER   2
 #define MNODE_RESERVE_SIZE 64
