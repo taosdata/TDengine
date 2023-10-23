@@ -313,6 +313,7 @@ static int32_t tsdbMergeFileSetBeginOpenWriter(SMerger *merger) {
       if (merger->ctx->fset->farr[ftype]) {
         config.files[ftype].exist = true;
         config.files[ftype].file = merger->ctx->fset->farr[ftype]->f[0];
+
       } else {
         config.files[ftype].exist = false;
       }
