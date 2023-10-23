@@ -103,7 +103,7 @@ groups:
         placeholder: 100ms
         required: false
         hint:
-          type: duration
+          type: str
       - name: fetch_min_bytes
         display: 获取消息时的最小字节数
         description: >
@@ -115,7 +115,7 @@ groups:
         placeholder: 4096
         required: false
         hint:
-          type: int
+          type: integer
           min: 0
           max: 2147483647
       - name: fetch_max_bytes_per_partition
@@ -133,7 +133,7 @@ groups:
         placeholder: 1048576
         required: false
         hint:
-          type: int
+          type: integer
           min: 0
           max: 2147483647
       - name: fetch_crc_validation
@@ -174,7 +174,7 @@ groups:
         placeholder: 0
         required: false
         hint:
-          type: int
+          type: integer
           min: 0
           max: 2147483647
       - name: connection_idle_timeout
@@ -186,7 +186,7 @@ groups:
         placeholder: 540000ms
         required: false
         hint:
-          type: duration
+          type: str
       - name: client_id
         display: 客户端ID
         description: >
