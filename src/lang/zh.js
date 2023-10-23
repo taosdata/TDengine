@@ -35,7 +35,7 @@ export default {
   uploadcsv: 'CSV 文件上传',
   allPoints: '所有点',
   allTemplate: '所有 AF 元素模版',
-  downloadTemplate: '模板',
+  downloadTemplate: 'CSV 模板',
   downloadPiPoint: '所有点列表',
   downloadAfElement: 'AF 元素模版列表',
   downloadCSVInUse: '使用中的CSV文件',
