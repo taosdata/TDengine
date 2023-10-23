@@ -429,11 +429,11 @@ typedef struct SVnodeModifyOpStmt {
   struct STableMeta*    pTableMeta;
   SNode*                pTagCond;
   SArray*               pTableTag;
-  SHashObj*             pVgroupsHashObj;
+  SHashObj*             pVgroupsHashObj;     // SHashObj<vgId, SVgInfo>
   SHashObj*             pTableBlockHashObj;  // SHashObj<tuid, STableDataCxt*>
-  SHashObj*             pSubTableHashObj;
-  SHashObj*             pTableNameHashObj;
-  SHashObj*             pDbFNameHashObj;
+  SHashObj*             pSubTableHashObj;    // SHashObj<table_name, STableMeta*>
+  SHashObj*             pTableNameHashObj;   // set of table names for refreshing meta
+  SHashObj*             pDbFNameHashObj;     // set of db names for refreshing meta
   SArray*               pVgDataBlocks;  // SArray<SVgroupDataCxt*>
   SVCreateTbReq*        pCreateTblReq;
   TdFilePtr             fp;
