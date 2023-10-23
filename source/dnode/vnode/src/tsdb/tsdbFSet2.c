@@ -65,6 +65,34 @@ static int32_t tsdbSttLvlInitRef(STsdb *pTsdb, const SSttLvl *lvl1, SSttLvl **lv
   return 0;
 }
 
+static int32_t tsdbSttLvlFilteredInitEx(STsdb *pTsdb, const SSttLvl *lvl1, int64_t ever, SSttLvl **lvl,
+                                        TFileOpArray *fopArr) {
+  int32_t code = tsdbSttLvlInit(lvl1->level, lvl);
+  if (code) return code;
+
+  const STFileObj *fobj1;
+  TARRAY2_FOREACH(lvl1->fobjArr, fobj1) {
+    if (fobj1->f->maxVer <= ever) {
+      STFileObj *fobj;
+      code = tsdbTFileObjInit(pTsdb, fobj1->f, &fobj);
+      if (code) {
+        tsdbSttLvlClear(lvl);
+        return code;
+      }
+
+      TARRAY2_APPEND(lvl[0]->fobjArr, fobj);
+    } else {
+      STFileOp op = {
+          .optype = TSDB_FOP_REMOVE,
+          .fid = fobj1->f->fid,
+          .of = fobj1->f[0],
+      };
+      TARRAY2_APPEND(fopArr, op);
+    }
+  }
+  return 0;
+}
+
 static void tsdbSttLvlRemoveFObj(void *data) { tsdbTFileObjRemove(*(STFileObj **)data); }
 static void tsdbSttLvlRemove(SSttLvl **lvl) {
   TARRAY2_DESTROY(lvl[0]->fobjArr, tsdbSttLvlRemoveFObj);
@@ -424,6 +452,7 @@ int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset) {
   if (fset[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
   fset[0]->fid = fid;
+  fset[0]->maxVerValid = VERSION_MAX;
   TARRAY2_INIT(fset[0]->lvlArr);
   return 0;
 }
@@ -458,6 +487,61 @@ int32_t tsdbTFileSetInitDup(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fs
   return 0;
 }
 
+int32_t tsdbTFileSetFilteredInitDup(STsdb *pTsdb, const STFileSet *fset1, int64_t ever, STFileSet **fset,
+                                    TFileOpArray *fopArr) {
+  int32_t code = tsdbTFileSetInit(fset1->fid, fset);
+  if (code) return code;
+
+  for (int32_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
+    if (fset1->farr[ftype] == NULL) continue;
+    STFileObj *fobj = fset1->farr[ftype];
+    if (fobj->f->maxVer <= ever) {
+      code = tsdbTFileObjInit(pTsdb, fobj->f, &fset[0]->farr[ftype]);
+      if (code) {
+        tsdbTFileSetClear(fset);
+        return code;
+      }
+    } else {
+      STFileOp op = {
+          .optype = TSDB_FOP_REMOVE,
+          .fid = fobj->f->fid,
+          .of = fobj->f[0],
+      };
+      TARRAY2_APPEND(fopArr, op);
+    }
+  }
+
+  const SSttLvl *lvl1;
+  TARRAY2_FOREACH(fset1->lvlArr, lvl1) {
+    SSttLvl *lvl;
+    code = tsdbSttLvlFilteredInitEx(pTsdb, lvl1, ever, &lvl, fopArr);
+    if (code) {
+      tsdbTFileSetClear(fset);
+      return code;
+    }
+
+    code = TARRAY2_APPEND(fset[0]->lvlArr, lvl);
+    if (code) return code;
+  }
+
+  return 0;
+}
+
+int32_t tsdbTSnapRangeInitRef(STsdb *pTsdb, const STFileSet *fset1, int64_t sver, int64_t ever, STSnapRange **fsr) {
+  fsr[0] = taosMemoryCalloc(1, sizeof(*fsr[0]));
+  if (fsr[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  fsr[0]->fid = fset1->fid;
+  fsr[0]->sver = sver;
+  fsr[0]->ever = ever;
+
+  int32_t code = tsdbTFileSetInitRef(pTsdb, fset1, &fsr[0]->fset);
+  if (code) {
+    taosMemoryFree(fsr[0]);
+    fsr[0] = NULL;
+  }
+  return code;
+}
+
 int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset) {
   int32_t code = tsdbTFileSetInit(fset1->fid, fset);
   if (code) return code;
@@ -482,6 +566,15 @@ int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fs
     if (code) return code;
   }
 
+  return 0;
+}
+
+int32_t tsdbTSnapRangeClear(STSnapRange **fsr) {
+  if (!fsr[0]) return 0;
+
+  tsdbTFileSetClear(&fsr[0]->fset);
+  taosMemoryFree(fsr[0]);
+  fsr[0] = NULL;
   return 0;
 }
 

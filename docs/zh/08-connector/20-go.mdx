@@ -797,7 +797,7 @@ TDengine Go 连接器支持订阅功能，应用 API 如下：
 ```go
     consumer, err := tmq.NewConsumer(&tmqcommon.ConfigMap{
         "group.id":                     "test",
-        "auto.offset.reset":            "earliest",
+        "auto.offset.reset":            "latest",
         "td.connect.ip":                "127.0.0.1",
         "td.connect.user":              "root",
         "td.connect.pass":              "taosdata",
@@ -873,6 +873,7 @@ package main
 import (
     "fmt"
     "os"
+    "time"
 
     "github.com/taosdata/driver-go/v3/af"
     "github.com/taosdata/driver-go/v3/af/tmq"
@@ -893,19 +894,16 @@ func main() {
     if err != nil {
         panic(err)
     }
-    if err != nil {
-        panic(err)
-    }
     consumer, err := tmq.NewConsumer(&tmqcommon.ConfigMap{
-        "group.id":                     "test",
-        "auto.offset.reset":            "earliest",
-        "td.connect.ip":                "127.0.0.1",
-        "td.connect.user":              "root",
-        "td.connect.pass":              "taosdata",
-        "td.connect.port":              "6030",
-        "client.id":                    "test_tmq_client",
-        "enable.auto.commit":           "false",
-        "msg.with.table.name":          "true",
+        "group.id":            "test",
+        "auto.offset.reset":   "latest",
+        "td.connect.ip":       "127.0.0.1",
+        "td.connect.user":     "root",
+        "td.connect.pass":     "taosdata",
+        "td.connect.port":     "6030",
+        "client.id":           "test_tmq_client",
+        "enable.auto.commit":  "false",
+        "msg.with.table.name": "true",
     })
     if err != nil {
         panic(err)
@@ -918,10 +916,16 @@ func main() {
     if err != nil {
         panic(err)
     }
-    _, err = db.Exec("insert into example_tmq.t1 values(now,1)")
-    if err != nil {
-        panic(err)
-    }
+    go func() {
+        for {
+            _, err = db.Exec("insert into example_tmq.t1 values(now,1)")
+            if err != nil {
+                panic(err)
+            }
+            time.Sleep(time.Millisecond * 100)
+        }
+    }()
+
     for i := 0; i < 5; i++ {
         ev := consumer.Poll(500)
         if ev != nil {
@@ -975,6 +979,7 @@ package main
 import (
     "database/sql"
     "fmt"
+    "time"
 
     "github.com/taosdata/driver-go/v3/common"
     tmqcommon "github.com/taosdata/driver-go/v3/common/tmq"
@@ -998,7 +1003,7 @@ func main() {
         "td.connect.pass":       "taosdata",
         "group.id":              "example",
         "client.id":             "example_consumer",
-        "auto.offset.reset":     "earliest",
+        "auto.offset.reset":     "latest",
     })
     if err != nil {
         panic(err)
@@ -1007,29 +1012,34 @@ func main() {
     if err != nil {
         panic(err)
     }
+
+    _, err = db.Exec("create table example_ws_tmq.t_all(ts timestamp," +
+        "c1 bool," +
+        "c2 tinyint," +
+        "c3 smallint," +
+        "c4 int," +
+        "c5 bigint," +
+        "c6 tinyint unsigned," +
+        "c7 smallint unsigned," +
+        "c8 int unsigned," +
+        "c9 bigint unsigned," +
+        "c10 float," +
+        "c11 double," +
+        "c12 binary(20)," +
+        "c13 nchar(20)" +
+        ")")
+    if err != nil {
+        panic(err)
+    }
     go func() {
-        _, err := db.Exec("create table example_ws_tmq.t_all(ts timestamp," +
-            "c1 bool," +
-            "c2 tinyint," +
-            "c3 smallint," +
-            "c4 int," +
-            "c5 bigint," +
-            "c6 tinyint unsigned," +
-            "c7 smallint unsigned," +
-            "c8 int unsigned," +
-            "c9 bigint unsigned," +
-            "c10 float," +
-            "c11 double," +
-            "c12 binary(20)," +
-            "c13 nchar(20)" +
-            ")")
-        if err != nil {
-            panic(err)
+        for {
+            _, err = db.Exec("insert into example_ws_tmq.t_all values(now,true,2,3,4,5,6,7,8,9,10.123,11.123,'binary','nchar')")
+            if err != nil {
+                panic(err)
+            }
+            time.Sleep(time.Millisecond * 100)
         }
-        _, err = db.Exec("insert into example_ws_tmq.t_all values(now,true,2,3,4,5,6,7,8,9,10.123,11.123,'binary','nchar')")
-        if err != nil {
-            panic(err)
-        }
+
     }()
     for i := 0; i < 5; i++ {
         ev := consumer.Poll(500)

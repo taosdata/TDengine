@@ -2670,6 +2670,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
   STableBlockScanInfo* pScanInfo = NULL;
   SFileDataBlockInfo*  pBlockInfo = getCurrentBlockInfo(pBlockIter);
   SLastBlockReader*    pLastBlockReader = pReader->status.fileIter.pLastBlockReader;
+  bool                 asc = ASCENDING_TRAVERSE(pReader->info.order);
 
   if (pReader->pIgnoreTables && taosHashGet(*pReader->pIgnoreTables, &pBlockInfo->uid, sizeof(pBlockInfo->uid))) {
     setBlockAllDumped(&pStatus->fBlockDumpInfo, pBlockInfo->record.lastKey, pReader->info.order);
@@ -2705,8 +2706,8 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
   } else {
     bool bHasDataInLastBlock = hasDataInLastBlock(pLastBlockReader);
     int64_t tsLast = bHasDataInLastBlock ? getCurrentKeyInLastBlock(pLastBlockReader) : INT64_MIN;
-    if (!bHasDataInLastBlock || ((ASCENDING_TRAVERSE(pReader->info.order) && pBlockInfo->record.lastKey < tsLast) ||
-                                 (!ASCENDING_TRAVERSE(pReader->info.order) && pBlockInfo->record.firstKey > tsLast))) {
+    if (!bHasDataInLastBlock ||
+        ((asc && pBlockInfo->record.lastKey < tsLast) || (!asc && pBlockInfo->record.firstKey > tsLast))) {
       // whole block is required, return it directly
       SDataBlockInfo* pInfo = &pReader->resBlockInfo.pResBlock->info;
       pInfo->rows = pBlockInfo->record.numRow;
@@ -2728,24 +2729,26 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
       tBlockDataReset(pBData);
 
       SSDataBlock* pResBlock = pReader->resBlockInfo.pResBlock;
-      tsdbDebug("load data in last block firstly %s", pReader->idStr);
 
+      tsdbDebug("load data in last block firstly %s", pReader->idStr);
       int64_t st = taosGetTimestampUs();
 
-      while (1) {
-        bool hasBlockLData = hasDataInLastBlock(pLastBlockReader);
-
-        // no data in last block and block, no need to proceed.
-        if (hasBlockLData == false) {
-          break;
-        }
-
+      // no data in last block, no need to proceed.
+      while (hasDataInLastBlock(pLastBlockReader)) {
         code = buildComposedDataBlockImpl(pReader, pScanInfo, &pReader->status.fileBlockData, pLastBlockReader);
-        if (code) {
+        if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
 
         if (pResBlock->info.rows >= pReader->resBlockInfo.capacity) {
+          break;
+        }
+
+        // data in stt now overlaps with current active file data block, need to composed with file data block.
+        int64_t keyInStt = getCurrentKeyInLastBlock(pLastBlockReader);
+        if ((keyInStt >= pBlockInfo->record.firstKey && asc) || (keyInStt <= pBlockInfo->record.lastKey && (!asc))) {
+          tsdbDebug("%p keyInStt:%" PRId64 ", overlap with file block, brange:%" PRId64 "-%" PRId64 " %s", pReader,
+                    keyInStt, pBlockInfo->record.firstKey, pBlockInfo->record.lastKey, pReader->idStr);
           break;
         }
       }
@@ -2760,7 +2763,6 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
                   pResBlock->info.rows, el, pReader->idStr);
       }
     }
-
   }
 
   return (pReader->code != TSDB_CODE_SUCCESS) ? pReader->code : code;
@@ -4947,7 +4949,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
   }
 
   // fs
-  code = tsdbFSCreateRefSnapshot(pTsdb->pFS, &pSnap->pfSetArray);
+  code = tsdbFSCreateRefSnapshotWithoutLock(pTsdb->pFS, &pSnap->pfSetArray);
 
   // unlock
   taosThreadRwlockUnlock(&pTsdb->rwLock);
