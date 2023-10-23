@@ -185,7 +185,7 @@ fi
 
 echo "=======================new version number: ${verNumber}, compatible version: ${verNumberComp}======================================"
 
-build_time=$(date +"%F %R")
+build_time=$(date +"%F %T %z")
 
 # get TDinternal git commit id
 if [[ "$verMode" == "cluster" ]] || [[ "$verMode" == "cloud" ]]; then
