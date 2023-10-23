@@ -14,6 +14,7 @@
 
 import random
 import string
+import time
 
 from numpy import logspace
 from util import constant
@@ -298,13 +299,37 @@ class TDTestCase:
                 tdSql.query(f'select {func}(*) from {self.stbname}')
             tdSql.execute(f'drop table {self.stbname}')
         tdSql.execute(f'drop database {self.dbname}')
+    
+    def FIX_TS_3987(self):
+        tdSql.execute("create database db duration 1d vgroups 1;")
+        tdSql.execute("use db;")
+        tdSql.execute("create table t (ts timestamp, a int);")
+        tdSql.execute("insert into t values (1694681045000, 1);")
+        tdSql.execute("select * from t;")
+        tdSql.execute("flush database db;")
+        tdSql.execute("select * from t;")
+        tdSql.execute("delete from t where ts = 1694681045000;")
+        tdSql.execute("select * from t;")
+        tdSql.execute("insert into t values (1694581045000, 2);")
+        tdSql.execute("select * from t;")
+        tdSql.execute("flush database db;")
+        tdSql.query("select * from t;")
+        time.sleep(5)
+        tdSql.query("select * from t;")
+
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1694581045000)
+        tdSql.checkData(0, 1, 2)        
+    
     def run(self):
+        self.FIX_TS_3987()
         self.delete_data_ntb()
         self.delete_data_ctb()
         self.delete_data_stb()
         tdDnodes.stoptaosd(1)
         tdDnodes.starttaosd(1)
         self.delete_data_ntb()
+        
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

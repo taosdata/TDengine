@@ -428,7 +428,7 @@ if(${BUILD_WITH_COS})
     INCLUDE_DIRECTORIES($ENV{HOME}/.cos-local.1/include)
     #MESSAGE("$ENV{HOME}/.cos-local.1/include")
 
-    set(CMAKE_BUILD_TYPE debug)
+    set(CMAKE_BUILD_TYPE Release)
     set(ORIG_CMAKE_PROJECT_NAME ${CMAKE_PROJECT_NAME})
     set(CMAKE_PROJECT_NAME cos_c_sdk)
 

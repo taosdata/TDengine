@@ -22,7 +22,7 @@ class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), True)
         self.setsql = TDSetSql()
         self.dbname = 'db'
         self.stbname = 'stb'
@@ -217,7 +217,7 @@ class TDTestCase:
             tdSql.checkEqual(20470,len(tdSql.queryResult))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
-        tdSql.checkEqual(195, len(tdSql.queryResult))
+        tdSql.checkEqual(198, len(tdSql.queryResult))
 
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
         tdSql.checkEqual(54, len(tdSql.queryResult))

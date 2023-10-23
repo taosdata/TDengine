@@ -665,6 +665,9 @@ int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* durati
   if (*unit == 'n' || *unit == 'y') {
     return 0;
   }
+  if(isdigit(*unit)) {
+    *unit = getPrecisionUnit(timePrecision);
+  }
 
   return getDuration(*duration, *unit, duration, timePrecision);
 }
@@ -756,7 +759,8 @@ int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interva
 }
 
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
-  if (pInterval->sliding == 0 && pInterval->interval == 0) {
+  if (pInterval->sliding == 0) {
+    ASSERT(pInterval->interval == 0);
     return ts;
   }
 

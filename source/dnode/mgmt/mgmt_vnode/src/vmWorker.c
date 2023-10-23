@@ -187,9 +187,9 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
   pHead->vgId = ntohl(pHead->vgId);
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, pHead->vgId);
-  if (pVnode == NULL) {
-    dGWarn("vgId:%d, msg:%p failed to put into vnode queue since %s, type:%s qtype:%d contLen:%d", pHead->vgId, pMsg,
-           terrstr(), TMSG_INFO(pMsg->msgType), qtype, pHead->contLen);
+  if (pVnode == NULL || pVnode->failed) {
+    dGDebug("vgId:%d, msg:%p failed to put into vnode queue since %s, type:%s qtype:%d contLen:%d", pHead->vgId, pMsg,
+            terrstr(), TMSG_INFO(pMsg->msgType), qtype, pHead->contLen);
     terrno = (terrno != 0) ? terrno : -1;
     return terrno;
   }
@@ -316,7 +316,7 @@ int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
 int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
   int32_t    size = -1;
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
-  if (pVnode != NULL) {
+  if (pVnode != NULL && !pVnode->failed) {
     switch (qtype) {
       case WRITE_QUEUE:
         size = taosQueueItemSize(pVnode->pWriteW.queue);
@@ -339,8 +339,8 @@ int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
       default:
         break;
     }
-    vmReleaseVnode(pMgmt, pVnode);
   }
+  if (pVnode) vmReleaseVnode(pMgmt, pVnode);
   if (size < 0) {
     dTrace("vgId:%d, can't get size from queue since %s, qtype:%d", vgId, terrstr(), qtype);
     size = 0;

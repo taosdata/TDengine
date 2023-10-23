@@ -228,15 +228,13 @@ _err:
 int32_t streamTaskSnapWrite(SStreamTaskWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t       code = 0;
   STQ*          pTq = pWriter->pTq;
-  STqHandle     handle;
   SSnapDataHdr* pHdr = (SSnapDataHdr*)pData;
   if (pHdr->type == SNAP_DATA_STREAM_TASK) {
-    SStreamTaskId task = {0};
+    STaskId taskId = {0};
 
     SDecoder decoder;
     tDecoderInit(&decoder, (uint8_t*)pData + sizeof(SSnapDataHdr), nData - sizeof(SSnapDataHdr));
-
-    code = tDecodeStreamTaskId(&decoder, &task);
+    code = tDecodeStreamTaskId(&decoder, &taskId);
     if (code < 0) {
       tDecoderClear(&decoder);
       goto _err;
@@ -244,9 +242,7 @@ int32_t streamTaskSnapWrite(SStreamTaskWriter* pWriter, uint8_t* pData, uint32_t
     tDecoderClear(&decoder);
     // tdbTbInsert(TTB *pTb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn)
 
-    taosWLockLatch(&pTq->pStreamMeta->lock);
-    int64_t key[2] = {task.streamId, task.taskId};
-
+    int64_t key[2] = {taskId.streamId, taskId.taskId};
     taosWLockLatch(&pTq->pStreamMeta->lock);
     if (tdbTbUpsert(pTq->pStreamMeta->pTaskDb, key, sizeof(int64_t) << 1, (uint8_t*)pData + sizeof(SSnapDataHdr),
                     nData - sizeof(SSnapDataHdr), pTq->pStreamMeta->txn) < 0) {

@@ -1093,7 +1093,7 @@ TaosConsumer consumer = new TaosConsumer<>(config);
 - httpConnectTimeout: WebSocket connection timeout in milliseconds, the default value is 5000 ms. It only takes effect when using WebSocket type.
 - messageWaitTimeout: socket timeout in milliseconds, the default value is 10000 ms. It only takes effect when using WebSocket type.
 - httpPoolSize: Maximum number of concurrent requests on the a connection。It only takes effect when using WebSocket type.
-- For more information, see [Consumer Parameters](../../../develop/tmq).
+- For more information, see [Consumer Parameters](../../../develop/tmq). Note that the default value of auto.offset.reset in data subscription on the TDengine server has changed since version 3.2.0.0.
 
 #### Subscribe to consume data
 
@@ -1193,7 +1193,7 @@ public abstract class ConsumerLoop {
         config.setProperty("bootstrap.servers", "localhost:6030");
         config.setProperty("td.connect.user", "root");
         config.setProperty("td.connect.pass", "taosdata");
-        config.setProperty("auto.offset.reset", "earliest");
+        config.setProperty("auto.offset.reset", "latest");
         config.setProperty("msg.with.table.name", "true");
         config.setProperty("enable.auto.commit", "true");
         config.setProperty("auto.commit.interval.ms", "1000");
@@ -1276,7 +1276,7 @@ public abstract class ConsumerLoop {
         config.setProperty("bootstrap.servers", "localhost:6041");
         config.setProperty("td.connect.user", "root");
         config.setProperty("td.connect.pass", "taosdata");
-        config.setProperty("auto.offset.reset", "earliest");
+        config.setProperty("auto.offset.reset", "latest");
         config.setProperty("msg.with.table.name", "true");
         config.setProperty("enable.auto.commit", "true");
         config.setProperty("auto.commit.interval.ms", "1000");

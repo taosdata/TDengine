@@ -118,7 +118,8 @@ bool tsSmlDot2Underline = true;
 char tsSmlTsDefaultName[TSDB_COL_NAME_LEN] = "_ts";
 char tsSmlTagName[TSDB_COL_NAME_LEN] = "_tag_null";
 char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table name can be specified in tag value.
-                                                     // If set to empty system will generate table name using MD5 hash.
+char tsSmlAutoChildTableNameDelimiter[TSDB_TABLE_NAME_LEN] = "";
+                                                                   // If set to empty system will generate table name using MD5 hash.
 // true means that the name and order of cols in each line are the same(only for influx protocol)
 // bool    tsSmlDataFormat = false;
 // int32_t tsSmlBatchSize = 10000;
@@ -244,8 +245,8 @@ int32_t tsTtlBatchDropNum = 10000;   // number of tables dropped per batch
 // internal
 int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
-int32_t tsStreamCheckpointTickInterval = 600;
-int32_t tsStreamNodeCheckInterval = 10;
+int32_t tsStreamCheckpointTickInterval = 300;
+int32_t tsStreamNodeCheckInterval = 30;
 int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushIntervalSec = 10;
 int32_t tsTrimVDbIntervalSec = 60 * 60;  // interval of trimming db in all vgroups
@@ -272,7 +273,7 @@ char   tsS3Hostname[TSDB_FQDN_LEN] = "<hostname>";
 int32_t tsS3BlockSize = 4096;     // number of tsdb pages
 int32_t tsS3BlockCacheSize = 16;  // number of blocks
 
-int32_t tsCheckpointInterval = 20;
+int32_t tsCheckpointInterval = 300;
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -422,6 +423,7 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "idxDebugFlag", idxDebugFlag, 0, 255, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "tdbDebugFlag", tdbDebugFlag, 0, 255, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "metaDebugFlag", metaDebugFlag, 0, 255, 0) != CFG_SCOPE_SERVER) return -1;
+  if (cfgAddInt32(pCfg, "stDebugFlag", stDebugFlag, 0, 255, CFG_SCOPE_SERVER) != 0) return -1;
   return 0;
 }
 
@@ -449,7 +451,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "queryNodeChunkSize", tsQueryNodeChunkSize, 1024, 128 * 1024, CFG_SCOPE_CLIENT) != 0) return -1;
   if (cfgAddBool(pCfg, "queryUseNodeAllocator", tsQueryUseNodeAllocator, CFG_SCOPE_CLIENT) != 0) return -1;
   if (cfgAddBool(pCfg, "keepColumnName", tsKeepColumnName, CFG_SCOPE_CLIENT) != 0) return -1;
-  if (cfgAddString(pCfg, "smlChildTableName", "", CFG_SCOPE_CLIENT) != 0) return -1;
+  if (cfgAddString(pCfg, "smlChildTableName", tsSmlChildTableName, CFG_SCOPE_CLIENT) != 0) return -1;
+  if (cfgAddString(pCfg, "smlAutoChildTableNameDelimiter", tsSmlAutoChildTableNameDelimiter, CFG_SCOPE_CLIENT) != 0) return -1;
   if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, CFG_SCOPE_CLIENT) != 0) return -1;
   if (cfgAddString(pCfg, "smlTsDefaultName", tsSmlTsDefaultName, CFG_SCOPE_CLIENT) != 0) return -1;
   if (cfgAddBool(pCfg, "smlDot2Underline", tsSmlDot2Underline, CFG_SCOPE_CLIENT) != 0) return -1;
@@ -660,7 +663,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddBool(pCfg, "disableStream", tsDisableStream, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt64(pCfg, "streamBufferSize", tsStreamBufferSize, 0, INT64_MAX, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddInt64(pCfg, "checkpointInterval", tsCheckpointInterval, 0, INT64_MAX, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt64(pCfg, "checkpointInterval", tsStreamCheckpointTickInterval, 60, 1200, CFG_SCOPE_SERVER) != 0) return -1;
 
   if (cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, CFG_SCOPE_SERVER) != 0)
     return -1;
@@ -874,6 +877,7 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
   idxDebugFlag = cfgGetItem(pCfg, "idxDebugFlag")->i32;
   tdbDebugFlag = cfgGetItem(pCfg, "tdbDebugFlag")->i32;
   metaDebugFlag = cfgGetItem(pCfg, "metaDebugFlag")->i32;
+  stDebugFlag = cfgGetItem(pCfg, "stDebugFlag")->i32;
 }
 
 static int32_t taosSetSlowLogScope(char *pScope) {
@@ -940,6 +944,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
     return -1;
   }
 
+  tstrncpy(tsSmlAutoChildTableNameDelimiter, cfgGetItem(pCfg, "smlAutoChildTableNameDelimiter")->str, TSDB_TABLE_NAME_LEN);
   tstrncpy(tsSmlChildTableName, cfgGetItem(pCfg, "smlChildTableName")->str, TSDB_TABLE_NAME_LEN);
   tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagName")->str, TSDB_COL_NAME_LEN);
   tstrncpy(tsSmlTsDefaultName, cfgGetItem(pCfg, "smlTsDefaultName")->str, TSDB_COL_NAME_LEN);
@@ -1404,6 +1409,8 @@ int32_t taosApplyLocalCfg(SConfig *pCfg, char *name) {
         cfgSetItem(pCfg, "secondEp", tsSecond, pSecondpItem->stype);
       } else if (strcasecmp("smlChildTableName", name) == 0) {
         tstrncpy(tsSmlChildTableName, cfgGetItem(pCfg, "smlChildTableName")->str, TSDB_TABLE_NAME_LEN);
+      } else if (strcasecmp("smlAutoChildTableNameDelimiter", name) == 0) {
+        tstrncpy(tsSmlAutoChildTableNameDelimiter, cfgGetItem(pCfg, "smlAutoChildTableNameDelimiter")->str, TSDB_TABLE_NAME_LEN);
       } else if (strcasecmp("smlTagName", name) == 0) {
         tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagName")->str, TSDB_COL_NAME_LEN);
         //      } else if (strcasecmp("smlDataFormat", name) == 0) {
@@ -1719,15 +1726,22 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     return;
   }
 
+  if (strcasecmp(option, "asynclog") == 0) {
+    int32_t newAsynclog = atoi(value);
+    uInfo("asynclog set from %d to %d", tsAsyncLog, newAsynclog);
+    tsAsyncLog = newAsynclog;
+    return;
+  }
+
   const char *options[] = {
       "dDebugFlag",   "vDebugFlag",   "mDebugFlag",   "wDebugFlag",    "sDebugFlag",   "tsdbDebugFlag", "tqDebugFlag",
       "fsDebugFlag",  "udfDebugFlag", "smaDebugFlag", "idxDebugFlag",  "tdbDebugFlag", "tmrDebugFlag",  "uDebugFlag",
-      "smaDebugFlag", "rpcDebugFlag", "qDebugFlag",   "metaDebugFlag", "jniDebugFlag",
+      "smaDebugFlag", "rpcDebugFlag", "qDebugFlag",   "metaDebugFlag", "jniDebugFlag", "stDebugFlag",
   };
   int32_t *optionVars[] = {
       &dDebugFlag,   &vDebugFlag,   &mDebugFlag,   &wDebugFlag,    &sDebugFlag,   &tsdbDebugFlag, &tqDebugFlag,
       &fsDebugFlag,  &udfDebugFlag, &smaDebugFlag, &idxDebugFlag,  &tdbDebugFlag, &tmrDebugFlag,  &uDebugFlag,
-      &smaDebugFlag, &rpcDebugFlag, &qDebugFlag,   &metaDebugFlag, &jniDebugFlag,
+      &smaDebugFlag, &rpcDebugFlag, &qDebugFlag,   &metaDebugFlag, &jniDebugFlag, &stDebugFlag,
   };
 
   int32_t optionSize = tListLen(options);
@@ -1780,6 +1794,7 @@ void taosSetAllDebugFlag(int32_t flag, bool rewrite) {
   taosSetDebugFlag(&idxDebugFlag, "idxDebugFlag", flag, rewrite);
   taosSetDebugFlag(&tdbDebugFlag, "tdbDebugFlag", flag, rewrite);
   taosSetDebugFlag(&metaDebugFlag, "metaDebugFlag", flag, rewrite);
+  taosSetDebugFlag(&stDebugFlag, "stDebugFlag", flag, rewrite);
   uInfo("all debug flag are set to %d", flag);
 }
 

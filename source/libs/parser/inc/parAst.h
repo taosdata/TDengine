@@ -99,6 +99,7 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt);
 
 SNode* createRawExprNode(SAstCreateContext* pCxt, const SToken* pToken, SNode* pNode);
 SNode* createRawExprNodeExt(SAstCreateContext* pCxt, const SToken* pStart, const SToken* pEnd, SNode* pNode);
+SNode* setRawExprNodeIsPseudoColumn(SAstCreateContext* pCxt, SNode* pNode, bool isPseudoColumn);
 SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode);
 SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode);
 
@@ -244,7 +245,7 @@ SNode* createResumeStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, boo
 SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId);
 SNode* createKillQueryStmt(SAstCreateContext* pCxt, const SToken* pQueryId);
 SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt);
-SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt);
+SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt, const SToken* pVgId);
 SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, const SToken* pVgId2);
 SNode* createRedistributeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, SNodeList* pDnodes);
 SNode* createSplitVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId);
