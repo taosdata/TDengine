@@ -534,7 +534,7 @@ export default {
     finish: 'Finish',
     uploadcsv:'Upload CSV',
     allpoints:'All Points',
-    downloadtpl:'Template',
+    downloadtpl:'CSV Template',
     downloadtpltip:'Download the csv template file ',
     downloadnodes:'The List of Nodes',
     downloadnodestip:'Download the list of all points in OPC',

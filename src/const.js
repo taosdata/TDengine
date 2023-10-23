@@ -375,7 +375,7 @@ export const BusinessEmail = "business@tdengine.com";
 export const StreamDocsUrl = i18n.locale?.includes('en') ? "https://docs.tdengine.com/develop/stream/" : 'https://docs.taosdata.com/develop/stream/';
 export const DocsUrl = "https://docs.tdengine.com"
 
-export const TdengineVersion = "3.0.3.2";
+export const TdengineVersion = "3.2.0.0";
 export const SubscriptionDocsUrl = i18n.locale?.includes('en') ? "https://docs.tdengine.com/taos-sql/tmq/#create-a-topic" : 'https://docs.taosdata.com/taos-sql/tmq/#create-a-topic';
 export const TDengineTimeUnit = [
   {
