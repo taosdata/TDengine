@@ -703,6 +703,7 @@ bool shellIsShowQuery(const char *sql) {
 }
 
 int64_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
+  int32_t  thisBatchRowsCount = prepareForFetchRows(tres);
   TAOS_ROW row = taos_fetch_row(tres);
   if (row == NULL) {
     return 0;
@@ -726,11 +727,13 @@ int64_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
     resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
   }
 
-  int64_t numOfRows = 0;
+  int64_t numOfShowRows = 0;
+  int64_t numOfAllRows = thisBatchRowsCount;
+  int64_t numOfGetThisBatchRows = 0;
   int32_t showMore = 1;
   do {
-    if (numOfRows < resShowMaxNum) {
-      printf("*************************** %"PRId64".row ***************************\r\n", numOfRows + 1);
+    if (numOfShowRows < resShowMaxNum) {
+      printf("*************************** %" PRId64 ".row ***************************\r\n", numOfShowRows + 1);
 
       int32_t *length = taos_fetch_lengths(tres);
 
@@ -753,14 +756,24 @@ int64_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
       printf("         You can use Ctrl+C to stop the underway fetching.\r\n");
       printf("\r\n");
       showMore = 0;
+      break;
     }
 
-    numOfRows++;
-    row = taos_fetch_row(tres);
-  } while (row != NULL);
-  numOfRows += doAsyncGetLeftRowsNum(tres);
+    numOfShowRows++;
+    numOfGetThisBatchRows++;
+    if (numOfGetThisBatchRows < thisBatchRowsCount) {
+      row = taos_fetch_row(tres);
+    } else {
+      thisBatchRowsCount = prepareForFetchRows(tres);
+      row = taos_fetch_row(tres);
+      numOfGetThisBatchRows = 0;
+      numOfAllRows += thisBatchRowsCount;
+    }
 
-  return numOfRows;
+  } while (row != NULL);
+  numOfAllRows += get_left_rows_num(tres);
+
+  return numOfAllRows;
 }
 
 int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
@@ -858,6 +871,7 @@ void shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields) {
 }
 
 int64_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
+  int32_t thisBatchRowsCount = prepareForFetchRows(tres);
   TAOS_ROW row = taos_fetch_row(tres);
   if (row == NULL) {
     return 0;
@@ -880,12 +894,14 @@ int64_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
     resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
   }
 
-  int64_t numOfRows = 0;
+  int64_t numOfShowRows = 0;
+  int64_t numOfAllRows = thisBatchRowsCount;
+  int64_t numOfGetThisBatchRows = 0;
   int32_t showMore = 1;
 
   do {
     int32_t *length = taos_fetch_lengths(tres);
-    if (numOfRows < resShowMaxNum) {
+    if (numOfShowRows < resShowMaxNum) {
       for (int32_t i = 0; i < num_fields; i++) {
         putchar(' ');
         shellPrintField((const char *)row[i], fields + i, width[i], length[i], precision);
@@ -910,12 +926,21 @@ int64_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
       break;
     }
 
-    numOfRows++;
-    row = taos_fetch_row(tres);
-  } while (row != NULL);
-  numOfRows += doAsyncGetLeftRowsNum(tres);
+    numOfShowRows++;
+    numOfGetThisBatchRows++;
+    if (numOfGetThisBatchRows < thisBatchRowsCount) {
+      row = taos_fetch_row(tres);
+    } else {
+      thisBatchRowsCount = prepareForFetchRows(tres);
+      row = taos_fetch_row(tres);
+      numOfGetThisBatchRows = 0;
+      numOfAllRows += thisBatchRowsCount;
+    }
 
-  return numOfRows;
+  } while (row != NULL);
+  numOfAllRows += get_left_rows_num(tres);
+
+  return numOfAllRows;
 }
 
 int64_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool vertical, const char *sql) {
@@ -1300,29 +1325,53 @@ typedef struct {
   tsem_t sem;
 } asyn_num;
 
-void retrieve_callback(void *param, TAOS_RES *tres, int numOfRows) {
+void get_left_rows_num_callback(void *param, TAOS_RES *tres, int numOfRows) {
   asyn_num* pasyn_num = (asyn_num*) param;
   if (numOfRows > 0) {
     pasyn_num->num += numOfRows;
-    taos_fetch_rows_a(tres, retrieve_callback, param);
+    taos_fetch_rows_a(tres, get_left_rows_num_callback, param);
   } else {
     if (numOfRows < 0) {
       printf("\033[31masync retrieve failed, code: %d\033[0m\n", numOfRows);
     } else {
-      printf("async retrieve completed\n");
-      tsem_post(pasyn_num->sem);
+      tsem_post(&pasyn_num->sem);
     }
   }
 }
 
-int32_t doAsyncGetLeftRowsNum(TAOS_RES *res) {
+int32_t get_left_rows_num(TAOS_RES *res) {
   if (res == NULL) {
     return NULL;
   }
 
   asyn_num asynNum;
   tsem_init(&asynNum.sem, 0, 0);
-  taos_fetch_rows_a(res, retrieve_callback, &asynNum);
+  asynNum.num = 0;
+  taos_fetch_rows_a(res, get_left_rows_num_callback, &asynNum);
+  tsem_wait(&asynNum.sem);
+  return asynNum.num;
+}
+
+void prepare_rows_callback(void *param, TAOS_RES *tres, int numOfRows) {
+  asyn_num *pasyn_num = (asyn_num *)param;
+  tsem_post(&pasyn_num->sem);
+  if (numOfRows > 0) {
+    pasyn_num->num = numOfRows;
+  } else {
+    pasyn_num->num = 0;
+  }
+  return;
+}
+
+int32_t prepareForFetchRows(TAOS_RES *res) {
+  if (res == NULL) {
+    return NULL;
+  }
+
+  asyn_num asynNum;
+  tsem_init(&asynNum.sem, 0, 0);
+  asynNum.num = 0;
+  taos_fetch_rows_a(res, prepare_rows_callback, &asynNum);
   tsem_wait(&asynNum.sem);
   return asynNum.num;
 }
