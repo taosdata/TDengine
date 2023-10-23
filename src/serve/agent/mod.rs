@@ -24,24 +24,18 @@ responses(
 )
 )]
 #[post("/agents")]
-#[instrument(skip_all, fields(TID), parent = None)]
 pub(super) async fn create_agent(
     task_store: Data<TaskControllerRef>,
     agent: Json<AgentProps>,
-) -> impl Responder {
-    tracing::info!("create agent name={} dsn={}", agent.name, agent.dsn);
+) ->  actix_web::Result<Responder, Failed> {
     match task_store.create_agent(agent.into_inner()).await {
         Ok(agent) => {
-            tracing::info!("create agent success, agent.id={}, agent.token={}", agent.id, agent.token);
-            HttpResponse::Ok().json(&agent)
+            Ok(HttpResponse::Ok().json(&agent))
         }
-        Err(err) => {
-            tracing::error!("{:#}", err);
-            HttpResponse::InternalServerError().json(Failed {
-                code: Code::FAILED,
-                message: format!("{:#}", err),
-            })
-        }
+        Err(err) => Failed {
+            code: Code::FAILED,
+            message: format!("{:#}", err),
+        })
     }
 }
 
