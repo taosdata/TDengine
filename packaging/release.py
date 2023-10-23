@@ -48,6 +48,7 @@ class ReleaseInfo:
         self.Commit = ""
         self.BuildTime = ""
         self.OnlyBuild = False
+        self.TdengineVersion = ""
     def print(self):
         for attr in dir(self):
             if not attr.startswith("__"):
@@ -88,6 +89,12 @@ def get_taosx_version():
         version = cargo_toml['workspace']['package']['version']
     return version
 
+def get_tdengine_version(ver_number):
+    if ver_number is None or len(ver_number) == 0:
+        return os.environ.get('VER_NUMBER')
+    else:
+        return ver_number
+
 def get_taosx_agent_version():
     version = ""
     cargo_toml_path = os.path.join(taosx_dir, "Cargo.toml")
@@ -106,16 +113,16 @@ def get_install_path():
     elif release_info.OnlyBuild:
         return os.path.join(taosx_dir,"release","taosx")
     else:
-        return os.path.join(taosx_dir,"release","{0}-{1}-linux-{2}".format(target, release_info.TaosXVersion, release_info.CpuType.lower()))
+        return os.path.join(taosx_dir,"release","{0}-{1}-linux-{2}".format(target, release_info.TdengineVersion, release_info.CpuType.lower()))
 
 def get_package_name():
     target = "taosx"
     if release_info.Target == "agent":
         target = taosx_agent_name
     if release_info.OS == 'Windows':  # Windows操作系统
-        return  f'{target}-{release_info.TaosXVersion}-{release_info.OS.lower()}-{release_info.CpuType.lower()}-installer'
+        return  f'{target}-{release_info.TdengineVersion}-{release_info.OS.lower()}-{release_info.CpuType.lower()}-installer'
     else:
-        return f'{target}-{release_info.TaosXVersion}-{release_info.OS.lower()}-{release_info.CpuType.lower()}-installer'
+        return f'{target}-{release_info.TdengineVersion}-{release_info.OS.lower()}-{release_info.CpuType.lower()}-installer'
 
 def get_taosx_output_name():
     if release_info.OS == 'Windows':  # Windows操作系统
@@ -167,6 +174,7 @@ def init_build_info():
     parser.add_argument('-o', '--objective', choices=['taosx', 'agent'], help='target package type(taosx, agent)')
     parser.add_argument('-t', '--test_process', help='test single process(pi,opc,mqtt,taosx, package)')
     parser.add_argument('-ob', '--only_build', nargs='?', const=get_install_path(), help='only build taosx into this path.)')
+    parser.add_argument('-vn', '--ver_number', help='tdengine enterprise version')
 
     args, unknown_args = parser.parse_known_args()
 
@@ -191,9 +199,11 @@ def init_build_info():
     if release_info.Target == "taosx":
         sub_module.append(SubmoduleBuildInfo(taosx_name, release_info.DefaultBuildMode))
         sub_module.append(SubmoduleBuildInfo(taos_explorer_name, release_info.DefaultBuildMode))
-        release_info.TaosXVersion = get_taosx_version()
+        # release_info.TaosXVersion = get_taosx_version()
+        release_info.TdengineVersion = get_tdengine_version(args.ver_number)
     else:
-        release_info.TaosXVersion = get_taosx_agent_version()
+        # release_info.TaosXVersion = get_taosx_agent_version()
+        release_info.TdengineVersion = get_tdengine_version(args.ver_number)
     release_info.InstallPath = get_install_path()
 
     sub_module.append(SubmoduleBuildInfo(taosx_agent_name, release_info.DefaultBuildMode))
@@ -495,7 +505,7 @@ def package_on_windows():
     if release_info.Target == "agent":
         target = taosx_agent_name
     cmd = f'iscc /F"{release_info.PackageName}" '\
-        f'/DMyAppVersion="{release_info.TaosXVersion}" '\
+        f'/DMyAppVersion="{release_info.TdengineVersion}" '\
         f'/DMyAppSourceDir="{release_info.InstallPath}" '\
         f'/DCusName="{cus_name}" '\
         f'/DSubDirectory="{sub_directory}" '\
