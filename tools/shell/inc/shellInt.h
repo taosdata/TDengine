@@ -131,6 +131,10 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision);
 void    shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields);
 void    shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t length, int32_t precision);
 void    shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int32_t precision); 
+
+int32_t get_left_rows_num(TAOS_RES* res);
+int32_t prepareForFetchRows(TAOS_RES* res);
+
 // shellUtil.c
 int32_t shellCheckIntSize();
 void    shellPrintVersion();

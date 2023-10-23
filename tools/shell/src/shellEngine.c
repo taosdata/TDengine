@@ -1340,7 +1340,7 @@ void get_left_rows_num_callback(void *param, TAOS_RES *tres, int numOfRows) {
 
 int32_t get_left_rows_num(TAOS_RES *res) {
   if (res == NULL) {
-    return NULL;
+    return 0;
   }
 
   asyn_num asynNum;
@@ -1364,7 +1364,7 @@ void prepare_rows_callback(void *param, TAOS_RES *tres, int numOfRows) {
 
 int32_t prepareForFetchRows(TAOS_RES *res) {
   if (res == NULL) {
-    return NULL;
+    return 0;
   }
 
   asyn_num asynNum;
