@@ -112,6 +112,7 @@ extern "C" {
 #define COMMAND_CATALOG_DEBUG "catalogDebug"
 #define COMMAND_ENABLE_MEM_DEBUG "enableMemDebug"
 #define COMMAND_DISABLE_MEM_DEBUG "disableMemDebug"
+#define COMMAND_ASYNCLOG          "asynclog"
 
 typedef struct SExplainGroup {
   int32_t   nodeNum;
@@ -168,7 +169,7 @@ typedef struct SExplainCtx {
     }                                                                                                             \
     tlen += snprintf(tbuf + VARSTR_HEADER_SIZE + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE - tlen, __VA_ARGS__);         \
   } while (0)
-  
+
 #define EXPLAIN_ROW_APPEND(...) tlen += snprintf(tbuf + VARSTR_HEADER_SIZE + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE - tlen, __VA_ARGS__)
 #define EXPLAIN_ROW_END() do { varDataSetLen(tbuf, tlen); tlen += VARSTR_HEADER_SIZE; isVerboseLine = true; } while (0)
 

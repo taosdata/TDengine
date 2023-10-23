@@ -193,29 +193,22 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
     }
 
     if (record->ekey < committer->ctx->minKey) {
-      goto _next;
+      // do nothing
     } else if (record->skey > committer->ctx->maxKey) {
-      committer->ctx->maxKey = TMIN(record->skey, committer->ctx->maxKey);
-      goto _next;
+      committer->ctx->nextKey = TMIN(record->skey, committer->ctx->nextKey);
+    } else {
+      if (record->ekey > committer->ctx->maxKey) {
+        committer->ctx->nextKey = TMIN(committer->ctx->nextKey, committer->ctx->maxKey + 1);
+      }
+
+      record->skey = TMAX(record->skey, committer->ctx->minKey);
+      record->ekey = TMIN(record->ekey, committer->ctx->maxKey);
+
+      numRecord++;
+      code = tsdbFSetWriteTombRecord(committer->writer, record);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    TSKEY maxKey = committer->ctx->maxKey;
-    if (record->ekey > committer->ctx->maxKey) {
-      maxKey = committer->ctx->maxKey + 1;
-    }
-
-    if (record->ekey > committer->ctx->maxKey && committer->ctx->nextKey > maxKey) {
-      committer->ctx->nextKey = maxKey;
-    }
-
-    record->skey = TMAX(record->skey, committer->ctx->minKey);
-    record->ekey = TMIN(record->ekey, maxKey);
-
-    numRecord++;
-    code = tsdbFSetWriteTombRecord(committer->writer, record);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-  _next:
     code = tsdbIterMergerNext(committer->tombIterMerger);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -576,6 +569,8 @@ int32_t tsdbCommitBegin(STsdb *tsdb, SCommitInfo *info) {
     tsdbUnrefMemTable(imem, NULL, true);
   } else {
     SCommitter2 committer[1];
+
+    tsdbFSCheckCommit(tsdb->pFS);
 
     code = tsdbOpenCommitter(tsdb, info, committer);
     TSDB_CHECK_CODE(code, lino, _exit);

@@ -316,6 +316,7 @@ _OVER:
 
   mndReleaseSnode(pMnode, pObj);
   mndReleaseDnode(pMnode, pDnode);
+  tFreeSMCreateQnodeReq(&createReq);
   return code;
 }
 
@@ -425,6 +426,7 @@ _OVER:
   }
 
   mndReleaseSnode(pMnode, pObj);
+  tFreeSMCreateQnodeReq(&dropReq);
   return code;
 }
 

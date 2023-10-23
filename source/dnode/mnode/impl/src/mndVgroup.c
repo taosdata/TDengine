@@ -2177,11 +2177,7 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
   char obj[33] = {0};
   sprintf(obj, "%d", req.vgId);
 
-  char detail[1000] = {0};
-  sprintf(detail, "dnodeId1:%d, dnodeId2:%d, dnodeId3:%d",
-          req.dnodeId1, req.dnodeId2, req.dnodeId3);
-
-  auditRecord(pReq, pMnode->clusterId, "RedistributeVgroup", obj, "", detail);
+  auditRecord(pReq, pMnode->clusterId, "RedistributeVgroup", obj, "", req.sql, req.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -2197,6 +2193,7 @@ _OVER:
   mndReleaseDnode(pMnode, pOld3);
   mndReleaseVgroup(pMnode, pVgroup);
   mndReleaseDb(pMnode, pDb);
+  tFreeSRedistributeVgroupReq(&req);
 
   return code;
 }
@@ -2993,7 +2990,7 @@ static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
     code = mndBalanceVgroup(pMnode, pReq, pArray);
   }
 
-  auditRecord(pReq, pMnode->clusterId, "balanceVgroup", "", "", "");
+  auditRecord(pReq, pMnode->clusterId, "balanceVgroup", "", "", req.sql, req.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -3001,6 +2998,7 @@ _OVER:
   }
 
   taosArrayDestroy(pArray);
+  tFreeSBalanceVgroupReq(&req);
   return code;
 }
 
