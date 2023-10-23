@@ -139,7 +139,7 @@ async fn profile() -> HttpResponse {
 
 fn get_profile() -> serde_json::Value {
     serde_json::json!({
-        "version": crate::build::PKG_VERSION,
+        "version": crate::build::TD_VERSION,
         "commit": crate::build::SHORT_COMMIT,
         "build_time": crate::build::BUILD_TIME,
         "build_target": crate::build::BUILD_TARGET,

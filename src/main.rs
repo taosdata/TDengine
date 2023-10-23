@@ -42,7 +42,7 @@ shadow!(build);
 
 const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
     concatcp!(
-        build::PKG_VERSION,
+        build::TD_VERSION,
         "-",
         build::SHORT_COMMIT,
         " (built ",
@@ -53,7 +53,7 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
     )
 } else {
     concatcp!(
-        build::PKG_VERSION,
+        build::TD_VERSION,
         "-",
         build::SHORT_COMMIT,
         "-dirty",
@@ -182,7 +182,7 @@ fn build_runtime(
 fn main() -> Result<()> {
     dotenv::dotenv().ok();
     let args = Args::parse();
-    let version = build::PKG_VERSION;
+    let version = build::TD_VERSION;
     let commit_id = build::COMMIT_HASH;
     let build_time = build::BUILD_TIME;
     // println!("taosx version: {CLAP_SHORT_VERSION}");

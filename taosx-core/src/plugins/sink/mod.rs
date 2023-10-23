@@ -121,7 +121,7 @@ async fn ipc_tcp_forward(
         let mut client = FlightClient::new(channel);
         client.add_header("x-task-id", &task_id.to_string())?;
         client.add_header("x-token", &token)?;
-        client.add_header("x-version", crate::build::PKG_VERSION)?;
+        client.add_header("x-version", std::env::var("TD_VERSION").unwrap_or("3.0.2.0".to_string()).as_str())?;
         let _ = client
             .handshake(Bytes::from(token.as_bytes().to_vec()))
             .await

@@ -344,7 +344,7 @@ fn main() -> anyhow::Result<()> {
     }
     tracing_subscriber::registry().with(layers).init();
 
-    let version = build::PKG_VERSION;
+    let version = build::TD_VERSION;
     let commit_id = build::COMMIT_HASH;
     let build_time = build::BUILD_TIME;
     tracing::info!("version: {version}");
