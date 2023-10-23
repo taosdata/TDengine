@@ -354,7 +354,7 @@ if [ "$osType" != "Darwin" ]; then
   if [[ "$verMode" == "cluster" ]]; then
     echo "==== generate taosx package ===="
     cd ${top_dir}/enterprise/src/plugins/taosx/packaging
-    python3 release.py -ob
+    python3 release.py -ob -vn ${verNumber}
   fi 
 
   echo "====do tar.gz package for all systems===="
