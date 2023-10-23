@@ -23,7 +23,7 @@ ExternalProject_Add(libs3
 	CONFIGURE_COMMAND cp ${TD_SUPPORT_DIR}/libs3.GNUmakefile GNUmakefile &&  sed -i "s|CFLAGS += -Wall -Werror|CFLAGS += -I'$ENV{HOME}/.cos-local.1/include' -L'$ENV{HOME}/.cos-local.1/lib' |" ./GNUmakefile
         #BUILD_COMMAND make CFLAGS=${s3_flags} DESTDIR=$ENV{HOME}/.cos-local.1 build/lib/libs3.a
         #BUILD_COMMAND make DESTDIR="$ENV{HOME}/.cos-local.1" build/lib/libs3.a
-        BUILD_COMMAND make build/lib/libs3.a
-        INSTALL_COMMAND make install_static
+        BUILD_COMMAND ""
+        INSTALL_COMMAND make clean && make build/lib/libs3.a && make install_static
         TEST_COMMAND ""
 )
