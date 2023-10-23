@@ -783,7 +783,7 @@ int32_t syncLogReplRetryOnNeed(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
     }
 
     bool barrier = false;
-    if (syncLogReplSendTo(pMgr, pNode, index, &term, pDestId, &barrier) < 0) {
+    if (syncLogReplSendTo(pMgr, pNode, index, &term, pDestId, &barrier, pMgr->peerId == 2) < 0) {
       sError("vgId:%d, failed to replicate sync log entry since %s. index:%" PRId64 ", dest:%" PRIx64 "", pNode->vgId,
              terrstr(), index, pDestId->addr);
       goto _out;
@@ -950,7 +950,7 @@ int32_t syncLogReplProbe(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex inde
   SRaftId* pDestId = &pNode->replicasId[pMgr->peerId];
   bool     barrier = false;
   SyncTerm term = -1;
-  if (syncLogReplSendTo(pMgr, pNode, index, &term, pDestId, &barrier) < 0) {
+  if (syncLogReplSendTo(pMgr, pNode, index, &term, pDestId, &barrier, pMgr->peerId == 2) < 0) {
     sError("vgId:%d, failed to replicate log entry since %s. index:%" PRId64 ", dest: 0x%016" PRIx64 "", pNode->vgId,
            terrstr(), index, pDestId->addr);
     return -1;
@@ -995,7 +995,7 @@ int32_t syncLogReplAttempt(SSyncLogReplMgr* pMgr, SSyncNode* pNode) {
     SRaftId* pDestId = &pNode->replicasId[pMgr->peerId];
     bool     barrier = false;
     SyncTerm term = -1;
-    if (syncLogReplSendTo(pMgr, pNode, index, &term, pDestId, &barrier) < 0) {
+    if (syncLogReplSendTo(pMgr, pNode, index, &term, pDestId, &barrier, pMgr->peerId == 2) < 0) {
       sError("vgId:%d, failed to replicate log entry since %s. index:%" PRId64 ", dest: 0x%016" PRIx64 "", pNode->vgId,
              terrstr(), index, pDestId->addr);
       return -1;
@@ -1244,7 +1244,7 @@ SSyncRaftEntry* syncLogBufferGetOneEntry(SSyncLogBuffer* pBuf, SSyncNode* pNode,
 }
 
 int32_t syncLogReplSendTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex index, SyncTerm* pTerm, SRaftId* pDestId,
-                          bool* pBarrier) {
+                          bool* pBarrier, bool arbitrator) {
   SSyncRaftEntry* pEntry = NULL;
   SRpcMsg         msgOut = {0};
   bool            inBuf = false;
@@ -1273,7 +1273,13 @@ int32_t syncLogReplSendTo(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncIndex ind
   }
   if (pTerm) *pTerm = pEntry->term;
 
-  int32_t code = syncBuildAppendEntriesFromRaftEntry(pNode, pEntry, prevLogTerm, &msgOut);
+  int32_t code = -1;
+
+  if (!arbitrator) {
+    code = syncBuildAppendEntriesFromRaftEntry(pNode, pEntry, prevLogTerm, &msgOut);
+  } else {
+    code = syncBuildAppendEntriesFromRaftEntryForArbitrator(pNode, pEntry, prevLogTerm, &msgOut);
+  }
   if (code < 0) {
     sError("vgId:%d, failed to get append entries for index:%" PRId64 "", pNode->vgId, index);
     goto _err;

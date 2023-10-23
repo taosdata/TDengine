@@ -131,13 +131,13 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     resetElect = true;
   }
 
-  if (pMsg->dataLen < sizeof(SSyncRaftEntry)) {
-    sError("vgId:%d, incomplete append entries received. prev index:%" PRId64 ", term:%" PRId64 ", datalen:%d",
-           ths->vgId, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
-    goto _IGNORE;
-  }
-
   if (ths->raftCfg.cfg.nodeInfo[ths->raftCfg.cfg.myIndex].nodeRole != TAOS_SYNC_ROLE_ARBITRATOR) {
+    if (pMsg->dataLen < sizeof(SSyncRaftEntry)) {
+      sError("vgId:%d, incomplete append entries received. prev index:%" PRId64 ", term:%" PRId64 ", datalen:%d",
+             ths->vgId, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
+      goto _IGNORE;
+    }
+
     pEntry = syncEntryBuildFromAppendEntries(pMsg);
     if (pEntry == NULL) {
       sError("vgId:%d, failed to get raft entry from append entries since %s", ths->vgId, terrstr());
