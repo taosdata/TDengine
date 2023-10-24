@@ -378,8 +378,8 @@ function add_newHostname_to_hosts() {
 }
 
 function set_hostname() {
-  echo -e -n "${GREEN}Enter the public accessible IP address or fully qualified domain name TDengine will expose to users or applications (must not be 'localhost') :${NC}"
-  read newHostname
+  echo -e -n "${GREEN}Host name or IP (assigned to this machine) which can be accessed by your tools or apps: (must not be 'localhost') :${NC}"
+  read -e -p "" -i "$(hostname)" newHostname
   while true; do
     if [ -z "$newHostname" ]; then
       newHostname=$(hostname)
@@ -387,8 +387,8 @@ function set_hostname() {
     elif [ "$newHostname" != "localhost" ]; then
       break
     else
-      echo -e -n "${GREEN}Enter the public accessible IP address or fully qualified domain name TDengine will expose to users or applications (must not be 'localhost') :${NC}"
-      read newHostname
+      echo -e -n "${GREEN}Host name or IP (assigned to this machine) which can be accessed by your tools or apps: (must not be 'localhost') :${NC}"
+      read -e -p "" -i "$(hostname)" newHostname
     fi
   done
 
