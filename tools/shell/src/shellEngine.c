@@ -751,13 +751,9 @@ void init_dump_info(tsDumpInfo *dump_info, TAOS_RES *tres, const char *sql, bool
 }
 
 void shellVerticalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info) {
-  if (dump_info->numOfRows <= 0) return;
-  if (dump_info->numOfAllRows >= dump_info->resShowMaxNum) {
-    return;
-  }
-
   TAOS_ROW row = taos_fetch_row(tres);
   if (row == NULL) {
+    printf("\033[31mtaos_fetch_row failed.\033[0m\n");
     return;
   }
 
@@ -898,13 +894,9 @@ void shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields) {
 }
 
 void shellHorizontalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info) {
-  if (dump_info->numOfRows <= 0) return;
-  if (dump_info->numOfAllRows >= dump_info->resShowMaxNum) {
-    return;
-  }
-
   TAOS_ROW row = taos_fetch_row(tres);
   if (row == NULL) {
+    printf("\033[31mtaos_fetch_row failed.\033[0m\n");
     return;
   }
 
@@ -957,10 +949,12 @@ void shellDumpResultCallback(void *param, TAOS_RES *tres, int num_of_rows) {
   tsDumpInfo *dump_info = (tsDumpInfo *)param;
   if (num_of_rows > 0) {
     dump_info->numOfRows = num_of_rows;
-    if (dump_info->vertical) {
-      shellVerticalPrintResult(tres, dump_info);
-    } else {
-      shellHorizontalPrintResult(tres, dump_info);
+    if (dump_info->numOfAllRows < dump_info->resShowMaxNum) {
+      if (dump_info->vertical) {
+        shellVerticalPrintResult(tres, dump_info);
+      } else {
+        shellHorizontalPrintResult(tres, dump_info);
+      }
     }
     dump_info->numOfAllRows += num_of_rows;
     taos_fetch_rows_a(tres, shellDumpResultCallback, param);
