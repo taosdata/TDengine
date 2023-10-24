@@ -217,25 +217,28 @@ static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
     pSender->blockLen = 0;
   }
 
-  pSender->seq++;
+  if (pSender->seq != SYNC_SNAPSHOT_SEQ_END) {
+    pSender->seq++;
 
-  // read data
-  int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotDoRead(pSender->pSyncNode->pFsm, pSender->pReader,
-                                                           &pSender->pCurrentBlock, &pSender->blockLen);
-  if (ret != 0) {
-    sSError(pSender, "snapshot sender read failed since %s", terrstr());
-    return -1;
-  }
+    // read data
+    int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotDoRead(pSender->pSyncNode->pFsm, pSender->pReader,
+                                                             &pSender->pCurrentBlock, &pSender->blockLen);
+    if (ret != 0) {
+      sSError(pSender, "snapshot sender read failed since %s", terrstr());
+      return -1;
+    }
 
-  if (pSender->blockLen > 0) {
-    // has read data
-    sSDebug(pSender, "vgId:%d, snapshot sender continue to read, blockLen:%d seq:%d", pSender->pSyncNode->vgId,
-            pSender->blockLen, pSender->seq);
-  } else {
-    // read finish, update seq to end
-    pSender->seq = SYNC_SNAPSHOT_SEQ_END;
-    sSInfo(pSender, "vgId:%d, snapshot sender read to the end, blockLen:%d seq:%d", pSender->pSyncNode->vgId,
-           pSender->blockLen, pSender->seq);
+    if (pSender->blockLen > 0) {
+      // has read data
+      sSDebug(pSender, "vgId:%d, snapshot sender continue to read, blockLen:%d seq:%d", pSender->pSyncNode->vgId,
+              pSender->blockLen, pSender->seq);
+    } else {
+      // read finish, update seq to end
+      pSender->seq = SYNC_SNAPSHOT_SEQ_END;
+      sSInfo(pSender, "vgId:%d, snapshot sender read to the end, blockLen:%d seq:%d", pSender->pSyncNode->vgId,
+             pSender->blockLen, pSender->seq);
+      return 0;
+    }
   }
 
   // build msg
@@ -1085,19 +1088,28 @@ static int32_t syncSnapBufferSend(SSyncSnapshotSender *pSender, SyncSnapshotRsp 
     }
   }
 
-  for (int64_t ack = pSndBuf->start; ack < pSndBuf->cursor; ++ack) {
+  for (int64_t ack = pSndBuf->start; ack <= pSndBuf->cursor; ++ack) {
     rpcFreeCont(pSndBuf->entries[ack % pSndBuf->size]);
     pSndBuf->entries[ack % pSndBuf->size] = NULL;
     pSndBuf->start = ack + 1;
   }
 
-  while (pSender->seq - pSndBuf->start < (pSndBuf->size >> 2)) {
+  while (pSender->seq != SYNC_SNAPSHOT_SEQ_END && pSender->seq - pSndBuf->start < (pSndBuf->size >> 2)) {
+    if (snapshotSend(pSender) != 0) {
+      code = terrno;
+      goto _out;
+    }
+    if (pSender->seq != SYNC_SNAPSHOT_SEQ_END) {
+      pSndBuf->end = TMAX(pSender->seq + 1, pSndBuf->end);
+    }
+  }
+
+  if (pSender->seq == SYNC_SNAPSHOT_SEQ_END && pSndBuf->end <= pSndBuf->start) {
     if (snapshotSend(pSender) != 0) {
       code = terrno;
       goto _out;
     }
   }
-
 _out:
   taosThreadMutexUnlock(&pSndBuf->mutex);
   return code;
