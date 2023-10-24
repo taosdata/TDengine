@@ -230,9 +230,9 @@ _err:
 int32_t streamMetaReopen(SStreamMeta* pMeta) {
   streamMetaClear(pMeta);
 
+  // NOTE: role should not be changed during reopen meta
   pMeta->streamBackendRid = -1;
   pMeta->streamBackend = NULL;
-  pMeta->role = NODE_ROLE_UNINIT;
 
   char* defaultPath = taosMemoryCalloc(1, strlen(pMeta->path) + 128);
   sprintf(defaultPath, "%s%s%s", pMeta->path, TD_DIRSEP, "state");
@@ -858,7 +858,7 @@ void metaHbToMnode(void* param, void* tmrId) {
 
   // not leader not send msg
   if (pMeta->role != NODE_ROLE_LEADER) {
-    stInfo("vgId:%d follower not send hb to mnode", pMeta->vgId);
+    stInfo("vgId:%d role:%d not leader not send hb to mnode", pMeta->vgId, pMeta->role);
     taosReleaseRef(streamMetaId, rid);
     pMeta->pHbInfo->hbStart = 0;
     return;
