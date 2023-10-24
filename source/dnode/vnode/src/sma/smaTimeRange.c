@@ -162,15 +162,19 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
   int32_t      len = 0;
   SSubmitReq2 *pReq = NULL;
   SArray      *tagArray = NULL;
-  SArray      *pVals = NULL;
 
   int32_t numOfBlocks = taosArrayGetSize(pBlocks);
 
   tagArray = taosArrayInit(1, sizeof(STagVal));
   pReq = taosMemoryCalloc(1, sizeof(SSubmitReq2));
-  pReq->aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData));
 
-  if (!tagArray || !pReq || !pReq->aSubmitTbData) {
+  if (!tagArray || !pReq) {
+    code = terrno == TSDB_CODE_SUCCESS ? TSDB_CODE_OUT_OF_MEMORY : terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  pReq->aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData));
+  if (pReq->aSubmitTbData == NULL) {
     code = terrno == TSDB_CODE_SUCCESS ? TSDB_CODE_OUT_OF_MEMORY : terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -220,9 +224,9 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
         }
       }
     }
-
-    taosArrayPush(pReq->aSubmitTbData, &tbData);
   }
+
+  taosHashCleanup(pTableIndexMap);
 
   // encode
   tEncodeSize(tEncodeSubmitReq, pReq, len, code);
@@ -248,8 +252,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
 
 _exit:
   taosArrayDestroy(tagArray);
-  taosArrayDestroy(pVals);
-  if (pReq) {
+  if (pReq != NULL) {
     tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
     taosMemoryFree(pReq);
   }

@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <streamsm.h>
 #include "streamInt.h"
 #include "streamsm.h"
 #include "tmisce.h"
@@ -243,12 +244,25 @@ static void keepPrevInfo(SStreamTaskSM* pSM) {
   pSM->prev.state = pSM->current;
   pSM->prev.evt = pTrans->event;
 }
+
 int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM) {
-  STaskStateTrans* pTrans = pSM->pActiveTrans;
-  SStreamTask*     pTask = pSM->pTask;
+  SStreamTask* pTask = pSM->pTask;
 
   // do update the task status
   taosThreadMutexLock(&pTask->lock);
+  STaskStateTrans* pTrans = pSM->pActiveTrans;
+
+  if (pTrans == NULL) {
+    ETaskStatus s = pSM->current.state;
+    ASSERT(s == TASK_STATUS__DROPPING || s == TASK_STATUS__PAUSE || s == TASK_STATUS__STOP);
+    // the pSM->prev.evt may be 0, so print string is not appropriate.
+    stDebug("status not handled success, current status:%s, trigger event:%d, %s", pSM->current.name, pSM->prev.evt,
+        pTask->id.idStr);
+
+    taosThreadMutexUnlock(&pTask->lock);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
   keepPrevInfo(pSM);
 
   pSM->current = pTrans->next;
@@ -275,7 +289,7 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM) {
       pSM->pActiveTrans = pNextTrans;
       pSM->startTs = taosGetTimestampMs();
       taosThreadMutexUnlock(&pTask->lock);
-      
+
       int32_t code = pNextTrans->pAction(pSM->pTask);
       if (pNextTrans->autoInvokeEndFn) {
         return streamTaskOnHandleEventSuccess(pSM);
@@ -308,9 +322,12 @@ const char* streamTaskGetStatusStr(ETaskStatus status) {
 
 void streamTaskResetStatus(SStreamTask* pTask) {
   SStreamTaskSM* pSM = pTask->status.pSM;
+
+  taosThreadMutexLock(&pTask->lock);
   pSM->current = StreamTaskStatusList[TASK_STATUS__UNINIT];
   pSM->pActiveTrans = NULL;
   taosArrayClear(pSM->pWaitingEventList);
+  taosThreadMutexUnlock(&pTask->lock);
 
   // clear the downstream ready status
   pTask->status.downstreamReady = 0;
@@ -323,6 +340,8 @@ void streamTaskSetStatusReady(SStreamTask* pTask) {
     return;
   }
 
+  taosThreadMutexLock(&pTask->lock);
+
   pSM->prev.state = pSM->current;
   pSM->prev.evt = 0;
 
@@ -330,6 +349,8 @@ void streamTaskSetStatusReady(SStreamTask* pTask) {
   pSM->startTs = taosGetTimestampMs();
   pSM->pActiveTrans = NULL;
   taosArrayClear(pSM->pWaitingEventList);
+
+  taosThreadMutexUnlock(&pTask->lock);
 }
 
 STaskStateTrans createStateTransform(ETaskStatus current, ETaskStatus next, EStreamTaskEvent event, __state_trans_fn fn,

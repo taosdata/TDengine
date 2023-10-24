@@ -230,6 +230,7 @@ static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, S
     if (taosArrayGetSize(pDataBlock->pDataBlock) > UD_GROUPID_COLUMN_INDEX) {
       SColumnInfoData* pGpIdColInfo = taosArrayGet(pDataBlock->pDataBlock, UD_GROUPID_COLUMN_INDEX);
 
+      // todo remove this
       void* pGpIdData = colDataGetData(pGpIdColInfo, rowId);
       ASSERT(gid == *(int64_t*)pGpIdData);
     }
@@ -417,7 +418,7 @@ SVCreateTbReq* buildAutoCreateTableReq(const char* stbFullName, int64_t suid, in
     return NULL;
   }
 
-  pCreateTbReq->ctb.tagName = createDefaultTagColName();;
+  pCreateTbReq->ctb.tagName = createDefaultTagColName();
 
   // set table name
   setCreateTableMsgTableName(pCreateTbReq, pDataBlock, stbFullName, pDataBlock->info.id.groupId);
