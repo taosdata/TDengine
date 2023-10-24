@@ -17,15 +17,11 @@ IF (TD_STORAGE)
   ADD_DEFINITIONS(-D_STORAGE)
   TARGET_LINK_LIBRARIES(common PRIVATE storage)
 
-  IF(${TD_LINUX})
-    IF(${BUILD_WITH_COS})
-      add_definitions(-DUSE_COS)
-    ENDIF(${BUILD_WITH_COS})
-
-    IF(${BUILD_WITH_S3})
-      add_definitions(-DUSE_S3)
-    ENDIF(${BUILD_WITH_S3})
-  ENDIF(${TD_LINUX})
+  IF(${BUILD_WITH_S3})
+    add_definitions(-DUSE_S3)
+  ELSEIF(${BUILD_WITH_COS})
+    add_definitions(-DUSE_COS)
+  ENDIF()
 
 ENDIF ()
 

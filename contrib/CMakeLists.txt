@@ -6,12 +6,10 @@ function(cat IN_FILE OUT_FILE)
     file(APPEND ${OUT_FILE} "${CONTENTS}")
 endfunction(cat IN_FILE OUT_FILE)
 
-if(${TD_LINUX})
-
 if(${BUILD_WITH_S3})
     file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
 
-else()
+elseif(${BUILD_WITH_COS})
 
 set(CONTRIB_TMP_FILE3 "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in3")
 configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
@@ -42,9 +40,8 @@ execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
 execute_process(COMMAND "${CMAKE_COMMAND}" --build .
         WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
 
-endif(${BUILD_WITH_S3})
+endif()
 
-endif(${TD_LINUX})
 
 set(CONTRIB_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
 configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -170,19 +167,16 @@ if(${BUILD_WITH_S3})
     cat("${TD_SUPPORT_DIR}/libs3_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     add_definitions(-DUSE_S3)
 
-else()
-
 # cos
-if(${BUILD_WITH_COS})
+elseif(${BUILD_WITH_COS})
     #cat("${TD_SUPPORT_DIR}/mxml_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     #cat("${TD_SUPPORT_DIR}/apr_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     #cat("${TD_SUPPORT_DIR}/apr-util_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     #cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     cat("${TD_SUPPORT_DIR}/cos_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     add_definitions(-DUSE_COS)
-endif(${BUILD_WITH_COS})
 
-endif(${BUILD_WITH_S3})
+endif()
 
 # lucene
 if(${BUILD_WITH_LUCENE})
@@ -269,7 +263,7 @@ unset(CMAKE_PROJECT_INCLUDE_BEFORE)
 # xml2
 if(${BUILD_WITH_S3})
   add_subdirectory(xml2 EXCLUDE_FROM_ALL)
-endif(${BUILD_WITH_S3})
+endif()
 
 # lz4
 add_subdirectory(lz4/build/cmake EXCLUDE_FROM_ALL)
@@ -417,10 +411,8 @@ if(${BUILD_WITH_S3})
     INCLUDE_DIRECTORIES($ENV{HOME}/.cos-local.2/include)
     MESSAGE("build with s3: ${BUILD_WITH_S3}")
 
-else()
-
 # cos
-if(${BUILD_WITH_COS})
+elseif(${BUILD_WITH_COS})
   if(${TD_LINUX})
     set(CMAKE_PREFIX_PATH $ENV{HOME}/.cos-local.1)
     #ADD_DEFINITIONS(-DMINIXML_LIBRARY=${CMAKE_BINARY_DIR}/build/lib/libxml.a)
@@ -442,9 +434,8 @@ if(${BUILD_WITH_COS})
   else()
 
   endif(${TD_LINUX})
-endif(${BUILD_WITH_COS})
 
-endif(${BUILD_WITH_S3})
+endif()
 
 # lucene
 # To support build on ubuntu: sudo apt-get install libboost-all-dev
