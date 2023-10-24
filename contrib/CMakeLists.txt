@@ -9,7 +9,7 @@ endfunction(cat IN_FILE OUT_FILE)
 if(${TD_LINUX})
 
 if(${BUILD_WITH_S3})
-    file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.1/)
+    file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
 
 else()
 
@@ -414,7 +414,7 @@ if (${BUILD_WITH_ROCKSDB})
 endif()
 
 if(${BUILD_WITH_S3})
-    INCLUDE_DIRECTORIES($ENV{HOME}/.cos-local.1/include)
+    INCLUDE_DIRECTORIES($ENV{HOME}/.cos-local.2/include)
     MESSAGE("build with s3: ${BUILD_WITH_S3}")
 
 else()

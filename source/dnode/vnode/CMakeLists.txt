@@ -167,15 +167,15 @@ if(${BUILD_WITH_S3})
   target_include_directories(
     vnode
 
-    PUBLIC "$ENV{HOME}/.cos-local.1/include"
+    PUBLIC "$ENV{HOME}/.cos-local.2/include"
     )
 
   set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-  set(CMAKE_PREFIX_PATH $ENV{HOME}/.cos-local.1)
+  set(CMAKE_PREFIX_PATH $ENV{HOME}/.cos-local.2)
   find_library(S3_LIBRARY s3)
   find_library(CURL_LIBRARY curl)
-  find_library(SSL_LIBRARY ssl PATHS $ENV{HOME}/.cos-local.1/lib64)
-  find_library(CRYPTO_LIBRARY crypto PATHS $ENV{HOME}/.cos-local.1/lib64)
+  find_library(SSL_LIBRARY ssl PATHS $ENV{HOME}/.cos-local.2/lib64)
+  find_library(CRYPTO_LIBRARY crypto PATHS $ENV{HOME}/.cos-local.2/lib64)
   target_link_libraries(
     vnode
 
