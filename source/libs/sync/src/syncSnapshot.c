@@ -383,8 +383,6 @@ int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId) {
     return 0;
   }
 
-  sSInfo(pSender, "snapshot sender start");
-
   int32_t code = snapshotSenderStart(pSender);
   if (code != 0) {
     sSError(pSender, "snapshot sender start error since %s", terrstr());
@@ -802,8 +800,6 @@ static int32_t syncNodeOnSnapshotBegin(SSyncNode *pSyncNode, SyncSnapshotSend *p
     sRError(pReceiver, "failed to start snapshot writer since %s", terrstr());
     goto _SEND_REPLY;
   }
-
-  sRInfo(pReceiver, "snapshot begin");
 
   code = 0;
 _SEND_REPLY:
