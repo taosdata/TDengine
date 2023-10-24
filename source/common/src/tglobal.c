@@ -98,7 +98,7 @@ int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 
 // audit
-bool     tsEnableAudit = false;
+bool     tsEnableAudit = true;
 char     tsAuditFqdn[TSDB_FQDN_LEN] = {0};
 uint16_t tsAuditPort = 6043;
 
