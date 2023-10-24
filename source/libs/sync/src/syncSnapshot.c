@@ -497,8 +497,6 @@ void snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
   }
 
   syncSnapBufferReset(pReceiver->pRcvBuf);
-
-  sRInfo(pReceiver, "snapshot receiver stop, from dnode:%d.", DID(&pReceiver->fromId));
 }
 
 // when recv last snapshot block, apply data into snapshot
@@ -506,7 +504,7 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
   int32_t code = 0;
   if (pReceiver->pWriter != NULL) {
     // write data
-    sRInfo(pReceiver, "snapshot receiver write finish, blockLen:%d seq:%d", pMsg->dataLen, pMsg->seq);
+    sRInfo(pReceiver, "snapshot receiver write about to finish, blockLen:%d seq:%d", pMsg->dataLen, pMsg->seq);
     if (pMsg->dataLen > 0) {
       code = pReceiver->pSyncNode->pFsm->FpSnapshotDoWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, pMsg->data,
                                                            pMsg->dataLen);
@@ -514,15 +512,6 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
         sRError(pReceiver, "failed to finish snapshot receiver write since %s", terrstr());
         return -1;
       }
-    }
-
-    // reset wal
-    sRInfo(pReceiver, "snapshot receiver log restore");
-    code =
-        pReceiver->pSyncNode->pLogStore->syncLogRestoreFromSnapshot(pReceiver->pSyncNode->pLogStore, pMsg->lastIndex);
-    if (code != 0) {
-      sRError(pReceiver, "failed to snapshot receiver log restore since %s", terrstr());
-      return -1;
     }
 
     // update commit index
@@ -536,7 +525,6 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
     }
 
     // stop writer, apply data
-    sRInfo(pReceiver, "snapshot receiver apply write");
     code = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, true,
                                                            &pReceiver->snapshot);
     if (code != 0) {
@@ -544,17 +532,24 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
       return -1;
     }
     pReceiver->pWriter = NULL;
+    sRInfo(pReceiver, "snapshot receiver write stopped");
 
     // update progress
     pReceiver->ack = SYNC_SNAPSHOT_SEQ_END;
 
+    // reset wal
+    code =
+        pReceiver->pSyncNode->pLogStore->syncLogRestoreFromSnapshot(pReceiver->pSyncNode->pLogStore, pMsg->lastIndex);
+    if (code != 0) {
+      sRError(pReceiver, "failed to snapshot receiver log restore since %s", terrstr());
+      return -1;
+    }
+    sRInfo(pReceiver, "wal log restored from snapshot");
   } else {
     sRError(pReceiver, "snapshot receiver finish error since writer is null");
     return -1;
   }
 
-  // event log
-  sRInfo(pReceiver, "snapshot receiver got last data and apply snapshot finished");
   return 0;
 }
 
