@@ -39,7 +39,7 @@
             }}</el-button>
           </el-form-item>
           <el-form-item>
-            <el-button @click="handlePageChange(true)">{{
+            <el-button @click="handlePageReset()">{{
               $t("reset")
             }}</el-button>
           </el-form-item>
@@ -163,22 +163,20 @@ export default {
     },
   },
   methods: {
-    handlePageChange(isReset=false) {
-      this.getAuditData(isReset);
+    handlePageChange() {
+      this.getAuditData();
     },
     refresh() {
       this.getAuditData();
     },
     handlePageReset() {
       Object.assign(this.$data, this.$options.data())
+      this.getAuditData()
     },
     async getAuditData(isReset) {
       try {
         if (this.requestIng) return;
         this.requestIng = true;
-        if (isReset) {
-          this.handlePageReset()
-        }
         let conditions = "";
         if (this.date?.length > 0) {
           conditions = ` ts > ${this.date[0]} AND ts <= ${this.date[1]} AND`;
