@@ -425,10 +425,22 @@ int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset) {
 
   fset[0]->fid = fid;
   TARRAY2_INIT(fset[0]->lvlArr);
+
+  // background task queue
+  fset[0]->bgTaskNum = 0;
+  fset[0]->bgTaskQueue->next = fset[0]->bgTaskQueue;
+  fset[0]->bgTaskQueue->prev = fset[0]->bgTaskQueue;
+  fset[0]->bgTaskRunning = NULL;
+
+  // block commit variables
+  taosThreadCondInit(&fset[0]->canCommit, NULL);
+  fset[0]->numWaitCommit = 0;
+  fset[0]->blockCommit = false;
+
   return 0;
 }
 
-int32_t tsdbTFileSetInitDup(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset) {
+int32_t tsdbTFileSetInitCopy(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset) {
   int32_t code = tsdbTFileSetInit(fset1->fid, fset);
   if (code) return code;
 
@@ -495,21 +507,22 @@ int32_t tsdbTFileSetClear(STFileSet **fset) {
 
   TARRAY2_DESTROY(fset[0]->lvlArr, tsdbSttLvlClear);
 
+  taosThreadCondDestroy(&fset[0]->canCommit);
   taosMemoryFree(fset[0]);
   fset[0] = NULL;
 
   return 0;
 }
 
-int32_t tsdbTFileSetRemove(STFileSet **fset) {
+int32_t tsdbTFileSetRemove(STFileSet *fset) {
+  if (fset == NULL) return 0;
+
   for (tsdb_ftype_t ftype = TSDB_FTYPE_MIN; ftype < TSDB_FTYPE_MAX; ++ftype) {
-    if (fset[0]->farr[ftype] == NULL) continue;
-    tsdbTFileObjRemove(fset[0]->farr[ftype]);
+    if (fset->farr[ftype] == NULL) continue;
+    tsdbTFileObjRemove(fset->farr[ftype]);
   }
 
-  TARRAY2_DESTROY(fset[0]->lvlArr, tsdbSttLvlRemove);
-  taosMemoryFree(fset[0]);
-  fset[0] = NULL;
+  TARRAY2_DESTROY(fset->lvlArr, tsdbSttLvlRemove);
   return 0;
 }
 

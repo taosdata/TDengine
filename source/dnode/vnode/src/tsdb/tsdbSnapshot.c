@@ -424,9 +424,9 @@ int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type,
   reader[0]->ever = ever;
   reader[0]->type = type;
 
-  taosThreadRwlockRdlock(&tsdb->rwLock);
+  taosThreadMutexLock(&tsdb->mutex);
   code = tsdbFSCreateRefSnapshot(tsdb->pFS, &reader[0]->fsetArr);
-  taosThreadRwlockUnlock(&tsdb->rwLock);
+  taosThreadMutexUnlock(&tsdb->mutex);
 
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -1097,15 +1097,15 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** writer, int8_t rollback) {
     code = tsdbFSEditAbort(writer[0]->tsdb->pFS);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    taosThreadRwlockWrlock(&writer[0]->tsdb->rwLock);
+    taosThreadMutexLock(&writer[0]->tsdb->mutex);
 
     code = tsdbFSEditCommit(writer[0]->tsdb->pFS);
     if (code) {
-      taosThreadRwlockUnlock(&writer[0]->tsdb->rwLock);
+      taosThreadMutexUnlock(&writer[0]->tsdb->mutex);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    taosThreadRwlockUnlock(&writer[0]->tsdb->rwLock);
+    taosThreadMutexUnlock(&writer[0]->tsdb->mutex);
   }
   tsdbFSEnableBgTask(tsdb->pFS);
 
