@@ -12,6 +12,7 @@ use taosx_core::utils::{self};
 use taosx_core::{Action, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND, METRICS_TIME_START};
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
+use twelf::{config, Layer};
 
 #[derive(Parser, Debug)]
 pub(super) struct Cli {
@@ -61,18 +62,13 @@ pub(super) struct Cli {
     #[clap(short = 'T', long)]
     transform: Vec<Action>,
 
-    // /// Algorithm
-    // #[clap(short, long, value_enum, default_value = "zstd")]
-    // #[doc(hidden)]
-    // algorithm: Algorithm,
-    /// For verbosity print.
     #[clap(flatten)]
-    verbose: clap_verbosity_flag::Verbosity<clap_verbosity_flag::WarnLevel>,
+    config_args: ConfigArgs,
+}
 
-    /// Number of jobs, default to 0, will use `jobs` number of works for TMQ.
-    #[clap(short, long, value_parser, default_value = "0")]
-    jobs: usize,
-
+#[config]
+#[derive(Parser, Debug)]
+struct ConfigArgs {
     /// When `endless` flag set, we'll re-write tmq timeout as `never` to wait messages
     /// without an ending, but it will still abort when there's error in the process.
     #[clap(short, long)]
@@ -86,8 +82,8 @@ pub(super) struct Cli {
 }
 
 impl Cli {
-    #[tracing::instrument(skip(self, opts), name = "cli")]
-    pub(super) async fn run_with(self, opts: super::GlobalOpts) -> Result<()> {
+    #[tracing::instrument(skip(self, opt_args, config_args), name = "cli")]
+    pub(super) async fn run_with(self, opt_args: super::OptArgs, config_args: super::ConfigArgs) -> Result<()> {
         // let _ = span.entered();
         tracing::info!("start cli");
         let args = self;
@@ -117,10 +113,10 @@ impl Cli {
             from: args.from,
             transform: args.transform,
             to: args.to,
-            parser: parser,
-            jobs: args.jobs,
+            parser,
+            jobs: config_args.jobs,
             compression_level: None,
-            force: opts.yes_i_really_mean_it,
+            force: opt_args.yes_i_really_mean_it,
             cancel: cancel.clone(),
             with_agent: None,
             breakpoints: None,

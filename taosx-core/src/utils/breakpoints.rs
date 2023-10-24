@@ -1,9 +1,8 @@
 use tracing::{debug, info};
+use crate::get_data_dir;
 
 fn breakpoints_db_dir(task_id: &str) -> String {
-    let current_dir = std::env::current_dir().unwrap();
-    let path = std::env::var("TAOSX_DATA_DIR")
-        .unwrap_or_else(|_| format!("{}/data", current_dir.to_str().unwrap()));
+    let path = get_data_dir();
     format!("{}/{}/breakpoints", path, task_id)
 }
 

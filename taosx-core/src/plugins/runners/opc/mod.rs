@@ -421,7 +421,7 @@ impl OPCConfig {
                     // warn!("select_all_points is not implemented");
                     Vec::new()
                 } else {
-                    get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
+                    get_string_vec_from_param_or_file_for_opc(&mut dsn, "ua.nodes")
                         .map_err(|s| OpcError::FileParseFound(s))?
                 };
                 let mut ua_node_config_vec = Vec::new();
@@ -511,7 +511,7 @@ impl OPCConfig {
                     }
                     res.1
                 } else {
-                    get_string_vec_from_param_or_file(&mut dsn, "da.tags")
+                    get_string_vec_from_param_or_file_for_opc(&mut dsn, "da.tags")
                         .map_err(|s| OpcError::FileParseFound(s))?
                 };
 
@@ -1060,7 +1060,7 @@ fn check_duplicated(
     Ok(())
 }
 
-pub(super) fn get_string_vec_from_param_or_file(
+pub(super) fn get_string_vec_from_param_or_file_for_opc(
     dsn: &mut Dsn,
     key: &str,
 ) -> Result<Vec<String>, String> {
@@ -1701,8 +1701,6 @@ batch_timeout = 100
         Ok(())
     }
 }
-
-//
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_with_agent_all_nodes() -> anyhow::Result<()> {
