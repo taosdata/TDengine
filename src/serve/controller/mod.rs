@@ -1684,6 +1684,10 @@ impl TaskController {
                         let offsets = self.influxdb_offsets(id).await?;
                         Ok(offsets)
                     }
+                    ("opentsdb", "taos") => {
+                        let offsets = self.opentsdb_offsets(id).await?;
+                        Ok(offsets)
+                    }
                     _ => Ok(None),
 
                 }
@@ -1700,6 +1704,13 @@ impl TaskController {
     }
 
     pub async fn influxdb_offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
+        let offsets = breakpoints_get_all(id.to_string().as_str())?;
+        // dbg!(&offsets);
+        let res = serde_json::to_value(&offsets)?;
+        Ok(Some(res))
+    }
+
+    pub async fn opentsdb_offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
         let offsets = breakpoints_get_all(id.to_string().as_str())?;
         // dbg!(&offsets);
         let res = serde_json::to_value(&offsets)?;
