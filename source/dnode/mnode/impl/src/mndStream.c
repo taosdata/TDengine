@@ -1120,10 +1120,11 @@ static const char *mndGetStreamDB(SMnode *pMnode) {
 }
 
 static int32_t mndCheckNodeStatus(SMnode *pMnode) {
-  bool ready = true;
+  bool ready = false;
   // check if the node update happens or not
   int64_t ts = taosGetTimestampSec();
 
+  taosThreadMutexLock(&execNodeList.lock);
   if (execNodeList.pNodeEntryList == NULL || (taosArrayGetSize(execNodeList.pNodeEntryList) == 0)) {
     if (execNodeList.pNodeEntryList != NULL) {
       execNodeList.pNodeEntryList = taosArrayDestroy(execNodeList.pNodeEntryList);
@@ -1135,14 +1136,14 @@ static int32_t mndCheckNodeStatus(SMnode *pMnode) {
   if (taosArrayGetSize(execNodeList.pNodeEntryList) == 0) {
     mDebug("stream task node change checking done, no vgroups exist, do nothing");
     execNodeList.ts = ts;
-    return -1;
+    goto _EXIT;
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(execNodeList.pNodeEntryList); ++i) {
     SNodeEntry *pNodeEntry = taosArrayGet(execNodeList.pNodeEntryList, i);
     if (pNodeEntry->stageUpdated) {
       mDebug("stream task not ready due to node update detected, checkpoint not issued");
-      return -1;
+      goto _EXIT;
     }
 
     SArray *pNodeSnapshot = mndTakeVgroupSnapshot(pMnode);
@@ -1155,13 +1156,12 @@ static int32_t mndCheckNodeStatus(SMnode *pMnode) {
 
     if (nodeUpdated) {
       mDebug("stream task not ready due to node update, checkpoint not issued");
-      return -1;
+      goto _EXIT;
     }
   }
 
   // check if all tasks are in TASK_STATUS__NORMAL status
 
-  taosThreadMutexLock(&execNodeList.lock);
   for (int32_t i = 0; i < taosArrayGetSize(execNodeList.pTaskList); ++i) {
     STaskId          *p = taosArrayGet(execNodeList.pTaskList, i);
     STaskStatusEntry *pEntry = taosHashGet(execNodeList.pTaskMap, p, sizeof(*p));
@@ -1176,6 +1176,9 @@ static int32_t mndCheckNodeStatus(SMnode *pMnode) {
       break;
     }
   }
+  ready = true;
+_EXIT:
+
   taosThreadMutexUnlock(&execNodeList.lock);
   return ready == true ? 0 : -1;
 }
