@@ -9,6 +9,7 @@ use std::{
 };
 
 use base64::{engine::general_purpose, Engine};
+use csv_lib::ReaderBuilder;
 use file_rotate::{
     compression::Compression,
     suffix::{AppendTimestamp, DateFrom, FileLimit},
@@ -934,7 +935,11 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
             let point_id = point.id.clone();
             let tbname =
                 generate_tbname_from_pattern(&dsn.driver, &child_table_expression, &point_id);
-            format!("{}::{}", point_id, tbname)
+            // 对于 OPCUA 来说，ns=3;s=Special_\"!§$%&/()=?`´\\+~*'#_-:.;,<>|@^°€µ{[]} 是一个有效的点位 ID 和名称
+            // 此时需要借助 CSV 的 delimiter 使用 , 进行分隔
+            // 前提是点位需要使用双引号引起来
+            // 又引出的问题的是如果点位名称已经包含了双引号该如何处理 -》继续加双引号
+            format!("\"{}::{}\"", point_id.replace("\"", "\"\""), tbname)
         })
         .join(",");
     if dsn.driver.as_str() == "opcua" {
@@ -1060,8 +1065,11 @@ pub(super) fn get_string_vec_from_param_or_file(
     key: &str,
 ) -> Result<Vec<String>, String> {
     if let Some(nodes) = dsn.remove(key) {
-        let (files, mut node_config): (Vec<_>, Vec<_>) = nodes
-            .split(",")
+        let mut rdr = ReaderBuilder::new().delimiter(b',').from_reader(nodes.as_bytes());
+        let header = rdr.headers().map_err(|err| err.to_string())?;
+        let (files, mut node_config): (Vec<_>, Vec<_>) = header
+            .into_iter()
+            // .split(",")
             .map(|s| s.trim())
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string())
