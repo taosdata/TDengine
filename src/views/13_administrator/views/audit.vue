@@ -8,7 +8,7 @@
               <el-date-picker
                 v-model="date"
                 size="mini"
-                type="daterange"
+                type="datetimerange"
                 :picker-options="pickerOptions"
                 range-separator="-"
                 :start-placeholder="$t('start')"
@@ -38,10 +38,15 @@
               $t("search")
             }}</el-button>
           </el-form-item>
+          <el-form-item>
+            <el-button @click="handlePageChange(true)">{{
+              $t("reset")
+            }}</el-button>
+          </el-form-item>
         </section>
       </el-form>
     </section>
-    <div class="flexEnd">
+    <!-- <div class="flexEnd">
       <el-button
         plain
         @click="refresh"
@@ -51,7 +56,7 @@
         style="font-size: 14px"
         >{{ $t("refresh") }}</el-button
       >
-    </div>
+    </div> -->
     <el-table style="margin-top: 20px" :data="auditList" size="mini">
       <el-table-column :label="$t('taosuser.time')" prop="ts" width="220">
         <span slot-scope="scope">{{ parsinginZone(scope.row.ts) }}</span>
@@ -120,7 +125,11 @@ export default {
         operation: "",
       },
       date: [],
-      pickerOptions: {
+    };
+  },
+  computed: {
+    pickerOptions() {
+      return {
         shortcuts: [
           {
             text: this.$t("yesterday"),
@@ -150,21 +159,26 @@ export default {
             },
           },
         ],
-      },
-    };
+      }
+    },
   },
-  computed: {},
   methods: {
-    handlePageChange() {
-      this.getAuditData();
+    handlePageChange(isReset=false) {
+      this.getAuditData(isReset);
     },
     refresh() {
       this.getAuditData();
     },
-    async getAuditData() {
+    handlePageReset() {
+      Object.assign(this.$data, this.$options.data())
+    },
+    async getAuditData(isReset) {
       try {
         if (this.requestIng) return;
         this.requestIng = true;
+        if (isReset) {
+          this.handlePageReset()
+        }
         let conditions = "";
         if (this.date?.length > 0) {
           conditions = ` ts > ${this.date[0]} AND ts <= ${this.date[1]} AND`;
