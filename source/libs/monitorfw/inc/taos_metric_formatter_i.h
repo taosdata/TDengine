@@ -56,18 +56,18 @@ int taos_metric_formatter_load_l_value(taos_metric_formatter_t *metric_formatter
 /**
  * @brief API PRIVATE Loads the formatter with a metric sample
  */
-int taos_metric_formatter_load_sample(
-    taos_metric_formatter_t *metric_formatter, taos_metric_sample_t *sample, char *ts);
+int taos_metric_formatter_load_sample(taos_metric_formatter_t *metric_formatter, taos_metric_sample_t *sample, 
+                                        char *ts, char *format);
 
 /**
  * @brief API PRIVATE Loads a metric in the string exposition format
  */
-int taos_metric_formatter_load_metric(taos_metric_formatter_t *self, taos_metric_t *metric, char *ts);
+int taos_metric_formatter_load_metric(taos_metric_formatter_t *self, taos_metric_t *metric, char *ts, char *format);
 
 /**
  * @brief API PRIVATE Loads the given metrics
  */
-int taos_metric_formatter_load_metrics(taos_metric_formatter_t *self, taos_map_t *collectors, char *ts);
+int taos_metric_formatter_load_metrics(taos_metric_formatter_t *self, taos_map_t *collectors, char *ts, char *format);
 
 /**
  * @brief API PRIVATE Clear the underlying string_builder

@@ -554,7 +554,7 @@ void monSendReport() {
 void monSendPromReport() {
   char ts[50];
   sprintf(ts, "%" PRId64, taosGetTimestamp(TSDB_TIME_PRECISION_MILLI));
-  char *pCont = (char *)taos_collector_registry_bridge(TAOS_COLLECTOR_REGISTRY_DEFAULT, ts);
+  char *pCont = (char *)taos_collector_registry_bridge(TAOS_COLLECTOR_REGISTRY_DEFAULT, ts, "%" PRId64);
   //uInfoL("report cont:\n%s\n", pCont);
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
