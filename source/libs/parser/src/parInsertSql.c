@@ -1715,8 +1715,8 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   taosArrayClear(pStbRowsCxt->aColVals);
   tTagFree(pStbRowsCxt->pTag);
   taosMemoryFree(pStbRowsCxt->pCtbMeta);
-  tdDestroySVCreateTbReq(pStmt->pCreateTblReq);
-  taosMemoryFreeClear(pStmt->pCreateTblReq);
+  tdDestroySVCreateTbReq(pStbRowsCxt->pCreateCtbReq);
+  taosMemoryFreeClear(pStbRowsCxt->pCreateCtbReq);
   // child meta , vgroupid, check privilege
   // refer to parInsertSml.c
   // create or reuse table data context from tbName
@@ -1969,11 +1969,15 @@ static int32_t parseDataClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is expected", token.z);
 }
 
-static void destroyStbRowsDataContext(SStbRowsDataContext* pStbRowsContext) {
-  taosArrayDestroy(pStbRowsContext->aColVals);
-  taosArrayDestroy(pStbRowsContext->aTagVals);
-  taosArrayDestroy(pStbRowsContext->aTagNames);
-  insDestroyBoundColInfo(&pStbRowsContext->boundColsInfo);
+static void destroyStbRowsDataContext(SStbRowsDataContext* pStbRowsCxt) {
+  taosArrayDestroy(pStbRowsCxt->aColVals);
+  taosArrayDestroy(pStbRowsCxt->aTagVals);
+  taosArrayDestroy(pStbRowsCxt->aTagNames);
+  insDestroyBoundColInfo(&pStbRowsCxt->boundColsInfo);
+  tTagFree(pStbRowsCxt->pTag);
+  taosMemoryFree(pStbRowsCxt->pCtbMeta);
+  tdDestroySVCreateTbReq(pStbRowsCxt->pCreateCtbReq);
+  taosMemoryFreeClear(pStbRowsCxt->pCreateCtbReq);
 }
 
 static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
@@ -1981,8 +1985,7 @@ static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModif
   if (!pStmt->pBoundCols) {
     return buildSyntaxErrMsg(&pCxt->msg, "(...tbname, ts...) bounded cols is expected for supertable insertion", pStmt->pSql);
   }
-  SStbRowsDataContext* pStbRowsCxt;
-  pStbRowsCxt = taosMemoryCalloc(1, sizeof(SStbRowsDataContext));
+  SStbRowsDataContext* pStbRowsCxt = taosMemoryCalloc(1, sizeof(SStbRowsDataContext));
   if (!pStbRowsCxt) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -2010,7 +2013,8 @@ static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModif
   if (TSDB_CODE_SUCCESS == code) {
     code = parseDataClause(pCxt, pStmt, rowsDataCxt);
   }
-  // destroyStbRowsDataContext; TODO: move it to resetEnvPreTable
+  destroyStbRowsDataContext(pStbRowsCxt);
+  taosMemoryFree(pStbRowsCxt);
 
   return code;
 }
