@@ -2,17 +2,19 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::serve::check_parser_timestamp_precision;
 use anyhow::{bail, Result};
 use chrono::Utc;
 use clap::Parser;
 use metrics_util::debugging::Snapshotter;
 use taos::*;
-use taosx_core::utils::{self};
-use taosx_core::{Action, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND, METRICS_TIME_START};
 use tokio_util::sync::CancellationToken;
 use tracing::Instrument;
-use twelf::{config, Layer};
+use twelf::config;
+
+use taosx_core::utils::{self};
+use taosx_core::{Action, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND, METRICS_TIME_START};
+
+use crate::serve::check_parser_timestamp_precision;
 
 #[derive(Parser, Debug)]
 pub(super) struct Cli {
@@ -83,7 +85,11 @@ struct ConfigArgs {
 
 impl Cli {
     #[tracing::instrument(skip(self, opt_args, config_args), name = "cli")]
-    pub(super) async fn run_with(self, opt_args: super::OptArgs, config_args: super::ConfigArgs) -> Result<()> {
+    pub(super) async fn run_with(
+        self,
+        opt_args: super::OptArgs,
+        config_args: super::ConfigArgs,
+    ) -> Result<()> {
         // let _ = span.entered();
         tracing::info!("start cli");
         let args = self;

@@ -53,7 +53,6 @@ pub fn http_flavor(version: Version) -> Cow<'static, str> {
 ///
 impl RootSpanBuilder for TaosXRootSpanBuilder {
     fn on_request_start(request: &ServiceRequest) -> Span {
-        use actix_web::HttpMessage;
         let span = tracing::info_span!("HTTP-Server", TID = tracing::field::Empty);
         let trace_id = request
             .headers()

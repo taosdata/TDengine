@@ -1,5 +1,5 @@
 use std::fmt::{Debug, Display, Formatter};
-use std::{fs, path::PathBuf};
+use std::fs;
 
 use crate::serve::{
     controller::{Status, TaskControllerRef},
@@ -634,7 +634,7 @@ pub async fn upload_files(MultipartForm(form): MultipartForm<UploadForm>) -> imp
 }
 
 async fn save_files(MultipartForm(form): MultipartForm<UploadForm>) -> anyhow::Result<Vec<String>> {
-    let mut upload_dir = get_file_upload_home_dir();
+    let upload_dir = get_file_upload_home_dir();
     let mut file_save_paths = Vec::new();
     if form.files.is_empty() {
         anyhow::bail!("upload file is empty");
