@@ -482,7 +482,8 @@ fn main() -> Result<()> {
         .log_level
         .clone()
         .or(args.opt_args.verbose.clone().map(|v| v.log_level_filter()))
-        .unwrap_or(log::LevelFilter::Info);
+        .unwrap_or(LevelFilter::Info);
+    println!("log level: {:?}", &level_filter);
     let span_events = args.opt_args.tracing_events.clone();
     let worker_threads = args.config_args.jobs.clone();
     let runtime = build_runtime(worker_threads)?;
