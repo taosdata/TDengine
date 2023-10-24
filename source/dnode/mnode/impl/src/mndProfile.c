@@ -59,7 +59,7 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType
                                int32_t pid, const char *app, int64_t startTime);
 static void      mndFreeConn(SConnObj *pConn);
 static SConnObj *mndAcquireConn(SMnode *pMnode, uint32_t connId);
-static void      mndReleaseConn(SMnode *pMnode, SConnObj *pConn);
+static void      mndReleaseConn(SMnode *pMnode, SConnObj *pConn, bool extendLifespan);
 static void     *mndGetNextConn(SMnode *pMnode, SCacheIter *pIter);
 static void      mndCancelGetNextConn(SMnode *pMnode, void *pIter);
 static int32_t   mndProcessHeartBeatReq(SRpcMsg *pReq);
@@ -79,7 +79,7 @@ int32_t mndInitProfile(SMnode *pMnode) {
 
   // in ms
   int32_t checkTime = tsShellActivityTimer * 2 * 1000;
-  pMgmt->connCache = taosCacheInit(TSDB_DATA_TYPE_UINT, checkTime, true, (__cache_free_fn_t)mndFreeConn, "conn");
+  pMgmt->connCache = taosCacheInit(TSDB_DATA_TYPE_UINT, checkTime, false, (__cache_free_fn_t)mndFreeConn, "conn");
   if (pMgmt->connCache == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to alloc profile cache since %s", terrstr());
@@ -185,11 +185,12 @@ static SConnObj *mndAcquireConn(SMnode *pMnode, uint32_t connId) {
   return pConn;
 }
 
-static void mndReleaseConn(SMnode *pMnode, SConnObj *pConn) {
+static void mndReleaseConn(SMnode *pMnode, SConnObj *pConn, bool extendLifespan) {
   if (pConn == NULL) return;
   mTrace("conn:%u, released from cache, data:%p", pConn->id, pConn);
 
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+  if (extendLifespan) taosCacheTryExtendLifeSpan(pMgmt->connCache, (void **)&pConn);
   taosCacheRelease(pMgmt->connCache, (void **)&pConn, false);
 }
 
@@ -323,7 +324,7 @@ _OVER:
 
   mndReleaseUser(pMnode, pUser);
   mndReleaseDb(pMnode, pDb);
-  mndReleaseConn(pMnode, pConn);
+  mndReleaseConn(pMnode, pConn, true);
 
   return code;
 }
@@ -485,7 +486,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
 
     SQueryHbRspBasic *rspBasic = taosMemoryCalloc(1, sizeof(SQueryHbRspBasic));
     if (rspBasic == NULL) {
-      mndReleaseConn(pMnode, pConn);
+      mndReleaseConn(pMnode, pConn, true);
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       mError("user:%s, conn:%u failed to process hb while since %s", pConn->user, pBasic->connId, terrstr());
       return -1;
@@ -508,7 +509,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
 
     mndCreateQnodeList(pMnode, &rspBasic->pQnodeList, -1);
 
-    mndReleaseConn(pMnode, pConn);
+    mndReleaseConn(pMnode, pConn, true);
 
     hbRsp.query = rspBasic;
   } else {
