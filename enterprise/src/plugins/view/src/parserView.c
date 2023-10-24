@@ -48,7 +48,7 @@ int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName) {
      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
      goto _exit;
    }
-   code = (*pCxt->pParseCxt->parseSqlFp)(pCxt->pParseCxt->parseSqlParam, querySql, true, user, &res);
+   code = (*pCxt->pParseCxt->parseSqlFp)(pCxt->pParseCxt->parseSqlParam, pName->dbname, querySql, true, user, &res);
    if (TSDB_CODE_SUCCESS != code) {
      goto _exit;
    }

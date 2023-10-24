@@ -358,6 +358,8 @@ static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg 
     return -1;
   }
 
+  
+
   if (mndCreateViewObj(pMnode, &view, pCreate, pOldView, pReq->info.conn.user) != 0) {
     goto _OVER;
   }
@@ -512,6 +514,10 @@ int32_t mndProcessCreateViewReqImpl(SCMCreateViewReq* pCreateView, SRpcMsg *pReq
     } else {
       mInfo("view %s already exist, or replace is set", pCreateView->fullname);
     }
+    
+    if (0 != mndCheckViewPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_VIEW, pCreateView->fullname)) {
+      goto _OVER;
+    }
   } else if (terrno != TSDB_CODE_SUCCESS) {
     goto _OVER;
   }
@@ -550,6 +556,10 @@ int32_t mndProcessDropViewReqImpl(SCMDropViewReq* pDropView, SRpcMsg *pReq) {
       terrno = TSDB_CODE_MND_VIEW_NOT_EXIST;
       return -1;
     }
+  }
+
+  if (0 != mndCheckViewPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_VIEW, pDropView->fullname)) {
+    goto _OVER;
   }
 
   if (mndDropView(pMnode, pReq, pView) < 0) {
@@ -665,8 +675,8 @@ int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock,
   int32_t     numOfRows = 0;
   SViewObj   *pView = NULL;
   char       *sep = NULL;
-
-  SDbObj *pDb = NULL;
+  SDbObj     *pDb = NULL;
+  
   if (strlen(pShow->db) > 0) {
     sep = strchr(pShow->db, '.');
     if (sep && ((0 == strcmp(sep + 1, TSDB_INFORMATION_SCHEMA_DB) || (0 == strcmp(sep + 1, TSDB_PERFORMANCE_SCHEMA_DB))))) {
@@ -701,7 +711,7 @@ int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock,
     colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    if (pDb != NULL) {
+    if (pDb != NULL || !IS_SYS_DBNAME(pView->dbFName)) {
       SName name = {0};
       tNameFromString(&name, pView->dbFName, T_NAME_ACCT | T_NAME_DB);
       tNameGetDbName(&name, varDataVal(tmpBuf));
