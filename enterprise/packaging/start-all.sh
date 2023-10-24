@@ -13,8 +13,8 @@ services=(${prefix}"d" ${prefix}"adapter" ${prefix}"x" ${prefix}"-explorer" ${pr
 for service in "${services[@]}"; do    
     ${csudo}systemctl start $service
     if systemctl is-active $service >/dev/null; then
-        echo "$service has started"
+        echo "$service has been started successfully"
     else
-        echo "$service failed to start"
+        echo "failed to start $service"
     fi
 done

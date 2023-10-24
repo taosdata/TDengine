@@ -13,8 +13,8 @@ services=(${prefix}"d" ${prefix}"adapter" ${prefix}"x" ${prefix}"-explorer" ${pr
 for service in "${services[@]}"; do    
     ${csudo}systemctl stop $service
     if systemctl is-active $service >/dev/null; then
-        echo "$service failed to stop"
+        echo "failed to stop $service"
     else        
-        echo "$service has stoped"
+        echo "$service has been stoped"
     fi
 done
