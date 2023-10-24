@@ -162,17 +162,15 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
   int32_t      len = 0;
   SSubmitReq2 *pReq = NULL;
   SArray      *tagArray = NULL;
-  SArray      *createTbArray = NULL;
   SArray      *pVals = NULL;
 
   int32_t numOfBlocks = taosArrayGetSize(pBlocks);
 
   tagArray = taosArrayInit(1, sizeof(STagVal));
-  createTbArray = taosArrayInit(numOfBlocks, POINTER_BYTES);
   pReq = taosMemoryCalloc(1, sizeof(SSubmitReq2));
   pReq->aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData));
 
-  if (!tagArray || !createTbArray || !pReq || !pReq->aSubmitTbData) {
+  if (!tagArray || !pReq || !pReq->aSubmitTbData) {
     code = terrno == TSDB_CODE_SUCCESS ? TSDB_CODE_OUT_OF_MEMORY : terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -191,10 +189,9 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     }
 
     SSubmitTbData tbData = {.suid = suid, .uid = 0, .sver = pTSchema->version, .flags = SUBMIT_REQ_AUTO_CREATE_TABLE,};
-    int32_t cid = taosArrayGetSize(pDataBlock->pDataBlock) + 1;
 
-    tbData.pCreateTbReq =
-        buildAutoCreateTableReq(stbFullName, suid, taosArrayGetSize(pDataBlock->pDataBlock) + 1, pDataBlock);
+    int32_t cid = taosArrayGetSize(pDataBlock->pDataBlock) + 1;
+    tbData.pCreateTbReq = buildAutoCreateTableReq(stbFullName, suid, cid, pDataBlock, tagArray);
 
     {
       uint64_t groupId = pDataBlock->info.id.groupId;
@@ -248,8 +245,8 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
     }
     tEncoderClear(&encoder);
   }
+
 _exit:
-  taosArrayDestroy(createTbArray);
   taosArrayDestroy(tagArray);
   taosArrayDestroy(pVals);
   if (pReq) {

@@ -175,7 +175,7 @@ int32_t setDstTableDataPayload(uint64_t suid, const STSchema* pTSchema, int32_t 
 int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, const char* id);
 
 SVCreateTbReq* buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t numOfCols,
-                                       SSDataBlock* pDataBlock);
+                                       SSDataBlock* pDataBlock, SArray* pTagArray);
 
 #ifdef __cplusplus
 }
