@@ -1,25 +1,27 @@
 use std::{fs, path::PathBuf};
-use std::fmt::{Debug, Display, Formatter, Write};
+use std::fmt::{Debug, Display, Formatter};
 
 use actix_files::NamedFile;
-use actix_web::{delete, get, patch, post, web::{Data, Path, Query}, HttpRequest, HttpResponse, Responder, ResponseError};
+use actix_multipart::form::{MultipartForm, tempfile::TempFile, text::Text};
+use actix_web::{delete, get, HttpRequest, HttpResponse, patch, post, Responder, ResponseError, web::{Data, Path, Query}};
+use actix_web::body::BoxBody;
 use anyhow::Context;
 use chrono::Utc;
 use itertools::Itertools;
 use metrics_util::debugging::Snapshotter;
 use serde::{Deserialize, Serialize};
-
 use taos::Code;
+use tokio_cron_scheduler::Job;
+use utoipa::*;
 
 use taosx_core::{METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND, METRICS_TIME_START};
-use tokio_cron_scheduler::Job;
-
-use utoipa::*;
 
 use crate::serve::{
     controller::{Status, TaskControllerRef},
     NewTask, TaskDecorator, TaskFilter, UpdateTask,
 };
+
+use super::controller::agent::AgentActivityFilter;
 
 /// Task endpoint error responses
 #[derive(Serialize, Deserialize, Clone, ToSchema)]
@@ -74,15 +76,15 @@ pub(super) async fn get_tasks(
     decorator: Query<TaskDecorator>,
 ) -> impl Responder {
     match task_store.tasks(filter.into_inner()).await {
-        Ok(tasks) => HttpResponse::Ok()
+        Ok(tasks) => Ok(HttpResponse::Ok()
             .append_header(("Count", tasks.len()))
             .json(
                 tasks
                     .into_iter()
                     .map(|t| t.decorate(&decorator))
                     .collect_vec(),
-            ),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            )),
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err),
         }),
@@ -111,8 +113,8 @@ pub(super) async fn get_tasks_count(
     filter: Query<TaskFilter>,
 ) -> impl Responder {
     match task_store.tasks_count(filter.into_inner()).await {
-        Ok(tasks) => HttpResponse::Ok().body(format!("{tasks}")),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+        Ok(tasks) => Ok(HttpResponse::Ok().body(format!("{tasks}"))),
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err),
         }),
@@ -149,7 +151,7 @@ pub(super) async fn create_task(
     let task = task.into_inner();
     if let Some(trigger) = task.trigger.as_deref() {
         if !trigger.starts_with("schedule:") {
-            return HttpResponse::InternalServerError().json(Failed {
+            return Err(Failed {
                 code: Code::FAILED,
                 message: format!(
                     "invalid trigger format: `{trigger}`, only `schedule:<crontab>` is supported"
@@ -162,7 +164,7 @@ pub(super) async fn create_task(
         // check TIMESTAMP Precision: all columns should have same precision
         let parser_string = parser.to_string();
         if !check_parser_timestamp_precision(&parser_string) {
-            return HttpResponse::InternalServerError().json(Failed {
+            return Err(Failed {
                 code: Code::FAILED,
                 message: format!("parser shouldn't contains different timestamp precision"),
             });
@@ -193,7 +195,7 @@ pub(super) async fn create_task(
                     Ok(job) => {
                         tracing::info!("add job for task: {task:?}");
                         if let Err(_err) = sched.add(job).await {
-                            return HttpResponse::InternalServerError().json(Failed {
+                            return Err(Failed {
                                 code: Code::FAILED,
                                 message: format!(
                                     "invalid trigger format: `{trigger}`, only `schedule:<crontab>` is supported"
@@ -207,9 +209,9 @@ pub(super) async fn create_task(
                     }
                 }
             }
-            HttpResponse::Created().json(task.decorate(&decorator))
+            Ok(HttpResponse::Created().json(task.decorate(&decorator)))
         }
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err),
         }),
@@ -293,16 +295,16 @@ pub(super) async fn update_task(
         // check TIMESTAMP Precision: all columns should have same precision
         let parser_string = parser.to_string();
         if !check_parser_timestamp_precision(&parser_string) {
-            return HttpResponse::InternalServerError().json(Failed {
+            return Err(Failed {
                 code: Code::FAILED,
                 message: format!("parser shouldn't contains different timestamp precision"),
             });
         }
     }
     match task_store.update(id.into_inner(), task.into_inner()).await {
-        Ok(Some(task)) => HttpResponse::Ok().json(task.decorate(&decorator)),
-        Ok(None) => HttpResponse::NotFound().finish(),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+        Ok(Some(task)) => Ok(HttpResponse::Ok().json(task.decorate(&decorator))),
+        Ok(None) => Ok(HttpResponse::NotFound().finish()),
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err),
         }),
@@ -336,9 +338,9 @@ pub(super) async fn delete_task(
     decorator: Query<TaskDecorator>,
 ) -> impl Responder {
     match task_store.delete(id.into_inner()).await {
-        Ok(Some(task)) => HttpResponse::Ok().json(task.decorate(&decorator)),
-        Ok(None) => HttpResponse::NotFound().finish(),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+        Ok(Some(task)) => Ok(HttpResponse::Ok().json(task.decorate(&decorator))),
+        Ok(None) => Ok(HttpResponse::NotFound().finish()),
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err),
         }),
@@ -369,9 +371,9 @@ pub(super) async fn get_task_by_id(
 ) -> impl Responder {
     let id = id.into_inner();
     match task_store.get(id).await {
-        Ok(Some(task)) => HttpResponse::Ok().json(task.decorate(&decorator)),
-        Ok(None) => HttpResponse::NotFound().finish(),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+        Ok(Some(task)) => Ok(HttpResponse::Ok().json(task.decorate(&decorator))),
+        Ok(None) => Ok(HttpResponse::NotFound().finish()),
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err),
         }),
@@ -400,12 +402,12 @@ pub(super) async fn start_task(
 ) -> impl Responder {
     let id = id.into_inner();
     match task_store.start(id).await {
-        Ok(Some(_)) => HttpResponse::Ok().body("{}"),
-        Ok(None) => HttpResponse::NotFound().json(Failed {
+        Ok(Some(_)) => Ok(HttpResponse::Ok().body("{}")),
+        Ok(None) => Ok(HttpResponse::NotFound().json(Failed {
             code: Code::FAILED,
             message: format!("Task {id} not found"),
-        }),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+        })),
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err),
         }),
@@ -434,12 +436,12 @@ pub(super) async fn stop_task(
 ) -> impl Responder {
     let id = id.into_inner();
     match task_store.stop(id).await {
-        Ok(Some(_)) => HttpResponse::Ok().body("{}"),
-        Ok(None) => HttpResponse::NotFound().json(Failed {
+        Ok(Some(_)) => Ok(HttpResponse::Ok().body("{}")),
+        Ok(None) => Ok(HttpResponse::NotFound().json(Failed {
             code: Code::FAILED,
             message: format!("Task {id} not found"),
-        }),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+        })),
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err),
         }),
@@ -466,9 +468,9 @@ pub(super) async fn get_task_offsets_by_id(
 ) -> impl Responder {
     let id = id.into_inner();
     match task_store.offsets(id).await {
-        Ok(Some(offsets)) => HttpResponse::Ok().json(offsets),
-        Ok(None) => HttpResponse::NotFound().finish(),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+        Ok(Some(offsets)) => Ok(HttpResponse::Ok().json(offsets)),
+        Ok(None) => Ok(HttpResponse::NotFound().finish()),
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err),
         }),
@@ -495,8 +497,8 @@ pub(super) async fn get_task_activities_by_id(
 ) -> impl Responder {
     let id = id.into_inner();
     match task_store.task_activities(id, &filter.into_inner()).await {
-        Ok(acts) => HttpResponse::Ok().json(acts),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+        Ok(acts) => Ok(HttpResponse::Ok().json(acts)),
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err),
         }),
@@ -596,11 +598,6 @@ pub(super) async fn get_task_metrics_by_id(
     serde_json::to_string(&map)
 }
 
-use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
-use actix_web::body::BoxBody;
-
-use super::controller::agent::AgentActivityFilter;
-
 #[derive(Debug, MultipartForm, ToSchema)]
 pub struct UploadForm {
     #[multipart(rename = "file")]
@@ -619,8 +616,8 @@ responses(
 #[post("/upload")]
 pub async fn upload_files(MultipartForm(form): MultipartForm<UploadForm>) -> impl Responder {
     match save_files(MultipartForm(form)).await {
-        Ok(file_saved) => HttpResponse::Created().json(file_saved),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+        Ok(file_saved) => Ok(HttpResponse::Created().json(file_saved)),
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err),
         }),
@@ -718,8 +715,8 @@ FileMetaRequest
 #[get("/filemeta")]
 pub async fn filemeta(filemeta_request: Query<FileMetaRequest>) -> impl Responder {
     match get_filemeta(filemeta_request.into_inner()).await {
-        Ok(filemeta) => HttpResponse::Ok().json(filemeta),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+        Ok(filemeta) => Ok(HttpResponse::Ok().json(filemeta)),
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err),
         }),
@@ -786,8 +783,8 @@ DownloadParams
 #[get("/download")]
 pub async fn download_files(params: Query<DownloadParams>, req: HttpRequest) -> impl Responder {
     match download(params).await {
-        Ok(named_file) => named_file.into_response(&req),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+        Ok(named_file) => Ok(named_file.into_response(&req)),
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err),
         }),

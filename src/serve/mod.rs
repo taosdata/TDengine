@@ -270,9 +270,7 @@ impl Cli {
             // This factory closure is called on each worker thread independently.
             App::new()
                 .wrap(cors)
-                // .wrap(Compat::new(TracingLogger::default()))
                 .wrap(Compat::new(TracingLogger::<TaosXRootSpanBuilder>::new()))
-                // .wrap(Logger::default())
                 .app_data(recorder.clone())
                 .app_data(snapshotter.clone())
                 .app_data(PayloadConfig::new(std::usize::MAX))

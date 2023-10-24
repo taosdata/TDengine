@@ -77,9 +77,11 @@ impl<S, N, W> layer::Layer<S> for TaosXLayer<S, N, W> where
         let span = ctx.span(id).expect("Span not found, this is a bug");
         let mut extensions = span.extensions_mut();
         if let Some(_) = attrs.fields().field("TID") {
-            let u32_id = random::<u32>();
-            let hex_id = format!("{:#08x}", u32_id);
-            extensions.insert(TraceID { id: hex_id });
+            if extensions.get_mut::<TraceID>().is_none() {
+                let u32_id = random::<u32>();
+                let hex_id = format!("{:#08x}", u32_id);
+                extensions.insert(TraceID { id: hex_id });
+            }
         }
         if extensions.get_mut::<FormattedFields<N>>().is_none() {
             let mut fields = FormattedFields::<N>::new(String::new());

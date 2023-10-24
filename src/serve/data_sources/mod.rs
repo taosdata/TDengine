@@ -212,10 +212,10 @@ pub(super) async fn data_source_collection(
     } else {
         list_datasets_from(&data).await
     } {
-        Ok(data) => HttpResponse::Ok()
+        Ok(data) => Ok(HttpResponse::Ok()
             .content_type(ContentType::json())
-            .json(&data),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            .json(&data)),
+        Err(err) => Err(Failed {
             code: 0xFFFF.into(),
             message: format!("{:#}", err),
         }),
@@ -265,8 +265,8 @@ pub(super) async fn download_all_data_set_file(
 ) -> impl Responder {
     // match download_all_point_csv_file(controller, data).await {
     match download_all_point_csv_file(controller, params).await {
-        Ok(named_file) => named_file.into_response(&req),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+        Ok(named_file) => Ok(named_file.into_response(&req)),
+        Err(err) => Err(Failed {
             code: 0xFFFF.into(),
             message: format!("{:#}", err),
         }),
