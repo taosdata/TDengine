@@ -361,20 +361,16 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 					logger.DebugF("## subscribe from opc ua %s", string(j))
 				}
 				for _, item := range v.MonitoredItems {
-					var ts time.Time
-					if !item.Value.SourceTimestamp.IsZero() {
-						ts = item.Value.SourceTimestamp
-					} else if !item.Value.ServerTimestamp.IsZero() {
-						ts = item.Value.ServerTimestamp
-					} else {
-						ts = time.Now()
-					}
-
 					if uint64(item.ClientHandle) > uint64(len(r.nodes)) {
 						continue
 					}
 					node := r.nodes[item.ClientHandle]
 					id := node.nodeID.String()
+
+					if item == nil || item.Value == nil || item.Value.Value == nil {
+						logger.WarnF("## subscribe data for identifier [%q] value is nil ", id)
+						continue
+					}
 
 					status := item.Value.Status
 					if status != ua.StatusOK && !r.containsBad {
@@ -386,6 +382,15 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 					if err != nil {
 						logger.ErrorF("## get value type for identifier [%q] error [%v]", id, err)
 						continue
+					}
+
+					var ts time.Time
+					if !item.Value.SourceTimestamp.IsZero() {
+						ts = item.Value.SourceTimestamp
+					} else if !item.Value.ServerTimestamp.IsZero() {
+						ts = item.Value.ServerTimestamp
+					} else {
+						ts = time.Now()
 					}
 
 					nodeValue := &common.NodeValue{
