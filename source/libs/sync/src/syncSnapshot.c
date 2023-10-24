@@ -172,8 +172,7 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
     return -1;
   }
 
-  sSInfo(pSender, "snapshot sender started. signature:(%" PRId64 ", %" PRId64 "), to dnode:%d", pSender->term,
-         pSender->startTime, DID(&pMsg->destId));
+  sSInfo(pSender, "snapshot sender start, to dnode:%d.", DID(&pMsg->destId));
   return 0;
 }
 
@@ -203,8 +202,7 @@ void snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish) {
   syncSnapBufferReset(pSender->pSndBuf);
 
   SRaftId destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
-  sSInfo(pSender, "snapshot sender stop to dnode:%d. signature:(%" PRId64 ", %" PRId64 "), finish:%d", DID(&destId),
-         pSender->term, pSender->startTime, finish);
+  sSInfo(pSender, "snapshot sender stop, to dnode:%d, finish:%d", DID(&destId), finish);
 }
 
 // when sender receive ack, call this function to send msg from seq
@@ -480,8 +478,7 @@ void snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *p
   pReceiver->fromId = pPreMsg->srcId;
   pReceiver->startTime = pPreMsg->startTime;
 
-  sRInfo(pReceiver, "snapshot receiver start from dnode:%d. signature:(%" PRId64 ", %" PRId64 ")",
-         DID(&pReceiver->fromId), pReceiver->term, pReceiver->startTime);
+  sRInfo(pReceiver, "snapshot receiver start, from dnode:%d.", DID(&pReceiver->fromId));
 }
 
 // just set start = false
@@ -505,8 +502,7 @@ void snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
 
   syncSnapBufferReset(pReceiver->pRcvBuf);
 
-  sRInfo(pReceiver, "snapshot receiver stop from dnode:%d. signature:(%" PRId64 ", %" PRId64 ")",
-         DID(&pReceiver->fromId), pReceiver->term, pReceiver->startTime);
+  sRInfo(pReceiver, "snapshot receiver stop, from dnode:%d.", DID(&pReceiver->fromId));
 }
 
 // when recv last snapshot block, apply data into snapshot
@@ -630,22 +626,22 @@ static int32_t syncNodeOnSnapshotPrep(SSyncNode *pSyncNode, SyncSnapshotSend *pM
     int32_t order = 0;
     if ((order = snapshotReceiverSignatureCmp(pReceiver, pMsg)) < 0) {
       sRInfo(pReceiver,
-             "received a new snapshot preparation. restart receiver"
-             "receiver signature: (%" PRId64 ", %" PRId64 "), msg signature:(%" PRId64 ", %" PRId64 ")",
-             pReceiver->term, pReceiver->startTime, pMsg->term, pMsg->startTime);
+             "received a new snapshot preparation. restart receiver."
+             " msg signature:(%" PRId64 ", %" PRId64 ")",
+             pMsg->term, pMsg->startTime);
       goto _START_RECEIVER;
     } else if (order == 0) {
       sRInfo(pReceiver,
-             "received a duplicate snapshot preparation. send reply"
-             "receiver signature: (%" PRId64 ", %" PRId64 "), msg signature:(%" PRId64 ", %" PRId64 ")",
-             pReceiver->term, pReceiver->startTime, pMsg->term, pMsg->startTime);
+             "received a duplicate snapshot preparation. send reply."
+             " msg signature:(%" PRId64 ", %" PRId64 ")",
+             pMsg->term, pMsg->startTime);
       goto _SEND_REPLY;
     } else {
       // ignore
       sRError(pReceiver,
-              "received a stale snapshot preparation. ignore"
-              "receiver signature: (%" PRId64 ", %" PRId64 "), msg signature:(%" PRId64 ", %" PRId64 ")",
-              pReceiver->term, pReceiver->startTime, pMsg->term, pMsg->startTime);
+              "received a stale snapshot preparation. ignore."
+              " msg signature:(%" PRId64 ", %" PRId64 ")",
+              pMsg->term, pMsg->startTime);
       terrno = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
       code = terrno;
       goto _SEND_REPLY;
@@ -713,6 +709,8 @@ static int32_t syncNodeOnSnapshotBegin(SSyncNode *pSyncNode, SyncSnapshotSend *p
     sRError(pReceiver, "failed to start snapshot writer since %s", terrstr());
     goto _SEND_REPLY;
   }
+
+  sRInfo(pReceiver, "snapshot begin");
 
   code = 0;
 _SEND_REPLY:
@@ -913,8 +911,7 @@ _SEND_REPLY:;
 //
 int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   SyncSnapshotSend **ppMsg = (SyncSnapshotSend **)&pRpcMsg->pCont;
-  SyncSnapshotSend  *pMsg = ppMsg[0];
-  ASSERT(pMsg);
+  SyncSnapshotSend      *pMsg = ppMsg[0];
   SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
 
   // if already drop replica, do not process
@@ -944,16 +941,16 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER || pSyncNode->state == TAOS_SYNC_STATE_LEARNER) {
     if (pMsg->term == raftStoreGetTerm(pSyncNode)) {
       if (pMsg->seq == SYNC_SNAPSHOT_SEQ_PREP_SNAPSHOT) {
-        sInfo("vgId:%d, receive pre-snapshot msg of snapshot replication. signature:(%" PRId64 ", %" PRId64 ")",
+        sInfo("vgId:%d, receive prepare msg of snap replication. msg signature:(%" PRId64 ", %" PRId64 ")",
               pSyncNode->vgId, pMsg->term, pMsg->startTime);
         code = syncNodeOnSnapshotPrep(pSyncNode, pMsg);
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_BEGIN) {
-        sInfo("vgId:%d, receive begin msg of snapshot replication. signature:(%" PRId64 ", %" PRId64 ")",
+        sInfo("vgId:%d, receive begin msg of snap replication. msg signature:(%" PRId64 ", %" PRId64 ")",
               pSyncNode->vgId, pMsg->term, pMsg->startTime);
         code = syncNodeOnSnapshotBegin(pSyncNode, pMsg);
       } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_END) {
-        sInfo("vgId:%d, receive end msg of snapshot replication. signature: (%" PRId64 ", %" PRId64 ")",
-              pSyncNode->vgId, pMsg->term, pMsg->startTime);
+        sInfo("vgId:%d, receive end msg of snap replication. msg signature:(%" PRId64 ", %" PRId64 ")", pSyncNode->vgId,
+              pMsg->term, pMsg->startTime);
         code = syncNodeOnSnapshotEnd(pSyncNode, pMsg);
         if (syncLogBufferReInit(pSyncNode->pLogBuf, pSyncNode) != 0) {
           sRError(pReceiver, "failed to reinit log buffer since %s", terrstr());
@@ -963,7 +960,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
         // force close, no response
         syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "process force stop");
         snapshotReceiverStop(pReceiver);
-      } else if (pMsg->seq > SYNC_SNAPSHOT_SEQ_BEGIN && pMsg->seq <= SYNC_SNAPSHOT_SEQ_END) {
+      } else if (pMsg->seq > SYNC_SNAPSHOT_SEQ_BEGIN && pMsg->seq < SYNC_SNAPSHOT_SEQ_END) {
         syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "process seq data");
         code = syncNodeOnSnapshotReceive(pSyncNode, ppMsg);
       } else {
@@ -1039,8 +1036,8 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
   pSendMsg->startTime = pSender->startTime;
   pSendMsg->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
 
-  sSInfo(pSender, "begin snapshot replication to dnode %d. startTime:%" PRId64, DID(&pSendMsg->destId),
-         pSendMsg->startTime);
+  sSInfo(pSender, "begin snapshot replication to dnode %d." PRId64, DID(&pSendMsg->destId));
+
   // send msg
   syncLogSendSyncSnapshotSend(pSyncNode, pSendMsg, "snapshot sender reply pre");
   if (syncNodeSendMsgById(&pSendMsg->destId, pSender->pSyncNode, &rpcMsg) != 0) {
@@ -1149,10 +1146,8 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   // check signature
   int32_t order = 0;
   if ((order = snapshotSenderSignatureCmp(pSender, pMsg)) > 0) {
-    sSError(pSender,
-            "received a stale snapshot rsp. ignore it"
-            "sender signature: (%" PRId64 ", %" PRId64 "), msg signature:(%" PRId64 ", %" PRId64 ")",
-            pSender->term, pSender->startTime, pMsg->term, pMsg->startTime);
+    sSError(pSender, "received a stale snapshot rsp, msg signature:(%" PRId64 ", %" PRId64 "), ignore it.", pMsg->term,
+            pMsg->startTime);
     terrno = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
     return -1;
   } else if (order < 0) {
