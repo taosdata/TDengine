@@ -1818,6 +1818,7 @@ Windows： <code>C:\\Program Files\\taosX\\config</code>`,
     details: '细节',
     target_1: '操作对象 1',
     target_2: '操作对象 2',
+    user: '用户',
   },
   taosagents:{
     step1:'安装',
