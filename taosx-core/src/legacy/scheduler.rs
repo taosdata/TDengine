@@ -322,19 +322,6 @@ async fn worker(
                             let mut query = query.clone();
                             query.time_range = chunk;
                             let table_inner = table.clone();
-                            // set breakpoint async
-                            if let Some(task_id) = task_id.clone() {
-                                let breakpoint = chunk.start.unwrap().to_string();
-                                // dbg!(&breakpoint);
-                                tokio::spawn(async move {
-                                    breakpoints::breakpoints_set(
-                                        &task_id,
-                                        &table_inner,
-                                        &breakpoint,
-                                    )
-                                    .unwrap();
-                                });
-                            }
                             loop {
                                 match sync_single_table_partial(
                                     source.clone(),
@@ -353,6 +340,19 @@ async fn worker(
                                 .await
                                 {
                                     Ok(_) => {
+                                        // set breakpoint async
+                                        if let Some(task_id) = task_id.clone() {
+                                            let breakpoint = chunk.end.unwrap().to_string();
+                                            // dbg!(&breakpoint);
+                                            tokio::spawn(async move {
+                                                breakpoints::breakpoints_set(
+                                                    &task_id,
+                                                    &table_inner,
+                                                    &breakpoint,
+                                                )
+                                                .unwrap();
+                                            });
+                                        }
                                         break;
                                     }
                                     Err(err) => {
