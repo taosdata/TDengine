@@ -107,9 +107,13 @@ impl ConnectionConfig {
         } else {
             return Err(anyhow::anyhow!("invalid version: {}", version));
         }
-        let add_dbrp = dsn.params
+        let add_dbrp = dsn
+            .params
             .get("addDbrp")
-            .map(|s| match s.as_str() { "true" => true, _ => false })
+            .map(|s| match s.as_str() {
+                "true" => true,
+                _ => false,
+            })
             .unwrap_or(false);
 
         let influx = ConnectionConfig {
@@ -119,7 +123,7 @@ impl ConnectionConfig {
             password,
             token,
             org_id,
-            add_dbrp
+            add_dbrp,
         };
 
         Ok(influx)

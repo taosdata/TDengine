@@ -236,7 +236,7 @@ pub(super) async fn data_source_collection(
 #[get("/ds/in/validate")]
 pub(super) async fn data_source_is_valid(query: Query<DsnQuery>) -> impl Responder {
     let dsn = query.into_inner().dsn;
-    let dsv = validate_dsn(dsn);
+    let dsv = validate_dsn(dsn).await;
     HttpResponse::Ok()
         .content_type(ContentType::json())
         .json(dsv)

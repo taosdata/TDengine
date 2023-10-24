@@ -18,7 +18,7 @@ use tokio_util::sync::CancellationToken;
 use toml::value::Datetime;
 use tracing::{instrument, Span};
 
-use crate::runners::log_rotation;
+use crate::runners::{get_string_from_param_or_file, log_rotation};
 use crate::validation::DataSourceValidation;
 use crate::{
     build_ipc, get_log_keep_days,
@@ -167,15 +167,14 @@ impl PiConfig {
             .map(|s| s.to_string())
             .collect_vec();
 
-        let point_list =
-            super::mqtt::get_string_from_param_or_file(&mut dsn, "PointList", false, Some(","))
-                .map_err(|err| PiError::ParseKeyValueError("PointList", err))?
-                .unwrap_or_default()
-                .split([',', '\n'])
-                .map(|s| s.trim())
-                .filter(|s| !s.is_empty())
-                .map(|s| s.to_string())
-                .collect_vec();
+        let point_list = get_string_from_param_or_file(&mut dsn, "PointList", false, Some(","))
+            .map_err(|err| PiError::ParseKeyValueError("PointList", err))?
+            .unwrap_or_default()
+            .split([',', '\n'])
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .collect_vec();
         if is_real_run
             && point_list.is_empty()
             && template_for_af_element.is_empty()
@@ -348,11 +347,11 @@ impl PiConfig {
                 );
             } else {
                 template_for_pi_point.extend(
-                    super::mqtt::get_string_from_param_or_file(
+                    get_string_from_param_or_file(
                         &mut dsn,
                         config_key,
                         false,
-                        Some(","),
+                        Some(",")
                     )
                     .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
                     .unwrap_or_default()
@@ -393,11 +392,11 @@ impl PiConfig {
                 );
             } else {
                 template_for_af_element.extend(
-                    super::mqtt::get_string_from_param_or_file(
+                    get_string_from_param_or_file(
                         &mut dsn,
                         config_key,
                         false,
-                        Some(","),
+                        Some(",")
                     )
                     .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
                     .unwrap_or_default()
@@ -409,15 +408,19 @@ impl PiConfig {
             }
         }
 
-        let mut point_list =
-            super::mqtt::get_string_from_param_or_file(&mut dsn, "PointList", false, Some(","))
-                .map_err(|err| PiError::ParseKeyValueError("PointList", err))?
-                .unwrap_or_default()
-                .split([',', '\n'])
-                .map(|s| s.trim())
-                .filter(|s| !s.is_empty())
-                .map(|s| s.to_string())
-                .collect_vec();
+        let mut point_list = get_string_from_param_or_file(
+            &mut dsn,
+            "PointList",
+            false,
+            Some(",")
+        )
+        .map_err(|err| PiError::ParseKeyValueError("PointList", err))?
+        .unwrap_or_default()
+        .split([',', '\n'])
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect_vec();
         let config_key = "point_file";
         let config_category = "PointList";
 
@@ -441,11 +444,11 @@ impl PiConfig {
                 );
             } else {
                 point_list.extend(
-                    super::mqtt::get_string_from_param_or_file(
+                    get_string_from_param_or_file(
                         &mut dsn,
                         "point_file",
                         false,
-                        Some(","),
+                        Some(",")
                     )
                     .map_err(|err| PiError::ParseKeyValueError("point_file", err))?
                     .unwrap_or_default()
@@ -1031,6 +1034,7 @@ pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 mod tests {
     use super::*;
     use taos::Dsn;
+
     #[tokio::test]
     async fn test_config() {
         dbg!(std::env::current_dir().unwrap());
