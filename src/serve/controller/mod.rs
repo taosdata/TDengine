@@ -26,7 +26,7 @@ use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::utils::breakpoints::breakpoints_get_all;
 use taosx_core::utils::port_pool::PortPool;
 use taosx_core::utils::{mask_dsn, try_mask_dsn};
-use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
+use taosx_core::{get_data_dir, ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
 use tokio::sync::OnceCell;
 use tokio::task::JoinHandle;
 use tokio::{runtime::Runtime, sync::RwLock};
@@ -666,8 +666,7 @@ impl TaskController {
             // let _ = span.clone().entered();
             tracing::info!(task.id = id, "start worker");
             // set current dir for upload files
-            let path = task::ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT.replace("files", "");
-            let root = std::path::Path::new(path.as_str());
+            let root = get_data_dir();
             let _ = env::set_current_dir(&root);
             let now = Utc::now();
             let _ = sqlx::query!(
@@ -1699,6 +1698,13 @@ impl TaskController {
     }
 
     pub async fn influxdb_offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
+        let offsets = breakpoints_get_all(id.to_string().as_str())?;
+        // dbg!(&offsets);
+        let res = serde_json::to_value(&offsets)?;
+        Ok(Some(res))
+    }
+
+    pub async fn opentsdb_offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
         let offsets = breakpoints_get_all(id.to_string().as_str())?;
         // dbg!(&offsets);
         let res = serde_json::to_value(&offsets)?;

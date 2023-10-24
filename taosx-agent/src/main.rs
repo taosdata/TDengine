@@ -54,6 +54,7 @@ pub struct Args {
 
     log_keep_days: Option<i64>,
 }
+
 #[config]
 #[derive(Parser, Debug)]
 #[clap(
@@ -61,7 +62,7 @@ pub struct Args {
     author, version = build::VERBOSE_VERSION,
     about = build::CUS_CLI_ABOUT,
     long_about = build::CUS_CLI_ABOUT)]
-pub struct ArgsParser {
+pub struct ConfigArgs {
     /// Listen to ip:port address.
     #[clap(short = 'e', long)]
     endpoint: Option<String>,
@@ -75,21 +76,24 @@ pub struct ArgsParser {
     verbose: Option<Verbosity<InfoLevel>>,
 
     /// For environment variable wised log level.
-    #[clap(hide = true)]
+    #[clap(hide = true, env="LOG_LEVEL")]
     log_level: Option<LevelFilter>,
 
-    #[clap(hide = true)]
+    #[clap(hide = true, env="LOG_FILE")]
+    log_file: Option<i64>,
+
+    #[clap(hide = true, env="LOG_KEEP_DAYS")]
     log_keep_days: Option<i64>,
 }
 
 #[derive(Parser, Debug)]
-pub struct Config {
+pub struct ArgsParser {
     /// Config file.
     #[clap(short = 'c', long)]
     config: Option<PathBuf>,
 
     #[clap(flatten)]
-    args: ArgsParser,
+    configArgs: ConfigArgs,
 }
 
 #[derive(Debug, Error)]
@@ -103,7 +107,7 @@ pub enum ArgsError {
 }
 impl Args {
     pub fn init() -> Result<Args, ArgsError> {
-        let path = if let Ok(c) = Config::try_parse() {
+        let path = if let Ok(c) = ArgsParser::try_parse() {
             c.config
                 .map(|p| {
                     if p.exists() {
@@ -130,8 +134,6 @@ impl Args {
             }
         });
 
-        let matches = Config::command().get_matches();
-
         let mut layers = vec![];
 
         if path.exists() {
@@ -141,16 +143,16 @@ impl Args {
             "{}X_AGENT_",
             build::CUS_PROMPT.to_uppercase()
         ))));
-        layers.push(Layer::Clap(matches));
+        layers.push(Layer::Clap(ArgsParser::command().get_matches()));
 
-        let ArgsParser {
+        let ConfigArgs {
             endpoint,
             token,
             log_level,
             verbose,
             log_keep_days,
             ..
-        } = ArgsParser::with_layers(&layers)?;
+        } = ConfigArgs::with_layers(&layers)?;
         let log_level = log_level_to_tracing_level(
             log_level
                 .clone()

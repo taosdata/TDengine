@@ -16,6 +16,7 @@ use metrics_util::layers::{FanoutBuilder, Layer};
 use serde::Deserialize;
 use tracing::info;
 use tracing_actix_web::TracingLogger;
+use twelf::config;
 use utoipa::{OpenApi, ToSchema};
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -58,13 +59,6 @@ pub struct DataSetsReq {
 
 #[derive(Parser, Debug, Clone)]
 pub(super) struct Cli {
-    /// Listen to ip:port address.
-    #[clap(short = 'l', long, default_value = "0.0.0.0:6050")]
-    listen: String,
-
-    #[clap(short = 'D', long)]
-    database_url: Option<String>,
-
     /// Do not resume a
     #[clap(long)]
     do_not_resume: bool,
@@ -73,13 +67,33 @@ pub(super) struct Cli {
     // data_dir: Option<PathBuf>,
     #[clap(short = 'L', long)]
     log_dir: Option<PathBuf>,
+
+    #[clap(flatten)]
+    config_args: ConfigArgs,
+}
+
+#[config]
+#[derive(Parser, Debug, Clone)]
+struct ConfigArgs {
+    /// Listen to ip:port address.
+    #[clap(short = 'l', long, default_value = "0.0.0.0:6050", env = "SERVE_LISTEN")]
+    listen: String,
+
+    #[clap(short = 'D', long, env = "DATABASE_URL")]
+    database_url: Option<String>,
+
+    #[clap(hide = true)]
+    secret_prefix: Option<String>,
 }
 
 impl Default for Cli {
     fn default() -> Self {
         Self {
-            listen: "0.0.0.0:6050".parse().unwrap(),
-            database_url: None,
+            config_args: ConfigArgs {
+                listen: "0.0.0.0:6050".parse().unwrap(),
+                database_url: None,
+                secret_prefix: Some("XaNeGt".to_string()),
+            },
             log_dir: None,
             do_not_resume: false,
         }
@@ -119,12 +133,15 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(filemeta);
     }
 }
+
 impl Cli {
     pub(super) async fn controller(&self) -> Result<TaskControllerRef> {
-        let database_url = if let Some(path) = self.database_url.as_deref() {
+        let database_url = if let Some(path) = self.config_args.database_url.as_deref() {
             path.to_string()
         } else if let Ok(url) = std::env::var("DATABASE_URL") {
             url
+        } else if let Ok(root) = std::env::var("TAOSX_DATA_DIR") {
+            format!("sqlite:{}/taosx.db", root)
         } else {
             "sqlite:taosx.db".to_string()
         };
@@ -141,7 +158,7 @@ impl Cli {
         controller: TaskControllerRef,
         grpc_handle: tokio::task::JoinHandle<Result<()>>,
     ) -> Result<()> {
-        let span = tracing::info_span!("server", addr = self.listen).entered();
+        let span = tracing::info_span!("server", addr = self.config_args.listen).entered();
         let store_cloned = controller.clone();
         #[derive(OpenApi)]
         #[openapi(
@@ -261,7 +278,7 @@ impl Cli {
 
         let recorder = Data::new(handle);
 
-        let addr = self.listen.as_str();
+        let addr = self.config_args.listen.as_str();
         let server = HttpServer::new(move || {
             let cors = Cors::default()
                 .allow_any_origin()
@@ -315,10 +332,10 @@ impl Cli {
 
     pub(super) async fn _run_with(
         self,
-        _opts: super::GlobalOpts,
+        _opts: super::Args,
         _rt: impl Into<Option<tokio::runtime::Runtime>>,
     ) -> Result<()> {
-        let span = tracing::info_span!("server", addr = self.listen).entered();
+        let span = tracing::info_span!("server", addr = self.config_args.listen).entered();
         #[derive(OpenApi)]
         #[openapi(
             components(
@@ -411,7 +428,7 @@ impl Cli {
         )]
         struct ApiDoc;
 
-        let database_url = if let Some(path) = self.database_url.as_deref() {
+        let database_url = if let Some(path) = self.config_args.database_url.as_deref() {
             path.to_string()
         } else if let Ok(url) = std::env::var("DATABASE_URL") {
             url
@@ -453,7 +470,7 @@ impl Cli {
 
         let recorder = Data::new(handle);
 
-        let addr = self.listen.as_str();
+        let addr = self.config_args.listen.as_str();
         let server = HttpServer::new(move || {
             let cors = Cors::default()
                 .allow_any_origin()

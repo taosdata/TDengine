@@ -643,7 +643,7 @@ pub fn parse_bool_param_from_dsn(dsn: &mut Dsn, key: &str) -> anyhow::Result<Opt
 
 const CSV_CONFIG_COLUMNS: [&str; 2] = ["point_id", "tbname"];
 
-use crate::runners::log_rotation;
+use crate::runners::{get_string_vec_from_param_or_file, log_rotation};
 use crate::validation::DataSourceValidation;
 pub use tokio_stream::StreamExt;
 
@@ -1054,73 +1054,6 @@ fn check_duplicated(
     }
     Ok(())
 }
-
-pub(super) fn get_string_vec_from_param_or_file(
-    dsn: &mut Dsn,
-    key: &str,
-) -> Result<Vec<String>, String> {
-    if let Some(nodes) = dsn.remove(key) {
-        let (files, mut node_config): (Vec<_>, Vec<_>) = nodes
-            .split(",")
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .partition(|v| v.starts_with("@"));
-        // dbg!(&files, &node_config);
-        for file in files {
-            tracing::info!(
-                "current log: {}",
-                std::env::current_dir().unwrap().to_str().unwrap()
-            );
-            let f = std::fs::File::open(&file[1..]);
-            if f.is_err() {
-                tracing::warn!(
-                    "file: {} read error, cause: {}",
-                    &file[1..],
-                    f.err().unwrap()
-                );
-                continue;
-                // return Err("file read error".to_string());
-            }
-            let buf = std::io::BufReader::new(f.unwrap());
-            let mut file_data = buf.lines().collect_vec();
-            // remove header
-            if file_data.remove(0).is_err() {
-                tracing::warn!("file: {} content length < 1", file);
-            }
-
-            node_config.extend(
-                file_data
-                    .iter()
-                    .filter_map(|r| r.as_ref().ok())
-                    .map(|s| s.replace(",", "::")),
-            );
-        }
-        if node_config.len() == 0 {
-            tracing::warn!("node config is empty");
-            // return Err(format!("node config set but is empty: {nodes}"));
-        }
-        return Result::Ok(node_config);
-    }
-    // tracing::warn!("node config is empty");
-    return Err("Nodes not set".to_string());
-}
-
-// fn process_table_info(
-//     table_info: &mut HashMap<String, Vec<(String, String)>>,
-//     table: String,
-//     field: String,
-//     value_type: String,
-// ) {
-//     if table_info.get_mut(&table).is_none() {
-//         let mut t_v = Vec::new();
-//         t_v.push((field, value_type));
-//         table_info.insert(table, t_v);
-//     } else {
-//         let t_v = table_info.get_mut(&table).unwrap();
-//         t_v.push((field, value_type));
-//     };
-// }
 
 const EXE: &'static str = {
     cfg_if::cfg_if! {
@@ -1693,8 +1626,6 @@ batch_timeout = 100
         Ok(())
     }
 }
-
-//
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_with_agent_all_nodes() -> anyhow::Result<()> {

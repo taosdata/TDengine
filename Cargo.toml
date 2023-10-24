@@ -41,6 +41,8 @@ arrow-flight = { workspace = true }
 
 shadow-rs = { workspace = true }
 
+twelf = { version = "0.10.0", default-features = false, features = ["toml", "env", "clap"] }
+
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bitflags = "2"
@@ -55,7 +57,7 @@ futures = "0.3"
 itertools = "0.10.4"
 lazy_static = "1.4"
 linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
-log = "0.4"
+log = { version = "0.4", features = ["serde"] }
 parquet = { workspace = true }
 parse_duration = "2.1"
 pretty_env_logger = "0.4"
