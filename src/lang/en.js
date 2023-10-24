@@ -2010,6 +2010,7 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
     details: 'Details',
     target_1: 'Operand 1',
     target_2: 'Operand 2',
+    user: 'User',
   },
   taosagents: {
     step1:'Install',
