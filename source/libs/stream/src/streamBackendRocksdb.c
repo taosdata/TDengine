@@ -1655,10 +1655,11 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
     stInfo("succ to open state %p on backendWrapper, %p, %s", pState, pBackendCfWrapper, pBackendCfWrapper->idstr);
 
     inst->pHandle = NULL;
-    inst->wOpt = NULL;
-    inst->rOpt = NULL;
     inst->cfOpt = NULL;
     inst->param = NULL;
+
+    inst->wOpt = NULL;
+    inst->rOpt = NULL;
     return 0;
   }
   taosThreadMutexUnlock(&handle->cfMutex);
