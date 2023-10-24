@@ -154,7 +154,7 @@ _exit:
   return code;
 }
 
-int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *pTSchema, bool createTb, int64_t suid,
+int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *pTSchema, int64_t suid,
                          const char *stbFullName, SBatchDeleteReq *pDeleteReq, void **ppData, int32_t *pLen) {
   int32_t      code = 0;
   int32_t      lino = 0;
@@ -360,8 +360,8 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
   void           *pSubmitReq = NULL;
   int32_t         contLen = 0;
 
-  code = smaBlockToSubmit(pSma->pVnode, (const SArray *)msg, pTsmaStat->pTSchema, true,
-                          pTsmaStat->pTSma->dstTbUid, pTsmaStat->pTSma->dstTbName, &deleteReq, &pSubmitReq, &contLen);
+  code = smaBlockToSubmit(pSma->pVnode, (const SArray *)msg, pTsmaStat->pTSchema, pTsmaStat->pTSma->dstTbUid,
+                          pTsmaStat->pTSma->dstTbName, &deleteReq, &pSubmitReq, &contLen);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if ((terrno = tsmaProcessDelReq(pSma, indexUid, &deleteReq)) != 0) {
