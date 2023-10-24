@@ -2006,14 +2006,12 @@ int32_t streamStateAddIfNotExist_rocksdb(SStreamState* pState, const SWinKey* ke
   return 0;
 }
 int32_t streamStateCurPrev_rocksdb(SStreamStateCur* pCur) {
-  stDebug("streamStateCurPrev_rocksdb");
   if (!pCur) return -1;
 
   rocksdb_iter_prev(pCur->iter);
   return 0;
 }
 int32_t streamStateGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
-  stDebug("streamStateGetKVByCur_rocksdb");
   if (!pCur) return -1;
   SStateKey  tkey;
   SStateKey* pKtmp = &tkey;
@@ -2038,7 +2036,6 @@ int32_t streamStateGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, cons
   return -1;
 }
 SStreamStateCur* streamStateGetAndCheckCur_rocksdb(SStreamState* pState, SWinKey* key) {
-  stDebug("streamStateGetAndCheckCur_rocksdb");
   SStreamStateCur* pCur = streamStateFillGetCur_rocksdb(pState, key);
   if (pCur) {
     int32_t code = streamStateGetGroupKVByCur_rocksdb(pCur, key, NULL, 0);
@@ -2049,7 +2046,6 @@ SStreamStateCur* streamStateGetAndCheckCur_rocksdb(SStreamState* pState, SWinKey
 }
 
 SStreamStateCur* streamStateSeekKeyNext_rocksdb(SStreamState* pState, const SWinKey* key) {
-  stDebug("streamStateSeekKeyNext_rocksdb");
   SStreamStateCur* pCur = createStreamStateCursor();
   if (pCur == NULL) {
     return NULL;
@@ -2088,7 +2084,6 @@ SStreamStateCur* streamStateSeekKeyNext_rocksdb(SStreamState* pState, const SWin
 }
 
 SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState) {
-  stDebug("streamStateGetCur_rocksdb");
   int32_t code = 0;
 
   const SStateKey maxStateKey = {.key = {.groupId = UINT64_MAX, .ts = INT64_MAX}, .opNum = INT64_MAX};
@@ -2129,7 +2124,6 @@ SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState) {
 }
 
 SStreamStateCur* streamStateGetCur_rocksdb(SStreamState* pState, const SWinKey* key) {
-  stDebug("streamStateGetCur_rocksdb");
   SBackendCfWrapper* wrapper = pState->pTdbState->pBackendCfWrapper;
 
   SStreamStateCur* pCur = createStreamStateCursor();
