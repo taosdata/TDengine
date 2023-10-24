@@ -261,9 +261,9 @@ target_include_directories(
 unset(CMAKE_PROJECT_INCLUDE_BEFORE)
 
 # xml2
-if(${BUILD_WITH_S3})
-  add_subdirectory(xml2 EXCLUDE_FROM_ALL)
-endif()
+#if(${BUILD_WITH_S3})
+#  add_subdirectory(xml2 EXCLUDE_FROM_ALL)
+#endif()
 
 # lz4
 add_subdirectory(lz4/build/cmake EXCLUDE_FROM_ALL)
