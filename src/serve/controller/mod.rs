@@ -22,11 +22,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::pool::PoolOptions;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
-use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder, };
-use taosx_core::utils::breakpoints::breakpoints_get_all;
+use taos::taos_query::tmq::Assignment;
+use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::utils::{mask_dsn, try_mask_dsn};
-use taosx_core::utils::port_pool::PortPool;
-use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts, get_data_dir};
 use tokio::sync::OnceCell;
 use tokio::task::JoinHandle;
 use tokio::{runtime::Runtime, sync::RwLock};
@@ -34,6 +32,18 @@ use tokio_cron_scheduler::{Job, JobScheduler};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 use utoipa::*;
+
+use taosx_core::utils::breakpoints::breakpoints_get_all;
+use taosx_core::utils::port_pool::PortPool;
+use taosx_core::{get_data_dir, ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
+
+use super::data_sources::DataSourceDefinition;
+use crate::serve::controller::agent::Activity;
+
+use self::agent::{
+    Agent, AgentActivityFilter, AgentProps, AgentToken, AgentUpdates, AgentWithToken, LevelFilter,
+};
+use self::transferred::Transferred;
 
 pub(crate) mod agent;
 pub(crate) mod transferred;
@@ -105,16 +115,6 @@ mod option_datetime_format {
         Target::deserialize(deserializer)
     }
 }
-
-use crate::serve::controller::agent::Activity;
-use crate::serve::task;
-
-use self::agent::{
-    Agent, AgentActivityFilter, AgentProps, AgentToken, AgentUpdates, AgentWithToken, LevelFilter,
-};
-use self::transferred::Transferred;
-
-use super::data_sources::DataSourceDefinition;
 
 static MIGRATOR: Migrator = sqlx::migrate!(); // defaults to "./migrations"
 
@@ -195,8 +195,6 @@ impl AgentTasks {
         self.sender.send(action) // tokio send
     }
 }
-
-use taos::taos_query::tmq::Assignment;
 
 #[derive(Debug, Deserialize)]
 pub struct TaskStatus {
@@ -1683,12 +1681,7 @@ impl TaskController {
                         let offsets = self.influxdb_offsets(id).await?;
                         Ok(offsets)
                     }
-                    ("opentsdb", "taos") => {
-                        let offsets = self.opentsdb_offsets(id).await?;
-                        Ok(offsets)
-                    }
                     _ => Ok(None),
-
                 }
             }
             None => Ok(None),
@@ -2596,6 +2589,7 @@ impl Task {
         }
     }
 
+    #[allow(dead_code)]
     fn set_breakpoints(&mut self, breakpoints: Option<String>) {
         self.breakpoints = breakpoints;
     }

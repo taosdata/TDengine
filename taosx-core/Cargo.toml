@@ -86,6 +86,8 @@ sysinfo = "0.29.0"
 async-backtrace = "0.2.2"
 dotenv = "0.15.0"
 tracing = { version = "0.1", features = ["log"] }
+tracing-subscriber = "0.3.17"
+tracing-core = { version = "0.1.32", features = [] }
 
 flume = "0.11.0"
 futures-util = "0.3"

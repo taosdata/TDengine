@@ -141,7 +141,6 @@ pub struct Task {
     // #[serde(deserialize_with = "labels_serde::deserialize")]
     // #[serde(default)]
     // labels: Vec<(String, Option<String>)>,
-
     /// break points
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakpoints: Option<String>,
