@@ -88,6 +88,10 @@ int taos_collector_registry_destroy(taos_collector_registry_t *self) {
   self->string_builder = NULL;
   if (r) ret = r;
 
+  r = taos_string_builder_destroy(self->out);
+  self->out = NULL;
+  if (r) ret = r;
+
   r = pthread_rwlock_destroy(self->lock);
   taos_free(self->lock);
   self->lock = NULL;
