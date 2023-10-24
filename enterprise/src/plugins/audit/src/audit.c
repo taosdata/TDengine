@@ -46,7 +46,11 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
     }
   }
 
-  char *user = pReq->info.conn.user;
+  char user[24] = {0};
+  if(pReq->info.conn.user != NULL && strlen(pReq->info.conn.user) > 0){
+    strncpy(user, pReq->info.conn.user, 24);
+  }
+  uDebug("audit record user:%s, len:%"PRId32, user, (int32_t)strlen(user));
 
   SJson *pJson = tjsonCreateObject();
   if (pJson == NULL) {
@@ -78,6 +82,8 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
   tjsonAddStringToObject(pJson, "details", buf);
 
   auditSend(pJson);
+
+  tjsonDelete(pJson);
 
   taosMemoryFreeClear(buf);
 }
