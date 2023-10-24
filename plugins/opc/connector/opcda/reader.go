@@ -215,9 +215,11 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 
 func (r *reader) readAndSend(ch chan *common.NodeValue) {
 	values := r.readItems(r.tags)
-	for _, val := range values {
-		ch <- val
-	}
+	go func(items []*common.NodeValue) {
+		for _, item := range items {
+			ch <- item
+		}
+	}(values)
 }
 
 func (r *reader) readItems(tags map[string]*daTag) (values []*common.NodeValue) {
