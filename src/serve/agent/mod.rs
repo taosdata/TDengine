@@ -39,9 +39,9 @@ pub(super) async fn create_agent(
 #[utoipa::path(
     tag = "agents",
     responses(
-            (status = 200, description = "Deleted", body = ()),
-            (status = 500, description = "Error", body = Failed)
-        )
+        (status = 200, description = "Deleted", body = ()),
+        (status = 500, description = "Error", body = Failed)
+    )
 )]
 #[delete("/agents/{agent_id}")]
 pub(super) async fn delete_agent(
@@ -112,10 +112,10 @@ pub(super) async fn get_agent_by_id(
     tag = "agents",
     responses(
         (status = 200, description = "List current agents items", body = [TaskDetail])
-        ),
-        params(
-            AgentFilter,
-        )
+    ),
+    params(
+        AgentFilter,
+    )
 )]
 #[get("/agents/{agent_id}/tasks")]
 pub(super) async fn get_agent_tasks(
@@ -139,8 +139,8 @@ pub(super) async fn get_agent_tasks(
     tag = "agents",
     responses(
         (status = 200, description = "List current agents items", body = [Activity])
-        ),
-        params(AgentActivityFilter)
+    ),
+    params(AgentActivityFilter)
 )]
 #[get("/agents/{agent_id}/activities")]
 pub(super) async fn get_agent_activities(
