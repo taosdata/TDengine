@@ -1641,7 +1641,7 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   while (true) {
     taosMemoryFreeClear(pMeta);
 
-    char* pCond = taosHashGet(pTbs, tbFName, strlen(tbFName));
+    char* pCond = taosHashGet(pTbs, tbFName, strlen(tbFName) + 1);
     if (pCond) {
       if (strlen(pCond) > 1) {
         CTG_ERR_JRET(nodesStringToNode(pCond, &res->pRawRes->pCond[AUTH_RES_BASIC]));
@@ -1713,8 +1713,12 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
   pRes->pass[AUTH_RES_BASIC] = false;
   pRes->pCond[AUTH_RES_BASIC] = NULL;
 
+  if (req->tbNotExists) {
+    pRes->pass[AUTH_RES_BASIC] = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (!pInfo->enable) {
-    pRes->pass[AUTH_RES_BASIC] = false;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1750,7 +1754,7 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
         }
       }
 
-      if (pInfo->readDbs && taosHashGet(pInfo->readDbs, dbFName, strlen(dbFName))) {
+      if (pInfo->readDbs && taosHashGet(pInfo->readDbs, dbFName, strlen(dbFName) + 1)) {
         pRes->pass[AUTH_RES_BASIC] = true;
         return TSDB_CODE_SUCCESS;
       }
@@ -1766,7 +1770,7 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
         }
       }
 
-      if (pInfo->writeDbs && taosHashGet(pInfo->writeDbs, dbFName, strlen(dbFName))) {
+      if (pInfo->writeDbs && taosHashGet(pInfo->writeDbs, dbFName, strlen(dbFName) + 1)) {
         pRes->pass[AUTH_RES_BASIC] = true;
         return TSDB_CODE_SUCCESS;
       }
@@ -1774,9 +1778,9 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
       break;
     }
     case AUTH_TYPE_READ_OR_WRITE: {
-      if ((pInfo->readDbs && taosHashGet(pInfo->readDbs, dbFName, strlen(dbFName))) ||
-          (pInfo->writeDbs && taosHashGet(pInfo->writeDbs, dbFName, strlen(dbFName))) ||
-          (pInfo->useDbs && taosHashGet(pInfo->useDbs, dbFName, strlen(dbFName)))) {
+      if ((pInfo->readDbs && taosHashGet(pInfo->readDbs, dbFName, strlen(dbFName) + 1)) ||
+          (pInfo->writeDbs && taosHashGet(pInfo->writeDbs, dbFName, strlen(dbFName) + 1)) ||
+          (pInfo->useDbs && taosHashGet(pInfo->useDbs, dbFName, strlen(dbFName) + 1))) {
         pRes->pass[AUTH_RES_BASIC] = true;
         return TSDB_CODE_SUCCESS;
       }
@@ -2010,7 +2014,7 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp *pAuth) {
   while (p != NULL) {
     size_t len = 0;
     void*  key = taosHashGetKey(p, &len);
-    cacheSize += len + strlen(p);
+    cacheSize += len + strlen(p) + 1;
 
     p = taosHashIterate(pAuth->createdDbs, p);
   }
@@ -2019,7 +2023,7 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp *pAuth) {
   while (p != NULL) {
     size_t len = 0;
     void*  key = taosHashGetKey(p, &len);
-    cacheSize += len + strlen(p);
+    cacheSize += len + strlen(p) + 1;
 
     p = taosHashIterate(pAuth->readDbs, p);
   }  
@@ -2028,7 +2032,7 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp *pAuth) {
   while (p != NULL) {
     size_t len = 0;
     void*  key = taosHashGetKey(p, &len);
-    cacheSize += len + strlen(p);
+    cacheSize += len + strlen(p) + 1;
 
     p = taosHashIterate(pAuth->writeDbs, p);
   } 
@@ -2037,7 +2041,7 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp *pAuth) {
   while (p != NULL) {
     size_t len = 0;
     void*  key = taosHashGetKey(p, &len);
-    cacheSize += len + strlen(p);
+    cacheSize += len + strlen(p) + 1;
 
     p = taosHashIterate(pAuth->readTbs, p);
   } 
@@ -2046,7 +2050,7 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp *pAuth) {
   while (p != NULL) {
     size_t len = 0;
     void*  key = taosHashGetKey(p, &len);
-    cacheSize += len + strlen(p);
+    cacheSize += len + strlen(p) + 1;
 
     p = taosHashIterate(pAuth->writeTbs, p);
   } 
@@ -2055,7 +2059,7 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp *pAuth) {
   while (p != NULL) {
     size_t len = 0;
     void*  key = taosHashGetKey(p, &len);
-    cacheSize += len + strlen(p);
+    cacheSize += len + strlen(p) + 1;
 
     p = taosHashIterate(pAuth->alterTbs, p);
   } 
@@ -2064,7 +2068,7 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp *pAuth) {
   while (p != NULL) {
     size_t len = 0;
     void*  key = taosHashGetKey(p, &len);
-    cacheSize += len + strlen(p);
+    cacheSize += len + strlen(p) + 1;
 
     p = taosHashIterate(pAuth->readViews, p);
   } 
@@ -2073,7 +2077,7 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp *pAuth) {
   while (p != NULL) {
     size_t len = 0;
     void*  key = taosHashGetKey(p, &len);
-    cacheSize += len + strlen(p);
+    cacheSize += len + strlen(p) + 1;
 
     p = taosHashIterate(pAuth->writeViews, p);
   } 
@@ -2082,7 +2086,7 @@ uint64_t ctgGetUserCacheSize(SGetUserAuthRsp *pAuth) {
   while (p != NULL) {
     size_t len = 0;
     void*  key = taosHashGetKey(p, &len);
-    cacheSize += len + strlen(p);
+    cacheSize += len + strlen(p) + 1;
 
     p = taosHashIterate(pAuth->alterViews, p);
   } 

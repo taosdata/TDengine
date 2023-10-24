@@ -2623,11 +2623,11 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
   schedulerFetchRows(pRequest->body.queryJob, &req);
 }
 
-int32_t clientParseSql(void* param, const char* sql, bool parseOnly, const char* effectiveUser, SParseSqlRes* pRes) {
+int32_t clientParseSql(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effectiveUser, SParseSqlRes* pRes) {
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_SUCCESS;
 #else
-  return clientParseSqlImpl(param, sql, parseOnly, effectiveUser, pRes);
+  return clientParseSqlImpl(param, dbName, sql, parseOnly, effectiveUser, pRes);
 #endif
 }
 

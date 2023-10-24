@@ -8,4 +8,3 @@ sql insert into ctat select * from view1;
 sql drop view view1;
 sql drop table ctat;
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT

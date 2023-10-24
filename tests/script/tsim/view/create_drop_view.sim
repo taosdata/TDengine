@@ -10,9 +10,9 @@ sql drop view if exists view3;
 sql_error drop view view2;
 sql_error drop view view3;
 
-sql create view view3 as select avg(f) from sta2;
-sql create or replace view view3 as select f fa from sta2;
-sql_error create view view3 as select * from sta2;
+sql create view view3 as select avg(f) from st2;
+sql create or replace view view3 as select f fa from st2;
+sql_error create view view3 as select * from st2;
 sql create view view4 as select * from view3;
 sql create or replace view view4 as select fa from view3;
 sql drop view view3;
@@ -20,9 +20,9 @@ sql_error create view view5 as select * from view3;
 sql drop view view4;
 
 sql create view testa.view1 as select * from testa.sta1;
-sql create view testa.view2 as select * from testb.stb2;
+sql create view testa.view2 as select * from testb.st2;
 sql create view testb.view1 as select * from testb.stb1;
-sql create view testb.view2 as select * from testa.sta2;
+sql create view testb.view2 as select * from testa.st2;
 sql drop view view1;
 sql drop view view2;
 sql drop view testb.view1;

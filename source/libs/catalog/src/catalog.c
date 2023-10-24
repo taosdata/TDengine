@@ -325,7 +325,7 @@ int32_t ctgChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pReq,
   SCtgAuthRsp rsp = {0};
   rsp.pRawRes = pRes;
 
-  CTG_ERR_RET(ctgChkAuthFromCache(pCtg, pReq, &inCache, &rsp));
+  CTG_ERR_RET(ctgChkAuthFromCache(pCtg, pReq, false, &inCache, &rsp));
 
   if (inCache) {
     if (exists) {

@@ -304,17 +304,7 @@ static int32_t authCreateView(SAuthCxt* pCxt, SCreateViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
-  int32_t code = checkAuth(pCxt, pStmt->dbName, NULL, AUTH_TYPE_WRITE, NULL);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = checkViewAuth(pCxt, pStmt->dbName, pStmt->viewName, AUTH_TYPE_ALTER, NULL);
-    if (TSDB_CODE_SUCCESS != code) {
-      if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
-        return TSDB_CODE_SUCCESS;
-      }
-      return code;
-    }
-  }
-  return code;
+  return checkAuth(pCxt, pStmt->dbName, NULL, AUTH_TYPE_WRITE, NULL);
 }
 
 static int32_t authDropView(SAuthCxt* pCxt, SDropViewStmt* pStmt) {

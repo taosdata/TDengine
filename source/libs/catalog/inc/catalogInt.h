@@ -152,6 +152,7 @@ typedef struct SCtgAuthReq {
   SGetUserAuthRsp   authInfo;
   AUTH_TYPE         singleType;
   bool              onlyCache;
+  bool              tbNotExists;
 } SCtgAuthReq;
 
 typedef struct SCtgAuthRsp {
@@ -244,6 +245,7 @@ typedef struct SCtgUdfCtx {
 
 typedef struct SCtgUserCtx {
   SUserAuthInfo user;
+  int32_t       subTaskCode;
 } SCtgUserCtx;
 
 typedef struct SCtgViewsCtx {
@@ -918,7 +920,7 @@ int32_t ctgTbMetaExistInCache(SCatalog* pCtg, char* dbFName, char* tbName, int32
 int32_t ctgReadTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgReadTbVerFromCache(SCatalog* pCtg, SName* pTableName, int32_t* sver, int32_t* tver, int32_t* tbType,
                               uint64_t* suid, char* stbName);
-int32_t ctgChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo* pReq, bool* inCache, SCtgAuthRsp* pRes);
+int32_t ctgChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo* pReq, bool tbNotExists, bool* inCache, SCtgAuthRsp* pRes);
 int32_t ctgDropDbCacheEnqueue(SCatalog* pCtg, const char* dbFName, int64_t dbId);
 int32_t ctgDropDbVgroupEnqueue(SCatalog* pCtg, const char* dbFName, bool syncReq);
 int32_t ctgDropStbMetaEnqueue(SCatalog* pCtg, const char* dbFName, int64_t dbId, const char* stbName, uint64_t suid,

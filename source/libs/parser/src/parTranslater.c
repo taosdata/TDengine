@@ -7580,7 +7580,7 @@ static int32_t translateResumeStream(STranslateContext* pCxt, SResumeStreamStmt*
 }
 
 static int32_t validateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStmt) {
-  if (QUERY_NODE_SELECT_STMT != nodeType(pStmt->pQuery)) {
+  if (QUERY_NODE_SELECT_STMT != nodeType(pStmt->pQuery) && QUERY_NODE_SET_OPERATOR != nodeType(pStmt->pQuery)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VIEW_QUERY, "Invalid view query type");
   }
 
@@ -7602,13 +7602,16 @@ static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pSt
 #endif
 
   SParseSqlRes res = {.resType = PARSE_SQL_RES_SCHEMA};
+  SName name;
+  char dbFName[TSDB_DB_FNAME_LEN];
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->viewName, &name);
+  tNameGetFullDbName(&name, dbFName);
+
   int32_t code = validateCreateView(pCxt, pStmt);
   if (TSDB_CODE_SUCCESS == code) {    
-    code = (*pCxt->pParseCxt->parseSqlFp)(pCxt->pParseCxt->parseSqlParam, pStmt->pQuerySql, false, NULL, &res);
+    code = (*pCxt->pParseCxt->parseSqlFp)(pCxt->pParseCxt->parseSqlParam, pStmt->dbName, pStmt->pQuerySql, false, NULL, &res);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    SName name;
-    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->viewName, &name);
     code = collectUseTable(&name, pCxt->pTargetTables);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -7616,7 +7619,7 @@ static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pSt
     pStmt->createReq.numOfCols = res.schemaRes.numOfCols;
     pStmt->createReq.pSchema = res.schemaRes.pSchema;
     strncpy(pStmt->createReq.name, pStmt->viewName, sizeof(pStmt->createReq.name) - 1);
-    snprintf(pStmt->createReq.dbFName, sizeof(pStmt->createReq.dbFName) - 1, "%d.%s", pCxt->pParseCxt->acctId, pStmt->dbName);
+    tstrncpy(pStmt->createReq.dbFName, dbFName, sizeof(pStmt->createReq.dbFName));
     snprintf(pStmt->createReq.fullname, sizeof(pStmt->createReq.fullname) - 1, "%s.%s", pStmt->createReq.dbFName, pStmt->viewName);
     TSWAP(pStmt->createReq.querySql, pStmt->pQuerySql);
     pStmt->createReq.orReplace = pStmt->orReplace;

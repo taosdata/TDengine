@@ -56,7 +56,7 @@ typedef struct SParseSqlRes {
   };
 } SParseSqlRes;
 
-typedef int32_t (*parseSqlFn)(void*, const char*, bool, const char*, SParseSqlRes*);
+typedef int32_t (*parseSqlFn)(void*, const char*, const char*, bool, const char*, SParseSqlRes*);
 
 typedef struct SParseCsvCxt {
   TdFilePtr   fp;           // last parsed file

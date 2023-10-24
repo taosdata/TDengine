@@ -6,4 +6,3 @@ sql_error CREATE STREAM s1 INTO s1t AS SELECT _wstart, count(*) FROM view1 PARTI
 
 sql drop view view1;
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT

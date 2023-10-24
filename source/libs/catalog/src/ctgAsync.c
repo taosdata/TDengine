@@ -2431,6 +2431,7 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
   bool              inCache = false;
   SCtgAuthRsp       rsp = {0};
   SCtgJob*          pJob = pTask->pJob;
+  bool              tbNotExists = false;
   SCtgMsgCtx*       pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, -1);
   if (NULL == pMsgCtx->pBatchs) {
     pMsgCtx->pBatchs = pJob->pBatchs;
@@ -2440,8 +2441,17 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
   if (NULL == rsp.pRawRes) {
     CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
+
+  if (TSDB_CODE_SUCCESS != pCtx->subTaskCode) {
+    if (CTG_TABLE_NOT_EXIST(pCtx->subTaskCode)) {
+      tbNotExists = true;
+      pCtx->subTaskCode = 0;
+    } else {
+      CTG_ERR_RET(pCtx->subTaskCode);
+    }
+  }
   
-  CTG_ERR_RET(ctgChkAuthFromCache(pCtg, &pCtx->user, &inCache, &rsp));
+  CTG_ERR_RET(ctgChkAuthFromCache(pCtg, &pCtx->user, tbNotExists, &inCache, &rsp));
   if (inCache) {
     pTask->res = rsp.pRawRes;
 
@@ -2590,8 +2600,9 @@ _return:
 int32_t ctgGetUserCb(SCtgTask* pTask) {
   int32_t code = 0;
 
-  CTG_ERR_JRET(pTask->subRes.code);
-
+  SCtgUserCtx* pCtx = (SCtgUserCtx*)pTask->taskCtx;
+  pCtx->subTaskCode = pTask->subRes.code;
+  
   CTG_RET(ctgLaunchGetUserTask(pTask));
 
 _return:

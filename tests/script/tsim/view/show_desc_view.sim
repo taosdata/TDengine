@@ -39,5 +39,3 @@ sql describe information_schema.view1;
 sql show create view information_schema.view1;
 sql drop view information_schema.view1;
 
-
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
