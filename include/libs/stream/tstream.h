@@ -181,11 +181,6 @@ typedef struct {
   SSDataBlock* pBlock;
 } SStreamRefDataBlock;
 
-typedef struct {
-  int8_t       type;
-  SSDataBlock* pBlock;
-} SStreamTrigger;
-
 typedef struct SStreamQueueNode SStreamQueueNode;
 
 struct SStreamQueueNode {
@@ -804,6 +799,7 @@ int32_t      streamMetaLoadAllTasks(SStreamMeta* pMeta);
 void         streamMetaNotifyClose(SStreamMeta* pMeta);
 void         streamMetaStartHb(SStreamMeta* pMeta);
 void         streamMetaInitForSnode(SStreamMeta* pMeta);
+bool         streamMetaTaskInTimer(SStreamMeta* pMeta);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);

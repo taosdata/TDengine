@@ -52,6 +52,11 @@ extern "C" {
 #define stTrace(...) do { if (stDebugFlag & DEBUG_TRACE) { taosPrintLog("STM ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
+typedef struct {
+  int8_t       type;
+  SSDataBlock* pBlock;
+} SStreamTrigger;
+
 typedef struct SStreamGlobalEnv {
   int8_t inited;
   void*  timer;

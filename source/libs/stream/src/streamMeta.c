@@ -274,6 +274,7 @@ int32_t streamMetaReopen(SStreamMeta* pMeta) {
 }
 
 void streamMetaClear(SStreamMeta* pMeta) {
+  // remove all existed tasks in this vnode
   void* pIter = NULL;
   while ((pIter = taosHashIterate(pMeta->pTasksMap, pIter)) != NULL) {
     SStreamTask* p = *(SStreamTask**)pIter;
@@ -694,8 +695,7 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
       tFreeStreamTask(pTask);
       stError(
           "vgId:%d stream read incompatible data, rm %s/vnode/vnode*/tq/stream if taosd cannot start, and rebuild "
-          "stream "
-          "manually",
+          "stream manually",
           vgId, tsDataDir);
       return -1;
     }
@@ -857,7 +857,7 @@ void metaHbToMnode(void* param, void* tmrId) {
   }
 
   // not leader not send msg
-  if (pMeta->role == NODE_ROLE_FOLLOWER) {
+  if (pMeta->role != NODE_ROLE_LEADER) {
     stInfo("vgId:%d follower not send hb to mnode", pMeta->vgId);
     taosReleaseRef(streamMetaId, rid);
     pMeta->pHbInfo->hbStart = 0;
@@ -980,9 +980,8 @@ void metaHbToMnode(void* param, void* tmrId) {
   taosReleaseRef(streamMetaId, rid);
 }
 
-static bool hasStreamTaskInTimer(SStreamMeta* pMeta) {
+bool streamMetaTaskInTimer(SStreamMeta* pMeta) {
   bool inTimer = false;
-
   taosWLockLatch(&pMeta->lock);
 
   void* pIter = NULL;
@@ -1036,7 +1035,7 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
   stDebug("vgId:%d start to check all tasks", vgId);
   int64_t st = taosGetTimestampMs();
 
-  while (hasStreamTaskInTimer(pMeta)) {
+  while (streamMetaTaskInTimer(pMeta)) {
     stDebug("vgId:%d some tasks in timer, wait for 100ms and recheck", pMeta->vgId);
     taosMsleep(100);
   }
