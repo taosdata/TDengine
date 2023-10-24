@@ -249,9 +249,9 @@ def make_tar_package(release_info):
     os.chdir(os.path.join(release_dir,".."))
     code = os.system("tar -czvf {0}.tar.gz $(basename {1}) --remove-files".format(release_dir,release_dir))
     if code != 0:
-        raise Exception("packaging {0} failed".format(release_info.TaosXVersion))
+        raise Exception("packaging {0} failed".format(release_info.TdengineVersion))
     else:
-        logging.info("packaging {0} successfully".format(release_info.TaosXVersion))
+        logging.info("packaging {0} successfully".format(release_info.TdengineVersion))
         os.chdir(script_dir)
 
 def test_handle(release_info, process):

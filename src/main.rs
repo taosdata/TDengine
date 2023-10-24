@@ -48,26 +48,33 @@ shadow!(build);
 
 const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
     concatcp!(
-        build::PKG_VERSION,
+        "version: ",
+        build::TD_VERSION,
+        "\ngit: ",
+        build::BRANCH,
         "-",
-        build::SHORT_COMMIT,
-        " (built ",
+        build::COMMIT_HASH,
+        "\nbuild: core-",
+        build::PKG_VERSION,
+        " ",
         build::BUILD_OS,
         " ",
-        build::BUILD_TIME,
-        ")"
+        build::BUILD_TIME
     )
 } else {
     concatcp!(
-        build::PKG_VERSION,
+        "version: ",
+        build::TD_VERSION,
+        "\ngit: ",
+        build::BRANCH,
         "-",
-        build::SHORT_COMMIT,
-        "-dirty",
-        " (built ",
+        build::COMMIT_HASH,
+        "\nbuild: core-dirty-",
+        build::PKG_VERSION,
+        " ",
         build::BUILD_OS,
         " ",
-        build::BUILD_TIME,
-        ")"
+        build::BUILD_TIME
     )
 };
 
