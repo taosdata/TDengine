@@ -228,13 +228,11 @@ static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
 
     if (pSender->blockLen > 0) {
       // has read data
-      sSDebug(pSender, "vgId:%d, snapshot sender continue to read, blockLen:%d seq:%d", pSender->pSyncNode->vgId,
-              pSender->blockLen, pSender->seq);
+      sSDebug(pSender, "snapshot sender continue to read, blockLen:%d seq:%d", pSender->blockLen, pSender->seq);
     } else {
       // read finish, update seq to end
       pSender->seq = SYNC_SNAPSHOT_SEQ_END;
-      sSInfo(pSender, "vgId:%d, snapshot sender read to the end, blockLen:%d seq:%d", pSender->pSyncNode->vgId,
-             pSender->blockLen, pSender->seq);
+      sSInfo(pSender, "snapshot sender read to the end, blockLen:%d seq:%d", pSender->blockLen, pSender->seq);
       return 0;
     }
   }
@@ -1036,7 +1034,7 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
   pSendMsg->startTime = pSender->startTime;
   pSendMsg->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
 
-  sSInfo(pSender, "begin snapshot replication to dnode %d." PRId64, DID(&pSendMsg->destId));
+  sSInfo(pSender, "begin snapshot replication to dnode %d.", DID(&pSendMsg->destId));
 
   // send msg
   syncLogSendSyncSnapshotSend(pSyncNode, pSendMsg, "snapshot sender reply pre");
