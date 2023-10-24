@@ -781,7 +781,7 @@ void shellVerticalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info) {
 
     if (numOfPintRows == dump_info->resShowMaxNum) {
       printf("\r\n");
-      printf(" Notice: The result shows only the first %ld rows.\r\n", dump_info->resShowMaxNum);
+      printf(" Notice: The result shows only the first %d rows.\r\n", SHELL_DEFAULT_RES_SHOW_NUM);
       printf("         You can use the `LIMIT` clause to get fewer result to show.\r\n");
       printf("           Or use '>>' to redirect the whole set of the result to a specified file.\r\n");
       printf("\r\n");
@@ -923,7 +923,7 @@ void shellHorizontalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info) {
 
     if (numOfPintRows == dump_info->resShowMaxNum) {
       printf("\r\n");
-      printf(" Notice: The result shows only the first %ld rows.\r\n", dump_info->resShowMaxNum);
+      printf(" Notice: The result shows only the first %d rows.\r\n", SHELL_DEFAULT_RES_SHOW_NUM);
       if (shellIsShowQuery(dump_info->sql)) {
         printf("         You can use '>>' to redirect the whole set of the result to a specified file.\r\n");
       } else {
