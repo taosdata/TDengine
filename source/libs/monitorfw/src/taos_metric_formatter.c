@@ -171,7 +171,7 @@ int taos_metric_formatter_load_sample(taos_metric_formatter_t *self, taos_metric
   if (r) return r;
 
   char buffer[50];
-  sprintf(buffer, "%.17g", sample->r_value);
+  sprintf(buffer, "%ld", sample->r_value);
   r = taos_string_builder_add_str(self->string_builder, buffer);
   if (r) return r;
 

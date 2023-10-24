@@ -99,12 +99,12 @@ void dmSendMonitorReport() {
   if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
   dTrace("send monitor report to %s:%u", tsMonitorFqdn, tsMonitorPort);
 
-  SDnode *pDnode = dmInstance();
-  dmGetDmMonitorInfo(pDnode);
-  dmGetMmMonitorInfo(pDnode);
-  dmGetVmMonitorInfo(pDnode);
-  dmGetQmMonitorInfo(pDnode);
-  dmGetSmMonitorInfo(pDnode);
+  //SDnode *pDnode = dmInstance();
+  //dmGetDmMonitorInfo(pDnode);
+  //dmGetMmMonitorInfo(pDnode);
+  //dmGetVmMonitorInfo(pDnode);
+  //dmGetQmMonitorInfo(pDnode);
+  //dmGetSmMonitorInfo(pDnode);
   //monSendReport();
 
   monSendPromReport();

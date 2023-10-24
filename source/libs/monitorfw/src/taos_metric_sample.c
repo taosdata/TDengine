@@ -24,6 +24,7 @@
 #include "taos_log.h"
 #include "taos_metric_sample_i.h"
 #include "taos_metric_sample_t.h"
+#include "osAtomic.h"
 
 taos_metric_sample_t *taos_metric_sample_new(taos_metric_type_t type, const char *l_value, double r_value) {
   taos_metric_sample_t *self = (taos_metric_sample_t *)taos_malloc(sizeof(taos_metric_sample_t));
@@ -62,13 +63,18 @@ int taos_metric_sample_add(taos_metric_sample_t *self, double r_value) {
   if (r_value < 0) {
     return 1;
   }
+  /*
   _Atomic double old = atomic_load(&self->r_value);
+
   for (;;) {
     _Atomic double new = ATOMIC_VAR_INIT(old + r_value);
     if (atomic_compare_exchange_weak(&self->r_value, &old, new)) {
       return 0;
     }
   }
+  */
+  atomic_fetch_add_64(&self->r_value, r_value);
+  return 0;
 }
 
 int taos_metric_sample_sub(taos_metric_sample_t *self, double r_value) {
@@ -77,6 +83,7 @@ int taos_metric_sample_sub(taos_metric_sample_t *self, double r_value) {
     TAOS_LOG(TAOS_METRIC_INCORRECT_TYPE);
     return 1;
   }
+  /*
   _Atomic double old = atomic_load(&self->r_value);
   for (;;) {
     _Atomic double new = ATOMIC_VAR_INIT(old - r_value);
@@ -84,6 +91,9 @@ int taos_metric_sample_sub(taos_metric_sample_t *self, double r_value) {
       return 0;
     }
   }
+  */
+  atomic_fetch_sub_64(&self->r_value, r_value);
+  return 0;
 }
 
 int taos_metric_sample_set(taos_metric_sample_t *self, double r_value) {
@@ -91,6 +101,9 @@ int taos_metric_sample_set(taos_metric_sample_t *self, double r_value) {
     TAOS_LOG(TAOS_METRIC_INCORRECT_TYPE);
     return 1;
   }
+  /*
   atomic_store(&self->r_value, r_value);
+  */
+  atomic_store_64(&self->r_value, r_value);
   return 0;
 }

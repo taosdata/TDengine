@@ -14,7 +14,6 @@
  */
 
 #include <stdio.h>
-#include <unistd.h>
 
 // Public
 #include "taos_alloc.h"
