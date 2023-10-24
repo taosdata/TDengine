@@ -65,6 +65,10 @@ SStreamDataBlock* createStreamBlockFromResults(SStreamQueueItem* pItem, SStreamT
   pStreamBlocks->type = STREAM_INPUT__DATA_BLOCK;
   pStreamBlocks->blocks = pRes;
 
+  if (pItem == NULL) {
+    return pStreamBlocks;
+  }
+
   if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)pItem;
     pStreamBlocks->sourceVer = pSubmit->ver;
@@ -161,12 +165,16 @@ SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* 
     SStreamDataBlock* pBlockSrc = (SStreamDataBlock*)pElem;
     taosArrayAddAll(pBlock->blocks, pBlockSrc->blocks);
     taosArrayDestroy(pBlockSrc->blocks);
+    streamQueueItemIncSize(dst, streamQueueItemGetSize(pElem));
+
     taosFreeQitem(pElem);
     return dst;
   } else if (dst->type == STREAM_INPUT__MERGED_SUBMIT && pElem->type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamMergedSubmit* pMerged = (SStreamMergedSubmit*)dst;
     SStreamDataSubmit*   pBlockSrc = (SStreamDataSubmit*)pElem;
     streamMergeSubmit(pMerged, pBlockSrc);
+    streamQueueItemIncSize(dst, streamQueueItemGetSize(pElem));
+
     taosFreeQitem(pElem);
     return dst;
   } else if (dst->type == STREAM_INPUT__DATA_SUBMIT && pElem->type == STREAM_INPUT__DATA_SUBMIT) {
@@ -176,13 +184,16 @@ SStreamQueueItem* streamMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* 
       return NULL;
     }
 
+    streamQueueItemIncSize((SStreamQueueItem*)pMerged, streamQueueItemGetSize(pElem));
+
     streamMergeSubmit(pMerged, (SStreamDataSubmit*)dst);
     streamMergeSubmit(pMerged, (SStreamDataSubmit*)pElem);
+
     taosFreeQitem(dst);
     taosFreeQitem(pElem);
     return (SStreamQueueItem*)pMerged;
   } else {
-    qDebug("block type:%s not merged with existed blocks list, type:%d", streamGetBlockTypeStr(pElem->type), dst->type);
+    stDebug("block type:%s not merged with existed blocks list, type:%d", streamQueueItemGetTypeStr(pElem->type), dst->type);
     return NULL;
   }
 }
@@ -221,18 +232,5 @@ void streamFreeQitem(SStreamQueueItem* data) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*) data;
     taosArrayDestroyEx(pBlock->blocks, freeItems);
     taosFreeQitem(pBlock);
-  }
-}
-
-const char* streamGetBlockTypeStr(int32_t type) {
-  switch (type) {
-    case STREAM_INPUT__CHECKPOINT:
-      return "checkpoint";
-    case STREAM_INPUT__CHECKPOINT_TRIGGER:
-      return "checkpoint-trigger";
-    case STREAM_INPUT__TRANS_STATE:
-      return "trans-state";
-    default:
-      return "";
   }
 }

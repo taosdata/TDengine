@@ -16,10 +16,42 @@ class TDTestCase:
         self.perfix = 'dev'
         self.tables = 10
 
+    def check_result(self):
+        for i in range(self.rowNum):
+            tdSql.checkData(i, 0, 1);
+    
+    def full_datatype_test(self):
+        tdSql.execute("use db;")
+        sql = "create table db.st(ts timestamp, c1 bool, c2 float, c3 double,c4 tinyint, c5 smallint, c6 int, c7 bigint, c8 tinyint unsigned, c9 smallint unsigned, c10 int unsigned, c11 bigint unsigned) tags( area int);"
+        tdSql.execute(sql)
+
+        sql = "create table db.t1 using db.st tags(1);"
+        tdSql.execute(sql)
+
+        ts = 1694000000000
+        rows = 126
+        for i in range(rows):
+            ts += 1
+            sql = f"insert into db.t1 values({ts},true,{i},{i},{i%127},{i%32767},{i},{i},{i%127},{i%32767},{i},{i});"
+            tdSql.execute(sql)
+
+        sql = "select diff(ts),diff(c1),diff(c3),diff(c4),diff(c5),diff(c6),diff(c7),diff(c8),diff(c9),diff(c10),diff(c11) from db.t1"
+        tdSql.query(sql)
+        tdSql.checkRows(rows - 1)
+        for i in range(rows - 1):
+            for j in range(10):
+               if j == 1: # bool
+                 tdSql.checkData(i, j, 0)
+               else:
+                 tdSql.checkData(i, j, 1)
 
     def run(self):
         tdSql.prepare()
         dbname = "db"
+
+        # full type test
+        self.full_datatype_test()
+
         tdSql.execute(
             f"create table {dbname}.ntb(ts timestamp,c1 int,c2 double,c3 float)")
         tdSql.execute(
@@ -179,11 +211,6 @@ class TDTestCase:
         tdSql.error(f"select diff(col8) from {dbname}.stb_1")
         tdSql.error(f"select diff(col9) from {dbname}.stb")
         tdSql.error(f"select diff(col9) from {dbname}.stb_1")
-        tdSql.error(f"select diff(col11) from  {dbname}.stb_1")
-        tdSql.error(f"select diff(col12) from  {dbname}.stb_1")
-        tdSql.error(f"select diff(col13) from  {dbname}.stb_1")
-        tdSql.error(f"select diff(col14) from  {dbname}.stb_1")
-        tdSql.error(f"select diff(col14) from  {dbname}.stb_1")
         tdSql.error(f"select diff(col1,col1,col1) from  {dbname}.stb_1")
         tdSql.error(f"select diff(col1,1,col1) from  {dbname}.stb_1")
         tdSql.error(f"select diff(col1,col1,col) from  {dbname}.stb_1")
@@ -216,6 +243,22 @@ class TDTestCase:
 
         tdSql.query(f"select diff(col6) from  {dbname}.stb_1")
         tdSql.checkRows(10)
+
+        tdSql.query(f"select diff(col11) from  {dbname}.stb_1")
+        tdSql.checkRows(10)
+        self.check_result()
+
+        tdSql.query(f"select diff(col12) from  {dbname}.stb_1")
+        tdSql.checkRows(10)
+        self.check_result()
+
+        tdSql.query(f"select diff(col13) from  {dbname}.stb_1")
+        tdSql.checkRows(10)
+        self.check_result()
+
+        tdSql.query(f"select diff(col14) from  {dbname}.stb_1")
+        tdSql.checkRows(10)
+        self.check_result()
 
         tdSql.execute(f'''create table  {dbname}.stb1(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double,
                     col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned) tags(loc nchar(20))''')

@@ -22,6 +22,9 @@ IF (TD_STORAGE)
       add_definitions(-DUSE_COS)
     ENDIF(${BUILD_WITH_COS})
 
+    IF(${BUILD_WITH_S3})
+      add_definitions(-DUSE_S3)
+    ENDIF(${BUILD_WITH_S3})
   ENDIF(${TD_LINUX})
 
 ENDIF ()

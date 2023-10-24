@@ -285,6 +285,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
   char    dir[TSDB_FILENAME_LEN] = {0};
+  int64_t lastCommitted = pInfo->info.state.committed;
 
   tsem_wait(&pVnode->canCommit);
 

@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "sync.h"
+#include "tsdb.h"
 #include "vnd.h"
 #include "vndCos.h"
 
@@ -61,6 +63,13 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs
   info.state.committed = -1;
   info.state.applied = -1;
   info.state.commitID = 0;
+
+  SVnodeInfo oldInfo = {0};
+  oldInfo.config = vnodeCfgDefault;
+  if (vnodeLoadInfo(dir, &oldInfo) == 0) {
+    vWarn("vgId:%d, vnode config info already exists at %s.", oldInfo.config.vgId, dir);
+    return (oldInfo.config.dbId == info.config.dbId) ? 0 : -1;
+  }
 
   vInfo("vgId:%d, save config while create", info.config.vgId);
   if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir) < 0) {
@@ -321,12 +330,13 @@ static int32_t vnodeCheckDisk(int32_t diskPrimary, STfs *pTfs) {
   return 0;
 }
 
-SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgCb) {
+SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgCb, bool force) {
   SVnode    *pVnode = NULL;
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
   char       tdir[TSDB_FILENAME_LEN * 2] = {0};
   int32_t    ret = 0;
+  terrno = TSDB_CODE_SUCCESS;
 
   if (vnodeCheckDisk(diskPrimary, pTfs)) {
     vError("failed to open vnode from %s since %s. diskPrimary:%d", path, terrstr(), diskPrimary);
@@ -340,9 +350,14 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
     vError("failed to open vnode from %s since %s", path, tstrerror(terrno));
+    terrno = TSDB_CODE_NEED_RETRY;
     return NULL;
   }
 
+  if (vnodeMkDir(pTfs, path)) {
+    vError("vgId:%d, failed to prepare vnode dir since %s, path: %s", info.config.vgId, strerror(errno), path);
+    return NULL;
+  }
   // save vnode info on dnode ep changed
   bool      updated = false;
   SSyncCfg *pCfg = &info.config.syncCfg;
@@ -404,7 +419,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   // open tsdb
-  if (!VND_IS_RSMA(pVnode) && tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback) < 0) {
+  if (!VND_IS_RSMA(pVnode) && tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback, force) < 0) {
     vError("vgId:%d, failed to open vnode tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
@@ -438,7 +453,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   // open sma
-  if (smaOpen(pVnode, rollback)) {
+  if (smaOpen(pVnode, rollback, force)) {
     vError("vgId:%d, failed to open vnode sma since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
@@ -508,7 +523,10 @@ void vnodeClose(SVnode *pVnode) {
 }
 
 // start the sync timer after the queue is ready
-int32_t vnodeStart(SVnode *pVnode) { return vnodeSyncStart(pVnode); }
+int32_t vnodeStart(SVnode *pVnode) {
+  ASSERT(pVnode);
+  return vnodeSyncStart(pVnode);
+}
 
 int32_t vnodeIsCatchUp(SVnode *pVnode) { return syncIsCatchUp(pVnode->sync); }
 
@@ -517,10 +535,3 @@ ESyncRole vnodeGetRole(SVnode *pVnode) { return syncGetRole(pVnode->sync); }
 void vnodeStop(SVnode *pVnode) {}
 
 int64_t vnodeGetSyncHandle(SVnode *pVnode) { return pVnode->sync; }
-
-void vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot) {
-  pSnapshot->data = NULL;
-  pSnapshot->lastApplyIndex = pVnode->state.committed;
-  pSnapshot->lastApplyTerm = pVnode->state.commitTerm;
-  pSnapshot->lastConfigIndex = -1;
-}

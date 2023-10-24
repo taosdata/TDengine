@@ -31,7 +31,7 @@ extern "C" {
 #define SYNC_SNAPSHOT_RETRY_MS 5000
 
 typedef struct SSyncSnapshotSender {
-  bool           start;
+  int8_t         start;
   int32_t        seq;
   int32_t        ack;
   void          *pReader;
@@ -43,7 +43,7 @@ typedef struct SSyncSnapshotSender {
   int64_t        sendingMS;
   SyncTerm       term;
   int64_t        startTime;
-  int64_t        endTime;
+  int64_t        waitTime;
   int64_t        lastSendTime;
   bool           finish;
 
@@ -60,8 +60,8 @@ void                 snapshotSenderStop(SSyncSnapshotSender *pSender, bool finis
 int32_t              snapshotReSend(SSyncSnapshotSender *pSender);
 
 typedef struct SSyncSnapshotReceiver {
-  // update when pre snapshot
-  bool     start;
+  // update when prep snapshot
+  int8_t   start;
   int32_t  ack;
   SyncTerm term;
   SRaftId  fromId;

@@ -9,6 +9,7 @@ add_executable(get_db_name_test get_db_name_test.c)
 add_executable(tmq_offset tmqOffset.c)
 add_executable(tmq_offset_test tmq_offset_test.c)
 add_executable(varbinary_test varbinary_test.c)
+add_executable(replay_test replay_test.c)
 
 if(${TD_LINUX})
 add_executable(tsz_test tsz_test.c)
@@ -55,6 +56,14 @@ target_link_libraries(
     PUBLIC util
     PUBLIC common
     PUBLIC os
+)
+
+target_link_libraries(
+        replay_test
+        PUBLIC taos
+        PUBLIC util
+        PUBLIC common
+        PUBLIC os
 )
 
 target_link_libraries(

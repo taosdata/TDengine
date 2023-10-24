@@ -91,7 +91,7 @@ int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
 }
 
 SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t szPage, int32_t pages) {
-  qDebug("open stream state, %s", path);
+  stDebug("open stream state, %s", path);
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
   if (pState == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -139,7 +139,7 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
     pState->pTdbState->backendCfWrapperId = id;
     pState->pTdbState->pBackendCfWrapper = taosAcquireRef(streamBackendCfWrapperId, id);
     // already exist stream task for
-    qInfo("already exist stream-state for %s", pState->pTdbState->idstr);
+    stInfo("already exist stream-state for %s", pState->pTdbState->idstr);
     // taosAcquireRef(streamBackendId, pState->streamBackendRid);
   }
   taosThreadMutexUnlock(&pMeta->backendMutex);
@@ -149,7 +149,7 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT);
 
   pState->parNameMap = tSimpleHashInit(1024, hashFn);
-  qInfo("succ to open state %p on backend %p 0x%" PRIx64 "-%d", pState, pMeta->streamBackend, pState->streamId,
+  stInfo("succ to open state %p on backend %p 0x%" PRIx64 "-%d", pState, pMeta->streamBackend, pState->streamId,
         pState->taskId);
   return pState;
 
@@ -462,7 +462,7 @@ int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void*
 
 int32_t streamStateReleaseBuf(SStreamState* pState, void* pVal, bool used) {
   // todo refactor
-  qDebug("streamStateReleaseBuf");
+  stDebug("streamStateReleaseBuf");
   if (!pVal) {
     return 0;
   }
@@ -670,7 +670,7 @@ int32_t streamStateCurNext(SStreamState* pState, SStreamStateCur* pCur) {
 
 int32_t streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur) {
 #ifdef USE_ROCKSDB
-  return streamStateCurPrev_rocksdb(pState, pCur);
+  return streamStateCurPrev_rocksdb(pCur);
 #else
   if (!pCur) {
     return -1;
@@ -714,7 +714,7 @@ void streamStateFreeVal(void* val) {
 
 int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, void* value, int32_t vLen) {
 #ifdef USE_ROCKSDB
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t      code = TSDB_CODE_SUCCESS;
   SRowBuffPos* pos = (SRowBuffPos*)value;
   if (pos->needFree) {
     if (isFlushedState(pState->pFileState, key->win.ekey, 0)) {
@@ -724,8 +724,8 @@ int32_t streamStateSessionPut(SStreamState* pState, const SSessionKey* key, void
       code = streamStateSessionPut_rocksdb(pState, key, pos->pRowBuff, vLen);
       streamStateReleaseBuf(pState, pos, true);
       putFreeBuff(pState->pFileState, pos);
-      qDebug("===stream===save skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64 ".code:%d", key->win.skey,
-            key->win.ekey, key->groupId, code);
+      stDebug("===stream===save skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64 ".code:%d", key->win.skey,
+             key->win.ekey, key->groupId, code);
     } else {
       code = putSessionWinResultBuff(pState->pFileState, value);
     }
@@ -763,7 +763,7 @@ int32_t streamStateSessionGet(SStreamState* pState, SSessionKey* key, void** pVa
 
 int32_t streamStateSessionDel(SStreamState* pState, const SSessionKey* key) {
 #ifdef USE_ROCKSDB
-  qDebug("===stream===delete skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64, key->win.skey, key->win.ekey,
+  stDebug("===stream===delete skey:%" PRId64 ", ekey:%" PRId64 ", groupId:%" PRIu64, key->win.skey, key->win.ekey,
          key->groupId);
   return deleteRowBuff(pState->pFileState, key, sizeof(SSessionKey));
 #else
@@ -1081,7 +1081,7 @@ _end:
 }
 
 int32_t streamStatePutParName(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]) {
-  qDebug("try to write to cf parname");
+  stDebug("try to write to cf parname");
 #ifdef USE_ROCKSDB
   if (tSimpleHashGetSize(pState->parNameMap) > MAX_TABLE_NAME_NUM) {
     if (tSimpleHashGet(pState->parNameMap, &groupId, sizeof(int64_t)) == NULL) {

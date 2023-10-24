@@ -20,8 +20,8 @@
 #include "qworker.h"
 #include "tstream.h"
 #ifdef TD_TSZ
-#include "tglobal.h"
 #include "tcompression.h"
+#include "tglobal.h"
 #endif
 
 int32_t dmInitDnode(SDnode *pDnode) {
@@ -66,7 +66,7 @@ int32_t dmInitDnode(SDnode *pDnode) {
     goto _OVER;
   }
 
-  if(dmInitModule(pDnode) != 0) {
+  if (dmInitModule(pDnode) != 0) {
     goto _OVER;
   }
 
@@ -91,6 +91,7 @@ void dmCleanupDnode(SDnode *pDnode) {
   if (pDnode == NULL) return;
 
   dmCleanupClient(pDnode);
+  dmCleanupStatusClient(pDnode);
   dmCleanupServer(pDnode);
   dmClearVars(pDnode);
   rpcCleanup();

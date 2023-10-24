@@ -299,7 +299,7 @@ int ttlMgrInsertTtl(STtlManger *pTtlMgr, const STtlUpdTtlCtx *updCtx) {
   ret = 0;
 
 _out:
-  metaDebug("%s, ttl mgr insert ttl, uid: %" PRId64 ", ctime: %" PRId64 ", ttlDays: %" PRId64, pTtlMgr->logPrefix,
+  metaTrace("%s, ttl mgr insert ttl, uid: %" PRId64 ", ctime: %" PRId64 ", ttlDays: %" PRId64, pTtlMgr->logPrefix,
             updCtx->uid, updCtx->changeTimeMs, updCtx->ttlDays);
 
   return ret;
@@ -323,7 +323,7 @@ int ttlMgrDeleteTtl(STtlManger *pTtlMgr, const STtlDelTtlCtx *delCtx) {
   ret = 0;
 
 _out:
-  metaDebug("%s, ttl mgr delete ttl, uid: %" PRId64, pTtlMgr->logPrefix, delCtx->uid);
+  metaTrace("%s, ttl mgr delete ttl, uid: %" PRId64, pTtlMgr->logPrefix, delCtx->uid);
 
   return ret;
 }
@@ -363,17 +363,37 @@ int ttlMgrUpdateChangeTime(STtlManger *pTtlMgr, const STtlUpdCtimeCtx *pUpdCtime
   ret = 0;
 
 _out:
-  metaDebug("%s, ttl mgr update ctime, uid: %" PRId64 ", ctime: %" PRId64, pTtlMgr->logPrefix, pUpdCtimeCtx->uid,
+  metaTrace("%s, ttl mgr update ctime, uid: %" PRId64 ", ctime: %" PRId64, pTtlMgr->logPrefix, pUpdCtimeCtx->uid,
             pUpdCtimeCtx->changeTimeMs);
 
   return ret;
 }
 
 int ttlMgrFindExpired(STtlManger *pTtlMgr, int64_t timePointMs, SArray *pTbUids, int32_t ttlDropMaxCount) {
+  int ret = -1;
+
   STtlIdxKeyV1   ttlKey = {.deleteTimeMs = timePointMs, .uid = INT64_MAX};
   STtlExpiredCtx expiredCtx = {
       .ttlDropMaxCount = ttlDropMaxCount, .count = 0, .expiredKey = ttlKey, .pTbUids = pTbUids};
-  return tdbTbTraversal(pTtlMgr->pTtlIdx, &expiredCtx, ttlMgrFindExpiredOneEntry);
+  ret = tdbTbTraversal(pTtlMgr->pTtlIdx, &expiredCtx, ttlMgrFindExpiredOneEntry);
+  if (ret) {
+    goto _out;
+  }
+
+  size_t vIdx = 0;
+  for (size_t i = 0; i < pTbUids->size; i++) {
+    tb_uid_t *pUid = taosArrayGet(pTbUids, i);
+    if (taosHashGet(pTtlMgr->pDirtyUids, pUid, sizeof(tb_uid_t)) == NULL) {
+      // not in dirty && expired in tdb => must be expired
+      taosArraySet(pTbUids, vIdx, pUid);
+      vIdx++;
+    }
+  }
+
+  taosArrayPopTailBatch(pTbUids, pTbUids->size - vIdx);
+
+_out:
+  return ret;
 }
 
 static bool ttlMgrNeedFlush(STtlManger *pTtlMgr) {

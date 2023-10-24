@@ -35,6 +35,9 @@ class TDTestCase:
 
         # create stb/ctb/tb stream
         self.tdCom.create_stream(stream_name=f'{self.stb_name}{self.tdCom.stream_suffix}', des_table=self.stb_stream_des_table, source_sql=source_sql, ignore_expired=ignore_expired)
+
+        time.sleep(1)
+
         # insert data
         count = 1
         step_count = 1
