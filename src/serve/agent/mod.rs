@@ -63,10 +63,10 @@ pub(super) async fn delete_agent(
     tag = "agents",
     responses(
         (status = 200, description = "List current agents items", body = [Agent])
-        ),
-        params(
-            AgentFilter,
-        )
+    ),
+    params(
+        AgentFilter,
+    )
 )]
 #[get("/agents")]
 pub(super) async fn get_agents(
@@ -88,9 +88,9 @@ pub(super) async fn get_agents(
 ///
 #[utoipa::path(
     tag = "agents",
-        responses(
-            (status = 200, description = "List current agents items", body = Agent)
-        )
+    responses(
+        (status = 200, description = "List current agents items", body = Agent)
+    )
 )]
 #[get("/agents/{agent_id}")]
 pub(super) async fn get_agent_by_id(
