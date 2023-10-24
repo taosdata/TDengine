@@ -161,7 +161,6 @@
                           : {}
                       "
                     >
-                      {{ p.display }}
                       <el-tooltip
                         class="item"
                         effect="light"
@@ -176,6 +175,8 @@
                         ></div>
                         <i class="el-icon-info"></i>
                       </el-tooltip>
+
+                      {{ p.display }}
                     </span>
 
                     <div style="flex: 1">

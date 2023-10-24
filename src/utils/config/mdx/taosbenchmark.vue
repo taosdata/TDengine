@@ -9,7 +9,7 @@
     <p>
       {{ $t("docs.tool.benchmark.step2desc") }}
       <a
-        :href="`https://${urlPart}.com/assets-download/3.0/taosTools-${version}-Linux-x64-comp3.tar.gz`"
+        :href="`https://${urlPart}.com/assets-download/3.0/taosTools-2.5.3-Linux-x64-comp3.tar.gz`"
         >taosTools</a
       >{{ $t("docs.tool.benchmark.step2desc1") }}
       <a :href="`${$t('urlPart')}/reference/taosbenchmark`">{{
@@ -624,8 +624,8 @@ export default {
   data() {
     return {
       version:localStorage.getItem('agent_version'),
-      benchcode:`tar -xzf taosTools-${localStorage.getItem('agent_version')}-Linux-x64-comp3.tar.gz
-cd taosTools-${localStorage.getItem('agent_version')}-Linux-x64-comp3
+      benchcode:`tar -xzf taosTools-2.5.3-Linux-x64-comp3.tar.gz
+cd taosTools-2.5.3-Linux-x64-comp3
 sudo ./install-taostools.sh`
     };
   },
