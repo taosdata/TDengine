@@ -646,7 +646,7 @@ async fn save_files(MultipartForm(form): MultipartForm<UploadForm>) -> anyhow::R
     Ok(file_save_paths)
 }
 
-// const ENV_TAOSX_UPLOAD_FILE_HOME: &'static str = "TAOSX_UPLOAD_FILE_HOME";
+pub const ENV_TAOSX_UPLOAD_FILE_HOME: &'static str = "TAOSX_UPLOAD_FILE_HOME";
 pub(crate) const ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT: &'static str = {
     cfg_if::cfg_if! {
         if #[cfg(windows)] {
@@ -660,7 +660,11 @@ pub(crate) const ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT: &'static str = {
 pub fn get_file_save_home_dir() -> PathBuf {
     // let env = std::env::var(ENV_TAOSX_UPLOAD_FILE_HOME)
     // .unwrap_or_else(|_| ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT.to_string());
-    std::path::Path::new(&ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT).to_path_buf()
+    std::path::Path::new(
+        &std::env::var(ENV_TAOSX_UPLOAD_FILE_HOME)
+            .unwrap_or(ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT.to_string()),
+    )
+    .to_path_buf()
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]

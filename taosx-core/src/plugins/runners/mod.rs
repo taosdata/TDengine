@@ -38,7 +38,7 @@ const ENV_TAOSX_LOGS_HOME_DEFAULT: &'static str = {
         if #[cfg(windows)] {
             "C:\\Program Files\\taosX\\logs"
         } else {
-            "/usr/local/taosx/logs"
+            "/var/log/taos/"
         }
     }
 };

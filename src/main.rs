@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use chrono::Local;
 use clap::{Parser, Subcommand};
 use const_format::concatcp;
@@ -33,6 +33,8 @@ use tracing_subscriber::{
     prelude::*,
     EnvFilter,
 };
+
+use crate::serve::task::ENV_TAOSX_UPLOAD_FILE_HOME;
 
 #[cfg(feature = "mimalloc")]
 #[global_allocator]
@@ -166,6 +168,9 @@ struct Args {
 const ENV_PLUGINS_HOME: &'static str = "PLUGINS_HOME";
 const ENV_TAOSX_PLUGINS_HOME: &'static str = concatcp!(build::CUS_PROMPT, "_PLUGINS_HOME");
 
+const ENV_LOGS_HOME: &'static str = "LOGS_HOME";
+const ENV_APP_LOGS_HOME: &'static str = concatcp!(build::CUS_PROMPT, "_LOGS_HOME");
+
 fn build_runtime(
     worker_threads: usize,
 ) -> std::result::Result<tokio::runtime::Runtime, std::io::Error> {
@@ -201,10 +206,57 @@ fn main() -> Result<()> {
                 if path.exists() {
                     std::env::set_var(ENV_PLUGINS_HOME, default);
                 } else {
-                    let default = "/usr/local/taos/xplugins";
+                    let default = "/usr/local/taos/plugins";
                     let path = std::path::Path::new(default);
                     if path.exists() {
                         std::env::set_var(ENV_PLUGINS_HOME, default);
+                    }
+
+                    let logs_home =
+                        std::env::var(ENV_LOGS_HOME).or(std::env::var(ENV_APP_LOGS_HOME));
+                    match logs_home {
+                        Ok(home) => {
+                            std::env::set_var(ENV_LOGS_HOME, home);
+                        }
+                        Err(_) => {
+                            #[cfg(unix)]
+                            {
+                                let default = "/usr/local/taosx/logs";
+                                let path = std::path::Path::new(default);
+                                if path.exists() {
+                                    std::env::set_var(ENV_LOGS_HOME, default);
+                                } else {
+                                    let default = "/var/log/taos/";
+                                    std::env::set_var(ENV_LOGS_HOME, default);
+                                }
+                            }
+                        }
+                    }
+
+                    let upload_dir = std::env::var(ENV_TAOSX_UPLOAD_FILE_HOME).ok();
+                    match upload_dir {
+                        Some(_) => (),
+                        None => {
+                            #[cfg(unix)]
+                            {
+                                // compatible to old version of files.
+                                let default = "/usr/local/taosx/files";
+                                let path = std::path::Path::new(default);
+                                if path.exists() {
+                                    std::env::set_var(ENV_TAOSX_UPLOAD_FILE_HOME, default);
+                                } else {
+                                    // use new data path.
+                                    let default = "/var/lib/taosx/files";
+                                    let path = std::path::Path::new(default);
+                                    std::env::set_var(ENV_TAOSX_UPLOAD_FILE_HOME, default);
+                                    if !path.exists() {
+                                        std::fs::create_dir_all(path).with_context(|| {
+                                            format!("Create dir {} error", path.display())
+                                        })?;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
