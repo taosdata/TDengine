@@ -32,21 +32,23 @@ command = "mvn"
 args = ["package", "-f", "plugins/opentsdb/pom.xml"]
 
 [tasks.taosx-mqtt]
+cwd = "plugins/mqtt"
 script = """
 commit=$(git rev-parse HEAD | cut -c 1-8)
 built=$(date +"%F %T %:z")
 path=github.com/taosdata/taosx/plugins/mqtt
-go build -C plugins/mqtt \
-  -o dist/taosx-mqtt \
+go mod tidy
+go build -o dist/taosx-mqtt \
   -ldflags "-X $path/version.Commit=${commit} -X '$path/version.BuildTime=$built'"
 """
 
 [tasks.taosx-opc]
+cwd = "plugins/opc"
 script = """
 commit=$(git rev-parse HEAD | cut -c 1-8)
 built=$(date +"%F %T %:z")
-go build -C plugins/opc \
-  -o taosx-opc \
+go mod tidy
+go build -o taosx-opc \
   -ldflags "-X collector/version.CommitID=${commit} -X 'collector/version.BuildAt=$built'"
 """
 
