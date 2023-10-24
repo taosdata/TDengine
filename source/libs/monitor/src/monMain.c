@@ -19,6 +19,7 @@
 #include "thttp.h"
 #include "ttime.h"
 #include "taos_monitor.h"
+#include "tglobal.h"
 
 static SMonitor tsMonitor = {0};
 static char* tsMonUri = "/report";
@@ -553,7 +554,7 @@ void monSendReport() {
 void monSendPromReport() {
   char *pCont = (char *)taos_collector_registry_bridge(
     TAOS_COLLECTOR_REGISTRY_DEFAULT, taosGetTimestamp(TSDB_TIME_PRECISION_MILLI));
-  uInfoL("report cont:\n%s\n", pCont);
+  //uInfoL("report cont:\n%s\n", pCont);
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
     if (taosSendHttpReport(tsMonitor.cfg.server, tsMonUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
@@ -565,7 +566,8 @@ void monSendPromReport() {
 }
 
 void monSendContent(char *pCont) {
-  uInfoL("report cont:\n%s\n", pCont);
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
+  //uInfoL("report cont:\n%s\n", pCont);
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
     if (taosSendHttpReport(tsMonitor.cfg.server, tsMonUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
