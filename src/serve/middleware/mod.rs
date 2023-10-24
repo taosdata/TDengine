@@ -2,8 +2,8 @@ use std::borrow::Cow;
 
 use actix_web::body::MessageBody;
 use actix_web::dev::{ServiceRequest, ServiceResponse};
-use actix_web::Error;
 use actix_web::http::{Method, Version};
+use actix_web::Error;
 use tracing::Span;
 use tracing_actix_web::RootSpanBuilder;
 
@@ -48,15 +48,13 @@ pub fn http_flavor(version: Version) -> Cow<'static, str> {
     }
 }
 
-
 ///
 /// RootSpanBuilder for TracingLogger middleware.
 ///
 impl RootSpanBuilder for TaosXRootSpanBuilder {
     fn on_request_start(request: &ServiceRequest) -> Span {
         use actix_web::HttpMessage;
-        let span = tracing::info_span!("HTTP-Server",
-            TID=tracing::field::Empty);
+        let span = tracing::info_span!("HTTP-Server", TID = tracing::field::Empty);
         let trace_id = request
             .headers()
             .get("Trace-Id")
@@ -77,7 +75,11 @@ impl RootSpanBuilder for TaosXRootSpanBuilder {
                 .unwrap_or("");
             let client_ip = connection_info.realip_remote_addr().unwrap_or("");
             let method = http_method_str(request.method());
-            let target = request.uri().path_and_query().map(|p| p.as_str()).unwrap_or("");
+            let target = request
+                .uri()
+                .path_and_query()
+                .map(|p| p.as_str())
+                .unwrap_or("");
             tracing::info!("{client_ip:} \"{method:} {target:} {schema:}/{flavor}\" {user_agent}");
         });
         span

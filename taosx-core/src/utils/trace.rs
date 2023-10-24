@@ -5,20 +5,19 @@ use std::marker::PhantomData;
 use chrono::prelude::*;
 use rand::random;
 use tracing::Subscriber;
-use tracing_core::{Event, Level};
 use tracing_core::span::{Attributes, Id, Record};
-use tracing_subscriber::{layer, Registry};
-use tracing_subscriber::fmt::{FormatFields, FormattedFields, MakeWriter};
+use tracing_core::{Event, Level};
 use tracing_subscriber::fmt::format::DefaultFields;
+use tracing_subscriber::fmt::{FormatFields, FormattedFields, MakeWriter};
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::{LookupSpan, Scope};
+use tracing_subscriber::{layer, Registry};
 
 const TRACE_STR: &str = "TRACE";
 const DEBUG_STR: &str = "DEBUG";
 const INFO_STR: &str = " INFO";
 const WARN_STR: &str = " WARN";
 const ERROR_STR: &str = "ERROR";
-
 
 /// Hex string representation of Trace ID stored in its [extensions]
 pub struct TraceID {
@@ -30,10 +29,7 @@ pub struct QueryID {
     pub hex: String,
 }
 
-pub struct TaosXLayer<
-    S,
-    N = DefaultFields,
-    W = fn() -> io::Stdout> {
+pub struct TaosXLayer<S, N = DefaultFields, W = fn() -> io::Stdout> {
     fmt_fields: N,
     make_writer: W,
     _inner: PhantomData<fn(S)>,
@@ -57,8 +53,8 @@ impl<S> Default for TaosXLayer<S> {
 
 impl<S, N, W> TaosXLayer<S, N, W> {
     pub fn with_writer<W2>(self, make_writer: W2) -> TaosXLayer<S, N, W2>
-        where
-            W2: for<'writer> MakeWriter<'writer> + 'static,
+    where
+        W2: for<'writer> MakeWriter<'writer> + 'static,
     {
         TaosXLayer {
             fmt_fields: self.fmt_fields,
@@ -68,7 +64,8 @@ impl<S, N, W> TaosXLayer<S, N, W> {
     }
 }
 
-impl<S, N, W> layer::Layer<S> for TaosXLayer<S, N, W> where
+impl<S, N, W> layer::Layer<S> for TaosXLayer<S, N, W>
+where
     S: Subscriber + for<'a> LookupSpan<'a>,
     N: for<'writer> FormatFields<'writer> + 'static,
     W: for<'writer> MakeWriter<'writer> + 'static,
@@ -174,10 +171,12 @@ impl<S, N, W> layer::Layer<S> for TaosXLayer<S, N, W> where
     }
 }
 
-impl<S, N, W> TaosXLayer<S, N, W> where
+impl<S, N, W> TaosXLayer<S, N, W>
+where
     N: 'static + for<'writer> FormatFields<'writer>,
     S: Subscriber + for<'a> LookupSpan<'a>,
-    W: 'static + for<'writer> MakeWriter<'writer> {
+    W: 'static + for<'writer> MakeWriter<'writer>,
+{
     fn fmt_timestamp(buf: &mut String) {
         let local: DateTime<Local> = Local::now();
         let s = local.format("%Y-%m-%d %H:%M:%S.%6f ").to_string();
@@ -237,11 +236,15 @@ impl<S, N, W> TaosXLayer<S, N, W> where
 
 pub fn set_trace_id_for_current_span(tid: &str) {
     tracing::dispatcher::get_default(|dispatch| {
-        let registry = dispatch.downcast_ref::<Registry>().expect("no global default dispatcher found");
-        if let Some((id, meta)) = dispatch.current_span().into_inner() {
+        let registry = dispatch
+            .downcast_ref::<Registry>()
+            .expect("no global default dispatcher found");
+        if let Some((id, _meta)) = dispatch.current_span().into_inner() {
             let span = registry.span(&id).unwrap();
             let mut ext = span.extensions_mut();
-            ext.replace(TraceID{id: String::from(tid)});
+            ext.replace(TraceID {
+                id: String::from(tid),
+            });
         }
     });
 }
@@ -252,12 +255,14 @@ pub fn create_query_id() -> u64 {
 }
 pub fn set_query_id_for_current_span(query_id: u64) {
     tracing::dispatcher::get_default(|dispatch| {
-        let registry = dispatch.downcast_ref::<Registry>().expect("no global default dispatcher found");
+        let registry = dispatch
+            .downcast_ref::<Registry>()
+            .expect("no global default dispatcher found");
         if let Some((id, _meta)) = dispatch.current_span().into_inner() {
             let hex_query_id = format!("{:#016x}", query_id);
             let span = registry.span(&id).unwrap();
             let mut ext = span.extensions_mut();
-            ext.replace(QueryID{hex: hex_query_id});
+            ext.replace(QueryID { hex: hex_query_id });
         }
     });
 }

@@ -22,10 +22,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::pool::PoolOptions;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
-use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder, };
+use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::utils::breakpoints::breakpoints_get_all;
-use taosx_core::utils::{mask_dsn, try_mask_dsn};
 use taosx_core::utils::port_pool::PortPool;
+use taosx_core::utils::{mask_dsn, try_mask_dsn};
 use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
 use tokio::sync::OnceCell;
 use tokio::task::JoinHandle;
@@ -1685,7 +1685,6 @@ impl TaskController {
                         Ok(offsets)
                     }
                     _ => Ok(None),
-
                 }
             }
             None => Ok(None),

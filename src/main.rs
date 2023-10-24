@@ -6,8 +6,8 @@ use clap::{Parser, Subcommand};
 use const_format::concatcp;
 use file_rotate::{
     compression::Compression,
-    ContentLimit,
-    FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
 };
 use log::LevelFilter;
 use metrics_tracing_context::MetricsLayer;
@@ -22,15 +22,15 @@ use time::{macros::format_description, UtcOffset};
 use tracing::Instrument;
 use tracing_appender::non_blocking::NonBlocking;
 use tracing_subscriber::{
-    EnvFilter,
     fmt::{format::FmtSpan, time::OffsetTime},
     prelude::*,
+    EnvFilter,
 };
 
-use taosx_core::{
-    ENV_TAOSX_LOGS_KEEP_DAYS, get_log_dir, get_log_keep_days, valid_env_log_keep_days,
-};
 use taosx_core::utils::trace::TaosXLayer;
+use taosx_core::{
+    get_log_dir, get_log_keep_days, valid_env_log_keep_days, ENV_TAOSX_LOGS_KEEP_DAYS,
+};
 
 #[cfg(feature = "tikv_jemallocator")]
 #[cfg(not(target_env = "msvc"))]
@@ -112,12 +112,12 @@ pub(crate) struct GlobalOpts {
     otel: Option<bool>,
 
     #[clap(
-    // short = 'e',
-    long,
-    global = true,
-    default_value = "none",
-    value_parser = fmt_span_from_str,
-    env = "TRACING_EVENTS"
+        // short = 'e',
+        long,
+        global = true,
+        default_value = "none",
+        value_parser = fmt_span_from_str,
+        env = "TRACING_EVENTS"
     )]
     tracing_events: FmtSpan,
 }
@@ -155,10 +155,10 @@ fn set_env_log_keep_days(config: Option<i64>) {
 
 #[derive(Parser, Debug)]
 #[clap(
-name = build::CUS_CLI_NAME,
-author, version = CLAP_SHORT_VERSION,
-about = build::CUS_CLI_ABOUT,
-long_about = build::CUS_CLI_ABOUT)]
+    name = build::CUS_CLI_NAME,
+    author, version = CLAP_SHORT_VERSION,
+    about = build::CUS_CLI_ABOUT,
+    long_about = build::CUS_CLI_ABOUT)]
 struct Args {
     #[clap(flatten)]
     globals: GlobalOpts,
@@ -185,7 +185,10 @@ fn build_runtime(
         .build()
 }
 
-fn create_rotating_log_writer(log_path: &PathBuf, log_keep_days: i64) -> FileRotate<AppendTimestamp> {
+fn create_rotating_log_writer(
+    log_path: &PathBuf,
+    log_keep_days: i64,
+) -> FileRotate<AppendTimestamp> {
     FileRotate::new(
         &log_path,
         AppendTimestamp::with_format(
@@ -196,11 +199,16 @@ fn create_rotating_log_writer(log_path: &PathBuf, log_keep_days: i64) -> FileRot
         ContentLimit::Time(TimeFrequency::Daily),
         Compression::None,
         #[cfg(unix)]
-            None,
+        None,
     )
 }
 
-async fn init_tracing_layers(args: &Args, span_events: FmtSpan, level_filter: LevelFilter, non_blocking: NonBlocking) -> Result<(), anyhow::Error> {
+async fn init_tracing_layers(
+    args: &Args,
+    span_events: FmtSpan,
+    level_filter: LevelFilter,
+    non_blocking: NonBlocking,
+) -> Result<(), anyhow::Error> {
     let mut layers = Vec::new();
     use tracing_subscriber::filter::LevelFilter;
     let level_filter = match level_filter {
@@ -212,10 +220,12 @@ async fn init_tracing_layers(args: &Args, span_events: FmtSpan, level_filter: Le
         clap_verbosity_flag::LevelFilter::Trace => LevelFilter::TRACE,
     };
     // Add layer for rotating logs
-    layers.push(TaosXLayer::new()
-        .with_writer(non_blocking)
-        .with_filter(level_filter)
-        .boxed());
+    layers.push(
+        TaosXLayer::new()
+            .with_writer(non_blocking)
+            .with_filter(level_filter)
+            .boxed(),
+    );
 
     let event_filter = EnvFilter::builder()
         .with_default_directive(level_filter.into())
@@ -281,10 +291,7 @@ async fn init_tracing_layers(args: &Args, span_events: FmtSpan, level_filter: Le
     if args.globals.otel.unwrap_or(false) {
         let tracer = opentelemetry_otlp::new_pipeline()
             .tracing()
-            .with_exporter(
-                opentelemetry_otlp::new_exporter()
-                    .tonic()
-            )
+            .with_exporter(opentelemetry_otlp::new_exporter().tonic())
             .with_trace_config(
                 opentelemetry::sdk::trace::config()
                     .with_sampler(opentelemetry::sdk::trace::Sampler::AlwaysOn)
@@ -372,7 +379,12 @@ fn main() -> Result<()> {
     let level_filter = args.globals.verbose.log_level_filter();
     let log_rotation = create_rotating_log_writer(&mut log_path, log_keep_days);
     let (non_blocking, _guard) = tracing_appender::non_blocking(log_rotation);
-    runtime.block_on(init_tracing_layers(&args, span_events, level_filter, non_blocking))?;
+    runtime.block_on(init_tracing_layers(
+        &args,
+        span_events,
+        level_filter,
+        non_blocking,
+    ))?;
 
     // Print build info in log file.
     tracing::info!("version: {version}");

@@ -1,10 +1,14 @@
-use std::{fs, path::PathBuf};
 use std::fmt::{Debug, Display, Formatter};
+use std::{fs, path::PathBuf};
 
 use actix_files::NamedFile;
-use actix_multipart::form::{MultipartForm, tempfile::TempFile, text::Text};
-use actix_web::{delete, get, HttpRequest, HttpResponse, patch, post, Responder, ResponseError, web::{Data, Path, Query}};
+use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
 use actix_web::body::BoxBody;
+use actix_web::{
+    delete, get, patch, post,
+    web::{Data, Path, Query},
+    HttpRequest, HttpResponse, Responder, ResponseError,
+};
 use anyhow::Context;
 use chrono::Utc;
 use itertools::Itertools;
@@ -35,13 +39,19 @@ pub(super) struct Failed {
 
 impl Debug for Failed {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("code={:?} message={:?}", self.code, self.message))
+        f.write_fmt(format_args!(
+            "code={:?} message={:?}",
+            self.code, self.message
+        ))
     }
 }
 
 impl Display for Failed {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!("code={:?} message={:?}", self.code, self.message))
+        f.write_fmt(format_args!(
+            "code={:?} message={:?}",
+            self.code, self.message
+        ))
     }
 }
 
@@ -51,7 +61,6 @@ impl ResponseError for Failed {
     }
 }
 
-
 /// List tasks in current.
 ///
 /// One could call the api endpoint with following curl.
@@ -60,14 +69,14 @@ impl ResponseError for Failed {
 /// curl localhost:6040/tasks
 /// ```
 #[utoipa::path(
-tag = "tasks",
-responses(
-(status = 200, description = "List current task items", body = [Task])
-),
-params(
-TaskFilter,
-TaskDecorator,
-)
+    tag = "tasks",
+    responses(
+        (status = 200, description = "List current task items", body = [Task])
+        ),
+        params(
+        TaskFilter,
+        TaskDecorator,
+    )
 )]
 #[get("/tasks")]
 pub(super) async fn get_tasks(
@@ -99,13 +108,13 @@ pub(super) async fn get_tasks(
 /// curl localhost:6040/tasks
 /// ```
 #[utoipa::path(
-tag = "tasks",
-responses(
-(status = 200, description = "Tasks count (deleted tasks will not be included by default)", body = [usize])
-),
-params(
-TaskFilter,
-)
+    tag = "tasks",
+    responses(
+    (status = 200, description = "Tasks count (deleted tasks will not be included by default)", body = [usize])
+    ),
+    params(
+        TaskFilter,
+    )
 )]
 #[get("/tasks/count")]
 pub(super) async fn get_tasks_count(
@@ -132,15 +141,15 @@ pub(super) async fn get_tasks_count(
 /// curl localhost:8080/task -d '{"from": "tmq:///test", "to": "local:test"}'
 /// ```
 #[utoipa::path(
-tag = "tasks",
-request_body = NewTask,
-params(
-TaskDecorator,
-),
-responses(
-(status = 201, description = "Task created successfully", body = Task),
-// (status = 409, description = "Task with id already exists", body = ErrorResponse, example = json!(ErrorResponse::Conflict(String::from("id = 1"))))
-)
+    tag = "tasks",
+    request_body = NewTask,
+    params(
+        TaskDecorator,
+    ),
+    responses(
+        (status = 201, description = "Task created successfully", body = Task),
+        // (status = 409, description = "Task with id already exists", body = ErrorResponse, example = json!(ErrorResponse::Conflict(String::from("id = 1"))))
+    )
 )]
 #[post("/tasks")]
 pub(super) async fn create_task(
@@ -221,9 +230,9 @@ pub(super) async fn create_task(
 pub fn check_parser_timestamp_precision(parser_string: &str) -> bool {
     if (parser_string.contains(r#""TIMESTAMP""#) && parser_string.contains(r#""TIMESTAMP(us)""#))
         || (parser_string.contains(r#""TIMESTAMP""#)
-        && parser_string.contains(r#""TIMESTAMP(ns)""#))
+            && parser_string.contains(r#""TIMESTAMP(ns)""#))
         || (parser_string.contains(r#""TIMESTAMP(us)""#)
-        && parser_string.contains(r#""TIMESTAMP(ns)""#))
+            && parser_string.contains(r#""TIMESTAMP(ns)""#))
     {
         return false;
     }
@@ -269,19 +278,19 @@ pub(super) struct NewReplicate {
 /// Api will delete task from shared in-memory storage by the provided id and return success 200.
 /// If storage does not contain `Task` with given id 404 not found will be returned.
 #[utoipa::path(
-tag = "tasks",
-request_body = UpdateTask,
-responses(
-(status = 200, description = "Task deleted successfully"),
-// (status = 401, description = "Unauthorized to delete Task", body = ErrorResponse, example = json!(ErrorResponse::Unauthorized(String::from("missing api key")))),
-(status = 404, description = "Task not found by id", body = Failed)
-),
-params(
-("id", description = "Unique storage id of Task")
-),
-params(
-TaskDecorator,
-),
+    tag = "tasks",
+    request_body = UpdateTask,
+    responses(
+        (status = 200, description = "Task deleted successfully"),
+        // (status = 401, description = "Unauthorized to delete Task", body = ErrorResponse, example = json!(ErrorResponse::Unauthorized(String::from("missing api key")))),
+        (status = 404, description = "Task not found by id", body = Failed)
+    ),
+    params(
+        ("id", description = "Unique storage id of Task")
+    ),
+    params(
+        TaskDecorator,
+    ),
 )]
 #[patch("/tasks/{id}")]
 pub(super) async fn update_task(
@@ -318,18 +327,18 @@ pub(super) async fn update_task(
 /// Api will delete task from shared in-memory storage by the provided id and return success 200.
 /// If storage does not contain `Task` with given id 404 not found will be returned.
 #[utoipa::path(
-tag = "tasks",
-responses(
-(status = 200, description = "Task deleted successfully", body = Task),
-// (status = 401, description = "Unauthorized to delete Task", body = ErrorResponse, example = json!(ErrorResponse::Unauthorized(String::from("missing api key")))),
-(status = 404, description = "Task not found by id", body = Failed)
-),
-params(
-("id", description = "Unique storage id of Task")
-),
-params(
-TaskDecorator,
-),
+    tag = "tasks",
+    responses(
+        (status = 200, description = "Task deleted successfully", body = Task),
+        // (status = 401, description = "Unauthorized to delete Task", body = ErrorResponse, example = json!(ErrorResponse::Unauthorized(String::from("missing api key")))),
+        (status = 404, description = "Task not found by id", body = Failed)
+    ),
+    params(
+        ("id", description = "Unique storage id of Task")
+        ),
+        params(
+        TaskDecorator,
+    ),
 )]
 #[delete("/tasks/{id}")]
 pub(super) async fn delete_task(
@@ -351,17 +360,17 @@ pub(super) async fn delete_task(
 ///
 /// Return found `Task` with status 200 or 404 not found if `Task` is not found from shared in-memory storage.
 #[utoipa::path(
-tag = "tasks",
-responses(
-(status = 200, description = "Task found from storage", body = Task),
-(status = 404, description = "Task not found by id", body = Failed)
-),
-params(
-TaskDecorator,
-),
-params(
-("id", description = "Unique storage id of Task")
-),
+    tag = "tasks",
+    responses(
+        (status = 200, description = "Task found from storage", body = Task),
+        (status = 404, description = "Task not found by id", body = Failed)
+    ),
+    params(
+        TaskDecorator,
+    ),
+    params(
+        ("id", description = "Unique storage id of Task")
+    ),
 )]
 #[get("/tasks/{id}")]
 pub(super) async fn get_task_by_id(
@@ -384,16 +393,15 @@ pub(super) async fn get_task_by_id(
 ///
 /// If storage does not contain `Task` with given id 404 not found will be returned.
 #[utoipa::path(
-tag = "tasks",
-responses(
-(status = 200, description = "Task started successfully"),
-(status = 404, description = "Task not found by id", body = Failed),
-(status = 500, description = "Server error", body = Failed),
-
-),
-params(
-("id", description = "Unique storage id of Task")
-),
+    tag = "tasks",
+    responses(
+        (status = 200, description = "Task started successfully"),
+        (status = 404, description = "Task not found by id", body = Failed),
+        (status = 500, description = "Server error", body = Failed),
+    ),
+    params(
+        ("id", description = "Unique storage id of Task")
+    ),
 )]
 #[post("/tasks/{id}/start")]
 pub(super) async fn start_task(
@@ -418,16 +426,16 @@ pub(super) async fn start_task(
 ///
 /// If storage does not contain `Task` with given id 404 not found will be returned.
 #[utoipa::path(
-tag = "tasks",
-responses(
-(status = 200, description = "Task stopped successfully"),
-(status = 404, description = "Task not found by id", body = Failed),
-(status = 500, description = "Server error", body = Failed),
+    tag = "tasks",
+    responses(
+        (status = 200, description = "Task stopped successfully"),
+        (status = 404, description = "Task not found by id", body = Failed),
+        (status = 500, description = "Server error", body = Failed),
 
-),
-params(
-("id", description = "Unique storage id of Task")
-),
+    ),
+    params(
+        ("id", description = "Unique storage id of Task")
+    ),
 )]
 #[post("/tasks/{id}/stop")]
 pub(super) async fn stop_task(
@@ -452,14 +460,14 @@ pub(super) async fn stop_task(
 ///
 /// Return found `Task Offsets` with status 200 or 404 not found if `Task Offsets` is not found from shared in-memory storage.
 #[utoipa::path(
-tag = "tasks",
-responses(
-(status = 200, description = "Task offsets found from storage", body = String),
-(status = 404, description = "Task not found by id", body = Failed)
-),
-params(
-("id", description = "Unique storage id of Task")
-),
+    tag = "tasks",
+    responses(
+        (status = 200, description = "Task offsets found from storage", body = String),
+        (status = 404, description = "Task not found by id", body = Failed)
+    ),
+    params(
+        ("id", description = "Unique storage id of Task")
+    ),
 )]
 #[get("/tasks/{id}/offsets")]
 pub(super) async fn get_task_offsets_by_id(
@@ -480,14 +488,14 @@ pub(super) async fn get_task_offsets_by_id(
 /// Get Task activities by given task id.
 ///
 #[utoipa::path(
-tag = "tasks",
-responses(
-(status = 200, description = "Task activities of the task", body = Vec < TaskActivity >),
-),
-params(
-("id", description = "Unique storage id of Task"),
-AgentActivityFilter
-),
+    tag = "tasks",
+    responses(
+        (status = 200, description = "Task activities of the task", body = Vec < TaskActivity >),
+        ),
+    params(
+        ("id", description = "Unique storage id of Task"),
+        AgentActivityFilter
+    ),
 )]
 #[get("/tasks/{id}/activities")]
 pub(super) async fn get_task_activities_by_id(
@@ -508,13 +516,13 @@ pub(super) async fn get_task_activities_by_id(
 /// Get Task activities by given task id.
 ///
 #[utoipa::path(
-tag = "tasks",
-responses(
-(status = 200, description = "Task activities of the task", body = Vec < TaskActivity >),
-),
-params(
-("id", description = "Unique storage id of Task"),
-),
+    tag = "tasks",
+    responses(
+        (status = 200, description = "Task activities of the task", body = Vec < TaskActivity >),
+    ),
+    params(
+        ("id", description = "Unique storage id of Task"),
+    ),
 )]
 #[get("/tasks/{id}/metrics")]
 pub(super) async fn get_task_metrics_by_id(
@@ -606,12 +614,12 @@ pub struct UploadForm {
 }
 
 #[utoipa::path(
-tag = "tasks",
-request_body(content = UploadForm, content_type = "multipart/form-data"),
-responses(
-(status = 201, description = "file uploaded", body = Vec < String >),
-(status = 500, description = "file upload error", body = Failed)
-),
+    tag = "tasks",
+    request_body(content = UploadForm, content_type = "multipart/form-data"),
+    responses(
+        (status = 201, description = "file uploaded", body = Vec < String >),
+        (status = 500, description = "file upload error", body = Failed)
+    ),
 )]
 #[post("/upload")]
 pub async fn upload_files(MultipartForm(form): MultipartForm<UploadForm>) -> impl Responder {
@@ -637,7 +645,7 @@ async fn save_files(MultipartForm(form): MultipartForm<UploadForm>) -> anyhow::R
             "{}/{req_id}",
             upload_file_save_path.as_os_str().to_str().unwrap()
         ))
-            .to_path_buf();
+        .to_path_buf();
         fs::create_dir_all(&path).with_context(|| "create file path failed")?;
         let file_name = f.file_name.unwrap();
         let releative_path = format!("{req_id}/{file_name}");
@@ -649,7 +657,7 @@ async fn save_files(MultipartForm(form): MultipartForm<UploadForm>) -> anyhow::R
             "{}/{req_id}/{file_name}",
             upload_file_save_path.as_os_str().to_str().unwrap()
         ))
-            .to_path_buf();
+        .to_path_buf();
         if let Err(persis_err) = f.file.persist(&path) {
             // fallback to copy
             std::fs::copy(persis_err.file.path(), path).context("cannot save uploaded file")?;
@@ -703,14 +711,14 @@ pub struct FileMetaHeader {
 }
 
 #[utoipa::path(
-tag = "data sources",
-responses(
-(status = 200, description = "filemeta access success", body = Vec < String >),
-(status = 500, description = "metadata achive occur error", body = Failed)
-),
-params(
-FileMetaRequest
-)
+    tag = "data sources",
+    responses(
+        (status = 200, description = "filemeta access success", body = Vec < String >),
+        (status = 500, description = "metadata achive occur error", body = Failed)
+    ),
+    params(
+        FileMetaRequest
+    )
 )]
 #[get("/filemeta")]
 pub async fn filemeta(filemeta_request: Query<FileMetaRequest>) -> impl Responder {
@@ -771,14 +779,14 @@ pub struct DownloadParams {
 }
 
 #[utoipa::path(
-tag = "tasks",
-responses(
-(status = 200, description = "success", body = NamedFile),
-(status = 500, description = "file download error", body = Failed)
-),
-params(
-DownloadParams
-)
+    tag = "tasks",
+    responses(
+        (status = 200, description = "success", body = NamedFile),
+        (status = 500, description = "file download error", body = Failed)
+    ),
+    params(
+        DownloadParams
+    )
 )]
 #[get("/download")]
 pub async fn download_files(params: Query<DownloadParams>, req: HttpRequest) -> impl Responder {

@@ -25,10 +25,10 @@ mod agent;
 mod controller;
 mod data_sources;
 mod metrics;
+mod middleware;
 mod routes;
 mod rpc;
 mod task;
-mod middleware;
 pub use task::check_parser_timestamp_precision;
 
 use controller::*;

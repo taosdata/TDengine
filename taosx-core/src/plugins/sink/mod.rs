@@ -27,7 +27,9 @@ use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::{debug, error, info, instrument, Instrument, Span};
 
-use crate::{ConnectorLicense, OPCConfig, Parser, Transferred, utils::breakpoints::breakpoints_set};
+use crate::{
+    utils::breakpoints::breakpoints_set, ConnectorLicense, OPCConfig, Parser, Transferred,
+};
 
 use super::runners::opc::{ColumnConfig, OpcTableConfig};
 use super::*;
@@ -442,9 +444,7 @@ async fn consume_lush_record(
                 let sqls = record.generate_insert_sql_from_tablename(&data, columns);
                 if let Some((task, stable, sqls)) = task
                     .and_then(|task| record.stable_name().map(|stable| (task, stable)))
-                    .and_then(|(task, stable)| {
-                        sqls.as_ref().map(|(sqls, _)| (task, stable, sqls))
-                    })
+                    .and_then(|(task, stable)| sqls.as_ref().map(|(sqls, _)| (task, stable, sqls)))
                 {
                     for sql in sqls {
                         if let Some(ts) = get_ts_from_sql(sql) {
@@ -453,10 +453,20 @@ async fn consume_lush_record(
                             let ts_clone = ts.clone();
 
                             std::thread::spawn(move || {
-                                tracing::debug!("breakpoints set start, task: {} stable: {} ts: {}", &task_clone, &stable_clone, &ts_clone);
+                                tracing::debug!(
+                                    "breakpoints set start, task: {} stable: {} ts: {}",
+                                    &task_clone,
+                                    &stable_clone,
+                                    &ts_clone
+                                );
                                 let res = breakpoints_set(&task_clone, &stable_clone, &ts_clone);
                                 if res.is_err() {
-                                    tracing::debug!("breakpoints set error, task: {} stable: {} \n{:#?}", &task_clone, &stable_clone, res);
+                                    tracing::debug!(
+                                        "breakpoints set error, task: {} stable: {} \n{:#?}",
+                                        &task_clone,
+                                        &stable_clone,
+                                        res
+                                    );
                                 }
                             });
                             break;

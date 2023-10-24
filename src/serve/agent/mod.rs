@@ -1,7 +1,7 @@
 use actix_web::{
-    delete, get, HttpResponse, patch,
-    post,
-    Responder, web::{Data, Json, Path, Query},
+    delete, get, patch, post,
+    web::{Data, Json, Path, Query},
+    HttpResponse, Responder,
 };
 use taos::Code;
 
@@ -15,11 +15,11 @@ use crate::serve::{
 
 /// Create new agent with cluster id/ user id and privileges
 #[utoipa::path(
-tag = "agents",
-request_body = AgentProps,
-responses(
-(status = 200, description = "Tasks count (deleted tasks will not be included by default)", body = AgentWithToken)
-)
+    tag = "agents",
+    request_body = AgentProps,
+    responses(
+        (status = 200, description = "Tasks count (deleted tasks will not be included by default)", body = AgentWithToken)
+    )
 )]
 #[post("/agents")]
 pub(super) async fn create_agent(
@@ -31,17 +31,17 @@ pub(super) async fn create_agent(
         Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err),
-        })
+        }),
     }
 }
 
 /// Create new agent with cluster id / user id and privileges
 #[utoipa::path(
-tag = "agents",
-responses(
-(status = 200, description = "Deleted", body = ()),
-(status = 500, description = "Error", body = Failed)
-)
+    tag = "agents",
+    responses(
+            (status = 200, description = "Deleted", body = ()),
+            (status = 500, description = "Error", body = Failed)
+        )
 )]
 #[delete("/agents/{agent_id}")]
 pub(super) async fn delete_agent(
@@ -60,13 +60,13 @@ pub(super) async fn delete_agent(
 /// List agents with specified `cluster_id` and `user_id`
 ///
 #[utoipa::path(
-tag = "agents",
-responses(
-(status = 200, description = "List current agents items", body = [Agent])
-),
-params(
-AgentFilter,
-)
+    tag = "agents",
+    responses(
+        (status = 200, description = "List current agents items", body = [Agent])
+        ),
+        params(
+            AgentFilter,
+        )
 )]
 #[get("/agents")]
 pub(super) async fn get_agents(
@@ -87,10 +87,10 @@ pub(super) async fn get_agents(
 /// Get agent by id.
 ///
 #[utoipa::path(
-tag = "agents",
-responses(
-(status = 200, description = "List current agents items", body = Agent)
-)
+    tag = "agents",
+        responses(
+            (status = 200, description = "List current agents items", body = Agent)
+        )
 )]
 #[get("/agents/{agent_id}")]
 pub(super) async fn get_agent_by_id(
@@ -109,13 +109,13 @@ pub(super) async fn get_agent_by_id(
 /// List agents with specified `cluster_id` and `user_id`
 ///
 #[utoipa::path(
-tag = "agents",
-responses(
-(status = 200, description = "List current agents items", body = [TaskDetail])
-),
-params(
-AgentFilter,
-)
+    tag = "agents",
+    responses(
+        (status = 200, description = "List current agents items", body = [TaskDetail])
+        ),
+        params(
+            AgentFilter,
+        )
 )]
 #[get("/agents/{agent_id}/tasks")]
 pub(super) async fn get_agent_tasks(
@@ -136,11 +136,11 @@ pub(super) async fn get_agent_tasks(
 /// Get agent activities by id
 ///
 #[utoipa::path(
-tag = "agents",
-responses(
-(status = 200, description = "List current agents items", body = [Activity])
-),
-params(AgentActivityFilter)
+    tag = "agents",
+    responses(
+        (status = 200, description = "List current agents items", body = [Activity])
+        ),
+        params(AgentActivityFilter)
 )]
 #[get("/agents/{agent_id}/activities")]
 pub(super) async fn get_agent_activities(
@@ -165,11 +165,11 @@ pub(super) async fn get_agent_activities(
 /// Update an agent by id but and get new token.
 ///
 #[utoipa::path(
-tag = "agents",
-request_body = AgentUpdates,
-responses(
-(status = 200, description = "List current agents items", body = [AgentWithToken])
-)
+    tag = "agents",
+    request_body = AgentUpdates,
+    responses(
+        (status = 200, description = "List current agents items", body = [AgentWithToken])
+    )
 )]
 #[patch("/agents/{agent_id}")]
 pub(super) async fn update_agent(
