@@ -103,7 +103,7 @@ int taos_collector_registry_register_collector(taos_collector_registry_t *self, 
  * @param self The target taos_collector_registry_t*
  * @return The string int he default metric exposition format.
  */
-const char *taos_collector_registry_bridge(taos_collector_registry_t *self, int64_t ts);
+const char *taos_collector_registry_bridge(taos_collector_registry_t *self, char *ts);
 
 int taos_collector_registry_clear_out(taos_collector_registry_t *self);
 
