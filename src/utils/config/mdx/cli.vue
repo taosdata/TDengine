@@ -82,7 +82,7 @@
     <p>{{ $t("docs.tool.cli.step4desc") }}</p>
     <pre
       v-highlight
-    ><code>Welcome to the TDengine shell from Linux, Client Version:3.0.0.0
+    ><code>Welcome to the TDengine shell from Linux, Client Version:3.2.0.1
 Copyright (c) 2023 by TAOS Data, Inc. All rights reserved.
 
 Successfully connect to cloud.tdengine.com:8085 in restful mode
