@@ -9,6 +9,7 @@ use std::{
 };
 
 use base64::{engine::general_purpose, Engine};
+use csv_lib::ReaderBuilder;
 use file_rotate::{
     compression::Compression,
     suffix::{AppendTimestamp, DateFrom, FileLimit},
@@ -420,7 +421,7 @@ impl OPCConfig {
                     // warn!("select_all_points is not implemented");
                     Vec::new()
                 } else {
-                    get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
+                    get_string_vec_from_param_or_file_for_opc(&mut dsn, "ua.nodes")
                         .map_err(|s| OpcError::FileParseFound(s))?
                 };
                 let mut ua_node_config_vec = Vec::new();
@@ -510,7 +511,7 @@ impl OPCConfig {
                     }
                     res.1
                 } else {
-                    get_string_vec_from_param_or_file(&mut dsn, "da.tags")
+                    get_string_vec_from_param_or_file_for_opc(&mut dsn, "da.tags")
                         .map_err(|s| OpcError::FileParseFound(s))?
                 };
 
@@ -643,7 +644,7 @@ pub fn parse_bool_param_from_dsn(dsn: &mut Dsn, key: &str) -> anyhow::Result<Opt
 
 const CSV_CONFIG_COLUMNS: [&str; 2] = ["point_id", "tbname"];
 
-use crate::runners::{get_string_vec_from_param_or_file, log_rotation};
+use crate::runners::log_rotation;
 use crate::validation::DataSourceValidation;
 pub use tokio_stream::StreamExt;
 
@@ -934,7 +935,11 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
             let point_id = point.id.clone();
             let tbname =
                 generate_tbname_from_pattern(&dsn.driver, &child_table_expression, &point_id);
-            format!("{}::{}", point_id, tbname)
+            // 对于 OPCUA 来说，ns=3;s=Special_\"!§$%&/()=?`´\\+~*'#_-:.;,<>|@^°€µ{[]} 是一个有效的点位 ID 和名称
+            // 此时需要借助 CSV 的 delimiter 使用 , 进行分隔
+            // 前提是点位需要使用双引号引起来
+            // 又引出的问题的是如果点位名称已经包含了双引号该如何处理 -》继续加双引号
+            format!("\"{}::{}\"", point_id.replace("\"", "\"\""), tbname)
         })
         .join(",");
     if dsn.driver.as_str() == "opcua" {
@@ -1054,6 +1059,76 @@ fn check_duplicated(
     }
     Ok(())
 }
+
+pub(super) fn get_string_vec_from_param_or_file_for_opc(
+    dsn: &mut Dsn,
+    key: &str,
+) -> Result<Vec<String>, String> {
+    if let Some(nodes) = dsn.remove(key) {
+        let mut rdr = ReaderBuilder::new().delimiter(b',').from_reader(nodes.as_bytes());
+        let header = rdr.headers().map_err(|err| err.to_string())?;
+        let (files, mut node_config): (Vec<_>, Vec<_>) = header
+            .into_iter()
+            // .split(",")
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .partition(|v| v.starts_with("@"));
+        // dbg!(&files, &node_config);
+        for file in files {
+            tracing::info!(
+                "current log: {}",
+                std::env::current_dir().unwrap().to_str().unwrap()
+            );
+            let f = std::fs::File::open(&file[1..]);
+            if f.is_err() {
+                tracing::warn!(
+                    "file: {} read error, cause: {}",
+                    &file[1..],
+                    f.err().unwrap()
+                );
+                continue;
+                // return Err("file read error".to_string());
+            }
+            let buf = std::io::BufReader::new(f.unwrap());
+            let mut file_data = buf.lines().collect_vec();
+            // remove header
+            if file_data.remove(0).is_err() {
+                tracing::warn!("file: {} content length < 1", file);
+            }
+
+            node_config.extend(
+                file_data
+                    .iter()
+                    .filter_map(|r| r.as_ref().ok())
+                    .map(|s| s.replace(",", "::")),
+            );
+        }
+        if node_config.len() == 0 {
+            tracing::warn!("node config is empty");
+            // return Err(format!("node config set but is empty: {nodes}"));
+        }
+        return Result::Ok(node_config);
+    }
+    // tracing::warn!("node config is empty");
+    return Err("Nodes not set".to_string());
+}
+
+// fn process_table_info(
+//     table_info: &mut HashMap<String, Vec<(String, String)>>,
+//     table: String,
+//     field: String,
+//     value_type: String,
+// ) {
+//     if table_info.get_mut(&table).is_none() {
+//         let mut t_v = Vec::new();
+//         t_v.push((field, value_type));
+//         table_info.insert(table, t_v);
+//     } else {
+//         let t_v = table_info.get_mut(&table).unwrap();
+//         t_v.push((field, value_type));
+//     };
+// }
 
 const EXE: &'static str = {
     cfg_if::cfg_if! {
