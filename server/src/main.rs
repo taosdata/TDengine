@@ -447,7 +447,7 @@ const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN && const_str::equal!("main"
     )
 } else {
     const_format::concatcp!(
-        "enterprise version: ",
+        "version: ",
         build::TD_VERSION,
         "\ngit: ",
         build::BRANCH,
