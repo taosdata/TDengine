@@ -174,8 +174,8 @@ if(${BUILD_WITH_S3})
   set(CMAKE_PREFIX_PATH $ENV{HOME}/.cos-local.2)
   find_library(S3_LIBRARY s3)
   find_library(CURL_LIBRARY curl)
-  find_library(SSL_LIBRARY ssl PATHS $ENV{HOME}/.cos-local.2/lib64)
-  find_library(CRYPTO_LIBRARY crypto PATHS $ENV{HOME}/.cos-local.2/lib64)
+  find_library(SSL_LIBRARY ssl $ENV{HOME}/.cos-local.2/lib64 NO_DEFAULT_PATH)
+  find_library(CRYPTO_LIBRARY crypto $ENV{HOME}/.cos-local.2/lib64 NO_DEFAULT_PATH)
   target_link_libraries(
     vnode
 
