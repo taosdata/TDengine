@@ -1750,7 +1750,9 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 
   // todo save the checkpoint failed info
   taosThreadMutexLock(&pTask->lock);
-  if (streamTaskGetStatus(pTask, NULL) == TASK_STATUS__HALT) {
+  ETaskStatus status = streamTaskGetStatus(pTask, NULL);
+
+  if (status == TASK_STATUS__HALT || status == TASK_STATUS__PAUSE) {
     qError("s-task:%s not ready for checkpoint, since it is halt, ignore this checkpoint:%" PRId64 ", set it failure",
            pTask->id.idStr, req.checkpointId);
     taosThreadMutexUnlock(&pTask->lock);
