@@ -194,7 +194,7 @@ impl Client {
 
         let mut client = FlightClient::new(channel);
         client.add_header("x-token", &token)?;
-        client.add_header("x-version", crate::build::TD_VERSION)?;
+        client.add_header("x-version", crate::build::PKG_VERSION)?;
         let result = client
             .handshake(token.to_string())
             .await

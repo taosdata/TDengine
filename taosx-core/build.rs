@@ -1,7 +1,6 @@
 fn labeling() {
     let cus_name = std::env::var("CUS_NAME").unwrap_or("taosX".to_string());
     let cus_prompt = std::env::var("CUS_PROMPT").unwrap_or("taos".to_string());
-    let td_version = std::env::var("VER_NUMBER").unwrap_or("3.0.2.0".to_string());
     let cus_name = if cus_name.trim().is_empty() {
         "taosX"
     } else {
@@ -12,14 +11,8 @@ fn labeling() {
     } else {
         cus_prompt.trim()
     };
-    let td_version = if td_version.trim().is_empty() {
-        "3.0.2.0"
-    } else {
-        td_version.trim()
-    };
     println!("cargo:rustc-env=CUS_NAME={cus_name}");
     println!("cargo:rustc-env=CUS_PROMPT={cus_prompt}");
-    println!("cargo:rustc-env=TD_VERSION={td_version}");
     println!("cargo:rerun-if-env-changed=CUS_NAME");
     println!("cargo:rerun-if-env-changed=CUS_PROMPT");
 }
