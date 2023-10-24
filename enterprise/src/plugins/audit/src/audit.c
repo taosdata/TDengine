@@ -62,12 +62,19 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
   char strClusterId[65] = {0};
   sprintf(strClusterId, "%" PRId64, clusterId);
 
+  char ip[24] = {0};
+  taosIp2String(pReq->info.conn.clientIp, ip);
+
+  char clientAddress[50] = {0};
+  sprintf(clientAddress, "%s:%d", ip, pReq->info.conn.clientPort);
+
   tjsonAddDoubleToObject(pJson, "timestamp", curTime);
   tjsonAddStringToObject(pJson, "cluster_id", strClusterId);
   tjsonAddStringToObject(pJson, "user", user);
   tjsonAddStringToObject(pJson, "operation", operation);
-  tjsonAddStringToObject(pJson, "target_1", target1);
-  tjsonAddStringToObject(pJson, "target_2", target2);
+  tjsonAddStringToObject(pJson, "client_add", clientAddress);
+  //tjsonAddStringToObject(pJson, "target_1", target1);
+  //tjsonAddStringToObject(pJson, "target_2", target2);
   tjsonAddStringToObject(pJson, "details", buf);
 
   auditSend(pJson);
