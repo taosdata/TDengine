@@ -1924,8 +1924,15 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
       taosWUnLockLatch(&pMeta->lock);
     } else {
       tqDebug("vgId:%d tasks are all updated and stopped, restart them", vgId);
-
       terrno = 0;
+      taosWUnLockLatch(&pMeta->lock);
+
+      while (streamMetaTaskInTimer(pMeta)) {
+        qDebug("vgId:%d some tasks in timer, wait for 100ms and recheck", pMeta->vgId);
+        taosMsleep(100);
+      }
+
+      taosWLockLatch(&pMeta->lock);
       int32_t code = streamMetaReopen(pMeta);
       if (code != 0) {
         tqError("vgId:%d failed to reopen stream meta", vgId);
