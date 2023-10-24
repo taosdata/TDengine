@@ -394,29 +394,21 @@ bool isValidDstChildTable(SMetaReader* pReader, int32_t vgId, const char* ctbNam
   return true;
 }
 
-SVCreateTbReq* buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t numOfCols, SSDataBlock* pDataBlock) {
+SVCreateTbReq* buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t numOfCols,
+                                       SSDataBlock* pDataBlock, SArray* pTagArray) {
   SVCreateTbReq* pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
   if (pCreateTbReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  // set tag content
-  SArray* tagArray = taosArrayInit(1, sizeof(STagVal));
-  if (tagArray == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    tdDestroySVCreateTbReq(pCreateTbReq);
-    taosMemoryFreeClear(pCreateTbReq);
-    return NULL;
-  }
-
+  taosArrayClear(pTagArray);
   initCreateTableMsg(pCreateTbReq, suid, stbFullName, 1);
 
   STagVal tagVal = { .cid = numOfCols, .type = TSDB_DATA_TYPE_UBIGINT, .i64 = pDataBlock->info.id.groupId};
-  taosArrayPush(tagArray, &tagVal);
+  taosArrayPush(pTagArray, &tagVal);
 
-  tTagNew(tagArray, 1, false, (STag**) &pCreateTbReq->ctb.pTag);
-  taosArrayDestroy(tagArray);
+  tTagNew(pTagArray, 1, false, (STag**) &pCreateTbReq->ctb.pTag);
 
   if (pCreateTbReq->ctb.pTag == NULL) {
     tdDestroySVCreateTbReq(pCreateTbReq);
@@ -678,8 +670,13 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
 
       tqDebug("s-task:%s stream write into table:%s, table auto created", id, dstTableName);
 
+      SArray* pTagArray = taosArrayInit(pTSchema->numOfCols + 1, sizeof(STagVal));
+
       pTableData->flags = SUBMIT_REQ_AUTO_CREATE_TABLE;
-      pTableData->pCreateTbReq = buildAutoCreateTableReq(stbFullName, suid, pTSchema->numOfCols + 1, pDataBlock);
+      pTableData->pCreateTbReq =
+          buildAutoCreateTableReq(stbFullName, suid, pTSchema->numOfCols + 1, pDataBlock, pTagArray);
+      taosArrayDestroy(pTagArray);
+
       if (pTableData->pCreateTbReq == NULL) {
         tqError("s-task:%s failed to build auto create table req, code:%s", id, tstrerror(terrno));
         taosMemoryFree(pTableSinkInfo);
