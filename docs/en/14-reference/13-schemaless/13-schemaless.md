@@ -94,7 +94,7 @@ The string's MD5 hash value "md5_val" is calculated after the ranking is complet
 :::
 
 If you do not want to use an automatically generated table name, there are two ways to specify sub table names, the first one has a higher priority.
-You can configure smlAutoChildTableNameDelimiter in taos.cfg, for example, `smlAutoChildTableNameDelimiter=tname`. You can insert `st,t0=cpul,t1=4 c1=3 1626006833639000000` and the table name will be cpu1-4.
+You can configure smlAutoChildTableNameDelimiter in taos.cfg(except for `@ # space \r \t \n`), for example, `smlAutoChildTableNameDelimiter=tname`. You can insert `st,t0=cpul,t1=4 c1=3 1626006833639000000` and the table name will be cpu1-4.
 You can configure smlChildTableName in taos.cfg to specify table names, for example, `smlChildTableName=tname`. You can insert `st,tname=cpul,t1=4 c1=3 1626006833639000000` and the cpu1 table will be automatically created. Note that if multiple rows have the same tname but different tag_set values, the tag_set of the first row is used to create the table and the others are ignored.
 
 2. If the super table obtained by parsing the line protocol does not exist, this super table is created.
