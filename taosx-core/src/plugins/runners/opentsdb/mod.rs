@@ -64,7 +64,6 @@ pub async fn opentsdb_to_taos(
         .get()
         .ok_or_else(|| anyhow::format_err!("No available port for OpenTSDB connection"))?;
     // generate config
-    tracing::debug!("Using OpenTSDB DSN: {:?}", &from);
     let config = OpentsdbConfig::from(&from, ipc_port)?;
     // transform to toml
     let toml = toml::to_string(&config)?;
