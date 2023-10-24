@@ -24,8 +24,8 @@ ENV PLUGINS_HOME=/taosx/plugins/
 
 ADD ./plugins/influxdb/target/taosx-influxdb.jar /taosx/plugins/influxdb/
 ADD ./plugins/opentsdb/target/taosx-opentsdb.jar /taosx/plugins/opentsdb/
-ADD ./plugins/opc/taosx-opc /taosx/plugins/opc
-ADD ./plugins/mqtt/dist/taosx-mqtt /taosx/plugins/mqtt
+ADD ./plugins/opc/taosx-opc /taosx/plugins/opc/
+ADD ./plugins/mqtt/dist/taosx-mqtt /taosx/plugins/mqtt/
 ADD ./target/release/taosx /usr/bin/taosx
 
 WORKDIR /data/taosx
