@@ -432,28 +432,33 @@ shadow_rs::shadow!(build);
 
 const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN && const_str::equal!("main", build::BRANCH) {
     const_format::concatcp!(
+        "version: ",
         build::TD_VERSION,
+        "\ngit: ",
+        build::BRANCH,
         "-",
-        build::SHORT_COMMIT,
-        " (built ",
+        build::COMMIT_HASH,
+        "\nbuild: core-",
+        build::PKG_VERSION,
+        " ",
         build::BUILD_OS,
         " ",
-        build::BUILD_TIME,
-        ")"
+        build::BUILD_TIME
     )
 } else {
     const_format::concatcp!(
+        "enterprise version: ",
         build::TD_VERSION,
-        "-",
+        "\ngit: ",
         build::BRANCH,
         "-",
-        build::SHORT_COMMIT,
-        "-dirty",
-        " (built ",
+        build::COMMIT_HASH,
+        "\nbuild: core-dirty-",
+        build::PKG_VERSION,
+        " ",
         build::BUILD_OS,
         " ",
-        build::BUILD_TIME,
-        ")"
+        build::BUILD_TIME
     )
 };
 

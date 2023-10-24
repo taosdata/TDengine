@@ -1,9 +1,20 @@
 use std::path::Path;
+use std::fs::File;
+use shadow_rs::SdResult;
 
 const DEFAULT_CUS_NAME: &str = "TDengine";
 const DEFAULT_CUS_PROMPT: &str = "taos";
 const DEFAULT_CUS_CONFIG: &str = "";
-const DEFAULT_TD_VERSION: &str = "3.0.2.0";
+
+fn labeling(mut file: &File) -> SdResult<()> {
+    let td_version = std::env::var("VER_NUMBER").ok();
+    if let Some(version) = td_version {
+        writeln!(file, r#"pub const TD_VERSION: &str = "{}";"#, version)?;
+    } else {
+        writeln!(file, r#"pub const TD_VERSION: &str = PKG_VERSION;"#)?;
+    }
+    Ok(())
+}
 
 fn main() -> shadow_rs::SdResult<()> {
     let out_dir = std::env::var("OUT_DIR").unwrap();
@@ -16,7 +27,6 @@ fn main() -> shadow_rs::SdResult<()> {
     let cus_name = std::env::var("CUS_NAME").unwrap_or(DEFAULT_CUS_NAME.to_string());
     let cus_prompt = std::env::var("CUS_PROMPT").unwrap_or(DEFAULT_CUS_PROMPT.to_string());
     let cus_config = std::env::var("CUS_CONFIG").unwrap_or(DEFAULT_CUS_CONFIG.to_string());
-    let td_version = std::env::var("VER_NUMBER").unwrap_or(DEFAULT_TD_VERSION.to_string());
     let cus_name = if cus_name.trim().is_empty() {
         DEFAULT_CUS_NAME
     } else {
@@ -31,11 +41,6 @@ fn main() -> shadow_rs::SdResult<()> {
         DEFAULT_CUS_CONFIG
     } else {
         cus_config.trim()
-    };
-    let td_version = if td_version.trim().is_empty() {
-        DEFAULT_TD_VERSION
-    } else {
-        td_version.trim()
     };
     let content = std::fs::read_to_string(readme)
         .unwrap()
@@ -57,7 +62,6 @@ fn main() -> shadow_rs::SdResult<()> {
     println!("cargo:rustc-env=CUS_CONFIG={cus_config}");
     println!("cargo:rustc-env=CUS_CLI_NAME={cus_prompt}-explorer");
     println!("cargo:rustc-env=CUS_README={}", readme_out.display());
-    println!("cargo:rustc-env=TD_VERSION={td_version}");
     println!("cargo:rerun-if-env-changed=CUS_NAME");
     println!("cargo:rerun-if-env-changed=CUS_PROMPT");
     println!("cargo:rerun-if-env-changed=CUS_CONFIG");
