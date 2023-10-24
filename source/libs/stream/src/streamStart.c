@@ -401,6 +401,7 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
             "s-task:%s downstream taskId:0x%x (vgId:%d) vnode-transfer/leader-change detected, not send check again, "
             "roll-back needed",
             id, pRsp->downstreamTaskId, pRsp->downstreamNodeId);
+        return 0;
       }
 
       STaskRecheckInfo* pInfo = createRecheckInfo(pTask, pRsp);
