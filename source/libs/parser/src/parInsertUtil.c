@@ -170,6 +170,10 @@ static void initColValues(STableMeta* pTableMeta, SArray* pValues) {
   }
 }
 
+void insInitColValues(STableMeta* pTableMeta, SArray* aColValues) {
+    initColValues(pTableMeta, aColValues);
+}
+
 int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo* pInfo) {
   pInfo->numOfCols = numOfBound;
   pInfo->numOfBound = numOfBound;
