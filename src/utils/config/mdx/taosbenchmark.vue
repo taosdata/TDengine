@@ -8,19 +8,27 @@
     <h2 id="installation">{{ $t("docs.tool.benchmark.step2") }}</h2>
     <p>
       {{ $t("docs.tool.benchmark.step2desc") }}
-      <a
-        :href="`https://${urlPart}.com/assets-download/3.0/taosTools-2.4.9-Linux-x64-comp3.tar.gz`"
+
+      
+      <a :href="installUrlLinux">Linux</a
+      >{{ $t("docs.tool.cli.step1desc3")
+      }}<a :href="installUrlWindows">Windows</a
+      >{{ $t("docs.tool.cli.step1desc3") }} <a :href="installUrlMac">MacOS-x64</a
+      >{{ $t("docs.tool.cli.step1desc3") }} <a :href="installURLArm">MacOS-arm64</a
+      >{{ $t("docs.tool.cli.step1desc4") }}
+    
+      <!-- <a
+        :href="`https://${urlPart}.com/assets-download/3.0/taosTools-2.5.3-Linux-x64-comp3.tar.gz`"
         >taosTools</a
-      >{{ $t("docs.tool.benchmark.step2desc1") }}
+      > -->
+      <!-- {{ $t("docs.tool.benchmark.step2desc1") }}
       <a :href="`${$t('urlPart')}/reference/taosbenchmark`">{{
         $t("docs.tool.benchmark.step2desc2")
       }}</a
-      >{{ $t("docs.connector.bottom3end") }}
+      >{{ $t("docs.connector.bottom3end") }} -->
     </p>
     <p>{{ $t("docs.tool.benchmark.step2desc3") }}</p>
-    <pre v-highlight><code>tar -xzf taosTools-2.4.9-Linux-x64-comp3.tar.gz
-cd taosTools-2.4.9-Linux-x64-comp3
-sudo ./install-taostools.sh
+    <pre v-highlight><code>{{ benchcode }}
 </code></pre>
     <h2 id="run">{{ $t("docs.tool.benchmark.step3") }}</h2>
     <h3 id="configuration-and-running-methods">
@@ -624,7 +632,12 @@ export default {
     }
   },
   data() {
-    return {};
+    return {
+      version:localStorage.getItem('agent_version'),
+      benchcode:`tar -xzf taosTools-2.5.3-Linux-x64-comp3.tar.gz
+cd taosTools-2.5.3-Linux-x64-comp3
+sudo ./install-taostools.sh`
+    };
   },
   computed: {
     DSN() {
@@ -632,7 +645,23 @@ export default {
     },
     urlPart() {
       return this.$i18n.locale.includes('en') ?"tdengine": "taosdata";
-    }
+    },
+    installUrlLinux() {
+      const urlPart = this.urlPart;
+      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-enterprise-client-3.2.0.1-Linux-x64.tar.gz`;
+    },
+    installUrlMac() {
+      const urlPart = this.urlPart;
+      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-client-3.2.0.1-macOS-x64.pkg`;
+    },
+    installURLArm(){
+      const urlPart = this.urlPart;
+      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-client-3.2.0.1-macOS-arm64.pkg`;
+    },
+    installUrlWindows() {
+      const urlPart = this.urlPart;
+      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-enterprise-client-3.2.0.1-Windows-x64.exe`;
+    },
   },
 };
 </script>

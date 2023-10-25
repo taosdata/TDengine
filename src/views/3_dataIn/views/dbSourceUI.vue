@@ -392,7 +392,6 @@
                     class="upload-dataset"
                     ref="upload"
                     accept=".csv"
-                    :limit="limit"
                     :data="uploadData"
                     :action="uploadUrl"
                     :on-success="
@@ -1022,8 +1021,8 @@ export default {
       this.dbsource[0].datasets.params = this.dbsource[0].datasets.params.map(
         (p) => {
           if (p.name == name) {
-            p.fileList = fileList;
-            p.value = fileList[0].response[0];
+            p.fileList = fileList?.length <= 1 ? fileList : [{...fileList[1]}];
+            p.value = file.response[0];
           }
           return p;
         }
@@ -1351,10 +1350,18 @@ export default {
           for (let index = 0; index < data.datasets.params.length; index++) {
             if (data.datasets.params[index].name == this.activeName) {
               if (this.activeRadio == "select_file") {
-                if (this.handleEmptyValue(data.datasets.params[index].value)) {
+                if (this.handleEmptyValue(data.datasets.params[index].value)
+                    && data.datasets.params[index].value !='*'
+                ) {
                   querystr +=
                     `${data.datasets.params[index].name}=@${data.datasets.params[index].value}` +
                     "&";
+                } else {
+                  Message({
+                    type: "warning",
+                    message: this.$t('datasource.uploadtip'),
+                  });
+                  return
                 }
               } else {
                 querystr += `${data.datasets.params[index].name}=*` + "&";
@@ -2366,6 +2373,9 @@ export default {
   ::v-deep .radio-custom {
     display: flex;
     flex-direction: column;
+  }
+  ::v-deep .el-upload-list {
+    max-width: 90px;
   }
 }
 </style>

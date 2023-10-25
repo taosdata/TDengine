@@ -639,7 +639,7 @@ export default {
 
     async refresh() {
       await this.getList();
-      await this.$refs.agents.refresh()
+      await this.$refs.agents?.refresh()
 
     },
     async refreshCurrentTask(data) {

@@ -8,7 +8,8 @@
       >&nbsp;{{ $t("docs.tool.cli.step1desc2") }}<a :href="installUrlLinux">Linux</a
       >{{ $t("docs.tool.cli.step1desc3")
       }}<a :href="installUrlWindows">Windows</a
-      >{{ $t("docs.tool.cli.step1desc3") }} <a :href="installUrlMac">Mac</a
+      >{{ $t("docs.tool.cli.step1desc3") }} <a :href="installUrlMac">MacOS-x64</a
+      >{{ $t("docs.tool.cli.step1desc3") }} <a :href="installURLArm">MacOS-arm64</a
       >{{ $t("docs.tool.cli.step1desc4") }}
     </p>
     <h2 id="config">{{ $t("docs.tool.cli.step2") }}</h2>
@@ -81,7 +82,7 @@
     <p>{{ $t("docs.tool.cli.step4desc") }}</p>
     <pre
       v-highlight
-    ><code>Welcome to the TDengine shell from Linux, Client Version:3.0.0.0
+    ><code>Welcome to the TDengine shell from Linux, Client Version:3.2.0.1
 Copyright (c) 2023 by TAOS Data, Inc. All rights reserved.
 
 Successfully connect to cloud.tdengine.com:8085 in restful mode
@@ -134,15 +135,19 @@ export default {
     },
     installUrlLinux() {
       const urlPart = this.urlPart;
-      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-client-${TdengineVersion}-Linux-x64.tar.gz`;
+      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-enterprise-client-3.2.0.1-Linux-x64.tar.gz`;
     },
     installUrlMac() {
       const urlPart = this.urlPart;
-      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-client-${TdengineVersion}-macOS-x64.pkg`;
+      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-client-3.2.0.1-macOS-x64.pkg`;
+    },
+    installURLArm(){
+      const urlPart = this.urlPart;
+      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-client-3.2.0.1-macOS-arm64.pkg`;
     },
     installUrlWindows() {
       const urlPart = this.urlPart;
-      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-client-${TdengineVersion}-Windows-x64.exe`;
+      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-enterprise-client-3.2.0.1-Windows-x64.exe`;
     },
   },
 };

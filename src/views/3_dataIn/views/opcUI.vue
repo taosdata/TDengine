@@ -161,7 +161,6 @@
                           : {}
                       "
                     >
-                      {{ p.display }}
                       <el-tooltip
                         class="item"
                         effect="light"
@@ -176,6 +175,8 @@
                         ></div>
                         <i class="el-icon-info"></i>
                       </el-tooltip>
+
+                      {{ p.display }}
                     </span>
 
                     <div style="flex: 1">
@@ -206,7 +207,6 @@
                         <el-upload
                           class="upload-demo"
                           ref="upload"
-                          :limit="limit"
                           :data="uploadData"
                           :action="uploadUrl"
                           :on-success="
@@ -580,7 +580,6 @@
                       <el-upload
                         class="upload-demo"
                         ref="upload"
-                        :limit="limit"
                         :data="uploadData"
                         :action="uploadUrl"
                         :on-success="
@@ -980,7 +979,7 @@ export default {
       disableallnodeclick: true,
       opcinusefile: "",
       downloadUrl: process.env.VUE_APP_X_API + `/download?file_path=`,
-      language: this.$i18n.locale,
+      language: localStorage.getItem('local_language'),
       limit: 1,
       opcPointavalible: true,
       mqttcafile: [],
@@ -1212,7 +1211,7 @@ export default {
       }
     },
     handleopcSuccess(response, file, fileList) {
-      this.opcfileList = fileList;
+      this.opcfileList = [].concat(file);
     },
     handleopcRemove(file, filelist) {
       this.opcfileList = filelist;
@@ -1271,22 +1270,22 @@ export default {
     //   }
     // },
     handleCertSuccess(response, file, fileList) {
-      this.certfileList = fileList;
+      this.certfileList = [].concat(file)
     },
     handlePrivateSuccess(response, file, fileList) {
-      this.privatefileList = fileList;
+      this.privatefileList = [].concat(file)
     },
     handleSuccess(response, file, fileList) {
-      this.fileList = fileList;
+      this.fileList = [].concat(file)
     },
     handleMqttCaSuccess(response, file, fileList) {
-      this.mqttcafile = fileList;
+      this.mqttcafile = [].concat(file)
     },
     handleMqttCertSuccess(response, file, fileList) {
-      this.mqttcertfile = fileList;
+      this.mqttcertfile = [].concat(file)
     },
     handleMqttCertKeySuccess(response, file, fileList) {
-      this.mqttcertkeyfile = fileList;
+      this.mqttcertkeyfile = [].concat(file)
     },
 
     //opc需要存入库的字段
@@ -2490,9 +2489,12 @@ export default {
   display: flex;
   align-items: baseline;
 }
-::v-deep {
+::v-deep {x
   .el-upload-list__item {
     margin-top: 1px !important;
+  }
+  .el-upload-list__item-name{
+    max-width:120px;
   }
 }
 </style>
