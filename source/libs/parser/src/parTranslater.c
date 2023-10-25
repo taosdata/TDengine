@@ -4588,12 +4588,6 @@ static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRete
   SValueNode* pPrevFreq = NULL;
   SValueNode* pPrevKeep = NULL;
   SNode*      pRetention = NULL;
-  int64_t     tsdbMinKeep = TSDB_MIN_KEEP;
-  int64_t     tsdbMaxKeep = TSDB_MAX_KEEP;
-  if (precision == TSDB_TIME_PRECISION_NANO) {
-    tsdbMaxKeep = TSDB_MAX_KEEP_NS;
-  }
-
   FOREACH(pRetention, pRetentions) {
     SNode* pNode = NULL;
     FOREACH(pNode, ((SNodeListNode*)pRetention)->pNodeList) {
@@ -4626,12 +4620,13 @@ static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRete
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                      "Invalid option retentions(freq): %s should larger than 0", pFreq->literal);
     }
-    int64_t keepMinute = pKeep->datum.i / 60000;  // ms to minute
-    if (keepMinute < tsdbMinKeep || keepMinute > tsdbMaxKeep) {
+    int64_t keepMinute = pKeep->datum.i / getUnitPerMinute(pKeep->node.resType.precision);
+    int64_t tsdbMaxKeep = TSDB_TIME_PRECISION_NANO == precision ? TSDB_MAX_KEEP_NS : TSDB_MAX_KEEP;
+    if (keepMinute < TSDB_MIN_KEEP || keepMinute > tsdbMaxKeep) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                      "Invalid option retentions(keep): %" PRId64 "m, valid range: [%" PRIi64
                                      "m, %" PRId64 "m]",
-                                     keepMinute, tsdbMinKeep, tsdbMaxKeep);
+                                     keepMinute, TSDB_MIN_KEEP, tsdbMaxKeep);
     }
 
     // check relationships
