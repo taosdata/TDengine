@@ -72,7 +72,7 @@ bool inSessionWindow(SSessionKey* pKey, TSKEY ts, int64_t gap) {
   return false;
 }
 
-static SRowBuffPos* addNewSessionWindow(SStreamFileState* pFileState, SArray* pWinInfos, SSessionKey* pKey) {
+static SRowBuffPos* addNewSessionWindow(SStreamFileState* pFileState, SArray* pWinInfos, const SSessionKey* pKey) {
   SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
   ASSERT(pNewPos->pRowBuff);
   memcpy(pNewPos->pKey, pKey, sizeof(SSessionKey));
@@ -80,7 +80,7 @@ static SRowBuffPos* addNewSessionWindow(SStreamFileState* pFileState, SArray* pW
   return pNewPos;
 }
 
-static SRowBuffPos* insertNewSessionWindow(SStreamFileState* pFileState, SArray* pWinInfos, SSessionKey* pKey, int32_t index) {
+static SRowBuffPos* insertNewSessionWindow(SStreamFileState* pFileState, SArray* pWinInfos, const SSessionKey* pKey, int32_t index) {
   SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
   ASSERT(pNewPos->pRowBuff);
   memcpy(pNewPos->pKey, pKey, sizeof(SSessionKey));
@@ -267,6 +267,51 @@ int32_t deleteSessionWinStateBuffByPosFn(SStreamFileState* pFileState, SRowBuffP
       taosArrayRemove(pWinStates, index);
     }
   }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t allocSessioncWinBuffByNextPosition(SStreamFileState* pFileState, SStreamStateCur* pCur, const SSessionKey* pWinKey, void** ppVal, int32_t* pVLen) {
+  SRowBuffPos* pNewPos = NULL;
+  SSHashObj* pSessionBuff = getRowStateBuff(pFileState);
+  void**     ppBuff = tSimpleHashGet(pSessionBuff, &pWinKey->groupId, sizeof(uint64_t));
+  SArray* pWinStates = NULL;
+  if (!ppBuff) {
+    pWinStates = taosArrayInit(16, POINTER_BYTES);
+    tSimpleHashPut(pSessionBuff, &pWinKey->groupId, sizeof(uint64_t), &pWinStates, POINTER_BYTES);
+  } else {
+    pWinStates = (SArray*)(*ppBuff);
+  }
+  if (!pCur) {
+    pNewPos = addNewSessionWindow(pFileState, pWinStates, pWinKey);
+    goto _end;
+  }
+
+  int32_t size = taosArrayGetSize(pWinStates);
+  if (pCur->buffIndex >= 0) {
+    if (pCur->buffIndex >= size) {
+      pNewPos = insertNewSessionWindow(pFileState, pWinStates, pWinKey, size);
+      goto _end;
+    }
+    pNewPos = insertNewSessionWindow(pFileState, pWinStates, pWinKey, pCur->buffIndex);
+    goto _end;
+  } else {
+    if (size > 0) {
+      SRowBuffPos* pPos = taosArrayGetP(pWinStates, 0);
+      if (sessionWinKeyCmpr(pWinKey, pPos->pKey) >=0) {
+        // pCur is invalid
+        SSessionKey pTmpKey = *pWinKey;
+        int32_t code = getSessionWinResultBuff(pFileState, &pTmpKey, 0, (void**)&pNewPos, pVLen);
+        ASSERT(code == TSDB_CODE_FAILED);
+        goto _end;
+      }
+    }
+    pNewPos = getNewRowPosForWrite(pFileState);
+    pNewPos->needFree = true;
+  }
+
+_end:
+  memcpy(pNewPos->pKey, pWinKey, sizeof(SSessionKey));
+  (*ppVal) = pNewPos;
   return TSDB_CODE_SUCCESS;
 }
 

@@ -1,0 +1,49 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sleep 50
+sql connect
+
+print step1
+print =============== create database test1
+sql create database test1 vgroups 1;
+sql use test1;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt1 as select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 event_window start with a = 0 end with b = 9;
+sleep 1000
+
+sql insert into t1 values(1648791233000,0,1,1,1.0);
+sql insert into t1 values(1648791243000,1,9,9,9.0);
+
+
+sql insert into t1 values(1648791223000,3,3,3,3.0);
+
+$loop_count = 0
+loop0:
+
+sleep 300
+print 1 sql select * from streamt1;
+sql select * from streamt1;
+
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 1 then
+  print ======rows=$rows
+  goto loop0
+endi
+
+# row 0
+if $data01 != 2 then
+  print ======data01=$data01
+  goto loop0
+endi
+
+print event1 end
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

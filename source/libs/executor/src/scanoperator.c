@@ -1127,7 +1127,8 @@ static bool isSessionWindow(SStreamScanInfo* pInfo) {
 }
 
 static bool isStateWindow(SStreamScanInfo* pInfo) {
-  return pInfo->windowSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE;
+  return pInfo->windowSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE ||
+         pInfo->windowSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT;
 }
 
 static bool isIntervalWindow(SStreamScanInfo* pInfo) {
@@ -2243,6 +2244,7 @@ FETCH_NEXT_BLOCK:
       blockDataCleanup(pSup->pScanBlock);
       prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex);
       pInfo->pUpdateRes->info.type = STREAM_DELETE_DATA;
+      printSpecDataBlock(pInfo->pUpdateRes, getStreamOpName(pOperator->operatorType), "rebuild", GET_TASKID(pTaskInfo));
       return pInfo->pUpdateRes;
     }
 
