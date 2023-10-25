@@ -314,11 +314,6 @@ int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op) {
       int32_t    idx = TARRAY2_SEARCH_IDX(lvl->fobjArr, &tfobjp, tsdbTFileObjCmpr, TD_EQ);
       ASSERT(idx >= 0);
       TARRAY2_REMOVE(lvl->fobjArr, idx, tsdbSttLvlClearFObj);
-
-      if (TARRAY2_SIZE(lvl->fobjArr) == 0) {
-        // TODO: remove the stt level if no file exists anymore
-        // TARRAY2_REMOVE(&fset->lvlArr, lvl - fset->lvlArr.data, tsdbSttLvlClear);
-      }
     } else {
       ASSERT(tsdbIsSameTFile(&op->of, fset->farr[op->of.type]->f));
       tsdbTFileObjUnref(fset->farr[op->of.type]);
