@@ -120,16 +120,20 @@ func (r *reader) connect(ctx context.Context) error {
 
 	if r.client != nil {
 		logger.Warn("## Closing connection due to Connection already instantiated")
-		if err = r.client.Close(); err != nil {
+		if err = r.client.Close(ctx); err != nil {
 			logger.Error("## close connection error", "error", err)
 		}
 	}
 
-	r.client = opcua.NewClient(r.connectConfig.Endpoint, opts...)
+	r.client, err = opcua.NewClient(r.connectConfig.Endpoint, opts...)
+	if err != nil {
+		r.state = opcua.Disconnected
+		return fmt.Errorf("error in NewClient: %w", err)
+	}
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, r.connectTimeout)
 	defer cancel()
-	if err := r.client.Connect(timeoutCtx); err != nil {
+	if err = r.client.Connect(timeoutCtx); err != nil {
 		r.state = opcua.Disconnected
 		return fmt.Errorf("error in Client Connection: %w", err)
 	}
@@ -159,7 +163,7 @@ func (r *reader) stop(ctx context.Context) {
 		if r.client == nil {
 			return
 		}
-		if err := r.client.CloseWithContext(ctx); err != nil {
+		if err := r.client.Close(ctx); err != nil {
 			logger.Error("## close opc ua connection error", "error", err)
 		}
 		if r.dumper != nil {
@@ -249,8 +253,7 @@ func (r *reader) readAndSend(ctx context.Context, ch chan *common.NodeValue, wai
 
 func (r *reader) readValue(ctx context.Context, nodes []*uaNode, nodesToRead []*ua.ReadValueID) (values []*common.NodeValue, err error) {
 	start := time.Now()
-	res, err := r.client.ReadWithContext(ctx,
-		&ua.ReadRequest{MaxAge: 2000, TimestampsToReturn: ua.TimestampsToReturnBoth, NodesToRead: nodesToRead})
+	res, err := r.client.Read(ctx, &ua.ReadRequest{MaxAge: 2000, TimestampsToReturn: ua.TimestampsToReturnBoth, NodesToRead: nodesToRead})
 	if err != nil {
 		return nil, fmt.Errorf("observe failed: %w", err)
 	}
@@ -367,7 +370,7 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 					node := r.nodes[item.ClientHandle]
 					id := node.nodeID.String()
 
-					if item == nil || item.Value == nil || item.Value.Value == nil {
+					if item.Value == nil || item.Value.Value == nil {
 						logger.WarnF("## subscribe data for identifier [%q] value is nil ", id)
 						continue
 					}
@@ -416,7 +419,7 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 
 func (r *reader) subscribeNodes(ctx context.Context) (sub *opcua.Subscription, ch chan *opcua.PublishNotificationData, err error) {
 	ch = make(chan *opcua.PublishNotificationData, 1)
-	sub, err = r.client.SubscribeWithContext(ctx, &opcua.SubscriptionParameters{}, ch)
+	sub, err = r.client.Subscribe(ctx, &opcua.SubscriptionParameters{}, ch)
 	if err != nil {
 		logger.Error("## subscribe failed", "error", err)
 		return nil, nil, fmt.Errorf("subscribe failed: %w", err)
@@ -427,7 +430,7 @@ func (r *reader) subscribeNodes(ctx context.Context) (sub *opcua.Subscription, c
 		wait.Add(1)
 		go func(idx int, n *uaNode, w *sync.WaitGroup) {
 			defer w.Done()
-			if _, err := sub.Monitor(ua.TimestampsToReturnBoth,
+			if _, err := sub.Monitor(ctx, ua.TimestampsToReturnBoth,
 				opcua.NewMonitoredItemCreateRequestWithDefaults(n.nodeID, ua.AttributeIDValue, uint32(idx))); err != nil {
 				logger.Error("## subscribe monitor for node failed", "node", n.nodeID.String(), "error", err)
 			}
@@ -651,13 +654,13 @@ BK:
 }
 
 func (r *reader) browseChildrenNode(ctx context.Context, node *opcua.Node) (leaves []*opcua.Node, nodes []*opcua.Node, err error) {
-	childrenNodes, err := node.ChildrenWithContext(ctx, 0, ua.NodeClassAll)
+	childrenNodes, err := node.Children(ctx, 0, ua.NodeClassAll)
 	if err != nil {
 		return nil, nil, fmt.Errorf("get child for node %s error %v", node.String(), err)
 	}
 
 	for _, child := range childrenNodes {
-		nodeClass, err := child.NodeClassWithContext(ctx)
+		nodeClass, err := child.NodeClass(ctx)
 		if err != nil {
 			logger.WarnF("## get node class for node %s error %v", child.String(), err)
 		}
@@ -672,7 +675,7 @@ func (r *reader) browseChildrenNode(ctx context.Context, node *opcua.Node) (leav
 
 func (r *reader) getNodeName(ctx context.Context, node *opcua.Node) (name string, err error) {
 	var browseName *ua.QualifiedName
-	if browseName, err = node.BrowseNameWithContext(ctx); err == nil {
+	if browseName, err = node.BrowseName(ctx); err == nil {
 		name = browseName.Name
 	}
 	return
