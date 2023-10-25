@@ -85,7 +85,7 @@ func newReader(config common.Config) (*reader, error) {
 	ctx := context.Background()
 	allTags, err := r.getAllTags(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("get all da node error %v", err)
+		return &r, fmt.Errorf("get all da node error %v", err)
 	}
 	tagName := make(map[string]string, len(allTags))
 	for _, tag := range allTags {
@@ -98,12 +98,12 @@ func newReader(config common.Config) (*reader, error) {
 	}
 	r.tags = tags
 	if err = config.Collect.Dump.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid dump config: %w", err)
+		return &r, fmt.Errorf("invalid dump config: %w", err)
 	}
 	if config.Collect.Dump.Enable {
 		dumper, err := connector.NewCsvDumper(config.Collect.Dump.Path, config.Collect.Dump.Keep)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create dump file: %w", err)
+			return &r, fmt.Errorf("failed to create dump file: %w", err)
 		}
 
 		r.dumper = dumper
