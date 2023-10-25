@@ -1640,15 +1640,21 @@ static int32_t getStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   return code;
 }
 
-static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,  const char** ppSql,
-                              SStbRowsDataContext* pStbRowsCxt, bool* pGotRow, SToken* pToken) {
-  int32_t code = getStbRowValues(pCxt, pStmt, ppSql, pStbRowsCxt, pGotRow, pToken);
-  if (code != TSDB_CODE_SUCCESS || !*pGotRow) {
-    return code;
-  }
-
+static int32_t processCtbAutoCreationAndCtbMeta(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SStbRowsDataContext* pStbRowsCxt) {
+  int32_t code = TSDB_CODE_SUCCESS;
   if (pStbRowsCxt->pTagCond) {
     code = checkSubtablePrivilege(pStbRowsCxt->aTagVals, pStbRowsCxt->aTagNames, &pStbRowsCxt->pTagCond);
+  }
+
+  pStbRowsCxt->pCreateCtbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+  if (pStbRowsCxt->pCreateCtbReq == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    insBuildCreateTbReq(pStbRowsCxt->pCreateCtbReq, pStbRowsCxt->ctbName.tname, pStbRowsCxt->pTag, pStbRowsCxt->pStbMeta->uid,
+                        pStbRowsCxt->stbName.tname, pStbRowsCxt->aTagNames, getNumOfTags(pStbRowsCxt->pStbMeta),
+                        TSDB_DEFAULT_TABLE_TTL);
+    pStbRowsCxt->pTag = NULL;
   }
 
   if (code == TSDB_CODE_SUCCESS) {
@@ -1675,16 +1681,36 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
       taosHashPut(pStmt->pSubTableHashObj, ctbFName, strlen(ctbFName), &pBackup, POINTER_BYTES);
     }
   }
+  return code;
+}
 
-  pStbRowsCxt->pCreateCtbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
-  if (pStbRowsCxt->pCreateCtbReq == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+static void clearStbRowsDataContext(SStbRowsDataContext* pStbRowsCxt) {
+  taosArrayClear(pStbRowsCxt->aTagNames);
+  for (int i = 0; i < taosArrayGetSize(pStbRowsCxt->aTagVals); ++i) {
+    STagVal* p = (STagVal*)taosArrayGet(pStbRowsCxt->aTagVals, i);
+    if (IS_VAR_DATA_TYPE(p->type)) {
+      taosMemoryFreeClear(p->pData);
+    }
   }
+  taosArrayClear(pStbRowsCxt->aTagVals);
+  taosArrayClear(pStbRowsCxt->aColVals);
+  tTagFree(pStbRowsCxt->pTag);
+  pStbRowsCxt->pTag = NULL;
+  pStbRowsCxt->pCtbMeta->uid = 0;
+  pStbRowsCxt->pCtbMeta->vgId = 0;
+  tdDestroySVCreateTbReq(pStbRowsCxt->pCreateCtbReq);
+  taosMemoryFreeClear(pStbRowsCxt->pCreateCtbReq);
+}
+
+static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,  const char** ppSql,
+                              SStbRowsDataContext* pStbRowsCxt, bool* pGotRow, SToken* pToken) {
+  int32_t code = getStbRowValues(pCxt, pStmt, ppSql, pStbRowsCxt, pGotRow, pToken);
+  if (code != TSDB_CODE_SUCCESS || !*pGotRow) {
+    return code;
+  }
+
   if (code == TSDB_CODE_SUCCESS) {
-    insBuildCreateTbReq(pStbRowsCxt->pCreateCtbReq, pStbRowsCxt->ctbName.tname, pStbRowsCxt->pTag, pStbRowsCxt->pStbMeta->uid,
-                        pStbRowsCxt->stbName.tname, pStbRowsCxt->aTagNames, getNumOfTags(pStbRowsCxt->pStbMeta),
-                        TSDB_DEFAULT_TABLE_TTL);
-    pStbRowsCxt->pTag = NULL;
+      code = processCtbAutoCreationAndCtbMeta(pCxt, pStmt, pStbRowsCxt);
   }
 
   STableDataCxt* pTableDataCxt = NULL;
@@ -1702,29 +1728,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
     *pGotRow = true;
   }
 
-  taosArrayClear(pStbRowsCxt->aTagNames);
-  for (int i = 0; i < taosArrayGetSize(pStbRowsCxt->aTagVals); ++i) {
-    STagVal* p = (STagVal*)taosArrayGet(pStbRowsCxt->aTagVals, i);
-    if (IS_VAR_DATA_TYPE(p->type)) {
-      taosMemoryFreeClear(p->pData);
-    }
-  }
-  taosArrayClear(pStbRowsCxt->aTagVals);
-  taosArrayClear(pStbRowsCxt->aColVals);
-  tTagFree(pStbRowsCxt->pTag);
-  pStbRowsCxt->pTag = NULL;
-  pStbRowsCxt->pCtbMeta->uid = 0;
-  pStbRowsCxt->pCtbMeta->vgId = 0;
-  tdDestroySVCreateTbReq(pStbRowsCxt->pCreateCtbReq);
-  taosMemoryFreeClear(pStbRowsCxt->pCreateCtbReq);
-  // child meta , vgroupid, check privilege
-  // refer to parInsertSml.c
-  // create or reuse table data context from tbName
-  // init submit data
-  // build create table request, refer to parseTagsClauseImpl
-  // build row and check table data order, refer to parseOneRow
-
-  // clear the values, etc
+  clearStbRowsDataContext(pStbRowsCxt);
 
   return TSDB_CODE_SUCCESS;
 }
