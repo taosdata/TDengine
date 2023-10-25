@@ -37,4 +37,10 @@ print $rows
 if $rows != 4 then
   return -1
 endi
+
+sql_error insert into d2.st values(now, 1, 1)
+sql_error insert into d2.st(ts, f) values(now, 1);
+sql_error insert into d2.st(ts, f, tbname) values(now, 1);
+sql_error insert into d2.st(ts, f, tbname) values(now, 1, '');
+sql_error insert into d2.st(ts, tbname) values(now, 1, 34)
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

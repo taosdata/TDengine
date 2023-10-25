@@ -1615,17 +1615,18 @@ static int32_t getStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
     }
     else if (pCols->pColIndex[i] == getTbnameSchemaIndex(pStbRowsCxt->pStbMeta)) {
       SColVal tbnameVal = COL_VAL_NONE(-1, TSDB_DATA_TYPE_BINARY);
+      tbnameVal.value.val = 0;
       code = parseValueToken(pCxt, ppSql, pToken, (SSchema*)tGetTbnameColumnSchema(),
                              getTableInfo(pStbRowsCxt->pStbMeta).precision, &tbnameVal);
-      if (code == TSDB_CODE_SUCCESS && COL_VAL_IS_VALUE(&tbnameVal)) {
+      if (code == TSDB_CODE_SUCCESS && COL_VAL_IS_VALUE(&tbnameVal) && tbnameVal.value.nData>0) {
         tNameSetDbName(&pStbRowsCxt->ctbName, pStbRowsCxt->stbName.acctId, pStbRowsCxt->stbName.dbname, strlen(pStbRowsCxt->stbName.dbname));
         char ctbName[TSDB_TABLE_NAME_LEN];
         memcpy(ctbName, tbnameVal.value.pData, tbnameVal.value.nData);
         ctbName[tbnameVal.value.nData] = '\0';
         tNameAddTbName(&pStbRowsCxt->ctbName, ctbName, tbnameVal.value.nData);
         bFoundTbName = true;
-        taosMemoryFreeClear(tbnameVal.value.pData);
       }
+      taosMemoryFreeClear(tbnameVal.value.pData);
     }
 
     if (code == TSDB_CODE_SUCCESS && i < pCols->numOfBound - 1) {
@@ -2059,11 +2060,6 @@ static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModif
     SRowsDataContext rowsDataCxt;
     rowsDataCxt.pStbRowsCxt = pStbRowsCxt;
     code = parseDataClause(pCxt, pStmt, rowsDataCxt);
-  }
-
-  if (code != TSDB_CODE_SUCCESS) {
-    destroyStbRowsDataContext(pStbRowsCxt);
-    taosMemoryFreeClear(pStbRowsCxt);
   }
 
   return code;
