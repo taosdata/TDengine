@@ -413,8 +413,8 @@ typedef struct SVgDataBlocks {
 
 typedef void (*FFreeTableBlockHash)(SHashObj*);
 typedef void (*FFreeVgourpBlockArray)(SArray*);
-
 struct SStbRowsDataContext;
+typedef void (*FFreeStbRowsDataContext)(struct SStbRowsDataContext*);
 typedef struct SVnodeModifyOpStmt {
   ENodeType             nodeType;
   ENodeType             sqlNodeType;
@@ -444,6 +444,7 @@ typedef struct SVnodeModifyOpStmt {
 
   bool                  stbSyntax;
   struct SStbRowsDataContext*  pStbRowsCxt;
+  FFreeStbRowsDataContext     freeStbRowsCxtFunc;
 } SVnodeModifyOpStmt;
 
 typedef struct SExplainOptions {

@@ -879,6 +879,10 @@ void nodesDestroyNode(SNode* pNode) {
       }
       tdDestroySVCreateTbReq(pStmt->pCreateTblReq);
       taosMemoryFreeClear(pStmt->pCreateTblReq);
+      if (pStmt->freeStbRowsCxtFunc) {
+        pStmt->freeStbRowsCxtFunc(pStmt->pStbRowsCxt);
+      }
+      taosMemoryFreeClear(pStmt->pStbRowsCxt);
       taosCloseFile(&pStmt->fp);
       break;
     }

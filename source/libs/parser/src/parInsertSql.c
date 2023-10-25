@@ -1614,13 +1614,17 @@ static int32_t getStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
       }
     }
     else if (pCols->pColIndex[i] == getTbnameSchemaIndex(pStbRowsCxt->pStbMeta)) {
-      SColVal tbnameVal;
+      SColVal tbnameVal = COL_VAL_NONE(-1, TSDB_DATA_TYPE_BINARY);
       code = parseValueToken(pCxt, ppSql, pToken, (SSchema*)tGetTbnameColumnSchema(),
                              getTableInfo(pStbRowsCxt->pStbMeta).precision, &tbnameVal);
       if (code == TSDB_CODE_SUCCESS && COL_VAL_IS_VALUE(&tbnameVal)) {
-        tNameAssign(&pStbRowsCxt->ctbName, &pStbRowsCxt->stbName);
-        tNameAddTbName(&pStbRowsCxt->ctbName, tbnameVal.value.pData, tbnameVal.value.nData);
+        tNameSetDbName(&pStbRowsCxt->ctbName, pStbRowsCxt->stbName.acctId, pStbRowsCxt->stbName.dbname, strlen(pStbRowsCxt->stbName.dbname));
+        char ctbName[TSDB_TABLE_NAME_LEN];
+        memcpy(ctbName, tbnameVal.value.pData, tbnameVal.value.nData);
+        ctbName[tbnameVal.value.nData] = '\0';
+        tNameAddTbName(&pStbRowsCxt->ctbName, ctbName, tbnameVal.value.nData);
         bFoundTbName = true;
+        taosMemoryFreeClear(tbnameVal.value.pData);
       }
     }
 
@@ -1636,6 +1640,9 @@ static int32_t getStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   }
   if (code == TSDB_CODE_SUCCESS && !isJsonTag) {
     code = tTagNew(pTagVals, 1, false, &pStbRowsCxt->pTag);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    *pGotRow = true;
   }
   return code;
 }
@@ -2055,7 +2062,7 @@ static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModif
 //   1. [(tag1_name, ...)] ...
 //   2. VALUES ... | FILE ...
 static int32_t parseInsertTableClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  if (pStmt->stbSyntax && (pStmt->insertType, TSDB_QUERY_TYPE_STMT_INSERT)) {
+  if (pStmt->stbSyntax && TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_STMT_INSERT)) {
     return buildSyntaxErrMsg(&pCxt->msg, "insert into super table syntax is not supported for stmt", NULL);
   }
   if (!pStmt->stbSyntax) {
@@ -2215,9 +2222,11 @@ static int32_t createVnodeModifOpStmt(SInsertParseContext* pCxt, bool reentry, S
     TSDB_QUERY_SET_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_STMT_INSERT);
   }
   pStmt->pSql = pCxt->pComCxt->pSql;
+
   pStmt->freeHashFunc = insDestroyTableDataCxtHashMap;
   pStmt->freeArrayFunc = insDestroyVgroupDataCxtList;
-
+  pStmt->freeStbRowsCxtFunc = destroyStbRowsDataContext;
+  
   if (!reentry) {
     pStmt->pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
     pStmt->pTableBlockHashObj =
