@@ -943,12 +943,12 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     taosArrayPush(rsp.pArray, &cRsp);
 
     if(tsEnableAuditCreateTable){
-      int32_t clusterId = pVnode->config.syncCfg.nodeInfo[0].clusterId;
+      int64_t clusterId = pVnode->config.syncCfg.nodeInfo[0].clusterId;
 
       SName name = {0};
       tNameFromString(&name, pVnode->config.dbname, T_NAME_ACCT | T_NAME_DB);
 
-      auditRecord(pReq, clusterId, "createTable", name.dbname, "", pCreateReq->name, strlen(pCreateReq->name));
+      auditRecord(NULL, clusterId, "createTable", name.dbname, "", pCreateReq->name, strlen(pCreateReq->name));
     }
   }
 
