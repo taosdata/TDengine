@@ -755,19 +755,15 @@ export default {
   name: "DbSourceUI",
   components: { DatePicker, DialogCreateDb, DataTarget },
   props: {
-    // sourceName: {
-    //   type: String,
-    //   default: "",
-    // },
-    tagName: {
-      type: String,
-      default: "datasource",
-    },
-    dbsourceList: {
+    dbsource: {
       type: Array,
       default() {
         return [];
       },
+    },
+    tagName: {
+      type: String,
+      default: "datasource",
     },
     isEditable: {
       type: Boolean,
@@ -838,7 +834,7 @@ export default {
       }
     };
     return {
-      // sourceName: localStorage.getItem("datainName"),
+      language: localStorage.getItem('local_language'),
       startOption: {
         disabledDate: (time) => startTimeOption(time),
       },
@@ -872,7 +868,6 @@ export default {
       loading: false,
       configurationdata: [],
       activeDataSet: {},
-      dbsource: [],
       btnLoading: false,
       bucketList: [],
       measurementList: [],
@@ -891,7 +886,6 @@ export default {
   },
   created() {
     this.getDatabases();
-    this.dbsource = this.dbsourceList;
     if (this.isEditable) {
       this.handleEditData();
       let defaultVal =
@@ -918,6 +912,12 @@ export default {
     },
   },
   watch: {
+    "$i18n.locale":{
+      deep:true,
+      handler(val){
+        this.language=val
+      }
+    },
     dbsource: {
       deep: true,
       handler(val) {
@@ -1288,7 +1288,6 @@ export default {
                       "&";
                   } else {
                     // debugger
-                    console.log("hhh", data.groups[index].params[g].hint[0]);
                     if (
                       this.handleEmptyValue(
                         data.groups[index].params[g].hint[0].value
@@ -1369,7 +1368,6 @@ export default {
             }
           }
         }
-        console.log("qurer", querystr);
         if (data.params) {
           if (this.isPiDataArchiveAll) {
             for (let index = 0; index < data.params.length; index++) {
@@ -1509,7 +1507,6 @@ export default {
           if (this.agentId) {
             piParams["via"] = this.agentId;
           }
-          console.log(this.isEditable, this.editId, "编辑");
           if (this.isEditable && this.editId && !this.isCopyable) {
             let result = await EditSource(piParams, this.editId);
             if (result.message) {
