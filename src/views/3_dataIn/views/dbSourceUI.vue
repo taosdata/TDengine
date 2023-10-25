@@ -338,7 +338,12 @@
         </div>
       </section>
       <section class="check">
-        <el-button :loading="checkLoading" type="primary" @click="clickCheckBtn">{{$t('dataIn.check')}}</el-button>
+        <el-button
+          :loading="checkLoading"
+          type="primary"
+          @click="clickCheckBtn"
+          >{{ $t("dataIn.check") }}</el-button
+        >
       </section>
       <section
         class="dataset"
@@ -743,9 +748,13 @@
 <script>
 import DataTarget from "./dataTarget.vue";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
-import { AddSource, EditSource, getUaAndDaData, downlaodAllNodes,
-  validateTask
- } from "@/api/explorer/datain";
+import {
+  AddSource,
+  EditSource,
+  getUaAndDaData,
+  downlaodAllNodes,
+  validateTask,
+} from "@/api/explorer/datain";
 import DatePicker from "@/components/date-picker";
 import { Message } from "element-ui";
 import marked from "marked";
@@ -754,21 +763,17 @@ import DialogCreateDb from "../components/addDbDialog.vue";
 import Result from "../components/result.vue";
 export default {
   name: "DbSourceUI",
-  components: { DatePicker, DialogCreateDb, DataTarget, Result, },
+  components: { DatePicker, DialogCreateDb, DataTarget, Result },
   props: {
-    // sourceName: {
-    //   type: String,
-    //   default: "",
-    // },
-    tagName: {
-      type: String,
-      default: "datasource",
-    },
-    dbsourceList: {
+    dbsource: {
       type: Array,
       default() {
         return [];
       },
+    },
+    tagName: {
+      type: String,
+      default: "datasource",
     },
     isEditable: {
       type: Boolean,
@@ -839,7 +844,7 @@ export default {
       }
     };
     return {
-      // sourceName: localStorage.getItem("datainName"),
+      language: localStorage.getItem("local_language"),
       startOption: {
         disabledDate: (time) => startTimeOption(time),
       },
@@ -873,7 +878,6 @@ export default {
       loading: false,
       configurationdata: [],
       activeDataSet: {},
-      dbsource: [],
       btnLoading: false,
       bucketList: [],
       measurementList: [],
@@ -893,14 +897,13 @@ export default {
       checkResult: {
         valid: false,
         support: false,
-        data_source: '',
-        version: '', // 返回数据源版本，不能获得版本则不返回该字段。
-      }
+        data_source: "",
+        version: "", // 返回数据源版本，不能获得版本则不返回该字段。
+      },
     };
   },
   created() {
     this.getDatabases();
-    this.dbsource = this.dbsourceList;
     if (this.isEditable) {
       this.handleEditData();
       let defaultVal =
@@ -923,13 +926,19 @@ export default {
       return this.$store.state.app.currentAgentID || "";
     },
     sourceName() {
-      return this.$store.state.app.currentDSName || ""
+      return this.$store.state.app.currentDSName || "";
     },
     targetDatabase() {
-      return this.$store.state.app.currentDBName || ""
-    }
+      return this.$store.state.app.currentDBName || "";
+    },
   },
   watch: {
+    "$i18n.locale": {
+      deep: true,
+      handler(val) {
+        this.language = val;
+      },
+    },
     dbsource: {
       deep: true,
       handler(val) {
@@ -1033,7 +1042,8 @@ export default {
       this.dbsource[0].datasets.params = this.dbsource[0].datasets.params.map(
         (p) => {
           if (p.name == name) {
-            p.fileList = fileList?.length <= 1 ? fileList : [{...fileList[1]}];
+            p.fileList =
+              fileList?.length <= 1 ? fileList : [{ ...fileList[1] }];
             p.value = file.response[0];
           }
           return p;
@@ -1157,49 +1167,50 @@ export default {
 
     save() {
       if (this.isEditable) {
-        this.$confirm(this.$t('dataIn.saveTip'), this.$t("warning"), {
-          confirmButtonText: this.$t('confirm'),
-          cancelButtonText: this.$t('cancel'),
-          type: 'warning'
-        }).then(() => {
-          this.submit(true)
-        }).catch(() => {         
-        });
+        this.$confirm(this.$t("dataIn.saveTip"), this.$t("warning"), {
+          confirmButtonText: this.$t("confirm"),
+          cancelButtonText: this.$t("cancel"),
+          type: "warning",
+        })
+          .then(() => {
+            this.submit(true);
+          })
+          .catch(() => {});
       } else {
-        this.submit(true)
+        this.submit(true);
       }
     },
-   
+
     clickCheckBtn() {
-      this.checkResult = this.$options.data().checkResult
-      this.submit(false)
+      this.checkResult = this.$options.data().checkResult;
+      this.submit(false);
     },
     // 数据源可用性和版本检查
     async getValidateResult(dns) {
       try {
-        this.checkLoading = true
-        let result = await validateTask(dns,this.agentId)
-        console.log('result',result);
-        this.checkResult = result
-        this.checkLoading = false // 检测的 loading 效果
-        this.$store.commit('SET_DIALOG', {
+        this.checkLoading = true;
+        let result = await validateTask(dns, this.agentId);
+        console.log("result", result);
+        this.checkResult = result;
+        this.checkLoading = false; // 检测的 loading 效果
+        this.$store.commit("SET_DIALOG", {
           component: Result,
           params: {
             result,
           },
           config: {
-            title: this.$t('dataIn.check'),
-            width: '500px'
+            title: this.$t("dataIn.check"),
+            width: "500px",
           },
           listeners: {
             close: () => {
-              this.$store.commit('SET_DIALOG_VISIBLE', false);
-            }
-          }
+              this.$store.commit("SET_DIALOG_VISIBLE", false);
+            },
+          },
         });
       } catch (error) {
-        this.checkLoading = false
-        console.log('err');
+        this.checkLoading = false;
+        console.log("err");
       }
     },
 
@@ -1229,11 +1240,11 @@ export default {
           }
         }
         if (!this.sourceName && isSubmit) {
-          Message.warning(`${enterTip} ${this.$t('name')}`);
+          Message.warning(`${enterTip} ${this.$t("name")}`);
           return;
         }
         if (!this.targetDatabase && isSubmit) {
-          Message.warning(`${enterTip} ${this.$t('stream.targetDB')}`);
+          Message.warning(`${enterTip} ${this.$t("stream.targetDB")}`);
           return;
         }
         if (this.tagName === "taos") {
@@ -1323,31 +1334,32 @@ export default {
                 return;
               } else {
                 if (this.handleEmptyValue(data.groups[index].params[g].value)) {
-                if (
-                  data.groups[index].params[g].hint &&
-                  Array.isArray(data.groups[index].params[g].hint)
-                ) {
-                  if (data.groups[index].params[g].value == "auto") {
+                  if (
+                    data.groups[index].params[g].hint &&
+                    Array.isArray(data.groups[index].params[g].hint)
+                  ) {
+                    if (data.groups[index].params[g].value == "auto") {
+                      querystr +=
+                        `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
+                        "&";
+                    } else {
+                      // debugger
+                      if (
+                        this.handleEmptyValue(
+                          data.groups[index].params[g].hint[0].value
+                        )
+                      ) {
+                        querystr +=
+                          `${data.groups[index].params[g].name}=${data.groups[index].params[g].hint[0].value}` +
+                          "&";
+                      }
+                    }
+                  } else {
                     querystr +=
                       `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
                       "&";
-                  } else {
-                    if (
-                      this.handleEmptyValue(
-                        data.groups[index].params[g].hint[0].value
-                      )
-                    ) {
-                      querystr +=
-                        `${data.groups[index].params[g].name}=${data.groups[index].params[g].hint[0].value}` +
-                        "&";
-                    }
                   }
-                } else {
-                  querystr +=
-                    `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
-                    "&";
                 }
-              }
               }
             }
             //   }
@@ -1391,15 +1403,12 @@ export default {
           }
         }
         if (data.datasets && data.datasets.params && isSubmit) {
-          for (
-            let index = 0;
-            index < data.datasets.params.length;
-            index++
-          ) {
+          for (let index = 0; index < data.datasets.params.length; index++) {
             if (data.datasets.params[index].name == this.activeName) {
               if (this.activeRadio == "select_file") {
-                if (this.handleEmptyValue(data.datasets.params[index].value)
-                    && data.datasets.params[index].value !='*'
+                if (
+                  this.handleEmptyValue(data.datasets.params[index].value) &&
+                  data.datasets.params[index].value != "*"
                 ) {
                   querystr +=
                     `${data.datasets.params[index].name}=@${data.datasets.params[index].value}` +
@@ -1407,9 +1416,9 @@ export default {
                 } else {
                   Message({
                     type: "warning",
-                    message: this.$t('datasource.uploadtip'),
+                    message: this.$t("datasource.uploadtip"),
                   });
-                  return
+                  return;
                 }
               } else {
                 querystr += `${data.datasets.params[index].name}=*` + "&";
@@ -1417,7 +1426,6 @@ export default {
             }
           }
         }
-        console.log("qurer", querystr);
         if (data.params) {
           if (this.isPiDataArchiveAll) {
             for (let index = 0; index < data.params.length; index++) {
@@ -1508,7 +1516,7 @@ export default {
               this.$parent.toggleComponent("tmqtable");
             }
           } else {
-            this.getValidateResult(apiParams.from)
+            this.getValidateResult(apiParams.from);
           }
         } else {
           let piParams = {
@@ -1530,7 +1538,7 @@ export default {
             to:
               "taos+" +
               localStorage.getItem("base_url") +
-              (this.targetDatabase? "/" + this.targetDatabase : ""),
+              (this.targetDatabase ? "/" + this.targetDatabase : ""),
             labels: [
               "type::datain",
               `cluster-id::${id}`,
@@ -1540,16 +1548,16 @@ export default {
           if (this.agentId) {
             piParams["via"] = this.agentId;
           }
-          console.log(this.isEditable , this.editId,'编辑');
+          console.log(this.isEditable, this.editId, "编辑");
           if (isSubmit) {
-            if (this.isEditable && this.editId) {
+            if (this.isEditable && this.editId&& !this.isCopyable) {
               let result = await EditSource(piParams, this.editId);
               if (result.message) {
                 Message.error(result.message);
                 return;
               }
-              this.$parent.changeEditable(false)
-              this.$parent.toggleComponent("pitable",'');
+              this.$parent.changeEditable(false);
+              this.$parent.toggleComponent("pitable", "");
             } else {
               let result = await AddSource(piParams);
               if (result.message) {
@@ -1561,9 +1569,16 @@ export default {
                 Message.success("Operation Successfully!");
               }
             }
+            // if (this.isEditable && this.editId && !this.isCopyable) {
+            //   let result = await EditSource(piParams, this.editId);
+            //   if (result.message) {
+            //     Message.error(result.message);
+            //     return;
+            //   }
+            // }
           } else {
-            console.log('ss',piParams);
-            this.getValidateResult(piParams.from)
+            console.log("ss", piParams);
+            this.getValidateResult(piParams.from);
           }
         }
       } catch (err) {
@@ -2258,7 +2273,8 @@ export default {
         flex: auto;
       }
     }
-    .bottom,.check {
+    .bottom,
+    .check {
       display: flex;
       border: none !important;
       padding: 0px !important;

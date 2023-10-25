@@ -298,6 +298,12 @@ export default {
     },
   },
   watch: {
+    "$i18n.locale":{
+      deep:true,
+      handler(val){
+        this.getDbTypes()
+      }
+    },
     "$store.state.app.agentDialog": {
       handler(val) {
         this.showAgent = val;
