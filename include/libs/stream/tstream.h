@@ -436,33 +436,38 @@ typedef struct STaskStartInfo {
   int32_t   elapsedTime;
 } STaskStartInfo;
 
+typedef struct STaskUpdateInfo {
+  SHashObj* pTasks;
+  int32_t   transId;
+} STaskUpdateInfo;
+
 // meta
 typedef struct SStreamMeta {
-  char*         path;
-  TDB*          db;
-  TTB*          pTaskDb;
-  TTB*          pCheckpointDb;
-  SHashObj*     pTasksMap;
-  SArray*       pTaskList;  // SArray<STaskId*>
-  void*         ahandle;
-  TXN*          txn;
-  FTaskExpand*  expandFunc;
-  int32_t       vgId;
-  int64_t       stage;
-  int32_t       role;
-  STaskStartInfo startInfo;
-  SRWLatch      lock;
-  int32_t       walScanCounter;
-  void*         streamBackend;
-  int64_t       streamBackendRid;
-  SHashObj*     pTaskBackendUnique;
-  TdThreadMutex backendMutex;
-  SMetaHbInfo*  pHbInfo;
-  SHashObj*     pUpdateTaskSet;
-  int32_t       numOfStreamTasks;  // this value should be increased when a new task is added into the meta
-  int32_t       numOfPausedTasks;
-  int32_t       chkptNotReadyTasks;
-  int64_t       rid;
+  char*           path;
+  TDB*            db;
+  TTB*            pTaskDb;
+  TTB*            pCheckpointDb;
+  SHashObj*       pTasksMap;
+  SArray*         pTaskList;  // SArray<STaskId*>
+  void*           ahandle;
+  TXN*            txn;
+  FTaskExpand*    expandFunc;
+  int32_t         vgId;
+  int64_t         stage;
+  int32_t         role;
+  STaskStartInfo  startInfo;
+  SRWLatch        lock;
+  int32_t         walScanCounter;
+  void*           streamBackend;
+  int64_t         streamBackendRid;
+  SHashObj*       pTaskBackendUnique;
+  TdThreadMutex   backendMutex;
+  SMetaHbInfo*    pHbInfo;
+  STaskUpdateInfo updateInfo;
+  int32_t         numOfStreamTasks;  // this value should be increased when a new task is added into the meta
+  int32_t         numOfPausedTasks;
+  int32_t         chkptNotReadyTasks;
+  int64_t         rid;
 
   int64_t  chkpId;
   SArray*  chkpSaved;
@@ -664,6 +669,7 @@ typedef struct SNodeUpdateInfo {
 } SNodeUpdateInfo;
 
 typedef struct SStreamTaskNodeUpdateMsg {
+  int32_t transId;   // to identify the msg
   int64_t streamId;
   int32_t taskId;
   SArray* pNodeList;  // SArray<SNodeUpdateInfo>

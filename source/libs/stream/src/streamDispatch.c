@@ -1175,6 +1175,9 @@ int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpda
   if (tEncodeI64(pEncoder, pMsg->streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pMsg->taskId) < 0) return -1;
 
+  // todo this new attribute will be result in being incompatible with previous version
+  if (tEncodeI32(pEncoder, pMsg->transId) < 0) return -1;
+
   int32_t size = taosArrayGetSize(pMsg->pNodeList);
   if (tEncodeI32(pEncoder, size) < 0) return -1;
 
@@ -1192,6 +1195,8 @@ int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskNodeUpdateMsg*
   if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeI64(pDecoder, &pMsg->streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pMsg->taskId) < 0) return -1;
+
+  if (tDecodeI32(pDecoder, &pMsg->transId) < 0) return -1;
 
   int32_t size = 0;
   if (tDecodeI32(pDecoder, &size) < 0) return -1;

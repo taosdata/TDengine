@@ -1883,18 +1883,19 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
-static void initNodeUpdateMsg(SStreamTaskNodeUpdateMsg *pMsg, const SVgroupChangeInfo *pInfo, int64_t streamId,
-                              int32_t taskId) {
-  pMsg->streamId = streamId;
-  pMsg->taskId = taskId;
+static void initNodeUpdateMsg(SStreamTaskNodeUpdateMsg *pMsg, const SVgroupChangeInfo *pInfo, SStreamTaskId *pId,
+                              int32_t transId) {
+  pMsg->streamId = pId->streamId;
+  pMsg->taskId = pId->taskId;
+  pMsg->transId = transId;
   pMsg->pNodeList = taosArrayInit(taosArrayGetSize(pInfo->pUpdateNodeList), sizeof(SNodeUpdateInfo));
   taosArrayAddAll(pMsg->pNodeList, pInfo->pUpdateNodeList);
 }
 
 static int32_t doBuildStreamTaskUpdateMsg(void **pBuf, int32_t *pLen, SVgroupChangeInfo *pInfo, int32_t nodeId,
-                                          int64_t streamId, int32_t taskId) {
+                                          SStreamTaskId* pId, int32_t transId) {
   SStreamTaskNodeUpdateMsg req = {0};
-  initNodeUpdateMsg(&req, pInfo, streamId, taskId);
+  initNodeUpdateMsg(&req, pInfo, pId, transId);
 
   int32_t code = 0;
   int32_t blen;
@@ -1968,7 +1969,7 @@ void initTransAction(STransAction *pAction, void *pCont, int32_t contLen, int32_
 // todo extract method: traverse stream tasks
 // build trans to update the epset
 static int32_t createStreamUpdateTrans(SStreamObj *pStream, SVgroupChangeInfo *pInfo, STrans* pTrans) {
-    mDebug("start to build stream:0x%" PRIx64 " task DAG update", pStream->uid);
+    mDebug("start to build stream:0x%" PRIx64 " tasks epset update", pStream->uid);
 
     taosWLockLatch(&pStream->lock);
   int32_t numOfLevels = taosArrayGetSize(pStream->tasks);
@@ -1983,7 +1984,7 @@ static int32_t createStreamUpdateTrans(SStreamObj *pStream, SVgroupChangeInfo *p
       void   *pBuf = NULL;
       int32_t len = 0;
       streamTaskUpdateEpsetInfo(pTask, pInfo->pUpdateNodeList);
-      doBuildStreamTaskUpdateMsg(&pBuf, &len, pInfo, pTask->info.nodeId, pTask->id.streamId, pTask->id.taskId);
+      doBuildStreamTaskUpdateMsg(&pBuf, &len, pInfo, pTask->info.nodeId, &pTask->id, pTrans->id);
 
       STransAction action = {0};
       initTransAction(&action, pBuf, len, TDMT_VND_STREAM_TASK_UPDATE, &pTask->info.epSet);

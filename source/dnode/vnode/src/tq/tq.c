@@ -20,6 +20,12 @@ typedef struct {
   int8_t inited;
 } STqMgmt;
 
+typedef struct STaskUpdateEntry {
+  int64_t streamId;
+  int32_t taskId;
+  int32_t transId;
+} STaskUpdateEntry;
+
 static STqMgmt tqMgmt = {0};
 
 // 0: not init
@@ -1869,7 +1875,26 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   SStreamTask* pTask = *ppTask;
-  tqDebug("s-task:%s receive nodeEp update msg from mnode", pTask->id.idStr);
+
+  if (pMeta->updateInfo.transId != req.transId) {
+    pMeta->updateInfo.transId = req.transId;
+    tqDebug("s-task:%s receive new trans to update nodeEp msg from mnode, transId:%d", pTask->id.idStr, req.transId);
+    // info needs to be kept till the new trans to update the nodeEp arrived.
+    taosHashClear(pMeta->updateInfo.pTasks);
+  } else {
+    tqDebug("s-task:%s recv trans to update nodeEp from mnode, transId:%d", pTask->id.idStr, req.transId);
+  }
+
+  STaskUpdateEntry entry = {.streamId = req.streamId, .taskId = req.taskId, .transId = req.transId};
+  void* exist = taosHashGet(pMeta->updateInfo.pTasks, &entry, sizeof(STaskUpdateEntry));
+  if (exist != NULL) {
+    tqDebug("s-task:%s (vgId:%d) already update in trans:%d, discard the nodeEp update msg", pTask->id.idStr, vgId,
+            req.transId);
+    rsp.code = TSDB_CODE_SUCCESS;
+    taosWUnLockLatch(&pMeta->lock);
+    taosArrayDestroy(req.pNodeList);
+    return rsp.code;
+  }
 
   streamTaskUpdateEpsetInfo(pTask, req.pNodeList);
   streamTaskResetStatus(pTask);
@@ -1899,12 +1924,14 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   streamTaskStop(pTask);
-  taosHashPut(pMeta->pUpdateTaskSet, &pTask->id, sizeof(pTask->id), NULL, 0);
+
+  // keep the already handled info
+  taosHashPut(pMeta->updateInfo.pTasks, &entry, sizeof(entry), NULL, 0);
 
   if (ppHTask != NULL) {
     streamTaskStop(*ppHTask);
     tqDebug("s-task:%s task nodeEp update completed, streamTask and related fill-history task closed", pTask->id.idStr);
-    taosHashPut(pMeta->pUpdateTaskSet, &(*ppHTask)->id, sizeof(pTask->id), NULL, 0);
+    taosHashPut(pMeta->updateInfo.pTasks, &(*ppHTask)->id, sizeof(pTask->id), NULL, 0);
   } else {
     tqDebug("s-task:%s task nodeEp update completed, streamTask closed", pTask->id.idStr);
   }
@@ -1913,7 +1940,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 
   // possibly only handle the stream task.
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
-  int32_t updateTasks = taosHashGetSize(pMeta->pUpdateTaskSet);
+  int32_t updateTasks = taosHashGetSize(pMeta->updateInfo.pTasks);
 
   pMeta->startInfo.startedAfterNodeUpdate = 1;
 
@@ -1922,8 +1949,6 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
             updateTasks, (numOfTasks - updateTasks));
     taosWUnLockLatch(&pMeta->lock);
   } else {
-    taosHashClear(pMeta->pUpdateTaskSet);
-
     if (!pTq->pVnode->restored) {
       tqDebug("vgId:%d vnode restore not completed, not restart the tasks, clear the start after nodeUpdate flag", vgId);
       pMeta->startInfo.startedAfterNodeUpdate = 0;

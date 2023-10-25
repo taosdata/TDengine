@@ -125,7 +125,6 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
 int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision);
 int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp,
                       int32_t type, int32_t vgId);
-//int32_t tqPushDataRsp(STqHandle* pHandle, int32_t vgId);
 int32_t tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId);
 
 // tqMeta
@@ -133,7 +132,6 @@ int32_t tqMetaOpen(STQ* pTq);
 int32_t tqMetaClose(STQ* pTq);
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle);
 int32_t tqMetaDeleteHandle(STQ* pTq, const char* key);
-//int32_t tqMetaRestoreHandle(STQ* pTq);
 int32_t tqMetaSaveCheckInfo(STQ* pTq, const char* key, const void* value, int32_t vLen);
 int32_t tqMetaDeleteCheckInfo(STQ* pTq, const char* key);
 int32_t tqMetaRestoreCheckInfo(STQ* pTq);

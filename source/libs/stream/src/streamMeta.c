@@ -143,8 +143,8 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
     goto _err;
   }
 
-  pMeta->pUpdateTaskSet = taosHashInit(64, fp, false, HASH_NO_LOCK);
-  if (pMeta->pUpdateTaskSet == NULL) {
+  pMeta->updateInfo.pTasks = taosHashInit(64, fp, false, HASH_NO_LOCK);
+  if (pMeta->updateInfo.pTasks == NULL) {
     goto _err;
   }
 
@@ -219,7 +219,7 @@ _err:
   if (pMeta->pCheckpointDb) tdbTbClose(pMeta->pCheckpointDb);
   if (pMeta->db) tdbClose(pMeta->db);
   if (pMeta->pHbInfo) taosMemoryFreeClear(pMeta->pHbInfo);
-  if (pMeta->pUpdateTaskSet) taosHashCleanup(pMeta->pUpdateTaskSet);
+  if (pMeta->updateInfo.pTasks) taosHashCleanup(pMeta->updateInfo.pTasks);
   if (pMeta->startInfo.pReadyTaskSet) taosHashCleanup(pMeta->startInfo.pReadyTaskSet);
   taosMemoryFree(pMeta);
 
@@ -340,7 +340,7 @@ void streamMetaCloseImpl(void* arg) {
 
   taosHashCleanup(pMeta->pTasksMap);
   taosHashCleanup(pMeta->pTaskBackendUnique);
-  taosHashCleanup(pMeta->pUpdateTaskSet);
+  taosHashCleanup(pMeta->updateInfo.pTasks);
   taosHashCleanup(pMeta->startInfo.pReadyTaskSet);
 
   taosMemoryFree(pMeta->pHbInfo);
