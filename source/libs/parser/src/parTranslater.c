@@ -4576,7 +4576,7 @@ static int32_t checkDbEnumOption(STranslateContext* pCxt, const char* pName, int
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRetentions) {
+static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRetentions, int8_t precision) {
   if (NULL == pRetentions) {
     return TSDB_CODE_SUCCESS;
   }
@@ -4588,6 +4588,12 @@ static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRete
   SValueNode* pPrevFreq = NULL;
   SValueNode* pPrevKeep = NULL;
   SNode*      pRetention = NULL;
+  int64_t     tsdbMinKeep = TSDB_MIN_KEEP;
+  int64_t     tsdbMaxKeep = TSDB_MAX_KEEP;
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    tsdbMaxKeep = TSDB_MAX_KEEP_NS;
+  }
+
   FOREACH(pRetention, pRetentions) {
     SNode* pNode = NULL;
     FOREACH(pNode, ((SNodeListNode*)pRetention)->pNodeList) {
@@ -4599,11 +4605,48 @@ static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRete
 
     SValueNode* pFreq = (SValueNode*)nodesListGetNode(((SNodeListNode*)pRetention)->pNodeList, 0);
     SValueNode* pKeep = (SValueNode*)nodesListGetNode(((SNodeListNode*)pRetention)->pNodeList, 1);
-    if (pFreq->datum.i <= 0 || 'n' == pFreq->unit || 'y' == pFreq->unit || pFreq->datum.i >= pKeep->datum.i ||
-        (NULL != pPrevFreq && pPrevFreq->datum.i >= pFreq->datum.i) ||
-        (NULL != pPrevKeep && pPrevKeep->datum.i > pKeep->datum.i)) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION, "Invalid option retentions");
+
+    ASSERTS(pFreq->isDuration && pKeep->isDuration, "Retentions freq/keep should have unit");
+
+    // check unit
+    if (pFreq->isDuration && TIME_UNIT_SECOND != pFreq->unit && TIME_UNIT_MINUTE != pFreq->unit &&
+        TIME_UNIT_HOUR != pFreq->unit && TIME_UNIT_DAY != pFreq->unit && TIME_UNIT_WEEK != pFreq->unit) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option retentions(freq): %s, only s, m, h, d, w allowed", pFreq->literal);
     }
+
+    if (pKeep->isDuration && TIME_UNIT_MINUTE != pKeep->unit && TIME_UNIT_HOUR != pKeep->unit &&
+        TIME_UNIT_DAY != pKeep->unit) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option retentions(keep): %s, only m, h, d allowed", pKeep->literal);
+    }
+
+    // check value range
+    if (pFreq->datum.i <= 0) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option retentions(freq): %s should larger than 0", pFreq->literal);
+    }
+    int64_t keepMinute = pKeep->datum.i / 60000;  // ms to minute
+    if (keepMinute < tsdbMinKeep || keepMinute > tsdbMaxKeep) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option retentions(keep): %" PRId64 "m, valid range: [%" PRIi64
+                                     "m, %" PRId64 "m]",
+                                     keepMinute, tsdbMinKeep, tsdbMaxKeep);
+    }
+
+    // check relationships
+    if (NULL != pPrevFreq && pPrevFreq->datum.i >= pFreq->datum.i) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option retentions(freq): %s should larger than %s", pFreq->literal,
+                                     pPrevFreq->literal);
+    }
+
+    if (NULL != pPrevKeep && pPrevKeep->datum.i > pKeep->datum.i) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option retentions(keep): %s should not larger than %s",
+                                     pPrevKeep->literal, pKeep->literal);
+    }
+
     pPrevFreq = pFreq;
     pPrevKeep = pKeep;
   }
@@ -4723,7 +4766,7 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
                              TSDB_DB_SINGLE_STABLE_OFF);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbRetentionsOption(pCxt, pOptions->pRetentions);
+    code = checkDbRetentionsOption(pCxt, pOptions->pRetentions, pOptions->precision);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbEnumOption(pCxt, "schemaless", pOptions->schemaless, TSDB_DB_SCHEMALESS_ON, TSDB_DB_SCHEMALESS_OFF);
