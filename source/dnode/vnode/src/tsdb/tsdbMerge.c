@@ -15,7 +15,7 @@
 
 #include "tsdbMerge.h"
 
-#define TSDB_MAX_LEVEL 6  // means max level is 7
+#define TSDB_MAX_LEVEL 2  // means max level is 3
 
 typedef struct {
   STsdb  *tsdb;
