@@ -8,9 +8,8 @@ use chrono::{NaiveDate, Utc};
 use dashmap::DashMap;
 use serde::Deserialize;
 use serde_with::serde_as;
-use taos::sync::Queryable;
 use taos::taos_query::tmq::Assignment;
-use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
+use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder, AsyncQueryable};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
@@ -461,7 +460,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
                     ),
                 ),
                 Ok(c) => {
-                    let version = c.server_version();
+                    let version = c.server_version().await;
                     match version {
                         Err(err) => DataSourceValidation::invalid(
                             "taos".to_string(),
