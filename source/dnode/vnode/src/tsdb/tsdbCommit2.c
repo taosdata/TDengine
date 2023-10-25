@@ -354,7 +354,12 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
   int32_t lino = 0;
   STsdb  *tsdb = committer->tsdb;
 
-  committer->ctx->fid = tsdbKeyFid(committer->ctx->nextKey, committer->minutes, committer->precision);
+  int32_t fid = tsdbKeyFid(committer->ctx->nextKey, committer->minutes, committer->precision);
+
+  // check if can commit
+  tsdbFSCheckCommit(tsdb, fid);
+
+  committer->ctx->fid = fid;
   committer->ctx->expLevel = tsdbFidLevel(committer->ctx->fid, &tsdb->keepCfg, committer->ctx->now);
   tsdbFidKeyRange(committer->ctx->fid, committer->minutes, committer->precision, &committer->ctx->minKey,
                   &committer->ctx->maxKey);
@@ -561,8 +566,6 @@ int32_t tsdbCommitBegin(STsdb *tsdb, SCommitInfo *info) {
     tsdbUnrefMemTable(imem, NULL, true);
   } else {
     SCommitter2 committer[1];
-
-    tsdbFSCheckCommit(tsdb->pFS);
 
     code = tsdbOpenCommitter(tsdb, info, committer);
     TSDB_CHECK_CODE(code, lino, _exit);

@@ -62,17 +62,11 @@ static int32_t create_fs(STsdb *pTsdb, STFileSystem **fs) {
   TARRAY2_INIT(fs[0]->fSetArr);
   TARRAY2_INIT(fs[0]->fSetArrTmp);
 
-  taosThreadMutexInit(&fs[0]->commitMutex, NULL);
-  taosThreadCondInit(&fs[0]->canCommit, NULL);
-  fs[0]->blockCommit = false;
-
   return 0;
 }
 
 static int32_t destroy_fs(STFileSystem **fs) {
   if (fs[0] == NULL) return 0;
-  taosThreadMutexDestroy(&fs[0]->commitMutex);
-  taosThreadCondDestroy(&fs[0]->canCommit);
 
   TARRAY2_DESTROY(fs[0]->fSetArr, NULL);
   TARRAY2_DESTROY(fs[0]->fSetArrTmp, NULL);
@@ -830,12 +824,18 @@ static int32_t tsdbFSSetBlockCommit(STFileSet *fset, bool block) {
   return 0;
 }
 
-int32_t tsdbFSCheckCommit(STFileSystem *fs) {
-  taosThreadMutexLock(&fs->commitMutex);
-  while (fs->blockCommit) {
-    taosThreadCondWait(&fs->canCommit, &fs->commitMutex);
+int32_t tsdbFSCheckCommit(STsdb *tsdb, int32_t fid) {
+  taosThreadMutexLock(&tsdb->mutex);
+  STFileSet *fset;
+  tsdbFSGetFSet(tsdb->pFS, fid, &fset);
+  if (fset) {
+    while (fset->blockCommit) {
+      fset->numWaitCommit++;
+      taosThreadCondWait(&fset->canCommit, &tsdb->mutex);
+      fset->numWaitCommit--;
+    }
   }
-  taosThreadMutexUnlock(&fs->commitMutex);
+  taosThreadMutexUnlock(&tsdb->mutex);
   return 0;
 }
 

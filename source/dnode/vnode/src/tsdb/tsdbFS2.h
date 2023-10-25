@@ -54,7 +54,7 @@ int32_t tsdbFSDisableBgTask(STFileSystem *fs);
 int32_t tsdbFSEnableBgTask(STFileSystem *fs);
 // other
 int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset);
-int32_t tsdbFSCheckCommit(STFileSystem *fs);
+int32_t tsdbFSCheckCommit(STsdb *tsdb, int32_t fid);
 
 /* Exposed Structs */
 struct STFileSystem {
@@ -69,11 +69,6 @@ struct STFileSystem {
   // background task queue
   bool    stop;
   int64_t taskid;
-
-  // block commit variables
-  TdThreadMutex commitMutex;
-  TdThreadCond  canCommit;
-  bool          blockCommit;
 };
 
 #ifdef __cplusplus
