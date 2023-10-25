@@ -26,7 +26,7 @@ use crate::{build_ipc, Action, Parser, Transferred};
 
 mod config;
 
-pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let config = SourceConfig::from_dsn(dsn);
     match config {
         Err(err) => DataSourceValidation::invalid(
@@ -349,23 +349,23 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_is_valid() {
+    #[tokio::test]
+    async fn test_is_valid() {
         let dsn = Dsn::from_str("kafka://192.168.1.92:9092,jf92:9092").unwrap();
-        let result = is_valid(&dsn);
+        let result = is_valid(&dsn).await;
         assert_eq!(true, result.valid);
         assert_eq!(true, result.support);
         assert_eq!("kafka", result.data_source);
 
         let dsn = Dsn::from_str("kafka://127.0.0.1:9092").unwrap();
-        let result = is_valid(&dsn);
+        let result = is_valid(&dsn).await;
         assert_eq!(false, result.valid);
         assert_eq!(true, result.support);
         assert_eq!("kafka", result.data_source);
         assert_eq!("No host reachable", result.message.unwrap());
 
         let dsn = Dsn::from_str("kafka://127.0.0.1:9092,jf92:9092").unwrap();
-        let result = is_valid(&dsn);
+        let result = is_valid(&dsn).await;
         assert_eq!(true, result.valid);
         assert_eq!(true, result.support);
         assert_eq!("kafka", result.data_source);

@@ -424,13 +424,13 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
         Ok(d) => {
             match d.driver.as_str() {
                 // TODO: clickhouse
-                "historian" => runners::historian::is_valid(&d),
+                "historian" => runners::historian::is_valid(&d).await,
                 "influxdb" => runners::influxdb::is_valid(&d).await,
-                "kafka" => runners::kafka::is_valid(&d),
+                "kafka" => runners::kafka::is_valid(&d).await,
                 "mqtt" => runners::mqtt::is_valid(&d).await,
-                "opc" | "opcda" | "opcua" => runners::opc::is_valid(&d),
+                "opc" | "opcda" | "opcua" => runners::opc::is_valid(&d).await,  //TODO
                 "opentsdb" => runners::opentsdb::is_valid(&d).await,
-                "pi" | "pibackfill" => runners::pi::is_valid(&d),
+                "pi" | "pibackfill" => runners::pi::is_valid(&d).await, //TODO
                 "taos" | "tmq" => is_valid(&d).await,
                 &_ => DataSourceValidation::unknown(),
             }

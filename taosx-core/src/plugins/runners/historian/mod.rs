@@ -20,7 +20,7 @@ mod arrow;
 mod config;
 mod tag;
 
-pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     let config = SourceConfig::from_dsn(dsn);
     match config {
         Err(err) => DataSourceValidation {
@@ -35,11 +35,7 @@ pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             )),
         },
         Ok(c) => {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap();
-            let client = rt.block_on(connect(&c.host, c.port, &c.username, &c.password));
+            let client = connect(&c.host, c.port, &c.username, &c.password).await;
             match client {
                 Err(err) => DataSourceValidation {
                     valid: false,
@@ -264,10 +260,10 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_is_valid() {
+    #[tokio::test]
+    async fn test_is_valid() {
         let dsn = Dsn::from_str("historian://localhost").unwrap();
-        let res = is_valid(&dsn);
+        let res = is_valid(&dsn).await;
         assert_eq!(false, res.valid);
         assert_eq!(false, res.support);
         assert_eq!("historian", res.data_source);
@@ -277,14 +273,14 @@ mod tests {
         );
 
         let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@127.0.0.1").unwrap();
-        let res = is_valid(&dsn);
+        let res = is_valid(&dsn).await;
         assert_eq!(false, res.valid);
         assert_eq!(false, res.support);
         assert_eq!("historian", res.data_source);
         assert_eq!("failed to connect to dsn: historian://aaAdmin:aaAdmin@127.0.0.1, cause: Connection refused (os error 61)", res.message.unwrap());
 
         let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433/").unwrap();
-        let res = is_valid(&dsn);
+        let res = is_valid(&dsn).await;
         assert_eq!(true, res.valid);
         assert_eq!(true, res.support);
         assert_eq!("historian", res.data_source);
