@@ -355,6 +355,7 @@ CREATE TOPIC topic_name [with meta] AS DATABASE db_name;
 |      `enable.auto.commit`      | boolean | 是否启用消费位点自动提交，true: 自动提交，客户端应用无需commit；false：客户端应用需要自行commit     | 默认值为 true                   |
 |   `auto.commit.interval.ms`    | integer | 消费记录自动提交消费位点时间间隔，单位为毫秒           | 默认值为 5000                                |
 |     `msg.with.table.name`      | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句）（从3.2.0.0版本该参数废弃，恒为true）               |默认关闭 |
+|     `enable.replay`            | boolean | 是否开启数据回放功能               |默认关闭 |
 
 对于不同编程语言，其设置方式如下：
 
@@ -370,7 +371,7 @@ tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
 tmq_conf_set(conf, "group.id", "cgrpName");
 tmq_conf_set(conf, "td.connect.user", "root");
 tmq_conf_set(conf, "td.connect.pass", "taosdata");
-tmq_conf_set(conf, "auto.offset.reset", "earliest");
+tmq_conf_set(conf, "auto.offset.reset", "latest");
 tmq_conf_set(conf, "msg.with.table.name", "true");
 tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
 
@@ -400,7 +401,7 @@ properties.setProperty("group.id", "cgrpName");
 properties.setProperty("bootstrap.servers", "127.0.0.1:6030");
 properties.setProperty("td.connect.user", "root");
 properties.setProperty("td.connect.pass", "taosdata");
-properties.setProperty("auto.offset.reset", "earliest");
+properties.setProperty("auto.offset.reset", "latest");
 properties.setProperty("msg.with.table.name", "true");
 properties.setProperty("value.deserializer", "com.taos.example.MetersDeserializer");
 
@@ -420,7 +421,7 @@ public class MetersDeserializer extends ReferenceDeserializer<Meters> {
 ```go
 conf := &tmq.ConfigMap{
  "group.id":                     "test",
- "auto.offset.reset":            "earliest",
+ "auto.offset.reset":            "latest",
  "td.connect.ip":                "127.0.0.1",
  "td.connect.user":              "root",
  "td.connect.pass":              "taosdata",
@@ -440,7 +441,7 @@ consumer, err := NewConsumer(conf)
 let mut dsn: Dsn = "taos://".parse()?;
 dsn.set("group.id", "group1");
 dsn.set("client.id", "test");
-dsn.set("auto.offset.reset", "earliest");
+dsn.set("auto.offset.reset", "latest");
 
 let tmq = TmqBuilder::from_dsn(dsn)?;
 
@@ -468,7 +469,7 @@ consumer = Consumer(
         "td.connect.ip": "127.0.0.1",
         "td.connect.user": "root",
         "td.connect.pass": "taosdata",
-        "auto.offset.reset": "earliest",
+        "auto.offset.reset": "latest",
         "msg.with.table.name": "true",
     }
 )
@@ -488,7 +489,7 @@ let consumer = taos.consumer({
   'group.id': 'tg2',
   'td.connect.user': 'root',
   'td.connect.pass': 'taosdata',
-  'auto.offset.reset','earliest',
+  'auto.offset.reset','latest',
   'msg.with.table.name': 'true',
   'td.connect.ip','127.0.0.1',
   'td.connect.port','6030'  
@@ -511,7 +512,7 @@ var cfg = new ConsumerConfig
     GourpId = "TDengine-TMQ-C#",
     TDConnectUser = "root",
     TDConnectPasswd = "taosdata",
-    AutoOffsetReset = "earliest"
+    AutoOffsetReset = "latest"
     MsgWithTableName = "true",
     TDConnectIp = "127.0.0.1",
     TDConnectPort = "6030"
@@ -526,6 +527,24 @@ var consumer = new ConsumerBuilder(cfg).Build();
 </Tabs>
 
 上述配置中包括 consumer group ID，如果多个 consumer 指定的 consumer group ID 一样，则自动形成一个 consumer group，共享消费进度。
+
+数据回放功能说明：
+- 订阅增加 replay 功能，按照数据写入的时间回放。
+  比如，如下时间写入三条数据
+  ```sql
+    2023/09/22 00:00:00.000
+    2023/09/22 00:00:05.000
+    2023/09/22 00:00:08.000
+    ```
+  则订阅出第一条数据 5s 后返回第二条数据，获取第二条数据 3s 后返回第三条数据。
+- 仅列订阅支持数据回放
+  - 回放需要保证独立时间线
+  - 如果是子表订阅或者普通表订阅，只有一个vnode上有数据，保证是一个时间线
+  - 如果超级表订阅，则需保证该 DB 只有一个vnode，否则报错（因为多个vnode上订阅出的数据不在一个时间线上）
+- 超级表和库订阅不支持回放
+- 增加 enable.replay 参数，true表示开启订阅回放功能，false表示不开启订阅回放功能，默认不开启。
+- 回放不支持进度保存，所以回放参数 enable.replay = true 时，auto commit 自动关闭
+- 因为数据回放本身需要处理时间，所以回放的精度存在几十ms的误差
 
 ## 订阅 *topics*
 

@@ -161,7 +161,37 @@ target_link_libraries(
     PUBLIC index
 )
 
-if(${TD_LINUX})
+if(${BUILD_S3})
+
+if(${BUILD_WITH_S3})
+  target_include_directories(
+    vnode
+
+    PUBLIC "$ENV{HOME}/.cos-local.2/include"
+    )
+
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+  set(CMAKE_PREFIX_PATH $ENV{HOME}/.cos-local.2)
+  find_library(S3_LIBRARY s3)
+  find_library(CURL_LIBRARY curl)
+  find_library(SSL_LIBRARY ssl $ENV{HOME}/.cos-local.2/lib64 NO_DEFAULT_PATH)
+  find_library(CRYPTO_LIBRARY crypto $ENV{HOME}/.cos-local.2/lib64 NO_DEFAULT_PATH)
+  target_link_libraries(
+    vnode
+
+    # s3
+    PUBLIC ${S3_LIBRARY}
+    PUBLIC ${CURL_LIBRARY}
+    PUBLIC ${SSL_LIBRARY}
+    PUBLIC ${CRYPTO_LIBRARY}
+    PUBLIC xml2
+  )
+
+  add_definitions(-DUSE_S3)
+endif()
+
+if(${BUILD_WITH_COS})
+
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 find_library(APR_LIBRARY apr-1 PATHS /usr/local/apr/lib/)
 find_library(APR_UTIL_LIBRARY aprutil-1 PATHS /usr/local/apr/lib/)
@@ -194,11 +224,10 @@ target_include_directories(
   PUBLIC "$ENV{HOME}/.cos-local.1/include"
   )
 
-if(${BUILD_WITH_COS})
   add_definitions(-DUSE_COS)
 endif(${BUILD_WITH_COS})
 
-endif(${TD_LINUX})
+endif()
 
 IF (TD_GRANT)
   TARGET_LINK_LIBRARIES(vnode PUBLIC grant)

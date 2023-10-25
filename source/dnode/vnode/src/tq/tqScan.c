@@ -64,7 +64,23 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, STaosxRsp* pRsp, in
   return 0;
 }
 
-int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset) {
+int32_t getDataBlock(qTaskInfo_t task, const STqHandle* pHandle, int32_t vgId, SSDataBlock** res){
+  uint64_t     ts = 0;
+  qStreamSetOpen(task);
+
+  tqDebug("consumer:0x%" PRIx64 " vgId:%d, tmq one task start execute", pHandle->consumerId, vgId);
+  int32_t code = qExecTask(task, res, &ts);
+  if (code != TSDB_CODE_SUCCESS) {
+    tqError("consumer:0x%" PRIx64 " vgId:%d, task exec error since %s", pHandle->consumerId, vgId, tstrerror(code));
+    terrno = code;
+    return -1;
+  }
+
+  tqDebug("consumer:0x%" PRIx64 " vgId:%d tmq one task end executed, pDataBlock:%p", pHandle->consumerId, vgId, *res);
+  return 0;
+}
+
+int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset, const SMqPollReq* pRequest) {
   const int32_t MAX_ROWS_TO_RETURN = 4096;
 
   int32_t vgId = TD_VID(pTq->pVnode);
@@ -80,34 +96,66 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
 
   while (1) {
     SSDataBlock* pDataBlock = NULL;
-    uint64_t     ts = 0;
-    qStreamSetOpen(task);
-
-    tqDebug("consumer:0x%" PRIx64 " vgId:%d, tmq one task start execute", pHandle->consumerId, vgId);
-    code = qExecTask(task, &pDataBlock, &ts);
-    if (code != TSDB_CODE_SUCCESS) {
-      tqError("consumer:0x%" PRIx64 " vgId:%d, task exec error since %s", pHandle->consumerId, vgId, tstrerror(code));
-      terrno = code;
-      return -1;
-    }
-
-    tqDebug("consumer:0x%" PRIx64 " vgId:%d tmq one task end executed, pDataBlock:%p", pHandle->consumerId, vgId,
-            pDataBlock);
-    // current scan should be stopped asap, since the rebalance occurs.
-    if (pDataBlock == NULL) {
-      break;
-    }
-
-    code = tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols, pTq->pVnode->config.tsdbCfg.precision);
-    if (code != TSDB_CODE_SUCCESS) {
-      tqError("vgId:%d, failed to add block to rsp msg", vgId);
+    code = getDataBlock(task, pHandle, vgId, &pDataBlock);
+    if (code != 0){
       return code;
     }
 
-    pRsp->blockNum++;
-    totalRows += pDataBlock->info.rows;
-    if (totalRows >= MAX_ROWS_TO_RETURN) {
+    if(pRequest->enableReplay){
+      if(IS_OFFSET_RESET_TYPE(pRequest->reqOffset.type) && pHandle->block != NULL){
+        blockDataDestroy(pHandle->block);
+        pHandle->block = NULL;
+      }
+      if(pHandle->block == NULL){
+        if (pDataBlock == NULL) {
+          break;
+        }
+        STqOffsetVal offset = {0};
+        qStreamExtractOffset(task, &offset);
+        pHandle->block = createOneDataBlock(pDataBlock, true);
+//        pHandle->block = createDataBlock();
+//        copyDataBlock(pHandle->block, pDataBlock);
+        pHandle->blockTime = offset.ts;
+        code = getDataBlock(task, pHandle, vgId, &pDataBlock);
+        if (code != 0){
+          return code;
+        }
+      }
+
+      code = tqAddBlockDataToRsp(pHandle->block, pRsp, pExec->numOfCols, pTq->pVnode->config.tsdbCfg.precision);
+      if (code != TSDB_CODE_SUCCESS) {
+        tqError("vgId:%d, failed to add block to rsp msg", vgId);
+        return code;
+      }
+
+      pRsp->blockNum++;
+      if (pDataBlock == NULL) {
+        blockDataDestroy(pHandle->block);
+        pHandle->block = NULL;
+      }else{
+        copyDataBlock(pHandle->block, pDataBlock);
+
+        STqOffsetVal offset = {0};
+        qStreamExtractOffset(task, &offset);
+        pRsp->sleepTime = offset.ts - pHandle->blockTime;
+        pHandle->blockTime = offset.ts;
+      }
       break;
+    }else{
+      if (pDataBlock == NULL) {
+        break;
+      }
+      code = tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols, pTq->pVnode->config.tsdbCfg.precision);
+      if (code != TSDB_CODE_SUCCESS) {
+        tqError("vgId:%d, failed to add block to rsp msg", vgId);
+        return code;
+      }
+
+      pRsp->blockNum++;
+      totalRows += pDataBlock->info.rows;
+      if (totalRows >= MAX_ROWS_TO_RETURN) {
+        break;
+      }
     }
   }
 

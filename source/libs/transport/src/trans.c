@@ -41,7 +41,8 @@ void* rpcOpen(const SRpcInit* pInit) {
     return NULL;
   }
   if (pInit->label) {
-    tstrncpy(pRpc->label, pInit->label, sizeof(pRpc->label));
+    int len = strlen(pInit->label) > sizeof(pRpc->label) ? sizeof(pRpc->label) : strlen(pInit->label);
+    memcpy(pRpc->label, pInit->label, len);
   }
 
   pRpc->compressSize = pInit->compressSize;
@@ -167,6 +168,9 @@ int rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, in
 }
 int rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
   return transSendRecv(shandle, pEpSet, pMsg, pRsp);
+}
+int rpcSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp, int32_t timeoutMs) {
+  return transSendRecvWithTimeout(shandle, pEpSet, pMsg, pRsp, timeoutMs);
 }
 
 int rpcSendResponse(const SRpcMsg* pMsg) { return transSendResponse(pMsg); }

@@ -21,9 +21,6 @@ def taosws_get_assignment_and_seek_demo():
     prepare()
     consumer = taosws.Consumer(conf={
         "td.connect.websocket.scheme": "ws",
-        # should disable snapshot,
-        # otherwise it will cause invalid params error
-        "experimental.snapshot.enable": "false",
         "group.id": "0",
     })
     consumer.subscribe(["tmq_assignment_demo_topic"])

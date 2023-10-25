@@ -21,6 +21,9 @@ static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
 static int32_t refMgt;
 static int32_t instMgt;
+static int32_t transSyncMsgMgt;
+
+void transDestroySyncMsg(void* msg);
 
 int32_t transCompressMsg(char* msg, int32_t len) {
   int32_t        ret = 0;
@@ -601,13 +604,15 @@ bool transEpSetIsEqual(SEpSet* a, SEpSet* b) {
 }
 
 static void transInitEnv() {
-  refMgt = transOpenRefMgt(50000, transDestoryExHandle);
+  refMgt = transOpenRefMgt(50000, transDestroyExHandle);
   instMgt = taosOpenRef(50, rpcCloseImpl);
+  transSyncMsgMgt = taosOpenRef(50, transDestroySyncMsg);
   uv_os_setenv("UV_TCP_SINGLE_ACCEPT", "1");
 }
 static void transDestroyEnv() {
   transCloseRefMgt(refMgt);
   transCloseRefMgt(instMgt);
+  transCloseRefMgt(transSyncMsgMgt);
 }
 
 void transInit() {
@@ -617,6 +622,7 @@ void transInit() {
 
 int32_t transGetRefMgt() { return refMgt; }
 int32_t transGetInstMgt() { return instMgt; }
+int32_t transGetSyncMsgMgt() { return transSyncMsgMgt; }
 
 void transCleanup() {
   // clean env
@@ -648,11 +654,22 @@ int32_t transReleaseExHandle(int32_t refMgt, int64_t refId) {
   // release extern handle
   return taosReleaseRef(refMgt, refId);
 }
-void transDestoryExHandle(void* handle) {
+void transDestroyExHandle(void* handle) {
   if (handle == NULL) {
     return;
   }
   taosMemoryFree(handle);
+}
+
+void transDestroySyncMsg(void* msg) {
+  if (msg == NULL) return;
+
+  STransSyncMsg* pSyncMsg = msg;
+  tsem_destroy(pSyncMsg->pSem);
+  taosMemoryFree(pSyncMsg->pSem);
+
+  taosMemoryFree(pSyncMsg->pRsp);
+  taosMemoryFree(pSyncMsg);
 }
 
 // void subnetIp2int(const char* const ip_addr, uint8_t* dst) {
