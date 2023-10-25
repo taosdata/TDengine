@@ -1863,6 +1863,9 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       // curVersion move to next
       tqOffsetResetToLog(&pTaskInfo->streamInfo.currentOffset, pWalReader->curVersion);
 
+      // use ts to pass time when replay, because ts not used if type is log
+      pTaskInfo->streamInfo.currentOffset.ts = pAPI->tqReaderFn.tqGetResultBlockTime(pInfo->tqReader);
+
       if (hasResult) {
         qDebug("doQueueScan get data from log %" PRId64 " rows, version:%" PRId64, pRes->info.rows,
                pTaskInfo->streamInfo.currentOffset.version);

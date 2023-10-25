@@ -79,6 +79,9 @@ int32_t getSessionFlushedBuff(SStreamFileState* pFileState, SSessionKey* pKey, v
 int32_t deleteSessionWinStateBuffFn(void* pBuff, const void *key, size_t keyLen);
 int32_t deleteSessionWinStateBuffByPosFn(SStreamFileState* pFileState, SRowBuffPos* pPos);
 
+SRowBuffPos* createSessionWinBuff(SStreamFileState* pFileState, SSessionKey* pKey, void* p, int32_t* pVLen);
+int32_t      recoverSesssion(SStreamFileState* pFileState, int64_t ckId);
+
 void sessionWinStateClear(SStreamFileState* pFileState);
 void sessionWinStateCleanup(void* pBuff);
 

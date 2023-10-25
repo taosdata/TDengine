@@ -140,6 +140,7 @@ class TDCom:
         self.range_count = 5
         self.default_interval = 5
         self.stream_timeout = 12
+        self.create_stream_sleep = 0.5
         self.record_history_ts = str()
         self.precision = "ms"
         self.date_time = self.genTs(precision=self.precision)[0]
@@ -881,6 +882,7 @@ class TDCom:
                 stream_options += f" ignore update 0"
             if not use_except:
                 tdSql.execute(f'create stream if not exists {stream_name} trigger at_once {stream_options} {fill_history} into {des_table} {subtable} as {source_sql} {fill};')
+                time.sleep(self.create_stream_sleep)
                 return None
             else:
                 return f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table} {subtable} as {source_sql} {fill};'
@@ -906,6 +908,7 @@ class TDCom:
                 stream_options += f" ignore update 0"
             if not use_except:
                 tdSql.execute(f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};')
+                time.sleep(self.create_stream_sleep)
                 return None
             else:
                 return f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};'
@@ -1566,8 +1569,8 @@ class TDCom:
         res1 = tdSql.queryResult
         tdSql.query(sql2)
         res2 = self.cast_query_data(tdSql.queryResult) if tag_value_list or use_exist_stb else tdSql.queryResult
+        tdSql.sql = sql1
         new_list = list()
-
         if tag_value_list:
             res1 = self.float_handle(res1)
             res2 = self.float_handle(res2)
@@ -1602,6 +1605,7 @@ class TDCom:
                 tdSql.query(sql2)
                 # res2 = tdSql.queryResult
                 res2 = self.cast_query_data(tdSql.queryResult) if tag_value_list or use_exist_stb else tdSql.queryResult
+                tdSql.sql = sql1
 
                 if tag_value_list:
                     res1 = self.float_handle(res1)
@@ -1643,6 +1647,7 @@ class TDCom:
                 tdSql.query(sql2)
                 # res2 = tdSql.queryResult
                 res2 = self.cast_query_data(tdSql.queryResult) if tag_value_list or use_exist_stb else tdSql.queryResult
+                tdSql.sql = sql1
 
                 if tag_value_list:
                     res1 = self.float_handle(res1)

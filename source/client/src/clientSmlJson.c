@@ -853,7 +853,6 @@ static int64_t smlParseTSFromJSONObj(SSmlHandle *info, cJSON *root, int32_t toPr
   size_t  typeLen = strlen(type->valuestring);
   if (typeLen == 1 && (type->valuestring[0] == 's' || type->valuestring[0] == 'S')) {
     // seconds
-//    int8_t fromPrecision = TSDB_TIME_PRECISION_SECONDS;
     if (smlFactorS[toPrecision] < INT64_MAX / tsInt64) {
       return tsInt64 * smlFactorS[toPrecision];
     }

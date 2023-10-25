@@ -128,8 +128,16 @@ static int32_t tsdbCommitTSData(SCommitter2 *committer) {
       }
     }
 
+    extern int8_t tsS3Enabled;
+
+    int32_t nlevel = tfsGetLevel(committer->tsdb->pVnode->pTfs);
+    bool    skipRow = false;
+    if (tsS3Enabled && nlevel > 1 && committer->ctx->did.level == nlevel - 1) {
+      skipRow = true;
+    }
+
     int64_t ts = TSDBROW_TS(&row->row);
-    if (ts > committer->ctx->maxKey) {
+    if (ts > committer->ctx->maxKey || skipRow) {
       committer->ctx->nextKey = TMIN(committer->ctx->nextKey, ts);
       code = tsdbIterMergerSkipTableData(committer->dataIterMerger, committer->ctx->tbid);
       TSDB_CHECK_CODE(code, lino, _exit);
