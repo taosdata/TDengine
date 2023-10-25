@@ -584,7 +584,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       }
     } break;
     case TDMT_VND_STREAM_TASK_RESET: {
-      if (pVnode->restored/* && vnodeIsLeader(pVnode)*/) {
+      if (pVnode->restored && vnodeIsLeader(pVnode)) {
         tqProcessTaskResetReq(pVnode->pTq, pMsg);
       }
     } break;
