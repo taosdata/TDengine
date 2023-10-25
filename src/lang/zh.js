@@ -1472,11 +1472,11 @@ Windows： <code>C:\\Program Files\\taosX\\config</code>`,
         step3: "建立连接",
         step3desc: "如果您已经设置了环境变量，您只需要立即执行 `taos` 命令就可以访问 TDengine  实例。",
         step3desc1:
-          "如果您没有设置 TDengine  实例的环境变量，或者您想访问其他 TDengine  实例，您可以使用下面的命令 `taos -E <DSN>`来执行：",
+          "如果已经设置了环境变量，要访问TDengine，可以执行下面的命令：",
         step4: "使用 TDengine CLI",
         step4desc:
           "如果成功连接上 TDengine 服务，TDengine CLI 会显示一个欢迎的消息和版本信息。如果失败了，TDengine CLI 会打印失败消息。TDengine CLI 打印的成功消息如下：",
-        step4desc1: "进入 TDengine CLI 以后，您就可以执行大量的 SQL 命令来进行插入，查询或者进行管理。详情请参考",
+        step4desc1: "进入 TDengine CLI 以后，您就可以执行大量的 SQL 命令来进行插入，查询或者进行管理。",
         step4desc2: "官方文档",
         step4desc3: "。",
       },
