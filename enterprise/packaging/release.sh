@@ -287,6 +287,12 @@ else
     CORES=$(grep -c ^processor /proc/cpuinfo)
 fi
 
+if [ "$cpuType" == "x64" ]; then
+  ${csudo}sed -i ':a;N;$!ba;s/\(.*\)OFF/\1ON/' ${top_dir}/community/cmake/cmake.options
+elif [ "$cpuType" == "aarch64" ]; then
+  CORES=1
+fi
+  
 if [[ "$allocator" == "jemalloc" ]]; then
   # jemalloc need compile first, so disable parallel build
   make -j ${CORES} && ${csudo}make install
