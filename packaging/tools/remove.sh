@@ -275,7 +275,7 @@ function remove_data_and_config() {
   fi
   log_dir=`grep logDir /etc/taos/taos.cfg | grep -v '#' | tail -n 1 | awk {'print $2'}`
   if [ X"$log_dir" == X"" ]; then
-    log_dir="/var/lib/taos"
+    log_dir="/var/log/taos"
   fi
   ${csudo}rm -rf ${config_dir}/*
   ${csudo}rm -rf ${data_dir}/*
