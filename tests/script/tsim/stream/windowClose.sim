@@ -134,6 +134,58 @@ if $rows != 2 then
   goto loop1
 endi
 
+print max delay 2s
+sql create database test3 vgroups 4;
+sql use test3;
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+
+sql create stream stream13 trigger max_delay 2s into streamt13 as select  _wstart, sum(a), now from t1 interval(10s);
+
+sleep 1000
+
+sql insert into t1 values(1648791213000,1,2,3,1.0);
+sql insert into t1 values(1648791223001,2,2,3,1.1);
+
+$loop_count = 0
+
+loop2:
+
+sleep 1000
+
+$loop_count = $loop_count + 1
+if $loop_count == 20 then
+  return -1
+endi
+
+sql select * from streamt13;
+
+if $rows != 2 then
+  print ======rows=$rows
+  goto loop2
+endi
+
+$now02 = $data02
+
+$now12 = $data12
+
+$loop_count = 0
+
+print max delay 2s......... sleep 5s
+sleep 5000
+
+sql select * from streamt13;
+
+
+if $data02 != $now02 then
+  print ======data02=$data02
+  return -1
+endi
+
+if $data12 != $now12 then
+  print ======data12=$data12
+  return -1
+endi
+
 print ======over
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

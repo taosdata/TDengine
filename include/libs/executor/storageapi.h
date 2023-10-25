@@ -119,6 +119,7 @@ typedef struct SRowBuffPos {
   bool  beFlushed;
   bool  beUsed;
   bool  needFree;
+  bool  beUpdated;
 } SRowBuffPos;
 
 // tq
