@@ -46,7 +46,11 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
     }
   }
 
-  char *user = pReq->info.conn.user;
+  char user[24] = {0};
+  if(pReq->info.conn.user != NULL && strlen(pReq->info.conn.user) > 0){
+    strncpy(user, pReq->info.conn.user, 24);
+  }
+  uDebug("audit record user:%s, len:%"PRId32, user, (int32_t)strlen(user));
 
   SJson *pJson = tjsonCreateObject();
   if (pJson == NULL) {
@@ -62,15 +66,24 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
   char strClusterId[65] = {0};
   sprintf(strClusterId, "%" PRId64, clusterId);
 
+  char ip[24] = {0};
+  taosIp2String(pReq->info.conn.clientIp, ip);
+
+  char clientAddress[50] = {0};
+  sprintf(clientAddress, "%s:%d", ip, pReq->info.conn.clientPort);
+
   tjsonAddDoubleToObject(pJson, "timestamp", curTime);
   tjsonAddStringToObject(pJson, "cluster_id", strClusterId);
   tjsonAddStringToObject(pJson, "user", user);
   tjsonAddStringToObject(pJson, "operation", operation);
-  tjsonAddStringToObject(pJson, "target_1", target1);
-  tjsonAddStringToObject(pJson, "target_2", target2);
+  tjsonAddStringToObject(pJson, "client_add", clientAddress);
+  //tjsonAddStringToObject(pJson, "target_1", target1);
+  //tjsonAddStringToObject(pJson, "target_2", target2);
   tjsonAddStringToObject(pJson, "details", buf);
 
   auditSend(pJson);
+
+  tjsonDelete(pJson);
 
   taosMemoryFreeClear(buf);
 }
