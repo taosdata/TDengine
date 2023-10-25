@@ -1,24 +1,11 @@
 <template>
-  <el-dialog
-    :visible.sync="resultVisible"
-    width="500px"
-    :show-close="false"
-    title="提示"
-  >
-    <div class="text">
-      <i :class="content.icon"></i>
+  <div class="text">
+    <i :class="content.icon"></i>
+    <div class="flexWrap">
       <span>{{ content.contentText  }}</span>
+      <span class='error'>{{content.messageText}}</span>
     </div>
-    <span
-      slot="footer"
-      class="dialog-footer"
-      v-if="JSON.stringify(result) !== '{}'"
-    >
-      <el-button type="primary" size="small" plain @click="handleClose"
-        >{{ $t('confirm') }}</el-button
-      >
-    </span>
-  </el-dialog>
+  </div>
 </template>
 
 <script>
@@ -29,41 +16,14 @@ export default {
     result: {
       type: Object,
     },
-    resultVisible: {
-      type: Boolean,
-      default: () => false,
-    },
-    loading: {
-      type: Boolean,
-      default: () => true,
-    },
-    percentage: {
-      type: Number,
-      default: () => 10,
-    },
   },
   data() {
-    return {
-      colors: [
-        { color: "#f56c6c", percentage: 20 },
-        { color: "#e6a23c", percentage: 40 },
-        { color: "#5cb87a", percentage: 60 },
-        { color: "#1989fa", percentage: 80 },
-        { color: "#6f7ad3", percentage: 100 },
-      ],
-    };
+    return {};
   },
   computed: {
-    visible: {
-      get() {
-        return this.resultVisible;
-      },
-      set(val) {
-        // this.resultVisible = val
-      },
-    },
     content() {
       let contentText = '';
+      let messageText = '';
       let icon = ''
       const { valid, support, version, message } = this.result;
       if (valid) {
@@ -80,18 +40,15 @@ export default {
           icon = 'el-icon-error'
         }
       } else {
-        contentText = this.$t("dataIn.failTip") + message;
+        contentText = this.$t("dataIn.failTip");
+        messageText = this.$t("dataIn.errorMessage") + message
         icon = 'el-icon-error'
       }
       console.log('tyy');
-      return {contentText,icon};
+      return {contentText,messageText,icon};
     },
   },
-  methods: {
-    handleClose() {
-      this.$emit("cancelModal");
-    },
-  },
+  methods: {},
   components: {},
 };
 </script>
@@ -120,11 +77,6 @@ export default {
   font-size: 16px;
   font-weight: 500;
   padding: 10px;
-  >span{
-    white-space: pre-wrap;
-    word-break: break-all;
-    word-wrap: break-word;
-  }
 }
 
 .el-icon-error {
@@ -137,5 +89,16 @@ export default {
   font-size: 20px;
   margin-right: 10px;
 }
-
+.flexWrap {
+  display: flex;
+  flex-wrap: wrap;
+  >span{
+    white-space: pre-wrap;
+    word-break: break-all;
+    word-wrap: break-word;
+  }
+}
+.error {
+  color: red;
+}
 </style>

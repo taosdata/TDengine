@@ -338,7 +338,7 @@
         </div>
       </section>
       <section class="check">
-        <el-button :loading="checkLoading" type="primary" @click="clickCheckBtn">check</el-button>
+        <el-button :loading="checkLoading" type="primary" @click="clickCheckBtn">{{$t('dataIn.check')}}</el-button>
       </section>
       <section
         class="dataset"
@@ -708,7 +708,7 @@
       </template>
       <section class="bottom">
         <el-button
-          v-if="isShowEditBtn"
+          v-show="isShowEditBtn"
           class="edit-btn"
           type="primary"
           @click="edit"
@@ -716,7 +716,7 @@
           >{{ $t("edit") }}</el-button
         >
         <el-button
-          v-else
+          v-show="!isShowEditBtn"
           type="primary"
           @click="save"
           :disabled="!checkResult.valid && !checkResult.support"
@@ -738,13 +738,6 @@
       />
     </div>
     <DialogCreateDb></DialogCreateDb>
-    <ResultDialog
-      :result="checkResult"
-      :loading="checkLoading"
-      :resultVisible="resultVisible"
-      :percentage="percentage"
-      @cancelModal="cancelModal"
-    ></ResultDialog>
   </div>
 </template>
 <script>
@@ -758,10 +751,10 @@ import { Message } from "element-ui";
 import marked from "marked";
 import { debounce, parsinginZone } from "@/utils/index";
 import DialogCreateDb from "../components/addDbDialog.vue";
-import ResultDialog from "../components/resultDialog.vue";
+import Result from "../components/result.vue";
 export default {
   name: "DbSourceUI",
-  components: { DatePicker, DialogCreateDb, DataTarget, ResultDialog, },
+  components: { DatePicker, DialogCreateDb, DataTarget, Result, },
   props: {
     // sourceName: {
     //   type: String,
@@ -895,7 +888,6 @@ export default {
       downloadUrl: process.env.VUE_APP_X_API + `/download?file_path=`,
       activeRadio: "select_file",
       isShowEditBtn: false,
-      resultVisible: false,
       checkLoading: false,
       percentage: 0,
       checkResult: {
@@ -1177,9 +1169,7 @@ export default {
         this.submit(true)
       }
     },
-    cancelModal() {
-      this.resultVisible = false
-    },
+   
     clickCheckBtn() {
       this.checkResult = this.$options.data().checkResult
       this.submit(false)
@@ -1190,9 +1180,23 @@ export default {
         this.checkLoading = true
         let result = await validateTask(dns,this.agentId)
         console.log('result',result);
-        this.resultVisible = true // 展示检测结果
         this.checkResult = result
         this.checkLoading = false // 检测的 loading 效果
+        this.$store.commit('SET_DIALOG', {
+          component: Result,
+          params: {
+            result,
+          },
+          config: {
+            title: this.$t('dataIn.check'),
+            width: '500px'
+          },
+          listeners: {
+            close: () => {
+              this.$store.commit('SET_DIALOG_VISIBLE', false);
+            }
+          }
+        });
       } catch (error) {
         this.checkLoading = false
         console.log('err');

@@ -260,7 +260,7 @@
         </div>
       </section>
       <section class="check" v-if="tagName !=='csv'">
-        <el-button :loading="checkLoading" type="primary" @click="clickCheckBtn">check</el-button>
+        <el-button :loading="checkLoading" type="primary" @click="clickCheckBtn">{{$t('dataIn.check')}}</el-button>
       </section>
       <section :class="['groups-dataset']" v-if="dbsource[0]?.datasets">
         <div style="flex-direction: column; align-items: baseline">
@@ -864,7 +864,7 @@
       </section>
       <section class="bottom">
         <el-button
-          v-if="isShowEditBtn"
+          v-show="isShowEditBtn"
           class="edit-btn"
           type="primary"
           @click="edit"
@@ -872,7 +872,7 @@
           >{{ $t("edit") }}</el-button
         >
         <el-button
-          v-else
+          v-show="!isShowEditBtn"
           type="primary"
           @click="save"
           :disabled="!checkResult.valid && !checkResult.support"
@@ -893,12 +893,6 @@
       />
     </div>
     <DialogCreateDb></DialogCreateDb>
-    <ResultDialog
-      :result="checkResult"
-      :loading="checkLoading"
-      :resultVisible="resultVisible"
-      @cancelModal="cancelModal"
-    ></ResultDialog>
   </div>
 </template>
 <script>
@@ -921,7 +915,7 @@ import PThreeCheckbox from "../components/pThreeCheckbox.vue";
 import MqttConnector from "../components/newMqttConnector.vue";
 import opcConnector from "../components/opcConnector.vue";
 import DialogCreateDb from "../components/addDbDialog.vue";
-import ResultDialog from "../components/resultDialog.vue";
+import Result from "../components/result.vue";
 export default {
   name: "DbSourceUI",
   components: {
@@ -931,7 +925,7 @@ export default {
     CsvData,
     DialogCreateDb,
     DataTarget,
-    ResultDialog
+    Result
   },
   props: {
     echoData: {
@@ -1044,7 +1038,6 @@ export default {
       policyDisabled: true,
       isShowEditBtn: false,
       // dbsource: [],
-      resultVisible: false,
       checkLoading: false,
       checkResult: {
         valid: false,
@@ -1080,6 +1073,8 @@ export default {
       }
       this.isShowEditBtn = this.isCopyable ? false : true;
     }
+    console.log('dddd',this.checkResult,!this.checkResult.valid && !this.checkResult.support);
+
   },
   mounted() {
     if (this.tagName == "mqtt" || this.tagName == "kafka") {
@@ -1406,9 +1401,7 @@ export default {
         this.submit(true);
       }
     },
-    cancelModal() {
-      this.resultVisible = false
-    },
+   
     clickCheckBtn() {
       // csv 不做检测
       this.checkResult = this.$options.data().checkResult
@@ -1420,9 +1413,23 @@ export default {
         this.checkLoading = true
         let result = await validateTask(dns,this.agentId)
         console.log('result',result);
-        this.resultVisible = true // 展示检测结果
         this.checkResult = result
         this.checkLoading = false // 检测的 loading 效果
+        this.$store.commit('SET_DIALOG', {
+          component: Result,
+          params: {
+            result,
+          },
+          config: {
+            title: this.$t('dataIn.check'),
+            width: '500px'
+          },
+          listeners: {
+            close: () => {
+              this.$store.commit('SET_DIALOG_VISIBLE', false);
+            }
+          }
+        });
       } catch (error) {
         this.checkLoading = false
         console.log('err');
