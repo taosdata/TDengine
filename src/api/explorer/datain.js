@@ -121,7 +121,7 @@ export function getMetrics(taskId){
 export function validateTask(data,agentid) {
    return request({
     baseURL:process.env.VUE_APP_X_API,
-    url:`/ds/in/validate?dsn=${data}`+(agentid?`&via=${agentid}`:''),
+    url:`/ds/in/validate?dsn=${data.replace(/\+/g, "%2B")}`+(agentid?`&via=${agentid}`:''),
     method:'get',
    })
 }
