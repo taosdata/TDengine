@@ -399,8 +399,8 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
     } else {
       if (pRsp->status == TASK_DOWNSTREAM_NOT_LEADER) {
         stError(
-            "s-task:%s downstream taskId:0x%x (vgId:%d) detects current task vnode-transfer/leader-change/restart, not "
-            "send check again, roll-back needed",
+            "s-task:%s downstream taskId:0x%x (vgId:%d) not leader, self dispatch epset needs to be updated, not check "
+            "downstream again, nodeUpdate needed",
             id, pRsp->downstreamTaskId, pRsp->downstreamNodeId);
         return 0;
       }
