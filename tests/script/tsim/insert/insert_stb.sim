@@ -38,6 +38,18 @@ if $rows != 4 then
   return -1
 endi
 
+sql insert into d2.st(ts, f, tbname) values('2021-04-19 08:00:13', 1, 'ct1') d1.ct1 values('2021-04-19 08:00:14', 1);
+
+sql select * from d1.st
+print $rows
+if $rows != 12 then
+  return -1
+endi
+sql select * from d2.st;
+print $rows
+if $rows != 5 then
+  return -1
+endi
 sql_error insert into d2.st values(now, 1, 1)
 sql_error insert into d2.st(ts, f) values(now, 1);
 sql_error insert into d2.st(ts, f, tbname) values(now, 1);
