@@ -373,6 +373,7 @@ function add_newHostname_to_hosts() {
   if grep -q "127.0.0.1  $1" /etc/hosts; then
     return
   else
+    ${csudo}chmod 666 /etc/hosts
     ${csudo}echo "127.0.0.1  $1" >>/etc/hosts
   fi
 }
@@ -956,7 +957,7 @@ function updateProduct() {
     echo "${productName2} is updated successfully!"
     echo
     if [ "$verMode" == "cluster" ];then
-      echo -e "\033[44;32;1mTo start all the components       : sudo ./start-all.sh${NC}"
+      echo -e "\033[44;32;1mTo start all the components       : ./start-all.sh${NC}"
     fi
     echo -e "\033[44;32;1mTo access ${productName2}                : ${clientName2} -h $serverFqdn${NC}"
     if [ "$verMode" == "cluster" ];then
