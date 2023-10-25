@@ -1685,6 +1685,8 @@ static int32_t processCtbAutoCreationAndCtbMeta(SInsertParseContext* pCxt, SVnod
 }
 
 static void clearStbRowsDataContext(SStbRowsDataContext* pStbRowsCxt) {
+  if (pStbRowsCxt == NULL) return;
+
   taosArrayClear(pStbRowsCxt->aTagNames);
   for (int i = 0; i < taosArrayGetSize(pStbRowsCxt->aTagVals); ++i) {
     STagVal* p = (STagVal*)taosArrayGet(pStbRowsCxt->aTagVals, i);
@@ -1693,7 +1695,10 @@ static void clearStbRowsDataContext(SStbRowsDataContext* pStbRowsCxt) {
     }
   }
   taosArrayClear(pStbRowsCxt->aTagVals);
+
+  clearColValArray(pStbRowsCxt->aColVals);
   taosArrayClear(pStbRowsCxt->aColVals);
+
   tTagFree(pStbRowsCxt->pTag);
   pStbRowsCxt->pTag = NULL;
   pStbRowsCxt->pCtbMeta->uid = 0;
@@ -1974,21 +1979,23 @@ static int32_t parseDataClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
 }
 
 static void destroyStbRowsDataContext(SStbRowsDataContext* pStbRowsCxt) {
+  if (pStbRowsCxt == NULL) return;
+  clearStbRowsDataContext(pStbRowsCxt);
   taosArrayDestroy(pStbRowsCxt->aColVals);
+  pStbRowsCxt->aColVals = NULL;
   taosArrayDestroy(pStbRowsCxt->aTagVals);
+  pStbRowsCxt->aTagVals = NULL;
   taosArrayDestroy(pStbRowsCxt->aTagNames);
+  pStbRowsCxt->aTagNames = NULL;
   insDestroyBoundColInfo(&pStbRowsCxt->boundColsInfo);
   tTagFree(pStbRowsCxt->pTag);
-  taosMemoryFree(pStbRowsCxt->pCtbMeta);
+  pStbRowsCxt->pTag = NULL;
+  taosMemoryFreeClear(pStbRowsCxt->pCtbMeta);
   tdDestroySVCreateTbReq(pStbRowsCxt->pCreateCtbReq);
   taosMemoryFreeClear(pStbRowsCxt->pCreateCtbReq);
 }
 
-static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (!pStmt->pBoundCols) {
-    return buildSyntaxErrMsg(&pCxt->msg, "(...tbname, ts...) bounded cols is expected for supertable insertion", pStmt->pSql);
-  }
+static int32_t constructStbRowsDataContext(SVnodeModifyOpStmt* pStmt, SStbRowsDataContext** ppStbRowsCxt) {
   SStbRowsDataContext* pStbRowsCxt = taosMemoryCalloc(1, sizeof(SStbRowsDataContext));
   if (!pStbRowsCxt) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -2004,20 +2011,35 @@ static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModif
   pStbRowsCxt->aTagNames = taosArrayInit(8, TSDB_COL_NAME_LEN);
   pStbRowsCxt->aTagVals = taosArrayInit(8, sizeof(STagVal));
 
-  // col values and bound cols info of STableDataContext is not used TODO: remove the construction when createing table data context
+  // col values and bound cols info of STableDataContext is not used
   pStbRowsCxt->aColVals = taosArrayInit(getNumOfColumns(pStbRowsCxt->pStbMeta), sizeof(SColVal));
   insInitColValues(pStbRowsCxt->pStbMeta, pStbRowsCxt->aColVals);
 
   STableComInfo tblInfo = getTableInfo(pStmt->pTableMeta);
   insInitBoundColsInfo(tblInfo.numOfColumns + tblInfo.numOfTags + 1, &pStbRowsCxt->boundColsInfo);
 
-  code = parseBoundColumns(pCxt, &pStmt->pBoundCols, BOUND_ALL_AND_TBNAME, pStmt->pTableMeta, &pStbRowsCxt->boundColsInfo);
+  *ppStbRowsCxt = pStbRowsCxt;
+  return TSDB_CODE_SUCCESS;
+}
 
-  pStmt->pStbRowsCxt = pStbRowsCxt;
+static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (!pStmt->pBoundCols) {
+    return buildSyntaxErrMsg(&pCxt->msg, "(...tbname, ts...) bounded cols is expected for supertable insertion", pStmt->pSql);
+  }
 
-  SRowsDataContext rowsDataCxt;
-  rowsDataCxt.pStbRowsCxt = pStbRowsCxt;
+  SStbRowsDataContext* pStbRowsCxt = NULL;
+  code = constructStbRowsDataContext(pStmt, &pStbRowsCxt);
+
+  if (code == TSDB_CODE_SUCCESS) {
+    code = parseBoundColumns(pCxt, &pStmt->pBoundCols, BOUND_ALL_AND_TBNAME, pStmt->pTableMeta,
+                             &pStbRowsCxt->boundColsInfo);
+    pStmt->pStbRowsCxt = pStbRowsCxt;
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
+    SRowsDataContext rowsDataCxt;
+    rowsDataCxt.pStbRowsCxt = pStbRowsCxt;
     code = parseDataClause(pCxt, pStmt, rowsDataCxt);
   }
   destroyStbRowsDataContext(pStbRowsCxt);
