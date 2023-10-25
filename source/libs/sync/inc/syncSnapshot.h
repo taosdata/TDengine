@@ -37,7 +37,20 @@ typedef struct SSyncSnapBuffer {
   int64_t       end;
   int64_t       size;
   TdThreadMutex mutex;
+  void (*entryDeleteCb)(void *ptr);
 } SSyncSnapBuffer;
+
+typedef struct SyncSnapBlock {
+  int32_t seq;
+  int8_t  acked;
+  int64_t sendTimeMs;
+
+  int16_t blockType;
+  void   *pBlock;
+  int32_t blockLen;
+} SyncSnapBlock;
+
+void syncSnapBlockDestroy(void *ptr);
 
 typedef struct SSyncSnapshotSender {
   int8_t         start;
