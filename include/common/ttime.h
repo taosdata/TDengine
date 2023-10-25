@@ -100,15 +100,22 @@ int32_t taosTm2Ts(struct STm* tm, int64_t* ts, int32_t precision);
 
 /// @brief convert a timestamp to a formatted string
 /// @param format the timestamp format, must null terminated
-void taosTs2Char(const char* format, int64_t ts, int32_t precision, char* out);
+/// @param [in,out] formats the formats array pointer generated. Shouldn't be NULL.
+/// If (*formats == NULL), [format] will be used and [formats] will be updated to the new generated
+/// formats array; If not NULL, [formats] will be used instead of [format] to skip parse formats again.
+/// @param out output buffer, should be initialized by memset
+/// @notes remember to free the generated formats
+void taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t precision, char* out, int32_t outLen);
 /// @brief convert a formatted timestamp string to a timestamp
 /// @param format must null terminated
+/// @param [in, out] formats, see taosTs2Char
 /// @param tsStr must null terminated
 /// @retval 0 for success, otherwise error occured
-int32_t taosChar2Ts(const char* format, const char* tsStr, int64_t* ts, int32_t precision, char* errMsg,
+/// @notes remember to free the generated formats even when error occured
+int32_t taosChar2Ts(const char* format, SArray** formats, const char* tsStr, int64_t* ts, int32_t precision, char* errMsg,
                     int32_t errMsgLen);
 
-void    TEST_ts2char(const char* format, int64_t ts, int32_t precision, char* out);
+void    TEST_ts2char(const char* format, int64_t ts, int32_t precision, char* out, int32_t outLen);
 int32_t TEST_char2ts(const char* format, int64_t* ts, int32_t precision, const char* tsStr);
 
 #ifdef __cplusplus

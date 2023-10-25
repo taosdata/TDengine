@@ -316,8 +316,8 @@ TEST(timeTest, timestamp2tm) {
 }
 
 void test_ts2char(int64_t ts, const char* format, int32_t precison, const char* expected) {
-  char buf[128] = {0};
-  TEST_ts2char(format, ts, precison, buf);
+  char buf[256] = {0};
+  TEST_ts2char(format, ts, precison, buf, 256);
   printf("ts: %ld format: %s res: [%s], expected: [%s]\n", ts, format, buf, expected);
   ASSERT_STREQ(expected, buf);
 }
@@ -408,8 +408,8 @@ TEST(timeTest, char2ts) {
 
 #ifndef WINDOWS
   // 2023-1-1 21:10:10.120450780
-  ASSERT_EQ(0, TEST_char2ts("yy \"年\"-MM 月-dd \"日\" HH24:MI:ss.ms.us.ns TZH", &ts, TSDB_TIME_PRECISION_NANO,
-                            "   23  年 - 1 月 - 01 日  \t  21:10:10 .  12 .  \t 00045 . 00000078  \t+08"));
+  ASSERT_EQ(0, TEST_char2ts("yy \"年\"-MM 月-dd  \"日 子\" HH24:MI:ss.ms.us.ns TZH", &ts, TSDB_TIME_PRECISION_NANO,
+                            "   23  年 - 1 月 - 01 日 子  \t  21:10:10 .  12 .  \t 00045 . 00000078  \t+08"));
   ASSERT_EQ(ts, 1672578610120450780LL);
 #endif
 
@@ -437,7 +437,7 @@ TEST(timeTest, char2ts) {
                             "2100/january/01 FRIDAY 11:10:10.124456+08"));
   ASSERT_EQ(ts, 4102456210124456LL);
   ASSERT_EQ(0, TEST_char2ts("yyyy/Month/dd Dy HH24:MI:ss.usTZH", &ts, TSDB_TIME_PRECISION_MICRO,
-                            "2100/january/01 Fri 11:10:10.124456+08"));
+                            "2100/january/01 Fri 11:10:10.124456+08:00"));
   ASSERT_EQ(ts, 4102456210124456LL);
 
   ASSERT_EQ(0, TEST_char2ts("yyyy/month/dd day HH24:MI:ss.usTZH", &ts, TSDB_TIME_PRECISION_MICRO,
@@ -461,7 +461,8 @@ TEST(timeTest, char2ts) {
   // '/' cannot convert to MM
   ASSERT_EQ(-1, TEST_char2ts("yyyyMMdd ", &ts, TSDB_TIME_PRECISION_MICRO, "2100/2/1"));
   // nothing to be converted to dd
-  ASSERT_EQ(-1, TEST_char2ts("yyyyMMdd ", &ts, TSDB_TIME_PRECISION_MICRO, "210012"));
+  ASSERT_EQ(0, TEST_char2ts("yyyyMMdd ", &ts, TSDB_TIME_PRECISION_MICRO, "210012"));
+  ASSERT_EQ(ts, 4131273600000000LL); // 2100-12-1
   ASSERT_EQ(-1, TEST_char2ts("yyyyMMdd ", &ts, TSDB_TIME_PRECISION_MICRO, "21001"));
   ASSERT_EQ(-1, TEST_char2ts("yyyyMM-dd ", &ts, TSDB_TIME_PRECISION_MICRO, "23a1-1"));
 
@@ -481,6 +482,13 @@ TEST(timeTest, char2ts) {
   ASSERT_EQ(-1, TEST_char2ts("HH12:MI:SS", &ts, TSDB_TIME_PRECISION_MICRO, "21:12:12"));
   ASSERT_EQ(-1, TEST_char2ts("yyyy/MM1/dd ", &ts, TSDB_TIME_PRECISION_MICRO, "2100111111111/11/2"));
   ASSERT_EQ(-2, TEST_char2ts("yyyy/MM1/ddTZH", &ts, TSDB_TIME_PRECISION_MICRO, "23/11/2-13"));
+  ASSERT_EQ(0, TEST_char2ts("yyyy年 MM/ddTZH", &ts, TSDB_TIME_PRECISION_MICRO, "1970年1/1+0"));
+  ASSERT_EQ(ts, 0);
+  ASSERT_EQ(-1, TEST_char2ts("yyyy年a MM/dd", &ts, TSDB_TIME_PRECISION_MICRO, "2023年1/2"));
+  ASSERT_EQ(0, TEST_char2ts("yyyy年 MM/ddTZH", &ts, TSDB_TIME_PRECISION_MICRO, "1970年   1/1+0"));
+  ASSERT_EQ(ts, 0);
+  ASSERT_EQ(0, TEST_char2ts("yyyy年 a a a MM/ddTZH", &ts, TSDB_TIME_PRECISION_MICRO, "1970年 a a a 1/1+0"));
+  ASSERT_EQ(0, TEST_char2ts("yyyy年 a a a a a a a a a a a a a a a MM/ddTZH", &ts, TSDB_TIME_PRECISION_MICRO, "1970年 a     "));
 }
 
 #pragma GCC diagnostic pop

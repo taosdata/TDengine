@@ -486,7 +486,7 @@ return_timestamp: {
 #### TO_CHAR
 
 ```sql
-TO_CHAR(ts, str_literal)
+TO_CHAR(ts, format_str_literal)
 ```
 
 **功能说明**: 将timestamp类型按照指定格式转换为字符串
@@ -504,7 +504,7 @@ TO_CHAR(ts, str_literal)
 | **格式** | **说明**| **例子** |
 | --- | --- | --- |
 |AM,am,PM,pm| 无点分隔的上午下午 | 07:00:00am|
-|A.M.,a.m.,P.M.,p.m.| 有点分割的上午下午| 07:00:00a.m.|
+|A.M.,a.m.,P.M.,p.m.| 有点分隔的上午下午| 07:00:00a.m.|
 |YYYY,yyyy|年, 4个及以上数字| 2023-10-10|
 |YYY,yyy| 年, 最后3位数字| 023-10-10|
 |YY,yy| 年, 最后2位数字| 23-10-10|
@@ -537,13 +537,14 @@ TO_CHAR(ts, str_literal)
 **使用说明**:
 - `Month`, `Day`等的输出格式是左对齐的, 右侧添加空格, 如`2023-OCTOBER  -01`, `2023-SEPTEMBER-01`, 9月是月份中英文字母数最长的, 因此9月没有空格. 星期类似.
 - 使用`ms`, `us`, `ns`时, 以上三种格式的输出只在精度上不同, 比如ts为 `1697182085123`,  `ms` 的输出为 `123`, `us` 的输出为 `123000`, `ns` 的输出为 `123000000`.
-- 如果想要在格式串中指定某些部分不做转换, 可以使用双引号, 如`to_char(ts, 'yyyy-mm-dd "is formated by yyyy-mm-dd"')`. 如果想要输出双引号, 那么在双引号之前加一个反斜杠, 如 `to_char(ts, '\"yyyy-mm-dd\"')` 将会输出 `"2023-10-10"`.
+- 时间格式中无法匹配规则的内容会直接输出. 如果想要在格式串中指定某些能够匹配规则的部分不做转换, 可以使用双引号, 如`to_char(ts, 'yyyy-mm-dd "is formated by yyyy-mm-dd"')`. 如果想要输出双引号, 那么在双引号之前加一个反斜杠, 如 `to_char(ts, '\"yyyy-mm-dd\"')` 将会输出 `"2023-10-10"`.
 - 那些输出是数字的格式, 如`YYYY`, `DD`, 大写与小写意义相同, 即`yyyy` 和 `YYYY` 可以互换.
+- 默认输出的时间为本地时区的时间.
 
 #### TO_TIMESTAMP
 
 ```sql
-TO_TIMESTAMP(str_literal, str_literal)
+TO_TIMESTAMP(ts_str_literal, format_str_literal)
 ```
 
 **功能说明**: 将字符串按照指定格式转化为时间戳.

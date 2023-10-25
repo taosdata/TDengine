@@ -1008,7 +1008,6 @@ typedef enum {
   TSFKW_Day,  // Sunday, Monday
   TSFKW_DY,   // MON, TUE
   TSFKW_Dy,   // Mon, Tue
-  TSFKW_dy,   // mon, tue
   TSFKW_D,    // 1-7 -> Sunday(1) -> Saturday(7)
   TSFKW_HH24,
   TSFKW_HH12,
@@ -1021,12 +1020,12 @@ typedef enum {
   TSFKW_Mon,
   TSFKW_MS,
   TSFKW_NS,
-  TSFKW_OF,
+  //TSFKW_OF,
   TSFKW_PM,
   TSFKW_P_M,
   TSFKW_SS,
-  // TSFKW_TZM,
   TSFKW_TZH,
+  // TSFKW_TZM,
   // TSFKW_TZ,
   TSFKW_US,
   TSFKW_YYYY,
@@ -1039,13 +1038,15 @@ typedef enum {
   TSFKW_a_m,
   // TSFKW_b_c,
   // TSFKW_bc,
-  TSFKW_d,
   TSFKW_day,
   TSFKW_ddd,
   TSFKW_dd,
+  TSFKW_dy,   // mon, tue
+  TSFKW_d,
   TSFKW_hh24,
   TSFKW_hh12,
   TSFKW_hh,
+  TSFKW_mi,
   TSFKW_mm,
   TSFKW_month,
   TSFKW_mon,
@@ -1067,17 +1068,17 @@ typedef enum {
 
 // clang-format off
 static const TSFormatKeyWord formatKeyWords[] = {
-  //{"A.D.", 4, TSFKW_A_D},
-  {"A.M.", 4, TSFKW_A_M, false},
   //{"AD", 2, TSFKW_AD, false},
+  //{"A.D.", 4, TSFKW_A_D},
   {"AM", 2, TSFKW_AM, false},
-  //{"B.C.", 4, TSFKW_B_C, false},
+  {"A.M.", 4, TSFKW_A_M, false},
   //{"BC", 2, TSFKW_BC, false},
+  //{"B.C.", 4, TSFKW_B_C, false},
   {"DAY", 3, TSFKW_DAY, false},
   {"DDD", 3, TSFKW_DDD, true},
   {"DD", 2, TSFKW_DD, true},
-  {"DY", 2, TSFKW_DY, false},
   {"Day", 3, TSFKW_Day, false},
+  {"DY", 2, TSFKW_DY, false},
   {"Dy", 2, TSFKW_Dy, false},
   {"D", 1, TSFKW_D, true},
   {"HH24", 4, TSFKW_HH24, true},
@@ -1087,13 +1088,13 @@ static const TSFormatKeyWord formatKeyWords[] = {
   {"MM", 2, TSFKW_MM, true},
   {"MONTH", 5, TSFKW_MONTH, false},
   {"MON", 3, TSFKW_MON, false},
-  {"MS", 2, TSFKW_MS, true},
   {"Month", 5, TSFKW_Month, false},
   {"Mon", 3, TSFKW_Mon, false},
+  {"MS", 2, TSFKW_MS, true},
   {"NS", 2, TSFKW_NS, true},
   //{"OF", 2, TSFKW_OF, false},
-  {"P.M.", 4, TSFKW_P_M, false},
   {"PM", 2, TSFKW_PM, false},
+  {"P.M.", 4, TSFKW_P_M, false},
   {"SS", 2, TSFKW_SS, true},
   {"TZH", 3, TSFKW_TZH, false},
   //{"TZM", 3, TSFKW_TZM},
@@ -1104,9 +1105,9 @@ static const TSFormatKeyWord formatKeyWords[] = {
   {"YY", 2, TSFKW_YY, true},
   {"Y", 1, TSFKW_Y, true},
   //{"a.d.", 4, TSFKW_a_d, false},
-  {"a.m.", 4, TSFKW_a_m, false},
   //{"ad", 2, TSFKW_ad, false},
   {"am", 2, TSFKW_am, false},
+  {"a.m.", 4, TSFKW_a_m, false},
   //{"b.c.", 4, TSFKW_b_c, false},
   //{"bc", 2, TSFKW_bc, false},
   {"day", 3, TSFKW_day, false},
@@ -1124,8 +1125,8 @@ static const TSFormatKeyWord formatKeyWords[] = {
   {"ms", 2, TSFKW_MS, true},
   {"ns", 2, TSFKW_NS, true},
   //{"of", 2, TSFKW_OF, false},
-  {"p.m.", 4, TSFKW_p_m, false},
   {"pm", 2, TSFKW_pm, false},
+  {"p.m.", 4, TSFKW_p_m, false},
   {"ss", 2, TSFKW_SS, true},
   {"tzh", 3, TSFKW_TZH, false},
   //{"tzm", 3, TSFKW_TZM},
@@ -1139,9 +1140,34 @@ static const TSFormatKeyWord formatKeyWords[] = {
 };
 // clang-format on
 
+#define TS_FROMAT_KEYWORD_INDEX_SIZE ('z' - 'A' + 1)
+static const int TSFormatKeywordIndex[TS_FROMAT_KEYWORD_INDEX_SIZE] = {
+    /*A*/ TSFKW_AM,     -1, -1,
+    /*D*/ TSFKW_DAY,    -1, -1, -1,
+    /*H*/ TSFKW_HH24,   -1, -1, -1, -1,
+    /*M*/ TSFKW_MI,
+    /*N*/ TSFKW_NS,     -1,
+    /*P*/ TSFKW_PM,     -1, -1,
+    /*S*/ TSFKW_SS,
+    /*T*/ TSFKW_TZH,
+    /*U*/ TSFKW_US,     -1, -1, -1,
+    /*Y*/ TSFKW_YYYY,   -1,
+    /*[ \ ] ^ _ `*/ -1, -1, -1, -1, -1, -1,
+    /*a*/ TSFKW_am,     -1, -1,
+    /*d*/ TSFKW_day,    -1, -1, -1,
+    /*h*/ TSFKW_hh24,   -1, -1, -1, -1,
+    /*m*/ TSFKW_mi,
+    /*n*/ TSFKW_ns,     -1,
+    /*p*/ TSFKW_pm,     -1, -1,
+    /*s*/ TSFKW_ss,
+    /*t*/ TSFKW_tzh,
+    /*u*/ TSFKW_us,     -1, -1, -1,
+    /*y*/ TSFKW_yyyy,   -1};
+
 typedef struct {
   uint8_t                type;
-  char                   c[2];
+  const char*            c;
+  int32_t                len;
   const TSFormatKeyWord* key;
 } TSFormatNode;
 
@@ -1169,9 +1195,10 @@ static const char* const long_apms[] = {A_M_STR, P_M_STR, a_m_str, p_m_str, NULL
 
 static const TSFormatKeyWord* keywordSearch(const char* str) {
   if (*str < 'A' || *str > 'z' || (*str > 'Z' && *str < 'a')) return NULL;
-  int32_t                idx = 0;
+  int32_t idx = TSFormatKeywordIndex[str[0] - 'A'];
+  if (idx < 0) return NULL;
   const TSFormatKeyWord* key = &formatKeyWords[idx++];
-  while (key->name) {
+  while (key->name && str[0] == key->name[0]) {
     if (0 == strncmp(key->name, str, key->len)) {
       return key;
     }
@@ -1184,74 +1211,110 @@ static bool isSeperatorChar(char c) {
   return (c > 0x20 && c < 0x7F && !(c >= 'A' && c <= 'Z') && !(c >= 'a' && c <= 'z') && !(c >= '0' && c <= '9'));
 }
 
-static void parseTsFormat(const char* format_str, SArray* formats) {
-  while (*format_str) {
-    const TSFormatKeyWord* key = keywordSearch(format_str);
+static void parseTsFormat(const char* formatStr, SArray* formats) {
+  TSFormatNode* lastOtherFormat = NULL;
+  while (*formatStr) {
+    const TSFormatKeyWord* key = keywordSearch(formatStr);
     if (key) {
       TSFormatNode format = {.key = key, .type = TS_FORMAT_NODE_TYPE_KEYWORD};
       taosArrayPush(formats, &format);
-      format_str += key->len;
+      formatStr += key->len;
+      lastOtherFormat = NULL;
     } else {
-      if (*format_str == '"') {
+      if (*formatStr == '"') {
+        lastOtherFormat = NULL;
         // for double quoted string
-        format_str++;
-        while (*format_str) {
-          if (*format_str == '"') {
-            format_str++;
+        formatStr++;
+        TSFormatNode* last = NULL;
+        while (*formatStr) {
+          if (*formatStr == '"') {
+            formatStr++;
             break;
           }
-          if (*format_str == '\\' && *(format_str + 1)) format_str++;
-          TSFormatNode format = {.type = TS_FORMAT_NODE_TYPE_CHAR, .key = NULL};
-          format.c[0] = *format_str;
-          format.c[1] = '\0';
-          taosArrayPush(formats, &format);
-          format_str++;
+          if (*formatStr == '\\' && *(formatStr + 1)) {
+            formatStr++;
+            last = NULL; // stop expanding last format, create new format
+          }
+          if (last) {
+            // expand
+            assert(last->type == TS_FORMAT_NODE_TYPE_CHAR);
+            last->len++;
+            formatStr++;
+          } else {
+            // create new
+            TSFormatNode format = {.type = TS_FORMAT_NODE_TYPE_CHAR, .key = NULL};
+            format.c = formatStr;
+            format.len = 1;
+            taosArrayPush(formats, &format);
+            formatStr++;
+            last = taosArrayGetLast(formats);
+          }
         }
       } else {
         // for other strings
-        if (*format_str == '\\' && *(format_str + 1)) format_str++;
-        TSFormatNode format = {
-            .type = isSeperatorChar(*format_str) ? TS_FORMAT_NODE_TYPE_SEPARATOR : TS_FORMAT_NODE_TYPE_CHAR,
+        if (*formatStr == '\\' && *(formatStr + 1)) {
+          formatStr++;
+          lastOtherFormat = NULL; // stop expanding
+        } else {
+          if (lastOtherFormat && !isSeperatorChar(*formatStr)) {
+            // expanding
+          } else {
+            // create new
+            lastOtherFormat = NULL;
+          }
+        }
+        if (lastOtherFormat) {
+          assert(lastOtherFormat->type == TS_FORMAT_NODE_TYPE_CHAR);
+          lastOtherFormat->len++;
+          formatStr++;
+        } else {
+          TSFormatNode format = {
+            .type = isSeperatorChar(*formatStr) ? TS_FORMAT_NODE_TYPE_SEPARATOR : TS_FORMAT_NODE_TYPE_CHAR,
             .key = NULL};
-        format.c[0] = *format_str;
-        format.c[1] = '\0';
-        taosArrayPush(formats, &format);
-        format_str++;
+          format.c = formatStr;
+          format.len = 1;
+          taosArrayPush(formats, &format);
+          formatStr++;
+          if (format.type == TS_FORMAT_NODE_TYPE_CHAR) lastOtherFormat = taosArrayGetLast(formats);
+        }
       }
     }
   }
 }
 
-static void tm2char(const SArray* formats, const struct STm* tm, char* s) {
+static void tm2char(const SArray* formats, const struct STm* tm, char* s, int32_t outLen) {
   int32_t size = taosArrayGetSize(formats);
+  const char* start = s;
   for (int32_t i = 0; i < size; ++i) {
     TSFormatNode* format = taosArrayGet(formats, i);
     if (format->type != TS_FORMAT_NODE_TYPE_KEYWORD) {
-      strcpy(s, format->c);
-      s += strlen(s);
+      if (s - start + format->len + 1 > outLen) break;
+      strncpy(s, format->c, format->len);
+      s += format->len;
       continue;
     }
+    if (s - start + 16 > outLen) break;
 
     switch (format->key->id) {
       case TSFKW_AM:
       case TSFKW_PM:
         sprintf(s, tm->tm.tm_hour % 24 >= 12 ? "PM" : "AM");
-        s += strlen(s);
+        s += 2;
         break;
       case TSFKW_A_M:
       case TSFKW_P_M:
         sprintf(s, tm->tm.tm_hour % 24 >= 12 ? "P.M." : "A.M.");
-        s += strlen(s);
+        s += 4;
         break;
       case TSFKW_am:
       case TSFKW_pm:
         sprintf(s, tm->tm.tm_hour % 24 >= 12 ? "pm" : "am");
-        s += strlen(s);
+        s += 2;
         break;
       case TSFKW_a_m:
       case TSFKW_p_m:
         sprintf(s, tm->tm.tm_hour % 24 >= 12 ? "p.m." : "a.m.");
-        s += strlen(s);
+        s += 4;
         break;
       case TSFKW_DDD:
         sprintf(s, "%d", tm->tm.tm_yday);
@@ -1259,11 +1322,11 @@ static void tm2char(const SArray* formats, const struct STm* tm, char* s) {
         break;
       case TSFKW_DD:
         sprintf(s, "%02d", tm->tm.tm_mday);
-        s += strlen(s);
+        s += 2;
         break;
       case TSFKW_D:
         sprintf(s, "%d", tm->tm.tm_wday + 1);
-        s += strlen(s);
+        s += 1;
         break;
       case TSFKW_DAY: {
         // MONDAY, TUESDAY...
@@ -1293,13 +1356,13 @@ static void tm2char(const SArray* formats, const struct STm* tm, char* s) {
         char        buf[8] = {0};
         for (int32_t i = 0; i < strlen(wd); ++i) buf[i] = toupper(wd[i]);
         sprintf(s, "%3s", buf);
-        s += strlen(s);
+        s += 3;
         break;
       }
       case TSFKW_Dy:
         // Mon, Tue
         sprintf(s, "%3s", shortWeekDays[tm->tm.tm_wday]);
-        s += strlen(s);
+        s += 3;
         break;
       case TSFKW_dy: {
         // mon, tue
@@ -1307,26 +1370,26 @@ static void tm2char(const SArray* formats, const struct STm* tm, char* s) {
         char        buf[8] = {0};
         for (int32_t i = 0; i < strlen(wd); ++i) buf[i] = tolower(wd[i]);
         sprintf(s, "%3s", buf);
-        s += strlen(s);
+        s += 3;
         break;
       }
       case TSFKW_HH24:
         sprintf(s, "%02d", tm->tm.tm_hour);
-        s += strlen(s);
+        s += 2;
         break;
       case TSFKW_HH:
       case TSFKW_HH12:
         // 0 or 12 o'clock in 24H coresponds to 12 o'clock (AM/PM) in 12H
         sprintf(s, "%02d", tm->tm.tm_hour % 12 == 0 ? 12 : tm->tm.tm_hour % 12);
-        s += strlen(s);
+        s += 2;
         break;
       case TSFKW_MI:
         sprintf(s, "%02d", tm->tm.tm_min);
-        s += strlen(s);
+        s += 2;
         break;
       case TSFKW_MM:
         sprintf(s, "%02d", tm->tm.tm_mon + 1);
-        s += strlen(s);
+        s += 2;
         break;
       case TSFKW_MONTH: {
         const char* mon = fullMonths[tm->tm.tm_mon];
@@ -1370,19 +1433,19 @@ static void tm2char(const SArray* formats, const struct STm* tm, char* s) {
       }
       case TSFKW_SS:
         sprintf(s, "%02d", tm->tm.tm_sec);
-        s += strlen(s);
+        s += 2;
         break;
       case TSFKW_MS:
         sprintf(s, "%03" PRId64, tm->fsec / 1000000L);
-        s += strlen(s);
+        s += 3;
         break;
       case TSFKW_US:
         sprintf(s, "%06" PRId64, tm->fsec / 1000L);
-        s += strlen(s);
+        s += 6;
         break;
       case TSFKW_NS:
         sprintf(s, "%09" PRId64, tm->fsec);
-        s += strlen(s);
+        s += 9;
         break;
       case TSFKW_TZH:
         sprintf(s, "%s%02d", tsTimezone < 0 ? "-" : "+", tsTimezone);
@@ -1429,6 +1492,7 @@ static const char* tsFormatStr2Int32(int32_t* dest, const char* str, int32_t len
   char*       last;
   int64_t     res;
   const char* s = str;
+  if ('\0' == str[0]) return NULL;
   if (len <= 0) {
     res = taosStr2Int64(s, &last, 10);
     s = last;
@@ -1523,18 +1587,27 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
   int32_t tzSign = 1, tz = tsTimezone;
   int32_t err = 0;
 
-  for (int32_t i = 0; i < size; ++i) {
-    while (isspace(*s)) {
+  for (int32_t i = 0; i < size && *s != '\0'; ++i) {
+    while (isspace(*s) && *s != '\0') {
       s++;
     }
+    if (!s) break;
     TSFormatNode* node = taosArrayGet(formats, i);
     if (node->type == TS_FORMAT_NODE_TYPE_SEPARATOR) {
       // separator matches any character
-      if (isSeperatorChar(s[0])) s += strlen(node->c);
+      if (isSeperatorChar(s[0])) s += node->len;
       continue;
     }
     if (node->type == TS_FORMAT_NODE_TYPE_CHAR) {
-      if (!isspace(node->c[0])) s += strlen(node->c);
+      int32_t pos = 0;
+      // skip leading spaces
+      while (isspace(node->c[pos]) && node->len > 0) pos++;
+      while (pos < node->len && *s != '\0') {
+        if (!isspace(node->c[pos++])) {
+          while (isspace(*s) && *s != '\0') s++;
+          if (*s != '\0') s++;  // forward together
+        }
+      }
       continue;
     }
     assert(node->type == TS_FORMAT_NODE_TYPE_KEYWORD);
@@ -1545,7 +1618,7 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
       case TSFKW_p_m: {
         int32_t idx = strArrayCaseSearch(long_apms, s);
         if (idx >= 0) {
-          s += strlen(long_apms[idx]);
+          s += 4;
           pm = idx % 2;
           hour12 = 1;
         } else {
@@ -1558,7 +1631,7 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
       case TSFKW_pm: {
         int32_t idx = strArrayCaseSearch(apms, s);
         if (idx >= 0) {
-          s += strlen(apms[idx]);
+          s += 2;
           pm = idx % 2;
           hour12 = 1;
         } else {
@@ -1793,39 +1866,41 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
   return ret;
 }
 
-void taosTs2Char(const char* format, int64_t ts, int32_t precision, char* out) {
-  SArray* formats = taosArrayInit(8, sizeof(TSFormatNode));
-  parseTsFormat(format, formats);
+void taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t precision, char* out, int32_t outLen) {
+  if (!*formats) {
+    *formats = taosArrayInit(8, sizeof(TSFormatNode));
+    parseTsFormat(format, *formats);
+  }
   struct STm tm;
   taosTs2Tm(ts, precision, &tm);
-  tm2char(formats, &tm, out);
-  taosArrayDestroy(formats);
+  tm2char(*formats, &tm, out, outLen);
 }
 
-int32_t taosChar2Ts(const char* format, const char* tsStr, int64_t* ts, int32_t precision, char* errMsg,
+int32_t taosChar2Ts(const char* format, SArray** formats, const char* tsStr, int64_t* ts, int32_t precision, char* errMsg,
                     int32_t errMsgLen) {
   const char* sErrPos;
   int32_t     fErrIdx;
-  SArray*     formats = taosArrayInit(4, sizeof(TSFormatNode));
-  parseTsFormat(format, formats);
-  int32_t code = char2ts(tsStr, formats, ts, precision, &sErrPos, &fErrIdx);
+  if (!*formats) {
+    *formats = taosArrayInit(4, sizeof(TSFormatNode));
+    parseTsFormat(format, *formats);
+  }
+  int32_t code = char2ts(tsStr, *formats, ts, precision, &sErrPos, &fErrIdx);
   if (code == -1) {
-    TSFormatNode* fNode = (taosArrayGet(formats, fErrIdx));
+    TSFormatNode* fNode = (taosArrayGet(*formats, fErrIdx));
     snprintf(errMsg, errMsgLen, "mismatch format for: %s and %s", sErrPos,
-             fErrIdx < taosArrayGetSize(formats) ? ((TSFormatNode*)taosArrayGet(formats, fErrIdx))->key->name : "");
+             fErrIdx < taosArrayGetSize(*formats) ? ((TSFormatNode*)taosArrayGet(*formats, fErrIdx))->key->name : "");
   } else if (code == -2) {
     snprintf(errMsg, errMsgLen, "timestamp format error: %s -> %s", tsStr, format);
   }
-  taosArrayDestroy(formats);
   return code;
 }
 
-void TEST_ts2char(const char* format, int64_t ts, int32_t precision, char* out) {
+void TEST_ts2char(const char* format, int64_t ts, int32_t precision, char* out, int32_t outLen) {
   SArray* formats = taosArrayInit(4, sizeof(TSFormatNode));
   parseTsFormat(format, formats);
   struct STm tm;
   taosTs2Tm(ts, precision, &tm);
-  tm2char(formats, &tm, out);
+  tm2char(formats, &tm, out, outLen);
   taosArrayDestroy(formats);
 }
 

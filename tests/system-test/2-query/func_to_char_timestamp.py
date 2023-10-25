@@ -60,10 +60,15 @@ class TDTestCase:
             rowsBatched = 0
             sql += " %s%d values "%(ctbPrefix,i)
             for j in range(rowsPerTbl):
-                if (i < ctbNum/2):
-                    sql += "(%d, %d, %d, %d,%d,%d,%d,true,'binary%d', 'nchar%d') "%(startTs + j*tsStep, j%10, j%10, j%10, j%10, j%10, j%10, j%10, j%10)
+                if i % 3 == 0:
+                    ts_format = 'NULL'
                 else:
-                    sql += "(%d, %d, NULL, %d,NULL,%d,%d,true,'binary%d', 'nchar%d') "%(startTs + j*tsStep, j%10, j%10, j%10, j%10, j%10, j%10)
+                    ts_format = "'yyyy-mm-dd hh24:mi:ss'"
+
+                if (i < ctbNum/2):
+                    sql += "(%d, %d, %d, %d,%d,%d,%d,true,'2023-11-01 10:10:%d', %s, 'nchar%d') "%(startTs + j*tsStep, j%10, j%10, j%10, j%10, j%10, j%10, j%10, ts_format, j%10)
+                else:
+                    sql += "(%d, %d, NULL, %d,NULL,%d,%d,true,NULL , %s, 'nchar%d') "%(startTs + j*tsStep, j%10, j%10, j%10, j%10, ts_format, j%10)
                 rowsBatched += 1
                 if ((rowsBatched == batchNum) or (j == rowsPerTbl - 1)):
                     tsql.execute(sql)
@@ -85,7 +90,7 @@ class TDTestCase:
                     'stbName':    'meters',
                     'colPrefix':  'c',
                     'tagPrefix':  't',
-                    'colSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'FLOAT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'smallint', 'count':1},{'type': 'tinyint', 'count':1},{'type': 'bool', 'count':1},{'type': 'binary', 'len':10, 'count':1},{'type': 'nchar', 'len':10, 'count':1}],
+                    'colSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'FLOAT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'smallint', 'count':1},{'type': 'tinyint', 'count':1},{'type': 'bool', 'count':1},{'type': 'varchar', 'len':1024, 'count':2},{'type': 'nchar', 'len':10, 'count':1}],
                     'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'nchar', 'len':20, 'count':1},{'type': 'binary', 'len':20, 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'smallint', 'count':1},{'type': 'DOUBLE', 'count':1}],
                     'ctbPrefix':  't',
                     'ctbStartIdx': 0,
@@ -145,6 +150,18 @@ class TDTestCase:
 
         tdSql.query("select to_char(ts, 'yy-mon-dd hh24:mi:ss.msa.m.TZH Day') from meters where to_timestamp(to_char(ts, 'yy-mon-dd hh24:mi:ss dy'), 'yy-mon-dd hh24:mi:ss dy') != ts")
         tdSql.checkRows(0)
+
+        tdSql.query("select to_timestamp(c8, 'YYYY-MM-DD hh24:mi:ss') from meters")
+        tdSql.query("select to_timestamp(c8, c9) from meters")
+
+        format = "YYYY-MM-DD HH:MI:SS"
+        for i in range(500):
+            format = format + "1234567890"
+        tdSql.query("select to_char(ts, '%s') from meters" % (format), queryTimes=1)
+        time_str = '2023-11-11 10:10:10'
+        for i in range(500):
+            time_str  = time_str + "1234567890"
+        tdSql.query("select to_timestamp('%s', '%s')" % (time_str, format))
 
     def run(self):
         self.prepareTestEnv()
