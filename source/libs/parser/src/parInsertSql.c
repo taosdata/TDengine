@@ -2037,13 +2037,16 @@ static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModif
     pStmt->pStbRowsCxt = pStbRowsCxt;
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
+  if (code == TSDB_CODE_SUCCESS) {
     SRowsDataContext rowsDataCxt;
     rowsDataCxt.pStbRowsCxt = pStbRowsCxt;
     code = parseDataClause(pCxt, pStmt, rowsDataCxt);
   }
-  destroyStbRowsDataContext(pStbRowsCxt);
-  taosMemoryFree(pStbRowsCxt);
+
+  if (code != TSDB_CODE_SUCCESS) {
+    destroyStbRowsDataContext(pStbRowsCxt);
+    taosMemoryFreeClear(pStbRowsCxt);
+  }
 
   return code;
 }
@@ -2068,7 +2071,6 @@ static int32_t parseInsertTableClauseBottom(SInsertParseContext* pCxt, SVnodeMod
 }
 
 static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  //TODO: reset env for stb syntax
   insDestroyBoundColInfo(&pCxt->tags);
   taosMemoryFreeClear(pStmt->pTableMeta);
   nodesDestroyNode(pStmt->pTagCond);
@@ -2081,6 +2083,9 @@ static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStm
   pStmt->usingTableProcessing = false;
   pStmt->fileProcessing = false;
   pStmt->usingTableName.type = 0;
+
+  destroyStbRowsDataContext(pStmt->pStbRowsCxt);
+  taosMemoryFreeClear(pStmt->pStbRowsCxt);
   pStmt->stbSyntax = false;
 }
 
