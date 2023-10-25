@@ -2254,7 +2254,7 @@ SNode* createCreateViewStmt(SAstCreateContext* pCxt, bool orReplace, SNode* pVie
   while (isspace(*(pAs->z + i))) {
     ++i;
   }
-  pStmt->pQuerySql = strdup(pAs->z + i);
+  pStmt->pQuerySql = tstrdup(pAs->z + i);
   CHECK_OUT_OF_MEM(pStmt->pQuerySql);
   strcpy(pStmt->dbName, ((SViewNode*)pView)->table.dbName);
   strcpy(pStmt->viewName, ((SViewNode*)pView)->table.tableName);

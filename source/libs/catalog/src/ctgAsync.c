@@ -1867,8 +1867,11 @@ int32_t ctgHandleGetViewsRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf*
     CTG_ERR_JRET(code);
   }
 
+  ctgDebug("start to update view meta to cache, view:%s, querySQL:%s", pRsp->name, pRsp->querySql);
   ctgUpdateViewMetaToCache(pCtg, pRsp, false);
-
+  pMsgCtx->out = NULL;
+  pRsp = NULL;
+  
   SMetaRes* pRes = taosArrayGet(ctx->pResList, pFetch->resIdx);
   pRes->code = 0;
   pRes->pRes = pViewMeta;

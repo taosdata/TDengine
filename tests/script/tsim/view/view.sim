@@ -41,6 +41,8 @@ run tsim/view/privilege_basic_view.sim
 run tsim/view/privilege_nested_view.sim
 run tsim/view/create_drop_view.sim
 run tsim/view/query_view.sim
+run tsim/view/insert_view.sim
+run tsim/view/stream_view.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
@@ -51,5 +53,7 @@ run tsim/view/privilege_basic_view.sim
 run tsim/view/privilege_nested_view.sim
 run tsim/view/create_drop_view.sim
 run tsim/view/query_view.sim
+run tsim/view/insert_view.sim
+run tsim/view/stream_view.sim
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

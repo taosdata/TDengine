@@ -4376,8 +4376,8 @@ static int32_t translateInsertTable(STranslateContext* pCxt, SNode** pTable) {
   int32_t code = translateFrom(pCxt, pTable);
   if (TSDB_CODE_SUCCESS == code && TSDB_CHILD_TABLE != ((SRealTableNode*)*pTable)->pMeta->tableType &&
       TSDB_NORMAL_TABLE != ((SRealTableNode*)*pTable)->pMeta->tableType) {
-    code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                   "insert data into super table is not supported");
+    code = buildInvalidOperationMsg(&pCxt->msgBuf, "insert data into super table is not supported");
+                                   
   }
   return code;
 }
@@ -7623,7 +7623,7 @@ static int32_t translateCreateView(STranslateContext* pCxt, SCreateViewStmt* pSt
     snprintf(pStmt->createReq.fullname, sizeof(pStmt->createReq.fullname) - 1, "%s.%s", pStmt->createReq.dbFName, pStmt->viewName);
     TSWAP(pStmt->createReq.querySql, pStmt->pQuerySql);
     pStmt->createReq.orReplace = pStmt->orReplace;
-    pStmt->createReq.sql = strdup(pCxt->pParseCxt->pSql);
+    pStmt->createReq.sql = tstrdup(pCxt->pParseCxt->pSql);
     if (NULL == pStmt->createReq.sql) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -7648,7 +7648,7 @@ static int32_t translateDropView(STranslateContext* pCxt, SDropViewStmt* pStmt) 
   tNameGetFullDbName(&name, dropReq.dbFName);
   strncpy(dropReq.name, pStmt->viewName, sizeof(dropReq.name) - 1);
   snprintf(dropReq.fullname, sizeof(dropReq.fullname) - 1, "%s.%s", dropReq.dbFName, dropReq.name);
-  dropReq.sql = strdup(pCxt->pParseCxt->pSql);
+  dropReq.sql = tstrdup(pCxt->pParseCxt->pSql);
   if (NULL == dropReq.sql) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }

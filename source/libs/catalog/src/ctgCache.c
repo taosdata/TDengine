@@ -1311,6 +1311,16 @@ int32_t ctgUpdateViewMetaEnqueue(SCatalog *pCtg, SViewMetaRsp *pRsp, bool syncOp
   CTG_ERR_RET(ctgEnqueue(pCtg, op));
 
   return TSDB_CODE_SUCCESS;
+
+
+_return:
+
+  if (pRsp) {
+    tFreeSViewMetaRsp(pRsp);
+    taosMemoryFree(pRsp);
+  }
+
+  CTG_RET(code);  
 }
 
 int32_t ctgDropViewMetaEnqueue(SCatalog *pCtg, const char *dbFName, uint64_t dbId, const char *viewName, uint64_t viewId, bool syncOp) {
@@ -1646,7 +1656,8 @@ int32_t ctgWriteViewMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFN
 
     CTG_DB_NUM_INC(CTG_CI_VIEW);
 
-    ctgDebug("view %s meta updated to cache, ver:%d", viewName, pMeta->version);
+    ctgDebug("new view meta updated to cache, view:%s, id:%" PRIu64 ", ver:%d, effectiveUser:%s, querySQL:%s", 
+      viewName, pMeta->viewId, pMeta->version, pMeta->user, pMeta->querySql);
 
     CTG_ERR_RET(ctgUpdateRentViewVersion(pCtg, dbFName, viewName, dbCache->dbId, pMeta->viewId, &cache));
 
@@ -1657,7 +1668,7 @@ int32_t ctgWriteViewMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFN
 
   if (pCache->pMeta) {
     atomic_sub_fetch_64(&dbCache->dbCacheSize, ctgGetViewMetaCacheSize(pCache->pMeta));
-    taosMemoryFree(pCache->pMeta->querySql);
+    ctgFreeSViewMeta(pCache->pMeta);
     taosMemoryFree(pCache->pMeta);
   }
 
@@ -1666,7 +1677,8 @@ int32_t ctgWriteViewMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFN
 
   atomic_add_fetch_64(&dbCache->dbCacheSize, ctgGetViewMetaCacheSize(pMeta));
 
-  ctgDebug("view %s meta updated to cache, ver:%d", viewName, pMeta->version);
+  ctgDebug("view meta updated to cache, view:%s, id:%" PRIu64 ", ver:%d, effectiveUser:%s, querySQL:%s", 
+    viewName, pMeta->viewId, pMeta->version, pMeta->user, pMeta->querySql);
 
   CTG_ERR_RET(ctgUpdateRentViewVersion(pCtg, dbFName, viewName, dbCache->dbId, pMeta->viewId, pCache));
 
@@ -2365,6 +2377,7 @@ int32_t ctgOpUpdateViewMeta(SCtgCacheOperation *operation) {
   }
 
   CTG_ERR_JRET(dupViewMetaFromRsp(pRsp, pMeta));
+  ASSERT(strlen(pMeta->querySql) > 0 && strlen(pMeta->user) > 0);
 
   CTG_RET(ctgWriteViewMetaToCache(pCtg, dbCache, pRsp->dbFName, pRsp->name, pMeta));
 
@@ -3087,8 +3100,8 @@ int32_t ctgGetViewsFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgViewsC
     }
 
     memcpy(pViewMeta, pCache->pMeta, sizeof(*pViewMeta));
-    pViewMeta->querySql = strdup(pCache->pMeta->querySql);
-    pViewMeta->user = strdup(pCache->pMeta->user);
+    pViewMeta->querySql = tstrdup(pCache->pMeta->querySql);
+    pViewMeta->user = tstrdup(pCache->pMeta->user);
     if (NULL == pViewMeta->querySql || NULL == pViewMeta->user) {
       ctgReleaseViewMetaToCache(pCtg, dbCache, pCache);
       pViewMeta->pSchema = NULL;

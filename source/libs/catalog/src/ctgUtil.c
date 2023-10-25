@@ -2233,11 +2233,11 @@ int32_t ctgBuildViewNullRes(SCtgTask* pTask, SCtgViewsCtx* pCtx) {
 }
 
 int32_t dupViewMetaFromRsp(SViewMetaRsp* pRsp, SViewMeta* pViewMeta) {
-  pViewMeta->querySql = strdup(pRsp->querySql);
+  pViewMeta->querySql = tstrdup(pRsp->querySql);
   if (NULL == pViewMeta->querySql) {
     CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
-  pViewMeta->user = strdup(pRsp->user);
+  pViewMeta->user = tstrdup(pRsp->user);
   if (NULL == pViewMeta->user) {
     CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }

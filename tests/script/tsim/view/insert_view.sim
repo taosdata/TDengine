@@ -8,3 +8,8 @@ sql insert into ctat select * from view1;
 sql drop view view1;
 sql drop table ctat;
 
+sql use information_schema;
+sql create view view1 as select * from ins_dnodes;
+sql_error insert into ins_dnodes select * from view1;
+sql drop view view1;
+

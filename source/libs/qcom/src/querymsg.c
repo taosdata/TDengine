@@ -668,6 +668,8 @@ int32_t queryProcessGetViewMetaRsp(void *output, char *msg, int32_t msgSize) {
     return TSDB_CODE_INVALID_MSG;
   }
 
+  qDebugL("view meta recved, dbFName:%s, view:%s, querySQL:%s", out->dbFName, out->name, out->querySql);
+
   *(SViewMetaRsp **)output = out;
 
   return TSDB_CODE_SUCCESS;
