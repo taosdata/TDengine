@@ -56,7 +56,7 @@ typedef struct SSyncSnapshotSender {
   int64_t        lastSendTime;
   bool           finish;
 
-  // buffer
+  // ring buffer for ack
   SSyncSnapBuffer *pSndBuf;
 
   // init when create

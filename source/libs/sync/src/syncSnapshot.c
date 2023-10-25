@@ -315,20 +315,6 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
   return 0;
 }
 
-static int32_t snapshotSenderUpdateProgress(SSyncSnapshotSender *pSender, SyncSnapshotRsp *pMsg) {
-  if (pMsg->ack != pSender->seq) {
-    sSError(pSender, "snapshot sender update seq failed, ack:%d seq:%d", pMsg->ack, pSender->seq);
-    terrno = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
-    return -1;
-  }
-
-  pSender->ack = pMsg->ack;
-  pSender->seq++;
-
-  sSDebug(pSender, "snapshot sender update seq:%d", pSender->seq);
-  return 0;
-}
-
 // return 0, start ok
 // return 1, last snapshot finish ok
 // return -1, error
@@ -1079,6 +1065,8 @@ static int32_t syncSnapBufferSend(SSyncSnapshotSender *pSender, SyncSnapshotRsp 
     pSndBuf->entries[ack % pSndBuf->size] = NULL;
     pSndBuf->start = ack + 1;
   }
+
+  pSender->ack = pSndBuf->start - 1;
 
   while (pSender->seq != SYNC_SNAPSHOT_SEQ_END && pSender->seq - pSndBuf->start < (pSndBuf->size >> 2)) {
     if (snapshotSend(pSender) != 0) {
