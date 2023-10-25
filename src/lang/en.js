@@ -1655,12 +1655,12 @@ Windows: <code>C:\\Program Files\\taosx\\config</code>`,
         step3: "Connect",
         step3desc: "To access the TDengine , you can execute `taos` if you already set the environment variable.",
         step3desc1:
-          "If you did not set environment variable for a TDengine  instance, or you want to access other TDengine  instances rather than the instance you already set the environment variable, you can use as below:",
+          "To access the TDengine , you can execute below command if you already set the environment variable:",
         step4: "Using TDengine CLI",
         step4desc:
           "TDengine CLI will display a welcome message and version information if it successfully connected to the TDengine service. If it fails, TDengine CLI will print an error message. The TDengine CLI prompts as follows:",
         step4desc1:
-          "After entering the TDengine CLI, you can execute various SQL commands, including inserts, queries, or administrative commands. Please see the",
+          "After entering the TDengine CLI, you can execute various SQL commands, including inserts, queries, or administrative commands. ",
         step4desc2: "official document",
         step4desc3: "for more details.",
       },
