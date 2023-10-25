@@ -179,7 +179,7 @@ where
 {
     fn fmt_timestamp(buf: &mut String) {
         let local: DateTime<Local> = Local::now();
-        let s = local.format("%Y-%m-%d %H:%M:%S.%6f ").to_string();
+        let s = local.format("%m/%d %H:%M:%S.%6f ").to_string();
         buf.push_str(s.as_str())
     }
     fn fmt_level<'a>(level: &Level) -> &'a str {
