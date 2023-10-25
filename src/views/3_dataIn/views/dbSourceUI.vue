@@ -337,6 +337,9 @@
           </el-tabs>
         </div>
       </section>
+      <section class="check">
+        <el-button :loading="checkLoading" type="primary" @click="clickCheckBtn">check</el-button>
+      </section>
       <section
         class="dataset"
         v-if="
@@ -716,7 +719,7 @@
           v-else
           type="primary"
           @click="save"
-          :disabled="disable"
+          :disabled="!checkResult.valid && !checkResult.support"
           size="small"
           >{{ isEditable && !isCopyable ? $t("save") : $t("add") }}</el-button
         >
@@ -735,25 +738,30 @@
       />
     </div>
     <DialogCreateDb></DialogCreateDb>
+    <ResultDialog
+      :result="checkResult"
+      :loading="checkLoading"
+      :resultVisible="resultVisible"
+      :percentage="percentage"
+      @cancelModal="cancelModal"
+    ></ResultDialog>
   </div>
 </template>
 <script>
 import DataTarget from "./dataTarget.vue";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
-import {
-  AddSource,
-  EditSource,
-  getUaAndDaData,
-  downlaodAllNodes,
-} from "@/api/explorer/datain";
+import { AddSource, EditSource, getUaAndDaData, downlaodAllNodes,
+  validateTask
+ } from "@/api/explorer/datain";
 import DatePicker from "@/components/date-picker";
 import { Message } from "element-ui";
 import marked from "marked";
 import { debounce, parsinginZone } from "@/utils/index";
 import DialogCreateDb from "../components/addDbDialog.vue";
+import ResultDialog from "../components/resultDialog.vue";
 export default {
   name: "DbSourceUI",
-  components: { DatePicker, DialogCreateDb, DataTarget },
+  components: { DatePicker, DialogCreateDb, DataTarget, ResultDialog, },
   props: {
     // sourceName: {
     //   type: String,
@@ -887,6 +895,15 @@ export default {
       downloadUrl: process.env.VUE_APP_X_API + `/download?file_path=`,
       activeRadio: "select_file",
       isShowEditBtn: false,
+      resultVisible: false,
+      checkLoading: false,
+      percentage: 0,
+      checkResult: {
+        valid: false,
+        support: false,
+        data_source: '',
+        version: '', // 返回数据源版本，不能获得版本则不返回该字段。
+      }
     };
   },
   created() {
@@ -914,8 +931,11 @@ export default {
       return this.$store.state.app.currentAgentID || "";
     },
     sourceName() {
-      return this.$store.state.app.currentDSName || "";
+      return this.$store.state.app.currentDSName || ""
     },
+    targetDatabase() {
+      return this.$store.state.app.currentDBName || ""
+    }
   },
   watch: {
     dbsource: {
@@ -1144,22 +1164,42 @@ export default {
     },
 
     save() {
-      if (this.isEditable && !this.isCopyable) {
-        this.$confirm(this.$t("dataIn.saveTip"), this.$t("warning"), {
-          confirmButtonText: this.$t("confirm"),
-          cancelButtonText: this.$t("cancel"),
-          type: "warning",
-        })
-          .then(() => {
-            this.submit();
-          })
-          .catch(() => {});
+      if (this.isEditable) {
+        this.$confirm(this.$t('dataIn.saveTip'), this.$t("warning"), {
+          confirmButtonText: this.$t('confirm'),
+          cancelButtonText: this.$t('cancel'),
+          type: 'warning'
+        }).then(() => {
+          this.submit(true)
+        }).catch(() => {         
+        });
       } else {
-        this.submit();
+        this.submit(true)
+      }
+    },
+    cancelModal() {
+      this.resultVisible = false
+    },
+    clickCheckBtn() {
+      this.checkResult = this.$options.data().checkResult
+      this.submit(false)
+    },
+    // 数据源可用性和版本检查
+    async getValidateResult(dns) {
+      try {
+        this.checkLoading = true
+        let result = await validateTask(dns,this.agentId)
+        console.log('result',result);
+        this.resultVisible = true // 展示检测结果
+        this.checkResult = result
+        this.checkLoading = false // 检测的 loading 效果
+      } catch (error) {
+        this.checkLoading = false
+        console.log('err');
       }
     },
 
-    async submit() {
+    async submit(isSubmit) {
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
@@ -1184,12 +1224,12 @@ export default {
             return;
           }
         }
-        if (!this.sourceName) {
-          Message.warning(`${enterTip} ${this.$t("name")}`);
+        if (!this.sourceName && isSubmit) {
+          Message.warning(`${enterTip} ${this.$t('name')}`);
           return;
         }
-        if (!this.$store.state.app.currentDBName) {
-          Message.warning(`${enterTip} ${this.$t("stream.targetDB")}`);
+        if (!this.targetDatabase && isSubmit) {
+          Message.warning(`${enterTip} ${this.$t('stream.targetDB')}`);
           return;
         }
         if (this.tagName === "taos") {
@@ -1261,23 +1301,24 @@ export default {
         dns = dns.replace(reg, "").trim();
         let querystr = "";
 
-        for (let index = 0; index < data.groups.length; index++) {
-          //   for (let j = 0; j < data.groups[index].params.length; j++) {
-          for (let g of Object.keys(data.groups[index].params)) {
-            if (
-              Object.hasOwnProperty.call(
-                data.groups[index].params[g],
-                "required"
-              ) &&
-              data.groups[index].params[g]["value"] == ""
-            ) {
-              Message({
-                type: "warning",
-                message: `${enterTip} ${data.groups[index].params[g].name} `,
-              });
-              return;
-            } else {
-              if (this.handleEmptyValue(data.groups[index].params[g].value)) {
+        if (data.groups && isSubmit) {
+          for (let index = 0; index < data.groups.length; index++) {
+            //   for (let j = 0; j < data.groups[index].params.length; j++) {
+            for (let g of Object.keys(data.groups[index].params)) {
+              if (
+                Object.hasOwnProperty.call(
+                  data.groups[index].params[g],
+                  "required"
+                ) &&
+                !this.handleEmptyValue(data.groups[index].params[g]["value"])
+              ) {
+                Message({
+                  type: "warning",
+                  message: `${enterTip} ${data.groups[index].params[g].name} `,
+                });
+                return;
+              } else {
+                if (this.handleEmptyValue(data.groups[index].params[g].value)) {
                 if (
                   data.groups[index].params[g].hint &&
                   Array.isArray(data.groups[index].params[g].hint)
@@ -1287,8 +1328,6 @@ export default {
                       `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
                       "&";
                   } else {
-                    // debugger
-                    console.log("hhh", data.groups[index].params[g].hint[0]);
                     if (
                       this.handleEmptyValue(
                         data.groups[index].params[g].hint[0].value
@@ -1305,13 +1344,14 @@ export default {
                     "&";
                 }
               }
+              }
             }
+            //   }
           }
-          //   }
         }
 
         // datasets.categories is not used since 9adc5721
-        if (data.datasets && data.datasets.categories) {
+        if (data.datasets && data.datasets.categories && isSubmit) {
           for (
             let index = 0;
             index < data.datasets.categories.length;
@@ -1346,8 +1386,12 @@ export default {
             }
           }
         }
-        if (data.datasets && data.datasets.params) {
-          for (let index = 0; index < data.datasets.params.length; index++) {
+        if (data.datasets && data.datasets.params && isSubmit) {
+          for (
+            let index = 0;
+            index < data.datasets.params.length;
+            index++
+          ) {
             if (data.datasets.params[index].name == this.activeName) {
               if (this.activeRadio == "select_file") {
                 if (this.handleEmptyValue(data.datasets.params[index].value)
@@ -1414,23 +1458,6 @@ export default {
               }
             });
           });
-          this.dbsource[0].groups.forEach((group) => {
-            group.params.forEach((p) => {
-              if (
-                Object.hasOwnProperty.call(p, "required") &&
-                p.value == null
-              ) {
-                requireTip += `${p.display}` + ",";
-              }
-            });
-          });
-          if (requireTip != "") {
-            Message({
-              type: "warning",
-              message: `${enterTip} ${requireTip.replace(/,$/g, "")} `,
-            });
-            return;
-          }
         }
         dns += querystr
           ? (dns.includes("?") ? "&" : "?") + querystr.replace(/&$/g, "")
@@ -1449,9 +1476,7 @@ export default {
           to:
             "taos+" +
             localStorage.getItem("base_url") +
-            (this.$store.state.app.currentDBName
-              ? "/" + this.$store.state.app.currentDBName
-              : ""),
+            (this.targetDatabase ? "/" + this.targetDatabase : ""),
           labels: [
             "type::datain",
             `cluster-id::${id}`,
@@ -1462,20 +1487,24 @@ export default {
           apiParams["via"] = this.agentId;
         }
         if (this.tagName === "datasource" || this.tagName === "taos") {
-          if (this.isEditable) {
-            let result = await EditSource(apiParams, this.editId);
-            if (result.message) {
-              Message.error(result.message);
-              return;
+          if (isSubmit) {
+            if (this.isEditable) {
+              let result = await EditSource(apiParams, this.editId);
+              if (result.message) {
+                Message.error(result.message);
+                return;
+              }
+              this.$parent.toggleComponent("tmqtable");
+            } else {
+              let result = await AddSource(apiParams);
+              if (result.message) {
+                Message.error(result.message);
+                return;
+              }
+              this.$parent.toggleComponent("tmqtable");
             }
-            this.$parent.toggleComponent("tmqtable");
           } else {
-            let result = await AddSource(apiParams);
-            if (result.message) {
-              Message.error(result.message);
-              return;
-            }
-            this.$parent.toggleComponent("tmqtable");
+            this.getValidateResult(apiParams.from)
           }
         } else {
           let piParams = {
@@ -1497,9 +1526,7 @@ export default {
             to:
               "taos+" +
               localStorage.getItem("base_url") +
-              (this.$store.state.app.currentDBName
-                ? "/" + this.$store.state.app.currentDBName
-                : ""),
+              (this.targetDatabase? "/" + this.targetDatabase : ""),
             labels: [
               "type::datain",
               `cluster-id::${id}`,
@@ -1509,26 +1536,30 @@ export default {
           if (this.agentId) {
             piParams["via"] = this.agentId;
           }
-          console.log(this.isEditable, this.editId, "编辑");
-          if (this.isEditable && this.editId && !this.isCopyable) {
-            let result = await EditSource(piParams, this.editId);
-            if (result.message) {
-              Message.error(result.message);
-              return;
+          console.log(this.isEditable , this.editId,'编辑');
+          if (isSubmit) {
+            if (this.isEditable && this.editId) {
+              let result = await EditSource(piParams, this.editId);
+              if (result.message) {
+                Message.error(result.message);
+                return;
+              }
+              this.$parent.changeEditable(false)
+              this.$parent.toggleComponent("pitable",'');
+            } else {
+              let result = await AddSource(piParams);
+              if (result.message) {
+                Message.error(result.message);
+                return;
+              }
+              if (result && result.id) {
+                this.$parent.toggleComponent("pitable");
+                Message.success("Operation Successfully!");
+              }
             }
-            this.$parent.changeEditable(false);
-            this.$parent.toggleComponent("pitable", "");
           } else {
-            let result = await AddSource(piParams);
-            if (result.message) {
-              Message.error(result.message);
-              return;
-            }
-            if (result && result.id) {
-              this.$parent.changeEditable(false);
-              this.$parent.toggleComponent("pitable", "");
-              Message.success("Operation Successfully!");
-            }
+            console.log('ss',piParams);
+            this.getValidateResult(piParams.from)
           }
         }
       } catch (err) {
@@ -2223,7 +2254,7 @@ export default {
         flex: auto;
       }
     }
-    .bottom {
+    .bottom,.check {
       display: flex;
       border: none !important;
       padding: 0px !important;
