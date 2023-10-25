@@ -1652,14 +1652,14 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   }
 
   if (code == TSDB_CODE_SUCCESS) {
-
     collectUseTable(&pStbRowsCxt->ctbName, pStmt->pTableNameHashObj);
 
     char ctbFName[TSDB_TABLE_FNAME_LEN];
     tNameExtractFullName(&pStbRowsCxt->ctbName, ctbFName);
-    STableMeta** pMeta = taosHashGet(pStmt->pSubTableHashObj, ctbFName, strlen(ctbFName));
-    if (NULL != pMeta) {
-      cloneTableMeta(*pMeta, &pStbRowsCxt->pCtbMeta);
+    STableMeta** pCtbMeta = taosHashGet(pStmt->pSubTableHashObj, ctbFName, strlen(ctbFName));
+    if (NULL != pCtbMeta) {
+      pStbRowsCxt->pCtbMeta->uid = (*pCtbMeta)->uid;
+      pStbRowsCxt->pCtbMeta->vgId = (*pCtbMeta)->vgId;
     } else {
       SVgroupInfo vg;
       SRequestConnInfo conn = {.pTrans = pCxt->pComCxt->pTransporter,
@@ -1668,11 +1668,8 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
                                .mgmtEps = pCxt->pComCxt->mgmtEpSet};
       code = catalogGetTableHashVgroup(pCxt->pComCxt->pCatalog, &conn, &pStmt->targetTableName, &vg);
       taosHashPut(pStmt->pVgroupsHashObj, (const char*)(&vg.vgId), sizeof(vg.vgId), &vg, sizeof(vg));
-      cloneTableMeta(pStbRowsCxt->pStbMeta, &pStbRowsCxt->pCtbMeta);
-      pStbRowsCxt->pCtbMeta->suid = pStbRowsCxt->pStbMeta->uid;
       pStbRowsCxt->pCtbMeta->uid = taosHashGetSize(pStmt->pSubTableHashObj) + 1;
       pStbRowsCxt->pCtbMeta->vgId = vg.vgId;
-      pStbRowsCxt->pCtbMeta->tableType = TSDB_CHILD_TABLE;
       STableMeta* pBackup = NULL;
       cloneTableMeta(pStmt->pTableMeta, &pBackup);
       taosHashPut(pStmt->pSubTableHashObj, ctbFName, strlen(ctbFName), &pBackup, POINTER_BYTES);
@@ -1704,6 +1701,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   if (code == TSDB_CODE_SUCCESS) {
     *pGotRow = true;
   }
+
   taosArrayClear(pStbRowsCxt->aTagNames);
   for (int i = 0; i < taosArrayGetSize(pStbRowsCxt->aTagVals); ++i) {
     STagVal* p = (STagVal*)taosArrayGet(pStbRowsCxt->aTagVals, i);
@@ -1714,7 +1712,9 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   taosArrayClear(pStbRowsCxt->aTagVals);
   taosArrayClear(pStbRowsCxt->aColVals);
   tTagFree(pStbRowsCxt->pTag);
-  taosMemoryFree(pStbRowsCxt->pCtbMeta);
+  pStbRowsCxt->pTag = NULL;
+  pStbRowsCxt->pCtbMeta->uid = 0;
+  pStbRowsCxt->pCtbMeta->vgId = 0;
   tdDestroySVCreateTbReq(pStbRowsCxt->pCreateCtbReq);
   taosMemoryFreeClear(pStbRowsCxt->pCreateCtbReq);
   // child meta , vgroupid, check privilege
@@ -1994,6 +1994,9 @@ static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModif
   collectUseDatabase(&pStbRowsCxt->stbName, pStmt->pDbFNameHashObj);
   pStbRowsCxt->pTagCond = pStmt->pTagCond;
   pStbRowsCxt->pStbMeta = pStmt->pTableMeta;
+  cloneTableMeta(pStbRowsCxt->pStbMeta, &pStbRowsCxt->pCtbMeta);
+  pStbRowsCxt->pCtbMeta->tableType = TSDB_CHILD_TABLE;
+  pStbRowsCxt->pCtbMeta->suid = pStbRowsCxt->pStbMeta->uid;
   pStbRowsCxt->aTagNames = taosArrayInit(8, TSDB_COL_NAME_LEN);
   pStbRowsCxt->aTagVals = taosArrayInit(8, sizeof(STagVal));
 
