@@ -293,6 +293,15 @@ int32_t httpSendQuit() {
 
 static int32_t taosSendHttpReportImpl(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
                                       EHttpCompFlag flag) {
+  if (server == NULL || uri == NULL) {
+    tError("http-report failed to report to invalid addr");
+    return -1;
+  }
+
+  if (pCont == NULL || contLen == 0) {
+    tError("http-report failed to report empty packet");
+    return -1;
+  }
   SHttpModule* load = taosAcquireRef(httpRefMgt, httpRef);
   if (load == NULL) {
     tError("http-report already released");
