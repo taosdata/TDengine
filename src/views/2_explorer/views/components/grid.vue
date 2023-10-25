@@ -77,15 +77,6 @@ export default {
         if (currentHistory && currentHistory.type == 1) return currentHistory;
       }
     }),
-    headMap() {
-      if (Array.isArray(this.head)) {
-        return this.head.reduce((map, key, index) => {
-          map[key] = index;
-          return map;
-        }, {});
-      }
-      return {};
-    },
   },
   watch: {
     dataSource: {
@@ -112,13 +103,6 @@ export default {
             this.pageSize * (this.currentPage - 1),
             this.pageSize * this.currentPage
           )
-          .map((item) => {
-            const obj = {};
-            for (const key in item) {
-              obj[this.headMap[key]] = item[key];
-            }
-            return obj;
-          })
       );
     },
   },
