@@ -161,7 +161,7 @@ target_link_libraries(
     PUBLIC index
 )
 
-if(${TD_LINUX})
+if(${BUILD_S3})
 
 if(${BUILD_WITH_S3})
   target_include_directories(
@@ -188,7 +188,7 @@ if(${BUILD_WITH_S3})
   )
 
   add_definitions(-DUSE_S3)
-endif(${BUILD_WITH_S3})
+endif()
 
 if(${BUILD_WITH_COS})
 
@@ -227,7 +227,7 @@ target_include_directories(
   add_definitions(-DUSE_COS)
 endif(${BUILD_WITH_COS})
 
-endif(${TD_LINUX})
+endif()
 
 IF (TD_GRANT)
   TARGET_LINK_LIBRARIES(vnode PUBLIC grant)

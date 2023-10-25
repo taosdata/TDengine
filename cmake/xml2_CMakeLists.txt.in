@@ -1,12 +1,16 @@
 
 # xml2
 ExternalProject_Add(xml2
-        GIT_REPOSITORY https://github.com/GNOME/libxml2
-        GIT_TAG v2.11.5
+        URL https://github.com/GNOME/libxml2/archive/refs/tags/v2.11.5.tar.gz
+        #GIT_REPOSITORY https://github.com/GNOME/libxml2
+        #GIT_TAG v2.11.5
+        DOWNLOAD_NO_PROGRESS 1
+        DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download"
         SOURCE_DIR "${TD_CONTRIB_DIR}/xml2"
-        BINARY_DIR ""
-        CONFIGURE_COMMAND ""
-        BUILD_COMMAND ""
-        INSTALL_COMMAND ""
+        #BINARY_DIR ""
+        BUILD_IN_SOURCE TRUE
+        CONFIGURE_COMMAND ./autogen.sh && ./configure --prefix=$ENV{HOME}/.cos-local.2 --enable-shared=no --enable-static=yes --without-python
+        BUILD_COMMAND make -j
+        INSTALL_COMMAND make install && ln -s $ENV{HOME}/.cos-local.2/include/libxml2/libxml $ENV{HOME}/.cos-local.2/include/libxml
         TEST_COMMAND ""
         )
