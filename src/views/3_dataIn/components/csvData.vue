@@ -252,7 +252,7 @@ export default {
 
     handleClick() {},
     handleSuccess(response, file, fileList) {
-      this.fileList = fileList;
+      this.fileList = [].concat(file);
     },
     submitUpload() {
       this.$refs.upload.submit();
@@ -366,6 +366,10 @@ export default {
 };
 </script>
 <style lang="scss" scoped>
+.upload-demo{
+  display:flex;
+  align-items: baseline;
+}
 .csv-data {
   // width: 600px;
   padding: 5px;
@@ -373,22 +377,24 @@ export default {
   .upload-file {
     display: flex;
     margin-bottom: 18px;
-    align-items: center;
+    align-items: baseline;
     .label {
       padding-right: 40px;
       color: #4259ce;
       width: 150px;
       font-weight: 500;
       font-size: 14px;
-      text-align: right;
+      text-align: left;
       position: relative;
+      
       &.required {
+        padding-left:10px;
         &::before {
           content: "*";
           color: red;
           font-size: 16px;
           line-height: 25px;
-          right: 110px;
+          left: 0px;
           position: absolute;
         }
         &.en {

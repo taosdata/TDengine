@@ -31,7 +31,7 @@ export default {
   },
   computed: {
     downloadUrl() {
-      const assetsUrl = OfficialSite + '/assets-download/3.0/taosx-agent-1.2.4-';
+      const assetsUrl = OfficialSite + `/assets-download/3.0/taosx-agent-${localStorage.getItem('agent_version')}-`;
       return {
         linuxDL: assetsUrl + 'linux-x64.tar.gz',
         windowDL: assetsUrl + 'windows-x64-installer.exe'
