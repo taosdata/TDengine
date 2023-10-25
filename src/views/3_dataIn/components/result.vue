@@ -2,14 +2,14 @@
   <div class="text">
     <i :class="content.icon"></i>
     <div class="flexWrap">
-      <span>{{ content.contentText  }}</span>
-      <span class='error'>{{content.messageText}}</span>
+      <span :class="[lang]">{{ content.contentText  }}</span>
+      <span :class="['error', lang]">{{content.messageText}}</span>
     </div>
   </div>
 </template>
 
 <script>
-
+import { getBrowserLang } from '@/utils';
 export default {
   name: "ResultDialog",
   props: {
@@ -47,6 +47,9 @@ export default {
       console.log('tyy');
       return {contentText,messageText,icon};
     },
+    lang() {
+      return getBrowserLang() == 'zh' ? 'zh-text': 'en-text'
+    }
   },
   methods: {},
   components: {},
@@ -94,11 +97,17 @@ export default {
   flex-wrap: wrap;
   >span{
     white-space: pre-wrap;
-    word-break: break-all;
     word-wrap: break-word;
   }
 }
+.zh-text {
+  word-break: break-all;
+}
+.en-text {
+  word-break: keep-all;
+}
 .error {
   color: red;
+  margin-top: 8px;
 }
 </style>
