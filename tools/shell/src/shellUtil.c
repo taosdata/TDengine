@@ -130,7 +130,7 @@ void shellCheckConnectMode() {
 	}
 	if (shell.args.cloud) {
 		shell.args.dsn = getenv("TDENGINE_CLOUD_DSN");
-		if (shell.args.cloud_dsn) {
+		if (shell.args.dsn && strlen(shell.args.dsn) > 4) {
 			shell.args.cloud = true;
       shell.args.local = false;
 			shell.args.restful = false;
@@ -138,7 +138,7 @@ void shellCheckConnectMode() {
 		}
 
     shell.args.dsn = getenv("TDENGINE_DSN");
-		if (shell.args.dsn) {
+		if (shell.args.dsn && strlen(shell.args.dsn) > 4) {
 			shell.args.cloud = true;
       shell.args.local = true;
 			shell.args.restful = false;
