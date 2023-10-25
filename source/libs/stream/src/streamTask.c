@@ -443,9 +443,14 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   }
 
   taosThreadMutexInit(&pTask->lock, &attr);
-  if (streamTaskSetDb(pMeta, pTask) != 0) {
-    return -1;
-  }
+  // if (pTask->info.fillHistory == 1) {
+  //   // 
+  // } else {
+
+  // }
+  // if (streamTaskSetDb(pMeta, pTask) != 0) {
+  //   return -1;
+  // }
   streamTaskOpenAllUpstreamInput(pTask);
 
   return TSDB_CODE_SUCCESS;

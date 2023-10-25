@@ -256,9 +256,11 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
       taosMemoryFree(s);
     }
 
-    SStreamTask task = {.id.taskId = 0, .id.streamId = 0};  // TODO: assign value
-    task.pMeta = pVnode->pTq->pStreamMeta;
-    pStreamState = streamStateOpen(taskInfDir, &task, true, -1, -1);
+    //SStreamTask task = {.id.taskId = 0, .id.streamId = 0};  // TODO: assign value
+    SStreamTask *pTask = taosMemoryCalloc(1, sizeof(SStreamTask)); 
+    pTask->pMeta = pVnode->pTq->pStreamMeta;
+
+    pStreamState = streamStateOpen(taskInfDir, pTask, true, -1, -1);
     if (!pStreamState) {
       terrno = TSDB_CODE_RSMA_STREAM_STATE_OPEN;
       return TSDB_CODE_FAILED;

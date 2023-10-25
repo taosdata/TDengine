@@ -110,31 +110,10 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
   pState->streamId = pStreamTask->id.streamId;
   sprintf(pState->pTdbState->idstr, "0x%" PRIx64 "-%d", pState->streamId, pState->taskId);
 
+  streamTaskSetDb(pStreamTask->pMeta, pTask, pState->pTdbState->idstr);
+
 #ifdef USE_ROCKSDB
   SStreamMeta* pMeta = pStreamTask->pMeta;
-  //  pState->streamBackendRid = pMeta->streamBackendRid;
-  //   taosWLockLatch(&pMeta->lock);
-  //   taosThreadMutexLock(&pMeta->backendMutex);
-  //   void* uniqueId =
-  //       taosHashGet(pMeta->pTaskDbUnique, pState->pTdbState->idstr, strlen(pState->pTdbState->idstr) + 1);
-  //   if (uniqueId == NULL) {
-  //     int code = streamStateOpenBackend(pMeta->streamBackend, pState);
-  //     if (code == -1) {
-  //       taosThreadMutexUnlock(&pMeta->backendMutex);
-  //       taosMemoryFree(pState);
-  //       return NULL;
-  //     }
-  //     taosHashPut(pMeta->pTaskDbUnique, pState->pTdbState->idstr, strlen(pState->pTdbState->idstr) + 1,
-  //                 &pState->pTdbState->backendCfWrapperId, sizeof(pState->pTdbState->backendCfWrapperId));
-  //   } else {
-  //     int64_t id = *(int64_t*)uniqueId;
-  //     pState->pTdbState->backendCfWrapperId = id;
-  //     pState->pTdbState->pBackendCfWrapper = taosAcquireRef(streamBackendCfWrapperId, id);
-  //     // already exist stream task for
-  //     qInfo("already exist stream-state for %s", pState->pTdbState->idstr);
-  //     // taosAcquireRef(streamBackendId, pState->streamBackendRid);
-  //   }
-  //   taosThreadMutexUnlock(&pMeta->backendMutex);
 
   pState->pTdbState->pOwner = pTask;
   pState->pFileState = NULL;

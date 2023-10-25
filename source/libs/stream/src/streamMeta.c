@@ -226,10 +226,10 @@ int32_t streamMetaMayCvtDbFormat(SStreamMeta* pMeta) {
   return 0;
 }
 
-int32_t streamTaskSetDb(SStreamMeta* pMeta, void* arg) {
+int32_t streamTaskSetDb(SStreamMeta* pMeta, void* arg, char *key) {
   SStreamTask* pTask = arg;
 
-  char*   key = (char*)pTask->id.idStr;
+  //char*   key = (char*)pTask->id.idStr;
   int64_t chkpId = pTask->checkpointingId;
 
   taosThreadMutexLock(&pMeta->backendMutex);
