@@ -85,7 +85,7 @@
     ><code>Welcome to the TDengine shell from Linux, Client Version:3.2.0.1
 Copyright (c) 2023 by TAOS Data, Inc. All rights reserved.
 
-Successfully connect to cloud.tdengine.com:8085 in restful mode
+Successfully connect to tdengine.com:8085 in restful mode
 
 taos&gt;
 </code></pre>
