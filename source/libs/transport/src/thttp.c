@@ -293,7 +293,7 @@ int32_t httpSendQuit() {
 
 static int32_t taosSendHttpReportImpl(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
                                       EHttpCompFlag flag) {
-  if (contLen == 0) {
+  if (pCont == NULL || contLen == 0) {
     tError("http-report failed to report empty packet");
     return -1;
   }
