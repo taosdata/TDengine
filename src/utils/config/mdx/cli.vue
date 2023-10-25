@@ -14,7 +14,7 @@
     </p>
     <h2 id="config">{{ $t("docs.tool.cli.step2") }}</h2>
     <el-tabs v-model="sysActivateTab" groupId="sys">
-      <el-tab-pane name="linux" label="Config on Linux">
+      <el-tab-pane name="linux" label="Linux">
         <p>{{ $t("docs.tool.cli.step2desc") }}</p>
         <pre
           v-highlight="
@@ -23,7 +23,7 @@
           "
         ><code class="language-bash"></code></pre>
       </el-tab-pane>
-      <el-tab-pane name="windows" label="Config on Windows">
+      <el-tab-pane name="windows" label="Windows">
         <p>{{ $t("docs.tool.cli.step2desc1") }}</p>
         <pre
           v-highlight="
@@ -39,7 +39,7 @@
           "
         ><code class="language-bash"></code></pre>
       </el-tab-pane>
-      <el-tab-pane name="mac" label="Config on Mac" groupId="sys">
+      <el-tab-pane name="mac" label="Mac" groupId="sys">
         <p>{{ $t("docs.tool.cli.step2desc3") }}</p>
         <pre
           v-highlight="
@@ -52,7 +52,7 @@
 
     <h2 id="connect">{{ $t("docs.tool.cli.step3") }}</h2>
     <el-tabs value="linux" groupId="sys">
-      <el-tab-pane name="linux" label="Connect on Linux">
+      <el-tab-pane name="linux" label="Linux">
         <!-- <p>{{ $t("docs.tool.cli.step3desc") }}</p>
         <pre v-highlight><code>taos
 </code></pre> -->
@@ -60,7 +60,7 @@
         <pre v-highlight><code>taos -E $TDENGINE_DSN
 </code></pre>
       </el-tab-pane>
-      <el-tab-pane name="windows" label="Connect on Windows">
+      <el-tab-pane name="windows" label="Windows">
         <!-- <p>{{ $t("docs.tool.cli.step3desc") }}</p>
         <pre v-highlight><code>taos
 </code></pre> -->
@@ -68,7 +68,7 @@
         <pre v-highlight><code>taos.exe -E %TDENGINE_DSN%
 </code></pre>
       </el-tab-pane>
-      <el-tab-pane name="mac" label="Connect on Mac">
+      <el-tab-pane name="mac" label="Mac">
         <!-- <p>{{ $t("docs.tool.cli.step3desc") }}</p>
         <pre v-highlight><code>taos
 </code></pre> -->
