@@ -1691,6 +1691,13 @@ static int32_t processCtbAutoCreationAndCtbMeta(SInsertParseContext* pCxt, SVnod
   return code;
 }
 
+static void resetStbRowsDataContextPreStbRow(SStbRowsDataContext* pStbRowsCxt) {
+  pStbRowsCxt->pCtbMeta->tableType = TSDB_CHILD_TABLE;
+  pStbRowsCxt->pCtbMeta->suid = pStbRowsCxt->pStbMeta->uid;
+
+  insInitColValues(pStbRowsCxt->pStbMeta, pStbRowsCxt->aColVals);
+}
+
 static void clearStbRowsDataContext(SStbRowsDataContext* pStbRowsCxt) {
   if (pStbRowsCxt == NULL) return;
 
@@ -1716,6 +1723,7 @@ static void clearStbRowsDataContext(SStbRowsDataContext* pStbRowsCxt) {
 
 static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,  const char** ppSql,
                               SStbRowsDataContext* pStbRowsCxt, bool* pGotRow, SToken* pToken) {
+  resetStbRowsDataContextPreStbRow(pStbRowsCxt);                                
   int32_t code = getStbRowValues(pCxt, pStmt, ppSql, pStbRowsCxt, pGotRow, pToken);
   if (code != TSDB_CODE_SUCCESS || !*pGotRow) {
     return code;
@@ -2010,11 +2018,14 @@ static int32_t constructStbRowsDataContext(SVnodeModifyOpStmt* pStmt, SStbRowsDa
   tNameAssign(&pStbRowsCxt->stbName, &pStmt->targetTableName);
   collectUseTable(&pStbRowsCxt->stbName, pStmt->pTableNameHashObj);
   collectUseDatabase(&pStbRowsCxt->stbName, pStmt->pDbFNameHashObj);
+
   pStbRowsCxt->pTagCond = pStmt->pTagCond;
   pStbRowsCxt->pStbMeta = pStmt->pTableMeta;
+
   cloneTableMeta(pStbRowsCxt->pStbMeta, &pStbRowsCxt->pCtbMeta);
   pStbRowsCxt->pCtbMeta->tableType = TSDB_CHILD_TABLE;
   pStbRowsCxt->pCtbMeta->suid = pStbRowsCxt->pStbMeta->uid;
+  
   pStbRowsCxt->aTagNames = taosArrayInit(8, TSDB_COL_NAME_LEN);
   pStbRowsCxt->aTagVals = taosArrayInit(8, sizeof(STagVal));
 
