@@ -3,7 +3,6 @@
     <component
       :is="currentName"
       :sourceList="sourceList"
-      :dbsourceList="uidata"
       :dbsource="uidata"
       :editId="editId"
       :dbName="dbName"
@@ -358,7 +357,7 @@ export default {
           let data = this.sourceList.filter(
             (item) => item.id === this.$store.state.app.currentDBType
           );
-          this.$set(this, "uidata", data);
+          this.$set(this, "uidata", deepClone(data));
         }
       },
     },
