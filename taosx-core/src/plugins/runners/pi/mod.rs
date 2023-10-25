@@ -1,86 +1,31 @@
 use std::{
-    fs, io::prelude::*, num::ParseIntError, path::PathBuf, str::FromStr, sync::Arc, time::Duration,
-};
-
-use file_rotate::{
-    compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
+    fs, io::prelude::*, num::ParseIntError, path::PathBuf, sync::Arc, time::Duration,
 };
 
 use anyhow::Context;
-use chrono::{Local, NaiveDateTime};
+use file_rotate::{
+    compression::Compression,
+    ContentLimit,
+    FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
+};
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::{Map, Value};
 use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
-use toml::value::Datetime;
 use tracing::{instrument, Span};
 
-use crate::runners::{get_string_from_param_or_file, log_rotation};
-use crate::validation::DataSourceValidation;
 use crate::{
-    build_ipc, get_log_keep_days,
-    plugins::service::spawn_rest_service,
-    utils::{port_pool::PortPool, stop_thread},
-    Action, DataSet, DataSetsReq, Transferred,
+    Action, build_ipc,
+    DataSet,
+    DataSetsReq,
+    get_log_keep_days, plugins::service::spawn_rest_service, Transferred, utils::{port_pool::PortPool, stop_thread},
 };
+use crate::runners::log_rotation;
+use crate::runners::pi::config::PiConfig;
+use crate::validation::DataSourceValidation;
 
-#[derive(Debug, serde::Serialize)]
-struct PiConfig {
-    // system
-    #[serde(rename = "PIServerName")]
-    server_name: String,
-    #[serde(rename = "PISystemName")]
-    system_name: String,
-    #[serde(rename = "AFDatabaseName")]
-    database: String,
-    #[serde(rename = "PIDataPipesInstances")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pi_data_pipes_instances: Option<u32>,
-    #[serde(rename = "AFDataPipesInstances")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    af_data_pipes_instances: Option<u32>,
-    // runtime
-    #[serde(rename = "MaxWaitLen")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    max_wait_len: Option<u32>,
-    #[serde(rename = "UpdateInterval")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    update_interval: Option<u32>,
-    #[serde(rename = "MaxBackfillRangeDays")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    max_backfill_range_days: Option<u32>,
-
-    #[serde(rename = "IPCStream")]
-    ipc_stream: String,
-    #[serde(rename = "SQLAPI")]
-    sql_api: String,
-    #[serde(rename = "TDDataBase")]
-    td_database: String,
-    // data set
-    #[serde(rename = "TemplateForPIPoint")]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    template_for_pi_point: Vec<String>,
-    #[serde(rename = "TemplateForAFElement")]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    template_for_af_element: Vec<String>,
-    #[serde(rename = "PointList")]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    point_list: Vec<String>,
-    // backfill param
-    #[serde(rename = "FromTDengineLastTime")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    from_tdengine_last_time: Option<bool>,
-    #[serde(rename = "ToTDengineFirstTime")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    to_tdengine_first_time: Option<bool>,
-    #[serde(rename = "BackfillStartTime", skip_serializing_if = "Option::is_none")]
-    backfill_start_time: Option<Datetime>,
-    #[serde(rename = "BackfillEndTime", skip_serializing_if = "Option::is_none")]
-    backfill_end_time: Option<Datetime>,
-}
+mod config;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PiError {
@@ -102,480 +47,6 @@ pub enum PiError {
     ConfigError(String),
     #[error("Pi get data sets error: {0}")]
     GetDataSetError(#[from] anyhow::Error),
-}
-
-impl PiConfig {
-    pub async fn parse_connection(
-        mut dsn: Dsn,
-        td_database: String,
-        ipc: u16,
-        sql: u16,
-        is_real_run: bool,
-    ) -> Result<PiConfig, PiError> {
-        let server_name = dsn
-            .addresses
-            .first()
-            .and_then(|addr| addr.host.clone())
-            .ok_or_else(|| PiError::ServerIsRequired(dsn.clone()))?;
-        let system_name = dsn
-            .remove("PISystemName")
-            .unwrap_or_else(|| server_name.clone());
-        let database = dsn
-            .subject
-            .clone()
-            .ok_or_else(|| PiError::DatabaseIsRequired(dsn.clone()))?;
-        macro_rules! parse_int_at {
-            ($n:expr) => {
-                dsn.remove($n)
-                    .map(|v| {
-                        v.parse::<u32>()
-                            .map_err(|err| PiError::ParseNumberError($n, v, err))
-                    })
-                    .transpose()?
-            };
-        }
-        let pi_data_pipes_instances = parse_int_at!("PIDataPipesInstances");
-        let af_data_pipes_instances = parse_int_at!("AFDataPipesInstances");
-        let max_wait_len = parse_int_at!("MaxWaitLen");
-        if let Some(mwl) = max_wait_len {
-            if mwl < 1 || mwl > 10000 {
-                return Err(PiError::ValueConfigError("MaxWaitLen", "1", "10000"));
-            }
-        }
-        let update_interval = parse_int_at!("UpdateInterval");
-        if let Some(ui) = update_interval {
-            if ui < 100 || ui > 60000 {
-                return Err(PiError::ValueConfigError("UpdateInterval", "100", "60000"));
-            }
-        }
-        let max_backfill_range_days = parse_int_at!("MaxBackfillRangeDays");
-
-        let template_for_pi_point = dsn
-            .remove("TemplateForPIPoint")
-            .unwrap_or_default()
-            .split(',')
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .collect_vec();
-        let template_for_af_element = dsn
-            .remove("TemplateForAFElement")
-            .unwrap_or_default()
-            .split([',', '\n'])
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .collect_vec();
-
-        let point_list = get_string_from_param_or_file(&mut dsn, "PointList", false, Some(","))
-            .map_err(|err| PiError::ParseKeyValueError("PointList", err))?
-            .unwrap_or_default()
-            .split([',', '\n'])
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .collect_vec();
-        if is_real_run
-            && point_list.is_empty()
-            && template_for_af_element.is_empty()
-            && template_for_pi_point.is_empty()
-        {
-            return Err(PiError::ConfigError(format!("TemplateForPIPoint, TemplateForAFElement and PointList should config at least one of them")));
-        }
-        let ipc_stream = format!("127.0.0.1:{ipc}");
-        let sql_api = format!("http://127.0.0.1:{sql}");
-        let from_tdengine_last_time = if let Some(v) = dsn
-            .remove("FromTDengineLastTime")
-            .map(|v| {
-                v.parse::<bool>()
-                    .map_err(|err| PiError::ParseError("FromTDengineLastTime", v, err.to_string()))
-            })
-            .transpose()?
-        {
-            Some(v)
-        } else {
-            None
-        };
-        let to_tdengine_first_time = if let Some(v) = dsn
-            .remove("ToTDengineFirstTime")
-            .map(|v| {
-                v.parse::<bool>()
-                    .map_err(|err| PiError::ParseError("ToTDengineFirstTime", v, err.to_string()))
-            })
-            .transpose()?
-        {
-            Some(v)
-        } else {
-            None
-        };
-
-        let backfill_start_time = if let Some(backfill_start) = dsn.remove("BackfillStartTime") {
-            let parsed_time =
-                NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
-                    .map_err(|err| {
-                        PiError::ParseError(
-                            "BackfillStartTime",
-                            backfill_start.clone(),
-                            err.to_string(),
-                        )
-                    })?
-                    .and_local_timezone(Local)
-                    .unwrap();
-            let parsed_time =
-                Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| {
-                    PiError::ParseError("BackfillStartTime", backfill_start, err.to_string())
-                })?;
-            Some(parsed_time)
-        } else {
-            None
-        };
-        let backfill_end_time = if let Some(backfill_start) = dsn.remove("BackfillEndTime") {
-            let parsed_time =
-                NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
-                    .map_err(|err| {
-                        PiError::ParseError(
-                            "BackfillEndTime",
-                            backfill_start.clone(),
-                            err.to_string(),
-                        )
-                    })?
-                    .and_local_timezone(Local)
-                    .unwrap();
-            let parsed_time =
-                Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| {
-                    PiError::ParseError("BackfillEndTime", backfill_start, err.to_string())
-                })?;
-            Some(parsed_time)
-        } else {
-            None
-        };
-
-        Ok(Self {
-            server_name,
-            system_name,
-            database,
-            pi_data_pipes_instances,
-            af_data_pipes_instances,
-            max_wait_len,
-            update_interval,
-            max_backfill_range_days,
-            ipc_stream,
-            sql_api,
-            td_database,
-            template_for_pi_point,
-            template_for_af_element,
-            point_list,
-            from_tdengine_last_time,
-            to_tdengine_first_time,
-            backfill_start_time,
-            backfill_end_time,
-        })
-    }
-
-    pub async fn new(
-        mut dsn: Dsn,
-        td_database: String,
-        ipc: u16,
-        sql: u16,
-        is_real_run: bool,
-    ) -> Result<PiConfig, PiError> {
-        let server_name = dsn
-            .addresses
-            .first()
-            .and_then(|addr| addr.host.clone())
-            .ok_or_else(|| PiError::ServerIsRequired(dsn.clone()))?;
-        let system_name = dsn
-            .remove("PISystemName")
-            .unwrap_or_else(|| server_name.clone());
-        let database = dsn
-            .subject
-            .clone()
-            .ok_or_else(|| PiError::DatabaseIsRequired(dsn.clone()))?;
-        macro_rules! parse_int_at {
-            ($n:expr) => {
-                dsn.remove($n)
-                    .map(|v| {
-                        v.parse::<u32>()
-                            .map_err(|err| PiError::ParseNumberError($n, v, err))
-                    })
-                    .transpose()?
-            };
-        }
-        let pi_data_pipes_instances = parse_int_at!("PIDataPipesInstances");
-        let af_data_pipes_instances = parse_int_at!("AFDataPipesInstances");
-        let max_wait_len = parse_int_at!("MaxWaitLen");
-        if let Some(mwl) = max_wait_len {
-            if mwl < 1 || mwl > 10000 {
-                return Err(PiError::ValueConfigError("MaxWaitLen", "1", "10000"));
-            }
-        }
-        let update_interval = parse_int_at!("UpdateInterval");
-        if let Some(ui) = update_interval {
-            if ui < 100 || ui > 60000 {
-                return Err(PiError::ValueConfigError("UpdateInterval", "100", "60000"));
-            }
-        }
-        let max_backfill_range_days = parse_int_at!("MaxBackfillRangeDays");
-
-        let mut template_for_pi_point = dsn
-            .remove("TemplateForPIPoint")
-            .unwrap_or_default()
-            .split(',')
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .collect_vec();
-        let config_key = "template_for_pi_point_file";
-        let config_category = "TemplateForPIPoint";
-        if let Some(value) = dsn.get(config_key) {
-            if value == "*" {
-                let datasets = pi_datasets(&DataSetsReq {
-                    from: dsn.to_string(),
-                    categories: vec![config_category.to_string()],
-                    pattern: None,
-                    offset: 0,
-                    limit: usize::MAX / 2 - 1,
-                    via: None,
-                    lang: None,
-                })
-                .await?;
-                template_for_pi_point.extend(
-                    datasets
-                        .into_iter()
-                        .map(|ds| ds.id)
-                        .filter(|id| !id.is_empty()),
-                );
-            } else {
-                template_for_pi_point.extend(
-                    get_string_from_param_or_file(
-                        &mut dsn,
-                        config_key,
-                        false,
-                        Some(",")
-                    )
-                    .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
-                    .unwrap_or_default()
-                    .split([',', '\n'])
-                    .map(|s| s.trim())
-                    .filter(|s| !s.is_empty())
-                    .map(|s| s.to_string()),
-                );
-            }
-        }
-        let mut template_for_af_element = dsn
-            .remove("TemplateForAFElement")
-            .unwrap_or_default()
-            .split([',', '\n'])
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .collect_vec();
-        let config_key = "template_for_af_element_file";
-        let config_category = "TemplateForAFElement";
-        if let Some(value) = dsn.get(config_key) {
-            if value == "*" {
-                let datasets = pi_datasets(&DataSetsReq {
-                    from: dsn.to_string(),
-                    categories: vec![config_category.to_string()],
-                    pattern: None,
-                    offset: 0,
-                    limit: usize::MAX / 2 - 1,
-                    via: None,
-                    lang: None,
-                })
-                .await?;
-                template_for_af_element.extend(
-                    datasets
-                        .into_iter()
-                        .map(|ds| ds.id)
-                        .filter(|id| !id.is_empty()),
-                );
-            } else {
-                template_for_af_element.extend(
-                    get_string_from_param_or_file(
-                        &mut dsn,
-                        config_key,
-                        false,
-                        Some(",")
-                    )
-                    .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
-                    .unwrap_or_default()
-                    .split([',', '\n'])
-                    .map(|s| s.trim())
-                    .filter(|s| !s.is_empty())
-                    .map(|s| s.to_string()),
-                );
-            }
-        }
-
-        let mut point_list = get_string_from_param_or_file(
-            &mut dsn,
-            "PointList",
-            false,
-            Some(",")
-        )
-        .map_err(|err| PiError::ParseKeyValueError("PointList", err))?
-        .unwrap_or_default()
-        .split([',', '\n'])
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty())
-        .map(|s| s.to_string())
-        .collect_vec();
-        let config_key = "point_file";
-        let config_category = "PointList";
-
-        if let Some(value) = dsn.get(config_key) {
-            if value == "*" {
-                let datasets = pi_datasets(&DataSetsReq {
-                    from: dsn.to_string(),
-                    categories: vec![config_category.to_string()],
-                    pattern: None,
-                    offset: 0,
-                    limit: usize::MAX / 2 - 1,
-                    via: None,
-                    lang: None,
-                })
-                .await?;
-                point_list.extend(
-                    datasets
-                        .into_iter()
-                        .map(|ds| ds.id)
-                        .filter(|id| !id.is_empty()),
-                );
-            } else {
-                point_list.extend(
-                    get_string_from_param_or_file(
-                        &mut dsn,
-                        "point_file",
-                        false,
-                        Some(",")
-                    )
-                    .map_err(|err| PiError::ParseKeyValueError("point_file", err))?
-                    .unwrap_or_default()
-                    .split([',', '\n'])
-                    .map(|s| s.trim())
-                    .filter(|s| !s.is_empty())
-                    .map(|s| s.to_string()),
-                );
-            }
-        }
-        if is_real_run
-            && point_list.is_empty()
-            && template_for_af_element.is_empty()
-            && template_for_pi_point.is_empty()
-        {
-            return Err(PiError::ConfigError(format!("TemplateForPIPoint, TemplateForAFElement and PointList should config at least one of them")));
-        }
-        let ipc_stream = format!("127.0.0.1:{ipc}");
-        let sql_api = format!("http://127.0.0.1:{sql}");
-
-        let mut from_tdengine_last_time = if let Some(v) = dsn
-            .remove("FromTDengineLastTime")
-            .map(|v| {
-                v.parse::<bool>()
-                    .map_err(|err| PiError::ParseError("FromTDengineLastTime", v, err.to_string()))
-            })
-            .transpose()?
-        {
-            Some(v)
-        } else {
-            None
-        };
-        let mut to_tdengine_first_time = if let Some(v) = dsn
-            .remove("ToTDengineFirstTime")
-            .map(|v| {
-                v.parse::<bool>()
-                    .map_err(|err| PiError::ParseError("ToTDengineFirstTime", v, err.to_string()))
-            })
-            .transpose()?
-        {
-            Some(v)
-        } else {
-            None
-        };
-
-        let backfill_start_time = if let Some(backfill_start) = dsn.remove("BackfillStartTime") {
-            if backfill_start == "auto" {
-                from_tdengine_last_time.replace(true);
-                None
-            } else {
-                let parsed_time =
-                    NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
-                        .map_err(|err| {
-                            PiError::ParseError(
-                                "BackfillStartTime",
-                                backfill_start.clone(),
-                                err.to_string(),
-                            )
-                        })?
-                        .and_local_timezone(Local)
-                        .unwrap();
-                let parsed_time =
-                    Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| {
-                        PiError::ParseError("BackfillStartTime", backfill_start, err.to_string())
-                    })?;
-                Some(parsed_time)
-            }
-        } else {
-            None
-        };
-        let backfill_end_time = if let Some(backfill_start) = dsn.remove("BackfillEndTime") {
-            if backfill_start == "auto" {
-                to_tdengine_first_time.replace(true);
-                None
-            } else {
-                let parsed_time =
-                    NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
-                        .map_err(|err| {
-                            PiError::ParseError(
-                                "BackfillEndTime",
-                                backfill_start.clone(),
-                                err.to_string(),
-                            )
-                        })?
-                        .and_local_timezone(Local)
-                        .unwrap();
-                let parsed_time =
-                    Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| {
-                        PiError::ParseError("BackfillEndTime", backfill_start, err.to_string())
-                    })?;
-                Some(parsed_time)
-            }
-        } else {
-            None
-        };
-
-        match (from_tdengine_last_time, to_tdengine_first_time) {
-            (Some(true), Some(true)) => {
-                return Err(PiError::ConfigError(
-                    "Only one of the BackfillStartTime and BackfillEndTime can be automatically set"
-                        .to_string(),
-                ));
-            }
-            _ => {}
-        }
-
-        Ok(Self {
-            server_name,
-            system_name,
-            database,
-            pi_data_pipes_instances,
-            af_data_pipes_instances,
-            max_wait_len,
-            update_interval,
-            max_backfill_range_days,
-            ipc_stream,
-            sql_api,
-            td_database,
-            template_for_pi_point,
-            template_for_af_element,
-            point_list,
-            from_tdengine_last_time,
-            to_tdengine_first_time,
-            backfill_start_time,
-            backfill_end_time,
-        })
-    }
 }
 
 fn pi_exe_path() -> PathBuf {
@@ -653,6 +124,7 @@ pub async fn pi_to_taos(
         since: Option<String>,
         items: Vec<String>,
     }
+
     match driver.as_str() {
         "pi" => {
             let mut command = tokio::process::Command::new(pi_exe_path());
@@ -744,7 +216,7 @@ pub async fn pi_to_taos(
         transferred,
         span,
     )
-    .await?;
+        .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     let client = reqwest::Client::new();
@@ -866,7 +338,7 @@ pub async fn pi_to_taos(
         safe_exit!();
         Ok(())
     })
-    .await??;
+        .await??;
     // stop_thread(ipc);
     // let _ = ipc.send(());
     // stop_thread(server);
@@ -895,9 +367,8 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         anyhow::bail!("PI connector support only windows platform");
     }
 
-    let config =
-        PiConfig::parse_connection(data.from.clone().into_dsn()?, String::new(), 0, 0, false)
-            .await?;
+    let from_dsn = data.from.clone().into_dsn()?;
+    let config = PiConfig::parse_connection(&from_dsn, String::new(), 0, 0)?;
 
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
@@ -934,7 +405,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         ContentLimit::Time(TimeFrequency::Daily),
         Compression::None,
         #[cfg(unix)]
-        None,
+            None,
     );
 
     let output = command
@@ -1031,27 +502,4 @@ pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use taos::Dsn;
-
-    #[tokio::test]
-    async fn test_config() {
-        dbg!(std::env::current_dir().unwrap());
-        let dsn: Dsn = "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=@../tests/pi/Points.csv&template_for_af_element_file=@../tests/pi/ElementTemplates2.csv"
-            .parse()
-            .unwrap();
-        let config = PiConfig::new(dsn, "taos".to_string(), 0, 0, false)
-            .await
-            .unwrap();
-        dbg!(&config);
-
-        let dsn: Dsn = "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=app\napp\napp"
-            .parse()
-            .unwrap();
-        let config2 = PiConfig::new(dsn, "taos".to_string(), 0, 0, false)
-            .await
-            .unwrap();
-        dbg!(&config2);
-    }
-}
+mod tests {}
