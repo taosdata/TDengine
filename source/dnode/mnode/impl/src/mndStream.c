@@ -2038,7 +2038,7 @@ static SVgroupChangeInfo mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pP
 
           char buf[256] = {0};
           EPSET_TO_STR(&pCurrent->epset, buf);
-          mDebug("nodeId:%d epset changed detected, old:%s:%d -> new:%s", pCurrent->nodeId, pPrevEp->fqdn,
+          mDebug("nodeId:%d restart/epset changed detected, old:%s:%d -> new:%s", pCurrent->nodeId, pPrevEp->fqdn,
                  pPrevEp->port, buf);
 
           SNodeUpdateInfo updateInfo = {.nodeId = pPrevEntry->nodeId};
@@ -2077,6 +2077,9 @@ static SArray *mndTakeVgroupSnapshot(SMnode *pMnode) {
     entry.nodeId = pVgroup->vgId;
     entry.hbTimestamp = -1;
 
+    char buf[256] = {0};
+    EPSET_TO_STR(&entry.epset, buf);
+    mDebug("take node snapshot, nodeId:%d %s", entry.nodeId, buf);
     taosArrayPush(pVgroupListSnapshot, &entry);
     sdbRelease(pSdb, pVgroup);
   }
@@ -2187,6 +2190,10 @@ static SArray *extractNodeListFromStream(SMnode *pMnode) {
   while ((pIter = taosHashIterate(pHash, pIter)) != NULL) {
     SNodeEntry *pEntry = (SNodeEntry *)pIter;
     taosArrayPush(plist, pEntry);
+
+    char buf[256] = {0};
+    EPSET_TO_STR(&pEntry->epset, buf);
+    mDebug("extract nodeInfo from stream obj, nodeId:%d, %s", pEntry->nodeId, buf);
   }
   taosHashCleanup(pHash);
 
