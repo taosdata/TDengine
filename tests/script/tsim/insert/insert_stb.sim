@@ -21,16 +21,20 @@ sql create database db1 vgroups 1;
 sql create table db1.stb (ts timestamp, c1 int, c2 int) tags(t1 int, t2 int);
 
 sql use d1;
-sql insert into st (tbname, ts, f, t) values('ct3', '2021-04-19 08:00:00', 3, 3);
-sql insert into d1.st (tbname, ts, f) values('ct6', '2021-04-19 08:00:00', 6);
-sql insert into d1.st (tbname, ts, f) values('ct6', '2021-04-19 08:00:00', 7)('ct8', '2021-04-19 08:00:00', 8);
-sql insert into d1.st (tbname, ts, f, t) values('ct6', '2021-04-19 08:00:00', 9, 9)('ct8', '2021-04-19 08:00:00', 10, 10);
-sql insert into d1.st (tbname, ts, f, t) values('ct6', '2021-04-19 08:00:00', 9, 9)('ct8', '2021-04-19 08:00:00', 10, 10) d2.st (tbname, ts, f, t) values('ct6', '2021-04-19 08:00:00', 9, 9)('ct8', '2021-04-19 08:00:00', 10, 10);
+sql insert into st (tbname, ts, f, t) values('ct3', '2021-04-19 08:00:03', 3, 3);
+sql insert into d1.st (tbname, ts, f) values('ct6', '2021-04-19 08:00:04', 6);
+sql insert into d1.st (tbname, ts, f) values('ct6', '2021-04-19 08:00:05', 7)('ct8', '2021-04-19 08:00:06', 8);
+sql insert into d1.st (tbname, ts, f, t) values('ct6', '2021-04-19 08:00:07', 9, 9)('ct8', '2021-04-19 08:00:08', 10, 10);
+sql insert into d1.st (tbname, ts, f, t) values('ct6', '2021-04-19 08:00:09', 9, 9)('ct8', '2021-04-19 08:00:10', 10, 10) d2.st (tbname, ts, f, t) values('ct6', '2021-04-19 08:00:11', 9, 9)('ct8', '2021-04-19 08:00:12', 10, 10);
 
 sql select * from d1.st
 print $rows
-
+if $rows != 11 then
+  return -1
+endi
 sql select * from d2.st;
 print $rows
-
+if $rows != 4 then
+  return -1
+endi
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
