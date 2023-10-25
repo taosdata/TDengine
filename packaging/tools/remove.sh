@@ -283,11 +283,15 @@ function remove_data_and_config() {
 }
 
 function uninstall_taosx() {
-  if [ -f /usr/local/taosx/uninstall.sh ]; then
-    cd /usr/local/taosx
+  if [ -f ${installDir}/uninstall.sh ]; then
+    cd ${installDir}
     bash uninstall.sh
   fi
 }
+
+if [ "$verMode" == "cluster" ]; then
+  uninstall_taosx
+fi
 
 # Stop service and disable booting start.
 clean_service
@@ -397,11 +401,6 @@ echo "Do you want to remove all the data, log and configuration files? [y/n]"
 read answer
 if [ X$answer == X"y" ] || [ X$answer == X"Y" ]; then
     remove_data_and_config
-fi
-
-
-if [ "$verMode" == "cluster" ]; then
-  uninstall_taosx
 fi
 
 echo 

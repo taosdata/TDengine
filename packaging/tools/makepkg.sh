@@ -42,7 +42,7 @@ release_dir="${top_dir}/release"
 
 #package_name='linux'
 if [ "$verMode" == "cluster" ]; then
-  install_dir="${release_dir}/${productName2}-enterprise-server-${version}"
+  install_dir="${release_dir}/${productName2}-enterprise-${version}"
 elif [ "$verMode" == "cloud" ]; then
   install_dir="${release_dir}/${productName2}-cloud-server-${version}"
 else

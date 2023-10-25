@@ -379,8 +379,8 @@ function add_newHostname_to_hosts() {
 }
 
 function set_hostname() {
-  echo -e -n "${GREEN}Host name or IP (assigned to this machine) which can be accessed by your tools or apps: (must not be 'localhost') :${NC}"
-  read -e -p "" -i "$(hostname)" newHostname
+  echo -e -n "${GREEN}Host name or IP (assigned to this machine) which can be accessed by your tools or apps (must not be 'localhost')${NC}"
+  read -e -p " : " -i "$(hostname)" newHostname
   while true; do
     if [ -z "$newHostname" ]; then
       newHostname=$(hostname)
@@ -388,8 +388,8 @@ function set_hostname() {
     elif [ "$newHostname" != "localhost" ]; then
       break
     else
-      echo -e -n "${GREEN}Host name or IP (assigned to this machine) which can be accessed by your tools or apps: (must not be 'localhost') :${NC}"
-      read -e -p "" -i "$(hostname)" newHostname
+      echo -e -n "${GREEN}Host name or IP (assigned to this machine) which can be accessed by your tools or apps (must not be 'localhost')${NC}"
+      read -e -p " : " -i "$(hostname)" newHostname
     fi
   done
 
@@ -525,12 +525,14 @@ function install_config() {
     if [ -f ${script_dir}/cfg/${configFile2} ]; then
       ${csudo} echo "monitor 1" >> ${script_dir}/cfg/${configFile2}
       ${csudo} echo "monitorFQDN ${serverFqdn}" >> ${script_dir}/cfg/${configFile2}
+      ${csudo} echo "audit 1" >> ${script_dir}/cfg/${configFile2}
       ${csudo}cp ${script_dir}/cfg/${configFile2} ${cfg_install_dir}
     fi
     ${csudo}chmod 644 ${cfg_install_dir}/*
   else
     ${csudo} echo "monitor 1" >> ${script_dir}/cfg/${configFile2}
     ${csudo} echo "monitorFQDN ${serverFqdn}" >> ${script_dir}/cfg/${configFile2}
+    ${csudo} echo "audit 1" >> ${script_dir}/cfg/${configFile2}
     ${csudo}cp -f ${script_dir}/cfg/${configFile2} ${cfg_install_dir}/${configFile2}.new
   fi
 
