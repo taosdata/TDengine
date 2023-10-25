@@ -53,6 +53,7 @@ int32_t tsdbJsonToTFileSet(STsdb *pTsdb, const cJSON *json, STFileSet **fset);
 // cmpr
 int32_t tsdbTFileSetCmprFn(const STFileSet **fset1, const STFileSet **fset2);
 // edit
+int32_t tsdbSttLvlClear(SSttLvl **lvl);
 int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op);
 int32_t tsdbTFileSetApplyEdit(STsdb *pTsdb, const STFileSet *fset1, STFileSet *fset);
 // max commit id
