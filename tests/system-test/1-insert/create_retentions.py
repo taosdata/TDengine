@@ -52,13 +52,40 @@ class TDTestCase:
     @property
     def create_databases_sql_err(self):
         return [
-            "create database db1 retentions 0s:1d",
-            "create database db3 retentions 1s:0d",
-            "create database db1 retentions 1s:1y",
+            # check grammar
+            "create database db1 retentions",
+            "create database db1 retentions 1s:1d,2s:2d,3s:3d,4s:4d",
+            # check unit
+            "create database db1 retentions 1b:1d",
+            "create database db1 retentions 1u:1d",
+            "create database db1 retentions 1a:1d",
+            "create database db1 retentions 1n:1d",
+            "create database db1 retentions 1y:1d",
+            "create database db1 retentions 1s:86400s",
+            "create database db1 retentions 1s:86400000a",
+            "create database db1 retentions 1s:86400000000u",
+            "create database db1 retentions 1s:86400000000000b",
+            "create database db1 retentions 1s:1w",
             "create database db1 retentions 1s:1n",
-            "create database db2 retentions 1w:1d ;",
-            "create database db5 retentions 1s:1d,3s:3d,2s:2d",
-            "create database db1 retentions 1s:1n,2s:2d,3s:3d,4s:4d",
+            "create database db1 retentions 1s:1y",
+            # check value range
+            "create database db1 retentions -1s:1d",
+            "create database db1 retentions 0s:1d",
+            "create database db3 retentions 1s:-1d",
+            "create database db3 retentions 1s:0d",
+            "create database db3 retentions 1s:1439m",
+            "create database db3 retentions 1s:365001d",
+            "create database db3 retentions 1s:8760001h",
+            "create database db3 retentions 1s:525600001m",
+            "create database db3 retentions 1s:106581d precision 'ns'",
+            "create database db3 retentions 1s:2557921h precision 'ns'",
+            "create database db3 retentions 1s:153475201m precision 'ns'",
+            # check relationships
+            "create database db5 retentions 2m:1d,1s:2d",
+            "create database db5 retentions 1s:2880m,2s:2879m",
+            "create database db5 retentions 1s:1d,2s:2d,2s:3d",
+            "create database db5 retentions 1s:1d,3s:2d,2s:3d",
+            "create database db1 retentions 1s:1d,2s:3d,3s:2d",
         ]
 
     @property
