@@ -978,6 +978,9 @@ SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pPr
                         SNodeList* pHint) {
   CHECK_PARSER_STATUS(pCxt);
   SNode* select = createSelectStmtImpl(isDistinct, pProjectionList, pTable, pHint);
+  if (pCxt->pQueryCxt->biMode) {
+    setSelectStmtTagMode(pCxt, select, true);
+  }
   CHECK_OUT_OF_MEM(select);
   return select;
 }
