@@ -135,6 +135,8 @@ class TDDnode:
             "vDebugFlag": "143",
             "tqDebugFlag": "143",
             "cDebugFlag": "143",
+            "stDebugFlag": "143",
+            "smaDebugFlag": "143",
             "jniDebugFlag": "143",
             "qDebugFlag": "143",
             "rpcDebugFlag": "143",

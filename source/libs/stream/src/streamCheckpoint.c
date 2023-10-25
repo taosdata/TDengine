@@ -135,12 +135,13 @@ static int32_t appendCheckpointIntoInputQ(SStreamTask* pTask, int32_t checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq) {
   ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE);
 
+  // todo this status may not be set here.
   // 1. set task status to be prepared for check point, no data are allowed to put into inputQ.
-  pTask->status.taskStatus = TASK_STATUS__CK;
+  streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_GEN_CHECKPOINT);
+
   pTask->checkpointingId = pReq->checkpointId;
   pTask->checkpointNotReadyTasks = streamTaskGetNumOfDownstream(pTask);
   pTask->chkInfo.startTs = taosGetTimestampMs();
-
   pTask->execInfo.checkpoint += 1;
 
   // 2. Put the checkpoint block into inputQ, to make sure all blocks with less version have been handled by this task
@@ -171,11 +172,11 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
   const char* id = pTask->id.idStr;
   int32_t code = TSDB_CODE_SUCCESS;
 
-  // set the task status
-  pTask->checkpointingId = checkpointId;
-
   // set task status
-  pTask->status.taskStatus = TASK_STATUS__CK;
+  if (streamTaskGetStatus(pTask, NULL) != TASK_STATUS__CK) {
+    pTask->checkpointingId = checkpointId;
+    streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_GEN_CHECKPOINT);
+  }
 
   { // todo: remove this when the pipeline checkpoint generating is used.
     SStreamMeta* pMeta = pTask->pMeta;
@@ -195,6 +196,7 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
       stDebug("s-task:%s set childIdx:%d, and add checkpoint-trigger block into outputQ", id, pTask->info.selfChildId);
       continueDispatchCheckpointBlock(pBlock, pTask);
     } else {  // only one task exists, no need to dispatch downstream info
+      atomic_add_fetch_32(&pTask->checkpointNotReadyTasks, 1);
       streamProcessCheckpointReadyMsg(pTask);
       streamFreeQitem((SStreamQueueItem*)pBlock);
     }
@@ -274,6 +276,8 @@ void streamTaskClearCheckInfo(SStreamTask* pTask) {
 }
 
 int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
+  int32_t vgId = pMeta->vgId;
+
   taosWLockLatch(&pMeta->lock);
 
   for (int32_t i = 0; i < taosArrayGetSize(pMeta->pTaskList); ++i) {
@@ -288,27 +292,34 @@ int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
       continue;
     }
 
-    int8_t prev = p->status.taskStatus;
     ASSERT(p->chkInfo.checkpointId < p->checkpointingId && p->checkpointingId == checkpointId);
 
     p->chkInfo.checkpointId = p->checkpointingId;
     streamTaskClearCheckInfo(p);
-    streamSetStatusNormal(p);
 
-    // save the task
-    streamMetaSaveTask(pMeta, p);
+    char* str = NULL;
+    streamTaskGetStatus(p, &str);
+
+    int32_t code = streamTaskHandleEvent(p->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
+    if (code != TSDB_CODE_SUCCESS) {
+      stDebug("s-task:%s vgId:%d save task status failed, since handle event failed", p->id.idStr, vgId);
+      taosWUnLockLatch(&pMeta->lock);
+      return -1;
+    } else { // save the task
+      streamMetaSaveTask(pMeta, p);
+    }
 
     stDebug(
         "vgId:%d s-task:%s level:%d open upstream inputQ, commit task status after checkpoint completed, "
         "checkpointId:%" PRId64 ", Ver(saved):%" PRId64 " currentVer:%" PRId64 ", status to be normal, prev:%s",
         pMeta->vgId, p->id.idStr, p->info.taskLevel, checkpointId, p->chkInfo.checkpointVer, p->chkInfo.nextProcessVer,
-        streamGetTaskStatusStr(prev));
+        str);
   }
 
   if (streamMetaCommit(pMeta) < 0) {
     taosWUnLockLatch(&pMeta->lock);
     stError("vgId:%d failed to commit stream meta after do checkpoint, checkpointId:%" PRId64 ", since %s", pMeta->vgId,
-           checkpointId, terrstr());
+            checkpointId, terrstr());
     return -1;
   } else {
     taosWUnLockLatch(&pMeta->lock);

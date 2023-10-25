@@ -119,9 +119,8 @@ int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue) {
   return numOfItems1 + numOfItems2;
 }
 
-// todo: fix it: data in Qall is not included here
 int32_t streamQueueGetItemSize(const SStreamQueue* pQueue) {
-  return taosQueueMemorySize(pQueue->pQueue);
+  return taosQueueMemorySize(pQueue->pQueue) + taosQallUnAccessedMemSize(pQueue->qall);
 }
 
 int32_t streamQueueItemGetSize(const SStreamQueueItem* pItem) {
@@ -165,7 +164,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
   }
 
   while (1) {
-    if (streamTaskShouldPause(&pTask->status) || streamTaskShouldStop(&pTask->status)) {
+    if (streamTaskShouldPause(pTask) || streamTaskShouldStop(pTask)) {
       stDebug("s-task:%s task should pause, extract input blocks:%d", pTask->id.idStr, *numOfBlocks);
       return TSDB_CODE_SUCCESS;
     }
@@ -346,7 +345,7 @@ int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBloc
   STaosQueue* pQueue = pTask->outputq.queue->pQueue;
 
   while (streamQueueIsFull(pTask->outputq.queue)) {
-    if (streamTaskShouldStop(&pTask->status)) {
+    if (streamTaskShouldStop(pTask)) {
       stInfo("s-task:%s discard result block due to task stop", pTask->id.idStr);
       return TSDB_CODE_STREAM_EXEC_CANCELLED;
     }
