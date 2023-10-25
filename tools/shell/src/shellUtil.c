@@ -130,11 +130,21 @@ void shellCheckConnectMode() {
 	}
 	if (shell.args.cloud) {
 		shell.args.dsn = getenv("TDENGINE_CLOUD_DSN");
-		if (shell.args.dsn) {
+		if (shell.args.cloud_dsn) {
 			shell.args.cloud = true;
+      shell.args.local = false;
 			shell.args.restful = false;
 			return;
 		}
+
+    shell.args.dsn = getenv("TDENGINE_DSN");
+		if (shell.args.dsn) {
+			shell.args.cloud = true;
+      shell.args.local = true;
+			shell.args.restful = false;
+			return;
+		}
+
 		if (shell.args.restful) {
 			if (!shell.args.host) {
 				shell.args.host = "localhost";
