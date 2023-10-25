@@ -228,10 +228,12 @@ export default {
     successTip: '数据源可用，您可以迁移您的数据到 TDengine 数据库。',
     successVersionTip: '数据源可用，版本是 {version}，当前系统支持此版本，您可以迁移您的数据到 TDengine 数据库。',
     unSupportTip:'数据源可用，版本是 {version}，当前系统不支持此版本，对于给您带来的不便，我们深表歉意，请联系 TDengine 团队，我们将在未来为您的数据源版本添加支持。',
-    failTip: '数据源不可用，请检查您的配置，确保所有内容都正确输入，并且您的网络正常。错误原因：',
+    failTip: '数据源不可用，请检查您的配置，确保所有内容都正确输入，并且您的网络正常。',
+    errorMessage: '错误原因：',
     metrics: '当前指标',
     metricName: '指标名称',
     metricValue: '指标值',
+    check: '连通性检查'
   },
   replication: {
     theTaskWithId: "任务 {id}",
