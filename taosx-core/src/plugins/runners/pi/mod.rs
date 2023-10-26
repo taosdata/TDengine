@@ -1,24 +1,20 @@
-use std::{
-    fs, io::prelude::*, num::ParseIntError, path::PathBuf, str::FromStr, sync::Arc, time::Duration,
-};
+use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
+use anyhow::Context;
 use file_rotate::{
     compression::Compression,
     suffix::{AppendTimestamp, DateFrom, FileLimit},
     ContentLimit, FileRotate, TimeFrequency,
 };
-
-use anyhow::Context;
-use chrono::{Local, NaiveDateTime};
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::{Map, Value};
 use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
-use toml::value::Datetime;
 use tracing::{instrument, Span};
 
-use crate::runners::{get_string_from_param_or_file, log_rotation};
+use crate::runners::log_rotation;
+use crate::runners::pi::config::PiConfig;
 use crate::validation::DataSourceValidation;
 use crate::{
     build_ipc, get_log_keep_days,
@@ -27,563 +23,26 @@ use crate::{
     Action, DataSet, DataSetsReq, Transferred,
 };
 
-#[derive(Debug, serde::Serialize)]
-struct PiConfig {
-    // system
-    #[serde(rename = "PIServerName")]
-    server_name: String,
-    #[serde(rename = "PISystemName")]
-    system_name: String,
-    #[serde(rename = "AFDatabaseName")]
-    database: String,
-    #[serde(rename = "PIDataPipesInstances")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pi_data_pipes_instances: Option<u32>,
-    #[serde(rename = "AFDataPipesInstances")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    af_data_pipes_instances: Option<u32>,
-    // runtime
-    #[serde(rename = "MaxWaitLen")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    max_wait_len: Option<u32>,
-    #[serde(rename = "UpdateInterval")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    update_interval: Option<u32>,
-    #[serde(rename = "MaxBackfillRangeDays")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    max_backfill_range_days: Option<u32>,
+mod config;
 
-    #[serde(rename = "IPCStream")]
-    ipc_stream: String,
-    #[serde(rename = "SQLAPI")]
-    sql_api: String,
-    #[serde(rename = "TDDataBase")]
-    td_database: String,
-    // data set
-    #[serde(rename = "TemplateForPIPoint")]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    template_for_pi_point: Vec<String>,
-    #[serde(rename = "TemplateForAFElement")]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    template_for_af_element: Vec<String>,
-    #[serde(rename = "PointList")]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    point_list: Vec<String>,
-    // backfill param
-    #[serde(rename = "FromTDengineLastTime")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    from_tdengine_last_time: Option<bool>,
-    #[serde(rename = "ToTDengineFirstTime")]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    to_tdengine_first_time: Option<bool>,
-    #[serde(rename = "BackfillStartTime", skip_serializing_if = "Option::is_none")]
-    backfill_start_time: Option<Datetime>,
-    #[serde(rename = "BackfillEndTime", skip_serializing_if = "Option::is_none")]
-    backfill_end_time: Option<Datetime>,
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum PiError {
-    #[error("Server is required in PI dsn: {0}")]
-    ServerIsRequired(Dsn),
-    #[error("Database name is required in PI dsn: {0}")]
-    DatabaseIsRequired(Dsn),
-    #[error("Parse integer error from {1} while parsing parameter {0}: {2:?}")]
-    ParseNumberError(&'static str, String, ParseIntError),
-    #[error("config value {0} error, the value needs between {1} and {2}")]
-    ValueConfigError(&'static str, &'static str, &'static str),
-    #[error("parse key {0} value error cause {1}")]
-    ParseKeyValueError(&'static str, String),
-    #[error("Parse param error from {1} while parsing parameter {0}: {2}")]
-    ParseError(&'static str, String, String),
-    #[error("plugin not found: {0}")]
-    ExeNotFound(String),
-    #[error("pi config error: {0}")]
-    ConfigError(String),
-    #[error("Pi get data sets error: {0}")]
-    GetDataSetError(#[from] anyhow::Error),
-}
-
-impl PiConfig {
-    pub async fn parse_connection(
-        mut dsn: Dsn,
-        td_database: String,
-        ipc: u16,
-        sql: u16,
-        is_real_run: bool,
-    ) -> Result<PiConfig, PiError> {
-        let server_name = dsn
-            .addresses
-            .first()
-            .and_then(|addr| addr.host.clone())
-            .ok_or_else(|| PiError::ServerIsRequired(dsn.clone()))?;
-        let system_name = dsn
-            .remove("PISystemName")
-            .unwrap_or_else(|| server_name.clone());
-        let database = dsn
-            .subject
-            .clone()
-            .ok_or_else(|| PiError::DatabaseIsRequired(dsn.clone()))?;
-        macro_rules! parse_int_at {
-            ($n:expr) => {
-                dsn.remove($n)
-                    .map(|v| {
-                        v.parse::<u32>()
-                            .map_err(|err| PiError::ParseNumberError($n, v, err))
-                    })
-                    .transpose()?
-            };
-        }
-        let pi_data_pipes_instances = parse_int_at!("PIDataPipesInstances");
-        let af_data_pipes_instances = parse_int_at!("AFDataPipesInstances");
-        let max_wait_len = parse_int_at!("MaxWaitLen");
-        if let Some(mwl) = max_wait_len {
-            if mwl < 1 || mwl > 10000 {
-                return Err(PiError::ValueConfigError("MaxWaitLen", "1", "10000"));
-            }
-        }
-        let update_interval = parse_int_at!("UpdateInterval");
-        if let Some(ui) = update_interval {
-            if ui < 100 || ui > 60000 {
-                return Err(PiError::ValueConfigError("UpdateInterval", "100", "60000"));
-            }
-        }
-        let max_backfill_range_days = parse_int_at!("MaxBackfillRangeDays");
-
-        let template_for_pi_point = dsn
-            .remove("TemplateForPIPoint")
-            .unwrap_or_default()
-            .split(',')
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .collect_vec();
-        let template_for_af_element = dsn
-            .remove("TemplateForAFElement")
-            .unwrap_or_default()
-            .split([',', '\n'])
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .collect_vec();
-
-        let point_list = get_string_from_param_or_file(&mut dsn, "PointList", false, Some(","))
-            .map_err(|err| PiError::ParseKeyValueError("PointList", err))?
-            .unwrap_or_default()
-            .split([',', '\n'])
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .collect_vec();
-        if is_real_run
-            && point_list.is_empty()
-            && template_for_af_element.is_empty()
-            && template_for_pi_point.is_empty()
-        {
-            return Err(PiError::ConfigError(format!("TemplateForPIPoint, TemplateForAFElement and PointList should config at least one of them")));
-        }
-        let ipc_stream = format!("127.0.0.1:{ipc}");
-        let sql_api = format!("http://127.0.0.1:{sql}");
-        let from_tdengine_last_time = if let Some(v) = dsn
-            .remove("FromTDengineLastTime")
-            .map(|v| {
-                v.parse::<bool>()
-                    .map_err(|err| PiError::ParseError("FromTDengineLastTime", v, err.to_string()))
-            })
-            .transpose()?
-        {
-            Some(v)
-        } else {
-            None
-        };
-        let to_tdengine_first_time = if let Some(v) = dsn
-            .remove("ToTDengineFirstTime")
-            .map(|v| {
-                v.parse::<bool>()
-                    .map_err(|err| PiError::ParseError("ToTDengineFirstTime", v, err.to_string()))
-            })
-            .transpose()?
-        {
-            Some(v)
-        } else {
-            None
-        };
-
-        let backfill_start_time = if let Some(backfill_start) = dsn.remove("BackfillStartTime") {
-            let parsed_time =
-                NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
-                    .map_err(|err| {
-                        PiError::ParseError(
-                            "BackfillStartTime",
-                            backfill_start.clone(),
-                            err.to_string(),
-                        )
-                    })?
-                    .and_local_timezone(Local)
-                    .unwrap();
-            let parsed_time =
-                Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| {
-                    PiError::ParseError("BackfillStartTime", backfill_start, err.to_string())
-                })?;
-            Some(parsed_time)
-        } else {
-            None
-        };
-        let backfill_end_time = if let Some(backfill_start) = dsn.remove("BackfillEndTime") {
-            let parsed_time =
-                NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
-                    .map_err(|err| {
-                        PiError::ParseError(
-                            "BackfillEndTime",
-                            backfill_start.clone(),
-                            err.to_string(),
-                        )
-                    })?
-                    .and_local_timezone(Local)
-                    .unwrap();
-            let parsed_time =
-                Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| {
-                    PiError::ParseError("BackfillEndTime", backfill_start, err.to_string())
-                })?;
-            Some(parsed_time)
-        } else {
-            None
-        };
-
-        Ok(Self {
-            server_name,
-            system_name,
-            database,
-            pi_data_pipes_instances,
-            af_data_pipes_instances,
-            max_wait_len,
-            update_interval,
-            max_backfill_range_days,
-            ipc_stream,
-            sql_api,
-            td_database,
-            template_for_pi_point,
-            template_for_af_element,
-            point_list,
-            from_tdengine_last_time,
-            to_tdengine_first_time,
-            backfill_start_time,
-            backfill_end_time,
-        })
+fn pi_exe_path() -> anyhow::Result<PathBuf> {
+    let path = super::get_plugin_dir("pi").join("taosx-pi.exe");
+    if !path.exists() {
+        let err_msg = format!("pi plugin not found at: {:?}", path);
+        tracing::error!(err_msg);
+        return Err(anyhow::anyhow!(err_msg));
     }
+    Ok(path)
+}
 
-    pub async fn new(
-        mut dsn: Dsn,
-        td_database: String,
-        ipc: u16,
-        sql: u16,
-        is_real_run: bool,
-    ) -> Result<PiConfig, PiError> {
-        let server_name = dsn
-            .addresses
-            .first()
-            .and_then(|addr| addr.host.clone())
-            .ok_or_else(|| PiError::ServerIsRequired(dsn.clone()))?;
-        let system_name = dsn
-            .remove("PISystemName")
-            .unwrap_or_else(|| server_name.clone());
-        let database = dsn
-            .subject
-            .clone()
-            .ok_or_else(|| PiError::DatabaseIsRequired(dsn.clone()))?;
-        macro_rules! parse_int_at {
-            ($n:expr) => {
-                dsn.remove($n)
-                    .map(|v| {
-                        v.parse::<u32>()
-                            .map_err(|err| PiError::ParseNumberError($n, v, err))
-                    })
-                    .transpose()?
-            };
-        }
-        let pi_data_pipes_instances = parse_int_at!("PIDataPipesInstances");
-        let af_data_pipes_instances = parse_int_at!("AFDataPipesInstances");
-        let max_wait_len = parse_int_at!("MaxWaitLen");
-        if let Some(mwl) = max_wait_len {
-            if mwl < 1 || mwl > 10000 {
-                return Err(PiError::ValueConfigError("MaxWaitLen", "1", "10000"));
-            }
-        }
-        let update_interval = parse_int_at!("UpdateInterval");
-        if let Some(ui) = update_interval {
-            if ui < 100 || ui > 60000 {
-                return Err(PiError::ValueConfigError("UpdateInterval", "100", "60000"));
-            }
-        }
-        let max_backfill_range_days = parse_int_at!("MaxBackfillRangeDays");
-
-        let mut template_for_pi_point = dsn
-            .remove("TemplateForPIPoint")
-            .unwrap_or_default()
-            .split(',')
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .collect_vec();
-        let config_key = "template_for_pi_point_file";
-        let config_category = "TemplateForPIPoint";
-        if let Some(value) = dsn.get(config_key) {
-            if value == "*" {
-                let datasets = pi_datasets(&DataSetsReq {
-                    from: dsn.to_string(),
-                    categories: vec![config_category.to_string()],
-                    pattern: None,
-                    offset: 0,
-                    limit: usize::MAX / 2 - 1,
-                    via: None,
-                    lang: None,
-                })
-                .await?;
-                template_for_pi_point.extend(
-                    datasets
-                        .into_iter()
-                        .map(|ds| ds.id)
-                        .filter(|id| !id.is_empty()),
-                );
-            } else {
-                template_for_pi_point.extend(
-                    get_string_from_param_or_file(
-                        &mut dsn,
-                        config_key,
-                        false,
-                        Some(",")
-                    )
-                    .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
-                    .unwrap_or_default()
-                    .split([',', '\n'])
-                    .map(|s| s.trim())
-                    .filter(|s| !s.is_empty())
-                    .map(|s| s.to_string()),
-                );
-            }
-        }
-        let mut template_for_af_element = dsn
-            .remove("TemplateForAFElement")
-            .unwrap_or_default()
-            .split([',', '\n'])
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .collect_vec();
-        let config_key = "template_for_af_element_file";
-        let config_category = "TemplateForAFElement";
-        if let Some(value) = dsn.get(config_key) {
-            if value == "*" {
-                let datasets = pi_datasets(&DataSetsReq {
-                    from: dsn.to_string(),
-                    categories: vec![config_category.to_string()],
-                    pattern: None,
-                    offset: 0,
-                    limit: usize::MAX / 2 - 1,
-                    via: None,
-                    lang: None,
-                })
-                .await?;
-                template_for_af_element.extend(
-                    datasets
-                        .into_iter()
-                        .map(|ds| ds.id)
-                        .filter(|id| !id.is_empty()),
-                );
-            } else {
-                template_for_af_element.extend(
-                    get_string_from_param_or_file(
-                        &mut dsn,
-                        config_key,
-                        false,
-                        Some(",")
-                    )
-                    .map_err(|err| PiError::ParseKeyValueError(config_key, err))?
-                    .unwrap_or_default()
-                    .split([',', '\n'])
-                    .map(|s| s.trim())
-                    .filter(|s| !s.is_empty())
-                    .map(|s| s.to_string()),
-                );
-            }
-        }
-
-        let mut point_list = get_string_from_param_or_file(
-            &mut dsn,
-            "PointList",
-            false,
-            Some(",")
-        )
-        .map_err(|err| PiError::ParseKeyValueError("PointList", err))?
-        .unwrap_or_default()
-        .split([',', '\n'])
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty())
-        .map(|s| s.to_string())
-        .collect_vec();
-        let config_key = "point_file";
-        let config_category = "PointList";
-
-        if let Some(value) = dsn.get(config_key) {
-            if value == "*" {
-                let datasets = pi_datasets(&DataSetsReq {
-                    from: dsn.to_string(),
-                    categories: vec![config_category.to_string()],
-                    pattern: None,
-                    offset: 0,
-                    limit: usize::MAX / 2 - 1,
-                    via: None,
-                    lang: None,
-                })
-                .await?;
-                point_list.extend(
-                    datasets
-                        .into_iter()
-                        .map(|ds| ds.id)
-                        .filter(|id| !id.is_empty()),
-                );
-            } else {
-                point_list.extend(
-                    get_string_from_param_or_file(
-                        &mut dsn,
-                        "point_file",
-                        false,
-                        Some(",")
-                    )
-                    .map_err(|err| PiError::ParseKeyValueError("point_file", err))?
-                    .unwrap_or_default()
-                    .split([',', '\n'])
-                    .map(|s| s.trim())
-                    .filter(|s| !s.is_empty())
-                    .map(|s| s.to_string()),
-                );
-            }
-        }
-        if is_real_run
-            && point_list.is_empty()
-            && template_for_af_element.is_empty()
-            && template_for_pi_point.is_empty()
-        {
-            return Err(PiError::ConfigError(format!("TemplateForPIPoint, TemplateForAFElement and PointList should config at least one of them")));
-        }
-        let ipc_stream = format!("127.0.0.1:{ipc}");
-        let sql_api = format!("http://127.0.0.1:{sql}");
-
-        let mut from_tdengine_last_time = if let Some(v) = dsn
-            .remove("FromTDengineLastTime")
-            .map(|v| {
-                v.parse::<bool>()
-                    .map_err(|err| PiError::ParseError("FromTDengineLastTime", v, err.to_string()))
-            })
-            .transpose()?
-        {
-            Some(v)
-        } else {
-            None
-        };
-        let mut to_tdengine_first_time = if let Some(v) = dsn
-            .remove("ToTDengineFirstTime")
-            .map(|v| {
-                v.parse::<bool>()
-                    .map_err(|err| PiError::ParseError("ToTDengineFirstTime", v, err.to_string()))
-            })
-            .transpose()?
-        {
-            Some(v)
-        } else {
-            None
-        };
-
-        let backfill_start_time = if let Some(backfill_start) = dsn.remove("BackfillStartTime") {
-            if backfill_start == "auto" {
-                from_tdengine_last_time.replace(true);
-                None
-            } else {
-                let parsed_time =
-                    NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
-                        .map_err(|err| {
-                            PiError::ParseError(
-                                "BackfillStartTime",
-                                backfill_start.clone(),
-                                err.to_string(),
-                            )
-                        })?
-                        .and_local_timezone(Local)
-                        .unwrap();
-                let parsed_time =
-                    Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| {
-                        PiError::ParseError("BackfillStartTime", backfill_start, err.to_string())
-                    })?;
-                Some(parsed_time)
-            }
-        } else {
-            None
-        };
-        let backfill_end_time = if let Some(backfill_start) = dsn.remove("BackfillEndTime") {
-            if backfill_start == "auto" {
-                to_tdengine_first_time.replace(true);
-                None
-            } else {
-                let parsed_time =
-                    NaiveDateTime::parse_from_str(backfill_start.as_str(), "%Y-%m-%d %H:%M:%S")
-                        .map_err(|err| {
-                            PiError::ParseError(
-                                "BackfillEndTime",
-                                backfill_start.clone(),
-                                err.to_string(),
-                            )
-                        })?
-                        .and_local_timezone(Local)
-                        .unwrap();
-                let parsed_time =
-                    Datetime::from_str(parsed_time.to_rfc3339().as_str()).map_err(|err| {
-                        PiError::ParseError("BackfillEndTime", backfill_start, err.to_string())
-                    })?;
-                Some(parsed_time)
-            }
-        } else {
-            None
-        };
-
-        match (from_tdengine_last_time, to_tdengine_first_time) {
-            (Some(true), Some(true)) => {
-                return Err(PiError::ConfigError(
-                    "Only one of the BackfillStartTime and BackfillEndTime can be automatically set"
-                        .to_string(),
-                ));
-            }
-            _ => {}
-        }
-
-        Ok(Self {
-            server_name,
-            system_name,
-            database,
-            pi_data_pipes_instances,
-            af_data_pipes_instances,
-            max_wait_len,
-            update_interval,
-            max_backfill_range_days,
-            ipc_stream,
-            sql_api,
-            td_database,
-            template_for_pi_point,
-            template_for_af_element,
-            point_list,
-            from_tdengine_last_time,
-            to_tdengine_first_time,
-            backfill_start_time,
-            backfill_end_time,
-        })
+fn pi_backfill_exe_path() -> anyhow::Result<PathBuf> {
+    let path = super::get_plugin_dir("pi").join("taosx-pi-backfill.exe");
+    if !path.exists() {
+        let err_msg = format!("pibackfill plugin not found at: {:?}", path);
+        tracing::error!(err_msg);
+        return Err(anyhow::anyhow!(err_msg));
     }
-}
-
-fn pi_exe_path() -> PathBuf {
-    super::get_plugin_dir("pi").join("taosx-pi.exe")
-}
-
-fn pi_backfill_exe_path() -> PathBuf {
-    super::get_plugin_dir("pi").join("taosx-pi-backfill.exe")
+    Ok(path)
 }
 
 const LOG_FILE: &str = "pi.log";
@@ -610,21 +69,8 @@ pub async fn pi_to_taos(
     {
         anyhow::bail!("PI connector support only windows platform");
     }
-
-    let exe_exists = std::path::Path::new(&pi_exe_path()).exists();
-    if !exe_exists {
-        tracing::error!("plugin not found {}", pi_exe_path().to_str().unwrap());
-        Err(PiError::ExeNotFound(format!(
-            "{}",
-            pi_exe_path().to_str().unwrap()
-        )))?;
-    }
-
     let td_database = to.subject.clone();
     let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(&to)?.pool()?;
-
-    // let taos = target_pool.get().await?;
-
     let target_pool_for_ipc = target_pool.clone();
 
     let ipc_port = port_pool
@@ -636,9 +82,7 @@ pub async fn pi_to_taos(
     let driver = from.driver.clone();
     let config = PiConfig::new(from, td_database.unwrap(), ipc_port, sql_port, true).await?;
 
-    //toml::ser::ValueSerializer
     let toml = toml::to_string(&config)?;
-
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
@@ -653,9 +97,10 @@ pub async fn pi_to_taos(
         since: Option<String>,
         items: Vec<String>,
     }
+
     match driver.as_str() {
         "pi" => {
-            let mut command = tokio::process::Command::new(pi_exe_path());
+            let mut command = tokio::process::Command::new(pi_exe_path()?);
             let output = command
                 .arg("-c")
                 .arg(&config_path)
@@ -691,7 +136,7 @@ pub async fn pi_to_taos(
             }
         }
         "pibackfill" => {
-            let mut command = tokio::process::Command::new(pi_backfill_exe_path());
+            let mut command = tokio::process::Command::new(pi_backfill_exe_path()?);
             let output = command
                 .arg("-c")
                 .arg(&config_path)
@@ -779,7 +224,7 @@ pub async fn pi_to_taos(
 
     match driver.as_str() {
         "pi" => {
-            let mut command = tokio::process::Command::new(pi_exe_path());
+            let mut command = tokio::process::Command::new(pi_exe_path()?);
             child_command = command
                 .arg("-f")
                 .arg(&config_path)
@@ -790,7 +235,7 @@ pub async fn pi_to_taos(
                 .context("Start PI collector error")?;
         }
         "pibackfill" => {
-            let mut command = tokio::process::Command::new(pi_backfill_exe_path());
+            let mut command = tokio::process::Command::new(pi_backfill_exe_path()?);
             child_command = command
                 .arg("-f")
                 .arg(&config_path)
@@ -895,9 +340,8 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         anyhow::bail!("PI connector support only windows platform");
     }
 
-    let config =
-        PiConfig::parse_connection(data.from.clone().into_dsn()?, String::new(), 0, 0, false)
-            .await?;
+    let from_dsn = data.from.clone().into_dsn()?;
+    let config = PiConfig::parse_connection(&from_dsn, String::new(), 0, 0)?;
 
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
@@ -907,7 +351,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 
     tracing::info!("Using config file {} \n{}", config_path.display(), toml);
 
-    let mut command = tokio::process::Command::new(pi_exe_path());
+    let mut command = tokio::process::Command::new(pi_exe_path()?);
     let point_filter = if let Some(pf) = data.pattern.clone() {
         pf
     } else {
@@ -1025,33 +469,203 @@ fn extend_data_set(
     }
 }
 
-pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
-    dbg!(dsn);
-    DataSourceValidation::unknown()
+pub async fn is_pi_valid(dsn: &Dsn) -> DataSourceValidation {
+    #[cfg(not(target_os = "windows"))]
+    {
+        anyhow::bail!("PI connector support only windows platform");
+    }
+    let config = PiConfig::parse_connection(dsn, String::new(), 0, 0);
+    match config {
+        Err(err) => DataSourceValidation::invalid(
+            "pi".to_string(),
+            format!(
+                "invalid pi dsn: {}, cause: {}",
+                dsn.to_string(),
+                err.to_string()
+            ),
+        ),
+        Ok(c) => {
+            let valid = validate_pi(c).await;
+            match valid {
+                Err(err) => DataSourceValidation::invalid(
+                    "pi".to_string(),
+                    format!(
+                        "failed to connect to dsn: {}, cause: {}",
+                        dsn.to_string(),
+                        err.to_string()
+                    ),
+                ),
+                Ok(v) => v,
+            }
+        }
+    }
+}
+
+async fn validate_pi(config: PiConfig) -> anyhow::Result<DataSourceValidation> {
+    let toml = toml::to_string(&config)?;
+    let mut config_file = tempfile::NamedTempFile::new()?;
+    write!(config_file, "{}", &toml)?;
+
+    // startup the connector
+    let pi_exe_path = pi_exe_path()?;
+    let mut command = tokio::process::Command::new(pi_exe_path.clone());
+    let output = command
+        .arg("-c")
+        .arg(config_file.path())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .await
+        .with_context(|| format!("failed to execute pi: {:?}", pi_exe_path.as_path()))?;
+
+    if output.status.success() {
+        let result: serde_json::Value =
+            serde_json::from_slice(&output.stdout).with_context(|| {
+                format!(
+                    "Deserialize validation result error: {}",
+                    String::from_utf8_lossy(&output.stdout)
+                )
+            })?;
+        Ok(DataSourceValidation {
+            valid: result["valid"].as_bool().unwrap_or(false),
+            support: result["support"].as_bool().unwrap_or(false),
+            data_source: "pi".to_string(),
+            version: result["version"].as_str().map(|s| s.to_string()),
+            message: result["message"].as_str().map(|s| s.to_string()),
+        })
+    } else {
+        Ok(DataSourceValidation::invalid(
+            "pi".to_string(),
+            format!(
+                "failed to execute pi: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        ))
+    }
+}
+
+pub async fn is_pi_backfill_valid(dsn: &Dsn) -> DataSourceValidation {
+    #[cfg(not(target_os = "windows"))]
+    {
+        anyhow::bail!("PI connector support only windows platform");
+    }
+    let config = PiConfig::parse_connection(dsn, String::new(), 0, 0);
+    match config {
+        Err(err) => DataSourceValidation::invalid(
+            "pibackfill".to_string(),
+            format!(
+                "invalid pibackfill dsn: {}, cause: {}",
+                dsn.to_string(),
+                err.to_string()
+            ),
+        ),
+        Ok(c) => {
+            let valid = validate_pi_backfill(c).await;
+            match valid {
+                Err(err) => DataSourceValidation::invalid(
+                    "pibackfill".to_string(),
+                    format!(
+                        "failed to connect to dsn: {}, cause: {}",
+                        dsn.to_string(),
+                        err.to_string()
+                    ),
+                ),
+                Ok(v) => v,
+            }
+        }
+    }
+}
+
+async fn validate_pi_backfill(config: PiConfig) -> anyhow::Result<DataSourceValidation> {
+    let toml = toml::to_string(&config)?;
+    let mut config_file = tempfile::NamedTempFile::new()?;
+    write!(config_file, "{}", &toml)?;
+
+    // startup the connector
+    let pi_backfill_exe_path = pi_backfill_exe_path()?;
+    let mut command = tokio::process::Command::new(pi_backfill_exe_path.clone());
+    let output = command
+        .arg("-c")
+        .arg(config_file.path())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .await
+        .with_context(|| format!("failed to execute pi: {:?}", pi_backfill_exe_path.as_path()))?;
+
+    if output.status.success() {
+        let result: serde_json::Value =
+            serde_json::from_slice(&output.stdout).with_context(|| {
+                format!(
+                    "Deserialize validation result error: {}",
+                    String::from_utf8_lossy(&output.stdout)
+                )
+            })?;
+        Ok(DataSourceValidation {
+            valid: result["valid"].as_bool().unwrap_or(false),
+            support: result["support"].as_bool().unwrap_or(false),
+            data_source: "pibackfill".to_string(),
+            version: result["version"].as_str().map(|s| s.to_string()),
+            message: result["message"].as_str().map(|s| s.to_string()),
+        })
+    } else {
+        Ok(DataSourceValidation::invalid(
+            "pibackfill".to_string(),
+            format!(
+                "failed to execute pibackfill: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        ))
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
     use taos::Dsn;
 
     #[tokio::test]
-    async fn test_config() {
-        dbg!(std::env::current_dir().unwrap());
-        let dsn: Dsn = "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=@../tests/pi/Points.csv&template_for_af_element_file=@../tests/pi/ElementTemplates2.csv"
-            .parse()
-            .unwrap();
-        let config = PiConfig::new(dsn, "taos".to_string(), 0, 0, false)
-            .await
-            .unwrap();
-        dbg!(&config);
+    async fn test_is_pi_valid() {
+        let dsn = Dsn::from_str("pi://").unwrap();
+        let validation = is_pi_valid(&dsn).await;
+        assert_eq!(false, validation.valid);
+        assert_eq!(false, validation.support);
+        assert_eq!("pi", validation.data_source);
+        assert_eq!(None, validation.version);
+        assert_eq!(
+            "invalid pi dsn: pi://, cause: PIServerName is required",
+            validation.message.unwrap()
+        );
 
-        let dsn: Dsn = "pi://WIN-2OA23UM12TN/Met1?PISystemName=other&point_file=app\napp\napp"
-            .parse()
-            .unwrap();
-        let config2 = PiConfig::new(dsn, "taos".to_string(), 0, 0, false)
-            .await
-            .unwrap();
-        dbg!(&config2);
+        let dsn = Dsn::from_str("pi://WIN-2OA23UM12TN/Met1?PISystemName=other").unwrap();
+        let validation = is_pi_valid(&dsn).await;
+        assert_eq!(false, validation.valid);
+        assert_eq!(false, validation.support);
+        assert_eq!("pi", validation.data_source);
+        assert_eq!(None, validation.version);
+        assert_eq!("failed to connect to dsn: pi://WIN-2OA23UM12TN/Met1?PISystemName=other, cause: pi plugin not found at: \"/usr/local/taos/plugins/pi/taosx-pi.exe\"", validation.message.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_is_pi_backfill_valid() {
+        let dsn = Dsn::from_str("pibackfill://").unwrap();
+        let validation = is_pi_backfill_valid(&dsn).await;
+        assert_eq!(false, validation.valid);
+        assert_eq!(false, validation.support);
+        assert_eq!("pibackfill", validation.data_source);
+        assert_eq!(None, validation.version);
+        assert_eq!(
+            "invalid pibackfill dsn: pibackfill://, cause: PIServerName is required",
+            validation.message.unwrap()
+        );
+
+        let dsn = Dsn::from_str("pibackfill://WIN-2OA23UM12TN/Met1?PISystemName=other").unwrap();
+        let validation = is_pi_backfill_valid(&dsn).await;
+        assert_eq!(false, validation.valid);
+        assert_eq!(false, validation.support);
+        assert_eq!("pibackfill", validation.data_source);
+        assert_eq!(None, validation.version);
+        assert_eq!("failed to connect to dsn: pibackfill://WIN-2OA23UM12TN/Met1?PISystemName=other, cause: pibackfill plugin not found at: \"/usr/local/taos/plugins/pi/taosx-pi-backfill.exe\"", validation.message.unwrap());
     }
 }
