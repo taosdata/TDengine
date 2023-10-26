@@ -137,7 +137,12 @@ static int32_t tsdbCommitTSData(SCommitter2 *committer) {
     }
 
     int64_t ts = TSDBROW_TS(&row->row);
-    if (ts > committer->ctx->maxKey || skipRow) {
+
+    if (skipRow && ts <= committer->ctx->maxKey) {
+      ts = committer->ctx->maxKey + 1;
+    }
+
+    if (ts > committer->ctx->maxKey) {
       committer->ctx->nextKey = TMIN(committer->ctx->nextKey, ts);
       code = tsdbIterMergerSkipTableData(committer->dataIterMerger, committer->ctx->tbid);
       TSDB_CHECK_CODE(code, lino, _exit);
