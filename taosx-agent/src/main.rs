@@ -79,10 +79,7 @@ pub struct ConfigArgs {
     #[clap(hide = true, env="LOG_LEVEL")]
     log_level: Option<LevelFilter>,
 
-    #[clap(hide = true, env="LOG_FILE")]
-    log_file: Option<i64>,
-
-    #[clap(hide = true, env="LOG_KEEP_DAYS")]
+    #[clap(long, env="LOG_KEEP_DAYS")]
     log_keep_days: Option<i64>,
 }
 

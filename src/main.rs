@@ -104,12 +104,6 @@ struct OptArgs {
     #[clap(short, long, global = true)]
     yes_i_really_mean_it: bool,
 
-    #[clap(long)]
-    do_not_resume: bool,
-
-    #[clap(short = 'L', long)]
-    log_dir: Option<PathBuf>,
-
     #[clap(
     long,
     global = true,
