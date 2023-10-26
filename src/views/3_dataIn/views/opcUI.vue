@@ -1377,7 +1377,7 @@ export default {
       let res = await sendSQLReq(
         `select \`precision\` from information_schema.ins_databases where name = '${this.targetDatabase}';`
       );
-      if (res && res.code == 0) {
+      if (res && res.code == 0 && res.data[0]) {
         this.dbprecision = res.data[0][0];
       }
     },
@@ -1437,7 +1437,7 @@ export default {
     },
 
     async submit(isSubmit) {
-      // debugger
+      debugger
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
@@ -1874,10 +1874,10 @@ export default {
             `user::${localStorage.getItem("username")}`,
           ],
         };
-        if (this.tagName == "mqtt" && this,isSubmit) {
+        if (this.tagName == "mqtt" && isSubmit) {
           piParams["parser"] = this.$store.state.app.mqttParser;
         }
-        if (this.tagName == "kafka" && this,isSubmit) {
+        if (this.tagName == "kafka" && isSubmit) {
           let value = this.$store.state.app.mqttParser.parse.payload;
           piParams["parser"] = {
             ...this.$store.state.app.mqttParser,
@@ -1895,7 +1895,7 @@ export default {
         if (this.agentId) {
           piParams["via"] = this.agentId;
         }
-        if (this.tagName == "csv" && this,isSubmit) {
+        if (this.tagName == "csv" && isSubmit) {
           this.$refs.csvdata.$refs.param.submit();
           this.$refs.csvdata.$refs.param.submit2();
           if (
