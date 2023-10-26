@@ -62,6 +62,7 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
     SVgObj *pVgroup = NULL;
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
+    if (req.vgId != 0 && pVgroup->vgId != req.vgId) continue;
 
     if(mndAddVgroupBalanceToTrans(pMnode, pVgroup, pTrans) == 0){
       count++;
@@ -78,10 +79,11 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
 
-  auditRecord(pReq, pMnode->clusterId, "balanceVgroupLead", "", "", "");
+  auditRecord(pReq, pMnode->clusterId, "balanceVgroupLead", "", "", req.sql, req.sqlLen);
 
 _OVER:
   mndTransDrop(pTrans);
+  tFreeSBalanceVgroupLeaderReq(&req);
   return code;
 }
 

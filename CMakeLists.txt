@@ -102,6 +102,7 @@ if(${BUILD_TEST})
 endif(${BUILD_TEST})
 
 ADD_DEFINITIONS(-DTD_ENTERPRISE)
+ADD_DEFINITIONS(-DTD_GRANT_OPTIMIZE)
 
 add_subdirectory(community/source)
 add_subdirectory(community/tools)

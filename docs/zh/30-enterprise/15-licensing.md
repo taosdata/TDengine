@@ -6,7 +6,7 @@ sidebar_label: "授权码管理"
 
 ## 概述
 
-TDengine Pro 的授权，是通过对集群中的服务器设置授权码 (activeCode) 的方式完成的。
+TDengine Enterprise 的授权，是通过对集群中的服务器设置授权码 (activeCode) 的方式完成的。
 
 
 ## 授权码与授权项
