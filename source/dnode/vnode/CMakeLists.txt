@@ -161,7 +161,7 @@ target_link_libraries(
     PUBLIC index
 )
 
-if(${TD_LINUX})
+if(${BUILD_S3})
 
 if(${BUILD_WITH_S3})
   target_include_directories(
@@ -173,7 +173,8 @@ if(${BUILD_WITH_S3})
   set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
   set(CMAKE_PREFIX_PATH $ENV{HOME}/.cos-local.2)
   find_library(S3_LIBRARY s3)
-  find_library(CURL_LIBRARY curl)
+  find_library(CURL_LIBRARY curl $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
+  find_library(XML2_LIBRARY xml2)
   find_library(SSL_LIBRARY ssl $ENV{HOME}/.cos-local.2/lib64 NO_DEFAULT_PATH)
   find_library(CRYPTO_LIBRARY crypto $ENV{HOME}/.cos-local.2/lib64 NO_DEFAULT_PATH)
   target_link_libraries(
@@ -184,11 +185,11 @@ if(${BUILD_WITH_S3})
     PUBLIC ${CURL_LIBRARY}
     PUBLIC ${SSL_LIBRARY}
     PUBLIC ${CRYPTO_LIBRARY}
-    PUBLIC xml2
+    PUBLIC ${XML2_LIBRARY}
   )
 
   add_definitions(-DUSE_S3)
-endif(${BUILD_WITH_S3})
+endif()
 
 if(${BUILD_WITH_COS})
 
@@ -227,7 +228,7 @@ target_include_directories(
   add_definitions(-DUSE_COS)
 endif(${BUILD_WITH_COS})
 
-endif(${TD_LINUX})
+endif()
 
 IF (TD_GRANT)
   TARGET_LINK_LIBRARIES(vnode PUBLIC grant)
