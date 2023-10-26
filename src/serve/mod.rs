@@ -26,6 +26,7 @@ mod agent;
 mod controller;
 mod data_sources;
 mod metrics;
+mod middleware;
 mod routes;
 mod rpc;
 mod task;
@@ -38,6 +39,7 @@ use crate::serve::controller::agent::{
     Activity, ActivityOrder, Agent, AgentActivityFilter, AgentConnectors, AgentProps, AgentStatus,
     AgentToken, AgentUpdates, AgentWithToken, LevelFilter,
 };
+use crate::serve::middleware::TaosXRootSpanBuilder;
 
 use self::{
     agent::{create_agent, delete_agent, get_agent_activities, get_agents, update_agent},
@@ -285,8 +287,7 @@ impl Cli {
             // This factory closure is called on each worker thread independently.
             App::new()
                 .wrap(cors)
-                .wrap(Logger::default())
-                .wrap(Compat::new(TracingLogger::default()))
+                .wrap(Compat::new(TracingLogger::<TaosXRootSpanBuilder>::new()))
                 .app_data(recorder.clone())
                 .app_data(snapshotter.clone())
                 .app_data(PayloadConfig::new(std::usize::MAX))

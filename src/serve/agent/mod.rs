@@ -27,8 +27,8 @@ pub(super) async fn create_agent(
     agent: Json<AgentProps>,
 ) -> impl Responder {
     match task_store.create_agent(agent.into_inner()).await {
-        Ok(agent) => HttpResponse::Ok().json(&agent),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+        Ok(agent) => Ok(HttpResponse::Ok().json(&agent)),
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err),
         }),
@@ -40,7 +40,7 @@ pub(super) async fn create_agent(
     tag = "agents",
     responses(
         (status = 200, description = "Deleted", body = ()),
-				(status = 500, description = "Error", body = Failed)
+        (status = 500, description = "Error", body = Failed)
     )
 )]
 #[delete("/agents/{agent_id}")]
@@ -49,8 +49,8 @@ pub(super) async fn delete_agent(
     agent_id: Path<i64>,
 ) -> impl Responder {
     match task_store.delete_agent(agent_id.into_inner()).await {
-        Ok(_) => HttpResponse::Ok().json(serde_json::Value::Null),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+        Ok(_) => Ok(HttpResponse::Ok().json(serde_json::Value::Null)),
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err),
         }),
@@ -74,10 +74,10 @@ pub(super) async fn get_agents(
     filter: Query<AgentFilter>,
 ) -> impl Responder {
     match task_store.get_agents(filter.into_inner()).await {
-        Ok(agents) => HttpResponse::Ok()
+        Ok(agents) => Ok(HttpResponse::Ok()
             .append_header(("Count", agents.len()))
-            .json(&agents),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            .json(&agents)),
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err),
         }),
@@ -98,8 +98,8 @@ pub(super) async fn get_agent_by_id(
     agent_id: Path<i64>,
 ) -> impl Responder {
     match task_store.get_agent_by_id(agent_id.into_inner()).await {
-        Ok(agents) => HttpResponse::Ok().json(&agents),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+        Ok(agents) => Ok(HttpResponse::Ok().json(&agents)),
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: err.to_string(),
         }),
@@ -123,10 +123,10 @@ pub(super) async fn get_agent_tasks(
     agent_id: Path<i64>,
 ) -> impl Responder {
     match task_store.get_tasks_of_agent(agent_id.into_inner()).await {
-        Ok(agents) => HttpResponse::Ok()
+        Ok(agents) => Ok(HttpResponse::Ok()
             .append_header(("Count", agents.len()))
-            .json(&agents),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            .json(&agents)),
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err),
         }),
@@ -152,10 +152,10 @@ pub(super) async fn get_agent_activities(
         .agent_activities(agent_id.into_inner(), &filter)
         .await
     {
-        Ok(agents) => HttpResponse::Ok()
+        Ok(agents) => Ok(HttpResponse::Ok()
             .append_header(("Count", agents.len()))
-            .json(&agents),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            .json(&agents)),
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: err.to_string(),
         }),
@@ -181,8 +181,8 @@ pub(super) async fn update_agent(
         .update_agent(agent_id.into_inner(), body.into_inner())
         .await
     {
-        Ok(agents) => HttpResponse::Ok().json(&agents),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+        Ok(agents) => Ok(HttpResponse::Ok().json(&agents)),
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("{:#}", err),
         }),

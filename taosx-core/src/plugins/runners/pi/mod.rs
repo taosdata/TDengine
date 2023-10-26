@@ -496,7 +496,7 @@ fn extend_data_set(
     }
 }
 
-pub fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     dbg!(dsn);
     DataSourceValidation::unknown()
 }

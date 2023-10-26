@@ -69,7 +69,7 @@ datasets:
         display: 表名称
         value: Meter_{TagName}
         description: |
-          支持 <child table prefix>_{TagName} 格式
+          支持 <child table prefix>_{TagName} 的格式
         hint:
           type: str
         required: true
