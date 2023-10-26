@@ -9,7 +9,7 @@ use dashmap::DashMap;
 use serde::Deserialize;
 use serde_with::serde_as;
 use taos::taos_query::tmq::Assignment;
-use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder, AsyncQueryable};
+use taos::{AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
@@ -429,7 +429,8 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
                 "mqtt" => runners::mqtt::is_valid(&d).await,
                 "opc" | "opcda" | "opcua" => runners::opc::is_valid(&d).await,  //TODO
                 "opentsdb" => runners::opentsdb::is_valid(&d).await,
-                "pi" | "pibackfill" => runners::pi::is_valid(&d).await, //TODO
+                "pi" => runners::pi::is_pi_valid(&d).await,
+                "pibackfill" => runners::pi::is_pi_backfill_valid(&d).await,
                 "taos" | "tmq" => is_valid(&d).await,
                 &_ => DataSourceValidation::unknown(),
             }
@@ -543,6 +544,22 @@ mod tests {
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("opentsdb", dsv.data_source);
+        assert_eq!("", dsv.version.unwrap());
+
+        // pi
+        let dsn = Dsn::from_str("pi://").unwrap();
+        let dsv = validate_dsn(dsn).await;
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("pi", dsv.data_source);
+        assert_eq!("", dsv.version.unwrap());
+
+        // pi-backfill
+        let dsn = Dsn::from_str("pibackfill://").unwrap();
+        let dsv = validate_dsn(dsn).await;
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("pibackfill", dsv.data_source);
         assert_eq!("", dsv.version.unwrap());
 
         // taos

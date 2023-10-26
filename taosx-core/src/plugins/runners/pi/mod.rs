@@ -1,12 +1,10 @@
-use std::{
-    fs, io::prelude::*, num::ParseIntError, path::PathBuf, sync::Arc, time::Duration,
-};
+use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use file_rotate::{
     compression::Compression,
-    ContentLimit,
-    FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
 };
 use itertools::Itertools;
 use serde::Deserialize;
@@ -15,46 +13,36 @@ use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Span};
 
-use crate::{
-    Action, build_ipc,
-    DataSet,
-    DataSetsReq,
-    get_log_keep_days, plugins::service::spawn_rest_service, Transferred, utils::{port_pool::PortPool, stop_thread},
-};
 use crate::runners::log_rotation;
 use crate::runners::pi::config::PiConfig;
 use crate::validation::DataSourceValidation;
+use crate::{
+    build_ipc, get_log_keep_days,
+    plugins::service::spawn_rest_service,
+    utils::{port_pool::PortPool, stop_thread},
+    Action, DataSet, DataSetsReq, Transferred,
+};
 
 mod config;
 
-#[derive(Debug, thiserror::Error)]
-pub enum PiError {
-    #[error("Server is required in PI dsn: {0}")]
-    ServerIsRequired(Dsn),
-    #[error("Database name is required in PI dsn: {0}")]
-    DatabaseIsRequired(Dsn),
-    #[error("Parse integer error from {1} while parsing parameter {0}: {2:?}")]
-    ParseNumberError(&'static str, String, ParseIntError),
-    #[error("config value {0} error, the value needs between {1} and {2}")]
-    ValueConfigError(&'static str, &'static str, &'static str),
-    #[error("parse key {0} value error cause {1}")]
-    ParseKeyValueError(&'static str, String),
-    #[error("Parse param error from {1} while parsing parameter {0}: {2}")]
-    ParseError(&'static str, String, String),
-    #[error("plugin not found: {0}")]
-    ExeNotFound(String),
-    #[error("pi config error: {0}")]
-    ConfigError(String),
-    #[error("Pi get data sets error: {0}")]
-    GetDataSetError(#[from] anyhow::Error),
+fn pi_exe_path() -> anyhow::Result<PathBuf> {
+    let path = super::get_plugin_dir("pi").join("taosx-pi.exe");
+    if !path.exists() {
+        let err_msg = format!("pi plugin not found at: {:?}", path);
+        tracing::error!(err_msg);
+        return Err(anyhow::anyhow!(err_msg));
+    }
+    Ok(path)
 }
 
-fn pi_exe_path() -> PathBuf {
-    super::get_plugin_dir("pi").join("taosx-pi.exe")
-}
-
-fn pi_backfill_exe_path() -> PathBuf {
-    super::get_plugin_dir("pi").join("taosx-pi-backfill.exe")
+fn pi_backfill_exe_path() -> anyhow::Result<PathBuf> {
+    let path = super::get_plugin_dir("pi").join("taosx-pi-backfill.exe");
+    if !path.exists() {
+        let err_msg = format!("pibackfill plugin not found at: {:?}", path);
+        tracing::error!(err_msg);
+        return Err(anyhow::anyhow!(err_msg));
+    }
+    Ok(path)
 }
 
 const LOG_FILE: &str = "pi.log";
@@ -81,21 +69,8 @@ pub async fn pi_to_taos(
     {
         anyhow::bail!("PI connector support only windows platform");
     }
-
-    let exe_exists = std::path::Path::new(&pi_exe_path()).exists();
-    if !exe_exists {
-        tracing::error!("plugin not found {}", pi_exe_path().to_str().unwrap());
-        Err(PiError::ExeNotFound(format!(
-            "{}",
-            pi_exe_path().to_str().unwrap()
-        )))?;
-    }
-
     let td_database = to.subject.clone();
     let target_pool = <TaosBuilder as taos::AsyncTBuilder>::from_dsn(&to)?.pool()?;
-
-    // let taos = target_pool.get().await?;
-
     let target_pool_for_ipc = target_pool.clone();
 
     let ipc_port = port_pool
@@ -107,9 +82,7 @@ pub async fn pi_to_taos(
     let driver = from.driver.clone();
     let config = PiConfig::new(from, td_database.unwrap(), ipc_port, sql_port, true).await?;
 
-    //toml::ser::ValueSerializer
     let toml = toml::to_string(&config)?;
-
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
@@ -127,7 +100,7 @@ pub async fn pi_to_taos(
 
     match driver.as_str() {
         "pi" => {
-            let mut command = tokio::process::Command::new(pi_exe_path());
+            let mut command = tokio::process::Command::new(pi_exe_path()?);
             let output = command
                 .arg("-c")
                 .arg(&config_path)
@@ -163,7 +136,7 @@ pub async fn pi_to_taos(
             }
         }
         "pibackfill" => {
-            let mut command = tokio::process::Command::new(pi_backfill_exe_path());
+            let mut command = tokio::process::Command::new(pi_backfill_exe_path()?);
             let output = command
                 .arg("-c")
                 .arg(&config_path)
@@ -216,7 +189,7 @@ pub async fn pi_to_taos(
         transferred,
         span,
     )
-        .await?;
+    .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     let client = reqwest::Client::new();
@@ -251,7 +224,7 @@ pub async fn pi_to_taos(
 
     match driver.as_str() {
         "pi" => {
-            let mut command = tokio::process::Command::new(pi_exe_path());
+            let mut command = tokio::process::Command::new(pi_exe_path()?);
             child_command = command
                 .arg("-f")
                 .arg(&config_path)
@@ -262,7 +235,7 @@ pub async fn pi_to_taos(
                 .context("Start PI collector error")?;
         }
         "pibackfill" => {
-            let mut command = tokio::process::Command::new(pi_backfill_exe_path());
+            let mut command = tokio::process::Command::new(pi_backfill_exe_path()?);
             child_command = command
                 .arg("-f")
                 .arg(&config_path)
@@ -338,7 +311,7 @@ pub async fn pi_to_taos(
         safe_exit!();
         Ok(())
     })
-        .await??;
+    .await??;
     // stop_thread(ipc);
     // let _ = ipc.send(());
     // stop_thread(server);
@@ -378,7 +351,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 
     tracing::info!("Using config file {} \n{}", config_path.display(), toml);
 
-    let mut command = tokio::process::Command::new(pi_exe_path());
+    let mut command = tokio::process::Command::new(pi_exe_path()?);
     let point_filter = if let Some(pf) = data.pattern.clone() {
         pf
     } else {
@@ -405,7 +378,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         ContentLimit::Time(TimeFrequency::Daily),
         Compression::None,
         #[cfg(unix)]
-            None,
+        None,
     );
 
     let output = command
@@ -496,10 +469,203 @@ fn extend_data_set(
     }
 }
 
-pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
-    dbg!(dsn);
-    DataSourceValidation::unknown()
+pub async fn is_pi_valid(dsn: &Dsn) -> DataSourceValidation {
+    #[cfg(not(target_os = "windows"))]
+    {
+        anyhow::bail!("PI connector support only windows platform");
+    }
+    let config = PiConfig::parse_connection(dsn, String::new(), 0, 0);
+    match config {
+        Err(err) => DataSourceValidation::invalid(
+            "pi".to_string(),
+            format!(
+                "invalid pi dsn: {}, cause: {}",
+                dsn.to_string(),
+                err.to_string()
+            ),
+        ),
+        Ok(c) => {
+            let valid = validate_pi(c).await;
+            match valid {
+                Err(err) => DataSourceValidation::invalid(
+                    "pi".to_string(),
+                    format!(
+                        "failed to connect to dsn: {}, cause: {}",
+                        dsn.to_string(),
+                        err.to_string()
+                    ),
+                ),
+                Ok(v) => v,
+            }
+        }
+    }
+}
+
+async fn validate_pi(config: PiConfig) -> anyhow::Result<DataSourceValidation> {
+    let toml = toml::to_string(&config)?;
+    let mut config_file = tempfile::NamedTempFile::new()?;
+    write!(config_file, "{}", &toml)?;
+
+    // startup the connector
+    let pi_exe_path = pi_exe_path()?;
+    let mut command = tokio::process::Command::new(pi_exe_path.clone());
+    let output = command
+        .arg("-c")
+        .arg(config_file.path())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .await
+        .with_context(|| format!("failed to execute pi: {:?}", pi_exe_path.as_path()))?;
+
+    if output.status.success() {
+        let result: serde_json::Value =
+            serde_json::from_slice(&output.stdout).with_context(|| {
+                format!(
+                    "Deserialize validation result error: {}",
+                    String::from_utf8_lossy(&output.stdout)
+                )
+            })?;
+        Ok(DataSourceValidation {
+            valid: result["valid"].as_bool().unwrap_or(false),
+            support: result["support"].as_bool().unwrap_or(false),
+            data_source: "pi".to_string(),
+            version: result["version"].as_str().map(|s| s.to_string()),
+            message: result["message"].as_str().map(|s| s.to_string()),
+        })
+    } else {
+        Ok(DataSourceValidation::invalid(
+            "pi".to_string(),
+            format!(
+                "failed to execute pi: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        ))
+    }
+}
+
+pub async fn is_pi_backfill_valid(dsn: &Dsn) -> DataSourceValidation {
+    #[cfg(not(target_os = "windows"))]
+    {
+        anyhow::bail!("PI connector support only windows platform");
+    }
+    let config = PiConfig::parse_connection(dsn, String::new(), 0, 0);
+    match config {
+        Err(err) => DataSourceValidation::invalid(
+            "pibackfill".to_string(),
+            format!(
+                "invalid pibackfill dsn: {}, cause: {}",
+                dsn.to_string(),
+                err.to_string()
+            ),
+        ),
+        Ok(c) => {
+            let valid = validate_pi_backfill(c).await;
+            match valid {
+                Err(err) => DataSourceValidation::invalid(
+                    "pibackfill".to_string(),
+                    format!(
+                        "failed to connect to dsn: {}, cause: {}",
+                        dsn.to_string(),
+                        err.to_string()
+                    ),
+                ),
+                Ok(v) => v,
+            }
+        }
+    }
+}
+
+async fn validate_pi_backfill(config: PiConfig) -> anyhow::Result<DataSourceValidation> {
+    let toml = toml::to_string(&config)?;
+    let mut config_file = tempfile::NamedTempFile::new()?;
+    write!(config_file, "{}", &toml)?;
+
+    // startup the connector
+    let pi_backfill_exe_path = pi_backfill_exe_path()?;
+    let mut command = tokio::process::Command::new(pi_backfill_exe_path.clone());
+    let output = command
+        .arg("-c")
+        .arg(config_file.path())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .await
+        .with_context(|| format!("failed to execute pi: {:?}", pi_backfill_exe_path.as_path()))?;
+
+    if output.status.success() {
+        let result: serde_json::Value =
+            serde_json::from_slice(&output.stdout).with_context(|| {
+                format!(
+                    "Deserialize validation result error: {}",
+                    String::from_utf8_lossy(&output.stdout)
+                )
+            })?;
+        Ok(DataSourceValidation {
+            valid: result["valid"].as_bool().unwrap_or(false),
+            support: result["support"].as_bool().unwrap_or(false),
+            data_source: "pibackfill".to_string(),
+            version: result["version"].as_str().map(|s| s.to_string()),
+            message: result["message"].as_str().map(|s| s.to_string()),
+        })
+    } else {
+        Ok(DataSourceValidation::invalid(
+            "pibackfill".to_string(),
+            format!(
+                "failed to execute pibackfill: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        ))
+    }
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+    use taos::Dsn;
+
+    #[tokio::test]
+    async fn test_is_pi_valid() {
+        let dsn = Dsn::from_str("pi://").unwrap();
+        let validation = is_pi_valid(&dsn).await;
+        assert_eq!(false, validation.valid);
+        assert_eq!(false, validation.support);
+        assert_eq!("pi", validation.data_source);
+        assert_eq!(None, validation.version);
+        assert_eq!(
+            "invalid pi dsn: pi://, cause: PIServerName is required",
+            validation.message.unwrap()
+        );
+
+        let dsn = Dsn::from_str("pi://WIN-2OA23UM12TN/Met1?PISystemName=other").unwrap();
+        let validation = is_pi_valid(&dsn).await;
+        assert_eq!(false, validation.valid);
+        assert_eq!(false, validation.support);
+        assert_eq!("pi", validation.data_source);
+        assert_eq!(None, validation.version);
+        assert_eq!("failed to connect to dsn: pi://WIN-2OA23UM12TN/Met1?PISystemName=other, cause: pi plugin not found at: \"/usr/local/taos/plugins/pi/taosx-pi.exe\"", validation.message.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_is_pi_backfill_valid() {
+        let dsn = Dsn::from_str("pibackfill://").unwrap();
+        let validation = is_pi_backfill_valid(&dsn).await;
+        assert_eq!(false, validation.valid);
+        assert_eq!(false, validation.support);
+        assert_eq!("pibackfill", validation.data_source);
+        assert_eq!(None, validation.version);
+        assert_eq!(
+            "invalid pibackfill dsn: pibackfill://, cause: PIServerName is required",
+            validation.message.unwrap()
+        );
+
+        let dsn = Dsn::from_str("pibackfill://WIN-2OA23UM12TN/Met1?PISystemName=other").unwrap();
+        let validation = is_pi_backfill_valid(&dsn).await;
+        assert_eq!(false, validation.valid);
+        assert_eq!(false, validation.support);
+        assert_eq!("pibackfill", validation.data_source);
+        assert_eq!(None, validation.version);
+        assert_eq!("failed to connect to dsn: pibackfill://WIN-2OA23UM12TN/Met1?PISystemName=other, cause: pibackfill plugin not found at: \"/usr/local/taos/plugins/pi/taosx-pi-backfill.exe\"", validation.message.unwrap());
+    }
+}
