@@ -988,6 +988,23 @@ int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pR
 int32_t tDeserializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
 void    tFreeSGetUserAuthRsp(SGetUserAuthRsp* pRsp);
 
+typedef struct {
+  char user[TSDB_USER_LEN];
+} SGetUserWhiteListReq;
+
+int32_t tSerializeSGetUserWhiteListReq(void* buf, int32_t bufLen, SGetUserWhiteListReq* pReq);
+int32_t tDeserializeSGetUserWhiteListReq(void* buf, int32_t bufLen, SGetUserWhiteListReq* pReq);
+
+typedef struct {
+  char user[TSDB_USER_LEN];
+  int32_t numWhiteLists;
+  SIpV4Range* pWhiteLists;
+} SGetUserWhiteListRsp;
+
+int32_t tSerializeSGetUserWhiteListRsp(void* buf, int32_t bufLen, SGetUserWhiteListRsp* pRsp);
+int32_t tDeserializeSGetUserWhiteListRsp(void* buf, int32_t bufLen, SGetUserWhiteListRsp* pRsp);
+void    tFreeSGetUserWhiteListRsp(SGetUserWhiteListRsp* pRsp);
+
 /*
  * for client side struct, only column id, type, bytes are necessary
  * But for data in vnode side, we need all the following information.
