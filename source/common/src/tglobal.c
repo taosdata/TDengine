@@ -81,6 +81,7 @@ int64_t tsMndLogRetention = 2000;
 int8_t  tsGrant = 1;
 int32_t tsMndGrantMode = 0;
 bool    tsMndSkipGrant = false;
+bool    tsEnableWhiteList = false;  // ip white list cfg
 
 // dnode
 int64_t tsDndStart = 0;
@@ -661,6 +662,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt64(pCfg, "minDiskFreeSize", tsMinDiskFreeSize, TFS_MIN_DISK_FREE_SIZE, 1024 * 1024 * 1024,
                   CFG_SCOPE_SERVER) != 0)
     return -1;
+  if (cfgAddBool(pCfg, "enableWhiteList", tsEnableWhiteList, CFG_SCOPE_SERVER) != 0) return -1;
 
   GRANT_CFG_ADD;
   return 0;
@@ -1050,6 +1052,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMndLogRetention = cfgGetItem(pCfg, "mndLogRetention")->i64;
   tsMndSkipGrant = cfgGetItem(pCfg, "skipGrant")->bval;
   tsMndGrantMode = cfgGetItem(pCfg, "grantMode")->i32;
+  tsEnableWhiteList = cfgGetItem(pCfg, "enableWhiteList")->bval;
 
   tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
   tstrncpy(tsUdfdResFuncs, cfgGetItem(pCfg, "udfdResFuncs")->str, sizeof(tsUdfdResFuncs));
