@@ -1710,6 +1710,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         .unwrap();
 
         let last = count;
+        tracing::info!("consume lush record task in ipc_lush_stream_reader");
         if let Err(err) = consume_lush_record(
             pool,
             &mut taos,
