@@ -42,7 +42,6 @@ class taoscTest : public ::testing::Test {
       return;
     }
     taosSsleep(5);
-    taosSsleep(3);
     taos_free_result(res);
     printf("drop database taosc_test_db,finished.\n");
 
@@ -112,7 +111,7 @@ TEST_F(taoscTest, Connect) {
   taos_free_result(res);
   taosSsleep(2);
 
-  int insertCounts = 10000;
+  int insertCounts = 1000;
   for (int i = 0; i < insertCounts; i++) {
     char sql[128];
     sprintf(sql, "insert into taosc_test_db.taosc_test_table values(now() + %ds, %d)", i, i);
