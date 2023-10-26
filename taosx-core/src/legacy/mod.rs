@@ -1532,6 +1532,7 @@ async fn sync_specified_tables_with_workers(
             Err(err) => {
                 tracing::error!("Syncing error: {err:#}",);
                 fails += 1;
+                return Err(err);
             }
         }
 

@@ -317,8 +317,9 @@ async fn worker(
                 let chunks = split_table_into_time_range_chunks(&from, &table, &query).await;
                 match chunks {
                     Ok(chunks) => {
+                        let mut chunk_err: Option<String> = None;
                         // chunks
-                        for chunk in chunks {
+                        'chunks: for chunk in chunks {
                             let mut query = query.clone();
                             query.time_range = chunk;
                             let table_inner = table.clone();
@@ -403,16 +404,24 @@ async fn worker(
                                                 query.time_range,
                                                 format!("{err:?}").replace("\n", " ")
                                             );
+
+                                            chunk_err = Some(err_string);
                                         }
 
-                                        break;
+                                        break 'chunks;
                                     }
                                 };
                             }
                         }
 
                         if let Some(sender) = sender {
-                            let _ = sender.send(Ok(()));
+                            if let Some(_) = chunk_err {
+                                let _ = sender.send(Err(anyhow::format_err!(
+                                    "Syncing table failed: scheduler worker error"
+                                )));
+                            } else {
+                                let _ = sender.send(Ok(()));
+                            }
                         }
 
                         // err
