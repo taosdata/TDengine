@@ -1275,15 +1275,16 @@ export default {
           dns += `@${data.options.host.value ? data.options.host.value : ""}`;
           // }
         } else if (this.tagName == "datasource") {
-          data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
-          if (data.options.endpoint.value.includes("://")) {
-            dns =
-              "+" + data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
-          } else {
-            dns =
-              "://" +
-              data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
-          }
+          // data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+          // if (data.options.endpoint.value.includes("://")) {
+          //   dns =
+          //     "+" + data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+          // } else {
+          //   dns =
+          //     "://" +
+          //     data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+          // }
+          dns = data.options.endpoint.value
         } else {
           if (this.tagName == "influxdb") {
             this.changeHost(data.options.host.value);
@@ -1477,7 +1478,7 @@ export default {
 
         let apiParams = {
           from:
-            (this.tagName === "datasource" ? "tmq" : "taos") +
+            (this.tagName === "datasource" ? "" : "taos") +
             (data.protocol
               ? Object.is(data.protocol.value, "--") || !data.protocol.value
                 ? ""
