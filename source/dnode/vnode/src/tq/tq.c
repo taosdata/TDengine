@@ -750,10 +750,15 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     SStreamTask* pStateTask = pTask;
 
-    // if (pTask->info.fillHistory) {
-    //   pTask->id.streamId = pTask->streamTaskId.streamId;
-    //   pTask->id.taskId = pTask->streamTaskId.taskId;
-    // }
+    STaskId taskId = {.streamId = 0, .taskId = 0}; 
+    if (pTask->info.fillHistory) {
+
+      taskId.streamId = pTask->id.streamId;
+      taskId.taskId = pTask->id.taskId;
+
+      pTask->id.streamId = pTask->streamTaskId.streamId;
+      pTask->id.taskId = pTask->streamTaskId.taskId;
+    }
     
     pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false, -1, -1);
     if (pTask->pState == NULL) {
@@ -761,6 +766,10 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
       return -1;
     } else {
       tqDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
+    }
+    if (pTask->info.fillHistory) {
+      pTask->id.streamId = taskId.streamId;
+      pTask->id.taskId = taskId.taskId;
     }
 
     SReadHandle handle = {
@@ -783,10 +792,14 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
   } else if (pTask->info.taskLevel == TASK_LEVEL__AGG) {
     SStreamTask* pSateTask = pTask;
     // SStreamTask task = {0};
-    // if (pTask->info.fillHistory) {
-    //     pTask->id.streamId = pTask->streamTaskId.streamId;
-    //     pTask->id.taskId = pTask->streamTaskId.taskId;
-    // }
+
+    STaskId taskId = {.streamId = 0, .taskId = 0}; 
+    if (pTask->info.fillHistory) {
+      taskId.streamId = pTask->id.streamId;
+      taskId.taskId = pTask->id.taskId;
+      pTask->id.streamId = pTask->streamTaskId.streamId;
+      pTask->id.taskId = pTask->streamTaskId.taskId;
+    }
 
     pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false, -1, -1);
     if (pTask->pState == NULL) {
@@ -794,6 +807,11 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t nextProcessVer) {
       return -1;
     } else {
       tqDebug("s-task:%s state:%p", pTask->id.idStr, pTask->pState);
+    }
+
+    if (pTask->info.fillHistory) {
+      pTask->id.streamId = taskId.streamId;
+      pTask->id.taskId = taskId.taskId;
     }
 
     int32_t     numOfVgroups = (int32_t)taosArrayGetSize(pTask->upstreamInfo.pList);
