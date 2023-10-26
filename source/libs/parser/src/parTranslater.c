@@ -5059,10 +5059,21 @@ static int32_t checkTableSmaOption(STranslateContext* pCxt, SCreateTableStmt* pS
 }
 
 static bool validRollupFunc(const char* pFunc) {
-  static const char*   rollupFuncs[] = {"avg", "sum", "min", "max", "last", "first"};
+  static const char* rollupFuncs[] = {"avg", "sum", "min", "max", "last", "first"};
   static const int32_t numOfRollupFuncs = (sizeof(rollupFuncs) / sizeof(char*));
   for (int i = 0; i < numOfRollupFuncs; ++i) {
     if (0 == strcmp(rollupFuncs[i], pFunc)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool caclRollupFunc(const char* pFunc) {
+  static const char* calcRollupFuncs[] = {"avg", "sum"};
+  static const int32_t numOfCalcRollupFuncs = (sizeof(calcRollupFuncs) / sizeof(char*));
+  for (int i = 0; i < numOfCalcRollupFuncs; ++i) {
+    if (0 == strcmp(calcRollupFuncs[i], pFunc)) {
       return true;
     }
   }
@@ -5142,7 +5153,7 @@ static int32_t checkTableTagsSchema(STranslateContext* pCxt, SHashObj* pHash, SN
   return code;
 }
 
-static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, int32_t ntags, SNodeList* pCols) {
+static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, int32_t ntags, SNodeList* pCols, SNodeList* pRollupFuncs) {
   int32_t ncols = LIST_LENGTH(pCols);
   if (ncols < TSDB_MIN_COLUMNS) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM);
@@ -5153,8 +5164,16 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
   int32_t code = TSDB_CODE_SUCCESS;
 
   bool    first = true;
+  bool    isCalcRollup = false;
   int32_t rowSize = 0;
   SNode*  pNode = NULL;
+  char*   pFunc = NULL;
+
+  // if (pRollupFuncs) {
+  //   pFunc = ((SFunctionNode*)nodesListGetNode(pRollupFuncs, 0))->functionName;
+  //   isCalcRollup = caclRollupFunc(pFunc);
+  // }
+
   FOREACH(pNode, pCols) {
     SColumnDefNode* pCol = (SColumnDefNode*)pNode;
     if (first) {
@@ -5178,6 +5197,15 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
       }
     }
+
+    // if (TSDB_CODE_SUCCESS == code && isCalcRollup) {
+    //   if (pCol->dataType.type != TSDB_DATA_TYPE_FLOAT && pCol->dataType.type != TSDB_DATA_TYPE_DOUBLE) {
+    //     code =
+    //         generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+    //                                 "Invalid column type: %s, only float/double allowed for %s", pCol->colName, pFunc);
+    //   }
+    // }
+
     if (TSDB_CODE_SUCCESS == code) {
       code = taosHashPut(pHash, pCol->colName, len, &pCol, POINTER_BYTES);
     }
@@ -5204,7 +5232,7 @@ static int32_t checkTableSchema(STranslateContext* pCxt, SCreateTableStmt* pStmt
 
   int32_t code = checkTableTagsSchema(pCxt, pHash, pStmt->pTags);
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkTableColsSchema(pCxt, pHash, LIST_LENGTH(pStmt->pTags), pStmt->pCols);
+    code = checkTableColsSchema(pCxt, pHash, LIST_LENGTH(pStmt->pTags), pStmt->pCols, pStmt->pOptions->pRollupFuncs);
   }
 
   taosHashCleanup(pHash);
