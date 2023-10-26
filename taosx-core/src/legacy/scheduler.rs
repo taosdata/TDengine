@@ -405,7 +405,7 @@ async fn worker(
                                                 format!("{err:?}").replace("\n", " ")
                                             );
 
-                                            chunk_err = Some(err_string);
+                                            chunk_err = Some(format!("{err:?}").to_string());
                                         }
 
                                         break 'chunks;
@@ -415,10 +415,9 @@ async fn worker(
                         }
 
                         if let Some(sender) = sender {
-                            if let Some(_) = chunk_err {
-                                let _ = sender.send(Err(anyhow::format_err!(
-                                    "Syncing table failed: scheduler worker error"
-                                )));
+                            if let Some(err) = chunk_err {
+                                let _ = sender
+                                    .send(Err(anyhow::format_err!("Syncing table failed: {err}",)));
                             } else {
                                 let _ = sender.send(Ok(()));
                             }
