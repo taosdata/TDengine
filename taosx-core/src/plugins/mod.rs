@@ -25,8 +25,8 @@ pub use runners::opentsdb::opentsdb_to_taos;
 use runners::pi::pi_datasets;
 pub use runners::pi::pi_to_taos;
 pub use runners::{
-    get_data_dir, get_log_dir, get_file_upload_home_dir, get_log_keep_days, get_plugins_info, valid_env_log_keep_days,
-    ENV_PLUGINS_HOME, ENV_TAOSX_DATA_DIR, ENV_TAOSX_LOGS_HOME, ENV_TAOSX_LOGS_KEEP_DAYS,
+    get_data_dir, get_file_upload_home_dir, get_log_dir, get_log_keep_days, get_plugins_info,
+    set_env_plugins_home_dir, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days
 };
 pub use sink::IpcStreamWorker;
 pub use taosx_ipc::types::*;

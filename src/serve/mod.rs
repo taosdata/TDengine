@@ -432,6 +432,8 @@ impl Cli {
             path.to_string()
         } else if let Ok(url) = std::env::var("DATABASE_URL") {
             url
+        } else if let Ok(root) = std::env::var("TAOSX_DATA_DIR") {
+            format!("sqlite:{}/taosx.db", root)
         } else {
             "sqlite:taosx.db".to_string()
         };

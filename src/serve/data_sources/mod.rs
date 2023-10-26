@@ -12,7 +12,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use taos::Code;
-use taosx_core::{list_datasets_from, validate_dsn, DataSetsReq, get_data_dir};
+use taosx_core::{list_datasets_from, validate_dsn, DataSetsReq};
 use utoipa::*;
 
 mod definition;
@@ -203,8 +203,6 @@ pub(super) async fn data_source_collection(
     controller: Data<TaskControllerRef>,
     data: Json<DataSetsReq>,
 ) -> impl Responder {
-    let root = get_data_dir();
-    let _ = std::env::set_current_dir(&root);
     let data = data.into_inner();
     match if let Some(agent) = data.via {
         controller.list_datasets_via_agent(agent, data).await

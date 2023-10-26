@@ -28,8 +28,8 @@ use twelf::{config, Layer};
 
 use taosx_core::utils::trace::TaosXLayer;
 use taosx_core::{
-    get_log_dir, get_log_keep_days, valid_env_log_keep_days, ENV_PLUGINS_HOME, ENV_TAOSX_DATA_DIR,
-    ENV_TAOSX_LOGS_HOME, ENV_TAOSX_LOGS_KEEP_DAYS,
+    get_log_dir, get_log_keep_days,
+    set_env_plugins_home_dir, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days
 };
 #[cfg(feature = "tikv_jemallocator")]
 #[cfg(not(target_env = "msvc"))]
@@ -129,11 +129,8 @@ struct ConfigArgs {
     #[clap(long, env = "TAOSX_DATA_DIR")]
     data_dir: Option<String>,
 
-    #[clap(long, env = "TAOSX_LOGS_HOME")]
+    #[clap(long, env = "LOGS_HOME")]
     logs_home: Option<String>,
-
-    #[clap(long, env = "UPLOAD_FILE_HOME")]
-    upload_file_home: Option<String>,
 
     /// For environment variable wised log level.
     #[clap(hide = true, env = "LOG_LEVEL")]
@@ -210,9 +207,8 @@ impl Args {
         .unwrap_or_else(|| {
             if cfg!(windows) {
                 std::path::Path::new("C:\\")
-                    .join("Program Files")
-                    .join("taos")
-                    .join("config")
+                    .join("TDengine")
+                    .join("cfg")
                     .join("taosx.toml")
             } else {
                 std::path::Path::new("/etc")
@@ -234,7 +230,6 @@ impl Args {
             plugins_home,
             data_dir,
             logs_home,
-            upload_file_home,
             log_level,
             debug,
             log_keep_days,
@@ -254,7 +249,6 @@ impl Args {
                 plugins_home,
                 data_dir,
                 logs_home,
-                upload_file_home,
                 log_level,
                 debug,
                 log_keep_days,
@@ -275,32 +269,6 @@ pub fn executor_worker_threads(jobs: usize) -> usize {
         jobs + 2
     } else {
         min
-    }
-}
-
-fn set_env_plugins_home_dir(config: Option<String>) {
-    if let Some(plugins_home_dir) = config {
-        std::env::set_var(ENV_PLUGINS_HOME, plugins_home_dir);
-    }
-}
-
-fn set_env_data_dir(config: Option<String>) {
-    if let Some(data_dir) = config {
-        std::env::set_var(ENV_TAOSX_DATA_DIR, data_dir);
-    }
-}
-
-fn set_env_log_home_dir(config: Option<String>) {
-    if let Some(log_home_dir) = config {
-        std::env::set_var(ENV_TAOSX_LOGS_HOME, log_home_dir);
-    }
-}
-
-fn set_env_log_keep_days(config: Option<i64>) {
-    if let Some(log_keep_days) = config {
-        if log_keep_days > 0 && valid_env_log_keep_days().is_none() {
-            std::env::set_var(ENV_TAOSX_LOGS_KEEP_DAYS, log_keep_days.to_string());
-        }
     }
 }
 
@@ -467,9 +435,9 @@ fn main() -> Result<()> {
     let version = build::PKG_VERSION;
     let commit_id = build::COMMIT_HASH;
     let build_time = build::BUILD_TIME;
-    println!("taosx version: {version}");
-    println!("commit id: {commit_id}");
-    println!("build time: {build_time}");
+    tracing::info!("taosx version: {version}");
+    tracing::info!("commit id: {commit_id}");
+    tracing::info!("build time: {build_time}");
     let args = Args::init()?;
     set_env_plugins_home_dir(args.config_args.plugins_home.clone());
     set_env_data_dir(args.config_args.data_dir.clone());
@@ -545,9 +513,6 @@ fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use std::env;
-
-    use clap::Parser;
-
     use super::*;
 
     /// set plugins_home、data_dir、logs_home in server.toml
@@ -558,7 +523,7 @@ mod tests {
         env::set_var("TAOSX_DATA_DIR", "from-env");
         env::set_var("TAOSX_LOGS_HOME", "from-env");
 
-        let args = tests::parse()?;
+        let args = Args::parse()?;
         println!("configs: {:?}", args);
 
         assert_eq!(

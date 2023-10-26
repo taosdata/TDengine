@@ -35,7 +35,7 @@ use utoipa::*;
 
 use taosx_core::utils::breakpoints::breakpoints_get_all;
 use taosx_core::utils::port_pool::PortPool;
-use taosx_core::{get_data_dir, ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
+use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
 
 use super::data_sources::DataSourceDefinition;
 use crate::serve::controller::agent::Activity;
@@ -663,9 +663,6 @@ impl TaskController {
         let task_handler = async move {
             // let _ = span.clone().entered();
             tracing::info!(task.id = id, "start worker");
-            // set current dir for upload files
-            let root = get_data_dir();
-            let _ = env::set_current_dir(&root);
             let now = Utc::now();
             let _ = sqlx::query!(
                 "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
