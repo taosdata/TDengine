@@ -260,7 +260,7 @@ void shellRunSingleCommandWebsocketImp(char *command) {
   WS_RES* res;
 
   for (int reconnectNum = 0; reconnectNum < 2; reconnectNum++) {
-    if (!shell.ws_conn && shell_conn_ws_server(0)) {
+    if (!shell.ws_conn && shell_conn_ws_server(0) || shell.stop_query) {
       return;
     }
     st = taosGetTimestampUs();

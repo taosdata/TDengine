@@ -15,7 +15,7 @@
 
 #include "meta.h"
 
-extern tsem_t dmNotifySem;
+extern SDmNotifyHandle dmNotifyHdl;
 
 static int  metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 static int  metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
@@ -28,7 +28,7 @@ static int  metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME);
 static int  metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int  metaUpdateSuidIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int  metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry);
-static int  metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid);
+static int  metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid, int8_t *pSysTbl);
 static void metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey);
 // opt ins_tables query
 static int metaUpdateBtimeIdx(SMeta *pMeta, const SMetaEntry *pME);
@@ -195,10 +195,14 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
 }
 
 static inline void metaTimeSeriesNotifyCheck(SMeta *pMeta) {
-#if defined(TD_ENTERPRISE) && !defined(_TD_DARWIN_64)
+#if defined(TD_ENTERPRISE)
   int64_t nTimeSeries = metaGetTimeSeriesNum(pMeta, 0);
   int64_t deltaTS = nTimeSeries - pMeta->pVnode->config.vndStats.numOfReportedTimeSeries;
-  if (deltaTS > tsTimeSeriesThreshold) tsem_post(&dmNotifySem);
+  if (deltaTS > tsTimeSeriesThreshold) {
+    if (0 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 2)) {
+      tsem_post(&dmNotifyHdl.sem);
+    }
+  }
 #endif
 }
 
@@ -303,7 +307,7 @@ int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq, SArray *tb
 
   for (int32_t iChild = 0; iChild < taosArrayGetSize(tbUidList); iChild++) {
     tb_uid_t uid = *(tb_uid_t *)taosArrayGet(tbUidList, iChild);
-    metaDropTableByUid(pMeta, uid, NULL, NULL);
+    metaDropTableByUid(pMeta, uid, NULL, NULL, NULL);
   }
 
   // drop super table
@@ -392,6 +396,7 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   nStbEntry.stbEntry.schemaTag = pReq->schemaTag;
 
   int32_t deltaCol = pReq->schemaRow.nCols - oStbEntry.stbEntry.schemaRow.nCols;
+  bool    updStat = deltaCol != 0 && !metaTbInFilterCache(pMeta, pReq->name, 1);
 
   metaWLock(pMeta);
   // compare two entry
@@ -407,15 +412,16 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
 
   // metaStatsCacheDrop(pMeta, nStbEntry.uid);
 
-  if (deltaCol != 0) {
+  if (updStat) {
     metaUpdateStbStats(pMeta, pReq->suid, 0, deltaCol);
   }
   metaULock(pMeta);
 
-  if (deltaCol != 0) {
+  if (updStat) {
     int64_t ctbNum;
     metaGetStbStats(pMeta->pVnode, pReq->suid, &ctbNum, NULL);
     pMeta->pVnode->config.vndStats.numOfTimeSeries += (ctbNum * deltaCol);
+    metaTimeSeriesNotifyCheck(pMeta);
   }
 
 _exit:
@@ -760,6 +766,8 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
   }
   metaReaderClear(&mr);
 
+  bool sysTbl = (pReq->type == TSDB_CHILD_TABLE) && metaTbInFilterCache(pMeta, pReq->ctb.stbName, 1);
+
   // build SMetaEntry
   SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
   me.version = ver;
@@ -796,9 +804,12 @@ int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STableMetaRs
 #endif
 
     ++pStats->numOfCTables;
-    int32_t nCols = 0;
-    metaGetStbStats(pMeta->pVnode, me.ctbEntry.suid, 0, &nCols);
-    pStats->numOfTimeSeries += nCols - 1;
+
+    if (!sysTbl) {
+      int32_t nCols = 0;
+      metaGetStbStats(pMeta->pVnode, me.ctbEntry.suid, 0, &nCols);
+      pStats->numOfTimeSeries += nCols - 1;
+    }
 
     metaWLock(pMeta);
     metaUpdateStbStats(pMeta, me.ctbEntry.suid, 1, 0);
@@ -852,6 +863,7 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUi
   int      rc = 0;
   tb_uid_t uid = 0;
   tb_uid_t suid = 0;
+  int8_t   sysTbl = 0;
   int      type;
 
   rc = tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &pData, &nData);
@@ -862,12 +874,12 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUi
   uid = *(tb_uid_t *)pData;
 
   metaWLock(pMeta);
-  rc = metaDropTableByUid(pMeta, uid, &type, &suid);
+  rc = metaDropTableByUid(pMeta, uid, &type, &suid, &sysTbl);
   metaULock(pMeta);
 
   if (rc < 0) goto _exit;
 
-  if (type == TSDB_CHILD_TABLE) {
+  if (!sysTbl && type == TSDB_CHILD_TABLE) {
     int32_t      nCols = 0;
     SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
     if (metaGetStbStats(pMeta->pVnode, suid, NULL, &nCols) == 0) {
@@ -898,9 +910,10 @@ void metaDropTables(SMeta *pMeta, SArray *tbUids) {
   for (int i = 0; i < taosArrayGetSize(tbUids); ++i) {
     tb_uid_t uid = *(tb_uid_t *)taosArrayGet(tbUids, i);
     tb_uid_t suid = 0;
+    int8_t   sysTbl = 0;
     int      type;
-    metaDropTableByUid(pMeta, uid, &type, &suid);
-    if (type == TSDB_CHILD_TABLE && suid != 0 && suidHash) {
+    metaDropTableByUid(pMeta, uid, &type, &suid, &sysTbl);
+    if (!sysTbl && type == TSDB_CHILD_TABLE && suid != 0 && suidHash) {
       int64_t *pVal = tSimpleHashGet(suidHash, &suid, sizeof(tb_uid_t));
       if (pVal) {
         nCtbDropped = *pVal + 1;
@@ -1003,21 +1016,16 @@ end:
 }
 
 int metaTtlFindExpired(SMeta *pMeta, int64_t timePointMs, SArray *tbUids, int32_t ttlDropMaxCount) {
-  metaWLock(pMeta);
-  int ret = ttlMgrFlush(pMeta->pTtlMgr, pMeta->txn);
-  if (ret != 0) {
-    metaError("ttl failed to flush, ret:%d", ret);
-    goto _err;
-  }
+  metaRLock(pMeta);
 
-  ret = ttlMgrFindExpired(pMeta->pTtlMgr, timePointMs, tbUids, ttlDropMaxCount);
+  int ret = ttlMgrFindExpired(pMeta->pTtlMgr, timePointMs, tbUids, ttlDropMaxCount);
+
+  metaULock(pMeta);
+
   if (ret != 0) {
     metaError("ttl failed to find expired table, ret:%d", ret);
-    goto _err;
   }
 
-_err:
-  metaULock(pMeta);
   return ret;
 }
 
@@ -1059,7 +1067,7 @@ static int metaDeleteTtl(SMeta *pMeta, const SMetaEntry *pME) {
   return ttlMgrDeleteTtl(pMeta->pTtlMgr, &ctx);
 }
 
-static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid) {
+static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid, int8_t* pSysTbl) {
   void      *pData = NULL;
   int        nData = 0;
   int        rc = 0;
@@ -1088,7 +1096,6 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
     void *tData = NULL;
     int   tLen = 0;
 
-
     if (tdbTbGet(pMeta->pUidIdx, &e.ctbEntry.suid, sizeof(tb_uid_t), &tData, &tLen) == 0) {
       STbDbKey tbDbKey = {.uid = e.ctbEntry.suid, .version = ((SUidIdxVal *)tData)[0].version};
       if (tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &tData, &tLen) == 0) {
@@ -1097,6 +1104,8 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
 
         tDecoderInit(&tdc, tData, tLen);
         metaDecodeEntry(&tdc, &stbEntry);
+
+        if (pSysTbl) *pSysTbl = metaTbInFilterCache(pMeta, stbEntry.name, 1) ? 1 : 0;
 
         SSchema        *pTagColumn = NULL;
         SSchemaWrapper *pTagSchema = &stbEntry.stbEntry.schemaTag;

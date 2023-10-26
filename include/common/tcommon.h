@@ -55,8 +55,8 @@ typedef struct SSessionKey {
 } SSessionKey;
 
 typedef struct SVersionRange {
-  uint64_t minVer;
-  uint64_t maxVer;
+  int64_t minVer;
+  int64_t maxVer;
 } SVersionRange;
 
 static inline int winKeyCmprImpl(const void* pKey1, const void* pKey2) {

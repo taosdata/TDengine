@@ -151,6 +151,8 @@ static int32_t tsdbDoMigrateFileObj(SRTNer *rtner, const STFileObj *fobj, const 
               .type = fobj->f->type,
               .did = did[0],
               .fid = fobj->f->fid,
+              .minVer = fobj->f->minVer,
+              .maxVer = fobj->f->maxVer,
               .cid = fobj->f->cid,
               .size = fobj->f->size,
               .stt[0] =
@@ -198,6 +200,8 @@ static int32_t tsdbMigrateDataFileS3(SRTNer *rtner, const STFileObj *fobj, const
               .type = fobj->f->type,
               .did = did[0],
               .fid = fobj->f->fid,
+              .minVer = fobj->f->minVer,
+              .maxVer = fobj->f->maxVer,
               .cid = fobj->f->cid,
               .size = fobj->f->size,
               .stt[0] =
@@ -372,6 +376,14 @@ static int32_t tsdbDoRetention2(void *arg) {
 
 _exit:
   if (code) {
+    if (TARRAY2_DATA(rtner->fopArr)) {
+      TARRAY2_DESTROY(rtner->fopArr, NULL);
+    }
+    TFileSetArray **fsetArr = &rtner->fsetArr;
+    if (fsetArr[0]) {
+      tsdbFSDestroyCopySnapshot(&rtner->fsetArr);
+    }
+
     TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
   }
   return code;

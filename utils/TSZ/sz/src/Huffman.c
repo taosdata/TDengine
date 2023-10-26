@@ -125,7 +125,10 @@ void build_code(HuffmanTree *huffmanTree, node n, int len, unsigned long out1, u
 		huffmanTree->code[n->c] = (unsigned long*)malloc(2*sizeof(unsigned long));
 		if(len<=64)
 		{
-			(huffmanTree->code[n->c])[0] = out1 << (64 - len);
+			if(len == 0)
+			  (huffmanTree->code[n->c])[0] = 0;
+			else 
+			  (huffmanTree->code[n->c])[0] = out1 << (64 - len);
 			(huffmanTree->code[n->c])[1] = out2;
 		}
 		else

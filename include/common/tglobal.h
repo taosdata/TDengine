@@ -107,6 +107,7 @@ extern bool     tsMonitorComp;
 extern bool     tsEnableAudit;
 extern char     tsAuditFqdn[];
 extern uint16_t tsAuditPort;
+extern bool     tsEnableAuditCreateTable;
 
 // telem
 extern bool     tsEnableTelem;
@@ -179,6 +180,7 @@ extern char tsUdfdLdLibPath[];
 
 // schemaless
 extern char tsSmlChildTableName[];
+extern char tsSmlAutoChildTableNameDelimiter[];
 extern char tsSmlTagName[];
 extern bool tsSmlDot2Underline;
 extern char tsSmlTsDefaultName[];

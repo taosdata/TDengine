@@ -249,7 +249,7 @@ typedef enum ELogicConditionType {
 #define TSDB_PASSWORD_LEN      32
 #define TSDB_USET_PASSWORD_LEN 129
 #define TSDB_VERSION_LEN       32
-#define TSDB_LABEL_LEN         8
+#define TSDB_LABEL_LEN         12 
 #define TSDB_JOB_STATUS_LEN    32
 
 #define TSDB_CLUSTER_ID_LEN       40
@@ -382,6 +382,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_STT_TRIGGER     1
 #define TSDB_DEFAULT_SST_TRIGGER 1
 #endif
+#define TSDB_STT_TRIGGER_ARRAY_SIZE     16 // maximum of TSDB_MAX_STT_TRIGGER of TD_ENTERPRISE and TD_COMMUNITY
 #define TSDB_MIN_HASH_PREFIX     (2 - TSDB_TABLE_NAME_LEN)
 #define TSDB_MAX_HASH_PREFIX     (TSDB_TABLE_NAME_LEN - 2)
 #define TSDB_DEFAULT_HASH_PREFIX 0

@@ -23,9 +23,6 @@ def taos_get_assignment_and_seek_demo():
     consumer = Consumer(
         {
             "group.id": "0",
-            # should disable snapshot,
-            # otherwise it will cause invalid params error
-            "experimental.snapshot.enable": "false",
         }
     )
     consumer.subscribe(["tmq_assignment_demo_topic"])

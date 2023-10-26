@@ -73,10 +73,10 @@ Shows the SQL statement used to create the specified table. This statement can b
 ## SHOW DATABASES
 
 ```sql
-SHOW DATABASES;
+SHOW [USER | SYSTEM] DATABASES;
 ```
 
-Shows all user-created databases.
+Shows all databases. The `USER` qualifier specifies only user-created databases. The `SYSTEM` qualifier specifies only system databases.
 
 ## SHOW DNODES
 
@@ -183,10 +183,10 @@ Shows all subscriptions in the system.
 ## SHOW TABLES
 
 ```sql
-SHOW [db_name.]TABLES [LIKE 'pattern'];
+SHOW [NORMAL | CHILD] [db_name.]TABLES [LIKE 'pattern'];
 ```
 
-Shows all standard tables and subtables in the current database. You can use LIKE for fuzzy matching.
+Shows all standard tables and subtables in the current database. You can use LIKE for fuzzy matching. The `Normal` qualifier specifies standard tables. The `CHILD` qualifier specifies subtables.
 
 ## SHOW TABLE DISTRIBUTED
 

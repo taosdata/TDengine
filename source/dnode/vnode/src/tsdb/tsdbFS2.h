@@ -52,7 +52,15 @@ int32_t tsdbCloseFS(STFileSystem **fs);
 int32_t tsdbFSCreateCopySnapshot(STFileSystem *fs, TFileSetArray **fsetArr);
 int32_t tsdbFSDestroyCopySnapshot(TFileSetArray **fsetArr);
 int32_t tsdbFSCreateRefSnapshot(STFileSystem *fs, TFileSetArray **fsetArr);
+int32_t tsdbFSCreateRefSnapshotWithoutLock(STFileSystem *fs, TFileSetArray **fsetArr);
 int32_t tsdbFSDestroyRefSnapshot(TFileSetArray **fsetArr);
+
+int32_t tsdbFSCreateCopyRangedSnapshot(STFileSystem *fs, TSnapRangeArray *pExclude, TFileSetArray **fsetArr,
+                                       TFileOpArray *fopArr);
+int32_t tsdbFSDestroyCopyRangedSnapshot(TFileSetArray **fsetArr, TFileOpArray *fopArr);
+int32_t tsdbFSCreateRefRangedSnapshot(STFileSystem *fs, int64_t sver, int64_t ever, TSnapRangeArray *pRanges,
+                                      TSnapRangeArray **fsrArr);
+int32_t tsdbFSDestroyRefRangedSnapshot(TSnapRangeArray **fsrArr);
 // txn
 int64_t tsdbFSAllocEid(STFileSystem *fs);
 int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype);
@@ -67,6 +75,10 @@ int32_t tsdbFSDisableBgTask(STFileSystem *fs);
 int32_t tsdbFSEnableBgTask(STFileSystem *fs);
 // other
 int32_t tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset);
+int32_t tsdbFSCheckCommit(STFileSystem *fs);
+// utils
+int32_t save_fs(const TFileSetArray *arr, const char *fname);
+int32_t current_fname(STsdb *pTsdb, char *fname, EFCurrentT ftype);
 
 struct STFSBgTask {
   EFSBgTaskT type;
@@ -90,7 +102,7 @@ struct STFSBgTask {
 struct STFileSystem {
   STsdb        *tsdb;
   tsem_t        canEdit;
-  int32_t       state;
+  int32_t       fsstate;
   int64_t       neid;
   EFEditT       etype;
   TFileSetArray fSetArr[1];
@@ -103,6 +115,11 @@ struct STFileSystem {
   int32_t       bgTaskNum;
   STFSBgTask    bgTaskQueue[1];
   STFSBgTask   *bgTaskRunning;
+
+  // block commit variables
+  TdThreadMutex commitMutex;
+  TdThreadCond  canCommit;
+  bool          blockCommit;
 };
 
 #ifdef __cplusplus
