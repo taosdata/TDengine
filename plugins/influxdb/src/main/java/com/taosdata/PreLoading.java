@@ -227,7 +227,7 @@ public class PreLoading implements CommandLineRunner {
             this.influxdbConfig.setPassword(tomlParseResult.getString("influx.password", String::new));
             this.influxdbConfig.setToken(tomlParseResult.getString("influx.token", String::new));
             this.influxdbConfig.setOrgId(tomlParseResult.getString("influx.orgId", String::new));
-            this.influxdbConfig.setAddDbrp(tomlParseResult.getBoolean("influx.addDbrp"));
+            this.influxdbConfig.setAddDbrp(tomlParseResult.getBoolean("influx.addDbrp", () -> false));
             this.nettyClientConfig.setHost(tomlParseResult.getString("taosx.host", String::new));
             this.nettyClientConfig.setPort((int) tomlParseResult.getLong("taosx.port", () -> 0L));
             this.taskConfig.setMode(tomlParseResult.getString("task.mode", String::new));
