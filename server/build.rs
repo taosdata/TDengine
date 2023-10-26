@@ -1,5 +1,6 @@
 use std::path::Path;
 use std::fs::File;
+use std::io::Write;
 use shadow_rs::SdResult;
 
 const DEFAULT_CUS_NAME: &str = "TDengine";
@@ -69,5 +70,5 @@ fn main() -> shadow_rs::SdResult<()> {
     println!("cargo:rerun-if-changed=../dist/");
     println!("cargo:rerun-if-changed=examples/explorer.service");
     println!("cargo:rerun-if-changed={}", service_path.display());
-    shadow_rs::new()
+    shadow_rs::new_hook(labeling)
 }
