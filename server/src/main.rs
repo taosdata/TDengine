@@ -60,7 +60,7 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     let mut args = if let Ok(mut file) = File::open(&file_path) {
-        println!("Use configuration file path: {}", file_path.display());
+        info!("Use configuration file path: {}", file_path.display());
         let mut content = String::new();
         file.read_to_string(&mut content)?;
         let mut args: Args = toml::from_str(&content).unwrap();
