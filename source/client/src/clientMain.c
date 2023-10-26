@@ -140,6 +140,13 @@ int taos_set_notify_cb(TAOS *taos, __taos_notify_fn_t fp, void *param, int type)
       taosThreadMutexUnlock(&pObj->mutex);
       break;
     }
+    case TAOS_NOTIFY_WHITELIST_VER: {
+      taosThreadMutexLock(&pObj->mutex);
+      pObj->whiteListInfo.fp = fp;
+      pObj->whiteListInfo.param = param;
+      taosThreadMutexUnlock(&pObj->mutex);
+      break;
+    }    
     case TAOS_NOTIFY_USER_DROPPED: {
       taosThreadMutexLock(&pObj->mutex);
       pObj->userDroppedInfo.fp = fp;
