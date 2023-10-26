@@ -122,7 +122,8 @@ int taos_collector_registry_register_metric(taos_metric_t *metric) {
 taos_metric_t *taos_collector_registry_must_register_metric(taos_metric_t *metric) {
   int err = taos_collector_registry_register_metric(metric);
   if (err != 0) {
-    exit(err);
+    //exit(err);
+    return NULL;
   }
   return metric;
 }
