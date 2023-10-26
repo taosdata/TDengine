@@ -244,6 +244,7 @@ pub(super) async fn data_source_is_valid(query: Query<DsnQuery>) -> impl Respond
 
 #[derive(Deserialize, Debug, ToSchema, IntoParams)]
 pub struct DsnQuery {
+    #[param(allow_reserved)]
     dsn: String,
 }
 

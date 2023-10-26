@@ -13,8 +13,8 @@ options:
     display: Topic DSN
     required: true
     description: |
-      请登录 TDengine 云服务或打开企业版的 Explorer, 点击 Topics，你将看到 Topics 列表，复制 Topic 对应的 DSN 到这里即可。
-    placeholder: "Topic 示例: ws://root:taosdata@127.0.0.1:6041/topic1"
+      请登录 TDengine 云服务或打开企业版的 Explorer, 点击`数据订阅`，你将看到主题列表，复制主题对应的 DSN 到这里即可。
+    placeholder: "Topic 示例: tmq+ws://root:taosdata@localhost:6041/topic"
 
 strict: false
 groups:
@@ -29,7 +29,7 @@ groups:
 
           - *earliest*: 从最早的数据开始订阅。
           - *latest*: 从最新的数据开始订阅。
-        value: latest
+        value: earliest
         hint:
           type: str
           choices:
