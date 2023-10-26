@@ -2070,7 +2070,7 @@ static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModif
 //   2. VALUES ... | FILE ...
 static int32_t parseInsertTableClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   if (pStmt->stbSyntax && TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_STMT_INSERT)) {
-    return buildSyntaxErrMsg(&pCxt->msg, "insert into super table syntax is not supported for stmt", NULL);
+    return buildInvalidOperationMsg(&pCxt->msg, "insert into super table syntax is not supported for stmt");
   }
   if (!pStmt->stbSyntax) {
     STableDataCxt* pTableCxt = NULL;
