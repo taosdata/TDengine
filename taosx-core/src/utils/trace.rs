@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 
 use chrono::prelude::*;
 use rand::random;
-use tracing::Subscriber;
+use tracing::{Span, Subscriber};
 use tracing_core::span::{Attributes, Id, Record};
 use tracing_core::{Event, Level};
 use tracing_subscriber::fmt::format::DefaultFields;
@@ -20,11 +20,13 @@ const WARN_STR: &str = " WARN";
 const ERROR_STR: &str = "ERROR";
 
 /// Hex string representation of Trace ID stored in its [extensions]
+#[derive(Clone)]
 pub struct TraceID {
     pub id: String,
 }
 
 /// Hex string representation of Query ID stored in its [extensions]
+#[derive(Clone)]
 pub struct QueryID {
     pub hex: String,
 }
@@ -151,11 +153,10 @@ where
             }
             // Part 4 and Part 5:  span and TID or QID
             if let Some(scope) = ctx.event_scope(event) {
-                buf.push(' ');
                 Self::fmt_span_and_trace_id(&mut buf, scope);
             }
             // Part 6: write event content
-            buf.push_str(" - ");
+            buf.push_str(" ");
             let mut fake_fields = FormattedFields::<N>::new(String::new());
             self.fmt_fields.format_fields(fake_fields.as_writer(), event).expect("write event content error");
             buf.push_str(fake_fields.fields.as_str());
@@ -225,15 +226,19 @@ where
         span_buf.pop();
         span_buf.pop();
         span_buf.push(']');
-        buf.push_str(span_buf.as_str());
         if !trace_buf.is_empty() {
             trace_buf.pop();
             buf.push(' ');
             buf.push_str(trace_buf.as_str());
         }
+        buf.push(' ');
+        buf.push_str(span_buf.as_str());
     }
 }
 
+///
+/// Explicitly set a trace ID for current span.
+///
 pub fn set_trace_id_for_current_span(tid: &str) {
     tracing::dispatcher::get_default(|dispatch| {
         let registry = dispatch
@@ -245,6 +250,31 @@ pub fn set_trace_id_for_current_span(tid: &str) {
             ext.replace(TraceID {
                 id: String::from(tid),
             });
+        }
+    });
+}
+
+///
+/// Find the first trace ID in current span chain, and set it to provided span.
+///
+pub fn attach_trace_id(target_span: &Span) {
+    tracing::dispatcher::get_default(|dispatch| {
+        let registry = dispatch
+            .downcast_ref::<Registry>()
+            .expect("no global default dispatcher found");
+        if let Some((id, _meta)) = dispatch.current_span().into_inner() {
+            let cur_span = registry.span(&id).unwrap();
+            let scope = cur_span.scope();
+            for sp in scope.from_root() {
+                let ext = sp.extensions();
+                if let Some(tid) = ext.get::<TraceID>() {
+                    let target_span_id = target_span.id().expect("failed to get span id");
+                    let target_span_ref = registry.span(&target_span_id).expect("failed to get span by id");
+                    let mut target_ext = target_span_ref.extensions_mut();
+                    target_ext.insert(tid.clone());
+                    break;
+                }
+            }
         }
     });
 }
