@@ -182,6 +182,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "No valid function in window query";
     case TSDB_CODE_PAR_INVALID_OPTR_USAGE:
       return "Invalid usage of expr: %s";
+    case TSDB_CODE_PAR_INVALID_IP_RANGE:
+      return "invalid ip range";      
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
