@@ -268,6 +268,8 @@ class TDTestCase:
     updatecfgDict["monitorMaxLogs"]        = "10"
     updatecfgDict["monitorComp"]        = "1"
 
+    updatecfgDict["audit"]            = '0'
+
     print ("===================: ", updatecfgDict)
 
     def init(self, conn, logSql, replicaVar=1):
