@@ -98,6 +98,8 @@ export default {
   >span{
     white-space: pre-wrap;
     word-wrap: break-word;
+    display: inline-block;
+    width: 410px;
   }
 }
 .zh-text {
