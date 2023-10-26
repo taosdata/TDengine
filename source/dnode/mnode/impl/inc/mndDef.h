@@ -295,6 +295,7 @@ typedef struct {
   SHashObj* writeTbs;
   SHashObj* useDbs;
   SRWLatch  lock;
+  int64_t   ipWhiteListVer;
 } SUserObj;
 
 typedef struct {
