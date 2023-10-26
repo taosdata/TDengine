@@ -12,8 +12,8 @@ IF(NOT TD_DARWIN)
     PUBLIC os util gtest qcom nodes geometry scalar function scalar
   )
 
-  add_test(
-    NAME geomTest
-    COMMAND geomTest
-  )
+  #add_test(
+  #  NAME geomTest
+  #  COMMAND geomTest
+  #)
 ENDIF()

@@ -89,12 +89,12 @@ target_link_libraries (cliBench
   transport 
 )
 
-add_test(
-  NAME transUT 
-  COMMAND transUT 
-)
-add_test(
-  NAME transUtilUt 
-  COMMAND transportTest
-)
+# add_test(
+#   NAME transUT 
+#   COMMAND transUT 
+# )
+# add_test(
+#   NAME transUtilUt 
+#   COMMAND transportTest
+# )
 

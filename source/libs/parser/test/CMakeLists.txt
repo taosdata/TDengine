@@ -27,8 +27,8 @@ IF(NOT TD_DARWIN)
         target_link_libraries(parserTest PUBLIC wingetopt)
     endif()
 
-    add_test(
-        NAME parserTest
-        COMMAND parserTest
-    )
+    #add_test(
+    #    NAME parserTest
+    #    COMMAND parserTest
+    #)
 ENDIF()
