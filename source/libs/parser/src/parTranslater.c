@@ -4630,6 +4630,12 @@ static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRete
     }
 
     // check relationships
+    if (pFreq->datum.i >= pKeep->datum.i) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option retentions(freq/keep): %s should larger than %s", pKeep->literal,
+                                     pFreq->literal);
+    }
+    
     if (NULL != pPrevFreq && pPrevFreq->datum.i >= pFreq->datum.i) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                      "Invalid option retentions(freq): %s should larger than %s", pFreq->literal,
