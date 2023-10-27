@@ -211,7 +211,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
          stage);
   return pMeta;
 
-_err:
+  _err:
   taosMemoryFree(pMeta->path);
   if (pMeta->pTasksMap) taosHashCleanup(pMeta->pTasksMap);
   if (pMeta->pTaskList) taosArrayDestroy(pMeta->pTaskList);
@@ -228,7 +228,11 @@ _err:
 }
 
 int32_t streamMetaReopen(SStreamMeta* pMeta) {
+  // backup the restart flag
+  int32_t restartFlag = pMeta->startInfo.startedAfterNodeUpdate;
   streamMetaClear(pMeta);
+
+  pMeta->startInfo.startedAfterNodeUpdate = restartFlag;
 
   // NOTE: role should not be changed during reopen meta
   pMeta->streamBackendRid = -1;
@@ -1103,4 +1107,5 @@ void streamMetaInitForSnode(SStreamMeta* pMeta) {
 void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {
   taosHashClear(pStartInfo->pReadyTaskSet);
   pStartInfo->startedAfterNodeUpdate = 0;
+  pStartInfo->readyTs = 0;
 }
