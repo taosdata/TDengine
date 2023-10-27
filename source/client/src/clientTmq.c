@@ -1529,6 +1529,8 @@ static bool doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) 
 
   int32_t topicNumGet = taosArrayGetSize(pRsp->topics);
   if (epoch <= tmq->epoch) {
+    tscInfo("consumer:0x%" PRIx64 " no update ep epoch from %d to epoch %d, incoming topics:%d",
+            tmq->consumerId, tmq->epoch, epoch, topicNumGet);
     return false;
   }
 
