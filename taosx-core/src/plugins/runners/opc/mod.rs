@@ -1501,7 +1501,6 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::runners::get_string_vec_from_param_or_file;
     use std::collections::HashMap;
 
     #[tokio::test]
