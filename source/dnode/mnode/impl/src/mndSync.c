@@ -17,6 +17,7 @@
 #include "mndSync.h"
 #include "mndCluster.h"
 #include "mndTrans.h"
+#include "mndUser.h"
 
 static int32_t mndSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   if (pMsg == NULL || pMsg->pCont == NULL) {
@@ -304,6 +305,7 @@ void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   } else {
     mInfo("vgId:1, sync restore finished");
   }
+  mndRefreshUserIpWhiteList(pMnode);
 
   ASSERT(commitIdx == mndSyncAppliedIndex(pFsm));
 }

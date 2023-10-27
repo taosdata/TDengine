@@ -60,6 +60,8 @@ typedef struct SRpcHandleInfo {
   STraceId traceId;
 
   SRpcConnInfo conn;
+
+  int8_t       forbiddenIp;
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {
@@ -163,6 +165,11 @@ int   rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
 int   rpcSendRecvWithTimeout(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp, int32_t timeoutMs);
 int   rpcSetDefaultAddr(void *thandle, const char *ip, const char *fqdn);
 void *rpcAllocHandle();
+void  rpcSetIpWhite(void *thandl, void *arg);
+
+int32_t rpcUtilSIpRangeToStr(SIpV4Range *pRange, char *buf);
+
+int32_t rpcUtilSWhiteListToStr(SIpWhiteList *pWhiteList, char **ppBuf);
 
 #ifdef __cplusplus
 }

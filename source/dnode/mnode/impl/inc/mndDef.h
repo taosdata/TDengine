@@ -136,6 +136,7 @@ typedef enum {
   DND_REASON_LOCALE_NOT_MATCH,
   DND_REASON_CHARSET_NOT_MATCH,
   DND_REASON_TTL_CHANGE_ON_WRITE_NOT_MATCH,
+  DND_REASON_ENABLE_WHITELIST_NOT_MATCH,
   DND_REASON_OTHERS
 } EDndReason;
 
@@ -296,6 +297,7 @@ typedef struct {
   SHashObj* useDbs;
   SRWLatch  lock;
   int64_t   ipWhiteListVer;
+  SIpWhiteList* pIpWhiteList;
 } SUserObj;
 
 typedef struct {
