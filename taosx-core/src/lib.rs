@@ -19,7 +19,7 @@ pub use local_to_taos::local_to_taos;
 pub use parquets::*;
 pub use plugins::*;
 pub use tmq_to_local::tmq_to_local;
-pub use tmq_to_td::tmq_to_td;
+pub use tmq_to_td::{tmq_to_td, tmq_offsets};
 pub use transform::Action;
 use utils::port_pool::PortPool;
 
