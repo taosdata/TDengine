@@ -472,7 +472,10 @@ fn extend_data_set(
 pub async fn is_pi_valid(dsn: &Dsn) -> DataSourceValidation {
     #[cfg(not(target_os = "windows"))]
     {
-        anyhow::bail!("PI connector support only windows platform");
+        return DataSourceValidation::invalid(
+            "pi".to_string(),
+            "PI connector support only windows platform".to_string(),
+        );
     }
     let config = PiConfig::parse_connection(dsn, String::new(), 0, 0);
     match config {
@@ -547,7 +550,10 @@ async fn validate_pi(config: PiConfig) -> anyhow::Result<DataSourceValidation> {
 pub async fn is_pi_backfill_valid(dsn: &Dsn) -> DataSourceValidation {
     #[cfg(not(target_os = "windows"))]
     {
-        anyhow::bail!("PI connector support only windows platform");
+        return DataSourceValidation::invalid(
+            "pibackfill".to_string(),
+            "PI Backfill connector support only windows platform".to_string(),
+        );
     }
     let config = PiConfig::parse_connection(dsn, String::new(), 0, 0);
     match config {
