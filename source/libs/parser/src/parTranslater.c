@@ -5069,11 +5069,11 @@ static bool validRollupFunc(const char* pFunc) {
   return false;
 }
 
-static bool caclRollupFunc(const char* pFunc) {
-  static const char* calcRollupFuncs[] = {"avg", "sum"};
-  static const int32_t numOfCalcRollupFuncs = (sizeof(calcRollupFuncs) / sizeof(char*));
-  for (int i = 0; i < numOfCalcRollupFuncs; ++i) {
-    if (0 == strcmp(calcRollupFuncs[i], pFunc)) {
+static bool aggrRollupFunc(const char* pFunc) {
+  static const char*   aggrRollupFuncs[] = {"avg", "sum"};
+  static const int32_t numOfAggrRollupFuncs = (sizeof(aggrRollupFuncs) / sizeof(char*));
+  for (int i = 0; i < numOfAggrRollupFuncs; ++i) {
+    if (0 == strcmp(aggrRollupFuncs[i], pFunc)) {
       return true;
     }
   }
@@ -5153,7 +5153,8 @@ static int32_t checkTableTagsSchema(STranslateContext* pCxt, SHashObj* pHash, SN
   return code;
 }
 
-static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, int32_t ntags, SNodeList* pCols, SNodeList* pRollupFuncs) {
+static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, int32_t ntags, SNodeList* pCols,
+                                    SNodeList* pRollupFuncs) {
   int32_t ncols = LIST_LENGTH(pCols);
   if (ncols < TSDB_MIN_COLUMNS) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM);
@@ -5167,11 +5168,11 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
   int32_t rowSize = 0;
   SNode*  pNode = NULL;
   char*   pFunc = NULL;
-  bool    isCalcRollup = false;
+  bool    isAggrRollup = false;
 
   if (pRollupFuncs) {
     pFunc = ((SFunctionNode*)nodesListGetNode(pRollupFuncs, 0))->functionName;
-    isCalcRollup = caclRollupFunc(pFunc);
+    isAggrRollup = aggrRollupFunc(pFunc);
   }
   FOREACH(pNode, pCols) {
     SColumnDefNode* pCol = (SColumnDefNode*)pNode;
@@ -5196,7 +5197,7 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
       }
     }
 
-    if (TSDB_CODE_SUCCESS == code && isCalcRollup && 0 != colIndex) {
+    if (TSDB_CODE_SUCCESS == code && isAggrRollup && 0 != colIndex) {
       if (pCol->dataType.type != TSDB_DATA_TYPE_FLOAT && pCol->dataType.type != TSDB_DATA_TYPE_DOUBLE) {
         code =
             generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
