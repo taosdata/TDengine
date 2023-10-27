@@ -6,37 +6,37 @@
           <span>
             {{ $t("datasource.primarykey") }}
           </span>
-          <el-tooltip
+          <!-- <el-tooltip
             effect="light"
             :content="$t('datasource.primarytip')"
             placement="right-start"
           >
             <i class="el-icon-info"></i>
-          </el-tooltip>
+          </el-tooltip> -->
         </li>
         <li>
           <span>
             {{ $t("datasource.ascolumn") }}
           </span>
-          <el-tooltip
+          <!-- <el-tooltip
             effect="light"
             :content="$t('datasource.selectfieldtip')"
             placement="right-start"
           >
             <i class="el-icon-info"></i>
-          </el-tooltip>
+          </el-tooltip> -->
         </li>
         <li>
           <span>
             {{ $t("datasource.astag") }}
           </span>
-          <el-tooltip
+          <!-- <el-tooltip
             effect="light"
             :content="$t('datasource.selectfieldtip')"
             placement="right-start"
           >
             <i class="el-icon-info"></i>
-          </el-tooltip>
+          </el-tooltip> -->
         </li>
         <li>{{ $t("datasource.colname") }}</li>
         <li>{{ $t("datasource.rename") }}</li>
@@ -45,7 +45,9 @@
       </ul>
       <div class="col-content">
         <Mqttcolumn
-          v-for="item in fields.filter((item) => item.name != 'payload' && item.name !== 'value')"
+          v-for="item in fields.filter(
+            (item) => item.name != 'payload' && item.name !== 'value'
+          )"
           :key="item.name"
           :colData="item"
           @changePrimary="changePrimary"
@@ -65,7 +67,7 @@
           @changeAddStatus="changeAddStatus"
           ref="mqtt"
         >
-        <!-- <template #localindex> 
+          <!-- <template #localindex> 
           <span style="color:orange;font-size:20px;">{{index}}</span>
         </template> -->
         </Mqttcolumn>
@@ -116,7 +118,7 @@
           {{ $t(`datasource.${item}`) }}
         </span>
 
-        <el-input v-model="connectorData.model[item]"></el-input>
+        <el-input v-model="connectorData.model[item]" size="small"></el-input>
       </el-form-item>
     </el-form>
   </div>
@@ -187,10 +189,11 @@ export default {
     },
     changeAddStatus() {
       this.$nextTick(() => {
-        let arr=this.$refs.mqtt?Array.from(this.$refs.mqtt):[]
-        this.disable = arr.some(
-          (item) => item.addStatus
-        );
+        let arr = this.$refs.mqtt ? Array.from(this.$refs.mqtt) : [];
+        this.disable = arr.some((item) => item.addStatus);
+        if(arr.length==0){
+          this.disable=false
+        }
       });
     },
     deleteRow(ind, name) {
@@ -220,6 +223,7 @@ export default {
             }
           }
           this.disable = false;
+          console.log(oldData, this.disable ,'删除---0000');
         }
         this.$store.commit("app/SET_MQTT_PARSER", oldData);
       });
@@ -257,8 +261,8 @@ export default {
   },
   mounted() {
     this.changeAddStatus();
-    if(this.connectorData.model.columns.length > 0){
-      this.currentKey.primary = this.connectorData.model.columns[0]
+    if (this.connectorData.model.columns.length > 0) {
+      this.currentKey.primary = this.connectorData.model.columns[0];
     }
     // this.currentKey.primary =
     //   this.connectorData.model.columns.length > 0
@@ -283,19 +287,35 @@ export default {
     display: grid;
     grid-template-columns: 2fr 2fr 2fr 3fr 3fr 3fr 0.5fr;
     column-gap: 10px;
-    background-color: #f5f7fa;
+    // background-color: #f5f7fa;
     border: 1px solid #ebeef5;
     border-bottom: none;
     padding-top: 5px;
     padding-bottom: 5px;
+
     li {
       display: flex;
-      justify-content: center;
+      // justify-content: center;
       white-space: nowrap;
       color: #909399;
       font-size: 16px;
       align-items: center;
       text-align: center;
+      padding-right: 10px;
+      box-sizing: border-box;
+      position: relative;
+      &:first-child {
+        padding-left: 4px;
+      }
+      // &::after {
+      //   content: "";
+      //   background-color: red;
+      //   position: absolute;
+      //   width: 1px;
+      //   top: -9px;
+      //   bottom: -9px;
+      //   right: 0px;
+      // }
     }
   }
   .footer {
@@ -305,11 +325,10 @@ export default {
     }
   }
   .col-content {
-    overflow: auto;
-    border: none;
+    // overflow: auto;
     margin-bottom: 15px;
-
     border: 1px solid #ebeef5;
+    border-top: none;
   }
   .info {
     position: absolute;

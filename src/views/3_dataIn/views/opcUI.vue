@@ -113,6 +113,7 @@
                         <el-input
                           size="small"
                           style="margin-bottom: 8px"
+                          :placeholder="at?.username.placeholder"
                           v-model="at.username.value"
                         ></el-input>
                         <p
@@ -134,6 +135,7 @@
                         <el-input
                           size="small"
                           type="password"
+                          :placeholder="at?.password.placeholder"
                           style="margin-bottom: 8px"
                           v-model="at.password.value"
                         ></el-input>
@@ -184,7 +186,7 @@
                         <el-select
                           size="small"
                           v-model="p.value"
-                          placeholder=""
+                          :placeholder="p?.placeholder"
                           style="
                             margin-left: 0px;
                             width: 100%;
@@ -231,6 +233,7 @@
                       </template>
                       <el-input
                         size="small"
+                        :placeholder="p?.placeholder"
                         v-if="
                           p.hint && !p.hint.choices && p.hint.type !== 'file'
                         "
@@ -380,6 +383,7 @@
                         <el-select
                           v-model="all.value"
                           size="small"
+                          :placeholder="all?.placeholder"
                           style="width: 100%"
                         >
                           <el-option
@@ -393,6 +397,7 @@
                       <template v-else>
                         <el-input
                           size="small"
+                          :placeholder="all?.placeholder"
                           v-model="all.value"
                           style="margin-bottom: 8px"
                         ></el-input>
@@ -607,14 +612,14 @@
                       <el-input
                         size="small"
                         v-model="p.value"
-                        :placeholder="p.placeholder ? p.placeholder : ''"
+                        :placeholder="p?.placeholder"
                         :type="text"
                       ></el-input>
                     </template>
                   </template>
                   <template v-if="p.hint && p.hint.type === 'str'">
                     <template v-if="p.hint.choices">
-                      <el-select v-model="p.value" placeholder="" size="small">
+                      <el-select v-model="p.value" :placeholder="p?.placeholder" size="small">
                         <el-option
                           v-for="c in p.hint.choices"
                           :key="c"
@@ -627,7 +632,7 @@
                       size="small"
                       v-else
                       v-model="p.value"
-                      :placeholder="p.placeholder ? p.placeholder : ''"
+                      :placeholder="p?.placeholder"
                     ></el-input>
                   </template>
                   <template
@@ -670,7 +675,7 @@
                       v-model="p.value"
                       :min="p.hint.min"
                       :max="p.hint.max"
-                      :placeholder="p.placeholder ? p.placeholder : ''"
+                      :placeholder="p?.placeholder"
                     ></el-input-number>
                   </template>
                   <div
@@ -720,7 +725,7 @@
                     <el-input
                       size="small"
                       v-model="p.value"
-                      :placeholder="p.placeholder ? p.placeholder : ''"
+                      :placeholder="p?.placeholder"
                     ></el-input>
                   </template>
                   <template v-if="p.hint?.type && p.hint?.type === 'str'">
@@ -728,7 +733,7 @@
                       <el-select
                         size="small"
                         v-model="p.value"
-                        :placeholder="p.placeholder ? p.placeholder : ''"
+                        :placeholder="p?.placeholder"
                         @change="changeOpcCollectMode"
                       >
                         <el-option
@@ -743,7 +748,7 @@
                       size="small"
                       v-else
                       v-model="p.value"
-                      :placeholder="p.placeholder ? p.placeholder : ''"
+                      :placeholder="p?.placeholder"
                     ></el-input>
                   </template>
                   <template
@@ -758,11 +763,6 @@
                       </el-radio>
                     </el-radio-group>
                     <template v-else>
-                      <!-- <el-checkbox
-                        v-model="p.value"
-                        true-label="true"
-                        false-label="false"
-                      ></el-checkbox> -->
 
                       <el-switch
                         v-model="p.value"
@@ -772,12 +772,6 @@
                     </template>
                   </template>
                   <template v-else-if="p.hint?.type && p.hint?.type === 'bool'">
-                    <!-- <p-three-checkbox
-                      :data="checkboxData"
-                      v-model="p.value"
-                      @changeThreeCheckbox="getThreeBoxNum($event, p)"
-                    /> -->
-                    <!-- <span style="color:purple;font-size:36px;">{{ p.name }} </span> -->
                     <el-switch
                       v-model="p.value"
                       :active-value="'true'"
@@ -795,7 +789,7 @@
                       v-model="p.value"
                       :min="p.hint.min"
                       :max="p.hint.max"
-                      :placeholder="p.placeholder ? p.placeholder : ''"
+                      :placeholder="p?.placeholder"
                     ></el-input-number>
                   </template>
                   <div
@@ -804,30 +798,12 @@
                   ></div>
                 </div>
               </div>
-              <!-- <template v-if="p.name == 'opc_table_config'">
-                <div
-                  :key="pind"
-                  :class="[
-                    'opcconf',
-                    opcPointavalible ? 'avalible' : 'notallowed',
-                  ]"
-                >
-                  <opcConnector
-                    :opcConfig="opcConfig"
-                    :isEditable="isEditable"
-                    :echoData="echoData"
-                    @changeEchoData="changeEchoData"
-                    ref="opcsingleton"
-                  ></opcConnector>
-                </div>
-              </template> -->
             </template>
           </template>
         </section>
       </template>
 
       <!--未分组显示根节点下的params，显示方式和groups一样-->
-      <!-- <section class="ungrounded" v-if="dbsource[0].params"></section> -->
       <section
         v-if="tagName == 'mqtt' || tagName == 'kafka'"
         class="mqtt-config"

@@ -59,7 +59,7 @@
       <template>
         <el-select
           :value="colData.parser.parse[csvColName].as.toUpperCase()"
-          size="mini"
+          size="small"
           @change="changeType"
           :disabled="
             isEditable &&
@@ -79,7 +79,7 @@
           type="number"
           :min="1"
           v-if="['NCHAR', 'VARCHAR'].includes(colData['cast'])"
-          size="mini"
+          size="small"
           @input="handleChange"
           :value="
             /\d/.test(colData['cast'])
