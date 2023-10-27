@@ -237,6 +237,11 @@ typedef struct {
 } STaskDispatcherShuffle;
 
 typedef struct {
+  int32_t nodeId;
+  SEpSet  epset;
+} SDownstreamTaskEpset;
+
+typedef struct {
   int64_t         stbUid;
   char            stbFullName[TSDB_TABLE_FNAME_LEN];
   SSchemaWrapper* pSchemaWrapper;
@@ -327,15 +332,10 @@ typedef struct SDispatchMsgInfo {
   void*   pTimer; // used to dispatch data after a given time duration
 } SDispatchMsgInfo;
 
-typedef struct STaskOutputQueue {
+typedef struct STaskQueue {
   int8_t        status;
   SStreamQueue* queue;
-} STaskOutputQueue;
-
-typedef struct STaskInputInfo {
-  int8_t        status;
-  SStreamQueue* queue;
-} STaskInputInfo;
+} STaskQueue;
 
 typedef struct STaskSchedInfo {
   int8_t  status;
@@ -384,6 +384,7 @@ typedef struct STaskOutputInfo {
   };
   int8_t        type;
   STokenBucket* pTokenBucket;
+  SArray*       pDownstreamUpdateList;
 } STaskOutputInfo;
 
 typedef struct SUpstreamInfo {
@@ -395,8 +396,8 @@ struct SStreamTask {
   int64_t             ver;
   SStreamTaskId       id;
   SSTaskBasicInfo     info;
-  STaskOutputQueue    outputq;
-  STaskInputInfo      inputInfo;
+  STaskQueue          outputq;
+  STaskQueue          inputq;
   STaskSchedInfo      schedInfo;
   STaskOutputInfo     outputInfo;
   SDispatchMsgInfo    msgInfo;
@@ -645,7 +646,8 @@ typedef struct STaskStatusEntry {
 typedef struct SStreamHbMsg {
   int32_t vgId;
   int32_t numOfTasks;
-  SArray* pTaskStatus;  // SArray<SStreamTaskStatusEntry>
+  SArray* pTaskStatus;  // SArray<STaskStatusEntry>
+  SArray* pUpdateNodes; // SArray<int32_t>, needs update the epsets in stream tasks for those nodes.
 } SStreamHbMsg;
 
 int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pRsp);

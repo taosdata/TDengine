@@ -1043,8 +1043,8 @@ static int32_t handleDispatchSuccessRsp(SStreamTask* pTask, int32_t downstreamId
   int64_t el = taosGetTimestampMs() - pTask->msgInfo.startTs;
 
   // put data into inputQ of current task is also allowed
-  if (pTask->inputInfo.status == TASK_INPUT_STATUS__BLOCKED) {
-    pTask->inputInfo.status = TASK_INPUT_STATUS__NORMAL;
+  if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
+    pTask->inputq.status = TASK_INPUT_STATUS__NORMAL;
     stDebug("s-task:%s downstream task:0x%x resume to normal from inputQ blocking, blocking time:%" PRId64 "ms",
             pTask->id.idStr, downstreamId, el);
   } else {
@@ -1096,7 +1096,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
 
   } else {  // code == 0
     if (pRsp->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
-      pTask->inputInfo.status = TASK_INPUT_STATUS__BLOCKED;
+      pTask->inputq.status = TASK_INPUT_STATUS__BLOCKED;
       // block the input of current task, to push pressure to upstream
       taosThreadMutexLock(&pTask->lock);
       taosArrayPush(pTask->msgInfo.pRetryList, &pRsp->downstreamNodeId);

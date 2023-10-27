@@ -799,6 +799,15 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
     if (tEncodeI64(pEncoder, ps->activeCheckpointId) < 0) return -1;
     if (tEncodeI8(pEncoder, ps->checkpointFailed) < 0) return -1;
   }
+
+  int32_t numOfVgs = taosArrayGetSize(pReq->pUpdateNodes);
+  if (tEncodeI32(pEncoder, numOfVgs) < 0) return -1;
+
+  for (int j = 0; j < numOfVgs; ++j) {
+    int32_t* pVgId = taosArrayGet(pReq->pUpdateNodes, j);
+    if (tEncodeI32(pEncoder, *pVgId) < 0) return -1;
+  }
+
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
@@ -830,6 +839,17 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
 
     entry.id.taskId = taskId;
     taosArrayPush(pReq->pTaskStatus, &entry);
+  }
+
+  int32_t numOfVgs = 0;
+  if (tDecodeI32(pDecoder, &numOfVgs) < 0) return -1;
+
+  pReq->pUpdateNodes = taosArrayInit(numOfVgs, sizeof(int32_t));
+
+  for (int j = 0; j < numOfVgs; ++j) {
+    int32_t vgId = 0;
+    if (tDecodeI32(pDecoder, &vgId) < 0) return -1;
+    taosArrayPush(pReq->pUpdateNodes, &vgId);
   }
 
   tEndDecode(pDecoder);
@@ -886,13 +906,14 @@ void metaHbToMnode(void* param, void* tmrId) {
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
 
   SEpSet epset = {0};
-  bool   hasValEpset = false;
+  bool   hasMnodeEpset = false;
+
   hbMsg.vgId = pMeta->vgId;
   hbMsg.pTaskStatus = taosArrayInit(numOfTasks, sizeof(STaskStatusEntry));
+  hbMsg.pUpdateNodes = taosArrayInit(numOfTasks, sizeof(int32_t));
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
-    STaskId* pId = taosArrayGet(pMeta->pTaskList, i);
-
+    STaskId*      pId = taosArrayGet(pMeta->pTaskList, i);
     SStreamTask** pTask = taosHashGet(pMeta->pTasksMap, pId, sizeof(*pId));
 
     // not report the status of fill-history task
@@ -905,7 +926,7 @@ void metaHbToMnode(void* param, void* tmrId) {
         .status = streamTaskGetStatus(*pTask, NULL),
         .nodeId = pMeta->vgId,
         .stage = pMeta->stage,
-        .inputQUsed = SIZE_IN_MiB(streamQueueGetItemSize((*pTask)->inputInfo.queue)),
+        .inputQUsed = SIZE_IN_MiB(streamQueueGetItemSize((*pTask)->inputq.queue)),
     };
 
     entry.inputRate = entry.inputQUsed*100.0/STREAM_TASK_QUEUE_CAPACITY_IN_SIZE;
@@ -924,18 +945,39 @@ void metaHbToMnode(void* param, void* tmrId) {
       walReaderValidVersionRange((*pTask)->exec.pWalReader, &entry.verStart, &entry.verEnd);
     }
 
-    taosArrayPush(hbMsg.pTaskStatus, &entry);
+    taosThreadMutexLock(&(*pTask)->lock);
+    int32_t num = taosArrayGetSize((*pTask)->outputInfo.pDownstreamUpdateList);
+    for (int j = 0; j < num; ++j) {
+      int32_t *pNodeId = taosArrayGet((*pTask)->outputInfo.pDownstreamUpdateList, j);
 
-    if (!hasValEpset) {
+      bool exist = false;
+      int32_t numOfExisted = taosArrayGetSize(hbMsg.pUpdateNodes);
+      for (int k = 0; k < numOfExisted; ++k) {
+        if (*pNodeId == *(int32_t*)taosArrayGet(hbMsg.pUpdateNodes, k)) {
+          exist = true;
+          break;
+        }
+      }
+
+      if (!exist) {
+        taosArrayPush(hbMsg.pUpdateNodes, pNodeId);
+      }
+    }
+
+    taosArrayClear((*pTask)->outputInfo.pDownstreamUpdateList);
+    taosThreadMutexUnlock(&(*pTask)->lock);
+
+    taosArrayPush(hbMsg.pTaskStatus, &entry);
+    if (!hasMnodeEpset) {
       epsetAssign(&epset, &(*pTask)->info.mnodeEpset);
-      hasValEpset = true;
+      hasMnodeEpset = true;
     }
   }
 
   hbMsg.numOfTasks = taosArrayGetSize(hbMsg.pTaskStatus);
   taosRUnLockLatch(&pMeta->lock);
 
-  if (hasValEpset) {
+  if (hasMnodeEpset) {
     int32_t code = 0;
     int32_t tlen = 0;
 
@@ -980,6 +1022,8 @@ void metaHbToMnode(void* param, void* tmrId) {
   }
 
   taosArrayDestroy(hbMsg.pTaskStatus);
+  taosArrayDestroy(hbMsg.pUpdateNodes);
+
   taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->pHbInfo->hbTmr);
   taosReleaseRef(streamMetaId, rid);
 }

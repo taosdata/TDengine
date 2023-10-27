@@ -296,7 +296,7 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, S
   return 0;
 }
 
-void streamTaskInputFail(SStreamTask* pTask) { atomic_store_8(&pTask->inputInfo.status, TASK_INPUT_STATUS__FAILED); }
+void streamTaskInputFail(SStreamTask* pTask) { atomic_store_8(&pTask->inputq.status, TASK_INPUT_STATUS__FAILED); }
 
 void streamTaskOpenAllUpstreamInput(SStreamTask* pTask) {
   int32_t num = taosArrayGetSize(pTask->upstreamInfo.pList);
