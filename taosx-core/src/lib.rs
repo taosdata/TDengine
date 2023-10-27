@@ -574,6 +574,20 @@ mod tests {
 
     #[ignore]
     #[tokio::test]
+    async fn test_opc_da_valid() {
+        env::set_var("PLUGINS_HOME", "../plugins");
+        // opentsdb
+        let dsn = Dsn::from_str("opcda://192.168.2.16").unwrap();
+        let dsv = validate_dsn(dsn).await;
+        dbg!(dsv);
+        // assert_eq!(true, dsv.valid);
+        // assert_eq!(true, dsv.support);
+        // assert_eq!("opc", dsv.data_source);
+        // assert_eq!("2.4.0", dsv.version.unwrap());
+    }
+
+    #[ignore]
+    #[tokio::test]
     async fn test_opentsdb_valid() {
         env::set_var("PLUGINS_HOME", "../plugins");
         // opentsdb

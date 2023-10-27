@@ -8,28 +8,30 @@ use std::{
     sync::Arc,
 };
 
-use base64::{engine::general_purpose, Engine};
+use anyhow::{bail, Context};
+use base64::{Engine, engine::general_purpose};
 use csv_lib::ReaderBuilder;
 use file_rotate::{
     compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
+    ContentLimit,
+    FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
 };
-
-use anyhow::{bail, Context};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, Taos, TaosBuilder, Ty};
-use taosx_ipc::{prelude::IpcDataType, types::OptionSet};
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
-
+pub use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Span};
 
+use taosx_ipc::{prelude::IpcDataType, types::OptionSet};
+
 use crate::{
-    build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
-    Transferred,
+    Action, build_ipc, DataSet, DataSetsReq, get_log_keep_days, Transferred,
+    utils::port_pool::PortPool,
 };
+use crate::runners::log_rotation;
+use crate::validation::DataSourceValidation;
 
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -74,8 +76,6 @@ enum OpcError {
     ParseNumberError(&'static str, String, ParseIntError),
     #[error("Parse param error from {1} while parsing parameter {0}")]
     ParseError(&'static str, String),
-    #[error("plugin not found: {0}")]
-    ExeNotFound(String),
     #[error("{0} config error: {1}")]
     ConfigError(&'static str, String),
 }
@@ -644,10 +644,6 @@ pub fn parse_bool_param_from_dsn(dsn: &mut Dsn, key: &str) -> anyhow::Result<Opt
 
 const CSV_CONFIG_COLUMNS: [&str; 2] = ["point_id", "tbname"];
 
-use crate::runners::log_rotation;
-use crate::validation::DataSourceValidation;
-pub use tokio_stream::StreamExt;
-
 /// return opctableconfig, node_config, tables_to_drop
 pub async fn generate_opcconfig_from_csv(
     ty: &str,
@@ -1142,8 +1138,12 @@ const EXE: &'static str = {
     }
 };
 
-fn exe_path() -> PathBuf {
-    super::get_plugin_dir("opc").join(EXE)
+fn exe_path() -> anyhow::Result<PathBuf> {
+    let path = super::get_plugin_dir("opc").join(EXE);
+    if !path.exists() {
+        return Err(anyhow::anyhow!("opc plugin not found at: {:?}", path));
+    }
+    Ok(path)
 }
 
 const LOG_FILE: &str = "opc.log";
@@ -1152,8 +1152,8 @@ fn log_path() -> PathBuf {
     super::get_log_dir("opc")
 }
 
-pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
-    let path = exe_path();
+pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
+    let path = exe_path()?;
     let output = std::process::Command::new(&path).arg("version").output()?;
     Ok((
         "opc",
@@ -1174,17 +1174,6 @@ pub async fn opc_to_taos(
     transferred: Option<Arc<Transferred>>,
     span: Span,
 ) -> anyhow::Result<()> {
-    println!("# loading plugin: OPC");
-
-    let exe_exists = std::path::Path::new(&exe_path()).exists();
-    if !exe_exists {
-        tracing::error!("plugin not found {}", exe_path().to_str().unwrap());
-        Err(OpcError::ExeNotFound(format!(
-            "{}",
-            exe_path().to_str().unwrap()
-        )))?;
-    }
-
     if to.subject.is_none() {
         Err(OpcError::DatabaseIsRequired(to.clone()))?;
     }
@@ -1235,7 +1224,7 @@ pub async fn opc_to_taos(
     .await?;
 
     let port_pool = port_pool.clone();
-    let mut command = tokio::process::Command::new(exe_path());
+    let mut command = tokio::process::Command::new(exe_path()?);
 
     let mut log_path = log_path();
     fs::create_dir_all(&log_path)?;
@@ -1366,7 +1355,7 @@ pub(crate) struct PointConfig {
 pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let from: Dsn = req.from.parse().unwrap();
     if req.categories.is_empty() {
-        anyhow::bail!("categories is empty");
+        return Err(anyhow::anyhow!("categories is empty"));
     }
 
     let mut config = OPCConfig::new(from.clone(), 0, OPCConfigMode::Points, None).await?;
@@ -1384,7 +1373,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 
     tracing::info!("Using opc config file {} \n{}", config_path.display(), toml);
 
-    let mut command = tokio::process::Command::new(exe_path());
+    let mut command = tokio::process::Command::new(exe_path()?);
     let output = command
         .arg("points")
         .arg(format!("--conf={}", &config_path.display()))
@@ -1494,14 +1483,82 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 }
 
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
-    dbg!(dsn);
-    DataSourceValidation::unknown()
+    let config = OPCConfig::new(dsn.clone(), 0, OPCConfigMode::Points, None).await;
+    match config {
+        Err(err) => DataSourceValidation::invalid(
+            "opc".to_string(),
+            format!(
+                "invalid opc dsn: {}, cause: {}",
+                dsn.to_string(),
+                err.to_string()
+            ),
+        ),
+        Ok(c) => {
+            let valid = validate_opc(c).await;
+            match valid {
+                Err(err) => DataSourceValidation::invalid(
+                    "opc".to_string(),
+                    format!(
+                        "failed to connect to dsn: {}, cause: {}",
+                        dsn.to_string(),
+                        err.to_string()
+                    ),
+                ),
+                Ok(v) => v,
+            }
+        }
+    }
+}
+
+async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation>{
+    let toml = toml::to_string(&config)?;
+    let mut config_file = tempfile::NamedTempFile::new()?;
+    write!(config_file, "{}", &toml)?;
+
+    // startup the connector
+    let opc_exe_path = exe_path()?;
+    let mut command = tokio::process::Command::new(opc_exe_path.clone());
+    let output = command
+        .arg("check")
+        .arg("--config")
+        .arg(config_file.path())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .await
+        .with_context(|| format!("failed to execute opc: {:?}", opc_exe_path.as_path()))?;
+
+    if output.status.success() {
+        let result: serde_json::Value =
+            serde_json::from_slice(&output.stdout).with_context(|| {
+                format!(
+                    "Deserialize opc validation result error: {}",
+                    String::from_utf8_lossy(&output.stdout)
+                )
+            })?;
+        Ok(DataSourceValidation {
+            valid: result["valid"].as_bool().unwrap_or(false),
+            support: result["support"].as_bool().unwrap_or(false),
+            data_source: "opc".to_string(),
+            version: result["version"].as_str().map(|s| s.to_string()),
+            message: result["message"].as_str().map(|s| s.to_string()),
+        })
+    } else {
+        Ok(DataSourceValidation::invalid(
+            "opc".to_string(),
+            format!(
+                "failed to execute opc: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        ))
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::collections::HashMap;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_opc_config_to_toml() -> anyhow::Result<()> {
