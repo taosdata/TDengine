@@ -1,8 +1,21 @@
 use std::path::Path;
+use std::fs::File;
+use std::io::Write;
+use shadow_rs::SdResult;
 
 const DEFAULT_CUS_NAME: &str = "TDengine";
 const DEFAULT_CUS_PROMPT: &str = "taos";
 const DEFAULT_CUS_CONFIG: &str = "";
+
+fn labeling(mut file: &File) -> SdResult<()> {
+    let td_version = std::env::var("VER_NUMBER").ok();
+    if let Some(version) = td_version {
+        writeln!(file, r#"pub const TD_VERSION: &str = "{}";"#, version)?;
+    } else {
+        writeln!(file, r#"pub const TD_VERSION: &str = PKG_VERSION;"#)?;
+    }
+    Ok(())
+}
 
 fn main() -> shadow_rs::SdResult<()> {
     let out_dir = std::env::var("OUT_DIR").unwrap();
@@ -57,5 +70,5 @@ fn main() -> shadow_rs::SdResult<()> {
     println!("cargo:rerun-if-changed=../dist/");
     println!("cargo:rerun-if-changed=examples/explorer.service");
     println!("cargo:rerun-if-changed={}", service_path.display());
-    shadow_rs::new()
+    shadow_rs::new_hook(labeling)
 }

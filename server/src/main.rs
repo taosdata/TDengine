@@ -60,7 +60,7 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     let mut args = if let Ok(mut file) = File::open(&file_path) {
-        println!("Use configuration file path: {}", file_path.display());
+        info!("Use configuration file path: {}", file_path.display());
         let mut content = String::new();
         file.read_to_string(&mut content)?;
         let mut args: Args = toml::from_str(&content).unwrap();
@@ -432,28 +432,33 @@ shadow_rs::shadow!(build);
 
 const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN && const_str::equal!("main", build::BRANCH) {
     const_format::concatcp!(
-        build::PKG_VERSION,
+        "version: ",
+        build::TD_VERSION,
+        "\ngit: ",
+        build::BRANCH,
         "-",
-        build::SHORT_COMMIT,
-        " (built ",
+        build::COMMIT_HASH,
+        "\nbuild: core-",
+        build::PKG_VERSION,
+        " ",
         build::BUILD_OS,
         " ",
-        build::BUILD_TIME,
-        ")"
+        build::BUILD_TIME
     )
 } else {
     const_format::concatcp!(
-        build::PKG_VERSION,
-        "-",
+        "version: ",
+        build::TD_VERSION,
+        "\ngit: ",
         build::BRANCH,
         "-",
-        build::SHORT_COMMIT,
-        "-dirty",
-        " (built ",
+        build::COMMIT_HASH,
+        "\nbuild: core-dirty-",
+        build::PKG_VERSION,
+        " ",
         build::BUILD_OS,
         " ",
-        build::BUILD_TIME,
-        ")"
+        build::BUILD_TIME
     )
 };
 
