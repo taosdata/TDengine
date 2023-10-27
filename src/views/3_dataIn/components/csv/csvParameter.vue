@@ -19,7 +19,7 @@
         required
         :rules="customcolrule"
       >
-        <el-input v-model="ruleForm.customcol"></el-input>
+        <el-input v-model="ruleForm.customcol" size="small"></el-input>
       </el-form-item>
     </el-form>
     <slot name="next"></slot>
@@ -38,7 +38,7 @@
         :rules="showStable ? rules.subname : normaltable"
       >
 
-        <el-input v-model="ruleForm2.subname"></el-input>
+        <el-input v-model="ruleForm2.subname" size="small"></el-input>
       </el-form-item>
       <el-form-item
         :label="$t('datasource.using')"
@@ -46,18 +46,8 @@
         v-if="showStable"
         :rules="tableName"
       >
-        <el-input v-model="ruleForm2.tableName"></el-input>
+        <el-input v-model="ruleForm2.tableName" size="small"></el-input>
       </el-form-item>
-      <!-- <el-form-item :label="$t('datasource.target')" prop="dbName">
-        <el-select v-model="ruleForm2.dbName" placeholder="">
-          <el-option
-            v-for="item in dblist"
-            :key="item.name"
-            :value="item.name"
-            :label="item.name"
-          ></el-option>
-        </el-select>
-      </el-form-item> -->
     </el-form>
   </div>
 </template>

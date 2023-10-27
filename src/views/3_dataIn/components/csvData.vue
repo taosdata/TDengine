@@ -28,7 +28,7 @@
         <el-tab-pane :label="$t('datasource.configcsv')" name="second">
           <div class="upload-file">
             <span class="label required">{{ $t("datasource.fileurl") }}</span>
-            <el-input v-model="fileurl"></el-input>
+            <el-input v-model="fileurl" size="small"></el-input>
           </div>
         </el-tab-pane>
         <CsvParameter

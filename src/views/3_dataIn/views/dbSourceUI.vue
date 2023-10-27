@@ -20,7 +20,7 @@
           <div class="label-value">
             <el-select
               v-model="dbsource[0].protocol.value"
-              placeholder=""
+              :placeholder="dbsource[0].protocol?.placeholder"
               style="margin-bottom: 8px"
               size="small"
             >
@@ -231,6 +231,8 @@
                         <el-input
                           size="small"
                           style="margin-bottom: 8px"
+                          :placeholder="dbsource[0]?.authentication?.alternatives[0]?.username
+                              .placeholder"
                           v-model="
                             dbsource[0].authentication.alternatives[0].username
                               .value
@@ -258,6 +260,8 @@
                           size="small"
                           type="password"
                           style="margin-bottom: 8px"
+                          :placeholder="dbsource[0]?.authentication?.alternatives[0]?.password
+                              .placeholder"
                           v-model="
                             dbsource[0].authentication.alternatives[0].password
                               .value
@@ -295,7 +299,7 @@
                     <template v-if="p.hint && p.hint.choices">
                       <el-select
                         v-model="p.value"
-                        placeholder=""
+                        :placeholder="p?.placeholder"
                         size="small"
                         style="margin-left: 0px; width: 100%"
                       >
@@ -319,6 +323,7 @@
                       v-else
                       size="small"
                       v-model="p.value"
+                      :placeholder="p?.placeholder"
                       :type="
                         p.name == 'password' || p.name == 'token'
                           ? 'password'
@@ -547,7 +552,7 @@
                       "
                       v-model="p.value"
                       size="small"
-                      placeholder=""
+                      :placeholder="p.placeholder"
                       :style="
                         p.name === 'bucket'
                           ? {
@@ -578,7 +583,7 @@
                       v-else
                       size="small"
                       v-model="p.value"
-                      placeholder=""
+                      :placeholder="p.placeholder"
                       style="margin-left: -15px"
                     >
                       <el-option
@@ -614,7 +619,7 @@
                       >{{ $t("datasource.getschema") }}</el-button
                     >
                   </div>
-                  <el-input v-else v-model="p.value"></el-input>
+                  <el-input v-else v-model="p.value" :placeholder="p.placeholder"></el-input>
                 </template>
                 <template v-if="p.hint === 'bool' || p.hint.type === 'bool'">
                   <el-checkbox
@@ -634,6 +639,7 @@
                   <el-input-number
                     size="small"
                     v-model="p.value"
+                    :palceholder="p.placeholder"
                     :min="p.hint.min"
                     :max="p.hint.max"
                   ></el-input-number>
