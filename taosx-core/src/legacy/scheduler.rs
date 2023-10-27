@@ -344,16 +344,17 @@ async fn worker(
                                     Ok(_) => {
                                         // set breakpoint async
                                         if let Some(task_id) = task_id.clone() {
-                                            let breakpoint = chunk.end.unwrap().to_string();
-                                            // dbg!(&breakpoint);
-                                            tokio::spawn(async move {
-                                                breakpoints::breakpoints_set(
-                                                    &task_id,
-                                                    &table_inner,
-                                                    &breakpoint,
-                                                )
-                                                .unwrap();
-                                            });
+                                            if let Some(end) = chunk.end {
+                                                let breakpoint = end.to_string();
+                                                // dbg!(&breakpoint);
+                                                tokio::spawn(async move {
+                                                    let _ = breakpoints::breakpoints_set(
+                                                        &task_id,
+                                                        &table_inner,
+                                                        &breakpoint,
+                                                    );
+                                                });
+                                            }
                                         }
                                         break;
                                     }
