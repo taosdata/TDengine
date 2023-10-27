@@ -319,6 +319,17 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
         .execute(pool)
         .await?;
     }
+    match activity.status.as_str() {
+        "queued" | "scheduled" | "running" | "completed" | "failed" | "suspended"
+        | "interrupted" => {
+            sqlx::query("UPDATE tasks SET status = ? WHERE id = ?")
+                .bind(activity.status.as_str())
+                .bind(activity.id)
+                .execute(pool)
+                .await?;
+        }
+        _ => (),
+    }
     sqlx::query(
             "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)")
             .bind(
