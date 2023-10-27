@@ -18,6 +18,9 @@ protocol:
   display: Protocol
   description: Choose a protocol scheme for websocket connection.
   choices:
+    - name: --
+      display: Native
+      description: Use native TDengine connection.
     - name: ws
       display: WS
       description: Use WebSocket with HTTP connection.
