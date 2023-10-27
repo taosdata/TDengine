@@ -198,7 +198,7 @@ Replace <TDENGINE_CLOUD_TMQ> with the real value, the format should be `wss://<c
 To obtain the value of `TDENGINE_CLOUD_TMQ`, please log in [TDengine Cloud](https://cloud.tdengine.com) and click **Topcis** on the left menu, then click **Sample Code** action of the each topic to **Example** part.
 :::
 
-Especially, for Python, you need to set the following variables:
+For Python, you need to set the following variables:
 
 <Tabs defaultValue="Bash" groupId="config">
 <TabItem value="Bash" label="Bash">
@@ -229,6 +229,36 @@ $env:TDENGINE_CLOUD_TOKEN='<TDENGINE_CLOUD_TOKEN>'
 
 :::note IMPORTANT
 Replace <TDENGINE_CLOUD_ENDPOINT> and <TDENGINE_CLOUD_TOKEN> with the real values. To obtain the value of these, please log in [TDengine Cloud](https://cloud.tdengine.com) and click **Topcis** on the left menu, then click **Sample Code** action of the each topic to the **Python** tab of the **Example** part.
+:::
+
+Last, for Java, you need to set the following variables:
+
+<Tabs defaultValue="Bash" groupId="config">
+<TabItem value="Bash" label="Bash">
+
+```shell
+export TDENGINE_JDBC_URL="<TDENGINE_JDBC_URL>"
+```
+
+</TabItem>
+<TabItem value="CMD" label="CMD">
+
+```shell
+set TDENGINE_JDBC_URL=<TDENGINE_JDBC_URL>
+```
+
+</TabItem>
+<TabItem value="Powershell" label="Powershell">
+
+```powershell
+$env:TDENGINE_JDBC_URL='<TDENGINE_JDBC_URL>'
+```
+
+</TabItem>
+</Tabs>
+
+:::note IMPORTANT
+Replace <TDENGINE_JDBC_URL> with the real value, the format should be `jdbc:TAOS-RS://<cloud_endpoint>)?useSSL=false&token=<token>`. To obtain the value of these, please log in [TDengine Cloud](https://cloud.tdengine.com) and click **Topcis** on the left menu, then click **Sample Code** action of the each topic to the **Java** tab of the **Example** part.
 :::
 
 ### Create a Consumer from Instance
@@ -314,7 +344,7 @@ consumer = Consumer(conf)
 <TabItem label="Java" value="Java">
 
 ```java
-String url = System.getenv("TDENGINE_CLOUD_TMQ");
+String url = System.getenv("TDENGINE_JDBC_URL");
 
 Properties properties = new Properties();
 properties.setProperty(TMQConstants.CONNECT_TYPE, "wss");
@@ -323,6 +353,7 @@ properties.setProperty(TMQConstants.CONNECT_TIMEOUT, "10000");
 properties.setProperty(TMQConstants.CONNECT_MESSAGE_TIMEOUT, "10000");
 properties.setProperty(TMQConstants.MSG_WITH_TABLE_NAME, "true");
 properties.setProperty(TMQConstants.ENABLE_AUTO_COMMIT, "true");
+properties.setProperty(TMQConstants.AUTO_OFFSET_RESET, "earliest");
 properties.setProperty(TMQConstants.GROUP_ID, "gId");
 properties.setProperty(TMQConstants.VALUE_DESERIALIZER, "com.taosdata.jdbc.tmq.MapDeserializer");
 
@@ -466,7 +497,7 @@ while 1:
 <TabItem value="Java" label="Java">
 
 ```java
-for (int i = 0; i < 10; i++) {
+for (int i = 0; i < 100; i++) {
     ConsumerRecords<Map<String, Object>> consumerRecords = consumer.poll(Duration.ofMillis(100));
     for (ConsumerRecord<Map<String, Object>> r : consumerRecords) {
         Map<String, Object> bean = r.value();
