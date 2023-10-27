@@ -1,7 +1,7 @@
 //! Agent - user should register agent in taosX service to connect a local service \
 //! to remote taosX/taosExplorer/TDengine.
 //!
-use std::{borrow::Cow, fmt::Display, str::FromStr};
+use std::{borrow::Cow, fmt::Display, str::FromStr, convert::Infallible};
 
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
@@ -87,6 +87,24 @@ pub struct AgentActivityItem {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Context(serde_json::Value);
 
+impl From<serde_json::Value> for Context {
+    fn from(value: serde_json::Value) -> Self {
+        Self(value)
+    }
+}
+impl From<&str> for Context {
+    fn from(value: &str) -> Self {
+        Self::from_str(value).unwrap()
+    }
+}
+impl From<String> for Context {
+    fn from(value: String) -> Self {
+        Self::from_str(&value).unwrap()
+    }
+}
+
+
+
 impl Display for Context {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.0 {
@@ -97,7 +115,7 @@ impl Display for Context {
 }
 
 impl FromStr for Context {
-    type Err = anyhow::Error;
+    type Err = Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Context(

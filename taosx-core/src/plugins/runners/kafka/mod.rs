@@ -90,6 +90,7 @@ pub async fn kafka_to_taos(
         with_agent,
         transferred,
         span,
+        None,
     )
         .await?;
 

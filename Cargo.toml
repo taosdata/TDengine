@@ -6,23 +6,25 @@ chrono = { version = "0.4.26" }
 chrono-tz = { version = "0.8.3" }
 shadow-rs = { version = "0.24" }
 
+clap = { version = "4.4.7", features = ["default", "derive"] }
+
 regex = { version = "1.9" }
-arrow = { version = "47.0.0", features = ["chrono-tz"] }
-arrow-flight = { version = "47.0.0" }
-parquet = "47.0.0"
+arrow = { version = "48.0.0", features = ["chrono-tz"] }
+arrow-flight = { version = "48.0.0" }
+parquet = "48.0.0"
 
 tonic = "0.10"
 
-taos = { version = "0.10.13", default-features = false, features = [
+taos = { version = "0.10.17", default-features = false, features = [
   "ws",
   "deadpool",
 ] }
-taos-query = { version = "0.10.13", default-features = false, features = [
+taos-query = { version = "0.10.17", default-features = false, features = [
   "deadpool",
 ] }
 
 [workspace.package]
-version = "1.2.7"
+version = "1.2.8"
 
 [package]
 name = "taosx"
@@ -40,27 +42,28 @@ arrow = { workspace = true }
 arrow-flight = { workspace = true }
 
 shadow-rs = { workspace = true }
+strum = { version = "0.25", features = ["derive"] }
+multi_index_map = "0.9"
 
-twelf = { version = "0.10.0", default-features = false, features = ["toml", "env", "clap"] }
+twelf = { version = "0.12.0", default-features = false, features = ["toml", "env", "clap"] }
 
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bitflags = "2"
 chrono = { workspace = true }
-clap = { version = "4.3.23", features = ["default", "derive", "env"] }
+clap = { workspace = true, features = ["default", "derive", "env"] }
 clap-verbosity-flag = "2.0.0"
 config = "0.13.2"
 convert_case = "0.6.0"
 csv-async = { version = "1.2.4", features = ["tokio"] }
 dashmap = "5.4.0"
 futures = "0.3"
-itertools = "0.10.4"
+itertools = "0.11.0"
 lazy_static = "1.4"
 linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
 log = { version = "0.4", features = ["serde"] }
 parquet = { workspace = true }
 parse_duration = "2.1"
-pretty_env_logger = "0.4"
 regex = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9.19"
@@ -80,8 +83,8 @@ tokio = { version = "1", features = [
   "fs",
 ] }
 tokio-util = { version = "0.7" }
-toml = "0.7.2"
-zstd = "0.12.1"
+toml = "0.8.5"
+zstd = "0.13.0"
 csv = "1.2"
 
 actix-cors = "0.6.4"
@@ -90,11 +93,11 @@ actix-multipart = "0.6.0"
 actix-files = "0.6.2"
 base64 = "0.21.2"
 cfg-if = "1.0.0"
-uuid = { version = "1.4.0", features = ["v4", "fast-rng", "macro-diagnostics"] }
+uuid = { version = "1.4.0", features = ["v4", "fast-rng", "macro-diagnostics", "serde"] }
 serde_json = { version = "1.0", features = ["raw_value"] }
 sqlx = { version = "0.7", features = ["sqlite", "chrono", "json"] }
-utoipa = { version = "3", features = ["actix_extras", "chrono"] }
-utoipa-swagger-ui = { version = "3.0.2", features = ["actix-web"] }
+utoipa = { version = "4.0.0", features = ["actix_extras", "chrono"] }
+utoipa-swagger-ui = { version = "4.0.0", features = ["actix-web"] }
 
 # tonic version is restricted by arrow-flight
 socket2 = "0.5"
@@ -112,18 +115,18 @@ sysinfo = "0.29.0"
 async-backtrace = "0.2.2"
 dotenv = "0.15.0"
 
-flume = "0.10"
+flume = "0.11.0"
 futures-util = "0.3"
 r2d2 = "0.8.10"
 serde_with = "3"
-tokio-cron-scheduler = "0.9.4"
+tokio-cron-scheduler = { git = "https://github.com/zitsen/tokio-cron-scheduler.git" }
 
 bitvec = "1"
 mimalloc = { version = "0.1.39", default-features = false, optional = true }
 tempfile = "3"
 
 bytes = "1.4.0"
-jsonwebtoken = "8.3"
+jsonwebtoken = "9.1.0"
 rand = "0.8"
 
 time = { version = "0.3", features = ["formatting", "macros"] }

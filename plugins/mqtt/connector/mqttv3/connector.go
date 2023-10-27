@@ -1,10 +1,12 @@
 package mqttv3
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"strings"
+	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/google/uuid"
@@ -115,4 +117,47 @@ func NewConnector(config *config.MQTT, logger logrus.FieldLogger, onConnect conn
 	}
 	go conn.connect(config)
 	return conn
+}
+
+func Check(ctx context.Context, conf *config.MQTT) error {
+	opts := mqtt.NewClientOptions()
+	opts.ClientID = strings.ReplaceAll(uuid.New().String(), "-", "")
+	opts.Username = conf.Username
+	opts.Password = conf.Password
+	opts.CleanSession = true
+	opts.ConnectTimeout = time.Second * 5
+
+	if strings.HasPrefix(conf.Address, "ssl") || strings.HasPrefix(conf.Address, "wss") {
+		tlsConfig, err := newTLSConfig(conf)
+		if err != nil {
+			return err
+		}
+		opts.TLSConfig = tlsConfig
+	}
+	opts.AddBroker(conf.Address)
+	connected := make(chan struct{}, 1)
+	connectError := make(chan error, 1)
+	opts.OnConnect = func(c mqtt.Client) {
+		connected <- struct{}{}
+	}
+
+	client := mqtt.NewClient(opts)
+
+	token := client.Connect()
+	go func() {
+		if token.Wait() {
+			err := token.Error()
+			if err != nil {
+				connectError <- token.Error()
+			}
+		}
+	}()
+	select {
+	case <-connected:
+		return nil
+	case err := <-connectError:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

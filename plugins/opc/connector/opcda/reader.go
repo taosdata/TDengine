@@ -85,7 +85,7 @@ func newReader(config common.Config) (*reader, error) {
 	ctx := context.Background()
 	allTags, err := r.getAllTags(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("get all da node error %v", err)
+		return &r, fmt.Errorf("get all da node error %v", err)
 	}
 	tagName := make(map[string]string, len(allTags))
 	for _, tag := range allTags {
@@ -98,12 +98,12 @@ func newReader(config common.Config) (*reader, error) {
 	}
 	r.tags = tags
 	if err = config.Collect.Dump.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid dump config: %w", err)
+		return &r, fmt.Errorf("invalid dump config: %w", err)
 	}
 	if config.Collect.Dump.Enable {
 		dumper, err := connector.NewCsvDumper(config.Collect.Dump.Path, config.Collect.Dump.Keep)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create dump file: %w", err)
+			return &r, fmt.Errorf("failed to create dump file: %w", err)
 		}
 
 		r.dumper = dumper
@@ -132,14 +132,17 @@ func (r *reader) connect(_ context.Context) error {
 		r.client.Close()
 	}
 
-	tags := make([]string, 0, len(r.tags))
-	for _, t := range r.tags {
-		tags = append(tags, t.tag)
-	}
-	conn, err := opc.NewConnection(r.server, r.nodes, tags)
+	conn, err := opc.NewConnection(r.server, r.nodes, nil)
 	if err != nil {
 		return fmt.Errorf("connect to opc da error. %v", err)
 	}
+
+	for _, t := range r.tags {
+		if err := conn.Add(t.tag); err != nil {
+			logger.WarnF("## add opc da tag [%s] error %v", t.tag, err)
+		}
+	}
+
 	r.client = conn
 	r.state = connected
 	return nil
@@ -212,9 +215,11 @@ func (r *reader) read(ctx context.Context) (<-chan *common.NodeValue, error) {
 
 func (r *reader) readAndSend(ch chan *common.NodeValue) {
 	values := r.readItems(r.tags)
-	for _, val := range values {
-		ch <- val
-	}
+	go func(items []*common.NodeValue) {
+		for _, item := range items {
+			ch <- item
+		}
+	}(values)
 }
 
 func (r *reader) readItems(tags map[string]*daTag) (values []*common.NodeValue) {
@@ -233,13 +238,17 @@ func (r *reader) readItems(tags map[string]*daTag) (values []*common.NodeValue) 
 		value := item.Value
 		valueType := tags[id].valueType
 		logger.DebugF("## read opc da item [%s] value [%v] type [%v] spend [%d]ms", id, value, valueType, spent)
+		if value == nil {
+			logger.DebugF("## read data for identifier %q. value is nil", id)
+			continue
+		}
 
 		if valueType == common.Invalid {
 			t := reflect.TypeOf(value).Kind()
 			var err error
 			valueType, err = toValueType(t)
 			if err != nil {
-				logger.Warn("## read data for identifier %q. value type %T is not supported", id, value)
+				logger.WarnF("## read data for identifier %q. value type %T is not supported", id, value)
 				continue
 			}
 			tags[id].valueType = valueType
@@ -348,30 +357,5 @@ func toValueType(k reflect.Kind) (common.ValueType, error) {
 		return common.VARCHAR, nil
 	default:
 		return common.Invalid, fmt.Errorf("unsupported type %s", k.String())
-	}
-}
-
-func opcDaStatusString(status int64) string {
-	switch status {
-	case 0:
-		return "Bad"
-	case 192, 216:
-		return "Good"
-	case 64:
-		return "Uncertain"
-	case 6:
-		return "Disconnected"
-	case 2:
-		return "Failed"
-	case 3:
-		return "Noconfig"
-	case 1:
-		return "Running"
-	case 4:
-		return "Suspended"
-	case 5:
-		return "Test"
-	default:
-		return "Unknown"
 	}
 }

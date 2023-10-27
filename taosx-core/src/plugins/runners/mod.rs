@@ -222,7 +222,7 @@ pub fn log_rotation(log_path: &PathBuf, log_keep_days: i64) -> FileRotate<Append
             DateFrom::DateYesterday,
         ),
         ContentLimit::Time(TimeFrequency::Daily),
-        Compression::None,
+        Compression::OnRotate(2),
         #[cfg(unix)]
         None,
     )

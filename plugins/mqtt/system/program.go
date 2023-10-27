@@ -169,3 +169,21 @@ func (p *program) handleMessage() {
 		}
 	}
 }
+
+func CheckConnection(configFile string) error {
+	conf, err := config.ParseConfig(configFile)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	if conf.MQTT.Version == "5.0" {
+		err = mqttv5.Check(ctx, conf.MQTT)
+	} else {
+		err = mqttv3.Check(ctx, conf.MQTT)
+	}
+	if err != nil {
+		return err
+	}
+	return nil
+}

@@ -1,15 +1,25 @@
 use bitvec::prelude::*;
 // use port_selector::Port;
 use std::{
+    fmt::{Debug, Formatter},
     net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6, TcpListener, ToSocketAddrs},
     ops::Range,
     sync::{Arc, Mutex},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct PortPool {
     range: Range<u16>,
     bitmap: Arc<Mutex<BitVec>>,
+}
+
+impl Debug for PortPool {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PortPool")
+            .field("range", &self.range)
+            .field("in_use", &self.bitmap.lock().unwrap().count_ones())
+            .finish()
+    }
 }
 
 impl Default for PortPool {

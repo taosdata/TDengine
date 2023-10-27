@@ -7,7 +7,7 @@ use std::task::Poll;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
-use arrow::array::{ArrayRef, StringArray, TimestampMillisecondArray};
+use arrow::array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array};
 use arrow::record_batch::RecordBatch;
 use arrow::{
     datatypes::{DataType, Field, Schema, SchemaRef},
@@ -40,6 +40,7 @@ pub struct Client {
     pub endpoint: String,
     pub client: FlightClient,
     pub agent: Agent,
+    pub req_id: Arc<AtomicU64>,
 }
 
 #[derive(Debug, Deserialize, Clone, Copy)]
@@ -204,6 +205,7 @@ impl Client {
             endpoint: endpoint.to_string(),
             client,
             agent,
+            req_id: Arc::new(AtomicU64::new(0)),
         })
     }
 
@@ -231,6 +233,7 @@ impl Client {
             tokio::time::Interval,
             Instant,
             RecvStream<'static, RespAction>,
+            Arc<AtomicU64>,
         );
 
         impl futures::Stream for FakeStream {
@@ -242,6 +245,7 @@ impl Client {
                 let s = Pin::new(&mut self.3);
                 match s.poll_next(cx) {
                     Poll::Ready(Some(action)) => {
+                        let req_id = self.4.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                         match action {
                             RespAction::Heartbeat => {
                                 let val = Arc::new(TimestampMillisecondArray::from_iter_values([
@@ -252,10 +256,13 @@ impl Client {
                                 let action: ArrayRef = Arc::new(StringArray::from_iter_values([
                                     "heartbeat".to_string(),
                                 ]));
+                                let req_id: ArrayRef =
+                                    Arc::new(UInt64Array::from_iter_values([req_id]));
                                 let item = RecordBatch::try_from_iter(vec![
                                     ("ts", val),
                                     ("action", action),
                                     ("context", context),
+                                    ("req_id", req_id),
                                 ])
                                 .map_err(Into::into);
                                 tracing::info!("{item:?}");
@@ -271,10 +278,13 @@ impl Client {
                                 let action: ArrayRef = Arc::new(StringArray::from_iter_values([
                                     "heartbeat-ok".to_string(),
                                 ]));
+                                let req_id: ArrayRef =
+                                    Arc::new(UInt64Array::from_iter_values([req_id]));
                                 let item = RecordBatch::try_from_iter(vec![
                                     ("ts", val),
                                     ("action", action),
                                     ("context", context),
+                                    ("req_id", req_id),
                                 ])
                                 .map_err(Into::into);
                                 tracing::info!("Send heartbeat response: {item:?}");
@@ -291,10 +301,13 @@ impl Client {
                                 ]));
                                 let action: ArrayRef =
                                     Arc::new(StringArray::from_iter_values(["list".to_string()]));
+                                let req_id: ArrayRef =
+                                    Arc::new(UInt64Array::from_iter_values([req_id]));
                                 let item = RecordBatch::try_from_iter(vec![
                                     ("ts", val),
                                     ("action", action),
                                     ("context", context),
+                                    ("req_id", req_id),
                                 ])
                                 .map_err(Into::into);
                                 tracing::info!("{item:?}");
@@ -311,10 +324,13 @@ impl Client {
                                 let action: ArrayRef = Arc::new(StringArray::from_iter_values([
                                     "agent-activity".to_string(),
                                 ]));
+                                let req_id: ArrayRef =
+                                    Arc::new(UInt64Array::from_iter_values([req_id]));
                                 let item = RecordBatch::try_from_iter(vec![
                                     ("ts", val),
                                     ("action", action),
                                     ("context", context),
+                                    ("req_id", req_id),
                                 ])
                                 .map_err(Into::into);
                                 // tracing::info!("{item:?}");
@@ -331,10 +347,13 @@ impl Client {
                                 let action: ArrayRef = Arc::new(StringArray::from_iter_values([
                                     "task-activity".to_string(),
                                 ]));
+                                let req_id: ArrayRef =
+                                    Arc::new(UInt64Array::from_iter_values([req_id]));
                                 let item = RecordBatch::try_from_iter(vec![
                                     ("ts", val),
                                     ("action", action),
                                     ("context", context),
+                                    ("req_id", req_id),
                                 ])
                                 .map_err(Into::into);
                                 // dbg!(&item);
@@ -350,6 +369,7 @@ impl Client {
                 match self.1.poll_tick(cx) {
                     Poll::Ready(_) => {
                         // heartbeat
+                        let req_id = self.4.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
                         let val =
                             Arc::new(TimestampMillisecondArray::from_iter_values([
@@ -359,10 +379,12 @@ impl Client {
                             Arc::new(StringArray::from_iter([Option::<String>::None]));
                         let action: ArrayRef =
                             Arc::new(StringArray::from_iter_values(["heartbeat".to_string()]));
+                        let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
                         let item = RecordBatch::try_from_iter(vec![
                             ("ts", val),
                             ("action", action),
                             ("context", context),
+                            ("req_id", req_id),
                         ])
                         .map_err(Into::into);
                         tracing::info!("send heartbeat message");
@@ -414,6 +436,7 @@ impl Client {
                 ),
                 Field::new("action", DataType::Utf8, false),
                 Field::new("context", DataType::Utf8, true),
+                Field::new("req_id", DataType::UInt64, false),
             ])
             .with_metadata(HashMap::from_iter([(
                 "x-task-id".to_string(),
@@ -431,6 +454,7 @@ impl Client {
                 tokio::time::interval(Duration::from_secs(60)),
                 Instant::now(),
                 resp_rx.into_stream(),
+                self.req_id.clone(),
             ));
 
         let req = Data {
@@ -459,9 +483,14 @@ impl Client {
                 .as_any()
                 .downcast_ref::<StringArray>()
                 .unwrap();
+            let req_id = res
+                .column(3)
+                .as_any()
+                .downcast_ref::<UInt64Array>()
+                .unwrap();
 
             for _ in 0..rows {
-                let (ts, action, context) = (
+                let (ts, action, context, req_id) = (
                     ts.value_as_datetime_with_tz(
                         0,
                         ts.timezone().unwrap_or("UTC").parse().unwrap(),
@@ -469,6 +498,7 @@ impl Client {
                     .unwrap(),
                     action.value(0),
                     context.value(0),
+                    req_id.value(0),
                 );
 
                 tracing::info!("At [{ts}] action `{action}` triggered");
@@ -496,7 +526,11 @@ impl Client {
                         tokio::spawn(async move {
                             let sets = list_datasets_from(&req).await.map_err(Fail::new);
                             let send_ok = resp_tx
-                                .send_async(RespAction::ListOk(ListResponse { req, res: sets }))
+                                .send_async(RespAction::ListOk(ListResponse {
+                                    req_id,
+                                    req,
+                                    res: sets,
+                                }))
                                 .await;
                             if let Err(err) = send_ok {
                                 tracing::error!("Can't send list response to server: {err:#}");

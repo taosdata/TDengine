@@ -10,6 +10,7 @@ use dashmap::DashMap;
 use metrics::counter;
 use taos::taos_query::tmq::Assignment;
 
+#[instrument(skip_all, fields(table, rows))]
 async fn write_data(
     id: usize,
     rows: &mut usize,
@@ -347,15 +348,15 @@ async fn sync(
                     }
                     match message {
                         MessageSet::Meta(meta) => {
-                            write_meta(id, taos, &actions, &meta, target_is_v3, &metrics).await.with_context(|| format!("[{id}] wring meta-only message error"))?;
+                            write_meta(id, taos, &actions, &meta, target_is_v3, &metrics).await.with_context(|| format!("[{id}] writing meta-only message error"))?;
                         }
                         MessageSet::Data(data) => {
-                            write_data(id, &mut rows, taos, table.as_deref(), &actions, &data, target_is_v3, &metrics).await.with_context(|| format!("[{id}] wring data message error"))?;
+                            write_data(id, &mut rows, taos, table.as_deref(), &actions, &data, target_is_v3, &metrics).await.with_context(|| format!("[{id}] writing data message error"))?;
                         }
                         MessageSet::MetaData(meta, data) => {
-                            write_meta(id, taos, &actions, &meta, target_is_v3, &metrics).await.with_context(|| format!("[{id}] wring metadata message message error"))?;
+                            write_meta(id, taos, &actions, &meta, target_is_v3, &metrics).await.with_context(|| format!("[{id}] writing metadata message message error"))?;
                             if !actions.is_empty() {
-                                write_data(id, &mut rows, taos, table.as_deref(), &actions, &data, target_is_v3, &metrics).await.with_context(|| format!("[{id}] wring data message error"))?;
+                                write_data(id, &mut rows, taos, table.as_deref(), &actions, &data, target_is_v3, &metrics).await.with_context(|| format!("[{id}] writing data message error"))?;
                             }
                         }
                     }
