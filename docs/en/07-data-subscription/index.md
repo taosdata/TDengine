@@ -347,7 +347,7 @@ consumer = Consumer(conf)
 String url = System.getenv("TDENGINE_JDBC_URL");
 
 Properties properties = new Properties();
-properties.setProperty(TMQConstants.CONNECT_TYPE, "wss");
+properties.setProperty(TMQConstants.CONNECT_TYPE, "websocket");
 properties.setProperty(TMQConstants.CONNECT_URL, url);
 properties.setProperty(TMQConstants.CONNECT_TIMEOUT, "10000");
 properties.setProperty(TMQConstants.CONNECT_MESSAGE_TIMEOUT, "10000");
