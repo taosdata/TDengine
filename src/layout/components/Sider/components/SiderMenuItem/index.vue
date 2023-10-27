@@ -30,7 +30,7 @@
         </div>
       </el-menu-item>
     </el-tooltip>
-    <el-divider style="margin-bottom: 10px" v-if="item.parting"></el-divider>
+    <!-- <el-divider style="margin-bottom: 10px" v-if="item.parting"></el-divider> -->
   </div>
 </template>
 
