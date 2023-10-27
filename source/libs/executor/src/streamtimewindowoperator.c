@@ -1878,7 +1878,7 @@ int32_t setSessionWinOutputInfo(SSHashObj* pStUpdated, SResultWindowInfo* pWinIn
 }
 
 void getNextSessionWinInfo(SStreamAggSupporter* pAggSup, SSHashObj* pStUpdated, SResultWindowInfo* pCurWin,
-                                       SResultWindowInfo* pNextWin) {
+                           SResultWindowInfo* pNextWin) {
   SStreamStateCur* pCur = pAggSup->stateStore.streamStateSessionSeekKeyNext(pAggSup->pState, &pCurWin->sessionWin);
   pNextWin->isOutput = true;
   setSessionWinOutputInfo(pStUpdated, pNextWin);
