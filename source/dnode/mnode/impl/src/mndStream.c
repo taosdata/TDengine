@@ -1205,6 +1205,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   }
 
   mDebug("start to trigger checkpoint, checkpointId: %" PRId64, checkpointId);
+  mndTransSetSerial(pTrans);
 
   const char *pDb = mndGetStreamDB(pMnode);
   mndTransSetDbName(pTrans, pDb, "checkpoint");
