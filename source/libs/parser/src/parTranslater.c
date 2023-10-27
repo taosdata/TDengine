@@ -5164,16 +5164,15 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
   int32_t code = TSDB_CODE_SUCCESS;
 
   int32_t colIndex = 0;
-  bool    isCalcRollup = false;
   int32_t rowSize = 0;
   SNode*  pNode = NULL;
   char*   pFunc = NULL;
+  bool    isCalcRollup = false;
 
   if (pRollupFuncs) {
     pFunc = ((SFunctionNode*)nodesListGetNode(pRollupFuncs, 0))->functionName;
     isCalcRollup = caclRollupFunc(pFunc);
   }
-
   FOREACH(pNode, pCols) {
     SColumnDefNode* pCol = (SColumnDefNode*)pNode;
     if (0 == colIndex) {
@@ -5213,7 +5212,7 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
     } else {
       break;
     }
-
+    // next column
     ++colIndex;
   }
 
