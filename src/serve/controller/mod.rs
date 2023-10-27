@@ -319,6 +319,17 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
         .execute(pool)
         .await?;
     }
+    match activity.status.as_str() {
+        "queued" | "scheduled" | "running" | "completed" | "failed" | "suspended"
+        | "interrupted" => {
+            sqlx::query("UPDATE tasks SET status = ? WHERE id = ?")
+                .bind(activity.status.as_str())
+                .bind(activity.id)
+                .execute(pool)
+                .await?;
+        }
+        _ => (),
+    }
     sqlx::query(
             "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)")
             .bind(
@@ -1103,13 +1114,14 @@ impl TaskController {
     }
 
     pub async fn tmq_offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
-        let offsets = self.offsets.read().await.get(&id).cloned();
-        match offsets {
-            Some(offsets) => {
-                let res = serde_json::from_str(&format!("{:?}", offsets))?;
-                Ok(Some(res))
-            }
-            None => Ok(None),
+        let from = self.get(id).await?;
+        if let Some(task) = from {
+            let from = task.from.parse::<Dsn>()?;
+            let offsets = taosx_core::tmq_offsets(from).await?;
+            let res = serde_json::to_value(&offsets)?;
+            Ok(Some(res))
+        } else {
+            Ok(None)
         }
     }
 

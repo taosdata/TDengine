@@ -28,13 +28,13 @@ pub async fn notify_by_job_id(
         }
         JobNotification::Scheduled => {
             info!("Scheduling task {:?}", task_id);
-            if let Err(err) = sender
-                .upgrade()
-                .map(|tx| tx.send(TaskActivity::scheduled(task_id)))
-                .transpose()
-            {
-                tracing::warn!("Error sending task activity {:?}", err);
-            }
+            // if let Err(err) = sender
+            //     .upgrade()
+            //     .map(|tx| tx.send(TaskActivity::scheduled(task_id)))
+            //     .transpose()
+            // {
+            //     tracing::warn!("Error sending task activity {:?}", err);
+            // }
         }
         JobNotification::Started => {
             info!("Starting task {:?}", task_id);
