@@ -595,11 +595,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN,    "Cross join not supp
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND,     "Not supported join conditions")
 
 //function
-TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_ERROR,            "Function internal error")
-TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_NUM,         "Invalid function para number")
-TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_TYPE,        "Invalid function para type")
-TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_VALUE,       "Invalid function para value")
-TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION,      "Not buildin function")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNCTION_ERROR,            "Function internal error")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNCTION_PARA_NUM,         "Invalid function para number")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNCTION_PARA_TYPE,        "Invalid function para type")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNCTION_PARA_VALUE,       "Invalid function para value")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_NOT_BUILTIN_FUNCTION,      "Not buildin function")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_DUP_TIMESTAMP,            "Duplicate timestamps not allowed in function")
 
 //udf
