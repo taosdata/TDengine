@@ -1062,7 +1062,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
     case QUERY_NODE_SHOW_TAGS_STMT:
-    case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT: {
+    case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
+    case QUERY_NODE_SHOW_VIEWS_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);

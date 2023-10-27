@@ -915,9 +915,13 @@ static void setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SColum
   SColumnNode* pCol = *pColRef;
 
   if (NULL == pExpr->pAssociation) {
-    pExpr->pAssociation = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+    pExpr->pAssociation = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SAssociationNode));
   }
-  taosArrayPush(pExpr->pAssociation, &pColRef);
+  SAssociationNode assNode;
+  assNode.pPlace = (SNode**)pColRef;
+  assNode.pAssociationNode = (SNode*)*pColRef;
+  taosArrayPush(pExpr->pAssociation, &assNode);
+  
   strcpy(pCol->tableAlias, pTable->table.tableAlias);
   pCol->colId = isPrimaryKey(pTable, (SNode*)pExpr) ? PRIMARYKEY_TIMESTAMP_COL_ID : 0;
   strcpy(pCol->colName, pExpr->aliasName);
@@ -4360,7 +4364,7 @@ static int32_t translateInsertProject(STranslateContext* pCxt, SInsertStmt* pIns
     }
     snprintf(pExpr->aliasName, sizeof(pExpr->aliasName), "%s", pCol->colName);
     if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) {
-      pPrimaryKeyExpr = pProj;
+      pPrimaryKeyExpr = (SNode*)pExpr;
     }
   }
 
@@ -7648,7 +7652,7 @@ static int32_t translateDropView(STranslateContext* pCxt, SDropViewStmt* pStmt) 
   tNameGetFullDbName(&name, dropReq.dbFName);
   strncpy(dropReq.name, pStmt->viewName, sizeof(dropReq.name) - 1);
   snprintf(dropReq.fullname, sizeof(dropReq.fullname) - 1, "%s.%s", dropReq.dbFName, dropReq.name);
-  dropReq.sql = tstrdup(pCxt->pParseCxt->pSql);
+  dropReq.sql = (char*)pCxt->pParseCxt->pSql;
   if (NULL == dropReq.sql) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -8173,7 +8177,7 @@ static int32_t extractQueryResultSchema(const SNodeList* pProjections, int32_t* 
     SExprNode* pExpr = (SExprNode*)pNode;
     if (TSDB_DATA_TYPE_NULL == pExpr->resType.type) {
       (*pSchema)[index].type = TSDB_DATA_TYPE_VARCHAR;
-      (*pSchema)[index].bytes = 0;
+      (*pSchema)[index].bytes = VARSTR_HEADER_SIZE;
     } else {
       (*pSchema)[index].type = pExpr->resType.type;
       (*pSchema)[index].bytes = pExpr->resType.bytes;

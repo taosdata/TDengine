@@ -164,7 +164,6 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_REAL_TABLE == nodeType(pNode)) {
     SNode*      pTagCond = NULL;
     STableNode* pTable = (STableNode*)pNode;
-#ifdef TD_ENTERPRISE
     SName name;
     STableMeta* pTableMeta = NULL;
     int32_t code = getTargetMetaImpl(
@@ -176,7 +175,6 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
       isView = true;
     }
     taosMemoryFree(pTableMeta);
-#endif
     if (!isView) {
       pAuthCxt->errCode = checkAuth(pAuthCxt, pTable->dbName, pTable->tableName, AUTH_TYPE_READ, &pTagCond);
       if (TSDB_CODE_SUCCESS != pAuthCxt->errCode && NULL != pAuthCxt->pParseCxt->pEffectiveUser) {

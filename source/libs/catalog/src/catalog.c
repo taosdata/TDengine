@@ -1705,7 +1705,7 @@ int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth) {
 }
 
 void catalogFreeMetaData(SMetaData * pData) {
-
+  ctgDestroySMetaData(pData);
 }
 
 int32_t catalogRemoveViewMeta(SCatalog* pCtg, const char* dbFName, uint64_t dbId, const char* viewName, uint64_t viewId) {

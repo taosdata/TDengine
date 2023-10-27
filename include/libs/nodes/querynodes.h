@@ -30,6 +30,11 @@ extern "C" {
 #define VGROUPS_INFO_SIZE(pInfo) \
   (NULL == (pInfo) ? 0 : (sizeof(SVgroupsInfo) + (pInfo)->numOfVgroups * sizeof(SVgroupInfo)))
 
+typedef struct SAssociationNode {
+  SNode** pPlace;
+  SNode*  pAssociationNode;
+} SAssociationNode;
+
 typedef struct SRawExprNode {
   ENodeType nodeType;
   char*     p;

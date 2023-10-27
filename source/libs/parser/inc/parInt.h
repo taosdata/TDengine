@@ -40,6 +40,7 @@ int32_t translatePostCreateSmaIndex(SParseContext* pParseCxt, SQuery* pQuery, vo
 int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placeholderNo, SArray* pPlaceholderValues);
 int32_t translateTable(STranslateContext* pCxt, SNode** pTable);
 int32_t getMetaDataFromHash(const char* pKey, int32_t len, SHashObj* pHash, void** pOutput);
+void    tfreeSParseQueryRes(void* p);
 
 #ifdef TD_ENTERPRISE
 int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName);

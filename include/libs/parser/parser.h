@@ -94,6 +94,7 @@ typedef struct SParseContext {
   parseSqlFn       parseSqlFp;
   void*            parseSqlParam;
   int8_t           biMode;
+  SArray*          pSubMetaList;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
@@ -154,6 +155,8 @@ int     rawBlockBindData(SQuery *query, STableMeta* pTableMeta, void* data, SVCr
 int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray);
 SArray* serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap);
 SArray* serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap);
+void    destoryCatalogReq(SCatalogReq *pCatalogReq);
+
 #ifdef __cplusplus
 }
 #endif

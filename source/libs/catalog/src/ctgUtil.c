@@ -187,6 +187,9 @@ void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pTableTag);
   pData->pTableTag = NULL;
 
+  taosArrayDestroy(pData->pView);
+  pData->pView = NULL;
+
   taosMemoryFreeClear(pData->pSvrVer);
 }
 
@@ -258,7 +261,7 @@ void ctgFreeViewCacheImpl(SCtgViewCache* pCache, bool lock) {
     CTG_LOCK(CTG_WRITE, &pCache->viewLock);
   }
   if (pCache->pMeta) {
-    taosMemoryFree(pCache->pMeta->querySql);
+    ctgFreeSViewMeta(pCache->pMeta);
     taosMemoryFreeClear(pCache->pMeta);
   }
   if (lock) { 
@@ -583,6 +586,7 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
         SViewMetaRsp* pOut = *(SViewMetaRsp**)pCtx->out;
         if (NULL != pOut) {
           tFreeSViewMetaRsp(pOut);
+          taosMemoryFree(pOut);
         }
         taosMemoryFreeClear(pCtx->out);
       }
@@ -927,7 +931,7 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
 
 void ctgFreeTask(SCtgTask* pTask, bool freeRes) {
   ctgFreeMsgCtx(&pTask->msgCtx);
-  if (freeRes) {
+  if (freeRes || pTask->subTask) {
     ctgFreeTaskRes(pTask->type, &pTask->res);
   }
   ctgFreeTaskCtx(pTask);
@@ -1570,9 +1574,9 @@ static void* ctgCloneVgroupInfo(void* pSrc) {
 
 static void ctgFreeVgroupInfo(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
 
-static void* ctgCloneTableIndices(void* pSrc) { return taosArrayDup((const SArray*)pSrc, NULL); }
+static void* ctgCloneTableIndexs(void* pSrc) { return taosArrayDup((const SArray*)pSrc, NULL); }
 
-static void ctgFreeTableIndices(void* p) { taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes); }
+static void ctgFreeTableIndexs(void* p) { taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes); }
 
 static void* ctgCloneFuncInfo(void* pSrc) {
   SFuncInfo* pDst = taosMemoryMalloc(sizeof(SFuncInfo));
@@ -1625,6 +1629,34 @@ static void ctgFreeTableCfg(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
 static void* ctgCloneDnodeList(void* pSrc) { return taosArrayDup((const SArray*)pSrc, NULL); }
 
 static void ctgFreeDnodeList(void* p) { taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes); }
+
+static void* ctgCloneViewMeta(void* pSrc) {
+  SViewMeta* pSrcMeta = pSrc;
+  SViewMeta* pDst = taosMemoryMalloc(sizeof(SViewMeta));
+  if (NULL == pDst) {
+    return NULL;
+  }
+  pDst->user = tstrdup(pSrcMeta->user);
+  pDst->querySql = tstrdup(pSrcMeta->querySql);
+  pDst->pSchema = taosMemoryMalloc(pSrcMeta->numOfCols * sizeof(*pSrcMeta->pSchema));
+  if (NULL == pDst->pSchema) {
+    return pDst;
+  }
+  memcpy(pDst->pSchema, pSrcMeta->pSchema, pSrcMeta->numOfCols * sizeof(*pSrcMeta->pSchema));
+  return pDst;
+}
+
+static void ctgFreeViewMeta(void* p) { 
+  SViewMeta* pMeta = ((SMetaRes*)p)->pRes; 
+  if (NULL == pMeta) {
+    return;
+  }
+  taosMemoryFree(pMeta->user);
+  taosMemoryFree(pMeta->querySql);
+  taosMemoryFree(pMeta->pSchema);  
+  taosMemoryFree(pMeta);
+}
+
 
 int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   int32_t          code = 0;
@@ -1940,7 +1972,7 @@ SMetaData* catalogCloneMetaData(SMetaData* pData) {
 }
 #endif
 
-void ctgFreeMetaData(SMetaData* pData) {
+void ctgDestroySMetaData(SMetaData* pData) {
   if (NULL == pData) {
     return;
   }
@@ -1950,15 +1982,15 @@ void ctgFreeMetaData(SMetaData* pData) {
   taosArrayDestroyEx(pData->pDbInfo, ctgFreeDbInfo);
   taosArrayDestroyEx(pData->pTableMeta, ctgFreeTableMeta);
   taosArrayDestroyEx(pData->pTableHash, ctgFreeVgroupInfo);
-  taosArrayDestroyEx(pData->pTableIndex, ctgFreeTableIndices);
+  taosArrayDestroyEx(pData->pTableIndex, ctgFreeTableIndexs);
   taosArrayDestroyEx(pData->pUdfList, ctgFreeFuncInfo);
   taosArrayDestroyEx(pData->pIndex, ctgFreeIndexInfo);
   taosArrayDestroyEx(pData->pUser, ctgFreeUserAuth);
   taosArrayDestroyEx(pData->pQnodeList, ctgFreeQnodeList);
   taosArrayDestroyEx(pData->pTableCfg, ctgFreeTableCfg);
   taosArrayDestroyEx(pData->pDnodeList, ctgFreeDnodeList);
+  taosArrayDestroyEx(pData->pView, ctgFreeViewMeta);
   taosMemoryFreeClear(pData->pSvrVer);
-  taosMemoryFree(pData);
 }
 
 uint64_t ctgGetTbIndexCacheSize(STableIndex *pIndex) {

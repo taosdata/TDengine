@@ -14,6 +14,20 @@ endi
 if $data01 != 100111 then
   return -1
 endi
+sql select ts from view1 order by ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @23-10-16 09:10:11.000@ then
+  return -1
+endi
+sql select view1.ts from view1 order by view1.ts;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @23-10-16 09:10:11.000@ then
+  return -1
+endi
 
 sql create or replace view view1 as select 1, 2;
 sql explain select * from view1;
@@ -102,11 +116,13 @@ if $data31 != 200338 then
   return -1
 endi
 
+sql drop view view1;
 sql drop view testb.view2;
 sql drop view view3;
 sql drop view view4;
 sql drop view view5;
 
+sql create or replace view view1 as select * from sta1;
 sql create or replace view view2 as select * from st2;
 sql explain select avg(view1.f), avg(view2.f) from view1, view2 where view1.ts = view2.ts and view1.f < 100114;
 sql explain analyze select avg(view1.f), avg(view2.f) from view1, view2 where view1.ts = view2.ts and view1.f < 100114;

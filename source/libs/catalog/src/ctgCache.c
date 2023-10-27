@@ -1687,11 +1687,11 @@ int32_t ctgWriteViewMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFN
 _return:
 
   if (pMeta) {
-    taosMemoryFree(pMeta->querySql);
+    ctgFreeSViewMeta(pMeta);
     taosMemoryFree(pMeta);
   }
 
-  return TSDB_CODE_SUCCESS;
+  CTG_RET(code);
 }
 
 int32_t ctgUpdateTbMetaToCache(SCatalog *pCtg, STableMetaOutput *pOut, bool syncReq) {
@@ -2358,31 +2358,34 @@ int32_t ctgOpUpdateViewMeta(SCtgCacheOperation *operation) {
   SCatalog              *pCtg = msg->pCtg;
   SViewMetaRsp          *pRsp = msg->pRsp;
   SCtgDBCache           *dbCache = NULL;
+  SViewMeta             *pMeta = NULL;
 
   taosMemoryFreeClear(msg);
 
   if (pCtg->stopUpdate) {
-    return TSDB_CODE_SUCCESS;
+    goto _return;
   }
 
-  CTG_ERR_RET(ctgGetAddDBCache(pCtg, pRsp->dbFName, pRsp->dbId, &dbCache));
+  CTG_ERR_JRET(ctgGetAddDBCache(pCtg, pRsp->dbFName, pRsp->dbId, &dbCache));
   if (NULL == dbCache) {
     ctgInfo("conflict db update, ignore this update, dbFName:%s, dbId:0x%" PRIx64, pRsp->dbFName, pRsp->dbId);
-    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
-  SViewMeta *pMeta = taosMemoryCalloc(1, sizeof(SViewMeta));
+  pMeta = taosMemoryCalloc(1, sizeof(SViewMeta));
   if (NULL == pMeta) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
   CTG_ERR_JRET(dupViewMetaFromRsp(pRsp, pMeta));
-  ASSERT(strlen(pMeta->querySql) > 0 && strlen(pMeta->user) > 0);
 
-  CTG_RET(ctgWriteViewMetaToCache(pCtg, dbCache, pRsp->dbFName, pRsp->name, pMeta));
-
+  code = ctgWriteViewMetaToCache(pCtg, dbCache, pRsp->dbFName, pRsp->name, pMeta);
+  pMeta = NULL;
+  
 _return:
 
+  tFreeSViewMetaRsp(pRsp);
+  taosMemoryFree(pRsp);
   ctgFreeSViewMeta(pMeta);
   taosMemoryFree(pMeta);
 

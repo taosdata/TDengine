@@ -879,39 +879,12 @@ int taos_get_current_db(TAOS *taos, char *database, int len, int *required) {
   return code;
 }
 
-static void destoryTablesReq(void *p) {
-  STablesReq *pRes = (STablesReq *)p;
-  taosArrayDestroy(pRes->pTables);
-}
-
-static void destoryCatalogReq(SCatalogReq *pCatalogReq) {
-  if (NULL == pCatalogReq) {
-    return;
-  }
-  taosArrayDestroy(pCatalogReq->pDbVgroup);
-  taosArrayDestroy(pCatalogReq->pDbCfg);
-  taosArrayDestroy(pCatalogReq->pDbInfo);
-  if (pCatalogReq->cloned) {
-    taosArrayDestroy(pCatalogReq->pTableMeta);
-    taosArrayDestroy(pCatalogReq->pTableHash);
-  } else {
-    taosArrayDestroyEx(pCatalogReq->pTableMeta, destoryTablesReq);
-    taosArrayDestroyEx(pCatalogReq->pTableHash, destoryTablesReq);
-  }
-  taosArrayDestroy(pCatalogReq->pUdf);
-  taosArrayDestroy(pCatalogReq->pIndex);
-  taosArrayDestroy(pCatalogReq->pUser);
-  taosArrayDestroy(pCatalogReq->pTableIndex);
-  taosArrayDestroy(pCatalogReq->pTableCfg);
-  taosArrayDestroy(pCatalogReq->pTableTag);
-  taosMemoryFree(pCatalogReq);
-}
-
 void destorySqlCallbackWrapper(SSqlCallbackWrapper *pWrapper) {
   if (NULL == pWrapper) {
     return;
   }
   destoryCatalogReq(pWrapper->pCatalogReq);
+  taosMemoryFree(pWrapper->pCatalogReq);
   qDestroyParseContext(pWrapper->pParseCtx);
   taosMemoryFree(pWrapper);
 }
@@ -966,6 +939,7 @@ int32_t cloneCatalogReq(SCatalogReq **ppTarget, SCatalogReq *pSrc) {
     pTarget->pTableIndex = taosArrayDup(pSrc->pTableIndex, NULL);
     pTarget->pTableCfg = taosArrayDup(pSrc->pTableCfg, NULL);
     pTarget->pTableTag = taosArrayDup(pSrc->pTableTag, NULL);
+    pTarget->pView = taosArrayDup(pSrc->pView, NULL);
     pTarget->qNodeRequired = pSrc->qNodeRequired;
     pTarget->dNodeRequired = pSrc->dNodeRequired;
     pTarget->svrVerRequired = pSrc->svrVerRequired;
@@ -1579,7 +1553,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   tsem_wait(&pParam->sem);
 
 _return:
-  taosArrayDestroyEx(catalogReq.pTableMeta, destoryTablesReq);
+  destoryCatalogReq(&catalogReq);
   destroyRequest(pRequest);
   return code;
 }

@@ -311,7 +311,7 @@ static int32_t hbProcessViewInfoRsp(void *value, int32_t valueLen, struct SCatal
     }
   }
 
-  //tFreeSViewHbRsp(&hbRsp);
+  taosArrayDestroy(hbRsp.pViewRsp);
   return TSDB_CODE_SUCCESS;
 }
 

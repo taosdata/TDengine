@@ -5,6 +5,7 @@ sql create view view1 as select * from sta1;
 sql drop view view1;
 
 sql create or replace view view2 as select f from cta11;
+sql_error create view view2 as select * from cta11;
 sql drop view if exists view2;
 sql drop view if exists view3;
 sql_error drop view view2;
@@ -38,3 +39,9 @@ sql create view view1 as select * from ins_tables;
 sql drop view view1;
 sql create view information_schema.view1 as select * from ins_tags;
 sql drop view information_schema.view1;
+
+sql use testa
+sql_error create view testb.view1 as select * from sta1;
+sql create view testb.view1 as select * from stb1;
+sql_error drop view view1
+sql drop view testb.view1

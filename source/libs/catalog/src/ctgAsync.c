@@ -463,6 +463,19 @@ int32_t ctgInitGetViewsTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgHandleForceUpdateView(SCatalog* pCtg, const SCatalogReq* pReq) {
+  int32_t viewNum = taosArrayGetSize(pReq->pView);
+  for (int32_t i = 0; i < viewNum; ++i) {
+    STablesReq* p = taosArrayGet(pReq->pView, i);
+    int32_t viewNum = taosArrayGetSize(p->pTables);
+    for (int32_t m = 0; m < viewNum; ++m) {
+      SName* name = taosArrayGet(p->pTables, m);
+      ctgDropViewMetaEnqueue(pCtg, p->dbFName, 0, name->tname, 0, true);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, const SCatalogReq* pReq) {
   SHashObj* pDb = taosHashInit(taskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
@@ -510,6 +523,12 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
     }
   }
 
+  dbNum = taosArrayGetSize(pReq->pView);
+  for (int32_t i = 0; i < dbNum; ++i) {
+    STablesReq* p = taosArrayGet(pReq->pView, i);
+    taosHashPut(pDb, p->dbFName, strlen(p->dbFName), p->dbFName, TSDB_DB_FNAME_LEN);
+  }
+
   for (int32_t i = 0; i < pJob->tbCfgNum; ++i) {
     SName* name = taosArrayGet(pReq->pTableCfg, i);
     char   dbFName[TSDB_DB_FNAME_LEN];
@@ -554,7 +573,8 @@ int32_t ctgHandleForceUpdate(SCatalog* pCtg, int32_t taskNum, SCtgJob* pJob, con
     ctgDropTbIndexEnqueue(pCtg, name, true);
   }
 
-  return TSDB_CODE_SUCCESS;
+  // REFRESH VIEW META
+  return ctgHandleForceUpdateView(pCtg, pReq);
 }
 
 int32_t ctgInitTask(SCtgJob* pJob, CTG_TASK_TYPE type, void* param, int32_t* taskId) {
@@ -1869,7 +1889,7 @@ int32_t ctgHandleGetViewsRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf*
 
   ctgDebug("start to update view meta to cache, view:%s, querySQL:%s", pRsp->name, pRsp->querySql);
   ctgUpdateViewMetaToCache(pCtg, pRsp, false);
-  pMsgCtx->out = NULL;
+  taosMemoryFreeClear(pMsgCtx->out);
   pRsp = NULL;
   
   SMetaRes* pRes = taosArrayGet(ctx->pResList, pFetch->resIdx);

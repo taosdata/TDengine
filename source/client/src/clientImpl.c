@@ -1176,6 +1176,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
     code = schedulerExecJob(&req, &pRequest->body.queryJob);
     taosArrayDestroy(pNodeList);
   } else {
+    qDestroyQueryPlan(pDag);
     tscDebug("0x%" PRIx64 " plan not executed, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
              pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
