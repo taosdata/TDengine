@@ -20,7 +20,7 @@ use metrics_util::debugging::Snapshotter;
 use serde::{Deserialize, Serialize};
 use taos::Code;
 use taosx_core::{
-    get_file_upload_home_dir, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND,
+    get_data_dir, get_file_upload_home_dir, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND,
     METRICS_TIME_START,
 };
 use utoipa::*;
@@ -735,8 +735,8 @@ pub async fn download_files(params: Query<DownloadParams>, req: HttpRequest) -> 
 
 async fn download(file_path: Query<DownloadParams>) -> anyhow::Result<NamedFile> {
     let file_path = file_path.into_inner().file_path;
-    let upload_dir = get_file_upload_home_dir();
-    let file_path = upload_dir.join(file_path);
+    let data_dir = get_data_dir();
+    let file_path = data_dir.join(file_path);
     let meta = std::fs::metadata(file_path.clone()).with_context(|| "get file metadata error")?;
     if meta.is_dir() {
         anyhow::bail!("not support path");

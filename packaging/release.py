@@ -109,7 +109,7 @@ def get_install_path():
         target = taosx_agent_name
 
     if release_info.OS == 'Windows':  # Windows操作系统
-        return f'C:\\Program Files\\taosX'
+        return f'C:\\TDengine'
     elif release_info.OnlyBuild:
         return os.path.join(taosx_dir,"release","taosx")
     else:

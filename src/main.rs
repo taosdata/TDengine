@@ -117,17 +117,17 @@ struct OptArgs {
 #[config]
 #[derive(Parser, Debug)]
 struct ConfigArgs {
-    #[clap(long, env = "PLUGINS_HOME")]
+    #[clap(long, env = "PLUGINS_HOME", global = true)]
     plugins_home: Option<String>,
 
-    #[clap(long, env = "TAOSX_DATA_DIR")]
+    #[clap(long, env = "TAOSX_DATA_DIR", global = true)]
     data_dir: Option<String>,
 
-    #[clap(long, env = "LOGS_HOME")]
+    #[clap(long, env = "LOGS_HOME", global = true)]
     logs_home: Option<String>,
 
     /// For environment variable wised log level.
-    #[clap(hide = true, env = "LOG_LEVEL")]
+    #[clap(hide = true, env = "LOG_LEVEL", global = true)]
     log_level: Option<LevelFilter>,
 
     /// Enable debug will set the mod path as `file:line`.
@@ -135,7 +135,7 @@ struct ConfigArgs {
     debug: bool,
 
     /// Log keep days.
-    #[clap(long, global = true, env = "LOG_KEEP_DAYS")]
+    #[clap(long, env = "LOG_KEEP_DAYS", global = true)]
     log_keep_days: Option<i64>,
 
     /// Number of jobs, default to 0, will use `jobs` number of works for TMQ.
@@ -143,7 +143,7 @@ struct ConfigArgs {
     jobs: usize,
 
     /// Enable OpenTelemetry tracing and metrics exporter.
-    #[clap(long, global = true, action = clap::ArgAction::SetTrue, env = "ENABLE_OTEL")]
+    #[clap(long, action = clap::ArgAction::SetTrue, env = "ENABLE_OTEL", global = true)]
     otel: Option<bool>,
 }
 
