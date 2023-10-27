@@ -3442,6 +3442,7 @@ static void convertVarDuration(SValueNode* pOffset, uint8_t precision) {
   pOffset->unit = units[precision];
 }
 
+static const int64_t  maxKeepMS = (int64_t)3600 * 1000 * 24 * (365 * 1000 + 250);
 static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pInterval) {
   uint8_t precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
 
@@ -3450,6 +3451,8 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
   if (pInter->datum.i <= 0 || (!valInter && pInter->datum.i < tsMinIntervalTime)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL, tsMinIntervalTime,
                                 getPrecisionStr(precision));
+  } else if (pInter->datum.i > maxKeepMS) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_BIG, 1000, "years");
   }
 
   if (NULL != pInterval->pOffset) {
