@@ -36,8 +36,7 @@ extern "C" {
 #define SYNC_DEL_WAL_MS              (1000 * 60)
 #define SYNC_ADD_QUORUM_COUNT        3
 #define SYNC_VNODE_LOG_RETENTION     (TSDB_SYNC_LOG_BUFFER_RETENTION + 1)
-#define SNAPSHOT_MAX_CLOCK_SKEW_MS   1000 * 10
-#define SNAPSHOT_WAIT_MS             1000 * 30
+#define SNAPSHOT_WAIT_MS             1000 * 5
 
 #define SYNC_MAX_RETRY_BACKOFF         5
 #define SYNC_LOG_REPL_RETRY_WAIT_MS    100
@@ -47,6 +46,7 @@ extern "C" {
 #define SYNC_HEARTBEAT_SLOW_MS       1500
 #define SYNC_HEARTBEAT_REPLY_SLOW_MS 1500
 #define SYNC_SNAP_RESEND_MS          1000 * 60
+#define SYNC_SNAP_TIMEOUT_MS         1000 * 600
 
 #define SYNC_VND_COMMIT_MIN_MS 3000
 

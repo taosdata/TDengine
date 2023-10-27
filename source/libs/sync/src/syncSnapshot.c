@@ -297,7 +297,6 @@ _OUT:;
 int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
   SSyncSnapBuffer *pSndBuf = pSender->pSndBuf;
   int32_t          code = -1;
-
   taosThreadMutexLock(&pSndBuf->mutex);
 
   for (int32_t seq = pSndBuf->cursor + 1; seq < pSndBuf->end; ++seq) {
@@ -336,12 +335,11 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
       goto _out;
     }
     pBlk->sendTimeMs = nowMs;
-    pSender->lastSendTime = nowMs;
   }
   code = 0;
 _out:;
   taosThreadMutexUnlock(&pSndBuf->mutex);
-  return 0;
+  return code;
 }
 
 // return 0, start ok
