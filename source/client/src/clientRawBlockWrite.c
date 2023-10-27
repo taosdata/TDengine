@@ -1338,6 +1338,11 @@ end:
 
 int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const char* tbname, TAOS_FIELD* fields,
                                      int numFields) {
+  return taos_write_raw_block_with_fields_with_reqid(taos, rows, pData, tbname, fields, numFields, 0);
+}
+
+int taos_write_raw_block_with_fields_with_reqid(TAOS *taos, int rows, char *pData, const char *tbname,
+    TAOS_FIELD *fields, int numFields, int64_t reqid){
   if (!taos || !pData || !tbname) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -1347,7 +1352,7 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
   SHashObj*   pVgHash = NULL;
   uDebug("taos_write_raw_block_with_fields called");
 
-  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
+  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, reqid);
   if (!pRequest) {
     uError("WriteRaw:createRequest error request is null");
     code = terrno;
@@ -1427,6 +1432,10 @@ end:
 }
 
 int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) {
+  return taos_write_raw_block_with_reqid(taos, rows, pData, tbname, 0);
+}
+
+int taos_write_raw_block_with_reqid(TAOS* taos, int rows, char* pData, const char* tbname, int64_t reqid) {
   if (!taos || !pData || !tbname) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -1436,7 +1445,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
   SHashObj*   pVgHash = NULL;
 
   uDebug("taos_write_raw_block called");
-  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
+  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, reqid);
   if (!pRequest) {
     uError("WriteRaw:createRequest error request is null");
     code = terrno;
