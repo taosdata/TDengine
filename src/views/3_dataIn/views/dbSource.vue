@@ -319,7 +319,7 @@ export default {
                 : undefined;
           }
           if (keys === "protocol") {
-            targetObj.protocol["value"] = targetObj.protocol.choices.filter(
+            targetObj.protocol["value"] =targetObj.protocol?.value?targetObj.protocol.value: targetObj.protocol.choices.filter(
               (o) => o.name == "--"
             )[0]?.name;
           }
