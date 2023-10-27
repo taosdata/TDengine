@@ -1220,6 +1220,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     if (tEncodeI64(&encoder, reserved) < 0) return -1;
     if (tEncodeI64(&encoder, reserved) < 0) return -1;
   }
+  if (tEncodeI64(&encoder, pReq->ipWhiteVer) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1329,6 +1330,9 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
       if (tDecodeI64(&decoder, &reserved) < 0) return -1;
       if (tDecodeI64(&decoder, &reserved) < 0) return -1;
     }
+  }
+   if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI64(&decoder, &pReq->ipWhiteVer) < 0) return -1;
   }
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
@@ -1526,6 +1530,7 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
   if (tDecodeI8(&decoder, &pReq->enable) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->user) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->pass) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->numIpRanges) < 0) return -1;
   pReq->pIpRanges = taosMemoryMalloc(pReq->numIpRanges * sizeof(SIpV4Range));
   if (pReq->pIpRanges == NULL) return -1;
   for (int32_t i = 0; i < pReq->numIpRanges; ++i) {

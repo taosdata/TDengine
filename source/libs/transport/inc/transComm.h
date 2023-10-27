@@ -29,6 +29,8 @@ extern "C" {
 #include "ttrace.h"
 #include "tutil.h"
 
+typedef bool (*FilteFunc)(void* arg);
+
 typedef void* queue[2];
 /* Private macros. */
 #define QUEUE_NEXT(q) (*(queue**)&((*(q))[0]))
@@ -318,6 +320,7 @@ int transSendRecvWithTimeout(void* shandle, const SEpSet* pEpSet, STransMsg* pMs
 int transSendResponse(const STransMsg* msg);
 int transRegisterMsg(const STransMsg* msg);
 int transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
+void transSetIpWhiteList(void* shandle, void* arg, FilteFunc* func);
 
 int transSockInfo2Str(struct sockaddr* sockname, char* dst);
 
@@ -445,6 +448,22 @@ int32_t transGetInstMgt();
 int32_t transGetSyncMsgMgt();
 
 void transHttpEnvDestroy();
+
+typedef struct {
+  uint32_t netmask;
+  uint32_t address;
+  uint32_t network;
+  uint32_t broadcast;
+  char     info[32];
+  int8_t   type;
+} SubnetUtils;
+
+int32_t subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange);
+int32_t subnetCheckIp(SubnetUtils* pUtils, uint32_t ip);
+int32_t subnetDebugInfoToBuf(SubnetUtils* pUtils, char* buf);
+
+int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf);
+int32_t transUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf);
 #ifdef __cplusplus
 }
 #endif

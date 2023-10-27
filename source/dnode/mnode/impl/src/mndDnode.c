@@ -139,6 +139,8 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
 
+  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1);
+
 _OVER:
   mndTransDrop(pTrans);
   sdbFreeRaw(pRaw);
@@ -429,6 +431,11 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
            tsTtlChangeOnWrite);
     return DND_REASON_TTL_CHANGE_ON_WRITE_NOT_MATCH;
   }
+  int8_t enable = tsEnableWhiteList ? 1 : 0;
+  if (pCfg->enableWhiteList != enable) {
+    mError("dnode:%d, enable :%d inconsistent with cluster:%d", pDnode->id, pCfg->enableWhiteList, enable);
+    return DND_REASON_ENABLE_WHITELIST_NOT_MATCH;
+  }
 
   return 0;
 }
@@ -520,6 +527,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       }
     }
   }
+  pMnode->ipWhiteVer = mndGetIpWhiteVer(pMnode);
 
   int64_t dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
   int64_t curMs = taosGetTimestampMs();
@@ -527,7 +535,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    dnodeChanged = (statusReq.dnodeVer == 0) || (statusReq.dnodeVer != dnodeVer);
   bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
   bool    supportVnodesChanged = pDnode->numOfSupportVnodes != statusReq.numOfSupportVnodes;
-  bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged;
+  bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || pMnode->ipWhiteVer != statusReq.ipWhiteVer;;
 
   const STraceId *trace = &pReq->info.traceId;
   mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
@@ -652,6 +660,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     }
 
     mndGetDnodeEps(pMnode, statusRsp.pDnodeEps);
+    statusRsp.ipWhiteVer = pMnode->ipWhiteVer;
 
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
     void   *pHead = rpcMallocCont(contLen);
@@ -736,6 +745,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
   code = 0;
+  mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, dnodeObj.fqdn, IP_WHITE_ADD, 1); 
 
 _OVER:
   mndTransDrop(pTrans);
@@ -1080,6 +1090,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
   code = 0;
+    mndUpdateIpWhiteForAllUser(pMnode, TSDB_DEFAULT_USER, pDnode->fqdn, IP_WHITE_DROP, 1);
 
 _OVER:
   mndTransDrop(pTrans);
@@ -1575,4 +1586,20 @@ _err:
   mError("dnode:%d, failed to config since invalid conf:%s", pMCfgReq->dnodeId, pMCfgReq->config);
   terrno = TSDB_CODE_INVALID_CFG;
   return -1;
+}
+
+SArray *mndGetAllDnodeFqdns(SMnode *pMnode) {
+  SDnodeObj *pObj = NULL;
+  void      *pIter = NULL;
+  SSdb      *pSdb = pMnode->pSdb;
+  SArray    *fqdns = taosArrayInit(4, sizeof(void *));
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
+
+    char *fqdn = taosStrdup(pObj->fqdn);
+    taosArrayPush(fqdns, &fqdn);
+    sdbRelease(pSdb, pObj);
+  }
+  return fqdns;
 }
