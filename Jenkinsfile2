@@ -96,7 +96,7 @@ def pre_test(){
             cd ${WK}
             git checkout ''' + env.CHANGE_TARGET + '''
             cd ${WKC}
-            git checkout ''' + env.CHANGE_TARGET + '''
+            git checkout feat/TD-26684
         '''
     }
     if (env.CHANGE_URL =~ /\/TDengine\//) {
