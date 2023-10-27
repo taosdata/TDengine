@@ -11,6 +11,7 @@ import (
 
 	"github.com/eclipse/paho.golang/autopaho"
 	"github.com/eclipse/paho.golang/paho"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/taosdata/taosx/plugins/mqtt/config"
 	"github.com/taosdata/taosx/plugins/mqtt/connector"
@@ -64,6 +65,10 @@ func (conn *Connector) connect(conf *config.MQTT) {
 	if err != nil {
 		conn.logger.WithError(err).Fatal("MQTT address error")
 	}
+	clientID := conf.ClientID
+	if clientID == "" {
+		clientID = strings.ReplaceAll(uuid.New().String(), "-", "")
+	}
 	schema := strings.ToLower(addr.Scheme)
 	cliCfg := autopaho.ClientConfig{
 		BrokerUrls: []*url.URL{addr},
@@ -75,7 +80,7 @@ func (conn *Connector) connect(conf *config.MQTT) {
 			conn.logger.WithError(err).Fatal("error whilst attempting connection")
 		},
 		ClientConfig: paho.ClientConfig{
-			ClientID: conf.ClientID,
+			ClientID: clientID,
 			Router: paho.NewSingleHandlerRouter(func(m *paho.Publish) {
 				conn.onMessage(m.QoS, m.Topic, m.Payload)
 			}),
@@ -128,4 +133,53 @@ func NewConnector(conf *config.MQTT, logger logrus.FieldLogger, onConnect connec
 	conn := &Connector{logger: logger, conf: conf, onConnect: onConnect, onDisconnected: onDisconnected, onMessage: onMessage}
 	conn.connect(conf)
 	return conn
+}
+
+func Check(ctx context.Context, conf *config.MQTT) error {
+	addr, err := url.Parse(conf.Address)
+	if err != nil {
+		return err
+	}
+	schema := strings.ToLower(addr.Scheme)
+	connected := make(chan struct{}, 1)
+	connectError := make(chan error, 1)
+	clientID := strings.ReplaceAll(uuid.New().String(), "-", "")
+	cliCfg := autopaho.ClientConfig{
+		BrokerUrls: []*url.URL{addr},
+		KeepAlive:  5,
+		OnConnectionUp: func(cm *autopaho.ConnectionManager, connAck *paho.Connack) {
+			connected <- struct{}{}
+		},
+		OnConnectError: func(err error) {
+			connectError <- err
+		},
+		ClientConfig: paho.ClientConfig{
+			ClientID: clientID,
+			Router: paho.NewSingleHandlerRouter(func(m *paho.Publish) {
+			}),
+			OnServerDisconnect: func(d *paho.Disconnect) {
+			},
+		},
+	}
+	if schema == "ssl" || schema == "wss" {
+		tlsConfig, err := newTLSConfig(conf)
+		if err != nil {
+			return err
+		}
+		cliCfg.TlsCfg = tlsConfig
+	}
+	cm, err := autopaho.NewConnection(ctx, cliCfg)
+	if err != nil {
+		return err
+	}
+
+	defer cm.Disconnect(ctx)
+	select {
+	case <-connected:
+		return nil
+	case err := <-connectError:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

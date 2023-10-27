@@ -18,6 +18,9 @@ type DaConnector struct {
 func NewConnector(config common.Config) (connector.Connector, error) {
 	r, err := newReader(config)
 	if err != nil {
+		if r != nil {
+			r.stop(context.Background())
+		}
 		return nil, err
 	}
 	return &DaConnector{r: r}, nil

@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Result};
 use chrono::Local;
@@ -28,8 +28,8 @@ use twelf::{config, Layer};
 
 use taosx_core::utils::trace::TaosXLayer;
 use taosx_core::{
-    get_log_dir, get_log_keep_days,
-    set_env_plugins_home_dir, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days
+    get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
+    set_env_plugins_home_dir,
 };
 #[cfg(feature = "tikv_jemallocator")]
 #[cfg(not(target_env = "msvc"))]
@@ -280,10 +280,7 @@ fn build_runtime(
         .build()
 }
 
-fn create_rotating_log_writer(
-    log_path: &PathBuf,
-    log_keep_days: i64,
-) -> FileRotate<AppendTimestamp> {
+fn create_rotating_log_writer(log_path: &Path, log_keep_days: i64) -> FileRotate<AppendTimestamp> {
     FileRotate::new(
         &log_path,
         AppendTimestamp::with_format(
@@ -514,8 +511,8 @@ fn main() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::env;
     use super::*;
+    use std::env;
 
     /// set plugins_home、data_dir、logs_home in server.toml
     /// set data_dir、logs_home in env

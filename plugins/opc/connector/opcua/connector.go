@@ -55,6 +55,9 @@ func createReaders(config common.Config) (readers []*reader, err error) {
 		subNodes := nodes[start:end]
 		r, err := createReader(config, subNodes)
 		if err != nil {
+			for _, created := range readers {
+				created.stop(context.Background())
+			}
 			return nil, fmt.Errorf("create reader fail %w", err)
 		}
 		readers = append(readers, r)
