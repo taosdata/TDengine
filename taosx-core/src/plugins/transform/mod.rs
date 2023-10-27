@@ -30,10 +30,8 @@ use taos::{
 mod select;
 
 pub use select::Select;
-pub use taosx_ipc::prelude::IpcDataType;
 
 mod json;
-pub use json::Json;
 
 mod parse;
 

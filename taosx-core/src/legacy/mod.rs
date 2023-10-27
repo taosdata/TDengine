@@ -1532,7 +1532,9 @@ async fn sync_specified_tables_with_workers(
             Err(err) => {
                 tracing::error!("Syncing error: {err:#}",);
                 fails += 1;
-                return Err(err);
+                if _target_opts.fails_to.is_none() {
+                    return Err(err);
+                }
             }
         }
 
@@ -1555,7 +1557,14 @@ async fn sync_specified_tables_with_workers(
             }
         }
     }
-    tracing::info!("Synchronizing {count} tables with {workers} workers finished");
+    if fails > 0 {
+        tracing::info!(
+            "Synchronizing {count} tables with {workers} workers finished, {fails} failed"
+        );
+    } else {
+        tracing::info!("Synchronizing {count} tables with {workers} workers finished");
+    }
+
     Ok(())
 }
 

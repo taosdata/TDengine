@@ -272,7 +272,7 @@ fn build_runtime(
     tokio::runtime::Builder::new_multi_thread()
         .disable_lifo_slot()
         .rng_seed(tokio::runtime::RngSeed::from_bytes(b"taosx rng seed"))
-        .global_queue_interval(31)
+        .global_queue_interval(61)
         .max_blocking_threads(4096)
         .thread_name("taosx")
         .worker_threads(worker_threads)
@@ -483,12 +483,20 @@ fn main() -> Result<()> {
         }
         Commands::Serve(serve) => {
             let _ = tracing::info_span!("serve").entered();
+            let scheduler_rt = build_runtime(worker_threads * 2)?;
+
+            let (agent_integration_channel, agent_rpc_channel) =
+                scheduler_rt.block_on(serve.channels());
+
+            let scheduler = scheduler_rt.block_on(serve.scheduler(agent_integration_channel))?;
+
             let grpc_rt = build_runtime(worker_threads)?;
+
             // let api_rt = build_runtime(worker_threads)?;
-            let ctl = runtime.block_on(serve.controller())?;
+            let ctl = runtime.block_on(serve.controller(scheduler))?;
             let api_ctl = ctl.clone();
             let serve_api = serve.clone();
-            let grpc_handle = grpc_rt.spawn(serve_api.grpc(ctl.clone()));
+            let grpc_handle = grpc_rt.spawn(serve_api.grpc(ctl.clone(), agent_rpc_channel));
             runtime.block_on(async move {
                 // rest api
                 serve.api(api_ctl, grpc_handle).await
@@ -517,7 +525,7 @@ mod tests {
         env::set_var("TAOSX_DATA_DIR", "from-env");
         env::set_var("TAOSX_LOGS_HOME", "from-env");
 
-        let args = Args::parse()?;
+        let args = Args::parse();
         println!("configs: {:?}", args);
 
         assert_eq!(

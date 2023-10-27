@@ -28,6 +28,7 @@ pub use crate::tmq_to_kafka::tmq_to_kafka;
 use crate::validation::DataSourceValidation;
 
 mod csv;
+mod fake;
 mod legacy;
 mod local_to_taos;
 mod parquets;
@@ -370,6 +371,21 @@ impl TaskOpts {
                 }
                 ("historian", "taos") => {
                     historian_to_taos(
+                        from.clone(),
+                        parser.clone(),
+                        transform.clone(),
+                        to.clone(),
+                        jobs.clone(),
+                        port_pool,
+                        cancel.clone(),
+                        with_agent.clone(),
+                        transferred.clone(),
+                        span.clone(),
+                    )
+                    .await?;
+                }
+                ("fake", "taos") => {
+                    fake::fake_to_taos(
                         from.clone(),
                         parser.clone(),
                         transform.clone(),
