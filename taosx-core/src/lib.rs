@@ -505,8 +505,8 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
     use std::str::FromStr;
-
     use taos::Dsn;
 
     use super::*;
@@ -524,46 +524,84 @@ mod tests {
 
     #[ignore]
     #[tokio::test]
-    async fn test_validate_dsn() {
+    async fn test_historian_valid() {
         // historian
         let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433").unwrap();
         let dsv = validate_dsn(dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("historian", dsv.data_source);
+        assert_eq!(None, dsv.version);
+    }
 
+    #[ignore]
+    #[tokio::test]
+    async fn test_influxdb_valid() {
+        env::set_var("PLUGINS_HOME", "../plugins");
         // influxdb
         let dsn = Dsn::from_str("influxdb://192.168.1.107:8086/?version=2.7&orgId=f3af42a3895a5e33&token=wido5N7w7PutOEuVtoEe5kxjkov5XZm1Uxqe1bEKKBSN4_4XjQfg0hc9BNGDR7xiMs3BaNtHsWjKCvGWMn8fDA==").unwrap();
         let dsv = validate_dsn(dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("influxdb", dsv.data_source);
-        assert_eq!("2.7", dsv.version.unwrap());
+        assert_eq!("OSS v2.7.1", dsv.version.unwrap());
+    }
 
+    #[ignore]
+    #[tokio::test]
+    async fn test_kafka_valid() {
         // kafka
         let dsn = Dsn::from_str("kafka://192.168.1.92:9092").unwrap();
         let dsv = validate_dsn(dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("kafka", dsv.data_source);
+        assert_eq!(None, dsv.version);
+    }
 
+    #[ignore]
+    #[tokio::test]
+    async fn test_mqtt_valid() {
+        env::set_var("PLUGINS_HOME", "../plugins");
         //mqtt
-        let dsn =
-            Dsn::from_str("mqtt://127.0.0.1:1833?clean_session=true&keep_alive=60&version=3.0")
-                .unwrap();
+        let dsn = Dsn::from_str("mqtt://192.168.1.42:1883?version=3.0").unwrap();
         let dsv = validate_dsn(dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("mqtt", dsv.data_source);
+        assert_eq!(None, dsv.version);
+    }
 
+    #[ignore]
+    #[tokio::test]
+    async fn test_opc_da_valid() {
+        env::set_var("PLUGINS_HOME", "../plugins");
+        // opentsdb
+        let dsn = Dsn::from_str("opcda://192.168.2.16").unwrap();
+        let dsv = validate_dsn(dsn).await;
+        dbg!(dsv);
+        // assert_eq!(true, dsv.valid);
+        // assert_eq!(true, dsv.support);
+        // assert_eq!("opc", dsv.data_source);
+        // assert_eq!("2.4.0", dsv.version.unwrap());
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_opentsdb_valid() {
+        env::set_var("PLUGINS_HOME", "../plugins");
         // opentsdb
         let dsn = Dsn::from_str("opentsdb://192.168.2.12:4242").unwrap();
         let dsv = validate_dsn(dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("opentsdb", dsv.data_source);
-        assert_eq!("", dsv.version.unwrap());
+        assert_eq!("2.4.0", dsv.version.unwrap());
+    }
 
+    #[ignore]
+    #[tokio::test]
+    async fn test_pi_valid() {
         // pi
         let dsn = Dsn::from_str("pi://").unwrap();
         let dsv = validate_dsn(dsn).await;
@@ -571,7 +609,11 @@ mod tests {
         assert_eq!(true, dsv.support);
         assert_eq!("pi", dsv.data_source);
         assert_eq!("", dsv.version.unwrap());
+    }
 
+    #[ignore]
+    #[tokio::test]
+    async fn test_pi_backfill_valid() {
         // pi-backfill
         let dsn = Dsn::from_str("pibackfill://").unwrap();
         let dsv = validate_dsn(dsn).await;
@@ -579,7 +621,11 @@ mod tests {
         assert_eq!(true, dsv.support);
         assert_eq!("pibackfill", dsv.data_source);
         assert_eq!("", dsv.version.unwrap());
+    }
 
+    #[ignore]
+    #[tokio::test]
+    async fn test_taos_valid() {
         // taos
         let dsn = Dsn::from_str("taos+ws://192.168.1.92:6041").unwrap();
         let dsv = validate_dsn(dsn).await;
@@ -587,7 +633,11 @@ mod tests {
         assert_eq!(true, dsv.support);
         assert_eq!("taos", dsv.data_source);
         assert_eq!("3.1.1.3", dsv.version.unwrap());
+    }
 
+    #[ignore]
+    #[tokio::test]
+    async fn test_tmq_valid() {
         // tmq
         let dsn = Dsn::from_str("tmq+ws://192.168.1.92:6041").unwrap();
         let dsv = validate_dsn(dsn).await;

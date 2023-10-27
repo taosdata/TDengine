@@ -1,4 +1,5 @@
 use std::{fs, io::Write, path::PathBuf, sync::Arc};
+use std::collections::HashMap;
 
 use anyhow::Context;
 use itertools::Itertools;
@@ -193,7 +194,13 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             ),
         ),
         Ok(c) => {
-            let valid = validate_mqtt(c).await;
+            let mqtt_config = MqttConfig{
+                log_level: "".to_string(),
+                remote: "".to_string(),
+                mqtt: c,
+                topics: HashMap::new(),
+            };
+            let valid = validate_mqtt(mqtt_config).await;
             match valid {
                 Err(err) => DataSourceValidation::invalid(
                     "mqtt".to_string(),
@@ -209,7 +216,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     }
 }
 
-async fn validate_mqtt(config: MqttConnectConfig) -> anyhow::Result<DataSourceValidation> {
+async fn validate_mqtt(config: MqttConfig) -> anyhow::Result<DataSourceValidation> {
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;

@@ -49,13 +49,10 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
                     message: None,
                 },
                 //
-                Err(err) => DataSourceValidation {
-                    valid: false,
-                    support: true,
-                    data_source: "kafka".to_string(),
-                    version: None,
-                    message: Some(err.to_string()),
-                },
+                Err(err) => DataSourceValidation::invalid(
+                    "kafka".to_string(),
+                    format!("failed to connect to kafka, cause: {}", err.to_string()),
+                ),
             }
         }
     }
