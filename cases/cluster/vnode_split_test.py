@@ -212,7 +212,7 @@ class VnodeSplit(TDCase):
         if self.split_status == 1:
             if self.vgid_info_schedular is not None:
                 if self.vgid not in self.get_vgid_list():
-                    self._remote._logger.info(f"------------ pause schedular job ------------: {self.vgid_info_schedular}")
+                    self._remote._logger.info(f"------------ pause vginfo schedular job ------------: {self.vgid_info_schedular}")
                     self.tdCom.pause_schedular_job(self.vgid_info_schedular)
                     self.vgid_info_schedular_pause = True
             self._remote._logger.info(f'------------ query vgroup_id: {self.vgid} ------------')
@@ -243,9 +243,11 @@ class VnodeSplit(TDCase):
 
     def split_vnode_in_base_dnode(self):
         if self.split_status == 0:
+            split_counter = 0
             self._remote._logger.info(f"------------ split in base dnodes ------------")
             for vgid_dnodeid_kv in self.vgid_dnodeid_kv_list:
                 for vgid, dnodeid in vgid_dnodeid_kv.items():
+                    self._remote._logger.info(f"------------ split vgroup plan: {split_counter+1}/{len(self.vgid_dnodeid_kv_list)} ------------")
                     self.vgid = vgid
                     self.split_status = 1
                     self.restart_dnode_id_list.append(random.choice(dnodeid))
@@ -256,22 +258,23 @@ class VnodeSplit(TDCase):
                     self.check_restored_true()
                     split_vgid_list = self.get_split_vgid_list(source_vgid_list, source_vg_info)
                     self.tdSql.checkEqual(self.get_split_vg_table_total(split_vgid_list), source_vg_info["tables"])
+                    split_counter += 1
 
     def split_vnode_in_reserve_dnode(self):
         if self.reserve_split_status == 0:
+            split_counter = 0
             for i in range(self.loop_split_times):
                 self.get_dnode_id_list()
                 self.get_vgid_dnodeid_kv_list()
                 self._remote._logger.info(f"------------ split in reserve dnodes range times: {i+1}/{self.loop_split_times} ------------")
                 self.restart_dnode_id_list = list()
-                split_counter = 0
                 for vgid_dnodeid_kv in self.vgid_dnodeid_kv_list:
                     for vgid, dnodeid in vgid_dnodeid_kv.items():
-                        self._remote._logger.info(f"------------ split vgroup plan: {split_counter+1}/{len(self.vgid_dnodeid_kv_list)} ------------")
+                        self._remote._logger.info(f"------------ split vgroup plan: {split_counter+1}/{len(self.vgid_dnodeid_kv_list)*self.loop_split_times} ------------")
                         self.vgid = vgid
                         if self.vgid_info_schedular_pause:
                             if self.vgid in self.get_vgid_list():
-                                self._remote._logger.info(f"------------ resume schedular job ------------: {self.vgid_info_schedular}")
+                                self._remote._logger.info(f"------------ resume vginfo schedular job ------------: {self.vgid_info_schedular}")
                                 self.tdCom.resume_schedular_job(self.vgid_info_schedular)
                                 self.vgid_info_schedular_pause = False
                         self.restart_dnode_id_list.append(random.choice(dnodeid))
@@ -282,27 +285,27 @@ class VnodeSplit(TDCase):
                         self.check_restored_true()
                         split_vgid_list = self.get_split_vgid_list(source_vgid_list, source_vg_info)
                         self.tdSql.checkEqual(self.get_split_vg_table_total(split_vgid_list), source_vg_info["tables"])
+                        split_counter += 1
 
     def split_vnode(self):
         if self.reserve_split_status == 0 and self.split_status == 0:
             self.tdSql.query(f'select count(*) from {self.dbname}.{self.stbname}')
             if self.tdSql.query_data[0][0] >= self.start_split_row_count:
-                self._remote._logger.info(f"------------ remove schedular job ------------: split schedular")
+                self._remote._logger.info(f"------------ remove split schedular job ------------: {self.split_schedular}")
                 self.remove_schedular(self.split_schedular)
-                self._remote._logger.info(f"------------ self.tdSql.query_data[0][0] ------------: {self.tdSql.query_data[0][0]}")
-                self._remote._logger.info(f"------------ self.start_split_row_count ------------: {self.start_split_row_count}")
+                self._remote._logger.info(f"------------ current query_rows ------------: {self.tdSql.query_data[0][0]}")
+                self._remote._logger.info(f"------------ start-split row_count ------------: {self.start_split_row_count}")
                 self.split_vnode_in_base_dnode()
                 self.add_reserve_dnodes()
                 self.split_vnode_in_reserve_dnode()
                 self.reserve_split_status = 1
-        self._remote._logger.info(f"------------ remove schedular job ------------: vginfo schedular")
+        self._remote._logger.info(f"------------ remove vginfo schedular job ------------: {self.vgid_info_schedular}")
         self.remove_schedular(self.vgid_info_schedular)
-        self._remote._logger.info(f"------------ remove schedular job ------------: restart dndoe schedular")
+        self._remote._logger.info(f"------------ remove restart dnode schedular job ------------: {self.restart_dnode_schedular}")
         self.remove_schedular(self.restart_dnode_schedular)
 
     def remove_schedular(self, schedular):
         if schedular is not None:
-            self._remote._logger.info(f"------------ remove schedular id: {schedular} ------------")
             self.tdCom.remove_schedular_job(schedular)
             schedular = None
 
@@ -332,7 +335,7 @@ class VnodeSplit(TDCase):
                         # val = res.value()
                         # for block in val:
                         #     print(block.fetchall())
-                        self._remote._logger.info(f"------------ remove schedular job ------------: tmq schedular")
+                        self._remote._logger.info(f"------------ remove tmq schedular job ------------: {self.tmq_schedular}")
                         self.remove_schedular(self.tmq_schedular)
 
                     consumer.close()
