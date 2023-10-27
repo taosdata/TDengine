@@ -101,6 +101,7 @@ export default {
     white-space: pre-wrap;
     word-wrap: break-word;
     display: inline-block;
+    width: 100%;
   }
 }
 .zh-text {
