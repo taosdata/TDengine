@@ -5163,21 +5163,20 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
 
   int32_t code = TSDB_CODE_SUCCESS;
 
-  bool    first = true;
+  int32_t colIndex = 0;
   bool    isCalcRollup = false;
   int32_t rowSize = 0;
   SNode*  pNode = NULL;
   char*   pFunc = NULL;
 
-  // if (pRollupFuncs) {
-  //   pFunc = ((SFunctionNode*)nodesListGetNode(pRollupFuncs, 0))->functionName;
-  //   isCalcRollup = caclRollupFunc(pFunc);
-  // }
+  if (pRollupFuncs) {
+    pFunc = ((SFunctionNode*)nodesListGetNode(pRollupFuncs, 0))->functionName;
+    isCalcRollup = caclRollupFunc(pFunc);
+  }
 
   FOREACH(pNode, pCols) {
     SColumnDefNode* pCol = (SColumnDefNode*)pNode;
-    if (first) {
-      first = false;
+    if (0 == colIndex) {
       if (TSDB_DATA_TYPE_TIMESTAMP != pCol->dataType.type) {
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FIRST_COLUMN);
       }
@@ -5198,13 +5197,13 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
       }
     }
 
-    // if (TSDB_CODE_SUCCESS == code && isCalcRollup) {
-    //   if (pCol->dataType.type != TSDB_DATA_TYPE_FLOAT && pCol->dataType.type != TSDB_DATA_TYPE_DOUBLE) {
-    //     code =
-    //         generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
-    //                                 "Invalid column type: %s, only float/double allowed for %s", pCol->colName, pFunc);
-    //   }
-    // }
+    if (TSDB_CODE_SUCCESS == code && isCalcRollup && 0 != colIndex) {
+      if (pCol->dataType.type != TSDB_DATA_TYPE_FLOAT && pCol->dataType.type != TSDB_DATA_TYPE_DOUBLE) {
+        code =
+            generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                    "Invalid column type: %s, only float/double allowed for %s", pCol->colName, pFunc);
+      }
+    }
 
     if (TSDB_CODE_SUCCESS == code) {
       code = taosHashPut(pHash, pCol->colName, len, &pCol, POINTER_BYTES);
@@ -5214,6 +5213,8 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
     } else {
       break;
     }
+
+    ++colIndex;
   }
 
   if (TSDB_CODE_SUCCESS == code && rowSize > TSDB_MAX_BYTES_PER_ROW) {
