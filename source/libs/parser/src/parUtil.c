@@ -905,28 +905,33 @@ int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, S
   return code;
 }
 
+int32_t buildTableMetaFromViewMeta(STableMeta** pMeta, SViewMeta* pViewMeta) {
+  *pMeta = taosMemoryCalloc(1, sizeof(STableMeta) + pViewMeta->numOfCols * sizeof(SSchema));
+  if (NULL == *pMeta) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  (*pMeta)->uid = pViewMeta->viewId;
+  (*pMeta)->vgId = MNODE_HANDLE;
+  (*pMeta)->tableType = TSDB_VIEW_TABLE;
+  (*pMeta)->sversion = pViewMeta->version;
+  (*pMeta)->tversion = pViewMeta->version;
+  (*pMeta)->tableInfo.precision = pViewMeta->precision;
+  (*pMeta)->tableInfo.numOfColumns = pViewMeta->numOfCols;
+  memcpy((*pMeta)->schema, pViewMeta->pSchema, sizeof(SSchema) * pViewMeta->numOfCols);
+  
+  for (int32_t i = 0; i < pViewMeta->numOfCols; ++i) {
+    (*pMeta)->tableInfo.rowSize += (*pMeta)->schema[i].bytes;
+  }    
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t getViewMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta) {
   char fullName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(pName, fullName);
   SViewMeta* pViewMeta = NULL;
   int32_t     code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pViews, (void**)&pViewMeta);
   if (TSDB_CODE_SUCCESS == code) {
-    *pMeta = taosMemoryCalloc(1, sizeof(STableMeta) + pViewMeta->numOfCols * sizeof(SSchema));
-    if (NULL == *pMeta) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-    }
-    (*pMeta)->uid = pViewMeta->viewId;
-    (*pMeta)->vgId = MNODE_HANDLE;
-    (*pMeta)->tableType = TSDB_VIEW_TABLE;
-    (*pMeta)->sversion = pViewMeta->version;
-    (*pMeta)->tversion = pViewMeta->version;
-    (*pMeta)->tableInfo.precision = pViewMeta->precision;
-    (*pMeta)->tableInfo.numOfColumns = pViewMeta->numOfCols;
-    memcpy((*pMeta)->schema, pViewMeta->pSchema, sizeof(SSchema) * pViewMeta->numOfCols);
-
-    for (int32_t i = 0; i < pViewMeta->numOfCols; ++i) {
-      (*pMeta)->tableInfo.rowSize += (*pMeta)->schema[i].bytes;
-    }    
+    code = buildTableMetaFromViewMeta(pMeta, pViewMeta);
   }
   return code;
 }

@@ -1809,7 +1809,7 @@ int32_t tDeserializeSSTbHbRsp(void* buf, int32_t bufLen, SSTbHbRsp* pRsp);
 void    tFreeSSTbHbRsp(SSTbHbRsp* pRsp);
 
 typedef struct {
-  SArray* pViewRsp;  // Array of SViewMetaRsp;
+  SArray* pViewRsp;  // Array of SViewMetaRsp*;
 } SViewHbRsp;
 
 int32_t tSerializeSViewHbRsp(void* buf, int32_t bufLen, SViewHbRsp* pRsp);

@@ -164,17 +164,16 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_REAL_TABLE == nodeType(pNode)) {
     SNode*      pTagCond = NULL;
     STableNode* pTable = (STableNode*)pNode;
+#ifdef TD_ENTERPRISE
     SName name;
     STableMeta* pTableMeta = NULL;
     int32_t code = getTargetMetaImpl(
         pAuthCxt->pParseCxt, pAuthCxt->pMetaCache, toName(pAuthCxt->pParseCxt->acctId, pTable->dbName, pTable->tableName, &name), &pTableMeta, true);
-    if (TSDB_CODE_SUCCESS != code) {
-      pAuthCxt->errCode = code;
-      return DEAL_RES_ERROR;
-    } else if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
+    if (TSDB_CODE_SUCCESS == code && TSDB_VIEW_TABLE == pTableMeta->tableType) {
       isView = true;
     }
     taosMemoryFree(pTableMeta);
+#endif    
     if (!isView) {
       pAuthCxt->errCode = checkAuth(pAuthCxt, pTable->dbName, pTable->tableName, AUTH_TYPE_READ, &pTagCond);
       if (TSDB_CODE_SUCCESS != pAuthCxt->errCode && NULL != pAuthCxt->pParseCxt->pEffectiveUser) {

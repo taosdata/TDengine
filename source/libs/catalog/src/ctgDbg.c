@@ -372,6 +372,10 @@ int32_t ctgdGetTbMetaNum(SCtgDBCache *dbCache) {
   return dbCache->tbCache ? (int32_t)taosHashGetSize(dbCache->tbCache) : 0;
 }
 
+int32_t ctgdGetViewNum(SCtgDBCache *dbCache) {
+  return dbCache->viewCache ? (int32_t)taosHashGetSize(dbCache->viewCache) : 0;
+}
+
 int32_t ctgdGetStbNum(SCtgDBCache *dbCache) {
   return dbCache->stbCache ? (int32_t)taosHashGetSize(dbCache->stbCache) : 0;
 }
@@ -420,6 +424,8 @@ int32_t ctgdGetClusterCacheNum(SCatalog *pCtg, int32_t type) {
       case CTG_DBG_STB_NUM:
         num += ctgdGetStbNum(dbCache);
         break;
+      case CTG_DBG_VIEW_NUM:
+        num += ctgdGetViewNum(dbCache);
       default:
         ctgError("invalid type:%d", type);
         break;
@@ -472,6 +478,7 @@ void ctgdShowDBCache(SCatalog *pCtg, SHashObj *dbHash) {
     dbFName = taosHashGetKey(pIter, &len);
 
     int32_t metaNum = dbCache->tbCache ? taosHashGetSize(dbCache->tbCache) : 0;
+    int32_t viewNum = dbCache->viewCache ? taosHashGetSize(dbCache->viewCache) : 0;
     int32_t stbNum = dbCache->stbCache ? taosHashGetSize(dbCache->stbCache) : 0;
     int32_t vgVersion = CTG_DEFAULT_INVALID_VERSION;
     int32_t hashMethod = -1;
@@ -492,8 +499,8 @@ void ctgdShowDBCache(SCatalog *pCtg, SHashObj *dbHash) {
     }
 
     ctgDebug("[%d] db [%.*s][0x%" PRIx64
-             "] %s: metaNum:%d, stbNum:%d, vgVersion:%d, stateTs:%" PRId64 ", hashMethod:%d, prefix:%d, suffix:%d, vgNum:%d",
-             i, (int32_t)len, dbFName, dbCache->dbId, dbCache->deleted ? "deleted" : "", metaNum, stbNum, vgVersion, stateTs, 
+             "] %s: metaNum:%d, viewNum:%d, stbNum:%d, vgVersion:%d, stateTs:%" PRId64 ", hashMethod:%d, prefix:%d, suffix:%d, vgNum:%d",
+             i, (int32_t)len, dbFName, dbCache->dbId, dbCache->deleted ? "deleted" : "", metaNum, viewNum, stbNum, vgVersion, stateTs, 
              hashMethod, hashPrefix, hashSuffix, vgNum);
 
     if (dbCache->vgCache.vgInfo) {
@@ -543,9 +550,10 @@ void ctgdShowClusterCache(SCatalog *pCtg) {
   }
 
   ctgDebug("## cluster 0x%" PRIx64 " %p cache Info BEGIN ##", pCtg->clusterId, pCtg);
-  ctgDebug("db:%d meta:%d stb:%d dbRent:%d stbRent:%d", ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_NUM),
-           ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM), ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_NUM),
-           ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_RENT_NUM), ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM));
+  ctgDebug("db:%d tbmeta:%d viewmeta:%d stb:%d dbRent:%d stbRent:%d viewRent:%d", ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_NUM),
+           ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM), ctgdGetClusterCacheNum(pCtg, CTG_DBG_VIEW_NUM), 
+           ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_NUM), ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_RENT_NUM), 
+           ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM), ctgdGetClusterCacheNum(pCtg, CTG_DBG_VIEW_RENT_NUM));
 
   ctgdShowDBCache(pCtg, pCtg->dbCache);
 

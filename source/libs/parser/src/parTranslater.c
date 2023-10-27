@@ -455,15 +455,6 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
 
     code = catalogRefreshGetTableMeta(pParCxt->pCatalog, &conn, &name, pMeta, false);
   }
-#ifdef TD_ENTERPRISE
-  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
-    int32_t origCode = code;
-    code = getViewMetaFromCache(pCxt->pMetaCache, &name, pMeta);
-    if (TSDB_CODE_SUCCESS != code) {
-      code = origCode;
-    }
-  }
-#endif  
   if (TSDB_CODE_SUCCESS != code) {
     parserError("0x%" PRIx64 " catalogRefreshGetTableMeta error, code:%s, dbName:%s, tbName:%s",
                 pCxt->pParseCxt->requestId, tstrerror(code), pDbName, pTableName);
@@ -6653,7 +6644,41 @@ static int32_t translateExplain(STranslateContext* pCxt, SExplainStmt* pStmt) {
 }
 
 static int32_t translateDescribe(STranslateContext* pCxt, SDescribeStmt* pStmt) {
-  return refreshGetTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pStmt->pMeta);
+  int32_t code = refreshGetTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pStmt->pMeta);
+#ifdef TD_ENTERPRISE
+  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
+    int32_t origCode = code;
+    SName          name;
+    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
+    SViewMeta* pMeta = NULL;
+    code = getViewMetaFromMetaCache(pCxt, &name, &pMeta);
+    if (TSDB_CODE_SUCCESS != code) {
+      code = origCode;
+    } else {
+      SParseSqlRes res = {.resType = PARSE_SQL_RES_SCHEMA};
+      char dbFName[TSDB_DB_FNAME_LEN];
+      tNameGetFullDbName(&name, dbFName);
+      code = (*pCxt->pParseCxt->parseSqlFp)(pCxt->pParseCxt->parseSqlParam, name.dbname, pMeta->querySql, false, pMeta->user, &res);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = collectUseTable(&name, pCxt->pTargetTables);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        SViewMeta viewMeta = {0};
+        viewMeta.viewId = pMeta->viewId;
+        viewMeta.precision = res.schemaRes.precision;
+        viewMeta.type = pMeta->type;
+        viewMeta.version = pMeta->version;
+        viewMeta.numOfCols = res.schemaRes.numOfCols;
+        viewMeta.pSchema = res.schemaRes.pSchema;
+        code = buildTableMetaFromViewMeta(&pStmt->pMeta, &viewMeta);
+        parserDebug("rebuild view meta, view:%s.%s, numOfCols:%d, code:0x%x", dbFName, pStmt->tableName, viewMeta.numOfCols, code);
+      }
+      taosMemoryFree(res.schemaRes.pSchema);
+    }
+  }
+#endif  
+
+  return code;
 }
 
 static int32_t translateCompactRange(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt, SCompactDbReq* pReq) {

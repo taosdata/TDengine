@@ -9034,7 +9034,7 @@ int32_t tSerializeSViewHbRsp(void *buf, int32_t bufLen, SViewHbRsp *pRsp) {
   int32_t numOfMeta = taosArrayGetSize(pRsp->pViewRsp);
   if (tEncodeI32(&encoder, numOfMeta) < 0) return -1;
   for (int32_t i = 0; i < numOfMeta; ++i) {
-    SViewMetaRsp *pMetaRsp = taosArrayGet(pRsp->pViewRsp, i);
+    SViewMetaRsp *pMetaRsp = taosArrayGetP(pRsp->pViewRsp, i);
     if (tEncodeSViewMetaRsp(&encoder, pMetaRsp) < 0) return -1;
   }
 
@@ -9053,15 +9053,16 @@ int32_t tDeserializeSViewHbRsp(void *buf, int32_t bufLen, SViewHbRsp *pRsp) {
 
   int32_t numOfMeta = 0;
   if (tDecodeI32(&decoder, &numOfMeta) < 0) return -1;
-  pRsp->pViewRsp = taosArrayInit(numOfMeta, sizeof(SViewMetaRsp));
+  pRsp->pViewRsp = taosArrayInit(numOfMeta, POINTER_BYTES);
   if (pRsp->pViewRsp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
   for (int32_t i = 0; i < numOfMeta; ++i) {
-    SViewMetaRsp metaRsp = {0};
-    if (tDecodeSViewMetaRsp(&decoder, &metaRsp) < 0) return -1;
+    SViewMetaRsp* metaRsp = taosMemoryCalloc(1, sizeof(SViewMetaRsp));
+    if (NULL == metaRsp) return -1;
+    if (tDecodeSViewMetaRsp(&decoder, metaRsp) < 0) return -1;
     taosArrayPush(pRsp->pViewRsp, &metaRsp);
   }
 
@@ -9074,8 +9075,9 @@ int32_t tDeserializeSViewHbRsp(void *buf, int32_t bufLen, SViewHbRsp *pRsp) {
 void tFreeSViewHbRsp(SViewHbRsp *pRsp) {
   int32_t numOfMeta = taosArrayGetSize(pRsp->pViewRsp);
   for (int32_t i = 0; i < numOfMeta; ++i) {
-    SViewMetaRsp *pMetaRsp = taosArrayGet(pRsp->pViewRsp, i);
+    SViewMetaRsp *pMetaRsp = taosArrayGetP(pRsp->pViewRsp, i);
     tFreeSViewMetaRsp(pMetaRsp);
+    taosMemoryFree(pMetaRsp);
   }
 
   taosArrayDestroy(pRsp->pViewRsp);

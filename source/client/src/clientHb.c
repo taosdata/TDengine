@@ -289,22 +289,34 @@ static int32_t hbProcessDynViewRsp(void *value, int32_t valueLen, struct SCatalo
   return catalogUpdateDynViewVer(pCatalog, (SDynViewVersion*)value);
 }
 
+static void hbFreeSViewMetaInRsp(void* p) {
+  if (NULL == p || NULL == *(void**)p) {
+    return;
+  }
+  SViewMetaRsp *pRsp = *(SViewMetaRsp**)p;
+  tFreeSViewMetaRsp(pRsp);
+  taosMemoryFreeClear(pRsp);
+}
+
 static int32_t hbProcessViewInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
   int32_t code = 0;
 
   SViewHbRsp hbRsp = {0};
   if (tDeserializeSViewHbRsp(value, valueLen, &hbRsp) != 0) {
+    taosArrayDestroyEx(hbRsp.pViewRsp, hbFreeSViewMetaInRsp);
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
 
   int32_t numOfMeta = taosArrayGetSize(hbRsp.pViewRsp);
   for (int32_t i = 0; i < numOfMeta; ++i) {
-    SViewMetaRsp *rsp = taosArrayGet(hbRsp.pViewRsp, i);
+    SViewMetaRsp *rsp = taosArrayGetP(hbRsp.pViewRsp, i);
 
     if (rsp->numOfCols < 0) {
       tscDebug("hb to remove view, db:%s, view:%s", rsp->dbFName, rsp->name);
       catalogRemoveViewMeta(pCatalog, rsp->dbFName, rsp->dbId, rsp->name, rsp->viewId);
+      tFreeSViewMetaRsp(rsp);
+      taosMemoryFreeClear(rsp);
     } else {
       tscDebug("hb to update view, db:%s, view:%s", rsp->dbFName, rsp->name);
       catalogUpdateViewMeta(pCatalog, rsp);

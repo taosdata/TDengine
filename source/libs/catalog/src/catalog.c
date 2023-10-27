@@ -1735,6 +1735,7 @@ int32_t catalogUpdateViewMeta(SCatalog* pCtg, SViewMetaRsp* pMsg) {
   CTG_API_ENTER();
 
   if (NULL == pCtg || NULL == pMsg) {
+    tFreeSViewMetaRsp(pMsg);
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
