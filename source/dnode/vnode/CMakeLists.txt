@@ -163,6 +163,7 @@ target_link_libraries(
 
 if(${TD_LINUX})
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+if(${BUILD_WITH_COS})
 find_library(APR_LIBRARY apr-1 PATHS /usr/local/apr/lib/)
 find_library(APR_UTIL_LIBRARY aprutil-1 PATHS /usr/local/apr/lib/)
 find_library(MINIXML_LIBRARY mxml)
@@ -194,7 +195,6 @@ target_include_directories(
   PUBLIC "$ENV{HOME}/.cos-local.1/include"
   )
 
-if(${BUILD_WITH_COS})
   add_definitions(-DUSE_COS)
 endif(${BUILD_WITH_COS})
 
