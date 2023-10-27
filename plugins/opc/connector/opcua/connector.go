@@ -4,10 +4,15 @@ import (
 	"collector/common"
 	"collector/connector"
 	"context"
+	"crypto/rsa"
+	"crypto/tls"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/gopcua/opcua"
+	"github.com/gopcua/opcua/ua"
 	"github.com/sunpe/gobox/logger"
 )
 
@@ -121,4 +126,71 @@ func (c *UaConnector) collect(ctx context.Context, r *reader) error {
 
 func (c *UaConnector) GetAllPoints(ctx context.Context) ([]common.Point, error) {
 	return c.readers[0].getAllNodes(ctx)
+}
+
+func CheckConnection(config common.Config) error {
+	client, err := createClient(config)
+	if err != nil {
+		return err
+	}
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), time.Duration(config.Connect.Ua.ConnectTimeout)*time.Second)
+	defer cancel()
+	if err := client.Connect(timeoutCtx); err != nil {
+		return fmt.Errorf("error in Client Connection: %w", err)
+	}
+	client.Close(context.Background())
+	return nil
+}
+
+func createClient(config common.Config) (*opcua.Client, error) {
+	if err := config.Connect.Ua.Validate(); err != nil {
+		return nil, fmt.Errorf("validate connection collectConfig fail. %v", err)
+	}
+	connectConfig := config.Connect.Ua
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(connectConfig.RequestTimeout)*time.Second)
+	defer cancel()
+	endpoints, err := opcua.GetEndpoints(ctx, connectConfig.Endpoint)
+	if err != nil {
+		return nil, err
+	}
+	var opts []opcua.Option
+	opts = append(opts, opcua.RequestTimeout(time.Duration(connectConfig.RequestTimeout)*time.Second))
+	var cert []byte
+	if len(connectConfig.Certificate) != 0 && len(connectConfig.PrivateKey) != 0 {
+		certificate, err := tls.LoadX509KeyPair(connectConfig.Certificate, connectConfig.PrivateKey)
+		if err != nil {
+			return nil, err
+		}
+
+		privateKey, ok := certificate.PrivateKey.(*rsa.PrivateKey)
+		if !ok {
+			return nil, fmt.Errorf("invalid private key")
+		}
+		cert = certificate.Certificate[0]
+		opts = append(opts, opcua.PrivateKey(privateKey), opcua.Certificate(cert))
+	}
+
+	authMode, authOption := authOptions(strings.ToLower(connectConfig.AuthMethod), cert, connectConfig.Username,
+		connectConfig.Password)
+	opts = append(opts, authOption)
+	securityPolity := ua.SecurityPolicyURIPrefix + connectConfig.SecurityPolicy
+	if strings.HasPrefix(connectConfig.SecurityPolicy, ua.SecurityPolicyURIPrefix) {
+		securityPolity = connectConfig.SecurityPolicy
+	}
+
+	securityMode := ua.MessageSecurityModeFromString(connectConfig.SecurityMode)
+
+	if securityMode == ua.MessageSecurityModeNone || securityPolity == ua.SecurityPolicyURINone {
+		securityMode = ua.MessageSecurityModeNone
+		securityPolity = ua.SecurityPolicyURINone
+	}
+
+	serverEndpoint, err := getServerEndpoint(endpoints, securityPolity, securityMode)
+	if err != nil {
+		return nil, err
+	}
+
+	opts = append(opts, opcua.SecurityFromEndpoint(serverEndpoint, authMode))
+
+	return opcua.NewClient(connectConfig.Endpoint, opts...)
 }
