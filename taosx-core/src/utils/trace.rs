@@ -27,7 +27,7 @@ pub struct TraceID {
 
 /// Hex string representation of Query ID stored in its [extensions]
 #[derive(Clone)]
-pub struct QueryID {
+pub struct DataTraceID {
     pub hex: String,
 }
 
@@ -217,7 +217,7 @@ where
                 trace_buf.push(',')
             }
             // collect query id
-            if let Some(query_id) = extension.get::<QueryID>() {
+            if let Some(query_id) = extension.get::<DataTraceID>() {
                 trace_buf.push_str("QID:");
                 trace_buf.push_str(query_id.hex.as_str());
                 trace_buf.push(',')
@@ -279,20 +279,22 @@ pub fn attach_trace_id(target_span: &Span) {
     });
 }
 
-/// TODO: 生成 Query ID
-pub fn create_query_id() -> u64 {
-    0
+
+pub fn create_tcp_stream_trace_id() -> String {
+    let i = random::<u64>() << 48;
+    format!("{:#016x}", i)
 }
-pub fn set_query_id_for_current_span(query_id: u64) {
+
+pub fn set_data_trace_id_for_current_span(trace_id: &str) {
     tracing::dispatcher::get_default(|dispatch| {
         let registry = dispatch
             .downcast_ref::<Registry>()
             .expect("no global default dispatcher found");
         if let Some((id, _meta)) = dispatch.current_span().into_inner() {
-            let hex_query_id = format!("{:#016x}", query_id);
+            let hex_trace_id = String::from(trace_id);
             let span = registry.span(&id).unwrap();
             let mut ext = span.extensions_mut();
-            ext.replace(QueryID { hex: hex_query_id });
+            ext.replace(DataTraceID { hex: hex_trace_id });
         }
     });
 }

@@ -28,7 +28,7 @@ use tonic::transport::Channel;
 use tracing::{debug, error, info, instrument, Instrument, Span};
 
 use crate::{
-    utils::breakpoints::breakpoints_set, ConnectorLicense, OPCConfig, Parser, Transferred,
+    utils::{breakpoints::breakpoints_set, trace::{create_tcp_stream_trace_id, set_data_trace_id_for_current_span}}, ConnectorLicense, OPCConfig, Parser, Transferred,
 };
 
 use super::runners::opc::{ColumnConfig, OpcTableConfig};
@@ -59,11 +59,12 @@ async fn ipc_tcp_forward(
 ) -> anyhow::Result<()> {
     use md5;
     tracing::info!("token: {}", format!("{:x}", md5::compute(token.clone())));
-
+    let tcp_stream_trace_id = create_tcp_stream_trace_id();
+    set_data_trace_id_for_current_span(tcp_stream_trace_id.as_str());
     let _ = cancel;
     use arrow_flight::{encode::FlightDataEncoderBuilder, error::FlightError};
     use futures::StreamExt;
-    let reader_stream = stream
+    let reader_stream = stream         
         .try_clone()
         .context("Try clone IPC stream as reader error")?;
     let ipc_reader = tokio::task::spawn_blocking(move || IpcReader::new(reader_stream))
@@ -124,6 +125,7 @@ async fn ipc_tcp_forward(
         client.add_header("x-task-id", &task_id.to_string())?;
         client.add_header("x-token", &token)?;
         client.add_header("x-version", crate::build::PKG_VERSION)?;
+        client.add_header("x-trace-id", tcp_stream_trace_id.as_str())?;
         let _ = client
             .handshake(Bytes::from(token.as_bytes().to_vec()))
             .await
