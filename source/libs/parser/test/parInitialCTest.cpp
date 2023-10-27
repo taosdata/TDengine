@@ -342,7 +342,7 @@ TEST_F(ParserInitialCTest, createDatabaseSemanticCheck) {
 
   run("create database db2 retentions 0s:1d", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("create database db2 retentions 10s:0d", TSDB_CODE_PAR_INVALID_DB_OPTION);
-  run("create database db2 retentions 1w:1w", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("create database db2 retentions 1w:1d", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("create database db2 retentions 1w:1n", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("create database db2 retentions 15s:7d,15m:21d,10m:500d", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("create database db2 retentions 15s:7d,5m:21d,10m:10d", TSDB_CODE_PAR_INVALID_DB_OPTION);

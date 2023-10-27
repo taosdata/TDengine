@@ -81,6 +81,7 @@ class TDTestCase:
             "create database db3 retentions 1s:2557921h precision 'ns'",
             "create database db3 retentions 1s:153475201m precision 'ns'",
             # check relationships
+            "create database db5 retentions 1441m:1440m,2d:3d",
             "create database db5 retentions 2m:1d,1s:2d",
             "create database db5 retentions 1s:2880m,2s:2879m",
             "create database db5 retentions 1s:1d,2s:2d,2s:3d",
