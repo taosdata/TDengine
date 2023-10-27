@@ -359,12 +359,17 @@ async fn validate_source_influxdb(
             message: result["message"].as_str().map(|s| s.to_string()),
         })
     } else {
+        let msg = match output.status.code() {
+            Some(1) => String::from("The input parameters are incorrect"),
+            Some(3) => String::from("Failed to connect"),
+            _ => String::from("Unknown exit code, maybe failed to connect, ip or port error")
+        };
         Ok(DataSourceValidation {
             valid: false,
             support: false,
             data_source: String::from("influxdb"),
             version: None,
-            message: Some(output.status.to_string()),
+            message: Some(msg),
         })
     }
 }

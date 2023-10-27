@@ -15,6 +15,7 @@ protocol:
       display: HTTP Protocol
     - name: https
       display: HTTPS Protocol
+  value: http
 options:
   host:
     display: IP address

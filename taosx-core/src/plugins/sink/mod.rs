@@ -1231,7 +1231,7 @@ fn get_real_column_name(column_config: &ColumnConfig) -> &String {
         .unwrap_or(&column_config.column_name)
 }
 
-#[instrument(skip_all, fields(writer.count = count, writer.stream = "flat"))]
+#[instrument(skip_all, fields(writer.count = count))]
 async fn consume_flat_record(
     pool: &TaosPool,
     taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
@@ -1816,8 +1816,7 @@ async fn ipc_point_reader<R: Read, W: Write>(
     Ok(())
 }
 
-const IPC_STREAM_RECORDS: &str = "ipc.stream.records";
-#[instrument(skip_all, fields(ipc.stream.item = "flat", ipc.stream.records = 0, ipc.stream.batches = 0))]
+#[instrument(skip_all)]
 async fn ipc_flat_stream_reader<R: Read, W: Write>(
     pool: &TaosPool,
     ipc_reader: IpcReader<R>,
@@ -1834,8 +1833,8 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
     });
     let mut taos = Some(pool.get().await?);
     while let Some(record) = stream.try_next().await? {
-        // if let Ok(record) = record {
         batches += 1;
+        counter!("ipc.stream.batches", batches as u64);
         let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
@@ -1853,7 +1852,7 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
         )
         .await
         {
-            tracing::error!("write batch {batches} error: {err:#}");
+            error!("write batch {batches} error: {err:#}");
             let written = count - last;
             let _ = ipc_ack_writer.ack(LushAck {
                 code: 0xFFFF,
@@ -1882,16 +1881,8 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
                 .context("write ack error");
         }
     }
-    // metrics::counter!("ipc.stream.records", count as u64);
-    metrics::counter!("ipc.stream.batches", batches as u64);
-
-    tracing::Span::current()
-        .record(IPC_STREAM_RECORDS, count)
-        .record("ipc.stream.batches", batches)
-        .in_scope(|| {
-            info!("IPC processing done, written totally {count} records");
-        });
-    println!("Flat stream writing finished, totally {count} rows");
+    // may not reached when the task was stopped by user forcely
+    info!("IPC processing done, written totally {count} records");
     Ok(())
 }
 

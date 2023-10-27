@@ -35,7 +35,8 @@ use utoipa::*;
 
 use taosx_core::utils::breakpoints::breakpoints_get_all;
 use taosx_core::utils::port_pool::PortPool;
-use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
+use taosx_core::utils::trace::attach_trace_id;
+use taosx_core::{get_data_dir, ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
 
 use super::data_sources::DataSourceDefinition;
 use crate::serve::controller::agent::Activity;
@@ -491,14 +492,9 @@ impl TaskController {
     //     self
     // }
 
-    #[instrument(skip_all, name = "task::start", parent = None, fields(
-        task.id = task.id,
-        task.source = %mask_dsn(&task.from.parse().unwrap()),
-        task.sink = %mask_dsn(&task.to.parse().unwrap()),
-        task.agent = task.via,
-    ))]
+    #[instrument(skip_all, name = "task::start", fields(task.id = task.id))]
     async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
-        tracing::info!("start task");
+        tracing::info!("start task {}", task.id);
         let id = task.id;
         let now = Utc::now();
 
@@ -624,13 +620,8 @@ impl TaskController {
             _ => None,
         };
 
-        // todo! add trace id to
-        let span = tracing::info_span!(
-            "task::spawned",
-            task.id = id,
-            trace_id = tracing::field::Empty
-        );
-        // span.record("request", value)
+        let span = tracing::info_span!(parent: None, "task::spawned",task.id = id);
+        attach_trace_id(&span);
 
         let breakpoints = task.breakpoints.clone();
 
@@ -1101,13 +1092,14 @@ impl TaskController {
         Ok(())
     }
 
-    #[instrument(skip_all, name = "task::create", parent = None, fields(
-        task.source = try_mask_dsn(&task.from),
-        task.sink = try_mask_dsn(&task.to),
-        task.agent = task.via,
-    ))]
+    #[instrument(skip_all, name = "task::create")]
     pub async fn create(&self, mut task: NewTask) -> anyhow::Result<TaskDetail> {
-        tracing::info!("create new task");
+        tracing::info!(
+            "task.source={}, task.sink={}, task.agent={:?}",
+            task.from,
+            task.to,
+            task.via,
+        );
         let from: Dsn = task
             .from
             .parse()
@@ -1250,7 +1242,7 @@ impl TaskController {
         Ok(task.into())
     }
 
-    #[instrument(skip_all, name = "task::update", parent = None, fields(task.id = id))]
+    #[instrument(skip_all, name = "task::update", fields(task.id = id))]
     pub async fn update(&self, id: i64, task: UpdateTask) -> anyhow::Result<Option<TaskDetail>> {
         tracing::info!("update task {id}");
         if let Some(topic) = task.oneshot_topic.as_deref() {
@@ -1312,8 +1304,9 @@ impl TaskController {
         }
     }
 
-    #[instrument(skip_all, name = "task::start", parent = None, fields(task.id = id))]
+    #[instrument(skip_all, name = "start_by_id")]
     pub async fn start(&self, id: i64) -> anyhow::Result<Option<()>> {
+        tracing::info!("start task by id {}", id);
         let task = self.get(id).await?;
 
         if task.is_none() {
@@ -1325,7 +1318,7 @@ impl TaskController {
         self.start_task(&task.task).await.map(Some)
     }
 
-    #[instrument(skip_all, name = "task::get", parent = None, fields(task.id = id))]
+    #[instrument(skip_all, name = "task::get", fields(task.id = id))]
     pub async fn get(&self, id: i64) -> anyhow::Result<Option<TaskDetail>> {
         let task: Option<Task> = sqlx::query_as("select * from task_with_labels where id = ?")
             .bind(id)
@@ -1354,7 +1347,7 @@ impl TaskController {
             })
             .map(Into::into))
     }
-    #[instrument(skip_all, name = "task::delete", parent = None, fields(task.id = id))]
+    #[instrument(skip_all, name = "task::delete", fields(task.id = id))]
     pub async fn delete(&self, id: i64) -> anyhow::Result<Option<TaskDetail>> {
         {
             if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
@@ -1450,7 +1443,7 @@ impl TaskController {
         Ok(Some(task.into()))
     }
 
-    #[instrument(skip_all, name = "task::stop", parent = None, fields(task.id = id))]
+    #[instrument(skip_all, name = "task::stop", fields(task.id = id))]
     pub async fn stop(&self, id: i64) -> anyhow::Result<Option<()>> {
         tracing::info!("Stop task by id {id}");
         if let Some((handle, token)) = { self.tasks.write().await.remove(&id) } {
