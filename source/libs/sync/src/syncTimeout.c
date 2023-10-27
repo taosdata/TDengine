@@ -78,9 +78,8 @@ static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
     SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(ths->peersId[i]));
     if (pSender != NULL) {
       if (ths->isStart && ths->state == TAOS_SYNC_STATE_LEADER && pSender->start &&
-          timeNow - pSender->lastSendTime > SYNC_SNAP_TIMEOUT_MS) {
-        sSError(pSender, "snapshot timeout, terminate. lastSendTime:%d", pSender->lastSendTime);
-        snapshotSenderStop(pSender, false);
+          timeNow - pSender->lastSendTime > SYNC_SNAP_RESEND_MS) {
+        snapshotReSend(pSender);
       }
     }
   }
