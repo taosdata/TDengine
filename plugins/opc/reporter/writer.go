@@ -129,20 +129,16 @@ func (w *ArrowWriter) doWrite(ctx context.Context, values []*common.NodeValue) e
 	if len(values) == 0 {
 		return nil
 	}
-	record, err := w.pack(ctx, values)
-	if err != nil {
-		logger.ErrorF("## pack record error %v", err)
-		return err
-	}
+	record := w.pack(ctx, values)
 
-	if err = w.writeRecord(ctx, record); err != nil {
+	if err := w.writeRecord(ctx, record); err != nil {
 		logger.ErrorF("## start record error %v", err)
 		return err
 	}
 	return nil
 }
 
-func (w *ArrowWriter) pack(_ context.Context, values []*common.NodeValue) (record arrow.Record, err error) {
+func (w *ArrowWriter) pack(_ context.Context, values []*common.NodeValue) (record arrow.Record) {
 	return packData(values, w.schema, w.af)
 }
 

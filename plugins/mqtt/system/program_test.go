@@ -176,3 +176,73 @@ func Test_Start(t *testing.T) {
 	s.Stop()
 	assert.NoError(t, err)
 }
+
+var checkConfig = `
+[mqtt]
+address = "tcp://127.0.0.1:1883"
+version = "%s"
+client_id = "mqtt_test_check"
+username = "user"
+password = "pass"
+`
+
+var wrongAddressConfig = `
+[mqtt]
+address = "tcp://127.0.0.1:9999"
+version = "%s"
+client_id = "mqtt_test_check"
+username = "user"
+password = "pass"
+`
+
+func Test_Check(t *testing.T) {
+	tests := []struct {
+		name    string
+		version string
+		config  string
+		wantErr bool
+	}{
+		{
+			name:    "3.1_check",
+			version: "3.1",
+			config:  checkConfig,
+			wantErr: false,
+		},
+		{
+			name:    "3.1_wrong_address",
+			version: "3.1",
+			config:  wrongAddressConfig,
+			wantErr: true,
+		},
+		{
+			name:    "5.0_check",
+			version: "5.0",
+			config:  checkConfig,
+			wantErr: false,
+		},
+		{
+			name:    "5.0_wrong_address",
+			version: "5.0",
+			config:  wrongAddressConfig,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f, err := os.CreateTemp("", "*")
+			assert.NoError(t, err)
+			configStr := fmt.Sprintf(tt.config, tt.version)
+			//t.Log(configStr)
+			_, err = f.Write([]byte(configStr))
+			assert.NoError(t, err)
+			_ = f.Close()
+			defer os.Remove(f.Name())
+			err = CheckConnection(f.Name())
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

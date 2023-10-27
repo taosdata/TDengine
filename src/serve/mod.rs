@@ -29,8 +29,7 @@ mod routes;
 mod rpc;
 #[allow(unused)]
 mod scheduler;
-mod task;
-
+pub(crate) mod task;
 pub use task::check_parser_timestamp_precision;
 
 use controller::*;

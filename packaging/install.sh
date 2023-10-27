@@ -293,7 +293,7 @@ check_install_env
 if [ -x ${INSTALL_DIR}/${target} ]; then
     echo "${target} is already installed, do you want to reinstall it? [y/n]"
     read answer
-    if [ $answer == "y" ]; then
+    if [ X$answer == X"y" ]; then
         remove_target
         install_taosx
     else

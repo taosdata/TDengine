@@ -251,6 +251,12 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
     if from.get("timeout").is_none() {
         from.set("timeout", "5s");
     }
+    if from.get("auto.offset.reset").is_none() {
+        from.set("auto.offset.reset", "earliest");
+    }
+    if from.get("experimental.snapshot.enable").is_none() {
+        from.set("experimental.snapshot.enable", "true");
+    }
 
     let builder = TaosBuilder::from_dsn(&from)?;
     let source = builder.build().await?;

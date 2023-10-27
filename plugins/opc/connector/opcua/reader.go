@@ -46,6 +46,7 @@ type reader struct {
 	dumper         *connector.CsvDumper
 	mutex          sync.Mutex
 	once           sync.Once
+	uaRoot         string
 }
 
 func newReader(debug bool,
@@ -69,6 +70,8 @@ func newReader(debug bool,
 		debug:          debug,
 		containsBad:    containsBad,
 	}
+	pointConfig.Validate()
+	r.uaRoot = pointConfig.Ua.Root
 	if len(pointConfig.Regex) > 0 {
 		reg, err := regexp.Compile(pointConfig.Regex)
 		if err != nil {
@@ -117,16 +120,20 @@ func (r *reader) connect(ctx context.Context) error {
 
 	if r.client != nil {
 		logger.Warn("## Closing connection due to Connection already instantiated")
-		if err = r.client.Close(); err != nil {
+		if err = r.client.Close(ctx); err != nil {
 			logger.Error("## close connection error", "error", err)
 		}
 	}
 
-	r.client = opcua.NewClient(r.connectConfig.Endpoint, opts...)
+	r.client, err = opcua.NewClient(r.connectConfig.Endpoint, opts...)
+	if err != nil {
+		r.state = opcua.Disconnected
+		return fmt.Errorf("error in NewClient: %w", err)
+	}
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, r.connectTimeout)
 	defer cancel()
-	if err := r.client.Connect(timeoutCtx); err != nil {
+	if err = r.client.Connect(timeoutCtx); err != nil {
 		r.state = opcua.Disconnected
 		return fmt.Errorf("error in Client Connection: %w", err)
 	}
@@ -156,7 +163,7 @@ func (r *reader) stop(ctx context.Context) {
 		if r.client == nil {
 			return
 		}
-		if err := r.client.CloseWithContext(ctx); err != nil {
+		if err := r.client.Close(ctx); err != nil {
 			logger.Error("## close opc ua connection error", "error", err)
 		}
 		if r.dumper != nil {
@@ -246,8 +253,7 @@ func (r *reader) readAndSend(ctx context.Context, ch chan *common.NodeValue, wai
 
 func (r *reader) readValue(ctx context.Context, nodes []*uaNode, nodesToRead []*ua.ReadValueID) (values []*common.NodeValue, err error) {
 	start := time.Now()
-	res, err := r.client.ReadWithContext(ctx,
-		&ua.ReadRequest{MaxAge: 2000, TimestampsToReturn: ua.TimestampsToReturnBoth, NodesToRead: nodesToRead})
+	res, err := r.client.Read(ctx, &ua.ReadRequest{MaxAge: 2000, TimestampsToReturn: ua.TimestampsToReturnBoth, NodesToRead: nodesToRead})
 	if err != nil {
 		return nil, fmt.Errorf("observe failed: %w", err)
 	}
@@ -358,20 +364,16 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 					logger.DebugF("## subscribe from opc ua %s", string(j))
 				}
 				for _, item := range v.MonitoredItems {
-					var ts time.Time
-					if !item.Value.SourceTimestamp.IsZero() {
-						ts = item.Value.SourceTimestamp
-					} else if !item.Value.ServerTimestamp.IsZero() {
-						ts = item.Value.ServerTimestamp
-					} else {
-						ts = time.Now()
-					}
-
 					if uint64(item.ClientHandle) > uint64(len(r.nodes)) {
 						continue
 					}
 					node := r.nodes[item.ClientHandle]
 					id := node.nodeID.String()
+
+					if item.Value == nil || item.Value.Value == nil {
+						logger.WarnF("## subscribe data for identifier [%q] value is nil ", id)
+						continue
+					}
 
 					status := item.Value.Status
 					if status != ua.StatusOK && !r.containsBad {
@@ -383,6 +385,15 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 					if err != nil {
 						logger.ErrorF("## get value type for identifier [%q] error [%v]", id, err)
 						continue
+					}
+
+					var ts time.Time
+					if !item.Value.SourceTimestamp.IsZero() {
+						ts = item.Value.SourceTimestamp
+					} else if !item.Value.ServerTimestamp.IsZero() {
+						ts = item.Value.ServerTimestamp
+					} else {
+						ts = time.Now()
 					}
 
 					nodeValue := &common.NodeValue{
@@ -408,36 +419,24 @@ func (r *reader) subscribe(ctx context.Context, ch chan *common.NodeValue) error
 
 func (r *reader) subscribeNodes(ctx context.Context) (sub *opcua.Subscription, ch chan *opcua.PublishNotificationData, err error) {
 	ch = make(chan *opcua.PublishNotificationData, 1)
-	sub, err = r.client.SubscribeWithContext(ctx, &opcua.SubscriptionParameters{}, ch)
+	sub, err = r.client.Subscribe(ctx, &opcua.SubscriptionParameters{}, ch)
 	if err != nil {
 		logger.Error("## subscribe failed", "error", err)
 		return nil, nil, fmt.Errorf("subscribe failed: %w", err)
 	}
 
 	var wait sync.WaitGroup
-	errCh := make(chan error, len(r.nodes))
-
 	for i, node := range r.nodes {
 		wait.Add(1)
 		go func(idx int, n *uaNode, w *sync.WaitGroup) {
 			defer w.Done()
-			if _, err = sub.Monitor(ua.TimestampsToReturnBoth, opcua.NewMonitoredItemCreateRequestWithDefaults(
-				n.nodeID, ua.AttributeIDValue, uint32(idx))); err != nil {
+			if _, err := sub.Monitor(ctx, ua.TimestampsToReturnBoth,
+				opcua.NewMonitoredItemCreateRequestWithDefaults(n.nodeID, ua.AttributeIDValue, uint32(idx))); err != nil {
 				logger.Error("## subscribe monitor for node failed", "node", n.nodeID.String(), "error", err)
-				errCh <- err
 			}
 		}(i, node, &wait)
 	}
-	go func() {
-		wait.Wait()
-		close(errCh)
-	}()
-
-	for err = range errCh {
-		if err != nil {
-			return nil, nil, fmt.Errorf("subscribe monitor failed: %w", err)
-		}
-	}
+	wait.Wait()
 
 	return
 }
@@ -486,6 +485,7 @@ func (r *reader) generateOptions(endpoints []*ua.EndpointDescription) (opts []op
 	opts = append(opts, opcua.ApplicationURI("urn:taosx:gopcua:client"))
 	opts = append(opts, opcua.ApplicationName("taosx"))
 	opts = append(opts, opcua.RequestTimeout(r.requestTimeout))
+	opts = append(opts, opcua.SessionName("taosx"))
 
 	// certificate and private key
 	var cert []byte
@@ -586,7 +586,7 @@ func (r *reader) getAllNodes(ctx context.Context) (nodes []common.Point, err err
 		return nil, err
 	}
 
-	rootId, err := ua.ParseNodeID("i=85") // objects node
+	rootId, err := ua.ParseNodeID(r.uaRoot) // objects node
 	if err != nil {
 		return nil, err
 	}
@@ -616,7 +616,8 @@ BK:
 		node := l.Remove(front).(*opcua.Node)
 		leaves, nodes, err := r.browseChildrenNode(ctx, node)
 		if err != nil {
-			return nil, fmt.Errorf("get child for node %s error %v", root.String(), err)
+			logger.WarnF("## browse children node for node %s error %v", node.String(), err)
+			continue
 		}
 
 		for _, n := range leaves {
@@ -653,16 +654,15 @@ BK:
 }
 
 func (r *reader) browseChildrenNode(ctx context.Context, node *opcua.Node) (leaves []*opcua.Node, nodes []*opcua.Node, err error) {
-	start := time.Now()
-	childrenNodes, err := node.ChildrenWithContext(ctx, 0, ua.NodeClassAll)
+	childrenNodes, err := node.Children(ctx, 0, ua.NodeClassAll)
 	if err != nil {
 		return nil, nil, fmt.Errorf("get child for node %s error %v", node.String(), err)
 	}
 
 	for _, child := range childrenNodes {
-		nodeClass, err := child.NodeClassWithContext(ctx)
+		nodeClass, err := child.NodeClass(ctx)
 		if err != nil {
-			return nil, nil, fmt.Errorf("get node class for node %s error %v", child.String(), err)
+			logger.WarnF("## get node class for node %s error %v", child.String(), err)
 		}
 		if nodeClass == ua.NodeClassVariable {
 			leaves = append(leaves, child)
@@ -670,17 +670,12 @@ func (r *reader) browseChildrenNode(ctx context.Context, node *opcua.Node) (leav
 		nodes = append(nodes, child)
 	}
 
-	if r.debug {
-		spend := time.Since(start)
-		logger.DebugF("## browse children node [%s] length [%d] spend [%d]ms", node.String(), len(nodes), spend.Milliseconds())
-	}
-
 	return
 }
 
 func (r *reader) getNodeName(ctx context.Context, node *opcua.Node) (name string, err error) {
 	var browseName *ua.QualifiedName
-	if browseName, err = node.BrowseNameWithContext(ctx); err == nil {
+	if browseName, err = node.BrowseName(ctx); err == nil {
 		name = browseName.Name
 	}
 	return
@@ -692,12 +687,6 @@ func (r *reader) nodeToPoint(ctx context.Context, node *opcua.Node) common.Point
 }
 
 func (r *reader) dump(value *common.NodeValue) {
-	start := time.Now()
-	defer func() {
-		if r.debug {
-			logger.DebugF("## dump node value %s spend %dms", value.Identifier, time.Since(start).Milliseconds())
-		}
-	}()
 	if r.dumper == nil {
 		return
 	}

@@ -18,7 +18,7 @@ import (
 
 func main() {
 	logger.Init(logger.WithWriter(os.Stderr))
-	signal.Ignored(syscall.SIGPIPE) // ignore SIGPIPE
+	signal.Ignore(syscall.SIGPIPE) // ignore SIGPIPE
 
 	logger.InfoF("## version: %s", version.GetVersion())
 	logger.InfoF("## commit id: %s", version.GetCommitID())
