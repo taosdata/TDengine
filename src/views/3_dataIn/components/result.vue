@@ -77,9 +77,11 @@ export default {
   display: flex;
   align-items: center;
   text-align: left;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 500;
   padding: 10px;
+  color: #16191f;
+  font-weight: 400;
 }
 
 .el-icon-error {
@@ -99,7 +101,6 @@ export default {
     white-space: pre-wrap;
     word-wrap: break-word;
     display: inline-block;
-    width: 410px;
   }
 }
 .zh-text {

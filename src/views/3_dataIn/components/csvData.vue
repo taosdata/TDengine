@@ -18,6 +18,7 @@
               :on-success="handleSuccess"
               :file-list="fileList"
               :auto-upload="true"
+              size="small"
             >
               <el-button slot="trigger" size="small" type="primary">{{
                 $t("datasource.selectfile")
@@ -28,7 +29,7 @@
         <el-tab-pane :label="$t('datasource.configcsv')" name="second">
           <div class="upload-file">
             <span class="label required">{{ $t("datasource.fileurl") }}</span>
-            <el-input v-model="fileurl"></el-input>
+            <el-input size="small" v-model="fileurl"></el-input>
           </div>
         </el-tab-pane>
         <CsvParameter
@@ -41,7 +42,7 @@
             <el-button
               type="primary"
               @click="getCsvColumnsData"
-              size="medium"
+              size="small"
               class="nextbtn"
               >{{ $t("datasource.csvNext") }}</el-button
             >
