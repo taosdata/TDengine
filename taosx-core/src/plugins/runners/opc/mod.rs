@@ -1557,9 +1557,7 @@ async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation>
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
-
     use super::*;
-
     #[tokio::test]
     async fn test_opc_config_to_toml() -> anyhow::Result<()> {
         let mut map = HashMap::new();
