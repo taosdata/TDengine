@@ -266,9 +266,6 @@ pub fn executor_worker_threads(jobs: usize) -> usize {
     }
 }
 
-const ENV_LOGS_HOME: &'static str = "LOGS_HOME";
-const ENV_APP_LOGS_HOME: &'static str = concatcp!(build::CUS_PROMPT, "_LOGS_HOME");
-
 fn build_runtime(
     worker_threads: usize,
 ) -> std::result::Result<tokio::runtime::Runtime, std::io::Error> {
