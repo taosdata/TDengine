@@ -38,8 +38,8 @@ struct STsdbSnapReader {
   struct {
     int32_t      fsrArrIdx;
     STSnapRange* fsr;
-    bool       isDataDone;
-    bool       isTombDone;
+    bool         isDataDone;
+    bool         isTombDone;
   } ctx[1];
 
   // reader
@@ -1095,17 +1095,17 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** writer, int8_t rollback) {
     code = tsdbFSEditAbort(writer[0]->tsdb->pFS);
     TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    taosThreadRwlockWrlock(&writer[0]->tsdb->rwLock);
+    taosThreadMutexLock(&writer[0]->tsdb->mutex);
 
     code = tsdbFSEditCommit(writer[0]->tsdb->pFS);
     if (code) {
-      taosThreadRwlockUnlock(&writer[0]->tsdb->rwLock);
+      taosThreadMutexUnlock(&writer[0]->tsdb->mutex);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     writer[0]->tsdb->pFS->fsstate = TSDB_FS_STATE_NORMAL;
 
-    taosThreadRwlockUnlock(&writer[0]->tsdb->rwLock);
+    taosThreadMutexUnlock(&writer[0]->tsdb->mutex);
   }
   tsdbFSEnableBgTask(tsdb->pFS);
 
@@ -1236,7 +1236,7 @@ static int32_t tsdbTFileSetToSnapPart(STFileSet* fset, STsdbSnapPartition** ppSP
     if (fset->farr[ftype] == NULL) continue;
     typ = tsdbFTypeToSRangeTyp(ftype);
     ASSERT(typ < TSDB_SNAP_RANGE_TYP_MAX);
-    STFile*       f = fset->farr[ftype]->f;
+    STFile* f = fset->farr[ftype]->f;
     if (f->maxVer > fset->maxVerValid) {
       corrupt = true;
       tsdbError("skip incomplete data file: fid:%d, maxVerValid:%" PRId64 ", minVer:%" PRId64 ", maxVer:%" PRId64
@@ -1255,7 +1255,7 @@ static int32_t tsdbTFileSetToSnapPart(STFileSet* fset, STsdbSnapPartition** ppSP
   TARRAY2_FOREACH(fset->lvlArr, lvl) {
     STFileObj* fobj;
     TARRAY2_FOREACH(lvl->fobjArr, fobj) {
-      STFile*       f = fobj->f;
+      STFile* f = fobj->f;
       if (f->maxVer > fset->maxVerValid) {
         corrupt = true;
         tsdbError("skip incomplete stt file.fid:%d, maxVerValid:%" PRId64 ", minVer:%" PRId64 ", maxVer:%" PRId64
@@ -1299,7 +1299,7 @@ static STsdbSnapPartList* tsdbGetSnapPartList(STFileSystem* fs) {
   }
 
   int32_t code = 0;
-  taosThreadRwlockRdlock(&fs->tsdb->rwLock);
+  taosThreadMutexLock(&fs->tsdb->mutex);
   STFileSet* fset;
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     STsdbSnapPartition* pItem = NULL;
@@ -1311,7 +1311,7 @@ static STsdbSnapPartList* tsdbGetSnapPartList(STFileSystem* fs) {
     code = TARRAY2_SORT_INSERT(pList, pItem, tsdbSnapPartCmprFn);
     ASSERT(code == 0);
   }
-  taosThreadRwlockUnlock(&fs->tsdb->rwLock);
+  taosThreadMutexUnlock(&fs->tsdb->mutex);
 
   if (code) {
     TARRAY2_DESTROY(pList, tsdbSnapPartitionClear);
