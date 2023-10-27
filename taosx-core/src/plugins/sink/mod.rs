@@ -25,7 +25,7 @@ use taos::{
 use tokio::sync::{Mutex, Notify, OnceCell};
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
-use tracing::{debug, error, info, instrument, Instrument, Span, field};
+use tracing::{debug, error, info, instrument, Instrument, Span};
 
 use crate::{
     utils::breakpoints::breakpoints_set, ConnectorLicense, OPCConfig, Parser, Transferred,
@@ -198,6 +198,7 @@ async fn ipc_tcp_read(
     parser: Option<Parser>,
     connector: Option<&'static str>,
     transferred: Option<Arc<Transferred>>,
+    task_id: Option<i64>,
 ) -> anyhow::Result<()> {
     // let stream = Arc::new(stream);
     // let reader = stream.clone();
@@ -226,6 +227,7 @@ async fn ipc_tcp_read(
         parser,
         connector,
         transferred,
+        task_id,
     )
     .await?;
     tracing::info!("IPC stream processed");
@@ -1686,6 +1688,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     mut ipc_ack_writer: AckWriter<W>,
     license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
+    task_id: Option<i64>,
 ) -> anyhow::Result<()> {
     let taos = pool.get().await?;
     let columns = ipc_reader
@@ -1710,13 +1713,8 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         .unwrap();
 
         let last = count;
-        tracing::info!("consume lush record task in ipc_lush_stream_reader");
-        // get task.id from tracing
-        let span = tracing::Span::current();
-        let task_id = span.field("task.id");
+        tracing::info!("consume lush record task in ipc_lush_stream_reader task_id: {task_id:?}", task_id = task_id);
 
-        tracing::info!("task span: {:?}", span);
-        tracing::info!("task id: {:?}", task_id);
         if let Err(err) = consume_lush_record(
             pool,
             &mut taos,
@@ -1728,7 +1726,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             &mut count,
             license,
             transferred,
-            None,
+            task_id,
         )
         .in_current_span()
         .await
@@ -1999,6 +1997,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
     parser: Option<Parser>,
     connector: Option<&str>,
     transferred: Option<Arc<Transferred>>,
+    task_id: Option<i64>,
 ) -> anyhow::Result<()> {
     info!(client, "IPC stream processing...");
     let taos = pool.get().await?;
@@ -2067,6 +2066,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 ipc_ack_writer,
                 license.as_ref(),
                 transferred.as_deref(),
+                task_id,
             )
             .await?
         }
@@ -2580,6 +2580,7 @@ pub async fn listen_tcp_socket(
     connector: Option<&'static str>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    task_id: Option<i64>,
 ) -> anyhow::Result<IpcHandler> {
     let (sender, error_receiver) = tokio::sync::mpsc::channel(1);
 
@@ -2626,6 +2627,7 @@ pub async fn listen_tcp_socket(
                     let parser = parser.clone();
                     let connector = connector.clone();
                     let transferred = transferred.clone();
+                    let task_id = task_id.clone();
                     tokio::spawn(async move {
                         // let dsn: Dsn = "taos:///db2".parse().unwrap();
                         // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
@@ -2640,6 +2642,7 @@ pub async fn listen_tcp_socket(
                             parser,
                             connector,
                             transferred,
+                            task_id,
                         )
                         .in_current_span()
                         .await;

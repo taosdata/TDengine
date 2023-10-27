@@ -87,6 +87,7 @@ pub async fn historian_to_taos(
         with_agent,
         transferred,
         span,
+        None,
     )
     .await?;
 
