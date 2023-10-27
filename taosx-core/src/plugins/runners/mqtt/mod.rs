@@ -89,6 +89,7 @@ pub async fn mqtt_to_taos(
         with_agent,
         transferred,
         span,
+        None,
     )
     .await?;
 

@@ -106,6 +106,7 @@ pub async fn csv_to_taos(
         with_agent,
         transferred,
         span,
+        None,
     )
     .await?;
 

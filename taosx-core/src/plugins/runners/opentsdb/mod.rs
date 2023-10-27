@@ -59,6 +59,7 @@ pub async fn opentsdb_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    task_id: Option<i64>,
 ) -> anyhow::Result<()> {
     let ipc_port = port_pool
         .get()
@@ -89,6 +90,7 @@ pub async fn opentsdb_to_taos(
         with_agent,
         transferred,
         span,
+        task_id,
     )
     .await?;
 

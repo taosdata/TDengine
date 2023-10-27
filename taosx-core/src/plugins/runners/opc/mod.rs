@@ -1228,6 +1228,7 @@ pub async fn opc_to_taos(
         with_agent,
         transferred,
         span,
+        None,
     )
     .await?;
 
@@ -1653,7 +1654,7 @@ batch_timeout = 100
     async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> {
         use taos::IntoDsn;
         let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double".into_dsn()?;
-        let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
+        let vec_string = crate::runners::get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
             .map_err(|s| OpcError::FileParseFound(s))?;
         assert_eq!(
             vec_string,
@@ -1663,7 +1664,7 @@ batch_timeout = 100
             ]
         );
         let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double,@/Users/zmlgirl/Downloads/test_opc.csv".into_dsn()?;
-        let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
+        let vec_string = crate::runners::get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
             .map_err(|s| OpcError::FileParseFound(s))?;
         assert_eq!(
             vec_string,

@@ -188,6 +188,7 @@ pub async fn pi_to_taos(
         with_agent,
         transferred,
         span,
+        None,
     )
     .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
