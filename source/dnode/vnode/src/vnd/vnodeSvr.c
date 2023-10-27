@@ -1619,8 +1619,13 @@ _exit:
   if(insert_counter == NULL){
     int32_t label_count =1;
     const char *sample_labels[] = {"vgid"};
-    insert_counter = taos_counter_new("insert_counter", "counter for insert sql",  label_count, sample_labels);
-    taos_collector_registry_must_register_metric(insert_counter);
+    taos_counter_t *counter = taos_counter_new("insert_counter", "counter for insert sql",  label_count, sample_labels);
+    if(taos_collector_registry_register_metric(counter) == 1){
+      taos_counter_destroy(counter);
+    }
+    else{
+      atomic_store_ptr(insert_counter, counter);
+    }
   }
 
   char vgId[50];
