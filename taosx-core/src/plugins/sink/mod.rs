@@ -25,7 +25,7 @@ use taos::{
 use tokio::sync::{Mutex, Notify, OnceCell};
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
-use tracing::{debug, error, info, instrument, Instrument, Span};
+use tracing::{debug, error, info, instrument, Instrument, Span, field};
 
 use crate::{
     utils::breakpoints::breakpoints_set, ConnectorLicense, OPCConfig, Parser, Transferred,
@@ -1712,8 +1712,10 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         let last = count;
         tracing::info!("consume lush record task in ipc_lush_stream_reader");
         // get task.id from tracing
-        let task_id = tracing::Span::current().metadata();
+        let span = tracing::Span::current();
+        let task_id = span.field("task.id");
 
+        tracing::info!("task span: {:?}", span);
         tracing::info!("task id: {:?}", task_id);
         if let Err(err) = consume_lush_record(
             pool,
