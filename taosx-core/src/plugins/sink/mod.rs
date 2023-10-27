@@ -1711,10 +1711,12 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
 
         let last = count;
         tracing::info!("consume lush record task in ipc_lush_stream_reader");
-        // get id from tracing
-        let task_id: Option<tracing_core::span::Id> = tracing::Span::current().id();
-        // covert tracing id to Option<i64>
-        let task_id = task_id.map(|id| id.into_u64() as i64);
+        // get task.id from tracing
+        let task_id = tracing::Span::current()
+            .field("task.id");
+        // covert field to Option<i64>
+        // let task_id = task_id
+        //     .and_then(|f| f.value().as_i64());
         tracing::info!("task id: {:?}", task_id);
         if let Err(err) = consume_lush_record(
             pool,
@@ -1727,7 +1729,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             &mut count,
             license,
             transferred,
-            task_id,
+            None,
         )
         .in_current_span()
         .await
