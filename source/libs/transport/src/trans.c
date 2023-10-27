@@ -183,6 +183,7 @@ int rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   // later
   return transSetDefaultAddr(thandle, ip, fqdn);
 }
+void rpcSetIpWhite(void* thandle, void* arg) { transSetIpWhiteList(thandle, arg, NULL); }
 
 void*   rpcAllocHandle() { return (void*)transAllocHandle(); }
 int32_t rpcCvtErrCode(int32_t code) {
@@ -190,6 +191,11 @@ int32_t rpcCvtErrCode(int32_t code) {
     return TSDB_CODE_RPC_NETWORK_ERROR;
   }
   return code;
+}
+
+int32_t rpcUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) { return transUtilSIpRangeToStr(pRange, buf); }
+int32_t rpcUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf) {
+  return transUtilSWhiteListToStr(pWhiteList, ppBuf);
 }
 
 int32_t rpcInit() {
