@@ -46,6 +46,7 @@ typedef struct STqOffsetStore STqOffsetStore;
 // tqPush
 #define STREAM_EXEC_EXTRACT_DATA_IN_WAL_ID (-1)
 #define STREAM_EXEC_TASK_STATUS_CHECK_ID     (-2)
+#define IS_OFFSET_RESET_TYPE(_t)  ((_t) < 0)
 
 // tqExec
 typedef struct {
@@ -90,6 +91,10 @@ typedef struct {
   STqExecHandle    execHandle;  // exec
   SRpcMsg*         msg;
   tq_handle_status status;
+
+  // for replay
+  SSDataBlock* block;
+  int64_t      blockTime;
 } STqHandle;
 
 struct STQ {
@@ -107,17 +112,13 @@ struct STQ {
   SStreamMeta*    pStreamMeta;
 };
 
-typedef struct {
-  int32_t size;
-} STqOffsetHead;
-
 int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle);
 int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
 void    tqDestroyTqHandle(void* data);
 
 // tqRead
 int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMetaRsp* pMetaRsp, STqOffsetVal* offset);
-int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset);
+int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset, const SMqPollReq* pRequest);
 int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t reqId);
 
 // tqExec

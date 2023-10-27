@@ -379,7 +379,7 @@ static int32_t stbSplRewriteFuns(const SNodeList* pFuncs, SNodeList** pPartialFu
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t stbSplAppendWStart(SNodeList* pFuncs, int32_t* pIndex) {
+static int32_t stbSplAppendWStart(SNodeList* pFuncs, int32_t* pIndex, uint8_t precision) {
   int32_t index = 0;
   SNode*  pFunc = NULL;
   FOREACH(pFunc, pFuncs) {
@@ -400,6 +400,7 @@ static int32_t stbSplAppendWStart(SNodeList* pFuncs, int32_t* pIndex) {
   int32_t len = snprintf(name, sizeof(name) - 1, "%s.%" PRId64 "", pWStart->functionName, pointer);
   taosCreateMD5Hash(name, len);
   strncpy(pWStart->node.aliasName, name, TSDB_COL_NAME_LEN - 1);
+  pWStart->node.resType.precision = precision;
 
   int32_t code = fmGetFuncInfo(pWStart, NULL, 0);
   if (TSDB_CODE_SUCCESS == code) {
@@ -466,7 +467,7 @@ static int32_t stbSplCreatePartWindowNode(SWindowLogicNode* pMergeWindow, SLogic
   int32_t index = 0;
   int32_t code = stbSplRewriteFuns(pFunc, &pPartWin->pFuncs, &pMergeWindow->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
-    code = stbSplAppendWStart(pPartWin->pFuncs, &index);
+    code = stbSplAppendWStart(pPartWin->pFuncs, &index, ((SColumnNode*)pMergeWindow->pTspk)->node.resType.precision);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByRewriteExprs(pPartWin->pFuncs, &pPartWin->node.pTargets);

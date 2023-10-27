@@ -15,12 +15,12 @@
 
 #define _DEFAULT_SOURCE
 #include "tglobal.h"
+#include "defines.h"
 #include "os.h"
 #include "tconfig.h"
 #include "tgrant.h"
 #include "tlog.h"
 #include "tmisce.h"
-#include "defines.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -98,9 +98,10 @@ int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 
 // audit
-bool     tsEnableAudit = false;
+bool     tsEnableAudit = true;
 char     tsAuditFqdn[TSDB_FQDN_LEN] = {0};
 uint16_t tsAuditPort = 6043;
+bool     tsEnableAuditCreateTable = true;
 
 // telem
 bool     tsEnableTelem = true;
@@ -118,7 +119,8 @@ bool tsSmlDot2Underline = true;
 char tsSmlTsDefaultName[TSDB_COL_NAME_LEN] = "_ts";
 char tsSmlTagName[TSDB_COL_NAME_LEN] = "_tag_null";
 char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table name can be specified in tag value.
-                                                     // If set to empty system will generate table name using MD5 hash.
+char tsSmlAutoChildTableNameDelimiter[TSDB_TABLE_NAME_LEN] = "";
+                                                                   // If set to empty system will generate table name using MD5 hash.
 // true means that the name and order of cols in each line are the same(only for influx protocol)
 // bool    tsSmlDataFormat = false;
 // int32_t tsSmlBatchSize = 10000;
@@ -221,7 +223,7 @@ float    tsFPrecision = 1E-8;                   // float column precision
 double   tsDPrecision = 1E-16;                  // double column precision
 uint32_t tsMaxRange = 500;                      // max quantization intervals
 uint32_t tsCurRange = 100;                      // current quantization intervals
-bool     tsIfAdtFse = false;                     // ADT-FSE algorithom or original huffman algorithom
+bool     tsIfAdtFse = false;                    // ADT-FSE algorithom or original huffman algorithom
 char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 
 // udf
@@ -267,6 +269,9 @@ char   tsS3BucketName[TSDB_FQDN_LEN] = "<bucketname>";
 char   tsS3AppId[TSDB_FQDN_LEN] = "<appid>";
 int8_t tsS3Enabled = false;
 
+int8_t tsS3Https = true;
+char   tsS3Hostname[TSDB_FQDN_LEN] = "<hostname>";
+
 int32_t tsS3BlockSize = 4096;     // number of tsdb pages
 int32_t tsS3BlockCacheSize = 16;  // number of blocks
 
@@ -306,6 +311,14 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   tstrncpy(tsS3AccessKeySecret, colon + 1, TSDB_FQDN_LEN);
   tstrncpy(tsS3Endpoint, cfgGetItem(pCfg, "s3Endpoint")->str, TSDB_FQDN_LEN);
   tstrncpy(tsS3BucketName, cfgGetItem(pCfg, "s3BucketName")->str, TSDB_FQDN_LEN);
+  char *proto = strstr(tsS3Endpoint, "https://");
+  if (!proto) {
+    tsS3Https = false;
+    tstrncpy(tsS3Hostname, tsS3Endpoint + 7, TSDB_FQDN_LEN);
+  } else {
+    tstrncpy(tsS3Hostname, tsS3Endpoint + 8, TSDB_FQDN_LEN);
+  }
+
   char *cos = strstr(tsS3Endpoint, "cos.");
   if (cos) {
     char *appid = strrchr(tsS3BucketName, '-');
@@ -317,7 +330,7 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
     }
   }
   if (tsS3BucketName[0] != '<' && tsDiskCfgNum > 1) {
-#ifdef USE_COS
+#if defined(USE_COS) || defined(USE_S3)
     tsS3Enabled = true;
 #endif
   }
@@ -438,7 +451,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "queryNodeChunkSize", tsQueryNodeChunkSize, 1024, 128 * 1024, CFG_SCOPE_CLIENT) != 0) return -1;
   if (cfgAddBool(pCfg, "queryUseNodeAllocator", tsQueryUseNodeAllocator, CFG_SCOPE_CLIENT) != 0) return -1;
   if (cfgAddBool(pCfg, "keepColumnName", tsKeepColumnName, CFG_SCOPE_CLIENT) != 0) return -1;
-  if (cfgAddString(pCfg, "smlChildTableName", "", CFG_SCOPE_CLIENT) != 0) return -1;
+  if (cfgAddString(pCfg, "smlChildTableName", tsSmlChildTableName, CFG_SCOPE_CLIENT) != 0) return -1;
+  if (cfgAddString(pCfg, "smlAutoChildTableNameDelimiter", tsSmlAutoChildTableNameDelimiter, CFG_SCOPE_CLIENT) != 0) return -1;
   if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, CFG_SCOPE_CLIENT) != 0) return -1;
   if (cfgAddString(pCfg, "smlTsDefaultName", tsSmlTsDefaultName, CFG_SCOPE_CLIENT) != 0) return -1;
   if (cfgAddBool(pCfg, "smlDot2Underline", tsSmlDot2Underline, CFG_SCOPE_CLIENT) != 0) return -1;
@@ -618,6 +632,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "audit", tsEnableAudit, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddString(pCfg, "auditFqdn", tsAuditFqdn, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "auditPort", tsAuditPort, 1, 65056, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddBool(pCfg, "auditCreateTable", tsEnableAuditCreateTable, CFG_SCOPE_SERVER) != 0) return -1;
 
   if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddBool(pCfg, "telemetryReporting", tsEnableTelem, CFG_SCOPE_BOTH) != 0) return -1;
@@ -930,6 +945,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
     return -1;
   }
 
+  tstrncpy(tsSmlAutoChildTableNameDelimiter, cfgGetItem(pCfg, "smlAutoChildTableNameDelimiter")->str, TSDB_TABLE_NAME_LEN);
   tstrncpy(tsSmlChildTableName, cfgGetItem(pCfg, "smlChildTableName")->str, TSDB_TABLE_NAME_LEN);
   tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagName")->str, TSDB_COL_NAME_LEN);
   tstrncpy(tsSmlTsDefaultName, cfgGetItem(pCfg, "smlTsDefaultName")->str, TSDB_COL_NAME_LEN);
@@ -1035,6 +1051,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsEnableAudit = cfgGetItem(pCfg, "audit")->bval;
   tstrncpy(tsAuditFqdn, cfgGetItem(pCfg, "auditFqdn")->str, TSDB_FQDN_LEN);
   tsAuditPort = (uint16_t)cfgGetItem(pCfg, "auditPort")->i32;
+  tsEnableAuditCreateTable = cfgGetItem(pCfg, "auditCreateTable")->bval;
 
   tsEnableTelem = cfgGetItem(pCfg, "telemetryReporting")->bval;
   tsEnableCrashReport = cfgGetItem(pCfg, "crashReporting")->bval;
@@ -1396,6 +1413,8 @@ int32_t taosApplyLocalCfg(SConfig *pCfg, char *name) {
         cfgSetItem(pCfg, "secondEp", tsSecond, pSecondpItem->stype);
       } else if (strcasecmp("smlChildTableName", name) == 0) {
         tstrncpy(tsSmlChildTableName, cfgGetItem(pCfg, "smlChildTableName")->str, TSDB_TABLE_NAME_LEN);
+      } else if (strcasecmp("smlAutoChildTableNameDelimiter", name) == 0) {
+        tstrncpy(tsSmlAutoChildTableNameDelimiter, cfgGetItem(pCfg, "smlAutoChildTableNameDelimiter")->str, TSDB_TABLE_NAME_LEN);
       } else if (strcasecmp("smlTagName", name) == 0) {
         tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagName")->str, TSDB_COL_NAME_LEN);
         //      } else if (strcasecmp("smlDataFormat", name) == 0) {
@@ -1675,14 +1694,14 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     }
     return;
   }
-
+  /* cannot alter s3BlockSize
   if (strcasecmp(option, "s3BlockSize") == 0) {
     int32_t newS3BlockSize = atoi(value);
     uInfo("s3BlockSize set from %d to %d", tsS3BlockSize, newS3BlockSize);
     tsS3BlockSize = newS3BlockSize;
     return;
   }
-
+  */
   if (strcasecmp(option, "s3BlockCacheSize") == 0) {
     int32_t newS3BlockCacheSize = atoi(value);
     uInfo("s3BlockCacheSize set from %d to %d", tsS3BlockCacheSize, newS3BlockCacheSize);

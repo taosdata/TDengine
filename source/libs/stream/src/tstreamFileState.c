@@ -177,7 +177,10 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
   // todo(liuyao) optimize
   if (type == STREAM_STATE_BUFF_HASH) {
     recoverSnapshot(pFileState, checkpointId);
+  } else {
+    recoverSesssion(pFileState, checkpointId);
   }
+
   return pFileState;
 
 _error:
@@ -642,12 +645,24 @@ int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
 }
 
 int32_t recoverSesssion(SStreamFileState* pFileState, int64_t ckId) {
-  int              code = TSDB_CODE_SUCCESS;
+  int code = TSDB_CODE_SUCCESS;
+  if (pFileState->maxTs != INT64_MIN) {
+    int64_t mark = (INT64_MIN + pFileState->deleteMark >= pFileState->maxTs)
+                       ? INT64_MIN
+                       : pFileState->maxTs - pFileState->deleteMark;
+    deleteExpiredCheckPoint(pFileState, mark);
+  }
+
   SStreamStateCur* pCur = streamStateSessionSeekToLast_rocksdb(pFileState->pFileStore);
   if (pCur == NULL) {
     return -1;
   }
+  int32_t recoverNum = TMIN(MIN_NUM_OF_ROW_BUFF, pFileState->maxRowCount);
   while (code == TSDB_CODE_SUCCESS) {
+    if (pFileState->curRowCount >= recoverNum) {
+      break;
+    }
+
     void*       pVal = NULL;
     int32_t     vlen = 0;
     SSessionKey key = {0};
@@ -655,12 +670,14 @@ int32_t recoverSesssion(SStreamFileState* pFileState, int64_t ckId) {
     if (code != 0) {
       break;
     }
-    taosMemoryFree(pVal);
+    SRowBuffPos* pPos = createSessionWinBuff(pFileState, &key, pVal, &vlen);
+    putSessionWinResultBuff(pFileState, pPos);
     code = streamStateSessionCurPrev_rocksdb(pCur);
   }
   streamStateFreeCur(pCur);
   return code;
 }
+
 int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pFileState->maxTs != INT64_MIN) {
@@ -674,11 +691,12 @@ int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
   if (pCur == NULL) {
     return -1;
   }
-
+  int32_t recoverNum = TMIN(MIN_NUM_OF_ROW_BUFF, pFileState->maxRowCount);
   while (code == TSDB_CODE_SUCCESS) {
-    if (pFileState->curRowCount == pFileState->maxRowCount) {
+    if (pFileState->curRowCount >= recoverNum) {
       break;
     }
+
     void*        pVal = NULL;
     int32_t      vlen = 0;
     SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);

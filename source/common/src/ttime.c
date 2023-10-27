@@ -665,6 +665,9 @@ int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* durati
   if (*unit == 'n' || *unit == 'y') {
     return 0;
   }
+  if(isdigit(*unit)) {
+    *unit = getPrecisionUnit(timePrecision);
+  }
 
   return getDuration(*duration, *unit, duration, timePrecision);
 }

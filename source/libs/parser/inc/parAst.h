@@ -99,6 +99,7 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt);
 
 SNode* createRawExprNode(SAstCreateContext* pCxt, const SToken* pToken, SNode* pNode);
 SNode* createRawExprNodeExt(SAstCreateContext* pCxt, const SToken* pStart, const SToken* pEnd, SNode* pNode);
+SNode* setRawExprNodeIsPseudoColumn(SAstCreateContext* pCxt, SNode* pNode, bool isPseudoColumn);
 SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode);
 SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode);
 

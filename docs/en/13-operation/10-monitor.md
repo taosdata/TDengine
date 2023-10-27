@@ -41,8 +41,6 @@ An existing Grafana Notification Channel can be specified with parameter `-E`, t
 
 Launch `TDinsight.sh` with the command above and restart Grafana, then open Dashboard `http://localhost:3000/d/tdinsight`.
 
-For more use cases and restrictions please refer to [TDinsight](/reference/tdinsight/).
-
 ## log database
 
 The data of tdinsight dashboard is stored in `log` database (default. You can change it in taoskeeper's config file. For more infrmation, please reference to [taoskeeper document](/reference/taosKeeper)). The taoskeeper will create log database on taoskeeper startup.

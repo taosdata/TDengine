@@ -94,8 +94,11 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
 :::tip
 需要注意的是，这里的 tag_key1, tag_key2 并不是用户输入的标签的原始顺序，而是使用了标签名称按照字符串升序排列后的结果。所以，tag_key1 并不是在行协议中输入的第一个标签。
 排列完成以后计算该字符串的 MD5 散列值 "md5_val"。然后将计算的结果与字符串组合生成表名：“t_md5_val”。其中的 “t_” 是固定的前缀，每个通过该映射关系自动生成的表都具有该前缀。
-:::tip 
-为了让用户可以指定生成的表名，可以通过在taos.cfg里配置 smlChildTableName 参数来指定。
+:::tip
+如果不想用自动生成的表名，有两种指定子表名的方式，第一种优先级更高：
+通过在taos.cfg里配置 smlAutoChildTableNameDelimiter 参数来指定（`@ # 空格 回车 换行 制表符`除外)。
+举例如下：配置 smlAutoChildTableNameDelimiter=- 插入数据为 st,t0=cpu1,t1=4 c1=3 1626006833639000000 则创建的表名为 cpu1-4。
+通过在taos.cfg里配置 smlChildTableName 参数来指定。
 举例如下：配置 smlChildTableName=tname 插入数据为 st,tname=cpu1,t1=4 c1=3 1626006833639000000 则创建的表名为 cpu1，注意如果多行数据 tname 相同，但是后面的 tag_set 不同，则使用第一行自动建表时指定的 tag_set，其他的行会忽略）。
 
 2. 如果解析行协议获得的超级表不存在，则会创建这个超级表（不建议手动创建超级表，不然插入数据可能异常）。

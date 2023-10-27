@@ -4552,31 +4552,6 @@ void tFreeSCMCreateTopicReq(SCMCreateTopicReq *pReq) {
   }
 }
 
-int32_t tSerializeSCMCreateTopicRsp(void *buf, int32_t bufLen, const SCMCreateTopicRsp *pRsp) {
-  SEncoder encoder = {0};
-  tEncoderInit(&encoder, buf, bufLen);
-
-  if (tStartEncode(&encoder) < 0) return -1;
-  if (tEncodeI64(&encoder, pRsp->topicId) < 0) return -1;
-  tEndEncode(&encoder);
-
-  int32_t tlen = encoder.pos;
-  tEncoderClear(&encoder);
-  return tlen;
-}
-
-int32_t tDeserializeSCMCreateTopicRsp(void *buf, int32_t bufLen, SCMCreateTopicRsp *pRsp) {
-  SDecoder decoder = {0};
-  tDecoderInit(&decoder, buf, bufLen);
-
-  if (tStartDecode(&decoder) < 0) return -1;
-  if (tDecodeI64(&decoder, &pRsp->topicId) < 0) return -1;
-  tEndDecode(&decoder);
-
-  tDecoderClear(&decoder);
-  return 0;
-}
-
 int32_t tSerializeSConnectReq(void *buf, int32_t bufLen, SConnectReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
@@ -6219,6 +6194,7 @@ int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
   if (tEncodeI64(&encoder, pReq->consumerId) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->timeout) < 0) return -1;
   if (tSerializeSTqOffsetVal(&encoder, &pReq->reqOffset) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->enableReplay) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -6254,6 +6230,10 @@ int32_t tDeserializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
   if (tDecodeI64(&decoder, &pReq->consumerId) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->timeout) < 0) return -1;
   if (tDerializeSTqOffsetVal(&decoder, &pReq->reqOffset) < 0) return -1;
+
+  if (!tDecodeIsEnd(&decoder)) {
+    if (tDecodeI8(&decoder, &pReq->enableReplay) < 0) return -1;
+  }
 
   tEndDecode(&decoder);
 
@@ -8057,6 +8037,7 @@ int32_t tEncodeMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
       }
     }
   }
+  if (tEncodeI64(pEncoder, pRsp->sleepTime) < 0) return -1;
   return 0;
 }
 
@@ -8102,6 +8083,8 @@ int32_t tDecodeMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
       }
     }
   }
+  if (tDecodeI64(pDecoder, &pRsp->sleepTime) < 0) return -1;
+
   return 0;
 }
 
