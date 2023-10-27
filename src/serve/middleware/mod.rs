@@ -53,7 +53,7 @@ pub fn http_flavor(version: Version) -> Cow<'static, str> {
 ///
 impl RootSpanBuilder for TaosXRootSpanBuilder {
     fn on_request_start(request: &ServiceRequest) -> Span {
-        let span = tracing::info_span!("HTTP-Server", TID = tracing::field::Empty);
+        let span = tracing::info_span!("http", TID = tracing::field::Empty);
         let trace_id = request
             .headers()
             .get("Trace-Id")
@@ -79,7 +79,7 @@ impl RootSpanBuilder for TaosXRootSpanBuilder {
                 .path_and_query()
                 .map(|p| p.as_str())
                 .unwrap_or("");
-            tracing::info!("{client_ip:} \"{method:} {target:} {schema:}/{flavor}\" {user_agent}");
+            tracing::info!("{client_ip} \"{method} {target} {schema}/{flavor}\" {user_agent}");
         });
         span
     }
@@ -90,7 +90,14 @@ impl RootSpanBuilder for TaosXRootSpanBuilder {
                 span.in_scope(|| {
                     let code = response.response().status().as_u16();
                     let size = response.response().body().size();
-                    tracing::info!("status code: {}, body: {:?}", code, size);
+                    let request = response.request();
+                    let method = http_method_str(request.method());
+                    let target = request
+                        .uri()
+                        .path_and_query()
+                        .map(|p| p.as_str())
+                        .unwrap_or("");
+                    tracing::info!("\"{method} {target}\" status code: {code}, body: {size:?}");
                 });
             }
             Err(_error) => {
