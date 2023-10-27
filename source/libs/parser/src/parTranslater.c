@@ -3429,6 +3429,20 @@ static const char* getPrecisionStr(uint8_t precision) {
   return "unknown";
 }
 
+static int64_t getPrecisionMultiple(uint8_t precision) {
+  switch (precision) {
+    case TSDB_TIME_PRECISION_MILLI:
+      return 1;
+    case TSDB_TIME_PRECISION_MICRO:
+      return 1000;
+    case TSDB_TIME_PRECISION_NANO:
+      return 1000000;
+    default:
+      break;
+  }
+  return 1;
+}
+
 static void convertVarDuration(SValueNode* pOffset, uint8_t precision) {
   const int64_t factors[3] = {NANOSECOND_PER_MSEC, NANOSECOND_PER_USEC, 1};
   const int8_t  units[3] = {TIME_UNIT_MILLISECOND, TIME_UNIT_MICROSECOND, TIME_UNIT_NANOSECOND};
@@ -3451,7 +3465,7 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
   if (pInter->datum.i <= 0 || (!valInter && pInter->datum.i < tsMinIntervalTime)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL, tsMinIntervalTime,
                                 getPrecisionStr(precision));
-  } else if (pInter->datum.i > maxKeepMS) {
+  } else if (pInter->datum.i / getPrecisionMultiple(precision) > maxKeepMS) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_BIG, 1000, "years");
   }
 
