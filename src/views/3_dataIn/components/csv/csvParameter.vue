@@ -10,6 +10,7 @@
         <el-checkbox
           v-model="ruleForm.hasHeader"
           @change="changeHeader"
+          size="small"
         ></el-checkbox>
       </el-form-item>
       <el-form-item
@@ -19,7 +20,7 @@
         required
         :rules="customcolrule"
       >
-        <el-input v-model="ruleForm.customcol"></el-input>
+        <el-input size="small" v-model="ruleForm.customcol"></el-input>
       </el-form-item>
     </el-form>
     <slot name="next"></slot>
@@ -38,7 +39,7 @@
         :rules="showStable ? rules.subname : normaltable"
       >
 
-        <el-input v-model="ruleForm2.subname"></el-input>
+        <el-input size="small" v-model="ruleForm2.subname"></el-input>
       </el-form-item>
       <el-form-item
         :label="$t('datasource.using')"
@@ -46,7 +47,7 @@
         v-if="showStable"
         :rules="tableName"
       >
-        <el-input v-model="ruleForm2.tableName"></el-input>
+        <el-input size="small" v-model="ruleForm2.tableName"></el-input>
       </el-form-item>
       <!-- <el-form-item :label="$t('datasource.target')" prop="dbName">
         <el-select v-model="ruleForm2.dbName" placeholder="">

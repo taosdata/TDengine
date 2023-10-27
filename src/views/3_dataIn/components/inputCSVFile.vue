@@ -8,7 +8,7 @@
       label-width="120px"
     >
       <el-form-item :label="$t('data.dbName')" prop="dbName" required>
-        <el-select filterable placeholder="" v-model="inputCsvForm.dbName">
+        <el-select size="small" filterable placeholder="" v-model="inputCsvForm.dbName">
           <el-option
             v-for="item in dbList"
             :key="item.name"
@@ -27,6 +27,7 @@
           :loading="requestIng"
           @focus="remoteMethod(inputCsvForm.tbName)"
           remote
+          size="small"
         >
           <el-option
             v-for="item in tableList"
@@ -46,6 +47,7 @@
           drag
           action=""
           :limit="1"
+          size="small"
           :on-change="handleFileChange"
           :on-remove="handleFileChange"
         >
@@ -56,6 +58,7 @@
       </el-form-item>
       <el-form-item>
         <el-button
+          size="small"
           class="w100"
           type="primary"
           :loading="requestIng"

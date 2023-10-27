@@ -259,8 +259,24 @@
           </el-tabs>
         </div>
       </section>
-      <section class="check" v-if="tagName !=='csv'">
-        <el-button :loading="checkLoading" type="primary" @click="clickCheckBtn">{{$t('dataIn.check')}}</el-button>
+      <section v-if="tagName !=='csv'">
+        <el-collapse v-model="activeCollapse" accordion>
+          <el-collapse-item name='one'>
+            <template slot="title">
+              <el-button
+                :loading="checkLoading"
+                type="primary"
+                size="small"
+                @click.capture.stop="clickCheckBtn"
+                >{{ $t("dataIn.check") }}
+              </el-button>
+            </template>
+            <Result
+              v-show="JSON.stringify(checkResult) !== '{}'"
+              :result="checkResult"
+            /> 
+          </el-collapse-item>
+        </el-collapse>
       </section>
       <section :class="['groups-dataset']" v-if="dbsource[0]?.datasets">
         <div style="flex-direction: column; align-items: baseline">
@@ -864,7 +880,7 @@
       </section>
       <section class="bottom">
         <el-button
-          v-show="isShowEditBtn"
+          v-if="isShowEditBtn"
           class="edit-btn"
           type="primary"
           @click="edit"
@@ -872,10 +888,9 @@
           >{{ $t("edit") }}</el-button
         >
         <el-button
-          v-show="!isShowEditBtn"
+          v-else
           type="primary"
           @click="save"
-          :disabled="!checkResult.valid && !checkResult.support"
           size="small"
           >{{ isEditable && !isCopyable ? $t("save") : $t("add") }}</el-button
         >
@@ -1040,11 +1055,12 @@ export default {
       // dbsource: [],
       checkLoading: false,
       checkResult: {
-        valid: false,
-        support: false,
-        data_source: '',
-        version: '', // 返回数据源版本，不能获得版本则不返回该字段。
-      }
+        // valid: false,
+        // support: false,
+        // data_source: '',
+        // version: '', // 返回数据源版本，不能获得版本则不返回该字段。
+      },
+      activeCollapse: ''
     };
   },
   created() {
@@ -1415,21 +1431,7 @@ export default {
         console.log('result',result);
         this.checkResult = result
         this.checkLoading = false // 检测的 loading 效果
-        this.$store.commit('SET_DIALOG', {
-          component: Result,
-          params: {
-            result,
-          },
-          config: {
-            title: this.$t('dataIn.check'),
-            width: '500px'
-          },
-          listeners: {
-            close: () => {
-              this.$store.commit('SET_DIALOG_VISIBLE', false);
-            }
-          }
-        });
+        this.activeCollapse = 'one'
       } catch (error) {
         this.checkLoading = false
         console.log('err');
@@ -2364,7 +2366,7 @@ export default {
         flex: auto;
       }
     }
-    .bottom,.check {
+    .bottom {
       display: flex;
       border: none !important;
       padding: 0px !important;
