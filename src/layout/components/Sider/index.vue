@@ -118,7 +118,7 @@ export default {
           {
             path: "/management",
             title: "route.admin",
-            icon: "users",
+            icon: "admin",
             parting: false,
             meta: {
               show: localStorage.getItem("username") == "root" ? true : false,
