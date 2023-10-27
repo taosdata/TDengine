@@ -23,7 +23,8 @@ use twelf::{config, Layer};
 use tracing::{log::LevelFilter, Level};
 
 use taosx_core::{
-    get_log_dir, set_env_log_keep_days, get_log_keep_days, RespAction,
+    get_log_dir, get_log_keep_days, RespAction,
+    set_env_plugins_home_dir, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days
 };
 
 use crate::runner::TaskStatus;
@@ -45,6 +46,12 @@ fn log_level_to_tracing_level(level: LevelFilter) -> Option<Level> {
 
 #[derive(Debug)]
 pub struct Args {
+    plugins_home: Option<String>,
+
+    data_dir: Option<String>,
+
+    logs_home: Option<String>,
+
     /// Listen to ip:port address.
     endpoint: String,
 
@@ -63,6 +70,15 @@ pub struct Args {
     about = build::CUS_CLI_ABOUT,
     long_about = build::CUS_CLI_ABOUT)]
 pub struct ConfigArgs {
+    #[clap(long, env = "PLUGINS_HOME")]
+    plugins_home: Option<String>,
+
+    #[clap(long, env = "TAOSX_DATA_DIR")]
+    data_dir: Option<String>,
+
+    #[clap(long, env = "LOGS_HOME")]
+    logs_home: Option<String>,
+
     /// Listen to ip:port address.
     #[clap(short = 'e', long)]
     endpoint: Option<String>,
@@ -142,6 +158,9 @@ impl Args {
         layers.push(Layer::Clap(ArgsParser::command().get_matches()));
 
         let ConfigArgs {
+            plugins_home,
+            data_dir,
+            logs_home,
             endpoint,
             token,
             log_level,
@@ -156,6 +175,9 @@ impl Args {
                 .unwrap_or(log::LevelFilter::Info),
         );
         Ok(Args {
+            plugins_home,
+            data_dir,
+            logs_home,
             endpoint: endpoint
                 .ok_or_else(|| ArgsError::MissingRequiredArgument("endpoint".to_string()))?,
             token: token.ok_or_else(|| ArgsError::MissingRequiredArgument("token".to_string()))?,
@@ -254,7 +276,10 @@ fn main() -> anyhow::Result<()> {
         "Serve agent with endpoint: {} via token ******",
         args.endpoint
     );
-    set_env_log_keep_days(args.log_keep_days);
+    set_env_plugins_home_dir(args.plugins_home.clone());
+    set_env_data_dir(args.data_dir.clone());
+    set_env_log_home_dir(args.logs_home.clone());
+    set_env_log_keep_days(args.log_keep_days.clone());
 
     let mut log_path = get_log_dir("agent");
 
