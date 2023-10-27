@@ -189,6 +189,7 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
   STaskStateTrans* pTrans = streamTaskFindTransform(pSM, event);
   if (pTrans == NULL) {
     stWarn("s-task:%s status:%s not allowed handle event:%s", pTask->id.idStr, pSM->current.name, StreamTaskEventList[event].name);
+    taosThreadMutexUnlock(&pTask->lock);
     return -1;
   } else {
     stDebug("s-task:%s start to handle event:%s, state:%s", pTask->id.idStr, StreamTaskEventList[event].name,
