@@ -107,7 +107,7 @@ void dmCleanupDnode(SDnode *pDnode) {
   dDebug("dnode is closed, ptr:%p", pDnode);
 }
 
-#if defined(TD_MODULE_OPTIMIZE) || !defined (TD_ENTERPRISE)
+#if defined(TD_MODULE_OPTIMIZE) || !defined(TD_ENTERPRISE)
 int32_t dmInitVars(SDnode *pDnode) {
   SDnodeData *pData = &pDnode->data;
   pData->dnodeId = 0;
