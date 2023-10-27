@@ -21,6 +21,7 @@
     "@tdengine/websocket": "^3.0.0",
     "axios": "^0.21.1",
     "babel-plugin-prismjs": "^2.1.0",
+    "clipboard-polyfill": "^4.0.1",
     "core-js": "^3.12.1",
     "crypto-js": "^4.1.1",
     "date-fns": "^2.29.3",
