@@ -56,14 +56,14 @@ impl MqttConfig {
 pub struct MqttConnectConfig {
     address: String,
     version: String,
-    client_id: String,
-    username: String,
-    password: String,
-    keep_alive: usize,
-    clean_session: bool,
-    ca: String,
-    cert: String,
-    cert_key: String,
+    client_id: Option<String>,
+    username: Option<String>,
+    password: Option<String>,
+    keep_alive: Option<usize>,
+    clean_session: Option<bool>,
+    ca: Option<String>,
+    cert: Option<String>,
+    cert_key: Option<String>,
 }
 
 impl MqttConnectConfig {
@@ -107,10 +107,9 @@ impl MqttConnectConfig {
             client_id: dsn
                 .params
                 .get("client_id")
-                .unwrap_or(&"".to_string())
-                .to_string(),
-            username: dsn.username.clone().unwrap_or("".to_string()),
-            password: dsn.password.clone().unwrap_or("".to_string()),
+                .map(|v| v.to_string()),
+            username: dsn.username.clone(),
+            password: dsn.password.clone(),
             keep_alive: dsn
                 .params
                 .get("keep_alive")
@@ -123,8 +122,7 @@ impl MqttConnectConfig {
                         )
                     })
                 })
-                .transpose()?
-                .ok_or(anyhow::anyhow!("keep_alive is required"))?,
+                .transpose()?,
             clean_session: dsn
                 .params
                 .get("clean_session")
@@ -137,11 +135,11 @@ impl MqttConnectConfig {
                         )
                     })
                 })
-                .transpose()?
-                .ok_or(anyhow::anyhow!("clean_session is required"))?,
-            ca: ca.unwrap_or("".to_string()),
-            cert: cert.unwrap_or("".to_string()),
-            cert_key: cert_key.unwrap_or("".to_string()),
+                .transpose()?,
+                // .ok_or(anyhow::anyhow!("clean_session is required"))?,
+            ca,
+            cert,
+            cert_key,
         })
     }
 }
@@ -196,14 +194,14 @@ mod tests {
         let config = MqttConnectConfig::from_dsn(&dsn).unwrap();
         assert_eq!("tcp://127.0.0.1:1833", config.address);
         assert_eq!("3.0", config.version);
-        assert_eq!("", config.client_id);
-        assert_eq!("", config.username);
-        assert_eq!("", config.password);
-        assert_eq!(60, config.keep_alive);
-        assert_eq!(true, config.clean_session);
-        assert_eq!("", config.ca);
-        assert_eq!("", config.cert);
-        assert_eq!("", config.cert_key);
+        assert_eq!(None, config.client_id);
+        assert_eq!(None, config.username);
+        assert_eq!(None, config.password);
+        assert_eq!(60, config.keep_alive.unwrap());
+        assert_eq!(true, config.clean_session.unwrap());
+        assert_eq!(None, config.ca);
+        assert_eq!(None, config.cert);
+        assert_eq!(None, config.cert_key);
     }
 
     #[test]
@@ -221,7 +219,7 @@ mod tests {
         let dsn = Dsn::from_str(
             "mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=a,b,c",
         )
-        .unwrap();
+            .unwrap();
         let config = MqttConfig::from(&dsn, Some(10086));
         assert!(config.is_err());
         assert_eq!(
@@ -232,7 +230,7 @@ mod tests {
         let dsn = Dsn::from_str(
             "mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=tp1::abc",
         )
-        .unwrap();
+            .unwrap();
         let config = MqttConfig::from(&dsn, Some(10086));
         assert!(config.is_err());
         assert_eq!(
@@ -243,7 +241,7 @@ mod tests {
         let dsn = Dsn::from_str(
             "mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=tp1::0",
         )
-        .unwrap();
+            .unwrap();
         let config = MqttConfig::from(&dsn, Some(10086));
         assert!(config.is_err());
         assert_eq!("log_level is required", config.err().unwrap().to_string());
@@ -256,5 +254,13 @@ mod tests {
         assert_eq!(0, *config.topics.get("tp1").unwrap());
         assert_eq!(1, *config.topics.get("tp2").unwrap());
         assert_eq!(2, *config.topics.get("tp3").unwrap());
+    }
+
+    #[test]
+    fn test_mqtt_config_from_with_file() {
+        let dsn = Dsn::from_str("mqtt://192.168.1.42:1833?version=3.0").unwrap();
+        let config = MqttConnectConfig::from_dsn(&dsn).unwrap();
+        let toml = toml::to_string(&config);
+        assert_eq!("address = \"tcp://192.168.1.42:1833\"\\nversion = \"3.0\"", toml.unwrap());
     }
 }

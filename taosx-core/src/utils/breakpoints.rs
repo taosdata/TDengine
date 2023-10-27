@@ -1,4 +1,4 @@
-use tracing::{debug, info};
+use tracing::info;
 use crate::get_data_dir;
 use std::path::PathBuf;
 
@@ -80,7 +80,7 @@ mod tests {
         // set env
         std::env::set_var("TAOSX_DATA_DIR", "/tmp/data");
         let path = breakpoints_db_dir(task_id);
-        assert_eq!(path, "/tmp/data/1/breakpoints");
+        assert_eq!("/tmp/data/1/breakpoints", format!("{:?}", path));
     }
 
     #[test]
