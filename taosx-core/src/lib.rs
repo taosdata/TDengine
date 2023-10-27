@@ -537,13 +537,14 @@ mod tests {
     #[ignore]
     #[tokio::test]
     async fn test_influxdb_valid() {
+        env::set_var("PLUGINS_HOME", "../plugins");
         // influxdb
         let dsn = Dsn::from_str("influxdb://192.168.1.107:8086/?version=2.7&orgId=f3af42a3895a5e33&token=wido5N7w7PutOEuVtoEe5kxjkov5XZm1Uxqe1bEKKBSN4_4XjQfg0hc9BNGDR7xiMs3BaNtHsWjKCvGWMn8fDA==").unwrap();
         let dsv = validate_dsn(dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("influxdb", dsv.data_source);
-        assert_eq!("2.7", dsv.version.unwrap());
+        assert_eq!("OSS v2.7.1", dsv.version.unwrap());
     }
 
     #[ignore]
@@ -563,24 +564,25 @@ mod tests {
     async fn test_mqtt_valid() {
         env::set_var("PLUGINS_HOME", "../plugins");
         //mqtt
-        let dsn = Dsn::from_str("mqtt://192.168.1.42:1833?version=3.0").unwrap();
+        let dsn = Dsn::from_str("mqtt://192.168.1.42:1883?version=3.0").unwrap();
         let dsv = validate_dsn(dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("mqtt", dsv.data_source);
-        assert_eq!("", dsv.version.unwrap());
+        assert_eq!(None, dsv.version);
     }
 
     #[ignore]
     #[tokio::test]
     async fn test_opentsdb_valid() {
+        env::set_var("PLUGINS_HOME", "../plugins");
         // opentsdb
         let dsn = Dsn::from_str("opentsdb://192.168.2.12:4242").unwrap();
         let dsv = validate_dsn(dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("opentsdb", dsv.data_source);
-        assert_eq!("", dsv.version.unwrap());
+        assert_eq!("2.4.0", dsv.version.unwrap());
     }
 
     #[ignore]

@@ -7,10 +7,10 @@ use crate::runners::{get_string_from_param_or_file, get_string_vec_from_param_or
 
 #[derive(Debug, serde::Serialize)]
 pub struct MqttConfig {
-    log_level: String,
-    pub(crate) remote: String,
-    mqtt: MqttConnectConfig,
-    topics: HashMap<String, u8>,
+    pub log_level: String,
+    pub remote: String,
+    pub mqtt: MqttConnectConfig,
+    pub topics: HashMap<String, u8>,
 }
 
 impl MqttConfig {
@@ -219,7 +219,7 @@ mod tests {
         let dsn = Dsn::from_str(
             "mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=a,b,c",
         )
-            .unwrap();
+        .unwrap();
         let config = MqttConfig::from(&dsn, Some(10086));
         assert!(config.is_err());
         assert_eq!(
@@ -230,7 +230,7 @@ mod tests {
         let dsn = Dsn::from_str(
             "mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=tp1::abc",
         )
-            .unwrap();
+        .unwrap();
         let config = MqttConfig::from(&dsn, Some(10086));
         assert!(config.is_err());
         assert_eq!(
@@ -241,7 +241,7 @@ mod tests {
         let dsn = Dsn::from_str(
             "mqtt://127.0.0.1:1833?version=3.0&keep_alive=60&clean_session=true&topics=tp1::0",
         )
-            .unwrap();
+        .unwrap();
         let config = MqttConfig::from(&dsn, Some(10086));
         assert!(config.is_err());
         assert_eq!("log_level is required", config.err().unwrap().to_string());

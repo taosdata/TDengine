@@ -92,7 +92,7 @@ pub async fn kafka_to_taos(
         span,
         None,
     )
-        .await?;
+    .await?;
 
     let worker = tokio::task::spawn_blocking(move || kafka_worker(from, port));
     let abort_handle = worker.abort_handle();
