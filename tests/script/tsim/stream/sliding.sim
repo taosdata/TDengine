@@ -582,6 +582,7 @@ sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 
 sql create stream streams23 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt23 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(20s) sliding(10s);
+sleep 1000
 
 sql insert into t1 values(1648791213000,1,1,1,1.0);
 sql insert into t1 values(1648791223001,2,2,2,1.1);

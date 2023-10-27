@@ -344,13 +344,13 @@ static bool taskReadyForDataFromWal(SStreamTask* pTask) {
   }
 
   // check if input queue is full or not
-  if (streamQueueIsFull(pTask->inputInfo.queue)) {
+  if (streamQueueIsFull(pTask->inputq.queue)) {
     tqTrace("s-task:%s input queue is full, do nothing", pTask->id.idStr);
     return false;
   }
 
   // the input queue of downstream task is full, so the output is blocked, stopped for a while
-  if (pTask->inputInfo.status == TASK_INPUT_STATUS__BLOCKED) {
+  if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
     tqDebug("s-task:%s inputQ is blocked, do nothing", pTask->id.idStr);
     return false;
   }
@@ -444,7 +444,7 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    int32_t numOfItems = streamQueueGetNumOfItems(pTask->inputInfo.queue);
+    int32_t numOfItems = streamQueueGetNumOfItems(pTask->inputq.queue);
     int64_t maxVer = (pTask->info.fillHistory == 1) ? pTask->dataRange.range.maxVer : INT64_MAX;
 
     taosThreadMutexLock(&pTask->lock);
