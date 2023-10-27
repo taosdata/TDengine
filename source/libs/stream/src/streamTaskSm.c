@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <streamsm.h>
 #include "streamInt.h"
 #include "streamsm.h"
 #include "tmisce.h"

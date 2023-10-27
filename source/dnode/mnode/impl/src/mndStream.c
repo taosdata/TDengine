@@ -287,7 +287,7 @@ void mndReleaseStream(SMnode *pMnode, SStreamObj *pStream) {
 static void mndShowStreamStatus(char *dst, SStreamObj *pStream) {
   int8_t status = atomic_load_8(&pStream->status);
   if (status == STREAM_STATUS__NORMAL) {
-    strcpy(dst, "normal");
+    strcpy(dst, "ready");
   } else if (status == STREAM_STATUS__STOP) {
     strcpy(dst, "stop");
   } else if (status == STREAM_STATUS__FAILED) {
@@ -295,7 +295,7 @@ static void mndShowStreamStatus(char *dst, SStreamObj *pStream) {
   } else if (status == STREAM_STATUS__RECOVER) {
     strcpy(dst, "recover");
   } else if (status == STREAM_STATUS__PAUSE) {
-    strcpy(dst, "pause");
+    strcpy(dst, "paused");
   }
 }
 
