@@ -1624,7 +1624,7 @@ _exit:
       taos_counter_destroy(counter);
     }
     else{
-      atomic_store_ptr(insert_counter, counter);
+      atomic_store_ptr(&insert_counter, counter);
     }
   }
 
