@@ -189,10 +189,10 @@ public class PreLoading implements CommandLineRunner {
             if (StringUtils.isNotEmpty(this.taskConfig.getEndTime()) && !this.taskConfig.getEndTime().matches(DateUtils.PATTERN_YMDHMS_TZ)) {
                 throw new Exception("parameter endTime configuration error.");
             }
-            String breakpoint = tomlParseResult.getString("task.breakpoint", String::new);
+            String breakpoints = tomlParseResult.getString("task.breakpoints", String::new);
             // 存在断点信息则解析
-            if (StringUtils.isNotEmpty(breakpoint)) {
-                this.taskConfig.setBreakpoint(parseBreakpoint(breakpoint));
+            if (StringUtils.isNotEmpty(breakpoints)) {
+                this.taskConfig.setBreakpoint(parseBreakpoint(breakpoints));
             }
             // 如果设置了性能参数，则覆盖默认值
             if (tomlParseResult.getLong("performance.readWindow") != null) {
@@ -226,14 +226,14 @@ public class PreLoading implements CommandLineRunner {
     /**
      * 解析断点信息，格式为metric1:timestamp&metric2:timestamp&...
      *
-     * @param breakpoint
+     * @param breakpoints
      * @return
      */
-    private Map<String, Long> parseBreakpoint(String breakpoint) {
+    private Map<String, Long> parseBreakpoint(String breakpoints) {
         Map<String, Long> breakpointMap = new HashMap<>();
         try {
             // 按 & 分割
-            String[] metricInfoArr = breakpoint.split("&");
+            String[] metricInfoArr = breakpoints.split("&");
             // 遍历封装map
             for (String metricInfo : metricInfoArr) {
                 // 按 : 分割
@@ -244,7 +244,7 @@ public class PreLoading implements CommandLineRunner {
                 }
             }
         } catch (Exception e) {
-            logger.error("An exception occurred during the parsing of breakpoint, breakpoint={}", breakpoint, e);
+            logger.error("An exception occurred during the parsing of breakpoints, breakpoints={}", breakpoints, e);
         }
         return breakpointMap;
     }
