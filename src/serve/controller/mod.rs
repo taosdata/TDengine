@@ -654,9 +654,6 @@ impl TaskController {
         let task_handler = async move {
             // let _ = span.clone().entered();
             tracing::info!(task.id = id, "start worker");
-            // set current dir for upload files
-            let root = get_data_dir();
-            let _ = env::set_current_dir(&root);
             let now = Utc::now();
             let _ = sqlx::query!(
                 "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",

@@ -1,19 +1,19 @@
 use tracing::{debug, info};
 use crate::get_data_dir;
+use std::path::PathBuf;
 
-fn breakpoints_db_dir(task_id: &str) -> String {
+fn breakpoints_db_dir(task_id: &str) -> PathBuf {
     let path = get_data_dir();
-    format!("{}/{}/breakpoints", path, task_id)
+    path.join("tasks").join(task_id).join("breakpoints")
 }
 
 pub fn breakpoints_set(task_id: &str, sub_task: &str, breakpoints: &str) -> anyhow::Result<()> {
     let path = breakpoints_db_dir(task_id);
-    debug!(
-        "breakpoints db path: {}, breakponts key: {}, value: {}",
-        path, sub_task, breakpoints
+    info!(
+        "breakpoints db path: {}, breakpoints key: {}, value: {}",
+        path.display(), sub_task, breakpoints
     );
-    let db =
-        sled::open(path).map_err(|err| anyhow::anyhow!("sled open db file failed: {:?}", err))?;
+    let db = sled::open(path).map_err(|err| anyhow::anyhow!("sled open db file failed: {:?}", err))?;
     db.insert(sub_task, breakpoints)?;
     Ok(())
 }
@@ -21,11 +21,10 @@ pub fn breakpoints_set(task_id: &str, sub_task: &str, breakpoints: &str) -> anyh
 pub fn breakpoints_get(task_id: &str, sub_task: &str) -> anyhow::Result<Option<String>> {
     let path = breakpoints_db_dir(task_id);
     // if path not exist, return None to avoid create db file
-    if !std::path::Path::new(&path).exists() {
+    if !path.exists() {
         return Ok(None);
     }
-    let db =
-        sled::open(path).map_err(|err| anyhow::anyhow!("sled open db file failed: {:?}", err))?;
+    let db = sled::open(path).map_err(|err| anyhow::anyhow!("sled open db file failed: {:?}", err))?;
     let result = db.get(sub_task)?;
     match result {
         Some(v) => Ok(Some(String::from_utf8(v.to_vec())?)),
@@ -36,11 +35,10 @@ pub fn breakpoints_get(task_id: &str, sub_task: &str) -> anyhow::Result<Option<S
 pub fn breakpoints_get_all(task_id: &str) -> anyhow::Result<Vec<(String, String)>> {
     let path = breakpoints_db_dir(task_id);
     // if path not exist, return None to avoid create db file
-    if !std::path::Path::new(&path).exists() {
+    if !path.exists() {
         return Ok(vec![]);
     }
-    let db =
-        sled::open(path).map_err(|err| anyhow::anyhow!("sled open db file failed: {:?}", err))?;
+    let db = sled::open(path).map_err(|err| anyhow::anyhow!("sled open db file failed: {:?}", err))?;
     let mut result = vec![];
     for item in db.iter() {
         let (key, value) = item?;
@@ -54,8 +52,7 @@ pub fn breakpoints_get_all(task_id: &str) -> anyhow::Result<Vec<(String, String)
 
 pub fn breakpoints_remove(task_id: &str, sub_task: &str) -> anyhow::Result<()> {
     let path = breakpoints_db_dir(task_id);
-    let db =
-        sled::open(path).map_err(|err| anyhow::anyhow!("sled open db file failed: {:?}", err))?;
+    let db = sled::open(path).map_err(|err| anyhow::anyhow!("sled open db file failed: {:?}", err))?;
     db.remove(sub_task)?;
     Ok(())
 }
@@ -63,8 +60,8 @@ pub fn breakpoints_remove(task_id: &str, sub_task: &str) -> anyhow::Result<()> {
 pub fn breakpoints_clear(task_id: &str) -> anyhow::Result<()> {
     let path = breakpoints_db_dir(task_id);
     // delete db file
-    info!("delete breakpoints db file: {}", path);
-    if std::path::Path::new(&path).exists() {
+    info!("delete breakpoints db file: {}", path.display());
+    if path.exists() {
         std::fs::remove_dir_all(&path)?;
     }
     Ok(())
@@ -113,8 +110,8 @@ mod tests {
 
         breakpoints_clear(task_id).unwrap();
 
-        let dir = breakpoints_db_dir(task_id);
-        assert_eq!(std::path::Path::new(&dir).exists(), false);
+        let path = breakpoints_db_dir(task_id);
+        assert_eq!(path.exists(), false);
 
         let result = breakpoints_get(task_id, sub_task).unwrap();
         assert_eq!(result, None);

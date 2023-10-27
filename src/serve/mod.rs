@@ -63,11 +63,6 @@ pub(super) struct Cli {
     #[clap(long)]
     do_not_resume: bool,
 
-    // #[clap(short = 'D', long)]
-    // data_dir: Option<PathBuf>,
-    #[clap(short = 'L', long)]
-    log_dir: Option<PathBuf>,
-
     #[clap(flatten)]
     config_args: ConfigArgs,
 }
@@ -94,7 +89,6 @@ impl Default for Cli {
                 database_url: None,
                 secret_prefix: Some("XaNeGt".to_string()),
             },
-            log_dir: None,
             do_not_resume: false,
         }
     }
@@ -432,6 +426,8 @@ impl Cli {
             path.to_string()
         } else if let Ok(url) = std::env::var("DATABASE_URL") {
             url
+        } else if let Ok(root) = std::env::var("TAOSX_DATA_DIR") {
+            format!("sqlite:{}/taosx.db", root)
         } else {
             "sqlite:taosx.db".to_string()
         };

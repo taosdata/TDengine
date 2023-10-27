@@ -23,7 +23,7 @@ use twelf::{config, Layer};
 use tracing::{log::LevelFilter, Level};
 
 use taosx_core::{
-    get_log_dir, get_log_keep_days, valid_env_log_keep_days, RespAction, ENV_TAOSX_LOGS_KEEP_DAYS,
+    get_log_dir, set_env_log_keep_days, get_log_keep_days, RespAction,
 };
 
 use crate::runner::TaskStatus;
@@ -79,10 +79,7 @@ pub struct ConfigArgs {
     #[clap(hide = true, env="LOG_LEVEL")]
     log_level: Option<LevelFilter>,
 
-    #[clap(hide = true, env="LOG_FILE")]
-    log_file: Option<i64>,
-
-    #[clap(hide = true, env="LOG_KEEP_DAYS")]
+    #[clap(long, env="LOG_KEEP_DAYS")]
     log_keep_days: Option<i64>,
 }
 
@@ -123,9 +120,8 @@ impl Args {
         .unwrap_or_else(|| {
             if cfg!(windows) {
                 std::path::Path::new("C:\\")
-                    .join("Program Files")
-                    .join("taosX")
-                    .join("config")
+                    .join("TDengine")
+                    .join("cfg")
                     .join("agent.toml")
             } else {
                 std::path::Path::new("/etc")
@@ -250,14 +246,6 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
         }
     }
     Ok(())
-}
-
-fn set_env_log_keep_days(config: Option<i64>) {
-    if let Some(log_keep_days) = config {
-        if log_keep_days > 0 && valid_env_log_keep_days().is_none() {
-            std::env::set_var(ENV_TAOSX_LOGS_KEEP_DAYS, log_keep_days.to_string());
-        }
-    }
 }
 
 fn main() -> anyhow::Result<()> {

@@ -20,7 +20,7 @@ use metrics_util::debugging::Snapshotter;
 use serde::{Deserialize, Serialize};
 use taos::Code;
 use taosx_core::{
-    get_data_dir, get_file_upload_home_dir, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND,
+    get_file_upload_home_dir, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND,
     METRICS_TIME_START,
 };
 use tokio_cron_scheduler::Job;
@@ -642,8 +642,7 @@ async fn save_files(MultipartForm(form): MultipartForm<UploadForm>) -> anyhow::R
     let req_id = form.req_id.to_string();
     for f in form.files {
         // let uuid = uuid::Uuid::new_v4();
-        let path = std::path::Path::new(&format!("{}/{req_id}", upload_dir.to_str().unwrap()))
-            .to_path_buf();
+        let path = upload_dir.join(&req_id);
         fs::create_dir_all(&path).with_context(|| "create file path failed")?;
         let file_name = f.file_name.unwrap();
         let releative_path = format!("{req_id}/{file_name}");
@@ -651,11 +650,7 @@ async fn save_files(MultipartForm(form): MultipartForm<UploadForm>) -> anyhow::R
             "saving to {}, {releative_path}",
             upload_dir.to_str().unwrap()
         );
-        let path = std::path::Path::new(&format!(
-            "{}/{req_id}/{file_name}",
-            upload_dir.to_str().unwrap()
-        ))
-        .to_path_buf();
+        let path = upload_dir.join(&req_id).join(&file_name);
         if let Err(persis_err) = f.file.persist(&path) {
             // fallback to copy
             std::fs::copy(persis_err.file.path(), path).context("cannot save uploaded file")?;
@@ -717,9 +712,6 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
         filemeta_request.file_type,
         filemeta_request.has_header,
     );
-    // set current path
-    let root = get_data_dir();
-    assert!(std::env::set_current_dir(&root).is_ok());
     match file_type.as_str() {
         "csv" => {
             let filepath_or_filedir = filepath_or_filedir.split(",").into_iter().collect_vec();
@@ -780,8 +772,8 @@ pub async fn download_files(params: Query<DownloadParams>, req: HttpRequest) -> 
 
 async fn download(file_path: Query<DownloadParams>) -> anyhow::Result<NamedFile> {
     let file_path = file_path.into_inner().file_path;
-    let file_home_dir = get_data_dir();
-    let file_path = format!("{}{}", file_home_dir, file_path);
+    let upload_dir = get_file_upload_home_dir();
+    let file_path = upload_dir.join(file_path);
     let meta = std::fs::metadata(file_path.clone()).with_context(|| "get file metadata error")?;
     if meta.is_dir() {
         anyhow::bail!("not support path");
