@@ -8,6 +8,7 @@ import (
 	"collector/connector"
 	"context"
 
+	"github.com/konimarti/opc"
 	"github.com/sunpe/gobox/logger"
 )
 
@@ -42,4 +43,17 @@ func (d *DaConnector) Collect(ctx context.Context) (<-chan *common.NodeValue, er
 
 func (d *DaConnector) GetAllPoints(ctx context.Context) ([]common.Point, error) {
 	return d.r.getAllTags(ctx)
+}
+
+func CheckConnection(config common.Config) error {
+	err := config.Connect.Da.Validate()
+	if err != nil {
+		return err
+	}
+	conn, err := opc.NewConnection(config.Connect.Da.Server, config.Connect.Da.Nodes, []string{})
+	if err != nil {
+		return err
+	}
+	conn.Close()
+	return nil
 }

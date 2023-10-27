@@ -2,6 +2,8 @@ package main
 
 import (
 	"collector/common"
+	"collector/connector/opcda"
+	"collector/connector/opcua"
 	"collector/version"
 	"collector/worker"
 	"context"
@@ -11,6 +13,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 
 	"github.com/sunpe/gobox/logger"
@@ -31,6 +34,9 @@ func main() {
 	coll := flag.NewFlagSet("collect", flag.ExitOnError)
 	collectConfigPath := coll.String("conf", "", "use --conf to set config path")
 
+	check := flag.NewFlagSet("check", flag.ExitOnError)
+	checkConfigPath := check.String("conf", "", "use --conf to set config path")
+
 	if len(os.Args) < 2 {
 		logger.Panic("## param error.", "params", os.Args[1:])
 		return
@@ -45,6 +51,12 @@ func main() {
 		collect(ctx, collectConfigPath)
 	case "version":
 		showVersion()
+	case "check":
+		_ = check.Parse(os.Args[2:])
+		resp := checkConnection(checkConfigPath)
+		b, _ := json.Marshal(resp)
+		fmt.Println(string(b))
+		return
 	default:
 		logger.Panic("## unknown command", "command", os.Args[1])
 		return
@@ -117,4 +129,73 @@ func collect(ctx context.Context, configPath *string) {
 
 func showVersion() {
 	fmt.Println(version.ShowVersion())
+}
+
+func checkConnection(configPath *string) CheckResp {
+	if configPath == nil || len(*configPath) == 0 {
+		return CheckResp{
+			Valid:      false,
+			Support:    false,
+			DataSource: "opc",
+			Message:    "config file is null",
+		}
+	}
+	config, err := common.ParseConfig(*configPath)
+	if err != nil {
+		return CheckResp{
+			Valid:      false,
+			Support:    false,
+			DataSource: "opc",
+			Message:    err.Error(),
+		}
+	}
+	switch config.OpcType {
+	case common.OpcTypeUA:
+		err := opcua.CheckConnection(config)
+		if err != nil {
+			return CheckResp{
+				Valid:      false,
+				Support:    true,
+				DataSource: "opc",
+				Message:    err.Error(),
+			}
+		}
+	case common.OpcTypeDA:
+		if runtime.GOOS != "windows" {
+			return CheckResp{
+				Valid:      false,
+				Support:    false,
+				DataSource: "opc",
+				Message:    "opc da only support windows",
+			}
+		}
+		err := opcda.CheckConnection(config)
+		if err != nil {
+			return CheckResp{
+				Valid:      false,
+				Support:    true,
+				DataSource: "opc",
+				Message:    err.Error(),
+			}
+		}
+	default:
+		return CheckResp{
+			Valid:      false,
+			Support:    false,
+			DataSource: "opc",
+			Message:    fmt.Sprintf("unknown opc type %s", config.OpcType),
+		}
+	}
+	return CheckResp{
+		Valid:      true,
+		Support:    true,
+		DataSource: "opc",
+	}
+}
+
+type CheckResp struct {
+	Valid      bool        `json:"valid"`
+	Support    interface{} `json:"support"`
+	DataSource string      `json:"data_source"`
+	Message    string      `json:"message,omitempty"`
 }
