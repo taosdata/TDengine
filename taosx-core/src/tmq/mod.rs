@@ -465,10 +465,10 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                     } else {
                         source
                             .exec(format!(
-                                "create topic {topic} with meta as stable `{database}`.`{table}`"
+                                "create topic `{topic}` with meta as stable `{database}`.`{table}`"
                             ))
                             .await
-                            .context(format!("create topic for stable {database}"))?;
+                            .context(format!("create topic for stable `{database}`.`{table}`"))?;
                         databases.push(database.to_string());
                         let vgroups = source
                             .query_one(format!(
@@ -602,10 +602,10 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
 
                         source
                             .exec(format!(
-                                "create topic {topic} as select * from `{database}`.`{table}`"
+                                "create topic `{topic}` as select * from `{database}`.`{table}`"
                             ))
                             .await
-                            .context(format!("create topic for stable {database}"))?;
+                            .context(format!("create topic for query form {database}"))?;
 
                         let topic_table = TopicTable {
                             table,

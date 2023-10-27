@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use anyhow::{bail, Context, Result};
+use linked_hash_map::LinkedHashMap;
 use taos::{Consumer, *};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -627,4 +628,15 @@ pub async fn tmq_to_td(
     println!("{}", metrics.as_ref());
 
     Ok(())
+}
+
+#[instrument(skip_all)]
+pub async fn tmq_offsets(from: Dsn) -> anyhow::Result<LinkedHashMap<String, Vec<Assignment>>> {
+    let (from, _, topics) = check_tmq_dsn(from).await?;
+    let tmq = TmqBuilder::from_dsn(&from)?;
+    let mut consumer = tmq.build().await?;
+    consumer
+        .subscribe(&topics.iter().map(|t| t.name.to_string()).collect_vec())
+        .await?;
+    Ok(consumer.assignments().await.unwrap_or_default().into_iter().collect())
 }
