@@ -2111,6 +2111,7 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
         sdbCancelFetch(pSdb, pIter);
         return terrno;
       }
+      mndTransSetSerial(pTrans);
     }
 
     void *p = taosHashGet(pChangeInfo->pDBMap, pStream->targetDb, strlen(pStream->targetDb));
