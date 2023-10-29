@@ -19,13 +19,14 @@ use tracing::{error, info, instrument, Instrument};
 use uuid::Uuid;
 
 use crate::serve::controller::{
+    agent::Activity,
     trigger::{Schedule, StopCondition, Strategy},
     AgentAction, Status, Task, TaskActivity,
 };
 
 use super::{
     agent::{AgentState, AgentTask, AgentWorker},
-    NotifySender,
+    NotifySender, SchedulerNotify,
 };
 
 #[instrument(skip_all)]
@@ -115,7 +116,7 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<TaskOpts> {
     })
 }
 
-async fn start_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyhow::Result<()> {
+async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyhow::Result<()> {
     let state = task;
     let task = &state.task;
 
@@ -134,31 +135,45 @@ async fn start_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> an
             .push_action(agent_id, AgentAction::Run(task.id))
             .await?;
         let waiter = state.agent_waiter.as_ref().unwrap();
+        let cancellation = opts.cancel.clone();
         loop {
             let mut recv = waiter.agent_activities.write().await;
-            match recv.recv().await {
-                Some(activity) => match activity.status.as_str() {
-                    "started" => {
-                        tracing::info!("task started");
+            tokio::select! {
+                _ = cancellation.cancelled() => {
+                    global.agent_runtime.push_action(agent_id, AgentAction::Stop(task.id)).await?;
+                    global.send_task_activity(TaskActivity::stop(task.id));
+                    break Ok(())
+                }
+                activity = recv.recv() => {
+                    match activity {
+                        Some(activity) => match activity.status.as_str() {
+                            "started" => {
+                                tracing::info!("task started");
+                            }
+                            "suspended" => {
+                                tracing::info!("task suspended");
+                                break Ok(());
+                            }
+                            "completed" => {
+                                tracing::info!("task completed");
+                                break Ok(());
+                            }
+                            "stopped" => {
+                                tracing::info!("task stopped");
+                                break Ok(());
+                            }
+                            "failed" => {
+                                tracing::info!("task failed");
+                                break Err(anyhow::anyhow!("{}", activity.activity));
+                            }
+                            status => {
+                                tracing::info!("task {}: {}", status, activity.activity);
+                            }
+                        },
+                        None => {
+                            break Err(anyhow::anyhow!("All agent activities sender dropped"));
+                        }
                     }
-                    "suspended" => {
-                        tracing::info!("task suspended");
-                        break Ok(());
-                    }
-                    "completed" => {
-                        tracing::info!("task completed");
-                        break Ok(());
-                    }
-                    "failed" => {
-                        tracing::info!("task failed");
-                        break Err(anyhow::anyhow!("{}", activity.activity));
-                    }
-                    status => {
-                        tracing::info!("task {}: {}", status, activity.activity);
-                    }
-                },
-                None => {
-                    break Err(anyhow::anyhow!("All agent activities sender dropped"));
                 }
             }
         }
@@ -240,6 +255,14 @@ impl AgentRuntimeRef {
             Self::Client(_) => {}
         }
     }
+    async fn stop(&self, task_id: TaskId) {
+        match self {
+            Self::Server(rt) => {
+                rt.stop(task_id).await;
+            }
+            Self::Client(_) => {}
+        }
+    }
     async fn cancel(&self, task_id: TaskId) {
         match self {
             Self::Server(rt) => {
@@ -307,10 +330,20 @@ impl GlobalState {
         if let Err(err) = self
             .notify_sender
             .upgrade()
-            .map(|sender| sender.send(activity))
+            .map(|sender| sender.send(SchedulerNotify::TaskActivity(activity)))
             .transpose()
         {
             error!("send task activity error: {:#}", err);
+        }
+    }
+    pub fn send_agent_activity(&self, activity: Activity) {
+        if let Err(err) = self
+            .notify_sender
+            .upgrade()
+            .map(|sender| sender.send(SchedulerNotify::AgentActivity(activity)))
+            .transpose()
+        {
+            error!("send agent activity error: {:#}", err);
         }
     }
     pub fn is_alive(&self) -> bool {
@@ -344,7 +377,7 @@ pub struct AgentWaiter {
 
 /// Inner state of task under job scheduler.
 ///
-/// 1. Initial state is `Scheduled`.
+/// 1. Initial state is `Queued`.
 /// 2. When task is spawned, the state will be `Running`.
 /// 3. When task is stopped, the state will be `Stopped`.
 /// 4. When task is completed, the state will be `Completed`.
@@ -353,7 +386,7 @@ pub struct AgentWaiter {
 pub enum InnerState {
     #[default]
     /// Task is scheduled
-    Scheduled,
+    Queued,
     /// Task is running.
     Running,
     /// Task is stopping.
@@ -370,13 +403,24 @@ impl InnerState {
     pub fn is_running(&self) -> bool {
         matches!(self, InnerState::Running)
     }
-    pub fn is_scheduled(&self) -> bool {
-        matches!(self, InnerState::Scheduled)
+    pub fn is_queued(&self) -> bool {
+        matches!(self, InnerState::Queued)
+    }
+
+    pub fn is_final_state(&self) -> bool {
+        matches!(
+            self,
+            InnerState::Completed | InnerState::Stopped | InnerState::Failed(_)
+        )
+    }
+
+    pub(crate) fn is_stopped(&self) -> bool {
+        matches!(self, InnerState::Stopped)
     }
     pub fn start(&mut self) -> anyhow::Result<&mut Self> {
         match self {
             InnerState::Running => Ok(self),
-            InnerState::Stopping => bail!("Task is stopping"),
+            InnerState::Stopping | InnerState::Stopped => bail!("Task is stopping"),
 
             _ => {
                 *self = Self::Running;
@@ -384,15 +428,19 @@ impl InnerState {
             }
         }
     }
-    pub fn stop(&mut self) -> anyhow::Result<&mut Self> {
+    pub fn stop(&mut self) -> &mut Self {
         match self {
-            InnerState::Stopping => Ok(self),
-            InnerState::Stopped => Ok(self),
+            InnerState::Stopping => self,
+            InnerState::Stopped => self,
             _ => {
                 *self = Self::Stopping;
-                Ok(self)
+                self
             }
         }
+    }
+    pub fn stopped(&mut self) -> &mut Self {
+        *self = Self::Stopped;
+        self
     }
     pub fn completed(&mut self) -> &mut Self {
         *self = Self::Completed;
@@ -467,7 +515,7 @@ impl TaskState {
         Self {
             runs: Arc::new(AtomicU64::new(0)),
             task: Arc::new(task),
-            state: Arc::new(RwLock::new(InnerState::Scheduled)),
+            state: Arc::new(RwLock::new(InnerState::Queued)),
             schedule: Arc::new(schedule),
             stop_condition,
             cancellation,
@@ -546,8 +594,55 @@ impl TaskJob {
         self.task.state.read().await.is_running()
     }
 
-    /// Cancel a job.
-    pub async fn cancel(&self) {
+    /// Check if a task is in final state.
+    pub async fn is_final_state(&self) -> bool {
+        self.task.state.read().await.is_final_state()
+    }
+
+    /// Stop a job manually.
+    pub async fn stop(&self) -> InnerState {
+        let id = self.task_id;
+        tracing::info!(task.id = self.task_id, job.id = %self.job_id, "task `{id}` will be removed");
+
+        // Send stopping state updating activity.
+        self.global.send_task_activity(TaskActivity::stop(id));
+
+        // Set task state to stopping if already scheduled.
+        {
+            // cancel spawned task.
+            let mut state = self.task.state.write().await;
+            if state.is_queued() {
+                // Job has not been ticked yet (one it's ticked, state should be running)
+
+                // Send stopped state directly.
+                self.global.send_task_activity(TaskActivity::stopped(id));
+
+                // Set task state to stopping so that it will be stopped when it's ticked properly.
+                state.stopped();
+            } else {
+                state.stop();
+            }
+        };
+
+        // Remove job from scheduler.
+        if let Err(err) = self.global.scheduler.remove(&self.job_id).await {
+            error!("remove job error: {:#}", err);
+        }
+        // Send cancellation signal to running task.
+        self.task.cancellation.cancel();
+
+        // Remove agent task.
+        if self.task.task.via.is_some() {
+            self.global.agent_runtime.stop(self.task.task.id).await;
+        }
+
+        {
+            self.task.state.read().await.clone()
+        }
+    }
+
+    /// Suspend a job.
+    pub(super) async fn suspend(&self) {
         // Remove job from scheduler.
         if let Err(err) = self.global.scheduler.remove(&self.job_id).await {
             error!("remove job error: {:#}", err);
@@ -559,7 +654,6 @@ impl TaskJob {
             self.global.agent_runtime.cancel(self.task.task.id).await;
         }
     }
-
     /// ## Cancellation safety.
     ///
     /// If the task is cancelled, the task running future will be dropped.
@@ -587,7 +681,7 @@ impl TaskJob {
                 task.rid = runs,
                 task.agent = opts.task.via
             );
-            let future = start_task(&global, &opts, &jid).instrument(span);
+            let future = run_task(&global, &opts, &jid).instrument(span);
 
             let stop_condition = opts.stop_condition.clone();
             let last_state = opts.last_state.clone();
@@ -632,7 +726,7 @@ impl TaskJob {
                         global.send_task_activity(TaskActivity::completed(opts.task.id, jid));
                     }
                     Some(LastState::Stopped) => {
-                        global.send_task_activity(TaskActivity::suspended(opts.task.id, jid));
+                        global.send_task_activity(TaskActivity::stopped(opts.task.id));
                     }
                     Some(LastState::Error(err)) => {
                         global.send_task_activity(TaskActivity::failed(
@@ -649,7 +743,7 @@ impl TaskJob {
                         global.send_task_activity(TaskActivity::tick(opts.task.id, jid));
                     }
                     Some(LastState::Stopped) => {
-                        global.send_task_activity(TaskActivity::suspended(opts.task.id, jid));
+                        global.send_task_activity(TaskActivity::stopped(opts.task.id));
                     }
                     Some(LastState::Error(err)) => {
                         global.send_task_activity(TaskActivity::interrupted(
@@ -716,7 +810,7 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
                     opts_cancellation_handler.job_id
                 );
                 error!("task error: {:#}", err);
-                opts_cancellation_handler.cancel().await;
+                opts_cancellation_handler.stop().await;
             }
         }
     });
@@ -724,7 +818,6 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
     opts.spawn().await;
 
     let completed = opts.wait().await;
-    tracing::info!("task completed: {:?}", completed);
     match completed {
         Some(LastState::Done) => {
             tracing::info!("task completed");

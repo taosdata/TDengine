@@ -16,10 +16,35 @@ use crate::serve::scheduler::runner::{TaskJob, TaskState};
 
 use self::runner::{AgentIntegrationChannel, GlobalState, MultiIndexTaskJobMap};
 
-use super::controller::{Task, TaskActivity};
+use super::controller::{agent::Activity, Task, TaskActivity};
 
-pub type NotifyChannel = tokio::sync::broadcast::Receiver<TaskActivity>;
-pub type NotifySender = Weak<tokio::sync::broadcast::Sender<TaskActivity>>;
+#[derive(Debug, Clone)]
+pub enum SchedulerNotify {
+    TaskActivity(TaskActivity),
+    AgentActivity(Activity),
+}
+pub type NotifyChannel = tokio::sync::broadcast::Receiver<SchedulerNotify>;
+pub type NotifySender = Weak<tokio::sync::broadcast::Sender<SchedulerNotify>>;
+pub type SchedulerNotifier = Arc<tokio::sync::broadcast::Sender<SchedulerNotify>>;
+
+pub trait NotifySenderExt {
+    fn push_task_activity(&self, activity: TaskActivity);
+    fn push_agent_activity(&self, activity: Activity);
+}
+
+impl NotifySenderExt for NotifySender {
+    fn push_task_activity(&self, activity: TaskActivity) {
+        if let Some(sender) = self.upgrade() {
+            let _ = sender.send(SchedulerNotify::TaskActivity(activity));
+        }
+    }
+
+    fn push_agent_activity(&self, activity: Activity) {
+        if let Some(sender) = self.upgrade() {
+            let _ = sender.send(SchedulerNotify::AgentActivity(activity));
+        }
+    }
+}
 
 pub type SchedulerTaskSender = tokio::sync::mpsc::Sender<Task>;
 pub type SchedulerTaskReceiver = tokio::sync::mpsc::Receiver<Task>;
@@ -67,11 +92,14 @@ pub enum StopError {
 }
 
 impl TaskScheduler {
-    pub async fn new(agent_runtime: AgentIntegrationChannel) -> Result<TaskScheduler> {
+    pub async fn new(
+        owned_notify_sender: SchedulerNotifier,
+        agent_runtime: AgentIntegrationChannel,
+    ) -> Result<TaskScheduler> {
         let tasks = Arc::new(RwLock::new(MultiIndexTaskJobMap::default()));
 
-        let (notify_sender, notify_receiver) = tokio::sync::broadcast::channel(1024);
-        let owned_notify_sender = Arc::new(notify_sender);
+        // let (notify_sender, notify_receiver) = tokio::sync::broadcast::channel(1024);
+        // let owned_notify_sender = Arc::new(notify_sender);
         let notify_sender = Arc::downgrade(&owned_notify_sender);
         let mut scheduler = JobScheduler::new().await?;
         let shutdown_barrier = Arc::new(tokio::sync::Barrier::new(5));
@@ -80,6 +108,7 @@ impl TaskScheduler {
         let shutdown_notifier_clone = shutdown_notifier.clone();
         let shutdown_barrier_clone = shutdown_barrier.clone();
 
+        let notify_receiver = owned_notify_sender.subscribe();
         tokio::spawn(async move {
             tokio::pin!(notify_receiver);
             loop {
@@ -88,7 +117,7 @@ impl TaskScheduler {
                         break;
                     }
                     res = notify_receiver.recv() => {
-                        tracing::debug!("task activity: {:?}", res);
+                        tracing::info!("task activity: {:?}", res);
                     }
                 }
             }
@@ -225,12 +254,12 @@ impl TaskScheduler {
         let dropped_notifier_cloned = dropped_notifier.clone();
         tokio::spawn(async move {
             drop_notifier_cloned.notified().await;
-            info!("scheduler is dropping");
+            info!("scheduler is dropping, suspend all running jobs");
             // tasks.write().await.clear();
             {
                 let tasks = tasks_cloned.read().await;
                 for (_, task) in tasks.iter() {
-                    task.cancel().await;
+                    task.suspend().await;
                 }
                 info!(tasks.shutdown = tasks.len(), "all tasks are canceled");
             }
@@ -278,25 +307,12 @@ impl TaskScheduler {
         let job_id = task_job.job_id;
         tracing::info!(task.id = task, job.id = %job_id, "task `{task}` will be removed");
 
-        let in_running = {
-            // cancel spawned task.
-            let mut state = task_job.task.state.write().await;
-            if state.is_scheduled() {
-                state.stop().unwrap(); // must not fail
-                false
-            } else {
-                // not scheduled
-                true
-            }
-        };
+        let state = task_job.stop().await;
 
-        task_job.cancel().await;
-
-        if !in_running {
+        if state.is_stopped() {
+            // If job has not been ticked, remove task state handler directly.
             tasks.remove_by_task_id(&task);
-            self.global_state
-                .send_task_activity(TaskActivity::suspended(task, job_id));
-            tracing::info!(task.id = task, job.id = %job_id, "task `{task}` is removed");
+            tracing::info!(task.id = task, job.id = %job_id, "task `{task}` is stopped");
         }
         tracing::info!("Cancel task {}", task);
         Ok(())
@@ -308,7 +324,7 @@ impl TaskScheduler {
         loop {
             let tasks = self.tasks.read().await;
             if let Some(task) = tasks.get_by_task_id(&task) {
-                if !task.is_running().await {
+                if task.is_final_state().await {
                     break;
                 }
             } else {
@@ -366,9 +382,9 @@ impl TaskScheduler {
             tracing::error!(task.id = task_id, "Add task `{}` error", task_id);
             format!("Add task `{}` error", task_id)
         })?;
-        if let Some(sender) = self.global_state.notify_sender.upgrade() {
-            let _ = sender.send(TaskActivity::queued(task_id, job_id));
-        }
+
+        self.global_state
+            .send_task_activity(TaskActivity::queued(task_id, job_id));
 
         let task_job_ref = TaskJob::new(job_id, task, self.global_state.as_ref().clone());
         self.tasks.write().await.insert(task_job_ref);
@@ -421,59 +437,153 @@ impl TaskScheduler {
 #[cfg(test)]
 mod tests {
     use crate::serve::{
-        controller::{NewTask, TaskController},
+        controller::{agent::AgentActivityFilter, NewTask, Status, TaskController},
         rpc::AgentRpcChannel,
         scheduler::agent::{AgentNotify, AgentWorker},
+        tests::{tracing_subscriber_init, wait_notify_channel},
     };
+    use itertools::Itertools;
     use tracing_subscriber::EnvFilter;
+    use uuid::Uuid;
 
+    use super::super::tests::generate_scheduler_for_test;
     use super::{agent::AgentNotifySender, *};
 
-    async fn generate_scheduler_for_test(
-    ) -> anyhow::Result<(TaskController, TaskScheduler, AgentNotifySender)> {
-        let (agent_activity_sender, agent_activity_receiver) =
-            tokio::sync::broadcast::channel(1024);
-
-        tokio::spawn(async move {
-            tokio::pin!(agent_activity_receiver);
-            loop {
-                match agent_activity_receiver.recv().await {
-                    Ok(act) => {
-                        dbg!(act);
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Closed) => {
-                        break;
-                    }
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(lagged)) => {
-                        tracing::warn!(
-                            "agent activity channel lagged: {lagged}, resubscribe it from current offset"
-                        );
-                        continue;
-                    }
-                }
-            }
-        });
-        let (agent_notify_sender, agent_notify_receiver) = tokio::sync::broadcast::channel(1024);
-
-        let agent_worker = AgentWorker::new(agent_activity_sender, agent_notify_receiver).await;
-        let agent_runtime = AgentIntegrationChannel::Server(agent_worker);
-        let mut scheduler = TaskScheduler::new(agent_runtime).await.unwrap();
-        let mut notify_channel = scheduler.notify_channel();
-        tracing::info!("scheduler created: {:?}", scheduler);
-        let controller = TaskController::from_sqlite("sqlite::memory:", scheduler.clone()).await?;
-        tracing::info!("task controller created: {:?}", scheduler);
-        Ok((controller, scheduler, agent_notify_sender))
-    }
-
     #[tokio::test()]
-    async fn test_scheduler_with_default_strategy() -> Result<()> {
-        tracing_subscriber::fmt::fmt()
-            .with_env_filter(EnvFilter::from_default_env().add_directive("info".parse()?))
-            .with_file(true)
-            .pretty()
-            .init();
+    async fn schedule_without_agent() -> Result<()> {
+        tracing_subscriber_init()?;
         let (controller, mut scheduler, agent_notify_sender) =
             generate_scheduler_for_test().await?;
+        let mut notify_channel = scheduler.notify_channel();
+
+        tracing::info!("task controller created: {:?}", scheduler);
+
+        {
+            // 1. Fake task for completed
+
+            let new: NewTask = serde_json::from_str(
+                r#"{
+            "from": "fake+stable:///?sleep=2s",
+            "to": "taos:///fake",
+            "not_start": true
+            }"#,
+            )
+            .unwrap();
+            let task = controller.create(new).await?;
+            tracing::info!("push task: {:?}", task);
+
+            let id = task.id;
+            scheduler.push_task(task.task.clone()).await.unwrap();
+            tokio::time::sleep(Duration::from_secs(5)).await;
+
+            let task = controller.get(id).await.unwrap().unwrap();
+            dbg!(&task);
+            assert_eq!(task.status(), Status::Completed);
+        }
+
+        {
+            // 2. Fake task for failed
+
+            let new: NewTask = serde_json::from_str(
+                r#"{
+            "from": "fake+stable:///?sleep=2s&bail=some error",
+            "to": "taos:///fake",
+            "not_start": true
+            }"#,
+            )
+            .unwrap();
+            let task = controller.create(new).await?;
+            tracing::info!("push task: {:?}", task);
+
+            let id = task.id;
+            scheduler.push_task(task.task.clone()).await.unwrap();
+            tokio::time::sleep(Duration::from_secs(5)).await;
+
+            let task = controller.get(id).await.unwrap().unwrap();
+            dbg!(&task);
+            assert_eq!(task.status(), Status::Failed);
+        }
+
+        {
+            // 3. Fake task for stopped immediately after enqueued
+
+            let new: NewTask = serde_json::from_str(
+                r#"{
+            "from": "fake+stable:///?sleep=20s&bail=some error",
+            "to": "taos:///fake",
+            "not_start": true
+            }"#,
+            )
+            .unwrap();
+            let task = controller.create(new).await?;
+            tracing::info!("push task: {:?}", task);
+
+            let id = task.id;
+            scheduler.push_task(task.task.clone()).await.unwrap();
+            if let Err(err) = scheduler.try_stop(id).await {
+                tracing::error!("stop task error: {:?}", err);
+            }
+            tokio::time::sleep(Duration::from_secs(5)).await;
+
+            let task = controller.get(id).await.unwrap().unwrap();
+            dbg!(&task);
+            let activities = controller
+                .task_activities(id, &AgentActivityFilter::default())
+                .await?;
+            tracing::info!(task.id = id, ?activities);
+            assert_eq!(task.status(), Status::Stopped);
+        }
+
+        {
+            // 4. Fake task for stopped after running.
+
+            let new: NewTask = serde_json::from_str(
+                r#"{
+            "from": "fake+stable:///?sleep=20s&bail=some error",
+            "to": "taos:///fake",
+            "not_start": true
+            }"#,
+            )
+            .unwrap();
+            let task = controller.create(new).await?;
+            tracing::info!("push task: {:?}", task);
+
+            let id = task.id;
+            scheduler.push_task(task.task.clone()).await.unwrap();
+            tokio::time::sleep(Duration::from_secs(3)).await;
+            if let Err(err) = scheduler.try_stop(id).await {
+                tracing::error!("stop task error: {:?}", err);
+            }
+            tokio::time::sleep(Duration::from_secs(3)).await;
+
+            let task = controller.get(id).await.unwrap().unwrap();
+            dbg!(&task);
+            let activities = controller
+                .task_activities(id, &AgentActivityFilter::default())
+                .await?;
+            tracing::info!(task.id = id, ?activities);
+            assert_eq!(task.status(), Status::Stopped);
+
+            let status = activities
+                .iter()
+                .rev()
+                .map(|act| act.status.as_str())
+                .collect_vec();
+            assert_eq!(
+                status,
+                vec!["created", "queued", "running", "stopping", "stopped"]
+            );
+        }
+        scheduler.shutdown().await;
+        wait_notify_channel(notify_channel).await;
+        Ok(())
+    }
+    #[tokio::test()]
+    async fn test_scheduler_with_default_strategy() -> Result<()> {
+        tracing_subscriber_init()?;
+        let (controller, mut scheduler, agent_notify_sender) =
+            generate_scheduler_for_test().await?;
+        let mut notify_channel = scheduler.notify_channel();
 
         tracing::info!("task controller created: {:?}", scheduler);
 
@@ -533,14 +643,10 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_scheduler_with_agent() -> Result<()> {
-        tracing_subscriber::fmt::fmt()
-            .with_env_filter(EnvFilter::from_default_env().add_directive("info".parse()?))
-            .with_file(true)
-            .pretty()
-            .init();
-
+        tracing_subscriber_init()?;
         let (controller, mut scheduler, agent_notify_sender) =
             generate_scheduler_for_test().await?;
+        let mut notify_channel = scheduler.notify_channel();
 
         let agent = serde_json::from_str(
             r#"{
@@ -551,7 +657,7 @@ mod tests {
             }"#,
         )?;
         let agent = controller.create_agent(agent).await?;
-        controller.set_agent_alive(agent.id).await;
+        agent_notify_sender.send(AgentNotify::AgentConnected(agent.id));
         let new: NewTask = serde_json::from_str(
             r#"{
             "from": "fake+stable:///?sleep=7s",
@@ -629,20 +735,35 @@ mod tests {
                 }
             }
         }
+        let task = controller.get(id).await.unwrap().unwrap();
+        dbg!(&task);
+        let activities = controller
+            .task_activities(id, &AgentActivityFilter::default())
+            .await?;
+        tracing::info!(task.id = id, ?activities);
+        assert_eq!(task.status(), Status::Completed);
+
+        let status = activities
+            .iter()
+            .rev()
+            .map(|act| act.status.as_str())
+            .unique()
+            .collect_vec();
+        assert_eq!(
+            status,
+            vec!["created", "queued", "running", "completed"]
+        );
         // scheduler.push_task(task.task.clone()).await.unwrap();
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_scheduler_with_agent_stop_task_immediately_after_enqueued() -> Result<()> {
-        tracing_subscriber::fmt::fmt()
-            .with_env_filter(EnvFilter::from_default_env().add_directive("info".parse()?))
-            .with_file(true)
-            .pretty()
-            .init();
-
+        tracing_subscriber_init()?;
         let (controller, mut scheduler, agent_notify_sender) =
             generate_scheduler_for_test().await?;
+
+        let mut notify_channel = scheduler.notify_channel();
 
         let agent = serde_json::from_str(
             r#"{
@@ -653,7 +774,7 @@ mod tests {
             }"#,
         )?;
         let agent = controller.create_agent(agent).await?;
-        controller.set_agent_alive(agent.id).await;
+        agent_notify_sender.send(AgentNotify::AgentConnected(agent.id));
         let new: NewTask = serde_json::from_str(
             r#"{
             "from": "fake+stable:///?sleep=7s",
@@ -734,20 +855,21 @@ mod tests {
             }
         }
         tokio::time::sleep(Duration::from_secs(5)).await;
+
+        let task = controller.get(id).await.unwrap().unwrap();
+        dbg!(&task);
+        assert_eq!(task.status(), Status::Stopped);
         // scheduler.push_task(task.task.clone()).await.unwrap();
         Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
     async fn test_scheduler_with_agent_stop_task_while_running() -> Result<()> {
-        tracing_subscriber::fmt::fmt()
-            .with_env_filter(EnvFilter::from_default_env().add_directive("info".parse()?))
-            .with_file(true)
-            .pretty()
-            .init();
+        tracing_subscriber_init()?;
 
         let (controller, mut scheduler, agent_notify_sender) =
             generate_scheduler_for_test().await?;
+        let mut notify_channel = scheduler.notify_channel();
 
         let agent = serde_json::from_str(
             r#"{
@@ -758,7 +880,7 @@ mod tests {
             }"#,
         )?;
         let agent = controller.create_agent(agent).await?;
-        controller.set_agent_alive(agent.id).await;
+        agent_notify_sender.send(AgentNotify::AgentConnected(agent.id));
         let new: NewTask = serde_json::from_str(
             r#"{
             "from": "fake+stable:///?sleep=7s",
@@ -778,10 +900,6 @@ mod tests {
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_secs(1)).await;
             agent_notify_sender
-                .send(AgentNotify::AgentConnected(1))
-                .unwrap();
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            agent_notify_sender
                 .send(AgentNotify::TaskActivity(
                     1i64,
                     TaskActivity::running(id, format!("info activity")),
@@ -789,19 +907,8 @@ mod tests {
                 .unwrap();
             tokio::time::sleep(Duration::from_secs(1)).await;
             agent_notify_sender
-                .send(AgentNotify::TaskActivity(
-                    1i64,
-                    TaskActivity::error(id, format!("error activity")),
-                ))
+                .send(AgentNotify::TaskActivity(1i64, TaskActivity::stopped(id)))
                 .unwrap();
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            agent_notify_sender
-                .send(AgentNotify::TaskActivity(
-                    1i64,
-                    TaskActivity::completed(id, Uuid::new_v4()),
-                ))
-                .unwrap();
-            tokio::time::sleep(Duration::from_secs(11)).await;
         });
 
         tokio::time::sleep(Duration::from_secs(2)).await;
@@ -839,6 +946,12 @@ mod tests {
                 }
             }
         }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        let task = controller.get(id).await.unwrap().unwrap();
+        dbg!(&task);
+        assert_eq!(task.status(), Status::Stopped);
+
         tokio::time::sleep(Duration::from_secs(5)).await;
         // scheduler.push_task(task.task.clone()).await.unwrap();
         Ok(())

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use actix_cors::Cors;
 use actix_multipart::form::MultipartFormConfig;
 use anyhow::Result;
@@ -30,6 +32,9 @@ mod rpc;
 #[allow(unused)]
 mod scheduler;
 pub(crate) mod task;
+#[cfg(test)]
+pub mod tests;
+
 pub use task::check_parser_timestamp_precision;
 
 use controller::*;
@@ -45,7 +50,10 @@ use self::{
     agent::{create_agent, delete_agent, get_agent_activities, get_agents, update_agent},
     routes::cluster::get_cluster_connector_transferred,
     rpc::AgentRpcChannel,
-    scheduler::{agent::AgentWorker, runner::AgentIntegrationChannel, TaskScheduler},
+    scheduler::{
+        agent::AgentWorker, runner::AgentIntegrationChannel, SchedulerNotifier, SchedulerNotify,
+        TaskScheduler,
+    },
 };
 
 #[derive(Deserialize, Clone, Debug, Hash, PartialEq, Eq, ToSchema)]
@@ -155,22 +163,39 @@ impl Cli {
         Ok(controller)
     }
 
-    pub(super) async fn channels(&self) -> (AgentIntegrationChannel, AgentRpcChannel) {
+    pub(super) async fn channels(
+        &self,
+    ) -> (AgentIntegrationChannel, AgentRpcChannel, SchedulerNotifier) {
         let (agent_activity_sender, agent_activity_receiver) =
             tokio::sync::broadcast::channel(1024);
         let (agent_notify_sender, agent_notify_receiver) = tokio::sync::broadcast::channel(1024);
+        let (scheduler_notify_sender, _) = tokio::sync::broadcast::channel::<SchedulerNotify>(1024);
+        let scheduler_notify_sender = Arc::new(scheduler_notify_sender);
 
-        let agent_worker = AgentWorker::new(agent_activity_sender, agent_notify_receiver).await;
+        let weak_notify_sender = Arc::downgrade(&scheduler_notify_sender);
+
+        let agent_worker = AgentWorker::new(
+            agent_activity_sender,
+            agent_notify_receiver,
+            weak_notify_sender,
+        )
+        .await;
         let agent_integration_channel = AgentIntegrationChannel::Server(agent_worker);
         let agent_rpc_channel = AgentRpcChannel::new(agent_activity_receiver, agent_notify_sender);
-        (agent_integration_channel, agent_rpc_channel)
+        (
+            agent_integration_channel,
+            agent_rpc_channel,
+            scheduler_notify_sender,
+        )
     }
 
     pub(super) async fn scheduler(
         &self,
+        scheduler_notify_sender: SchedulerNotifier,
         agent_integration_channel: AgentIntegrationChannel,
     ) -> Result<TaskScheduler> {
-        let scheduler = TaskScheduler::new(agent_integration_channel).await?;
+        let scheduler =
+            TaskScheduler::new(scheduler_notify_sender, agent_integration_channel).await?;
         Ok(scheduler)
     }
 
