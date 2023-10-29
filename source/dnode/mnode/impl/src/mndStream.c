@@ -2706,9 +2706,18 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
   // current checkpoint is failed, rollback from the checkpoint trans
   // kill the checkpoint trans and then set all tasks status to be normal
   if (checkpointFailed && activeCheckpointId != 0) {
-    // if the execInfo.activeCheckpoint == 0, the checkpoint is restoring from wal
-    mInfo("checkpointId:%" PRId64 " failed, issue task-reset trans to reset all tasks status", execInfo.activeCheckpoint);
-    mndResetFromCheckpoint(pMnode);
+    bool allReady = true;
+    SArray* p = mndTakeVgroupSnapshot(pMnode, &allReady);
+    taosArrayDestroy(p);
+
+    if (allReady) {
+      // if the execInfo.activeCheckpoint == 0, the checkpoint is restoring from wal
+      mInfo("checkpointId:%" PRId64 " failed, issue task-reset trans to reset all tasks status",
+            execInfo.activeCheckpoint);
+      mndResetFromCheckpoint(pMnode);
+    } else {
+      mInfo("not all vgroups are ready, wait for next HB from stream tasks");
+    }
   }
 
   taosThreadMutexUnlock(&execInfo.lock);

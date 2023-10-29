@@ -234,11 +234,17 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
               pTask->id.idStr, pSM->current.name, StreamTaskEventList[pSM->pActiveTrans->event].name);
     } else {
       pTrans = streamTaskFindTransform(pSM->current.state, event);
+      if (pTrans == NULL) {
+        stDebug("s-task:%s failed to handle event:%s", pTask->id.idStr, StreamTaskEventList[event].name);
+        taosThreadMutexUnlock(&pTask->lock);
+        return -1;
+      }
+
       if (pSM->pActiveTrans != NULL) {
         // currently in some state transfer procedure, not auto invoke transfer, abort it
-        stDebug("s-task:%s handle event %s quit, status %s -> %s failed, handle event %s now", pTask->id.idStr,
-                StreamTaskEventList[pSM->pActiveTrans->event].name, pSM->current.name, pSM->pActiveTrans->next.name,
-                StreamTaskEventList[event].name);
+        stDebug("s-task:%s handle event procedure %s quit, status %s -> %s failed, handle event %s now",
+                pTask->id.idStr, StreamTaskEventList[pSM->pActiveTrans->event].name, pSM->current.name,
+                pSM->pActiveTrans->next.name, StreamTaskEventList[event].name);
       }
 
       doHandleEvent(pSM, event, pTrans);
