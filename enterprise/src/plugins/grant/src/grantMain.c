@@ -300,11 +300,11 @@ int32_t mndInitGrant(SMnode *pMnode) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  if (!(grantHandle.pDistInfo = taosArrayInit(1, sizeof(SGrantDistInfo)))) {
+  if (!(grantHandle.pDistInfo = taosArrayInit(0, sizeof(SGrantDistInfo)))) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  if (!(grantHandle.pDnodeInfo = taosArrayInit(1, sizeof(SDnodeInfo)))) {
+  if (!(grantHandle.pDnodeInfo = taosArrayInit(0, sizeof(SDnodeInfo)))) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
@@ -652,7 +652,7 @@ static int32_t mndSendGrantStatusToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo,
     return TSDB_CODE_FAILED;
   }
 
-#if 0
+#ifdef GRANT_SYNC_MODE_STASH
   // TODO: use async mode instead of sync mode
   rpcSendRecvWithTimeout(pMnode->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp, 3000);
 
@@ -667,13 +667,13 @@ static int32_t mndSendGrantStatusToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo,
   GrantMsg grantMsgRsp = {0};
   if (tDeserializeGrantMsg(rpcRsp.pCont, rpcRsp.contLen, &grantMsgRsp) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    uWarn("####### failed to process the grant rsp from dnode:%d %s:%" PRIu16 " since %s", pDnodeInfo->id, pDnodeInfo->ep.fqdn,
+    uWarn("failed to process the grant rsp from dnode:%d %s:%" PRIu16 " since %s", pDnodeInfo->id, pDnodeInfo->ep.fqdn,
           pDnodeInfo->ep.port, terrstr());
     goto _err;
   }
   rpcFreeCont(rpcRsp.pCont);
 
-  uInfo("succeed to receive grant msg from dnode:%d %s:%" PRIu16, pDnodeInfo->id, pDnodeInfo->ep.fqdn,
+  uDebug("succeed to receive grant msg from dnode:%d %s:%" PRIu16, pDnodeInfo->id, pDnodeInfo->ep.fqdn,
          pDnodeInfo->ep.port);
 
 
@@ -827,7 +827,7 @@ static int32_t mndProcessGrantHB(SRpcMsg *pReq) {
     }
   }
 
-  // tolerence for fluctuation
+  // tolerence for exception
   if (grantHandle.nGrantReq <= 0) {
     if (++grantHandle.nGrantNone > 5) {  
       grantHandle.nGrantNone = 0;
