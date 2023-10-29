@@ -656,7 +656,6 @@ static int32_t mndSendGrantStatusToDnode(SMnode *pMnode, SDnodeInfo *pDnodeInfo,
   // TODO: use async mode instead of sync mode
   rpcSendRecvWithTimeout(pMnode->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp, 3000);
 
-
   // step 2: process response from dnode
   if (!rpcRsp.pCont || rpcRsp.contLen <= 0 || rpcRsp.code != 0) {
     uError("failed to process the grant rsp from dnode:%d %s:%" PRIu16 " since empty content: %" PRIi32, pDnodeInfo->id,
