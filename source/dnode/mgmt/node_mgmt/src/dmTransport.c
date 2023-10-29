@@ -251,6 +251,33 @@ _OVER:
   dmReleaseWrapper(pWrapper);
 }
 
+#if defined(TD_MODULE_OPTIMIZE) || !defined(TD_ENTERPRISE)
+int32_t dmInitMsgHandle(SDnode *pDnode, SMgmtWrapper *wrappers) {
+  SDnodeTrans *pTrans = &pDnode->trans;
+
+  for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
+    SMgmtWrapper *pWrapper = wrappers + ntype;
+    SArray       *pArray = (*pWrapper->func.getHandlesFp)();
+    if (pArray == NULL) return -1;
+
+    for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
+      SMgmtHandle  *pMgmt = taosArrayGet(pArray, i);
+      SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pMgmt->msgType)];
+      if (pMgmt->needCheckVgId) {
+        pHandle->needCheckVgId = pMgmt->needCheckVgId;
+      }
+      if (!pMgmt->needCheckVgId) {
+        pHandle->defaultNtype = ntype;
+      }
+      pWrapper->msgFps[TMSG_INDEX(pMgmt->msgType)] = pMgmt->msgFp;
+    }
+
+    taosArrayDestroy(pArray);
+  }
+
+  return 0;
+}
+#else
 int32_t dmInitMsgHandle(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
@@ -276,6 +303,7 @@ int32_t dmInitMsgHandle(SDnode *pDnode) {
 
   return 0;
 }
+#endif
 
 static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   SDnode *pDnode = dmInstance();

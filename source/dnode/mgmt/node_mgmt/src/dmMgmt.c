@@ -66,9 +66,15 @@ int32_t dmInitDnode(SDnode *pDnode) {
     goto _OVER;
   }
 
+#if defined(TD_MODULE_OPTIMIZE) || !defined(TD_ENTERPRISE)
+  if (dmInitModule(pDnode, pDnode->wrappers) != 0) {
+    goto _OVER;
+  }
+#else
   if (dmInitModule(pDnode) != 0) {
     goto _OVER;
   }
+#endif
 
   indexInit(tsNumOfCommitThreads);
   streamMetaInit();
