@@ -103,6 +103,7 @@ endif(${BUILD_TEST})
 
 ADD_DEFINITIONS(-DTD_ENTERPRISE)
 ADD_DEFINITIONS(-DTD_MODULE_OPTIMIZE)
+ADD_DEFINITIONS(-DTD_GRANT_HB_OPTIMIZE)
 
 add_subdirectory(community/source)
 add_subdirectory(community/tools)
