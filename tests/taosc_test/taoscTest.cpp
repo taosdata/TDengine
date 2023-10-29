@@ -66,6 +66,7 @@ class taoscTest : public ::testing::Test {
 
 tsem_t query_sem;
 int    getRecordCounts = 0;
+int    insertCounts = 100;
 
 void fetchCallback(void* param, void* res, int32_t numOfRow) {
   ASSERT_TRUE(numOfRow >= 0);
@@ -97,35 +98,95 @@ void queryCallback(void* param, void* res, int32_t code) {
   taos_fetch_raw_block_a(res, fetchCallback, param);
 }
 
-TEST_F(taoscTest, Connect) {
+TEST_F(taoscTest, taos_query_a_test) {
   char    sql[1024] = {0};
   int32_t code = 0;
   TAOS*   taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_TRUE(taos != nullptr);
 
-  TAOS_RES* res = taos_query(taos, "create table taosc_test_db.taosc_test_table (ts TIMESTAMP, val INT)");
+  const char* table_name = "taosc_test_table1";
+  sprintf(sql, "create table taosc_test_db.%s (ts TIMESTAMP, val INT)", table_name);
+  TAOS_RES* res = taos_query(taos, sql);
   if (taos_errno(res) != 0) {
-    printf("error in table database taosc_test_table, reason:%s\n", taos_errstr(res));
+    printf("error in table database %s, reason:%s\n", table_name, taos_errstr(res));
   }
   ASSERT_TRUE(taos_errno(res) == 0);
   taos_free_result(res);
   taosSsleep(2);
 
-  int insertCounts = 1000;
   for (int i = 0; i < insertCounts; i++) {
     char sql[128];
-    sprintf(sql, "insert into taosc_test_db.taosc_test_table values(now() + %ds, %d)", i, i);
+    sprintf(sql, "insert into taosc_test_db.%s values(now() + %ds, %d)", table_name, i, i);
     res = taos_query(taos, sql);
     ASSERT_TRUE(taos_errno(res) == 0);
     taos_free_result(res);
   }
 
   tsem_init(&query_sem, 0, 0);
-  taos_query_a(taos, "select * from taosc_test_db.taosc_test_table;", queryCallback, NULL);
+  sprintf(sql, "select * from taosc_test_db.%s;", table_name);
+  taos_query_a(taos, sql, queryCallback, NULL);
   tsem_wait(&query_sem);
 
   ASSERT_EQ(getRecordCounts, insertCounts);
   taos_close(taos);
 
-  printf("Connect test finished.\n");
+  printf("taos_query_a test finished.\n");
+}
+
+TEST_F(taoscTest, taos_query_test) {
+  char    sql[1024] = {0};
+  int32_t code = 0;
+  TAOS*   taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_TRUE(taos != nullptr);
+
+  const char* table_name = "taosc_test_table1";
+  sprintf(sql, "select * from taosc_test_db.%s;", table_name);
+  TAOS_RES* res = taos_query(taos, sql);
+  ASSERT_TRUE(res != nullptr);
+
+  getRecordCounts = 0;
+  TAOS_ROW row;
+  while ((row = taos_fetch_row(res))) {
+    getRecordCounts++;
+  }
+  ASSERT_EQ(getRecordCounts, insertCounts);
+  taos_free_result(res);
+  taos_close(taos);
+
+  printf("taos_query test finished.\n");
+}
+
+void queryCallback2(void* param, void* res, int32_t code) {
+  ASSERT_TRUE(code == 0);
+  ASSERT_TRUE(param == NULL);
+  // After using taos_query_a to query, using taos_fetch_row
+  // in the callback will cause blocking.
+  /*
+  TAOS_ROW row;
+  while ((row = taos_fetch_row(res))) {
+     getRecordCounts++;
+  } */
+  tsem_post(&query_sem);
+  taos_free_result(res);
+}
+
+TEST_F(taoscTest, taos_query_a_t2) {
+  char    sql[1024] = {0};
+  int32_t code = 0;
+  TAOS*   taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_TRUE(taos != nullptr);
+
+  getRecordCounts = 0;
+
+  const char* table_name = "taosc_test_table1";
+  sprintf(sql, "select * from taosc_test_db.%s;", table_name);
+
+  tsem_init(&query_sem, 0, 0);
+  taos_query_a(taos, sql, queryCallback2, NULL);
+  tsem_timewait(&query_sem, 10 * 1000);
+
+  ASSERT_NE(getRecordCounts, insertCounts);
+  taos_close(taos);
+
+  printf("taos_query test finished.\n");
 }
