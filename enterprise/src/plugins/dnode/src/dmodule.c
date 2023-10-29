@@ -510,7 +510,7 @@ bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
 }
 
 // invoker
-int32_t dmInitModule(SDnode *pDnode) {
+int32_t dmInitModule(SDnode *pDnode, SMgmtWrapper *wrappers) {
   int32_t code = -1;
 
   if (dmInitPrerequisites() != 0) {
@@ -521,7 +521,11 @@ int32_t dmInitModule(SDnode *pDnode) {
     goto _err;
   }
 
-  if (dmInitMsgHandle(pDnode) != 0) {
+  int32_t transOffset = POINTER_DISTANCE(&pDnode->trans, pDnode);
+
+  ASSERTS(168 == abs(transOffset), "trans offset is %d", transOffset);
+
+  if (dmInitMsgHandle(pDnode, wrappers) != 0) {
     dError("failed to init msg handles since %s", terrstr());
     goto _err;
   }
