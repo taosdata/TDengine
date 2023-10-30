@@ -346,6 +346,14 @@ impl TaskScheduler {
     pub async fn push_task(&self, task: Task) -> anyhow::Result<()> {
         self.global_state.ensure_alive()?;
         let task_id = task.id;
+        {
+            if self.tasks.read().await.get_by_task_id(&task_id).is_some() {
+                anyhow::bail!(
+                    "Task `{}` already in scheduler, please do not start it twice",
+                    task_id
+                );
+            }
+        }
         let task = TaskState::new(task, &self.global_state).await;
         use crate::serve::trigger::Schedule::*;
 
@@ -771,10 +779,7 @@ mod tests {
             .map(|act| act.status.as_str())
             .unique()
             .collect_vec();
-        assert_eq!(
-            status,
-            vec!["created", "queued", "running", "completed"]
-        );
+        assert_eq!(status, vec!["created", "queued", "running", "completed"]);
         // scheduler.push_task(task.task.clone()).await.unwrap();
         Ok(())
     }
@@ -938,13 +943,20 @@ mod tests {
 
         scheduler.wait_stop(id).await;
 
+        let task = controller.get(id).await.unwrap().unwrap();
+        dbg!(&task);
+        assert_eq!(task.status(), Status::Stopped);
+
         tokio::time::sleep(Duration::from_secs(2)).await;
 
         scheduler.push_task(task.task.clone()).await.unwrap();
-        tokio::time::sleep(Duration::from_secs(2)).await;
         scheduler.try_stop(id).await?;
 
         scheduler.wait_stop(id).await;
+
+        let task = controller.get(id).await.unwrap().unwrap();
+        dbg!(&task);
+        assert_eq!(task.status(), Status::Stopped);
 
         // tokio::time::sleep(Duration::from_secs(10)).await;
         dbg!(&scheduler);

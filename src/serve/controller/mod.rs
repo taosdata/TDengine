@@ -1523,6 +1523,8 @@ pub enum Status {
     Failed,
     /// For never stop task, it's not in service, but will retry.
     Interrupted,
+    /// Manually stopped by API, but not finished stopping background jobs.
+    Stopping,
     /// Manually stopped by API.
     Stopped,
 
