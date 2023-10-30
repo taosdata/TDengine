@@ -95,7 +95,11 @@ static int32_t mndTransValidatePrepareAction(SMnode *pMnode, STrans *pTrans, STr
   }
 
 _OUT:
-  taosMemoryFreeClear(pRow);
+  if (pRow) {
+    SdbDeleteFp deleteFp = pSdb->deleteFps[pRaw->type];
+    if (deleteFp) (*deleteFp)(pSdb, pRow->pObj, false);
+    taosMemoryFreeClear(pRow);
+  }
   return code;
 }
 
