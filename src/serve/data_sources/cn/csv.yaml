@@ -21,6 +21,8 @@ groups:
       #   hint: str
       - name: skip
         display: 忽略前 N 行
+        description: 忽略 CSV 文件的前 N 行。
+        value: 0
         hint:
           type: integer
           min: 0

@@ -93,16 +93,16 @@ groups:
         display: 超级表
         description: |-
           逗号分隔的一个或多个超级表。选择超级表会迁移超级表下的所有子表数据。
+        placeholder: metrics
         hint:
           type: str
       - name: tables
         display: 表
-        hint:
-          type: str
         description: |
           子表或普通表，支持 `tb1` 形式的表名或 `stable.table` 形式的子表名。
         placeholder: d0001
-
+        hint:
+          type: str
   - name: 时间范围
     display_order: 3
     description: 迁移时间范围和查询单元。
@@ -111,14 +111,15 @@ groups:
         display: 开始时间
         description: |-
           迁移数据开始时间。
+        placeholder: "2023-10-01T12:00:00.000+08:00"
         hint:
           type: time
       - name: end
         display: 结束时间
+        description: 迁移数据结束时间。
+        placeholder: "2023-10-02T12:00:00.000+08:00"
         hint:
           type: time
-        description: 迁移数据结束时间。
-        placeholder:
       - name: unit
         display: 查询单元
         hint:

@@ -103,15 +103,16 @@ groups:
         display: STables
         description: |-
           Select some of stables from the database. Separated by `,`.
+        placeholder: metrics
         hint:
           type: str
       - name: tables
         display: Tables
+        placeholder: d0001
         hint:
           type: str
         description: |
           Select table names to be migrated.
-        placeholder: d0001
 
   - name: Range
     display_order: 3
@@ -121,14 +122,15 @@ groups:
         display: Start
         description: |-
           Time range start.
+        placeholder: "2023-10-01T12:00:00.000+08:00"
         hint:
           type: time
       - name: end
         display: End
+        description: Time range end.
+        placeholder: "2023-10-02T12:00:00.000+08:00"
         hint:
           type: time
-        description: Time range end.
-        placeholder:
       - name: unit
         display: Unit
         hint:

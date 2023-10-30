@@ -180,6 +180,7 @@ groups:
         display: Collect limit
         description: |-
           Maximum number of points for each request
+        value: 1
         hint:
           type: integer
           min: 1
