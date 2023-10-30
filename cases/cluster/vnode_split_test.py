@@ -77,9 +77,9 @@ class VnodeSplit(TDCase):
         self.vgid_dnodeid_kv_list = list()
         self.restart_dnode_id_list = list()
         self.start_split_row_count = self.fill_history_rows * self.childtable_count
-        self.scheduler_interval = 300
+        # self.scheduler_interval = 300
         self.scheduler_interval = 10
-        self.tmq_schedular_interval = 60
+        # self.tmq_schedular_interval = 60
         self.tmq_schedular_interval = 10
         self.query_vgid_interval = 60
         self.show_vnodes_interval = 2
@@ -362,7 +362,7 @@ class VnodeSplit(TDCase):
         self.prepare_fill_history_data()
         self.get_dnode_id_list()
         self.get_vgid_dnodeid_kv_list()
-        self.tmq_schedular = self.tdCom.add_back_ground_scheduler(self.tmq_subcribe, "interval", seconds=self.scheduler_interval, max_instances=1, args=[])
+        self.tmq_schedular = self.tdCom.add_back_ground_scheduler(self.tmq_subcribe, "interval", seconds=self.tmq_schedular_interval, max_instances=1, args=[])
         self.split_schedular = self.tdCom.add_back_ground_scheduler(self.split_vnode, "interval", seconds=self.scheduler_interval, max_instances=1, args=[])
         self.vgid_info_schedular = self.tdCom.add_back_ground_scheduler(self.get_vgid_info, "interval", seconds=self.query_vgid_interval, max_instances=1, args=[])
         self.restart_dnode_schedular = self.tdCom.add_back_ground_scheduler(self.restart_dnodes, "interval", seconds=self.restart_dnode_interval, max_instances=1, args=[])
