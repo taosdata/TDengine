@@ -1382,6 +1382,11 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
 
 int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const char* tbname, TAOS_FIELD* fields,
                                      int numFields) {
+  return taos_write_raw_block_with_fields_with_reqid(taos, rows, pData, tbname, fields, numFields, 0);
+}
+
+int taos_write_raw_block_with_fields_with_reqid(TAOS *taos, int rows, char *pData, const char *tbname,
+    TAOS_FIELD *fields, int numFields, int64_t reqid){
   if (!taos || !pData || !tbname) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -1391,7 +1396,7 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
   SQuery*     pQuery = NULL;
   SHashObj*   pVgHash = NULL;
 
-  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
+  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, reqid);
   if (!pRequest) {
     return terrno;
   }
@@ -1465,6 +1470,10 @@ int taos_write_raw_block_with_fields(TAOS* taos, int rows, char* pData, const ch
 }
 
 int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) {
+  return taos_write_raw_block_with_reqid(taos, rows, pData, tbname, 0);
+}
+
+int taos_write_raw_block_with_reqid(TAOS* taos, int rows, char* pData, const char* tbname, int64_t reqid) {
   if (!taos || !pData || !tbname) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -1474,7 +1483,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
   SQuery*     pQuery = NULL;
   SHashObj*   pVgHash = NULL;
 
-  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
+  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, reqid);
   if (!pRequest) {
     return terrno;
   }

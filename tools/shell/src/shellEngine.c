@@ -22,6 +22,23 @@
 #include "shellAuto.h"
 #include "shellInt.h"
 
+typedef struct {
+  const char *sql;
+  bool        vertical;
+  tsem_t      sem;
+  int64_t     numOfRows;  // the num of this batch
+  int64_t     numOfAllRows;
+
+  int32_t     numFields;
+  TAOS_FIELD *fields;
+  int32_t     precision;
+
+  int32_t maxColNameLen;            // for vertical print
+  int32_t width[TSDB_MAX_COLUMNS];  // for horizontal print
+
+  uint64_t resShowMaxNum;
+} tsDumpInfo;
+
 static bool    shellIsEmptyCommand(const char *cmd);
 static int32_t shellRunSingleCommand(char *command);
 static void    shellRecordCommandToHistory(char *command);
@@ -31,8 +48,8 @@ static char   *shellFormatTimestamp(char *buf, int64_t val, int32_t precision);
 static int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres);
 static void    shellPrintNChar(const char *str, int32_t length, int32_t width);
 static void    shellPrintGeometry(const unsigned char *str, int32_t length, int32_t width);
-static int64_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql);
-static int64_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql);
+static void    shellVerticalPrintResult(TAOS_RES *tres, tsDumpInfo* dump_info);
+static void    shellHorizontalPrintResult(TAOS_RES *tres, tsDumpInfo* dump_info);
 static int64_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool vertical, const char *sql);
 static void    shellReadHistory();
 static void    shellWriteHistory();
@@ -702,49 +719,67 @@ bool shellIsShowQuery(const char *sql) {
   return false;
 }
 
-int64_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
-  TAOS_ROW row = taos_fetch_row(tres);
-  if (row == NULL) {
-    return 0;
+void init_dump_info(tsDumpInfo *dump_info, TAOS_RES *tres, const char *sql, bool vertical) {
+  dump_info->sql = sql;
+  dump_info->vertical = vertical;
+  tsem_init(&dump_info->sem, 0, 0);
+  dump_info->numOfAllRows = 0;
+
+  dump_info->numFields = taos_num_fields(tres);
+  dump_info->fields = taos_fetch_fields(tres);
+  dump_info->precision = taos_result_precision(tres);
+
+  dump_info->resShowMaxNum = UINT64_MAX;
+
+  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsShowWhole(dump_info->sql)) {
+    dump_info->resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
   }
 
-  int32_t     num_fields = taos_num_fields(tres);
-  TAOS_FIELD *fields = taos_fetch_fields(tres);
-  int32_t     precision = taos_result_precision(tres);
-
-  int32_t maxColNameLen = 0;
-  for (int32_t col = 0; col < num_fields; col++) {
-    int32_t len = (int32_t)strlen(fields[col].name);
-    if (len > maxColNameLen) {
-      maxColNameLen = len;
+  if (vertical) {
+    dump_info->maxColNameLen = 0;
+    for (int32_t col = 0; col < dump_info->numFields; col++) {
+      int32_t len = (int32_t)strlen(dump_info->fields[col].name);
+      if (len > dump_info->maxColNameLen) {
+        dump_info->maxColNameLen = len;
+      }
+    }
+  } else {
+    for (int32_t col = 0; col < dump_info->numFields; col++) {
+      dump_info->width[col] = shellCalcColWidth(dump_info->fields + col, dump_info->precision);
     }
   }
+}
 
-  uint64_t resShowMaxNum = UINT64_MAX;
-
-  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsShowWhole(sql)) {
-    resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
+void shellVerticalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info) {
+  TAOS_ROW row = taos_fetch_row(tres);
+  if (row == NULL) {
+    printf("\033[31mtaos_fetch_row failed.\033[0m\n");
+    return;
   }
 
-  int64_t numOfRows = 0;
-  int32_t showMore = 1;
-  do {
-    if (numOfRows < resShowMaxNum) {
-      printf("*************************** %"PRId64".row ***************************\r\n", numOfRows + 1);
+  int64_t numOfPintRows = dump_info->numOfAllRows;
+  int     numOfPrintRowsThisOne = 0;
 
-      int32_t *length = taos_fetch_lengths(tres);
+  while (row != NULL) {
+    printf("*************************** %" PRId64 ".row ***************************\r\n", numOfPintRows + 1);
 
-      for (int32_t i = 0; i < num_fields; i++) {
-        TAOS_FIELD *field = fields + i;
+    int32_t *length = taos_fetch_lengths(tres);
 
-        int32_t padding = (int32_t)(maxColNameLen - strlen(field->name));
-        printf("%*.s%s: ", padding, " ", field->name);
+    for (int32_t i = 0; i < dump_info->numFields; i++) {
+      TAOS_FIELD *field = dump_info->fields + i;
 
-        shellPrintField((const char *)row[i], field, 0, length[i], precision);
-        putchar('\r');
-        putchar('\n');
-      }
-    } else if (showMore) {
+      int32_t padding = (int32_t)(dump_info->maxColNameLen - strlen(field->name));
+      printf("%*.s%s: ", padding, " ", field->name);
+
+      shellPrintField((const char *)row[i], field, 0, length[i], dump_info->precision);
+      putchar('\r');
+      putchar('\n');
+    }
+
+    numOfPintRows++;
+    numOfPrintRowsThisOne++;
+
+    if (numOfPintRows == dump_info->resShowMaxNum) {
       printf("\r\n");
       printf(" Notice: The result shows only the first %d rows.\r\n", SHELL_DEFAULT_RES_SHOW_NUM);
       printf("         You can use the `LIMIT` clause to get fewer result to show.\r\n");
@@ -752,14 +787,16 @@ int64_t shellVerticalPrintResult(TAOS_RES *tres, const char *sql) {
       printf("\r\n");
       printf("         You can use Ctrl+C to stop the underway fetching.\r\n");
       printf("\r\n");
-      showMore = 0;
+      return;
     }
 
-    numOfRows++;
-    row = taos_fetch_row(tres);
-  } while (row != NULL);
+    if (numOfPrintRowsThisOne == dump_info->numOfRows) {
+      return;
+    }
 
-  return numOfRows;
+    row = taos_fetch_row(tres);
+  }
+  return;
 }
 
 int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
@@ -856,47 +893,38 @@ void shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields) {
   putchar('\n');
 }
 
-int64_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
+void shellHorizontalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info) {
   TAOS_ROW row = taos_fetch_row(tres);
   if (row == NULL) {
-    return 0;
+    printf("\033[31mtaos_fetch_row failed.\033[0m\n");
+    return;
   }
 
-  int32_t     num_fields = taos_num_fields(tres);
-  TAOS_FIELD *fields = taos_fetch_fields(tres);
-  int32_t     precision = taos_result_precision(tres);
-
-  int32_t width[TSDB_MAX_COLUMNS];
-  for (int32_t col = 0; col < num_fields; col++) {
-    width[col] = shellCalcColWidth(fields + col, precision);
+  int64_t numOfPintRows = dump_info->numOfAllRows;
+  int     numOfPrintRowsThisOne = 0;
+  if (numOfPintRows == 0) {
+    shellPrintHeader(dump_info->fields, dump_info->width, dump_info->numFields);
   }
 
-  shellPrintHeader(fields, width, num_fields);
-
-  uint64_t resShowMaxNum = UINT64_MAX;
-
-  if (shell.args.commands == NULL && shell.args.file[0] == 0 && !shellIsShowWhole(sql)) {
-    resShowMaxNum = SHELL_DEFAULT_RES_SHOW_NUM;
-  }
-
-  int64_t numOfRows = 0;
-  int32_t showMore = 1;
-
-  do {
+  while (row != NULL) {
     int32_t *length = taos_fetch_lengths(tres);
-    if (numOfRows < resShowMaxNum) {
-      for (int32_t i = 0; i < num_fields; i++) {
-        putchar(' ');
-        shellPrintField((const char *)row[i], fields + i, width[i], length[i], precision);
-        putchar(' ');
-        putchar('|');
-      }
-      putchar('\r');
-      putchar('\n');
-    } else if (showMore) {
+    for (int32_t i = 0; i < dump_info->numFields; i++) {
+      putchar(' ');
+      shellPrintField((const char *)row[i], dump_info->fields + i, dump_info->width[i], length[i],
+                      dump_info->precision);
+      putchar(' ');
+      putchar('|');
+    }
+    putchar('\r');
+    putchar('\n');
+
+    numOfPintRows++;
+    numOfPrintRowsThisOne++;
+
+    if (numOfPintRows == dump_info->resShowMaxNum) {
       printf("\r\n");
       printf(" Notice: The result shows only the first %d rows.\r\n", SHELL_DEFAULT_RES_SHOW_NUM);
-      if (shellIsShowQuery(sql)) {
+      if (shellIsShowQuery(dump_info->sql)) {
         printf("         You can use '>>' to redirect the whole set of the result to a specified file.\r\n");
       } else {
         printf("         You can use the `LIMIT` clause to get fewer result to show.\r\n");
@@ -905,28 +933,53 @@ int64_t shellHorizontalPrintResult(TAOS_RES *tres, const char *sql) {
       printf("\r\n");
       printf("         You can use Ctrl+C to stop the underway fetching.\r\n");
       printf("\r\n");
-      showMore = 0;
+      return;
     }
 
-    numOfRows++;
-    row = taos_fetch_row(tres);
-  } while (row != NULL);
+    if (numOfPrintRowsThisOne == dump_info->numOfRows) {
+      return;
+    }
 
-  return numOfRows;
+    row = taos_fetch_row(tres);
+  }
+  return;
+}
+
+void shellDumpResultCallback(void *param, TAOS_RES *tres, int num_of_rows) {
+  tsDumpInfo *dump_info = (tsDumpInfo *)param;
+  if (num_of_rows > 0) {
+    dump_info->numOfRows = num_of_rows;
+    if (dump_info->numOfAllRows < dump_info->resShowMaxNum) {
+      if (dump_info->vertical) {
+        shellVerticalPrintResult(tres, dump_info);
+      } else {
+        shellHorizontalPrintResult(tres, dump_info);
+      }
+    }
+    dump_info->numOfAllRows += num_of_rows;
+    taos_fetch_rows_a(tres, shellDumpResultCallback, param);
+  } else {
+    if (num_of_rows < 0) {
+      printf("\033[31masync retrieve failed, code: %d\033[0m\n", num_of_rows);
+    }
+    tsem_post(&dump_info->sem);
+  }
 }
 
 int64_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool vertical, const char *sql) {
-  int64_t numOfRows = 0;
+  int64_t num_of_rows = 0;
   if (fname != NULL) {
-    numOfRows = shellDumpResultToFile(fname, tres);
-  } else if (vertical) {
-    numOfRows = shellVerticalPrintResult(tres, sql);
+    num_of_rows = shellDumpResultToFile(fname, tres);
   } else {
-    numOfRows = shellHorizontalPrintResult(tres, sql);
+    tsDumpInfo dump_info;
+    init_dump_info(&dump_info, tres, sql, vertical);
+    taos_fetch_rows_a(tres, shellDumpResultCallback, &dump_info);
+    tsem_wait(&dump_info.sem);
+    num_of_rows = dump_info.numOfAllRows;
   }
 
   *error_no = taos_errno(tres);
-  return numOfRows;
+  return num_of_rows;
 }
 
 void shellReadHistory() {
