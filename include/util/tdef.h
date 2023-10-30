@@ -109,6 +109,15 @@ extern const int32_t TYPE_BYTES[21];
 
 #define TSDB_INS_USER_STABLES_DBNAME_COLID 2
 
+static const int64_t TICK_PER_SECOND[] = {
+  1000LL, // MILLISECOND
+  1000000LL, // MICROSECOND
+  1000000000LL, // NANOSECOND
+  0LL, // HOUR
+  0LL, // MINUTE
+  1LL // SECOND
+};
+
 #define TSDB_TICK_PER_SECOND(precision)               \
   ((int64_t)((precision) == TSDB_TIME_PRECISION_MILLI \
                  ? 1000LL                             \
