@@ -67,6 +67,7 @@ class taoscTest : public ::testing::Test {
 tsem_t query_sem;
 int    getRecordCounts = 0;
 int    insertCounts = 100;
+void*  pUserParam = NULL;
 
 void fetchCallback(void* param, void* res, int32_t numOfRow) {
   ASSERT_TRUE(numOfRow >= 0);
@@ -94,7 +95,7 @@ void fetchCallback(void* param, void* res, int32_t numOfRow) {
 
 void queryCallback(void* param, void* res, int32_t code) {
   ASSERT_TRUE(code == 0);
-  ASSERT_TRUE(param == NULL);
+  ASSERT_TRUE(param == pUserParam);
   taos_fetch_raw_block_a(res, fetchCallback, param);
 }
 
@@ -122,15 +123,43 @@ TEST_F(taoscTest, taos_query_a_test) {
     taos_free_result(res);
   }
 
+  pUserParam = NULL;
+  void* tmpParam = pUserParam;
   tsem_init(&query_sem, 0, 0);
   sprintf(sql, "select * from taosc_test_db.%s;", table_name);
-  taos_query_a(taos, sql, queryCallback, NULL);
+  taos_query_a(taos, sql, queryCallback, pUserParam);
   tsem_wait(&query_sem);
+  ASSERT_TRUE(pUserParam == tmpParam);
 
   ASSERT_EQ(getRecordCounts, insertCounts);
   taos_close(taos);
 
   printf("taos_query_a test finished.\n");
+}
+
+TEST_F(taoscTest, taos_query_a_param_test) {
+  char    sql[1024] = {0};
+  int32_t code = 0;
+  TAOS*   taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_TRUE(taos != nullptr);
+
+  int pArray[2] = {0, 1};
+  pUserParam = NULL;
+  void* tmpParam = pUserParam;
+  getRecordCounts = 0;
+  const char* table_name = "taosc_test_table1";
+  tsem_init(&query_sem, 0, 0);
+  sprintf(sql, "select * from taosc_test_db.%s;", table_name);
+  taos_query_a(taos, sql, queryCallback, pUserParam);
+  tsem_wait(&query_sem);
+  ASSERT_TRUE(pUserParam == tmpParam);
+  ASSERT_EQ(pArray[0], 0);
+  ASSERT_EQ(pArray[1], 1);
+
+  ASSERT_EQ(getRecordCounts, insertCounts);
+  taos_close(taos);
+
+  printf("taos_query_a_param test finished.\n");
 }
 
 TEST_F(taoscTest, taos_query_test) {
@@ -158,7 +187,7 @@ TEST_F(taoscTest, taos_query_test) {
 
 void queryCallback2(void* param, void* res, int32_t code) {
   ASSERT_TRUE(code == 0);
-  ASSERT_TRUE(param == NULL);
+  ASSERT_TRUE(param == pUserParam);
   // After using taos_query_a to query, using taos_fetch_row
   // in the callback will cause blocking.
   /*
@@ -181,12 +210,57 @@ TEST_F(taoscTest, taos_query_a_t2) {
   const char* table_name = "taosc_test_table1";
   sprintf(sql, "select * from taosc_test_db.%s;", table_name);
 
+  pUserParam = NULL;
   tsem_init(&query_sem, 0, 0);
-  taos_query_a(taos, sql, queryCallback2, NULL);
+  taos_query_a(taos, sql, queryCallback2, pUserParam);
   tsem_timewait(&query_sem, 10 * 1000);
 
   ASSERT_NE(getRecordCounts, insertCounts);
   taos_close(taos);
 
-  printf("taos_query test finished.\n");
+  printf("taos_query_a_t2 test finished.\n");
 }
+
+void queryCallbackStartFetchThread(void* param, void* res, int32_t code) {
+  printf("queryCallbackStartFetchThread start...\n");
+  ASSERT_TRUE(code == 0);
+  void** tmp = (void**)param;
+  *tmp = res;
+  printf("queryCallbackStartFetchThread end. res:%p\n", res);
+  tsem_post(&query_sem);
+}
+
+TEST_F(taoscTest, taos_query_a_fetch_row) {
+  char    sql[1024] = {0};
+  int32_t code = 0;
+  TAOS*   taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_TRUE(taos != nullptr);
+
+  getRecordCounts = 0;
+
+  const char* table_name = "taosc_test_table1";
+  sprintf(sql, "select * from taosc_test_db.%s;", table_name);
+
+  tsem_init(&query_sem, 0, 0);
+  printf("taos_query_a_fetch_row  query start...\n");
+  TAOS_RES *res;
+  TAOS_RES **pres = &res;
+  taos_query_a(taos, sql, queryCallbackStartFetchThread, pres);
+  tsem_wait(&query_sem);
+
+  getRecordCounts = 0;
+  TAOS_ROW row;
+  printf("taos_query_a_fetch_row  taos_fetch_row start...\n");
+  // will cause heap-buffer-overfow
+  // while ((row = taos_fetch_row(*pres))) {
+  //    getRecordCounts++;
+  // } 
+  printf("taos_query_a_fetch_row  taos_fetch_row end. %p record count:%d.\n", *pres, getRecordCounts);
+  taos_free_result(*pres);
+
+  ASSERT_NE(getRecordCounts, insertCounts);
+  taos_close(taos);
+
+  printf("taos_query_a_fetch_row test finished.\n");
+}
+
