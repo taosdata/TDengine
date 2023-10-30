@@ -29,14 +29,14 @@ extern void  Parse(void*, int, SToken, void*);
 extern void  ParseFree(void*, FFree);
 extern void  ParseTrace(FILE*, char*);
 
-int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placeholderNo, SArray* pPlaceholderValues) {
+int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placeholderNo, SArray** pPlaceholderValues) {
   *pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
   if (NULL == *pQuery) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   (*pQuery)->pRoot = pRootNode;
   (*pQuery)->placeholderNum = placeholderNo;
-  (*pQuery)->pPlaceholderValues = pPlaceholderValues;
+  TSWAP((*pQuery)->pPlaceholderValues, *pPlaceholderValues);
   (*pQuery)->execStage = QUERY_EXEC_STAGE_ANALYSE;
 
   return TSDB_CODE_SUCCESS;
@@ -91,7 +91,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
 abort_parse:
   ParseFree(pParser, (FFree)taosMemoryFree);
   if (TSDB_CODE_SUCCESS == cxt.errCode) {
-    int32_t code = buildQueryAfterParse(pQuery, cxt.pRootNode, cxt.placeholderNo, cxt.pPlaceholderValues);
+    int32_t code = buildQueryAfterParse(pQuery, cxt.pRootNode, cxt.placeholderNo, &cxt.pPlaceholderValues);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
@@ -700,6 +700,14 @@ static int32_t collectMetaKeyFromGrant(SCollectMetaKeyCxt* pCxt, SGrantStmt* pSt
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, pCxt->pMetaCache);
 }
 
+static int32_t collectMetaKeyFromRevoke(SCollectMetaKeyCxt* pCxt, SRevokeStmt* pStmt) {
+  if ('\0' == pStmt->tabName[0]) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->objName, pStmt->tabName, pCxt->pMetaCache);
+}
+
+
 static int32_t collectMetaKeyFromCreateViewStmt(SCollectMetaKeyCxt* pCxt, SCreateViewStmt* pStmt) {
   int32_t code =
       reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->viewName, pCxt->pMetaCache);
@@ -760,6 +768,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromCreateStream(pCxt, (SCreateStreamStmt*)pStmt);
     case QUERY_NODE_GRANT_STMT:
       return collectMetaKeyFromGrant(pCxt, (SGrantStmt*)pStmt);
+    case QUERY_NODE_REVOKE_STMT:
+      return collectMetaKeyFromRevoke(pCxt, (SRevokeStmt*)pStmt);
     case QUERY_NODE_SHOW_DNODES_STMT:
       return collectMetaKeyFromShowDnodes(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_MNODES_STMT:

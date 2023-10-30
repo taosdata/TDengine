@@ -371,7 +371,7 @@ int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, c
   if (pParCxt->async) {
     code = getTableMetaFromCache(pMetaCache, pName, pMeta);
 #ifdef TD_ENTERPRISE
-    if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code && couldBeView) {
+    if ((TSDB_CODE_PAR_TABLE_NOT_EXIST == code || TSDB_CODE_PAR_INTERNAL_ERROR == code) && couldBeView) {
       int32_t origCode = code;
       code = getViewMetaFromCache(pMetaCache, pName, pMeta);
       if (TSDB_CODE_SUCCESS != code) {

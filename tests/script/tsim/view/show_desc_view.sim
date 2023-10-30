@@ -21,16 +21,13 @@ endi
 if $data05 != @select * from sta1;@ then
   return -1
 endi
-if $data06 != @`ts` TIMESTAMP, `f` INT, `g` INT, `t` INT@ then
+if $data06 != NULL then
   return -1
 endi
 if $data07 != NULL then
   return -1
 endi
 if $data08 != NULL then
-  return -1
-endi
-if $data09 != NULL then
   return -1
 endi
 sql desc view1

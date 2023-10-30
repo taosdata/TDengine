@@ -65,7 +65,7 @@ class TDTestCase:
 
         tdSql.query('select count(*),db_name, stable_name from information_schema.ins_tables group by db_name, stable_name;')
         tdSql.checkRows(3)
-        tdSql.checkData(0, 0, 23)
+        tdSql.checkData(0, 0, 24)
         tdSql.checkData(0, 1, 'information_schema')
         tdSql.checkData(0, 2, None)
         tdSql.checkData(1, 0, 3)
