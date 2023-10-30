@@ -348,6 +348,9 @@ void streamTaskResetStatus(SStreamTask* pTask) {
   SStreamTaskSM* pSM = pTask->status.pSM;
 
   taosThreadMutexLock(&pTask->lock);
+  stDebug("s-task:%s level:%d fill-history:%d vgId:%d set uninit, prev status:%s", pTask->id.idStr,
+          pTask->info.taskLevel, pTask->info.fillHistory, pTask->pMeta->vgId, pSM->current.name);
+
   pSM->current = StreamTaskStatusList[TASK_STATUS__UNINIT];
   pSM->pActiveTrans = NULL;
   taosArrayClear(pSM->pWaitingEventList);
