@@ -11,6 +11,9 @@ use tokio::{
 
 use crate::serve::controller::agent::Activity;
 use crate::serve::controller::{AgentAction, TaskActivity};
+use crate::serve::scheduler::NotifySenderExt;
+
+use super::NotifySender;
 
 pub type TaskId = i64;
 pub type AgentId = i64;
@@ -77,6 +80,7 @@ impl AgentWorker {
     pub async fn new(
         agent_activity_sender: AgentActionsSender,
         agent_notify_receiver: AgentNotifyReceiver,
+        scheduler_notify_sender: NotifySender,
     ) -> Self {
         let agent_tasks_sender = Arc::new(RwLock::new(MultiIndexAgentTaskMap::default()));
         let agent_tasks_sender_clone = agent_tasks_sender.clone();
@@ -91,6 +95,7 @@ impl AgentWorker {
                     Ok(item) => {
                         let agent_tasks_sender_clone = agent_tasks_sender_clone.clone();
                         let agent_states_cloned = agent_states_cloned.clone();
+                        let scheduler_notify_sender = scheduler_notify_sender.clone();
                         tokio::spawn(async move {
                             match item {
                                 AgentNotify::ServerStopped => {
@@ -168,7 +173,7 @@ impl AgentWorker {
                                 AgentNotify::TaskActivity(_, activity) => {
                                     let agent_tasks = agent_tasks_sender_clone.read().await;
                                     if let Some(task) = agent_tasks.get_by_task_id(&activity.id) {
-                                        if let Err(err) = task.sender.send(activity).await {
+                                        if let Err(err) = task.sender.send(activity.clone()).await {
                                             tracing::warn!("Error sending task activity {:?}", err);
                                         }
                                     } else {
@@ -179,22 +184,11 @@ impl AgentWorker {
                                             activity.id
                                         );
                                     }
+                                    scheduler_notify_sender.push_task_activity(activity);
                                 }
                                 AgentNotify::AgentActivity(_, activity) => {
                                     tracing::info!("Agent activity: {:?}", activity);
-                                    // let agent_tasks = agent_tasks_sender_clone.read().await;
-                                    // if let Some(task) = agent_tasks.get_by_task_id(&activity.id) {
-                                    //     if let Err(err) = task.sender.send(activity).await {
-                                    //         tracing::warn!("Error sending task activity {:?}", err);
-                                    //     }
-                                    // } else {
-                                    //     tracing::warn!(
-                                    //         task.id = activity.id,
-                                    //         task.activity = activity.activity,
-                                    //         "Task not found: {:?}",
-                                    //         activity.id
-                                    //     );
-                                    // }
+                                    scheduler_notify_sender.push_agent_activity(activity);
                                 }
                             }
                         });
@@ -239,6 +233,18 @@ impl AgentWorker {
         }
     }
 
+    pub async fn stop(&self, task_id: TaskId) {
+        let agent_tasks = self.agent_tasks_sender.read().await;
+        if let Some(task) = agent_tasks.get_by_task_id(&task_id) {
+            if let Err(err) = self
+                .agent_activity_sender
+                .send((task.agent_id, AgentAction::Stop(task_id)))
+            {
+                tracing::warn!("Error sending cancel task: {:?}", err);
+            }
+        }
+    }
+
     pub async fn cancel(&self, task_id: TaskId) {
         let agent_tasks = self.agent_tasks_sender.read().await;
         if let Some(task) = agent_tasks.get_by_task_id(&task_id) {
@@ -265,7 +271,11 @@ impl AgentWorker {
         states.contains_key(&agent_id)
     }
 
-    pub(crate) async fn push_action(&self, agent_id: i64, action: AgentAction) -> anyhow::Result<()> {
+    pub(crate) async fn push_action(
+        &self,
+        agent_id: i64,
+        action: AgentAction,
+    ) -> anyhow::Result<()> {
         self.agent_activity_sender.send((agent_id, action))?;
         Ok(())
     }

@@ -480,7 +480,7 @@ impl FlightService for FlightServiceImpl {
                                     now.timestamp_millis() as u64 - last,
                                 ) > std::time::Duration::from_secs(120)
                                 {
-                                    tracing::error!(agent = agent_id, "Agent {agent_id} is no ok",)
+                                    // tracing::error!(agent = agent_id, "Agent {agent_id} is no ok",)
                                 }
                             }
                             for _ in 0..rows {
@@ -843,6 +843,8 @@ mod tests {
         IntoStreamingRequest,
     };
 
+    use crate::serve::tests::tracing_subscriber_init;
+
     // use super::FlightServiceImpl;
     // async fn client_with_uds(path: String) -> FlightServiceClient<Channel> {
     //     let connector = tower::service_fn(move |_| UnixStream::connect(path.clone()));
@@ -868,7 +870,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn server_client() -> anyhow::Result<()> {
         std::env::set_var("RUST_LOG", "INFO");
-        pretty_env_logger::init();
+        tracing_subscriber_init()?;
         let file = NamedTempFile::new().unwrap();
         let path = file.into_temp_path().to_str().unwrap().to_string();
         let _ = std::fs::remove_file(path.clone());

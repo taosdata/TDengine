@@ -1,0 +1,94 @@
+use std::sync::Arc;
+
+use taosx_core::set_env_data_dir;
+use tracing_subscriber::EnvFilter;
+
+use crate::serve::scheduler::{
+    agent::AgentWorker, runner::AgentIntegrationChannel, SchedulerNotify,
+};
+
+use super::{
+    controller::TaskController,
+    scheduler::{agent::AgentNotifySender, NotifyChannel, TaskScheduler},
+};
+
+pub async fn generate_scheduler_for_test(
+) -> anyhow::Result<(TaskController, TaskScheduler, AgentNotifySender)> {
+    let (agent_activity_sender, agent_activity_receiver) = tokio::sync::broadcast::channel(1024);
+
+    tokio::spawn(async move {
+        tokio::pin!(agent_activity_receiver);
+        loop {
+            match agent_activity_receiver.recv().await {
+                Ok((agent, action)) => {
+                    tracing::info!(agent, "agent action: {:?}", action);
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    break;
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(lagged)) => {
+                    tracing::warn!(
+                            "agent activity channel lagged: {lagged}, resubscribe it from current offset"
+                        );
+                    continue;
+                }
+            }
+        }
+    });
+    let (agent_notify_sender, agent_notify_receiver) = tokio::sync::broadcast::channel(1024);
+    let (scheduler_notify_sender, _) = tokio::sync::broadcast::channel::<SchedulerNotify>(1024);
+    let scheduler_notify_sender = Arc::new(scheduler_notify_sender);
+
+    let weak_notify_sender = Arc::downgrade(&scheduler_notify_sender);
+
+    let agent_worker = AgentWorker::new(
+        agent_activity_sender,
+        agent_notify_receiver,
+        weak_notify_sender,
+    )
+    .await;
+    let agent_integration_channel = AgentIntegrationChannel::Server(agent_worker);
+
+    let scheduler = TaskScheduler::new(scheduler_notify_sender, agent_integration_channel)
+        .await
+        .unwrap();
+    tracing::info!("scheduler created: {:?}", scheduler);
+    let controller = TaskController::from_sqlite("sqlite::memory:", scheduler.clone()).await?;
+    tracing::info!("task controller created: {:?}", scheduler);
+    Ok((controller, scheduler, agent_notify_sender))
+}
+
+pub async fn wait_notify_channel(notify_channel: NotifyChannel) {
+    tracing::info!("notify_channel length: {}", notify_channel.len());
+    tokio::pin!(notify_channel);
+
+    loop {
+        match notify_channel.recv().await {
+            Ok(act) => {
+                dbg!(act);
+            }
+            Err(err) => {
+                dbg!(&err);
+                match err {
+                    tokio::sync::broadcast::error::RecvError::Closed => {
+                        tracing::info!("notify channel closed");
+                        break;
+                    }
+                    tokio::sync::broadcast::error::RecvError::Lagged(lagged) => {
+                        tracing::warn!("notify channel lagged: {lagged}, continue");
+                        continue;
+                    }
+                }
+            }
+        }
+    }
+}
+pub fn tracing_subscriber_init() -> anyhow::Result<()> {
+    let _ = tracing_subscriber::fmt::fmt()
+        .with_env_filter(EnvFilter::from_default_env().add_directive("debug".parse()?))
+        .with_file(true)
+        .pretty()
+        .try_init();
+    set_env_data_dir(None);
+    Ok(())
+}

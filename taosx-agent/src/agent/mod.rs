@@ -451,7 +451,7 @@ impl Client {
             )
             .build(FakeStream(
                 schema.clone(),
-                tokio::time::interval(Duration::from_secs(60)),
+                tokio::time::interval(Duration::from_secs(500)),
                 Instant::now(),
                 resp_rx.into_stream(),
                 self.req_id.clone(),

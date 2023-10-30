@@ -482,10 +482,11 @@ fn main() -> Result<()> {
             let _ = tracing::info_span!("serve").entered();
             let scheduler_rt = build_runtime(worker_threads * 2)?;
 
-            let (agent_integration_channel, agent_rpc_channel) =
+            let (agent_integration_channel, agent_rpc_channel, scheduler_notifier) =
                 scheduler_rt.block_on(serve.channels());
 
-            let scheduler = scheduler_rt.block_on(serve.scheduler(agent_integration_channel))?;
+            let scheduler = scheduler_rt
+                .block_on(serve.scheduler(scheduler_notifier, agent_integration_channel))?;
 
             let grpc_rt = build_runtime(worker_threads)?;
 

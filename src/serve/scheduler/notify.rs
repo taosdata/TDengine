@@ -1,4 +1,4 @@
-use crate::serve::controller::TaskActivity;
+use crate::serve::{controller::TaskActivity, scheduler::SchedulerNotify};
 
 use super::{runner::MultiIndexTaskJobMapRef, NotifySender};
 
@@ -20,7 +20,7 @@ pub async fn notify_by_job_id(
             info!("Stopping task {:?}", task_id);
             if let Err(err) = sender
                 .upgrade()
-                .map(|tx| tx.send(TaskActivity::stop(task_id)))
+                .map(|tx| tx.send(SchedulerNotify::AgentActivity(TaskActivity::stop(task_id))))
                 .transpose()
             {
                 tracing::warn!("Error sending task activity {:?}", err);

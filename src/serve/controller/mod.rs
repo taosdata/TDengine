@@ -320,15 +320,21 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
         .await?;
     }
     match activity.status.as_str() {
-        "queued" | "scheduled" | "running" | "completed" | "failed" | "suspended"
-        | "interrupted" => {
+        "failed" => {
+            sqlx::query("UPDATE tasks SET status = ?, reason = ? WHERE id = ?")
+                .bind(activity.status.as_str())
+                .bind(activity.activity.as_str())
+                .bind(activity.id)
+                .execute(pool)
+                .await?;
+        }
+        _ => {
             sqlx::query("UPDATE tasks SET status = ? WHERE id = ?")
                 .bind(activity.status.as_str())
                 .bind(activity.id)
                 .execute(pool)
                 .await?;
         }
-        _ => (),
     }
     sqlx::query(
             "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)")
@@ -391,15 +397,36 @@ impl TaskController {
             let pool = pool_cloned;
             loop {
                 match rx.recv().await {
-                    Ok(task) => {
-                        tracing::info!("task: {} {:?} {:?}", task.id, task.activity, task.status);
-                        if let Err(err) = push_task_activity(&pool, &task).await {
-                            tracing::error!("push task activity error: {err:?}");
+                    Ok(notify) => match notify {
+                        crate::serve::scheduler::SchedulerNotify::TaskActivity(task) => {
+                            tracing::info!(
+                                "task: {} {:?} {:?}",
+                                task.id,
+                                task.activity,
+                                task.status
+                            );
+                            if let Err(err) = push_task_activity(&pool, &task).await {
+                                tracing::error!("push task activity error: {err:?}");
+                            }
                         }
-                    }
+                        crate::serve::scheduler::SchedulerNotify::AgentActivity(agent) => {
+                            tracing::info!(
+                                "agent: {} {:?} {:?}",
+                                agent.id,
+                                agent.activity,
+                                agent.status
+                            );
+                            if let Err(err) = push_agent_activity(&pool, &agent).await {
+                                tracing::error!("push task activity error: {err:?}");
+                            }
+                        }
+                    },
                     Err(err) => {
                         tracing::error!("notify channel error: {err:?}");
-                        break;
+                        match err {
+                            tokio::sync::broadcast::error::RecvError::Closed => break,
+                            tokio::sync::broadcast::error::RecvError::Lagged(_) => continue,
+                        }
                     }
                 }
             }
@@ -1725,6 +1752,16 @@ impl TaskActivity {
             context: None,
         }
     }
+    pub fn stopped(id: i64) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Info,
+            activity: "Task has been stopped".to_string(),
+            status: "stopped".to_string(),
+            context: None,
+        }
+    }
     pub fn scheduled(id: i64) -> Self {
         Self {
             id,
@@ -1745,6 +1782,8 @@ impl TaskActivity {
             context: None,
         }
     }
+
+    /// Start task job and set state as running.
     pub fn started(id: i64, jid: Uuid) -> Self {
         Self {
             id,
@@ -1755,6 +1794,8 @@ impl TaskActivity {
             context: None,
         }
     }
+
+    /// Info-level activity under running state.
     pub fn running(id: i64, message: String) -> Self {
         Self {
             id,
@@ -1765,6 +1806,8 @@ impl TaskActivity {
             context: None,
         }
     }
+
+    /// Error-level activity under running state.
     pub fn error(id: i64, message: String) -> Self {
         Self {
             id,
@@ -2503,13 +2546,16 @@ impl TaskFilter {
 
 #[cfg(test)]
 mod tests {
+    use crate::serve::tests::{generate_scheduler_for_test, tracing_subscriber_init};
+
     use super::*;
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_agent() -> anyhow::Result<()> {
         // std::env::set_var("RUST_LOG", "debug");
-        // pretty_env_logger::init();
-        let controller = TaskController::from_sqlite("sqlite::memory:").await?;
+        tracing_subscriber_init()?;
+        let (controller, mut scheduler, agent_notify_sender) =
+            generate_scheduler_for_test().await?;
         dbg!(&controller);
         let new: AgentProps = serde_json::from_str(
             r#"
@@ -2568,8 +2614,9 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_patch() -> anyhow::Result<()> {
         // std::env::set_var("RUST_LOG", "taos=debug");
-        // pretty_env_logger::init();
-        let controller = TaskController::from_sqlite("sqlite::memory:").await?;
+        tracing_subscriber_init()?;
+        let (controller, mut scheduler, agent_notify_sender) =
+            generate_scheduler_for_test().await?;
 
         let new: AgentProps = serde_json::from_str(
             r#"
@@ -2611,7 +2658,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_create_task_when_agent_not_alive() -> anyhow::Result<()> {
-        let controller = TaskController::from_sqlite("sqlite::memory:").await?;
+        tracing_subscriber_init()?;
+        let (controller, mut scheduler, agent_notify_sender) =
+            generate_scheduler_for_test().await?;
         let agent = controller
             .create_agent(AgentProps {
                 dsn: "".to_string(),
@@ -2646,7 +2695,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_task_offset() -> anyhow::Result<()> {
         std::env::set_var("RUST_LOG", "taos=info");
-        pretty_env_logger::init();
+        tracing_subscriber_init()?;
 
         let dsn = "taos://localhost:6030".to_string();
         tracing::info!("dsn: {}", dsn);
@@ -2691,7 +2740,8 @@ mod tests {
 
         taos.exec_many(["drop database if exists db2"]).await?;
 
-        let controller = TaskController::from_sqlite("sqlite::memory:").await?;
+        let (controller, mut scheduler, agent_notify_sender) =
+            generate_scheduler_for_test().await?;
 
         let task_props: NewTask = serde_json::from_str(&format!(
             r#"
