@@ -4576,7 +4576,7 @@ static int32_t checkDbEnumOption(STranslateContext* pCxt, const char* pName, int
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRetentions) {
+static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRetentions, int8_t precision) {
   if (NULL == pRetentions) {
     return TSDB_CODE_SUCCESS;
   }
@@ -4599,11 +4599,55 @@ static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRete
 
     SValueNode* pFreq = (SValueNode*)nodesListGetNode(((SNodeListNode*)pRetention)->pNodeList, 0);
     SValueNode* pKeep = (SValueNode*)nodesListGetNode(((SNodeListNode*)pRetention)->pNodeList, 1);
-    if (pFreq->datum.i <= 0 || 'n' == pFreq->unit || 'y' == pFreq->unit || pFreq->datum.i >= pKeep->datum.i ||
-        (NULL != pPrevFreq && pPrevFreq->datum.i >= pFreq->datum.i) ||
-        (NULL != pPrevKeep && pPrevKeep->datum.i > pKeep->datum.i)) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION, "Invalid option retentions");
+
+    ASSERTS(pFreq->isDuration && pKeep->isDuration, "Retentions freq/keep should have unit");
+
+    // check unit
+    if (pFreq->isDuration && TIME_UNIT_SECOND != pFreq->unit && TIME_UNIT_MINUTE != pFreq->unit &&
+        TIME_UNIT_HOUR != pFreq->unit && TIME_UNIT_DAY != pFreq->unit && TIME_UNIT_WEEK != pFreq->unit) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option retentions(freq): %s, only s, m, h, d, w allowed", pFreq->literal);
     }
+
+    if (pKeep->isDuration && TIME_UNIT_MINUTE != pKeep->unit && TIME_UNIT_HOUR != pKeep->unit &&
+        TIME_UNIT_DAY != pKeep->unit) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option retentions(keep): %s, only m, h, d allowed", pKeep->literal);
+    }
+
+    // check value range
+    if (pFreq->datum.i <= 0) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option retentions(freq): %s should larger than 0", pFreq->literal);
+    }
+    int64_t keepMinute = pKeep->datum.i / getUnitPerMinute(pKeep->node.resType.precision);
+    int64_t tsdbMaxKeep = TSDB_TIME_PRECISION_NANO == precision ? TSDB_MAX_KEEP_NS : TSDB_MAX_KEEP;
+    if (keepMinute < TSDB_MIN_KEEP || keepMinute > tsdbMaxKeep) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option retentions(keep): %" PRId64 "m, valid range: [%" PRIi64
+                                     "m, %" PRId64 "m]",
+                                     keepMinute, TSDB_MIN_KEEP, tsdbMaxKeep);
+    }
+
+    // check relationships
+    if (pFreq->datum.i >= pKeep->datum.i) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option retentions(freq/keep): %s should larger than %s", pKeep->literal,
+                                     pFreq->literal);
+    }
+    
+    if (NULL != pPrevFreq && pPrevFreq->datum.i >= pFreq->datum.i) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option retentions(freq): %s should larger than %s", pFreq->literal,
+                                     pPrevFreq->literal);
+    }
+
+    if (NULL != pPrevKeep && pPrevKeep->datum.i > pKeep->datum.i) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option retentions(keep): %s should not larger than %s",
+                                     pPrevKeep->literal, pKeep->literal);
+    }
+
     pPrevFreq = pFreq;
     pPrevKeep = pKeep;
   }
@@ -4723,7 +4767,7 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
                              TSDB_DB_SINGLE_STABLE_OFF);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbRetentionsOption(pCxt, pOptions->pRetentions);
+    code = checkDbRetentionsOption(pCxt, pOptions->pRetentions, pOptions->precision);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbEnumOption(pCxt, "schemaless", pOptions->schemaless, TSDB_DB_SCHEMALESS_ON, TSDB_DB_SCHEMALESS_OFF);
@@ -5021,10 +5065,21 @@ static int32_t checkTableSmaOption(STranslateContext* pCxt, SCreateTableStmt* pS
 }
 
 static bool validRollupFunc(const char* pFunc) {
-  static const char*   rollupFuncs[] = {"avg", "sum", "min", "max", "last", "first"};
+  static const char* rollupFuncs[] = {"avg", "sum", "min", "max", "last", "first"};
   static const int32_t numOfRollupFuncs = (sizeof(rollupFuncs) / sizeof(char*));
   for (int i = 0; i < numOfRollupFuncs; ++i) {
     if (0 == strcmp(rollupFuncs[i], pFunc)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool aggrRollupFunc(const char* pFunc) {
+  static const char*   aggrRollupFuncs[] = {"avg", "sum"};
+  static const int32_t numOfAggrRollupFuncs = (sizeof(aggrRollupFuncs) / sizeof(char*));
+  for (int i = 0; i < numOfAggrRollupFuncs; ++i) {
+    if (0 == strcmp(aggrRollupFuncs[i], pFunc)) {
       return true;
     }
   }
@@ -5104,7 +5159,8 @@ static int32_t checkTableTagsSchema(STranslateContext* pCxt, SHashObj* pHash, SN
   return code;
 }
 
-static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, int32_t ntags, SNodeList* pCols) {
+static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, int32_t ntags, SNodeList* pCols,
+                                    SNodeList* pRollupFuncs) {
   int32_t ncols = LIST_LENGTH(pCols);
   if (ncols < TSDB_MIN_COLUMNS) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM);
@@ -5114,13 +5170,19 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
 
   int32_t code = TSDB_CODE_SUCCESS;
 
-  bool    first = true;
+  int32_t colIndex = 0;
   int32_t rowSize = 0;
   SNode*  pNode = NULL;
+  char*   pFunc = NULL;
+  bool    isAggrRollup = false;
+
+  if (pRollupFuncs) {
+    pFunc = ((SFunctionNode*)nodesListGetNode(pRollupFuncs, 0))->functionName;
+    isAggrRollup = aggrRollupFunc(pFunc);
+  }
   FOREACH(pNode, pCols) {
     SColumnDefNode* pCol = (SColumnDefNode*)pNode;
-    if (first) {
-      first = false;
+    if (0 == colIndex) {
       if (TSDB_DATA_TYPE_TIMESTAMP != pCol->dataType.type) {
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FIRST_COLUMN);
       }
@@ -5140,6 +5202,15 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
       }
     }
+
+    if (TSDB_CODE_SUCCESS == code && isAggrRollup && 0 != colIndex) {
+      if (pCol->dataType.type != TSDB_DATA_TYPE_FLOAT && pCol->dataType.type != TSDB_DATA_TYPE_DOUBLE) {
+        code =
+            generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                    "Invalid column type: %s, only float/double allowed for %s", pCol->colName, pFunc);
+      }
+    }
+
     if (TSDB_CODE_SUCCESS == code) {
       code = taosHashPut(pHash, pCol->colName, len, &pCol, POINTER_BYTES);
     }
@@ -5148,6 +5219,8 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
     } else {
       break;
     }
+    // next column
+    ++colIndex;
   }
 
   if (TSDB_CODE_SUCCESS == code && rowSize > TSDB_MAX_BYTES_PER_ROW) {
@@ -5166,7 +5239,7 @@ static int32_t checkTableSchema(STranslateContext* pCxt, SCreateTableStmt* pStmt
 
   int32_t code = checkTableTagsSchema(pCxt, pHash, pStmt->pTags);
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkTableColsSchema(pCxt, pHash, LIST_LENGTH(pStmt->pTags), pStmt->pCols);
+    code = checkTableColsSchema(pCxt, pHash, LIST_LENGTH(pStmt->pTags), pStmt->pCols, pStmt->pOptions->pRollupFuncs);
   }
 
   taosHashCleanup(pHash);
