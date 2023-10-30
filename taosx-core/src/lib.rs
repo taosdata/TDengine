@@ -505,7 +505,11 @@ pub async fn is_taos_valid(dsn: &Dsn) -> DataSourceValidation {
 }
 
 pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
-    let builder = TmqBuilder::from_dsn(dsn);
+    let mut dsn = dsn.clone();
+    if !dsn.params.contains_key("group.id") {
+        dsn.params.insert("group.id".to_string(), "test_tmq_is_valid".to_string());
+    }
+    let builder = TmqBuilder::from_dsn(dsn.clone());
     match builder {
         Err(err) => DataSourceValidation::invalid(
             "tmq".to_string(),
