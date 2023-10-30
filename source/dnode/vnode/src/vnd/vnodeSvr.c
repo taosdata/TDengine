@@ -1617,8 +1617,8 @@ _exit:
   }
 
   if(insert_counter == NULL){
-    int32_t label_count =1;
-    const char *sample_labels[] = {"vgid"};
+    int32_t label_count =2;
+    const char *sample_labels[] = {"vgid", "endpoint"};
     taos_counter_t *counter = taos_counter_new("insert_counter", "counter for insert sql",  label_count, sample_labels);
     if(taos_collector_registry_register_metric(counter) == 1){
       taos_counter_destroy(counter);
@@ -1630,7 +1630,7 @@ _exit:
 
   char vgId[50];
   sprintf(vgId, "%"PRId32, TD_VID(pVnode));
-  const char *sample_labels[] = {vgId};
+  const char *sample_labels[] = {vgId, tsLocalEp};
 
   taos_counter_inc(insert_counter, sample_labels);
 
