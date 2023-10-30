@@ -211,6 +211,8 @@ static int32_t tsdbMigrateDataFileS3(SRTNer *rtner, const STFileObj *fobj, const
           },
   };
 
+  op.nf.s3flag = true;
+
   code = TARRAY2_APPEND(rtner->fopArr, op);
   TSDB_CHECK_CODE(code, lino, _exit);
 

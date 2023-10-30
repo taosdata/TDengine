@@ -405,9 +405,9 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
   long           s3Size(const char *object_name);
   int32_t        nlevel = tfsGetLevel(committer->tsdb->pVnode->pTfs);
   committer->ctx->skipTsRow = false;
-  if (tsS3Enabled && nlevel > 1 /* && committer->ctx->did.level == nlevel - 1*/) {
+  if (tsS3Enabled && nlevel > 1 && committer->ctx->fset) {
     STFileObj *fobj = committer->ctx->fset->farr[TSDB_FTYPE_DATA];
-    if (committer->ctx->fset && fobj) {
+    if (fobj && fobj->f->did.level == nlevel - 1) {
       // if exists on s3 or local mtime < committer->ctx->now - tsS3UploadDelay
       const char *object_name = taosDirEntryBaseName((char *)fobj->fname);
 
@@ -421,7 +421,6 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
         committer->ctx->skipTsRow = true;
       }
     }
-
     // new fset can be written with ts data
   }
 
