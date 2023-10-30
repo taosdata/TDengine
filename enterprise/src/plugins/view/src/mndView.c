@@ -742,11 +742,6 @@ int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock,
     colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    mndGenerateViewColListStr(varDataVal(tmpBuf), sizeof(tmpBuf) - VARSTR_HEADER_SIZE, pView->numOfCols, pView->pSchema);
-    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
-    colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
-
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     if (NULL != pView->parameters) {
       STR_WITH_MAXSIZE_TO_VARSTR(tmpBuf, pView->parameters, sizeof(tmpBuf));
       colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
@@ -769,6 +764,13 @@ int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock,
     } else {
       colDataSetVal(pColInfo, numOfRows, NULL, true);
     }
+
+/*
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    mndGenerateViewColListStr(varDataVal(tmpBuf), sizeof(tmpBuf) - VARSTR_HEADER_SIZE, pView->numOfCols, pView->pSchema);
+    varDataSetLen(tmpBuf, strlen(varDataVal(tmpBuf)));
+    colDataSetVal(pColInfo, numOfRows, (const char *)tmpBuf, false);
+*/
 
     numOfRows++;
     sdbRelease(pSdb, pView);
