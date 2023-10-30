@@ -564,7 +564,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
       vInfo("vgId:%d, sync restore finished, not launch stream tasks, since stream tasks are disabled", vgId);
     } else {
       vInfo("vgId:%d sync restore finished, start to launch stream tasks", pVnode->config.vgId);
-      tqStartStreamTasks(pVnode->pTq);
+      tqResetStreamTaskStatus(pVnode->pTq);
       tqCheckAndRunStreamTaskAsync(pVnode->pTq);
     }
   } else {

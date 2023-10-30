@@ -159,7 +159,7 @@ int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname);
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver);
 int32_t tqScanWal(STQ* pTq);
 int32_t tqStartStreamTask(STQ* pTq);
-int32_t tqStartStreamTasks(STQ* pTq);
+int32_t tqResetStreamTaskStatus(STQ* pTq);
 int32_t tqStopStreamTasks(STQ* pTq);
 
 // tq util
