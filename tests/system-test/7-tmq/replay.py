@@ -29,9 +29,12 @@ class TDTestCase:
 
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
+        self.testcasePath = os.path.split(__file__)[0]
+        self.testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
-        #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        #tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -212,9 +215,10 @@ class TDTestCase:
         tdLog.info("create topics from stb1")
         topicFromStb1 = 'topic_stb1'
 
-        tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s" %(topicFromStb1, parameterDict['dbName'], parameterDict['stbName']))
+        #tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s" %(topicFromStb1, parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.execute("create topic %s as select * from %s.%s" %(topicFromStb1, parameterDict['dbName'], parameterDict['stbName']))
         consumerId     = 0
-        expectrowcnt   = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] * 2
+        expectrowcnt   = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] 
         topicList      = topicFromStb1
         ifcheckdata    = 0
         ifManualCommit = 1
@@ -242,49 +246,74 @@ class TDTestCase:
             tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
             tdLog.exit("tmq consume rows error!")
 
-        # tdLog.info("start consume 1 processor")
-        # self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
-        # tdLog.sleep(2)
-        #
-        # tdLog.info("start one new thread to insert data")
-        # parameterDict['actionType'] = actionType.INSERT_DATA
-        # prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
-        # prepareEnvThread.start()
-        # prepareEnvThread.join()
-        #
-        # tdLog.info("start to check consume 0 and 1 result")
-        # expectRows = 2
-        # resultList = self.selectConsumeResult(expectRows)
-        # totalConsumeRows = 0
-        # for i in range(expectRows):
-        #     totalConsumeRows += resultList[i]
-        #
-        # if totalConsumeRows != expectrowcnt:
-        #     tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
-        #     tdLog.exit("tmq consume rows error!")
-        #
-        # tdLog.info("start consume 2 processor")
-        # self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
-        # tdLog.sleep(2)
-        #
-        # tdLog.info("start one new thread to insert data")
-        # parameterDict['actionType'] = actionType.INSERT_DATA
-        # prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
-        # prepareEnvThread.start()
-        # prepareEnvThread.join()
-        #
-        # tdLog.info("start to check consume 0 and 1 and 2 result")
-        # expectRows = 3
-        # resultList = self.selectConsumeResult(expectRows)
-        # totalConsumeRows = 0
-        # for i in range(expectRows):
-        #     totalConsumeRows += resultList[i]
-        #
-        # if totalConsumeRows != expectrowcnt*2:
-        #     tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt*2))
-        #     tdLog.exit("tmq consume rows error!")
-        #
-        # tdSql.query("drop topic %s"%topicFromStb1)
+        tdLog.info("start consume 1 processor")
+        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tdLog.sleep(5)
+        
+        tdLog.info("start one new thread to insert data")
+        expectrowcnt   = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"]
+        parameterDict['actionType'] = actionType.INSERT_DATA
+        prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
+        prepareEnvThread.start()
+        prepareEnvThread.join()
+        
+        tdLog.info("start to check consume 0 and 1 result")
+        expectRows = 2
+        resultList = self.selectConsumeResult(expectRows)
+        totalConsumeRows = 0
+        for i in range(expectRows):
+            totalConsumeRows += resultList[i]
+        
+        if totalConsumeRows != expectrowcnt*2:
+            tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt * 2))
+            tdLog.exit("tmq consume rows error!")
+        
+        tdLog.info("start consume 2 processor")
+        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tdLog.sleep(5)
+        
+        tdLog.info("start one new thread to insert data")
+        parameterDict['actionType'] = actionType.INSERT_DATA
+        prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
+        prepareEnvThread.start()
+        prepareEnvThread.join()
+        
+        tdLog.info("start to check consume 0 and 1 and 2 result")
+        expectrowcnt   = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] 
+        expectRows = 3
+        resultList = self.selectConsumeResult(expectRows)
+        totalConsumeRows = 0
+        for i in range(expectRows):
+            totalConsumeRows += resultList[i]
+        
+        if totalConsumeRows != expectrowcnt*3:
+            tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt * 3))
+            tdLog.exit("tmq consume rows error!")
+        
+        
+        tdLog.info("start consume 3 processor")
+        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tdLog.sleep(5)
+        
+        tdLog.info("start one new thread to insert data")
+        parameterDict['actionType'] = actionType.INSERT_DATA
+        prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
+        prepareEnvThread.start()
+        prepareEnvThread.join()
+        
+        tdLog.info("start to check consume 0 and 1 and 2 and 3 result")
+        expectrowcnt   = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] 
+        expectRows = 4
+        resultList = self.selectConsumeResult(expectRows)
+        totalConsumeRows = 0
+        for i in range(expectRows):
+            totalConsumeRows += resultList[i]
+        
+        if totalConsumeRows != expectrowcnt*4:
+            tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt * 4))
+            tdLog.exit("tmq consume rows error!")
+            
+        tdSql.query("drop topic %s"%topicFromStb1)
 
         tdLog.printNoPrefix("======== test case 8 end ...... ")
 
