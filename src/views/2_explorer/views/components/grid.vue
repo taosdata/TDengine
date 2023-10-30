@@ -21,15 +21,14 @@
 
       <template v-if="head.length">
         <el-table-column
-          v-for="item in head"
-          :key="item"
-          :prop="item"
+          v-for="(item, index) in head"
+          :key="item + index"
           :show-overflow-tooltip="true"
           :label="item"
         >
           <template slot-scope="{ row }">
             <el-tooltip :content="$t('console.cellCopyTip')">
-              <span>{{ row[item] }}</span>
+              <span>{{ row[index] }}</span>
             </el-tooltip>
           </template>
         </el-table-column>
