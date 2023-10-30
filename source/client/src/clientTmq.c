@@ -3203,3 +3203,10 @@ int32_t tmq_offset_seek(tmq_t* tmq, const char* pTopicName, int32_t vgId, int64_
 
   return code;
 }
+
+TAOS *tmq_get_connect(tmq_t *tmq){
+  if (tmq && tmq->pTscObj) {
+    return (TAOS *)(&(tmq->pTscObj->id));
+  }
+  return NULL;
+}
