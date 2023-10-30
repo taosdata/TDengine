@@ -451,7 +451,7 @@ typedef struct SRetention {
   int8_t  keepUnit;
 } SRetention;
 
-#define RETENTION_VALID(r) (((r)->freq > 0) && ((r)->keep > 0))
+#define RETENTION_VALID(l, r) ((((l) == 0 && (r)->freq >= 0) || ((r)->freq > 0)) && ((r)->keep > 0))
 
 #pragma pack(push, 1)
 
