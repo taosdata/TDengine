@@ -310,4 +310,11 @@ impl AgentWorker {
             Err(err) => Err(anyhow::anyhow!("Error listing data sets: {:#}", err)),
         }
     }
+
+    pub(crate) async fn remove_task(&self, task_id: TaskId) {
+        self.agent_tasks_sender
+            .write()
+            .await
+            .remove_by_task_id(&task_id);
+    }
 }
