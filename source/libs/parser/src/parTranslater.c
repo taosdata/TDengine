@@ -2122,11 +2122,12 @@ static int32_t createCastFunc(STranslateContext* pCxt, SNode* pExpr, SDataType d
     nodesDestroyNode((SNode*)pFunc);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  if (TSDB_CODE_SUCCESS != getFuncInfo(pCxt, pFunc)) {
+  int32_t code = getFuncInfo(pCxt, pFunc);
+  if (TSDB_CODE_SUCCESS != code) {
     nodesClearList(pFunc->pParameterList);
     pFunc->pParameterList = NULL;
     nodesDestroyNode((SNode*)pFunc);
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)pExpr)->aliasName);
+    return code;
   }
   *pCast = (SNode*)pFunc;
   return TSDB_CODE_SUCCESS;
@@ -3250,10 +3251,11 @@ static int32_t checkProjectAlias(STranslateContext* pCxt, SNodeList* pProjection
 }
 
 static int32_t translateProjectionList(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (pSelect->isSubquery) {
-    return checkProjectAlias(pCxt, pSelect->pProjectionList, NULL);
+  if (!pSelect->isSubquery) {
+    return rewriteProjectAlias(pSelect->pProjectionList);
+  } else {
+    return TSDB_CODE_SUCCESS;
   }
-  return rewriteProjectAlias(pSelect->pProjectionList);
 }
 
 static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect) {

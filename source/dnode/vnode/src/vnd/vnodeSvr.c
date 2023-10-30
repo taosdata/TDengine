@@ -942,13 +942,13 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
 
     taosArrayPush(rsp.pArray, &cRsp);
 
-    if(pCreateReq->sqlLen > 0){ //skip auto create table, not set sql when auto create table
-      int32_t clusterId = pVnode->config.syncCfg.nodeInfo[0].clusterId;
+    if(tsEnableAuditCreateTable){
+      int64_t clusterId = pVnode->config.syncCfg.nodeInfo[0].clusterId;
 
       SName name = {0};
       tNameFromString(&name, pVnode->config.dbname, T_NAME_ACCT | T_NAME_DB);
 
-      auditRecord(pReq, clusterId, "createTable", name.dbname, pCreateReq->name, pCreateReq->sql, pCreateReq->sqlLen);
+      auditRecord(NULL, clusterId, "createTable", name.dbname, "", pCreateReq->name, strlen(pCreateReq->name));
     }
   }
 

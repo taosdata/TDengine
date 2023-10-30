@@ -52,7 +52,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   snprintf(pTsdb->path, TD_PATH_MAX, "%s%s%s", pVnode->path, TD_DIRSEP, dir);
   // taosRealPath(pTsdb->path, NULL, slen);
   pTsdb->pVnode = pVnode;
-  taosThreadRwlockInit(&pTsdb->rwLock, NULL);
+  taosThreadMutexInit(&pTsdb->mutex, NULL);
   if (!pKeepCfg) {
     tsdbSetKeepCfg(pTsdb, &pVnode->config.tsdbCfg);
   } else {
@@ -91,15 +91,14 @@ int tsdbClose(STsdb **pTsdb) {
     STsdb *pdb = *pTsdb;
     tsdbDebug("vgId:%d, tsdb is close at %s, days:%d, keep:%d,%d,%d", TD_VID(pdb->pVnode), pdb->path, pdb->keepCfg.days,
               pdb->keepCfg.keep0, pdb->keepCfg.keep1, pdb->keepCfg.keep2);
-    taosThreadRwlockWrlock(&(*pTsdb)->rwLock);
+    taosThreadMutexLock(&(*pTsdb)->mutex);
     tsdbMemTableDestroy((*pTsdb)->mem, true);
     (*pTsdb)->mem = NULL;
-    taosThreadRwlockUnlock(&(*pTsdb)->rwLock);
-
-    taosThreadRwlockDestroy(&(*pTsdb)->rwLock);
+    taosThreadMutexUnlock(&(*pTsdb)->mutex);
 
     tsdbCloseFS(&(*pTsdb)->pFS);
     tsdbCloseCache(*pTsdb);
+    taosThreadMutexDestroy(&(*pTsdb)->mutex);
     taosMemoryFreeClear(*pTsdb);
   }
   return 0;

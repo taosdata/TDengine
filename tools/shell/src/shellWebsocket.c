@@ -59,7 +59,17 @@ int shell_conn_ws_server(bool first) {
     fprintf(stdout, "successfully connected to %s\n\n",
         shell.args.dsn);
   } else if (first && shell.args.cloud) {
-    fprintf(stdout, "successfully connected to cloud service\n");
+    if(shell.args.local) {
+      const char* host = strstr(shell.args.dsn, "@");
+      if(host) {
+        host += 1;
+      } else {
+        host = shell.args.dsn;
+      }
+      fprintf(stdout, "successfully connected to %s\n", host);
+    } else {
+      fprintf(stdout, "successfully connected to cloud service\n");
+    }
   }
   fflush(stdout);
 
