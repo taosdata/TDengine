@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::str::FromStr;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::{collections::HashMap, time::Duration};
 
@@ -220,6 +221,8 @@ pub(crate) struct TaskController {
     pub transferred: Transferred,
     /// Task scheduler
     pub scheduler: TaskScheduler,
+
+    pub ctl_alive: Arc<AtomicBool>,
 }
 
 impl Debug for TaskController {
@@ -392,6 +395,8 @@ impl TaskController {
 
         let notify_channel = scheduler.notify_channel();
         let pool_cloned = pool.clone();
+        let ctl_alive = Arc::new(AtomicBool::new(true));
+        let ctl_alive_cloned = ctl_alive.clone();
         tokio::spawn(async move {
             let mut rx = notify_channel;
             let pool = pool_cloned;
@@ -421,15 +426,16 @@ impl TaskController {
                             }
                         }
                     },
-                    Err(err) => {
-                        tracing::error!("notify channel error: {err:?}");
-                        match err {
-                            tokio::sync::broadcast::error::RecvError::Closed => break,
-                            tokio::sync::broadcast::error::RecvError::Lagged(_) => continue,
+                    Err(err) => match err {
+                        tokio::sync::broadcast::error::RecvError::Closed => break,
+                        tokio::sync::broadcast::error::RecvError::Lagged(n) => {
+                            tracing::error!("scheduler notify channel lagged {n} items");
+                            continue;
                         }
-                    }
+                    },
                 }
             }
+            ctl_alive_cloned.store(false, std::sync::atomic::Ordering::SeqCst);
         });
         let transferred = Transferred::new(pool.clone(), Duration::from_secs(10));
         Ok(Self {
@@ -439,6 +445,7 @@ impl TaskController {
             secret: RwLock::new(None),
             offsets: Default::default(),
             transferred,
+            ctl_alive,
         })
     }
 

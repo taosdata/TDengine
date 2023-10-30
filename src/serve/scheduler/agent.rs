@@ -214,6 +214,8 @@ impl AgentWorker {
 
     pub async fn insert(&self, task: AgentTask) {
         let mut agent_tasks = self.agent_tasks_sender.write().await;
+        // Ensure task id is unique.
+        agent_tasks.remove_by_task_id(&task.task_id);
         agent_tasks.insert(task);
     }
 
