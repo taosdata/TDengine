@@ -209,19 +209,21 @@ impl TaskScheduler {
         let task_notify_tx = Arc::downgrade(&owned_notify_sender);
         let shutdown_barrier_clone = shutdown_barrier.clone();
         let tasks_index_map = tasks.clone();
+
+        let global_state = Arc::new(GlobalState::new(
+            scheduler.clone(),
+            notify_sender,
+            agent_runtime,
+        ));
+        let global_state_in_notify_handler = global_state.clone();
         tokio::spawn(async move {
+            let global = global_state_in_notify_handler;
             tokio::pin!(notify_rx);
             loop {
                 match notify_rx.recv().await {
                     Ok((job_id, state)) => {
                         tracing::info!("job notify: {:?} {:?}", job_id, state);
-                        notify::notify_by_job_id(
-                            &tasks_index_map,
-                            &task_notify_tx,
-                            &job_id,
-                            &state,
-                        )
-                        .await;
+                        notify::notify_by_job_id(&tasks_index_map, &global, &job_id, &state).await;
                     }
                     Err(err) => {
                         tracing::error!("job create error: {:?}", err);
@@ -232,6 +234,7 @@ impl TaskScheduler {
             shutdown_barrier_clone.wait().await;
         });
 
+        let global_state_in_drop_handler = global_state.clone();
         scheduler
             .set_shutdown_handler(async move {
                 tracing::info!("Shutting down scheduler");
@@ -244,9 +247,6 @@ impl TaskScheduler {
             .await;
 
         scheduler.start().await?;
-        let global_state = Arc::new(GlobalState::new(scheduler, notify_sender, agent_runtime));
-
-        let global_state_in_drop_handler = global_state.clone();
 
         let tasks_cloned = tasks.clone();
         let drop_notifier = Arc::new(Notify::const_new());
@@ -309,7 +309,7 @@ impl TaskScheduler {
         let job_id = task_job.job_id;
         tracing::info!(task.id = task, job.id = %job_id, "task `{task}` will be removed");
 
-        if task_job.is_final_state().await {
+        if task_job.in_final_state().await {
             return Err(StopError::AlreadyStopped(task));
         }
 
@@ -330,7 +330,7 @@ impl TaskScheduler {
         loop {
             let tasks = self.tasks.read().await;
             if let Some(task) = tasks.get_by_task_id(&task) {
-                if task.is_final_state().await {
+                if task.is_finished().await {
                     break;
                 }
             } else {
@@ -925,7 +925,7 @@ mod tests {
         scheduler.push_task(task.task.clone()).await.unwrap();
 
         tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_secs(1)).await;
+            tokio::time::sleep(Duration::from_secs(2)).await;
             agent_notify_sender
                 .send(AgentNotify::TaskActivity(
                     1i64,
@@ -938,10 +938,11 @@ mod tests {
                 .unwrap();
         });
 
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
         scheduler.try_stop(id).await?;
 
         scheduler.wait_stop(id).await;
+        tokio::time::sleep(Duration::from_secs(2)).await;
 
         let task = controller.get(id).await.unwrap().unwrap();
         dbg!(&task);
@@ -954,6 +955,7 @@ mod tests {
 
         scheduler.wait_stop(id).await;
 
+        tokio::time::sleep(Duration::from_secs(2)).await;
         let task = controller.get(id).await.unwrap().unwrap();
         dbg!(&task);
         assert_eq!(task.status(), Status::Stopped);

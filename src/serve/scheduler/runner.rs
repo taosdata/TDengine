@@ -180,6 +180,7 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
 
         let todo = tokio::select! {
             _ = cancellation.cancelled() => {
+                tracing::info!("Task {task_id} cancelled");
                 None
             },
             res = agent_activities_listener(agent_activities.clone())=> {
@@ -313,6 +314,13 @@ impl AgentRuntimeRef {
             }
         }
     }
+
+    pub(crate) async fn remove_task(&self, task_id: TaskId) {
+        match self {
+            Self::Server(rt) => rt.remove_task(task_id).await,
+            Self::Client(_) => {}
+        }
+    }
 }
 #[derive(Clone)]
 pub struct GlobalState {
@@ -434,13 +442,22 @@ impl InnerState {
         matches!(self, InnerState::Queued)
     }
 
-    pub fn is_final_state(&self) -> bool {
+    pub fn in_final_state(&self) -> bool {
         matches!(
             self,
             InnerState::Completed
                 | InnerState::Stopped
                 | InnerState::Failed(_)
                 | InnerState::Stopping
+        )
+    }
+
+    pub fn is_finished(&self) -> bool {
+        matches!(
+            self,
+            InnerState::Completed
+                | InnerState::Stopped
+                | InnerState::Failed(_)
         )
     }
 
@@ -625,8 +642,12 @@ impl TaskJob {
     }
 
     /// Check if a task is in final state.
-    pub async fn is_final_state(&self) -> bool {
-        self.task.state.read().await.is_final_state()
+    pub async fn in_final_state(&self) -> bool {
+        self.task.state.read().await.is_finished()
+    }
+    /// Check if a task is in final state.
+    pub async fn is_finished(&self) -> bool {
+        self.task.state.read().await.is_finished()
     }
 
     /// Stop a job manually.
