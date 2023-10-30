@@ -368,6 +368,8 @@ void tFreeStreamTask(SStreamTask* pTask) {
   if (pTask->pState) {
     stDebug("s-task:0x%x start to free task state", taskId);
     streamStateClose(pTask->pState, status == TASK_STATUS__DROPPING);
+    taskDbRemoveRef(pTask->pBackend);
+     
   }
 
   if (pTask->id.idStr != NULL) {
