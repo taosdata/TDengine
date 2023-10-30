@@ -627,9 +627,21 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
     case 't':
     case 'F':
     case 'f': {
-      for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[(uint8_t)z[i]]; i++) {
+      bool hasNonAsciiChars = false;
+      for (i = 1;; i++) {
+        if ((z[i] & 0x80) != 0) {
+          // utf-8 characters
+          // currently, we support using utf-8 characters only in alias
+          hasNonAsciiChars = true;
+        } else if (isIdChar[(uint8_t)z[i]]) {
+        } else {
+          break;
+        }
       }
-
+      if (hasNonAsciiChars) {
+        *tokenId = TK_NK_ALIAS; // must be alias
+        return i;
+      }
       if ((i == 4 && strncasecmp(z, "true", 4) == 0) || (i == 5 && strncasecmp(z, "false", 5) == 0)) {
         *tokenId = TK_NK_BOOL;
         return i;
@@ -638,10 +650,21 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       return i;
     }
     default: {
-      if (((*z & 0x80) != 0) || !isIdChar[(uint8_t)*z]) {
+      if ((*z & 0x80) == 0 && !isIdChar[(uint8_t)*z]) {
         break;
       }
-      for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[(uint8_t)z[i]]; i++) {
+      bool hasNonAsciiChars = false;
+      for (i = 1; ; i++) {
+        if ((z[i] & 0x80) != 0) {
+          hasNonAsciiChars = true;
+        } else if (isIdChar[(uint8_t)z[i]]){
+        } else {
+          break;
+        }
+      }
+      if (hasNonAsciiChars) {
+        *tokenId = TK_NK_ALIAS;
+        return i;
       }
       *tokenId = tKeywordCode(z, i);
       return i;
