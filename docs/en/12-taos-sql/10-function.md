@@ -563,7 +563,8 @@ TO_TIMESTAMP(ts_str_literal, format_str_literal)
 - When `ms`, `us`, `ns` are used in `to_timestamp`, if multi of them are specified, the results are accumulated. For example, `to_timestamp('2023-10-10 10:10:10.123.000456.000000789', 'yyyy-mm-dd hh:mi:ss.ms.us.ns')` will output the timestamp of `2023-10-10 10:10:10.123456789`.
 - The uppercase or lowercase of `MONTH`, `MON`, `DAY`, `DY` and formtas that output digits have same effect when used in `to_timestamp`, like `to_timestamp('2023-JANUARY-01', 'YYYY-month-dd')`, `month` can be replaced by `MONTH`, or `month`. The cases are ignored.
 - If multi times are specified for one component, the previous will be overwritten. Like `to_timestamp('2023-22-10-10', 'yyyy-yy-MM-dd')`, the output year will be `2022`.
-- The default timetsamp if some components are not specified will be: `1970-01-01 00:00:00` with your local timezone.
+- To avoid unexpected time zone used during the convertion, it's recommended to put time zone in the ts string, e.g. '2023-10-10 10:10:10+08'. If time zone not specified, default will be that in server or client.
+- The default timestamp if some components are not specified will be: `1970-01-01 00:00:00` with specified or default local timezone.
 - If `AM` or `PM` is specified in formats, the Hour must between `1-12`.
 - In some cases, `to_timestamp` can convert correctly even the format and the timestamp string are not totally matched. Like `to_timetamp('200101/2', 'yyyyMM1/dd')`, the digit `1` in format string are ignored, and the output timestsamp is `2001-01-02 00:00:00`. Spaces and tabs in formats and tiemstamp string are also ignored automatically.
 
