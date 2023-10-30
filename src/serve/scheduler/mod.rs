@@ -87,6 +87,8 @@ impl Drop for TaskScheduler {
 pub enum StopError {
     #[error("Task {0} not found")]
     NotFound(i64),
+    #[error("Task {0} already stopped")]
+    AlreadyStopped(i64),
     #[error("Remove job from scheduler error: {0}")]
     RemoveJob(#[from] tokio_cron_scheduler::JobSchedulerError),
 }
@@ -306,6 +308,10 @@ impl TaskScheduler {
             .ok_or_else(|| StopError::NotFound(task))?;
         let job_id = task_job.job_id;
         tracing::info!(task.id = task, job.id = %job_id, "task `{task}` will be removed");
+
+        if task_job.is_final_state().await {
+            return Err(StopError::AlreadyStopped(task));
+        }
 
         let state = task_job.stop().await;
 
@@ -573,6 +579,22 @@ mod tests {
                 status,
                 vec!["created", "queued", "running", "stopping", "stopped"]
             );
+
+            scheduler.push_task(task.task.clone()).await.unwrap();
+            if let Err(err) = scheduler.try_stop(id).await {
+                tracing::error!("stop task error: {:?}", err);
+            }
+            scheduler.wait_stop(id).await;
+
+            tokio::time::sleep(Duration::from_secs(3)).await;
+
+            let task = controller.get(id).await.unwrap().unwrap();
+            dbg!(&task);
+            let activities = controller
+                .task_activities(id, &AgentActivityFilter::default())
+                .await?;
+            tracing::info!(task.id = id, ?activities);
+            assert_eq!(task.status(), Status::Stopped);
         }
         scheduler.shutdown().await;
         wait_notify_channel(notify_channel).await;
