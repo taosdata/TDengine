@@ -7,6 +7,8 @@ use std::{
     task::{Context, Poll},
 };
 
+use anyhow::Context as _;
+use chrono::{DateTime, Utc};
 use flume::{Receiver, Sender};
 use futures::FutureExt;
 use itertools::Itertools;
@@ -86,6 +88,7 @@ async fn worker(
     source_is_v3: bool,
     target_is_v3: bool,
     task_id: Option<String>,
+    file_mutex: Arc<std::sync::Mutex<()>>,
 ) -> anyhow::Result<()> {
     const MAX_WS_RETRIES: usize = 5;
     let mut from = source.get().await?;
@@ -287,12 +290,41 @@ async fn worker(
             Todo::Data(stable, table, mut time_range, sender) => {
                 // get breakpoints use breakpoints_get
                 if let Some(task_id) = task_id.clone() {
-                    let breakpoint = breakpoints::breakpoints_get(&task_id, &table)?;
-                    // dbg!(&breakpoint);
-                    if let Some(breakpoint) = breakpoint {
-                        time_range.start = Some(breakpoint.parse()?);
-                        // dbg!(&time_range);
-                        tracing::info!("load breakpoint success set time_range: {time_range}");
+                    const MAX_RETRIES: usize = 5;
+                    let mut retries = MAX_RETRIES;
+                    loop {
+                        let _lock = file_mutex.lock().unwrap();
+                        match breakpoints::breakpoints_get(&task_id, &table).and_then(|bp| {
+                            bp.map(|bp| bp.parse::<DateTime<Utc>>().context("Parse datetime error"))
+                                .transpose()
+                        }) {
+                            Ok(Some(breakpoint)) => {
+                                time_range.start = Some(breakpoint);
+                                tracing::debug!("load breakpoint success set time_range: {time_range} table: {table}");
+                                break;
+                            }
+                            Ok(None) => {
+                                tracing::debug!("load breakpoint no breakpoint, table: {table}");
+                                break;
+                            }
+                            Err(err) => {
+                                tracing::debug!(
+                                    "load breakpoint failed, err: {err} table: {table}, retrying ... {retries} times left"
+                                );
+
+                                if retries > 0 {
+                                    retries -= 1;
+                                    drop(_lock);
+                                    std::thread::sleep(std::time::Duration::from_secs(1));
+                                    continue;
+                                } else {
+                                    tracing::debug!(
+                                        "load breakpoint failed finally, err: {err} table: {table}"
+                                    );
+                                    break;
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -506,6 +538,7 @@ impl Scheduler {
     ) -> Self {
         let workers = std::cmp::max(1, workers);
         let (sender, receiver) = flume::bounded((workers * 4) as usize);
+        let file_mutex = Arc::new(std::sync::Mutex::new(()));
         let handles = (0..workers)
             .map(|i| {
                 tokio::spawn(
@@ -521,6 +554,7 @@ impl Scheduler {
                         source_is_v3,
                         target_is_v3,
                         task_id.clone(),
+                        file_mutex.clone(),
                     )
                     .in_current_span(),
                 )

@@ -182,7 +182,7 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
     };
     tracing::Span::current().record("task.elapsed", tracing::field::debug(instant.elapsed()));
     if let Err(error) = res {
-        error!(task.elapsed = ?instant.elapsed(), %error);
+        error!(task.elapsed = ?instant.elapsed(), error.message = %error, error.backtrace = ?error);
         Err(error)
     } else {
         tracing::info!(task.elapsed = ?instant.elapsed(), "task finished");
