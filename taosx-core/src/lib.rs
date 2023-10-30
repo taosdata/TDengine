@@ -506,6 +506,9 @@ pub async fn is_taos_valid(dsn: &Dsn) -> DataSourceValidation {
 
 pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
     let mut dsn = dsn.clone();
+    if dsn.subject.is_none() {
+       return DataSourceValidation::invalid("tmq".to_string(), format!("invalid dsn: {}, cause: subject is required in tmq dsn", dsn.to_string()));
+    }
     if !dsn.params.contains_key("group.id") {
         dsn.params.insert("group.id".to_string(), "test_tmq_is_valid".to_string());
     }
@@ -691,20 +694,22 @@ mod tests {
         assert_eq!(false, dsv.valid);
         assert_eq!(false, dsv.support);
         assert_eq!("tmq", dsv.data_source);
-        assert_eq!("invalid dsn: tmq+ws://192.168.1.92:6041, cause: Internal error: `requires parameter: group.id`", dsv.message.unwrap());
+        assert_eq!("invalid dsn: tmq+ws://192.168.1.92:6041, cause: subject is required in tmq dsn", dsv.message.unwrap());
 
-        let dsn = Dsn::from_str("tmq+ws://192.168.1.92:6041?group.id=test_tmq_is_valid").unwrap();
+        // TDengine 3.X at 192.168.1.92
+        let dsn = Dsn::from_str("tmq+ws://192.168.1.92:6041/tmq_test?group.id=test_tmq_is_valid").unwrap();
         let dsv = validate_dsn(dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("tmq", dsv.data_source);
         assert_eq!("3.1.1.3", dsv.version.unwrap());
 
-        let dsn = Dsn::from_str("tmq+ws://192.168.1.40:6041?group.id=test_tmq_is_valid").unwrap();
+        // TDengine 2.X at 192.168.1.40
+        let dsn = Dsn::from_str("tmq+ws://192.168.1.40:6041/tmq_test?group.id=test_tmq_is_valid").unwrap();
         let dsv = validate_dsn(dsn).await;
         assert_eq!(false, dsv.valid);
         assert_eq!(false, dsv.support);
         assert_eq!("tmq", dsv.data_source);
-        assert_eq!("failed to connect to dsn: tmq+ws://192.168.1.40:6041?group.id=test_tmq_is_valid, cause: HTTP error: 404 Not Found", dsv.message.unwrap());
+        assert_eq!("failed to connect to dsn: tmq+ws://192.168.1.40:6041/tmq_test?group.id=test_tmq_is_valid, cause: HTTP error: 404 Not Found", dsv.message.unwrap());
     }
 }
