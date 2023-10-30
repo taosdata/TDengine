@@ -1,6 +1,6 @@
 use crate::get_data_dir;
 use std::path::PathBuf;
-use tracing::info;
+use tracing::{info, debug};
 
 fn breakpoints_db_dir(task_id: &str) -> PathBuf {
     let path = get_data_dir();
@@ -9,7 +9,7 @@ fn breakpoints_db_dir(task_id: &str) -> PathBuf {
 
 pub fn breakpoints_set(task_id: &str, sub_task: &str, breakpoints: &str) -> anyhow::Result<()> {
     let path = breakpoints_db_dir(task_id);
-    info!(
+    debug!(
         "breakpoints db path: {}, breakpoints key: {}, value: {}",
         path.display(),
         sub_task,
