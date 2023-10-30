@@ -1003,7 +1003,7 @@ _exit:
   taosArrayDestroy(tbUids);
   tDecoderClear(&decoder);
   tEncoderClear(&encoder);
-  taosArrayDestroy(tbNames);
+  taosArrayDestroyP(tbNames, taosMemoryFree);
   return rcode;
 }
 
@@ -1220,7 +1220,7 @@ _exit:
   tEncodeSVDropTbBatchRsp(&encoder, &rsp);
   tEncoderClear(&encoder);
   taosArrayDestroy(rsp.pArray);
-  taosArrayDestroy(tbNames);
+  taosArrayDestroyP(tbNames, taosMemoryFree);
   return 0;
 }
 
