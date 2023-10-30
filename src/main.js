@@ -24,6 +24,8 @@ import 'mavon-editor/dist/css/index.css'
 import LinkTab from "@/components/LinkTab";
 import VueDOMPurifyHTML from 'vue-dompurify-html';
 import { clearLoginStateWhenReopen } from '@/utils/token';
+import { isFirefox } from '@/utils/is';
+
 Vue.use(mavonEditor)
 Vue.use(directive);
 Vue.use(LazyLoad);
@@ -47,8 +49,13 @@ function setTitle() {
   const title = lang === 'en' ? 'TDengine Enterprise' : 'TDengine企业版'
   document.title = title
 }
+function checkFirefox() {
+  if (isFirefox()) {
+    document.documentElement.classList.add('firefox')
+  }
+}
 
-
+checkFirefox()
 setLang(localStorage.getItem('local_language') || getBrowserLang())
 setTitle()
 clearLoginStateWhenReopen()

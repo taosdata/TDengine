@@ -70,6 +70,20 @@ export function parseTime(time, cFormat) {
 export function compHeadAndData(head, data) {
   return data.map(item => Object.fromEntries(head.map((a, b) => [a[0], item[b] || ""])));
 }
+/**
+ * 将table数据转成csv数据
+ * @param {Array<Record<string, any>>} data 表格数据
+ * @param {Array<string>} head 表头数据
+ * @returns 
+ */
+export function convertToCsvData(data, head) {
+  let csv = head.join(',') + '\n'
+  console.log(data,head,'kkk')
+  data.forEach(item => {
+    csv += head.map(i => item[i]).join(',') + '\n'
+  })
+  return csv
+}
 export function customizeTimeout(callback, time, once = 1) {
   let timer = null;
   let startTime = Date.now();
