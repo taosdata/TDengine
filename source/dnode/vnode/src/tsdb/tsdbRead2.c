@@ -1196,11 +1196,12 @@ static bool overlapWithNeighborBlock2(SFileDataBlockInfo* pBlock, SBrinRecord* p
   }
 }
 
-static bool bufferDataInFileBlockGap(int32_t order, TSDBKEY key, SFileDataBlockInfo* pBlock) {
-  bool ascScan = ASCENDING_TRAVERSE(order);
+static bool bufferDataInFileBlockGap(int32_t order, TSDBKEY keyInBuf, SFileDataBlockInfo* pBlock, int64_t keyInStt) {
+  bool    ascScan = ASCENDING_TRAVERSE(order);
+  int64_t key = ascScan? MIN(pBlock->record.firstKey, keyInStt):MAX(pBlock->record.lastKey, keyInStt);
 
-  return (ascScan && (key.ts != TSKEY_INITIAL_VAL && key.ts <= pBlock->record.firstKey)) ||
-         (!ascScan && (key.ts != TSKEY_INITIAL_VAL && key.ts >= pBlock->record.lastKey));
+  return (ascScan && (keyInBuf.ts != TSKEY_INITIAL_VAL && keyInBuf.ts <= key)) ||
+         (!ascScan && (keyInBuf.ts != TSKEY_INITIAL_VAL && keyInBuf.ts >= key));
 }
 
 static bool keyOverlapFileBlock(TSDBKEY key, SFileDataBlockInfo* pBlock, SVersionRange* pVerRange) {
@@ -2689,6 +2690,10 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
   initLastBlockReader(pLastBlockReader, pScanInfo, pReader);
   TSDBKEY keyInBuf = getCurrentKeyInBuf(pScanInfo, pReader);
 
+  bool bHasDataInLastBlock = hasDataInLastBlock(pLastBlockReader);
+  ASSERT(bHasDataInLastBlock);
+
+  int64_t tsLast = getCurrentKeyInLastBlock(pLastBlockReader);
   if (fileBlockShouldLoad(pReader, pBlockInfo, pScanInfo, keyInBuf, pLastBlockReader)) {
     code = doLoadFileBlockData(pReader, pBlockIter, &pStatus->fileBlockData, pScanInfo->uid);
     if (code != TSDB_CODE_SUCCESS) {
@@ -2697,15 +2702,12 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
 
     // build composed data block
     code = buildComposedDataBlock(pReader);
-  } else if (bufferDataInFileBlockGap(pReader->info.order, keyInBuf, pBlockInfo)) {
+  } else if (bufferDataInFileBlockGap(pReader->info.order, keyInBuf, pBlockInfo, tsLast)) {
     // data in memory that are earlier than current file block
     // rows in buffer should be less than the file block in asc, greater than file block in desc
-    int64_t endKey =
-        (ASCENDING_TRAVERSE(pReader->info.order)) ? pBlockInfo->record.firstKey : pBlockInfo->record.lastKey;
+    int64_t endKey = asc? MIN(pBlockInfo->record.firstKey, tsLast):MAX(pBlockInfo->record.lastKey, tsLast);
     code = buildDataBlockFromBuf(pReader, pScanInfo, endKey);
   } else {
-    bool bHasDataInLastBlock = hasDataInLastBlock(pLastBlockReader);
-    int64_t tsLast = bHasDataInLastBlock ? getCurrentKeyInLastBlock(pLastBlockReader) : INT64_MIN;
     if (!bHasDataInLastBlock ||
         ((asc && pBlockInfo->record.lastKey < tsLast) || (!asc && pBlockInfo->record.firstKey > tsLast))) {
       // whole block is required, return it directly
