@@ -242,10 +242,7 @@ int32_t tqStartStreamTasks(STQ* pTq) {
 
     STaskId id = {.streamId = pTaskId->streamId, .taskId = pTaskId->taskId};
     SStreamTask** pTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
-
-    if ((*pTask)->info.fillHistory != 1) {
-      streamTaskResetStatus(*pTask);
-    }
+    streamTaskResetStatus(*pTask);
   }
 
   return 0;
