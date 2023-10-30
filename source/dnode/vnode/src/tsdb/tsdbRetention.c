@@ -304,7 +304,8 @@ static int32_t tsdbDoRetention2(void *arg) {
         if (fobj == NULL) continue;
 
         int32_t nlevel = tfsGetLevel(rtner->tsdb->pVnode->pTfs);
-        if (tsS3Enabled && nlevel > 1 && TSDB_FTYPE_DATA == ftype && fobj->f->did.level == nlevel - 1) {
+        if (tsS3Enabled && nlevel > 1 && TSDB_FTYPE_DATA == ftype && fobj->f->did.level == nlevel - 1 &&
+            !taosCheckExistFile(fobj->fname)) {
           code = tsdbRemoveFileObjectS3(rtner, fobj);
           TSDB_CHECK_CODE(code, lino, _exit);
         } else {
@@ -335,28 +336,40 @@ static int32_t tsdbDoRetention2(void *arg) {
       for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX && (fobj = rtner->ctx->fset->farr[ftype], 1); ++ftype) {
         if (fobj == NULL) continue;
 
-        if (fobj->f->did.level == did.level) continue;
-
         int32_t nlevel = tfsGetLevel(rtner->tsdb->pVnode->pTfs);
-        if (tsS3Enabled && nlevel > 1 && TSDB_FTYPE_DATA == ftype && did.level == nlevel - 1) {
-          code = tsdbMigrateDataFileS3(rtner, fobj, &did);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        } else {
-          /*
-          if (tsS3Enabled) {
-            int64_t fsize = 0;
-            if (taosStatFile(fobj->fname, &fsize, NULL, NULL) < 0) {
-              code = TAOS_SYSTEM_ERROR(terrno);
-              tsdbError("vgId:%d %s failed since file:%s stat failed, reason:%s", TD_VID(rtner->tsdb->pVnode), __func__,
-                        fobj->fname, tstrerror(code));
+
+        if (fobj->f->did.level == did.level) {
+          if (tsS3Enabled && nlevel > 1 && TSDB_FTYPE_DATA == ftype && did.level == nlevel - 1 &&
+              taosCheckExistFile(fobj->fname)) {
+            int32_t mtime = 0;
+            taosStatFile(fobj->fname, NULL, &mtime, NULL);
+            if (mtime < rtner->now - tsS3UploadDelaySec) {
+              code = tsdbMigrateDataFileS3(rtner, fobj, &did);
               TSDB_CHECK_CODE(code, lino, _exit);
             }
-            s3EvictCache(fobj->fname, fsize * 2);
           }
-          */
-          code = tsdbDoMigrateFileObj(rtner, fobj, &did);
-          TSDB_CHECK_CODE(code, lino, _exit);
+
+          continue;
         }
+        /*
+      if (tsS3Enabled && nlevel > 1 && TSDB_FTYPE_DATA == ftype && did.level == nlevel - 1) {
+        code = tsdbMigrateDataFileS3(rtner, fobj, &did);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      } else {
+
+        if (tsS3Enabled) {
+          int64_t fsize = 0;
+          if (taosStatFile(fobj->fname, &fsize, NULL, NULL) < 0) {
+            code = TAOS_SYSTEM_ERROR(terrno);
+            tsdbError("vgId:%d %s failed since file:%s stat failed, reason:%s", TD_VID(rtner->tsdb->pVnode),
+        __func__, fobj->fname, tstrerror(code)); TSDB_CHECK_CODE(code, lino, _exit);
+          }
+          s3EvictCache(fobj->fname, fsize * 2);
+        }
+        */
+        code = tsdbDoMigrateFileObj(rtner, fobj, &did);
+        TSDB_CHECK_CODE(code, lino, _exit);
+        //}
       }
 
       // stt

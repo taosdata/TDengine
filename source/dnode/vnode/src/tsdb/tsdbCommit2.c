@@ -46,6 +46,7 @@ typedef struct {
     STFileSet *fset;
     TABLEID    tbid[1];
     bool       hasTSData;
+    bool       skipTsRow;
   } ctx[1];
 
   // reader
@@ -127,18 +128,18 @@ static int32_t tsdbCommitTSData(SCommitter2 *committer) {
         continue;
       }
     }
-
+    /*
     extern int8_t tsS3Enabled;
 
     int32_t nlevel = tfsGetLevel(committer->tsdb->pVnode->pTfs);
-    bool    skipRow = false;
+    committer->ctx->skipTsRow = false;
     if (tsS3Enabled && nlevel > 1 && committer->ctx->did.level == nlevel - 1) {
-      skipRow = true;
+      committer->ctx->skipTsRow = true;
     }
-
+    */
     int64_t ts = TSDBROW_TS(&row->row);
 
-    if (skipRow && ts <= committer->ctx->maxKey) {
+    if (committer->ctx->skipTsRow && ts <= committer->ctx->maxKey) {
       ts = committer->ctx->maxKey + 1;
     }
 
@@ -396,6 +397,33 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
 
   // reset nextKey
   committer->ctx->nextKey = TSKEY_MAX;
+
+  committer->ctx->skipTsRow = false;
+
+  extern int8_t  tsS3Enabled;
+  extern int32_t tsS3UploadDelaySec;
+  long           s3Size(const char *object_name);
+  int32_t        nlevel = tfsGetLevel(committer->tsdb->pVnode->pTfs);
+  committer->ctx->skipTsRow = false;
+  if (tsS3Enabled && nlevel > 1 /* && committer->ctx->did.level == nlevel - 1*/) {
+    STFileObj *fobj = committer->ctx->fset->farr[TSDB_FTYPE_DATA];
+    if (committer->ctx->fset && fobj) {
+      // if exists on s3 or local mtime < committer->ctx->now - tsS3UploadDelay
+      const char *object_name = taosDirEntryBaseName((char *)fobj->fname);
+
+      if (taosCheckExistFile(fobj->fname)) {
+        int32_t mtime = 0;
+        taosStatFile(fobj->fname, NULL, &mtime, NULL);
+        if (mtime < committer->ctx->now - tsS3UploadDelaySec) {
+          committer->ctx->skipTsRow = true;
+        }
+      } else if (s3Size(object_name) > 0) {
+        committer->ctx->skipTsRow = true;
+      }
+    }
+
+    // new fset can be written with ts data
+  }
 
 _exit:
   if (code) {
