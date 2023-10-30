@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::str::ParseBoolError;
 use std::time::Duration;
 
 use kafka::consumer::{FetchOffset, GroupOffsetStorage};
@@ -44,7 +45,7 @@ impl SourceConfig {
         };
 
         let config = SourceConfig {
-            bootstrap_servers: Self::parse_bootstrap_servers(dsn),
+            bootstrap_servers: Self::parse_bootstrap_servers(dsn)?,
             group: Self::parse_group(dsn),
             topics: Self::parse_topics(dsn),
             topic_partitions: Self::parse_topic_partitions(dsn)?,
@@ -65,16 +66,19 @@ impl SourceConfig {
         Ok(config)
     }
 
-    fn parse_bootstrap_servers(dsn: &Dsn) -> Vec<String> {
+    fn parse_bootstrap_servers(dsn: &Dsn) -> anyhow::Result<Vec<String>> {
         let mut bootstrap_servers = Vec::new();
         for address in dsn.addresses.iter() {
+            if address.host.is_none() || address.port.is_none() {
+                return Err(anyhow::anyhow!("invalid bootstrap_servers, cause: host or port is none"));
+            }
             bootstrap_servers.push(format!(
                 "{}:{}",
                 address.host.clone().unwrap(),
                 address.port.clone().unwrap()
             ));
         }
-        bootstrap_servers
+        Ok(bootstrap_servers)
     }
 
     fn parse_use_ssl(dsn: &Dsn) -> anyhow::Result<bool> {
@@ -82,12 +86,8 @@ impl SourceConfig {
             .get("use_ssl")
             .unwrap_or(&"false".to_string())
             .parse()
-            .map_err(|e| {
-                anyhow::anyhow!(
-                    "invalid use_ssl: {}, cause: {}",
-                    dsn.params.get("use_ssl").unwrap(),
-                    e
-                )
+            .map_err(|e: ParseBoolError| {
+                anyhow::anyhow!("invalid use_ssl, cause: {}",e.to_string())
             })
     }
 
@@ -349,9 +349,25 @@ mod tests {
     #[test]
     fn test_parse_bootstrap_servers() {
         let dsn = Dsn::from_str("kafka://localhost:9092,192.168.1.92:9092").unwrap();
-        let bootstrap_servers = SourceConfig::parse_bootstrap_servers(&dsn);
+        let bootstrap_servers = SourceConfig::parse_bootstrap_servers(&dsn).unwrap();
         assert_eq!("localhost:9092", bootstrap_servers[0]);
         assert_eq!("192.168.1.92:9092", bootstrap_servers[1]);
+
+        let dsn = Dsn::from_str("kafka://localhost").unwrap();
+        let bootstrap_servers = SourceConfig::parse_bootstrap_servers(&dsn);
+        assert!(bootstrap_servers.is_err());
+        assert_eq!(
+            "invalid bootstrap_servers, cause: host or port is none",
+            bootstrap_servers.unwrap_err().to_string()
+        );
+
+        let dsn = Dsn::from_str("kafka://:9092").unwrap();
+        let bootstrap_servers = SourceConfig::parse_bootstrap_servers(&dsn);
+        assert!(bootstrap_servers.is_err());
+        assert_eq!(
+            "invalid bootstrap_servers, cause: host or port is none",
+            bootstrap_servers.unwrap_err().to_string()
+        );
     }
 
     #[test]
