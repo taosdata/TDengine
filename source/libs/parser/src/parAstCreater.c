@@ -1024,15 +1024,14 @@ SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pPr
                         SNodeList* pHint) {
   CHECK_PARSER_STATUS(pCxt);
   SNode* select = createSelectStmtImpl(isDistinct, pProjectionList, pTable, pHint);
-  if (pCxt->pQueryCxt->biMode) {
-    setSelectStmtTagMode(pCxt, select, true);
-  }
   CHECK_OUT_OF_MEM(select);
   return select;
 }
 
 SNode* setSelectStmtTagMode(SAstCreateContext* pCxt, SNode* pStmt, bool bSelectTags) {
-  if (pStmt && QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+  if (pCxt->pQueryCxt->biMode) {
+    ((SSelectStmt*)pStmt)->tagScan = true;
+  }  else if (pStmt && QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     ((SSelectStmt*)pStmt)->tagScan = bSelectTags;
   }
   return pStmt;
