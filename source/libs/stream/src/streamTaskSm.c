@@ -214,7 +214,7 @@ static int32_t doHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event, STaskSt
     // todo handle error code;
 
     if (pTrans->autoInvokeEndFn) {
-      streamTaskOnHandleEventSuccess(pSM);
+      streamTaskOnHandleEventSuccess(pSM, event);
     }
   }
 
@@ -262,7 +262,7 @@ static void keepPrevInfo(SStreamTaskSM* pSM) {
   pSM->prev.evt = pTrans->event;
 }
 
-int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM) {
+int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent event) {
   SStreamTask* pTask = pSM->pTask;
 
   // do update the task status
@@ -276,6 +276,13 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM) {
     stDebug("status not handled success, current status:%s, trigger event:%d, %s", pSM->current.name, pSM->prev.evt,
             pTask->id.idStr);
 
+    taosThreadMutexUnlock(&pTask->lock);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (pTrans->event != event) {
+    stWarn("s-task:%s handle event:%s failed, current status:%s", pTask->id.idStr, StreamTaskEventList[event].name,
+        pSM->current.name);
     taosThreadMutexUnlock(&pTask->lock);
     return TSDB_CODE_INVALID_PARA;
   }
@@ -309,7 +316,7 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM) {
 
       int32_t code = pNextTrans->pAction(pSM->pTask);
       if (pNextTrans->autoInvokeEndFn) {
-        return streamTaskOnHandleEventSuccess(pSM);
+        return streamTaskOnHandleEventSuccess(pSM, event);
       } else {
         return code;
       }

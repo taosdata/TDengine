@@ -163,7 +163,7 @@ static int32_t doCheckDownstreamStatus(SStreamTask* pTask) {
     }
   } else {
     stDebug("s-task:%s (vgId:%d) set downstream ready, since no downstream", pTask->id.idStr, pTask->info.nodeId);
-    streamTaskOnHandleEventSuccess(pTask->status.pSM);
+    streamTaskOnHandleEventSuccess(pTask->status.pSM, TASK_EVENT_INIT);
   }
 
   return 0;
@@ -313,7 +313,7 @@ int32_t onScanhistoryTaskReady(SStreamTask* pTask) {
 
 // todo: refactor this function.
 static void doProcessDownstreamReadyRsp(SStreamTask* pTask) {
-  streamTaskOnHandleEventSuccess(pTask->status.pSM);
+  streamTaskOnHandleEventSuccess(pTask->status.pSM, TASK_EVENT_INIT);
 
 #if 0
   const char* id = pTask->id.idStr;
