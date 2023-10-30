@@ -1520,10 +1520,10 @@ async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation>
     let mut command = tokio::process::Command::new(opc_exe_path.clone());
     let output = command
         .arg("check")
-        .arg("--config")
+        .arg("--conf")
         .arg(config_file.path())
         .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::piped())
+        // .stderr(std::process::Stdio::piped())
         .output()
         .await
         .with_context(|| format!("failed to execute opc: {:?}", opc_exe_path.as_path()))?;
