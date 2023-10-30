@@ -108,7 +108,7 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
   SStreamTask* pStreamTask = pTask;
   pState->taskId = pStreamTask->id.taskId;
   pState->streamId = pStreamTask->id.streamId;
-  sprintf(pState->pTdbState->idstr, "0x%" PRIx64 "-%d", pState->streamId, pState->taskId);
+  sprintf(pState->pTdbState->idstr, "0x%" PRIx64 "-0x%x", pState->streamId, pState->taskId);
 
   streamTaskSetDb(pStreamTask->pMeta, pTask, pState->pTdbState->idstr);
 
