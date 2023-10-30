@@ -23,7 +23,7 @@ TDengine can be added as a data source into Seeq via JDBC connector. Once data s
 ```
 sudo seeq config get Folders/Data
 ```
-2. Download the latest TDengine Java connector from maven.org (current version is [3.2.5](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.5/taos-jdbcdriver-3.2.5-dist.jar)), and copy the JAR file into the_directory_found_in_step_1/plugins/lib/
+2. Download the latest TDengine Java connector from maven.org (current version is [3.2.7](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.7/taos-jdbcdriver-3.2.7-dist.jar)), and copy the JAR file into the_directory_found_in_step_1/plugins/lib/
 3. Restart Seeq server
 ```
 sudo seeq restart

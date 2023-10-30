@@ -8,7 +8,7 @@ library("rJava")
 library("RJDBC")
 
 args<- commandArgs(trailingOnly = TRUE)
-driver_path = args[1] # path to jdbc-driver for example: "/root/taos-jdbcdriver-3.2.4-dist.jar"
+driver_path = args[1] # path to jdbc-driver for example: "/root/taos-jdbcdriver-3.2.7-dist.jar"
 driver = JDBC("com.taosdata.jdbc.rs.RestfulDriver", driver_path)
 conn = dbConnect(driver, "jdbc:TAOS-RS://localhost:6041?user=root&password=taosdata")
 dbGetQuery(conn, "SELECT server_version()")

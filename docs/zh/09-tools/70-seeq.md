@@ -60,7 +60,7 @@ sudo seeq config set Network/DataLab/Port 34231 # the port of the Data Lab serve
 sudo seeq config get Folders/Data
 ```
 
-2. 从 maven.org 下载 TDengine Java connector 包，目前最新版本为[3.2.5](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.5/taos-jdbcdriver-3.2.5-dist.jar)，并拷贝至 data 存储位置的 plugins\lib 中。
+2. 从 maven.org 下载 TDengine Java connector 包，目前最新版本为[3.2.7](https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.7/taos-jdbcdriver-3.2.7-dist.jar)，并拷贝至 data 存储位置的 plugins\lib 中。
 
 3. 重新启动 seeq server
 
