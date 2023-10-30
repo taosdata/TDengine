@@ -1685,7 +1685,7 @@ static int32_t processCtbAutoCreationAndCtbMeta(SInsertParseContext* pCxt, SVnod
       pStbRowsCxt->pCtbMeta->uid = taosHashGetSize(pStmt->pSubTableHashObj) + 1;
       pStbRowsCxt->pCtbMeta->vgId = vg.vgId;
       STableMeta* pBackup = NULL;
-      cloneTableMeta(pStmt->pTableMeta, &pBackup);
+      cloneTableMeta(pStbRowsCxt->pCtbMeta, &pBackup);
       taosHashPut(pStmt->pSubTableHashObj, ctbFName, strlen(ctbFName), &pBackup, POINTER_BYTES);
     }
   }
