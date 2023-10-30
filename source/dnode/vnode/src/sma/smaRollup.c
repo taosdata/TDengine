@@ -1052,14 +1052,13 @@ _err:
 
   return code;
 }
-#if 1
+#if 0
 int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
   int32_t code = 0;
   int32_t lino = 0;
   SSma   *pSma = pRSmaStat->pSma;
   SVnode *pVnode = pSma->pVnode;
   SRSmaFS fs = {0};
-  smaInfo("prop:%s:%d start", __func__, __LINE__);
 
   if (taosHashGetSize(pInfoHash) <= 0) {
     return TSDB_CODE_SUCCESS;
@@ -1076,7 +1075,6 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
     for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
       SRSmaInfoItem *pItem = RSMA_INFO_ITEM(pRSmaInfo, i);
       if (pItem && pItem->pStreamState) {
-        smaInfo("prop:%s:%d streamState commit", __func__, __LINE__);
         if (streamStateCommit(pItem->pStreamState) < 0) {
           code = TSDB_CODE_RSMA_STREAM_STATE_COMMIT;
           TSDB_CHECK_CODE(code, lino, _exit);
