@@ -410,7 +410,7 @@ impl InnerState {
     pub fn is_final_state(&self) -> bool {
         matches!(
             self,
-            InnerState::Completed | InnerState::Stopped | InnerState::Failed(_)
+            InnerState::Completed | InnerState::Stopped | InnerState::Failed(_) | InnerState::Stopping
         )
     }
 
