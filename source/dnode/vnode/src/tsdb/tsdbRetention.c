@@ -342,6 +342,7 @@ static int32_t tsdbDoRetention2(void *arg) {
           code = tsdbMigrateDataFileS3(rtner, fobj, &did);
           TSDB_CHECK_CODE(code, lino, _exit);
         } else {
+          /*
           if (tsS3Enabled) {
             int64_t fsize = 0;
             if (taosStatFile(fobj->fname, &fsize, NULL, NULL) < 0) {
@@ -352,7 +353,7 @@ static int32_t tsdbDoRetention2(void *arg) {
             }
             s3EvictCache(fobj->fname, fsize * 2);
           }
-
+          */
           code = tsdbDoMigrateFileObj(rtner, fobj, &did);
           TSDB_CHECK_CODE(code, lino, _exit);
         }
