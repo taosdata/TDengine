@@ -52,13 +52,41 @@ class TDTestCase:
     @property
     def create_databases_sql_err(self):
         return [
-            "create database db1 retentions 0s:1d",
-            "create database db3 retentions 1s:0d",
-            "create database db1 retentions 1s:1y",
+            # check grammar
+            "create database db1 retentions",
+            "create database db1 retentions 1s:1d,2s:2d,3s:3d,4s:4d",
+            # check unit
+            "create database db1 retentions 1b:1d",
+            "create database db1 retentions 1u:1d",
+            "create database db1 retentions 1a:1d",
+            "create database db1 retentions 1n:1d",
+            "create database db1 retentions 1y:1d",
+            "create database db1 retentions 1s:86400s",
+            "create database db1 retentions 1s:86400000a",
+            "create database db1 retentions 1s:86400000000u",
+            "create database db1 retentions 1s:86400000000000b",
+            "create database db1 retentions 1s:1w",
             "create database db1 retentions 1s:1n",
-            "create database db2 retentions 1w:1d ;",
-            "create database db5 retentions 1s:1d,3s:3d,2s:2d",
-            "create database db1 retentions 1s:1n,2s:2d,3s:3d,4s:4d",
+            "create database db1 retentions 1s:1y",
+            # check value range
+            "create database db1 retentions -1s:1d",
+            "create database db1 retentions 0s:1d",
+            "create database db3 retentions 1s:-1d",
+            "create database db3 retentions 1s:0d",
+            "create database db3 retentions 1s:1439m",
+            "create database db3 retentions 1s:365001d",
+            "create database db3 retentions 1s:8760001h",
+            "create database db3 retentions 1s:525600001m",
+            "create database db3 retentions 1s:106581d precision 'ns'",
+            "create database db3 retentions 1s:2557921h precision 'ns'",
+            "create database db3 retentions 1s:153475201m precision 'ns'",
+            # check relationships
+            "create database db5 retentions 1441m:1440m,2d:3d",
+            "create database db5 retentions 2m:1d,1s:2d",
+            "create database db5 retentions 1s:2880m,2s:2879m",
+            "create database db5 retentions 1s:1d,2s:2d,2s:3d",
+            "create database db5 retentions 1s:1d,3s:2d,2s:3d",
+            "create database db1 retentions 1s:1d,2s:3d,3s:2d",
         ]
 
     @property
@@ -92,6 +120,16 @@ class TDTestCase:
             f"create stable {dbname}.stb24 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) " ,
             f"create stable {dbname}.stb25 ({PRIMARY_COL} timestamp, {INT_COL} int) " ,
             f"create stable {dbname}.stb26 ({PRIMARY_COL} timestamp, {INT_COL} int, {BINARY_COL} nchar(16)) " ,
+            # only float/double allowd for avg/sum
+            f"create stable {dbname}.stb11 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(avg)",
+            f"create stable {dbname}.stb11 ({PRIMARY_COL} timestamp, {BINT_COL} bigint) tags (tag1 int) rollup(avg)",
+            f"create stable {dbname}.stb11 ({PRIMARY_COL} timestamp, {BOOL_COL} bool) tags (tag1 int) rollup(avg)",
+            f"create stable {dbname}.stb11 ({PRIMARY_COL} timestamp, {BINARY_COL} binary(10)) tags (tag1 int) rollup(avg)",
+            f"create stable {dbname}.stb11 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(sum)",
+            f"create stable {dbname}.stb11 ({PRIMARY_COL} timestamp, {BINT_COL} bigint) tags (tag1 int) rollup(sum)",
+            f"create stable {dbname}.stb11 ({PRIMARY_COL} timestamp, {BOOL_COL} bool) tags (tag1 int) rollup(sum)",
+            f"create stable {dbname}.stb11 ({PRIMARY_COL} timestamp, {BINARY_COL} binary(10)) tags (tag1 int) rollup(sum)",
+
 
             # watermark, max_delay: [0, 900000], [ms, s, m, ?]
             f"create stable stb17 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) max_delay 1u",
@@ -108,10 +146,10 @@ class TDTestCase:
     @property
     def create_stable_sql_current(self):
         return [
-            f"create stable stb1 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(avg)",
+            f"create stable stb1 ({PRIMARY_COL} timestamp, {FLOAT_COL} float) tags (tag1 int) rollup(avg)",
             f"create stable stb2 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(min) watermark 5s max_delay 1m",
             f"create stable stb3 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(max) watermark 5s max_delay 1m",
-            f"create stable stb4 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(sum) watermark 5s max_delay 1m",
+            f"create stable stb4 ({PRIMARY_COL} timestamp, {DOUBLE_COL} double) tags (tag1 int) rollup(sum) watermark 5s max_delay 1m",
             f"create stable stb5 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(last) watermark 5s max_delay 1m",
             f"create stable stb6 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(first) watermark 5s max_delay 1m",
             f"create stable stb7 ({PRIMARY_COL} timestamp, {INT_COL} int) tags (tag1 int) rollup(first) watermark 5s max_delay 1m sma({INT_COL})",
@@ -153,6 +191,12 @@ class TDTestCase:
                         {FLOAT_COL} float, {DOUBLE_COL} double, {TINT_UN_COL} tinyint unsigned, {SINT_UN_COL} smallint unsigned,
                         {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned, {BINARY_COL} binary(16)
                     ) tags ({INT_TAG} int) rollup({rsma_type}) watermark 5s,5s max_delay 5s,5s
+                    '''
+            elif rsma_type.lower().strip() in ("sum", "avg"):
+                create_stb_sql = f'''create table {dbname}.{stb}(
+                        ts timestamp, {DOUBLE_COL} double, {DOUBLE_COL}_1 double, {DOUBLE_COL}_2 double, {DOUBLE_COL}_3 double, 
+                        {FLOAT_COL} float, {DOUBLE_COL}_4 double, {FLOAT_COL}_1 float, {FLOAT_COL}_2 float, {FLOAT_COL}_3 float, 
+                        {DOUBLE_COL}_5 double) tags ({INT_TAG} int) rollup({rsma_type}) watermark 5s,5s max_delay 5s,5s
                     '''
             else:
                 create_stb_sql = f'''create table {dbname}.{stb}(
@@ -200,10 +244,15 @@ class TDTestCase:
                         {data.int_data[i]}, {data.bint_data[i]}, {data.sint_data[i]}, {data.tint_data[i]}, {data.float_data[i]}, {data.double_data[i]},
                         {data.utint_data[i]}, {data.usint_data[i]}, {data.uint_data[i]}, {data.ubint_data[i]}, '{data.vchar_data[i]}'
                     '''
-                else:
+                elif rsma_type.lower().strip() in ("sum", "avg"):
                     row_data = f'''
                         {data.int_data[i]}, {data.bint_data[i]}, {data.sint_data[i]}, {data.tint_data[i]}, {data.float_data[i]}, {data.double_data[i]},
                         {data.utint_data[i]}, {data.usint_data[i]}, {data.uint_data[i]}, {data.ubint_data[i]}
+                    '''
+                else:
+                    row_data = f'''
+                        {data.double_data[i]}, {data.double_data[i]}, {data.double_data[i]}, {data.double_data[i]}, {data.float_data[i]}, {data.double_data[i]},
+                        {data.float_data[i]}, {data.float_data[i]}, {data.float_data[i]}, {data.double_data[i]}
                     '''
             else:
                 row_data = f'''
@@ -245,17 +294,17 @@ class TDTestCase:
         tdSql.query(f"select count(*) from {DB3}.{STBNAME} where ts > now()-5m")
         tdSql.checkData(0, 0, self.rows * db3_ctb_num)
         tdSql.checkRows(1)
-        tdSql.query(f"select {INT_COL} from {DB3}.{CTBNAME} where ts > now()-4d")
+        tdSql.query(f"select {FLOAT_COL} from {DB3}.{CTBNAME} where ts > now()-4d")
         # not stable
         #tdSql.checkData(0, 0, self.rows-1)
-        tdSql.query(f"select {INT_COL} from {DB3}.{CTBNAME} where ts > now()-6d")
+        tdSql.query(f"select {DOUBLE_COL} from {DB3}.{CTBNAME} where ts > now()-6d")
         # not stable
         # tdSql.checkData(0, 0, self.rows-1)
 
         # from ...pytest.util.sql import tdSql
 
         tdLog.printNoPrefix("==========step2.1.1 : alter stb schemaL drop column")
-        tdSql.query(f"select {BINT_COL} from {DB3}.{STBNAME}")
+        tdSql.query(f"select {FLOAT_COL} from {DB3}.{STBNAME}")
         #tdSql.execute(f"alter stable {DB3}.stb1 drop column {BINT_COL}")
         # not support alter stable schema anymore
         tdSql.error(f"alter stable {DB3}.stb1 drop column {BINT_COL}")
