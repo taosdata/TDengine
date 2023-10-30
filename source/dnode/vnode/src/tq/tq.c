@@ -1896,8 +1896,14 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
     return rsp.code;
   }
 
+  taosWUnLockLatch(&pMeta->lock);
+
+  // the following two functions should not be executed within the scope of meta lock to avoid deadlock
   streamTaskUpdateEpsetInfo(pTask, req.pNodeList);
   streamTaskResetStatus(pTask);
+
+  // continue after lock the meta again
+  taosWLockLatch(&pMeta->lock);
 
   SStreamTask** ppHTask = NULL;
   if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
