@@ -916,6 +916,14 @@ mod tests {
 
         scheduler.wait_stop(id).await;
 
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        scheduler.push_task(task.task.clone()).await.unwrap();
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        scheduler.try_stop(id).await?;
+
+        scheduler.wait_stop(id).await;
+
         // tokio::time::sleep(Duration::from_secs(10)).await;
         dbg!(&scheduler);
         scheduler.shutdown().await;
