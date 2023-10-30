@@ -61,7 +61,7 @@ groups:
           指定要消费的 Topic。可以配置多个 Topic，Topic 之间使用逗号分隔，例如：`tp1,tp2`。
 
           "Topics" 参数不是必需的，当配置了 “Topics Partitions” 参数时，可以不配置该参数。
-        placeholder: "Topics 参数和 Topic Partitions 参数两者至少需要配置一个。"
+        placeholder: "tp1,tp2"
         required: false
         hint:
           type: str
@@ -71,7 +71,7 @@ groups:
           指定要消费的 Topic 和 Partition。可以指定多个 Topic 和 Partition，例如： `tp1,tp2:2,tp3:0..9`。
 
           Topic Partitions 参数不是必需的，当配置了 Topics 参数时，可以不配置该参数。
-        placeholder: "Topics 参数和 Topic Partitions 参数两者至少需要配置一个。"
+        placeholder: "tp1,tp2:2,tp3:0..9"
         required: false
         hint:
           type: str

@@ -1,4 +1,3 @@
----
 id: opcua
 name: OPC-UA
 description: |
@@ -187,6 +186,7 @@ groups:
         display: 点位限制
         description: |-
           同一请求下的最大采集点位数量限制。
+        value: 1
         hint:
           type: integer
           min: 1

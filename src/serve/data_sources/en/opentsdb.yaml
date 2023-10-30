@@ -10,12 +10,13 @@ strict: false
 protocol:
   display: Protocol
   description: The protocol of the OpenTSDB connection, please choose according to the actual situation, otherwise the task cannot run normally.
+  placeholder: http
+  value: http
   choices:
     - name: http
       display: HTTP Protocol
     - name: https
       display: HTTPS Protocol
-  value: http
 options:
   host:
     display: IP address

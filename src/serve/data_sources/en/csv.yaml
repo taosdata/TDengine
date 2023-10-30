@@ -23,6 +23,7 @@ groups:
       - name: skip
         display: Skip Records
         description: Skip number of records for each CSV file.
+        value: 0
         hint:
           type: integer
           min: 0

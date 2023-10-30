@@ -52,7 +52,7 @@ groups:
           Specifies the group on whose behalf to maintain consumed message offsets.
 
           The group is allowed to be the empty string, in which case the resulting consumer will be group-less. e.g. `my_group`
-        placeholder: ""
+        placeholder: "my_group"
         required: false
         hint:
           type: str
@@ -64,7 +64,8 @@ groups:
           All of the available partitions of the identified topic will be consumed unless override when the topic_partitions is specified. e.g. topics=tp1,tp2
 
           At least one of "Topics" and "Topic Partitions" must be specified to assign topic to the consumer.
-        placeholder:
+        placeholder: "tp1,tp2"
+        required: false
         hint:
           type: str
       - name: topic_partitions
@@ -74,6 +75,7 @@ groups:
 
           Only the specified partitions for the identified topic will be consumed. e.g. `tp1,tp2:2,tp3:0..9`
         placeholder: "tp1,tp2:2,tp3:0..9"
+        required: false
         hint:
           type: str
       - name: fallback_offset
