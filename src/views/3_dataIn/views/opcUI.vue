@@ -1439,7 +1439,7 @@ export default {
     },
 
     async submit(isSubmit) {
-      debugger
+      // debugger
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
@@ -1514,17 +1514,150 @@ export default {
         let reg = /\s+/g;
         dns = dns.replace(reg, "").trim();
         let querystr = "";
-        if (data.groups && isSubmit) {
+        if (data.groups) {
           for (let index = 0; index < data.groups.length; index++) {
             for (let g = 0; g < data.groups[index].params.length; g++) {
-              if (
-                Object.hasOwnProperty.call(
-                  data.groups[index].params[g],
-                  "required"
-                ) &&
-                (data.groups[index].params[g]["value"] == undefined ||
-                  data.groups[index].params[g]["value"] == "")
-              ) {
+              if (isSubmit) {
+                if (
+                  Object.hasOwnProperty.call(
+                    data.groups[index].params[g],
+                    "required"
+                  ) &&
+                  (data.groups[index].params[g]["value"] == undefined ||
+                    data.groups[index].params[g]["value"] == "")
+                ) {
+                  if (this.tagName == "mqtt" || this.tagName == "kafka") {
+                    if (data.groups[index].collapsed) {
+                      if (
+                        this.tagName == "mqtt" &&
+                        this.mqttcafile.length > 0 &&
+                        this.mqttcertfile.length > 0 &&
+                        this.mqttcertkeyfile.length > 0
+                      ) {
+                        if (data.groups[index].params[g].name == "ca") {
+                          querystr += `&${data.groups[index].params[g].name}=@${this.mqttcafile[0].response[0]}`;
+                        }
+                        if (data.groups[index].params[g].name == "cert") {
+                          querystr += `&${data.groups[index].params[g].name}=@${this.mqttcertfile[0].response[0]}`;
+                        }
+                        if (data.groups[index].params[g].name == "cert_key") {
+                          querystr += `&${data.groups[index].params[g].name}=@${this.mqttcertkeyfile[0].response[0]}&`;
+                        }
+                      } else {
+                        Message({
+                          type: "warning",
+                          message:
+                            this.$t("datasource.msg") +
+                            ":" +
+                            `${data.groups[index].params[g].display} `,
+                        });
+                        return;
+                      }
+                    }
+                    if (
+                      data.groups[index].params[g].name == "topics" &&
+                      this.tagName == "mqtt"
+                    ) {
+                      Message({
+                        type: "warning",
+                        message:
+                          this.$t("datasource.msg") +
+                          ":" +
+                          `${data.groups[index].params[g].display} `,
+                      });
+                      return;
+                    }
+                  } else {
+                    if (this.tagName.includes("opc")) {
+                      // if (this.opcPointavalible) {
+                      //   this.$refs.opcsingleton[0].submit();
+                      //   if (this.$refs.opcsingleton[0].isReject) {
+                      //     Message({
+                      //       type: "warning",
+                      //       message:
+                      //         this.$t("datasource.msg") +
+                      //         ":" +
+                      //         `${data.groups[index].params[g].display} `,
+                      //     });
+                      //     return;
+                      //   }
+                      // }
+                    } else {
+                      Message({
+                        type: "warning",
+                        message:
+                          this.$t("datasource.msg") +
+                          ":" +
+                          `${data.groups[index].params[g].display} `,
+                      });
+                      return;
+                    }
+                  }
+                } else {
+                  if (this.handleEmptyValue(data.groups[index].params[g].value)) {
+                    if (data.groups[index].params[g].name === "use_received_time") {
+                      if (data.groups[index].params[g].value !== 0) {
+                        let value = data.groups[index].params[g].value === 1;
+                        querystr +=
+                          `${data.groups[index].params[g].name}=${value}` + "&";
+                      }
+                    } else if (data.groups[index].params[g].name === "path") {
+                      if (!validPath(data.groups[index].params[g].value)) {
+                        Message({
+                          type: "warning",
+                          message:
+                            `${data.groups[index].params[g].display} ` +
+                            ":" +
+                            this.$t("formatWrong"),
+                        });
+                        return;
+                      } else {
+                        querystr +=
+                          `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
+                          "&";
+                      }
+                    } else {
+                      if (this.tagName == "mqtt") {
+                        if (
+                          !Object.hasOwnProperty.call(
+                            data.groups[index],
+                            "collapsed"
+                          ) ||
+                          data.groups[index].collapsed
+                        ) {
+                          querystr +=
+                            `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
+                            "&";
+                        }
+                      } else {
+                        if (
+                          data.groups[index].params[g].name != "opc_table_config"
+                        ) {
+                          if (
+                            // data.groups[index].params[g].name == "debug" ||
+                            data.groups[index].params[g].name == "use_csv_config"
+                            // data.groups[index].params[g].name == "enable"
+                          ) {
+                            querystr +=
+                              `${data.groups[index].params[g].name}=${
+                                data.groups[index].params[g].value == 1
+                                  ? true
+                                  : false
+                              }` + "&";
+                          } else {
+                            querystr +=
+                              `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
+                              "&";
+                          }
+                        }
+    
+                        // }
+                      }
+                    }
+                  }
+                }
+              } else {
+                // mqtt&kafka 需要 groups 中的部分参数
                 if (this.tagName == "mqtt" || this.tagName == "kafka") {
                   if (data.groups[index].collapsed) {
                     if (
@@ -1554,104 +1687,10 @@ export default {
                     }
                   }
                   if (
-                    data.groups[index].params[g].name == "topics" &&
+                    data.groups[index].params[g].name == "version" &&
                     this.tagName == "mqtt"
                   ) {
-                    Message({
-                      type: "warning",
-                      message:
-                        this.$t("datasource.msg") +
-                        ":" +
-                        `${data.groups[index].params[g].display} `,
-                    });
-                    return;
-                  }
-                } else {
-                  if (this.tagName.includes("opc")) {
-                    // if (this.opcPointavalible) {
-                    //   this.$refs.opcsingleton[0].submit();
-                    //   if (this.$refs.opcsingleton[0].isReject) {
-                    //     Message({
-                    //       type: "warning",
-                    //       message:
-                    //         this.$t("datasource.msg") +
-                    //         ":" +
-                    //         `${data.groups[index].params[g].display} `,
-                    //     });
-                    //     return;
-                    //   }
-                    // }
-                  } else {
-                    Message({
-                      type: "warning",
-                      message:
-                        this.$t("datasource.msg") +
-                        ":" +
-                        `${data.groups[index].params[g].display} `,
-                    });
-                    return;
-                  }
-                }
-              } else {
-                if (this.handleEmptyValue(data.groups[index].params[g].value)) {
-                  if (data.groups[index].params[g].name === "use_received_time") {
-                    if (data.groups[index].params[g].value !== 0) {
-                      let value = data.groups[index].params[g].value === 1;
-                      querystr +=
-                        `${data.groups[index].params[g].name}=${value}` + "&";
-                    }
-                  } else if (data.groups[index].params[g].name === "path") {
-                    if (!validPath(data.groups[index].params[g].value)) {
-                      Message({
-                        type: "warning",
-                        message:
-                          `${data.groups[index].params[g].display} ` +
-                          ":" +
-                          this.$t("formatWrong"),
-                      });
-                      return;
-                    } else {
-                      querystr +=
-                        `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
-                        "&";
-                    }
-                  } else {
-                    if (this.tagName == "mqtt") {
-                      if (
-                        !Object.hasOwnProperty.call(
-                          data.groups[index],
-                          "collapsed"
-                        ) ||
-                        data.groups[index].collapsed
-                      ) {
-                        querystr +=
-                          `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
-                          "&";
-                      }
-                    } else {
-                      if (
-                        data.groups[index].params[g].name != "opc_table_config"
-                      ) {
-                        if (
-                          // data.groups[index].params[g].name == "debug" ||
-                          data.groups[index].params[g].name == "use_csv_config"
-                          // data.groups[index].params[g].name == "enable"
-                        ) {
-                          querystr +=
-                            `${data.groups[index].params[g].name}=${
-                              data.groups[index].params[g].value == 1
-                                ? true
-                                : false
-                            }` + "&";
-                        } else {
-                          querystr +=
-                            `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
-                            "&";
-                        }
-                      }
-  
-                      // }
-                    }
+                    querystr += `&${data.groups[index].params[g].name}=${data.groups[index].params[g].value}`;
                   }
                 }
               }
