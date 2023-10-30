@@ -2024,6 +2024,7 @@ export default {
   // padding-left: 20px;
   justify-content: space-between;
   //   padding-right: 300px;
+  overflow-x:auto;
   display: flex;
   :deep {
     .el-input__inner {
@@ -2054,8 +2055,8 @@ export default {
   }
 
   .left-ui {
-    width: 50%;
     flex-shrink: 0;
+    width:800px;
     .description {
       max-width: 568px;
       overflow: auto;

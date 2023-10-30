@@ -2107,6 +2107,7 @@ export default {
 .source-ui {
   justify-content: space-between;
   display: flex;
+  overflow-x:auto;
   :deep {
     .el-input__inner {
       border: none !important;
@@ -2144,9 +2145,8 @@ export default {
   .left-ui {
     position: relative;
     overflow: auto;
-    width: 50%;
+    width:800px;
     flex-shrink: 0;
-
     .description {
       max-width: 568px;
       overflow: auto;

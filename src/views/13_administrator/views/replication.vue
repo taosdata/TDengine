@@ -12,6 +12,7 @@
       <el-table-column :label="$t('taosuser.toinstance')" prop="hostport" show-overflow-tooltip>
         <template slot-scope="scope">
         <copy-text :text="scope.row.hostport" isShowBtnText></copy-text>
+        <!-- {{ scope.row.hostport }} -->
         </template>
       </el-table-column>
       <!-- <el-table-column :label="$t('taosuser.todb')" prop="db" show-overflow-tooltip></el-table-column> -->
