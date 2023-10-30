@@ -271,13 +271,6 @@ int32_t onNormalTaskReady(SStreamTask* pTask) {
   ETaskStatus status = streamTaskGetStatus(pTask, &p);
   ASSERT(status == TASK_STATUS__READY);
 
-  // todo refactor: remove this later
-//  if (pTask->info.fillHistory == 1) {
-//    stDebug("s-task:%s fill-history is set normal when start it, try to remove it,set it task to be dropping", id);
-//    pTask->status.taskStatus = TASK_STATUS__DROPPING;
-//    ASSERT(pTask->hTaskInfo.id.taskId == 0);
-//  }
-
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     stDebug("s-task:%s no need to scan-history data, status:%s, sched-status:%d, ready for data from wal ver:%" PRId64,
             id, p, pTask->status.schedStatus, walReaderGetCurrentVer(pTask->exec.pWalReader));
