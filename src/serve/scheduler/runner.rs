@@ -4,6 +4,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
+    time::Duration,
 };
 
 use anyhow::bail;
@@ -119,6 +120,7 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<TaskOpts> {
 async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyhow::Result<()> {
     let state = task;
     let task = &state.task;
+    let task_id = task.id;
 
     let opts = task_opts_init(task).await?;
     tracing::info!("start worker");
@@ -136,43 +138,68 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
             .await?;
         let waiter = state.agent_waiter.as_ref().unwrap();
         let cancellation = opts.cancel.clone();
-        loop {
-            let mut recv = waiter.agent_activities.write().await;
-            tokio::select! {
-                _ = cancellation.cancelled() => {
-                    global.agent_runtime.push_action(agent_id, AgentAction::Stop(task.id)).await?;
-                    global.send_task_activity(TaskActivity::stop(task.id));
-                    break Ok(())
-                }
-                activity = recv.recv() => {
-                    match activity {
-                        Some(activity) => match activity.status.as_str() {
-                            "started" => {
-                                tracing::info!("task started");
-                            }
-                            "suspended" => {
-                                tracing::info!("task suspended");
-                                break Ok(());
-                            }
-                            "completed" => {
-                                tracing::info!("task completed");
-                                break Ok(());
-                            }
-                            "stopped" => {
-                                tracing::info!("task stopped");
-                                break Ok(());
-                            }
-                            "failed" => {
-                                tracing::info!("task failed");
-                                break Err(anyhow::anyhow!("{}", activity.activity));
-                            }
-                            status => {
-                                tracing::info!("task {}: {}", status, activity.activity);
-                            }
-                        },
-                        None => {
-                            break Err(anyhow::anyhow!("All agent activities sender dropped"));
+
+        let agent_activities = waiter.agent_activities.clone();
+
+        async fn agent_activities_listener(
+            agent_activities: Arc<RwLock<tokio::sync::mpsc::Receiver<TaskActivity>>>,
+        ) -> anyhow::Result<()> {
+            loop {
+                let mut recv = agent_activities.write().await;
+                match recv.recv().await {
+                    Some(activity) => match activity.status.as_str() {
+                        "started" => {
+                            tracing::info!("task started");
                         }
+                        "suspended" => {
+                            tracing::info!("task suspended");
+                            break Ok(());
+                        }
+                        "completed" => {
+                            tracing::info!("task completed");
+                            break Ok(());
+                        }
+                        "stopped" => {
+                            tracing::info!("task stopped");
+                            break Ok(());
+                        }
+                        "failed" => {
+                            tracing::info!("task failed");
+                            break Err(anyhow::anyhow!("{}", activity.activity));
+                        }
+                        status => {
+                            tracing::info!("task {}: {}", status, activity.activity);
+                        }
+                    },
+                    None => {
+                        break Err(anyhow::anyhow!("All agent activities sender dropped"));
+                    }
+                }
+            }
+        }
+
+        let todo = tokio::select! {
+            _ = cancellation.cancelled() => {
+                None
+            },
+            res = agent_activities_listener(agent_activities.clone())=> {
+                Some(res)
+            },
+        };
+
+        match todo {
+            Some(res) => return res,
+            None => {
+                // wait for agent receive timeout.
+                match tokio::time::timeout(
+                    Duration::from_secs(60 * 5),
+                    agent_activities_listener(agent_activities.clone()),
+                )
+                .await
+                {
+                    Ok(result) => return result,
+                    Err(_) => {
+                        bail!("Stopping task {} at agent {} timed out", task_id, agent_id);
                     }
                 }
             }
@@ -410,7 +437,10 @@ impl InnerState {
     pub fn is_final_state(&self) -> bool {
         matches!(
             self,
-            InnerState::Completed | InnerState::Stopped | InnerState::Failed(_) | InnerState::Stopping
+            InnerState::Completed
+                | InnerState::Stopped
+                | InnerState::Failed(_)
+                | InnerState::Stopping
         )
     }
 
