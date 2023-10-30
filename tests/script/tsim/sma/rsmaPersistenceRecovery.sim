@@ -5,7 +5,7 @@ sleep 50
 sql connect
 
 #todo wait for streamState checkpoint
-return 1
+#return 1
 
 print =============== create database with retentions
 sql create database d0 retentions -:7d,5m:21d,15m:365d;
