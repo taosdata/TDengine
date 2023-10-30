@@ -9,7 +9,7 @@ use dashmap::DashMap;
 use serde::Deserialize;
 use serde_with::serde_as;
 use taos::taos_query::tmq::Assignment;
-use taos::{AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
+use taos::{AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder, TmqBuilder};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
@@ -449,14 +449,15 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
                 "opentsdb" => runners::opentsdb::is_valid(&d).await,
                 "pi" => runners::pi::is_pi_valid(&d).await,
                 "pibackfill" => runners::pi::is_pi_backfill_valid(&d).await,
-                "taos" | "tmq" => is_valid(&d).await,
+                "taos" => is_taos_valid(&d).await,
+                "tmq" => is_tmq_valid(&d).await,
                 &_ => DataSourceValidation::unknown(),
             }
         }
     }
 }
 
-pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+pub async fn is_taos_valid(dsn: &Dsn) -> DataSourceValidation {
     let builder = TaosBuilder::from_dsn(dsn);
     match builder {
         Err(err) => DataSourceValidation::invalid(
@@ -496,6 +497,48 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
                             version: Some(v.to_string()),
                             message: None,
                         },
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
+    let builder = TmqBuilder::from_dsn(dsn);
+    match builder {
+        Err(err) => DataSourceValidation::invalid(
+            "tmq".to_string(),
+            format!(
+                "invalid dsn: {}, cause: {}", dsn.to_string(), err.to_string()
+            ),
+        ),
+        Ok(b) => {
+            let conn = b.build().await;
+            match conn {
+                Err(err) => DataSourceValidation::invalid(
+                    "tmq".to_string(),
+                    format!(
+                        "failed to connect to dsn: {}, cause: {}", dsn.to_string(), err.to_string()
+                    ),
+                ),
+                Ok(_c) => {
+                    let taos_builder = TaosBuilder::from_dsn(dsn);
+                    match taos_builder {
+                        Err(err) => DataSourceValidation::invalid("tmq".to_string(), format!("failed to get version, cause: {}", err.to_string())),
+                        Ok(builder) => {
+                            let server_version = builder.server_version().await;
+                            match server_version {
+                                Err(err) => DataSourceValidation::invalid("tmq".to_string(), format!("failed to get version, cause: {}", err.to_string())),
+                                Ok(version) => DataSourceValidation {
+                                    valid: true,
+                                    support: true,
+                                    data_source: "tmq".to_string(),
+                                    version: Some(version.to_string()),
+                                    message: None,
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -627,12 +670,12 @@ mod tests {
     #[tokio::test]
     async fn test_taos_valid() {
         // taos
-        let dsn = Dsn::from_str("taos+ws://192.168.1.92:6041").unwrap();
+        let dsn = Dsn::from_str("taos+ws://192.168.1.40:6041").unwrap();
         let dsv = validate_dsn(dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("taos", dsv.data_source);
-        assert_eq!("3.1.1.3", dsv.version.unwrap());
+        assert_eq!("2.6.0.27", dsv.version.unwrap());
     }
 
     #[ignore]
@@ -641,9 +684,23 @@ mod tests {
         // tmq
         let dsn = Dsn::from_str("tmq+ws://192.168.1.92:6041").unwrap();
         let dsv = validate_dsn(dsn).await;
+        assert_eq!(false, dsv.valid);
+        assert_eq!(false, dsv.support);
+        assert_eq!("tmq", dsv.data_source);
+        assert_eq!("invalid dsn: tmq+ws://192.168.1.92:6041, cause: Internal error: `requires parameter: group.id`", dsv.message.unwrap());
+
+        let dsn = Dsn::from_str("tmq+ws://192.168.1.92:6041?group.id=test_tmq_is_valid").unwrap();
+        let dsv = validate_dsn(dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
-        assert_eq!("taos", dsv.data_source);
+        assert_eq!("tmq", dsv.data_source);
         assert_eq!("3.1.1.3", dsv.version.unwrap());
+
+        let dsn = Dsn::from_str("tmq+ws://192.168.1.40:6041?group.id=test_tmq_is_valid").unwrap();
+        let dsv = validate_dsn(dsn).await;
+        assert_eq!(false, dsv.valid);
+        assert_eq!(false, dsv.support);
+        assert_eq!("tmq", dsv.data_source);
+        assert_eq!("failed to connect to dsn: tmq+ws://192.168.1.40:6041?group.id=test_tmq_is_valid, cause: HTTP error: 404 Not Found", dsv.message.unwrap());
     }
 }
