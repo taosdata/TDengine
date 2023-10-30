@@ -182,9 +182,17 @@ class TDTestCase:
     def test_create_databases(self):
         for err_sql in self.create_databases_sql_err:
             tdSql.error(err_sql)
+        index = 0
         for cur_sql in self.create_databases_sql_current:
             tdSql.execute(cur_sql)
-            # tdSql.query("select * from information_schema.ins_databases")
+            if(index == 0):
+                tdSql.query(f"show create database {DB1}")
+            else:
+                tdSql.query(f"show create database {DB2}")
+            tdSql.checkEqual(len(tdSql.queryResult),1)
+            tdLog.info("%s" % (tdSql.queryResult[0][1]))
+            tdSql.checkEqual(tdSql.queryResult[0][1].find("RETENTIONS -:") > 0, True)
+            index += 1
         for alter_sql in self.alter_database_sql:
             tdSql.error(alter_sql)
 
