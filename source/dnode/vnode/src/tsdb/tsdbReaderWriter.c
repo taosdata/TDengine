@@ -131,7 +131,7 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD) {
   }
 
   if (pFD->s3File) {
-    tsdbWarn("%s file:%d", __func__, pFD->path);
+    tsdbWarn("%s file: %s", __func__, pFD->path);
     return code;
   }
   if (pFD->pgno > 0) {
@@ -287,7 +287,7 @@ int32_t tsdbFsyncFile(STsdbFD *pFD) {
   int32_t code = 0;
 
   if (pFD->s3File) {
-    tsdbWarn("%s file:%d", __func__, pFD->path);
+    tsdbWarn("%s file: %s", __func__, pFD->path);
     return code;
   }
   code = tsdbWriteFilePage(pFD);
