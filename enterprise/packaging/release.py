@@ -28,7 +28,7 @@ enterpriseDir = os.path.join(topDir, 'enterprise')
 # TDinternal/community/debug
 compileDir = os.path.join(communityDir, 'debug')
 
-buildTime = time.strftime("%Y-%m-%d %H:%M", time.localtime())
+buildTime = time.strftime("%Y-%m-%d %H:%M:%S %z", time.localtime())
 
 # internalGitInfo = getGitHead(topDir, "TDinternal")
 # communityGitInfo = getGitHead(communityDir, "Community(TDengine)")
