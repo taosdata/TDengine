@@ -15,12 +15,12 @@
 
 #define _DEFAULT_SOURCE
 #include "tglobal.h"
+#include "defines.h"
 #include "os.h"
 #include "tconfig.h"
 #include "tgrant.h"
 #include "tlog.h"
 #include "tmisce.h"
-#include "defines.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -98,9 +98,10 @@ int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 
 // audit
-bool     tsEnableAudit = false;
+bool     tsEnableAudit = true;
 char     tsAuditFqdn[TSDB_FQDN_LEN] = {0};
 uint16_t tsAuditPort = 6043;
+bool     tsEnableAuditCreateTable = true;
 
 // telem
 bool     tsEnableTelem = true;
@@ -222,7 +223,7 @@ float    tsFPrecision = 1E-8;                   // float column precision
 double   tsDPrecision = 1E-16;                  // double column precision
 uint32_t tsMaxRange = 500;                      // max quantization intervals
 uint32_t tsCurRange = 100;                      // current quantization intervals
-bool     tsIfAdtFse = false;                     // ADT-FSE algorithom or original huffman algorithom
+bool     tsIfAdtFse = false;                    // ADT-FSE algorithom or original huffman algorithom
 char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 
 // udf
@@ -267,6 +268,9 @@ char   tsS3BucketName[TSDB_FQDN_LEN] = "<bucketname>";
 char   tsS3AppId[TSDB_FQDN_LEN] = "<appid>";
 int8_t tsS3Enabled = false;
 
+int8_t tsS3Https = true;
+char   tsS3Hostname[TSDB_FQDN_LEN] = "<hostname>";
+
 int32_t tsS3BlockSize = 4096;     // number of tsdb pages
 int32_t tsS3BlockCacheSize = 16;  // number of blocks
 
@@ -308,6 +312,14 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   tstrncpy(tsS3AccessKeySecret, colon + 1, TSDB_FQDN_LEN);
   tstrncpy(tsS3Endpoint, cfgGetItem(pCfg, "s3Endpoint")->str, TSDB_FQDN_LEN);
   tstrncpy(tsS3BucketName, cfgGetItem(pCfg, "s3BucketName")->str, TSDB_FQDN_LEN);
+  char *proto = strstr(tsS3Endpoint, "https://");
+  if (!proto) {
+    tsS3Https = false;
+    tstrncpy(tsS3Hostname, tsS3Endpoint + 7, TSDB_FQDN_LEN);
+  } else {
+    tstrncpy(tsS3Hostname, tsS3Endpoint + 8, TSDB_FQDN_LEN);
+  }
+
   char *cos = strstr(tsS3Endpoint, "cos.");
   if (cos) {
     char *appid = strrchr(tsS3BucketName, '-');
@@ -319,7 +331,7 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
     }
   }
   if (tsS3BucketName[0] != '<' && tsDiskCfgNum > 1) {
-#ifdef USE_COS
+#if defined(USE_COS) || defined(USE_S3)
     tsS3Enabled = true;
 #endif
   }
@@ -621,6 +633,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "audit", tsEnableAudit, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddString(pCfg, "auditFqdn", tsAuditFqdn, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "auditPort", tsAuditPort, 1, 65056, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddBool(pCfg, "auditCreateTable", tsEnableAuditCreateTable, CFG_SCOPE_SERVER) != 0) return -1;
 
   if (cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddBool(pCfg, "telemetryReporting", tsEnableTelem, CFG_SCOPE_BOTH) != 0) return -1;
@@ -1039,6 +1052,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsEnableAudit = cfgGetItem(pCfg, "audit")->bval;
   tstrncpy(tsAuditFqdn, cfgGetItem(pCfg, "auditFqdn")->str, TSDB_FQDN_LEN);
   tsAuditPort = (uint16_t)cfgGetItem(pCfg, "auditPort")->i32;
+  tsEnableAuditCreateTable = cfgGetItem(pCfg, "auditCreateTable")->bval;
 
   tsEnableTelem = cfgGetItem(pCfg, "telemetryReporting")->bval;
   tsEnableCrashReport = cfgGetItem(pCfg, "crashReporting")->bval;
@@ -1090,7 +1104,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsCurRange = cfgGetItem(pCfg, "CurRange")->i32;
   tsIfAdtFse = cfgGetItem(pCfg, "IfAdtFse")->bval;
   tstrncpy(tsCompressor, cfgGetItem(pCfg, "Compressor")->str, sizeof(tsCompressor));
-
 
   tsDisableStream = cfgGetItem(pCfg, "disableStream")->bval;
   tsStreamBufferSize = cfgGetItem(pCfg, "streamBufferSize")->i64;
@@ -1680,14 +1693,14 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     }
     return;
   }
-
+  /* cannot alter s3BlockSize
   if (strcasecmp(option, "s3BlockSize") == 0) {
     int32_t newS3BlockSize = atoi(value);
     uInfo("s3BlockSize set from %d to %d", tsS3BlockSize, newS3BlockSize);
     tsS3BlockSize = newS3BlockSize;
     return;
   }
-
+  */
   if (strcasecmp(option, "s3BlockCacheSize") == 0) {
     int32_t newS3BlockCacheSize = atoi(value);
     uInfo("s3BlockCacheSize set from %d to %d", tsS3BlockCacheSize, newS3BlockCacheSize);

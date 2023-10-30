@@ -128,10 +128,42 @@ option(
 IF(${TD_LINUX})
 
 option(
-    BUILD_WITH_COS
-    "If build with cos"
+    BUILD_S3
+    "If build with s3"
     ON
 )
+
+option(
+    BUILD_WITH_S3
+    "If build with s3"
+    ON
+)
+
+option(
+    BUILD_WITH_COS
+    "If build with cos"
+    OFF
+)
+
+ENDIF ()
+
+IF(${BUILD_S3})
+
+IF(${BUILD_WITH_S3})
+
+option(BUILD_WITH_COS "If build with cos" OFF)
+
+ELSE ()
+
+option(BUILD_WITH_COS "If build with cos" ON)
+
+ENDIF ()
+
+ELSE ()
+
+option(BUILD_WITH_S3 "If build with s3" OFF)
+
+option(BUILD_WITH_COS "If build with cos" OFF)
 
 ENDIF ()
 

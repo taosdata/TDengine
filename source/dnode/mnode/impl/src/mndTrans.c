@@ -428,6 +428,8 @@ static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans) {
   mInfo("trans:%d, perform insert action, row:%p stage:%s, callfunc:1, startFunc:%d", pTrans->id, pTrans,
         mndTransStr(pTrans->stage), pTrans->startFunc);
 
+  taosThreadMutexInit(&pTrans->mutex, NULL);
+
   if (pTrans->startFunc > 0) {
     TransCbFp fp = mndTransGetCbFp(pTrans->startFunc);
     if (fp) {
@@ -543,10 +545,6 @@ STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId) {
   STrans *pTrans = sdbAcquire(pMnode->pSdb, SDB_TRANS, &transId);
   if (pTrans == NULL) {
     terrno = TSDB_CODE_MND_TRANS_NOT_EXIST;
-  } else {
-    #ifdef WINDOWS
-    taosThreadMutexInit(&pTrans->mutex, NULL);
-    #endif
   }
   return pTrans;
 }

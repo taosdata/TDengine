@@ -126,7 +126,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INVALID_FIRST_COLUMN:
       return "First column must be timestamp";
     case TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN:
-      return "Invalid binary/nchar column length";
+      return "Invalid column length for var length type";
     case TSDB_CODE_PAR_INVALID_TAGS_NUM:
       return "Invalid number of tag columns";
     case TSDB_CODE_PAR_INVALID_INTERNAL_PK:

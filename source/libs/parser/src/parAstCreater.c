@@ -1439,6 +1439,10 @@ SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType 
   if (!checkColumnName(pCxt, pColName) || !checkComment(pCxt, pComment, false)) {
     return NULL;
   }
+  if (IS_VAR_DATA_TYPE(dataType.type) && dataType.bytes == 0) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
+    return NULL;
+  }
   SColumnDefNode* pCol = (SColumnDefNode*)nodesMakeNode(QUERY_NODE_COLUMN_DEF);
   CHECK_OUT_OF_MEM(pCol);
   COPY_STRING_FORM_ID_TOKEN(pCol->colName, pColName);
