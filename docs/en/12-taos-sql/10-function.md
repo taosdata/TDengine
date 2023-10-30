@@ -539,7 +539,7 @@ TO_CHAR(ts, format_str_literal)
 - When `ms`,`us`,`ns` are used in `to_char`, like `to_char(ts, 'yyyy-mm-dd hh:mi:ss.ms.us.ns')`, The time of `ms`,`us`,`ns` corresponds to the same fraction seconds. When ts is `1697182085123`, the output of `ms` is `123`, `us` is `123000`, `ns` is `123000000`.
 - If we want to output some characters of format without converting, surround it with double quotes. `to_char(ts, 'yyyy-mm-dd "is formated by yyyy-mm-dd"')`. If want to output double quotes, add a back slash before double quote, like `to_char(ts, '\"yyyy-mm-dd\"')` will output `"2023-10-10"`.
 - For formats that output digits, the uppercase and lowercase formats are the same.
-- The local time zone will be used to convert the timestamp.
+- It's recommended to put time zone in the format, if not, the default time zone zone will be that in server or client.
 
 #### TO_TIMESTAMP
 
