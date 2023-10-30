@@ -26,11 +26,11 @@ int32_t getViewQuerySqlUser(STranslateContext* pCxt, SName* pName, char** queryS
   SViewMeta* pViewMeta = NULL;
   int32_t     code = getViewMetaFromMetaCache(pCxt, pName, &pViewMeta);
   if (TSDB_CODE_SUCCESS == code) {
-    *querySql = strdup(pViewMeta->querySql);
+    *querySql = tstrdup(pViewMeta->querySql);
     if (NULL == *querySql) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    *user = strdup(pViewMeta->user);
+    *user = tstrdup(pViewMeta->user);
     if (NULL == *user) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -40,15 +40,30 @@ int32_t getViewQuerySqlUser(STranslateContext* pCxt, SName* pName, char** queryS
  
 int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName) {
    SRealTableNode* pRealTable = (SRealTableNode*)*pTable;
+   SParseContext* pParseCxt = pCxt->pParseCxt;
    char* querySql = NULL;
    char* user = NULL;
+   SNode* pQuery = NULL;
    SParseSqlRes res = {.resType = PARSE_SQL_RES_QUERY};
    int32_t code = getViewQuerySqlUser(pCxt, pName, &querySql, &user);
    if (TSDB_CODE_SUCCESS != code) {
      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
      goto _exit;
    }
+   parserDebug("translate view %d.%s.%s, querySQL:%s, effectiveUser:%s", pName->acctId, pName->dbname, pName->tname, querySql, user);
    code = (*pCxt->pParseCxt->parseSqlFp)(pCxt->pParseCxt->parseSqlParam, pName->dbname, querySql, true, user, &res);
+
+   TSWAP(pQuery, res.queryRes.pQuery);
+   if (NULL == pParseCxt->pSubMetaList) {
+     pParseCxt->pSubMetaList = taosArrayInit(4, sizeof(res.queryRes));
+     if (NULL == pParseCxt->pSubMetaList) {
+       code = TSDB_CODE_OUT_OF_MEMORY;
+       tfreeSParseQueryRes(&res.queryRes);
+       goto _exit;
+     }
+   }
+   taosArrayPush(pParseCxt->pSubMetaList, &res.queryRes);
+
    if (TSDB_CODE_SUCCESS != code) {
      goto _exit;
    }
@@ -56,19 +71,20 @@ int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName) {
    if (TSDB_CODE_SUCCESS != code) {
      goto _exit;
    }
+
    STempTableNode* tempTable = (STempTableNode*)nodesMakeNode(QUERY_NODE_TEMP_TABLE);
    if (NULL == tempTable) {
      code = TSDB_CODE_OUT_OF_MEMORY;
      goto _exit;
    }
    tstrncpy(tempTable->table.tableAlias, pRealTable->table.tableAlias, sizeof(tempTable->table.tableAlias));
-   if (QUERY_NODE_SELECT_STMT == nodeType(res.queryRes.pQuery)) {
-     strcpy(((SSelectStmt*)res.queryRes.pQuery)->stmtName, tempTable->table.tableAlias);
-     ((SSelectStmt*)res.queryRes.pQuery)->isSubquery = true;
-   } else if (QUERY_NODE_SET_OPERATOR == nodeType(res.queryRes.pQuery)) {
-     strcpy(((SSetOperator*)res.queryRes.pQuery)->stmtName, tempTable->table.tableAlias);
+   if (QUERY_NODE_SELECT_STMT == nodeType(pQuery)) {
+     strcpy(((SSelectStmt*)pQuery)->stmtName, tempTable->table.tableAlias);
+     ((SSelectStmt*)pQuery)->isSubquery = true;
+   } else if (QUERY_NODE_SET_OPERATOR == nodeType(pQuery)) {
+     strcpy(((SSetOperator*)pQuery)->stmtName, tempTable->table.tableAlias);
    }
-   TSWAP(tempTable->pSubquery, res.queryRes.pQuery);
+   TSWAP(tempTable->pSubquery, pQuery);
    nodesDestroyNode(*pTable);
    *pTable = (SNode*)tempTable;
  
@@ -78,7 +94,7 @@ int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName) {
  
    taosMemoryFree(querySql);
    taosMemoryFree(user);
-   nodesDestroyNode(res.queryRes.pQuery);
+   nodesDestroyNode(pQuery);
    
    return code;
 }

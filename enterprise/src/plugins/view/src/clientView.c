@@ -25,26 +25,32 @@ static int32_t buildParseSqlRes(SRequestObj* pRequest, SParseSqlRes* pRes) {
   switch (pRes->resType) {
     case PARSE_SQL_RES_QUERY: {
       SParseQueryRes* pQueryRes = &pRes->queryRes;
-      SSqlCallbackWrapper *pWrapper = pRequest->pWrapper;
-      pQueryRes->pQuery = nodesCloneNode(pRequest->pQuery->pRoot);
-      if (NULL == pQueryRes->pQuery) {
-         return TSDB_CODE_OUT_OF_MEMORY;
+      if (NULL != pRequest->pQuery) {
+        pQueryRes->pQuery = nodesCloneNode(pRequest->pQuery->pRoot);
+        if (NULL == pQueryRes->pQuery) {
+           return TSDB_CODE_OUT_OF_MEMORY;
+        }
       }
-      TSWAP(pQueryRes->pCatalogReq, pWrapper->pCatalogReq);
+      if (NULL != pRequest->pWrapper) {
+        SSqlCallbackWrapper *pWrapper = pRequest->pWrapper;
+        TSWAP(pQueryRes->pCatalogReq, pWrapper->pCatalogReq);
+      }
       memcpy(&pQueryRes->meta, &pRequest->parseMeta, sizeof(pRequest->parseMeta));
       memset(&pRequest->parseMeta, 0, sizeof(pRequest->parseMeta));
       break;
     } 
     case PARSE_SQL_RES_SCHEMA: {
-      SQuery* pQuery = pRequest->pQuery;
-      SParseSchemaRes* pSchemaRes = &pRes->schemaRes;
-      pSchemaRes->numOfCols = pQuery->numOfResCols;
-      pSchemaRes->precision = pQuery->precision;
-      pSchemaRes->pSchema = taosMemoryMalloc(pQuery->numOfResCols * sizeof(SSchema));
-      if (NULL == pSchemaRes->pSchema) {
-        code = terrno = TSDB_CODE_OUT_OF_MEMORY;
-      } else {
-        memcpy(pSchemaRes->pSchema, pQuery->pResSchema, pQuery->numOfResCols * sizeof(SSchema));
+      if (NULL != pRequest->pQuery) {
+        SQuery* pQuery = pRequest->pQuery;
+        SParseSchemaRes* pSchemaRes = &pRes->schemaRes;
+        pSchemaRes->numOfCols = pQuery->numOfResCols;
+        pSchemaRes->precision = pQuery->precision;
+        pSchemaRes->pSchema = taosMemoryMalloc(pQuery->numOfResCols * sizeof(SSchema));
+        if (NULL == pSchemaRes->pSchema) {
+          code = terrno = TSDB_CODE_OUT_OF_MEMORY;
+        } else {
+          memcpy(pSchemaRes->pSchema, pQuery->pResSchema, pQuery->numOfResCols * sizeof(SSchema));
+        }
       }
       break;
     }
@@ -69,11 +75,11 @@ int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, boo
    }
 
    if (NULL != effeciveUser) {
-     pNewRequest->effectiveUser = strdup(effeciveUser);
+     pNewRequest->effectiveUser = tstrdup(effeciveUser);
    }
 
    taosMemoryFree(pNewRequest->pDb);
-   pNewRequest->pDb = strdup(dbName);
+   pNewRequest->pDb = tstrdup(dbName);
    pNewRequest->parseOnly = parseOnly;
    pNewRequest->body.queryFp = syncQueryFn;
  
@@ -88,9 +94,12 @@ int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, boo
    code = pNewRequest->code;
    pRequest->code = code;
  
-   if (TSDB_CODE_SUCCESS == code && NULL != pNewRequest->pQuery) {
-     code = buildParseSqlRes(pNewRequest, pRes);
-   } else if (0 != pNewRequest->msgBuf[0]) {
+   code = buildParseSqlRes(pNewRequest, pRes);
+   if (TSDB_CODE_SUCCESS != code && TSDB_CODE_SUCCESS == pRequest->code) {
+     pRequest->code = code;
+   }
+   
+   if (0 != pNewRequest->msgBuf[0]) {
      strncpy(pRequest->msgBuf, pNewRequest->msgBuf, pRequest->msgBufLen - 1);
      pRequest->msgBuf[pRequest->msgBufLen - 1] = 0;
    }
@@ -98,6 +107,6 @@ int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, boo
    freeQueryParam(syncParam);
    destroyRequest(pNewRequest);
    
-   return code;
+   return pRequest->code;
 }
 
