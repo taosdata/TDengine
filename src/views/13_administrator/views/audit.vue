@@ -41,13 +41,13 @@
           <el-form-item>
             <el-button @click="handlePageReset()">{{ $t("reset") }}</el-button>
           </el-form-item>
-          <el-form-item>
-            <el-button :disabled="requestIng" @click="exportFile"
-              >{{ $t("console.export") }}
-            </el-button>
-          </el-form-item>
         </section>
       </el-form>
+      <div style="margin-bottom: 18px">
+        <el-button :disabled="requestIng" @click="exportFile" size='mini'
+          >{{ $t("console.export") }}
+        </el-button>
+      </div>
     </section>
     <!-- <div class="flexEnd">
       <el-button
