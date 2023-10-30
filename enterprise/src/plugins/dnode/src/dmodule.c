@@ -509,77 +509,8 @@ bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   return required;
 }
 
-int32_t dmInitVars(SDnode *pDnode) {
-  SDnodeData *pData = &pDnode->data;
-  pData->dnodeId = 0;
-  pData->clusterId = 0;
-  pData->dnodeVer = 0;
-  pData->engineVer = 0;
-  pData->updateTime = 0;
-  pData->rebootTime = taosGetTimestampMs();
-  pData->dropped = 0;
-  pData->stopped = 0;
-
-  pData->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
-  if (pData->dnodeHash == NULL) {
-    dError("failed to init dnode hash");
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  if (dmReadEps(pData) != 0) {
-    dError("failed to read file since %s", terrstr());
-    return -1;
-  }
-
-  if (pData->dropped) {
-    dError("dnode will not start since its already dropped");
-    return -1;
-  }
-
-  taosThreadRwlockInit(&pData->lock, NULL);
-  taosThreadMutexInit(&pDnode->mutex, NULL);
-  return 0;
-}
-
-void dmClearVars(SDnode *pDnode) {
-  for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
-    taosMemoryFreeClear(pWrapper->path);
-    taosThreadRwlockDestroy(&pWrapper->lock);
-  }
-  if (pDnode->lockfile != NULL) {
-    taosUnLockFile(pDnode->lockfile);
-    taosCloseFile(&pDnode->lockfile);
-    pDnode->lockfile = NULL;
-  }
-
-  SDnodeData *pData = &pDnode->data;
-  taosThreadRwlockWrlock(&pData->lock);
-  if (pData->oldDnodeEps != NULL) {
-    if (dmWriteEps(pData) == 0) {
-      dmRemoveDnodePairs(pData);
-    }
-    taosArrayDestroy(pData->oldDnodeEps);
-    pData->oldDnodeEps = NULL;
-  }
-  if (pData->dnodeEps != NULL) {
-    taosArrayDestroy(pData->dnodeEps);
-    pData->dnodeEps = NULL;
-  }
-  if (pData->dnodeHash != NULL) {
-    taosHashCleanup(pData->dnodeHash);
-    pData->dnodeHash = NULL;
-  }
-  taosThreadRwlockUnlock(&pData->lock);
-
-  taosThreadRwlockDestroy(&pData->lock);
-  taosThreadMutexDestroy(&pDnode->mutex);
-  memset(&pDnode->mutex, 0, sizeof(pDnode->mutex));
-}
-
 // invoker
-int32_t dmInitModule(SDnode *pDnode) {
+int32_t dmInitModule(SDnode *pDnode, SMgmtWrapper *wrappers) {
   int32_t code = -1;
 
   if (dmInitPrerequisites() != 0) {
@@ -590,7 +521,11 @@ int32_t dmInitModule(SDnode *pDnode) {
     goto _err;
   }
 
-  if (dmInitMsgHandle(pDnode) != 0) {
+  int32_t transOffset = POINTER_DISTANCE(&pDnode->trans, pDnode);
+
+  ASSERTS(168 == abs(transOffset), "trans offset is %d", transOffset);
+
+  if (dmInitMsgHandle(pDnode, wrappers) != 0) {
     dError("failed to init msg handles since %s", terrstr());
     goto _err;
   }
