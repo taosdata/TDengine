@@ -97,7 +97,11 @@ int32_t       dmMarkWrapper(SMgmtWrapper *pWrapper);
 void          dmReleaseWrapper(SMgmtWrapper *pWrapper);
 int32_t       dmInitVars(SDnode *pDnode);
 void          dmClearVars(SDnode *pDnode);
+#if defined(TD_MODULE_OPTIMIZE) || !defined(TD_ENTERPRISE)
+int32_t       dmInitModule(SDnode *pDnode, SMgmtWrapper *wrappers);
+#else
 int32_t       dmInitModule(SDnode *pDnode);
+#endif
 bool          dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper);
 SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper);
 void          dmSetStatus(SDnode *pDnode, EDndRunStatus stype);
@@ -119,7 +123,11 @@ int32_t dmInitStatusClient(SDnode *pDnode);
 void    dmCleanupClient(SDnode *pDnode);
 void    dmCleanupStatusClient(SDnode *pDnode);
 SMsgCb  dmGetMsgcb(SDnode *pDnode);
+#if defined(TD_MODULE_OPTIMIZE) || !defined(TD_ENTERPRISE)
+int32_t dmInitMsgHandle(SDnode *pDnode, SMgmtWrapper *wrappers);
+#else
 int32_t dmInitMsgHandle(SDnode *pDnode);
+#endif
 int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 
 // dmMonitor.c

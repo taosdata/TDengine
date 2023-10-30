@@ -1568,6 +1568,9 @@ typedef struct {
 typedef struct {
   int32_t id;
   int8_t  isMnode;
+#ifdef TD_GRANT_HB_OPTIMIZE
+  int8_t  offlineReason;
+#endif
   SEp     ep;
   char    active[TSDB_ACTIVE_KEY_LEN];
   char    connActive[TSDB_CONN_ACTIVE_KEY_LEN];
