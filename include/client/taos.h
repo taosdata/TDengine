@@ -307,6 +307,7 @@ DLL_EXPORT int32_t   tmq_offset_seek(tmq_t *tmq, const char *pTopicName, int32_t
 DLL_EXPORT int64_t   tmq_position(tmq_t *tmq, const char *pTopicName, int32_t vgId);  // The current offset is the offset of the last consumed message + 1
 DLL_EXPORT int64_t   tmq_committed(tmq_t *tmq, const char *pTopicName, int32_t vgId);
 
+DLL_EXPORT TAOS       *tmq_get_connect(tmq_t *tmq);
 DLL_EXPORT const char *tmq_get_topic_name(TAOS_RES *res);
 DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
 DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
