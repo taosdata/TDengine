@@ -1200,8 +1200,8 @@ static bool bufferDataInFileBlockGap(int32_t order, TSDBKEY keyInBuf, SFileDataB
   bool    ascScan = ASCENDING_TRAVERSE(order);
   int64_t key = ascScan? MIN(pBlock->record.firstKey, keyInStt):MAX(pBlock->record.lastKey, keyInStt);
 
-  return (ascScan && (keyInBuf.ts != TSKEY_INITIAL_VAL && keyInBuf.ts <= key)) ||
-         (!ascScan && (keyInBuf.ts != TSKEY_INITIAL_VAL && keyInBuf.ts >= key));
+  return (ascScan && (keyInBuf.ts != TSKEY_INITIAL_VAL && keyInBuf.ts < key)) ||
+         (!ascScan && (keyInBuf.ts != TSKEY_INITIAL_VAL && keyInBuf.ts > key));
 }
 
 static bool keyOverlapFileBlock(TSDBKEY key, SFileDataBlockInfo* pBlock, SVersionRange* pVerRange) {
