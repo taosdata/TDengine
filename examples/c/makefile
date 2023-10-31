@@ -17,7 +17,6 @@ exe:
 	gcc $(CFLAGS) ./stream_demo.c -o $(ROOT)stream_demo $(LFLAGS)
 	gcc $(CFLAGS) ./tmq.c -o $(ROOT)tmq $(LFLAGS)
 	gcc $(CFLAGS) ./schemaless.c -o $(ROOT)schemaless $(LFLAGS)
-	gcc $(CFLAGS) ./insert_stb.c -o $(ROOT)insert_stb $(LFLAGS)
 
 clean:
 	rm $(ROOT)asyncdemo
@@ -26,4 +25,3 @@ clean:
 	rm $(ROOT)stream_demo
 	rm $(ROOT)tmq
 	rm $(ROOT)schemaless
-	rm $(ROOT)insert_stb
