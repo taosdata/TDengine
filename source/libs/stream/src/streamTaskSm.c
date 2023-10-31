@@ -117,9 +117,12 @@ static STaskStateTrans* streamTaskFindTransform(ETaskStatus state, const EStream
 
   if (event == TASK_EVENT_CHECKPOINT_DONE && state == TASK_STATUS__STOP) {
 
+  } else if (event == TASK_EVENT_GEN_CHECKPOINT && state == TASK_STATUS__UNINIT) {
+    // the task is set to uninit due to nodeEpset update, during processing checkpoint-trigger block.
   } else {
     ASSERT(0);
   }
+
   return NULL;
 }
 
@@ -236,7 +239,7 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
       if (pTrans == NULL) {
         stDebug("s-task:%s failed to handle event:%s", pTask->id.idStr, StreamTaskEventList[event].name);
         taosThreadMutexUnlock(&pTask->lock);
-        return -1;
+        return TSDB_CODE_INVALID_PARA;  // todo: set new error code// failed to handle the event.
       }
 
       if (pSM->pActiveTrans != NULL) {

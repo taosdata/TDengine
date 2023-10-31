@@ -175,7 +175,11 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
   // set task status
   if (streamTaskGetStatus(pTask, NULL) != TASK_STATUS__CK) {
     pTask->checkpointingId = checkpointId;
-    streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_GEN_CHECKPOINT);
+    code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_GEN_CHECKPOINT);
+    if (code != TSDB_CODE_SUCCESS) {
+      stError("s-task:%s handle checkpoint-trigger block failed, code:%s", id, tstrerror(code));
+      return code;
+    }
   }
 
   { // todo: remove this when the pipeline checkpoint generating is used.
