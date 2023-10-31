@@ -24,7 +24,7 @@ static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask);
 
 bool streamTaskShouldStop(const SStreamTask* pTask) {
   ETaskStatus s = streamTaskGetStatus(pTask, NULL);
-  return (s == TASK_STATUS__STOP) || (s == TASK_STATUS__DROPPING);
+  return (s == TASK_STATUS__STOP) || (s == TASK_STATUS__DROPPING) || (s == TASK_STATUS__UNINIT);
 }
 
 bool streamTaskShouldPause(const SStreamTask* pTask) {
