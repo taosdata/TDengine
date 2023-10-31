@@ -206,6 +206,7 @@ typedef struct {
   bool     usbDongle;
   bool     officialVersion;
   int8_t   flag;
+  int32_t  dnodeId;
   uint32_t expireTimeSec;
   uint32_t limitStorage;
   uint32_t limitSpeed;
