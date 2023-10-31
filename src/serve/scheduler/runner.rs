@@ -1,7 +1,7 @@
 use std::{
     fmt::{Debug, Display},
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU8, Ordering},
         Arc,
     },
     time::Duration,
@@ -16,7 +16,7 @@ use taosx_core::{get_data_dir, utils::port_pool::PortPool, ConnectorLicense, Dat
 use tokio::sync::{oneshot, Mutex, RwLock};
 use tokio_cron_scheduler::JobScheduler;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, instrument, Instrument};
+use tracing::{error, info, instrument, warn, Instrument};
 use uuid::Uuid;
 
 use crate::serve::controller::{
@@ -118,6 +118,7 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<TaskOpts> {
 }
 
 async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyhow::Result<()> {
+    let _ = task.span.clone().entered();
     let state = task;
     let task = &state.task;
     let task_id = task.id;
@@ -129,48 +130,64 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
     let _ = std::env::set_current_dir(&path);
     let instant = std::time::Instant::now();
     let res = if let Some(agent_id) = task.via {
-        if !global.agent_runtime.agent_is_alive(agent_id).await {
-            bail!("Agent {} is not alive", agent_id);
+        let mut waiting = 0;
+        loop {
+            if global.agent_runtime.agent_is_alive(agent_id).await {
+                break;
+            }
+
+            warn!("Agent {} is not alive, waiting...", agent_id);
+            global.send_task_activity(TaskActivity::waiting(task_id, "Waiting for agent..."));
+            tokio::time::sleep(Duration::from_secs(1) * waiting).await;
+            if waiting < 10 {
+                waiting += 1;
+            }
         }
+        tracing::debug!("Agent {} is alive, sending command run", agent_id);
         global
             .agent_runtime
             .push_action(agent_id, AgentAction::Run(task.id))
             .await?;
+        tracing::debug!("Command run sending ok");
         let waiter = state.agent_waiter.as_ref().unwrap();
         let cancellation = opts.cancel.clone();
 
         let agent_activities = waiter.agent_activities.clone();
 
         async fn agent_activities_listener(
+            global: &GlobalState,
             agent_activities: Arc<RwLock<tokio::sync::mpsc::Receiver<TaskActivity>>>,
         ) -> anyhow::Result<()> {
             loop {
                 let mut recv = agent_activities.write().await;
                 match recv.recv().await {
-                    Some(activity) => match activity.status.as_str() {
-                        "started" => {
-                            tracing::info!("task started");
+                    Some(activity) => {
+                        global.send_task_activity(activity.clone());
+                        match activity.status.as_str() {
+                            "started" => {
+                                tracing::info!("task started");
+                            }
+                            "suspended" => {
+                                tracing::info!("task suspended");
+                                break Ok(());
+                            }
+                            "completed" => {
+                                tracing::info!("task completed");
+                                break Ok(());
+                            }
+                            "stopped" => {
+                                tracing::info!("task stopped");
+                                break Ok(());
+                            }
+                            "failed" => {
+                                tracing::info!("task failed");
+                                break Err(anyhow::anyhow!("{}", activity.activity));
+                            }
+                            status => {
+                                tracing::info!("task {}: {}", status, activity.activity);
+                            }
                         }
-                        "suspended" => {
-                            tracing::info!("task suspended");
-                            break Ok(());
-                        }
-                        "completed" => {
-                            tracing::info!("task completed");
-                            break Ok(());
-                        }
-                        "stopped" => {
-                            tracing::info!("task stopped");
-                            break Ok(());
-                        }
-                        "failed" => {
-                            tracing::info!("task failed");
-                            break Err(anyhow::anyhow!("{}", activity.activity));
-                        }
-                        status => {
-                            tracing::info!("task {}: {}", status, activity.activity);
-                        }
-                    },
+                    }
                     None => {
                         break Err(anyhow::anyhow!("All agent activities sender dropped"));
                     }
@@ -183,7 +200,7 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
                 tracing::info!("Task {task_id} cancelled");
                 None
             },
-            res = agent_activities_listener(agent_activities.clone())=> {
+            res = agent_activities_listener(&global, agent_activities.clone())=> {
                 Some(res)
             },
         };
@@ -194,7 +211,7 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
                 // wait for agent receive timeout.
                 match tokio::time::timeout(
                     Duration::from_secs(60 * 5),
-                    agent_activities_listener(agent_activities.clone()),
+                    agent_activities_listener(&global, agent_activities.clone()),
                 )
                 .await
                 {
@@ -455,9 +472,7 @@ impl InnerState {
     pub fn is_finished(&self) -> bool {
         matches!(
             self,
-            InnerState::Completed
-                | InnerState::Stopped
-                | InnerState::Failed(_)
+            InnerState::Completed | InnerState::Stopped | InnerState::Failed(_)
         )
     }
 
@@ -499,12 +514,66 @@ impl InnerState {
         self
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum Operator {
+    Run,
+    Stop,
+    Suspend,
+}
+#[derive(Clone)]
+pub struct TaskOperator(Arc<AtomicU8>);
+
+impl TaskOperator {
+    pub fn new() -> Self {
+        Self(Arc::new(AtomicU8::new(0)))
+    }
+    pub fn as_str(&self) -> &'static str {
+        match self.0.load(Ordering::Relaxed) {
+            0 => "run",
+            1 => "stop",
+            2 => "suspend",
+            _ => unreachable!(),
+        }
+    }
+    pub fn stop(&self) {
+        self.0.store(1, Ordering::Relaxed);
+    }
+
+    pub fn suspend(&self) {
+        self.0.store(2, Ordering::Relaxed);
+    }
+
+    pub fn operator(&self) -> Operator {
+        match self.0.load(Ordering::Relaxed) {
+            0 => Operator::Run,
+            1 => Operator::Stop,
+            2 => Operator::Suspend,
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl Debug for TaskOperator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Debug::fmt(&self.operator(), f)
+    }
+}
+impl Display for TaskOperator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
 #[derive(Debug, Clone)]
 pub struct TaskState {
+    span: tracing::Span,
     /// Current job run times.
     runs: Arc<AtomicU64>,
     /// Task details.
     pub(crate) task: Arc<Task>,
+
+    pub(crate) operator: TaskOperator,
 
     pub(crate) state: Arc<RwLock<InnerState>>,
 
@@ -560,6 +629,7 @@ impl TaskState {
             None
         };
         Self {
+            span: tracing::info_span!("task_runner", task.id = task_id),
             runs: Arc::new(AtomicU64::new(0)),
             task: Arc::new(task),
             state: Arc::new(RwLock::new(InnerState::Queued)),
@@ -567,6 +637,7 @@ impl TaskState {
             stop_condition,
             cancellation,
             agent_waiter,
+            operator: TaskOperator::new(),
             last_state: Arc::new(RwLock::new(None)),
             last_waiter: Arc::new(Mutex::new(None)),
         }
@@ -655,6 +726,7 @@ impl TaskJob {
         let id = self.task_id;
         tracing::info!(task.id = self.task_id, job.id = %self.job_id, "task `{id}` will be removed");
 
+        self.task.operator.stop();
         // Send stopping state updating activity.
         self.global.send_task_activity(TaskActivity::stop(id));
 
@@ -693,16 +765,46 @@ impl TaskJob {
     }
 
     /// Suspend a job.
-    pub(super) async fn suspend(&self) {
+    pub(super) async fn suspend(&self) -> InnerState {
+        let id = self.task_id;
+        tracing::info!(task.id = self.task_id, job.id = %self.job_id, "task `{id}` will be suspended");
+
+        self.task.operator.suspend();
+        // Send stopping state updating activity.
+        self.global
+            .send_task_activity(TaskActivity::suspend(id, self.job_id));
+
+        // Set task state to suspending if already scheduled.
+        {
+            // cancel spawned task.
+            let mut state = self.task.state.write().await;
+            if state.is_queued() {
+                // Job has not been ticked yet (one it's ticked, state should be running)
+
+                // Send stopped state directly.
+                self.global
+                    .send_task_activity(TaskActivity::suspended(id, self.job_id));
+
+                // Set task state to stopping so that it will be stopped when it's ticked properly.
+                state.stopped();
+            } else {
+                state.stop();
+            }
+        };
+
         // Remove job from scheduler.
         if let Err(err) = self.global.scheduler.remove(&self.job_id).await {
             error!("remove job error: {:#}", err);
         }
         // Send cancellation signal to running task.
         self.task.cancellation.cancel();
+
         // Remove agent task.
         if self.task.task.via.is_some() {
             self.global.agent_runtime.cancel(self.task.task.id).await;
+        }
+        {
+            self.task.state.read().await.clone()
         }
     }
     /// ## Cancellation safety.
@@ -776,9 +878,14 @@ impl TaskJob {
                     Some(LastState::Done) => {
                         global.send_task_activity(TaskActivity::completed(opts.task.id, jid));
                     }
-                    Some(LastState::Stopped) => {
-                        global.send_task_activity(TaskActivity::stopped(opts.task.id));
-                    }
+                    Some(LastState::Stopped) => match opts.operator.operator() {
+                        Operator::Suspend => {
+                            global.send_task_activity(TaskActivity::suspended(opts.task.id, jid));
+                        }
+                        _ => {
+                            global.send_task_activity(TaskActivity::stopped(opts.task.id));
+                        }
+                    },
                     Some(LastState::Error(err)) => {
                         global.send_task_activity(TaskActivity::failed(
                             opts.task.id,

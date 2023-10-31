@@ -1776,10 +1776,10 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
 async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
     pool: &TaosPool,
     ipc_reader: IpcReader<R>,
-    mut ipc_ack_writer: AckWriter<W>,
+    ipc_ack_writer: AckWriter<W>,
     config: Option<OpcTableConfig>,
-    license: Option<&ConnectorLicense>,
-    transferred: Option<&Transferred>,
+    _license: Option<&ConnectorLicense>,
+    _transferred: Option<&Transferred>,
     target_precision: taos::Precision,
 ) -> anyhow::Result<()> {
     let count = Arc::new(AtomicUsize::new(0));
