@@ -4,6 +4,7 @@ use std::{
     time::Duration,
 };
 
+use itertools::Itertools;
 use taosx_core::DataSet;
 use thiserror::Error;
 use tokio::sync::{Mutex, Notify, RwLock};
@@ -104,13 +105,14 @@ impl TaskScheduler {
         // let owned_notify_sender = Arc::new(notify_sender);
         let notify_sender = Arc::downgrade(&owned_notify_sender);
         let mut scheduler = JobScheduler::new().await?;
-        let shutdown_barrier = Arc::new(tokio::sync::Barrier::new(5));
+        let shutdown_barrier = Arc::new(tokio::sync::Barrier::new(4));
         let shutdown_notifier = Arc::new(Notify::const_new());
 
         let shutdown_notifier_clone = shutdown_notifier.clone();
         let shutdown_barrier_clone = shutdown_barrier.clone();
 
         let notify_receiver = owned_notify_sender.subscribe();
+        use tokio::sync::broadcast::error::RecvError;
         tokio::spawn(async move {
             tokio::pin!(notify_receiver);
             loop {
@@ -119,11 +121,22 @@ impl TaskScheduler {
                         break;
                     }
                     res = notify_receiver.recv() => {
-                        tracing::info!("task activity: {:?}", res);
+                        match res {
+                            Ok(act) => {
+                                tracing::info!(?act);
+                            }
+                            Err(RecvError::Closed) => {
+                                break;
+                            }
+                            Err(err) => {
+                                continue;
+                            }
+                        }
                     }
                 }
             }
-            shutdown_barrier_clone.wait().await;
+            // This will cause recursive barrier lock.
+            // shutdown_barrier_clone.wait().await;
         });
 
         let notify_created = scheduler.context.notify_created_tx.subscribe();
@@ -239,7 +252,7 @@ impl TaskScheduler {
             .set_shutdown_handler(async move {
                 tracing::info!("Shutting down scheduler");
                 shutdown_notifier.notify_waiters();
-                shutdown_barrier.wait().await;
+                tokio::time::timeout(Duration::from_secs(5), shutdown_barrier.wait()).await;
                 tracing::info!("Scheduler is shutdown completely");
                 // owned_notify_sender.receiver_count();
                 debug_assert!(Arc::strong_count(&owned_notify_sender) == 1);
@@ -259,7 +272,7 @@ impl TaskScheduler {
             info!("scheduler is dropping, suspend all running jobs");
             // tasks.write().await.clear();
             {
-                let tasks = tasks_cloned.read().await;
+                let tasks = tasks_cloned.write().await;
                 for (_, task) in tasks.iter() {
                     task.suspend().await;
                 }
@@ -324,9 +337,35 @@ impl TaskScheduler {
         Ok(())
     }
 
+    /// Suspend a task, note that this does not imply that the task is already finished.
+    ///
+    /// This method will remove the task from the scheduler, and the task will take a
+    /// while to finish its remaining work.
+    pub async fn try_suspend(&self, task: i64) -> Result<(), StopError> {
+        let mut tasks = self.tasks.write().await;
+        let task_job = tasks
+            .get_by_task_id(&task)
+            .ok_or_else(|| StopError::NotFound(task))?;
+        let job_id = task_job.job_id;
+        tracing::info!(task.id = task, job.id = %job_id, "task `{task}` will be removed");
+
+        if task_job.in_final_state().await {
+            return Err(StopError::AlreadyStopped(task));
+        }
+
+        let state = task_job.suspend().await;
+
+        if state.is_stopped() {
+            // If job has not been ticked, remove task state handler directly.
+            tasks.remove_by_task_id(&task);
+            tracing::info!(task.id = task, job.id = %job_id, "task `{task}` is suspended");
+        }
+        tracing::info!("Cancel task {}", task);
+        Ok(())
+    }
     /// Wait until a task is stopped completely.
     #[instrument(skip(self))]
-    pub async fn wait_stop(&self, task: i64) {
+    pub async fn wait_task(&self, task: i64) {
         loop {
             let tasks = self.tasks.read().await;
             if let Some(task) = tasks.get_by_task_id(&task) {
@@ -341,6 +380,14 @@ impl TaskScheduler {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
         tracing::info!(task.id = task, "task has been completely stopped");
+    }
+
+    pub async fn stop_task(&self, task: i64, timeout: Duration) -> anyhow::Result<()> {
+        self.try_stop(task).await?;
+        tokio::time::timeout(timeout, self.wait_task(task))
+            .await
+            .context("Stopping task timed out")?;
+        Ok(())
     }
 
     pub async fn push_task(&self, task: Task) -> anyhow::Result<()> {
@@ -445,6 +492,25 @@ impl TaskScheduler {
             .agent_runtime
             .list_data_sets(agent_id, req)
             .await
+    }
+
+    pub(crate) async fn suspend_all(&self) {
+        let tasks = self
+            .tasks
+            .read()
+            .await
+            .iter_by_task_id()
+            .map(|task| task.task_id)
+            .collect_vec();
+
+        for task in &tasks {
+            if let Err(err) = self.try_suspend(*task).await {
+                tracing::error!(task.id = task, error = %err, "suspend task error");
+            }
+        }
+        for task in tasks {
+            self.wait_task(task).await;
+        }
     }
 }
 
@@ -592,7 +658,7 @@ mod tests {
             if let Err(err) = scheduler.try_stop(id).await {
                 tracing::error!("stop task error: {:?}", err);
             }
-            scheduler.wait_stop(id).await;
+            scheduler.wait_task(id).await;
 
             tokio::time::sleep(Duration::from_secs(3)).await;
 
@@ -632,9 +698,9 @@ mod tests {
         scheduler.push_task(task.task.clone()).await.unwrap();
         tokio::time::sleep(Duration::from_secs(5)).await;
         scheduler.try_stop(id).await.unwrap();
-        scheduler.wait_stop(id).await;
+        scheduler.wait_task(id).await;
         scheduler.push_task(task.task.clone()).await.unwrap();
-        scheduler.wait_stop(id).await;
+        scheduler.wait_task(id).await;
 
         // tokio::time::sleep(Duration::from_secs(10)).await;
         dbg!(&scheduler);
@@ -733,7 +799,7 @@ mod tests {
             tokio::time::sleep(Duration::from_secs(11)).await;
         });
 
-        scheduler.wait_stop(id).await;
+        scheduler.wait_task(id).await;
 
         // tokio::time::sleep(Duration::from_secs(10)).await;
         dbg!(&scheduler);
@@ -849,7 +915,7 @@ mod tests {
 
         scheduler.try_stop(id).await?;
 
-        scheduler.wait_stop(id).await;
+        scheduler.wait_task(id).await;
 
         // tokio::time::sleep(Duration::from_secs(10)).await;
         dbg!(&scheduler);
@@ -941,7 +1007,7 @@ mod tests {
         tokio::time::sleep(Duration::from_secs(1)).await;
         scheduler.try_stop(id).await?;
 
-        scheduler.wait_stop(id).await;
+        scheduler.wait_task(id).await;
         tokio::time::sleep(Duration::from_secs(2)).await;
 
         let task = controller.get(id).await.unwrap().unwrap();
@@ -953,7 +1019,7 @@ mod tests {
         scheduler.push_task(task.task.clone()).await.unwrap();
         scheduler.try_stop(id).await?;
 
-        scheduler.wait_stop(id).await;
+        scheduler.wait_task(id).await;
 
         tokio::time::sleep(Duration::from_secs(2)).await;
         let task = controller.get(id).await.unwrap().unwrap();
@@ -995,6 +1061,147 @@ mod tests {
         let task = controller.get(id).await.unwrap().unwrap();
         dbg!(&task);
         assert_eq!(task.status(), Status::Stopped);
+
+        tokio::time::sleep(Duration::from_secs(5)).await;
+        // scheduler.push_task(task.task.clone()).await.unwrap();
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn test_scheduler_with_agent_shutdown_task_while_running() -> Result<()> {
+        tracing_subscriber_init()?;
+
+        let (controller, mut scheduler, agent_notify_sender) =
+            generate_scheduler_for_test().await?;
+        let mut notify_channel = scheduler.notify_channel();
+
+        let agent = serde_json::from_str(
+            r#"{
+            "name": "fake",
+            "dsn": "taos:///",
+            "cluster_id": "",
+            "user_id": ""
+            }"#,
+        )?;
+        let agent = controller.create_agent(agent).await?;
+        agent_notify_sender.send(AgentNotify::AgentConnected(agent.id));
+        let new: NewTask = serde_json::from_str(
+            r#"{
+            "from": "fake+stable:///?sleep=7s",
+            "to": "taos:///fake",
+            "via": 1,
+            "not_start": true
+            }"#,
+        )
+        .unwrap();
+        let task = controller.create(new).await?;
+
+        tracing::info!("push task: {:?}", task);
+
+        let id = task.id;
+        scheduler.push_task(task.task.clone()).await.unwrap();
+        scheduler.try_suspend(id).await?;
+
+        let agent_notify_sender_cloned = agent_notify_sender.clone();
+
+        tokio::spawn(async move {
+            let mut agent_notify_sender = agent_notify_sender_cloned;
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            agent_notify_sender
+                .send(AgentNotify::TaskActivity(
+                    1i64,
+                    TaskActivity::running(id, format!("info activity")),
+                ))
+                .unwrap();
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            agent_notify_sender
+                .send(AgentNotify::TaskActivity(1i64, TaskActivity::stopped(id)))
+                .unwrap();
+        });
+
+        scheduler.wait_task(id).await;
+
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        let task = controller.get(id).await.unwrap().unwrap();
+        dbg!(&task);
+        assert_eq!(task.status(), Status::Suspended);
+
+        controller.start(id).await?;
+
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            agent_notify_sender
+                .send(AgentNotify::TaskActivity(
+                    id as _,
+                    TaskActivity::running(id, format!("info activity")),
+                ))
+                .unwrap();
+            tokio::time::sleep(Duration::from_secs(4)).await;
+            agent_notify_sender
+                .send(AgentNotify::TaskActivity(
+                    id as _,
+                    TaskActivity::suspended(id, Uuid::nil()),
+                ))
+                .unwrap();
+        });
+
+        // Wait for task in scheduler ticking.
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        let task = controller.get(id).await.unwrap().unwrap();
+        dbg!(&task);
+        // Currently, the task is running.
+        assert_eq!(task.status(), Status::Running);
+        // Then we can suspend it.
+        scheduler.try_suspend(id).await?;
+
+        // Wait for suspending in agent.
+        scheduler.wait_task(id).await;
+
+        // Wait for controller to update task status (suspended).
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        let task = controller.get(id).await.unwrap().unwrap();
+        dbg!(&task);
+        assert_eq!(task.status(), Status::Suspended);
+
+        // run it agent
+        controller.start(id).await?;
+        // wait for task in scheduler ticking.
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        // shutdown the scheduler.
+        scheduler.shutdown().await;
+        // drop(scheduler);
+
+        dbg!(notify_channel.len());
+
+        loop {
+            match notify_channel.recv().await {
+                Ok(act) => {
+                    dbg!(act);
+                }
+                Err(err) => {
+                    dbg!(&err);
+                    match err {
+                        tokio::sync::broadcast::error::RecvError::Closed => {
+                            tracing::info!("notify channel closed");
+                            break;
+                        }
+                        tokio::sync::broadcast::error::RecvError::Lagged(lagged) => {
+                            tracing::warn!(
+                                "notify channel lagged: {lagged}, resubscribe it from current offset"
+                            );
+                            notify_channel.resubscribe();
+                            continue;
+                        }
+                    }
+                }
+            }
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        let task = controller.get(id).await.unwrap().unwrap();
+        dbg!(&task);
+        assert_eq!(task.status(), Status::Suspended);
 
         tokio::time::sleep(Duration::from_secs(5)).await;
         // scheduler.push_task(task.task.clone()).await.unwrap();

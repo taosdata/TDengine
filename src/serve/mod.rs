@@ -366,7 +366,7 @@ impl Cli {
                 tracing::info!("Ctrl+C triggered");
             }
         };
-        store_cloned.stop_all().await?;
+        store_cloned.shutdown().await?;
         drop(store_cloned);
         span.exit();
         Ok(())

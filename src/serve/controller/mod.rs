@@ -118,6 +118,7 @@ pub enum AgentAction {
     Run(i64),
     #[allow(dead_code)]
     Stop(i64),
+    /// Equivalent to `Suspend`.
     Cancel(i64),
     ListDataSets(DataSetsReq, AgentDataSetsSender),
     #[allow(dead_code)]
@@ -223,6 +224,8 @@ pub(crate) struct TaskController {
     pub scheduler: TaskScheduler,
 
     pub ctl_alive: Arc<AtomicBool>,
+
+    pub shutdown_notify: Arc<tokio::sync::Notify>,
 }
 
 impl Debug for TaskController {
@@ -397,6 +400,8 @@ impl TaskController {
         let pool_cloned = pool.clone();
         let ctl_alive = Arc::new(AtomicBool::new(true));
         let ctl_alive_cloned = ctl_alive.clone();
+        let shutdown_notify = Arc::new(tokio::sync::Notify::new());
+        let shutdown_notify_cloned = shutdown_notify.clone();
         tokio::spawn(async move {
             let mut rx = notify_channel;
             let pool = pool_cloned;
@@ -435,6 +440,7 @@ impl TaskController {
                     },
                 }
             }
+            shutdown_notify_cloned.notify_waiters();
             ctl_alive_cloned.store(false, std::sync::atomic::Ordering::SeqCst);
         });
         let transferred = Transferred::new(pool.clone(), Duration::from_secs(10));
@@ -446,6 +452,7 @@ impl TaskController {
             offsets: Default::default(),
             transferred,
             ctl_alive,
+            shutdown_notify,
         })
     }
 
@@ -456,6 +463,11 @@ impl TaskController {
 
     #[instrument(skip_all, fields(task.id = task.id,task.agent = task.via))]
     async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
+        if let Some(via) = task.via {
+            if !self.agent_alive(via).await {
+                bail!("Agent {} is not alive", via);
+            }
+        }
         self.scheduler.push_task(task.clone()).await
     }
 
@@ -843,16 +855,7 @@ impl TaskController {
     }
     #[instrument(skip_all, name = "task::delete", fields(task.id = id))]
     pub async fn delete(&self, id: i64) -> anyhow::Result<Option<TaskDetail>> {
-        {
-            if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
-                token.cancel();
-                if !handle.is_finished() {
-                    // token.cancel();
-                    tracing::info!("Cancel task {id} before deleted");
-                    let _ = handle.await;
-                }
-            }
-        }
+        self.scheduler.stop_task(id, Duration::from_secs(5)).await?;
         let now = Utc::now();
         let res = sqlx::query_as_unchecked!(
             Task,
@@ -949,7 +952,7 @@ impl TaskController {
         let scheduler = self.scheduler.clone();
         let handle = tokio::spawn(
             async move {
-                scheduler.wait_stop(id).await;
+                scheduler.wait_task(id).await;
                 tracing::info!("task {id} successfully stopped");
             }
             .in_current_span(),
@@ -1030,71 +1033,25 @@ impl TaskController {
         }
     }
 
-    pub async fn stop_all(&self) -> anyhow::Result<()> {
-        for (id, (handle, token)) in self.tasks.write().await.drain() {
-            token.cancel();
-            if !handle.is_finished() {
-                // token.cancel();
-                tracing::error!("Cancel task by id {id}");
-                let _ = handle.await;
-            }
-
-            let now = Utc::now();
-            let res = sqlx::query!(
-                "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ? AND status not in (?, ?, ?)",
-                now,
-                Status::Cancelled,
-                id,
-                Status::Completed, Status::Stopped, Status::Failed
-            )
-            .execute(&self.pool)
-            .await?;
-
-            let activity = format!("Stopping all tasks.., now {id}");
-
-            sqlx::query!(
-                "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
-                id,
-                now,
-                LevelFilter::Info,
-                activity,
-                "ok",
-                None::<String>
-            )
-            .execute(&self.pool)
-            .await?;
-            // dbg!(res);
-            if res.rows_affected() == 1 {
-                tracing::info!("successfully cancelled task by id {id}");
-            }
-        }
+    pub async fn _suspend_all(&self) -> anyhow::Result<()> {
+        self.scheduler.suspend_all().await;
         Ok(())
     }
 
     pub async fn _clear(&self) -> anyhow::Result<()> {
-        for (id, (handle, token)) in self.tasks.write().await.drain() {
-            token.cancel();
-            if !handle.is_finished() {
-                // token.cancel();
-                tracing::error!("Cancel task by id {id}");
-                let _ = handle.await;
-            }
-
-            let res = sqlx::query_as_unchecked!(
-                Task,
-                "UPDATE tasks SET `deleted` = TRUE where id = ?",
-                id
-            )
-            .execute(&self.pool)
-            .await?;
-            // dbg!(res);
-            if res.rows_affected() == 1 {
-                tracing::info!("successfully deleted task by id {id}");
-            }
-        }
+        self.scheduler.suspend_all().await;
         Ok(())
     }
 
+    pub async fn shutdown(&self) -> anyhow::Result<()> {
+        let scheduler = self.scheduler.clone();
+        let _ = tokio::time::timeout(Duration::from_secs(17), scheduler.suspend_all()).await;
+        scheduler.shutdown().await;
+        let _ = tokio::time::timeout(Duration::from_secs(5), self.shutdown_notify.notified()).await;
+
+        // Set all running status to suspended?
+        Ok(())
+    }
     pub async fn offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
         let task = self.get(id).await?;
         match task {
@@ -1527,6 +1484,10 @@ pub enum Status {
     Stopping,
     /// Manually stopped by API.
     Stopped,
+    /// Nothing, waiting for some reason.
+    Waiting,
+    /// In suspending state.
+    Suspending,
 
     /// Task is suspended by controller/agent.
     Suspended,
@@ -1847,6 +1808,17 @@ impl TaskActivity {
             context: None,
         }
     }
+    /// Set state as suspending.
+    pub fn suspend(id: i64, jid: Uuid) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Info,
+            activity: format!("Suspending with job id: {jid}."),
+            status: "suspending".to_string(),
+            context: None,
+        }
+    }
     pub fn suspended(id: i64, jid: Uuid) -> Self {
         Self {
             id,
@@ -1876,6 +1848,17 @@ impl TaskActivity {
             activity: format!("Failed with error: {message}"),
             status: "failed".to_string(),
             context: Some(message.into()),
+        }
+    }
+
+    pub fn waiting(id: i64, message: impl Into<String>) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Warn,
+            activity: message.into(),
+            status: "waiting".to_string(),
+            context: None,
         }
     }
 }

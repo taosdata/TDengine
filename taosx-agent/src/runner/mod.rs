@@ -384,7 +384,7 @@ pub fn spawn_runner(
                                     Utc::now(),
                                     LevelFilter::Info,
                                     format!("Cancel task {id} via agent {agent_id}"),
-                                    "cancelled",
+                                    "suspended",
                                     json!({
                                         "via": agent_id,
                                         "action": "cancel"
