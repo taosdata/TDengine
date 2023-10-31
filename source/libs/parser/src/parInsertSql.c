@@ -1660,7 +1660,8 @@ static int32_t getStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
     STableMeta** pCtbMeta = taosHashGet(pStmt->pSubTableHashObj, ctbFName, strlen(ctbFName));
     ctbFirst = *pCtbFirst = (pCtbMeta == NULL);
     if (!ctbFirst) {
-      pStbRowsCxt->pCtbMeta = *pCtbMeta;
+      pStbRowsCxt->pCtbMeta->uid = (*pCtbMeta)->uid;
+      pStbRowsCxt->pCtbMeta->vgId = (*pCtbMeta)->vgId;
     }
   }
   if (code == TSDB_CODE_SUCCESS && ctbFirst) {
