@@ -771,7 +771,7 @@ import {
 import DatePicker from "@/components/date-picker";
 import { Message } from "element-ui";
 import marked from "marked";
-import { debounce, parsinginZone } from "@/utils/index";
+import { debounce, parsinginZone, decrypt } from "@/utils/index";
 import DialogCreateDb from "../components/addDbDialog.vue";
 import Result from "../components/result.vue";
 export default {
@@ -924,7 +924,9 @@ export default {
         (this.dbsource[0]?.params && this.dbsource[0]?.params[0]?.value) ||
         this.piSystemConfiguration;
       this.changeSystemConfiguration(defaultVal);
-      this.getSchema(false);
+      if (this.tagName == 'influxdb' || this.tagName == 'opentsdb') {
+        this.getSchema(false);
+      }
       this.isShowEditBtn = this.isCopyable ? false : true;
     } else {
       this.activeName = "point_file";
@@ -1180,7 +1182,7 @@ export default {
     },
 
     save() {
-      if (this.isEditable) {
+      if (this.isEditable && !this.isCopyable) {
         this.$confirm(this.$t("dataIn.saveTip"), this.$t("warning"), {
           confirmButtonText: this.$t("confirm"),
           cancelButtonText: this.$t("cancel"),
@@ -1284,7 +1286,30 @@ export default {
           //     "://" +
           //     data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
           // }
-          dns = data.options.endpoint.value
+          let url = data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+          if (url.includes('://')) {
+            let parsed_url = new URL(url);
+            let scheme = null;
+            if (parsed_url.protocol == 'http:') {
+              scheme = '+ws'
+            } else if (parsed_url.protocol == 'https:') {
+              scheme = '+wss'
+            } else {
+              scheme = '+' + parsed_url.protocol.replace(':', '')
+            }
+
+            let host = parsed_url.host;
+            let user =  parsed_url.username || localStorage.getItem('username') || '';
+            let decrypted = encodeURI(decrypt(localStorage.getItem('pwd')));
+            let pass = parsed_url.password || decrypted || '';
+            dns = scheme + '://' + user + ':' + pass + '@' + host + parsed_url.pathname + parsed_url.search;
+          } else {
+            let host = url;
+            let user = localStorage.getItem('username') || '';
+            let decrypted = encodeURI(decrypt(localStorage.getItem('pwd')));
+            let pass = decrypted || '';
+            dns = '+ws://' + host;
+          }
         } else {
           if (this.tagName == "influxdb") {
             this.changeHost(data.options.host.value);
@@ -1478,7 +1503,7 @@ export default {
 
         let apiParams = {
           from:
-            (this.tagName === "datasource" ? "" : "taos") +
+            (this.tagName === "datasource" ? "tmq" : "taos") +
             (data.protocol
               ? Object.is(data.protocol.value, "--") || !data.protocol.value
                 ? ""
@@ -1566,6 +1591,7 @@ export default {
                 return;
               }
               if (result && result.id) {
+                this.$parent.changeEditable(false);
                 this.$parent.toggleComponent("pitable");
                 Message.success("Operation Successfully!");
               }
