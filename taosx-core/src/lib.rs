@@ -691,5 +691,13 @@ mod tests {
         assert_eq!(false, dsv.support);
         assert_eq!("tmq", dsv.data_source);
         assert_eq!("failed to check dsn: tmq+ws://192.168.1.40:6041/tmq_test?group.id=test_tmq_is_valid, cause: tmq does not support TDengine 2.x", dsv.message.unwrap());
+
+        // TDengine 3.X non-exist topic
+        let dsn = Dsn::from_str("tmq+ws://192.168.1.92:6041/non_exist_topic?group.id=test_tmq_is_valid").unwrap();
+        let dsv = validate_dsn(dsn).await;
+        assert_eq!(false, dsv.valid);
+        assert_eq!(false, dsv.support);
+        assert_eq!("tmq", dsv.data_source);
+        assert_eq!("failed to check dsn: tmq+ws://192.168.1.92:6041/non_exist_topic?group.id=test_tmq_is_valid, cause: unknown topic name: non_exist_topic", dsv.message.unwrap());
     }
 }
