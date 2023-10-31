@@ -256,7 +256,7 @@ pub(super) async fn data_source_is_valid(query: Query<DsnValidationQuery>) -> im
 pub struct DsnValidationQuery {
     #[param(allow_reserved)]
     dsn: String,
-    via: String,
+    via: Option<String>,
     timeout: Option<u64>,
 }
 
