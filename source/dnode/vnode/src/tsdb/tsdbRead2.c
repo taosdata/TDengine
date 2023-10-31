@@ -1207,7 +1207,7 @@ static int64_t getBoarderKeyInFiles(SFileDataBlockInfo* pBlock, SLastBlockReader
   int64_t key = 0;
   if (bHasDataInLastBlock) {
     int64_t keyInStt = getCurrentKeyInLastBlock(pLastBlockReader);
-    key = ascScan ? MIN(pBlock->record.firstKey, keyInStt) : MAX(pBlock->record.lastKey, keyInStt);
+    key = ascScan ? TMIN(pBlock->record.firstKey, keyInStt) : TMAX(pBlock->record.lastKey, keyInStt);
   } else {
     key = ascScan ? pBlock->record.firstKey : pBlock->record.lastKey;
   }
