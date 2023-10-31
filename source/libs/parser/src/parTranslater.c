@@ -4605,10 +4605,22 @@ static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRete
   SValueNode* pPrevFreq = NULL;
   SValueNode* pPrevKeep = NULL;
   SNode*      pRetention = NULL;
+  bool        firstFreq = true;
   FOREACH(pRetention, pRetentions) {
     SNode* pNode = NULL;
     FOREACH(pNode, ((SNodeListNode*)pRetention)->pNodeList) {
       SValueNode* pVal = (SValueNode*)pNode;
+      if (firstFreq) {
+        firstFreq = false;
+        if (pVal->literal[0] != '-' || strlen(pVal->literal) != 1) {
+          return generateSyntaxErrMsgExt(
+              &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+              "Invalid option retentions(freq): %s, the interval of 1st retention level should be '-'", pVal->literal);
+        }
+        pVal->unit = TIME_UNIT_SECOND;  // assign minimum unit
+        pVal->datum.i = 0;              // assign minimum value
+        continue;
+      }
       if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
         return pCxt->errCode;
       }
@@ -4633,7 +4645,7 @@ static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRete
     }
 
     // check value range
-    if (pFreq->datum.i <= 0) {
+    if (pPrevFreq != NULL && pFreq->datum.i <= 0) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                      "Invalid option retentions(freq): %s should larger than 0", pFreq->literal);
     }

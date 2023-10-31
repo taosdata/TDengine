@@ -451,7 +451,7 @@ typedef struct SRetention {
   int8_t  keepUnit;
 } SRetention;
 
-#define RETENTION_VALID(r) (((r)->freq > 0) && ((r)->keep > 0))
+#define RETENTION_VALID(l, r) ((((l) == 0 && (r)->freq >= 0) || ((r)->freq > 0)) && ((r)->keep > 0))
 
 #pragma pack(push, 1)
 
@@ -1568,9 +1568,7 @@ typedef struct {
 typedef struct {
   int32_t id;
   int8_t  isMnode;
-#ifdef TD_GRANT_HB_OPTIMIZE
   int8_t  offlineReason;
-#endif
   SEp     ep;
   char    active[TSDB_ACTIVE_KEY_LEN];
   char    connActive[TSDB_CONN_ACTIVE_KEY_LEN];
