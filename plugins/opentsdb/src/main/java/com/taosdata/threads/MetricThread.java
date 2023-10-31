@@ -18,8 +18,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.OffsetDateTime;
-import java.time.temporal.ChronoField;
 import java.util.Date;
 import java.util.HashSet;
 
@@ -125,7 +123,7 @@ public class MetricThread implements Runnable {
                     if (taskConfig.getBreakpoint() != null && taskConfig.getBreakpoint().containsKey(v.getMetric())) {
                         long timestamp = taskConfig.getBreakpoint().get(v.getMetric());
                         // 如果断点晚于endTime则直接忽略任务
-                        if (timestamp > OffsetDateTime.parse(timeRangeArr[1]).getLong(ChronoField.INSTANT_SECONDS) * 1_000_000_000) {
+                        if (timestamp > Long.parseLong(timeRangeArr[1])) {
                             return;
                         }
                     }

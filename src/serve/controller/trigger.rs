@@ -40,7 +40,7 @@ pub enum HealthyCheck {
 
 /// Task error handling strategy when error occurs.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, ToSchema)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", default)]
 pub struct Healthy {
     /// Detect if the task is healthy.
     check: HealthyCheck,
@@ -144,6 +144,7 @@ impl FromStr for ErrorRate {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Default, ToSchema)]
+#[serde(default)]
 pub struct Strategy {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) schedule: Option<String>,
