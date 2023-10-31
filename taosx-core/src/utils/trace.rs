@@ -28,7 +28,6 @@ pub struct TraceID {
 /// Hex string representation of Query ID stored in its [extensions]
 #[derive(Clone)]
 pub struct DataTraceID {
-pub struct DataTraceID {
     pub hex: String,
 }
 
