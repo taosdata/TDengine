@@ -78,9 +78,8 @@ export function compHeadAndData(head, data) {
  */
 export function convertToCsvData(data, head) {
   let csv = head.join(',') + '\n'
-  console.log(data,head,'kkk')
   data.forEach(item => {
-    csv += head.map(i => item[i]).join(',') + '\n'
+    csv+=item.join(',')+'\n'
   })
   return csv
 }

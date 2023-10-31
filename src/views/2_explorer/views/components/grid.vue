@@ -29,7 +29,7 @@
         >
           <template slot-scope="{ row }">
             <el-tooltip :content="$t('console.cellCopyTip')">
-              <span>{{ row[index] }}</span>
+              <span>{{ row[item] }}</span>
             </el-tooltip>
           </template>
         </el-table-column>
