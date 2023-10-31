@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 use actix_files::NamedFile;
 use actix_web::{
@@ -12,6 +13,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use taos::Code;
+use tokio::time::timeout;
 use taosx_core::{list_datasets_from, validate_dsn, DataSetsReq};
 use utoipa::*;
 
@@ -228,22 +230,34 @@ pub(super) async fn data_source_collection(
         (status = 500, description = "check data source failed", body = Failed),
     ),
     params(
-        ("dsn" = DsnQuery, description = "dsn string")
+        ("dsn" = String, description = "dsn string"),
+        ("via" = String, description = "agent id"),
+        ("timeout" = Option<String>, description = "timeout seconds, use default 5s when not set")
     ),
 )]
 #[get("/ds/in/validate")]
-pub(super) async fn data_source_is_valid(query: Query<DsnQuery>) -> impl Responder {
-    let dsn = query.into_inner().dsn;
-    let dsv = validate_dsn(dsn).await;
-    HttpResponse::Ok()
-        .content_type(ContentType::json())
-        .json(dsv)
+pub(super) async fn data_source_is_valid(query: Query<DsnValidationQuery>) -> impl Responder {
+    const DEFAULT_TIMEOUT: u64 = 5; // 5 seconds
+    let query = query.into_inner();
+    let dsn = query.dsn;
+    let timeout_sec = query.timeout.unwrap_or(DEFAULT_TIMEOUT);
+
+    let result = timeout(Duration::from_secs(timeout_sec), validate_dsn(dsn)).await;
+    match result {
+        Ok(dsv) => Ok(HttpResponse::Created().json(dsv)),
+        Err(err) => Err(Failed{
+            code: Code::FAILED,
+            message: format!("check data source validation timeout, cause: {:#}", err),
+        }),
+    }
 }
 
 #[derive(Deserialize, Debug, ToSchema, IntoParams)]
-pub struct DsnQuery {
+pub struct DsnValidationQuery {
     #[param(allow_reserved)]
     dsn: String,
+    via: String,
+    timeout: Option<u64>,
 }
 
 #[utoipa::path(
