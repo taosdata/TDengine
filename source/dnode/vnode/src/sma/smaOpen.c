@@ -79,20 +79,18 @@ static int32_t smaEvalDays(SVnode *pVnode, SRetention *r, int8_t level, int8_t p
   freqDuration = convertTimeFromPrecisionToUnit((r + level)->freq, precision, TIME_UNIT_MINUTE);
   keepDuration = convertTimeFromPrecisionToUnit((r + level)->keep, precision, TIME_UNIT_MINUTE);
 
-  int32_t nFreqTimes = (r + level)->freq / (10 * 1000);  // use 10s for freq of 1st level
+  int32_t nFreqTimes = (r + level)->freq / (60 * 1000);  // use 60s for freq of 1st level
   days *= (nFreqTimes > 1 ? nFreqTimes : 1);
-
-  if (days > keepDuration) {
-    days = keepDuration;
-  }
-
-  if (days > TSDB_MAX_DURATION_PER_FILE) {
-    days = TSDB_MAX_DURATION_PER_FILE;
-  }
 
   if (days < freqDuration) {
     days = freqDuration;
   }
+
+  int32_t maxKeepDuration = TMIN(keepDuration, TSDB_MAX_DURATION_PER_FILE);
+  if (days > maxKeepDuration) {
+    days = maxKeepDuration;
+  }
+
 _exit:
   smaInfo("vgId:%d, evaluated duration for level %d is %d, raw val:%d", TD_VID(pVnode), level + 1, days, duration);
   return days;
