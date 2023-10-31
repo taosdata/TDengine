@@ -158,16 +158,16 @@ pub(super) async fn create_task(
     decorator: Query<TaskDecorator>,
 ) -> impl Responder {
     let task = task.into_inner();
-    if let Some(trigger) = task.trigger.as_deref() {
-        if !trigger.starts_with("schedule:") {
-            return Err(Failed {
-                code: Code::FAILED,
-                message: format!(
-                    "invalid trigger format: `{trigger}`, only `schedule:<crontab>` is supported"
-                ),
-            });
-        }
-    }
+    // if let Some(trigger) = task.trigger.as_deref() {
+    //     if !trigger.starts_with("schedule:") {
+    //         return Err(Failed {
+    //             code: Code::FAILED,
+    //             message: format!(
+    //                 "invalid trigger format: `{trigger}`, only `schedule:<crontab>` is supported"
+    //             ),
+    //         });
+    //     }
+    // }
     // validate parser
     if let Some(parser) = task.parser.as_ref() {
         // check TIMESTAMP Precision: all columns should have same precision

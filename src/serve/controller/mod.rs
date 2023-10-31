@@ -2242,7 +2242,7 @@ pub(crate) struct NewTask {
     /// - Run hourly/daily/weekly/monthly: "schedule:@daily"
     /// - Run with crontab schedule: "schedule:@daily", checkout https://crontab.guru/ for human-readable crontab.
     #[schema(example = "schedule:@daily")]
-    pub trigger: Option<String>,
+    pub trigger: Option<Strategy>,
     /// The stream data source.
     #[schema(example = "tmq:///test")]
     from: String,
