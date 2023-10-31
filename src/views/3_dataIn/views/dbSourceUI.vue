@@ -1180,7 +1180,7 @@ export default {
     },
 
     save() {
-      if (this.isEditable) {
+      if (this.isEditable && !this.isCopyable) {
         this.$confirm(this.$t("dataIn.saveTip"), this.$t("warning"), {
           confirmButtonText: this.$t("confirm"),
           cancelButtonText: this.$t("cancel"),
@@ -1589,6 +1589,7 @@ export default {
                 return;
               }
               if (result && result.id) {
+                this.$parent.changeEditable(false);
                 this.$parent.toggleComponent("pitable");
                 Message.success("Operation Successfully!");
               }
