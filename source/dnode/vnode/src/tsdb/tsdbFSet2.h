@@ -28,6 +28,8 @@ typedef struct SSttLvl   SSttLvl;
 typedef TARRAY2(STFileObj *) TFileObjArray;
 typedef TARRAY2(SSttLvl *) TSttLvlArray;
 typedef TARRAY2(STFileOp) TFileOpArray;
+typedef struct STFileSystem STFileSystem;
+typedef struct STFSBgTask   STFSBgTask;
 
 typedef enum {
   TSDB_FOP_NONE = 0,
@@ -41,10 +43,10 @@ typedef enum {
 
 // init/clear
 int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset);
-int32_t tsdbTFileSetInitDup(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset);
+int32_t tsdbTFileSetInitCopy(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset);
 int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset);
 int32_t tsdbTFileSetClear(STFileSet **fset);
-int32_t tsdbTFileSetRemove(STFileSet **fset);
+int32_t tsdbTFileSetRemove(STFileSet *fset);
 
 int32_t tsdbTFileSetFilteredInitDup(STsdb *pTsdb, const STFileSet *fset1, int64_t ever, STFileSet **fset,
                                     TFileOpArray *fopArr);
@@ -58,6 +60,7 @@ int32_t tsdbJsonToTFileSet(STsdb *pTsdb, const cJSON *json, STFileSet **fset);
 // cmpr
 int32_t tsdbTFileSetCmprFn(const STFileSet **fset1, const STFileSet **fset2);
 // edit
+int32_t tsdbSttLvlClear(SSttLvl **lvl);
 int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op);
 int32_t tsdbTFileSetApplyEdit(STsdb *pTsdb, const STFileSet *fset1, STFileSet *fset);
 // max commit id
@@ -69,6 +72,33 @@ bool tsdbTFileSetIsEmpty(const STFileSet *fset);
 // stt
 int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl);
 int32_t tsdbSttLvlClear(SSttLvl **lvl);
+
+typedef enum {
+  TSDB_BG_TASK_MERGER = 1,
+  TSDB_BG_TASK_RETENTION,
+  TSDB_BG_TASK_COMPACT,
+} EFSBgTaskT;
+
+struct STFSBgTask {
+  STFileSystem *fs;
+  int32_t       fid;
+
+  EFSBgTaskT type;
+  int32_t (*run)(void *arg);
+  void (*destroy)(void *arg);
+  void *arg;
+
+  TdThreadCond done[1];
+  int32_t      numWait;
+
+  int64_t taskid;
+  int64_t scheduleTime;
+  int64_t launchTime;
+  int64_t finishTime;
+
+  struct STFSBgTask *prev;
+  struct STFSBgTask *next;
+};
 
 struct STFileOp {
   tsdb_fop_t optype;
@@ -87,6 +117,16 @@ struct STFileSet {
   int64_t      maxVerValid;
   STFileObj   *farr[TSDB_FTYPE_MAX];  // file array
   TSttLvlArray lvlArr[1];             // level array
+
+  // background task queue
+  int32_t     bgTaskNum;
+  STFSBgTask  bgTaskQueue[1];
+  STFSBgTask *bgTaskRunning;
+
+  // block commit variables
+  TdThreadCond canCommit;
+  int32_t      numWaitCommit;
+  bool         blockCommit;
 };
 
 struct STSnapRange {
