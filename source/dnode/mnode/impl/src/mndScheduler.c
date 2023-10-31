@@ -722,7 +722,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     pVgEp->vgId = pVgroup->vgId;
     taosArrayPush(pSub->unassignedVgs, &pVgEp);
 
-    mDebug("init subscription %s for topic:%s assign vgId:%d", pSub->key, pTopic->name, pVgEp->vgId);
+    mInfo("init subscription %s for topic:%s assign vgId:%d", pSub->key, pTopic->name, pVgEp->vgId);
 
     sdbRelease(pSdb, pVgroup);
   }
