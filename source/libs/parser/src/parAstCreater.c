@@ -1028,9 +1028,13 @@ SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pPr
   return select;
 }
 
-SNode* setSelectStmtTagMode(SAstCreateContext* pCxt, SNode* pStmt, bool bSelectTags) {
+SNode* setSelectStmtTagMode(SAstCreateContext* pCxt, SNode* pStmt, bool bSelectTags) { 
   if (pStmt && QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
-    ((SSelectStmt*)pStmt)->tagScan = bSelectTags;
+    if (pCxt->pQueryCxt->biMode) {
+      ((SSelectStmt*)pStmt)->tagScan = true;
+    } else {  
+      ((SSelectStmt*)pStmt)->tagScan = bSelectTags;
+    }
   }
   return pStmt;
 }
