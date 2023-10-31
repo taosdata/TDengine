@@ -104,13 +104,21 @@ uint16_t tsAuditPort = 6043;
 bool     tsEnableAuditCreateTable = true;
 
 // telem
+#ifdef TD_ENTERPRISE
+bool     tsEnableTelem = false;
+#else
 bool     tsEnableTelem = true;
+#endif
 int32_t  tsTelemInterval = 43200;
 char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.tdengine.com";
 uint16_t tsTelemPort = 80;
 char    *tsTelemUri = "/report";
 
+#ifdef TD_ENTERPRISE
+bool  tsEnableCrashReport = false;
+#else
 bool  tsEnableCrashReport = true;
+#endif
 char *tsClientCrashReportUri = "/ccrashreport";
 char *tsSvrCrashReportUri = "/dcrashreport";
 
