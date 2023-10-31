@@ -178,8 +178,8 @@ pub enum ArgsError {
     MissingRequiredArgument(String),
     #[error("Argument parsing error: {0}")]
     ParseError(#[from] twelf::Error),
-    #[error("Argument parsing error: {0}")]
-    ClapError(#[from] clap::Error),
+    // #[error("Argument parsing error: {0}")]
+    // ClapError(#[from] clap::Error),
 }
 
 fn fmt_span_from_str(s: &str) -> Result<FmtSpan, String> {
@@ -210,7 +210,7 @@ fn get_default_config_path() -> PathBuf {
 }
 impl Args {
     pub fn init() -> Result<Args, ArgsError> {
-        let mut args = Args::try_parse()?;
+        let mut args = Args::parse();
         let path = args
             .opt_args
             .config
