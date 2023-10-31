@@ -129,6 +129,7 @@ function install_bin() {
     if [ "$osType" != "Darwin" ]; then
         [ -x ${install_main_dir}/bin/${demoName2} ] && ${csudo}ln -s ${install_main_dir}/bin/${demoName2} ${bin_link_dir}/${demoName2}  || :
         [ -x ${install_main_dir}/bin/${benchmarkName2} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName2} ${bin_link_dir}/${benchmarkName2}  || :
+        [ -x ${install_main_dir}/bin/${dumpName2} ] && ${csudo}ln -s ${install_main_dir}/bin/${dumpName2} ${bin_link_dir}/${dumpName2} || :
     fi
     [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo}ln -sf ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/${uninstallScript2} || :
   fi
