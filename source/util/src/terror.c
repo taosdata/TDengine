@@ -259,6 +259,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DNODE_ID,         "Invalid dnode id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_UN_CHANGED,        "Vgroup distribution has not changed")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_HAS_OFFLINE_DNODE,        "Offline dnode exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_REPLICA,          "Invalid vgroup replica")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_ENOUGH_VNODES,         "Vnodes exhausted")
 
 // mnode-stable-part2
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NAME_CONFLICT_WITH_TOPIC, "STable confilct with topic")
