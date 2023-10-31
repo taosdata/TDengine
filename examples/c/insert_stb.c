@@ -1,0 +1,162 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// TAOS standard API example. The same syntax as MySQL, but only a subset
+// to compile: gcc -o demo demo.c -ltaos
+
+#include <inttypes.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/time.h>
+
+#include "taos.h"  // TAOS header file
+
+static void executeSql(TAOS *taos, char *command) {
+  int i;
+  TAOS_RES *pSql = NULL;
+  int32_t   code = -1;
+
+  for (i = 0; i < 5; i++) {
+    if (NULL != pSql) {
+      taos_free_result(pSql);
+      pSql = NULL;
+    }
+
+    pSql = taos_query(taos, command);
+    code = taos_errno(pSql);
+    if (0 == code) {
+      break;
+    }
+  }
+
+  if (code != 0) {
+    fprintf(stderr, "Failed to run %s, reason: %s\n", command, taos_errstr(pSql));
+    taos_free_result(pSql);
+    taos_close(taos);
+    exit(EXIT_FAILURE);
+  }
+
+  taos_free_result(pSql);
+}
+
+void TestInsert(TAOS *taos, char *qstr)  {
+  executeSql(taos, "drop database if exists demo2");
+  executeSql(taos, "create database demo2");
+  executeSql(taos, "use demo2");
+
+  executeSql(taos, "create table st (ts timestamp, ti tinyint, si smallint, i int, bi bigint, f float, d double, b binary(10), tbname2 binary(192)) tags(t1 int, t2 float, t3 binary(10))");
+  printf("success to create table\n");
+
+  struct timeval start_time;
+  gettimeofday(&start_time, NULL);
+
+  for (int tblIdx = 0; tblIdx < 10; ++tblIdx) {
+    int len = 0;
+    len += sprintf(qstr+len, "insert into ct%d using st tags(%d, %f, '%s')", tblIdx, tblIdx, (float)tblIdx, "childtable");
+    int batchStart = len;
+    for (int batchIdx = 0; batchIdx < 10000; ++batchIdx) {
+      len = batchStart;
+      len += sprintf(qstr+len, " values");
+      if (batchIdx % 5000 == 1)
+        printf("%s %d\n", qstr, batchIdx);
+
+      for (int rowIdx = 0; rowIdx < 100; ++ rowIdx) {
+        int i = rowIdx + batchIdx * 100 + tblIdx*10000*100;
+        len += sprintf(qstr+len, " (%" PRId64 ", %d, %d, %d, %d, %f, %lf, '%s', 'ct%d')", (uint64_t)(1546300800000 + i), (int8_t)i, (int16_t)i, i, i, i*1.0, i*2.0, "hello", tblIdx);      
+      }
+      TAOS_RES *result1 = taos_query(taos, qstr);
+      if (result1 == NULL || taos_errno(result1) != 0) {
+        printf("failed to insert row, reason:%s. qstr: %s\n", taos_errstr(result1), qstr);
+        taos_free_result(result1);
+        exit(1);
+      }
+      taos_free_result(result1);      
+    }
+  }
+  struct timeval end_time;
+  gettimeofday(&end_time, NULL);
+  double elapsed_time = (end_time.tv_sec - start_time.tv_sec) +
+                          (end_time.tv_usec - start_time.tv_usec) / 1000000.0;  
+  printf("elapsed time: %.3f\n", elapsed_time);
+  executeSql(taos, "drop database if exists demo2");
+}
+
+void TestInsertStb(TAOS *taos, char *qstr)  {
+  executeSql(taos, "drop database if exists demo");
+  executeSql(taos, "create database demo");
+  executeSql(taos, "use demo");
+
+  executeSql(taos, "create table st (ts timestamp, ti tinyint, si smallint, i int, bi bigint, f float, d double, b binary(10)) tags(t1 int, t2 float, t3 binary(10))");
+  printf("success to create table\n");
+
+  struct timeval start_time;
+  gettimeofday(&start_time, NULL);
+
+  for (int tblIdx = 0; tblIdx < 10; ++tblIdx) {
+    int len = 0;
+    len += sprintf(qstr+len, "insert into st(tbname, t1, t2, t3, ts, ti, si, i, bi, f, d, b)");
+    int batchStart = len;
+    for (int batchIdx = 0; batchIdx < 10000; ++batchIdx) {
+      len = batchStart;
+      len += sprintf(qstr+len, " values");
+      if (batchIdx % 5000 == 1)
+        printf("%s %d table %d\n", qstr, batchIdx, tblIdx);
+
+      for (int rowIdx = 0; rowIdx < 100; ++rowIdx) {
+        int i = rowIdx + batchIdx * 100 + tblIdx*10000*100;
+        len += sprintf(qstr+len, " ('ct%d', %d, %f, '%s', %" PRId64 ", %d, %d, %d, %d, %f, %lf, '%s')", tblIdx, tblIdx, (float)tblIdx, "childtable", 
+                      (uint64_t)(1546300800000 + i), (int8_t)i, (int16_t)i, i, i, i*1.0, i*2.0, "hello");      
+      }
+      TAOS_RES *result1 = taos_query(taos, qstr);
+      if (result1 == NULL || taos_errno(result1) != 0) {
+        printf("failed to insert row, reason:%s. qstr: %s\n", taos_errstr(result1), qstr);
+        taos_free_result(result1);
+        exit(1);
+      }
+      taos_free_result(result1);      
+    }
+  }
+  struct timeval end_time;
+  gettimeofday(&end_time, NULL);
+  double elapsed_time = (end_time.tv_sec - start_time.tv_sec) +
+                          (end_time.tv_usec - start_time.tv_usec) / 1000000.0;
+
+  printf("elapsed time: %.3f\n", elapsed_time);
+  executeSql(taos, "drop database if exists demo");
+}
+
+
+int main(int argc, char *argv[]) {
+
+  // connect to server
+  if (argc < 2) {
+    printf("please input server-ip \n");
+    return 0;
+  }
+
+  TAOS *taos = taos_connect(argv[1], "root", "taosdata", NULL, 0);
+  if (taos == NULL) {
+    printf("failed to connect to server, reason:%s\n", taos_errstr(NULL));
+    exit(1);
+  }
+  char* qstr = malloc(1024*1024);
+  TestInsert(taos, qstr);
+  TestInsertStb(taos, qstr);
+  free(qstr);
+  taos_close(taos);
+  taos_cleanup();
+}
+
