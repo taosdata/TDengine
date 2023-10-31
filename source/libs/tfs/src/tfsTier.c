@@ -110,7 +110,9 @@ int32_t tfsAllocDiskOnTier(STfsTier *pTier) {
   }
 
   int32_t retId = -1;
+  int64_t avail = 0;
   for (int32_t id = 0; id < TFS_MAX_DISKS_PER_TIER; ++id) {
+#if 0  // round-robin
     int32_t   diskId = (pTier->nextid + id) % pTier->ndisk;
     STfsDisk *pDisk = pTier->disks[diskId];
 
@@ -126,6 +128,18 @@ int32_t tfsAllocDiskOnTier(STfsTier *pTier) {
     terrno = 0;
     pTier->nextid = (diskId + 1) % pTier->ndisk;
     break;
+#else  // select the disk with the most available space
+    STfsDisk *pDisk = pTier->disks[id];
+    if (pDisk == NULL) continue;
+
+    if (pDisk->size.avail < tsMinDiskFreeSize) continue;
+
+    if (pDisk->size.avail > avail) {
+      avail = pDisk->size.avail;
+      retId = id;
+      terrno = 0;
+    }
+#endif
   }
 
   tfsUnLockTier(pTier);

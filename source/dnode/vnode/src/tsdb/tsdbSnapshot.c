@@ -1521,7 +1521,8 @@ ETsdbFsState tsdbSnapGetFsState(SVnode* pVnode) {
     return pVnode->pTsdb->pFS->fsstate;
   }
   for (int32_t lvl = 0; lvl < TSDB_RETENTION_MAX; ++lvl) {
-    if (SMA_RSMA_GET_TSDB(pVnode, lvl)->pFS->fsstate != TSDB_FS_STATE_NORMAL) {
+    STsdb* pTsdb = SMA_RSMA_GET_TSDB(pVnode, lvl);
+    if (pTsdb && pTsdb->pFS->fsstate != TSDB_FS_STATE_NORMAL) {
       return TSDB_FS_STATE_INCOMPLETE;
     }
   }
