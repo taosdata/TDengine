@@ -6830,13 +6830,19 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
 #ifdef TD_ENTERPRISE
   SRealTableNode* pRealTable = (SRealTableNode*)((SSelectStmt*)pStmt->pQuery)->pFromTable;
   SName name;
+  STableMeta* pMeta = NULL;
+  int8_t tableType = 0;
   int32_t code = getTargetMeta(
       pCxt, toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, &name),
-      &(pRealTable->pMeta), true);
+      &pMeta, true);
+  if (NULL != pMeta) {
+    tableType = pMeta->tableType;
+    taosMemoryFree(pMeta);
+  }
   if (TSDB_CODE_SUCCESS != code) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
   }
-  if (TSDB_VIEW_TABLE == pRealTable->pMeta->tableType) {
+  if (TSDB_VIEW_TABLE == tableType) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
   }
 #endif  
