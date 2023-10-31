@@ -151,8 +151,8 @@ enum AuthMethod {
 #[derive(Debug, serde::Serialize)]
 struct UaConnectConfig {
     endpoint: String,
-    connect_timeout: Option<i64>,
-    request_timeout: Option<i64>,
+    connect_timeout: i64,
+    request_timeout: i64,
     security_policy: String,
     security_mode: String,
     certificate: Option<String>,
@@ -348,8 +348,8 @@ impl OPCConfig {
                     dsn.subject.as_ref().unwrap_or(&"".to_string())
                 );
 
-                let connect_timeout = parse_int_at!("connect_timeout");
-                let request_timeout = parse_int_at!("request_timeout");
+                let connect_timeout = parse_int_at!("connect_timeout").unwrap_or(10);
+                let request_timeout = parse_int_at!("request_timeout").unwrap_or(10);
                 let security_policy = dsn.remove("security_policy").unwrap_or("None".to_string());
                 let security_mode = dsn.remove("security_mode").unwrap_or("None".to_string());
 
@@ -1557,7 +1557,21 @@ async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation>
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::env;
     use super::*;
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_is_valid() {
+        env::set_var("PLUGINS_HOME", "../plugins");
+
+        let dsn = Dsn::from_str("opcua://192.168.2.16:53530/OPCUA/SimulationServer").unwrap();
+        let dsv = is_valid(&dsn).await;
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("opc", dsv.data_source);
+    }
+
     #[tokio::test]
     async fn test_opc_config_to_toml() -> anyhow::Result<()> {
         let mut map = HashMap::new();
@@ -1608,8 +1622,8 @@ mod tests {
             connect: ConnectConfig {
                 ua: Some(UaConnectConfig {
                     endpoint: String::from("endpoint.123"),
-                    connect_timeout: Some(10),
-                    request_timeout: Some(20),
+                    connect_timeout: 10,
+                    request_timeout: 20,
                     security_policy: String::from("None"),
                     security_mode: String::from("None"),
                     certificate: None,
