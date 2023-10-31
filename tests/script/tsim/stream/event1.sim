@@ -121,6 +121,114 @@ if $data01 != 2 then
   goto loop2
 endi
 
+sql insert into t1 values(1648791243000,1,1,5,5.0);
+
+$loop_count = 0
+loop3:
+
+sleep 300
+print 1 sql select * from streamt2;
+sql select * from streamt2;
+
+print ===============================
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print ===============================
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 0 then
+  print ======rows=$rows
+  goto loop3
+endi
+
+sql insert into t1 values(1648791253000,1,9,6,6.0);
+
+$loop_count = 0
+loop4:
+
+sleep 300
+print 1 sql select * from streamt2;
+sql select * from streamt2;
+
+print ===============================
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print ===============================
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 1 then
+  print ======rows=$rows
+  goto loop4
+endi
+
+# row 0
+if $data01 != 3 then
+  print ======data01=$data01
+  goto loop4
+endi
+
+sql delete from t1 where ts = 1648791253000;
+
+$loop_count = 0
+loop5:
+
+sleep 300
+print 1 sql select * from streamt2;
+sql select * from streamt2;
+
+print ===============================
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print ===============================
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 0 then
+  print ======rows=$rows
+  goto loop5
+endi
+
+sql insert into t1 values(1648791263000,1,9,7,7.0);
+sql delete from t1 where ts = 1648791243000;
+
+$loop_count = 0
+loop6:
+
+sleep 300
+print 1 sql select * from streamt2;
+sql select * from streamt2;
+
+print ===============================
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print ===============================
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 1 then
+  print ======rows=$rows
+  goto loop6
+endi
+
+# row 0
+if $data01 != 2 then
+  print ======data01=$data01
+  goto loop6
+endi
 
 print event1 end
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
