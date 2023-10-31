@@ -309,9 +309,6 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   }
 
   ETaskStatus status = streamTaskGetStatus(pStreamTask, NULL);
-  ASSERT(((status == TASK_STATUS__DROPPING) || (pStreamTask->hTaskInfo.id.taskId == pTask->id.taskId)) &&
-         pTask->status.appendTranstateBlock == true);
-
   STimeWindow* pTimeWindow = &pStreamTask->dataRange.window;
 
   // It must be halted for a source stream task, since when the related scan-history-data task start scan the history
