@@ -1832,6 +1832,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             &mut count,
             context.config.as_ref().unwrap(),
             context.target_precision,
+            0,
         )
         .await?;
         Ok(n)
