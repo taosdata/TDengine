@@ -432,7 +432,7 @@ struct SStreamTask {
 typedef struct STaskStartInfo {
   int64_t   startTs;
   int64_t   readyTs;
-  int32_t   startedAfterNodeUpdate;
+  int32_t   startAllTasksFlag;
   SHashObj* pReadyTaskSet;           // tasks that are all ready for running stream processing
   int32_t   elapsedTime;
 } STaskStartInfo;
@@ -735,7 +735,6 @@ void    streamTaskCheckDownstream(SStreamTask* pTask);
 int32_t onNormalTaskReady(SStreamTask* pTask);
 int32_t onScanhistoryTaskReady(SStreamTask* pTask);
 
-//int32_t streamTaskStartScanHistory(SStreamTask* pTask);
 int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage);
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList);
 void    streamTaskResetUpstreamStageInfo(SStreamTask* pTask);
@@ -798,7 +797,6 @@ int32_t      streamMetaRemoveTask(SStreamMeta* pMeta, STaskId* pKey);
 int32_t      streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask, bool* pAdded);
 int32_t      streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 int32_t      streamMetaGetNumOfTasks(SStreamMeta* pMeta);
-int32_t      streamMetaGetNumOfStreamTasks(SStreamMeta* pMeta);
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 void         streamMetaReleaseTask(SStreamMeta* pMeta, SStreamTask* pTask);
 int32_t      streamMetaReopen(SStreamMeta* pMeta);
@@ -808,12 +806,12 @@ void         streamMetaNotifyClose(SStreamMeta* pMeta);
 void         streamMetaStartHb(SStreamMeta* pMeta);
 void         streamMetaInitForSnode(SStreamMeta* pMeta);
 bool         streamMetaTaskInTimer(SStreamMeta* pMeta);
+int32_t      streamMetaUpdateTaskReadyInfo(SStreamTask* pTask);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
 int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask);
 void    streamTaskClearCheckInfo(SStreamTask* pTask);
-
 int32_t streamAlignTransferState(SStreamTask* pTask);
 int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId);
 int32_t streamAddCheckpointSourceRspMsg(SStreamCheckpointSourceReq* pReq, SRpcHandleInfo* pRpcInfo, SStreamTask* pTask,

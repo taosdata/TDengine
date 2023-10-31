@@ -1267,12 +1267,6 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
               pTask->dataRange.range.maxVer, TASK_SCHED_STATUS__INACTIVE);
 
       /*int8_t status = */streamTaskSetSchedStatusInactive(pTask);
-#if 0
-      // the fill-history task starts to process data in wal, let's set it status to be normal now
-      if (pTask->info.fillHistory == 1 && !streamTaskShouldStop(&pTask->status)) {
-        streamSetStatusNormal(pTask);
-      }
-#endif
 
       // now the fill-history task starts to scan data from wal files.
       streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
@@ -1530,14 +1524,17 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
   }
 
   streamTaskResume(pTask);
+  ETaskStatus status = streamTaskGetStatus(pTask, NULL);
 
   int32_t level = pTask->info.taskLevel;
   if (level == TASK_LEVEL__SINK) {
+    if (status == TASK_STATUS__UNINIT) {
+
+    }
     streamMetaReleaseTask(pTq->pStreamMeta, pTask);
     return 0;
   }
 
-  ETaskStatus status = streamTaskGetStatus(pTask, NULL);
   if (status == TASK_STATUS__READY || status == TASK_STATUS__SCAN_HISTORY || status == TASK_STATUS__CK) {
     // no lock needs to secure the access of the version
     if (igUntreated && level == TASK_LEVEL__SOURCE && !pTask->info.fillHistory) {
@@ -1557,6 +1554,11 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
       tqScanWalAsync(pTq, false);
     } else {
       streamSchedExec(pTask);
+    }
+  } else if (status == TASK_STATUS__UNINIT) {
+    if (pTask->info.fillHistory == 0) {
+      EStreamTaskEvent event = HAS_RELATED_FILLHISTORY_TASK(pTask) ? TASK_EVENT_INIT_STREAM_SCANHIST : TASK_EVENT_INIT;
+      streamTaskHandleEvent(pTask->status.pSM, event);
     }
   }
 
@@ -1951,7 +1953,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
   int32_t updateTasks = taosHashGetSize(pMeta->updateInfo.pTasks);
 
-  pMeta->startInfo.startedAfterNodeUpdate = 1;
+  pMeta->startInfo.startAllTasksFlag = 1;
 
   if (updateTasks < numOfTasks) {
     tqDebug("vgId:%d closed tasks:%d, unclosed:%d, all tasks will be started when nodeEp update completed", vgId,
@@ -1960,7 +1962,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   } else {
     if (!pTq->pVnode->restored) {
       tqDebug("vgId:%d vnode restore not completed, not restart the tasks, clear the start after nodeUpdate flag", vgId);
-      pMeta->startInfo.startedAfterNodeUpdate = 0;
+      pMeta->startInfo.startAllTasksFlag = 0;
       taosWUnLockLatch(&pMeta->lock);
     } else {
       tqDebug("vgId:%d tasks are all updated and stopped, restart them", vgId);
@@ -1991,7 +1993,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
       if (vnodeIsRoleLeader(pTq->pVnode) && !tsDisableStream) {
         vInfo("vgId:%d restart all stream tasks after all tasks being updated", vgId);
         tqResetStreamTaskStatus(pTq);
-        tqCheckAndRunStreamTaskAsync(pTq);
+        tqLaunchStreamTaskAsync(pTq);
       } else {
         vInfo("vgId:%d, follower node not start stream tasks", vgId);
       }
