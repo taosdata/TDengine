@@ -1266,9 +1266,12 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       /*int8_t status = */streamTaskSetSchedStatusInactive(pTask);
 
       // now the fill-history task starts to scan data from wal files.
-      streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
-      tqScanWalAsync(pTq, false);
+      code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
+      if (code == TSDB_CODE_SUCCESS) {
+        tqScanWalAsync(pTq, false);
+      }
     }
+
     streamMetaReleaseTask(pMeta, pStreamTask);
 
   } else {

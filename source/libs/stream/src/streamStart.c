@@ -580,7 +580,7 @@ int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
 
   // execute in the scan history complete call back msg, ready to process data from inputQ
-  streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
+  int32_t code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
   streamTaskSetSchedStatusInactive(pTask);
 
   taosWLockLatch(&pMeta->lock);
