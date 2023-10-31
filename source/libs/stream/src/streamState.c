@@ -209,6 +209,12 @@ _err:
 #endif
 }
 
+int32_t streamStateDelTaskDb(SStreamState* pState) {
+  SStreamTask* pTask = pState->pTdbState->pOwner;
+  taskDbRemoveRef(pTask->pBackend);
+  taosMemoryFree(pTask);
+  return 0; 
+}
 void streamStateClose(SStreamState* pState, bool remove) {
   SStreamTask* pTask = pState->pTdbState->pOwner;
 #ifdef USE_ROCKSDB
