@@ -192,7 +192,7 @@ impl PutStream {
                             batch_number += 1;
                             let qid_base = create_query_id_base(trace_id_u64, batch_number);
                             let trace_id_for_batch = get_data_trace_id_for_batch(qid_base);
-                            tracing::info!("Start writing batch with tid {} and row count {}", trace_id_for_batch, record.num_rows());
+                            tracing::info!("Start writing batch with tid:{} and row count:{}", trace_id_for_batch, record.num_rows());
                             tracing::debug!(columns = ?record.columns(), num.rows = record.num_rows(), num.columns = record.num_columns());
                             if let Err(err) = worker
                                 .process_record(&mut stmt, record, parser.as_ref(), qid_base)

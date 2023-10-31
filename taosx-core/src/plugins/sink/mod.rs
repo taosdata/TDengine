@@ -220,7 +220,8 @@ async fn ipc_tcp_read(
 ) -> anyhow::Result<()> {
     // let stream = Arc::new(stream);
     // let reader = stream.clone();
-
+    let data_trace_id = create_data_trace_id();
+    set_data_trace_id_for_current_span(data_trace_id.as_str());
     info!(client, "Prepare IPC stream reader");
     let reader_stream = stream.try_clone().context("Clone tcp stream error")?;
     let ipc_reader = tokio::task::spawn_blocking(move || {
@@ -246,6 +247,7 @@ async fn ipc_tcp_read(
         connector,
         transferred,
         task_id,
+        data_trace_id,
     )
     .await?;
     tracing::info!("IPC stream processed");
@@ -1704,6 +1706,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
     task_id: Option<i64>,
+    data_trace_id_u64: u64,
 ) -> anyhow::Result<()> {
     let taos = pool.get().await?;
     let columns = ipc_reader
@@ -1718,25 +1721,19 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     let mut count = 0;
     let mut stream = ipc_reader.into_stream();
 
-    let mut batches = 0;
+    let mut batches:u32 = 0;
     static mut ACKS: AtomicUsize = AtomicUsize::new(0);
     let mut taos = Some(taos);
     while let Some(record) = stream.try_next().await.context("next item error")? {
+        batches += 1;
+        let qid_base = create_query_id_base(data_trace_id_u64, batches);
+        let trace_id_for_batch: String = get_data_trace_id_for_batch(qid_base);
+        info!("Start consuming lush record batch with tid:{}", trace_id_for_batch);
         let record = *Box::<dyn Any>::downcast::<LushMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
         })
         .unwrap();
-
         let last = count;
-        tracing::info!(
-            "consume lush record task in ipc_lush_stream_reader task_id: {task_id:?}",
-            task_id = task_id
-        );
-        tracing::info!(
-            "consume lush record task in ipc_lush_stream_reader task_id: {task_id:?}",
-            task_id = task_id
-        );
-
         if let Err(err) = consume_lush_record(
             pool,
             &mut taos,
@@ -1749,12 +1746,12 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             license,
             transferred,
             task_id,
-            0,
+            qid_base,
         )
         .in_current_span()
         .await
         {
-            tracing::error!("write batch {batches} error: {err:#}");
+            tracing::error!("write batch {trace_id_for_batch} error: {err:#}");
             let written = count - last;
             let _ = ipc_ack_writer.ack(LushAck {
                 code: 0xFFFF,
@@ -1785,7 +1782,6 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             tracing::info!(acks = unsafe { ACKS.load(Ordering::SeqCst) }, "ack done");
         }
         unsafe { ACKS.fetch_add(1, Ordering::SeqCst) };
-        batches += 1;
     }
     println!("finished, totally {count} rows");
     Ok(())
@@ -1800,6 +1796,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
     license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
     target_precision: taos::Precision,
+    data_trace_id_u64: u64,
 ) -> anyhow::Result<()> {
     let count = Arc::new(AtomicUsize::new(0));
 
@@ -1813,6 +1810,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
     async fn parse(
         context: WriterContext,
         record: Result<Box<dyn IpcMessage>, arrow::error::ArrowError>,
+        qid_base: u64,
     ) -> anyhow::Result<usize> {
         let record = record?;
         let pool = &context.pool;
@@ -1832,7 +1830,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             &mut count,
             context.config.as_ref().unwrap(),
             context.target_precision,
-            0,
+            qid_base,
         )
         .await?;
         Ok(n)
@@ -1844,15 +1842,19 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
         target_precision,
     };
     let ipc_ack_writer = Arc::new(Mutex::new(ipc_ack_writer));
-
+    let batch_counter = Arc::new(AtomicU32::new(1));
     ipc_reader
         .into_stream()
         .for_each_concurrent(48, |record| {
             let context = context.clone();
             let ipc_ack_writer = ipc_ack_writer.clone();
             let count = count.clone();
+            let batch_number = batch_counter.fetch_add(1, Ordering::SeqCst);
+            let qid_base = create_query_id_base(data_trace_id_u64, batch_number);
+            let trace_id_for_batch: String = get_data_trace_id_for_batch(qid_base);
+            info!("Start writing batch with tid:{}", trace_id_for_batch);
             async move {
-                let n = parse(context, record).await;
+                let n = parse(context, record, qid_base).await;
                 match n {
                     Ok(n) => {
                         let _ = ipc_ack_writer.lock().await.write_ok();
@@ -1883,15 +1885,19 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
     license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
     target_precision: taos::Precision,
+    data_trace_id_u64: u64,
 ) -> anyhow::Result<()> {
     let mut count = 0;
-    let mut batches = 0;
+    let mut batches: u32 = 0;
     let mut stream = futures::stream::iter(ipc_reader).inspect_err(|err| {
         tracing::warn!("Receive IPC item error: {err:#}");
     });
     let mut taos = Some(pool.get().await?);
     while let Some(record) = stream.try_next().await? {
         batches += 1;
+        let qid_base = create_query_id_base(data_trace_id_u64, batches);
+        let trace_id_for_batch: String = get_data_trace_id_for_batch(qid_base);
+        info!("Start writing batch with tid:{}", trace_id_for_batch);
         counter!("ipc.stream.batches", batches as u64);
         let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
             std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
@@ -1907,7 +1913,7 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
             license,
             transferred,
             target_precision,
-            0,
+            qid_base,
         )
         .await
         {
@@ -2043,6 +2049,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
     connector: Option<&str>,
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
+    data_trace_id: String,
 ) -> anyhow::Result<()> {
     info!(client, "IPC stream processing...");
     let taos = pool.get().await?;
@@ -2082,7 +2089,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
 
     let metadata = ipc_reader.metadata();
     let stream_type = *metadata.stream_type();
-
+    let data_trace_id_u64 = u64::from_str_radix(data_trace_id.as_str(), 16).unwrap();
     if let Some(sql) = ipc_reader.metadata().init_sql_string() {
         // let guard = lock.lock().await;
         let init = metadata.init().unwrap();
@@ -2101,6 +2108,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 license.as_ref(),
                 transferred.as_deref(),
                 target_precision,
+                data_trace_id_u64,
             )
             .await?
         }
@@ -2112,6 +2120,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 license.as_ref(),
                 transferred.as_deref(),
                 task_id,
+                data_trace_id_u64,
             )
             .await?
         }
@@ -2124,6 +2133,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 license.as_ref(),
                 transferred.as_deref(),
                 target_precision,
+                data_trace_id_u64,
             )
             .await?
         }
@@ -2760,14 +2770,12 @@ use taos::RawResult;
 
 async fn exec<T: AsRef<str> + Send + Sync>(taos: &deadpool::managed::Object<Manager<TaosBuilder>>, sql: T, qid_base: u64) ->  RawResult<usize> {
     let req_id = create_query_id_base_on(qid_base);
-    tracing::info!("dingbo_req_id {} {:#016x}", req_id, req_id);
     taos.query_with_req_id(sql, req_id).await.map(|res| res.affected_rows() as _)
 }
 
 use taos::ResultSet;
 async fn query<T: AsRef<str> + Send + Sync>(taos: &deadpool::managed::Object<Manager<TaosBuilder>>, sql: T, qid_base: u64) -> RawResult<ResultSet> {
     let req_id = create_query_id_base_on(qid_base);
-    tracing::info!("dingbo_req_id {} {:#016x}", req_id, req_id);
     taos.query_with_req_id(sql, req_id).await
 }
 
