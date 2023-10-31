@@ -24,7 +24,7 @@ static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask);
 
 bool streamTaskShouldStop(const SStreamTask* pTask) {
   ETaskStatus s = streamTaskGetStatus(pTask, NULL);
-  return (s == TASK_STATUS__STOP) || (s == TASK_STATUS__DROPPING) || (s == TASK_STATUS__UNINIT);
+  return (s == TASK_STATUS__STOP) || (s == TASK_STATUS__DROPPING);
 }
 
 bool streamTaskShouldPause(const SStreamTask* pTask) {
@@ -525,7 +525,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     int32_t           blockSize = 0;
     int32_t           numOfBlocks = 0;
     SStreamQueueItem* pInput = NULL;
-    if (streamTaskShouldStop(pTask)) {
+    if (streamTaskShouldStop(pTask) || (streamTaskGetStatus(pTask, NULL) == TASK_STATUS__UNINIT)) {
       stDebug("s-task:%s stream task is stopped", id);
       break;
     }
