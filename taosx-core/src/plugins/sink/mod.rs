@@ -68,7 +68,7 @@ async fn ipc_tcp_forward(
     let _ = cancel;
     use arrow_flight::{encode::FlightDataEncoderBuilder, error::FlightError};
     use futures::StreamExt;
-    let reader_stream = stream
+    let reader_stream = stream         
         .try_clone()
         .context("Try clone IPC stream as reader error")?;
     let ipc_reader = tokio::task::spawn_blocking(move || IpcReader::new(reader_stream))
