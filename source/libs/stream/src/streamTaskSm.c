@@ -201,9 +201,12 @@ static int32_t doHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event, STaskSt
       if ((s == pTrans->next.state) && (pSM->prev.evt == pTrans->event)) {
         stDebug("s-task:%s attached event:%s handled", id, StreamTaskEventList[pTrans->event].name);
         return TSDB_CODE_SUCCESS;
-      } else {  // this event has been handled already
+      } else if (s != TASK_STATUS__DROPPING && s != TASK_STATUS__STOP) {  // this event has been handled already
         stDebug("s-task:%s not handle event:%s yet, wait for 100ms and recheck", id, StreamTaskEventList[event].name);
         taosMsleep(100);
+      } else {
+        stDebug("s-task:%s is dropped or stopped already, not wait.", id);
+        return TSDB_CODE_INVALID_PARA;
       }
     }
 
