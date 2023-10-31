@@ -3559,6 +3559,20 @@ static const char* getPrecisionStr(uint8_t precision) {
   return "unknown";
 }
 
+static int64_t getPrecisionMultiple(uint8_t precision) {
+  switch (precision) {
+    case TSDB_TIME_PRECISION_MILLI:
+      return 1;
+    case TSDB_TIME_PRECISION_MICRO:
+      return 1000;
+    case TSDB_TIME_PRECISION_NANO:
+      return 1000000;
+    default:
+      break;
+  }
+  return 1;
+}
+
 static void convertVarDuration(SValueNode* pOffset, uint8_t precision) {
   const int64_t factors[3] = {NANOSECOND_PER_MSEC, NANOSECOND_PER_USEC, 1};
   const int8_t  units[3] = {TIME_UNIT_MILLISECOND, TIME_UNIT_MICROSECOND, TIME_UNIT_NANOSECOND};
@@ -3572,6 +3586,7 @@ static void convertVarDuration(SValueNode* pOffset, uint8_t precision) {
   pOffset->unit = units[precision];
 }
 
+static const int64_t  tsdbMaxKeepMS = (int64_t)60 * 1000 * TSDB_MAX_KEEP;
 static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pInterval) {
   uint8_t precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
 
@@ -3580,6 +3595,8 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
   if (pInter->datum.i <= 0 || (!valInter && pInter->datum.i < tsMinIntervalTime)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL, tsMinIntervalTime,
                                 getPrecisionStr(precision));
+  } else if (pInter->datum.i / getPrecisionMultiple(precision) > tsdbMaxKeepMS) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_BIG, 1000, "years");
   }
 
   if (NULL != pInterval->pOffset) {
@@ -4648,10 +4665,22 @@ static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRete
   SValueNode* pPrevFreq = NULL;
   SValueNode* pPrevKeep = NULL;
   SNode*      pRetention = NULL;
+  bool        firstFreq = true;
   FOREACH(pRetention, pRetentions) {
     SNode* pNode = NULL;
     FOREACH(pNode, ((SNodeListNode*)pRetention)->pNodeList) {
       SValueNode* pVal = (SValueNode*)pNode;
+      if (firstFreq) {
+        firstFreq = false;
+        if (pVal->literal[0] != '-' || strlen(pVal->literal) != 1) {
+          return generateSyntaxErrMsgExt(
+              &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+              "Invalid option retentions(freq): %s, the interval of 1st retention level should be '-'", pVal->literal);
+        }
+        pVal->unit = TIME_UNIT_SECOND;  // assign minimum unit
+        pVal->datum.i = 0;              // assign minimum value
+        continue;
+      }
       if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
         return pCxt->errCode;
       }
@@ -4676,7 +4705,7 @@ static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRete
     }
 
     // check value range
-    if (pFreq->datum.i <= 0) {
+    if (pPrevFreq != NULL && pFreq->datum.i <= 0) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                      "Invalid option retentions(freq): %s should larger than 0", pFreq->literal);
     }

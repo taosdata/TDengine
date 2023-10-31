@@ -109,6 +109,15 @@ extern const int32_t TYPE_BYTES[21];
 
 #define TSDB_INS_USER_STABLES_DBNAME_COLID 2
 
+static const int64_t TICK_PER_SECOND[] = {
+  1000LL, // MILLISECOND
+  1000000LL, // MICROSECOND
+  1000000000LL, // NANOSECOND
+  0LL, // HOUR
+  0LL, // MINUTE
+  1LL // SECOND
+};
+
 #define TSDB_TICK_PER_SECOND(precision)               \
   ((int64_t)((precision) == TSDB_TIME_PRECISION_MILLI \
                  ? 1000LL                             \
@@ -297,6 +306,8 @@ typedef enum ELogicConditionType {
 #define TSDB_SYNC_APPLYQ_SIZE_LIMIT    512
 #define TSDB_SYNC_NEGOTIATION_WIN      512
 
+#define TSDB_SYNC_SNAP_BUFFER_SIZE 2048
+
 #define TSDB_TBNAME_COLUMN_INDEX     (-1)
 #define TSDB_MULTI_TABLEMETA_MAX_NUM 100000  // maximum batch size allowed to load table meta
 
@@ -319,7 +330,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_DAYS_PER_FILE          (3650 * 1440)
 #define TSDB_DEFAULT_DAYS_PER_FILE      (10 * 1440)
 #define TSDB_MIN_DURATION_PER_FILE      60  // unit minute
-#define TSDB_MAX_DURATION_PER_FILE      (3650 * 1440)
+#define TSDB_MAX_DURATION_PER_FILE      (90 * 1440)
 #define TSDB_DEFAULT_DURATION_PER_FILE  (10 * 1440)
 #define TSDB_MIN_KEEP                   (1 * 1440)          // data in db to be reserved. unit minute
 #define TSDB_MAX_KEEP                   (365000 * 1440)     // data in db to be reserved.

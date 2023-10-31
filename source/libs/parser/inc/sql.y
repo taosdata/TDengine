@@ -305,6 +305,7 @@ retention_list(A) ::= retention(B).                                             
 retention_list(A) ::= retention_list(B) NK_COMMA retention(C).                    { A = addNodeToList(pCxt, B, C); }
 
 retention(A) ::= NK_VARIABLE(B) NK_COLON NK_VARIABLE(C).                          { A = createNodeListNodeEx(pCxt, createDurationValueNode(pCxt, &B), createDurationValueNode(pCxt, &C)); }
+retention(A) ::= NK_MINUS(B) NK_COLON NK_VARIABLE(C).                             { A = createNodeListNodeEx(pCxt, createDurationValueNode(pCxt, &B), createDurationValueNode(pCxt, &C)); }
 
 %type speed_opt                                                                   { int32_t }
 %destructor speed_opt                                                             { }

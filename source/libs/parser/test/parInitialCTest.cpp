@@ -247,7 +247,11 @@ TEST_F(ParserInitialCTest, createDatabase) {
       for (int32_t i = 0; i < expect.numOfRetensions; ++i) {
         SRetention* pReten = (SRetention*)taosArrayGet(req.pRetensions, i);
         SRetention* pExpectReten = (SRetention*)taosArrayGet(expect.pRetensions, i);
-        ASSERT_EQ(pReten->freq, pExpectReten->freq);
+        if(i == 0) {
+          ASSERT_EQ(pReten->freq, 0);
+        } else {
+          ASSERT_EQ(pReten->freq, pExpectReten->freq);
+        }
         ASSERT_EQ(pReten->keep, pExpectReten->keep);
         ASSERT_EQ(pReten->freqUnit, pExpectReten->freqUnit);
         ASSERT_EQ(pReten->keepUnit, pExpectReten->keepUnit);
@@ -304,7 +308,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "PAGESIZE 8 "
       "PRECISION 'ns' "
       "REPLICA 3 "
-      "RETENTIONS 15s:7d,1m:21d,15m:500d "
+      "RETENTIONS -:7d,1m:21d,15m:500d "
       //      "STRICT 'on' "
       "WAL_LEVEL 2 "
       "VGROUPS 100 "
@@ -340,12 +344,12 @@ TEST_F(ParserInitialCTest, createDatabase) {
 TEST_F(ParserInitialCTest, createDatabaseSemanticCheck) {
   useDb("root", "test");
 
-  run("create database db2 retentions 0s:1d", TSDB_CODE_PAR_INVALID_DB_OPTION);
-  run("create database db2 retentions 10s:0d", TSDB_CODE_PAR_INVALID_DB_OPTION);
-  run("create database db2 retentions 1w:1d", TSDB_CODE_PAR_INVALID_DB_OPTION);
-  run("create database db2 retentions 1w:1n", TSDB_CODE_PAR_INVALID_DB_OPTION);
-  run("create database db2 retentions 15s:7d,15m:21d,10m:500d", TSDB_CODE_PAR_INVALID_DB_OPTION);
-  run("create database db2 retentions 15s:7d,5m:21d,10m:10d", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("create database db2 retentions -:1d,0s:1d", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("create database db2 retentions -:0d", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("create database db2 retentions -:1d,1w:1d", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("create database db2 retentions -:1n,1w:1d", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("create database db2 retentions -:7d,15m:21d,10m:500d", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("create database db2 retentions -:7d,5m:21d,10m:10d", TSDB_CODE_PAR_INVALID_DB_OPTION);
 }
 
 /*

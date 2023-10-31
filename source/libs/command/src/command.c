@@ -219,37 +219,28 @@ int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
   return v;
 }
 
-char* buildRetension(SArray* pRetension) {
+static char* buildRetension(SArray* pRetension) {
   size_t size = taosArrayGetSize(pRetension);
   if (size == 0) {
     return NULL;
   }
 
-  char*       p1 = taosMemoryCalloc(1, 100);
-  SRetention* p = taosArrayGet(pRetension, 0);
-
+  char*   p1 = taosMemoryCalloc(1, 100);
   int32_t len = 0;
 
-  int64_t v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
-  int64_t v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
-  len += sprintf(p1 + len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+  for (int32_t i = 0; i < size; ++i) {
+    SRetention* p = TARRAY_GET_ELEM(pRetension, i);
+    int64_t     v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
+    int64_t     v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
+    if (i == 0) {
+      len += sprintf(p1 + len, "-:%" PRId64 "%c", v2, p->keepUnit);
+    } else {
+      len += sprintf(p1 + len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+    }
 
-  if (size > 1) {
-    len += sprintf(p1 + len, ",");
-    p = taosArrayGet(pRetension, 1);
-
-    v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
-    v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
-    len += sprintf(p1 + len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
-  }
-
-  if (size > 2) {
-    len += sprintf(p1 + len, ",");
-    p = taosArrayGet(pRetension, 2);
-
-    v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
-    v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
-    len += sprintf(p1 + len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+    if (i < size - 1) {
+      len += sprintf(p1 + len, ",");
+    }
   }
 
   return p1;
