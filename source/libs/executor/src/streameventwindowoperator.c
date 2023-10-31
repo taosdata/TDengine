@@ -115,7 +115,7 @@ void setEventOutputBuf(SStreamAggSupporter* pAggSup, TSKEY* pTs, uint64_t groupI
   if (code == TSDB_CODE_SUCCESS && inWinRange(&pAggSup->winRange, &leftWinKey.win) ) {
     bool inWin = isInTimeWindow(&leftWinKey.win, ts, 0);
     setEventWindowInfo(pAggSup, &leftWinKey, pVal, pCurWin);
-    if(inWin || !pCurWin->pWinFlag->endFlag) {
+    if(inWin || (pCurWin->pWinFlag->startFlag && !pCurWin->pWinFlag->endFlag) ) {
       pCurWin->winInfo.isOutput = true;
       goto _end;
     }
@@ -124,7 +124,8 @@ void setEventOutputBuf(SStreamAggSupporter* pAggSup, TSKEY* pTs, uint64_t groupI
   pCur = pAggSup->stateStore.streamStateSessionSeekKeyNext(pAggSup->pState, &pCurWin->winInfo.sessionWin);
   SSessionKey  rightWinKey = {0};
   code = pAggSup->stateStore.streamStateSessionGetKVByCur(pCur, &rightWinKey, &pVal, &len);
-  if (code == TSDB_CODE_SUCCESS && inWinRange(&pAggSup->winRange, &rightWinKey.win) && start && !end) {
+  bool inWin = isInTimeWindow(&rightWinKey.win, ts, 0);
+  if (code == TSDB_CODE_SUCCESS && inWinRange(&pAggSup->winRange, &rightWinKey.win) && (inWin || (start && !end))) {
     int32_t endi = getEndCondIndex(pEnd, index, rows);
     if (endi < 0 || pTs[endi] >= rightWinKey.win.skey) {
       setEventWindowInfo(pAggSup, &rightWinKey, pVal, pCurWin);
@@ -158,6 +159,10 @@ int32_t updateEventWindowInfo(SStreamAggSupporter* pAggSup, SEventWindowInfo* pW
                               TSKEY* pTsData, bool* starts, bool* ends, int32_t rows, int32_t start, SSHashObj* pResultRows,
                               SSHashObj* pStUpdated, SSHashObj* pStDeleted, bool* pRebuild) {
   *pRebuild = false;
+  if (!pWinInfo->pWinFlag->startFlag) {
+    return 1;
+  }
+
   TSKEY maxTs = INT64_MAX;
   STimeWindow* pWin = &pWinInfo->winInfo.sessionWin.win;
   if (pWinInfo->pWinFlag->endFlag) {

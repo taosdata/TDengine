@@ -26,8 +26,10 @@ sleep 300
 print 1 sql select * from streamt1;
 sql select * from streamt1;
 
+print ===============================
 print $data00 $data01 $data02 $data03
 print $data10 $data11 $data12 $data13
+print ===============================
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -44,6 +46,81 @@ if $data01 != 2 then
   print ======data01=$data01
   goto loop0
 endi
+
+print step2
+print =============== create database test2
+sql create database test2 vgroups 1;
+sql use test2;
+
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0 into streamt2 as select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 event_window start with a = 0 end with b = 9;
+sleep 1000
+
+sql insert into t1 values(1648791223000,0,3,3,3.0);
+
+sql insert into t1 values(1648791233000,0,1,1,1.0);
+sql insert into t1 values(1648791243000,1,9,2,2.0);
+
+
+$loop_count = 0
+loop1:
+
+sleep 300
+print 1 sql select * from streamt2;
+sql select * from streamt2;
+
+print ===============================
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print ===============================
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 1 then
+  print ======rows=$rows
+  goto loop1
+endi
+
+# row 0
+if $data01 != 3 then
+  print ======data01=$data01
+  goto loop1
+endi
+
+
+sql insert into t1 values(1648791223000,1,1,4,4.0);
+
+$loop_count = 0
+loop2:
+
+sleep 300
+print 1 sql select * from streamt2;
+sql select * from streamt2;
+
+print ===============================
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print ===============================
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 1 then
+  print ======rows=$rows
+  goto loop2
+endi
+
+# row 0
+if $data01 != 2 then
+  print ======data01=$data01
+  goto loop2
+endi
+
 
 print event1 end
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
