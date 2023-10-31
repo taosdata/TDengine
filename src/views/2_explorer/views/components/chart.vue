@@ -31,8 +31,8 @@
           multiple
         >
           <el-option
-            v-for="(item,ind) in field"
-            :key="ind"
+            v-for="(item,index) in field"
+            :key="index"
             :label="item"
             :value="index"
             :disabled="item === chartForm.label"

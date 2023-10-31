@@ -65,7 +65,7 @@ export default {
   },
   computed: {
     ...mapState({
-      dataSource: state => state.console.result,
+      dataSource: state => state.console.repeatResult,
       head: state => {
         let result = {};
         state.console.head.forEach(item => {
@@ -89,6 +89,7 @@ export default {
   mounted() {
   },
   methods: {
+
     refresh() {
       this.$emit("refresh");
     },
