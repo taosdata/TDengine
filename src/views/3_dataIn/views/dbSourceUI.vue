@@ -924,7 +924,9 @@ export default {
         (this.dbsource[0]?.params && this.dbsource[0]?.params[0]?.value) ||
         this.piSystemConfiguration;
       this.changeSystemConfiguration(defaultVal);
-      this.getSchema(false);
+      if (this.tagName == 'influxdb' || this.tagName == 'opentsdb') {
+        this.getSchema(false);
+      }
       this.isShowEditBtn = this.isCopyable ? false : true;
     } else {
       this.activeName = "point_file";
