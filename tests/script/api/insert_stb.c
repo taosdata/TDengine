@@ -112,8 +112,6 @@ void TestInsertStb(TAOS *taos, char *qstr)  {
     for (int batchIdx = 0; batchIdx < 10000; ++batchIdx) {
       len = batchStart;
       len += sprintf(qstr+len, " values");
-      if (batchIdx % 5000 == 1)
-        printf("%s %d table %d\n", qstr, batchIdx, tblIdx);
 
       for (int rowIdx = 0; rowIdx < 100; ++rowIdx) {
         int i = rowIdx + batchIdx * 100 + tblIdx*10000*100;
@@ -153,8 +151,10 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
   char* qstr = malloc(1024*1024);
-  TestInsert(taos, qstr);
-  TestInsertStb(taos, qstr);
+  for (int i =0; i < 5; ++i) 
+    TestInsert(taos, qstr);
+  for (int i =0; i < 5; ++i) 
+    TestInsertStb(taos, qstr);
   free(qstr);
   taos_close(taos);
   taos_cleanup();
