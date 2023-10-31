@@ -35,13 +35,14 @@ namespace TDPIConnector.Core.Tasks
                 List<string> piPointNames = this.piPoints.Select(p => p.Name).ToList();
                 this.piDataPipeManager = this.piServerManager.AddSignups(piPointNames, pointModeObserver, AppSettings.tomlConfig.PIDataPipesInstances);
                 log.Info("Process datapipe, PI Point Mode observer start...");
+                int maxEventCount = AppSettings.MaxEventCountObserverFetchOnce;
                 while (!stopTaskRequested)
                 {
                     if (!StandbyManager.Instance.PIConnectionError)
                     {
                         try
                         {
-                            piDataPipeManager.GetObserverEvents();
+                            piDataPipeManager.GetObserverEvents(maxEventCount);
                             await Task.Delay(AppSettings.tomlConfig.UpdateInterval);
                         }
                         catch (Exception ex)

@@ -47,12 +47,12 @@ namespace TDPIConnector.PI
             }
         }
 
-        public void GetObserverEvents()
+        public void GetObserverEvents(int maxEventCount)
         {
             for (int i = 0; i < piDataPipes.Count; i++)
             {
 #pragma warning disable IDE0059 // Unnecessary assignment of a value
-                piDataPipes[i].GetObserverEvents(100000, out bool hasMoreEvents);
+                piDataPipes[i].GetObserverEvents(maxEventCount, out bool hasMoreEvents);
 #pragma warning restore IDE0059 // Unnecessary assignment of a value
             }
         }
