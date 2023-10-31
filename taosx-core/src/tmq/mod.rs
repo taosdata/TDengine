@@ -259,6 +259,11 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
     }
 
     let builder = TaosBuilder::from_dsn(&from)?;
+    let version = builder.server_version().await?;
+    if version.starts_with("2.") {
+        bail!("tmq does not support TDengine 2.x");
+    }
+
     let source = builder.build().await?;
 
     let mut topics = database
