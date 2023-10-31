@@ -1745,11 +1745,6 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
   pRes->pass[AUTH_RES_BASIC] = false;
   pRes->pCond[AUTH_RES_BASIC] = NULL;
 
-  if (req->tbNotExists) {
-    pRes->pass[AUTH_RES_BASIC] = true;
-    return TSDB_CODE_SUCCESS;
-  }
-
   if (!pInfo->enable) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1763,6 +1758,12 @@ int32_t ctgChkSetBasicAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res
     pRes->pass[AUTH_RES_BASIC] = true;
     ctgDebug("sysdb %s, pass", pReq->tbName.dbname);
     return TSDB_CODE_SUCCESS;
+  }
+
+  if (req->tbNotExists) {
+    //pRes->pass[AUTH_RES_BASIC] = true;
+    //return TSDB_CODE_SUCCESS;
+    pReq->tbName.type = TSDB_DB_NAME_T;
   }
 
   char dbFName[TSDB_DB_FNAME_LEN];
@@ -1890,13 +1891,12 @@ int32_t ctgChkSetViewAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res)
 
 int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
 #ifdef TD_ENTERPRISE
-  CTG_ERR_RET(ctgChkSetBasicAuthRes(pCtg, req, res));
+  CTG_ERR_RET(ctgChkSetViewAuthRes(pCtg, req, res));
   if (req->pRawReq->isView) {
     return TSDB_CODE_SUCCESS;
   }
 #endif
-
-  CTG_RET(ctgChkSetViewAuthRes(pCtg, req, res));
+  CTG_RET(ctgChkSetBasicAuthRes(pCtg, req, res));
 }
 
 #if 0
