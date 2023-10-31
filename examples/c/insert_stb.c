@@ -57,7 +57,7 @@ void TestInsert(TAOS *taos, char *qstr)  {
   executeSql(taos, "create database demo2");
   executeSql(taos, "use demo2");
 
-  executeSql(taos, "create table st (ts timestamp, ti tinyint, si smallint, i int, bi bigint, f float, d double, b binary(10)) tags(t1 int, t2 float, t3 binary(10))");
+  executeSql(taos, "create table st (ts timestamp, ti tinyint, si smallint, i int, bi bigint, f float, d double, b binary(10), tbname2 binary(192)) tags(t1 int, t2 float, t3 binary(10))");
   printf("success to create table\n");
 
   struct timeval start_time;
@@ -75,7 +75,7 @@ void TestInsert(TAOS *taos, char *qstr)  {
 
       for (int rowIdx = 0; rowIdx < 100; ++ rowIdx) {
         int i = rowIdx + batchIdx * 100 + tblIdx*10000*100;
-        len += sprintf(qstr+len, " (%" PRId64 ", %d, %d, %d, %d, %f, %lf, '%s')", (uint64_t)(1546300800000 + i), (int8_t)i, (int16_t)i, i, i, i*1.0, i*2.0, "hello");      
+        len += sprintf(qstr+len, " (%" PRId64 ", %d, %d, %d, %d, %f, %lf, '%s', 'ct%d')", (uint64_t)(1546300800000 + i), (int8_t)i, (int16_t)i, i, i, i*1.0, i*2.0, "hello", tblIdx);      
       }
       TAOS_RES *result1 = taos_query(taos, qstr);
       if (result1 == NULL || taos_errno(result1) != 0) {
