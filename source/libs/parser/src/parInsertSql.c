@@ -1574,6 +1574,32 @@ typedef union SRowsDataContext{
   SStbRowsDataContext* pStbRowsCxt;
 } SRowsDataContext;
 
+static int32_t parseTbnameToken(SInsertParseContext* pCxt, SStbRowsDataContext* pStbRowsCxt, SToken* pToken, 
+                                char* ctbName, bool* pFoundCtbName) {
+  *pFoundCtbName = false;
+  int32_t code = checkAndTrimValue(pToken, pCxt->tmpTokenBuf, &pCxt->msg);
+  if (code == TSDB_CODE_SUCCESS){
+    if (isNullValue(TSDB_DATA_TYPE_BINARY, pToken)) {
+      return buildInvalidOperationMsg(&pCxt->msg, "tbname can not be null value");
+    }
+
+    if (pToken->n > 0) {
+      if (pToken->n <= TSDB_TABLE_NAME_LEN - 1) {
+        memcpy(ctbName, pToken->z, pToken->n);
+        ctbName[pToken->n] = '\0';
+        *pFoundCtbName = true;
+        tNameSetDbName(&pStbRowsCxt->ctbName, pStbRowsCxt->stbName.acctId, pStbRowsCxt->stbName.dbname, strlen(pStbRowsCxt->stbName.dbname));
+        tNameAddTbName(&pStbRowsCxt->ctbName, ctbName, pToken->n);
+      } else {
+        return buildInvalidOperationMsg(&pCxt->msg, "tbname is too long");
+      }
+    } else {
+      return buildInvalidOperationMsg(&pCxt->msg, "tbname can not be empty");
+    }
+  }
+  return code;
+}
+
 static int32_t getStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,  const char** ppSql,
                                SStbRowsDataContext* pStbRowsCxt, bool* pGotRow,
                                SToken* pToken, bool *pCtbFirst) {
@@ -1627,19 +1653,8 @@ static int32_t getStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
       }
     }
     else if (pCols->pColIndex[i] == getTbnameSchemaIndex(pStbRowsCxt->pStbMeta)) {
-      SColVal tbnameVal = COL_VAL_NONE(-1, TSDB_DATA_TYPE_BINARY);
-      tbnameVal.value.val = 0;
-      code = parseValueToken(pCxt, ppSql, pToken, (SSchema*)tGetTbnameColumnSchema(),
-                             getTableInfo(pStbRowsCxt->pStbMeta).precision, &tbnameVal);
-      if (code == TSDB_CODE_SUCCESS && COL_VAL_IS_VALUE(&tbnameVal) && tbnameVal.value.nData>0) {
-        tNameSetDbName(&pStbRowsCxt->ctbName, pStbRowsCxt->stbName.acctId, pStbRowsCxt->stbName.dbname, strlen(pStbRowsCxt->stbName.dbname));
-        char ctbName[TSDB_TABLE_NAME_LEN];
-        memcpy(ctbName, tbnameVal.value.pData, tbnameVal.value.nData);
-        ctbName[tbnameVal.value.nData] = '\0';
-        tNameAddTbName(&pStbRowsCxt->ctbName, ctbName, tbnameVal.value.nData);
-        bFoundTbName = true;
-      }
-      taosMemoryFreeClear(tbnameVal.value.pData);
+      char ctbName[TSDB_TABLE_NAME_LEN];
+      code = parseTbnameToken(pCxt, pStbRowsCxt, pToken, ctbName, &bFoundTbName);
     }
 
     if (code == TSDB_CODE_SUCCESS && i < pCols->numOfBound - 1) {
