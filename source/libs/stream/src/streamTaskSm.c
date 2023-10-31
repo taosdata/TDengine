@@ -105,6 +105,17 @@ int32_t streamTaskKeepCurrentVerInWal(SStreamTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
+// todo check rsp code for handle Event:TASK_EVENT_SCANHIST_DONE
+static bool isUnsupportedTransform(ETaskStatus state, const EStreamTaskEvent event) {
+  if (state == TASK_STATUS__STOP || state == TASK_STATUS__DROPPING || state == TASK_STATUS__UNINIT) {
+    if (event == TASK_EVENT_SCANHIST_DONE || event == TASK_EVENT_CHECKPOINT_DONE || event == TASK_EVENT_GEN_CHECKPOINT) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 // todo optimize the perf of find the trans objs by using hash table
 static STaskStateTrans* streamTaskFindTransform(ETaskStatus state, const EStreamTaskEvent event) {
   int32_t numOfTrans = taosArrayGetSize(streamTaskSMTrans);
@@ -115,10 +126,8 @@ static STaskStateTrans* streamTaskFindTransform(ETaskStatus state, const EStream
     }
   }
 
-  if (event == TASK_EVENT_CHECKPOINT_DONE && state == TASK_STATUS__STOP) {
-
-  } else if (event == TASK_EVENT_GEN_CHECKPOINT && state == TASK_STATUS__UNINIT) {
-    // the task is set to uninit due to nodeEpset update, during processing checkpoint-trigger block.
+  if (isUnsupportedTransform(state, event)) {
+    return NULL;
   } else {
     ASSERT(0);
   }
