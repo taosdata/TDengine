@@ -218,7 +218,7 @@ where
             }
             // collect query id
             if let Some(query_id) = extension.get::<DataTraceID>() {
-                trace_buf.push_str("QID:");
+                trace_buf.push_str("DTID:");
                 trace_buf.push_str(query_id.hex.as_str());
                 trace_buf.push(',')
             }
@@ -236,9 +236,7 @@ where
     }
 }
 
-///
 /// Explicitly set a trace ID for current span.
-///
 pub fn set_trace_id_for_current_span(tid: &str) {
     tracing::dispatcher::get_default(|dispatch| {
         let registry = dispatch
@@ -254,9 +252,7 @@ pub fn set_trace_id_for_current_span(tid: &str) {
     });
 }
 
-///
 /// Find the first trace ID in current span chain, and set it to provided span.
-///
 pub fn attach_trace_id(target_span: &Span) {
     tracing::dispatcher::get_default(|dispatch| {
         let registry = dispatch
@@ -269,7 +265,9 @@ pub fn attach_trace_id(target_span: &Span) {
                 let ext = sp.extensions();
                 if let Some(tid) = ext.get::<TraceID>() {
                     let target_span_id = target_span.id().expect("failed to get span id");
-                    let target_span_ref = registry.span(&target_span_id).expect("failed to get span by id");
+                    let target_span_ref = registry
+                        .span(&target_span_id)
+                        .expect("failed to get span by id");
                     let mut target_ext = target_span_ref.extensions_mut();
                     target_ext.insert(tid.clone());
                     break;
@@ -277,12 +275,6 @@ pub fn attach_trace_id(target_span: &Span) {
             }
         }
     });
-}
-
-
-pub fn create_tcp_stream_trace_id() -> String {
-    let i = random::<u64>() << 48;
-    format!("{:#016x}", i)
 }
 
 pub fn set_data_trace_id_for_current_span(trace_id: &str) {
@@ -297,4 +289,37 @@ pub fn set_data_trace_id_for_current_span(trace_id: &str) {
             ext.replace(DataTraceID { hex: hex_trace_id });
         }
     });
+}
+
+/// Data Trace ID is 16 bits random number in hex format.
+pub fn create_data_trace_id() -> String {
+    let id = random::<u16>();
+    let mut hex_str = format!("{:#04x}", id);
+    // remove heading "0x"
+    hex_str.remove(0);
+    hex_str.remove(0);
+    hex_str
+}
+
+/// Query ID Base = Data Trace ID + Batch Count
+/// For example:
+/// let data_trace_id = "ABCD"
+/// let batch_count = "12345678"
+/// Then Query ID Base will be "ABCD123456780000" in hex format.
+#[inline]
+pub fn create_query_id_base(data_trace_id_u64: u64, batch_number: u32) -> u64 {
+    (data_trace_id_u64 << 48) + (u64::from(batch_number) << 16)
+}
+
+/// Query ID for a record batch is the hex format of query id base.
+pub fn get_data_trace_id_for_batch(qid_base: u64) -> String {
+    let mut s = format!("{:#016x}", qid_base);
+    s.truncate(14);
+    s
+}
+
+/// Add 16 bits random number to Query ID Base
+#[inline]
+pub fn create_query_id_base_on(query_id_base: u64) -> u64 {
+    query_id_base + (random::<u64>() >> 48)
 }

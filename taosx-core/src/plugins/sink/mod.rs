@@ -12,7 +12,7 @@ use std::{
     net::SocketAddr,
     str::FromStr,
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicU32, AtomicUsize, Ordering},
         Arc,
     },
     time::Duration,
@@ -28,7 +28,11 @@ use tonic::transport::Channel;
 use tracing::{debug, error, info, instrument, Instrument, Span};
 
 use crate::{
-    utils::{breakpoints::breakpoints_set, trace::{create_tcp_stream_trace_id, set_data_trace_id_for_current_span}}, ConnectorLicense, OPCConfig, Parser, Transferred,
+    utils::{
+        breakpoints::breakpoints_set,
+        trace::{create_data_trace_id, set_data_trace_id_for_current_span, create_query_id_base_on, create_query_id_base, get_data_trace_id_for_batch},
+    },
+    ConnectorLicense, OPCConfig, Parser, Transferred,
 };
 
 use super::runners::opc::{ColumnConfig, OpcTableConfig};
@@ -47,7 +51,7 @@ use taosx_ipc::{
 //     Records(Vec<(String, Vec<ColumnView>)>),
 // }
 
-#[instrument(skip(stream, cancel, token, config))]
+#[instrument(skip(stream, cancel, token, config, remote, client))]
 async fn ipc_tcp_forward(
     client: String,
     stream: std::net::TcpStream, // socket2::Socket,
@@ -58,13 +62,13 @@ async fn ipc_tcp_forward(
     config: Option<OpcTableConfig>,
 ) -> anyhow::Result<()> {
     use md5;
+    let data_trace_id = create_data_trace_id();
+    set_data_trace_id_for_current_span(data_trace_id.as_str());
     tracing::info!("token: {}", format!("{:x}", md5::compute(token.clone())));
-    let tcp_stream_trace_id = create_tcp_stream_trace_id();
-    set_data_trace_id_for_current_span(tcp_stream_trace_id.as_str());
     let _ = cancel;
     use arrow_flight::{encode::FlightDataEncoderBuilder, error::FlightError};
     use futures::StreamExt;
-    let reader_stream = stream         
+    let reader_stream = stream
         .try_clone()
         .context("Try clone IPC stream as reader error")?;
     let ipc_reader = tokio::task::spawn_blocking(move || IpcReader::new(reader_stream))
@@ -82,26 +86,37 @@ async fn ipc_tcp_forward(
             serde_json::to_string(&config).unwrap(),
         );
     }
-    // info!(schema = ?schema, "append table config to schema");
     let schema: Arc<Schema> = Arc::new(schema);
 
     info!(client, remote, "reading batches");
-
+    let trace_id_u64 = u64::from_str_radix(data_trace_id.as_str(), 16).unwrap();
     let ipc_stream = ipc_reader.into_raw_stream();
-
     'start: loop {
+        let cur_span = Span::current();
+        let batch_counter = AtomicU32::new(1);
         let data_stream = ipc_stream.clone();
         let data = FlightDataEncoderBuilder::new()
             .with_schema(schema.clone())
             .with_options(
                 IpcWriteOptions::try_new(8, false, arrow::ipc::MetadataVersion::V5).unwrap(),
-            )
+            ) 
             .build(
                 data_stream
-                    .inspect(|v| debug!("{:?}", v))
+                    .inspect(move |result| match result {
+                        Ok(v) => {
+                            let batch_number = batch_counter.fetch_add(1, Ordering::SeqCst);
+                            let qid_base = create_query_id_base(trace_id_u64, batch_number);
+                            let trace_id_for_batch = get_data_trace_id_for_batch(qid_base);
+                            cur_span.in_scope(|| {
+                                info!("Send batch with tid:{} and row count:{}", trace_id_for_batch, v.num_rows());
+                            });
+                        }
+                        Err(e) => {
+                            error!("inspect error: {:?}", e);
+                        }
+                    })
                     .map_err(FlightError::from),
             );
-
         const MAX_RETRIES: usize = 3;
         const RETRY_DELAY: Duration = Duration::from_secs(5);
 
@@ -125,7 +140,7 @@ async fn ipc_tcp_forward(
         client.add_header("x-task-id", &task_id.to_string())?;
         client.add_header("x-token", &token)?;
         client.add_header("x-version", crate::build::PKG_VERSION)?;
-        client.add_header("x-trace-id", tcp_stream_trace_id.as_str())?;
+        client.add_header("x-trace-id", data_trace_id.as_str())?;
         let _ = client
             .handshake(Bytes::from(token.as_bytes().to_vec()))
             .await
@@ -289,11 +304,12 @@ async fn consume_lush_record(
     _license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
     task: Option<i64>,
+    qid_base: u64,
 ) -> anyhow::Result<()> {
     counter!(RECORD_BATCHES, 1);
     match record {
         LushMessage::Tables(tables) => {
-            let taos = taos.as_ref().unwrap();
+            let taos: &deadpool::managed::Object<Manager<TaosBuilder>> = taos.as_ref().unwrap();
             // let mut sql = format!("CREATE TABLE ");
             // map: <stable_name, (Vec<sql, sql_overflow?>, Vec<tag_name, tag_value>)>
             let mut create_sql_map: HashMap<String, LushMessageTagModify> = HashMap::new();
@@ -310,7 +326,8 @@ async fn consume_lush_record(
                 }
                 query_tags_sql.pop();
                 query_tags_sql.push_str(format!(" from `{table_name}`").as_str());
-                match taos.query(&query_tags_sql).await {
+                match query(taos, &query_tags_sql, qid_base).await {
+                // match taos.query(&query_tags_sql).await {
                     Ok(mut rs) => {
                         let mut rows = rs.rows();
                         while let Some(mut row) = rows.try_next().await? {
@@ -329,7 +346,8 @@ async fn consume_lush_record(
                                         tagvalue.to_sql_value()
                                     );
                                     tracing::info!("alter_set_sql: {alter_set_sql}");
-                                    taos.exec(alter_set_sql).await?;
+                                    // taos.exec(alter_set_sql).await?;
+                                    exec(taos, alter_set_sql, qid_base).await?;
                                 }
                             }
                         }
@@ -391,7 +409,8 @@ async fn consume_lush_record(
             for (stable_name, message_modify) in create_sql_map {
                 for sql in message_modify.sqls {
                     info!("Tables: {}", sql.0);
-                    match taos.exec(&sql.0).await {
+                    match exec(taos, &sql.0, qid_base).await {
+                    // match taos.exec(&sql.0).await {
                         Ok(_) => (),
                         Err(err) => {
                             let err_str = format!("{err:#}");
@@ -425,7 +444,8 @@ async fn consume_lush_record(
                                 if alter_sqls.is_some() {
                                     for alter_sql in alter_sqls.unwrap() {
                                         info!("lush table alter sql: {alter_sql}");
-                                        taos.exec(alter_sql).await?;
+                                        exec(taos, alter_sql, qid_base).await?;
+                                        // taos.exec(alter_sql).await?;
                                     }
                                 }
                             }
@@ -484,8 +504,8 @@ async fn consume_lush_record(
                         let mut count = 0;
                         let mut break_err = Ok(());
                         loop {
-                            let res = taos.as_ref().unwrap().exec(&sql).await;
-                            match res {
+                            // let res = taos.as_ref().unwrap().exec(&sql).await;
+                            match exec(taos.as_ref().unwrap(), &sql, qid_base).await {
                                 Ok(num) => {
                                     count = count + num;
                                     counter!(INSERT_SQLS, 1);
@@ -518,8 +538,7 @@ async fn consume_lush_record(
                                             break;
                                         }
                                         let stable_name = stable_name.unwrap();
-                                        let desc =
-                                            taos.as_ref().unwrap().describe(&stable_name).await?;
+                                        let desc = taos.as_ref().unwrap().describe(&stable_name).await?;
                                         let alter_sqls = generate_alter_sql_diff_desc(
                                             &stable_name,
                                             &desc,
@@ -530,8 +549,7 @@ async fn consume_lush_record(
                                             let alter_sqls = alter_sqls.unwrap();
                                             for alter_sql in alter_sqls {
                                                 tracing::info!("alter sql: {alter_sql}");
-                                                if let Err(err) =
-                                                    taos.as_ref().unwrap().exec(alter_sql).await
+                                                if let Err(err) = exec(taos.as_ref().unwrap(), alter_sql, qid_base).await
                                                 {
                                                     tracing::info!("alter sql error: {err:#}");
                                                 }
@@ -613,8 +631,9 @@ async fn consume_point_record(
     count: &mut usize,
     config: &OpcTableConfig,
     target_precision: taos::Precision,
+    qid_base: u64,
 ) -> anyhow::Result<usize> {
-    let mut points = 0;
+        let mut points = 0;
     metrics::counter!(RECORD_BATCHES, 1);
     for message in record.records() {
         let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(
@@ -935,7 +954,8 @@ async fn consume_point_record(
                         }
                         break;
                     }
-                    let sql_res = taos.as_ref().unwrap().exec(&insert_sql).await;
+                    let sql_res = exec(taos.as_ref().unwrap(), &insert_sql, qid_base).await;
+                    // let sql_res = taos.as_ref().unwrap().exec(&insert_sql).await;
                     match sql_res {
                         Ok(n) => {
                             *count += n;
@@ -972,7 +992,8 @@ async fn consume_point_record(
                                     stable_name, temp_conlumns, tags
                                 );
                                 tracing::info!("create stable sql: {}", &stable_sql);
-                                match taos.as_ref().unwrap().exec(&stable_sql).await {
+                                match exec(taos.as_ref().unwrap(), &stable_sql, qid_base).await {
+                                // match taos.as_ref().unwrap().exec(&stable_sql).await {
                                     Ok(_n) => (), //counter!(STABLE_CREATED, n as u64),
                                     Err(err) => {
                                         tracing::warn!(
@@ -1008,7 +1029,8 @@ async fn consume_point_record(
                                 child_table_create_sqls.push(sql_prefix);
                                 for create_child_sql in child_table_create_sqls {
                                     tracing::info!("create child sql: {create_child_sql}");
-                                    match taos.as_ref().unwrap().exec(&create_child_sql).await {
+                                    match exec(taos.as_ref().unwrap(), &create_child_sql, qid_base).await {
+                                    // match taos.as_ref().unwrap().exec(&create_child_sql).await {
                                         Ok(_n) => (), // counter!(CHILD_TABLE_CREATED, n as u64),
                                         Err(err) => {
                                             tracing::warn!("create child table error: {err:#}");
@@ -1126,7 +1148,8 @@ async fn consume_point_record(
                                         let sqls = sqls.unwrap();
                                         for alter_sql in sqls {
                                             tracing::info!("alter table sql: {alter_sql}");
-                                            match taos.as_ref().unwrap().exec(alter_sql).await {
+                                            match exec(taos.as_ref().unwrap(), alter_sql, qid_base).await {
+                                            // match taos.as_ref().unwrap().exec(alter_sql).await {
                                                 Ok(_) => (),
                                                 Err(err) => {
                                                     if err.to_string().contains("0x0369") {
@@ -1185,12 +1208,13 @@ async fn consume_point_record(
                                 if sqls.is_some() {
                                     let sqls = sqls.unwrap();
                                     for sql in sqls {
-                                        tracing::info!("add execute sql: {}", &sql);
-                                        taos.as_ref()
-                                            .unwrap()
-                                            .exec(sql)
-                                            .await
-                                            .context("Writing point stream error")?;
+                                        // tracing::info!("add execute sql: {}", &sql);
+                                        // taos.as_ref()
+                                        //     .unwrap()
+                                        //     .exec(sql)
+                                        //     .await
+                                        //     .context("Writing point stream error")?;
+                                        exec(taos.as_ref().unwrap(), sql, qid_base).await.context("Writing point stream error")?;
                                     }
                                 }
                                 for column_meta in desc {
@@ -1206,9 +1230,10 @@ async fn consume_point_record(
                                             modify_message.value_cloumn_length,
                                         );
                                         tracing::info!("add execute sql: {}", &sql);
-                                        taos.as_ref().unwrap().exec(sql).await.context(
-                                            "Modify column length error while writing point stream",
-                                        )?;
+                                        // taos.as_ref().unwrap().exec(sql).await.context(
+                                        //     "Modify column length error while writing point stream",
+                                        // )?;
+                                        exec(taos.as_ref().unwrap(), &sql, qid_base).await.context("Modify column length error while writing point stream")?;
                                     }
                                 }
                             } else if errstr.contains("[0xE002]") || errstr.contains("[0xE003]") {
@@ -1245,6 +1270,7 @@ async fn consume_flat_record(
     license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
     target_precision: taos::Precision,
+    qid_base: u64,
 ) -> anyhow::Result<()> {
     if let Some((_license, transferred)) = license.zip(transferred) {
         let _used = transferred.records.load(Ordering::SeqCst);
@@ -1331,7 +1357,8 @@ async fn consume_flat_record(
                                                         ty,
                                                         length
                                                         );
-                                                        taos.as_ref().unwrap().exec(&sql).await?;
+                                                        exec(taos.as_ref().unwrap(), &sql, qid_base).await?;
+                                                        // taos.as_ref().unwrap().exec(&sql).await?;
                                                         max_lengths
                                                             .insert(name.to_string(), length);
                                                         continue;
@@ -1358,19 +1385,14 @@ async fn consume_flat_record(
                                                             .stables
                                                             .fetch_add(1, Ordering::SeqCst);
                                                     }
-                                                    match taos.as_ref().unwrap().exec(&sql).await {
+                                                    match exec(taos.as_ref().unwrap(), &sql, qid_base).await {
                                                         Ok(_n) => (), // counter!(STABLE_CREATED, n as u64),
                                                         Err(err) => return Err(err)?,
                                                     }
                                                     let sql = records.table_sql();
 
                                                     loop {
-                                                        match taos
-                                                            .as_ref()
-                                                            .unwrap()
-                                                            .exec(&sql)
-                                                            .await
-                                                        {
+                                                        match exec(taos.as_ref().unwrap(), &sql, qid_base).await {
                                                             Ok(_n) => (), // counter!(CHILD_TABLE_CREATED,n as u64),
                                                             Err(err) => {
                                                                 if err
@@ -1401,11 +1423,7 @@ async fn consume_flat_record(
                                                                             f.ty(),
                                                                             f.length() * 2
                                                                         );
-                                                                        let _ = taos
-                                                                            .as_ref()
-                                                                            .unwrap()
-                                                                            .exec(&sql)
-                                                                            .await;
+                                                                        let _ = exec(taos.as_ref().unwrap(), &sql, qid_base).await;
                                                                         continue;
                                                                     }
                                                                 } else if err
@@ -1450,11 +1468,7 @@ async fn consume_flat_record(
                                                                                 parser.get_ipcdatatype_from_parser(tag_meta.field()).unwrap().sql_repr()
                                                                                 );
                                                                             tracing::info!("table {table} add tag sql: {add_tag_sql}");
-                                                                            taos.as_ref()
-                                                                                .unwrap()
-                                                                                .exec(add_tag_sql)
-                                                                                .await
-                                                                                .unwrap();
+                                                                            exec(taos.as_ref().unwrap(), add_tag_sql, qid_base).await.unwrap();
                                                                         }
                                                                     }
                                                                 } else {
@@ -1473,9 +1487,7 @@ async fn consume_flat_record(
                                                             .tables
                                                             .fetch_add(1, Ordering::SeqCst);
                                                     }
-                                                    if let Err(err) =
-                                                        taos.as_ref().unwrap().exec(&sql).await
-                                                    {
+                                                    if let Err(err) = exec(taos.as_ref().unwrap(), &sql, qid_base).await {
                                                         let code: i32 = err.code().into();
                                                         match code {
                                                             0xE001 | 0xE002 | 0xE003 => {
@@ -1509,7 +1521,7 @@ async fn consume_flat_record(
                                 if err_str.contains("[0x2603]") || err_str.contains("[0x0618]") {
                                     if let Some(sql) = records.stable_sql() {
                                         // dbg!(&sql);
-                                        match taos.as_ref().unwrap().exec(&sql).await {
+                                        match exec(taos.as_ref().unwrap(),  &sql, qid_base).await {
                                             Ok(_n) => (), // counter!(STABLE_CREATED, n as u64),
                                             Err(err) => {
                                                 if err.to_string().contains("0x032C") {
@@ -1530,7 +1542,7 @@ async fn consume_flat_record(
                                         let sql = records.table_sql();
 
                                         loop {
-                                            match taos.as_ref().unwrap().exec(&sql).await {
+                                            match exec(taos.as_ref().unwrap(), &sql, qid_base).await {
                                                 Ok(_n) => (), // counter!(CHILD_TABLE_CREATED, n as u64),
                                                 Err(err) => {
                                                     if err.to_string().contains("[0x2605]") {
@@ -1574,7 +1586,7 @@ async fn consume_flat_record(
                                         if let Some(transferred) = transferred {
                                             transferred.tables.fetch_add(1, Ordering::SeqCst);
                                         }
-                                        taos.as_ref().unwrap().exec(&sql).await?;
+                                        exec(taos.as_ref().unwrap(), &sql, qid_base).await?;
                                     }
 
                                     continue;
@@ -1593,7 +1605,7 @@ async fn consume_flat_record(
                                             f.ty(),
                                             f.length() * 2
                                         );
-                                        taos.as_ref().unwrap().exec(&sql).await?;
+                                        exec(taos.as_ref().unwrap(), &sql, qid_base).await?;
                                     }
                                 } else if err_str.contains("[0x0118]") {
                                     // Code([0x0118] Unknown or common error)
@@ -1627,7 +1639,7 @@ async fn consume_flat_record(
                                                 ipc_data_type.unwrap(),
                                             );
                                             tracing::info!("alter table column sql: {}", sql);
-                                            taos.as_ref().unwrap().exec(&sql).await?;
+                                            exec(taos.as_ref().unwrap(), &sql, qid_base).await?;
                                         }
                                         index += 1;
                                     }
@@ -1715,7 +1727,10 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         .unwrap();
 
         let last = count;
-        tracing::info!("consume lush record task in ipc_lush_stream_reader task_id: {task_id:?}", task_id = task_id);
+        tracing::info!(
+            "consume lush record task in ipc_lush_stream_reader task_id: {task_id:?}",
+            task_id = task_id
+        );
 
         if let Err(err) = consume_lush_record(
             pool,
@@ -1729,6 +1744,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             license,
             transferred,
             task_id,
+            0,
         )
         .in_current_span()
         .await
@@ -1809,6 +1825,7 @@ async fn ipc_point_reader<R: Read, W: Write>(
                 &mut count,
                 config.as_ref().unwrap(),
                 target_precision,
+                0,
             )
             .await?;
 
@@ -1856,6 +1873,7 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
             license,
             transferred,
             target_precision,
+            0,
         )
         .await
         {
@@ -2197,6 +2215,7 @@ impl IpcStreamWorker {
         stmt: &mut Stmt,
         record: RecordBatch,
         parser: Option<&Parser>,
+        qid_base: u64,
     ) -> anyhow::Result<usize> {
         let taos = self.pool.get().await?;
         let target_precision = get_current_precision(&taos).await?;
@@ -2244,6 +2263,7 @@ impl IpcStreamWorker {
                     self.license.as_ref(),
                     self.transferred.as_ref(),
                     target_precision,
+                    qid_base
                 )
                 .await?;
                 Ok(count)
@@ -2281,6 +2301,7 @@ impl IpcStreamWorker {
                     self.license.as_ref(),
                     self.transferred.as_ref(),
                     task,
+                    qid_base,
                 )
                 .await?;
                 Ok(count)
@@ -2342,6 +2363,7 @@ impl IpcStreamWorker {
                         .get()
                         .ok_or_else(|| anyhow::format_err!("OPC table config not found"))?,
                     target_precision,
+                    qid_base,
                 )
                 .await?;
                 if let Some(transferred) = &self.transferred {
@@ -2699,6 +2721,23 @@ pub async fn listen_tcp_socket(
     );
     Ok(IpcHandler::new(notify, handle, error_receiver))
 }
+
+use taos::RawResult;
+
+async fn exec<T: AsRef<str> + Send + Sync>(taos: &deadpool::managed::Object<Manager<TaosBuilder>>, sql: T, qid_base: u64) ->  RawResult<usize> {
+    let req_id = create_query_id_base_on(qid_base);
+    tracing::info!("dingbo_req_id {} {:#016x}", req_id, req_id);
+    taos.query_with_req_id(sql, req_id).await.map(|res| res.affected_rows() as _)
+}
+
+use taos::ResultSet;
+async fn query<T: AsRef<str> + Send + Sync>(taos: &deadpool::managed::Object<Manager<TaosBuilder>>, sql: T, qid_base: u64) -> RawResult<ResultSet> {
+    let req_id = create_query_id_base_on(qid_base);
+    tracing::info!("dingbo_req_id {} {:#016x}", req_id, req_id);
+    taos.query_with_req_id(sql, req_id).await
+}
+
+
 
 #[test]
 fn test_get_ts_from_sql() {

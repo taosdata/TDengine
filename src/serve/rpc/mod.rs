@@ -366,6 +366,10 @@ impl FlightService for FlightServiceImpl {
             .ok_or_else(|| Status::unavailable("Task id should be set"))
             .unwrap();
         let task_id: i64 = task_id.to_str().unwrap().parse().unwrap();
+        let data_trace_id = meta.get("x-trace-id")
+            .ok_or_else(|| Status::unavailable("Trace id should be set"))
+            .unwrap();
+        let data_trace_id = data_trace_id.to_str().unwrap();
 
         // let message = req.try_next().await?;
 
@@ -381,7 +385,7 @@ impl FlightService for FlightServiceImpl {
 
         Ok(Response::new(Box::pin(
             put_stream
-                .into_flight_put_result()
+                .into_flight_put_result(String::from(data_trace_id))
                 .await
                 .map_err(|err| Status::unavailable(err.to_string()))?,
             // req.map_ok(|v| PutResult {

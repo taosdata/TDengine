@@ -6,7 +6,7 @@ use chrono::Utc;
 use futures::{Stream, TryStreamExt};
 use futures_util::StreamExt;
 use taos::{AsyncBindable, AsyncQueryable, AsyncTBuilder, Dsn, Stmt, TaosBuilder};
-use taosx_core::{ConnectorLicense, IpcStreamWorker, Parser, METRICS_TIME_START};
+use taosx_core::{ConnectorLicense, IpcStreamWorker, Parser, METRICS_TIME_START, utils::trace::{set_data_trace_id_for_current_span, create_query_id_base, get_data_trace_id_for_batch}};
 use tonic::{Status, Streaming};
 use tracing::{debug, Instrument};
 
@@ -33,10 +33,12 @@ impl PutStream {
     }
     pub async fn into_flight_put_result(
         self,
+        data_trace_id: String
     ) -> anyhow::Result<impl Stream<Item = Result<PutResult, Status>> + std::marker::Send> {
         // todo: directly use task detail instead of id.
         // dbg!(&self.task_id);
-        tracing::debug!("Put stream by id {}", self.task_id);
+
+        tracing::info!("Put stream by task id {} trace id {}", self.task_id, data_trace_id);
 
         let task = self
             .controller
@@ -136,12 +138,14 @@ impl PutStream {
                 _ => None,
             };
 
-            // todo! add trace id to
             let span = tracing::info_span!(
                 "task::spawned",
                 task.id = task.id,
-                trace_id = tracing::field::Empty
             );
+
+            span.in_scope(|| {
+                set_data_trace_id_for_current_span(data_trace_id.as_str());
+            });
 
             // let transferred = self.controller.transferred.get((cluster_id, ))
             let span_clone = span.clone();
@@ -155,6 +159,7 @@ impl PutStream {
                 license: Option<ConnectorLicense>,
                 _transferred: Option<Arc<ConnectorTransferred>>,
                 span: tracing::Span,
+                data_trace_id: String,
             ) -> anyhow::Result<()> {
                 // dbg!(&task);
                 metrics::gauge!(METRICS_TIME_START, Utc::now().timestamp_millis() as f64);
@@ -179,13 +184,18 @@ impl PutStream {
                     .as_ref()
                     .map(|v| serde_json::from_value(v.clone()).unwrap());
                 tracing::info!("Start IPC stream writer");
+                let mut batch_number: u32 = 0;
+                let trace_id_u64 = u64::from_str_radix(data_trace_id.as_str(), 16).unwrap();
                 loop {
                     match rx.recv_async().await {
                         Ok(record) => {
-                            tracing::debug!(columns = ?record.columns(), num.rows = record.num_rows(), num.columns = record.num_columns(),
-                                "Start writing records");
+                            batch_number += 1;
+                            let qid_base = create_query_id_base(trace_id_u64, batch_number);
+                            let trace_id_for_batch = get_data_trace_id_for_batch(qid_base);
+                            tracing::info!("Start writing batch with tid {} and row count {}", trace_id_for_batch, record.num_rows());
+                            tracing::debug!(columns = ?record.columns(), num.rows = record.num_rows(), num.columns = record.num_columns());
                             if let Err(err) = worker
-                                .process_record(&mut stmt, record, parser.as_ref())
+                                .process_record(&mut stmt, record, parser.as_ref(), qid_base)
                                 .await
                             {
                                 tracing::warn!("Write stream error: {err}");
@@ -213,6 +223,7 @@ impl PutStream {
                         license,
                         transferred,
                         span,
+                        data_trace_id
                     )
                     .in_current_span()
                     .await
