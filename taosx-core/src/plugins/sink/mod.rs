@@ -4,6 +4,7 @@ use arrow_flight::FlightClient;
 use async_backtrace::framed;
 use bytes::Bytes;
 use futures::TryStreamExt;
+use futures_util::StreamExt;
 use serde_json::json;
 use std::{
     any::Any,
@@ -1713,7 +1714,10 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         .unwrap();
 
         let last = count;
-        tracing::info!("consume lush record task in ipc_lush_stream_reader task_id: {task_id:?}", task_id = task_id);
+        tracing::info!(
+            "consume lush record task in ipc_lush_stream_reader task_id: {task_id:?}",
+            task_id = task_id
+        );
 
         if let Err(err) = consume_lush_record(
             pool,
@@ -1769,7 +1773,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
 }
 
 #[instrument(skip_all)]
-async fn ipc_point_reader<R: Read, W: Write>(
+async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
     pool: &TaosPool,
     ipc_reader: IpcReader<R>,
     mut ipc_ack_writer: AckWriter<W>,
@@ -1778,46 +1782,75 @@ async fn ipc_point_reader<R: Read, W: Write>(
     transferred: Option<&Transferred>,
     target_precision: taos::Precision,
 ) -> anyhow::Result<()> {
-    let taos = pool.get().await?;
-    let mut count = 0;
-    let mut stmt = Stmt::init(&taos).await?;
-    let mut taos = Some(taos);
-    for record in ipc_reader {
-        if let Ok(record) = record {
-            if let Some((_license, transferred)) = license.zip(transferred) {
-                let _used = transferred.points.load(Ordering::SeqCst);
-                // if used > license.number as _ {
-                //     anyhow::bail!(
-                //         "Connector {} out of points: {}/{}",
-                //         license.r#type,
-                //         used,
-                //         license.number
-                //     )
-                // }
-            }
-            let record = *Box::<dyn Any>::downcast::<PointMessage>(unsafe {
-                std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
-            })
-            .unwrap();
-            let n = consume_point_record(
-                pool,
-                &mut taos,
-                &mut stmt,
-                &record,
-                &mut count,
-                config.as_ref().unwrap(),
-                target_precision,
-            )
-            .await?;
+    let count = Arc::new(AtomicUsize::new(0));
 
-            ipc_ack_writer.write_ok()?;
-
-            if let Some(transferred) = transferred {
-                transferred.points.fetch_add(n as _, Ordering::SeqCst);
-            }
-        }
+    #[derive(Clone)]
+    struct WriterContext {
+        pool: TaosPool,
+        config: Option<Arc<OpcTableConfig>>,
+        target_precision: taos::Precision,
     }
-    println!("finished, totally {count} rows");
+
+    async fn parse(
+        context: WriterContext,
+        record: Result<Box<dyn IpcMessage>, arrow::error::ArrowError>,
+    ) -> anyhow::Result<usize> {
+        let record = record?;
+        let pool = &context.pool;
+        let taos = context.pool.get().await?;
+        let mut count = 0;
+        let mut stmt = Stmt::init(&taos).await?;
+        let mut taos = Some(taos);
+        let record = *Box::<dyn Any>::downcast::<PointMessage>(unsafe {
+            std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
+        })
+        .unwrap();
+        let n = consume_point_record(
+            pool,
+            &mut taos,
+            &mut stmt,
+            &record,
+            &mut count,
+            context.config.as_ref().unwrap(),
+            context.target_precision,
+        )
+        .await?;
+        Ok(n)
+    }
+
+    let context = WriterContext {
+        pool: pool.clone(),
+        config: config.map(Arc::new),
+        target_precision,
+    };
+    let ipc_ack_writer = Arc::new(Mutex::new(ipc_ack_writer));
+
+    ipc_reader
+        .into_stream()
+        .for_each_concurrent(48, |record| {
+            let context = context.clone();
+            let ipc_ack_writer = ipc_ack_writer.clone();
+            let count = count.clone();
+            async move {
+                let n = parse(context, record).await;
+                match n {
+                    Ok(n) => {
+                        let _ = ipc_ack_writer.lock().await.write_ok();
+                        count.fetch_add(n, Ordering::SeqCst);
+                    }
+                    Err(err) => {
+                        tracing::warn!("Receive IPC item error: {err:#}");
+                        let _ = ipc_ack_writer.lock().await.ack(LushAck {
+                            code: 0xFFFF,
+                            message: Some(err.to_string()),
+                            context: None,
+                        });
+                    }
+                }
+            }
+        })
+        .await;
+    println!("IPC stream finished, total {} records in this stream", count.load(Ordering::SeqCst));
     Ok(())
 }
 
