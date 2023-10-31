@@ -138,10 +138,16 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
 
             warn!("Agent {} is not alive, waiting...", agent_id);
             global.send_task_activity(TaskActivity::waiting(task_id, "Waiting for agent..."));
-            tokio::time::sleep(Duration::from_secs(1) * waiting).await;
             if waiting < 10 {
                 waiting += 1;
             }
+            tokio::time::sleep(Duration::from_secs(1) * waiting).await;
+        }
+        if waiting != 0 {
+            global.send_task_activity(TaskActivity::running(
+                task_id,
+                format!("Agent {agent_id} now alive"),
+            ));
         }
         tracing::debug!("Agent {} is alive, sending command run", agent_id);
         global
@@ -156,16 +162,27 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
 
         async fn agent_activities_listener(
             global: &GlobalState,
+            agent_id: AgentId,
             agent_activities: Arc<RwLock<tokio::sync::mpsc::Receiver<TaskActivity>>>,
         ) -> anyhow::Result<()> {
             loop {
                 let mut recv = agent_activities.write().await;
                 match recv.recv().await {
-                    Some(activity) => {
+                    Some(mut activity) => {
                         global.send_task_activity(activity.clone());
                         match activity.status.as_str() {
                             "started" => {
                                 tracing::info!("task started");
+                            }
+                            "resumed" => {
+                                tracing::info!("agent resumed");
+                                // Send run command again.
+                                global
+                                    .agent_runtime
+                                    .push_action(agent_id, AgentAction::Run(activity.id))
+                                    .await?;
+                                activity.status = "running".to_string();
+                                global.send_task_activity(activity);
                             }
                             "suspended" => {
                                 tracing::info!("task suspended");
@@ -200,7 +217,7 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
                 tracing::info!("Task {task_id} cancelled");
                 None
             },
-            res = agent_activities_listener(&global, agent_activities.clone())=> {
+            res = agent_activities_listener(&global,agent_id, agent_activities.clone())=> {
                 Some(res)
             },
         };
@@ -211,7 +228,7 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
                 // wait for agent receive timeout.
                 match tokio::time::timeout(
                     Duration::from_secs(60 * 5),
-                    agent_activities_listener(&global, agent_activities.clone()),
+                    agent_activities_listener(&global, agent_id, agent_activities.clone()),
                 )
                 .await
                 {

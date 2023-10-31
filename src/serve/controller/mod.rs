@@ -12,6 +12,7 @@ use self::agent::{
 use self::transferred::Transferred;
 use self::trigger::Strategy;
 use super::data_sources::DataSourceDefinition;
+use super::scheduler::agent::AgentId;
 use super::scheduler::TaskScheduler;
 use crate::serve::controller::agent::Activity;
 use anyhow::{bail, Context};
@@ -256,17 +257,12 @@ impl TaskControllerRef {
             .map(|v| Self(Arc::new(v)))
     }
     pub async fn start_all_with_schedule(&self) -> anyhow::Result<()> {
-        sqlx::query("update tasks set status = ? where status in (?, ?)")
-            .bind(Status::Cancelled)
-            .bind(Status::Running)
-            .bind(Status::Interrupted)
-            .execute(&self.0.pool)
-            .await?;
         let tasks: Vec<Task> = sqlx::query_as::<_, Task>(
-            "select * from task_with_labels where status not in (?, ?, ?) and `deleted` != TRUE order by created_at desc")
+            "select * from task_with_labels where status not in (?, ?, ?, ?) and `deleted` != TRUE order by created_at desc")
             .bind(Status::Completed)
             .bind(Status::Failed)
             .bind(Status::Stopped)
+            .bind(Status::Created)
             .fetch_all(&self.pool)
             .await?;
         for task in tasks {
@@ -370,6 +366,23 @@ async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::
     Ok(())
 }
 
+async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
+    sqlx::query("update tasks set status = ? where status in (?, ?, ?, ?)")
+        .bind(Status::Suspended)
+        .bind(Status::Running)
+        .bind(Status::Waiting)
+        .bind(Status::Suspending)
+        .bind(Status::Interrupted)
+        .execute(pool)
+        .await?;
+    sqlx::query("update tasks set status = ? where status = ?")
+        .bind(Status::Stopped)
+        .bind(Status::Stopping)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 impl TaskController {
     pub async fn from_sqlite(sqlite: &str, scheduler: TaskScheduler) -> anyhow::Result<Self> {
         if !sqlite.contains(":memory:") {
@@ -444,6 +457,8 @@ impl TaskController {
             ctl_alive_cloned.store(false, std::sync::atomic::Ordering::SeqCst);
         });
         let transferred = Transferred::new(pool.clone(), Duration::from_secs(10));
+
+        database_initiate(&pool).await?;
         Ok(Self {
             pool,
             tasks: Default::default(),
@@ -1858,6 +1873,16 @@ impl TaskActivity {
             level: LevelFilter::Warn,
             activity: message.into(),
             status: "waiting".to_string(),
+            context: None,
+        }
+    }
+    pub fn agent_resumed(id: i64, agent_id: AgentId) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Warn,
+            activity: format!("Agent {agent_id} resumed"),
+            status: "resumed".to_string(),
             context: None,
         }
     }

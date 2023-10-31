@@ -121,6 +121,11 @@ impl AgentWorker {
                                             Handle::current().block_on(async {
                                                 *t.agent_state.write().await =
                                                     AgentState::Connected;
+                                                t.sender
+                                                    .send(TaskActivity::agent_resumed(
+                                                        t.task_id, agent_id,
+                                                    ))
+                                                    .await;
                                             });
                                         });
                                     });
@@ -144,6 +149,13 @@ impl AgentWorker {
                                             Handle::current().block_on(async {
                                                 *t.agent_state.write().await =
                                                     AgentState::Disconnected;
+
+                                                t.sender
+                                                    .send(TaskActivity::waiting(
+                                                        t.task_id,
+                                                        format!("Agent {agent_id} is disconnected"),
+                                                    ))
+                                                    .await;
                                             });
                                         });
                                     });
