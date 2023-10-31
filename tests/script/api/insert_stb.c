@@ -52,12 +52,12 @@ static void executeSql(TAOS *taos, char *command) {
   taos_free_result(pSql);
 }
 
-void TestInsert(TAOS *taos, char *qstr)  {
+void testInsert(TAOS *taos, char *qstr)  {
   executeSql(taos, "drop database if exists demo2");
   executeSql(taos, "create database demo2");
   executeSql(taos, "use demo2");
 
-  executeSql(taos, "create table st (ts timestamp, ti tinyint, si smallint, i int, bi bigint, f float, d double, b binary(10), tbname2 binary(192)) tags(t1 int, t2 float, t3 binary(10))");
+  executeSql(taos, "create table st (ts timestamp, ti tinyint, si smallint, i int, bi bigint, f float, d double, b binary(10)) tags(t1 int, t2 float, t3 binary(10))");
   printf("success to create table\n");
 
   struct timeval start_time;
@@ -70,12 +70,10 @@ void TestInsert(TAOS *taos, char *qstr)  {
     for (int batchIdx = 0; batchIdx < 10000; ++batchIdx) {
       len = batchStart;
       len += sprintf(qstr+len, " values");
-      if (batchIdx % 5000 == 1)
-        printf("%s %d\n", qstr, batchIdx);
 
       for (int rowIdx = 0; rowIdx < 100; ++ rowIdx) {
         int i = rowIdx + batchIdx * 100 + tblIdx*10000*100;
-        len += sprintf(qstr+len, " (%" PRId64 ", %d, %d, %d, %d, %f, %lf, '%s', 'ct%d')", (uint64_t)(1546300800000 + i), (int8_t)i, (int16_t)i, i, i, i*1.0, i*2.0, "hello", tblIdx);      
+        len += sprintf(qstr+len, " (%" PRId64 ", %d, %d, %d, %d, %f, %lf, '%s')", (uint64_t)(1546300800000 + i), (int8_t)i, (int16_t)i, i, i, i*1.0, i*2.0, "hello");      
       }
       TAOS_RES *result1 = taos_query(taos, qstr);
       if (result1 == NULL || taos_errno(result1) != 0) {
@@ -88,13 +86,13 @@ void TestInsert(TAOS *taos, char *qstr)  {
   }
   struct timeval end_time;
   gettimeofday(&end_time, NULL);
-  double elapsed_time = (end_time.tv_sec - start_time.tv_sec) +
-                          (end_time.tv_usec - start_time.tv_usec) / 1000000.0;  
+  double elapsed_time = (double)(end_time.tv_sec - start_time.tv_sec) +
+                          (double)(end_time.tv_usec - start_time.tv_usec) / 1000000.0;  
   printf("elapsed time: %.3f\n", elapsed_time);
   executeSql(taos, "drop database if exists demo2");
 }
 
-void TestInsertStb(TAOS *taos, char *qstr)  {
+void testInsertStb(TAOS *taos, char *qstr)  {
   executeSql(taos, "drop database if exists demo");
   executeSql(taos, "create database demo");
   executeSql(taos, "use demo");
@@ -129,8 +127,8 @@ void TestInsertStb(TAOS *taos, char *qstr)  {
   }
   struct timeval end_time;
   gettimeofday(&end_time, NULL);
-  double elapsed_time = (end_time.tv_sec - start_time.tv_sec) +
-                          (end_time.tv_usec - start_time.tv_usec) / 1000000.0;
+  double elapsed_time = (double)(end_time.tv_sec - start_time.tv_sec) +
+                          (double)(end_time.tv_usec - start_time.tv_usec) / 1000000.0;
 
   printf("elapsed time: %.3f\n", elapsed_time);
   executeSql(taos, "drop database if exists demo");
@@ -152,9 +150,9 @@ int main(int argc, char *argv[]) {
   }
   char* qstr = malloc(1024*1024);
   for (int i =0; i < 5; ++i) 
-    TestInsert(taos, qstr);
+    testInsert(taos, qstr);
   for (int i =0; i < 5; ++i) 
-    TestInsertStb(taos, qstr);
+    testInsertStb(taos, qstr);
   free(qstr);
   taos_close(taos);
   taos_cleanup();
