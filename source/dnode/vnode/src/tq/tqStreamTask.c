@@ -98,6 +98,7 @@ int32_t tqStartStreamTask(STQ* pTq) {
         streamLaunchFillHistoryTask(pTask);
       }
 
+      streamMetaUpdateTaskReadyInfo(pTask);
       streamMetaReleaseTask(pMeta, pTask);
       continue;
     }
@@ -111,7 +112,7 @@ int32_t tqStartStreamTask(STQ* pTq) {
   return 0;
 }
 
-int32_t tqCheckAndRunStreamTaskAsync(STQ* pTq) {
+int32_t tqLaunchStreamTaskAsync(STQ* pTq) {
   SStreamMeta* pMeta = pTq->pStreamMeta;
   int32_t      vgId = pMeta->vgId;
 

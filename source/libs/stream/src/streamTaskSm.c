@@ -141,9 +141,9 @@ void streamTaskRestoreStatus(SStreamTask* pTask) {
   pSM->prev.evt = 0;
 
   pSM->startTs = taosGetTimestampMs();
+  stDebug("s-task:%s restore status, %s -> %s", pTask->id.idStr, pSM->prev.state.name, pSM->current.name);
 
   taosThreadMutexUnlock(&pTask->lock);
-  stDebug("s-task:%s restore status, %s -> %s", pTask->id.idStr, pSM->prev.state.name, pSM->current.name);
 }
 
 SStreamTaskSM* streamCreateStateMachine(SStreamTask* pTask) {
@@ -187,6 +187,7 @@ void* streamDestroyStateMachine(SStreamTaskSM* pSM) {
 
 static int32_t doHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event, STaskStateTrans* pTrans) {
   SStreamTask* pTask = pSM->pTask;
+  const char*  id = pTask->id.idStr;
 
   if (pTrans->attachEvent.event != 0) {
     attachEvent(pTask, &pTrans->attachEvent);
@@ -199,16 +200,15 @@ static int32_t doHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event, STaskSt
       taosThreadMutexUnlock(&pTask->lock);
 
       if ((s == pTrans->next.state) && (pSM->prev.evt == pTrans->event)) {
-        stDebug("s-task:%s attached event:%s handled", pTask->id.idStr, StreamTaskEventList[pTrans->event].name);
+        stDebug("s-task:%s attached event:%s handled", id, StreamTaskEventList[pTrans->event].name);
         return TSDB_CODE_SUCCESS;
       } else {  // this event has been handled already
-        stDebug("s-task:%s not handle event:%s yet, wait for 100ms and recheck", pTask->id.idStr,
-                StreamTaskEventList[event].name);
+        stDebug("s-task:%s not handle event:%s yet, wait for 100ms and recheck", id, StreamTaskEventList[event].name);
         taosMsleep(100);
       }
     }
 
-  } else { // override current active trans
+  } else {  // override current active trans
     pSM->pActiveTrans = pTrans;
     pSM->startTs = taosGetTimestampMs();
     taosThreadMutexUnlock(&pTask->lock);
@@ -245,7 +245,7 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
 
       if (pSM->pActiveTrans != NULL) {
         // currently in some state transfer procedure, not auto invoke transfer, abort it
-        stDebug("s-task:%s handle event procedure %s quit, status %s -> %s failed, handle event %s now",
+        stDebug("s-task:%s event:%s handle procedure quit, status %s -> %s failed, handle event %s now",
                 pTask->id.idStr, StreamTaskEventList[pSM->pActiveTrans->event].name, pSM->current.name,
                 pSM->pActiveTrans->next.name, StreamTaskEventList[event].name);
       }
@@ -276,16 +276,16 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
     ETaskStatus s = pSM->current.state;
     ASSERT(s == TASK_STATUS__DROPPING || s == TASK_STATUS__PAUSE || s == TASK_STATUS__STOP);
     // the pSM->prev.evt may be 0, so print string is not appropriate.
-    stDebug("status not handled success, current status:%s, trigger event:%d, %s", pSM->current.name, pSM->prev.evt,
-            pTask->id.idStr);
+    stDebug("s-task:%s event:%s handled failed, current status:%s, trigger event:%s", pTask->id.idStr,
+            StreamTaskEventList[event].name, pSM->current.name, StreamTaskEventList[pSM->prev.evt].name);
 
     taosThreadMutexUnlock(&pTask->lock);
     return TSDB_CODE_INVALID_PARA;
   }
 
   if (pTrans->event != event) {
-    stWarn("s-task:%s handle event:%s failed, current status:%s", pTask->id.idStr, StreamTaskEventList[event].name,
-        pSM->current.name);
+    stWarn("s-task:%s handle event:%s failed, current status:%s, active trans evt:%s", pTask->id.idStr,
+           StreamTaskEventList[event].name, pSM->current.name, StreamTaskEventList[pTrans->event].name);
     taosThreadMutexUnlock(&pTask->lock);
     return TSDB_CODE_INVALID_PARA;
   }
@@ -319,7 +319,7 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
 
       int32_t code = pNextTrans->pAction(pSM->pTask);
       if (pNextTrans->autoInvokeEndFn) {
-        return streamTaskOnHandleEventSuccess(pSM, event);
+        return streamTaskOnHandleEventSuccess(pSM, pNextTrans->event);
       } else {
         return code;
       }

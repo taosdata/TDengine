@@ -229,10 +229,10 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
 
 int32_t streamMetaReopen(SStreamMeta* pMeta) {
   // backup the restart flag
-  int32_t restartFlag = pMeta->startInfo.startedAfterNodeUpdate;
+  int32_t restartFlag = pMeta->startInfo.startAllTasksFlag;
   streamMetaClear(pMeta);
 
-  pMeta->startInfo.startedAfterNodeUpdate = restartFlag;
+  pMeta->startInfo.startAllTasksFlag = restartFlag;
 
   // NOTE: role should not be changed during reopen meta
   pMeta->streamBackendRid = -1;
@@ -444,24 +444,6 @@ int32_t streamMetaGetNumOfTasks(SStreamMeta* pMeta) {
   size_t size = taosHashGetSize(pMeta->pTasksMap);
   ASSERT(taosArrayGetSize(pMeta->pTaskList) == taosHashGetSize(pMeta->pTasksMap));
   return (int32_t)size;
-}
-
-int32_t streamMetaGetNumOfStreamTasks(SStreamMeta* pMeta) {
-  int32_t num = 0;
-  size_t  size = taosArrayGetSize(pMeta->pTaskList);
-  for (int32_t i = 0; i < size; ++i) {
-    STaskId*      pId = taosArrayGet(pMeta->pTaskList, i);
-    SStreamTask** p = taosHashGet(pMeta->pTasksMap, pId, sizeof(*pId));
-    if (p == NULL) {
-      continue;
-    }
-
-    if ((*p)->info.fillHistory == 0) {
-      num += 1;
-    }
-  }
-
-  return num;
 }
 
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
@@ -1106,6 +1088,6 @@ void streamMetaInitForSnode(SStreamMeta* pMeta) {
 
 void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {
   taosHashClear(pStartInfo->pReadyTaskSet);
-  pStartInfo->startedAfterNodeUpdate = 0;
+  pStartInfo->startAllTasksFlag = 0;
   pStartInfo->readyTs = 0;
 }
