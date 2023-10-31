@@ -30,8 +30,13 @@ void tdRSmaGetDirName(SVnode *pVnode, STfs *pTfs, bool endWithSep, char *outputN
   offset = strlen(outputName);
 
   // rsma
+#if 0
   snprintf(outputName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%s", TD_DIRSEP, VNODE_RSMA_DIR,
            (endWithSep ? TD_DIRSEP : ""));
+#else
+  snprintf(outputName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%s%s%s%s%s", TD_DIRSEP, "tq", TD_DIRSEP, "stream",
+           TD_DIRSEP, "state", (endWithSep ? TD_DIRSEP : ""));
+#endif
 }
 
 // smaXXXUtil ================

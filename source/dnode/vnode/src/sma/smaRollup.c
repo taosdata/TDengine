@@ -90,6 +90,10 @@ void *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree) {
         streamStateClose(pItem->pStreamState, false);
       }
 
+      if(isDeepFree && pItem->pStreamTask) {
+        taosMemoryFreeClear(pItem->pStreamTask);
+      }
+
       if (isDeepFree && pInfo->taskInfo[i]) {
         tdRSmaQTaskInfoFree(&pInfo->taskInfo[i], SMA_VID(pSma), i + 1);
       }
@@ -254,11 +258,19 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
       taosMemoryFree(s);
     }
 
-    SStreamTask task = {.id.taskId = 0, .id.streamId = 0};  // TODO: assign value
-    task.pMeta = pVnode->pTq->pStreamMeta;
-    pStreamState = streamStateOpen(taskInfDir, &task, true, -1, -1);
+    SStreamTask *pStreamTask = taosMemoryCalloc(1, sizeof(SStreamTask));
+    if (!pStreamTask) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return TSDB_CODE_FAILED;
+    }
+    pStreamTask->id.taskId = 0;
+    pStreamTask->id.streamId = pRSmaInfo->suid + idx;
+    pStreamTask->pMeta = pVnode->pTq->pStreamMeta;
+
+    pStreamState = streamStateOpen(taskInfDir, pStreamTask, true, -1, -1);
     if (!pStreamState) {
       terrno = TSDB_CODE_RSMA_STREAM_STATE_OPEN;
+      taosMemoryFreeClear(pStreamTask);
       return TSDB_CODE_FAILED;
     }
 
@@ -268,11 +280,13 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     pRSmaInfo->taskInfo[idx] = qCreateStreamExecTaskInfo(param->qmsg[idx], &handle, TD_VID(pVnode), 0);
     if (!pRSmaInfo->taskInfo[idx]) {
       terrno = TSDB_CODE_RSMA_QTASKINFO_CREATE;
+      taosMemoryFreeClear(pStreamTask);
       return TSDB_CODE_FAILED;
     }
     SRSmaInfoItem *pItem = &(pRSmaInfo->items[idx]);
     pItem->triggerStat = TASK_TRIGGER_STAT_ACTIVE;  // fetch the data when reboot
     pItem->pStreamState = pStreamState;
+    pItem->pStreamTask = pStreamTask;
     if (param->maxdelay[idx] < TSDB_MIN_ROLLUP_MAX_DELAY) {
       int64_t msInterval =
           convertTimeFromPrecisionToUnit(pRetention[idx + 1].freq, pTsdbCfg->precision, TIME_UNIT_MILLISECOND);
@@ -562,7 +576,7 @@ static int32_t tdFetchSubmitReqSuids(SSubmitReq2 *pMsg, STbUidStore *pStore) {
  * @param now
  * @return int32_t
  */
-int32_t smaDoRetention(SSma *pSma, int64_t now) {
+int32_t smaRetention(SSma *pSma, int64_t now) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (!VND_IS_RSMA(pSma->pVnode)) {
     return code;
@@ -570,8 +584,8 @@ int32_t smaDoRetention(SSma *pSma, int64_t now) {
 
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pSma->pRSmaTsdb[i]) {
-      // code = tsdbDoRetention(pSma->pRSmaTsdb[i], now);
-      // if (code) goto _end;
+      code = tsdbRetention(pSma->pRSmaTsdb[i], now, pSma->pVnode->config.sttTrigger == 1);
+      if (code) goto _end;
     }
   }
 
@@ -1050,7 +1064,7 @@ _err:
 
   return code;
 }
-#if 0
+#if 1
 int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -1072,6 +1086,7 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
 
     for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
       SRSmaInfoItem *pItem = RSMA_INFO_ITEM(pRSmaInfo, i);
+#if 0
       if (pItem && pItem->pStreamState) {
         if (streamStateCommit(pItem->pStreamState) < 0) {
           code = TSDB_CODE_RSMA_STREAM_STATE_COMMIT;
@@ -1080,6 +1095,11 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
         smaDebug("vgId:%d, rsma persist, stream state commit success, table %" PRIi64 ", level %d", TD_VID(pVnode),
                  pRSmaInfo->suid, i + 1);
       }
+#endif
+    if(pItem && pItem->pStreamState) {
+
+    }
+
     }
   }
 
