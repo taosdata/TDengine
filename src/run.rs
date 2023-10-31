@@ -88,7 +88,7 @@ impl Cli {
     pub(super) async fn run_with(
         self,
         opt_args: super::OptArgs,
-        config_args: super::ConfigArgs,
+        config_args: super::Global,
     ) -> Result<()> {
         // let _ = span.entered();
         tracing::info!("start cli");

@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Result};
 use chrono::Local;
-use clap::{CommandFactory, Parser, Subcommand};
+use clap::{parser::ValueSource, CommandFactory, Parser, Subcommand};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use const_format::concatcp;
 use file_rotate::{
@@ -14,6 +14,7 @@ use metrics_tracing_context::MetricsLayer;
 #[cfg(feature = "mimalloc")]
 use mimalloc::MiMalloc;
 use opentelemetry::trace::Tracer;
+use serde::{Deserialize, Serialize};
 use shadow_rs::shadow;
 use thiserror::Error;
 use time::{macros::format_description, UtcOffset};
@@ -116,7 +117,18 @@ struct OptArgs {
 
 #[config]
 #[derive(Parser, Debug)]
-struct ConfigArgs {
+struct ConfigurableOpts {
+    #[clap(flatten)]
+    #[serde(flatten)]
+    global: Global,
+
+    #[clap(flatten)]
+    serve: Option<serve::Cli>,
+}
+
+#[derive(Parser, Debug, Deserialize, Serialize, Default)]
+#[serde(default)]
+struct Global {
     #[clap(long, env = "PLUGINS_HOME", global = true)]
     plugins_home: Option<String>,
 
@@ -127,7 +139,7 @@ struct ConfigArgs {
     logs_home: Option<String>,
 
     /// For environment variable wised log level.
-    #[clap(hide = true, env = "LOG_LEVEL", global = true)]
+    #[clap(long, hide = true, env = "LOG_LEVEL", global = true)]
     log_level: Option<LevelFilter>,
 
     /// Enable debug will set the mod path as `file:line`.
@@ -155,9 +167,7 @@ struct Args {
     #[clap(flatten)]
     opt_args: OptArgs,
     #[clap(flatten)]
-    config_args: ConfigArgs,
-    #[clap(last = true, value_parser)]
-    slop: Vec<String>,
+    global: Global,
 }
 
 #[derive(Debug, Error)]
@@ -168,6 +178,8 @@ pub enum ArgsError {
     MissingRequiredArgument(String),
     #[error("Argument parsing error: {0}")]
     ParseError(#[from] twelf::Error),
+    #[error("Argument parsing error: {0}")]
+    ClapError(#[from] clap::Error),
 }
 
 fn fmt_span_from_str(s: &str) -> Result<FmtSpan, String> {
@@ -182,34 +194,54 @@ fn fmt_span_from_str(s: &str) -> Result<FmtSpan, String> {
     }
 }
 
+#[cfg(windows)]
+fn get_default_config_path() -> PathBuf {
+    std::path::Path::new("C:\\")
+        .join("TDengine")
+        .join("cfg")
+        .join("taosx.toml")
+}
+
+#[cfg(not(windows))]
+fn get_default_config_path() -> PathBuf {
+    std::path::Path::new("/etc")
+        .join(build::CUS_PROMPT)
+        .join("taosx.toml")
+}
 impl Args {
     pub fn init() -> Result<Args, ArgsError> {
-        let path = if let Ok(c) = Args::try_parse() {
-            c.opt_args
-                .config
-                .map(|p| {
-                    if p.exists() {
-                        Ok(p)
-                    } else {
-                        Err(ArgsError::ConfigNotFound(p.display().to_string()))
-                    }
-                })
-                .transpose()?
-        } else {
-            None
-        }
-        .unwrap_or_else(|| {
-            if cfg!(windows) {
-                std::path::Path::new("C:\\")
-                    .join("TDengine")
-                    .join("cfg")
-                    .join("taosx.toml")
-            } else {
-                std::path::Path::new("/etc")
-                    .join(build::CUS_PROMPT)
-                    .join("taosx.toml")
-            }
-        });
+        let mut args = Args::try_parse()?;
+        let path = args
+            .opt_args
+            .config
+            .clone()
+            .unwrap_or(get_default_config_path());
+        // let path = if let Ok(c) = Args::try_parse() {
+        //     c.opt_args
+        //         .config
+        //         .map(|p| {
+        //             if p.exists() {
+        //                 Ok(p)
+        //             } else {
+        //                 Err(ArgsError::ConfigNotFound(p.display().to_string()))
+        //             }
+        //         })
+        //         .transpose()?
+        // } else {
+        //     None
+        // }
+        // .unwrap_or_else(|| {
+        //     if cfg!(windows) {
+        //         std::path::Path::new("C:\\")
+        //             .join("TDengine")
+        //             .join("cfg")
+        //             .join("taosx.toml")
+        //     } else {
+        //         std::path::Path::new("/etc")
+        //             .join(build::CUS_PROMPT)
+        //             .join("taosx.toml")
+        //     }
+        // });
         let mut layers = vec![];
         if path.exists() {
             layers.push(Layer::Toml(path))
@@ -220,37 +252,40 @@ impl Args {
         ))));
         layers.push(Layer::Clap(Args::command().get_matches()));
 
-        let ConfigArgs {
-            plugins_home,
-            data_dir,
-            logs_home,
-            log_level,
-            debug,
-            log_keep_days,
-            jobs,
-            otel,
-            ..
-        } = ConfigArgs::with_layers(&layers)?;
+        let configurable_opts = ConfigurableOpts::with_layers(&layers)?;
+        args.global = configurable_opts.global;
 
-        let args = Args::parse();
+        args.global.jobs = executor_worker_threads(args.global.jobs);
 
-        let jobs = executor_worker_threads(jobs);
+        let matches = Args::command().get_matches();
 
-        Ok(Args {
-            commands: args.commands,
-            opt_args: args.opt_args,
-            config_args: ConfigArgs {
-                plugins_home,
-                data_dir,
-                logs_home,
-                log_level,
-                debug,
-                log_keep_days,
-                jobs,
-                otel,
-            },
-            slop: args.slop,
-        })
+        match &mut args.commands {
+            Some(Commands::Run(_)) => {}
+            Some(Commands::Serve(cli)) => {
+                let mut serve = configurable_opts.serve.unwrap_or_default();
+
+                if let Some(matches) = matches.subcommand_matches("serve") {
+                    macro_rules! tak_or_not {
+                        ($f:ident) => {
+                            match matches.value_source(stringify!($f)) {
+                                Some(ValueSource::DefaultValue) | None => {}
+                                _ => {
+                                    serve.$f.take();
+                                }
+                            }
+                        };
+                    }
+                    tak_or_not!(listen);
+                    tak_or_not!(grpc);
+                    tak_or_not!(database_url);
+                    tak_or_not!(secret_prefix);
+                    tak_or_not!(do_not_resume);
+                }
+                cli.merge_from(serve);
+            }
+            _ => {}
+        }
+        Ok(args)
     }
 }
 
@@ -380,7 +415,7 @@ async fn init_tracing_layers(
     }
 
     // Enable opentelemetry layer
-    if args.config_args.otel.unwrap_or(false) {
+    if args.global.otel.unwrap_or(false) {
         let tracer = opentelemetry_otlp::new_pipeline()
             .tracing()
             .with_exporter(opentelemetry_otlp::new_exporter().tonic())
@@ -430,10 +465,10 @@ fn main() -> Result<()> {
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");
     let args = Args::init()?;
-    set_env_plugins_home_dir(args.config_args.plugins_home.clone());
-    set_env_data_dir(args.config_args.data_dir.clone());
-    set_env_log_home_dir(args.config_args.logs_home.clone());
-    set_env_log_keep_days(args.config_args.log_keep_days.clone());
+    set_env_plugins_home_dir(args.global.plugins_home.clone());
+    set_env_data_dir(args.global.data_dir.clone());
+    set_env_log_home_dir(args.global.logs_home.clone());
+    set_env_log_keep_days(args.global.log_keep_days.clone());
 
     let mut log_path = get_log_dir("server");
     log_path.push("server.log");
@@ -444,14 +479,14 @@ fn main() -> Result<()> {
 
     // Initialize tracing layers
     let level_filter = args
-        .config_args
+        .global
         .log_level
         .clone()
         .or(args.opt_args.verbose.clone().map(|v| v.log_level_filter()))
         .unwrap_or(LevelFilter::Info);
     println!("log level: {:?}", &level_filter);
     let span_events = args.opt_args.tracing_events.clone();
-    let worker_threads = args.config_args.jobs.clone();
+    let worker_threads = args.global.jobs.clone();
     let runtime = build_runtime(worker_threads)?;
     let log_rotation = create_rotating_log_writer(&mut log_path, log_keep_days);
     let (non_blocking, _guard) = tracing_appender::non_blocking(log_rotation);
@@ -466,17 +501,11 @@ fn main() -> Result<()> {
     tracing::info!("commit id: {commit_id}");
     tracing::info!("build time: {build_time}");
 
-    match args
-        .commands
-        .unwrap_or(Commands::Serve(serve::Cli::default()))
-    {
+    match args.commands.unwrap_or(Commands::Serve(Default::default())) {
         Commands::Run(cli) => {
             let span = tracing::info_span!("main");
             let _ = span.enter();
-            runtime.block_on(
-                cli.run_with(args.opt_args, args.config_args)
-                    .instrument(span),
-            )?;
+            runtime.block_on(cli.run_with(args.opt_args, args.global).instrument(span))?;
         }
         Commands::Serve(serve) => {
             let _ = tracing::info_span!("serve").entered();
@@ -527,11 +556,11 @@ mod tests {
         println!("configs: {:?}", args);
 
         assert_eq!(
-            args.config_args.plugins_home.unwrap_or("".to_string()),
+            args.global.plugins_home.unwrap_or("".to_string()),
             "from-config".to_string()
         );
         assert_eq!(
-            args.config_args.data_dir.unwrap_or("".to_string()),
+            args.global.data_dir.unwrap_or("".to_string()),
             "from-env".to_string()
         );
         // assert_eq!(args.config_args.logs_home.unwrap_or("".to_string()), "from-cli".to_string());
