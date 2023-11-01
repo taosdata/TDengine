@@ -310,13 +310,10 @@ _CONNECT:
 
   code = 0;
 
-  char obj[100] = {0};
-  sprintf(obj, "%s:%d", ip, pConn->port);
-
   char detail[1000] = {0};
-  sprintf(detail, "app:%s", connReq.app);
+  sprintf(detail, "%s:%d, app:%s", ip, pConn->port, connReq.app);
 
-  auditRecord(pReq, pMnode->clusterId, "login", connReq.user, obj, detail, strlen(detail));
+  auditRecord(pReq, pMnode->clusterId, "login", "", "", detail, strlen(detail));
 
 _OVER:
 
