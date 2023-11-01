@@ -2117,11 +2117,11 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
                   alterReq.sql, alterReq.sqlLen);
     }
   }
-  else if(alterReq.alterType == TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC){
+  else if(ALTER_USER_ADD_SUBSCRIBE_TOPIC_PRIV(alterReq.alterType, alterReq.privileges)){
     auditRecord(pReq, pMnode->clusterId, "GrantPrivileges", alterReq.objname, alterReq.user,
                     alterReq.sql, alterReq.sqlLen);
   }
-  else if(alterReq.alterType == TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC){
+  else if(ALTER_USER_DEL_SUBSCRIBE_TOPIC_PRIV(alterReq.alterType, alterReq.privileges)){
     auditRecord(pReq, pMnode->clusterId, "RevokePrivileges", alterReq.objname, alterReq.user,
                 alterReq.sql, alterReq.sqlLen);
   }
