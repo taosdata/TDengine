@@ -356,17 +356,9 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   // 4. free it and remove fill-history task from disk meta-store
   streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
 
-  // 5. clear the link between fill-history task and stream task info
-//  CLEAR_RELATED_FILLHISTORY_TASK(pStreamTask);
-
-  // 6. save to disk
+  // 5. save to disk
   taosWLockLatch(&pMeta->lock);
-
   pStreamTask->status.taskStatus = streamTaskGetStatus(pStreamTask, NULL);
-//  streamMetaSaveTask(pMeta, pStreamTask);
-//  if (streamMetaCommit(pMeta) < 0) {
-    // persist to disk
-//  }
   taosWUnLockLatch(&pMeta->lock);
 
   // 7. pause allowed.
