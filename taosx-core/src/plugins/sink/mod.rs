@@ -100,7 +100,20 @@ async fn ipc_tcp_forward(
                 data_stream
                     .inspect(|v| debug!("{:?}", v))
                     .map_err(FlightError::from),
-            );
+            )
+            .enumerate()
+            .map(|(i, v)| {
+                // Now `i` is the index of the message in the stream.
+                // We can use it as part of the message trace id.
+                v.map(|message| {
+                    message.with_app_metadata(
+                        json!({
+                            "data-trace-id": i // todo(@boding)
+                        })
+                        .to_string(),
+                    )
+                })
+            });
 
         const MAX_RETRIES: usize = 3;
         const RETRY_DELAY: Duration = Duration::from_secs(5);
@@ -1850,7 +1863,10 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             }
         })
         .await;
-    println!("IPC stream finished, total {} records in this stream", count.load(Ordering::SeqCst));
+    println!(
+        "IPC stream finished, total {} records in this stream",
+        count.load(Ordering::SeqCst)
+    );
     Ok(())
 }
 
