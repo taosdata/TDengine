@@ -2378,7 +2378,7 @@ pub struct UpdateTask {
     /// Task name
     name: Option<String>,
     /// Update trigger,
-    trigger: Option<String>,
+    trigger: Option<Strategy>,
     /// *Deprecated*.
     stream_type: Option<String>,
     /// The stream data source.
