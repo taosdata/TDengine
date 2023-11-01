@@ -1628,7 +1628,7 @@ static int32_t processCtbTagsAfterCtbName(SInsertParseContext* pCxt, SVnodeModif
   return code;
 }
 
-static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, const char* const* ppSql,
+static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, const char** ppSql,
                                  SStbRowsDataContext* pStbRowsCxt, SToken* pToken,
                                  const SBoundColInfo* pCols, const SSchema* pSchemas,
                                  SToken* tagTokens, SSchema** tagSchemas, int* pNumOfTagTokens, bool* bFoundTbName) {
@@ -1651,19 +1651,19 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
     }
 
     if (pCols->pColIndex[i] < getNumOfColumns(pStbRowsCxt->pStbMeta)) {
-      SSchema* pSchema = &pSchemas[pCols->pColIndex[i]];
+      const SSchema* pSchema = &pSchemas[pCols->pColIndex[i]];
       SColVal* pVal = taosArrayGet(pStbRowsCxt->aColVals, pCols->pColIndex[i]);
-      code = parseValueToken(pCxt, ppSql, pToken, pSchema, getTableInfo(pStbRowsCxt->pStbMeta).precision, pVal);
+      code = parseValueToken(pCxt, ppSql, pToken, (SSchema*)pSchema, getTableInfo(pStbRowsCxt->pStbMeta).precision, pVal);
     } else if (pCols->pColIndex[i] < getTbnameSchemaIndex(pStbRowsCxt->pStbMeta)) {
-      SSchema* pTagSchema = &pSchemas[pCols->pColIndex[i]];
+      const SSchema* pTagSchema = &pSchemas[pCols->pColIndex[i]];
       if (canParseTagsAfter) {
         tagTokens[(*pNumOfTagTokens)] = *pToken;
-        tagSchemas[(*pNumOfTagTokens)] = pTagSchema;
+        tagSchemas[(*pNumOfTagTokens)] = (SSchema*)pTagSchema;
         ++(*pNumOfTagTokens);
       } else {
         code = checkAndTrimValue(pToken, pCxt->tmpTokenBuf, &pCxt->msg);
         if (code == TSDB_CODE_SUCCESS) {
-          code = parseTagValue(pCxt, pStmt, ppSql, pTagSchema, pToken, pTagNames, pTagVals, &pStbRowsCxt->pTag);
+          code = parseTagValue(pCxt, pStmt, ppSql, (SSchema*)pTagSchema, pToken, pTagNames, pTagVals, &pStbRowsCxt->pTag);
         }
       }
     }
