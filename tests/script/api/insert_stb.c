@@ -149,6 +149,7 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
   char* qstr = malloc(1024*1024);
+  printf("test insert into tb using stb\n\n");
   for (int i =0; i < 5; ++i) {
     testInsert(taos, qstr);
   }
