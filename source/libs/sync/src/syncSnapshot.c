@@ -765,7 +765,7 @@ static int32_t syncSnapSendRsp(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSen
   pRspMsg->lastIndex = pMsg->lastIndex;
   pRspMsg->lastTerm = pMsg->lastTerm;
   pRspMsg->startTime = pMsg->startTime;
-  pRspMsg->ack = pReceiver->ack;  // receiver maybe already closed
+  pRspMsg->ack = pMsg->seq;
   pRspMsg->code = code;
   pRspMsg->snapBeginIndex = pReceiver->snapshotParam.start;
 
