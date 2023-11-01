@@ -49,7 +49,7 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<TaskOpts> {
     let offsets = Arc::new(DashMap::new());
 
     match from.driver.as_str() {
-        "opcua" | "opcda" | "influxdb" | "opentsdb" | "pi" | "mqtt" | "kafka" => {
+        "opcua" | "opcda" | "pi" => {
             let taos = TaosBuilder::from_dsn(&to_dsn)?.build().await?;
             let cluster_id: Option<i64> = taos
                 .query_one("select id from information_schema.ins_cluster")
