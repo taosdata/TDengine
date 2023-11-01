@@ -66,10 +66,10 @@ export function createStableReq(payload) {
     rollupValue = `rollup (${rollup})`;
   }
   return sendSQLReq(
-    `CREATE STABLE \`${selected_db}\`.\`${name}\` (\`${ts_field_name}\` TIMESTAMP,${columns
-      .map(item => `\`${item.field}\` ${item.type==='VARCHAR'?'VARCHAR('+`${item.varcharLength}`+')':item.type==='NCHAR'?
+    `CREATE STABLE \`${selected_db}\`.${name} (${ts_field_name} TIMESTAMP,${columns
+      .map(item => `${item.field} ${item.type==='VARCHAR'?'VARCHAR('+`${item.varcharLength}`+')':item.type==='NCHAR'?
       'NCHAR('+`${item.ncharLength}`+')':item.type}`)
-      .join(",")}) TAGS (${tags.map(item => `\`${item.field}\` ${item.type==='VARCHAR'?'VARCHAR('+`${item.varcharLength}`+')':item.type==='NCHAR'?
+      .join(",")}) TAGS (${tags.map(item => `${item.field} ${item.type==='VARCHAR'?'VARCHAR('+`${item.varcharLength}`+')':item.type==='NCHAR'?
       'NCHAR('+`${item.ncharLength}`+')':item.type}`).join(",")}) ${rollupValue};`
   ).catch(err => {
     return Promise.reject(err);
@@ -81,7 +81,7 @@ export function createStableReq(payload) {
 export function changeStableStruct(data, stableName) {
   let { operation, first_field = "", second_field = "" } = data;
   let sql = "";
-  sql = `ALTER STABLE  ${stableName} ${operation} \`${first_field}\` ${second_field};`;
+  sql = `ALTER STABLE  ${stableName} ${operation} ${first_field} ${second_field};`;
   return sendSQLReq(sql).catch(err => {
     return Promise.reject(err);
   });
