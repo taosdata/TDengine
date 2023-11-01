@@ -546,6 +546,7 @@ export default {
       taskName: 'Task Name',
       agentPlaceholder: 'Please select an agent',
       chooseTargetDbTip: 'Please select the target database',
+      resumePlaceholder: 'Please select'
     },
     needAgentTip: 'If data source is on a private network, please configure the secured Agent, so VPN is not required or expose data source to outside.From the machine where agent is installed, it must be able to access your TDengine instance',
     runAgent: 'Run Agent',
@@ -586,7 +587,9 @@ export default {
     metrics: 'Current Metrics',
     metricName: 'Metrics Name',
     metricValue: 'Metrics Value',
-    check: 'Connectivity check'
+    check: 'Connectivity check',
+    resume: 'Scheduling strategy',
+    resumeTip: "Indicates the scheduling policy after a task is interrupted:\n\n- *never*: Never reschedule。\n- *once*: The taosX service can be started only once after the service is abnormally interrupted and the task status is running|cancelled.\n- *always*: After the taosX service is started, tasks whose task status is running|failed|cancelled|interrupted are always restarted." 
   },
   replication: {
     theTaskWithId: "the task with id {id}",

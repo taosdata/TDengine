@@ -1191,6 +1191,9 @@ export default {
     },
     targetDatabase() {
       return this.$store.state.app.currentDBName || ""
+    },
+    resume() {
+      return this.$store.state.app.currentResume || "";
     }
   },
   watch: {
@@ -1914,6 +1917,7 @@ export default {
             `cluster-id::${id}`,
             `user::${localStorage.getItem("username")}`,
           ],
+          trigger: { "schedule": "@daily", "resume": this.resume }
         };
         if (this.tagName == "mqtt" && isSubmit) {
           piParams["parser"] = this.$store.state.app.mqttParser;

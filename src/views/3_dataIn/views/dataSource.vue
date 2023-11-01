@@ -154,7 +154,7 @@
             >
               <el-tooltip
                 v-if="
-                  ['stopped', 'finished', 'failed'].includes(
+                  showErrStatus.includes(
                     scope.row.status.toLowerCase()
                   )
                 "
@@ -175,7 +175,7 @@
               <span style="width: 80px; display: inline-block" v-else>{{
                 scope.row.status
               }}</span>
-              <template v-if="scope.row.status.toLowerCase() !== 'running'">
+              <template v-if="permitStartStatus.includes(scope.row.status.toLowerCase())">
                 <el-tooltip
                   placement="bottom"
                   effect="light"
@@ -189,7 +189,7 @@
                   ></el-button>
                 </el-tooltip>
               </template>
-              <template v-else>
+              <template v-if="permitStopStatus.includes(scope.row.status.toLowerCase())">
                 <el-tooltip
                   placement="bottom"
                   effect="light"
@@ -342,6 +342,10 @@ export default {
       taskActivities: [],
       expandRowKeys: [],
       metricDisable: false,
+      // 不允许 start/stop 的状态 sopping, suspending
+      permitStartStatus: ['created','failed','stopped','suspended','completed'],
+      permitStopStatus: ['queued','running','interrupted','waiting','resumed'],
+      showErrStatus: ['waiting','suspending','suspended','failed','interupted']
     };
   },
   computed: {
@@ -408,7 +412,7 @@ export default {
       this.$store.commit('app/SET_CURRENT_EDITID',data.id)
       if (data.from_detail) {
         this.$store.commit("app/SET_CURRENT_DBTYPE", data.from_detail?.id);
-
+        this.$store.commit("app/SET_CURRENT_RESUME", data.trigger?.resume);
         this.$store.commit("app/SET_CURRENT_DBNAME", data.target);
         this.$store.commit("app/SET_CURRENT_AGENT", data?.via);
         this.$store.commit("app/SET_CURRENT_DSNAME", data.name);

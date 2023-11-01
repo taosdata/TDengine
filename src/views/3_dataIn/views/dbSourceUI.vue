@@ -947,6 +947,9 @@ export default {
     targetDatabase() {
       return this.$store.state.app.currentDBName || "";
     },
+    resume() {
+      return this.$store.state.app.currentResume || "";
+    }
   },
   watch: {
     "$i18n.locale": {
@@ -1217,6 +1220,7 @@ export default {
     },
 
     async submit(isSubmit) {
+      // debugger
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
@@ -1520,6 +1524,7 @@ export default {
             `cluster-id::${id}`,
             `user::${localStorage.getItem("username")}`,
           ],
+          trigger: { "schedule": "@daily", "resume": this.resume }
         };
         if (this.agentId) {
           apiParams["via"] = this.agentId;
@@ -1532,6 +1537,7 @@ export default {
                 Message.error(result.message);
                 return;
               }
+              this.$parent.changeEditable(false);
               this.$parent.toggleComponent("tmqtable");
             } else {
               let result = await AddSource(apiParams);
@@ -1539,6 +1545,7 @@ export default {
                 Message.error(result.message);
                 return;
               }
+              this.$parent.changeEditable(false);
               this.$parent.toggleComponent("tmqtable");
             }
           } else {
@@ -1570,6 +1577,7 @@ export default {
               `cluster-id::${id}`,
               `user::${localStorage.getItem("username")}`,
             ],
+            trigger: { "schedule": "@daily", "resume": this.resume }
           };
           if (this.agentId) {
             piParams["via"] = this.agentId;
