@@ -459,15 +459,15 @@ impl TaskScheduler {
         Ok(())
     }
 
-    pub async fn in_scheduler(&self, task_id: i64) -> bool {
+    pub async fn safe_to_delete(&self, task_id: i64) -> bool {
         if let Some(task) = self.tasks.read().await.get_by_task_id(&task_id) {
-            if task.is_finished().await {
-                false
-            } else {
+            if task.safe_to_delete().await {
                 true
+            } else {
+                false
             }
         } else {
-            false
+            true
         }
     }
     /// Shutdown the scheduler, this will stop and wait all tasks to be cancelled in scheduler.

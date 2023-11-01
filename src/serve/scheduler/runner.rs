@@ -491,6 +491,17 @@ impl InnerState {
         )
     }
 
+    pub fn safe_to_delete(&self) -> bool {
+        matches!(
+            self,
+            InnerState::Completed
+                | InnerState::Stopped
+                | InnerState::Failed(_)
+                | InnerState::Stopping
+                | InnerState::Interrupted
+        )
+    }
+
     pub(crate) fn is_stopped(&self) -> bool {
         matches!(self, InnerState::Stopped)
     }
@@ -738,6 +749,11 @@ impl TaskJob {
     /// Check if a task is in final state.
     pub async fn is_finished(&self) -> bool {
         self.task.state.read().await.is_finished()
+    }
+
+    /// Check if a task is safe to delete.
+    pub async fn safe_to_delete(&self) -> bool {
+        self.task.state.read().await.safe_to_delete()
     }
 
     /// Stop a job manually.
