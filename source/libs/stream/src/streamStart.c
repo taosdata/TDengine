@@ -625,6 +625,8 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
   SStreamMeta*      pMeta = pInfo->pMeta;
 
   taosWLockLatch(&pMeta->lock);
+  stDebug("vgId:%d meta-wlock", pMeta->vgId);
+
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &pInfo->id, sizeof(pInfo->id));
   if (ppTask) {
     ASSERT((*ppTask)->status.timerActive >= 1);
@@ -638,10 +640,12 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
 
       taosMemoryFree(pInfo);
       taosWUnLockLatch(&pMeta->lock);
+      stDebug("vgId:%d meta-unlock", pMeta->vgId);
       return;
     }
   }
   taosWUnLockLatch(&pMeta->lock);
+  stDebug("vgId:%d meta-unlock", pMeta->vgId);
 
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, pInfo->id.streamId, pInfo->id.taskId);
   if (pTask != NULL) {
@@ -934,66 +938,6 @@ void streamTaskSetRangeStreamCalc(SStreamTask* pTask) {
 }
 
 void streamTaskPause(SStreamTask* pTask, SStreamMeta* pMeta) {
-#if 0
-  int8_t status = pTask->status.taskStatus;
-  if (status == TASK_STATUS__DROPPING) {
-    stDebug("vgId:%d s-task:%s task already dropped, do nothing", pMeta->vgId, pTask->id.idStr);
-    return;
-  }
-
-  const char* str = streamGetTaskStatusStr(status);
-  if (status == TASK_STATUS__STOP || status == TASK_STATUS__PAUSE) {
-    stDebug("vgId:%d s-task:%s task already stopped/paused, status:%s, do nothing", pMeta->vgId, pTask->id.idStr, str);
-    return;
-  }
-
-  if(pTask->info.taskLevel == TASK_LEVEL__SINK) {
-    int32_t num = atomic_add_fetch_32(&pMeta->numOfPausedTasks, 1);
-    stInfo("vgId:%d s-task:%s pause stream sink task. pause task num:%d", pMeta->vgId, pTask->id.idStr, num);
-    return;
-  }
-
-  while (!pTask->status.pauseAllowed || (pTask->status.taskStatus == TASK_STATUS__HALT)) {
-    status = pTask->status.taskStatus;
-    if (status == TASK_STATUS__DROPPING) {
-      stDebug("vgId:%d s-task:%s task already dropped, do nothing", pMeta->vgId, pTask->id.idStr);
-      return;
-    }
-
-    if (status == TASK_STATUS__STOP || status == TASK_STATUS__PAUSE) {
-      stDebug("vgId:%d s-task:%s task already stopped/paused, status:%s, do nothing", pMeta->vgId, pTask->id.idStr, str);
-      return;
-    }
-//
-//    if (pTask->status.downstreamReady == 0) {
-//      ASSERT(pTask->execInfo.start == 0);
-//      stDebug("s-task:%s in check downstream procedure, abort and paused", pTask->id.idStr);
-//      break;
-//    }
-
-    const char* pStatus = streamGetTaskStatusStr(status);
-    stDebug("s-task:%s wait for the task can be paused, status:%s, vgId:%d", pTask->id.idStr, pStatus, pMeta->vgId);
-    taosMsleep(100);
-  }
-
-  // todo: use the task lock, stead of meta lock
-  taosWLockLatch(&pMeta->lock);
-
-  status = pTask->status.taskStatus;
-  if (status == TASK_STATUS__DROPPING || status == TASK_STATUS__STOP) {
-    taosWUnLockLatch(&pMeta->lock);
-    stDebug("vgId:%d s-task:%s task already dropped/stopped/paused, do nothing", pMeta->vgId, pTask->id.idStr);
-    return;
-  }
-
-  atomic_store_8(&pTask->status.keepTaskStatus, pTask->status.taskStatus);
-  atomic_store_8(&pTask->status.taskStatus, TASK_STATUS__PAUSE);
-  int32_t num = atomic_add_fetch_32(&pMeta->numOfPausedTasks, 1);
-  stInfo("vgId:%d s-task:%s pause stream task. pause task num:%d", pMeta->vgId, pTask->id.idStr, num);
-  taosWUnLockLatch(&pMeta->lock);
-
-#endif
-
   streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_PAUSE);
 
   int32_t num = atomic_add_fetch_32(&pMeta->numOfPausedTasks, 1);
@@ -1029,19 +973,6 @@ void streamTaskResume(SStreamTask* pTask) {
   }
 }
 
-// todo fix race condition
-void streamTaskDisablePause(SStreamTask* pTask) {
-  // pre-condition check
-//  const char* id = pTask->id.idStr;
-//  while (pTask->status.taskStatus == TASK_STATUS__PAUSE) {
-//    stDebug("s-task:%s already in pause, wait for pause being cancelled, and set pause disabled, recheck in 100ms", id);
-//    taosMsleep(100);
-//  }
-//
-//  stDebug("s-task:%s disable task pause", id);
-//  pTask->status.pauseAllowed = 0;
-}
-
 void streamTaskEnablePause(SStreamTask* pTask) {
   stDebug("s-task:%s enable task pause", pTask->id.idStr);
   pTask->status.pauseAllowed = 1;
@@ -1051,6 +982,7 @@ int32_t streamMetaUpdateTaskReadyInfo(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
 
   taosWLockLatch(&pMeta->lock);
+  stDebug("vgId:%d meta-wlock", pMeta->vgId);
 
   STaskId id = streamTaskExtractKey(pTask);
   taosHashPut(pMeta->startInfo.pReadyTaskSet, &id, sizeof(id), NULL, 0);
@@ -1072,5 +1004,6 @@ int32_t streamMetaUpdateTaskReadyInfo(SStreamTask* pTask) {
   }
 
   taosWUnLockLatch(&pMeta->lock);
+  stDebug("vgId:%d meta-unlock", pMeta->vgId);
   return TSDB_CODE_SUCCESS;
 }

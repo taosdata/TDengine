@@ -551,10 +551,14 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   walApplyVer(pVnode->pWal, commitIdx);
   pVnode->restored = true;
 
-  taosWLockLatch(&pVnode->pTq->pStreamMeta->lock);
-  if (pVnode->pTq->pStreamMeta->startInfo.startAllTasksFlag) {
+  SStreamMeta* pMeta = pVnode->pTq->pStreamMeta;
+  taosWLockLatch(&pMeta->lock);
+  tqDebug("vgId:%d meta-wlock", pMeta->vgId);
+
+  if (pMeta->startInfo.startAllTasksFlag) {
     vInfo("vgId:%d, sync restore finished, stream tasks will be launched by other thread", vgId);
-    taosWUnLockLatch(&pVnode->pTq->pStreamMeta->lock);
+    taosWUnLockLatch(&pMeta->lock);
+    tqDebug("vgId:%d meta-unlock", pMeta->vgId);
     return;
   }
 
@@ -571,7 +575,8 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
     vInfo("vgId:%d, sync restore finished, not launch stream tasks since not leader", vgId);
   }
 
-  taosWUnLockLatch(&pVnode->pTq->pStreamMeta->lock);
+  taosWUnLockLatch(&pMeta->lock);
+  tqDebug("vgId:%d meta-unlock", pMeta->vgId);
 }
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {

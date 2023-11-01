@@ -1802,6 +1802,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 
   // update the nodeEpset when it exists
   taosWLockLatch(&pMeta->lock);
+  tqDebug("vgId:%d meta-wlock", pMeta->vgId);
 
   // the task epset may be updated again and again, when replaying the WAL, the task may be in stop status.
   STaskId id = {.streamId = req.streamId, .taskId = req.taskId};
@@ -1811,6 +1812,8 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
             req.taskId);
     rsp.code = TSDB_CODE_SUCCESS;
     taosWUnLockLatch(&pMeta->lock);
+    tqDebug("vgId:%d meta-unlock", pMeta->vgId);
+
     taosArrayDestroy(req.pNodeList);
     return rsp.code;
   }
@@ -1833,11 +1836,13 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
             req.transId);
     rsp.code = TSDB_CODE_SUCCESS;
     taosWUnLockLatch(&pMeta->lock);
+    tqDebug("vgId:%d meta-unlock", pMeta->vgId);
     taosArrayDestroy(req.pNodeList);
     return rsp.code;
   }
 
   taosWUnLockLatch(&pMeta->lock);
+  tqDebug("vgId:%d meta-unlock", pMeta->vgId);
 
   // the following two functions should not be executed within the scope of meta lock to avoid deadlock
   streamTaskUpdateEpsetInfo(pTask, req.pNodeList);
@@ -1845,6 +1850,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 
   // continue after lock the meta again
   taosWLockLatch(&pMeta->lock);
+  tqDebug("vgId:%d meta-wlock", pMeta->vgId);
 
   SStreamTask** ppHTask = NULL;
   if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
@@ -1895,15 +1901,19 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
     tqDebug("vgId:%d closed tasks:%d, unclosed:%d, all tasks will be started when nodeEp update completed", vgId,
             updateTasks, (numOfTasks - updateTasks));
     taosWUnLockLatch(&pMeta->lock);
+    tqDebug("vgId:%d meta-unlock", pMeta->vgId);
   } else {
     if (!pTq->pVnode->restored) {
       tqDebug("vgId:%d vnode restore not completed, not restart the tasks, clear the start after nodeUpdate flag", vgId);
       pMeta->startInfo.startAllTasksFlag = 0;
       taosWUnLockLatch(&pMeta->lock);
+      tqDebug("vgId:%d meta-unlock", pMeta->vgId);
     } else {
       tqDebug("vgId:%d tasks are all updated and stopped, restart them", vgId);
       terrno = 0;
+
       taosWUnLockLatch(&pMeta->lock);
+      tqDebug("vgId:%d meta-unlock", pMeta->vgId);
 
       while (streamMetaTaskInTimer(pMeta)) {
         qDebug("vgId:%d some tasks in timer, wait for 100ms and recheck", pMeta->vgId);
@@ -1911,10 +1921,13 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
       }
 
       taosWLockLatch(&pMeta->lock);
+      tqDebug("vgId:%d meta-wlock", pMeta->vgId);
+
       int32_t code = streamMetaReopen(pMeta);
       if (code != 0) {
         tqError("vgId:%d failed to reopen stream meta", vgId);
         taosWUnLockLatch(&pMeta->lock);
+        tqDebug("vgId:%d meta-unlock", pMeta->vgId);
         taosArrayDestroy(req.pNodeList);
         return -1;
       }
@@ -1922,6 +1935,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
       if (streamMetaLoadAllTasks(pTq->pStreamMeta) < 0) {
         tqError("vgId:%d failed to load stream tasks", vgId);
         taosWUnLockLatch(&pMeta->lock);
+        tqDebug("vgId:%d meta-unlock", pMeta->vgId);
         taosArrayDestroy(req.pNodeList);
         return -1;
       }
@@ -1935,6 +1949,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
       }
 
       taosWUnLockLatch(&pMeta->lock);
+      tqDebug("vgId:%d meta-unlock", pMeta->vgId);
     }
   }
 

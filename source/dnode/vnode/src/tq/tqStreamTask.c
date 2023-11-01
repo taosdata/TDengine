@@ -39,17 +39,15 @@ int32_t tqScanWal(STQ* pTq) {
 
     if (shouldIdle) {
       taosWLockLatch(&pMeta->lock);
-
       int32_t times = (--pMeta->walScanCounter);
       ASSERT(pMeta->walScanCounter >= 0);
-
-      if (pMeta->walScanCounter <= 0) {
-        taosWUnLockLatch(&pMeta->lock);
-        break;
-      }
-
       taosWUnLockLatch(&pMeta->lock);
-      tqDebug("vgId:%d scan wal for stream tasks for %d times in %dms", vgId, times, SCAN_WAL_IDLE_DURATION);
+
+      if (times <= 0) {
+        break;
+      } else {
+        tqDebug("vgId:%d scan wal for stream tasks for %d times in %dms", vgId, times, SCAN_WAL_IDLE_DURATION);
+      }
     }
 
     taosMsleep(SCAN_WAL_IDLE_DURATION);
