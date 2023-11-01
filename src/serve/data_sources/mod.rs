@@ -238,7 +238,7 @@ pub(super) async fn data_source_collection(
 )]
 #[get("/ds/in/validate")]
 pub(super) async fn data_source_is_valid(query: Query<DsnValidationQuery>) -> impl Responder {
-    const DEFAULT_TIMEOUT: u64 = 5; // 5 seconds
+    const DEFAULT_TIMEOUT: u64 = 20; // 20 seconds
     let query = query.into_inner();
     let timeout_sec = query.timeout.unwrap_or(DEFAULT_TIMEOUT);
 

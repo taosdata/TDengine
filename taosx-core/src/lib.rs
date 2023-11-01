@@ -9,7 +9,7 @@ use dashmap::DashMap;
 use serde::Deserialize;
 use serde_with::serde_as;
 use taos::taos_query::tmq::Assignment;
-use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
+use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 

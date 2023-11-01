@@ -6,7 +6,7 @@ use taos::{Consumer, *};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
-use crate::{tmq::*, utils::get_main_version_from_server_version, Action};
+use crate::{tmq::*, Action};
 use dashmap::DashMap;
 use metrics::counter;
 use taos::taos_query::tmq::Assignment;
