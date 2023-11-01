@@ -583,10 +583,10 @@ int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask) {
   int32_t code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
   streamTaskSetSchedStatusInactive(pTask);
 
-  taosWLockLatch(&pMeta->lock);
+  streamMetaWLock(pMeta);
   streamMetaSaveTask(pMeta, pTask);
   streamMetaCommit(pMeta);
-  taosWUnLockLatch(&pMeta->lock);
+  streamMetaWUnLock(pMeta);
 
   // history data scan in the stream time window finished, now let's enable the pause
   streamTaskEnablePause(pTask);
@@ -624,8 +624,7 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
   SLaunchHTaskInfo* pInfo = param;
   SStreamMeta*      pMeta = pInfo->pMeta;
 
-  taosWLockLatch(&pMeta->lock);
-  stDebug("vgId:%d meta-wlock", pMeta->vgId);
+  streamMetaWLock(pMeta);
 
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &pInfo->id, sizeof(pInfo->id));
   if (ppTask) {
@@ -639,13 +638,11 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
               (*ppTask)->id.idStr, p, (*ppTask)->hTaskInfo.retryTimes, ref);
 
       taosMemoryFree(pInfo);
-      taosWUnLockLatch(&pMeta->lock);
-      stDebug("vgId:%d meta-unlock", pMeta->vgId);
+      streamMetaWUnLock(pMeta);
       return;
     }
   }
-  taosWUnLockLatch(&pMeta->lock);
-  stDebug("vgId:%d meta-unlock", pMeta->vgId);
+  streamMetaWUnLock(pMeta);
 
   SStreamTask* pTask = streamMetaAcquireTask(pMeta, pInfo->id.streamId, pInfo->id.taskId);
   if (pTask != NULL) {
@@ -981,8 +978,7 @@ void streamTaskEnablePause(SStreamTask* pTask) {
 int32_t streamMetaUpdateTaskReadyInfo(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
 
-  taosWLockLatch(&pMeta->lock);
-  stDebug("vgId:%d meta-wlock", pMeta->vgId);
+  streamMetaWLock(pMeta);
 
   STaskId id = streamTaskExtractKey(pTask);
   taosHashPut(pMeta->startInfo.pReadyTaskSet, &id, sizeof(id), NULL, 0);
@@ -1003,7 +999,6 @@ int32_t streamMetaUpdateTaskReadyInfo(SStreamTask* pTask) {
             pStartInfo->elapsedTime / 1000.0);
   }
 
-  taosWUnLockLatch(&pMeta->lock);
-  stDebug("vgId:%d meta-unlock", pMeta->vgId);
+  streamMetaWUnLock(pMeta);
   return TSDB_CODE_SUCCESS;
 }
