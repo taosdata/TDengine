@@ -58,15 +58,15 @@ pub async fn list_csv_file(path: &str) -> Result<Vec<String>> {
     CsvSource::csv_path(path)
 }
 
-pub async fn csv_header(paths: Vec<&str>, has_header: bool) -> Result<CsvHeader> {
+pub async fn csv_header(paths: Vec<impl AsRef<str>>, has_header: bool) -> Result<CsvHeader> {
     let mut header = Vec::new();
     for path in paths {
-        let path_header = CsvSource::read_header(path, has_header).await?;
+        let path_header = CsvSource::read_header(path.as_ref(), has_header).await?;
         if !CsvSource::is_same_header(&header, &path_header, has_header) {
-            return Err(anyhow!(format!(
+            bail!(
                 "CSV file \"{}\" format is different from others",
-                &path
-            )));
+                path.as_ref()
+            );
         }
         header = path_header;
     }

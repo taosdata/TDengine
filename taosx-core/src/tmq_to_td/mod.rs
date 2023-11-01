@@ -6,7 +6,7 @@ use taos::{Consumer, *};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
-use crate::{tmq::*, utils::get_main_version_from_server_version, Action};
+use crate::{tmq::*, Action};
 use dashmap::DashMap;
 use metrics::counter;
 use taos::taos_query::tmq::Assignment;
@@ -313,7 +313,6 @@ async fn sync(
         .exec("desc information_schema.ins_databases")
         .await
         .is_ok();
-    let (a, b, c) = get_main_version_from_server_version(&version).unwrap();
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
@@ -321,23 +320,6 @@ async fn sync(
                 break;
             }
             next = stream.try_next() => {
-                tracing::debug!("version:{} a-{} b-{} c-{} ", version, a, b, c);
-                let assignments = if a >= 3 && b >= 0 && c >= 5 {
-                    consumer.assignments().await.unwrap()
-                } else {
-                    vec![]
-                };
-
-                tracing::debug!("assignment: {:?}", assignments);
-                for (topic, assignment) in assignments {
-                    if assignment.is_empty() {
-                        continue;
-                    }
-                    let vgroup_id = assignment[0].vgroup_id();
-                    let key = format!("{}@vgroup{}", topic, vgroup_id);
-                    tracing::debug!("key: {}, assignment: {:?}", key, assignment);
-                    offsets.insert(key, assignment);
-                }
 
                 if let Some((offset, message)) = next.with_context(|| format!("[{id}] polling next message error"))? {
                     counter!(METRICS_TMQ_MESSAGES, 1);
@@ -638,5 +620,10 @@ pub async fn tmq_offsets(from: Dsn) -> anyhow::Result<LinkedHashMap<String, Vec<
     consumer
         .subscribe(&topics.iter().map(|t| t.name.to_string()).collect_vec())
         .await?;
-    Ok(consumer.assignments().await.unwrap_or_default().into_iter().collect())
+    Ok(consumer
+        .assignments()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .collect())
 }

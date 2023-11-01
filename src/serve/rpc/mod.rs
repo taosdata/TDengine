@@ -42,7 +42,7 @@ use tracing::{info, instrument, warn};
 use crate::serve::{
     controller::{
         agent::{Activity, AgentToken, LevelFilter},
-        TaskActivity, TaskStatus,
+        TaskActivity,
     },
     rpc::put::PutStream,
     scheduler::agent::AgentNotify,
@@ -374,7 +374,12 @@ impl FlightService for FlightServiceImpl {
 
         // let message = req.try_next().await?;
 
-        let put_stream = PutStream::new(self.controller.clone(), task_id, req);
+        let put_stream = PutStream::new(
+            self.controller.clone(),
+            task_id,
+            req,
+            self.notify_sender.clone(),
+        );
 
         struct ResultStream(Streaming<FlightData>);
         unsafe impl Sync for ResultStream {}

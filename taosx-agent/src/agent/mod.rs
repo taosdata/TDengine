@@ -27,7 +27,7 @@ use flume::{Receiver, Sender};
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use taosx_core::{
-    list_datasets_from, DataSetsReq, Fail, HeartbeatResponse, ListResponse, RespAction,
+    list_datasets_from, DataSetsReq, Fail, HeartbeatResponse, ListResponse, RespAction, Activity,
 };
 use tonic::transport::Channel;
 use tonic::{codegen::Bytes, transport::Endpoint};
@@ -212,7 +212,7 @@ impl Client {
     pub fn agent(&self) -> &Agent {
         &self.agent
     }
-    pub async fn push_status(&mut self, status: &TaskStatus) -> Result<()> {
+    pub async fn push_status(&mut self, status: &Activity) -> Result<()> {
         tracing::info!("Push status {status:?} to server");
         let status_bytes = serde_json::to_vec(status)?;
         let action = FlightAction::new("TaskStatus", status_bytes);

@@ -349,13 +349,14 @@ async fn validate_source_opentsdb(
 
 #[cfg(test)]
 mod tests {
+    use std::env;
     use std::str::FromStr;
     use taos::Dsn;
 
     use super::*;
 
     #[tokio::test]
-    async fn test_is_valid() {
+    async fn test_invalid() {
         let dsn = Dsn::from_str("opentsdb://").unwrap();
         let validation = is_valid(&dsn).await;
         assert_eq!(false, validation.valid);
@@ -377,5 +378,18 @@ mod tests {
             .message
             .unwrap()
             .contains("cause: opentsdb plugin not found"));
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_valid() {
+        env::set_var("PLUGINS_HOME", "../plugins");
+
+        let dsn = Dsn::from_str("opentsdb://192.168.2.12:4242").unwrap();
+        let dsv = is_valid(&dsn).await;
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("opentsdb", dsv.data_source);
+        assert_eq!("2.4.0", dsv.version.unwrap());
     }
 }

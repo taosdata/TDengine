@@ -35,9 +35,20 @@ pub async fn notify_by_job_id(
             let global = global.clone();
             let job_id = job_id.clone();
             tokio::task::spawn(async move {
-                if let Some(task) = tasks.write().await.remove_by_job_id(&job_id) {
-                    if task.task.task.via.is_some() {
-                        global.agent_runtime.remove_task(task_id).await;
+                let mut tasks = tasks.write().await;
+                let to_remove = {
+                    if let Some(task) = tasks.get_by_job_id(&job_id) {
+                        task.is_finished().await
+                    } else {
+                        false
+                    }
+                };
+
+                if to_remove {
+                    if let Some(task) = tasks.remove_by_job_id(&job_id) {
+                        if task.task.task.via.is_some() {
+                            global.agent_runtime.remove_task(task_id).await;
+                        }
                     }
                 }
             });

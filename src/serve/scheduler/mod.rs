@@ -380,6 +380,7 @@ impl TaskScheduler {
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
         tracing::info!(task.id = task, "task has been completely stopped");
+        self.tasks.write().await.remove_by_task_id(&task);
     }
 
     pub async fn stop_task(&self, task: i64, timeout: Duration) -> anyhow::Result<()> {
@@ -394,11 +395,16 @@ impl TaskScheduler {
         self.global_state.ensure_alive()?;
         let task_id = task.id;
         {
-            if self.tasks.read().await.get_by_task_id(&task_id).is_some() {
-                anyhow::bail!(
-                    "Task `{}` already in scheduler, please do not start it twice",
-                    task_id
-                );
+            let mut tasks = self.tasks.write().await;
+            if let Some(task) = tasks.get_by_task_id(&task_id) {
+                if task.is_finished().await {
+                    tasks.remove_by_task_id(&task_id);
+                } else {
+                    anyhow::bail!(
+                        "Task `{}` already in scheduler, please do not start it twice",
+                        task_id
+                    );
+                }
             }
         }
         let task = TaskState::new(task, &self.global_state).await;
@@ -453,6 +459,17 @@ impl TaskScheduler {
         Ok(())
     }
 
+    pub async fn safe_to_delete(&self, task_id: i64) -> bool {
+        if let Some(task) = self.tasks.read().await.get_by_task_id(&task_id) {
+            if task.safe_to_delete().await {
+                true
+            } else {
+                false
+            }
+        } else {
+            true
+        }
+    }
     /// Shutdown the scheduler, this will stop and wait all tasks to be cancelled in scheduler.
     ///
     /// Side effect:

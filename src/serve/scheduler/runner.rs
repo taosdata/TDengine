@@ -49,7 +49,7 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<TaskOpts> {
     let offsets = Arc::new(DashMap::new());
 
     match from.driver.as_str() {
-        "opcua" | "opcda" | "influxdb" | "opentsdb" | "pi" | "mqtt" | "kafka" => {
+        "opcua" | "opcda" | "pi" => {
             let taos = TaosBuilder::from_dsn(&to_dsn)?.build().await?;
             let cluster_id: Option<i64> = taos
                 .query_one("select id from information_schema.ins_cluster")
@@ -60,11 +60,7 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<TaskOpts> {
             let connector = match from.driver.as_str() {
                 "opcua" => "opc_ua",
                 "opcda" => "opc_da",
-                "influxdb" => "influxdb",
-                "opentsdb" => "opentsdb",
                 "pi" => "pi",
-                "kafka" => "kafka",
-                "mqtt" => "mqtt",
                 _ => unreachable!(),
             };
             let license: Option<ConnectorLicense> = taos
@@ -78,8 +74,8 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<TaskOpts> {
             if let Some(license) = license {
                 if license.is_expired() {
                     anyhow::bail!(
-                            "Connector {connector} expired, please contact the database administrator for license",
-                        )
+                        "Connector {connector} expired, please contact the database administrator for license",
+                    )
                 }
             }
         }
@@ -463,6 +459,8 @@ pub enum InnerState {
     Stopped,
     /// Task is completed.
     Completed,
+    /// Task is interrupted.
+    Interrupted,
     /// Task is failed.
     Failed(String),
 }
@@ -489,6 +487,17 @@ impl InnerState {
         matches!(
             self,
             InnerState::Completed | InnerState::Stopped | InnerState::Failed(_)
+        )
+    }
+
+    pub fn safe_to_delete(&self) -> bool {
+        matches!(
+            self,
+            InnerState::Completed
+                | InnerState::Stopped
+                | InnerState::Failed(_)
+                | InnerState::Stopping
+                | InnerState::Interrupted
         )
     }
 
@@ -522,6 +531,10 @@ impl InnerState {
     }
     pub fn completed(&mut self) -> &mut Self {
         *self = Self::Completed;
+        self
+    }
+    pub fn interrupted(&mut self) -> &mut Self {
+        *self = Self::Interrupted;
         self
     }
 
@@ -730,11 +743,16 @@ impl TaskJob {
 
     /// Check if a task is in final state.
     pub async fn in_final_state(&self) -> bool {
-        self.task.state.read().await.is_finished()
+        self.task.state.read().await.in_final_state()
     }
     /// Check if a task is in final state.
     pub async fn is_finished(&self) -> bool {
         self.task.state.read().await.is_finished()
+    }
+
+    /// Check if a task is safe to delete.
+    pub async fn safe_to_delete(&self) -> bool {
+        self.task.state.read().await.safe_to_delete()
     }
 
     /// Stop a job manually.
@@ -999,11 +1017,12 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
         }
         Some(LastState::Stopped) => {
             tracing::info!("task stopped");
-            let _ = task.state.write().await.stop();
+            task.state.write().await.stopped();
         }
         Some(LastState::Error(err)) => {
             tracing::info!("task error: {:#}", err);
             task.state.write().await.fail(&err);
+            task.state.write().await.interrupted();
         }
         None => {
             tracing::info!("task finished unexpectedly");

@@ -12,14 +12,15 @@ use actix_web::{
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use taos::Code;
+use taos::{Code, IntoDsn};
 use tokio::time::timeout;
-use taosx_core::{list_datasets_from, validate_dsn, DataSetsReq};
+use taosx_core::{list_datasets_from, DataSetsReq, runners};
 use utoipa::*;
 
 mod definition;
 
 pub use definition::*;
+use taosx_core::validation::DataSourceValidation;
 
 use crate::serve::{
     controller::TaskControllerRef,
@@ -237,18 +238,42 @@ pub(super) async fn data_source_collection(
 )]
 #[get("/ds/in/validate")]
 pub(super) async fn data_source_is_valid(query: Query<DsnValidationQuery>) -> impl Responder {
-    const DEFAULT_TIMEOUT: u64 = 5; // 5 seconds
+    const DEFAULT_TIMEOUT: u64 = 20; // 20 seconds
     let query = query.into_inner();
-    let dsn = query.dsn;
     let timeout_sec = query.timeout.unwrap_or(DEFAULT_TIMEOUT);
 
-    let result = timeout(Duration::from_secs(timeout_sec), validate_dsn(dsn)).await;
+    let result = timeout(Duration::from_secs(timeout_sec), validate_dsn(query.dsn, query.via)).await;
     match result {
-        Ok(dsv) => Ok(HttpResponse::Created().json(dsv)),
+        Ok(dsv) => Ok(HttpResponse::Ok().json(dsv)),
         Err(err) => Err(Failed{
             code: Code::FAILED,
             message: format!("check data source validation timeout, cause: {:#}", err),
         }),
+    }
+}
+
+pub async fn validate_dsn(dsn: impl IntoDsn, via: Option<String>) -> DataSourceValidation {
+    let dsn = dsn.into_dsn();
+    match dsn {
+        Err(err) => {
+            DataSourceValidation::invalid("unknown".to_string(), format!("DSN error: {err:#}"))
+        }
+        Ok(d) => {
+            match d.driver.as_str() {
+                // TODO: clickhouse
+                "historian" => runners::historian::is_valid(&d).await,
+                "influxdb" => runners::influxdb::is_valid(&d).await,
+                "kafka" => runners::kafka::is_valid(&d).await,
+                "mqtt" => runners::mqtt::is_valid(&d).await,
+                "opc" | "opcda" | "opcua" => runners::opc::is_valid(&d).await, //TODO
+                "opentsdb" => runners::opentsdb::is_valid(&d).await,
+                "pi" => runners::pi::is_pi_valid(&d).await,
+                "pibackfill" => runners::pi::is_pi_backfill_valid(&d).await,
+                "taos" => taosx_core::taoz::is_taos_valid(&d).await,
+                "tmq" => taosx_core::tmq::is_tmq_valid(&d).await,
+                &_ => DataSourceValidation::unknown(),
+            }
+        }
     }
 }
 

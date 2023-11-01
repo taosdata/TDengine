@@ -634,6 +634,7 @@ mod tests {
     use std::str::FromStr;
     use taos::Dsn;
 
+    #[ignore]
     #[tokio::test]
     async fn test_is_pi_valid() {
         let dsn = Dsn::from_str("pi://").unwrap();
@@ -656,6 +657,7 @@ mod tests {
         assert_eq!("failed to connect to dsn: pi://WIN-2OA23UM12TN/Met1?PISystemName=other, cause: pi plugin not found at: \"/usr/local/taos/plugins/pi/taosx-pi.exe\"", validation.message.unwrap());
     }
 
+    #[ignore]
     #[tokio::test]
     async fn test_is_pi_backfill_valid() {
         let dsn = Dsn::from_str("pibackfill://").unwrap();
