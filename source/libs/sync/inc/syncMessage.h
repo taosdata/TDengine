@@ -200,7 +200,7 @@ typedef struct SyncSnapshotSend {
   SSyncCfg  lastConfig;
   int64_t   startTime;
   int32_t   seq;
-  int16_t   reserved;
+  int16_t   payloadType;
   uint32_t  dataLen;
   char      data[];
 } SyncSnapshotSend;

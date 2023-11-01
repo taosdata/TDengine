@@ -23,6 +23,8 @@
 #include "syncReplication.h"
 #include "syncUtil.h"
 
+int32_t syncSnapSendMsg(SSyncSnapshotSender *pSender, int32_t seq, void *pBlock, int32_t len, int32_t typ);
+
 static void syncSnapBufferReset(SSyncSnapBuffer *pBuf) {
   taosThreadMutexLock(&pBuf->mutex);
   for (int64_t i = pBuf->start; i < pBuf->end; ++i) {
@@ -151,33 +153,15 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
   pSender->lastSendTime = taosGetTimestampMs();
   pSender->finish = false;
 
-  // build begin msg
-  SRpcMsg rpcMsg = {0};
-  if (syncBuildSnapshotSend(&rpcMsg, 0, pSender->pSyncNode->vgId) != 0) {
-    sSError(pSender, "snapshot sender build msg failed since %s", terrstr());
-    return -1;
+  if (syncSnapSendMsg(pSender, pSender->seq, NULL, 0, 0) != 0) {
+    goto _out;
   }
 
-  SyncSnapshotSend *pMsg = rpcMsg.pCont;
-  pMsg->srcId = pSender->pSyncNode->myRaftId;
-  pMsg->destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
-  pMsg->term = pSender->term;
-  pMsg->beginIndex = pSender->snapshotParam.start;
-  pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
-  pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
-  pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
-  pMsg->lastConfig = pSender->lastConfig;
-  pMsg->startTime = pSender->startTime;
-  pMsg->seq = pSender->seq;
-
-  // send msg
-  if (syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg) != 0) {
-    sSError(pSender, "snapshot sender send msg failed since %s", terrstr());
-    return -1;
-  }
-
-  sSInfo(pSender, "snapshot sender start, to dnode:%d.", DID(&pMsg->destId));
-  return 0;
+  SRaftId destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
+  sSInfo(pSender, "snapshot sender start, to dnode:%d.", DID(&destId));
+  code = 0;
+_out:
+  return code;
 }
 
 void snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish) {
@@ -200,6 +184,43 @@ void snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish) {
 
   SRaftId destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
   sSInfo(pSender, "snapshot sender stop, to dnode:%d, finish:%d", DID(&destId), finish);
+}
+
+int32_t syncSnapSendMsg(SSyncSnapshotSender *pSender, int32_t seq, void *pBlock, int32_t blockLen, int32_t typ) {
+  int32_t code = -1;
+  SRpcMsg rpcMsg = {0};
+
+  if (syncBuildSnapshotSend(&rpcMsg, blockLen, pSender->pSyncNode->vgId) != 0) {
+    sSError(pSender, "failed to build snap replication msg since %s", terrstr());
+    goto _OUT;
+  }
+
+  SyncSnapshotSend *pMsg = rpcMsg.pCont;
+  pMsg->srcId = pSender->pSyncNode->myRaftId;
+  pMsg->destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
+  pMsg->term = pSender->term;
+  pMsg->beginIndex = pSender->snapshotParam.start;
+  pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
+  pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
+  pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
+  pMsg->lastConfig = pSender->lastConfig;
+  pMsg->startTime = pSender->startTime;
+  pMsg->seq = seq;
+
+  if (pBlock != NULL && blockLen > 0) {
+    memcpy(pMsg->data, pBlock, blockLen);
+  }
+  pMsg->payloadType = typ;
+
+  // send msg
+  if (syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg) != 0) {
+    sSError(pSender, "failed to send snap replication msg since %s", terrstr());
+    goto _OUT;
+  }
+
+  code = 0;
+_OUT:
+  return code;
 }
 
 // when sender receive ack, call this function to send msg from seq
@@ -243,33 +264,10 @@ static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
 
   ASSERT(pSender->seq >= SYNC_SNAPSHOT_SEQ_BEGIN && pSender->seq <= SYNC_SNAPSHOT_SEQ_END);
 
-  int32_t blockLen = (pBlk != NULL) ? pBlk->blockLen : 0;
-  // build msg
-  SRpcMsg rpcMsg = {0};
-  if (syncBuildSnapshotSend(&rpcMsg, blockLen, pSender->pSyncNode->vgId) != 0) {
-    sSError(pSender, "vgId:%d, snapshot sender build msg failed since %s", pSender->pSyncNode->vgId, terrstr());
-    goto _OUT;
-  }
-
-  SyncSnapshotSend *pMsg = rpcMsg.pCont;
-  pMsg->srcId = pSender->pSyncNode->myRaftId;
-  pMsg->destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
-  pMsg->term = raftStoreGetTerm(pSender->pSyncNode);
-  pMsg->beginIndex = pSender->snapshotParam.start;
-  pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
-  pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
-  pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
-  pMsg->lastConfig = pSender->lastConfig;
-  pMsg->startTime = pSender->startTime;
-  pMsg->seq = pSender->seq;
-
-  if (pBlk != NULL && pBlk->pBlock != NULL && pBlk->blockLen > 0) {
-    memcpy(pMsg->data, pBlk->pBlock, pBlk->blockLen);
-  }
-
   // send msg
-  if (syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg) != 0) {
-    sSError(pSender, "snapshot sender send msg failed since %s", terrstr());
+  int32_t blockLen = (pBlk) ? pBlk->blockLen : 0;
+  void   *pBlock = (pBlk) ? pBlk->pBlock : NULL;
+  if (syncSnapSendMsg(pSender, pSender->seq, pBlock, blockLen, 0) != 0) {
     goto _OUT;
   }
 
@@ -306,32 +304,7 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
     if (nowMs < pBlk->sendTimeMs + SYNC_SNAP_RESEND_MS) {
       continue;
     }
-    // build msg
-    SRpcMsg rpcMsg = {0};
-    if (syncBuildSnapshotSend(&rpcMsg, pBlk->blockLen, pSender->pSyncNode->vgId) != 0) {
-      sSError(pSender, "snapshot sender build msg failed since %s", terrstr());
-      goto _out;
-    }
-
-    SyncSnapshotSend *pMsg = rpcMsg.pCont;
-    pMsg->srcId = pSender->pSyncNode->myRaftId;
-    pMsg->destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
-    pMsg->term = pSender->term;
-    pMsg->beginIndex = pSender->snapshotParam.start;
-    pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
-    pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
-    pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
-    pMsg->lastConfig = pSender->lastConfig;
-    pMsg->startTime = pSender->startTime;
-    pMsg->seq = pBlk->seq;
-
-    if (pBlk->pBlock != NULL && pBlk->blockLen > 0) {
-      memcpy(pMsg->data, pBlk->pBlock, pBlk->blockLen);
-    }
-
-    // send msg
-    if (syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg) != 0) {
-      sSError(pSender, "snapshot sender resend msg failed since %s", terrstr());
+    if (syncSnapSendMsg(pSender, pBlk->seq, pBlk->pBlock, pBlk->blockLen, 0) != 0) {
       goto _out;
     }
     pBlk->sendTimeMs = nowMs;
