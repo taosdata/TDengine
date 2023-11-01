@@ -106,7 +106,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
       return 0;
     }
 
-    if (pTask->inputInfo.status == TASK_INPUT_STATUS__BLOCKED) {
+    if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
       stWarn("s-task:%s downstream task inputQ blocked, idle for 1sec and retry exec task", pTask->id.idStr);
       taosMsleep(1000);
       continue;
@@ -217,7 +217,7 @@ int32_t streamScanHistoryData(SStreamTask* pTask) {
         return 0;
       }
 
-      if (pTask->inputInfo.status == TASK_INPUT_STATUS__BLOCKED) {
+      if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
         stDebug("s-task:%s inputQ is blocked, wait for 10sec and retry", pTask->id.idStr);
         taosMsleep(10000);
         continue;
@@ -309,9 +309,6 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   }
 
   ETaskStatus status = streamTaskGetStatus(pStreamTask, NULL);
-  ASSERT(((status == TASK_STATUS__DROPPING) || (pStreamTask->hTaskInfo.id.taskId == pTask->id.taskId)) &&
-         pTask->status.appendTranstateBlock == true);
-
   STimeWindow* pTimeWindow = &pStreamTask->dataRange.window;
 
   // It must be halted for a source stream task, since when the related scan-history-data task start scan the history
@@ -374,7 +371,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
 
   // 7. pause allowed.
   streamTaskEnablePause(pStreamTask);
-  if ((pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) && taosQueueEmpty(pStreamTask->inputInfo.queue->pQueue)) {
+  if ((pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) && taosQueueEmpty(pStreamTask->inputq.queue->pQueue)) {
     SStreamRefDataBlock* pItem = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
 
     SSDataBlock* pDelBlock = createSpecialDataBlock(STREAM_DELETE_DATA);
@@ -525,7 +522,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     int32_t           blockSize = 0;
     int32_t           numOfBlocks = 0;
     SStreamQueueItem* pInput = NULL;
-    if (streamTaskShouldStop(pTask)) {
+    if (streamTaskShouldStop(pTask) || (streamTaskGetStatus(pTask, NULL) == TASK_STATUS__UNINIT)) {
       stDebug("s-task:%s stream task is stopped", id);
       break;
     }
@@ -630,7 +627,7 @@ int32_t streamExecTask(SStreamTask* pTask) {
       }
 
       taosThreadMutexLock(&pTask->lock);
-      if ((streamQueueGetNumOfItems(pTask->inputInfo.queue) == 0) || streamTaskShouldStop(pTask) ||
+      if ((streamQueueGetNumOfItems(pTask->inputq.queue) == 0) || streamTaskShouldStop(pTask) ||
           streamTaskShouldPause(pTask)) {
         atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
         taosThreadMutexUnlock(&pTask->lock);

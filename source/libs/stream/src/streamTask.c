@@ -59,7 +59,7 @@ SStreamTask* tNewStreamTask(int64_t streamId, int8_t taskLevel, bool fillHistory
   pTask->id.idStr = taosStrdup(buf);
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
   pTask->status.taskStatus = (fillHistory || hasFillhistory) ? TASK_STATUS__SCAN_HISTORY : TASK_STATUS__READY;
-  pTask->inputInfo.status = TASK_INPUT_STATUS__NORMAL;
+  pTask->inputq.status = TASK_INPUT_STATUS__NORMAL;
   pTask->outputq.status = TASK_OUTPUT_STATUS__NORMAL;
 
   if (fillHistory) {
@@ -337,8 +337,8 @@ void tFreeStreamTask(SStreamTask* pTask) {
   }
 
   int32_t status = atomic_load_8((int8_t*)&(pTask->status.taskStatus));
-  if (pTask->inputInfo.queue) {
-    streamQueueClose(pTask->inputInfo.queue, pTask->id.taskId);
+  if (pTask->inputq.queue) {
+    streamQueueClose(pTask->inputq.queue, pTask->id.taskId);
   }
 
   if (pTask->outputq.queue) {
@@ -399,8 +399,11 @@ void tFreeStreamTask(SStreamTask* pTask) {
   pTask->msgInfo.pRetryList = taosArrayDestroy(pTask->msgInfo.pRetryList);
   taosMemoryFree(pTask->outputInfo.pTokenBucket);
   taosThreadMutexDestroy(&pTask->lock);
-  taosMemoryFree(pTask);
 
+  taosArrayDestroy(pTask->outputInfo.pDownstreamUpdateList);
+  pTask->outputInfo.pDownstreamUpdateList = NULL;
+
+  taosMemoryFree(pTask);
   stDebug("s-task:0x%x free task completed", taskId);
 }
 
@@ -409,10 +412,10 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   pTask->refCnt = 1;
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
   pTask->status.timerActive = 0;
-  pTask->inputInfo.queue = streamQueueOpen(512 << 10);
+  pTask->inputq.queue = streamQueueOpen(512 << 10);
   pTask->outputq.queue = streamQueueOpen(512 << 10);
 
-  if (pTask->inputInfo.queue == NULL || pTask->outputq.queue == NULL) {
+  if (pTask->inputq.queue == NULL || pTask->outputq.queue == NULL) {
     stError("s-task:%s failed to prepare the input/output queue, initialize task failed", pTask->id.idStr);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -425,7 +428,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   }
 
   pTask->execInfo.created = taosGetTimestampMs();
-  pTask->inputInfo.status = TASK_INPUT_STATUS__NORMAL;
+  pTask->inputq.status = TASK_INPUT_STATUS__NORMAL;
   pTask->outputq.status = TASK_OUTPUT_STATUS__NORMAL;
   pTask->pMeta = pMeta;
 
@@ -461,6 +464,11 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
 
   taosThreadMutexInit(&pTask->lock, &attr);
   streamTaskOpenAllUpstreamInput(pTask);
+
+  pTask->outputInfo.pDownstreamUpdateList = taosArrayInit(4, sizeof(SDownstreamTaskEpset));
+  if (pTask->outputInfo.pDownstreamUpdateList == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   return TSDB_CODE_SUCCESS;
 }

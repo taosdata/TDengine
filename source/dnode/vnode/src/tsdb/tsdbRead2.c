@@ -1196,11 +1196,28 @@ static bool overlapWithNeighborBlock2(SFileDataBlockInfo* pBlock, SBrinRecord* p
   }
 }
 
-static bool bufferDataInFileBlockGap(int32_t order, TSDBKEY key, SFileDataBlockInfo* pBlock) {
+static int64_t getBoarderKeyInFiles(SFileDataBlockInfo* pBlock, SLastBlockReader* pLastBlockReader, int32_t order) {
   bool ascScan = ASCENDING_TRAVERSE(order);
+  bool bHasDataInLastBlock = hasDataInLastBlock(pLastBlockReader);
 
-  return (ascScan && (key.ts != TSKEY_INITIAL_VAL && key.ts <= pBlock->record.firstKey)) ||
-         (!ascScan && (key.ts != TSKEY_INITIAL_VAL && key.ts >= pBlock->record.lastKey));
+  int64_t key = 0;
+  if (bHasDataInLastBlock) {
+    int64_t keyInStt = getCurrentKeyInLastBlock(pLastBlockReader);
+    key = ascScan ? TMIN(pBlock->record.firstKey, keyInStt) : TMAX(pBlock->record.lastKey, keyInStt);
+  } else {
+    key = ascScan ? pBlock->record.firstKey : pBlock->record.lastKey;
+  }
+
+  return key;
+}
+
+static bool bufferDataInFileBlockGap(TSDBKEY keyInBuf, SFileDataBlockInfo* pBlock,
+                                     SLastBlockReader* pLastBlockReader, int32_t order) {
+  bool    ascScan = ASCENDING_TRAVERSE(order);
+  int64_t key = getBoarderKeyInFiles(pBlock, pLastBlockReader, order);
+
+  return (ascScan && (keyInBuf.ts != TSKEY_INITIAL_VAL && keyInBuf.ts < key)) ||
+         (!ascScan && (keyInBuf.ts != TSKEY_INITIAL_VAL && keyInBuf.ts > key));
 }
 
 static bool keyOverlapFileBlock(TSDBKEY key, SFileDataBlockInfo* pBlock, SVersionRange* pVerRange) {
@@ -2637,6 +2654,15 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
   }
 }
 
+static bool notOverlapWithSttFiles(SFileDataBlockInfo* pBlockInfo, SLastBlockReader* pLastBlockReader, bool asc) {
+  if(!hasDataInLastBlock(pLastBlockReader)) {
+    return true;
+  } else {
+    int64_t keyInStt = getCurrentKeyInLastBlock(pLastBlockReader);
+    return (asc && pBlockInfo->record.lastKey < keyInStt) || (!asc && pBlockInfo->record.firstKey > keyInStt);
+  }
+}
+
 static int32_t doBuildDataBlock(STsdbReader* pReader) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -2672,17 +2698,13 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
 
     // build composed data block
     code = buildComposedDataBlock(pReader);
-  } else if (bufferDataInFileBlockGap(pReader->info.order, keyInBuf, pBlockInfo)) {
-    // data in memory that are earlier than current file block
+  } else if (bufferDataInFileBlockGap(keyInBuf, pBlockInfo, pLastBlockReader, pReader->info.order)) {
+    // data in memory that are earlier than current file block and stt blocks
     // rows in buffer should be less than the file block in asc, greater than file block in desc
-    int64_t endKey =
-        (ASCENDING_TRAVERSE(pReader->info.order)) ? pBlockInfo->record.firstKey : pBlockInfo->record.lastKey;
+    int64_t endKey = getBoarderKeyInFiles(pBlockInfo, pLastBlockReader, pReader->info.order);
     code = buildDataBlockFromBuf(pReader, pScanInfo, endKey);
   } else {
-    bool bHasDataInLastBlock = hasDataInLastBlock(pLastBlockReader);
-    int64_t tsLast = bHasDataInLastBlock ? getCurrentKeyInLastBlock(pLastBlockReader) : INT64_MIN;
-    if (!bHasDataInLastBlock ||
-        ((asc && pBlockInfo->record.lastKey < tsLast) || (!asc && pBlockInfo->record.firstKey > tsLast))) {
+    if (notOverlapWithSttFiles(pBlockInfo, pLastBlockReader, asc)) {
       // whole block is required, return it directly
       SDataBlockInfo* pInfo = &pReader->resBlockInfo.pResBlock->info;
       pInfo->rows = pBlockInfo->record.numRow;
@@ -2693,7 +2715,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
       setBlockAllDumped(&pStatus->fBlockDumpInfo, pBlockInfo->record.lastKey, pReader->info.order);
 
       // update the last key for the corresponding table
-      pScanInfo->lastKey = ASCENDING_TRAVERSE(pReader->info.order) ? pInfo->window.ekey : pInfo->window.skey;
+      pScanInfo->lastKey = asc ? pInfo->window.ekey : pInfo->window.skey;
       tsdbDebug("%p uid:%" PRIu64
                 " clean file block retrieved from file, global index:%d, "
                 "table index:%d, rows:%d, brange:%" PRId64 "-%" PRId64 ", %s",
@@ -2720,10 +2742,11 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
         }
 
         // data in stt now overlaps with current active file data block, need to composed with file data block.
-        int64_t keyInStt = getCurrentKeyInLastBlock(pLastBlockReader);
-        if ((keyInStt >= pBlockInfo->record.firstKey && asc) || (keyInStt <= pBlockInfo->record.lastKey && (!asc))) {
-          tsdbDebug("%p keyInStt:%" PRId64 ", overlap with file block, brange:%" PRId64 "-%" PRId64 " %s", pReader,
-                    keyInStt, pBlockInfo->record.firstKey, pBlockInfo->record.lastKey, pReader->idStr);
+        int64_t lastKeyInStt = getCurrentKeyInLastBlock(pLastBlockReader);
+        if ((lastKeyInStt >= pBlockInfo->record.firstKey && asc) ||
+            (lastKeyInStt <= pBlockInfo->record.lastKey && (!asc))) {
+          tsdbDebug("%p lastKeyInStt:%" PRId64 ", overlap with file block, brange:%" PRId64 "-%" PRId64 " %s", pReader,
+                    lastKeyInStt, pBlockInfo->record.firstKey, pBlockInfo->record.lastKey, pReader->idStr);
           break;
         }
       }

@@ -98,6 +98,7 @@ int32_t tqStartStreamTask(STQ* pTq) {
         streamLaunchFillHistoryTask(pTask);
       }
 
+      streamMetaUpdateTaskReadyInfo(pTask);
       streamMetaReleaseTask(pMeta, pTask);
       continue;
     }
@@ -111,7 +112,7 @@ int32_t tqStartStreamTask(STQ* pTq) {
   return 0;
 }
 
-int32_t tqCheckAndRunStreamTaskAsync(STQ* pTq) {
+int32_t tqLaunchStreamTaskAsync(STQ* pTq) {
   SStreamMeta* pMeta = pTq->pStreamMeta;
   int32_t      vgId = pMeta->vgId;
 
@@ -227,7 +228,7 @@ int32_t tqStopStreamTasks(STQ* pTq) {
   return 0;
 }
 
-int32_t tqStartStreamTasks(STQ* pTq) {
+int32_t tqResetStreamTaskStatus(STQ* pTq) {
   SStreamMeta* pMeta = pTq->pStreamMeta;
   int32_t      vgId = TD_VID(pTq->pVnode);
   int32_t      numOfTasks = taosArrayGetSize(pMeta->pTaskList);
@@ -242,10 +243,7 @@ int32_t tqStartStreamTasks(STQ* pTq) {
 
     STaskId id = {.streamId = pTaskId->streamId, .taskId = pTaskId->taskId};
     SStreamTask** pTask = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
-
-    if ((*pTask)->info.fillHistory != 1) {
-      streamTaskResetStatus(*pTask);
-    }
+    streamTaskResetStatus(*pTask);
   }
 
   return 0;
@@ -344,13 +342,13 @@ static bool taskReadyForDataFromWal(SStreamTask* pTask) {
   }
 
   // check if input queue is full or not
-  if (streamQueueIsFull(pTask->inputInfo.queue)) {
+  if (streamQueueIsFull(pTask->inputq.queue)) {
     tqTrace("s-task:%s input queue is full, do nothing", pTask->id.idStr);
     return false;
   }
 
   // the input queue of downstream task is full, so the output is blocked, stopped for a while
-  if (pTask->inputInfo.status == TASK_INPUT_STATUS__BLOCKED) {
+  if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
     tqDebug("s-task:%s inputQ is blocked, do nothing", pTask->id.idStr);
     return false;
   }
@@ -444,7 +442,7 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
       continue;
     }
 
-    int32_t numOfItems = streamQueueGetNumOfItems(pTask->inputInfo.queue);
+    int32_t numOfItems = streamQueueGetNumOfItems(pTask->inputq.queue);
     int64_t maxVer = (pTask->info.fillHistory == 1) ? pTask->dataRange.range.maxVer : INT64_MAX;
 
     taosThreadMutexLock(&pTask->lock);
