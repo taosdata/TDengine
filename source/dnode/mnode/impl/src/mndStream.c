@@ -2532,15 +2532,24 @@ int32_t doKillActiveCheckpointTrans(SMnode *pMnode) {
     }
 
     sdbRelease(pSdb, pTrans);
-
   }
-  return 0;
+
+  if (transId == 0) {
+    mError("failed to find the checkpoint trans, reset not executed");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pTrans = mndAcquireTrans(pMnode, transId);
+  mInfo("kill checkpoint trans:%d", transId);
+
+  mndKillTrans(pMnode, pTrans);
+  mndReleaseTrans(pMnode, pTrans);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t mndResetFromCheckpoint(SMnode* pMnode) {
   doKillActiveCheckpointTrans(pMnode);
 
-  int32_t code = 0;
   // set all tasks status to be normal, refactor later to be stream level, instead of vnode level.
   SSdb       *pSdb = pMnode->pSdb;
   SStreamObj *pStream = NULL;
@@ -2553,7 +2562,7 @@ int32_t mndResetFromCheckpoint(SMnode* pMnode) {
 
     // todo this transaction should exist be only one
     mDebug("stream:%s (0x%" PRIx64 ") reset checkpoint procedure, create reset trans", pStream->name, pStream->uid);
-    code = createStreamResetStatusTrans(pMnode, pStream);
+    int32_t code = createStreamResetStatusTrans(pMnode, pStream);
     if (code != TSDB_CODE_SUCCESS) {
       sdbCancelFetch(pSdb, pIter);
       return code;
