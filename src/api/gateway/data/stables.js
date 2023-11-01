@@ -81,7 +81,7 @@ export function createStableReq(payload) {
 export function changeStableStruct(data, stableName) {
   let { operation, first_field = "", second_field = "" } = data;
   let sql = "";
-  sql = `ALTER STABLE  ${stableName} ${operation} ${first_field} ${second_field};`;
+  sql = `ALTER STABLE  ${stableName} ${operation} \`${first_field}\` ${second_field};`;
   return sendSQLReq(sql).catch(err => {
     return Promise.reject(err);
   });
