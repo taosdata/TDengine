@@ -2351,32 +2351,6 @@ impl IpcStreamWorker {
                     std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(message)
                 })
                 .unwrap();
-                // let config = self
-                //     .config
-                //     .as_ref()
-                //     .ok_or_else(|| anyhow::format_err!("OPC table config not found"))?;
-
-                // let guard = self.lock.lock().await;
-                // let res = self.opc_table_config.get();
-                // let config = match res {
-                //     Some(config) => config,
-                //     None => {
-                //         // let _v = config.parse_tables_with(&taos).await?;
-                //         // let schema = record.schema();
-
-                //         self.opc_table_config
-                //             .get_or_try_init(|| async {
-                //                 if let Some(config) = schema.metadata().get("config") {
-                //                     serde_json::from_str::<OpcTableConfig>(config)
-                //                         .context("config error")
-                //                 } else {
-                //                     config.parse_tables_with(&taos).await
-                //                 }
-                //             })
-                //             .await?
-                //     }
-                // };
-                // drop(guard);
                 let mut taos = Some(self.pool.get().await?);
                 let _n = consume_point_record(
                     &self.pool,
@@ -2398,78 +2372,7 @@ impl IpcStreamWorker {
             }
         }
     }
-
-    // pub async fn consume<'b: 'a, E: Error>(
-    //     &'a self,
-    //     stream: impl 'b + Stream<Item = Result<RecordBatch, E>>,
-    // ) -> impl 'a + Stream<Item = anyhow::Result<usize>> {
-    //     let metadata = self.parser.metadata();
-    //     let stream_type = *metadata.stream_type();
-    //     if let Some(sql) = self.parser.metadata().init_sql_string() {
-    //         let guard = self.lock.lock().await;
-    //         loop {
-    //             info!("[] {sql}");
-    //             let res = self.taos.exec(&sql).await;
-    //             if let Err(err) = res {
-    //                 tracing::error!("Query error with {sql}: {err:?}");
-    //             } else {
-    //                 break;
-    //             }
-    //         }
-    //         drop(guard)
-    //     }
-    //     use futures::StreamExt;
-    //     stream
-    //         .map_err(|err| anyhow::format_err!("Parse record error: {err}\n\n {:?}", err.source()))
-    //         .try_filter_map(|record| async { self.process_record(record).await.map(Some) })
-    // }
 }
-
-// #[cfg(unix)]
-// pub fn listen_unix_socket(
-//     target: TaosPool,
-//     socket: impl AsRef<Path>,
-//     config: Option<OpcTableConfig>,
-// ) -> anyhow::Result<()> {
-//     let path = socket.as_ref();
-//     if path.exists() {
-//         std::fs::remove_file(path).unwrap();
-//     }
-//     let runtime = tokio::runtime::Builder::new_multi_thread()
-//         .enable_all()
-//         .worker_threads(16)
-//         .build()?;
-//     let listener = std::os::unix::net::UnixListener::bind(&path).unwrap();
-//     let sql_lock = Arc::new(Mutex::new(()));
-//     info!("listen on socket address: {}", path.display());
-//     loop {
-//         match listener.accept() {
-//             Ok((stream, addr)) => {
-//                 tracing::info!("new unix client!: {:?}", addr);
-//                 let pool = target.clone();
-//                 let lock = sql_lock.clone();
-//                 let config = config.clone();
-//                 runtime.spawn(async move {
-//                     ipc_unix_read(
-//                         addr.as_pathname()
-//                             .map(|path| path.display().to_string())
-//                             .unwrap_or_default(),
-//                         pool,
-//                         stream,
-//                         lock,
-//                         config,
-//                     )
-//                     .await
-//                 });
-//             }
-//             Err(e) => {
-//                 /* connection failed */
-//                 tracing::debug!("IPC stream acceptation error {e}, might be stopped");
-//             }
-//         }
-//     }
-// }
-
 pub async fn listen_tcp_socket_with_agent(
     socket: impl AsRef<str>,
     cancel: CancellationToken,

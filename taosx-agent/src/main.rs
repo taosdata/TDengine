@@ -24,7 +24,7 @@ use tracing::{log::LevelFilter, Level};
 
 use taosx_core::{
     get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
-    set_env_plugins_home_dir, RespAction,
+    set_env_plugins_home_dir, Activity, RespAction,
 };
 
 use crate::runner::TaskStatus;
@@ -207,12 +207,13 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
         _ = ctrl_c => {
             tracing::info!("SIGINT triggered");
             for task in tasks.iter() {
-                let status = TaskStatus::new(
+                let status = Activity::new::<String>(
                     *task.key(),
                     Utc::now(),
+                    taosx_core::LevelFilter::Warn,
                     "suspended".to_string(),
-                    Some("taosx-agent is suspended by SIGINT".to_string()),
-                    Default::default()
+                    "taosx-agent is suspended by SIGINT".to_string(),
+                    None,
                 );
                 tracing::info!("status: {:?}", status);
                 if let Err(err) = client3.push_status(&status).await {

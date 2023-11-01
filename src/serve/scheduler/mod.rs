@@ -453,6 +453,9 @@ impl TaskScheduler {
         Ok(())
     }
 
+    pub async fn in_scheduler(&self, task_id: i64) -> bool {
+        self.tasks.read().await.get_by_task_id(&task_id).is_some()
+    }
     /// Shutdown the scheduler, this will stop and wait all tasks to be cancelled in scheduler.
     ///
     /// Side effect:

@@ -191,17 +191,6 @@ pub enum AgentAction {
 //     }
 // }
 
-#[derive(Debug, Deserialize)]
-pub struct TaskStatus {
-    id: i64,
-    at: DateTime<Utc>,
-    action: String,
-    message: Option<String>,
-    // TODO: use context as task activity level
-    #[allow(dead_code)]
-    context: Option<String>,
-}
-
 pub(crate) struct TaskController {
     pub pool: SqlitePool,
     pub tasks: RwLock<
@@ -322,7 +311,8 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
         .await?;
     }
     match activity.status.as_str() {
-        "failed" => {
+        // with reason
+        "failed" | "interrupted" | "suspending" | "waiting" => {
             sqlx::query("UPDATE tasks SET status = ?, reason = ? WHERE id = ?")
                 .bind(activity.status.as_str())
                 .bind(activity.activity.as_str())
@@ -892,7 +882,9 @@ impl TaskController {
     }
     #[instrument(skip_all, name = "task::delete", fields(task.id = id))]
     pub async fn delete(&self, id: i64) -> anyhow::Result<Option<TaskDetail>> {
-        self.scheduler.stop_task(id, Duration::from_secs(5)).await?;
+        if self.scheduler.in_scheduler(id).await {
+            bail!("Task is in scheduler, please stop it first");
+        }
         let now = Utc::now();
         let res = sqlx::query_as_unchecked!(
             Task,
@@ -1007,67 +999,6 @@ impl TaskController {
         let sql = format!("select * from task_activities where `id` = {id} {cond}");
         let items = sqlx::query_as(&sql).fetch_all(&self.pool).await?;
         Ok(items)
-    }
-
-    pub async fn push_task_status(&self, status: &TaskStatus) -> anyhow::Result<()> {
-        let id = status.id;
-        match status.action.as_str() {
-            "failed" => {
-                tracing::error!(
-                    "run task {id} failed with: {:?}, please check the task information",
-                    status.message
-                );
-                // let err = err.to_string();
-                let at = status.at;
-                let _ = sqlx::query!(
-                    "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ? AND deleted != TRUE",
-                    at,
-                    Status::Failed,
-                    status.message,
-                    id
-                )
-                .execute(&self.pool)
-                .await?;
-                sqlx::query!(
-                    "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
-                    id,
-                    at,
-                    LevelFilter::Error,
-                    "failed",
-                    status.message,
-                    status.context,
-                )
-                .execute(&self.pool)
-                .await?;
-                if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
-                    tracing::error!("Cancel task by id {id}");
-                    token.cancel();
-                    let _ = handle.await?;
-                    // handle.abort();
-                    // if !handle.is_finished() {
-                    //     // token.cancel();
-                    //     tracing::error!("Cancel task by id {id}");
-                    //     let _ = handle.await;
-                    // }
-                }
-                Ok(())
-            }
-            action => {
-                sqlx::query!(
-                    "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
-                    id,
-                    status.at,
-                    LevelFilter::Info,
-                    action,
-                    status.message,
-                    status.context,
-                )
-                .execute(&self.pool)
-                .await?;
-                tracing::error!("Invalid task action: {action}");
-                Ok(())
-            }
-        }
     }
 
     pub async fn _suspend_all(&self) -> anyhow::Result<()> {
