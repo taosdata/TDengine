@@ -7,7 +7,7 @@ from util.common import *
 
 class TDTestCase:
     updatecfgDict = {'vdebugFlag': 143, 'qdebugflag':135, 'tqdebugflag':135, 'udebugflag':135, 'rpcdebugflag':135,
-                     'asynclog': 0}
+                     'asynclog': 0, 'stdebugflag':135}
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)

@@ -242,6 +242,11 @@ int32_t taosReadAllQitems(STaosQueue *queue, STaosQall *qall) {
     qall->current = queue->head;
     qall->start = queue->head;
     qall->numOfItems = queue->numOfItems;
+    qall->memOfItems = queue->memOfItems;
+
+    qall->unAccessedNumOfItems = queue->numOfItems;
+    qall->unAccessMemOfItems = queue->memOfItems;
+
     numOfItems = qall->numOfItems;
 
     queue->head = NULL;
@@ -274,6 +279,10 @@ int32_t taosGetQitem(STaosQall *qall, void **ppItem) {
   if (pNode) {
     *ppItem = pNode->item;
     num = 1;
+
+    qall->unAccessedNumOfItems -= 1;
+    qall->unAccessMemOfItems -= pNode->dataSize;
+
     uTrace("item:%p is fetched", *ppItem);
   } else {
     *ppItem = NULL;
@@ -449,6 +458,8 @@ int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, SQueueInfo *
       qall->current = queue->head;
       qall->start = queue->head;
       qall->numOfItems = queue->numOfItems;
+      qall->memOfItems = queue->memOfItems;
+
       code = qall->numOfItems;
       qinfo->ahandle = queue->ahandle;
       qinfo->fp = queue->itemsFp;
@@ -476,6 +487,11 @@ int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, SQueueInfo *
 }
 
 int32_t taosQallItemSize(STaosQall *qall) { return qall->numOfItems; }
+int64_t taosQallMemSize(STaosQall *qall) { return qall->memOfItems; }
+
+int64_t taosQallUnAccessedItemSize(STaosQall *qall) {return qall->unAccessedNumOfItems;}
+int64_t taosQallUnAccessedMemSize(STaosQall *qall) {return qall->unAccessMemOfItems;}
+
 void    taosResetQitems(STaosQall *qall) { qall->current = qall->start; }
 int32_t taosGetQueueNumber(STaosQset *qset) { return qset->numOfQueues; }
 
