@@ -103,21 +103,27 @@ async fn ipc_tcp_forward(
             ) 
             .build(
                 data_stream
-                    .inspect(move |result| match result {
-                        Ok(v) => {
-                            let batch_number = batch_counter.fetch_add(1, Ordering::SeqCst);
-                            let qid_base = create_query_id_base(trace_id_u64, batch_number);
-                            let trace_id_for_batch = get_data_trace_id_for_batch(qid_base);
-                            cur_span.in_scope(|| {
-                                info!("Send batch with tid:{} and row count:{}", trace_id_for_batch, v.num_rows());
-                            });
-                        }
-                        Err(e) => {
-                            error!("inspect error: {:?}", e);
-                        }
-                    })
-                    .map_err(FlightError::from),
-            );
+                .inspect(|v| debug!("{:?}", v))
+                .map_err(FlightError::from),
+            )
+            .enumerate()
+            .map(move |(i, v)| {
+                let batch_number = i as u32 + 1;
+                let data_trace_id = create_data_trace_id(stream_id_u64, batch_number);
+                let data_trace_id_str = get_data_trace_id_str(data_trace_id);
+                cur_span.in_scope(|| {
+                    info!("Send batch {}", data_trace_id_str);
+                });
+                v.map(|message| {
+                    message.with_app_metadata(
+                        json!({
+                            "data-trace-id": data_trace_id
+                        })
+                        .to_string(),
+                    )
+                })
+            });
+
         const MAX_RETRIES: usize = 3;
         const RETRY_DELAY: Duration = Duration::from_secs(5);
 
@@ -323,34 +329,31 @@ async fn consume_lush_record(
                     continue;
                 }
                 let tags = tags.as_ref().unwrap();
-                let mut query_tags_sql = format!("SELECT ");
+                let mut query_tags_sql = format!("SELECT distinct tbname,");
                 for (tagname, _) in tags {
                     query_tags_sql.push_str(format!("`{tagname}`,").as_str());
                 }
                 query_tags_sql.pop();
                 query_tags_sql.push_str(format!(" from `{table_name}`").as_str());
-                match query(taos, &query_tags_sql, qid_base).await {
-                // match taos.query(&query_tags_sql).await {
-                    Ok(mut rs) => {
-                        let mut rows = rs.rows();
-                        while let Some(mut row) = rows.try_next().await? {
-                            let next = row.next().unwrap();
-                            for (tagname, tagvalue) in tags {
-                                if tagname == next.0
-                                    && tagvalue.to_sql_value() != next.1.to_sql_value()
-                                {
-                                    tracing::info!(
-                                        "table {table_name} tag value not match, new: {}, old:{}",
-                                        tagvalue.to_sql_value(),
-                                        next.1.to_sql_value()
-                                    );
-                                    let alter_set_sql = format!(
-                                        "alter table `{table_name}` set TAG `{tagname}`={}",
-                                        tagvalue.to_sql_value()
-                                    );
-                                    tracing::info!("alter_set_sql: {alter_set_sql}");
-                                    // taos.exec(alter_set_sql).await?;
-                                    exec(taos, alter_set_sql, qid_base).await?;
+                match taos.query_one::<_, Vec<Value>>(&query_tags_sql).await {
+                    Ok(rs) => {
+                        let mut rs = rs.expect("query tags result should not be empty");
+                        rs.remove(0);
+
+                        for (exist, (tagname, expect)) in rs.iter().zip(tags) {
+                            if exist != expect {
+                                tracing::info!(
+                                    "table {table_name} tag value not match, new: {}, old:{}",
+                                    expect.to_sql_value(),
+                                    exist.to_sql_value()
+                                );
+                                let alter_set_sql = format!(
+                                    "alter table `{table_name}` set TAG `{tagname}`={}",
+                                    expect.to_sql_value()
+                                );
+                                tracing::info!("alter_set_sql: {alter_set_sql}");
+                                if let Err(err) = taos.exec(alter_set_sql).await {
+                                    tracing::info!("Try to alter table {table_name} tag `{tagname}` error: {err:#}");
                                 }
                             }
                         }
@@ -1791,10 +1794,10 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
 async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
     pool: &TaosPool,
     ipc_reader: IpcReader<R>,
-    mut ipc_ack_writer: AckWriter<W>,
+    ipc_ack_writer: AckWriter<W>,
     config: Option<OpcTableConfig>,
-    license: Option<&ConnectorLicense>,
-    transferred: Option<&Transferred>,
+    _license: Option<&ConnectorLicense>,
+    _transferred: Option<&Transferred>,
     target_precision: taos::Precision,
     data_trace_id_u64: u64,
 ) -> anyhow::Result<()> {
@@ -1872,7 +1875,10 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             }
         })
         .await;
-    println!("IPC stream finished, total {} records in this stream", count.load(Ordering::SeqCst));
+    println!(
+        "IPC stream finished, total {} records in this stream",
+        count.load(Ordering::SeqCst)
+    );
     Ok(())
 }
 

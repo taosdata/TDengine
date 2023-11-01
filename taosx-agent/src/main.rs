@@ -23,8 +23,8 @@ use twelf::{config, Layer};
 use tracing::{log::LevelFilter, Level};
 use taosx_core::utils::trace::TaosXLayer;
 use taosx_core::{
-    get_log_dir, get_log_keep_days, RespAction,
-    set_env_plugins_home_dir, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days
+    get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
+    set_env_plugins_home_dir, RespAction,
 };
 
 use crate::runner::TaskStatus;
@@ -92,10 +92,10 @@ pub struct ConfigArgs {
     verbose: Option<Verbosity<InfoLevel>>,
 
     /// For environment variable wised log level.
-    #[clap(hide = true, env="LOG_LEVEL")]
+    #[clap(hide = true, env = "LOG_LEVEL")]
     log_level: Option<LevelFilter>,
 
-    #[clap(long, env="LOG_KEEP_DAYS")]
+    #[clap(long, env = "LOG_KEEP_DAYS")]
     log_keep_days: Option<i64>,
 }
 
@@ -210,8 +210,8 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
                 let status = TaskStatus::new(
                     *task.key(),
                     Utc::now(),
-                    "failed".to_string(),
-                    Some("taosx-agent is closed by SIGINT".to_string()),
+                    "suspended".to_string(),
+                    Some("taosx-agent is suspended by SIGINT".to_string()),
                     Default::default()
                 );
                 tracing::info!("status: {:?}", status);

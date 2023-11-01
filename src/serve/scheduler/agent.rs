@@ -121,6 +121,11 @@ impl AgentWorker {
                                             Handle::current().block_on(async {
                                                 *t.agent_state.write().await =
                                                     AgentState::Connected;
+                                                t.sender
+                                                    .send(TaskActivity::agent_resumed(
+                                                        t.task_id, agent_id,
+                                                    ))
+                                                    .await;
                                             });
                                         });
                                     });
@@ -144,6 +149,13 @@ impl AgentWorker {
                                             Handle::current().block_on(async {
                                                 *t.agent_state.write().await =
                                                     AgentState::Disconnected;
+
+                                                t.sender
+                                                    .send(TaskActivity::waiting(
+                                                        t.task_id,
+                                                        format!("Agent {agent_id} is disconnected"),
+                                                    ))
+                                                    .await;
                                             });
                                         });
                                     });
@@ -176,15 +188,15 @@ impl AgentWorker {
                                         if let Err(err) = task.sender.send(activity.clone()).await {
                                             tracing::warn!("Error sending task activity {:?}", err);
                                         }
+                                        // scheduler_notify_sender.push_task_activity(activity);
                                     } else {
                                         tracing::warn!(
                                             task.id = activity.id,
                                             task.activity = activity.activity,
-                                            "Task not found: {:?}",
+                                            "Task worker not found: {:?}",
                                             activity.id
                                         );
                                     }
-                                    scheduler_notify_sender.push_task_activity(activity);
                                 }
                                 AgentNotify::AgentActivity(_, activity) => {
                                     tracing::info!("Agent activity: {:?}", activity);
@@ -250,10 +262,6 @@ impl AgentWorker {
     pub async fn cancel(&self, task_id: TaskId) {
         let agent_tasks = self.agent_tasks_sender.read().await;
         if let Some(task) = agent_tasks.get_by_task_id(&task_id) {
-            task.sender
-                .send(TaskActivity::suspended(task_id, uuid::Uuid::nil()))
-                .await
-                .ok();
             if let Err(err) = self
                 .agent_activity_sender
                 .send((task.agent_id, AgentAction::Cancel(task_id)))

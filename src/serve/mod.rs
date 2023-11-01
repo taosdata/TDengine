@@ -13,10 +13,9 @@ use actix_web::{
 };
 use metrics_tracing_context::TracingContextLayer;
 use metrics_util::layers::{FanoutBuilder, Layer};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tracing::info;
 use tracing_actix_web::TracingLogger;
-use twelf::config;
 use utoipa::{OpenApi, ToSchema};
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -67,45 +66,50 @@ pub struct DataSetsReq {
     limit: usize,
 }
 
-#[derive(Parser, Debug, Clone)]
+// #[derive(Parser, Debug, Clone, Default)]
+// pub(super) struct Cli {
+//     #[clap(flatten)]
+//     config_args: ServeOpts,
+// }
+
+#[derive(Parser, Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(default)]
 pub(super) struct Cli {
-    /// Do not resume a
-    #[clap(long)]
-    do_not_resume: bool,
-
-    #[clap(flatten)]
-    config_args: ConfigArgs,
-}
-
-#[config]
-#[derive(Parser, Debug, Clone)]
-struct ConfigArgs {
     /// Listen to ip:port address.
-    #[clap(
-        short = 'l',
-        long,
-        default_value = "0.0.0.0:6050",
-        env = "SERVE_LISTEN"
-    )]
-    listen: String,
+    #[clap(short = 'l', long, env = "LISTEN")]
+    pub listen: Option<String>,
 
+    /// Grpc listen to ip:port address.
+    ///
+    #[clap(short = 'g', long, env = "GRPC")]
+    pub grpc: Option<String>,
+
+    /// Database URL.
     #[clap(short = 'D', long, env = "DATABASE_URL")]
-    database_url: Option<String>,
+    pub database_url: Option<String>,
 
     #[clap(hide = true)]
-    secret_prefix: Option<String>,
+    pub secret_prefix: Option<String>,
+
+    #[clap(long)]
+    pub do_not_resume: Option<bool>,
 }
 
-impl Default for Cli {
-    fn default() -> Self {
-        Self {
-            config_args: ConfigArgs {
-                listen: "0.0.0.0:6050".parse().unwrap(),
-                database_url: None,
-                secret_prefix: Some("XaNeGt".to_string()),
-            },
-            do_not_resume: false,
+impl Cli {
+    pub fn merge_from(&mut self, rhs: Self) -> &mut Self {
+        macro_rules! update_if_none {
+            ($f:ident) => {
+                if self.$f.is_none() {
+                    self.$f = rhs.$f;
+                }
+            };
         }
+        update_if_none!(listen);
+        update_if_none!(database_url);
+        update_if_none!(secret_prefix);
+        update_if_none!(do_not_resume);
+        update_if_none!(grpc);
+        self
     }
 }
 
@@ -145,7 +149,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
 
 impl Cli {
     pub(super) async fn controller(&self, scheduler: TaskScheduler) -> Result<TaskControllerRef> {
-        let database_url = if let Some(path) = self.config_args.database_url.as_deref() {
+        let database_url = if let Some(path) = self.database_url.as_deref() {
             path.to_string()
         } else if let Ok(url) = std::env::var("DATABASE_URL") {
             url
@@ -156,7 +160,7 @@ impl Cli {
         };
         let controller = TaskControllerRef::from_sqlite(&database_url, scheduler).await?;
 
-        if !self.do_not_resume {
+        if !self.do_not_resume.unwrap_or(false) {
             info!("resume all tasks");
             controller.start_all_with_schedule().await?;
         }
@@ -206,7 +210,7 @@ impl Cli {
         controller: TaskControllerRef,
         grpc_handle: tokio::task::JoinHandle<Result<()>>,
     ) -> Result<()> {
-        let span = tracing::info_span!("server", addr = self.config_args.listen).entered();
+        let span = tracing::info_span!("server", addr = self.listen).entered();
         let store_cloned = controller.clone();
         #[derive(OpenApi)]
         #[openapi(
@@ -326,7 +330,7 @@ impl Cli {
 
         let recorder = Data::new(handle);
 
-        let addr = self.config_args.listen.as_str();
+        let addr = self.listen.as_deref().unwrap_or("0.0.0.0:6050");
         let server = HttpServer::new(move || {
             let cors = Cors::default()
                 .allow_any_origin()
@@ -366,7 +370,7 @@ impl Cli {
                 tracing::info!("Ctrl+C triggered");
             }
         };
-        store_cloned.stop_all().await?;
+        store_cloned.shutdown().await?;
         drop(store_cloned);
         span.exit();
         Ok(())
@@ -377,7 +381,12 @@ impl Cli {
         controller: TaskControllerRef,
         channel: AgentRpcChannel,
     ) -> Result<()> {
-        let flight = rpc::RpcConfig::default();
+        let mut flight = rpc::RpcConfig::default();
+        if let Some(grpc) = self.grpc.as_ref() {
+            let addr = grpc.parse()?;
+            flight.tcp.replace(addr);
+        }
+
         flight.serve_with_controller(controller, channel).await?;
         Ok(())
     }

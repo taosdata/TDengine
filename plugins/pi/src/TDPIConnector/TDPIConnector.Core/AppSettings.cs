@@ -150,6 +150,7 @@ namespace TDPIConnector.Core
             WebMaxTDEngineHttpResponses = GetIntegerFromAppSettings("WebMaxTDEngineHttpResponses", 5);
             WebMonitoringEventsEnabled = GetBooleanFromAppSettings("WebMonitoringEventsEnabled", false);
             BackfillQuitWait = GetIntegerFromAppSettings("BackfillQuitWait", 60);
+            MaxEventCountObserverFetchOnce = GetIntegerFromAppSettings("MaxEventCountObserverFetchOnce", 20000);
 
             if (TDEnginePITablesPrefix == null)
             {
@@ -168,6 +169,7 @@ namespace TDPIConnector.Core
         public static int WebMaxPIEvents { get; internal set; }
         public static bool WebMonitoringEventsEnabled { get; private set; }
         public static int BackfillQuitWait { get; internal set; }
+        public static int MaxEventCountObserverFetchOnce { get; internal set; }
 
         public static bool TaosXEnabled { get; private set; } = true;
         public static TomlConfig tomlConfig { get; private set; }

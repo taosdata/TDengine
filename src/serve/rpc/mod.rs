@@ -423,7 +423,7 @@ impl FlightService for FlightServiceImpl {
 
         self.notify_sender
             .send(AgentNotify::AgentConnected(agent_id))
-            .unwrap();
+            .map_err(|err| Status::internal(format!("Scheduler is not ready: {err:#}")))?;
 
         // dbg!(&agent);
         // let agent: Agent = serde_json::from_str(r#"
@@ -634,6 +634,8 @@ impl FlightService for FlightServiceImpl {
             let _ = controller_runner.push_agent_activity(activity).await?;
             tracing::info!(agent = agent_id, "Agent RPC stopped");
 
+            let _ = notify_sender.send(AgentNotify::AgentDisconnected(agent_id));
+
             controller_runner
                 .agent_disconnect(agent_id)
                 .await
@@ -672,17 +674,33 @@ impl FlightService for FlightServiceImpl {
         request: Request<Action>,
     ) -> Result<Response<Self::DoActionStream>, Status> {
         let (_meta, _part, action) = request.into_parts();
+        dbg!(_meta, _part, &action);
         match action.r#type.as_str() {
             "TaskStatus" => {
                 // task.
 
-                let status: TaskStatus = serde_json::from_slice(&action.body)
+                let status: TaskActivity = serde_json::from_slice(&action.body)
                     .map_err(|err| Status::invalid_argument(format!("{err}: {:?}", action.body)))?;
 
-                self.controller
-                    .push_task_status(&status)
+                let task_id = status.id;
+                let task = self
+                    .controller
+                    .get(task_id)
                     .await
-                    .map_err(|err| Status::internal(err.to_string()))?;
+                    .map_err(|err| Status::internal(err.to_string()))?
+                    .ok_or_else(|| Status::not_found(format!("Task {task_id} not found")))?;
+
+                let agent_id = task.via.ok_or_else(|| {
+                    Status::internal(format!("Task {task_id} does not relate to any agent"))
+                })?;
+                self.notify_sender
+                    .send(AgentNotify::TaskActivity(agent_id, status))
+                    .map_err(|err| Status::internal(format!("Scheduler is not ready: {err:#}")))?;
+
+                // self.controller
+                //     .push_task_status(&status)
+                //     .await
+                //     .map_err(|err| Status::internal(err.to_string()))?;
                 Ok(Response::new(Box::pin(futures::stream::iter([]))))
             }
             s => Err(Status::unimplemented(format!("Unknown action: {}", s))),

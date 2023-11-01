@@ -12,9 +12,10 @@ use self::agent::{
 use self::transferred::Transferred;
 use self::trigger::Strategy;
 use super::data_sources::DataSourceDefinition;
+use super::scheduler::agent::AgentId;
 use super::scheduler::TaskScheduler;
 use crate::serve::controller::agent::Activity;
-use anyhow::{bail, Context};
+use anyhow::{anyhow, bail, Context};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
@@ -118,6 +119,7 @@ pub enum AgentAction {
     Run(i64),
     #[allow(dead_code)]
     Stop(i64),
+    /// Equivalent to `Suspend`.
     Cancel(i64),
     ListDataSets(DataSetsReq, AgentDataSetsSender),
     #[allow(dead_code)]
@@ -223,6 +225,8 @@ pub(crate) struct TaskController {
     pub scheduler: TaskScheduler,
 
     pub ctl_alive: Arc<AtomicBool>,
+
+    pub shutdown_notify: Arc<tokio::sync::Notify>,
 }
 
 impl Debug for TaskController {
@@ -253,17 +257,12 @@ impl TaskControllerRef {
             .map(|v| Self(Arc::new(v)))
     }
     pub async fn start_all_with_schedule(&self) -> anyhow::Result<()> {
-        sqlx::query("update tasks set status = ? where status in (?, ?)")
-            .bind(Status::Cancelled)
-            .bind(Status::Running)
-            .bind(Status::Interrupted)
-            .execute(&self.0.pool)
-            .await?;
         let tasks: Vec<Task> = sqlx::query_as::<_, Task>(
-            "select * from task_with_labels where status not in (?, ?, ?) and `deleted` != TRUE order by created_at desc")
+            "select * from task_with_labels where status not in (?, ?, ?, ?) and `deleted` != TRUE order by created_at desc")
             .bind(Status::Completed)
             .bind(Status::Failed)
             .bind(Status::Stopped)
+            .bind(Status::Created)
             .fetch_all(&self.pool)
             .await?;
         for task in tasks {
@@ -367,6 +366,23 @@ async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::
     Ok(())
 }
 
+async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
+    sqlx::query("update tasks set status = ? where status in (?, ?, ?, ?)")
+        .bind(Status::Suspended)
+        .bind(Status::Running)
+        .bind(Status::Waiting)
+        .bind(Status::Suspending)
+        .bind(Status::Interrupted)
+        .execute(pool)
+        .await?;
+    sqlx::query("update tasks set status = ? where status = ?")
+        .bind(Status::Stopped)
+        .bind(Status::Stopping)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 impl TaskController {
     pub async fn from_sqlite(sqlite: &str, scheduler: TaskScheduler) -> anyhow::Result<Self> {
         if !sqlite.contains(":memory:") {
@@ -397,6 +413,8 @@ impl TaskController {
         let pool_cloned = pool.clone();
         let ctl_alive = Arc::new(AtomicBool::new(true));
         let ctl_alive_cloned = ctl_alive.clone();
+        let shutdown_notify = Arc::new(tokio::sync::Notify::new());
+        let shutdown_notify_cloned = shutdown_notify.clone();
         tokio::spawn(async move {
             let mut rx = notify_channel;
             let pool = pool_cloned;
@@ -435,9 +453,12 @@ impl TaskController {
                     },
                 }
             }
+            shutdown_notify_cloned.notify_waiters();
             ctl_alive_cloned.store(false, std::sync::atomic::Ordering::SeqCst);
         });
         let transferred = Transferred::new(pool.clone(), Duration::from_secs(10));
+
+        database_initiate(&pool).await?;
         Ok(Self {
             pool,
             tasks: Default::default(),
@@ -446,6 +467,7 @@ impl TaskController {
             offsets: Default::default(),
             transferred,
             ctl_alive,
+            shutdown_notify,
         })
     }
 
@@ -456,6 +478,27 @@ impl TaskController {
 
     #[instrument(skip_all, fields(task.id = task.id,task.agent = task.via))]
     async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
+        if let Some(via) = task.via {
+            if !self.agent_alive(via).await {
+                bail!("Agent {} is not alive", via);
+            }
+        }
+        let from: Dsn = task
+            .from
+            .parse()
+            .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
+
+        let to: Dsn = task
+            .to
+            .parse()
+            .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
+
+        match from.driver.as_str() {
+            "opcua" | "opcda" | "influxdb" | "opentsdb" | "pi" | "mqtt" | "kafka" => {
+                self.validate_connector_license(&from, &to).await?;
+            }
+            _ => (),
+        }
         self.scheduler.push_task(task.clone()).await
     }
 
@@ -489,7 +532,7 @@ impl TaskController {
     pub async fn validate_connector_license(&self, from: &Dsn, to: &Dsn) -> anyhow::Result<()> {
         let builder = TaosBuilder::from_dsn(to)?;
         let taos = builder.build().await?;
-        let is_enterprise = builder.is_enterprise_edition().await?;
+        // let is_enterprise = builder.is_enterprise_edition().await?;
 
         let assert_enterprise = builder.assert_enterprise_edition().await;
 
@@ -508,7 +551,7 @@ impl TaskController {
                 _ => false,
             })
             .unwrap_or(false)
-            && is_enterprise
+            && to.get("token").is_some()
         {
             return Ok(());
         }
@@ -527,13 +570,16 @@ impl TaskController {
             .await
             .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
             .unwrap();
-        let exists : u32 =
-                    sqlx::query_scalar(&format!("select count(*) from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}://%{}%';",cluster_id, from.driver, endpoint))
-                        .fetch_one(&self.pool)
-                        .await?;
-        if exists > 0 {
-            return Ok(());
-        }
+
+        // These lines disable the connector license check.
+        let _ = endpoint;
+        // let exists : u32 =
+        //             sqlx::query_scalar(&format!("select count(*) from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}://%{}%';",cluster_id, from.driver, endpoint))
+        //                 .fetch_one(&self.pool)
+        //                 .await?;
+        // if exists > 0 {
+        //     return Ok(());
+        // }
 
         let used: Vec<String> = sqlx::query_scalar(&format!("select `from` from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}://%';",cluster_id, from.driver))
                         .fetch_all(&self.pool)
@@ -556,32 +602,35 @@ impl TaskController {
             _ => unreachable!(),
         };
 
-        let license: Option<ConnectorLicense> = taos
+        let license: ConnectorLicense = taos
             .query_one::<_, String>(format!(
                 "select `{connector}` from information_schema.ins_grants"
             ))
             .await
-            .unwrap_or(None)
-            .and_then(|s| serde_json::from_str(&s).ok());
+            .context("Cannot retrieve license")?
+            .ok_or_else(|| anyhow!("Connector {connector} is not supported by license"))
+            .and_then(|s| {
+                serde_json::from_str(&s)
+                    .with_context(|| format!("Cannot parse license from str: {s}"))
+            })?;
 
-        if let Some(license) = license {
-            if license.is_expired() {
-                anyhow::bail!(
-                            "Connector {connector} expired, please contact the database administrator for license",
-                        )
-            } else {
-                match license.number {
-                    0 => anyhow::bail!("Connector {connector} is disabled by license"),
-                    n if n > 0 => {
-                        if used >= n as usize {
-                            anyhow::bail!("Connector {connector} reaches connection number limit({n}) by license");
-                        }
-                    }
-                    _ => (),
-                }
-            }
+        if let Some(days) = license.expired_days() {
+            anyhow::bail!(
+                "Connector {} has been expired for {} days, please contact the database administrator for license",
+                connector, days
+            )
         } else {
-            anyhow::bail!("Only enterprise version is supported for connector {connector}")
+            match license.number {
+                0 => anyhow::bail!("Connector {connector} is disabled by license"),
+                n if n > 0 => {
+                    if used >= n as usize {
+                        anyhow::bail!(
+                            "Connector {connector} reaches connection number limit({n}) by license"
+                        );
+                    }
+                }
+                _ => (),
+            }
         }
         Ok(())
     }
@@ -843,16 +892,7 @@ impl TaskController {
     }
     #[instrument(skip_all, name = "task::delete", fields(task.id = id))]
     pub async fn delete(&self, id: i64) -> anyhow::Result<Option<TaskDetail>> {
-        {
-            if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
-                token.cancel();
-                if !handle.is_finished() {
-                    // token.cancel();
-                    tracing::info!("Cancel task {id} before deleted");
-                    let _ = handle.await;
-                }
-            }
-        }
+        self.scheduler.stop_task(id, Duration::from_secs(5)).await?;
         let now = Utc::now();
         let res = sqlx::query_as_unchecked!(
             Task,
@@ -949,7 +989,7 @@ impl TaskController {
         let scheduler = self.scheduler.clone();
         let handle = tokio::spawn(
             async move {
-                scheduler.wait_stop(id).await;
+                scheduler.wait_task(id).await;
                 tracing::info!("task {id} successfully stopped");
             }
             .in_current_span(),
@@ -1030,71 +1070,25 @@ impl TaskController {
         }
     }
 
-    pub async fn stop_all(&self) -> anyhow::Result<()> {
-        for (id, (handle, token)) in self.tasks.write().await.drain() {
-            token.cancel();
-            if !handle.is_finished() {
-                // token.cancel();
-                tracing::error!("Cancel task by id {id}");
-                let _ = handle.await;
-            }
-
-            let now = Utc::now();
-            let res = sqlx::query!(
-                "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ? AND status not in (?, ?, ?)",
-                now,
-                Status::Cancelled,
-                id,
-                Status::Completed, Status::Stopped, Status::Failed
-            )
-            .execute(&self.pool)
-            .await?;
-
-            let activity = format!("Stopping all tasks.., now {id}");
-
-            sqlx::query!(
-                "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
-                id,
-                now,
-                LevelFilter::Info,
-                activity,
-                "ok",
-                None::<String>
-            )
-            .execute(&self.pool)
-            .await?;
-            // dbg!(res);
-            if res.rows_affected() == 1 {
-                tracing::info!("successfully cancelled task by id {id}");
-            }
-        }
+    pub async fn _suspend_all(&self) -> anyhow::Result<()> {
+        self.scheduler.suspend_all().await;
         Ok(())
     }
 
     pub async fn _clear(&self) -> anyhow::Result<()> {
-        for (id, (handle, token)) in self.tasks.write().await.drain() {
-            token.cancel();
-            if !handle.is_finished() {
-                // token.cancel();
-                tracing::error!("Cancel task by id {id}");
-                let _ = handle.await;
-            }
-
-            let res = sqlx::query_as_unchecked!(
-                Task,
-                "UPDATE tasks SET `deleted` = TRUE where id = ?",
-                id
-            )
-            .execute(&self.pool)
-            .await?;
-            // dbg!(res);
-            if res.rows_affected() == 1 {
-                tracing::info!("successfully deleted task by id {id}");
-            }
-        }
+        self.scheduler.suspend_all().await;
         Ok(())
     }
 
+    pub async fn shutdown(&self) -> anyhow::Result<()> {
+        let scheduler = self.scheduler.clone();
+        let _ = tokio::time::timeout(Duration::from_secs(17), scheduler.suspend_all()).await;
+        scheduler.shutdown().await;
+        let _ = tokio::time::timeout(Duration::from_secs(5), self.shutdown_notify.notified()).await;
+
+        // Set all running status to suspended?
+        Ok(())
+    }
     pub async fn offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
         let task = self.get(id).await?;
         match task {
@@ -1527,6 +1521,10 @@ pub enum Status {
     Stopping,
     /// Manually stopped by API.
     Stopped,
+    /// Nothing, waiting for some reason.
+    Waiting,
+    /// In suspending state.
+    Suspending,
 
     /// Task is suspended by controller/agent.
     Suspended,
@@ -1847,6 +1845,17 @@ impl TaskActivity {
             context: None,
         }
     }
+    /// Set state as suspending.
+    pub fn suspend(id: i64, jid: Uuid) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Info,
+            activity: format!("Suspending with job id: {jid}."),
+            status: "suspending".to_string(),
+            context: None,
+        }
+    }
     pub fn suspended(id: i64, jid: Uuid) -> Self {
         Self {
             id,
@@ -1876,6 +1885,27 @@ impl TaskActivity {
             activity: format!("Failed with error: {message}"),
             status: "failed".to_string(),
             context: Some(message.into()),
+        }
+    }
+
+    pub fn waiting(id: i64, message: impl Into<String>) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Warn,
+            activity: message.into(),
+            status: "waiting".to_string(),
+            context: None,
+        }
+    }
+    pub fn agent_resumed(id: i64, agent_id: AgentId) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Warn,
+            activity: format!("Agent {agent_id} resumed"),
+            status: "resumed".to_string(),
+            context: None,
         }
     }
 }
@@ -2259,7 +2289,7 @@ pub(crate) struct NewTask {
     /// - Run hourly/daily/weekly/monthly: "schedule:@daily"
     /// - Run with crontab schedule: "schedule:@daily", checkout https://crontab.guru/ for human-readable crontab.
     #[schema(example = "schedule:@daily")]
-    pub trigger: Option<String>,
+    pub trigger: Option<Strategy>,
     /// The stream data source.
     #[schema(example = "tmq:///test")]
     from: String,
