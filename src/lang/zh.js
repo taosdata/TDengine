@@ -190,6 +190,7 @@ export default {
       taskName: '任务名称',
       agentPlaceholder: '选择代理',
       chooseTargetDbTip: '请选择目标数据库',
+      resumePlaceholder: '请选择执行策略'
     },
     needAgentTip: '如果数据源在私有网络，那么请配置Agent的安全链接，这样无需配置 VPN 或将数据源服务公开到外部网络。',
     runAgent: '运行代理',
@@ -233,7 +234,9 @@ export default {
     metrics: '当前指标',
     metricName: '指标名称',
     metricValue: '指标值',
-    check: '连通性检查'
+    check: '连通性检查',
+    resume: '执行策略',
+    resumeTip: "表示任务中断后的调度策略,有以下可选项：\n\n- *never*: 表示从不重新调度。\n- *once*: 表示仅在 taosX 服务异常中断后启动一次，任务状态为 running|cancelled 时允许启动。在服务运行过程中的异常，不重新调度。\n- *always*: 当 taosX 服务启动后，对于任务状态为 running|failed|cancelled|interrupted 的任务，总是重新启动。在 taosX 服务运行过程中，当任务出现错误时，总是重新执行。" 
   },
   replication: {
     theTaskWithId: "任务 {id}",

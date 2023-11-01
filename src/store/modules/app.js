@@ -74,7 +74,7 @@ const state = {
   currentAgentID:'',
   currentDBType:'',
   currentDSName:'',
-
+  currentResume: '',
   currentEditID:'',
   agentDialog:false
 };
@@ -120,6 +120,9 @@ const mutations = {
   },
   SET_CURRENT_DBTYPE:(state,data)=>{
     state.currentDBType=data
+  },
+  SET_CURRENT_RESUME:(state,data)=>{
+    state.currentResume=data
   },
   SET_AGENT_LISTS:(state,data)=>{
     state.agentLists=data

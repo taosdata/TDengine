@@ -546,6 +546,7 @@ export default {
       taskName: 'Task Name',
       agentPlaceholder: 'Please select an agent',
       chooseTargetDbTip: 'Please select the target database',
+      resumePlaceholder: 'Please select'
     },
     needAgentTip: 'If data source is on a private network, please configure the secured Agent, so VPN is not required or expose data source to outside.From the machine where agent is installed, it must be able to access your TDengine instance',
     runAgent: 'Run Agent',
@@ -586,7 +587,9 @@ export default {
     metrics: 'Current Metrics',
     metricName: 'Metrics Name',
     metricValue: 'Metrics Value',
-    check: 'Connectivity check'
+    check: 'Connectivity check',
+    resume: 'Resume',
+    resumeTip: '表示任务中断后的调度策略,有以下可选项:'
   },
   replication: {
     theTaskWithId: "the task with id {id}",

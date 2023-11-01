@@ -87,6 +87,28 @@
         
         <!-- <el-button @click="downloadFile">文件下载</el-button> -->
       </el-form-item>
+      <el-form-item
+        :label="$t('dataIn.resume')"
+        prop="'resume'"
+        size="small"
+      >
+        <div class="transverse">
+          <el-select
+            v-model="ruleForm.resume"
+            :placeholder="$t('dataIn.palceholders.resumePlaceholder')"
+            @change="changeResume"
+          >
+            <el-option
+              v-for="item in resumeList"
+              :label="item.name"
+              :key="item.id"
+              :value="item.id"
+            ></el-option>
+          </el-select>
+        </div>
+
+        <div class="custom-placeholder mt10" v-html="transforHtml()"></div>
+      </el-form-item>
     </el-form>
     <el-dialog
       :title="$t('dataIn.createNewAgent')"
@@ -107,6 +129,7 @@ import {
 } from "@/api/explorer/datain";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { getAgentsData, addNewAgent } from "@/api/explorer/agent";
+import marked from "marked";
 
 import AddAgent from "../components/addAgent.vue";
 export default {
@@ -135,6 +158,7 @@ export default {
         type: "",
         agent: "",
         dbName: "",
+        resume: "always",
       },
       agentrule: [
         {
@@ -169,6 +193,20 @@ export default {
           },
         ],
       },
+      resumeList: [
+        {
+          name: 'always',
+          id: 'always'
+        },
+        {
+          name: 'never',
+          id: 'never'
+        },
+        {
+          name: 'once',
+          id: 'once'
+        },
+      ]
     };
   },
   computed: {
@@ -199,6 +237,9 @@ export default {
     changeDB() {
       this.$store.commit("app/SET_CURRENT_DBNAME", this.ruleForm.dbName);
     },
+    changeResume() {
+      this.$store.commit("app/SET_CURRENT_RESUME", this.ruleForm.resume);
+    },
     async getAllPoints() {
       try {
         let result = await downlaodAllNodes();
@@ -212,6 +253,7 @@ export default {
       this.ruleForm.agent = this.$store.state.app.currentAgentID;
       this.ruleForm.name = this.$store.state.app.currentDSName;
       this.ruleForm.type = this.$store.state.app.currentDBType;
+      this.ruleForm.resume = this.$store.state.app.currentResume;
       if (this.agentTypes.includes(this.ruleForm.type)) {
         this.showAgentSelect = true;
       } else {
@@ -295,6 +337,9 @@ export default {
       } catch (error) {
         console.log(error);
       }
+    },
+    transforHtml(val) {
+      return marked.parse(this.$t('dataIn.resumeTip'));
     },
   },
   watch: {
