@@ -270,15 +270,15 @@ impl Strategy {
         } else {
             match self.resume {
                 ResumeStrategy::Always => {
-                    Schedule::Repeated(self.interval.unwrap_or_else(|| Duration::from_secs(1)))
+                    Schedule::Repeated(self.interval.unwrap_or_else(|| Duration::from_secs(5)))
                 }
                 ResumeStrategy::Never => Schedule::Oneshot,
                 ResumeStrategy::Once => Schedule::RepeatedLimit(
-                    self.interval.unwrap_or_else(|| Duration::from_secs(1)),
+                    self.interval.unwrap_or_else(|| Duration::from_secs(5)),
                     1,
                 ),
                 ResumeStrategy::Retries(num) => Schedule::RepeatedLimit(
-                    self.interval.unwrap_or_else(|| Duration::from_secs(1)),
+                    self.interval.unwrap_or_else(|| Duration::from_secs(5)),
                     num,
                 ),
             }

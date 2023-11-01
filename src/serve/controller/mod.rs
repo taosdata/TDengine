@@ -484,7 +484,7 @@ impl TaskController {
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
         match from.driver.as_str() {
-            "opcua" | "opcda" | "influxdb" | "opentsdb" | "pi" | "mqtt" | "kafka" => {
+            "opcua" | "opcda" | "pi" => {
                 self.validate_connector_license(&from, &to).await?;
             }
             _ => (),
@@ -640,7 +640,7 @@ impl TaskController {
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
         match from.driver.as_str() {
-            "opcua" | "opcda" | "influxdb" | "opentsdb" | "pi" | "mqtt" | "kafka" => {
+            "opcua" | "opcda" | "pi" => {
                 self.validate_connector_license(&from, &to).await?;
             }
             _ => (),
@@ -777,7 +777,7 @@ impl TaskController {
 
     #[instrument(skip_all, name = "task::update", fields(task.id = id))]
     pub async fn update(&self, id: i64, task: UpdateTask) -> anyhow::Result<Option<TaskDetail>> {
-        tracing::info!("update task {id}");
+        tracing::info!("update task {id}: {task:?}");
         if let Some(topic) = task.oneshot_topic.as_deref() {
             if topic.len() > 64 {
                 anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
@@ -792,7 +792,7 @@ impl TaskController {
                 })*
             };
         }
-        add_bind_sql!(name stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via parser);
+        add_bind_sql!(name stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via parser trigger);
 
         if sql.len() == 0 {
             let task = self.get(id).await?.unwrap();
@@ -810,7 +810,7 @@ impl TaskController {
                 })*
             };
         }
-        bind_fields!(name stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via parser);
+        bind_fields!(name stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via parser trigger);
 
         let res = query.execute(&self.pool).await?;
 
