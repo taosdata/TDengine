@@ -77,7 +77,7 @@ pub fn spawn_runner(
     JoinHandle<Result<()>>,
     Arc<DashMap<i64, Worker>>,
     flume::Sender<Action>,
-    flume::Receiver<TaskStatus>,
+    flume::Receiver<Activity>,
 ) {
     let (tx, rx) = flume::bounded(1);
     let (status_tx, status_rx) = flume::bounded(10);
@@ -162,14 +162,19 @@ pub fn spawn_runner(
                                     working_tasks.fetch_sub(1, order);
                                 }
                                 if let Err(err) = res {
-                                    use itertools::Itertools;
-                                    let status = TaskStatus {
-                                        id: task.id,
-                                        at: Utc::now(),
-                                        action: "failed".to_string(),
-                                        message: Some(format!("{err:#}")),
-                                        context: Some(err.chain().join("\n")),
-                                    };
+                                    let status = Activity::new(
+                                        task.id,
+                                        Utc::now(),
+                                        LevelFilter::Error,
+                                        format!("{err:#}"),
+                                        "failed",
+                                        json!({
+                                            "task": task.id,
+                                            "timing": timing,
+                                            "backtrace": format!("{:?}", err),
+                                        }),
+                                        // context: Some(err.chain().join("\n")),
+                                    );
                                     let _ = status_tx.send_async(status).await;
 
                                     let activity = Activity::new(
