@@ -693,9 +693,16 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
         filemeta_request.file_type,
         filemeta_request.has_header,
     );
+
+    let data_dir = get_data_dir();
+
     match file_type.as_str() {
         "csv" => {
-            let filepath_or_filedir = filepath_or_filedir.split(",").into_iter().collect_vec();
+            let filepath_or_filedir = filepath_or_filedir
+                .split(",")
+                .into_iter()
+                .map(|path| data_dir.join(path).display().to_string())
+                .collect_vec();
             let csv_header = taosx_core::csv_header(filepath_or_filedir, has_header).await?;
             if csv_header.columns == 0 {
                 anyhow::bail!("CSV file headers are empty");
