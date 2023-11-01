@@ -323,12 +323,15 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
     stDebug("s-task:%s handle event:%s completed, elapsed time:%" PRId64 "ms state:%s -> %s", pTask->id.idStr,
             StreamTaskEventList[pTrans->event].name, el, pSM->prev.state.name, pSM->current.name);
 
-    SAttachedEventInfo* pEvtInfo = taosArrayPop(pSM->pWaitingEventList);
+    SAttachedEventInfo* pEvtInfo = taosArrayGet(pSM->pWaitingEventList, 0);
 
     // OK, let's handle the attached event, since the task has reached the required status now
     if (pSM->current.state == pEvtInfo->status) {
-      stDebug("s-task:%s handle the attached event:%s, state:%s", pTask->id.idStr,
+      stDebug("s-task:%s handle the event:%s in waiting list, state:%s", pTask->id.idStr,
               StreamTaskEventList[pEvtInfo->event].name, pSM->current.name);
+
+      // remove it
+      taosArrayPop(pSM->pWaitingEventList);
 
       STaskStateTrans* pNextTrans = streamTaskFindTransform(pSM->current.state, pEvtInfo->event);
       ASSERT(pSM->pActiveTrans == NULL && pNextTrans != NULL);
@@ -344,6 +347,11 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
       } else {
         return code;
       }
+    } else {
+      taosThreadMutexUnlock(&pTask->lock);
+      stDebug("s-task:%s state:%s event:%s in waiting list, req state:%s not fulfilled, put it back", pTask->id.idStr,
+              pSM->current.name, StreamTaskEventList[pEvtInfo->event].name,
+              StreamTaskStatusList[pEvtInfo->status].name);
     }
   } else {
     taosThreadMutexUnlock(&pTask->lock);
