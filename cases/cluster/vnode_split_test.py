@@ -64,12 +64,11 @@ class VnodeSplit(TDCase):
         self.fill_history_rows = 10000
         # self.fill_history_rows = 300
         self.pre_num_of_records_per_req = 10000
-        self.json_file_name = "insert0.json"
+        self.json_file_name1 = "insert0.json"
+        self.json_file_name2 = "insert1.json"
         self.json_data_list = list()
-        self.json_filename_list = list()
         self.taosBenchmark_iplist: List = self.get_fqdn("taosBenchmark")
         self.taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
-        self.json_filename_list.append(self.json_file_name)
         self.split_status = 0
         self.reserve_split_status = 0
         self.dnode_id_list = list()
@@ -92,9 +91,10 @@ class VnodeSplit(TDCase):
         self.vgid_info_schedular = None
         self.vgid_info_schedular_pause = False
         self.restart_dnode_schedular = None
-        self.loop_split_times = 2
+        self.loop_split_times = 1
+        # * not support
         self.use_stream = False
-        self.use_tmq = False
+        self.use_tmq = True
         self.topic_name = "tp_name"
         self.tmq_status = 0
         self.offset_value = "earliest"
@@ -171,22 +171,24 @@ class VnodeSplit(TDCase):
             # time.sleep(self.show_vnodes_interval)
 
     def prepare_fill_history_data(self):
+        self.json_filename_list = [self.json_file_name1]
         dbinfo = self.tdCom.setDBinfo(name=self.dbname, replica=self.replica, vgroups=self.vgroups, drop=self.db_drop, wal_retention_period=self.wal_retention_period)
         stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.fill_history_rows, start_timestamp=self.start_timestamp, child_table_exists=self.child_table_exists, name=self.stbname, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows)]
         database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
         host = self.get_fqdn("taosd")[0]
         json_info = self.tdCom.setJsoninfo(host=host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, num_of_records_per_req=self.pre_num_of_records_per_req)
-        self.tdCom.genBenchmarkJson(self.run_log_dir, self.json_file_name, json_info)
+        self.tdCom.genBenchmarkJson(self.run_log_dir, self.json_file_name1, json_info)
         self.json_data_list.append(json_info)
         self.tdCom.put_file(self._remote, self.taosBenchmark_iplist, self.json_data_list, self.json_filename_list, self.run_log_dir)
         self.tdCom.threads_run_taosBenchmark(self._remote, self.taosBenchmark_iplist, self.json_data_list, self.json_filename_list, self.taosBenchmark_env_setting, self.run_log_dir)
 
     def insert_data(self):
+        self.json_filename_list = [self.json_file_name2]
         self.start_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
         self.child_table_exists = "yes"
         self.db_drop = "no"
         if self.use_stream:
-            stream_db_info = self.tdCom.setStreamDBinfo(vgroups=1)
+            stream_db_info = self.tdCom.setStreamDBinfo(name=self.dbname, vgroups=self.vgroups, drop=self.db_drop)
             stream_info = self.tdCom.setStreams(stream_name=self.stream_name, stream_stb=f'{self.dbname}.{self.stream_stbname}', trigger_mode=self.trigger_mode, drop=self.stream_drop, source_sql=self.stream_sql)
         dbinfo = self.tdCom.setDBinfo(name=self.dbname, replica=self.replica, vgroups=self.vgroups, drop=self.db_drop)
         stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.insert_rows, start_timestamp=self.start_timestamp, child_table_exists=self.child_table_exists, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows)]
@@ -196,7 +198,7 @@ class VnodeSplit(TDCase):
             json_info = self.tdCom.setJsoninfo(host=host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, streams=stream_info, stream_db=stream_db_info, num_of_records_per_req=self.num_of_records_per_req)
         else:
             json_info = self.tdCom.setJsoninfo(host=host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, num_of_records_per_req=self.num_of_records_per_req)
-        self.tdCom.genBenchmarkJson(self.run_log_dir, self.json_file_name, json_info)
+        self.tdCom.genBenchmarkJson(self.run_log_dir, self.json_file_name2, json_info)
         self.json_data_list = [json_info]
         self.tdCom.put_file(self._remote, self.taosBenchmark_iplist, self.json_data_list, self.json_filename_list, self.run_log_dir)
         self.tdCom.threads_run_taosBenchmark(self._remote, self.taosBenchmark_iplist, self.json_data_list, self.json_filename_list, self.taosBenchmark_env_setting, self.run_log_dir)
@@ -247,7 +249,7 @@ class VnodeSplit(TDCase):
             self._remote._logger.info(f"------------ split in base dnodes ------------")
             for vgid_dnodeid_kv in self.vgid_dnodeid_kv_list:
                 for vgid, dnodeid in vgid_dnodeid_kv.items():
-                    self._remote._logger.info(f"------------ split vgroup plan: {split_counter+1}/{len(self.vgid_dnodeid_kv_list)} ------------")
+                    self._remote._logger.info(f"------------ base dnodes split vgroup plan: {split_counter+1}/{len(self.vgid_dnodeid_kv_list)} ------------")
                     self.vgid = vgid
                     self.split_status = 1
                     self.restart_dnode_id_list.append(random.choice(dnodeid))
@@ -270,7 +272,7 @@ class VnodeSplit(TDCase):
                 self.restart_dnode_id_list = list()
                 for vgid_dnodeid_kv in self.vgid_dnodeid_kv_list:
                     for vgid, dnodeid in vgid_dnodeid_kv.items():
-                        self._remote._logger.info(f"------------ split vgroup plan: {split_counter+1}/{len(self.vgid_dnodeid_kv_list)*self.loop_split_times} ------------")
+                        self._remote._logger.info(f"------------ reserve dnodes split vgroup plan: {split_counter+1}/{len(self.vgid_dnodeid_kv_list)*self.loop_split_times} ------------")
                         self.vgid = vgid
                         if self.vgid_info_schedular_pause:
                             if self.vgid in self.get_vgid_list():
@@ -329,15 +331,20 @@ class VnodeSplit(TDCase):
                             }
                     consumer = Consumer(consumer_dict)
                     consumer.subscribe([self.topic_name])
-                    while 1:
+                    while True:
                         self.tmq_status = 1
+                        if self.tmq_schedular is not None:
+                            self._remote._logger.info(f"------------ remove tmq schedular job ------------: {self.tmq_schedular}")
+                            self.tdCom.remove_schedular_job(self.tmq_schedular)
+                            self.tmq_schedular = None
+                        # self.remove_schedular(self.tmq_schedular)
                         res = consumer.poll(timeout=10000)
+                        if not res:
+                            break
+                        # print(res)
                         # val = res.value()
                         # for block in val:
                         #     print(block.fetchall())
-                        self._remote._logger.info(f"------------ remove tmq schedular job ------------: {self.tmq_schedular}")
-                        self.remove_schedular(self.tmq_schedular)
-
                     consumer.close()
                     self.tmq_status = 0
 
@@ -348,8 +355,8 @@ class VnodeSplit(TDCase):
         return list(map(lambda x:field_dict[x], dnode_id_list))
 
     def restart_dnodes(self):
-        if 1 in self.restart_dnode_id_list:
-            self.restart_dnode_id_list.remove(1)
+        dnodes_out_mnodes = self.tdSql.get_dnodes_out_mnodes()[0]
+        self.restart_dnode_id_list = list(set(self.restart_dnode_id_list).intersection(dnodes_out_mnodes))
         if len(self.restart_dnode_id_list) > 0:
             self.restart_dnode_id_list = list(set(self.restart_dnode_id_list))
             restart_endpoint_list = self.get_fqdn_by_dnode_id(self.restart_dnode_id_list)

@@ -169,9 +169,6 @@ class VnodeRedistribute(TDCase):
                             data_dir = dnode_info["config"]["dataDir"]
                             data_dir_list.append(data_dir)
         return data_dir_list
-                        
-                        
-        
 
     def check_restored_true(self):
         self.tdSql.query(f'show vnodes;')

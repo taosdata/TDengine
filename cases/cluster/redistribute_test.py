@@ -47,7 +47,8 @@ class VnodeRedistribute(TDCase):
         # self.num_of_records_per_req = 100
         self.childtable_count = 10000
         self.insert_rows = 1000000
-        self.start_timestamp = "2020-01-01 00:00:00"
+        self.disorder_start_timestamp = "2018-01-01 00:00:00"
+        self.fill_history_start_timestamp = "2020-01-01 00:00:00"
         self.stbname = "stb"
         self.dbname = "stream_test"
         self.stream_stbname = "output_streamtb"
@@ -58,18 +59,25 @@ class VnodeRedistribute(TDCase):
         self.wal_retention_period = 86400
         self.stream_drop = "yes"
         self.keep_trying = -1
-        self.trying_interval = 10
+        self.trying_interval = 10000
         self.interlace_rows = 0
+        self.disorder_ratio = 10
+        self.update_ratio = 5
+        self.delete_ratio = 1
+        self.disorder_fill_interval = 300
+        self.update_fill_interval = 25
+        self.generate_row_rule = 2
         self.stream_sql = f"select ts,max(c1) from {self.dbname}.{self.stbname} where c1>0 partition by tbname interval(1s) sliding(1s)"
         self.fill_history_rows = 10000
+        self.disorder_rows = 10000
         # self.fill_history_rows = 300
         self.pre_num_of_records_per_req = 10000
-        self.json_file_name = "insert0.json"
+        self.json_file_name1 = "insert0.json"
+        self.json_file_name2 = "insert1.json"
+        self.json_file_name3 = "insert2.json"
         self.json_data_list = list()
-        self.json_filename_list = list()
         self.taosBenchmark_iplist: List = self.get_fqdn("taosBenchmark")
         self.taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
-        self.json_filename_list.append(self.json_file_name)
         self.redistribute_status = 0
         self.reserve_redistribute_status = 0
         self.dnode_id_list = list()
@@ -78,18 +86,21 @@ class VnodeRedistribute(TDCase):
         self.redistributed_list = list()
         self.restart_dnode_id_list = list()
         self.start_redistribute_row_count = self.fill_history_rows * self.childtable_count
-        self.scheduler_interval = 300
-        self.scheduler_interval = 10
+        self.schedular_interval = 300
+        self.schedular_interval = 10
         self.tmq_schedular_interval = 60
         self.tmq_schedular_interval = 5
         self.query_vgid_interval = 60
         self.show_vnodes_interval = 2
         self.restart_dnode_interval = 300
+        self.disorder_schedular_interval = 120
         self.restore_timeout = 10800
+        self.redistribute_sleep = 10
         self.tmq_schedular = None
         self.redistribute_schedular = None
         self.vgid_info_schedular = None
         self.restart_dnode_schedular = None
+        self.disorder_schedular = None
         self.loop_redistribute_times = 1
         self.tdSql.query('show dnodes')
         self.source_dnode_id_list = list(map(lambda x:x[0], self.tdSql.query_data))
@@ -168,18 +179,36 @@ class VnodeRedistribute(TDCase):
             else:
                 return False
 
-    def prepare_fill_history_data(self):
+    def disorder_update_delete_data(self):
+        self._remote._logger.info(f"------------ in disorder-update-delete schedular ------------")
+        self.json_filename_list = [self.json_file_name3]
+        self.child_table_exists = "yes"
+        self.db_drop = "no"
         dbinfo = self.tdCom.setDBinfo(name=self.dbname, replica=self.replica, vgroups=self.vgroups, drop=self.db_drop, wal_retention_period=self.wal_retention_period)
-        stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.fill_history_rows, start_timestamp=self.start_timestamp, child_table_exists=self.child_table_exists, name=self.stbname, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows)]
+        stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.fill_history_rows, start_timestamp=self.disorder_start_timestamp, child_table_exists=self.child_table_exists, name=self.stbname, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows, disorder_ratio=self.disorder_ratio, update_ratio=self.update_ratio, delete_ratio=self.delete_ratio, disorder_fill_interval=self.disorder_fill_interval, update_fill_interval=self.update_fill_interval, generate_row_rule=self.generate_row_rule)]
         database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
         host = self.get_fqdn("taosd")[0]
         json_info = self.tdCom.setJsoninfo(host=host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, num_of_records_per_req=self.pre_num_of_records_per_req)
-        self.tdCom.genBenchmarkJson(self.run_log_dir, self.json_file_name, json_info)
-        self.json_data_list.append(json_info)
+        self.tdCom.genBenchmarkJson(self.run_log_dir, self.json_file_name3, json_info)
+        self.json_data_list = [json_info]
+        self.tdCom.put_file(self._remote, self.taosBenchmark_iplist, self.json_data_list, self.json_filename_list, self.run_log_dir)
+        self._remote.cmd(self.taosBenchmark_iplist[0], [f'taosBenchmark -c {self.taosBenchmark_env_setting[0]["spec"]["config_dir"]} -f {self.json_data_list[0]["test_log"]}{self.json_filename_list[0]} 2>&1'])
+        # self.tdCom.threads_run_taosBenchmark(self._remote, self.taosBenchmark_iplist, self.json_data_list, self.json_filename_list, self.taosBenchmark_env_setting, self.run_log_dir)
+
+    def prepare_fill_history_data(self):
+        self.json_filename_list = [self.json_file_name1]
+        dbinfo = self.tdCom.setDBinfo(name=self.dbname, replica=self.replica, vgroups=self.vgroups, drop=self.db_drop, wal_retention_period=self.wal_retention_period)
+        stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.fill_history_rows, start_timestamp=self.fill_history_start_timestamp, child_table_exists=self.child_table_exists, name=self.stbname, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows)]
+        database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
+        host = self.get_fqdn("taosd")[0]
+        json_info = self.tdCom.setJsoninfo(host=host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, num_of_records_per_req=self.pre_num_of_records_per_req)
+        self.tdCom.genBenchmarkJson(self.run_log_dir, self.json_file_name1, json_info)
+        self.json_data_list = [json_info]
         self.tdCom.put_file(self._remote, self.taosBenchmark_iplist, self.json_data_list, self.json_filename_list, self.run_log_dir)
         self.tdCom.threads_run_taosBenchmark(self._remote, self.taosBenchmark_iplist, self.json_data_list, self.json_filename_list, self.taosBenchmark_env_setting, self.run_log_dir)
 
     def insert_data(self):
+        self.json_filename_list = [self.json_file_name2]
         self.start_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
         self.child_table_exists = "yes"
         self.db_drop = "no"
@@ -194,7 +223,7 @@ class VnodeRedistribute(TDCase):
             json_info = self.tdCom.setJsoninfo(host=host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, streams=stream_info, stream_db=stream_db_info, num_of_records_per_req=self.num_of_records_per_req)
         else:
             json_info = self.tdCom.setJsoninfo(host=host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, num_of_records_per_req=self.num_of_records_per_req)
-        self.tdCom.genBenchmarkJson(self.run_log_dir, self.json_file_name, json_info)
+        self.tdCom.genBenchmarkJson(self.run_log_dir, self.json_file_name2, json_info)
         self.json_data_list = [json_info]
         self.tdCom.put_file(self._remote, self.taosBenchmark_iplist, self.json_data_list, self.json_filename_list, self.run_log_dir)
         self.tdCom.threads_run_taosBenchmark(self._remote, self.taosBenchmark_iplist, self.json_data_list, self.json_filename_list, self.taosBenchmark_env_setting, self.run_log_dir)
@@ -278,6 +307,7 @@ class VnodeRedistribute(TDCase):
                     else:
                         pass
                     self.check_restored_true()
+                    time.sleep(self.redistribute_sleep)
                     redistribute_counter += 1
             redistribute_counter = 0
             self.restart_dnode_id_list = list()
@@ -298,13 +328,13 @@ class VnodeRedistribute(TDCase):
                     else:
                         pass
                     self.check_restored_true()
+                    time.sleep(self.redistribute_sleep)
                     redistribute_counter += 1
-    
+
     def redistribute_vnode_in_reserve_dnode(self, reserver_dnode_count):
         # start redistribute
         # if self.redistribute_status == 0:
         if self.reserve_redistribute_status == 0:
-            
             for i in range(self.loop_redistribute_times):
                 self._remote._logger.info(f"------------ redistribute in reserve dnodes range times: {i+1}/{self.loop_redistribute_times} ------------")
                 self.restart_dnode_id_list = list()
@@ -336,6 +366,7 @@ class VnodeRedistribute(TDCase):
                         # else:
                         #     pass
                         self.check_restored_true()
+                        time.sleep(self.redistribute_sleep)
                         redistribute_counter += 1
                 # restore redistribute
                 redistribute_counter = 0
@@ -357,6 +388,7 @@ class VnodeRedistribute(TDCase):
                         else:
                             pass
                         self.check_restored_true()
+                        time.sleep(self.redistribute_sleep)
                         redistribute_counter += 1
 
     def remove_schedular(self, schedular):
@@ -371,7 +403,7 @@ class VnodeRedistribute(TDCase):
                 self._remote._logger.info(f"------------ remove redistribute schedular job ------------: {self.redistribute_schedular}")
                 self.remove_schedular(self.redistribute_schedular)
                 self._remote._logger.info(f"------------ current query_rows ------------: {self.tdSql.query_data[0][0]}")
-                self._remote._logger.info(f"------------ start-redistribute_ row_count ------------: {self.start_redistribute_row_count}")
+                self._remote._logger.info(f"------------ start-redistribute row_count ------------: {self.start_redistribute_row_count}")
                 self.redistribute_vnode_in_base_dnode()
                 self.add_reserve_dnodes()
                 for reserver_dnode_count in range(1, len(self.reserve_dnode_list)+1):
@@ -457,7 +489,7 @@ class VnodeRedistribute(TDCase):
                             }
                     consumer = Consumer(consumer_dict)
                     consumer.subscribe([self.topic_name])
-                    
+
                     while True:
                         self.tmq_status = 1
                         if self.tmq_schedular is not None:
@@ -468,15 +500,10 @@ class VnodeRedistribute(TDCase):
                         res = consumer.poll(timeout=10000)
                         if not res:
                             break
-                        
-                        
                         # print(res)
                         # val = res.value()
                         # for block in val:
                         #     print(block.fetchall())
-                        # 
-                        
-
                     consumer.close()
                     self.tmq_status = 0
 
@@ -485,7 +512,7 @@ class VnodeRedistribute(TDCase):
         field_list = list(map(lambda x: {x[0]:x[1]}, self.tdSql.query_data))
         field_dict =  {k: v for dict in field_list for k, v in dict.items()}
         return list(map(lambda x:field_dict[x], dnode_id_list))
-                    
+
     def restart_dnodes(self):
         dnodes_out_mnodes = self.tdSql.get_dnodes_out_mnodes()[0]
         self.restart_dnode_id_list = list(set(self.restart_dnode_id_list).intersection(dnodes_out_mnodes))
@@ -495,7 +522,7 @@ class VnodeRedistribute(TDCase):
             for endpoint in restart_endpoint_list:
                 taosd_setting = copy.deepcopy(self.taosd_setting)
                 self.taosd.update_cfg('/tmp',taosd_setting , {"supportVnodes": self.cfg["boundary"][-1]}, endpoint, True)
-            
+
         # self.tdSql.query('show dnodes')
         # field_list = list(map(lambda x: {x[0]:x[1]}, self.tdSql.query_data))
         # self.restart_dnode_id_list = [2, 3]
@@ -526,10 +553,13 @@ class VnodeRedistribute(TDCase):
         self.get_dnode_id_list()
         self.get_vgid_dnodeid_kv_list()
         self.tmq_schedular = self.tdCom.add_back_ground_scheduler(self.tmq_subcribe, "interval", seconds=self.tmq_schedular_interval, max_instances=1, args=[])
-        self.redistribute_schedular = self.tdCom.add_back_ground_scheduler(self.redistribute_vnode, "interval", seconds=self.scheduler_interval, max_instances=1, args=[])
+        self.redistribute_schedular = self.tdCom.add_back_ground_scheduler(self.redistribute_vnode, "interval", seconds=self.schedular_interval, max_instances=1, args=[])
         self.vgid_info_schedular = self.tdCom.add_back_ground_scheduler(self.get_vgid_info, "interval", seconds=self.query_vgid_interval, max_instances=1, args=[])
+        self.disorder_schedular = self.tdCom.add_back_ground_scheduler(self.disorder_update_delete_data, "interval", seconds=self.disorder_schedular_interval, max_instances=1, args=[])
         self.restart_dnode_schedular = self.tdCom.add_back_ground_scheduler(self.restart_dnodes, "interval", seconds=self.restart_dnode_interval, max_instances=1, args=[])
         self.insert_data()
+        self._remote._logger.info(f"------------ delete ------------")
+        self.tdSql.execute(f'delete from {self.dbname}.{self.stbname} where ts >= {self.disorder_start_timestamp} and ts < {self.fill_history_start_timestamp}')
         self.tdSql.query(f'select count(*) from {self.dbname}.{self.stbname}')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.childtable_count*(self.insert_rows+self.fill_history_rows))
         # initial_res1, initial_res2 = self.get_query_result()
