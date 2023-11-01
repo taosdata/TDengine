@@ -8,10 +8,8 @@ protocol:
   display: 连接协议
   description: 选择使用何种方式连接到 TDengine 数据源。
   required: true
+  value: ws
   choices:
-    - name: --
-      display: 原生连接
-      description: 使用原生 TDengine 连接 （ TDengine 客户端库 ）。
     - name: ws
       display: WS
       description: 使用 HTTP 协议的 WebSocket 连接。
