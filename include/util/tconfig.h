@@ -65,7 +65,6 @@ typedef struct SConfigItem {
   union {
     bool    bval;
     float   fval;
-    double  dval;
     int32_t i32;
     int64_t i64;
     char   *str;
@@ -104,7 +103,6 @@ int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, int8_t scop
 int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, int8_t scope);
 int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval, int8_t scope);
 int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, float minval, float maxval, int8_t scope);
-int32_t cfgAddDouble(SConfig *pCfg, const char *name, double defaultVal, double minval, double maxval, int8_t scope);
 int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope);
 int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope);
 int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope);
