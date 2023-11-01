@@ -74,7 +74,7 @@ const state = {
   currentAgentID:'',
   currentDBType:'',
   currentDSName:'',
-  currentResume: '',
+  currentResume: 'always',
   currentEditID:'',
   agentDialog:false
 };

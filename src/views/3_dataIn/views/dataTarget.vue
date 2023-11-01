@@ -158,7 +158,7 @@ export default {
         type: "",
         agent: "",
         dbName: "",
-        resume: "always",
+        resume: "",
       },
       agentrule: [
         {

@@ -588,8 +588,8 @@ export default {
     metricName: 'Metrics Name',
     metricValue: 'Metrics Value',
     check: 'Connectivity check',
-    resume: 'Resume',
-    resumeTip: '表示任务中断后的调度策略,有以下可选项:'
+    resume: 'Scheduling strategy',
+    resumeTip: "Indicates the scheduling policy after a task is interrupted:\n\n- *never*: Never reschedule。\n- *once*: The taosX service can be started only once after the service is abnormally interrupted and the task status is running|cancelled.\n- *always*: After the taosX service is started, tasks whose task status is running|failed|cancelled|interrupted are always restarted." 
   },
   replication: {
     theTaskWithId: "the task with id {id}",
