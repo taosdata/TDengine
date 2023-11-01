@@ -184,14 +184,13 @@ int32_t streamProcessCheckpointBlock(SStreamTask* pTask, SStreamDataBlock* pBloc
 
   { // todo: remove this when the pipeline checkpoint generating is used.
     SStreamMeta* pMeta = pTask->pMeta;
-    taosWLockLatch(&pMeta->lock);
-    stDebug("vgId:%d meta-wlock", pMeta->vgId);
+    streamMetaWLock(pMeta);
 
     if (pMeta->chkptNotReadyTasks == 0) {
       pMeta->chkptNotReadyTasks = pMeta->numOfStreamTasks;
     }
 
-    taosWUnLockLatch(&pMeta->lock);
+    streamMetaWUnLock(pMeta);
   }
 
   //todo fix race condition: set the status and append checkpoint block
@@ -284,8 +283,7 @@ int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
   int32_t vgId = pMeta->vgId;
   int32_t code = 0;
 
-  taosWLockLatch(&pMeta->lock);
-  stDebug("vgId:%d meta-wlock", pMeta->vgId);
+  streamMetaWLock(pMeta);
 
   for (int32_t i = 0; i < taosArrayGetSize(pMeta->pTaskList); ++i) {
     STaskId* pId = taosArrayGet(pMeta->pTaskList, i);
@@ -310,8 +308,7 @@ int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
     code = streamTaskHandleEvent(p->status.pSM, TASK_EVENT_CHECKPOINT_DONE);
     if (code != TSDB_CODE_SUCCESS) {
       stDebug("s-task:%s vgId:%d save task status failed, since handle event failed", p->id.idStr, vgId);
-      taosWUnLockLatch(&pMeta->lock);
-      stDebug("vgId:%d meta-unlock", pMeta->vgId);
+      streamMetaWUnLock(pMeta);
       return -1;
     } else { // save the task
       streamMetaSaveTask(pMeta, p);
@@ -332,8 +329,7 @@ int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId) {
     stInfo("vgId:%d commit stream meta after do checkpoint, checkpointId:%" PRId64 " DONE", pMeta->vgId, checkpointId);
   }
 
-  taosWUnLockLatch(&pMeta->lock);
-  stDebug("vgId:%d meta-unlock", pMeta->vgId);
+  streamMetaWUnLock(pMeta);
   return code;
 }
 

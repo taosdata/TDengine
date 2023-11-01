@@ -806,6 +806,10 @@ void         streamMetaStartHb(SStreamMeta* pMeta);
 void         streamMetaInitForSnode(SStreamMeta* pMeta);
 bool         streamMetaTaskInTimer(SStreamMeta* pMeta);
 int32_t      streamMetaUpdateTaskReadyInfo(SStreamTask* pTask);
+void         streamMetaRLock(SStreamMeta* pMeta);
+void         streamMetaRUnLock(SStreamMeta* pMeta);
+void         streamMetaWLock(SStreamMeta* pMeta);
+void         streamMetaWUnLock(SStreamMeta* pMeta);
 
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);

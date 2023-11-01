@@ -1020,10 +1020,10 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   int64_t streamId = pTask->id.streamId;
   bool    added = false;
 
-  taosWLockLatch(&pStreamMeta->lock);
+  streamMetaWLock(pStreamMeta);
   code = streamMetaRegisterTask(pStreamMeta, sversion, pTask, &added);
   int32_t numOfTasks = streamMetaGetNumOfTasks(pStreamMeta);
-  taosWUnLockLatch(&pStreamMeta->lock);
+  streamMetaWUnLock(pStreamMeta);
 
   if (code < 0) {
     tqError("failed to add s-task:0x%x into vgId:%d meta, total:%d, code:%s", vgId, taskId, numOfTasks, tstrerror(code));
@@ -1403,14 +1403,14 @@ int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen) {
   streamMetaUnregisterTask(pMeta, pReq->streamId, pReq->taskId);
 
   // commit the update
-  taosWLockLatch(&pMeta->lock);
+  streamMetaWLock(pMeta);
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
   tqDebug("vgId:%d task:0x%x dropped, remain tasks:%d", vgId, pReq->taskId, numOfTasks);
 
   if (streamMetaCommit(pMeta) < 0) {
     // persist to disk
   }
-  taosWUnLockLatch(&pMeta->lock);
+  streamMetaWUnLock(pMeta);
 
   return 0;
 }
@@ -1721,7 +1721,7 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   taosThreadMutexUnlock(&pTask->lock);
 
   int32_t total = 0;
-  taosWLockLatch(&pMeta->lock);
+  streamMetaWLock(pMeta);
 
   // set the initial value for generating check point
   // set the mgmt epset info according to the checkout source msg from mnode, todo update mgmt epset if needed
@@ -1730,7 +1730,7 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   }
 
   total = pMeta->numOfStreamTasks;
-  taosWUnLockLatch(&pMeta->lock);
+  streamMetaWUnLock(pMeta);
 
   qInfo("s-task:%s (vgId:%d) level:%d receive checkpoint-source msg chkpt:%" PRId64 ", total checkpoint reqs:%d",
          pTask->id.idStr, vgId, pTask->info.taskLevel, req.checkpointId, total);
@@ -1801,8 +1801,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   tDecoderClear(&decoder);
 
   // update the nodeEpset when it exists
-  taosWLockLatch(&pMeta->lock);
-  tqDebug("vgId:%d meta-wlock", pMeta->vgId);
+  streamMetaWLock(pMeta);
 
   // the task epset may be updated again and again, when replaying the WAL, the task may be in stop status.
   STaskId id = {.streamId = req.streamId, .taskId = req.taskId};
@@ -1811,8 +1810,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
     tqError("vgId:%d failed to acquire task:0x%x when handling update, it may have been dropped already", pMeta->vgId,
             req.taskId);
     rsp.code = TSDB_CODE_SUCCESS;
-    taosWUnLockLatch(&pMeta->lock);
-    tqDebug("vgId:%d meta-unlock", pMeta->vgId);
+    streamMetaWUnLock(pMeta);
 
     taosArrayDestroy(req.pNodeList);
     return rsp.code;
@@ -1835,22 +1833,19 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
     tqDebug("s-task:%s (vgId:%d) already update in trans:%d, discard the nodeEp update msg", pTask->id.idStr, vgId,
             req.transId);
     rsp.code = TSDB_CODE_SUCCESS;
-    taosWUnLockLatch(&pMeta->lock);
-    tqDebug("vgId:%d meta-unlock", pMeta->vgId);
+    streamMetaWUnLock(pMeta);
     taosArrayDestroy(req.pNodeList);
     return rsp.code;
   }
 
-  taosWUnLockLatch(&pMeta->lock);
-  tqDebug("vgId:%d meta-unlock", pMeta->vgId);
+  streamMetaWUnLock(pMeta);
 
   // the following two functions should not be executed within the scope of meta lock to avoid deadlock
   streamTaskUpdateEpsetInfo(pTask, req.pNodeList);
   streamTaskResetStatus(pTask);
 
   // continue after lock the meta again
-  taosWLockLatch(&pMeta->lock);
-  tqDebug("vgId:%d meta-wlock", pMeta->vgId);
+  streamMetaWLock(pMeta);
 
   SStreamTask** ppHTask = NULL;
   if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
@@ -1900,42 +1895,36 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   if (updateTasks < numOfTasks) {
     tqDebug("vgId:%d closed tasks:%d, unclosed:%d, all tasks will be started when nodeEp update completed", vgId,
             updateTasks, (numOfTasks - updateTasks));
-    taosWUnLockLatch(&pMeta->lock);
-    tqDebug("vgId:%d meta-unlock", pMeta->vgId);
+    streamMetaWUnLock(pMeta);
   } else {
     if (!pTq->pVnode->restored) {
       tqDebug("vgId:%d vnode restore not completed, not restart the tasks, clear the start after nodeUpdate flag", vgId);
       pMeta->startInfo.startAllTasksFlag = 0;
-      taosWUnLockLatch(&pMeta->lock);
-      tqDebug("vgId:%d meta-unlock", pMeta->vgId);
+      streamMetaWUnLock(pMeta);
     } else {
       tqDebug("vgId:%d tasks are all updated and stopped, restart them", vgId);
       terrno = 0;
 
-      taosWUnLockLatch(&pMeta->lock);
-      tqDebug("vgId:%d meta-unlock", pMeta->vgId);
+      streamMetaWUnLock(pMeta);
 
       while (streamMetaTaskInTimer(pMeta)) {
         qDebug("vgId:%d some tasks in timer, wait for 100ms and recheck", pMeta->vgId);
         taosMsleep(100);
       }
 
-      taosWLockLatch(&pMeta->lock);
-      tqDebug("vgId:%d meta-wlock", pMeta->vgId);
+      streamMetaWLock(pMeta);
 
       int32_t code = streamMetaReopen(pMeta);
       if (code != 0) {
         tqError("vgId:%d failed to reopen stream meta", vgId);
-        taosWUnLockLatch(&pMeta->lock);
-        tqDebug("vgId:%d meta-unlock", pMeta->vgId);
+        streamMetaWUnLock(pMeta);
         taosArrayDestroy(req.pNodeList);
         return -1;
       }
 
       if (streamMetaLoadAllTasks(pTq->pStreamMeta) < 0) {
         tqError("vgId:%d failed to load stream tasks", vgId);
-        taosWUnLockLatch(&pMeta->lock);
-        tqDebug("vgId:%d meta-unlock", pMeta->vgId);
+        streamMetaWUnLock(pMeta);
         taosArrayDestroy(req.pNodeList);
         return -1;
       }
@@ -1948,8 +1937,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
         vInfo("vgId:%d, follower node not start stream tasks", vgId);
       }
 
-      taosWUnLockLatch(&pMeta->lock);
-      tqDebug("vgId:%d meta-unlock", pMeta->vgId);
+      streamMetaWUnLock(pMeta);
     }
   }
 

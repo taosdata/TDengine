@@ -38,10 +38,10 @@ int32_t tqScanWal(STQ* pTq) {
     doScanWalForAllTasks(pTq->pStreamMeta, &shouldIdle);
 
     if (shouldIdle) {
-      taosWLockLatch(&pMeta->lock);
+      streamMetaWLock(pMeta);
       int32_t times = (--pMeta->walScanCounter);
       ASSERT(pMeta->walScanCounter >= 0);
-      taosWUnLockLatch(&pMeta->lock);
+      streamMetaWUnLock(pMeta);
 
       if (times <= 0) {
         break;
@@ -69,11 +69,11 @@ int32_t tqStartStreamTask(STQ* pTq) {
   }
 
   SArray* pTaskList = NULL;
-  taosWLockLatch(&pMeta->lock);
+  streamMetaWLock(pMeta);
   pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
   taosHashClear(pMeta->startInfo.pReadyTaskSet);
   pMeta->startInfo.startTs = taosGetTimestampMs();
-  taosWUnLockLatch(&pMeta->lock);
+  streamMetaWUnLock(pMeta);
 
   // broadcast the check downstream tasks msg
   for (int32_t i = 0; i < numOfTasks; ++i) {
@@ -146,12 +146,12 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
     return TSDB_CODE_SUCCESS;
   }
 
-  taosWLockLatch(&pMeta->lock);
+  streamMetaWLock(pMeta);
 
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
   if (numOfTasks == 0) {
     tqDebug("vgId:%d no stream tasks existed to run", vgId);
-    taosWUnLockLatch(&pMeta->lock);
+    streamMetaWUnLock(pMeta);
     return 0;
   }
 
@@ -162,7 +162,7 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
 
   if (pMeta->walScanCounter > 1) {
     tqDebug("vgId:%d wal read task has been launched, remain scan times:%d", vgId, pMeta->walScanCounter);
-    taosWUnLockLatch(&pMeta->lock);
+    streamMetaWUnLock(pMeta);
     return 0;
   }
 
@@ -172,7 +172,7 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
 
     // reset the counter value, since we do not launch the scan wal operation.
     pMeta->walScanCounter = 0;
-    taosWUnLockLatch(&pMeta->lock);
+    streamMetaWUnLock(pMeta);
     return 0;
   }
 
@@ -180,7 +180,7 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
   if (pRunReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tqError("vgId:%d failed to create msg to start wal scanning to launch stream tasks, code:%s", vgId, terrstr());
-    taosWUnLockLatch(&pMeta->lock);
+    streamMetaWUnLock(pMeta);
     return -1;
   }
 
@@ -191,7 +191,7 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
 
   SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
   tmsgPutToQueue(&pTq->pVnode->msgCb, STREAM_QUEUE, &msg);
-  taosWUnLockLatch(&pMeta->lock);
+  streamMetaWUnLock(pMeta);
 
   return 0;
 }
@@ -207,9 +207,9 @@ int32_t tqStopStreamTasks(STQ* pTq) {
   }
 
   SArray* pTaskList = NULL;
-  taosWLockLatch(&pMeta->lock);
+  streamMetaWLock(pMeta);
   pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
-  taosWUnLockLatch(&pMeta->lock);
+  streamMetaWUnLock(pMeta);
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
     SStreamTaskId*   pTaskId = taosArrayGet(pTaskList, i);
@@ -410,9 +410,9 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
 
   // clone the task list, to avoid the task update during scan wal files
   SArray* pTaskList = NULL;
-  taosWLockLatch(&pStreamMeta->lock);
+  streamMetaWLock(pStreamMeta);
   pTaskList = taosArrayDup(pStreamMeta->pTaskList, NULL);
-  taosWUnLockLatch(&pStreamMeta->lock);
+  streamMetaWUnLock(pStreamMeta);
 
   tqDebug("vgId:%d start to check wal to extract new submit block for %d tasks", vgId, numOfTasks);
 
