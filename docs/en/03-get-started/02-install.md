@@ -5,7 +5,7 @@ sidebar_label: Installation
 
 ## Linux Platform
 
-On Linux, TDengine Enteprise can be installed with a single package named like  `TDengine-Enterprise-<version>-<OS>-<platform>.tar.gz` (for example `TDengine-server-3.1.0.3-Linux-x64.tar.gz`)
+On Linux, TDengine Enteprise can be installed with a single package named like  `TDengine-enterprise-<version>-<OS>-<platform>.tar.gz` (for example `TDengine-enterprise-3.1.0.3-Linux-x64.tar.gz`)
 
 The TDengine-Enterprise package includes the following components: 
 - `taosd`: the TDengine core
@@ -23,11 +23,14 @@ The steps are as below:
 1. Obtain the TDengine Server installation package.
 2. In the directory where the package is located, use `tar` to decompress the package.
 3. Run the `install.sh` script to install TDengine.
+4. The default installation localtio is /usr/local/taos
+5. start-all.sh can be used to start all services required by TDengine Enterprise on local machine
+6. Corresponding, stop-all.sh can be used to stop all services started by start-all.sh
 
 For example: Note: Replace <version\> with your version of TDengine.
 
 ```bash
-tar -zxvf TDengine-server-<version>-Linux-x64.tar.gz
+tar -zxvf TDengine-enterprise-<version>-Linux-x64.tar.gz
 ```
 
 Run the `install.sh` script to install TDengine.

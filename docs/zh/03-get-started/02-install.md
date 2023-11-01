@@ -6,9 +6,9 @@ sidebar_label: 安装与配置
 ## Linux 平台
 
 TDengine Enterprise 的安装包是一个包含了 TDengine Enterprise 所有核心组件的 all in one 安装包，其命名方式如下：
-- `TDengine-Enterprise-<version>-<OS>-<platform>.tar.gz`，例如 `TDengine-Enterprise-3.1.0.3-Linux-x64.tar.gz`
+- `TDengine-enterprise-<version>-<OS>-<platform>.tar.gz`，例如 `TDengine-enterprise-3.1.0.3-Linux-x64.tar.gz`
 
-TDengine-Enterprise 安装包中主要包含： 
+TDengine Enterprise 安装包中主要包含： 
 - `taosd`: 数据库服务端核心组件
 - `taosAdapter`：提供 RESTful 接入与 Websocket 连接的代理服务
 - `taosKeeper`:  taosd 上报数据的代理服务
@@ -21,9 +21,12 @@ TDengine-Enterprise 安装包中主要包含：
 
 TDengine Enterprise 安装包目前仅支持 Linux 系统。
 
-1. 获取 TDengine serveEnterprise 安装包
+1. 获取 TDengine Enterprise 安装包
 2. 进入到安装包所在目录，使用 `tar` 解压安装包；
 3. 进入到安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本。
+4. 默认安装路径为 /usr/local/taos
+5. start-all.sh 可以快速在本机启动所有必要的服务
+6. stop-all.sh 可以快速停止本机上所有与 TDengine Enterprise 有关的服务
 
 示例： 请将 `<version>` 替换为下载的安装包版本
 
