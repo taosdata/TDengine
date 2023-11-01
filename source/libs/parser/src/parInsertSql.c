@@ -1629,10 +1629,12 @@ static int32_t processCtbTagsAfterCtbName(SInsertParseContext* pCxt, SVnodeModif
 }
 
 static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, const char* const* ppSql,
-                                 SStbRowsDataContext* pStbRowsCxt, SToken* pToken, const SBoundColInfo* pCols,
-                                 const SSchema* pSchemas, SArray* pTagNames, SArray* pTagVals, SToken* tagTokens,
-                                 SSchema** tagSchemas, int* pNumOfTagTokens, bool* bFoundTbName) {
+                                 SStbRowsDataContext* pStbRowsCxt, SToken* pToken,
+                                 const SBoundColInfo* pCols, const SSchema* pSchemas,
+                                 SToken* tagTokens, SSchema** tagSchemas, int* pNumOfTagTokens, bool* bFoundTbName) {
   int32_t code = TSDB_CODE_SUCCESS;
+  SArray*  pTagNames = pStbRowsCxt->aTagNames;
+  SArray*  pTagVals = pStbRowsCxt->aTagVals;
   bool canParseTagsAfter = !pStbRowsCxt->pTagCond && !pStbRowsCxt->hasTimestampTag;
   for (int i = 0; i < pCols->numOfBound && (code) == TSDB_CODE_SUCCESS; ++i) {
     const char* pTmpSql = *ppSql;
@@ -1686,9 +1688,6 @@ static int32_t getStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   SBoundColInfo* pCols = &pStbRowsCxt->boundColsInfo;
   SSchema*       pSchemas = getTableColumnSchema(pStbRowsCxt->pStbMeta);
 
-  SArray*  pTagNames = pStbRowsCxt->aTagNames;
-  SArray*  pTagVals = pStbRowsCxt->aTagVals;
-
   bool bFoundTbName = false;
   const char* pOrigSql = *ppSql;
 
@@ -1697,8 +1696,9 @@ static int32_t getStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   SSchema* tagSchemas[TSDB_MAX_TAGS] = {0};
   int numOfTagTokens = 0;
 
-  code = doGetStbRowValues(pCxt, pStmt, ppSql, pStbRowsCxt, pToken, pCols, pSchemas, pTagNames, pTagVals, tagTokens,
+  code = doGetStbRowValues(pCxt, pStmt, ppSql, pStbRowsCxt, pToken, pCols, pSchemas, tagTokens,
                     tagSchemas, &numOfTagTokens, &bFoundTbName);
+
   if (code == TSDB_CODE_SUCCESS && !bFoundTbName) {
     code = buildSyntaxErrMsg(&pCxt->msg, "tbname value expected", pOrigSql);
   }
