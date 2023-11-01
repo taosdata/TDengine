@@ -104,13 +104,21 @@ uint16_t tsAuditPort = 6043;
 bool     tsEnableAuditCreateTable = true;
 
 // telem
+#ifdef TD_ENTERPRISE
+bool     tsEnableTelem = false;
+#else
 bool     tsEnableTelem = true;
+#endif
 int32_t  tsTelemInterval = 43200;
 char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.tdengine.com";
 uint16_t tsTelemPort = 80;
 char    *tsTelemUri = "/report";
 
+#ifdef TD_ENTERPRISE
+bool  tsEnableCrashReport = false;
+#else
 bool  tsEnableCrashReport = true;
+#endif
 char *tsClientCrashReportUri = "/ccrashreport";
 char *tsSvrCrashReportUri = "/dcrashreport";
 
@@ -246,7 +254,8 @@ int32_t tsTtlBatchDropNum = 10000;   // number of tables dropped per batch
 // internal
 int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
-int32_t tsStreamCheckpointTickInterval = 300;
+int32_t tsStreamCheckpointInterval = 60;
+float   tsSinkDataRate = 2.0;
 int32_t tsStreamNodeCheckInterval = 30;
 int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushIntervalSec = 10;
@@ -274,8 +283,6 @@ char   tsS3Hostname[TSDB_FQDN_LEN] = "<hostname>";
 int32_t tsS3BlockSize = 4096;     // number of tsdb pages
 int32_t tsS3BlockCacheSize = 16;  // number of blocks
 int32_t tsS3UploadDelaySec = 60 * 60;
-
-int32_t tsCheckpointInterval = 300;
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -506,11 +513,11 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "enableCoreFile", 1, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddFloat(pCfg, "numOfCores", tsNumOfCores, 1, 100000, CFG_SCOPE_BOTH) != 0) return -1;
 
-  if (cfgAddBool(pCfg, "SSE42", tsSSE42Enable, CFG_SCOPE_BOTH) != 0) return -1;
-  if (cfgAddBool(pCfg, "AVX", tsAVXEnable, CFG_SCOPE_BOTH) != 0) return -1;
-  if (cfgAddBool(pCfg, "AVX2", tsAVX2Enable, CFG_SCOPE_BOTH) != 0) return -1;
-  if (cfgAddBool(pCfg, "FMA", tsFMAEnable, CFG_SCOPE_BOTH) != 0) return -1;
-  if (cfgAddBool(pCfg, "SIMD-builtins", tsSIMDBuiltins, CFG_SCOPE_BOTH) != 0) return -1;
+  if (cfgAddBool(pCfg, "ssd42", tsSSE42Enable, CFG_SCOPE_BOTH) != 0) return -1;
+  if (cfgAddBool(pCfg, "avx", tsAVXEnable, CFG_SCOPE_BOTH) != 0) return -1;
+  if (cfgAddBool(pCfg, "avx2", tsAVX2Enable, CFG_SCOPE_BOTH) != 0) return -1;
+  if (cfgAddBool(pCfg, "fma", tsFMAEnable, CFG_SCOPE_BOTH) != 0) return -1;
+  if (cfgAddBool(pCfg, "simdEnable", tsSIMDBuiltins, CFG_SCOPE_BOTH) != 0) return -1;
   if (cfgAddBool(pCfg, "tagFilterCache", tsTagFilterCache, CFG_SCOPE_BOTH) != 0) return -1;
 
   if (cfgAddInt64(pCfg, "openMax", tsOpenMax, 0, INT64_MAX, CFG_SCOPE_BOTH) != 0) return -1;
@@ -667,19 +674,18 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddBool(pCfg, "disableStream", tsDisableStream, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt64(pCfg, "streamBufferSize", tsStreamBufferSize, 0, INT64_MAX, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddInt64(pCfg, "checkpointInterval", tsStreamCheckpointTickInterval, 60, 1200, CFG_SCOPE_SERVER) != 0)
-    return -1;
+  if (cfgAddInt64(pCfg, "checkpointInterval", tsStreamCheckpointInterval, 60, 1200, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddFloat(pCfg, "streamSinkDataRate", tsSinkDataRate, 0.1, 5, CFG_SCOPE_SERVER) != 0) return -1;
 
-  if (cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, CFG_SCOPE_SERVER) != 0)
-    return -1;
+  if (cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, CFG_SCOPE_SERVER) != 0) return -1;
 
-  if (cfgAddString(pCfg, "LossyColumns", tsLossyColumns, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddFloat(pCfg, "FPrecision", tsFPrecision, 0.0f, 100000.0f, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddDouble(pCfg, "DPrecision", tsDPrecision, 0.0f, 1000000.0f, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddInt32(pCfg, "MaxRange", tsMaxRange, 0, 65536, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddInt32(pCfg, "CurRange", tsCurRange, 0, 65536, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddBool(pCfg, "IfAdtFse", tsIfAdtFse, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddString(pCfg, "Compressor", tsCompressor, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddString(pCfg, "lossyColumns", tsLossyColumns, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddFloat(pCfg, "fPrecision", tsFPrecision, 0.0f, 100000.0f, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddFloat(pCfg, "dPrecision", tsDPrecision, 0.0f, 1000000.0f, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxRange", tsMaxRange, 0, 65536, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "curRange", tsCurRange, 0, 65536, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddBool(pCfg, "ifAdtFse", tsIfAdtFse, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddString(pCfg, "compressor", tsCompressor, CFG_SCOPE_SERVER) != 0) return -1;
 
   if (cfgAddBool(pCfg, "filterScalarMode", tsFilterScalarMode, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxStreamBackendCache", tsMaxStreamBackendCache, 16, 1024, CFG_SCOPE_SERVER) != 0) return -1;
@@ -1044,7 +1050,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsNumOfSnodeWriteThreads = cfgGetItem(pCfg, "numOfSnodeUniqueThreads")->i32;
   tsRpcQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64;
 
-  tsSIMDBuiltins = (bool)cfgGetItem(pCfg, "SIMD-builtins")->bval;
+  tsSIMDBuiltins = (bool)cfgGetItem(pCfg, "simdEnable")->bval;
   tsTagFilterCache = (bool)cfgGetItem(pCfg, "tagFilterCache")->bval;
 
   tsEnableMonitor = cfgGetItem(pCfg, "monitor")->bval;
@@ -1103,16 +1109,18 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsCacheLazyLoadThreshold = cfgGetItem(pCfg, "cacheLazyLoadThreshold")->i32;
 
-  tstrncpy(tsLossyColumns, cfgGetItem(pCfg, "LossyColumns")->str, sizeof(tsLossyColumns));
-  tsFPrecision = cfgGetItem(pCfg, "FPrecision")->fval;
-  tsDPrecision = cfgGetItem(pCfg, "DPrecision")->dval;
-  tsMaxRange = cfgGetItem(pCfg, "MaxRange")->i32;
-  tsCurRange = cfgGetItem(pCfg, "CurRange")->i32;
-  tsIfAdtFse = cfgGetItem(pCfg, "IfAdtFse")->bval;
-  tstrncpy(tsCompressor, cfgGetItem(pCfg, "Compressor")->str, sizeof(tsCompressor));
+  tstrncpy(tsLossyColumns, cfgGetItem(pCfg, "lossyColumns")->str, sizeof(tsLossyColumns));
+  tsFPrecision = cfgGetItem(pCfg, "fPrecision")->fval;
+  tsDPrecision = cfgGetItem(pCfg, "dPrecision")->fval;
+  tsMaxRange = cfgGetItem(pCfg, "maxRange")->i32;
+  tsCurRange = cfgGetItem(pCfg, "curRange")->i32;
+  tsIfAdtFse = cfgGetItem(pCfg, "ifAdtFse")->bval;
+  tstrncpy(tsCompressor, cfgGetItem(pCfg, "compressor")->str, sizeof(tsCompressor));
 
   tsDisableStream = cfgGetItem(pCfg, "disableStream")->bval;
   tsStreamBufferSize = cfgGetItem(pCfg, "streamBufferSize")->i64;
+  tsStreamCheckpointInterval = cfgGetItem(pCfg, "checkpointInterval")->i32;
+  tsSinkDataRate = cfgGetItem(pCfg, "streamSinkDataRate")->fval;
 
   tsFilterScalarMode = cfgGetItem(pCfg, "filterScalarMode")->bval;
   tsMaxStreamBackendCache = cfgGetItem(pCfg, "maxStreamBackendCache")->i32;

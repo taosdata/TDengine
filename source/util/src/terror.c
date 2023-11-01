@@ -259,6 +259,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DNODE_ID,         "Invalid dnode id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_UN_CHANGED,        "Vgroup distribution has not changed")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_HAS_OFFLINE_DNODE,        "Offline dnode exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_REPLICA,          "Invalid vgroup replica")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_ENOUGH_VNODES,         "Vnodes exhausted")
 
 // mnode-stable-part2
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NAME_CONFLICT_WITH_TOPIC, "STable confilct with topic")
@@ -518,6 +519,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_PORT,              "Port should be an in
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_ENDPOINT,          "Endpoint should be in the format of 'fqdn:port'")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_EXPRIE_STATEMENT,          "This statement is no longer supported")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL,     "Interval too small")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTER_VALUE_TOO_BIG,       "Interval too big")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_DB_NOT_SPECIFIED,          "Database not specified")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,   "Invalid identifier name")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_CORRESPONDING_STABLE_ERR,  "Corresponding super table not in this db")
@@ -552,7 +554,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TOO_MANY_COLUMNS,           "Too many columns")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_FIRST_COLUMN,       "First column must be timestamp")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN,     "Invalid varbinary/binary/nchar column/tag length")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TAGS_NUM,           "Invalid number of tag columns")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PERMISSION_DENIED,          "Permission denied")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PERMISSION_DENIED,          "Permission denied or target object not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_STREAM_QUERY,       "Invalid stream query")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_INTERNAL_PK,        "Invalid _c0 or _rowts expression")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TIMELINE_FUNC,      "Invalid timeline function")
@@ -602,6 +604,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_TYPE,        "Invalid function par
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_VALUE,       "Invalid function para value")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION,      "Not buildin function")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_DUP_TIMESTAMP,            "Duplicate timestamps not allowed in function")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED,      "Func to_timestamp failed, check log for detail")
 
 //udf
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_STOPPING,                   "udf is stopping")

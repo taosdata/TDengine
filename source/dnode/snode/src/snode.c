@@ -92,11 +92,13 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer
     }
   }
 
-  qInfo("snode:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64 " nextProcessVer:%" PRId64
-         " child id:%d, level:%d, status:%s fill-history:%d, trigger:%" PRId64 " ms",
+  char* p = NULL;
+  streamTaskGetStatus(pTask, &p);
+
+  qInfo("snode:%d expand stream task, s-task:%s, checkpointId:%" PRId64 " checkpointVer:%" PRId64
+        " nextProcessVer:%" PRId64 " child id:%d, level:%d, status:%s fill-history:%d, trigger:%" PRId64 " ms",
         SNODE_HANDLE, pTask->id.idStr, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
-         pTask->info.selfChildId, pTask->info.taskLevel, streamGetTaskStatusStr(pTask->status.taskStatus),
-         pTask->info.fillHistory, pTask->info.triggerParam);
+        pTask->info.selfChildId, pTask->info.taskLevel, p, pTask->info.fillHistory, pTask->info.triggerParam);
 
   return 0;
 }
@@ -174,9 +176,15 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
 
   int32_t numOfTasks = streamMetaGetNumOfTasks(pSnode->pMeta);
   taosWUnLockLatch(&pSnode->pMeta->lock);
-  qDebug("snode:%d s-task:%s is deployed on snode and add into meta, status:%s, numOfTasks:%d", SNODE_HANDLE, pTask->id.idStr,
-         streamGetTaskStatusStr(pTask->status.taskStatus), numOfTasks);
 
+  char* p = NULL;
+  streamTaskGetStatus(pTask, &p);
+
+  qDebug("snode:%d s-task:%s is deployed on snode and add into meta, status:%s, numOfTasks:%d", SNODE_HANDLE,
+         pTask->id.idStr, p, numOfTasks);
+
+  EStreamTaskEvent event = (HAS_RELATED_FILLHISTORY_TASK(pTask)) ? TASK_EVENT_INIT_STREAM_SCANHIST : TASK_EVENT_INIT;
+  streamTaskHandleEvent(pTask->status.pSM, event);
   streamTaskCheckDownstream(pTask);
   return 0;
 }
@@ -352,10 +360,10 @@ int32_t sndProcessStreamTaskCheckReq(SSnode *pSnode, SRpcMsg *pMsg) {
   if (pTask != NULL) {
     rsp.status = streamTaskCheckStatus(pTask, req.upstreamTaskId, req.upstreamNodeId, req.stage);
     streamMetaReleaseTask(pSnode->pMeta, pTask);
-
-    const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
+    char* p = NULL;
+    streamTaskGetStatus(pTask, &p);
     qDebug("s-task:%s status:%s, recv task check req(reqId:0x%" PRIx64 ") task:0x%x (vgId:%d), ready:%d",
-            pTask->id.idStr, pStatus, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
+            pTask->id.idStr, p, rsp.reqId, rsp.upstreamTaskId, rsp.upstreamNodeId, rsp.status);
   } else {
     rsp.status = TASK_DOWNSTREAM_NOT_READY;
     qDebug("recv task check(taskId:0x%x not built yet) req(reqId:0x%" PRIx64 ") from task:0x%x (vgId:%d), rsp status %d",

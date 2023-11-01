@@ -62,14 +62,14 @@ static void streamSchedByTimer(void* param, void* tmrId) {
   int32_t      nextTrigger = (int32_t)pTask->info.triggerParam;
 
   int8_t status = atomic_load_8(&pTask->schedInfo.status);
-  stDebug("s-task:%s in scheduler, trigger status:%d, next:%dms", id, status, nextTrigger);
+  stTrace("s-task:%s in scheduler, trigger status:%d, next:%dms", id, status, nextTrigger);
 
-  if (streamTaskShouldStop(&pTask->status) || streamTaskShouldPause(&pTask->status)) {
+  if (streamTaskShouldStop(pTask) || streamTaskShouldPause(pTask)) {
     stDebug("s-task:%s jump out of schedTimer", id);
     return;
   }
 
-  if (pTask->status.taskStatus == TASK_STATUS__CK) {
+  if (streamTaskGetStatus(pTask, NULL) == TASK_STATUS__CK) {
     stDebug("s-task:%s in checkpoint procedure, not retrieve result, next:%dms", id, nextTrigger);
   } else {
     if (status == TASK_TRIGGER_STATUS__ACTIVE) {
@@ -127,7 +127,7 @@ int32_t streamSchedExec(SStreamTask* pTask) {
     SStreamTaskRunReq* pRunReq = rpcMallocCont(sizeof(SStreamTaskRunReq));
     if (pRunReq == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
-      /*int8_t status = */streamTaskSetSchedStatusInActive(pTask);
+      /*int8_t status = */streamTaskSetSchedStatusInactive(pTask);
       stError("failed to create msg to aunch s-task:%s, reason out of memory", pTask->id.idStr);
       return -1;
     }
@@ -267,8 +267,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   }
 
   // disable the data from upstream tasks
-  int8_t st = pTask->status.taskStatus;
-  if (st == TASK_STATUS__HALT) {
+  if (streamTaskGetStatus(pTask, NULL) == TASK_STATUS__HALT) {
     status = TASK_INPUT_STATUS__BLOCKED;
   }
 
@@ -297,7 +296,7 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq, S
   return 0;
 }
 
-void streamTaskInputFail(SStreamTask* pTask) { atomic_store_8(&pTask->inputInfo.status, TASK_INPUT_STATUS__FAILED); }
+void streamTaskInputFail(SStreamTask* pTask) { atomic_store_8(&pTask->inputq.status, TASK_INPUT_STATUS__FAILED); }
 
 void streamTaskOpenAllUpstreamInput(SStreamTask* pTask) {
   int32_t num = taosArrayGetSize(pTask->upstreamInfo.pList);

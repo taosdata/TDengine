@@ -309,7 +309,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader *pReader, _query_reseek_func_t reseek, STs
 void    tsdbUntakeReadSnap2(STsdbReader *pReader, STsdbReadSnap *pSnap, bool proactive);
 
 // tsdbMerge.c ==============================================================================================
-int32_t tsdbMerge(void *arg);
+int32_t tsdbSchedMerge(STsdb *tsdb, int32_t fid);
 
 // tsdbDiskData ==============================================================================================
 int32_t tDiskDataBuilderCreate(SDiskDataBuilder **ppBuilder);
@@ -371,7 +371,7 @@ struct STsdb {
   char                *path;
   SVnode              *pVnode;
   STsdbKeepCfg         keepCfg;
-  TdThreadRwlock       rwLock;
+  TdThreadMutex        mutex;
   SMemTable           *mem;
   SMemTable           *imem;
   STsdbFS              fs;  // old
@@ -670,8 +670,8 @@ struct SDelFWriter {
 };
 
 #include "tarray2.h"
-//#include "tsdbFS2.h"
-// struct STFileSet;
+// #include "tsdbFS2.h"
+//  struct STFileSet;
 typedef struct STFileSet STFileSet;
 typedef TARRAY2(STFileSet *) TFileSetArray;
 

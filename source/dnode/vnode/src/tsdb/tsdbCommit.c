@@ -131,7 +131,7 @@ int32_t tsdbBegin(STsdb *pTsdb) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // lock
-  if ((code = taosThreadRwlockWrlock(&pTsdb->rwLock))) {
+  if ((code = taosThreadMutexLock(&pTsdb->mutex))) {
     code = TAOS_SYSTEM_ERROR(code);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -139,7 +139,7 @@ int32_t tsdbBegin(STsdb *pTsdb) {
   pTsdb->mem = pMemTable;
 
   // unlock
-  if ((code = taosThreadRwlockUnlock(&pTsdb->rwLock))) {
+  if ((code = taosThreadMutexUnlock(&pTsdb->mutex))) {
     code = TAOS_SYSTEM_ERROR(code);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -152,11 +152,11 @@ _exit:
 }
 
 int32_t tsdbPrepareCommit(STsdb *pTsdb) {
-  taosThreadRwlockWrlock(&pTsdb->rwLock);
+  taosThreadMutexLock(&pTsdb->mutex);
   ASSERT(pTsdb->imem == NULL);
   pTsdb->imem = pTsdb->mem;
   pTsdb->mem = NULL;
-  taosThreadRwlockUnlock(&pTsdb->rwLock);
+  taosThreadMutexUnlock(&pTsdb->mutex);
 
   return 0;
 }
@@ -171,9 +171,9 @@ int32_t tsdbCommit(STsdb *pTsdb, SCommitInfo *pInfo) {
 
   // check
   if (pMemTable->nRow == 0 && pMemTable->nDel == 0) {
-    taosThreadRwlockWrlock(&pTsdb->rwLock);
+    taosThreadMutexLock(&pTsdb->mutex);
     pTsdb->imem = NULL;
-    taosThreadRwlockUnlock(&pTsdb->rwLock);
+    taosThreadMutexUnlock(&pTsdb->mutex);
 
     tsdbUnrefMemTable(pMemTable, NULL, true);
     goto _exit;
@@ -501,6 +501,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   int32_t    lino = 0;
   STsdb     *pTsdb = pCommitter->pTsdb;
   SDFileSet *pRSet = NULL;
+
   // memory
   pCommitter->commitFid = tsdbKeyFid(pCommitter->nextKey, pCommitter->minutes, pCommitter->precision);
   pCommitter->expLevel = tsdbFidLevel(pCommitter->commitFid, &pCommitter->pTsdb->keepCfg, taosGetTimestampSec());
@@ -798,6 +799,7 @@ static int32_t tsdbCommitFileData(SCommitter *pCommitter) {
   int32_t    lino = 0;
   STsdb     *pTsdb = pCommitter->pTsdb;
   SMemTable *pMemTable = pTsdb->imem;
+
   // commit file data start
   code = tsdbCommitFileDataStart(pCommitter);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -1650,18 +1652,18 @@ int32_t tsdbFinishCommit(STsdb *pTsdb) {
   SMemTable *pMemTable = pTsdb->imem;
 
   // lock
-  taosThreadRwlockWrlock(&pTsdb->rwLock);
+  taosThreadMutexLock(&pTsdb->mutex);
 
   code = tsdbFSCommit(pTsdb);
   if (code) {
-    taosThreadRwlockUnlock(&pTsdb->rwLock);
+    taosThreadMutexUnlock(&pTsdb->mutex);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   pTsdb->imem = NULL;
 
   // unlock
-  taosThreadRwlockUnlock(&pTsdb->rwLock);
+  taosThreadMutexUnlock(&pTsdb->mutex);
   if (pMemTable) {
     tsdbUnrefMemTable(pMemTable, NULL, true);
   }

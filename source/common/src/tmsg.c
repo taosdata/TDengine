@@ -8405,7 +8405,7 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
       } else {
         tDestroySVCreateTbReq(pTbData->pCreateTbReq, TSDB_MSG_FLG_DECODE);
       }
-      taosMemoryFree(pTbData->pCreateTbReq);
+      taosMemoryFreeClear(pTbData->pCreateTbReq);
     }
 
     if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
