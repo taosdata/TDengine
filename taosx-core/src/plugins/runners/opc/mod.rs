@@ -1562,7 +1562,7 @@ mod tests {
 
     #[ignore]
     #[tokio::test]
-    async fn test_is_valid() {
+    async fn test_opc_ua_valid() {
         env::set_var("PLUGINS_HOME", "../plugins");
 
         let dsn = Dsn::from_str("opcua://192.168.2.16:53530/OPCUA/SimulationServer").unwrap();
@@ -1570,6 +1570,20 @@ mod tests {
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
         assert_eq!("opc", dsv.data_source);
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_opc_da_valid() {
+        env::set_var("PLUGINS_HOME", "../plugins");
+
+        let dsn = Dsn::from_str("opcda://192.168.2.16").unwrap();
+        let dsv = is_valid(&dsn).await;
+        dbg!(dsv);
+        // assert_eq!(true, dsv.valid);
+        // assert_eq!(true, dsv.support);
+        // assert_eq!("opc", dsv.data_source);
+        // assert_eq!("2.4.0", dsv.version.unwrap());
     }
 
     #[tokio::test]

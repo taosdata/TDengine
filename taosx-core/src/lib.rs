@@ -9,7 +9,7 @@ use dashmap::DashMap;
 use serde::Deserialize;
 use serde_with::serde_as;
 use taos::taos_query::tmq::Assignment;
-use taos::{AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
+use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
@@ -22,19 +22,16 @@ pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::{tmq_offsets, tmq_to_td};
 pub use transform::Action;
 use utils::port_pool::PortPool;
-
-use crate::tmq::check_tmq_dsn;
 use crate::tmq_to_kafka::clean_task;
 pub use crate::tmq_to_kafka::tmq_to_kafka;
-use crate::validation::DataSourceValidation;
 
 mod csv;
 mod fake;
 mod legacy;
 mod local_to_taos;
 mod parquets;
-mod taoz;
-mod tmq;
+pub mod taoz;
+pub mod tmq;
 mod tmq_to_local;
 mod tmq_to_td;
 pub mod types;
@@ -453,126 +450,8 @@ impl TaskOpts {
     }
 }
 
-pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
-    let dsn = dsn.into_dsn();
-    match dsn {
-        Err(err) => {
-            DataSourceValidation::invalid("unknown".to_string(), format!("DSN error: {err:#}"))
-        }
-        Ok(d) => {
-            match d.driver.as_str() {
-                // TODO: clickhouse
-                "historian" => runners::historian::is_valid(&d).await,
-                "influxdb" => runners::influxdb::is_valid(&d).await,
-                "kafka" => runners::kafka::is_valid(&d).await,
-                "mqtt" => runners::mqtt::is_valid(&d).await,
-                "opc" | "opcda" | "opcua" => runners::opc::is_valid(&d).await, //TODO
-                "opentsdb" => runners::opentsdb::is_valid(&d).await,
-                "pi" => runners::pi::is_pi_valid(&d).await,
-                "pibackfill" => runners::pi::is_pi_backfill_valid(&d).await,
-                "taos" => is_taos_valid(&d).await,
-                "tmq" => is_tmq_valid(&d).await,
-                &_ => DataSourceValidation::unknown(),
-            }
-        }
-    }
-}
-
-pub async fn is_taos_valid(dsn: &Dsn) -> DataSourceValidation {
-    let builder = TaosBuilder::from_dsn(dsn);
-    match builder {
-        Err(err) => DataSourceValidation::invalid(
-            "taos".to_string(),
-            format!(
-                "invalid dsn: {}, cause: {}",
-                dsn.to_string(),
-                err.to_string()
-            ),
-        ),
-        Ok(b) => {
-            let conn = b.build().await;
-            match conn {
-                Err(err) => DataSourceValidation::invalid(
-                    "taos".to_string(),
-                    format!(
-                        "failed to connect to dsn: {}, cause: {}",
-                        dsn.to_string(),
-                        err.to_string()
-                    ),
-                ),
-                Ok(c) => {
-                    let version = c.server_version().await;
-                    match version {
-                        Err(err) => DataSourceValidation::invalid(
-                            "taos".to_string(),
-                            format!(
-                                "failed to get server version from dsn: {}, cause: {}",
-                                dsn.to_string(),
-                                err.to_string()
-                            ),
-                        ),
-                        Ok(v) => DataSourceValidation {
-                            valid: true,
-                            support: true,
-                            data_source: "taos".to_string(),
-                            version: Some(v.to_string()),
-                            message: None,
-                        },
-                    }
-                }
-            }
-        }
-    }
-}
-
-pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
-    let mut dsn = dsn.clone();
-    if dsn.subject.is_none() {
-        return DataSourceValidation::invalid(
-            "tmq".to_string(),
-            format!(
-                "invalid dsn: {}, cause: subject is required in tmq dsn",
-                dsn.to_string()
-            ),
-        );
-    }
-    if !dsn.params.contains_key("group.id") {
-        dsn.params
-            .insert("group.id".to_string(), "test_tmq_is_valid".to_string());
-    }
-
-    let validation = check_tmq_dsn(dsn.clone()).await;
-    match validation {
-        Err(err) => DataSourceValidation::invalid(
-            "tmq".to_string(),
-            format!(
-                "failed to check dsn: {}, cause: {}",
-                dsn.to_string(),
-                err.to_string()
-            ),
-        ),
-        Ok((_dsn, builder, _topics)) => {
-            let version = builder.server_version().await;
-            match version {
-                Err(err) => DataSourceValidation::invalid(
-                    "tmq".to_string(),
-                    format!("failed to get server version, cause: {}", err.to_string()),
-                ),
-                Ok(version) => DataSourceValidation {
-                    valid: true,
-                    support: true,
-                    data_source: "tmq".to_string(),
-                    version: Some(version.to_string()),
-                    message: None,
-                },
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use std::env;
     use std::str::FromStr;
     use taos::Dsn;
 
@@ -587,161 +466,5 @@ mod tests {
         let dsn = Dsn::from_str("opentsdb://?param1=abc&param2=123").unwrap();
         let dsn = TaskOpts::append_breakpoints_in_dsn(&None, &dsn);
         assert_eq!(None, dsn.params.get("breakpoints"));
-    }
-
-    #[ignore]
-    #[tokio::test]
-    async fn test_historian_valid() {
-        // historian
-        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433").unwrap();
-        let dsv = validate_dsn(dsn).await;
-        assert_eq!(true, dsv.valid);
-        assert_eq!(true, dsv.support);
-        assert_eq!("historian", dsv.data_source);
-        assert_eq!(None, dsv.version);
-    }
-
-    #[ignore]
-    #[tokio::test]
-    async fn test_influxdb_valid() {
-        env::set_var("PLUGINS_HOME", "../plugins");
-        // influxdb
-        let dsn = Dsn::from_str("influxdb://192.168.1.107:8086/?version=2.7&orgId=f3af42a3895a5e33&token=wido5N7w7PutOEuVtoEe5kxjkov5XZm1Uxqe1bEKKBSN4_4XjQfg0hc9BNGDR7xiMs3BaNtHsWjKCvGWMn8fDA==").unwrap();
-        let dsv = validate_dsn(dsn).await;
-        assert_eq!(true, dsv.valid);
-        assert_eq!(true, dsv.support);
-        assert_eq!("influxdb", dsv.data_source);
-        assert_eq!("OSS v2.7.1", dsv.version.unwrap());
-    }
-
-    #[ignore]
-    #[tokio::test]
-    async fn test_kafka_valid() {
-        // kafka
-        let dsn = Dsn::from_str("kafka://192.168.1.92:9092").unwrap();
-        let dsv = validate_dsn(dsn).await;
-        assert_eq!(true, dsv.valid);
-        assert_eq!(true, dsv.support);
-        assert_eq!("kafka", dsv.data_source);
-        assert_eq!(None, dsv.version);
-    }
-
-    #[ignore]
-    #[tokio::test]
-    async fn test_mqtt_valid() {
-        env::set_var("PLUGINS_HOME", "../plugins");
-        //mqtt
-        let dsn = Dsn::from_str("mqtt://192.168.1.42:1883?version=3.0").unwrap();
-        let dsv = validate_dsn(dsn).await;
-        assert_eq!(true, dsv.valid);
-        assert_eq!(true, dsv.support);
-        assert_eq!("mqtt", dsv.data_source);
-        assert_eq!(None, dsv.version);
-    }
-
-    #[ignore]
-    #[tokio::test]
-    async fn test_opc_da_valid() {
-        env::set_var("PLUGINS_HOME", "../plugins");
-        // opentsdb
-        let dsn = Dsn::from_str("opcda://192.168.2.16").unwrap();
-        let dsv = validate_dsn(dsn).await;
-        dbg!(dsv);
-        // assert_eq!(true, dsv.valid);
-        // assert_eq!(true, dsv.support);
-        // assert_eq!("opc", dsv.data_source);
-        // assert_eq!("2.4.0", dsv.version.unwrap());
-    }
-
-    #[ignore]
-    #[tokio::test]
-    async fn test_opentsdb_valid() {
-        env::set_var("PLUGINS_HOME", "../plugins");
-        // opentsdb
-        let dsn = Dsn::from_str("opentsdb://192.168.2.12:4242").unwrap();
-        let dsv = validate_dsn(dsn).await;
-        assert_eq!(true, dsv.valid);
-        assert_eq!(true, dsv.support);
-        assert_eq!("opentsdb", dsv.data_source);
-        assert_eq!("2.4.0", dsv.version.unwrap());
-    }
-
-    #[ignore]
-    #[tokio::test]
-    async fn test_pi_valid() {
-        // pi
-        let dsn = Dsn::from_str("pi://").unwrap();
-        let dsv = validate_dsn(dsn).await;
-        assert_eq!(true, dsv.valid);
-        assert_eq!(true, dsv.support);
-        assert_eq!("pi", dsv.data_source);
-        assert_eq!("", dsv.version.unwrap());
-    }
-
-    #[ignore]
-    #[tokio::test]
-    async fn test_pi_backfill_valid() {
-        // pi-backfill
-        let dsn = Dsn::from_str("pibackfill://").unwrap();
-        let dsv = validate_dsn(dsn).await;
-        assert_eq!(true, dsv.valid);
-        assert_eq!(true, dsv.support);
-        assert_eq!("pibackfill", dsv.data_source);
-        assert_eq!("", dsv.version.unwrap());
-    }
-
-    #[ignore]
-    #[tokio::test]
-    async fn test_taos_valid() {
-        // taos
-        let dsn = Dsn::from_str("taos+ws://root:taosdata@192.168.1.40:6041").unwrap();
-        let dsv = validate_dsn(dsn).await;
-        assert_eq!(true, dsv.valid);
-        assert_eq!(true, dsv.support);
-        assert_eq!("taos", dsv.data_source);
-        assert_eq!("2.6.0.27", dsv.version.unwrap());
-    }
-
-    #[ignore]
-    #[tokio::test]
-    async fn test_tmq_valid() {
-        // tmq
-        let dsn = Dsn::from_str("tmq+ws://192.168.1.92:6041").unwrap();
-        let dsv = validate_dsn(dsn).await;
-        assert_eq!(false, dsv.valid);
-        assert_eq!(false, dsv.support);
-        assert_eq!("tmq", dsv.data_source);
-        assert_eq!(
-            "invalid dsn: tmq+ws://192.168.1.92:6041, cause: subject is required in tmq dsn",
-            dsv.message.unwrap()
-        );
-
-        // TDengine 3.X at 192.168.1.92
-        let dsn = Dsn::from_str("tmq+ws://192.168.1.92:6041/tmq_test?group.id=test_tmq_is_valid")
-            .unwrap();
-        let dsv = validate_dsn(dsn).await;
-        assert_eq!(true, dsv.valid);
-        assert_eq!(true, dsv.support);
-        assert_eq!("tmq", dsv.data_source);
-        assert_eq!("3.1.1.3", dsv.version.unwrap());
-
-        // TDengine 2.X at 192.168.1.40
-        let dsn = Dsn::from_str("tmq+ws://192.168.1.40:6041/tmq_test?group.id=test_tmq_is_valid")
-            .unwrap();
-        let dsv = validate_dsn(dsn).await;
-        assert_eq!(false, dsv.valid);
-        assert_eq!(false, dsv.support);
-        assert_eq!("tmq", dsv.data_source);
-        assert_eq!("failed to check dsn: tmq+ws://192.168.1.40:6041/tmq_test?group.id=test_tmq_is_valid, cause: tmq does not support TDengine 2.x", dsv.message.unwrap());
-
-        // TDengine 3.X non-exist topic
-        let dsn =
-            Dsn::from_str("tmq+ws://192.168.1.92:6041/non_exist_topic?group.id=test_tmq_is_valid")
-                .unwrap();
-        let dsv = validate_dsn(dsn).await;
-        assert_eq!(false, dsv.valid);
-        assert_eq!(false, dsv.support);
-        assert_eq!("tmq", dsv.data_source);
-        assert_eq!("failed to check dsn: tmq+ws://192.168.1.92:6041/non_exist_topic?group.id=test_tmq_is_valid, cause: unknown topic name: non_exist_topic", dsv.message.unwrap());
     }
 }

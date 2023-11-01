@@ -393,12 +393,13 @@ fn influxdb_jar_path() -> anyhow::Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
     use super::*;
     use std::str::FromStr;
     use taos::Dsn;
 
     #[tokio::test]
-    async fn test_is_valid() {
+    async fn test_invalid() {
         let dsn = Dsn::from_str("influxdb://?version=2.7").unwrap();
         let validation = is_valid(&dsn).await;
         assert_eq!(false, validation.valid);
@@ -418,5 +419,18 @@ mod tests {
         assert_eq!("influxdb", validation.data_source);
         assert!(validation.version.is_none());
         assert!(validation.message.unwrap().contains("plugin not found"));
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_valid() {
+        env::set_var("PLUGINS_HOME", "../plugins");
+        // influxdb
+        let dsn = Dsn::from_str("influxdb://192.168.1.107:8086/?version=2.7&orgId=f3af42a3895a5e33&token=wido5N7w7PutOEuVtoEe5kxjkov5XZm1Uxqe1bEKKBSN4_4XjQfg0hc9BNGDR7xiMs3BaNtHsWjKCvGWMn8fDA==").unwrap();
+        let dsv = is_valid(&dsn).await;
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("influxdb", dsv.data_source);
+        assert_eq!("OSS v2.7.1", dsv.version.unwrap());
     }
 }
