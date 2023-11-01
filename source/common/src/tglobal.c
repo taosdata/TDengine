@@ -280,8 +280,8 @@ int8_t tsS3Enabled = false;
 int8_t tsS3Https = true;
 char   tsS3Hostname[TSDB_FQDN_LEN] = "<hostname>";
 
-int32_t tsS3BlockSize = 4096;     // number of tsdb pages
-int32_t tsS3BlockCacheSize = 16;  // number of blocks
+int32_t tsS3BlockSize = -1;         // number of tsdb pages (4096)
+int32_t tsS3BlockCacheSize = 1024;  // number of blocks/pages (16)
 int32_t tsS3UploadDelaySec = 60 * 60;
 
 #ifndef _STORAGE
@@ -697,7 +697,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "s3Endpoint", tsS3Endpoint, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddString(pCfg, "s3BucketName", tsS3BucketName, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "s3BlockSize", tsS3BlockSize, -100, 1024 * 1024, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddInt32(pCfg, "s3BlockCacheSize", tsS3BlockCacheSize, 4, 1024 * 1024, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "s3BlockCacheSize", tsS3BlockCacheSize, 4, 1024 * 1024 * 1024, CFG_SCOPE_SERVER) != 0)
+    return -1;
   if (cfgAddInt32(pCfg, "s3UploadDelaySec", tsS3UploadDelaySec, 60 * 10, 60 * 60 * 24 * 30, CFG_SCOPE_SERVER) != 0)
     return -1;
 

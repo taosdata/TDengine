@@ -1250,7 +1250,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
     if (code < 0) return code;
 
-    if (flag < 4 || flag > 1024 * 1024) {
+    if (flag < 4 || flag > 1024 * 1024 * 1024) {
       mError("dnode:%d, failed to config s3BlockCacheSize since value:%d. Valid range: [4, 1024 * 1024]",
              cfgReq.dnodeId, flag);
       terrno = TSDB_CODE_INVALID_CFG;
