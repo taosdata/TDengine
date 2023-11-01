@@ -1,6 +1,6 @@
 use std::sync::{
-    Arc,
     atomic::{AtomicU32, AtomicU64},
+    Arc,
 };
 
 use anyhow::Context;
@@ -8,8 +8,8 @@ use chrono::{NaiveDate, Utc};
 use dashmap::DashMap;
 use serde::Deserialize;
 use serde_with::serde_as;
-use taos::{AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use taos::taos_query::tmq::Assignment;
+use taos::{AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
@@ -82,11 +82,31 @@ pub struct ConnectorLicense {
 
 impl ConnectorLicense {
     pub fn is_expired(&self) -> bool {
-        (chrono::Utc::now().date_naive() - NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()).num_days()
-            > self.expire as i64
+        let days = (chrono::Utc::now().date_naive() - NaiveDate::from_ymd_opt(1970, 1, 1).unwrap())
+            .num_days();
+
+        days > self.expire as i64
+    }
+
+    pub fn expired_days(&self) -> Option<u32> {
+        let days = (chrono::Utc::now().date_naive() - NaiveDate::from_ymd_opt(1970, 1, 1).unwrap())
+            .num_days();
+
+        if days > self.expire as i64 {
+            Some((days - self.expire as i64) as u32)
+        } else {
+            None
+        }
     }
 }
 
+#[test]
+fn test_connector_license() {
+    let s = r#"{"type":"OPC_UA","number":1,"speed":-1,"expire":"19658"}"#;
+    let license: ConnectorLicense = serde_json::from_str(s).unwrap();
+    dbg!(&license);
+    assert!(license.is_expired());
+}
 #[derive(Debug, Clone)]
 pub struct TaskOpts {
     pub from: Dsn,
@@ -446,7 +466,7 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
                 "influxdb" => runners::influxdb::is_valid(&d).await,
                 "kafka" => runners::kafka::is_valid(&d).await,
                 "mqtt" => runners::mqtt::is_valid(&d).await,
-                "opc" | "opcda" | "opcua" => runners::opc::is_valid(&d).await,  //TODO
+                "opc" | "opcda" | "opcua" => runners::opc::is_valid(&d).await, //TODO
                 "opentsdb" => runners::opentsdb::is_valid(&d).await,
                 "pi" => runners::pi::is_pi_valid(&d).await,
                 "pibackfill" => runners::pi::is_pi_backfill_valid(&d).await,
@@ -508,26 +528,43 @@ pub async fn is_taos_valid(dsn: &Dsn) -> DataSourceValidation {
 pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
     let mut dsn = dsn.clone();
     if dsn.subject.is_none() {
-        return DataSourceValidation::invalid("tmq".to_string(), format!("invalid dsn: {}, cause: subject is required in tmq dsn", dsn.to_string()));
+        return DataSourceValidation::invalid(
+            "tmq".to_string(),
+            format!(
+                "invalid dsn: {}, cause: subject is required in tmq dsn",
+                dsn.to_string()
+            ),
+        );
     }
     if !dsn.params.contains_key("group.id") {
-        dsn.params.insert("group.id".to_string(), "test_tmq_is_valid".to_string());
+        dsn.params
+            .insert("group.id".to_string(), "test_tmq_is_valid".to_string());
     }
 
     let validation = check_tmq_dsn(dsn.clone()).await;
     match validation {
-        Err(err) => DataSourceValidation::invalid("tmq".to_string(), format!("failed to check dsn: {}, cause: {}", dsn.to_string(), err.to_string())),
+        Err(err) => DataSourceValidation::invalid(
+            "tmq".to_string(),
+            format!(
+                "failed to check dsn: {}, cause: {}",
+                dsn.to_string(),
+                err.to_string()
+            ),
+        ),
         Ok((_dsn, builder, _topics)) => {
             let version = builder.server_version().await;
             match version {
-                Err(err) => DataSourceValidation::invalid("tmq".to_string(), format!("failed to get server version, cause: {}", err.to_string())),
+                Err(err) => DataSourceValidation::invalid(
+                    "tmq".to_string(),
+                    format!("failed to get server version, cause: {}", err.to_string()),
+                ),
                 Ok(version) => DataSourceValidation {
                     valid: true,
                     support: true,
                     data_source: "tmq".to_string(),
                     version: Some(version.to_string()),
                     message: None,
-                }
+                },
             }
         }
     }
@@ -674,10 +711,14 @@ mod tests {
         assert_eq!(false, dsv.valid);
         assert_eq!(false, dsv.support);
         assert_eq!("tmq", dsv.data_source);
-        assert_eq!("invalid dsn: tmq+ws://192.168.1.92:6041, cause: subject is required in tmq dsn", dsv.message.unwrap());
+        assert_eq!(
+            "invalid dsn: tmq+ws://192.168.1.92:6041, cause: subject is required in tmq dsn",
+            dsv.message.unwrap()
+        );
 
         // TDengine 3.X at 192.168.1.92
-        let dsn = Dsn::from_str("tmq+ws://192.168.1.92:6041/tmq_test?group.id=test_tmq_is_valid").unwrap();
+        let dsn = Dsn::from_str("tmq+ws://192.168.1.92:6041/tmq_test?group.id=test_tmq_is_valid")
+            .unwrap();
         let dsv = validate_dsn(dsn).await;
         assert_eq!(true, dsv.valid);
         assert_eq!(true, dsv.support);
@@ -685,7 +726,8 @@ mod tests {
         assert_eq!("3.1.1.3", dsv.version.unwrap());
 
         // TDengine 2.X at 192.168.1.40
-        let dsn = Dsn::from_str("tmq+ws://192.168.1.40:6041/tmq_test?group.id=test_tmq_is_valid").unwrap();
+        let dsn = Dsn::from_str("tmq+ws://192.168.1.40:6041/tmq_test?group.id=test_tmq_is_valid")
+            .unwrap();
         let dsv = validate_dsn(dsn).await;
         assert_eq!(false, dsv.valid);
         assert_eq!(false, dsv.support);
@@ -693,7 +735,9 @@ mod tests {
         assert_eq!("failed to check dsn: tmq+ws://192.168.1.40:6041/tmq_test?group.id=test_tmq_is_valid, cause: tmq does not support TDengine 2.x", dsv.message.unwrap());
 
         // TDengine 3.X non-exist topic
-        let dsn = Dsn::from_str("tmq+ws://192.168.1.92:6041/non_exist_topic?group.id=test_tmq_is_valid").unwrap();
+        let dsn =
+            Dsn::from_str("tmq+ws://192.168.1.92:6041/non_exist_topic?group.id=test_tmq_is_valid")
+                .unwrap();
         let dsv = validate_dsn(dsn).await;
         assert_eq!(false, dsv.valid);
         assert_eq!(false, dsv.support);
