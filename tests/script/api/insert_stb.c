@@ -149,10 +149,13 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
   char* qstr = malloc(1024*1024);
-  for (int i =0; i < 5; ++i) 
+  for (int i =0; i < 5; ++i) {
     testInsert(taos, qstr);
-  for (int i =0; i < 5; ++i) 
+  }
+  printf("test insert into stb tbname\n\n");
+  for (int i =0; i < 5; ++i) {
     testInsertStb(taos, qstr);
+  }
   free(qstr);
   taos_close(taos);
   taos_cleanup();
