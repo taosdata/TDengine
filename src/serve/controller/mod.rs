@@ -25,7 +25,7 @@ use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::utils::port_pool::PortPool;
 use taosx_core::utils::{mask_dsn, try_mask_dsn};
-use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
+use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts, get_data_dir};
 use tokio::sync::OnceCell;
 use tokio::task::JoinHandle;
 use tokio::{runtime::Runtime, sync::RwLock};
@@ -672,6 +672,8 @@ impl TaskController {
             .in_current_span()
             .await?;
             // let span = opts.span.clone();
+
+            let _ = std::env::set_current_dir(get_data_dir());
 
             // let sender2 = agent_task_worker.clone();
             let cloned_token2 = cloned_token.clone();
