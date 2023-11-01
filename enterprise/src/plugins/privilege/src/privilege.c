@@ -196,6 +196,36 @@ int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType op
   return code;
 }
 
+int32_t mndCheckViewPrivilege(SMnode *pMnode, const char *user, EOperType operType, const char *pViewFName) {
+  int32_t   code = 0;
+  SUserObj *pUser = mndAcquireUser(pMnode, user);
+
+  if (pUser == NULL) {
+    code = -1;
+    goto _OVER;
+  }
+
+  if (pUser->superUser) goto _OVER;
+
+  if (!pUser->enable) {
+    terrno = TSDB_CODE_MND_USER_DISABLED;
+    code = -1;
+    goto _OVER;
+  }
+
+  if (operType == MND_OPER_CREATE_VIEW || operType == MND_OPER_DROP_VIEW) {
+    if (taosHashGet(pUser->alterViews, pViewFName, strlen(pViewFName) + 1) != NULL) goto _OVER;
+  }
+
+  terrno = TSDB_CODE_MND_NO_RIGHTS;
+  code = -1;
+
+_OVER:
+  mndReleaseUser(pMnode, pUser);
+  return code;
+}
+
+
 int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, EOperType operType, SMqTopicObj *pTopic) {
   int32_t   code = 0;
   SUserObj *pUser = mndAcquireUser(pMnode, user);
@@ -256,6 +286,10 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   pRsp->writeDbs = mndDupDbHash(pUser->writeDbs);
   pRsp->readTbs = mndDupTableHash(pUser->readTbs);
   pRsp->writeTbs = mndDupTableHash(pUser->writeTbs);
+  pRsp->alterTbs = mndDupTableHash(pUser->alterTbs);
+  pRsp->readViews = mndDupTableHash(pUser->readViews);
+  pRsp->writeViews = mndDupTableHash(pUser->writeViews);
+  pRsp->alterViews = mndDupTableHash(pUser->alterViews);
   pRsp->useDbs = mndDupTableHash(pUser->useDbs);
   taosRUnLockLatch(&pUser->lock);
   pRsp->createdDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
