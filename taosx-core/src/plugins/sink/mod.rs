@@ -20,8 +20,7 @@ use std::{
 };
 use taos::{
     taos_query::{common::Describe, Manager},
-    AsyncBindable, AsyncQueryable, Dsn, Itertools, RawBlock, Stmt, Taos, TaosPool,
-    Ty, Value,
+    AsyncBindable, AsyncQueryable, Dsn, Itertools, RawBlock, Stmt, Taos, TaosPool, Ty, Value,
 };
 use tokio::sync::{Mutex, Notify, OnceCell};
 use tokio_util::sync::CancellationToken;
@@ -71,7 +70,7 @@ async fn ipc_tcp_forward(
         .await?
         .context("Build IPC stream reader error")?;
     let ack = ipc_reader.ack();
-    let mut ipc_ack_writer =
+    let ipc_ack_writer =
         tokio::task::spawn_blocking(move || AckWriterBuilder::new(ack).open(stream)).await?;
 
     let schema = ipc_reader.schema.clone();
@@ -87,7 +86,7 @@ async fn ipc_tcp_forward(
 
     info!(client, remote, "reading batches");
 
-    let ipc_stream = ipc_reader.into_raw_stream();
+    let ipc_stream = ipc_reader.into_raw_stream_qos_0(ipc_ack_writer);
 
     'start: loop {
         let data_stream = ipc_stream.clone();
@@ -156,6 +155,10 @@ async fn ipc_tcp_forward(
         info!("Get putting stream response");
 
         while let Some(res) = stream.next().await {
+            // if let Err(err) = ipc_ack_writer.write_ok() {
+            //     tracing::error!("Write ack error: {err:#}");
+            //     Err(err).context("Write ack error")?;
+            // }
             let rsp = res;
             match rsp {
                 Ok(rsp) => {
@@ -181,7 +184,6 @@ async fn ipc_tcp_forward(
                     }
                 },
             }
-            let _ = ipc_ack_writer.write_ok();
         }
 
         info!(alive = ?alive.elapsed(), "[{task_id}] Putting stream finished");
