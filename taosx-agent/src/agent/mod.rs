@@ -131,17 +131,6 @@ pub struct Task {
     #[serde(skip_serializing_if = "Option::is_none")]
     name: Option<String>,
 
-    /// Task trigger events, default will be oneshot.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub trigger: Option<String>,
-    // / Labels for a task.
-    // /
-    // / You can use k-v style label such as `key::value` or key-only label `key`.
-    // /
-    // / You can filter tasks by some labels.
-    // #[serde(deserialize_with = "labels_serde::deserialize")]
-    // #[serde(default)]
-    // labels: Vec<(String, Option<String>)>,
     /// break points
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breakpoints: Option<String>,
