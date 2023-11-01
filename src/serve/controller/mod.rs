@@ -15,7 +15,7 @@ use super::data_sources::DataSourceDefinition;
 use super::scheduler::agent::AgentId;
 use super::scheduler::TaskScheduler;
 use crate::serve::controller::agent::Activity;
-use anyhow::{bail, Context};
+use anyhow::{anyhow, bail, Context};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
@@ -483,6 +483,22 @@ impl TaskController {
                 bail!("Agent {} is not alive", via);
             }
         }
+        let from: Dsn = task
+            .from
+            .parse()
+            .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
+
+        let to: Dsn = task
+            .to
+            .parse()
+            .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
+
+        match from.driver.as_str() {
+            "opcua" | "opcda" | "influxdb" | "opentsdb" | "pi" | "mqtt" | "kafka" => {
+                self.validate_connector_license(&from, &to).await?;
+            }
+            _ => (),
+        }
         self.scheduler.push_task(task.clone()).await
     }
 
@@ -516,7 +532,7 @@ impl TaskController {
     pub async fn validate_connector_license(&self, from: &Dsn, to: &Dsn) -> anyhow::Result<()> {
         let builder = TaosBuilder::from_dsn(to)?;
         let taos = builder.build().await?;
-        let is_enterprise = builder.is_enterprise_edition().await?;
+        // let is_enterprise = builder.is_enterprise_edition().await?;
 
         let assert_enterprise = builder.assert_enterprise_edition().await;
 
@@ -535,7 +551,7 @@ impl TaskController {
                 _ => false,
             })
             .unwrap_or(false)
-            && is_enterprise
+            && to.get("token").is_some()
         {
             return Ok(());
         }
@@ -554,13 +570,16 @@ impl TaskController {
             .await
             .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
             .unwrap();
-        let exists : u32 =
-                    sqlx::query_scalar(&format!("select count(*) from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}://%{}%';",cluster_id, from.driver, endpoint))
-                        .fetch_one(&self.pool)
-                        .await?;
-        if exists > 0 {
-            return Ok(());
-        }
+
+        // These lines disable the connector license check.
+        let _ = endpoint;
+        // let exists : u32 =
+        //             sqlx::query_scalar(&format!("select count(*) from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}://%{}%';",cluster_id, from.driver, endpoint))
+        //                 .fetch_one(&self.pool)
+        //                 .await?;
+        // if exists > 0 {
+        //     return Ok(());
+        // }
 
         let used: Vec<String> = sqlx::query_scalar(&format!("select `from` from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}://%';",cluster_id, from.driver))
                         .fetch_all(&self.pool)
@@ -583,32 +602,35 @@ impl TaskController {
             _ => unreachable!(),
         };
 
-        let license: Option<ConnectorLicense> = taos
+        let license: ConnectorLicense = taos
             .query_one::<_, String>(format!(
                 "select `{connector}` from information_schema.ins_grants"
             ))
             .await
-            .unwrap_or(None)
-            .and_then(|s| serde_json::from_str(&s).ok());
+            .context("Cannot retrieve license")?
+            .ok_or_else(|| anyhow!("Connector {connector} is not supported by license"))
+            .and_then(|s| {
+                serde_json::from_str(&s)
+                    .with_context(|| format!("Cannot parse license from str: {s}"))
+            })?;
 
-        if let Some(license) = license {
-            if license.is_expired() {
-                anyhow::bail!(
-                            "Connector {connector} expired, please contact the database administrator for license",
-                        )
-            } else {
-                match license.number {
-                    0 => anyhow::bail!("Connector {connector} is disabled by license"),
-                    n if n > 0 => {
-                        if used >= n as usize {
-                            anyhow::bail!("Connector {connector} reaches connection number limit({n}) by license");
-                        }
-                    }
-                    _ => (),
-                }
-            }
+        if let Some(days) = license.expired_days() {
+            anyhow::bail!(
+                "Connector {} has been expired for {} days, please contact the database administrator for license",
+                connector, days
+            )
         } else {
-            anyhow::bail!("Only enterprise version is supported for connector {connector}")
+            match license.number {
+                0 => anyhow::bail!("Connector {connector} is disabled by license"),
+                n if n > 0 => {
+                    if used >= n as usize {
+                        anyhow::bail!(
+                            "Connector {connector} reaches connection number limit({n}) by license"
+                        );
+                    }
+                }
+                _ => (),
+            }
         }
         Ok(())
     }
