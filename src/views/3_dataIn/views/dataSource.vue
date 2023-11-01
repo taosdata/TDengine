@@ -608,7 +608,11 @@ export default {
         ).then(async () => {
           let result = await excuteStart(data.id);
           if (result && result.message) {
-            Message.error(result.message);
+            this.$message({
+              dangerouslyUseHTMLString:true,
+              message:`<strong>${result.message}</strong>`,
+              type:'warning'
+            });
             return;
           }
           this.refresh();
@@ -631,7 +635,11 @@ export default {
 
           let result = await excuteStop(data.id);
           if (result.message) {
-            Message.error(result.message);
+            this.$message({
+              dangerouslyUseHTMLString:true,
+              message:`<strong>${result.message}</strong>`,
+              type:'warning'
+            });
             return;
 
           }
