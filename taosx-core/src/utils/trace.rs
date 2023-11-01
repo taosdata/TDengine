@@ -291,8 +291,8 @@ pub fn set_data_trace_id_for_current_span(trace_id: &str) {
     });
 }
 
-/// Data Trace ID is 16 bits random number in hex format.
-pub fn create_data_trace_id() -> String {
+/// Stream Trace ID is 16 bits random number in hex format.
+pub fn create_stream_trace_id() -> String {
     let id = random::<u16>();
     let mut hex_str = format!("{:#04x}", id);
     // remove heading "0x"
@@ -301,25 +301,18 @@ pub fn create_data_trace_id() -> String {
     hex_str
 }
 
-/// Query ID Base = Data Trace ID + Batch Count
-/// For example:
-/// let data_trace_id = "ABCD"
-/// let batch_count = "12345678"
-/// Then Query ID Base will be "ABCD123456780000" in hex format.
 #[inline]
-pub fn create_query_id_base(data_trace_id_u64: u64, batch_number: u32) -> u64 {
-    (data_trace_id_u64 << 48) + (u64::from(batch_number) << 16)
+pub fn create_data_trace_id(stream_trace_id: u64, batch_number: u32) -> u64 {
+    (stream_trace_id << 48) + (u64::from(batch_number) << 16)
 }
 
-/// Query ID for a record batch is the hex format of query id base.
-pub fn get_data_trace_id_for_batch(qid_base: u64) -> String {
-    let mut s = format!("{:#016x}", qid_base);
+pub fn get_data_trace_id_str(data_trace_id: u64) -> String {
+    let mut s = format!("{:#016x}", data_trace_id);
     s.truncate(14);
     s
 }
 
-/// Add 16 bits random number to Query ID Base
 #[inline]
-pub fn create_query_id_base_on(query_id_base: u64) -> u64 {
-    query_id_base + (random::<u64>() >> 48)
+pub fn create_query_id(data_trace_id: u64) -> u64 {
+    data_trace_id + (random::<u64>() >> 48)
 }
