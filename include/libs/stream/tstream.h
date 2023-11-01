@@ -772,6 +772,7 @@ void         streamMetaInitForSnode(SStreamMeta* pMeta);
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
 int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask);
+int32_t streamTaskBuildCheckpoint(SStreamTask* pTask);
 void    streamTaskClearCheckInfo(SStreamTask* pTask);
 
 int32_t streamAlignTransferState(SStreamTask* pTask);

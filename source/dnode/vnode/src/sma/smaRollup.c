@@ -15,6 +15,7 @@
 
 #include "sma.h"
 #include "tq.h"
+#include "tstream.h"
 
 #define RSMA_QTASKEXEC_SMOOTH_SIZE (100)     // cnt
 #define RSMA_SUBMIT_BATCH_SIZE     (1024)    // cnt
@@ -1096,10 +1097,15 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
                  pRSmaInfo->suid, i + 1);
       }
 #endif
-    if(pItem && pItem->pStreamState) {
-
-    }
-
+      if (pItem && pItem->pStreamState && pItem->pStreamTask) {
+        SStreamTask *pTask = pItem->pStreamTask;
+        atomic_store_32(&pTask->pMeta->chkptNotReadyTasks, 1);  // adaption for API streamTaskBuildCheckpoint
+        pTask->checkpointingId = taosGetTimestampNs();
+        code = streamTaskBuildCheckpoint(pTask);
+        TSDB_CHECK_CODE(code, lino, _exit);
+        smaInfo("vgId:%d, rsma persist, build stream checkpoint success, table:%" PRIi64 ", level:%d, id:%" PRIi64,
+                TD_VID(pVnode), pRSmaInfo->suid, i + 1, pTask->checkpointingId);
+      }
     }
   }
 
