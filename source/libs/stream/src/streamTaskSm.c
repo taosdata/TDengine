@@ -200,6 +200,7 @@ static int32_t doHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event, STaskSt
   if (pTrans->attachEvent.event != 0) {
     attachEvent(pTask, &pTrans->attachEvent);
     taosThreadMutexUnlock(&pTask->lock);
+    stDebug("s-task:%s unlock1", pTask->id.idStr);
 
     while (1) {
       // wait for the task to be here
@@ -223,6 +224,7 @@ static int32_t doHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event, STaskSt
     pSM->pActiveTrans = pTrans;
     pSM->startTs = taosGetTimestampMs();
     taosThreadMutexUnlock(&pTask->lock);
+    stDebug("s-task:%s unlock2", pTask->id.idStr);
 
     int32_t code = pTrans->pAction(pTask);
     // todo handle error code;
@@ -241,6 +243,8 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
 
   while (1) {
     taosThreadMutexLock(&pTask->lock);
+    stDebug("s-task:%s lock", pTask->id.idStr);
+
     if (pSM->pActiveTrans != NULL && pSM->pActiveTrans->autoInvokeEndFn) {
       taosThreadMutexUnlock(&pTask->lock);
       taosMsleep(100);
@@ -281,6 +285,8 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
 
   // do update the task status
   taosThreadMutexLock(&pTask->lock);
+  stDebug("s-task:%s lock", pTask->id.idStr);
+
   STaskStateTrans* pTrans = pSM->pActiveTrans;
 
   if (pTrans == NULL) {
@@ -291,6 +297,7 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
             StreamTaskEventList[event].name, pSM->current.name, StreamTaskEventList[pSM->prev.evt].name);
 
     taosThreadMutexUnlock(&pTask->lock);
+    stDebug("s-task:%s unlockx", pTask->id.idStr);
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -298,6 +305,7 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
     stWarn("s-task:%s handle event:%s failed, current status:%s, active trans evt:%s", pTask->id.idStr,
            StreamTaskEventList[event].name, pSM->current.name, StreamTaskEventList[pTrans->event].name);
     taosThreadMutexUnlock(&pTask->lock);
+    stDebug("s-task:%s unlocky", pTask->id.idStr);
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -327,6 +335,7 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
       pSM->pActiveTrans = pNextTrans;
       pSM->startTs = taosGetTimestampMs();
       taosThreadMutexUnlock(&pTask->lock);
+      stDebug("s-task:%s unlockf", pTask->id.idStr);
 
       int32_t code = pNextTrans->pAction(pSM->pTask);
       if (pNextTrans->autoInvokeEndFn) {
@@ -337,6 +346,7 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
     }
   } else {
     taosThreadMutexUnlock(&pTask->lock);
+    stDebug("s-task:%s unlockz", pTask->id.idStr);
 
     int64_t el = (taosGetTimestampMs() - pSM->startTs);
     stDebug("s-task:%s handle event:%s completed, elapsed time:%" PRId64 "ms state:%s -> %s", pTask->id.idStr,
