@@ -10,13 +10,17 @@ use taosx_core::{ConnectorLicense, IpcStreamWorker, Parser, METRICS_TIME_START};
 use tonic::{Status, Streaming};
 use tracing::{debug, Instrument};
 
-use crate::serve::controller::{transferred::ConnectorTransferred, TaskControllerRef, TaskDetail};
+use crate::serve::{
+    controller::{transferred::ConnectorTransferred, TaskActivity, TaskControllerRef, TaskDetail},
+    scheduler::{agent::AgentNotifySender, notify, NotifySender},
+};
 
 #[derive(Debug)]
 pub struct PutStream {
     req: Streaming<FlightData>,
     controller: TaskControllerRef,
     task_id: i64,
+    notify_sender: AgentNotifySender,
 }
 
 impl PutStream {
@@ -24,11 +28,13 @@ impl PutStream {
         controller: TaskControllerRef,
         task_id: i64,
         req: Streaming<FlightData>,
+        notify_sender: AgentNotifySender,
     ) -> Self {
         Self {
             req,
             controller,
             task_id,
+            notify_sender,
         }
     }
     pub async fn into_flight_put_result(
@@ -61,6 +67,9 @@ impl PutStream {
                 .map_err(|err| anyhow::format_err!("Cannot retrieve cluster id: {err}"))?
                 .unwrap()
         };
+        let agent_id = task
+            .via
+            .ok_or_else(|| anyhow::format_err!("Cannot find agent id for task {}", self.task_id))?;
         // return self.req.map_ok(|data| PutResult {
         //     app_metadata: data.app_metadata,
         // });
@@ -88,10 +97,6 @@ impl PutStream {
             let connector = match from_dsn.driver.as_str() {
                 "opcda" => Some("opc_da"),
                 "opcua" => Some("opc_ua"),
-                "mqtt" => Some("mqtt"),
-                "influxdb" => Some("influxdb"),
-                "opentsdb" => Some("opentsdb"),
-                "kafka" => Some("kafka"),
                 "pi" => Some("pi"),
                 _ => None,
             };
@@ -146,6 +151,8 @@ impl PutStream {
             // let transferred = self.controller.transferred.get((cluster_id, ))
             let span_clone = span.clone();
             async fn ipc_stream_writer(
+                notify_sender: AgentNotifySender,
+                agent_id: i64,
                 task: TaskDetail,
                 pool: &taos::TaosPool,
                 lock: Arc<tokio::sync::Mutex<()>>,
@@ -188,7 +195,17 @@ impl PutStream {
                                 .process_record(&mut stmt, record, parser.as_ref())
                                 .await
                             {
-                                tracing::warn!("Write stream error: {err}");
+                                tracing::warn!(
+                                    error.message = format!("{err:#}"),
+                                    error.root_cause = err.root_cause(),
+                                    backtrace = format!("{}", err.backtrace())
+                                );
+                                let _ = notify_sender.send(
+                                    crate::serve::scheduler::agent::AgentNotify::TaskActivity(
+                                        agent_id,
+                                        TaskActivity::error(task.id, format!("{err:#}")),
+                                    ),
+                                );
                                 let _ = rsp_tx.send_async(Err(err)).await;
                             } else {
                                 let _ = rsp_tx.send_async(Ok(())).await;
@@ -201,9 +218,12 @@ impl PutStream {
                     }
                 }
             }
+            let notify_sender = self.notify_sender.clone();
             tokio::spawn(
                 async move {
                     if let Err(err) = ipc_stream_writer(
+                        notify_sender,
+                        agent_id,
                         task,
                         &pool,
                         lock,

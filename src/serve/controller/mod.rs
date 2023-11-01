@@ -191,17 +191,6 @@ pub enum AgentAction {
 //     }
 // }
 
-#[derive(Debug, Deserialize)]
-pub struct TaskStatus {
-    id: i64,
-    at: DateTime<Utc>,
-    action: String,
-    message: Option<String>,
-    // TODO: use context as task activity level
-    #[allow(dead_code)]
-    context: Option<String>,
-}
-
 pub(crate) struct TaskController {
     pub pool: SqlitePool,
     pub tasks: RwLock<
@@ -322,7 +311,8 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
         .await?;
     }
     match activity.status.as_str() {
-        "failed" => {
+        // with reason
+        "failed" | "interrupted" | "suspending" | "waiting" => {
             sqlx::query("UPDATE tasks SET status = ?, reason = ? WHERE id = ?")
                 .bind(activity.status.as_str())
                 .bind(activity.activity.as_str())
@@ -494,7 +484,7 @@ impl TaskController {
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
         match from.driver.as_str() {
-            "opcua" | "opcda" | "influxdb" | "opentsdb" | "pi" | "mqtt" | "kafka" => {
+            "opcua" | "opcda" | "pi" => {
                 self.validate_connector_license(&from, &to).await?;
             }
             _ => (),
@@ -623,7 +613,7 @@ impl TaskController {
             match license.number {
                 0 => anyhow::bail!("Connector {connector} is disabled by license"),
                 n if n > 0 => {
-                    if used >= n as usize {
+                    if used > n as usize {
                         anyhow::bail!(
                             "Connector {connector} reaches connection number limit({n}) by license"
                         );
@@ -650,7 +640,7 @@ impl TaskController {
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
         match from.driver.as_str() {
-            "opcua" | "opcda" | "influxdb" | "opentsdb" | "pi" | "mqtt" | "kafka" => {
+            "opcua" | "opcda" | "pi" => {
                 self.validate_connector_license(&from, &to).await?;
             }
             _ => (),
@@ -787,7 +777,7 @@ impl TaskController {
 
     #[instrument(skip_all, name = "task::update", fields(task.id = id))]
     pub async fn update(&self, id: i64, task: UpdateTask) -> anyhow::Result<Option<TaskDetail>> {
-        tracing::info!("update task {id}");
+        tracing::info!("update task {id}: {task:?}");
         if let Some(topic) = task.oneshot_topic.as_deref() {
             if topic.len() > 64 {
                 anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
@@ -802,7 +792,7 @@ impl TaskController {
                 })*
             };
         }
-        add_bind_sql!(name stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via parser);
+        add_bind_sql!(name stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via parser trigger);
 
         if sql.len() == 0 {
             let task = self.get(id).await?.unwrap();
@@ -820,7 +810,7 @@ impl TaskController {
                 })*
             };
         }
-        bind_fields!(name stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via parser);
+        bind_fields!(name stream_type from from_cluster oneshot_topic to to_cluster jobs compression_level force via parser trigger);
 
         let res = query.execute(&self.pool).await?;
 
@@ -892,7 +882,9 @@ impl TaskController {
     }
     #[instrument(skip_all, name = "task::delete", fields(task.id = id))]
     pub async fn delete(&self, id: i64) -> anyhow::Result<Option<TaskDetail>> {
-        self.scheduler.stop_task(id, Duration::from_secs(5)).await?;
+        if self.scheduler.in_scheduler(id).await {
+            bail!("Task is in scheduler, please stop it first");
+        }
         let now = Utc::now();
         let res = sqlx::query_as_unchecked!(
             Task,
@@ -1007,67 +999,6 @@ impl TaskController {
         let sql = format!("select * from task_activities where `id` = {id} {cond}");
         let items = sqlx::query_as(&sql).fetch_all(&self.pool).await?;
         Ok(items)
-    }
-
-    pub async fn push_task_status(&self, status: &TaskStatus) -> anyhow::Result<()> {
-        let id = status.id;
-        match status.action.as_str() {
-            "failed" => {
-                tracing::error!(
-                    "run task {id} failed with: {:?}, please check the task information",
-                    status.message
-                );
-                // let err = err.to_string();
-                let at = status.at;
-                let _ = sqlx::query!(
-                    "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ? AND deleted != TRUE",
-                    at,
-                    Status::Failed,
-                    status.message,
-                    id
-                )
-                .execute(&self.pool)
-                .await?;
-                sqlx::query!(
-                    "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
-                    id,
-                    at,
-                    LevelFilter::Error,
-                    "failed",
-                    status.message,
-                    status.context,
-                )
-                .execute(&self.pool)
-                .await?;
-                if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
-                    tracing::error!("Cancel task by id {id}");
-                    token.cancel();
-                    let _ = handle.await?;
-                    // handle.abort();
-                    // if !handle.is_finished() {
-                    //     // token.cancel();
-                    //     tracing::error!("Cancel task by id {id}");
-                    //     let _ = handle.await;
-                    // }
-                }
-                Ok(())
-            }
-            action => {
-                sqlx::query!(
-                    "INSERT INTO task_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)",
-                    id,
-                    status.at,
-                    LevelFilter::Info,
-                    action,
-                    status.message,
-                    status.context,
-                )
-                .execute(&self.pool)
-                .await?;
-                tracing::error!("Invalid task action: {action}");
-                Ok(())
-            }
-        }
     }
 
     pub async fn _suspend_all(&self) -> anyhow::Result<()> {
@@ -2447,7 +2378,7 @@ pub struct UpdateTask {
     /// Task name
     name: Option<String>,
     /// Update trigger,
-    trigger: Option<String>,
+    trigger: Option<Strategy>,
     /// *Deprecated*.
     stream_type: Option<String>,
     /// The stream data source.

@@ -171,9 +171,11 @@ impl TaskOpts {
                     let mut from = from.clone();
                     from.subject.take();
                     let from = TaosBuilder::from_dsn(from)?;
+                    let _ = from.build().await?;
                     let mut to = to.clone();
                     to.subject.take();
                     let to = TaosBuilder::from_dsn(to)?;
+                    let _ = to.build().await?;
 
                     if !from
                         .is_enterprise_edition()
@@ -193,6 +195,7 @@ impl TaskOpts {
                     let mut from = from.clone();
                     from.subject.take();
                     let builder = TaosBuilder::from_dsn(from)?;
+                    let _ = builder.build().await.context("Source connection error")?;
                     if !builder
                         .is_enterprise_edition()
                         .await
@@ -207,6 +210,7 @@ impl TaskOpts {
                     let mut to = to.clone();
                     to.subject.take();
                     let builder = TaosBuilder::from_dsn(to)?;
+                    let _ = builder.build().await.context("Target connection error")?;
                     if !builder
                         .is_enterprise_edition()
                         .await
