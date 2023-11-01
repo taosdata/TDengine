@@ -23,6 +23,10 @@ pub use runners::opc::TableConfig;
 pub use runners::opentsdb::opentsdb_datasets;
 pub use runners::opentsdb::opentsdb_to_taos;
 pub use runners::pi::pi_to_taos;
+pub use runners::{
+    get_data_dir, get_file_upload_home_dir, get_log_dir, get_log_keep_days, get_plugins_info,
+    set_env_plugins_home_dir, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days
+};
 pub use sink::IpcStreamWorker;
 use taos::Dsn;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
@@ -37,11 +41,6 @@ use crate::Transferred;
 pub use taosx_ipc::types::*;
 
 pub use transform::Parser;
-
-pub use runners::{
-    get_log_dir, get_log_keep_days, get_plugins_info, valid_env_log_keep_days,
-    ENV_TAOSX_LOGS_KEEP_DAYS,
-};
 
 use self::runners::opc::OpcTableConfig;
 use self::sink::IpcHandler;

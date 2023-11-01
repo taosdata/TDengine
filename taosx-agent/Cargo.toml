@@ -16,7 +16,7 @@ dotenv = "0.15.0"
 log = { version = "0.4", features = ["serde"] }
 
 thiserror = "1"
-twelf = { version = "0.10.0", default-features = false, features = [
+twelf = { version = "0.12.0", default-features = false, features = [
 	"toml",
 	"env",
 	"clap",

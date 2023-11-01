@@ -14,6 +14,7 @@ fn shadow_build() {
 
         let cus_name = std::env::var("CUS_NAME").unwrap_or(DEFAULT_CUS_NAME.to_string());
         let cus_prompt = std::env::var("CUS_PROMPT").unwrap_or(DEFAULT_CUS_PROMPT.to_string());
+        let td_version = std::env::var("VER_NUMBER").ok();
         let cus_name = if cus_name.trim().is_empty() {
             DEFAULT_CUS_NAME
         } else {
@@ -42,24 +43,20 @@ fn shadow_build() {
             file,
             r#"
 pub const VERBOSE_VERSION: &str = if GIT_CLEAN {{
-    ::const_format::concatcp!(PKG_VERSION,"-",SHORT_COMMIT," (built ",BUILD_OS," ",BUILD_TIME,")")
+    ::const_format::concatcp!("version: ",TD_VERSION,"\ngit: ",BRANCH,"-",COMMIT_HASH,"\nbuild: core-",PKG_VERSION," ",BUILD_OS," ",BUILD_TIME)
 }} else {{
-    ::const_format::concatcp!(PKG_VERSION,"-",SHORT_COMMIT,"-dirty"," (built ",BUILD_OS," ",BUILD_TIME,")")
+    ::const_format::concatcp!("version: ",TD_VERSION,"\ngit: ",BRANCH,"-",COMMIT_HASH,"\nbuild: core-dirty-",PKG_VERSION," ",BUILD_OS," ",BUILD_TIME)
 }};
 "#
         )?;
-        writeln!(
-            file,
-            r#"pub const CUS_CLI_NAME: &str = "{}x-agent";"#,
-            cus_prompt,
-        )?;
-        writeln!(
-            file,
-            r#"pub const CUS_APP_NAME: &str = "{}X Agent";"#,
-            cus_prompt,
-        )?;
+        writeln!(file, r#"pub const CUS_CLI_NAME: &str = "{}x-agent";"#, cus_prompt)?;
+        writeln!(file, r#"pub const CUS_APP_NAME: &str = "{}X Agent";"#, cus_prompt)?;
         writeln!(file, r#"pub const CUS_CLI_ABOUT: &str = "{}";"#, content)?;
-
+        if let Some(version) = td_version {
+            writeln!(file, r#"pub const TD_VERSION: &str = "{}";"#, version)?;
+        } else {
+            writeln!(file, r#"pub const TD_VERSION: &str = PKG_VERSION;"#)?;
+        }
         println!("cargo:rerun-if-env-changed=PKG_TIME");
 
         Ok(())
