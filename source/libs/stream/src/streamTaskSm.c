@@ -248,10 +248,12 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
     stDebug("s-task:%s lock", pTask->id.idStr);
 
     if (pSM->pActiveTrans != NULL && pSM->pActiveTrans->autoInvokeEndFn) {
+      EStreamTaskEvent evt = pSM->pActiveTrans->event;
       taosThreadMutexUnlock(&pTask->lock);
-      taosMsleep(100);
+
       stDebug("s-task:%s status:%s handling event:%s by some other thread, wait for 100ms and check if completed",
-              pTask->id.idStr, pSM->current.name, GET_EVT_NAME(pSM->pActiveTrans->event));
+              pTask->id.idStr, pSM->current.name, GET_EVT_NAME(evt));
+      taosMsleep(100);
     } else {
       pTrans = streamTaskFindTransform(pSM->current.state, event);
       if (pTrans == NULL) {
