@@ -209,6 +209,7 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       pRSmaStat->pSma = (SSma *)pSma;
       atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_INIT);
       tsem_init(&pRSmaStat->notEmpty, 0, 0);
+      pRSmaStat->dataBlock.info.type = STREAM_CHECKPOINT;
 
       // init smaMgmt
       smaInit();

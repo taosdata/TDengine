@@ -115,6 +115,7 @@ struct SRSmaStat {
   SRSmaFS          fs;           // for recovery/snapshot r/w
   SHashObj        *infoHash;     // key: suid, value: SRSmaInfo
   tsem_t           notEmpty;     // has items in queue buffer
+  SSDataBlock      dataBlock;
 };
 
 struct SSmaStat {
@@ -140,7 +141,8 @@ struct SRSmaInfoItem {
   int8_t   fetchLevel : 4;
   int8_t   triggerStat;
   uint16_t nScanned;
-  int32_t  maxDelay;  // ms
+  int32_t  streamFlushed : 1;
+  int32_t  maxDelay : 31;  // ms
   tmr_h    tmrId;
   void    *pStreamState;
   void    *pStreamTask;  // SStreamTask
@@ -159,7 +161,6 @@ struct SRSmaInfo {
   void         *taskInfo[TSDB_RETENTION_L2];  // qTaskInfo_t
   STaosQueue   *queue;                        // buffer queue of SubmitReq
   STaosQall    *qall;                         // buffer qall of SubmitReq
-  SSDataBlock   dataBlock;
 };
 
 #define RSMA_INFO_HEAD_LEN     offsetof(SRSmaInfo, items)
