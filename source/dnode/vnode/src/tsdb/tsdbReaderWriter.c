@@ -178,7 +178,7 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
     pFD->blkno = (pgno + tsS3BlockSize - 1) / tsS3BlockSize;
     code = tsdbCacheGetBlockS3(pFD->pTsdb->bCache, pFD, &handle);
     if (code != TSDB_CODE_SUCCESS || handle == NULL) {
-      tsdbBCacheRelease(pFD->pTsdb->bCache, handle);
+      tsdbCacheRelease(pFD->pTsdb->bCache, handle);
       if (code == TSDB_CODE_SUCCESS && !handle) {
         code = TSDB_CODE_OUT_OF_MEMORY;
       }
@@ -190,7 +190,7 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
     int64_t blk_offset = (pFD->blkno - 1) * tsS3BlockSize * pFD->szPage;
     memcpy(pFD->pBuf, pBlock + (offset - blk_offset), pFD->szPage);
 
-    tsdbBCacheRelease(pFD->pTsdb->bCache, handle);
+    tsdbCacheRelease(pFD->pTsdb->bCache, handle);
   } else {
     // seek
     int64_t n = taosLSeekFile(pFD->pFD, offset, SEEK_SET);
@@ -254,7 +254,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size) {
+static int32_t tsdbReadFileImp(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size) {
   int32_t code = 0;
   int64_t n = 0;
   int64_t fOffset = LOGIC_TO_FILE_OFFSET(offset, pFD->szPage);
@@ -277,6 +277,117 @@ int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size) 
     n += nRead;
     pgno++;
     bOffset = 0;
+  }
+
+_exit:
+  return code;
+}
+
+static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size) {
+  int32_t code = 0;
+  int64_t n = 0;
+  int32_t szPgCont = PAGE_CONTENT_SIZE(pFD->szPage);
+  int64_t fOffset = LOGIC_TO_FILE_OFFSET(offset, pFD->szPage);
+  int64_t pgno = OFFSET_PGNO(fOffset, pFD->szPage);
+  int64_t bOffset = fOffset % pFD->szPage;
+
+  ASSERT(bOffset < szPgCont);
+
+  // 1, find pgnoStart & pgnoEnd to fetch from s3, if all pgs are local, no need to fetch
+  // 2, fetch pgnoStart ~ pgnoEnd from s3
+  // 3, store pgs to pcache & last pg to pFD->pBuf
+  // 4, deliver pgs to [pBuf, pBuf + size)
+
+  while (n < size) {
+    if (pFD->pgno != pgno) {
+      LRUHandle *handle = NULL;
+      code = tsdbCacheGetPageS3(pFD->pTsdb->pgCache, pFD, pgno, &handle);
+      if (code != TSDB_CODE_SUCCESS) {
+        if (handle) {
+          tsdbCacheRelease(pFD->pTsdb->pgCache, handle);
+        }
+        goto _exit;
+      }
+
+      if (!handle) {
+        break;
+      }
+
+      uint8_t *pPage = (uint8_t *)taosLRUCacheValue(pFD->pTsdb->pgCache, handle);
+      memcpy(pFD->pBuf, pPage, pFD->szPage);
+      tsdbCacheRelease(pFD->pTsdb->pgCache, handle);
+
+      // check
+      if (pgno > 1 && !taosCheckChecksumWhole(pFD->pBuf, pFD->szPage)) {
+        code = TSDB_CODE_FILE_CORRUPTED;
+        goto _exit;
+      }
+
+      pFD->pgno = pgno;
+    }
+
+    int64_t nRead = TMIN(szPgCont - bOffset, size - n);
+    memcpy(pBuf + n, pFD->pBuf + bOffset, nRead);
+
+    n += nRead;
+    pgno++;
+    bOffset = 0;
+  }
+
+  if (n < size) {
+    // 2, retrieve pgs from s3
+    uint8_t *pBlock = NULL;
+    int64_t  retrieve_offset = PAGE_OFFSET(pgno, pFD->szPage);
+    int64_t  pgnoEnd = pgno - 1 + (size - n + szPgCont - 1) / szPgCont;
+    int64_t  retrieve_size = (pgnoEnd - pgno + 1) * pFD->szPage;
+    code = s3GetObjectBlock(pFD->objName, retrieve_offset, retrieve_size, &pBlock);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _exit;
+    }
+
+    // 3, Store Pages in Cache
+    int nPage = pgnoEnd - pgno + 1;
+    for (int i = 0; i < nPage; ++i) {
+      tsdbCacheSetPageS3(pFD->pTsdb->pgCache, pFD, pgno, pBlock + i * pFD->szPage);
+
+      memcpy(pFD->pBuf, pBlock + i * pFD->szPage, pFD->szPage);
+
+      // check
+      if (pgno > 1 && !taosCheckChecksumWhole(pFD->pBuf, pFD->szPage)) {
+        code = TSDB_CODE_FILE_CORRUPTED;
+        goto _exit;
+      }
+
+      pFD->pgno = pgno;
+
+      int64_t nRead = TMIN(szPgCont - bOffset, size - n);
+      memcpy(pBuf + n, pFD->pBuf + bOffset, nRead);
+
+      n += nRead;
+      pgno++;
+      bOffset = 0;
+    }
+
+    taosMemoryFree(pBlock);
+  }
+
+_exit:
+  return code;
+}
+
+int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size) {
+  int32_t code = 0;
+  if (!pFD->pFD) {
+    code = tsdbOpenFileImpl(pFD);
+    if (code) {
+      goto _exit;
+    }
+  }
+
+  if (pFD->s3File && tsS3BlockSize < 0) {
+    return tsdbReadFileS3(pFD, offset, pBuf, size);
+  } else {
+    return tsdbReadFileImp(pFD, offset, pBuf, size);
   }
 
 _exit:

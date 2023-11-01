@@ -382,6 +382,8 @@ struct STsdb {
   TdThreadMutex        biMutex;
   SLRUCache           *bCache;
   TdThreadMutex        bMutex;
+  SLRUCache           *pgCache;
+  TdThreadMutex        pgMutex;
   struct STFileSystem *pFS;  // new
   SRocksCache          rCache;
 };
@@ -677,9 +679,9 @@ typedef struct STSnapRange STSnapRange;
 typedef TARRAY2(STSnapRange *) TSnapRangeArray;  // disjoint snap ranges
 
 // util
-int32_t tSerializeSnapRangeArray(void *buf, int32_t bufLen, TSnapRangeArray *pSnapR);
-int32_t tDeserializeSnapRangeArray(void *buf, int32_t bufLen, TSnapRangeArray *pSnapR);
-void    tsdbSnapRangeArrayDestroy(TSnapRangeArray **ppSnap);
+int32_t   tSerializeSnapRangeArray(void *buf, int32_t bufLen, TSnapRangeArray *pSnapR);
+int32_t   tDeserializeSnapRangeArray(void *buf, int32_t bufLen, TSnapRangeArray *pSnapR);
+void      tsdbSnapRangeArrayDestroy(TSnapRangeArray **ppSnap);
 SHashObj *tsdbGetSnapRangeHash(TSnapRangeArray *pRanges);
 
 // snap partition list
@@ -873,8 +875,8 @@ int32_t tMergeTreeOpen2(SMergeTree *pMTree, SMergeTreeConf *pConf);
 
 void tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
 bool tMergeTreeNext(SMergeTree *pMTree);
-void tMergeTreePinSttBlock(SMergeTree* pMTree);
-void tMergeTreeUnpinSttBlock(SMergeTree* pMTree);
+void tMergeTreePinSttBlock(SMergeTree *pMTree);
+void tMergeTreeUnpinSttBlock(SMergeTree *pMTree);
 bool tMergeTreeIgnoreEarlierTs(SMergeTree *pMTree);
 void tMergeTreeClose(SMergeTree *pMTree);
 
@@ -909,7 +911,9 @@ int32_t tsdbCacheGetBlockIdx(SLRUCache *pCache, SDataFReader *pFileReader, LRUHa
 int32_t tsdbBICacheRelease(SLRUCache *pCache, LRUHandle *h);
 
 int32_t tsdbCacheGetBlockS3(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle);
-int32_t tsdbBCacheRelease(SLRUCache *pCache, LRUHandle *h);
+int32_t tsdbCacheGetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, LRUHandle **handle);
+int32_t tsdbCacheSetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_t *pPage);
+int32_t tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h);
 
 int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);

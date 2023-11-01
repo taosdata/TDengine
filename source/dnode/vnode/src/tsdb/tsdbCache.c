@@ -87,6 +87,41 @@ static void tsdbCloseBCache(STsdb *pTsdb) {
   }
 }
 
+static int32_t tsdbOpenPgCache(STsdb *pTsdb) {
+  int32_t code = 0;
+  // SLRUCache *pCache = taosLRUCacheInit(10 * 1024 * 1024, 0, .5);
+  int32_t szPage = pTsdb->pVnode->config.tsdbPageSize;
+
+  SLRUCache *pCache = taosLRUCacheInit((int64_t)tsS3BlockCacheSize * szPage, 0, .5);
+  if (pCache == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
+  taosLRUCacheSetStrictCapacity(pCache, false);
+
+  taosThreadMutexInit(&pTsdb->pgMutex, NULL);
+
+_err:
+  pTsdb->pgCache = pCache;
+  return code;
+}
+
+static void tsdbClosePgCache(STsdb *pTsdb) {
+  SLRUCache *pCache = pTsdb->pgCache;
+  if (pCache) {
+    int32_t elems = taosLRUCacheGetElems(pCache);
+    tsdbTrace("vgId:%d, elems: %d", TD_VID(pTsdb->pVnode), elems);
+    taosLRUCacheEraseUnrefEntries(pCache);
+    elems = taosLRUCacheGetElems(pCache);
+    tsdbTrace("vgId:%d, elems: %d", TD_VID(pTsdb->pVnode), elems);
+
+    taosLRUCacheCleanup(pCache);
+
+    taosThreadMutexDestroy(&pTsdb->bMutex);
+  }
+}
+
 #define ROCKS_KEY_LEN (sizeof(tb_uid_t) + sizeof(int16_t) + sizeof(int8_t))
 
 typedef struct {
@@ -1191,6 +1226,12 @@ int32_t tsdbOpenCache(STsdb *pTsdb) {
     goto _err;
   }
 
+  code = tsdbOpenPgCache(pTsdb);
+  if (code != TSDB_CODE_SUCCESS) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+
   code = tsdbOpenRocksCache(pTsdb);
   if (code != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -1221,6 +1262,7 @@ void tsdbCloseCache(STsdb *pTsdb) {
 
   tsdbCloseBICache(pTsdb);
   tsdbCloseBCache(pTsdb);
+  tsdbClosePgCache(pTsdb);
   tsdbCloseRocksCache(pTsdb);
 }
 
@@ -3057,7 +3099,6 @@ static int32_t tsdbCacheLoadBlockS3(STsdbFD *pFD, uint8_t **ppBlock) {
   }
   */
   int64_t block_offset = (pFD->blkno - 1) * tsS3BlockSize * pFD->szPage;
-  // int64_t size = 4096;
   code = s3GetObjectBlock(pFD->objName, block_offset, tsS3BlockSize * pFD->szPage, ppBlock);
   if (code != TSDB_CODE_SUCCESS) {
     // taosMemoryFree(pBlock);
@@ -3123,10 +3164,42 @@ int32_t tsdbCacheGetBlockS3(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle)
   return code;
 }
 
-int32_t tsdbBCacheRelease(SLRUCache *pCache, LRUHandle *h) {
+int32_t tsdbCacheGetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, LRUHandle **handle) {
   int32_t code = 0;
+  char    key[128] = {0};
+  int     keyLen = 0;
 
-  taosLRUCacheRelease(pCache, h, false);
+  getBCacheKey(pFD->fid, pFD->cid, pFD->blkno, key, &keyLen);
+  *handle = taosLRUCacheLookup(pCache, key, keyLen);
+
+  return code;
+}
+
+int32_t tsdbCacheSetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_t *pPage) {
+  int32_t    code = 0;
+  char       key[128] = {0};
+  int        keyLen = 0;
+  LRUHandle *handle = NULL;
+
+  getBCacheKey(pFD->fid, pFD->cid, pgno, key, &keyLen);
+  taosThreadMutexLock(&pFD->pTsdb->pgMutex);
+  handle = taosLRUCacheLookup(pFD->pTsdb->pgCache, key, keyLen);
+  if (!handle) {
+    size_t              charge = pFD->szPage;
+    _taos_lru_deleter_t deleter = deleteBCache;
+    uint8_t            *pPg = taosMemoryMalloc(charge);
+    memcpy(pPg, pPage, charge);
+
+    LRUStatus status =
+        taosLRUCacheInsert(pCache, key, keyLen, pPg, charge, deleter, &handle, TAOS_LRU_PRIORITY_LOW, NULL);
+    if (status != TAOS_LRU_STATUS_OK) {
+      // ignore cache updating if not ok
+      // code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  taosThreadMutexUnlock(&pFD->pTsdb->pgMutex);
+
+  tsdbCacheRelease(pFD->pTsdb->pgCache, handle);
 
   return code;
 }
