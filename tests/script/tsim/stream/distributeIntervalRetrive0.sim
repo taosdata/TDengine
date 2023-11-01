@@ -267,6 +267,7 @@ sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  delete_mark 20s into streamt1 as select  _wstart as c0, count(*) c1, count(a) c2  from st interval(10s) ;
 
+sleep 1000
 sql insert into t1 values(1648791211000,1,2,3);
 
 sql insert into t1 values(1262275200000,2,2,3);
