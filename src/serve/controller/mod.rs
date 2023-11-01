@@ -484,7 +484,7 @@ impl TaskController {
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
         match from.driver.as_str() {
-            "opcua" | "opcda" | "influxdb" | "opentsdb" | "pi" | "mqtt" | "kafka" => {
+            "opcua" | "opcda" | "pi" => {
                 self.validate_connector_license(&from, &to).await?;
             }
             _ => (),
@@ -640,7 +640,7 @@ impl TaskController {
             .map_err(|err| anyhow::format_err!("Invalid target `{}`: {err}", task.to))?;
 
         match from.driver.as_str() {
-            "opcua" | "opcda" | "influxdb" | "opentsdb" | "pi" | "mqtt" | "kafka" => {
+            "opcua" | "opcda" | "pi" => {
                 self.validate_connector_license(&from, &to).await?;
             }
             _ => (),

@@ -60,11 +60,7 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<TaskOpts> {
             let connector = match from.driver.as_str() {
                 "opcua" => "opc_ua",
                 "opcda" => "opc_da",
-                "influxdb" => "influxdb",
-                "opentsdb" => "opentsdb",
                 "pi" => "pi",
-                "kafka" => "kafka",
-                "mqtt" => "mqtt",
                 _ => unreachable!(),
             };
             let license: Option<ConnectorLicense> = taos

@@ -97,10 +97,6 @@ impl PutStream {
             let connector = match from_dsn.driver.as_str() {
                 "opcda" => Some("opc_da"),
                 "opcua" => Some("opc_ua"),
-                "mqtt" => Some("mqtt"),
-                "influxdb" => Some("influxdb"),
-                "opentsdb" => Some("opentsdb"),
-                "kafka" => Some("kafka"),
                 "pi" => Some("pi"),
                 _ => None,
             };
