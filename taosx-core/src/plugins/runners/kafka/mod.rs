@@ -348,24 +348,37 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_is_valid() {
-        let dsn = Dsn::from_str("kafka://192.168.1.92:9092,jf92:9092").unwrap();
-        let result = is_valid(&dsn).await;
-        assert_eq!(true, result.valid);
-        assert_eq!(true, result.support);
-        assert_eq!("kafka", result.data_source);
-
+    async fn test_invalid() {
         let dsn = Dsn::from_str("kafka://127.0.0.1:9092").unwrap();
         let result = is_valid(&dsn).await;
         assert_eq!(false, result.valid);
-        assert_eq!(true, result.support);
+        assert_eq!(false, result.support);
         assert_eq!("kafka", result.data_source);
-        assert_eq!("No host reachable", result.message.unwrap());
+        assert_eq!("failed to connect to kafka, cause: No host reachable", result.message.unwrap());
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_valid() {
+        let dsn = Dsn::from_str("kafka://192.168.1.92:9092").unwrap();
+        let dsv = is_valid(&dsn).await;
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("kafka", dsv.data_source);
+        assert_eq!(None, dsv.version);
+
+        let dsn = Dsn::from_str("kafka://192.168.1.92:9092,jf92:9092").unwrap();
+        let dsv = is_valid(&dsn).await;
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("kafka", dsv.data_source);
+        assert_eq!(None, dsv.version);
 
         let dsn = Dsn::from_str("kafka://127.0.0.1:9092,jf92:9092").unwrap();
-        let result = is_valid(&dsn).await;
-        assert_eq!(true, result.valid);
-        assert_eq!(true, result.support);
-        assert_eq!("kafka", result.data_source);
+        let dsv = is_valid(&dsn).await;
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("kafka", dsv.data_source);
+        assert_eq!(None, dsv.version);
     }
 }

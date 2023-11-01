@@ -20,7 +20,7 @@ use std::{
 };
 use taos::{
     taos_query::{common::Describe, Manager},
-    AsyncBindable, AsyncFetchable, AsyncQueryable, Dsn, Itertools, RawBlock, Stmt, Taos, TaosPool,
+    AsyncBindable, AsyncQueryable, Dsn, Itertools, RawBlock, Stmt, Taos, TaosPool,
     Ty, Value,
 };
 use tokio::sync::{Mutex, Notify, OnceCell};

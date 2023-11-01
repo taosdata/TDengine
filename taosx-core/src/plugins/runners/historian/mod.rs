@@ -262,7 +262,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_is_valid() {
+    async fn test_invalid() {
         let dsn = Dsn::from_str("historian://localhost").unwrap();
         let res = is_valid(&dsn).await;
         assert_eq!(false, res.valid);
@@ -279,12 +279,17 @@ mod tests {
         assert_eq!(false, res.support);
         assert_eq!("historian", res.data_source);
         assert_eq!("failed to connect to dsn: historian://aaAdmin:aaAdmin@127.0.0.1, cause: Connection refused (os error 61)", res.message.unwrap());
+    }
 
+    #[ignore]
+    #[tokio::test]
+    async fn test_valid(){
         let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433/").unwrap();
         let res = is_valid(&dsn).await;
         assert_eq!(true, res.valid);
         assert_eq!(true, res.support);
         assert_eq!("historian", res.data_source);
+        assert_eq!(None, res.version);
     }
 
     #[tokio::test]

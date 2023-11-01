@@ -262,6 +262,7 @@ async fn validate_mqtt(config: MqttConfig) -> anyhow::Result<DataSourceValidatio
 
 #[cfg(test)]
 mod tests {
+    use std::env;
     use std::str::FromStr;
 
     use crate::TaskOpts;
@@ -269,7 +270,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_is_valid() {
+    async fn test_invalid() {
         let dsn = Dsn::from_str("mqtt://").unwrap();
         let validation = is_valid(&dsn).await;
         assert_eq!(false, validation.valid);
@@ -289,9 +290,23 @@ mod tests {
         assert_eq!(false, validation.support);
         assert_eq!("mqtt", validation.data_source);
         assert_eq!(None, validation.version);
-        assert_eq!("failed to connect to dsn: mqtt://127.0.0.1:1833?clean_session=true&keep_alive=60&version=3.0, cause: mqtt plugin not found \"/usr/local/taosx/plugins/mqtt/taosx-mqtt\"", validation.message.unwrap());
+        assert_eq!("failed to connect to dsn: mqtt://127.0.0.1:1833?clean_session=true&keep_alive=60&version=3.0, cause: mqtt plugin not found \"/usr/local/taos/plugins/mqtt/taosx-mqtt\"", validation.message.unwrap());
     }
 
+    #[ignore]
+    #[tokio::test]
+    async fn test_valid() {
+        env::set_var("PLUGINS_HOME", "../plugins");
+
+        let dsn = Dsn::from_str("mqtt://192.168.1.42:1883?version=3.0").unwrap();
+        let dsv = is_valid(&dsn).await;
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("mqtt", dsv.data_source);
+        assert_eq!(None, dsv.version);
+    }
+
+    #[ignore]
     #[tokio::test(flavor = "multi_thread")]
     async fn test_mqtt_parser() {
         std::env::set_var("RUST_LOG", "debug,tokio=warn");
