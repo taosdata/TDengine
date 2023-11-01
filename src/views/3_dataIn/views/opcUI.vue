@@ -1917,7 +1917,7 @@ export default {
             `cluster-id::${id}`,
             `user::${localStorage.getItem("username")}`,
           ],
-          trigger: { "schedule": "@daily", "resume": this.resume }
+          trigger: { "resume": this.resume }
         };
         if (this.tagName == "mqtt" && isSubmit) {
           piParams["parser"] = this.$store.state.app.mqttParser;
