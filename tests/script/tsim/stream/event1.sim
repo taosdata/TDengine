@@ -26,10 +26,10 @@ sleep 300
 print 1 sql select * from streamt1;
 sql select * from streamt1;
 
-print ===============================
+print   
 print $data00 $data01 $data02 $data03
 print $data10 $data11 $data12 $data13
-print ===============================
+print   
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -69,10 +69,10 @@ sleep 300
 print 1 sql select * from streamt2;
 sql select * from streamt2;
 
-print ===============================
+print   
 print $data00 $data01 $data02 $data03
 print $data10 $data11 $data12 $data13
-print ===============================
+print   
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -100,10 +100,10 @@ sleep 300
 print 1 sql select * from streamt2;
 sql select * from streamt2;
 
-print ===============================
+print   
 print $data00 $data01 $data02 $data03
 print $data10 $data11 $data12 $data13
-print ===============================
+print   
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -130,10 +130,10 @@ sleep 300
 print 1 sql select * from streamt2;
 sql select * from streamt2;
 
-print ===============================
+print   
 print $data00 $data01 $data02 $data03
 print $data10 $data11 $data12 $data13
-print ===============================
+print   
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -154,10 +154,10 @@ sleep 300
 print 1 sql select * from streamt2;
 sql select * from streamt2;
 
-print ===============================
+print   
 print $data00 $data01 $data02 $data03
 print $data10 $data11 $data12 $data13
-print ===============================
+print   
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -184,10 +184,10 @@ sleep 300
 print 1 sql select * from streamt2;
 sql select * from streamt2;
 
-print ===============================
+print   
 print $data00 $data01 $data02 $data03
 print $data10 $data11 $data12 $data13
-print ===============================
+print   
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -209,10 +209,10 @@ sleep 300
 print 1 sql select * from streamt2;
 sql select * from streamt2;
 
-print ===============================
+print   
 print $data00 $data01 $data02 $data03
 print $data10 $data11 $data12 $data13
-print ===============================
+print   
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
