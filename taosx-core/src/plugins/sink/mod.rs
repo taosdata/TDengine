@@ -517,7 +517,7 @@ async fn consume_lush_record(
                                     }
                                     let errstr = format!("{err:#}");
                                     tracing::error!(
-                                        sql = sql,
+                                        // sql = sql,
                                         error = errstr,
                                         "Lush stream writing error"
                                     );
@@ -557,7 +557,7 @@ async fn consume_lush_record(
                                         retry += 1;
                                     }
                                     break_err = Err(err).with_context(|| {
-                                        format!("lush stream error with {retry} retries when execute sql {sql}")
+                                        format!("lush stream error with {retry} retries")
                                     });
                                 }
                             }
@@ -1749,7 +1749,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         .in_current_span()
         .await
         {
-            tracing::error!("write batch {batches} error: {err:#}");
+            tracing::error!("write batch error: {err:#}");
             let written = count - last;
             let _ = ipc_ack_writer.ack(LushAck {
                 code: 0xFFFF,
@@ -1762,6 +1762,8 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                     .to_string(),
                 ),
             });
+            // return err
+            anyhow::bail!("write batch error: {err:#}");
         } else {
             tracing::info!("ack");
             let _ = ipc_ack_writer
@@ -2453,7 +2455,9 @@ pub async fn listen_tcp_socket_with_agent(
         .instrument(tracing::info_span!("agent_ipc_listener")),
     );
 
+    let notified = notify.clone();
     let handle = tokio::spawn(async move {
+        notified.notified().await;
         tracing::debug!("shutdown socket");
         match tokio::time::timeout(Duration::from_secs(60 * 60), thread).await {
             Ok(Ok(_)) => anyhow::Ok(()),
@@ -2628,17 +2632,24 @@ pub async fn listen_tcp_socket(
 
             let instant = std::time::Instant::now();
             for h in handlers {
-                let _ = h.await;
+                tokio::pin!(h);
+                if h.is_finished() {
+                    tracing::info!("IPC handler finished");
+                } else {
+                    tracing::info!("IPC handler not finished");
+                }
             }
             tracing::info!("IPC stream handlers finished after {:?}", instant.elapsed());
         }
         .instrument(tracing::info_span!("plain_ipc_listener")),
     );
+    let notified = notify.clone();
     let handle = tokio::spawn(
         async move {
             // closed.store(true, std::sync::atomic::Ordering::SeqCst);
+            let _ = notified.notified().await;
             tracing::info!("stop listener");
-            match tokio::time::timeout(Duration::from_secs(60 * 60), thread).await {
+            match tokio::time::timeout(Duration::from_secs(10), thread).await {
                 Ok(Ok(_)) => anyhow::Ok(()),
                 Ok(err) => err.map_err(Into::into),
                 Err(_) => {
