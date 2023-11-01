@@ -174,7 +174,7 @@ export default {
   },
   computed: {
     jdbcURL() {
-      return 'jdbc:TAOS-RS://' + this.url?.replace(/https?:\/\//, '') + '?usessl=false&user=' + `${localStorage.getItem('username')}&password=${localStorage.getItem('cleartextPwd')}`;
+      return 'jdbc:TAOS-RS://' + this.url?.replace(/https?:\/\//, '') + '?useSSL=false&user=' + `${localStorage.getItem('username')}&password=${localStorage.getItem('cleartextPwd')}`;
       // return `jdbc:TAOS-RS://localhost:6041?useSSL=false&user=root&password=taosdata`
     }
   }
