@@ -16,13 +16,13 @@
 #include "sma.h"
 #include "tsdb.h"
 
-static int32_t smaEvalDays(SVnode *pVnode, SRetention *r, int8_t level, int8_t precision, int32_t duration);
+static int32_t smaEvalDays(SVnode *pVnode, SRetentionEx *r, int8_t level, int8_t precision, int32_t duration);
 static int32_t smaSetKeepCfg(SVnode *pVnode, STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int type);
 static int32_t rsmaRestore(SSma *pSma);
 
 #define SMA_SET_KEEP_CFG(v, l)                                                                    \
   do {                                                                                            \
-    SRetention *r = &pCfg->retentions[l];                                                         \
+    SRetention *r = &(pCfg->retentions[l].rtn);                                                   \
     pKeepCfg->keep2 = convertTimeFromPrecisionToUnit(r->keep, pCfg->precision, TIME_UNIT_MINUTE); \
     pKeepCfg->keep0 = pKeepCfg->keep2;                                                            \
     pKeepCfg->keep1 = pKeepCfg->keep2;                                                            \
@@ -32,7 +32,7 @@ static int32_t rsmaRestore(SSma *pSma);
 
 #define SMA_OPEN_RSMA_IMPL(v, l, force)                                                             \
   do {                                                                                              \
-    SRetention *r = (SRetention *)VND_RETENTIONS(v) + l;                                            \
+    SRetention *r = &(((SRetentionEx *)VND_RETENTIONS(v) + l)->rtn);                                  \
     if (!RETENTION_VALID(l, r)) {                                                                   \
       if (l == 0) {                                                                                 \
         code = TSDB_CODE_INVALID_PARA;                                                              \
@@ -59,9 +59,9 @@ static int32_t rsmaRestore(SSma *pSma);
  * @param duration
  * @return int32_t
  */
-static int32_t smaEvalDays(SVnode *pVnode, SRetention *r, int8_t level, int8_t precision, int32_t duration) {
-  int32_t freqDuration = convertTimeFromPrecisionToUnit((r + TSDB_RETENTION_L0)->freq, precision, TIME_UNIT_MINUTE);
-  int32_t keepDuration = convertTimeFromPrecisionToUnit((r + TSDB_RETENTION_L0)->keep, precision, TIME_UNIT_MINUTE);
+static int32_t smaEvalDays(SVnode *pVnode, SRetentionEx *r, int8_t level, int8_t precision, int32_t duration) {
+  int32_t freqDuration = convertTimeFromPrecisionToUnit((r + TSDB_RETENTION_L0)->rtn.freq, precision, TIME_UNIT_MINUTE);
+  int32_t keepDuration = convertTimeFromPrecisionToUnit((r + TSDB_RETENTION_L0)->rtn.keep, precision, TIME_UNIT_MINUTE);
   int32_t days = duration;  // min
 
   if (days < freqDuration) {
@@ -76,10 +76,10 @@ static int32_t smaEvalDays(SVnode *pVnode, SRetention *r, int8_t level, int8_t p
     goto _exit;
   }
 
-  freqDuration = convertTimeFromPrecisionToUnit((r + level)->freq, precision, TIME_UNIT_MINUTE);
-  keepDuration = convertTimeFromPrecisionToUnit((r + level)->keep, precision, TIME_UNIT_MINUTE);
+  freqDuration = convertTimeFromPrecisionToUnit((r + level)->rtn.freq, precision, TIME_UNIT_MINUTE);
+  keepDuration = convertTimeFromPrecisionToUnit((r + level)->rtn.keep, precision, TIME_UNIT_MINUTE);
 
-  int32_t nFreqTimes = (r + level)->freq / (60 * 1000);  // use 60s for freq of 1st level
+  int32_t nFreqTimes = (r + level)->rtn.freq / (60 * 1000);  // use 60s for freq of 1st level
   days *= (nFreqTimes > 1 ? nFreqTimes : 1);
 
   if (days < freqDuration) {

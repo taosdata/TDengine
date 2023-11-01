@@ -49,7 +49,7 @@ static int32_t mergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo
                                      STsdbReader* pReader);
 
 static int32_t       initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, int32_t order, SCostSummary* pCost);
-static STsdb*        getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* retentions, const char* idstr,
+static STsdb*        getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetentionEx* retentions, const char* idstr,
                                          int8_t* pLevel);
 static SVersionRange getQueryVerRange(SVnode* pVnode, SQueryTableDataCond* pCond, int8_t level);
 static bool          hasDataInLastBlock(SLastBlockReader* pLastBlockReader);
@@ -3140,7 +3140,7 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
   }
 }
 
-static STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* retentions, const char* idStr,
+static STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetentionEx* retentions, const char* idStr,
                                   int8_t* pLevel) {
   if (VND_IS_RSMA(pVnode)) {
     int8_t  level = 0;
@@ -3151,7 +3151,7 @@ static STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* ret
                                                                                         : 1000000L);
 
     for (int8_t i = 0; i < TSDB_RETENTION_MAX; ++i) {
-      SRetention* pRetention = retentions + level;
+      SRetention* pRetention = &((retentions + level)->rtn);
       if (pRetention->keep <= 0) {
         if (level > 0) {
           --level;

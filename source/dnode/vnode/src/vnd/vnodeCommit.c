@@ -290,6 +290,9 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   tsem_wait(&pVnode->canCommit);
 
   if(syncNodeGetConfig(pVnode->sync, &pVnode->config.syncCfg) != 0) goto _exit;
+  
+  code = smaPrepareAsyncCommit(pVnode->pSma);
+  if (code) goto _exit;
 
   pVnode->state.commitTerm = pVnode->state.applyTerm;
 
@@ -312,9 +315,6 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   tsdbPreCommit(pVnode->pTsdb);
 
   metaPrepareAsyncCommit(pVnode->pMeta);
-
-  code = smaPrepareAsyncCommit(pVnode->pSma);
-  if (code) goto _exit;
 
   taosThreadMutexLock(&pVnode->mutex);
   ASSERT(pVnode->onCommit == NULL);

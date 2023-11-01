@@ -134,10 +134,11 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->tsdbCfg.minRows = pCreate->minRows;
   pCfg->tsdbCfg.maxRows = pCreate->maxRows;
   for (size_t i = 0; i < taosArrayGetSize(pCreate->pRetensions); ++i) {
-    SRetention *pRetention = &pCfg->tsdbCfg.retentions[i];
-    memcpy(pRetention, taosArrayGet(pCreate->pRetensions, i), sizeof(SRetention));
+    SRetentionEx *pRetention = &pCfg->tsdbCfg.retentions[i];
+    memcpy(&pRetention->rtn, taosArrayGet(pCreate->pRetensions, i), sizeof(SRetention));
+    pRetention->checkpointId = -1;
     if (i == 0) {
-      if ((pRetention->freq >= 0 && pRetention->keep > 0)) pCfg->isRsma = 1;
+      if ((pRetention->rtn.freq >= 0 && pRetention->rtn.keep > 0)) pCfg->isRsma = 1;
     }
   }
 

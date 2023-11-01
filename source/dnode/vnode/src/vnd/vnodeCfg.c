@@ -106,23 +106,24 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "keep1", pCfg->tsdbCfg.keep1) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "keep2", pCfg->tsdbCfg.keep2) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "keepTimeOffset", pCfg->tsdbCfg.keepTimeOffset) < 0) return -1;
-  if (pCfg->tsdbCfg.retentions[0].keep > 0) {
+  if (pCfg->tsdbCfg.retentions[0].rtn.keep > 0) {
     int32_t nRetention = 1;
-    if (pCfg->tsdbCfg.retentions[1].freq > 0) {
+    if (pCfg->tsdbCfg.retentions[1].rtn.freq > 0) {
       ++nRetention;
-      if (pCfg->tsdbCfg.retentions[2].freq > 0) {
+      if (pCfg->tsdbCfg.retentions[2].rtn.freq > 0) {
         ++nRetention;
       }
     }
     SJson *pNodeRetentions = tjsonCreateArray();
     tjsonAddItemToObject(pJson, "retentions", pNodeRetentions);
     for (int32_t i = 0; i < nRetention; ++i) {
-      SJson            *pNodeRetention = tjsonCreateObject();
-      const SRetention *pRetention = pCfg->tsdbCfg.retentions + i;
-      tjsonAddIntegerToObject(pNodeRetention, "freq", pRetention->freq);
-      tjsonAddIntegerToObject(pNodeRetention, "freqUnit", pRetention->freqUnit);
-      tjsonAddIntegerToObject(pNodeRetention, "keep", pRetention->keep);
-      tjsonAddIntegerToObject(pNodeRetention, "keepUnit", pRetention->keepUnit);
+      SJson              *pNodeRetention = tjsonCreateObject();
+      const SRetentionEx *pRetention = pCfg->tsdbCfg.retentions + i;
+      tjsonAddIntegerToObject(pNodeRetention, "freq", pRetention->rtn.freq);
+      tjsonAddIntegerToObject(pNodeRetention, "freqUnit", pRetention->rtn.freqUnit);
+      tjsonAddIntegerToObject(pNodeRetention, "keep", pRetention->rtn.keep);
+      tjsonAddIntegerToObject(pNodeRetention, "keepUnit", pRetention->rtn.keepUnit);
+      tjsonAddIntegerToObject(pNodeRetention, "checkpointId", pRetention->checkpointId);
       tjsonAddItemToArray(pNodeRetentions, pNodeRetention);
     }
   }
@@ -231,10 +232,12 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   for (int32_t i = 0; i < nRetention; ++i) {
     SJson *pNodeRetention = tjsonGetArrayItem(pNodeRetentions, i);
     ASSERT(pNodeRetention != NULL);
-    tjsonGetNumberValue(pNodeRetention, "freq", (pCfg->tsdbCfg.retentions)[i].freq, code);
-    tjsonGetNumberValue(pNodeRetention, "freqUnit", (pCfg->tsdbCfg.retentions)[i].freqUnit, code);
-    tjsonGetNumberValue(pNodeRetention, "keep", (pCfg->tsdbCfg.retentions)[i].keep, code);
-    tjsonGetNumberValue(pNodeRetention, "keepUnit", (pCfg->tsdbCfg.retentions)[i].keepUnit, code);
+    SRetentionEx *pRetention = &(pCfg->tsdbCfg.retentions[i]);
+    tjsonGetNumberValue(pNodeRetention, "freq", pRetention->rtn.freq, code);
+    tjsonGetNumberValue(pNodeRetention, "freqUnit", pRetention->rtn.freqUnit, code);
+    tjsonGetNumberValue(pNodeRetention, "keep", pRetention->rtn.keep, code);
+    tjsonGetNumberValue(pNodeRetention, "keepUnit", pRetention->rtn.keepUnit, code);
+    tjsonGetNumberValue(pNodeRetention, "checkpointId", pRetention->checkpointId, code);
   }
   tjsonGetNumberValue(pJson, "wal.vgId", pCfg->walCfg.vgId, code);
   if (code < 0) return -1;

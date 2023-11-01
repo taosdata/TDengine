@@ -266,7 +266,9 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     }
     pStreamTask->id.taskId = 0;
     pStreamTask->id.streamId = pRSmaInfo->suid + idx;
+    pStreamTask->chkInfo.startTs = taosGetTimestampMs();
     pStreamTask->pMeta = pVnode->pTq->pStreamMeta;
+    pStreamTask->chkInfo.checkpointId = pTsdbCfg->retentions[idx + 1].checkpointId;
 
     pStreamState = streamStateOpen(taskInfDir, pStreamTask, true, -1, -1);
     if (!pStreamState) {
@@ -1096,16 +1098,18 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
         smaDebug("vgId:%d, rsma persist, stream state commit success, table %" PRIi64 ", level %d", TD_VID(pVnode),
                  pRSmaInfo->suid, i + 1);
       }
-#endif
-      if (pItem && pItem->pStreamState && pItem->pStreamTask) {
+#else
+      if (pItem) {
         SStreamTask *pTask = pItem->pStreamTask;
         atomic_store_32(&pTask->pMeta->chkptNotReadyTasks, 1);  // adaption for API streamTaskBuildCheckpoint
         pTask->checkpointingId = taosGetTimestampNs();
         code = streamTaskBuildCheckpoint(pTask);
         TSDB_CHECK_CODE(code, lino, _exit);
+        (pVnode->config.tsdbCfg.retentions + i + 1)->checkpointId = pTask->checkpointingId;
         smaInfo("vgId:%d, rsma persist, build stream checkpoint success, table:%" PRIi64 ", level:%d, id:%" PRIi64,
                 TD_VID(pVnode), pRSmaInfo->suid, i + 1, pTask->checkpointingId);
       }
+#endif
     }
   }
 
