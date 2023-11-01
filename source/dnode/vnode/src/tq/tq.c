@@ -1149,12 +1149,10 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     // 1. get the related stream task
     pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId);
     if (pStreamTask == NULL) {
-      // todo delete this task, if the related stream task is dropped
-      qError("failed to find s-task:0x%"PRIx64", it may have been destroyed, drop fill-history task:%s",
+      tqError("failed to find s-task:0x%"PRIx64", it may have been destroyed, drop related fill-history task:%s",
              pTask->streamTaskId.taskId, pTask->id.idStr);
 
       tqDebug("s-task:%s fill-history task set status to be dropping", id);
-
       streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
 
       atomic_store_32(&pTask->status.inScanHistorySentinel, 0);
@@ -1163,68 +1161,6 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     }
 
     ASSERT(pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE);
-#if 0
-    // 2. it cannot be paused, when the stream task in TASK_STATUS__SCAN_HISTORY status. Let's wait for the
-    // stream task get ready for scan history data
-    while (streamTaskGetStatus(pStreamTask, NULL) == TASK_STATUS__SCAN_HISTORY) {
-      tqDebug(
-          "s-task:%s level:%d related stream task:%s(status:%s) not ready for halt, wait for it and recheck in 100ms",
-          id, pTask->info.taskLevel, pStreamTask->id.idStr, streamGetTaskStatusStr(pStreamTask->status.taskStatus));
-      taosMsleep(100);
-    }
-
-    // now we can stop the stream task execution
-    int64_t nextProcessedVer = 0;
-
-    while (1) {
-      taosThreadMutexLock(&pStreamTask->lock);
-      int8_t status = pStreamTask->status.taskStatus;
-      if (status == TASK_STATUS__DROPPING || status == TASK_STATUS__STOP) {
-        // return; do nothing
-      }
-
-      if (status == TASK_STATUS__HALT) {
-//        tqDebug("s-task:%s level:%d sched-status:%d is halt by fill-history task:%s", pStreamTask->id.idStr,
-//                pStreamTask->info.taskLevel, pStreamTask->status.schedStatus, id);
-//        latestVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
-//
-//        taosThreadMutexUnlock(&pStreamTask->lock);
-//        break;
-      }
-
-      if (pStreamTask->status.taskStatus == TASK_STATUS__CK) {
-        qDebug("s-task:%s status:%s during generating checkpoint, wait for 1sec and retry set status:halt",
-               pStreamTask->id.idStr, streamGetTaskStatusStr(TASK_STATUS__CK));
-        taosThreadMutexUnlock(&pStreamTask->lock);
-        taosMsleep(1000);
-        continue;
-      }
-
-      // upgrade to halt status
-      if (status == TASK_STATUS__PAUSE) {
-        qDebug("s-task:%s upgrade status to %s from %s", pStreamTask->id.idStr, streamGetTaskStatusStr(TASK_STATUS__HALT),
-               streamGetTaskStatusStr(TASK_STATUS__PAUSE));
-      } else {
-        qDebug("s-task:%s halt task, prev status:%s", pStreamTask->id.idStr, streamGetTaskStatusStr(status));
-      }
-
-      pStreamTask->status.keepTaskStatus = status;
-      pStreamTask->status.taskStatus = TASK_STATUS__HALT;
-
-      // wal scan not start yet, reset it to be the start position
-      nextProcessedVer = walReaderGetCurrentVer(pStreamTask->exec.pWalReader);
-      if (nextProcessedVer == -1) {
-        nextProcessedVer = pStreamTask->dataRange.range.maxVer + 1;
-      }
-
-      tqDebug("s-task:%s level:%d nextProcessedVer:%" PRId64 ", sched-status:%d is halt by fill-history task:%s",
-              pStreamTask->id.idStr, pStreamTask->info.taskLevel, nextProcessedVer, pStreamTask->status.schedStatus,
-              id);
-
-      taosThreadMutexUnlock(&pStreamTask->lock);
-      break;
-    }
-#endif
 
     streamTaskHandleEvent(pStreamTask->status.pSM, TASK_EVENT_HALT);
     int64_t nextProcessedVer = pStreamTask->hTaskInfo.haltVer;

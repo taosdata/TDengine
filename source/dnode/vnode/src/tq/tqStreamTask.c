@@ -446,6 +446,7 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     int64_t maxVer = (pTask->info.fillHistory == 1) ? pTask->dataRange.range.maxVer : INT64_MAX;
 
     taosThreadMutexLock(&pTask->lock);
+    tqDebug("s-task:%s lock", pTask->id.idStr);
 
     char* p = NULL;
     ETaskStatus status = streamTaskGetStatus(pTask, &p);

@@ -1004,6 +1004,8 @@ int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo,
   info.msg.info = *pRpcInfo;
 
   taosThreadMutexLock(&pTask->lock);
+  stDebug("s-task:%s lock", pTask->id.idStr);
+
   if (pTask->pRspMsgList == NULL) {
     pTask->pRspMsgList = taosArrayInit(4, sizeof(SStreamContinueExecInfo));
   }
