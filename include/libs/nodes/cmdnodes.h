@@ -26,7 +26,7 @@ extern "C" {
 #define DESCRIBE_RESULT_COLS      4
 #define DESCRIBE_RESULT_FIELD_LEN (TSDB_COL_NAME_LEN - 1 + VARSTR_HEADER_SIZE)
 #define DESCRIBE_RESULT_TYPE_LEN  (20 + VARSTR_HEADER_SIZE)
-#define DESCRIBE_RESULT_NOTE_LEN  (8 + VARSTR_HEADER_SIZE)
+#define DESCRIBE_RESULT_NOTE_LEN  (16 + VARSTR_HEADER_SIZE)
 
 #define SHOW_CREATE_DB_RESULT_COLS       2
 #define SHOW_CREATE_DB_RESULT_FIELD1_LEN (TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE)
@@ -35,6 +35,11 @@ extern "C" {
 #define SHOW_CREATE_TB_RESULT_COLS       2
 #define SHOW_CREATE_TB_RESULT_FIELD1_LEN (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_CREATE_TB_RESULT_FIELD2_LEN (TSDB_MAX_ALLOWED_SQL_LEN * 3)
+
+#define SHOW_CREATE_VIEW_RESULT_COLS       2
+#define SHOW_CREATE_VIEW_RESULT_FIELD1_LEN (TSDB_VIEW_FNAME_LEN + 4 + VARSTR_HEADER_SIZE)
+#define SHOW_CREATE_VIEW_RESULT_FIELD2_LEN (TSDB_MAX_ALLOWED_SQL_LEN + VARSTR_HEADER_SIZE)
+
 
 #define SHOW_LOCAL_VARIABLES_RESULT_COLS       3
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
@@ -51,6 +56,7 @@ extern "C" {
 #define PRIVILEGE_TYPE_READ      BIT_FLAG_MASK(1)
 #define PRIVILEGE_TYPE_WRITE     BIT_FLAG_MASK(2)
 #define PRIVILEGE_TYPE_SUBSCRIBE BIT_FLAG_MASK(3)
+#define PRIVILEGE_TYPE_ALTER     BIT_FLAG_MASK(4)
 
 typedef struct SDatabaseOptions {
   ENodeType   type;
@@ -297,6 +303,13 @@ typedef struct SShowCreateTableStmt {
   void*     pTableCfg;  // STableCfg
 } SShowCreateTableStmt;
 
+typedef struct SShowCreateViewStmt {
+  ENodeType type;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      viewName[TSDB_VIEW_NAME_LEN];
+  void*     pViewMeta;
+} SShowCreateViewStmt;
+
 typedef struct SShowTableDistributedStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
@@ -489,6 +502,23 @@ typedef struct SDropFunctionStmt {
   char      funcName[TSDB_FUNC_NAME_LEN];
   bool      ignoreNotExists;
 } SDropFunctionStmt;
+
+typedef struct SCreateViewStmt {
+  ENodeType           type;
+  char                dbName[TSDB_DB_NAME_LEN];
+  char                viewName[TSDB_VIEW_NAME_LEN];
+  char*               pQuerySql;
+  bool                orReplace;
+  SNode*              pQuery;
+  SCMCreateViewReq    createReq;
+} SCreateViewStmt;
+
+typedef struct SDropViewStmt {
+  ENodeType  type;
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       viewName[TSDB_VIEW_NAME_LEN];
+  bool       ignoreNotExists;
+} SDropViewStmt;
 
 typedef struct SGrantStmt {
   ENodeType type;

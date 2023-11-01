@@ -119,6 +119,17 @@ typedef struct STableMeta {
 } STableMeta;
 #pragma pack(pop)
 
+typedef struct SViewMeta {
+  uint64_t viewId;
+  char*    user;
+  char*    querySql;
+  int8_t   precision;
+  int8_t   type;
+  int32_t  version;
+  int32_t  numOfCols;
+  SSchema* pSchema;
+} SViewMeta;
+
 typedef struct SDBVgInfo {
   int32_t   vgVersion;
   int16_t   hashPrefix;
@@ -147,6 +158,15 @@ typedef struct STableMetaOutput {
   SCTableMeta ctbMeta;
   STableMeta* tbMeta;
 } STableMetaOutput;
+
+typedef struct SViewMetaOutput {
+  char     name[TSDB_VIEW_NAME_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  char*    querySql;
+  int8_t   precision;
+  int32_t  numOfCols;
+  SSchema* pSchema;
+} SViewMetaOutput;
 
 typedef struct SDataBuf {
   int32_t  msgType;
@@ -300,9 +320,11 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
   (NO_RET_REDIRECT_ERROR(_code) || SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code) || \
    SYNC_SELF_LEADER_REDIRECT_ERROR(_code) || SYNC_OTHER_LEADER_REDIRECT_ERROR(_code))
 
+#define IS_VIEW_REQUEST(_type) ((_type) == TDMT_MND_CREATE_VIEW || (_type) == TDMT_MND_DROP_VIEW)
+
 #define NEED_CLIENT_RM_TBLMETA_REQ(_type)                                                                  \
   ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_MND_CREATE_STB || (_type) == TDMT_VND_DROP_TABLE || \
-   (_type) == TDMT_MND_DROP_STB)
+   (_type) == TDMT_MND_DROP_STB || (_type) == TDMT_MND_CREATE_VIEW || (_type) == TDMT_MND_DROP_VIEW)
 
 #define NEED_SCHEDULER_REDIRECT_ERROR(_code)                                              \
   (SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code) || SYNC_SELF_LEADER_REDIRECT_ERROR(_code) || \
