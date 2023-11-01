@@ -1,6 +1,9 @@
-use anyhow::{bail, Context, Result};
+use std::path::{Path, PathBuf};
+
+use anyhow::{bail, Result};
 use chrono::Local;
-use clap::{Parser, Subcommand};
+use clap::{parser::ValueSource, CommandFactory, Parser, Subcommand};
+use clap_verbosity_flag::{InfoLevel, Verbosity};
 use const_format::concatcp;
 use file_rotate::{
     compression::Compression,
@@ -8,11 +11,25 @@ use file_rotate::{
     ContentLimit, FileRotate, TimeFrequency,
 };
 use metrics_tracing_context::MetricsLayer;
+#[cfg(feature = "mimalloc")]
+use mimalloc::MiMalloc;
 use opentelemetry::trace::Tracer;
+use serde::{Deserialize, Serialize};
 use shadow_rs::shadow;
+use thiserror::Error;
+use time::{macros::format_description, UtcOffset};
+use tracing::{Instrument, Level, log::LevelFilter};
+use tracing_appender::non_blocking::NonBlocking;
+use tracing_subscriber::{
+    fmt::{format::FmtSpan, time::OffsetTime},
+    prelude::*,
+    EnvFilter,
+};
+use twelf::{config, Layer};
 
 use taosx_core::{
-    get_log_dir, get_log_keep_days, valid_env_log_keep_days, ENV_TAOSX_LOGS_KEEP_DAYS,
+    get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
+    set_env_plugins_home_dir,
 };
 #[cfg(feature = "tikv_jemallocator")]
 #[cfg(not(target_env = "msvc"))]
@@ -24,19 +41,6 @@ use tikv_jemallocator::Jemalloc;
 static GLOBAL: Jemalloc = Jemalloc;
 
 #[cfg(feature = "mimalloc")]
-use mimalloc::MiMalloc;
-
-use time::{macros::format_description, UtcOffset};
-use tracing::Instrument;
-use tracing_subscriber::{
-    fmt::{format::FmtSpan, time::OffsetTime},
-    prelude::*,
-    EnvFilter,
-};
-
-use crate::serve::task::ENV_TAOSX_UPLOAD_FILE_HOME;
-
-#[cfg(feature = "mimalloc")]
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 
@@ -44,31 +48,138 @@ shadow!(build);
 
 const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
     concatcp!(
-        build::PKG_VERSION,
+        "version: ",
+        build::TD_VERSION,
+        "\ngit: ",
+        build::BRANCH,
         "-",
-        build::SHORT_COMMIT,
-        " (built ",
+        build::COMMIT_HASH,
+        "\nbuild: core-",
+        build::PKG_VERSION,
+        " ",
         build::BUILD_OS,
         " ",
-        build::BUILD_TIME,
-        ")"
+        build::BUILD_TIME
     )
 } else {
     concatcp!(
-        build::PKG_VERSION,
+        "version: ",
+        build::TD_VERSION,
+        "\ngit: ",
+        build::BRANCH,
         "-",
-        build::SHORT_COMMIT,
-        "-dirty",
-        " (built ",
+        build::COMMIT_HASH,
+        "\nbuild: core-dirty-",
+        build::PKG_VERSION,
+        " ",
         build::BUILD_OS,
         " ",
-        build::BUILD_TIME,
-        ")"
+        build::BUILD_TIME
     )
 };
 
 mod run;
 mod serve;
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    Run(run::Cli),
+    Serve(serve::Cli),
+    #[clap(external_subcommand)]
+    External(Vec<String>),
+}
+
+#[derive(Parser, Debug)]
+struct OptArgs {
+    #[clap(short = 'c', long, global = true)]
+    config: Option<PathBuf>,
+
+    /// For verbosity print.
+    #[clap(flatten)]
+    verbose: Option<Verbosity<InfoLevel>>,
+
+    /// Be careful to use this, we suggest only use it when failed at first time.
+    ///
+    /// We'll warn you various kind of risks before really running a task.
+    #[clap(short, long, global = true)]
+    yes_i_really_mean_it: bool,
+
+    #[clap(
+    long,
+    global = true,
+    default_value = "none",
+    value_parser = fmt_span_from_str,
+    env = "TRACING_EVENTS"
+    )]
+    tracing_events: FmtSpan,
+}
+
+#[config]
+#[derive(Parser, Debug)]
+struct ConfigurableOpts {
+    #[clap(flatten)]
+    #[serde(flatten)]
+    global: Global,
+
+    #[clap(flatten)]
+    serve: Option<serve::Cli>,
+}
+
+#[derive(Parser, Debug, Deserialize, Serialize, Default)]
+#[serde(default)]
+struct Global {
+    #[clap(long, env = "PLUGINS_HOME", global = true)]
+    plugins_home: Option<String>,
+
+    #[clap(long, env = "TAOSX_DATA_DIR", global = true)]
+    data_dir: Option<String>,
+
+    #[clap(long, env = "LOGS_HOME", global = true)]
+    logs_home: Option<String>,
+
+    /// For environment variable wised log level.
+    #[clap(long, hide = true, env = "LOG_LEVEL", global = true)]
+    log_level: Option<LevelFilter>,
+
+    /// Enable debug will set the mod path as `file:line`.
+    #[clap(short, long, global = true)]
+    debug: bool,
+
+    /// Log keep days.
+    #[clap(long, env = "LOG_KEEP_DAYS", global = true)]
+    log_keep_days: Option<i64>,
+
+    /// Number of jobs, default to 0, will use `jobs` number of works for TMQ.
+    #[clap(short, long, value_parser, default_value = "0", global = true)]
+    jobs: usize,
+
+    /// Enable OpenTelemetry tracing and metrics exporter.
+    #[clap(long, action = clap::ArgAction::SetTrue, env = "ENABLE_OTEL", global = true)]
+    otel: Option<bool>,
+}
+
+#[derive(Parser, Debug)]
+#[clap(name = build::CUS_CLI_NAME, author, version = CLAP_SHORT_VERSION, about = build::CUS_CLI_ABOUT, long_about = build::CUS_CLI_ABOUT)]
+struct Args {
+    #[clap(subcommand)]
+    commands: Option<Commands>,
+    #[clap(flatten)]
+    opt_args: OptArgs,
+    #[clap(flatten)]
+    global: Global,
+}
+
+#[derive(Debug, Error)]
+pub enum ArgsError {
+    #[error("Config file is set but seems not exist: {0}")]
+    ConfigNotFound(String),
+    #[error("Missing required argument: {0}")]
+    MissingRequiredArgument(String),
+    #[error("Argument parsing error: {0}")]
+    ParseError(#[from] twelf::Error),
+    // #[error("Argument parsing error: {0}")]
+    // ClapError(#[from] clap::Error),
+}
 
 fn fmt_span_from_str(s: &str) -> Result<FmtSpan, String> {
     match s {
@@ -82,94 +193,123 @@ fn fmt_span_from_str(s: &str) -> Result<FmtSpan, String> {
     }
 }
 
-#[derive(Debug, Parser, Clone)]
-pub(crate) struct GlobalOpts {
-    /// For verbosity print.
-    #[clap(flatten)]
-    verbose: clap_verbosity_flag::Verbosity<clap_verbosity_flag::WarnLevel>,
-
-    /// Number of jobs, default to 0, will use `jobs` number of works for TMQ.
-    #[clap(short, long, value_parser, default_value = "0", global = true)]
-    jobs: usize,
-
-    /// Enable debug will set the mod path as `file:line`.
-    #[clap(short, long, global = true)]
-    debug: bool,
-
-    /// Log keep days.
-    #[clap(long, global = true, env = "LOG_KEEP_DAYS")]
-    log_keep_days: Option<i64>,
-
-    /// Be careful to use this, we suggest only use it when failed at first time.
-    ///
-    /// We'll warn you various kind of risks before really running a task.
-    #[clap(short, long, global = true)]
-    yes_i_really_mean_it: bool,
-
-    /// Enable OpenTelemetry tracing and metrics exporter.
-    #[clap(long, global = true, action = clap::ArgAction::SetTrue, env = "ENABLE_OTEL")]
-    otel: Option<bool>,
-
-    #[clap(
-        // short = 'e',
-        long,
-        global = true,
-        default_value = "none",
-        value_parser = fmt_span_from_str,
-        env = "TRACING_EVENTS"
-    )]
-    tracing_events: FmtSpan,
+#[cfg(windows)]
+fn get_default_config_path() -> PathBuf {
+    std::path::Path::new("C:\\")
+        .join("TDengine")
+        .join("cfg")
+        .join("taosx.toml")
 }
 
-impl GlobalOpts {
-    pub fn executor_worker_threads(&self) -> usize {
-        let min = std::thread::available_parallelism()
-            .map(|v| v.get() * 2)
-            .unwrap_or(16)
-            .max(16);
-
-        if self.jobs + 2 > min {
-            self.jobs + 2
-        } else {
-            min
+#[cfg(not(windows))]
+fn get_default_config_path() -> PathBuf {
+    std::path::Path::new("/etc")
+        .join(build::CUS_PROMPT)
+        .join("taosx.toml")
+}
+impl Args {
+    pub fn init() -> Result<Args, ArgsError> {
+        let mut args = Args::parse();
+        let path = args
+            .opt_args
+            .config
+            .clone()
+            .unwrap_or(get_default_config_path());
+        // let path = if let Ok(c) = Args::try_parse() {
+        //     c.opt_args
+        //         .config
+        //         .map(|p| {
+        //             if p.exists() {
+        //                 Ok(p)
+        //             } else {
+        //                 Err(ArgsError::ConfigNotFound(p.display().to_string()))
+        //             }
+        //         })
+        //         .transpose()?
+        // } else {
+        //     None
+        // }
+        // .unwrap_or_else(|| {
+        //     if cfg!(windows) {
+        //         std::path::Path::new("C:\\")
+        //             .join("TDengine")
+        //             .join("cfg")
+        //             .join("taosx.toml")
+        //     } else {
+        //         std::path::Path::new("/etc")
+        //             .join(build::CUS_PROMPT)
+        //             .join("taosx.toml")
+        //     }
+        // });
+        let mut layers = vec![];
+        if path.exists() {
+            layers.push(Layer::Toml(path))
         }
+        layers.push(Layer::Env(Some(format!(
+            "{}X_",
+            build::CUS_PROMPT.to_uppercase()
+        ))));
+        layers.push(Layer::Clap(Args::command().get_matches()));
+
+        let configurable_opts = ConfigurableOpts::with_layers(&layers)?;
+        args.global = configurable_opts.global;
+
+        args.global.jobs = executor_worker_threads(args.global.jobs);
+
+        let matches = Args::command().get_matches();
+
+        match &mut args.commands {
+            Some(Commands::Run(_)) => {}
+            Some(Commands::Serve(cli)) => {
+                let mut serve = configurable_opts.serve.unwrap_or_default();
+
+                if let Some(matches) = matches.subcommand_matches("serve") {
+                    macro_rules! tak_or_not {
+                        ($f:ident) => {
+                            match matches.value_source(stringify!($f)) {
+                                Some(ValueSource::DefaultValue) | None => {}
+                                _ => {
+                                    serve.$f.take();
+                                }
+                            }
+                        };
+                    }
+                    tak_or_not!(listen);
+                    tak_or_not!(grpc);
+                    tak_or_not!(database_url);
+                    tak_or_not!(secret_prefix);
+                    tak_or_not!(do_not_resume);
+                }
+                cli.merge_from(serve);
+            }
+            _ => {}
+        }
+        Ok(args)
     }
 }
 
-#[derive(Subcommand, Debug)]
-enum Commands {
-    Run(run::Cli),
-    Serve(serve::Cli),
-    #[clap(external_subcommand)]
-    External(Vec<String>),
-}
-fn set_env_log_keep_days(config: Option<i64>) {
-    if let Some(log_keep_days) = config {
-        if log_keep_days > 0 && valid_env_log_keep_days().is_none() {
-            std::env::set_var(ENV_TAOSX_LOGS_KEEP_DAYS, log_keep_days.to_string());
-        }
+pub fn executor_worker_threads(jobs: usize) -> usize {
+    let min = std::thread::available_parallelism()
+        .map(|v| v.get() * 2)
+        .unwrap_or(16)
+        .max(16);
+    if &jobs + 2 > min {
+        jobs + 2
+    } else {
+        min
     }
 }
-#[derive(Parser, Debug)]
-#[clap(
-    name = build::CUS_CLI_NAME,
-    author, version = CLAP_SHORT_VERSION,
-    about = build::CUS_CLI_ABOUT,
-    long_about = build::CUS_CLI_ABOUT)]
-struct Args {
-    #[clap(flatten)]
-    globals: GlobalOpts,
-    #[clap(subcommand)]
-    commands: Option<Commands>,
-    #[clap(last = true, value_parser)]
-    slop: Vec<String>,
+
+fn log_level_to_tracing_level(level: LevelFilter) -> Option<Level> {
+    match level {
+        LevelFilter::Off => None,
+        LevelFilter::Error => Some(Level::ERROR),
+        LevelFilter::Warn => Some(Level::WARN),
+        LevelFilter::Info => Some(Level::INFO),
+        LevelFilter::Debug => Some(Level::DEBUG),
+        LevelFilter::Trace => Some(Level::TRACE),
+    }
 }
-
-const ENV_PLUGINS_HOME: &'static str = "PLUGINS_HOME";
-const ENV_TAOSX_PLUGINS_HOME: &'static str = concatcp!(build::CUS_PROMPT, "_PLUGINS_HOME");
-
-const ENV_LOGS_HOME: &'static str = "LOGS_HOME";
-const ENV_APP_LOGS_HOME: &'static str = concatcp!(build::CUS_PROMPT, "_LOGS_HOME");
 
 fn build_runtime(
     worker_threads: usize,
@@ -184,94 +324,35 @@ fn build_runtime(
         .enable_all()
         .build()
 }
+
 fn main() -> Result<()> {
     dotenv::dotenv().ok();
-    let args = Args::parse();
     let version = build::PKG_VERSION;
     let commit_id = build::COMMIT_HASH;
     let build_time = build::BUILD_TIME;
     // println!("taosx version: {CLAP_SHORT_VERSION}");
-    println!("taosx version: {version}");
-    println!("commit id: {commit_id}");
-    println!("build time: {build_time}");
+    tracing::info!("taosx version: {version}");
+    tracing::info!("commit id: {commit_id}");
+    tracing::info!("build time: {build_time}");
+    let args = Args::init()?;
+    set_env_plugins_home_dir(args.global.plugins_home.clone());
+    set_env_data_dir(args.global.data_dir.clone());
+    set_env_log_home_dir(args.global.logs_home.clone());
+    set_env_log_keep_days(args.global.log_keep_days.clone());
 
-    let plugins_home = std::env::var(ENV_PLUGINS_HOME).or(std::env::var(ENV_TAOSX_PLUGINS_HOME));
-    match plugins_home {
-        Ok(home) => std::env::set_var(ENV_PLUGINS_HOME, home),
-        Err(_) => {
-            #[cfg(unix)]
-            {
-                let default = "/usr/local/taosx/plugins";
-                let path = std::path::Path::new(default);
-                if path.exists() {
-                    std::env::set_var(ENV_PLUGINS_HOME, default);
-                } else {
-                    let default = "/usr/local/taos/plugins";
-                    let path = std::path::Path::new(default);
-                    if path.exists() {
-                        std::env::set_var(ENV_PLUGINS_HOME, default);
-                    }
-
-                    let logs_home =
-                        std::env::var(ENV_LOGS_HOME).or(std::env::var(ENV_APP_LOGS_HOME));
-                    match logs_home {
-                        Ok(home) => {
-                            std::env::set_var(ENV_LOGS_HOME, home);
-                        }
-                        Err(_) => {
-                            #[cfg(unix)]
-                            {
-                                let default = "/usr/local/taosx/logs";
-                                let path = std::path::Path::new(default);
-                                if path.exists() {
-                                    std::env::set_var(ENV_LOGS_HOME, default);
-                                } else {
-                                    let default = "/var/log/taos/";
-                                    std::env::set_var(ENV_LOGS_HOME, default);
-                                }
-                            }
-                        }
-                    }
-
-                    let upload_dir = std::env::var(ENV_TAOSX_UPLOAD_FILE_HOME).ok();
-                    match upload_dir {
-                        Some(_) => (),
-                        None => {
-                            #[cfg(unix)]
-                            {
-                                // compatible to old version of files.
-                                let default = "/usr/local/taosx/files";
-                                let path = std::path::Path::new(default);
-                                if path.exists() {
-                                    std::env::set_var(ENV_TAOSX_UPLOAD_FILE_HOME, default);
-                                } else {
-                                    // use new data path.
-                                    let default = "/var/lib/taosx/files";
-                                    let path = std::path::Path::new(default);
-                                    std::env::set_var(ENV_TAOSX_UPLOAD_FILE_HOME, default);
-                                    if !path.exists() {
-                                        std::fs::create_dir_all(path).with_context(|| {
-                                            format!("Create dir {} error", path.display())
-                                        })?;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    set_env_log_keep_days(args.globals.log_keep_days);
+    let log_level = log_level_to_tracing_level(
+        args.global.log_level
+            .clone()
+            .or(args.opt_args.verbose.clone().map(|v| v.log_level_filter()))
+            .unwrap_or(log::LevelFilter::Info),
+    );
 
     let mut log_path = get_log_dir("server");
-
     log_path.push("server.log");
-
+    println!("log path: {:?}", log_path);
     let log_keep_days = get_log_keep_days();
-
     println!("log keep days: {}", &log_keep_days);
+    println!("configs: {:?}", args);
 
     let log_rotation = FileRotate::new(
         &log_path,
@@ -303,19 +384,10 @@ fn main() -> Result<()> {
         format_description!("[year]-[month]-[day] [hour]:[minute]:[second].[subsecond digits:6]"),
     );
 
-    let level_filter = args.globals.verbose.log_level_filter();
-
-    use tracing_subscriber::filter::LevelFilter;
-    let level_filter = match level_filter {
-        clap_verbosity_flag::LevelFilter::Off => LevelFilter::OFF,
-        clap_verbosity_flag::LevelFilter::Error => LevelFilter::ERROR,
-        clap_verbosity_flag::LevelFilter::Warn => LevelFilter::WARN,
-        clap_verbosity_flag::LevelFilter::Info => LevelFilter::INFO,
-        clap_verbosity_flag::LevelFilter::Debug => LevelFilter::DEBUG,
-        clap_verbosity_flag::LevelFilter::Trace => LevelFilter::TRACE,
-    };
-    let span_events = args.globals.tracing_events.clone();
-    let worker_threads = args.globals.executor_worker_threads();
+    let level_filter = tracing_subscriber::filter::LevelFilter::from_level(log_level.unwrap_or(Level::INFO));
+    println!("log level: {:?}", &level_filter);
+    let span_events = args.opt_args.tracing_events.clone();
+    let worker_threads = args.global.jobs.clone();
     let runtime = build_runtime(worker_threads)?;
 
     runtime.block_on(async move {
@@ -384,7 +456,7 @@ fn main() -> Result<()> {
         {
             layers.push(console_subscriber::spawn().boxed());
         }
-        if args.globals.otel.unwrap_or(false) {
+        if args.global.otel.unwrap_or(false) {
             let tracer = opentelemetry_otlp::new_pipeline()
                 .tracing()
                 .with_exporter(opentelemetry_otlp::new_exporter().tonic())
@@ -435,16 +507,11 @@ fn main() -> Result<()> {
         anyhow::Ok(())
     })?;
 
-    match args
-        .commands
-        .unwrap_or(Commands::Serve(serve::Cli::default()))
-    {
+    match args.commands.unwrap_or(Commands::Serve(Default::default())) {
         Commands::Run(cli) => {
-            // let _ = tracing::info_span!("main").entered();
-
             let span = tracing::info_span!("main");
             let _ = span.enter();
-            runtime.block_on(cli.run_with(args.globals).instrument(span))?;
+            runtime.block_on(cli.run_with(args.opt_args, args.global).instrument(span))?;
         }
         Commands::Serve(serve) => {
             let _ = tracing::info_span!("serve").entered();

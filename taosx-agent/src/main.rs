@@ -23,7 +23,8 @@ use twelf::{config, Layer};
 use tracing::{log::LevelFilter, Level};
 
 use taosx_core::{
-    get_log_dir, get_log_keep_days, valid_env_log_keep_days, RespAction, ENV_TAOSX_LOGS_KEEP_DAYS,
+    get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
+    set_env_plugins_home_dir, RespAction,
 };
 
 use crate::runner::TaskStatus;
@@ -45,6 +46,12 @@ fn log_level_to_tracing_level(level: LevelFilter) -> Option<Level> {
 
 #[derive(Debug)]
 pub struct Args {
+    plugins_home: Option<String>,
+
+    data_dir: Option<String>,
+
+    logs_home: Option<String>,
+
     /// Listen to ip:port address.
     endpoint: String,
 
@@ -61,7 +68,16 @@ pub struct Args {
     author, version = build::VERBOSE_VERSION,
     about = build::CUS_CLI_ABOUT,
     long_about = build::CUS_CLI_ABOUT)]
-pub struct ArgsParser {
+pub struct ConfigArgs {
+    #[clap(long, env = "PLUGINS_HOME")]
+    plugins_home: Option<String>,
+
+    #[clap(long, env = "TAOSX_DATA_DIR")]
+    data_dir: Option<String>,
+
+    #[clap(long, env = "LOGS_HOME")]
+    logs_home: Option<String>,
+
     /// Listen to ip:port address.
     #[clap(short = 'e', long)]
     endpoint: Option<String>,
@@ -75,21 +91,21 @@ pub struct ArgsParser {
     verbose: Option<Verbosity<InfoLevel>>,
 
     /// For environment variable wised log level.
-    #[clap(hide = true)]
+    #[clap(hide = true, env = "LOG_LEVEL")]
     log_level: Option<LevelFilter>,
 
-    #[clap(hide = true)]
+    #[clap(long, env = "LOG_KEEP_DAYS")]
     log_keep_days: Option<i64>,
 }
 
 #[derive(Parser, Debug)]
-pub struct Config {
+pub struct ArgsParser {
     /// Config file.
     #[clap(short = 'c', long)]
     config: Option<PathBuf>,
 
     #[clap(flatten)]
-    args: ArgsParser,
+    config_args: ConfigArgs,
 }
 
 #[derive(Debug, Error)]
@@ -103,7 +119,7 @@ pub enum ArgsError {
 }
 impl Args {
     pub fn init() -> Result<Args, ArgsError> {
-        let path = if let Ok(c) = Config::try_parse() {
+        let path = if let Ok(c) = ArgsParser::try_parse() {
             c.config
                 .map(|p| {
                     if p.exists() {
@@ -119,9 +135,8 @@ impl Args {
         .unwrap_or_else(|| {
             if cfg!(windows) {
                 std::path::Path::new("C:\\")
-                    .join("Program Files")
-                    .join("taosX")
-                    .join("config")
+                    .join("TDengine")
+                    .join("cfg")
                     .join("agent.toml")
             } else {
                 std::path::Path::new("/etc")
@@ -129,8 +144,6 @@ impl Args {
                     .join("agent.toml")
             }
         });
-
-        let matches = Config::command().get_matches();
 
         let mut layers = vec![];
 
@@ -141,16 +154,19 @@ impl Args {
             "{}X_AGENT_",
             build::CUS_PROMPT.to_uppercase()
         ))));
-        layers.push(Layer::Clap(matches));
+        layers.push(Layer::Clap(ArgsParser::command().get_matches()));
 
-        let ArgsParser {
+        let ConfigArgs {
+            plugins_home,
+            data_dir,
+            logs_home,
             endpoint,
             token,
             log_level,
             verbose,
             log_keep_days,
             ..
-        } = ArgsParser::with_layers(&layers)?;
+        } = ConfigArgs::with_layers(&layers)?;
         let log_level = log_level_to_tracing_level(
             log_level
                 .clone()
@@ -158,6 +174,9 @@ impl Args {
                 .unwrap_or(log::LevelFilter::Info),
         );
         Ok(Args {
+            plugins_home,
+            data_dir,
+            logs_home,
             endpoint: endpoint
                 .ok_or_else(|| ArgsError::MissingRequiredArgument("endpoint".to_string()))?,
             token: token.ok_or_else(|| ArgsError::MissingRequiredArgument("token".to_string()))?,
@@ -250,21 +269,16 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn set_env_log_keep_days(config: Option<i64>) {
-    if let Some(log_keep_days) = config {
-        if log_keep_days > 0 && valid_env_log_keep_days().is_none() {
-            std::env::set_var(ENV_TAOSX_LOGS_KEEP_DAYS, log_keep_days.to_string());
-        }
-    }
-}
-
 fn main() -> anyhow::Result<()> {
     let args = Args::init()?;
     println!(
         "Serve agent with endpoint: {} via token ******",
         args.endpoint
     );
-    set_env_log_keep_days(args.log_keep_days);
+    set_env_plugins_home_dir(args.plugins_home.clone());
+    set_env_data_dir(args.data_dir.clone());
+    set_env_log_home_dir(args.logs_home.clone());
+    set_env_log_keep_days(args.log_keep_days.clone());
 
     let mut log_path = get_log_dir("agent");
 

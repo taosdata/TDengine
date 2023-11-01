@@ -13,7 +13,7 @@ use actix_web::{
 };
 use metrics_tracing_context::TracingContextLayer;
 use metrics_util::layers::{FanoutBuilder, Layer};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tracing::info;
 use tracing_actix_web::TracingLogger;
 use utoipa::{OpenApi, ToSchema};
@@ -54,33 +54,50 @@ pub struct DataSetsReq {
     limit: usize,
 }
 
-#[derive(Parser, Debug, Clone)]
+// #[derive(Parser, Debug, Clone, Default)]
+// pub(super) struct Cli {
+//     #[clap(flatten)]
+//     config_args: ServeOpts,
+// }
+
+#[derive(Parser, Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(default)]
 pub(super) struct Cli {
     /// Listen to ip:port address.
-    #[clap(short = 'l', long, default_value = "0.0.0.0:6050")]
-    listen: String,
+    #[clap(short = 'l', long, env = "LISTEN")]
+    pub listen: Option<String>,
 
-    #[clap(short = 'D', long)]
-    database_url: Option<String>,
+    /// Grpc listen to ip:port address.
+    ///
+    #[clap(short = 'g', long, env = "GRPC")]
+    pub grpc: Option<String>,
 
-    /// Do not resume a
+    /// Database URL.
+    #[clap(short = 'D', long, env = "DATABASE_URL")]
+    pub database_url: Option<String>,
+
+    #[clap(hide = true)]
+    pub secret_prefix: Option<String>,
+
     #[clap(long)]
-    do_not_resume: bool,
-
-    // #[clap(short = 'D', long)]
-    // data_dir: Option<PathBuf>,
-    #[clap(short = 'L', long)]
-    log_dir: Option<PathBuf>,
+    pub do_not_resume: Option<bool>,
 }
 
-impl Default for Cli {
-    fn default() -> Self {
-        Self {
-            listen: "0.0.0.0:6050".parse().unwrap(),
-            database_url: None,
-            log_dir: None,
-            do_not_resume: false,
+impl Cli {
+    pub fn merge_from(&mut self, rhs: Self) -> &mut Self {
+        macro_rules! update_if_none {
+            ($f:ident) => {
+                if self.$f.is_none() {
+                    self.$f = rhs.$f;
+                }
+            };
         }
+        update_if_none!(listen);
+        update_if_none!(database_url);
+        update_if_none!(secret_prefix);
+        update_if_none!(do_not_resume);
+        update_if_none!(grpc);
+        self
     }
 }
 
@@ -116,18 +133,21 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(filemeta);
     }
 }
+
 impl Cli {
     pub(super) async fn controller(&self) -> Result<TaskControllerRef> {
         let database_url = if let Some(path) = self.database_url.as_deref() {
             path.to_string()
         } else if let Ok(url) = std::env::var("DATABASE_URL") {
             url
+        } else if let Ok(root) = std::env::var("TAOSX_DATA_DIR") {
+            format!("sqlite:{}/taosx.db", root)
         } else {
             "sqlite:taosx.db".to_string()
         };
         let controller = TaskControllerRef::from_sqlite(&database_url).await?;
 
-        if !self.do_not_resume {
+        if !self.do_not_resume.unwrap_or(false) {
             info!("resume all tasks");
             controller.start_all_with_schedule().await?;
         }
@@ -257,7 +277,7 @@ impl Cli {
 
         let recorder = Data::new(handle);
 
-        let addr = self.listen.as_str();
+        let addr = self.listen.as_deref().unwrap_or("0.0.0.0:6050");
         let server = HttpServer::new(move || {
             let cors = Cors::default()
                 .allow_any_origin()
@@ -305,14 +325,19 @@ impl Cli {
     }
 
     pub(super) async fn grpc(self, controller: TaskControllerRef) -> Result<()> {
-        let flight = rpc::RpcConfig::default();
+        let mut flight = rpc::RpcConfig::default();
+        if let Some(grpc) = self.grpc.as_ref() {
+            let addr = grpc.parse()?;
+            flight.tcp.replace(addr);
+        }
+
         flight.serve_with_controller(controller).await?;
         Ok(())
     }
 
     pub(super) async fn _run_with(
         self,
-        _opts: super::GlobalOpts,
+        _opts: super::Args,
         _rt: impl Into<Option<tokio::runtime::Runtime>>,
     ) -> Result<()> {
         let span = tracing::info_span!("server", addr = self.listen).entered();
@@ -412,12 +437,14 @@ impl Cli {
             path.to_string()
         } else if let Ok(url) = std::env::var("DATABASE_URL") {
             url
+        } else if let Ok(root) = std::env::var("TAOSX_DATA_DIR") {
+            format!("sqlite:{}/taosx.db", root)
         } else {
             "sqlite:taosx.db".to_string()
         };
         let controller = TaskControllerRef::from_sqlite(&database_url).await?;
 
-        if !self.do_not_resume {
+        if !self.do_not_resume.unwrap_or(false) {
             info!("resume all tasks");
             controller.start_all_with_schedule().await?;
         }
@@ -450,7 +477,7 @@ impl Cli {
 
         let recorder = Data::new(handle);
 
-        let addr = self.listen.as_str();
+        let addr = self.listen.as_deref().unwrap_or("0.0.0.0:6050");
         let server = HttpServer::new(move || {
             let cors = Cors::default()
                 .allow_any_origin()

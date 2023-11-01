@@ -15,7 +15,10 @@ use serde::{Deserialize, Serialize};
 
 use taos::Code;
 
-use taosx_core::{METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND, METRICS_TIME_START};
+use taosx_core::{
+    get_data_dir, get_file_upload_home_dir, METRICS_TIME_COST, METRICS_TIME_RECORDS_PER_SECOND,
+    METRICS_TIME_START,
+};
 use tokio_cron_scheduler::Job;
 
 use utoipa::*;
@@ -612,7 +615,7 @@ pub async fn upload_files(MultipartForm(form): MultipartForm<UploadForm>) -> imp
 }
 
 async fn save_files(MultipartForm(form): MultipartForm<UploadForm>) -> anyhow::Result<Vec<String>> {
-    let upload_file_save_path = get_file_save_home_dir();
+    let mut upload_dir = get_file_upload_home_dir();
     let mut file_save_paths = Vec::new();
     if form.files.is_empty() {
         anyhow::bail!("upload file is empty");
@@ -620,23 +623,15 @@ async fn save_files(MultipartForm(form): MultipartForm<UploadForm>) -> anyhow::R
     let req_id = form.req_id.to_string();
     for f in form.files {
         // let uuid = uuid::Uuid::new_v4();
-        let path = std::path::Path::new(&format!(
-            "{}/{req_id}",
-            upload_file_save_path.as_os_str().to_str().unwrap()
-        ))
-        .to_path_buf();
+        let path = upload_dir.join(&req_id);
         fs::create_dir_all(&path).with_context(|| "create file path failed")?;
         let file_name = f.file_name.unwrap();
         let releative_path = format!("{req_id}/{file_name}");
         tracing::info!(
             "saving to {}, {releative_path}",
-            upload_file_save_path.as_os_str().to_str().unwrap()
+            upload_dir.to_str().unwrap()
         );
-        let path = std::path::Path::new(&format!(
-            "{}/{req_id}/{file_name}",
-            upload_file_save_path.as_os_str().to_str().unwrap()
-        ))
-        .to_path_buf();
+        let path = upload_dir.join(&req_id).join(&file_name);
         if let Err(persis_err) = f.file.persist(&path) {
             // fallback to copy
             std::fs::copy(persis_err.file.path(), path).context("cannot save uploaded file")?;
@@ -644,27 +639,6 @@ async fn save_files(MultipartForm(form): MultipartForm<UploadForm>) -> anyhow::R
         file_save_paths.push(format!("./files/{req_id}/{file_name}"));
     }
     Ok(file_save_paths)
-}
-
-pub const ENV_TAOSX_UPLOAD_FILE_HOME: &'static str = "TAOSX_UPLOAD_FILE_HOME";
-pub(crate) const ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT: &'static str = {
-    cfg_if::cfg_if! {
-        if #[cfg(windows)] {
-            "C:\\Program Files\\taosX\\files"
-        } else {
-            "/usr/local/taosx/files"
-        }
-    }
-};
-#[inline]
-pub fn get_file_save_home_dir() -> PathBuf {
-    // let env = std::env::var(ENV_TAOSX_UPLOAD_FILE_HOME)
-    // .unwrap_or_else(|_| ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT.to_string());
-    std::path::Path::new(
-        &std::env::var(ENV_TAOSX_UPLOAD_FILE_HOME)
-            .unwrap_or(ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT.to_string()),
-    )
-    .to_path_buf()
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -719,13 +693,16 @@ async fn get_filemeta(filemeta_request: FileMetaRequest) -> anyhow::Result<FileM
         filemeta_request.file_type,
         filemeta_request.has_header,
     );
-    // set current path
-    let path = ENV_TAOSX_UPLOAD_FILE_HOME_DEFAULT.replace("files", "");
-    let root = std::path::Path::new(path.as_str());
-    assert!(std::env::set_current_dir(&root).is_ok());
+
+    let data_dir = get_data_dir();
+
     match file_type.as_str() {
         "csv" => {
-            let filepath_or_filedir = filepath_or_filedir.split(",").into_iter().collect_vec();
+            let filepath_or_filedir = filepath_or_filedir
+                .split(",")
+                .into_iter()
+                .map(|path| data_dir.join(path).display().to_string())
+                .collect_vec();
             let csv_header = taosx_core::csv_header(filepath_or_filedir, has_header).await?;
             if csv_header.columns == 0 {
                 anyhow::bail!("CSV file headers are empty");
@@ -782,14 +759,8 @@ pub async fn download_files(params: Query<DownloadParams>, req: HttpRequest) -> 
 
 async fn download(file_path: Query<DownloadParams>) -> anyhow::Result<NamedFile> {
     let file_path = file_path.into_inner().file_path;
-    let file_home_dir = format!(
-        "{}",
-        get_file_save_home_dir()
-            .to_str()
-            .unwrap()
-            .replace("files", "")
-    );
-    let file_path = format!("{}{}", file_home_dir, file_path);
+    let data_dir = get_data_dir();
+    let file_path = data_dir.join(file_path);
     let meta = std::fs::metadata(file_path.clone()).with_context(|| "get file metadata error")?;
     if meta.is_dir() {
         anyhow::bail!("not support path");

@@ -59,20 +59,20 @@ script = """
 PKG=target/packaging/linux
 [ -d $PKG ] && rm -rf $PKG
 mkdir -p $PKG/usr/bin
-mkdir -p $PKG/usr/local/taosx/plugins/influxdb
-mkdir -p $PKG/usr/local/taosx/plugins/opentsdb
-mkdir -p $PKG/usr/local/taosx/plugins/mqtt
-mkdir -p $PKG/usr/local/taosx/plugins/opc
+mkdir -p $PKG/usr/local/taos/plugins/influxdb
+mkdir -p $PKG/usr/local/taos/plugins/opentsdb
+mkdir -p $PKG/usr/local/taos/plugins/mqtt
+mkdir -p $PKG/usr/local/taos/plugins/opc
 
 mkdir -p $PKG/etc/systemd
 mkdir -p $PKG/etc/taos
 
 cp target/release/taosx target/release/taosx-agent $PKG/usr/bin
-cp plugins/influxdb/target/taosx-influxdb.jar $PKG/usr/local/taosx/plugins/influxdb
-cp plugins/opentsdb/target/taosx-opentsdb.jar $PKG/usr/local/taosx/plugins/opentsdb
-cp plugins/mqtt/dist/taosx-mqtt $PKG/usr/local/taosx/plugins/mqtt/
-cp plugins/opc/taosx-opc $PKG/usr/local/taosx/plugins/opc/
-cp packaging/uninstall.sh $PKG/usr/local/taosx/
+cp plugins/influxdb/target/taosx-influxdb.jar $PKG/usr/local/taos/plugins/influxdb
+cp plugins/opentsdb/target/taosx-opentsdb.jar $PKG/usr/local/taos/plugins/opentsdb
+cp plugins/mqtt/dist/taosx-mqtt $PKG/usr/local/taos/plugins/mqtt/
+cp plugins/opc/taosx-opc $PKG/usr/local/taos/plugins/opc/
+cp packaging/uninstall.sh $PKG/usr/local/taos/
 
 cp target/*.service $PKG/etc/systemd/
 cp taosx-agent/examples/agent.toml $PKG/etc/taos/agnt.example.toml
@@ -83,6 +83,13 @@ tar cavf ../taosx-$version.tar.gz ./*
 ln -f ../taosx-$version.tar.gz ../taosx-latest.tar.gz
 """
 
+[tasks.dev-install-plugins]
+script = """
+sudo cp plugins/influxdb/target/taosx-influxdb.jar /usr/local/taos/plugins/influxdb/
+sudo cp plugins/opentsdb/target/taosx-opentsdb.jar /usr/local/taos/plugins/opentsdb/
+sudo cp plugins/mqtt/dist/taosx-mqtt /usr/local/taos/plugins/mqtt/
+sudo cp plugins/opc/taosx-opc /usr/local/taos/plugins/opc/
+"""
 [tasks.install]
 cwd = "target/packaging"
 dependencies = ["package"]
@@ -92,7 +99,17 @@ sudo tar -C / --no-same-owner -xvf taosx-latest.tar.gz
 
 [tasks.uninstall]
 script = """
-/usr/local/taosx/uninstall.sh
+echo $@
+sudo rm /usr/local/taos/bin/taos-explorer
+sudo rm /usr/local/taos/bin/taosx
+sudo rm /usr/local/taos/bin/taosx-agent
+sudo rm /etc/systemd/systemd/taos-explorer.service
+sudo rm /etc/systemd/systemd/taosx.service
+sudo rm /etc/systemd/systemd/taosx-agent.service
+sudo systemctl daemon-reload
+if [ "$1" == "--all" ]; then
+  sudo rm -rf /var/lib/taos/taosx/
+fi
 """
 
 [tasks.build-all]
