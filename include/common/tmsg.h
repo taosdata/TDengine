@@ -453,7 +453,7 @@ typedef struct SRetention {
 
 typedef struct SRetentionEx {
   SRetention rtn;
-  int64_t checkpointId;
+  int64_t    checkpointId;
 } SRetentionEx;
 
 #define RETENTION_VALID(l, r) ((((l) == 0 && (r)->freq >= 0) || ((r)->freq > 0)) && ((r)->keep > 0))

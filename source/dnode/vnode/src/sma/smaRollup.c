@@ -259,7 +259,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
       taosMemoryFree(s);
     }
 
-    SStreamTask *pStreamTask = taosMemoryCalloc(1, sizeof(SStreamTask));
+    SStreamTask *pStreamTask = taosMemoryCalloc(1, sizeof(*pStreamTask));
     if (!pStreamTask) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return TSDB_CODE_FAILED;
@@ -269,7 +269,6 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     pStreamTask->chkInfo.startTs = taosGetTimestampMs();
     pStreamTask->pMeta = pVnode->pTq->pStreamMeta;
     pStreamTask->chkInfo.checkpointId = pTsdbCfg->retentions[idx + 1].checkpointId;
-
     pStreamState = streamStateOpen(taskInfDir, pStreamTask, true, -1, -1);
     if (!pStreamState) {
       terrno = TSDB_CODE_RSMA_STREAM_STATE_OPEN;
@@ -286,6 +285,14 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
       taosMemoryFreeClear(pStreamTask);
       return TSDB_CODE_FAILED;
     }
+
+    if (pStreamTask->chkInfo.checkpointId != -1) {
+      SSDataBlock dataBlock = {.info.type = STREAM_CHECKPOINT};
+      if ((terrno = qSetSMAInput(pRSmaInfo->taskInfo[idx], &dataBlock, 1, STREAM_INPUT__CHECKPOINT)) < 0) {
+        return TSDB_CODE_FAILED;
+      }
+    }
+
     SRSmaInfoItem *pItem = &(pRSmaInfo->items[idx]);
     pItem->triggerStat = TASK_TRIGGER_STAT_ACTIVE;  // fetch the data when reboot
     pItem->pStreamState = pStreamState;
@@ -308,10 +315,10 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
 
     taosTmrReset(tdRSmaFetchTrigger, RSMA_FETCH_INTERVAL, pItem, smaMgmt.tmrHandle, &pItem->tmrId);
 
-    smaInfo("vgId:%d, item:%p table:%" PRIi64 " level:%" PRIi8 " maxdelay:%" PRIi64 " watermark:%" PRIi64
-            ", finally maxdelay:%" PRIi32,
-            TD_VID(pVnode), pItem, pRSmaInfo->suid, (int8_t)(idx + 1), param->maxdelay[idx], param->watermark[idx],
-            pItem->maxDelay);
+    smaInfo("vgId:%d, open task:%p table:%" PRIi64 " level:%" PRIi8 ", checkpointId:%" PRIi64 ", maxdelay:%" PRIi64
+            " watermark:%" PRIi64 ", finally maxdelay:%" PRIi32,
+            TD_VID(pVnode), pItem->pStreamTask, pRSmaInfo->suid, (int8_t)(idx + 1), pStreamTask->chkInfo.checkpointId,
+            param->maxdelay[idx], param->watermark[idx], pItem->maxDelay);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1089,27 +1096,21 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
 
     for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
       SRSmaInfoItem *pItem = RSMA_INFO_ITEM(pRSmaInfo, i);
-#if 0
-      if (pItem && pItem->pStreamState) {
-        if (streamStateCommit(pItem->pStreamState) < 0) {
-          code = TSDB_CODE_RSMA_STREAM_STATE_COMMIT;
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-        smaDebug("vgId:%d, rsma persist, stream state commit success, table %" PRIi64 ", level %d", TD_VID(pVnode),
-                 pRSmaInfo->suid, i + 1);
-      }
-#else
-      if (pItem) {
+      if (pItem && pItem->pStreamTask) {
         SStreamTask *pTask = pItem->pStreamTask;
-        atomic_store_32(&pTask->pMeta->chkptNotReadyTasks, 1);  // adaption for API streamTaskBuildCheckpoint
+        // adaption for API streamTaskBuildCheckpoint
+        atomic_store_32(&pTask->pMeta->chkptNotReadyTasks, 1);  
         pTask->checkpointingId = taosGetTimestampNs();
         code = streamTaskBuildCheckpoint(pTask);
         TSDB_CHECK_CODE(code, lino, _exit);
+        
+        // save checkpointId to vnode.json
         (pVnode->config.tsdbCfg.retentions + i + 1)->checkpointId = pTask->checkpointingId;
-        smaInfo("vgId:%d, rsma persist, build stream checkpoint success, table:%" PRIi64 ", level:%d, id:%" PRIi64,
-                TD_VID(pVnode), pRSmaInfo->suid, i + 1, pTask->checkpointingId);
+
+        smaInfo("vgId:%d, commit task:%p, build stream checkpoint success, table:%" PRIi64
+                ", level:%d, checkpointId:%" PRIi64,
+                TD_VID(pVnode), pTask, pRSmaInfo->suid, i + 1, pTask->checkpointingId);
       }
-#endif
     }
   }
 
