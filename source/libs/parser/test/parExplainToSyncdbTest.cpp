@@ -36,8 +36,10 @@ TEST_F(ParserExplainToSyncdbTest, grant) {
 
   SAlterUserReq expect = {0};
 
-  auto setAlterUserReq = [&](int8_t alterType, const string& user, const string& obj) {
+  auto setAlterUserReq = [&](int8_t alterType, int64_t privileges, const string& user, const string& obj) {
     expect.alterType = alterType;
+    expect.privileges = privileges;
+    expect.tabName[0] = 0;
     snprintf(expect.user, sizeof(expect.user), "%s", user.c_str());
     snprintf(expect.objname, sizeof(expect.objname), "%s", obj.c_str());
   };
@@ -52,19 +54,22 @@ TEST_F(ParserExplainToSyncdbTest, grant) {
     ASSERT_EQ(string(req.objname), string(expect.objname));
   });
 
-  setAlterUserReq(TSDB_ALTER_USER_ADD_ALL_DB, "wxy", "0.*");
+  setAlterUserReq(TSDB_ALTER_USER_ADD_PRIVILEGES, PRIVILEGE_TYPE_ALL, "wxy", "0.*");
   run("GRANT ALL ON *.* TO wxy");
 
-  setAlterUserReq(TSDB_ALTER_USER_ADD_READ_DB, "wxy", "0.test");
+  setAlterUserReq(TSDB_ALTER_USER_ADD_PRIVILEGES, PRIVILEGE_TYPE_READ, "wxy", "0.test");
   run("GRANT READ ON test.* TO wxy");
 
-  setAlterUserReq(TSDB_ALTER_USER_ADD_WRITE_DB, "wxy", "0.test");
+  setAlterUserReq(TSDB_ALTER_USER_ADD_PRIVILEGES, PRIVILEGE_TYPE_WRITE, "wxy", "0.test");
   run("GRANT WRITE ON test.* TO wxy");
 
-  setAlterUserReq(TSDB_ALTER_USER_ADD_ALL_DB, "wxy", "0.test");
+  setAlterUserReq(TSDB_ALTER_USER_ADD_PRIVILEGES, PRIVILEGE_TYPE_ALTER, "wxy", "0.test");
+  run("GRANT ALTER ON test.* TO wxy");
+
+  setAlterUserReq(TSDB_ALTER_USER_ADD_PRIVILEGES, PRIVILEGE_TYPE_READ | PRIVILEGE_TYPE_WRITE, "wxy", "0.test");
   run("GRANT READ, WRITE ON test.* TO wxy");
 
-  setAlterUserReq(TSDB_ALTER_USER_ADD_SUBSCRIBE_TOPIC, "wxy", "0.tp1");
+  setAlterUserReq(TSDB_ALTER_USER_ADD_PRIVILEGES, PRIVILEGE_TYPE_SUBSCRIBE, "wxy", "0.tp1");
   run("GRANT SUBSCRIBE ON tp1 TO wxy");
 }
 
@@ -251,8 +256,10 @@ TEST_F(ParserExplainToSyncdbTest, revoke) {
 
   SAlterUserReq expect = {0};
 
-  auto setAlterUserReq = [&](int8_t alterType, const string& user, const string& obj) {
+  auto setAlterUserReq = [&](int8_t alterType, int64_t privileges, const string& user, const string& obj) {
     expect.alterType = alterType;
+    expect.privileges = privileges;
+    expect.tabName[0] = 0;
     snprintf(expect.user, sizeof(expect.user), "%s", user.c_str());
     snprintf(expect.objname, sizeof(expect.objname), "%s", obj.c_str());
   };
@@ -267,19 +274,22 @@ TEST_F(ParserExplainToSyncdbTest, revoke) {
     ASSERT_EQ(string(req.objname), string(expect.objname));
   });
 
-  setAlterUserReq(TSDB_ALTER_USER_REMOVE_ALL_DB, "wxy", "0.*");
+  setAlterUserReq(TSDB_ALTER_USER_DEL_PRIVILEGES, PRIVILEGE_TYPE_ALL, "wxy", "0.*");
   run("REVOKE ALL ON *.* FROM wxy");
 
-  setAlterUserReq(TSDB_ALTER_USER_REMOVE_READ_DB, "wxy", "0.test");
+  setAlterUserReq(TSDB_ALTER_USER_DEL_PRIVILEGES, PRIVILEGE_TYPE_READ, "wxy", "0.test");
   run("REVOKE READ ON test.* FROM wxy");
 
-  setAlterUserReq(TSDB_ALTER_USER_REMOVE_WRITE_DB, "wxy", "0.test");
+  setAlterUserReq(TSDB_ALTER_USER_DEL_PRIVILEGES, PRIVILEGE_TYPE_WRITE, "wxy", "0.test");
   run("REVOKE WRITE ON test.* FROM wxy");
 
-  setAlterUserReq(TSDB_ALTER_USER_REMOVE_ALL_DB, "wxy", "0.test");
+  setAlterUserReq(TSDB_ALTER_USER_DEL_PRIVILEGES, PRIVILEGE_TYPE_ALTER, "wxy", "0.test");
+  run("REVOKE ALTER ON test.* FROM wxy");
+
+  setAlterUserReq(TSDB_ALTER_USER_DEL_PRIVILEGES, PRIVILEGE_TYPE_READ|PRIVILEGE_TYPE_WRITE, "wxy", "0.test");
   run("REVOKE READ, WRITE ON test.* FROM wxy");
 
-  setAlterUserReq(TSDB_ALTER_USER_REMOVE_SUBSCRIBE_TOPIC, "wxy", "0.tp1");
+  setAlterUserReq(TSDB_ALTER_USER_DEL_PRIVILEGES, PRIVILEGE_TYPE_SUBSCRIBE, "wxy", "0.tp1");
   run("REVOKE SUBSCRIBE ON tp1 FROM wxy");
 }
 
