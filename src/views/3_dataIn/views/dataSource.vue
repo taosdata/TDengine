@@ -385,17 +385,18 @@ export default {
           type: "warning",
         }
       ).then(async () => {
-        await excuteDel(data.id)
-          .then(() => {
-            Message({
+        
+        let result = await excuteDel(data.id)
+        if(result?.message){
+          Message.warning(result.message)
+          return
+        }
+        Message({
               type: "success",
               message: this.$t("datasource.deleteok"),
             });
-            this.refresh();
-          })
-          .catch((err) => {
-            return Promise.reject(err);
-          });
+        this.refresh();
+        
       });
     },
     edit(data, status, iscopy) {
