@@ -244,7 +244,7 @@ pub(super) async fn data_source_is_valid(query: Query<DsnValidationQuery>) -> im
 
     let result = timeout(Duration::from_secs(timeout_sec), validate_dsn(dsn)).await;
     match result {
-        Ok(dsv) => Ok(HttpResponse::Created().json(dsv)),
+        Ok(dsv) => Ok(HttpResponse::Ok().json(dsv)),
         Err(err) => Err(Failed{
             code: Code::FAILED,
             message: format!("check data source validation timeout, cause: {:#}", err),
