@@ -287,8 +287,8 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     }
 
     if (pStreamTask->chkInfo.checkpointId != -1) {
-      SSDataBlock dataBlock = {.info.type = STREAM_CHECKPOINT};
-      if ((terrno = qSetSMAInput(pRSmaInfo->taskInfo[idx], &dataBlock, 1, STREAM_INPUT__CHECKPOINT)) < 0) {
+      SSDataBlock *pDataBlock = &pRSmaInfo->dataBlock;
+      if ((terrno = qSetSMAInput(pRSmaInfo->taskInfo[idx], pDataBlock, 1, STREAM_INPUT__CHECKPOINT)) < 0) {
         return TSDB_CODE_FAILED;
       }
     }
@@ -370,6 +370,7 @@ int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
   pRSmaInfo->pSma = pSma;
   pRSmaInfo->pTSchema = pTSchema;
   pRSmaInfo->suid = suid;
+  pRSmaInfo->dataBlock.info.type = STREAM_CHECKPOINT;
   T_REF_INIT_VAL(pRSmaInfo, 1);
 
   if (!(pRSmaInfo->queue = taosOpenQueue()) || !(pRSmaInfo->qall = taosAllocateQall()) ||

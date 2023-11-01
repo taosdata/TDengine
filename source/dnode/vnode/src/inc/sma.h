@@ -159,6 +159,7 @@ struct SRSmaInfo {
   void         *taskInfo[TSDB_RETENTION_L2];  // qTaskInfo_t
   STaosQueue   *queue;                        // buffer queue of SubmitReq
   STaosQall    *qall;                         // buffer qall of SubmitReq
+  SSDataBlock   dataBlock;
 };
 
 #define RSMA_INFO_HEAD_LEN     offsetof(SRSmaInfo, items)
