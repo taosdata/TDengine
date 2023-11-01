@@ -882,9 +882,10 @@ impl TaskController {
     }
     #[instrument(skip_all, name = "task::delete", fields(task.id = id))]
     pub async fn delete(&self, id: i64) -> anyhow::Result<Option<TaskDetail>> {
-        if self.scheduler.in_scheduler(id).await {
+        if !self.scheduler.safe_to_delete(id).await {
             bail!("Task is in scheduler, please stop it first");
         }
+        let _ = self.scheduler.try_stop(id).await;
         let now = Utc::now();
         let res = sqlx::query_as_unchecked!(
             Task,
