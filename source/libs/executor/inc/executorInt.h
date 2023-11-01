@@ -580,6 +580,7 @@ typedef struct SStreamSessionAggOperatorInfo {
   bool                reCkBlock;
   SSDataBlock*        pCheckpointRes;
   bool                clearState;
+  bool                recvGetAll;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct SStreamStateAggOperatorInfo {
@@ -603,6 +604,7 @@ typedef struct SStreamStateAggOperatorInfo {
   SArray*             historyWins;
   bool                reCkBlock;
   SSDataBlock*        pCheckpointRes;
+  bool                recvGetAll;
 } SStreamStateAggOperatorInfo;
 
 typedef struct SStreamPartitionOperatorInfo {
