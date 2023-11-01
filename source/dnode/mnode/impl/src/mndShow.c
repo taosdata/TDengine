@@ -116,6 +116,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_STREAM_TASKS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_PRIVILEGES, len) == 0) {
     type = TSDB_MGMT_TABLE_PRIVILEGES;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_VIEWS, len) == 0) {
+    type = TSDB_MGMT_TABLE_VIEWS;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }
@@ -211,7 +213,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     if (pMeta == NULL) {
       pMeta = taosHashGet(pMnode->perfsMeta, retrieveReq.tb, strlen(retrieveReq.tb));
       if (pMeta == NULL) {
-        terrno = TSDB_CODE_MND_INVALID_SYS_TABLENAME;
+        terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
         mError("failed to process show-retrieve req:%p since %s", pShow, terrstr());
         return -1;
       }

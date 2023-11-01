@@ -397,9 +397,7 @@ void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
     SDnodeInfo dInfo;
     dInfo.id = pDnode->id;
     dInfo.ep.port = pDnode->port;
-#ifdef TD_GRANT_HB_OPTIMIZE
     dInfo.offlineReason = pDnode->offlineReason;
-#endif
     tstrncpy(dInfo.ep.fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
     tstrncpy(dInfo.active, pDnode->active, TSDB_ACTIVE_KEY_LEN);
     tstrncpy(dInfo.connActive, pDnode->connActive, TSDB_CONN_ACTIVE_KEY_LEN);

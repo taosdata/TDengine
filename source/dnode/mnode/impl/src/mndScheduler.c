@@ -569,6 +569,10 @@ static int32_t addSinkTasks(SArray* pTasksList, SMnode* pMnode, SStreamObj* pStr
 }
 
 static void setSinkTaskUpstreamInfo(SArray* pTasksList, const SStreamTask* pUpstreamTask) {
+  if (taosArrayGetSize(pTasksList) < SINK_NODE_LEVEL || pUpstreamTask == NULL) {
+    return;
+  }
+
   SArray* pSinkTaskList = taosArrayGetP(pTasksList, SINK_NODE_LEVEL);
   for(int32_t i = 0; i < taosArrayGetSize(pSinkTaskList); ++i) {
     SStreamTask* pSinkTask = taosArrayGetP(pSinkTaskList, i);
@@ -628,7 +632,9 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
     }
 
     setSinkTaskUpstreamInfo(pStream->tasks, pAggTask);
-    setSinkTaskUpstreamInfo(pStream->pHTasksList, pHAggTask);
+    if (pHAggTask != NULL) {
+      setSinkTaskUpstreamInfo(pStream->pHTasksList, pHAggTask);
+    }
 
     // source level
     return addSourceTasksForMultiLevelStream(pMnode, pPlan, pStream, pAggTask, pHAggTask, pEpset, nextWindowSkey);
@@ -722,7 +728,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     pVgEp->vgId = pVgroup->vgId;
     taosArrayPush(pSub->unassignedVgs, &pVgEp);
 
-    mDebug("init subscription %s for topic:%s assign vgId:%d", pSub->key, pTopic->name, pVgEp->vgId);
+    mInfo("init subscription %s for topic:%s assign vgId:%d", pSub->key, pTopic->name, pVgEp->vgId);
 
     sdbRelease(pSdb, pVgroup);
   }

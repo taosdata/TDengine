@@ -568,6 +568,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     if (TSDB_CODE_SUCCESS == code && NULL != pColList) {
       code = createColumnByRewriteExprs(pColList, &pJoin->node.pTargets);
     }
+    nodesDestroyList(pColList);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -587,6 +588,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     if (TSDB_CODE_SUCCESS == code && NULL != pColList) {
       code = createColumnByRewriteExprs(pColList, &pJoin->node.pTargets);
     }
+    nodesDestroyList(pColList);
   }
 
   if (NULL == pJoin->node.pTargets && NULL != pLeft) {

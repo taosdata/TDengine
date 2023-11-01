@@ -720,7 +720,7 @@ int32_t mndSetRpcInfoForDbTrans(SMnode *pMnode, SRpcMsg *pMsg, EOperType oper, c
 
 void mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname) {
   if (dbname != NULL) {
-    tstrncpy(pTrans->dbname, dbname, TSDB_TABLE_FNAME_LEN);
+    tstrncpy(pTrans->dbname, dbname, TSDB_DB_FNAME_LEN);
   }
   if (stbname != NULL) {
     tstrncpy(pTrans->stbname, stbname, TSDB_TABLE_FNAME_LEN);
