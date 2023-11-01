@@ -1093,17 +1093,22 @@ void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {
 void streamMetaRLock(SStreamMeta* pMeta) {
   stDebug("vgId:%d meta-rlock", pMeta->vgId);
   taosRLockLatch(&pMeta->lock);
+  stDebug("vgId:%d meta-rlock done", pMeta->vgId);
 }
 void streamMetaRUnLock(SStreamMeta* pMeta) {
   stDebug("vgId:%d meta-runlock", pMeta->vgId);
   taosRUnLockLatch(&pMeta->lock);
+  stDebug("vgId:%d meta-runlock done", pMeta->vgId);
+
 }
 void streamMetaWLock(SStreamMeta* pMeta) {
   stDebug("vgId:%d meta-wlock", pMeta->vgId);
   taosWLockLatch(&pMeta->lock);
+  stDebug("vgId:%d meta-wlock done", pMeta->vgId);
 }
 void streamMetaWUnLock(SStreamMeta* pMeta) {
   stDebug("vgId:%d meta-wunlock", pMeta->vgId);
   taosWUnLockLatch(&pMeta->lock);
+  stDebug("vgId:%d meta-wunlock done", pMeta->vgId);
 }
 
