@@ -60,7 +60,6 @@ int32_t sndExpandTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProcessVer
     return code;
   }
   pTask->pBackend = NULL;
-  ASSERT(0);
 
   streamTaskOpenAllUpstreamInput(pTask);
 
