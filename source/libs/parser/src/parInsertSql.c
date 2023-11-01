@@ -238,7 +238,8 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
       continue;
     }
     int16_t t = lastColIdx + 1;
-    int16_t index = insFindCol(&token, t, pBoundInfo->numOfCols, pSchema);
+    int16_t end = (boundColsType == BOUND_ALL_AND_TBNAME) ? (pBoundInfo->numOfCols - 1) : pBoundInfo->numOfCols;
+    int16_t index = insFindCol(&token, t, end, pSchema);
     if (index < 0 && t > 0) {
       index = insFindCol(&token, 0, t, pSchema);
     }
