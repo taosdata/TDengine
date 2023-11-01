@@ -1524,7 +1524,7 @@ export default {
             `cluster-id::${id}`,
             `user::${localStorage.getItem("username")}`,
           ],
-          trigger: { "schedule": "@daily", "resume": this.resume }
+          trigger: { "resume": this.resume }
         };
         if (this.agentId) {
           apiParams["via"] = this.agentId;
@@ -1577,7 +1577,7 @@ export default {
               `cluster-id::${id}`,
               `user::${localStorage.getItem("username")}`,
             ],
-            trigger: { "schedule": "@daily", "resume": this.resume }
+            trigger: { "resume": this.resume }
           };
           if (this.agentId) {
             piParams["via"] = this.agentId;
