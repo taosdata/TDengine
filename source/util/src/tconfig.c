@@ -416,16 +416,6 @@ int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, float min
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddDouble(SConfig *pCfg, const char *name, double defaultVal, double minval, double maxval, int8_t scope) {
-  if (defaultVal < minval || defaultVal > maxval) {
-    terrno = TSDB_CODE_OUT_OF_RANGE;
-    return -1;
-  }
-
-  SConfigItem item = {.dtype = CFG_DTYPE_DOUBLE, .dval = defaultVal, .fmin = minval, .fmax = maxval, .scope = scope};
-  return cfgAddItem(pCfg, &item, name);
-}
-
 int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope) {
   SConfigItem item = {.dtype = CFG_DTYPE_STRING, .scope = scope};
   item.str = taosStrdup(defaultVal);
@@ -611,8 +601,7 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
     switch (pItem->dtype) {
       case CFG_DTYPE_BOOL:
         if (dump) {
-          printf("%s %s %u", src, name, pItem->bval);
-          printf("\n");
+          printf("%s %s %u\n", src, name, pItem->bval);
         } else {
           uInfo("%s %s %u", src, name, pItem->bval);
         }
@@ -620,25 +609,22 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
         break;
       case CFG_DTYPE_INT32:
         if (dump) {
-          printf("%s %s %d", src, name, pItem->i32);
-          printf("\n");
+          printf("%s %s %d\n", src, name, pItem->i32);
         } else {
           uInfo("%s %s %d", src, name, pItem->i32);
         }
         break;
       case CFG_DTYPE_INT64:
         if (dump) {
-          printf("%s %s %" PRId64, src, name, pItem->i64);
-          printf("\n");
+          printf("%s %s %" PRId64"\n", src, name, pItem->i64);
         } else {
           uInfo("%s %s %" PRId64, src, name, pItem->i64);
         }
         break;
-      case CFG_DTYPE_FLOAT:
       case CFG_DTYPE_DOUBLE:
+      case CFG_DTYPE_FLOAT:
         if (dump) {
-          printf("%s %s %.2f", src, name, pItem->fval);
-          printf("\n");
+          printf("%s %s %.2f\n", src, name, pItem->fval);
         } else {
           uInfo("%s %s %.2f", src, name, pItem->fval);
         }
@@ -650,8 +636,7 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
       case CFG_DTYPE_TIMEZONE:
       case CFG_DTYPE_NONE:
         if (dump) {
-          printf("%s %s %s", src, name, pItem->str);
-          printf("\n");
+          printf("%s %s %s\n", src, name, pItem->str);
         } else {
           uInfo("%s %s %s", src, name, pItem->str);
         }
@@ -660,8 +645,7 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
   }
 
   if (dump) {
-    printf("=================================================================");
-    printf("\n");
+    printf("=================================================================\n");
   } else {
     uInfo("=================================================================");
   }

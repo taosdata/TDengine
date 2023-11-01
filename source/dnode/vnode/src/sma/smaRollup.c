@@ -31,8 +31,6 @@ SSmaMgmt smaMgmt = {
 
 typedef struct SRSmaQTaskInfoItem SRSmaQTaskInfoItem;
 
-extern int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now);
-
 static int32_t    tdUidStorePut(STbUidStore *pStore, tb_uid_t suid, tb_uid_t *uid);
 static void       tdUidStoreDestory(STbUidStore *pStore);
 static int32_t    tdUpdateTbUidListImpl(SSma *pSma, tb_uid_t *suid, SArray *tbUids, bool isAdd);

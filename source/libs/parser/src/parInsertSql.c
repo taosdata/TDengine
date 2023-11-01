@@ -998,10 +998,10 @@ static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool* pMissCache, 
   if (TSDB_CODE_SUCCESS == code) {
     if (!exists) {
       *pMissCache = true;
-    } else if (!authRes.pass) {
+    } else if (!authRes.pass[AUTH_RES_BASIC]) {
       code = TSDB_CODE_PAR_PERMISSION_DENIED;
-    } else if (NULL != authRes.pCond) {
-      *pTagCond = authRes.pCond;
+    } else if (NULL != authRes.pCond[AUTH_RES_BASIC]) {
+      *pTagCond = authRes.pCond[AUTH_RES_BASIC];
     }
   }
   return code;
@@ -1202,7 +1202,14 @@ static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt
 }
 
 static int32_t preParseTargetTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SToken* pTbName) {
-  return insCreateSName(&pStmt->targetTableName, pTbName, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg);
+  int32_t code = insCreateSName(&pStmt->targetTableName, pTbName, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (IS_SYS_DBNAME(pStmt->targetTableName.dbname)) {
+      return TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED;
+    }
+  }
+
+  return code;
 }
 
 // input pStmt->pSql:
@@ -2367,9 +2374,9 @@ static int32_t checkAuthFromMetaData(const SArray* pUsers, SNode** pTagCond) {
   if (TSDB_CODE_SUCCESS == pRes->code) {
     SUserAuthRes* pAuth = pRes->pRes;
     if (NULL != pAuth->pCond) {
-      *pTagCond = nodesCloneNode(pAuth->pCond);
+      *pTagCond = nodesCloneNode(pAuth->pCond[AUTH_RES_BASIC]);
     }
-    return pAuth->pass ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED;
+    return pAuth->pass[AUTH_RES_BASIC] ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED;
   }
   return pRes->code;
 }

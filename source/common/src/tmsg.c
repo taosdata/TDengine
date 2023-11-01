@@ -1677,6 +1677,7 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
   if (tEncodeI8(&encoder, pReq->superUser) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->sysInfo) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->enable) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->isView) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->user) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->pass) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->objname) < 0) return -1;
@@ -1691,6 +1692,7 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
     if (tEncodeU32(&encoder, pReq->pIpRanges[i].ip) < 0) return -1;
     if (tEncodeU32(&encoder, pReq->pIpRanges[i].mask) < 0) return -1;
   }
+  if (tEncodeI64(&encoder, pReq->privileges) < 0) return -1;
   ENCODESQL();
   tEndEncode(&encoder);
 
@@ -1708,6 +1710,7 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
   if (tDecodeI8(&decoder, &pReq->superUser) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->sysInfo) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->enable) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->isView) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->user) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->pass) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->objname) < 0) return -1;
@@ -1728,6 +1731,7 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
     if (tDecodeU32(&decoder, &(pReq->pIpRanges[i].ip)) < 0) return -1;
     if (tDecodeU32(&decoder, &(pReq->pIpRanges[i].mask)) < 0) return -1;
   }
+  if (tDecodeI64(&decoder, &pReq->privileges) < 0) return -1;
   DECODESQL();
   tEndDecode(&decoder);
 
@@ -1802,10 +1806,18 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
 
   int32_t numOfReadTbs = taosHashGetSize(pRsp->readTbs);
   int32_t numOfWriteTbs = taosHashGetSize(pRsp->writeTbs);
-  int32_t numOfUseTbs = taosHashGetSize(pRsp->useDbs);
+  int32_t numOfAlterTbs = taosHashGetSize(pRsp->alterTbs);
+  int32_t numOfReadViews = taosHashGetSize(pRsp->readViews);
+  int32_t numOfWriteViews = taosHashGetSize(pRsp->writeViews);
+  int32_t numOfAlterViews = taosHashGetSize(pRsp->alterViews);
+  int32_t numOfUseDbs = taosHashGetSize(pRsp->useDbs);
   if (tEncodeI32(pEncoder, numOfReadTbs) < 0) return -1;
   if (tEncodeI32(pEncoder, numOfWriteTbs) < 0) return -1;
-  if (tEncodeI32(pEncoder, numOfUseTbs) < 0) return -1;
+  if (tEncodeI32(pEncoder, numOfAlterTbs) < 0) return -1;
+  if (tEncodeI32(pEncoder, numOfReadViews) < 0) return -1;
+  if (tEncodeI32(pEncoder, numOfWriteViews) < 0) return -1;
+  if (tEncodeI32(pEncoder, numOfAlterViews) < 0) return -1;
+  if (tEncodeI32(pEncoder, numOfUseDbs) < 0) return -1;
 
   char *tb = taosHashIterate(pRsp->readTbs, NULL);
   while (tb != NULL) {
@@ -1835,6 +1847,66 @@ int32_t tSerializeSGetUserAuthRspImpl(SEncoder *pEncoder, SGetUserAuthRsp *pRsp)
     if (tEncodeCStr(pEncoder, tb) < 0) return -1;
 
     tb = taosHashIterate(pRsp->writeTbs, tb);
+  }
+
+  tb = taosHashIterate(pRsp->alterTbs, NULL);
+  while (tb != NULL) {
+    size_t keyLen = 0;
+    void  *key = taosHashGetKey(tb, &keyLen);
+    if (tEncodeI32(pEncoder, keyLen) < 0) return -1;
+    if (tEncodeCStr(pEncoder, key) < 0) return -1;
+
+    size_t valueLen = 0;
+    valueLen = strlen(tb);
+    if (tEncodeI32(pEncoder, valueLen) < 0) return -1;
+    if (tEncodeCStr(pEncoder, tb) < 0) return -1;
+
+    tb = taosHashIterate(pRsp->alterTbs, tb);
+  }
+
+  tb = taosHashIterate(pRsp->readViews, NULL);
+  while (tb != NULL) {
+    size_t keyLen = 0;
+    void  *key = taosHashGetKey(tb, &keyLen);
+    if (tEncodeI32(pEncoder, keyLen) < 0) return -1;
+    if (tEncodeCStr(pEncoder, key) < 0) return -1;
+
+    size_t valueLen = 0;
+    valueLen = strlen(tb);
+    if (tEncodeI32(pEncoder, valueLen) < 0) return -1;
+    if (tEncodeCStr(pEncoder, tb) < 0) return -1;
+
+    tb = taosHashIterate(pRsp->readViews, tb);
+  }
+
+  tb = taosHashIterate(pRsp->writeViews, NULL);
+  while (tb != NULL) {
+    size_t keyLen = 0;
+    void  *key = taosHashGetKey(tb, &keyLen);
+    if (tEncodeI32(pEncoder, keyLen) < 0) return -1;
+    if (tEncodeCStr(pEncoder, key) < 0) return -1;
+
+    size_t valueLen = 0;
+    valueLen = strlen(tb);
+    if (tEncodeI32(pEncoder, valueLen) < 0) return -1;
+    if (tEncodeCStr(pEncoder, tb) < 0) return -1;
+
+    tb = taosHashIterate(pRsp->writeViews, tb);
+  }
+
+  tb = taosHashIterate(pRsp->alterViews, NULL);
+  while (tb != NULL) {
+    size_t keyLen = 0;
+    void  *key = taosHashGetKey(tb, &keyLen);
+    if (tEncodeI32(pEncoder, keyLen) < 0) return -1;
+    if (tEncodeCStr(pEncoder, key) < 0) return -1;
+
+    size_t valueLen = 0;
+    valueLen = strlen(tb);
+    if (tEncodeI32(pEncoder, valueLen) < 0) return -1;
+    if (tEncodeCStr(pEncoder, tb) < 0) return -1;
+
+    tb = taosHashIterate(pRsp->alterViews, tb);
   }
 
   int32_t *useDb = taosHashIterate(pRsp->useDbs, NULL);
@@ -1876,9 +1948,14 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
   pRsp->writeDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   pRsp->readTbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   pRsp->writeTbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  pRsp->alterTbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  pRsp->readViews = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  pRsp->writeViews = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  pRsp->alterViews = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   pRsp->useDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (pRsp->createdDbs == NULL || pRsp->readDbs == NULL || pRsp->writeDbs == NULL || pRsp->readTbs == NULL ||
-      pRsp->writeTbs == NULL || pRsp->useDbs == NULL) {
+      pRsp->writeTbs == NULL || pRsp->alterTbs == NULL || pRsp->readViews == NULL ||
+      pRsp->writeViews == NULL || pRsp->alterViews == NULL ||pRsp->useDbs == NULL) {
     goto _err;
   }
 
@@ -1900,29 +1977,37 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
     char db[TSDB_DB_FNAME_LEN] = {0};
     if (tDecodeCStrTo(pDecoder, db) < 0) goto _err;
     int32_t len = strlen(db);
-    taosHashPut(pRsp->createdDbs, db, len, db, len + 1);
+    taosHashPut(pRsp->createdDbs, db, len + 1, db, len + 1);
   }
 
   for (int32_t i = 0; i < numOfReadDbs; ++i) {
     char db[TSDB_DB_FNAME_LEN] = {0};
     if (tDecodeCStrTo(pDecoder, db) < 0) goto _err;
     int32_t len = strlen(db);
-    taosHashPut(pRsp->readDbs, db, len, db, len + 1);
+    taosHashPut(pRsp->readDbs, db, len + 1, db, len + 1);
   }
 
   for (int32_t i = 0; i < numOfWriteDbs; ++i) {
     char db[TSDB_DB_FNAME_LEN] = {0};
     if (tDecodeCStrTo(pDecoder, db) < 0) goto _err;
     int32_t len = strlen(db);
-    taosHashPut(pRsp->writeDbs, db, len, db, len + 1);
+    taosHashPut(pRsp->writeDbs, db, len + 1, db, len + 1);
   }
 
   if (!tDecodeIsEnd(pDecoder)) {
     int32_t numOfReadTbs = 0;
     int32_t numOfWriteTbs = 0;
+    int32_t numOfAlterTbs = 0;
+    int32_t numOfReadViews = 0;
+    int32_t numOfWriteViews = 0;
+    int32_t numOfAlterViews = 0;
     int32_t numOfUseDbs = 0;
     if (tDecodeI32(pDecoder, &numOfReadTbs) < 0) goto _err;
     if (tDecodeI32(pDecoder, &numOfWriteTbs) < 0) goto _err;
+    if (tDecodeI32(pDecoder, &numOfAlterTbs) < 0) goto _err;
+    if (tDecodeI32(pDecoder, &numOfReadViews) < 0) goto _err;
+    if (tDecodeI32(pDecoder, &numOfWriteViews) < 0) goto _err;
+    if (tDecodeI32(pDecoder, &numOfAlterViews) < 0) goto _err;
     if (tDecodeI32(pDecoder, &numOfUseDbs) < 0) goto _err;
 
     for (int32_t i = 0; i < numOfReadTbs; ++i) {
@@ -1938,7 +2023,7 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
       value = taosMemoryCalloc(valuelen + 1, sizeof(char));
       if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
 
-      taosHashPut(pRsp->readTbs, key, strlen(key), value, valuelen + 1);
+      taosHashPut(pRsp->readTbs, key, keyLen, value, valuelen + 1);
 
       taosMemoryFreeClear(key);
       taosMemoryFreeClear(value);
@@ -1957,7 +2042,83 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
       value = taosMemoryCalloc(valuelen + 1, sizeof(char));
       if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
 
-      taosHashPut(pRsp->writeTbs, key, strlen(key), value, valuelen + 1);
+      taosHashPut(pRsp->writeTbs, key, keyLen, value, valuelen + 1);
+
+      taosMemoryFreeClear(key);
+      taosMemoryFreeClear(value);
+    }
+
+    for (int32_t i = 0; i < numOfAlterTbs; ++i) {
+      int32_t keyLen = 0;
+      if (tDecodeI32(pDecoder, &keyLen) < 0) goto _err;
+
+      key = taosMemoryCalloc(keyLen + 1, sizeof(char));
+      if (tDecodeCStrTo(pDecoder, key) < 0) goto _err;
+
+      int32_t valuelen = 0;
+      if (tDecodeI32(pDecoder, &valuelen) < 0) goto _err;
+
+      value = taosMemoryCalloc(valuelen + 1, sizeof(char));
+      if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
+
+      taosHashPut(pRsp->alterTbs, key, keyLen, value, valuelen + 1);
+
+      taosMemoryFreeClear(key);
+      taosMemoryFreeClear(value);
+    }
+
+    for (int32_t i = 0; i < numOfReadViews; ++i) {
+      int32_t keyLen = 0;
+      if (tDecodeI32(pDecoder, &keyLen) < 0) goto _err;
+
+      key = taosMemoryCalloc(keyLen + 1, sizeof(char));
+      if (tDecodeCStrTo(pDecoder, key) < 0) goto _err;
+
+      int32_t valuelen = 0;
+      if (tDecodeI32(pDecoder, &valuelen) < 0) goto _err;
+
+      value = taosMemoryCalloc(valuelen + 1, sizeof(char));
+      if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
+
+      taosHashPut(pRsp->readViews, key, keyLen, value, valuelen + 1);
+
+      taosMemoryFreeClear(key);
+      taosMemoryFreeClear(value);
+    }
+
+    for (int32_t i = 0; i < numOfWriteViews; ++i) {
+      int32_t keyLen = 0;
+      if (tDecodeI32(pDecoder, &keyLen) < 0) goto _err;
+
+      key = taosMemoryCalloc(keyLen + 1, sizeof(char));
+      if (tDecodeCStrTo(pDecoder, key) < 0) goto _err;
+
+      int32_t valuelen = 0;
+      if (tDecodeI32(pDecoder, &valuelen) < 0) goto _err;
+
+      value = taosMemoryCalloc(valuelen + 1, sizeof(char));
+      if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
+
+      taosHashPut(pRsp->writeViews, key, keyLen, value, valuelen + 1);
+
+      taosMemoryFreeClear(key);
+      taosMemoryFreeClear(value);
+    }
+
+    for (int32_t i = 0; i < numOfAlterViews; ++i) {
+      int32_t keyLen = 0;
+      if (tDecodeI32(pDecoder, &keyLen) < 0) goto _err;
+
+      key = taosMemoryCalloc(keyLen + 1, sizeof(char));
+      if (tDecodeCStrTo(pDecoder, key) < 0) goto _err;
+
+      int32_t valuelen = 0;
+      if (tDecodeI32(pDecoder, &valuelen) < 0) goto _err;
+
+      value = taosMemoryCalloc(valuelen + 1, sizeof(char));
+      if (tDecodeCStrTo(pDecoder, value) < 0) goto _err;
+
+      taosHashPut(pRsp->alterViews, key, keyLen, value, valuelen + 1);
 
       taosMemoryFreeClear(key);
       taosMemoryFreeClear(value);
@@ -1973,7 +2134,7 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
       int32_t ref = 0;
       if (tDecodeI32(pDecoder, &ref) < 0) goto _err;
 
-      taosHashPut(pRsp->useDbs, key, strlen(key), &ref, sizeof(ref));
+      taosHashPut(pRsp->useDbs, key, keyLen, &ref, sizeof(ref));
       taosMemoryFreeClear(key);
     }
     // since 3.0.7.0
@@ -1993,8 +2154,12 @@ _err:
   taosHashCleanup(pRsp->createdDbs);
   taosHashCleanup(pRsp->readDbs);
   taosHashCleanup(pRsp->writeDbs);
-  taosHashCleanup(pRsp->writeTbs);
   taosHashCleanup(pRsp->readTbs);
+  taosHashCleanup(pRsp->writeTbs);
+  taosHashCleanup(pRsp->alterTbs);
+  taosHashCleanup(pRsp->readViews);
+  taosHashCleanup(pRsp->writeViews);
+  taosHashCleanup(pRsp->alterViews);
   taosHashCleanup(pRsp->useDbs);
 
   taosMemoryFreeClear(key);
@@ -2020,8 +2185,12 @@ void tFreeSGetUserAuthRsp(SGetUserAuthRsp *pRsp) {
   taosHashCleanup(pRsp->createdDbs);
   taosHashCleanup(pRsp->readDbs);
   taosHashCleanup(pRsp->writeDbs);
-  taosHashCleanup(pRsp->writeTbs);
   taosHashCleanup(pRsp->readTbs);
+  taosHashCleanup(pRsp->writeTbs);
+  taosHashCleanup(pRsp->alterTbs);
+  taosHashCleanup(pRsp->readViews);
+  taosHashCleanup(pRsp->writeViews);
+  taosHashCleanup(pRsp->alterViews);
   taosHashCleanup(pRsp->useDbs);
 }
 
@@ -8405,7 +8574,7 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
       } else {
         tDestroySVCreateTbReq(pTbData->pCreateTbReq, TSDB_MSG_FLG_DECODE);
       }
-      taosMemoryFree(pTbData->pCreateTbReq);
+      taosMemoryFreeClear(pTbData->pCreateTbReq);
     }
 
     if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
@@ -8634,3 +8803,286 @@ void tDeleteMqSubTopicEp(SMqSubTopicEp *pSubTopicEp) {
   pSubTopicEp->schema.nCols = 0;
   taosArrayDestroy(pSubTopicEp->vgs);
 }
+
+int32_t tSerializeSCMCreateViewReq(void *buf, int32_t bufLen, const SCMCreateViewReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->fullname) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->dbFName) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->querySql) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->orReplace) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->precision) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->numOfCols) < 0) return -1;
+  for (int32_t i = 0; i < pReq->numOfCols; ++i) {
+    SSchema *pSchema = &pReq->pSchema[i];
+    if (tEncodeSSchema(&encoder, pSchema) < 0) return -1;
+  }
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSCMCreateViewReq(void *buf, int32_t bufLen, SCMCreateViewReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->fullname) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->dbFName) < 0) return -1;
+  if (tDecodeCStrAlloc(&decoder, &pReq->querySql) < 0) return -1;
+  if (tDecodeCStrAlloc(&decoder, &pReq->sql) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->orReplace) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->precision) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->numOfCols) < 0) return -1;
+
+  if (pReq->numOfCols > 0) {
+    pReq->pSchema = taosMemoryCalloc(pReq->numOfCols, sizeof(SSchema));
+    if (pReq->pSchema == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    for (int32_t i = 0; i < pReq->numOfCols; ++i) {
+      SSchema* pSchema = pReq->pSchema + i;
+      if (tDecodeSSchema(&decoder, pSchema) < 0) return -1;
+    }
+  }
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void    tFreeSCMCreateViewReq(SCMCreateViewReq* pReq) {
+  if (NULL == pReq) {
+    return;
+  }
+
+  taosMemoryFreeClear(pReq->querySql);
+  taosMemoryFreeClear(pReq->sql);  
+  taosMemoryFreeClear(pReq->pSchema);
+}
+
+int32_t tSerializeSCMDropViewReq(void* buf, int32_t bufLen, const SCMDropViewReq* pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->fullname) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->dbFName) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->igNotExists) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSCMDropViewReq(void* buf, int32_t bufLen, SCMDropViewReq* pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->fullname) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->dbFName) < 0) return -1;
+  if (tDecodeCStrAlloc(&decoder, &pReq->sql) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->igNotExists) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+void    tFreeSCMDropViewReq(SCMDropViewReq* pReq) {
+  if (NULL == pReq) {
+    return;
+  }
+  
+  taosMemoryFree(pReq->sql);
+}
+
+int32_t tSerializeSViewMetaReq(void* buf, int32_t bufLen, const SViewMetaReq* pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->fullname) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSViewMetaReq(void* buf, int32_t bufLen, SViewMetaReq* pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->fullname) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+static int32_t tEncodeSViewMetaRsp(SEncoder *pEncoder, const SViewMetaRsp *pRsp) {
+  if (tEncodeCStr(pEncoder, pRsp->name) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pRsp->dbFName) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pRsp->user) < 0) return -1;
+  if (tEncodeU64(pEncoder, pRsp->dbId) < 0) return -1;
+  if (tEncodeU64(pEncoder, pRsp->viewId) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pRsp->querySql) < 0) return -1;
+  if (tEncodeI8(pEncoder, pRsp->precision) < 0) return -1;
+  if (tEncodeI8(pEncoder, pRsp->type) < 0) return -1;
+  if (tEncodeI32(pEncoder, pRsp->version) < 0) return -1;
+  if (tEncodeI32(pEncoder, pRsp->numOfCols) < 0) return -1;
+  for (int32_t i = 0; i < pRsp->numOfCols; ++i) {
+    SSchema *pSchema = &pRsp->pSchema[i];
+    if (tEncodeSSchema(pEncoder, pSchema) < 0) return -1;
+  }
+
+  return 0;
+}
+
+
+int32_t tSerializeSViewMetaRsp(void* buf, int32_t bufLen, const SViewMetaRsp* pRsp) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeSViewMetaRsp(&encoder, pRsp) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+static int32_t tDecodeSViewMetaRsp(SDecoder *pDecoder, SViewMetaRsp *pRsp) {
+  if (tDecodeCStrTo(pDecoder, pRsp->name) < 0) return -1;
+  if (tDecodeCStrTo(pDecoder, pRsp->dbFName) < 0) return -1;
+  if (tDecodeCStrAlloc(pDecoder, &pRsp->user) < 0) return -1;
+  if (tDecodeU64(pDecoder, &pRsp->dbId) < 0) return -1;
+  if (tDecodeU64(pDecoder, &pRsp->viewId) < 0) return -1;
+  if (tDecodeCStrAlloc(pDecoder, &pRsp->querySql) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pRsp->precision) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pRsp->type) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pRsp->version) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pRsp->numOfCols) < 0) return -1;
+  if (pRsp->numOfCols > 0) {
+    pRsp->pSchema = taosMemoryCalloc(pRsp->numOfCols, sizeof(SSchema));
+    if (pRsp->pSchema == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    for (int32_t i = 0; i < pRsp->numOfCols; ++i) {
+      SSchema* pSchema = pRsp->pSchema + i;
+      if (tDecodeSSchema(pDecoder, pSchema) < 0) return -1;
+    }
+  }
+
+  return 0;
+}
+
+int32_t tDeserializeSViewMetaRsp(void* buf, int32_t bufLen, SViewMetaRsp* pRsp) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeSViewMetaRsp(&decoder, pRsp) < 0) return -1;
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void    tFreeSViewMetaRsp(SViewMetaRsp* pRsp) {
+  if (NULL == pRsp) {
+    return;
+  }
+
+  taosMemoryFree(pRsp->user);
+  taosMemoryFree(pRsp->querySql);
+  taosMemoryFree(pRsp->pSchema);
+}
+
+int32_t tSerializeSViewHbRsp(void *buf, int32_t bufLen, SViewHbRsp *pRsp) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  int32_t numOfMeta = taosArrayGetSize(pRsp->pViewRsp);
+  if (tEncodeI32(&encoder, numOfMeta) < 0) return -1;
+  for (int32_t i = 0; i < numOfMeta; ++i) {
+    SViewMetaRsp *pMetaRsp = taosArrayGetP(pRsp->pViewRsp, i);
+    if (tEncodeSViewMetaRsp(&encoder, pMetaRsp) < 0) return -1;
+  }
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSViewHbRsp(void *buf, int32_t bufLen, SViewHbRsp *pRsp) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+
+  int32_t numOfMeta = 0;
+  if (tDecodeI32(&decoder, &numOfMeta) < 0) return -1;
+  pRsp->pViewRsp = taosArrayInit(numOfMeta, POINTER_BYTES);
+  if (pRsp->pViewRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  for (int32_t i = 0; i < numOfMeta; ++i) {
+    SViewMetaRsp* metaRsp = taosMemoryCalloc(1, sizeof(SViewMetaRsp));
+    if (NULL == metaRsp) return -1;
+    if (tDecodeSViewMetaRsp(&decoder, metaRsp) < 0) return -1;
+    taosArrayPush(pRsp->pViewRsp, &metaRsp);
+  }
+
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSViewHbRsp(SViewHbRsp *pRsp) {
+  int32_t numOfMeta = taosArrayGetSize(pRsp->pViewRsp);
+  for (int32_t i = 0; i < numOfMeta; ++i) {
+    SViewMetaRsp *pMetaRsp = taosArrayGetP(pRsp->pViewRsp, i);
+    tFreeSViewMetaRsp(pMetaRsp);
+    taosMemoryFree(pMetaRsp);
+  }
+
+  taosArrayDestroy(pRsp->pViewRsp);
+}
+
+
+
+

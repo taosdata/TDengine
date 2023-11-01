@@ -30,6 +30,11 @@ extern "C" {
 #define VGROUPS_INFO_SIZE(pInfo) \
   (NULL == (pInfo) ? 0 : (sizeof(SVgroupsInfo) + (pInfo)->numOfVgroups * sizeof(SVgroupInfo)))
 
+typedef struct SAssociationNode {
+  SNode** pPlace;
+  SNode*  pAssociationNode;
+} SAssociationNode;
+
 typedef struct SRawExprNode {
   ENodeType nodeType;
   char*     p;
@@ -181,6 +186,16 @@ typedef struct STempTableNode {
   STableNode table;  // QUERY_NODE_TEMP_TABLE
   SNode*     pSubquery;
 } STempTableNode;
+
+typedef struct SViewNode {
+  STableNode         table;  // QUERY_NODE_REAL_TABLE
+  struct STableMeta* pMeta;
+  SVgroupsInfo*      pVgroupList;
+  char               qualDbName[TSDB_DB_NAME_LEN];  // SHOW qualDbName.TABLES
+  double             ratio;
+  SArray*            pSmaIndexes;
+  int8_t             cacheLastMode;
+} SViewNode;
 
 typedef enum EJoinType { 
   JOIN_TYPE_INNER = 1,
