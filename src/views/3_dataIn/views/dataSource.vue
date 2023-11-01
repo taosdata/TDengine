@@ -82,7 +82,7 @@
         <el-table-column
           :label="$t('datasource.taskid')"
           prop="taskid"
-          width="40"
+          width="80"
           show-overflow-tooltip
         ></el-table-column>
         <el-table-column
