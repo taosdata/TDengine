@@ -754,8 +754,12 @@ static int32_t mndGetAvailableDnode(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[v];
     SDnodeObj *pDnode = taosArrayGet(pArray, v);
-    if (pDnode == NULL || pDnode->numOfVnodes >= pDnode->numOfSupportVnodes) {
+    if (pDnode == NULL) {
       terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
+      return -1;
+    }
+    if (pDnode->numOfVnodes >= pDnode->numOfSupportVnodes) {
+      terrno = TSDB_CODE_MND_NO_ENOUGH_VNODES;
       return -1;
     }
 
@@ -1180,8 +1184,12 @@ static int32_t mndAddVnodeToVgroup(SMnode *pMnode, STrans *pTrans, SVgObj *pVgro
     }
     if (used) continue;
 
-    if (pDnode == NULL || pDnode->numOfVnodes >= pDnode->numOfSupportVnodes) {
+    if (pDnode == NULL) {
       terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
+      return -1;
+    }
+    if (pDnode->numOfVnodes >= pDnode->numOfSupportVnodes) {
+      terrno = TSDB_CODE_MND_NO_ENOUGH_VNODES;
       return -1;
     }
 
@@ -1912,7 +1920,7 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
     if (numOfVnodes >= pNew1->numOfSupportVnodes) {
       mError("vgId:%d, no enough vnodes in dnode:%d, numOfVnodes:%d support:%d", newVg.vgId, pNew1->id, numOfVnodes,
              pNew1->numOfSupportVnodes);
-      terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
+      terrno = TSDB_CODE_MND_NO_ENOUGH_VNODES;
       goto _OVER;
     }
 
@@ -1935,7 +1943,7 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
     if (numOfVnodes >= pNew2->numOfSupportVnodes) {
       mError("vgId:%d, no enough vnodes in dnode:%d, numOfVnodes:%d support:%d", newVg.vgId, pNew2->id, numOfVnodes,
              pNew2->numOfSupportVnodes);
-      terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
+      terrno = TSDB_CODE_MND_NO_ENOUGH_VNODES;
       goto _OVER;
     }
     int64_t vgMem = mndGetVgroupMemory(pMnode, NULL, pVgroup);
@@ -1956,7 +1964,7 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
     if (numOfVnodes >= pNew3->numOfSupportVnodes) {
       mError("vgId:%d, no enough vnodes in dnode:%d, numOfVnodes:%d support:%d", newVg.vgId, pNew3->id, numOfVnodes,
              pNew3->numOfSupportVnodes);
-      terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
+      terrno = TSDB_CODE_MND_NO_ENOUGH_VNODES;
       goto _OVER;
     }
     int64_t vgMem = mndGetVgroupMemory(pMnode, NULL, pVgroup);

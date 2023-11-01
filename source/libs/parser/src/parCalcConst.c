@@ -18,10 +18,17 @@
 #include "scalar.h"
 #include "ttime.h"
 
+typedef struct SNodeReplaceContext {
+  SNode* pTarget;
+  SNode* pNew;
+  bool   replaced;
+} SNodeReplaceContext;
+
 typedef struct SCalcConstContext {
-  SParseContext* pParseCxt;
-  SMsgBuf        msgBuf;
-  int32_t        code;
+  SParseContext*       pParseCxt;
+  SNodeReplaceContext  replaceCxt;
+  SMsgBuf              msgBuf;
+  int32_t              code;
 } SCalcConstContext;
 
 static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subquery);
@@ -166,7 +173,35 @@ static int32_t calcConstStmtCondition(SCalcConstContext* pCxt, SNode** pCond, bo
   return code;
 }
 
-static int32_t calcConstProject(SNode* pProject, bool dual, SNode** pNew) {
+static EDealRes doFindAndReplaceNode(SNode** pNode, void* pContext) {
+  SCalcConstContext* pCxt = pContext;
+  if (pCxt->replaceCxt.pTarget == *pNode) {
+    nodesDestroyNode(*pNode);
+    *pNode = nodesCloneNode(pCxt->replaceCxt.pNew);
+    if (NULL == *pNode) {
+      pCxt->code = TSDB_CODE_OUT_OF_MEMORY;
+      return DEAL_RES_ERROR;
+    }
+
+    pCxt->replaceCxt.replaced = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t findAndReplaceNode(SCalcConstContext* pCxt, SNode** pRoot, SNode* pTarget, SNode* pNew, bool strict) {
+  pCxt->replaceCxt.pNew = pNew;
+  pCxt->replaceCxt.pTarget = pTarget;
+  
+  nodesRewriteExprPostOrder(pRoot, doFindAndReplaceNode, pCxt);
+  if (TSDB_CODE_SUCCESS == pCxt->code && strict && !pCxt->replaceCxt.replaced) {
+    parserError("target replace node not found, %p", pTarget);
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+  return pCxt->code;
+}
+
+static int32_t calcConstProject(SCalcConstContext* pCxt, SNode* pProject, bool dual, SNode** pNew) {
   SArray* pAssociation = NULL;
   if (NULL != ((SExprNode*)pProject)->pAssociation) {
     pAssociation = taosArrayDup(((SExprNode*)pProject)->pAssociation, NULL);
@@ -188,12 +223,20 @@ static int32_t calcConstProject(SNode* pProject, bool dual, SNode** pNew) {
     if (QUERY_NODE_VALUE == nodeType(*pNew) && NULL != pAssociation) {
       int32_t size = taosArrayGetSize(pAssociation);
       for (int32_t i = 0; i < size; ++i) {
-        SNode** pCol = taosArrayGetP(pAssociation, i);
-        nodesDestroyNode(*pCol);
-        *pCol = nodesCloneNode(*pNew);
-        if (NULL == *pCol) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          break;
+        SAssociationNode* pAssNode = taosArrayGet(pAssociation, i);
+        SNode** pCol = pAssNode->pPlace;
+        if (*pCol == pAssNode->pAssociationNode) {
+          nodesDestroyNode(*pCol);
+          *pCol = nodesCloneNode(*pNew);
+          if (NULL == *pCol) {
+            code = TSDB_CODE_OUT_OF_MEMORY;
+            break;
+          }
+        } else {
+          code = findAndReplaceNode(pCxt, pCol, pAssNode->pAssociationNode, *pNew, true);
+          if (TSDB_CODE_SUCCESS != code) {
+            break;
+          }
         }
       }
     }
@@ -247,7 +290,7 @@ static int32_t calcConstProjections(SCalcConstContext* pCxt, SSelectStmt* pSelec
       continue;
     }
     SNode*  pNew = NULL;
-    int32_t code = calcConstProject(pProj, (NULL == pSelect->pFromTable), &pNew);
+    int32_t code = calcConstProject(pCxt, pProj, (NULL == pSelect->pFromTable), &pNew);
     if (TSDB_CODE_SUCCESS == code) {
       REPLACE_NODE(pNew);
     } else {
@@ -514,7 +557,7 @@ static void resetProjectNullTypeImpl(SNodeList* pProjects) {
     SExprNode* pExpr = (SExprNode*)pProj;
     if (TSDB_DATA_TYPE_NULL == pExpr->resType.type) {
       pExpr->resType.type = TSDB_DATA_TYPE_VARCHAR;
-      pExpr->resType.bytes = 0;
+      pExpr->resType.bytes = VARSTR_HEADER_SIZE;
     }
   }
 }
