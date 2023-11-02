@@ -41,9 +41,9 @@ static int32_t tInitStreamDispatchReq(SStreamDispatchReq* pReq, const SStreamTas
                                       int32_t numOfBlocks, int64_t dstTaskId, int32_t type);
 
 void initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen) {
-    pMsg->msgType = msgType;
-    pMsg->pCont = pCont;
-    pMsg->contLen = contLen;
+  pMsg->msgType = msgType;
+  pMsg->pCont = pCont;
+  pMsg->contLen = contLen;
 }
 
 int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* pReq) {
