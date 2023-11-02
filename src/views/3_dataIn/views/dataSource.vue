@@ -529,6 +529,7 @@ export default {
       try {
         this.requestIng = true;
         this.topicList = [];
+        this.$refs.agents.agentList = [];
         let id = localStorage.getItem("local_clusterID");
         let result = await getTask(id, "datain");
         if (result.desc || result.message) {
@@ -710,7 +711,7 @@ export default {
       }
       let activitList = res.map((item) => {
         if (item.status == "failed") {
-          item.context = item.context.message;
+          item.context = item.context?.message;
         }
         if (typeof item.context == "object") {
           item.context = null;
