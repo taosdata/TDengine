@@ -1152,7 +1152,6 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
   int32_t      nTaskInfo = 0;
   SSma        *pSma = pRSmaStat->pSma;
   SVnode      *pVnode = pSma->pVnode;
-  SSDataBlock *pDataBlock = &pRSmaStat->dataBlock;
   SArray      *pResList = NULL;
   SRSmaFS      fs = {0};
 
@@ -1169,7 +1168,7 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
     }
     for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
       if (pRSmaInfo->taskInfo[i]) {
-        code = qSetSMAInput(pRSmaInfo->taskInfo[i], pDataBlock, 1, STREAM_INPUT__CHECKPOINT);
+        code = qSetSMAInput(pRSmaInfo->taskInfo[i], pRSmaStat->blocks, 1, STREAM_INPUT__CHECKPOINT);
         TSDB_CHECK_CODE(code, lino, _exit);
         pRSmaInfo->items[i].streamFlushed = 0;
         ++nTaskInfo;

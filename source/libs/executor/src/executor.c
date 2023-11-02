@@ -58,35 +58,24 @@ static int32_t doSetSMABlock(SOperatorInfo* pOperator, void* input, size_t numOf
     SStreamScanInfo* pInfo = pOperator->info;
 
     if (type == STREAM_INPUT__MERGED_SUBMIT) {
-      qInfo("%s:%d type:%d, pDataBlock->info.type(N/A)", __func__, __LINE__, type);
       for (int32_t i = 0; i < numOfBlocks; i++) {
         SPackedData* pReq = POINTER_SHIFT(input, i * sizeof(SPackedData));
         taosArrayPush(pInfo->pBlockLists, pReq);
       }
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
     } else if (type == STREAM_INPUT__DATA_SUBMIT) {
-      qInfo("%s:%d type:%d, pDataBlock->info.type(N/A)", __func__, __LINE__, type);
       taosArrayPush(pInfo->pBlockLists, &input);
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
     } else if (type == STREAM_INPUT__DATA_BLOCK) {
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
-        qInfo("%s:%d type:%d, pDataBlock->info.type:%d", __func__, __LINE__, type, pDataBlock->info.type);
-        SPackedData  tmp = {
-             .pDataBlock = pDataBlock,
-        };
+        SPackedData tmp = {.pDataBlock = pDataBlock};
         taosArrayPush(pInfo->pBlockLists, &tmp);
       }
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
     } else if (type == STREAM_INPUT__CHECKPOINT) {
-      for (int32_t i = 0; i < numOfBlocks; ++i) {
-        SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
-        qInfo("%s:%d type:%d, pDataBlock->info.type:%d", __func__, __LINE__, type, pDataBlock->info.type);
-        SPackedData tmp = {
-            .pDataBlock = pDataBlock,
-        };
-        taosArrayPush(pInfo->pBlockLists, &tmp);
-      }
+      SPackedData tmp = {.pDataBlock = input};
+      taosArrayPush(pInfo->pBlockLists, &tmp);
       pInfo->blockType = STREAM_INPUT__CHECKPOINT;
     }
 

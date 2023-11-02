@@ -115,7 +115,7 @@ struct SRSmaStat {
   SRSmaFS          fs;           // for recovery/snapshot r/w
   SHashObj        *infoHash;     // key: suid, value: SRSmaInfo
   tsem_t           notEmpty;     // has items in queue buffer
-  SSDataBlock      dataBlock;
+  SArray          *blocks;       // SArray<SSDataBlock>
 };
 
 struct SSmaStat {

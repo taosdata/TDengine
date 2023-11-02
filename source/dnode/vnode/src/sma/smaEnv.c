@@ -209,7 +209,12 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       pRSmaStat->pSma = (SSma *)pSma;
       atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_INIT);
       tsem_init(&pRSmaStat->notEmpty, 0, 0);
-      pRSmaStat->dataBlock.info.type = STREAM_CHECKPOINT;
+      if (!(pRSmaStat->blocks = taosArrayInit(1, sizeof(SSDataBlock)))) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+      SSDataBlock datablock = {.info.type = STREAM_CHECKPOINT};
+      taosArrayPush(pRSmaStat->blocks, &datablock);
 
       // init smaMgmt
       smaInit();
@@ -291,6 +296,7 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
 
     // step 5: free pStat
     tsem_destroy(&(pStat->notEmpty));
+    taosArrayDestroy(pStat->blocks);
     taosMemoryFreeClear(pStat);
   }
 }
