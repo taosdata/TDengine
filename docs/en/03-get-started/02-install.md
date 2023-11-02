@@ -7,7 +7,7 @@ sidebar_label: Installation
 
 On Linux, TDengine Enteprise can be installed with a single package named like  `TDengine-enterprise-<version>-<OS>-<platform>.tar.gz` (for example `TDengine-enterprise-3.1.0.3-Linux-x64.tar.gz`)
 
-The TDengine-Enterprise package includes the following components: 
+The TDengine Enterprise package includes the following components: 
 - `taosd`: the TDengine core
 - `taosAdapter`: a service that provides RESTful and WebSocket interfaces to TDengine
 - `taosKeeper`: a service that reports and records monitoring metrics
