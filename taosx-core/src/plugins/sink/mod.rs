@@ -311,10 +311,12 @@ async fn consume_lush_record(
             // let mut sql = format!("CREATE TABLE ");
             // map: <stable_name, (Vec<sql, sql_overflow?>, Vec<tag_name, tag_value>)>
             let mut create_sql_map: HashMap<String, LushMessageTagModify> = HashMap::new();
-            // let mut table_set = HashSet::new();
+            let mut table_set = HashSet::new();
             for table in tables {
-                tracing::info!("table: {:#?}", table);
                 let table_name = table.table_name();
+                if !table_set.insert(table_name.to_string()) {
+                    continue;
+                }
                 let tags = table.tags();
                 if tags.is_none() {
                     continue;
