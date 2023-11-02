@@ -27,6 +27,7 @@ extern "C" {
 extern int8_t  tsS3Enabled;
 extern int32_t tsS3BlockSize;
 extern int32_t tsS3BlockCacheSize;
+extern int32_t tsS3PageCacheSize;
 extern int32_t tsS3UploadDelaySec;
 
 int32_t s3Init();

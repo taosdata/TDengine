@@ -1250,7 +1250,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
     if (code < 0) return code;
 
-    if (flag < 4 || flag > 1024 * 1024 * 1024) {
+    if (flag < 4 || flag > 1024 * 1024) {
       mError("dnode:%d, failed to config s3BlockCacheSize since value:%d. Valid range: [4, 1024 * 1024]",
              cfgReq.dnodeId, flag);
       terrno = TSDB_CODE_INVALID_CFG;
@@ -1259,6 +1259,22 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     }
 
     strcpy(dcfgReq.config, "s3blockcachesize");
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
+  } else if (strncasecmp(cfgReq.config, "s3pagecachesize", 16) == 0) {
+    int32_t optLen = strlen("s3pagecachesize");
+    int32_t flag = -1;
+    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
+    if (code < 0) return code;
+
+    if (flag < 4 || flag > 1024 * 1024 * 1024) {
+      mError("dnode:%d, failed to config s3PageCacheSize since value:%d. Valid range: [4, 1024 * 1024]", cfgReq.dnodeId,
+             flag);
+      terrno = TSDB_CODE_INVALID_CFG;
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return -1;
+    }
+
+    strcpy(dcfgReq.config, "s3pagecachesize");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
   } else if (strncasecmp(cfgReq.config, "s3uploaddelaysec", 16) == 0) {
     int32_t optLen = strlen("s3uploaddelaysec");

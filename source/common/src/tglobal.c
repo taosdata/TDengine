@@ -280,8 +280,9 @@ int8_t tsS3Enabled = false;
 int8_t tsS3Https = true;
 char   tsS3Hostname[TSDB_FQDN_LEN] = "<hostname>";
 
-int32_t tsS3BlockSize = -1;         // number of tsdb pages (4096)
-int32_t tsS3BlockCacheSize = 1024;  // number of blocks/pages (16)
+int32_t tsS3BlockSize = -1;        // number of tsdb pages (4096)
+int32_t tsS3BlockCacheSize = 16;   // number of blocks
+int32_t tsS3PageCacheSize = 1024;  // number of pages
 int32_t tsS3UploadDelaySec = 60 * 60;
 
 #ifndef _STORAGE
@@ -697,8 +698,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "s3Endpoint", tsS3Endpoint, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddString(pCfg, "s3BucketName", tsS3BucketName, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "s3BlockSize", tsS3BlockSize, -100, 1024 * 1024, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddInt32(pCfg, "s3BlockCacheSize", tsS3BlockCacheSize, 4, 1024 * 1024 * 1024, CFG_SCOPE_SERVER) != 0)
-    return -1;
+  if (cfgAddInt32(pCfg, "s3BlockCacheSize", tsS3BlockCacheSize, 4, 1024 * 1024, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "s3PageCacheSize", tsS3PageCacheSize, 4, 1024 * 1024 * 1024, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "s3UploadDelaySec", tsS3UploadDelaySec, 60 * 10, 60 * 60 * 24 * 30, CFG_SCOPE_SERVER) != 0)
     return -1;
 
@@ -1132,6 +1133,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsS3BlockSize = cfgGetItem(pCfg, "s3BlockSize")->i32;
   tsS3BlockCacheSize = cfgGetItem(pCfg, "s3BlockCacheSize")->i32;
+  tsS3PageCacheSize = cfgGetItem(pCfg, "s3PageCacheSize")->i32;
   tsS3UploadDelaySec = cfgGetItem(pCfg, "s3UploadDelaySec")->i32;
 
   GRANT_CFG_GET;
@@ -1723,6 +1725,13 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     int32_t newS3BlockCacheSize = atoi(value);
     uInfo("s3BlockCacheSize set from %d to %d", tsS3BlockCacheSize, newS3BlockCacheSize);
     tsS3BlockCacheSize = newS3BlockCacheSize;
+    return;
+  }
+
+  if (strcasecmp(option, "s3PageCacheSize") == 0) {
+    int32_t newS3PageCacheSize = atoi(value);
+    uInfo("s3PageCacheSize set from %d to %d", tsS3PageCacheSize, newS3PageCacheSize);
+    tsS3PageCacheSize = newS3PageCacheSize;
     return;
   }
 

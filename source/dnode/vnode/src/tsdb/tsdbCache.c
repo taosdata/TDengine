@@ -92,7 +92,7 @@ static int32_t tsdbOpenPgCache(STsdb *pTsdb) {
   // SLRUCache *pCache = taosLRUCacheInit(10 * 1024 * 1024, 0, .5);
   int32_t szPage = pTsdb->pVnode->config.tsdbPageSize;
 
-  SLRUCache *pCache = taosLRUCacheInit((int64_t)tsS3BlockCacheSize * szPage, 0, .5);
+  SLRUCache *pCache = taosLRUCacheInit((int64_t)tsS3PageCacheSize * szPage, 0, .5);
   if (pCache == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
