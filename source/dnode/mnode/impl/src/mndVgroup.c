@@ -2185,7 +2185,7 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq) {
   char obj[33] = {0};
   sprintf(obj, "%d", req.vgId);
 
-  auditRecord(pReq, pMnode->clusterId, "RedistributeVgroup", obj, "", req.sql, req.sqlLen);
+  auditRecord(pReq, pMnode->clusterId, "RedistributeVgroup", "", obj, req.sql, req.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
