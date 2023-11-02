@@ -20,6 +20,8 @@
 #include "ttimer.h"
 #include "wal.h"
 
+#define GET_EVT_NAME(_ev)  (StreamTaskEventList[(_ev)].name)
+
 SStreamTaskState StreamTaskStatusList[9] = {
     {.state = TASK_STATUS__READY, .name = "ready"},
     {.state = TASK_STATUS__DROPPING, .name = "dropped"},
@@ -66,7 +68,7 @@ static int32_t attachEvent(SStreamTask* pTask, SAttachedEventInfo* pEvtInfo) {
   streamTaskGetStatus(pTask, &p);
 
   stDebug("s-task:%s status:%s attach event:%s required status:%s, since not allowed to handle it", pTask->id.idStr, p,
-          StreamTaskEventList[pEvtInfo->event].name, StreamTaskStatusList[pEvtInfo->status].name);
+          GET_EVT_NAME(pEvtInfo->event), StreamTaskStatusList[pEvtInfo->status].name);
   taosArrayPush(pTask->status.pSM->pWaitingEventList, pEvtInfo);
   return 0;
 }
@@ -78,13 +80,6 @@ int32_t streamTaskInitStatus(SStreamTask* pTask) {
           pTask->execInfo.init);
   streamTaskCheckDownstream(pTask);
   return 0;
-}
-
-int32_t streamTaskSetReadyForWal(SStreamTask* pTask) {
-  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    stDebug("s-task:%s ready for extract data from wal", pTask->id.idStr);
-  }
-  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t streamTaskDoCheckpoint(SStreamTask* pTask) {
@@ -106,9 +101,31 @@ int32_t streamTaskKeepCurrentVerInWal(SStreamTask* pTask) {
 }
 
 // todo check rsp code for handle Event:TASK_EVENT_SCANHIST_DONE
-static bool isUnsupportedTransform(ETaskStatus state, const EStreamTaskEvent event) {
-  if (state == TASK_STATUS__STOP || state == TASK_STATUS__DROPPING || state == TASK_STATUS__UNINIT) {
-    if (event == TASK_EVENT_SCANHIST_DONE || event == TASK_EVENT_CHECKPOINT_DONE || event == TASK_EVENT_GEN_CHECKPOINT) {
+static bool isInvalidStateTransfer(ETaskStatus state, const EStreamTaskEvent event) {
+  if (event == TASK_EVENT_INIT_STREAM_SCANHIST || event == TASK_EVENT_INIT || event == TASK_EVENT_INIT_SCANHIST) {
+    return (state != TASK_STATUS__UNINIT);
+  }
+
+  if (event == TASK_EVENT_SCANHIST_DONE) {
+    return (state != TASK_STATUS__SCAN_HISTORY && state != TASK_STATUS__STREAM_SCAN_HISTORY);
+  }
+
+  if (event == TASK_EVENT_GEN_CHECKPOINT) {
+    return (state != TASK_STATUS__READY);
+  }
+
+  if (event == TASK_EVENT_CHECKPOINT_DONE) {
+    return (state != TASK_STATUS__CK);
+  }
+
+  // todo refactor later
+  if (event == TASK_EVENT_RESUME) {
+    return true;
+  }
+
+  if (event == TASK_EVENT_HALT) {
+    if (state == TASK_STATUS__DROPPING || state == TASK_STATUS__UNINIT || state == TASK_STATUS__STOP ||
+        state == TASK_STATUS__SCAN_HISTORY) {
       return true;
     }
   }
@@ -126,7 +143,7 @@ static STaskStateTrans* streamTaskFindTransform(ETaskStatus state, const EStream
     }
   }
 
-  if (isUnsupportedTransform(state, event)) {
+  if (isInvalidStateTransfer(state, event)) {
     return NULL;
   } else {
     ASSERT(0);
@@ -137,9 +154,10 @@ static STaskStateTrans* streamTaskFindTransform(ETaskStatus state, const EStream
 
 void streamTaskRestoreStatus(SStreamTask* pTask) {
   SStreamTaskSM* pSM = pTask->status.pSM;
-  taosThreadMutexLock(&pTask->lock);
-  ASSERT(pSM->pActiveTrans == NULL);
 
+  taosThreadMutexLock(&pTask->lock);
+
+  ASSERT(pSM->pActiveTrans == NULL);
   ASSERT(pSM->current.state == TASK_STATUS__PAUSE || pSM->current.state == TASK_STATUS__HALT);
 
   SStreamTaskState state = pSM->current;
@@ -208,14 +226,14 @@ static int32_t doHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event, STaskSt
       taosThreadMutexUnlock(&pTask->lock);
 
       if ((s == pTrans->next.state) && (pSM->prev.evt == pTrans->event)) {
-        stDebug("s-task:%s attached event:%s handled", id, StreamTaskEventList[pTrans->event].name);
+        stDebug("s-task:%s attached event:%s handled", id, GET_EVT_NAME(pTrans->event));
         return TSDB_CODE_SUCCESS;
       } else if (s != TASK_STATUS__DROPPING && s != TASK_STATUS__STOP) {  // this event has been handled already
-        stDebug("s-task:%s not handle event:%s yet, wait for 100ms and recheck", id, StreamTaskEventList[event].name);
+        stDebug("s-task:%s not handle event:%s yet, wait for 100ms and recheck", id, GET_EVT_NAME(event));
         taosMsleep(100);
       } else {
         stDebug("s-task:%s is dropped or stopped already, not wait.", id);
-        return TSDB_CODE_INVALID_PARA;
+        return TSDB_CODE_STREAM_INVALID_STATETRANS;
       }
     }
 
@@ -236,37 +254,41 @@ static int32_t doHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event, STaskSt
 }
 
 int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
+  int32_t          code = TSDB_CODE_SUCCESS;
   SStreamTask*     pTask = pSM->pTask;
   STaskStateTrans* pTrans = NULL;
 
   while (1) {
     taosThreadMutexLock(&pTask->lock);
+
     if (pSM->pActiveTrans != NULL && pSM->pActiveTrans->autoInvokeEndFn) {
+      EStreamTaskEvent evt = pSM->pActiveTrans->event;
       taosThreadMutexUnlock(&pTask->lock);
-      taosMsleep(100);
+
       stDebug("s-task:%s status:%s handling event:%s by some other thread, wait for 100ms and check if completed",
-              pTask->id.idStr, pSM->current.name, StreamTaskEventList[pSM->pActiveTrans->event].name);
+              pTask->id.idStr, pSM->current.name, GET_EVT_NAME(evt));
+      taosMsleep(100);
     } else {
       pTrans = streamTaskFindTransform(pSM->current.state, event);
       if (pTrans == NULL) {
-        stDebug("s-task:%s failed to handle event:%s", pTask->id.idStr, StreamTaskEventList[event].name);
+        stDebug("s-task:%s failed to handle event:%s", pTask->id.idStr, GET_EVT_NAME(event));
         taosThreadMutexUnlock(&pTask->lock);
-        return TSDB_CODE_INVALID_PARA;  // todo: set new error code// failed to handle the event.
+        return TSDB_CODE_STREAM_INVALID_STATETRANS;
       }
 
       if (pSM->pActiveTrans != NULL) {
         // currently in some state transfer procedure, not auto invoke transfer, abort it
         stDebug("s-task:%s event:%s handle procedure quit, status %s -> %s failed, handle event %s now",
-                pTask->id.idStr, StreamTaskEventList[pSM->pActiveTrans->event].name, pSM->current.name,
-                pSM->pActiveTrans->next.name, StreamTaskEventList[event].name);
+                pTask->id.idStr, GET_EVT_NAME(pSM->pActiveTrans->event), pSM->current.name,
+                pSM->pActiveTrans->next.name, GET_EVT_NAME(event));
       }
 
-      doHandleEvent(pSM, event, pTrans);
+      code = doHandleEvent(pSM, event, pTrans);
       break;
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static void keepPrevInfo(SStreamTaskSM* pSM) {
@@ -281,24 +303,27 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
 
   // do update the task status
   taosThreadMutexLock(&pTask->lock);
-  STaskStateTrans* pTrans = pSM->pActiveTrans;
 
+  STaskStateTrans* pTrans = pSM->pActiveTrans;
   if (pTrans == NULL) {
     ETaskStatus s = pSM->current.state;
-    ASSERT(s == TASK_STATUS__DROPPING || s == TASK_STATUS__PAUSE || s == TASK_STATUS__STOP);
+    ASSERT(s == TASK_STATUS__DROPPING || s == TASK_STATUS__PAUSE || s == TASK_STATUS__STOP ||
+           s == TASK_STATUS__UNINIT || s == TASK_STATUS__READY);
+
     // the pSM->prev.evt may be 0, so print string is not appropriate.
     stDebug("s-task:%s event:%s handled failed, current status:%s, trigger event:%s", pTask->id.idStr,
-            StreamTaskEventList[event].name, pSM->current.name, StreamTaskEventList[pSM->prev.evt].name);
+            GET_EVT_NAME(event), pSM->current.name, GET_EVT_NAME(pSM->prev.evt));
 
     taosThreadMutexUnlock(&pTask->lock);
-    return TSDB_CODE_INVALID_PARA;
+    stDebug("s-task:%s unlockx", pTask->id.idStr);
+    return TSDB_CODE_STREAM_INVALID_STATETRANS;
   }
 
   if (pTrans->event != event) {
     stWarn("s-task:%s handle event:%s failed, current status:%s, active trans evt:%s", pTask->id.idStr,
-           StreamTaskEventList[event].name, pSM->current.name, StreamTaskEventList[pTrans->event].name);
+           GET_EVT_NAME(event), pSM->current.name, GET_EVT_NAME(pTrans->event));
     taosThreadMutexUnlock(&pTask->lock);
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_STREAM_INVALID_STATETRANS;
   }
 
   keepPrevInfo(pSM);
@@ -312,14 +337,17 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
   if (taosArrayGetSize(pSM->pWaitingEventList) > 0) {
     int64_t el = (taosGetTimestampMs() - pSM->startTs);
     stDebug("s-task:%s handle event:%s completed, elapsed time:%" PRId64 "ms state:%s -> %s", pTask->id.idStr,
-            StreamTaskEventList[pTrans->event].name, el, pSM->prev.state.name, pSM->current.name);
+            GET_EVT_NAME(pTrans->event), el, pSM->prev.state.name, pSM->current.name);
 
-    SAttachedEventInfo* pEvtInfo = taosArrayPop(pSM->pWaitingEventList);
+    SAttachedEventInfo* pEvtInfo = taosArrayGet(pSM->pWaitingEventList, 0);
 
     // OK, let's handle the attached event, since the task has reached the required status now
     if (pSM->current.state == pEvtInfo->status) {
-      stDebug("s-task:%s handle the attached event:%s, state:%s", pTask->id.idStr,
-              StreamTaskEventList[pEvtInfo->event].name, pSM->current.name);
+      stDebug("s-task:%s handle the event:%s in waiting list, state:%s", pTask->id.idStr,
+              GET_EVT_NAME(pEvtInfo->event), pSM->current.name);
+
+      // remove it
+      taosArrayPop(pSM->pWaitingEventList);
 
       STaskStateTrans* pNextTrans = streamTaskFindTransform(pSM->current.state, pEvtInfo->event);
       ASSERT(pSM->pActiveTrans == NULL && pNextTrans != NULL);
@@ -334,13 +362,18 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
       } else {
         return code;
       }
+    } else {
+      taosThreadMutexUnlock(&pTask->lock);
+      stDebug("s-task:%s state:%s event:%s in waiting list, req state:%s not fulfilled, put it back", pTask->id.idStr,
+              pSM->current.name, GET_EVT_NAME(pEvtInfo->event),
+              StreamTaskStatusList[pEvtInfo->status].name);
     }
   } else {
     taosThreadMutexUnlock(&pTask->lock);
 
     int64_t el = (taosGetTimestampMs() - pSM->startTs);
     stDebug("s-task:%s handle event:%s completed, elapsed time:%" PRId64 "ms state:%s -> %s", pTask->id.idStr,
-            StreamTaskEventList[pTrans->event].name, el, pSM->prev.state.name, pSM->current.name);
+            GET_EVT_NAME(pTrans->event), el, pSM->prev.state.name, pSM->current.name);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -446,6 +479,10 @@ void doInitStateTransferTable(void) {
 
   // halt stream task, from other task status
   trans = createStateTransform(TASK_STATUS__READY, TASK_STATUS__HALT, TASK_EVENT_HALT, NULL,
+                               streamTaskKeepCurrentVerInWal, NULL, true);
+  taosArrayPush(streamTaskSMTrans, &trans);
+
+  trans = createStateTransform(TASK_STATUS__HALT, TASK_STATUS__HALT, TASK_EVENT_HALT, NULL,
                                streamTaskKeepCurrentVerInWal, NULL, true);
   taosArrayPush(streamTaskSMTrans, &trans);
 

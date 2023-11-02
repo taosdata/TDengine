@@ -297,11 +297,11 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
     streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
 
     // 2. save to disk
-    taosWLockLatch(&pMeta->lock);
+    streamMetaWLock(pMeta);
     if (streamMetaCommit(pMeta) < 0) {
       // persist to disk
     }
-    taosWUnLockLatch(&pMeta->lock);
+    streamMetaWUnLock(pMeta);
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   } else {
     stDebug("s-task:%s fill-history task end, update related stream task:%s info, transfer exec state", pTask->id.idStr,
@@ -356,18 +356,10 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   // 4. free it and remove fill-history task from disk meta-store
   streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
 
-  // 5. clear the link between fill-history task and stream task info
-//  CLEAR_RELATED_FILLHISTORY_TASK(pStreamTask);
-
-  // 6. save to disk
-  taosWLockLatch(&pMeta->lock);
-
+  // 5. save to disk
+  streamMetaWLock(pMeta);
   pStreamTask->status.taskStatus = streamTaskGetStatus(pStreamTask, NULL);
-//  streamMetaSaveTask(pMeta, pStreamTask);
-//  if (streamMetaCommit(pMeta) < 0) {
-    // persist to disk
-//  }
-  taosWUnLockLatch(&pMeta->lock);
+  streamMetaWUnLock(pMeta);
 
   // 7. pause allowed.
   streamTaskEnablePause(pStreamTask);
