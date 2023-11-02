@@ -282,7 +282,7 @@ char   tsS3Hostname[TSDB_FQDN_LEN] = "<hostname>";
 
 int32_t tsS3BlockSize = -1;        // number of tsdb pages (4096)
 int32_t tsS3BlockCacheSize = 16;   // number of blocks
-int32_t tsS3PageCacheSize = 1024;  // number of pages
+int32_t tsS3PageCacheSize = 4096;  // number of pages
 int32_t tsS3UploadDelaySec = 60 * 60;
 
 #ifndef _STORAGE
