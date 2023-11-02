@@ -108,7 +108,7 @@ void setEventOutputBuf(SStreamAggSupporter* pAggSup, TSKEY* pTs, uint64_t groupI
   pCurWin->winInfo.sessionWin.win.skey = ts;
   pCurWin->winInfo.sessionWin.win.ekey = ts;
   SStreamStateCur* pCur = pAggSup->stateStore.streamStateSessionSeekKeyCurrentPrev(pAggSup->pState, &pCurWin->winInfo.sessionWin);
-  SSessionKey  leftWinKey = {0};
+  SSessionKey  leftWinKey = {.groupId = groupId};
   void* pVal = NULL;
   int32_t len = 0;
   code = pAggSup->stateStore.streamStateSessionGetKVByCur(pCur, &leftWinKey, &pVal, &len);
@@ -122,7 +122,7 @@ void setEventOutputBuf(SStreamAggSupporter* pAggSup, TSKEY* pTs, uint64_t groupI
   }
   pAggSup->stateStore.streamStateFreeCur(pCur);
   pCur = pAggSup->stateStore.streamStateSessionSeekKeyNext(pAggSup->pState, &pCurWin->winInfo.sessionWin);
-  SSessionKey  rightWinKey = {0};
+  SSessionKey  rightWinKey = {.groupId = groupId};
   code = pAggSup->stateStore.streamStateSessionGetKVByCur(pCur, &rightWinKey, &pVal, &len);
   bool inWin = isInTimeWindow(&rightWinKey.win, ts, 0);
   if (code == TSDB_CODE_SUCCESS && inWinRange(&pAggSup->winRange, &rightWinKey.win) && (inWin || (start && !end))) {
