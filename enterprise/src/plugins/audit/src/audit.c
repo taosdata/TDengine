@@ -79,8 +79,8 @@ void auditRecordImp(SRpcMsg *pReq, int64_t clusterId, char *operation, char *tar
   tjsonAddStringToObject(pJson, "user", user);
   tjsonAddStringToObject(pJson, "operation", operation);
   tjsonAddStringToObject(pJson, "client_add", clientAddress);
-  //tjsonAddStringToObject(pJson, "target_1", target1);
-  //tjsonAddStringToObject(pJson, "target_2", target2);
+  tjsonAddStringToObject(pJson, "db", target1);
+  tjsonAddStringToObject(pJson, "resource", target2);
   tjsonAddStringToObject(pJson, "details", buf);
 
   auditSend(pJson);
