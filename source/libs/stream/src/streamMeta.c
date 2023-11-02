@@ -260,13 +260,9 @@ int32_t streamMetaReopen(SStreamMeta* pMeta) {
     }
   }
 
-  pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
-  while (pMeta->streamBackend == NULL) {
+  while ((pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId)) == NULL) {
+    stInfo("vgId:%d failed to init stream backend, retry in 100ms", pMeta->vgId);
     taosMsleep(100);
-    pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
-    if (pMeta->streamBackend == NULL) {
-      stInfo("vgId:%d failed to init stream backend, retry in 100ms", pMeta->vgId);
-    }
   }
 
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
