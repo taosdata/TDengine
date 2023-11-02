@@ -1147,6 +1147,7 @@ _checkpoint:
         SStreamTask *pTask = pItem->pStreamTask;
         atomic_store_32(&pTask->pMeta->chkptNotReadyTasks, 1);
         pTask->checkpointingId = taosGetTimestampNs();
+        pTask->chkInfo.checkpointId = pTask->checkpointingId;
         code = streamTaskBuildCheckpoint(pTask);
         TSDB_CHECK_CODE(code, lino, _exit);
 
