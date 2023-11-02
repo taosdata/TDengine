@@ -22,6 +22,7 @@
 #define RSMA_FETCH_DELAY_MAX       (120000)  // ms
 #define RSMA_FETCH_ACTIVE_MAX      (1000)    // ms
 #define RSMA_FETCH_INTERVAL        (5000)    // ms
+#define RSMA_TASK_FLAG             "rsma_task"
 
 #define RSMA_NEED_FETCH(r) (RSMA_INFO_ITEM((r), 0)->fetchLevel || RSMA_INFO_ITEM((r), 1)->fetchLevel)
 
@@ -264,8 +265,8 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     pStreamTask->id.streamId = pRSmaInfo->suid + idx;
     pStreamTask->chkInfo.startTs = taosGetTimestampMs();
     pStreamTask->pMeta = pVnode->pTq->pStreamMeta;
-    pStreamTask->exec.qmsg = taosMemoryMalloc(2);
-    sprintf(pStreamTask->exec.qmsg, "%d", idx);
+    pStreamTask->exec.qmsg = taosMemoryMalloc(strlen(RSMA_TASK_FLAG) + 1);
+    sprintf(pStreamTask->exec.qmsg, "%s", RSMA_TASK_FLAG);
     pStreamTask->chkInfo.checkpointId = pTsdbCfg->retentions[idx + 1].checkpointId;
     pStreamState = streamStateOpen(taskInfDir, pStreamTask, true, -1, -1);
     if (!pStreamState) {
