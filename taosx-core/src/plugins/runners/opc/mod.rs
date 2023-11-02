@@ -1256,7 +1256,7 @@ pub async fn opc_to_taos(
         let mut line = String::new();
         loop {
             // Read a line from stderr
-            let bytes_read = reader.read_line(&mut line).await.unwrap();
+            let bytes_read = reader.read_line(&mut line).await?;
             if bytes_read == 0 {
                 break; // End of stream, exit the loop
             }
@@ -1267,7 +1267,7 @@ pub async fn opc_to_taos(
                 let _ = guard.push_overwrite(line.clone());
             }
             // Write the line to log_rotation
-            write!(log_rotation, "{}", line).unwrap();
+            write!(log_rotation, "{}", line)?;
             line.clear();
         }
         Ok::<(), std::io::Error>(())
@@ -1400,7 +1400,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         None,
     );
 
-    write!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr)).unwrap();
+    write!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr)).context("writing logs error")?;
 
     tracing::info!("OPC exit with status {}", output.status);
     if !output.status.success() {

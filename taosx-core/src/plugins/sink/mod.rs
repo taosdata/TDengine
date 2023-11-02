@@ -409,6 +409,8 @@ async fn consume_lush_record(
                                     create_sql_map.insert(stable_name.clone(), tag_modify_message);
                                 }
                             }
+                        } else {
+                            bail!("lush message table query error: {err:#}");
                         }
                     }
                 }
@@ -1297,6 +1299,8 @@ fn get_real_column_name(column_config: &ColumnConfig) -> &String {
         .unwrap_or(&column_config.column_name)
 }
 
+const DEFAULT_MAX_RETRIES_FOR_CONNECTION: u32 = 10;
+
 #[instrument(skip_all, fields(writer.count = count))]
 async fn consume_flat_record(
     pool: &TaosPool,
@@ -1413,7 +1417,10 @@ async fn consume_flat_record(
                                                 if code == 0xE001
                                                     || code == 0xE002
                                                     || code == 0xE003
+                                                    || code == 0x000B
                                                 {
+                                                    tokio::time::sleep(Duration::from_secs(2))
+                                                        .await;
                                                     taos.replace(pool.get().await?);
                                                     continue;
                                                 }
@@ -1562,7 +1569,7 @@ async fn consume_flat_record(
                                                     {
                                                         let code: i32 = err.code().into();
                                                         match code {
-                                                            0xE001 | 0xE002 | 0xE003 => {
+                                                            0xE001 | 0xE002 | 0xE003 | 0x000B => {
                                                                 taos.replace(pool.get().await?);
                                                                 continue;
                                                             }
@@ -1577,9 +1584,10 @@ async fn consume_flat_record(
                             }
                             if let Err(err) = taos.as_ref().unwrap().write_raw_block(&raw).await {
                                 let code = err.code();
+                                let errno: i32 = code.into();
                                 let err_str = err.to_string();
                                 write_retries += 1;
-                                if write_retries > 5 {
+                                if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
                                     tracing::warn!("flat message write raw block encounter unrecoverable err: {err:#}");
                                     counter!(WRITE_RAW_BLOCK_FAILS, 1);
                                     counter!(RECORD_FAILS, raw.nrows() as u64);
@@ -1725,7 +1733,12 @@ async fn consume_flat_record(
                                 //     // panic!("{}", err);
                                 //     Err(err)?;
                                 //     break;
-                                } else if err_str.contains("0x0E00") {
+                                } else if errno == 0xE001
+                                    || errno == 0xE002
+                                    || errno == 0xE003
+                                    || errno == 0x000B
+                                {
+                                    tokio::time::sleep(Duration::from_secs(2)).await;
                                     taos.replace(pool.get().await?);
                                     continue;
                                 } else {
@@ -2012,6 +2025,7 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
                     .to_string(),
                 ),
             });
+            bail!("write batch error: {err:#}");
         } else {
             let _ = ipc_ack_writer
                 .ack(LushAck {

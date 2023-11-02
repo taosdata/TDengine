@@ -671,3 +671,20 @@ async fn test_csv_source() -> anyhow::Result<()> {
     assert_eq!(u, 200);
     Ok(())
 }
+
+pub async fn is_csv_valid(from: &Dsn) -> crate::validation::DataSourceValidation {
+    if let Err(err) = CsvSource::new(&mut from.clone(), 0) {
+        return crate::validation::DataSourceValidation::invalid(
+            "csv".to_string(),
+            err.to_string(),
+        );
+    } else {
+        return crate::validation::DataSourceValidation {
+            valid: true,
+            support: true,
+            data_source: "csv".to_string(),
+            version: None,
+            message: None,
+        };
+    }
+}

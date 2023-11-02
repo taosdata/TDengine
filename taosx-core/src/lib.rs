@@ -25,7 +25,7 @@ use utils::port_pool::PortPool;
 use crate::tmq_to_kafka::clean_task;
 pub use crate::tmq_to_kafka::tmq_to_kafka;
 
-mod csv;
+pub mod csv;
 mod fake;
 mod legacy;
 mod local_to_taos;

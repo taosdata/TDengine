@@ -905,45 +905,36 @@ impl TaskJob {
                 should_stop = opts.stop_condition.should_stop();
             }
 
-            // let current_run = opts.runs.load(Ordering::Relaxed);
-            if should_stop {
-                // If task should stop schedule, the last state will be the final state.
-                match opts.last_state.read().await.as_ref() {
-                    Some(LastState::Done) => {
-                        global.send_task_activity(TaskActivity::completed(opts.task.id, jid));
+            let state_guard = opts.last_state.read().await;
+            let state = state_guard.as_ref().expect("task should have a last state");
+            match state {
+                LastState::Done => {
+                    global.send_task_activity(TaskActivity::completed(opts.task.id, jid));
+                    opts.state.write().await.completed();
+                }
+                LastState::Stopped => match opts.operator.operator() {
+                    Operator::Suspend => {
+                        global.send_task_activity(TaskActivity::suspended(opts.task.id, jid));
                     }
-                    Some(LastState::Stopped) => match opts.operator.operator() {
-                        Operator::Suspend => {
-                            global.send_task_activity(TaskActivity::suspended(opts.task.id, jid));
-                        }
-                        _ => {
-                            global.send_task_activity(TaskActivity::stopped(opts.task.id));
-                        }
-                    },
-                    Some(LastState::Error(err)) => {
+                    _ => {
+                        global.send_task_activity(TaskActivity::stopped(opts.task.id));
+                        opts.state.write().await.stopped();
+                    }
+                },
+                LastState::Error(err) => {
+                    if should_stop {
                         global.send_task_activity(TaskActivity::failed(
                             opts.task.id,
                             format!("{err:#}"),
                         ));
-                    }
-                    None => unreachable!("task should have a last state"),
-                }
-            } else {
-                // If task should not stop schedule, the last state is tempera.
-                match opts.last_state.read().await.as_ref() {
-                    Some(LastState::Done) => {
-                        global.send_task_activity(TaskActivity::tick(opts.task.id, jid));
-                    }
-                    Some(LastState::Stopped) => {
-                        global.send_task_activity(TaskActivity::stopped(opts.task.id));
-                    }
-                    Some(LastState::Error(err)) => {
+                        opts.state.write().await.fail(&err);
+                    } else {
                         global.send_task_activity(TaskActivity::interrupted(
                             opts.task.id,
                             format!("{err:#}"),
                         ));
+                        opts.state.write().await.interrupted();
                     }
-                    None => unreachable!("task should have a last state"),
                 }
             }
             opts.runs.fetch_add(1, Ordering::Release);
@@ -1013,16 +1004,14 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
     match completed {
         Some(LastState::Done) => {
             tracing::info!("task completed");
-            let _ = task.state.write().await.completed();
+            // let _ = task.state.write().await.completed();
         }
         Some(LastState::Stopped) => {
             tracing::info!("task stopped");
-            task.state.write().await.stopped();
+            // task.state.write().await.stopped();
         }
         Some(LastState::Error(err)) => {
             tracing::info!("task error: {:#}", err);
-            task.state.write().await.fail(&err);
-            task.state.write().await.interrupted();
         }
         None => {
             tracing::info!("task finished unexpectedly");

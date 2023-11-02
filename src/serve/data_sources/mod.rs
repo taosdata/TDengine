@@ -271,6 +271,7 @@ pub async fn validate_dsn(dsn: impl IntoDsn, via: Option<String>) -> DataSourceV
                 "pibackfill" => runners::pi::is_pi_backfill_valid(&d).await,
                 "taos" => taosx_core::taoz::is_taos_valid(&d).await,
                 "tmq" => taosx_core::tmq::is_tmq_valid(&d).await,
+                "csv" => taosx_core::csv::is_csv_valid(&d).await,
                 &_ => DataSourceValidation::unknown(),
             }
         }
