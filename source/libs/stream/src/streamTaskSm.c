@@ -218,7 +218,6 @@ static int32_t doHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event, STaskSt
   if (pTrans->attachEvent.event != 0) {
     attachEvent(pTask, &pTrans->attachEvent);
     taosThreadMutexUnlock(&pTask->lock);
-    stDebug("s-task:%s unlock1", pTask->id.idStr);
 
     while (1) {
       // wait for the task to be here
@@ -242,7 +241,6 @@ static int32_t doHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event, STaskSt
     pSM->pActiveTrans = pTrans;
     pSM->startTs = taosGetTimestampMs();
     taosThreadMutexUnlock(&pTask->lock);
-    stDebug("s-task:%s unlock2", pTask->id.idStr);
 
     int32_t code = pTrans->pAction(pTask);
     // todo handle error code;
@@ -256,12 +254,12 @@ static int32_t doHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event, STaskSt
 }
 
 int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
+  int32_t          code = TSDB_CODE_SUCCESS;
   SStreamTask*     pTask = pSM->pTask;
   STaskStateTrans* pTrans = NULL;
 
   while (1) {
     taosThreadMutexLock(&pTask->lock);
-    stDebug("s-task:%s lock", pTask->id.idStr);
 
     if (pSM->pActiveTrans != NULL && pSM->pActiveTrans->autoInvokeEndFn) {
       EStreamTaskEvent evt = pSM->pActiveTrans->event;
@@ -285,12 +283,12 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
                 pSM->pActiveTrans->next.name, GET_EVT_NAME(event));
       }
 
-      doHandleEvent(pSM, event, pTrans);
+      code = doHandleEvent(pSM, event, pTrans);
       break;
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static void keepPrevInfo(SStreamTaskSM* pSM) {
