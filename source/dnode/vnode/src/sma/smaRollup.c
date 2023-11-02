@@ -1012,7 +1012,7 @@ static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables) {
         code = terrno;
         TSDB_CHECK_CODE(code, lino, _exit);
       }
-
+#if 0
       // reload all ctbUids for suid
       uidStore.suid = suid;
       if (vnodeGetCtbIdList(pVnode, suid, uidStore.tbUids) < 0) {
@@ -1026,7 +1026,7 @@ static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables) {
       }
 
       taosArrayClear(uidStore.tbUids);
-
+#endif
       smaDebug("vgId:%d, rsma restore env success for %" PRIi64, TD_VID(pVnode), suid);
     }
   }
