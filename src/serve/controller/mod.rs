@@ -359,7 +359,7 @@ async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::
 }
 
 async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
-    sqlx::query("update tasks set status = ? where status in (?, ?, ?, ?)")
+    sqlx::query("update tasks set status = ? where status in (?, ?, ?, ?, ?)")
         .bind(Status::Suspended)
         .bind(Status::Running)
         .bind(Status::Waiting)
