@@ -484,7 +484,7 @@ void streamMetaCloseImpl(void* arg) {
   taosHashCleanup(pMeta->pTaskDbUnique);
   taosHashCleanup(pMeta->pUpdateTaskSet);
   //taosHashCleanup(pMeta->pTaskBackendUnique);
-  //taosHashCleanup(pMeta->updateInfo.pTasks);
+  taosHashCleanup(pMeta->updateInfo.pTasks);
   taosHashCleanup(pMeta->startInfo.pReadyTaskSet);
 
   taosMemoryFree(pMeta->pHbInfo);
