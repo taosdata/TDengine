@@ -22,6 +22,7 @@ pub enum AgentStatus {
     Busy,
     Transferring,
     Error,
+    Outdated,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

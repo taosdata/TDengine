@@ -53,6 +53,7 @@ pub enum AgentStatus {
     Busy,
     Transferring,
     Error,
+    Outdated,
 }
 #[derive(Debug, Clone, Deserialize)]
 pub struct Agent {
