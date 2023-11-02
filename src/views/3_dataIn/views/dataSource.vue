@@ -627,7 +627,7 @@ export default {
           if (result?.message) {
             this.$message({
               dangerouslyUseHTMLString: true,
-              message: `<strong>${result.message}</strong>`,
+              message: `<strong>${result.message.replaceAll('\n','<br/>')}</strong>`,
               type: "warning",
             });
             return;
@@ -653,7 +653,7 @@ export default {
           if (result?.message) {
             this.$message({
               dangerouslyUseHTMLString: true,
-              message: `<strong>${result.message}</strong>`,
+              message: `<strong>${result.message.replaceAll('\n','<br/>')}</strong>`,
               type: "warning",
             });
             return;

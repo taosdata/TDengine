@@ -82,12 +82,7 @@
     <p>{{ $t("docs.tool.cli.step4desc") }}</p>
     <pre
       v-highlight
-    ><code>Welcome to the TDengine shell from Linux, Client Version:3.2.0.1
-Copyright (c) 2023 by TAOS Data, Inc. All rights reserved.
-
-Successfully connect to tdengine.com:8085 in restful mode
-
-taos&gt;
+    ><code>{{ code }}
 </code></pre>
     <p>
       {{ $t("docs.tool.cli.step4desc1") }}&nbsp;
@@ -101,7 +96,6 @@ taos&gt;
 </template>
 
 <script>
-import { TdengineVersion } from "@/const";
 export default {
   props: {
     token: {
@@ -124,6 +118,13 @@ export default {
   data() {
     return {
       sysActivateTab: "linux",
+      version:localStorage.getItem('agent_version'),
+      code:`Welcome to the TDengine shell from Linux, Client Version:${localStorage.getItem('agent_version')}
+Copyright (c) 2023 by TAOS Data, Inc. All rights reserved.
+
+Successfully connect to tdengine.com:8085 in restful mode
+
+taos>`
     };
   },
   computed: {
@@ -135,19 +136,19 @@ export default {
     },
     installUrlLinux() {
       const urlPart = this.urlPart;
-      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-enterprise-client-3.2.0.1-Linux-x64.tar.gz`;
+      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-enterprise-client-${this.version}-Linux-x64.tar.gz`;
     },
     installUrlMac() {
       const urlPart = this.urlPart;
-      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-client-3.2.0.1-macOS-x64.pkg`;
+      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-client-${this.version}-macOS-x64.pkg`;
     },
     installURLArm(){
       const urlPart = this.urlPart;
-      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-client-3.2.0.1-macOS-arm64.pkg`;
+      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-client-${this.version}-macOS-arm64.pkg`;
     },
     installUrlWindows() {
       const urlPart = this.urlPart;
-      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-enterprise-client-3.2.0.1-Windows-x64.exe`;
+      return `https://www.${urlPart}.com/assets-download/3.0/TDengine-enterprise-client-${this.version}-Windows-x64.exe`;
     },
   },
 };
