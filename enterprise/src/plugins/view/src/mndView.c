@@ -370,6 +370,16 @@ static int32_t mndCreateView(SMnode *pMnode, SCMCreateViewReq *pCreate, SRpcMsg 
     taosHashPut(newUserObj.readViews, pCreate->fullname, strlen(pCreate->fullname) + 1, "v", 2);
     taosHashPut(newUserObj.writeViews, pCreate->fullname, strlen(pCreate->fullname) + 1, "v", 2);
     taosHashPut(newUserObj.alterViews, pCreate->fullname, strlen(pCreate->fullname) + 1, "v", 2);
+    int32_t  dbKeyLen = strlen(pCreate->dbFName) + 1;
+    int32_t  ref = 3;
+    int32_t *currRef = taosHashGet(newUserObj.useDbs, pCreate->dbFName, dbKeyLen);
+    if (NULL != currRef) {
+      ref += (*currRef);
+    }
+    if (taosHashPut(newUserObj.useDbs, pCreate->dbFName, dbKeyLen, &ref, sizeof(ref)) != 0) {
+      goto _OVER;
+    }
+
     pNewUserDuped = &newUserObj;
   }
 
