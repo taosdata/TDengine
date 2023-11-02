@@ -208,6 +208,7 @@ fn get_default_config_path() -> PathBuf {
         .join(build::CUS_PROMPT)
         .join("taosx.toml")
 }
+
 impl Args {
     pub fn init() -> Result<Args, ArgsError> {
         let mut args = Args::parse();
@@ -253,8 +254,7 @@ impl Args {
         layers.push(Layer::Clap(Args::command().get_matches()));
 
         let configurable_opts = ConfigurableOpts::with_layers(&layers)?;
-        args.global = configurable_opts.global;
-
+        args.global.merge_from(configurable_opts.global);
         args.global.jobs = executor_worker_threads(args.global.jobs);
 
         let matches = Args::command().get_matches();
@@ -286,6 +286,31 @@ impl Args {
             _ => {}
         }
         Ok(args)
+    }
+}
+
+impl Global {
+    pub fn merge_from(&mut self, rhs: Self) -> &mut Self {
+        let matches = Args::command().get_matches();
+        macro_rules! update_if_none {
+            ($f:ident) => {
+                match matches.value_source(stringify!($f)) {
+                    Some(ValueSource::DefaultValue) | None => {
+                        self.$f = rhs.$f;
+                    }
+                    _ => {}
+                }
+            };
+        }
+        update_if_none!(plugins_home);
+        update_if_none!(data_dir);
+        update_if_none!(logs_home);
+        update_if_none!(log_level);
+        update_if_none!(debug);
+        update_if_none!(log_keep_days);
+        update_if_none!(jobs);
+        update_if_none!(otel);
+        self
     }
 }
 

@@ -34,9 +34,9 @@ def release(release_info,build_info):
         if info.Name =='opentsdb':
             build_and_install_opentsdb_on_linux(info.VersionMode)
         if info.Name =='taosx':
-            build_and_install_taosx_on_linux(info.VersionMode)
+            build_and_install_taosx_on_linux(release_info, info.VersionMode)
         if info.Name =='taosx-agent':
-            build_and_install_taosx_agent_on_linux(info.VersionMode)
+            build_and_install_taosx_agent_on_linux(release_info, info.VersionMode)
         if info.Name =='taos-explorer':
             install_taos_explorer_on_linux(info.VersionMode)
 
@@ -157,7 +157,7 @@ def build_and_install_opentsdb_on_linux(mode='release'):
     logging.info("taox-opentsdb copied to {release_dir}".format(release_dir=dst_dir))
 
 
-def build_and_install_taosx_on_linux(mode='release'):
+def build_and_install_taosx_on_linux(release_info, mode='release'):
     logging.info("build_and_install taosx under linux...")
 
     platform = "linux"
@@ -168,9 +168,9 @@ def build_and_install_taosx_on_linux(mode='release'):
     os.chdir(top_dir)
 
     if mode.lower() == 'release':
-        os.system(f'cargo build --release --features jemallocator')
+        os.system(f'VER_NUMBER={release_info.TdengineVersion} cargo build --release --features jemallocator')
     else:
-        os.system(f'cargo build --features jemallocator')
+        os.system(f'VER_NUMBER={release_info.TdengineVersion} cargo build --features jemallocator')
     logging.info("taox built successfully")
 
     shutil.copy(binary_file,dst_dir)
@@ -198,7 +198,7 @@ def install_taos_explorer_on_linux(mode='release'):
     check_directory(cfg_path)
     shutil.copy2(os.path.join("server","examples","explorer.toml"), cfg_path)
 
-def build_and_install_taosx_agent_on_linux(mode='release'):
+def build_and_install_taosx_agent_on_linux(release_info, mode='release'):
     logging.info("build_and_install taosx-agent under linux...")
     platform = "linux"
     arch = "amd64"
@@ -209,9 +209,9 @@ def build_and_install_taosx_agent_on_linux(mode='release'):
     os.chdir(top_dir)
 
     if mode.lower() == 'release':
-        os.system('cargo build --release --package taosx-agent')
+        os.system(f'VER_NUMBER={release_info.TdengineVersion} cargo build --release --package taosx-agent')
     else:
-        os.system('cargo build --package taosx-agent')
+        os.system(f'VER_NUMBER={release_info.TdengineVersion} cargo build --package taosx-agent')
 
     logging.info("taox-agent built successfully")
 
@@ -268,10 +268,10 @@ def test_handle(release_info, process):
         make_tar_package(release_info)
     elif process == "taosx":
         print("Calling taosx function...")
-        build_and_install_taosx_on_linux("Debug")
+        build_and_install_taosx_on_linux(release_info, "Debug")
     elif process == "agent":
         print("Calling taosx agent function...")
-        build_and_install_taosx_agent_on_linux("Debug")
+        build_and_install_taosx_agent_on_linux(release_info, "Debug")
     elif process == "explorer":
         print("Calling taos-explorer function...")
         install_taos_explorer_on_linux("Release")
