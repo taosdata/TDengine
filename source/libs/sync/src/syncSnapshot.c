@@ -214,7 +214,7 @@ int32_t syncSnapSendMsg(SSyncSnapshotSender *pSender, int32_t seq, void *pBlock,
 
   // send msg
   if (syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg) != 0) {
-    sSError(pSender, "failed to send snap replication msg since %s", terrstr());
+    sSError(pSender, "failed to send snap replication msg since %s. seq:%d", terrstr(), seq);
     goto _OUT;
   }
 
@@ -308,6 +308,12 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
       goto _out;
     }
     pBlk->sendTimeMs = nowMs;
+  }
+
+  if (pSender->seq == SYNC_SNAPSHOT_SEQ_END && pSndBuf->end <= pSndBuf->start) {
+    if (syncSnapSendMsg(pSender, pSender->seq, NULL, 0, 0) != 0) {
+      goto _out;
+    }
   }
   code = 0;
 _out:;
