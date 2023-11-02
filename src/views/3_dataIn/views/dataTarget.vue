@@ -38,6 +38,7 @@
         <div class="transverse">
           <el-select
             v-model="ruleForm.agent"
+            clearable
             :placeholder="$t('dataIn.palceholders.agentPlaceholder')"
             @change="changeAgent"
           >
