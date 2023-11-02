@@ -1106,7 +1106,7 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
   }
   // stream state: process checkpoint response in async mode
   int32_t nStreamFlushed = 0;
-  int32_t nMSleep = 0;
+  int32_t nSleep = 0;
   while (true) {
     while ((infoHash = taosHashIterate(pInfoHash, infoHash))) {
       SRSmaInfo *pRSmaInfo = *(SRSmaInfo **)infoHash;
@@ -1120,16 +1120,16 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
                                            pRSmaInfo->suid, &pResList, &streamFlushed);
           TSDB_CHECK_CODE(code, lino, _exit);
           if (streamFlushed && (++nStreamFlushed >= nTaskInfo)) {
-            smaInfo("%s:%d checkpoint ready, %d ms consumed, received/total: %d/%d", __func__, __LINE__, nMSleep,
+            smaInfo("%s:%d checkpoint ready, %d us consumed, received/total: %d/%d", __func__, __LINE__, nSleep * 10,
                     nStreamFlushed, nTaskInfo);
             goto _checkpoint;
           }
         }
       }
     }
-    taosMsleep(1);
-    ++nMSleep;
-    smaInfo("%s:%d wait for checkpoint ready, %d ms elapsed, received/total: %d/%d", __func__, __LINE__, nMSleep,
+    taosUsleep(10);
+    ++nSleep;
+    smaInfo("%s:%d wait for checkpoint ready, %d us elapsed, received/total: %d/%d", __func__, __LINE__, nSleep * 10,
             nStreamFlushed, nTaskInfo);
   }
 
