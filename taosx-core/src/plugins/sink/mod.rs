@@ -1737,7 +1737,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     let mut count = 0;
     let mut stream = ipc_reader.into_stream();
 
-    let mut batches = 0;
+    let mut _batches = 0;
     static mut ACKS: AtomicUsize = AtomicUsize::new(0);
     let mut taos = Some(taos);
     while let Some(record) = stream.try_next().await.context("next item error")? {
@@ -1801,7 +1801,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             tracing::info!(acks = unsafe { ACKS.load(Ordering::SeqCst) }, "ack done");
         }
         unsafe { ACKS.fetch_add(1, Ordering::SeqCst) };
-        batches += 1;
+        _batches += 1;
     }
     println!("finished, totally {count} rows");
     Ok(())

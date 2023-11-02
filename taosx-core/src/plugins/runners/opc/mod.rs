@@ -9,12 +9,12 @@ use std::{
 };
 
 use anyhow::{bail, Context};
-use base64::{Engine, engine::general_purpose};
+use base64::{engine::general_purpose, Engine};
 use csv_lib::ReaderBuilder;
 use file_rotate::{
     compression::Compression,
-    ContentLimit,
-    FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
 };
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -26,12 +26,12 @@ use tracing::{instrument, Span};
 
 use taosx_ipc::{prelude::IpcDataType, types::OptionSet};
 
-use crate::{
-    Action, build_ipc, DataSet, DataSetsReq, get_log_keep_days, Transferred,
-    utils::port_pool::PortPool,
-};
+use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
-use crate::validation::DataSourceValidation;
+use crate::{
+    build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
+    Transferred,
+};
 
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -1510,7 +1510,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     }
 }
 
-async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation>{
+async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation> {
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
@@ -1556,9 +1556,9 @@ async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation>
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::collections::HashMap;
     use std::env;
-    use super::*;
 
     #[ignore]
     #[tokio::test]

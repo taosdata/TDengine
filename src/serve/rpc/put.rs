@@ -12,7 +12,7 @@ use tracing::{debug, Instrument};
 
 use crate::serve::{
     controller::{transferred::ConnectorTransferred, TaskActivity, TaskControllerRef, TaskDetail},
-    scheduler::{agent::AgentNotifySender, notify, NotifySender},
+    scheduler::agent::AgentNotifySender,
 };
 
 #[derive(Debug)]

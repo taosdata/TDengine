@@ -8,10 +8,10 @@ use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument, Span};
 
+use crate::dsv::DataSourceValidation;
 use crate::plugins::mask_dsn;
 use crate::runners::influxdb::config::{ConnectionConfig, InfluxdbConfig, INFLUXDB_V1};
 use crate::runners::log_rotation;
-use crate::validation::DataSourceValidation;
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
 };
@@ -364,7 +364,7 @@ async fn validate_source_influxdb(
         let msg = match output.status.code() {
             Some(1) => String::from("The input parameters are incorrect"),
             Some(3) => String::from("Failed to connect"),
-            _ => String::from("Unknown exit code, maybe failed to connect, ip or port error")
+            _ => String::from("Unknown exit code, maybe failed to connect, ip or port error"),
         };
         Ok(DataSourceValidation {
             valid: false,
@@ -393,8 +393,8 @@ fn influxdb_jar_path() -> anyhow::Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use std::env;
     use super::*;
+    use std::env;
     use std::str::FromStr;
     use taos::Dsn;
 

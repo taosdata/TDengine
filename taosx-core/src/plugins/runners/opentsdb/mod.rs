@@ -7,9 +7,9 @@ use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, Span};
 
+use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::opentsdb::config::{ConnectionConfig, OpentsdbConfig};
-use crate::validation::DataSourceValidation;
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
 };
@@ -335,7 +335,7 @@ async fn validate_source_opentsdb(
         let msg = match output.status.code() {
             Some(1) => String::from("The input parameters are incorrect"),
             Some(3) => String::from("Failed to connect"),
-            _ => String::from("Unknown exit code, maybe failed to connect, ip or port error")
+            _ => String::from("Unknown exit code, maybe failed to connect, ip or port error"),
         };
         Ok(DataSourceValidation {
             valid: false,

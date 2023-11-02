@@ -104,10 +104,7 @@ impl MqttConnectConfig {
                 .get("version")
                 .ok_or(anyhow::anyhow!("version is required"))?
                 .to_string(),
-            client_id: dsn
-                .params
-                .get("client_id")
-                .map(|v| v.to_string()),
+            client_id: dsn.params.get("client_id").map(|v| v.to_string()),
             username: dsn.username.clone(),
             password: dsn.password.clone(),
             keep_alive: dsn
@@ -136,7 +133,7 @@ impl MqttConnectConfig {
                     })
                 })
                 .transpose()?,
-                // .ok_or(anyhow::anyhow!("clean_session is required"))?,
+            // .ok_or(anyhow::anyhow!("clean_session is required"))?,
             ca,
             cert,
             cert_key,
@@ -261,6 +258,9 @@ mod tests {
         let dsn = Dsn::from_str("mqtt://192.168.1.42:1833?version=3.0").unwrap();
         let config = MqttConnectConfig::from_dsn(&dsn).unwrap();
         let toml = toml::to_string(&config);
-        assert_eq!("address = \"tcp://192.168.1.42:1833\"\\nversion = \"3.0\"", toml.unwrap());
+        assert_eq!(
+            "address = \"tcp://192.168.1.42:1833\"\\nversion = \"3.0\"",
+            toml.unwrap()
+        );
     }
 }

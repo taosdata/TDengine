@@ -27,7 +27,8 @@ use flume::{Receiver, Sender};
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use taosx_core::{
-    list_datasets_from, Activity, DataSetsReq, Fail, HeartbeatResponse, ListResponse, RespAction,
+    list_datasets_from, validate_dsn, Activity, CheckResponse, DataSetsReq, Fail,
+    HeartbeatResponse, ListResponse, RespAction,
 };
 use tonic::transport::Channel;
 use tonic::{codegen::Bytes, transport::Endpoint};
@@ -534,6 +535,23 @@ impl Client {
                                 .await;
                             if let Err(err) = send_ok {
                                 tracing::error!("Can't send list response to server: {err:#}");
+                            }
+                        });
+                    }
+                    "check" => {
+                        let dsn = context.to_string();
+                        let resp_tx = resp_tx.clone();
+                        tokio::spawn(async move {
+                            let dsv = validate_dsn(dsn.clone()).await;
+                            let send_ok = resp_tx
+                                .send_async(RespAction::CheckOk(CheckResponse {
+                                    req_id,
+                                    req: dsn,
+                                    res: dsv,
+                                }))
+                                .await;
+                            if let Err(err) = send_ok {
+                                tracing::error!("Can't send data source validation response to server: {err:#}");
                             }
                         });
                     }

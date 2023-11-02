@@ -21,6 +21,7 @@ use tokio::task::JoinHandle;
 use taosx_ipc::prelude::{AckReaderBuilder, ArrowDataType};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, instrument, warn, Span};
+use taosx_ipc::types::dsv::DataSourceValidation;
 
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, utils, Parser, Transferred};
@@ -672,14 +673,14 @@ async fn test_csv_source() -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn is_csv_valid(from: &Dsn) -> crate::validation::DataSourceValidation {
+pub async fn is_csv_valid(from: &Dsn) -> DataSourceValidation {
     if let Err(err) = CsvSource::new(&mut from.clone(), 0) {
-        return crate::validation::DataSourceValidation::invalid(
+        return DataSourceValidation::invalid(
             "csv".to_string(),
             err.to_string(),
         );
     } else {
-        return crate::validation::DataSourceValidation {
+        return DataSourceValidation {
             valid: true,
             support: true,
             data_source: "csv".to_string(),

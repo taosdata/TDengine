@@ -1,5 +1,5 @@
-use std::{fs, io::Write, path::PathBuf, sync::Arc};
 use std::collections::HashMap;
+use std::{fs, io::Write, path::PathBuf, sync::Arc};
 
 use anyhow::Context;
 use itertools::Itertools;
@@ -8,9 +8,9 @@ use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
+use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::mqtt::config::{MqttConfig, MqttConnectConfig};
-use crate::validation::DataSourceValidation;
 use crate::{
     build_ipc, get_log_keep_days, plugins::runners::get_plugin_dir, utils::port_pool::PortPool,
     Parser, Transferred,
@@ -194,7 +194,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             ),
         ),
         Ok(c) => {
-            let mqtt_config = MqttConfig{
+            let mqtt_config = MqttConfig {
                 log_level: "".to_string(),
                 remote: "".to_string(),
                 mqtt: c,

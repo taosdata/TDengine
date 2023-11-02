@@ -6,11 +6,11 @@ use std::{
     time::{Duration, Instant},
 };
 
+use crate::dsv::DataSourceValidation;
 use anyhow::{bail, Context, Result};
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 use taos::*;
-use crate::validation::DataSourceValidation;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub(crate) struct TopicTable {
@@ -824,8 +824,8 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
 
 #[cfg(test)]
 mod tests {
-    use taos::Dsn;
     use super::*;
+    use taos::Dsn;
 
     #[tokio::test]
     async fn test_invalid() {

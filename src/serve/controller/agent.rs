@@ -1,7 +1,7 @@
 //! Agent - user should register agent in taosX service to connect a local service \
 //! to remote taosX/taosExplorer/TDengine.
 //!
-use std::{borrow::Cow, fmt::Display, str::FromStr, convert::Infallible};
+use std::{borrow::Cow, convert::Infallible, fmt::Display, str::FromStr};
 
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
@@ -103,8 +103,6 @@ impl From<String> for Context {
         Self::from_str(&value).unwrap()
     }
 }
-
-
 
 impl Display for Context {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

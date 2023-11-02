@@ -6,7 +6,7 @@ use std::{
     sync::{atomic::Ordering, Arc},
 };
 
-use anyhow::{bail, Context};
+use anyhow::Context;
 use arrow::{
     array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array},
     datatypes::{Field, Fields, Schema},
