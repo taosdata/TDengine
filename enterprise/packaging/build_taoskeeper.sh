@@ -40,6 +40,8 @@ checkout_latest_tag() {
   git fetch
   # get latest tag
   latest=`git tag --sort=-creatordate | head -1`
+  latestv=$(echo "$latest" | sed 's/ver-//')
+
   gitinfo=`git rev-parse HEAD`
   buildinfo=`date +"%F %T %:z"`
 
@@ -52,9 +54,9 @@ build_binary() {
     true
   else
     if [ "$REPO" = "taoskeeperinternal" ]; then
-      go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeperinternal/version.Version=$latest' -X 'github.com/taosdata/taoskeeperinternal/version.Gitinfo=$gitinfo' -X 'github.com/taosdata/taoskeeperinternal/version.BuildInfo=$buildinfo'" -o taoskeeper main.go
+      go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeperinternal/version.Version=$latestv' -X 'github.com/taosdata/taoskeeperinternal/version.Gitinfo=$gitinfo' -X 'github.com/taosdata/taoskeeperinternal/version.BuildInfo=$buildinfo'" -o taoskeeper main.go
     elif [ "$REPO" = "taoskeeper" ]; then
-      go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeper/version.Version=$latest' -X 'github.com/taosdata/taoskeeper/version.Gitinfo=$gitinfo' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=$buildinfo'" -o taoskeeper main.go
+      go build -ldflags="-s -w -X 'github.com/taosdata/taoskeeper/version.Version=$latestv' -X 'github.com/taosdata/taoskeeper/version.Gitinfo=$gitinfo' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=$buildinfo'" -o taoskeeper main.go
          # if os != darwin, use upx to compress binary
       if [ "$current_os" != "Darwin" ]; then
          upx taoskeeper > /dev/null 2>&1 || :
