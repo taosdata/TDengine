@@ -28,7 +28,7 @@ use crate::runners::historian::historian_to_taos;
 use crate::runners::influxdb::influxdb_to_taos;
 use crate::runners::kafka::kafka_to_taos;
 
-mod csv;
+pub mod csv;
 mod fake;
 mod legacy;
 mod local_to_taos;

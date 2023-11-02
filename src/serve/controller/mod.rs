@@ -32,7 +32,7 @@ use taos::taos_query::tmq::Assignment;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::utils::breakpoints::breakpoints_get_all;
-use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
+use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts, validate_dsn};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -652,6 +652,11 @@ impl TaskController {
             }
             _ => (),
         }
+
+        if task.via.is_none() {
+            validate_dsn(&from).await.ok()?;
+        }
+
         if let Some(topic) = task.oneshot_topic.as_deref() {
             if topic.len() > 64 {
                 anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
@@ -1366,7 +1371,7 @@ impl TaskController {
 
     pub async fn validate_dsn_via_agent(&self, agent: i64, dsn: Dsn) -> DataSourceValidation {
         let scheduler = self.scheduler.clone();
-        let result = scheduler.validate_dsn_via_agent(agent, dsn).await;
+        let result = scheduler.validate_dsn_via_agent(agent, dsn.clone()).await;
         match result {
             Ok(dsv) => dsv,
             Err(err) => DataSourceValidation::invalid(dsn.driver.to_string(), err.to_string()),
@@ -2548,7 +2553,7 @@ mod tests {
     async fn test_agent() -> anyhow::Result<()> {
         // std::env::set_var("RUST_LOG", "debug");
         tracing_subscriber_init()?;
-        let (controller, mut scheduler, agent_notify_sender) =
+        let (controller, _scheduler, _agent_notify_sender) =
             generate_scheduler_for_test().await?;
         dbg!(&controller);
         let new: AgentProps = serde_json::from_str(
@@ -2609,7 +2614,7 @@ mod tests {
     async fn test_patch() -> anyhow::Result<()> {
         // std::env::set_var("RUST_LOG", "taos=debug");
         tracing_subscriber_init()?;
-        let (controller, mut scheduler, agent_notify_sender) =
+        let (controller, _scheduler, _agent_notify_sender) =
             generate_scheduler_for_test().await?;
 
         let new: AgentProps = serde_json::from_str(
@@ -2653,7 +2658,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_create_task_when_agent_not_alive() -> anyhow::Result<()> {
         tracing_subscriber_init()?;
-        let (controller, mut scheduler, agent_notify_sender) =
+        let (controller, _scheduler, _agent_notify_sender) =
             generate_scheduler_for_test().await?;
         let agent = controller
             .create_agent(AgentProps {
@@ -2735,7 +2740,7 @@ mod tests {
 
         taos.exec_many(["drop database if exists db2"]).await?;
 
-        let (controller, mut scheduler, agent_notify_sender) =
+        let (controller, _scheduler, _agent_notify_sender) =
             generate_scheduler_for_test().await?;
 
         let task_props: NewTask = serde_json::from_str(&format!(

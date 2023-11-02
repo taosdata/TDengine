@@ -31,6 +31,28 @@ impl DataSourceValidation {
             message: Option::from("unknown data source".to_string()),
         }
     }
+
+    pub fn ok(&self) -> anyhow::Result<()> {
+        match (self.valid, self.support) {
+            (true, true) => Ok(()),
+            (false, _) => {
+                debug_assert!(self.message.is_some());
+                Err(anyhow::anyhow!(
+                    "Data source {} is invalid since {}",
+                    self.data_source,
+                    self.message.as_ref().unwrap()
+                ))
+            }
+            (_, false) => {
+                debug_assert!(self.message.is_some());
+                Err(anyhow::anyhow!(
+                    "Data source {} connection is valid but not supported, since {}",
+                    self.data_source,
+                    self.message.as_ref().unwrap()
+                ))
+            }
+        }
+    }
 }
 
 #[cfg(test)]

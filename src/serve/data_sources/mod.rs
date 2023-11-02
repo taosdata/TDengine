@@ -5,24 +5,24 @@ use actix_files::NamedFile;
 use actix_web::{
     get,
     http::header::ContentType,
-    post,
-    web::{self, Data, Json, Query},
-    HttpRequest, HttpResponse, Responder,
+    HttpRequest,
+    HttpResponse,
+    post, Responder, web::{self, Data, Json, Query},
 };
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-
 use taos::{Code, IntoDsn};
-use taosx_core::{list_datasets_from, validate_dsn, DataSetsReq};
 use tokio::time::timeout;
 use utoipa::*;
 
-mod definition;
-
 pub use definition::*;
+use taosx_core::{DataSetsReq, list_datasets_from, validate_dsn};
 use taosx_core::dsv::DataSourceValidation;
 
 use crate::serve::{controller::TaskControllerRef, task::Failed};
+use crate::serve::TaskController;
+
+mod definition;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub(super) struct DataSourceInput {
@@ -339,15 +339,12 @@ async fn download_all_point_csv_file(
     Ok(NamedFile::open(config_file.path().to_path_buf())?)
 }
 
-use crate::serve::TaskController;
-
 pub(crate) async fn get_all_points(
     from: String,
     via: Option<i64>,
     categories: String,
     controller: &TaskController,
 ) -> anyhow::Result<String> {
-    use taos::IntoDsn;
     let from = from.into_dsn()?;
     let pattern;
     match from.driver.as_str() {
