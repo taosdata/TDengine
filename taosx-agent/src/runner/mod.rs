@@ -171,7 +171,6 @@ pub fn spawn_runner(
                                             "running",
                                             json!({
                                                 "task": task.id,
-                                                "message": message,
                                             }),
                                         ),
                                         TaskNotify::Info(message) => Activity::new(
@@ -182,12 +181,11 @@ pub fn spawn_runner(
                                             "running",
                                             json!({
                                                 "task": task.id,
-                                                "message": message,
                                             }),
                                         ),
                                         _ => unreachable!(),
                                     };
-                                    let _ = status_sender.send_async(status).await;
+                                    let _ = status_sender.send_async(activity).await;
                                 }
                             });
                             let pool = port_pool.clone();

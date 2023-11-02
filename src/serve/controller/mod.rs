@@ -115,7 +115,7 @@ static MIGRATOR: Migrator = sqlx::migrate!(); // defaults to "./migrations"
 // const TASK_SELECT: &str = "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks";
 
 pub type AgentDataSetsSender = Sender<Response<Vec<DataSet>>>;
-pub type DsvSender = Sender<Response<DataSourceValidation>>;
+pub type DsvSender = Sender<DataSourceValidation>;
 
 #[derive(Debug, Clone)]
 pub enum AgentAction {
@@ -1376,7 +1376,21 @@ impl TaskController {
 
     pub async fn validate_dsn_via_agent(&self, agent: i64, dsn: Dsn) -> DataSourceValidation {
         let scheduler = self.scheduler.clone();
-        let result = scheduler.validate_dsn_via_agent(agent, dsn.clone()).await;
+        let result = tokio::time::timeout(
+            Duration::from_secs(600),
+            scheduler.validate_dsn_via_agent(agent, dsn.clone()),
+        )
+        .await;
+        let result = match result {
+            Ok(result) => result,
+            Err(_) => {
+                tracing::error!("Validate dsn timeout from agent");
+                return DataSourceValidation::invalid(
+                    dsn.driver.to_string(),
+                    "Validate dsn timeout from agent".to_string(),
+                );
+            }
+        };
         match result {
             Ok(dsv) => dsv,
             Err(err) => DataSourceValidation::invalid(dsn.driver.to_string(), err.to_string()),
