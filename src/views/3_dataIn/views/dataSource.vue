@@ -10,16 +10,12 @@
           :disabled="requestIng"
           >{{ $t("refresh") }}</el-button
         >
-        <el-button
-          @click="addDbSource"
-          size="small"
-          icon="el-icon-plus"
-          >{{ $t("datasource.addsource") }}</el-button
-        >
+        <el-button @click="addDbSource" size="small" icon="el-icon-plus">{{
+          $t("datasource.addsource")
+        }}</el-button>
       </div>
     </div>
     <div class="data-source">
-     
       <el-table
         style="margin-top: 20px"
         :data="topicList"
@@ -131,7 +127,11 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('dataIn.metrics')" prop="finished_at" width="120">
+        <el-table-column
+          :label="$t('dataIn.metrics')"
+          prop="finished_at"
+          width="120"
+        >
           <template slot-scope="scope">
             <el-button
               @click="checkMetrics(scope.row, scope.row.status.toLowerCase())"
@@ -146,7 +146,11 @@
           </template>
         </el-table-column>
 
-        <el-table-column :label="$t('datasource.status')" prop="status" min-width="170">
+        <el-table-column
+          :label="$t('datasource.status')"
+          prop="status"
+          min-width="170"
+        >
           <template slot-scope="scope">
             <div
               class="status-operation"
@@ -179,7 +183,12 @@
                 <el-tooltip
                   placement="bottom"
                   effect="light"
-                  :content="$t('datasource.excutestart').replace('{name}',scope.row.name)"
+                  :content="
+                    $t('datasource.excutestart').replace(
+                      '{name}',
+                      scope.row.name
+                    )
+                  "
                 >
                   <el-button
                     plain
@@ -193,7 +202,12 @@
                 <el-tooltip
                   placement="bottom"
                   effect="light"
-                  :content="$t('datasource.excutestop').replace('{name}',scope.row.name)"
+                  :content="
+                    $t('datasource.excutestop').replace(
+                      '{name}',
+                      scope.row.name
+                    )
+                  "
                 >
                   <el-button
                     plain
@@ -232,44 +246,46 @@
         >
           <template slot-scope="scope">
             <el-tooltip
-                  placement="bottom"
-                  effect="light"
-                  :content="$t('datasource.viewconfig').replace('{name}',scope.row.name)"
-                >
-            <el-button
-              type="primay"
-              size="mini"
-              :disabled="
-                scope.row.from_detail === undefined ||
-                !getEditStatus(scope.row.labels)
+              placement="bottom"
+              effect="light"
+              :content="
+                $t('datasource.viewconfig').replace('{name}', scope.row.name)
               "
-              @click="edit(scope.row, scope.row.status.toLowerCase())"
-              icon="el-icon-view"
-            ></el-button>
+            >
+              <el-button
+                type="primay"
+                size="mini"
+                :disabled="
+                  scope.row.from_detail === undefined ||
+                  !getEditStatus(scope.row.labels)
+                "
+                @click="edit(scope.row, scope.row.status.toLowerCase())"
+                icon="el-icon-view"
+              ></el-button>
             </el-tooltip>
             <el-tooltip
-                  placement="bottom"
-                  effect="light"
-                  :content="$t('delete')"
-                >
-            <el-button
-              plain
-              size="mini"
-              @click="del(scope.row)"
-              icon="el-icon-delete"
-            ></el-button>
+              placement="bottom"
+              effect="light"
+              :content="$t('delete')"
+            >
+              <el-button
+                plain
+                size="mini"
+                @click="del(scope.row)"
+                icon="el-icon-delete"
+              ></el-button>
             </el-tooltip>
             <el-tooltip
-                  placement="bottom"
-                  effect="light"
-                  :content="$t('clone')"
-                >
-            <el-button
-              plain
-              size="mini"
-              @click="copyTask(scope.row, scope.row.status.toLowerCase())"
-              icon="el-icon-copy-document"
-            ></el-button>
+              placement="bottom"
+              effect="light"
+              :content="$t('clone')"
+            >
+              <el-button
+                plain
+                size="mini"
+                @click="copyTask(scope.row, scope.row.status.toLowerCase())"
+                icon="el-icon-copy-document"
+              ></el-button>
             </el-tooltip>
           </template>
         </el-table-column>
@@ -308,7 +324,7 @@ import {
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
 import Agents from "../components/agents.vue";
-import Metrics from '../components/metrics.vue';
+import Metrics from "../components/metrics.vue";
 import { deepClone, parsinginZone } from "@/utils";
 export default {
   name: "DataSource",
@@ -347,7 +363,10 @@ export default {
   computed: {
     filterMap() {
       return {
-        type: this.typeList.map(item => ({ text: item.name, value: item.name }))
+        type: this.typeList.map((item) => ({
+          text: item.name,
+          value: item.name,
+        })),
       };
     },
     agentMap() {
@@ -355,7 +374,7 @@ export default {
         pre[cur.id] = cur.name;
         return pre;
       }, {});
-    }
+    },
   },
   methods: {
     handlePageChange() {},
@@ -385,15 +404,15 @@ export default {
           type: "warning",
         }
       ).then(async () => {
-        let result = await excuteDel(data.id)
-        if(result?.message){
-          Message.warning(result.message)
-          return
+        let result = await excuteDel(data.id);
+        if (result?.message) {
+          Message.warning(result.message);
+          return;
         }
         Message({
-              type: "success",
-              message: this.$t("datasource.deleteok"),
-            });
+          type: "success",
+          message: this.$t("datasource.deleteok"),
+        });
         this.refresh();
       });
     },
@@ -401,16 +420,16 @@ export default {
       this.$parent.sourceName = data.name;
       this.$parent.currentTaskStatus = status;
       this.$parent.agentID = data?.via;
-      this.$parent.setEditID(data.id)
-      this.$parent.isCopyable = iscopy
-      this.$store.commit('app/SET_CURRENT_EDITID',data.id)
+      this.$parent.setEditID(data.id);
+      this.$parent.isCopyable = iscopy;
+      this.$store.commit("app/SET_CURRENT_EDITID", data.id);
       if (data.from_detail) {
         this.$store.commit("app/SET_CURRENT_DBTYPE", data.from_detail?.id);
 
         this.$store.commit("app/SET_CURRENT_DBNAME", data.target);
         this.$store.commit("app/SET_CURRENT_AGENT", data?.via);
         this.$store.commit("app/SET_CURRENT_DSNAME", data.name);
-        let editDdata =deepClone([].concat(data.from_detail)) ;
+        let editDdata = deepClone([].concat(data.from_detail));
         if (data.from_expand && data.from_expand.id == "mqtt") {
           let dnsarr = data.from.split("?")[1].split("&");
           let caindex = dnsarr.findIndex((item) => item.includes("ca="));
@@ -444,7 +463,10 @@ export default {
           this.$store.commit("app/SET_MQTT_PARSER", parser);
           this.$parent.parserobj = deepClone(parser);
         }
-        if (data.from_expand && (data.from_expand.id == "opcua"||data.from_expand.id == "opcda")) {
+        if (
+          data.from_expand &&
+          (data.from_expand.id == "opcua" || data.from_expand.id == "opcda")
+        ) {
           let dnsarr = data.from.split("?")[1].split("&");
           let fileindex = dnsarr.findIndex((item) =>
             item.includes("csv_config_file=")
@@ -454,10 +476,10 @@ export default {
               .filter((item) => item.includes("csv_config_file="))[0]
               .split("=")[1]
               .replace("@", "");
-              editDdata[0].datasets.value='csv_config_file'
+            editDdata[0].datasets.value = "csv_config_file";
             this.$store.commit("app/SET_OPC_UANODES", [].concat(file));
-          }else{
-           editDdata[0].datasets.value='select_all_points'
+          } else {
+            editDdata[0].datasets.value = "select_all_points";
           }
 
           let certfile = dnsarr
@@ -474,8 +496,6 @@ export default {
             "app/SET_OPC_PRIVATEFILES",
             [].concat(privatefile)
           );
-
-      
         }
 
         if (data.from_expand && data.from_expand.id == "csv") {
@@ -490,7 +510,7 @@ export default {
           data.to_expand && data.to_expand.subject
             ? data.to_expand.subject
             : "";
-          this.$emit('setEditData',editDdata)
+        this.$emit("setEditData", editDdata);
         // this.$set(this.$parent.uidata,0,editDdata)
         // this.$parent.uidata = editDdata;
         localStorage.setItem("datainName", data.name);
@@ -505,7 +525,7 @@ export default {
     },
     //copy一个新的task
     copyTask(data, status) {
-      this.$parent.isCopyable = true
+      this.$parent.isCopyable = true;
       this.edit(data, status, true);
     },
     addDbSource() {
@@ -513,10 +533,10 @@ export default {
       this.$store.commit("app/SET_CURRENT_AGENT", "");
       this.$store.commit("app/SET_CURRENT_DSNAME", "");
       this.$store.commit("app/SET_CURRENT_DBTYPE", "tmq");
-      this.$store.commit('app/SET_CURRENT_EDITID','')
+      this.$store.commit("app/SET_CURRENT_EDITID", "");
       this.$parent.currentTaskStatus = "";
-      this.$parent.isCopyable = false
-      this.$parent.changeEditable(false)
+      this.$parent.isCopyable = false;
+      this.$parent.changeEditable(false);
       this.$parent.toggleComponent("tmq");
     },
     async getList() {
@@ -555,7 +575,10 @@ export default {
           Message.error(result.message);
           return;
         }
-        let array = Object.entries(result).map(item => ({ name: item[0], value: item[1] }));
+        let array = Object.entries(result).map((item) => ({
+          name: item[0],
+          value: item[1],
+        }));
         if (Array.from(array).length == 0) {
           switch (status) {
             case "running":
@@ -569,20 +592,20 @@ export default {
               return;
           }
         }
-        this.$store.commit('SET_DIALOG', {
+        this.$store.commit("SET_DIALOG", {
           component: Metrics,
           params: {
-            data: array
+            data: array,
           },
           config: {
-            title: this.$t('dataIn.metrics'),
-            width: '800px'
+            title: this.$t("dataIn.metrics"),
+            width: "800px",
           },
           listeners: {
             close: () => {
-              this.$store.commit('SET_DIALOG_VISIBLE', false);
-            }
-          }
+              this.$store.commit("SET_DIALOG_VISIBLE", false);
+            },
+          },
         });
       } catch (error) {
         console.log(error);
@@ -601,8 +624,12 @@ export default {
           }
         ).then(async () => {
           let result = await excuteStart(data.id);
-          if (result && result.message) {
-            Message.error(result.message);
+          if (result?.message) {
+            this.$message({
+              dangerouslyUseHTMLString: true,
+              message: `<strong>${result.message}</strong>`,
+              type: "warning",
+            });
             return;
           }
           this.refresh();
@@ -622,12 +649,14 @@ export default {
             type: "warning",
           }
         ).then(async () => {
-
           let result = await excuteStop(data.id);
-          if (result.message) {
-            Message.error(result.message);
+          if (result?.message) {
+            this.$message({
+              dangerouslyUseHTMLString: true,
+              message: `<strong>${result.message}</strong>`,
+              type: "warning",
+            });
             return;
-
           }
           await this.refresh();
         });
@@ -638,8 +667,7 @@ export default {
 
     async refresh() {
       await this.getList();
-      await this.$refs.agents?.refresh()
-
+      await this.$refs.agents?.refresh();
     },
     async refreshCurrentTask(data) {
       try {
@@ -721,7 +749,7 @@ export default {
       return style;
     },
     filterHandler(value, row, column) {
-      const property = column['property'];
+      const property = column["property"];
       return row[property] === value;
     },
   },
@@ -735,7 +763,6 @@ export default {
 };
 </script>
 <style lang="scss">
-
 .el-tooltip__popper {
   max-width: 450px !important;
 }
@@ -777,12 +804,11 @@ export default {
   .el-button {
     border: 1px solid transparent;
     background: transparent;
-    color:#4259ce;
-    font-size:14px;
-    &:hover{
-      background:#fff;
+    color: #4259ce;
+    font-size: 14px;
+    &:hover {
+      background: #fff;
       border: 1px solid #4259ce;
-      
     }
   }
 }
@@ -822,6 +848,5 @@ export default {
     border: 1px solid #eaeefb;
     border-top: none;
   }
-  
 }
 </style>
