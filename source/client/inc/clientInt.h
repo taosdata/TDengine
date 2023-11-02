@@ -391,6 +391,8 @@ void       hbRemoveAppHbMrg(SAppHbMgr** pAppHbMgr);
 void       destroyAllRequests(SHashObj* pRequests);
 void       stopAllRequests(SHashObj* pRequests);
 
+SAppInstInfo* getAppInstInfo(const char* clusterKey);
+
 // conn level
 int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
 void hbDeregisterConn(STscObj* pTscObj, SClientHbKey connKey);
@@ -425,6 +427,13 @@ void    freeQueryParam(SSyncQueryParam* param);
 #ifdef TD_ENTERPRISE
 int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effeciveUser, SParseSqlRes* pRes);
 #endif
+
+void clusterSlowQueryMonitorInit(const char* clusterKey);
+void clusterSlowQueryLog(const char* clusterKey, int32_t cost);
+void SlowQueryLog(int64_t connId, int32_t cost);
+
+void clusterSelectMonitorInit(const char* clusterKey);
+void clusterSelectLog(const char* clusterKey);
 
 #ifdef __cplusplus
 }
