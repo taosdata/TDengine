@@ -267,7 +267,7 @@ static int32_t  createSimpleSelectStmtFromProjList(const char* pDb, const char* 
                                                    SSelectStmt** pStmt);
 static int32_t  createLastTsSelectStmt(char* pDb, char* pTable, STableMeta* pMeta, SNode** pQuery);
 static int32_t  setQuery(STranslateContext* pCxt, SQuery* pQuery);
-static int32_t  setRefreshMate(STranslateContext* pCxt, SQuery* pQuery);
+static int32_t  setRefreshMeta(STranslateContext* pCxt, SQuery* pQuery);
 
 static int32_t replacePsedudoColumnFuncWithColumn(STranslateContext* pCxt, SNode** ppNode);
 
@@ -6405,7 +6405,7 @@ int32_t translatePostCreateSmaIndex(SParseContext* pParseCxt, SQuery* pQuery, vo
   if (TSDB_CODE_SUCCESS == code) {
     code = setQuery(&pCxt, pQuery);
   }
-  setRefreshMate(&pCxt, pQuery);
+  setRefreshMeta(&pCxt, pQuery);
   destroyTranslateContext(&pCxt);
   tFreeSMCreateSmaReq(pStmt->pReq);
   taosMemoryFreeClear(pStmt->pReq);
@@ -7678,7 +7678,7 @@ int32_t translatePostCreateStream(SParseContext* pParseCxt, SQuery* pQuery, void
   if (TSDB_CODE_SUCCESS == code) {
     code = setQuery(&cxt, pQuery);
   }
-  setRefreshMate(&cxt, pQuery);
+  setRefreshMeta(&cxt, pQuery);
   destroyTranslateContext(&cxt);
 
   tFreeSCMCreateStreamReq(pStmt->pReq);
@@ -10048,7 +10048,7 @@ static int32_t toMsgType(ENodeType type) {
   return TDMT_VND_CREATE_TABLE;
 }
 
-static int32_t setRefreshMate(STranslateContext* pCxt, SQuery* pQuery) {
+static int32_t setRefreshMeta(STranslateContext* pCxt, SQuery* pQuery) {
   if (NULL != pCxt->pDbs) {
     taosArrayDestroy(pQuery->pDbList);
     pQuery->pDbList = taosArrayInit(taosHashGetSize(pCxt->pDbs), TSDB_DB_FNAME_LEN);
@@ -10183,7 +10183,7 @@ int32_t translate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMe
   if (TSDB_CODE_SUCCESS == code) {
     code = setQuery(&cxt, pQuery);
   }
-  setRefreshMate(&cxt, pQuery);
+  setRefreshMeta(&cxt, pQuery);
   destroyTranslateContext(&cxt);
   return code;
 }
