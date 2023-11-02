@@ -114,6 +114,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
       taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 ", Duration:%" PRId64 "us, SQL:%s",
                        taosGetPId(), pTscObj->connId, pRequest->requestId, pRequest->metric.start, duration,
                        pRequest->sqlstr);
+      SlowQueryLog(pTscObj->connId, duration);
     }
   }
 
