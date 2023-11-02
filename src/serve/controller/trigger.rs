@@ -6,6 +6,7 @@ use std::time::Duration;
 use itertools::Itertools;
 use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 use thiserror::Error;
 use utoipa::*;
 
@@ -143,6 +144,7 @@ impl FromStr for ErrorRate {
     }
 }
 
+#[serde_as]
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Default, ToSchema)]
 #[serde(default)]
 pub struct Strategy {
@@ -150,7 +152,30 @@ pub struct Strategy {
     pub(crate) schedule: Option<String>,
     pub(crate) resume: ResumeStrategy,
     pub(crate) healthy: Healthy,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde_as(as = "OptionHumanDuration")]
     pub(crate) interval: Option<Duration>,
+}
+
+serde_with::serde_conv!(
+    OptionHumanDuration,
+    Option<Duration>,
+    |duration: &Option<Duration>| duration.map(|duration| format!("{:?}", duration)),
+    |value: Option<String>| -> Result<_, parse_duration::parse::Error> {
+        value.map(|value| parse_duration::parse(&value)).transpose()
+    }
+);
+#[test]
+fn test_serde_strategy() {
+    let s = r#"{}"#;
+    let s: Strategy = serde_json::from_str(s).unwrap();
+    dbg!(s);
+    let s = r#"{"interval": null}"#;
+    let s: Strategy = serde_json::from_str(s).unwrap();
+    dbg!(s);
+    let s = r#"{"interval": "1s"}"#;
+    let s: Strategy = serde_json::from_str(s).unwrap();
+    dbg!(s);
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]

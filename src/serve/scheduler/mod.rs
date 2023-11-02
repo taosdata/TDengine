@@ -905,7 +905,8 @@ mod tests {
             "from": "fake+stable:///?sleep=7s",
             "to": "taos:///fake",
             "via": 1,
-            "not_start": true
+            "not_start": true,
+            "trigger": {"interval": "1s"}
             }"#,
         )
         .unwrap();
@@ -915,35 +916,6 @@ mod tests {
 
         let id = task.id;
         scheduler.push_task(task.task.clone()).await.unwrap();
-
-        tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            agent_notify_sender
-                .send(AgentNotify::AgentConnected(1))
-                .unwrap();
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            agent_notify_sender
-                .send(AgentNotify::TaskActivity(
-                    1i64,
-                    TaskActivity::running(id, format!("info activity")),
-                ))
-                .unwrap();
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            agent_notify_sender
-                .send(AgentNotify::TaskActivity(
-                    1i64,
-                    TaskActivity::error(id, format!("error activity")),
-                ))
-                .unwrap();
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            agent_notify_sender
-                .send(AgentNotify::TaskActivity(
-                    1i64,
-                    TaskActivity::completed(id, Uuid::new_v4()),
-                ))
-                .unwrap();
-            tokio::time::sleep(Duration::from_secs(11)).await;
-        });
 
         scheduler.try_stop(id).await?;
 
@@ -1011,7 +983,8 @@ mod tests {
             "from": "fake+stable:///?sleep=7s",
             "to": "taos:///fake",
             "via": 1,
-            "not_start": true
+            "not_start": true,
+            "trigger": {"interval": "1s"}
             }"#,
         )
         .unwrap();
@@ -1021,20 +994,6 @@ mod tests {
 
         let id = task.id;
         scheduler.push_task(task.task.clone()).await.unwrap();
-
-        tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_secs(2)).await;
-            agent_notify_sender
-                .send(AgentNotify::TaskActivity(
-                    1i64,
-                    TaskActivity::running(id, format!("info activity")),
-                ))
-                .unwrap();
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            agent_notify_sender
-                .send(AgentNotify::TaskActivity(1i64, TaskActivity::stopped(id)))
-                .unwrap();
-        });
 
         tokio::time::sleep(Duration::from_secs(1)).await;
         scheduler.try_stop(id).await?;
@@ -1122,7 +1081,8 @@ mod tests {
             "from": "fake+stable:///?sleep=7s",
             "to": "taos:///fake",
             "via": 1,
-            "not_start": true
+            "not_start": true,
+            "trigger": {"interval": "1s"}
             }"#,
         )
         .unwrap();
@@ -1135,22 +1095,6 @@ mod tests {
         scheduler.try_suspend(id).await?;
 
         let agent_notify_sender_cloned = agent_notify_sender.clone();
-
-        tokio::spawn(async move {
-            let mut agent_notify_sender = agent_notify_sender_cloned;
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            agent_notify_sender
-                .send(AgentNotify::TaskActivity(
-                    1i64,
-                    TaskActivity::running(id, format!("info activity")),
-                ))
-                .unwrap();
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            agent_notify_sender
-                .send(AgentNotify::TaskActivity(1i64, TaskActivity::stopped(id)))
-                .unwrap();
-        });
-
         scheduler.wait_task(id).await;
 
         tokio::time::sleep(Duration::from_secs(2)).await;
@@ -1161,22 +1105,22 @@ mod tests {
 
         controller.start(id).await?;
 
-        tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            agent_notify_sender
-                .send(AgentNotify::TaskActivity(
-                    id as _,
-                    TaskActivity::running(id, format!("info activity")),
-                ))
-                .unwrap();
-            tokio::time::sleep(Duration::from_secs(4)).await;
-            agent_notify_sender
-                .send(AgentNotify::TaskActivity(
-                    id as _,
-                    TaskActivity::suspended(id, Uuid::nil()),
-                ))
-                .unwrap();
-        });
+        // tokio::spawn(async move {
+        //     tokio::time::sleep(Duration::from_secs(1)).await;
+        //     agent_notify_sender
+        //         .send(AgentNotify::TaskActivity(
+        //             id as _,
+        //             TaskActivity::running(id, format!("info activity")),
+        //         ))
+        //         .unwrap();
+        //     tokio::time::sleep(Duration::from_secs(4)).await;
+        //     agent_notify_sender
+        //         .send(AgentNotify::TaskActivity(
+        //             id as _,
+        //             TaskActivity::suspended(id, Uuid::nil()),
+        //         ))
+        //         .unwrap();
+        // });
 
         // Wait for task in scheduler ticking.
         tokio::time::sleep(Duration::from_secs(2)).await;
@@ -1189,6 +1133,8 @@ mod tests {
 
         // Wait for suspending in agent.
         scheduler.wait_task(id).await;
+
+        tracing::warn!("task suspended");
 
         // Wait for controller to update task status (suspended).
         tokio::time::sleep(Duration::from_secs(2)).await;
