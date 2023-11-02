@@ -15,6 +15,7 @@ use super::data_sources::DataSourceDefinition;
 use super::scheduler::agent::AgentId;
 use super::scheduler::TaskScheduler;
 use crate::serve::controller::agent::Activity;
+use crate::serve::data_sources::{data_source_is_valid, validate_dsn};
 use anyhow::{anyhow, bail, Context};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
@@ -645,6 +646,11 @@ impl TaskController {
             }
             _ => (),
         }
+
+        if task.via.is_none() {
+            validate_dsn(&from, None).await.ok()?;
+        }
+
         if let Some(topic) = task.oneshot_topic.as_deref() {
             if topic.len() > 64 {
                 anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
