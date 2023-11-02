@@ -481,6 +481,31 @@ async fn init_tracing_layers(
     Ok(())
 }
 
+fn level_upgrade(level: LevelFilter, num: i8) -> LevelFilter {
+    if num == 0 {
+        return level;
+    }
+    if num < 0 {
+        let level = match level {
+            LevelFilter::Off => return LevelFilter::Off,
+            LevelFilter::Error => LevelFilter::Off,
+            LevelFilter::Warn => LevelFilter::Error,
+            LevelFilter::Info => LevelFilter::Warn,
+            LevelFilter::Debug => LevelFilter::Info,
+            LevelFilter::Trace => LevelFilter::Debug,
+        };
+        return level_upgrade(level, num + 1);
+    }
+    let level = match level {
+        LevelFilter::Off => LevelFilter::Error,
+        LevelFilter::Error => LevelFilter::Warn,
+        LevelFilter::Warn => LevelFilter::Info,
+        LevelFilter::Info => LevelFilter::Debug,
+        LevelFilter::Debug => LevelFilter::Trace,
+        LevelFilter::Trace => LevelFilter::Trace,
+    };
+    return level_upgrade(level, num - 1);
+}
 fn main() -> Result<()> {
     dotenv::dotenv().ok();
     let version = build::PKG_VERSION;
@@ -503,12 +528,19 @@ fn main() -> Result<()> {
     println!("configs: {:?}", args);
 
     // Initialize tracing layers
-    let level_filter = args
-        .global
-        .log_level
-        .clone()
-        .or(args.opt_args.verbose.clone().map(|v| v.log_level_filter()))
-        .unwrap_or(LevelFilter::Info);
+    let mut level_filter = args.global.log_level.clone().unwrap_or(LevelFilter::Info);
+    if let Some(verbosity) = args.opt_args.verbose.as_ref() {
+        let level_num = verbosity.log_level_filter();
+        let level_num: i8 = match level_num {
+            LevelFilter::Off => -3,
+            LevelFilter::Error => -2,
+            LevelFilter::Warn => -1,
+            LevelFilter::Info => 0,
+            LevelFilter::Debug => 1,
+            LevelFilter::Trace => 2,
+        };
+        level_filter = level_upgrade(level_filter, level_num);
+    }
     println!("log level: {:?}", &level_filter);
     let span_events = args.opt_args.tracing_events.clone();
     let worker_threads = args.global.jobs.clone();
