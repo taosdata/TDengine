@@ -43,10 +43,10 @@ class VnodeRedistribute(TDCase):
         self.create_table_thread_count = 40
         self.thread_count = 200
         # self.thread_count = 10
-        self.num_of_records_per_req = 1
+        self.num_of_records_per_req = 10
         # self.num_of_records_per_req = 100
         self.childtable_count = 10000
-        self.insert_rows = 1000000
+        self.insert_rows = 10000
         self.disorder_start_timestamp = "2018-01-01 00:00:00"
         self.fill_history_start_timestamp = "2020-01-01 00:00:00"
         self.stbname = "stb"
@@ -93,7 +93,7 @@ class VnodeRedistribute(TDCase):
         self.query_vgid_interval = 60
         self.show_vnodes_interval = 2
         self.restart_dnode_interval = 300
-        self.disorder_schedular_interval = 120
+        self.disorder_schedular_interval = 300
         self.restore_timeout = 10800
         self.redistribute_sleep = 10
         self.tmq_schedular = None
@@ -105,7 +105,7 @@ class VnodeRedistribute(TDCase):
         self.tdSql.query('show dnodes')
         self.source_dnode_id_list = list(map(lambda x:x[0], self.tdSql.query_data))
         self.cluster_to_redistribute_list = list()
-        self.use_stream = True
+        self.use_stream = False
         self.use_tmq = True
         self.topic_name = "tp_name"
         self.tmq_status = 0
@@ -250,34 +250,7 @@ class VnodeRedistribute(TDCase):
         self.tdSql.query(f'show {self.dbname}.vgroups')
         return list(map(lambda x:x[0], self.tdSql.query_data))
 
-    # def get_vgid_info(self):
-    #     if self.redistribute_status == 1:
-    #         self._remote._logger.info(f'------------ query vgroup_id: {self.vgid} ------------')
-    #         self.tdSql.query(f'select * from information_schema.ins_vnodes where vgroup_id = {self.vgid};')
-    #         self._remote._logger.info(pd.DataFrame(self.tdSql.query_data))
-
     def redistribute_vnode_in_base_dnode(self):
-        # rep1 case
-        # if self.replica == 1:
-        #     if self.redistribute_status == 0:
-        #         self._remote._logger.info(f"------------ redistribute in base dnodes ------------")
-        #         for vgid_dnodeid_kv in self.vgid_dnodeid_kv_list:
-        #             for vgid, dnodeid in vgid_dnodeid_kv.items():
-        #                 dnode_id_list = deepcopy(self.dnode_id_list)
-        #                 if self.replica == 1:
-        #                     dnode_id_list.remove(dnodeid)
-        #                     redistribute_dnode_id = random.choice(dnode_id_list)
-        #                     self.redistributed_list.append(redistribute_dnode_id)
-        #                     self.redistribute_status = 1
-        #                     self.vgid = vgid
-        #                     self.tdSql.execute(f'redistribute vgroup {vgid} dnode {redistribute_dnode_id}')
-        #                     self.check_restored_true()
-        #         self._remote._logger.info(f"------------ restore redistribute in base dnodes ------------")
-        #         for vgid_dnodeid_kv in self.vgid_dnodeid_kv_list:
-        #             for vgid, dnodeid in vgid_dnodeid_kv.items():
-        #                 self.vgid = vgid
-        #                 self.tdSql.execute(f'redistribute vgroup {vgid} dnode {dnodeid}')
-        #                 self.check_restored_true()
         if self.redistribute_status == 0:
             redistribute_counter = 0
             self._remote._logger.info(f"------------ redistribute in base dnodes ------------")
@@ -333,7 +306,6 @@ class VnodeRedistribute(TDCase):
 
     def redistribute_vnode_in_reserve_dnode(self, reserver_dnode_count):
         # start redistribute
-        # if self.redistribute_status == 0:
         if self.reserve_redistribute_status == 0:
             for i in range(self.loop_redistribute_times):
                 self._remote._logger.info(f"------------ redistribute in reserve dnodes range times: {i+1}/{self.loop_redistribute_times} ------------")
@@ -350,21 +322,6 @@ class VnodeRedistribute(TDCase):
                         self.restart_dnode_id_list.append(random.choice(self.source_dnode_id_list))
                         self.restart_dnode_id_list.append(random.choice(self.cluster_to_redistribute_list))
                         self.tdSql.execute(f'redistribute vgroup {vgid} {redistribute_dnode_id_str}')
-                        # if self.replica == 1:
-                        #     dnode_id_list = deepcopy(self.dnode_id_list)
-                        #     dnode_id_list.remove(dnodeid)
-                        #     redistribute_dnode_id = random.choice(dnode_id_list)
-                        #     self.redistributed_list.append(redistribute_dnode_id)
-                        #     self.tdSql.execute(f'redistribute vgroup {vgid} dnode {redistribute_dnode_id}')
-                        # elif self.replica == 3:
-                        #     self.get_cluster_to_redistribute_list(reserver_dnode_count)
-                        #     redistribute_dnode_id_str = str()
-                        #     for redistribute_dnode_id in self.cluster_to_redistribute_list:
-                        #         redistribute_dnode_id_str += f"dnode {redistribute_dnode_id} "
-                        #     # self.redistribute_status = 1
-                        #     self.tdSql.execute(f'redistribute vgroup {vgid} {redistribute_dnode_id_str}')
-                        # else:
-                        #     pass
                         self.check_restored_true()
                         time.sleep(self.redistribute_sleep)
                         redistribute_counter += 1
@@ -411,58 +368,16 @@ class VnodeRedistribute(TDCase):
                     self.redistribute_vnode_in_reserve_dnode(reserver_dnode_count)
                 self.reserve_redistribute_status = 1
                 self.tdSql.execute('balance vgroup')
+                self.check_restored_true()
+                killCmd = "ps ef | grep %s | grep -v grep | awk '{print $2}' | xargs kill -9 " % self.taosBenchmark_env_setting[0]["spec"]["config_dir"]
+                self._remote.cmd(self.taosBenchmark_iplist[0], [killCmd])
         self._remote._logger.info(f"------------ remove vginfo schedular job ------------: {self.vgid_info_schedular}")
         self.remove_schedular(self.vgid_info_schedular)
         self._remote._logger.info(f"------------ remove restart dnode schedular job ------------: {self.restart_dnode_schedular}")
         self.remove_schedular(self.restart_dnode_schedular)
-            # """"""
-            # if self.redistribute_status == 0:
-            #     # start redistribute
-            #     for i in range(self.loop_redistribute_times):
-            #         self._remote._logger.info(f"------range times: {i}")
-            #         for vgid_dnodeid_kv in self.vgid_dnodeid_kv_list:
-            #             for vgid, dnodeid in vgid_dnodeid_kv.items():
-            #                 dnode_id_list = deepcopy(self.dnode_id_list)
-            #                 if self.replica == 1:
-            #                     dnode_id_list.remove(dnodeid)
-            #                     redistribute_dnode_id = random.choice(dnode_id_list)
-            #                     self.redistributed_list.append(redistribute_dnode_id)
-            #                     self.redistribute_status = 1
-            #                     self.vgid = vgid
-            #                     self.tdSql.execute(f'redistribute vgroup {vgid} dnode {redistribute_dnode_id}')
-            #                 else:
-            #                     self.get_cluster_to_redistribute_list(reserver_dnode_count)
-            #                     redistribute_dnode_id_str = str()
-            #                     for redistribute_dnode_id in self.cluster_to_redistribute_list:
-            #                         redistribute_dnode_id_str += f"dnode {redistribute_dnode_id} "
-            #                     self.redistribute_status = 1
-            #                     self.vgid = vgid
-            #                     self.tdSql.execute(f'redistribute vgroup {vgid} {redistribute_dnode_id_str}')
-            #                     self.check_restored_true()
-            #         # restore redistribute
-            #         for vgid_dnodeid_kv in self.vgid_dnodeid_kv_list:
-            #             for vgid, dnodeid in vgid_dnodeid_kv.items():
-            #                 if self.replica == 1:
-            #                     pass
-            #                 else:
-            #                     dnode_id_list = deepcopy(self.source_dnode_id_list)
-            #                     redistribute_dnode_id_str = str()
-            #                     for redistribute_dnode_id in dnode_id_list:
-            #                         redistribute_dnode_id_str += f"dnode {redistribute_dnode_id} "
-            #                     self.tdSql.execute(f'redistribute vgroup {vgid} {redistribute_dnode_id_str}')
-            #                     self.check_restored_true()
-            # """"""
-                        # else:
-                        #     print("----rep3")
-                        #     redistribute_dnode_id_list = [x for x in dnode_id_list if x not in dnodeid]
-                        #     redistribute_dnode_id_str = str()
-                        #     for redistribute_dnode_id in redistribute_dnode_id_list:
-                        #         redistribute_dnode_id_str += f"dnode {redistribute_dnode_id} "
-                        #     self.redistributed_list.append(redistribute_dnode_id_list)
-                        #     self.redistribute_status = 1
-                        #     self.tdSql.execute(f'redistribute vgroup {vgid} {redistribute_dnode_id_str}')
-                # final_redistributed_list = self.get_redistributed_list()
-                # self.tdSql.checkEqual(sorted(self.redistributed_list), sorted(final_redistributed_list))
+        self._remote._logger.info(f"------------ remove disorder-update-delete schedular job ------------: {self.disorder_schedular}")
+        self.remove_schedular(self.disorder_schedular)
+
     def remove_schedular(self, schedular):
         self.tmq_schedular
         if schedular is not None:
@@ -523,32 +438,7 @@ class VnodeRedistribute(TDCase):
                 taosd_setting = copy.deepcopy(self.taosd_setting)
                 self.taosd.update_cfg('/tmp',taosd_setting , {"supportVnodes": self.cfg["boundary"][-1]}, endpoint, True)
 
-        # self.tdSql.query('show dnodes')
-        # field_list = list(map(lambda x: {x[0]:x[1]}, self.tdSql.query_data))
-        # self.restart_dnode_id_list = [2, 3]
-        # restart_dnode_endpoint_list = list()
-        # for restart_dnode_id in self.restart_dnode_id_list:
-        #     restart_dnode_endpoint_list.append()
-        # self.restart_dnode_endpoint_list = list(map(lambda x: field_list[x], self.restart_dnode_id_list))
-        # print("+++++++++++++++++++++", field_list)
-        # print(self.restart_dnode_endpoint_list)
-        # dnodes_out_mnodes = self.tdSql.get_dnodes_out_mnodes()
-        # # random_endpoint = random.choice(dnodes_out_mnodes[1])
-        # # self.taosd.kill_by_port(random_endpoint)
-        # # time.sleep(self.restart_dnode_interval)
-        # # self.taosd.start(random_endpoint)
-
     def run(self):
-        # self.tdSql.query('show dnodes')
-        # field_list = list(map(lambda x: {x[0]:x[1]}, self.tdSql.query_data))
-        # field_dict =  {k: v for dict in field_list for k, v in dict.items()}
-        # self.restart_dnode_id_list = [2, 3]
-        # restart_dnode_endpoint_list = list()
-        # restart_dnode_endpoint_list = list(map(lambda x:field_dict[x], self.restart_dnode_id_list))
-        # print(restart_dnode_endpoint_list)
-        # # dict(zip(field_list, res_list[0]))
-        # print("+++++++++++++++++++++", field_dict)
-        # return
         self.prepare_fill_history_data()
         self.get_dnode_id_list()
         self.get_vgid_dnodeid_kv_list()
@@ -559,13 +449,6 @@ class VnodeRedistribute(TDCase):
         self.restart_dnode_schedular = self.tdCom.add_back_ground_scheduler(self.restart_dnodes, "interval", seconds=self.restart_dnode_interval, max_instances=1, args=[])
         self.insert_data()
         self._remote._logger.info(f"------------ delete ------------")
-        self.tdSql.execute(f'delete from {self.dbname}.{self.stbname} where ts >= {self.disorder_start_timestamp} and ts < {self.fill_history_start_timestamp}')
+        self.tdSql.execute(f'delete from {self.dbname}.{self.stbname} where ts >= "{self.disorder_start_timestamp}" and ts < "{self.fill_history_start_timestamp}"')
         self.tdSql.query(f'select count(*) from {self.dbname}.{self.stbname}')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.childtable_count*(self.insert_rows+self.fill_history_rows))
-        # initial_res1, initial_res2 = self.get_query_result()
-        # self.get_dnode_id_list()
-        # self.get_vgid_dnodeid_kv_list()
-        # self.redistribute_vnode()
-        # final_res1, final_res2 = self.get_query_result()
-        # self.tdSql.checkEqual(initial_res1, final_res1)
-        # self.tdSql.checkEqual(initial_res2, final_res2)
