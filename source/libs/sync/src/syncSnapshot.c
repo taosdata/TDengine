@@ -770,7 +770,7 @@ static int32_t syncSnapBufferRecv(SSyncSnapshotReceiver *pReceiver, SyncSnapshot
     pRcvBuf->entries[pMsg->seq % pRcvBuf->size] = pMsg;
     ppMsg[0] = NULL;
     pRcvBuf->end = TMAX(pMsg->seq + 1, pRcvBuf->end);
-  } else {
+  } else if (pMsg->seq < pRcvBuf->start) {
     syncSnapSendRsp(pReceiver, pMsg, code);
     goto _out;
   }
