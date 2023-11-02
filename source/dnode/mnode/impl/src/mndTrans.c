@@ -1113,16 +1113,7 @@ static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransActi
 }
 
 static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransAction *pAction) {
-  if (pAction->msgSent){
-    if (pAction->msgReceived) {
-      if (pAction->errCode != 0 && pAction->errCode != pAction->acceptableCode) {
-        mndTransResetAction(pMnode, pTrans, pAction);
-      } else {
-        mInfo("trans:%d, %s execute successfully", pTrans->id, mndTransStr(pAction->stage));
-      }
-    } 
-    return 0;
-  } 
+  if (pAction->msgSent) return 0; 
   if (mndCannotExecuteTransAction(pMnode)) return -1;
 
   int64_t signature = pTrans->id;
@@ -1194,6 +1185,18 @@ static int32_t mndTransExecSingleActions(SMnode *pMnode, STrans *pTrans, SArray 
   for (int32_t action = 0; action < numOfActions; ++action) {
     STransAction *pAction = taosArrayGet(pArray, action);
     code = mndTransExecSingleAction(pMnode, pTrans, pAction);
+    if (code == 0) {
+      if (pAction->msgSent) {
+        if (pAction->msgReceived) {
+          if (pAction->errCode != 0 && pAction->errCode != pAction->acceptableCode) {
+            mndTransResetAction(pMnode, pTrans, pAction);
+            mInfo("trans:%d, %s execute fail mndTransSendSingleMsg", pTrans->id, mndTransStr(pAction->stage));
+          } else {
+            mInfo("trans:%d, %s execute successfully mndTransSendSingleMsg", pTrans->id, mndTransStr(pAction->stage));
+          }
+        } 
+      }
+    }
     if (code != 0) break;
   }
 
