@@ -139,9 +139,10 @@ static STaskStateTrans* streamTaskFindTransform(ETaskStatus state, const EStream
 
 void streamTaskRestoreStatus(SStreamTask* pTask) {
   SStreamTaskSM* pSM = pTask->status.pSM;
-  taosThreadMutexLock(&pTask->lock);
-  ASSERT(pSM->pActiveTrans == NULL);
 
+  taosThreadMutexLock(&pTask->lock);
+
+  ASSERT(pSM->pActiveTrans == NULL);
   ASSERT(pSM->current.state == TASK_STATUS__PAUSE || pSM->current.state == TASK_STATUS__HALT);
 
   SStreamTaskState state = pSM->current;
@@ -289,13 +290,13 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
 
   // do update the task status
   taosThreadMutexLock(&pTask->lock);
-  stDebug("s-task:%s lock", pTask->id.idStr);
 
   STaskStateTrans* pTrans = pSM->pActiveTrans;
-
   if (pTrans == NULL) {
     ETaskStatus s = pSM->current.state;
-    ASSERT(s == TASK_STATUS__DROPPING || s == TASK_STATUS__PAUSE || s == TASK_STATUS__STOP);
+    ASSERT(s == TASK_STATUS__DROPPING || s == TASK_STATUS__PAUSE || s == TASK_STATUS__STOP ||
+           s == TASK_STATUS__UNINIT || s == TASK_STATUS__READY);
+
     // the pSM->prev.evt may be 0, so print string is not appropriate.
     stDebug("s-task:%s event:%s handled failed, current status:%s, trigger event:%s", pTask->id.idStr,
             GET_EVT_NAME(event), pSM->current.name, GET_EVT_NAME(pSM->prev.evt));
@@ -309,7 +310,6 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
     stWarn("s-task:%s handle event:%s failed, current status:%s, active trans evt:%s", pTask->id.idStr,
            GET_EVT_NAME(event), pSM->current.name, GET_EVT_NAME(pTrans->event));
     taosThreadMutexUnlock(&pTask->lock);
-    stDebug("s-task:%s unlocky", pTask->id.idStr);
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -342,7 +342,6 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
       pSM->pActiveTrans = pNextTrans;
       pSM->startTs = taosGetTimestampMs();
       taosThreadMutexUnlock(&pTask->lock);
-      stDebug("s-task:%s unlockf", pTask->id.idStr);
 
       int32_t code = pNextTrans->pAction(pSM->pTask);
       if (pNextTrans->autoInvokeEndFn) {
@@ -358,7 +357,6 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
     }
   } else {
     taosThreadMutexUnlock(&pTask->lock);
-    stDebug("s-task:%s unlockz", pTask->id.idStr);
 
     int64_t el = (taosGetTimestampMs() - pSM->startTs);
     stDebug("s-task:%s handle event:%s completed, elapsed time:%" PRId64 "ms state:%s -> %s", pTask->id.idStr,
