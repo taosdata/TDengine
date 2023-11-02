@@ -366,8 +366,10 @@ impl TaskScheduler {
         Ok(())
     }
     /// Wait until a task is stopped completely.
-    #[instrument(skip(self))]
+    #[instrument(skip_all, fields(task.id = task, elapsed = tracing::field::Empty))]
     pub async fn wait_task(&self, task: i64) {
+        info!("Waiting for task {} to finish", task);
+        let instant = std::time::Instant::now();
         loop {
             let tasks = self.tasks.read().await;
             if let Some(task) = tasks.get_by_task_id(&task) {
@@ -378,11 +380,11 @@ impl TaskScheduler {
                 // task has been removed.
                 break;
             }
-            info!("Waiting for task {} to stop", task);
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
-        tracing::info!(task.id = task, "task has been completely stopped");
+        tracing::Span::current().record("elapsed", tracing::field::debug(instant.elapsed()));
         self.tasks.write().await.remove_by_task_id(&task);
+        tracing::info!("task has been completely finished in scheduler");
     }
 
     pub async fn stop_task(&self, task: i64, timeout: Duration) -> anyhow::Result<()> {

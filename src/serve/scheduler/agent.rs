@@ -9,6 +9,7 @@ use tokio::{
     runtime::Handle,
     sync::{broadcast::error::RecvError, RwLock},
 };
+use uuid::Uuid;
 
 use crate::serve::controller::agent::Activity;
 use crate::serve::controller::{AgentAction, TaskActivity};
@@ -37,7 +38,6 @@ pub struct AgentTask {
     pub agent_id: i64,
     #[multi_index(ordered_unique)]
     pub task_id: TaskId,
-
     pub agent_state: Arc<RwLock<AgentState>>,
     pub sender: tokio::sync::mpsc::Sender<TaskActivity>,
     pub stop_sender: Arc<tokio::sync::oneshot::Sender<anyhow::Result<()>>>,
@@ -185,6 +185,7 @@ impl AgentWorker {
                                 }
                                 AgentNotify::TaskActivity(_, activity) => {
                                     let agent_tasks = agent_tasks_sender_clone.read().await;
+                                    dbg!(&agent_tasks);
                                     if let Some(task) = agent_tasks.get_by_task_id(&activity.id) {
                                         if let Err(err) = task.sender.send(activity.clone()).await {
                                             tracing::warn!("Error sending task activity {:?}", err);

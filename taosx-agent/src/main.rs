@@ -27,8 +27,6 @@ use taosx_core::{
     set_env_plugins_home_dir, Activity, RespAction,
 };
 
-use crate::runner::TaskStatus;
-
 const LOG_FILE: &str = "agent.log";
 
 shadow_rs::shadow!(build);
@@ -231,13 +229,13 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
                 if let Err(err) = client.wait_tasks(sender, resp_tx.clone(), resp_rx.clone()).await {
                     let err_str = format!("{err:#}");
                     if err_str.contains("code: Aborted") {
-                        tracing::info!("Connection aborted, error: {err}");
+                        tracing::info!("Connection aborted, error: {err:?}");
                         ret = Err(err);
                         break;
                     } else {
-                        tracing::error!("Connection closed, error: {err}. Retry in 5 seconds");
+                        tracing::error!("Connection closed, error: {err:?}. Retry in 5 seconds");
                     }
-                    tracing::error!("Connection closed, error: {err}. Retry in 5 seconds");
+                    // tracing::error!("Connection closed, error: {err}. Retry in 5 seconds");
                 }
                 tokio::time::sleep(Duration::from_secs(5)).await;
             }

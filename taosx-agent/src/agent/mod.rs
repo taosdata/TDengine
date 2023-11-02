@@ -34,7 +34,7 @@ use tonic::transport::Channel;
 use tonic::{codegen::Bytes, transport::Endpoint};
 use tracing::info;
 
-use crate::runner::{Action, TaskStatus};
+use crate::runner::Action;
 
 #[derive(Debug)]
 pub struct Client {
@@ -54,6 +54,7 @@ pub enum AgentStatus {
     Busy,
     Transferring,
     Error,
+    Outdated,
 }
 #[derive(Debug, Clone, Deserialize)]
 pub struct Agent {
@@ -77,6 +78,12 @@ pub struct Agent {
 pub struct Task {
     /// Unique id for the task item.
     pub id: i64,
+
+    /// Job id.
+    pub jid: uuid::Uuid,
+
+    /// Current run id in the job.
+    pub rid: i64,
 
     /// The stream data source.
     pub from: String,
@@ -492,6 +499,10 @@ impl Client {
                 );
 
                 tracing::info!("At [{ts}] action `{action}` triggered");
+                #[derive(Deserialize)]
+                struct TaskWithId {
+                    id: i64,
+                }
                 match action {
                     "run" => {
                         let task: Task = serde_json::from_str(&context).unwrap();
@@ -499,13 +510,13 @@ impl Client {
                         sender.send_async(Action::Run(task)).await?;
                     }
                     "stop" => {
-                        let task: Task = serde_json::from_str(&context).unwrap();
+                        let task: TaskWithId = serde_json::from_str(&context).unwrap();
                         info!("Stop task {}", task.id);
                         sender.send_async(Action::Stop(task.id)).await?;
                         // let task:
                     }
                     "cancel" => {
-                        let task: Task = serde_json::from_str(&context).unwrap();
+                        let task: TaskWithId = serde_json::from_str(&context).unwrap();
                         info!("Cancel task {}", task.id);
                         sender.send_async(Action::Cancel(task.id)).await?;
                         // let task:

@@ -18,10 +18,11 @@ use chrono::Utc;
 use futures::{Stream, TryStreamExt};
 use linked_hash_map::LinkedHashMap;
 use metrics::atomics::AtomicU64;
-use serde::Deserialize;
+use semver::VersionReq;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use taos::IntoDsn;
-use taosx_core::{HeartbeatResponse, ListResponse};
+use taosx_core::{get_data_dir, HeartbeatResponse, ListResponse};
 #[cfg(unix)]
 use tokio::net::UnixListener;
 use tokio::sync::RwLock;
@@ -38,11 +39,12 @@ use arrow_flight::{
     HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
 };
 use tracing::{info, instrument, warn};
+use uuid::Uuid;
 
 use crate::serve::{
     controller::{
         agent::{Activity, AgentToken, LevelFilter},
-        TaskActivity,
+        TaskActivity, TaskDetail,
     },
     rpc::put::PutStream,
     scheduler::agent::AgentNotify,
@@ -92,14 +94,27 @@ async fn action_to_arrow(
     let req_id = request_id.fetch_add(1, Ordering::SeqCst);
 
     match action {
-        AgentAction::Run(id) => {
+        AgentAction::Run(id, jid, rid) => {
+            tracing::info!(
+                task.id = id,
+                task.jid = %jid,
+                task.rid = rid,
+                "Send stop action"
+            );
             let task = controller.get(id).await?;
             if let Some(mut task) = task {
                 // handle dsn(from) params contains file(@)
                 modify_task_dsn_params(&mut task.task).await?;
+                #[derive(Serialize)]
+                struct TaskInAgent {
+                    #[serde(flatten)]
+                    task: TaskDetail,
+                    jid: Uuid,
+                    rid: u64,
+                }
                 let context: ArrayRef =
                     Arc::new(StringArray::from_iter_values([serde_json::to_string(
-                        &task,
+                        &TaskInAgent { task, jid, rid },
                     )
                     .unwrap()]));
                 let action: ArrayRef = Arc::new(StringArray::from_iter_values(["run".to_string()]));
@@ -118,6 +133,7 @@ async fn action_to_arrow(
             }
         }
         AgentAction::Stop(id) => {
+            tracing::info!(task.id = id, "Send stop action to task {id}");
             let task = controller.get(id).await?;
             if let Some(task) = task {
                 let context: ArrayRef =
@@ -142,6 +158,7 @@ async fn action_to_arrow(
             }
         }
         AgentAction::Cancel(id) => {
+            tracing::info!(task.id = id, "Send suspend action to task {id}");
             let task = controller.get(id).await?;
             if let Some(task) = task {
                 let context: ArrayRef =
@@ -238,6 +255,7 @@ impl FlightServiceImpl {
         tokio::spawn(async move {
             let mut receiver = receiver;
             let tx = tx_cloned;
+            let _ = std::env::set_current_dir(get_data_dir());
             loop {
                 match receiver.recv().await {
                     Ok((id, action)) => {
@@ -294,10 +312,6 @@ impl FlightService for FlightServiceImpl {
             Status::aborted("The server does not compatible to your agent, please upgrade to a newer version")
         })?.to_str().map_err(|err| Status::aborted(format!("Invalid agent version: {err}")))?;
         // dbg!(&meta, &extension);
-        {
-            // check agent version
-            let _ = client_version; // now we support all versions.
-        }
         tracing::info!("handshake with client {:?}", addr);
 
         let req = req.message().await?;
@@ -314,6 +328,47 @@ impl FlightService for FlightServiceImpl {
                 .await
                 .map_err(|err| Status::permission_denied(format!("Invalid token: {err:#}")))?
                 .ok_or_else(|| Status::permission_denied("Agent not found"))?;
+
+            {
+                // Agent version compatible check
+
+                let req = VersionReq::parse(">=1.3.0").unwrap();
+
+                let version = semver::Version::parse(client_version).map_err(|err| {
+                    Status::aborted(format!("Invalid agent version: {err:#}", err = err))
+                })?;
+
+                if !req.matches(&version) {
+                    self.notify_sender
+                        .send(AgentNotify::AgentDisconnected(agent.id))
+                        .map_err(|err| {
+                            Status::internal(format!("Scheduler is not ready: {err:#}", err = err))
+                        })?;
+
+                    let outdated = format!("Agent core version {version} is not compatible to server, please upgrade to a newer version");
+                    self.notify_sender
+                        .send(AgentNotify::AgentActivity(
+                            agent.id,
+                            Activity::new::<String>(
+                                agent.id,
+                                Utc::now(),
+                                LevelFilter::Error,
+                                &outdated,
+                                "outdated",
+                                Some(
+                                    json!({
+                                        "version": client_version.to_string(),
+                                    })
+                                    .to_string(),
+                                ),
+                            ),
+                        ))
+                        .map_err(|err| {
+                            Status::internal(format!("Scheduler is not ready: {err:#}", err = err))
+                        })?;
+                    return Err(Status::aborted(outdated));
+                }
+            }
             res.payload = serde_json::to_vec(&agent).unwrap().into();
             let handshake_stream = futures::stream::once(async { Ok(res) });
             return Ok(Response::new(Box::pin(handshake_stream)));
@@ -683,6 +738,7 @@ impl FlightService for FlightServiceImpl {
                 let status: TaskActivity = serde_json::from_slice(&action.body)
                     .map_err(|err| Status::invalid_argument(format!("{err}: {:?}", action.body)))?;
 
+                tracing::info!(?status, "Received task status");
                 let task_id = status.id;
                 let task = self
                     .controller
@@ -742,7 +798,8 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
                     std::env::current_dir().unwrap().to_str().unwrap()
                 );
                 // let f = std::fs::File::open(&file[1..])?;
-                let file_data = std::fs::read(&file[1..])?;
+                let file_data = std::fs::read(&file[1..])
+                    .with_context(|| anyhow::format_err!("Failed to read file: {}", &file[1..]))?;
                 // let buf = std::io::BufReader::new(f);
                 // let file_data = buf.lines().map(|s| s.unwrap()).join("\n");
                 new_value.push_str(general_purpose::STANDARD.encode(file_data).as_str());

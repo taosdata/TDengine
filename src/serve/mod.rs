@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use actix_cors::Cors;
 use actix_multipart::form::MultipartFormConfig;
@@ -371,6 +371,7 @@ impl Cli {
             }
         };
         store_cloned.shutdown().await?;
+        tokio::time::sleep(Duration::from_secs(1)).await;
         drop(store_cloned);
         span.exit();
         Ok(())

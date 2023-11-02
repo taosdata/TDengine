@@ -175,6 +175,7 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
                 "pibackfill" => runners::pi::is_pi_backfill_valid(&dsn).await,
                 "taos" => crate::taoz::is_taos_valid(&dsn).await,
                 "tmq" => crate::tmq::is_tmq_valid(&dsn).await,
+                "csv" => crate::csv::is_csv_valid(&dsn).await,
                 &_ => DataSourceValidation::unknown(),
             }
         }
