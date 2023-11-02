@@ -197,7 +197,7 @@ pub fn spawn_runner(
                                     let activity = Activity::new(
                                         task.id,
                                         Utc::now(),
-                                        LevelFilter::Info,
+                                        LevelFilter::Error,
                                         format!(
                                             "Running task {id} error via agent {agent_id}: {err:#}"
                                         ),

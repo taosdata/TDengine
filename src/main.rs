@@ -535,7 +535,7 @@ fn main() -> Result<()> {
         opentelemetry::global::shutdown_tracer_provider();
     });
     println!("wait for runtime shutdown");
-    runtime.shutdown_timeout(std::time::Duration::from_secs(5));
+    runtime.shutdown_timeout(std::time::Duration::from_secs(1));
     Ok(())
 }
 
