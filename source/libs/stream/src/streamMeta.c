@@ -844,6 +844,12 @@ static bool waitForEnoughDuration(SMetaHbInfo* pInfo) {
   return false;
 }
 
+static void clearHbMsg(SStreamHbMsg* pMsg, SArray* pIdList) {
+  taosArrayDestroy(pMsg->pTaskStatus);
+  taosArrayDestroy(pMsg->pUpdateNodes);
+  taosArrayDestroy(pIdList);
+}
+
 void metaHbToMnode(void* param, void* tmrId) {
   int64_t rid = *(int64_t*)param;
 
@@ -977,17 +983,13 @@ void metaHbToMnode(void* param, void* tmrId) {
     tEncodeSize(tEncodeStreamHbMsg, &hbMsg, tlen, code);
     if (code < 0) {
       stError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
-      taosArrayDestroy(hbMsg.pTaskStatus);
-      taosReleaseRef(streamMetaId, rid);
-      return;
+      goto _end;
     }
 
     void* buf = rpcMallocCont(tlen);
     if (buf == NULL) {
       stError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-      taosArrayDestroy(hbMsg.pTaskStatus);
-      taosReleaseRef(streamMetaId, rid);
-      return;
+      goto _end;
     }
 
     SEncoder encoder;
@@ -995,15 +997,12 @@ void metaHbToMnode(void* param, void* tmrId) {
     if ((code = tEncodeStreamHbMsg(&encoder, &hbMsg)) < 0) {
       rpcFreeCont(buf);
       stError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
-      taosArrayDestroy(hbMsg.pTaskStatus);
-      taosReleaseRef(streamMetaId, rid);
-      return;
+      goto _end;
     }
     tEncoderClear(&encoder);
 
-    SRpcMsg msg = {0};
+    SRpcMsg msg = {.info.noResp = 1,};
     initRpcMsg(&msg, TDMT_MND_STREAM_HEARTBEAT, buf, tlen);
-    msg.info.noResp = 1;
 
     pMeta->pHbInfo->hbCount += 1;
 
@@ -1014,9 +1013,8 @@ void metaHbToMnode(void* param, void* tmrId) {
     stDebug("vgId:%d no tasks and no mnd epset, not send stream hb to mnode", pMeta->vgId);
   }
 
-  taosArrayDestroy(hbMsg.pTaskStatus);
-  taosArrayDestroy(hbMsg.pUpdateNodes);
-
+  _end:
+  clearHbMsg(&hbMsg, pIdList);
   taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->pHbInfo->hbTmr);
   taosReleaseRef(streamMetaId, rid);
 }
