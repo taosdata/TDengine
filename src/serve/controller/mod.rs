@@ -365,6 +365,7 @@ async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
         .bind(Status::Waiting)
         .bind(Status::Suspending)
         .bind(Status::Interrupted)
+        .bind(Status::Ticked)
         .execute(pool)
         .await?;
     sqlx::query("update tasks set status = ? where status = ?")
