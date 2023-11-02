@@ -185,7 +185,7 @@ impl PutStream {
                     schema,
                     license,
                     None,
-                    Span::current(),
+                    span,
                     Some(task.id),
                 )
                 .await?;

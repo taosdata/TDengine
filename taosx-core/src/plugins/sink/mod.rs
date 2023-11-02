@@ -2787,15 +2787,15 @@ async fn exec<T: AsRef<str> + Send + Sync>(
         .map(|res| res.affected_rows() as _)
 }
 
-use taos::ResultSet;
-async fn query<T: AsRef<str> + Send + Sync>(
-    taos: &deadpool::managed::Object<Manager<TaosBuilder>>,
-    sql: T,
-    data_trace_id: u64,
-) -> RawResult<ResultSet> {
-    let req_id = create_query_id(data_trace_id);
-    taos.query_with_req_id(sql, req_id).await
-}
+// use taos::ResultSet;
+// async fn query<T: AsRef<str> + Send + Sync>(
+//     taos: &deadpool::managed::Object<Manager<TaosBuilder>>,
+//     sql: T,
+//     data_trace_id: u64,
+// ) -> RawResult<ResultSet> {
+//     let req_id = create_query_id(data_trace_id);
+//     taos.query_with_req_id(sql, req_id).await
+// }
 
 #[test]
 fn test_get_ts_from_sql() {
