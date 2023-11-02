@@ -374,6 +374,16 @@ impl InnerState {
     pub fn is_queued(&self) -> bool {
         matches!(self, InnerState::Queued)
     }
+    pub fn is_idle(&self) -> bool {
+        matches!(
+            self,
+            InnerState::Queued
+                | InnerState::Stopped
+                | InnerState::Completed
+                | InnerState::Interrupted
+                | InnerState::Ticked
+        )
+    }
 
     pub fn in_final_state(&self) -> bool {
         matches!(
@@ -406,6 +416,16 @@ impl InnerState {
 
     pub(crate) fn is_stopped(&self) -> bool {
         matches!(self, InnerState::Stopped)
+    }
+    pub(crate) fn ready_to_remove_job(&self) -> bool {
+        matches!(
+            self,
+            InnerState::Completed
+                | InnerState::Stopped
+                | InnerState::Failed(_)
+                | InnerState::Interrupted
+                | InnerState::Ticked
+        )
     }
     pub fn start(&mut self) -> anyhow::Result<&mut Self> {
         match self {
@@ -675,7 +695,7 @@ impl TaskJob {
         {
             // cancel spawned task.
             let mut state = self.task.state.write().await;
-            if state.is_queued() {
+            if state.is_idle() {
                 // Job has not been ticked yet (one it's ticked, state should be running)
 
                 // Send stopped state directly.
@@ -719,7 +739,7 @@ impl TaskJob {
         {
             // cancel spawned task.
             let mut state = self.task.state.write().await;
-            if state.is_queued() {
+            if state.is_idle() {
                 // Job has not been ticked yet (one it's ticked, state should be running)
 
                 // Send stopped state directly.

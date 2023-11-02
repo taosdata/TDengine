@@ -219,6 +219,7 @@ pub(crate) struct TaskController {
     /// Task scheduler
     pub scheduler: TaskScheduler,
 
+    #[allow(dead_code)]
     pub ctl_alive: Arc<AtomicBool>,
 
     pub shutdown_notify: Arc<tokio::sync::Notify>,
