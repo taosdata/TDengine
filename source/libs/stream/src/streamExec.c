@@ -285,13 +285,14 @@ static void waitForTaskIdle(SStreamTask* pTask, SStreamTask* pStreamTask) {
 
 int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   SStreamMeta* pMeta = pTask->pMeta;
+  const char*  id = pTask->id.idStr;
 
   SStreamTask* pStreamTask = streamMetaAcquireTask(pMeta, pTask->streamTaskId.streamId, pTask->streamTaskId.taskId);
   if (pStreamTask == NULL) {
     stError(
         "s-task:%s failed to find related stream task:0x%x, it may have been destroyed or closed, destroy the related "
         "fill-history task",
-        pTask->id.idStr, (int32_t) pTask->streamTaskId.taskId);
+        id, (int32_t) pTask->streamTaskId.taskId);
 
     // 1. free it and remove fill-history task from disk meta-store
     streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
@@ -304,7 +305,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
     streamMetaWUnLock(pMeta);
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   } else {
-    stDebug("s-task:%s fill-history task end, update related stream task:%s info, transfer exec state", pTask->id.idStr,
+    stDebug("s-task:%s fill-history task end, update related stream task:%s info, transfer exec state", id,
            pStreamTask->id.idStr);
   }
 
@@ -318,7 +319,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   } else {
     ASSERT(status == TASK_STATUS__READY|| status == TASK_STATUS__DROPPING || status == TASK_STATUS__STOP);
     streamTaskHandleEvent(pStreamTask->status.pSM, TASK_EVENT_HALT);
-    stDebug("s-task:%s halt by related fill-history task:%s", pStreamTask->id.idStr, pTask->id.idStr);
+    stDebug("s-task:%s halt by related fill-history task:%s", pStreamTask->id.idStr, id);
   }
 
   // wait for the stream task to handle all in the inputQ, and to be idle
@@ -328,7 +329,12 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   // In case of source tasks and agg tasks, we should HALT them, and wait for them to be idle. And then, it's safe to
   // start the task state transfer procedure.
   char* p = NULL;
-  streamTaskGetStatus(pStreamTask, &p);
+  status = streamTaskGetStatus(pStreamTask, &p);
+  if (status == TASK_STATUS__STOP || status == TASK_STATUS__DROPPING) {
+    stError("s-task:%s failed to transfer state from fill-history task:%s, status:%s", id, pStreamTask->id.idStr, p);
+    streamMetaReleaseTask(pMeta, pStreamTask);
+    return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+  }
 
   if (pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     // update the scan data range for source task.
@@ -351,7 +357,7 @@ int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask) {
   // 3. resume the state of stream task, after this function, the stream task will run immediately.
   streamTaskResume(pStreamTask);
 
-  stDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", pTask->id.idStr);
+  stDebug("s-task:%s fill-history task set status to be dropping, save the state into disk", id);
 
   // 4. free it and remove fill-history task from disk meta-store
   streamBuildAndSendDropTaskMsg(pTask->pMsgCb, pMeta->vgId, &pTask->id);
