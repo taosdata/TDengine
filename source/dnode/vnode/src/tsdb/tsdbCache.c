@@ -3169,7 +3169,7 @@ int32_t tsdbCacheGetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, LRUHan
   char    key[128] = {0};
   int     keyLen = 0;
 
-  getBCacheKey(pFD->fid, pFD->cid, pFD->blkno, key, &keyLen);
+  getBCacheKey(pFD->fid, pFD->cid, pgno, key, &keyLen);
   *handle = taosLRUCacheLookup(pCache, key, keyLen);
 
   return code;
