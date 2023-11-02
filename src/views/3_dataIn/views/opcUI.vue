@@ -1453,7 +1453,7 @@ export default {
             ? ""
             : data.protocol.value;
         }
-        if (this.tagName != "csv" && isSubmit) {
+        if (this.tagName != "csv") {
           for (let key of Object.keys(data.options)) {
             if (
               Object.hasOwnProperty.call(data.options[key], "required") &&
