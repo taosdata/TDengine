@@ -283,7 +283,44 @@ endi
 
 if $data11 != 3 then
   print ======data11=$data11
-  goto loop6
+  goto loop7
+endi
+
+print update data
+sql insert into t1 values(1648791243000,1,9,3,3.0);
+sql insert into t2 values(1648791243000,1,9,3,3.0);
+
+$loop_count = 0
+loop8:
+
+sleep 300
+print 1 sql select * from streamt3;
+sql select * from streamt3;
+
+print   
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print $data20 $data21 $data22 $data23
+print   
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 2 then
+  print ======rows=$rows
+  goto loop8
+endi
+
+if $data01 != 3 then
+  print ======data01=$data01
+  goto loop8
+endi
+
+if $data11 != 3 then
+  print ======data11=$data11
+  goto loop8
 endi
 
 print event1 end
