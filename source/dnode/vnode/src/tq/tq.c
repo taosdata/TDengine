@@ -1061,6 +1061,47 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   return code;
 }
 
+static void doStartStep2(SStreamTask* pTask, SStreamTask* pStreamTask, STQ* pTq) {
+  const char* id = pTask->id.idStr;
+  int64_t     nextProcessedVer = pStreamTask->hTaskInfo.haltVer;
+
+  // if it's an source task, extract the last version in wal.
+  SVersionRange *pRange = &pTask->dataRange.range;
+
+  bool done = streamHistoryTaskSetVerRangeStep2(pTask, nextProcessedVer);
+  pTask->execInfo.step2Start = taosGetTimestampMs();
+
+  if (done) {
+    qDebug("s-task:%s scan-history from WAL stage(step 2) ended, elapsed time:%.2fs", id, 0.0);
+    streamTaskPutTranstateIntoInputQ(pTask);
+    streamExecTask(pTask);  // exec directly
+  } else {
+    STimeWindow* pWindow = &pTask->dataRange.window;
+    tqDebug("s-task:%s level:%d verRange:%" PRId64 " - %" PRId64 " window:%" PRId64 "-%" PRId64
+                ", do secondary scan-history from WAL after halt the related stream task:%s",
+            id, pTask->info.taskLevel, pRange->minVer, pRange->maxVer, pWindow->skey, pWindow->ekey,
+            pStreamTask->id.idStr);
+    ASSERT(pTask->status.schedStatus == TASK_SCHED_STATUS__WAITING);
+
+    streamSetParamForStreamScannerStep2(pTask, pRange, pWindow);
+
+    int64_t dstVer = pTask->dataRange.range.minVer;
+    pTask->chkInfo.nextProcessVer = dstVer;
+
+    walReaderSetSkipToVersion(pTask->exec.pWalReader, dstVer);
+    tqDebug("s-task:%s wal reader start scan WAL verRange:%" PRId64 "-%" PRId64 ", set sched-status:%d", id, dstVer,
+            pTask->dataRange.range.maxVer, TASK_SCHED_STATUS__INACTIVE);
+
+    /*int8_t status = */streamTaskSetSchedStatusInactive(pTask);
+
+    // now the fill-history task starts to scan data from wal files.
+    int32_t code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
+    if (code == TSDB_CODE_SUCCESS) {
+      tqScanWalAsync(pTq, false);
+    }
+  }
+}
+
 // this function should be executed by only one thread
 int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   SStreamScanHistoryReq* pReq = (SStreamScanHistoryReq*)pMsg->pCont;
@@ -1143,7 +1184,6 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   tqDebug("s-task:%s scan-history(step 1) ended, elapsed time:%.2fs", id, el);
 
   if (pTask->info.fillHistory) {
-    SVersionRange* pRange = NULL;
     SStreamTask*   pStreamTask = NULL;
 
     // 1. get the related stream task
@@ -1162,50 +1202,11 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
     ASSERT(pStreamTask->info.taskLevel == TASK_LEVEL__SOURCE);
 
-    streamTaskHandleEvent(pStreamTask->status.pSM, TASK_EVENT_HALT);
-    int64_t nextProcessedVer = pStreamTask->hTaskInfo.haltVer;
-
-    // if it's an source task, extract the last version in wal.
-    pRange = &pTask->dataRange.range;
-    bool done = streamHistoryTaskSetVerRangeStep2(pTask, nextProcessedVer);
-    pTask->execInfo.step2Start = taosGetTimestampMs();
-
-    if (done) {
-      qDebug("s-task:%s scan-history from WAL stage(step 2) ended, elapsed time:%.2fs", id, 0.0);
-      streamTaskPutTranstateIntoInputQ(pTask);
-//      streamTaskRestoreStatus(pTask);
-
-//      if (pTask->status.taskStatus == TASK_STATUS__PAUSE) {
-//        pTask->status.keepTaskStatus = TASK_STATUS__READY;
-//        qDebug("s-task:%s prev status is %s, update the kept status to be:%s when after step 2", id,
-//               streamGetTaskStatusStr(TASK_STATUS__PAUSE), streamGetTaskStatusStr(pTask->status.keepTaskStatus));
-//      }
-
-      streamExecTask(pTask);  // exec directly
+    code = streamTaskHandleEvent(pStreamTask->status.pSM, TASK_EVENT_HALT);
+    if (code == TSDB_CODE_SUCCESS) {
+      doStartStep2(pTask, pStreamTask, pTq);
     } else {
-      STimeWindow* pWindow = &pTask->dataRange.window;
-      tqDebug("s-task:%s level:%d verRange:%" PRId64 " - %" PRId64 " window:%" PRId64 "-%" PRId64
-              ", do secondary scan-history from WAL after halt the related stream task:%s",
-              id, pTask->info.taskLevel, pRange->minVer, pRange->maxVer, pWindow->skey, pWindow->ekey,
-              pStreamTask->id.idStr);
-      ASSERT(pTask->status.schedStatus == TASK_SCHED_STATUS__WAITING);
-
-      streamSetParamForStreamScannerStep2(pTask, pRange, pWindow);
-
-      int64_t dstVer = pTask->dataRange.range.minVer;
-      pTask->chkInfo.nextProcessVer = dstVer;
-
-      walReaderSetSkipToVersion(pTask->exec.pWalReader, dstVer);
-      tqDebug("s-task:%s wal reader start scan WAL verRange:%" PRId64 "-%" PRId64 ", set sched-status:%d", id, dstVer,
-              pTask->dataRange.range.maxVer, TASK_SCHED_STATUS__INACTIVE);
-
-      /*int8_t status = */streamTaskSetSchedStatusInactive(pTask);
-
-      // now the fill-history task starts to scan data from wal files.
-      code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
-      if (code == TSDB_CODE_SUCCESS) {
-        tqScanWalAsync(pTq, false);
-      }
+      tqError("s-task:%s failed to halt s-task:%s, not launch step2", id, pStreamTask->id.idStr);
     }
 
     streamMetaReleaseTask(pMeta, pStreamTask);

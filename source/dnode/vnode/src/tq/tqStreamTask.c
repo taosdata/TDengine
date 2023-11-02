@@ -59,6 +59,7 @@ int32_t tqScanWal(STQ* pTq) {
 }
 
 int32_t tqStartStreamTask(STQ* pTq) {
+  int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
 
@@ -102,12 +103,16 @@ int32_t tqStartStreamTask(STQ* pTq) {
     }
 
     EStreamTaskEvent event = (HAS_RELATED_FILLHISTORY_TASK(pTask)) ? TASK_EVENT_INIT_STREAM_SCANHIST : TASK_EVENT_INIT;
-    streamTaskHandleEvent(pTask->status.pSM, event);
+    int32_t ret = streamTaskHandleEvent(pTask->status.pSM, event);
+    if (ret != TSDB_CODE_SUCCESS) {
+      code = ret;
+    }
+
     streamMetaReleaseTask(pMeta, pTask);
   }
 
   taosArrayDestroy(pTaskList);
-  return 0;
+  return code;
 }
 
 int32_t tqLaunchStreamTaskAsync(STQ* pTq) {
