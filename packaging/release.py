@@ -471,7 +471,10 @@ def build_taos_explorer(explorer_path, mode):
     copy_docs_to_explorer(explorer_path)
     os.chdir(explorer_path)
     os.system('yarn install')
-    os.system('yarn build:bin')
+    if release_info.OS.lower() == 'windows':
+        os.system(f'set VER_NUMBER={release_info.TdengineVersion} & yarn build:bin')
+    else:
+        os.system(f'VER_NUMBER={release_info.TdengineVersion} yarn build:bin')
 
 def copy_taos_explorer_on_windows(explorer_path):
     explorer_exe_path = os.path.join(explorer_path, "target", "release", "taos-explorer.exe")
