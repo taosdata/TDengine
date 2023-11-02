@@ -392,6 +392,8 @@ async fn consume_lush_record(
                                     create_sql_map.insert(stable_name.clone(), tag_modify_message);
                                 }
                             }
+                        } else {
+                            bail!("lush message table query error: {err:#}");
                         }
                     }
                 }
