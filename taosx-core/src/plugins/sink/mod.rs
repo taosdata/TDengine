@@ -8,7 +8,7 @@ use futures_util::StreamExt;
 use serde_json::json;
 use std::{
     any::Any,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     io::{Read, Write},
     net::SocketAddr,
     str::FromStr,
@@ -311,7 +311,9 @@ async fn consume_lush_record(
             // let mut sql = format!("CREATE TABLE ");
             // map: <stable_name, (Vec<sql, sql_overflow?>, Vec<tag_name, tag_value>)>
             let mut create_sql_map: HashMap<String, LushMessageTagModify> = HashMap::new();
+            // let mut table_set = HashSet::new();
             for table in tables {
+                tracing::info!("table: {:#?}", table);
                 let table_name = table.table_name();
                 let tags = table.tags();
                 if tags.is_none() {
@@ -443,6 +445,8 @@ async fn consume_lush_record(
                                         taos.exec(alter_sql).await?;
                                     }
                                 }
+                            } else {
+                                bail!("lush message table create error: {err:#}");
                             }
                         }
                     }
