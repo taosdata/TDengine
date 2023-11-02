@@ -1746,7 +1746,11 @@ static int32_t mndRemoveTablePriviledge(SMnode *pMnode, SHashObj *hash, SHashObj
 
   int32_t  dbKeyLen = strlen(alterReq->objname) + 1;
   int32_t *currRef = taosHashGet(useDbHash, alterReq->objname, dbKeyLen);
-  if (NULL == currRef || 1 == *currRef) {
+  if (NULL == currRef) {
+    return 0;
+  }
+  
+  if (1 == *currRef) {
     if (taosHashRemove(useDbHash, alterReq->objname, dbKeyLen) != 0) {
       return -1;
     }
