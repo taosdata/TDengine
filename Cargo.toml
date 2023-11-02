@@ -24,7 +24,7 @@ taos-query = { version = "0.10.19", default-features = false, features = [
 ] }
 
 [workspace.package]
-version = "1.2.8"
+version = "1.3.0"
 
 [package]
 name = "taosx"
@@ -44,6 +44,7 @@ arrow-flight = { workspace = true }
 shadow-rs = { workspace = true }
 strum = { version = "0.25", features = ["derive"] }
 multi_index_map = "0.9"
+semver = "1"
 
 twelf = { version = "0.12.0", default-features = false, features = ["toml", "env", "clap"] }
 

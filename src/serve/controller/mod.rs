@@ -12,7 +12,7 @@ use self::agent::{
 use self::transferred::Transferred;
 use self::trigger::Strategy;
 use super::data_sources::DataSourceDefinition;
-use super::scheduler::agent::AgentId;
+use super::scheduler::agent::{AgentId, TaskId};
 use super::scheduler::TaskScheduler;
 use crate::serve::controller::agent::Activity;
 use crate::serve::data_sources::{data_source_is_valid, validate_dsn};
@@ -117,7 +117,8 @@ static MIGRATOR: Migrator = sqlx::migrate!(); // defaults to "./migrations"
 pub type AgentDataSetsSender = Sender<Response<Vec<DataSet>>>;
 #[derive(Debug, Clone)]
 pub enum AgentAction {
-    Run(i64),
+    /// Tuple for (TaskId, JobId, RunId)
+    Run(TaskId, Uuid, u64),
     #[allow(dead_code)]
     Stop(i64),
     /// Equivalent to `Suspend`.
@@ -1449,6 +1450,8 @@ pub enum Status {
     Running,
     /// Cancelled tasks, this might be stopped or not.
     Cancelled,
+    /// Cronjob ticking finished.
+    Ticked,
     /// Task has been finished.
     Completed,
     /// Task completed with error.
@@ -1463,7 +1466,6 @@ pub enum Status {
     Waiting,
     /// In suspending state.
     Suspending,
-
     /// Task is suspended by controller/agent.
     Suspended,
     /// Task paused manually by user.
@@ -1804,34 +1806,34 @@ impl TaskActivity {
             context: None,
         }
     }
-    pub fn interrupted(id: i64, message: String) -> Self {
+    pub fn interrupted(id: i64, message: impl std::fmt::Display) -> Self {
         Self {
             id,
             at: Utc::now(),
             level: LevelFilter::Error,
             activity: format!("Error: {message}."),
             status: "interrupted".to_string(),
-            context: Some(message.into()),
+            context: None,
         }
     }
 
-    pub fn failed(id: i64, message: String) -> Self {
+    pub fn failed(id: i64, message: impl std::fmt::Display) -> Self {
         Self {
             id,
             at: Utc::now(),
             level: LevelFilter::Error,
             activity: format!("Failed with error: {message}"),
             status: "failed".to_string(),
-            context: Some(message.into()),
+            context: None,
         }
     }
 
-    pub fn waiting(id: i64, message: impl Into<String>) -> Self {
+    pub fn waiting(id: i64, message: impl std::fmt::Display) -> Self {
         Self {
             id,
             at: Utc::now(),
             level: LevelFilter::Warn,
-            activity: message.into(),
+            activity: message.to_string(),
             status: "waiting".to_string(),
             context: None,
         }

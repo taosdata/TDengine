@@ -160,6 +160,14 @@ pub enum Schedule {
     Repeated(Duration),
     RepeatedLimit(Duration, u16),
 }
+impl Schedule {
+    pub(crate) fn is_cron_job(&self) -> bool {
+        match self {
+            Schedule::Cron(_) => true,
+            _ => false,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum StopCondition {
@@ -214,13 +222,7 @@ impl StopCondition {
             StopCondition::Never => false,
             StopCondition::Done => match result {
                 Ok(_) => true,
-                Err(err) => {
-                    if err.is_fatal_error() {
-                        return true;
-                    } else {
-                        return false;
-                    }
-                }
+                Err(_) => false,
             },
             StopCondition::Fatal => match result {
                 Ok(_) => false,
@@ -286,6 +288,10 @@ impl Strategy {
     }
 
     pub fn stop_condition(&self) -> StopCondition {
+        // Never stop for cron job.
+        if let Some(_) = self.schedule.as_deref() {
+            return StopCondition::Never;
+        }
         match self.resume {
             ResumeStrategy::Always => StopCondition::Done,
             ResumeStrategy::Never => StopCondition::Fatal,
