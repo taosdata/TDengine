@@ -16,7 +16,7 @@
 #include "tencode.h"
 #include "tmsg.h"
 #include "vnd.h"
-#include "vndCos.h"
+#include "cos.h"
 #include "vnode.h"
 #include "vnodeInt.h"
 #include "audit.h"

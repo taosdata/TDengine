@@ -1,6 +1,6 @@
 #define ALLOW_FORBID_FUNC
 
-#include "vndCos.h"
+#include "cos.h"
 
 extern char   tsS3Endpoint[];
 extern char   tsS3AccessKeyId[];

@@ -14,6 +14,7 @@
  */
 
 #include "streamInt.h"
+#include "rsync.h"
 
 int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckpointSourceReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
@@ -356,4 +357,135 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   }
 
   return code;
+}
+
+
+//static int64_t kBlockSize = 64 * 1024;
+//static int sendCheckpointToS3(char* id, SArray* fileList){
+//  code = s3PutObjectFromFile2(from->fname, object_name);
+//  return 0;
+//}
+//static int sendCheckpointToSnode(char* id, SArray* fileList){
+//  if(strlen(id) >= CHECKPOINT_PATH_LEN){
+//    tqError("uploadCheckpoint id name too long, name:%s", id);
+//    return -1;
+//  }
+//  uint8_t* buf = taosMemoryCalloc(1, sizeof(SChekpointDataHeader) + kBlockSize);
+//  if(buf == NULL){
+//    tqError("uploadCheckpoint malloc failed");
+//    return -1;
+//  }
+//
+//  SChekpointDataHeader* pHdr = (SChekpointDataHeader*)buf;
+//  strcpy(pHdr->id, id);
+//
+//  TdFilePtr fd = NULL;
+//  for(int i = 0; i < taosArrayGetSize(fileList); i++){
+//    char* name = (char*)taosArrayGetP(fileList, i);
+//    if(strlen(name) >= CHECKPOINT_PATH_LEN){
+//      tqError("uploadCheckpoint file name too long, name:%s", name);
+//      return -1;
+//    }
+//    int64_t  offset = 0;
+//
+//    fd = taosOpenFile(name, TD_FILE_READ);
+//    tqDebug("uploadCheckpoint open file %s, file index: %d", name, i);
+//
+//    while(1){
+//      int64_t  nread = taosPReadFile(fd, buf + sizeof(SChekpointDataHeader), kBlockSize, offset);
+//      if (nread == -1) {
+//        taosCloseFile(&fd);
+//        taosMemoryFree(buf);
+//        tqError("uploadCheckpoint failed to read file name:%s,reason:%d", name, errno);
+//        return -1;
+//      } else if (nread == 0){
+//        tqDebug("uploadCheckpoint no data read, close file:%s, move to next file, open and read", name);
+//        taosCloseFile(&fd);
+//        break;
+//      } else if (nread == kBlockSize){
+//        offset += nread;
+//      } else {
+//        taosCloseFile(&fd);
+//        offset = 0;
+//      }
+//      tqDebug("uploadCheckpoint read file %s, size:%" PRId64 ", current offset:%" PRId64, name, nread, offset);
+//
+//
+//      pHdr->size = nread;
+//      strcpy(pHdr->name, name);
+//
+//      SRpcMsg rpcMsg = {0};
+//      int32_t bytes = sizeof(SChekpointDataHeader) + nread;
+//      rpcMsg.pCont = rpcMallocCont(bytes);
+//      rpcMsg.msgType = TDMT_SYNC_SNAPSHOT_SEND;
+//      rpcMsg.contLen = bytes;
+//      if (rpcMsg.pCont == NULL) {
+//        tqError("uploadCheckpoint malloc failed");
+//        taosCloseFile(&fd);
+//        taosMemoryFree(buf);
+//        return -1;
+//      }
+//      memcpy(rpcMsg.pCont, buf, bytes);
+//      int try = 3;
+//      int32_t code = 0;
+//      while(try-- > 0){
+//        code = tmsgSendReq(pEpSet, &rpcMsg);
+//        if(code == 0)
+//          break;
+//        taosMsleep(10);
+//      }
+//      if(code != 0){
+//        tqError("uploadCheckpoint send request failed code:%d", code);
+//        taosCloseFile(&fd);
+//        taosMemoryFree(buf);
+//        return -1;
+//      }
+//
+//      if(offset == 0){
+//        break;
+//      }
+//    }
+//  }
+//
+//  taosMemoryFree(buf);
+
+//}
+
+int uploadCheckpoint(char* id, SArray* fileList){
+  if(id == NULL || fileList == NULL || strlen(id) == 0 || taosArrayGetSize(fileList) == 0){
+    stError("uploadCheckpoint parameters invalid");
+    return -1;
+  }
+  if(strlen(tsSnodeIp) != 0){
+    uploadRsync(id, fileList);
+//  }else if(tsS3StreamEnabled){
+
+  }
+  return 0;
+}
+
+int downloadCheckpoint(char* id, char* path){
+  if(id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0){
+    stError("downloadCheckpoint parameters invalid");
+    return -1;
+  }
+  if(strlen(tsSnodeIp) != 0){
+    downloadRsync(id, path);
+//  }else if(tsS3StreamEnabled){
+
+  }
+  return 0;
+}
+
+int deleteCheckpoint(char* id){
+  if(id == NULL || strlen(id) == 0){
+    stError("deleteCheckpoint parameters invalid");
+    return -1;
+  }
+  if(strlen(tsSnodeIp) != 0){
+    deleteRsync(id);
+//  }else if(tsS3StreamEnabled){
+
+  }
+  return 0;
 }

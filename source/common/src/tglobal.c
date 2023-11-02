@@ -133,6 +133,10 @@ char tsSmlAutoChildTableNameDelimiter[TSDB_TABLE_NAME_LEN] = "";
 // bool    tsSmlDataFormat = false;
 // int32_t tsSmlBatchSize = 10000;
 
+// checkpoint backup
+char tsSnodeIp[TSDB_FQDN_LEN] = {0};
+char tsCheckpointBackupDir[PATH_MAX] = "/var/lib/taos/backup/checkpoint/";
+
 // tmq
 int32_t tmqMaxTopicNum = 20;
 // query
@@ -275,6 +279,7 @@ char   tsS3AccessKeySecret[TSDB_FQDN_LEN] = "<accesskeysecrect>";
 char   tsS3BucketName[TSDB_FQDN_LEN] = "<bucketname>";
 char   tsS3AppId[TSDB_FQDN_LEN] = "<appid>";
 int8_t tsS3Enabled = false;
+int8_t tsS3StreamEnabled = false;
 
 int8_t tsS3Https = true;
 char   tsS3Hostname[TSDB_FQDN_LEN] = "<hostname>";
@@ -338,9 +343,10 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
       tstrncpy(tsS3AppId, appid + 1, TSDB_FQDN_LEN);
     }
   }
-  if (tsS3BucketName[0] != '<' && tsDiskCfgNum > 1) {
+  if (tsS3BucketName[0] != '<') {
 #if defined(USE_COS) || defined(USE_S3)
-    tsS3Enabled = true;
+    if(tsDiskCfgNum > 1) tsS3Enabled = true;
+    tsS3StreamEnabled = true;
 #endif
   }
 

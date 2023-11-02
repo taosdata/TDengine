@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "cos.h"
 #include "sync.h"
 #include "tsdb.h"
 #include "vnd.h"
-#include "vndCos.h"
 
 int32_t vnodeGetPrimaryDir(const char *relPath, int32_t diskPrimary, STfs *pTfs, char *buf, size_t bufLen) {
   if (pTfs) {

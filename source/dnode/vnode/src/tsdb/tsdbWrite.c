@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "cos.h"
 #include "tsdb.h"
-#include "vndCos.h"
 
 /**
  * @brief max key by precision

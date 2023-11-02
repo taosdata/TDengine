@@ -16,7 +16,7 @@
 #ifndef _TD_VND_COS_H_
 #define _TD_VND_COS_H_
 
-#include "vnd.h"
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,6 +24,7 @@ extern "C" {
 
 #define S3_BLOCK_CACHE
 
+extern int8_t  tsS3StreamEnabled;
 extern int8_t  tsS3Enabled;
 extern int32_t tsS3BlockSize;
 extern int32_t tsS3BlockCacheSize;
