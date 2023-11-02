@@ -345,7 +345,7 @@ export default {
       // 不允许 start/stop 的状态 sopping, suspending
       permitStartStatus: ['created','failed','stopped','suspended','completed'],
       permitStopStatus: ['queued','running','interrupted','waiting','resumed'],
-      showErrStatus: ['waiting','suspending','suspended','failed','interupted']
+      showErrStatus: ['waiting','suspending','suspended','failed','interrupted']
     };
   },
   computed: {
