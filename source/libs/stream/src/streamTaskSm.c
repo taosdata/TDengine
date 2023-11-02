@@ -82,13 +82,6 @@ int32_t streamTaskInitStatus(SStreamTask* pTask) {
   return 0;
 }
 
-int32_t streamTaskSetReadyForWal(SStreamTask* pTask) {
-  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    stDebug("s-task:%s ready for extract data from wal", pTask->id.idStr);
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t streamTaskDoCheckpoint(SStreamTask* pTask) {
   stDebug("s-task:%s start to do checkpoint", pTask->id.idStr);
   return 0;
@@ -108,9 +101,31 @@ int32_t streamTaskKeepCurrentVerInWal(SStreamTask* pTask) {
 }
 
 // todo check rsp code for handle Event:TASK_EVENT_SCANHIST_DONE
-static bool isUnsupportedTransform(ETaskStatus state, const EStreamTaskEvent event) {
-  if (state == TASK_STATUS__STOP || state == TASK_STATUS__DROPPING || state == TASK_STATUS__UNINIT) {
-    if (event == TASK_EVENT_SCANHIST_DONE || event == TASK_EVENT_CHECKPOINT_DONE || event == TASK_EVENT_GEN_CHECKPOINT) {
+static bool isInvalidStateTransfer(ETaskStatus state, const EStreamTaskEvent event) {
+  if (event == TASK_EVENT_INIT_STREAM_SCANHIST || event == TASK_EVENT_INIT || event == TASK_EVENT_INIT_SCANHIST) {
+    return (state != TASK_STATUS__UNINIT);
+  }
+
+  if (event == TASK_EVENT_SCANHIST_DONE) {
+    return (state != TASK_STATUS__SCAN_HISTORY && state != TASK_STATUS__STREAM_SCAN_HISTORY);
+  }
+
+  if (event == TASK_EVENT_GEN_CHECKPOINT) {
+    return (state != TASK_STATUS__READY);
+  }
+
+  if (event == TASK_EVENT_CHECKPOINT_DONE) {
+    return (state != TASK_STATUS__CK);
+  }
+
+  // todo refactor later
+  if (event == TASK_EVENT_RESUME) {
+    return true;
+  }
+
+  if (event == TASK_EVENT_HALT) {
+    if (state == TASK_STATUS__DROPPING || state == TASK_STATUS__UNINIT || state == TASK_STATUS__STOP ||
+        state == TASK_STATUS__SCAN_HISTORY) {
       return true;
     }
   }
@@ -128,7 +143,7 @@ static STaskStateTrans* streamTaskFindTransform(ETaskStatus state, const EStream
     }
   }
 
-  if (isUnsupportedTransform(state, event)) {
+  if (isInvalidStateTransfer(state, event)) {
     return NULL;
   } else {
     ASSERT(0);
@@ -219,7 +234,7 @@ static int32_t doHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event, STaskSt
         taosMsleep(100);
       } else {
         stDebug("s-task:%s is dropped or stopped already, not wait.", id);
-        return TSDB_CODE_INVALID_PARA;
+        return TSDB_CODE_STREAM_INVALID_STATETRANS;
       }
     }
 
@@ -260,7 +275,7 @@ int32_t streamTaskHandleEvent(SStreamTaskSM* pSM, EStreamTaskEvent event) {
       if (pTrans == NULL) {
         stDebug("s-task:%s failed to handle event:%s", pTask->id.idStr, GET_EVT_NAME(event));
         taosThreadMutexUnlock(&pTask->lock);
-        return TSDB_CODE_INVALID_PARA;  // todo: set new error code// failed to handle the event.
+        return TSDB_CODE_STREAM_INVALID_STATETRANS;
       }
 
       if (pSM->pActiveTrans != NULL) {
@@ -303,14 +318,14 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
 
     taosThreadMutexUnlock(&pTask->lock);
     stDebug("s-task:%s unlockx", pTask->id.idStr);
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_STREAM_INVALID_STATETRANS;
   }
 
   if (pTrans->event != event) {
     stWarn("s-task:%s handle event:%s failed, current status:%s, active trans evt:%s", pTask->id.idStr,
            GET_EVT_NAME(event), pSM->current.name, GET_EVT_NAME(pTrans->event));
     taosThreadMutexUnlock(&pTask->lock);
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_STREAM_INVALID_STATETRANS;
   }
 
   keepPrevInfo(pSM);
@@ -466,6 +481,10 @@ void doInitStateTransferTable(void) {
 
   // halt stream task, from other task status
   trans = createStateTransform(TASK_STATUS__READY, TASK_STATUS__HALT, TASK_EVENT_HALT, NULL,
+                               streamTaskKeepCurrentVerInWal, NULL, true);
+  taosArrayPush(streamTaskSMTrans, &trans);
+
+  trans = createStateTransform(TASK_STATUS__HALT, TASK_STATUS__HALT, TASK_EVENT_HALT, NULL,
                                streamTaskKeepCurrentVerInWal, NULL, true);
   taosArrayPush(streamTaskSMTrans, &trans);
 
