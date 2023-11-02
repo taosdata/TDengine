@@ -1167,10 +1167,6 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     return 0;
   }
 
-  if (pTask->info.fillHistory == 1) {
-    ASSERT(pTask->status.pauseAllowed == true);
-  }
-
   streamScanHistoryData(pTask);
 
   double el = (taosGetTimestampMs() - pTask->execInfo.step1Start) / 1000.0;
