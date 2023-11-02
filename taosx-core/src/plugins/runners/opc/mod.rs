@@ -1173,6 +1173,7 @@ pub async fn opc_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     if to.subject.is_none() {
         Err(OpcError::DatabaseIsRequired(to.clone()))?;
@@ -1220,6 +1221,7 @@ pub async fn opc_to_taos(
         transferred,
         span,
         None,
+        notify,
     )
     .await?;
 

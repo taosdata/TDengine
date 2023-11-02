@@ -71,6 +71,7 @@ pub async fn historian_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     let port = port_pool
         .get()
@@ -88,6 +89,7 @@ pub async fn historian_to_taos(
         transferred,
         span,
         None,
+        notify,
     )
     .await?;
 
@@ -336,6 +338,7 @@ mod tests {
             None,
             None,
             Span::current(),
+            crate::TaskNotifySender::default(),
         )
         .await;
 

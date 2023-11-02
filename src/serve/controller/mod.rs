@@ -32,7 +32,7 @@ use taos::taos_query::tmq::Assignment;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::utils::breakpoints::breakpoints_get_all;
-use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts, validate_dsn};
+use taosx_core::{validate_dsn, ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -956,6 +956,7 @@ impl TaskController {
 
         let from: Dsn = task.from.parse()?;
         let to: Dsn = task.to.parse()?;
+        let (tx, _rx) = flume::unbounded();
         let opts = TaskOpts {
             from,
             transform: vec![],
@@ -975,6 +976,7 @@ impl TaskController {
                 trace_id = tracing::field::Empty
             ),
             task_id: Some(task.id.to_string()),
+            notify: tx,
         };
         opts.delete_task().await?;
 
@@ -1784,6 +1786,17 @@ impl TaskActivity {
             context: None,
         }
     }
+    /// Warn-level activity under running state.
+    pub fn warn(id: i64, message: String) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Error,
+            activity: message,
+            status: "running".to_string(),
+            context: None,
+        }
+    }
     pub fn tick(id: i64, jid: Uuid) -> Self {
         Self {
             id,
@@ -2557,8 +2570,7 @@ mod tests {
     async fn test_agent() -> anyhow::Result<()> {
         // std::env::set_var("RUST_LOG", "debug");
         tracing_subscriber_init()?;
-        let (controller, _scheduler, _agent_notify_sender) =
-            generate_scheduler_for_test().await?;
+        let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
         dbg!(&controller);
         let new: AgentProps = serde_json::from_str(
             r#"
@@ -2618,8 +2630,7 @@ mod tests {
     async fn test_patch() -> anyhow::Result<()> {
         // std::env::set_var("RUST_LOG", "taos=debug");
         tracing_subscriber_init()?;
-        let (controller, _scheduler, _agent_notify_sender) =
-            generate_scheduler_for_test().await?;
+        let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
 
         let new: AgentProps = serde_json::from_str(
             r#"
@@ -2662,8 +2673,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_create_task_when_agent_not_alive() -> anyhow::Result<()> {
         tracing_subscriber_init()?;
-        let (controller, _scheduler, _agent_notify_sender) =
-            generate_scheduler_for_test().await?;
+        let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
         let agent = controller
             .create_agent(AgentProps {
                 dsn: "".to_string(),
@@ -2744,8 +2754,7 @@ mod tests {
 
         taos.exec_many(["drop database if exists db2"]).await?;
 
-        let (controller, _scheduler, _agent_notify_sender) =
-            generate_scheduler_for_test().await?;
+        let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
 
         let task_props: NewTask = serde_json::from_str(&format!(
             r#"

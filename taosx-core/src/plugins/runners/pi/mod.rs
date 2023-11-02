@@ -63,6 +63,7 @@ pub async fn pi_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: {}", from.driver);
     #[cfg(not(target_os = "windows"))]
@@ -189,6 +190,7 @@ pub async fn pi_to_taos(
         transferred,
         span,
         None,
+        notify,
     )
     .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;

@@ -68,6 +68,7 @@ pub async fn build_ipc(
     transferred: Option<Arc<Transferred>>,
     span: Span,
     task_id: Option<i64>,
+    notify: crate::TaskNotifySender,
 ) -> anyhow::Result<IpcHandler> {
     let ipc = if with_agent.is_none() {
         let builder = taos::TaosBuilder::from_dsn(to)?;
@@ -87,6 +88,7 @@ pub async fn build_ipc(
             transferred,
             span,
             task_id,
+            notify,
         )
         .in_current_span()
         .await?

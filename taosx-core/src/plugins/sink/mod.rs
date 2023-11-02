@@ -215,6 +215,7 @@ async fn ipc_tcp_read(
     connector: Option<&'static str>,
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
+    notifier: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     // let stream = Arc::new(stream);
     // let reader = stream.clone();
@@ -244,6 +245,7 @@ async fn ipc_tcp_read(
         connector,
         transferred,
         task_id,
+        notifier,
     )
     .await?;
     tracing::info!("IPC stream processed");
@@ -1723,6 +1725,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
     task_id: Option<i64>,
+    notifier: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     let taos = pool.get().await?;
     let columns = ipc_reader
@@ -1771,7 +1774,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
             tracing::error!("write batch error: {err:#}");
             let written = count - last;
             let _ = ipc_ack_writer.ack(LushAck {
-                code: 0xFFFF,
+                code: 0,
                 message: Some(err.to_string()),
                 context: Some(
                     json!({
@@ -1781,8 +1784,10 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                     .to_string(),
                 ),
             });
-            // return err
-            anyhow::bail!("write batch error: {err:#}");
+
+            if let Err(_) = notifier.send(crate::TaskNotify::Error(format!("{:#}", err))) {
+                bail!("write batch error: {err:#}");
+            }
         } else {
             tracing::info!("ack");
             let _ = ipc_ack_writer
@@ -1816,6 +1821,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
     _license: Option<&ConnectorLicense>,
     _transferred: Option<&Transferred>,
     target_precision: taos::Precision,
+    notifier: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     let count = Arc::new(AtomicUsize::new(0));
 
@@ -1866,6 +1872,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             let context = context.clone();
             let ipc_ack_writer = ipc_ack_writer.clone();
             let count = count.clone();
+            let notifier = notifier.clone();
             async move {
                 let n = parse(context, record).await;
                 match n {
@@ -1875,8 +1882,9 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
                     }
                     Err(err) => {
                         tracing::warn!("Receive IPC item error: {err:#}");
+                        let _ = notifier.send(crate::TaskNotify::Error(format!("{:#}", err)));
                         let _ = ipc_ack_writer.lock().await.ack(LushAck {
-                            code: 0xFFFF,
+                            code: 0,
                             message: Some(err.to_string()),
                             context: None,
                         });
@@ -1901,6 +1909,7 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
     license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
     target_precision: taos::Precision,
+    notifier: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     let mut count = 0;
     let mut batches = 0;
@@ -1931,7 +1940,7 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
             error!("write batch {batches} error: {err:#}");
             let written = count - last;
             let _ = ipc_ack_writer.ack(LushAck {
-                code: 0xFFFF,
+                code: 0,
                 message: Some(err.to_string()),
                 context: Some(
                     json!({
@@ -1941,7 +1950,9 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
                     .to_string(),
                 ),
             });
-            bail!("write batch error: {err:#}");
+            if let Err(_) = notifier.send(crate::TaskNotify::Error(format!("{:#}", err))) {
+                bail!("write batch error: {err:#}");
+            }
         } else {
             let _ = ipc_ack_writer
                 .ack(LushAck {
@@ -2061,6 +2072,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
     connector: Option<&str>,
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
+    notifier: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     info!(client, "IPC stream processing...");
     let taos = pool.get().await?;
@@ -2119,6 +2131,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 license.as_ref(),
                 transferred.as_deref(),
                 target_precision,
+                notifier,
             )
             .await?
         }
@@ -2130,6 +2143,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 license.as_ref(),
                 transferred.as_deref(),
                 task_id,
+                notifier,
             )
             .await?
         }
@@ -2142,6 +2156,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 license.as_ref(),
                 transferred.as_deref(),
                 target_precision,
+                notifier,
             )
             .await?
         }
@@ -2549,6 +2564,7 @@ pub async fn listen_tcp_socket(
     transferred: Option<Arc<Transferred>>,
     span: Span,
     task_id: Option<i64>,
+    notifier: crate::TaskNotifySender,
 ) -> anyhow::Result<IpcHandler> {
     let (sender, error_receiver) = tokio::sync::mpsc::channel(1);
 
@@ -2596,6 +2612,7 @@ pub async fn listen_tcp_socket(
                     let connector = connector.clone();
                     let transferred = transferred.clone();
                     let task_id = task_id.clone();
+                    let notifier = notifier.clone();
                     tokio::spawn(async move {
                         // let dsn: Dsn = "taos:///db2".parse().unwrap();
                         // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
@@ -2611,6 +2628,7 @@ pub async fn listen_tcp_socket(
                             connector,
                             transferred,
                             task_id,
+                            notifier,
                         )
                         .in_current_span()
                         .await;
