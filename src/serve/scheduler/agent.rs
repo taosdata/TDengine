@@ -3,6 +3,7 @@ use std::{collections::HashMap, fmt::Debug};
 
 use anyhow::bail;
 use multi_index_map::MultiIndexMap;
+use taosx_core::dsv::DataSourceValidation;
 use taosx_core::DataSet;
 use tokio::{
     runtime::Handle,
@@ -316,6 +317,35 @@ impl AgentWorker {
         match res {
             Ok(data_sets) => Ok(data_sets),
             Err(err) => Err(anyhow::anyhow!("Error listing data sets: {:#}", err)),
+        }
+    }
+
+    pub(crate) async fn check(
+        &self,
+        agent_id: i64,
+        dsn: String,
+    ) -> anyhow::Result<DataSourceValidation> {
+        {
+            let states = self.agent_states.read().await;
+            if !states.contains_key(&agent_id) {
+                return Err(anyhow::anyhow!("Agent not found: {}", agent_id));
+            }
+        }
+        let (sender, receiver) = flume::bounded(1);
+        if let Err(err) = self
+            .agent_activity_sender
+            .send((agent_id, AgentAction::Check(dsn, sender)))
+        {
+            tracing::warn!("Error sending data source validation: {:?}", err);
+            bail!("Error sending data source validation: {:?}", err);
+        }
+        let res = receiver
+            .recv_async()
+            .await
+            .map_err(|err| anyhow::anyhow!("Receiving data source validation error: {:#}", err))?;
+        match res {
+            Ok(validation) => Ok(validation),
+            Err(err) => Err(anyhow::anyhow!("Error validating data source: {:#}", err)),
         }
     }
 

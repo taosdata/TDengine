@@ -30,6 +30,7 @@ use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use strum::{AsRefStr, Display, EnumString, IntoStaticStr};
 use taos::taos_query::tmq::Assignment;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use taosx_core::dsv::DataSourceValidation;
 use taosx_core::utils::breakpoints::breakpoints_get_all;
 use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
 use tokio::sync::RwLock;
@@ -114,6 +115,8 @@ static MIGRATOR: Migrator = sqlx::migrate!(); // defaults to "./migrations"
 // const TASK_SELECT: &str = "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks";
 
 pub type AgentDataSetsSender = Sender<Response<Vec<DataSet>>>;
+pub type DsvSender = Sender<Response<DataSourceValidation>>;
+
 #[derive(Debug, Clone)]
 pub enum AgentAction {
     Run(i64),
@@ -124,6 +127,8 @@ pub enum AgentAction {
     ListDataSets(DataSetsReq, AgentDataSetsSender),
     #[allow(dead_code)]
     RetrieveDataSets(DataSetsReq, Vec<DataSet>),
+    /// check data source validation
+    Check(String, DsvSender),
 }
 // pub type AgentTasksReceiver = tokio::sync::broadcast::Receiver<AgentAction>;
 // pub type AgentTasksSender = tokio::sync::broadcast::Sender<AgentAction>;
@@ -277,6 +282,7 @@ impl From<TaskController> for TaskControllerRef {
         Self(Arc::new(value))
     }
 }
+
 impl From<Arc<TaskController>> for TaskControllerRef {
     fn from(value: Arc<TaskController>) -> Self {
         Self(value)
@@ -341,6 +347,7 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
         .await?;
     Ok(())
 }
+
 async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::Result<()> {
     sqlx::query(
             "INSERT INTO agent_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)")
@@ -1357,6 +1364,15 @@ impl TaskController {
         }
     }
 
+    pub async fn validate_dsn_via_agent(&self, agent: i64, dsn: Dsn) -> DataSourceValidation {
+        let scheduler = self.scheduler.clone();
+        let result = scheduler.validate_dsn_via_agent(agent, dsn).await;
+        match result {
+            Ok(dsv) => dsv,
+            Err(err) => DataSourceValidation::invalid(dsn.driver.to_string(), err.to_string()),
+        }
+    }
+
     pub async fn cluster_transferred(
         &self,
         cluster_id: i64,
@@ -1489,6 +1505,7 @@ where
         Self::from_str(v).map_err(|err| Box::new(err) as _)
     }
 }
+
 impl<'q, DB: sqlx::Database> sqlx::encode::Encode<'q, DB> for Status
 where
     &'q str: sqlx::Encode<'q, DB>,
@@ -1515,6 +1532,7 @@ where
 }
 
 pub mod trigger;
+
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct TaskWithAgent {
     #[serde(flatten)]
@@ -1926,6 +1944,7 @@ impl From<Dsn> for ExpandedDsn {
         }
     }
 }
+
 /// A streaming workflow task description.
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct TaskDetail {
@@ -1975,6 +1994,7 @@ impl std::ops::DerefMut for TaskDetail {
         &mut self.task
     }
 }
+
 impl TaskDetail {
     pub fn new(task: Task) -> Self {
         TaskDetail {
@@ -2102,6 +2122,7 @@ impl Task {
         self.breakpoints = breakpoints;
     }
 }
+
 #[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq, PartialOrd, ToSchema)]
 pub struct Labels(Option<Vec<String>>);
 
@@ -2160,6 +2181,7 @@ impl std::ops::Deref for Labels {
         &self.0
     }
 }
+
 impl std::ops::DerefMut for Labels {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
@@ -2372,6 +2394,7 @@ impl From<NewTask> for NewTaskV1 {
         }
     }
 }
+
 #[derive(Serialize, Deserialize, ToSchema, Default, Clone, Debug, sqlx::FromRow)]
 #[serde(default)]
 #[schema(example = json!({"from": "tmq:///test", "to": "taos:///test2"}))]
@@ -2663,6 +2686,7 @@ mod tests {
 
         Ok(())
     }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn test_task_offset() -> anyhow::Result<()> {
         std::env::set_var("RUST_LOG", "taos=info");

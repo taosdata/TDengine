@@ -11,6 +11,8 @@ use tokio::sync::{Mutex, Notify, RwLock};
 use tokio_cron_scheduler::{Job, JobScheduler};
 
 use anyhow::{Context, Result};
+use taos::Dsn;
+use taosx_core::dsv::DataSourceValidation;
 use tracing::{info, instrument};
 
 use crate::serve::scheduler::runner::{TaskJob, TaskState};
@@ -508,6 +510,17 @@ impl TaskScheduler {
         self.global_state
             .agent_runtime
             .list_data_sets(agent_id, req)
+            .await
+    }
+
+    pub async fn validate_dsn_via_agent(
+        &self,
+        agent: i64,
+        dsn: Dsn,
+    ) -> anyhow::Result<DataSourceValidation> {
+        self.global_state
+            .agent_runtime
+            .check(agent, dsn.to_string())
             .await
     }
 

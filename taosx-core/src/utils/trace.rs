@@ -269,7 +269,9 @@ pub fn attach_trace_id(target_span: &Span) {
                 let ext = sp.extensions();
                 if let Some(tid) = ext.get::<TraceID>() {
                     let target_span_id = target_span.id().expect("failed to get span id");
-                    let target_span_ref = registry.span(&target_span_id).expect("failed to get span by id");
+                    let target_span_ref = registry
+                        .span(&target_span_id)
+                        .expect("failed to get span by id");
                     let mut target_ext = target_span_ref.extensions_mut();
                     target_ext.insert(tid.clone());
                     break;

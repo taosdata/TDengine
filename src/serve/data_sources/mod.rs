@@ -13,19 +13,16 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use taos::{Code, IntoDsn};
+use taosx_core::{list_datasets_from, validate_dsn, DataSetsReq};
 use tokio::time::timeout;
-use taosx_core::{list_datasets_from, DataSetsReq, runners};
 use utoipa::*;
 
 mod definition;
 
 pub use definition::*;
-use taosx_core::validation::DataSourceValidation;
+use taosx_core::dsv::DataSourceValidation;
 
-use crate::serve::{
-    controller::TaskControllerRef,
-    task::{Failed},
-};
+use crate::serve::{controller::TaskControllerRef, task::Failed};
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub(super) struct DataSourceInput {
@@ -222,6 +219,14 @@ pub(super) async fn data_source_collection(
     }
 }
 
+#[derive(Deserialize, Debug, ToSchema, IntoParams)]
+pub struct DsnValidationQuery {
+    #[param(allow_reserved)]
+    dsn: String,
+    via: Option<i64>,
+    timeout: Option<u64>,
+}
+
 /// check data source validation by dsn
 #[utoipa::path(
     get,
@@ -237,52 +242,45 @@ pub(super) async fn data_source_collection(
     ),
 )]
 #[get("/ds/in/validate")]
-pub(super) async fn data_source_is_valid(query: Query<DsnValidationQuery>) -> impl Responder {
+pub(super) async fn data_source_is_valid(
+    controller: Data<TaskControllerRef>,
+    query: Query<DsnValidationQuery>,
+) -> impl Responder {
     const DEFAULT_TIMEOUT: u64 = 20; // 20 seconds
     let query = query.into_inner();
     let timeout_sec = query.timeout.unwrap_or(DEFAULT_TIMEOUT);
 
-    let result = timeout(Duration::from_secs(timeout_sec), validate_dsn(query.dsn, query.via)).await;
+    let result = timeout(
+        Duration::from_secs(timeout_sec),
+        is_valid(controller, query),
+    )
+    .await;
     match result {
         Ok(dsv) => Ok(HttpResponse::Ok().json(dsv)),
-        Err(err) => Err(Failed{
+        Err(err) => Err(Failed {
             code: Code::FAILED,
             message: format!("check data source validation timeout, cause: {:#}", err),
         }),
     }
 }
 
-pub async fn validate_dsn(dsn: impl IntoDsn, via: Option<String>) -> DataSourceValidation {
-    let dsn = dsn.into_dsn();
+pub async fn is_valid(
+    controller: Data<TaskControllerRef>,
+    query: DsnValidationQuery,
+) -> DataSourceValidation {
+    let dsn = query.dsn.into_dsn();
     match dsn {
         Err(err) => {
             DataSourceValidation::invalid("unknown".to_string(), format!("DSN error: {err:#}"))
         }
         Ok(d) => {
-            match d.driver.as_str() {
-                // TODO: clickhouse
-                "historian" => runners::historian::is_valid(&d).await,
-                "influxdb" => runners::influxdb::is_valid(&d).await,
-                "kafka" => runners::kafka::is_valid(&d).await,
-                "mqtt" => runners::mqtt::is_valid(&d).await,
-                "opc" | "opcda" | "opcua" => runners::opc::is_valid(&d).await, //TODO
-                "opentsdb" => runners::opentsdb::is_valid(&d).await,
-                "pi" => runners::pi::is_pi_valid(&d).await,
-                "pibackfill" => runners::pi::is_pi_backfill_valid(&d).await,
-                "taos" => taosx_core::taoz::is_taos_valid(&d).await,
-                "tmq" => taosx_core::tmq::is_tmq_valid(&d).await,
-                &_ => DataSourceValidation::unknown(),
+            let via = query.via;
+            match via {
+                None => validate_dsn(d).await,
+                Some(agent) => controller.validate_dsn_via_agent(agent, d).await,
             }
         }
     }
-}
-
-#[derive(Deserialize, Debug, ToSchema, IntoParams)]
-pub struct DsnValidationQuery {
-    #[param(allow_reserved)]
-    dsn: String,
-    via: Option<String>,
-    timeout: Option<u64>,
 }
 
 #[utoipa::path(
@@ -342,6 +340,7 @@ async fn download_all_point_csv_file(
 }
 
 use crate::serve::TaskController;
+
 pub(crate) async fn get_all_points(
     from: String,
     via: Option<i64>,

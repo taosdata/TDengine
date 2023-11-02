@@ -10,10 +10,10 @@ use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
+use crate::dsv::DataSourceValidation;
 use crate::plugins::runners::historian::arrow::ArrowDataAppender;
 use crate::plugins::runners::historian::config::SourceConfig;
 use crate::utils::port_pool::PortPool;
-use crate::validation::DataSourceValidation;
 use crate::{build_ipc, Action, Parser, Transferred};
 
 mod arrow;
@@ -283,7 +283,7 @@ mod tests {
 
     #[ignore]
     #[tokio::test]
-    async fn test_valid(){
+    async fn test_valid() {
         let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433/").unwrap();
         let res = is_valid(&dsn).await;
         assert_eq!(true, res.valid);

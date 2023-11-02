@@ -51,7 +51,8 @@ pub fn set_env_plugins_home_dir(config: Option<String>) {
                             std::env::set_var(ENV_PLUGINS_HOME, default);
                         }
                         // 兼容日志路径
-                        let logs_home = std::env::var(ENV_LOGS_HOME).or(std::env::var(ENV_TAOSX_LOGS_HOME));
+                        let logs_home =
+                            std::env::var(ENV_LOGS_HOME).or(std::env::var(ENV_TAOSX_LOGS_HOME));
                         match logs_home {
                             Ok(home) => {
                                 std::env::set_var(ENV_LOGS_HOME, home);
@@ -100,7 +101,8 @@ pub fn set_env_plugins_home_dir(config: Option<String>) {
 
 #[inline]
 pub fn get_plugins_home_dir() -> PathBuf {
-    Path::new(&std::env::var(ENV_PLUGINS_HOME).unwrap_or(ENV_PLUGINS_HOME_DEFAULT.to_string())).to_path_buf()
+    Path::new(&std::env::var(ENV_PLUGINS_HOME).unwrap_or(ENV_PLUGINS_HOME_DEFAULT.to_string()))
+        .to_path_buf()
 }
 
 #[inline]
@@ -153,7 +155,8 @@ pub fn set_env_log_home_dir(config: Option<String>) {
     if let Some(log_home_dir) = config {
         std::env::set_var(ENV_LOGS_HOME, log_home_dir);
     } else {
-        let log_home_dir = std::env::var(ENV_TAOSX_LOGS_HOME).unwrap_or(ENV_LOGS_HOME_DEFAULT.to_string());
+        let log_home_dir =
+            std::env::var(ENV_TAOSX_LOGS_HOME).unwrap_or(ENV_LOGS_HOME_DEFAULT.to_string());
         std::env::set_var(ENV_LOGS_HOME, log_home_dir);
     }
 }

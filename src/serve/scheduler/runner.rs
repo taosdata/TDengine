@@ -12,6 +12,7 @@ use dashmap::DashMap;
 use metrics::atomics::AtomicU64;
 use multi_index_map::MultiIndexMap;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use taosx_core::dsv::DataSourceValidation;
 use taosx_core::{get_data_dir, utils::port_pool::PortPool, ConnectorLicense, DataSet, TaskOpts};
 use tokio::sync::{oneshot, Mutex, RwLock};
 use tokio_cron_scheduler::JobScheduler;
@@ -291,6 +292,15 @@ impl AgentRuntimeRef {
     ) -> anyhow::Result<Vec<DataSet>> {
         match self {
             Self::Server(rt) => rt.list_data_sets(agent_id, req).await,
+            Self::Client(_) => {
+                bail!("not implemented")
+            }
+        }
+    }
+
+    pub async fn check(&self, agent_id: i64, req: String) -> anyhow::Result<DataSourceValidation> {
+        match self {
+            Self::Server(rt) => rt.check(agent_id, req).await,
             Self::Client(_) => {
                 bail!("not implemented")
             }

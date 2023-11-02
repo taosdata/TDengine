@@ -19,8 +19,8 @@ use tracing::Span;
 
 use taosx_ipc::prelude::ArrowDataType;
 
+use crate::plugins::dsv::DataSourceValidation;
 use crate::plugins::runners::kafka::config::SourceConfig;
-use crate::plugins::validation::DataSourceValidation;
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, Action, Parser, Transferred};
 
@@ -354,7 +354,10 @@ mod tests {
         assert_eq!(false, result.valid);
         assert_eq!(false, result.support);
         assert_eq!("kafka", result.data_source);
-        assert_eq!("failed to connect to kafka, cause: No host reachable", result.message.unwrap());
+        assert_eq!(
+            "failed to connect to kafka, cause: No host reachable",
+            result.message.unwrap()
+        );
     }
 
     #[ignore]

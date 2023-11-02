@@ -1,6 +1,6 @@
 use crate::get_data_dir;
 use std::path::PathBuf;
-use tracing::{info, debug};
+use tracing::{debug, info};
 
 fn breakpoints_db_dir(task_id: &str) -> PathBuf {
     let path = get_data_dir();

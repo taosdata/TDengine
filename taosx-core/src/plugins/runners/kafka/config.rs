@@ -70,7 +70,9 @@ impl SourceConfig {
         let mut bootstrap_servers = Vec::new();
         for address in dsn.addresses.iter() {
             if address.host.is_none() || address.port.is_none() {
-                return Err(anyhow::anyhow!("invalid bootstrap_servers, cause: host or port is none"));
+                return Err(anyhow::anyhow!(
+                    "invalid bootstrap_servers, cause: host or port is none"
+                ));
             }
             bootstrap_servers.push(format!(
                 "{}:{}",
@@ -87,7 +89,7 @@ impl SourceConfig {
             .unwrap_or(&"false".to_string())
             .parse()
             .map_err(|e: ParseBoolError| {
-                anyhow::anyhow!("invalid use_ssl, cause: {}",e.to_string())
+                anyhow::anyhow!("invalid use_ssl, cause: {}", e.to_string())
             })
     }
 
