@@ -1116,7 +1116,6 @@ static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransActi
 
 static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransAction *pAction) {
   if (pAction->msgSent){
-    /*
     if (pAction->msgReceived) {
       if (pAction->errCode != 0 && pAction->errCode != pAction->acceptableCode) {
         mndTransResetAction(pMnode, pTrans, pAction);
@@ -1124,7 +1123,6 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
         mInfo("trans:%d, %s execute successfully", pTrans->id, mndTransStr(pAction->stage));
       }
     } 
-    */
     return 0;
   } 
   if (mndCannotExecuteTransAction(pMnode)) return -1;
