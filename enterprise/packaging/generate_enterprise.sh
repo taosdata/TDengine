@@ -99,7 +99,7 @@ fi
 # modify tar.gz to append taoskeeper
 cd $communityDir/release
 
-server_tar=$(ls *-enterprise-server-*.tar.gz)
+server_tar=$(ls *-enterprise-*.tar.gz | grep -v client)
 [ "$server_tar" == "" ] && exit # build taoskeeper only with server
 
 echo "build taoskeeper"
@@ -119,14 +119,14 @@ taoskeeper_binary=`$scriptDir/build_taoskeeper.sh -r $arch -e taoskeeperinternal
 
 set -e
 # unpack server package and repack with taoskeeper binary and service file.
-prefix=$(echo $server_tar |grep -Eo ".*-enterprise-server-[^\-]+")
+prefix=$(echo $server_tar |grep -Eo ".*-enterprise-[^\-]+")
 tar xf $server_tar
 [ -d "$prefix/taos" ] || mkdir $prefix/taos
 tar xf $prefix/package.tar.gz -C $prefix/taos/
 cp -f $taoskeeper_binary $prefix/taos/bin/
 cp -f $(dirname $taoskeeper_binary)/taoskeeper.service $prefix/taos/cfg/
 cp -f $(dirname $taoskeeper_binary)/config/taoskeeper.toml $prefix/taos/cfg/
-cat $scriptDir/remove_taoskeeper.sh >> $prefix/taos/bin/remove.sh
+# cat $scriptDir/remove_taoskeeper.sh >> $prefix/taos/bin/remove.sh
 cat $scriptDir/install_taoskeeper.sh >> $prefix/install.sh
 cd $prefix/taos && tar acf ../package.tar.gz ./ && cd ../../
 rm -rf $prefix/taos

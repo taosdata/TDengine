@@ -36,7 +36,6 @@ prepare_repo_taoskeeper() {
 
 checkout_latest_tag() {
   cd build-taoskeeper
-
   git fetch
   # get latest tag
   latest=`git tag --sort=-creatordate | head -1`

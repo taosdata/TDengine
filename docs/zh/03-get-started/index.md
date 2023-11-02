@@ -1,6 +1,6 @@
 ---
-title: TDengine 企业版
-description: 企业版特有功能和工具
+title: 安装与部署指南
+sidebar_label: 安装与部署
 ---
 
 ```mdx-code-block

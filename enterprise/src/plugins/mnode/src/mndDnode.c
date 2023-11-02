@@ -20,6 +20,7 @@
 #include "mndVgroup.h"
 #include "mndDb.h"
 #include "mndQnode.h"
+#include "audit.h"
 
 int32_t mndRestoreDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, int8_t restoreType) {
   int32_t  code = -1;
@@ -138,6 +139,22 @@ _OVER:
   return code;
 }
 
+char* mndAuditRestoreDnodeTypeStr(int8_t type){
+  switch (type)
+  {
+  case RESTORE_TYPE__ALL:
+    return "restore dnode";
+  case RESTORE_TYPE__MNODE:
+    return "restore mnode";
+  case RESTORE_TYPE__VNODE:
+    return "restore vnode";
+  case RESTORE_TYPE__QNODE:
+    return "restore qnode";
+  }
+
+  return "error";  
+}
+
 int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq){
   SMnode       *pMnode = pReq->info.node;
   int32_t       code = -1;
@@ -183,6 +200,10 @@ int32_t mndProcessRestoreDnodeReqImpl(SRpcMsg *pReq){
   code = mndRestoreDnode(pMnode, pReq, pDnode, restoreReq.restoreType);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
+  char obj[32] = {0};
+  sprintf(obj, "%d", restoreReq.dnodeId);
+
+  auditRecord(pReq, pMnode->clusterId, "restore", "", obj, restoreReq.sql, restoreReq.sqlLen);
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("dnode:%d, failed to restore, restoreType:%d,  since %s", 
@@ -190,5 +211,6 @@ _OVER:
   }
 
   mndReleaseDnode(pMnode, pDnode);
+  tFreeSRestoreDnodeReq(&restoreReq);
   return code;
 }
