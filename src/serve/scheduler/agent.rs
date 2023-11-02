@@ -185,7 +185,7 @@ impl AgentWorker {
                                 }
                                 AgentNotify::TaskActivity(_, activity) => {
                                     let agent_tasks = agent_tasks_sender_clone.read().await;
-                                    dbg!(&agent_tasks);
+                                    // dbg!(&agent_tasks);
                                     if let Some(task) = agent_tasks.get_by_task_id(&activity.id) {
                                         if let Err(err) = task.sender.send(activity.clone()).await {
                                             tracing::warn!("Error sending task activity {:?}", err);
@@ -261,7 +261,7 @@ impl AgentWorker {
         }
     }
 
-    pub async fn cancel(&self, task_id: TaskId) {
+    pub async fn suspend(&self, task_id: TaskId) {
         let agent_tasks = self.agent_tasks_sender.read().await;
         if let Some(task) = agent_tasks.get_by_task_id(&task_id) {
             if let Err(err) = self

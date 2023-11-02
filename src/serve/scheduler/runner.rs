@@ -220,10 +220,10 @@ impl AgentRuntimeRef {
             Self::Client(_) => {}
         }
     }
-    async fn cancel(&self, task_id: TaskId) {
+    async fn suspend(&self, task_id: TaskId) {
         match self {
             Self::Server(rt) => {
-                rt.cancel(task_id).await;
+                rt.suspend(task_id).await;
             }
             Self::Client(_) => {}
         }
@@ -339,7 +339,7 @@ pub struct AgentWaiter {
     agent_close_waiter: Arc<Mutex<Option<oneshot::Receiver<anyhow::Result<()>>>>>,
 }
 
-/// Inner state of task under job scheduler.
+/// Inner state or one-shot state of task under job scheduler.
 ///
 /// 1. Initial state is `Queued`.
 /// 2. When task is spawned, the state will be `Running`.
@@ -742,7 +742,7 @@ impl TaskJob {
 
         // Remove agent task.
         if self.task.task.via.is_some() {
-            self.global.agent_runtime.cancel(self.task.task.id).await;
+            self.global.agent_runtime.suspend(self.task.task.id).await;
         }
         {
             self.task.state.read().await.clone()
@@ -769,6 +769,7 @@ impl TaskJob {
 
         if let Some(agent_id) = opts.task.via {
             tokio::spawn(async move {
+                #[derive(Debug)]
                 enum AgentTaskState {
                     Stopped,
                     Failed,
@@ -848,6 +849,10 @@ impl TaskJob {
                         let mut recv = agent_activities.write().await;
                         match recv.recv().await {
                             Some(mut activity) => {
+                                tracing::warn!(
+                                    activity = activity.activity,
+                                    status = activity.status
+                                );
                                 match activity.status.as_str() {
                                     "started" => {
                                         tracing::info!("task started");
@@ -870,6 +875,7 @@ impl TaskJob {
                                     "suspended" => {
                                         tracing::info!("task suspended");
                                         global.send_task_activity(activity);
+                                        state.state.write().await.stopped();
                                         break Ok(AgentTaskState::Suspended);
                                     }
                                     "completed" => {
@@ -931,7 +937,7 @@ impl TaskJob {
                         let operator = state.operator.operator();
                         // wait for agent receive timeout.
                         match tokio::time::timeout(
-                            Duration::from_secs(60 * 5),
+                            Duration::from_secs(60),
                             agent_activities_listener(operator, is_cron_job, &global, &state, task_id, agent_id, jid, run_id, agent_activities.clone()),
                         )
                         .await
@@ -959,6 +965,7 @@ impl TaskJob {
                         res
                     },
                 };
+                dbg!(&res);
                 match res {
                     Ok(AgentTaskState::Stopped)
                     | Ok(AgentTaskState::Failed)
@@ -1026,8 +1033,13 @@ impl TaskJob {
                 let state = state_guard.as_ref().expect("task should have a last state");
                 match state {
                     LastState::Done => {
-                        global.send_task_activity(TaskActivity::completed(opts.task.id, jid));
-                        opts.state.write().await.completed();
+                        if should_stop {
+                            global.send_task_activity(TaskActivity::completed(opts.task.id, jid));
+                            opts.state.write().await.completed();
+                        } else {
+                            global.send_task_activity(TaskActivity::tick(opts.task.id, jid));
+                            opts.state.write().await.ticked();
+                        }
                     }
                     LastState::Stopped => match opts.operator.operator() {
                         Operator::Suspend => {

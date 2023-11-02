@@ -421,7 +421,7 @@ impl TaskController {
                 match rx.recv().await {
                     Ok(notify) => match notify {
                         crate::serve::scheduler::SchedulerNotify::TaskActivity(task) => {
-                            tracing::info!(
+                            tracing::debug!(
                                 "task: {} {:?} {:?}",
                                 task.id,
                                 task.activity,
@@ -432,7 +432,7 @@ impl TaskController {
                             }
                         }
                         crate::serve::scheduler::SchedulerNotify::AgentActivity(agent) => {
-                            tracing::info!(
+                            tracing::debug!(
                                 "agent: {} {:?} {:?}",
                                 agent.id,
                                 agent.activity,
