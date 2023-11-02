@@ -2331,8 +2331,8 @@ FETCH_NEXT_BLOCK:
       return NULL;
     }
 
-    int32_t current = pInfo->validBlockIndex++;
-    qDebug("process %d/%d input data blocks, %s", current, (int32_t)total, id);
+    int32_t  current = pInfo->validBlockIndex++;
+    qDebug("process %d/%d input data blocks, %s", current, (int32_t) total, id);
 
     SPackedData* pData = taosArrayGet(pInfo->pBlockLists, current);
     SSDataBlock* pBlock = taosArrayGet(pData->pDataBlock, 0);

@@ -290,8 +290,8 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   tsem_wait(&pVnode->canCommit);
 
   if(syncNodeGetConfig(pVnode->sync, &pVnode->config.syncCfg) != 0) goto _exit;
-  
-  code = smaPrepareAsyncCommit(pVnode->pSma);
+
+  code = smaPrepareAsyncCommit(pVnode->pSma);  // prepare checkpointId and save to vnode.json
   if (code) goto _exit;
 
   pVnode->state.commitTerm = pVnode->state.applyTerm;

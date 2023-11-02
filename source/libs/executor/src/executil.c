@@ -1967,19 +1967,9 @@ int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t
     pTableList->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   }
 
-  for(int32_t i=0; i< taosArrayGetSize(pTableList->pTableList); ++i) {
-    STableKeyInfo* pKeyInfo = taosArrayGet(pTableList->pTableList, i);
-    if(pKeyInfo->uid == uid) {
-      assert(0);
-    }
-  }
-
   STableKeyInfo keyInfo = {.uid = uid, .groupId = gid};
   taosArrayPush(pTableList->pTableList, &keyInfo);
 
-  if(taosHashGet(pTableList->map, &uid, sizeof(uid))) {
-    assert(0);
-  }
   int32_t slot = (int32_t)taosArrayGetSize(pTableList->pTableList) - 1;
   taosHashPut(pTableList->map, &uid, sizeof(uid), &slot, sizeof(slot));
 
