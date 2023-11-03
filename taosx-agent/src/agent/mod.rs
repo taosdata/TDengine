@@ -320,6 +320,26 @@ impl Client {
                     tracing::info!("{item:?}");
                     item
                 }
+                RespAction::CheckOk(response) => {
+                    let val = Arc::new(TimestampMillisecondArray::from_iter_values([
+                        Utc::now().timestamp_millis()
+                    ])) as ArrayRef;
+                    let context: ArrayRef =
+                        Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                            &response,
+                        )
+                        .unwrap()]));
+                    let action: ArrayRef =
+                        Arc::new(StringArray::from_iter_values(["check".to_string()]));
+                    let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+                    let item = RecordBatch::try_from_iter(vec![
+                        ("ts", val),
+                        ("action", action),
+                        ("context", context),
+                        ("req_id", req_id),
+                    ]);
+                    item
+                }
                 RespAction::AgentActivity(activity) => {
                     let val = Arc::new(TimestampMillisecondArray::from_iter_values([
                         Utc::now().timestamp_millis()
@@ -465,7 +485,9 @@ impl Client {
                                 }))
                                 .await;
                             if let Err(err) = send_ok {
-                                tracing::error!("Can't send data source validation response to server: {err:#}");
+                                tracing::error!(
+                                    "Can't send data source validation response to server: {err:#}"
+                                );
                             }
                         });
                     }

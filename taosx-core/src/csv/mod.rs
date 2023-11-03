@@ -92,6 +92,7 @@ pub async fn csv_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    notify: crate::TaskNotifySender,
 ) -> Result<()> {
     let port = port_pool
         .get()
@@ -108,6 +109,7 @@ pub async fn csv_to_taos(
         transferred,
         span,
         None,
+        notify,
     )
     .await?;
 

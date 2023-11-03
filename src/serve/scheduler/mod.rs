@@ -330,7 +330,7 @@ impl TaskScheduler {
 
         let state = task_job.stop().await;
 
-        if state.is_stopped() {
+        if state.ready_to_remove_job() {
             // If job has not been ticked, remove task state handler directly.
             tasks.remove_by_task_id(&task);
             tracing::info!(task.id = task, job.id = %job_id, "task `{task}` is stopped");
@@ -357,7 +357,7 @@ impl TaskScheduler {
 
         let state = task_job.suspend().await;
 
-        if state.is_stopped() {
+        if state.ready_to_remove_job() {
             // If job has not been ticked, remove task state handler directly.
             tasks.remove_by_task_id(&task);
             tracing::info!(task.id = task, job.id = %job_id, "task `{task}` is suspended");

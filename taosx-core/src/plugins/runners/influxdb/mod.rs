@@ -57,6 +57,7 @@ pub async fn influxdb_to_taos(
     transferred: Option<Arc<Transferred>>,
     span: Span,
     task_id: Option<i64>,
+    notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     let ipc_port = port_pool
         .get()
@@ -85,6 +86,7 @@ pub async fn influxdb_to_taos(
         transferred,
         span,
         task_id,
+        notify,
     )
     .await?;
 

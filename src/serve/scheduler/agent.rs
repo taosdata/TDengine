@@ -344,10 +344,7 @@ impl AgentWorker {
             .recv_async()
             .await
             .map_err(|err| anyhow::anyhow!("Receiving data source validation error: {:#}", err))?;
-        match res {
-            Ok(validation) => Ok(validation),
-            Err(err) => Err(anyhow::anyhow!("Error validating data source: {:#}", err)),
-        }
+        Ok(res)
     }
 
     pub(crate) async fn remove_task(&self, task_id: TaskId) {

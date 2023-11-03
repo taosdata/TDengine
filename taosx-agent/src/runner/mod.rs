@@ -12,7 +12,7 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use taosx_core::{Activity, LevelFilter, RespAction, TaskOpts};
+use taosx_core::{Activity, LevelFilter, RespAction, TaskNotify, TaskOpts};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
@@ -124,6 +124,8 @@ pub fn spawn_runner(
                             let cancellation = CancellationToken::new();
                             let cancel = cancellation.clone();
 
+                            let (task_tx, task_rx) = flume::unbounded();
+
                             let opts = TaskOpts {
                                 transform: vec![],
                                 from: task.from.parse().unwrap(),
@@ -144,7 +146,48 @@ pub fn spawn_runner(
                                 transferred: None,
                                 span: tracing::info_span!("agent::tasks::run"),
                                 task_id: Some(task.id.to_string()),
+                                notify: task_tx,
                             };
+                            let status_sender = status_tx.clone();
+                            tokio::spawn(async move {
+                                while let Ok(status) = task_rx.recv_async().await {
+                                    let activity = match status {
+                                        TaskNotify::Error(message) => Activity::new(
+                                            task.id,
+                                            Utc::now(),
+                                            LevelFilter::Error,
+                                            format!("Task {} error: {}", task.id, message),
+                                            "running",
+                                            json!({
+                                                "task": task.id,
+                                                "message": message,
+                                            }),
+                                        ),
+                                        TaskNotify::Warn(message) => Activity::new(
+                                            task.id,
+                                            Utc::now(),
+                                            LevelFilter::Warn,
+                                            message,
+                                            "running",
+                                            json!({
+                                                "task": task.id,
+                                            }),
+                                        ),
+                                        TaskNotify::Info(message) => Activity::new(
+                                            task.id,
+                                            Utc::now(),
+                                            LevelFilter::Info,
+                                            message,
+                                            "running",
+                                            json!({
+                                                "task": task.id,
+                                            }),
+                                        ),
+                                        _ => unreachable!(),
+                                    };
+                                    let _ = status_sender.send_async(activity).await;
+                                }
+                            });
                             let pool = port_pool.clone();
                             let status_tx = status_tx.clone();
                             let sender = sender.clone();

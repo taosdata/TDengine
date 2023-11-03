@@ -12,7 +12,7 @@ use dashmap::DashMap;
 use metrics::atomics::AtomicU64;
 use multi_index_map::MultiIndexMap;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
-use taosx_core::dsv::DataSourceValidation;
+use taosx_core::{dsv::DataSourceValidation, TaskNotify, TaskNotifyReceiver};
 use taosx_core::{get_data_dir, utils::port_pool::PortPool, ConnectorLicense, DataSet, TaskOpts};
 use tokio::sync::{oneshot, Mutex, RwLock};
 use tokio_cron_scheduler::JobScheduler;
@@ -33,7 +33,7 @@ use super::{
 
 #[instrument(skip_all)]
 #[async_backtrace::framed]
-async fn task_opts_init(task: &Task) -> anyhow::Result<TaskOpts> {
+async fn task_opts_init(task: &Task) -> anyhow::Result<(TaskOpts, TaskNotifyReceiver)> {
     let id = task.id;
     let from = if let Some(topic) = task.oneshot_topic.as_deref() {
         let mut from: Dsn = task.from.parse()?;
@@ -92,26 +92,32 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<TaskOpts> {
 
     let breakpoints = task.breakpoints.clone();
 
-    Ok(TaskOpts {
-        transform: vec![],
-        from: from.clone(),
-        to: to_dsn.clone(),
-        parser: task
-            .parser
-            .as_ref()
-            .map(|v| serde_json::from_value(v.clone()).unwrap()),
-        jobs: 0,
-        compression_level: None,
-        force: true,
-        cancel: CancellationToken::new(),
-        // port_pool: ONCE,
-        with_agent: None,
-        breakpoints,
-        offsets,
-        transferred: None,
-        span: span.clone(),
-        task_id: Some(id.to_string()),
-    })
+    let (notify, notify_rx) = flume::unbounded();
+
+    Ok((
+        TaskOpts {
+            transform: vec![],
+            from: from.clone(),
+            to: to_dsn.clone(),
+            parser: task
+                .parser
+                .as_ref()
+                .map(|v| serde_json::from_value(v.clone()).unwrap()),
+            jobs: 0,
+            compression_level: None,
+            force: true,
+            cancel: CancellationToken::new(),
+            // port_pool: ONCE,
+            with_agent: None,
+            breakpoints,
+            offsets,
+            transferred: None,
+            span: span.clone(),
+            task_id: Some(id.to_string()),
+            notify,
+        },
+        notify_rx,
+    ))
 }
 
 async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyhow::Result<()> {
@@ -121,12 +127,24 @@ async fn run_task(global: &GlobalState, task: &TaskState, job_id: &Uuid) -> anyh
     let task = &state.task;
     let task_id = task.id;
 
-    let opts = task_opts_init(task).await?;
+    let (opts, task_rx) = task_opts_init(task).await?;
     tracing::info!("start worker");
     // set current dir for upload files
     let path = get_data_dir();
     let _ = std::env::set_current_dir(&path);
     let instant = std::time::Instant::now();
+    let global_sender = global.clone();
+    tokio::spawn(async move {
+        while let Ok(message) = task_rx.recv_async().await {
+            let activity = match message {
+                TaskNotify::Error(message) => TaskActivity::error(task_id, message),
+                TaskNotify::Warn(message) => TaskActivity::warn(task_id, message),
+                TaskNotify::Info(message) => TaskActivity::running(task_id, message),
+                _ => unreachable!(),
+            };
+            global_sender.send_task_activity(activity);
+        }
+    });
     let res = opts.run(&global.port_pool).in_current_span().await;
     tracing::Span::current().record("task.elapsed", tracing::field::debug(instant.elapsed()));
     if let Err(error) = res {
@@ -374,6 +392,16 @@ impl InnerState {
     pub fn is_queued(&self) -> bool {
         matches!(self, InnerState::Queued)
     }
+    pub fn is_idle(&self) -> bool {
+        matches!(
+            self,
+            InnerState::Queued
+                | InnerState::Stopped
+                | InnerState::Completed
+                | InnerState::Interrupted
+                | InnerState::Ticked
+        )
+    }
 
     pub fn in_final_state(&self) -> bool {
         matches!(
@@ -406,6 +434,16 @@ impl InnerState {
 
     pub(crate) fn is_stopped(&self) -> bool {
         matches!(self, InnerState::Stopped)
+    }
+    pub(crate) fn ready_to_remove_job(&self) -> bool {
+        matches!(
+            self,
+            InnerState::Completed
+                | InnerState::Stopped
+                | InnerState::Failed(_)
+                | InnerState::Interrupted
+                | InnerState::Ticked
+        )
     }
     pub fn start(&mut self) -> anyhow::Result<&mut Self> {
         match self {
@@ -675,7 +713,7 @@ impl TaskJob {
         {
             // cancel spawned task.
             let mut state = self.task.state.write().await;
-            if state.is_queued() {
+            if state.is_idle() {
                 // Job has not been ticked yet (one it's ticked, state should be running)
 
                 // Send stopped state directly.
@@ -719,7 +757,7 @@ impl TaskJob {
         {
             // cancel spawned task.
             let mut state = self.task.state.write().await;
-            if state.is_queued() {
+            if state.is_idle() {
                 // Job has not been ticked yet (one it's ticked, state should be running)
 
                 // Send stopped state directly.

@@ -22,7 +22,7 @@ use semver::VersionReq;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use taos::IntoDsn;
-use taosx_core::{get_data_dir, HeartbeatResponse, ListResponse};
+use taosx_core::{get_data_dir, CheckResponse, HeartbeatResponse, ListResponse};
 #[cfg(unix)]
 use tokio::net::UnixListener;
 use tokio::sync::RwLock;
@@ -51,7 +51,7 @@ use crate::serve::{
 };
 
 use super::{
-    controller::{AgentAction, AgentDataSetsSender, Task, TaskControllerRef},
+    controller::{AgentAction, AgentDataSetsSender, DsvSender, Task, TaskControllerRef},
     scheduler::agent::{AgentActionsReceiver, AgentId, AgentNotifySender},
 };
 
@@ -80,11 +80,13 @@ pub(super) struct FlightServiceImpl {
     activity_receiver: Arc<AgentActionsReceiver>,
     request_id: Arc<AtomicU64>,
     datasets_senders: Arc<RwLock<LinkedHashMap<u64, AgentDataSetsSender>>>,
+    dsv_senders: Arc<RwLock<LinkedHashMap<u64, DsvSender>>>,
 }
 
 async fn action_to_arrow(
     request_id: &Arc<AtomicU64>,
     datasets_senders: &Arc<RwLock<LinkedHashMap<u64, AgentDataSetsSender>>>,
+    dsv_senders: &Arc<RwLock<LinkedHashMap<u64, DsvSender>>>,
     controller: &TaskControllerRef,
     action: AgentAction,
 ) -> anyhow::Result<Option<RecordBatch>> {
@@ -206,6 +208,30 @@ async fn action_to_arrow(
             });
             return Ok(Some(batch));
         }
+        AgentAction::Check(dataset, sender) => {
+            let context: ArrayRef =
+                Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                    &dataset,
+                )
+                .unwrap()]));
+            let action: ArrayRef = Arc::new(StringArray::from_iter_values(["list".to_string()]));
+            let req_id_array: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+            let batch = RecordBatch::try_from_iter(vec![
+                ("ts", ts),
+                ("action", action),
+                ("context", context),
+                ("req_id", req_id_array),
+            ])
+            .context("failed to build record batch")?;
+
+            let dsv_senders = dsv_senders.clone();
+            tokio::spawn(async move {
+                let mut receiver = dsv_senders.write().await;
+
+                receiver.insert(req_id, sender);
+            });
+            return Ok(Some(batch));
+        }
         action => {
             tracing::warn!("Unknown action: {action:?}");
             return Ok(None);
@@ -247,9 +273,10 @@ impl FlightServiceImpl {
 
         let (tx, rx) = flume::bounded(1000);
         let tx_cloned = tx.clone();
-        let (req_id, senders, controller) = (
+        let (req_id, senders, dsv_senders, controller) = (
             self.request_id.clone(),
             self.datasets_senders.clone(),
+            self.dsv_senders.clone(),
             self.controller.clone(),
         );
         tokio::spawn(async move {
@@ -260,13 +287,16 @@ impl FlightServiceImpl {
                 match receiver.recv().await {
                     Ok((id, action)) => {
                         if id == agent_id {
-                            if let Some(batch) =
-                                action_to_arrow(&req_id, &senders, &controller, action)
-                                    .await
-                                    .map_err(|err| {
-                                        FlightError::Tonic(Status::internal(err.to_string()))
-                                    })
-                                    .transpose()
+                            if let Some(batch) = action_to_arrow(
+                                &req_id,
+                                &senders,
+                                &dsv_senders,
+                                &controller,
+                                action,
+                            )
+                            .await
+                            .map_err(|err| FlightError::Tonic(Status::internal(err.to_string())))
+                            .transpose()
                             {
                                 if let Err(err) = tx.send_async(batch).await {
                                     tracing::info!(agent_id, "Task listener disconnected: {err:#}");
@@ -495,6 +525,7 @@ impl FlightService for FlightServiceImpl {
         let resp_tx = tx.clone();
         let notify_sender = self.notify_sender.clone();
         let datasets_sender = self.datasets_senders.clone();
+        let dsv_senders = self.dsv_senders.clone();
         tokio::spawn(async move {
             let span = tracing::trace_span!("agent_rpc", agent = agent_id);
             let _enter = span.enter();
@@ -564,6 +595,32 @@ impl FlightService for FlightServiceImpl {
                                             let req_id = resp.req_id;
                                             if let Some(sender) =
                                                 datasets_senders.write().await.remove(&req_id)
+                                            {
+                                                if let Err(err) = sender.send_async(resp.res).await {
+                                                    warn!(
+                                                        agent = agent_id,
+                                                        req_id = req_id,
+                                                        "List data sets response send failed: {err:#}"
+                                                    );
+                                                }
+                                            } else {
+                                                warn!(
+                                                    agent = agent_id,
+                                                    req_id = req_id,
+                                                    "List data sets request id has no receiver"
+                                                );
+                                            }
+                                        });
+                                    }
+                                    "check" => {
+                                        let resp: CheckResponse =
+                                            serde_json::from_str(&context).unwrap();
+
+                                        let dsv_senders = dsv_senders.clone();
+                                        tokio::spawn(async move {
+                                            let req_id = resp.req_id;
+                                            if let Some(sender) =
+                                                dsv_senders.write().await.remove(&req_id)
                                             {
                                                 if let Err(err) = sender.send_async(resp.res).await {
                                                     warn!(
@@ -852,6 +909,7 @@ impl RpcConfig {
             notify_sender: channel.agent_notify_sender,
             activity_receiver: Arc::new(activity_receiver),
             datasets_senders: Arc::new(RwLock::new(LinkedHashMap::new())),
+            dsv_senders: Arc::new(RwLock::new(LinkedHashMap::new())),
             request_id: Arc::new(AtomicU64::new(0)),
         };
         let flight_service = FlightServiceServer::new(service);

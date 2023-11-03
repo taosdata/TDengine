@@ -264,7 +264,7 @@ pub(super) async fn data_source_is_valid(
     }
 }
 
-pub async fn is_valid(
+pub(crate) async fn is_valid(
     controller: Data<TaskControllerRef>,
     query: DsnValidationQuery,
 ) -> DataSourceValidation {

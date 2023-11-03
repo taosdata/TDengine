@@ -64,6 +64,7 @@ pub async fn mqtt_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     let ipc_port = port_pool
         .get()
@@ -91,6 +92,7 @@ pub async fn mqtt_to_taos(
         transferred,
         span,
         None,
+        notify,
     )
     .await?;
 
