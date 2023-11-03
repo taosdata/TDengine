@@ -28,7 +28,6 @@
 #include "taos_metric_t.h"
 #include "taos_string_builder_i.h"
 
-#include <sys/time.h>
 
 taos_metric_formatter_t *taos_metric_formatter_new() {
   taos_metric_formatter_t *self = (taos_metric_formatter_t *)taos_malloc(sizeof(taos_metric_formatter_t));
