@@ -58,6 +58,7 @@ void destroyStreamEventOperatorInfo(void* param) {
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   blockDataDestroy(pInfo->pDelRes);
   tSimpleHashCleanup(pInfo->pSeUpdated);
+  tSimpleHashCleanup(pInfo->pAllUpdated);
   tSimpleHashCleanup(pInfo->pSeDeleted);
   pInfo->pUpdated = taosArrayDestroy(pInfo->pUpdated);
   cleanupGroupResInfo(&pInfo->groupResInfo);
@@ -326,6 +327,10 @@ static void doStreamEventAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
     compactEventWindow(pOperator, &curWin, pInfo->pSeUpdated, pInfo->pSeDeleted, false);
     saveSessionOutputBuf(pAggSup, &curWin.winInfo);
 
+    if (pInfo->isHistoryOp) {
+      saveResult(curWin.winInfo, pInfo->pAllUpdated);
+    }
+
     if (isWindowIncomplete(&curWin)) {
       continue;
     }
@@ -527,7 +532,10 @@ static SSDataBlock* doStreamEventAgg(SOperatorInfo* pOperator) {
   removeSessionDeleteResults(pInfo->pSeDeleted, pInfo->pUpdated);
 
   if (pInfo->isHistoryOp) {
-    getMaxTsWins(pInfo->pUpdated, pInfo->historyWins);
+    SArray* pHisWins = taosArrayInit(16, sizeof(SEventWindowInfo));
+    copyUpdateResult(&pInfo->pAllUpdated, pHisWins, sessionKeyCompareAsc);
+    getMaxTsWins(pHisWins, pInfo->historyWins);
+    taosArrayDestroy(pHisWins);
   }
 
   initGroupResInfoFromArrayList(&pInfo->groupResInfo, pInfo->pUpdated);
@@ -594,16 +602,13 @@ void streamEventReloadState(SOperatorInfo* pOperator) {
            pSeKeyBuf[i].groupId, i);
     getSessionWindowInfoByKey(pAggSup, pSeKeyBuf + i, &curInfo.winInfo);
     setEventWindowFlag(pAggSup, &curInfo);
+    if (!curInfo.pWinFlag->startFlag || curInfo.pWinFlag->endFlag) {
+      continue;
+    }
+
     compactEventWindow(pOperator, &curInfo, pInfo->pSeUpdated, pInfo->pSeDeleted, false);
     qDebug("===stream=== reload state. save result %" PRId64 ", %" PRIu64, curInfo.winInfo.sessionWin.win.skey,
             curInfo.winInfo.sessionWin.groupId);
-    if (isWindowIncomplete(&curInfo)) {
-      if (curInfo.winInfo.isOutput) {
-        ASSERT(0);
-        saveDeleteRes(pInfo->pSeDeleted, curInfo.winInfo.sessionWin);
-      }
-      continue;
-    }
 
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE) {
       saveResult(curInfo.winInfo, pInfo->pSeUpdated);
@@ -692,6 +697,13 @@ SOperatorInfo* createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhys
   }
   if (pHandle) {
     pInfo->isHistoryOp = pHandle->fillHistory;
+  }
+
+  if (pInfo->isHistoryOp) {
+    _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+    pInfo->pAllUpdated = tSimpleHashInit(64, hashFn);
+  } else {
+    pInfo->pAllUpdated = NULL;
   }
 
   pInfo->pCheckpointRes = createSpecialDataBlock(STREAM_CHECKPOINT);

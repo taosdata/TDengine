@@ -620,6 +620,7 @@ typedef struct SStreamEventAggOperatorInfo {
   bool                ignoreExpiredDataSaved;
   SArray*             pUpdated;
   SSHashObj*          pSeUpdated;
+  SSHashObj*          pAllUpdated;
   int64_t             dataVersion;
   bool                isHistoryOp;
   SArray*             historyWins;
