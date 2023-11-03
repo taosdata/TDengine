@@ -514,21 +514,22 @@ async fn validate_pi(config: PiConfig) -> anyhow::Result<DataSourceValidation> {
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
-    config_file.into_temp_path();
+    let config_path = config_file.path().to_path_buf();
+    let temp_file = config_file.into_temp_path(); // close the file to avoid file lock error
 
     // startup the connector
     let pi_exe_path = pi_exe_path()?;
     let mut command = tokio::process::Command::new(pi_exe_path.clone());
     let output = command
         .arg("-c")
-        .arg(config_file.path())
+        .arg(&config_path)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::piped())
         .output()
         .await
         .with_context(|| format!("failed to execute pi: {:?}", pi_exe_path.as_path()))?;
 
-    if output.status.success() {
+   let dsv = if output.status.success() {
         let result: serde_json::Value =
             serde_json::from_slice(&output.stdout).with_context(|| {
                 format!(
@@ -536,22 +537,24 @@ async fn validate_pi(config: PiConfig) -> anyhow::Result<DataSourceValidation> {
                     String::from_utf8_lossy(&output.stdout)
                 )
             })?;
-        Ok(DataSourceValidation {
+        DataSourceValidation {
             valid: result["valid"].as_bool().unwrap_or(false),
             support: result["support"].as_bool().unwrap_or(false),
             data_source: "pi".to_string(),
             version: result["version"].as_str().map(|s| s.to_string()),
             message: result["message"].as_str().map(|s| s.to_string()),
-        })
+        }
     } else {
-        Ok(DataSourceValidation::invalid(
+        DataSourceValidation::invalid(
             "pi".to_string(),
             format!(
                 "failed to execute pi: {}",
                 String::from_utf8_lossy(&output.stderr)
             ),
-        ))
-    }
+        )
+    };
+    temp_file.close()?;
+    Ok(dsv)
 }
 
 #[allow(unused_variables, unreachable_code)]
@@ -594,20 +597,22 @@ async fn validate_pi_backfill(config: PiConfig) -> anyhow::Result<DataSourceVali
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
+    let config_path = config_file.path().to_path_buf();
+    let temp_file = config_file.into_temp_path(); // close the file to avoid file lock error
 
     // startup the connector
     let pi_backfill_exe_path = pi_backfill_exe_path()?;
     let mut command = tokio::process::Command::new(pi_backfill_exe_path.clone());
     let output = command
         .arg("-c")
-        .arg(config_file.path())
+        .arg(&config_path)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::piped())
         .output()
         .await
         .with_context(|| format!("failed to execute pi: {:?}", pi_backfill_exe_path.as_path()))?;
 
-    if output.status.success() {
+    let dsv = if output.status.success() {
         let result: serde_json::Value =
             serde_json::from_slice(&output.stdout).with_context(|| {
                 format!(
@@ -615,22 +620,24 @@ async fn validate_pi_backfill(config: PiConfig) -> anyhow::Result<DataSourceVali
                     String::from_utf8_lossy(&output.stdout)
                 )
             })?;
-        Ok(DataSourceValidation {
+        DataSourceValidation {
             valid: result["valid"].as_bool().unwrap_or(false),
             support: result["support"].as_bool().unwrap_or(false),
             data_source: "pibackfill".to_string(),
             version: result["version"].as_str().map(|s| s.to_string()),
             message: result["message"].as_str().map(|s| s.to_string()),
-        })
+        }
     } else {
-        Ok(DataSourceValidation::invalid(
+        DataSourceValidation::invalid(
             "pibackfill".to_string(),
             format!(
                 "failed to execute pibackfill: {}",
                 String::from_utf8_lossy(&output.stderr)
             ),
-        ))
-    }
+        )
+    };
+    temp_file.close()?;
+    Ok(dsv)
 }
 
 #[cfg(test)]

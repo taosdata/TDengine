@@ -1,38 +1,33 @@
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::pin::Pin;
-use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
-use std::task::Poll;
-use std::time::{Duration, Instant};
+use std::sync::atomic::AtomicU64;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
+use arrow::{
+    datatypes::{DataType, Field, Schema},
+};
 use arrow::array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array};
 use arrow::record_batch::RecordBatch;
-use arrow::{
-    datatypes::{DataType, Field, Schema, SchemaRef},
-    ipc::writer::IpcWriteOptions,
-};
-
-use arrow_flight::FlightClient;
 use arrow_flight::{
-    encode::{FlightDataEncoder, FlightDataEncoderBuilder},
-    error::FlightError,
-    Action as FlightAction, FlightData,
+    Action as FlightAction,
+    encode::FlightDataEncoderBuilder,
 };
+use arrow_flight::FlightClient;
 use cfg_if::cfg_if;
 use chrono::{DateTime, Utc};
-use flume::r#async::RecvStream;
 use flume::{Receiver, Sender};
 use futures::{StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
-use taosx_core::{
-    list_datasets_from, validate_dsn, Activity, CheckResponse, DataSetsReq, Fail,
-    HeartbeatResponse, ListResponse, RespAction,
-};
+use tonic::transport::Endpoint;
 use tonic::transport::Channel;
-use tonic::{codegen::Bytes, transport::Endpoint};
 use tracing::info;
+
+use taosx_core::{
+    Activity, CheckResponse, DataSetsReq, Fail, HeartbeatResponse, list_datasets_from,
+    ListResponse, RespAction, validate_dsn,
+};
 
 use crate::runner::Action;
 
