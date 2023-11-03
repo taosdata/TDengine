@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdatomic.h>
+//#include <stdatomic.h>
 
 // Public
 #include "taos_alloc.h"
@@ -30,7 +30,7 @@ taos_metric_sample_t *taos_metric_sample_new(taos_metric_type_t type, const char
   taos_metric_sample_t *self = (taos_metric_sample_t *)taos_malloc(sizeof(taos_metric_sample_t));
   self->type = type;
   self->l_value = taos_strdup(l_value);
-  self->r_value = ATOMIC_VAR_INIT(r_value);
+  self->r_value = 0;
   return self;
 }
 
