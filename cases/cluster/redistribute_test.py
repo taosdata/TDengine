@@ -378,12 +378,6 @@ class VnodeRedistribute(TDCase):
         self._remote._logger.info(f"------------ remove disorder-update-delete schedular job ------------: {self.disorder_schedular}")
         self.remove_schedular(self.disorder_schedular)
 
-    def remove_schedular(self, schedular):
-        self.tmq_schedular
-        if schedular is not None:
-            self.tdCom.remove_schedular_job(schedular)
-            schedular = None
-
     def tmq_subcribe(self):
         if self.use_tmq:
             if self.tmq_status == 0:
