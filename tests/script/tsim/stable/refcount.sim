@@ -37,7 +37,7 @@ if $rows != 0 then
 endi
 
 sql show d2.vgroups;
-if $rows != 2 then
+if $rows != 3 then
   return -1
 endi
 

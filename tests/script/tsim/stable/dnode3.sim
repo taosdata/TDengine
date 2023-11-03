@@ -65,7 +65,7 @@ endw
 
 sql show vgroups
 print vgroups ==> $rows
-if $rows != 2 then
+if $rows != 3 then
   return -1
 endi
 

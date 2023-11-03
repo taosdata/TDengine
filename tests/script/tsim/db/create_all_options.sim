@@ -50,8 +50,9 @@ print ============= create database with all options
 #  | PRECISION          ['ms' | 'us' | 'ns', default: ms]
 #  | REPLICA value      [1 | 3, default: 1]
 #  | WAL_LEVEL value          [1 | 2, default: 1]
-#  | VGROUPS value      [default: 2]
+#  | VGROUPS value      [default: 3]
 #  | SINGLE_STABLE      [0 | 1, default: ]
+#}
 #
 #$data0_db  : name
 #$data1_db  : create_time
@@ -79,7 +80,7 @@ endi
 if $data0_db != db then # name
   return -1
 endi
-if $data2_db != 2 then  # vgroups
+if $data2_db != 3 then  # vgroups
   return -1
 endi
 if $data3_db != 0 then  # ntables

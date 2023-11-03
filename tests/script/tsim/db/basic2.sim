@@ -41,7 +41,7 @@ if $data20 != d1 then
   return -1
 endi
 
-if $data22 != 2 then  # vgroups
+if $data22 != 3 then  # vgroups
   return -1
 endi
 
