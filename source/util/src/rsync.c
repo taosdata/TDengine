@@ -152,13 +152,27 @@ void startRsync(){
 }
 
 int uploadRsync(char* id, char* path){
+#ifdef WINDOWS
+  char pathTransform[PATH_MAX] = {0};
+  changeDirFromWindowsToLinux(path, pathTransform);
+#endif
   char command[PATH_MAX] = {0};
   if(path[strlen(path) - 1] != '/'){
     snprintf(command, PATH_MAX, "rsync -av --delete --timeout=10 --bwlimit=100000 %s/ rsync://%s/checkpoint/%s/",
-             path, tsSnodeIp, id);
+#ifdef WINDOWS
+             pathTransform
+#else
+             path
+#endif
+             , tsSnodeIp, id);
   }else{
     snprintf(command, PATH_MAX, "rsync -av --delete --timeout=10 --bwlimit=100000 %s rsync://%s/checkpoint/%s/",
-             path, tsSnodeIp, id);
+#ifdef WINDOWS
+             pathTransform
+#else
+             path
+#endif
+             , tsSnodeIp, id);
   }
 
   int code = execCommand(command);
@@ -171,9 +185,19 @@ int uploadRsync(char* id, char* path){
 }
 
 int downloadRsync(char* id, char* path){
+#ifdef WINDOWS
+  char pathTransform[PATH_MAX] = {0};
+  changeDirFromWindowsToLinux(path, pathTransform);
+#endif
   char command[PATH_MAX] = {0};
   snprintf(command, PATH_MAX, "rsync -av --timeout=10 --bwlimit=100000 rsync://%s/checkpoint/%s/ %s",
-           tsSnodeIp, id, path);
+           tsSnodeIp, id,
+#ifdef WINDOWS
+           pathTransform
+#else
+           path
+#endif
+           );
 
   int code = execCommand(command);
   if(code != 0){

@@ -467,7 +467,7 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
 //}
 
 int uploadCheckpoint(char* id, char* path){
-  if(id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0){
+  if(id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0 || strlen(path) >= PATH_MAX){
     stError("uploadCheckpoint parameters invalid");
     return -1;
   }
@@ -480,7 +480,7 @@ int uploadCheckpoint(char* id, char* path){
 }
 
 int downloadCheckpoint(char* id, char* path){
-  if(id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0){
+  if(id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0 || strlen(path) >= PATH_MAX){
     stError("downloadCheckpoint parameters invalid");
     return -1;
   }
