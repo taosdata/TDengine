@@ -773,6 +773,9 @@ static int32_t syncSnapBufferRecv(SSyncSnapshotReceiver *pReceiver, SyncSnapshot
   ASSERT(pRcvBuf->start <= pRcvBuf->cursor + 1 && pRcvBuf->cursor < pRcvBuf->end);
 
   if (pMsg->seq > pRcvBuf->cursor) {
+    if (pRcvBuf->entries[pMsg->seq % pRcvBuf->size]) {
+      pRcvBuf->entryDeleteCb(pRcvBuf->entries[pMsg->seq % pRcvBuf->size]);
+    }
     pRcvBuf->entries[pMsg->seq % pRcvBuf->size] = pMsg;
     ppMsg[0] = NULL;
     pRcvBuf->end = TMAX(pMsg->seq + 1, pRcvBuf->end);
@@ -909,7 +912,8 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   }
 
   if (pMsg->term < raftStoreGetTerm(pSyncNode)) {
-    syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "reject since small term");
+    sRError(pReceiver, "reject snap replication with smaller term. msg term:%" PRId64 ", seq:%d", pMsg->term,
+            pMsg->seq);
     terrno = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
     return -1;
   }
