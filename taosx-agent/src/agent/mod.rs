@@ -473,7 +473,7 @@ impl Client {
                         });
                     }
                     "check" => {
-                        let dsn = context.to_string();
+                        let dsn: String = serde_json::from_str(&context).unwrap();
                         let resp_tx = resp_tx.clone();
                         tokio::spawn(async move {
                             let dsv = validate_dsn(dsn.clone()).await;
