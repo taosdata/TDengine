@@ -105,9 +105,9 @@ bool     tsEnableAuditCreateTable = true;
 
 // telem
 #ifdef TD_ENTERPRISE
-bool     tsEnableTelem = false;
+bool tsEnableTelem = false;
 #else
-bool     tsEnableTelem = true;
+bool    tsEnableTelem = true;
 #endif
 int32_t  tsTelemInterval = 43200;
 char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.tdengine.com";
@@ -115,9 +115,9 @@ uint16_t tsTelemPort = 80;
 char    *tsTelemUri = "/report";
 
 #ifdef TD_ENTERPRISE
-bool  tsEnableCrashReport = false;
+bool tsEnableCrashReport = false;
 #else
-bool  tsEnableCrashReport = true;
+bool    tsEnableCrashReport = true;
 #endif
 char *tsClientCrashReportUri = "/ccrashreport";
 char *tsSvrCrashReportUri = "/dcrashreport";
@@ -128,7 +128,7 @@ char tsSmlTsDefaultName[TSDB_COL_NAME_LEN] = "_ts";
 char tsSmlTagName[TSDB_COL_NAME_LEN] = "_tag_null";
 char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table name can be specified in tag value.
 char tsSmlAutoChildTableNameDelimiter[TSDB_TABLE_NAME_LEN] = "";
-                                                                   // If set to empty system will generate table name using MD5 hash.
+// If set to empty system will generate table name using MD5 hash.
 // true means that the name and order of cols in each line are the same(only for influx protocol)
 // bool    tsSmlDataFormat = false;
 // int32_t tsSmlBatchSize = 10000;
@@ -280,8 +280,10 @@ int8_t tsS3Enabled = false;
 int8_t tsS3Https = true;
 char   tsS3Hostname[TSDB_FQDN_LEN] = "<hostname>";
 
-int32_t tsS3BlockSize = 4096;     // number of tsdb pages
-int32_t tsS3BlockCacheSize = 16;  // number of blocks
+int32_t tsS3BlockSize = -1;        // number of tsdb pages (4096)
+int32_t tsS3BlockCacheSize = 16;   // number of blocks
+int32_t tsS3PageCacheSize = 4096;  // number of pages
+int32_t tsS3UploadDelaySec = 60 * 60;
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -460,7 +462,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "queryUseNodeAllocator", tsQueryUseNodeAllocator, CFG_SCOPE_CLIENT) != 0) return -1;
   if (cfgAddBool(pCfg, "keepColumnName", tsKeepColumnName, CFG_SCOPE_CLIENT) != 0) return -1;
   if (cfgAddString(pCfg, "smlChildTableName", tsSmlChildTableName, CFG_SCOPE_CLIENT) != 0) return -1;
-  if (cfgAddString(pCfg, "smlAutoChildTableNameDelimiter", tsSmlAutoChildTableNameDelimiter, CFG_SCOPE_CLIENT) != 0) return -1;
+  if (cfgAddString(pCfg, "smlAutoChildTableNameDelimiter", tsSmlAutoChildTableNameDelimiter, CFG_SCOPE_CLIENT) != 0)
+    return -1;
   if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, CFG_SCOPE_CLIENT) != 0) return -1;
   if (cfgAddString(pCfg, "smlTsDefaultName", tsSmlTsDefaultName, CFG_SCOPE_CLIENT) != 0) return -1;
   if (cfgAddBool(pCfg, "smlDot2Underline", tsSmlDot2Underline, CFG_SCOPE_CLIENT) != 0) return -1;
@@ -675,7 +678,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt64(pCfg, "checkpointInterval", tsStreamCheckpointInterval, 60, 1200, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddFloat(pCfg, "streamSinkDataRate", tsSinkDataRate, 0.1, 5, CFG_SCOPE_SERVER) != 0) return -1;
 
-  if (cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "cacheLazyLoadThreshold", tsCacheLazyLoadThreshold, 0, 100000, CFG_SCOPE_SERVER) != 0)
+    return -1;
 
   if (cfgAddString(pCfg, "lossyColumns", tsLossyColumns, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddFloat(pCfg, "fPrecision", tsFPrecision, 0.0f, 100000.0f, CFG_SCOPE_SERVER) != 0) return -1;
@@ -693,8 +697,11 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "s3Accesskey", tsS3AccessKey, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddString(pCfg, "s3Endpoint", tsS3Endpoint, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddString(pCfg, "s3BucketName", tsS3BucketName, CFG_SCOPE_SERVER) != 0) return -1;
-  if (cfgAddInt32(pCfg, "s3BlockSize", tsS3BlockSize, 2048, 1024 * 1024, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "s3BlockSize", tsS3BlockSize, -100, 1024 * 1024, CFG_SCOPE_SERVER) != 0) return -1;
   if (cfgAddInt32(pCfg, "s3BlockCacheSize", tsS3BlockCacheSize, 4, 1024 * 1024, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "s3PageCacheSize", tsS3PageCacheSize, 4, 1024 * 1024 * 1024, CFG_SCOPE_SERVER) != 0) return -1;
+  if (cfgAddInt32(pCfg, "s3UploadDelaySec", tsS3UploadDelaySec, 60 * 10, 60 * 60 * 24 * 30, CFG_SCOPE_SERVER) != 0)
+    return -1;
 
   // min free disk space used to check if the disk is full [50MB, 1GB]
   if (cfgAddInt64(pCfg, "minDiskFreeSize", tsMinDiskFreeSize, TFS_MIN_DISK_FREE_SIZE, 1024 * 1024 * 1024,
@@ -953,7 +960,8 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
     return -1;
   }
 
-  tstrncpy(tsSmlAutoChildTableNameDelimiter, cfgGetItem(pCfg, "smlAutoChildTableNameDelimiter")->str, TSDB_TABLE_NAME_LEN);
+  tstrncpy(tsSmlAutoChildTableNameDelimiter, cfgGetItem(pCfg, "smlAutoChildTableNameDelimiter")->str,
+           TSDB_TABLE_NAME_LEN);
   tstrncpy(tsSmlChildTableName, cfgGetItem(pCfg, "smlChildTableName")->str, TSDB_TABLE_NAME_LEN);
   tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagName")->str, TSDB_COL_NAME_LEN);
   tstrncpy(tsSmlTsDefaultName, cfgGetItem(pCfg, "smlTsDefaultName")->str, TSDB_COL_NAME_LEN);
@@ -1125,6 +1133,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsS3BlockSize = cfgGetItem(pCfg, "s3BlockSize")->i32;
   tsS3BlockCacheSize = cfgGetItem(pCfg, "s3BlockCacheSize")->i32;
+  tsS3PageCacheSize = cfgGetItem(pCfg, "s3PageCacheSize")->i32;
+  tsS3UploadDelaySec = cfgGetItem(pCfg, "s3UploadDelaySec")->i32;
 
   GRANT_CFG_GET;
   return 0;
@@ -1422,7 +1432,8 @@ int32_t taosApplyLocalCfg(SConfig *pCfg, char *name) {
       } else if (strcasecmp("smlChildTableName", name) == 0) {
         tstrncpy(tsSmlChildTableName, cfgGetItem(pCfg, "smlChildTableName")->str, TSDB_TABLE_NAME_LEN);
       } else if (strcasecmp("smlAutoChildTableNameDelimiter", name) == 0) {
-        tstrncpy(tsSmlAutoChildTableNameDelimiter, cfgGetItem(pCfg, "smlAutoChildTableNameDelimiter")->str, TSDB_TABLE_NAME_LEN);
+        tstrncpy(tsSmlAutoChildTableNameDelimiter, cfgGetItem(pCfg, "smlAutoChildTableNameDelimiter")->str,
+                 TSDB_TABLE_NAME_LEN);
       } else if (strcasecmp("smlTagName", name) == 0) {
         tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagName")->str, TSDB_COL_NAME_LEN);
         //      } else if (strcasecmp("smlDataFormat", name) == 0) {
@@ -1714,6 +1725,20 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     int32_t newS3BlockCacheSize = atoi(value);
     uInfo("s3BlockCacheSize set from %d to %d", tsS3BlockCacheSize, newS3BlockCacheSize);
     tsS3BlockCacheSize = newS3BlockCacheSize;
+    return;
+  }
+
+  if (strcasecmp(option, "s3PageCacheSize") == 0) {
+    int32_t newS3PageCacheSize = atoi(value);
+    uInfo("s3PageCacheSize set from %d to %d", tsS3PageCacheSize, newS3PageCacheSize);
+    tsS3PageCacheSize = newS3PageCacheSize;
+    return;
+  }
+
+  if (strcasecmp(option, "s3UploadDelaySec") == 0) {
+    int32_t newS3UploadDelaysec = atoi(value);
+    uInfo("s3UploadDelaySec set from %d to %d", tsS3UploadDelaySec, newS3UploadDelaysec);
+    tsS3UploadDelaySec = newS3UploadDelaysec;
     return;
   }
 
