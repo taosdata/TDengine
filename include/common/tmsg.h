@@ -445,11 +445,6 @@ typedef struct SRetention {
   int8_t  keepUnit;
 } SRetention;
 
-typedef struct SRetentionEx {
-  SRetention rtn;
-  int64_t    checkpointId;
-} SRetentionEx;
-
 #define RETENTION_VALID(l, r) ((((l) == 0 && (r)->freq >= 0) || ((r)->freq > 0)) && ((r)->keep > 0))
 
 #pragma pack(push, 1)

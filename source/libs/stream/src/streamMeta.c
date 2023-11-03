@@ -687,10 +687,7 @@ int32_t streamMetaLoadAllTasks(SStreamMeta* pMeta) {
     }
     tDecoderClear(&decoder);
 
-    if (0 == strcmp(pTask->exec.qmsg, "rsma_task")) {
-      tFreeStreamTask(pTask);
-      continue;
-    } else if (pTask->status.taskStatus == TASK_STATUS__DROPPING) {
+    if (pTask->status.taskStatus == TASK_STATUS__DROPPING) {
       int32_t taskId = pTask->id.taskId;
       tFreeStreamTask(pTask);
 

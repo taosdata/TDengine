@@ -156,10 +156,10 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit) {
   nLoops = 0;
   while (1) {
     if (atomic_load_32(&pRSmaStat->nFetchAll) <= 0) {
-      smaDebug("vgId:%d, rsma commit:%d, fetch tasks are all finished", SMA_VID(pSma), isCommit);
+      smaDebug("vgId:%d, rsma commit, type:%d, fetch tasks are all finished", SMA_VID(pSma), isCommit);
       break;
     } else {
-      smaDebug("vgId:%d, rsma commit%d, fetch tasks are not all finished yet", SMA_VID(pSma), isCommit);
+      smaDebug("vgId:%d, rsma commit, type:%d, fetch tasks are not all finished yet", SMA_VID(pSma), isCommit);
     }
     TD_SMA_LOOPS_CHECK(nLoops, 1000);
   }
@@ -175,6 +175,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit) {
   while (atomic_load_64(&pRSmaStat->nBufItems) > 0) {
     TD_SMA_LOOPS_CHECK(nLoops, 1000);
   }
+  smaInfo("vgId:%d, rsma commit, all items are consumed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
 
   if (!isCommit) goto _exit;
 
@@ -183,7 +184,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit) {
 
   smaInfo("vgId:%d, rsma commit, operator state committed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
 
-  smaInfo("vgId:%d, rsma commit, all items are consumed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
+
 
   // all rsma results are written completely
   STsdb *pTsdb = NULL;

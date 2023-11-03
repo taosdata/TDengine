@@ -287,7 +287,7 @@ struct STsdbCfg {
   int32_t keep1;  // just for save config, don't use in tsdbRead/tsdbCommit/..., and use STsdbKeepCfg in STsdb instead
   int32_t keep2;  // just for save config, don't use in tsdbRead/tsdbCommit/..., and use STsdbKeepCfg in STsdb instead
   int32_t keepTimeOffset;  // just for save config, use STsdbKeepCfg in STsdb instead
-  SRetentionEx retentions[TSDB_RETENTION_MAX];
+  SRetention retentions[TSDB_RETENTION_MAX];
 };
 
 typedef struct {

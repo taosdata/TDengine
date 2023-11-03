@@ -155,7 +155,7 @@ struct SRSmaInfo {
   int64_t   lastRecv;  // ms
   int8_t    assigned;  // 0 idle, 1 assgined for exec
   int8_t    delFlag;
-  int16_t   padding;
+  int8_t    padding;
   T_REF_DECLARE()
   SRSmaInfoItem items[TSDB_RETENTION_L2];
   void         *taskInfo[TSDB_RETENTION_L2];  // qTaskInfo_t
@@ -163,12 +163,10 @@ struct SRSmaInfo {
   STaosQall    *qall;                         // buffer qall of SubmitReq
 };
 
-#define RSMA_INFO_HEAD_LEN     offsetof(SRSmaInfo, items)
-#define RSMA_INFO_IS_DEL(r)    ((r)->delFlag == 1)
-#define RSMA_INFO_SET_DEL(r)   ((r)->delFlag = 1)
-#define RSMA_INFO_QTASK(r, i)  ((r)->taskInfo[i])
-#define RSMA_INFO_IQTASK(r, i) ((r)->iTaskInfo[i])
-#define RSMA_INFO_ITEM(r, i)   (&(r)->items[i])
+#define RSMA_INFO_IS_DEL(r)   ((r)->delFlag == 1)
+#define RSMA_INFO_SET_DEL(r)  ((r)->delFlag = 1)
+#define RSMA_INFO_QTASK(r, i) ((r)->taskInfo[i])
+#define RSMA_INFO_ITEM(r, i)  (&(r)->items[i])
 
 enum {
   TASK_TRIGGER_STAT_INIT = 0,
