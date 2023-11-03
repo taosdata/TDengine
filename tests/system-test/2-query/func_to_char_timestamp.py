@@ -166,6 +166,44 @@ class TDTestCase:
     def run(self):
         self.prepareTestEnv()
         self.test_to_timestamp()
+        self.test_ns_to_timestamp()
+
+    def create_tables(self):
+        tdSql.execute("create database if not exists test_us precision 'us'")
+        tdSql.execute("create database if not exists test_ns precision 'ns'")
+        tdSql.execute("use test_us")
+        tdSql.execute(f"CREATE STABLE `meters_us` (`ts` TIMESTAMP, `ip_value` FLOAT, `ip_quality` INT, `ts2` timestamp) TAGS (`t1` INT)")
+        tdSql.execute(f"CREATE TABLE `ctb1_us` USING `meters_us` (`t1`) TAGS (1)")
+        tdSql.execute(f"CREATE TABLE `ctb2_us` USING `meters_us` (`t1`) TAGS (2)")
+        tdSql.execute("use test_ns")
+        tdSql.execute(f"CREATE STABLE `meters_ns` (`ts` TIMESTAMP, `ip_value` FLOAT, `ip_quality` INT, `ts2` timestamp) TAGS (`t1` INT)")
+        tdSql.execute(f"CREATE TABLE `ctb1_ns` USING `meters_ns` (`t1`) TAGS (1)")
+        tdSql.execute(f"CREATE TABLE `ctb2_ns` USING `meters_ns` (`t1`) TAGS (2)")
+
+    def insert_ns_data(self):
+        tdLog.debug("start to insert data ............")
+        tdSql.execute(f"INSERT INTO `test_us`.`ctb1_us` VALUES ('2023-07-01 00:00:00.123456', 10.30000, 100, '2023-07-01 00:00:00.123456')")
+        tdSql.execute(f"INSERT INTO `test_us`.`ctb2_us` VALUES ('2023-08-01 00:00:00.123456', 20.30000, 200, '2023-07-01 00:00:00.123456')")
+        tdSql.execute(f"INSERT INTO `test_ns`.`ctb1_ns` VALUES ('2023-07-01 00:00:00.123456789', 10.30000, 100, '2023-07-01 00:00:00.123456000')")
+        tdSql.execute(f"INSERT INTO `test_ns`.`ctb2_ns` VALUES ('2023-08-01 00:00:00.123456789', 20.30000, 200, '2023-08-01 00:00:00.123456789')")
+        tdLog.debug("insert data ............ [OK]")
+
+    def test_ns_to_timestamp(self):
+        self.create_tables()
+        self.insert_ns_data()
+        tdSql.query("select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns')", queryTimes=1)
+        tdSql.checkData(0, 0, 1690855810123)
+        tdSql.execute('use test_ns', queryTimes=1)
+        tdSql.query("select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns')", queryTimes=1)
+        tdSql.checkData(0, 0, 1690855810123)
+        tdSql.query("select to_char(ts2, 'yyyy-mm-dd hh:mi:ss.ns') from meters_ns", queryTimes=1)
+        tdSql.checkData(0, 0, '2023-07-01 12:00:00.123456000')
+        tdSql.checkData(1, 0, '2023-08-01 12:00:00.123456789')
+
+        tdSql.query("select to_timestamp(to_char(ts2, 'yyyy-mm-dd hh:mi:ss.ns'), 'yyyy-mm-dd hh:mi:ss.ns') from meters_ns", queryTimes=1)
+        tdSql.checkData(0, 0, 1688140800123456000)
+        tdSql.checkData(1, 0, 1690819200123456789)
+
 
     def stop(self):
         tdSql.close()
