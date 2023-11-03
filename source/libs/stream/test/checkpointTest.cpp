@@ -40,14 +40,9 @@ TEST(testCase, checkpointUpload_Test) {
   startRsync();
 
   taosSsleep(5);
-  SArray* fileList = taosArrayInit(0, POINTER_BYTES);
   char* id = "2013892036";
-  char* file1 = "/Users/mingmingwanng/wal1";
-  char* file2 = "/Users/mingmingwanng/java_error_in_clion.hprof";
-  taosArrayPush(fileList, &file1);
-  taosArrayPush(fileList, &file2);
 
-  uploadCheckpoint(id, fileList);
+  uploadCheckpoint(id, "/Users/mingmingwanng/rsync/");
 }
 
 TEST(testCase, checkpointDownload_Test) {

@@ -118,24 +118,26 @@ void startRsync(){
   uDebug("[rsync] start server successful");
 }
 
-int uploadRsync(char* id, SArray* fileList){
-  for(int i = 0; i < taosArrayGetSize(fileList); i++) {
-    char* fullName = (char*)taosArrayGetP(fileList, i);
-    char command[PATH_MAX] = {0};
+int uploadRsync(char* id, char* path){
+  char command[PATH_MAX] = {0};
 //    char* name = strrchr(fullName, '/');
 //    if(name == NULL){
 //      uError("[rsync] file name invalid, name:%s", name);
 //      return -1;
 //    }
 //    name = name + 1;
-    snprintf(command, PATH_MAX, "rsync -av --timeout=10 --bwlimit=100000 %s rsync://%s/checkpoint/%s/",
-             fullName, tsSnodeIp, id);
+  if(path[strlen(path) - 1] != '/'){
+    snprintf(command, PATH_MAX, "rsync -av --delete --timeout=10 --bwlimit=100000 %s/ rsync://%s/checkpoint/%s/",
+             path, tsSnodeIp, id);
+  }else{
+    snprintf(command, PATH_MAX, "rsync -av --delete --timeout=10 --bwlimit=100000 %s rsync://%s/checkpoint/%s/",
+             path, tsSnodeIp, id);
+  }
 
-    int code = execCommand(command);
-    if(code != 0){
-      uError("[rsync] send failed code:%d," ERRNO_ERR_FORMAT, code, ERRNO_ERR_DATA);
-      return -1;
-    }
+  int code = execCommand(command);
+  if(code != 0){
+    uError("[rsync] send failed code:%d," ERRNO_ERR_FORMAT, code, ERRNO_ERR_DATA);
+    return -1;
   }
   uDebug("[rsync] upload data:%s successful", id);
   return 0;

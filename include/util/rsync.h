@@ -13,7 +13,7 @@ extern "C" {
 
 void stopRsync();
 void startRsync();
-int  uploadRsync(char* id, SArray* fileList);
+int  uploadRsync(char* id, char* path);
 int  downloadRsync(char* id, char* path);
 int  deleteRsync(char* id);
 

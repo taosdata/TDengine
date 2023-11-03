@@ -451,13 +451,13 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
 
 //}
 
-int uploadCheckpoint(char* id, SArray* fileList){
-  if(id == NULL || fileList == NULL || strlen(id) == 0 || taosArrayGetSize(fileList) == 0){
+int uploadCheckpoint(char* id, char* path){
+  if(id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0){
     stError("uploadCheckpoint parameters invalid");
     return -1;
   }
   if(strlen(tsSnodeIp) != 0){
-    uploadRsync(id, fileList);
+    uploadRsync(id, path);
 //  }else if(tsS3StreamEnabled){
 
   }

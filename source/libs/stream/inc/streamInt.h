@@ -144,7 +144,7 @@ int32_t       streamQueueGetItemSize(const SStreamQueue* pQueue);
 //  char    id[CHECKPOINT_PATH_LEN];
 //} SChekpointDataHeader;
 
-int uploadCheckpoint(char* id, SArray* fileList);
+int uploadCheckpoint(char* id, char* path);
 int downloadCheckpoint(char* id, char* path);
 int deleteCheckpoint(char* id);
 
