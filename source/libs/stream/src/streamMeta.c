@@ -260,13 +260,9 @@ int32_t streamMetaReopen(SStreamMeta* pMeta) {
     }
   }
 
-  pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
-  while (pMeta->streamBackend == NULL) {
+  while ((pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId)) == NULL) {
+    stInfo("vgId:%d failed to init stream backend, retry in 100ms", pMeta->vgId);
     taosMsleep(100);
-    pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
-    if (pMeta->streamBackend == NULL) {
-      stInfo("vgId:%d failed to init stream backend, retry in 100ms", pMeta->vgId);
-    }
   }
 
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
@@ -447,20 +443,20 @@ int32_t streamMetaGetNumOfTasks(SStreamMeta* pMeta) {
 }
 
 SStreamTask* streamMetaAcquireTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
-  taosRLockLatch(&pMeta->lock);
+  streamMetaRLock(pMeta);
 
   STaskId       id = {.streamId = streamId, .taskId = taskId};
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (ppTask != NULL) {
     if (!streamTaskShouldStop(*ppTask)) {
       int32_t ref = atomic_add_fetch_32(&(*ppTask)->refCnt, 1);
-      taosRUnLockLatch(&pMeta->lock);
+      streamMetaRUnLock(pMeta);
       stTrace("s-task:%s acquire task, ref:%d", (*ppTask)->id.idStr, ref);
       return *ppTask;
     }
   }
 
-  taosRUnLockLatch(&pMeta->lock);
+  streamMetaRUnLock(pMeta);
   return NULL;
 }
 
@@ -491,7 +487,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   SStreamTask* pTask = NULL;
 
   // pre-delete operation
-  taosWLockLatch(&pMeta->lock);
+  streamMetaWLock(pMeta);
 
   STaskId       id = {.streamId = streamId, .taskId = taskId};
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
@@ -508,34 +504,35 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
     streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_DROPPING);
   } else {
     stDebug("vgId:%d failed to find the task:0x%x, it may be dropped already", pMeta->vgId, taskId);
-    taosWUnLockLatch(&pMeta->lock);
+    streamMetaWUnLock(pMeta);
     return 0;
   }
-  taosWUnLockLatch(&pMeta->lock);
+  streamMetaWUnLock(pMeta);
 
   stDebug("s-task:0x%x set task status:dropping and start to unregister it", taskId);
 
   while (1) {
-    taosRLockLatch(&pMeta->lock);
+    streamMetaRLock(pMeta);
 
     ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
     if (ppTask) {
       if ((*ppTask)->status.timerActive == 0) {
-        taosRUnLockLatch(&pMeta->lock);
+        streamMetaRUnLock(pMeta);
         break;
       }
 
       taosMsleep(10);
       stDebug("s-task:%s wait for quit from timer", (*ppTask)->id.idStr);
-      taosRUnLockLatch(&pMeta->lock);
+      streamMetaRUnLock(pMeta);
     } else {
-      taosRUnLockLatch(&pMeta->lock);
+      streamMetaRUnLock(pMeta);
       break;
     }
   }
 
   // let's do delete of stream task
-  taosWLockLatch(&pMeta->lock);
+  streamMetaWLock(pMeta);
+
   ppTask = (SStreamTask**)taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
   if (ppTask) {
     pTask = *ppTask;
@@ -565,19 +562,16 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
     stDebug("vgId:%d failed to find the task:0x%x, it may have been dropped already", pMeta->vgId, taskId);
   }
 
-  taosWUnLockLatch(&pMeta->lock);
+  streamMetaWUnLock(pMeta);
   return 0;
 }
 
 int32_t streamMetaBegin(SStreamMeta* pMeta) {
-  taosWLockLatch(&pMeta->lock);
-  if (tdbBegin(pMeta->db, &pMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
-               TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
-    taosWUnLockLatch(&pMeta->lock);
-    return -1;
-  }
-  taosWUnLockLatch(&pMeta->lock);
-  return 0;
+  streamMetaWLock(pMeta);
+  int32_t code = tdbBegin(pMeta->db, &pMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL,
+                          TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+  streamMetaWUnLock(pMeta);
+  return code;
 }
 
 // todo add error log
@@ -846,6 +840,12 @@ static bool waitForEnoughDuration(SMetaHbInfo* pInfo) {
   return false;
 }
 
+static void clearHbMsg(SStreamHbMsg* pMsg, SArray* pIdList) {
+  taosArrayDestroy(pMsg->pTaskStatus);
+  taosArrayDestroy(pMsg->pUpdateNodes);
+  taosArrayDestroy(pIdList);
+}
+
 void metaHbToMnode(void* param, void* tmrId) {
   int64_t rid = *(int64_t*)param;
 
@@ -884,19 +884,33 @@ void metaHbToMnode(void* param, void* tmrId) {
   stDebug("vgId:%d build stream task hb, leader:%d", pMeta->vgId, (pMeta->role == NODE_ROLE_LEADER));
 
   SStreamHbMsg hbMsg = {0};
-  taosRLockLatch(&pMeta->lock);
+  SEpSet       epset = {0};
+  bool         hasMnodeEpset = false;
+  int32_t      stage = 0;
+
+  streamMetaRLock(pMeta);
+
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
-
-  SEpSet epset = {0};
-  bool   hasMnodeEpset = false;
-
   hbMsg.vgId = pMeta->vgId;
+  stage = pMeta->stage;
+
+  SArray* pIdList = taosArrayDup(pMeta->pTaskList, NULL);
+
+  streamMetaRUnLock(pMeta);
+
   hbMsg.pTaskStatus = taosArrayInit(numOfTasks, sizeof(STaskStatusEntry));
   hbMsg.pUpdateNodes = taosArrayInit(numOfTasks, sizeof(int32_t));
 
   for (int32_t i = 0; i < numOfTasks; ++i) {
-    STaskId*      pId = taosArrayGet(pMeta->pTaskList, i);
+    STaskId* pId = taosArrayGet(pIdList, i);
+
+    streamMetaRLock(pMeta);
     SStreamTask** pTask = taosHashGet(pMeta->pTasksMap, pId, sizeof(*pId));
+    streamMetaRUnLock(pMeta);
+
+    if (pTask == NULL) {
+      continue;
+    }
 
     // not report the status of fill-history task
     if ((*pTask)->info.fillHistory == 1) {
@@ -906,12 +920,12 @@ void metaHbToMnode(void* param, void* tmrId) {
     STaskStatusEntry entry = {
         .id = *pId,
         .status = streamTaskGetStatus(*pTask, NULL),
-        .nodeId = pMeta->vgId,
-        .stage = pMeta->stage,
+        .nodeId = hbMsg.vgId,
+        .stage = stage,
         .inputQUsed = SIZE_IN_MiB(streamQueueGetItemSize((*pTask)->inputq.queue)),
     };
 
-    entry.inputRate = entry.inputQUsed*100.0/STREAM_TASK_QUEUE_CAPACITY_IN_SIZE;
+    entry.inputRate = entry.inputQUsed * 100.0 / STREAM_TASK_QUEUE_CAPACITY_IN_SIZE;
     if ((*pTask)->info.taskLevel == TASK_LEVEL__SINK) {
       entry.sinkQuota = (*pTask)->outputInfo.pTokenBucket->quotaRate;
       entry.sinkDataSize = SIZE_IN_MiB((*pTask)->execInfo.sink.dataSize);
@@ -930,9 +944,9 @@ void metaHbToMnode(void* param, void* tmrId) {
     taosThreadMutexLock(&(*pTask)->lock);
     int32_t num = taosArrayGetSize((*pTask)->outputInfo.pDownstreamUpdateList);
     for (int j = 0; j < num; ++j) {
-      int32_t *pNodeId = taosArrayGet((*pTask)->outputInfo.pDownstreamUpdateList, j);
+      int32_t* pNodeId = taosArrayGet((*pTask)->outputInfo.pDownstreamUpdateList, j);
 
-      bool exist = false;
+      bool    exist = false;
       int32_t numOfExisted = taosArrayGetSize(hbMsg.pUpdateNodes);
       for (int k = 0; k < numOfExisted; ++k) {
         if (*pNodeId == *(int32_t*)taosArrayGet(hbMsg.pUpdateNodes, k)) {
@@ -957,7 +971,6 @@ void metaHbToMnode(void* param, void* tmrId) {
   }
 
   hbMsg.numOfTasks = taosArrayGetSize(hbMsg.pTaskStatus);
-  taosRUnLockLatch(&pMeta->lock);
 
   if (hasMnodeEpset) {
     int32_t code = 0;
@@ -966,17 +979,13 @@ void metaHbToMnode(void* param, void* tmrId) {
     tEncodeSize(tEncodeStreamHbMsg, &hbMsg, tlen, code);
     if (code < 0) {
       stError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
-      taosArrayDestroy(hbMsg.pTaskStatus);
-      taosReleaseRef(streamMetaId, rid);
-      return;
+      goto _end;
     }
 
     void* buf = rpcMallocCont(tlen);
     if (buf == NULL) {
       stError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-      taosArrayDestroy(hbMsg.pTaskStatus);
-      taosReleaseRef(streamMetaId, rid);
-      return;
+      goto _end;
     }
 
     SEncoder encoder;
@@ -984,15 +993,12 @@ void metaHbToMnode(void* param, void* tmrId) {
     if ((code = tEncodeStreamHbMsg(&encoder, &hbMsg)) < 0) {
       rpcFreeCont(buf);
       stError("vgId:%d encode stream hb msg failed, code:%s", pMeta->vgId, tstrerror(code));
-      taosArrayDestroy(hbMsg.pTaskStatus);
-      taosReleaseRef(streamMetaId, rid);
-      return;
+      goto _end;
     }
     tEncoderClear(&encoder);
 
-    SRpcMsg msg = {0};
+    SRpcMsg msg = {.info.noResp = 1,};
     initRpcMsg(&msg, TDMT_MND_STREAM_HEARTBEAT, buf, tlen);
-    msg.info.noResp = 1;
 
     pMeta->pHbInfo->hbCount += 1;
 
@@ -1003,16 +1009,15 @@ void metaHbToMnode(void* param, void* tmrId) {
     stDebug("vgId:%d no tasks and no mnd epset, not send stream hb to mnode", pMeta->vgId);
   }
 
-  taosArrayDestroy(hbMsg.pTaskStatus);
-  taosArrayDestroy(hbMsg.pUpdateNodes);
-
+  _end:
+  clearHbMsg(&hbMsg, pIdList);
   taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->pHbInfo->hbTmr);
   taosReleaseRef(streamMetaId, rid);
 }
 
 bool streamMetaTaskInTimer(SStreamMeta* pMeta) {
   bool inTimer = false;
-  taosWLockLatch(&pMeta->lock);
+  streamMetaWLock(pMeta);
 
   void* pIter = NULL;
   while (1) {
@@ -1027,7 +1032,7 @@ bool streamMetaTaskInTimer(SStreamMeta* pMeta) {
     }
   }
 
-  taosWUnLockLatch(&pMeta->lock);
+  streamMetaWUnLock(pMeta);
   return inTimer;
 }
 
@@ -1037,7 +1042,7 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
   stDebug("vgId:%d notify all stream tasks that the vnode is closing. isLeader:%d startHb%" PRId64 ", totalHb:%d", vgId,
           (pMeta->role == NODE_ROLE_LEADER), pMeta->pHbInfo->hbStart, pMeta->pHbInfo->hbCount);
 
-  taosWLockLatch(&pMeta->lock);
+  streamMetaWLock(pMeta);
 
   void* pIter = NULL;
   while (1) {
@@ -1051,7 +1056,7 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
     streamTaskStop(pTask);
   }
 
-  taosWUnLockLatch(&pMeta->lock);
+  streamMetaWUnLock(pMeta);
 
   // wait for the stream meta hb function stopping
   if (pMeta->role == NODE_ROLE_LEADER) {
@@ -1091,3 +1096,22 @@ void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {
   pStartInfo->startAllTasksFlag = 0;
   pStartInfo->readyTs = 0;
 }
+
+void streamMetaRLock(SStreamMeta* pMeta) {
+  stTrace("vgId:%d meta-rlock", pMeta->vgId);
+  taosRLockLatch(&pMeta->lock);
+}
+void streamMetaRUnLock(SStreamMeta* pMeta) {
+  stTrace("vgId:%d meta-runlock", pMeta->vgId);
+  taosRUnLockLatch(&pMeta->lock);
+
+}
+void streamMetaWLock(SStreamMeta* pMeta) {
+  stTrace("vgId:%d meta-wlock", pMeta->vgId);
+  taosWLockLatch(&pMeta->lock);
+}
+void streamMetaWUnLock(SStreamMeta* pMeta) {
+  stTrace("vgId:%d meta-wunlock", pMeta->vgId);
+  taosWUnLockLatch(&pMeta->lock);
+}
+
