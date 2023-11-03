@@ -48,8 +48,14 @@ export default {
   name: "Dcoument",
   computed: {
     docsUrl() {
-      return  this.$i18n.locale.includes('zh')
-        ?"/docs/":"/docs-en/";
+      let oem = process.env.VUE_APP_CUS_NAME &&
+        process.env.VUE_APP_CUS_NAME !== "TDengine" ? process.env.VUE_APP_CUS_NAME : 'TDengine';
+      if (oem == 'TDengine') {
+        return  this.$i18n.locale.includes('zh')
+          ?"/docs/":"/docs-en/";
+      } else {
+        return "/docs/"
+      }
     },
     discordUrl() {
       return this.$i18n.locale.includes("en")
