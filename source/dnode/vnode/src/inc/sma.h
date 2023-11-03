@@ -155,7 +155,7 @@ struct SRSmaInfo {
   int64_t   lastRecv;  // ms
   int8_t    assigned;  // 0 idle, 1 assgined for exec
   int8_t    delFlag;
-  int8_t    padding;
+  int16_t   padding;
   T_REF_DECLARE()
   SRSmaInfoItem items[TSDB_RETENTION_L2];
   void         *taskInfo[TSDB_RETENTION_L2];  // qTaskInfo_t

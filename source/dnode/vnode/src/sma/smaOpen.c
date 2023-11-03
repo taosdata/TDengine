@@ -22,7 +22,7 @@ static int32_t rsmaRestore(SSma *pSma);
 
 #define SMA_SET_KEEP_CFG(v, l)                                                                    \
   do {                                                                                            \
-    SRetention *r = &(pCfg->retentions[l]);                                                       \
+    SRetention *r = &pCfg->retentions[l];                                                         \
     pKeepCfg->keep2 = convertTimeFromPrecisionToUnit(r->keep, pCfg->precision, TIME_UNIT_MINUTE); \
     pKeepCfg->keep0 = pKeepCfg->keep2;                                                            \
     pKeepCfg->keep1 = pKeepCfg->keep2;                                                            \
