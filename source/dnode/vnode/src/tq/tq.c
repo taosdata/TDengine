@@ -1164,10 +1164,6 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     return 0;
   }
 
-  if (pTask->info.fillHistory == 1) {
-    ASSERT(pTask->status.pauseAllowed == true);
-  }
-
   streamScanHistoryData(pTask);
 
   double el = (taosGetTimestampMs() - pTask->execInfo.step1Start) / 1000.0;
@@ -1821,7 +1817,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
 
   if (pMeta->updateInfo.transId != req.transId) {
     pMeta->updateInfo.transId = req.transId;
-    tqDebug("s-task:%s receive new trans to update nodeEp msg from mnode, transId:%d", pTask->id.idStr, req.transId);
+    tqInfo("s-task:%s receive new trans to update nodeEp msg from mnode, transId:%d", pTask->id.idStr, req.transId);
     // info needs to be kept till the new trans to update the nodeEp arrived.
     taosHashClear(pMeta->updateInfo.pTasks);
   } else {
@@ -1903,13 +1899,13 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
       pMeta->startInfo.startAllTasksFlag = 0;
       streamMetaWUnLock(pMeta);
     } else {
-      tqDebug("vgId:%d tasks are all updated and stopped, restart them", vgId);
+      tqInfo("vgId:%d tasks are all updated and stopped, restart them", vgId);
       terrno = 0;
 
       streamMetaWUnLock(pMeta);
 
       while (streamMetaTaskInTimer(pMeta)) {
-        qDebug("vgId:%d some tasks in timer, wait for 100ms and recheck", pMeta->vgId);
+        tqDebug("vgId:%d some tasks in timer, wait for 100ms and recheck", pMeta->vgId);
         taosMsleep(100);
       }
 
@@ -1931,11 +1927,11 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
       }
 
       if (vnodeIsRoleLeader(pTq->pVnode) && !tsDisableStream) {
-        vInfo("vgId:%d restart all stream tasks after all tasks being updated", vgId);
+        tqInfo("vgId:%d restart all stream tasks after all tasks being updated", vgId);
         tqResetStreamTaskStatus(pTq);
         tqLaunchStreamTaskAsync(pTq);
       } else {
-        vInfo("vgId:%d, follower node not start stream tasks", vgId);
+        tqInfo("vgId:%d, follower node not start stream tasks", vgId);
       }
 
       streamMetaWUnLock(pMeta);
