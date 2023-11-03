@@ -520,9 +520,10 @@ void vnodeStop(SVnode *pVnode) {}
 
 int64_t vnodeGetSyncHandle(SVnode *pVnode) { return pVnode->sync; }
 
-void vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot) {
+int32_t vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot) {
   pSnapshot->data = NULL;
   pSnapshot->lastApplyIndex = pVnode->state.committed;
   pSnapshot->lastApplyTerm = pVnode->state.commitTerm;
   pSnapshot->lastConfigIndex = -1;
+  return 0;
 }

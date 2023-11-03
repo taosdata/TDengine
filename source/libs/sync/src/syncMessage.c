@@ -234,8 +234,8 @@ int32_t syncBuildSnapshotSend(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId) {
   return 0;
 }
 
-int32_t syncBuildSnapshotSendRsp(SRpcMsg* pMsg, int32_t vgId) {
-  int32_t bytes = sizeof(SyncSnapshotRsp);
+int32_t syncBuildSnapshotSendRsp(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId) {
+  int32_t bytes = sizeof(SyncSnapshotRsp) + dataLen;
   pMsg->pCont = rpcMallocCont(bytes);
   pMsg->msgType = TDMT_SYNC_SNAPSHOT_RSP;
   pMsg->contLen = bytes;

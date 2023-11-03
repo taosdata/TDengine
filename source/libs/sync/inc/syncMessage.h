@@ -219,7 +219,8 @@ typedef struct SyncSnapshotRsp {
   int32_t   ack;
   int32_t   code;
   SyncIndex snapBeginIndex;  // when ack = SYNC_SNAPSHOT_SEQ_BEGIN, it's valid
-  int16_t   reserved;
+  int16_t   payloadType;
+  char      data[];
 } SyncSnapshotRsp;
 
 typedef struct SyncLeaderTransfer {
@@ -267,7 +268,7 @@ int32_t syncBuildPreSnapshot(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildPreSnapshotReply(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildApplyMsg(SRpcMsg* pMsg, const SRpcMsg* pOriginal, int32_t vgId, SFsmCbMeta* pMeta);
 int32_t syncBuildSnapshotSend(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId);
-int32_t syncBuildSnapshotSendRsp(SRpcMsg* pMsg, int32_t vgId);
+int32_t syncBuildSnapshotSendRsp(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId);
 int32_t syncBuildLeaderTransfer(SRpcMsg* pMsg, int32_t vgId);
 int32_t syncBuildLocalCmd(SRpcMsg* pMsg, int32_t vgId);
 

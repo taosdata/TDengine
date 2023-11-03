@@ -145,10 +145,12 @@ typedef struct SReConfigCbMeta {
 typedef struct SSnapshotParam {
   SyncIndex start;
   SyncIndex end;
+  SSyncTLV* data;
 } SSnapshotParam;
 
 typedef struct SSnapshot {
-  void*     data;
+  int32_t   type;
+  SSyncTLV* data;
   SyncIndex lastApplyIndex;
   SyncTerm  lastApplyTerm;
   SyncIndex lastConfigIndex;
@@ -177,7 +179,7 @@ typedef struct SSyncFSM {
   void (*FpBecomeLearnerCb)(const struct SSyncFSM* pFsm);
 
   int32_t (*FpGetSnapshot)(const struct SSyncFSM* pFsm, SSnapshot* pSnapshot, void* pReaderParam, void** ppReader);
-  void (*FpGetSnapshotInfo)(const struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
+  int32_t (*FpGetSnapshotInfo)(const struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
 
   int32_t (*FpSnapshotStartRead)(const struct SSyncFSM* pFsm, void* pReaderParam, void** ppReader);
   void (*FpSnapshotStopRead)(const struct SSyncFSM* pFsm, void* pReader);
