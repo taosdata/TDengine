@@ -382,6 +382,8 @@ struct STsdb {
   TdThreadMutex        biMutex;
   SLRUCache           *bCache;
   TdThreadMutex        bMutex;
+  SLRUCache           *pgCache;
+  TdThreadMutex        pgMutex;
   struct STFileSystem *pFS;  // new
   SRocksCache          rCache;
 };
@@ -909,7 +911,9 @@ int32_t tsdbCacheGetBlockIdx(SLRUCache *pCache, SDataFReader *pFileReader, LRUHa
 int32_t tsdbBICacheRelease(SLRUCache *pCache, LRUHandle *h);
 
 int32_t tsdbCacheGetBlockS3(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle);
-int32_t tsdbBCacheRelease(SLRUCache *pCache, LRUHandle *h);
+int32_t tsdbCacheGetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, LRUHandle **handle);
+int32_t tsdbCacheSetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_t *pPage);
+int32_t tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h);
 
 int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);

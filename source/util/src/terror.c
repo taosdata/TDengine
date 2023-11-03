@@ -613,7 +613,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_TYPE,        "Invalid function par
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_VALUE,       "Invalid function para value")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION,      "Not buildin function")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_DUP_TIMESTAMP,            "Duplicate timestamps not allowed in function")
-TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED,      "Func to_timestamp failed, check log for detail")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_FORMAT_ERR, "Func to_timestamp failed, format mismatch")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_TS_ERR, "Func to_timestamp failed, wrong timestamp")
 
 //udf
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_STOPPING,                   "udf is stopping")

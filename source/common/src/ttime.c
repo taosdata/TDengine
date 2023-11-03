@@ -1320,7 +1320,7 @@ static void tm2char(const SArray* formats, const struct STm* tm, char* s, int32_
         s += 4;
         break;
       case TSFKW_DDD:
-        sprintf(s, "%d", tm->tm.tm_yday);
+        sprintf(s, "%03d", tm->tm.tm_yday + 1);
         s += strlen(s);
         break;
       case TSFKW_DD:
