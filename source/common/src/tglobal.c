@@ -136,7 +136,7 @@ char tsSmlAutoChildTableNameDelimiter[TSDB_TABLE_NAME_LEN] = "";
 // checkpoint backup
 char tsSnodeIp[TSDB_FQDN_LEN] = {0};
 #ifdef WINDOWS
-char tsCheckpointBackupDir[PATH_MAX] = "/c/TDengine/data/backup/checkpoint/";
+char tsCheckpointBackupDir[PATH_MAX] = "C:\TDengine\data\backup\checkpoint\";
 #else
 char tsCheckpointBackupDir[PATH_MAX] = "/var/lib/taos/backup/checkpoint/";
 #endif

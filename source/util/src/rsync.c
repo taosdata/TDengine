@@ -38,12 +38,32 @@ static void removeEmptyDir(){
   taosCloseDir(&pDir);
 }
 
+#ifdef WINDOWS
+// C:\TDengine\data\backup\checkpoint\ -> /c/TDengine/data/backup/checkpoint/
+static void changeDirFromWindowsToLinux(char* from, char* to){
+  to[0] = '/';
+  to[1] = from[0];
+  for(int i = 2; i < strlen(from); i++) {
+    if (from[i] == '\\') {
+      to[i] = '/';
+    } else {
+      to[i] = from[i];
+    }
+  }
+}
+#endif
+
 static int generateConfigFile(char* confDir){
   TdFilePtr pFile = taosOpenFile(confDir, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
     uError("[rsync] open conf file error, dir:%s,"ERRNO_ERR_FORMAT, confDir, ERRNO_ERR_DATA);
     return -1;
   }
+
+#ifdef WINDOWS
+  char path[PATH_MAX] = {0};
+  changeDirFromWindowsToLinux(tsCheckpointBackupDir, path);
+#endif
 
   char confContent[PATH_MAX*4] = {0};
   snprintf(confContent, PATH_MAX*4,
@@ -60,7 +80,13 @@ static int generateConfigFile(char* confDir){
            "read only = false\n"
            "list = false\n"
            "[checkpoint]\n"
-           "path = %s", tsCheckpointBackupDir, tsCheckpointBackupDir, tsCheckpointBackupDir);
+           "path = %s", tsCheckpointBackupDir, tsCheckpointBackupDir,
+#ifdef WINDOWS
+           path
+#else
+           tsCheckpointBackupDir
+#endif
+           );
   uDebug("[rsync] conf:%s", confContent);
   if (taosWriteFile(pFile, confContent, strlen(confContent)) <= 0){
     uError("[rsync] write conf file error,"ERRNO_ERR_FORMAT, ERRNO_ERR_DATA);
@@ -88,7 +114,7 @@ static int execCommand(char* command){
 void stopRsync(){
   int code =
 #ifdef WINDOWS
-  system("taskkill /f /mi rsync.exe");
+  system("taskkill /f /im rsync.exe");
 #else
   system("pkill rsync");
 #endif
