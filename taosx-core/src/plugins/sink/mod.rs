@@ -97,7 +97,7 @@ async fn ipc_tcp_forward(
             )
             .build(
                 data_stream
-                    .inspect(|v| debug!("{:?}", v))
+                    // .inspect(|v| debug!("{:?}", v))
                     .map_err(FlightError::from),
             )
             .enumerate()
@@ -154,40 +154,48 @@ async fn ipc_tcp_forward(
         })?;
         info!("Get putting stream response");
 
-        while let Some(res) = stream.next().await {
-            // if let Err(err) = ipc_ack_writer.write_ok() {
-            //     tracing::error!("Write ack error: {err:#}");
-            //     Err(err).context("Write ack error")?;
-            // }
-            let rsp = res;
-            match rsp {
-                Ok(rsp) => {
-                    tracing::debug!("Response ok: {:?}", rsp);
-                }
-                Err(err) => match &err {
-                    FlightError::Tonic(status) => {
-                        if status
-                            .message()
-                            .contains("stream closed because of a broken pipe")
-                            || status.message() == "ExternalError(Disconnected)"
-                        {
-                            tracing::warn!(alive = ?alive.elapsed(), "Disconnected, retry after one second: {err:#}");
-                            tokio::time::sleep(Duration::from_secs(1)).await;
-                            continue 'start;
-                        }
-                        tracing::error!(alive = ?alive.elapsed(), "Tonic error: {status}");
-                        Err(err).context("Got server response with error")?;
-                    }
-                    _ => {
-                        tracing::error!(alive = ?alive.elapsed(), "Other error: {err:#}");
-                        Err(err).context("Got server response with error")?;
-                    }
+        loop {
+            let put_result = tokio::select! {
+                _ = cancel.cancelled() => {
+                    tracing::debug!("cancel IPC worker");
+                    info!(alive = ?alive.elapsed(), "[{task_id}] Putting stream finished");
+                    return Ok(());
                 },
+                put_result = stream.next() => {
+                    put_result
+                }
+            };
+            if let Some(res) = put_result {
+                let rsp = res;
+                match rsp {
+                    Ok(rsp) => {
+                        tracing::debug!("Response ok: {:?}", rsp);
+                    }
+                    Err(err) => match &err {
+                        FlightError::Tonic(status) => {
+                            if status
+                                .message()
+                                .contains("stream closed because of a broken pipe")
+                                || status.message() == "ExternalError(Disconnected)"
+                            {
+                                tracing::warn!(alive = ?alive.elapsed(), "Disconnected, retry after one second: {err:#}");
+                                tokio::time::sleep(Duration::from_secs(1)).await;
+                                continue 'start;
+                            }
+                            tracing::error!(alive = ?alive.elapsed(), "Tonic error: {status}");
+                            Err(err).context("Got server response with error")?;
+                        }
+                        _ => {
+                            tracing::error!(alive = ?alive.elapsed(), "Other error: {err:#}");
+                            Err(err).context("Got server response with error")?;
+                        }
+                    },
+                }
+            } else {
+                info!(alive = ?alive.elapsed(), "[{task_id}] Putting stream finished");
+                return Ok(());
             }
         }
-
-        info!(alive = ?alive.elapsed(), "[{task_id}] Putting stream finished");
-        break;
     }
     Ok(())
 }
