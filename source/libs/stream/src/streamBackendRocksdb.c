@@ -258,9 +258,6 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray *list) {
     }
   }
   if (p->init == 0) {
-    p->preCkptId = -1;
-    p->curChkpId = chkpId;
-    p->init = 1;
 
     void* pIter = taosHashIterate(p->pSstTbl[1 - p->idx], NULL);
     while (pIter) {
@@ -272,6 +269,10 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray *list) {
       pIter = taosHashIterate(p->pSstTbl[1 - p->idx], pIter);
     }
     if (taosArrayGetSize(p->pAdd) > 0) p->update = 1;
+
+    p->init = 1;
+    p->preCkptId = -1;
+    p->curChkpId = chkpId;
   } else {
     int32_t code = compareHashTable(p->pSstTbl[p->idx], p->pSstTbl[1 - p->idx], p->pAdd, p->pDel);
     if (code != 0) {
@@ -284,12 +285,15 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray *list) {
       return code;
     }
 
-    p->preCkptId = p->curChkpId;
-    p->curChkpId = chkpId;
     if (taosArrayGetSize(p->pAdd) == 0 && taosArrayGetSize(p->pDel) == 0) {
       p->update = 0;
     }
+
+    p->preCkptId = p->curChkpId;
+    p->curChkpId = chkpId;
   }
+
+
   taosHashClear(p->pSstTbl[p->idx]);
   p->idx = 1 - p->idx;
 
