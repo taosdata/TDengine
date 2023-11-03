@@ -47,8 +47,10 @@ static int generateConfigFile(char* confDir){
 
   char confContent[PATH_MAX*4] = {0};
   snprintf(confContent, PATH_MAX*4,
+#ifndef WINDOWS
            "uid = root\n"
            "gid = root\n"
+#endif
            "use chroot = false\n"
            "max connections = 200\n"
            "timeout = 100\n"
@@ -84,7 +86,12 @@ static int execCommand(char* command){
 }
 
 void stopRsync(){
-  int code = system("pkill rsync");
+  int code =
+#ifdef WINDOWS
+  system("taskkill /f /mi rsync.exe");
+#else
+  system("pkill rsync");
+#endif
   if(code != 0){
     uError("[rsync] stop rsync server failed,"ERRNO_ERR_FORMAT, ERRNO_ERR_DATA);
     return;
@@ -120,12 +127,6 @@ void startRsync(){
 
 int uploadRsync(char* id, char* path){
   char command[PATH_MAX] = {0};
-//    char* name = strrchr(fullName, '/');
-//    if(name == NULL){
-//      uError("[rsync] file name invalid, name:%s", name);
-//      return -1;
-//    }
-//    name = name + 1;
   if(path[strlen(path) - 1] != '/'){
     snprintf(command, PATH_MAX, "rsync -av --delete --timeout=10 --bwlimit=100000 %s/ rsync://%s/checkpoint/%s/",
              path, tsSnodeIp, id);
