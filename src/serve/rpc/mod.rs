@@ -214,7 +214,7 @@ async fn action_to_arrow(
                     &dataset,
                 )
                 .unwrap()]));
-            let action: ArrayRef = Arc::new(StringArray::from_iter_values(["list".to_string()]));
+            let action: ArrayRef = Arc::new(StringArray::from_iter_values(["check".to_string()]));
             let req_id_array: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
             let batch = RecordBatch::try_from_iter(vec![
                 ("ts", ts),
