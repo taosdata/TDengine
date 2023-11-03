@@ -41,9 +41,9 @@ static int32_t tInitStreamDispatchReq(SStreamDispatchReq* pReq, const SStreamTas
                                       int32_t numOfBlocks, int64_t dstTaskId, int32_t type);
 
 void initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen) {
-    pMsg->msgType = msgType;
-    pMsg->pCont = pCont;
-    pMsg->contLen = contLen;
+  pMsg->msgType = msgType;
+  pMsg->pCont = pCont;
+  pMsg->contLen = contLen;
 }
 
 int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* pReq) {
@@ -429,6 +429,7 @@ static void doRetryDispatchData(void* param, void* tmrId) {
   ASSERT(pTask->outputq.status == TASK_OUTPUT_STATUS__WAIT);
 
   int32_t code = 0;
+
   {
     SArray* pList = taosArrayDup(pTask->msgInfo.pRetryList, NULL);
     taosArrayClear(pTask->msgInfo.pRetryList);
@@ -440,7 +441,7 @@ static void doRetryDispatchData(void* param, void* tmrId) {
       int32_t numOfVgroups = taosArrayGetSize(vgInfo);
 
       int32_t numOfFailed = taosArrayGetSize(pList);
-      stDebug("s-task:%s (child taskId:%d) re-try shuffle-dispatch blocks to %d vgroup(s), msgId:%d",
+      stDebug("s-task:%s (child taskId:%d) retry shuffle-dispatch blocks to %d vgroup(s), msgId:%d",
               id, pTask->info.selfChildId, numOfFailed, msgId);
 
       for (int32_t i = 0; i < numOfFailed; i++) {
@@ -471,6 +472,8 @@ static void doRetryDispatchData(void* param, void* tmrId) {
 
       code = doSendDispatchMsg(pTask, pReq, vgId, pEpSet);
     }
+
+    taosArrayDestroy(pList);
   }
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -1004,6 +1007,8 @@ int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo,
   info.msg.info = *pRpcInfo;
 
   taosThreadMutexLock(&pTask->lock);
+  stDebug("s-task:%s lock", pTask->id.idStr);
+
   if (pTask->pRspMsgList == NULL) {
     pTask->pRspMsgList = taosArrayInit(4, sizeof(SStreamContinueExecInfo));
   }

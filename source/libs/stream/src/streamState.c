@@ -121,7 +121,7 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
 #ifdef USE_ROCKSDB
   SStreamMeta* pMeta = pStreamTask->pMeta;
   pState->streamBackendRid = pMeta->streamBackendRid;
-  // taosWLockLatch(&pMeta->lock);
+  // streamMetaWLock(pMeta);
   taosThreadMutexLock(&pMeta->backendMutex);
   void* uniqueId =
       taosHashGet(pMeta->pTaskBackendUnique, pState->pTdbState->idstr, strlen(pState->pTdbState->idstr) + 1);
