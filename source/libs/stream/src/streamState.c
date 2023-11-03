@@ -114,7 +114,6 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
 
 #ifdef USE_ROCKSDB
   SStreamMeta* pMeta = pStreamTask->pMeta;
-
   pState->pTdbState->pOwner = pTask;
   pState->pFileState = NULL;
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT);

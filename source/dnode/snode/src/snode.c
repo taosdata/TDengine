@@ -169,17 +169,17 @@ int32_t sndProcessTaskDeployReq(SSnode *pSnode, char *msg, int32_t msgLen) {
   ASSERT(pTask->info.taskLevel == TASK_LEVEL__AGG);
 
   // 2.save task
-  taosWLockLatch(&pSnode->pMeta->lock);
+  streamMetaWLock(pSnode->pMeta);
 
   bool added = false;
   code = streamMetaRegisterTask(pSnode->pMeta, -1, pTask, &added);
   if (code < 0) {
-    taosWUnLockLatch(&pSnode->pMeta->lock);
+    streamMetaWUnLock(pSnode->pMeta);
     return -1;
   }
 
   int32_t numOfTasks = streamMetaGetNumOfTasks(pSnode->pMeta);
-  taosWUnLockLatch(&pSnode->pMeta->lock);
+  streamMetaWUnLock(pSnode->pMeta);
 
   char* p = NULL;
   streamTaskGetStatus(pTask, &p);
@@ -199,14 +199,14 @@ int32_t sndProcessTaskDropReq(SSnode *pSnode, char *msg, int32_t msgLen) {
   streamMetaUnregisterTask(pSnode->pMeta, pReq->streamId, pReq->taskId);
 
   // commit the update
-  taosWLockLatch(&pSnode->pMeta->lock);
+  streamMetaWLock(pSnode->pMeta);
   int32_t numOfTasks = streamMetaGetNumOfTasks(pSnode->pMeta);
   qDebug("vgId:%d task:0x%x dropped, remain tasks:%d", pSnode->pMeta->vgId, pReq->taskId, numOfTasks);
 
   if (streamMetaCommit(pSnode->pMeta) < 0) {
     // persist to disk
   }
-  taosWUnLockLatch(&pSnode->pMeta->lock);
+  streamMetaWUnLock(pSnode->pMeta);
   return 0;
 }
 

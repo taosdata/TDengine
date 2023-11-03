@@ -320,7 +320,11 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
     }
     case TDMT_MND_VIEW_META: {
       if (TSDB_CODE_SUCCESS != rspCode) {
-        qError("error rsp for get view-meta, error:%s, viewFName:%s", tstrerror(rspCode), target);
+        if (TSDB_CODE_MND_VIEW_NOT_EXIST == rspCode) {
+          qDebug("no success rsp for get view-meta, error:%s, viewFName:%s", tstrerror(rspCode), target);
+        } else {
+          qError("error rsp for get view-meta, error:%s, viewFName:%s", tstrerror(rspCode), target);
+        }
         CTG_ERR_RET(rspCode);
       }
 
