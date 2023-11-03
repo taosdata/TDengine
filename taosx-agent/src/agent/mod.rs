@@ -48,6 +48,8 @@ pub struct Client {
 #[serde(rename_all = "snake_case")]
 pub enum AgentStatus {
     Created,
+    Online,
+    Offline,
     Pending,
     Alive,
     Idle,
