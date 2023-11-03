@@ -514,6 +514,7 @@ async fn validate_pi(config: PiConfig) -> anyhow::Result<DataSourceValidation> {
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
+    config_file.into_temp_path();
 
     // startup the connector
     let pi_exe_path = pi_exe_path()?;
