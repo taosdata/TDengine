@@ -352,6 +352,19 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
 }
 
 async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::Result<()> {
+    let mut status = activity.status.as_str();
+    match status {
+        "online" | "offline" | "created" | "outdated" => {}
+        "transferring" => {
+            status = "online";
+        }
+        "pending" => {
+            status = "offline";
+        }
+        _ => {
+            status = "online";
+        }
+    }
     sqlx::query(
             "INSERT INTO agent_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)")
             .bind(
@@ -359,7 +372,7 @@ async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::
             activity.at).bind(&
             activity.level).bind(&
             activity.activity).bind(&
-            activity.status).bind(&
+            status).bind(&
             activity.context)
         .execute(pool)
         .await?;
@@ -1791,7 +1804,7 @@ impl TaskActivity {
             at: Utc::now(),
             level: LevelFilter::Info,
             activity: message,
-            status: "transferring".to_string(),
+            status: "online".to_string(),
             context: None,
         }
     }
