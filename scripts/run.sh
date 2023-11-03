@@ -276,7 +276,7 @@ function run_thread() {
             cmd="${cmd/--keep/}"
         fi
         if [ ! -z "$tdengine_version" ]; then
-            cmd="$cmd --server-pkg=${workdirs[index]}/TDinternal/community/release/TDengine-enterprise--${tdengine_version}-Linux-x64.tar.gz"
+            cmd="$cmd --server-pkg=${workdirs[index]}/TDinternal/community/release/TDengine-enterprise-${tdengine_version}-Linux-x64.tar.gz"
             cmd="$cmd --client-pkg=${workdirs[index]}/TDinternal/community/release/TDengine-enterprise-client-${tdengine_version}-Linux-x64.tar.gz"
         fi
         if [ ! -z "$debug_level" ]; then
