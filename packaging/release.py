@@ -536,18 +536,26 @@ def package_on_windows():
 
 def copy_docs_to_explorer(explorer_path):
     print("copy docs to explorer")
-    zh_doc_zip_path = os.path.join(explorer_path, "..", "docs-zh.zip")
-    zh_doc_public_path = os.path.join(explorer_path, "public", "docs")
-    if os.path.exists(zh_doc_zip_path):
-        unzip_docs(zh_doc_zip_path, zh_doc_public_path)
+    if release_info.CustomPrompt != 'taos' or release_info.CustomName != 'TDengine':
+        prodb_doc_zip_path = os.path.join(explorer_path, "..", "docs-prodb.zip")
+        prodb_doc_public_path = os.path.join(explorer_path, "public", "docs")
+        if os.path.exists(prodb_doc_zip_path):
+            unzip_docs(prodb_doc_zip_path, prodb_doc_public_path)
+        else:
+            print("WARN: not found docs-prodb.zip")
     else:
-        print("WARN: not found docs-zh.zip")
-    en_doc_zip_path = os.path.join(explorer_path, "..", "docs-en.zip")
-    en_doc_public_path = os.path.join(explorer_path, "public", "docs-en")
-    if os.path.exists(en_doc_zip_path):
-        unzip_docs(en_doc_zip_path, en_doc_public_path)
-    else:
-        print("WARN: not found docs-en.zip")
+        zh_doc_zip_path = os.path.join(explorer_path, "..", "docs-zh.zip")
+        zh_doc_public_path = os.path.join(explorer_path, "public", "docs")
+        if os.path.exists(zh_doc_zip_path):
+            unzip_docs(zh_doc_zip_path, zh_doc_public_path)
+        else:
+            print("WARN: not found docs-zh.zip")
+        en_doc_zip_path = os.path.join(explorer_path, "..", "docs-en.zip")
+        en_doc_public_path = os.path.join(explorer_path, "public", "docs-en")
+        if os.path.exists(en_doc_zip_path):
+            unzip_docs(en_doc_zip_path, en_doc_public_path)
+        else:
+            print("WARN: not found docs-en.zip")
 
 def unzip_docs(doc_zip_path, doc_public_path):
     if os.path.exists(doc_public_path):
@@ -558,10 +566,13 @@ def unzip_docs(doc_zip_path, doc_public_path):
 def update_docs_zip_file(explorer_path):
     print("update docs zip file")
     doc_zip_path = os.path.join(explorer_path, "..")
-    cmd1 = f"scp root@192.168.0.30:/root/enterprise-docs/docs-en.zip {doc_zip_path}"
-    cmd2 = f"scp root@192.168.0.30:/root/enterprise-docs/docs-zh.zip {doc_zip_path}"
-    os.system(cmd1)
-    os.system(cmd2)
+    if release_info.CustomPrompt != 'taos' or release_info.CustomName != 'TDengine':
+        os.system(f"scp root@192.168.0.30:/root/enterprise-docs/docs-prodb.zip {doc_zip_path}")
+    else:
+        cmd1 = f"scp root@192.168.0.30:/root/enterprise-docs/docs-en.zip {doc_zip_path}"
+        cmd2 = f"scp root@192.168.0.30:/root/enterprise-docs/docs-zh.zip {doc_zip_path}"
+        os.system(cmd1)
+        os.system(cmd2)
 
 def package():
     if release_info.OS == 'Windows':
