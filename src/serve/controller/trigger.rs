@@ -243,20 +243,44 @@ impl StopCondition {
     }
 
     /// Similar to `should_stop` but also check the result.
-    pub fn should_stop_with(&self, result: &Result<(), anyhow::Error>) -> bool {
+    // pub fn should_stop_with(&self, result: &Result<(), anyhow::Error>) -> bool {
+    //     match self {
+    //         StopCondition::Never => false,
+    //         StopCondition::Done => match result {
+    //             Ok(_) => true,
+    //             Err(_) => false,
+    //         },
+    //         StopCondition::Fatal => match result {
+    //             Ok(_) => false,
+    //             Err(err) => {
+    //                 return err.is_fatal_error();
+    //             }
+    //         },
+    //         StopCondition::Unhealthy => result.is_err(),
+    //         StopCondition::Repeated(atomic) => {
+    //             atomic.load(std::sync::atomic::Ordering::Relaxed) > 0
+    //         }
+    //     }
+    // }
+
+    pub fn should_stop_with_ok(&self) -> bool {
         match self {
             StopCondition::Never => false,
-            StopCondition::Done => match result {
-                Ok(_) => true,
-                Err(_) => false,
-            },
-            StopCondition::Fatal => match result {
-                Ok(_) => false,
-                Err(err) => {
-                    return err.is_fatal_error();
-                }
-            },
-            StopCondition::Unhealthy => result.is_err(),
+            StopCondition::Done => true,
+            StopCondition::Fatal => false,
+            StopCondition::Unhealthy => true,
+            StopCondition::Repeated(atomic) => {
+                atomic.load(std::sync::atomic::Ordering::Relaxed) > 0
+            }
+        }
+    }
+
+    pub fn should_stop_with_error(&self) -> bool {
+        match self {
+            StopCondition::Never => false,
+            StopCondition::Done => false,
+            StopCondition::Fatal => true,
+            StopCondition::Unhealthy => true,
             StopCondition::Repeated(atomic) => {
                 atomic.load(std::sync::atomic::Ordering::Relaxed) > 0
             }
@@ -276,6 +300,14 @@ impl StopCondition {
                 });
             }
             _ => (),
+        }
+    }
+
+    pub(crate) fn should_stop_with(&self, result: &anyhow::Result<()>) -> bool {
+        if result.is_err() {
+            return self.should_stop_with_error();
+        } else {
+            return self.should_stop_with_ok();
         }
     }
 }

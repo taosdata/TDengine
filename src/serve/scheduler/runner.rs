@@ -1057,7 +1057,7 @@ impl TaskJob {
                             last_state.write().await.replace(LastState::Error(err));
                         }
                     }
-                    return should_stop;
+                    should_stop
                 };
 
                 let mut should_stop = tokio::select! {
@@ -1078,18 +1078,30 @@ impl TaskJob {
                 let state_guard = opts.last_state.read().await;
                 let state = state_guard.as_ref().expect("task should have a last state");
                 match state {
-                    LastState::Done => {
-                        if opts.stop_condition.should_stop_with(&Ok(())) {
-                            global.send_task_activity(TaskActivity::completed(opts.task.id, jid));
-                            opts.state.write().await.completed();
-                        } else {
-                            global.send_task_activity(TaskActivity::tick(opts.task.id, jid));
-                            opts.state.write().await.ticked();
+                    LastState::Done => match opts.operator.operator() {
+                        Operator::Suspend => {
+                            global.send_task_activity(TaskActivity::suspended(opts.task.id, jid));
+                            opts.state.write().await.stopped();
                         }
-                    }
+                        Operator::Stop => {
+                            global.send_task_activity(TaskActivity::stopped(opts.task.id));
+                            opts.state.write().await.stopped();
+                        }
+                        Operator::Run => {
+                            if should_stop {
+                                global
+                                    .send_task_activity(TaskActivity::completed(opts.task.id, jid));
+                                opts.state.write().await.completed();
+                            } else {
+                                global.send_task_activity(TaskActivity::tick(opts.task.id, jid));
+                                opts.state.write().await.ticked();
+                            }
+                        }
+                    },
                     LastState::Stopped => match opts.operator.operator() {
                         Operator::Suspend => {
                             global.send_task_activity(TaskActivity::suspended(opts.task.id, jid));
+                            opts.state.write().await.stopped();
                         }
                         _ => {
                             global.send_task_activity(TaskActivity::stopped(opts.task.id));
@@ -1097,10 +1109,7 @@ impl TaskJob {
                         }
                     },
                     LastState::Error(err) => {
-                        if opts
-                            .stop_condition
-                            .should_stop_with(&Err(anyhow::format_err!("{:#}", err)))
-                        {
+                        if should_stop {
                             global.send_task_activity(TaskActivity::failed(
                                 opts.task.id,
                                 format!("{err:#}"),
@@ -1158,26 +1167,9 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
     }
     task.operator.start();
     task.stop_condition.tick();
-    let (tx, rx) = oneshot::channel::<()>();
     let opts = TaskJob::new(jid, task.clone(), global_state.as_ref().clone());
 
     let opts_cancellation_handler = opts.clone();
-    tokio::spawn(async move {
-        match rx.await {
-            Ok(_) => {
-                // Normally completed.
-                tracing::debug!("task finished successfully");
-            }
-            Err(err) => {
-                tracing::warn!(
-                    "task is stopped unexpectedly, gracefully release job resources for {}",
-                    opts_cancellation_handler.job_id
-                );
-                error!("task error: {:#}", err);
-                opts_cancellation_handler.stop().await;
-            }
-        }
-    });
 
     opts.spawn().await;
 
@@ -1198,5 +1190,4 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
             tracing::info!("task finished without state(usually means the job runs on an agent)");
         }
     }
-    debug_assert!(tx.send(()).is_ok());
 }

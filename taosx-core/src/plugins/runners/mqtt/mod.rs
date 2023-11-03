@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::AtomicBool;
 use std::{fs, io::Write, path::PathBuf, sync::Arc};
 
 use anyhow::Context;
@@ -112,7 +113,7 @@ pub async fn mqtt_to_taos(
         .arg("-c")
         .arg(&config_path)
         .kill_on_drop(true)
-        .stdout(std::process::Stdio::inherit())
+        .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
     let mut child = child
@@ -123,6 +124,8 @@ pub async fn mqtt_to_taos(
     let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
     let error_buf_producer = error_buf.clone();
     let stderr = child.stderr.take().expect("Failed to capture stderr");
+    let is_killed = Arc::new(AtomicBool::new(false));
+    let is_killed_clone = is_killed.clone();
     tokio::spawn(async move {
         let mut reader = tokio::io::BufReader::new(stderr);
         let mut line = String::new();
@@ -137,6 +140,9 @@ pub async fn mqtt_to_taos(
                 let mut guard = error_buf_producer.lock().await;
                 let _ = guard.push_overwrite(line.clone());
             }
+            if line.contains(r#""stop server""#) {
+                is_killed_clone.store(true, std::sync::atomic::Ordering::SeqCst);
+            }
             // Write the line to log_rotation
             write!(log_rotation, "{}", line).unwrap();
             line.clear();
@@ -145,42 +151,42 @@ pub async fn mqtt_to_taos(
     });
 
     let port_pool = port_pool.clone();
-    tokio::spawn(async move {
-        macro_rules! safe_exit {
-            () => {
-                let _ = ipc_handler.close().await;
-                temp_path.close().unwrap();
-                port_pool.put(ipc_port);
-            };
-        }
-        tokio::select! {
-            status = child.wait() => {
-                let status = status?;
-                tracing::info!("mqtt exit with {status}");
-                if !status.success() {
-                    use ringbuf::Rb;
-                    safe_exit!();
-                    let error = error_buf.lock().await.iter().join("");
-                    anyhow::bail!("MQTT exit with {}\n{error}", status);
-                }
-            },
-            err = ipc_handler.recv_error() => {
-                tracing::info!("have received worker thread panicked message, terminate child process");
-                if let Some(err) = err {
-                    safe_exit!();
-                    anyhow::bail!("mqtt writer error: {err}");
-                }
-            },
-            _ = cancel.cancelled() => {
-                tracing::info!("mqtt task cancelled");
-            },
-        }
+    macro_rules! safe_exit {
+        () => {
+            let _ = ipc_handler.close().await;
+            temp_path.close().unwrap();
+            port_pool.put(ipc_port);
+        };
+    }
+    tokio::select! {
+        status = child.wait() => {
+            let status = status?;
+            tracing::info!("mqtt exit with {status}");
+            if !status.success() {
+                use ringbuf::Rb;
+                safe_exit!();
+                let error = error_buf.lock().await.iter().join("");
+                anyhow::bail!("MQTT exit with {}\n{error}", status);
+            } else if is_killed.load(std::sync::atomic::Ordering::SeqCst) {
+                safe_exit!();
+                anyhow::bail!("MQTT process is killed by user");
+            }
+        },
+        err = ipc_handler.recv_error() => {
+            tracing::info!("have received worker thread panicked message, terminate child process");
+            if let Some(err) = err {
+                safe_exit!();
+                anyhow::bail!("mqtt writer error: {err}");
+            }
+        },
+        _ = cancel.cancelled() => {
+            tracing::info!("mqtt task cancelled");
+        },
+    }
 
-        let _ = child.kill().await;
-        tracing::info!("mqtt to taos task done");
-        safe_exit!();
-        Ok(())
-    }).await??;
+    let _ = child.kill().await;
+    tracing::info!("mqtt to taos task done");
+    safe_exit!();
     Ok(())
 }
 
