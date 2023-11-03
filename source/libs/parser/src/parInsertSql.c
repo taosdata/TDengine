@@ -1648,6 +1648,7 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
     const char* pTmpSql = *ppSql;
     bool        ignoreComma = false;
     NEXT_TOKEN_WITH_PREV_EXT(*ppSql, *pToken, &ignoreComma);
+
     if (ignoreComma) {
       code = buildSyntaxErrMsg(&pCxt->msg, "invalid data or symbol", pTmpSql);
       break;
@@ -1771,12 +1772,6 @@ static int32_t processCtbAutoCreationAndCtbMeta(SInsertParseContext* pCxt, SVnod
   return code;
 }
 
-static void resetStbRowsDataContextPreStbRow(SStbRowsDataContext* pStbRowsCxt) {
-  pStbRowsCxt->pCtbMeta->tableType = TSDB_CHILD_TABLE;
-  pStbRowsCxt->pCtbMeta->suid = pStbRowsCxt->pStbMeta->uid;
-
-  insInitColValues(pStbRowsCxt->pStbMeta, pStbRowsCxt->aColVals);
-}
 
 static void clearStbRowsDataContext(SStbRowsDataContext* pStbRowsCxt) {
   if (pStbRowsCxt == NULL) return;
@@ -1791,19 +1786,15 @@ static void clearStbRowsDataContext(SStbRowsDataContext* pStbRowsCxt) {
   taosArrayClear(pStbRowsCxt->aTagVals);
 
   clearColValArray(pStbRowsCxt->aColVals);
-  taosArrayClear(pStbRowsCxt->aColVals);
 
   tTagFree(pStbRowsCxt->pTag);
   pStbRowsCxt->pTag = NULL;
-  pStbRowsCxt->pCtbMeta->uid = 0;
-  pStbRowsCxt->pCtbMeta->vgId = 0;
   tdDestroySVCreateTbReq(pStbRowsCxt->pCreateCtbReq);
   taosMemoryFreeClear(pStbRowsCxt->pCreateCtbReq);
 }
 
 static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,  const char** ppSql,
                               SStbRowsDataContext* pStbRowsCxt, bool* pGotRow, SToken* pToken) {
-  resetStbRowsDataContextPreStbRow(pStbRowsCxt);
   bool bFirstTable = false;
   int32_t code = getStbRowValues(pCxt, pStmt, ppSql, pStbRowsCxt, pGotRow, pToken, &bFirstTable);
   if (code != TSDB_CODE_SUCCESS || !*pGotRow) {
@@ -1825,12 +1816,13 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
       insCheckTableDataOrder(pTableDataCxt, TD_ROW_KEY(*pRow));
     }
   }
+
   if (code == TSDB_CODE_SUCCESS) {
     *pGotRow = true;
   }
 
   clearStbRowsDataContext(pStbRowsCxt);
-
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2151,6 +2143,8 @@ static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModif
   if (code == TSDB_CODE_SUCCESS) {
     SRowsDataContext rowsDataCxt;
     rowsDataCxt.pStbRowsCxt = pStbRowsCxt;
+
+    insInitColValues(pStbRowsCxt->pStbMeta, pStbRowsCxt->aColVals);
     code = parseDataClause(pCxt, pStmt, rowsDataCxt);
   }
 
