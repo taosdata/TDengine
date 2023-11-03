@@ -261,8 +261,9 @@ impl TaskControllerRef {
             .bind(Status::Created)
             .fetch_all(&self.pool)
             .await?;
-        for task in tasks {
+        for mut task in tasks {
             let id = task.id;
+            task.load_breakpoints();
             if let Err(err) = self.scheduler.push_task(task).await {
                 tracing::error!(task.id = id, "Push task to scheduler error: {err:?}");
             }
@@ -520,7 +521,9 @@ impl TaskController {
         let _guard = span.enter();
         counter!("tasks", tasks.len() as u64);
 
-        tasks.iter_mut().for_each(|task| task.backport_labels());
+        tasks.iter_mut().for_each(|task| {
+            task.backport_labels();
+        });
         Ok(tasks.into_iter().map(TaskDetail::new).collect())
     }
 
@@ -880,17 +883,7 @@ impl TaskController {
             })
             // set breakpoints
             .map(|mut t| {
-                let task_id = id.to_string();
-                let breakpoints_res = breakpoints_get_all(&task_id);
-                if let Ok(breakpoints) = breakpoints_res {
-                    let formatted_pairs: Vec<String> = breakpoints
-                        .iter()
-                        .map(|(first, second)| format!("{}:{}", first, second))
-                        .collect();
-
-                    let output = formatted_pairs.join("&");
-                    t.breakpoints = Some(output);
-                }
+                t.load_breakpoints();
                 t
             })
             .map(Into::into))
@@ -2168,6 +2161,20 @@ impl Task {
     #[allow(dead_code)]
     fn set_breakpoints(&mut self, breakpoints: Option<String>) {
         self.breakpoints = breakpoints;
+    }
+
+    fn load_breakpoints(&mut self) {
+        let task_id = self.id.to_string();
+        let breakpoints_res = breakpoints_get_all(&task_id);
+        if let Ok(breakpoints) = breakpoints_res {
+            let formatted_pairs: Vec<String> = breakpoints
+                .iter()
+                .map(|(first, second)| format!("{}:{}", first, second))
+                .collect();
+
+            let output = formatted_pairs.join("&");
+            self.set_breakpoints(Some(output));
+        }
     }
 }
 
