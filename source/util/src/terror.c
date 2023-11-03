@@ -613,7 +613,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_TYPE,        "Invalid function par
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_VALUE,       "Invalid function para value")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION,      "Not buildin function")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_DUP_TIMESTAMP,            "Duplicate timestamps not allowed in function")
-TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED,      "Func to_timestamp failed, check log for detail")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_FORMAT_ERR, "Func to_timestamp failed, format mismatch")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_TS_ERR, "Func to_timestamp failed, wrong timestamp")
 
 //udf
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_STOPPING,                   "udf is stopping")
@@ -680,6 +681,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT,         "Replay is disabled 
 // stream
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_NOT_EXIST,          "Stream task not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXEC_CANCELLED,          "Stream task exec cancelled")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_STATETRANS,      "Invalid task state to handle event")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_IVLD_STATUS,"Invalid task status to proceed")
+
 // TDLite
 TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_FLAGS,         "Invalid TDLite open flags")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_DIR,           "Invalid TDLite open directory")

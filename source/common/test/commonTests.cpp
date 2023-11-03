@@ -344,7 +344,7 @@ TEST(timeTest, ts2char) {
                "day-\"日\"",
                TSDB_TIME_PRECISION_MILLI,
                "2023-023-23-3-2023-023-23-3-年-OCTOBER  -OCT-October  -Oct-october  "
-               "-oct-月-285-13-6-285-13-6-FRIDAY   -Friday   -friday   -日");
+               "-oct-月-286-13-6-286-13-6-FRIDAY   -Friday   -friday   -日");
 #endif
   ts = 1697182085123L; // Friday, October 13, 2023 3:28:05.123 PM GMT+08:00
   test_ts2char(ts, "HH24:hh24:HH12:hh12:HH:hh:MI:mi:SS:ss:MS:ms:US:us:NS:ns:PM:AM:pm:am", TSDB_TIME_PRECISION_MILLI,

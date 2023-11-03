@@ -35,9 +35,9 @@ int32_t tqPushMsg(STQ* pTq, tmsg_t msgType) {
     tqProcessSubmitReqForSubscribe(pTq);
   }
 
-  taosRLockLatch(&pTq->pStreamMeta->lock);
+  streamMetaRLock(pTq->pStreamMeta);
   int32_t numOfTasks = streamMetaGetNumOfTasks(pTq->pStreamMeta);
-  taosRUnLockLatch(&pTq->pStreamMeta->lock);
+  streamMetaRUnLock(pTq->pStreamMeta);
 
 //  tqTrace("vgId:%d handle submit, restore:%d, numOfTasks:%d", TD_VID(pTq->pVnode), pTq->pVnode->restored, numOfTasks);
 
