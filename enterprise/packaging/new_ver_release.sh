@@ -23,8 +23,9 @@ versionComp=3.0.0.0
 dockerMode="no"
 dockerProject="tdengine"
 grantValue=60
+skip=0
 
-while getopts "hb:c:n:l:v:d:V:N:P:M:D:G:" arg
+while getopts "hb:c:n:l:v:d:V:N:P:M:D:G:s:" arg
 do
   case $arg in
     c)
@@ -74,6 +75,10 @@ do
     G)
       grantValue=$(echo $OPTARG)
       ;;
+    s)
+      #echo "skip=$OPTARG"
+      skip=$(echo $OPTARG)
+      ;;
     h)
       echo "Usage: `basename $0` -b [develop | master] "
       echo "                     -c [aarch32 | aarch64 | x64 ...] "
@@ -87,6 +92,7 @@ do
       echo "                     -M <custom email>"
       echo "                     -D <harbor docker project>"
       echo "                     -G <grant days>"
+      echo "                     -s [0, 1] skip some steps, 0: do not skip, 1: skip"
       exit 0
       ;;
     ?) #unknow option
@@ -115,8 +121,8 @@ if [ "$verMode" == "all" ];then
 elif [ "$verMode" == "edge" ];then
   bash generate_community.sh  $version $versionComp $branchName $verType $cpuType
 elif [ "$verMode" == "cluster" ];then
-  echo  "bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $grantValue $cusName $cusPrompt $cusEmail"
-  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $grantValue $cusName $cusPrompt $cusEmail
+  echo  "bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $grantValue $cusName $cusPrompt $cusEmail $skip"
+  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $grantValue $cusName $cusPrompt $cusEmail $skip
 elif [ "$verMode" == "cloud" ];then
   bash generate_cloud.sh $version $versionComp $branchName $verType $cpuType
 else

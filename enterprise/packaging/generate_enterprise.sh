@@ -12,6 +12,7 @@ grantValue=$6
 cusName=$7
 cusPrompt=$8
 cusEmail=$9
+skip=$10
 
 topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
@@ -140,14 +141,16 @@ if [ -d $archiveDir ]; then
     cd $archiveDir
     cp -f $communityDir/release/* ./
 
-    scp *client* root@taosdata.com:/data/www/assets-download/3.0/
-    if [ $? > 0 ]; then
-      echo "copy client package to taosdata server failed"
+    if [ $skip == 0 ]; then
+      scp *client* root@taosdata.com:/data/www/assets-download/3.0/
+      if [ $? > 0 ]; then
+        echo "copy client package to taosdata server failed"
+      fi
+      scp *client* ubuntu@tdengine.com:/data/www/assets-download/3.0/
+      if [ $? > 0 ]; then
+        echo "copy client package to TDengine server failed"
+      fi
     fi
-    scp *client* ubuntu@tdengine.com:/data/www/assets-download/3.0/
-    if [ $? > 0 ]; then
-      echo "copy client package to TDengine server failed"
-    fi    
 else
     echo "Cannot found $archiveDir on this machine"
 fi

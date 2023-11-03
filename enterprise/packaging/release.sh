@@ -15,6 +15,7 @@ set -e
 #             -n [2.0.0.3]
 #             -m [2.0.0.0]
 #             -H [ false | true]
+#             -s [ 0 | 1 ]
 
 # set parameters by default value
 verMode=edge    # [cluster, edge, cloud]
@@ -28,8 +29,9 @@ allocator=glibc # [glibc | jemalloc]
 verNumber=""
 verNumberComp="3.0.0.0"
 httpdBuild=false
+skip=0
 
-while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:G:" arg; do
+while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:G:s:" arg; do
   case $arg in
   v)
     #echo "verMode=$OPTARG"
@@ -90,6 +92,9 @@ while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:G:" arg; do
   G)
     grantValue=$(echo $OPTARG)
     ;;
+  s)
+    skip=$(echo $OPTARG)
+    ;;
   h)
     echo "Usage: $(basename $0) -v [cluster | edge] "
     echo "                  -c [aarch32 | aarch64 | x64 | x86 | mips64 | loongarch64 ...] "
@@ -105,7 +110,8 @@ while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:G:" arg; do
     echo "                  -N <custom name>"
     echo "                  -P <custom prompt>"
     echo "                  -M <custom email>"
-    echo "                     -G <grant days>"
+    echo "                  -G <grant days>"
+    echo "                  -s [ 0 | 1 ]"
     exit 0
     ;;
   ?) #unknow option
@@ -117,7 +123,7 @@ done
 
 osType=$(uname)
 
-echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} soMode=${soMode} dbName=${dbName} allocator=${allocator} verNumber=${verNumber} verNumberComp=${verNumberComp} httpdBuild=${httpdBuild} cusPrompt=${cusPrompt} cusName=${cusName} cusEmail=${cusEmail}"
+echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} pagMode=${pagMode} soMode=${soMode} dbName=${dbName} allocator=${allocator} verNumber=${verNumber} verNumberComp=${verNumberComp} httpdBuild=${httpdBuild} cusPrompt=${cusPrompt} cusName=${cusName} cusEmail=${cusEmail} skip=${skip}"
 
 curr_dir=$(pwd)
 
@@ -287,7 +293,7 @@ else
     CORES=$(grep -c ^processor /proc/cpuinfo)
 fi
 
-if [ "$cpuType" == "x64" ]; then
+if [ "$cpuType" == "x64" ] and [ "$osType" == "Linux" ]; then
   ${csudo}sed -i ':a;N;$!ba;s/\(.*\)OFF/\1ON/' ${top_dir}/community/cmake/cmake.options
 elif [ "$cpuType" == "aarch64" ]; then
   CORES=1
