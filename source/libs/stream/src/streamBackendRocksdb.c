@@ -39,7 +39,7 @@ typedef struct SDbChkp {
   SArray* pAdd;
   SArray* pDel;
   int8_t  update;
-
+  
   TdThreadRwlock rwLock;
 } SDbChkp;
 typedef struct {
