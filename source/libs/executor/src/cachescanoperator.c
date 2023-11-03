@@ -191,9 +191,9 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
     SSDataBlock* pRes = pInfo->pRes;
 
     if (pInfo->indexOfBufferedRes < pInfo->pBufferredRes->info.rows) {
-      for (int32_t i = 0; i < taosArrayGetSize(pInfo->matchInfo.pList); ++i) {
-        SColMatchItem* pMatchInfo = taosArrayGet(pInfo->matchInfo.pList, i);
-        int32_t        slotId = pMatchInfo->dstSlotId;
+      for (int32_t i = 0; i < taosArrayGetSize(pInfo->pBufferredRes->pDataBlock); ++i) {
+        SColumnInfoData* pCol = taosArrayGet(pInfo->pBufferredRes->pDataBlock, i);
+        int32_t        slotId = pCol->info.slotId;
 
         SColumnInfoData* pSrc = taosArrayGet(pInfo->pBufferredRes->pDataBlock, slotId);
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, slotId);
@@ -201,8 +201,10 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
         if (colDataIsNull_s(pSrc, pInfo->indexOfBufferedRes)) {
           colDataSetNULL(pDst, 0);
         } else {
-          char* p = colDataGetData(pSrc, pInfo->indexOfBufferedRes);
-          colDataSetVal(pDst, 0, p, false);
+          if (pSrc->pData) {
+            char* p = colDataGetData(pSrc, pInfo->indexOfBufferedRes);
+            colDataSetVal(pDst, 0, p, false);
+          }
         }
       }
 
