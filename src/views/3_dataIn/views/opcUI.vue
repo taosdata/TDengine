@@ -1192,9 +1192,9 @@ export default {
     targetDatabase() {
       return this.$store.state.app.currentDBName || ""
     },
-    resume() {
-      return this.$store.state.app.currentResume || "";
-    }
+    // resume() {
+    //   return this.$store.state.app.currentResume || "";
+    // }
   },
   watch: {
     "$i18n.locale":{
@@ -1917,7 +1917,7 @@ export default {
             `cluster-id::${id}`,
             `user::${localStorage.getItem("username")}`,
           ],
-          trigger: { "resume": this.resume }
+          // trigger: { "resume": this.resume }
         };
         if (this.tagName == "mqtt" && isSubmit) {
           piParams["parser"] = this.$store.state.app.mqttParser;

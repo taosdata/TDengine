@@ -87,7 +87,7 @@
         
         <!-- <el-button @click="downloadFile">文件下载</el-button> -->
       </el-form-item>
-      <el-form-item
+      <!-- <el-form-item
         :label="$t('dataIn.resume')"
         prop="'resume'"
         size="small"
@@ -108,7 +108,7 @@
         </div>
 
         <div class="custom-placeholder mt10" v-html="transforHtml()"></div>
-      </el-form-item>
+      </el-form-item> -->
     </el-form>
     <el-dialog
       :title="$t('dataIn.createNewAgent')"
@@ -237,9 +237,9 @@ export default {
     changeDB() {
       this.$store.commit("app/SET_CURRENT_DBNAME", this.ruleForm.dbName);
     },
-    changeResume() {
-      this.$store.commit("app/SET_CURRENT_RESUME", this.ruleForm.resume);
-    },
+    // changeResume() {
+    //   this.$store.commit("app/SET_CURRENT_RESUME", this.ruleForm.resume);
+    // },
     async getAllPoints() {
       try {
         let result = await downlaodAllNodes();
@@ -253,7 +253,7 @@ export default {
       this.ruleForm.agent = this.$store.state.app.currentAgentID;
       this.ruleForm.name = this.$store.state.app.currentDSName;
       this.ruleForm.type = this.$store.state.app.currentDBType;
-      this.ruleForm.resume = this.$store.state.app.currentResume;
+      // this.ruleForm.resume = this.$store.state.app.currentResume;
       if (this.agentTypes.includes(this.ruleForm.type)) {
         this.showAgentSelect = true;
       } else {
