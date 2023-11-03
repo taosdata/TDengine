@@ -50,7 +50,7 @@ class ReleaseInfo:
         self.TdengineVersion = ""
         self.CustomPrompt = "taos"
         self.CustomName = "TDengine"
-        self.CustomEmail = ""
+        self.CustomEmail = "support@taosdata.com"
     def print(self):
         for attr in dir(self):
             if not attr.startswith("__"):
