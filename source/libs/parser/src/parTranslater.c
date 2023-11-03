@@ -3972,7 +3972,9 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (TSDB_CODE_SUCCESS == code && pSelect->timeRange.skey > pSelect->timeRange.ekey) {
     pSelect->isEmptyResult = true;
   }
-  setTableVgroupsFromEqualTbnameCond(pCxt, pSelect);
+  if (pSelect->pWhere != NULL) {
+    setTableVgroupsFromEqualTbnameCond(pCxt, pSelect);
+  }
   return code;
 }
 
