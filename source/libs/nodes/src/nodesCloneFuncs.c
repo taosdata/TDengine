@@ -741,6 +741,19 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t setOperatorCopy(const SSetOperator* pSrc, SSetOperator* pDst) {
+  COPY_SCALAR_FIELD(opType);
+  CLONE_NODE_LIST_FIELD(pProjectionList);
+  CLONE_NODE_FIELD(pLeft);
+  CLONE_NODE_FIELD(pRight);
+  CLONE_NODE_LIST_FIELD(pOrderByList);
+  CLONE_NODE_FIELD(pLimit);
+  COPY_CHAR_ARRAY_FIELD(stmtName);
+  COPY_SCALAR_FIELD(precision);
+  COPY_SCALAR_FIELD(timeLineResMode);
+  return TSDB_CODE_SUCCESS;
+}
+
 SNode* nodesCloneNode(const SNode* pNode) {
   if (NULL == pNode) {
     return NULL;
@@ -828,6 +841,9 @@ SNode* nodesCloneNode(const SNode* pNode) {
       break;
     case QUERY_NODE_HINT:
       code = hintNodeCopy((const SHintNode*)pNode, (SHintNode*)pDst);
+      break;
+    case QUERY_NODE_SET_OPERATOR:
+      code = setOperatorCopy((const SSetOperator*)pNode, (SSetOperator*)pDst);
       break;
     case QUERY_NODE_SELECT_STMT:
       code = selectStmtCopy((const SSelectStmt*)pNode, (SSelectStmt*)pDst);

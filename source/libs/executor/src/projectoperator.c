@@ -152,9 +152,11 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
    setOperatorStreamStateFn(pOperator, streamOperatorReleaseState, streamOperatorReloadState);
 
-  code = appendDownstream(pOperator, &downstream, 1);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
+  if (NULL != downstream) {
+    code = appendDownstream(pOperator, &downstream, 1);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _error;
+    }
   }
 
   return pOperator;
@@ -263,7 +265,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     st = taosGetTimestampUs();
   }
 
-  SOperatorInfo* downstream = pOperator->pDownstream[0];
+  SOperatorInfo* downstream = pOperator->numOfDownstream > 0 ? pOperator->pDownstream[0] : NULL;
   SLimitInfo*    pLimitInfo = &pProjectInfo->limitInfo;
 
   if (downstream == NULL) {
