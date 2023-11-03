@@ -1,0 +1,153 @@
+sql connect
+sql use testa;
+
+sql create view view1 as select * from sta1;
+sql show views;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != view1 then
+  return -1
+endi
+if $data01 != testa then
+  return -1
+endi
+if $data02 != root then
+  return -1
+endi
+if $data04 != NORMAL then
+  return -1
+endi
+if $data05 != @select * from sta1;@ then
+  return -1
+endi
+if $data06 != NULL then
+  return -1
+endi
+if $data07 != NULL then
+  return -1
+endi
+if $data08 != NULL then
+  return -1
+endi
+sql desc view1
+if $rows != 4 then
+  return -1
+endi
+if $data00 != ts then
+  return -1
+endi
+if $data01 != TIMESTAMP then
+  return -1
+endi
+if $data02 != 8 then
+  return -1
+endi
+if $data03 != @VIEW COL@ then
+  return -1
+endi
+if $data10 != f then
+  return -1
+endi
+if $data20 != g then
+  return -1
+endi
+if $data30 != t then
+  return -1
+endi
+sql show create view view1;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @`testa`.`view1`@ then
+  return -1
+endi
+if $data01 != @CREATE VIEW `testa`.`view1` AS select * from sta1;@ then
+  return -1
+endi
+
+sql create or replace view view2 as select null;
+sql desc view2;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != null then
+  return -1
+endi
+if $data01 != VARCHAR then
+  return -1
+endi
+if $data02 != 0 then
+  return -1
+endi
+sql create or replace view view2 as select null a;
+sql desc view2;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != a then
+  return -1
+endi
+if $data01 != VARCHAR then
+  return -1
+endi
+if $data02 != 0 then
+  return -1
+endi
+sql show views;
+if $rows != 2 then
+  return -1
+endi
+
+sql create view testb.view1 as select * from stb1;
+sql show views;
+if $rows != 2 then
+  return -1
+endi
+sql show testb.views;
+if $rows != 1 then
+  return -1
+endi
+sql show create view testb.view1;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @`testb`.`view1`@ then
+  return -1
+endi
+if $data01 != @CREATE VIEW `testb`.`view1` AS select * from stb1;@ then
+  return -1
+endi
+sql desc testb.view1;
+if $rows != 4 then
+  return -1
+endi
+
+sql use information_schema;
+sql create view view1 as select * from ins_views;
+sql select * from view1;
+if $rows != 4 then
+  return -1
+endi
+sql select * from view1 where db_name = 'testa';
+if $rows != 2 then
+  return -1
+endi
+sql select * from view1 where db_name like 'test%';
+if $rows != 3 then
+  return -1
+endi
+sql select * from view1 where view_name='view1';
+if $rows != 3 then
+  return -1
+endi
+sql select concat(db_name, '.', view_name) from view1 where view_name='view1';
+if $rows != 3 then
+  return -1
+endi
+
+sql drop view testa.view1;
+sql drop view testa.view2;
+sql drop view testb.view1;
+sql drop view information_schema.view1;
+
