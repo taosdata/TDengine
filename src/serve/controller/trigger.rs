@@ -1,5 +1,6 @@
 use std::fmt::{Debug, Display};
 use std::str::FromStr;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -263,11 +264,16 @@ impl StopCondition {
     }
 
     /// Tick the stop condition.
-    #[allow(dead_code)]
     pub fn tick(&self) {
         match self {
             StopCondition::Repeated(atomic) => {
-                atomic.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+                let _ = atomic.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| {
+                    if v > 0 {
+                        Some(v - 1)
+                    } else {
+                        None
+                    }
+                });
             }
             _ => (),
         }

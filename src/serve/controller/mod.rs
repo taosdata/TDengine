@@ -1344,15 +1344,10 @@ impl TaskController {
         agent_id: i64,
         req: DataSetsReq,
     ) -> anyhow::Result<Vec<DataSet>> {
-        // self.scheduler.global_state.agent_runtime.push
-        // let (sender, recv) = flume::bounded(1);
-        // let agent_tasks = self.agent_tasks.read().await;
-        // let agent = agent_tasks
-        //     .get(&agent_id)
-        //     .ok_or_else(|| anyhow::format_err!("Unknown or inactive agent {agent_id}"))?;
-        // tracing::info!("Send list datasets request to agent");
-        // agent.send(AgentAction::ListDataSets(req, sender))?;
-        // tracing::info!("Retrieve datasets result from agent");
+        if !self.agent_alive(agent_id).await {
+            bail!("Agent {} is not alive", agent_id);
+        }
+
         let scheduler = self.scheduler.clone();
         let handle = tokio::spawn(async move {
             let result = scheduler.list_datasets_via_agent(agent_id, req).await;
@@ -1369,6 +1364,13 @@ impl TaskController {
 
     pub async fn validate_dsn_via_agent(&self, agent: i64, dsn: Dsn) -> DataSourceValidation {
         let scheduler = self.scheduler.clone();
+        if !self.agent_alive(agent).await {
+            return DataSourceValidation::invalid(
+                dsn.driver.to_string(),
+                format!("Agent {} is not alive", agent),
+            );
+        }
+
         let result = tokio::time::timeout(
             Duration::from_secs(600),
             scheduler.validate_dsn_via_agent(agent, dsn.clone()),

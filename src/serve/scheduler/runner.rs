@@ -1075,7 +1075,7 @@ impl TaskJob {
                 let state = state_guard.as_ref().expect("task should have a last state");
                 match state {
                     LastState::Done => {
-                        if should_stop {
+                        if opts.stop_condition.should_stop_with(&Ok(())) {
                             global.send_task_activity(TaskActivity::completed(opts.task.id, jid));
                             opts.state.write().await.completed();
                         } else {
@@ -1093,7 +1093,10 @@ impl TaskJob {
                         }
                     },
                     LastState::Error(err) => {
-                        if should_stop {
+                        if opts
+                            .stop_condition
+                            .should_stop_with(&Err(anyhow::format_err!("{:#}", err)))
+                        {
                             global.send_task_activity(TaskActivity::failed(
                                 opts.task.id,
                                 format!("{err:#}"),
@@ -1149,6 +1152,7 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
             return;
         }
     }
+    task.stop_condition.tick();
     let (tx, rx) = oneshot::channel::<()>();
     let opts = TaskJob::new(jid, task.clone(), global_state.as_ref().clone());
 
