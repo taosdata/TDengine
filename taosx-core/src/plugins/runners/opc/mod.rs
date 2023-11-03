@@ -1405,7 +1405,8 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         None,
     );
 
-    write!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr)).context("writing logs error")?;
+    write!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))
+        .context("writing logs error")?;
 
     tracing::info!("OPC exit with status {}", output.status);
     if !output.status.success() {
@@ -1488,6 +1489,13 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 }
 
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+    #[cfg(not(windows))]
+    if dsn.driver == "opcda" {
+        return DataSourceValidation::invalid(
+            "opc".to_string(),
+            "opcda only support windows".to_string(),
+        );
+    }
     let config = OPCConfig::new(dsn.clone(), 0, OPCConfigMode::Points, None).await;
     match config {
         Err(err) => DataSourceValidation::invalid(
