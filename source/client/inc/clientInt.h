@@ -269,6 +269,7 @@ typedef struct SRequestObj {
   bool                 syncQuery;     // todo refactor: async query object
   bool                 stableQuery;   // todo refactor
   bool                 validateOnly;  // todo refactor
+  bool                 parseOnly;
   bool                 killed;
   bool                 inRetry;
   bool                 isSubReq;
@@ -279,6 +280,8 @@ typedef struct SRequestObj {
   void*                pPostPlan;
   SReqRelInfo          relation;
   void*                pWrapper;
+  SMetaData            parseMeta;
+  char*                effectiveUser;
 } SRequestObj;
 
 typedef struct SSyncQueryParam {
@@ -305,6 +308,8 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
 void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
                                  int64_t reqid);
 void taosAsyncFetchImpl(SRequestObj *pRequest, __taos_async_fn_t fp, void *param);
+int32_t clientParseSql(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effectiveUser, SParseSqlRes* pRes);
+void syncQueryFn(void* param, void* res, int32_t code);
 
 int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols);
 
@@ -403,7 +408,7 @@ void    launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResu
 int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
 int32_t updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList);
 void    doAsyncQuery(SRequestObj* pRequest, bool forceUpdateMeta);
-int32_t removeMeta(STscObj* pTscObj, SArray* tbList);
+int32_t removeMeta(STscObj* pTscObj, SArray* tbList, bool isView);
 int32_t handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);
 int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog);
 bool    qnodeRequired(SRequestObj* pRequest);
@@ -415,6 +420,11 @@ int32_t buildPreviousRequest(SRequestObj *pRequest, const char* sql, SRequestObj
 int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *pRequest, bool updateMetaForce);
 void    returnToUser(SRequestObj* pRequest);
 void    stopAllQueries(SRequestObj *pRequest);
+void    freeQueryParam(SSyncQueryParam* param);
+
+#ifdef TD_ENTERPRISE
+int32_t clientParseSqlImpl(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effeciveUser, SParseSqlRes* pRes);
+#endif
 
 #ifdef __cplusplus
 }

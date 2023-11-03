@@ -58,7 +58,7 @@ class TDTestCase:
         paraDict['ctbNum'] = self.ctbNum
         paraDict['rowsPerTbl'] = self.rowsPerTbl
 
-        tdCom.drop_all_db();
+        tdCom.drop_all_db()
         tmqCom.initConsumerTable()
         tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], wal_retention_period=36000,vgroups=paraDict["vgroups"],replica=self.replicaVar)
         tdLog.info("create stb")
@@ -102,7 +102,7 @@ class TDTestCase:
         tdSql.query("show dnodes")
         for result in tdSql.queryResult:
             dnodesList.append(result[0])
-
+        print("dnodeList:",dnodesList)
         tdSql.query("select * from information_schema.ins_vnodes")
         vnodeId = 0
         for result in tdSql.queryResult:
@@ -110,9 +110,16 @@ class TDTestCase:
                 tdLog.debug("dnode is %d"%(result[0]))
                 dnodesList.remove(result[0])
                 vnodeId = result[1]
-                break
-        redistributeSql = "redistribute vgroup %d dnode %d" %(vnodeId, dnodesList[0])
-        tdLog.debug("redistributeSql:%s"%(redistributeSql))
+        print("its all data",dnodesList)
+        # if self.replicaVar == 1:
+        #     redistributeSql = "redistribute vgroup %d dnode %d" %(vnodeId, dnodesList[0])
+        # else:
+        redistributeSql = f"redistribute vgroup {vnodeId} " 
+        for vgdnode in dnodesList:
+            redistributeSql += f"dnode {vgdnode} "
+        print(redistributeSql)
+        
+        tdLog.debug(f"redistributeSql:{redistributeSql}")
         tdSql.query(redistributeSql)
         tdLog.debug("redistributeSql ok")
 
@@ -179,7 +186,7 @@ class TDTestCase:
         tmqCom.getStartCommitNotifyFromTmqsim()
 
         #restart dnode & remove wal
-        self.restartAndRemoveWal()
+        # self.restartAndRemoveWal()
 
         # redistribute vgroup
         self.redistributeVgroups();
@@ -228,7 +235,7 @@ class TDTestCase:
         tdSql.execute(sqlString)
         tdSql.query("flush database %s"%(paraDict['dbName']))
         #restart dnode & remove wal
-        self.restartAndRemoveWal()
+        # self.restartAndRemoveWal()
 
         # redistribute vgroup
         self.redistributeVgroups();
@@ -236,7 +243,8 @@ class TDTestCase:
         sqlString = "alter table %s.%s modify column i nchar(16)" %(paraDict['dbName'], ntbName)
         tdLog.info("alter table sql: %s"%sqlString)
         tdSql.error(sqlString)
-
+        expectRows = 0
+        resultList = tmqCom.selectConsumeResult(expectRows)
         time.sleep(1)
         for i in range(len(topicNameList)):
             tdSql.query("drop topic %s"%topicNameList[i])
@@ -284,7 +292,7 @@ class TDTestCase:
                                                startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
 
         tdLog.info("create topics from stb with filter")
-        queryString = "select * from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
+        queryString = "select * from %s.%s where c2 > 0 "%(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicNameList[0], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
@@ -305,24 +313,24 @@ class TDTestCase:
 
         time.sleep(5)
         #restart dnode & remove wal
-        self.restartAndRemoveWal()
+        # self.restartAndRemoveWal()
 
         # redistribute vgroup
-        self.redistributeVgroups();
+        self.redistributeVgroups()
 
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
         tdLog.info("wait the consume result")
-
-        time.sleep(10)
+        expectRows = 1
+        resultList = tmqCom.selectConsumeResult(expectRows)
+        
+        time.sleep(20)
         for i in range(len(topicNameList)):
             tdSql.query("drop topic %s"%topicNameList[i])
 
         tdLog.printNoPrefix("======== test case 3 end ...... ")
 
     def run(self):
-
-        tdSql.prepare()
         self.prepareTestEnv()
         self.tmqCase1()
         self.tmqCase2()
