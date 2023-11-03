@@ -483,11 +483,12 @@ _exit:
 }
 
 static int32_t tsdbDoMerge(SMerger *merger) {
-  int32_t  code = 0;
-  int32_t  lino = 0;
-  SSttLvl *lvl = TARRAY2_FIRST(merger->fset->lvlArr);
+  int32_t code = 0;
+  int32_t lino = 0;
 
   if (TARRAY2_SIZE(merger->fset->lvlArr) == 0) return 0;
+
+  SSttLvl *lvl = TARRAY2_FIRST(merger->fset->lvlArr);
   if (lvl->level != 0 || TARRAY2_SIZE(lvl->fobjArr) < merger->sttTrigger) return 0;
 
   code = tsdbMergerOpen(merger);

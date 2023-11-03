@@ -66,15 +66,9 @@ int32_t dmInitDnode(SDnode *pDnode) {
     goto _OVER;
   }
 
-#if defined(TD_MODULE_OPTIMIZE) || !defined(TD_ENTERPRISE)
   if (dmInitModule(pDnode, pDnode->wrappers) != 0) {
     goto _OVER;
   }
-#else
-  if (dmInitModule(pDnode) != 0) {
-    goto _OVER;
-  }
-#endif
 
   indexInit(tsNumOfCommitThreads);
   streamMetaInit();
@@ -113,7 +107,6 @@ void dmCleanupDnode(SDnode *pDnode) {
   dDebug("dnode is closed, ptr:%p", pDnode);
 }
 
-#if defined(TD_MODULE_OPTIMIZE) || !defined(TD_ENTERPRISE)
 int32_t dmInitVars(SDnode *pDnode) {
   SDnodeData *pData = &pDnode->data;
   pData->dnodeId = 0;
@@ -182,7 +175,6 @@ void dmClearVars(SDnode *pDnode) {
   taosThreadMutexDestroy(&pDnode->mutex);
   memset(&pDnode->mutex, 0, sizeof(pDnode->mutex));
 }
-#endif
 
 void dmSetStatus(SDnode *pDnode, EDndRunStatus status) {
   if (pDnode->status != status) {

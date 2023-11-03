@@ -47,7 +47,7 @@ endi
 
 $replica = 3
 $vgroups = 1
-$retentions = 5s:7d,15s:21d,1m:365d
+$retentions = -:7d,15s:21d,1m:365d
 
 print ============= create database
 sql create database db replica $replica vgroups $vgroups retentions $retentions
