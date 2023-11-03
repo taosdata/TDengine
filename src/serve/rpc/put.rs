@@ -1,12 +1,15 @@
-use std::sync::Arc;
+use std::sync::{atomic::AtomicBool, Arc};
 
-use anyhow::Context;
+use anyhow::{bail, Context};
 use arrow_flight::{error::FlightError, FlightData, PutResult};
 use chrono::Utc;
 use futures::{Stream, TryStreamExt};
 use futures_util::StreamExt;
 use taos::{AsyncBindable, AsyncQueryable, AsyncTBuilder, Dsn, Stmt, TaosBuilder};
-use taosx_core::{ConnectorLicense, IpcStreamWorker, Parser, METRICS_TIME_START};
+use taosx_core::{
+    sink::IpcErrorStrategy, ConnectorLicense, IpcStreamWorker, Parser, METRICS_TIME_START,
+};
+use tokio::sync::RwLock;
 use tonic::{Status, Streaming};
 use tracing::{debug, Instrument};
 
@@ -106,6 +109,11 @@ impl PutStream {
             _ => None,
         };
 
+        let ipc_error_strategy = IpcErrorStrategy::from(connector);
+
+        let should_abort = Arc::new(AtomicBool::new(false));
+        let (abort_message_tx, abort_message_rx) = flume::bounded(1);
+
         let license: Option<ConnectorLicense> = if let Some(connector) = connector {
             #[cfg(feature = "disable-enterprise-connector-validation")]
             let license: Option<ConnectorLicense> = None;
@@ -166,6 +174,8 @@ impl PutStream {
             license: Option<ConnectorLicense>,
             _transferred: Option<Arc<ConnectorTransferred>>,
             span: tracing::Span,
+            abort_message_tx: flume::Sender<Result<PutResult, Status>>,
+            ipc_error_strategy: IpcErrorStrategy,
         ) -> anyhow::Result<()> {
             // dbg!(&task);
             metrics::gauge!(METRICS_TIME_START, Utc::now().timestamp_millis() as f64);
@@ -200,6 +210,8 @@ impl PutStream {
                             .await
                         {
                             tracing::warn!(
+                                agent.id = agent_id,
+                                task.id = task.id,
                                 error.message = format!("{err:#}"),
                                 error.root_cause = err.root_cause(),
                                 backtrace = format!("{}", err.backtrace())
@@ -210,6 +222,11 @@ impl PutStream {
                                     TaskActivity::error(task.id, format!("{err:#}")),
                                 ),
                             );
+                            if ipc_error_strategy.will_stop() {
+                                abort_message_tx
+                                    .send(Err(Status::data_loss(format!("{err:#}"))))?;
+                                bail!("{err:#}");
+                            }
                             tracing::warn!("Can't write batch to database, err: {}", err);
                             tx.send_async(record).await?;
                         }
@@ -237,6 +254,8 @@ impl PutStream {
                     license,
                     transferred,
                     span,
+                    abort_message_tx,
+                    ipc_error_strategy,
                 )
                 .in_current_span()
                 .await
@@ -267,7 +286,8 @@ impl PutStream {
             .map_err(|err: FlightError| {
                 tracing::warn!(error.message = format!("{err:#}"));
                 Status::data_loss(format!("{}", err))
-            });
+            })
+            .chain(abort_message_rx.into_stream().map_ok(|v| v));
 
         Ok(stream)
     }
