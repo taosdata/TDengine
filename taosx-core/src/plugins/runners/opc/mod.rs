@@ -1293,6 +1293,9 @@ pub async fn opc_to_taos(
                     use ringbuf::Rb;
                     let error = error_buf.lock().await.iter().join("");
                     anyhow::bail!("OPC exit with {}\n{error}", status);
+                } else {
+                    safe_exit!();
+                    anyhow::bail!("OPC process was killed by signal");
                 }
             },
             err = ipc_handler.recv_error() => {
