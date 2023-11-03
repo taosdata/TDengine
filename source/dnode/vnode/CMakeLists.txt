@@ -8,7 +8,6 @@ set(
   "src/vnd/vnodeCommit.c"
   "src/vnd/vnodeQuery.c"
   "src/vnd/vnodeModule.c"
-  "src/vnd/vnodeCos.c"
   "src/vnd/vnodeSvr.c"
   "src/vnd/vnodeSync.c"
   "src/vnd/vnodeSnapshot.c"
