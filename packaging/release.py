@@ -537,12 +537,12 @@ def package_on_windows():
 def copy_docs_to_explorer(explorer_path):
     print("copy docs to explorer")
     if release_info.CustomPrompt != 'taos' or release_info.CustomName != 'TDengine':
-        prodb_doc_zip_path = os.path.join(explorer_path, "..", "docs-prodb.zip")
-        prodb_doc_public_path = os.path.join(explorer_path, "public", "docs")
-        if os.path.exists(prodb_doc_zip_path):
-            unzip_docs(prodb_doc_zip_path, prodb_doc_public_path)
+        zh_doc_zip_path = os.path.join(explorer_path, "..", f"docs-{release_info.CustomPrompt}.zip")
+        zh_doc_public_path = os.path.join(explorer_path, "public", "docs")
+        if os.path.exists(zh_doc_zip_path):
+            unzip_docs(zh_doc_zip_path, zh_doc_public_path)
         else:
-            print("WARN: not found docs-prodb.zip")
+            print(f"WARN: not found docs-{release_info.CustomPrompt}.zip")
     else:
         zh_doc_zip_path = os.path.join(explorer_path, "..", "docs-zh.zip")
         zh_doc_public_path = os.path.join(explorer_path, "public", "docs")
@@ -567,7 +567,7 @@ def update_docs_zip_file(explorer_path):
     print("update docs zip file")
     doc_zip_path = os.path.join(explorer_path, "..")
     if release_info.CustomPrompt != 'taos' or release_info.CustomName != 'TDengine':
-        os.system(f"scp root@192.168.0.30:/root/enterprise-docs/docs-prodb.zip {doc_zip_path}")
+        os.system(f"scp root@192.168.0.30:/root/enterprise-docs/docs-{release_info.CustomPrompt}.zip {doc_zip_path}")
     else:
         cmd1 = f"scp root@192.168.0.30:/root/enterprise-docs/docs-en.zip {doc_zip_path}"
         cmd2 = f"scp root@192.168.0.30:/root/enterprise-docs/docs-zh.zip {doc_zip_path}"
