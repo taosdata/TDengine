@@ -641,6 +641,50 @@ SyncIndex syncNodeGetSnapBeginIndex(SSyncNode *ths) {
   return snapStart;
 }
 
+static int32_t syncNodeExchangeSnapInfo(SSyncNode *pSyncNode, SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pMsg,
+                                        SSnapshot *pInfo) {
+  ASSERT(pMsg->payloadType == TDMT_SYNC_PREP_SNAPSHOT);
+  int32_t code = 0;
+
+  // copy snap info from leader
+  void *data = taosMemoryCalloc(1, pMsg->dataLen);
+  if (data == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
+    goto _out;
+  }
+  pInfo->data = data;
+  data = NULL;
+  memcpy(pInfo->data, pMsg->data, pMsg->dataLen);
+
+  // exchange snap info
+  pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, pInfo);
+  SSyncTLV *datHead = pInfo->data;
+  if (datHead->typ != TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
+    sRError(pReceiver, "unexpected data typ in data of snapshot info. typ: %d", datHead->typ);
+    code = TSDB_CODE_INVALID_DATA_FMT;
+    goto _out;
+  }
+  int32_t dataLen = sizeof(SSyncTLV) + datHead->len;
+
+  // save exchanged snap info
+  SSnapshotParam *pParam = &pReceiver->snapshotParam;
+  data = taosMemoryRealloc(pParam->data, dataLen);
+  if (data == NULL) {
+    sError("vgId:%d, failed to realloc memory for snapshot prep due to %s. dataLen:%d", pSyncNode->vgId,
+           strerror(errno), dataLen);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = terrno;
+    goto _out;
+  }
+  pParam->data = data;
+  data = NULL;
+  memcpy(pParam->data, pInfo->data, dataLen);
+
+_out:
+  return code;
+}
+
 static int32_t syncNodeOnSnapshotPrep(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
   SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
   int64_t                timeNow = taosGetTimestampMs();
@@ -683,56 +727,25 @@ _START_RECEIVER:
     snapshotReceiverStop(pReceiver);
   }
 
-  snapshotReceiverStart(pReceiver, pMsg);  // set start-time same with sender
+  snapshotReceiverStart(pReceiver, pMsg);
 
 _SEND_REPLY:;
 
   SSnapshot snapInfo = {.type = TDMT_SYNC_PREP_SNAPSHOT_REPLY};
   int32_t   dataLen = 0;
   if (pMsg->payloadType == TDMT_SYNC_PREP_SNAPSHOT) {
-    void *data = taosMemoryCalloc(1, pMsg->dataLen);
-    if (data == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      code = terrno;
+    if (syncNodeExchangeSnapInfo(pSyncNode, pReceiver, pMsg, &snapInfo) != 0) {
       goto _out;
     }
-    snapInfo.data = data;
-    data = NULL;
-    memcpy(snapInfo.data, pMsg->data, pMsg->dataLen);
-
-    // exchange snap info
-    pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapInfo);
     SSyncTLV *datHead = snapInfo.data;
-    if (datHead->typ != TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
-      sRError(pReceiver, "unexpected data typ in data of snapshot info. typ: %d", datHead->typ);
-      code = TSDB_CODE_INVALID_DATA_FMT;
-      goto _out;
-    }
     dataLen = sizeof(SSyncTLV) + datHead->len;
   }
 
   // send response
-  void   *pData = snapInfo.data;
-  int32_t type = (pData) ? snapInfo.type : 0;
-
-  if (syncSnapSendRsp(pReceiver, pMsg, pData, dataLen, type, code) != 0) {
+  int32_t type = (snapInfo.data) ? snapInfo.type : 0;
+  if (syncSnapSendRsp(pReceiver, pMsg, snapInfo.data, dataLen, type, code) != 0) {
     code = terrno;
     goto _out;
-  }
-
-  if (pData) {
-    SSnapshotParam *pParam = &pReceiver->snapshotParam;
-    void           *data = taosMemoryRealloc(pParam->data, dataLen);
-    if (data == NULL) {
-      sError("vgId:%d, failed to realloc memory for snapshot prep due to %s. dataLen:%d", pSyncNode->vgId,
-             strerror(errno), dataLen);
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      code = terrno;
-      goto _out;
-    }
-    pParam->data = data;
-    data = NULL;
-    memcpy(pParam->data, snapInfo.data, dataLen);
   }
 
 _out:
