@@ -540,7 +540,7 @@ TO_CHAR(ts, format_str_literal)
 - If we want to output some characters of format without converting, surround it with double quotes. `to_char(ts, 'yyyy-mm-dd "is formated by yyyy-mm-dd"')`. If want to output double quotes, add a back slash before double quote, like `to_char(ts, '\"yyyy-mm-dd\"')` will output `"2023-10-10"`.
 - For formats that output digits, the uppercase and lowercase formats are the same.
 - It's recommended to put time zone in the format, if not, the default time zone will be that in server or client.
-- The precision of the input timestamp will be recognized automatically according to the precision of the table used.
+- The precision of the input timestamp will be recognized automatically according to the precision of the table used, milli seconds will be used if no table is specified.
 
 #### TO_TIMESTAMP
 
