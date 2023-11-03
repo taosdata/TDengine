@@ -30,13 +30,12 @@
         @expand-change="expandChange"
       >
         <el-table-column type="expand">
-          <template>
+          <template slot-scope="props">
             <div>
               <el-table
-                :data="taskActivities"
+                :data="props.row.taskActivities"
                 size="mini"
                 class="tabel-expand"
-                max-height="160"
               >
                 <el-table-column
                   prop="level"
@@ -83,8 +82,28 @@
           :label="$t('datasource.taskid')"
           prop="taskid"
           width="80"
-          show-overflow-tooltip
-        ></el-table-column>
+        >
+        <template slot-scope="scope">
+          <span>
+            <i
+              class="el-circle"
+              style="background-color: #e6a23c"
+              v-if="scope.row.taskActivities && scope.row.taskActivities[0].level == 'warn'"
+            ></i>
+            <i
+              :class="['el-circle','err-circle']"
+              style="background-color: #fe6c6c"
+              v-if="scope.row.taskActivities && scope.row.taskActivities[0].level == 'error'"
+            ></i>
+            <i
+              class="el-circle"
+              style="background-color: #67c23a"
+              v-if="scope.row.taskActivities && scope.row.taskActivities[0].level == 'info'"
+            ></i>
+          </span>
+          <span style="padding-left:5px">{{ scope.row.taskid }}</span>
+        </template>
+        </el-table-column>
         <el-table-column
           :label="$t('datasource.name2')"
           prop="localname"
@@ -652,6 +671,7 @@ export default {
 
     async refresh() {
       await this.getList();
+      await this.handleTaskActivities()
       await this.$refs.agents?.refresh()
 
     },
@@ -662,6 +682,7 @@ export default {
           Message.error(result.message || result.desc);
           return;
         }
+        let activitList = await this.getCurrentActivities(data.taskid)
         let index = this.topicList.findIndex(
           (item) => item.taskid == data.taskid
         );
@@ -676,6 +697,7 @@ export default {
               ? item.created_at.replace(/(?<=\.)\S+$/, "").replace(".", "") +
                 "Z"
               : "";
+            item["taskActivities"] = activitList;
             return item;
           })[0]
         );
@@ -698,26 +720,13 @@ export default {
         this.expandRowKeys = [];
         return;
       }
-      this.taskActivities = [];
-      let res = await getTaskActivities(row.taskid);
-      this.expandRowKeys = [row.taskid];
-      if (res && res.code && res.code != 0) {
-        Message({
-          type: "error",
-          message: res && res.message,
-        });
-        return;
-      }
-      let activitList = res.map((item) => {
-        if (item.status == "failed") {
-          item.context = item.context.message;
+      let activitList = await this.getCurrentActivities(row.taskid)
+      this.topicList = this.topicList.map(item => {
+        if (item.id == this.expandRowKeys[0]) {
+          item.taskActivities = activitList
         }
-        if (typeof item.context == "object") {
-          item.context = null;
-        }
-        return item;
-      });
-      this.taskActivities = activitList;
+        return item
+      })
     },
     getLevelStyle(level) {
       let style = "";
@@ -738,14 +747,57 @@ export default {
       const property = column['property'];
       return row[property] === value;
     },
+    async getCurrentActivities(id) {
+      let res = await getTaskActivities(id);
+      if (res && res.code && res.code != 0) {
+        Message({
+          type: "error",
+          message: res && res.message,
+        });
+        return;
+      }
+      let activitList = res.map((item) => {
+        if (item.status == "failed") {
+          item.context = item.context?.message;
+        }
+        if (typeof item.context == "object") {
+          item.context = null;
+        }
+        return item;
+      });
+      return activitList
+    },
+    handleTaskActivities() {
+      this.topicList = this.topicList.map(task => {
+        getTaskActivities(task.id).then(res => {
+          let activitList = res.map((item) => {
+            if (item.status == "failed") {
+              item.context = item.context?.message;
+            }
+            if (typeof item.context == "object") {
+              item.context = null;
+            }
+            return item;
+          });
+          task.taskActivities = activitList
+        })
+        return task
+      })
+    }
   },
   mounted() {
     if (this.$parent.$parent.$parent.currentName == "datasource") {
       this.refresh().then(() => {
         this.typeList = this.sourceList;
       });
+      this.timer = setInterval(() => {
+        this.handleTaskActivities()
+      }, 10000);
     }
   },
+  beforeDestroy() {
+    this.timer && clearInterval(this.timer)
+  }
 };
 </script>
 <style lang="scss">
@@ -802,7 +854,7 @@ export default {
 }
 
 .tabel-expand {
-  width: 64%;
+  min-width: 70%;
   margin-left: 40px;
   padding: 0px 5px;
   ::v-deep.el-table th.el-table__cell.is-leaf {
@@ -816,6 +868,23 @@ export default {
 ::v-deep.el-table td.el-table__cell div {
   word-wrap: break-word;
   word-break: break-word;
+}
+.el-circle {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.err-circle {
+  animation: circle 1s infinite;
+}
+@keyframes circle {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 </style>
 <style lang="scss">
