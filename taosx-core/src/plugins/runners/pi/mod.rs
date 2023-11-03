@@ -514,13 +514,15 @@ async fn validate_pi(config: PiConfig) -> anyhow::Result<DataSourceValidation> {
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
+    let config_path = config_file.path().to_path_buf();
+    config_file.into_temp_path(); // close the file to avoid file lock error
 
     // startup the connector
     let pi_exe_path = pi_exe_path()?;
     let mut command = tokio::process::Command::new(pi_exe_path.clone());
     let output = command
         .arg("-c")
-        .arg(config_file.path())
+        .arg(&config_path)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::piped())
         .output()
