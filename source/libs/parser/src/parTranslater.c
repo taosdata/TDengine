@@ -3886,35 +3886,46 @@ static bool isOperatorEqTbnameCond(STranslateContext* pCxt, SOperatorNode* pOper
   return true;
 }
 
-static int32_t findEqCondTbNameInOperatorNode(STranslateContext* pCxt, SNode* pWhere, SArray* aTables) {
+static bool findEqCondTbNameInOperatorNode(STranslateContext* pCxt, SNode* pWhere, SEqCondTbNameTableInfo* pInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
   char* pTableAlias = NULL;
   char* pTbNameVal = NULL;
+
   if (isOperatorEqTbnameCond(pCxt, (SOperatorNode*)pWhere, &pTableAlias, &pTbNameVal)) {
     STableNode* pTable;
     if (pTableAlias == NULL) {
       pTable = (STableNode*)((SSelectStmt*)(pCxt->pCurrStmt))->pFromTable;
     } else {
-      findTable(pCxt, pTableAlias, &pTable);
+      code = findTable(pCxt, pTableAlias, &pTable);
     }
-    if (nodeType(pTable) == QUERY_NODE_REAL_TABLE) {
-      SEqCondTbNameTableInfo info = {0};
-      strcpy(info.tbName, pTbNameVal);
-      info.pRealTable = (SRealTableNode*)pTable;
-      taosArrayPush(aTables, &info);
+    if (code == TSDB_CODE_SUCCESS && nodeType(pTable) == QUERY_NODE_REAL_TABLE) {
+      strcpy(pInfo->tbName, pTbNameVal);
+      pInfo->pRealTable = (SRealTableNode*)pTable;
+      return true;
     }
   }
-  return TSDB_CODE_SUCCESS;
+  return false;
 }
 
 static int32_t findEqualCondTbname(STranslateContext* pCxt, SNode* pWhere, SArray* aTables) {
   if (nodeType(pWhere) == QUERY_NODE_OPERATOR) {
-    findEqCondTbNameInOperatorNode(pCxt, pWhere, aTables);
-  } else if (nodeType(pWhere) == QUERY_NODE_LOGIC_CONDITION &&
-             ((SLogicConditionNode*)pWhere)->condType == LOGIC_COND_TYPE_AND) {
-    SNode* pTmpNode = NULL;
-    FOREACH(pTmpNode, ((SLogicConditionNode*)pWhere)->pParameterList) {
-      if (nodeType(pWhere) == QUERY_NODE_OPERATOR) {
-        findEqCondTbNameInOperatorNode(pCxt, pTmpNode, aTables);
+    SEqCondTbNameTableInfo info = {0};
+    bool bIsEqTbnameCond = findEqCondTbNameInOperatorNode(pCxt, pWhere, &info);
+    if (bIsEqTbnameCond) {
+      taosArrayPush(aTables, &info);
+    }
+  } else if (nodeType(pWhere) == QUERY_NODE_LOGIC_CONDITION) {
+    if (((SLogicConditionNode*)pWhere)->condType == LOGIC_COND_TYPE_AND) {
+      SNode* pTmpNode = NULL;
+      FOREACH(pTmpNode, ((SLogicConditionNode*)pWhere)->pParameterList) {
+        if (nodeType(pWhere) == QUERY_NODE_OPERATOR) {
+          SEqCondTbNameTableInfo info = {0};
+          bool bIsEqTbnameCond = findEqCondTbNameInOperatorNode(pCxt, pTmpNode, &info);
+          if (bIsEqTbnameCond) {
+            taosArrayPush(aTables, &info);
+            break;
+          }
+        }
       }
     }
   }
