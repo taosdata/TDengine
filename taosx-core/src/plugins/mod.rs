@@ -37,7 +37,7 @@ use self::sink::IpcHandler;
 mod config;
 pub mod runners;
 mod service;
-pub(crate) mod sink;
+pub mod sink;
 mod source;
 mod transform;
 

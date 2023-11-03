@@ -1726,6 +1726,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     transferred: Option<&Transferred>,
     task_id: Option<i64>,
     notifier: crate::TaskNotifySender,
+    ipc_error_strategy: IpcErrorStrategy,
 ) -> anyhow::Result<()> {
     let taos = pool.get().await?;
     let columns = ipc_reader
@@ -1785,6 +1786,10 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 ),
             });
 
+            if ipc_error_strategy.will_stop() {
+                bail!("write batch error: {err:#}");
+            }
+
             if let Err(_) = notifier.send(crate::TaskNotify::Error(format!("{:#}", err))) {
                 bail!("write batch error: {err:#}");
             }
@@ -1822,6 +1827,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
     _transferred: Option<&Transferred>,
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
+    _ipc_error_strategy: IpcErrorStrategy,
 ) -> anyhow::Result<()> {
     let count = Arc::new(AtomicUsize::new(0));
 
@@ -1910,6 +1916,7 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
     transferred: Option<&Transferred>,
     target_precision: taos::Precision,
     notifier: crate::TaskNotifySender,
+    ipc_error_strategy: IpcErrorStrategy,
 ) -> anyhow::Result<()> {
     let mut count = 0;
     let mut batches = 0;
@@ -1950,6 +1957,9 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
                     .to_string(),
                 ),
             });
+            if ipc_error_strategy.will_stop() {
+                bail!("write batch error: {err:#}")
+            }
             if let Err(_) = notifier.send(crate::TaskNotify::Error(format!("{:#}", err))) {
                 bail!("write batch error: {err:#}");
             }
@@ -2059,6 +2069,37 @@ async fn get_current_precision(conn: &Taos) -> anyhow::Result<taos::Precision> {
     };
     Ok(target_precision)
 }
+
+#[derive(Debug, Clone, Copy, Default)]
+#[repr(u8)]
+pub enum IpcErrorStrategy {
+    #[default]
+    Stop = 0,
+    Report,
+}
+
+impl IpcErrorStrategy {
+    pub fn will_stop(&self) -> bool {
+        matches!(self, IpcErrorStrategy::Stop)
+    }
+
+    fn from_connector(connector: &str) -> Self {
+        match connector {
+            "taos" | "opentsdb" | "influxdb" | "csv" | "kafka" => IpcErrorStrategy::Stop,
+            _ => IpcErrorStrategy::Report,
+        }
+    }
+}
+
+impl From<Option<&str>> for IpcErrorStrategy {
+    fn from(connector: Option<&str>) -> Self {
+        match connector {
+            Some(connector) => Self::from_connector(connector),
+            None => Self::default(),
+        }
+    }
+}
+
 #[framed]
 #[instrument(skip_all, fields(client, connector))]
 async fn ipc_process<R: Read + Send + 'static, W: Write>(
@@ -2110,6 +2151,8 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
         None
     };
 
+    let ipc_error_strategy = IpcErrorStrategy::from_connector(connector.unwrap_or("taos"));
+
     let metadata = ipc_reader.metadata();
     let stream_type = *metadata.stream_type();
 
@@ -2132,6 +2175,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 transferred.as_deref(),
                 target_precision,
                 notifier,
+                ipc_error_strategy,
             )
             .await?
         }
@@ -2144,6 +2188,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 transferred.as_deref(),
                 task_id,
                 notifier,
+                ipc_error_strategy,
             )
             .await?
         }
@@ -2157,6 +2202,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 transferred.as_deref(),
                 target_precision,
                 notifier,
+                ipc_error_strategy,
             )
             .await?
         }
