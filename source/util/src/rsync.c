@@ -157,7 +157,11 @@ int uploadRsync(char* id, char* path){
   changeDirFromWindowsToLinux(path, pathTransform);
 #endif
   char command[PATH_MAX] = {0};
+#ifdef WINDOWS
+  if(pathTransform[strlen(pathTransform) - 1] != '/'){
+#else
   if(path[strlen(path) - 1] != '/'){
+#endif
     snprintf(command, PATH_MAX, "rsync -av --delete --timeout=10 --bwlimit=100000 %s/ rsync://%s/checkpoint/%s/",
 #ifdef WINDOWS
              pathTransform
