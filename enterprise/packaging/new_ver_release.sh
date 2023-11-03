@@ -117,12 +117,12 @@ fi
 
 if [ "$verMode" == "all" ];then
   bash generate_community.sh  $version $versionComp $branchName $verType $cpuType
-  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $grantValue $cusName $cusPrompt $cusEmail
+  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $grantValue $skip $cusName $cusPrompt $cusEmail
 elif [ "$verMode" == "edge" ];then
   bash generate_community.sh  $version $versionComp $branchName $verType $cpuType
 elif [ "$verMode" == "cluster" ];then
-  echo  "bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $grantValue $cusName $cusPrompt $cusEmail $skip"
-  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $grantValue $cusName $cusPrompt $cusEmail $skip
+  echo  "bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $grantValue $skip $cusName $cusPrompt $cusEmail"
+  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType $grantValue $skip $cusName $cusPrompt $cusEmail
 elif [ "$verMode" == "cloud" ];then
   bash generate_cloud.sh $version $versionComp $branchName $verType $cpuType
 else

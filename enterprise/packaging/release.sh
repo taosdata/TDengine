@@ -31,7 +31,7 @@ verNumberComp="3.0.0.0"
 httpdBuild=false
 skip=0
 
-while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:G:s:" arg; do
+while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:G:S:" arg; do
   case $arg in
   v)
     #echo "verMode=$OPTARG"
@@ -92,7 +92,7 @@ while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:G:s:" arg; do
   G)
     grantValue=$(echo $OPTARG)
     ;;
-  s)
+  S)
     skip=$(echo $OPTARG)
     ;;
   h)
@@ -111,7 +111,7 @@ while getopts "hv:V:c:o:l:s:d:a:n:m:H:N:P:M:G:s:" arg; do
     echo "                  -P <custom prompt>"
     echo "                  -M <custom email>"
     echo "                  -G <grant days>"
-    echo "                  -s [ 0 | 1 ]"
+    echo "                  -S [ 0 | 1 ]"
     exit 0
     ;;
   ?) #unknow option
@@ -293,7 +293,7 @@ else
     CORES=$(grep -c ^processor /proc/cpuinfo)
 fi
 
-if [ "$cpuType" == "x64" ] and [ "$osType" == "Linux" ]; then
+if [ "$cpuType" == "x64" ] && [ "$osType" == "Linux" ]; then
   ${csudo}sed -i ':a;N;$!ba;s/\(.*\)OFF/\1ON/' ${top_dir}/community/cmake/cmake.options
 elif [ "$cpuType" == "aarch64" ]; then
   CORES=1
