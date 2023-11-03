@@ -519,6 +519,10 @@ impl TaskOperator {
         self.0.store(2, Ordering::Relaxed);
     }
 
+    pub fn start(&self) {
+        self.0.store(0, Ordering::Relaxed);
+    }
+
     pub fn operator(&self) -> Operator {
         match self.0.load(Ordering::Relaxed) {
             0 => Operator::Run,
@@ -1152,6 +1156,7 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
             return;
         }
     }
+    task.operator.start();
     task.stop_condition.tick();
     let (tx, rx) = oneshot::channel::<()>();
     let opts = TaskJob::new(jid, task.clone(), global_state.as_ref().clone());
