@@ -529,7 +529,7 @@ async fn validate_pi(config: PiConfig) -> anyhow::Result<DataSourceValidation> {
         .await
         .with_context(|| format!("failed to execute pi: {:?}", pi_exe_path.as_path()))?;
 
-   let dsv = if output.status.success() {
+    let dsv = if output.status.success() {
         let result: serde_json::Value =
             serde_json::from_slice(&output.stdout).with_context(|| {
                 format!(
@@ -542,7 +542,10 @@ async fn validate_pi(config: PiConfig) -> anyhow::Result<DataSourceValidation> {
             support: result["support"].as_bool().unwrap_or(false),
             data_source: "pi".to_string(),
             version: result["version"].as_str().map(|s| s.to_string()),
-            message: result["message"].as_str().map(|s| s.to_string()),
+            message: result["message"]
+                .as_str()
+                .or(result["since"].as_str())
+                .map(|s| s.to_string()),
         }
     } else {
         DataSourceValidation::invalid(
