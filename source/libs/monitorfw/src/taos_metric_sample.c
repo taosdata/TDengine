@@ -24,7 +24,7 @@
 #include "taos_log.h"
 #include "taos_metric_sample_i.h"
 #include "taos_metric_sample_t.h"
-#include "osAtomic.h"
+#include "os.h"
 
 taos_metric_sample_t *taos_metric_sample_new(taos_metric_type_t type, const char *l_value, double r_value) {
   taos_metric_sample_t *self = (taos_metric_sample_t *)taos_malloc(sizeof(taos_metric_sample_t));

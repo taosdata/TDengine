@@ -1,8 +1,8 @@
-#include "clientMonitor.h"
 #include "os.h"
 #include "tmisce.h"
 #include "ttime.h"
 #include "ttimer.h"
+#include "clientMonitor.h"
 
 SRWLatch  monitorLock;
 void*     tmrClientMonitor;
