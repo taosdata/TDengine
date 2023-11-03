@@ -5,9 +5,9 @@ use actix_files::NamedFile;
 use actix_web::{
     get,
     http::header::ContentType,
-    HttpRequest,
-    HttpResponse,
-    post, Responder, web::{self, Data, Json, Query},
+    post,
+    web::{self, Data, Json, Query},
+    HttpRequest, HttpResponse, Responder,
 };
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -16,11 +16,11 @@ use tokio::time::timeout;
 use utoipa::*;
 
 pub use definition::*;
-use taosx_core::{DataSetsReq, list_datasets_from, validate_dsn};
 use taosx_core::dsv::DataSourceValidation;
+use taosx_core::{list_datasets_from, validate_dsn, DataSetsReq};
 
-use crate::serve::{controller::TaskControllerRef, task::Failed};
 use crate::serve::TaskController;
+use crate::serve::{controller::TaskControllerRef, task::Failed};
 
 mod definition;
 

@@ -1180,6 +1180,7 @@ pub async fn opc_to_taos(
     }
     let ipc_port = port_pool
         .get()
+        .await
         .ok_or_else(|| anyhow::format_err!("No available port for OPC connection"))?;
     let builder: TaosBuilder = TaosBuilder::from_dsn(&to)?;
     let taos = builder.build().await?;
@@ -1279,9 +1280,11 @@ pub async fn opc_to_taos(
         macro_rules! safe_exit {
             () => {
                 let _ = child.kill().await;
+                tracing::info!("Wait for IPC handlers finished");
                 let _ = ipc_handler.close().await;
-                temp_path.close().unwrap();
-                port_pool.put(ipc_port);
+                let _ = temp_path.close();
+                tracing::info!("Release IPC port");
+                port_pool.put(ipc_port).await;
             };
         }
         tokio::select! {

@@ -75,6 +75,7 @@ pub async fn historian_to_taos(
 ) -> anyhow::Result<()> {
     let port = port_pool
         .get()
+        .await
         .ok_or_else(|| anyhow::format_err!("No available port for connection"))?;
     let socket = format!("127.0.0.1:{}", port);
 
@@ -143,7 +144,7 @@ pub async fn historian_to_taos(
         tracing::info!("AVEVA™ Historian task Done");
         ipc.close().await?;
         // put ipc port back to port pool.
-        port_pool.put(port);
+        port_pool.put(port).await;
         // wait for completion
         tokio::time::sleep(Duration::from_millis(100)).await;
         Ok(())
