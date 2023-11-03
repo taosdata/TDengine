@@ -76,9 +76,11 @@ pub async fn pi_to_taos(
 
     let ipc_port = port_pool
         .get()
+        .await
         .ok_or_else(|| anyhow::format_err!("No available port for PI connection"))?;
     let sql_port = port_pool
         .get()
+        .await
         .ok_or_else(|| anyhow::format_err!("No available port for PI connection"))?;
     let driver = from.driver.clone();
     let config = PiConfig::new(from, td_database.unwrap(), ipc_port, sql_port, true).await?;
@@ -283,9 +285,9 @@ pub async fn pi_to_taos(
             () => {
                 let _ = ipc.close().await;
                 temp_path.close().unwrap();
-                port_pool.put(ipc_port);
+                port_pool.put(ipc_port).await;
                 stop_thread(server);
-                port_pool.put(sql_port);
+                port_pool.put(sql_port).await;
             };
         }
         tokio::select! {

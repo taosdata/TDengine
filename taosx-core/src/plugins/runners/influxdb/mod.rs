@@ -61,6 +61,7 @@ pub async fn influxdb_to_taos(
 ) -> anyhow::Result<()> {
     let ipc_port = port_pool
         .get()
+        .await
         .ok_or(anyhow::anyhow!("No available port for InfluxDB connection"))?;
 
     // generate config
@@ -171,7 +172,7 @@ pub async fn influxdb_to_taos(
             () => {
                 let _ = ipc.close().await;
                 temp_path.close().unwrap();
-                port_pool.put(ipc_port);
+                port_pool.put(ipc_port).await;
             };
         }
         tokio::select! {

@@ -64,6 +64,7 @@ pub async fn opentsdb_to_taos(
 ) -> anyhow::Result<()> {
     let ipc_port = port_pool
         .get()
+        .await
         .ok_or_else(|| anyhow::format_err!("No available port for OpenTSDB connection"))?;
     // generate config
     let config = OpentsdbConfig::from(&from, ipc_port)?;
@@ -207,7 +208,7 @@ pub async fn opentsdb_to_taos(
             // delete the temporary file
             let _ = temp_path.close();
             // put ipc port back to port pool.
-            port_pool.put(ipc_port);
+            port_pool.put(ipc_port).await;
             // wait for completion
             tokio::time::sleep(Duration::from_millis(100)).await;
             Ok(())
