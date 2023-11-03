@@ -261,7 +261,7 @@ typedef enum ELogicConditionType {
 #define TSDB_PASSWORD_LEN      32
 #define TSDB_USET_PASSWORD_LEN 129
 #define TSDB_VERSION_LEN       32
-#define TSDB_LABEL_LEN         12 
+#define TSDB_LABEL_LEN         12
 #define TSDB_JOB_STATUS_LEN    32
 
 #define TSDB_CLUSTER_ID_LEN       40
@@ -313,7 +313,7 @@ typedef enum ELogicConditionType {
 
 #define TSDB_MIN_VNODES_PER_DB          1
 #define TSDB_MAX_VNODES_PER_DB          1024
-#define TSDB_DEFAULT_VN_PER_DB          2
+#define TSDB_DEFAULT_VN_PER_DB          3
 #define TSDB_MIN_BUFFER_PER_VNODE       3      // unit MB
 #define TSDB_MAX_BUFFER_PER_VNODE       16384  // unit MB
 #define TSDB_DEFAULT_BUFFER_PER_VNODE   256
