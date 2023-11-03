@@ -1594,9 +1594,6 @@ static int32_t parseTbnameToken(SInsertParseContext* pCxt, SStbRowsDataContext* 
 
     if (pToken->n > 0) {
       if (pToken->n <= TSDB_TABLE_NAME_LEN - 1) {
-        pStbRowsCxt->ctbName.type = TSDB_TABLE_NAME_T;
-        pStbRowsCxt->ctbName.acctId = pStbRowsCxt->stbName.acctId;
-        memcpy(pStbRowsCxt->ctbName.dbname, pStbRowsCxt->stbName.dbname, sizeof(pStbRowsCxt->stbName.dbname));
         memcpy(pStbRowsCxt->ctbName.tname, pToken->z, pToken->n);
         pStbRowsCxt->ctbName.tname[pToken->n] = '\0';
         *pFoundCtbName = true;
@@ -2094,6 +2091,10 @@ static int32_t constructStbRowsDataContext(SVnodeModifyOpStmt* pStmt, SStbRowsDa
   collectUseTable(&pStbRowsCxt->stbName, pStmt->pTableNameHashObj);
   collectUseDatabase(&pStbRowsCxt->stbName, pStmt->pDbFNameHashObj);
 
+  pStbRowsCxt->ctbName.type = TSDB_TABLE_NAME_T;
+  pStbRowsCxt->ctbName.acctId = pStbRowsCxt->stbName.acctId;
+  memcpy(pStbRowsCxt->ctbName.dbname, pStbRowsCxt->stbName.dbname, sizeof(pStbRowsCxt->stbName.dbname));
+
   pStbRowsCxt->pTagCond = pStmt->pTagCond;
   pStbRowsCxt->pStbMeta = pStmt->pTableMeta;
 
@@ -2145,8 +2146,6 @@ static int32_t parseInsertStbClauseBottom(SInsertParseContext* pCxt, SVnodeModif
   if (code == TSDB_CODE_SUCCESS) {
     SRowsDataContext rowsDataCxt;
     rowsDataCxt.pStbRowsCxt = pStbRowsCxt;
-
-    insInitColValues(pStbRowsCxt->pStbMeta, pStbRowsCxt->aColVals);
     code = parseDataClause(pCxt, pStmt, rowsDataCxt);
   }
 
