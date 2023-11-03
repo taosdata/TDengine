@@ -782,7 +782,7 @@ static int32_t syncSnapBufferRecv(SSyncSnapshotReceiver *pReceiver, SyncSnapshot
   }
 
   for (int64_t seq = pRcvBuf->cursor + 1; seq < pRcvBuf->end; ++seq) {
-    if (pRcvBuf->entries[seq]) {
+    if (pRcvBuf->entries[seq % pRcvBuf->size]) {
       pRcvBuf->cursor = seq;
     } else {
       break;
