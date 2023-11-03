@@ -784,27 +784,8 @@ _SEND_REPLY:
     code = terrno;
   }
 
-  // build msg
-  SRpcMsg rpcMsg = {0};
-  if (syncBuildSnapshotSendRsp(&rpcMsg, 0, pSyncNode->vgId) != 0) {
-    sRError(pReceiver, "failed to build snapshot receiver resp since %s", terrstr());
-    return -1;
-  }
-
-  SyncSnapshotRsp *pRspMsg = rpcMsg.pCont;
-  pRspMsg->srcId = pSyncNode->myRaftId;
-  pRspMsg->destId = pMsg->srcId;
-  pRspMsg->term = raftStoreGetTerm(pSyncNode);
-  pRspMsg->lastIndex = pMsg->lastIndex;
-  pRspMsg->lastTerm = pMsg->lastTerm;
-  pRspMsg->startTime = pMsg->startTime;
-  pRspMsg->ack = pReceiver->ack;  // receiver maybe already closed
-  pRspMsg->code = code;
-  pRspMsg->snapBeginIndex = pReceiver->snapshotParam.start;
-
-  // send msg
-  if (syncNodeSendMsgById(&pRspMsg->destId, pSyncNode, &rpcMsg) != 0) {
-    sRError(pReceiver, "failed to send snapshot receiver resp since %s", terrstr());
+  // send response
+  if (syncSnapSendRsp(pReceiver, pMsg, NULL, 0, 0, code) != 0) {
     return -1;
   }
 
