@@ -3315,7 +3315,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "to_timestamp",
     .type = FUNCTION_TYPE_TO_TIMESTAMP,
-    .classification = FUNC_MGT_SCALAR_FUNC,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
     .translateFunc = translateToTimestamp,
     .getEnvFunc = NULL,
     .initFunc = NULL,

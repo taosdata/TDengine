@@ -303,6 +303,7 @@ bool tsdbIsSameTFile(const STFile *f1, const STFile *f2) {
   if (f1->did.id != f2->did.id) return false;
   if (f1->fid != f2->fid) return false;
   if (f1->cid != f2->cid) return false;
+  if (f1->s3flag != f2->s3flag) return false;
   return true;
 }
 
