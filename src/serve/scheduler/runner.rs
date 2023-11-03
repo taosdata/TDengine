@@ -861,6 +861,10 @@ impl TaskJob {
                     task_id,
                     format!("Agent {agent_id} now alive"),
                 ));
+                global.send_agent_activity(Activity::agent_transferring(
+                    agent_id,
+                    format!("Task {task_id} now running"),
+                ));
                 tracing::debug!("Agent {} is alive, sending command run", agent_id);
                 let _ = global
                     .agent_runtime

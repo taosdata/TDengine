@@ -1789,6 +1789,18 @@ impl TaskActivity {
         }
     }
 
+    /// Info-level activity under running state.
+    pub fn agent_transferring(id: i64, message: String) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Info,
+            activity: message,
+            status: "transferring".to_string(),
+            context: None,
+        }
+    }
+
     /// Error-level activity under running state.
     pub fn error(id: i64, message: String) -> Self {
         Self {
