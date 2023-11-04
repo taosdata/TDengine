@@ -227,7 +227,7 @@ export default {
         .dispatch('app/getAgentList')
         .then(() => {
           const status = this.$store.state.app.agentLists.find(item => item.name == this.name)?.status;
-          this.agentStatus = ['idle', 'busy'].includes(status) ? 'success' : 'failed';
+          this.agentStatus = ['idle', 'busy', 'online', 'connected'].includes(status) ? 'success' : 'failed';
         })
         .catch(() => {
           this.agentStatus = '';
