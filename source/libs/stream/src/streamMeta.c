@@ -1104,7 +1104,6 @@ void streamMetaRLock(SStreamMeta* pMeta) {
 void streamMetaRUnLock(SStreamMeta* pMeta) {
   stTrace("vgId:%d meta-runlock", pMeta->vgId);
   taosRUnLockLatch(&pMeta->lock);
-
 }
 void streamMetaWLock(SStreamMeta* pMeta) {
   stTrace("vgId:%d meta-wlock", pMeta->vgId);

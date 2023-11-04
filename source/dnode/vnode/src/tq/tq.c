@@ -1061,7 +1061,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   return code;
 }
 
-static void doStartStep2(SStreamTask* pTask, SStreamTask* pStreamTask, STQ* pTq) {
+static void doStartFillhistoryStep2(SStreamTask* pTask, SStreamTask* pStreamTask, STQ* pTq) {
   const char* id = pTask->id.idStr;
   int64_t     nextProcessedVer = pStreamTask->hTaskInfo.haltVer;
 
@@ -1102,7 +1102,7 @@ static void doStartStep2(SStreamTask* pTask, SStreamTask* pStreamTask, STQ* pTq)
   }
 }
 
-// this function should be executed by only one thread
+// this function should be executed by only one thread, so we set an sentinel to protect this function
 int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   SStreamScanHistoryReq* pReq = (SStreamScanHistoryReq*)pMsg->pCont;
   SStreamMeta*           pMeta = pTq->pStreamMeta;
@@ -1131,6 +1131,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     }
   }
 
+  // let's decide which step should be executed now
   if (pTask->execInfo.step1Start == 0) {
     ASSERT(pTask->status.pauseAllowed == false);
     int64_t ts = taosGetTimestampMs();
@@ -1164,14 +1165,28 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     return 0;
   }
 
-  streamScanHistoryData(pTask);
+  EScanHistoryRet ret = streamScanHistoryData(pTask);
 
+  // todo update the step1 exec elapsed time
   double el = (taosGetTimestampMs() - pTask->execInfo.step1Start) / 1000.0;
-  if (streamTaskGetStatus(pTask, NULL) == TASK_STATUS__PAUSE) {
-    int8_t status = streamTaskSetSchedStatusInactive(pTask);
-    tqDebug("s-task:%s is paused in the step1, elapsed time:%.2fs, sched-status:%d", pTask->id.idStr, el, status);
 
+  if (ret == TASK_SCANHISTORY_QUIT || ret == TASK_SCANHISTORY_REXEC) {
+    int8_t status = streamTaskSetSchedStatusInactive(pTask);
     atomic_store_32(&pTask->status.inScanHistorySentinel, 0);
+
+    if (ret == TASK_SCANHISTORY_REXEC) {
+      streamStartScanHistoryAsync(pTask, 0);
+    } else {
+      char*       p = NULL;
+      ETaskStatus s = streamTaskGetStatus(pTask, &p);
+
+      if (s == TASK_STATUS__PAUSE) {
+        tqDebug("s-task:%s is paused in the step1, elapsed time:%.2fs, sched-status:%d", pTask->id.idStr, el, status);
+      } else if (s == TASK_STATUS__STOP || s == TASK_STATUS__DROPPING) {
+        tqDebug("s-task:%s status:%p not continue scan-history data", pTask->id.idStr, p);
+      }
+    }
+
     streamMetaReleaseTask(pMeta, pTask);
     return 0;
   }
@@ -1200,23 +1215,20 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
     code = streamTaskHandleEvent(pStreamTask->status.pSM, TASK_EVENT_HALT);
     if (code == TSDB_CODE_SUCCESS) {
-      doStartStep2(pTask, pStreamTask, pTq);
+      doStartFillhistoryStep2(pTask, pStreamTask, pTq);
     } else {
       tqError("s-task:%s failed to halt s-task:%s, not launch step2", id, pStreamTask->id.idStr);
     }
 
     streamMetaReleaseTask(pMeta, pStreamTask);
-
   } else {
     STimeWindow* pWindow = &pTask->dataRange.window;
     ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask));
 
-    // Not update the fill-history time window until the state transfer is completed if the related fill-history task
-    // exists.
-    tqDebug(
-        "s-task:%s scan-history in stream time window completed, now start to handle data from WAL, startVer:%" PRId64
-        ", window:%" PRId64 " - %" PRId64,
-        id, pTask->chkInfo.nextProcessVer, pWindow->skey, pWindow->ekey);
+    // Not update the fill-history time window until the state transfer is completed.
+    tqDebug("s-task:%s scan-history in stream time window completed, start to handle data from WAL, startVer:%" PRId64
+            ", window:%" PRId64 " - %" PRId64,
+            id, pTask->chkInfo.nextProcessVer, pWindow->skey, pWindow->ekey);
 
     code = streamTaskScanHistoryDataComplete(pTask);
   }
