@@ -205,8 +205,7 @@ typedef struct SRequestSendRecvBody {
   __taos_async_fn_t queryFp;
   __taos_async_fn_t fetchFp;
   EQueryExecMode    execMode;
-  void*             param;
-  bool              paramCreatedInternal;
+  void*             interParam;
   SDataBuf          requestMsg;
   int64_t           queryJob;  // query job, created according to sql query DAG.
   int32_t           subplanNum;
@@ -285,6 +284,7 @@ typedef struct SRequestObj {
 typedef struct SSyncQueryParam {
   tsem_t       sem;
   SRequestObj* pRequest;
+  void*        userParam;
 } SSyncQueryParam;
 
 void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
