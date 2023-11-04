@@ -316,6 +316,15 @@ void *createRequest(uint64_t connId, int32_t type, int64_t reqid) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     return NULL;
   }
+  SSyncQueryParam *interParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
+  if (interParam == NULL) {
+    doDestroyRequest(pRequest);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  tsem_init(&interParam->sem, 0, 0);
+  interParam->pRequest = pRequest;
+  pRequest->body.interParam = interParam;
 
   pRequest->resType = RES_TYPE__QUERY;
   pRequest->requestId = reqid == 0 ? generateRequestId() : reqid;
@@ -437,12 +446,10 @@ void doDestroyRequest(void *p) {
     deregisterRequest(pRequest);
   }
 
-  if (pRequest->syncQuery || pRequest->body.paramCreatedInternal) {
-    if (pRequest->body.param) {
-      tsem_destroy(&((SSyncQueryParam *)pRequest->body.param)->sem);
-    }
-    taosMemoryFree(pRequest->body.param);
+  if (pRequest->body.interParam) {
+    tsem_destroy(&((SSyncQueryParam *)pRequest->body.interParam)->sem);
   }
+  taosMemoryFree(pRequest->body.interParam);
 
   qDestroyQuery(pRequest->pQuery);
   nodesDestroyAllocator(pRequest->allocatorRefId);

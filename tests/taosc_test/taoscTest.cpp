@@ -188,10 +188,9 @@ TEST_F(taoscTest, taos_query_test) {
 void queryCallback2(void* param, void* res, int32_t code) {
   ASSERT_TRUE(code == 0);
   ASSERT_TRUE(param == pUserParam);
-  // After using taos_query_a to query, using taos_fetch_row
-  // in the callback will cause blocking.
-  /*
-  TAOS_ROW row;
+  // After using taos_query_a to query, using taos_fetch_row in the callback will cause blocking. 
+  // Reason: schProcessOnCbBegin SCH_LOCK_TASK(pTask)
+  /* TAOS_ROW row;
   while ((row = taos_fetch_row(res))) {
      getRecordCounts++;
   } */
@@ -251,14 +250,14 @@ TEST_F(taoscTest, taos_query_a_fetch_row) {
   getRecordCounts = 0;
   TAOS_ROW row;
   printf("taos_query_a_fetch_row  taos_fetch_row start...\n");
-  // will cause heap-buffer-overfow
-  // while ((row = taos_fetch_row(*pres))) {
-  //    getRecordCounts++;
-  // } 
+
+  while ((row = taos_fetch_row(*pres))) {
+     getRecordCounts++;
+  }
   printf("taos_query_a_fetch_row  taos_fetch_row end. %p record count:%d.\n", *pres, getRecordCounts);
   taos_free_result(*pres);
 
-  ASSERT_NE(getRecordCounts, insertCounts);
+  ASSERT_EQ(getRecordCounts, insertCounts);
   taos_close(taos);
 
   printf("taos_query_a_fetch_row test finished.\n");

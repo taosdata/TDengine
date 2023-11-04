@@ -196,22 +196,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   (*pRequest)->sqlLen = sqlLen;
   (*pRequest)->validateOnly = validateSql;
 
-  SSyncQueryParam* newpParam = NULL;
-  if (param == NULL) {
-    newpParam = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
-    if (newpParam == NULL) {
-      destroyRequest(*pRequest);
-      *pRequest = NULL;
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-
-    tsem_init(&newpParam->sem, 0, 0);
-    newpParam->pRequest = (*pRequest);
-    param = newpParam;
-    (*pRequest)->body.paramCreatedInternal = true;
-  }
-
-  (*pRequest)->body.param = param;
+  ((SSyncQueryParam*)(*pRequest)->body.interParam)->userParam = param;
 
   STscObj* pTscObj = (*pRequest)->pTscObj;
   int32_t  err = taosHashPut(pTscObj->pRequests, &(*pRequest)->self, sizeof((*pRequest)->self), &(*pRequest)->self,
@@ -219,7 +204,6 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   if (err) {
     tscError("%" PRId64 " failed to add to request container, reqId:0x%" PRIx64 ", conn:%" PRId64 ", %s",
              (*pRequest)->self, (*pRequest)->requestId, pTscObj->id, sql);
-    freeQueryParam(newpParam);
     destroyRequest(*pRequest);
     *pRequest = NULL;
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -231,7 +215,6 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
         nodesCreateAllocator((*pRequest)->requestId, tsQueryNodeChunkSize, &((*pRequest)->allocatorRefId))) {
       tscError("%" PRId64 " failed to create node allocator, reqId:0x%" PRIx64 ", conn:%" PRId64 ", %s",
                (*pRequest)->self, (*pRequest)->requestId, pTscObj->id, sql);
-      freeQueryParam(newpParam);
       destroyRequest(*pRequest);
       *pRequest = NULL;
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -1683,8 +1666,8 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
 }
 
 static void syncFetchFn(void* param, TAOS_RES* res, int32_t numOfRows) {
-  SSyncQueryParam* pParam = param;
-  tsem_post(&pParam->sem);
+  tsem_t* sem = param;
+  tsem_post(sem);
 }
 
 void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) {
@@ -1702,10 +1685,11 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
 
     // convert ucs4 to native multi-bytes string
     pResultInfo->convertUcs4 = convertUcs4;
-
-    SSyncQueryParam* pParam = pRequest->body.param;
-    taos_fetch_rows_a(pRequest, syncFetchFn, pParam);
-    tsem_wait(&pParam->sem);
+    tsem_t sem;
+    tsem_init(&sem, 0, 0);
+    taos_fetch_rows_a(pRequest, syncFetchFn, &sem);
+    tsem_wait(&sem);
+    tsem_destroy(&sem);
   }
 
   if (pResultInfo->numOfRows == 0 || pRequest->code != TSDB_CODE_SUCCESS) {
@@ -2472,6 +2456,10 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
   tscDebug("taos_query start with sql:%s", sql);
 
   SSyncQueryParam* param = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
+  if (NULL == param) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
   tsem_init(&param->sem, 0, 0);
 
   taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly);
@@ -2481,9 +2469,8 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
   if (param->pRequest != NULL) {
     param->pRequest->syncQuery = true;
     pRequest = param->pRequest;
-  } else {
-    taosMemoryFree(param);
   }
+  taosMemoryFree(param);
 
   tscDebug("taos_query end with sql:%s", sql);
 
@@ -2497,19 +2484,20 @@ TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly,
   }
 
   SSyncQueryParam* param = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
+  if (param == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
   tsem_init(&param->sem, 0, 0);
 
   taosAsyncQueryImplWithReqid(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, reqid);
   tsem_wait(&param->sem);
-
   SRequestObj* pRequest = NULL;
   if (param->pRequest != NULL) {
     param->pRequest->syncQuery = true;
     pRequest = param->pRequest;
-  } else {
-    taosMemoryFree(param);
   }
-
+  taosMemoryFree(param);
   return pRequest;
 }
 
@@ -2527,13 +2515,13 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     pRequest->code = code;
     taosMemoryFreeClear(pResultInfo->pData);
-    pRequest->body.fetchFp(pRequest->body.param, pRequest, 0);
+    pRequest->body.fetchFp(((SSyncQueryParam *)pRequest->body.interParam)->userParam, pRequest, 0);
     return;
   }
 
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     taosMemoryFreeClear(pResultInfo->pData);
-    pRequest->body.fetchFp(pRequest->body.param, pRequest, 0);
+    pRequest->body.fetchFp(((SSyncQueryParam *)pRequest->body.interParam)->userParam, pRequest, 0);
     return;
   }
 
@@ -2554,21 +2542,12 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
     atomic_add_fetch_64((int64_t*)&pActivity->fetchBytes, pRequest->body.resInfo.payloadLen);
   }
 
-  pRequest->body.fetchFp(pRequest->body.param, pRequest, pResultInfo->numOfRows);
+  pRequest->body.fetchFp(((SSyncQueryParam *)pRequest->body.interParam)->userParam, pRequest, pResultInfo->numOfRows);
 }
 
 void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param) {
-  if ((pRequest->syncQuery || pRequest->body.paramCreatedInternal) && pRequest->body.param != param) {
-    if (pRequest->body.param) {
-      tsem_destroy(&((SSyncQueryParam *)pRequest->body.param)->sem);
-    }
-    taosMemoryFree(pRequest->body.param);
-    pRequest->syncQuery = false;
-    pRequest->body.paramCreatedInternal = false;
-  }
-
   pRequest->body.fetchFp = fp;
-  pRequest->body.param = param;
+  ((SSyncQueryParam *)pRequest->body.interParam)->userParam = param;
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
 
@@ -2607,9 +2586,5 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
 }
 
 void doRequestCallback(SRequestObj* pRequest, int32_t code) {
-  if (pRequest->body.paramCreatedInternal) {
-    pRequest->body.queryFp(NULL, pRequest, code);
-  } else {
-    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
-  }
+  pRequest->body.queryFp(((SSyncQueryParam *)pRequest->body.interParam)->userParam, pRequest, code);
 }
