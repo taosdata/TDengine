@@ -197,7 +197,6 @@ async fn ipc_tcp_forward(
             }
         }
     }
-    Ok(())
 }
 
 async fn try_establish_channel(remote: String) -> anyhow::Result<Channel> {

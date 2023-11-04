@@ -32,6 +32,13 @@ pub enum AgentState {
     Disconnected,
     Closed,
 }
+
+impl AgentState {
+    pub fn is_connected(&self) -> bool {
+        matches!(self, Self::Connected)
+    }
+}
+
 #[derive(MultiIndexMap, Debug)]
 pub struct AgentTask {
     #[multi_index(hashed_non_unique)]
@@ -140,8 +147,6 @@ impl AgentWorker {
                                                 .get_mut(&agent_id)
                                                 .unwrap()
                                                 .clone_from(&AgentState::Disconnected);
-                                        } else {
-                                            states.insert(agent_id, AgentState::Disconnected);
                                         }
                                     }
                                     let mut agent_tasks = agent_tasks_sender_clone.write().await;
@@ -273,14 +278,12 @@ impl AgentWorker {
         }
     }
 
-    pub async fn is_alive(&self, agent_id: AgentId) -> bool {
-        let states = self.agent_states.read().await;
-        states.contains_key(&agent_id)
-    }
-
     pub(crate) async fn agent_is_alive(&self, agent_id: i64) -> bool {
         let states = self.agent_states.read().await;
-        states.contains_key(&agent_id)
+        if let Some(state) = states.get(&agent_id) {
+            return state.is_connected();
+        }
+        false
     }
 
     pub(crate) async fn push_action(

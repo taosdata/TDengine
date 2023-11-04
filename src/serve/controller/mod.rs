@@ -1228,46 +1228,6 @@ impl TaskController {
         }
     }
 
-    pub async fn agent_disconnect(&self, agent_id: i64) -> anyhow::Result<()> {
-        tracing::warn!("Agent {agent_id} is disconnected");
-        // let tasks = self
-        //     .tasks(TaskFilter {
-        //         via: Some(agent_id),
-        //         status: Some("running".to_string()),
-        //         ..Default::default()
-        //     })
-        //     .await?;
-        // for task in tasks {
-        //     let id = task.id;
-        //     self.tasks.write().await.remove(&id).map(|(_, token)| {
-        //         token.cancel();
-        //     });
-        //     if let Err(err) = sqlx::query(&format!(
-        //         "UPDATE tasks SET `status` = 'cancelled' WHERE id = {id} AND `status` = 'running'"
-        //     ))
-        //     .execute(&self.pool)
-        //     .await
-        //     {
-        //         tracing::error!("Update task {id} status to cancelled failed: {err:#}");
-        //     }
-        //     let activity = Activity::new::<String>(
-        //         id,
-        //         Utc::now(),
-        //         LevelFilter::Info,
-        //         format!("Task {id} is cancelled because agent is disconnected"),
-        //         "cancelled",
-        //         None,
-        //     );
-        //     self.push_task_activity(&activity).await?;
-        // }
-        // if let Some(workers) = self.agent_tasks.write().await.remove(&agent_id) {
-        //     workers.alive.store(false, Ordering::Relaxed);
-        //     workers.current.clear();
-        // }
-
-        Ok(())
-    }
-
     pub async fn update_agent(
         &self,
         agent_id: i64,
