@@ -1182,7 +1182,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
   int32_t code = 0;
 
   if (pRequest->parseOnly) {
-    pRequest->body.queryFp(pRequest->body.param, pRequest, 0);
+    doRequestCallback(pRequest, 0);
     return;
   }
 
