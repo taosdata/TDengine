@@ -354,15 +354,15 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
 async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::Result<()> {
     let mut status = activity.status.as_str();
     match status {
-        "online" | "offline" | "created" | "outdated" => {}
-        "transferring" => {
-            status = "online";
+        "connected" | "disconnected" | "created" | "outdated" => {}
+        "transferring" | "online" => {
+            status = "connected";
         }
-        "pending" => {
-            status = "offline";
+        "pending" | "offline" => {
+            status = "disconnected";
         }
         _ => {
-            status = "online";
+            status = "connected";
         }
     }
     sqlx::query(
@@ -1188,7 +1188,7 @@ impl TaskController {
         let agent = sqlx::query_as(&sql).fetch_optional(&self.pool).await?;
         Ok(agent)
     }
-    /// Check if agent is online.
+    /// Check if agent is connected.
     pub async fn agent_alive(&self, agent_id: i64) -> bool {
         self.scheduler.agent_is_alive(agent_id).await
     }
@@ -1804,7 +1804,7 @@ impl TaskActivity {
             at: Utc::now(),
             level: LevelFilter::Info,
             activity: message,
-            status: "online".to_string(),
+            status: "connected".to_string(),
             context: None,
         }
     }

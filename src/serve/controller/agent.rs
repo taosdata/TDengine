@@ -15,8 +15,8 @@ use utoipa::{IntoParams, ToSchema};
 #[sqlx(rename_all = "snake_case")]
 pub enum AgentStatus {
     Created,
-    Online,
-    Offline,
+    Connected,
+    Disconnected,
     Pending,
     Alive,
     Idle,
@@ -34,7 +34,7 @@ pub enum AgentStatus {
 pub enum AgentActivity {
     Create,
     Connect,
-    Offline,
+    Disconnected,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
