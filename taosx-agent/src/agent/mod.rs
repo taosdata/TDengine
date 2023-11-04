@@ -39,20 +39,6 @@ pub struct Client {
     pub req_id: Arc<AtomicU64>,
 }
 
-#[derive(Debug, Deserialize, Clone, Copy)]
-#[serde(rename_all = "snake_case")]
-pub enum AgentStatus {
-    Created,
-    Online,
-    Offline,
-    Pending,
-    Alive,
-    Idle,
-    Busy,
-    Transferring,
-    Error,
-    Outdated,
-}
 #[derive(Debug, Clone, Deserialize)]
 pub struct Agent {
     pub id: i64,
@@ -61,13 +47,6 @@ pub struct Agent {
     pub name: String,
     pub cluster_id: String,
     pub user_id: String,
-
-    #[allow(dead_code)]
-    created_at: DateTime<Utc>,
-    #[allow(dead_code)]
-    last_modified_at: Option<DateTime<Utc>>,
-    #[allow(dead_code)]
-    status: Option<AgentStatus>,
 }
 
 /// A streaming workflow task description.

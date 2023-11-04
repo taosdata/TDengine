@@ -34,23 +34,23 @@ pub struct TaskStatus {
     context: Option<String>,
 }
 
-impl TaskStatus {
-    pub fn new(
-        id: i64,
-        at: DateTime<Utc>,
-        action: String,
-        message: Option<String>,
-        context: Option<String>,
-    ) -> Self {
-        Self {
-            id,
-            at,
-            action,
-            message,
-            context,
-        }
-    }
-}
+// impl TaskStatus {
+//     pub fn new(
+//         id: i64,
+//         at: DateTime<Utc>,
+//         action: String,
+//         message: Option<String>,
+//         context: Option<String>,
+//     ) -> Self {
+//         Self {
+//             id,
+//             at,
+//             action,
+//             message,
+//             context,
+//         }
+//     }
+// }
 
 pub struct Worker {
     handle: JoinHandle<Result<()>>,

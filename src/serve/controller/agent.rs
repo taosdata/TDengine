@@ -15,6 +15,13 @@ use utoipa::{IntoParams, ToSchema};
 #[sqlx(rename_all = "snake_case")]
 pub enum AgentStatus {
     Created,
+    Connected,
+    Disconnected,
+    Outdated,
+    /// All belows states are **deprecated**.
+    /// Use connected, disconnected instead.
+    ///
+    /// Lease these here for activities compatibility.
     Online,
     Offline,
     Pending,
@@ -24,7 +31,6 @@ pub enum AgentStatus {
     Busy,
     Transferring,
     Error,
-    Outdated,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -34,7 +40,7 @@ pub enum AgentStatus {
 pub enum AgentActivity {
     Create,
     Connect,
-    Offline,
+    Disconnected,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]

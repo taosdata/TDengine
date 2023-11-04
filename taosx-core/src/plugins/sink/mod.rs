@@ -197,7 +197,6 @@ async fn ipc_tcp_forward(
             }
         }
     }
-    Ok(())
 }
 
 async fn try_establish_channel(remote: String) -> anyhow::Result<Channel> {
@@ -1782,6 +1781,10 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         {
             tracing::error!("write batch error: {err:#}");
             let written = count - last;
+
+            if ipc_error_strategy.will_stop() {
+                bail!("write batch error: {err:#}");
+            }
             let _ = ipc_ack_writer.ack(LushAck {
                 code: 0,
                 message: Some(err.to_string()),
@@ -1793,10 +1796,6 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                     .to_string(),
                 ),
             });
-
-            if ipc_error_strategy.will_stop() {
-                bail!("write batch error: {err:#}");
-            }
 
             if let Err(_) = notifier.send(crate::TaskNotify::Error(format!("{:#}", err))) {
                 bail!("write batch error: {err:#}");

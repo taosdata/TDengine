@@ -522,7 +522,7 @@ impl FlightService for FlightServiceImpl {
         // let sender = tx.clone();
         let controller_runner = controller.clone();
         let agent_id = agent.id;
-        let resp_tx = tx.clone();
+        // let tx = tx.clone();
         let notify_sender = self.notify_sender.clone();
         let datasets_sender = self.datasets_senders.clone();
         let dsv_senders = self.dsv_senders.clone();
@@ -533,7 +533,7 @@ impl FlightService for FlightServiceImpl {
             let encoder = FlightDataDecoder::new(req.map_err(FlightError::Tonic));
             let last_heart_ms = AtomicU64::new(0);
             let result = encoder
-                .try_for_each_concurrent(1, |data| async {
+                .try_for_each_concurrent(20, |data| async {
                     let payload = data.payload;
                     match payload {
                         arrow_flight::decode::DecodedPayload::None => (),
@@ -717,7 +717,7 @@ impl FlightService for FlightServiceImpl {
                                         ])
                                         .map_err(FlightError::Arrow);
                                         // tracing::info!("Send heartbeat response");
-                                        let _ = resp_tx.send_async(item).await;
+                                        let _ = tx.send_async(item).await;
                                         // return std::task::Poll::Ready(Some(item));
                                     }
                                     action => {
@@ -740,19 +740,16 @@ impl FlightService for FlightServiceImpl {
                 agent_id,
                 Utc::now(),
                 LevelFilter::Warn,
-                "Disconnected",
-                "pending",
+                "Disconnected.",
+                "disconnected",
                 context,
             );
+            if let Err(err) = notify_sender.send(AgentNotify::AgentDisconnected(agent_id)) {
+                tracing::error!(agent = agent_id, "Agent disconnected: {err:#}");
+            }
             let _ = controller_runner.push_agent_activity(activity).await?;
+
             tracing::info!(agent = agent_id, "Agent RPC stopped");
-
-            let _ = notify_sender.send(AgentNotify::AgentDisconnected(agent_id));
-
-            controller_runner
-                .agent_disconnect(agent_id)
-                .await
-                .map_err(|err| Status::internal(err.to_string()))?;
             Ok::<_, anyhow::Error>(())
         });
         let stream: Self::DoExchangeStream = Box::pin({

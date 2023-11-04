@@ -1,4 +1,4 @@
-use std::sync::{atomic::AtomicBool, Arc};
+use std::sync::Arc;
 
 use anyhow::{bail, Context};
 use arrow_flight::{error::FlightError, FlightData, PutResult};
@@ -9,7 +9,6 @@ use taos::{AsyncBindable, AsyncQueryable, AsyncTBuilder, Dsn, Stmt, TaosBuilder}
 use taosx_core::{
     sink::IpcErrorStrategy, ConnectorLicense, IpcStreamWorker, Parser, METRICS_TIME_START,
 };
-use tokio::sync::RwLock;
 use tonic::{Status, Streaming};
 use tracing::{debug, Instrument};
 
@@ -111,7 +110,7 @@ impl PutStream {
 
         let ipc_error_strategy = IpcErrorStrategy::from(connector);
 
-        let should_abort = Arc::new(AtomicBool::new(false));
+        // let should_abort = Arc::new(AtomicBool::new(false));
         let (abort_message_tx, abort_message_rx) = flume::bounded(1);
 
         let license: Option<ConnectorLicense> = if let Some(connector) = connector {

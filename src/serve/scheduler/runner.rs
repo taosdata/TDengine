@@ -827,6 +827,7 @@ impl TaskJob {
 
                 tokio::select! {
                     _ = cancellation.cancelled() => {
+                        tracing::info!(agent.id = agent_id, task.id = task_id, job.id = %jid, "task `{task_id}` cancelled");
                         let operator = state.operator.operator();
                         match operator {
                             Operator::Suspend => {
@@ -841,7 +842,8 @@ impl TaskJob {
                                 unreachable!("Cancellation should be only trigger by stop or suspend operator")
                             }
                         }
-                        tx.send(state.stop_condition.should_stop());
+                        let _ = tx.send(true);
+                        tracing::warn!(agent.id = agent_id, task.id = task_id, job.id = %jid,"Task {task_id} cancelled");
                         return
                     }
                     _ = async {
@@ -853,7 +855,7 @@ impl TaskJob {
                             warn!("Agent {} is not alive, waiting...", agent_id);
                             global
                                 .send_task_activity(TaskActivity::waiting(task_id, "Waiting for agent..."));
-                            if waiting < 10 {
+                            if waiting < 5 {
                                 waiting += 1;
                             }
                             tokio::time::sleep(Duration::from_secs(1) * waiting).await;
@@ -881,7 +883,7 @@ impl TaskJob {
                 let is_cron_job = state.schedule().is_cron_job();
 
                 async fn agent_activities_listener(
-                    operator: Operator,
+                    operator: TaskOperator,
                     is_cron_job: bool,
                     global: &GlobalState,
                     state: &TaskState,
@@ -893,7 +895,25 @@ impl TaskJob {
                 ) -> anyhow::Result<AgentTaskState> {
                     loop {
                         let mut recv = agent_activities.write().await;
-                        match recv.recv().await {
+                        match tokio::select! {
+                            _ = state.cancellation.cancelled() => {
+                                match operator.operator() {
+                                    Operator::Suspend => {
+                                        global.send_task_activity(TaskActivity::suspended(task_id, jid));
+                                        state.state.write().await.stopped();
+                                    }
+                                    Operator::Stop => {
+                                        global.send_task_activity(TaskActivity::stopped(task_id));
+                                        state.state.write().await.stopped();
+                                    }
+                                    Operator::Run => {
+                                        unreachable!("Cancellation should be only trigger by stop or suspend operator")
+                                    }
+                                }
+                                break Ok(AgentTaskState::Stopped);
+                            },
+                            item = recv.recv() => item,
+                        } {
                             Some(mut activity) => {
                                 tracing::warn!(
                                     activity = activity.activity,
@@ -965,7 +985,7 @@ impl TaskJob {
                                         }
                                     }
                                     status => {
-                                        tracing::info!("task {}: {}", status, activity.activity);
+                                        tracing::info!(status, message = activity.activity);
                                         global.send_task_activity(activity);
                                     }
                                 }
@@ -984,7 +1004,7 @@ impl TaskJob {
                         // wait for agent receive timeout.
                         match tokio::time::timeout(
                             Duration::from_secs(60),
-                            agent_activities_listener(operator, is_cron_job, &global, &state, task_id, agent_id, jid, run_id, agent_activities.clone()),
+                            agent_activities_listener(state.operator.clone(), is_cron_job, &global, &state, task_id, agent_id, jid, run_id, agent_activities.clone()),
                         )
                         .await
                         {
@@ -1007,7 +1027,7 @@ impl TaskJob {
                             }
                         }
                     },
-                    res = agent_activities_listener(state.operator.operator(), is_cron_job, &global,&state,task_id,agent_id, jid, run_id, agent_activities.clone())=> {
+                    res = agent_activities_listener(state.operator.clone(), is_cron_job, &global,&state,task_id,agent_id, jid, run_id, agent_activities.clone())=> {
                         res
                     },
                 };
@@ -1023,6 +1043,7 @@ impl TaskJob {
                         let _ = tx.send(false);
                     }
                     Err(err) => {
+                        let _ = tx.send(false);
                         tracing::warn!("agent activities listener error: {:#}", err);
                     }
                 }
