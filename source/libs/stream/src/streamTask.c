@@ -400,8 +400,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   taosMemoryFree(pTask->outputInfo.pTokenBucket);
   taosThreadMutexDestroy(&pTask->lock);
 
-  taosArrayDestroy(pTask->outputInfo.pDownstreamUpdateList);
-  pTask->outputInfo.pDownstreamUpdateList = NULL;
+  pTask->outputInfo.pDownstreamUpdateList = taosArrayDestroy(pTask->outputInfo.pDownstreamUpdateList);
 
   taosMemoryFree(pTask);
   stDebug("s-task:0x%x free task completed", taskId);

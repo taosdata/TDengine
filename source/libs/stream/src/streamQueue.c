@@ -340,10 +340,11 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
   return 0;
 }
 
-// the result should be put into the outputQ in any cases, otherwise, the result may be lost
+// the result should be put into the outputQ in any cases, the result may be lost otherwise.
 int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBlock) {
   STaosQueue* pQueue = pTask->outputq.queue->pQueue;
 
+  // wait for the output queue is available for new data to dispatch
   while (streamQueueIsFull(pTask->outputq.queue)) {
     if (streamTaskShouldStop(pTask)) {
       stInfo("s-task:%s discard result block due to task stop", pTask->id.idStr);
