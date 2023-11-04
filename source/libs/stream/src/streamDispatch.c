@@ -41,9 +41,9 @@ static int32_t tInitStreamDispatchReq(SStreamDispatchReq* pReq, const SStreamTas
                                       int32_t numOfBlocks, int64_t dstTaskId, int32_t type);
 
 void initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen) {
-    pMsg->msgType = msgType;
-    pMsg->pCont = pCont;
-    pMsg->contLen = contLen;
+  pMsg->msgType = msgType;
+  pMsg->pCont = pCont;
+  pMsg->contLen = contLen;
 }
 
 int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* pReq) {
@@ -420,7 +420,7 @@ static void doRetryDispatchData(void* param, void* tmrId) {
   const char*  id = pTask->id.idStr;
   int32_t      msgId = pTask->execInfo.dispatch;
 
-  if (streamTaskShouldStop(&pTask->status)) {
+  if (streamTaskShouldStop(pTask)) {
     int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug("s-task:%s should stop, abort from timer, ref:%d", pTask->id.idStr, ref);
     return;
@@ -429,6 +429,7 @@ static void doRetryDispatchData(void* param, void* tmrId) {
   ASSERT(pTask->outputq.status == TASK_OUTPUT_STATUS__WAIT);
 
   int32_t code = 0;
+
   {
     SArray* pList = taosArrayDup(pTask->msgInfo.pRetryList, NULL);
     taosArrayClear(pTask->msgInfo.pRetryList);
@@ -440,7 +441,7 @@ static void doRetryDispatchData(void* param, void* tmrId) {
       int32_t numOfVgroups = taosArrayGetSize(vgInfo);
 
       int32_t numOfFailed = taosArrayGetSize(pList);
-      stDebug("s-task:%s (child taskId:%d) re-try shuffle-dispatch blocks to %d vgroup(s), msgId:%d",
+      stDebug("s-task:%s (child taskId:%d) retry shuffle-dispatch blocks to %d vgroup(s), msgId:%d",
               id, pTask->info.selfChildId, numOfFailed, msgId);
 
       for (int32_t i = 0; i < numOfFailed; i++) {
@@ -471,13 +472,15 @@ static void doRetryDispatchData(void* param, void* tmrId) {
 
       code = doSendDispatchMsg(pTask, pReq, vgId, pEpSet);
     }
+
+    taosArrayDestroy(pList);
   }
 
   if (code != TSDB_CODE_SUCCESS) {
-    if (!streamTaskShouldStop(&pTask->status)) {
+    if (!streamTaskShouldStop(pTask)) {
 //      stDebug("s-task:%s reset the waitRspCnt to be 0 before launch retry dispatch", pTask->id.idStr);
 //      atomic_store_32(&pTask->outputInfo.shuffleDispatcher.waitingRspCnt, 0);
-      if (streamTaskShouldPause(&pTask->status)) {
+      if (streamTaskShouldPause(pTask)) {
         streamRetryDispatchData(pTask, DISPATCH_RETRY_INTERVAL_MS * 10);
       } else {
         streamRetryDispatchData(pTask, DISPATCH_RETRY_INTERVAL_MS);
@@ -662,8 +665,10 @@ int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask) {
     int32_t numOfVgs = taosArrayGetSize(vgInfo);
     pTask->notReadyTasks = numOfVgs;
 
+    char* p = NULL;
+    streamTaskGetStatus(pTask, &p);
     stDebug("s-task:%s send scan-history data complete msg to downstream (shuffle-dispatch) %d tasks, status:%s", pTask->id.idStr,
-           numOfVgs, streamGetTaskStatusStr(pTask->status.taskStatus));
+           numOfVgs, p);
     for (int32_t i = 0; i < numOfVgs; i++) {
       SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
       req.downstreamTaskId = pVgInfo->taskId;
@@ -775,8 +780,9 @@ int32_t doDispatchScanHistoryFinishMsg(SStreamTask* pTask, const SStreamScanHist
   initRpcMsg(&msg, TDMT_VND_STREAM_SCAN_HISTORY_FINISH, buf, tlen + sizeof(SMsgHead));
 
   tmsgSendReq(pEpSet, &msg);
-  const char* pStatus = streamGetTaskStatusStr(pTask->status.taskStatus);
-  stDebug("s-task:%s status:%s dispatch scan-history finish msg to taskId:0x%x (vgId:%d)", pTask->id.idStr, pStatus,
+  char* p = NULL;
+  streamTaskGetStatus(pTask, &p);
+  stDebug("s-task:%s status:%s dispatch scan-history finish msg to taskId:0x%x (vgId:%d)", pTask->id.idStr, p,
          pReq->downstreamTaskId, vgId);
   return 0;
 }
@@ -1001,6 +1007,8 @@ int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo,
   info.msg.info = *pRpcInfo;
 
   taosThreadMutexLock(&pTask->lock);
+  stDebug("s-task:%s lock", pTask->id.idStr);
+
   if (pTask->pRspMsgList == NULL) {
     pTask->pRspMsgList = taosArrayInit(4, sizeof(SStreamContinueExecInfo));
   }
@@ -1008,7 +1016,7 @@ int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo,
   taosThreadMutexUnlock(&pTask->lock);
 
   int32_t num = taosArrayGetSize(pTask->pRspMsgList);
-  stDebug("s-task:%s add scan history finish rsp msg for task:0x%x, total:%d", pTask->id.idStr, pReq->upstreamTaskId,
+  stDebug("s-task:%s add scan-history finish rsp msg for task:0x%x, total:%d", pTask->id.idStr, pReq->upstreamTaskId,
          num);
   return TSDB_CODE_SUCCESS;
 }
@@ -1024,7 +1032,7 @@ int32_t streamNotifyUpstreamContinue(SStreamTask* pTask) {
     SStreamContinueExecInfo* pInfo = taosArrayGet(pTask->pRspMsgList, i);
     tmsgSendRsp(&pInfo->msg);
 
-    stDebug("s-task:%s level:%d notify upstream:0x%x continuing scan data in WAL", id, level, pInfo->taskId);
+    stDebug("s-task:%s level:%d notify upstream:0x%x continuing handle data in WAL", id, level, pInfo->taskId);
   }
 
   taosArrayClear(pTask->pRspMsgList);
@@ -1040,8 +1048,8 @@ static int32_t handleDispatchSuccessRsp(SStreamTask* pTask, int32_t downstreamId
   int64_t el = taosGetTimestampMs() - pTask->msgInfo.startTs;
 
   // put data into inputQ of current task is also allowed
-  if (pTask->inputInfo.status == TASK_INPUT_STATUS__BLOCKED) {
-    pTask->inputInfo.status = TASK_INPUT_STATUS__NORMAL;
+  if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
+    pTask->inputq.status = TASK_INPUT_STATUS__NORMAL;
     stDebug("s-task:%s downstream task:0x%x resume to normal from inputQ blocking, blocking time:%" PRId64 "ms",
             pTask->id.idStr, downstreamId, el);
   } else {
@@ -1093,7 +1101,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
 
   } else {  // code == 0
     if (pRsp->inputStatus == TASK_INPUT_STATUS__BLOCKED) {
-      pTask->inputInfo.status = TASK_INPUT_STATUS__BLOCKED;
+      pTask->inputq.status = TASK_INPUT_STATUS__BLOCKED;
       // block the input of current task, to push pressure to upstream
       taosThreadMutexLock(&pTask->lock);
       taosArrayPush(pTask->msgInfo.pRetryList, &pRsp->downstreamNodeId);
@@ -1113,16 +1121,16 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     ASSERT(leftRsp >= 0);
 
     if (leftRsp > 0) {
-      stDebug( "s-task:%s recv dispatch rsp, msgId:%d from 0x%x(vgId:%d), downstream task input status:%d code:%d, waiting for %d rsp",
-               id, msgId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->inputStatus, code, leftRsp);
+      stDebug( "s-task:%s recv dispatch rsp, msgId:%d from 0x%x(vgId:%d), downstream task input status:%d code:%s, waiting for %d rsp",
+               id, msgId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->inputStatus, tstrerror(code), leftRsp);
     } else {
       stDebug(
-          "s-task:%s recv dispatch rsp, msgId:%d from 0x%x(vgId:%d), downstream task input status:%d code:%d, all rsp",
-          id, msgId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->inputStatus, code);
+          "s-task:%s recv dispatch rsp, msgId:%d from 0x%x(vgId:%d), downstream task input status:%d code:%s, all rsp",
+          id, msgId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->inputStatus, tstrerror(code));
     }
   } else {
-    stDebug("s-task:%s recv fix-dispatch rsp, msgId:%d from 0x%x(vgId:%d), downstream task input status:%d code:%d",
-            id, msgId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->inputStatus, code);
+    stDebug("s-task:%s recv fix-dispatch rsp, msgId:%d from 0x%x(vgId:%d), downstream task input status:%d code:%s",
+            id, msgId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->inputStatus, tstrerror(code));
   }
 
   ASSERT(leftRsp >= 0);
@@ -1181,6 +1189,9 @@ int32_t tEncodeStreamTaskUpdateMsg(SEncoder* pEncoder, const SStreamTaskNodeUpda
     if (tEncodeSEpSet(pEncoder, &pInfo->prevEp) < 0) return -1;
     if (tEncodeSEpSet(pEncoder, &pInfo->newEp) < 0) return -1;
   }
+
+  // todo this new attribute will be result in being incompatible with previous version
+  if (tEncodeI32(pEncoder, pMsg->transId) < 0) return -1;
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
@@ -1200,6 +1211,8 @@ int32_t tDecodeStreamTaskUpdateMsg(SDecoder* pDecoder, SStreamTaskNodeUpdateMsg*
     if (tDecodeSEpSet(pDecoder, &info.newEp) < 0) return -1;
     taosArrayPush(pMsg->pNodeList, &info);
   }
+
+  if (tDecodeI32(pDecoder, &pMsg->transId) < 0) return -1;
 
   tEndDecode(pDecoder);
   return 0;

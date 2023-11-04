@@ -1197,6 +1197,83 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
   return TSDB_CODE_SUCCESS;
 }
 
+#define TS_FORMAT_MAX_LEN 4096
+int32_t toTimestampFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput) {
+  int64_t ts;
+  char *  tsStr = taosMemoryMalloc(TS_FORMAT_MAX_LEN);
+  char *  format = taosMemoryMalloc(TS_FORMAT_MAX_LEN);
+  int32_t len, code = TSDB_CODE_SUCCESS;
+  SArray *formats = NULL;
+
+  for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
+    if (colDataIsNull_s(pInput[1].columnData, i) || colDataIsNull_s(pInput[0].columnData, i)) {
+      colDataSetNULL(pOutput->columnData, i);
+      continue;
+    }
+
+    char *tsData = colDataGetData(pInput[0].columnData, i);
+    char *formatData = colDataGetData(pInput[1].columnData, pInput[1].numOfRows > 1 ? i : 0);
+    len = TMIN(TS_FORMAT_MAX_LEN - 1, varDataLen(tsData));
+    strncpy(tsStr, varDataVal(tsData), len);
+    tsStr[len] = '\0';
+    len = TMIN(TS_FORMAT_MAX_LEN - 1, varDataLen(formatData));
+    if (pInput[1].numOfRows > 1 || i == 0) {
+      strncpy(format, varDataVal(formatData), len);
+      format[len] = '\0';
+      if (formats) {
+        taosArrayDestroy(formats);
+        formats = NULL;
+      }
+    }
+    int32_t precision = pOutput->columnData->info.precision;
+    char    errMsg[128] = {0};
+    code = taosChar2Ts(format, &formats, tsStr, &ts, precision, errMsg, 128);
+    if (code) {
+      qError("func to_timestamp failed %s", errMsg);
+      code = code == -1 ? TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_FORMAT_ERR : TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_TS_ERR;
+      break;
+    }
+    colDataSetVal(pOutput->columnData, i, (char *)&ts, false);
+  }
+  if (formats) taosArrayDestroy(formats);
+  taosMemoryFree(tsStr);
+  taosMemoryFree(format);
+  return code;
+}
+
+int32_t toCharFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput) {
+  char *  format = taosMemoryMalloc(TS_FORMAT_MAX_LEN);
+  char *  out = taosMemoryCalloc(1, TS_FORMAT_MAX_LEN + VARSTR_HEADER_SIZE);
+  int32_t len;
+  SArray *formats = NULL;
+  for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
+    if (colDataIsNull_s(pInput[1].columnData, i) || colDataIsNull_s(pInput[0].columnData, i)) {
+      colDataSetNULL(pOutput->columnData, i);
+      continue;
+    }
+
+    char *ts = colDataGetData(pInput[0].columnData, i);
+    char *formatData = colDataGetData(pInput[1].columnData, pInput[1].numOfRows > 1 ? i : 0);
+    len = TMIN(TS_FORMAT_MAX_LEN - 1, varDataLen(formatData));
+    if (pInput[1].numOfRows > 1 || i == 0) {
+      strncpy(format, varDataVal(formatData), len);
+      format[len] = '\0';
+      if (formats) {
+        taosArrayDestroy(formats);
+        formats = NULL;
+      }
+    }
+    int32_t precision = pInput[0].columnData->info.precision;
+    taosTs2Char(format, &formats, *(int64_t *)ts, precision, varDataVal(out), TS_FORMAT_MAX_LEN);
+    varDataSetLen(out, strlen(varDataVal(out)));
+    colDataSetVal(pOutput->columnData, i, out, false);
+  }
+  if (formats) taosArrayDestroy(formats);
+  taosMemoryFree(format);
+  taosMemoryFree(out);
+  return TSDB_CODE_SUCCESS;
+}
+
 /** Time functions **/
 static int64_t offsetFromTz(char *timezone, int64_t factor) {
   char *minStr = &timezone[3];

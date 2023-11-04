@@ -25,11 +25,6 @@ typedef struct {
 
   TFileSetArray *fsetArr;
   TFileOpArray   fopArr[1];
-
-  struct {
-    int32_t    fsetArrIdx;
-    STFileSet *fset;
-  } ctx[1];
 } SRTNer;
 
 static int32_t tsdbDoRemoveFileObject(SRTNer *rtner, const STFileObj *fobj) {
@@ -211,6 +206,8 @@ static int32_t tsdbMigrateDataFileS3(SRTNer *rtner, const STFileObj *fobj, const
           },
   };
 
+  op.nf.s3flag = true;
+
   code = TARRAY2_APPEND(rtner->fopArr, op);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -227,8 +224,8 @@ _exit:
 
 typedef struct {
   STsdb  *tsdb;
-  int32_t sync;
   int64_t now;
+  int32_t fid;
 } SRtnArg;
 
 static int32_t tsdbDoRetentionBegin(SRtnArg *arg, SRTNer *rtner) {
@@ -263,15 +260,15 @@ static int32_t tsdbDoRetentionEnd(SRTNer *rtner) {
   code = tsdbFSEditBegin(rtner->tsdb->pFS, rtner->fopArr, TSDB_FEDIT_MERGE);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  taosThreadRwlockWrlock(&rtner->tsdb->rwLock);
+  taosThreadMutexLock(&rtner->tsdb->mutex);
 
   code = tsdbFSEditCommit(rtner->tsdb->pFS);
   if (code) {
-    taosThreadRwlockUnlock(&rtner->tsdb->rwLock);
+    taosThreadMutexUnlock(&rtner->tsdb->mutex);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  taosThreadRwlockUnlock(&rtner->tsdb->rwLock);
+  taosThreadMutexUnlock(&rtner->tsdb->mutex);
 
   TARRAY2_DESTROY(rtner->fopArr, NULL);
 
@@ -285,94 +282,95 @@ _exit:
   return code;
 }
 
-static int32_t tsdbDoRetention2(void *arg) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  SRTNer  rtner[1] = {0};
+static int32_t tsdbDoRetentionOnFileSet(SRTNer *rtner, STFileSet *fset) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  STFileObj *fobj = NULL;
+  int32_t    expLevel = tsdbFidLevel(fset->fid, &rtner->tsdb->keepCfg, rtner->now);
 
-  code = tsdbDoRetentionBegin(arg, rtner);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  if (expLevel < 0) {  // remove the fileset
+    for (int32_t ftype = 0; (ftype < TSDB_FTYPE_MAX) && (fobj = fset->farr[ftype], 1); ++ftype) {
+      if (fobj == NULL) continue;
 
-  for (rtner->ctx->fsetArrIdx = 0; rtner->ctx->fsetArrIdx < TARRAY2_SIZE(rtner->fsetArr); rtner->ctx->fsetArrIdx++) {
-    rtner->ctx->fset = TARRAY2_GET(rtner->fsetArr, rtner->ctx->fsetArrIdx);
-
-    STFileObj *fobj;
-    int32_t    expLevel = tsdbFidLevel(rtner->ctx->fset->fid, &rtner->tsdb->keepCfg, rtner->now);
-
-    if (expLevel < 0) {  // remove the file set
-      for (int32_t ftype = 0; (ftype < TSDB_FTYPE_MAX) && (fobj = rtner->ctx->fset->farr[ftype], 1); ++ftype) {
-        if (fobj == NULL) continue;
-
-        int32_t nlevel = tfsGetLevel(rtner->tsdb->pVnode->pTfs);
-        if (tsS3Enabled && nlevel > 1 && TSDB_FTYPE_DATA == ftype && fobj->f->did.level == nlevel - 1) {
-          code = tsdbRemoveFileObjectS3(rtner, fobj);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        } else {
-          code = tsdbDoRemoveFileObject(rtner, fobj);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-      }
-
-      SSttLvl *lvl;
-      TARRAY2_FOREACH(rtner->ctx->fset->lvlArr, lvl) {
-        TARRAY2_FOREACH(lvl->fobjArr, fobj) {
-          code = tsdbDoRemoveFileObject(rtner, fobj);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-      }
-    } else if (expLevel == 0) {
-      continue;
-    } else {
-      SDiskID did;
-
-      if (tfsAllocDisk(rtner->tsdb->pVnode->pTfs, expLevel, &did) < 0) {
-        code = terrno;
+      int32_t nlevel = tfsGetLevel(rtner->tsdb->pVnode->pTfs);
+      if (tsS3Enabled && nlevel > 1 && TSDB_FTYPE_DATA == ftype && fobj->f->did.level == nlevel - 1) {
+        code = tsdbRemoveFileObjectS3(rtner, fobj);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      } else {
+        code = tsdbDoRemoveFileObject(rtner, fobj);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
-      tfsMkdirRecurAt(rtner->tsdb->pVnode->pTfs, rtner->tsdb->path, did);
+    }
 
-      // data
-      for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX && (fobj = rtner->ctx->fset->farr[ftype], 1); ++ftype) {
-        if (fobj == NULL) continue;
+    SSttLvl *lvl;
+    TARRAY2_FOREACH(fset->lvlArr, lvl) {
+      TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+        code = tsdbDoRemoveFileObject(rtner, fobj);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+    }
+  } else if (expLevel == 0) {  // only migrate to upper level
+    return 0;
+  } else {  // migrate
+    SDiskID did;
 
+    if (tfsAllocDisk(rtner->tsdb->pVnode->pTfs, expLevel, &did) < 0) {
+      code = terrno;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    tfsMkdirRecurAt(rtner->tsdb->pVnode->pTfs, rtner->tsdb->path, did);
+
+    // data
+    for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX && (fobj = fset->farr[ftype], 1); ++ftype) {
+      if (fobj == NULL) continue;
+
+      int32_t nlevel = tfsGetLevel(rtner->tsdb->pVnode->pTfs);
+
+      if (fobj->f->did.level == did.level) {
+        if (tsS3Enabled && nlevel > 1 && TSDB_FTYPE_DATA == ftype && did.level == nlevel - 1 &&
+            taosCheckExistFile(fobj->fname)) {
+          int32_t mtime = 0;
+          taosStatFile(fobj->fname, NULL, &mtime, NULL);
+          if (mtime < rtner->now - tsS3UploadDelaySec) {
+            code = tsdbMigrateDataFileS3(rtner, fobj, &did);
+            TSDB_CHECK_CODE(code, lino, _exit);
+          }
+        }
+
+        continue;
+      }
+      /*
+    if (tsS3Enabled && nlevel > 1 && TSDB_FTYPE_DATA == ftype && did.level == nlevel - 1) {
+      code = tsdbMigrateDataFileS3(rtner, fobj, &did);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    } else {
+
+      if (tsS3Enabled) {
+        int64_t fsize = 0;
+        if (taosStatFile(fobj->fname, &fsize, NULL, NULL) < 0) {
+          code = TAOS_SYSTEM_ERROR(terrno);
+          tsdbError("vgId:%d %s failed since file:%s stat failed, reason:%s", TD_VID(rtner->tsdb->pVnode),
+      __func__, fobj->fname, tstrerror(code)); TSDB_CHECK_CODE(code, lino, _exit);
+        }
+        s3EvictCache(fobj->fname, fsize * 2);
+      }
+      */
+      code = tsdbDoMigrateFileObj(rtner, fobj, &did);
+      TSDB_CHECK_CODE(code, lino, _exit);
+      //}
+    }
+
+    // stt
+    SSttLvl *lvl;
+    TARRAY2_FOREACH(fset->lvlArr, lvl) {
+      TARRAY2_FOREACH(lvl->fobjArr, fobj) {
         if (fobj->f->did.level == did.level) continue;
 
-        int32_t nlevel = tfsGetLevel(rtner->tsdb->pVnode->pTfs);
-        if (tsS3Enabled && nlevel > 1 && TSDB_FTYPE_DATA == ftype && did.level == nlevel - 1) {
-          code = tsdbMigrateDataFileS3(rtner, fobj, &did);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        } else {
-          if (tsS3Enabled) {
-            int64_t fsize = 0;
-            if (taosStatFile(fobj->fname, &fsize, NULL, NULL) < 0) {
-              code = TAOS_SYSTEM_ERROR(terrno);
-              tsdbError("vgId:%d %s failed since file:%s stat failed, reason:%s", TD_VID(rtner->tsdb->pVnode), __func__,
-                        fobj->fname, tstrerror(code));
-              TSDB_CHECK_CODE(code, lino, _exit);
-            }
-            s3EvictCache(fobj->fname, fsize * 2);
-          }
-
-          code = tsdbDoMigrateFileObj(rtner, fobj, &did);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
-      }
-
-      // stt
-      SSttLvl *lvl;
-      TARRAY2_FOREACH(rtner->ctx->fset->lvlArr, lvl) {
-        TARRAY2_FOREACH(lvl->fobjArr, fobj) {
-          if (fobj->f->did.level == did.level) continue;
-
-          code = tsdbDoMigrateFileObj(rtner, fobj, &did);
-          TSDB_CHECK_CODE(code, lino, _exit);
-        }
+        code = tsdbDoMigrateFileObj(rtner, fobj, &did);
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
   }
-
-  code = tsdbDoRetentionEnd(rtner);
-  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
@@ -389,30 +387,105 @@ _exit:
   return code;
 }
 
-static void tsdbFreeRtnArg(void *arg) {
-  SRtnArg *rArg = (SRtnArg *)arg;
-  if (rArg->sync) {
-    tsem_post(&rArg->tsdb->pVnode->canCommit);
+static int32_t tsdbDoRetentionSync(void *arg) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SRTNer  rtner[1] = {0};
+
+  code = tsdbDoRetentionBegin(arg, rtner);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  STFileSet *fset;
+  TARRAY2_FOREACH(rtner->fsetArr, fset) {
+    code = tsdbDoRetentionOnFileSet(rtner, fset);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
-  taosMemoryFree(arg);
+
+  code = tsdbDoRetentionEnd(rtner);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
+  }
+  tsem_post(&((SRtnArg *)arg)->tsdb->pVnode->canCommit);
+  return code;
 }
 
-int32_t tsdbRetention(STsdb *tsdb, int64_t now, int32_t sync) {
-  SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
-  if (arg == NULL) return TSDB_CODE_OUT_OF_MEMORY;
-  arg->tsdb = tsdb;
-  arg->sync = sync;
-  arg->now = now;
+static int32_t tsdbDoRetentionAsync(void *arg) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SRTNer  rtner[1] = {0};
 
-  if (sync) {
-    tsem_wait(&tsdb->pVnode->canCommit);
+  code = tsdbDoRetentionBegin(arg, rtner);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  STFileSet *fset;
+  TARRAY2_FOREACH(rtner->fsetArr, fset) {
+    if (fset->fid != ((SRtnArg *)arg)->fid) continue;
+
+    code = tsdbDoRetentionOnFileSet(rtner, fset);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  int64_t taskid;
-  int32_t code =
-      tsdbFSScheduleBgTask(tsdb->pFS, TSDB_BG_TASK_RETENTION, tsdbDoRetention2, tsdbFreeRtnArg, arg, &taskid);
+  code = tsdbDoRetentionEnd(rtner);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
   if (code) {
-    tsdbFreeRtnArg(arg);
+    TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
   }
+  return code;
+}
+
+static void tsdbFreeRtnArg(void *arg) { taosMemoryFree(arg); }
+
+int32_t tsdbRetention(STsdb *tsdb, int64_t now, int32_t sync) {
+  int32_t code = 0;
+
+  if (sync) {  // sync retention
+    SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
+    if (arg == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    arg->tsdb = tsdb;
+    arg->now = now;
+    arg->fid = INT32_MAX;
+
+    tsem_wait(&tsdb->pVnode->canCommit);
+    code = vnodeScheduleTask(tsdbDoRetentionSync, arg);
+    if (code) {
+      tsem_post(&tsdb->pVnode->canCommit);
+      taosMemoryFree(arg);
+      return code;
+    }
+  } else {  // async retention
+    taosThreadMutexLock(&tsdb->mutex);
+
+    STFileSet *fset;
+    TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+      SRtnArg *arg = taosMemoryMalloc(sizeof(*arg));
+      if (arg == NULL) {
+        taosThreadMutexUnlock(&tsdb->mutex);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+
+      arg->tsdb = tsdb;
+      arg->now = now;
+      arg->fid = fset->fid;
+
+      code = tsdbFSScheduleBgTask(tsdb->pFS, fset->fid, TSDB_BG_TASK_RETENTION, tsdbDoRetentionAsync, tsdbFreeRtnArg,
+                                  arg, NULL);
+      if (code) {
+        tsdbFreeRtnArg(arg);
+        taosThreadMutexUnlock(&tsdb->mutex);
+        return code;
+      }
+    }
+
+    taosThreadMutexUnlock(&tsdb->mutex);
+  }
+
   return code;
 }

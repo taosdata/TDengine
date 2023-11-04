@@ -251,11 +251,11 @@ _OVER:
   dmReleaseWrapper(pWrapper);
 }
 
-int32_t dmInitMsgHandle(SDnode *pDnode) {
+int32_t dmInitMsgHandle(SDnode *pDnode, SMgmtWrapper *wrappers) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
+    SMgmtWrapper *pWrapper = wrappers + ntype;
     SArray       *pArray = (*pWrapper->func.getHandlesFp)();
     if (pArray == NULL) return -1;
 

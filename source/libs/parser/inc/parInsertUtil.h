@@ -45,9 +45,10 @@ int16_t insFindCol(struct SToken *pColname, int16_t start, int16_t end, SSchema 
 void    insBuildCreateTbReq(SVCreateTbReq *pTbReq, const char *tname, STag *pTag, int64_t suid, const char *sname,
                             SArray *tagName, uint8_t tagNum, int32_t ttl);
 int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo *pInfo);
+void    insInitColValues(STableMeta* pTableMeta, SArray* aColValues);
 void    insCheckTableDataOrder(STableDataCxt *pTableCxt, TSKEY tsKey);
 int32_t insGetTableDataCxt(SHashObj *pHash, void *id, int32_t idLen, STableMeta *pTableMeta,
-                           SVCreateTbReq **pCreateTbReq, STableDataCxt **pTableCxt, bool colMode);
+                           SVCreateTbReq **pCreateTbReq, STableDataCxt **pTableCxt, bool colMode, bool ignoreColVals);
 int32_t initTableColSubmitData(STableDataCxt *pTableCxt);
 int32_t insMergeTableDataCxt(SHashObj *pTableHash, SArray **pVgDataBlocks);
 int32_t insBuildVgDataBlocks(SHashObj *pVgroupsHashObj, SArray *pVgDataBlocks, SArray **pDataBlocks);

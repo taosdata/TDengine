@@ -112,7 +112,11 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
     colDataSetVal(pCol2, pBlock->info.rows, buf, false);
     int32_t bytes = getSchemaBytes(pMeta->schema + i);
     colDataSetVal(pCol3, pBlock->info.rows, (const char*)&bytes, false);
-    STR_TO_VARSTR(buf, i >= pMeta->tableInfo.numOfColumns ? "TAG" : "");
+    if (TSDB_VIEW_TABLE != pMeta->tableType) {
+      STR_TO_VARSTR(buf, i >= pMeta->tableInfo.numOfColumns ? "TAG" : "");
+    } else {
+      STR_TO_VARSTR(buf, "VIEW COL");
+    }
     colDataSetVal(pCol4, pBlock->info.rows, buf, false);
     ++(pBlock->info.rows);
   }
@@ -215,37 +219,28 @@ int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
   return v;
 }
 
-char* buildRetension(SArray* pRetension) {
+static char* buildRetension(SArray* pRetension) {
   size_t size = taosArrayGetSize(pRetension);
   if (size == 0) {
     return NULL;
   }
 
-  char*       p1 = taosMemoryCalloc(1, 100);
-  SRetention* p = taosArrayGet(pRetension, 0);
-
+  char*   p1 = taosMemoryCalloc(1, 100);
   int32_t len = 0;
 
-  int64_t v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
-  int64_t v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
-  len += sprintf(p1 + len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+  for (int32_t i = 0; i < size; ++i) {
+    SRetention* p = TARRAY_GET_ELEM(pRetension, i);
+    int64_t     v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
+    int64_t     v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
+    if (i == 0) {
+      len += sprintf(p1 + len, "-:%" PRId64 "%c", v2, p->keepUnit);
+    } else {
+      len += sprintf(p1 + len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+    }
 
-  if (size > 1) {
-    len += sprintf(p1 + len, ",");
-    p = taosArrayGet(pRetension, 1);
-
-    v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
-    v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
-    len += sprintf(p1 + len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
-  }
-
-  if (size > 2) {
-    len += sprintf(p1 + len, ",");
-    p = taosArrayGet(pRetension, 2);
-
-    v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
-    v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
-    len += sprintf(p1 + len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+    if (i < size - 1) {
+      len += sprintf(p1 + len, ",");
+    }
   }
 
   return p1;
@@ -466,6 +461,29 @@ static int32_t buildCreateTbResultDataBlock(SSDataBlock** pOutput) {
   }
   return code;
 }
+
+static int32_t buildCreateViewResultDataBlock(SSDataBlock** pOutput) {
+  SSDataBlock* pBlock = createDataBlock();
+  if (NULL == pBlock) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_VIEW_RESULT_FIELD1_LEN, 1);
+  int32_t         code = blockDataAppendColInfo(pBlock, &infoData);
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_VIEW_RESULT_FIELD2_LEN, 2);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = pBlock;
+  } else {
+    blockDataDestroy(pBlock);
+  }
+  return code;
+}
+
+
 
 void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
   for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
@@ -710,6 +728,36 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreateViewStmt* pStmt) {
+  int32_t code = 0;
+  blockDataEnsureCapacity(pBlock, 1);
+  pBlock->info.rows = 1;
+
+  SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+  char             buf1[SHOW_CREATE_VIEW_RESULT_FIELD1_LEN + 1] = {0};
+  snprintf(varDataVal(buf1), TSDB_VIEW_FNAME_LEN + 4, "`%s`.`%s`", pStmt->dbName, pStmt->viewName);
+  varDataSetLen(buf1, strlen(varDataVal(buf1)));
+  colDataSetVal(pCol1, 0, buf1, false);
+
+  SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
+  char*            buf2 = taosMemoryMalloc(SHOW_CREATE_VIEW_RESULT_FIELD2_LEN);
+  if (NULL == buf2) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
+  }
+
+  SViewMeta* pMeta = pStmt->pViewMeta;
+  snprintf(varDataVal(buf2), SHOW_CREATE_VIEW_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE, "CREATE VIEW `%s`.`%s` AS %s", pStmt->dbName, pStmt->viewName, pMeta->querySql);
+  int32_t len = strlen(varDataVal(buf2));
+  varDataLen(buf2) = (len > 65535) ? 65535 : len;
+  colDataSetVal(pCol2, 0, buf2, false);
+
+  taosMemoryFree(buf2);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 static int32_t execShowCreateTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp) {
   SSDataBlock* pBlock = NULL;
   int32_t      code = buildCreateTbResultDataBlock(&pBlock);
@@ -949,6 +997,19 @@ static int32_t execSelectWithoutFrom(SSelectStmt* pSelect, SRetrieveTableRsp** p
   return code;
 }
 
+static int32_t execShowCreateView(SShowCreateViewStmt* pStmt, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildCreateViewResultDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setCreateViewResultIntoDataBlock(pBlock, pStmt);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_VIEW_RESULT_COLS, pRsp);
+  }
+  blockDataDestroy(pBlock);
+  return code;
+}
+
 int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp, int8_t biMode) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_DESCRIBE_STMT:
@@ -961,6 +1022,8 @@ int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieve
       return execShowCreateTable((SShowCreateTableStmt*)pStmt, pRsp);
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return execShowCreateSTable((SShowCreateTableStmt*)pStmt, pRsp);
+    case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
+      return execShowCreateView((SShowCreateViewStmt*)pStmt, pRsp);
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return execAlterLocal((SAlterLocalStmt*)pStmt);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:

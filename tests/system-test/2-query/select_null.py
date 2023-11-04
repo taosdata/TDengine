@@ -432,10 +432,39 @@ class TDTestCase:
         self.ts_3036("%s" %self.db)
             
             
+        self.test_select_as_chinese_characters();
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
     
+    def test_select_as_chinese_characters(self):
+        tdSql.execute("use sel_null")
+        tdSql.query("select ts as 时间戳, c0 as c第一列, t0 标签1 from sel_null.stb0_0 limit 10", queryTimes=1)
+        tdSql.checkRows(10)
+        tdSql.query("select 时间戳 from (select ts as 时间戳, c0 as c第一列, t0 标签1 from sel_null.stb0_0) where 时间戳 > '2023-1-1' and c第一列 != 0 and 标签1 == 0 limit 10", queryTimes=1)
+        tdSql.checkRows(10)
+        tdSql.query("select count(*) as 计数 from sel_null.stb0_0 partition by c0 as 分组列", queryTimes=1)
 
+        tdSql.error("create database 数据库")
+        tdSql.error("create table sel_null.中文库 (ts timestamp, c2 int)")
+        tdSql.error("create table sel_null.table1(ts timestamp, 列2 int)")
+        tdSql.execute("create stable sel_null.stable1(ts timestamp, `值` int) tags(`标签1` int, `标签2` int)")
+        tdSql.execute('insert into sel_null.ct1 using sel_null.stable1 tags(1, 1) values(now, 1)', queryTimes=1)
+        tdSql.execute('insert into sel_null.ct1 using sel_null.stable1 tags(2, 2) values(now, 2)', queryTimes=1)
+        tdSql.execute('insert into sel_null.ct1 using sel_null.stable1 tags(2, 2) values(now, 3)', queryTimes=1)
+        tdSql.query('select 值 , 标签1 from sel_null.stable1', queryTimes=1)
+        tdSql.query('select case 值 when 标签1 then 标签1 else 标签2 end from sel_null.stable1', queryTimes=1)
+        tdSql.query('select count(*) from sel_null.stable1 group by 值 having sum(标签1) > 0', queryTimes=1)
+        tdSql.query('show table tags `标签1` 标签n  from sel_null.stable1', queryTimes=1)
+        tdSql.query('create sma index a on sel_null.stable1 FUNCTION (sum(值)) interval(1s)', queryTimes=1)
+        tdSql.query('select count(值) from sel_null.stable1', queryTimes=1)
+        tdSql.query('select stable1.值 from sel_null.stable1', queryTimes=1)
+        tdSql.query('select stable1.值 from sel_null.stable1 order by 值', queryTimes=1)
+        tdSql.execute('create stable sel_null.join_stable(`时间戳` timestamp, c1 int) tags(`标签1` int)', queryTimes=1)
+        tdSql.query('select a.值 from sel_null.stable1 a join sel_null.join_stable b on a.ts = 时间戳;', queryTimes=1)
+        tdSql.query('select a.值 from sel_null.stable1 a join sel_null.join_stable b on a.ts = b.时间戳;', queryTimes=1)
+        tdSql.execute('create user user1 pass "asd"', queryTimes=1)
+        tdSql.execute('grant write on sel_null.stable1 with 标签1 = 1 to user1',queryTimes=1)
+        tdSql.execute('select count(*) from sel_null.stable1 state_window(值)', queryTimes=1)
 
     def stop(self):
         tdSql.close()

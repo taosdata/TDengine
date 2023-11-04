@@ -132,6 +132,7 @@ priv_type_list(A) ::= priv_type_list(B) NK_COMMA priv_type(C).                  
 %destructor priv_type                                                             { }
 priv_type(A) ::= READ.                                                            { A = PRIVILEGE_TYPE_READ; }
 priv_type(A) ::= WRITE.                                                           { A = PRIVILEGE_TYPE_WRITE; }
+priv_type(A) ::= ALTER.                                                           { A = PRIVILEGE_TYPE_ALTER; }
 
 %type priv_level                                                                  { STokenPair }
 %destructor priv_level                                                            { }
@@ -304,6 +305,7 @@ retention_list(A) ::= retention(B).                                             
 retention_list(A) ::= retention_list(B) NK_COMMA retention(C).                    { A = addNodeToList(pCxt, B, C); }
 
 retention(A) ::= NK_VARIABLE(B) NK_COLON NK_VARIABLE(C).                          { A = createNodeListNodeEx(pCxt, createDurationValueNode(pCxt, &B), createDurationValueNode(pCxt, &C)); }
+retention(A) ::= NK_MINUS(B) NK_COLON NK_VARIABLE(C).                             { A = createNodeListNodeEx(pCxt, createDurationValueNode(pCxt, &B), createDurationValueNode(pCxt, &C)); }
 
 %type speed_opt                                                                   { int32_t }
 %destructor speed_opt                                                             { }
@@ -507,6 +509,8 @@ cmd ::= SHOW VNODES.                                                            
 // show alive
 cmd ::= SHOW db_name_cond_opt(A) ALIVE.                                           { pCxt->pRootNode = createShowAliveStmt(pCxt, A,    QUERY_NODE_SHOW_DB_ALIVE_STMT); }
 cmd ::= SHOW CLUSTER ALIVE.                                                       { pCxt->pRootNode = createShowAliveStmt(pCxt, NULL, QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT); }
+cmd ::= SHOW db_name_cond_opt(A) VIEWS.                                           { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_VIEWS_STMT, A, NULL, OP_TYPE_LIKE); }
+cmd ::= SHOW CREATE VIEW full_table_name(A).                                      { pCxt->pRootNode = createShowCreateViewStmt(pCxt, QUERY_NODE_SHOW_CREATE_VIEW_STMT, A); }
 
 %type table_kind_db_name_cond_opt                                                 { SShowTablesOption }
 %destructor table_kind_db_name_cond_opt                                           { }
@@ -647,6 +651,14 @@ language_opt(A) ::= LANGUAGE NK_STRING(B).                                      
 or_replace_opt(A) ::= .                                                            { A = false; }
 or_replace_opt(A) ::= OR REPLACE.                                                  { A = true; }
 
+/************************************************ create/drop view **************************************************/
+cmd ::= CREATE or_replace_opt(A) VIEW full_view_name(B) AS(C) query_or_subquery(D).
+                                                                                  { pCxt->pRootNode = createCreateViewStmt(pCxt, A, B, &C, D); }
+cmd ::= DROP VIEW exists_opt(A) full_view_name(B).                                { pCxt->pRootNode = createDropViewStmt(pCxt, A, B); }
+
+full_view_name(A) ::= view_name(B).                                               { A = createViewNode(pCxt, NULL, &B); }
+full_view_name(A) ::= db_name(B) NK_DOT view_name(C).                             { A = createViewNode(pCxt, &B, &C); }
+
 /************************************************ create/drop stream **************************************************/
 cmd ::= CREATE STREAM not_exists_opt(E) stream_name(A) stream_options(B) INTO
   full_table_name(C) col_list_opt(H) tag_def_or_ref_opt(F) subtable_opt(G)
@@ -780,6 +792,10 @@ column_name(A) ::= NK_ID(B).                                                    
 %destructor function_name                                                         { }
 function_name(A) ::= NK_ID(B).                                                    { A = B; }
 
+%type view_name                                                                   { SToken }
+%destructor view_name                                                             { }
+view_name(A) ::= NK_ID(B).                                                        { A = B; }
+
 %type table_alias                                                                 { SToken }
 %destructor table_alias                                                           { }
 table_alias(A) ::= NK_ID(B).                                                      { A = B; }
@@ -787,6 +803,7 @@ table_alias(A) ::= NK_ID(B).                                                    
 %type column_alias                                                                { SToken }
 %destructor column_alias                                                          { }
 column_alias(A) ::= NK_ID(B).                                                     { A = B; }
+column_alias(A) ::= NK_ALIAS(B).                                                  { A = B; }
 
 %type user_name                                                                   { SToken }
 %destructor user_name                                                             { }
@@ -873,6 +890,8 @@ expression_list(A) ::= expression_list(B) NK_COMMA expr_or_subquery(C).         
 
 column_reference(A) ::= column_name(B).                                           { A = createRawExprNode(pCxt, &B, createColumnNode(pCxt, NULL, &B)); }
 column_reference(A) ::= table_name(B) NK_DOT column_name(C).                      { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= NK_ALIAS(B).                                              { A = createRawExprNode(pCxt, &B, createColumnNode(pCxt, NULL, &B)); }
+column_reference(A) ::= table_name(B) NK_DOT NK_ALIAS(C).                         { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 
 pseudo_column(A) ::= ROWTS(B).                                                    { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= TBNAME(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
