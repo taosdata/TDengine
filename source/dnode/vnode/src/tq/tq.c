@@ -1178,6 +1178,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     atomic_store_32(&pTask->status.inScanHistorySentinel, 0);
 
     if (ret == TASK_SCANHISTORY_REXEC) {
+      // todo wait for 100ms and retry
       streamStartScanHistoryAsync(pTask, 0);
     } else {
       char*       p = NULL;

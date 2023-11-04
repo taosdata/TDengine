@@ -775,10 +775,16 @@ void        streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
 void streamTaskStatusInit(STaskStatusEntry* pEntry, const SStreamTask* pTask);
 void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc);
 
+typedef enum {
+  TASK_SCANHISTORY_CONT = 0x1,
+  TASK_SCANHISTORY_QUIT = 0x2,
+  TASK_SCANHISTORY_REXEC = 0x3,
+} EScanHistoryRet;
+
 // source level
 int32_t streamSetParamForStreamScannerStep1(SStreamTask* pTask, SVersionRange* pVerRange, STimeWindow* pWindow);
 int32_t streamSetParamForStreamScannerStep2(SStreamTask* pTask, SVersionRange* pVerRange, STimeWindow* pWindow);
-int32_t streamScanHistoryData(SStreamTask* pTask);
+EScanHistoryRet streamScanHistoryData(SStreamTask* pTask);
 int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask);
 
 // agg level
