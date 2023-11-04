@@ -146,7 +146,7 @@ pub async fn csv_to_taos(
                             Ok(res) => {
                                 tracing::error!("IPC Error: {res}");
                                 tokio::time::sleep(Duration::from_millis(100)).await;
-                                port_pool.put(port);
+                                port_pool.put(port).await;
                                 anyhow::bail!("CSV exit with IPC error: {res}");
                             }
                             Err(err) => {
@@ -156,7 +156,7 @@ pub async fn csv_to_taos(
                     }
                     Err(err) => {
                         let _ = ipc_handler.close().await;
-                        port_pool.put(port);
+                        port_pool.put(port).await;
                         anyhow::bail!("CSV exit with error: {:#}", err);
                     }
                 }
@@ -166,7 +166,7 @@ pub async fn csv_to_taos(
                 abort_handle.abort();
                 if let Some(err) = err {
                     let _ = ipc_handler.close().await;
-                    port_pool.put(port);
+                    port_pool.put(port).await;
                     anyhow::bail!("CSV writer error: {err:#}");
                 }
             },
@@ -182,7 +182,7 @@ pub async fn csv_to_taos(
         // wait for handler closed
         let _ = ipc_handler.close().await;
         // put ipc port back to port pool.
-        port_pool.put(port);
+        port_pool.put(port).await;
         Ok(())
     })
     .await??;
