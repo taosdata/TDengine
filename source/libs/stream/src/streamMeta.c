@@ -185,7 +185,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
       taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   pMeta->chkpSaved = taosArrayInit(4, sizeof(int64_t));
   pMeta->chkpInUse = taosArrayInit(4, sizeof(int64_t));
-  pMeta->chkpCap = 8;
+  pMeta->chkpCap = 2;
   taosInitRWLatch(&pMeta->chkpDirLock);
 
   pMeta->chkpId = streamGetLatestCheckpointId(pMeta);

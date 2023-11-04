@@ -194,7 +194,7 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chk
     }
   }
   {
-    char* buf = taosMemoryCalloc(1, 512);
+    char* buf = taosMemoryCalloc(1, 1024);
     sprintf(buf, "[current: %s,", pFile->pCurrent);
     sprintf(buf + strlen(buf), "MANIFEST: %s,", pFile->pMainfest);
     sprintf(buf + strlen(buf), "options: %s,", pFile->pOptions);
