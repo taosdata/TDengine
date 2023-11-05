@@ -540,8 +540,14 @@ async fn validate_pi(config: PiConfig) -> anyhow::Result<DataSourceValidation> {
             })?;
         tracing::debug!("pi validation result: {}", &result);
         DataSourceValidation {
-            valid: result["valid"].as_bool().unwrap_or(false),
-            support: result["support"].as_bool().unwrap_or(false),
+            valid: result["valid"]
+                .as_bool()
+                .or(result["avaliable"].as_bool())
+                .unwrap_or(false),
+            support: result["support"]
+                .as_bool()
+                .or(result["avaliable"].as_bool())
+                .unwrap_or(false),
             data_source: "pi".to_string(),
             version: result["version"].as_str().map(|s| s.to_string()),
             message: result["message"]
@@ -636,7 +642,10 @@ async fn validate_pi_backfill(config: PiConfig) -> anyhow::Result<DataSourceVali
                 .unwrap_or(false),
             data_source: "pibackfill".to_string(),
             version: result["version"].as_str().map(|s| s.to_string()),
-            message: result["message"].as_str().map(|s| s.to_string()),
+            message: result["message"]
+                .as_str()
+                .or(result["since"].as_str())
+                .map(|s| s.to_string()),
         }
     } else {
         DataSourceValidation::invalid(
