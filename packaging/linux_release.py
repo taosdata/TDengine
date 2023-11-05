@@ -168,9 +168,9 @@ def build_and_install_taosx_on_linux(release_info, mode='release'):
     os.chdir(top_dir)
 
     if mode.lower() == 'release':
-        os.system(f'VER_NUMBER={release_info.TdengineVersion} cargo build --release --features jemallocator')
+        os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} cargo build --release --features jemallocator')
     else:
-        os.system(f'VER_NUMBER={release_info.TdengineVersion} cargo build --features jemallocator')
+        os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} cargo build --features jemallocator')
     logging.info("taox built successfully")
 
     shutil.copy(binary_file,dst_dir)
@@ -209,9 +209,9 @@ def build_and_install_taosx_agent_on_linux(release_info, mode='release'):
     os.chdir(top_dir)
 
     if mode.lower() == 'release':
-        os.system(f'VER_NUMBER={release_info.TdengineVersion} cargo build --release --package taosx-agent')
+        os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} cargo build --release --package taosx-agent')
     else:
-        os.system(f'VER_NUMBER={release_info.TdengineVersion} cargo build --package taosx-agent')
+        os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} cargo build --package taosx-agent')
 
     logging.info("taox-agent built successfully")
 
