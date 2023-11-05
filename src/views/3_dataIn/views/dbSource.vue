@@ -290,14 +290,6 @@ export default {
         this.isEditable = true;
         this.dbName = dbname;
         this.getData();
-        if (id === "taos") {
-          if (!this.uidata[0].protocol.value) {
-            this.uidata[0].protocol.value =
-              this.uidata[0].protocol.choices.filter((item) => {
-                return item.display === this.$t("datasource.tmqprotocol");
-              })[0]?.name;
-          }
-        }
       }
     },
     hasProp(obj, key) {
@@ -317,11 +309,6 @@ export default {
               targetObj.alternatives && targetObj.alternatives.length > 0
                 ? targetObj.alternatives[0].name
                 : undefined;
-          }
-          if (keys === "protocol") {
-            targetObj.protocol["value"] =targetObj.protocol?.value?targetObj.protocol.value: targetObj.protocol.choices.filter(
-              (o) => o.name == "--"
-            )[0]?.name;
           }
         } else {
           targetObj[keys] = source[keys];

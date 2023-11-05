@@ -546,6 +546,7 @@ export default {
       taskName: 'Task Name',
       agentPlaceholder: 'Please select an agent',
       chooseTargetDbTip: 'Please select the target database',
+      resumePlaceholder: 'Please select'
     },
     needAgentTip: 'If data source is on a private network, please configure the secured Agent, so VPN is not required or expose data source to outside.From the machine where agent is installed, it must be able to access your TDengine instance',
     runAgent: 'Run Agent',
@@ -578,9 +579,17 @@ export default {
     context: 'Context',
     at: 'Time',
     saveTip: 'The data ingestion from this data source will be stopped for a few seconds. If you are fine with it, please continue, otherwise cancel it.',
+    successTip: 'Your data source is availabe, you can proceed to transfer your data to TDengine.',
+    successVersionTip: 'Your data source is availabe, its version is {version}, which is supported, you can proceed to transfer your data to TDengine.',
+    unSupportTip:'Your data source is available, its version is {version}, which is not supported for now. We are sorry for your inconvenience, please contact TDengine team, we will add the support for your data source version in future.',
+    failTip: 'Your data source is not reachable, please check your configuration, make sure everything is correctly input and your network is fine.',
+    errorMessage: 'Error message: ',
     metrics: 'Current Metrics',
     metricName: 'Metrics Name',
     metricValue: 'Metrics Value',
+    check: 'Connectivity check',
+    resume: 'Scheduling strategy',
+    resumeTip: "Indicates the scheduling policy after a task is interrupted:\n\n- *never*: Never reschedule。\n- *once*: The taosX service can be started only once after the service is abnormally interrupted and the task status is running|cancelled.\n- *always*: After the taosX service is started, tasks whose task status is running|failed|cancelled|interrupted are always restarted." 
   },
   replication: {
     theTaskWithId: "the task with id {id}",

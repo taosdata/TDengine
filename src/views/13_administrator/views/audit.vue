@@ -39,12 +39,15 @@
             }}</el-button>
           </el-form-item>
           <el-form-item>
-            <el-button @click="handlePageReset()">{{
-              $t("reset")
-            }}</el-button>
+            <el-button @click="handlePageReset()">{{ $t("reset") }}</el-button>
           </el-form-item>
         </section>
       </el-form>
+      <div style="margin-bottom: 18px">
+        <el-button :disabled="requestIng" @click="exportFile" size='mini'
+          >{{ $t("console.export") }}
+        </el-button>
+      </div>
     </section>
     <!-- <div class="flexEnd">
       <el-button
@@ -110,6 +113,8 @@ import { getAudits } from "@/api/explorer/audit";
 import { Message } from "element-ui";
 import { getDBListReq } from "@/api/gateway/data/dbs.js";
 import { parsinginZone } from "@/utils";
+import { parse } from "json2csv";
+import FileSaver from "file-saver";
 export default {
   data() {
     return {
@@ -125,6 +130,7 @@ export default {
         operation: "",
       },
       date: [],
+      exportAuditList: [],
     };
   },
   computed: {
@@ -159,7 +165,23 @@ export default {
             },
           },
         ],
+      };
+    },
+    conditions() {
+      let conditions = "";
+      if (this.date?.length > 0) {
+        conditions = ` ts > ${this.date[0]} AND ts <= ${this.date[1]} AND`;
       }
+      const currentFilterParams = { ...this.filterParams };
+      for (let key in currentFilterParams) {
+        if (!currentFilterParams[key]) {
+          delete currentFilterParams[key];
+        } else {
+          conditions += ` ${key} = '${currentFilterParams[key]}' AND`;
+        }
+      }
+      conditions = conditions.replace(/ AND$/g, "");
+      return conditions;
     },
   },
   methods: {
@@ -170,31 +192,18 @@ export default {
       this.getAuditData();
     },
     handlePageReset() {
-      Object.assign(this.$data, this.$options.data())
-      this.getAuditData()
+      Object.assign(this.$data, this.$options.data());
+      this.getAuditData();
     },
-    async getAuditData(isReset) {
+    async getAuditData() {
       try {
         if (this.requestIng) return;
         this.requestIng = true;
-        let conditions = "";
-        if (this.date?.length > 0) {
-          conditions = ` ts > ${this.date[0]} AND ts <= ${this.date[1]} AND`;
-        }
-        const currentFilterParams = { ...this.filterParams };
-        for (let key in currentFilterParams) {
-          if (!currentFilterParams[key]) {
-            delete currentFilterParams[key];
-          } else {
-            conditions += ` ${key} = '${currentFilterParams[key]}' AND`;
-          }
-        }
-        conditions = conditions.replace(/ AND$/g, "");
 
         [this.auditList, this.total] = await getAudits({
           currentPage: this.currentPage,
           pageSize: this.pageSize,
-          conditions,
+          conditions: this.conditions,
         });
         this.requestIng = false;
       } catch (error) {
@@ -207,6 +216,37 @@ export default {
       } catch (err) {
         return Promise.reject(err);
       }
+    },
+    async getAllAuditData() {
+      let countRes = await sendSQLReq(
+        `select count(*) from audit.operations ${
+          this.conditions ? "where" + this.conditions : ""
+        }`
+      );
+      let pageSize = countRes?.code == 0 ? countRes.data[0][0] : 0;
+      
+      let res = await sendSQLReq(
+        `select * from audit.operations ${
+          this.conditions ? "where" + this.conditions : ""
+        }`
+      );
+      return res.data.map((data) => {
+        return Object.fromEntries(
+          res.column_meta.map((item, index) => {
+            return [item[0], data[index]];
+          })
+        );
+      });
+
+    },
+    async exportFile() {
+      let exportAuditList = await this.getAllAuditData();
+      const FileName = "audit.csv";
+      const data = parse(exportAuditList);
+      const blob = new Blob(["\uFEFF" + data], {
+        type: "text/csv;charset=utf-8;",
+      });
+      FileSaver.saveAs(blob, FileName);
     },
   },
   created() {

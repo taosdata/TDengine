@@ -342,6 +342,25 @@
           </el-tabs>
         </div>
       </section>
+      <section>
+        <el-collapse v-model="activeCollapse" accordion>
+          <el-collapse-item name='one'>
+            <template slot="title">
+              <el-button
+                :loading="checkLoading"
+                type="primary"
+                size="small"
+                @click.capture.stop="clickCheckBtn"
+                >{{ $t("dataIn.check") }}
+              </el-button>
+            </template>
+            <Result
+              v-show="JSON.stringify(checkResult) !== '{}'"
+              :result="checkResult"
+            /> 
+          </el-collapse-item>
+        </el-collapse>
+      </section>
       <section
         class="dataset"
         v-if="
@@ -623,6 +642,7 @@
                 </template>
                 <template v-if="p.hint === 'bool' || p.hint.type === 'bool'">
                   <el-checkbox
+                    size="small"
                     v-model="p.value"
                     true-label="true"
                     false-label="false"
@@ -646,6 +666,7 @@
                 </template>
                 <template v-if="p.hint == 'time' || p.hint?.type == 'time'">
                   <DatePicker
+                    size="small"
                     v-model="p.value"
                     type="datetime"
                     v-if="p.name == 'beginTime' || p.name == 'endTime'"
@@ -657,6 +678,7 @@
                   >
                   </DatePicker>
                   <DatePicker
+                    size="small"
                     v-model="p.value"
                     type="datetime"
                     v-if="p.name === 'start' || p.name == 'end'"
@@ -722,7 +744,6 @@
           v-else
           type="primary"
           @click="save"
-          :disabled="disable"
           size="small"
           >{{ isEditable && !isCopyable ? $t("save") : $t("add") }}</el-button
         >
@@ -751,15 +772,17 @@ import {
   EditSource,
   getUaAndDaData,
   downlaodAllNodes,
+  validateTask,
 } from "@/api/explorer/datain";
 import DatePicker from "@/components/date-picker";
 import { Message } from "element-ui";
 import marked from "marked";
-import { debounce, parsinginZone } from "@/utils/index";
+import { debounce, parsinginZone, decrypt } from "@/utils/index";
 import DialogCreateDb from "../components/addDbDialog.vue";
+import Result from "../components/result.vue";
 export default {
   name: "DbSourceUI",
-  components: { DatePicker, DialogCreateDb, DataTarget },
+  components: { DatePicker, DialogCreateDb, DataTarget, Result },
   props: {
     dbsource: {
       type: Array,
@@ -840,7 +863,7 @@ export default {
       }
     };
     return {
-      language: localStorage.getItem('local_language'),
+      language: localStorage.getItem("local_language"),
       startOption: {
         disabledDate: (time) => startTimeOption(time),
       },
@@ -888,6 +911,15 @@ export default {
       downloadUrl: process.env.VUE_APP_X_API + `/download?file_path=`,
       activeRadio: "select_file",
       isShowEditBtn: false,
+      checkLoading: false,
+      percentage: 0,
+      checkResult: {
+        // valid: false,
+        // support: false,
+        // data_source: "",
+        // version: "", // 返回数据源版本，不能获得版本则不返回该字段。
+      },
+      activeCollapse: ''
     };
   },
   created() {
@@ -898,7 +930,9 @@ export default {
         (this.dbsource[0]?.params && this.dbsource[0]?.params[0]?.value) ||
         this.piSystemConfiguration;
       this.changeSystemConfiguration(defaultVal);
-      this.getSchema(false);
+      if (this.tagName == 'influxdb' || this.tagName == 'opentsdb') {
+        this.getSchema(false);
+      }
       this.isShowEditBtn = this.isCopyable ? false : true;
     } else {
       this.activeName = "point_file";
@@ -916,13 +950,19 @@ export default {
     sourceName() {
       return this.$store.state.app.currentDSName || "";
     },
+    targetDatabase() {
+      return this.$store.state.app.currentDBName || "";
+    },
+    // resume() {
+    //   return this.$store.state.app.currentResume || "";
+    // }
   },
   watch: {
-    "$i18n.locale":{
-      deep:true,
-      handler(val){
-        this.language=val
-      }
+    "$i18n.locale": {
+      deep: true,
+      handler(val) {
+        this.language = val;
+      },
     },
     dbsource: {
       deep: true,
@@ -1027,7 +1067,8 @@ export default {
       this.dbsource[0].datasets.params = this.dbsource[0].datasets.params.map(
         (p) => {
           if (p.name == name) {
-            p.fileList = fileList?.length <= 1 ? fileList : [{...fileList[1]}];
+            p.fileList =
+              fileList?.length <= 1 ? fileList : [{ ...fileList[1] }];
             p.value = file.response[0];
           }
           return p;
@@ -1157,15 +1198,35 @@ export default {
           type: "warning",
         })
           .then(() => {
-            this.submit();
+            this.submit(true);
           })
           .catch(() => {});
       } else {
-        this.submit();
+        this.submit(true);
       }
     },
 
-    async submit() {
+    clickCheckBtn() {
+      this.checkResult = this.$options.data().checkResult;
+      this.submit(false);
+    },
+    // 数据源可用性和版本检查
+    async getValidateResult(dns) {
+      try {
+        this.checkLoading = true;
+        let result = await validateTask(dns, this.agentId);
+        console.log("result", result);
+        this.checkResult = result;
+        this.checkLoading = false; // 检测的 loading 效果
+        this.activeCollapse = 'one'
+      } catch (error) {
+        this.checkLoading = false;
+        console.log("err");
+      }
+    },
+
+    async submit(isSubmit) {
+      // debugger
       let dns = "";
       let id = localStorage.getItem("local_clusterID");
       let data = this.dbsource[0];
@@ -1190,11 +1251,11 @@ export default {
             return;
           }
         }
-        if (!this.sourceName) {
+        if (!this.sourceName && isSubmit) {
           Message.warning(`${enterTip} ${this.$t("name")}`);
           return;
         }
-        if (!this.$store.state.app.currentDBName) {
+        if (!this.targetDatabase && isSubmit) {
           Message.warning(`${enterTip} ${this.$t("stream.targetDB")}`);
           return;
         }
@@ -1226,14 +1287,38 @@ export default {
           dns += `@${data.options.host.value ? data.options.host.value : ""}`;
           // }
         } else if (this.tagName == "datasource") {
-          data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
-          if (data.options.endpoint.value.includes("://")) {
-            dns =
-              "+" + data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+          // data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+          // if (data.options.endpoint.value.includes("://")) {
+          //   dns =
+          //     "+" + data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+          // } else {
+          //   dns =
+          //     "://" +
+          //     data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+          // }
+          let url = data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+          if (url.includes('://')) {
+            let parsed_url = new URL(url);
+            let scheme = null;
+            if (parsed_url.protocol == 'http:') {
+              scheme = '+ws'
+            } else if (parsed_url.protocol == 'https:') {
+              scheme = '+wss'
+            } else {
+              scheme = '+' + parsed_url.protocol.replace(':', '')
+            }
+
+            let host = parsed_url.host;
+            let user =  parsed_url.username || localStorage.getItem('username') || '';
+            let decrypted = encodeURI(decrypt(localStorage.getItem('pwd')));
+            let pass = parsed_url.password || decrypted || '';
+            dns = scheme + '://' + user + ':' + pass + '@' + host + parsed_url.pathname + parsed_url.search;
           } else {
-            dns =
-              "://" +
-              data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
+            let host = url;
+            let user = localStorage.getItem('username') || '';
+            let decrypted = encodeURI(decrypt(localStorage.getItem('pwd')));
+            let pass = decrypted || '';
+            dns = '+ws://' + host;
           }
         } else {
           if (this.tagName == "influxdb") {
@@ -1267,56 +1352,58 @@ export default {
         dns = dns.replace(reg, "").trim();
         let querystr = "";
 
-        for (let index = 0; index < data.groups.length; index++) {
-          //   for (let j = 0; j < data.groups[index].params.length; j++) {
-          for (let g of Object.keys(data.groups[index].params)) {
-            if (
-              Object.hasOwnProperty.call(
-                data.groups[index].params[g],
-                "required"
-              ) &&
-              data.groups[index].params[g]["value"] == ""
-            ) {
-              Message({
-                type: "warning",
-                message: `${enterTip} ${data.groups[index].params[g].name} `,
-              });
-              return;
-            } else {
-              if (this.handleEmptyValue(data.groups[index].params[g].value)) {
-                if (
-                  data.groups[index].params[g].hint &&
-                  Array.isArray(data.groups[index].params[g].hint)
-                ) {
-                  if (data.groups[index].params[g].value == "auto") {
+        if (data.groups && isSubmit) {
+          for (let index = 0; index < data.groups.length; index++) {
+            //   for (let j = 0; j < data.groups[index].params.length; j++) {
+            for (let g of Object.keys(data.groups[index].params)) {
+              if (
+                Object.hasOwnProperty.call(
+                  data.groups[index].params[g],
+                  "required"
+                ) &&
+                !this.handleEmptyValue(data.groups[index].params[g]["value"])
+              ) {
+                Message({
+                  type: "warning",
+                  message: `${enterTip} ${data.groups[index].params[g].name} `,
+                });
+                return;
+              } else {
+                if (this.handleEmptyValue(data.groups[index].params[g].value)) {
+                  if (
+                    data.groups[index].params[g].hint &&
+                    Array.isArray(data.groups[index].params[g].hint)
+                  ) {
+                    if (data.groups[index].params[g].value == "auto") {
+                      querystr +=
+                        `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
+                        "&";
+                    } else {
+                      // debugger
+                      if (
+                        this.handleEmptyValue(
+                          data.groups[index].params[g].hint[0].value
+                        )
+                      ) {
+                        querystr +=
+                          `${data.groups[index].params[g].name}=${data.groups[index].params[g].hint[0].value}` +
+                          "&";
+                      }
+                    }
+                  } else {
                     querystr +=
                       `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
                       "&";
-                  } else {
-                    // debugger
-                    if (
-                      this.handleEmptyValue(
-                        data.groups[index].params[g].hint[0].value
-                      )
-                    ) {
-                      querystr +=
-                        `${data.groups[index].params[g].name}=${data.groups[index].params[g].hint[0].value}` +
-                        "&";
-                    }
                   }
-                } else {
-                  querystr +=
-                    `${data.groups[index].params[g].name}=${data.groups[index].params[g].value}` +
-                    "&";
                 }
               }
             }
+            //   }
           }
-          //   }
         }
 
         // datasets.categories is not used since 9adc5721
-        if (data.datasets && data.datasets.categories) {
+        if (data.datasets && data.datasets.categories && isSubmit) {
           for (
             let index = 0;
             index < data.datasets.categories.length;
@@ -1351,12 +1438,13 @@ export default {
             }
           }
         }
-        if (data.datasets && data.datasets.params) {
+        if (data.datasets && data.datasets.params && isSubmit) {
           for (let index = 0; index < data.datasets.params.length; index++) {
             if (data.datasets.params[index].name == this.activeName) {
               if (this.activeRadio == "select_file") {
-                if (this.handleEmptyValue(data.datasets.params[index].value)
-                    && data.datasets.params[index].value !='*'
+                if (
+                  this.handleEmptyValue(data.datasets.params[index].value) &&
+                  data.datasets.params[index].value != "*"
                 ) {
                   querystr +=
                     `${data.datasets.params[index].name}=@${data.datasets.params[index].value}` +
@@ -1364,9 +1452,9 @@ export default {
                 } else {
                   Message({
                     type: "warning",
-                    message: this.$t('datasource.uploadtip'),
+                    message: this.$t("datasource.uploadtip"),
                   });
-                  return
+                  return;
                 }
               } else {
                 querystr += `${data.datasets.params[index].name}=*` + "&";
@@ -1418,23 +1506,6 @@ export default {
               }
             });
           });
-          this.dbsource[0].groups.forEach((group) => {
-            group.params.forEach((p) => {
-              if (
-                Object.hasOwnProperty.call(p, "required") &&
-                p.value == null
-              ) {
-                requireTip += `${p.display}` + ",";
-              }
-            });
-          });
-          if (requireTip != "") {
-            Message({
-              type: "warning",
-              message: `${enterTip} ${requireTip.replace(/,$/g, "")} `,
-            });
-            return;
-          }
         }
         dns += querystr
           ? (dns.includes("?") ? "&" : "?") + querystr.replace(/&$/g, "")
@@ -1453,33 +1524,38 @@ export default {
           to:
             "taos+" +
             localStorage.getItem("base_url") +
-            (this.$store.state.app.currentDBName
-              ? "/" + this.$store.state.app.currentDBName
-              : ""),
+            (this.targetDatabase ? "/" + this.targetDatabase : ""),
           labels: [
             "type::datain",
             `cluster-id::${id}`,
             `user::${localStorage.getItem("username")}`,
           ],
+          // trigger: { "resume": this.resume }
         };
         if (this.agentId) {
           apiParams["via"] = this.agentId;
         }
         if (this.tagName === "datasource" || this.tagName === "taos") {
-          if (this.isEditable) {
-            let result = await EditSource(apiParams, this.editId);
-            if (result.message) {
-              Message.error(result.message);
-              return;
+          if (isSubmit) {
+            if (this.isEditable) {
+              let result = await EditSource(apiParams, this.editId);
+              if (result.message) {
+                Message.error(result.message);
+                return;
+              }
+              this.$parent.changeEditable(false);
+              this.$parent.toggleComponent("tmqtable");
+            } else {
+              let result = await AddSource(apiParams);
+              if (result.message) {
+                Message.error(result.message);
+                return;
+              }
+              this.$parent.changeEditable(false);
+              this.$parent.toggleComponent("tmqtable");
             }
-            this.$parent.toggleComponent("tmqtable");
           } else {
-            let result = await AddSource(apiParams);
-            if (result.message) {
-              Message.error(result.message);
-              return;
-            }
-            this.$parent.toggleComponent("tmqtable");
+            this.getValidateResult(apiParams.from);
           }
         } else {
           let piParams = {
@@ -1501,37 +1577,49 @@ export default {
             to:
               "taos+" +
               localStorage.getItem("base_url") +
-              (this.$store.state.app.currentDBName
-                ? "/" + this.$store.state.app.currentDBName
-                : ""),
+              (this.targetDatabase ? "/" + this.targetDatabase : ""),
             labels: [
               "type::datain",
               `cluster-id::${id}`,
               `user::${localStorage.getItem("username")}`,
             ],
+            // trigger: { "resume": this.resume }
           };
           if (this.agentId) {
             piParams["via"] = this.agentId;
           }
-          if (this.isEditable && this.editId && !this.isCopyable) {
-            let result = await EditSource(piParams, this.editId);
-            if (result.message) {
-              Message.error(result.message);
-              return;
-            }
-            this.$parent.changeEditable(false);
-            this.$parent.toggleComponent("pitable", "");
-          } else {
-            let result = await AddSource(piParams);
-            if (result.message) {
-              Message.error(result.message);
-              return;
-            }
-            if (result && result.id) {
+          console.log(this.isEditable, this.editId, "编辑");
+          if (isSubmit) {
+            if (this.isEditable && this.editId&& !this.isCopyable) {
+              let result = await EditSource(piParams, this.editId);
+              if (result.message) {
+                Message.error(result.message);
+                return;
+              }
               this.$parent.changeEditable(false);
               this.$parent.toggleComponent("pitable", "");
-              Message.success("Operation Successfully!");
+            } else {
+              let result = await AddSource(piParams);
+              if (result.message) {
+                Message.error(result.message);
+                return;
+              }
+              if (result && result.id) {
+                this.$parent.changeEditable(false);
+                this.$parent.toggleComponent("pitable");
+                Message.success("Operation Successfully!");
+              }
             }
+            // if (this.isEditable && this.editId && !this.isCopyable) {
+            //   let result = await EditSource(piParams, this.editId);
+            //   if (result.message) {
+            //     Message.error(result.message);
+            //     return;
+            //   }
+            // }
+          } else {
+            console.log("ss", piParams);
+            this.getValidateResult(piParams.from);
           }
         }
       } catch (err) {
