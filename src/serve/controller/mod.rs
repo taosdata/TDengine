@@ -2138,18 +2138,22 @@ impl Task {
         self.breakpoints = breakpoints;
     }
 
-    fn load_breakpoints(&mut self) {
-        let task_id = self.id.to_string();
-        let breakpoints_res = breakpoints_get_all(&task_id);
-        if let Ok(breakpoints) = breakpoints_res {
-            let formatted_pairs: Vec<String> = breakpoints
-                .iter()
-                .map(|(first, second)| format!("{}:{}", first, second))
-                .collect();
+    pub fn load_breakpoints(&mut self) {
+        load_breakpoints(self.id).map(|s| self.set_breakpoints(Some(s)));
+    }
+}
 
-            let output = formatted_pairs.join("&");
-            self.set_breakpoints(Some(output));
-        }
+pub fn load_breakpoints(task_id: TaskId) -> Option<String> {
+    let breakpoints_res = breakpoints_get_all(&task_id.to_string());
+    if let Ok(breakpoints) = breakpoints_res {
+        let formatted_pairs: Vec<String> = breakpoints
+            .iter()
+            .map(|(first, second)| format!("{}:{}", first, second))
+            .collect();
+
+        Some(formatted_pairs.join("&"))
+    } else {
+        None
     }
 }
 
