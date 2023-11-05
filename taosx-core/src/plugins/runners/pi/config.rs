@@ -18,7 +18,7 @@ pub struct PiConfig {
     #[serde(rename = "PISystemName")]
     system_name: String,
     #[serde(rename = "AFDatabaseName")]
-    database: String,
+    database: Option<String>,
     #[serde(rename = "PIDataPipesInstances")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pi_data_pipes_instances: Option<u32>,
@@ -77,7 +77,7 @@ impl PiConfig {
         let pi_config = Self {
             server_name: server_name.clone(),
             system_name: Self::parse_system_name(dsn, server_name.clone()),
-            database: Self::parse_database(dsn)?,
+            database: Self::parse_database(dsn),
             pi_data_pipes_instances: Self::parse_pi_data_pipes_instances(dsn)?,
             af_data_pipes_instances: Self::parse_af_data_pipes_instances(dsn)?,
             max_wait_len: Self::parse_max_wait_len(dsn)?,
@@ -106,7 +106,7 @@ impl PiConfig {
     ) -> anyhow::Result<PiConfig> {
         let server_name = Self::parse_server_name(&dsn)?;
         let system_name = Self::parse_system_name(&dsn, server_name.clone());
-        let database = Self::parse_database(&dsn)?;
+        let database = Self::parse_database(&dsn);
         let pi_data_pipes_instances = Self::parse_pi_data_pipes_instances(&dsn)?;
         let af_data_pipes_instances = Self::parse_af_data_pipes_instances(&dsn)?;
         let max_wait_len = Self::parse_max_wait_len(&dsn)?;
@@ -336,10 +336,8 @@ impl PiConfig {
             .unwrap_or(default_name)
     }
 
-    fn parse_database(dsn: &Dsn) -> anyhow::Result<String> {
-        dsn.subject
-            .clone()
-            .ok_or(anyhow::anyhow!("Database name is required"))
+    fn parse_database(dsn: &Dsn) -> Option<String> {
+        dsn.subject.clone()
     }
 
     fn parse_pi_data_pipes_instances(dsn: &Dsn) -> anyhow::Result<Option<u32>> {
@@ -554,8 +552,7 @@ mod tests {
 
         let dsn = Dsn::from_str("pi://").unwrap();
         let config = PiConfig::parse_database(&dsn);
-        assert!(config.is_err());
-        assert_eq!("Database name is required", config.unwrap_err().to_string());
+        assert_eq!(None, config);
     }
 
     #[test]
