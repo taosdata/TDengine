@@ -1280,8 +1280,11 @@ pub async fn opc_to_taos(
         macro_rules! safe_exit {
             () => {
                 let _ = child.kill().await;
-                tracing::info!("Wait for IPC handlers finished");
-                let _ = ipc_handler.close().await;
+                tokio::spawn(async move {
+                    tracing::info!("Wait for IPC handlers finished");
+                    let _ = ipc_handler.close().await;
+                    tracing::info!("All IPC handlers have been finished");
+                });
                 let _ = temp_path.close();
                 tracing::info!("Release IPC port");
                 port_pool.put(ipc_port).await;

@@ -183,11 +183,11 @@ async fn ipc_tcp_forward(
                                 continue 'start;
                             }
                             tracing::error!(alive = ?alive.elapsed(), "Tonic error: {status}");
-                            Err(err).context("Got server response with error")?;
+                            return Err(err).context("Got server response with error");
                         }
                         _ => {
                             tracing::error!(alive = ?alive.elapsed(), "Other error: {err:#}");
-                            Err(err).context("Got server response with error")?;
+                            return Err(err).context("Got server response with error");
                         }
                     },
                 }
@@ -2502,10 +2502,12 @@ pub async fn listen_tcp_socket_with_agent(
                         ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id, config).await;
                     if let Err(err) = res {
                         tracing::error!("{:?}", err);
-                        let r = se.send(format!("{err:?}")).await;
-                        if let Err(send_err) = r {
-                            tracing::error!("error <{err:?}> reported to server: {send_err:?}");
-                        }
+                        tokio::spawn(async move {
+                            let r = se.send(format!("{err:?}")).await;
+                            if let Err(send_err) = r {
+                                tracing::error!("error <{err:?}> reported to server: {send_err:?}");
+                            }
+                        });
                     } else {
                         tracing::info!("IPC reader stopped for client {client}",);
                     }
@@ -2535,7 +2537,17 @@ pub async fn listen_tcp_socket_with_agent(
             let instant = std::time::Instant::now();
 
             for h in handlers {
-                let _ = h.await;
+                match tokio::time::timeout(Duration::from_secs(5), h).await {
+                    Err(timeout) => {
+                        tracing::warn!("IPC stream handler timeout: {timeout:#}");
+                    }
+                    Ok(Err(_)) => {
+                        tracing::warn!("IPC stream handler join error");
+                    }
+                    Ok(Ok(())) => {
+                        tracing::info!("IPC stream handler finished");
+                    }
+                }
             }
             tracing::info!("IPC stream handlers finished after {:?}", instant.elapsed());
             anyhow::Ok(())
