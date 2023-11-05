@@ -125,6 +125,8 @@ pub enum AgentAction {
     Stop(i64),
     /// Equivalent to `Suspend`.
     Cancel(i64),
+    /// Interrupt and do nothing.
+    Interrupt(i64),
     ListDataSets(DataSetsReq, AgentDataSetsSender),
     #[allow(dead_code)]
     RetrieveDataSets(DataSetsReq, Vec<DataSet>),
@@ -1843,6 +1845,16 @@ impl TaskActivity {
         }
     }
 
+    pub fn interrupt(id: i64, message: impl std::fmt::Display) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Error,
+            activity: format!("Error: {message}."),
+            status: "interrupt".to_string(),
+            context: None,
+        }
+    }
     pub fn failed(id: i64, message: impl std::fmt::Display) -> Self {
         Self {
             id,

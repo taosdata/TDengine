@@ -921,6 +921,26 @@ impl TaskJob {
                                     status = activity.status
                                 );
                                 match activity.status.as_str() {
+                                    "interrupt" => {
+                                        tracing::info!("task interrupted: {}", activity.activity);
+                                        global
+                                            .agent_runtime
+                                            .push_action(agent_id, AgentAction::Interrupt(task_id))
+                                            .await?;
+                                        activity.status = "interrupted".to_string();
+                                        global.send_task_activity(activity);
+                                        state.state.write().await.interrupted();
+                                        // wait for agent task cancelled timeout.
+                                        tokio::time::sleep(Duration::from_secs(5)).await;
+                                        break Ok(AgentTaskState::Interrupted);
+                                    }
+                                    "interrupted" => {
+                                        tracing::info!("task interrupted: {}", activity.activity);
+                                        activity.status = "interrupted".to_string();
+                                        global.send_task_activity(activity);
+                                        state.state.write().await.interrupted();
+                                        break Ok(AgentTaskState::Interrupted);
+                                    }
                                     "started" => {
                                         tracing::info!("task started");
                                         global.send_task_activity(activity);
@@ -964,7 +984,7 @@ impl TaskJob {
                                         break Ok(AgentTaskState::Stopped);
                                     }
                                     "failed" => {
-                                        tracing::info!("task failed");
+                                        tracing::error!("task failed: {}", activity.activity);
                                         if is_cron_job {
                                             activity.status = "interrupted".to_string();
                                             global.send_task_activity(activity);

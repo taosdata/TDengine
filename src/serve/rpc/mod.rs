@@ -159,6 +159,31 @@ async fn action_to_arrow(
                 return Ok(None);
             }
         }
+        AgentAction::Interrupt(id) => {
+            tracing::info!(task.id = id, "Send interrupt action to task {id}");
+            let task = controller.get(id).await?;
+            if let Some(task) = task {
+                let context: ArrayRef =
+                    Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                        &task,
+                    )
+                    .unwrap()]));
+                let action: ArrayRef =
+                    Arc::new(StringArray::from_iter_values(["interrupt".to_string()]));
+                let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+                let batch = RecordBatch::try_from_iter(vec![
+                    ("ts", ts),
+                    ("action", action),
+                    ("context", context),
+                    ("req_id", req_id),
+                ])
+                .context("failed to build record batch")?;
+                return Ok(Some(batch));
+            } else {
+                tracing::warn!("Received Cancel action for task {id} but currently not found");
+                return Ok(None);
+            }
+        }
         AgentAction::Cancel(id) => {
             tracing::info!(task.id = id, "Send suspend action to task {id}");
             let task = controller.get(id).await?;

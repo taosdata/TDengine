@@ -431,6 +431,12 @@ impl Client {
                         sender.send_async(Action::Cancel(task.id)).await?;
                         // let task:
                     }
+                    "interrupt" => {
+                        let task: TaskWithId = serde_json::from_str(&context).unwrap();
+                        info!("Interrupt task {}", task.id);
+                        sender.send_async(Action::Interrupt(task.id)).await?;
+                        // let task:
+                    }
                     "list" => {
                         let req: DataSetsReq = serde_json::from_str(&context).unwrap();
                         let resp_tx = resp_tx.clone();
