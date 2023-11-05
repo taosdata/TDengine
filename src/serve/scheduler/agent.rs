@@ -231,14 +231,11 @@ impl AgentWorker {
                                         tokio::task::block_in_place(|| {
                                             Handle::current().block_on(async {
                                                 t.sender
-                                                    .send(TaskActivity::interrupted(
+                                                    .send(TaskActivity::interrupt(
                                                         t.task_id,
                                                         format!("Writer error: {}", message),
                                                     ))
                                                     .await;
-
-                                                let _ = agent_activity_sender_clone
-                                                    .send((agent_id, AgentAction::Cancel(task_id)));
                                             });
                                         });
                                     });

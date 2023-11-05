@@ -23,6 +23,7 @@ pub enum Action {
     Run(Task),
     Stop(i64),
     Cancel(i64),
+    Interrupt(i64),
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -464,6 +465,23 @@ pub fn spawn_runner(
                                 );
                                 let _ =
                                     sender.send_async(RespAction::AgentActivity(activity)).await;
+                            }
+                        }
+                        Action::Interrupt(id) => {
+                            let order = Ordering::SeqCst;
+
+                            if let Some((id, worker)) = tasks.remove(&id) {
+                                info!(
+                                    task = id,
+                                    action = "interrupt",
+                                    "[{id}] Remove runner for task {id}, wait for task to be finished"
+                                );
+                                worker.cancel();
+                                tokio::time::sleep(Duration::from_secs(1)).await;
+                                worker.handle.abort();
+
+                                // work tasks - 1
+                                working_tasks.fetch_sub(1, order);
                             }
                         }
                     }
