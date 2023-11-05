@@ -22,6 +22,7 @@ use uuid::Uuid;
 
 use crate::serve::controller::{
     agent::Activity,
+    load_breakpoints,
     trigger::{Schedule, StopCondition, Strategy},
     AgentAction, Status, Task, TaskActivity,
 };
@@ -90,7 +91,7 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<(TaskOpts, TaskNotifyRece
         trace_id = tracing::field::Empty
     );
 
-    let breakpoints = task.breakpoints.clone();
+    let breakpoints = load_breakpoints(id);
 
     let (notify, notify_rx) = flume::unbounded();
 
