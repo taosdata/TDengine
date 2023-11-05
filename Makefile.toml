@@ -103,12 +103,10 @@ echo $@
 sudo rm /usr/local/taos/bin/taos-explorer
 sudo rm /usr/local/taos/bin/taosx
 sudo rm /usr/local/taos/bin/taosx-agent
-
 sudo rm /etc/systemd/systemd/taos-explorer.service
 sudo rm /etc/systemd/systemd/taosx.service
 sudo rm /etc/systemd/systemd/taosx-agent.service
 sudo systemctl daemon-reload
-
 if [ "$1" == "--all" ]; then
   sudo rm -rf /var/lib/taos/taosx/
 fi
