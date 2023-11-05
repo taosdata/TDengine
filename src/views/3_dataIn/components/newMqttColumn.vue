@@ -116,9 +116,11 @@
         ></el-input-number> -->
       </template>
     </li>
-    <li class="icon-col" v-if="!constcols.includes(colData['name'])">
+    <li
+      :class="['icon-col', !constcols.includes(colData['name']) ? 'show' : '']"
+    >
       <span class="icon-container" @click="deleteRow">
-        <i class="el-icon-minus"></i>
+        <i class="el-icon-delete"></i>
       </span>
     </li>
   </ul>
@@ -161,7 +163,15 @@ export default {
       columnChecked: false,
       tagChecked: false,
       tagDisable: false,
-      nonEditableCols: ["ts", "qos", "topic", "partition", "offset", "key", "value"],
+      nonEditableCols: [
+        "ts",
+        "qos",
+        "topic",
+        "partition",
+        "offset",
+        "key",
+        "value",
+      ],
       num: 1,
       mqttTypes: [...dataType, ...timestamps].filter(
         (item) => item.value !== "NCHAR" && item.value != "VARCHAR"
@@ -328,12 +338,12 @@ export default {
       handler(val) {
         if (val.model.columns.includes(this.colData.name)) {
           this.columnChecked = true;
-        }else{
+        } else {
           this.columnChecked = false;
         }
         if (val.model.tags.includes(this.colData.name)) {
           this.tagChecked = true;
-        }else{
+        } else {
           this.tagChecked = false;
         }
       },
@@ -365,6 +375,21 @@ export default {
   border-top: 1px solid #ebeef5;
   padding-top: 8px;
   padding-bottom: 8px;
+  li {
+    position: relative;
+    padding-right: 10px;
+    box-sizing: border-box;
+    
+    // &:not(:last-child)::after {
+    //   content: "";
+    //   background-color: red;
+    //   position: absolute;
+    //   width: 1px;
+    //   top: -9px;
+    //   bottom: -9px;
+    //   right: 0px;
+    // }
+  }
   &.edit {
     position: relative;
     &::before {
@@ -394,9 +419,15 @@ export default {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding-right: 10px;
+    padding-right: 20px;
+    visibility: hidden;
+    pointer-events: none;
     i {
       color: #999;
+    }
+    &.show {
+      visibility: visible;
+      pointer-events: auto;
     }
   }
   .ascolumn,

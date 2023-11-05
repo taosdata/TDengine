@@ -70,13 +70,15 @@
     },
     methods: {
       logout() {
-        localStorage.removeItem('base_url')
-        localStorage.removeItem('documentWebsite')
-        localStorage.removeItem('supportWebsite')
-        localStorage.removeItem('TDengine-Token')
-        localStorage.removeItem('username')
-        localStorage.removeItem('pwd')
-        localStorage.removeItem('local_language')
+        // localStorage.removeItem('base_url')
+        // localStorage.removeItem('documentWebsite')
+        // localStorage.removeItem('supportWebsite')
+        // localStorage.removeItem('TDengine-Token')
+        // localStorage.removeItem('username')
+        // localStorage.removeItem('pwd')
+        // localStorage.removeItem('local_language')
+        // localStorage.removeItem('agent_version')
+        localStorage.clear()
         this.$store.dispatch("app/logout");
         this.$router.push({
           path:'/login'

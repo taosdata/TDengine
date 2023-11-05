@@ -39,7 +39,6 @@ export function addLimit(sql) {
  * @returns
  */
 export async function proprocess_sql(sqlStr) {
-  console.log('width',sqlStr);
   // 首先去除语句前后的空格，换行和制表符
   sqlStr = trim(sqlStr);
   // 然后将语句中间的连续多个空格，换行和制表符都替换成一个空格

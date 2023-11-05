@@ -212,9 +212,7 @@ export default {
             this.dynamicValidateForm.cluster
           );
         }
-        if (res && res.version) {
-          localStorage.setItem("agent_version", res.version);
-        }
+        
         if (res && res.dashboard) {
           localStorage.setItem("local_grafana", res.dashboard);
         }

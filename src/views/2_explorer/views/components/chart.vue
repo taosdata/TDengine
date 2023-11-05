@@ -4,8 +4,8 @@
       <el-form-item :label="$t('console.chartType')" prop="chartType">
         <el-select v-model="chartForm.chartType">
           <el-option
-            v-for="item in chartTypes"
-            :key="item.value"
+            v-for="(item,index) in chartTypes"
+            :key="index"
             :label="item.value"
             :value="item.value"
           >
@@ -15,10 +15,10 @@
       <el-form-item :label="$t('console.xAxis')" required prop="label">
         <el-select v-model="chartForm.label">
           <el-option
-            v-for="item in field"
-            :key="item"
+            v-for="(item,index) in field"
+            :key="index"
             :label="item"
-            :value="item"
+            :value="index"
           >
           </el-option>
         </el-select>
@@ -31,10 +31,10 @@
           multiple
         >
           <el-option
-            v-for="item in field"
-            :key="item"
+            v-for="(item,index) in field"
+            :key="index"
             :label="item"
-            :value="item"
+            :value="index"
             :disabled="item === chartForm.label"
           >
           </el-option>
@@ -94,9 +94,9 @@ export default {
     })
   },
   watch: {
-    field(newval) {
-      this.chartForm.series = [newval[1]];
-      this.chartForm.label = newval[0];
+    field() {
+      this.chartForm.series = [1];
+      this.chartForm.label = 0;
       this.chartOption = {};
     }
   },
@@ -136,14 +136,20 @@ export default {
       });
     },
     handleSeriesChange() {
-      return this.chartForm.series.map(item => {
+      const seriesName = this.chartForm.series.reduce((pre, cur) => {
+        const filed = this.field[cur];
+        const num = pre.filter(item => item === filed).length;
+        pre.push(num ? filed + num : filed);
+        return pre;
+      }, []);
+      return this.chartForm.series.map((item, index) => {
         let op = {
           type: this.chartForm.chartType,
-          name: item,
+          name: seriesName[index],
           data: this.data.map(ite => [ite[this.chartForm.label], ite[item]])
         };
-        if (this.chartForm.chartType === "area") {
-          op.type = "line";
+        if (this.chartForm.chartType === 'area') {
+          op.type = 'line';
           op.areaStyle = {};
         }
         return op;

@@ -53,8 +53,9 @@ import ChartView from "./chart.vue";
 import FavoriteView from "./FavoriteList";
 import LogView from "./log.vue";
 import { mapState } from "vuex";
-import { parse } from "json2csv";
 import FileSaver from "file-saver";
+import { convertToCsvData } from '@/utils';
+
 export default {
   components: {
     GridView,
@@ -64,7 +65,7 @@ export default {
   },
   computed: {
     ...mapState({
-      dataSource: state => state.console.result,
+      dataSource: state => state.console.repeatResult,
       head: state => {
         let result = {};
         state.console.head.forEach(item => {
@@ -72,6 +73,9 @@ export default {
         });
         return result;
       },
+      headArr: state => {
+        return state.console.head
+      }
     }),
     activeTab: {
       get: function () {
@@ -82,15 +86,17 @@ export default {
       },
     },
   },
-  mounted() {},
+  mounted() {
+  },
   methods: {
+
     refresh() {
       this.$emit("refresh");
     },
     exportFile() {
       const FileName = "data.csv";
-      const data = parse(this.dataSource);
-      const blob = new Blob(["\uFEFF" + data], {
+      const data = convertToCsvData(this.dataSource, this.headArr)
+      const blob = new Blob([data], {
         type: "text/csv;charset=utf-8;",
       });
       FileSaver.saveAs(blob, FileName);

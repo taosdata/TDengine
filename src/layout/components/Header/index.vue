@@ -149,6 +149,7 @@ export default {
               })
             );
           });
+          localStorage.setItem("agent_version", this.getVersion(this.license[0]["server_version()"]));
           this.version =
             this.getVersion(this.license[0]["server_version()"]) +
             " " +
