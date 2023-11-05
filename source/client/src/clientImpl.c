@@ -2605,8 +2605,32 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
   schedulerFetchRows(pRequest->body.queryJob, &req);
 }
 
+typedef struct CallBackAttr {
+  SRequestObj* pRequest;
+  int32_t code;
+} CallBackAttr;
+
+void *asynDoRequestCallback(void *param) {
+  CallBackAttr* pCallBackAttr = param;
+  SRequestObj* pRequest = pCallBackAttr->pRequest;
+  pRequest->body.queryFp(((SSyncQueryParam *)pRequest->body.interParam)->userParam, pRequest, pCallBackAttr->code);
+  taosMemoryFree(pCallBackAttr);
+  return NULL;
+}
+
 void doRequestCallback(SRequestObj* pRequest, int32_t code) {
-  pRequest->body.queryFp(((SSyncQueryParam *)pRequest->body.interParam)->userParam, pRequest, code);
+
+  CallBackAttr *pCallBackAttr = taosMemoryCalloc(1, sizeof(CallBackAttr));
+  pCallBackAttr->pRequest = pRequest;
+  pCallBackAttr->code = code;
+  TdThreadAttr thattr;
+  taosThreadAttrInit(&thattr);
+
+  TdThread callbackThread;
+  taosThreadCreate(&(callbackThread), &thattr, asynDoRequestCallback, pCallBackAttr);
+  taosThreadAttrDestroy(&thattr);
+
+  // pRequest->body.queryFp(((SSyncQueryParam *)pRequest->body.interParam)->userParam, pRequest, code);
 }
 
 int32_t clientParseSql(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effectiveUser, SParseSqlRes* pRes) {

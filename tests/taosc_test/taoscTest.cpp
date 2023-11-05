@@ -190,10 +190,10 @@ void queryCallback2(void* param, void* res, int32_t code) {
   ASSERT_TRUE(param == pUserParam);
   // After using taos_query_a to query, using taos_fetch_row in the callback will cause blocking. 
   // Reason: schProcessOnCbBegin SCH_LOCK_TASK(pTask)
-  /* TAOS_ROW row;
+  TAOS_ROW row;
   while ((row = taos_fetch_row(res))) {
      getRecordCounts++;
-  } */
+  }
   tsem_post(&query_sem);
   taos_free_result(res);
 }
@@ -214,7 +214,7 @@ TEST_F(taoscTest, taos_query_a_t2) {
   taos_query_a(taos, sql, queryCallback2, pUserParam);
   tsem_timewait(&query_sem, 10 * 1000);
 
-  ASSERT_NE(getRecordCounts, insertCounts);
+  ASSERT_EQ(getRecordCounts, insertCounts);
   taos_close(taos);
 
   printf("taos_query_a_t2 test finished.\n");
