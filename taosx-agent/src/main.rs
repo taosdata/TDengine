@@ -209,8 +209,8 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
                     *task.key(),
                     Utc::now(),
                     taosx_core::LevelFilter::Warn,
-                    "suspended".to_string(),
                     "taosx-agent is suspended by SIGINT".to_string(),
+                    "suspended".to_string(),
                     None,
                 );
                 tracing::info!("status: {:?}", status);
