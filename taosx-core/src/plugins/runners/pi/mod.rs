@@ -283,11 +283,13 @@ pub async fn pi_to_taos(
     tokio::spawn(async move {
         macro_rules! safe_exit {
             () => {
-                let _ = ipc.close().await;
-                temp_path.close().unwrap();
-                port_pool.put(ipc_port).await;
-                stop_thread(server);
-                port_pool.put(sql_port).await;
+                tokio::spawn(async move {
+                    let _ = ipc.close().await;
+                    temp_path.close().unwrap();
+                    port_pool.put(ipc_port).await;
+                    stop_thread(server);
+                    port_pool.put(sql_port).await;
+                });
             };
         }
         tokio::select! {
@@ -308,12 +310,11 @@ pub async fn pi_to_taos(
             },
             _ = cancel.cancelled() => {
                 tracing::info!("pi task cancelled");
+                safe_exit!();
             }
         }
-        let _ = ipc.send(()).await;
         terminate_child_process(pid)?;
         tracing::info!("pi task Done");
-        safe_exit!();
         Ok(())
     })
     .await??;
@@ -537,6 +538,7 @@ async fn validate_pi(config: PiConfig) -> anyhow::Result<DataSourceValidation> {
                     String::from_utf8_lossy(&output.stdout)
                 )
             })?;
+        tracing::debug!("pi validation result: {}", &result);
         DataSourceValidation {
             valid: result["valid"].as_bool().unwrap_or(false),
             support: result["support"].as_bool().unwrap_or(false),
@@ -624,8 +626,14 @@ async fn validate_pi_backfill(config: PiConfig) -> anyhow::Result<DataSourceVali
                 )
             })?;
         DataSourceValidation {
-            valid: result["valid"].as_bool().unwrap_or(false),
-            support: result["support"].as_bool().unwrap_or(false),
+            valid: result["valid"]
+                .as_bool()
+                .or(result["avaliable"].as_bool())
+                .unwrap_or(false),
+            support: result["support"]
+                .as_bool()
+                .or(result["avaliable"].as_bool())
+                .unwrap_or(false),
             data_source: "pibackfill".to_string(),
             version: result["version"].as_str().map(|s| s.to_string()),
             message: result["message"].as_str().map(|s| s.to_string()),
