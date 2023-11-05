@@ -224,6 +224,13 @@ impl PutStream {
                             if ipc_error_strategy.will_stop() {
                                 abort_message_tx
                                     .send(Err(Status::data_loss(format!("{err:#}"))))?;
+                                notify_sender.send(
+                                    crate::serve::scheduler::agent::AgentNotify::WriterError(
+                                        agent_id,
+                                        task.id,
+                                        format!("{err:#}"),
+                                    ),
+                                )?;
                                 bail!("{err:#}");
                             }
                             tracing::warn!("Can't write batch to database, err: {}", err);

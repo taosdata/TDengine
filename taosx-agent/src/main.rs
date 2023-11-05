@@ -329,7 +329,7 @@ fn main() -> anyhow::Result<()> {
             .with_level(true)
             .with_thread_ids(true)
             .with_thread_names(true)
-            .with_span_events(FmtSpan::ACTIVE)
+            .with_span_events(FmtSpan::NONE)
             .with_file(true)
             .with_line_number(true)
             .with_ansi(false)

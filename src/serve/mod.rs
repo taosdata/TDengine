@@ -308,6 +308,8 @@ impl Cli {
 
         let store = Data::new(controller);
 
+        assert!(!controller::DATA_SOURCE_DEFINITIONS.is_empty());
+
         let openapi = ApiDoc::openapi();
 
         let metrics_recorder = metrics::Metrics::default().init()?;
