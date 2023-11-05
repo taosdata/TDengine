@@ -129,7 +129,7 @@ namespace TDPIConnector.Core
             result.avaliable = false;
             result.since = "DataAchive or AF Server cannot connect.";
             string info = JsonConvert.SerializeObject(result);
-            return buildConnectFailedInfo();
+            return info;
         }
     }
 }
