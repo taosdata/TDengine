@@ -70,6 +70,11 @@ pub enum AgentNotify {
     AgentDisconnected(AgentId),
     /// Agent closed by ctrl-c.
     AgentClosed(AgentId),
+
+    /// Put stream writer error.
+    ///
+    /// This error is sent by agent when it encounters an error while writing data to TDengine.
+    WriterError(AgentId, TaskId, String),
     /// Agent task activity.
     TaskActivity(AgentId, TaskActivity),
     /// Agent activity.
@@ -96,6 +101,8 @@ impl AgentWorker {
         let agent_states: Arc<RwLock<HashMap<AgentId, AgentState>>> = Default::default();
         let agent_states_cloned = agent_states.clone();
 
+        let agent_activity_sender_clone = agent_activity_sender.clone();
+
         tokio::spawn(async move {
             tokio::pin!(agent_notify_receiver);
             loop {
@@ -104,6 +111,7 @@ impl AgentWorker {
                         let agent_tasks_sender_clone = agent_tasks_sender_clone.clone();
                         let agent_states_cloned = agent_states_cloned.clone();
                         let scheduler_notify_sender = scheduler_notify_sender.clone();
+                        let agent_activity_sender_clone = agent_activity_sender_clone.clone();
                         tokio::spawn(async move {
                             match item {
                                 AgentNotify::ServerStopped => {
@@ -208,6 +216,32 @@ impl AgentWorker {
                                 AgentNotify::AgentActivity(_, activity) => {
                                     tracing::info!("Agent activity: {:?}", activity);
                                     scheduler_notify_sender.push_agent_activity(activity);
+                                }
+                                AgentNotify::WriterError(agent_id, task_id, message) => {
+                                    tracing::warn!(
+                                        agent_id = agent_id,
+                                        task_id = task_id,
+                                        message = message.as_str(),
+                                        "Writer error: {}",
+                                        message
+                                    );
+                                    let mut agent_tasks = agent_tasks_sender_clone.write().await;
+                                    // let agent_activity_sender = agent_activity_sender_clone.clone();
+                                    agent_tasks.modify_by_task_id(&task_id, |t| {
+                                        tokio::task::block_in_place(|| {
+                                            Handle::current().block_on(async {
+                                                t.sender
+                                                    .send(TaskActivity::interrupted(
+                                                        t.task_id,
+                                                        format!("Writer error: {}", message),
+                                                    ))
+                                                    .await;
+
+                                                let _ = agent_activity_sender_clone
+                                                    .send((agent_id, AgentAction::Cancel(task_id)));
+                                            });
+                                        });
+                                    });
                                 }
                             }
                         });

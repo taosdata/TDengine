@@ -17,7 +17,6 @@ protocol:
       display: HTTP 协议
     - name: https
       display: HTTPS 协议
-  value: http
 options:
   host:
     display: 服务器地址
