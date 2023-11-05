@@ -21,8 +21,8 @@
 
       <template v-if="head.length">
         <el-table-column
-          v-for="item in head"
-          :key="item"
+          v-for="(item,index) in head"
+          :key="index"
           :prop="item"
           :show-overflow-tooltip="true"
           :label="item"

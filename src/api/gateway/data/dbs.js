@@ -82,7 +82,7 @@ export function createDB(data, name, appId = store.getters.appId) {
       "Content-Type":"text/plain"
     },
     data:
-      `CREATE DATABASE \`${name}\`  ${Object.keys(DBFILED)
+      `CREATE DATABASE ${name} ${Object.keys(DBFILED)
         .map(item => {
           let value = data[item];
           const isString = DBFILED[item]?.type == "string";
@@ -108,7 +108,7 @@ export function createDB(data, name, appId = store.getters.appId) {
 }
 export function updateDB(data, name) {
   return executeDBOperations(
-    `ALTER DATABASE ${name} ${Object.keys(data)
+    `ALTER DATABASE \`${name}\` ${Object.keys(data)
       .map(key => {
         let value = data[key];
         if(value == undefined) return ""

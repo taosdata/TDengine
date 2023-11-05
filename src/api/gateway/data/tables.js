@@ -38,14 +38,14 @@ export function createTableReq(payload) {
   // 以超级表为模版创建表
   if (tags && tags.length > 0) { //创建超级表的子表
     return sendSQLReq(
-      `CREATE TABLE \`${selected_db}\``+'.'+`\`${name}\` USING \`${selected_db}\``+'.'+`\`${stbTmpl}\` (${tags.map(item => `\`${item.field}\``).join(",")}) TAGS (${tags
+      `CREATE TABLE \`${selected_db}\``+'.'+`${name} USING \`${selected_db}\``+'.'+`\`${stbTmpl}\` (${tags.map(item => `${item.field}`).join(",")}) TAGS (${tags
         .map(item => handleStringTagValue(item))
         .join(",")});`
     ).catch(err => {
       return Promise.reject(err);
     });
   } else {
-    return sendSQLReq(`CREATE TABLE \`${selected_db}\``+'.'+`\`${name}\` (${columns.map(item => `\`${item.field}\` ${item.type==='VARCHAR'?'VARCHAR('+`${item.varcharLength}`+')':item.type==='NCHAR'?
+    return sendSQLReq(`CREATE TABLE \`${selected_db}\``+'.'+`${name} (${columns.map(item => `${item.field} ${item.type==='VARCHAR'?'VARCHAR('+`${item.varcharLength}`+')':item.type==='NCHAR'?
     'NCHAR('+`${item.ncharLength}`+')':item.type}`).join(",")});`).catch(err => {
       
       return Promise.reject(err);

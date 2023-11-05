@@ -248,7 +248,7 @@ import SQLEditor from "@/views/11_topic/components/sqlEditor.vue";
 import { createStream } from "@/api/stream";
 import { isStableExist } from "@/api/gateway/data/stables";
 import Subquery from "@/views/11_topic/components/subquery.vue";
-import { validStreamSql, validDatabaseName } from "@/utils/validate"
+import { validStreamSql, validName } from "@/utils/validate"
 // const infoValidaterField = ["stream_name", "topic_type", "db_name"];
 export default {
   props: {
@@ -264,7 +264,7 @@ export default {
         callback(new Error(this.$t("stream.streamNameError")));
       } else if (this.streamList.some((item) => item.stream_name === val)) {
         callback(new Error(this.$t("stream.streamNameExist")));
-      } else if (!validDatabaseName(val)) {
+      } else if (!validName(val)) {
         callback(new Error(this.$t("formatWrong")))
       } else {
         callback();

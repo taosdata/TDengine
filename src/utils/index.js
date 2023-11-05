@@ -8,7 +8,7 @@ import { $bus } from "@/const";
 import CryptoJS from "crypto-js";
 import i18n from "@/lang";
 import _ from "lodash";
-
+import * as clipboard from 'clipboard-polyfill'
 let path = require("path");
 export function debounce(func, wait, immediate) {
   let timeout, args, context, timestamp, result;
@@ -69,6 +69,19 @@ export function parseTime(time, cFormat) {
 // 针对TDengine的restful接口中返回的head和data，返回一个适合table组件的对象
 export function compHeadAndData(head, data) {
   return data.map(item => Object.fromEntries(head.map((a, b) => [a[0], item[b] || ""])));
+}
+/**
+ * 将table数据转成csv数据
+ * @param {Array<Record<string, any>>} data 表格数据
+ * @param {Array<string>} head 表头数据
+ * @returns 
+ */
+export function convertToCsvData(data, head) {
+  let csv = head.join(',') + '\n'
+  data.forEach(item => {
+    csv+=item.join(',')+'\n'
+  })
+  return csv
 }
 export function customizeTimeout(callback, time, once = 1) {
   let timer = null;
@@ -163,35 +176,55 @@ export function download(url, filename) {
   document.body.removeChild(eleLink);
 }
 
+function handler(text) {
+  console.log(text,'pppp')
+  clipboard.writeText(text).then(
+    () => { console.log("success!",'写入成功,text'); },
+    () => { console.log("error!"); }
+  );
+}
 export function copy(text, success = () => Message.success(i18n.t("copySucc"))) {
-  let polyfillFn = () => {
-    var textarea = document.createElement("textarea");
-    document.body.appendChild(textarea);
-    // 隐藏此输入框
-    textarea.style.position = "fixed";
-    textarea.style.left = "-999px";
-    textarea.style.top = "10px";
-    textarea.setAttribute("readonly", "readonly");
-    // 赋值
-    textarea.value = text;
-    // 选中
-    textarea.select();
-    // 复制
-    document.execCommand("copy", true);
-    // 移除输入框
-    document.body.removeChild(textarea);
-    success();
-  };
-  if (window.copy) {
-    window.copy(text);
-    return success();
-  }
-  if (navigator && navigator.clipboard) {
-    // clipboard api 复制
-    navigator.clipboard.writeText(text).then(success).catch(polyfillFn);
-  } else {
-    polyfillFn();
-  }
+  const button = document.body.appendChild(document.createElement("button"));
+      button.textContent = text;
+      button.addEventListener('click',handler(text))
+      success()
+  // let polyfillFn = () => {
+
+  //   // window.addEventListener('DOMContentLoaded',function(){
+  //     // var textarea = document.createElement("textarea");
+  //     // document.body.appendChild(textarea);
+  //     // // 隐藏此输入框
+  //     // textarea.style.position = "fixed";
+  //     // textarea.style.left = "-999px";
+  //     // textarea.style.top = "10px";
+  //     // textarea.setAttribute("readonly", "readonly");
+  //     // // 赋值
+  //     // textarea.value = text;
+  //     // console.log(textarea,'fuzhi---复制',text)
+  //     const button = document.body.appendChild(document.createElement("button"));
+  //     button.textContent = text;
+  //     button.addEventListener('click',handler)
+  //   // })
+  //   success()
+  //   // 选中
+  //   // textarea.select();
+  //   // // 复制
+  //   // document.execCommand("copy", true);
+  //   // // 移除输入框
+  //   // document.body.removeChild(textarea);
+  //   // success();
+  // };
+  // polyfillFn()
+  // if (window.copy) {
+  //   window.copy(text);
+  //   return success();
+  // }
+  // if (navigator && navigator.clipboard) {
+  //   // clipboard api 复制
+  //   navigator.clipboard.writeText(text).then(success).catch(polyfillFn);
+  // } else {
+  //   polyfillFn();
+  // }
 }
 
 // 处理md并且赋值变量生成html展示

@@ -49,16 +49,6 @@
       >
         <el-input size="small" v-model="ruleForm2.tableName"></el-input>
       </el-form-item>
-      <!-- <el-form-item :label="$t('datasource.target')" prop="dbName">
-        <el-select v-model="ruleForm2.dbName" placeholder="">
-          <el-option
-            v-for="item in dblist"
-            :key="item.name"
-            :value="item.name"
-            :label="item.name"
-          ></el-option>
-        </el-select>
-      </el-form-item> -->
     </el-form>
   </div>
 </template>

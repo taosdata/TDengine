@@ -42,6 +42,7 @@
 
 <style scoped lang="scss">
   .copy-wrapper {
+    display: inline;
     position: relative;
     line-height: 40px;
     // font-size: 26px;
@@ -67,5 +68,14 @@
         // border-color: $color-primary;
       }
     }
+  }
+  .el-tooltip .copy-wrapper {
+    overflow: unset;
+    text-overflow: unset;
+    position: static;
+  }
+  // 解决firefox下，el-table的show-tooltip异常不触发的问题
+  .firefox .el-tooltip:has(.copy-wrapper) {
+    position: relative;
   }
 </style>

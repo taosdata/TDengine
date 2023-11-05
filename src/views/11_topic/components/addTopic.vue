@@ -133,7 +133,7 @@ import SQuery from "./subscribeQuery.vue";
 import Subquery from "./subquery.vue";
 import SQLEditor from "./sqlEditor.vue";
 import { createTopic } from "@/api/topic";
-import { validTopicSql, validDatabaseName } from "@/utils/validate"
+import { validTopicSql, validName } from "@/utils/validate"
 // const infoValidaterField = ["topic_name", "topic_type", "db_name"];
 export default {
   props: {
@@ -149,7 +149,7 @@ export default {
         callback(new Error(this.$t("topic.topicNameError")));
       } else if (this.topicList.some((item) => item.topicName === val)) {
         callback(new Error(this.$t("topic.topicNameExist")));
-      } else if (!validDatabaseName(val)) {
+      } else if (!validName(val)) {
         callback(new Error(this.$t("formatWrong")))
       } else {
         callback();

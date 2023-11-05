@@ -520,7 +520,7 @@ export default {
           params = {
             operation: "rename " + type,
             first_field: this.duplicate[index].field,
-            second_field: `\`${data.field}\``,
+            second_field: `${data.field}`,
           };
         }
       }
@@ -531,7 +531,7 @@ export default {
       this.loading = true;
       await changeStableStruct(
         params,
-        `\`${this.selected_db }\`. \`${this.stable_form.name}\``
+        `\`${this.selected_db }\`.\`${this.stable_form.name}\``
       )
         .then(() => {
           this.$message.success(this.$t("operateSucc"));
@@ -640,6 +640,7 @@ export default {
             .dispatch("stables/submitStableForm", this.selected_db)
             .then(() => {
               this.$message.success(this.$t("createSucc"));
+              this.$store.commit("console/CANCEL_DETAIL");
             })
             .catch((err) => {
               this.$message({

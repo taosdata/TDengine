@@ -17,7 +17,7 @@
       <li>
         <span class="seeq-span"
           >{{ $t('docs.tools.seeq.step2desc11') }}<a href="https://maven.org/">maven.org</a>{{ $t('docs.tools.seeq.step2desc12')
-          }}<a href="https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.5/taos-jdbcdriver-3.2.5-dist.jar">3.2.5</a>{{ $t('docs.tools.seeq.step2desc13') }}</span
+          }}<a href="https://repo1.maven.org/maven2/com/taosdata/jdbc/taos-jdbcdriver/3.2.7/taos-jdbcdriver-3.2.7-dist.jar">3.2.7</a>{{ $t('docs.tools.seeq.step2desc13') }}</span
         >
       </li>
       <li>
@@ -174,7 +174,7 @@ export default {
   },
   computed: {
     jdbcURL() {
-      return 'jdbc:TAOS-RS://' + this.url?.replace(/https?:\/\//, '') + '?usessl=false&user=' + `${localStorage.getItem('username')}&password=${localStorage.getItem('cleartextPwd')}`;
+      return 'jdbc:TAOS-RS://' + this.url?.replace(/https?:\/\//, '') + '?useSSL=false&user=' + `${localStorage.getItem('username')}&password=${localStorage.getItem('cleartextPwd')}`;
       // return `jdbc:TAOS-RS://localhost:6041?useSSL=false&user=root&password=taosdata`
     }
   }
