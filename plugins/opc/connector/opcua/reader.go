@@ -505,7 +505,7 @@ func (r *reader) generateOptions(endpoints []*ua.EndpointDescription) (opts []op
 	}
 
 	// Select the most appropriate authentication mode from server capabilities and user input
-	authMode, authOption := r.authOptions(strings.ToLower(r.connectConfig.AuthMethod), cert, r.connectConfig.Username,
+	authMode, authOption := authOptions(strings.ToLower(r.connectConfig.AuthMethod), cert, r.connectConfig.Username,
 		r.connectConfig.Password)
 	opts = append(opts, authOption)
 
@@ -518,7 +518,7 @@ func (r *reader) generateOptions(endpoints []*ua.EndpointDescription) (opts []op
 		securityPolity = ua.SecurityPolicyURINone
 	}
 
-	serverEndpoint, err := r.getServerEndpoint(endpoints, securityPolity, securityMode)
+	serverEndpoint, err := getServerEndpoint(endpoints, securityPolity, securityMode)
 	if err != nil {
 		logger.Error("## get server endpoint error ", "error", err)
 		return nil, err
@@ -540,7 +540,7 @@ func (r *reader) getSecurityMode() ua.MessageSecurityMode {
 	return ua.MessageSecurityModeFromString(r.connectConfig.SecurityMode)
 }
 
-func (r *reader) getServerEndpoint(endpoints []*ua.EndpointDescription, securityPolicy string, securityMode ua.MessageSecurityMode) (endpoint *ua.EndpointDescription, err error) {
+func getServerEndpoint(endpoints []*ua.EndpointDescription, securityPolicy string, securityMode ua.MessageSecurityMode) (endpoint *ua.EndpointDescription, err error) {
 	// Find the best endpoint (highest SecurityMode+SecurityLevel)
 	for _, ep := range endpoints {
 		if ep.SecurityPolicyURI == securityPolicy && ep.SecurityMode == securityMode &&
@@ -556,7 +556,7 @@ func (r *reader) getServerEndpoint(endpoints []*ua.EndpointDescription, security
 	return
 }
 
-func (r *reader) authOptions(authMode string, cert []byte, username, password string) (token ua.UserTokenType, option opcua.Option) {
+func authOptions(authMode string, cert []byte, username, password string) (token ua.UserTokenType, option opcua.Option) {
 	if authMode == "anonymous" {
 		token = ua.UserTokenTypeAnonymous
 		option = opcua.AuthAnonymous()

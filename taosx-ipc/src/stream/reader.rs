@@ -25,7 +25,7 @@ use taos_query::prelude::{ColumnView, Ty, Value};
 use tracing::error;
 
 use crate::{
-    ack::AckType,
+    ack::{AckType, AckWriter},
     constants::{__ATTRS__, __RECORDS__, __TABLES__INDEX__, __TABLE_NAME__, __TYPE__},
     prelude::{IpcDataType, IpcMetadata, LushMessageType, StreamType},
     stream::{
@@ -458,7 +458,7 @@ impl<R: Read> IpcReader<R> {
     where
         R: Send + 'static,
     {
-        let (tx, rx) = flume::bounded(1);
+        let (tx, rx) = flume::bounded(1024);
         std::thread::spawn(move || {
             for item in self {
                 tx.send(item)?; // send under blocking thread
@@ -473,13 +473,32 @@ impl<R: Read> IpcReader<R> {
     where
         R: Send + 'static,
     {
-        let (tx, rx) = flume::bounded(1);
+        let (tx, rx) = flume::bounded(1024);
         std::thread::spawn(move || {
             for item in self.reader {
                 tx.send(item)?; // send under blocking thread
             }
             tracing::info!("Raw ipc reader stream closed");
             Ok::<_, flume::SendError<_>>(())
+        });
+        rx.into_stream()
+    }
+
+    pub fn into_raw_stream_qos_0(
+        self,
+        mut ipc_ack_writer: AckWriter<impl std::io::Write + Send + 'static>,
+    ) -> flume::r#async::RecvStream<'static, Result<RecordBatch, ArrowError>>
+    where
+        R: Send + 'static,
+    {
+        let (tx, rx) = flume::bounded(1024);
+        std::thread::spawn(move || {
+            for item in self.reader {
+                tx.send(item)?; // send under blocking thread
+                ipc_ack_writer.write_ok()?;
+            }
+            tracing::info!("Raw ipc reader stream closed");
+            anyhow::Ok(())
         });
         rx.into_stream()
     }

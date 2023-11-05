@@ -61,7 +61,7 @@ groups:
           指定要消费的 Topic。可以配置多个 Topic，Topic 之间使用逗号分隔，例如：`tp1,tp2`。
 
           "Topics" 参数不是必需的，当配置了 “Topics Partitions” 参数时，可以不配置该参数。
-        placeholder: "Topics 参数和 Topic Partitions 参数两者至少需要配置一个。"
+        placeholder: "tp1,tp2"
         required: false
         hint:
           type: str
@@ -71,7 +71,7 @@ groups:
           指定要消费的 Topic 和 Partition。可以指定多个 Topic 和 Partition，例如： `tp1,tp2:2,tp3:0..9`。
 
           Topic Partitions 参数不是必需的，当配置了 Topics 参数时，可以不配置该参数。
-        placeholder: "Topics 参数和 Topic Partitions 参数两者至少需要配置一个。"
+        placeholder: "tp1,tp2:2,tp3:0..9"
         required: false
         hint:
           type: str
@@ -94,8 +94,62 @@ groups:
             - Earliest
             - Latest
             - ByTime
+      - name: fetch_max_wait_time
+        display: 获取消息时等待数据的最大时长
+        description: >
+          设置获取消息时等待数据不足的最长时间（以毫秒为单位）。
+
+          默认值为 100ms
+        placeholder: 100ms
+        required: false
+        hint:
+          type: str
+      - name: fetch_min_bytes
+        display: 获取消息时的最小字节数
+        description: >
+          设置获取消息时等待 KafkaClient::set_fetch_max_wait_time 指定的可用数据的最小字节数。
+
+          通过结合设置fetch_max_wait_time更高的值，消费者可以调整吞吐量并牺牲一点额外的延迟来只读取大块数据（例如，将 fetch_max_wait_time 设置为 100 ms，将 fetch_min_bytes 设置为 64k 将允许服务器等待最多 100 ms尝试在响应之前累积 64k 数据）。
+          
+          默认值为 4096。
+        placeholder: 4096
+        required: false
+        hint:
+          type: integer
+          min: 0
+          max: 2147483647
+      - name: fetch_max_bytes_per_partition
+        display: 获取消息时从单个 kafka 分区获取的默认最大字节数
+        description: >
+          设置获取消息时从单个 kafka 分区获取的默认最大字节数。
+
+          这基本上决定了该客户端能够获取的最大消息大小。如果主题分区包含的消息大于指定的字节数，服务器将不会传送它。
+
+          请注意，此设置与单个分区相关。因此，获取消息响应中的总体潜在数据大小将由获取消息请求中的分区数量乘以“每个分区的最大字节数”来确定。
+
+          默认情况下，此客户端将为所有查询的分区使用此设置，但是，fetch_messages 确实允许您为正在查询的特定分区覆盖此设置。
+          
+          默认值为 1024 * 1024。
+        placeholder: 1048576
+        required: false
+        hint:
+          type: integer
+          min: 0
+          max: 2147483647
+      - name: fetch_crc_validation
+        display: 获取消息时是否执行 CRC 验证
+        description: >
+          指定是否对获取的消息执行 CRC 验证。
+
+          这可确保检测到所获取消息的在线或磁盘损坏。此检查会增加一些开销，因此在寻求极端性能的情况下可能会禁用它。
+          
+          默认值为 true。
+        placeholder: true
+        required: false
+        hint:
+          type: bool
       - name: offset_storage
-        display: Offset Storage
+        display: 获取或提交组偏移量时要使用的可用存储类型
         description: >
           定义在获取或提交组偏移量时要使用的可用存储类型。
 
@@ -111,6 +165,38 @@ groups:
           choices:
             - Zookeeper
             - Kafka
+      - name: retry_max_bytes_limit
+        display: 重试提取请求时从 kafka 分区中提取数据的最大次数
+        description: >
+          指定数据字节的上限，以允许在由于分区中的消息太大而重试提取请求时从 kafka 分区中提取数据。
+          
+          默认值是 0。
+        placeholder: 0
+        required: false
+        hint:
+          type: integer
+          min: 0
+          max: 2147483647
+      - name: connection_idle_timeout
+        display: 空闲连接的超时时间
+        description: >
+          指定空闲连接的超时时间。
+          
+          默认值是 540000ms。
+        placeholder: 540000ms
+        required: false
+        hint:
+          type: str
+      - name: client_id
+        display: 客户端ID
+        description: >
+          指定要随每个请求发送到 Kafka 代理的 client_id。
+          
+          默认是 None。
+        placeholder: None
+        required: false
+        hint:
+          type: str
 parser:
   display: Payload 解析
   description: |

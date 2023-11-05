@@ -3,58 +3,347 @@ use std::{
     net::SocketAddr,
     path::PathBuf,
     pin::Pin,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc,
-    },
-    task::Poll,
+    sync::{atomic::Ordering, Arc},
 };
 
+use anyhow::Context;
 use arrow::{
-    array::{ArrayRef, StringArray, TimestampMillisecondArray},
+    array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array},
     datatypes::{Field, Fields, Schema},
     record_batch::RecordBatch,
 };
 use async_backtrace::framed;
 use base64::{engine::general_purpose, Engine};
 use chrono::Utc;
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::{Stream, TryStreamExt};
+use linked_hash_map::LinkedHashMap;
 use metrics::atomics::AtomicU64;
-use serde::Deserialize;
+use semver::VersionReq;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use taos::IntoDsn;
-use taosx_core::{HeartbeatResponse, ListResponse};
+use taosx_core::{get_data_dir, CheckResponse, HeartbeatResponse, ListResponse};
 #[cfg(unix)]
 use tokio::net::UnixListener;
+use tokio::sync::RwLock;
 #[cfg(unix)]
 use tokio_stream::wrappers::UnixListenerStream;
 use tonic::{transport::Server, Request, Response, Status, Streaming};
 
 use arrow_flight::{
     decode::FlightDataDecoder,
-    encode::{FlightDataEncoder, FlightDataEncoderBuilder},
+    encode::FlightDataEncoderBuilder,
     error::FlightError,
     flight_service_server::{FlightService, FlightServiceServer},
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
     HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
 };
-use tracing::{info, warn};
+use tracing::{info, instrument, warn};
+use uuid::Uuid;
 
 use crate::serve::{
     controller::{
-        agent::{Activity, Agent, AgentToken, LevelFilter},
-        TaskStatus,
+        agent::{Activity, AgentToken, LevelFilter},
+        TaskActivity, TaskDetail,
     },
     rpc::put::PutStream,
+    scheduler::agent::AgentNotify,
 };
 
-use super::controller::{AgentAction, Task, TaskControllerRef};
+use super::{
+    controller::{AgentAction, AgentDataSetsSender, DsvSender, Task, TaskControllerRef},
+    scheduler::agent::{AgentActionsReceiver, AgentId, AgentNotifySender},
+};
 
 mod put;
 
+pub struct AgentRpcChannel {
+    agent_activity_receiver: AgentActionsReceiver,
+    agent_notify_sender: AgentNotifySender,
+}
+
+impl AgentRpcChannel {
+    pub fn new(
+        agent_activity_receiver: AgentActionsReceiver,
+        agent_notify_sender: AgentNotifySender,
+    ) -> Self {
+        Self {
+            agent_activity_receiver,
+            agent_notify_sender,
+        }
+    }
+}
 #[derive(Clone)]
 pub(super) struct FlightServiceImpl {
     controller: TaskControllerRef,
+    notify_sender: AgentNotifySender,
+    activity_receiver: Arc<AgentActionsReceiver>,
+    request_id: Arc<AtomicU64>,
+    datasets_senders: Arc<RwLock<LinkedHashMap<u64, AgentDataSetsSender>>>,
+    dsv_senders: Arc<RwLock<LinkedHashMap<u64, DsvSender>>>,
+}
+
+async fn action_to_arrow(
+    request_id: &Arc<AtomicU64>,
+    datasets_senders: &Arc<RwLock<LinkedHashMap<u64, AgentDataSetsSender>>>,
+    dsv_senders: &Arc<RwLock<LinkedHashMap<u64, DsvSender>>>,
+    controller: &TaskControllerRef,
+    action: AgentAction,
+) -> anyhow::Result<Option<RecordBatch>> {
+    let ts: ArrayRef = Arc::new(TimestampMillisecondArray::from_iter_values([
+        chrono::Utc::now().timestamp_millis(),
+    ]));
+    let req_id = request_id.fetch_add(1, Ordering::SeqCst);
+
+    match action {
+        AgentAction::Run(id, jid, rid) => {
+            tracing::info!(
+                task.id = id,
+                task.jid = %jid,
+                task.rid = rid,
+                "Send stop action"
+            );
+            let task = controller.get(id).await?;
+            if let Some(mut task) = task {
+                // handle dsn(from) params contains file(@)
+                modify_task_dsn_params(&mut task.task).await?;
+                #[derive(Serialize)]
+                struct TaskInAgent {
+                    #[serde(flatten)]
+                    task: TaskDetail,
+                    jid: Uuid,
+                    rid: u64,
+                }
+                let context: ArrayRef =
+                    Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                        &TaskInAgent { task, jid, rid },
+                    )
+                    .unwrap()]));
+                let action: ArrayRef = Arc::new(StringArray::from_iter_values(["run".to_string()]));
+                let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+                let batch = RecordBatch::try_from_iter(vec![
+                    ("ts", ts),
+                    ("action", action),
+                    ("context", context),
+                    ("req_id", req_id),
+                ])
+                .context("failed to build record batch")?;
+                return Ok(Some(batch));
+            } else {
+                tracing::warn!("Received Run action for task {id} but currently not found");
+                return Ok(None);
+            }
+        }
+        AgentAction::Stop(id) => {
+            tracing::info!(task.id = id, "Send stop action to task {id}");
+            let task = controller.get(id).await?;
+            if let Some(task) = task {
+                let context: ArrayRef =
+                    Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                        &task,
+                    )
+                    .unwrap()]));
+                let action: ArrayRef =
+                    Arc::new(StringArray::from_iter_values(["stop".to_string()]));
+                let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+                let batch = RecordBatch::try_from_iter(vec![
+                    ("ts", ts),
+                    ("action", action),
+                    ("context", context),
+                    ("req_id", req_id),
+                ])
+                .context("failed to build record batch")?;
+                return Ok(Some(batch));
+            } else {
+                tracing::warn!("Received Stop action for task {id} but currently not found");
+                return Ok(None);
+            }
+        }
+        AgentAction::Interrupt(id) => {
+            tracing::info!(task.id = id, "Send interrupt action to task {id}");
+            let task = controller.get(id).await?;
+            if let Some(task) = task {
+                let context: ArrayRef =
+                    Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                        &task,
+                    )
+                    .unwrap()]));
+                let action: ArrayRef =
+                    Arc::new(StringArray::from_iter_values(["interrupt".to_string()]));
+                let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+                let batch = RecordBatch::try_from_iter(vec![
+                    ("ts", ts),
+                    ("action", action),
+                    ("context", context),
+                    ("req_id", req_id),
+                ])
+                .context("failed to build record batch")?;
+                return Ok(Some(batch));
+            } else {
+                tracing::warn!("Received Cancel action for task {id} but currently not found");
+                return Ok(None);
+            }
+        }
+        AgentAction::Cancel(id) => {
+            tracing::info!(task.id = id, "Send suspend action to task {id}");
+            let task = controller.get(id).await?;
+            if let Some(task) = task {
+                let context: ArrayRef =
+                    Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                        &task,
+                    )
+                    .unwrap()]));
+                let action: ArrayRef =
+                    Arc::new(StringArray::from_iter_values(["cancel".to_string()]));
+                let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+                let batch = RecordBatch::try_from_iter(vec![
+                    ("ts", ts),
+                    ("action", action),
+                    ("context", context),
+                    ("req_id", req_id),
+                ])
+                .context("failed to build record batch")?;
+                return Ok(Some(batch));
+            } else {
+                tracing::warn!("Received Cancel action for task {id} but currently not found");
+                return Ok(None);
+            }
+        }
+        AgentAction::ListDataSets(dataset, sender) => {
+            let context: ArrayRef =
+                Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                    &dataset,
+                )
+                .unwrap()]));
+            let action: ArrayRef = Arc::new(StringArray::from_iter_values(["list".to_string()]));
+            let req_id_array: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+            let batch = RecordBatch::try_from_iter(vec![
+                ("ts", ts),
+                ("action", action),
+                ("context", context),
+                ("req_id", req_id_array),
+            ])
+            .context("failed to build record batch")?;
+
+            let datasets_senders = datasets_senders.clone();
+            tokio::spawn(async move {
+                let mut receiver = datasets_senders.write().await;
+
+                receiver.insert(req_id, sender);
+            });
+            return Ok(Some(batch));
+        }
+        AgentAction::Check(dataset, sender) => {
+            let context: ArrayRef =
+                Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                    &dataset,
+                )
+                .unwrap()]));
+            let action: ArrayRef = Arc::new(StringArray::from_iter_values(["check".to_string()]));
+            let req_id_array: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+            let batch = RecordBatch::try_from_iter(vec![
+                ("ts", ts),
+                ("action", action),
+                ("context", context),
+                ("req_id", req_id_array),
+            ])
+            .context("failed to build record batch")?;
+
+            let dsv_senders = dsv_senders.clone();
+            tokio::spawn(async move {
+                let mut receiver = dsv_senders.write().await;
+
+                receiver.insert(req_id, sender);
+            });
+            return Ok(Some(batch));
+        }
+        action => {
+            tracing::warn!("Unknown action: {action:?}");
+            return Ok(None);
+        }
+    }
+}
+impl FlightServiceImpl {
+    pub fn _subscribe_agent_activity(&self, agent_id: AgentId) -> flume::Receiver<AgentAction> {
+        let receiver = self.activity_receiver.resubscribe();
+
+        let (tx, rx) = flume::bounded(1000);
+        tokio::spawn(async move {
+            let mut receiver = receiver;
+            loop {
+                match receiver.recv().await {
+                    Ok((id, activity)) => {
+                        if id == agent_id {
+                            let _ = tx.send_async(activity).await;
+                        }
+                    }
+                    Err(err) => match err {
+                        tokio::sync::broadcast::error::RecvError::Closed => break,
+                        tokio::sync::broadcast::error::RecvError::Lagged(_) => continue,
+                    },
+                }
+            }
+        });
+        rx
+    }
+
+    pub fn subscribe_agent_action_flight(
+        &self,
+        agent_id: AgentId,
+    ) -> (
+        flume::Sender<Result<RecordBatch, FlightError>>,
+        flume::Receiver<Result<RecordBatch, FlightError>>,
+    ) {
+        let receiver = self.activity_receiver.resubscribe();
+
+        let (tx, rx) = flume::bounded(1000);
+        let tx_cloned = tx.clone();
+        let (req_id, senders, dsv_senders, controller) = (
+            self.request_id.clone(),
+            self.datasets_senders.clone(),
+            self.dsv_senders.clone(),
+            self.controller.clone(),
+        );
+        tokio::spawn(async move {
+            let mut receiver = receiver;
+            let tx = tx_cloned;
+            let _ = std::env::set_current_dir(get_data_dir());
+            loop {
+                match receiver.recv().await {
+                    Ok((id, action)) => {
+                        if id == agent_id {
+                            if let Some(batch) = action_to_arrow(
+                                &req_id,
+                                &senders,
+                                &dsv_senders,
+                                &controller,
+                                action,
+                            )
+                            .await
+                            .map_err(|err| FlightError::Tonic(Status::internal(err.to_string())))
+                            .transpose()
+                            {
+                                if let Err(err) = tx.send_async(batch).await {
+                                    tracing::info!(agent_id, "Task listener disconnected: {err:#}");
+                                    break;
+                                }
+                            }
+                        } else {
+                            if tx.is_disconnected() {
+                                tracing::info!(agent_id, "Task listener disconnected");
+                                break;
+                            }
+                        }
+                    }
+                    Err(err) => match err {
+                        tokio::sync::broadcast::error::RecvError::Closed => break,
+                        tokio::sync::broadcast::error::RecvError::Lagged(_) => continue,
+                    },
+                }
+            }
+        });
+        (tx, rx)
+    }
 }
 
 // impl FlightServiceImpl {
@@ -78,10 +367,6 @@ impl FlightService for FlightServiceImpl {
             Status::aborted("The server does not compatible to your agent, please upgrade to a newer version")
         })?.to_str().map_err(|err| Status::aborted(format!("Invalid agent version: {err}")))?;
         // dbg!(&meta, &extension);
-        {
-            // check agent version
-            let _ = client_version; // now we support all versions.
-        }
         tracing::info!("handshake with client {:?}", addr);
 
         let req = req.message().await?;
@@ -98,6 +383,47 @@ impl FlightService for FlightServiceImpl {
                 .await
                 .map_err(|err| Status::permission_denied(format!("Invalid token: {err:#}")))?
                 .ok_or_else(|| Status::permission_denied("Agent not found"))?;
+
+            {
+                // Agent version compatible check
+
+                let req = VersionReq::parse(">=1.3.0").unwrap();
+
+                let version = semver::Version::parse(client_version).map_err(|err| {
+                    Status::aborted(format!("Invalid agent version: {err:#}", err = err))
+                })?;
+
+                if !req.matches(&version) {
+                    self.notify_sender
+                        .send(AgentNotify::AgentDisconnected(agent.id))
+                        .map_err(|err| {
+                            Status::internal(format!("Scheduler is not ready: {err:#}", err = err))
+                        })?;
+
+                    let outdated = format!("Agent core version {version} is not compatible to server, please upgrade to a newer version");
+                    self.notify_sender
+                        .send(AgentNotify::AgentActivity(
+                            agent.id,
+                            Activity::new::<String>(
+                                agent.id,
+                                Utc::now(),
+                                LevelFilter::Error,
+                                &outdated,
+                                "outdated",
+                                Some(
+                                    json!({
+                                        "version": client_version.to_string(),
+                                    })
+                                    .to_string(),
+                                ),
+                            ),
+                        ))
+                        .map_err(|err| {
+                            Status::internal(format!("Scheduler is not ready: {err:#}", err = err))
+                        })?;
+                    return Err(Status::aborted(outdated));
+                }
+            }
             res.payload = serde_json::to_vec(&agent).unwrap().into();
             let handshake_stream = futures::stream::once(async { Ok(res) });
             return Ok(Response::new(Box::pin(handshake_stream)));
@@ -153,7 +479,12 @@ impl FlightService for FlightServiceImpl {
 
         // let message = req.try_next().await?;
 
-        let put_stream = PutStream::new(self.controller.clone(), task_id, req);
+        let put_stream = PutStream::new(
+            self.controller.clone(),
+            task_id,
+            req,
+            self.notify_sender.clone(),
+        );
 
         struct ResultStream(Streaming<FlightData>);
         unsafe impl Sync for ResultStream {}
@@ -177,6 +508,7 @@ impl FlightService for FlightServiceImpl {
     type DoExchangeStream =
         Pin<Box<dyn Stream<Item = Result<FlightData, Status>> + Send + 'static>>;
 
+    #[instrument(skip(self, req))]
     async fn do_exchange(
         &self,
         req: Request<Streaming<FlightData>>,
@@ -196,39 +528,37 @@ impl FlightService for FlightServiceImpl {
             .await
             .map_err(|err| Status::permission_denied(format!("Agent connection error: {err}")))?;
 
+        let agent_id = agent.id;
+
+        let (tx, rx) = self.subscribe_agent_action_flight(agent_id);
+
+        self.notify_sender
+            .send(AgentNotify::AgentConnected(agent_id))
+            .map_err(|err| Status::internal(format!("Scheduler is not ready: {err:#}")))?;
+
         // dbg!(&agent);
         // let agent: Agent = serde_json::from_str(r#"
         // {
         //     "id": 2, "dsn": "taos:///", "name": "agent1", "cluster_id":"", "user_id":"", "connectors": [], "created_at":"2022-02-02T00:00:00Z"
         // }"#).unwrap();
 
-        let (tx, rx) = flume::bounded::<Result<RecordBatch, FlightError>>(100);
+        // let (tx, rx) = flume::bounded::<Result<RecordBatch, FlightError>>(100);
 
         // let sender = tx.clone();
         let controller_runner = controller.clone();
         let agent_id = agent.id;
-        let resp_tx = tx.clone();
+        // let tx = tx.clone();
+        let notify_sender = self.notify_sender.clone();
+        let datasets_sender = self.datasets_senders.clone();
+        let dsv_senders = self.dsv_senders.clone();
         tokio::spawn(async move {
-            // let agent = controller_runner.get_agent_by_id(agent_id).await?;
-            // let schema = Arc::new(Schema::new(Fields::from(vec![
-            //     Field::new(
-            //         "ts",
-            //         arrow::datatypes::DataType::Timestamp(
-            //             arrow::datatypes::TimeUnit::Millisecond,
-            //             None,
-            //         ),
-            //         false,
-            //     ),
-            //     Field::new("action", arrow::datatypes::DataType::Utf8, false),
-            //     Field::new("context", arrow::datatypes::DataType::Utf8, false),
-            // ])));
             let span = tracing::trace_span!("agent_rpc", agent = agent_id);
             let _enter = span.enter();
 
             let encoder = FlightDataDecoder::new(req.map_err(FlightError::Tonic));
             let last_heart_ms = AtomicU64::new(0);
             let result = encoder
-                .try_for_each_concurrent(1, |data| async {
+                .try_for_each_concurrent(20, |data| async {
                     let payload = data.payload;
                     match payload {
                         arrow_flight::decode::DecodedPayload::None => (),
@@ -252,6 +582,11 @@ impl FlightService for FlightServiceImpl {
                                 .as_any()
                                 .downcast_ref::<StringArray>()
                                 .unwrap();
+                            let req_id = res
+                                .column(3)
+                                .as_any()
+                                .downcast_ref::<UInt64Array>()
+                                .unwrap();
 
                             const ORDER: Ordering = Ordering::Relaxed;
                             let last = last_heart_ms.load(ORDER);
@@ -261,11 +596,11 @@ impl FlightService for FlightServiceImpl {
                                     now.timestamp_millis() as u64 - last,
                                 ) > std::time::Duration::from_secs(120)
                                 {
-                                    tracing::error!(agent = agent_id, "Agent {agent_id} is no ok",)
+                                    // tracing::error!(agent = agent_id, "Agent {agent_id} is no ok",)
                                 }
                             }
                             for _ in 0..rows {
-                                let (ts, action, context) = (
+                                let (ts, action, context, _req_id) = (
                                     ts.value_as_datetime_with_tz(
                                         0,
                                         ts.timezone().unwrap_or("UTC").parse().unwrap(),
@@ -273,35 +608,60 @@ impl FlightService for FlightServiceImpl {
                                     .unwrap(),
                                     action.value(0),
                                     context.value(0),
+                                    req_id.value(0),
                                 );
-
-                                // info!(
-                                //     action,
-                                //     agent = agent_id,
-                                //     "At [{ts}] action `{action}` triggered"
-                                // );
                                 match action {
                                     "list" => {
-                                        let req: ListResponse =
+                                        let resp: ListResponse =
                                             serde_json::from_str(&context).unwrap();
 
-                                        if let Some((_, sender)) = controller_runner
-                                            .agent_tasks
-                                            .read()
-                                            .await
-                                            .get(&agent_id)
-                                            .unwrap()
-                                            .datasets
-                                            .remove(&req.req)
-                                        {
-                                            let _ = sender.send_async(req.res).await;
-                                        } else {
-                                            warn!(
-                                                agent = agent_id,
-                                                task = ?req.req,
-                                                "List data sets response not found"
-                                            );
-                                        }
+                                        let datasets_senders = datasets_sender.clone();
+                                        tokio::spawn(async move {
+                                            let req_id = resp.req_id;
+                                            if let Some(sender) =
+                                                datasets_senders.write().await.remove(&req_id)
+                                            {
+                                                if let Err(err) = sender.send_async(resp.res).await {
+                                                    warn!(
+                                                        agent = agent_id,
+                                                        req_id = req_id,
+                                                        "List data sets response send failed: {err:#}"
+                                                    );
+                                                }
+                                            } else {
+                                                warn!(
+                                                    agent = agent_id,
+                                                    req_id = req_id,
+                                                    "List data sets request id has no receiver"
+                                                );
+                                            }
+                                        });
+                                    }
+                                    "check" => {
+                                        let resp: CheckResponse =
+                                            serde_json::from_str(&context).unwrap();
+
+                                        let dsv_senders = dsv_senders.clone();
+                                        tokio::spawn(async move {
+                                            let req_id = resp.req_id;
+                                            if let Some(sender) =
+                                                dsv_senders.write().await.remove(&req_id)
+                                            {
+                                                if let Err(err) = sender.send_async(resp.res).await {
+                                                    warn!(
+                                                        agent = agent_id,
+                                                        req_id = req_id,
+                                                        "List data sets response send failed: {err:#}"
+                                                    );
+                                                }
+                                            } else {
+                                                warn!(
+                                                    agent = agent_id,
+                                                    req_id = req_id,
+                                                    "List data sets request id has no receiver"
+                                                );
+                                            }
+                                        });
                                     }
                                     "agent-activity" => {
                                         let activity: Activity = serde_json::from_str(&context)
@@ -312,11 +672,13 @@ impl FlightService for FlightServiceImpl {
                                             })
                                             .unwrap();
                                         info!(?activity, "agent activity");
-                                        let _ =
-                                            controller_runner.push_agent_activity(activity).await;
+                                        // let _ =
+                                        //     controller_runner.push_agent_activity(activity).await;
+                                        let _ = notify_sender
+                                            .send(AgentNotify::AgentActivity(agent_id, activity));
                                     }
                                     "task-activity" => {
-                                        let activity: Activity = serde_json::from_str(&context)
+                                        let activity: TaskActivity = serde_json::from_str(&context)
                                             .map_err(|err| {
                                                 anyhow::format_err!(
                                                     "Invalid activity `{context}`: {err:#}"
@@ -324,9 +686,11 @@ impl FlightService for FlightServiceImpl {
                                             })
                                             .unwrap();
                                         // dbg!(&activity);
-                                        let _ =
-                                            controller_runner.push_task_activity(&activity).await;
+                                        // let _ =
+                                        //     controller_runner.push_task_activity(&activity).await;
                                         info!(?activity, "task activity");
+                                        let _ = notify_sender
+                                            .send(AgentNotify::TaskActivity(agent_id, activity));
                                     }
                                     "heartbeat-ok" => {
                                         let resp: HeartbeatResponse =
@@ -345,6 +709,7 @@ impl FlightService for FlightServiceImpl {
                                         }
                                     }
                                     "heartbeat" => {
+                                        tracing::trace!("Received heartbeat");
                                         let req = ts.naive_utc().and_utc();
                                         last_heart_ms.store(req.timestamp_millis() as u64, ORDER);
                                         let resp = HeartbeatResponse {
@@ -365,14 +730,19 @@ impl FlightService for FlightServiceImpl {
                                             Arc::new(StringArray::from_iter_values([
                                                 "heartbeat-ok".to_string(),
                                             ]));
+                                        let req_id: ArrayRef =
+                                            Arc::new(UInt64Array::from_iter_values([
+                                                0u64,
+                                            ]));
                                         let item = RecordBatch::try_from_iter(vec![
                                             ("ts", val),
                                             ("action", action),
                                             ("context", context),
+                                            ("req_id", req_id),
                                         ])
                                         .map_err(FlightError::Arrow);
                                         // tracing::info!("Send heartbeat response");
-                                        let _ = resp_tx.send_async(item).await;
+                                        let _ = tx.send_async(item).await;
                                         // return std::task::Poll::Ready(Some(item));
                                     }
                                     action => {
@@ -395,266 +765,39 @@ impl FlightService for FlightServiceImpl {
                 agent_id,
                 Utc::now(),
                 LevelFilter::Warn,
-                "Disconnected",
-                "pending",
+                "Disconnected.",
+                "disconnected",
                 context,
             );
+            if let Err(err) = notify_sender.send(AgentNotify::AgentDisconnected(agent_id)) {
+                tracing::error!(agent = agent_id, "Agent disconnected: {err:#}");
+            }
             let _ = controller_runner.push_agent_activity(activity).await?;
-            tracing::info!(agent = agent_id, "Agent RPC stopped");
 
-            controller_runner
-                .agent_disconnect(agent_id)
-                .await
-                .map_err(|err| Status::internal(err.to_string()))?;
+            tracing::info!(agent = agent_id, "Agent RPC stopped");
             Ok::<_, anyhow::Error>(())
         });
-        let stream: Self::DoExchangeStream = Box::pin(IpcStream::new(rx));
-        let response = tonic::Response::from_parts(meta, stream, extension);
-        struct IpcStream {
-            // request: Streaming<FlightData>,
-            encoder: FlightDataEncoder,
-            marker: AtomicUsize,
-        }
-
-        unsafe impl Send for IpcStream {}
-        unsafe impl Sync for IpcStream {}
-        impl IpcStream {
-            fn new(receiver: flume::Receiver<Result<RecordBatch, FlightError>>) -> Self {
-                let schema = Arc::new(Schema::new(Fields::from(vec![
-                    Field::new(
-                        "ts",
-                        arrow::datatypes::DataType::Timestamp(
-                            arrow::datatypes::TimeUnit::Millisecond,
-                            None,
-                        ),
-                        false,
+        let stream: Self::DoExchangeStream = Box::pin({
+            let schema = Arc::new(Schema::new(Fields::from(vec![
+                Field::new(
+                    "ts",
+                    arrow::datatypes::DataType::Timestamp(
+                        arrow::datatypes::TimeUnit::Millisecond,
+                        None,
                     ),
-                    Field::new("action", arrow::datatypes::DataType::Utf8, false),
-                    Field::new("context", arrow::datatypes::DataType::Utf8, false),
-                ])));
+                    false,
+                ),
+                Field::new("action", arrow::datatypes::DataType::Utf8, false),
+                Field::new("context", arrow::datatypes::DataType::Utf8, false),
+                Field::new("req_id", arrow::datatypes::DataType::UInt64, false),
+            ])));
 
-                let encoder = FlightDataEncoderBuilder::new()
-                    .with_schema(schema)
-                    .build(receiver.into_stream());
-                Self {
-                    // request,
-                    encoder,
-                    marker: AtomicUsize::new(0),
-                }
-            }
-        }
-
-        impl futures::Stream for IpcStream {
-            type Item = Result<FlightData, Status>;
-            fn poll_next(
-                mut self: std::pin::Pin<&mut Self>,
-                cx: &mut std::task::Context<'_>,
-            ) -> std::task::Poll<Option<Self::Item>> {
-                let c = self
-                    .marker
-                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                tracing::trace!("polled: {c} {cx:?}");
-
-                if c % 2 == 0 {
-                    // todo: why this is require?
-                    cx.waker().wake_by_ref();
-                    return Poll::Pending;
-                }
-                let recv = self.encoder.poll_next_unpin(cx);
-                recv.map(|v| v.map(|res| res.map_err(|err| Status::unknown(format!("{err}")))))
-            }
-        }
-
-        async fn listen_tasks(
-            controller: TaskControllerRef,
-            agent: Agent,
-            tx: flume::Sender<Result<RecordBatch, FlightError>>,
-        ) -> anyhow::Result<()> {
-            controller.init_agent_worker(agent.id).await;
-            let mut receiver = {
-                let agent_tasks = controller.agent_tasks.read().await;
-                let listener = agent_tasks.get(&agent.id).unwrap();
-
-                // let current = { listener.current.lock().await.clone() };
-
-                for task in listener.current.iter() {
-                    let id = task.key();
-                    tracing::info!(task = id, "Start task {id}");
-                    if let Some(task) = controller.get(*task.key()).await? {
-                        let action: ArrayRef =
-                            Arc::new(StringArray::from_iter_values(["run".to_string()]));
-                        let context: ArrayRef =
-                            Arc::new(StringArray::from_iter_values([serde_json::to_string(
-                                &task,
-                            )
-                            .unwrap()]));
-                        let status = task.status();
-                        if matches!(
-                            status,
-                            super::controller::Status::Completed
-                                | super::controller::Status::Failed
-                                | super::controller::Status::Stopped
-                        ) {
-                            tracing::warn!("Trying to start task {id} but status now {status}");
-                            continue;
-                        }
-                        let ts: ArrayRef = Arc::new(TimestampMillisecondArray::from_iter_values([
-                            chrono::Utc::now().timestamp_millis(),
-                        ]));
-                        let batch = RecordBatch::try_from_iter(vec![
-                            ("ts", ts),
-                            ("action", action),
-                            ("context", context),
-                        ])
-                        .unwrap();
-
-                        if let Err(err) = tx.send_async(Ok(batch)).await {
-                            tracing::warn!("Task listener closed: {err:#}");
-                            break;
-                        }
-                    }
-                }
-                listener.receiver.resubscribe()
-            };
-
-            // /* begin test */
-            // let mut tick = tokio::time::interval(Duration::from_millis(500));
-            // loop {
-            //     tick.tick().await;
-            //     let ts: ArrayRef = Arc::new(TimestampMillisecondArray::from_iter_values([
-            //         chrono::Utc::now().timestamp_nanos(),
-            //     ]));
-            //     let action: ArrayRef = Arc::new(StringArray::from_iter_values(["run".to_string()]));
-            //     let context: ArrayRef =
-            //         Arc::new(StringArray::from_iter_values(["run".to_string()]));
-            //     let batch = RecordBatch::try_from_iter(vec![
-            //         ("ts", ts),
-            //         ("action", action),
-            //         ("context", context),
-            //     ])
-            //     .unwrap();
-
-            //     if let Err(err) = tx.send_async(Ok(batch)).await {
-            //         dbg!(&err);
-            //         tracing::warn!("Task listener closed");
-            //         break;
-            //     }
-            //     continue;
-            // } /* end test */
-            loop {
-                tracing::info!("Waiting for new task");
-                if let Ok(data) = receiver.recv().await {
-                    tracing::info!("{data:?}");
-
-                    let ts: ArrayRef = Arc::new(TimestampMillisecondArray::from_iter_values([
-                        chrono::Utc::now().timestamp_millis(),
-                    ]));
-
-                    match data {
-                        AgentAction::Run(id) => {
-                            let task = controller.get(id).await?;
-                            if let Some(mut task) = task {
-                                // handle dsn(from) params contains file(@)
-                                modify_task_dsn_params(&mut task.task).await?;
-                                let context: ArrayRef = Arc::new(StringArray::from_iter_values([
-                                    serde_json::to_string(&task).unwrap(),
-                                ]));
-                                let action: ArrayRef =
-                                    Arc::new(StringArray::from_iter_values(["run".to_string()]));
-                                let batch = RecordBatch::try_from_iter(vec![
-                                    ("ts", ts),
-                                    ("action", action),
-                                    ("context", context),
-                                ])
-                                .unwrap();
-
-                                if let Err(err) = tx.send_async(Ok(batch)).await {
-                                    tracing::warn!("Task listener closed: {err:#}");
-                                    break;
-                                }
-                            } else {
-                                // todo!()
-                            }
-                        }
-                        AgentAction::Stop(id) => {
-                            let task = controller.get(id).await?;
-                            if let Some(task) = task {
-                                let context: ArrayRef = Arc::new(StringArray::from_iter_values([
-                                    serde_json::to_string(&task).unwrap(),
-                                ]));
-                                let action: ArrayRef =
-                                    Arc::new(StringArray::from_iter_values(["stop".to_string()]));
-                                let batch = RecordBatch::try_from_iter(vec![
-                                    ("ts", ts),
-                                    ("action", action),
-                                    ("context", context),
-                                ])
-                                .unwrap();
-
-                                if let Err(err) = tx.send_async(Ok(batch)).await {
-                                    // dbg!(&err);
-                                    tracing::warn!("Task listener closed: {err:#}");
-                                    break;
-                                }
-                            } else {
-                                // todo!()
-                            }
-                        }
-                        AgentAction::Cancel(id) => {
-                            let task = controller.get(id).await?;
-                            if let Some(task) = task {
-                                let context: ArrayRef = Arc::new(StringArray::from_iter_values([
-                                    serde_json::to_string(&task).unwrap(),
-                                ]));
-                                let action: ArrayRef =
-                                    Arc::new(StringArray::from_iter_values(["cancel".to_string()]));
-                                let batch = RecordBatch::try_from_iter(vec![
-                                    ("ts", ts),
-                                    ("action", action),
-                                    ("context", context),
-                                ])
-                                .unwrap();
-
-                                if let Err(err) = tx.send_async(Ok(batch)).await {
-                                    tracing::warn!("Task listener closed: {err:#}");
-                                    break;
-                                }
-                            } else {
-                                // todo!()
-                            }
-                        }
-                        AgentAction::ListDataSets(dataset, _) => {
-                            let context: ArrayRef =
-                                Arc::new(StringArray::from_iter_values([serde_json::to_string(
-                                    &dataset,
-                                )
-                                .unwrap()]));
-                            let action: ArrayRef =
-                                Arc::new(StringArray::from_iter_values(["list".to_string()]));
-                            let batch = RecordBatch::try_from_iter(vec![
-                                ("ts", ts),
-                                ("action", action),
-                                ("context", context),
-                            ])
-                            .unwrap();
-
-                            if let Err(err) = tx.send_async(Ok(batch)).await {
-                                tracing::warn!("Task listener closed: {err:#}");
-                                break;
-                            }
-                        }
-                        _ => todo!(),
-                    }
-                } else {
-                    break;
-                }
-            }
-            Ok(())
-        }
-
-        tokio::spawn(listen_tasks(controller, agent, tx));
-        tokio::task::yield_now().await;
-
+            let encoder = FlightDataEncoderBuilder::new()
+                .with_schema(schema)
+                .build(rx.into_stream());
+            encoder.map_err(|err| Status::internal(err.to_string()))
+        });
+        let response = tonic::Response::from_parts(meta, stream, extension);
         Ok(response)
     }
 
@@ -666,17 +809,34 @@ impl FlightService for FlightServiceImpl {
         request: Request<Action>,
     ) -> Result<Response<Self::DoActionStream>, Status> {
         let (_meta, _part, action) = request.into_parts();
+        dbg!(_meta, _part, &action);
         match action.r#type.as_str() {
             "TaskStatus" => {
                 // task.
 
-                let status: TaskStatus = serde_json::from_slice(&action.body)
+                let status: TaskActivity = serde_json::from_slice(&action.body)
                     .map_err(|err| Status::invalid_argument(format!("{err}: {:?}", action.body)))?;
 
-                self.controller
-                    .push_task_status(&status)
+                tracing::info!(?status, "Received task status");
+                let task_id = status.id;
+                let task = self
+                    .controller
+                    .get(task_id)
                     .await
-                    .map_err(|err| Status::internal(err.to_string()))?;
+                    .map_err(|err| Status::internal(err.to_string()))?
+                    .ok_or_else(|| Status::not_found(format!("Task {task_id} not found")))?;
+
+                let agent_id = task.via.ok_or_else(|| {
+                    Status::internal(format!("Task {task_id} does not relate to any agent"))
+                })?;
+                self.notify_sender
+                    .send(AgentNotify::TaskActivity(agent_id, status))
+                    .map_err(|err| Status::internal(format!("Scheduler is not ready: {err:#}")))?;
+
+                // self.controller
+                //     .push_task_status(&status)
+                //     .await
+                //     .map_err(|err| Status::internal(err.to_string()))?;
                 Ok(Response::new(Box::pin(futures::stream::iter([]))))
             }
             s => Err(Status::unimplemented(format!("Unknown action: {}", s))),
@@ -717,7 +877,8 @@ async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
                     std::env::current_dir().unwrap().to_str().unwrap()
                 );
                 // let f = std::fs::File::open(&file[1..])?;
-                let file_data = std::fs::read(&file[1..])?;
+                let file_data = std::fs::read(&file[1..])
+                    .with_context(|| anyhow::format_err!("Failed to read file: {}", &file[1..]))?;
                 // let buf = std::io::BufReader::new(f);
                 // let file_data = buf.lines().map(|s| s.unwrap()).join("\n");
                 new_value.push_str(general_purpose::STANDARD.encode(file_data).as_str());
@@ -761,10 +922,17 @@ impl RpcConfig {
     pub(super) async fn serve_with_controller(
         self,
         controller: TaskControllerRef,
+        channel: AgentRpcChannel,
     ) -> Result<(), anyhow::Error> {
-        let max_frame_size = Some((1 << 24) - 1 as u32);
+        let max_frame_size: Option<u32> = Some((1 << 24) - 1 as u32);
+        let activity_receiver = channel.agent_activity_receiver;
         let service = FlightServiceImpl {
             controller: controller.clone(),
+            notify_sender: channel.agent_notify_sender,
+            activity_receiver: Arc::new(activity_receiver),
+            datasets_senders: Arc::new(RwLock::new(LinkedHashMap::new())),
+            dsv_senders: Arc::new(RwLock::new(LinkedHashMap::new())),
+            request_id: Arc::new(AtomicU64::new(0)),
         };
         let flight_service = FlightServiceServer::new(service);
         let flight_service = flight_service
@@ -835,6 +1003,8 @@ mod tests {
         IntoStreamingRequest,
     };
 
+    use crate::serve::tests::tracing_subscriber_init;
+
     // use super::FlightServiceImpl;
     // async fn client_with_uds(path: String) -> FlightServiceClient<Channel> {
     //     let connector = tower::service_fn(move |_| UnixStream::connect(path.clone()));
@@ -860,7 +1030,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn server_client() -> anyhow::Result<()> {
         std::env::set_var("RUST_LOG", "INFO");
-        pretty_env_logger::init();
+        tracing_subscriber_init()?;
         let file = NamedTempFile::new().unwrap();
         let path = file.into_temp_path().to_str().unwrap().to_string();
         let _ = std::fs::remove_file(path.clone());

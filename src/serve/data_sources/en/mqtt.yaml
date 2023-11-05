@@ -79,6 +79,7 @@ groups:
         display: Client id
         description: |-
           Client id used to connect to mqtt broker.
+        placeholder: client_id
         hint:
           type: str
 

@@ -3,10 +3,10 @@ use taos::Dsn;
 
 #[derive(Debug, serde::Serialize)]
 pub struct SourceConfig {
-    pub username: String,
-    pub password: String,
     pub host: String,
     pub port: u16,
+    pub username: String,
+    pub password: String,
     pub table: String,
     pub tags: Vec<String>,
     pub begin_date_time: DateTime<Utc>,
@@ -27,19 +27,19 @@ impl SourceConfig {
         };
 
         let config = SourceConfig {
-            username: dsn
-                .username
-                .clone()
-                .ok_or_else(|| anyhow::anyhow!("username is required, dsn: {:?}", &dsn))?,
-            password: dsn
-                .password
-                .clone()
-                .ok_or_else(|| anyhow::anyhow!("password is required, dsn: {:?}", &dsn))?,
             host: dsn.addresses[0]
                 .host
                 .clone()
-                .ok_or_else(|| anyhow::anyhow!("host is required, dsn: {:?}", &dsn))?,
+                .ok_or_else(|| anyhow::anyhow!("host is required"))?,
             port: dsn.addresses[0].port.clone().unwrap_or(1433),
+            username: dsn
+                .username
+                .clone()
+                .ok_or_else(|| anyhow::anyhow!("username is required"))?,
+            password: dsn
+                .password
+                .clone()
+                .ok_or_else(|| anyhow::anyhow!("password is required"))?,
             table: dsn
                 .params
                 .get("table")

@@ -10,12 +10,13 @@ strict: false
 protocol:
   display: Protocol
   description: The protocol of the InfluxDB connection, please choose according to the actual situation, otherwise the task cannot run normally.
+  placeholder: http
+  value: http
   choices:
     - name: http
       display: HTTP Protocol
     - name: https
       display: HTTPS Protocol
-  value: http
 options:
   host:
     display: IP address
@@ -93,6 +94,12 @@ authentication:
           placeholder: Please input your access token in the InfluxDB
           hint: str
           required: true
+        - name: addDbrp
+          display: Add DBRP
+          description: InfluxQL requires a database and retention policy (DBRP) combination in order to query data. In InfluxDB Cloud and some 2.x require manual addition of this mapping relationship. By turning on this switch, the connector can be automatically added during task execution.
+          hint:
+            type: bool
+          value: false
 groups:
   - name: task
     display: Task

@@ -99,8 +99,8 @@ public class PreLoading implements CommandLineRunner {
                     String url = args[1];
                     // 检查连通性
                     JSONObject result = getOpentsdbVersion(url);
-                    if (result.getBooleanValue("available")) {
-                        System.out.println(result.get("version"));
+                    if (result.getBooleanValue("valid")) {
+                        System.out.println(result.toJSONString());
                         System.exit(0);
                     } else {
                         System.exit(3);
@@ -189,10 +189,10 @@ public class PreLoading implements CommandLineRunner {
             if (StringUtils.isNotEmpty(this.taskConfig.getEndTime()) && !this.taskConfig.getEndTime().matches(DateUtils.PATTERN_YMDHMS_TZ)) {
                 throw new Exception("parameter endTime configuration error.");
             }
-            String breakpoint = tomlParseResult.getString("task.breakpoint", String::new);
+            String breakpoints = tomlParseResult.getString("task.breakpoints", String::new);
             // 存在断点信息则解析
-            if (StringUtils.isNotEmpty(breakpoint)) {
-                this.taskConfig.setBreakpoint(parseBreakpoint(breakpoint));
+            if (StringUtils.isNotEmpty(breakpoints)) {
+                this.taskConfig.setBreakpoint(parseBreakpoint(breakpoints));
             }
             // 如果设置了性能参数，则覆盖默认值
             if (tomlParseResult.getLong("performance.readWindow") != null) {
@@ -226,14 +226,14 @@ public class PreLoading implements CommandLineRunner {
     /**
      * 解析断点信息，格式为metric1:timestamp&metric2:timestamp&...
      *
-     * @param breakpoint
+     * @param breakpoints
      * @return
      */
-    private Map<String, Long> parseBreakpoint(String breakpoint) {
+    private Map<String, Long> parseBreakpoint(String breakpoints) {
         Map<String, Long> breakpointMap = new HashMap<>();
         try {
             // 按 & 分割
-            String[] metricInfoArr = breakpoint.split("&");
+            String[] metricInfoArr = breakpoints.split("&");
             // 遍历封装map
             for (String metricInfo : metricInfoArr) {
                 // 按 : 分割
@@ -244,7 +244,7 @@ public class PreLoading implements CommandLineRunner {
                 }
             }
         } catch (Exception e) {
-            logger.error("An exception occurred during the parsing of breakpoint, breakpoint={}", breakpoint, e);
+            logger.error("An exception occurred during the parsing of breakpoints, breakpoints={}", breakpoints, e);
         }
         return breakpointMap;
     }
@@ -299,11 +299,15 @@ public class PreLoading implements CommandLineRunner {
             // 获取结果并解析为JSONObject
             JSONObject object = JSONObject.parseObject(HttpUtils.sendGet(url, ""));
             // 获取版本并封装数据
-            result.put("available", true);
+            result.put("valid", true);
+            result.put("support", true);
             result.put("version", object.get("version"));
+            result.put("message", "Your data source is availabe, its version is " + object.get("version") + ", which is supported, you can proceed to transfer your data to TDengine.");
         } catch (Exception e) {
-            result.put("available", false);
+            result.put("valid", false);
+            result.put("support", false);
             result.put("version", "");
+            result.put("message", e.getMessage());
         }
         return result;
     }

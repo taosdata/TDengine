@@ -24,10 +24,8 @@ use tracing::{log::LevelFilter, Level};
 
 use taosx_core::{
     get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
-    set_env_plugins_home_dir, RespAction,
+    set_env_plugins_home_dir, Activity, RespAction,
 };
-
-use crate::runner::TaskStatus;
 
 const LOG_FILE: &str = "agent.log";
 
@@ -61,6 +59,7 @@ pub struct Args {
 
     log_keep_days: Option<i64>,
 }
+
 #[config]
 #[derive(Parser, Debug)]
 #[clap(
@@ -206,12 +205,13 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
         _ = ctrl_c => {
             tracing::info!("SIGINT triggered");
             for task in tasks.iter() {
-                let status = TaskStatus::new(
+                let status = Activity::new::<String>(
                     *task.key(),
                     Utc::now(),
-                    "failed".to_string(),
-                    Some("taosx-agent is closed by SIGINT".to_string()),
-                    Default::default()
+                    taosx_core::LevelFilter::Warn,
+                    "taosx-agent is suspended by SIGINT".to_string(),
+                    "suspended".to_string(),
+                    None,
                 );
                 tracing::info!("status: {:?}", status);
                 if let Err(err) = client3.push_status(&status).await {
@@ -229,13 +229,13 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
                 if let Err(err) = client.wait_tasks(sender, resp_tx.clone(), resp_rx.clone()).await {
                     let err_str = format!("{err:#}");
                     if err_str.contains("code: Aborted") {
-                        tracing::info!("Connection aborted, error: {err}");
+                        tracing::info!("Connection aborted, error: {err:?}");
                         ret = Err(err);
                         break;
                     } else {
-                        tracing::error!("Connection closed, error: {err}. Retry in 5 seconds");
+                        tracing::error!("Connection closed, error: {err:?}. Retry in 5 seconds");
                     }
-                    tracing::error!("Connection closed, error: {err}. Retry in 5 seconds");
+                    // tracing::error!("Connection closed, error: {err}. Retry in 5 seconds");
                 }
                 tokio::time::sleep(Duration::from_secs(5)).await;
             }
@@ -329,7 +329,7 @@ fn main() -> anyhow::Result<()> {
             .with_level(true)
             .with_thread_ids(true)
             .with_thread_names(true)
-            .with_span_events(FmtSpan::ACTIVE)
+            .with_span_events(FmtSpan::NONE)
             .with_file(true)
             .with_line_number(true)
             .with_ansi(false)

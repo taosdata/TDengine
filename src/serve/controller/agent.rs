@@ -1,7 +1,7 @@
 //! Agent - user should register agent in taosX service to connect a local service \
 //! to remote taosX/taosExplorer/TDengine.
 //!
-use std::{borrow::Cow, fmt::Display, str::FromStr};
+use std::{borrow::Cow, convert::Infallible, fmt::Display, str::FromStr};
 
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
@@ -15,6 +15,15 @@ use utoipa::{IntoParams, ToSchema};
 #[sqlx(rename_all = "snake_case")]
 pub enum AgentStatus {
     Created,
+    Connected,
+    Disconnected,
+    Outdated,
+    /// All belows states are **deprecated**.
+    /// Use connected, disconnected instead.
+    ///
+    /// Lease these here for activities compatibility.
+    Online,
+    Offline,
     Pending,
     Alive,
     Idle,
@@ -31,7 +40,7 @@ pub enum AgentStatus {
 pub enum AgentActivity {
     Create,
     Connect,
-    Offline,
+    Disconnected,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
@@ -87,6 +96,22 @@ pub struct AgentActivityItem {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Context(serde_json::Value);
 
+impl From<serde_json::Value> for Context {
+    fn from(value: serde_json::Value) -> Self {
+        Self(value)
+    }
+}
+impl From<&str> for Context {
+    fn from(value: &str) -> Self {
+        Self::from_str(value).unwrap()
+    }
+}
+impl From<String> for Context {
+    fn from(value: String) -> Self {
+        Self::from_str(&value).unwrap()
+    }
+}
+
 impl Display for Context {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.0 {
@@ -97,7 +122,7 @@ impl Display for Context {
 }
 
 impl FromStr for Context {
-    type Err = anyhow::Error;
+    type Err = Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Context(

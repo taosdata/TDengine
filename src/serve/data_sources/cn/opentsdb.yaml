@@ -10,12 +10,13 @@ strict: false
 protocol:
   display: 连接协议
   description: OpenTSDB 数据库的连接协议，请按实际情况选择，否则无法正常运行任务。
+  placeholder: http
+  value: http
   choices:
     - name: http
       display: HTTP 协议
     - name: https
       display: HTTPS 协议
-  value: http
 options:
   host:
     display: 服务器地址

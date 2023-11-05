@@ -7,6 +7,8 @@ use std::{
     task::{Context, Poll},
 };
 
+use anyhow::Context as _;
+use chrono::{DateTime, Utc};
 use flume::{Receiver, Sender};
 use futures::FutureExt;
 use itertools::Itertools;
@@ -23,6 +25,7 @@ use crate::{
         split_table_into_time_range_chunks, sync_single_table_partial, sync_super_table_schema,
         transform_sql_with_remap,
     },
+    utils::breakpoints,
     Action, LegacyMetrics, QueryOpts, TargetOpts, TimeRange, METRICS_LEGACY_CREATED_TABLES,
 };
 
@@ -54,6 +57,8 @@ pub struct Scheduler {
     sender: Sender<Todo>,
     receiver: Receiver<Todo>,
     handles: Vec<JoinHandle<anyhow::Result<()>>>,
+    #[allow(dead_code)]
+    task_id: Option<String>,
 }
 
 impl Debug for Scheduler {
@@ -82,6 +87,8 @@ async fn worker(
     actions: Vec<Action>,
     source_is_v3: bool,
     target_is_v3: bool,
+    task_id: Option<String>,
+    file_mutex: Arc<std::sync::Mutex<()>>,
 ) -> anyhow::Result<()> {
     const MAX_WS_RETRIES: usize = 5;
     let mut from = source.get().await?;
@@ -280,7 +287,47 @@ async fn worker(
                     }
                 }
             }
-            Todo::Data(stable, table, time_range, sender) => {
+            Todo::Data(stable, table, mut time_range, sender) => {
+                // get breakpoints use breakpoints_get
+                if let Some(task_id) = task_id.clone() {
+                    const MAX_RETRIES: usize = 5;
+                    let mut retries = MAX_RETRIES;
+                    loop {
+                        let _lock = file_mutex.lock().unwrap();
+                        match breakpoints::breakpoints_get(&task_id, &table).and_then(|bp| {
+                            bp.map(|bp| bp.parse::<DateTime<Utc>>().context("Parse datetime error"))
+                                .transpose()
+                        }) {
+                            Ok(Some(breakpoint)) => {
+                                time_range.start = Some(breakpoint);
+                                tracing::debug!("load breakpoint success set time_range: {time_range} table: {table}");
+                                break;
+                            }
+                            Ok(None) => {
+                                tracing::debug!("load breakpoint no breakpoint, table: {table}");
+                                break;
+                            }
+                            Err(err) => {
+                                tracing::debug!(
+                                    "load breakpoint failed, err: {err} table: {table}, retrying ... {retries} times left"
+                                );
+
+                                if retries > 0 {
+                                    retries -= 1;
+                                    drop(_lock);
+                                    std::thread::sleep(std::time::Duration::from_secs(1));
+                                    continue;
+                                } else {
+                                    tracing::debug!(
+                                        "load breakpoint failed finally, err: {err} table: {table}"
+                                    );
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
                 let query = QueryOpts {
                     time_range,
                     unit: query.unit,
@@ -303,10 +350,12 @@ async fn worker(
                 let chunks = split_table_into_time_range_chunks(&from, &table, &query).await;
                 match chunks {
                     Ok(chunks) => {
+                        let mut chunk_err: Option<String> = None;
                         // chunks
-                        for chunk in chunks {
+                        'chunks: for chunk in chunks {
                             let mut query = query.clone();
                             query.time_range = chunk;
+                            let table_inner = table.clone();
                             loop {
                                 match sync_single_table_partial(
                                     source.clone(),
@@ -325,6 +374,20 @@ async fn worker(
                                 .await
                                 {
                                     Ok(_) => {
+                                        // set breakpoint async
+                                        if let Some(task_id) = task_id.clone() {
+                                            if let Some(end) = chunk.end {
+                                                let breakpoint = end.to_string();
+                                                // dbg!(&breakpoint);
+                                                tokio::spawn(async move {
+                                                    let _ = breakpoints::breakpoints_set(
+                                                        &task_id,
+                                                        &table_inner,
+                                                        &breakpoint,
+                                                    );
+                                                });
+                                            }
+                                        }
                                         break;
                                     }
                                     Err(err) => {
@@ -375,16 +438,23 @@ async fn worker(
                                                 query.time_range,
                                                 format!("{err:?}").replace("\n", " ")
                                             );
+
+                                            chunk_err = Some(format!("{err:?}").to_string());
                                         }
 
-                                        break;
+                                        break 'chunks;
                                     }
                                 };
                             }
                         }
 
                         if let Some(sender) = sender {
-                            let _ = sender.send(Ok(()));
+                            if let Some(err) = chunk_err {
+                                let _ = sender
+                                    .send(Err(anyhow::format_err!("Syncing table failed: {err}",)));
+                            } else {
+                                let _ = sender.send(Ok(()));
+                            }
                         }
 
                         // err
@@ -464,9 +534,11 @@ impl Scheduler {
         metrics: Arc<LegacyMetrics>,
         source_is_v3: bool,
         target_is_v3: bool,
+        task_id: Option<String>,
     ) -> Self {
         let workers = std::cmp::max(1, workers);
         let (sender, receiver) = flume::bounded((workers * 4) as usize);
+        let file_mutex = Arc::new(std::sync::Mutex::new(()));
         let handles = (0..workers)
             .map(|i| {
                 tokio::spawn(
@@ -481,6 +553,8 @@ impl Scheduler {
                         actions.clone(),
                         source_is_v3,
                         target_is_v3,
+                        task_id.clone(),
+                        file_mutex.clone(),
                     )
                     .in_current_span(),
                 )
@@ -495,6 +569,7 @@ impl Scheduler {
             sender,
             receiver,
             handles,
+            task_id,
         }
     }
     pub async fn send(&self, todo: Todo) -> Result<(), flume::SendError<Todo>> {

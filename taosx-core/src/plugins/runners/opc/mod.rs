@@ -8,23 +8,26 @@ use std::{
     sync::Arc,
 };
 
+use anyhow::{bail, Context};
 use base64::{engine::general_purpose, Engine};
+use csv_lib::ReaderBuilder;
 use file_rotate::{
     compression::Compression,
     suffix::{AppendTimestamp, DateFrom, FileLimit},
     ContentLimit, FileRotate, TimeFrequency,
 };
-
-use anyhow::{bail, Context};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, Taos, TaosBuilder, Ty};
-use taosx_ipc::{prelude::IpcDataType, types::OptionSet};
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
-
+pub use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Span};
 
+use taosx_ipc::{prelude::IpcDataType, types::OptionSet};
+
+use crate::dsv::DataSourceValidation;
+use crate::runners::log_rotation;
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
     Transferred,
@@ -73,8 +76,6 @@ enum OpcError {
     ParseNumberError(&'static str, String, ParseIntError),
     #[error("Parse param error from {1} while parsing parameter {0}")]
     ParseError(&'static str, String),
-    #[error("plugin not found: {0}")]
-    ExeNotFound(String),
     #[error("{0} config error: {1}")]
     ConfigError(&'static str, String),
 }
@@ -150,8 +151,8 @@ enum AuthMethod {
 #[derive(Debug, serde::Serialize)]
 struct UaConnectConfig {
     endpoint: String,
-    connect_timeout: Option<i64>,
-    request_timeout: Option<i64>,
+    connect_timeout: i64,
+    request_timeout: i64,
     security_policy: String,
     security_mode: String,
     certificate: Option<String>,
@@ -347,8 +348,8 @@ impl OPCConfig {
                     dsn.subject.as_ref().unwrap_or(&"".to_string())
                 );
 
-                let connect_timeout = parse_int_at!("connect_timeout");
-                let request_timeout = parse_int_at!("request_timeout");
+                let connect_timeout = parse_int_at!("connect_timeout").unwrap_or(10);
+                let request_timeout = parse_int_at!("request_timeout").unwrap_or(10);
                 let security_policy = dsn.remove("security_policy").unwrap_or("None".to_string());
                 let security_mode = dsn.remove("security_mode").unwrap_or("None".to_string());
 
@@ -420,7 +421,7 @@ impl OPCConfig {
                     // warn!("select_all_points is not implemented");
                     Vec::new()
                 } else {
-                    get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
+                    get_string_vec_from_param_or_file_for_opc(&mut dsn, "ua.nodes")
                         .map_err(|s| OpcError::FileParseFound(s))?
                 };
                 let mut ua_node_config_vec = Vec::new();
@@ -510,7 +511,7 @@ impl OPCConfig {
                     }
                     res.1
                 } else {
-                    get_string_vec_from_param_or_file(&mut dsn, "da.tags")
+                    get_string_vec_from_param_or_file_for_opc(&mut dsn, "da.tags")
                         .map_err(|s| OpcError::FileParseFound(s))?
                 };
 
@@ -643,7 +644,6 @@ pub fn parse_bool_param_from_dsn(dsn: &mut Dsn, key: &str) -> anyhow::Result<Opt
 
 const CSV_CONFIG_COLUMNS: [&str; 2] = ["point_id", "tbname"];
 
-pub use tokio_stream::StreamExt;
 /// return opctableconfig, node_config, tables_to_drop
 pub async fn generate_opcconfig_from_csv(
     ty: &str,
@@ -783,7 +783,10 @@ pub async fn generate_opcconfig_from_csv(
                         }
                     }
                     let column_type = if let Some(ty) = record_map.get("type") {
-                        Some(IpcDataType::from_str(ty).map_err(|err| anyhow::Error::msg(err))?)
+                        Some(
+                            IpcDataType::from_str(ty)
+                                .map_err(|err| anyhow::Error::msg(err.clone()))?,
+                        )
                     } else {
                         None
                     };
@@ -928,7 +931,11 @@ async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
             let point_id = point.id.clone();
             let tbname =
                 generate_tbname_from_pattern(&dsn.driver, &child_table_expression, &point_id);
-            format!("{}::{}", point_id, tbname)
+            // 对于 OPCUA 来说，ns=3;s=Special_\"!§$%&/()=?`´\\+~*'#_-:.;,<>|@^°€µ{[]} 是一个有效的点位 ID 和名称
+            // 此时需要借助 CSV 的 delimiter 使用 , 进行分隔
+            // 前提是点位需要使用双引号引起来
+            // 又引出的问题的是如果点位名称已经包含了双引号该如何处理 -》继续加双引号
+            format!("\"{}::{}\"", point_id.replace("\"", "\"\""), tbname)
         })
         .join(",");
     if dsn.driver.as_str() == "opcua" {
@@ -1049,13 +1056,18 @@ fn check_duplicated(
     Ok(())
 }
 
-pub(super) fn get_string_vec_from_param_or_file(
+pub(super) fn get_string_vec_from_param_or_file_for_opc(
     dsn: &mut Dsn,
     key: &str,
 ) -> Result<Vec<String>, String> {
     if let Some(nodes) = dsn.remove(key) {
-        let (files, mut node_config): (Vec<_>, Vec<_>) = nodes
-            .split(",")
+        let mut rdr = ReaderBuilder::new()
+            .delimiter(b',')
+            .from_reader(nodes.as_bytes());
+        let header = rdr.headers().map_err(|err| err.to_string())?;
+        let (files, mut node_config): (Vec<_>, Vec<_>) = header
+            .into_iter()
+            // .split(",")
             .map(|s| s.trim())
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string())
@@ -1126,8 +1138,12 @@ const EXE: &'static str = {
     }
 };
 
-fn exe_path() -> PathBuf {
-    super::get_plugin_dir("opc").join(EXE)
+fn exe_path() -> anyhow::Result<PathBuf> {
+    let path = super::get_plugin_dir("opc").join(EXE);
+    if !path.exists() {
+        return Err(anyhow::anyhow!("opc plugin not found at: {:?}", path));
+    }
+    Ok(path)
 }
 
 const LOG_FILE: &str = "opc.log";
@@ -1136,8 +1152,8 @@ fn log_path() -> PathBuf {
     super::get_log_dir("opc")
 }
 
-pub fn info() -> Result<(&'static str, PathBuf, String), std::io::Error> {
-    let path = exe_path();
+pub fn info() -> anyhow::Result<(&'static str, PathBuf, String)> {
+    let path = exe_path()?;
     let output = std::process::Command::new(&path).arg("version").output()?;
     Ok((
         "opc",
@@ -1157,23 +1173,14 @@ pub async fn opc_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
-    println!("# loading plugin: OPC");
-
-    let exe_exists = std::path::Path::new(&exe_path()).exists();
-    if !exe_exists {
-        tracing::error!("plugin not found {}", exe_path().to_str().unwrap());
-        Err(OpcError::ExeNotFound(format!(
-            "{}",
-            exe_path().to_str().unwrap()
-        )))?;
-    }
-
     if to.subject.is_none() {
         Err(OpcError::DatabaseIsRequired(to.clone()))?;
     }
     let ipc_port = port_pool
         .get()
+        .await
         .ok_or_else(|| anyhow::format_err!("No available port for OPC connection"))?;
     let builder: TaosBuilder = TaosBuilder::from_dsn(&to)?;
     let taos = builder.build().await?;
@@ -1214,11 +1221,13 @@ pub async fn opc_to_taos(
         with_agent,
         transferred,
         span,
+        None,
+        notify,
     )
     .await?;
 
     let port_pool = port_pool.clone();
-    let mut command = tokio::process::Command::new(exe_path());
+    let mut command = tokio::process::Command::new(exe_path()?);
 
     let mut log_path = log_path();
     fs::create_dir_all(&log_path)?;
@@ -1231,18 +1240,7 @@ pub async fn opc_to_taos(
 
     let log_keep_days = get_log_keep_days();
 
-    let mut log_rotation = FileRotate::new(
-        &log_path,
-        AppendTimestamp::with_format(
-            "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::days(log_keep_days)),
-            DateFrom::DateYesterday,
-        ),
-        ContentLimit::Time(TimeFrequency::Daily),
-        Compression::None,
-        #[cfg(unix)]
-        None,
-    );
+    let mut log_rotation = log_rotation(&log_path, log_keep_days);
 
     let child = command
         .arg("collect")
@@ -1261,7 +1259,7 @@ pub async fn opc_to_taos(
         let mut line = String::new();
         loop {
             // Read a line from stderr
-            let bytes_read = reader.read_line(&mut line).await.unwrap();
+            let bytes_read = reader.read_line(&mut line).await?;
             if bytes_read == 0 {
                 break; // End of stream, exit the loop
             }
@@ -1272,7 +1270,7 @@ pub async fn opc_to_taos(
                 let _ = guard.push_overwrite(line.clone());
             }
             // Write the line to log_rotation
-            write!(log_rotation, "{}", line).unwrap();
+            write!(log_rotation, "{}", line)?;
             line.clear();
         }
         Ok::<(), std::io::Error>(())
@@ -1282,9 +1280,14 @@ pub async fn opc_to_taos(
         macro_rules! safe_exit {
             () => {
                 let _ = child.kill().await;
-                let _ = ipc_handler.close().await;
-                temp_path.close().unwrap();
-                port_pool.put(ipc_port);
+                tokio::spawn(async move {
+                    tracing::info!("Wait for IPC handlers finished");
+                    let _ = ipc_handler.close().await;
+                    tracing::info!("All IPC handlers have been finished");
+                });
+                let _ = temp_path.close();
+                tracing::info!("Release IPC port");
+                port_pool.put(ipc_port).await;
             };
         }
         tokio::select! {
@@ -1296,6 +1299,9 @@ pub async fn opc_to_taos(
                     use ringbuf::Rb;
                     let error = error_buf.lock().await.iter().join("");
                     anyhow::bail!("OPC exit with {}\n{error}", status);
+                } else {
+                    safe_exit!();
+                    anyhow::bail!("OPC process was killed by signal");
                 }
             },
             err = ipc_handler.recv_error() => {
@@ -1308,7 +1314,7 @@ pub async fn opc_to_taos(
             _ = cancel.cancelled() => {
                 tracing::info!("opc task cancelled");
             },
-        };
+        }
         tracing::info!("OPC to taos task done");
         safe_exit!();
         Ok(())
@@ -1317,25 +1323,27 @@ pub async fn opc_to_taos(
     Ok(())
 }
 
+/*
 /// check field type
 /// return true if matched
 /// if type equals return true else false
 /// if type is binary|varchar|nchar check whether type configed contains those characters
-// fn check_field_type(field_type_config: &String, field_type: String) -> bool {
-//     let field_type_config = field_type_config.to_ascii_lowercase();
-//     if field_type.contains("binary")
-//         || field_type.contains("varchar")
-//         || field_type.contains("nchar")
-//     {
-//         field_type_config.contains("binary")
-//             || field_type_config.contains("varchar")
-//             || field_type_config.contains("nchar")
-//     } else if field_type_config == field_type {
-//         true
-//     } else {
-//         false
-//     }
-// }
+fn check_field_type(field_type_config: &String, field_type: String) -> bool {
+    let field_type_config = field_type_config.to_ascii_lowercase();
+    if field_type.contains("binary")
+        || field_type.contains("varchar")
+        || field_type.contains("nchar")
+    {
+        field_type_config.contains("binary")
+            || field_type_config.contains("varchar")
+            || field_type_config.contains("nchar")
+    } else if field_type_config == field_type {
+        true
+    } else {
+        false
+    }
+}
+*/
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct OpcTableConfig {
@@ -1358,7 +1366,7 @@ pub(crate) struct PointConfig {
 pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     let from: Dsn = req.from.parse().unwrap();
     if req.categories.is_empty() {
-        anyhow::bail!("categories is empty");
+        return Err(anyhow::anyhow!("categories is empty"));
     }
 
     let mut config = OPCConfig::new(from.clone(), 0, OPCConfigMode::Points, None).await?;
@@ -1376,7 +1384,7 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 
     tracing::info!("Using opc config file {} \n{}", config_path.display(), toml);
 
-    let mut command = tokio::process::Command::new(exe_path());
+    let mut command = tokio::process::Command::new(exe_path()?);
     let output = command
         .arg("points")
         .arg(format!("--conf={}", &config_path.display()))
@@ -1403,7 +1411,8 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         None,
     );
 
-    write!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr)).unwrap();
+    write!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))
+        .context("writing logs error")?;
 
     tracing::info!("OPC exit with status {}", output.status);
     if !output.status.success() {
@@ -1485,109 +1494,220 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
     }
 }
 
-#[tokio::test]
-async fn test_opc_config_to_toml() -> anyhow::Result<()> {
-    let mut map = HashMap::new();
-    map.insert(
-        String::from("123"),
-        PointConfig {
-            code: "567".to_string(),
-            stable: None,
-            tag_values: None,
-            value_type: None,
-        },
-    );
-    let mut column_configs = Vec::new();
-    let column_config = ColumnConfig {
-        column_name: String::from("received_time"),
-        column_type: Some(Ty::Timestamp),
-        column_alias: Some("ts".to_string()),
-        is_primary_key: true,
-    };
-    column_configs.push(column_config);
-    let column_config = ColumnConfig {
-        column_name: String::from("original_time"),
-        column_type: Some(Ty::Timestamp),
-        column_alias: None,
-        is_primary_key: false,
-    };
-    column_configs.push(column_config);
-    let column_config = ColumnConfig {
-        column_name: String::from("value"),
-        column_type: Some(Ty::Timestamp),
-        column_alias: None,
-        is_primary_key: true,
-    };
-    column_configs.push(column_config);
-    let opc_table_config = TableConfig {
-        stable_prefix: Some("meters".to_string()),
-        column_configs,
-        tag_configs: None,
-    };
-    let config = OPCConfig {
-        opc_type: OpcType::OPCUA,
-        debug: true,
-        points: Some(PointsConfig {
-            limit: 32,
-            regex: Some(String::from("123")),
-        }),
-        // use_received_time: true,
-        connect: ConnectConfig {
-            ua: Some(UaConnectConfig {
-                endpoint: String::from("endpoint.123"),
-                connect_timeout: Some(10),
-                request_timeout: Some(20),
-                security_policy: String::from("None"),
-                security_mode: String::from("None"),
-                certificate: None,
-                private_key: None,
-                auth_method: AuthMethod::Anonymous,
-                username: None,
-                password: None,
-            }),
-            da: Some(DaConnectConfig {
-                server: String::from("server.server"),
-                nodes: vec![String::from("localhost")],
-            }),
-        },
-        collect: CollectConfig {
-            interval: Some(10),
-            limit: Some(10),
-            ua: Some(UaCollectConfig {
-                collect_mode: "observe"
-                    .to_string()
-                    .parse::<CollectMode>()
-                    .map_err(|err| OpcError::ParseError("collect_mode", err))?,
-                nodes: vec![UANodeConfig {
-                    id: String::from("1"),
-                    // value_type: String::from("DOUBLE"),
-                }],
-            }),
-            da: Some(DaCollectConfig {
-                tags: vec![DaNodeConfig {
-                    tag: String::from("123"),
-                    // value_type: String::from("VARCHAR"),
-                }],
-            }),
-            dump: Some(DumpConfig {
-                enable: true,
-                path: Some("/usr/loacl/taosx/".to_string()),
-                keep: Some(10 as usize),
-            }),
-        },
-        report: ReportConfig {
-            remote: String::from("remote.remote"),
-            concurrent: Some(10),
-            batch_size: None,
-            batch_timeout: Some(100),
-        },
-        param_mapping: map,
-        // table_info: HashMap::new(),
-        opc_table_config: Some(opc_table_config),
-    };
+pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+    #[cfg(not(windows))]
+    if dsn.driver == "opcda" {
+        return DataSourceValidation::invalid(
+            "opc".to_string(),
+            "opcda only support windows".to_string(),
+        );
+    }
+    let config = OPCConfig::new(dsn.clone(), 0, OPCConfigMode::Points, None).await;
+    match config {
+        Err(err) => DataSourceValidation::invalid(
+            "opc".to_string(),
+            format!(
+                "invalid opc dsn: {}, cause: {}",
+                dsn.to_string(),
+                err.to_string()
+            ),
+        ),
+        Ok(c) => {
+            let valid = validate_opc(c).await;
+            match valid {
+                Err(err) => DataSourceValidation::invalid(
+                    "opc".to_string(),
+                    format!(
+                        "failed to connect to dsn: {}, cause: {}",
+                        dsn.to_string(),
+                        err.to_string()
+                    ),
+                ),
+                Ok(v) => v,
+            }
+        }
+    }
+}
+
+async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation> {
     let toml = toml::to_string(&config)?;
-    assert_eq!(
-        r#"opc_type = "opcua"
+    let mut config_file = tempfile::NamedTempFile::new()?;
+    write!(config_file, "{}", &toml)?;
+
+    // startup the connector
+    let opc_exe_path = exe_path()?;
+    let mut command = tokio::process::Command::new(opc_exe_path.clone());
+    let output = command
+        .arg("check")
+        .arg("--conf")
+        .arg(config_file.path())
+        .stdout(std::process::Stdio::inherit())
+        // .stderr(std::process::Stdio::piped())
+        .output()
+        .await
+        .with_context(|| format!("failed to execute opc: {:?}", opc_exe_path.as_path()))?;
+
+    if output.status.success() {
+        let result: serde_json::Value =
+            serde_json::from_slice(&output.stdout).with_context(|| {
+                format!(
+                    "Deserialize opc validation result error: {}",
+                    String::from_utf8_lossy(&output.stdout)
+                )
+            })?;
+        Ok(DataSourceValidation {
+            valid: result["valid"].as_bool().unwrap_or(false),
+            support: result["support"].as_bool().unwrap_or(false),
+            data_source: "opc".to_string(),
+            version: result["version"].as_str().map(|s| s.to_string()),
+            message: result["message"].as_str().map(|s| s.to_string()),
+        })
+    } else {
+        Ok(DataSourceValidation::invalid(
+            "opc".to_string(),
+            format!(
+                "failed to execute opc: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+    use std::env;
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_opc_ua_valid() {
+        env::set_var("PLUGINS_HOME", "../plugins");
+
+        let dsn = Dsn::from_str("opcua://192.168.2.16:53530/OPCUA/SimulationServer").unwrap();
+        let dsv = is_valid(&dsn).await;
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("opc", dsv.data_source);
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_opc_da_valid() {
+        env::set_var("PLUGINS_HOME", "../plugins");
+
+        let dsn = Dsn::from_str("opcda://192.168.2.16").unwrap();
+        let dsv = is_valid(&dsn).await;
+        dbg!(dsv);
+        // assert_eq!(true, dsv.valid);
+        // assert_eq!(true, dsv.support);
+        // assert_eq!("opc", dsv.data_source);
+        // assert_eq!("2.4.0", dsv.version.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_opc_config_to_toml() -> anyhow::Result<()> {
+        let mut map = HashMap::new();
+        map.insert(
+            String::from("123"),
+            PointConfig {
+                code: "567".to_string(),
+                stable: None,
+                tag_values: None,
+                value_type: None,
+            },
+        );
+        let mut column_configs = Vec::new();
+        let column_config = ColumnConfig {
+            column_name: String::from("received_time"),
+            column_type: Some(Ty::Timestamp),
+            column_alias: Some("ts".to_string()),
+            is_primary_key: true,
+        };
+        column_configs.push(column_config);
+        let column_config = ColumnConfig {
+            column_name: String::from("original_time"),
+            column_type: Some(Ty::Timestamp),
+            column_alias: None,
+            is_primary_key: false,
+        };
+        column_configs.push(column_config);
+        let column_config = ColumnConfig {
+            column_name: String::from("value"),
+            column_type: Some(Ty::Timestamp),
+            column_alias: None,
+            is_primary_key: true,
+        };
+        column_configs.push(column_config);
+        let opc_table_config = TableConfig {
+            stable_prefix: Some("meters".to_string()),
+            column_configs,
+            tag_configs: None,
+        };
+        let config = OPCConfig {
+            opc_type: OpcType::OPCUA,
+            debug: true,
+            points: Some(PointsConfig {
+                limit: 32,
+                regex: Some(String::from("123")),
+            }),
+            // use_received_time: true,
+            connect: ConnectConfig {
+                ua: Some(UaConnectConfig {
+                    endpoint: String::from("endpoint.123"),
+                    connect_timeout: 10,
+                    request_timeout: 20,
+                    security_policy: String::from("None"),
+                    security_mode: String::from("None"),
+                    certificate: None,
+                    private_key: None,
+                    auth_method: AuthMethod::Anonymous,
+                    username: None,
+                    password: None,
+                }),
+                da: Some(DaConnectConfig {
+                    server: String::from("server.server"),
+                    nodes: vec![String::from("localhost")],
+                }),
+            },
+            collect: CollectConfig {
+                interval: Some(10),
+                limit: Some(10),
+                ua: Some(UaCollectConfig {
+                    collect_mode: "observe"
+                        .to_string()
+                        .parse::<CollectMode>()
+                        .map_err(|err| OpcError::ParseError("collect_mode", err))?,
+                    nodes: vec![UANodeConfig {
+                        id: String::from("1"),
+                        // value_type: String::from("DOUBLE"),
+                    }],
+                }),
+                da: Some(DaCollectConfig {
+                    tags: vec![DaNodeConfig {
+                        tag: String::from("123"),
+                        // value_type: String::from("VARCHAR"),
+                    }],
+                }),
+                dump: Some(DumpConfig {
+                    enable: true,
+                    path: Some("/usr/loacl/taosx/".to_string()),
+                    keep: Some(10 as usize),
+                }),
+            },
+            report: ReportConfig {
+                remote: String::from("remote.remote"),
+                concurrent: Some(10),
+                batch_size: None,
+                batch_timeout: Some(100),
+            },
+            param_mapping: map,
+            // table_info: HashMap::new(),
+            opc_table_config: Some(opc_table_config),
+        };
+        let toml = toml::to_string(&config)?;
+        assert_eq!(
+            r#"opc_type = "opcua"
 debug = true
 
 [connect.ua]
@@ -1629,82 +1749,82 @@ remote = "remote.remote"
 concurrent = 10
 batch_timeout = 100
 "#,
-        toml
-    );
-    Ok(())
-}
-#[tokio::test]
-async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> {
-    use taos::IntoDsn;
-    let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double".into_dsn()?;
-    let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
-        .map_err(|s| OpcError::FileParseFound(s))?;
-    assert_eq!(
-        vec_string,
-        vec![
-            String::from("ns=3;i=1004::ntb1::c0::double"),
-            String::from("ns=3;i=1008::ntb1::c1::double")
-        ]
-    );
-    let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double,@/Users/zmlgirl/Downloads/test_opc.csv".into_dsn()?;
-    let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
-        .map_err(|s| OpcError::FileParseFound(s))?;
-    assert_eq!(
-        vec_string,
-        vec![
-            String::from("ns=3;i=1004::ntb1::c0::double"),
-            String::from("ns=3;i=1008::ntb1::c1::double"),
-            String::from("ns=2;i=2::ntb2::c1::double"),
-            String::from("ns=2;i=3::ntb3::c2::int")
-        ]
-    );
-    Ok(())
-}
+            toml
+        );
+        Ok(())
+    }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn test_with_agent() -> anyhow::Result<()> {
-    std::env::set_var("RUST_LOG", "debug");
-    pretty_env_logger::init();
-    let opc = "opc+ua://192.168.0.133:53530/OPCUA/SimulationServer?\
+    #[tokio::test]
+    async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> {
+        use taos::IntoDsn;
+        let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double".into_dsn()?;
+        let vec_string = crate::runners::get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
+            .map_err(|s| OpcError::FileParseFound(s))?;
+        assert_eq!(
+            vec_string,
+            vec![
+                String::from("ns=3;i=1004::ntb1::c0::double"),
+                String::from("ns=3;i=1008::ntb1::c1::double"),
+            ]
+        );
+        let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double,@/Users/zmlgirl/Downloads/test_opc.csv".into_dsn()?;
+        let vec_string = crate::runners::get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
+            .map_err(|s| OpcError::FileParseFound(s))?;
+        assert_eq!(
+            vec_string,
+            vec![
+                String::from("ns=3;i=1004::ntb1::c0::double"),
+                String::from("ns=3;i=1008::ntb1::c1::double"),
+                String::from("ns=2;i=2::ntb2::c1::double"),
+                String::from("ns=2;i=3::ntb3::c2::int"),
+            ]
+        );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_with_agent() -> anyhow::Result<()> {
+        std::env::set_var("RUST_LOG", "debug");
+        pretty_env_logger::init();
+        let opc = "opc+ua://192.168.0.133:53530/OPCUA/SimulationServer?\
     ua.nodes=ns=10;i=1004::t1::c1::double&connect_timeout=5&request_timeout=5&\
     concurrent=1&batch_size=5&batch_timeout=5&debug=true";
-    let target = "taos:///opcua";
-    let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
-    opc_to_taos(
-        opc.parse().unwrap(),
-        vec![],
-        target.parse().unwrap(),
-        1,
-        &PortPool::default(),
-        CancellationToken::new(),
-        Some((2, "http://127.0.0.1:6051".into(), "".into())),
-        None,
-        span.clone(),
-    )
-    .await?;
-    Ok(())
-}
+        let target = "taos:///opcua";
+        let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
+        opc_to_taos(
+            opc.parse().unwrap(),
+            vec![],
+            target.parse().unwrap(),
+            1,
+            &PortPool::default(),
+            CancellationToken::new(),
+            Some((2, "http://127.0.0.1:6051".into(), "".into())),
+            None,
+            span.clone(),
+        )
+        .await?;
+        Ok(())
+    }
 
-//
-
-#[tokio::test(flavor = "multi_thread")]
-async fn test_with_agent_all_nodes() -> anyhow::Result<()> {
-    std::env::set_var("RUST_LOG", "debug");
-    tracing_subscriber::fmt::init();
-    let opc = "opcua://192.168.0.34:53530/OPCUA/SimulationServer?connect_timeout=1&request_timeout=1&interval=10&collect_mode=observe&enable=false&keep=10&concurrent=1&batch_size=1&batch_timeout=1&debug=false&select_all_points=true&table_primary_key=original_ts&child_table_expression=meter_{ns}_{id}&&select_all_points=true";
-    let target = "taos:///opc";
-    let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
-    opc_to_taos(
-        opc.parse().unwrap(),
-        vec![],
-        target.parse().unwrap(),
-        1,
-        &PortPool::default(),
-        CancellationToken::new(),
-        Some((2, "http://127.0.0.1:6051".into(), "".into())),
-        None,
-        span.clone(),
-    )
-    .await?;
-    Ok(())
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_with_agent_all_nodes() -> anyhow::Result<()> {
+        std::env::set_var("RUST_LOG", "debug");
+        // tracing_subscriber::fmt::init();
+        let opc = "opcua://192.168.0.34:53530/OPCUA/SimulationServer?connect_timeout=1&request_timeout=1&interval=10&collect_mode=observe&enable=false&keep=10&concurrent=1&batch_size=1&batch_timeout=1&debug=false&select_all_points=true&table_primary_key=original_ts&child_table_expression=meter_{ns}_{id}&&select_all_points=true";
+        let target = "taos:///opc";
+        let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
+        opc_to_taos(
+            opc.parse().unwrap(),
+            vec![],
+            target.parse().unwrap(),
+            1,
+            &PortPool::default(),
+            CancellationToken::new(),
+            Some((2, "http://127.0.0.1:6051".into(), "".into())),
+            None,
+            span.clone(),
+        )
+        .await?;
+        Ok(())
+    }
 }

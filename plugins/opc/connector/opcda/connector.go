@@ -30,3 +30,7 @@ func (d DaConnector) Collect(_ context.Context) (<-chan *common.NodeValue, error
 func (d DaConnector) GetAllPoints(_ context.Context) ([]common.Point, error) {
 	panic("implement me")
 }
+
+func CheckConnection(config common.Config) error {
+	return errors.New("opc da only support windows")
+}

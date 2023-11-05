@@ -18,6 +18,7 @@ use tokio::io::AsyncWriteExt;
 
 mod header;
 
+use crate::dsv::DataSourceValidation;
 use async_compression::{tokio::write::ZstdEncoder, Level};
 pub use header::*;
 use tokio::io::BufReader;
@@ -197,13 +198,74 @@ where
         }
     }
 }
+
+pub async fn is_taos_valid(dsn: &Dsn) -> DataSourceValidation {
+    let builder = TaosBuilder::from_dsn(dsn);
+    match builder {
+        Err(err) => DataSourceValidation::invalid(
+            "taos".to_string(),
+            format!(
+                "invalid dsn: {}, cause: {}",
+                dsn.to_string(),
+                err.to_string()
+            ),
+        ),
+        Ok(b) => {
+            let conn = b.build().await;
+            match conn {
+                Err(err) => DataSourceValidation::invalid(
+                    "taos".to_string(),
+                    format!(
+                        "failed to connect to dsn: {}, cause: {}",
+                        dsn.to_string(),
+                        err.to_string()
+                    ),
+                ),
+                Ok(c) => {
+                    let version = c.server_version().await;
+                    match version {
+                        Err(err) => DataSourceValidation::invalid(
+                            "taos".to_string(),
+                            format!(
+                                "failed to get server version from dsn: {}, cause: {}",
+                                dsn.to_string(),
+                                err.to_string()
+                            ),
+                        ),
+                        Ok(v) => DataSourceValidation {
+                            valid: true,
+                            support: true,
+                            data_source: "taos".to_string(),
+                            version: Some(v.to_string()),
+                            message: None,
+                        },
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
     use std::sync::{Arc, Mutex};
 
     use taos::AsyncTBuilder;
 
     use super::*;
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_is_taos_valid() {
+        // taos
+        let dsn = Dsn::from_str("taos+ws://root:taosdata@192.168.1.40:6041").unwrap();
+        let dsv = is_taos_valid(&dsn).await;
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("taos", dsv.data_source);
+        assert_eq!("2.6.0.27", dsv.version.unwrap());
+    }
 
     #[tokio::test]
     async fn write() -> anyhow::Result<()> {

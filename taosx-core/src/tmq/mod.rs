@@ -6,6 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use crate::dsv::DataSourceValidation;
 use anyhow::{bail, Context, Result};
 use chrono::Local;
 use serde::{Deserialize, Serialize};
@@ -137,6 +138,7 @@ pub(crate) enum StopAtError {
     #[error(transparent)]
     DateTimeParseError(#[from] chrono::ParseError),
 }
+
 impl StopAt {
     pub fn to_local_date_time(&self) -> chrono::DateTime<Local> {
         let mut now = Local::now();
@@ -227,6 +229,7 @@ impl Display for TmqMetrics {
         Ok(())
     }
 }
+
 /// Parse input dsn, returns subscription dsn and a list of topics.
 ///
 /// Steps:
@@ -259,6 +262,11 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
     }
 
     let builder = TaosBuilder::from_dsn(&from)?;
+    let version = builder.server_version().await?;
+    if version.starts_with("2.") {
+        bail!("tmq does not support TDengine 2.x");
+    }
+
     let source = builder.build().await?;
 
     let mut topics = database
@@ -465,10 +473,10 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
                     } else {
                         source
                             .exec(format!(
-                                "create topic {topic} with meta as stable `{database}`.`{table}`"
+                                "create topic `{topic}` with meta as stable `{database}`.`{table}`"
                             ))
                             .await
-                            .context(format!("create topic for stable {database}"))?;
+                            .context(format!("create topic for stable `{database}`.`{table}`"))?;
                         databases.push(database.to_string());
                         let vgroups = source
                             .query_one(format!(
@@ -602,10 +610,10 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Ve
 
                         source
                             .exec(format!(
-                                "create topic {topic} as select * from `{database}`.`{table}`"
+                                "create topic `{topic}` as select * from `{database}`.`{table}`"
                             ))
                             .await
-                            .context(format!("create topic for stable {database}"))?;
+                            .context(format!("create topic for query form {database}"))?;
 
                         let topic_table = TopicTable {
                             table,
@@ -767,4 +775,101 @@ pub(crate) fn group_id_hash(from: &Dsn, to: &Dsn) -> String {
     let mut group_id = format!("x{:x}", id);
     group_id.truncate(12);
     group_id
+}
+
+pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
+    let mut dsn = dsn.clone();
+    if dsn.subject.is_none() {
+        return DataSourceValidation::invalid(
+            "tmq".to_string(),
+            format!(
+                "invalid dsn: {}, cause: subject is required in tmq dsn",
+                dsn.to_string()
+            ),
+        );
+    }
+    if !dsn.params.contains_key("group.id") {
+        dsn.params
+            .insert("group.id".to_string(), "test_tmq_is_valid".to_string());
+    }
+
+    let validation = check_tmq_dsn(dsn.clone()).await;
+    match validation {
+        Err(err) => DataSourceValidation::invalid(
+            "tmq".to_string(),
+            format!(
+                "failed to check dsn: {}, cause: {}",
+                dsn.to_string(),
+                err.to_string()
+            ),
+        ),
+        Ok((_dsn, builder, _topics)) => {
+            let version = builder.server_version().await;
+            match version {
+                Err(err) => DataSourceValidation::invalid(
+                    "tmq".to_string(),
+                    format!("failed to get server version, cause: {}", err.to_string()),
+                ),
+                Ok(version) => DataSourceValidation {
+                    valid: true,
+                    support: true,
+                    data_source: "tmq".to_string(),
+                    version: Some(version.to_string()),
+                    message: None,
+                },
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use taos::Dsn;
+
+    #[tokio::test]
+    async fn test_invalid() {
+        // tmq
+        let dsn = Dsn::from_str("tmq+ws://192.168.1.92:6041").unwrap();
+        let dsv = is_tmq_valid(&dsn).await;
+        assert_eq!(false, dsv.valid);
+        assert_eq!(false, dsv.support);
+        assert_eq!("tmq", dsv.data_source);
+        assert_eq!(
+            "invalid dsn: tmq+ws://192.168.1.92:6041, cause: subject is required in tmq dsn",
+            dsv.message.unwrap()
+        );
+    }
+
+    #[ignore]
+    #[tokio::test]
+    async fn test_valid() {
+        // TDengine 3.X at 192.168.1.92
+        let dsn = Dsn::from_str("tmq+ws://192.168.1.92:6041/tmq_test?group.id=test_tmq_is_valid")
+            .unwrap();
+        let dsv = is_tmq_valid(&dsn).await;
+        assert_eq!(true, dsv.valid);
+        assert_eq!(true, dsv.support);
+        assert_eq!("tmq", dsv.data_source);
+        assert_eq!("3.1.1.3", dsv.version.unwrap());
+
+        // TDengine 2.X at 192.168.1.40
+        let dsn = Dsn::from_str("tmq+ws://192.168.1.40:6041/tmq_test?group.id=test_tmq_is_valid")
+            .unwrap();
+        let dsv = is_tmq_valid(&dsn).await;
+        assert_eq!(false, dsv.valid);
+        assert_eq!(false, dsv.support);
+        assert_eq!("tmq", dsv.data_source);
+        assert_eq!("failed to check dsn: tmq+ws://192.168.1.40:6041/tmq_test?group.id=test_tmq_is_valid, cause: tmq does not support TDengine 2.x", dsv.message.unwrap());
+
+        // TDengine 3.X non-exist topic
+        let dsn =
+            Dsn::from_str("tmq+ws://192.168.1.92:6041/non_exist_topic?group.id=test_tmq_is_valid")
+                .unwrap();
+        let dsv = is_tmq_valid(&dsn).await;
+        assert_eq!(false, dsv.valid);
+        assert_eq!(false, dsv.support);
+        assert_eq!("tmq", dsv.data_source);
+        assert_eq!("failed to check dsn: tmq+ws://192.168.1.92:6041/non_exist_topic?group.id=test_tmq_is_valid, cause: unknown topic name: non_exist_topic", dsv.message.unwrap());
+    }
 }

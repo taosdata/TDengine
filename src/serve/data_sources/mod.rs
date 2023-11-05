@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 use actix_files::NamedFile;
 use actix_web::{
@@ -10,18 +11,18 @@ use actix_web::{
 };
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-
-use taos::Code;
-use taosx_core::{list_datasets_from, DataSetsReq};
+use taos::{Code, IntoDsn};
+use tokio::time::timeout;
 use utoipa::*;
 
-mod definition;
 pub use definition::*;
+use taosx_core::dsv::DataSourceValidation;
+use taosx_core::{list_datasets_from, validate_dsn, DataSetsReq};
 
-use crate::serve::{
-    controller::TaskControllerRef,
-    task::{Failed},
-};
+use crate::serve::TaskController;
+use crate::serve::{controller::TaskControllerRef, task::Failed};
+
+mod definition;
 
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub(super) struct DataSourceInput {
@@ -104,6 +105,7 @@ pub enum Lang {
     En,
     Zh,
 }
+
 #[derive(Deserialize, Debug, ToSchema, IntoParams)]
 pub struct LangQuery {
     lang: Option<Lang>,
@@ -207,13 +209,77 @@ pub(super) async fn data_source_collection(
     } else {
         list_datasets_from(&data).await
     } {
-        Ok(data) => HttpResponse::Ok()
+        Ok(data) => Ok(HttpResponse::Ok()
             .content_type(ContentType::json())
-            .json(&data),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            .json(&data)),
+        Err(err) => Err(Failed {
             code: 0xFFFF.into(),
             message: format!("{:#}", err),
         }),
+    }
+}
+
+#[derive(Deserialize, Debug, ToSchema, IntoParams)]
+pub struct DsnValidationQuery {
+    #[param(allow_reserved)]
+    dsn: String,
+    via: Option<i64>,
+    timeout: Option<u64>,
+}
+
+/// check data source validation by dsn
+#[utoipa::path(
+    get,
+    path = "/ds/in/validate",
+    responses(
+        (status = 200, description = "data source is valid or not", body = DataSourceValidation),
+        (status = 500, description = "check data source failed", body = Failed),
+    ),
+    params(
+        ("dsn" = String, description = "dsn string"),
+        ("via" = String, description = "agent id"),
+        ("timeout" = Option<String>, description = "timeout seconds, use default 5s when not set")
+    ),
+)]
+#[get("/ds/in/validate")]
+pub(super) async fn data_source_is_valid(
+    controller: Data<TaskControllerRef>,
+    query: Query<DsnValidationQuery>,
+) -> impl Responder {
+    const DEFAULT_TIMEOUT: u64 = 20; // 20 seconds
+    let query = query.into_inner();
+    let timeout_sec = query.timeout.unwrap_or(DEFAULT_TIMEOUT);
+
+    let result = timeout(
+        Duration::from_secs(timeout_sec),
+        is_valid(controller, query),
+    )
+    .await;
+    match result {
+        Ok(dsv) => Ok(HttpResponse::Ok().json(dsv)),
+        Err(err) => Err(Failed {
+            code: Code::FAILED,
+            message: format!("check data source validation timeout, cause: {:#}", err),
+        }),
+    }
+}
+
+pub(crate) async fn is_valid(
+    controller: Data<TaskControllerRef>,
+    query: DsnValidationQuery,
+) -> DataSourceValidation {
+    let dsn = query.dsn.into_dsn();
+    match dsn {
+        Err(err) => {
+            DataSourceValidation::invalid("unknown".to_string(), format!("DSN error: {err:#}"))
+        }
+        Ok(d) => {
+            let via = query.via;
+            match via {
+                None => validate_dsn(d).await,
+                Some(agent) => controller.validate_dsn_via_agent(agent, d).await,
+            }
+        }
     }
 }
 
@@ -234,8 +300,8 @@ pub(super) async fn download_all_data_set_file(
 ) -> impl Responder {
     // match download_all_point_csv_file(controller, data).await {
     match download_all_point_csv_file(controller, params).await {
-        Ok(named_file) => named_file.into_response(&req),
-        Err(err) => HttpResponse::InternalServerError().json(Failed {
+        Ok(named_file) => Ok(named_file.into_response(&req)),
+        Err(err) => Err(Failed {
             code: 0xFFFF.into(),
             message: format!("{:#}", err),
         }),
@@ -273,14 +339,12 @@ async fn download_all_point_csv_file(
     Ok(NamedFile::open(config_file.path().to_path_buf())?)
 }
 
-use crate::serve::TaskController;
 pub(crate) async fn get_all_points(
     from: String,
     via: Option<i64>,
     categories: String,
     controller: &TaskController,
 ) -> anyhow::Result<String> {
-    use taos::IntoDsn;
     let from = from.into_dsn()?;
     let pattern;
     match from.driver.as_str() {

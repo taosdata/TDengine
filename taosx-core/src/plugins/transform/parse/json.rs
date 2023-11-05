@@ -342,7 +342,15 @@ impl Parse for Json {
                         .iter()
                         .map(|(_, v)| {
                             if let Some(v) = v.as_ref().and_then(getter) {
-                                v.as_f64().map(|f| f as f32)
+                                // v.as_f64().map(|f| f as f32) // This was the old code, not handling numbers in quotes
+                                v.as_f64() // let's try a better way, success here it is a number
+                                    .or_else(|| v.as_str().and_then(|s| s.parse().ok())) // but if not, let's treat as a string
+                                    .map(|f| f as f32) // then then finally convert to f32
+                                                       // The following are additional handlings to make the code even more robust.
+                                                       // Ref: https://users.rust-lang.org/t/deserialize-a-number-that-may-be-inside-a-string-serde-json/27318/2
+                                                       // .ok_or_else(|| D.Error::custom("not-a-float-number"))?
+                                                       // .try_into()
+                                                       // .map_err(|_| D::Error::custom("overflow"))?;
                             } else {
                                 None
                             }

@@ -49,11 +49,14 @@ pub async fn query_tags(client: &mut Client<Compat<TcpStream>>) -> anyhow::Resul
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::plugins::runners::historian::config::SourceConfig;
-    use crate::plugins::runners::historian::connect;
     use std::str::FromStr;
+
     use taos::Dsn;
+
+    use crate::plugins::runners::historian::config::SourceConfig;
+    use crate::runners::historian::connect_by_config;
+
+    use super::*;
 
     #[test]
     fn test_from_row() {}
@@ -63,7 +66,7 @@ mod tests {
     async fn test_query_tag_meta() {
         let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433").unwrap();
         let config = SourceConfig::from_dsn(&dsn).unwrap();
-        let mut client = connect(&config).await.unwrap();
+        let mut client = connect_by_config(&config).await.unwrap();
 
         let tag_meta = query_tags(&mut client).await.unwrap();
 

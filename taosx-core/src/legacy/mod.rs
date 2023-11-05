@@ -1532,6 +1532,9 @@ async fn sync_specified_tables_with_workers(
             Err(err) => {
                 tracing::error!("Syncing error: {err:#}",);
                 fails += 1;
+                if _target_opts.fails_to.is_none() {
+                    return Err(err);
+                }
             }
         }
 
@@ -1554,7 +1557,14 @@ async fn sync_specified_tables_with_workers(
             }
         }
     }
-    tracing::info!("Synchronizing {count} tables with {workers} workers finished");
+    if fails > 0 {
+        tracing::info!(
+            "Synchronizing {count} tables with {workers} workers finished, {fails} failed"
+        );
+    } else {
+        tracing::info!("Synchronizing {count} tables with {workers} workers finished");
+    }
+
     Ok(())
 }
 
@@ -2350,6 +2360,7 @@ pub async fn legacy_to_taos(
     mut to: Dsn,
     concurrency: usize,
     cancel: CancellationToken,
+    task_id: Option<String>,
 ) -> anyhow::Result<()> {
     tracing::info!("synchronization started in legacy mode");
 
@@ -2509,6 +2520,7 @@ pub async fn legacy_to_taos(
         metrics.clone(),
         source_is_v3,
         target_is_v3,
+        task_id,
     )
     // .instrument(tracing::info_span!("scheduler"))
     .await;
@@ -3032,7 +3044,7 @@ mod tests {
             limit: Limit::new((1, Some(1))),
             ..Default::default()
         };
-        legacy_to_taos(v3, vec![], v2, 1, Default::default()).await?;
+        legacy_to_taos(v3, vec![], v2, 1, CancellationToken::new(), None).await?;
         Ok(())
     }
 

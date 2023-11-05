@@ -14,8 +14,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1" }
 thiserror = "1.0.38"
 tracing = "0.1"
-zstd = "0.12.1"
+zstd = "0.13.0"
 
+anyhow = "1"
 arrow = { workspace = true }
 taos-query = { workspace = true }
 tonic = { workspace = true }
@@ -24,7 +25,6 @@ shadow-rs = { workspace = true }
 metrics = "0.21.0"
 [dev-dependencies]
 actix-web = "4"
-anyhow = "1"
 tokio = { version = "1", features = [
   "rt",
   "rt-multi-thread",

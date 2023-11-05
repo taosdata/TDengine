@@ -20,6 +20,7 @@ public class InfluxdbConfig {
     private String password;
     private String token;
     private String orgId;
+    private boolean addDbrp = false;
     private int maxTotal = 20;
     private int maxIdle = 10;
     private int minIdle = 5;

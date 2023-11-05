@@ -10,6 +10,7 @@ use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
+use crate::dsv::DataSourceValidation;
 use crate::plugins::runners::historian::arrow::ArrowDataAppender;
 use crate::plugins::runners::historian::config::SourceConfig;
 use crate::utils::port_pool::PortPool;
@@ -18,6 +19,46 @@ use crate::{build_ipc, Action, Parser, Transferred};
 mod arrow;
 mod config;
 mod tag;
+
+pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+    let config = SourceConfig::from_dsn(dsn);
+    match config {
+        Err(err) => DataSourceValidation {
+            valid: false,
+            support: false,
+            data_source: "historian".to_string(),
+            version: None,
+            message: Some(format!(
+                "invalid dsn: {}, cause: {}",
+                dsn.to_string(),
+                err.to_string()
+            )),
+        },
+        Ok(c) => {
+            let client = connect(&c.host, c.port, &c.username, &c.password).await;
+            match client {
+                Err(err) => DataSourceValidation {
+                    valid: false,
+                    support: false,
+                    data_source: "historian".to_string(),
+                    version: None,
+                    message: Some(format!(
+                        "failed to connect to dsn: {}, cause: {}",
+                        dsn,
+                        err.to_string()
+                    )),
+                },
+                Ok(_cli) => DataSourceValidation {
+                    valid: true,
+                    support: true,
+                    data_source: "historian".to_string(),
+                    version: None,
+                    message: None,
+                },
+            }
+        }
+    }
+}
 
 pub async fn historian_to_taos(
     from: Dsn,
@@ -30,9 +71,11 @@ pub async fn historian_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     let port = port_pool
         .get()
+        .await
         .ok_or_else(|| anyhow::format_err!("No available port for connection"))?;
     let socket = format!("127.0.0.1:{}", port);
 
@@ -46,6 +89,8 @@ pub async fn historian_to_taos(
         with_agent,
         transferred,
         span,
+        None,
+        notify,
     )
     .await?;
 
@@ -99,7 +144,7 @@ pub async fn historian_to_taos(
         tracing::info!("AVEVA™ Historian task Done");
         ipc.close().await?;
         // put ipc port back to port pool.
-        port_pool.put(port);
+        port_pool.put(port).await;
         // wait for completion
         tokio::time::sleep(Duration::from_millis(100)).await;
         Ok(())
@@ -108,17 +153,11 @@ pub async fn historian_to_taos(
     Ok(())
 }
 
-pub async fn is_valid(dsn: &Dsn) -> anyhow::Result<()> {
-    let config = SourceConfig::from_dsn(dsn)?;
-    connect(&config).await?;
-    Ok(())
-}
-
 async fn historian_worker(from: Dsn, port: u16) -> anyhow::Result<()> {
     // connect
     let config = SourceConfig::from_dsn(&from)?;
     tracing::info!("AVEVA™ Historian task configuration: {:?}", config);
-    let mut client = connect(&config).await?;
+    let mut client = connect_by_config(&config).await?;
 
     // filter tags
     let tag_names;
@@ -182,14 +221,28 @@ async fn historian_worker(from: Dsn, port: u16) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn connect(source_config: &SourceConfig) -> anyhow::Result<Client<Compat<TcpStream>>> {
-    let mut config = Config::new();
-    config.host(&source_config.host);
-    config.port(source_config.port);
-    config.authentication(AuthMethod::sql_server(
+async fn connect_by_config(
+    source_config: &SourceConfig,
+) -> anyhow::Result<Client<Compat<TcpStream>>> {
+    connect(
+        &source_config.host,
+        source_config.port,
         &source_config.username,
         &source_config.password,
-    ));
+    )
+    .await
+}
+
+async fn connect(
+    host: &String,
+    port: u16,
+    username: &String,
+    password: &String,
+) -> anyhow::Result<Client<Compat<TcpStream>>> {
+    let mut config = Config::new();
+    config.host(host);
+    config.port(port);
+    config.authentication(AuthMethod::sql_server(username, password));
     config.trust_cert();
 
     let tcp = TcpStream::connect(config.get_addr()).await?;
@@ -212,12 +265,59 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    async fn test_invalid() {
+        let dsn = Dsn::from_str("historian://localhost").unwrap();
+        let res = is_valid(&dsn).await;
+        assert_eq!(false, res.valid);
+        assert_eq!(false, res.support);
+        assert_eq!("historian", res.data_source);
+        assert_eq!(
+            "invalid dsn: historian://localhost, cause: username is required",
+            res.message.unwrap()
+        );
+
+        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@127.0.0.1").unwrap();
+        let res = is_valid(&dsn).await;
+        assert_eq!(false, res.valid);
+        assert_eq!(false, res.support);
+        assert_eq!("historian", res.data_source);
+        assert_eq!("failed to connect to dsn: historian://aaAdmin:aaAdmin@127.0.0.1, cause: Connection refused (os error 61)", res.message.unwrap());
+    }
+
     #[ignore]
+    #[tokio::test]
+    async fn test_valid() {
+        let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433/").unwrap();
+        let res = is_valid(&dsn).await;
+        assert_eq!(true, res.valid);
+        assert_eq!(true, res.support);
+        assert_eq!("historian", res.data_source);
+        assert_eq!(None, res.version);
+    }
+
+    #[tokio::test]
     async fn test_connect() {
+        let client = connect(
+            &"127.0.0.1".to_string(),
+            1433,
+            &"aaAdmin".to_string(),
+            &"aaAdmin".to_string(),
+        )
+        .await;
+        assert!(client.is_err());
+        assert_eq!(
+            "Connection refused (os error 61)",
+            client.unwrap_err().to_string()
+        );
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_connect_by_config() {
         let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433").unwrap();
         let config = SourceConfig::from_dsn(&dsn).unwrap();
 
-        let client = connect(&config).await;
+        let client = connect_by_config(&config).await;
 
         assert!(client.is_ok());
     }
@@ -239,6 +339,7 @@ mod tests {
             None,
             None,
             Span::current(),
+            crate::TaskNotifySender::default(),
         )
         .await;
 
@@ -264,8 +365,9 @@ mod tests {
         let mut rng = rand::thread_rng();
 
         for i in 0..total_records {
-            let naive = NaiveDateTime::from_timestamp_opt(ts + (i * gap_sec), 0);
-            let dt: DateTime<Utc> = DateTime::from_utc(naive.unwrap(), Utc);
+            let dt: DateTime<Utc> = NaiveDateTime::from_timestamp_opt(ts + (i * gap_sec), 0)
+                .unwrap()
+                .and_utc();
             let date_time = dt.format("%Y/%m/%d|%H:%M:%S").to_string();
             let date_value = rng.gen_range(0.0..100.0);
             file.write_all(

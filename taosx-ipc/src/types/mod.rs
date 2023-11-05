@@ -3,9 +3,11 @@ use std::{
     str::FromStr,
 };
 
+use crate::types::dsv::DataSourceValidation;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-// use taos::Code;
+
+pub mod dsv;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct DataSetsReq {
@@ -46,8 +48,16 @@ pub struct OptionSet {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ListResponse {
+    pub req_id: u64,
     pub req: DataSetsReq,
     pub res: Response<Vec<DataSet>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CheckResponse {
+    pub req_id: u64,
+    pub req: String,
+    pub res: DataSourceValidation,
 }
 
 /// Task endpoint error responses
@@ -146,7 +156,9 @@ pub enum RespAction {
     Heartbeat,
     HeartbeatOk(HeartbeatResponse),
     TaskError(i64),
+    /// ReqId, Resp
     ListOk(ListResponse),
+    CheckOk(CheckResponse),
     AgentActivity(Activity),
     TaskActivity(Activity),
 }

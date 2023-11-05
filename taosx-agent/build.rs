@@ -75,4 +75,5 @@ fn main() {
     }
     dotenv::dotenv().ok();
     shadow_build();
+    println!("cargo:rerun-if-changed=../.git");
 }

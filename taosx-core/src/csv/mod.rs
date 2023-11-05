@@ -19,6 +19,7 @@ use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 
 use taosx_ipc::prelude::{AckReaderBuilder, ArrowDataType};
+use taosx_ipc::types::dsv::DataSourceValidation;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, info, instrument, warn, Span};
 
@@ -91,9 +92,11 @@ pub async fn csv_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    notify: crate::TaskNotifySender,
 ) -> Result<()> {
     let port = port_pool
         .get()
+        .await
         .ok_or_else(|| anyhow::format_err!("No available port for CSV connection"))?;
     let socket = format!("127.0.0.1:{}", port);
     let mut ipc_handler = build_ipc(
@@ -106,6 +109,8 @@ pub async fn csv_to_taos(
         with_agent,
         transferred,
         span,
+        None,
+        notify,
     )
     .await?;
 
@@ -141,7 +146,7 @@ pub async fn csv_to_taos(
                             Ok(res) => {
                                 tracing::error!("IPC Error: {res}");
                                 tokio::time::sleep(Duration::from_millis(100)).await;
-                                port_pool.put(port);
+                                port_pool.put(port).await;
                                 anyhow::bail!("CSV exit with IPC error: {res}");
                             }
                             Err(err) => {
@@ -151,7 +156,7 @@ pub async fn csv_to_taos(
                     }
                     Err(err) => {
                         let _ = ipc_handler.close().await;
-                        port_pool.put(port);
+                        port_pool.put(port).await;
                         anyhow::bail!("CSV exit with error: {:#}", err);
                     }
                 }
@@ -161,7 +166,7 @@ pub async fn csv_to_taos(
                 abort_handle.abort();
                 if let Some(err) = err {
                     let _ = ipc_handler.close().await;
-                    port_pool.put(port);
+                    port_pool.put(port).await;
                     anyhow::bail!("CSV writer error: {err:#}");
                 }
             },
@@ -177,7 +182,7 @@ pub async fn csv_to_taos(
         // wait for handler closed
         let _ = ipc_handler.close().await;
         // put ipc port back to port pool.
-        port_pool.put(port);
+        port_pool.put(port).await;
         Ok(())
     })
     .await??;
@@ -669,4 +674,18 @@ async fn test_csv_source() -> anyhow::Result<()> {
     let u: usize = taos.query_one("select count(*) from stb1").await?.unwrap();
     assert_eq!(u, 200);
     Ok(())
+}
+
+pub async fn is_csv_valid(from: &Dsn) -> DataSourceValidation {
+    if let Err(err) = CsvSource::new(&mut from.clone(), 0) {
+        return DataSourceValidation::invalid("csv".to_string(), err.to_string());
+    } else {
+        return DataSourceValidation {
+            valid: true,
+            support: true,
+            data_source: "csv".to_string(),
+            version: None,
+            message: None,
+        };
+    }
 }
