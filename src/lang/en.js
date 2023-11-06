@@ -1238,7 +1238,7 @@ export default {
     payloadtip: 'Please select MQTT payload',
     keep: 'Keep',
     agentexpiretip: 'The expiration time must be greater than the current time',
-    mqttparsertip: 'Ensure that all required items for the MQTT parser have been filled out',
+    mqttparsertip: 'Ensure that all required items for the {datasource} parser have been filled out',
     mqtttitle: 'MQTT Payload Parser',
 
     addmqtttip: 'Field, Column and Column Type cannot be empty before adding',
