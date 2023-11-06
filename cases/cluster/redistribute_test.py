@@ -105,7 +105,7 @@ class VnodeRedistribute(TDCase):
         self.tdSql.query('show dnodes')
         self.source_dnode_id_list = list(map(lambda x:x[0], self.tdSql.query_data))
         self.cluster_to_redistribute_list = list()
-        self.use_stream = False
+        self.use_stream = True
         self.use_tmq = True
         self.topic_name = "tp_name"
         self.tmq_status = 0
