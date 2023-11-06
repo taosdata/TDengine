@@ -58,7 +58,7 @@ int32_t tqScanWal(STQ* pTq) {
   return 0;
 }
 
-int32_t tqStartStreamTask(STQ* pTq) {
+int32_t tqStartStreamTasks(STQ* pTq) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      vgId = TD_VID(pTq->pVnode);
   SStreamMeta* pMeta = pTq->pStreamMeta;
@@ -115,7 +115,67 @@ int32_t tqStartStreamTask(STQ* pTq) {
   return code;
 }
 
-int32_t tqLaunchStreamTaskAsync(STQ* pTq) {
+int32_t tqRestartStreamTasks(STQ* pTq) {
+  SStreamMeta* pMeta = pTq->pStreamMeta;
+  int32_t      vgId = pMeta->vgId;
+  int32_t      code = 0;
+  int64_t      st = taosGetTimestampMs();
+
+  while(1) {
+    int32_t startVal = atomic_val_compare_exchange_32(&pMeta->startInfo.taskRestarting, 0, 1);
+    if (startVal == 0) {
+      break;
+    }
+
+    tqDebug("vgId:%d in start stream tasks procedure, wait for 500ms and recheck", vgId);
+    taosMsleep(500);
+  }
+
+  terrno = 0;
+  tqInfo("vgId:%d tasks are all updated and stopped, restart all tasks, triggered by transId:%d", vgId,
+         pMeta->updateInfo.transId);
+
+  while (streamMetaTaskInTimer(pMeta)) {
+    tqDebug("vgId:%d some tasks in timer, wait for 100ms and recheck", pMeta->vgId);
+    taosMsleep(100);
+  }
+
+  streamMetaWLock(pMeta);
+
+  code = streamMetaReopen(pMeta);
+  if (code != TSDB_CODE_SUCCESS) {
+    tqError("vgId:%d failed to reopen stream meta", vgId);
+    streamMetaWUnLock(pMeta);
+    code = terrno;
+    return code;
+  }
+
+  int64_t el = taosGetTimestampMs() - st;
+
+  tqInfo("vgId:%d close&reload state elapsed time:%.3fms", vgId, el/1000.);
+
+  code = streamMetaLoadAllTasks(pTq->pStreamMeta);
+  if (code != TSDB_CODE_SUCCESS) {
+    tqError("vgId:%d failed to load stream tasks, code:%s", vgId, tstrerror(terrno));
+    streamMetaWUnLock(pMeta);
+    code = terrno;
+    return code;
+  }
+
+  if (vnodeIsRoleLeader(pTq->pVnode) && !tsDisableStream) {
+    tqInfo("vgId:%d restart all stream tasks after all tasks being updated", vgId);
+    tqResetStreamTaskStatus(pTq);
+    tqStartStreamTasks(pTq);
+  } else {
+    tqInfo("vgId:%d, follower node not start stream tasks", vgId);
+  }
+
+  streamMetaWUnLock(pMeta);
+  code = terrno;
+  return code;
+}
+
+int32_t tqStartStreamTaskAsync(STQ* pTq, bool restart) {
   SStreamMeta* pMeta = pTq->pStreamMeta;
   int32_t      vgId = pMeta->vgId;
 
@@ -132,10 +192,10 @@ int32_t tqLaunchStreamTaskAsync(STQ* pTq) {
     return -1;
   }
 
-  tqDebug("vgId:%d check %d stream task(s) status async", vgId, numOfTasks);
+  tqDebug("vgId:%d start all %d stream task(s) async", vgId, numOfTasks);
   pRunReq->head.vgId = vgId;
   pRunReq->streamId = 0;
-  pRunReq->taskId = STREAM_EXEC_TASK_STATUS_CHECK_ID;
+  pRunReq->taskId = restart? STREAM_EXEC_RESTART_ALL_TASKS_ID:STREAM_EXEC_START_ALL_TASKS_ID;
 
   SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = pRunReq, .contLen = sizeof(SStreamTaskRunReq)};
   tmsgPutToQueue(&pTq->pVnode->msgCb, STREAM_QUEUE, &msg);

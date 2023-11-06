@@ -432,7 +432,8 @@ struct SStreamTask {
 typedef struct STaskStartInfo {
   int64_t   startTs;
   int64_t   readyTs;
-  int32_t   startAllTasksFlag;
+  int32_t   tasksWillRestart;
+  int32_t   taskRestarting;          // restart flag, sentinel to guard the restart procedure.
   SHashObj* pReadyTaskSet;           // tasks that are all ready for running stream processing
   int32_t   elapsedTime;
 } STaskStartInfo;
