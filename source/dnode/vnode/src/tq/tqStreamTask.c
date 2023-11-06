@@ -122,7 +122,7 @@ int32_t tqRestartStreamTasks(STQ* pTq) {
   int64_t      st = taosGetTimestampMs();
 
   while(1) {
-    int32_t startVal = atomic_val_compare_exchange_32(&pMeta->startInfo.taskRestarting, 0, 1);
+    int32_t startVal = atomic_val_compare_exchange_32(&pMeta->startInfo.taskStarting, 0, 1);
     if (startVal == 0) {
       break;
     }
@@ -152,7 +152,7 @@ int32_t tqRestartStreamTasks(STQ* pTq) {
 
   int64_t el = taosGetTimestampMs() - st;
 
-  tqInfo("vgId:%d close&reload state elapsed time:%.3fms", vgId, el/1000.);
+  tqInfo("vgId:%d close&reload state elapsed time:%.3fs", vgId, el/1000.);
 
   code = streamMetaLoadAllTasks(pTq->pStreamMeta);
   if (code != TSDB_CODE_SUCCESS) {
@@ -165,12 +165,12 @@ int32_t tqRestartStreamTasks(STQ* pTq) {
   if (vnodeIsRoleLeader(pTq->pVnode) && !tsDisableStream) {
     tqInfo("vgId:%d restart all stream tasks after all tasks being updated", vgId);
     tqResetStreamTaskStatus(pTq);
-    streamMetaWUnLock(pMeta);
 
+    streamMetaWUnLock(pMeta);
     tqStartStreamTasks(pTq);
   } else {
+    streamMetaResetStartInfo(&pMeta->startInfo);
     streamMetaWUnLock(pMeta);
-
     tqInfo("vgId:%d, follower node not start stream tasks", vgId);
   }
 

@@ -1094,7 +1094,7 @@ void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {
   pStartInfo->tasksWillRestart = 0;
   pStartInfo->readyTs = 0;
   // reset the sentinel flag value to be 0
-  atomic_store_32(&pStartInfo->taskRestarting, 0);
+  atomic_store_32(&pStartInfo->taskStarting, 0);
 }
 
 void streamMetaRLock(SStreamMeta* pMeta) {
