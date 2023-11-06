@@ -386,6 +386,7 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   SStreamIntervalOperatorInfo* pInfo = (SStreamIntervalOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   cleanupAggSup(&pInfo->aggSup);
+  clearGroupResInfo(&pInfo->groupResInfo);
 
   // it should be empty.
   void* pIte = NULL;
@@ -400,7 +401,6 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   blockDataDestroy(pInfo->pDelRes);
   pInfo->stateStore.streamFileStateDestroy(pInfo->pState->pFileState);
   taosMemoryFreeClear(pInfo->pState);
-  clearGroupResInfo(&pInfo->groupResInfo);
 
   nodesDestroyNode((SNode*)pInfo->pPhyNode);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);

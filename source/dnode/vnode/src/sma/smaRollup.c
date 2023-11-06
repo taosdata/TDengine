@@ -137,7 +137,9 @@ static int32_t tdUpdateTbUidListImpl(SSma *pSma, tb_uid_t *suid, SArray *tbUids,
     return TSDB_CODE_FAILED;
   }
 
-  if (!taosArrayGetSize(tbUids)) {
+  int32_t nTables = taosArrayGetSize(tbUids);
+
+  if (0 == nTables) {
     smaDebug("vgId:%d, no need to update tbUidList for suid:%" PRIi64 " since Empty tbUids", SMA_VID(pSma), *suid);
     return TSDB_CODE_SUCCESS;
   }
@@ -158,8 +160,9 @@ static int32_t tdUpdateTbUidListImpl(SSma *pSma, tb_uid_t *suid, SArray *tbUids,
                  terrstr());
         return TSDB_CODE_FAILED;
       }
-      smaDebug("vgId:%d, update tbUidList succeed for qTaskInfo:%p with suid:%" PRIi64 " uid:%" PRIi64 " level %d",
-               SMA_VID(pSma), pRSmaInfo->taskInfo[i], *suid, *(int64_t *)taosArrayGet(tbUids, 0), i);
+      smaDebug("vgId:%d, update tbUidList succeed for qTaskInfo:%p. suid:%" PRIi64 " uid:%" PRIi64
+               "nTables:%d level %d",
+               SMA_VID(pSma), pRSmaInfo->taskInfo[i], *suid, *(int64_t *)TARRAY_GET_ELEM(tbUids, 0), nTables, i);
     }
   }
 
@@ -252,7 +255,7 @@ static void tdRSmaTaskRemove(SStreamMeta *pMeta, int64_t streamId, int32_t taskI
     // persist to disk
   }
   taosWUnLockLatch(&pMeta->lock);
-  smaDebug("vgId:%d rsma task:%" PRIi64 ",%d dropped, remain tasks:%d", pMeta->vgId, streamId, taskId, numOfTasks);
+  smaDebug("vgId:%d, rsma task:%" PRIi64 ",%d dropped, remain tasks:%d", pMeta->vgId, streamId, taskId, numOfTasks);
 }
 
 static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat *pStat, SRSmaInfo *pRSmaInfo,
