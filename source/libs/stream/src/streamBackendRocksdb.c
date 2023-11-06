@@ -534,7 +534,6 @@ int32_t bkdMgtDumpTo(SBackendManager* bm, char *taskId, char* dname) {
 void dbSetFilterFactory(rocksdb_options_t* opt, int32_t i, void *arg) {
    rocksdb_compactionfilterfactory_t *filterFactory = rocksdb_compactionfilterfactory_create(arg,destroyCompactFilteFactory, ginitFilterDict[i].create, ginitFilterDict[i].funcName);
    rocksdb_options_set_compaction_filter_factory(opt, filterFactory);
-
 }
 
 bool isValidCheckpoint(const char* dir) { return true; }
