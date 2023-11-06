@@ -1317,13 +1317,14 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t taskId = pReq->taskId;
   int32_t vgId = TD_VID(pTq->pVnode);
 
-  if (taskId == STREAM_EXEC_TASK_STATUS_CHECK_ID) {
-    tqStartStreamTask(pTq);
-    return 0;
-  }
-
   if (taskId == STREAM_EXEC_EXTRACT_DATA_IN_WAL_ID) {  // all tasks are extracted submit data from the wal
     tqScanWal(pTq);
+    return 0;
+  } else if (taskId == STREAM_EXEC_START_ALL_TASKS_ID) {
+    tqStartStreamTasks(pTq);
+    return 0;
+  } else if (taskId == STREAM_EXEC_RESTART_ALL_TASKS_ID) {
+    tqRestartStreamTasks(pTq);
     return 0;
   }
 
@@ -1911,7 +1912,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
   int32_t updateTasks = taosHashGetSize(pMeta->updateInfo.pTasks);
 
-  pMeta->startInfo.startAllTasksFlag = 1;
+  pMeta->startInfo.tasksWillRestart = 1;
 
   if (updateTasks < numOfTasks) {
     tqDebug("vgId:%d closed tasks:%d, unclosed:%d, all tasks will be started when nodeEp update completed", vgId,
@@ -1920,45 +1921,11 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   } else {
     if (!pTq->pVnode->restored) {
       tqDebug("vgId:%d vnode restore not completed, not restart the tasks, clear the start after nodeUpdate flag", vgId);
-      pMeta->startInfo.startAllTasksFlag = 0;
+      pMeta->startInfo.tasksWillRestart = 0;
       streamMetaWUnLock(pMeta);
     } else {
-      tqInfo("vgId:%d tasks are all updated and stopped, restart them", vgId);
-      terrno = 0;
-
       streamMetaWUnLock(pMeta);
-
-      while (streamMetaTaskInTimer(pMeta)) {
-        tqDebug("vgId:%d some tasks in timer, wait for 100ms and recheck", pMeta->vgId);
-        taosMsleep(100);
-      }
-
-      streamMetaWLock(pMeta);
-
-      int32_t code = streamMetaReopen(pMeta);
-      if (code != 0) {
-        tqError("vgId:%d failed to reopen stream meta", vgId);
-        streamMetaWUnLock(pMeta);
-        taosArrayDestroy(req.pNodeList);
-        return -1;
-      }
-
-      if (streamMetaLoadAllTasks(pTq->pStreamMeta) < 0) {
-        tqError("vgId:%d failed to load stream tasks", vgId);
-        streamMetaWUnLock(pMeta);
-        taosArrayDestroy(req.pNodeList);
-        return -1;
-      }
-
-      if (vnodeIsRoleLeader(pTq->pVnode) && !tsDisableStream) {
-        tqInfo("vgId:%d restart all stream tasks after all tasks being updated", vgId);
-        tqResetStreamTaskStatus(pTq);
-        tqLaunchStreamTaskAsync(pTq);
-      } else {
-        tqInfo("vgId:%d, follower node not start stream tasks", vgId);
-      }
-
-      streamMetaWUnLock(pMeta);
+      tqStartStreamTaskAsync(pTq, true);
     }
   }
 
