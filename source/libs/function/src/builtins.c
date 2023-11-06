@@ -2083,6 +2083,34 @@ static int32_t translateToUnixtimestamp(SFunctionNode* pFunc, char* pErrBuf, int
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateToTimestamp(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (LIST_LENGTH(pFunc->pParameterList) != 2) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+  if (!IS_STR_DATA_TYPE(para1Type) || !IS_STR_DATA_TYPE(para2Type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  pFunc->node.resType =
+      (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes, .type = TSDB_DATA_TYPE_TIMESTAMP};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateToChar(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (LIST_LENGTH(pFunc->pParameterList) != 2) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+  // currently only support to_char(timestamp, str)
+  if (!IS_STR_DATA_TYPE(para2Type) || !IS_TIMESTAMP_TYPE(para1Type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  pFunc->node.resType = (SDataType){.bytes = 4096, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (2 != numOfParams && 3 != numOfParams) {
@@ -3282,6 +3310,26 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = castFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "to_timestamp",
+    .type = FUNCTION_TYPE_TO_TIMESTAMP,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
+    .translateFunc = translateToTimestamp,
+    .getEnvFunc = NULL,
+    .initFunc = NULL,
+    .sprocessFunc = toTimestampFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "to_char",
+    .type = FUNCTION_TYPE_TO_CHAR,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateToChar,
+    .getEnvFunc = NULL,
+    .initFunc = NULL,
+    .sprocessFunc = toCharFunction,
     .finalizeFunc = NULL
   },
   {

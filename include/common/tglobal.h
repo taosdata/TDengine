@@ -195,7 +195,8 @@ extern int64_t tsWalFsyncDataSizeLimit;
 // internal
 extern int32_t tsTransPullupInterval;
 extern int32_t tsMqRebalanceInterval;
-extern int32_t tsStreamCheckpointTickInterval;
+extern int32_t tsStreamCheckpointInterval;
+extern float   tsSinkDataRate;
 extern int32_t tsStreamNodeCheckInterval;
 extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushIntervalSec;
@@ -203,9 +204,6 @@ extern int32_t tsTtlBatchDropNum;
 extern int32_t tsTrimVDbIntervalSec;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
-
-extern int32_t tsRpcRetryLimit;
-extern int32_t tsRpcRetryInterval;
 
 extern bool    tsDisableStream;
 extern int64_t tsStreamBufferSize;

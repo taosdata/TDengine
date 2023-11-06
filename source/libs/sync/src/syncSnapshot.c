@@ -23,6 +23,46 @@
 #include "syncReplication.h"
 #include "syncUtil.h"
 
+int32_t syncSnapSendMsg(SSyncSnapshotSender *pSender, int32_t seq, void *pBlock, int32_t len, int32_t typ);
+
+static void syncSnapBufferReset(SSyncSnapBuffer *pBuf) {
+  taosThreadMutexLock(&pBuf->mutex);
+  for (int64_t i = pBuf->start; i < pBuf->end; ++i) {
+    if (pBuf->entryDeleteCb) {
+      pBuf->entryDeleteCb(pBuf->entries[i % pBuf->size]);
+    }
+    pBuf->entries[i % pBuf->size] = NULL;
+  }
+  pBuf->start = SYNC_SNAPSHOT_SEQ_BEGIN + 1;
+  pBuf->end = pBuf->start;
+  pBuf->cursor = pBuf->start - 1;
+  taosThreadMutexUnlock(&pBuf->mutex);
+}
+
+static void syncSnapBufferDestroy(SSyncSnapBuffer **ppBuf) {
+  if (ppBuf == NULL || ppBuf[0] == NULL) return;
+  SSyncSnapBuffer *pBuf = ppBuf[0];
+
+  syncSnapBufferReset(pBuf);
+
+  taosThreadMutexDestroy(&pBuf->mutex);
+  taosMemoryFree(ppBuf[0]);
+  ppBuf[0] = NULL;
+  return;
+}
+
+static SSyncSnapBuffer *syncSnapBufferCreate() {
+  SSyncSnapBuffer *pBuf = taosMemoryCalloc(1, sizeof(SSyncSnapBuffer));
+  if (pBuf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  pBuf->size = sizeof(pBuf->entries) / sizeof(void *);
+  ASSERT(pBuf->size == TSDB_SYNC_SNAP_BUFFER_SIZE);
+  taosThreadMutexInit(&pBuf->mutex, NULL);
+  return pBuf;
+}
+
 SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaIndex) {
   bool condition = (pSyncNode->pFsm->FpSnapshotStartRead != NULL) && (pSyncNode->pFsm->FpSnapshotStopRead != NULL) &&
                    (pSyncNode->pFsm->FpSnapshotDoRead != NULL);
@@ -38,8 +78,6 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
   pSender->seq = SYNC_SNAPSHOT_SEQ_INVALID;
   pSender->ack = SYNC_SNAPSHOT_SEQ_INVALID;
   pSender->pReader = NULL;
-  pSender->pCurrentBlock = NULL;
-  pSender->blockLen = 0;
   pSender->sendingMS = SYNC_SNAPSHOT_RETRY_MS;
   pSender->pSyncNode = pSyncNode;
   pSender->replicaIndex = replicaIndex;
@@ -49,17 +87,31 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
   pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &pSender->snapshot);
   pSender->finish = false;
 
+  SSyncSnapBuffer *pSndBuf = syncSnapBufferCreate();
+  if (pSndBuf == NULL) {
+    taosMemoryFree(pSender);
+    pSender = NULL;
+    return NULL;
+  }
+  pSndBuf->entryDeleteCb = syncSnapBlockDestroy;
+  pSender->pSndBuf = pSndBuf;
+
+  syncSnapBufferReset(pSender->pSndBuf);
   return pSender;
+}
+
+void syncSnapBlockDestroy(void *ptr) {
+  SyncSnapBlock *pBlk = ptr;
+  if (pBlk->pBlock != NULL) {
+    taosMemoryFree(pBlk->pBlock);
+    pBlk->pBlock = NULL;
+    pBlk->blockLen = 0;
+  }
+  taosMemoryFree(pBlk);
 }
 
 void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {
   if (pSender == NULL) return;
-
-  // free current block
-  if (pSender->pCurrentBlock != NULL) {
-    taosMemoryFree(pSender->pCurrentBlock);
-    pSender->pCurrentBlock = NULL;
-  }
 
   // close reader
   if (pSender->pReader != NULL) {
@@ -67,6 +119,10 @@ void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {
     pSender->pReader = NULL;
   }
 
+  // free snap buffer
+  if (pSender->pSndBuf) {
+    syncSnapBufferDestroy(&pSender->pSndBuf);
+  }
   // free sender
   taosMemoryFree(pSender);
 }
@@ -79,11 +135,9 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
   int8_t started = atomic_val_compare_exchange_8(&pSender->start, false, true);
   if (started) return 0;
 
-  pSender->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
+  pSender->seq = SYNC_SNAPSHOT_SEQ_PREP;
   pSender->ack = SYNC_SNAPSHOT_SEQ_INVALID;
   pSender->pReader = NULL;
-  pSender->pCurrentBlock = NULL;
-  pSender->blockLen = 0;
   pSender->snapshotParam.start = SYNC_INDEX_INVALID;
   pSender->snapshotParam.end = SYNC_INDEX_INVALID;
   pSender->snapshot.data = NULL;
@@ -108,8 +162,11 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
   }
 
   int dataLen = 0;
-  if (snapInfo.data) {
-    SSyncTLV *datHead = snapInfo.data;
+  void   *pData = snapInfo.data;
+  int32_t type = 0;
+  if (pData) {
+    type = snapInfo.type;
+    SSyncTLV *datHead = pData;
     if (datHead->typ != TDMT_SYNC_PREP_SNAPSHOT) {
       sSError(pSender, "unexpected data typ in data of snapshot info. typ: %d", datHead->typ);
       terrno = TSDB_CODE_INVALID_DATA_FMT;
@@ -118,38 +175,12 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
     dataLen = sizeof(SSyncTLV) + datHead->len;
   }
 
-  SRpcMsg rpcMsg = {0};
-  if (syncBuildSnapshotSend(&rpcMsg, dataLen, pSender->pSyncNode->vgId) != 0) {
-    sSError(pSender, "snapshot sender build msg failed since %s", terrstr());
+  if (syncSnapSendMsg(pSender, pSender->seq, pData, dataLen, type) != 0) {
     goto _out;
   }
 
-  SyncSnapshotSend *pMsg = rpcMsg.pCont;
-  pMsg->srcId = pSender->pSyncNode->myRaftId;
-  pMsg->destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
-  pMsg->term = raftStoreGetTerm(pSender->pSyncNode);
-  pMsg->beginIndex = pSender->snapshotParam.start;
-  pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
-  pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
-  pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
-  pMsg->lastConfig = pSender->lastConfig;
-  pMsg->startTime = pSender->startTime;
-  pMsg->seq = SYNC_SNAPSHOT_SEQ_PREP_SNAPSHOT;
-
-  if (dataLen > 0) {
-    pMsg->payloadType = snapInfo.type;
-    memcpy(pMsg->data, snapInfo.data, dataLen);
-  }
-
-  // event log
-  syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "snapshot sender start");
-
-  // send msg
-  if (syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg) != 0) {
-    sSError(pSender, "snapshot sender send msg failed since %s", terrstr());
-    goto _out;
-  }
-
+  SRaftId destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
+  sSInfo(pSender, "snapshot sender start, to dnode:%d.", DID(&destId));
   code = 0;
 _out:
   if (snapInfo.data) {
@@ -175,133 +206,145 @@ void snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish) {
     pSender->pReader = NULL;
   }
 
-  // free current block
-  if (pSender->pCurrentBlock != NULL) {
-    taosMemoryFree(pSender->pCurrentBlock);
-    pSender->pCurrentBlock = NULL;
-    pSender->blockLen = 0;
+  syncSnapBufferReset(pSender->pSndBuf);
+
+  SRaftId destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
+  sSInfo(pSender, "snapshot sender stop, to dnode:%d, finish:%d", DID(&destId), finish);
+}
+
+int32_t syncSnapSendMsg(SSyncSnapshotSender *pSender, int32_t seq, void *pBlock, int32_t blockLen, int32_t typ) {
+  int32_t code = -1;
+  SRpcMsg rpcMsg = {0};
+
+  if (syncBuildSnapshotSend(&rpcMsg, blockLen, pSender->pSyncNode->vgId) != 0) {
+    sSError(pSender, "failed to build snap replication msg since %s", terrstr());
+    goto _OUT;
   }
+
+  SyncSnapshotSend *pMsg = rpcMsg.pCont;
+  pMsg->srcId = pSender->pSyncNode->myRaftId;
+  pMsg->destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
+  pMsg->term = pSender->term;
+  pMsg->beginIndex = pSender->snapshotParam.start;
+  pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
+  pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
+  pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
+  pMsg->lastConfig = pSender->lastConfig;
+  pMsg->startTime = pSender->startTime;
+  pMsg->seq = seq;
+
+  if (pBlock != NULL && blockLen > 0) {
+    memcpy(pMsg->data, pBlock, blockLen);
+  }
+  pMsg->payloadType = typ;
+
+  // send msg
+  if (syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg) != 0) {
+    sSError(pSender, "failed to send snap replication msg since %s. seq:%d", terrstr(), seq);
+    goto _OUT;
+  }
+
+  code = 0;
+_OUT:
+  return code;
 }
 
 // when sender receive ack, call this function to send msg from seq
 // seq = ack + 1, already updated
 static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
-  // free memory last time (current seq - 1)
-  if (pSender->pCurrentBlock != NULL) {
-    taosMemoryFree(pSender->pCurrentBlock);
-    pSender->pCurrentBlock = NULL;
-    pSender->blockLen = 0;
+  int32_t        code = -1;
+  SyncSnapBlock *pBlk = NULL;
+
+  if (pSender->seq < SYNC_SNAPSHOT_SEQ_END) {
+    pSender->seq++;
+
+    if (pSender->seq > SYNC_SNAPSHOT_SEQ_BEGIN) {
+      pBlk = taosMemoryCalloc(1, sizeof(SyncSnapBlock));
+      if (pBlk == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        goto _OUT;
+      }
+
+      pBlk->seq = pSender->seq;
+
+      // read data
+      int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotDoRead(pSender->pSyncNode->pFsm, pSender->pReader,
+                                                               &pBlk->pBlock, &pBlk->blockLen);
+      if (ret != 0) {
+        sSError(pSender, "snapshot sender read failed since %s", terrstr());
+        goto _OUT;
+      }
+
+      if (pBlk->blockLen > 0) {
+        // has read data
+        sSDebug(pSender, "snapshot sender continue to read, blockLen:%d seq:%d", pBlk->blockLen, pBlk->seq);
+      } else {
+        // read finish, update seq to end
+        pSender->seq = SYNC_SNAPSHOT_SEQ_END;
+        sSInfo(pSender, "snapshot sender read to the end");
+        code = 0;
+        goto _OUT;
+      }
+    }
   }
 
-  // read data
-  int32_t ret = pSender->pSyncNode->pFsm->FpSnapshotDoRead(pSender->pSyncNode->pFsm, pSender->pReader,
-                                                           &pSender->pCurrentBlock, &pSender->blockLen);
-  if (ret != 0) {
-    sSError(pSender, "snapshot sender read failed since %s", terrstr());
-    return -1;
-  }
-
-  if (pSender->blockLen > 0) {
-    // has read data
-    sSDebug(pSender, "vgId:%d, snapshot sender continue to read, blockLen:%d seq:%d", pSender->pSyncNode->vgId,
-            pSender->blockLen, pSender->seq);
-  } else {
-    // read finish, update seq to end
-    pSender->seq = SYNC_SNAPSHOT_SEQ_END;
-    sSInfo(pSender, "vgId:%d, snapshot sender read to the end, blockLen:%d seq:%d", pSender->pSyncNode->vgId,
-           pSender->blockLen, pSender->seq);
-  }
-
-  // build msg
-  SRpcMsg rpcMsg = {0};
-  if (syncBuildSnapshotSend(&rpcMsg, pSender->blockLen, pSender->pSyncNode->vgId) != 0) {
-    sSError(pSender, "vgId:%d, snapshot sender build msg failed since %s", pSender->pSyncNode->vgId, terrstr());
-    return -1;
-  }
-
-  SyncSnapshotSend *pMsg = rpcMsg.pCont;
-  pMsg->srcId = pSender->pSyncNode->myRaftId;
-  pMsg->destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
-  pMsg->term = raftStoreGetTerm(pSender->pSyncNode);
-  pMsg->beginIndex = pSender->snapshotParam.start;
-  pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
-  pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
-  pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
-  pMsg->lastConfig = pSender->lastConfig;
-  pMsg->startTime = pSender->startTime;
-  pMsg->seq = pSender->seq;
-
-  if (pSender->pCurrentBlock != NULL) {
-    memcpy(pMsg->data, pSender->pCurrentBlock, pSender->blockLen);
-  }
-
-  // event log
-  if (pSender->seq == SYNC_SNAPSHOT_SEQ_END) {
-    syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "snapshot sender finish");
-  } else {
-    syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "snapshot sender sending");
-  }
+  ASSERT(pSender->seq >= SYNC_SNAPSHOT_SEQ_BEGIN && pSender->seq <= SYNC_SNAPSHOT_SEQ_END);
 
   // send msg
-  if (syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg) != 0) {
-    sSError(pSender, "snapshot sender send msg failed since %s", terrstr());
-    return -1;
+  int32_t blockLen = (pBlk) ? pBlk->blockLen : 0;
+  void   *pBlock = (pBlk) ? pBlk->pBlock : NULL;
+  if (syncSnapSendMsg(pSender, pSender->seq, pBlock, blockLen, 0) != 0) {
+    goto _OUT;
   }
 
-  pSender->lastSendTime = taosGetTimestampMs();
-  return 0;
+  // put in buffer
+  int64_t nowMs = taosGetTimestampMs();
+  if (pBlk) {
+    ASSERT(pBlk->seq > SYNC_SNAPSHOT_SEQ_BEGIN && pBlk->seq < SYNC_SNAPSHOT_SEQ_END);
+    pBlk->sendTimeMs = nowMs;
+    pSender->pSndBuf->entries[pSender->seq % pSender->pSndBuf->size] = pBlk;
+    pBlk = NULL;
+    pSender->pSndBuf->end = TMAX(pSender->seq + 1, pSender->pSndBuf->end);
+  }
+  pSender->lastSendTime = nowMs;
+  code = 0;
+
+_OUT:;
+  if (pBlk != NULL) {
+    syncSnapBlockDestroy(pBlk);
+    pBlk = NULL;
+  }
+  return code;
 }
 
 // send snapshot data from cache
 int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
-  // build msg
-  SRpcMsg rpcMsg = {0};
-  if (syncBuildSnapshotSend(&rpcMsg, pSender->blockLen, pSender->pSyncNode->vgId) != 0) {
-    sSError(pSender, "snapshot sender build msg failed since %s", terrstr());
-    return -1;
+  SSyncSnapBuffer *pSndBuf = pSender->pSndBuf;
+  int32_t          code = -1;
+  taosThreadMutexLock(&pSndBuf->mutex);
+
+  for (int32_t seq = pSndBuf->cursor + 1; seq < pSndBuf->end; ++seq) {
+    SyncSnapBlock *pBlk = pSndBuf->entries[seq % pSndBuf->size];
+    ASSERT(pBlk && !pBlk->acked);
+    int64_t nowMs = taosGetTimestampMs();
+    if (nowMs < pBlk->sendTimeMs + SYNC_SNAP_RESEND_MS) {
+      continue;
+    }
+    if (syncSnapSendMsg(pSender, pBlk->seq, pBlk->pBlock, pBlk->blockLen, 0) != 0) {
+      goto _out;
+    }
+    pBlk->sendTimeMs = nowMs;
   }
 
-  SyncSnapshotSend *pMsg = rpcMsg.pCont;
-  pMsg->srcId = pSender->pSyncNode->myRaftId;
-  pMsg->destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
-  pMsg->term = raftStoreGetTerm(pSender->pSyncNode);
-  pMsg->beginIndex = pSender->snapshotParam.start;
-  pMsg->lastIndex = pSender->snapshot.lastApplyIndex;
-  pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
-  pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
-  pMsg->lastConfig = pSender->lastConfig;
-  pMsg->startTime = pSender->startTime;
-  pMsg->seq = pSender->seq;
-
-  if (pSender->pCurrentBlock != NULL && pSender->blockLen > 0) {
-    memcpy(pMsg->data, pSender->pCurrentBlock, pSender->blockLen);
+  if (pSender->seq == SYNC_SNAPSHOT_SEQ_END && pSndBuf->end <= pSndBuf->start) {
+    if (syncSnapSendMsg(pSender, pSender->seq, NULL, 0, 0) != 0) {
+      goto _out;
+    }
   }
-
-  // event log
-  syncLogSendSyncSnapshotSend(pSender->pSyncNode, pMsg, "snapshot sender resend");
-
-  // send msg
-  if (syncNodeSendMsgById(&pMsg->destId, pSender->pSyncNode, &rpcMsg) != 0) {
-    sSError(pSender, "snapshot sender resend msg failed since %s", terrstr());
-    return -1;
-  }
-
-  pSender->lastSendTime = taosGetTimestampMs();
-  return 0;
-}
-
-static int32_t snapshotSenderUpdateProgress(SSyncSnapshotSender *pSender, SyncSnapshotRsp *pMsg) {
-  if (pMsg->ack != pSender->seq) {
-    sSError(pSender, "snapshot sender update seq failed, ack:%d seq:%d", pMsg->ack, pSender->seq);
-    terrno = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
-    return -1;
-  }
-
-  pSender->ack = pMsg->ack;
-  pSender->seq++;
-
-  sSDebug(pSender, "snapshot sender update seq:%d", pSender->seq);
-  return 0;
+  code = 0;
+_out:;
+  taosThreadMutexUnlock(&pSndBuf->mutex);
+  return code;
 }
 
 // return 0, start ok
@@ -327,8 +370,6 @@ int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId) {
     sSDebug(pSender, "snapshot sender waitTime not expired yet, ignore");
     return 0;
   }
-
-  sSInfo(pSender, "snapshot sender start");
 
   int32_t code = snapshotSenderStart(pSender);
   if (code != 0) {
@@ -362,6 +403,16 @@ SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId from
   pReceiver->snapshot.lastApplyTerm = 0;
   pReceiver->snapshot.lastConfigIndex = SYNC_INDEX_INVALID;
 
+  SSyncSnapBuffer *pRcvBuf = syncSnapBufferCreate();
+  if (pRcvBuf == NULL) {
+    taosMemoryFree(pReceiver);
+    pReceiver = NULL;
+    return NULL;
+  }
+  pRcvBuf->entryDeleteCb = rpcFreeCont;
+  pReceiver->pRcvBuf = pRcvBuf;
+
+  syncSnapBufferReset(pReceiver->pRcvBuf);
   return pReceiver;
 }
 
@@ -387,6 +438,11 @@ void snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver) {
   if (pReceiver->snapshot.data) {
     taosMemoryFree(pReceiver->snapshot.data);
     pReceiver->snapshot.data = NULL;
+  }
+
+  // free snap buf
+  if (pReceiver->pRcvBuf) {
+    syncSnapBufferDestroy(&pReceiver->pRcvBuf);
   }
 
   // free receiver
@@ -444,20 +500,19 @@ void snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *p
   int8_t started = atomic_val_compare_exchange_8(&pReceiver->start, false, true);
   if (started) return;
 
-  pReceiver->ack = SYNC_SNAPSHOT_SEQ_PREP_SNAPSHOT;
+  pReceiver->ack = SYNC_SNAPSHOT_SEQ_PREP;
   pReceiver->term = pPreMsg->term;
   pReceiver->fromId = pPreMsg->srcId;
   pReceiver->startTime = pPreMsg->startTime;
   ASSERT(pReceiver->startTime);
 
-  // event log
-  sRInfo(pReceiver, "snapshot receiver is start");
+  sRInfo(pReceiver, "snapshot receiver start, from dnode:%d.", DID(&pReceiver->fromId));
 }
 
 // just set start = false
 // FpSnapshotStopWrite should not be called
 void snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
-  sRInfo(pReceiver, "snapshot receiver stop, not apply, writer:%p", pReceiver->pWriter);
+  sRDebug(pReceiver, "snapshot receiver stop, not apply, writer:%p", pReceiver->pWriter);
 
   int8_t stopped = !atomic_val_compare_exchange_8(&pReceiver->start, true, false);
   if (stopped) return;
@@ -472,6 +527,8 @@ void snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) {
   } else {
     sRInfo(pReceiver, "snapshot receiver stop, writer is null");
   }
+
+  syncSnapBufferReset(pReceiver->pRcvBuf);
 }
 
 // when recv last snapshot block, apply data into snapshot
@@ -479,7 +536,7 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
   int32_t code = 0;
   if (pReceiver->pWriter != NULL) {
     // write data
-    sRInfo(pReceiver, "snapshot receiver write finish, blockLen:%d seq:%d", pMsg->dataLen, pMsg->seq);
+    sRInfo(pReceiver, "snapshot receiver write about to finish, blockLen:%d seq:%d", pMsg->dataLen, pMsg->seq);
     if (pMsg->dataLen > 0) {
       code = pReceiver->pSyncNode->pFsm->FpSnapshotDoWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, pMsg->data,
                                                            pMsg->dataLen);
@@ -487,15 +544,6 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
         sRError(pReceiver, "failed to finish snapshot receiver write since %s", terrstr());
         return -1;
       }
-    }
-
-    // reset wal
-    sRInfo(pReceiver, "snapshot receiver log restore");
-    code =
-        pReceiver->pSyncNode->pLogStore->syncLogRestoreFromSnapshot(pReceiver->pSyncNode->pLogStore, pMsg->lastIndex);
-    if (code != 0) {
-      sRError(pReceiver, "failed to snapshot receiver log restore since %s", terrstr());
-      return -1;
     }
 
     // update commit index
@@ -509,7 +557,6 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
     }
 
     // stop writer, apply data
-    sRInfo(pReceiver, "snapshot receiver apply write");
     code = pReceiver->pSyncNode->pFsm->FpSnapshotStopWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, true,
                                                            &pReceiver->snapshot);
     if (code != 0) {
@@ -517,21 +564,29 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
       return -1;
     }
     pReceiver->pWriter = NULL;
+    sRInfo(pReceiver, "snapshot receiver write stopped");
 
     // update progress
     pReceiver->ack = SYNC_SNAPSHOT_SEQ_END;
 
+    // get fsmState
     SSnapshot snapshot = {0};
     pReceiver->pSyncNode->pFsm->FpGetSnapshotInfo(pReceiver->pSyncNode->pFsm, &snapshot);
     pReceiver->pSyncNode->fsmState = snapshot.state;
 
+    // reset wal
+    code =
+        pReceiver->pSyncNode->pLogStore->syncLogRestoreFromSnapshot(pReceiver->pSyncNode->pLogStore, pMsg->lastIndex);
+    if (code != 0) {
+      sRError(pReceiver, "failed to snapshot receiver log restore since %s", terrstr());
+      return -1;
+    }
+    sRInfo(pReceiver, "wal log restored from snapshot");
   } else {
     sRError(pReceiver, "snapshot receiver finish error since writer is null");
     return -1;
   }
 
-  // event log
-  sRInfo(pReceiver, "snapshot receiver got last data and apply snapshot finished");
   return 0;
 }
 
@@ -599,22 +654,22 @@ static int32_t syncNodeOnSnapshotPrep(SSyncNode *pSyncNode, SyncSnapshotSend *pM
     int32_t order = 0;
     if ((order = snapshotReceiverSignatureCmp(pReceiver, pMsg)) < 0) {
       sRInfo(pReceiver,
-             "received a new snapshot preparation. restart receiver"
-             "receiver signature: (%" PRId64 ", %" PRId64 "), msg signature:(%" PRId64 ", %" PRId64 ")",
-             pReceiver->term, pReceiver->startTime, pMsg->term, pMsg->startTime);
+             "received a new snapshot preparation. restart receiver."
+             " msg signature:(%" PRId64 ", %" PRId64 ")",
+             pMsg->term, pMsg->startTime);
       goto _START_RECEIVER;
     } else if (order == 0) {
       sRInfo(pReceiver,
-             "received a duplicate snapshot preparation. send reply"
-             "receiver signature: (%" PRId64 ", %" PRId64 "), msg signature:(%" PRId64 ", %" PRId64 ")",
-             pReceiver->term, pReceiver->startTime, pMsg->term, pMsg->startTime);
+             "received a duplicate snapshot preparation. send reply."
+             " msg signature:(%" PRId64 ", %" PRId64 ")",
+             pMsg->term, pMsg->startTime);
       goto _SEND_REPLY;
     } else {
       // ignore
       sRError(pReceiver,
-              "received a stale snapshot preparation. ignore"
-              "receiver signature: (%" PRId64 ", %" PRId64 "), msg signature:(%" PRId64 ", %" PRId64 ")",
-              pReceiver->term, pReceiver->startTime, pMsg->term, pMsg->startTime);
+              "received a stale snapshot preparation. ignore."
+              " msg signature:(%" PRId64 ", %" PRId64 ")",
+              pMsg->term, pMsg->startTime);
       terrno = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
       code = terrno;
       goto _SEND_REPLY;
@@ -765,29 +820,8 @@ _SEND_REPLY:
   return code;
 }
 
-static int32_t syncNodeOnSnapshotReceive(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
-  // condition 4
-  // transfering
-  SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
-  int64_t timeNow = taosGetTimestampMs();
-  int32_t                code = 0;
-
-  if (snapshotReceiverSignatureCmp(pReceiver, pMsg) != 0) {
-    terrno = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
-    sRError(pReceiver, "failed to receive snapshot data since %s.", terrstr());
-    code = terrno;
-    goto _SEND_REPLY;
-  }
-
-  if (snapshotReceiverGotData(pReceiver, pMsg) != 0) {
-    code = terrno;
-    if (code >= SYNC_SNAPSHOT_SEQ_INVALID) {
-      code = TSDB_CODE_SYN_INTERNAL_ERROR;
-    }
-  }
-
-_SEND_REPLY:;
-
+static int32_t syncSnapSendRsp(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pMsg, int32_t code) {
+  SSyncNode *pSyncNode = pReceiver->pSyncNode;
   // build msg
   SRpcMsg rpcMsg = {0};
   if (syncBuildSnapshotSendRsp(&rpcMsg, 0, pSyncNode->vgId)) {
@@ -802,7 +836,7 @@ _SEND_REPLY:;
   pRspMsg->lastIndex = pMsg->lastIndex;
   pRspMsg->lastTerm = pMsg->lastTerm;
   pRspMsg->startTime = pMsg->startTime;
-  pRspMsg->ack = pReceiver->ack;  // receiver maybe already closed
+  pRspMsg->ack = pMsg->seq;
   pRspMsg->code = code;
   pRspMsg->snapBeginIndex = pReceiver->snapshotParam.start;
 
@@ -811,8 +845,77 @@ _SEND_REPLY:;
     sRError(pReceiver, "failed to send snapshot receiver resp since %s", terrstr());
     return -1;
   }
+  return 0;
+}
 
+static int32_t syncSnapBufferRecv(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend **ppMsg) {
+  int32_t           code = 0;
+  SSyncSnapBuffer  *pRcvBuf = pReceiver->pRcvBuf;
+  SyncSnapshotSend *pMsg = ppMsg[0];
+  terrno = TSDB_CODE_SUCCESS;
+
+  taosThreadMutexLock(&pRcvBuf->mutex);
+
+  if (pMsg->seq - pRcvBuf->start >= pRcvBuf->size) {
+    terrno = TSDB_CODE_SYN_BUFFER_FULL;
+    code = terrno;
+    goto _out;
+  }
+
+  ASSERT(pRcvBuf->start <= pRcvBuf->cursor + 1 && pRcvBuf->cursor < pRcvBuf->end);
+
+  if (pMsg->seq > pRcvBuf->cursor) {
+    pRcvBuf->entries[pMsg->seq % pRcvBuf->size] = pMsg;
+    ppMsg[0] = NULL;
+    pRcvBuf->end = TMAX(pMsg->seq + 1, pRcvBuf->end);
+  } else if (pMsg->seq < pRcvBuf->start) {
+    syncSnapSendRsp(pReceiver, pMsg, code);
+    goto _out;
+  }
+
+  for (int64_t seq = pRcvBuf->cursor + 1; seq < pRcvBuf->end; ++seq) {
+    if (pRcvBuf->entries[seq % pRcvBuf->size]) {
+      pRcvBuf->cursor = seq;
+    } else {
+      break;
+    }
+  }
+
+  for (int64_t seq = pRcvBuf->start; seq <= pRcvBuf->cursor; ++seq) {
+    if (snapshotReceiverGotData(pReceiver, pRcvBuf->entries[seq % pRcvBuf->size]) != 0) {
+      code = terrno;
+      if (code >= SYNC_SNAPSHOT_SEQ_INVALID) {
+        code = TSDB_CODE_SYN_INTERNAL_ERROR;
+      }
+    }
+    pRcvBuf->start = seq + 1;
+    syncSnapSendRsp(pReceiver, pRcvBuf->entries[seq % pRcvBuf->size], code);
+    pRcvBuf->entryDeleteCb(pRcvBuf->entries[seq % pRcvBuf->size]);
+    pRcvBuf->entries[seq % pRcvBuf->size] = NULL;
+    if (code) goto _out;
+  }
+
+_out:
+  taosThreadMutexUnlock(&pRcvBuf->mutex);
   return code;
+}
+
+static int32_t syncNodeOnSnapshotReceive(SSyncNode *pSyncNode, SyncSnapshotSend **ppMsg) {
+  // condition 4
+  // transfering
+  SyncSnapshotSend *pMsg = ppMsg[0];
+  ASSERT(pMsg);
+  SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
+  int64_t                timeNow = taosGetTimestampMs();
+  int32_t                code = 0;
+
+  if (snapshotReceiverSignatureCmp(pReceiver, pMsg) != 0) {
+    terrno = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
+    sRError(pReceiver, "failed to receive snapshot data since %s.", terrstr());
+    return syncSnapSendRsp(pReceiver, pMsg, terrno);
+  }
+
+  return syncSnapBufferRecv(pReceiver, ppMsg);
 }
 
 static int32_t syncNodeOnSnapshotEnd(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
@@ -867,7 +970,7 @@ _SEND_REPLY:;
 
 // receiver on message
 //
-// condition 1, recv SYNC_SNAPSHOT_SEQ_PREP_SNAPSHOT
+// condition 1, recv SYNC_SNAPSHOT_SEQ_PREP
 //              if receiver already start
 //                    if sender.start-time > receiver.start-time, restart receiver(reply snapshot start)
 //                    if sender.start-time = receiver.start-time, maybe duplicate msg
@@ -885,9 +988,11 @@ _SEND_REPLY:;
 //
 // condition 5, got data, update ack
 //
-int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
-  SyncSnapshotSend      *pMsg = pRpcMsg->pCont;
+int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
+  SyncSnapshotSend **ppMsg = (SyncSnapshotSend **)&pRpcMsg->pCont;
+  SyncSnapshotSend      *pMsg = ppMsg[0];
   SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
+  int32_t                code = 0;
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(pSyncNode, &pMsg->srcId)) {
@@ -911,49 +1016,56 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
     syncNodeUpdateTermWithoutStepDown(pSyncNode, pMsg->term);
   }
 
-  // state, term, seq/ack
-  int32_t code = 0;
-  if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER || pSyncNode->state == TAOS_SYNC_STATE_LEARNER) {
-    if (pMsg->term == raftStoreGetTerm(pSyncNode)) {
-      if (pMsg->seq == SYNC_SNAPSHOT_SEQ_PREP_SNAPSHOT) {
-        sInfo("vgId:%d, receive pre-snapshot msg of snapshot replication. signature:(%" PRId64 ", %" PRId64 ")",
-              pSyncNode->vgId, pMsg->term, pMsg->startTime);
-        code = syncNodeOnSnapshotPrep(pSyncNode, pMsg);
-      } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_BEGIN) {
-        sInfo("vgId:%d, receive begin msg of snapshot replication. signature:(%" PRId64 ", %" PRId64 ")",
-              pSyncNode->vgId, pMsg->term, pMsg->startTime);
-        code = syncNodeOnSnapshotBegin(pSyncNode, pMsg);
-      } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_END) {
-        sInfo("vgId:%d, receive end msg of snapshot replication. signature: (%" PRId64 ", %" PRId64 ")",
-              pSyncNode->vgId, pMsg->term, pMsg->startTime);
-        code = syncNodeOnSnapshotEnd(pSyncNode, pMsg);
-        if (syncLogBufferReInit(pSyncNode->pLogBuf, pSyncNode) != 0) {
-          sRError(pReceiver, "failed to reinit log buffer since %s", terrstr());
-          code = -1;
-        }
-      } else if (pMsg->seq == SYNC_SNAPSHOT_SEQ_FORCE_CLOSE) {
-        // force close, no response
-        syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "process force stop");
-        snapshotReceiverStop(pReceiver);
-      } else if (pMsg->seq > SYNC_SNAPSHOT_SEQ_BEGIN && pMsg->seq < SYNC_SNAPSHOT_SEQ_END) {
-        syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "process seq data");
-        code = syncNodeOnSnapshotReceive(pSyncNode, pMsg);
-      } else {
-        // error log
-        sRError(pReceiver, "snapshot receiver recv error seq:%d, my ack:%d", pMsg->seq, pReceiver->ack);
-        code = -1;
-      }
-    } else {
-      // error log
-      sRError(pReceiver, "snapshot receiver term not equal");
-      code = -1;
-    }
-  } else {
-    // error log
-    sRError(pReceiver, "snapshot receiver not follower");
-    code = -1;
+  if (pSyncNode->state != TAOS_SYNC_STATE_FOLLOWER && pSyncNode->state != TAOS_SYNC_STATE_LEARNER) {
+    sRError(pReceiver, "snapshot receiver not a follower or learner");
+    return -1;
   }
 
+  if (pMsg->seq < SYNC_SNAPSHOT_SEQ_PREP || pMsg->seq > SYNC_SNAPSHOT_SEQ_END) {
+    sRError(pReceiver, "snap replication msg with invalid seq:%d", pMsg->seq);
+    return -1;
+  }
+
+  // prepare
+  if (pMsg->seq == SYNC_SNAPSHOT_SEQ_PREP) {
+    sInfo("vgId:%d, prepare snap replication. msg signature:(%" PRId64 ", %" PRId64 ")", pSyncNode->vgId, pMsg->term,
+          pMsg->startTime);
+    code = syncNodeOnSnapshotPrep(pSyncNode, pMsg);
+    goto _out;
+  }
+
+  // begin
+  if (pMsg->seq == SYNC_SNAPSHOT_SEQ_BEGIN) {
+    sInfo("vgId:%d, begin snap replication. msg signature:(%" PRId64 ", %" PRId64 ")", pSyncNode->vgId, pMsg->term,
+          pMsg->startTime);
+    code = syncNodeOnSnapshotBegin(pSyncNode, pMsg);
+    goto _out;
+  }
+
+  // data
+  if (pMsg->seq > SYNC_SNAPSHOT_SEQ_BEGIN && pMsg->seq < SYNC_SNAPSHOT_SEQ_END) {
+    code = syncNodeOnSnapshotReceive(pSyncNode, ppMsg);
+    goto _out;
+  }
+
+  // end
+  if (pMsg->seq == SYNC_SNAPSHOT_SEQ_END) {
+    sInfo("vgId:%d, end snap replication. msg signature:(%" PRId64 ", %" PRId64 ")", pSyncNode->vgId, pMsg->term,
+          pMsg->startTime);
+    code = syncNodeOnSnapshotEnd(pSyncNode, pMsg);
+    if (code != 0) {
+      sRError(pReceiver, "failed to end snapshot.");
+      goto _out;
+    }
+
+    code = syncLogBufferReInit(pSyncNode->pLogBuf, pSyncNode);
+    if (code != 0) {
+      sRError(pReceiver, "failed to reinit log buffer since %s", terrstr());
+    }
+    goto _out;
+  }
+
+_out:;
   syncNodeResetElectTimer(pSyncNode);
   return code;
 }
@@ -993,41 +1105,7 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
   // update next index
   syncIndexMgrSetIndex(pSyncNode->pNextIndex, &pMsg->srcId, snapshot.lastApplyIndex + 1);
 
-  // update seq
-  pSender->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
-
-  // build begin msg
-  SRpcMsg rpcMsg = {0};
-  if (syncBuildSnapshotSend(&rpcMsg, 0, pSender->pSyncNode->vgId) != 0) {
-    sSError(pSender, "prepare snapshot failed since build msg error");
-    return -1;
-  }
-
-  SyncSnapshotSend *pSendMsg = rpcMsg.pCont;
-  pSendMsg->srcId = pSender->pSyncNode->myRaftId;
-  pSendMsg->destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
-  pSendMsg->term = raftStoreGetTerm(pSender->pSyncNode);
-  pSendMsg->beginIndex = pSender->snapshotParam.start;
-  pSendMsg->lastIndex = pSender->snapshot.lastApplyIndex;
-  pSendMsg->lastTerm = pSender->snapshot.lastApplyTerm;
-  pSendMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
-  pSendMsg->lastConfig = pSender->lastConfig;
-  pSendMsg->startTime = pSender->startTime;
-  pSendMsg->seq = SYNC_SNAPSHOT_SEQ_BEGIN;
-
-  ASSERT(pSendMsg->startTime);
-
-  sSInfo(pSender, "begin snapshot replication to dnode %d. startTime:%" PRId64, DID(&pSendMsg->destId),
-         pSendMsg->startTime);
-
-  // send msg
-  syncLogSendSyncSnapshotSend(pSyncNode, pSendMsg, "snapshot sender reply pre");
-  if (syncNodeSendMsgById(&pSendMsg->destId, pSender->pSyncNode, &rpcMsg) != 0) {
-    sSError(pSender, "prepare snapshot failed since send msg error");
-    return -1;
-  }
-
-  return 0;
+  return snapshotSend(pSender);
 }
 
 static int32_t snapshotSenderSignatureCmp(SSyncSnapshotSender *pSender, SyncSnapshotRsp *pMsg) {
@@ -1038,14 +1116,77 @@ static int32_t snapshotSenderSignatureCmp(SSyncSnapshotSender *pSender, SyncSnap
   return 0;
 }
 
+static int32_t syncSnapBufferSend(SSyncSnapshotSender *pSender, SyncSnapshotRsp **ppMsg) {
+  int32_t          code = 0;
+  SSyncSnapBuffer *pSndBuf = pSender->pSndBuf;
+  SyncSnapshotRsp *pMsg = ppMsg[0];
+
+  taosThreadMutexLock(&pSndBuf->mutex);
+  if (snapshotSenderSignatureCmp(pSender, pMsg) != 0) {
+    code = terrno = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
+    goto _out;
+  }
+
+  if (pSender->pReader == NULL || pSender->finish) {
+    code = terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    goto _out;
+  }
+
+  if (pMsg->ack - pSndBuf->start >= pSndBuf->size) {
+    code = terrno = TSDB_CODE_SYN_BUFFER_FULL;
+    goto _out;
+  }
+
+  ASSERT(pSndBuf->start <= pSndBuf->cursor + 1 && pSndBuf->cursor < pSndBuf->end);
+
+  if (pMsg->ack > pSndBuf->cursor && pMsg->ack < pSndBuf->end) {
+    SyncSnapBlock *pBlk = pSndBuf->entries[pMsg->ack % pSndBuf->size];
+    ASSERT(pBlk);
+    pBlk->acked = 1;
+  }
+
+  for (int64_t ack = pSndBuf->cursor + 1; ack < pSndBuf->end; ++ack) {
+    SyncSnapBlock *pBlk = pSndBuf->entries[ack % pSndBuf->size];
+    if (pBlk->acked) {
+      pSndBuf->cursor = ack;
+    } else {
+      break;
+    }
+  }
+
+  for (int64_t ack = pSndBuf->start; ack <= pSndBuf->cursor; ++ack) {
+    pSndBuf->entryDeleteCb(pSndBuf->entries[ack % pSndBuf->size]);
+    pSndBuf->entries[ack % pSndBuf->size] = NULL;
+    pSndBuf->start = ack + 1;
+  }
+
+  while (pSender->seq != SYNC_SNAPSHOT_SEQ_END && pSender->seq - pSndBuf->start < (pSndBuf->size >> 2)) {
+    if (snapshotSend(pSender) != 0) {
+      code = terrno;
+      goto _out;
+    }
+  }
+
+  if (pSender->seq == SYNC_SNAPSHOT_SEQ_END && pSndBuf->end <= pSndBuf->start) {
+    if (snapshotSend(pSender) != 0) {
+      code = terrno;
+      goto _out;
+    }
+  }
+_out:
+  taosThreadMutexUnlock(&pSndBuf->mutex);
+  return code;
+}
+
 // sender on message
 //
 // condition 1 sender receives SYNC_SNAPSHOT_SEQ_END, close sender
 // condition 2 sender receives ack, set seq = ack + 1, send msg from seq
 // condition 3 sender receives error msg, just print error log
 //
-int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
-  SyncSnapshotRsp *pMsg = pRpcMsg->pCont;
+int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
+  SyncSnapshotRsp **ppMsg = (SyncSnapshotRsp **)&pRpcMsg->pCont;
+  SyncSnapshotRsp  *pMsg = ppMsg[0];
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(pSyncNode, &pMsg->srcId)) {
@@ -1071,10 +1212,7 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
   // check signature
   int32_t order = 0;
   if ((order = snapshotSenderSignatureCmp(pSender, pMsg)) > 0) {
-    sSError(pSender,
-            "received a stale snapshot rsp. ignore it"
-            "sender signature: (%" PRId64 ", %" PRId64 "), msg signature:(%" PRId64 ", %" PRId64 ")",
-            pSender->term, pSender->startTime, pMsg->term, pMsg->startTime);
+    sSWarn(pSender, "ignore a stale snap rsp, msg signature:(%" PRId64 ", %" PRId64 ").", pMsg->term, pMsg->startTime);
     terrno = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
     return -1;
   } else if (order < 0) {
@@ -1083,9 +1221,7 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
     goto _ERROR;
   }
 
-  // state, term, seq/ack
   if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
-    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "snapshot sender not leader");
     sSError(pSender, "snapshot sender not leader");
     terrno = TSDB_CODE_SYN_NOT_LEADER;
     goto _ERROR;
@@ -1093,83 +1229,46 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, const SRpcMsg *pRpcMsg) {
 
   SyncTerm currentTerm = raftStoreGetTerm(pSyncNode);
   if (pMsg->term != currentTerm) {
-    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "snapshot sender and receiver term not match");
-    sSError(pSender, "snapshot sender term not equal, msg term:%" PRId64 " currentTerm:%" PRId64, pMsg->term,
+    sSError(pSender, "snapshot sender term mismatch, msg term:%" PRId64 " currentTerm:%" PRId64, pMsg->term,
             currentTerm);
     terrno = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
     goto _ERROR;
   }
 
   if (pMsg->code != 0) {
-    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "receive error code");
     sSError(pSender, "snapshot sender receive error:%s 0x%x and stop sender", tstrerror(pMsg->code), pMsg->code);
     terrno = pMsg->code;
     goto _ERROR;
   }
 
-  // prepare <begin, end>, send begin msg
-  if (pMsg->ack == SYNC_SNAPSHOT_SEQ_PREP_SNAPSHOT) {
-    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "process seq pre-snapshot");
-    return syncNodeOnSnapshotPrepRsp(pSyncNode, pSender, pMsg);
-  }
-
-  if (pSender->pReader == NULL || pSender->finish) {
-    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "snapshot sender invalid");
-    sSError(pSender, "snapshot sender invalid error:%s 0x%x, pReader:%p finish:%d", tstrerror(pMsg->code), pMsg->code,
-            pSender->pReader, pSender->finish);
-    terrno = pMsg->code;
-    goto _ERROR;
-  }
-
-  if (pMsg->ack == SYNC_SNAPSHOT_SEQ_BEGIN) {
-    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "process seq begin");
-    if (snapshotSenderUpdateProgress(pSender, pMsg) != 0) {
-      return -1;
+  // send begin
+  if (pMsg->ack == SYNC_SNAPSHOT_SEQ_PREP) {
+    sSInfo(pSender, "process prepare rsp");
+    if (syncNodeOnSnapshotPrepRsp(pSyncNode, pSender, pMsg) != 0) {
+      goto _ERROR;
     }
-
-    if (snapshotSend(pSender) != 0) {
-      return -1;
-    }
-    return 0;
   }
 
-  // receive ack is finish, close sender
+  // send msg of data or end
+  if (pMsg->ack >= SYNC_SNAPSHOT_SEQ_BEGIN && pMsg->ack < SYNC_SNAPSHOT_SEQ_END) {
+    if (syncSnapBufferSend(pSender, ppMsg) != 0) {
+      sSError(pSender, "failed to replicate snap since %s. seq:%d, pReader:%p, finish:%d", terrstr(), pSender->seq,
+              pSender->pReader, pSender->finish);
+      goto _ERROR;
+    }
+  }
+
+  // end
   if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
-    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "process seq end");
+    sSInfo(pSender, "process end rsp");
     snapshotSenderStop(pSender, true);
     syncNodeReplicateReset(pSyncNode, &pMsg->srcId);
-    return 0;
-  }
-
-  // send next msg
-  if (pMsg->ack == pSender->seq) {
-    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "process seq data");
-    // update sender ack
-    if (snapshotSenderUpdateProgress(pSender, pMsg) != 0) {
-      return -1;
-    }
-    if (snapshotSend(pSender) != 0) {
-      return -1;
-    }
-  } else if (pMsg->ack == pSender->seq - 1) {
-    // maybe resend
-    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "process seq and resend");
-    if (snapshotReSend(pSender) != 0) {
-      return -1;
-    }
-  } else {
-    // error log
-    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "receive error ack");
-    sSError(pSender, "snapshot sender receive error ack:%d, my seq:%d", pMsg->ack, pSender->seq);
-    snapshotSenderStop(pSender, true);
-    syncNodeReplicateReset(pSyncNode, &pMsg->srcId);
-    return -1;
   }
 
   return 0;
 
 _ERROR:
-  snapshotSenderStop(pSender, true);
+  snapshotSenderStop(pSender, false);
   syncNodeReplicateReset(pSyncNode, &pMsg->srcId);
   return -1;
 }

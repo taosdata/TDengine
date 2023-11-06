@@ -397,6 +397,7 @@ void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeInfo) {
     SDnodeInfo dInfo;
     dInfo.id = pDnode->id;
     dInfo.ep.port = pDnode->port;
+    dInfo.offlineReason = pDnode->offlineReason;
     tstrncpy(dInfo.ep.fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
     tstrncpy(dInfo.active, pDnode->active, TSDB_ACTIVE_KEY_LEN);
     tstrncpy(dInfo.connActive, pDnode->connActive, TSDB_CONN_ACTIVE_KEY_LEN);
@@ -720,7 +721,7 @@ static int32_t mndProcessNotifyReq(SRpcMsg *pReq) {
       mndReleaseVgroup(pMnode, pVgroup);
     }
   }
-    mndUpdClusterInfo(pReq);
+  mndUpdClusterInfo(pReq);
 _OVER:
   tFreeSNotifyReq(&notifyReq);
   return code;
@@ -781,11 +782,7 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
 
     SDnodeObj tmpDnode = *pDnode;
     if (action == DND_ACTIVE_CODE) {
-#ifndef TD_GRANT_OPTIMIZE
-      if (grantAlterActiveCode(pDnode->active, pCfgReq->value, tmpDnode.active, 0) != 0) {
-#else
       if (grantAlterActiveCode(pDnode->id, pDnode->active, pCfgReq->value, tmpDnode.active, 0) != 0) {
-#endif
         if (TSDB_CODE_DUP_KEY != terrno) {
           mError("dnode:%d, config dnode:%d, app:%p config:%s value:%s failed since %s", pDnode->id, pCfgReq->dnodeId,
                  pReq->info.ahandle, pCfgReq->config, pCfgReq->value, terrstr());
@@ -801,11 +798,7 @@ static int32_t mndConfigDnode(SMnode *pMnode, SRpcMsg *pReq, SMCfgDnodeReq *pCfg
         goto _OVER;
       }
     } else if (action == DND_CONN_ACTIVE_CODE) {
-#ifndef TD_GRANT_OPTIMIZE
-      if (grantAlterActiveCode(pDnode->connActive, pCfgReq->value, tmpDnode.connActive, 1) != 0) {
-#else
       if (grantAlterActiveCode(pDnode->id, pDnode->connActive, pCfgReq->value, tmpDnode.connActive, 1) != 0) {
-#endif
         if (TSDB_CODE_DUP_KEY != terrno) {
           mError("dnode:%d, config dnode:%d, app:%p config:%s value:%s failed since %s", pDnode->id, pCfgReq->dnodeId,
                  pReq->info.ahandle, pCfgReq->config, pCfgReq->value, terrstr());
@@ -1025,7 +1018,7 @@ static int32_t mndProcessCreateDnodeReq(SRpcMsg *pReq) {
   char obj[200] = {0};
   sprintf(obj, "%s:%d", createReq.fqdn, createReq.port);
 
-  auditRecord(pReq, pMnode->clusterId, "createDnode", obj, "", createReq.sql, createReq.sqlLen);
+  auditRecord(pReq, pMnode->clusterId, "createDnode", "", obj, createReq.sql, createReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -1174,7 +1167,7 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   char obj1[30] = {0};
   sprintf(obj1, "%d", dropReq.dnodeId);
 
-  auditRecord(pReq, pMnode->clusterId, "dropDnode", obj1, "", dropReq.sql, dropReq.sqlLen);
+  auditRecord(pReq, pMnode->clusterId, "dropDnode", "", obj1, dropReq.sql, dropReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -1234,6 +1227,70 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     }
 
     strcpy(dcfgReq.config, "monitor");
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
+  } else if (strncasecmp(cfgReq.config, "s3blocksize", 11) == 0) {
+    int32_t optLen = strlen("s3blocksize");
+    int32_t flag = -1;
+    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
+    if (code < 0) return code;
+
+    if (flag > 1024 * 1024) {
+      mError("dnode:%d, failed to config s3blocksize since value:%d. Valid range: [4, 1024 * 1024]", cfgReq.dnodeId,
+             flag);
+      terrno = TSDB_CODE_INVALID_CFG;
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return -1;
+    }
+
+    strcpy(dcfgReq.config, "s3blocksize");
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
+  } else if (strncasecmp(cfgReq.config, "s3blockcachesize", 16) == 0) {
+    int32_t optLen = strlen("s3blockcachesize");
+    int32_t flag = -1;
+    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
+    if (code < 0) return code;
+
+    if (flag < 4 || flag > 1024 * 1024) {
+      mError("dnode:%d, failed to config s3BlockCacheSize since value:%d. Valid range: [4, 1024 * 1024]",
+             cfgReq.dnodeId, flag);
+      terrno = TSDB_CODE_INVALID_CFG;
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return -1;
+    }
+
+    strcpy(dcfgReq.config, "s3blockcachesize");
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
+  } else if (strncasecmp(cfgReq.config, "s3pagecachesize", 16) == 0) {
+    int32_t optLen = strlen("s3pagecachesize");
+    int32_t flag = -1;
+    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
+    if (code < 0) return code;
+
+    if (flag < 4 || flag > 1024 * 1024 * 1024) {
+      mError("dnode:%d, failed to config s3PageCacheSize since value:%d. Valid range: [4, 1024 * 1024]", cfgReq.dnodeId,
+             flag);
+      terrno = TSDB_CODE_INVALID_CFG;
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return -1;
+    }
+
+    strcpy(dcfgReq.config, "s3pagecachesize");
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
+  } else if (strncasecmp(cfgReq.config, "s3uploaddelaysec", 16) == 0) {
+    int32_t optLen = strlen("s3uploaddelaysec");
+    int32_t flag = -1;
+    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
+    if (code < 0) return code;
+
+    if (flag < 600 || flag > 60 * 60 * 24 * 30) {
+      mError("dnode:%d, failed to config s3UploadDelaySec since value:%d. Valid range: [600, 60 * 60 * 24 * 30]",
+             cfgReq.dnodeId, flag);
+      terrno = TSDB_CODE_INVALID_CFG;
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return -1;
+    }
+
+    strcpy(dcfgReq.config, "s3uploaddelaysec");
     snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
   } else if (strncasecmp(cfgReq.config, "ttlpushinterval", 14) == 0) {
     int32_t optLen = strlen("ttlpushinterval");
@@ -1375,7 +1432,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   char obj[50] = {0};
   sprintf(obj, "%d", cfgReq.dnodeId);
 
-  auditRecord(pReq, pMnode->clusterId, "alterDnode", obj, "", cfgReq.sql, cfgReq.sqlLen);
+  auditRecord(pReq, pMnode->clusterId, "alterDnode", "", obj, cfgReq.sql, cfgReq.sqlLen);
 
   tFreeSMCfgDnodeReq(&cfgReq);
 

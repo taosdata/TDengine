@@ -137,7 +137,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
     SRetention *pRetention = &pCfg->tsdbCfg.retentions[i];
     memcpy(pRetention, taosArrayGet(pCreate->pRetensions, i), sizeof(SRetention));
     if (i == 0) {
-      if ((pRetention->freq > 0 && pRetention->keep > 0)) pCfg->isRsma = 1;
+      if ((pRetention->freq >= 0 && pRetention->keep > 0)) pCfg->isRsma = 1;
     }
   }
 
