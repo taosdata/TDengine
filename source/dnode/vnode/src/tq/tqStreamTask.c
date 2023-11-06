@@ -165,12 +165,15 @@ int32_t tqRestartStreamTasks(STQ* pTq) {
   if (vnodeIsRoleLeader(pTq->pVnode) && !tsDisableStream) {
     tqInfo("vgId:%d restart all stream tasks after all tasks being updated", vgId);
     tqResetStreamTaskStatus(pTq);
+    streamMetaWUnLock(pMeta);
+
     tqStartStreamTasks(pTq);
   } else {
+    streamMetaWUnLock(pMeta);
+
     tqInfo("vgId:%d, follower node not start stream tasks", vgId);
   }
 
-  streamMetaWUnLock(pMeta);
   code = terrno;
   return code;
 }
