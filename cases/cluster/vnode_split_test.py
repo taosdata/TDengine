@@ -39,7 +39,7 @@ class VnodeSplit(TDCase):
         self.result_file_name = ""
         self._tmp_dir: str = os.path.join(self.run_log_dir, "tmp")
         self.replica = int(os.environ["DATABASE_REPLICAS"]) if "DATABASE_REPLICAS" in os.environ else 1
-        self.vgroups = 5
+        self.vgroups = 2
         self.create_table_thread_count = 40
         self.thread_count = 200
         # self.thread_count = 10
@@ -48,6 +48,8 @@ class VnodeSplit(TDCase):
         self.childtable_count = 10000
         self.insert_rows = 1000000
         self.start_timestamp = "2020-01-01 00:00:00"
+        self.disorder_start_timestamp = "2018-01-01 00:00:00"
+        self.fill_history_start_timestamp = "2020-01-01 00:00:00"
         self.stbname = "stb"
         self.dbname = "stream_test"
         self.stream_stbname = "output_streamtb"
@@ -60,12 +62,19 @@ class VnodeSplit(TDCase):
         self.keep_trying = -1
         self.trying_interval = 10
         self.interlace_rows = 0
+        self.disorder_ratio = 10
+        self.update_ratio = 5
+        self.delete_ratio = 1
+        self.disorder_fill_interval = 300
+        self.update_fill_interval = 25
+        self.generate_row_rule = 2
         self.stream_sql = f"select ts,max(c1) from {self.dbname}.{self.stbname} where c1>0 partition by tbname interval(1s) sliding(1s)"
         self.fill_history_rows = 10000
         # self.fill_history_rows = 300
         self.pre_num_of_records_per_req = 10000
         self.json_file_name1 = "insert0.json"
         self.json_file_name2 = "insert1.json"
+        self.json_file_name3 = "insert2.json"
         self.json_data_list = list()
         self.taosBenchmark_iplist: List = self.get_fqdn("taosBenchmark")
         self.taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
@@ -77,12 +86,14 @@ class VnodeSplit(TDCase):
         self.restart_dnode_id_list = list()
         self.start_split_row_count = self.fill_history_rows * self.childtable_count
         # self.scheduler_interval = 300
-        self.scheduler_interval = 10
+        self.scheduler_interval = 60
         # self.tmq_schedular_interval = 60
-        self.tmq_schedular_interval = 10
+        self.tmq_schedular_interval = 5
         self.query_vgid_interval = 60
         self.show_vnodes_interval = 2
+        self.show_trans_interval = 60
         self.restart_dnode_interval = 300
+        self.disorder_schedular_interval = 300
         self.restore_timeout = 10800
         self.check_transactions_timeout = 10800
         self.wait_false_timeout = 10
@@ -150,8 +161,8 @@ class VnodeSplit(TDCase):
             self.tdSql.query(f'show transactions;')
             query_data = self.tdSql.query_data
             if latency < self.check_transactions_timeout:
-                latency += self.show_vnodes_interval
-                time.sleep(self.show_vnodes_interval)
+                latency += self.show_trans_interval
+                time.sleep(self.show_trans_interval)
             else:
                 return False
 
@@ -170,10 +181,25 @@ class VnodeSplit(TDCase):
                 return False
             # time.sleep(self.show_vnodes_interval)
 
+    def disorder_update_delete_data(self):
+        self._remote._logger.info(f"------------ in disorder-update-delete schedular ------------")
+        self.json_filename_list = [self.json_file_name3]
+        self.child_table_exists = "yes"
+        self.db_drop = "no"
+        dbinfo = self.tdCom.setDBinfo(name=self.dbname, replica=self.replica, vgroups=self.vgroups, drop=self.db_drop, wal_retention_period=self.wal_retention_period)
+        stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.fill_history_rows, start_timestamp=self.disorder_start_timestamp, child_table_exists=self.child_table_exists, name=self.stbname, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows, disorder_ratio=self.disorder_ratio, update_ratio=self.update_ratio, delete_ratio=self.delete_ratio, disorder_fill_interval=self.disorder_fill_interval, update_fill_interval=self.update_fill_interval, generate_row_rule=self.generate_row_rule)]
+        database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
+        host = self.get_fqdn("taosd")[0]
+        json_info = self.tdCom.setJsoninfo(host=host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, num_of_records_per_req=self.pre_num_of_records_per_req)
+        self.tdCom.genBenchmarkJson(self.run_log_dir, self.json_file_name3, json_info)
+        self.json_data_list = [json_info]
+        self.tdCom.put_file(self._remote, self.taosBenchmark_iplist, self.json_data_list, self.json_filename_list, self.run_log_dir)
+        self._remote.cmd(self.taosBenchmark_iplist[0], [f'taosBenchmark -c {self.taosBenchmark_env_setting[0]["spec"]["config_dir"]} -f {self.json_data_list[0]["test_log"]}{self.json_filename_list[0]} 2>&1'])
+
     def prepare_fill_history_data(self):
         self.json_filename_list = [self.json_file_name1]
         dbinfo = self.tdCom.setDBinfo(name=self.dbname, replica=self.replica, vgroups=self.vgroups, drop=self.db_drop, wal_retention_period=self.wal_retention_period)
-        stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.fill_history_rows, start_timestamp=self.start_timestamp, child_table_exists=self.child_table_exists, name=self.stbname, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows)]
+        stb_into = [self.tdCom.setStbinfo(columns=self.column_info_list, tags=self.tag_info_list, childtable_count=self.childtable_count, insert_rows=self.fill_history_rows, start_timestamp=self.fill_history_start_timestamp, child_table_exists=self.child_table_exists, name=self.stbname, keep_trying=self.keep_trying, trying_interval=self.trying_interval, interlace_rows=self.interlace_rows)]
         database_info = [self.tdCom.setDatabases(dbinfo=dbinfo, super_tables=stb_into)]
         host = self.get_fqdn("taosd")[0]
         json_info = self.tdCom.setJsoninfo(host=host, databases=database_info, create_table_thread_count=self.create_table_thread_count, thread_count=self.thread_count, num_of_records_per_req=self.pre_num_of_records_per_req)
@@ -305,6 +331,8 @@ class VnodeSplit(TDCase):
         self.remove_schedular(self.vgid_info_schedular)
         self._remote._logger.info(f"------------ remove restart dnode schedular job ------------: {self.restart_dnode_schedular}")
         self.remove_schedular(self.restart_dnode_schedular)
+        self._remote._logger.info(f"------------ remove disorder-update-delete schedular job ------------: {self.disorder_schedular}")
+        self.remove_schedular(self.disorder_schedular)
 
     def remove_schedular(self, schedular):
         if schedular is not None:
@@ -316,7 +344,7 @@ class VnodeSplit(TDCase):
             if self.tmq_status == 0:
                 self.tdSql.query(f'show {self.dbname}.stables')
                 if self.stbname in str(self.tdSql.query_data):
-                    queryString = "select ts, log(c0), ceil(pow(c0,3)) from %s.%s where c0 %% 7 >= 0" %(self.dbname, self.stbname)
+                    queryString = f"select ts, log(c0), ceil(pow(c0,3)) from {self.dbname}.{self.stbname} where c0 % 7 >= 0"
                     sqlString = "create topic if not exists %s as %s" %(self.topic_name, queryString)
                     self.tdSql.execute(sqlString)
                     consumer_dict = {
@@ -331,6 +359,7 @@ class VnodeSplit(TDCase):
                             }
                     consumer = Consumer(consumer_dict)
                     consumer.subscribe([self.topic_name])
+
                     while True:
                         self.tmq_status = 1
                         if self.tmq_schedular is not None:
@@ -364,7 +393,6 @@ class VnodeSplit(TDCase):
                 taosd_setting = copy.deepcopy(self.taosd_setting)
                 self.taosd.update_cfg('/tmp',taosd_setting , {"supportVnodes": self.cfg["boundary"][-1]}, endpoint, True)
 
-
     def run(self):
         self.prepare_fill_history_data()
         self.get_dnode_id_list()
@@ -372,7 +400,11 @@ class VnodeSplit(TDCase):
         self.tmq_schedular = self.tdCom.add_back_ground_scheduler(self.tmq_subcribe, "interval", seconds=self.tmq_schedular_interval, max_instances=1, args=[])
         self.split_schedular = self.tdCom.add_back_ground_scheduler(self.split_vnode, "interval", seconds=self.scheduler_interval, max_instances=1, args=[])
         self.vgid_info_schedular = self.tdCom.add_back_ground_scheduler(self.get_vgid_info, "interval", seconds=self.query_vgid_interval, max_instances=1, args=[])
+        self.disorder_schedular = self.tdCom.add_back_ground_scheduler(self.disorder_update_delete_data, "interval", seconds=self.disorder_schedular_interval, max_instances=1, args=[])
         self.restart_dnode_schedular = self.tdCom.add_back_ground_scheduler(self.restart_dnodes, "interval", seconds=self.restart_dnode_interval, max_instances=1, args=[])
         self.insert_data()
+        self.check_transactions()
+        self.check_restored_true()
+        self.tdSql.execute(f'delete from {self.dbname}.{self.stbname} where ts >= "{self.disorder_start_timestamp}" and ts < "{self.fill_history_start_timestamp}"')
         self.tdSql.query(f'select count(*) from {self.dbname}.{self.stbname}')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.childtable_count*(self.insert_rows+self.fill_history_rows))

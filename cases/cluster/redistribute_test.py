@@ -39,14 +39,14 @@ class VnodeRedistribute(TDCase):
         self.result_file_name = ""
         self._tmp_dir: str = os.path.join(self.run_log_dir, "tmp")
         self.replica = int(os.environ["DATABASE_REPLICAS"]) if "DATABASE_REPLICAS" in os.environ else 1
-        self.vgroups = 2
+        self.vgroups = 5
         self.create_table_thread_count = 40
         self.thread_count = 200
         # self.thread_count = 10
-        self.num_of_records_per_req = 10
+        self.num_of_records_per_req = 100
         # self.num_of_records_per_req = 100
         self.childtable_count = 10000
-        self.insert_rows = 10000
+        self.insert_rows = 1000000
         self.disorder_start_timestamp = "2018-01-01 00:00:00"
         self.fill_history_start_timestamp = "2020-01-01 00:00:00"
         self.stbname = "stb"
@@ -378,12 +378,6 @@ class VnodeRedistribute(TDCase):
         self._remote._logger.info(f"------------ remove disorder-update-delete schedular job ------------: {self.disorder_schedular}")
         self.remove_schedular(self.disorder_schedular)
 
-    def remove_schedular(self, schedular):
-        self.tmq_schedular
-        if schedular is not None:
-            self.tdCom.remove_schedular_job(schedular)
-            schedular = None
-
     def tmq_subcribe(self):
         if self.use_tmq:
             if self.tmq_status == 0:
@@ -448,6 +442,7 @@ class VnodeRedistribute(TDCase):
         self.disorder_schedular = self.tdCom.add_back_ground_scheduler(self.disorder_update_delete_data, "interval", seconds=self.disorder_schedular_interval, max_instances=1, args=[])
         self.restart_dnode_schedular = self.tdCom.add_back_ground_scheduler(self.restart_dnodes, "interval", seconds=self.restart_dnode_interval, max_instances=1, args=[])
         self.insert_data()
+        self.check_restored_true()
         self._remote._logger.info(f"------------ delete ------------")
         self.tdSql.execute(f'delete from {self.dbname}.{self.stbname} where ts >= "{self.disorder_start_timestamp}" and ts < "{self.fill_history_start_timestamp}"')
         self.tdSql.query(f'select count(*) from {self.dbname}.{self.stbname}')
