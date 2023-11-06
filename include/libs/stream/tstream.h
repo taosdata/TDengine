@@ -241,6 +241,24 @@ typedef struct {
   SEpSet  epset;
 } SDownstreamTaskEpset;
 
+typedef enum {
+  TASK_SCANHISTORY_CONT = 0x1,
+  TASK_SCANHISTORY_QUIT = 0x2,
+  TASK_SCANHISTORY_REXEC = 0x3,
+} EScanHistoryRet;
+
+typedef struct {
+  EScanHistoryRet ret;
+  int32_t         idleTime;
+} SScanhistoryDataInfo;
+
+typedef struct {
+  int32_t idleDuration;   // idle time before use time slice the continue execute scan-history
+  int32_t numOfTicks;
+  tmr_h   pTimer;
+  int32_t execCount;
+} SScanhistorySchedInfo;
+
 typedef struct {
   int64_t         stbUid;
   char            stbFullName[TSDB_TABLE_FNAME_LEN];
@@ -378,9 +396,10 @@ typedef struct STaskOutputInfo {
   union {
     STaskDispatcherFixed   fixedDispatcher;
     STaskDispatcherShuffle shuffleDispatcher;
-    STaskSinkTb            tbSink;
-    STaskSinkSma           smaSink;
-    STaskSinkFetch         fetchSink;
+
+    STaskSinkTb    tbSink;
+    STaskSinkSma   smaSink;
+    STaskSinkFetch fetchSink;
   };
   int8_t        type;
   STokenBucket* pTokenBucket;
@@ -414,7 +433,10 @@ struct SStreamTask {
   SStreamState*       pState;         // state backend
   SArray*             pRspMsgList;
   SUpstreamInfo       upstreamInfo;
+
   // the followings attributes don't be serialized
+  SScanhistorySchedInfo schedHistoryInfo;
+
   int32_t             notReadyTasks;
   int32_t             numOfWaitingUpstream;
   int64_t             checkReqId;
@@ -734,8 +756,6 @@ void    initRpcMsg(SRpcMsg* pMsg, int32_t msgType, void* pCont, int32_t contLen)
 
 // recover and fill history
 void    streamTaskCheckDownstream(SStreamTask* pTask);
-int32_t onNormalTaskReady(SStreamTask* pTask);
-int32_t onScanhistoryTaskReady(SStreamTask* pTask);
 
 int32_t streamTaskCheckStatus(SStreamTask* pTask, int32_t upstreamTaskId, int32_t vgId, int64_t stage);
 int32_t streamTaskUpdateEpsetInfo(SStreamTask* pTask, SArray* pNodeList);
@@ -757,7 +777,9 @@ int32_t streamProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp* pRs
 int32_t streamLaunchFillHistoryTask(SStreamTask* pTask);
 int32_t streamTaskScanHistoryDataComplete(SStreamTask* pTask);
 int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated);
+int32_t streamReExecScanHistoryFuture(SStreamTask* pTask, int32_t idleDuration);
 bool    streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer);
+
 int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue);
 
 // common
@@ -777,21 +799,14 @@ void        streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
 void streamTaskStatusInit(STaskStatusEntry* pEntry, const SStreamTask* pTask);
 void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc);
 
-typedef enum {
-  TASK_SCANHISTORY_CONT = 0x1,
-  TASK_SCANHISTORY_QUIT = 0x2,
-  TASK_SCANHISTORY_REXEC = 0x3,
-} EScanHistoryRet;
-
 // source level
 int32_t streamSetParamForStreamScannerStep1(SStreamTask* pTask, SVersionRange* pVerRange, STimeWindow* pWindow);
 int32_t streamSetParamForStreamScannerStep2(SStreamTask* pTask, SVersionRange* pVerRange, STimeWindow* pWindow);
-EScanHistoryRet streamScanHistoryData(SStreamTask* pTask);
+SScanhistoryDataInfo streamScanHistoryData(SStreamTask* pTask);
 int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask);
 
 // agg level
-int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistoryFinishReq* pReq,
-                                          SRpcHandleInfo* pRpcInfo);
+int32_t streamProcessScanHistoryFinishReq(SStreamTask* pTask, SStreamScanHistoryFinishReq* pReq, SRpcHandleInfo* pInfo);
 int32_t streamProcessScanHistoryFinishRsp(SStreamTask* pTask);
 
 // stream task meta

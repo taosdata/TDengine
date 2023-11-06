@@ -1105,6 +1105,10 @@ static void doStartFillhistoryStep2(SStreamTask* pTask, SStreamTask* pStreamTask
   }
 }
 
+static void ddxx() {
+
+}
+
 // this function should be executed by only one thread, so we set an sentinel to protect this function
 int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   SStreamScanHistoryReq* pReq = (SStreamScanHistoryReq*)pMsg->pCont;
@@ -1168,18 +1172,17 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     return 0;
   }
 
-  EScanHistoryRet ret = streamScanHistoryData(pTask);
+  SScanhistoryDataInfo retInfo = streamScanHistoryData(pTask);
 
   // todo update the step1 exec elapsed time
   double el = (taosGetTimestampMs() - pTask->execInfo.step1Start) / 1000.0;
 
-  if (ret == TASK_SCANHISTORY_QUIT || ret == TASK_SCANHISTORY_REXEC) {
+  if (retInfo.ret == TASK_SCANHISTORY_QUIT || retInfo.ret == TASK_SCANHISTORY_REXEC) {
     int8_t status = streamTaskSetSchedStatusInactive(pTask);
     atomic_store_32(&pTask->status.inScanHistorySentinel, 0);
 
-    if (ret == TASK_SCANHISTORY_REXEC) {
-      // todo wait for 100ms and retry
-      streamStartScanHistoryAsync(pTask, 0);
+    if (retInfo.ret == TASK_SCANHISTORY_REXEC) {
+      streamReExecScanHistoryFuture(pTask, retInfo.idleTime);
     } else {
       char*       p = NULL;
       ETaskStatus s = streamTaskGetStatus(pTask, &p);
