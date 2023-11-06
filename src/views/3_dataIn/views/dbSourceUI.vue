@@ -231,8 +231,10 @@
                         <el-input
                           size="small"
                           style="margin-bottom: 8px"
-                          :placeholder="dbsource[0]?.authentication?.alternatives[0]?.username
-                              .placeholder"
+                          :placeholder="
+                            dbsource[0]?.authentication?.alternatives[0]
+                              ?.username.placeholder
+                          "
                           v-model="
                             dbsource[0].authentication.alternatives[0].username
                               .value
@@ -260,8 +262,10 @@
                           size="small"
                           type="password"
                           style="margin-bottom: 8px"
-                          :placeholder="dbsource[0]?.authentication?.alternatives[0]?.password
-                              .placeholder"
+                          :placeholder="
+                            dbsource[0]?.authentication?.alternatives[0]
+                              ?.password.placeholder
+                          "
                           v-model="
                             dbsource[0].authentication.alternatives[0].password
                               .value
@@ -344,7 +348,7 @@
       </section>
       <section>
         <el-collapse v-model="activeCollapse" accordion>
-          <el-collapse-item name='one'>
+          <el-collapse-item name="one">
             <template slot="title">
               <el-button
                 :loading="checkLoading"
@@ -357,7 +361,7 @@
             <Result
               v-show="JSON.stringify(checkResult) !== '{}'"
               :result="checkResult"
-            /> 
+            />
           </el-collapse-item>
         </el-collapse>
       </section>
@@ -638,7 +642,11 @@
                       >{{ $t("datasource.getschema") }}</el-button
                     >
                   </div>
-                  <el-input v-else v-model="p.value" :placeholder="p.placeholder"></el-input>
+                  <el-input
+                    v-else
+                    v-model="p.value"
+                    :placeholder="p.placeholder"
+                  ></el-input>
                 </template>
                 <template v-if="p.hint === 'bool' || p.hint.type === 'bool'">
                   <el-checkbox
@@ -740,13 +748,9 @@
           size="small"
           >{{ $t("edit") }}</el-button
         >
-        <el-button
-          v-else
-          type="primary"
-          @click="save"
-          size="small"
-          >{{ isEditable && !isCopyable ? $t("save") : $t("add") }}</el-button
-        >
+        <el-button v-else type="primary" @click="save" size="small">{{
+          isEditable && !isCopyable ? $t("save") : $t("add")
+        }}</el-button>
         <el-button @click="cancel" class="cancel-btn" size="small">{{
           $t("cancel")
         }}</el-button>
@@ -919,7 +923,7 @@ export default {
         // data_source: "",
         // version: "", // 返回数据源版本，不能获得版本则不返回该字段。
       },
-      activeCollapse: ''
+      activeCollapse: "",
     };
   },
   created() {
@@ -930,7 +934,7 @@ export default {
         (this.dbsource[0]?.params && this.dbsource[0]?.params[0]?.value) ||
         this.piSystemConfiguration;
       this.changeSystemConfiguration(defaultVal);
-      if (this.tagName == 'influxdb' || this.tagName == 'opentsdb') {
+      if (this.tagName == "influxdb" || this.tagName == "opentsdb") {
         this.getSchema(false);
       }
       this.isShowEditBtn = this.isCopyable ? false : true;
@@ -1218,13 +1222,23 @@ export default {
         console.log("result", result);
         this.checkResult = result;
         this.checkLoading = false; // 检测的 loading 效果
-        this.activeCollapse = 'one'
+        this.activeCollapse = "one";
       } catch (error) {
         this.checkLoading = false;
         console.log("err");
       }
     },
-
+    //验证influxdb的auth
+    validInfluxdbAuth(arr) {
+      let requiredArr = arr.filter((item) => item.required);
+      for (let i = 0; i < requiredArr.length; i++) {
+        if (!requiredArr[i].value&&requiredArr[i].required) {
+          Message.warning(requiredArr[i].placeholder);
+          return false;
+        }
+      }
+      return true;
+    },
     async submit(isSubmit) {
       // debugger
       let dns = "";
@@ -1250,14 +1264,6 @@ export default {
             });
             return;
           }
-        }
-        if (!this.sourceName && isSubmit) {
-          Message.warning(`${enterTip} ${this.$t("name")}`);
-          return;
-        }
-        if (!this.targetDatabase && isSubmit) {
-          Message.warning(`${enterTip} ${this.$t("stream.targetDB")}`);
-          return;
         }
         if (this.tagName === "taos") {
           if (data.authentication.value == "plain") {
@@ -1297,31 +1303,49 @@ export default {
           //     data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
           // }
           let url = data.options.endpoint.value.replace(/(taos\+|tmq\+)/g, "");
-          if (url.includes('://')) {
+          if (url.includes("://")) {
             let parsed_url = new URL(url);
             let scheme = null;
-            if (parsed_url.protocol == 'http:') {
-              scheme = '+ws'
-            } else if (parsed_url.protocol == 'https:') {
-              scheme = '+wss'
+            if (parsed_url.protocol == "http:") {
+              scheme = "+ws";
+            } else if (parsed_url.protocol == "https:") {
+              scheme = "+wss";
             } else {
-              scheme = '+' + parsed_url.protocol.replace(':', '')
+              scheme = "+" + parsed_url.protocol.replace(":", "");
             }
 
             let host = parsed_url.host;
-            let user =  parsed_url.username || localStorage.getItem('username') || '';
-            let decrypted = encodeURI(decrypt(localStorage.getItem('pwd')));
-            let pass = parsed_url.password || decrypted || '';
-            dns = scheme + '://' + user + ':' + pass + '@' + host + parsed_url.pathname + parsed_url.search;
+            let user =
+              parsed_url.username || localStorage.getItem("username") || "";
+            let decrypted = encodeURI(decrypt(localStorage.getItem("pwd")));
+            let pass = parsed_url.password || decrypted || "";
+            dns =
+              scheme +
+              "://" +
+              user +
+              ":" +
+              pass +
+              "@" +
+              host +
+              parsed_url.pathname +
+              parsed_url.search;
           } else {
             let host = url;
-            let user = localStorage.getItem('username') || '';
-            let decrypted = encodeURI(decrypt(localStorage.getItem('pwd')));
-            let pass = decrypted || '';
-            dns = '+ws://' + host;
+            let user = localStorage.getItem("username") || "";
+            let decrypted = encodeURI(decrypt(localStorage.getItem("pwd")));
+            let pass = decrypted || "";
+            dns = "+ws://" + host;
           }
         } else {
           if (this.tagName == "influxdb") {
+            let flag=this.validInfluxdbAuth(
+              data.authentication.alternatives.filter(
+                (item) => item.name === data.authentication?.value
+              )[0].params
+            );
+            if(!flag){
+              return
+            }
             this.changeHost(data.options.host.value);
             if (data.options.host.value && !this.isIP) {
               Message.warning(this.$t("datasource.iptip"));
@@ -1329,6 +1353,14 @@ export default {
             }
           }
           dns += `://${data.options.host.value ? data.options.host.value : ""}`;
+        }
+        if (!this.sourceName && isSubmit) {
+          Message.warning(`${enterTip} ${this.$t("name")}`);
+          return;
+        }
+        if (!this.targetDatabase && isSubmit) {
+          Message.warning(`${enterTip} ${this.$t("stream.targetDB")}`);
+          return;
         }
 
         if (data.options.port) {
@@ -1590,7 +1622,7 @@ export default {
           }
           console.log(this.isEditable, this.editId, "编辑");
           if (isSubmit) {
-            if (this.isEditable && this.editId&& !this.isCopyable) {
+            if (this.isEditable && this.editId && !this.isCopyable) {
               let result = await EditSource(piParams, this.editId);
               if (result.message) {
                 Message.error(result.message);
@@ -2112,7 +2144,7 @@ export default {
   // padding-left: 20px;
   justify-content: space-between;
   //   padding-right: 300px;
-  overflow-x:auto;
+  overflow-x: auto;
   display: flex;
   :deep {
     .el-input__inner {
@@ -2144,7 +2176,7 @@ export default {
 
   .left-ui {
     flex-shrink: 0;
-    width:800px;
+    width: 800px;
     .description {
       max-width: 568px;
       overflow: auto;
