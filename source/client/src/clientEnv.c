@@ -723,15 +723,16 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
     char newstr[PATH_MAX];
     int  len = strlen(str);
     if (len > 1 && str[0] != '"' && str[0] != '\'') {
-        if (len + 2 >= PATH_MAX) {
+      if (len + 2 < PATH_MAX) {
+        newstr[0] = '"';
+        strncpy(newstr + 1, str, len);
+        newstr[len + 1] = '"';
+        newstr[len + 2] = '\0';
+        str = newstr;
+      } else {
         tscError("Too long path %s", str);
         return -1;
       }
-      newstr[0] = '"';
-      strncpy(newstr+1, str, len);
-      newstr[len + 1] = '"';
-      newstr[len + 2] = '\0';
-      str = newstr;
     }
 #endif
     tstrncpy(configDir, str, PATH_MAX);
