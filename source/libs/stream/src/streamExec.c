@@ -220,7 +220,12 @@ SScanhistoryDataInfo streamScanHistoryData(SStreamTask* pTask) {
       }
 
       if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
-        stDebug("s-task:%s level:%d inputQ is blocked, retry later", pTask->id.idStr, pTask->info.taskLevel);
+        int64_t el = taosGetTimestampMs() - st;
+        pTask->execInfo.step1El += el/1000.0;
+
+        stDebug("s-task:%s level:%d inputQ is blocked, resume in 5sec, elapsed time:%.2fs", pTask->id.idStr,
+                pTask->info.taskLevel, pTask->execInfo.step1El);
+
         taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
         return (SScanhistoryDataInfo){TASK_SCANHISTORY_REXEC, 5000};
       }
@@ -268,14 +273,20 @@ SScanhistoryDataInfo streamScanHistoryData(SStreamTask* pTask) {
     }
 
     int64_t el = taosGetTimestampMs() - st;
+    pTask->execInfo.step1El += el/1000.0;
+
     if (el >= STREAM_SCAN_HISTORY_TIMESLICE) {
-      stDebug("s-task:%s fill-history:%d level:%d timeslice for scan-history exhausted", pTask->id.idStr,
-              pTask->info.fillHistory, pTask->info.taskLevel);
+      stDebug("s-task:%s fill-history:%d time slice for scan-history exhausted, elapse time:%.2fs, retry in 100ms",
+              pTask->id.idStr, pTask->info.fillHistory, el / 1000.0);
       return (SScanhistoryDataInfo){TASK_SCANHISTORY_REXEC, 100};
     }
   }
 
-  return (SScanhistoryDataInfo){TASK_SCANHISTORY_CONT, 0};;
+  // todo refactor
+  int64_t el = taosGetTimestampMs() - st;
+  pTask->execInfo.step1El += el/1000.0;
+
+  return (SScanhistoryDataInfo){TASK_SCANHISTORY_CONT, 0};
 }
 
 // wait for the stream task to be idle

@@ -372,7 +372,9 @@ typedef struct STaskExecStatisInfo {
   int64_t       init;
   int64_t       start;
   int64_t       step1Start;
+  double        step1El;
   int64_t       step2Start;
+  double        step2El;
   int32_t       updateCount;
   int64_t       latestUpdateTs;
   int32_t       processDataBlocks;

@@ -1102,10 +1102,6 @@ static void doStartFillhistoryStep2(SStreamTask* pTask, SStreamTask* pStreamTask
   }
 }
 
-static void ddxx() {
-
-}
-
 // this function should be executed by only one thread, so we set an sentinel to protect this function
 int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   SStreamScanHistoryReq* pReq = (SStreamScanHistoryReq*)pMsg->pCont;
@@ -1149,9 +1145,12 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     }
   } else {
     if (pTask->execInfo.step2Start == 0) {
-      tqDebug("s-task:%s resume from paused, original step1 startTs:%" PRId64, id, pTask->execInfo.step1Start);
+      tqDebug("s-task:%s continue exec scan-history(step1), original step1 startTs:%" PRId64", already elapsed:%.2fs", id,
+              pTask->execInfo.step1Start, pTask->execInfo.step1El);
     } else {
-      tqDebug("s-task:%s already in step2, no need to scan-history data, step2 starTs:%"PRId64, id, pTask->execInfo.step2Start);
+      tqDebug("s-task:%s already in step2, no need to scan-history data, step2 startTs:%" PRId64, id,
+              pTask->execInfo.step2Start);
+
       atomic_store_32(&pTask->status.inScanHistorySentinel, 0);
       streamMetaReleaseTask(pMeta, pTask);
       return 0;
