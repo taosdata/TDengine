@@ -1774,10 +1774,11 @@ export default {
               });
               return;
             }
+            let datasource = this.tagName == "mqtt" ? 'MQTT' : 'Kafka'
             if (this.$refs.mqtt.disable || this.$refs.mqtt.nameisnull) {
               Message({
                 type: "warning",
-                message: this.$t("datasource.mqttparsertip"),
+                message: this.$t("datasource.mqttparsertip").replace('{datasource}',datasource),
               });
               return;
             }
