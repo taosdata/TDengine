@@ -19,6 +19,10 @@
 #include "wal.h"
 #include "streamsm.h"
 
+#define SCANHISTORY_IDLE_TIME_SLICE 100    // 100ms
+#define SCANHISTORY_MAX_IDLE_TIME   10     // 10 sec
+#define SCANHISTORY_IDLE_TICK      ((SCANHISTORY_MAX_IDLE_TIME * 1000) / SCANHISTORY_IDLE_TIME_SLICE)
+
 typedef struct SLaunchHTaskInfo {
   SStreamMeta* pMeta;
   STaskId      id;
@@ -79,6 +83,50 @@ int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated) {
   }
 
   return 0;
+}
+
+static void doReExecScanhistory(void* param, void* tmrId) {
+  SStreamTask* pTask = param;
+  pTask->schedHistoryInfo.numOfTicks -= 1;
+
+  char* p = NULL;
+  ETaskStatus status = streamTaskGetStatus(pTask, &p);
+  if (status == TASK_STATUS__DROPPING || status == TASK_STATUS__STOP) {
+    int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+    stDebug("s-task:%s status:%s not start scan-history again, ref:%d", pTask->id.idStr, p, ref);
+  }
+
+  if (pTask->schedHistoryInfo.numOfTicks <= 0) {
+    streamStartScanHistoryAsync(pTask, 0);
+
+    int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
+    stDebug("s-task:%s fill-history:%d start scan-history data, out of tmr, ref:%d", pTask->id.idStr,
+            pTask->info.fillHistory, ref);
+  } else {
+    taosTmrReset(doReExecScanhistory, 100, pTask, NULL, pTask->schedHistoryInfo.pTimer);
+  }
+}
+
+int32_t streamReExecScanHistoryFuture(SStreamTask* pTask, int32_t idleDuration) {
+  int32_t numOfTicks = idleDuration / SCANHISTORY_IDLE_TIME_SLICE;
+  if (numOfTicks <= 0) {
+    numOfTicks = 1;
+  } else if (numOfTicks > SCANHISTORY_IDLE_TICK) {
+    numOfTicks = SCANHISTORY_IDLE_TICK;
+  }
+
+  pTask->schedHistoryInfo.numOfTicks = numOfTicks;
+
+  int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
+  stDebug("s-task:%s scan-history start in %.2fs, ref:%d", pTask->id.idStr, numOfTicks*0.1, ref);
+
+  if (pTask->schedHistoryInfo.pTimer == NULL) {
+    pTask->schedHistoryInfo.pTimer = taosTmrStart(doReExecScanhistory, SCANHISTORY_IDLE_TIME_SLICE, pTask, streamEnv.timer);
+  } else {
+    taosTmrReset(doReExecScanhistory, SCANHISTORY_IDLE_TIME_SLICE, pTask, streamEnv.timer, pTask->schedHistoryInfo.pTimer);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t doStartScanHistoryTask(SStreamTask* pTask) {
@@ -684,9 +732,8 @@ static void tryLaunchHistoryTask(void* param, void* tmrId) {
         int32_t hTaskId = pHTaskInfo->id.taskId;
 
         streamTaskGetStatus(pTask, &p);
-        stDebug(
-            "s-task:%s status:%s failed to launch fill-history task:0x%x, retry launch:%dms, retryCount:%d",
-            pTask->id.idStr, p, hTaskId, pHTaskInfo->waitInterval, pHTaskInfo->retryTimes);
+        stDebug("s-task:%s status:%s failed to launch fill-history task:0x%x, retry launch:%dms, retryCount:%d",
+                pTask->id.idStr, p, hTaskId, pHTaskInfo->waitInterval, pHTaskInfo->retryTimes);
 
         taosTmrReset(tryLaunchHistoryTask, LAUNCH_HTASK_INTERVAL, pInfo, streamEnv.timer, &pHTaskInfo->pTimer);
         streamMetaReleaseTask(pMeta, pTask);

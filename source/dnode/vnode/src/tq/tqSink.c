@@ -25,7 +25,7 @@ typedef struct STableSinkInfo {
   tstr     name;
 } STableSinkInfo;
 
-static bool hasOnlySubmitData(const SArray* pBlocks, int32_t numOfBlocks);
+static bool    hasOnlySubmitData(const SArray* pBlocks, int32_t numOfBlocks);
 static int32_t tsAscendingSortFn(const void* p1, const void* p2);
 static int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDataBlock, char* stbFullName,
                                   SSubmitTbData* pTableData);

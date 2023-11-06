@@ -187,7 +187,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
   return code;
 }
 
-EScanHistoryRet streamScanHistoryData(SStreamTask* pTask) {
+SScanhistoryDataInfo streamScanHistoryData(SStreamTask* pTask) {
   ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE);
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -201,7 +201,7 @@ EScanHistoryRet streamScanHistoryData(SStreamTask* pTask) {
     if (streamTaskShouldPause(pTask)) {
       double el = (taosGetTimestampMs() - pTask->execInfo.step1Start) / 1000.0;
       stDebug("s-task:%s paused from the scan-history task, elapsed time:%.2fsec", pTask->id.idStr, el);
-      return TASK_SCANHISTORY_QUIT;  // quit from step1, not continue to handle the step2
+      return (SScanhistoryDataInfo){TASK_SCANHISTORY_QUIT, 0};  // quit from step1, not continue to handle the step2
     }
 
     SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
@@ -216,13 +216,13 @@ EScanHistoryRet streamScanHistoryData(SStreamTask* pTask) {
     while (1) {
       if (streamTaskShouldStop(pTask)) {
         taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
-        return TASK_SCANHISTORY_QUIT;
+        return (SScanhistoryDataInfo){TASK_SCANHISTORY_QUIT, 0};
       }
 
       if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
         stDebug("s-task:%s level:%d inputQ is blocked, retry later", pTask->id.idStr, pTask->info.taskLevel);
         taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
-        return TASK_SCANHISTORY_REXEC;
+        return (SScanhistoryDataInfo){TASK_SCANHISTORY_REXEC, 5000};
       }
 
       SSDataBlock* output = NULL;
@@ -261,7 +261,7 @@ EScanHistoryRet streamScanHistoryData(SStreamTask* pTask) {
       if (code != TSDB_CODE_SUCCESS) {
         terrno = code;
         stDebug("s-task:%s dump fill-history results failed, code:%s, retry in 100ms", pTask->id.idStr, tstrerror(code));
-        return TASK_SCANHISTORY_REXEC;
+        return (SScanhistoryDataInfo){TASK_SCANHISTORY_REXEC, 100};
       }
     } else {
       taosArrayDestroy(pRes);
@@ -271,13 +271,11 @@ EScanHistoryRet streamScanHistoryData(SStreamTask* pTask) {
     if (el >= STREAM_SCAN_HISTORY_TIMESLICE) {
       stDebug("s-task:%s fill-history:%d level:%d timeslice for scan-history exhausted", pTask->id.idStr,
               pTask->info.fillHistory, pTask->info.taskLevel);
-
-      // todo exec scanhistory in 100ms
-      return TASK_SCANHISTORY_REXEC;
+      return (SScanhistoryDataInfo){TASK_SCANHISTORY_REXEC, 100};
     }
   }
 
-  return TASK_SCANHISTORY_CONT;
+  return (SScanhistoryDataInfo){TASK_SCANHISTORY_CONT, 0};;
 }
 
 // wait for the stream task to be idle

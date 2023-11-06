@@ -140,6 +140,9 @@ void*         streamQueueNextItem(SStreamQueue* pQueue);
 void          streamFreeQitem(SStreamQueueItem* data);
 int32_t       streamQueueGetItemSize(const SStreamQueue* pQueue);
 
+int32_t onNormalTaskReady(SStreamTask* pTask);
+int32_t onScanhistoryTaskReady(SStreamTask* pTask);
+
 #ifdef __cplusplus
 }
 #endif
