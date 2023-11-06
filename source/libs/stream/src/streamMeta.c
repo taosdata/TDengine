@@ -228,11 +228,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
 }
 
 int32_t streamMetaReopen(SStreamMeta* pMeta) {
-  // backup the restart flag
-  int32_t restartFlag = pMeta->startInfo.startAllTasksFlag;
   streamMetaClear(pMeta);
-
-  pMeta->startInfo.startAllTasksFlag = restartFlag;
 
   // NOTE: role should not be changed during reopen meta
   pMeta->streamBackendRid = -1;
@@ -1095,6 +1091,8 @@ void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {
   taosHashClear(pStartInfo->pReadyTaskSet);
   pStartInfo->startAllTasksFlag = 0;
   pStartInfo->readyTs = 0;
+  // reset the sentinel flag value to be 0
+  atomic_store_32(&pStartInfo->taskStarting, 0);
 }
 
 void streamMetaRLock(SStreamMeta* pMeta) {

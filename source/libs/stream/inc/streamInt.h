@@ -132,8 +132,6 @@ STaskId streamTaskExtractKey(const SStreamTask* pTask);
 void    streamTaskInitForLaunchHTask(SHistoryTaskInfo* pInfo);
 void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
 
-void    streamMetaResetStartInfo(STaskStartInfo* pMeta);
-
 SStreamQueue* streamQueueOpen(int64_t cap);
 void          streamQueueClose(SStreamQueue* pQueue, int32_t taskId);
 void          streamQueueProcessSuccess(SStreamQueue* queue);
