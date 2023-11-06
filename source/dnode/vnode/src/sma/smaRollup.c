@@ -678,7 +678,12 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
         code = terrno ? terrno : TSDB_CODE_RSMA_RESULT;
         tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
         taosMemoryFree(pReq);
-        TSDB_CHECK_CODE(code, lino, _exit);
+        smaError("vgId:%d, %s failed at line %d since %s, suid:%" PRIi64 ", level:%" PRIi8 ", uid:%" PRIi64
+                 ", ver:%" PRIi64,
+                 SMA_VID(pSma), __func__, lino, tstrerror(code), suid, pItem->level, output ? output->info.id.uid : -1,
+                 output ? output->info.version : -1);
+        continue;
+        // TSDB_CHECK_CODE(code, lino, _exit);
       }
 
       smaDebug("vgId:%d, process submit req for rsma suid:%" PRIu64 ",uid:%" PRIu64 ", level %" PRIi8 " ver %" PRIi64,
