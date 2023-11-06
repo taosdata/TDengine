@@ -34,6 +34,12 @@ typedef struct STaskRecheckInfo {
   void*               checkTimer;
 } STaskRecheckInfo;
 
+typedef struct STaskInitTs {
+  int64_t start;
+  int64_t end;
+  bool    success;
+} STaskInitTs;
+
 static int32_t           streamSetParamForScanHistory(SStreamTask* pTask);
 static void              streamTaskSetRangeStreamCalc(SStreamTask* pTask);
 static int32_t           initScanHistoryReq(SStreamTask* pTask, SStreamScanHistoryReq* pReq, int8_t igUntreated);
@@ -1030,12 +1036,6 @@ void streamTaskEnablePause(SStreamTask* pTask) {
   stDebug("s-task:%s enable task pause", pTask->id.idStr);
   pTask->status.pauseAllowed = 1;
 }
-
-typedef struct STaskInitTs {
-  int64_t start;
-  int64_t end;
-  bool    success;
-} STaskInitTs;
 
 static void displayStatusInfo(SStreamMeta* pMeta, SHashObj* pTaskSet, bool succ) {
   int32_t vgId = pMeta->vgId;
