@@ -1,32 +1,27 @@
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use arrow::{
-    datatypes::{DataType, Field, Schema},
-};
 use arrow::array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array};
+use arrow::datatypes::{DataType, Field, Schema};
 use arrow::record_batch::RecordBatch;
-use arrow_flight::{
-    Action as FlightAction,
-    encode::FlightDataEncoderBuilder,
-};
 use arrow_flight::FlightClient;
+use arrow_flight::{encode::FlightDataEncoderBuilder, Action as FlightAction};
 use cfg_if::cfg_if;
 use chrono::{DateTime, Utc};
 use flume::{Receiver, Sender};
 use futures::{StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
-use tonic::transport::Endpoint;
 use tonic::transport::Channel;
+use tonic::transport::Endpoint;
 use tracing::info;
 
 use taosx_core::{
-    Activity, CheckResponse, DataSetsReq, Fail, HeartbeatResponse, list_datasets_from,
-    ListResponse, RespAction, validate_dsn,
+    list_datasets_from, validate_dsn, Activity, CheckResponse, DataSetsReq, Fail,
+    HeartbeatResponse, ListResponse, RespAction,
 };
 
 use crate::runner::Action;

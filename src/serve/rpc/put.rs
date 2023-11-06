@@ -8,9 +8,9 @@ use futures_util::StreamExt;
 use parquet::data_type::AsBytes;
 use taos::{AsyncBindable, AsyncQueryable, AsyncTBuilder, Dsn, Stmt, TaosBuilder};
 use taosx_core::{
+    sink::IpcErrorStrategy,
     utils::trace::{get_data_trace_id_str, set_data_trace_id_for_current_span},
     ConnectorLicense, IpcStreamWorker, Parser, METRICS_TIME_START,
-    sink::IpcErrorStrategy, ConnectorLicense, IpcStreamWorker, Parser, METRICS_TIME_START,
 };
 use tonic::{Status, Streaming};
 use tracing::{debug, instrument, Instrument, Span};
@@ -49,7 +49,7 @@ impl PutStream {
             notify_sender,
         }
     }
-    
+
     #[instrument(skip_all, name="put_stream", fields(task.id=%self.task_id))]
     pub async fn into_flight_put_result(
         self,
@@ -58,10 +58,7 @@ impl PutStream {
         // todo: directly use task detail instead of id.
         // dbg!(&self.task_id);
         set_data_trace_id_for_current_span(stream_trace_id.as_str());
-        tracing::info!(
-            "Put stream by task id {}",
-            self.task_id,
-        );
+        tracing::info!("Put stream by task id {}", self.task_id,);
         let task = self
             .controller
             .get(self.task_id)
@@ -175,8 +172,8 @@ impl PutStream {
             pool: &taos::TaosPool,
             lock: Arc<tokio::sync::Mutex<()>>,
             schema: Arc<arrow::datatypes::Schema>,
-            tx: flume::Sender<arrow::record_batch::RecordBatch>,
-            rx: flume::Receiver<arrow::record_batch::RecordBatch>,
+            tx: flume::Sender<(arrow::record_batch::RecordBatch, u64)>,
+            rx: flume::Receiver<(arrow::record_batch::RecordBatch, u64)>,
             // rsp_tx: flume::Sender<anyhow::Result<()>>,
             license: Option<ConnectorLicense>,
             _transferred: Option<Arc<ConnectorTransferred>>,
@@ -209,7 +206,9 @@ impl PutStream {
             tracing::info!("Start IPC stream writer");
             loop {
                 match rx.recv_async().await {
-                    Ok(record, trace_id) => {
+                    Ok((record, trace_id)) => {
+                        let trace_id_str = get_data_trace_id_str(trace_id);
+                        tracing::info!("receive batch {trace_id_str}");
                         tracing::debug!(columns = ?record.columns(), num.rows = record.num_rows(), num.columns = record.num_columns(),
                                 "Start writing records");
                         if let Err(err) = worker
@@ -241,8 +240,12 @@ impl PutStream {
                                 )?;
                                 bail!("{err:#}");
                             }
-                            tracing::warn!("Can't write batch to database, err: {}", err);
-                            tx.send_async(record).await?;
+                            tracing::warn!(
+                                "Can't write batch {} to database, err: {}",
+                                trace_id,
+                                err
+                            );
+                            tx.send_async((record, trace_id)).await?;
                         }
                     }
                     Err(err) => {
@@ -286,8 +289,6 @@ impl PutStream {
                 let message = message?;
                 let app_metadata = message.app_metadata();
                 let trace_id: u64 = get_trace_id_from_app_meta(&app_metadata);
-                let trace_id_str = get_data_trace_id_str(trace_id);
-                tracing::info!("receive batch {trace_id_str}");
                 Ok(match message.payload {
                     arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
                         if let Err(err) = tx.send((batch, trace_id)) {
@@ -316,7 +317,7 @@ unsafe impl Send for PutStream {}
 fn get_trace_id_from_app_meta(app_metadata: &bytes::Bytes) -> u64 {
     let meta_bytes = app_metadata.as_bytes();
     match serde_json::from_slice::<AppMetadata>(meta_bytes) {
-        Ok(app_meta)  => app_meta.data_trace_id,
+        Ok(app_meta) => app_meta.data_trace_id,
         Err(err) => {
             tracing::error!("parse app metadata error, {}", err);
             0

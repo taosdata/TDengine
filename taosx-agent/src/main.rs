@@ -13,19 +13,17 @@ use file_rotate::{
 use time::macros::format_description;
 use time::UtcOffset;
 use tracing_subscriber::{
-    fmt::time::OffsetTime,
-    prelude::__tracing_subscriber_SubscriberExt,
-    util::SubscriberInitExt,
+    fmt::time::OffsetTime, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt,
     Layer as _,
 };
 use twelf::{config, Layer};
 
-use tracing::{log::LevelFilter, Level};
 use taosx_core::utils::trace::TaosXLayer;
 use taosx_core::{
     get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
     set_env_plugins_home_dir, Activity, RespAction,
 };
+use tracing::{log::LevelFilter, Level};
 
 const LOG_FILE: &str = "agent.log";
 
