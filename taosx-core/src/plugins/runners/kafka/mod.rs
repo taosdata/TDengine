@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -19,8 +20,8 @@ use tracing::Span;
 
 use taosx_ipc::prelude::ArrowDataType;
 
+use crate::plugins::dsv::DataSourceValidation;
 use crate::plugins::runners::kafka::config::SourceConfig;
-use crate::plugins::validation::DataSourceValidation;
 use crate::utils::port_pool::PortPool;
 use crate::{build_ipc, Action, Parser, Transferred};
 
@@ -69,6 +70,7 @@ pub async fn kafka_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     println!(
         "{} kafka_to_taos started, from: {}, to: {}",
@@ -78,6 +80,7 @@ pub async fn kafka_to_taos(
     );
     let port = port_pool
         .get()
+        .await
         .ok_or_else(|| anyhow::format_err!("No available port for Kafka connection"))?;
     let socket = format!("127.0.0.1:{}", port);
     let mut ipc = build_ipc(
@@ -91,10 +94,13 @@ pub async fn kafka_to_taos(
         transferred,
         span,
         None,
+        notify,
     )
     .await?;
 
-    let worker = tokio::task::spawn_blocking(move || kafka_worker(from, port));
+    let aborted = Arc::new(AtomicBool::new(false));
+    let aborted_cloned = aborted.clone();
+    let worker = tokio::task::spawn_blocking(move || kafka_worker(from, port, aborted_cloned));
     let abort_handle = worker.abort_handle();
 
     let port_pool = port_pool.clone();
@@ -125,6 +131,7 @@ pub async fn kafka_to_taos(
             },
             err = ipc.recv_error() => {
                 tracing::info!("have received worker thread panicked message, terminate child process");
+                aborted.store(true, std::sync::atomic::Ordering::Relaxed);
                 abort_handle.abort();
                 if let Some(err) = err {
                     let _ = ipc.send(()).await;
@@ -135,6 +142,7 @@ pub async fn kafka_to_taos(
             },
             _ = cancel.cancelled() => {
                 tracing::info!("Kafka task cancelled");
+                aborted.store(true, std::sync::atomic::Ordering::Relaxed);
                 abort_handle.abort();
             }
         }
@@ -144,7 +152,7 @@ pub async fn kafka_to_taos(
         tracing::info!("Kafka task Done");
         ipc.close().await?;
         // put ipc port back to port pool.
-        port_pool.put(port);
+        port_pool.put(port).await;
         // wait for completion
         tokio::time::sleep(Duration::from_millis(100)).await;
         Ok(())
@@ -153,7 +161,7 @@ pub async fn kafka_to_taos(
     Ok(())
 }
 
-fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
+fn kafka_worker(mut from: Dsn, port: u16, aborted: Arc<AtomicBool>) -> anyhow::Result<()> {
     let socket = format!("127.0.0.1:{}", port);
     let stream = std::net::TcpStream::connect(socket)?;
     let schema = build_schema();
@@ -165,10 +173,15 @@ fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
 
     loop {
         let message_sets = consumer.poll().context("Kafka polling error")?;
+        if aborted.load(std::sync::atomic::Ordering::Relaxed) {
+            tracing::info!("{} kafka_to_taos cancelled", chrono::Utc::now().to_string());
+            break;
+        }
         if message_sets.is_empty() {
             thread::sleep(Duration::from_millis(100));
             let now = chrono::Utc::now().timestamp_millis();
             if timeout >= 0 && now - &start > timeout {
+                println!("{} kafka_to_taos stopped", chrono::Utc::now().to_string());
                 break;
             } else {
                 continue;
@@ -223,8 +236,6 @@ fn kafka_worker(mut from: Dsn, port: u16) -> anyhow::Result<()> {
         consumer.commit_consumed()?;
         start = chrono::Utc::now().timestamp_millis();
     }
-
-    println!("{} kafka_to_taos stopped", chrono::Utc::now().to_string());
     Ok(())
 }
 
@@ -354,7 +365,10 @@ mod tests {
         assert_eq!(false, result.valid);
         assert_eq!(false, result.support);
         assert_eq!("kafka", result.data_source);
-        assert_eq!("failed to connect to kafka, cause: No host reachable", result.message.unwrap());
+        assert_eq!(
+            "failed to connect to kafka, cause: No host reachable",
+            result.message.unwrap()
+        );
     }
 
     #[ignore]

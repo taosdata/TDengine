@@ -28,7 +28,7 @@ namespace TDPIConnector.Core
         {
             var checkResult = new CheckReslut();
             checkResult.version = PISystemManager.GetPISDKInfo();
-            if (AppSettings.tomlConfig.AFDatabaseName != "" && !DBValid(AppSettings.tomlConfig.AFDatabaseName))
+            if (AppSettings.tomlConfig.AFDatabaseName != null && AppSettings.tomlConfig.AFDatabaseName != "" && !DBValid(AppSettings.tomlConfig.AFDatabaseName))
             {
                 checkResult.avaliable = false;
                 checkResult.since = "AF Database not found";
@@ -41,7 +41,7 @@ namespace TDPIConnector.Core
                 }
 
                 if ((pISystemManager == null || AppSettings.tomlConfig.AFDatabaseName == "") &&
-                    AppSettings.tomlConfig.PointList.Count() > 0)
+                    ( AppSettings.tomlConfig.TemplateForPIPoint.Count() > 0 || AppSettings.tomlConfig.TemplateForAFElement.Count() > 0 ) )
                 {
                     checkResult.items.Add($"AF Server not config correct, template can't used.");
                 }
@@ -129,7 +129,7 @@ namespace TDPIConnector.Core
             result.avaliable = false;
             result.since = "DataAchive or AF Server cannot connect.";
             string info = JsonConvert.SerializeObject(result);
-            return buildConnectFailedInfo();
+            return info;
         }
     }
 }

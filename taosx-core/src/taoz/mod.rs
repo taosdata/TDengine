@@ -18,10 +18,10 @@ use tokio::io::AsyncWriteExt;
 
 mod header;
 
+use crate::dsv::DataSourceValidation;
 use async_compression::{tokio::write::ZstdEncoder, Level};
 pub use header::*;
 use tokio::io::BufReader;
-use crate::validation::DataSourceValidation;
 
 type ZFileInner = ZCodec<ZstdEncoder<BufReader<tokio::fs::File>>>;
 

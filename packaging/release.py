@@ -10,7 +10,6 @@ import zipfile
 
 from datetime import datetime
 
-cus_name = "TDengine"
 taosx_name = "taosx"
 taosx_agent_name = "taosx-agent"
 taos_explorer_name = "taos-explorer"
@@ -49,6 +48,9 @@ class ReleaseInfo:
         self.BuildTime = ""
         self.OnlyBuild = False
         self.TdengineVersion = ""
+        self.CustomPrompt = "taos"
+        self.CustomName = "TDengine"
+        self.CustomEmail = "support@taosdata.com"
     def print(self):
         for attr in dir(self):
             if not attr.startswith("__"):
@@ -175,6 +177,9 @@ def init_build_info():
     parser.add_argument('-t', '--test_process', help='test single process(pi,opc,mqtt,taosx, package)')
     parser.add_argument('-ob', '--only_build', nargs='?', const=get_install_path(), help='only build taosx into this path.)')
     parser.add_argument('-vn', '--ver_number', help='tdengine enterprise version')
+    parser.add_argument('-cp', '--cus_prompt', help='customized prompt')
+    parser.add_argument('-cn', '--cus_name', help='customized name')
+    parser.add_argument('-ce', '--cus_email', help='customized email')
 
     args, unknown_args = parser.parse_known_args()
 
@@ -196,6 +201,12 @@ def init_build_info():
         release_info.CpuType = args.cpu_type
     if args.test_process:
         test_process = args.test_process
+    if args.cus_prompt:
+        release_info.CustomPrompt = args.cus_prompt
+    if args.cus_name:
+        release_info.CustomName = args.cus_name
+    if args.cus_email:
+        release_info.CustomEmail = args.cus_email
     if release_info.Target == "taosx":
         sub_module.append(SubmoduleBuildInfo(taosx_name, release_info.DefaultBuildMode))
         sub_module.append(SubmoduleBuildInfo(taos_explorer_name, release_info.DefaultBuildMode))
@@ -383,9 +394,9 @@ def build_and_install_taosx(mode):
     print("buildAndInstallTaosX start...")
     os.chdir(taosx_dir)
     if mode == "Release":
-        os.system(f'cargo build --release')
+        os.system(f'set VER_NUMBER={release_info.TdengineVersion} & set CUS_PROMPT={release_info.CustomPrompt} & set CUS_NAME={release_info.CustomName} & set CUS_EMAIL={release_info.CustomEmail} & cargo build --release')
     else:
-        os.system(f'cargo build')
+        os.system(f'set VER_NUMBER={release_info.TdengineVersion} & set CUS_PROMPT={release_info.CustomPrompt} & set CUS_NAME={release_info.CustomName} & set CUS_EMAIL={release_info.CustomEmail} & cargo build')
     taox_install_path = os.path.join(release_info.InstallPath, "bin")
     check_directory(taox_install_path)
     taosx_path = os.path.join(taosx_dir, "target", mode.lower(), get_taosx_output_name())
@@ -403,9 +414,9 @@ def build_and_install_taosx_agent(mode):
     print("buildAndInstallTaosX Agent start...")
     os.chdir(taosx_dir)
     if mode == "Release":
-        os.system('cargo build --release --package taosx-agent')
+        os.system(f'set VER_NUMBER={release_info.TdengineVersion} & set CUS_PROMPT={release_info.CustomPrompt} & set CUS_NAME={release_info.CustomName} & set CUS_EMAIL={release_info.CustomEmail} & cargo build --release --package taosx-agent')
     else:
-        os.system('cargo build --package taosx-agent')
+        os.system(f'set VER_NUMBER={release_info.TdengineVersion} & set CUS_PROMPT={release_info.CustomPrompt} & set CUS_NAME={release_info.CustomName} & set CUS_EMAIL={release_info.CustomEmail} & cargo build --package taosx-agent')
 
     taox_install_path = os.path.join(release_info.InstallPath, "bin")
     check_directory(taox_install_path)
@@ -471,7 +482,10 @@ def build_taos_explorer(explorer_path, mode):
     copy_docs_to_explorer(explorer_path)
     os.chdir(explorer_path)
     os.system('yarn install')
-    os.system('yarn build:bin')
+    if release_info.OS.lower() == 'windows':
+        os.system(f'set VER_NUMBER={release_info.TdengineVersion} & set CUS_PROMPT={release_info.CustomPrompt} & set CUS_NAME={release_info.CustomName} & set CUS_EMAIL={release_info.CustomEmail} & yarn build:bin')
+    else:
+        os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} yarn build:bin')
 
 def copy_taos_explorer_on_windows(explorer_path):
     explorer_exe_path = os.path.join(explorer_path, "target", "release", "taos-explorer.exe")
@@ -508,7 +522,7 @@ def package_on_windows():
     cmd = f'iscc /F"{release_info.PackageName}" '\
         f'/DMyAppVersion="{release_info.TdengineVersion}" '\
         f'/DMyAppSourceDir="{release_info.InstallPath}" '\
-        f'/DCusName="{cus_name}" '\
+        f'/DCusName="{release_info.CustomName}" '\
         f'/DSubDirectory="{sub_directory}" '\
         f'/DMyAppBeforeInstallTxt="{app_before_install_txt}" '\
         f'/DAppName="{target}" '\
@@ -522,18 +536,26 @@ def package_on_windows():
 
 def copy_docs_to_explorer(explorer_path):
     print("copy docs to explorer")
-    zh_doc_zip_path = os.path.join(explorer_path, "..", "docs-zh.zip")
-    zh_doc_public_path = os.path.join(explorer_path, "public", "docs")
-    if os.path.exists(zh_doc_zip_path):
-        unzip_docs(zh_doc_zip_path, zh_doc_public_path)
+    if release_info.CustomPrompt != 'taos' or release_info.CustomName != 'TDengine':
+        zh_doc_zip_path = os.path.join(explorer_path, "..", f"docs-{release_info.CustomPrompt}.zip")
+        zh_doc_public_path = os.path.join(explorer_path, "public", "docs")
+        if os.path.exists(zh_doc_zip_path):
+            unzip_docs(zh_doc_zip_path, zh_doc_public_path)
+        else:
+            print(f"WARN: not found docs-{release_info.CustomPrompt}.zip")
     else:
-        print("WARN: not found docs-zh.zip")
-    en_doc_zip_path = os.path.join(explorer_path, "..", "docs-en.zip")
-    en_doc_public_path = os.path.join(explorer_path, "public", "docs-en")
-    if os.path.exists(en_doc_zip_path):
-        unzip_docs(en_doc_zip_path, en_doc_public_path)
-    else:
-        print("WARN: not found docs-en.zip")
+        zh_doc_zip_path = os.path.join(explorer_path, "..", "docs-zh.zip")
+        zh_doc_public_path = os.path.join(explorer_path, "public", "docs")
+        if os.path.exists(zh_doc_zip_path):
+            unzip_docs(zh_doc_zip_path, zh_doc_public_path)
+        else:
+            print("WARN: not found docs-zh.zip")
+        en_doc_zip_path = os.path.join(explorer_path, "..", "docs-en.zip")
+        en_doc_public_path = os.path.join(explorer_path, "public", "docs-en")
+        if os.path.exists(en_doc_zip_path):
+            unzip_docs(en_doc_zip_path, en_doc_public_path)
+        else:
+            print("WARN: not found docs-en.zip")
 
 def unzip_docs(doc_zip_path, doc_public_path):
     if os.path.exists(doc_public_path):
@@ -544,10 +566,13 @@ def unzip_docs(doc_zip_path, doc_public_path):
 def update_docs_zip_file(explorer_path):
     print("update docs zip file")
     doc_zip_path = os.path.join(explorer_path, "..")
-    cmd1 = f"scp root@192.168.0.30:/root/enterprise-docs/docs-en.zip {doc_zip_path}"
-    cmd2 = f"scp root@192.168.0.30:/root/enterprise-docs/docs-zh.zip {doc_zip_path}"
-    os.system(cmd1)
-    os.system(cmd2)
+    if release_info.CustomPrompt != 'taos' or release_info.CustomName != 'TDengine':
+        os.system(f"scp root@192.168.0.30:/root/enterprise-docs/docs-{release_info.CustomPrompt}.zip {doc_zip_path}")
+    else:
+        cmd1 = f"scp root@192.168.0.30:/root/enterprise-docs/docs-en.zip {doc_zip_path}"
+        cmd2 = f"scp root@192.168.0.30:/root/enterprise-docs/docs-zh.zip {doc_zip_path}"
+        os.system(cmd1)
+        os.system(cmd2)
 
 def package():
     if release_info.OS == 'Windows':

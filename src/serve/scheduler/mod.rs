@@ -11,6 +11,8 @@ use tokio::sync::{Mutex, Notify, RwLock};
 use tokio_cron_scheduler::{Job, JobScheduler};
 
 use anyhow::{Context, Result};
+use taos::Dsn;
+use taosx_core::dsv::DataSourceValidation;
 use tracing::{info, instrument};
 
 use crate::serve::scheduler::runner::{TaskJob, TaskState};
@@ -328,7 +330,7 @@ impl TaskScheduler {
 
         let state = task_job.stop().await;
 
-        if state.is_stopped() {
+        if state.ready_to_remove_job() {
             // If job has not been ticked, remove task state handler directly.
             tasks.remove_by_task_id(&task);
             tracing::info!(task.id = task, job.id = %job_id, "task `{task}` is stopped");
@@ -355,7 +357,7 @@ impl TaskScheduler {
 
         let state = task_job.suspend().await;
 
-        if state.is_stopped() {
+        if state.ready_to_remove_job() {
             // If job has not been ticked, remove task state handler directly.
             tasks.remove_by_task_id(&task);
             tracing::info!(task.id = task, job.id = %job_id, "task `{task}` is suspended");
@@ -364,8 +366,10 @@ impl TaskScheduler {
         Ok(())
     }
     /// Wait until a task is stopped completely.
-    #[instrument(skip(self))]
+    #[instrument(skip_all, fields(task.id = task, elapsed = tracing::field::Empty))]
     pub async fn wait_task(&self, task: i64) {
+        info!("Waiting for task {} to finish", task);
+        let instant = std::time::Instant::now();
         loop {
             let tasks = self.tasks.read().await;
             if let Some(task) = tasks.get_by_task_id(&task) {
@@ -376,11 +380,11 @@ impl TaskScheduler {
                 // task has been removed.
                 break;
             }
-            info!("Waiting for task {} to stop", task);
             tokio::time::sleep(Duration::from_secs(1)).await;
         }
-        tracing::info!(task.id = task, "task has been completely stopped");
+        tracing::Span::current().record("elapsed", tracing::field::debug(instant.elapsed()));
         self.tasks.write().await.remove_by_task_id(&task);
+        tracing::info!("task has been completely finished in scheduler");
     }
 
     pub async fn stop_task(&self, task: i64, timeout: Duration) -> anyhow::Result<()> {
@@ -508,6 +512,17 @@ impl TaskScheduler {
         self.global_state
             .agent_runtime
             .list_data_sets(agent_id, req)
+            .await
+    }
+
+    pub async fn validate_dsn_via_agent(
+        &self,
+        agent: i64,
+        dsn: Dsn,
+    ) -> anyhow::Result<DataSourceValidation> {
+        self.global_state
+            .agent_runtime
+            .check(agent, dsn.to_string())
             .await
     }
 
@@ -890,7 +905,8 @@ mod tests {
             "from": "fake+stable:///?sleep=7s",
             "to": "taos:///fake",
             "via": 1,
-            "not_start": true
+            "not_start": true,
+            "trigger": {"interval": "1s"}
             }"#,
         )
         .unwrap();
@@ -900,35 +916,6 @@ mod tests {
 
         let id = task.id;
         scheduler.push_task(task.task.clone()).await.unwrap();
-
-        tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            agent_notify_sender
-                .send(AgentNotify::AgentConnected(1))
-                .unwrap();
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            agent_notify_sender
-                .send(AgentNotify::TaskActivity(
-                    1i64,
-                    TaskActivity::running(id, format!("info activity")),
-                ))
-                .unwrap();
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            agent_notify_sender
-                .send(AgentNotify::TaskActivity(
-                    1i64,
-                    TaskActivity::error(id, format!("error activity")),
-                ))
-                .unwrap();
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            agent_notify_sender
-                .send(AgentNotify::TaskActivity(
-                    1i64,
-                    TaskActivity::completed(id, Uuid::new_v4()),
-                ))
-                .unwrap();
-            tokio::time::sleep(Duration::from_secs(11)).await;
-        });
 
         scheduler.try_stop(id).await?;
 
@@ -996,7 +983,8 @@ mod tests {
             "from": "fake+stable:///?sleep=7s",
             "to": "taos:///fake",
             "via": 1,
-            "not_start": true
+            "not_start": true,
+            "trigger": {"interval": "1s"}
             }"#,
         )
         .unwrap();
@@ -1006,20 +994,6 @@ mod tests {
 
         let id = task.id;
         scheduler.push_task(task.task.clone()).await.unwrap();
-
-        tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_secs(2)).await;
-            agent_notify_sender
-                .send(AgentNotify::TaskActivity(
-                    1i64,
-                    TaskActivity::running(id, format!("info activity")),
-                ))
-                .unwrap();
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            agent_notify_sender
-                .send(AgentNotify::TaskActivity(1i64, TaskActivity::stopped(id)))
-                .unwrap();
-        });
 
         tokio::time::sleep(Duration::from_secs(1)).await;
         scheduler.try_stop(id).await?;
@@ -1107,7 +1081,8 @@ mod tests {
             "from": "fake+stable:///?sleep=7s",
             "to": "taos:///fake",
             "via": 1,
-            "not_start": true
+            "not_start": true,
+            "trigger": {"interval": "1s"}
             }"#,
         )
         .unwrap();
@@ -1120,22 +1095,6 @@ mod tests {
         scheduler.try_suspend(id).await?;
 
         let agent_notify_sender_cloned = agent_notify_sender.clone();
-
-        tokio::spawn(async move {
-            let mut agent_notify_sender = agent_notify_sender_cloned;
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            agent_notify_sender
-                .send(AgentNotify::TaskActivity(
-                    1i64,
-                    TaskActivity::running(id, format!("info activity")),
-                ))
-                .unwrap();
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            agent_notify_sender
-                .send(AgentNotify::TaskActivity(1i64, TaskActivity::stopped(id)))
-                .unwrap();
-        });
-
         scheduler.wait_task(id).await;
 
         tokio::time::sleep(Duration::from_secs(2)).await;
@@ -1146,22 +1105,22 @@ mod tests {
 
         controller.start(id).await?;
 
-        tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            agent_notify_sender
-                .send(AgentNotify::TaskActivity(
-                    id as _,
-                    TaskActivity::running(id, format!("info activity")),
-                ))
-                .unwrap();
-            tokio::time::sleep(Duration::from_secs(4)).await;
-            agent_notify_sender
-                .send(AgentNotify::TaskActivity(
-                    id as _,
-                    TaskActivity::suspended(id, Uuid::nil()),
-                ))
-                .unwrap();
-        });
+        // tokio::spawn(async move {
+        //     tokio::time::sleep(Duration::from_secs(1)).await;
+        //     agent_notify_sender
+        //         .send(AgentNotify::TaskActivity(
+        //             id as _,
+        //             TaskActivity::running(id, format!("info activity")),
+        //         ))
+        //         .unwrap();
+        //     tokio::time::sleep(Duration::from_secs(4)).await;
+        //     agent_notify_sender
+        //         .send(AgentNotify::TaskActivity(
+        //             id as _,
+        //             TaskActivity::suspended(id, Uuid::nil()),
+        //         ))
+        //         .unwrap();
+        // });
 
         // Wait for task in scheduler ticking.
         tokio::time::sleep(Duration::from_secs(2)).await;
@@ -1174,6 +1133,8 @@ mod tests {
 
         // Wait for suspending in agent.
         scheduler.wait_task(id).await;
+
+        tracing::warn!("task suspended");
 
         // Wait for controller to update task status (suspended).
         tokio::time::sleep(Duration::from_secs(2)).await;

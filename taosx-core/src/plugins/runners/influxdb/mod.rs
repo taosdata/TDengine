@@ -8,10 +8,10 @@ use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument, Span};
 
+use crate::dsv::DataSourceValidation;
 use crate::plugins::mask_dsn;
 use crate::runners::influxdb::config::{ConnectionConfig, InfluxdbConfig, INFLUXDB_V1};
 use crate::runners::log_rotation;
-use crate::validation::DataSourceValidation;
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
 };
@@ -57,9 +57,11 @@ pub async fn influxdb_to_taos(
     transferred: Option<Arc<Transferred>>,
     span: Span,
     task_id: Option<i64>,
+    notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     let ipc_port = port_pool
         .get()
+        .await
         .ok_or(anyhow::anyhow!("No available port for InfluxDB connection"))?;
 
     // generate config
@@ -85,6 +87,7 @@ pub async fn influxdb_to_taos(
         transferred,
         span,
         task_id,
+        notify,
     )
     .await?;
 
@@ -169,7 +172,7 @@ pub async fn influxdb_to_taos(
             () => {
                 let _ = ipc.close().await;
                 temp_path.close().unwrap();
-                port_pool.put(ipc_port);
+                port_pool.put(ipc_port).await;
             };
         }
         tokio::select! {
@@ -364,7 +367,7 @@ async fn validate_source_influxdb(
         let msg = match output.status.code() {
             Some(1) => String::from("The input parameters are incorrect"),
             Some(3) => String::from("Failed to connect"),
-            _ => String::from("Unknown exit code, maybe failed to connect, ip or port error")
+            _ => String::from("Unknown exit code, maybe failed to connect, ip or port error"),
         };
         Ok(DataSourceValidation {
             valid: false,
@@ -393,8 +396,8 @@ fn influxdb_jar_path() -> anyhow::Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use std::env;
     use super::*;
+    use std::env;
     use std::str::FromStr;
     use taos::Dsn;
 

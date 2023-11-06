@@ -7,9 +7,9 @@ use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, Span};
 
+use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::opentsdb::config::{ConnectionConfig, OpentsdbConfig};
-use crate::validation::DataSourceValidation;
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
 };
@@ -60,9 +60,11 @@ pub async fn opentsdb_to_taos(
     transferred: Option<Arc<Transferred>>,
     span: Span,
     task_id: Option<i64>,
+    notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     let ipc_port = port_pool
         .get()
+        .await
         .ok_or_else(|| anyhow::format_err!("No available port for OpenTSDB connection"))?;
     // generate config
     let config = OpentsdbConfig::from(&from, ipc_port)?;
@@ -91,6 +93,7 @@ pub async fn opentsdb_to_taos(
         transferred,
         span,
         task_id,
+        notify,
     )
     .await?;
 
@@ -205,7 +208,7 @@ pub async fn opentsdb_to_taos(
             // delete the temporary file
             let _ = temp_path.close();
             // put ipc port back to port pool.
-            port_pool.put(ipc_port);
+            port_pool.put(ipc_port).await;
             // wait for completion
             tokio::time::sleep(Duration::from_millis(100)).await;
             Ok(())
@@ -335,7 +338,7 @@ async fn validate_source_opentsdb(
         let msg = match output.status.code() {
             Some(1) => String::from("The input parameters are incorrect"),
             Some(3) => String::from("Failed to connect"),
-            _ => String::from("Unknown exit code, maybe failed to connect, ip or port error")
+            _ => String::from("Unknown exit code, maybe failed to connect, ip or port error"),
         };
         Ok(DataSourceValidation {
             valid: false,

@@ -1,7 +1,7 @@
 //! Agent - user should register agent in taosX service to connect a local service \
 //! to remote taosX/taosExplorer/TDengine.
 //!
-use std::{borrow::Cow, fmt::Display, str::FromStr, convert::Infallible};
+use std::{borrow::Cow, convert::Infallible, fmt::Display, str::FromStr};
 
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
@@ -15,6 +15,15 @@ use utoipa::{IntoParams, ToSchema};
 #[sqlx(rename_all = "snake_case")]
 pub enum AgentStatus {
     Created,
+    Connected,
+    Disconnected,
+    Outdated,
+    /// All belows states are **deprecated**.
+    /// Use connected, disconnected instead.
+    ///
+    /// Lease these here for activities compatibility.
+    Online,
+    Offline,
     Pending,
     Alive,
     Idle,
@@ -31,7 +40,7 @@ pub enum AgentStatus {
 pub enum AgentActivity {
     Create,
     Connect,
-    Offline,
+    Disconnected,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
@@ -102,8 +111,6 @@ impl From<String> for Context {
         Self::from_str(&value).unwrap()
     }
 }
-
-
 
 impl Display for Context {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

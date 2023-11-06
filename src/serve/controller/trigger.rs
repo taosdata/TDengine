@@ -1,11 +1,13 @@
 use std::fmt::{Debug, Display};
 use std::str::FromStr;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
 use itertools::Itertools;
 use metrics::atomics::AtomicU64;
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 use thiserror::Error;
 use utoipa::*;
 
@@ -143,6 +145,7 @@ impl FromStr for ErrorRate {
     }
 }
 
+#[serde_as]
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Default, ToSchema)]
 #[serde(default)]
 pub struct Strategy {
@@ -150,7 +153,30 @@ pub struct Strategy {
     pub(crate) schedule: Option<String>,
     pub(crate) resume: ResumeStrategy,
     pub(crate) healthy: Healthy,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde_as(as = "OptionHumanDuration")]
     pub(crate) interval: Option<Duration>,
+}
+
+serde_with::serde_conv!(
+    OptionHumanDuration,
+    Option<Duration>,
+    |duration: &Option<Duration>| duration.map(|duration| format!("{:?}", duration)),
+    |value: Option<String>| -> Result<_, parse_duration::parse::Error> {
+        value.map(|value| parse_duration::parse(&value)).transpose()
+    }
+);
+#[test]
+fn test_serde_strategy() {
+    let s = r#"{}"#;
+    let s: Strategy = serde_json::from_str(s).unwrap();
+    dbg!(s);
+    let s = r#"{"interval": null}"#;
+    let s: Strategy = serde_json::from_str(s).unwrap();
+    dbg!(s);
+    let s = r#"{"interval": "1s"}"#;
+    let s: Strategy = serde_json::from_str(s).unwrap();
+    dbg!(s);
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -159,6 +185,14 @@ pub enum Schedule {
     Oneshot,
     Repeated(Duration),
     RepeatedLimit(Duration, u16),
+}
+impl Schedule {
+    pub(crate) fn is_cron_job(&self) -> bool {
+        match self {
+            Schedule::Cron(_) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -209,26 +243,44 @@ impl StopCondition {
     }
 
     /// Similar to `should_stop` but also check the result.
-    pub fn should_stop_with(&self, result: &Result<(), anyhow::Error>) -> bool {
+    // pub fn should_stop_with(&self, result: &Result<(), anyhow::Error>) -> bool {
+    //     match self {
+    //         StopCondition::Never => false,
+    //         StopCondition::Done => match result {
+    //             Ok(_) => true,
+    //             Err(_) => false,
+    //         },
+    //         StopCondition::Fatal => match result {
+    //             Ok(_) => false,
+    //             Err(err) => {
+    //                 return err.is_fatal_error();
+    //             }
+    //         },
+    //         StopCondition::Unhealthy => result.is_err(),
+    //         StopCondition::Repeated(atomic) => {
+    //             atomic.load(std::sync::atomic::Ordering::Relaxed) > 0
+    //         }
+    //     }
+    // }
+
+    pub fn should_stop_with_ok(&self) -> bool {
         match self {
             StopCondition::Never => false,
-            StopCondition::Done => match result {
-                Ok(_) => true,
-                Err(err) => {
-                    if err.is_fatal_error() {
-                        return true;
-                    } else {
-                        return false;
-                    }
-                }
-            },
-            StopCondition::Fatal => match result {
-                Ok(_) => false,
-                Err(err) => {
-                    return err.is_fatal_error();
-                }
-            },
-            StopCondition::Unhealthy => result.is_err(),
+            StopCondition::Done => true,
+            StopCondition::Fatal => false,
+            StopCondition::Unhealthy => true,
+            StopCondition::Repeated(atomic) => {
+                atomic.load(std::sync::atomic::Ordering::Relaxed) > 0
+            }
+        }
+    }
+
+    pub fn should_stop_with_error(&self) -> bool {
+        match self {
+            StopCondition::Never => false,
+            StopCondition::Done => false,
+            StopCondition::Fatal => true,
+            StopCondition::Unhealthy => true,
             StopCondition::Repeated(atomic) => {
                 atomic.load(std::sync::atomic::Ordering::Relaxed) > 0
             }
@@ -236,13 +288,26 @@ impl StopCondition {
     }
 
     /// Tick the stop condition.
-    #[allow(dead_code)]
     pub fn tick(&self) {
         match self {
             StopCondition::Repeated(atomic) => {
-                atomic.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+                let _ = atomic.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| {
+                    if v > 0 {
+                        Some(v - 1)
+                    } else {
+                        None
+                    }
+                });
             }
             _ => (),
+        }
+    }
+
+    pub(crate) fn should_stop_with(&self, result: &anyhow::Result<()>) -> bool {
+        if result.is_err() {
+            return self.should_stop_with_error();
+        } else {
+            return self.should_stop_with_ok();
         }
     }
 }
@@ -286,6 +351,10 @@ impl Strategy {
     }
 
     pub fn stop_condition(&self) -> StopCondition {
+        // Never stop for cron job.
+        if let Some(_) = self.schedule.as_deref() {
+            return StopCondition::Never;
+        }
         match self.resume {
             ResumeStrategy::Always => StopCondition::Done,
             ResumeStrategy::Never => StopCondition::Fatal,

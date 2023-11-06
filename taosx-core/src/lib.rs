@@ -13,6 +13,11 @@ use taos::{AsyncTBuilder, Dsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
+use crate::runners::historian::historian_to_taos;
+use crate::runners::influxdb::influxdb_to_taos;
+use crate::runners::kafka::kafka_to_taos;
+use crate::tmq_to_kafka::clean_task;
+pub use crate::tmq_to_kafka::tmq_to_kafka;
 pub use csv::*;
 pub use legacy::*;
 pub use local_to_taos::local_to_taos;
@@ -22,8 +27,6 @@ pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::{tmq_offsets, tmq_to_td};
 pub use transform::Action;
 use utils::port_pool::PortPool;
-use crate::tmq_to_kafka::clean_task;
-pub use crate::tmq_to_kafka::tmq_to_kafka;
 
 pub mod csv;
 mod fake;
@@ -104,6 +107,31 @@ fn test_connector_license() {
     dbg!(&license);
     assert!(license.is_expired());
 }
+
+pub enum TaskNotify {
+    Info(String),
+    Warn(String),
+    Error(String),
+    Done,
+}
+
+impl TaskNotify {
+    pub fn info(msg: impl Into<String>) -> Self {
+        Self::Info(msg.into())
+    }
+    pub fn warn(msg: impl Into<String>) -> Self {
+        Self::Warn(msg.into())
+    }
+    pub fn error(msg: impl Into<String>) -> Self {
+        Self::Error(msg.into())
+    }
+    pub fn done() -> Self {
+        Self::Done
+    }
+}
+
+pub type TaskNotifySender = flume::Sender<TaskNotify>;
+pub type TaskNotifyReceiver = flume::Receiver<TaskNotify>;
 #[derive(Debug, Clone)]
 pub struct TaskOpts {
     pub from: Dsn,
@@ -121,6 +149,7 @@ pub struct TaskOpts {
     pub transferred: Option<Arc<Transferred>>,
     pub span: tracing::Span,
     pub task_id: Option<String>,
+    pub notify: TaskNotifySender,
 }
 
 impl Drop for TaskOpts {
@@ -159,6 +188,7 @@ impl TaskOpts {
             transferred,
             span,
             task_id,
+            notify,
             ..
         } = self;
         // dbg!(task_id);
@@ -295,6 +325,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
+                        notify.clone(),
                     )
                     .await?;
                 }
@@ -309,6 +340,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
+                        notify.clone(),
                     )
                     .await?;
                 }
@@ -323,6 +355,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
+                        notify.clone(),
                     )
                     .await?;
                 }
@@ -338,6 +371,7 @@ impl TaskOpts {
                         transferred.clone(),
                         span.clone(),
                         task_id.clone().map(|t| t.parse().unwrap()),
+                        notify.clone(),
                     )
                     .await?;
                 }
@@ -353,6 +387,7 @@ impl TaskOpts {
                         transferred.clone(),
                         span.clone(),
                         task_id.clone().map(|t| t.parse().unwrap()),
+                        notify.clone(),
                     )
                     .await?;
                 }
@@ -366,6 +401,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
+                        notify.clone(),
                     )
                     .await?;
                 }
@@ -388,6 +424,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
+                        notify.clone(),
                     )
                     .await?;
                 }
@@ -403,6 +440,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
+                        notify.clone(),
                     )
                     .await?;
                 }
@@ -418,6 +456,7 @@ impl TaskOpts {
                         with_agent.clone(),
                         transferred.clone(),
                         span.clone(),
+                        notify.clone(),
                     )
                     .await?;
                 }

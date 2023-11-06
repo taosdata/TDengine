@@ -13,9 +13,9 @@ use taos::{AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Span};
 
+use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
 use crate::runners::pi::config::PiConfig;
-use crate::validation::DataSourceValidation;
 use crate::{
     build_ipc, get_log_keep_days,
     plugins::service::spawn_rest_service,
@@ -63,6 +63,7 @@ pub async fn pi_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     println!("# loading plugin: {}", from.driver);
     #[cfg(not(target_os = "windows"))]
@@ -75,9 +76,11 @@ pub async fn pi_to_taos(
 
     let ipc_port = port_pool
         .get()
+        .await
         .ok_or_else(|| anyhow::format_err!("No available port for PI connection"))?;
     let sql_port = port_pool
         .get()
+        .await
         .ok_or_else(|| anyhow::format_err!("No available port for PI connection"))?;
     let driver = from.driver.clone();
     let config = PiConfig::new(from, td_database.unwrap(), ipc_port, sql_port, true).await?;
@@ -189,6 +192,7 @@ pub async fn pi_to_taos(
         transferred,
         span,
         None,
+        notify,
     )
     .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
@@ -279,11 +283,13 @@ pub async fn pi_to_taos(
     tokio::spawn(async move {
         macro_rules! safe_exit {
             () => {
-                let _ = ipc.close().await;
-                temp_path.close().unwrap();
-                port_pool.put(ipc_port);
-                stop_thread(server);
-                port_pool.put(sql_port);
+                tokio::spawn(async move {
+                    let _ = ipc.close().await;
+                    temp_path.close().unwrap();
+                    port_pool.put(ipc_port).await;
+                    stop_thread(server);
+                    port_pool.put(sql_port).await;
+                });
             };
         }
         tokio::select! {
@@ -304,12 +310,11 @@ pub async fn pi_to_taos(
             },
             _ = cancel.cancelled() => {
                 tracing::info!("pi task cancelled");
+                safe_exit!();
             }
         }
-        let _ = ipc.send(()).await;
         terminate_child_process(pid)?;
         tracing::info!("pi task Done");
-        safe_exit!();
         Ok(())
     })
     .await??;
@@ -510,20 +515,22 @@ async fn validate_pi(config: PiConfig) -> anyhow::Result<DataSourceValidation> {
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
+    let config_path = config_file.path().to_path_buf();
+    let temp_file = config_file.into_temp_path(); // close the file to avoid file lock error
 
     // startup the connector
     let pi_exe_path = pi_exe_path()?;
     let mut command = tokio::process::Command::new(pi_exe_path.clone());
     let output = command
         .arg("-c")
-        .arg(config_file.path())
+        .arg(&config_path)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::piped())
         .output()
         .await
         .with_context(|| format!("failed to execute pi: {:?}", pi_exe_path.as_path()))?;
 
-    if output.status.success() {
+    let dsv = if output.status.success() {
         let result: serde_json::Value =
             serde_json::from_slice(&output.stdout).with_context(|| {
                 format!(
@@ -531,22 +538,34 @@ async fn validate_pi(config: PiConfig) -> anyhow::Result<DataSourceValidation> {
                     String::from_utf8_lossy(&output.stdout)
                 )
             })?;
-        Ok(DataSourceValidation {
-            valid: result["valid"].as_bool().unwrap_or(false),
-            support: result["support"].as_bool().unwrap_or(false),
+        tracing::debug!("pi validation result: {}", &result);
+        DataSourceValidation {
+            valid: result["valid"]
+                .as_bool()
+                .or(result["avaliable"].as_bool())
+                .unwrap_or(false),
+            support: result["support"]
+                .as_bool()
+                .or(result["avaliable"].as_bool())
+                .unwrap_or(false),
             data_source: "pi".to_string(),
             version: result["version"].as_str().map(|s| s.to_string()),
-            message: result["message"].as_str().map(|s| s.to_string()),
-        })
+            message: result["message"]
+                .as_str()
+                .or(result["since"].as_str())
+                .map(|s| s.to_string()),
+        }
     } else {
-        Ok(DataSourceValidation::invalid(
+        DataSourceValidation::invalid(
             "pi".to_string(),
             format!(
                 "failed to execute pi: {}",
                 String::from_utf8_lossy(&output.stderr)
             ),
-        ))
-    }
+        )
+    };
+    temp_file.close()?;
+    Ok(dsv)
 }
 
 #[allow(unused_variables, unreachable_code)]
@@ -589,20 +608,22 @@ async fn validate_pi_backfill(config: PiConfig) -> anyhow::Result<DataSourceVali
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
+    let config_path = config_file.path().to_path_buf();
+    let temp_file = config_file.into_temp_path(); // close the file to avoid file lock error
 
     // startup the connector
     let pi_backfill_exe_path = pi_backfill_exe_path()?;
     let mut command = tokio::process::Command::new(pi_backfill_exe_path.clone());
     let output = command
         .arg("-c")
-        .arg(config_file.path())
+        .arg(&config_path)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::piped())
         .output()
         .await
         .with_context(|| format!("failed to execute pi: {:?}", pi_backfill_exe_path.as_path()))?;
 
-    if output.status.success() {
+    let dsv = if output.status.success() {
         let result: serde_json::Value =
             serde_json::from_slice(&output.stdout).with_context(|| {
                 format!(
@@ -610,22 +631,33 @@ async fn validate_pi_backfill(config: PiConfig) -> anyhow::Result<DataSourceVali
                     String::from_utf8_lossy(&output.stdout)
                 )
             })?;
-        Ok(DataSourceValidation {
-            valid: result["valid"].as_bool().unwrap_or(false),
-            support: result["support"].as_bool().unwrap_or(false),
+        DataSourceValidation {
+            valid: result["valid"]
+                .as_bool()
+                .or(result["avaliable"].as_bool())
+                .unwrap_or(false),
+            support: result["support"]
+                .as_bool()
+                .or(result["avaliable"].as_bool())
+                .unwrap_or(false),
             data_source: "pibackfill".to_string(),
             version: result["version"].as_str().map(|s| s.to_string()),
-            message: result["message"].as_str().map(|s| s.to_string()),
-        })
+            message: result["message"]
+                .as_str()
+                .or(result["since"].as_str())
+                .map(|s| s.to_string()),
+        }
     } else {
-        Ok(DataSourceValidation::invalid(
+        DataSourceValidation::invalid(
             "pibackfill".to_string(),
             format!(
                 "failed to execute pibackfill: {}",
                 String::from_utf8_lossy(&output.stderr)
             ),
-        ))
-    }
+        )
+    };
+    temp_file.close()?;
+    Ok(dsv)
 }
 
 #[cfg(test)]

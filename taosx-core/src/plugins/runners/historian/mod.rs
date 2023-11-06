@@ -10,10 +10,10 @@ use tokio_util::compat::{Compat, TokioAsyncWriteCompatExt};
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
+use crate::dsv::DataSourceValidation;
 use crate::plugins::runners::historian::arrow::ArrowDataAppender;
 use crate::plugins::runners::historian::config::SourceConfig;
 use crate::utils::port_pool::PortPool;
-use crate::validation::DataSourceValidation;
 use crate::{build_ipc, Action, Parser, Transferred};
 
 mod arrow;
@@ -71,9 +71,11 @@ pub async fn historian_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     let port = port_pool
         .get()
+        .await
         .ok_or_else(|| anyhow::format_err!("No available port for connection"))?;
     let socket = format!("127.0.0.1:{}", port);
 
@@ -88,6 +90,7 @@ pub async fn historian_to_taos(
         transferred,
         span,
         None,
+        notify,
     )
     .await?;
 
@@ -141,7 +144,7 @@ pub async fn historian_to_taos(
         tracing::info!("AVEVA™ Historian task Done");
         ipc.close().await?;
         // put ipc port back to port pool.
-        port_pool.put(port);
+        port_pool.put(port).await;
         // wait for completion
         tokio::time::sleep(Duration::from_millis(100)).await;
         Ok(())
@@ -283,7 +286,7 @@ mod tests {
 
     #[ignore]
     #[tokio::test]
-    async fn test_valid(){
+    async fn test_valid() {
         let dsn = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40:1433/").unwrap();
         let res = is_valid(&dsn).await;
         assert_eq!(true, res.valid);
@@ -336,6 +339,7 @@ mod tests {
             None,
             None,
             Span::current(),
+            crate::TaskNotifySender::default(),
         )
         .await;
 

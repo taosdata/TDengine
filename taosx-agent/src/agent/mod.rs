@@ -1,39 +1,35 @@
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::pin::Pin;
-use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
-use std::task::Poll;
-use std::time::{Duration, Instant};
+use std::sync::atomic::AtomicU64;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
+use arrow::{
+    datatypes::{DataType, Field, Schema},
+};
 use arrow::array::{ArrayRef, StringArray, TimestampMillisecondArray, UInt64Array};
 use arrow::record_batch::RecordBatch;
-use arrow::{
-    datatypes::{DataType, Field, Schema, SchemaRef},
-    ipc::writer::IpcWriteOptions,
-};
-
-use arrow_flight::FlightClient;
 use arrow_flight::{
-    encode::{FlightDataEncoder, FlightDataEncoderBuilder},
-    error::FlightError,
-    Action as FlightAction, FlightData,
+    Action as FlightAction,
+    encode::FlightDataEncoderBuilder,
 };
+use arrow_flight::FlightClient;
 use cfg_if::cfg_if;
 use chrono::{DateTime, Utc};
-use flume::r#async::RecvStream;
 use flume::{Receiver, Sender};
-use futures::TryStreamExt;
+use futures::{StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
-use taosx_core::{
-    list_datasets_from, DataSetsReq, Fail, HeartbeatResponse, ListResponse, RespAction, Activity,
-};
+use tonic::transport::Endpoint;
 use tonic::transport::Channel;
-use tonic::{codegen::Bytes, transport::Endpoint};
 use tracing::info;
 
-use crate::runner::{Action, TaskStatus};
+use taosx_core::{
+    Activity, CheckResponse, DataSetsReq, Fail, HeartbeatResponse, list_datasets_from,
+    ListResponse, RespAction, validate_dsn,
+};
+
+use crate::runner::Action;
 
 #[derive(Debug)]
 pub struct Client {
@@ -43,17 +39,6 @@ pub struct Client {
     pub req_id: Arc<AtomicU64>,
 }
 
-#[derive(Debug, Deserialize, Clone, Copy)]
-#[serde(rename_all = "snake_case")]
-pub enum AgentStatus {
-    Created,
-    Pending,
-    Alive,
-    Idle,
-    Busy,
-    Transferring,
-    Error,
-}
 #[derive(Debug, Clone, Deserialize)]
 pub struct Agent {
     pub id: i64,
@@ -62,13 +47,6 @@ pub struct Agent {
     pub name: String,
     pub cluster_id: String,
     pub user_id: String,
-
-    #[allow(dead_code)]
-    created_at: DateTime<Utc>,
-    #[allow(dead_code)]
-    last_modified_at: Option<DateTime<Utc>>,
-    #[allow(dead_code)]
-    status: Option<AgentStatus>,
 }
 
 /// A streaming workflow task description.
@@ -76,6 +54,12 @@ pub struct Agent {
 pub struct Task {
     /// Unique id for the task item.
     pub id: i64,
+
+    /// Job id.
+    pub jid: uuid::Uuid,
+
+    /// Current run id in the job.
+    pub rid: i64,
 
     /// The stream data source.
     pub from: String,
@@ -216,206 +200,6 @@ impl Client {
         resp_rx: Receiver<RespAction>,
     ) -> Result<()> {
         tracing::info!("Wait tasks from server");
-
-        struct FakeStream(
-            SchemaRef,
-            tokio::time::Interval,
-            Instant,
-            RecvStream<'static, RespAction>,
-            Arc<AtomicU64>,
-        );
-
-        impl futures::Stream for FakeStream {
-            type Item = Result<RecordBatch, FlightError>;
-            fn poll_next(
-                mut self: std::pin::Pin<&mut Self>,
-                cx: &mut std::task::Context<'_>,
-            ) -> std::task::Poll<Option<Self::Item>> {
-                let s = Pin::new(&mut self.3);
-                match s.poll_next(cx) {
-                    Poll::Ready(Some(action)) => {
-                        let req_id = self.4.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                        match action {
-                            RespAction::Heartbeat => {
-                                let val = Arc::new(TimestampMillisecondArray::from_iter_values([
-                                    Utc::now().timestamp_millis(),
-                                ])) as ArrayRef;
-                                let context: ArrayRef =
-                                    Arc::new(StringArray::from_iter([Option::<String>::None]));
-                                let action: ArrayRef = Arc::new(StringArray::from_iter_values([
-                                    "heartbeat".to_string(),
-                                ]));
-                                let req_id: ArrayRef =
-                                    Arc::new(UInt64Array::from_iter_values([req_id]));
-                                let item = RecordBatch::try_from_iter(vec![
-                                    ("ts", val),
-                                    ("action", action),
-                                    ("context", context),
-                                    ("req_id", req_id),
-                                ])
-                                .map_err(Into::into);
-                                tracing::info!("{item:?}");
-                                return std::task::Poll::Ready(Some(item));
-                            }
-                            RespAction::HeartbeatOk(resp) => {
-                                let val = Arc::new(TimestampMillisecondArray::from_iter_values([
-                                    Utc::now().timestamp_millis(),
-                                ])) as ArrayRef;
-                                let context: ArrayRef = Arc::new(StringArray::from_iter_values([
-                                    serde_json::to_string(&resp).unwrap(),
-                                ]));
-                                let action: ArrayRef = Arc::new(StringArray::from_iter_values([
-                                    "heartbeat-ok".to_string(),
-                                ]));
-                                let req_id: ArrayRef =
-                                    Arc::new(UInt64Array::from_iter_values([req_id]));
-                                let item = RecordBatch::try_from_iter(vec![
-                                    ("ts", val),
-                                    ("action", action),
-                                    ("context", context),
-                                    ("req_id", req_id),
-                                ])
-                                .map_err(Into::into);
-                                tracing::info!("Send heartbeat response: {item:?}");
-                                cx.waker().wake_by_ref();
-                                return std::task::Poll::Ready(Some(item));
-                            }
-                            RespAction::TaskError(_) => (),
-                            RespAction::ListOk(sets) => {
-                                let val = Arc::new(TimestampMillisecondArray::from_iter_values([
-                                    Utc::now().timestamp_millis(),
-                                ])) as ArrayRef;
-                                let context: ArrayRef = Arc::new(StringArray::from_iter_values([
-                                    serde_json::to_string(&sets).unwrap(),
-                                ]));
-                                let action: ArrayRef =
-                                    Arc::new(StringArray::from_iter_values(["list".to_string()]));
-                                let req_id: ArrayRef =
-                                    Arc::new(UInt64Array::from_iter_values([req_id]));
-                                let item = RecordBatch::try_from_iter(vec![
-                                    ("ts", val),
-                                    ("action", action),
-                                    ("context", context),
-                                    ("req_id", req_id),
-                                ])
-                                .map_err(Into::into);
-                                tracing::info!("{item:?}");
-                                cx.waker().wake_by_ref();
-                                return std::task::Poll::Ready(Some(item));
-                            }
-                            RespAction::AgentActivity(activity) => {
-                                let val = Arc::new(TimestampMillisecondArray::from_iter_values([
-                                    Utc::now().timestamp_millis(),
-                                ])) as ArrayRef;
-                                let context: ArrayRef = Arc::new(StringArray::from_iter_values([
-                                    serde_json::to_string(&activity).unwrap(),
-                                ]));
-                                let action: ArrayRef = Arc::new(StringArray::from_iter_values([
-                                    "agent-activity".to_string(),
-                                ]));
-                                let req_id: ArrayRef =
-                                    Arc::new(UInt64Array::from_iter_values([req_id]));
-                                let item = RecordBatch::try_from_iter(vec![
-                                    ("ts", val),
-                                    ("action", action),
-                                    ("context", context),
-                                    ("req_id", req_id),
-                                ])
-                                .map_err(Into::into);
-                                // tracing::info!("{item:?}");
-                                cx.waker().wake_by_ref();
-                                return std::task::Poll::Ready(Some(item));
-                            }
-                            RespAction::TaskActivity(activity) => {
-                                let val = Arc::new(TimestampMillisecondArray::from_iter_values([
-                                    Utc::now().timestamp_millis(),
-                                ])) as ArrayRef;
-                                let context: ArrayRef = Arc::new(StringArray::from_iter_values([
-                                    serde_json::to_string(&activity).unwrap(),
-                                ]));
-                                let action: ArrayRef = Arc::new(StringArray::from_iter_values([
-                                    "task-activity".to_string(),
-                                ]));
-                                let req_id: ArrayRef =
-                                    Arc::new(UInt64Array::from_iter_values([req_id]));
-                                let item = RecordBatch::try_from_iter(vec![
-                                    ("ts", val),
-                                    ("action", action),
-                                    ("context", context),
-                                    ("req_id", req_id),
-                                ])
-                                .map_err(Into::into);
-                                // dbg!(&item);
-                                // tracing::info!("{item:?}");
-                                cx.waker().wake_by_ref();
-                                return std::task::Poll::Ready(Some(item));
-                            }
-                        }
-                    }
-                    _ => (),
-                }
-
-                match self.1.poll_tick(cx) {
-                    Poll::Ready(_) => {
-                        // heartbeat
-                        let req_id = self.4.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-
-                        let val =
-                            Arc::new(TimestampMillisecondArray::from_iter_values([
-                                Utc::now().timestamp_millis()
-                            ])) as ArrayRef;
-                        let context: ArrayRef =
-                            Arc::new(StringArray::from_iter([Option::<String>::None]));
-                        let action: ArrayRef =
-                            Arc::new(StringArray::from_iter_values(["heartbeat".to_string()]));
-                        let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
-                        let item = RecordBatch::try_from_iter(vec![
-                            ("ts", val),
-                            ("action", action),
-                            ("context", context),
-                            ("req_id", req_id),
-                        ])
-                        .map_err(Into::into);
-                        tracing::info!("send heartbeat message");
-                        return std::task::Poll::Ready(Some(item));
-                    }
-                    Poll::Pending => {
-                        return Poll::Pending;
-                    }
-                }
-            }
-        }
-        struct Data {
-            data: FlightDataEncoder,
-
-            counter: AtomicU64,
-        }
-        impl futures::Stream for Data {
-            type Item = FlightData;
-            fn poll_next(
-                mut self: std::pin::Pin<&mut Self>,
-                cx: &mut std::task::Context<'_>,
-            ) -> std::task::Poll<Option<Self::Item>> {
-                self.data
-                    .try_poll_next_unpin(cx)
-                    .map(|u| u.transpose().unwrap())
-                    .map(|u| {
-                        u.map(|mut v| {
-                            if v.app_metadata.is_empty() {
-                                v.app_metadata = Bytes::from(format!(
-                                    "{}",
-                                    self.counter
-                                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
-                                ));
-                                v
-                            } else {
-                                v
-                            }
-                        })
-                    })
-            }
-        }
-
         let schema = Arc::new(
             Schema::new(vec![
                 Field::new(
@@ -432,27 +216,161 @@ impl Client {
                 "1".to_string(),
             )])),
         );
-        // let (resp_tx, resp_rx) = flume::unbounded();
-        let data = FlightDataEncoderBuilder::new()
-            .with_schema(schema.clone())
-            .with_options(
-                IpcWriteOptions::try_new(8, false, arrow::ipc::MetadataVersion::V5).unwrap(),
+
+        let resp_tx_cloned = resp_tx.clone();
+
+        tokio::spawn(async move {
+            let mut heart_beat_interval = tokio::time::interval(Duration::from_secs(61));
+
+            loop {
+                heart_beat_interval.tick().await;
+                if resp_tx_cloned.send(RespAction::Heartbeat).is_err() {
+                    break;
+                }
+            }
+        });
+
+        fn resp_action_to_arrow(
+            action: RespAction,
+            req_id: u64,
+        ) -> Result<arrow::record_batch::RecordBatch, arrow::error::ArrowError> {
+            match action {
+                RespAction::Heartbeat => {
+                    let val = Arc::new(TimestampMillisecondArray::from_iter_values([
+                        Utc::now().timestamp_millis()
+                    ])) as ArrayRef;
+                    let context: ArrayRef =
+                        Arc::new(StringArray::from_iter([Option::<String>::None]));
+                    let action: ArrayRef =
+                        Arc::new(StringArray::from_iter_values(["heartbeat".to_string()]));
+                    let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+                    let item = RecordBatch::try_from_iter(vec![
+                        ("ts", val),
+                        ("action", action),
+                        ("context", context),
+                        ("req_id", req_id),
+                    ]);
+                    tracing::info!("{item:?}");
+                    item
+                }
+                RespAction::HeartbeatOk(resp) => {
+                    let val = Arc::new(TimestampMillisecondArray::from_iter_values([
+                        Utc::now().timestamp_millis()
+                    ])) as ArrayRef;
+                    let context: ArrayRef =
+                        Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                            &resp,
+                        )
+                        .unwrap()]));
+                    let action: ArrayRef =
+                        Arc::new(StringArray::from_iter_values(["heartbeat-ok".to_string()]));
+                    let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+                    let item = RecordBatch::try_from_iter(vec![
+                        ("ts", val),
+                        ("action", action),
+                        ("context", context),
+                        ("req_id", req_id),
+                    ]);
+                    tracing::info!("Send heartbeat response: {item:?}");
+                    item
+                }
+                RespAction::TaskError(_) => unreachable!(),
+                RespAction::ListOk(sets) => {
+                    let val = Arc::new(TimestampMillisecondArray::from_iter_values([
+                        Utc::now().timestamp_millis()
+                    ])) as ArrayRef;
+                    let context: ArrayRef =
+                        Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                            &sets,
+                        )
+                        .unwrap()]));
+                    let action: ArrayRef =
+                        Arc::new(StringArray::from_iter_values(["list".to_string()]));
+                    let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+                    let item = RecordBatch::try_from_iter(vec![
+                        ("ts", val),
+                        ("action", action),
+                        ("context", context),
+                        ("req_id", req_id),
+                    ]);
+                    tracing::info!("{item:?}");
+                    item
+                }
+                RespAction::CheckOk(response) => {
+                    let val = Arc::new(TimestampMillisecondArray::from_iter_values([
+                        Utc::now().timestamp_millis()
+                    ])) as ArrayRef;
+                    let context: ArrayRef =
+                        Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                            &response,
+                        )
+                        .unwrap()]));
+                    let action: ArrayRef =
+                        Arc::new(StringArray::from_iter_values(["check".to_string()]));
+                    let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+                    let item = RecordBatch::try_from_iter(vec![
+                        ("ts", val),
+                        ("action", action),
+                        ("context", context),
+                        ("req_id", req_id),
+                    ]);
+                    item
+                }
+                RespAction::AgentActivity(activity) => {
+                    let val = Arc::new(TimestampMillisecondArray::from_iter_values([
+                        Utc::now().timestamp_millis()
+                    ])) as ArrayRef;
+                    let context: ArrayRef =
+                        Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                            &activity,
+                        )
+                        .unwrap()]));
+                    let action: ArrayRef =
+                        Arc::new(StringArray::from_iter_values(
+                            ["agent-activity".to_string()],
+                        ));
+                    let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+                    let item = RecordBatch::try_from_iter(vec![
+                        ("ts", val),
+                        ("action", action),
+                        ("context", context),
+                        ("req_id", req_id),
+                    ]);
+                    item
+                }
+                RespAction::TaskActivity(activity) => {
+                    let val = Arc::new(TimestampMillisecondArray::from_iter_values([
+                        Utc::now().timestamp_millis()
+                    ])) as ArrayRef;
+                    let context: ArrayRef =
+                        Arc::new(StringArray::from_iter_values([serde_json::to_string(
+                            &activity,
+                        )
+                        .unwrap()]));
+                    let action: ArrayRef =
+                        Arc::new(StringArray::from_iter_values(["task-activity".to_string()]));
+                    let req_id: ArrayRef = Arc::new(UInt64Array::from_iter_values([req_id]));
+                    let item = RecordBatch::try_from_iter(vec![
+                        ("ts", val),
+                        ("action", action),
+                        ("context", context),
+                        ("req_id", req_id),
+                    ]);
+                    item
+                }
+            }
+        }
+
+        let req = FlightDataEncoderBuilder::new()
+            .with_schema(schema)
+            .build(
+                resp_rx
+                    .into_stream()
+                    .enumerate()
+                    .map(|(req_id, action)| Ok(resp_action_to_arrow(action, req_id as _).unwrap())),
             )
-            .build(FakeStream(
-                schema.clone(),
-                tokio::time::interval(Duration::from_secs(500)),
-                Instant::now(),
-                resp_rx.into_stream(),
-                self.req_id.clone(),
-            ));
-
-        let req = Data {
-            data,
-            counter: AtomicU64::new(1),
-        };
-
+            .map(|v| v.unwrap());
         let mut stream = self.client.do_exchange(req).await?;
-        // .into_inner();
 
         while let Some(res) = stream.try_next().await? {
             // dbg!(&res);
@@ -491,6 +409,10 @@ impl Client {
                 );
 
                 tracing::info!("At [{ts}] action `{action}` triggered");
+                #[derive(Deserialize)]
+                struct TaskWithId {
+                    id: i64,
+                }
                 match action {
                     "run" => {
                         let task: Task = serde_json::from_str(&context).unwrap();
@@ -498,15 +420,21 @@ impl Client {
                         sender.send_async(Action::Run(task)).await?;
                     }
                     "stop" => {
-                        let task: Task = serde_json::from_str(&context).unwrap();
+                        let task: TaskWithId = serde_json::from_str(&context).unwrap();
                         info!("Stop task {}", task.id);
                         sender.send_async(Action::Stop(task.id)).await?;
                         // let task:
                     }
                     "cancel" => {
-                        let task: Task = serde_json::from_str(&context).unwrap();
+                        let task: TaskWithId = serde_json::from_str(&context).unwrap();
                         info!("Cancel task {}", task.id);
                         sender.send_async(Action::Cancel(task.id)).await?;
+                        // let task:
+                    }
+                    "interrupt" => {
+                        let task: TaskWithId = serde_json::from_str(&context).unwrap();
+                        info!("Interrupt task {}", task.id);
+                        sender.send_async(Action::Interrupt(task.id)).await?;
                         // let task:
                     }
                     "list" => {
@@ -523,6 +451,25 @@ impl Client {
                                 .await;
                             if let Err(err) = send_ok {
                                 tracing::error!("Can't send list response to server: {err:#}");
+                            }
+                        });
+                    }
+                    "check" => {
+                        let dsn: String = serde_json::from_str(&context).unwrap();
+                        let resp_tx = resp_tx.clone();
+                        tokio::spawn(async move {
+                            let dsv = validate_dsn(dsn.clone()).await;
+                            let send_ok = resp_tx
+                                .send_async(RespAction::CheckOk(CheckResponse {
+                                    req_id,
+                                    req: dsn,
+                                    res: dsv,
+                                }))
+                                .await;
+                            if let Err(err) = send_ok {
+                                tracing::error!(
+                                    "Can't send data source validation response to server: {err:#}"
+                                );
                             }
                         });
                     }

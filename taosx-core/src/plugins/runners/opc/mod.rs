@@ -9,12 +9,12 @@ use std::{
 };
 
 use anyhow::{bail, Context};
-use base64::{Engine, engine::general_purpose};
+use base64::{engine::general_purpose, Engine};
 use csv_lib::ReaderBuilder;
 use file_rotate::{
     compression::Compression,
-    ContentLimit,
-    FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
+    suffix::{AppendTimestamp, DateFrom, FileLimit},
+    ContentLimit, FileRotate, TimeFrequency,
 };
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -26,12 +26,12 @@ use tracing::{instrument, Span};
 
 use taosx_ipc::{prelude::IpcDataType, types::OptionSet};
 
-use crate::{
-    Action, build_ipc, DataSet, DataSetsReq, get_log_keep_days, Transferred,
-    utils::port_pool::PortPool,
-};
+use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
-use crate::validation::DataSourceValidation;
+use crate::{
+    build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
+    Transferred,
+};
 
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -1173,12 +1173,14 @@ pub async fn opc_to_taos(
     with_agent: Option<(i64, String, String)>,
     transferred: Option<Arc<Transferred>>,
     span: Span,
+    notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     if to.subject.is_none() {
         Err(OpcError::DatabaseIsRequired(to.clone()))?;
     }
     let ipc_port = port_pool
         .get()
+        .await
         .ok_or_else(|| anyhow::format_err!("No available port for OPC connection"))?;
     let builder: TaosBuilder = TaosBuilder::from_dsn(&to)?;
     let taos = builder.build().await?;
@@ -1220,6 +1222,7 @@ pub async fn opc_to_taos(
         transferred,
         span,
         None,
+        notify,
     )
     .await?;
 
@@ -1277,9 +1280,14 @@ pub async fn opc_to_taos(
         macro_rules! safe_exit {
             () => {
                 let _ = child.kill().await;
-                let _ = ipc_handler.close().await;
-                temp_path.close().unwrap();
-                port_pool.put(ipc_port);
+                tokio::spawn(async move {
+                    tracing::info!("Wait for IPC handlers finished");
+                    let _ = ipc_handler.close().await;
+                    tracing::info!("All IPC handlers have been finished");
+                });
+                let _ = temp_path.close();
+                tracing::info!("Release IPC port");
+                port_pool.put(ipc_port).await;
             };
         }
         tokio::select! {
@@ -1291,6 +1299,9 @@ pub async fn opc_to_taos(
                     use ringbuf::Rb;
                     let error = error_buf.lock().await.iter().join("");
                     anyhow::bail!("OPC exit with {}\n{error}", status);
+                } else {
+                    safe_exit!();
+                    anyhow::bail!("OPC process was killed by signal");
                 }
             },
             err = ipc_handler.recv_error() => {
@@ -1400,7 +1411,8 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         None,
     );
 
-    write!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr)).context("writing logs error")?;
+    write!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))
+        .context("writing logs error")?;
 
     tracing::info!("OPC exit with status {}", output.status);
     if !output.status.success() {
@@ -1483,6 +1495,13 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 }
 
 pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
+    #[cfg(not(windows))]
+    if dsn.driver == "opcda" {
+        return DataSourceValidation::invalid(
+            "opc".to_string(),
+            "opcda only support windows".to_string(),
+        );
+    }
     let config = OPCConfig::new(dsn.clone(), 0, OPCConfigMode::Points, None).await;
     match config {
         Err(err) => DataSourceValidation::invalid(
@@ -1510,7 +1529,7 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
     }
 }
 
-async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation>{
+async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation> {
     let toml = toml::to_string(&config)?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
@@ -1556,9 +1575,9 @@ async fn validate_opc(config: OPCConfig) -> anyhow::Result<DataSourceValidation>
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::collections::HashMap;
     use std::env;
-    use super::*;
 
     #[ignore]
     #[tokio::test]

@@ -2,9 +2,15 @@ use std::sync::Arc;
 
 use taosx_core::set_env_data_dir;
 use tracing_subscriber::EnvFilter;
+use uuid::Uuid;
 
-use crate::serve::scheduler::{
-    agent::AgentWorker, runner::AgentIntegrationChannel, SchedulerNotify,
+use crate::serve::{
+    controller::TaskActivity,
+    scheduler::{
+        agent::{AgentNotify, AgentWorker},
+        runner::AgentIntegrationChannel,
+        SchedulerNotify,
+    },
 };
 
 use super::{
@@ -15,13 +21,49 @@ use super::{
 pub async fn generate_scheduler_for_test(
 ) -> anyhow::Result<(TaskController, TaskScheduler, AgentNotifySender)> {
     let (agent_activity_sender, agent_activity_receiver) = tokio::sync::broadcast::channel(1024);
+    let (agent_notify_sender, agent_notify_receiver) = tokio::sync::broadcast::channel(1024);
+    let (scheduler_notify_sender, _) = tokio::sync::broadcast::channel::<SchedulerNotify>(1024);
+    let scheduler_notify_sender = Arc::new(scheduler_notify_sender);
 
+    let weak_notify_sender = Arc::downgrade(&scheduler_notify_sender);
+    let agent_notify_sender_cloned = agent_notify_sender.clone();
     tokio::spawn(async move {
         tokio::pin!(agent_activity_receiver);
         loop {
             match agent_activity_receiver.recv().await {
                 Ok((agent, action)) => {
                     tracing::info!(agent, "agent action: {:?}", action);
+                    match action {
+                        crate::serve::controller::AgentAction::Run(id, _, _) => {
+                            tracing::info!("task run: {id}");
+                        }
+                        crate::serve::controller::AgentAction::Stop(id) => {
+                            tracing::info!("tasks stop: {}", id);
+                            let agent_notify_sender_cloned = agent_notify_sender_cloned.clone();
+                            tokio::spawn(async move {
+                                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                                tracing::info!("agent cancel");
+                                let _ = agent_notify_sender_cloned.send(AgentNotify::TaskActivity(
+                                    agent,
+                                    TaskActivity::stopped(id),
+                                ));
+                            });
+                        }
+                        crate::serve::controller::AgentAction::Cancel(id) => {
+                            tracing::info!("task suspend: {}", id);
+                            let agent_notify_sender_cloned = agent_notify_sender_cloned.clone();
+                            tokio::spawn(async move {
+                                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                                tracing::info!("agent cancel");
+                                let _ = agent_notify_sender_cloned.send(AgentNotify::TaskActivity(
+                                    agent,
+                                    TaskActivity::suspended(id, Uuid::nil()),
+                                ));
+                            });
+                        }
+                        crate::serve::controller::AgentAction::ListDataSets(_, _) => todo!(),
+                        crate::serve::controller::AgentAction::RetrieveDataSets(_, _) => todo!(),
+                    }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => {
                     break;
@@ -35,11 +77,6 @@ pub async fn generate_scheduler_for_test(
             }
         }
     });
-    let (agent_notify_sender, agent_notify_receiver) = tokio::sync::broadcast::channel(1024);
-    let (scheduler_notify_sender, _) = tokio::sync::broadcast::channel::<SchedulerNotify>(1024);
-    let scheduler_notify_sender = Arc::new(scheduler_notify_sender);
-
-    let weak_notify_sender = Arc::downgrade(&scheduler_notify_sender);
 
     let agent_worker = AgentWorker::new(
         agent_activity_sender,

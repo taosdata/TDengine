@@ -8,7 +8,7 @@ use futures_util::StreamExt;
 use serde_json::json;
 use std::{
     any::Any,
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     io::{Read, Write},
     net::SocketAddr,
     str::FromStr,
@@ -106,7 +106,7 @@ async fn ipc_tcp_forward(
             )
             .build(
                 data_stream
-                    .inspect(|v| debug!("{:?}", v))
+                    // .inspect(|v| debug!("{:?}", v))
                     .map_err(FlightError::from),
             )
             .enumerate()
@@ -168,42 +168,49 @@ async fn ipc_tcp_forward(
         })?;
         info!("Get putting stream response");
 
-        while let Some(res) = stream.next().await {
-            // if let Err(err) = ipc_ack_writer.write_ok() {
-            //     tracing::error!("Write ack error: {err:#}");
-            //     Err(err).context("Write ack error")?;
-            // }
-            let rsp = res;
-            match rsp {
-                Ok(rsp) => {
-                    tracing::debug!("Response ok: {:?}", rsp);
-                }
-                Err(err) => match &err {
-                    FlightError::Tonic(status) => {
-                        if status
-                            .message()
-                            .contains("stream closed because of a broken pipe")
-                            || status.message() == "ExternalError(Disconnected)"
-                        {
-                            tracing::warn!(alive = ?alive.elapsed(), "Disconnected, retry after one second: {err:#}");
-                            tokio::time::sleep(Duration::from_secs(1)).await;
-                            continue 'start;
-                        }
-                        tracing::error!(alive = ?alive.elapsed(), "Tonic error: {status}");
-                        Err(err).context("Got server response with error")?;
-                    }
-                    _ => {
-                        tracing::error!(alive = ?alive.elapsed(), "Other error: {err:#}");
-                        Err(err).context("Got server response with error")?;
-                    }
+        loop {
+            let put_result = tokio::select! {
+                _ = cancel.cancelled() => {
+                    tracing::debug!("cancel IPC worker");
+                    info!(alive = ?alive.elapsed(), "[{task_id}] Putting stream finished");
+                    return Ok(());
                 },
+                put_result = stream.next() => {
+                    put_result
+                }
+            };
+            if let Some(res) = put_result {
+                let rsp = res;
+                match rsp {
+                    Ok(rsp) => {
+                        tracing::debug!("Response ok: {:?}", rsp);
+                    }
+                    Err(err) => match &err {
+                        FlightError::Tonic(status) => {
+                            if status
+                                .message()
+                                .contains("stream closed because of a broken pipe")
+                                || status.message() == "ExternalError(Disconnected)"
+                            {
+                                tracing::warn!(alive = ?alive.elapsed(), "Disconnected, retry after one second: {err:#}");
+                                tokio::time::sleep(Duration::from_secs(1)).await;
+                                continue 'start;
+                            }
+                            tracing::error!(alive = ?alive.elapsed(), "Tonic error: {status}");
+                            return Err(err).context("Got server response with error");
+                        }
+                        _ => {
+                            tracing::error!(alive = ?alive.elapsed(), "Other error: {err:#}");
+                            return Err(err).context("Got server response with error");
+                        }
+                    },
+                }
+            } else {
+                info!(alive = ?alive.elapsed(), "[{task_id}] Putting stream finished");
+                return Ok(());
             }
         }
-
-        info!(alive = ?alive.elapsed(), "[{task_id}] Putting stream finished");
-        break;
     }
-    Ok(())
 }
 
 async fn try_establish_channel(remote: String) -> anyhow::Result<Channel> {
@@ -229,6 +236,7 @@ async fn ipc_tcp_read(
     connector: Option<&'static str>,
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
+    notifier: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     // let stream = Arc::new(stream);
     // let reader = stream.clone();
@@ -259,6 +267,7 @@ async fn ipc_tcp_read(
         connector,
         transferred,
         task_id,
+        notifier,
         stream_trace_id,
     )
     .await?;
@@ -328,8 +337,12 @@ async fn consume_lush_record(
             // let mut sql = format!("CREATE TABLE ");
             // map: <stable_name, (Vec<sql, sql_overflow?>, Vec<tag_name, tag_value>)>
             let mut create_sql_map: HashMap<String, LushMessageTagModify> = HashMap::new();
+            let mut table_set = HashSet::new();
             for table in tables {
                 let table_name = table.table_name();
+                if !table_set.insert(table_name.to_string()) {
+                    continue;
+                }
                 let tags = table.tags();
                 if tags.is_none() {
                     continue;
@@ -462,6 +475,8 @@ async fn consume_lush_record(
                                         // taos.exec(alter_sql).await?;
                                     }
                                 }
+                            } else {
+                                bail!("lush message table create error: {err:#}");
                             }
                         }
                     }
@@ -1793,6 +1808,8 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
     task_id: Option<i64>,
+    notifier: crate::TaskNotifySender,
+    ipc_error_strategy: IpcErrorStrategy,
     stream_trace_id: u64,
 ) -> anyhow::Result<()> {
     let taos = pool.get().await?;
@@ -1843,8 +1860,12 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
         {
             tracing::error!("write batch {batches} error: {err:#}");
             let written = count - last;
+
+            if ipc_error_strategy.will_stop() {
+                bail!("write batch error: {err:#}");
+            }
             let _ = ipc_ack_writer.ack(LushAck {
-                code: 0xFFFF,
+                code: 0,
                 message: Some(err.to_string()),
                 context: Some(
                     json!({
@@ -1854,8 +1875,10 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                     .to_string(),
                 ),
             });
-            // return err
-            anyhow::bail!("write batch error: {err:#}");
+
+            if let Err(_) = notifier.send(crate::TaskNotify::Error(format!("{:#}", err))) {
+                bail!("write batch error: {err:#}");
+            }
         } else {
             tracing::info!("ack");
             let _ = ipc_ack_writer
@@ -1888,6 +1911,8 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
     _license: Option<&ConnectorLicense>,
     _transferred: Option<&Transferred>,
     target_precision: taos::Precision,
+    notifier: crate::TaskNotifySender,
+    _ipc_error_strategy: IpcErrorStrategy,
     stream_trace_id: u64,
 ) -> anyhow::Result<()> {
     let count = Arc::new(AtomicUsize::new(0));
@@ -1941,6 +1966,7 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
             let context = context.clone();
             let ipc_ack_writer = ipc_ack_writer.clone();
             let count = count.clone();
+            let notifier = notifier.clone();
             let batch_number = batch_counter.fetch_add(1, Ordering::SeqCst);
             let data_trace_id = create_data_trace_id(stream_trace_id, batch_number);
             let data_trace_id_str: String = get_data_trace_id_str(data_trace_id);
@@ -1954,8 +1980,9 @@ async fn ipc_point_reader<R: Read + Send + 'static, W: Write>(
                     }
                     Err(err) => {
                         tracing::warn!("Receive IPC item error: {err:#}");
+                        let _ = notifier.send(crate::TaskNotify::Error(format!("{:#}", err)));
                         let _ = ipc_ack_writer.lock().await.ack(LushAck {
-                            code: 0xFFFF,
+                            code: 0,
                             message: Some(err.to_string()),
                             context: None,
                         });
@@ -1980,6 +2007,8 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
     license: Option<&ConnectorLicense>,
     transferred: Option<&Transferred>,
     target_precision: taos::Precision,
+    notifier: crate::TaskNotifySender,
+    ipc_error_strategy: IpcErrorStrategy,
     stream_trace_id: u64,
 ) -> anyhow::Result<()> {
     let mut count = 0;
@@ -2015,7 +2044,7 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
             error!("write batch {batches} error: {err:#}");
             let written = count - last;
             let _ = ipc_ack_writer.ack(LushAck {
-                code: 0xFFFF,
+                code: 0,
                 message: Some(err.to_string()),
                 context: Some(
                     json!({
@@ -2025,7 +2054,12 @@ async fn ipc_flat_stream_reader<R: Read, W: Write>(
                     .to_string(),
                 ),
             });
-            bail!("write batch error: {err:#}");
+            if ipc_error_strategy.will_stop() {
+                bail!("write batch error: {err:#}")
+            }
+            if let Err(_) = notifier.send(crate::TaskNotify::Error(format!("{:#}", err))) {
+                bail!("write batch error: {err:#}");
+            }
         } else {
             let _ = ipc_ack_writer
                 .ack(LushAck {
@@ -2132,6 +2166,37 @@ async fn get_current_precision(conn: &Taos) -> anyhow::Result<taos::Precision> {
     };
     Ok(target_precision)
 }
+
+#[derive(Debug, Clone, Copy, Default)]
+#[repr(u8)]
+pub enum IpcErrorStrategy {
+    #[default]
+    Stop = 0,
+    Report,
+}
+
+impl IpcErrorStrategy {
+    pub fn will_stop(&self) -> bool {
+        matches!(self, IpcErrorStrategy::Stop)
+    }
+
+    fn from_connector(connector: &str) -> Self {
+        match connector {
+            "taos" | "opentsdb" | "influxdb" | "csv" | "kafka" => IpcErrorStrategy::Stop,
+            _ => IpcErrorStrategy::Report,
+        }
+    }
+}
+
+impl From<Option<&str>> for IpcErrorStrategy {
+    fn from(connector: Option<&str>) -> Self {
+        match connector {
+            Some(connector) => Self::from_connector(connector),
+            None => Self::default(),
+        }
+    }
+}
+
 #[framed]
 #[instrument(skip_all, fields(client, connector))]
 async fn ipc_process<R: Read + Send + 'static, W: Write>(
@@ -2145,6 +2210,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
     connector: Option<&str>,
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
+    notifier: crate::TaskNotifySender,
     stream_trace_id: String,
 ) -> anyhow::Result<()> {
     info!(client, "IPC stream processing...");
@@ -2183,6 +2249,8 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
         None
     };
 
+    let ipc_error_strategy = IpcErrorStrategy::from_connector(connector.unwrap_or("taos"));
+
     let metadata = ipc_reader.metadata();
     let stream_type = *metadata.stream_type();
     let stream_trace_id_u64 = u64::from_str_radix(stream_trace_id.as_str(), 16).unwrap();
@@ -2204,6 +2272,8 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 license.as_ref(),
                 transferred.as_deref(),
                 target_precision,
+                notifier,
+                ipc_error_strategy,
                 stream_trace_id_u64,
             )
             .await?
@@ -2216,6 +2286,8 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 license.as_ref(),
                 transferred.as_deref(),
                 task_id,
+                notifier,
+                ipc_error_strategy,
                 stream_trace_id_u64,
             )
             .await?
@@ -2229,6 +2301,8 @@ async fn ipc_process<R: Read + Send + 'static, W: Write>(
                 license.as_ref(),
                 transferred.as_deref(),
                 target_precision,
+                notifier,
+                ipc_error_strategy,
                 stream_trace_id_u64,
             )
             .await?
@@ -2526,10 +2600,12 @@ pub async fn listen_tcp_socket_with_agent(
                         ipc_tcp_forward(client.clone(), stream, cancel, remote, token, id, config).await;
                     if let Err(err) = res {
                         tracing::error!("{:?}", err);
-                        let r = se.send(format!("{err:?}")).await;
-                        if let Err(send_err) = r {
-                            tracing::error!("error <{err:?}> reported to server: {send_err:?}");
-                        }
+                        tokio::spawn(async move {
+                            let r = se.send(format!("{err:?}")).await;
+                            if let Err(send_err) = r {
+                                tracing::error!("error <{err:?}> reported to server: {send_err:?}");
+                            }
+                        });
                     } else {
                         tracing::info!("IPC reader stopped for client {client}",);
                     }
@@ -2559,7 +2635,17 @@ pub async fn listen_tcp_socket_with_agent(
             let instant = std::time::Instant::now();
 
             for h in handlers {
-                let _ = h.await;
+                match tokio::time::timeout(Duration::from_secs(5), h).await {
+                    Err(timeout) => {
+                        tracing::warn!("IPC stream handler timeout: {timeout:#}");
+                    }
+                    Ok(Err(_)) => {
+                        tracing::warn!("IPC stream handler join error");
+                    }
+                    Ok(Ok(())) => {
+                        tracing::info!("IPC stream handler finished");
+                    }
+                }
             }
             tracing::info!("IPC stream handlers finished after {:?}", instant.elapsed());
             anyhow::Ok(())
@@ -2641,6 +2727,7 @@ pub async fn listen_tcp_socket(
     transferred: Option<Arc<Transferred>>,
     span: Span,
     task_id: Option<i64>,
+    notifier: crate::TaskNotifySender,
 ) -> anyhow::Result<IpcHandler> {
     let (sender, error_receiver) = tokio::sync::mpsc::channel(1);
 
@@ -2688,6 +2775,7 @@ pub async fn listen_tcp_socket(
                     let connector = connector.clone();
                     let transferred = transferred.clone();
                     let task_id = task_id.clone();
+                    let notifier = notifier.clone();
                     tokio::spawn(async move {
                         // let dsn: Dsn = "taos:///db2".parse().unwrap();
                         // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
@@ -2703,6 +2791,7 @@ pub async fn listen_tcp_socket(
                             connector,
                             transferred,
                             task_id,
+                            notifier,
                         )
                         .in_current_span()
                         .await;

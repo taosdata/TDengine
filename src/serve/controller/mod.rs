@@ -12,10 +12,9 @@ use self::agent::{
 use self::transferred::Transferred;
 use self::trigger::Strategy;
 use super::data_sources::DataSourceDefinition;
-use super::scheduler::agent::AgentId;
+use super::scheduler::agent::{AgentId, TaskId};
 use super::scheduler::TaskScheduler;
 use crate::serve::controller::agent::Activity;
-use crate::serve::data_sources::{data_source_is_valid, validate_dsn};
 use anyhow::{anyhow, bail, Context};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
@@ -31,8 +30,9 @@ use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
 use strum::{AsRefStr, Display, EnumString, IntoStaticStr};
 use taos::taos_query::tmq::Assignment;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
+use taosx_core::dsv::DataSourceValidation;
 use taosx_core::utils::breakpoints::breakpoints_get_all;
-use taosx_core::{ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
+use taosx_core::{validate_dsn, ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -115,16 +115,23 @@ static MIGRATOR: Migrator = sqlx::migrate!(); // defaults to "./migrations"
 // const TASK_SELECT: &str = "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks";
 
 pub type AgentDataSetsSender = Sender<Response<Vec<DataSet>>>;
+pub type DsvSender = Sender<DataSourceValidation>;
+
 #[derive(Debug, Clone)]
 pub enum AgentAction {
-    Run(i64),
+    /// Tuple for (TaskId, JobId, RunId)
+    Run(TaskId, Uuid, u64),
     #[allow(dead_code)]
     Stop(i64),
     /// Equivalent to `Suspend`.
     Cancel(i64),
+    /// Interrupt and do nothing.
+    Interrupt(i64),
     ListDataSets(DataSetsReq, AgentDataSetsSender),
     #[allow(dead_code)]
     RetrieveDataSets(DataSetsReq, Vec<DataSet>),
+    /// check data source validation
+    Check(String, DsvSender),
 }
 // pub type AgentTasksReceiver = tokio::sync::broadcast::Receiver<AgentAction>;
 // pub type AgentTasksSender = tokio::sync::broadcast::Sender<AgentAction>;
@@ -214,6 +221,7 @@ pub(crate) struct TaskController {
     /// Task scheduler
     pub scheduler: TaskScheduler,
 
+    #[allow(dead_code)]
     pub ctl_alive: Arc<AtomicBool>,
 
     pub shutdown_notify: Arc<tokio::sync::Notify>,
@@ -255,8 +263,9 @@ impl TaskControllerRef {
             .bind(Status::Created)
             .fetch_all(&self.pool)
             .await?;
-        for task in tasks {
+        for mut task in tasks {
             let id = task.id;
+            task.load_breakpoints();
             if let Err(err) = self.scheduler.push_task(task).await {
                 tracing::error!(task.id = id, "Push task to scheduler error: {err:?}");
             }
@@ -278,6 +287,7 @@ impl From<TaskController> for TaskControllerRef {
         Self(Arc::new(value))
     }
 }
+
 impl From<Arc<TaskController>> for TaskControllerRef {
     fn from(value: Arc<TaskController>) -> Self {
         Self(value)
@@ -342,7 +352,21 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
         .await?;
     Ok(())
 }
+
 async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::Result<()> {
+    let mut status = activity.status.as_str();
+    match status {
+        "connected" | "disconnected" | "created" | "outdated" => {}
+        "transferring" | "online" => {
+            status = "connected";
+        }
+        "pending" | "offline" => {
+            status = "disconnected";
+        }
+        _ => {
+            status = "connected";
+        }
+    }
     sqlx::query(
             "INSERT INTO agent_activities (`id`,`at`, `level`, `activity`, `status`, `context`) values(?, ?, ?, ?, ?, ?)")
             .bind(
@@ -350,7 +374,7 @@ async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::
             activity.at).bind(&
             activity.level).bind(&
             activity.activity).bind(&
-            activity.status).bind(&
+            status).bind(&
             activity.context)
         .execute(pool)
         .await?;
@@ -358,12 +382,13 @@ async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::
 }
 
 async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
-    sqlx::query("update tasks set status = ? where status in (?, ?, ?, ?)")
+    sqlx::query("update tasks set status = ? where status in (?, ?, ?, ?, ?)")
         .bind(Status::Suspended)
         .bind(Status::Running)
         .bind(Status::Waiting)
         .bind(Status::Suspending)
         .bind(Status::Interrupted)
+        .bind(Status::Ticked)
         .execute(pool)
         .await?;
     sqlx::query("update tasks set status = ? where status = ?")
@@ -413,7 +438,7 @@ impl TaskController {
                 match rx.recv().await {
                     Ok(notify) => match notify {
                         crate::serve::scheduler::SchedulerNotify::TaskActivity(task) => {
-                            tracing::info!(
+                            tracing::debug!(
                                 "task: {} {:?} {:?}",
                                 task.id,
                                 task.activity,
@@ -424,7 +449,7 @@ impl TaskController {
                             }
                         }
                         crate::serve::scheduler::SchedulerNotify::AgentActivity(agent) => {
-                            tracing::info!(
+                            tracing::debug!(
                                 "agent: {} {:?} {:?}",
                                 agent.id,
                                 agent.activity,
@@ -511,7 +536,9 @@ impl TaskController {
         let _guard = span.enter();
         counter!("tasks", tasks.len() as u64);
 
-        tasks.iter_mut().for_each(|task| task.backport_labels());
+        tasks.iter_mut().for_each(|task| {
+            task.backport_labels();
+        });
         Ok(tasks.into_iter().map(TaskDetail::new).collect())
     }
 
@@ -648,7 +675,7 @@ impl TaskController {
         }
 
         if task.via.is_none() {
-            validate_dsn(&from, None).await.ok()?;
+            validate_dsn(&from).await.ok()?;
         }
 
         if let Some(topic) = task.oneshot_topic.as_deref() {
@@ -871,17 +898,7 @@ impl TaskController {
             })
             // set breakpoints
             .map(|mut t| {
-                let task_id = id.to_string();
-                let breakpoints_res = breakpoints_get_all(&task_id);
-                if let Ok(breakpoints) = breakpoints_res {
-                    let formatted_pairs: Vec<String> = breakpoints
-                        .iter()
-                        .map(|(first, second)| format!("{}:{}", first, second))
-                        .collect();
-
-                    let output = formatted_pairs.join("&");
-                    t.breakpoints = Some(output);
-                }
+                t.load_breakpoints();
                 t
             })
             .map(Into::into))
@@ -947,6 +964,7 @@ impl TaskController {
 
         let from: Dsn = task.from.parse()?;
         let to: Dsn = task.to.parse()?;
+        let (tx, _rx) = flume::unbounded();
         let opts = TaskOpts {
             from,
             transform: vec![],
@@ -966,6 +984,7 @@ impl TaskController {
                 trace_id = tracing::field::Empty
             ),
             task_id: Some(task.id.to_string()),
+            notify: tx,
         };
         opts.delete_task().await?;
 
@@ -1171,7 +1190,7 @@ impl TaskController {
         let agent = sqlx::query_as(&sql).fetch_optional(&self.pool).await?;
         Ok(agent)
     }
-    /// Check if agent is online.
+    /// Check if agent is connected.
     pub async fn agent_alive(&self, agent_id: i64) -> bool {
         self.scheduler.agent_is_alive(agent_id).await
     }
@@ -1209,46 +1228,6 @@ impl TaskController {
         } else {
             bail!("The agent which token(`{token}`) bind to might be deleted")
         }
-    }
-
-    pub async fn agent_disconnect(&self, agent_id: i64) -> anyhow::Result<()> {
-        tracing::warn!("Agent {agent_id} is disconnected");
-        // let tasks = self
-        //     .tasks(TaskFilter {
-        //         via: Some(agent_id),
-        //         status: Some("running".to_string()),
-        //         ..Default::default()
-        //     })
-        //     .await?;
-        // for task in tasks {
-        //     let id = task.id;
-        //     self.tasks.write().await.remove(&id).map(|(_, token)| {
-        //         token.cancel();
-        //     });
-        //     if let Err(err) = sqlx::query(&format!(
-        //         "UPDATE tasks SET `status` = 'cancelled' WHERE id = {id} AND `status` = 'running'"
-        //     ))
-        //     .execute(&self.pool)
-        //     .await
-        //     {
-        //         tracing::error!("Update task {id} status to cancelled failed: {err:#}");
-        //     }
-        //     let activity = Activity::new::<String>(
-        //         id,
-        //         Utc::now(),
-        //         LevelFilter::Info,
-        //         format!("Task {id} is cancelled because agent is disconnected"),
-        //         "cancelled",
-        //         None,
-        //     );
-        //     self.push_task_activity(&activity).await?;
-        // }
-        // if let Some(workers) = self.agent_tasks.write().await.remove(&agent_id) {
-        //     workers.alive.store(false, Ordering::Relaxed);
-        //     workers.current.clear();
-        // }
-
-        Ok(())
     }
 
     pub async fn update_agent(
@@ -1340,15 +1319,10 @@ impl TaskController {
         agent_id: i64,
         req: DataSetsReq,
     ) -> anyhow::Result<Vec<DataSet>> {
-        // self.scheduler.global_state.agent_runtime.push
-        // let (sender, recv) = flume::bounded(1);
-        // let agent_tasks = self.agent_tasks.read().await;
-        // let agent = agent_tasks
-        //     .get(&agent_id)
-        //     .ok_or_else(|| anyhow::format_err!("Unknown or inactive agent {agent_id}"))?;
-        // tracing::info!("Send list datasets request to agent");
-        // agent.send(AgentAction::ListDataSets(req, sender))?;
-        // tracing::info!("Retrieve datasets result from agent");
+        if !self.agent_alive(agent_id).await {
+            bail!("Agent {} is not alive", agent_id);
+        }
+
         let scheduler = self.scheduler.clone();
         let handle = tokio::spawn(async move {
             let result = scheduler.list_datasets_via_agent(agent_id, req).await;
@@ -1360,6 +1334,36 @@ impl TaskController {
                 tracing::error!("Retrieve datasets result timeout from agent");
                 Err(err).context("Retrieve datasets result timeout from agent")
             }
+        }
+    }
+
+    pub async fn validate_dsn_via_agent(&self, agent: i64, dsn: Dsn) -> DataSourceValidation {
+        let scheduler = self.scheduler.clone();
+        if !self.agent_alive(agent).await {
+            return DataSourceValidation::invalid(
+                dsn.driver.to_string(),
+                format!("Agent {} is not alive", agent),
+            );
+        }
+
+        let result = tokio::time::timeout(
+            Duration::from_secs(600),
+            scheduler.validate_dsn_via_agent(agent, dsn.clone()),
+        )
+        .await;
+        let result = match result {
+            Ok(result) => result,
+            Err(_) => {
+                tracing::error!("Validate dsn timeout from agent");
+                return DataSourceValidation::invalid(
+                    dsn.driver.to_string(),
+                    "Validate dsn timeout from agent".to_string(),
+                );
+            }
+        };
+        match result {
+            Ok(dsv) => dsv,
+            Err(err) => DataSourceValidation::invalid(dsn.driver.to_string(), err.to_string()),
         }
     }
 
@@ -1449,6 +1453,8 @@ pub enum Status {
     Running,
     /// Cancelled tasks, this might be stopped or not.
     Cancelled,
+    /// Cronjob ticking finished.
+    Ticked,
     /// Task has been finished.
     Completed,
     /// Task completed with error.
@@ -1463,7 +1469,6 @@ pub enum Status {
     Waiting,
     /// In suspending state.
     Suspending,
-
     /// Task is suspended by controller/agent.
     Suspended,
     /// Task paused manually by user.
@@ -1495,6 +1500,7 @@ where
         Self::from_str(v).map_err(|err| Box::new(err) as _)
     }
 }
+
 impl<'q, DB: sqlx::Database> sqlx::encode::Encode<'q, DB> for Status
 where
     &'q str: sqlx::Encode<'q, DB>,
@@ -1521,6 +1527,7 @@ where
 }
 
 pub mod trigger;
+
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct TaskWithAgent {
     #[serde(flatten)]
@@ -1752,8 +1759,31 @@ impl TaskActivity {
         }
     }
 
+    /// Info-level activity under running state.
+    pub fn agent_transferring(id: i64, message: String) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Info,
+            activity: message,
+            status: "connected".to_string(),
+            context: None,
+        }
+    }
+
     /// Error-level activity under running state.
     pub fn error(id: i64, message: String) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Error,
+            activity: message,
+            status: "running".to_string(),
+            context: None,
+        }
+    }
+    /// Warn-level activity under running state.
+    pub fn warn(id: i64, message: String) -> Self {
         Self {
             id,
             at: Utc::now(),
@@ -1804,34 +1834,44 @@ impl TaskActivity {
             context: None,
         }
     }
-    pub fn interrupted(id: i64, message: String) -> Self {
+    pub fn interrupted(id: i64, message: impl std::fmt::Display) -> Self {
         Self {
             id,
             at: Utc::now(),
             level: LevelFilter::Error,
             activity: format!("Error: {message}."),
             status: "interrupted".to_string(),
-            context: Some(message.into()),
+            context: None,
         }
     }
 
-    pub fn failed(id: i64, message: String) -> Self {
+    pub fn interrupt(id: i64, message: impl std::fmt::Display) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Error,
+            activity: format!("Error: {message}."),
+            status: "interrupt".to_string(),
+            context: None,
+        }
+    }
+    pub fn failed(id: i64, message: impl std::fmt::Display) -> Self {
         Self {
             id,
             at: Utc::now(),
             level: LevelFilter::Error,
             activity: format!("Failed with error: {message}"),
             status: "failed".to_string(),
-            context: Some(message.into()),
+            context: None,
         }
     }
 
-    pub fn waiting(id: i64, message: impl Into<String>) -> Self {
+    pub fn waiting(id: i64, message: impl std::fmt::Display) -> Self {
         Self {
             id,
             at: Utc::now(),
             level: LevelFilter::Warn,
-            activity: message.into(),
+            activity: message.to_string(),
             status: "waiting".to_string(),
             context: None,
         }
@@ -1932,6 +1972,7 @@ impl From<Dsn> for ExpandedDsn {
         }
     }
 }
+
 /// A streaming workflow task description.
 #[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub struct TaskDetail {
@@ -1981,6 +2022,7 @@ impl std::ops::DerefMut for TaskDetail {
         &mut self.task
     }
 }
+
 impl TaskDetail {
     pub fn new(task: Task) -> Self {
         TaskDetail {
@@ -2107,7 +2149,26 @@ impl Task {
     fn set_breakpoints(&mut self, breakpoints: Option<String>) {
         self.breakpoints = breakpoints;
     }
+
+    pub fn load_breakpoints(&mut self) {
+        load_breakpoints(self.id).map(|s| self.set_breakpoints(Some(s)));
+    }
 }
+
+pub fn load_breakpoints(task_id: TaskId) -> Option<String> {
+    let breakpoints_res = breakpoints_get_all(&task_id.to_string());
+    if let Ok(breakpoints) = breakpoints_res {
+        let formatted_pairs: Vec<String> = breakpoints
+            .iter()
+            .map(|(first, second)| format!("{}:{}", first, second))
+            .collect();
+
+        Some(formatted_pairs.join("&"))
+    } else {
+        None
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq, PartialOrd, ToSchema)]
 pub struct Labels(Option<Vec<String>>);
 
@@ -2166,6 +2227,7 @@ impl std::ops::Deref for Labels {
         &self.0
     }
 }
+
 impl std::ops::DerefMut for Labels {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
@@ -2378,6 +2440,7 @@ impl From<NewTask> for NewTaskV1 {
         }
     }
 }
+
 #[derive(Serialize, Deserialize, ToSchema, Default, Clone, Debug, sqlx::FromRow)]
 #[serde(default)]
 #[schema(example = json!({"from": "tmq:///test", "to": "taos:///test2"}))]
@@ -2531,8 +2594,7 @@ mod tests {
     async fn test_agent() -> anyhow::Result<()> {
         // std::env::set_var("RUST_LOG", "debug");
         tracing_subscriber_init()?;
-        let (controller, mut scheduler, agent_notify_sender) =
-            generate_scheduler_for_test().await?;
+        let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
         dbg!(&controller);
         let new: AgentProps = serde_json::from_str(
             r#"
@@ -2592,8 +2654,7 @@ mod tests {
     async fn test_patch() -> anyhow::Result<()> {
         // std::env::set_var("RUST_LOG", "taos=debug");
         tracing_subscriber_init()?;
-        let (controller, mut scheduler, agent_notify_sender) =
-            generate_scheduler_for_test().await?;
+        let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
 
         let new: AgentProps = serde_json::from_str(
             r#"
@@ -2636,8 +2697,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_create_task_when_agent_not_alive() -> anyhow::Result<()> {
         tracing_subscriber_init()?;
-        let (controller, mut scheduler, agent_notify_sender) =
-            generate_scheduler_for_test().await?;
+        let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
         let agent = controller
             .create_agent(AgentProps {
                 dsn: "".to_string(),
@@ -2669,6 +2729,7 @@ mod tests {
 
         Ok(())
     }
+
     #[tokio::test(flavor = "multi_thread")]
     async fn test_task_offset() -> anyhow::Result<()> {
         std::env::set_var("RUST_LOG", "taos=info");
@@ -2717,8 +2778,7 @@ mod tests {
 
         taos.exec_many(["drop database if exists db2"]).await?;
 
-        let (controller, mut scheduler, agent_notify_sender) =
-            generate_scheduler_for_test().await?;
+        let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
 
         let task_props: NewTask = serde_json::from_str(&format!(
             r#"

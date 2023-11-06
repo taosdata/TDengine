@@ -12,7 +12,7 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use taosx_core::{Activity, LevelFilter, RespAction, TaskOpts};
+use taosx_core::{Activity, LevelFilter, RespAction, TaskNotify, TaskOpts};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
@@ -23,6 +23,7 @@ pub enum Action {
     Run(Task),
     Stop(i64),
     Cancel(i64),
+    Interrupt(i64),
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -34,23 +35,23 @@ pub struct TaskStatus {
     context: Option<String>,
 }
 
-impl TaskStatus {
-    pub fn new(
-        id: i64,
-        at: DateTime<Utc>,
-        action: String,
-        message: Option<String>,
-        context: Option<String>,
-    ) -> Self {
-        Self {
-            id,
-            at,
-            action,
-            message,
-            context,
-        }
-    }
-}
+// impl TaskStatus {
+//     pub fn new(
+//         id: i64,
+//         at: DateTime<Utc>,
+//         action: String,
+//         message: Option<String>,
+//         context: Option<String>,
+//     ) -> Self {
+//         Self {
+//             id,
+//             at,
+//             action,
+//             message,
+//             context,
+//         }
+//     }
+// }
 
 pub struct Worker {
     handle: JoinHandle<Result<()>>,
@@ -124,6 +125,8 @@ pub fn spawn_runner(
                             let cancellation = CancellationToken::new();
                             let cancel = cancellation.clone();
 
+                            let (task_tx, task_rx) = flume::unbounded();
+
                             let opts = TaskOpts {
                                 transform: vec![],
                                 from: task.from.parse().unwrap(),
@@ -144,7 +147,48 @@ pub fn spawn_runner(
                                 transferred: None,
                                 span: tracing::info_span!("agent::tasks::run"),
                                 task_id: Some(task.id.to_string()),
+                                notify: task_tx,
                             };
+                            let status_sender = status_tx.clone();
+                            tokio::spawn(async move {
+                                while let Ok(status) = task_rx.recv_async().await {
+                                    let activity = match status {
+                                        TaskNotify::Error(message) => Activity::new(
+                                            task.id,
+                                            Utc::now(),
+                                            LevelFilter::Error,
+                                            format!("Task {} error: {}", task.id, message),
+                                            "running",
+                                            json!({
+                                                "task": task.id,
+                                                "message": message,
+                                            }),
+                                        ),
+                                        TaskNotify::Warn(message) => Activity::new(
+                                            task.id,
+                                            Utc::now(),
+                                            LevelFilter::Warn,
+                                            message,
+                                            "running",
+                                            json!({
+                                                "task": task.id,
+                                            }),
+                                        ),
+                                        TaskNotify::Info(message) => Activity::new(
+                                            task.id,
+                                            Utc::now(),
+                                            LevelFilter::Info,
+                                            message,
+                                            "running",
+                                            json!({
+                                                "task": task.id,
+                                            }),
+                                        ),
+                                        _ => unreachable!(),
+                                    };
+                                    let _ = status_sender.send_async(activity).await;
+                                }
+                            });
                             let pool = port_pool.clone();
                             let status_tx = status_tx.clone();
                             let sender = sender.clone();
@@ -197,7 +241,7 @@ pub fn spawn_runner(
                                     let activity = Activity::new(
                                         task.id,
                                         Utc::now(),
-                                        LevelFilter::Info,
+                                        LevelFilter::Error,
                                         format!(
                                             "Running task {id} error via agent {agent_id}: {err:#}"
                                         ),
@@ -421,6 +465,23 @@ pub fn spawn_runner(
                                 );
                                 let _ =
                                     sender.send_async(RespAction::AgentActivity(activity)).await;
+                            }
+                        }
+                        Action::Interrupt(id) => {
+                            let order = Ordering::SeqCst;
+
+                            if let Some((id, worker)) = tasks.remove(&id) {
+                                info!(
+                                    task = id,
+                                    action = "interrupt",
+                                    "[{id}] Remove runner for task {id}, wait for task to be finished"
+                                );
+                                worker.cancel();
+                                tokio::time::sleep(Duration::from_secs(1)).await;
+                                worker.handle.abort();
+
+                                // work tasks - 1
+                                working_tasks.fetch_sub(1, order);
                             }
                         }
                     }

@@ -113,6 +113,25 @@ impl Cli {
         // let span = tracing::info_span!("cli");
         let cancel = CancellationToken::new();
         let span = tracing::Span::current();
+
+        let (notify, receiver) = flume::unbounded();
+
+        tokio::spawn(async move {
+            while let Ok(notify) = receiver.recv_async().await {
+                match notify {
+                    taosx_core::TaskNotify::Info(info) => {
+                        tracing::info!("{}", info);
+                    }
+                    taosx_core::TaskNotify::Error(error) => {
+                        tracing::error!("{}", error);
+                    }
+                    taosx_core::TaskNotify::Warn(warn) => {
+                        tracing::warn!("{}", warn);
+                    }
+                    _ => {}
+                }
+            }
+        });
         // let _ = span.clone().entered();
         // let _ = span.enter();
         let task_opt = taosx_core::TaskOpts {
@@ -130,6 +149,7 @@ impl Cli {
             transferred: Default::default(),
             span: span.clone(),
             task_id: None,
+            notify,
         };
 
         // start metrics print schedular

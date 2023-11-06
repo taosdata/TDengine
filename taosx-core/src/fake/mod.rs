@@ -5,7 +5,7 @@ use taos::*;
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
-use crate::{utils::port_pool::PortPool, Action, Parser, Transferred};
+use crate::{utils::port_pool::PortPool, Action, Parser, TaskNotifySender, Transferred};
 
 pub async fn fake_to_taos(
     from: Dsn,
@@ -18,9 +18,12 @@ pub async fn fake_to_taos(
     _with_agent: Option<(i64, String, String)>,
     _transferred: Option<Arc<Transferred>>,
     span: Span,
+    notify: TaskNotifySender,
 ) -> anyhow::Result<()> {
     let _ = span.entered();
     tracing::info!("fake_to_taos: from: {:?}, to: {:?}", from, to);
+
+    let _ = notify.send(crate::TaskNotify::info("started"));
 
     let future = async move {
         if let Some(sleep) = from.get("sleep") {
@@ -44,6 +47,7 @@ pub async fn fake_to_taos(
         }
     }
     tracing::info!("fake to taos finished");
+    let _ = notify.send(crate::TaskNotify::info("finished"));
 
     Ok(())
 }

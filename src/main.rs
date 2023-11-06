@@ -208,6 +208,7 @@ fn get_default_config_path() -> PathBuf {
         .join(build::CUS_PROMPT)
         .join("taosx.toml")
 }
+
 impl Args {
     pub fn init() -> Result<Args, ArgsError> {
         let mut args = Args::parse();
@@ -253,8 +254,7 @@ impl Args {
         layers.push(Layer::Clap(Args::command().get_matches()));
 
         let configurable_opts = ConfigurableOpts::with_layers(&layers)?;
-        args.global = configurable_opts.global;
-
+        args.global.merge_from(configurable_opts.global);
         args.global.jobs = executor_worker_threads(args.global.jobs);
 
         let matches = Args::command().get_matches();
@@ -286,6 +286,31 @@ impl Args {
             _ => {}
         }
         Ok(args)
+    }
+}
+
+impl Global {
+    pub fn merge_from(&mut self, rhs: Self) -> &mut Self {
+        let matches = Args::command().get_matches();
+        macro_rules! update_if_none {
+            ($f:ident) => {
+                match matches.value_source(stringify!($f)) {
+                    Some(ValueSource::DefaultValue) | None => {
+                        self.$f = rhs.$f;
+                    }
+                    _ => {}
+                }
+            };
+        }
+        update_if_none!(plugins_home);
+        update_if_none!(data_dir);
+        update_if_none!(logs_home);
+        update_if_none!(log_level);
+        update_if_none!(debug);
+        update_if_none!(log_keep_days);
+        update_if_none!(jobs);
+        update_if_none!(otel);
+        self
     }
 }
 
@@ -456,6 +481,31 @@ async fn init_tracing_layers(
     Ok(())
 }
 
+fn level_upgrade(level: LevelFilter, num: i8) -> LevelFilter {
+    if num == 0 {
+        return level;
+    }
+    if num < 0 {
+        let level = match level {
+            LevelFilter::Off => return LevelFilter::Off,
+            LevelFilter::Error => LevelFilter::Off,
+            LevelFilter::Warn => LevelFilter::Error,
+            LevelFilter::Info => LevelFilter::Warn,
+            LevelFilter::Debug => LevelFilter::Info,
+            LevelFilter::Trace => LevelFilter::Debug,
+        };
+        return level_upgrade(level, num + 1);
+    }
+    let level = match level {
+        LevelFilter::Off => LevelFilter::Error,
+        LevelFilter::Error => LevelFilter::Warn,
+        LevelFilter::Warn => LevelFilter::Info,
+        LevelFilter::Info => LevelFilter::Debug,
+        LevelFilter::Debug => LevelFilter::Trace,
+        LevelFilter::Trace => LevelFilter::Trace,
+    };
+    return level_upgrade(level, num - 1);
+}
 fn main() -> Result<()> {
     dotenv::dotenv().ok();
     let version = build::PKG_VERSION;
@@ -478,12 +528,19 @@ fn main() -> Result<()> {
     println!("configs: {:?}", args);
 
     // Initialize tracing layers
-    let level_filter = args
-        .global
-        .log_level
-        .clone()
-        .or(args.opt_args.verbose.clone().map(|v| v.log_level_filter()))
-        .unwrap_or(LevelFilter::Info);
+    let mut level_filter = args.global.log_level.clone().unwrap_or(LevelFilter::Info);
+    if let Some(verbosity) = args.opt_args.verbose.as_ref() {
+        let level_num = verbosity.log_level_filter();
+        let level_num: i8 = match level_num {
+            LevelFilter::Off => -3,
+            LevelFilter::Error => -2,
+            LevelFilter::Warn => -1,
+            LevelFilter::Info => 0,
+            LevelFilter::Debug => 1,
+            LevelFilter::Trace => 2,
+        };
+        level_filter = level_upgrade(level_filter, level_num);
+    }
     println!("log level: {:?}", &level_filter);
     let span_events = args.opt_args.tracing_events.clone();
     let worker_threads = args.global.jobs.clone();
@@ -535,7 +592,7 @@ fn main() -> Result<()> {
         opentelemetry::global::shutdown_tracer_provider();
     });
     println!("wait for runtime shutdown");
-    runtime.shutdown_timeout(std::time::Duration::from_secs(5));
+    runtime.shutdown_timeout(std::time::Duration::from_secs(1));
     Ok(())
 }
 
