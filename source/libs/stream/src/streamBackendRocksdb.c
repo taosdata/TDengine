@@ -530,9 +530,6 @@ SCfFilterFactory ginitFilterDict[] = {
 
 
 
-// pTaskDb->filterFactory = rocksdb_compactionfilterfactory_create(
-//       NULL, destroyCompactFilteFactory, compactFilteFactoryCreateFilter, compactFilteFactoryName);
-//   rocksdb_options_set_compaction_filter_factory(pTaskDb->dbOpt, pTaskDb->filterFactory);
 void dbSetFilterFactory(rocksdb_options_t* opt, int32_t i, void *arg) {
    rocksdb_compactionfilterfactory_t *filterFactory = rocksdb_compactionfilterfactory_create(arg,destroyCompactFilteFactory, ginitFilterDict[i].create, ginitFilterDict[i].funcName);
    rocksdb_options_set_compaction_filter_factory(opt, filterFactory);
@@ -1939,6 +1936,7 @@ void taskDbInitOpt(STaskDbWrapper* pTaskDb) {
     pTaskDb->pCompares[i] = compare;
     pTaskDb->pCfOpts[i] = opt;
     pTaskDb->pCfParams[i].tableOpt = tableOpt;
+
     // set filter factory
     dbSetFilterFactory(opt, i, NULL);
   }
