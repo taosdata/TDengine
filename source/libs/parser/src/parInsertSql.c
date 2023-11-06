@@ -166,6 +166,7 @@ static int32_t ignoreUsingClause(SInsertParseContext* pCxt, const char** pSql) {
 }
 
 static int32_t parseDuplicateUsingClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bool* pDuplicate) {
+  int32_t code = TSDB_CODE_SUCCESS;
   *pDuplicate = false;
 
   char tbFName[TSDB_TABLE_FNAME_LEN];
@@ -173,13 +174,13 @@ static int32_t parseDuplicateUsingClause(SInsertParseContext* pCxt, SVnodeModify
   STableMeta** pMeta = taosHashGet(pStmt->pSubTableHashObj, tbFName, strlen(tbFName));
   if (NULL != pMeta) {
     *pDuplicate = true;
-    int32_t code = ignoreUsingClause(pCxt, &pStmt->pSql);
+    code = ignoreUsingClause(pCxt, &pStmt->pSql);
     if (TSDB_CODE_SUCCESS == code) {
       return cloneTableMeta(*pMeta, &pStmt->pTableMeta);
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 typedef enum {
