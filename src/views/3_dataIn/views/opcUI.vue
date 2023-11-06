@@ -1198,12 +1198,13 @@ export default {
   methods: {
     async downloadopcAllponits() {
       try {
-        this.allnodesloading = true;
-        this.disableallnodeclick = false;
         if (!this.dbsource[0].options.endpoint.value) {
           Message.error(this.$t("taoscluster.endpointRequired"));
           return;
         }
+
+        this.disableallnodeclick = false;
+        this.allnodesloading = true;
         let params = `${this.$store.state.app.currentDBType}://${this.dbsource[0].options.endpoint.value}&categories=nodes`;
         let result = await downlaodAllNodes(
           params,
@@ -1226,7 +1227,7 @@ export default {
         URL.revokeObjectURL(link.href);
         document.body.removeChild(link);
       } catch (error) {
-        this.this.allnodesloading = false;
+        this.allnodesloading = false;
         this.disableallnodeclick = true;
         console.log(error);
       }
