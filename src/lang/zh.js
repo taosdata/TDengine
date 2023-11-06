@@ -976,6 +976,7 @@ export default {
   },
 
   datasource: {
+    opcurl:'请输入OPC服务地址',
     selecttargetdb:'请选择目标数据源',
     metrics:'当前指标',
     restarttask:'请重启任务',

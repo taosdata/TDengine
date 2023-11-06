@@ -1171,6 +1171,7 @@ export default {
     // opc_filed:'Filed',
     // opc_alias:'Alias',
     // opc_type:'Type',
+    opcurl:'Please enter the OPC url',
     selecttargetdb:'Please select the target database',
     metrics:'Metrics',
     restarttask:'Please restart the task',
