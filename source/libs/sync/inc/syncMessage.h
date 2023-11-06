@@ -25,7 +25,6 @@ extern "C" {
 typedef enum ESyncTimeoutType {
   SYNC_TIMEOUT_PING = 100,
   SYNC_TIMEOUT_ELECTION,
-  SYNC_TIMEOUT_HEARTBEAT,
 } ESyncTimeoutType;
 
 typedef struct SyncTimeout {

@@ -121,13 +121,6 @@ int32_t syncNodeOnTimeout(SSyncNode* ths, const SRpcMsg* pRpc) {
       syncNodeElect(ths);
     }
 
-  } else if (pMsg->timeoutType == SYNC_TIMEOUT_HEARTBEAT) {
-    if (atomic_load_64(&ths->heartbeatTimerLogicClockUser) <= pMsg->logicClock) {
-      ++(ths->heartbeatTimerCounter);
-      sTrace("vgId:%d, sync timer, type:replicate count:%" PRIu64 ", lc-user:%" PRIu64, ths->vgId,
-             ths->heartbeatTimerCounter, ths->heartbeatTimerLogicClockUser);
-    }
-
   } else {
     sError("vgId:%d, recv unknown timer-type:%d", ths->vgId, pMsg->timeoutType);
   }

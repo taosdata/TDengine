@@ -181,14 +181,6 @@ typedef struct SSyncNode {
   uint64_t          electTimerCounter;
   SElectTimerParam  electTimerParam;
 
-  // heartbeat timer
-  tmr_h             pHeartbeatTimer;
-  int32_t           heartbeatTimerMS;
-  uint64_t          heartbeatTimerLogicClock;
-  uint64_t          heartbeatTimerLogicClockUser;
-  TAOS_TMR_CALLBACK FpHeartbeatTimerCB;  // Timer Fp
-  uint64_t          heartbeatTimerCounter;
-
   // peer heartbeat timer
   SSyncTimer peerHeartbeatTimerArr[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
 
@@ -231,7 +223,6 @@ typedef struct SSyncNode {
 // open/close --------------
 SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion);
 int32_t    syncNodeStart(SSyncNode* pSyncNode);
-int32_t    syncNodeStartStandBy(SSyncNode* pSyncNode);
 void       syncNodeClose(SSyncNode* pSyncNode);
 void       syncNodePreClose(SSyncNode* pSyncNode);
 void       syncNodePostClose(SSyncNode* pSyncNode);

@@ -291,8 +291,6 @@ const char* syncTimerTypeStr(enum ESyncTimeoutType timerType) {
       return "ping";
     case SYNC_TIMEOUT_ELECTION:
       return "elect";
-    case SYNC_TIMEOUT_HEARTBEAT:
-      return "heartbeat";
     default:
       return "unknown";
   }
