@@ -4020,7 +4020,7 @@ static void findEqualCondTbnameInLogicCondOr(STranslateContext* pCxt, SNode* pWh
       if (!bIsEqTbnameCond) {
         bAllTbName = false;
         break;
-      } else if (isTableExistInTableTbnames(aTableTbnames, info.pRealTable)) {
+      } else {
         taosArrayPush(aTableTbnames, &info);
       }
     } else {
@@ -4066,6 +4066,7 @@ static int32_t findVgroupsFromEqualTbname(STranslateContext* pCxt, SArray* aTabl
     SVgroupInfo vgInfo;
     bool        bExists;
     int32_t     code = catalogGetCachedTableHashVgroup(pCxt->pParseCxt->pCatalog, &snameTb, &vgInfo, &bExists);
+    pInfo->done = true;
     if (code == TSDB_CODE_SUCCESS && bExists) {
       bool bFoundVg = false;
       for (int32_t k = 0; k < nVgroups; ++k) {
