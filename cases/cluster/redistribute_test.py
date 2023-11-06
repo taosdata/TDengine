@@ -46,7 +46,7 @@ class VnodeRedistribute(TDCase):
         self.num_of_records_per_req = 100
         # self.num_of_records_per_req = 100
         self.childtable_count = 10000
-        self.insert_rows = 1000000
+        self.insert_rows = 3000000
         self.disorder_start_timestamp = "2018-01-01 00:00:00"
         self.fill_history_start_timestamp = "2020-01-01 00:00:00"
         self.stbname = "stb"
@@ -56,7 +56,7 @@ class VnodeRedistribute(TDCase):
         self.trigger_mode = "at_once"
         self.child_table_exists = "no"
         self.db_drop = "yes"
-        self.wal_retention_period = 86400
+        self.wal_retention_period = 0
         self.stream_drop = "yes"
         self.keep_trying = -1
         self.trying_interval = 10000
