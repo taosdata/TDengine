@@ -19,7 +19,7 @@
 #define MAX_STREAM_EXEC_BATCH_NUM         32
 #define STREAM_RESULT_DUMP_THRESHOLD      300
 #define STREAM_RESULT_DUMP_SIZE_THRESHOLD (1048576 * 1)   // 1MiB result data
-#define STREAM_SCAN_HISTORY_TIMESLICE     1000            // 1000 ms
+#define STREAM_SCAN_HISTORY_TIMESLICE     10000000            // 1000 ms
 
 static int32_t streamDoTransferStateToStreamTask(SStreamTask* pTask);
 
