@@ -420,6 +420,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_JOB_NOT_EXIST,            "Job not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_QWORKER_QUIT,             "Vnode/Qnode is quitting")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_GEO_NOT_SUPPORT_ERROR,    "Geometry not support in this operator")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR,  "Executor internal error")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_WAITTING_CALLBACK,   "Task is waitting callback return")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")

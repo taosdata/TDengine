@@ -1695,6 +1695,11 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
     return NULL;
   }
 
+  if(pRequest->inCalllback){
+    errno = TSDB_CODE_QRY_TASK_WAITTING_CALLBACK;
+    return NULL;
+  }
+
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
   if (pResultInfo->pData == NULL || pResultInfo->current >= pResultInfo->numOfRows) {
     // All data has returned to App already, no need to try again
@@ -2606,7 +2611,9 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
 }
 
 void doRequestCallback(SRequestObj* pRequest, int32_t code) {
+  pRequest->inCalllback = true;
   pRequest->body.queryFp(((SSyncQueryParam *)pRequest->body.interParam)->userParam, pRequest, code);
+  pRequest->inCalllback = false;
 }
 
 int32_t clientParseSql(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effectiveUser, SParseSqlRes* pRes) {
