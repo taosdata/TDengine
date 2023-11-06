@@ -60,7 +60,7 @@ class VnodeRedistributePerfTest(TDCase):
         self.trying_interval = 10
         self.interlace_rows = 0
         self.stream_sql = f"select ts,max(c1) from {self.dbname}.{self.stbname} where c1>0 partition by tbname interval(1s) sliding(1s)"
-        self.fill_history_rows = 10000
+        self.fill_history_rows = 500000
         # self.fill_history_rows = 300
         self.pre_num_of_records_per_req = 10000
         self.json_file_name = "insert0.json"
@@ -204,6 +204,7 @@ class VnodeRedistributePerfTest(TDCase):
         self.tdSql.execute(f'flush database {self.dbname}')
 
     def cal_perf(self):
+        self.add_reserve_dnodes()
         self.get_vgid_dnodeid_kv_list()
         self.get_dnode_id_list()
         if self.continue_insert_perf:
@@ -219,12 +220,9 @@ class VnodeRedistributePerfTest(TDCase):
                 dnode_info_list = self.get_dnode_info_list(dnodeid)
                 for dnode in dnode_info_list:
                     self.disk_usage = self._remote.cmd(dnode["endpoint"].split(":")[0], [f'du -sh -k {dnode["config"]["dataDir"]}/vnode/vnode{self.vgid}']).split('\t')[0]
-                    
                     disk_usage_list.append(int(self.disk_usage))
                 if self.replica == 1:
-                    dnode_id_list = deepcopy(self.dnode_id_list)
-                    dnode_id_list.remove(dnodeid[0])
-                    redistribute_dnode_id = random.choice(dnode_id_list)
+                    redistribute_dnode_id = random.choice(self.dnode_id_list)
                     self.tdSql.execute(f'redistribute vgroup {vgid} dnode {redistribute_dnode_id}')
                 elif self.replica == 3:
                     self.add_reserve_dnodes()

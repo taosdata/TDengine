@@ -60,7 +60,7 @@ class VnodeRedistributePerfTest(TDCase):
         self.trying_interval = 10
         self.interlace_rows = 0
         self.stream_sql = f"select ts,max(c1) from {self.dbname}.{self.stbname} where c1>0 partition by tbname interval(1s) sliding(1s)"
-        self.fill_history_rows = 10000
+        self.fill_history_rows = 50000
         # self.fill_history_rows = 300
         self.pre_num_of_records_per_req = 10000
         self.json_file_name = "insert0.json"
@@ -81,8 +81,10 @@ class VnodeRedistributePerfTest(TDCase):
         self.tmq_schedular_interval = 60
         self.tmq_schedular_interval = 5
         self.query_vgid_interval = 60
+        self.show_trans_interval = 1
         self.show_vnodes_interval = 2
         self.restore_timeout = 10800
+        self.check_transactions_timeout = 10800
         self.tmq_schedular = None
         self.redistribute_schedular = None
         self.vgid_info_schedular = None
@@ -203,7 +205,23 @@ class VnodeRedistributePerfTest(TDCase):
         self.tdCom.threads_run_taosBenchmark(self._remote, self.taosBenchmark_iplist, self.json_data_list, self.json_filename_list, self.taosBenchmark_env_setting, self.run_log_dir)
         self.tdSql.execute(f'flush database {self.dbname}')
 
+    def check_transactions(self, expected_rows=0):
+        self.tdSql.query(f'show transactions;')
+        query_data = self.tdSql.query_data
+        self._remote._logger.info(f'------------ checking show-transactions ------------')
+        latency = 0
+        while len(query_data) > expected_rows:
+            self._remote._logger.info(f'------------ waiting to confirm show-transactions finish (use {latency}s) ------------')
+            self.tdSql.query(f'show transactions;')
+            query_data = self.tdSql.query_data
+            if latency < self.check_transactions_timeout:
+                latency += self.show_trans_interval
+                time.sleep(self.show_trans_interval)
+            else:
+                return False
+
     def cal_perf(self):
+        self.add_reserve_dnodes()
         self.get_vgid_dnodeid_kv_list()
         self.get_dnode_id_list()
         if self.continue_insert_perf:
@@ -211,33 +229,38 @@ class VnodeRedistributePerfTest(TDCase):
             pass
         else:
             start_ts = time.time()
+            print(start_ts)
             vgid_dnodeid_kv = self.vgid_dnodeid_kv_list[0]
+            print("-------", vgid_dnodeid_kv)
             disk_usage_list = list()
             for vgid, dnodeid in vgid_dnodeid_kv.items():
                 self._remote._logger.info(f"------------ start redistribute ------------")
                 self.vgid = vgid
                 dnode_info_list = self.get_dnode_info_list(dnodeid)
+                print("-------", dnode_info_list)
                 for dnode in dnode_info_list:
                     self.disk_usage = self._remote.cmd(dnode["endpoint"].split(":")[0], [f'du -sh -k {dnode["config"]["dataDir"]}/vnode/vnode{self.vgid}']).split('\t')[0]
-                    
                     disk_usage_list.append(int(self.disk_usage))
+                    print("======", disk_usage_list)
                 if self.replica == 1:
                     dnode_id_list = deepcopy(self.dnode_id_list)
                     dnode_id_list.remove(dnodeid[0])
                     redistribute_dnode_id = random.choice(dnode_id_list)
                     self.tdSql.execute(f'split vgroup {vgid}')
                 elif self.replica == 3:
-                    self.add_reserve_dnodes()
                     self.get_cluster_to_redistribute_list(self.replica)
                     redistribute_dnode_id_str = str()
                     for redistribute_dnode_id in self.cluster_to_redistribute_list:
                         redistribute_dnode_id_str += f"dnode {redistribute_dnode_id} "
-                    self.tdSql.execute(f'redistribute vgroup {vgid} {redistribute_dnode_id_str}')
+                    self.tdSql.execute(f'split vgroup {vgid}')
                 else:
                     pass
+                disk_usage = sum(disk_usage_list)
+                self.check_transactions()
                 self.check_restored_true()
             end_ts = time.time()
-            self._remote._logger.info(f'total_trans: {disk_usage_list[0]} kb, use time: {int(end_ts-start_ts)} s, speed: {disk_usage_list[0]/int(end_ts-start_ts)} kb/s')
+            print(end_ts)
+            self._remote._logger.info(f'total_trans: {disk_usage} kb, use time: {int(end_ts-start_ts)} s, speed: {disk_usage/(end_ts-start_ts)} kb/s')
 
     def insert_data(self):
         self.start_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
@@ -284,7 +307,7 @@ class VnodeRedistributePerfTest(TDCase):
                             }
                     consumer = Consumer(consumer_dict)
                     consumer.subscribe([self.topic_name])
-                    
+
                     while True:
                         self.tmq_status = 1
                         if self.tmq_schedular is not None:
