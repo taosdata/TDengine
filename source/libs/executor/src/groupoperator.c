@@ -366,6 +366,69 @@ static SSDataBlock* buildGroupResultDataBlock(SOperatorInfo* pOperator) {
   return (pRes->info.rows == 0) ? NULL : pRes;
 }
 
+bool hasRemainResultByHash(SOperatorInfo* pOperator) {
+  SGroupbyOperatorInfo* pInfo = pOperator->info;
+  SSHashObj* pHashmap = pInfo->aggSup.pResultRowHashTable;
+  return pInfo->groupResInfo.index < tSimpleHashGetSize(pHashmap);
+}
+
+void doBuildResultDatablockByHash(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo,
+                                  SDiskbasedBuf* pBuf) {
+  SGroupbyOperatorInfo* pInfo = pOperator->info;
+  SSHashObj*            pHashmap = pInfo->aggSup.pResultRowHashTable;
+  SExecTaskInfo*        pTaskInfo = pOperator->pTaskInfo;
+
+  SSDataBlock* pBlock = pInfo->binfo.pRes;
+
+  // set output datablock version
+  pBlock->info.version = pTaskInfo->version;
+
+  blockDataCleanup(pBlock);
+  if (!hasRemainResultByHash(pOperator)) {
+    return;
+  }
+
+  pBlock->info.id.groupId = 0;
+  if (!pInfo->binfo.mergeResultBlock) {
+    doCopyToSDataBlockByHash(pTaskInfo, pBlock, &pOperator->exprSupp, pInfo->aggSup.pResultBuf, &pInfo->groupResInfo,
+                             pHashmap, pOperator->resultInfo.threshold, false);
+  } else {
+    while (hasRemainResultByHash(pOperator)) {
+      doCopyToSDataBlockByHash(pTaskInfo, pBlock, &pOperator->exprSupp, pInfo->aggSup.pResultBuf, &pInfo->groupResInfo,
+                               pHashmap, pOperator->resultInfo.threshold, true);
+      if (pBlock->info.rows >= pOperator->resultInfo.threshold) {
+        break;
+      }
+      pBlock->info.id.groupId = 0;
+    }
+
+    // clear the group id info in SSDataBlock, since the client does not need it
+    pBlock->info.id.groupId = 0;
+  }
+}
+
+static SSDataBlock* buildGroupResultDataBlockByHash(SOperatorInfo* pOperator) {
+  SGroupbyOperatorInfo* pInfo = pOperator->info;
+  SSDataBlock* pRes = pInfo->binfo.pRes;
+
+  // after filter, if result block turn to null, get next from whole set
+  while (1) {
+    doBuildResultDatablockByHash(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
+
+    doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
+    if (!hasRemainResultByHash(pOperator)) {
+      setOperatorCompleted(pOperator);
+      break;
+    }
+    if (pRes->info.rows > 0) {
+      break;
+    }
+  }
+
+  pOperator->resultInfo.totalRows += pRes->info.rows;
+  return (pRes->info.rows == 0) ? NULL : pRes;
+}
+
 static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
@@ -375,9 +438,10 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
 
   SGroupbyOperatorInfo* pInfo = pOperator->info;
   if (pOperator->status == OP_RES_TO_RETURN) {
-    return buildGroupResultDataBlock(pOperator);
+    return buildGroupResultDataBlockByHash(pOperator);
   }
-
+  SGroupResInfo* pGroupResInfo = &pInfo->groupResInfo;
+  
   int32_t order = pInfo->binfo.inputTsOrder;
   int64_t        st = taosGetTimestampUs();
   SOperatorInfo* downstream = pOperator->pDownstream[0];
@@ -421,10 +485,20 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
     }
   }
 #endif
-  initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, 0);
+  // initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, 0);
+  if (pGroupResInfo->pRows != NULL) {
+    taosArrayDestroy(pGroupResInfo->pRows);
+  }
+  if (pGroupResInfo->pBuf) {
+    taosMemoryFree(pGroupResInfo->pBuf);
+    pGroupResInfo->pBuf = NULL;
+  }
+  pGroupResInfo->index = 0;
+  pGroupResInfo->iter = 0;
+  pGroupResInfo->dataPos = NULL;
 
   pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
-  return buildGroupResultDataBlock(pOperator);
+  return buildGroupResultDataBlockByHash(pOperator);
 }
 
 SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNode, SExecTaskInfo* pTaskInfo) {
