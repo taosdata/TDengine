@@ -1691,7 +1691,7 @@ const char* compactFilteName(void* arg) { return "stream_filte"; }
 rocksdb_compactionfilter_t* compactFilteFactoryCreateFilter(void* arg, rocksdb_compactionfiltercontext_t* ctx) {
   SCompactFilteFactory*       state = arg;
   rocksdb_compactionfilter_t* filter =
-      rocksdb_compactionfilter_create(NULL, destroyCompactFilte, compactFilte, compactFilteName);
+      rocksdb_compactionfilter_create(state, destroyCompactFilte, compactFilte, compactFilteName);
   return filter;
 }
 
@@ -1773,7 +1773,7 @@ void taskDbRemoveRef(void* pTaskDb) {
 }
 // void taskDbDestroy(STaskDbWrapper* wrapper);
 
-void taskDbInitDBOpt(STaskDbWrapper* pTaskDb) {
+void taskDbInitOpt(STaskDbWrapper* pTaskDb) {
   rocksdb_env_t* env = rocksdb_create_default_env();
 
   rocksdb_cache_t*   cache = rocksdb_cache_create_lru(256);
@@ -1895,7 +1895,7 @@ STaskDbWrapper* taskDbOpen(char* path, char* key, int64_t chkpId) {
 
   taosThreadMutexInit(&pTaskDb->mutex, NULL);
   taskDbInitChkpOpt(pTaskDb);
-  taskDbInitDBOpt(pTaskDb);
+  taskDbInitOpt(pTaskDb);
   statePath = NULL;
 
   cfNames = rocksdb_list_column_families(pTaskDb->dbOpt, dbPath, &nCf, &err);
