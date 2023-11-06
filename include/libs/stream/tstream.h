@@ -434,7 +434,8 @@ typedef struct STaskStartInfo {
   int64_t   readyTs;
   int32_t   tasksWillRestart;
   int32_t   taskStarting;          // restart flag, sentinel to guard the restart procedure.
-  SHashObj* pReadyTaskSet;           // tasks that are all ready for running stream processing
+  SHashObj* pReadyTaskSet;         // tasks that are all ready for running stream processing
+  SHashObj* pFailedTaskSet;        // tasks that are done the check downstream process, may be successful or failed
   int32_t   elapsedTime;
 } STaskStartInfo;
 
@@ -812,7 +813,7 @@ void         streamMetaNotifyClose(SStreamMeta* pMeta);
 void         streamMetaStartHb(SStreamMeta* pMeta);
 void         streamMetaInitForSnode(SStreamMeta* pMeta);
 bool         streamMetaTaskInTimer(SStreamMeta* pMeta);
-int32_t      streamMetaUpdateTaskReadyInfo(SStreamTask* pTask);
+int32_t      streamMetaUpdateTaskDownstreamStatus(SStreamTask* pTask, int64_t startTs, int64_t endTs, bool succ);
 void         streamMetaRLock(SStreamMeta* pMeta);
 void         streamMetaRUnLock(SStreamMeta* pMeta);
 void         streamMetaWLock(SStreamMeta* pMeta);

@@ -73,6 +73,7 @@ int32_t tqStartStreamTask(STQ* pTq) {
   streamMetaWLock(pMeta);
   pTaskList = taosArrayDup(pMeta->pTaskList, NULL);
   taosHashClear(pMeta->startInfo.pReadyTaskSet);
+  taosHashClear(pMeta->startInfo.pFailedTaskSet);
   pMeta->startInfo.startTs = taosGetTimestampMs();
   streamMetaWUnLock(pMeta);
 
@@ -97,7 +98,7 @@ int32_t tqStartStreamTask(STQ* pTq) {
         streamLaunchFillHistoryTask(pTask);
       }
 
-      streamMetaUpdateTaskReadyInfo(pTask);
+      streamMetaUpdateTaskDownstreamStatus(pTask, pTask->execInfo.init, pTask->execInfo.start, true);
       streamMetaReleaseTask(pMeta, pTask);
       continue;
     }
