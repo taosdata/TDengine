@@ -13,6 +13,7 @@ extern int8_t tsS3Https;
 #if defined(USE_S3)
 
 #include "libs3.h"
+#include "tarray.h"
 
 static int         verifyPeerG = 0;
 static const char *awsRegionG = NULL;
@@ -34,7 +35,7 @@ static int32_t s3Begin() {
   }
 
   if ((status = S3_initialize("s3", verifyPeerG | S3_INIT_ALL, hostname)) != S3StatusOK) {
-    vError("Failed to initialize libs3: %s\n", S3_get_status_name(status));
+    uError("Failed to initialize libs3: %s\n", S3_get_status_name(status));
     return -1;
   }
 
@@ -65,9 +66,9 @@ static int should_retry() {
 
 static void s3PrintError(const char *func, S3Status status, char error_details[]) {
   if (status < S3StatusErrorAccessDenied) {
-    vError("%s: %s", __func__, S3_get_status_name(status));
+    uError("%s: %s", __func__, S3_get_status_name(status));
   } else {
-    vError("%s: %s, %s", __func__, S3_get_status_name(status), error_details);
+    uError("%s: %s, %s", __func__, S3_get_status_name(status), error_details);
   }
 }
 
@@ -445,13 +446,13 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
   data.noStatus = noStatus;
 
   if (taosStatFile(file, &contentLength, NULL, NULL) < 0) {
-    vError("ERROR: %s Failed to stat file %s: ", __func__, file);
+    uError("ERROR: %s Failed to stat file %s: ", __func__, file);
     code = TAOS_SYSTEM_ERROR(errno);
     return code;
   }
 
   if (!(data.infileFD = taosOpenFile(file, TD_FILE_READ))) {
-    vError("ERROR: %s Failed to open file %s: ", __func__, file);
+    uError("ERROR: %s Failed to open file %s: ", __func__, file);
     code = TAOS_SYSTEM_ERROR(errno);
     return code;
   }
@@ -486,7 +487,7 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
       s3PrintError(__func__, data.status, data.err_msg);
       code = TAOS_SYSTEM_ERROR(EIO);
     } else if (data.contentLength) {
-      vError("ERROR: %s Failed to read remaining %llu bytes from input", __func__,
+      uError("ERROR: %s Failed to read remaining %llu bytes from input", __func__,
              (unsigned long long)data.contentLength);
       code = TAOS_SYSTEM_ERROR(EIO);
     }
@@ -667,9 +668,9 @@ void s3DeleteObjectsByPrefix(const char *prefix) {
   const char               *marker = 0, *delimiter = 0;
   int                       maxkeys = 0, allDetails = 0;
   list_bucket_callback_data data;
-  data.objectArray = taosArrayInit(32, POINTER_BYTES);
+  data.objectArray = taosArrayInit(32, sizeof(void*));
   if (!data.objectArray) {
-    vError("%s: %s", __func__, "out of memoty");
+    uError("%s: %s", __func__, "out of memoty");
     return;
   }
   if (marker) {
@@ -758,7 +759,7 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, 
   } while (S3_status_is_retryable(cbd.status) && should_retry());
 
   if (cbd.status != S3StatusOK) {
-    vError("%s: %d(%s)", __func__, cbd.status, cbd.err_msg);
+    uError("%s: %d(%s)", __func__, cbd.status, cbd.err_msg);
     return TAOS_SYSTEM_ERROR(EIO);
   }
 
@@ -782,7 +783,7 @@ long s3Size(const char *object_name) {
   } while (S3_status_is_retryable(cbd.status) && should_retry());
 
   if ((cbd.status != S3StatusOK) && (cbd.status != S3StatusErrorPreconditionFailed)) {
-    vError("%s: %d(%s)", __func__, cbd.status, cbd.err_msg);
+    uError("%s: %d(%s)", __func__, cbd.status, cbd.err_msg);
   }
 
   size = cbd.content_length;
