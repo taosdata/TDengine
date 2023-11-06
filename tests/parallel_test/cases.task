@@ -225,6 +225,7 @@ e
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ttlChangeOnWrite.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compress_tsz1.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/compress_tsz2.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/view/non_marterial_view/test_view.py
 ,,n,system-test,python3 ./test.py -f 0-others/compatibility.py
 ,,n,system-test,python3 ./test.py -f 0-others/tag_index_basic.py
 ,,n,system-test,python3 ./test.py -f 0-others/udfpy_main.py
