@@ -804,7 +804,7 @@ void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc);
 // source level
 int32_t streamSetParamForStreamScannerStep1(SStreamTask* pTask, SVersionRange* pVerRange, STimeWindow* pWindow);
 int32_t streamSetParamForStreamScannerStep2(SStreamTask* pTask, SVersionRange* pVerRange, STimeWindow* pWindow);
-SScanhistoryDataInfo streamScanHistoryData(SStreamTask* pTask);
+SScanhistoryDataInfo streamScanHistoryData(SStreamTask* pTask, int64_t st);
 int32_t streamDispatchScanHistoryFinishMsg(SStreamTask* pTask);
 
 // agg level

@@ -187,106 +187,118 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, i
   return code;
 }
 
-SScanhistoryDataInfo streamScanHistoryData(SStreamTask* pTask) {
-  ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE);
+static int32_t handleResultBlocks(SStreamTask* pTask, SArray* pRes, int32_t size) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (taosArrayGetSize(pRes) > 0) {
+    SStreamDataBlock* pStreamBlocks = createStreamBlockFromResults(NULL, pTask, size, pRes);
+    code = doOutputResultBlockImpl(pTask, pStreamBlocks);
+    if (code != TSDB_CODE_SUCCESS) {
+      stDebug("s-task:%s dump fill-history results failed, code:%s", pTask->id.idStr, tstrerror(code));
+    }
+  } else {
+    taosArrayDestroy(pRes);
+  }
+  return code;
+}
 
+static void streamScanHistoryDataImpl(SStreamTask* pTask, SArray* pRes, int32_t* pSize, bool* pFinish) {
   int32_t code = TSDB_CODE_SUCCESS;
   void*   exec = pTask->exec.pExecutor;
+  int32_t numOfBlocks = 0;
+
+  while (1) {
+    if (streamTaskShouldStop(pTask)) {
+      break;
+    }
+
+    if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
+      stDebug("s-task:%s level:%d inputQ is blocked, retry in 5s", pTask->id.idStr, pTask->info.taskLevel);
+      break;
+    }
+
+    SSDataBlock* output = NULL;
+    uint64_t     ts = 0;
+    code = qExecTask(exec, &output, &ts);
+    if (code != TSDB_CODE_TSC_QUERY_KILLED && code != TSDB_CODE_SUCCESS) {
+      stError("s-task:%s scan-history data error occurred code:%s, continue scan-history", pTask->id.idStr,
+              tstrerror(code));
+      continue;
+    }
+
+    // the generated results before fill-history task been paused, should be dispatched to sink node
+    if (output == NULL) {
+      (*pFinish) = qStreamScanhistoryFinished(exec);
+      break;
+    }
+
+    SSDataBlock block = {0};
+    assignOneDataBlock(&block, output);
+    block.info.childId = pTask->info.selfChildId;
+    taosArrayPush(pRes, &block);
+
+    (*pSize) += blockDataGetSize(output) + sizeof(SSDataBlock) + sizeof(SColumnInfoData) * blockDataGetNumOfCols(&block);
+    numOfBlocks += 1;
+
+    if (numOfBlocks >= STREAM_RESULT_DUMP_THRESHOLD || (*pSize) >= STREAM_RESULT_DUMP_SIZE_THRESHOLD) {
+      stDebug("s-task:%s scan exec numOfBlocks:%d, size:%.2fKiB output num-limit:%d, size-limit:%.2fKiB reached",
+              pTask->id.idStr, numOfBlocks, SIZE_IN_KiB(*pSize), STREAM_RESULT_DUMP_THRESHOLD,
+              SIZE_IN_KiB(STREAM_RESULT_DUMP_SIZE_THRESHOLD));
+      break;
+    }
+  }
+}
+
+SScanhistoryDataInfo streamScanHistoryData(SStreamTask* pTask, int64_t st) {
+  ASSERT(pTask->info.taskLevel == TASK_LEVEL__SOURCE);
+
+  void*   exec = pTask->exec.pExecutor;
   bool    finished = false;
-  int64_t st = taosGetTimestampMs();
 
   qSetStreamOpOpen(exec);
 
-  while (!finished) {
+  while (1) {
     if (streamTaskShouldPause(pTask)) {
-      double el = (taosGetTimestampMs() - pTask->execInfo.step1Start) / 1000.0;
-      stDebug("s-task:%s paused from the scan-history task, elapsed time:%.2fsec", pTask->id.idStr, el);
-      return (SScanhistoryDataInfo){TASK_SCANHISTORY_QUIT, 0};  // quit from step1, not continue to handle the step2
+      stDebug("s-task:%s paused from the scan-history task", pTask->id.idStr);
+      // quit from step1, not continue to handle the step2
+      return (SScanhistoryDataInfo){TASK_SCANHISTORY_QUIT, 0};
     }
 
     SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
     if (pRes == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
-      stError("s-task:%s scan-history prepare result block failed, code:%s, retry later", pTask->id.idStr, tstrerror(terrno));
+      stError("s-task:%s scan-history prepare result block failed, code:%s, retry later", pTask->id.idStr,
+              tstrerror(terrno));
       continue;
     }
 
     int32_t size = 0;
-    int32_t numOfBlocks = 0;
-    while (1) {
-      if (streamTaskShouldStop(pTask)) {
-        taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
-        return (SScanhistoryDataInfo){TASK_SCANHISTORY_QUIT, 0};
-      }
+    streamScanHistoryDataImpl(pTask, pRes, &size, &finished);
 
-      if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
-        int64_t el = taosGetTimestampMs() - st;
-        pTask->execInfo.step1El += el/1000.0;
-
-        stDebug("s-task:%s level:%d inputQ is blocked, resume in 5sec, elapsed time:%.2fs", pTask->id.idStr,
-                pTask->info.taskLevel, pTask->execInfo.step1El);
-
-        taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
-        return (SScanhistoryDataInfo){TASK_SCANHISTORY_REXEC, 5000};
-      }
-
-      SSDataBlock* output = NULL;
-      uint64_t     ts = 0;
-      code = qExecTask(exec, &output, &ts);
-      if (code != TSDB_CODE_TSC_QUERY_KILLED && code != TSDB_CODE_SUCCESS) {
-        stError("s-task:%s scan-history data error occurred code:%s, continue scan", pTask->id.idStr, tstrerror(code));
-        continue;
-      }
-
-      // the generated results before fill-history task been paused, should be dispatched to sink node
-      if (output == NULL) {
-        finished = qStreamScanhistoryFinished(exec);
-        break;
-      }
-
-      SSDataBlock block = {0};
-      assignOneDataBlock(&block, output);
-      block.info.childId = pTask->info.selfChildId;
-      taosArrayPush(pRes, &block);
-
-      size += blockDataGetSize(output) + sizeof(SSDataBlock) + sizeof(SColumnInfoData) * blockDataGetNumOfCols(&block);
-      numOfBlocks += 1;
-
-      if (numOfBlocks >= STREAM_RESULT_DUMP_THRESHOLD || size >= STREAM_RESULT_DUMP_SIZE_THRESHOLD) {
-        stDebug("s-task:%s scan exec numOfBlocks:%d, size:%.2fKiB output num-limit:%d, size-limit:%.2fKiB reached",
-                pTask->id.idStr, numOfBlocks, SIZE_IN_KiB(size), STREAM_RESULT_DUMP_THRESHOLD,
-                SIZE_IN_KiB(STREAM_RESULT_DUMP_SIZE_THRESHOLD));
-        break;
-      }
+    if(streamTaskShouldStop(pTask)) {
+      taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
+      return (SScanhistoryDataInfo){TASK_SCANHISTORY_QUIT, 0};
     }
 
-    if (taosArrayGetSize(pRes) > 0) {
-      SStreamDataBlock* pStreamBlocks = createStreamBlockFromResults(NULL, pTask, size, pRes);
-      code = doOutputResultBlockImpl(pTask, pStreamBlocks);
-      if (code != TSDB_CODE_SUCCESS) {
-        terrno = code;
-        stDebug("s-task:%s dump fill-history results failed, code:%s, retry in 100ms", pTask->id.idStr, tstrerror(code));
-        return (SScanhistoryDataInfo){TASK_SCANHISTORY_REXEC, 100};
-      }
-    } else {
-      taosArrayDestroy(pRes);
-    }
+    // dispatch the generated results
+    int32_t code = handleResultBlocks(pTask, pRes, size);
 
     int64_t el = taosGetTimestampMs() - st;
-    pTask->execInfo.step1El += el/1000.0;
+
+    // downstream task input queue is full, try in 5sec
+    if (pTask->inputq.status == TASK_INPUT_STATUS__BLOCKED) {
+      return (SScanhistoryDataInfo){TASK_SCANHISTORY_REXEC, 5000};
+    }
+
+    if (finished) {
+      return (SScanhistoryDataInfo){TASK_SCANHISTORY_CONT, 0};
+    }
 
     if (el >= STREAM_SCAN_HISTORY_TIMESLICE) {
-      stDebug("s-task:%s fill-history:%d time slice for scan-history exhausted, elapse time:%.2fs, retry in 100ms",
+      stDebug("s-task:%s fill-history:%d time slice exhausted, elapsed time:%.2fs, retry in 100ms",
               pTask->id.idStr, pTask->info.fillHistory, el / 1000.0);
       return (SScanhistoryDataInfo){TASK_SCANHISTORY_REXEC, 100};
     }
   }
-
-  // todo refactor
-  int64_t el = taosGetTimestampMs() - st;
-  pTask->execInfo.step1El += el/1000.0;
-
-  return (SScanhistoryDataInfo){TASK_SCANHISTORY_CONT, 0};
 }
 
 // wait for the stream task to be idle
@@ -296,7 +308,7 @@ static void waitForTaskIdle(SStreamTask* pTask, SStreamTask* pStreamTask) {
   int64_t st = taosGetTimestampMs();
   while (!streamTaskIsIdle(pStreamTask)) {
     stDebug("s-task:%s level:%d wait for stream task:%s to be idle, check again in 100ms", id, pTask->info.taskLevel,
-           pStreamTask->id.idStr);
+            pStreamTask->id.idStr);
     taosMsleep(100);
   }
 
