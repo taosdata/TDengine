@@ -44,10 +44,6 @@ extern int32_t  tsNumOfSupportVnodes;
 extern int32_t tsMaxShellConns;
 extern int32_t tsShellActivityTimer;
 extern int32_t tsCompressMsgSize;
-extern int32_t tsCompressColData;
-extern int32_t tsMaxNumOfDistinctResults;
-extern int32_t tsCompatibleModel;
-extern bool    tsPrintAuth;
 extern int64_t tsTickPerMin[3];
 extern int64_t tsTickPerHour[3];
 extern int32_t tsCountAlwaysReturnValue;
@@ -109,8 +105,6 @@ extern bool     tsMonitorComp;
 
 // audit
 extern bool     tsEnableAudit;
-extern char     tsAuditFqdn[];
-extern uint16_t tsAuditPort;
 extern bool     tsEnableAuditCreateTable;
 
 // telem
