@@ -16,7 +16,7 @@ use std::{
         atomic::{AtomicU32, AtomicUsize, Ordering},
         Arc,
     },
-    time::Duration,
+    time::Duration, iter::zip,
 };
 use taos::{
     taos_query::{common::Describe, Manager},
@@ -310,7 +310,8 @@ async fn ipc_tcp_read(
 // }
 
 struct LushMessageTagModify {
-    sqls: Vec<(String, bool)>,
+    // (create table sql, overflow, table count in sql)
+    sqls: Vec<(String, bool, u16)>,
     tags: Vec<(String, Value)>,
 }
 
@@ -337,6 +338,7 @@ async fn consume_lush_record(
             // let mut sql = format!("CREATE TABLE ");
             // map: <stable_name, (Vec<sql, sql_overflow?>, Vec<tag_name, tag_value>)>
             let mut create_sql_map: HashMap<String, LushMessageTagModify> = HashMap::new();
+            // map: <stable_name, table_count>
             let mut table_set = HashSet::new();
             for table in tables {
                 let table_name = table.table_name();
@@ -391,7 +393,7 @@ async fn consume_lush_record(
                                 if sql_vec.is_some() {
                                     let tag_modify = sql_vec.unwrap();
                                     for index in 0..tag_modify.sqls.len() {
-                                        let (create_sql, overflow) =
+                                        let (create_sql, overflow, table_count) =
                                             tag_modify.sqls.get_mut(index).unwrap();
                                         if *overflow {
                                             continue;
@@ -403,22 +405,21 @@ async fn consume_lush_record(
                                             } else {
                                                 create_sql.push_str(sql_suffix.as_str());
                                                 insert_done = true;
+                                                *table_count += 1;
                                             }
                                         }
                                     }
                                     if !insert_done {
                                         // init sql shouldn't overflow
-                                        // counter!(CHILD_TABLE_CREATED, 1);
-                                        tag_modify.sqls.push((table_sql, false));
+                                        tag_modify.sqls.push((table_sql, false, 1u16));
                                     }
                                 } else {
                                     let mut sql_vec = Vec::new();
-                                    sql_vec.push((table_sql, false));
+                                    sql_vec.push((table_sql, false, 1u16));
                                     let tag_modify_message = LushMessageTagModify {
                                         sqls: sql_vec,
                                         tags: table.tags().clone().unwrap(),
                                     };
-                                    // counter!(CHILD_TABLE_CREATED, 1);
                                     create_sql_map.insert(stable_name.clone(), tag_modify_message);
                                 }
                             }
@@ -437,8 +438,9 @@ async fn consume_lush_record(
                 for sql in message_modify.sqls {
                     info!("Tables: {}", sql.0);
                     match exec(taos, &sql.0, data_trace_id).await {
-                        // match taos.exec(&sql.0).await {
-                        Ok(_) => (),
+                        Ok(_) => {
+                            counter!(CHILD_TABLE_CREATED, sql.2 as u64);
+                        },
                         Err(err) => {
                             let err_str = format!("{err:#}");
                             tracing::warn!(sql = sql.0, error = err_str, "create table error");
@@ -533,7 +535,6 @@ async fn consume_lush_record(
                         let mut count = 0;
                         let mut break_err = Ok(());
                         loop {
-                            // let res = taos.as_ref().unwrap().exec(&sql).await;
                             match exec(taos.as_ref().unwrap(), &sql, data_trace_id).await {
                                 Ok(num) => {
                                     count = count + num;
@@ -1029,8 +1030,9 @@ async fn consume_point_record(
                                 tracing::info!("create stable sql: {}", &stable_sql);
                                 match exec(taos.as_ref().unwrap(), &stable_sql, data_trace_id).await
                                 {
-                                    // match taos.as_ref().unwrap().exec(&stable_sql).await {
-                                    Ok(_n) => (), //counter!(STABLE_CREATED, n as u64),
+                                    Ok(_n) => {
+                                        counter!(STABLE_CREATED, 1);
+                                    }
                                     Err(err) => {
                                         tracing::warn!(
                                             "create stable {stable_name} error: {err:#}"
@@ -1051,7 +1053,9 @@ async fn consume_point_record(
                                 }
                                 // batch create child table
                                 let mut child_table_create_sqls = Vec::new();
+                                let mut child_table_counts_vec = Vec::<u32>::new();
                                 let mut sql_prefix = "create table".to_string();
+                                let mut child_table_count = 0u32;
                                 for (child_table_name, child_table_create_sql) in
                                     &child_table_create_sql_map
                                 {
@@ -1059,11 +1063,15 @@ async fn consume_point_record(
                                     if sql_prefix.len() + suffix_sql.len() > 1024 * 1024 {
                                         child_table_create_sqls.push(sql_prefix);
                                         sql_prefix = "create table".to_string();
+                                        child_table_counts_vec.push(child_table_count);
+                                        child_table_count = 0;
                                     }
                                     sql_prefix.push_str(&suffix_sql);
+                                    child_table_count += 1;
                                 }
                                 child_table_create_sqls.push(sql_prefix);
-                                for create_child_sql in child_table_create_sqls {
+                                child_table_counts_vec.push(child_table_count);
+                                for (create_child_sql, child_table_count) in zip(child_table_create_sqls, child_table_counts_vec) {
                                     tracing::info!("create child sql: {create_child_sql}");
                                     match exec(
                                         taos.as_ref().unwrap(),
@@ -1073,7 +1081,9 @@ async fn consume_point_record(
                                     .await
                                     {
                                         // match taos.as_ref().unwrap().exec(&create_child_sql).await {
-                                        Ok(_n) => (), // counter!(CHILD_TABLE_CREATED, n as u64),
+                                        Ok(_n) => {
+                                             counter!(CHILD_TABLE_CREATED, child_table_count as u64);
+                                        },
                                         Err(err) => {
                                             tracing::warn!("create child table error: {err:#}");
                                             let err_str = err.to_string();
@@ -2359,7 +2369,7 @@ async fn handle_lush_message_init(
                         break;
                     }
                 } else {
-                    // metrics::counter!(STABLE_CREATED, 1);
+                    metrics::counter!(STABLE_CREATED, 1);
                     break;
                 }
             }
