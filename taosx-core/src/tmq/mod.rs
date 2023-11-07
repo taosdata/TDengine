@@ -88,10 +88,10 @@ pub const METRIC_TMQ_MESSAGES_OF_META: &str = "metrics.tmq.messages_of_meta";
 pub const METRIC_TMQ_WRITE_META_FAILS: &str = "metrics.tmq.write_meta_fails";
 pub const METRIC_TMQ_MESSAGES_OF_DATA: &str = "metrics.tmq.messages_of_data";
 pub const METRIC_TMQ_BLOCKS: &str = "metrics.tmq.blocks";
-// pub const METRICS_TMQ_WRITE_RAW_BLOCK_FAILS: &str = "tmq.write_raw_block_fails";
+// pub const METRIC_TMQ_WRITE_RAW_BLOCK_FAILS: &str = "tmq.write_raw_block_fails";
 pub const METRIC_TMQ_RECORDS: &str = "metrics.tmq.records";
 pub const METRIC_TMQ_POINTS: &str = "metrics.tmq.points";
-// pub const METRICS_TMQ_TIME_COST: &str = "tmq.time_cost";
+// pub const METRIC_TMQ_TIME_COST: &str = "tmq.time_cost";
 
 #[derive(Debug)]
 pub(crate) struct TmqMetrics {

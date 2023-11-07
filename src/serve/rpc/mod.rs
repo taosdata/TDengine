@@ -477,9 +477,7 @@ impl FlightService for FlightServiceImpl {
             .unwrap();
         let task_id: i64 = task_id.to_str().unwrap().parse().unwrap();
         let stream_trace_id = match meta.get("x-trace-id") {
-            Some(stream_trace_id) => {
-                stream_trace_id.to_str().unwrap()
-            },
+            Some(stream_trace_id) => stream_trace_id.to_str().unwrap(),
             None => "0",
         };
 

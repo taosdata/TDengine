@@ -1,7 +1,7 @@
 use actix_web::{get, web::Query, HttpResponse, Responder};
 use metrics::{describe_gauge, gauge, register_gauge};
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle, PrometheusRecorder};
-use std::time::Duration;
+use std::{collections::BTreeMap, time::Duration};
 
 use crate::serve::data_sources::LangQuery;
 
@@ -122,7 +122,7 @@ impl Metrics {
 /// Metrics like node-exporter.
 #[utoipa::path(
     responses(
-        (status = 200, description = "Task found from storage", body = String),
+        (status = 200, description = "Export all metrics", body = String),
     )
 )]
 #[get("/metrics")]
@@ -131,13 +131,35 @@ async fn metrics_exporter(handle: actix_web::web::Data<PrometheusHandle>) -> imp
     output
 }
 
-#[get("/metrics-desc")]
+#[utoipa::path(
+    responses(
+        (status = 200, description = "Description of all metrics")
+    )
+)]
+#[get("/metrics/description")]
 async fn metrics_desc(lang: Query<LangQuery>) -> impl Responder {
     if lang.is_cn() {
-        "1"
+        HttpResponse::Ok().json(&(*METRICS_DESC_ZH))
     } else {
-        "2"
+        HttpResponse::Ok().json(&(*METRICS_DESC_EN))
     }
+}
+
+lazy_static::lazy_static! {
+    pub static ref METRICS_DESC_ZH: BTreeMap<String, String> = match serde_yaml::from_str(include_str!("./metrics-desc-zh.yaml")) {
+        Ok(data) => data,
+        Err(error) => {
+            tracing::error!("failed to read metrics-desc-zh.yaml: {}", error);
+            BTreeMap::new()
+        }
+    };
+    pub static ref METRICS_DESC_EN: BTreeMap<String, String> = match serde_yaml::from_str(include_str!("./metrics-desc-en.yaml")) {
+        Ok(data) => data,
+        Err(error) => {
+            tracing::error!("failed to read metrics-desc-en.yaml: {}", error);
+            BTreeMap::new()
+        }
+    };
 }
 
 /// Profile.
