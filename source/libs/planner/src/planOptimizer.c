@@ -2639,7 +2639,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
         nodesWalkExpr(nodesListGetNode(pFunc->pParameterList, 0), lastRowScanOptSetColDataType, &cxt);
         nodesListErase(pFunc->pParameterList, nodesListGetCell(pFunc->pParameterList, 1));
       }
-    } else if (FUNCTION_TYPE_SELECT_VALUE) {
+    } else if (FUNCTION_TYPE_SELECT_VALUE == funcType) {
       pNode = nodesListGetNode(pFunc->pParameterList, 0);
       if (nodeType(pNode) == QUERY_NODE_COLUMN) {
         SColumnNode* pCol = (SColumnNode*)pNode;
