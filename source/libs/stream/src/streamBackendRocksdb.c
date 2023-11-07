@@ -116,7 +116,7 @@ typedef int (*__db_key_decode_fn_t)(void* key, char* buf);
 typedef int (*__db_key_tostr_fn_t)(void* key, char* buf);
 typedef const char* (*__db_key_cmpname_fn_t)(void* statue);
 typedef int (*__db_key_cmp_fn_t)(void* state, const char* aBuf, size_t aLen, const char* bBuf, size_t bLen);
-typedef void (*__db_destroy_cmp_fn_t)(void* state);
+typedef void (*__db_key_cmp_destroy_fn_t)(void* state);
 typedef int32_t (*__db_value_encode_fn_t)(void* value, int32_t vlen, int64_t ttl, char** dest);
 typedef int32_t (*__db_value_decode_fn_t)(void* value, int32_t vlen, int64_t* ttl, char** dest);
 
@@ -124,17 +124,17 @@ typedef rocksdb_compactionfilter_t* (*__db_factory_create_fn_t)(void* arg, rocks
 typedef const char* (*__db_factory_name_fn_t)(void* arg);
 typedef void (*__db_factory_destroy_fn_t)(void* arg);
 typedef struct {
-  const char*            key;
-  int32_t                len;
-  int                    idx;
-  __db_key_cmp_fn_t      cmpKey;
-  __db_key_encode_fn_t   enFunc;
-  __db_key_decode_fn_t   deFunc;
-  __db_key_tostr_fn_t    toStrFunc;
-  __db_key_cmpname_fn_t  cmpName;
-  __db_destroy_cmp_fn_t  destroyCmp;
-  __db_value_encode_fn_t enValueFunc;
-  __db_value_decode_fn_t deValueFunc;
+  const char*               key;
+  int32_t                   len;
+  int                       idx;
+  __db_key_cmp_fn_t         cmpKey;
+  __db_key_encode_fn_t      enFunc;
+  __db_key_decode_fn_t      deFunc;
+  __db_key_tostr_fn_t       toStrFunc;
+  __db_key_cmpname_fn_t     cmpName;
+  __db_key_cmp_destroy_fn_t destroyCmp;
+  __db_value_encode_fn_t    enValueFunc;
+  __db_value_decode_fn_t    deValueFunc;
 
   __db_factory_create_fn_t  createFilter;
   __db_factory_destroy_fn_t destroyFilter;
