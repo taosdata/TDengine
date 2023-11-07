@@ -554,10 +554,12 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   walApplyVer(pVnode->pWal, commitIdx);
   pVnode->restored = true;
 
-  taosWLockLatch(&pVnode->pTq->pStreamMeta->lock);
-  if (pVnode->pTq->pStreamMeta->startInfo.startedAfterNodeUpdate) {
+  SStreamMeta* pMeta = pVnode->pTq->pStreamMeta;
+  streamMetaWLock(pMeta);
+
+  if (pMeta->startInfo.startAllTasksFlag) {
     vInfo("vgId:%d, sync restore finished, stream tasks will be launched by other thread", vgId);
-    taosWUnLockLatch(&pVnode->pTq->pStreamMeta->lock);
+    streamMetaWUnLock(pMeta);
     return;
   }
 
@@ -567,14 +569,14 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
       vInfo("vgId:%d, sync restore finished, not launch stream tasks, since stream tasks are disabled", vgId);
     } else {
       vInfo("vgId:%d sync restore finished, start to launch stream tasks", pVnode->config.vgId);
-      tqStartStreamTasks(pVnode->pTq);
-      tqCheckAndRunStreamTaskAsync(pVnode->pTq);
+      tqResetStreamTaskStatus(pVnode->pTq);
+      tqLaunchStreamTaskAsync(pVnode->pTq);
     }
   } else {
     vInfo("vgId:%d, sync restore finished, not launch stream tasks since not leader", vgId);
   }
 
-  taosWUnLockLatch(&pVnode->pTq->pStreamMeta->lock);
+  streamMetaWUnLock(pMeta);
 }
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {

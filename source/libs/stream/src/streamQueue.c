@@ -18,7 +18,7 @@
 #define MAX_STREAM_EXEC_BATCH_NUM                 32
 #define MAX_SMOOTH_BURST_RATIO                    5     // 5 sec
 #define WAIT_FOR_DURATION                         40
-#define SINK_TASK_IDLE_DURATION                   200   // 200 ms
+#define OUTPUT_QUEUE_FULL_WAIT_DURATION           500   // 500 ms
 
 // todo refactor:
 // read data from input queue
@@ -119,17 +119,8 @@ int32_t streamQueueGetNumOfItems(const SStreamQueue* pQueue) {
   return numOfItems1 + numOfItems2;
 }
 
-int32_t streamQueueGetAvailableSpace(const SStreamQueue* pQueue, int32_t* availNum, double* availSize) {
-  int32_t num = streamQueueGetNumOfItems(pQueue);
-  *availNum = STREAM_TASK_QUEUE_CAPACITY - num;
-
-  *availSize = STREAM_TASK_QUEUE_CAPACITY_IN_SIZE - taosQueueMemorySize(pQueue->pQueue);
-  return 0;
-}
-
-// todo: fix it: data in Qall is not included here
 int32_t streamQueueGetItemSize(const SStreamQueue* pQueue) {
-  return taosQueueMemorySize(pQueue->pQueue);
+  return taosQueueMemorySize(pQueue->pQueue) + taosQallUnAccessedMemSize(pQueue->qall);
 }
 
 int32_t streamQueueItemGetSize(const SStreamQueueItem* pItem) {
@@ -173,12 +164,12 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
   }
 
   while (1) {
-    if (streamTaskShouldPause(&pTask->status) || streamTaskShouldStop(&pTask->status)) {
+    if (streamTaskShouldPause(pTask) || streamTaskShouldStop(pTask)) {
       stDebug("s-task:%s task should pause, extract input blocks:%d", pTask->id.idStr, *numOfBlocks);
       return TSDB_CODE_SUCCESS;
     }
 
-    SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputInfo.queue);
+    SStreamQueueItem* qItem = streamQueueNextItem(pTask->inputq.queue);
     if (qItem == NULL) {
       if ((taskLevel == TASK_LEVEL__SOURCE  || taskLevel == TASK_LEVEL__SINK) && (++retryTimes) < MAX_RETRY_TIMES) {
         taosMsleep(WAIT_FOR_DURATION);
@@ -220,7 +211,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
           streamTaskConsumeQuota(pTask->outputInfo.pTokenBucket, *blockSize);
         }
 
-        streamQueueProcessFail(pTask->inputInfo.queue);
+        streamQueueProcessFail(pTask->inputq.queue);
         return TSDB_CODE_SUCCESS;
       }
     } else {
@@ -241,7 +232,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
             streamTaskConsumeQuota(pTask->outputInfo.pTokenBucket, *blockSize);
           }
 
-          streamQueueProcessFail(pTask->inputInfo.queue);
+          streamQueueProcessFail(pTask->inputq.queue);
           return TSDB_CODE_SUCCESS;
         }
 
@@ -249,7 +240,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
       }
 
       *numOfBlocks += 1;
-      streamQueueProcessSuccess(pTask->inputInfo.queue);
+      streamQueueProcessSuccess(pTask->inputq.queue);
 
       if (*numOfBlocks >= MAX_STREAM_EXEC_BATCH_NUM) {
         stDebug("s-task:%s batch size limit:%d reached, start to process blocks", id, MAX_STREAM_EXEC_BATCH_NUM);
@@ -267,12 +258,12 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
 
 int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem) {
   int8_t      type = pItem->type;
-  STaosQueue* pQueue = pTask->inputInfo.queue->pQueue;
-  int32_t     total = streamQueueGetNumOfItems(pTask->inputInfo.queue) + 1;
+  STaosQueue* pQueue = pTask->inputq.queue->pQueue;
+  int32_t     total = streamQueueGetNumOfItems(pTask->inputq.queue) + 1;
 
   if (type == STREAM_INPUT__DATA_SUBMIT) {
     SStreamDataSubmit* px = (SStreamDataSubmit*)pItem;
-    if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && streamQueueIsFull(pTask->inputInfo.queue)) {
+    if ((pTask->info.taskLevel == TASK_LEVEL__SOURCE) && streamQueueIsFull(pTask->inputq.queue)) {
       double size = SIZE_IN_MiB(taosQueueMemorySize(pQueue));
       stTrace(
           "s-task:%s inputQ is full, capacity(size:%d num:%dMiB), current(blocks:%d, size:%.2fMiB) stop to push data",
@@ -299,7 +290,7 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
            msgLen, ver, total, size + SIZE_IN_MiB(msgLen));
   } else if (type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__DATA_RETRIEVE ||
              type == STREAM_INPUT__REF_DATA_BLOCK) {
-    if (streamQueueIsFull(pTask->inputInfo.queue)) {
+    if (streamQueueIsFull(pTask->inputq.queue)) {
       double size = SIZE_IN_MiB(taosQueueMemorySize(pQueue));
 
       stTrace("s-task:%s input queue is full, capacity:%d size:%d MiB, current(blocks:%d, size:%.2fMiB) abort",
@@ -354,7 +345,7 @@ int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBloc
   STaosQueue* pQueue = pTask->outputq.queue->pQueue;
 
   while (streamQueueIsFull(pTask->outputq.queue)) {
-    if (streamTaskShouldStop(&pTask->status)) {
+    if (streamTaskShouldStop(pTask)) {
       stInfo("s-task:%s discard result block due to task stop", pTask->id.idStr);
       return TSDB_CODE_STREAM_EXEC_CANCELLED;
     }
@@ -362,9 +353,10 @@ int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBloc
     int32_t total = streamQueueGetNumOfItems(pTask->outputq.queue);
     double  size = SIZE_IN_MiB(taosQueueMemorySize(pQueue));
     // let's wait for there are enough space to hold this result pBlock
-    stDebug("s-task:%s outputQ is full, wait for 500ms and retry, outputQ items:%d, size:%.2fMiB", pTask->id.idStr,
-           total, size);
-    taosMsleep(500);
+    stDebug("s-task:%s outputQ is full, wait for %dms and retry, outputQ items:%d, size:%.2fMiB", pTask->id.idStr,
+            OUTPUT_QUEUE_FULL_WAIT_DURATION, total, size);
+
+    taosMsleep(OUTPUT_QUEUE_FULL_WAIT_DURATION);
   }
 
   int32_t code = taosWriteQitem(pQueue, pBlock);
@@ -381,7 +373,7 @@ int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBloc
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, int32_t quotaRate) {
+int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate) {
   if (numCap < 10 || numRate < 10 || pBucket == NULL) {
     stError("failed to init sink task bucket, cap:%d, rate:%d", numCap, numRate);
     return TSDB_CODE_INVALID_PARA;

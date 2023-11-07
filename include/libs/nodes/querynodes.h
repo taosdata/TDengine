@@ -30,6 +30,11 @@ extern "C" {
 #define VGROUPS_INFO_SIZE(pInfo) \
   (NULL == (pInfo) ? 0 : (sizeof(SVgroupsInfo) + (pInfo)->numOfVgroups * sizeof(SVgroupInfo)))
 
+typedef struct SAssociationNode {
+  SNode** pPlace;
+  SNode*  pAssociationNode;
+} SAssociationNode;
+
 typedef struct SRawExprNode {
   ENodeType nodeType;
   char*     p;
@@ -181,6 +186,16 @@ typedef struct STempTableNode {
   STableNode table;  // QUERY_NODE_TEMP_TABLE
   SNode*     pSubquery;
 } STempTableNode;
+
+typedef struct SViewNode {
+  STableNode         table;  // QUERY_NODE_REAL_TABLE
+  struct STableMeta* pMeta;
+  SVgroupsInfo*      pVgroupList;
+  char               qualDbName[TSDB_DB_NAME_LEN];  // SHOW qualDbName.TABLES
+  double             ratio;
+  SArray*            pSmaIndexes;
+  int8_t             cacheLastMode;
+} SViewNode;
 
 typedef enum EJoinType { 
   JOIN_TYPE_INNER = 1,
@@ -413,7 +428,8 @@ typedef struct SVgDataBlocks {
 
 typedef void (*FFreeTableBlockHash)(SHashObj*);
 typedef void (*FFreeVgourpBlockArray)(SArray*);
-
+struct SStbRowsDataContext;
+typedef void (*FFreeStbRowsDataContext)(struct SStbRowsDataContext*);
 typedef struct SVnodeModifyOpStmt {
   ENodeType             nodeType;
   ENodeType             sqlNodeType;
@@ -428,11 +444,11 @@ typedef struct SVnodeModifyOpStmt {
   struct STableMeta*    pTableMeta;
   SNode*                pTagCond;
   SArray*               pTableTag;
-  SHashObj*             pVgroupsHashObj;
+  SHashObj*             pVgroupsHashObj;     // SHashObj<vgId, SVgInfo>
   SHashObj*             pTableBlockHashObj;  // SHashObj<tuid, STableDataCxt*>
-  SHashObj*             pSubTableHashObj;
-  SHashObj*             pTableNameHashObj;
-  SHashObj*             pDbFNameHashObj;
+  SHashObj*             pSubTableHashObj;    // SHashObj<table_name, STableMeta*>
+  SHashObj*             pTableNameHashObj;   // set of table names for refreshing meta, sync mode
+  SHashObj*             pDbFNameHashObj;     // set of db names for refreshing meta, sync mode
   SArray*               pVgDataBlocks;  // SArray<SVgroupDataCxt*>
   SVCreateTbReq*        pCreateTblReq;
   TdFilePtr             fp;
@@ -440,6 +456,10 @@ typedef struct SVnodeModifyOpStmt {
   FFreeVgourpBlockArray freeArrayFunc;
   bool                  usingTableProcessing;
   bool                  fileProcessing;
+
+  bool                  stbSyntax;
+  struct SStbRowsDataContext*  pStbRowsCxt;
+  FFreeStbRowsDataContext     freeStbRowsCxtFunc;
 } SVnodeModifyOpStmt;
 
 typedef struct SExplainOptions {
