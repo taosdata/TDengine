@@ -65,9 +65,9 @@ class TDTestCase:
             sql += " %s%d values "%(ctbPrefix,i)
             for j in range(rowsPerTbl):
                 if (i < ctbNum/2):
-                    sql += "(%d, %d, %d, %d,%d,%d,%d,true,'binary%d', 'nchar%d') "%(startTs + j*tsStep, j%1000, j%500, j%1000, j%5000, j%5400, j%128, j%10000, j%1000)
+                    sql += "(%d, %d, %d, %d,%d,%d,%d,true,'binary%d', 'nchar%d', %d) "%(startTs + j*tsStep, j%1000, j%500, j%1000, j%5000, j%5400, j%128, j%10000, j%1000, startTs+j*tsStep+1000)
                 else:
-                    sql += "(%d, %d, NULL, %d,NULL,%d,%d,true,'binary%d', 'nchar%d') "%(startTs + j*tsStep, j%1000, j%500, j%1000, j%128, j%10000, j%1000)
+                    sql += "(%d, %d, NULL, %d,NULL,%d,%d,true,'binary%d', 'nchar%d', %d) "%(startTs + j*tsStep, j%1000, j%500, j%1000, j%128, j%10000, j%1000, startTs + j*tsStep + 1000)
                 rowsBatched += 1
                 if ((rowsBatched == batchNum) or (j == rowsPerTbl - 1)):
                     tsql.execute(sql)
@@ -97,7 +97,8 @@ class TDTestCase:
                                     {'type': 'tinyint', 'count':1},
                                     {'type': 'bool', 'count':1},
                                     {'type': 'binary', 'len':10, 'count':1},
-                                    {'type': 'nchar', 'len':10, 'count':1}],
+                                    {'type': 'nchar', 'len':10, 'count':1},
+                                    {'type': 'timestamp', 'count':1}],
                     'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'nchar', 'len':20, 'count':1},{'type': 'binary', 'len':20, 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'smallint', 'count':1},{'type': 'DOUBLE', 'count':1}],
                     'ctbPrefix':  't',
                     'ctbStartIdx': 0,
@@ -251,6 +252,22 @@ class TDTestCase:
         self.explain_and_check_res(sqls, has_last_row_scan_res)
         #res_expect = [None, None, [999, 999, 499, "2018-11-25 19:30:00.000"]]
         #self.query_check_sqls(sqls, has_last_row_scan_res, res_expect)
+
+        select_items = ["last(c10), c10",
+                        "last(c10), ts",
+                        "last(c10), c10, ts",
+                        "last(c10), c10, ts, c10,ts",
+                        "last(c10), ts, c1"]
+        has_last_row_scan_res = [1,1,1,1,0]
+        sqls = self.format_sqls(sql_template, select_items)
+        self.explain_and_check_res(sqls, has_last_row_scan_res)
+        res_expect = [
+                ["2018-11-25 19:30:01.000", "2018-11-25 19:30:01.000"],
+                ["2018-11-25 19:30:01.000", "2018-11-25 19:30:00.000"],
+                ["2018-11-25 19:30:01.000", "2018-11-25 19:30:01.000", "2018-11-25 19:30:00.000"],
+                ["2018-11-25 19:30:01.000", "2018-11-25 19:30:01.000", "2018-11-25 19:30:00.000", "2018-11-25 19:30:01.000", "2018-11-25 19:30:00.000"]
+                ]
+        self.query_check_sqls(sqls, has_last_row_scan_res, res_expect)
 
         sql = "select last(c1), c1, c1+1, c1+2, ts from meters"
         res = self.explain_sql(sql)
