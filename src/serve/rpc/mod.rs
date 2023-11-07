@@ -476,11 +476,12 @@ impl FlightService for FlightServiceImpl {
             .ok_or_else(|| Status::unavailable("Task id should be set"))
             .unwrap();
         let task_id: i64 = task_id.to_str().unwrap().parse().unwrap();
-        let stream_trace_id = meta
-            .get("x-trace-id")
-            .ok_or_else(|| Status::unavailable("Trace id should be set"))
-            .unwrap();
-        let stream_trace_id = stream_trace_id.to_str().unwrap();
+        let stream_trace_id = match meta.get("x-trace-id") {
+            Some(stream_trace_id) => {
+                stream_trace_id.to_str().unwrap()
+            },
+            None => "0",
+        };
 
         // let message = req.try_next().await?;
 
