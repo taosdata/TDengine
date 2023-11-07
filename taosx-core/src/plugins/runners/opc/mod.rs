@@ -177,7 +177,6 @@ struct PointsConfig {
 #[derive(Debug, serde::Serialize)]
 struct CollectConfig {
     interval: Option<i64>,
-    limit: Option<i64>,
     ua: Option<UaCollectConfig>,
     da: Option<DaCollectConfig>,
     dump: Option<DumpConfig>,
@@ -287,7 +286,6 @@ impl OPCConfig {
             _ => unreachable!(),
         }
         let interval = parse_int_at!("interval");
-        let limit = parse_int_at!("limit");
         let csv_config_file = dsn.remove("csv_config_file");
 
         let mut opc_table_config = None;
@@ -458,7 +456,6 @@ impl OPCConfig {
                 };
                 collect = CollectConfig {
                     interval,
-                    limit,
                     ua: Some(collect_ua_config),
                     da: None,
                     dump: dump_config,
@@ -541,7 +538,6 @@ impl OPCConfig {
                 }
                 collect = CollectConfig {
                     interval,
-                    limit,
                     ua: None,
                     da: Some(DaCollectConfig { tags: da_nodes_vec }),
                     dump: dump_config,
@@ -1672,7 +1668,6 @@ mod tests {
             },
             collect: CollectConfig {
                 interval: Some(10),
-                limit: Some(10),
                 ua: Some(UaCollectConfig {
                     collect_mode: "observe"
                         .to_string()
@@ -1728,7 +1723,6 @@ regex = "123"
 
 [collect]
 interval = 10
-limit = 10
 
 [collect.ua]
 collect_mode = "observe"
