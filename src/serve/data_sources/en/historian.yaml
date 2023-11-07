@@ -63,7 +63,7 @@ groups:
         placeholder: 1970-01-01T00:00:00Z
         value: 1970-01-01T00:00:00Z
         hint:
-          type: datetime
+          type: time
       - name: endDateTime
         display: endDateTime
         description: The end time of the task is in rfc3339 format.
@@ -71,7 +71,7 @@ groups:
         placeholder: 2023-12-01T00:00:00Z
         value: 2023-12-01T00:00:00Z
         hint:
-          type: datetime
+          type: time
       - name: retrieveInterval
         display: retrieveInterval
         description: Pull interval for real-time data synchronization.
