@@ -83,7 +83,8 @@ extern int32_t tsHeartbeatTimeout;
 extern int64_t tsVndCommitMaxIntervalMs;
 
 // snode
-extern char tsSnodeIp[];
+extern char tsSnodeAddress[];       //127.0.0.1:873
+extern int32_t tsRsyncPort;
 extern char tsCheckpointBackupDir[];
 
 // mnode

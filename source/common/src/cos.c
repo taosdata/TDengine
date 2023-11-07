@@ -73,6 +73,12 @@ static void s3PrintError(const char *func, S3Status status, char error_details[]
 }
 
 typedef struct {
+  char      err_msg[128];
+  S3Status  status;
+  TdFilePtr file;
+} TS3GetData;
+
+typedef struct {
   char     err_msg[128];
   S3Status status;
   uint64_t content_length;
@@ -659,7 +665,7 @@ static void s3FreeObjectKey(void *pItem) {
   taosMemoryFree(key);
 }
 
-void s3DeleteObjectsByPrefix(const char *prefix) {
+static SArray* getListByPrefix(const char *prefix){
   S3BucketContext     bucketContext = {0, tsS3BucketName, protocolG, uriStyleG, tsS3AccessKeyId, tsS3AccessKeySecret,
                                        0, awsRegionG};
   S3ListBucketHandler listBucketHandler = {{&responsePropertiesCallback, &responseCompleteCallback},
@@ -671,7 +677,7 @@ void s3DeleteObjectsByPrefix(const char *prefix) {
   data.objectArray = taosArrayInit(32, sizeof(void*));
   if (!data.objectArray) {
     uError("%s: %s", __func__, "out of memoty");
-    return;
+    return NULL;
   }
   if (marker) {
     snprintf(data.nextMarker, sizeof(data.nextMarker), "%s", marker);
@@ -694,18 +700,15 @@ void s3DeleteObjectsByPrefix(const char *prefix) {
 
   if (data.status == S3StatusOK) {
     if (data.keyCount > 0) {
-      // printListBucketHeader(allDetails);
-      s3DeleteObjects(TARRAY_DATA(data.objectArray), TARRAY_SIZE(data.objectArray));
+      return data.objectArray;
     }
   } else {
     s3PrintError(__func__, data.status, data.err_msg);
   }
-
-  taosArrayDestroyEx(data.objectArray, s3FreeObjectKey);
+  return NULL;
 }
 
 void s3DeleteObjects(const char *object_name[], int nobject) {
-  int               status = 0;
   S3BucketContext   bucketContext = {0, tsS3BucketName, protocolG, uriStyleG, tsS3AccessKeyId, tsS3AccessKeySecret,
                                      0, awsRegionG};
   S3ResponseHandler responseHandler = {0, &responseCompleteCallback};
@@ -720,6 +723,13 @@ void s3DeleteObjects(const char *object_name[], int nobject) {
       s3PrintError(__func__, cbd.status, cbd.err_msg);
     }
   }
+}
+
+void s3DeleteObjectsByPrefix(const char *prefix) {
+  SArray* objectArray = getListByPrefix(prefix);
+  if(objectArray == NULL)return;
+  s3DeleteObjects(TARRAY_DATA(objectArray), TARRAY_SIZE(objectArray));
+  taosArrayDestroyEx(objectArray, s3FreeObjectKey);
 }
 
 static S3Status getObjectDataCallback(int bufferSize, const char *buffer, void *callbackData) {
@@ -765,6 +775,58 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, 
 
   *ppBlock = cbd.buf;
 
+  return 0;
+}
+
+static S3Status getObjectCallback(int bufferSize, const char *buffer, void *callbackData) {
+  TS3GetData *cbd = (TS3GetData *) callbackData;
+  size_t wrote = taosWriteFile(cbd->file, buffer, bufferSize);
+  return ((wrote < (size_t) bufferSize) ?
+          S3StatusAbortedByCallback : S3StatusOK);
+}
+
+int32_t s3GetObjectToFile(const char *object_name, char* fileName) {
+  int64_t     ifModifiedSince = -1, ifNotModifiedSince = -1;
+  const char *ifMatch = 0, *ifNotMatch = 0;
+
+  S3BucketContext    bucketContext = {0, tsS3BucketName, protocolG, uriStyleG, tsS3AccessKeyId, tsS3AccessKeySecret,
+                                      0, awsRegionG};
+  S3GetConditions    getConditions = {ifModifiedSince, ifNotModifiedSince, ifMatch, ifNotMatch};
+  S3GetObjectHandler getObjectHandler = {{NULL, &responseCompleteCallback},
+                                         &getObjectCallback};
+
+  TdFilePtr pFile = taosOpenFile(fileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) {
+    uError("[s3] open file error, errno:%d, fileName:%s", errno, fileName);
+    return -1;
+  }
+  TS3GetData cbd = {0};
+  cbd.file = pFile;
+  do {
+    S3_get_object(&bucketContext, object_name, &getConditions, 0, 0, 0, 0, &getObjectHandler, &cbd);
+  } while (S3_status_is_retryable(cbd.status) && should_retry());
+
+  if (cbd.status != S3StatusOK) {
+    uError("%s: %d(%s)", __func__, cbd.status, cbd.err_msg);
+    taosCloseFile(&pFile);
+    return TAOS_SYSTEM_ERROR(EIO);
+  }
+
+  taosCloseFile(&pFile);
+  return 0;
+}
+
+int32_t s3GetObjectsByPrefix(const char *prefix, const char* path){
+  SArray* objectArray = getListByPrefix(prefix);
+  if(objectArray == NULL) return -1;
+
+  for(size_t i = 0; i < taosArrayGetSize(objectArray); i++){
+    char* object = taosArrayGetP(objectArray, i);
+    char fileName[PATH_MAX] = {0};
+    snprintf(fileName, PATH_MAX, "%s/%s", path, object);
+    s3GetObjectToFile(object, fileName);
+  }
+  taosArrayDestroyEx(objectArray, s3FreeObjectKey);
   return 0;
 }
 

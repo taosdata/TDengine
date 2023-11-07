@@ -27,30 +27,42 @@
 
 #include "rsync.h"
 #include "streamInt.h"
+#include "cos.h"
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
 
-  strcpy(tsSnodeIp, "127.0.0.1");
+  if (taosInitCfg("/etc/taos/", NULL, NULL, NULL, NULL, 0) != 0) {
+    printf("error");
+  }
+  if (s3Init() < 0) {
+    return -1;
+  }
+//  strcpy(tsSnodeIp, "127.0.0.1");
   return RUN_ALL_TESTS();
 }
 
 TEST(testCase, checkpointUpload_Test) {
-  stopRsync();
-  startRsync();
+//  stopRsync();
+//  startRsync();
 
   taosSsleep(5);
   char* id = "2013892036";
 
-  uploadCheckpoint(id, "/Users/mingmingwanng/rsync/");
+  uploadCheckpoint(id, "/root/offset/");
 }
 
 TEST(testCase, checkpointDownload_Test) {
   char* id = "2013892036";
-  downloadRsync(id, "/Users/mingmingwanng/rsync/tmp");
+  downloadCheckpoint(id, "/root/offset/download/");
 }
 
 TEST(testCase, checkpointDelete_Test) {
   char* id = "2013892036";
-  deleteRsync(id);
+  deleteCheckpoint(id);
+}
+
+TEST(testCase, checkpointDeleteFile_Test) {
+  char* id = "2013892036";
+  deleteCheckpointFile(id, "offset-ver0");
 }
