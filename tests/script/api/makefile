@@ -19,6 +19,7 @@ exe:
 	gcc $(CFLAGS) ./whiteListTest.c  -o $(ROOT)whiteListTest $(LFLAGS)
 	gcc $(CFLAGS) ./insert_stb.c  -o $(ROOT)insert_stb $(LFLAGS)
 	gcc $(CFLAGS) ./tmqViewTest.c  -o $(ROOT)tmqViewTest $(LFLAGS)
+	gcc $(CFLAGS) ./stmtQuery.c  -o $(ROOT)stmtQuery $(LFLAGS)
 
 clean:
 	rm $(ROOT)batchprepare
@@ -29,3 +30,4 @@ clean:
 	rm $(ROOT)whiteListTest
 	rm $(ROOT)insert_stb
 	rm $(ROOT)tmqViewTest
+	rm $(ROOT)stmtQuery
