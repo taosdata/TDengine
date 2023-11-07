@@ -94,9 +94,8 @@ xcopy %internal_dir%\community\include\util\tdef.h %install_dir%\include
 
 if "%verType%" == "cluster" (
 	echo "==== build taosx ====="
-	set taosx_dir="%internal_dir%\enterprise\src\plugins\taosx"
-	cd %taosx_dir%\packaging
-	python release.py -ob
+	cd %internal_dir%\enterprise\src\plugins\taosx\packaging
+	python release.py -ob -vn %version%
 	set taosx_release_dir="C:\Program Files\taosX"
 	xcopy /S %taosx_release_dir%\plugins\* %install_dir%\plugins\*
 	xcopy /S %taosx_release_dir%\bin\*.exe %install_dir%\*
@@ -130,7 +129,6 @@ if "%verType%" == "cluster" (
     xcopy /S %examples_dir%\C#  %install_dir%\examples\C#\*
     md %install_dir%\examples\taosbenchmark-json
     xcopy /S %internal_dir%\community\tools\taos-tools\example %install_dir%\examples\taosbenchmark-json\*
-    install_bin
 )
 cd %package_dir%
 if "%cusName%" == "TDengine" (
@@ -151,6 +149,9 @@ if "%cusName%" == "TDengine" (
 	if "%verType%" == "cluster" (
 		call :writeTDengineClientInstallFile
 		iscc /DMyAppInstallName="%packagClientName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="taosd.exe, taosadapter.exe, \plugins\, taosx*, taos-*, explorer.toml, agent.toml, \append\" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release
+		cd %internal_dir%\enterprise\release
+		scp *client* root@taosdata.com:/data/www/assets-download/3.0/
+		scp *client* ubuntu@tdengine.com:/data/www/assets-download/3.0/
 	) else (
 		call :writeTDengineClientInstallFile
 		iscc /DMyAppInstallName="%packagClientName_x64%" /DMyAppVersion="%version%" /DMyAppExcludeSource="taosd.exe, taosadapter.exe" /DCusName="%cusName%" /DCusPrompt="%cusPrompt%" %internal_dir%\community\packaging\tools\tdengine.iss /O..\release

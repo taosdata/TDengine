@@ -9,9 +9,10 @@ branchName=$3
 verType=$4
 cpuType=$5
 grantValue=$6
-cusName=$7
-cusPrompt=$8
-cusEmail=$9
+skip=$7
+cusName=$8
+cusPrompt=$9
+cusEmail=$10
 
 topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
@@ -68,15 +69,15 @@ rm -rf release/*
 rm -rf debs/*
 rm -rf rpms/*
 
-
+echo "./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -M ${cusEmail} -G ${grantValue} -S ${skip}"
 if [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ] && [ ! -z "$cusEmail" ]; then
-    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -M ${cusEmail} -G ${grantValue} 
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -M ${cusEmail} -G ${grantValue} -S ${skip}
 elif [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ]; then
-    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -G ${grantValue} 
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -G ${grantValue} -S ${skip}
 elif [ ! -z "${cusName}" ]; then
-    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -G ${grantValue} 
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -G ${grantValue} -S ${skip}
 else
-    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -G ${grantValue} 
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -G ${grantValue} -S ${skip}
 fi
 
 # if [ ! -d  "$archiveDir/v$version" ]; then
@@ -139,6 +140,17 @@ rm -rf build-taoskeeper
 if [ -d $archiveDir ]; then
     cd $archiveDir
     cp -f $communityDir/release/* ./
+
+    if [ $skip == 0 ]; then
+      scp *client* root@taosdata.com:/data/www/assets-download/3.0/
+      if [ $? > 0 ]; then
+        echo "copy client package to taosdata server failed"
+      fi
+      scp *client* ubuntu@tdengine.com:/data/www/assets-download/3.0/
+      if [ $? > 0 ]; then
+        echo "copy client package to TDengine server failed"
+      fi
+    fi
 else
     echo "Cannot found $archiveDir on this machine"
 fi

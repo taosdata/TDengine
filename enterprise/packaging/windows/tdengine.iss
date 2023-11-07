@@ -36,7 +36,7 @@ DisableProgramGroupPage=yes
 InfoBeforeFile={#MyAppBeforeInstallTxt}
 OutputDir={#MyAppOutputDir}
 OutputBaseFilename={#MyAppInstallName}
-
+SetupIconFile={#MyAppIco}
 Compression=lzma
 SolidCompression=yes
 DisableDirPage=yes
@@ -74,10 +74,10 @@ Filename: {sys}\sc.exe; Parameters: "create taosadapter start= DEMAND binPath= "
 Filename: "{app}\\taosx-srv.exe"; Parameters: "install"; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taosx-srv.exe'))
 Filename: "{app}\\taosx-agent-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taosx-agent-srv.exe'))
 Filename: "{app}\\taos-explorer-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\taos-explorer-srv.exe'))
-Filename: REG.exe; Parameters: "ADD ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#AppName}_is1"" /V ""UninstallString""  \
-  /T ""REG_SZ"" /D ""\""{app}\uninstall_{#AppName}.exe\"""" /F"; StatusMsg: Installing {#AppName}...; Flags: RunHidden WaitUntilTerminated
-Filename: REG.exe; Parameters: "ADD ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#AppName}_is1"" /V ""QuietUninstallString"" \
-  /T ""REG_SZ"" /D ""\""{app}\uninstall_{#AppName}.exe\"" /SILENT"" /F"; StatusMsg: Installing {#AppName}...; Flags: RunHidden WaitUntilTerminated
+Filename: REG.exe; Parameters: "ADD ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#MyAppName}_is1"" /V ""UninstallString""  \
+  /T ""REG_SZ"" /D ""\""{app}\uninstall_{#MyAppName}.exe\"""" /F"; StatusMsg: Installing {#MyAppName}...; Flags: RunHidden WaitUntilTerminated
+Filename: REG.exe; Parameters: "ADD ""HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{#MyAppName}_is1"" /V ""QuietUninstallString"" \
+  /T ""REG_SZ"" /D ""\""{app}\uninstall_{#MyAppName}.exe\"" /SILENT"" /F"; StatusMsg: Installing {#MyAppName}...; Flags: RunHidden WaitUntilTerminated
 Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " ""{#OPCGdbaInstallPath}\gbda_aut.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
 Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " ""{#OPCGdbaInstallPath}\gbhda_aw.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
 
@@ -132,7 +132,7 @@ var
 begin
   if CurStep = ssDone then
   begin
-    NewUninsName := 'uninstall_{#AppName}';
+    NewUninsName := 'uninstall_{#MyAppName}';
     uninspath := ExtractFilePath(ExpandConstant('{uninstallexe}'));
     uninsname := Copy(ExtractFileName(ExpandConstant('{uninstallexe}')), 1, 8);
     RenameFile(uninspath + uninsname + '.exe', uninspath + NewUninsName + '.exe');
