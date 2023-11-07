@@ -235,6 +235,7 @@ int32_t tdFetchTbUidList(SSma *pSma, STbUidStore **ppStore, tb_uid_t suid, tb_ui
   return TSDB_CODE_SUCCESS;
 }
 
+#if 0
 static int64_t tdRSmaTaskGetCheckpointId(SStreamMeta *pMeta, int64_t streamId, int32_t taskId) {
   int64_t checkpointId = -1;
   STaskId id = {.streamId = streamId, .taskId = taskId};
@@ -246,6 +247,7 @@ static int64_t tdRSmaTaskGetCheckpointId(SStreamMeta *pMeta, int64_t streamId, i
   taosRUnLockLatch(&pMeta->lock);
   return checkpointId;
 }
+#endif
 
 static void tdRSmaTaskRemove(SStreamMeta *pMeta, int64_t streamId, int32_t taskId) {
   streamMetaUnregisterTask(pMeta, streamId, taskId);
@@ -293,8 +295,12 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     pStreamTask->pMeta = pVnode->pTq->pStreamMeta;
     pStreamTask->exec.qmsg = taosMemoryMalloc(strlen(RSMA_TASK_FLAG) + 1);
     sprintf(pStreamTask->exec.qmsg, "%s", RSMA_TASK_FLAG);
+#if 0
     pStreamTask->chkInfo.checkpointId =
         tdRSmaTaskGetCheckpointId(pStreamTask->pMeta, pStreamTask->id.streamId, pStreamTask->id.taskId);
+#else
+    pStreamTask->chkInfo.checkpointId = streamMetaGetLatestCheckpointId(pStreamTask->pMeta);
+#endif
     pStreamState = streamStateOpen(taskInfDir, pStreamTask, true, -1, -1);
     if (!pStreamState) {
       terrno = TSDB_CODE_RSMA_STREAM_STATE_OPEN;
@@ -304,7 +310,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
 
     tdRSmaTaskRemove(pStreamTask->pMeta, pStreamTask->id.streamId, pStreamTask->id.taskId);
 
-    SReadHandle handle = {.vnode = pVnode, .initTqReader = 1, .pStateBackend = pStreamState};
+    SReadHandle handle = {.vnode = pVnode, .initTqReader = 1, .skipRollup = 1, .pStateBackend = pStreamState};
     initStorageAPI(&handle.api);
     pRSmaInfo->taskInfo[idx] = qCreateStreamExecTaskInfo(param->qmsg[idx], &handle, TD_VID(pVnode), 0);
     if (!pRSmaInfo->taskInfo[idx]) {
@@ -682,8 +688,7 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
                  ", ver:%" PRIi64,
                  SMA_VID(pSma), __func__, lino, tstrerror(code), suid, pItem->level, output ? output->info.id.uid : -1,
                  output ? output->info.version : -1);
-        continue;
-        // TSDB_CHECK_CODE(code, lino, _exit);
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
 
       smaDebug("vgId:%d, process submit req for rsma suid:%" PRIu64 ",uid:%" PRIu64 ", level %" PRIi8 " ver %" PRIi64,
@@ -1297,7 +1302,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
   }
 
   int8_t fetchTriggerStat =
-      atomic_val_compare_exchange_8(&pItem->triggerStat, TASK_TRIGGER_STAT_ACTIVE, TASK_TRIGGER_STAT_ACTIVE);
+      atomic_val_compare_exchange_8(&pItem->triggerStat, TASK_TRIGGER_STAT_ACTIVE, TASK_TRIGGER_STAT_INACTIVE);
   switch (fetchTriggerStat) {
     case TASK_TRIGGER_STAT_ACTIVE: {
       smaDebug("vgId:%d, rsma fetch task planned for level:%" PRIi8 " suid:%" PRIi64 " since stat is active",
