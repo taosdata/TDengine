@@ -166,7 +166,7 @@ groups:
           max: 10000
         description: Maximum number of records for a batch when writing to database
         placeholder: 100
-        value: 1
+        value: 1000
       - name: batch_timeout
         display: Write Batch Timeout
         hint:

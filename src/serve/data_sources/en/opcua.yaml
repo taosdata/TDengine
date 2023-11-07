@@ -176,16 +176,6 @@ groups:
           max: 60
         value: 10
 
-      - name: limit
-        display: Collect limit
-        description: |-
-          Maximum number of points for each request
-        value: 1
-        hint:
-          type: integer
-          min: 1
-          max: 1000
-
       - name: collect_mode
         display: Collect Mode
         description: |-
@@ -246,7 +236,7 @@ groups:
           max: 10000
         description: Maximum number of records for a batch when writing to database
         placeholder: 100
-        value: 1
+        value: 1000
       - name: batch_timeout
         display: Write Batch Timeout
         hint:
