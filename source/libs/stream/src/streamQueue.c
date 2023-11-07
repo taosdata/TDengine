@@ -160,7 +160,7 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
   // no available token in bucket for sink task, let's wait for a little bit
   if (taskLevel == TASK_LEVEL__SINK && (!streamTaskExtractAvailableToken(pTask->outputInfo.pTokenBucket, pTask->id.idStr))) {
     stDebug("s-task:%s no available token in bucket for sink data, wait for 10ms", id);
-//    taosMsleep(10);
+    taosMsleep(10);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -414,9 +414,8 @@ static void fillTokenBucket(STokenBucket* pBucket, const char* id) {
   }
 
   if (incNum > 0 || incSize > 0) {
-    stDebug("new token and capacity available, current token:%d inc:%d, current quota:%.2fMiB inc:%.3fMiB, ts:%" PRId64
-            " idle for %.2f Sec, %s",
-            pBucket->numOfToken, incNum, pBucket->quotaRemain, incSize, now, delta / 1000.0, id);
+    stTrace("token/quota available, token:%d inc:%d, quota:%.2fMiB inc:%.3fMiB, ts:%" PRId64 " idle:%" PRId64 "ms, %s",
+            pBucket->numOfToken, incNum, pBucket->quotaRemain, incSize, now, delta, id);
   }
 }
 
