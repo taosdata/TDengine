@@ -924,6 +924,16 @@ fn test_legacy() {
 }
 
 #[test]
+fn test_historian() {
+    let json = include_str!("en/historian.yaml");
+    let def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
+    dbg!(&def);
+    let json = include_str!("cn/historian.yaml");
+    let def: DataSourceDefinition = serde_yaml::from_str(json).unwrap();
+    dbg!(&def);
+}
+
+#[test]
 fn test_pi_backfill() {
     use std::str::FromStr;
 
