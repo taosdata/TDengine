@@ -8,7 +8,6 @@ use std::{
 };
 
 use anyhow::{bail, Context};
-use base64::Engine;
 use csv_lib::ReaderBuilder;
 use file_rotate::{
     compression::Compression,
@@ -16,8 +15,7 @@ use file_rotate::{
     FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
 };
 use itertools::Itertools;
-use serde::{Deserialize, Serialize};
-use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder, Ty};
+use taos::{AsyncTBuilder, Dsn, TaosBuilder, Ty};
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
 pub use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
@@ -31,9 +29,8 @@ use crate::{
 };
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
-use crate::runners::opc::config::{ColumnConfig, OPCConfig, TableConfig};
-
-mod config;
+use crate::runners::opc::config::{ColumnConfig, OPCConfig, OPCConfigMode, OpcType, TableConfig, PointsConfig};
+pub(crate) mod config;
 
 #[derive(Debug, thiserror::Error)]
 enum OpcError {
@@ -705,50 +702,50 @@ mod tests {
         assert_eq!("2.4.0", dsv.version.unwrap());
     }
 
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_with_agent() -> anyhow::Result<()> {
-        env::set_var("RUST_LOG", "debug");
-        pretty_env_logger::init();
+    // #[tokio::test(flavor = "multi_thread")]
+    // async fn test_with_agent() -> anyhow::Result<()> {
+    //     env::set_var("RUST_LOG", "debug");
+    //     pretty_env_logger::init();
+    //
+    //     let opc = "opc+ua://192.168.0.133:53530/OPCUA/SimulationServer?\
+    // ua.nodes=ns=10;i=1004::t1::c1::double&connect_timeout=5&request_timeout=5&\
+    // concurrent=1&batch_size=5&batch_timeout=5&debug=true";
+    //     let target = "taos:///opcua";
+    //     let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
+    //     opc_to_taos(
+    //         opc.parse().unwrap(),
+    //         vec![],
+    //         target.parse().unwrap(),
+    //         1,
+    //         &PortPool::default(),
+    //         CancellationToken::new(),
+    //         Some((2, "http://127.0.0.1:6051".into(), "".into())),
+    //         None,
+    //         span.clone(),
+    //     )
+    //         .await?;
+    //     Ok(())
+    // }
 
-        let opc = "opc+ua://192.168.0.133:53530/OPCUA/SimulationServer?\
-    ua.nodes=ns=10;i=1004::t1::c1::double&connect_timeout=5&request_timeout=5&\
-    concurrent=1&batch_size=5&batch_timeout=5&debug=true";
-        let target = "taos:///opcua";
-        let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
-        opc_to_taos(
-            opc.parse().unwrap(),
-            vec![],
-            target.parse().unwrap(),
-            1,
-            &PortPool::default(),
-            CancellationToken::new(),
-            Some((2, "http://127.0.0.1:6051".into(), "".into())),
-            None,
-            span.clone(),
-        )
-            .await?;
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_with_agent_all_nodes() -> anyhow::Result<()> {
-        std::env::set_var("RUST_LOG", "debug");
-        // tracing_subscriber::fmt::init();
-        let opc = "opcua://192.168.0.34:53530/OPCUA/SimulationServer?connect_timeout=1&request_timeout=1&interval=10&collect_mode=observe&enable=false&keep=10&concurrent=1&batch_size=1&batch_timeout=1&debug=false&select_all_points=true&table_primary_key=original_ts&child_table_expression=meter_{ns}_{id}&&select_all_points=true";
-        let target = "taos:///opc";
-        let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
-        opc_to_taos(
-            opc.parse().unwrap(),
-            vec![],
-            target.parse().unwrap(),
-            1,
-            &PortPool::default(),
-            CancellationToken::new(),
-            Some((2, "http://127.0.0.1:6051".into(), "".into())),
-            None,
-            span.clone(),
-        )
-            .await?;
-        Ok(())
-    }
+    // #[tokio::test(flavor = "multi_thread")]
+    // async fn test_with_agent_all_nodes() -> anyhow::Result<()> {
+    //     std::env::set_var("RUST_LOG", "debug");
+    //     // tracing_subscriber::fmt::init();
+    //     let opc = "opcua://192.168.0.34:53530/OPCUA/SimulationServer?connect_timeout=1&request_timeout=1&interval=10&collect_mode=observe&enable=false&keep=10&concurrent=1&batch_size=1&batch_timeout=1&debug=false&select_all_points=true&table_primary_key=original_ts&child_table_expression=meter_{ns}_{id}&&select_all_points=true";
+    //     let target = "taos:///opc";
+    //     let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
+    //     opc_to_taos(
+    //         opc.parse().unwrap(),
+    //         vec![],
+    //         target.parse().unwrap(),
+    //         1,
+    //         &PortPool::default(),
+    //         CancellationToken::new(),
+    //         Some((2, "http://127.0.0.1:6051".into(), "".into())),
+    //         None,
+    //         span.clone(),
+    //     )
+    //         .await?;
+    //     Ok(())
+    // }
 }

@@ -1,3 +1,16 @@
+use std::{
+    any::Any,
+    collections::{HashMap, HashSet},
+    io::{Read, Write},
+    iter::zip,
+    net::SocketAddr,
+    str::FromStr,
+    sync::{
+        Arc,
+        atomic::{AtomicU32, AtomicUsize, Ordering},
+    }, time::Duration,
+};
+
 use anyhow::{bail, Context};
 use arrow::{datatypes::Schema, ipc::writer::IpcWriteOptions, record_batch::RecordBatch};
 use arrow_flight::FlightClient;
@@ -5,46 +18,38 @@ use async_backtrace::framed;
 use bytes::Bytes;
 use futures::TryStreamExt;
 use futures_util::StreamExt;
+use metrics::*;
 use serde_json::json;
-use std::{
-    any::Any,
-    collections::{HashMap, HashSet},
-    io::{Read, Write},
-    net::SocketAddr,
-    str::FromStr,
-    sync::{
-        atomic::{AtomicU32, AtomicUsize, Ordering},
-        Arc,
-    },
-    time::Duration, iter::zip,
-};
 use taos::{
-    taos_query::{common::Describe, Manager},
-    AsyncBindable, AsyncQueryable, Dsn, Itertools, RawBlock, Stmt, Taos, TaosPool, Ty, Value,
+    AsyncBindable,
+    AsyncQueryable, Dsn, Itertools, RawBlock, Stmt, Taos, taos_query::{common::Describe, Manager}, TaosPool, Ty, Value,
 };
+use taos::RawResult;
 use tokio::sync::{Mutex, Notify, OnceCell};
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::{debug, error, info, instrument, Instrument, Span};
 
+use taosx_ipc::{
+    prelude::*,
+    stream::{flat::FlatMessage, point::PointMessage},
+};
+
 use crate::{
-    utils::{
+    ConnectorLicense,
+    Parser, Transferred, utils::{
         breakpoints::breakpoints_set,
         trace::{
             create_data_trace_id, create_query_id, create_stream_trace_id, get_data_trace_id_str,
             set_data_trace_id_for_current_span,
         },
     },
-    ConnectorLicense, OPCConfig, Parser, Transferred,
 };
+use crate::plugins::runners::opc::config::ColumnConfig;
+use crate::plugins::runners::opc::config::OpcTableConfig;
+use crate::runners::opc::config::OPCConfig;
 
-use super::runners::opc::{ColumnConfig, OpcTableConfig};
 use super::*;
-use metrics::*;
-use taosx_ipc::{
-    prelude::*,
-    stream::{flat::FlatMessage, point::PointMessage},
-};
 
 // mod rpc_client;
 
@@ -2872,8 +2877,6 @@ pub async fn listen_tcp_socket(
     );
     Ok(IpcHandler::new(notify, handle, error_receiver))
 }
-
-use taos::RawResult;
 
 async fn exec<T: AsRef<str> + Send + Sync>(
     taos: &deadpool::managed::Object<Manager<TaosBuilder>>,

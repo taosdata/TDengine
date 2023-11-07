@@ -273,9 +273,6 @@ async fn validate_mqtt(config: MqttConfig) -> anyhow::Result<DataSourceValidatio
 mod tests {
     use std::env;
     use std::str::FromStr;
-
-    use crate::TaskOpts;
-
     use super::*;
 
     #[tokio::test]
@@ -315,57 +312,57 @@ mod tests {
         assert_eq!(None, dsv.version);
     }
 
-    #[ignore]
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_mqtt_parser() {
-        std::env::set_var("RUST_LOG", "debug,tokio=warn");
-        pretty_env_logger::init();
-        let transferred = Arc::new(Transferred::default());
-        let _metrics = transferred.clone();
-        use std::time::Duration;
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_millis(200));
-            loop {
-                interval.tick().await;
-                // dbg!(&metrics);
-            }
-        });
-        let opts = TaskOpts {
-            transform: vec![],
-            from: "mqtt://192.168.0.201:11883?topics=topic-1::1"
-                .parse()
-                .unwrap(),
-            to: "taos:///mqtt".parse().unwrap(),
-            parser: Some(
-                serde_json::from_str(
-                    r#"
-                {
-                    "parse": { "payload": { "json": [
-                        { "name": "pre", "alias": "value" }
-                    ], "flatten": false, "keep": true } },
-                    "model": {
-                        "name": "{topic}-{qos}",
-                        "using": "mqtt",
-                        "tags": ["topic", "qos"],
-                        "columns": ["ts", "value"]
-                    }
-                }
-                "#,
-                )
-                .unwrap(),
-            ),
-            jobs: 0,
-            compression_level: None,
-            force: false,
-            cancel: CancellationToken::new(),
-            // port_pool: ONCE,
-            with_agent: None,
-            breakpoints: None,
-            offsets: Default::default(),
-            transferred: Some(transferred),
-            span: tracing::info_span!("test_mqtt"),
-            task_id: None,
-        };
-        opts.run(&PortPool::default()).await.unwrap();
-    }
+    // #[ignore]
+    // #[tokio::test(flavor = "multi_thread")]
+    // async fn test_mqtt_parser() {
+    //     std::env::set_var("RUST_LOG", "debug,tokio=warn");
+    //     pretty_env_logger::init();
+    //     let transferred = Arc::new(Transferred::default());
+    //     let _metrics = transferred.clone();
+    //     use std::time::Duration;
+    //     tokio::spawn(async move {
+    //         let mut interval = tokio::time::interval(Duration::from_millis(200));
+    //         loop {
+    //             interval.tick().await;
+    //             // dbg!(&metrics);
+    //         }
+    //     });
+    //     let opts = TaskOpts {
+    //         transform: vec![],
+    //         from: "mqtt://192.168.0.201:11883?topics=topic-1::1"
+    //             .parse()
+    //             .unwrap(),
+    //         to: "taos:///mqtt".parse().unwrap(),
+    //         parser: Some(
+    //             serde_json::from_str(
+    //                 r#"
+    //             {
+    //                 "parse": { "payload": { "json": [
+    //                     { "name": "pre", "alias": "value" }
+    //                 ], "flatten": false, "keep": true } },
+    //                 "model": {
+    //                     "name": "{topic}-{qos}",
+    //                     "using": "mqtt",
+    //                     "tags": ["topic", "qos"],
+    //                     "columns": ["ts", "value"]
+    //                 }
+    //             }
+    //             "#,
+    //             )
+    //             .unwrap(),
+    //         ),
+    //         jobs: 0,
+    //         compression_level: None,
+    //         force: false,
+    //         cancel: CancellationToken::new(),
+    //         // port_pool: ONCE,
+    //         with_agent: None,
+    //         breakpoints: None,
+    //         offsets: Default::default(),
+    //         transferred: Some(transferred),
+    //         span: tracing::info_span!("test_mqtt"),
+    //         task_id: None,
+    //     };
+    //     opts.run(&PortPool::default()).await.unwrap();
+    // }
 }

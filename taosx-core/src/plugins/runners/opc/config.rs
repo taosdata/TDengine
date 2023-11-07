@@ -1,38 +1,42 @@
 use std::collections::{HashMap, HashSet};
+use std::io::Write;
 use std::str::FromStr;
+
 use base64::Engine;
 use base64::engine::general_purpose;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::{AsyncQueryable, Dsn, Taos, Ty};
 use tokio_stream::StreamExt;
+
 use taosx_ipc::prelude::IpcDataType;
+
 use crate::runners::opc::{generate_tbname_from_pattern, get_string_vec_from_param_or_file_for_opc, OpcError, parse_bool_param_from_dsn};
 
 #[derive(Debug, Serialize)]
 pub struct OPCConfig {
-    opc_type: OpcType,
-    debug: bool,
+    pub opc_type: OpcType,
+    pub debug: bool,
     // #[serde(skip)]
     /// use receviced time as ts cloumn value when config true
     // use_received_time: bool,
     connect: ConnectConfig,
-    points: Option<PointsConfig>,
+    pub points: Option<PointsConfig>,
     collect: CollectConfig,
-    report: ReportConfig,
+    pub report: ReportConfig,
 
     #[serde(skip)]
-    param_mapping: HashMap<String, PointConfig>,
+    pub param_mapping: HashMap<String, PointConfig>,
     // #[serde(skip)]
     /// table_info: table_name, Vec<(field, type)>
     // table_info: HashMap<String, Vec<(String, String)>>,
     #[serde(skip)]
-    opc_table_config: Option<TableConfig>,
+    pub opc_table_config: Option<TableConfig>,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
-enum OpcType {
+pub enum OpcType {
     OPCUA,
     OPCDA,
     FAKE,
@@ -107,9 +111,9 @@ struct DaConnectConfig {
 }
 
 #[derive(Debug, Serialize)]
-struct PointsConfig {
-    limit: usize,
-    regex: Option<String>,
+pub struct PointsConfig {
+    pub(crate) limit: usize,
+    pub(crate) regex: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -173,11 +177,11 @@ struct DaNodeConfig {
 }
 
 #[derive(Debug, Serialize)]
-struct ReportConfig {
-    remote: String,
-    concurrent: Option<i64>,
-    batch_size: Option<i64>,
-    batch_timeout: Option<i64>,
+pub struct ReportConfig {
+    pub remote: String,
+    pub concurrent: Option<i64>,
+    pub batch_size: Option<i64>,
+    pub batch_timeout: Option<i64>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -185,13 +189,13 @@ pub struct OpcTableConfig {
     // id, (code, stable, enabled)
     // code for child table name, stable maybe none when use ui config, casue stabel_prefix exists
     // when stable is none stable_prefix will be enabled
-    pub(crate) id_code_map: HashMap<String, PointConfig>,
+    pub id_code_map: HashMap<String, PointConfig>,
 
-    pub(crate) table_config: TableConfig,
+    pub table_config: TableConfig,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-pub(crate) struct PointConfig {
+pub struct PointConfig {
     pub code: String,
     pub stable: Option<String>,
     pub tag_values: Option<HashMap<String, String>>,
@@ -199,7 +203,7 @@ pub(crate) struct PointConfig {
 }
 
 /// OPC connector mode
-enum OPCConfigMode {
+pub enum OPCConfigMode {
     /// just get points
     Points,
     /// collect point data
@@ -864,6 +868,7 @@ fn check_duplicated(
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+
     use super::*;
 
     #[tokio::test]
@@ -935,10 +940,7 @@ mod tests {
                 interval: Some(10),
                 limit: Some(10),
                 ua: Some(UaCollectConfig {
-                    collect_mode: "observe"
-                        .to_string()
-                        .parse::<CollectMode>()
-                        .map_err(|err| OpcError::ParseError("collect_mode", err))?,
+                    collect_mode: CollectMode::OBSERVE,
                     nodes: vec![UANodeConfig {
                         id: String::from("1"),
                         // value_type: String::from("DOUBLE"),
@@ -966,7 +968,7 @@ mod tests {
             // table_info: HashMap::new(),
             opc_table_config: Some(opc_table_config),
         };
-        let toml = toml::to_string(&config)?;
+        let toml = toml::to_string(&config).unwrap();
         assert_eq!(
             r#"opc_type = "opcua"
 debug = true

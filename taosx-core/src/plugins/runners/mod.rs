@@ -387,13 +387,9 @@ MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV
             .unwrap()
             .unwrap();
         assert_eq!("123,456,-----BEGIN CERTIFICATE-----,MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV,-----END CERTIFICATE-----,-----BEGIN CERTIFICATE-----,MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV,-----END CERTIFICATE-----", result);
-    }
 
-    #[tokio::test]
-    async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> {
-        use taos::IntoDsn;
-        let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double".into_dsn()?;
-        let vec_string = crate::runners::get_string_vec_from_param_or_file(&mut dsn, "ua.nodes").unwrap();
+        let mut dsn = Dsn::from_str("opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double").unwrap();
+        let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes").unwrap();
         assert_eq!(
             vec_string,
             vec![
@@ -401,8 +397,8 @@ MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV
                 String::from("ns=3;i=1008::ntb1::c1::double"),
             ]
         );
-        let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double,@/Users/zmlgirl/Downloads/test_opc.csv".into_dsn()?;
-        let vec_string = crate::runners::get_string_vec_from_param_or_file(&mut dsn, "ua.nodes").unwrap();
+        let mut dsn = Dsn::from_str("opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double,@/Users/zmlgirl/Downloads/test_opc.csv").unwrap();
+        let vec_string = get_string_vec_from_param_or_file(&mut dsn, "ua.nodes").unwrap();
         assert_eq!(
             vec_string,
             vec![
@@ -412,6 +408,5 @@ MIIDUTCCAjmgAwIBAgIJAPPYCjTmxdt/MA0GCSqGSIb3DQEBCwUAMD8xCzAJBgNV
                 String::from("ns=2;i=3::ntb3::c2::int"),
             ]
         );
-        Ok(())
     }
 }

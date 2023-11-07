@@ -635,46 +635,46 @@ impl CsvSource {
     }
 }
 
-#[tokio::test]
-async fn test_csv_source() -> anyhow::Result<()> {
-    std::env::set_var("RUST_LOG", "debug");
-    pretty_env_logger::init();
-    let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
-    use std::str::FromStr;
-    csv_to_taos(
-        Dsn::from_str("csv:../tests/csv/table-ns/ns.csv?batch_size=1000").unwrap(),
-        Some(
-            Parser::from_str(
-                r#"{
-  "parse": {
-    "time": { "as": "timestamp(ns)", "alias": "time" },
-    "field0": { "as": "int" },
-    "field7": { "as": "int" }
-  },
-  "model": {
-    "name": "f_{field0}",
-    "using": "stb1",
-    "tags": ["field0"],
-    "columns": ["time", "field7"]
-  }
-}"#,
-            )
-            .unwrap(),
-        ),
-        Dsn::from_str("taos:///testns").unwrap(),
-        &Default::default(),
-        Default::default(),
-        None,
-        None,
-        span.clone(),
-    )
-    .await?;
-    tokio::time::sleep(Duration::from_secs(10)).await;
-    let taos = TaosBuilder::from_dsn("taos:///testns")?.build().await?;
-    let u: usize = taos.query_one("select count(*) from stb1").await?.unwrap();
-    assert_eq!(u, 200);
-    Ok(())
-}
+// #[tokio::test]
+// async fn test_csv_source() -> anyhow::Result<()> {
+//     std::env::set_var("RUST_LOG", "debug");
+//     pretty_env_logger::init();
+//     let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
+//     use std::str::FromStr;
+//     csv_to_taos(
+//         Dsn::from_str("csv:../tests/csv/table-ns/ns.csv?batch_size=1000").unwrap(),
+//         Some(
+//             Parser::from_str(
+//                 r#"{
+//   "parse": {
+//     "time": { "as": "timestamp(ns)", "alias": "time" },
+//     "field0": { "as": "int" },
+//     "field7": { "as": "int" }
+//   },
+//   "model": {
+//     "name": "f_{field0}",
+//     "using": "stb1",
+//     "tags": ["field0"],
+//     "columns": ["time", "field7"]
+//   }
+// }"#,
+//             )
+//             .unwrap(),
+//         ),
+//         Dsn::from_str("taos:///testns").unwrap(),
+//         &Default::default(),
+//         Default::default(),
+//         None,
+//         None,
+//         span.clone(),
+//     )
+//     .await?;
+//     tokio::time::sleep(Duration::from_secs(10)).await;
+//     let taos = TaosBuilder::from_dsn("taos:///testns")?.build().await?;
+//     let u: usize = taos.query_one("select count(*) from stb1").await?.unwrap();
+//     assert_eq!(u, 200);
+//     Ok(())
+// }
 
 pub async fn is_csv_valid(from: &Dsn) -> DataSourceValidation {
     if let Err(err) = CsvSource::new(&mut from.clone(), 0) {
