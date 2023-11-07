@@ -822,9 +822,18 @@ int32_t s3GetObjectsByPrefix(const char *prefix, const char* path){
 
   for(size_t i = 0; i < taosArrayGetSize(objectArray); i++){
     char* object = taosArrayGetP(objectArray, i);
+    const char* tmp = strchr(object, '/');
+    tmp = (tmp == NULL) ? object : tmp + 1;
     char fileName[PATH_MAX] = {0};
-    snprintf(fileName, PATH_MAX, "%s/%s", path, object);
-    s3GetObjectToFile(object, fileName);
+    if(path[strlen(path) - 1] != '/'){
+      snprintf(fileName, PATH_MAX, "%s/%s", path, tmp);
+    }else{
+      snprintf(fileName, PATH_MAX, "%s%s", path, tmp);
+    }
+    if(s3GetObjectToFile(object, fileName) != 0){
+      taosArrayDestroyEx(objectArray, s3FreeObjectKey);
+      return -1;
+    }
   }
   taosArrayDestroyEx(objectArray, s3FreeObjectKey);
   return 0;

@@ -316,7 +316,7 @@ def pre_test_build_win() {
         python -m pip uninstall taospy -y 
         python -m pip install taospy==2.7.12
         python -m pip uninstall taos-ws-py -y 
-        python -m pip install taos-ws-py==0.2.9
+        python -m pip install taos-ws-py==0.3.1
 	xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
     '''
     return 1
