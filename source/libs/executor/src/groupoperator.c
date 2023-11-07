@@ -422,6 +422,9 @@ static SSDataBlock* buildGroupResultDataBlockByHash(SOperatorInfo* pOperator) {
     doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
     if (!hasRemainResultByHash(pOperator)) {
       setOperatorCompleted(pOperator);
+      // clean hash after completed
+      tSimpleHashCleanup(pInfo->aggSup.pResultRowHashTable);
+      pInfo->aggSup.pResultRowHashTable = NULL;
       break;
     }
     if (pRes->info.rows > 0) {
