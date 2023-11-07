@@ -1,8 +1,9 @@
-use actix_web::{get, HttpResponse, Responder};
-use metrics::{describe_counter, describe_gauge, gauge, register_counter, register_gauge};
+use actix_web::{get, web::Query, HttpResponse, Responder};
+use metrics::{describe_gauge, gauge, register_gauge};
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle, PrometheusRecorder};
 use std::time::Duration;
-use taosx_core::RECORD_BATCHES;
+
+use crate::serve::data_sources::LangQuery;
 
 #[derive(Debug, Default)]
 pub struct Metrics {
@@ -11,16 +12,30 @@ pub struct Metrics {
     interval: Option<u16>,
 }
 
+pub const METRIC_SYS_CPUS: &str = "taosx_sys_cpus";
+pub const METRIC_SYS_TOTAL_MEMORY: &str = "taosx_sys_total_memory";
+pub const METRIC_SYS_USED_MEMORY: &str = "taosx_sys_used_memory";
+pub const METRIC_SYS_FREE_MEMORY: &str = "taosx_sys_free_memory";
+pub const METRIC_SYS_AVAILABLE_MEMORY: &str = "taosx_sys_available_memory";
+pub const METRIC_SYS_UPTIME_IN_SECONDS: &str = "taosx_sys_uptime_in_seconds";
+pub const METRIC_PROCESS_CPU_PERCENT: &str = "taosx_process_cpu_percent";
+pub const METRIC_PROCESS_MEM_PERCENT: &str = "taosx_process_mem_percent";
+pub const METRIC_PROCESS_IO_READ_BYTES: &str = "taosx_process_io_read_bytes";
+pub const METRIC_PROCESS_IO_WRITTEN_BYTES: &str = "taosx_process_io_written_bytes";
+#[cfg(target_os = "linux")]
+pub const METRIC_PROCESS_TASKS: &str = "taosx_process_tasks";
+pub const TAOSX_PROCESS_UPTIME: &str = "taosx_process_uptime";
+
 pub fn process_metrics_init() {
-    register_gauge!("taosx_sys_cpus");
-    describe_gauge!("taosx_sys_cpus", "number of cpus");
+    register_gauge!(METRIC_SYS_CPUS);
+    describe_gauge!(METRIC_SYS_CPUS, "number of cpus");
 
-    register_gauge!("taosx_process_cpu_percent");
-    describe_gauge!("taosx_process_cpu_percent", "CPU percent of the process");
+    register_gauge!(METRIC_PROCESS_CPU_PERCENT);
+    describe_gauge!(METRIC_PROCESS_CPU_PERCENT, "CPU percent of the process");
 
-    register_gauge!("taosx_process_io_read_bytes");
+    register_gauge!(METRIC_PROCESS_IO_READ_BYTES);
     describe_gauge!(
-        "taosx_process_io_read_bytes",
+        METRIC_PROCESS_IO_READ_BYTES,
         "IO read in bytes of the process"
     );
     register_gauge!("taosx_process_io_written_bytes");
@@ -28,28 +43,18 @@ pub fn process_metrics_init() {
         "taosx_process_io_written_bytes",
         "IO written in bytes of the process"
     );
-
-    // ----------- ipc stream counter register
-    register_counter!(RECORD_BATCHES);
-    describe_counter!(
-        RECORD_BATCHES,
-        "how many record batch received from ipc reader"
-    );
-
-    // ----------- tmq counter register
 }
 
 pub fn process_metrics(sys: &mut sysinfo::System) -> anyhow::Result<()> {
     use sysinfo::*;
     sys.refresh_all();
 
-    gauge!("taosx_sys_cpus", sys.cpus().len() as f64);
-    gauge!("taosx_sys_cpus", sys.cpus().len() as f64);
-    gauge!("taosx_sys_total_memory", sys.total_memory() as f64);
-    gauge!("taosx_sys_used_memory", sys.used_memory() as f64);
-    gauge!("taosx_sys_free_memory", sys.free_memory() as f64);
-    gauge!("taosx_sys_available_memory", sys.available_memory() as f64);
-    gauge!("taosx_sys_uptime_in_seconds", sys.uptime() as f64);
+    gauge!(METRIC_SYS_CPUS, sys.cpus().len() as f64);
+    gauge!(METRIC_SYS_TOTAL_MEMORY, sys.total_memory() as f64);
+    gauge!(METRIC_SYS_USED_MEMORY, sys.used_memory() as f64);
+    gauge!(METRIC_SYS_FREE_MEMORY, sys.free_memory() as f64);
+    gauge!(METRIC_SYS_AVAILABLE_MEMORY, sys.available_memory() as f64);
+    gauge!(METRIC_SYS_UPTIME_IN_SECONDS, sys.uptime() as f64);
 
     let pid = get_current_pid();
     if pid.is_err() {
@@ -60,19 +65,19 @@ pub fn process_metrics(sys: &mut sysinfo::System) -> anyhow::Result<()> {
     let pid = pid.unwrap();
     if let Some(ps) = sys.process(pid) {
         let cpu = ps.cpu_usage();
-        gauge!("taosx_process_cpu_percent", cpu as f64);
+        gauge!(METRIC_PROCESS_CPU_PERCENT, cpu as f64);
 
         let mem = ps.memory() as f64 / sys.total_memory() as f64 * 100.0;
-        gauge!("taosx_process_mem_percent", mem);
+        gauge!(METRIC_PROCESS_MEM_PERCENT, mem);
 
         #[cfg(target_os = "linux")]
-        gauge!("taosx_process_tasks", ps.tasks.len() as f64);
+        gauge!(METRIC_PROCESS_TASKS, ps.tasks.len() as f64);
 
         let disk = ps.disk_usage();
-        gauge!("taosx_process_io_read_bytes", disk.read_bytes as f64);
-        gauge!("taosx_process_io_written_bytes", disk.written_bytes as f64);
+        gauge!(METRIC_PROCESS_IO_READ_BYTES, disk.read_bytes as f64);
+        gauge!(METRIC_PROCESS_IO_WRITTEN_BYTES, disk.written_bytes as f64);
 
-        gauge!("taosx_process_uptime", ps.run_time() as f64);
+        gauge!(TAOSX_PROCESS_UPTIME, ps.run_time() as f64);
     }
     Ok(())
 }
@@ -124,6 +129,15 @@ impl Metrics {
 async fn metrics_exporter(handle: actix_web::web::Data<PrometheusHandle>) -> impl Responder {
     let output = handle.render();
     output
+}
+
+#[get("/metrics-desc")]
+async fn metrics_desc(lang: Query<LangQuery>) -> impl Responder {
+    if lang.is_cn() {
+        "1"
+    } else {
+        "2"
+    }
 }
 
 /// Profile.

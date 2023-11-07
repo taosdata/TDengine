@@ -331,7 +331,7 @@ async fn consume_lush_record(
     task: Option<i64>,
     data_trace_id: u64,
 ) -> anyhow::Result<()> {
-    counter!(RECORD_BATCHES, 1);
+    counter!(METRIC_RECORD_BATCHES, 1);
     match record {
         LushMessage::Tables(tables) => {
             let taos: &deadpool::managed::Object<Manager<TaosBuilder>> = taos.as_ref().unwrap();
@@ -439,7 +439,7 @@ async fn consume_lush_record(
                     info!("Tables: {}", sql.0);
                     match exec(taos, &sql.0, data_trace_id).await {
                         Ok(_) => {
-                            counter!(CHILD_TABLE_CREATED, sql.2 as u64);
+                            counter!(METRIC_CHILD_TABLE_CREATED, sql.2 as u64);
                         },
                         Err(err) => {
                             let err_str = format!("{err:#}");
@@ -491,7 +491,7 @@ async fn consume_lush_record(
                 if record.num_rows() == 0 {
                     continue;
                 }
-                counter!(BATCH_RECORDS, record.num_rows() as u64);
+                counter!(METRIC_BATCH_RECORDS, record.num_rows() as u64);
                 *records += record.num_rows();
                 let data = record.to_column_views();
                 // RawBlock
@@ -538,14 +538,14 @@ async fn consume_lush_record(
                             match exec(taos.as_ref().unwrap(), &sql, data_trace_id).await {
                                 Ok(num) => {
                                     count = count + num;
-                                    counter!(INSERT_SQLS, 1);
-                                    counter!(RECORDS, num as u64);
+                                    counter!(METRIC_INSERT_SQLS, 1);
+                                    counter!(METRIC_RECORDS, num as u64);
                                     break;
                                 }
                                 Err(err) => {
                                     if retry > 5 {
                                         tracing::warn!("retry write failed continue: {err:#}");
-                                        counter!(INSERT_SQL_FAILS, 1);
+                                        counter!(METRIC_INSERT_SQL_FAILS, 1);
 
                                         if break_err.is_err() {
                                             break_err?;
@@ -670,7 +670,7 @@ async fn consume_point_record(
     data_trace_id: u64,
 ) -> anyhow::Result<usize> {
     let mut points = 0;
-    metrics::counter!(RECORD_BATCHES, 1);
+    metrics::counter!(METRIC_RECORD_BATCHES, 1);
     for message in record.records() {
         let cv_vec = taosx_ipc::stream::reader::record_batch_to_column_view(
             message.record(),
@@ -769,7 +769,7 @@ async fn consume_point_record(
         > = HashMap::new();
         let mut child_table_create_sql_map = HashMap::new();
         for i in 0..id_cv.len() {
-            metrics::counter!(BATCH_RECORDS, 1);
+            metrics::counter!(METRIC_BATCH_RECORDS, 1);
             let id = id_cv.get(i).unwrap().into_value().to_string().unwrap();
             let code = id_code_map.get(&id);
             if code.is_none() {
@@ -984,7 +984,7 @@ async fn consume_point_record(
                 'outer: loop {
                     if retry >= 5 {
                         tracing::warn!("sql error cannot be solved, break;");
-                        counter!(INSERT_SQL_FAILS, 1);
+                        counter!(METRIC_INSERT_SQL_FAILS, 1);
                         if break_err.is_err() {
                             break_err?;
                         }
@@ -995,9 +995,9 @@ async fn consume_point_record(
                     match sql_res {
                         Ok(n) => {
                             *count += n;
-                            counter!(INSERT_SQLS, 1);
-                            counter!(RECORDS, n as u64);
-                            counter!(POINTS, n as u64 * columns_insert.len() as u64);
+                            counter!(METRIC_INSERT_SQLS, 1);
+                            counter!(METRIC_RECORDS, n as u64);
+                            counter!(METRIC_POINTS, n as u64 * columns_insert.len() as u64);
                             points += n;
                             break;
                         }
@@ -1031,7 +1031,7 @@ async fn consume_point_record(
                                 match exec(taos.as_ref().unwrap(), &stable_sql, data_trace_id).await
                                 {
                                     Ok(_n) => {
-                                        counter!(STABLE_CREATED, 1);
+                                        counter!(METRIC_STABLE_CREATED, 1);
                                     }
                                     Err(err) => {
                                         tracing::warn!(
@@ -1082,7 +1082,7 @@ async fn consume_point_record(
                                     {
                                         // match taos.as_ref().unwrap().exec(&create_child_sql).await {
                                         Ok(_n) => {
-                                             counter!(CHILD_TABLE_CREATED, child_table_count as u64);
+                                             counter!(METRIC_CHILD_TABLE_CREATED, child_table_count as u64);
                                         },
                                         Err(err) => {
                                             tracing::warn!("create child table error: {err:#}");
@@ -1354,7 +1354,7 @@ async fn consume_flat_record(
 
     for message in record.records() {
         tokio::task::yield_now().await;
-        counter!(RECORD_BATCHES, 1);
+        counter!(METRIC_RECORD_BATCHES, 1);
         let batch = message.record();
         if let Some(parser) = parser {
             let batch = parser.parse_message_from_records(batch)?;
@@ -1367,7 +1367,7 @@ async fn consume_flat_record(
                         if records.records.num_rows() == 0 {
                             continue;
                         }
-                        counter!(BATCH_RECORDS, 1);
+                        counter!(METRIC_BATCH_RECORDS, 1);
                         // dbg!(&records);
 
                         if records.records.column(0).null_count() > 0 {
@@ -1614,10 +1614,10 @@ async fn consume_flat_record(
                                 write_retries += 1;
                                 if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
                                     tracing::warn!("flat message write raw block encounter unrecoverable err: {err:#}");
-                                    counter!(WRITE_RAW_BLOCK_FAILS, 1);
-                                    counter!(RECORD_FAILS, raw.nrows() as u64);
+                                    counter!(METRIC_WRITE_RAW_BLOCK_FAILS, 1);
+                                    counter!(METRIC_RECORD_FAILS, raw.nrows() as u64);
                                     counter!(
-                                        POINT_FAILS,
+                                        METRIC_POINT_FAILS,
                                         (raw.nrows() * raw.column_views().len()) as u64
                                     );
                                     Err(err)?;
@@ -1768,10 +1768,10 @@ async fn consume_flat_record(
                                     continue;
                                 } else {
                                     error!(table = table_name, code = %code, "write {} records failed: {err:?}", records.records.num_rows());
-                                    counter!(WRITE_RAW_BLOCK_FAILS, 1);
-                                    counter!(RECORD_FAILS, raw.nrows() as u64);
+                                    counter!(METRIC_WRITE_RAW_BLOCK_FAILS, 1);
+                                    counter!(METRIC_RECORD_FAILS, raw.nrows() as u64);
                                     counter!(
-                                        POINT_FAILS,
+                                        METRIC_POINT_FAILS,
                                         (raw.nrows() * raw.column_views().len()) as u64
                                     );
                                     Err(err)?;
@@ -1780,9 +1780,9 @@ async fn consume_flat_record(
                                 continue;
                             } else {
                                 *count += raw.nrows();
-                                counter!(WRITE_RAW_BLOCKS, 1);
-                                counter!(RECORDS, raw.nrows() as u64);
-                                counter!(POINTS, (raw.nrows() * raw.column_views().len()) as u64);
+                                counter!(METRIC_WRITE_RAW_BLOCKS, 1);
+                                counter!(METRIC_RECORDS, raw.nrows() as u64);
+                                counter!(METRIC_POINTS, (raw.nrows() * raw.column_views().len()) as u64);
                                 if let Some(transferred) = transferred {
                                     transferred
                                         .records
@@ -2369,7 +2369,7 @@ async fn handle_lush_message_init(
                         break;
                     }
                 } else {
-                    metrics::counter!(STABLE_CREATED, 1);
+                    metrics::counter!(METRIC_STABLE_CREATED, 1);
                     break;
                 }
             }
