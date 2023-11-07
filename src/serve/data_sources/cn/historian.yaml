@@ -10,12 +10,12 @@ options:
   host:
     display: Server 地址
     description: AVEVA™ Historian SQL Server 的 IP 地址或域名
-    placeholder: 127.0.0.1
+    placeholder: "127.0.0.1"
     required: true
   port:
     display: Server 端口
     description: AVEVA™ Historian SQL Server 的端口
-    placeholder: 1433
+    placeholder: "1433"
     required: true
 authentication:
   display: 认证
@@ -51,8 +51,8 @@ groups:
         description: >
           需要迁移/同步的tag，*代表同步除了Sys开头的全部tag。
         required: false
-        placeholder: *
-        value: *
+        placeholder: "*"
+        value: "*"
         hint:
           type: str
       - name: beginDateTime
