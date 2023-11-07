@@ -1785,6 +1785,7 @@ batch_timeout = 100
     concurrent=1&batch_size=5&batch_timeout=5&debug=true";
         let target = "taos:///opcua";
         let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
+        let (notify, _) = flume::unbounded();
         opc_to_taos(
             opc.parse().unwrap(),
             vec![],
@@ -1795,6 +1796,7 @@ batch_timeout = 100
             Some((2, "http://127.0.0.1:6051".into(), "".into())),
             None,
             span.clone(),
+            notify,
         )
         .await?;
         Ok(())
@@ -1807,6 +1809,7 @@ batch_timeout = 100
         let opc = "opcua://192.168.0.34:53530/OPCUA/SimulationServer?connect_timeout=1&request_timeout=1&interval=10&collect_mode=observe&enable=false&keep=10&concurrent=1&batch_size=1&batch_timeout=1&debug=false&select_all_points=true&table_primary_key=original_ts&child_table_expression=meter_{ns}_{id}&&select_all_points=true";
         let target = "taos:///opc";
         let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
+        let (notify, _) = flume::unbounded();
         opc_to_taos(
             opc.parse().unwrap(),
             vec![],
@@ -1817,6 +1820,7 @@ batch_timeout = 100
             Some((2, "http://127.0.0.1:6051".into(), "".into())),
             None,
             span.clone(),
+            notify,
         )
         .await?;
         Ok(())
