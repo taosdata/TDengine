@@ -125,7 +125,7 @@ int32_t tqRestartStreamTasks(STQ* pTq) {
   int64_t      st = taosGetTimestampMs();
 
   while(1) {
-    int32_t startVal = atomic_val_compare_exchange_32(&pMeta->startInfo.taskRestarting, 0, 1);
+    int32_t startVal = atomic_val_compare_exchange_32(&pMeta->startInfo.taskStarting, 0, 1);
     if (startVal == 0) {
       break;
     }
