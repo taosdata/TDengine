@@ -148,10 +148,16 @@ int32_t       streamQueueGetItemSize(const SStreamQueue* pQueue);
 //  char    name[CHECKPOINT_PATH_LEN];
 //  char    id[CHECKPOINT_PATH_LEN];
 //} SChekpointDataHeader;
-
+typedef enum UPLOAD_TYPE{
+  UPLOAD_DISABLE = -1,
+  UPLOAD_S3 = 0,
+  UPLOAD_RSYNC = 1,
+} UPLOAD_TYPE;
+UPLOAD_TYPE getUploadType();
 int uploadCheckpoint(char* id, char* path);
 int downloadCheckpoint(char* id, char* path);
 int deleteCheckpoint(char* id);
+int deleteCheckpointFile(char* id, char* name);
 
 #ifdef __cplusplus
 }
