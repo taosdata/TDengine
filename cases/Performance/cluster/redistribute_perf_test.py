@@ -11,6 +11,9 @@
 
 # -*- coding: utf-8 -*-
 
+# -*- taostest --setup=Performance/cluster/redistribute_split_perf_test.yaml --case=Performance/cluster/redistribute_perf_test.py --keep -*-
+# -*- taostest --setup=Performance/cluster/redistribute_split_perf_test_rep3.yaml --case=Performance/cluster/redistribute_perf_test.py --keep -*-
+
 import os
 from taostest.util.common import TDCom
 from typing import List
@@ -20,6 +23,7 @@ from taostest.util.remote import Remote
 from datetime import datetime
 from copy import deepcopy
 import random
+from taostest.performance.result_reduction import Perf_Base_func
 import time
 from taos.tmq import Consumer
 from collections import Counter
@@ -54,13 +58,13 @@ class VnodeRedistributePerfTest(TDCase):
         self.trigger_mode = "at_once"
         self.child_table_exists = "no"
         self.db_drop = "yes"
-        self.wal_retention_period = 86400
+        self.wal_retention_period = 0
         self.stream_drop = "yes"
         self.keep_trying = -1
         self.trying_interval = 10
         self.interlace_rows = 0
         self.stream_sql = f"select ts,max(c1) from {self.dbname}.{self.stbname} where c1>0 partition by tbname interval(1s) sliding(1s)"
-        self.fill_history_rows = 500000
+        self.fill_history_rows = 1000000
         # self.fill_history_rows = 300
         self.pre_num_of_records_per_req = 10000
         self.json_file_name = "insert0.json"
@@ -172,7 +176,8 @@ class VnodeRedistributePerfTest(TDCase):
         self.tdSql.query(f'show vnodes;')
         restored_list = list(map(lambda x:x[-1], self.tdSql.query_data))
         latency = 0
-        expected_false_count = 0 if self.replica == 1 else 1
+        # expected_false_count = 0 if self.replica == 1 else 1
+        expected_false_count = 0
         false_count = Counter(restored_list)[False]
         while false_count > expected_false_count:
             self._remote._logger.info(f'------------ waiting to check vnodes-restored False count<={expected_false_count} and now is {false_count}, (use {latency}s) ------------')
@@ -207,11 +212,13 @@ class VnodeRedistributePerfTest(TDCase):
         self.add_reserve_dnodes()
         self.get_vgid_dnodeid_kv_list()
         self.get_dnode_id_list()
+        Insert_file = Perf_Base_func(self.logger, self.run_log_dir)
         if self.continue_insert_perf:
             # TODO
             pass
         else:
             start_ts = time.time()
+            timestamp_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
             vgid_dnodeid_kv = self.vgid_dnodeid_kv_list[0]
             disk_usage_list = list()
             for vgid, dnodeid in vgid_dnodeid_kv.items():
@@ -222,7 +229,9 @@ class VnodeRedistributePerfTest(TDCase):
                     self.disk_usage = self._remote.cmd(dnode["endpoint"].split(":")[0], [f'du -sh -k {dnode["config"]["dataDir"]}/vnode/vnode{self.vgid}']).split('\t')[0]
                     disk_usage_list.append(int(self.disk_usage))
                 if self.replica == 1:
-                    redistribute_dnode_id = random.choice(self.dnode_id_list)
+                    dnode_id_list = deepcopy(self.dnode_id_list)
+                    dnode_id_list.remove(dnodeid[0])
+                    redistribute_dnode_id = random.choice(dnode_id_list)
                     self.tdSql.execute(f'redistribute vgroup {vgid} dnode {redistribute_dnode_id}')
                 elif self.replica == 3:
                     self.add_reserve_dnodes()
@@ -235,7 +244,11 @@ class VnodeRedistributePerfTest(TDCase):
                     pass
                 self.check_restored_true()
             end_ts = time.time()
+            timestamp_end = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
             self._remote._logger.info(f'total_trans: {disk_usage_list[0]} kb, use time: {int(end_ts-start_ts)} s, speed: {disk_usage_list[0]/int(end_ts-start_ts)} kb/s')
+            env_setting = self.get_component_by_name("prometheus")
+            Insert_file.get_process_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
+            Insert_file.get_node_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
 
     def insert_data(self):
         self.start_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
