@@ -162,7 +162,7 @@ groups:
           max: 10000
         description: 每次采集数据写入数据库的最大记录条数
         placeholder: 100
-        value: 1
+        value: 1000
       - name: batch_timeout
         display: 上报超时
         hint:
