@@ -374,7 +374,8 @@ int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBloc
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate) {
+int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate,
+                                  const char* id) {
   if (numCap < 10 || numRate < 10 || pBucket == NULL) {
     stError("failed to init sink task bucket, cap:%d, rate:%d", numCap, numRate);
     return TSDB_CODE_INVALID_PARA;
@@ -389,6 +390,7 @@ int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t
   pBucket->quotaRemain = pBucket->quotaCapacity;
 
   pBucket->fillTimestamp = taosGetTimestampMs();
+  stDebug("s-task:%s sink quotaRate:%.2fMiB, numRate:%d", id, quotaRate, numRate);
   return TSDB_CODE_SUCCESS;
 }
 
