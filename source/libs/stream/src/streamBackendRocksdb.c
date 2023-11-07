@@ -100,7 +100,15 @@ const char*   compactFilteFactoryNameSess(void* arg);
 const char*   compactFilteFactoryNameState(void* arg);
 const char*   compactFilteFactoryNameFunc(void* arg);
 const char*   compactFilteFactoryNameFill(void* arg);
-const char*   compactFilteName(void* arg);
+
+const char* compactFilteName(void* arg);
+const char* compactFilteNameSess(void* arg);
+const char* compactFilteNameState(void* arg);
+const char* compactFilteNameFill(void* arg);
+const char* compactFilteNameFunc(void* arg);
+
+
+
 unsigned char compactFilte(void* arg, int level, const char* key, size_t klen, const char* val, size_t vlen,
                            char** newval, size_t* newvlen, unsigned char* value_changed);
 rocksdb_compactionfilter_t* compactFilteFactoryCreateFilter(void* arg, rocksdb_compactionfiltercontext_t* ctx);
