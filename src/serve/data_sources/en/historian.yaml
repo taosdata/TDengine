@@ -11,12 +11,12 @@ options:
   host:
     display: host
     description: AVEVA™ Historian SQL Server IP address or host name
-    placeholder: 127.0.0.1
+    placeholder: "127.0.0.1"
     required: true
   port:
     display: port
     description: AVEVA™ Historian SQL Server port
-    placeholder: 1433
+    placeholder: "1433"
     required: true
 authentication:
   display: Authentication
@@ -52,8 +52,8 @@ groups:
         description: >
           tags to be migrated/synchronized. `*` indicates that all tags.
         required: false
-        placeholder: *
-        value: *
+        placeholder: "*"
+        value: "*"
         hint:
           type: str
       - name: beginDateTime
@@ -63,7 +63,7 @@ groups:
         placeholder: 1970-01-01T00:00:00Z
         value: 1970-01-01T00:00:00Z
         hint:
-          type: datetime
+          type: time
       - name: endDateTime
         display: endDateTime
         description: The end time of the task is in rfc3339 format.
@@ -71,7 +71,7 @@ groups:
         placeholder: 2023-12-01T00:00:00Z
         value: 2023-12-01T00:00:00Z
         hint:
-          type: datetime
+          type: time
       - name: retrieveInterval
         display: retrieveInterval
         description: Pull interval for real-time data synchronization.
