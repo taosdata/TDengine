@@ -319,9 +319,10 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_mqtt_parser() {
         std::env::set_var("RUST_LOG", "debug,tokio=warn");
-        pretty_env_logger::init();
+        let _ = pretty_env_logger::try_init();
         let transferred = Arc::new(Transferred::default());
         let _metrics = transferred.clone();
+        let (notify, _) = flume::unbounded();
         use std::time::Duration;
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_millis(200));
@@ -365,6 +366,7 @@ mod tests {
             transferred: Some(transferred),
             span: tracing::info_span!("test_mqtt"),
             task_id: None,
+            notify,
         };
         opts.run(&PortPool::default()).await.unwrap();
     }

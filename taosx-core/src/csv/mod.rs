@@ -641,6 +641,8 @@ async fn test_csv_source() -> anyhow::Result<()> {
     pretty_env_logger::init();
     let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
     use std::str::FromStr;
+
+    let (notify, _) = flume::unbounded();
     csv_to_taos(
         Dsn::from_str("csv:../tests/csv/table-ns/ns.csv?batch_size=1000").unwrap(),
         Some(
@@ -667,6 +669,7 @@ async fn test_csv_source() -> anyhow::Result<()> {
         None,
         None,
         span.clone(),
+        notify,
     )
     .await?;
     tokio::time::sleep(Duration::from_secs(10)).await;

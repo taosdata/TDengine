@@ -328,6 +328,8 @@ mod tests {
         let from = Dsn::from_str("historian://aaAdmin:aaAdmin@192.168.3.40").unwrap();
         let to = Dsn::from_str("taos://root:taosdata@192.168.1.92:6030/historian_to_taos").unwrap();
 
+        let (notify, _) = flume::unbounded();
+
         let res = historian_to_taos(
             from,
             None,
@@ -339,7 +341,7 @@ mod tests {
             None,
             None,
             Span::current(),
-            crate::TaskNotifySender::default(),
+            notify,
         )
         .await;
 
