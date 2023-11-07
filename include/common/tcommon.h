@@ -364,6 +364,11 @@ typedef struct SSortExecInfo {
   int32_t readBytes;   // read io bytes
 } SSortExecInfo;
 
+typedef struct SNonSortExecInfo {
+
+} SNonSortExecInfo;
+
+
 typedef struct STUidTagInfo {
   char*    name;
   uint64_t uid;

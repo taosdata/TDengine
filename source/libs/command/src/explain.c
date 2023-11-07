@@ -284,8 +284,32 @@ int32_t qExplainResAppendRow(SExplainCtx *ctx, char *tbuf, int32_t len, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-static uint8_t getIntervalPrecision(SIntervalPhysiNode *pIntNode) {
+static uint8_t qExplainGetIntervalPrecision(SIntervalPhysiNode *pIntNode) {
   return ((SColumnNode *)pIntNode->window.pTspk)->node.resType.precision;
+}
+
+static char* qExplainGetScanMode(STableScanPhysiNode* pScan) {
+  bool isGroupByTbname = false;
+  bool isGroupByTag = false;
+  bool seq = false;
+  bool groupOrder = false;
+  if (pScan->pGroupTags && LIST_LENGTH(pScan->pGroupTags) == 1) {
+    SNode* p = nodesListGetNode(pScan->pGroupTags, 0);
+    if (QUERY_NODE_FUNCTION == nodeType(p) && (strcmp(((struct SFunctionNode*)p)->functionName, "tbname") == 0)) {
+      isGroupByTbname = true;
+    }
+  }
+
+  isGroupByTag = (NULL != pScan->pGroupTags) && !isGroupByTbname;
+  if ((((!isGroupByTag) || isGroupByTbname) && pScan->groupSort) || (isGroupByTag && (pScan->groupSort || pScan->scan.groupOrderScan))) {
+    return "seq_grp_order";
+  } 
+
+  if ((isGroupByTbname && (pScan->groupSort || pScan->scan.groupOrderScan)) || (isGroupByTag && (pScan->groupSort || pScan->scan.groupOrderScan))) {
+    return "grp_order";
+  }
+
+  return "ts_order";
 }
 
 int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, int32_t level) {
@@ -360,7 +384,9 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       }
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pTblScanNode->scan.node.pOutputDataBlockDesc->totalRowSize);
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-      EXPLAIN_ROW_APPEND(EXPLAIN_TABLE_SCAN_FORMAT, pTblScanNode->scanSeq[0], pTblScanNode->scanSeq[1]);
+      EXPLAIN_ROW_APPEND(EXPLAIN_SCAN_ORDER_FORMAT, pTblScanNode->scanSeq[0], pTblScanNode->scanSeq[1]);
+      EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      EXPLAIN_ROW_APPEND(EXPLAIN_SCAN_MODE_FORMAT, qExplainGetScanMode(pTblScanNode));
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
       EXPLAIN_ROW_END();
       QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
@@ -599,7 +625,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {
       SAggPhysiNode *pAggNode = (SAggPhysiNode *)pNode;
-      EXPLAIN_ROW_NEW(level, EXPLAIN_AGG_FORMAT);
+      EXPLAIN_ROW_NEW(level, EXPLAIN_AGG_FORMAT, (pAggNode->pGroupKeys ? "Group" : "Aggragate"));
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
@@ -841,7 +867,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         EXPLAIN_ROW_APPEND_SLIMIT(pIntNode->window.node.pSlimit);
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
-        uint8_t precision = getIntervalPrecision(pIntNode);
+        uint8_t precision = qExplainGetIntervalPrecision(pIntNode);
         EXPLAIN_ROW_NEW(level + 1, EXPLAIN_TIME_WINDOWS_FORMAT,
                         INVERAL_TIME_FROM_PRECISION_TO_UNIT(pIntNode->interval, pIntNode->intervalUnit, precision),
                         pIntNode->intervalUnit, pIntNode->offset, getPrecisionUnit(precision),
@@ -893,7 +919,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         EXPLAIN_ROW_APPEND_SLIMIT(pIntNode->window.node.pSlimit);
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
-        uint8_t precision = getIntervalPrecision(pIntNode);
+        uint8_t precision = qExplainGetIntervalPrecision(pIntNode);
         EXPLAIN_ROW_NEW(level + 1, EXPLAIN_TIME_WINDOWS_FORMAT,
                         INVERAL_TIME_FROM_PRECISION_TO_UNIT(pIntNode->interval, pIntNode->intervalUnit, precision),
                         pIntNode->intervalUnit, pIntNode->offset, getPrecisionUnit(precision),
@@ -1119,23 +1145,13 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       EXPLAIN_ROW_APPEND(EXPLAIN_INPUT_ORDER_FORMAT, EXPLAIN_ORDER_STRING(pMergeNode->node.inputTsOrder));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_OUTPUT_ORDER_TYPE_FORMAT, EXPLAIN_ORDER_STRING(pMergeNode->node.outputTsOrder));
+      EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      EXPLAIN_ROW_APPEND(EXPLAIN_MERGE_MODE_FORMAT, EXPLAIN_MERGE_MODE_STRING(pMergeNode->type));
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
       EXPLAIN_ROW_END();
       QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
 
       if (EXPLAIN_MODE_ANALYZE == ctx->mode) {
-        // sort key
-        EXPLAIN_ROW_NEW(level + 1, "Merge Key: ");
-        if (pResNode->pExecInfo) {
-          for (int32_t i = 0; i < LIST_LENGTH(pMergeNode->pMergeKeys); ++i) {
-            SOrderByExprNode *ptn = (SOrderByExprNode *)nodesListGetNode(pMergeNode->pMergeKeys, i);
-            EXPLAIN_ROW_APPEND("%s ", nodesGetNameFromColumnNode(ptn->pExpr));
-          }
-        }
-
-        EXPLAIN_ROW_END();
-        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
-
         // sort method
         EXPLAIN_ROW_NEW(level + 1, "Sort Method: ");
 
@@ -1419,7 +1435,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         EXPLAIN_ROW_APPEND_SLIMIT(pIntNode->window.node.pSlimit);
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
-        uint8_t precision = getIntervalPrecision(pIntNode);
+        uint8_t precision = qExplainGetIntervalPrecision(pIntNode);
         EXPLAIN_ROW_NEW(level + 1, EXPLAIN_TIME_WINDOWS_FORMAT,
                         INVERAL_TIME_FROM_PRECISION_TO_UNIT(pIntNode->interval, pIntNode->intervalUnit, precision),
                         pIntNode->intervalUnit, pIntNode->offset, getPrecisionUnit(precision),

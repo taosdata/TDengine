@@ -488,6 +488,7 @@ static int32_t logicMergeCopy(const SMergeLogicNode* pSrc, SMergeLogicNode* pDst
   CLONE_NODE_LIST_FIELD(pInputs);
   COPY_SCALAR_FIELD(numOfChannels);
   COPY_SCALAR_FIELD(srcGroupId);
+  COPY_SCALAR_FIELD(needSort);
   COPY_SCALAR_FIELD(groupSort);
   COPY_SCALAR_FIELD(ignoreGroupId);
   COPY_SCALAR_FIELD(inputWithGroupId);
