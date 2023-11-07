@@ -51,6 +51,7 @@ class ReleaseInfo:
         self.CustomPrompt = "taos"
         self.CustomName = "TDengine"
         self.CustomEmail = "support@taosdata.com"
+        self.UploadAgent = False
     def print(self):
         for attr in dir(self):
             if not attr.startswith("__"):
@@ -180,6 +181,7 @@ def init_build_info():
     parser.add_argument('-cp', '--cus_prompt', help='customized prompt')
     parser.add_argument('-cn', '--cus_name', help='customized name')
     parser.add_argument('-ce', '--cus_email', help='customized email')
+    parser.add_argument('-ua', '--upload_agent', help='upload taosx-agent to taosdata.com')
 
     args, unknown_args = parser.parse_known_args()
 
@@ -207,6 +209,8 @@ def init_build_info():
         release_info.CustomName = args.cus_name
     if args.cus_email:
         release_info.CustomEmail = args.cus_email
+    if args.upload_agent:
+        release_info.UploadAgent = True
     if release_info.Target == "taosx":
         sub_module.append(SubmoduleBuildInfo(taosx_name, release_info.DefaultBuildMode))
         sub_module.append(SubmoduleBuildInfo(taos_explorer_name, release_info.DefaultBuildMode))
@@ -431,6 +435,13 @@ def build_and_install_taosx_agent(mode):
     taos_cfg_path = os.path.join(release_info.InstallPath, "config")
     check_directory(taos_cfg_path)
     copy_taos_agent_cfg(taos_cfg_path)
+
+    if release_info.UploadAgent:
+        shutil.copy2(taosx_agent_path, release_info.PackageName)
+        print(f'upload {release_info.PackageName}.exe to taosdata.com')
+        os.system(f"scp {release_info.PackageName}.exe root@taosdata.com:/data/www/assets-download/3.0/")
+        print(f'upload {release_info.PackageName}.exe to tdengine.com')
+        os.system(f"scp {release_info.PackageName}.exe ubuntu@tdengine.com:/data/www/assets-download/3.0/")
 
 def build_and_install_influxdb(mode):
     print("build_and_install_influxdb on windows start...")

@@ -33,19 +33,23 @@ def release(release_info,build_info):
             build_and_install_influxdb_on_linux(info.VersionMode)
         if info.Name =='opentsdb':
             build_and_install_opentsdb_on_linux(info.VersionMode)
-        if info.Name =='taosx':
+        if info.Name =='taosx' and release_info.UploadAgent == False:
             build_and_install_taosx_on_linux(release_info, info.VersionMode)
         if info.Name =='taosx-agent':
             build_and_install_taosx_agent_on_linux(release_info, info.VersionMode)
-        if info.Name =='taos-explorer':
+        if info.Name =='taos-explorer' and release_info.UploadAgent == False:
             install_taos_explorer_on_linux(info.VersionMode)
 
     chmodReleaseDir(release_info)
-    if release_info.OnlyBuild:
-        logging.info("taosx and it's submodule build finished.")
-    else:
-        make_tar_package(release_info)
+    if release_info.UploadAgent:
+        make_agent_package(release_info)
         logging.info("release successfully")
+    else:
+        if release_info.OnlyBuild:
+            logging.info("taosx and it's submodule build finished.")
+        else:
+            make_tar_package(release_info)
+            logging.info("release successfully")
 
 
 def init_release_dir(release_info):
@@ -234,6 +238,28 @@ def replace_file_content(file, pattern, new_attribute):
 def chmodReleaseDir(release_info):
     os.chmod(os.path.join(release_dir,"bin"),0o755)
     os.chmod(os.path.join(release_dir,"plugins"),0o755)
+
+def make_agent_package(release_info):
+    logging.info("making agent package")
+    shutil.copy(os.path.join(script_dir,"uninstall.sh"),release_dir)
+    shutil.copy(os.path.join(script_dir,"install.sh"),release_dir)
+    replace_file_content(os.path.join(release_dir, "uninstall.sh"), f'target=""', f'target="{target}"')
+    replace_file_content(os.path.join(release_dir, "install.sh"), f'target=""', f'target="{target}"')
+
+    os.chmod(os.path.join(release_dir,"uninstall.sh"),0o755)
+    os.chmod(os.path.join(release_dir,"install.sh"),0o755)
+
+    os.chdir(os.path.join(release_dir,".."))
+
+    filename = f"{release_dir}-agent-{release_info.TdengineVersion}-{release_info.OS.lower()}-{release_info.CpuType.lower()}.tar.gz"
+    code = os.system(f"tar -czvf {filename} $(basename {release_dir})")
+    if code != 0:
+        raise Exception("packaging {0} failed".format(release_info.TdengineVersion))
+    else:
+        logging.info(f'upload {filename} to taosdata.com')
+        os.system(f"scp {release_dir}.tar.gz root@taosdata.com:/data/www/assets-download/3.0/")
+        logging.info(f'upload {filename} to tdengine.com')
+        os.system(f"scp {release_dir}.tar.gz ubuntu@tdengine.com:/data/www/assets-download/3.0/")
 
 def make_tar_package(release_info):
     logging.info("making tar package")
