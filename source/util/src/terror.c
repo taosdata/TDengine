@@ -147,6 +147,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_STMT_CACHE_ERROR,         "Stmt cache error")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INTERNAL_ERROR,           "Internal error")
 
 // mnode-common
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_REQ_REJECTED,             "Request rejected")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_RIGHTS,                "Insufficient privilege for operation")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_SHOWOBJ,          "Data expired")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_QUERY_ID,         "Invalid query id")
