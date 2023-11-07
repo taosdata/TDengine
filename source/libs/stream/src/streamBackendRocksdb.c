@@ -111,34 +111,34 @@ rocksdb_compactionfilter_t* compactFilteFactoryCreateFilterState(void* arg, rock
 rocksdb_compactionfilter_t* compactFilteFactoryCreateFilterFunc(void* arg, rocksdb_compactionfiltercontext_t* ctx);
 rocksdb_compactionfilter_t* compactFilteFactoryCreateFilterFill(void* arg, rocksdb_compactionfiltercontext_t* ctx);
 
-typedef int (*EncodeFunc)(void* key, char* buf);
-typedef int (*DecodeFunc)(void* key, char* buf);
-typedef int (*ToStringFunc)(void* key, char* buf);
-typedef const char* (*CompareName)(void* statue);
-typedef int (*BackendCmpFunc)(void* state, const char* aBuf, size_t aLen, const char* bBuf, size_t bLen);
-typedef void (*DestroyFunc)(void* state);
-typedef int32_t (*EncodeValueFunc)(void* value, int32_t vlen, int64_t ttl, char** dest);
-typedef int32_t (*DecodeValueFunc)(void* value, int32_t vlen, int64_t* ttl, char** dest);
+typedef int (*__db_key_encode_fn_t)(void* key, char* buf);
+typedef int (*__db_key_decode_fn_t)(void* key, char* buf);
+typedef int (*__db_key_tostr_fn_t)(void* key, char* buf);
+typedef const char* (*__db_key_cmpname_fn_t)(void* statue);
+typedef int (*__db_key_cmp_fn_t)(void* state, const char* aBuf, size_t aLen, const char* bBuf, size_t bLen);
+typedef void (*__db_destroy_cmp_fn_t)(void* state);
+typedef int32_t (*__db_value_encode_fn_t)(void* value, int32_t vlen, int64_t ttl, char** dest);
+typedef int32_t (*__db_value_decode_fn_t)(void* value, int32_t vlen, int64_t* ttl, char** dest);
 
-typedef rocksdb_compactionfilter_t* (*CreateFactoryFunc)(void* arg, rocksdb_compactionfiltercontext_t* ctx);
-typedef const char* (*FactoryNameFunc)(void* arg);
-typedef void (*DestroyFactoryFunc)(void* arg);
+typedef rocksdb_compactionfilter_t* (*__db_factory_create_fn_t)(void* arg, rocksdb_compactionfiltercontext_t* ctx);
+typedef const char* (*__db_factory_name_fn_t)(void* arg);
+typedef void (*__db_factory_destroy_fn_t)(void* arg);
 typedef struct {
-  const char*     key;
-  int32_t         len;
-  int             idx;
-  BackendCmpFunc  cmpFunc;
-  EncodeFunc      enFunc;
-  DecodeFunc      deFunc;
-  ToStringFunc    toStrFunc;
-  CompareName     cmpName;
-  DestroyFunc     detroyFunc;
-  EncodeValueFunc enValueFunc;
-  DecodeValueFunc deValueFunc;
+  const char*            key;
+  int32_t                len;
+  int                    idx;
+  __db_key_cmp_fn_t      cmpKey;
+  __db_key_encode_fn_t   enFunc;
+  __db_key_decode_fn_t   deFunc;
+  __db_key_tostr_fn_t    toStrFunc;
+  __db_key_cmpname_fn_t  cmpName;
+  __db_destroy_cmp_fn_t  destroyCmp;
+  __db_value_encode_fn_t enValueFunc;
+  __db_value_decode_fn_t deValueFunc;
 
-  CreateFactoryFunc  createFilter;
-  DestroyFactoryFunc destroyFilter;
-  FactoryNameFunc    funcName;
+  __db_factory_create_fn_t  createFilter;
+  __db_factory_destroy_fn_t destroyFilter;
+  __db_factory_name_fn_t    funcName;
 
 } SCfInit;
 
@@ -180,14 +180,15 @@ int parKeyEncode(void* k, char* buf);
 int parKeyDecode(void* k, char* buf);
 int parKeyToString(void* k, char* buf);
 
-int     stremaValueEncode(void* k, char* buf);
-int     streamValueDecode(void* k, char* buf);
-int32_t streamValueToString(void* k, char* buf);
-int32_t streaValueIsStale(void* k, int64_t ts);
-void    destroyFunc(void* arg);
+// int     stremaValueEncode(void* k, char* buf);
+// int     streamValueDecode(void* k, char* buf);
 
-int32_t encodeValueFunc(void* value, int32_t vlen, int64_t ttl, char** dest);
-int32_t decodeValueFunc(void* value, int32_t vlen, int64_t* ttl, char** dest);
+int32_t valueEncode(void* value, int32_t vlen, int64_t ttl, char** dest);
+int32_t valueDecode(void* value, int32_t vlen, int64_t* ttl, char** dest);
+int32_t valueToString(void* k, char* buf);
+int32_t valueIsStale(void* k, int64_t ts);
+
+void destroyCompare(void* arg);
 
 static bool                streamStateIterSeekAndValid(rocksdb_iterator_t* iter, char* buf, size_t len);
 static rocksdb_iterator_t* streamStateIterCreate(SStreamState* pState, const char* cfName,
@@ -199,32 +200,30 @@ uint32_t nextPow2(uint32_t x);
 
 SCfInit ginitDict[] = {
     {"default", 7, 0, defaultKeyComp, defaultKeyEncode, defaultKeyDecode, defaultKeyToString, compareDefaultName,
-     destroyFunc, encodeValueFunc, decodeValueFunc, compactFilteFactoryCreateFilter, destroyCompactFilteFactory,
+     destroyCompare, valueEncode, valueDecode, compactFilteFactoryCreateFilter, destroyCompactFilteFactory,
      compactFilteFactoryName},
 
-    {"state", 5, 1, stateKeyDBComp, stateKeyEncode, stateKeyDecode, stateKeyToString, compareStateName, destroyFunc,
-     encodeValueFunc, decodeValueFunc, compactFilteFactoryCreateFilterState, destroyCompactFilteFactory,
+    {"state", 5, 1, stateKeyDBComp, stateKeyEncode, stateKeyDecode, stateKeyToString, compareStateName, destroyCompare,
+     valueEncode, valueDecode, compactFilteFactoryCreateFilterState, destroyCompactFilteFactory,
      compactFilteFactoryNameState},
 
-    {"fill", 4, 2, winKeyDBComp, winKeyEncode, winKeyDecode, winKeyToString, compareWinKeyName, destroyFunc,
-     encodeValueFunc, decodeValueFunc, compactFilteFactoryCreateFilterFill, destroyCompactFilteFactory,
+    {"fill", 4, 2, winKeyDBComp, winKeyEncode, winKeyDecode, winKeyToString, compareWinKeyName, destroyCompare,
+     valueEncode, valueDecode, compactFilteFactoryCreateFilterFill, destroyCompactFilteFactory,
      compactFilteFactoryNameFill},
 
     {"sess", 4, 3, stateSessionKeyDBComp, stateSessionKeyEncode, stateSessionKeyDecode, stateSessionKeyToString,
-     compareSessionKeyName, destroyFunc, encodeValueFunc, decodeValueFunc, compactFilteFactoryCreateFilterSess,
+     compareSessionKeyName, destroyCompare, valueEncode, valueDecode, compactFilteFactoryCreateFilterSess,
      destroyCompactFilteFactory, compactFilteFactoryNameSess},
 
-    {"func", 4, 4, tupleKeyDBComp, tupleKeyEncode, tupleKeyDecode, tupleKeyToString, compareFuncKeyName, destroyFunc,
-     encodeValueFunc, decodeValueFunc, compactFilteFactoryCreateFilterFunc, destroyCompactFilteFactory,
+    {"func", 4, 4, tupleKeyDBComp, tupleKeyEncode, tupleKeyDecode, tupleKeyToString, compareFuncKeyName, destroyCompare,
+     valueEncode, valueDecode, compactFilteFactoryCreateFilterFunc, destroyCompactFilteFactory,
      compactFilteFactoryNameFunc},
 
-    {"parname", 7, 5, parKeyDBComp, parKeyEncode, parKeyDecode, parKeyToString, compareParKeyName, destroyFunc,
-     encodeValueFunc, decodeValueFunc, compactFilteFactoryCreateFilter, destroyCompactFilteFactory,
-     compactFilteFactoryName},
+    {"parname", 7, 5, parKeyDBComp, parKeyEncode, parKeyDecode, parKeyToString, compareParKeyName, destroyCompare,
+     valueEncode, valueDecode, compactFilteFactoryCreateFilter, destroyCompactFilteFactory, compactFilteFactoryName},
 
-    {"partag", 6, 6, parKeyDBComp, parKeyEncode, parKeyDecode, parKeyToString, comparePartagKeyName, destroyFunc,
-     encodeValueFunc, decodeValueFunc, compactFilteFactoryCreateFilter, destroyCompactFilteFactory,
-     compactFilteFactoryName},
+    {"partag", 6, 6, parKeyDBComp, parKeyEncode, parKeyDecode, parKeyToString, comparePartagKeyName, destroyCompare,
+     valueEncode, valueDecode, compactFilteFactoryCreateFilter, destroyCompactFilteFactory, compactFilteFactoryName},
 };
 
 const char* cfName[] = {"default", "state", "fill", "sess", "func", "parname", "partag"};
@@ -1583,23 +1582,23 @@ int parKeyToString(void* k, char* buf) {
   n = sprintf(buf + n, "[groupId:%" PRIi64 "]", *key);
   return n;
 }
-int stremaValueEncode(void* k, char* buf) {
-  int           len = 0;
-  SStreamValue* key = k;
-  len += taosEncodeFixedI64((void**)&buf, key->unixTimestamp);
-  len += taosEncodeFixedI32((void**)&buf, key->len);
-  len += taosEncodeBinary((void**)&buf, key->data, key->len);
-  return len;
-}
-int streamValueDecode(void* k, char* buf) {
-  SStreamValue* key = k;
-  char*         p = buf;
-  p = taosDecodeFixedI64(p, &key->unixTimestamp);
-  p = taosDecodeFixedI32(p, &key->len);
-  p = taosDecodeBinary(p, (void**)&key->data, key->len);
-  return p - buf;
-}
-int32_t streamValueToString(void* k, char* buf) {
+// int stremaValueEncode(void* k, char* buf) {
+//   int           len = 0;
+//   SStreamValue* key = k;
+//   len += taosEncodeFixedI64((void**)&buf, key->unixTimestamp);
+//   len += taosEncodeFixedI32((void**)&buf, key->len);
+//   len += taosEncodeBinary((void**)&buf, key->data, key->len);
+//   return len;
+// }
+// int streamValueDecode(void* k, char* buf) {
+//   SStreamValue* key = k;
+//   char*         p = buf;
+//   p = taosDecodeFixedI64(p, &key->unixTimestamp);
+//   p = taosDecodeFixedI32(p, &key->len);
+//   p = taosDecodeBinary(p, (void**)&key->data, key->len);
+//   return p - buf;
+// }
+int32_t valueToString(void* k, char* buf) {
   SStreamValue* key = k;
   int           n = 0;
   n += sprintf(buf + n, "[unixTimestamp:%" PRIi64 ",", key->unixTimestamp);
@@ -1609,7 +1608,7 @@ int32_t streamValueToString(void* k, char* buf) {
 }
 
 /*1: stale, 0: no stale*/
-int32_t streaValueIsStale(void* k, int64_t ts) {
+int32_t valueIsStale(void* k, int64_t ts) {
   SStreamValue* key = k;
   if (key->unixTimestamp < ts) {
     return 1;
@@ -1617,12 +1616,12 @@ int32_t streaValueIsStale(void* k, int64_t ts) {
   return 0;
 }
 
-void destroyFunc(void* arg) {
+void destroyCompare(void* arg) {
   (void)arg;
   return;
 }
 
-int32_t encodeValueFunc(void* value, int32_t vlen, int64_t ttl, char** dest) {
+int32_t valueEncode(void* value, int32_t vlen, int64_t ttl, char** dest) {
   SStreamValue key = {.unixTimestamp = ttl, .len = vlen, .data = (char*)(value)};
   int32_t      len = 0;
   if (*dest == NULL) {
@@ -1644,7 +1643,7 @@ int32_t encodeValueFunc(void* value, int32_t vlen, int64_t ttl, char** dest) {
  *  ret >= 0 : found valid value
  *  ret < 0 : error or timeout
  */
-int32_t decodeValueFunc(void* value, int32_t vlen, int64_t* ttl, char** dest) {
+int32_t valueDecode(void* value, int32_t vlen, int64_t* ttl, char** dest) {
   SStreamValue key = {0};
   char*        p = value;
   if (streamStateValueIsStale(p)) {
@@ -1875,7 +1874,7 @@ void taskDbInitOpt(STaskDbWrapper* pTaskDb) {
     SCfInit* cfPara = &ginitDict[i];
 
     rocksdb_comparator_t* compare =
-        rocksdb_comparator_create(NULL, cfPara->detroyFunc, cfPara->cmpFunc, cfPara->cmpName);
+        rocksdb_comparator_create(NULL, cfPara->destroyCmp, cfPara->cmpKey, cfPara->cmpName);
     rocksdb_options_set_comparator((rocksdb_options_t*)opt, compare);
 
     rocksdb_compactionfilterfactory_t* filterFactory =
@@ -2182,7 +2181,7 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
       SCfInit* cfPara = &ginitDict[idx];
 
       rocksdb_comparator_t* compare =
-          rocksdb_comparator_create(NULL, cfPara->detroyFunc, cfPara->cmpFunc, cfPara->cmpName);
+          rocksdb_comparator_create(NULL, cfPara->destroyCmp, cfPara->cmpKey, cfPara->cmpName);
       rocksdb_options_set_comparator((rocksdb_options_t*)cfOpts[i], compare);
       pCompare[i] = compare;
     }
@@ -2266,7 +2265,7 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
         SCfInit* cfPara = &ginitDict[i];
 
         rocksdb_comparator_t* compare =
-            rocksdb_comparator_create(NULL, cfPara->detroyFunc, cfPara->cmpFunc, cfPara->cmpName);
+            rocksdb_comparator_create(NULL, cfPara->destroyCmp, cfPara->cmpKey, cfPara->cmpName);
         rocksdb_options_set_comparator((rocksdb_options_t*)opt, compare);
 
         inst->pCompares[i] = compare;
@@ -2346,7 +2345,7 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
   for (int i = 0; i < cfLen; i++) {
     SCfInit* cf = &ginitDict[i];
 
-    rocksdb_comparator_t* compare = rocksdb_comparator_create(NULL, cf->detroyFunc, cf->cmpFunc, cf->cmpName);
+    rocksdb_comparator_t* compare = rocksdb_comparator_create(NULL, cf->destroyCmp, cf->cmpKey, cf->cmpName);
     rocksdb_options_set_comparator((rocksdb_options_t*)cfOpt[i], compare);
     pCompare[i] = compare;
   }
@@ -2684,7 +2683,7 @@ int32_t streamStateGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, cons
     if (pVLen != NULL) {
       size_t      vlen = 0;
       const char* valStr = rocksdb_iter_value(pCur->iter, &vlen);
-      *pVLen = decodeValueFunc((void*)valStr, vlen, NULL, (char**)pVal);
+      *pVLen = valueDecode((void*)valStr, vlen, NULL, (char**)pVal);
     }
 
     *pKey = pKtmp->key;
@@ -3058,7 +3057,7 @@ int32_t streamStateSessionGetKVByCur_rocksdb(SStreamStateCur* pCur, SSessionKey*
   SStateSessionKey* pKTmp = &ktmp;
   const char*       vval = rocksdb_iter_value(pCur->iter, (size_t*)&vLen);
   char*             val = NULL;
-  int32_t           len = decodeValueFunc((void*)vval, vLen, NULL, &val);
+  int32_t           len = valueDecode((void*)vval, vLen, NULL, &val);
   if (len < 0) {
     taosMemoryFree(val);
     return -1;
@@ -3152,7 +3151,7 @@ int32_t streamStateFillGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, 
   winKeyDecode(&winKey, keyStr);
 
   const char* valStr = rocksdb_iter_value(pCur->iter, &vlen);
-  int32_t     len = decodeValueFunc((void*)valStr, vlen, NULL, (char**)pVal);
+  int32_t     len = valueDecode((void*)valStr, vlen, NULL, (char**)pVal);
   if (len < 0) {
     return -1;
   }
@@ -3486,7 +3485,7 @@ int32_t streamDefaultIterGet_rocksdb(SStreamState* pState, const void* start, co
     int32_t     vlen = 0;
     const char* vval = rocksdb_iter_value(pIter, (size_t*)&vlen);
     char*       val = NULL;
-    int32_t     len = decodeValueFunc((void*)vval, vlen, NULL, NULL);
+    int32_t     len = valueDecode((void*)vval, vlen, NULL, NULL);
     if (len < 0) {
       rocksdb_iter_next(pIter);
       continue;
@@ -3542,7 +3541,7 @@ char* streamDefaultIterVal_rocksdb(void* iter, int32_t* len) {
 
   int32_t     vlen = 0;
   const char* val = rocksdb_iter_value(pCur->iter, (size_t*)&vlen);
-  *len = decodeValueFunc((void*)val, vlen, NULL, &ret);
+  *len = valueDecode((void*)val, vlen, NULL, &ret);
   if (*len < 0) {
     taosMemoryFree(ret);
     return NULL;
