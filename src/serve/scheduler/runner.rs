@@ -84,11 +84,10 @@ async fn task_opts_init(task: &Task) -> anyhow::Result<(TaskOpts, TaskNotifyRece
         _ => {}
     }
 
-    // todo! add trace id to
     let span = tracing::info_span!(
+        parent: None,
         "task::spawned",
         task.id = id,
-        trace_id = tracing::field::Empty
     );
 
     let breakpoints = load_breakpoints(id);
