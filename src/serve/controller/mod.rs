@@ -1903,6 +1903,7 @@ lazy_static::lazy_static! {
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/mqtt.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/kafka.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/en/csv.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/en/historian.yaml")).unwrap());
         for ds in &mut def {
             ds.compute();
         }
@@ -1921,6 +1922,7 @@ lazy_static::lazy_static! {
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/mqtt.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/kafka.yaml")).unwrap());
         def.push(serde_yaml::from_str(include_str!("../data_sources/cn/csv.yaml")).unwrap());
+        def.push(serde_yaml::from_str(include_str!("../data_sources/cn/historian.yaml")).unwrap());
         for ds in &mut def {
             ds.compute();
         }
