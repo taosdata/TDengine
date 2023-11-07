@@ -127,7 +127,7 @@ typedef struct {
   const char*               key;
   int32_t                   len;
   int                       idx;
-  __db_key_cmp_fn_t         cmpKey;
+  __db_key_cmp_fn_t         cmpFunc;
   __db_key_encode_fn_t      enFunc;
   __db_key_decode_fn_t      deFunc;
   __db_key_tostr_fn_t       toStrFunc;
@@ -1874,7 +1874,7 @@ void taskDbInitOpt(STaskDbWrapper* pTaskDb) {
     SCfInit* cfPara = &ginitDict[i];
 
     rocksdb_comparator_t* compare =
-        rocksdb_comparator_create(NULL, cfPara->destroyCmp, cfPara->cmpKey, cfPara->cmpName);
+        rocksdb_comparator_create(NULL, cfPara->destroyCmp, cfPara->cmpFunc, cfPara->cmpName);
     rocksdb_options_set_comparator((rocksdb_options_t*)opt, compare);
 
     rocksdb_compactionfilterfactory_t* filterFactory =
@@ -2181,7 +2181,7 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
       SCfInit* cfPara = &ginitDict[idx];
 
       rocksdb_comparator_t* compare =
-          rocksdb_comparator_create(NULL, cfPara->destroyCmp, cfPara->cmpKey, cfPara->cmpName);
+          rocksdb_comparator_create(NULL, cfPara->destroyCmp, cfPara->cmpFunc, cfPara->cmpName);
       rocksdb_options_set_comparator((rocksdb_options_t*)cfOpts[i], compare);
       pCompare[i] = compare;
     }
@@ -2265,7 +2265,7 @@ int32_t streamStateOpenBackendCf(void* backend, char* name, char** cfs, int32_t 
         SCfInit* cfPara = &ginitDict[i];
 
         rocksdb_comparator_t* compare =
-            rocksdb_comparator_create(NULL, cfPara->destroyCmp, cfPara->cmpKey, cfPara->cmpName);
+            rocksdb_comparator_create(NULL, cfPara->destroyCmp, cfPara->cmpFunc, cfPara->cmpName);
         rocksdb_options_set_comparator((rocksdb_options_t*)opt, compare);
 
         inst->pCompares[i] = compare;
@@ -2345,7 +2345,7 @@ int streamStateOpenBackend(void* backend, SStreamState* pState) {
   for (int i = 0; i < cfLen; i++) {
     SCfInit* cf = &ginitDict[i];
 
-    rocksdb_comparator_t* compare = rocksdb_comparator_create(NULL, cf->destroyCmp, cf->cmpKey, cf->cmpName);
+    rocksdb_comparator_t* compare = rocksdb_comparator_create(NULL, cf->destroyCmp, cf->cmpFunc, cf->cmpName);
     rocksdb_options_set_comparator((rocksdb_options_t*)cfOpt[i], compare);
     pCompare[i] = compare;
   }
