@@ -133,8 +133,6 @@ class AutoGen:
             if batch_size == 1 or (i > 0 and i % batch_size == 0) :
                 sql = f"insert into {child_name} values {values}"
                 tdSql.execute(sql)
-                if batch_size > 40:
-                   tdLog.info(f" insert data i={i}")
                 values = ""
 
         # end batch

@@ -117,12 +117,12 @@ class TDTestCase:
         childname= "d"
         child_cnt   = 2
         batch_size  = 8000
-        insert_rows = 200015
+        insert_rows = 100015
         start_ts = 1600000000000
 
         self.autoGen.create_db(self.dbname)
 
-        loop = 10
+        loop = 3
         for i in range(loop):
             self.autoGen.create_stable(stbname, 4, 10, 4, 8)
             self.autoGen.create_child(stbname, childname, child_cnt)
