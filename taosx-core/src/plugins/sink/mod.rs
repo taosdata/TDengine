@@ -10,13 +10,14 @@ use std::{
     any::Any,
     collections::{HashMap, HashSet},
     io::{Read, Write},
+    iter::zip,
     net::SocketAddr,
     str::FromStr,
     sync::{
         atomic::{AtomicU32, AtomicUsize, Ordering},
         Arc,
     },
-    time::Duration, iter::zip,
+    time::Duration,
 };
 use taos::{
     taos_query::{common::Describe, Manager},
@@ -440,7 +441,7 @@ async fn consume_lush_record(
                     match exec(taos, &sql.0, data_trace_id).await {
                         Ok(_) => {
                             counter!(CHILD_TABLE_CREATED, sql.2 as u64);
-                        },
+                        }
                         Err(err) => {
                             let err_str = format!("{err:#}");
                             tracing::warn!(sql = sql.0, error = err_str, "create table error");
@@ -1071,7 +1072,9 @@ async fn consume_point_record(
                                 }
                                 child_table_create_sqls.push(sql_prefix);
                                 child_table_counts_vec.push(child_table_count);
-                                for (create_child_sql, child_table_count) in zip(child_table_create_sqls, child_table_counts_vec) {
+                                for (create_child_sql, child_table_count) in
+                                    zip(child_table_create_sqls, child_table_counts_vec)
+                                {
                                     tracing::info!("create child sql: {create_child_sql}");
                                     match exec(
                                         taos.as_ref().unwrap(),
@@ -1082,8 +1085,8 @@ async fn consume_point_record(
                                     {
                                         // match taos.as_ref().unwrap().exec(&create_child_sql).await {
                                         Ok(_n) => {
-                                             counter!(CHILD_TABLE_CREATED, child_table_count as u64);
-                                        },
+                                            counter!(CHILD_TABLE_CREATED, child_table_count as u64);
+                                        }
                                         Err(err) => {
                                             tracing::warn!("create child table error: {err:#}");
                                             let err_str = err.to_string();
