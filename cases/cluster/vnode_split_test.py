@@ -11,6 +11,9 @@
 
 # -*- coding: utf-8 -*-
 
+# -*- taostest --setup=cluster/redistribute_split_test.yaml --case=cluster/vnode_split_test.py --keep -*-
+# -*- taostest --setup=cluster/redistribute_split_test_rep3.yaml --case=cluster/vnode_split_test.py --keep -*-
+
 import os
 from taostest.util.common import TDCom
 from typing import List
