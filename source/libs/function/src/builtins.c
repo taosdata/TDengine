@@ -3313,26 +3313,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
-    .name = "to_timestamp",
-    .type = FUNCTION_TYPE_TO_TIMESTAMP,
-    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
-    .translateFunc = translateToTimestamp,
-    .getEnvFunc = NULL,
-    .initFunc = NULL,
-    .sprocessFunc = toTimestampFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "to_char",
-    .type = FUNCTION_TYPE_TO_CHAR,
-    .classification = FUNC_MGT_SCALAR_FUNC,
-    .translateFunc = translateToChar,
-    .getEnvFunc = NULL,
-    .initFunc = NULL,
-    .sprocessFunc = toCharFunction,
-    .finalizeFunc = NULL
-  },
-  {
     .name = "to_iso8601",
     .type = FUNCTION_TYPE_TO_ISO8601,
     .classification = FUNC_MGT_SCALAR_FUNC,
@@ -3707,6 +3687,26 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = qVgIdFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "to_timestamp",
+    .type = FUNCTION_TYPE_TO_TIMESTAMP,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
+    .translateFunc = translateToTimestamp,
+    .getEnvFunc = NULL,
+    .initFunc = NULL,
+    .sprocessFunc = toTimestampFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "to_char",
+    .type = FUNCTION_TYPE_TO_CHAR,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateToChar,
+    .getEnvFunc = NULL,
+    .initFunc = NULL,
+    .sprocessFunc = toCharFunction,
     .finalizeFunc = NULL
   },
   
