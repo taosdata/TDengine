@@ -28,6 +28,7 @@
 #define MIN_NUM_OF_ROW_BUFF            10240
 
 #define TASK_KEY                       "streamFileState"
+#define STREAM_STATE_INFO_NAME         "StreamStateCheckPoint"
 
 struct SStreamFileState {
   SList*   usedBuffs;
@@ -192,15 +193,13 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
     recoverSesssion(pFileState, checkpointId);
   }
 
-  char    keyBuf[128] = {0};
   void*   valBuf = NULL;
   int32_t len = 0;
-  sprintf(keyBuf, "%s:%" PRId64 "", TASK_KEY, ((SStreamState*)pFileState->pFileStore)->checkPointId);
-  int32_t code = streamDefaultGet_rocksdb(pFileState->pFileStore, keyBuf, &valBuf, &len);
+  int32_t code = streamDefaultGet_rocksdb(pFileState->pFileStore, STREAM_STATE_INFO_NAME, &valBuf, &len);
   if (code == TSDB_CODE_SUCCESS) {
     ASSERT(len == sizeof(TSKEY));
     streamFileStateDecode(&pFileState->flushMark, valBuf, len);
-    qDebug("===stream===flushMark  read:%" PRId64 ",checkpointid:%" PRId64, pFileState->flushMark, ((SStreamState*)pFileState->pFileStore)->checkPointId);
+    qDebug("===stream===flushMark  read:%" PRId64, pFileState->flushMark);
   }
 
   return pFileState;
@@ -600,24 +599,12 @@ int32_t flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, 
          pFileState->id, numOfElems, BATCH_LIMIT, elapsed);
 
   if (flushState) {
-    {
-      char    keyBuf[128] = {0};
-      void*   valBuf = NULL;
-      int32_t len = 0;
-      sprintf(keyBuf, "%s:%" PRId64 "", TASK_KEY, ((SStreamState*)pFileState->pFileStore)->checkPointId);
-      streamFileStateEncode(&pFileState->flushMark, &valBuf, &len);
-      qDebug("===stream===flushMark write:%" PRId64 ",checkpoint id:%" PRId64, pFileState->flushMark, ((SStreamState*)pFileState->pFileStore)->checkPointId);
-      streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len, 0);
-      taosMemoryFree(valBuf);
-    }
-    {
-      char    keyBuf[128] = {0};
-      char    valBuf[64] = {0};
-      int32_t len = 0;
-      memcpy(keyBuf, TASK_KEY, strlen(TASK_KEY));
-      len = sprintf(valBuf, "%" PRId64 "", ((SStreamState*)pFileState->pFileStore)->checkPointId);
-      code = streamStatePutBatch(pFileState->pFileStore, "default", batch, keyBuf, valBuf, len, 0);
-    }
+    void*   valBuf = NULL;
+    int32_t len = 0;
+    streamFileStateEncode(&pFileState->flushMark, &valBuf, &len);
+    qDebug("===stream===flushMark write:%" PRId64, pFileState->flushMark);
+    streamStatePutBatch(pFileState->pFileStore, "default", batch, STREAM_STATE_INFO_NAME, valBuf, len, 0);
+    taosMemoryFree(valBuf);
     streamStatePutBatch_rocksdb(pFileState->pFileStore, batch);
   }
 
