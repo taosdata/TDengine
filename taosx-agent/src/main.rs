@@ -13,19 +13,17 @@ use file_rotate::{
 use time::macros::format_description;
 use time::UtcOffset;
 use tracing_subscriber::{
-    fmt::{format::FmtSpan, time::OffsetTime},
-    prelude::__tracing_subscriber_SubscriberExt,
-    util::SubscriberInitExt,
+    fmt::time::OffsetTime, prelude::__tracing_subscriber_SubscriberExt, util::SubscriberInitExt,
     Layer as _,
 };
 use twelf::{config, Layer};
 
-use tracing::{log::LevelFilter, Level};
-
+use taosx_core::utils::trace::TaosXLayer;
 use taosx_core::{
     get_log_dir, get_log_keep_days, set_env_data_dir, set_env_log_home_dir, set_env_log_keep_days,
     set_env_plugins_home_dir, Activity, RespAction,
 };
+use tracing::{log::LevelFilter, Level};
 
 const LOG_FILE: &str = "agent.log";
 
@@ -323,20 +321,14 @@ fn main() -> anyhow::Result<()> {
 
     let mut layers = Vec::new();
 
+    // Add layer for rotating logs
     layers.push(
-        tracing_subscriber::fmt::layer()
-            .with_timer(timer.clone())
-            .with_level(true)
-            .with_thread_ids(true)
-            .with_thread_names(true)
-            .with_span_events(FmtSpan::NONE)
-            .with_file(true)
-            .with_line_number(true)
-            .with_ansi(false)
+        TaosXLayer::new()
             .with_writer(non_blocking)
             .with_filter(level_filter)
             .boxed(),
     );
+
     if atty::is(atty::Stream::Stdout) {
         cfg_if::cfg_if! {
             if #[cfg(windows)] {

@@ -5,12 +5,15 @@ use arrow_flight::{error::FlightError, FlightData, PutResult};
 use chrono::Utc;
 use futures::{Stream, TryStreamExt};
 use futures_util::StreamExt;
+use parquet::data_type::AsBytes;
 use taos::{AsyncBindable, AsyncQueryable, AsyncTBuilder, Dsn, Stmt, TaosBuilder};
 use taosx_core::{
-    sink::IpcErrorStrategy, ConnectorLicense, IpcStreamWorker, Parser, METRICS_TIME_START,
+    sink::IpcErrorStrategy,
+    utils::trace::{get_data_trace_id_str, set_data_trace_id_for_current_span},
+    ConnectorLicense, IpcStreamWorker, Parser, METRICS_TIME_START,
 };
 use tonic::{Status, Streaming};
-use tracing::{debug, Instrument};
+use tracing::{debug, instrument, Instrument, Span};
 
 use crate::serve::{
     controller::{transferred::ConnectorTransferred, TaskActivity, TaskControllerRef, TaskDetail},
@@ -23,6 +26,13 @@ pub struct PutStream {
     controller: TaskControllerRef,
     task_id: i64,
     notify_sender: AgentNotifySender,
+}
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+struct AppMetadata {
+    data_trace_id: u64,
 }
 
 impl PutStream {
@@ -39,13 +49,16 @@ impl PutStream {
             notify_sender,
         }
     }
+
+    #[instrument(skip_all, name="put_stream", fields(task.id=%self.task_id))]
     pub async fn into_flight_put_result(
         self,
+        stream_trace_id: String,
     ) -> anyhow::Result<impl Stream<Item = Result<PutResult, Status>> + std::marker::Send> {
         // todo: directly use task detail instead of id.
         // dbg!(&self.task_id);
-        tracing::debug!("Put stream by id {}", self.task_id);
-
+        set_data_trace_id_for_current_span(stream_trace_id.as_str());
+        tracing::info!("Put stream by task id {}", self.task_id,);
         let task = self
             .controller
             .get(self.task_id)
@@ -151,15 +164,7 @@ impl PutStream {
             _ => None,
         };
 
-        // todo! add trace id to
-        let span = tracing::info_span!(
-            "task::spawned",
-            task.id = task.id,
-            trace_id = tracing::field::Empty
-        );
-
         // let transferred = self.controller.transferred.get((cluster_id, ))
-        let span_clone = span.clone();
         async fn ipc_stream_writer(
             notify_sender: AgentNotifySender,
             agent_id: i64,
@@ -167,8 +172,8 @@ impl PutStream {
             pool: &taos::TaosPool,
             lock: Arc<tokio::sync::Mutex<()>>,
             schema: Arc<arrow::datatypes::Schema>,
-            tx: flume::Sender<arrow::record_batch::RecordBatch>,
-            rx: flume::Receiver<arrow::record_batch::RecordBatch>,
+            tx: flume::Sender<(arrow::record_batch::RecordBatch, u64)>,
+            rx: flume::Receiver<(arrow::record_batch::RecordBatch, u64)>,
             // rsp_tx: flume::Sender<anyhow::Result<()>>,
             license: Option<ConnectorLicense>,
             _transferred: Option<Arc<ConnectorTransferred>>,
@@ -190,7 +195,7 @@ impl PutStream {
                 schema,
                 license,
                 None,
-                span.clone(),
+                span,
                 Some(task.id),
             )
             .await?;
@@ -201,11 +206,13 @@ impl PutStream {
             tracing::info!("Start IPC stream writer");
             loop {
                 match rx.recv_async().await {
-                    Ok(record) => {
+                    Ok((record, trace_id)) => {
+                        let trace_id_str = get_data_trace_id_str(trace_id);
+                        tracing::info!("receive batch {trace_id_str}");
                         tracing::debug!(columns = ?record.columns(), num.rows = record.num_rows(), num.columns = record.num_columns(),
                                 "Start writing records");
                         if let Err(err) = worker
-                            .process_record(&mut stmt, record.clone(), parser.as_ref())
+                            .process_record(&mut stmt, record.clone(), parser.as_ref(), trace_id)
                             .await
                         {
                             tracing::warn!(
@@ -233,8 +240,12 @@ impl PutStream {
                                 )?;
                                 bail!("{err:#}");
                             }
-                            tracing::warn!("Can't write batch to database, err: {}", err);
-                            tx.send_async(record).await?;
+                            tracing::warn!(
+                                "Can't write batch {} to database, err: {}",
+                                trace_id,
+                                err
+                            );
+                            tx.send_async((record, trace_id)).await?;
                         }
                     }
                     Err(err) => {
@@ -259,7 +270,7 @@ impl PutStream {
                     // rsp_tx,
                     license,
                     transferred,
-                    span,
+                    Span::current(),
                     abort_message_tx,
                     ipc_error_strategy,
                 )
@@ -269,7 +280,7 @@ impl PutStream {
                     tracing::warn!("IPC stream writer stopped, err:{:?}", err);
                 }
             }
-            .instrument(span_clone),
+            .in_current_span(),
         );
 
         let stream = stream
@@ -277,9 +288,10 @@ impl PutStream {
             .map(|(message, tx)| {
                 let message = message?;
                 let app_metadata = message.app_metadata();
+                let trace_id: u64 = get_trace_id_from_app_meta(&app_metadata);
                 Ok(match message.payload {
                     arrow_flight::decode::DecodedPayload::RecordBatch(batch) => {
-                        if let Err(err) = tx.send(batch) {
+                        if let Err(err) = tx.send((batch, trace_id)) {
                             tracing::warn!("Channel send err: {}", err.to_string());
                             return Err(FlightError::ExternalError(Box::new(err)));
                         } else {
@@ -301,3 +313,14 @@ impl PutStream {
 
 unsafe impl Sync for PutStream {}
 unsafe impl Send for PutStream {}
+
+fn get_trace_id_from_app_meta(app_metadata: &bytes::Bytes) -> u64 {
+    let meta_bytes = app_metadata.as_bytes();
+    match serde_json::from_slice::<AppMetadata>(meta_bytes) {
+        Ok(app_meta) => app_meta.data_trace_id,
+        Err(err) => {
+            tracing::error!("parse app metadata error, {}", err);
+            0
+        }
+    }
+}

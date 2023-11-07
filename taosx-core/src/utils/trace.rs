@@ -27,7 +27,7 @@ pub struct TraceID {
 
 /// Hex string representation of Query ID stored in its [extensions]
 #[derive(Clone)]
-pub struct QueryID {
+pub struct DataTraceID {
     pub hex: String,
 }
 
@@ -217,8 +217,8 @@ where
                 trace_buf.push(',')
             }
             // collect query id
-            if let Some(query_id) = extension.get::<QueryID>() {
-                trace_buf.push_str("QID:");
+            if let Some(query_id) = extension.get::<DataTraceID>() {
+                trace_buf.push_str("DTID:");
                 trace_buf.push_str(query_id.hex.as_str());
                 trace_buf.push(',')
             }
@@ -236,9 +236,7 @@ where
     }
 }
 
-///
 /// Explicitly set a trace ID for current span.
-///
 pub fn set_trace_id_for_current_span(tid: &str) {
     tracing::dispatcher::get_default(|dispatch| {
         let registry = dispatch
@@ -254,9 +252,7 @@ pub fn set_trace_id_for_current_span(tid: &str) {
     });
 }
 
-///
 /// Find the first trace ID in current span chain, and set it to provided span.
-///
 pub fn attach_trace_id(target_span: &Span) {
     tracing::dispatcher::get_default(|dispatch| {
         let registry = dispatch
@@ -281,20 +277,42 @@ pub fn attach_trace_id(target_span: &Span) {
     });
 }
 
-/// TODO: 生成 Query ID
-pub fn create_query_id() -> u64 {
-    0
-}
-pub fn set_query_id_for_current_span(query_id: u64) {
+pub fn set_data_trace_id_for_current_span(trace_id: &str) {
     tracing::dispatcher::get_default(|dispatch| {
         let registry = dispatch
             .downcast_ref::<Registry>()
             .expect("no global default dispatcher found");
         if let Some((id, _meta)) = dispatch.current_span().into_inner() {
-            let hex_query_id = format!("{:#016x}", query_id);
+            let hex_trace_id = String::from(trace_id);
             let span = registry.span(&id).unwrap();
             let mut ext = span.extensions_mut();
-            ext.replace(QueryID { hex: hex_query_id });
+            ext.replace(DataTraceID { hex: hex_trace_id });
         }
     });
+}
+
+/// Stream Trace ID is 16 bits random number in hex format.
+pub fn create_stream_trace_id() -> String {
+    let id = random::<u16>();
+    let mut hex_str = format!("{:#04x}", id);
+    // remove heading "0x"
+    hex_str.remove(0);
+    hex_str.remove(0);
+    hex_str
+}
+
+#[inline]
+pub fn create_data_trace_id(stream_trace_id: u64, batch_number: u32) -> u64 {
+    (stream_trace_id << 48) + (u64::from(batch_number) << 16)
+}
+
+pub fn get_data_trace_id_str(data_trace_id: u64) -> String {
+    let mut s = format!("{:#016x}", data_trace_id);
+    s.truncate(14);
+    s
+}
+
+#[inline]
+pub fn create_query_id(data_trace_id: u64) -> u64 {
+    data_trace_id + (random::<u64>() >> 48)
 }
