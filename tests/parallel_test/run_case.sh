@@ -84,7 +84,7 @@ pip3 install  --default-timeout=120 taospy==2.7.12
 #define taos-ws-py 0.3.1
 pip3 list|grep taos-ws-py
 pip3 uninstall taos-ws-py -y
-pip3 install --default-timeout=120 taos-ws-py==0.3.1
+pip3 install --default-timeout=600 taos-ws-py==0.3.1
 
 $TIMEOUT_CMD $cmd
 RET=$?
