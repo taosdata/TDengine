@@ -148,6 +148,7 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chk
       taosMemoryFree(tdir);
       return code;
     }
+    pHandle->delFlag = 1;
     chkpId = 0;
   }
 
@@ -308,7 +309,6 @@ int32_t streamSnapReaderOpen(void* pMeta, int64_t sver, int64_t chkpId, char* pa
     taosMemoryFree(pReader);
     return -1;
   }
-  pReader->handle.delFlag = 1;
 
   *ppReader = pReader;
 
