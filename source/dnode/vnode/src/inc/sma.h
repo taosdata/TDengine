@@ -140,7 +140,7 @@ struct SRSmaInfoItem {
   int8_t   level;
   int8_t   fetchLevel;
   int8_t   triggerStat;
-  uint32_t nScanned;
+  int32_t  nScanned;
   int32_t  streamFlushed : 1;
   int32_t  maxDelay : 31;  // ms
   tmr_h    tmrId;

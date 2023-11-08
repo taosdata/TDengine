@@ -22,7 +22,7 @@
 #define RSMA_FETCH_DELAY_MAX       (120000)  // ms
 #define RSMA_FETCH_ACTIVE_MAX      (1000)    // ms
 #define RSMA_FETCH_INTERVAL        (5000)    // ms
-#define RSMA_TASK_FLAG             "rsma_task"
+#define RSMA_TASK_FLAG             "rsma"
 
 #define RSMA_NEED_FETCH(r) (RSMA_INFO_ITEM((r), 0)->fetchLevel || RSMA_INFO_ITEM((r), 1)->fetchLevel)
 
@@ -1368,7 +1368,7 @@ static int32_t tdRSmaFetchAllResult(SSma *pSma, SRSmaInfo *pInfo) {
 
 #if 0
       if ((++pItem->nScanned * pItem->maxDelay) > RSMA_FETCH_DELAY_MAX) {
-        smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi16 " maxDelay:%d, fetch executed",
+        smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi32 " maxDelay:%d, fetch executed",
                  SMA_VID(pSma), pInfo->suid, i, pItem->nScanned, pItem->maxDelay);
       } else {
         int64_t curMs = taosGetTimestampMs();
@@ -1393,10 +1393,10 @@ static int32_t tdRSmaFetchAllResult(SSma *pSma, SRSmaInfo *pInfo) {
         goto _err;
       }
 
-      smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi16 " maxDelay:%d, fetch finished",
+      smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi32 " maxDelay:%d, fetch finished",
                SMA_VID(pSma), pInfo->suid, i, pItem->nScanned, pItem->maxDelay);
     } else {
-      smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi16
+      smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi32
                " maxDelay:%d, fetch not executed as fetch level is %" PRIi8,
                SMA_VID(pSma), pInfo->suid, i, pItem->nScanned, pItem->maxDelay, pItem->fetchLevel);
     }
