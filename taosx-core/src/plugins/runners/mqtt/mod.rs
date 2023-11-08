@@ -1,11 +1,13 @@
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
+use std::time::Duration;
 use std::{fs, io::Write, path::PathBuf, sync::Arc};
 
 use anyhow::Context;
 use itertools::Itertools;
 use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
+use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
 use tracing::Span;
 
@@ -185,7 +187,7 @@ pub async fn mqtt_to_taos(
         },
     }
 
-    let _ = child.kill().await;
+    let _ = child.terminate_timeout(Duration::from_secs(2)).await;
     tracing::info!("mqtt to taos task done");
     safe_exit!();
     Ok(())
