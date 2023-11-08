@@ -159,7 +159,8 @@ int32_t streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInpu
 
   // no available token in bucket for sink task, let's wait for a little bit
   if (taskLevel == TASK_LEVEL__SINK && (!streamTaskExtractAvailableToken(pTask->outputInfo.pTokenBucket, pTask->id.idStr))) {
-    stDebug("s-task:%s no available token in bucket for sink data, wait for 50ms", id);
+    stDebug("s-task:%s no available token in bucket for sink data, wait for 10ms", id);
+    taosMsleep(10);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -340,10 +341,11 @@ int32_t streamTaskPutDataIntoInputQ(SStreamTask* pTask, SStreamQueueItem* pItem)
   return 0;
 }
 
-// the result should be put into the outputQ in any cases, otherwise, the result may be lost
+// the result should be put into the outputQ in any cases, the result may be lost otherwise.
 int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBlock) {
   STaosQueue* pQueue = pTask->outputq.queue->pQueue;
 
+  // wait for the output queue is available for new data to dispatch
   while (streamQueueIsFull(pTask->outputq.queue)) {
     if (streamTaskShouldStop(pTask)) {
       stInfo("s-task:%s discard result block due to task stop", pTask->id.idStr);
@@ -373,7 +375,8 @@ int32_t streamTaskPutDataIntoOutputQ(SStreamTask* pTask, SStreamDataBlock* pBloc
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate) {
+int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate,
+                                  const char* id) {
   if (numCap < 10 || numRate < 10 || pBucket == NULL) {
     stError("failed to init sink task bucket, cap:%d, rate:%d", numCap, numRate);
     return TSDB_CODE_INVALID_PARA;
@@ -388,6 +391,7 @@ int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t
   pBucket->quotaRemain = pBucket->quotaCapacity;
 
   pBucket->fillTimestamp = taosGetTimestampMs();
+  stDebug("s-task:%s sink quotaRate:%.2fMiB, numRate:%d", id, quotaRate, numRate);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -406,12 +410,12 @@ static void fillTokenBucket(STokenBucket* pBucket, const char* id) {
   double incSize = (delta / 1000.0) * pBucket->quotaRate;
   if (incSize > 0) {
     pBucket->quotaRemain = TMIN(pBucket->quotaRemain + incSize, pBucket->quotaCapacity);
+    pBucket->fillTimestamp = now;
   }
 
   if (incNum > 0 || incSize > 0) {
-    stDebug("new token and capacity available, current token:%d inc:%d, current quota:%.2fMiB inc:%.2fMiB, ts:%" PRId64
-            " idle for %.2f Sec, %s",
-            pBucket->numOfToken, incNum, pBucket->quotaRemain, incSize, now, delta / 1000.0, id);
+    stTrace("token/quota available, token:%d inc:%d, quota:%.2fMiB inc:%.3fMiB, ts:%" PRId64 " idle:%" PRId64 "ms, %s",
+            pBucket->numOfToken, incNum, pBucket->quotaRemain, incSize, now, delta, id);
   }
 }
 
