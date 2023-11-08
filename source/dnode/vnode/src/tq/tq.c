@@ -1702,13 +1702,12 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
     return TSDB_CODE_SUCCESS;
   }
 
-  // todo handle failure to reset from checkpoint procedure
-  // downstream not ready, current the stream tasks are not all ready. Ignore this checkpoint req.
+  // Downstream not ready, current the stream tasks are not all ready. Ignore this checkpoint req.
   if (pTask->status.downstreamReady != 1) {
     pTask->chkInfo.failedId = req.checkpointId;  // record the latest failed checkpoint id
     pTask->checkpointingId = req.checkpointId;
 
-    qError("s-task:%s not ready for checkpoint, since downstream not ready, ignore this checkpoint:%" PRId64
+    tqError("s-task:%s not ready for checkpoint, since downstream not ready, ignore this checkpoint:%" PRId64
            ", set it failure",
            pTask->id.idStr, req.checkpointId);
     streamMetaReleaseTask(pMeta, pTask);
@@ -1735,6 +1734,8 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
     tmsgSendRsp(&rsp);  // error occurs
     return TSDB_CODE_SUCCESS;
   }
+
+  // todo: already in checkpoint status, return error
   streamProcessCheckpointSourceReq(pTask, &req);
   taosThreadMutexUnlock(&pTask->lock);
 
