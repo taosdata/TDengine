@@ -3968,7 +3968,7 @@ static bool isOperatorTbnameInCond(STranslateContext* pCxt, SOperatorNode* pOper
   if (pOperator->opType != OP_TYPE_IN) return false;
   if (nodeType(pOperator->pLeft) != QUERY_NODE_FUNCTION ||
       ((SFunctionNode*)(pOperator->pLeft))->funcType != FUNCTION_TYPE_TBNAME ||
-      nodeType(pOperator->pRight) == QUERY_NODE_NODE_LIST) {
+      nodeType(pOperator->pRight) != QUERY_NODE_NODE_LIST) {
     return false;
   }
 
