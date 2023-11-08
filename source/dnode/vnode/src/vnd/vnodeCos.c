@@ -24,7 +24,7 @@ static S3UriStyle uriStyleG = S3UriStylePath;
 static int        retriesG = 5;
 static int        timeoutMsG = 0;
 
-static int32_t s3Begin() {
+int32_t s3Begin() {
   S3Status    status;
   const char *hostname = tsS3Hostname;
   const char *env_hn = getenv("S3_HOSTNAME");
@@ -43,10 +43,12 @@ static int32_t s3Begin() {
   return 0;
 }
 
-static void s3End() { S3_deinitialize(); }
-int32_t     s3Init() { return s3Begin(); }
+void s3End() { S3_deinitialize(); }
 
-void s3CleanUp() { s3End(); }
+int32_t s3Init() { return 0; /*s3Begin();*/ }
+
+void s3CleanUp() { /*s3End();*/
+}
 
 static int should_retry() {
   /*
