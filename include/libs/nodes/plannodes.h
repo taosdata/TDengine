@@ -145,6 +145,7 @@ typedef struct SAggLogicNode {
   bool       hasGroupKeyOptimized;
   bool       isGroupTb;
   bool       isPartTb;  // true if partition keys has tbname
+  bool       hasGroup;
 } SAggLogicNode;
 
 typedef struct SProjectLogicNode {

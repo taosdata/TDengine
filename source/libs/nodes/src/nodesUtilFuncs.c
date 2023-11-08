@@ -1571,6 +1571,19 @@ int32_t nodesListStrictAppendList(SNodeList* pTarget, SNodeList* pSrc) {
   return code;
 }
 
+
+int32_t nodesListMakeStrictAppendList(SNodeList** pTarget, SNodeList* pSrc) {
+  if (NULL == *pTarget) {
+    *pTarget = nodesMakeList();
+    if (NULL == *pTarget) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return nodesListStrictAppendList(*pTarget, pSrc);
+}
+
+
 int32_t nodesListPushFront(SNodeList* pList, SNode* pNode) {
   if (NULL == pList || NULL == pNode) {
     return TSDB_CODE_FAILED;

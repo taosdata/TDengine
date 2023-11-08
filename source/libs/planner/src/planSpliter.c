@@ -1588,9 +1588,12 @@ typedef struct SSmaIndexSplitInfo {
 static bool smaIdxSplFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode,
                                    SSmaIndexSplitInfo* pInfo) {
   if (QUERY_NODE_LOGIC_PLAN_MERGE == nodeType(pNode) && LIST_LENGTH(pNode->pChildren) > 1) {
-    pInfo->pMerge = (SMergeLogicNode*)pNode;
-    pInfo->pSubplan = pSubplan;
-    return true;
+    int32_t nodeType = nodeType(nodesListGetNode(pNode->pChildren, 0));
+    if (nodeType == QUERY_NODE_LOGIC_PLAN_EXCHANGE || nodeType == QUERY_NODE_LOGIC_PLAN_MERGE) {
+      pInfo->pMerge = (SMergeLogicNode*)pNode;
+      pInfo->pSubplan = pSubplan;
+      return true;
+    }
   }
   return false;
 }

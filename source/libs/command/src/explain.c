@@ -625,7 +625,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
     }
     case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG: {
       SAggPhysiNode *pAggNode = (SAggPhysiNode *)pNode;
-      EXPLAIN_ROW_NEW(level, EXPLAIN_AGG_FORMAT, (pAggNode->pGroupKeys ? "Group" : "Aggragate"));
+      EXPLAIN_ROW_NEW(level, EXPLAIN_AGG_FORMAT, (pAggNode->pGroupKeys ? "GroupAggragate" : "Aggragate"));
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen));
@@ -1152,24 +1152,26 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
 
       if (EXPLAIN_MODE_ANALYZE == ctx->mode) {
-        // sort method
-        EXPLAIN_ROW_NEW(level + 1, "Sort Method: ");
+        if (MERGE_TYPE_SORT == pMergeNode->type) {
+          // sort method
+          EXPLAIN_ROW_NEW(level + 1, "Sort Method: ");
 
-        int32_t           nodeNum = taosArrayGetSize(pResNode->pExecInfo);
-        SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, 0);
-        SSortExecInfo    *pExecInfo = (SSortExecInfo *)execInfo->verboseInfo;
-        EXPLAIN_ROW_APPEND("%s", pExecInfo->sortMethod == SORT_QSORT_T ? "quicksort" : "merge sort");
-        if (pExecInfo->sortBuffer > 1024 * 1024) {
-          EXPLAIN_ROW_APPEND("  Buffers:%.2f Mb", pExecInfo->sortBuffer / (1024 * 1024.0));
-        } else if (pExecInfo->sortBuffer > 1024) {
-          EXPLAIN_ROW_APPEND("  Buffers:%.2f Kb", pExecInfo->sortBuffer / (1024.0));
-        } else {
-          EXPLAIN_ROW_APPEND("  Buffers:%d b", pExecInfo->sortBuffer);
+          int32_t           nodeNum = taosArrayGetSize(pResNode->pExecInfo);
+          SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, 0);
+          SSortExecInfo    *pExecInfo = (SSortExecInfo *)execInfo->verboseInfo;
+          EXPLAIN_ROW_APPEND("%s", pExecInfo->sortMethod == SORT_QSORT_T ? "quicksort" : "merge sort");
+          if (pExecInfo->sortBuffer > 1024 * 1024) {
+            EXPLAIN_ROW_APPEND("  Buffers:%.2f Mb", pExecInfo->sortBuffer / (1024 * 1024.0));
+          } else if (pExecInfo->sortBuffer > 1024) {
+            EXPLAIN_ROW_APPEND("  Buffers:%.2f Kb", pExecInfo->sortBuffer / (1024.0));
+          } else {
+            EXPLAIN_ROW_APPEND("  Buffers:%d b", pExecInfo->sortBuffer);
+          }
+
+          EXPLAIN_ROW_APPEND("  loops:%d", pExecInfo->loops);
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
         }
-
-        EXPLAIN_ROW_APPEND("  loops:%d", pExecInfo->loops);
-        EXPLAIN_ROW_END();
-        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
       }
 
       if (verbose) {
@@ -1183,29 +1185,31 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
 
-        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_OUTPUT_FORMAT);
-        EXPLAIN_ROW_APPEND(EXPLAIN_IGNORE_GROUPID_FORMAT, pMergeNode->ignoreGroupId ? "true" : "false");
-        EXPLAIN_ROW_END();
-        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+        if (MERGE_TYPE_SORT == pMergeNode->type) {
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_OUTPUT_FORMAT);
+          EXPLAIN_ROW_APPEND(EXPLAIN_IGNORE_GROUPID_FORMAT, pMergeNode->ignoreGroupId ? "true" : "false");
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
 
-        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_MERGE_KEYS_FORMAT);
-        if (pMergeNode->groupSort) {
-          EXPLAIN_ROW_APPEND(EXPLAIN_STRING_TYPE_FORMAT, "_group_id asc");
-          if (LIST_LENGTH(pMergeNode->pMergeKeys) > 0) {
-            EXPLAIN_ROW_APPEND(EXPLAIN_COMMA_FORMAT);
+          EXPLAIN_ROW_NEW(level + 1, EXPLAIN_MERGE_KEYS_FORMAT);
+          if (pMergeNode->groupSort) {
+            EXPLAIN_ROW_APPEND(EXPLAIN_STRING_TYPE_FORMAT, "_group_id asc");
+            if (LIST_LENGTH(pMergeNode->pMergeKeys) > 0) {
+              EXPLAIN_ROW_APPEND(EXPLAIN_COMMA_FORMAT);
+            }
           }
-        }
-        for (int32_t i = 0; i < LIST_LENGTH(pMergeNode->pMergeKeys); ++i) {
-          SOrderByExprNode *ptn = (SOrderByExprNode *)nodesListGetNode(pMergeNode->pMergeKeys, i);
-          EXPLAIN_ROW_APPEND(EXPLAIN_STRING_TYPE_FORMAT, nodesGetNameFromColumnNode(ptn->pExpr));
-          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
-          EXPLAIN_ROW_APPEND(EXPLAIN_STRING_TYPE_FORMAT, EXPLAIN_ORDER_STRING(ptn->order));
-          if (i != LIST_LENGTH(pMergeNode->pMergeKeys) - 1) {
-            EXPLAIN_ROW_APPEND(EXPLAIN_COMMA_FORMAT);
+          for (int32_t i = 0; i < LIST_LENGTH(pMergeNode->pMergeKeys); ++i) {
+            SOrderByExprNode *ptn = (SOrderByExprNode *)nodesListGetNode(pMergeNode->pMergeKeys, i);
+            EXPLAIN_ROW_APPEND(EXPLAIN_STRING_TYPE_FORMAT, nodesGetNameFromColumnNode(ptn->pExpr));
+            EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+            EXPLAIN_ROW_APPEND(EXPLAIN_STRING_TYPE_FORMAT, EXPLAIN_ORDER_STRING(ptn->order));
+            if (i != LIST_LENGTH(pMergeNode->pMergeKeys) - 1) {
+              EXPLAIN_ROW_APPEND(EXPLAIN_COMMA_FORMAT);
+            }
           }
+          EXPLAIN_ROW_END();
+          QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
         }
-        EXPLAIN_ROW_END();
-        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
 
         if (pMergeNode->node.pConditions) {
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILTER_FORMAT);
