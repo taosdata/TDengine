@@ -846,14 +846,14 @@ static void tLDataIterPinSttBlock(SLDataIter* pIter, const char* id) {
   if (pInfo->blockData[0].sttBlockIndex == pIter->iSttBlk) {
     pInfo->blockData[0].pin = true;
     ASSERT(!pInfo->blockData[1].pin);
-    tsdbDebug("pin stt-block, blockIndex:%d, stt-fileVer:%" PRId64 " %s", pIter->iSttBlk, pIter->cid, id);
+    tsdbTrace("pin stt-block, blockIndex:%d, stt-fileVer:%" PRId64 " %s", pIter->iSttBlk, pIter->cid, id);
     return;
   }
 
   if (pInfo->blockData[1].sttBlockIndex == pIter->iSttBlk) {
     pInfo->blockData[1].pin = true;
     ASSERT(!pInfo->blockData[0].pin);
-    tsdbDebug("pin stt-block, blockIndex:%d, stt-fileVer:%"PRId64" %s", pIter->iSttBlk, pIter->cid, id);
+    tsdbTrace("pin stt-block, blockIndex:%d, stt-fileVer:%"PRId64" %s", pIter->iSttBlk, pIter->cid, id);
     return;
   }
 
