@@ -283,7 +283,7 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
         int32_t batch = num >> 2;
         int32_t remain = num & 0x03;
         if (selector == 0 || selector == 1) {
-          if (tsAVX2Enable && tsSIMDBuiltins) {
+          if (tsAVX2Enable && tsSIMDEnable) {
             for (int32_t i = 0; i < batch; ++i) {
               __m256i prev = _mm256_set1_epi64x(prev_value);
               _mm256_storeu_si256((__m256i *)&p[_pos], prev);
@@ -300,7 +300,7 @@ int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, cha
             }
           }
         } else {
-          if (tsAVX2Enable && tsSIMDBuiltins) {
+          if (tsAVX2Enable && tsSIMDEnable) {
             __m256i base = _mm256_set1_epi64x(w);
             __m256i maskVal = _mm256_set1_epi64x(mask);
 
