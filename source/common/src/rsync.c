@@ -141,7 +141,7 @@ void startRsync(){
   }
 
   char cmd[PATH_MAX] = {0};
-  snprintf(cmd, PATH_MAX, "rsync --daemon --config=%s", confDir);
+  snprintf(cmd, PATH_MAX, "rsync --daemon --port=%d --config=%s", tsRsyncPort, confDir);
   // start rsync service to backup checkpoint
   code = system(cmd);
   if(code != 0){
@@ -168,7 +168,7 @@ int uploadRsync(char* id, char* path){
 #else
              path
 #endif
-             , tsSnodeIp, id);
+             , tsSnodeAddress, id);
   }else{
     snprintf(command, PATH_MAX, "rsync -av --delete --timeout=10 --bwlimit=100000 %s rsync://%s/checkpoint/%s/",
 #ifdef WINDOWS
@@ -176,7 +176,7 @@ int uploadRsync(char* id, char* path){
 #else
              path
 #endif
-             , tsSnodeIp, id);
+             , tsSnodeAddress, id);
   }
 
   int code = execCommand(command);
@@ -195,7 +195,7 @@ int downloadRsync(char* id, char* path){
 #endif
   char command[PATH_MAX] = {0};
   snprintf(command, PATH_MAX, "rsync -av --timeout=10 --bwlimit=100000 rsync://%s/checkpoint/%s/ %s",
-           tsSnodeIp, id,
+           tsSnodeAddress, id,
 #ifdef WINDOWS
            pathTransform
 #else
@@ -221,7 +221,7 @@ int deleteRsync(char* id){
   }
   char command[PATH_MAX] = {0};
   snprintf(command, PATH_MAX, "rsync -av --delete --timeout=10 %s rsync://%s/checkpoint/%s/",
-           tmp, tsSnodeIp, id);
+           tmp, tsSnodeAddress, id);
 
   code = execCommand(command);
   taosRemoveDir(tmp);

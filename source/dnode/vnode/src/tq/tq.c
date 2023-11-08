@@ -1080,7 +1080,7 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t sversion, char* msg, int32_t ms
   return code;
 }
 
-static void doStartStep2(SStreamTask* pTask, SStreamTask* pStreamTask, STQ* pTq) {
+static void doStartFillhistoryStep2(SStreamTask* pTask, SStreamTask* pStreamTask, STQ* pTq) {
   const char* id = pTask->id.idStr;
   int64_t     nextProcessedVer = pStreamTask->hTaskInfo.haltVer;
 
@@ -1121,7 +1121,11 @@ static void doStartStep2(SStreamTask* pTask, SStreamTask* pStreamTask, STQ* pTq)
   }
 }
 
-// this function should be executed by only one thread
+static void ddxx() {
+
+}
+
+// this function should be executed by only one thread, so we set an sentinel to protect this function
 int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   SStreamScanHistoryReq* pReq = (SStreamScanHistoryReq*)pMsg->pCont;
   SStreamMeta*           pMeta = pTq->pStreamMeta;
@@ -1150,6 +1154,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     }
   }
 
+  // let's decide which step should be executed now
   if (pTask->execInfo.step1Start == 0) {
     ASSERT(pTask->status.pauseAllowed == false);
     int64_t ts = taosGetTimestampMs();
@@ -1163,7 +1168,8 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     }
   } else {
     if (pTask->execInfo.step2Start == 0) {
-      tqDebug("s-task:%s resume from paused, original step1 startTs:%" PRId64, id, pTask->execInfo.step1Start);
+      tqDebug("s-task:%s continue exec scan-history(step1), original step1 startTs:%" PRId64 ", already elapsed:%.2fs",
+              id, pTask->execInfo.step1Start, pTask->execInfo.step1El);
     } else {
       tqDebug("s-task:%s already in step2, no need to scan-history data, step2 starTs:%" PRId64, id,
               pTask->execInfo.step2Start);
@@ -1184,20 +1190,37 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     return 0;
   }
 
-  streamScanHistoryData(pTask);
+  int64_t st = taosGetTimestampMs();
+  SScanhistoryDataInfo retInfo = streamScanHistoryData(pTask, st);
 
-  double el = (taosGetTimestampMs() - pTask->execInfo.step1Start) / 1000.0;
-  if (streamTaskGetStatus(pTask, NULL) == TASK_STATUS__PAUSE) {
+  double el = (taosGetTimestampMs() - st) / 1000.0;
+  pTask->execInfo.step1El += el;
+
+  if (retInfo.ret == TASK_SCANHISTORY_QUIT || retInfo.ret == TASK_SCANHISTORY_REXEC) {
     int8_t status = streamTaskSetSchedStatusInactive(pTask);
-    tqDebug("s-task:%s is paused in the step1, elapsed time:%.2fs, sched-status:%d", pTask->id.idStr, el, status);
-
     atomic_store_32(&pTask->status.inScanHistorySentinel, 0);
+
+    if (retInfo.ret == TASK_SCANHISTORY_REXEC) {
+      streamReExecScanHistoryFuture(pTask, retInfo.idleTime);
+    } else {
+      char*       p = NULL;
+      ETaskStatus s = streamTaskGetStatus(pTask, &p);
+
+      if (s == TASK_STATUS__PAUSE) {
+        tqDebug("s-task:%s is paused in the step1, elapsed time:%.2fs total:%.2fs, sched-status:%d", pTask->id.idStr,
+                el, pTask->execInfo.step1El, status);
+      } else if (s == TASK_STATUS__STOP || s == TASK_STATUS__DROPPING) {
+        tqDebug("s-task:%s status:%p not continue scan-history data, total elapsed time:%.2fs quit", pTask->id.idStr, p,
+                pTask->execInfo.step1El);
+      }
+    }
+
     streamMetaReleaseTask(pMeta, pTask);
     return 0;
   }
 
   // the following procedure should be executed, no matter status is stop/pause or not
-  tqDebug("s-task:%s scan-history(step 1) ended, elapsed time:%.2fs", id, el);
+  tqDebug("s-task:%s scan-history(step 1) ended, elapsed time:%.2fs", id, pTask->execInfo.step1El);
 
   if (pTask->info.fillHistory) {
     SStreamTask*   pStreamTask = NULL;
@@ -1220,23 +1243,20 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
     code = streamTaskHandleEvent(pStreamTask->status.pSM, TASK_EVENT_HALT);
     if (code == TSDB_CODE_SUCCESS) {
-      doStartStep2(pTask, pStreamTask, pTq);
+      doStartFillhistoryStep2(pTask, pStreamTask, pTq);
     } else {
       tqError("s-task:%s failed to halt s-task:%s, not launch step2", id, pStreamTask->id.idStr);
     }
 
     streamMetaReleaseTask(pMeta, pStreamTask);
-
   } else {
     STimeWindow* pWindow = &pTask->dataRange.window;
     ASSERT(HAS_RELATED_FILLHISTORY_TASK(pTask));
 
-    // Not update the fill-history time window until the state transfer is completed if the related fill-history task
-    // exists.
-    tqDebug(
-        "s-task:%s scan-history in stream time window completed, now start to handle data from WAL, startVer:%" PRId64
-        ", window:%" PRId64 " - %" PRId64,
-        id, pTask->chkInfo.nextProcessVer, pWindow->skey, pWindow->ekey);
+    // Not update the fill-history time window until the state transfer is completed.
+    tqDebug("s-task:%s scan-history in stream time window completed, start to handle data from WAL, startVer:%" PRId64
+            ", window:%" PRId64 " - %" PRId64,
+            id, pTask->chkInfo.nextProcessVer, pWindow->skey, pWindow->ekey);
 
     code = streamTaskScanHistoryDataComplete(pTask);
   }
@@ -1314,13 +1334,14 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t taskId = pReq->taskId;
   int32_t vgId = TD_VID(pTq->pVnode);
 
-  if (taskId == STREAM_EXEC_TASK_STATUS_CHECK_ID) {
-    tqStartStreamTask(pTq);
-    return 0;
-  }
-
   if (taskId == STREAM_EXEC_EXTRACT_DATA_IN_WAL_ID) {  // all tasks are extracted submit data from the wal
     tqScanWal(pTq);
+    return 0;
+  } else if (taskId == STREAM_EXEC_START_ALL_TASKS_ID) {
+    tqStartStreamTasks(pTq);
+    return 0;
+  } else if (taskId == STREAM_EXEC_RESTART_ALL_TASKS_ID) {
+    tqRestartStreamTasks(pTq);
     return 0;
   }
 
@@ -1509,6 +1530,7 @@ int32_t tqProcessTaskResumeImpl(STQ* pTq, SStreamTask* pTask, int64_t sversion, 
       streamSchedExec(pTask);
     }
   } else if (status == TASK_STATUS__UNINIT) {
+    // todo: fill-history task init ?
     if (pTask->info.fillHistory == 0) {
       EStreamTaskEvent event = HAS_RELATED_FILLHISTORY_TASK(pTask) ? TASK_EVENT_INIT_STREAM_SCANHIST : TASK_EVENT_INIT;
       streamTaskHandleEvent(pTask->status.pSM, event);
@@ -1905,7 +1927,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
   int32_t updateTasks = taosHashGetSize(pMeta->updateInfo.pTasks);
 
-  pMeta->startInfo.startAllTasksFlag = 1;
+  pMeta->startInfo.tasksWillRestart = 1;
 
   if (updateTasks < numOfTasks) {
     tqDebug("vgId:%d closed tasks:%d, unclosed:%d, all tasks will be started when nodeEp update completed", vgId,
@@ -1914,45 +1936,11 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
   } else {
     if (!pTq->pVnode->restored) {
       tqDebug("vgId:%d vnode restore not completed, not restart the tasks, clear the start after nodeUpdate flag", vgId);
-      pMeta->startInfo.startAllTasksFlag = 0;
+      pMeta->startInfo.tasksWillRestart = 0;
       streamMetaWUnLock(pMeta);
     } else {
-      tqInfo("vgId:%d tasks are all updated and stopped, restart them", vgId);
-      terrno = 0;
-
       streamMetaWUnLock(pMeta);
-
-      while (streamMetaTaskInTimer(pMeta)) {
-        tqDebug("vgId:%d some tasks in timer, wait for 100ms and recheck", pMeta->vgId);
-        taosMsleep(100);
-      }
-
-      streamMetaWLock(pMeta);
-
-      int32_t code = streamMetaReopen(pMeta);
-      if (code != 0) {
-        tqError("vgId:%d failed to reopen stream meta", vgId);
-        streamMetaWUnLock(pMeta);
-        taosArrayDestroy(req.pNodeList);
-        return -1;
-      }
-
-      if (streamMetaLoadAllTasks(pTq->pStreamMeta) < 0) {
-        tqError("vgId:%d failed to load stream tasks", vgId);
-        streamMetaWUnLock(pMeta);
-        taosArrayDestroy(req.pNodeList);
-        return -1;
-      }
-
-      if (vnodeIsRoleLeader(pTq->pVnode) && !tsDisableStream) {
-        tqInfo("vgId:%d restart all stream tasks after all tasks being updated", vgId);
-        tqResetStreamTaskStatus(pTq);
-        tqLaunchStreamTaskAsync(pTq);
-      } else {
-        tqInfo("vgId:%d, follower node not start stream tasks", vgId);
-      }
-
-      streamMetaWUnLock(pMeta);
+      tqStartStreamTaskAsync(pTq, true);
     }
   }
 

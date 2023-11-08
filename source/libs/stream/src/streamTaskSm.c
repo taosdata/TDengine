@@ -315,7 +315,6 @@ int32_t streamTaskOnHandleEventSuccess(SStreamTaskSM* pSM, EStreamTaskEvent even
             GET_EVT_NAME(event), pSM->current.name, GET_EVT_NAME(pSM->prev.evt));
 
     taosThreadMutexUnlock(&pTask->lock);
-    stDebug("s-task:%s unlockx", pTask->id.idStr);
     return TSDB_CODE_STREAM_INVALID_STATETRANS;
   }
 

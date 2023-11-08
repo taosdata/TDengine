@@ -79,8 +79,11 @@ extern int32_t tsHeartbeatTimeout;
 extern int64_t tsVndCommitMaxIntervalMs;
 
 // snode
-extern char tsSnodeIp[];
-extern char tsCheckpointBackupDir[];
+extern int32_t tsRsyncPort;
+extern char    tsCheckpointBackupDir[];
+
+// vnode checkpoint
+extern char tsSnodeAddress[];  // 127.0.0.1:873
 
 // mnode
 extern int64_t tsMndSdbWriteDelta;
@@ -104,8 +107,8 @@ extern int32_t  tsMonitorMaxLogs;
 extern bool     tsMonitorComp;
 
 // audit
-extern bool     tsEnableAudit;
-extern bool     tsEnableAuditCreateTable;
+extern bool tsEnableAudit;
+extern bool tsEnableAuditCreateTable;
 
 // telem
 extern bool     tsEnableTelem;
@@ -113,9 +116,9 @@ extern int32_t  tsTelemInterval;
 extern char     tsTelemServer[];
 extern uint16_t tsTelemPort;
 extern bool     tsEnableCrashReport;
-extern char    *tsTelemUri;
-extern char    *tsClientCrashReportUri;
-extern char    *tsSvrCrashReportUri;
+extern char *   tsTelemUri;
+extern char *   tsClientCrashReportUri;
+extern char *   tsSvrCrashReportUri;
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing

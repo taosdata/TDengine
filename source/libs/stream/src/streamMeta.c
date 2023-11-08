@@ -301,6 +301,12 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
 
   pMeta->startInfo.pReadyTaskSet = taosHashInit(64, fp, false, HASH_NO_LOCK);
   if (pMeta->startInfo.pReadyTaskSet == NULL) {
+    goto _err;
+  }
+
+  pMeta->startInfo.pFailedTaskSet = taosHashInit(4, fp, false, HASH_NO_LOCK);
+  if (pMeta->startInfo.pFailedTaskSet == NULL) {
+    goto _err;
   }
 
   pMeta->pHbInfo = taosMemoryCalloc(1, sizeof(SMetaHbInfo));
@@ -362,6 +368,7 @@ _err:
   if (pMeta->pHbInfo) taosMemoryFreeClear(pMeta->pHbInfo);
   if (pMeta->updateInfo.pTasks) taosHashCleanup(pMeta->updateInfo.pTasks);
   if (pMeta->startInfo.pReadyTaskSet) taosHashCleanup(pMeta->startInfo.pReadyTaskSet);
+  if (pMeta->startInfo.pFailedTaskSet) taosHashCleanup(pMeta->startInfo.pFailedTaskSet);
   taosMemoryFree(pMeta);
 
   stError("failed to open stream meta");
@@ -369,11 +376,7 @@ _err:
 }
 
 int32_t streamMetaReopen(SStreamMeta* pMeta) {
-  // backup the restart flag
-  int32_t restartFlag = pMeta->startInfo.startAllTasksFlag;
   streamMetaClear(pMeta);
-
-  pMeta->startInfo.startAllTasksFlag = restartFlag;
 
   // NOTE: role should not be changed during reopen meta
   pMeta->streamBackendRid = -1;
@@ -442,7 +445,10 @@ void streamMetaClear(SStreamMeta* pMeta) {
   pMeta->numOfStreamTasks = 0;
   pMeta->numOfPausedTasks = 0;
 
-  streamMetaResetStartInfo(&pMeta->startInfo);
+  // the willrestart/starting flag can NOT be cleared
+  taosHashClear(pMeta->startInfo.pReadyTaskSet);
+  taosHashClear(pMeta->startInfo.pFailedTaskSet);
+  pMeta->startInfo.readyTs = 0;
 }
 
 void streamMetaClose(SStreamMeta* pMeta) {
@@ -484,6 +490,7 @@ void streamMetaCloseImpl(void* arg) {
   // taosHashCleanup(pMeta->pTaskBackendUnique);
   taosHashCleanup(pMeta->updateInfo.pTasks);
   taosHashCleanup(pMeta->startInfo.pReadyTaskSet);
+  taosHashCleanup(pMeta->startInfo.pFailedTaskSet);
 
   taosMemoryFree(pMeta->pHbInfo);
   taosMemoryFree(pMeta->path);
@@ -1241,8 +1248,11 @@ void streamMetaInitForSnode(SStreamMeta* pMeta) {
 
 void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {
   taosHashClear(pStartInfo->pReadyTaskSet);
-  pStartInfo->startAllTasksFlag = 0;
+  taosHashClear(pStartInfo->pFailedTaskSet);
+  pStartInfo->tasksWillRestart = 0;
   pStartInfo->readyTs = 0;
+  // reset the sentinel flag value to be 0
+  atomic_store_32(&pStartInfo->taskStarting, 0);
 }
 
 void streamMetaRLock(SStreamMeta* pMeta) {

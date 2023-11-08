@@ -268,7 +268,7 @@ void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dfla
 
   taosPrintLog(flags, level, dflag,
                "vgId:%d, %s, sync:%s, snap-sender:%p signature:(%" PRId64 ", %" PRId64 "), {start:%" PRId64
-               " end:%" PRId64 " last-index:%" PRId64 " last-term:%" PRIu64 " last-cfg:%" PRId64
+               " end:%" PRId64 " last-index:%" PRId64 " last-term:%" PRId64 " last-cfg:%" PRId64
                ", seq:%d, ack:%d, "
                " buf:[%" PRId64 " %" PRId64 ", %" PRId64
                "), finish:%d, as:%d, to-dnode:%d}"

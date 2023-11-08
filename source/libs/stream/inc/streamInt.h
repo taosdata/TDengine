@@ -136,7 +136,7 @@ int32_t streamNotifyUpstreamContinue(SStreamTask* pTask);
 int32_t streamTaskFillHistoryFinished(SStreamTask* pTask);
 int32_t streamTransferStateToStreamTask(SStreamTask* pTask);
 
-int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate);
+int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate, const char*);
 STaskId streamTaskExtractKey(const SStreamTask* pTask);
 void    streamTaskInitForLaunchHTask(SHistoryTaskInfo* pInfo);
 void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
@@ -151,16 +151,20 @@ void*         streamQueueNextItem(SStreamQueue* pQueue);
 void          streamFreeQitem(SStreamQueueItem* data);
 int32_t       streamQueueGetItemSize(const SStreamQueue* pQueue);
 
-//#define CHECKPOINT_PATH_LEN 128
-// typedef struct SChekpointDataHeader{
-//  int64_t size;
-//  char    name[CHECKPOINT_PATH_LEN];
-//  char    id[CHECKPOINT_PATH_LEN];
-//} SChekpointDataHeader;
+typedef enum UPLOAD_TYPE {
+  UPLOAD_DISABLE = -1,
+  UPLOAD_S3 = 0,
+  UPLOAD_RSYNC = 1,
+} UPLOAD_TYPE;
 
-int uploadCheckpoint(char* id, char* path);
-int downloadCheckpoint(char* id, char* path);
-int deleteCheckpoint(char* id);
+UPLOAD_TYPE getUploadType();
+int         uploadCheckpoint(char* id, char* path);
+int         downloadCheckpoint(char* id, char* path);
+int         deleteCheckpoint(char* id);
+int         deleteCheckpointFile(char* id, char* name);
+
+int32_t onNormalTaskReady(SStreamTask* pTask);
+int32_t onScanhistoryTaskReady(SStreamTask* pTask);
 
 typedef int32_t (*__stream_async_exec_fn_t)(void* param);
 
