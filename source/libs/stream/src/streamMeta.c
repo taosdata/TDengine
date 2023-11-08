@@ -18,6 +18,7 @@
 #include "streamInt.h"
 #include "tmisce.h"
 #include "tref.h"
+#include "tsched.h"
 #include "tstream.h"
 #include "ttimer.h"
 #include "wal.h"
@@ -227,7 +228,7 @@ int32_t streamMetaMayCvtDbFormat(SStreamMeta* pMeta) {
   return 0;
 }
 
-int32_t streamTaskSetDb(SStreamMeta* pMeta, void* arg, char *key) {
+int32_t streamTaskSetDb(SStreamMeta* pMeta, void* arg, char* key) {
   SStreamTask* pTask = arg;
 
   int64_t chkpId = pTask->checkpointingId;
@@ -320,8 +321,6 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->expandFunc = expandFunc;
   pMeta->stage = stage;
 
-
-
   pMeta->pTaskDbUnique = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
 
   // pMeta->chkpId = streamGetLatestCheckpointId(pMeta);
@@ -350,10 +349,10 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->pHbInfo->hbTmr = taosTmrStart(metaHbToMnode, META_HB_CHECK_INTERVAL, pRid, streamEnv.timer);
   pMeta->pHbInfo->tickCounter = 0;
   pMeta->pHbInfo->stopFlag = 0;
-
+  pMeta->qHandle = taosInitScheduler(32, 1, "stream-chkp", NULL);
   return pMeta;
 
-  _err:
+_err:
   taosMemoryFree(pMeta->path);
   if (pMeta->pTasksMap) taosHashCleanup(pMeta->pTasksMap);
   if (pMeta->pTaskList) taosArrayDestroy(pMeta->pTaskList);
@@ -483,7 +482,7 @@ void streamMetaCloseImpl(void* arg) {
   taosHashCleanup(pMeta->pTasksMap);
   taosHashCleanup(pMeta->pTaskDbUnique);
   taosHashCleanup(pMeta->pUpdateTaskSet);
-  //taosHashCleanup(pMeta->pTaskBackendUnique);
+  // taosHashCleanup(pMeta->pTaskBackendUnique);
   taosHashCleanup(pMeta->updateInfo.pTasks);
   taosHashCleanup(pMeta->startInfo.pReadyTaskSet);
 
@@ -1144,7 +1143,9 @@ void metaHbToMnode(void* param, void* tmrId) {
     }
     tEncoderClear(&encoder);
 
-    SRpcMsg msg = {.info.noResp = 1,};
+    SRpcMsg msg = {
+        .info.noResp = 1,
+    };
     initRpcMsg(&msg, TDMT_MND_STREAM_HEARTBEAT, buf, tlen);
 
     pMeta->pHbInfo->hbCount += 1;
@@ -1156,7 +1157,7 @@ void metaHbToMnode(void* param, void* tmrId) {
     stDebug("vgId:%d no tasks and no mnd epset, not send stream hb to mnode", pMeta->vgId);
   }
 
-  _end:
+_end:
   clearHbMsg(&hbMsg, pIdList);
   taosTmrReset(metaHbToMnode, META_HB_CHECK_INTERVAL, param, streamEnv.timer, &pMeta->pHbInfo->hbTmr);
   taosReleaseRef(streamMetaId, rid);
@@ -1251,7 +1252,6 @@ void streamMetaRLock(SStreamMeta* pMeta) {
 void streamMetaRUnLock(SStreamMeta* pMeta) {
   stTrace("vgId:%d meta-runlock", pMeta->vgId);
   taosRUnLockLatch(&pMeta->lock);
-
 }
 void streamMetaWLock(SStreamMeta* pMeta) {
   stTrace("vgId:%d meta-wlock", pMeta->vgId);
@@ -1261,4 +1261,3 @@ void streamMetaWUnLock(SStreamMeta* pMeta) {
   stTrace("vgId:%d meta-wunlock", pMeta->vgId);
   taosWUnLockLatch(&pMeta->lock);
 }
-
