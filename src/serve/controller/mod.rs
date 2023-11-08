@@ -861,9 +861,17 @@ impl TaskController {
         .await?;
 
         if res.rows_affected() == 1 {
-            let task = self.get(id).await?.unwrap();
-            self.stop(task.task.id.clone()).await?;
-            self.start_task(&task.task).await?;
+            let task = self
+                .get(id)
+                .await?
+                .ok_or_else(|| anyhow!("Task not found: {}", id))?;
+            let scheduler = self.scheduler.clone();
+            let task_in_spawn = task.task.clone();
+            tokio::spawn(async move {
+                let _ = scheduler.stop_task(id, Duration::from_secs(60)).await;
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                let _ = scheduler.push_task(task_in_spawn).await;
+            });
             Ok(Some(task.into()))
         } else {
             Ok(None)
