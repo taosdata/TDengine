@@ -331,9 +331,8 @@ int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, SStreamTask* p, int64_t chec
   return code;
 }
 
-int32_t streamTaskBuildCheckpointImpl(void* arg) {
-  int32_t      code = 0;
-  SStreamTask* pTask = arg;
+int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
+  int32_t code = 0;
   // check for all tasks, and do generate the vnode-wide checkpoint data.
   SStreamMeta* pMeta = pTask->pMeta;
   //  int32_t      remain = atomic_sub_fetch_32(&pMeta->chkptNotReadyTasks, 1);
@@ -372,10 +371,6 @@ int32_t streamTaskBuildCheckpointImpl(void* arg) {
   }
 
   return code;
-}
-int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
-  int32_t code = 0;
-  return streamMetaAsyncExec(pTask->pMeta, streamTaskBuildCheckpointImpl, pTask, NULL);
 }
 
 // static int64_t kBlockSize = 64 * 1024;
