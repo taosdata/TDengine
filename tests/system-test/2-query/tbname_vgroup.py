@@ -167,6 +167,9 @@ class TDTestCase:
         tdSql.checkData(3, 1, 4)
         tdSql.checkData(3, 2, 4)
 
+        tdSql.query("explain select * from st where tbname='ct1'")
+        tdSql.checkRows(2)
+
         tdSql.execute('drop database dbvg;')
 
         tdSql.execute('drop database tbname_vgroup')
