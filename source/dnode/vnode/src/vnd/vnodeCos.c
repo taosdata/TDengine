@@ -775,6 +775,11 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, 
     return TAOS_SYSTEM_ERROR(EIO);
   }
 
+  if (cbd.buf_pos != size) {
+    vError("%s: %d(%s)", __func__, cbd.status, cbd.err_msg);
+    return TAOS_SYSTEM_ERROR(EIO);
+  }
+
   *ppBlock = cbd.buf;
 
   return 0;
