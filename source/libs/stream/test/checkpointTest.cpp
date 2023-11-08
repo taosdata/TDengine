@@ -38,13 +38,13 @@ int main(int argc, char **argv) {
   if (s3Init() < 0) {
     return -1;
   }
-//  strcpy(tsSnodeIp, "127.0.0.1");
+  strcpy(tsSnodeAddress, "127.0.0.1");
   return RUN_ALL_TESTS();
 }
 
 TEST(testCase, checkpointUpload_Test) {
-//  stopRsync();
-//  startRsync();
+  stopRsync();
+  startRsync();
 
   taosSsleep(5);
   char* id = "2013892036";
