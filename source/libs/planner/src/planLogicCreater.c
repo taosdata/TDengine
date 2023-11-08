@@ -266,7 +266,7 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols
 
   if (NULL == pScanCols) {
     if (NULL == pScanPseudoCols) {
-      return SCAN_TYPE_TABLE;
+      return (!tagScan) ? SCAN_TYPE_TABLE : SCAN_TYPE_TAG;
     }
     return FUNCTION_TYPE_BLOCK_DIST_INFO == ((SFunctionNode*)nodesListGetNode(pScanPseudoCols, 0))->funcType
                ? SCAN_TYPE_BLOCK_INFO
