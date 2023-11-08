@@ -32,7 +32,7 @@ use taos::taos_query::tmq::Assignment;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::utils::breakpoints::breakpoints_get_all;
-use taosx_core::{validate_dsn, ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
+use taosx_core::{get_data_dir, validate_dsn, ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -737,6 +737,13 @@ impl TaskController {
         .execute(&self.pool)
         .await?;
         let id = res.last_insert_rowid();
+
+        let path = get_data_dir();
+        let path = path.join("tasks").join(id.to_string());
+        if path.exists() {
+            tracing::info!("task dir already exists and will be deleted");
+            std::fs::remove_dir_all(&path)?;
+        }
 
         if let Some(labels) = &task.labels {
             let values = labels
