@@ -85,6 +85,11 @@ typedef struct {
   char    *buf;
 } TS3SizeCBD;
 
+static S3Status responsePropertiesCallbackNull(const S3ResponseProperties *properties, void *callbackData) {
+//  (void)callbackData;
+  return S3StatusOK;
+}
+
 static S3Status responsePropertiesCallback(const S3ResponseProperties *properties, void *callbackData) {
   //(void)callbackData;
   TS3SizeCBD *cbd = callbackData;
@@ -298,7 +303,7 @@ S3Status initial_multipart_callback(const char *upload_id, void *callbackData) {
 }
 
 S3Status MultipartResponseProperiesCallback(const S3ResponseProperties *properties, void *callbackData) {
-//  responsePropertiesCallback(properties, callbackData);
+  responsePropertiesCallbackNull(properties, callbackData);
 
   MultipartPartData *data = (MultipartPartData *)callbackData;
   int                seq = data->seq;
@@ -397,7 +402,7 @@ static int try_get_parts_info(const char *bucketName, const char *key, UploadMan
   S3BucketContext bucketContext = {0, tsS3BucketName, protocolG, uriStyleG, tsS3AccessKeyId, tsS3AccessKeySecret,
                                    0, awsRegionG};
 
-  S3ListPartsHandler listPartsHandler = {{&responsePropertiesCallback, &responseCompleteCallback}, &listPartsCallback};
+  S3ListPartsHandler listPartsHandler = {{&responsePropertiesCallbackNull, &responseCompleteCallback}, &listPartsCallback};
 
   list_parts_callback_data data;
 
@@ -476,7 +481,7 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
                                    metaProperties,  useServerSideEncryption};
 
   if (contentLength <= MULTIPART_CHUNK_SIZE) {
-    S3PutObjectHandler putObjectHandler = {{NULL, &responseCompleteCallback},
+    S3PutObjectHandler putObjectHandler = {{&responsePropertiesCallbackNull, &responseCompleteCallback},
                                            &putObjectDataCallback};
 
     do {
@@ -513,14 +518,14 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
     memset(&partData, 0, sizeof(MultipartPartData));
     int partContentLength = 0;
 
-    S3MultipartInitialHandler handler = {{NULL, &responseCompleteCallback},
+    S3MultipartInitialHandler handler = {{&responsePropertiesCallbackNull, &responseCompleteCallback},
                                          &initial_multipart_callback};
 
     S3PutObjectHandler putObjectHandler = {{&MultipartResponseProperiesCallback, &responseCompleteCallback},
                                            &putObjectDataCallback};
 
     S3MultipartCommitHandler commit_handler = {
-        {NULL, &responseCompleteCallback}, &multipartPutXmlCallback, 0};
+        {&responsePropertiesCallbackNull, &responseCompleteCallback}, &multipartPutXmlCallback, 0};
 
     manager.etags = (char **)taosMemoryMalloc(sizeof(char *) * totalSeq);
     manager.next_etags_pos = 0;
@@ -668,7 +673,7 @@ static void s3FreeObjectKey(void *pItem) {
 static SArray* getListByPrefix(const char *prefix){
   S3BucketContext     bucketContext = {0, tsS3BucketName, protocolG, uriStyleG, tsS3AccessKeyId, tsS3AccessKeySecret,
                                        0, awsRegionG};
-  S3ListBucketHandler listBucketHandler = {{NULL, &responseCompleteCallback},
+  S3ListBucketHandler listBucketHandler = {{&responsePropertiesCallbackNull, &responseCompleteCallback},
                                            &listBucketCallback};
 
   const char               *marker = 0, *delimiter = 0;
@@ -792,7 +797,7 @@ int32_t s3GetObjectToFile(const char *object_name, char* fileName) {
   S3BucketContext    bucketContext = {0, tsS3BucketName, protocolG, uriStyleG, tsS3AccessKeyId, tsS3AccessKeySecret,
                                       0, awsRegionG};
   S3GetConditions    getConditions = {ifModifiedSince, ifNotModifiedSince, ifMatch, ifNotMatch};
-  S3GetObjectHandler getObjectHandler = {{NULL, &responseCompleteCallback},
+  S3GetObjectHandler getObjectHandler = {{&responsePropertiesCallbackNull, &responseCompleteCallback},
                                          &getObjectCallback};
 
   TdFilePtr pFile = taosOpenFile(fileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
