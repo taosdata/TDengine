@@ -10,8 +10,7 @@ tmr_h     tmrStartHandle;
 SHashObj* clusterMonitorInfoTable;
 
 static const int interval = 1000;  // ms
-static const int sendSize = 10;
-static const int sleepTimeMS = 100;
+static const int sendBathchSize = 10;
 
 int32_t sendReport(ClientMonitor* pMonitor, char* pCont);
 void    generateClusterReport(ClientMonitor* pMonitor, bool send) {
@@ -26,19 +25,19 @@ void    generateClusterReport(ClientMonitor* pMonitor, bool send) {
 }
 
 void reportSendProcess(void* param, void* tmrId) {
-  taosRLockLatch(&monitorLock);
   taosTmrReset(reportSendProcess, interval, NULL, tmrClientMonitor, &tmrStartHandle);
+  taosRLockLatch(&monitorLock);
 
   static int index = 0;
   index++;
   ClientMonitor** ppMonitor = (ClientMonitor**)taosHashIterate(clusterMonitorInfoTable, NULL);
   while (ppMonitor != NULL && *ppMonitor != NULL) {
     ClientMonitor* pMonitor = *ppMonitor;
-    generateClusterReport(*ppMonitor, index == sendSize);
+    generateClusterReport(*ppMonitor, index == sendBathchSize);
     ppMonitor = taosHashIterate(clusterMonitorInfoTable, ppMonitor);
   }
 
-  if (index == sendSize) index = 0;
+  if (index == sendBathchSize) index = 0;
   taosRUnLockLatch(&monitorLock);
 }
 
@@ -56,12 +55,11 @@ void monitorClientInitOnce() {
 }
 
 void createMonitorClient(const char* clusterKey, SEpSet epSet, void* pTransporter) {
-  taosWLockLatch(&monitorLock);
   if (clusterKey == NULL || strlen(clusterKey) ==  0) {
     uError("createMonitorClient failed, clusterKey is NULL");
     return;
   }
-
+  taosWLockLatch(&monitorLock);
   if (taosHashGet(clusterMonitorInfoTable, clusterKey, strlen(clusterKey)) == NULL) {
     uInfo("createMonitorClient for %s.", clusterKey);
     ClientMonitor* pMonitor = taosMemoryCalloc(1, sizeof(ClientMonitor));
