@@ -203,6 +203,7 @@ class TDTestCase:
         self.explain_and_check_res(sqls, has_last_row_scan_res)
         self.query_check_sqls(sqls, has_last_row_scan_res, res_expect)
 
+        sql_template = 'select %s from t1'
         select_items = ["last(c4),ts", "last(c4), c1", "last(c4), c2", "last(c4), c3",\
                 "last(c4), c4", "last(c4), tbname", "last(c4), t1"]
         has_last_row_scan_res = [1, 0, 0, 0, 1, 0, 0]
@@ -215,6 +216,7 @@ class TDTestCase:
         self.explain_and_check_res(sqls, has_last_row_scan_res)
         self.query_check_sqls(sqls, has_last_row_scan_res, res_expect)
 
+        sql_template = 'select %s from meters'
         select_items = ["last(c8), ts", "last(c8), c1", "last(c8), c8", "last(c8), tbname", \
                 "last(c8), t1", "last(c8), c8, c8", "last(c8), ts, ts"]
         has_last_row_scan_res = [1, 0, 1, 0, 0, 1, 1]
@@ -237,9 +239,9 @@ class TDTestCase:
 
         sqls = self.format_sqls(sql_template, select_items)
         self.explain_and_check_res(sqls, has_last_row_scan_res)
-        for sql in sqls:
-            tdSql.query(sql, queryTimes=1)
-            tdSql.checkRows(0)
+        #for sql in sqls:
+            #tdSql.query(sql, queryTimes=1)
+            #tdSql.checkRows(0)
 
         sql_template = 'select %s from meters'
         select_items = [

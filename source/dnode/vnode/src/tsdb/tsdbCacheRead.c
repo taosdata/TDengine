@@ -60,7 +60,7 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
     }
     for (int32_t idx = 0; idx < taosArrayGetSize(pBlock->pDataBlock); ++idx) {
       SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, idx);
-      if (pCol->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      if (pCol->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID && pCol->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
         colDataSetVal(pCol, numOfRows, (const char*)&ts, false);
         continue;
       }
@@ -161,7 +161,7 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
   p->type = type;
   p->pVnode = pVnode;
   p->pTsdb = p->pVnode->pTsdb;
-  p->info.verRange = (SVersionRange){.minVer = 0, .maxVer = UINT64_MAX};
+  p->info.verRange = (SVersionRange){.minVer = 0, .maxVer = INT64_MAX};
   p->info.suid = suid;
   p->numOfCols = numOfCols;
   p->pCidList = pCidList;
