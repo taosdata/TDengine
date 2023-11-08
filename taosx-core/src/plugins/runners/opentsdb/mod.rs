@@ -4,6 +4,7 @@ use anyhow::Context;
 use itertools::Itertools;
 use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
+use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{Instrument, Span};
 
@@ -175,6 +176,15 @@ pub async fn opentsdb_to_taos(
         tracing::info!("waiting for OpenTSDB connector");
         tokio::spawn(async move {
             let pid = child.id();
+            macro_rules! safe_exit {
+                () => {
+                    // kill child pid before raising error
+                    let _ = child.terminate_timeout(Duration::from_secs(2)).await;
+                    let _ = ipc_handler.close().await;
+                    temp_path.close().unwrap();
+                    port_pool.put(ipc_port).await;
+                };
+            }
             tokio::select! {
                 // application exit with error code
                 status = child.wait().instrument(tracing::info_span!("process", plugin.pid = pid)) => {
@@ -182,7 +192,7 @@ pub async fn opentsdb_to_taos(
                     tracing::info!("OpenTSDB exit with {}", status);
                     if !status.success() {
                         use ringbuf::Rb;
-                        let _ = ipc_handler.close().await?;
+                        safe_exit!();
                         let error = error_buf.lock().await.iter().join("");
                         anyhow::bail!("OpenTSDB exit with {}\n{error}", status);
                     }
@@ -190,8 +200,7 @@ pub async fn opentsdb_to_taos(
                 err = ipc_handler.recv_error() => {
                     tracing::info!("have received worker thread panicked message, terminate child process");
                     if let Some(err) = err {
-                        let _ = child.kill().await;
-                        let _ = ipc_handler.close().await?;
+                        safe_exit!();
                         anyhow::bail!("OpenTSDB writer error: {err}");
                     }
                 },
@@ -200,15 +209,8 @@ pub async fn opentsdb_to_taos(
                 }
             }
             ;
-            // stop the connector
-            let _ = child.kill().await;
-            // send an empty tuple
-            ipc_handler.close().await?;
             tracing::info!("OpenTSDB task Done");
-            // delete the temporary file
-            let _ = temp_path.close();
-            // put ipc port back to port pool.
-            port_pool.put(ipc_port).await;
+            safe_exit!();
             // wait for completion
             tokio::time::sleep(Duration::from_millis(100)).await;
             Ok(())
