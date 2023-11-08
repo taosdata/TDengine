@@ -149,5 +149,5 @@ TDengine OSS 的主要功能如下：
 ## 主要产品
 
 TDengine 有两个主要产品：TDengine Enterprise （即 TDengine 企业版）和 TDengine Cloud，关于它们的具体定义请参考 
-- [TDengine 企业版](https://www.taosdata.com/tdengine-pro)
+- [TDengine 企业版](https://www.taosdata.com/tdengine-enterprise)
 - [TDengine 云服务](https://cloud.taosdata.com/?utm_source=menu&utm_medium=webcn)
