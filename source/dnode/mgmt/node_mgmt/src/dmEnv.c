@@ -146,8 +146,12 @@ static bool dmCheckDataDirVersion() {
   return true;
 }
 
+#if defined(USE_S3)
+
 extern int32_t s3Begin();
 extern void    s3End();
+
+#endif
 
 int32_t dmInit() {
   dInfo("start to init dnode env");
@@ -159,7 +163,9 @@ int32_t dmInit() {
   if (dmInitMonitor() != 0) return -1;
   if (dmInitAudit() != 0) return -1;
   if (dmInitDnode(dmInstance()) != 0) return -1;
+#if defined(USE_S3)
   if (s3Begin() != 0) return -1;
+#endif
 
   dInfo("dnode env is initialized");
   return 0;
@@ -185,7 +191,9 @@ void dmCleanup() {
   udfStopUdfd();
   taosStopCacheRefreshWorker();
   dmDiskClose();
+#if defined(USE_S3)
   s3End();
+#endif
   dInfo("dnode env is cleaned up");
 
   taosCleanupCfg();
