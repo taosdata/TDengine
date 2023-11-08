@@ -78,6 +78,7 @@ typedef struct {
   S3Status status;
   uint64_t content_length;
   char    *buf;
+  int64_t  buf_pos;
 } TS3SizeCBD;
 
 static S3Status responsePropertiesCallback(const S3ResponseProperties *properties, void *callbackData) {
@@ -730,15 +731,19 @@ void s3DeleteObjects(const char *object_name[], int nobject) {
 
 static S3Status getObjectDataCallback(int bufferSize, const char *buffer, void *callbackData) {
   TS3SizeCBD *cbd = callbackData;
+  /*
   if (cbd->content_length != bufferSize) {
     cbd->status = S3StatusAbortedByCallback;
     return S3StatusAbortedByCallback;
   }
+  */
+  if (!cbd->buf) {
+    cbd->buf = taosMemoryCalloc(1, bufferSize);
+  }
 
-  char *buf = taosMemoryCalloc(1, bufferSize);
-  if (buf) {
-    memcpy(buf, buffer, bufferSize);
-    cbd->buf = buf;
+  if (cbd->buf) {
+    memcpy(cbd->buf + cbd->buf_pos, buffer, bufferSize);
+    cbd->buf_pos += bufferSize;
     cbd->status = S3StatusOK;
     return S3StatusOK;
   } else {
@@ -760,6 +765,7 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, 
 
   TS3SizeCBD cbd = {0};
   cbd.content_length = size;
+  cbd.buf_pos = 0;
   do {
     S3_get_object(&bucketContext, object_name, &getConditions, offset, size, 0, 0, &getObjectHandler, &cbd);
   } while (S3_status_is_retryable(cbd.status) && should_retry());
