@@ -1924,6 +1924,8 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
       pMeta->startInfo.tasksWillRestart = 0;
       streamMetaWUnLock(pMeta);
     } else {
+      tqDebug("vgId:%d all %d task(s) nodeEp updated and closed", vgId, numOfTasks);
+
       streamMetaWUnLock(pMeta);
 #if 0
       tqStartStreamTaskAsync(pTq, true);
@@ -1955,13 +1957,13 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
       }
 
       if (vnodeIsRoleLeader(pTq->pVnode) && !tsDisableStream) {
-        tqInfo("vgId:%d restart all stream tasks after all tasks being updated", vgId);
+        tqInfo("vgId:%d start all stream tasks after all being updated", vgId);
         tqResetStreamTaskStatus(pTq);
         tqStartStreamTaskAsync(pTq, false);
       } else {
         tqInfo("vgId:%d, follower node not start stream tasks", vgId);
       }
-
+      taosArrayDestroy(req.pNodeList);
       streamMetaWUnLock(pMeta);
 #endif
     }

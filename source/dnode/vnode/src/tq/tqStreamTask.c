@@ -299,7 +299,7 @@ int32_t tqResetStreamTaskStatus(STQ* pTq) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   int32_t      numOfTasks = taosArrayGetSize(pMeta->pTaskList);
 
-  tqDebug("vgId:%d start all %d stream task(s)", vgId, numOfTasks);
+  tqDebug("vgId:%d reset all %d stream task(s) status to be uninit", vgId, numOfTasks);
   if (numOfTasks == 0) {
     return TSDB_CODE_SUCCESS;
   }
