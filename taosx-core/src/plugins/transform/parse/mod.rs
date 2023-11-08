@@ -1,4 +1,10 @@
-use std::{ops::Range, str::FromStr, sync::Arc};
+use std::sync::Arc;
+
+use self::cast::Cast;
+use self::json::Json;
+use self::regex::Regex;
+
+use super::TransformExt;
 
 use arrow::{
     array::{
@@ -8,32 +14,18 @@ use arrow::{
         TimestampNanosecondArray, TimestampSecondArray, UInt16Array, UInt32Array, UInt64Array,
         UInt8Array,
     },
-    datatypes::{DataType, Field, Schema},
+    datatypes::{Field, Schema},
     error::ArrowError,
     ipc::FixedSizeBinary,
     record_batch::RecordBatch,
 };
-use itertools::Itertools;
 use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
-use taosx_ipc::prelude::IpcDataType;
 use thiserror::Error;
-use tinytemplate::TinyTemplate;
-
-use crate::plugins::transform::MessageTableMeta;
-
-use super::{Message, MessageArrowRecords, Select, TransformExt};
-
-mod json;
-
-use json::Json;
 
 mod cast;
-
-use cast::Cast;
-
+mod json;
 mod regex;
-use self::regex::Regex;
 
 #[derive(Debug, Error)]
 pub enum ParseError {
@@ -96,7 +88,7 @@ pub trait Parse {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(untagged)]
-enum FieldParser {
+pub(super) enum FieldParser {
     Regex(Regex),
     Cast(Cast),
     Alias { alias: String },
@@ -138,106 +130,53 @@ impl Parse for FieldParser {
     }
 }
 
-#[derive(Deserialize, Serialize)]
-#[serde(untagged)]
-enum Model {
-    V(Vec<Table>),
-    O(Table),
-}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub(super) struct ParserImpl(LinkedHashMap<String, FieldParser>);
 
-impl From<Model> for Vec<Table> {
-    fn from(value: Model) -> Self {
-        match value {
-            Model::V(v) => v,
-            Model::O(i) => vec![i],
-        }
+impl std::ops::Deref for ParserImpl {
+    type Target = LinkedHashMap<String, FieldParser>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
-mod model_serde {
-    use super::{Model, Table};
-    use serde::{self, Deserialize, Deserializer};
+impl TransformExt for ParserImpl {
+    fn transform_record_batch(&self, records: &RecordBatch) -> Result<RecordBatch, super::Error> {
+        let schema = records.schema();
+        let metadata = schema.metadata().clone();
 
-    type Target = Vec<Table>;
-    // The signature of a deserialize_with function must follow the pattern:
-    //
-    //    fn deserialize<D>(D) -> Result<T, D::Error> where D: Deserializer
-    //
-    // although it may also be generic over the output types T.
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Target, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Model::deserialize(deserializer).map(Into::into)
-    }
-}
+        let mut new_fields = vec![];
+        let mut new_data = vec![];
 
-/// Field parser composer.
-///
-/// ```json
-/// {
-///   "parse": { "payload": { "json": ["value::double"] } },
-///   "model": {
-///     "table": "{topic}",
-///     "using": "mqtt",
-///     "tags": ["topic"],
-///     "columns": ["ts", "value", "qos"]
-///   }
-/// }
-/// ```
-///
-/// ```json
-/// {
-///   "parse": { "payload": {
-///      "json": ["metric", "location::nchar", "value::double"]
-///   } },
-///   "model": [{
-///     "name": "{topic}-{location}",
-///     "using": "{metric}",
-///     "tags": ["topic", "location"],
-///     "columns": ["ts", "value", "qos"]
-///   }
-/// }]
-/// ```
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct Parser {
-    parse: LinkedHashMap<String, FieldParser>,
-    #[serde(deserialize_with = "model_serde::deserialize")]
-    model: Vec<Table>,
-}
+        for field in schema.fields() {
+            let name = field.name();
+            let array = records.column_by_name(&name).unwrap();
 
-#[derive(Debug, Error)]
-pub enum ParserError {
-    #[error("Read parser from path {input} error: {error}")]
-    IoError {
-        input: String,
-        error: std::io::Error,
-    },
-    #[error("Deserialize parser from string {input} error: {error}")]
-    DeserializeError {
-        input: String,
-        error: serde_json::Error,
-    },
-}
-impl FromStr for Parser {
-    type Err = ParserError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.starts_with('@') {
-            let s = &s[1..];
-            let s = std::fs::read_to_string(s).map_err(|error| ParserError::IoError {
-                input: s.to_string(),
-                error,
-            })?;
-            return serde_json::from_str(&s).map_err(|error| ParserError::DeserializeError {
-                input: s.to_string(),
-                error,
-            });
+            if let Some(parser) = self.0.get(name) {
+                let (batch, indices) = parser.parse_array(field, array).map_err(|error| {
+                    super::Error::FieldParserError {
+                        field: name.to_string(),
+                        error,
+                    }
+                })?;
+                // dbg!(&batch);
+                debug_assert!(indices.is_none(), "Indices not supported currently");
+                for field in batch.schema().fields() {
+                    new_fields.push(field.as_ref().clone());
+                    let array = batch.column_by_name(field.name()).unwrap();
+                    new_data.push(array.clone());
+                }
+            } else {
+                new_fields.push(field.as_ref().clone());
+                new_data.push(array.clone());
+            }
         }
-        serde_json::from_str(s).map_err(|error| ParserError::DeserializeError {
-            input: s.to_string(),
-            error,
-        })
+        let schema = Schema::new_with_metadata(new_fields, metadata);
+        // tracing::info!("parsed schema: {schema:?}");
+        let batch = RecordBatch::try_new(Arc::new(schema), new_data)?;
+        // tracing::info!("parsed records: {batch:?}");
+        Ok(batch)
     }
 }
 
@@ -407,363 +346,6 @@ pub trait ArrayForTaos: Array {
         (0..self.len())
             .map(|index| self.taos_value(index))
             .collect()
-    }
-}
-
-fn indices_to_ranges(indices: &[usize]) -> Vec<Range<usize>> {
-    debug_assert!(!indices.is_empty());
-    let mut ranges = vec![];
-    let mut start = indices[0];
-    let mut end = start + 1;
-
-    for index in &indices[1..] {
-        if end == *index {
-            end = index + 1;
-        } else {
-            ranges.push(start..end);
-            start = *index;
-            end = index + 1;
-        }
-    }
-    ranges.push(start..end);
-
-    ranges
-}
-
-#[test]
-fn test_indices_to_ranges() {
-    let indices = vec![0, 1, 2, 3, 5, 6, 7, 8, 10];
-    let ranges = indices_to_ranges(&indices);
-    dbg!(&ranges);
-    assert_eq!(ranges, vec![0..4, 5..9, 10..11]);
-}
-impl Parser {
-    pub fn get_ipcdatatype_from_parser(&self, column_name: &str) -> Option<&IpcDataType> {
-        let payload = self.parse.get("payload");
-        if payload.is_none() {
-            return None;
-        }
-        let payload = payload.unwrap();
-        match payload {
-            FieldParser::Json(json) => {
-                if json.json.is_none() {
-                    None
-                } else {
-                    let select = json.json.as_ref().unwrap();
-                    match select {
-                        Select::Include(incl) => {
-                            for item in incl.iter() {
-                                if (item.alias().is_some() && item.alias().unwrap() == column_name)
-                                    || item.name() == column_name
-                                {
-                                    return item.cast();
-                                }
-                            }
-                            None
-                        }
-                        _ => None,
-                    }
-                }
-            }
-            _ => None,
-        }
-    }
-
-    pub fn parse_schema(&self, schema: &Arc<Schema>) -> Arc<Schema> {
-        let _ = schema;
-        todo!()
-    }
-
-    fn get_schema_column_with_name<'a>(
-        schema: &'a Arc<Schema>,
-        name: &str,
-    ) -> Option<(usize, &'a Field)> {
-        let (idx, field) = schema.fields().into_iter().enumerate().find(|(_, b)| {
-            let meta_name = b.metadata().get("name");
-            (meta_name.is_some() && name == meta_name.unwrap()) || b.name() == name
-        })?;
-        Some((idx, field.as_ref()))
-    }
-
-    pub fn parse_message_from_records(
-        &self,
-        records: &RecordBatch,
-    ) -> Result<Message, super::Error> {
-        let batch = self.parse(records)?;
-        let schema = batch.schema();
-        let batches = vec![batch];
-        let batch = &batches[0];
-        // tracing::info!("Parse message {:?}", batch);
-
-        fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {
-            batches
-                .iter()
-                .map(|batch| {
-                    let schema = batch.schema();
-                    let fields = schema.fields();
-
-                    RecordBatch::try_from_iter(batch.columns().iter().enumerate().filter_map(
-                        |(idx, data)| {
-                            let dt = fields[idx].data_type();
-                            if matches!(dt, DataType::Binary | DataType::LargeBinary) {
-                                arrow::compute::cast(data, &DataType::Utf8)
-                                    .ok()
-                                    .map(|data| (fields[idx].name(), data))
-                            } else {
-                                Some((fields[idx].name(), data.clone()))
-                            }
-                        },
-                    ))
-                    .unwrap()
-                })
-                .collect()
-        }
-        let json_batches = to_json_valid_batches(&batches);
-
-        let json = arrow::json::writer::record_batches_to_json_rows(
-            json_batches.iter().collect_vec().as_slice(),
-        )?;
-
-        let mut data = vec![];
-        for table in &self.model {
-            let mut template = TinyTemplate::new();
-            template.add_template("name", &table.name).unwrap();
-            if let Some(using) = table.using.as_ref() {
-                template.add_template("using", using).unwrap();
-            }
-
-            let mut columns_indices = Vec::from_iter(0..batch.num_columns());
-            let spec_columns = if let Some(cols) = table.columns.as_ref() {
-                //
-                let mut indices = Vec::new();
-                for name in cols {
-                    // if let Some((index, _)) = schema.column_with_name(name) {
-                    if let Some((index, _)) =
-                        Self::get_schema_column_with_name(&schema, name.as_str())
-                    {
-                        indices.push(index);
-                    } else {
-                        tracing::warn!("Selected column {} not found in stream message", name);
-                    }
-                }
-                Some(indices)
-            } else {
-                None
-            };
-            let (tags, columns) = if let Some(tags) = &table.tags {
-                let mut indices = vec![];
-                for name in tags {
-                    let (i, _) = Self::get_schema_column_with_name(&schema, name.as_str())
-                        .ok_or_else(|| anyhow::format_err!("Invalid field name `{name}`"))?;
-                    // let (i, _) = schema
-                    // .column_with_name(&name)
-                    // .ok_or_else(|| anyhow::format_err!("Invalid field name `{name}`"))?;
-
-                    indices.push(i);
-                    columns_indices[i] = usize::MAX;
-                }
-                let tags = batches[0].project(&indices)?;
-                let cols = spec_columns.unwrap_or(
-                    columns_indices
-                        .into_iter()
-                        .filter(|v| *v != usize::MAX)
-                        .collect_vec(),
-                );
-                (Some(tags), batch.project(&cols).unwrap())
-            } else {
-                (
-                    None,
-                    batch
-                        .project(&spec_columns.unwrap_or(columns_indices))
-                        .unwrap(),
-                )
-            };
-
-            let tables = (0..batch.num_rows())
-                .map(|row| (template.render("name", &json[row]).unwrap(), row))
-                .into_group_map();
-
-            for (name, indices) in tables {
-                let ranges = indices_to_ranges(&indices);
-                let name_row = indices[0];
-                let batches = ranges
-                    .into_iter()
-                    .map(|range| columns.slice(range.start, range.len()))
-                    .collect_vec();
-                let batch = arrow::compute::concat_batches(&columns.schema(), batches.iter())?;
-
-                let using = if table.using.is_some() {
-                    template.render("using", &json[name_row]).ok()
-                } else {
-                    None
-                };
-
-                let tags = tags.as_ref().map(|batch| batch.slice(name_row, 1));
-
-                let meta = MessageTableMeta::new(name, using, tags);
-                let item = MessageArrowRecords {
-                    table: meta,
-                    records: batch,
-                };
-                data.push(item);
-            }
-        }
-        Ok(Message::Records(data))
-    }
-    pub fn parse(&self, records: &RecordBatch) -> Result<RecordBatch, super::Error> {
-        self.self_check()?;
-        let schema = records.schema();
-        let metadata = schema.metadata().clone();
-
-        let mut new_fields = vec![];
-        let mut new_data = vec![];
-
-        for field in schema.fields() {
-            let name = field.name();
-            let array = records.column_by_name(&name).unwrap();
-
-            if let Some(parser) = self.parse.get(name) {
-                let (batch, indices) = parser.parse_array(field, array).map_err(|error| {
-                    super::Error::FieldParserError {
-                        field: name.to_string(),
-                        error,
-                    }
-                })?;
-                // dbg!(&batch);
-                debug_assert!(indices.is_none(), "Indices not supported currently");
-                for field in batch.schema().fields() {
-                    new_fields.push(field.as_ref().clone());
-                    let array = batch.column_by_name(field.name()).unwrap();
-                    new_data.push(array.clone());
-                }
-            } else {
-                new_fields.push(field.as_ref().clone());
-                new_data.push(array.clone());
-            }
-        }
-        let schema = Schema::new_with_metadata(new_fields, metadata);
-        // tracing::info!("parsed schema: {schema:?}");
-        let batch = RecordBatch::try_new(Arc::new(schema), new_data)?;
-        // tracing::info!("parsed records: {batch:?}");
-        Ok(batch)
-    }
-
-    fn self_check(&self) -> Result<(), super::Error> {
-        for table in &self.model {
-            if table.name.is_empty() {
-                return Err(super::Error::EmptyTableName);
-            } else if table.name.contains('.') {
-                return Err(super::Error::TableNameContainsDot(table.name.clone()));
-            }
-
-            if let Some(columns) = table.columns.as_ref() {
-                if columns.is_empty() {
-                    return Err(super::Error::EmptyTableColumns(table.name.clone()));
-                }
-                for dup in columns.iter().duplicates() {
-                    return Err(super::Error::DuplicatedColumns(dup.clone()));
-                }
-            }
-
-            if let Some(tags) = table.tags.as_ref() {
-                if table.using.as_ref().is_none() {
-                    return Err(super::Error::STableNameRequired);
-                }
-                for dup in tags.iter().duplicates() {
-                    return Err(super::Error::DuplicatedTags(dup.clone()));
-                }
-            }
-            if let Some(stable) = table.using.as_ref() {
-                if stable.is_empty() {
-                    return Err(super::Error::EmptySTableName);
-                } else if stable.contains('.') {
-                    return Err(super::Error::STableNameContainsDot(stable.clone()));
-                }
-            }
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct Op {
-    eq: Option<String>,
-    is: Option<String>,
-    lt: Option<String>,
-    lte: Option<String>,
-    gt: Option<String>,
-    gte: Option<String>,
-    r#in: Option<Vec<String>>,
-}
-// #[serde(untagged)]
-// pub enum Op {
-//     // Type is
-//     Eq { eq: String },
-//     Is { is: String },
-//     Lt { lt: String },
-//     Lte { lte: String },
-//     Gt { gt: String },
-//     Gte { gte: String },
-//     In { r#in: Vec<String> },
-// }
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(untagged)]
-pub enum FieldOp {
-    Or { or: Vec<Op> },
-    And { and: Vec<Op> },
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct Table {
-    name: String,
-    #[serde(default)]
-    using: Option<String>,
-    #[serde(default)]
-    tags: Option<Vec<String>>,
-    #[serde(default)]
-    columns: Option<Vec<String>>,
-    #[serde(default)]
-    r#where: LinkedHashMap<String, Op>,
-}
-
-impl TransformExt for Parser {
-    fn transform_message(
-        &self,
-        item: super::Message,
-    ) -> Result<Option<super::Message>, super::Error> {
-        match item {
-            // todo: transformers should works on all kinds of message.
-            Message::Raw(raw) => Ok(Some(Message::Raw(raw))),
-            Message::Tables(tables) => Ok(Some(Message::Tables(tables))),
-            Message::ChildTables(tables) => Ok(Some(Message::ChildTables(tables))),
-            Message::Records(records) => {
-                let mut new = vec![];
-                for records in records {
-                    let batch = self.transform_record_batch(&records.records)?;
-                    if batch.num_rows() == 0 {
-                        continue;
-                    }
-                    let item = MessageArrowRecords {
-                        table: records.table.clone(),
-                        records: batch,
-                    };
-                    new.push(item);
-                }
-                Ok(Some(Message::Records(new)))
-            }
-        }
-    }
-
-    fn transform_schema(
-        &self,
-        schema: std::sync::Arc<arrow::datatypes::Schema>,
-    ) -> Result<std::sync::Arc<arrow::datatypes::Schema>, super::Error> {
-        Ok(schema)
-    }
-
-    fn transform_record_batch(&self, records: &RecordBatch) -> Result<RecordBatch, super::Error> {
-        self.parse(records)
     }
 }
 
