@@ -1221,6 +1221,10 @@ _checkpoint:
 
           smaInfo("vgId:%d, rsma commit, succeed to commit checkpoint/task:%" PRIi64 "/%p, table:%" PRIi64 ", level:%d",
                   TD_VID(pVnode), pTask->checkpointingId, pTask, pRSmaInfo->suid, i + 1);
+
+          // the stream states share one checkpoint
+          taosHashCancelIterate(pInfoHash, infoHash);
+          goto _exit;
         }
       }
     }

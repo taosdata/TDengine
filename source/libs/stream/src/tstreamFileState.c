@@ -201,7 +201,7 @@ SStreamFileState* streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_
     streamFileStateDecode(&pFileState->flushMark, valBuf, len);
     qDebug("===stream===flushMark  read:%" PRId64, pFileState->flushMark);
   }
-
+  taosMemoryFreeClear(valBuf);
   return pFileState;
 
 _error:
