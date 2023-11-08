@@ -1,6 +1,5 @@
 import { sendSQLReq, getFavorites, getSharedFavorites } from "@/api/gateway/console";
 import { Message } from "element-ui";
-import { compHeadAndData } from "@/utils";
 const state = {
   sqlStr: "",
   history: [],
@@ -133,7 +132,7 @@ function handleSuccess(res, state, commit, rootState, sql, startTime) {
   // 切换到output panel显示执行结果
   commit("SET_ACTIVE_TAB", "grid");
   state.shellData = [head.map(item => item)].concat(data);
-  state.result =  Object.freeze(compHeadAndData(res.column_meta, data));
+  state.result = Object.freeze(data);
   commit('SET_REPEATRESULT',data)
   state.head = Object.freeze(head);
 }
