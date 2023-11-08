@@ -66,7 +66,7 @@ typedef struct {
   TdThreadMutex                      mutex;
   char*                              idstr;
   char*                              path;
-  int64_t refId;
+  int64_t                            refId;
 
   void*          pTask;
   int64_t        streamId;
@@ -78,6 +78,53 @@ typedef struct {
   TdThreadRwlock chkpDirLock;
 
 } STaskDbWrapper;
+
+typedef struct SDbChkp {
+  int8_t  init;
+  char*   pCurrent;
+  char*   pManifest;
+  SArray* pSST;
+  int64_t preCkptId;
+  int64_t curChkpId;
+  char*   path;
+
+  char*   buf;
+  int32_t len;
+
+  // ping-pong buf
+  SHashObj* pSstTbl[2];
+  int8_t    idx;
+
+  SArray* pAdd;
+  SArray* pDel;
+  int8_t  update;
+
+  TdThreadRwlock rwLock;
+} SDbChkp;
+typedef struct {
+  int8_t  init;
+  char*   pCurrent;
+  char*   pManifest;
+  SArray* pSST;
+  int64_t preCkptId;
+  int64_t curChkpId;
+  char*   path;
+
+  char*   buf;
+  int32_t len;
+
+  // ping-pong buf
+  SHashObj* pSstTbl[2];
+  int8_t    idx;
+
+  SArray* pAdd;
+  SArray* pDel;
+  int8_t  update;
+
+  SHashObj* pDbChkpTbl;
+
+  TdThreadRwlock rwLock;
+} SBkdMgt;
 
 void*      streamBackendInit(const char* path, int64_t chkpId);
 void       streamBackendCleanup(void* arg);
@@ -194,4 +241,15 @@ int32_t streamBackendDelInUseChkp(void* arg, int64_t chkpId);
 int32_t taskDbBuildSnap(void* arg, SArray* pSnap);
 
 // int32_t streamDefaultIter_rocksdb(SStreamState* pState, const void* start, const void* end, SArray* result);
+
+STaskDbWrapper* taskDbOpen(char* path, char* key, int64_t chkpId);
+void            taskDbDestroy(void* pDb);
+
+int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId);
+
+SBkdMgt* bkdMgtCreate(char* path);
+int32_t  bkdMgtAddChkp(SBkdMgt* bm, char* task, char* path);
+int32_t  bkdMgtGetDelta(SBkdMgt* bm, char* taskId, int64_t chkpId, SArray* list);
+int32_t  bkdMgtDumpTo(SBkdMgt* bm, char* taskId, char* dname);
+void     bkdMgtDestroy(SBkdMgt* bm);
 #endif

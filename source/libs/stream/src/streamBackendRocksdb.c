@@ -20,53 +20,6 @@
 #include "tcommon.h"
 #include "tref.h"
 
-typedef struct SDbChkp {
-  int8_t  init;
-  char*   pCurrent;
-  char*   pManifest;
-  SArray* pSST;
-  int64_t preCkptId;
-  int64_t curChkpId;
-  char*   path;
-
-  char*   buf;
-  int32_t len;
-
-  // ping-pong buf
-  SHashObj* pSstTbl[2];
-  int8_t    idx;
-
-  SArray* pAdd;
-  SArray* pDel;
-  int8_t  update;
-
-  TdThreadRwlock rwLock;
-} SDbChkp;
-typedef struct {
-  int8_t  init;
-  char*   pCurrent;
-  char*   pManifest;
-  SArray* pSST;
-  int64_t preCkptId;
-  int64_t curChkpId;
-  char*   path;
-
-  char*   buf;
-  int32_t len;
-
-  // ping-pong buf
-  SHashObj* pSstTbl[2];
-  int8_t    idx;
-
-  SArray* pAdd;
-  SArray* pDel;
-  int8_t  update;
-
-  SHashObj* pDbChkpTbl;
-
-  TdThreadRwlock rwLock;
-} SBkdMgt;
-
 typedef struct SCompactFilteFactory {
   void* status;
 } SCompactFilteFactory;
@@ -222,8 +175,6 @@ SCfInit ginitDict[] = {
     {"partag", 6, 6, parKeyDBComp, parKeyEncode, parKeyDecode, parKeyToString, comparePartagKeyName, destroyCompare,
      valueEncode, valueDecode, compactFilteFactoryCreateFilter, destroyCompactFilteFactory, compactFilteFactoryName},
 };
-
-const char* cfName[] = {"default", "state", "fill", "sess", "func", "parname", "partag"};
 
 int32_t getCfIdx(const char* cfName) {
   int    idx = -1;
@@ -868,7 +819,6 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
 
     code = taskDbDoCheckpoint(pTaskDb, pTaskDb->chkpId);
     taskDbRemoveRef(pTaskDb);
-    pIter = taosHashIterate(pMeta->pTaskDbUnique, pIter);
 
     SStreamTask*    pTask = pTaskDb->pTask;
     SStreamTaskSnap snap = {.streamId = pTask->id.streamId,
@@ -876,6 +826,7 @@ int32_t taskDbBuildSnap(void* arg, SArray* pSnap) {
                             .chkpId = pTaskDb->chkpId,
                             .dbPrefixPath = taosStrdup(pTaskDb->path)};
     taosArrayPush(pSnap, &snap);
+    pIter = taosHashIterate(pMeta->pTaskDbUnique, pIter);
   }
   return code;
 }
