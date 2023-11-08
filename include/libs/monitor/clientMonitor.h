@@ -30,8 +30,6 @@ typedef struct {
   void*                      pTransporter;
   taos_collector_registry_t* registry;
   taos_collector_t*          colector;
-  taos_counter_t*            slow_query_counter;
-  taos_counter_t*            select_counter;
   SHashObj*                  counters;
 } ClientMonitor;
 
