@@ -490,6 +490,7 @@ void streamMetaCloseImpl(void* arg) {
   taosMemoryFree(pMeta->path);
   taosThreadMutexDestroy(&pMeta->backendMutex);
 
+  taosCleanUpScheduler(pMeta->qHandle);
   pMeta->role = NODE_ROLE_UNINIT;
   taosMemoryFree(pMeta);
   stDebug("end to close stream meta");
@@ -1260,4 +1261,20 @@ void streamMetaWLock(SStreamMeta* pMeta) {
 void streamMetaWUnLock(SStreamMeta* pMeta) {
   stTrace("vgId:%d meta-wunlock", pMeta->vgId);
   taosWUnLockLatch(&pMeta->lock);
+}
+static void execHelper(struct SSchedMsg* pSchedMsg) {
+  __async_exec_fn_t execFn = (__async_exec_fn_t)pSchedMsg->ahandle;
+  int32_t           code = execFn(pSchedMsg->thandle);
+  if (code != 0 && pSchedMsg->msg != NULL) {
+    *(int32_t*)pSchedMsg->msg = code;
+  }
+}
+
+int32_t streamMetaAsyncExec(SStreamMeta* pMeta, __stream_async_exec_fn_t fn, void* param, int32_t* code) {
+  SSchedMsg schedMsg = {0};
+  schedMsg.fp = execHelper;
+  schedMsg.ahandle = fn;
+  schedMsg.thandle = param;
+  schedMsg.msg = code;
+  return taosScheduleTask(pMeta->qHandle, &schedMsg);
 }

@@ -152,7 +152,7 @@ void          streamFreeQitem(SStreamQueueItem* data);
 int32_t       streamQueueGetItemSize(const SStreamQueue* pQueue);
 
 //#define CHECKPOINT_PATH_LEN 128
-//typedef struct SChekpointDataHeader{
+// typedef struct SChekpointDataHeader{
 //  int64_t size;
 //  char    name[CHECKPOINT_PATH_LEN];
 //  char    id[CHECKPOINT_PATH_LEN];
@@ -162,6 +162,9 @@ int uploadCheckpoint(char* id, char* path);
 int downloadCheckpoint(char* id, char* path);
 int deleteCheckpoint(char* id);
 
+typedef int32_t (*__stream_async_exec_fn_t)(void* param);
+
+int32_t streamMetaAsyncExec(SStreamMeta* pMeta, __stream_async_exec_fn_t fn, void* param, int32_t* code);
 #ifdef __cplusplus
 }
 #endif
