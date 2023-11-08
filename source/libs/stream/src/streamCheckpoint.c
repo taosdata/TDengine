@@ -478,7 +478,7 @@ static int uploadCheckpointToS3(char* id, char* path){
         taosDirEntryIsDir(de)) continue;
 
     char filename[PATH_MAX] = {0};
-    if(path[strlen(path  - 1)] == '/'){
+    if(path[strlen(path  - 1)] == TD_DIRSEP_CHAR){
       snprintf(filename, sizeof(filename), "%s%s", path, name);
     }else{
       snprintf(filename, sizeof(filename), "%s%s%s", path, TD_DIRSEP, name);
@@ -491,6 +491,7 @@ static int uploadCheckpointToS3(char* id, char* path){
       taosCloseDir(&pDir);
       return -1;
     }
+    stDebug("[s3] upload checkpoint:%s", filename);
   }
   taosCloseDir(&pDir);
 
@@ -548,7 +549,7 @@ int deleteCheckpoint(char* id){
 
 int deleteCheckpointFile(char* id, char* name){
   char object[128] = {0};
-  snprintf(object, sizeof(object), "%s%s%s", id, TD_DIRSEP, name);
+  snprintf(object, sizeof(object), "%s/%s", id, name);
   char *tmp = object;
   s3DeleteObjects((const char**)&tmp, 1);
   return 0;

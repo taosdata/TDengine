@@ -825,8 +825,8 @@ int32_t s3GetObjectsByPrefix(const char *prefix, const char* path){
     const char* tmp = strchr(object, '/');
     tmp = (tmp == NULL) ? object : tmp + 1;
     char fileName[PATH_MAX] = {0};
-    if(path[strlen(path) - 1] != '/'){
-      snprintf(fileName, PATH_MAX, "%s/%s", path, tmp);
+    if(path[strlen(path) - 1] != TD_DIRSEP_CHAR){
+      snprintf(fileName, PATH_MAX, "%s%s%s", path, TD_DIRSEP, tmp);
     }else{
       snprintf(fileName, PATH_MAX, "%s%s", path, tmp);
     }
