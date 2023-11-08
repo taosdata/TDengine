@@ -140,4 +140,33 @@ if $data01 != @1aa@ then
   return -1
 endi
 
+sql create table stb34 (ts timestamp, f int) tags(t int);
+sql insert into ctb34 using stb34 tags(1) values(now, 1)(now+1s, 2);
+sql select 1 from (select tags t from stb34 order by t)
+print $rows
+if $rows != 1 then
+  return -1
+endi
+
+sql select count(*) from (select tags t from stb34)
+if $data00 != 1 then
+  return -1
+endi
+
+
+sql select 1 from (select tags ts from stb34)
+print $rows
+if $rows != 2 then
+  return -1
+endi
+
+sql select count(*) from (select tags ts from stb34)
+if $data00 != 2 then
+  return -1
+endi
+
+sql select tags 2 from stb34
+if $rows != 1 then 
+  return -1
+endi
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
