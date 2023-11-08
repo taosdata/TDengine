@@ -474,7 +474,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "slowLogThreshold", tsSlowLogThreshold, 0, INT32_MAX, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0)
     return -1;
   if (cfgAddString(pCfg, "slowLogScope", "", CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0) return -1;
-  if (cfgAddBool(pCfg, "enableSlowQueryMonitor", enableSlowQueryMonitor, CFG_SCOPE_CLIENT) != 0) return -1;
+  if (cfgAddBool(pCfg, "enableSlowQueryMonitor", enableSlowQueryMonitor, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0) return -1;
 
   tsNumOfRpcThreads = tsNumOfCores / 2;
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
