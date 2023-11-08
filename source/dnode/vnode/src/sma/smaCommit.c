@@ -169,7 +169,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit) {
    *  1) This is high cost task and should not put in asyncPreCommit originally.
    *  2) But, if put in asyncCommit, would trigger taskInfo cloning frequently.
    */
-  smaInfo("vgId:%d, rsma commit:%d, wait for all items to be consumed, TID:%p", SMA_VID(pSma), isCommit,
+  smaInfo("vgId:%d, rsma commit, type:%d, wait for all items to be consumed, TID:%p", SMA_VID(pSma), isCommit,
           (void *)taosGetSelfPthreadId());
   nLoops = 0;
   while (atomic_load_64(&pRSmaStat->nBufItems) > 0) {

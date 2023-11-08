@@ -137,15 +137,17 @@ struct SSmaStat {
 #define RSMA_FS_LOCK(r)      (&(r)->lock)
 
 struct SRSmaInfoItem {
-  int8_t   level;
-  int8_t   fetchLevel;
-  int8_t   triggerStat;
-  int32_t  nScanned;
-  int32_t  streamFlushed : 1;
-  int32_t  maxDelay : 31;  // ms
-  tmr_h    tmrId;
-  void    *pStreamState;
-  void    *pStreamTask;  // SStreamTask
+  int8_t  level;
+  int8_t  fetchLevel;
+  int8_t  triggerStat;
+  int32_t nScanned;
+  int32_t streamFlushed : 1;
+  int32_t maxDelay : 31;  // ms
+  int64_t submitReqVer;
+  int64_t fetchResultVer;
+  tmr_h   tmrId;
+  void   *pStreamState;
+  void   *pStreamTask;  // SStreamTask
 };
 
 struct SRSmaInfo {

@@ -661,9 +661,6 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   if ((code = tbDataDoPut(pMemTable, pTbData, pos, &tRow, 0))) goto _exit;
   pTbData->minKey = TMIN(pTbData->minKey, key.ts);
   lRow = tRow;
-  tsdbDebug("vgId:%d, %s, insert col row[%d] with ts:%" PRIi64 ", ver:%" PRIi64 ", uid:%" PRIi64,
-            TD_VID(pMemTable->pTsdb->pVnode), pMemTable->pTsdb->path, tRow.iRow, tRow.pTSRow->ts, tRow.version,
-            pSubmitTbData->uid);
 
   // remain row
   ++tRow.iRow;
@@ -683,9 +680,6 @@ static int32_t tsdbInsertColDataToTable(SMemTable *pMemTable, STbData *pTbData, 
       lRow = tRow;
 
       ++tRow.iRow;
-      tsdbDebug("vgId:%d, %s, insert col row[%d] with ts:%" PRIi64 ", ver:%" PRIi64 ", uid:%" PRIi64,
-                TD_VID(pMemTable->pTsdb->pVnode), pMemTable->pTsdb->path, tRow.iRow, tRow.pTSRow->ts, tRow.version,
-                pSubmitTbData->uid);
     }
   }
 
@@ -727,9 +721,6 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
   code = tbDataDoPut(pMemTable, pTbData, pos, &tRow, 0);
   if (code) goto _exit;
   lRow = tRow;
-  tsdbDebug("vgId:%d, %s, insert row[%d] with ts:%" PRIi64 ", ver:%" PRIi64 ", uid:%" PRIi64,
-            TD_VID(pMemTable->pTsdb->pVnode), pMemTable->pTsdb->path, iRow, tRow.pTSRow->ts, tRow.version,
-            pSubmitTbData->uid);
 
   pTbData->minKey = TMIN(pTbData->minKey, key.ts);
 
@@ -753,9 +744,6 @@ static int32_t tsdbInsertRowDataToTable(SMemTable *pMemTable, STbData *pTbData, 
       lRow = tRow;
 
       iRow++;
-      tsdbDebug("vgId:%d, %s, insert row[%d] with ts:%" PRIi64 ", ver:%" PRIi64 ", uid:%" PRIi64,
-                TD_VID(pMemTable->pTsdb->pVnode), pMemTable->pTsdb->path, iRow, tRow.pTSRow->ts, tRow.version,
-                pSubmitTbData->uid);
     }
   }
 
