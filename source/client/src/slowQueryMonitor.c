@@ -23,7 +23,7 @@ const int   slowQueryLabelCount = 1;
 const char* slowQueryLabels[] = {"cost"};
 
 const int64_t msInSeconds = 1000;
-const int64_t msInMinutes = 60 * msInSeconds;
+const int64_t msInMinutes = 60 * 1000;
 
 static const char* getSlowQueryLableCostDesc(int64_t cost) {
   if (cost >= 30 * msInMinutes) {
