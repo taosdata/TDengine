@@ -950,7 +950,10 @@ static bool hasRemainCalc(SStreamFillInfo* pFillInfo) {
 
 static void doStreamFillNormal(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, SSDataBlock* pBlock) {
   while (hasRemainCalc(pFillInfo) && pBlock->info.rows < pBlock->info.capacity) {
-    buildFillResult(pFillInfo->pResRow, pFillSup, pFillInfo->current, pBlock);
+    STimeWindow st = {.skey = pFillInfo->current, .ekey = pFillInfo->current};
+    if (inWinRange(&pFillSup->winRange, &st)) {
+      buildFillResult(pFillInfo->pResRow, pFillSup, pFillInfo->current, pBlock);
+    }
     pFillInfo->current = taosTimeAdd(pFillInfo->current, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
                                      pFillSup->interval.precision);
   }
@@ -960,7 +963,8 @@ static void doStreamFillLinear(SStreamFillSupporter* pFillSup, SStreamFillInfo* 
   while (hasRemainCalc(pFillInfo) && pBlock->info.rows < pBlock->info.capacity) {
     uint64_t groupId = pBlock->info.id.groupId;
     SWinKey  key = {.groupId = groupId, .ts = pFillInfo->current};
-    if (pFillSup->hasDelete && !checkResult(pFillSup, pFillInfo->current, groupId)) {
+    STimeWindow st = {.skey = pFillInfo->current, .ekey = pFillInfo->current};
+    if ( ( pFillSup->hasDelete && !checkResult(pFillSup, pFillInfo->current, groupId) ) || !inWinRange(&pFillSup->winRange, &st) ) {
       pFillInfo->current = taosTimeAdd(pFillInfo->current, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
                                        pFillSup->interval.precision);
       pFillInfo->pLinearInfo->winIndex++;
@@ -1343,6 +1347,11 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
       if (pInfo->pFillInfo->curGroupId != pBlock->info.id.groupId) {
         pInfo->pFillInfo->curGroupId = pBlock->info.id.groupId;
         pInfo->pFillInfo->preRowKey = INT64_MIN;
+      }
+
+      pInfo->pFillSup->winRange = pTaskInfo->streamInfo.fillHistoryWindow;
+      if (pInfo->pFillSup->winRange.ekey <= 0) {
+        pInfo->pFillSup->winRange.ekey = INT64_MAX;
       }
 
       switch (pBlock->info.type) {

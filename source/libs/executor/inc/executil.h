@@ -196,4 +196,22 @@ void updateTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pWin, int64_t 
 
 SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, SArray* pUidTagList, void* pVnode,
                                         SStorageAPI* pStorageAPI);
+
+/**
+ * @brief build a tuple into keyBuf
+ * @param [out] keyBuf the output buf
+ * @param [in] pSortGroupCols the cols to build
+ * @param [in] pBlock block the tuple in
+ */
+int32_t buildKeys(char* keyBuf, const SArray* pSortGroupCols, const SSDataBlock* pBlock, int32_t rowIndex);
+
+int32_t compKeys(const SArray* pSortGroupCols, const char* oldkeyBuf, int32_t oldKeysLen, const SSDataBlock* pDataBlock,
+              int32_t rowIndex);
+
+uint64_t calcGroupId(char *pData, int32_t len);
+
+SNodeList* makeColsNodeArrFromSortKeys(SNodeList* pSortKeys);
+
+int32_t extractKeysLen(const SArray* keys);
+
 #endif  // TDENGINE_EXECUTIL_H

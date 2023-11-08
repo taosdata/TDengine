@@ -316,7 +316,7 @@ def pre_test_build_win() {
         python -m pip uninstall taospy -y 
         python -m pip install taospy==2.7.12
         python -m pip uninstall taos-ws-py -y 
-        python -m pip install taos-ws-py==0.2.9
+        python -m pip install taos-ws-py==0.3.1
 	xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
     '''
     return 1
@@ -424,7 +424,7 @@ pipeline {
                             echo "${WKDIR}/restore.sh -p ${BRANCH_NAME} -n ${BUILD_ID} -c {container name}"
                         }
                         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                            timeout(time: 130, unit: 'MINUTES'){
+                            timeout(time: 150, unit: 'MINUTES'){
                                 pre_test()
                                 script {
                                     sh '''

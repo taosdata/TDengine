@@ -933,7 +933,13 @@ int32_t dataBlockCompar(const void* p1, const void* p2, const void* param) {
         return 0;
       }
     }
-    __compar_fn_t fn = getKeyComparFunc(pColInfoData->info.type, pOrder->order);
+
+    __compar_fn_t fn;
+    if (pOrder->compFn) {
+      fn = pOrder->compFn;
+    } else {
+      fn = getKeyComparFunc(pColInfoData->info.type, pOrder->order);
+    }
 
     int ret = fn(left1, right1);
     if (ret == 0) {
@@ -1099,6 +1105,7 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
   for (int32_t i = 0; i < taosArrayGetSize(helper.orderInfo); ++i) {
     struct SBlockOrderInfo* pInfo = taosArrayGet(helper.orderInfo, i);
     pInfo->pColData = taosArrayGet(pDataBlock->pDataBlock, pInfo->slotId);
+    pInfo->compFn = getKeyComparFunc(pInfo->pColData->info.type, pInfo->order);
   }
 
   terrno = 0;
@@ -2507,4 +2514,21 @@ void trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList
 
 int32_t blockGetEncodeSize(const SSDataBlock* pBlock) {
   return blockDataGetSerialMetaSize(taosArrayGetSize(pBlock->pDataBlock)) + blockDataGetSize(pBlock);
+}
+
+int32_t blockDataGetSortedRows(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
+  if (!pDataBlock || !pOrderInfo) return 0;
+  for (int32_t i = 0; i < taosArrayGetSize(pOrderInfo); ++i) {
+    SBlockOrderInfo* pOrder = taosArrayGet(pOrderInfo, i);
+    pOrder->pColData = taosArrayGet(pDataBlock->pDataBlock, pOrder->slotId);
+    pOrder->compFn = getKeyComparFunc(pOrder->pColData->info.type, pOrder->order);
+  }
+  SSDataBlockSortHelper sortHelper = {.orderInfo = pOrderInfo, .pDataBlock = pDataBlock};
+  int32_t rowIdx = 0, nextRowIdx = 1;
+  for (; rowIdx < pDataBlock->info.rows && nextRowIdx < pDataBlock->info.rows; ++rowIdx, ++nextRowIdx) {
+    if (dataBlockCompar(&nextRowIdx, &rowIdx, &sortHelper) < 0) {
+      break;
+    }
+  }
+  return nextRowIdx;
 }

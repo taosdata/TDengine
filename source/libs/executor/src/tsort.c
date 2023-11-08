@@ -25,6 +25,7 @@
 #include "tsort.h"
 #include "tutil.h"
 #include "tsimplehash.h"
+#include "executil.h"
 
 struct STupleHandle {
   SSDataBlock* pBlock;
@@ -615,47 +616,61 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
     int ret = pParam->cmpFn(left1, right1);
     return ret;
   } else {
+    bool isVarType;
     for (int32_t i = 0; i < pInfo->size; ++i) {
       SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, i);
       SColumnInfoData* pLeftColInfoData = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pOrder->slotId);
       SColumnInfoData* pRightColInfoData = TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->slotId);
+      isVarType = IS_VAR_DATA_TYPE(pLeftColInfoData->info.type);
 
-      bool leftNull = false;
-      if (pLeftColInfoData->hasNull) {
-        if (pLeftBlock->pBlockAgg == NULL) {
-          leftNull = colDataIsNull_s(pLeftColInfoData, pLeftSource->src.rowIndex);
-        } else {
-          leftNull = colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, pLeftSource->src.rowIndex,
-                                   pLeftBlock->pBlockAgg[i]);
+      if (pLeftColInfoData->hasNull || pRightColInfoData->hasNull) {
+        bool leftNull = false;
+        if (pLeftColInfoData->hasNull) {
+          if (pLeftBlock->pBlockAgg == NULL) {
+            leftNull = colDataIsNull_t(pLeftColInfoData, pLeftSource->src.rowIndex, isVarType);
+          } else {
+            leftNull = colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, pLeftSource->src.rowIndex,
+                                     pLeftBlock->pBlockAgg[i]);
+          }
+        }
+
+        bool rightNull = false;
+        if (pRightColInfoData->hasNull) {
+          if (pRightBlock->pBlockAgg == NULL) {
+            rightNull = colDataIsNull_t(pRightColInfoData, pRightSource->src.rowIndex, isVarType);
+          } else {
+            rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pRightSource->src.rowIndex,
+                                      pRightBlock->pBlockAgg[i]);
+          }
+        }
+
+        if (leftNull && rightNull) {
+          continue;  // continue to next slot
+        }
+
+        if (rightNull) {
+          return pOrder->nullFirst ? 1 : -1;
+        }
+
+        if (leftNull) {
+          return pOrder->nullFirst ? -1 : 1;
         }
       }
 
-      bool rightNull = false;
-      if (pRightColInfoData->hasNull) {
-        if (pRightBlock->pBlockAgg == NULL) {
-          rightNull = colDataIsNull_s(pRightColInfoData, pRightSource->src.rowIndex);
-        } else {
-          rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pRightSource->src.rowIndex,
-                                    pRightBlock->pBlockAgg[i]);
-        }
+      void* left1, *right1;
+      if (isVarType) {
+        left1 = colDataGetVarData(pLeftColInfoData, pLeftSource->src.rowIndex);
+        right1 = colDataGetVarData(pRightColInfoData, pRightSource->src.rowIndex);
+      } else {
+        left1 = colDataGetNumData(pLeftColInfoData, pLeftSource->src.rowIndex);
+        right1 = colDataGetNumData(pRightColInfoData, pRightSource->src.rowIndex);
       }
 
-      if (leftNull && rightNull) {
-        continue;  // continue to next slot
+      __compar_fn_t fn = pOrder->compFn;
+      if (!fn) {
+        fn = getKeyComparFunc(pLeftColInfoData->info.type, pOrder->order);
+        pOrder->compFn = fn;
       }
-
-      if (rightNull) {
-        return pOrder->nullFirst ? 1 : -1;
-      }
-
-      if (leftNull) {
-        return pOrder->nullFirst ? -1 : 1;
-      }
-
-      void* left1 = colDataGetData(pLeftColInfoData, pLeftSource->src.rowIndex);
-      void* right1 = colDataGetData(pRightColInfoData, pRightSource->src.rowIndex);
-
-      __compar_fn_t fn = getKeyComparFunc(pLeftColInfoData->info.type, pOrder->order);
 
       int ret = fn(left1, right1);
       if (ret == 0) {
@@ -1566,4 +1581,16 @@ SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {
   }
 
   return info;
+}
+
+int32_t tsortCompAndBuildKeys(const SArray* pSortCols, char* keyBuf, int32_t* keyLen,
+                              const STupleHandle* pTuple) {
+  int32_t ret;
+  if (0 == compKeys(pSortCols, keyBuf, *keyLen, pTuple->pBlock, pTuple->rowIndex)) {
+    ret = 0;
+  } else {
+    *keyLen = buildKeys(keyBuf, pSortCols, pTuple->pBlock, pTuple->rowIndex);
+    ret = 1;
+  }
+  return ret;
 }

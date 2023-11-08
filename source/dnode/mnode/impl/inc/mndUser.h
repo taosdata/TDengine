@@ -23,6 +23,10 @@
 extern "C" {
 #endif
 
+enum {
+  IP_WHITE_ADD,
+  IP_WHITE_DROP,
+};
 int32_t   mndInitUser(SMnode *pMnode);
 void      mndCleanupUser(SMnode *pMnode);
 SUserObj *mndAcquireUser(SMnode *pMnode, const char *userName);
@@ -39,8 +43,15 @@ int32_t   mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, char *db);
 int32_t   mndUserRemoveStb(SMnode *pMnode, STrans *pTrans, char *stb);
 int32_t   mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic);
 
-int32_t   mndUserDupObj(SUserObj *pUser, SUserObj *pNew);
-void      mndUserFreeObj(SUserObj *pUser);
+int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew);
+void    mndUserFreeObj(SUserObj *pUser);
+
+int64_t mndGetIpWhiteVer(SMnode *pMnode);
+
+void mndUpdateIpWhiteForAllUser(SMnode *pMnode, char *user, char *fqdn, int8_t type, int8_t lock);
+
+int32_t mndRefreshUserIpWhiteList(SMnode *pMnode);
+
 #ifdef __cplusplus
 }
 #endif

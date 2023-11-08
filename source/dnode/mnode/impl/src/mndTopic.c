@@ -485,12 +485,6 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       topicObj.astLen = strlen(pCreate->ast) + 1;
     }
   }
-  /*} else if (pCreate->subType == TOPIC_SUB_TYPE__DB) {*/
-  /*topicObj.ast = NULL;*/
-  /*topicObj.astLen = 0;*/
-  /*topicObj.physicalPlan = NULL;*/
-  /*topicObj.withTbName = 1;*/
-  /*topicObj.withSchema = 1;*/
 
   SSdbRaw *pCommitRaw = mndTopicActionEncode(&topicObj);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
@@ -639,10 +633,10 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   tNameFromString(&dbname, createTopicReq.subDbName, T_NAME_ACCT | T_NAME_DB);
 
   SName topicName = {0};
-  tNameFromString(&topicName, createTopicReq.name, T_NAME_ACCT | T_NAME_DB);
+  tNameFromString(&topicName, createTopicReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
   //reuse this function for topic
 
-  auditRecord(pReq, pMnode->clusterId, "createTopic", topicName.dbname, dbname.dbname, 
+  auditRecord(pReq, pMnode->clusterId, "createTopic", dbname.dbname, topicName.dbname, 
               createTopicReq.sql, strlen(createTopicReq.sql));
 
 _OVER:
@@ -845,10 +839,10 @@ end:
   }
 
   SName name = {0};
-  tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB);
+  tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
   //reuse this function for topic
 
-  auditRecord(pReq, pMnode->clusterId, "dropTopic", name.dbname, "", dropReq.sql, dropReq.sqlLen);
+  auditRecord(pReq, pMnode->clusterId, "dropTopic", name.dbname, name.tname, dropReq.sql, dropReq.sqlLen);
 
   tFreeSMDropTopicReq(&dropReq);
 

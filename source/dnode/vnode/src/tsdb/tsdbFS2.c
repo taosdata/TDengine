@@ -18,6 +18,8 @@
 #include "vnd.h"
 #include "vndCos.h"
 
+#define BLOCK_COMMIT_FACTOR 3
+
 extern int  vnodeScheduleTask(int (*execute)(void *), void *arg);
 extern int  vnodeScheduleTaskEx(int tpid, int (*execute)(void *), void *arg);
 extern void remove_file(const char *fname);
@@ -65,11 +67,17 @@ static int32_t create_fs(STsdb *pTsdb, STFileSystem **fs) {
   fs[0]->bgTaskQueue->next = fs[0]->bgTaskQueue;
   fs[0]->bgTaskQueue->prev = fs[0]->bgTaskQueue;
 
+  taosThreadMutexInit(&fs[0]->commitMutex, NULL);
+  taosThreadCondInit(&fs[0]->canCommit, NULL);
+  fs[0]->blockCommit = false;
+
   return 0;
 }
 
 static int32_t destroy_fs(STFileSystem **fs) {
   if (fs[0] == NULL) return 0;
+  taosThreadMutexDestroy(&fs[0]->commitMutex);
+  taosThreadCondDestroy(&fs[0]->canCommit);
   taosThreadMutexDestroy(fs[0]->mutex);
 
   ASSERT(fs[0]->bgTaskNum == 0);
@@ -786,7 +794,7 @@ int32_t tsdbCloseFS(STFileSystem **fs) {
 }
 
 int64_t tsdbFSAllocEid(STFileSystem *fs) {
-  taosThreadRwlockRdlock(&fs->tsdb->rwLock);
+  taosThreadRwlockWrlock(&fs->tsdb->rwLock);
   int64_t cid = ++fs->neid;
   taosThreadRwlockUnlock(&fs->tsdb->rwLock);
   return cid;
@@ -829,6 +837,27 @@ _exit:
   return code;
 }
 
+static int32_t tsdbFSSetBlockCommit(STFileSystem *fs, bool block) {
+  taosThreadMutexLock(&fs->commitMutex);
+  if (block) {
+    fs->blockCommit = true;
+  } else {
+    fs->blockCommit = false;
+    taosThreadCondSignal(&fs->canCommit);
+  }
+  taosThreadMutexUnlock(&fs->commitMutex);
+  return 0;
+}
+
+int32_t tsdbFSCheckCommit(STFileSystem *fs) {
+  taosThreadMutexLock(&fs->commitMutex);
+  while (fs->blockCommit) {
+    taosThreadCondWait(&fs->canCommit, &fs->commitMutex);
+  }
+  taosThreadMutexUnlock(&fs->commitMutex);
+  return 0;
+}
+
 int32_t tsdbFSEditCommit(STFileSystem *fs) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -838,19 +867,36 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // schedule merge
-  if (fs->tsdb->pVnode->config.sttTrigger != 1) {
+  if (fs->tsdb->pVnode->config.sttTrigger > 1) {
     STFileSet *fset;
+    int32_t    sttTrigger = fs->tsdb->pVnode->config.sttTrigger;
+    bool       schedMerge = false;
+    bool       blockCommit = false;
+
     TARRAY2_FOREACH_REVERSE(fs->fSetArr, fset) {
       if (TARRAY2_SIZE(fset->lvlArr) == 0) continue;
 
       SSttLvl *lvl = TARRAY2_FIRST(fset->lvlArr);
-      if (lvl->level != 0 || TARRAY2_SIZE(lvl->fobjArr) < fs->tsdb->pVnode->config.sttTrigger) continue;
+      if (lvl->level != 0) continue;
 
+      int32_t numFile = TARRAY2_SIZE(lvl->fobjArr);
+      if (numFile >= sttTrigger) {
+        schedMerge = true;
+      }
+
+      if (numFile >= sttTrigger * BLOCK_COMMIT_FACTOR) {
+        blockCommit = true;
+      }
+
+      if (schedMerge && blockCommit) break;
+    }
+
+    if (schedMerge) {
       code = tsdbFSScheduleBgTask(fs, TSDB_BG_TASK_MERGER, tsdbMerge, NULL, fs->tsdb, NULL);
       TSDB_CHECK_CODE(code, lino, _exit);
-
-      break;
     }
+
+    tsdbFSSetBlockCommit(fs, blockCommit);
   }
 
 _exit:
@@ -921,7 +967,6 @@ int32_t tsdbFSCreateRefSnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
   fsetArr[0] = taosMemoryCalloc(1, sizeof(*fsetArr[0]));
   if (fsetArr[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
-  taosThreadRwlockRdlock(&fs->tsdb->rwLock);
   TARRAY2_FOREACH(fs->fSetArr, fset) {
     code = tsdbTFileSetInitRef(fs->tsdb, fset, &fset1);
     if (code) break;
@@ -929,7 +974,6 @@ int32_t tsdbFSCreateRefSnapshot(STFileSystem *fs, TFileSetArray **fsetArr) {
     code = TARRAY2_APPEND(fsetArr[0], fset1);
     if (code) break;
   }
-  taosThreadRwlockUnlock(&fs->tsdb->rwLock);
 
   if (code) {
     TARRAY2_DESTROY(fsetArr[0], tsdbTFileSetClear);

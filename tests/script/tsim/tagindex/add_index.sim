@@ -292,10 +292,11 @@ if $rows != 1 then
   return -1
 endi
 
-#sql drop index $data[0][0]
+#$drop_name=`$data[0][0]`
+#sql drop index `$data[0][0]\`
 
-#if $rows != 0 then 
-#return -1
+#if $rows != 0 then
+#  return -1
 #endi
 
 

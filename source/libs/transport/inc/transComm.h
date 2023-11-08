@@ -29,6 +29,8 @@ extern "C" {
 #include "ttrace.h"
 #include "tutil.h"
 
+typedef bool (*FilteFunc)(void* arg);
+
 typedef void* queue[2];
 /* Private macros. */
 #define QUEUE_NEXT(q) (*(queue**)&((*(q))[0]))
@@ -303,11 +305,12 @@ void transUnrefCliHandle(void* handle);
 int transReleaseCliHandle(void* handle);
 int transReleaseSrvHandle(void* handle);
 
-int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
-int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
-int transSendResponse(const STransMsg* msg);
-int transRegisterMsg(const STransMsg* msg);
-int transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
+int  transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
+int  transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
+int  transSendResponse(const STransMsg* msg);
+int  transRegisterMsg(const STransMsg* msg);
+int  transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
+void transSetIpWhiteList(void* shandle, void* arg, FilteFunc* func);
 
 int transSockInfo2Str(struct sockaddr* sockname, char* dst);
 
@@ -417,6 +420,7 @@ void transThreadOnce();
 
 void transInit();
 void transCleanup();
+void transPrintEpSet(SEpSet* pEpSet);
 
 void    transFreeMsg(void* msg);
 int32_t transCompressMsg(char* msg, int32_t len);
@@ -434,6 +438,23 @@ int32_t transGetRefMgt();
 int32_t transGetInstMgt();
 
 void transHttpEnvDestroy();
+
+typedef struct {
+  uint32_t netmask;
+  uint32_t address;
+  uint32_t network;
+  uint32_t broadcast;
+  char     info[32];
+  int8_t   type;
+} SubnetUtils;
+
+int32_t subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange);
+int32_t subnetCheckIp(SubnetUtils* pUtils, uint32_t ip);
+int32_t subnetDebugInfoToBuf(SubnetUtils* pUtils, char* buf);
+
+int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf);
+int32_t transUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf);
+
 #ifdef __cplusplus
 }
 #endif

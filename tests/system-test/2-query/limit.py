@@ -291,8 +291,8 @@ class TDTestCase:
         tdSql.checkData(0, 7, 1)
         tdSql.checkData(0, 8, "binary5")
         tdSql.checkData(0, 9, "nchar5")
-        tdSql.checkData(1, 8, None)
-        tdSql.checkData(1, 9, None)
+        tdSql.checkData(1, 8, "-8")
+        tdSql.checkData(1, 9, "-9")
 
 
         limit = paraDict["rowsPerTbl"]
@@ -338,10 +338,37 @@ class TDTestCase:
               
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
+    # 
+    def checkVGroups(self):
+
+        # db2
+        tdSql.execute("create database db2 vgroups 2;")
+        tdSql.execute("use db2;")
+        tdSql.execute("create table st(ts timestamp, age int) tags(area int);")
+        tdSql.execute("create table t1 using st tags(1);")
+        tdSql.query("select distinct(tbname) from st limit 1 offset 100;")
+        tdSql.checkRows(0)
+        tdLog.info("check db2 vgroups 2 limit 1 offset 100 successfully!")
+
+
+        # db1
+        tdSql.execute("create database db1 vgroups 1;")
+        tdSql.execute("use db1;")
+        tdSql.execute("create table st(ts timestamp, age int) tags(area int);")
+        tdSql.execute("create table t1 using st tags(1);")
+        tdSql.query("select distinct(tbname) from st limit 1 offset 100;")
+        tdSql.checkRows(0)
+        tdLog.info("check db1 vgroups 1 limit 1 offset 100 successfully!")
+
+
     def run(self):
         # tdSql.prepare()
         self.prepareTestEnv()
         self.tmqCase1()
+
+        # one vgroup diff more than one vgroup check
+        self.checkVGroups()
+
 
     def stop(self):
         tdSql.close()

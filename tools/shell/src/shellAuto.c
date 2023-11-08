@@ -66,6 +66,8 @@ SWords shellCommands[] = {
     {"alter dnode <dnode_id> \"debugFlag\" \"141\";", 0, 0, NULL},
     {"alter dnode <dnode_id> \"monitor\" \"0\";", 0, 0, NULL},
     {"alter dnode <dnode_id> \"monitor\" \"1\";", 0, 0, NULL},
+    {"alter dnode <dnode_id> \"asynclog\" \"0\";", 0, 0, NULL},
+    {"alter dnode <dnode_id> \"asynclog\" \"1\";", 0, 0, NULL},
     {"alter all dnodes \"resetlog\";", 0, 0, NULL},
     {"alter all dnodes \"debugFlag\" \"141\";", 0, 0, NULL},
     {"alter all dnodes \"monitor\" \"0\";", 0, 0, NULL},
@@ -77,8 +79,15 @@ SWords shellCommands[] = {
     {"alter local \"uDebugFlag\" \"143\";", 0, 0, NULL},
     {"alter local \"rpcDebugFlag\" \"143\";", 0, 0, NULL},
     {"alter local \"tmrDebugFlag\" \"143\";", 0, 0, NULL},
+    {"alter local \"asynclog\" \"0\";", 0, 0, NULL},
+    {"alter local \"asynclog\" \"1\";", 0, 0, NULL},
     {"alter topic", 0, 0, NULL},
     {"alter user <user_name> <user_actions> <anyword> ;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
+    {"balance vgroup;", 0, 0, NULL},
+    {"balance vgroup leader <vgroup_id>", 0, 0, NULL},
+#endif
+
     // 20
     {"create table <anyword> using <stb_name> tags(", 0, 0, NULL},
     {"create database <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> "
@@ -123,9 +132,12 @@ SWords shellCommands[] = {
     {"kill query ", 0, 0, NULL},
     {"kill transaction ", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
-    {"merge vgroup ", 0, 0, NULL},
+    {"merge vgroup <vgroup_id> <vgroup_id>", 0, 0, NULL},
 #endif
     {"pause stream <stream_name> ;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
+    {"redistribute vgroup <vgroup_id> dnode <dnode_id> ;", 0, 0, NULL},
+#endif
     {"resume stream <stream_name> ;", 0, 0, NULL},
     {"reset query cache;", 0, 0, NULL},
     {"restore dnode <dnode_id> ;", 0, 0, NULL},
@@ -183,8 +195,8 @@ SWords shellCommands[] = {
     {"show consumers;", 0, 0, NULL},
     {"show grants;", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
-    {"split vgroup ", 0, 0, NULL},
-#endif    
+    {"split vgroup <vgroup_id>", 0, 0, NULL},
+#endif
     {"insert into <tb_name> values(", 0, 0, NULL},
     {"insert into <tb_name> using <stb_name> tags(", 0, 0, NULL},
     {"insert into <tb_name> using <stb_name> <anyword> values(", 0, 0, NULL},
@@ -264,7 +276,9 @@ char* db_options[] = {"keep ",
                       "wal_retention_size ",
                       "wal_segment_size "};
 
-char* alter_db_options[] = {"cachemodel ", "replica ", "keep ", "cachesize ", "wal_fsync_period ", "wal_level "};
+char* alter_db_options[] = {"cachemodel ", "replica ", "keep ", "stt_trigger ",
+                            "wal_retention_period ", "wal_retention_size ", "cachesize ", 
+                            "wal_fsync_period ", "buffer ", "pages " ,"wal_level "};
 
 char* data_types[] = {"timestamp",    "int",
                       "int unsigned", "varchar(16)",
@@ -308,26 +322,27 @@ bool    waitAutoFill = false;
 #define WT_VAR_TOPIC          5
 #define WT_VAR_STREAM         6
 #define WT_VAR_UDFNAME        7
+#define WT_VAR_VGROUPID       8
 
-#define WT_FROM_DB_MAX        7  // max get content from db
+#define WT_FROM_DB_MAX        8  // max get content from db
 #define WT_FROM_DB_CNT (WT_FROM_DB_MAX + 1)
 
-#define WT_VAR_ALLTABLE       8
-#define WT_VAR_FUNC           9
-#define WT_VAR_KEYWORD        10
-#define WT_VAR_TBACTION       11
-#define WT_VAR_DBOPTION       12
-#define WT_VAR_ALTER_DBOPTION 13
-#define WT_VAR_DATATYPE       14
-#define WT_VAR_KEYTAGS        15
-#define WT_VAR_ANYWORD        16
-#define WT_VAR_TBOPTION       17
-#define WT_VAR_USERACTION     18
-#define WT_VAR_KEYSELECT      19
-#define WT_VAR_SYSTABLE       20
-#define WT_VAR_LANGUAGE       21
+#define WT_VAR_ALLTABLE       9
+#define WT_VAR_FUNC           10
+#define WT_VAR_KEYWORD        11
+#define WT_VAR_TBACTION       12
+#define WT_VAR_DBOPTION       13
+#define WT_VAR_ALTER_DBOPTION 14
+#define WT_VAR_DATATYPE       15
+#define WT_VAR_KEYTAGS        16
+#define WT_VAR_ANYWORD        17
+#define WT_VAR_TBOPTION       18
+#define WT_VAR_USERACTION     19
+#define WT_VAR_KEYSELECT      20
+#define WT_VAR_SYSTABLE       21
+#define WT_VAR_LANGUAGE       22
 
-#define WT_VAR_CNT 22
+#define WT_VAR_CNT 23
 
 
 #define WT_TEXT 0xFF
@@ -341,11 +356,11 @@ TdThread* threads[WT_FROM_DB_CNT];
 // obtain var name  with sql from server
 char varTypes[WT_VAR_CNT][64] = {
     "<db_name>",    "<stb_name>",  "<tb_name>",  "<dnode_id>",  "<user_name>",    "<topic_name>", "<stream_name>",
-    "<udf_name>",   "<all_table>", "<function>", "<keyword>",    "<tb_actions>",   "<db_options>", "<alter_db_options>",
+    "<udf_name>",   "<vgroup_id>", "<all_table>", "<function>", "<keyword>",    "<tb_actions>",   "<db_options>", "<alter_db_options>",
     "<data_types>", "<key_tags>",  "<anyword>",  "<tb_options>", "<user_actions>", "<key_select>", "<sys_table>", "<udf_language>"};
 
 char varSqls[WT_FROM_DB_CNT][64] = {"show databases;", "show stables;", "show tables;", "show dnodes;",
-                                    "show users;",     "show topics;",  "show streams;", "show functions;"};
+                                    "show users;",     "show topics;",  "show streams;", "show functions;", "show vgroups;"};
 
 // var words current cursor, if user press any one key except tab, cursorVar can be reset to -1
 int  cursorVar = -1;
@@ -391,13 +406,19 @@ void showHelp() {
     alter dnode <dnode_id> 'monitor' '0';\n\
     alter dnode <dnode_id> 'monitor' \"1\";\n\
     alter dnode <dnode_id> \"debugflag\" \"143\";\n\
+    alter dnode <dnode_id> 'asynclog' '0';\n\
+    alter dnode <dnode_id> 'asynclog' \"1\";\n\
     alter all dnodes \"monitor\" \"0\";\n\
     alter all dnodes \"monitor\" \"1\";\n\
     alter all dnodes \"resetlog\";\n\
     alter all dnodes \"debugFlag\" \n\
+    alter all dnodes \"asynclog\" \"0\";\n\
+    alter all dnodes \"asynclog\" \"1\";\n\
     alter table <tb_name> <tb_actions> ;\n\
     alter local \"resetlog\";\n\
     alter local \"DebugFlag\" \"143\";\n\
+    alter local \"asynclog\" \"0\";\n\
+    alter local \"asynclog\" \"1\";\n\
     alter topic\n\
     alter user <user_name> <user_actions> ...\n\
   ----- C ----- \n\
@@ -510,7 +531,10 @@ void showHelp() {
   printf(
       "\n\n\
   ----- special commands on enterpise version ----- \n\
+    balance vgroup; \n\
+    balance vgroup leader <vgroup_id> \n\
     compact database <db_name>; \n\
+    redistribute vgroup <vgroup_id> dnode <dnode_id> ;\n\
     split vgroup <vgroup_id>;");
 #endif
 
@@ -665,9 +689,9 @@ bool shellAutoInit() {
   // generate varType
   GenerateVarType(WT_VAR_FUNC, functions, sizeof(functions) / sizeof(char*));
   GenerateVarType(WT_VAR_KEYWORD, keywords, sizeof(keywords) / sizeof(char*));
+  GenerateVarType(WT_VAR_TBACTION, tb_actions, sizeof(tb_actions) / sizeof(char*));
   GenerateVarType(WT_VAR_DBOPTION, db_options, sizeof(db_options) / sizeof(char*));
   GenerateVarType(WT_VAR_ALTER_DBOPTION, alter_db_options, sizeof(alter_db_options) / sizeof(char*));
-  GenerateVarType(WT_VAR_TBACTION, tb_actions, sizeof(tb_actions) / sizeof(char*));
   GenerateVarType(WT_VAR_DATATYPE, data_types, sizeof(data_types) / sizeof(char*));
   GenerateVarType(WT_VAR_KEYTAGS, key_tags, sizeof(key_tags) / sizeof(char*));
   GenerateVarType(WT_VAR_TBOPTION, tb_options, sizeof(tb_options) / sizeof(char*));

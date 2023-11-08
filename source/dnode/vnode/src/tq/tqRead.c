@@ -269,6 +269,8 @@ STqReader* tqReaderOpen(SVnode* pVnode) {
 }
 
 void tqReaderClose(STqReader* pReader) {
+  if (pReader == NULL) return;
+
   // close wal reader
   if (pReader->pWalReader) {
     walCloseReader(pReader->pWalReader);
@@ -309,7 +311,7 @@ int32_t extractMsgFromWal(SWalReader* pReader, void** pItem, int64_t maxVer, con
     SWalCont* pCont = &pReader->pHead->head;
     int64_t   ver = pCont->version;
     if (ver > maxVer) {
-      tqDebug("maxVer in WAL:%" PRId64 " reached current:%" PRId64 ", do not scan wal anymore, %s", maxVer, ver, id);
+      tqDebug("maxVer in WAL:%" PRId64 " reached, current:%" PRId64 ", do not scan wal anymore, %s", maxVer, ver, id);
       return TSDB_CODE_SUCCESS;
     }
 
@@ -1132,7 +1134,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
   taosWUnLockLatch(&pTq->lock);
 
   // update the table list handle for each stream scanner/wal reader
-  taosWLockLatch(&pTq->pStreamMeta->lock);
+  streamMetaWLock(pTq->pStreamMeta);
   while (1) {
     pIter = taosHashIterate(pTq->pStreamMeta->pTasksMap, pIter);
     if (pIter == NULL) {
@@ -1149,6 +1151,6 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
     }
   }
 
-  taosWUnLockLatch(&pTq->pStreamMeta->lock);
+  streamMetaWUnLock(pTq->pStreamMeta);
   return 0;
 }

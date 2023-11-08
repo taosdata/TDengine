@@ -43,6 +43,7 @@ typedef enum {
   CFG_DTYPE_INT32,
   CFG_DTYPE_INT64,
   CFG_DTYPE_FLOAT,
+  CFG_DTYPE_DOUBLE,
   CFG_DTYPE_STRING,
   CFG_DTYPE_DIR,
   CFG_DTYPE_LOCALE,
@@ -101,7 +102,7 @@ int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfg
 int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, int8_t scope);
 int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, int8_t scope);
 int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval, int8_t scope);
-int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, double minval, double maxval, int8_t scope);
+int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, float minval, float maxval, int8_t scope);
 int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope);
 int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope);
 int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope);

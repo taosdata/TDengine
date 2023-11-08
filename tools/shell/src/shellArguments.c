@@ -410,7 +410,7 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shellInitArgs(argc, argv);
   shell.info.clientVersion =
       "Welcome to the %s Command Line Interface, Client Version:%s\r\n"
-      "Copyright (c) 2022 by %s, all rights reserved.\r\n\r\n";
+      "Copyright (c) 2023 by %s, all rights reserved.\r\n\r\n";
 #ifdef CUS_NAME
   strcpy(shell.info.cusName, CUS_NAME);
 #else

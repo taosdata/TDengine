@@ -43,9 +43,9 @@ extern "C" {
 
 typedef struct STqOffsetStore STqOffsetStore;
 
-// tqPush
 #define STREAM_EXEC_EXTRACT_DATA_IN_WAL_ID (-1)
-#define STREAM_EXEC_TASK_STATUS_CHECK_ID     (-2)
+#define STREAM_EXEC_START_ALL_TASKS_ID     (-2)
+#define STREAM_EXEC_RESTART_ALL_TASKS_ID   (-3)
 
 // tqExec
 typedef struct {
@@ -87,14 +87,10 @@ typedef struct {
   int64_t     snapshotVer;
   SWalReader* pWalReader;
   SWalRef*    pRef;
-  //  STqPushHandle pushHandle;    // push
   STqExecHandle    execHandle;  // exec
   SRpcMsg*         msg;
   tq_handle_status status;
 } STqHandle;
-typedef struct {
-  int64_t snapshotVer;
-} SStreamHandle;
 
 struct STQ {
   SVnode*         pVnode;
@@ -129,7 +125,6 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, STaosxR
 int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision);
 int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp,
                       int32_t type, int32_t vgId);
-//int32_t tqPushDataRsp(STqHandle* pHandle, int32_t vgId);
 int32_t tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId);
 
 // tqMeta
@@ -137,7 +132,6 @@ int32_t tqMetaOpen(STQ* pTq);
 int32_t tqMetaClose(STQ* pTq);
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle);
 int32_t tqMetaDeleteHandle(STQ* pTq, const char* key);
-int32_t tqMetaRestoreHandle(STQ* pTq);
 int32_t tqMetaSaveCheckInfo(STQ* pTq, const char* key, const void* value, int32_t vLen);
 int32_t tqMetaDeleteCheckInfo(STQ* pTq, const char* key);
 int32_t tqMetaRestoreCheckInfo(STQ* pTq);
@@ -161,10 +155,7 @@ char*   tqOffsetBuildFName(const char* path, int32_t fVer);
 int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname);
 
 // tqStream
-int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver);
-int32_t tqScanWal(STQ* pTq);
-int32_t tqCheckAndRunStreamTask(STQ* pTq);
-int32_t tqStartStreamTasks(STQ* pTq);
+int32_t tqResetStreamTaskStatus(STQ* pTq);
 int32_t tqStopStreamTasks(STQ* pTq);
 
 // tq util
@@ -174,6 +165,12 @@ int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* 
                         int32_t type, int64_t sver, int64_t ever);
 int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset);
 void    tqUpdateNodeStage(STQ* pTq, bool isLeader);
+int32_t setDstTableDataPayload(uint64_t suid, const STSchema* pTSchema, int32_t blockIndex, SSDataBlock* pDataBlock,
+                               SSubmitTbData* pTableData, const char* id);
+int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, const char* id);
+
+SVCreateTbReq* buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t numOfCols,
+                                       SSDataBlock* pDataBlock, SArray* pTagArray);
 
 #ifdef __cplusplus
 }

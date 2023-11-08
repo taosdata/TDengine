@@ -2261,3 +2261,104 @@ void updateTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pWin, int64_t 
   ts[3] = pWin->skey;          // window start key
   ts[4] = pWin->ekey + delta;  // window end key
 }
+
+int32_t compKeys(const SArray* pSortGroupCols, const char* oldkeyBuf, int32_t oldKeysLen, const SSDataBlock* pBlock, int32_t rowIndex) {
+  SColumnDataAgg* pColAgg = NULL;
+  const char*     isNull = oldkeyBuf;
+  const char*     p = oldkeyBuf + sizeof(int8_t) * pSortGroupCols->size;
+
+  for (int32_t i = 0; i < pSortGroupCols->size; ++i) {
+    const SColumn* pCol = (SColumn*)TARRAY_GET_ELEM(pSortGroupCols, i);
+    const SColumnInfoData* pColInfoData = TARRAY_GET_ELEM(pBlock->pDataBlock, pCol->slotId);
+    if (pBlock->pBlockAgg) pColAgg = pBlock->pBlockAgg[pCol->slotId];
+
+    if (colDataIsNull(pColInfoData, pBlock->info.rows, rowIndex, pColAgg)) {
+      if (isNull[i] != 1) return 1;
+    } else {
+      if (isNull[i] != 0) return 1;
+      const char* val = colDataGetData(pColInfoData, rowIndex);
+      if (pCol->type == TSDB_DATA_TYPE_JSON) {
+        int32_t len = getJsonValueLen(val);
+        if (memcmp(p, val, len) != 0) return 1;
+        p += len;
+      } else if (IS_VAR_DATA_TYPE(pCol->type)) {
+        if (memcmp(p, val, varDataTLen(val)) != 0) return 1;
+        p += varDataTLen(val);
+      } else {
+        if (0 != memcmp(p, val, pCol->bytes)) return 1;
+        p += pCol->bytes;
+      }
+    }
+  }
+  if ((int32_t)(p - oldkeyBuf) != oldKeysLen) return 1;
+  return 0;
+}
+
+int32_t buildKeys(char* keyBuf, const SArray* pSortGroupCols, const SSDataBlock* pBlock,
+                 int32_t rowIndex) {
+  uint32_t        colNum = pSortGroupCols->size;
+  SColumnDataAgg* pColAgg = NULL;
+  char*           isNull = keyBuf;
+  char*           p = keyBuf + sizeof(int8_t) * colNum;
+
+  for (int32_t i = 0; i < colNum; ++i) {
+    const SColumn*         pCol = (SColumn*)TARRAY_GET_ELEM(pSortGroupCols, i);
+    const SColumnInfoData* pColInfoData = TARRAY_GET_ELEM(pBlock->pDataBlock, pCol->slotId);
+    if (pCol->slotId > pBlock->pDataBlock->size) continue;
+
+    if (pBlock->pBlockAgg) pColAgg = pBlock->pBlockAgg[pCol->slotId];
+
+    if (colDataIsNull(pColInfoData, pBlock->info.rows, rowIndex, pColAgg)) {
+      isNull[i] = 1;
+    } else {
+      isNull[i] = 0;
+      const char* val = colDataGetData(pColInfoData, rowIndex);
+      if (pCol->type == TSDB_DATA_TYPE_JSON) {
+        int32_t len = getJsonValueLen(val);
+        memcpy(p, val, len);
+        p += len;
+      } else if (IS_VAR_DATA_TYPE(pCol->type)) {
+        varDataCopy(p, val);
+        p += varDataTLen(val);
+      } else {
+        memcpy(p, val, pCol->bytes);
+        p += pCol->bytes;
+      }
+    }
+  }
+  return (int32_t)(p - keyBuf);
+}
+
+uint64_t calcGroupId(char* pData, int32_t len) {
+  T_MD5_CTX context;
+  tMD5Init(&context);
+  tMD5Update(&context, (uint8_t*)pData, len);
+  tMD5Final(&context);
+
+  // NOTE: only extract the initial 8 bytes of the final MD5 digest
+  uint64_t id = 0;
+  memcpy(&id, context.digest, sizeof(uint64_t));
+  if (0 == id) memcpy(&id, context.digest + 8, sizeof(uint64_t));
+  return id;
+}
+
+SNodeList* makeColsNodeArrFromSortKeys(SNodeList* pSortKeys) {
+  SNode* node;
+  SNodeList* ret = NULL;
+  FOREACH(node, pSortKeys) {
+    SOrderByExprNode* pSortKey = (SOrderByExprNode*)node;
+    nodesListMakeAppend(&ret, pSortKey->pExpr);
+  }
+  return ret;
+}
+
+int32_t extractKeysLen(const SArray* keys) {
+  int32_t len = 0;
+  int32_t keyNum = taosArrayGetSize(keys);
+  for (int32_t i = 0; i < keyNum; ++i) {
+    SColumn* pCol = (SColumn*)taosArrayGet(keys, i);
+    len += pCol->bytes;
+  }
+  len += sizeof(int8_t) * keyNum; //null flag
+  return len;
+}

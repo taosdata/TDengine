@@ -858,22 +858,10 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   }
   return 0;
 }
-static int32_t mndGenIdxNameForFirstTag(char *fullname, char *dbname, char *tagname) {
-  char    randStr[TSDB_COL_NAME_LEN] = {0};
-  int32_t left = TSDB_COL_NAME_LEN - strlen(tagname) - 1;
-  if (left <= 1) {
-    sprintf(fullname, "%s.%s", dbname, tagname);
-  } else {
-    int8_t start = left < 8 ? 0 : 8;
-    int8_t end = left >= 24 ? 24 : left - 1;
-    // gen rand str len [base:end]
-    // note: ignore rand performance issues
-    int64_t len = taosRand() % (end - start + 1) + start;
-    taosRandStr2(randStr, len);
-    sprintf(fullname, "%s.%s_%s", dbname, tagname, randStr);
-  }
-
-  return 0;
+static int32_t mndGenIdxNameForFirstTag(char *fullname, char *dbname, char *stbname, char *tagname) {
+  SName name = {0};
+  tNameFromString(&name, stbname, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  return snprintf(fullname, TSDB_INDEX_FNAME_LEN, "%s.%s_%s", dbname, tagname, tNameGetTableName(&name));
 }
 
 static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCreate, SDbObj *pDb) {
@@ -889,13 +877,11 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   if (mndBuildStbFromReq(pMnode, &stbObj, pCreate, pDb) != 0) goto _OVER;
 
   SSchema *pSchema = &(stbObj.pTags[0]);
-  mndGenIdxNameForFirstTag(fullIdxName, pDb->name, pSchema->name);
-
+  mndGenIdxNameForFirstTag(fullIdxName, pDb->name, stbObj.name, pSchema->name);
   SSIdx idx = {0};
   if (mndAcquireGlobalIdx(pMnode, fullIdxName, SDB_IDX, &idx) == 0 && idx.pIdx != NULL) {
     terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
     mndReleaseIdx(pMnode, idx.pIdx);
-
     goto _OVER;
   }
 
@@ -1591,6 +1577,10 @@ static int32_t mndAlterStbTagBytes(SMnode *pMnode, const SStbObj *pOld, SStbObj 
 static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray *pFields, int32_t ncols) {
   if (pOld->numOfColumns + ncols + pOld->numOfTags > TSDB_MAX_COLUMNS) {
     terrno = TSDB_CODE_MND_TOO_MANY_COLUMNS;
+    return -1;
+  }
+
+  if ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) != 0) {
     return -1;
   }
 

@@ -743,6 +743,9 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   }
   nodesDestroyList(pOutputGroupKeys);
 
+  pAgg->isGroupTb = pAgg->pGroupKeys ? keysHasTbname(pAgg->pGroupKeys) : 0;
+  pAgg->isPartTb = pSelect->pPartitionByList ? keysHasTbname(pSelect->pPartitionByList) : 0;
+
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pAgg;
   } else {
@@ -964,6 +967,7 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
     nodesDestroyNode((SNode*)pWindow);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pWindow->isPartTb = pSelect->pPartitionByList ? keysHasTbname(pSelect->pPartitionByList) : 0;
 
   return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 }
@@ -995,7 +999,6 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
   }
-
   switch (nodeType(pSelect->pWindow)) {
     case QUERY_NODE_STATE_WINDOW:
       return createWindowLogicNodeByState(pCxt, (SStateWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
@@ -1256,10 +1259,23 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, NULL, fmIsAggFunc, &pPartition->pAggFuncs);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
     pPartition->pPartitionKeys = nodesCloneList(pSelect->pPartitionByList);
     if (NULL == pPartition->pPartitionKeys) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
+  }
+
+  if (keysHasCol(pPartition->pPartitionKeys) && pSelect->pWindow &&
+      nodeType(pSelect->pWindow) == QUERY_NODE_INTERVAL_WINDOW) {
+    pPartition->needBlockOutputTsOrder = true;
+    SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pSelect->pWindow;
+    SColumnNode* pTsCol = (SColumnNode*)pInterval->pCol;
+    pPartition->pkTsColId = pTsCol->colId;
+    pPartition->pkTsColTbId = pTsCol->tableId;
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pTags) {

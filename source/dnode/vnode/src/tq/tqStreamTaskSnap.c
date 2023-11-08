@@ -196,9 +196,8 @@ int32_t streamTaskSnapWriterClose(SStreamTaskWriter* pWriter, int8_t rollback) {
   int32_t code = 0;
   STQ*    pTq = pWriter->pTq;
 
-  tqDebug("vgId:%d, vnode stream-task snapshot writer closed", TD_VID(pTq->pVnode));
-
   taosWLockLatch(&pTq->pStreamMeta->lock);
+  tqDebug("vgId:%d, vnode stream-task snapshot writer closed", TD_VID(pTq->pVnode));
   if (rollback) {
     tdbAbort(pTq->pStreamMeta->db, pTq->pStreamMeta->txn);
   } else {
@@ -207,13 +206,13 @@ int32_t streamTaskSnapWriterClose(SStreamTaskWriter* pWriter, int8_t rollback) {
     code = tdbPostCommit(pTq->pStreamMeta->db, pTq->pStreamMeta->txn);
     if (code) goto _err;
   }
+
   if (tdbBegin(pTq->pStreamMeta->db, &pTq->pStreamMeta->txn, tdbDefaultMalloc, tdbDefaultFree, NULL, 0) < 0) {
     code = -1;
+    taosMemoryFree(pWriter);
     goto _err;
   }
-
   taosWUnLockLatch(&pTq->pStreamMeta->lock);
-
   taosMemoryFree(pWriter);
   return code;
 
@@ -239,6 +238,7 @@ int32_t streamTaskSnapWrite(SStreamTaskWriter* pWriter, uint8_t* pData, uint32_t
       goto _err;
     }
     tDecoderClear(&decoder);
+    // tdbTbInsert(TTB *pTb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn)
 
     int64_t key[2] = {taskId.streamId, taskId.taskId};
     taosWLockLatch(&pTq->pStreamMeta->lock);

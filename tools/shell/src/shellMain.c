@@ -47,6 +47,7 @@ int main(int argc, char *argv[]) {
 #ifdef WEBSOCKET
   shell.args.timeout = SHELL_WS_TIMEOUT;
   shell.args.cloud = true;
+  shell.args.local = false;
 #endif
 
 #if !defined(WINDOWS)

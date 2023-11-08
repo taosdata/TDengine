@@ -73,10 +73,10 @@ SHOW CREATE TABLE [db_name.]tb_name
 ## SHOW DATABASES
 
 ```sql
-SHOW DATABASES;
+SHOW [USER | SYSTEM] DATABASES;
 ```
 
-显示用户定义的所有数据库。
+显示定义的所有数据库。SYSTEM 指定只显示系统数据库。USER 指定只显示用户创建的数据库。
 
 ## SHOW DNODES
 
@@ -183,10 +183,10 @@ SHOW SUBSCRIPTIONS;
 ## SHOW TABLES
 
 ```sql
-SHOW [db_name.]TABLES [LIKE 'pattern'];
+SHOW [NORMAL | CHILD] [db_name.]TABLES [LIKE 'pattern'];
 ```
 
-显示当前数据库下的所有普通表和子表的信息。可以使用 LIKE 对表名进行模糊匹配。
+显示当前数据库下的所有普通表和子表的信息。可以使用 LIKE 对表名进行模糊匹配。NORMAL 指定只显示普通表信息， CHILD 指定只显示子表信息。
 
 ## SHOW TABLE DISTRIBUTED
 

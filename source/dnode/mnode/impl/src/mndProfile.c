@@ -290,6 +290,7 @@ _CONNECT:
   connectRsp.svrTimestamp = taosGetTimestampSec();
   connectRsp.passVer = pUser->passVersion;
   connectRsp.authVer = pUser->authVersion;
+  connectRsp.whiteListVer = pUser->ipWhiteListVer;
 
   strcpy(connectRsp.sVer, version);
   snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo,
@@ -309,14 +310,10 @@ _CONNECT:
 
   code = 0;
 
-  char obj[100] = {0};
-  sprintf(obj, "%s:%d", ip, pConn->port);
-
   char detail[1000] = {0};
-  sprintf(detail, "connType:%d, db:%s, pid:%d, startTime:%" PRId64 ", sVer:%s, app:%s",
-          connReq.connType, connReq.db, connReq.pid, connReq.startTime, connReq.sVer, connReq.app);
+  sprintf(detail, "%s:%d, app:%s", ip, pConn->port, connReq.app);
 
-  auditRecord(pReq, pMnode->clusterId, "login", connReq.user, obj, detail, strlen(detail));
+  auditRecord(pReq, pMnode->clusterId, "login", "", "", detail, strlen(detail));
 
 _OVER:
 

@@ -88,6 +88,7 @@ extern int64_t tsMndLogRetention;
 extern int8_t  tsGrant;
 extern int32_t tsMndGrantMode;
 extern bool    tsMndSkipGrant;
+extern bool    tsEnableWhiteList;
 
 // dnode
 extern int64_t tsDndStart;
@@ -106,6 +107,7 @@ extern bool     tsMonitorComp;
 extern bool     tsEnableAudit;
 extern char     tsAuditFqdn[];
 extern uint16_t tsAuditPort;
+extern bool     tsEnableAuditCreateTable;
 
 // telem
 extern bool     tsEnableTelem;
@@ -144,6 +146,7 @@ extern bool    tsUseAdapter;
 extern int32_t tsMetaCacheMaxSize;
 extern int32_t tsSlowLogThreshold;
 extern int32_t tsSlowLogScope;
+extern int32_t tsTimeSeriesThreshold;
 
 // client
 extern int32_t tsMinSlidingTime;
@@ -158,10 +161,11 @@ extern char buildinfo[];
 
 // lossy
 extern char     tsLossyColumns[];
-extern double   tsFPrecision;
+extern float    tsFPrecision;
 extern double   tsDPrecision;
 extern uint32_t tsMaxRange;
 extern uint32_t tsCurRange;
+extern bool     tsIfAdtFse;
 extern char     tsCompressor[];
 
 // tfs
@@ -190,7 +194,8 @@ extern int64_t tsWalFsyncDataSizeLimit;
 // internal
 extern int32_t tsTransPullupInterval;
 extern int32_t tsMqRebalanceInterval;
-extern int32_t tsStreamCheckpointTickInterval;
+extern int32_t tsStreamCheckpointInterval;
+extern float   tsSinkDataRate;
 extern int32_t tsStreamNodeCheckInterval;
 extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushIntervalSec;
@@ -199,13 +204,9 @@ extern int32_t tsTrimVDbIntervalSec;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
 
-extern int32_t tsRpcRetryLimit;
-extern int32_t tsRpcRetryInterval;
-
 extern bool    tsDisableStream;
 extern int64_t tsStreamBufferSize;
 extern bool    tsFilterScalarMode;
-extern int32_t tsKeepTimeOffset;
 extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
 extern int32_t tsResolveFQDNRetryTime;
