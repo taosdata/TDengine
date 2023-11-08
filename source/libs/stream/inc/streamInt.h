@@ -127,12 +127,10 @@ int32_t streamNotifyUpstreamContinue(SStreamTask* pTask);
 int32_t streamTaskFillHistoryFinished(SStreamTask* pTask);
 int32_t streamTransferStateToStreamTask(SStreamTask* pTask);
 
-int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate);
+int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate, const char*);
 STaskId streamTaskExtractKey(const SStreamTask* pTask);
 void    streamTaskInitForLaunchHTask(SHistoryTaskInfo* pInfo);
 void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
-
-void    streamMetaResetStartInfo(STaskStartInfo* pMeta);
 
 SStreamQueue* streamQueueOpen(int64_t cap);
 void          streamQueueClose(SStreamQueue* pQueue, int32_t taskId);
@@ -158,6 +156,9 @@ int uploadCheckpoint(char* id, char* path);
 int downloadCheckpoint(char* id, char* path);
 int deleteCheckpoint(char* id);
 int deleteCheckpointFile(char* id, char* name);
+
+int32_t onNormalTaskReady(SStreamTask* pTask);
+int32_t onScanhistoryTaskReady(SStreamTask* pTask);
 
 #ifdef __cplusplus
 }

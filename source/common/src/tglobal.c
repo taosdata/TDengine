@@ -1294,7 +1294,7 @@ int32_t taosApplyLocalCfg(SConfig *pCfg, char *name) {
       if (strcasecmp("keepColumnName", name) == 0) {
         tsKeepColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
       } else if (strcasecmp("keepAliveIdle", name) == 0) {
-        tsKeepAliveIdle = cfgGetItem(pCfg, "keepAliveIdle")->bval;
+        tsKeepAliveIdle = cfgGetItem(pCfg, "keepAliveIdle")->i32;
       } else {
         matchItem = false;
       }
