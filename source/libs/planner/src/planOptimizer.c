@@ -2693,6 +2693,7 @@ static bool mergeProjectsMayBeOptimized(SLogicNode* pNode) {
 }
 
 typedef struct SMergeProjectionsContext {
+  SProjectLogicNode* pProj;
   SProjectLogicNode* pChildProj;
   int32_t            errCode;
 } SMergeProjectionsContext;
@@ -2700,18 +2701,26 @@ typedef struct SMergeProjectionsContext {
 static EDealRes mergeProjectionsExpr(SNode** pNode, void* pContext) {
   SMergeProjectionsContext* pCxt = pContext;
   SProjectLogicNode*        pChildProj = pCxt->pChildProj;
-  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
+  int32_t targetSize =  ((SLogicNode*)pChildProj)->pTargets->length;
+  int32_t projectSize = pCxt->pProj->pProjections->length;
+  bool isOne = (targetSize == 1 && targetSize == projectSize);
+
+  // merge child to parent's project node, should limit strictly
+  // node type of parent's project maybe QUERY_NODE_VALUE
+  if (QUERY_NODE_COLUMN == nodeType(*pNode) || targetSize == 1) {
     SNode* pTarget;
     FOREACH(pTarget, ((SLogicNode*)pChildProj)->pTargets) {
-      if (nodesEqualNode(pTarget, *pNode)) {
+      if (nodesEqualNode(pTarget, *pNode) || isOne) {
         SNode* pProjection;
         FOREACH(pProjection, pChildProj->pProjections) {
           if (0 == strcmp(((SColumnNode*)pTarget)->colName, ((SExprNode*)pProjection)->aliasName)) {
+            // clone & replace projectNode from children's relevant projectNode
             SNode* pExpr = nodesCloneNode(pProjection);
             if (pExpr == NULL) {
               pCxt->errCode = terrno;
               return DEAL_RES_ERROR;
             }
+            // retain old node's alias name
             snprintf(((SExprNode*)pExpr)->aliasName, sizeof(((SExprNode*)pExpr)->aliasName), "%s",
                      ((SExprNode*)*pNode)->aliasName);
             nodesDestroyNode(*pNode);
@@ -2728,7 +2737,8 @@ static EDealRes mergeProjectionsExpr(SNode** pNode, void* pContext) {
 static int32_t mergeProjectsOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan, SLogicNode* pSelfNode) {
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pSelfNode->pChildren, 0);
 
-  SMergeProjectionsContext cxt = {.pChildProj = (SProjectLogicNode*)pChild, .errCode = TSDB_CODE_SUCCESS};
+  SMergeProjectionsContext cxt = {
+      .pProj = (SProjectLogicNode*)pSelfNode, .pChildProj = (SProjectLogicNode*)pChild, .errCode = TSDB_CODE_SUCCESS};
   nodesRewriteExprs(((SProjectLogicNode*)pSelfNode)->pProjections, mergeProjectionsExpr, &cxt);
   int32_t code = cxt.errCode;
 
