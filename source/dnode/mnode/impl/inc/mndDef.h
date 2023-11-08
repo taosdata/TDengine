@@ -699,6 +699,11 @@ typedef struct {
 
 } SStreamObj;
 
+typedef struct SStreamSeq {
+  char     name[24];
+  uint64_t seq;
+  SRWLatch lock;
+} SStreamSeq;
 int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
 int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj, int32_t sver);
 void    tFreeStreamObj(SStreamObj* pObj);
@@ -730,13 +735,12 @@ typedef struct {
   int8_t   type;
   int32_t  numOfCols;
   SSchema* pSchema;
-  SRWLatch lock;  
+  SRWLatch lock;
 } SViewObj;
 
 int32_t tEncodeSViewObj(SEncoder* pEncoder, const SViewObj* pObj);
 int32_t tDecodeSViewObj(SDecoder* pDecoder, SViewObj* pObj, int32_t sver);
 void    tFreeSViewObj(SViewObj* pObj);
-
 
 #ifdef __cplusplus
 }

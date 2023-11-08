@@ -34,6 +34,11 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
 int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 int32_t mndPersistStream(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
 
+SSdbRaw *      mndStreamSeqActionEncode(SStreamObj *pStream);
+SSdbRow *      mndStreamSeqActionDecode(SSdbRaw *pRaw);
+static int32_t mndStreamSeqActionInsert(SSdb *pSdb, SStreamSeq *pStream);
+static int32_t mndStreamSeqActionDelete(SSdb *pSdb, SStreamSeq *pStream);
+static int32_t mndStreamSeqActionUpdate(SSdb *pSdb, SStreamSeq *pOldStream, SStreamSeq *pNewStream);
 // for sma
 // TODO refactor
 int32_t mndDropStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream);
