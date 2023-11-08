@@ -787,6 +787,7 @@ int32_t mndRetrieveViewImpl(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock,
   }
 
   pShow->numOfRows += numOfRows;
+  mndReleaseDb(pMnode, pDb);
   return numOfRows;
 }
 
