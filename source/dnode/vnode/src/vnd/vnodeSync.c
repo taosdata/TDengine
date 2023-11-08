@@ -554,7 +554,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   SStreamMeta* pMeta = pVnode->pTq->pStreamMeta;
   streamMetaWLock(pMeta);
 
-  if (pMeta->startInfo.startAllTasksFlag) {
+  if (pMeta->startInfo.tasksWillRestart) {
     vInfo("vgId:%d, sync restore finished, stream tasks will be launched by other thread", vgId);
     streamMetaWUnLock(pMeta);
     return;
@@ -567,7 +567,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
     } else {
       vInfo("vgId:%d sync restore finished, start to launch stream tasks", pVnode->config.vgId);
       tqResetStreamTaskStatus(pVnode->pTq);
-      tqLaunchStreamTaskAsync(pVnode->pTq);
+      tqStartStreamTaskAsync(pVnode->pTq, false);
     }
   } else {
     vInfo("vgId:%d, sync restore finished, not launch stream tasks since not leader", vgId);

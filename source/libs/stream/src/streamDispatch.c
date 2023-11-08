@@ -1007,7 +1007,6 @@ int32_t streamAddEndScanHistoryMsg(SStreamTask* pTask, SRpcHandleInfo* pRpcInfo,
   info.msg.info = *pRpcInfo;
 
   taosThreadMutexLock(&pTask->lock);
-  stDebug("s-task:%s lock", pTask->id.idStr);
 
   if (pTask->pRspMsgList == NULL) {
     pTask->pRspMsgList = taosArrayInit(4, sizeof(SStreamContinueExecInfo));
@@ -1107,8 +1106,8 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
       taosArrayPush(pTask->msgInfo.pRetryList, &pRsp->downstreamNodeId);
       taosThreadMutexUnlock(&pTask->lock);
 
-      stError("s-task:%s inputQ of downstream task:0x%x(vgId:%d) is full, wait for %dms and retry dispatch data", id,
-              pRsp->downstreamTaskId, pRsp->downstreamNodeId, DISPATCH_RETRY_INTERVAL_MS);
+      stWarn("s-task:%s inputQ of downstream task:0x%x(vgId:%d) is full, wait for %dms and retry dispatch", id,
+             pRsp->downstreamTaskId, pRsp->downstreamNodeId, DISPATCH_RETRY_INTERVAL_MS);
     } else if (pRsp->inputStatus == TASK_INPUT_STATUS__REFUSED) {
       stError("s-task:%s downstream task:0x%x(vgId:%d) refused the dispatch msg, treat it as success", id,
               pRsp->downstreamTaskId, pRsp->downstreamNodeId);
@@ -1148,8 +1147,8 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
       }
 
       int32_t ref = atomic_add_fetch_32(&pTask->status.timerActive, 1);
-      stDebug("s-task:%s failed to dispatch msg to downstream code:%s, add timer to retry in %dms, ref:%d",
-              pTask->id.idStr, tstrerror(terrno), DISPATCH_RETRY_INTERVAL_MS, ref);
+      stDebug("s-task:%s failed to dispatch msg to downstream, add into timer to retry in %dms, ref:%d",
+              pTask->id.idStr, DISPATCH_RETRY_INTERVAL_MS, ref);
 
       streamRetryDispatchData(pTask, DISPATCH_RETRY_INTERVAL_MS);
     } else { // this message has been sent successfully, let's try next one.

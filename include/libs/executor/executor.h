@@ -213,7 +213,7 @@ int32_t qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRan
 int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow);
 int32_t qStreamRecoverFinish(qTaskInfo_t tinfo);
 int32_t qRestoreStreamOperatorOption(qTaskInfo_t tinfo);
-bool    qStreamRecoverScanFinished(qTaskInfo_t tinfo);
+bool    qStreamScanhistoryFinished(qTaskInfo_t tinfo);
 int32_t qStreamInfoResetTimewindowFilter(qTaskInfo_t tinfo);
 void    resetTaskInfo(qTaskInfo_t tinfo);
 
