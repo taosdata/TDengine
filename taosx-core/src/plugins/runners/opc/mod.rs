@@ -177,7 +177,6 @@ struct PointsConfig {
 #[derive(Debug, serde::Serialize)]
 struct CollectConfig {
     interval: Option<i64>,
-    limit: Option<i64>,
     ua: Option<UaCollectConfig>,
     da: Option<DaCollectConfig>,
     dump: Option<DumpConfig>,
@@ -287,7 +286,6 @@ impl OPCConfig {
             _ => unreachable!(),
         }
         let interval = parse_int_at!("interval");
-        let limit = parse_int_at!("limit");
         let csv_config_file = dsn.remove("csv_config_file");
 
         let mut opc_table_config = None;
@@ -458,7 +456,6 @@ impl OPCConfig {
                 };
                 collect = CollectConfig {
                     interval,
-                    limit,
                     ua: Some(collect_ua_config),
                     da: None,
                     dump: dump_config,
@@ -541,7 +538,6 @@ impl OPCConfig {
                 }
                 collect = CollectConfig {
                     interval,
-                    limit,
                     ua: None,
                     da: Some(DaCollectConfig { tags: da_nodes_vec }),
                     dump: dump_config,
@@ -1672,7 +1668,6 @@ mod tests {
             },
             collect: CollectConfig {
                 interval: Some(10),
-                limit: Some(10),
                 ua: Some(UaCollectConfig {
                     collect_mode: "observe"
                         .to_string()
@@ -1728,7 +1723,6 @@ regex = "123"
 
 [collect]
 interval = 10
-limit = 10
 
 [collect.ua]
 collect_mode = "observe"
@@ -1791,6 +1785,7 @@ batch_timeout = 100
     concurrent=1&batch_size=5&batch_timeout=5&debug=true";
         let target = "taos:///opcua";
         let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
+        let (notify, _) = flume::unbounded();
         opc_to_taos(
             opc.parse().unwrap(),
             vec![],
@@ -1801,6 +1796,7 @@ batch_timeout = 100
             Some((2, "http://127.0.0.1:6051".into(), "".into())),
             None,
             span.clone(),
+            notify,
         )
         .await?;
         Ok(())
@@ -1813,6 +1809,7 @@ batch_timeout = 100
         let opc = "opcua://192.168.0.34:53530/OPCUA/SimulationServer?connect_timeout=1&request_timeout=1&interval=10&collect_mode=observe&enable=false&keep=10&concurrent=1&batch_size=1&batch_timeout=1&debug=false&select_all_points=true&table_primary_key=original_ts&child_table_expression=meter_{ns}_{id}&&select_all_points=true";
         let target = "taos:///opc";
         let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
+        let (notify, _) = flume::unbounded();
         opc_to_taos(
             opc.parse().unwrap(),
             vec![],
@@ -1823,6 +1820,7 @@ batch_timeout = 100
             Some((2, "http://127.0.0.1:6051".into(), "".into())),
             None,
             span.clone(),
+            notify,
         )
         .await?;
         Ok(())

@@ -182,16 +182,6 @@ groups:
           max: 60
         value: 10
 
-      - name: limit
-        display: 点位限制
-        description: |-
-          同一请求下的最大采集点位数量限制。
-        value: 1
-        hint:
-          type: integer
-          min: 1
-          max: 1000
-
       - name: collect_mode
         display: 采集模式
         description: |-
@@ -251,7 +241,7 @@ groups:
           max: 10000
         description: 每次采集数据写入数据库的最大记录条数
         placeholder: 100
-        value: 1
+        value: 1000
       - name: batch_timeout
         display: 上报等待时长
         hint:

@@ -1,0 +1,102 @@
+---
+id: historian
+name: AVEVA™ Historian
+type: uri
+description: |
+  AVEVA™ Historian 是一款工业大数据分析软件，前身为 Wonderware。可以捕获并存储高保真工业大数据，释放受制约的潜力，从而改善运营。
+  TDengine 可以高效地从 Historian 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据流入库。
+strict: false
+options:
+  host:
+    display: Server 地址
+    description: AVEVA™ Historian SQL Server 的 IP 地址或域名
+    placeholder: "127.0.0.1"
+    required: true
+  port:
+    display: Server 端口
+    description: AVEVA™ Historian SQL Server 的端口
+    placeholder: "1433"
+    required: true
+authentication:
+  display: 认证
+  description: 使用用户名和密码访问 AVEVA™ Historian SQL Server
+  value: plain
+  alternatives:
+    - name: plain
+      display: 用户名密码访问
+      description: 使用用户名和密码访问 AVEVA™ Historian SQL Server
+      username:
+        display: 用户
+        placeholder: username
+      password:
+        display: 密码
+        placeholder: password
+groups:
+  - name: Task
+    display_order: 1
+    description: 配置数据采集任务
+    required: false
+    params:
+      - name: table
+        display: Table
+        description: >
+          迁移历史数据使用 Runtime.dbo.History，同步实时数据使用 Runtime.dbo.Live。
+        required: false
+        placeholder: Runtime.dbo.History
+        value: Runtime.dbo.History
+        hint:
+          type: str
+      - name: tags
+        display: tags
+        description: >
+          需要迁移/同步的tag，*代表同步除了Sys开头的全部tag。
+        required: false
+        placeholder: "*"
+        value: "*"
+        hint:
+          type: str
+      - name: beginDateTime
+        display: beginDateTime
+        description: >
+          任务的开始时间，rfc3339格式的日期时间。
+        required: false
+        placeholder: 1970-01-01T00:00:00Z
+        value: 1970-01-01T00:00:00Z
+        hint:
+          type: time
+      - name: endDateTime
+        display: endDateTime
+        description: >
+          任务的结束时间，rfc3339格式的日期时间。
+        required: false
+        placeholder: 2023-12-01T00:00:00Z
+        value: 2023-12-01T00:00:00Z
+        hint:
+          type: time
+      - name: retrieveInterval
+        display: retrieveInterval
+        description: >
+          实时数据同步的拉取间隔。
+        required: false
+        placeholder: 1 day
+        value: 1 day
+        hint:
+          type: str
+      - name: timeWindow
+        display: timeWindow
+        description: >
+          历史数据同步的时间窗口。
+        required: false
+        placeholder: 1 hour
+        value: 1 hour
+        hint:
+          type: str
+      - name: tolerance
+        display: tolerance
+        description: >
+          容忍乱序数据延迟到达的时间上限。
+        required: false
+        placeholder: 0 ms
+        value: 0 ms
+        hint:
+          type: str

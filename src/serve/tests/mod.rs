@@ -61,8 +61,18 @@ pub async fn generate_scheduler_for_test(
                                 ));
                             });
                         }
-                        crate::serve::controller::AgentAction::ListDataSets(_, _) => todo!(),
-                        crate::serve::controller::AgentAction::RetrieveDataSets(_, _) => todo!(),
+                        crate::serve::controller::AgentAction::ListDataSets(_, _) => {
+                            // TODO
+                        }
+                        crate::serve::controller::AgentAction::RetrieveDataSets(_, _) => {
+                            // TODO
+                        }
+                        crate::serve::controller::AgentAction::Interrupt(_) => {
+                            // TODO
+                        }
+                        crate::serve::controller::AgentAction::Check(_, _) => {
+                            // TODO
+                        }
                     }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => {

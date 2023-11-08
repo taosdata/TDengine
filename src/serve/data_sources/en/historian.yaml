@@ -1,0 +1,98 @@
+---
+id: historian
+name: AVEVA™ Historian
+type: uri
+description: |
+  AVEVA™ Historian process database integrated with operations control enabling access to your process, alarm, and event history data. Wonderware Historian is now AVEVA Historian.
+
+  TDengine efficiently reads data from the AVEVA™ Historian and writes it to TDengine for historical data migration or real-time data flow into the library.
+strict: false
+options:
+  host:
+    display: host
+    description: AVEVA™ Historian SQL Server IP address or host name
+    placeholder: "127.0.0.1"
+    required: true
+  port:
+    display: port
+    description: AVEVA™ Historian SQL Server port
+    placeholder: "1433"
+    required: true
+authentication:
+  display: Authentication
+  description: Use username and password of AVEVA™ Historian SQL Server
+  value: plain
+  alternatives:
+    - name: plain
+      display: Username and Password
+      description: Use username and password of AVEVA™ Historian SQL Server
+      username:
+        display: Username
+        placeholder: aaAdmin
+      password:
+        display: Password
+        placeholder: password
+groups:
+  - name: Task
+    display_order: 1
+    description: Configure Data Collection Task
+    required: false
+    params:
+      - name: table
+        display: Table
+        description: >
+          Use Runtime.dbo.History to migrate historical data and Runtime.dbo.Live to synchronize real-time data.
+        required: false
+        placeholder: Runtime.dbo.History
+        value: Runtime.dbo.History
+        hint:
+          type: str
+      - name: tags
+        display: tags
+        description: >
+          tags to be migrated/synchronized. `*` indicates that all tags.
+        required: false
+        placeholder: "*"
+        value: "*"
+        hint:
+          type: str
+      - name: beginDateTime
+        display: beginDateTime
+        description: The start time of the task is in rfc3339 format.
+        required: false
+        placeholder: 1970-01-01T00:00:00Z
+        value: 1970-01-01T00:00:00Z
+        hint:
+          type: time
+      - name: endDateTime
+        display: endDateTime
+        description: The end time of the task is in rfc3339 format.
+        required: false
+        placeholder: 2023-12-01T00:00:00Z
+        value: 2023-12-01T00:00:00Z
+        hint:
+          type: time
+      - name: retrieveInterval
+        display: retrieveInterval
+        description: Pull interval for real-time data synchronization.
+        required: false
+        placeholder: 1 day
+        value: 1 day
+        hint:
+          type: str
+      - name: timeWindow
+        display: timeWindow
+        description: Time window for historical data synchronization.
+        required: false
+        placeholder: 1 hour
+        value: 1 hour
+        hint:
+          type: str
+      - name: tolerance
+        display: tolerance
+        description: The maximum time limit for tolerating out-of-order data delay.
+        required: false
+        placeholder: 0 ms
+        value: 0 ms
+        hint:
+          type: str
