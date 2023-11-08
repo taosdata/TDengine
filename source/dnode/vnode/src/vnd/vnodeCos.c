@@ -99,20 +99,22 @@ static void responseCompleteCallback(S3Status status, const S3ErrorDetails *erro
   int       len = 0;
   const int elen = sizeof(cbd->err_msg);
   if (error) {
-    if (error->message) {
+    if (error->message && elen - len > 0) {
       len += snprintf(&(cbd->err_msg[len]), elen - len, "  Message: %s\n", error->message);
     }
-    if (error->resource) {
+    if (error->resource && elen - len > 0) {
       len += snprintf(&(cbd->err_msg[len]), elen - len, "  Resource: %s\n", error->resource);
     }
-    if (error->furtherDetails) {
+    if (error->furtherDetails && elen - len > 0) {
       len += snprintf(&(cbd->err_msg[len]), elen - len, "  Further Details: %s\n", error->furtherDetails);
     }
-    if (error->extraDetailsCount) {
+    if (error->extraDetailsCount && elen - len > 0) {
       len += snprintf(&(cbd->err_msg[len]), elen - len, "%s", "  Extra Details:\n");
       for (int i = 0; i < error->extraDetailsCount; i++) {
-        len += snprintf(&(cbd->err_msg[len]), elen - len, "    %s: %s\n", error->extraDetails[i].name,
-                        error->extraDetails[i].value);
+        if (elen - len > 0) {
+          len += snprintf(&(cbd->err_msg[len]), elen - len, "    %s: %s\n", error->extraDetails[i].name,
+                          error->extraDetails[i].value);
+        }
       }
     }
   }
@@ -205,6 +207,7 @@ static void growbuffer_destroy(growbuffer *gb) {
 typedef struct put_object_callback_data {
   char     err_msg[512];
   S3Status status;
+  uint64_t content_length;
   // FILE       *infile;
   TdFilePtr   infileFD;
   growbuffer *gb;
@@ -218,6 +221,7 @@ typedef struct put_object_callback_data {
 typedef struct UploadManager {
   char     err_msg[512];
   S3Status status;
+  uint64_t content_length;
   // used for initial multipart
   char *upload_id;
 
@@ -233,6 +237,7 @@ typedef struct UploadManager {
 typedef struct list_parts_callback_data {
   char           err_msg[512];
   S3Status       status;
+  uint64_t       content_length;
   int            isTruncated;
   char           nextPartNumberMarker[24];
   char           initiatorId[256];
