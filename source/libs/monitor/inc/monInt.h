@@ -17,6 +17,7 @@
 #define _TD_MONITOR_INT_H_
 
 #include "monitor.h"
+#include "query.h"
 
 #include "tjson.h"
 
