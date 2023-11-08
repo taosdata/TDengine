@@ -34,6 +34,7 @@ benchmarkName="taosBenchmark"
 dumpName="taosdump"
 demoName="taosdemo"
 xname="taosx"
+keeperName="taoskeeper"
 
 clientName2="taos"
 serverName2="${clientName2}d"
@@ -42,6 +43,7 @@ productName2="TDengine"
 emailName2="taosdata.com"
 xname2="${clientName2}x"
 adapterName2="${clientName2}adapter"
+keeperName2="${clientName2}keeper"
 
 explorerName="${clientName2}-explorer"
 benchmarkName2="${clientName2}Benchmark"
@@ -214,6 +216,7 @@ function install_bin() {
   ${csudo}rm -f ${bin_link_dir}/${demoName2} || :
   ${csudo}rm -f ${bin_link_dir}/${benchmarkName2} || :
   ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
+  ${csudo}rm -f ${bin_link_dir}/${keeperName2} || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
   ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
 
@@ -227,6 +230,7 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/${benchmarkName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${benchmarkName2} ${bin_link_dir}/${demoName2} || :
   [ -x ${install_main_dir}/bin/${benchmarkName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${benchmarkName2} ${bin_link_dir}/${benchmarkName2} || :
   [ -x ${install_main_dir}/bin/${dumpName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${dumpName2} ${bin_link_dir}/${dumpName2} || :
+  [ -x ${install_main_dir}/bin/${keeperName2} ] && ${csudo}ln -sf ${install_main_dir}/bin/${keeperName2} ${bin_link_dir}/${keeperName2} || :
   [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -sf ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   if [ "$clientName2" == "${clientName}" ]; then
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
@@ -516,6 +520,23 @@ function install_adapter_config() {
 
   [ ! -z $1 ] && return 0 || : # only install client
 
+}
+
+function install_keeper_config() {
+  if [ -f ${script_dir}/cfg/${keeperName2}.toml ]; then
+    ${csudo}sed -i -r "s/127.0.0.1/${serverFqdn}/g" ${script_dir}/cfg/${keeperName2}.toml
+  fi
+  if [ -f "${configDir}/keeper.toml" ]; then
+    echo "The file keeper.toml will be renamed to ${keeperName2}.toml"        
+    ${csudo}cp ${script_dir}/cfg/${keeperName2}.toml ${configDir}/${keeperName2}.toml.new    
+    ${csudo}mv ${configDir}/keeper.toml ${configDir}/${keeperName2}.toml
+  elif [ -f "${configDir}/${keeperName2}.toml" ]; then
+    # "taoskeeper.toml exists,new config is taoskeeper.toml.new"         
+    ${csudo}cp ${script_dir}/cfg/${keeperName2}.toml ${configDir}/${keeperName2}.toml.new
+  else    
+    ${csudo}cp ${script_dir}/cfg/${keeperName2}.toml ${configDir}/${keeperName2}.toml
+  fi
+  command -v systemctl >/dev/null 2>&1 && ${csudo}systemctl daemon-reload >/dev/null 2>&1 || true  
 }
 
 function install_config() {  
@@ -914,6 +935,7 @@ function updateProduct() {
     install_adapter_service    
     install_adapter_config
     install_keeper_service
+    install_keeper_config
 
     openresty_work=false
 
@@ -1014,6 +1036,7 @@ function installProduct() {
     install_adapter_service
     install_adapter_config
     install_keeper_service
+    install_keeper_config
 
     openresty_work=false
 
