@@ -263,8 +263,8 @@ if [[ -z "${cusName}" ]] && [[  -z "${cusPrompt}" ]] && [[ -z "${cusEmail}" ]]; 
   BUILD_TAOSX=false
   BUILD_EXPLORER=false
 else
-  BUILD_TAOSX=true
-  BUILD_EXPLORER=true
+  BUILD_TAOSX=false
+  BUILD_EXPLORER=false
 fi
   
 
@@ -289,15 +289,12 @@ fi
 ostype=`uname`
 if [ "${ostype}" == "Darwin" ]; then
     CORES=$(sysctl -n hw.ncpu)
+elif [ "${ostype}" == "Linux" ] && [ "${cpuType}" == "aarch64" ]; then
+    CORES=1
 else
     CORES=$(grep -c ^processor /proc/cpuinfo)
 fi
 
-if [ "$cpuType" == "x64" ] && [ "$osType" == "Linux" ]; then
-  ${csudo}sed -i ':a;N;$!ba;s/\(.*\)OFF/\1ON/' ${top_dir}/community/cmake/cmake.options
-elif [ "$cpuType" == "aarch64" ]; then
-  CORES=1
-fi
   
 if [[ "$allocator" == "jemalloc" ]]; then
   # jemalloc need compile first, so disable parallel build
@@ -363,10 +360,14 @@ if [ "$osType" != "Darwin" ]; then
     fi
   fi
 
-  if [[ "$verMode" == "cluster" ]]; then
+  if [[ "$verMode" == "cluster" && "$skip" == 0 ]]; then
     echo "==== generate taosx package ===="
     cd ${top_dir}/enterprise/src/plugins/taosx/packaging
-    python3 release.py -ob -vn ${verNumber}
+    if [[ "$cusName" == "TDengine" && "${cusPrompt}" == "taos" && "${cusEmail}" == "support@taosdata.com" ]]
+      python3 release.py -ob -vn ${verNumber}
+    else
+      python3 release.py -ob -vn ${verNumber} -cn ${cusName} -cp ${cusPrompt} -ce ${cusEmail}
+    fi
   fi 
 
   echo "====do tar.gz package for all systems===="
