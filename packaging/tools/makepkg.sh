@@ -92,14 +92,10 @@ else
       ${build_dir}/bin/tdengine-datasource.zip.md5"
   fi
 
-  [ -f ${build_dir}/bin/taosx ] && taosx_bin="${build_dir}/bin/taosx"
-  explorer_bin_files=$(find ${build_dir}/bin/ -name '*-explorer')
 
   bin_files="${build_dir}/bin/${serverName} \
       ${build_dir}/bin/${clientName} \
       ${taostools_bin_files} \
-      ${taosx_bin} \
-      ${explorer_bin_files} \
       ${build_dir}/bin/${clientName}adapter \
       ${build_dir}/bin/udfd \
       ${script_dir}/remove.sh \
@@ -376,9 +372,6 @@ if [ "$verMode" == "cluster" ]; then
           cp ${top_dir}/../enterprise/packaging/install_taosx.sh ${install_dir}/taosx
           cp ${top_dir}/../enterprise/src/plugins/taosx/packaging/uninstall.sh ${install_dir}/taosx
           sed -i 's/target=\"\"/target=\"taosx\"/g' ${install_dir}/taosx/uninstall.sh
-        else
-          echo "taox package not found"
-          exit 1
         fi
     fi
 fi
