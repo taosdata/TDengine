@@ -20,6 +20,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, Taos, TaosBuilder, Ty};
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
+use tokio_process_terminate::TerminateExt;
 pub use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Span};
@@ -1275,7 +1276,8 @@ pub async fn opc_to_taos(
     tokio::spawn(async move {
         macro_rules! safe_exit {
             () => {
-                let _ = child.kill().await;
+                use std::time::Duration;
+                let _ = child.terminate_timeout(Duration::from_secs(2)).await;
                 tokio::spawn(async move {
                     tracing::info!("Wait for IPC handlers finished");
                     let _ = ipc_handler.close().await;
