@@ -363,7 +363,7 @@ if [ "$osType" != "Darwin" ]; then
   if [[ "$verMode" == "cluster" && "$skip" == 0 ]]; then
     echo "==== generate taosx package ===="
     cd ${top_dir}/enterprise/src/plugins/taosx/packaging
-    if [[ "$cusName" == "TDengine" && "${cusPrompt}" == "taos" && "${cusEmail}" == "support@taosdata.com" ]]
+    if [[ "$cusName" == "TDengine" && "${cusPrompt}" == "taos" && "${cusEmail}" == "support@taosdata.com" ]];then
       python3 release.py -ob -vn ${verNumber}
     else
       python3 release.py -ob -vn ${verNumber} -cn ${cusName} -cp ${cusPrompt} -ce ${cusEmail}
