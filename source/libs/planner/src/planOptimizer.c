@@ -2478,6 +2478,27 @@ static bool hasSuitableCache(int8_t cacheLastMode, bool hasLastRow, bool hasLast
   return false;
 }
 
+/// @brief check if we can apply last row scan optimization
+/// @param lastColNum how many distinct last col specified
+/// @param lastColId only used when lastColNum equals 1, the col id of the only one last col
+/// @param selectNonPKColNum num of normal cols
+/// @param selectNonPKColId only used when selectNonPKColNum equals 1, the col id of the only one select col
+static bool lastRowScanOptCheckColNum(int32_t lastColNum, col_id_t lastColId,
+                                      int32_t selectNonPKColNum, col_id_t selectNonPKColId) {
+  // multi select non pk col + last func: select c1, c2, last(c1)
+  if (selectNonPKColNum > 1 && lastColNum > 0) return false;
+
+  if (selectNonPKColNum == 1) {
+    // select last(c1), last(c2), c1 ...
+    // which is not possible currently
+    if (lastColNum > 1) return false;
+
+    // select last(c1), c2 ...
+    if (lastColNum == 1 && lastColId != selectNonPKColId) return false;
+  }
+  return true;
+}
+
 static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren) ||
       QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0))) {
@@ -2493,9 +2514,10 @@ static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
 
-  bool   hasLastFunc = false;
-  bool   hasSelectFunc = false;
-  SNode* pFunc = NULL;
+  bool     hasNonPKSelectFunc = false;
+  SNode*   pFunc = NULL;
+  int32_t  lastColNum = 0, selectNonPKColNum = 0;
+  col_id_t lastColId = -1, selectNonPKColId = -1;
   FOREACH(pFunc, ((SAggLogicNode*)pNode)->pAggFuncs) {
     SFunctionNode* pAggFunc = (SFunctionNode*)pFunc;
     if (FUNCTION_TYPE_LAST == pAggFunc->funcType) {
@@ -2505,16 +2527,33 @@ static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
         if (pCol->colType != COLUMN_TYPE_COLUMN) {
           return false;
         }
+        if (lastColId != pCol->colId) {
+          lastColId = pCol->colId;
+          lastColNum++;
+        }
       }
-      if (hasSelectFunc || QUERY_NODE_VALUE == nodeType(nodesListGetNode(pAggFunc->pParameterList, 0))) {
+      if (QUERY_NODE_VALUE == nodeType(nodesListGetNode(pAggFunc->pParameterList, 0))) {
         return false;
       }
-      hasLastFunc = true;
+      if (!lastRowScanOptCheckColNum(lastColNum, lastColId, selectNonPKColNum, selectNonPKColId))
+        return false;
     } else if (FUNCTION_TYPE_SELECT_VALUE == pAggFunc->funcType) {
-      if (hasLastFunc) {
+      SNode* pParam = nodesListGetNode(pAggFunc->pParameterList, 0);
+      if (QUERY_NODE_COLUMN == nodeType(pParam)) {
+        SColumnNode* pCol = (SColumnNode*)pParam;
+        if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId) {
+          if (selectNonPKColId != pCol->colId) {
+            selectNonPKColId = pCol->colId;
+            selectNonPKColNum++;
+          }
+        } else {
+          continue;
+        }
+      } else if (lastColNum > 0) {
         return false;
       }
-      hasSelectFunc = true;
+      if (!lastRowScanOptCheckColNum(lastColNum, lastColId, selectNonPKColNum, selectNonPKColId))
+        return false;
     } else if (FUNCTION_TYPE_GROUP_KEY == pAggFunc->funcType) {
       if (!lastRowScanOptLastParaIsTag(nodesListGetNode(pAggFunc->pParameterList, 0))) {
         return false;
@@ -2581,6 +2620,9 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
 
   SLastRowScanOptSetColDataTypeCxt cxt = {.doAgg = true, .pLastCols = NULL};
   SNode*                           pNode = NULL;
+  SColumnNode*                     pPKTsCol = NULL;
+  SColumnNode*                     pNonPKCol = NULL;
+
   FOREACH(pNode, pAgg->pAggFuncs) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     int32_t        funcType = pFunc->funcType;
@@ -2597,6 +2639,16 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
         nodesWalkExpr(nodesListGetNode(pFunc->pParameterList, 0), lastRowScanOptSetColDataType, &cxt);
         nodesListErase(pFunc->pParameterList, nodesListGetCell(pFunc->pParameterList, 1));
       }
+    } else if (FUNCTION_TYPE_SELECT_VALUE == funcType) {
+      pNode = nodesListGetNode(pFunc->pParameterList, 0);
+      if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+        SColumnNode* pCol = (SColumnNode*)pNode;
+        if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+          pPKTsCol = pCol;
+        } else {
+          pNonPKCol = pCol;
+        }
+      }
     }
   }
 
@@ -2608,6 +2660,16 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
     lastRowScanOptSetLastTargets(pScan->pScanCols, cxt.pLastCols, true);
     nodesWalkExprs(pScan->pScanPseudoCols, lastRowScanOptSetColDataType, &cxt);
     lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols, false);
+    if (pPKTsCol && pScan->node.pTargets->length == 1) {
+      // when select last(ts),ts from ..., we add another ts to targets
+      sprintf(pPKTsCol->colName, "#sel_val.%p", pPKTsCol);
+      nodesListAppend(pScan->node.pTargets, nodesCloneNode((SNode*)pPKTsCol));
+    }
+    if (pNonPKCol && cxt.pLastCols->length == 1 && nodesEqualNode((SNode*)pNonPKCol, nodesListGetNode(cxt.pLastCols, 0))) {
+      // when select last(c1), c1 from ..., we add c1 to targets
+      sprintf(pNonPKCol->colName, "#sel_val.%p", pNonPKCol);
+      nodesListAppend(pScan->node.pTargets, nodesCloneNode((SNode*)pNonPKCol));
+    }
     nodesClearList(cxt.pLastCols);
   }
   pAgg->hasLastRow = false;
