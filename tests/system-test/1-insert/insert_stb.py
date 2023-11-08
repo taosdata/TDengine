@@ -176,7 +176,7 @@ class TDTestCase:
         tdSql.checkData(3, 2, 10)
         tdSql.checkData(4, 0, datetime.datetime(2021, 4, 19, 8, 0, 13))
         tdSql.checkData(4, 1, 1)
-        tdSql.checkData(4, 2, None)
+        tdSql.checkData(4, 2, 1)
     
     def run_insert_stb(self):
         print("running {}".format('insert_stb'))

@@ -808,16 +808,6 @@ static int32_t execAlterCmd(char* cmd, char* value, bool* processed) {
       return code;
     }
     qInfo("memory dbg disabled");
-  } else if (0 == strcasecmp(cmd, COMMAND_ASYNCLOG)) {
-    int newAsyncLogValue = (strlen(value) == 0) ? 1 : atoi(value);
-    if (newAsyncLogValue != 0 && newAsyncLogValue != 1) {
-      code = TSDB_CODE_INVALID_CFG_VALUE;
-      qError("failed to alter asynclog, error:%s", tstrerror(code));
-      goto _return;
-    }
-
-    code = TSDB_CODE_SUCCESS;
-    tsAsyncLog = newAsyncLogValue;
   } else {
     goto _return;
   }
@@ -844,10 +834,7 @@ static int32_t execAlterLocal(SAlterLocalStmt* pStmt) {
     goto _return;
   }
 
-  bool forbidden = false;
-  taosLocalCfgForbiddenToChange(pStmt->config, &forbidden);
-  if (forbidden) {
-    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+  if (cfgCheckRangeForDynUpdate(tsCfg, pStmt->config, pStmt->value, false)) {
     return terrno;
   }
 

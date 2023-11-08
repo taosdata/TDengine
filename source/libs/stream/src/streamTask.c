@@ -400,8 +400,7 @@ void tFreeStreamTask(SStreamTask* pTask) {
   taosMemoryFree(pTask->outputInfo.pTokenBucket);
   taosThreadMutexDestroy(&pTask->lock);
 
-  taosArrayDestroy(pTask->outputInfo.pDownstreamUpdateList);
-  pTask->outputInfo.pDownstreamUpdateList = NULL;
+  pTask->outputInfo.pDownstreamUpdateList = taosArrayDestroy(pTask->outputInfo.pDownstreamUpdateList);
 
   taosMemoryFree(pTask);
   stDebug("s-task:0x%x free task completed", taskId);
@@ -447,7 +446,7 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
 
   // 2MiB per second for sink task
   // 50 times sink operator per second
-  streamTaskInitTokenBucket(pTask->outputInfo.pTokenBucket, 50, 50, tsSinkDataRate);
+  streamTaskInitTokenBucket(pTask->outputInfo.pTokenBucket, 50, 50, tsSinkDataRate, pTask->id.idStr);
 
   TdThreadMutexAttr attr = {0};
   int code = taosThreadMutexAttrInit(&attr);
