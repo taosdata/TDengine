@@ -5,6 +5,7 @@ use anyhow::Context;
 use itertools::Itertools;
 use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
+use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument, Span};
 
@@ -170,6 +171,8 @@ pub async fn influxdb_to_taos(
     tokio::spawn(async move {
         macro_rules! safe_exit {
             () => {
+                // kill child pid before raising error
+                let _ = child.terminate_timeout(Duration::from_secs(2)).await;
                 let _ = ipc.close().await;
                 temp_path.close().unwrap();
                 port_pool.put(ipc_port).await;
@@ -190,8 +193,6 @@ pub async fn influxdb_to_taos(
             err = ipc.recv_error() => {
                 tracing::info!("have received worker thread panicked message, terminate child process");
                 if let Some(err) = err {
-                    // kill child pid before raising error
-                    let _ = child.kill().await;
                     safe_exit!();
                     anyhow::bail!("InfluxDB writer error: {err}");
                 }
@@ -201,7 +202,6 @@ pub async fn influxdb_to_taos(
             }
         }
         // stop the connector
-        let _ = child.kill().await;
         tracing::info!("InfluxDB task Done");
         safe_exit!();
         Ok(())
