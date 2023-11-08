@@ -738,7 +738,7 @@ static S3Status getObjectDataCallback(int bufferSize, const char *buffer, void *
   }
   */
   if (!cbd->buf) {
-    cbd->buf = taosMemoryCalloc(1, bufferSize);
+    cbd->buf = taosMemoryCalloc(1, cbd->content_length);
   }
 
   if (cbd->buf) {
