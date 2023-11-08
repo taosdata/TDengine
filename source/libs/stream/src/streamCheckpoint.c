@@ -478,7 +478,7 @@ static int uploadCheckpointToS3(char* id, char* path){
         taosDirEntryIsDir(de)) continue;
 
     char filename[PATH_MAX] = {0};
-    if(path[strlen(path  - 1)] == TD_DIRSEP_CHAR){
+    if(path[strlen(path) - 1] == TD_DIRSEP_CHAR){
       snprintf(filename, sizeof(filename), "%s%s", path, name);
     }else{
       snprintf(filename, sizeof(filename), "%s%s%s", path, TD_DIRSEP, name);

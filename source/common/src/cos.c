@@ -298,7 +298,7 @@ S3Status initial_multipart_callback(const char *upload_id, void *callbackData) {
 }
 
 S3Status MultipartResponseProperiesCallback(const S3ResponseProperties *properties, void *callbackData) {
-  responsePropertiesCallback(properties, callbackData);
+//  responsePropertiesCallback(properties, callbackData);
 
   MultipartPartData *data = (MultipartPartData *)callbackData;
   int                seq = data->seq;
@@ -476,7 +476,7 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
                                    metaProperties,  useServerSideEncryption};
 
   if (contentLength <= MULTIPART_CHUNK_SIZE) {
-    S3PutObjectHandler putObjectHandler = {{&responsePropertiesCallback, &responseCompleteCallback},
+    S3PutObjectHandler putObjectHandler = {{NULL, &responseCompleteCallback},
                                            &putObjectDataCallback};
 
     do {
@@ -513,14 +513,14 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
     memset(&partData, 0, sizeof(MultipartPartData));
     int partContentLength = 0;
 
-    S3MultipartInitialHandler handler = {{&responsePropertiesCallback, &responseCompleteCallback},
+    S3MultipartInitialHandler handler = {{NULL, &responseCompleteCallback},
                                          &initial_multipart_callback};
 
     S3PutObjectHandler putObjectHandler = {{&MultipartResponseProperiesCallback, &responseCompleteCallback},
                                            &putObjectDataCallback};
 
     S3MultipartCommitHandler commit_handler = {
-        {&responsePropertiesCallback, &responseCompleteCallback}, &multipartPutXmlCallback, 0};
+        {NULL, &responseCompleteCallback}, &multipartPutXmlCallback, 0};
 
     manager.etags = (char **)taosMemoryMalloc(sizeof(char *) * totalSeq);
     manager.next_etags_pos = 0;
@@ -668,7 +668,7 @@ static void s3FreeObjectKey(void *pItem) {
 static SArray* getListByPrefix(const char *prefix){
   S3BucketContext     bucketContext = {0, tsS3BucketName, protocolG, uriStyleG, tsS3AccessKeyId, tsS3AccessKeySecret,
                                        0, awsRegionG};
-  S3ListBucketHandler listBucketHandler = {{&responsePropertiesCallback, &responseCompleteCallback},
+  S3ListBucketHandler listBucketHandler = {{NULL, &responseCompleteCallback},
                                            &listBucketCallback};
 
   const char               *marker = 0, *delimiter = 0;
