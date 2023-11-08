@@ -1219,14 +1219,11 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
   if ((code = mndCheckNodeStatus(pMnode)) != 0) {
     return code;
   }
-
   SMStreamDoCheckpointMsg *pMsg = (SMStreamDoCheckpointMsg *)pReq->pCont;
-  int64_t                  checkpointId = pMsg->checkpointId;
   while (1) {
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
-
-    code = mndProcessStreamCheckpointTrans(pMnode, pStream, checkpointId);
+    code = mndProcessStreamCheckpointTrans(pMnode, pStream, pStream->checkpointId + 1);
     sdbRelease(pSdb, pStream);
     if (code == -1) {
       break;
