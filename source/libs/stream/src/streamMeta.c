@@ -230,7 +230,7 @@ int32_t streamMetaMayCvtDbFormat(SStreamMeta* pMeta) {
 int32_t streamTaskSetDb(SStreamMeta* pMeta, void* arg, char *key) {
   SStreamTask* pTask = arg;
 
-  int64_t chkpId = pTask->checkpointingId;
+  int64_t chkpId = pTask->chkInfo.checkpointingId;
 
   taosThreadMutexLock(&pMeta->backendMutex);
   void** ppBackend = taosHashGet(pMeta->pTaskDbUnique, key, strlen(key));
@@ -442,7 +442,6 @@ void streamMetaClear(SStreamMeta* pMeta) {
   taosArrayClear(pMeta->chkpInUse);
   pMeta->numOfStreamTasks = 0;
   pMeta->numOfPausedTasks = 0;
-  pMeta->chkptNotReadyTasks = 0;
 
   streamMetaResetStartInfo(&pMeta->startInfo);
 }
@@ -1078,9 +1077,9 @@ void metaHbToMnode(void* param, void* tmrId) {
       entry.sinkDataSize = SIZE_IN_MiB((*pTask)->execInfo.sink.dataSize);
     }
 
-    if ((*pTask)->checkpointingId != 0) {
-      entry.checkpointFailed = ((*pTask)->chkInfo.failedId >= (*pTask)->checkpointingId);
-      entry.activeCheckpointId = (*pTask)->checkpointingId;
+    if ((*pTask)->chkInfo.checkpointingId != 0) {
+      entry.checkpointFailed = ((*pTask)->chkInfo.failedId >= (*pTask)->chkInfo.checkpointingId);
+      entry.activeCheckpointId = (*pTask)->chkInfo.checkpointingId;
     }
 
     if ((*pTask)->exec.pWalReader != NULL) {

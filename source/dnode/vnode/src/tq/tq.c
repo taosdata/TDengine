@@ -1705,7 +1705,7 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
   // Downstream not ready, current the stream tasks are not all ready. Ignore this checkpoint req.
   if (pTask->status.downstreamReady != 1) {
     pTask->chkInfo.failedId = req.checkpointId;  // record the latest failed checkpoint id
-    pTask->checkpointingId = req.checkpointId;
+    pTask->chkInfo.checkpointingId = req.checkpointId;
 
     tqError("s-task:%s not ready for checkpoint, since downstream not ready, ignore this checkpoint:%" PRId64
            ", set it failure",
@@ -1744,10 +1744,6 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 
   // set the initial value for generating check point
   // set the mgmt epset info according to the checkout source msg from mnode, todo update mgmt epset if needed
-  if (pMeta->chkptNotReadyTasks == 0) {
-    pMeta->chkptNotReadyTasks = pMeta->numOfStreamTasks;
-  }
-
   total = pMeta->numOfStreamTasks;
   streamMetaWUnLock(pMeta);
 

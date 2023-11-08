@@ -294,6 +294,9 @@ typedef struct SCheckpointInfo {
   int64_t checkpointVer;   // latest checkpointId version
   int64_t nextProcessVer;  // current offset in WAL, not serialize it
   int64_t failedId;        // record the latest failed checkpoint id
+  int64_t checkpointingId;
+  int32_t downstreamAlignNum;
+  int32_t checkpointNotReadyTasks;
   int64_t msgVer;
 } SCheckpointInfo;
 
@@ -427,9 +430,6 @@ struct SStreamTask {
   int64_t             checkReqId;
   SArray*             checkReqIds;  // shuffle
   int32_t             refCnt;
-  int64_t             checkpointingId;
-  int32_t             checkpointAlignCnt;
-  int32_t             checkpointNotReadyTasks;
   int32_t             transferStateAlignCnt;
   struct SStreamMeta* pMeta;
   SSHashObj*          pNameMap;
@@ -477,7 +477,6 @@ typedef struct SStreamMeta {
   SHashObj*      pUpdateTaskSet;
   int32_t        numOfStreamTasks;  // this value should be increased when a new task is added into the meta
   int32_t        numOfPausedTasks;
-  int32_t        chkptNotReadyTasks;
   int64_t        rid;
 
   int64_t  chkpId;
