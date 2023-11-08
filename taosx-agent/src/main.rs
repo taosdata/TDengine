@@ -210,14 +210,17 @@ async fn main_agent_service(args: Args) -> anyhow::Result<()> {
                     Utc::now(),
                     taosx_core::LevelFilter::Warn,
                     "taosx-agent is suspended by SIGINT".to_string(),
-                    "suspended".to_string(),
+                    "waiting".to_string(),
                     None,
                 );
-                tracing::info!("status: {:?}", status);
                 if let Err(err) = client3.push_status(&status).await {
                     tracing::error!("Push status error: {err}");
                 }
+                if let Err(err) = sender.send_async(runner::Action::Interrupt(*task.key())).await {
+                    tracing::error!("Send interrupt action to runner error: {err}");
+                }
             }
+            tokio::time::sleep(Duration::from_secs(2)).await;
         }
         _ = runner => {
             tracing::info!("Runner stopped");
