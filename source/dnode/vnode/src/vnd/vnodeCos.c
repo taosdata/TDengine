@@ -74,7 +74,7 @@ static void s3PrintError(const char *func, S3Status status, char error_details[]
 }
 
 typedef struct {
-  char     err_msg[128];
+  char     err_msg[512];
   S3Status status;
   uint64_t content_length;
   char    *buf;
@@ -203,7 +203,7 @@ static void growbuffer_destroy(growbuffer *gb) {
 }
 
 typedef struct put_object_callback_data {
-  char     err_msg[128];
+  char     err_msg[512];
   S3Status status;
   // FILE       *infile;
   TdFilePtr   infileFD;
@@ -216,7 +216,7 @@ typedef struct put_object_callback_data {
 #define MULTIPART_CHUNK_SIZE (768 << 20)  // multipart is 768M
 
 typedef struct UploadManager {
-  char     err_msg[128];
+  char     err_msg[512];
   S3Status status;
   // used for initial multipart
   char *upload_id;
@@ -231,7 +231,7 @@ typedef struct UploadManager {
 } UploadManager;
 
 typedef struct list_parts_callback_data {
-  char           err_msg[128];
+  char           err_msg[512];
   S3Status       status;
   int            isTruncated;
   char           nextPartNumberMarker[24];
@@ -248,7 +248,7 @@ typedef struct list_parts_callback_data {
 } list_parts_callback_data;
 
 typedef struct MultipartPartData {
-  char                     err_msg[128];
+  char                     err_msg[512];
   S3Status                 status;
   put_object_callback_data put_object_data;
   int                      seq;
@@ -611,7 +611,7 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
 }
 
 typedef struct list_bucket_callback_data {
-  char     err_msg[128];
+  char     err_msg[512];
   S3Status status;
   int      isTruncated;
   char     nextMarker[1024];
