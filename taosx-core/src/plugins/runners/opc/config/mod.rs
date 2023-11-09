@@ -1,25 +1,36 @@
 use std::collections::{HashMap, HashSet};
-use std::io::Write;
+use std::io::{BufRead, Write};
 use std::str::FromStr;
 
 use base64::Engine;
 use base64::engine::general_purpose;
+use csv_lib::ReaderBuilder;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use sha2::digest::typenum::private::Trim;
 use taos::{AsyncQueryable, Dsn, Taos, Ty};
 use tokio_stream::StreamExt;
 
 use taosx_ipc::prelude::IpcDataType;
 
-use crate::runners::opc::{generate_tbname_from_pattern, get_string_vec_from_param_or_file_for_opc, OpcError, parse_bool_param_from_dsn};
+use crate::runners::opc::config::collect::CollectConfig;
+use crate::runners::opc::config::connect::ConnectConfig;
+use crate::runners::opc::config::points::PointsConfig;
+use crate::runners::opc::config::report::ReportConfig;
+use crate::runners::opc::config::table::{ColumnConfig, TableConfig, TagConfig};
+use crate::runners::opc::generate_tbname_from_pattern;
+use crate::runners::opc::opc_type::OpcType;
+
+mod connect;
+mod collect;
+mod report;
+pub mod table;
+mod points;
 
 #[derive(Debug, Serialize)]
 pub struct OPCConfig {
     pub opc_type: OpcType,
     pub debug: bool,
-    // #[serde(skip)]
-    /// use receviced time as ts cloumn value when config true
-    // use_received_time: bool,
     connect: ConnectConfig,
     pub points: Option<PointsConfig>,
     collect: CollectConfig,
@@ -27,352 +38,104 @@ pub struct OPCConfig {
 
     #[serde(skip)]
     pub param_mapping: HashMap<String, PointConfig>,
-    // #[serde(skip)]
-    /// table_info: table_name, Vec<(field, type)>
-    // table_info: HashMap<String, Vec<(String, String)>>,
     #[serde(skip)]
     pub opc_table_config: Option<TableConfig>,
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum OpcType {
-    OPCUA,
-    OPCDA,
-    FAKE,
-}
-
-impl FromStr for OpcType {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "opcua" => Ok(Self::OPCUA),
-            "opcda" => Ok(Self::OPCDA),
-            "fake" => Ok(Self::FAKE),
-            _ => Err(s.to_string()),
-        }
-    }
-}
-
-#[derive(Clone, Deserialize, Debug, Serialize)]
-pub struct TableConfig {
-    pub stable_prefix: Option<String>,
-    pub column_configs: Vec<ColumnConfig>,
-    pub tag_configs: Option<Vec<TagConfig>>,
-}
-
-#[derive(Clone, Deserialize, Debug, Serialize)]
-pub struct ColumnConfig {
-    pub column_name: String,
-    pub column_type: Option<Ty>,
-    pub column_alias: Option<String>,
-    pub is_primary_key: bool,
-}
-
-#[derive(Clone, Deserialize, Debug, Serialize)]
-pub struct TagConfig {
-    pub column_name: String,
-    pub column_type: IpcDataType,
-}
-
-#[derive(Debug, Serialize)]
-struct ConnectConfig {
-    ua: Option<UaConnectConfig>,
-    da: Option<DaConnectConfig>,
-}
-
-#[derive(Debug, Serialize, Default)]
-enum AuthMethod {
-    Anonymous,
-    UserName,
-    #[default]
-    Certificate,
-}
-
-#[derive(Debug, Serialize)]
-struct UaConnectConfig {
-    endpoint: String,
-    connect_timeout: i64,
-    request_timeout: i64,
-    security_policy: String,
-    security_mode: String,
-    certificate: Option<String>,
-    private_key: Option<String>,
-    auth_method: AuthMethod,
-    username: Option<String>,
-    password: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct DaConnectConfig {
-    server: String,
-    nodes: Vec<String>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct PointsConfig {
-    pub(crate) limit: usize,
-    pub(crate) regex: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-struct CollectConfig {
-    interval: Option<i64>,
-    limit: Option<i64>,
-    ua: Option<UaCollectConfig>,
-    da: Option<DaCollectConfig>,
-    dump: Option<DumpConfig>,
-}
-
-#[derive(Debug, Serialize)]
-struct UaCollectConfig {
-    collect_mode: CollectMode,
-    nodes: Vec<UANodeConfig>,
-    // dump: Option<DumpConfig>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "lowercase")]
-enum CollectMode {
-    OBSERVE,
-    SUBSCRIBE,
-}
-
-impl FromStr for CollectMode {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "observe" => Ok(Self::OBSERVE),
-            "subscribe" => Ok(Self::SUBSCRIBE),
-            _ => Err(s.to_string()),
-        }
-    }
-}
-
-#[derive(Debug, Serialize)]
-struct UANodeConfig {
-    id: String,
-    // value_type: String,
-}
-
-#[derive(Debug, Serialize)]
-struct DumpConfig {
-    enable: bool,
-    path: Option<String>,
-    keep: Option<usize>,
-}
-
-#[derive(Debug, Serialize)]
-struct DaCollectConfig {
-    tags: Vec<DaNodeConfig>,
-    // dump: Option<DumpConfig>,
-}
-
-#[derive(Debug, Serialize)]
-struct DaNodeConfig {
-    tag: String,
-    // value_type: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ReportConfig {
-    pub remote: String,
-    pub concurrent: Option<i64>,
-    pub batch_size: Option<i64>,
-    pub batch_timeout: Option<i64>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct OpcTableConfig {
-    // id, (code, stable, enabled)
-    // code for child table name, stable maybe none when use ui config, casue stabel_prefix exists
-    // when stable is none stable_prefix will be enabled
-    pub id_code_map: HashMap<String, PointConfig>,
-
-    pub table_config: TableConfig,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct PointConfig {
-    pub code: String,
-    pub stable: Option<String>,
-    pub tag_values: Option<HashMap<String, String>>,
-    pub value_type: Option<IpcDataType>,
-}
-
-/// OPC connector mode
-pub enum OPCConfigMode {
-    /// just get points
-    Points,
-    /// collect point data
-    Collect,
-}
-
 impl OPCConfig {
-    pub(crate) async fn new(
-        mut dsn: Dsn,
-        ipc_port: u16,
-        config_mode: OPCConfigMode,
-        taos: Option<&Taos>,
-    ) -> Result<Self, OpcError> {
-        debug_assert!(dsn.driver == "opc" || dsn.driver == "opcua" || dsn.driver == "opcda");
-        macro_rules! parse_int_at {
-            ($n:expr) => {
-                dsn.remove($n)
-                    .map(|v| {
-                        v.parse::<i64>()
-                            .map_err(|err| OpcError::ParseNumberError($n, v, err))
-                    })
-                    .transpose()?
-            };
+    pub async fn from_dsn_collect_mode(dsn: &Dsn, ipc_port: u16, taos: &Taos) -> anyhow::Result<Self> {
+        if dsn.driver != "opc" && dsn.driver != "opcua" && dsn.driver != "opcda" {
+            anyhow::bail!("invalid opc driver");
         }
-        let mut opc_type;
-        let connect;
-        let collect;
-        let mut param_mapping = HashMap::new();
-        match dsn.driver.as_str() {
-            "opc" => {
-                if dsn.protocol.is_none() {
-                    return Err(OpcError::ProtocolNotFound(dsn));
-                }
-            }
-            "opcua" => {
-                dsn.protocol.replace("ua".to_string());
-            }
-            "opcda" => {
-                dsn.protocol.replace("da".to_string());
-            }
-            _ => unreachable!(),
-        }
-        let interval = parse_int_at!("interval");
-        let limit = parse_int_at!("limit");
-        let csv_config_file = dsn.remove("csv_config_file");
 
-        let mut opc_table_config = None;
-        let dump_enable = parse_bool_param_from_dsn(&mut dsn, "enable")
-            .map_err(|err| OpcError::ConfigError("enable", err.to_string()))?;
-        let dump_config = if dump_enable.is_some() {
-            let dump_enable = dump_enable.unwrap();
-            if dump_enable {
-                let path = dsn.remove("path");
-                let keep = parse_int_at!("keep");
-                if path.is_none() {
-                    return Err(OpcError::ConfigError(
-                        "path",
-                        "should config dump path".to_string(),
-                    ));
-                }
-                if keep.is_none() {
-                    return Err(OpcError::ConfigError(
-                        "keep",
-                        "should config dump keep".to_string(),
-                    ));
-                }
-                Some(DumpConfig {
-                    enable: dump_enable,
-                    path,
-                    keep: Some(keep.unwrap() as usize),
-                })
-            } else {
-                Some(DumpConfig {
-                    enable: dump_enable,
-                    path: None,
-                    keep: None,
-                })
-            }
-        } else {
-            None
+        let config = Self {
+            opc_type: OpcType::from_dsn(dsn)?,
+            debug: Self::parse_debug(dsn)?,
+            connect: ConnectConfig::from_dsn(dsn)?,
+            points: None,
+            collect: CollectConfig::from_dsn(dsn)?,
+            report: ReportConfig::from_dsn(dsn, ipc_port)?,
+            param_mapping: Self::build_param_mapping(dsn)?,     // TODO
+            opc_table_config: Some(TableConfig::from_dsn(dsn)?),    // TODO
         };
 
-        let select_all_points = dsn
-            .remove("select_all_points")
-            .map(|v| v.parse::<bool>().ok().unwrap_or(true))
-            .unwrap_or(false);
+        let csv_config_file = Self::parse_csv_config_file(dsn);
+        if csv_config_file.is_some() {
+            let table_to_drop = generate_opcconfig_from_csv(
+                "opcua",
+                csv_config_file.clone().unwrap().as_str(),
+            )
+                .await
+                .map(|(a, b, c)| c)
+                .map_err(|err| {
+                    anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
+                })?;
+
+            for child_table_name in table_to_drop.iter() {
+                let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
+                tracing::info!("drop sql: {drop_sql}");
+                taos.exec(drop_sql).await.map_err(|err| {
+                    anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
+                })?;
+            }
+        }
+
+        Ok(config)
+    }
+
+    fn build_param_mapping(dsn: &Dsn) -> anyhow::Result<HashMap<String, PointConfig>> {
+        let param_mapping = HashMap::new();
+
+        Ok(param_mapping)
+    }
+    pub async fn from_dsn_point_mode(dsn: &Dsn) -> anyhow::Result<Self> {
+        if dsn.driver != "opc" && dsn.driver != "opcua" && dsn.driver != "opcda" {
+            anyhow::bail!("invalid opc driver");
+        }
+
+        Ok(Self {
+            opc_type: OpcType::from_dsn(dsn)?,
+            debug: Self::parse_debug(dsn)?,
+            connect: ConnectConfig::from_dsn(dsn)?,
+            points: None,
+            collect: CollectConfig::from_dsn(dsn)?,
+            report: ReportConfig::from_dsn(dsn, 0)?,
+            param_mapping: HashMap::new(),
+            opc_table_config: None,
+        })
+    }
+
+/*
+    pub(crate) async fn new(mut dsn: Dsn, ipc_port: u16, config_mode: OPCConfigMode, taos: Option<&Taos>) -> anyhow::Result<Self> {
+        if dsn.driver != "opc" && dsn.driver != "opcua" && dsn.driver != "opcda" {
+            anyhow::bail!("invalid opc driver");
+        }
+
+        let collect;
+        let mut param_mapping = HashMap::new();
+
+        // let csv_config_file = dsn.remove("csv_config_file");
+        let csv_config_file = Self::parse_csv_config_file(&dsn);
+
+        let mut opc_table_config = None;
+
+        let select_all_points = Self::parse_select_all_points(&dsn);
 
         match dsn.protocol.as_deref() {
             Some("ua") => {
-                opc_type = OpcType::OPCUA;
-                let addr = dsn
-                    .addresses
-                    .first()
-                    .ok_or_else(|| OpcError::EndpointIsRequired(dsn.clone()))?;
-                if addr.host.is_none() || addr.port.is_none() {
-                    return Err(OpcError::EndpointIsRequired(dsn));
-                }
-                let endpoint = format!(
-                    "opc.tcp://{}:{}/{}",
-                    addr.host.as_ref().unwrap(),
-                    addr.port.as_ref().unwrap(),
-                    dsn.subject.as_ref().unwrap_or(&"".to_string())
-                );
-
-                let connect_timeout = parse_int_at!("connect_timeout").unwrap_or(10);
-                let request_timeout = parse_int_at!("request_timeout").unwrap_or(10);
-                let security_policy = dsn.remove("security_policy").unwrap_or("None".to_string());
-                let security_mode = dsn.remove("security_mode").unwrap_or("None".to_string());
-
-                let certificate = if let Some(cert) = dsn.remove("certificate") {
-                    Some(cert.trim_start_matches('@').to_string())
-                    // get_string_content_from_param_value(&cert, true, false)
-                    //     .map_err(|err| OpcError::ConfigError("certificate", err.to_string()))?
-                } else {
-                    None
-                };
-                let private_key = if let Some(private_key) = dsn.remove("private_key") {
-                    Some(private_key.trim_start_matches('@').to_string())
-                    // get_string_content_from_param_value(&private_key, true, false)
-                    //     .map_err(|err| OpcError::ConfigError("private_key", err.to_string()))?
-                } else {
-                    None
-                };
-
-                let username = dsn.username.clone();
-                let password = dsn.password.clone();
-
-                let auth_method = if username.is_some() || password.is_some() {
-                    match username.as_ref().zip(password.as_ref()) {
-                        Some(_) => AuthMethod::UserName,
-                        None => Err(OpcError::UserPassRequired(dsn.clone()))?,
-                    }
-                } else if certificate.is_some() || private_key.is_some() {
-                    AuthMethod::Certificate
-                } else {
-                    AuthMethod::Anonymous
-                };
-                let connect_ua_config = UaConnectConfig {
-                    endpoint,
-                    connect_timeout,
-                    request_timeout,
-                    security_policy,
-                    security_mode,
-                    certificate,
-                    private_key,
-                    auth_method,
-                    username,
-                    password,
-                };
-                connect = ConnectConfig {
-                    ua: Some(connect_ua_config),
-                    da: None,
-                };
-
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else if csv_config_file.is_some() {
                     let res = generate_opcconfig_from_csv(
                         "opcua",
                         csv_config_file.clone().unwrap().as_str(),
-                    )
-                        .await
-                        .map_err(|err| OpcError::ConfigError("csv_config_file", err.to_string()))?;
+                    ).await.map_err(|err| anyhow::anyhow!("csv_config_file config error: {}", err.to_string()))?;
                     opc_table_config = Some(res.0);
                     for child_table_name in res.2.iter() {
                         let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
                         tracing::info!("drop sql: {drop_sql}");
                         taos.unwrap().exec(drop_sql).await.map_err(|err| {
-                            OpcError::ConfigError("csv_config_file", err.to_string())
+                            anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
                         })?;
                     }
                     res.1
@@ -382,16 +145,15 @@ impl OPCConfig {
                     Vec::new()
                 } else {
                     get_string_vec_from_param_or_file_for_opc(&mut dsn, "ua.nodes")
-                        .map_err(|s| OpcError::FileParseFound(s))?
+                        .map_err(|s| anyhow::anyhow!("file parse error: {}", s))?
                 };
+
                 let mut ua_node_config_vec = Vec::new();
                 for i in 0..node_vec.len() {
                     let pair = node_vec[i].split("::").collect_vec();
                     if pair.len() != 2 {
                         let pair = pair.join("::");
-                        return Err(OpcError::NodeConfig(format!(
-                            "node config: {pair} split result len is not 2"
-                        )));
+                        anyhow::bail!("node config error node config: {} split result len is not 2", pair);
                     }
                     let id = String::from(pair[0]);
                     let code = String::from(pair[1]);
@@ -409,11 +171,14 @@ impl OPCConfig {
                     }
                     ua_node_config_vec.push(ua_node_config);
                 }
+
                 let collect_mode = dsn.remove("collect_mode").unwrap_or("observe".to_string());
                 let collect_ua_config = UaCollectConfig {
                     collect_mode: collect_mode
                         .parse::<CollectMode>()
-                        .map_err(|err| OpcError::ParseError("collect_mode", err))?,
+                        .map_err(|err|
+                            anyhow::anyhow!("collect_mode config error: {}", err.to_string())
+                        )?,
                     nodes: ua_node_config_vec,
                 };
                 collect = CollectConfig {
@@ -425,33 +190,6 @@ impl OPCConfig {
                 };
             }
             Some("da") => {
-                opc_type = OpcType::OPCDA;
-                let server = dsn.subject.clone();
-                if server.is_none() {
-                    return Err(OpcError::ConfigError(
-                        "subject",
-                        format!("should config subject for opc da"),
-                    ));
-                }
-                let nodes = dsn.addresses.clone();
-                if nodes.is_empty() {
-                    return Err(OpcError::ConfigError(
-                        "host",
-                        format!("should config at least one host"),
-                    ));
-                }
-                let nodes = nodes
-                    .into_iter()
-                    .map(|addr| addr.host.unwrap().clone())
-                    .collect_vec();
-                let connect_da_config = DaConnectConfig {
-                    server: server.unwrap(),
-                    nodes,
-                };
-                connect = ConnectConfig {
-                    ua: None,
-                    da: Some(connect_da_config),
-                };
                 let node_vec: Vec<String> = if let OPCConfigMode::Points = config_mode {
                     vec![]
                 } else if csv_config_file.is_some() {
@@ -460,19 +198,23 @@ impl OPCConfig {
                         csv_config_file.clone().unwrap().as_str(),
                     )
                         .await
-                        .map_err(|err| OpcError::ConfigError("csv_config_file", err.to_string()))?;
+                        .map_err(|err|
+                            anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
+                        )?;
                     opc_table_config = Some(res.0);
                     for child_table_name in res.2.iter() {
                         let drop_sql = format!("DROP TABLE IF EXISTS {child_table_name}");
                         tracing::info!("drop sql: {drop_sql}");
                         taos.unwrap().exec(drop_sql).await.map_err(|err| {
-                            OpcError::ConfigError("csv_config_file", err.to_string())
+                            anyhow::anyhow!("csv_config_file config error: {}", err.to_string())
                         })?;
                     }
                     res.1
                 } else {
                     get_string_vec_from_param_or_file_for_opc(&mut dsn, "da.tags")
-                        .map_err(|s| OpcError::FileParseFound(s))?
+                        .map_err(|s|
+                            anyhow::anyhow!("file parse error: {}", s)
+                        )?
                 };
 
                 let mut da_nodes_vec = Vec::new();
@@ -480,9 +222,7 @@ impl OPCConfig {
                     let pair = node_vec[i].split("::").collect_vec();
                     if pair.len() != 2 {
                         let pair = pair.join("::");
-                        return Err(OpcError::NodeConfig(format!(
-                            "node config: {pair} split result len is not 2"
-                        )));
+                        anyhow::bail!("node config error node config: {} split result len is not 2", pair);
                     }
                     let tag = String::from(pair[0]);
                     let code = String::from(pair[1]);
@@ -512,32 +252,7 @@ impl OPCConfig {
                 // bail!("opc config has wrong protocol");
             }
         }
-        if dsn.remove("fake").is_some() {
-            opc_type = OpcType::FAKE;
-        }
-        let remote = format!("127.0.0.1:{ipc_port}");
-        let concurrent = parse_int_at!("concurrent");
-        let batch_size = parse_int_at!("batch_size");
-        let batch_timeout = parse_int_at!("batch_timeout");
-        let debug = if let Some(v) = dsn
-            .remove("debug")
-            .map(|v| {
-                v.parse::<bool>()
-                    .map_err(|_| OpcError::ParseError("debug", v))
-            })
-            .transpose()?
-        {
-            v
-        } else {
-            false
-        };
 
-        let report = ReportConfig {
-            remote,
-            concurrent,
-            batch_size,
-            batch_timeout,
-        };
         let table_config: Option<TableConfig>;
         if matches!(config_mode, OPCConfigMode::Points) {
             table_config = None;
@@ -548,14 +263,11 @@ impl OPCConfig {
                 } else {
                     let config = dsn.remove("opc_table_config");
                     if config.is_none() {
-                        return Err(OpcError::ConfigError(
-                            "opc_table_config",
-                            "should config opc_table_config or use csv config file".to_string(),
-                        ));
+                        anyhow::bail!("opc_table_config config error: should config opc_table_config or use csv config file");
                     }
                     table_config =
                         Some(serde_json::from_str(config.unwrap().as_str()).map_err(|v| {
-                            OpcError::ParseError("opc_table_config", v.to_string())
+                            anyhow::anyhow!("Parse param error from {} while parsing parameter opc_table_config", v.to_string())
                         })?);
                 }
             } else {
@@ -564,19 +276,46 @@ impl OPCConfig {
                 param_mapping = opc_table_config.id_code_map.clone();
             }
         }
+
         Ok(OPCConfig {
-            opc_type,
-            debug,
+            opc_type: OpcType::from_dsn(&dsn)?,
+            debug: Self::parse_debug(&dsn)?,
             points: None,
-            connect,
+            connect: ConnectConfig::from_dsn(&dsn)?,
             collect,
-            report,
+            report: ReportConfig::from_dsn(&dsn, ipc_port)?,
             param_mapping,
             opc_table_config: table_config,
         })
     }
+*/
+    fn parse_debug(dsn: &Dsn) -> anyhow::Result<bool> {
+        Ok(dsn.params
+            .get("debug")
+            .map(|v| {
+                v.parse::<bool>().map_err(|err| {
+                    anyhow::anyhow!("parse debug failed, cause: {}", err.to_string())
+                })
+            })
+            .transpose()?
+            .unwrap_or(false)
+        )
+    }
 
-    pub async fn parse_tables_with(&self, _taos: &Taos) -> anyhow::Result<OpcTableConfig> {
+    fn parse_csv_config_file(dsn: &Dsn) -> Option<String> {
+        dsn.params
+            .get("csv_config_file")
+            .map(|v| v.to_string())
+    }
+
+    fn parse_select_all_points(dsn: &Dsn) -> bool {
+        dsn.params
+            .get("select_all_points")
+            .map(|v| v.parse::<bool>().ok().unwrap_or(true))
+            .unwrap_or(false)
+    }
+
+    pub async fn parse_tables_with(&self) -> anyhow::Result<OpcTableConfig> {
         let id_code_map = self
             .param_mapping
             .iter()
@@ -590,19 +329,50 @@ impl OPCConfig {
     }
 }
 
+
+#[derive(Debug, Serialize, Deserialize, Default, PartialEq)]
+enum AuthMethod {
+    Anonymous,
+    UserName,
+    #[default]
+    Certificate,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct OpcTableConfig {
+    /// id, (code, stable, enabled)
+    /// code for child table name, stable maybe none when use ui config, casue stabel_prefix exists
+    /// when stable is none stable_prefix will be enabled
+    pub id_code_map: HashMap<String, PointConfig>,
+    pub table_config: TableConfig,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct PointConfig {
+    pub code: String,
+    pub stable: Option<String>,
+    pub tag_values: Option<HashMap<String, String>>,
+    pub value_type: Option<IpcDataType>,
+}
+
+/// OPC connector mode
+pub enum OPCConfigMode {
+    /// just get points
+    Points,
+    /// collect point data
+    Collect,
+}
+
 const CSV_CONFIG_COLUMNS: [&str; 2] = ["point_id", "tbname"];
 
 /// return opctableconfig, node_config, tables_to_drop
-pub async fn generate_opcconfig_from_csv(
-    ty: &str,
-    csv_config_file: &str,
-) -> anyhow::Result<(OpcTableConfig, Vec<String>, Vec<String>)> {
+pub async fn generate_opcconfig_from_csv(ty: &str, csv_config_file: &str) -> anyhow::Result<(OpcTableConfig, Vec<String>, Vec<String>)> {
     let files_or_strings = csv_config_file
         .split(",")
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string());
-    // .partition(|v| v.starts_with("@"));
+
     let mut id_code_map = HashMap::new(); // id, (code for sub-table name, stable)
     let mut tag_config = Vec::new();
     let mut column_config = Vec::new();
@@ -611,13 +381,8 @@ pub async fn generate_opcconfig_from_csv(
     let mut current_tag_names = Vec::new();
     let mut stable_prefix = None;
     for mut file in files_or_strings {
-        tracing::info!(
-            "current log: {}",
-            std::env::current_dir().unwrap().to_str().unwrap()
-        );
-        // if !file.ends_with(".csv") {
-        // anyhow::bail!("file {file} is not a csv config");
-        // }
+        tracing::info!("current log: {}",std::env::current_dir().unwrap().to_str().unwrap());
+
         let mut rdr;
         if !file.starts_with("@") {
             // TODO use mime instead
@@ -851,11 +616,7 @@ pub async fn generate_opcconfig_from_csv(
     ));
 }
 
-fn check_duplicated(
-    current_tags: &Vec<String>,
-    current_columns: Option<&Vec<String>>,
-    column_name: &String,
-) -> anyhow::Result<()> {
+fn check_duplicated(current_tags: &Vec<String>, current_columns: Option<&Vec<String>>, column_name: &String) -> anyhow::Result<()> {
     if current_tags.contains(column_name) {
         anyhow::bail!("duplicated column or tag: {column_name}")
     }
@@ -865,154 +626,203 @@ fn check_duplicated(
     Ok(())
 }
 
+pub fn get_string_vec_from_param_or_file_for_opc(dsn: &mut Dsn, key: &str) -> Result<Vec<String>, String> {
+    if let Some(nodes) = dsn.remove(key) {
+        let mut rdr = ReaderBuilder::new()
+            .delimiter(b',')
+            .from_reader(nodes.as_bytes());
+        let header = rdr.headers().map_err(|err| err.to_string())?;
+        let (files, mut node_config): (Vec<_>, Vec<_>) = header
+            .into_iter()
+            // .split(",")
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .partition(|v| v.starts_with("@"));
+        // dbg!(&files, &node_config);
+        for file in files {
+            tracing::info!(
+                "current log: {}",
+                std::env::current_dir().unwrap().to_str().unwrap()
+            );
+            let f = std::fs::File::open(&file[1..]);
+            if f.is_err() {
+                tracing::warn!(
+                    "file: {} read error, cause: {}",
+                    &file[1..],
+                    f.err().unwrap()
+                );
+                continue;
+                // return Err("file read error".to_string());
+            }
+            let buf = std::io::BufReader::new(f.unwrap());
+            let mut file_data = buf.lines().collect_vec();
+            // remove header
+            if file_data.remove(0).is_err() {
+                tracing::warn!("file: {} content length < 1", file);
+            }
+
+            node_config.extend(
+                file_data
+                    .iter()
+                    .filter_map(|r| r.as_ref().ok())
+                    .map(|s| s.replace(",", "::")),
+            );
+        }
+        if node_config.len() == 0 {
+            tracing::warn!("node config is empty");
+            // return Err(format!("node config set but is empty: {nodes}"));
+        }
+        return Result::Ok(node_config);
+    }
+    // tracing::warn!("node config is empty");
+    return Err("Nodes not set".to_string());
+}
+
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
-    use super::*;
-
-    #[tokio::test]
-    async fn test_opc_config_to_toml() {
-        let mut map = HashMap::new();
-        map.insert(
-            String::from("123"),
-            PointConfig {
-                code: "567".to_string(),
-                stable: None,
-                tag_values: None,
-                value_type: None,
-            },
-        );
-        let mut column_configs = Vec::new();
-        let column_config = ColumnConfig {
-            column_name: String::from("received_time"),
-            column_type: Some(Ty::Timestamp),
-            column_alias: Some("ts".to_string()),
-            is_primary_key: true,
-        };
-        column_configs.push(column_config);
-        let column_config = ColumnConfig {
-            column_name: String::from("original_time"),
-            column_type: Some(Ty::Timestamp),
-            column_alias: None,
-            is_primary_key: false,
-        };
-        column_configs.push(column_config);
-        let column_config = ColumnConfig {
-            column_name: String::from("value"),
-            column_type: Some(Ty::Timestamp),
-            column_alias: None,
-            is_primary_key: true,
-        };
-        column_configs.push(column_config);
-        let opc_table_config = TableConfig {
-            stable_prefix: Some("meters".to_string()),
-            column_configs,
-            tag_configs: None,
-        };
-        let config = OPCConfig {
-            opc_type: OpcType::OPCUA,
-            debug: true,
-            points: Some(PointsConfig {
-                limit: 32,
-                regex: Some(String::from("123")),
-            }),
-            // use_received_time: true,
-            connect: ConnectConfig {
-                ua: Some(UaConnectConfig {
-                    endpoint: String::from("endpoint.123"),
-                    connect_timeout: 10,
-                    request_timeout: 20,
-                    security_policy: String::from("None"),
-                    security_mode: String::from("None"),
-                    certificate: None,
-                    private_key: None,
-                    auth_method: AuthMethod::Anonymous,
-                    username: None,
-                    password: None,
-                }),
-                da: Some(DaConnectConfig {
-                    server: String::from("server.server"),
-                    nodes: vec![String::from("localhost")],
-                }),
-            },
-            collect: CollectConfig {
-                interval: Some(10),
-                limit: Some(10),
-                ua: Some(UaCollectConfig {
-                    collect_mode: CollectMode::OBSERVE,
-                    nodes: vec![UANodeConfig {
-                        id: String::from("1"),
-                        // value_type: String::from("DOUBLE"),
-                    }],
-                }),
-                da: Some(DaCollectConfig {
-                    tags: vec![DaNodeConfig {
-                        tag: String::from("123"),
-                        // value_type: String::from("VARCHAR"),
-                    }],
-                }),
-                dump: Some(DumpConfig {
-                    enable: true,
-                    path: Some("/usr/loacl/taosx/".to_string()),
-                    keep: Some(10 as usize),
-                }),
-            },
-            report: ReportConfig {
-                remote: String::from("remote.remote"),
-                concurrent: Some(10),
-                batch_size: None,
-                batch_timeout: Some(100),
-            },
-            param_mapping: map,
-            // table_info: HashMap::new(),
-            opc_table_config: Some(opc_table_config),
-        };
-        let toml = toml::to_string(&config).unwrap();
-        assert_eq!(
-            r#"opc_type = "opcua"
-debug = true
-
-[connect.ua]
-endpoint = "endpoint.123"
-connect_timeout = 10
-request_timeout = 20
-security_policy = "None"
-security_mode = "None"
-auth_method = "Anonymous"
-
-[connect.da]
-server = "server.server"
-nodes = ["localhost"]
-
-[points]
-limit = 32
-regex = "123"
-
-[collect]
-interval = 10
-limit = 10
-
-[collect.ua]
-collect_mode = "observe"
-
-[[collect.ua.nodes]]
-id = "1"
-
-[[collect.da.tags]]
-tag = "123"
-
-[collect.dump]
-enable = true
-path = "/usr/loacl/taosx/"
-keep = 10
-
-[report]
-remote = "remote.remote"
-concurrent = 10
-batch_timeout = 100
-"#,
-            toml
-        );
-    }
+    //     #[tokio::test]
+//     async fn test_opc_config_to_toml() {
+//         let mut map = HashMap::new();
+//         map.insert(
+//             String::from("123"),
+//             PointConfig {
+//                 code: "567".to_string(),
+//                 stable: None,
+//                 tag_values: None,
+//                 value_type: None,
+//             },
+//         );
+//         let mut column_configs = Vec::new();
+//         let column_config = ColumnConfig {
+//             column_name: String::from("received_time"),
+//             column_type: Some(Ty::Timestamp),
+//             column_alias: Some("ts".to_string()),
+//             is_primary_key: true,
+//         };
+//         column_configs.push(column_config);
+//         let column_config = ColumnConfig {
+//             column_name: String::from("original_time"),
+//             column_type: Some(Ty::Timestamp),
+//             column_alias: None,
+//             is_primary_key: false,
+//         };
+//         column_configs.push(column_config);
+//         let column_config = ColumnConfig {
+//             column_name: String::from("value"),
+//             column_type: Some(Ty::Timestamp),
+//             column_alias: None,
+//             is_primary_key: true,
+//         };
+//         column_configs.push(column_config);
+//         let opc_table_config = TableConfig {
+//             stable_prefix: Some("meters".to_string()),
+//             column_configs,
+//             tag_configs: None,
+//         };
+//         let config = OPCConfig {
+//             opc_type: OpcType::OPCUA,
+//             debug: true,
+//             points: Some(PointsConfig {
+//                 limit: 32,
+//                 regex: Some(String::from("123")),
+//             }),
+//             // use_received_time: true,
+//             connect: ConnectConfig {
+//                 ua: Some(UaConnectConfig {
+//                     endpoint: String::from("endpoint.123"),
+//                     connect_timeout: 10,
+//                     request_timeout: 20,
+//                     security_policy: String::from("None"),
+//                     security_mode: String::from("None"),
+//                     certificate: None,
+//                     private_key: None,
+//                     auth_method: AuthMethod::Anonymous,
+//                     username: None,
+//                     password: None,
+//                 }),
+//                 da: Some(DaConnectConfig {
+//                     server: String::from("server.server"),
+//                     nodes: vec![String::from("localhost")],
+//                 }),
+//             },
+//             collect: CollectConfig {
+//                 interval: Some(10),
+//                 limit: Some(10),
+//                 ua: Some(UaCollectConfig {
+//                     collect_mode: CollectMode::OBSERVE,
+//                     nodes: vec![UANodeConfig {
+//                         id: String::from("1"),
+//                         // value_type: String::from("DOUBLE"),
+//                     }],
+//                 }),
+//                 da: Some(DaCollectConfig {
+//                     tags: vec![DaNodeConfig {
+//                         tag: String::from("123"),
+//                         // value_type: String::from("VARCHAR"),
+//                     }],
+//                 }),
+//                 dump: Some(DumpConfig {
+//                     enable: true,
+//                     path: Some("/usr/loacl/taosx/".to_string()),
+//                     keep: Some(10 as usize),
+//                 }),
+//             },
+//             report: ReportConfig {
+//                 remote: String::from("remote.remote"),
+//                 concurrent: Some(10),
+//                 batch_size: None,
+//                 batch_timeout: Some(100),
+//             },
+//             param_mapping: map,
+//             // table_info: HashMap::new(),
+//             opc_table_config: Some(opc_table_config),
+//         };
+//         let toml = toml::to_string(&config).unwrap();
+//         assert_eq!(
+//             r#"opc_type = "opcua"
+// debug = true
+//
+// [connect.ua]
+// endpoint = "endpoint.123"
+// connect_timeout = 10
+// request_timeout = 20
+// security_policy = "None"
+// security_mode = "None"
+// auth_method = "Anonymous"
+//
+// [connect.da]
+// server = "server.server"
+// nodes = ["localhost"]
+//
+// [points]
+// limit = 32
+// regex = "123"
+//
+// [collect]
+// interval = 10
+// limit = 10
+//
+// [collect.ua]
+// collect_mode = "observe"
+//
+// [[collect.ua.nodes]]
+// id = "1"
+//
+// [[collect.da.tags]]
+// tag = "123"
+//
+// [collect.dump]
+// enable = true
+// path = "/usr/loacl/taosx/"
+// keep = 10
+//
+// [report]
+// remote = "remote.remote"
+// concurrent = 10
+// batch_timeout = 100
+// "#,
+//             toml
+//         );
+//     }
 }

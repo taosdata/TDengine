@@ -1,19 +1,12 @@
 use std::{
     fs,
     io::prelude::*,
-    num::ParseIntError,
     path::PathBuf,
     str::FromStr,
     sync::Arc,
 };
 
-use anyhow::{bail, Context};
-use csv_lib::ReaderBuilder;
-use file_rotate::{
-    compression::Compression,
-    ContentLimit,
-    FileRotate, suffix::{AppendTimestamp, DateFrom, FileLimit}, TimeFrequency,
-};
+use anyhow::Context;
 use itertools::Itertools;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder, Ty};
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
@@ -29,242 +22,11 @@ use crate::{
 };
 use crate::dsv::DataSourceValidation;
 use crate::runners::log_rotation;
-use crate::runners::opc::config::{ColumnConfig, OPCConfig, OPCConfigMode, OpcType, TableConfig, PointsConfig};
-pub(crate) mod config;
+use crate::runners::opc::config::{OPCConfig, OPCConfigMode, OpcType, PointsConfig, TableConfig};
+use crate::runners::opc::config::table::ColumnConfig;
 
-#[derive(Debug, thiserror::Error)]
-enum OpcError {
-    #[error("One of `ua` `da` protocol should be set")]
-    ProtocolNotFound(Dsn),
-    #[error("Endpoint is required in OPC dsn: {0} like `opc+..://localhost:4840?...`")]
-    EndpointIsRequired(Dsn),
-    #[error("Database name is required in OPC dsn: {0}")]
-    DatabaseIsRequired(Dsn),
-    #[error("Username and password are both required for UserName authentication method in {0}")]
-    UserPassRequired(Dsn),
-    // #[error("config file not found: {0}")]
-    // FileNotFound(String),
-    #[error("file parse error: {0}")]
-    FileParseFound(String),
-    // #[error("config file content is empty in {0}")]
-    // EmptyConfig(String),
-    #[error("node config error {0}")]
-    NodeConfig(String),
-    #[error("Parse integer error from {1} while parsing parameter {0}: {2:?}")]
-    ParseNumberError(&'static str, String, ParseIntError),
-    #[error("Parse param error from {1} while parsing parameter {0}")]
-    ParseError(&'static str, String),
-    #[error("{0} config error: {1}")]
-    ConfigError(&'static str, String),
-}
-
-pub fn parse_bool_param_from_dsn(dsn: &mut Dsn, key: &str) -> anyhow::Result<Option<bool>> {
-    if let Some(key) = dsn.remove(key) {
-        match key.as_str() {
-            "false" => Ok(Some(false)),
-            "" | "true" => Ok(Some(true)),
-            _ => anyhow::bail!("should config true or false"),
-        }
-    } else {
-        Ok(None)
-    }
-}
-
-
-#[instrument(skip(dsn))]
-async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
-    let child_table_expression = dsn.remove("child_table_expression");
-    if child_table_expression.is_none() {
-        anyhow::bail!("should config child_table_expression");
-    }
-    let child_table_expression = child_table_expression.unwrap();
-    let table_primary_key = dsn.remove("table_primary_key");
-    if table_primary_key.is_none() {
-        anyhow::bail!("should config table_primary_key");
-    }
-    let table_primary_key = table_primary_key.unwrap();
-    let data = DataSetsReq {
-        from: dsn.to_string(),
-        categories: vec![String::from("nodes")],
-        via: None,
-        offset: 0,
-        pattern: Some(String::from(".*")),
-        limit: usize::MAX / 2 - 1,
-        lang: None,
-    };
-    let all_points = opc_datasets(&data).await?;
-    let point_config = all_points
-        .iter()
-        .map(|point| {
-            let point_id = point.id.clone();
-            let tbname =
-                generate_tbname_from_pattern(&dsn.driver, &child_table_expression, &point_id);
-            // 对于 OPCUA 来说，ns=3;s=Special_\"!§$%&/()=?`´\\+~*'#_-:.;,<>|@^°€µ{[]} 是一个有效的点位 ID 和名称
-            // 此时需要借助 CSV 的 delimiter 使用 , 进行分隔
-            // 前提是点位需要使用双引号引起来
-            // 又引出的问题的是如果点位名称已经包含了双引号该如何处理 -》继续加双引号
-            format!("\"{}::{}\"", point_id.replace("\"", "\"\""), tbname)
-        })
-        .join(",");
-    if dsn.driver.as_str() == "opcua" {
-        dsn.set("ua.nodes", point_config);
-    } else {
-        dsn.set("da.tags", point_config);
-    }
-    let stable_prefix = Some(String::from("opc"));
-    let mut column_configs = vec![];
-
-    column_configs.push(ColumnConfig {
-        column_name: String::from("value"),
-        column_type: None,
-        column_alias: Some(String::from("val")),
-        is_primary_key: false,
-    });
-    column_configs.push(ColumnConfig {
-        column_name: String::from("quality"),
-        column_type: Some(Ty::Int),
-        column_alias: None,
-        is_primary_key: false,
-    });
-    let opc_table_config = if table_primary_key == "received_ts" {
-        column_configs.push(ColumnConfig {
-            column_name: String::from("received_ts"),
-            column_type: Some(Ty::Timestamp),
-            column_alias: None,
-            is_primary_key: true,
-        });
-        column_configs.push(ColumnConfig {
-            column_name: String::from("original_ts"),
-            column_type: Some(Ty::Timestamp),
-            column_alias: None,
-            is_primary_key: false,
-        });
-        TableConfig {
-            stable_prefix,
-            column_configs,
-            tag_configs: None,
-        }
-    } else {
-        column_configs.push(ColumnConfig {
-            column_name: String::from("original_ts"),
-            column_type: Some(Ty::Timestamp),
-            column_alias: None,
-            is_primary_key: true,
-        });
-        TableConfig {
-            stable_prefix,
-            column_configs,
-            tag_configs: None,
-        }
-    };
-    dsn.set(
-        "opc_table_config",
-        serde_json::to_string(&opc_table_config)?,
-    );
-    Ok(())
-}
-
-/// TODO should support more complicated pattern
-/// a expression like d00{point_id}_{tag1}_{tag2}
-/// for now only support <table_prfix>_{ns}_{id}_<table_suffix> for opcua
-/// <table_prfix>_{TagName}_<table_suffix> for opcda
-fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> String {
-    let tbname = if ty == "opcua" {
-        // ns=13;i=1003
-        let mut split = point_id.split(";");
-        let ns = if let Some(ns) = split.next() {
-            if ns.contains("ns=") {
-                let mut ns_split = ns.split("=");
-                ns_split.next();
-                ns_split.next()
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-        let id = if let Some(id) = split.next() {
-            if id.contains("i=") {
-                let mut id_split = id.split("=");
-                id_split.next();
-                id_split.next()
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-        tb_name
-            .replace("{ns}", ns.unwrap_or(""))
-            .replace("{id}", id.unwrap_or(""))
-    } else {
-        let tag_index = point_id.rfind(".");
-        let tag_name = if let Some(index) = tag_index {
-            // should be Device.DeviceType.TagName pattern
-            &point_id[index + 1..]
-        } else {
-            &point_id
-        };
-        tb_name.replace("{TagName}", tag_name)
-    };
-    tbname
-}
-
-pub(super) fn get_string_vec_from_param_or_file_for_opc(
-    dsn: &mut Dsn,
-    key: &str,
-) -> Result<Vec<String>, String> {
-    if let Some(nodes) = dsn.remove(key) {
-        let mut rdr = ReaderBuilder::new()
-            .delimiter(b',')
-            .from_reader(nodes.as_bytes());
-        let header = rdr.headers().map_err(|err| err.to_string())?;
-        let (files, mut node_config): (Vec<_>, Vec<_>) = header
-            .into_iter()
-            // .split(",")
-            .map(|s| s.trim())
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
-            .partition(|v| v.starts_with("@"));
-        // dbg!(&files, &node_config);
-        for file in files {
-            tracing::info!(
-                "current log: {}",
-                std::env::current_dir().unwrap().to_str().unwrap()
-            );
-            let f = std::fs::File::open(&file[1..]);
-            if f.is_err() {
-                tracing::warn!(
-                    "file: {} read error, cause: {}",
-                    &file[1..],
-                    f.err().unwrap()
-                );
-                continue;
-                // return Err("file read error".to_string());
-            }
-            let buf = std::io::BufReader::new(f.unwrap());
-            let mut file_data = buf.lines().collect_vec();
-            // remove header
-            if file_data.remove(0).is_err() {
-                tracing::warn!("file: {} content length < 1", file);
-            }
-
-            node_config.extend(
-                file_data
-                    .iter()
-                    .filter_map(|r| r.as_ref().ok())
-                    .map(|s| s.replace(",", "::")),
-            );
-        }
-        if node_config.len() == 0 {
-            tracing::warn!("node config is empty");
-            // return Err(format!("node config set but is empty: {nodes}"));
-        }
-        return Result::Ok(node_config);
-    }
-    // tracing::warn!("node config is empty");
-    return Err("Nodes not set".to_string());
-}
+pub mod config;
+mod opc_type;
 
 const EXE: &'static str = {
     cfg_if::cfg_if! {
@@ -275,6 +37,7 @@ const EXE: &'static str = {
         }
     }
 };
+const LOG_FILE: &str = "opc.log";
 
 fn exe_path() -> anyhow::Result<PathBuf> {
     let path = super::get_plugin_dir("opc").join(EXE);
@@ -283,8 +46,6 @@ fn exe_path() -> anyhow::Result<PathBuf> {
     }
     Ok(path)
 }
-
-const LOG_FILE: &str = "opc.log";
 
 fn log_path() -> PathBuf {
     super::get_log_dir("opc")
@@ -314,22 +75,30 @@ pub async fn opc_to_taos(
     notify: crate::TaskNotifySender,
 ) -> anyhow::Result<()> {
     if to.subject.is_none() {
-        Err(OpcError::DatabaseIsRequired(to.clone()))?;
+        anyhow::bail!("Database name is required in OPC dsn: {}", to.clone().to_string());
     }
     let ipc_port = port_pool
         .get()
         .await
         .ok_or_else(|| anyhow::format_err!("No available port for OPC connection"))?;
+
     let builder: TaosBuilder = TaosBuilder::from_dsn(&to)?;
     let taos = builder.build().await?;
 
-    let select_all_points = parse_bool_param_from_dsn(&mut from, "select_all_points")
-        .map_err(|err| OpcError::ConfigError("select_all_points", err.to_string()))?
+    let select_all_points = from.params
+        .get("select_all_points")
+        .map(|v| {
+            v.parse::<bool>().map_err(|err| {
+                anyhow::anyhow!("failed to parse select_all_points, cause: {}", err.to_string())
+            })
+        })
+        .transpose()?
         .unwrap_or(false);
+
     if select_all_points {
         handle_select_all_points(&mut from).await?;
     }
-    let config = OPCConfig::new(from, ipc_port, OPCConfigMode::Collect, Some(&taos)).await?;
+    let config = OPCConfig::from_dsn_collect_mode(&from, ipc_port, &taos).await?;
     if config.opc_table_config.is_none() {
         anyhow::bail!("should config opc table config");
     }
@@ -342,7 +111,7 @@ pub async fn opc_to_taos(
 
     tracing::info!("Using opc config file {}", config_path.display());
 
-    let table_config = Some(config.parse_tables_with(&taos).await?);
+    let table_config = Some(config.parse_tables_with().await?);
     let connector = match config.opc_type {
         OpcType::FAKE => None,
         OpcType::OPCDA => Some("opc_da"),
@@ -461,20 +230,157 @@ pub async fn opc_to_taos(
     Ok(())
 }
 
+#[instrument(skip(dsn))]
+async fn handle_select_all_points(dsn: &mut Dsn) -> anyhow::Result<()> {
+    let child_table_expression = dsn.params
+        .get("child_table_expression")
+        .ok_or(anyhow::anyhow!("child_table_expression is required"))?;
+
+    let table_primary_key = dsn.params
+        .get("table_primary_key")
+        .ok_or(anyhow::anyhow!("table_primary_key is required"))?;
+
+    let data = DataSetsReq {
+        from: dsn.to_string(),
+        categories: vec![String::from("nodes")],
+        via: None,
+        offset: 0,
+        pattern: Some(String::from(".*")),
+        limit: usize::MAX / 2 - 1,
+        lang: None,
+    };
+
+    let all_points = opc_datasets(&data).await?;
+    let point_config = all_points
+        .iter()
+        .map(|point| {
+            let point_id = point.id.clone();
+            let tbname =
+                generate_tbname_from_pattern(&dsn.driver, &child_table_expression, &point_id);
+            // 对于 OPCUA 来说，ns=3;s=Special_\"!§$%&/()=?`´\\+~*'#_-:.;,<>|@^°€µ{[]} 是一个有效的点位 ID 和名称
+            // 此时需要借助 CSV 的 delimiter 使用 , 进行分隔
+            // 前提是点位需要使用双引号引起来
+            // 又引出的问题的是如果点位名称已经包含了双引号该如何处理 -》继续加双引号
+            format!("\"{}::{}\"", point_id.replace("\"", "\"\""), tbname)
+        })
+        .join(",");
+    if dsn.driver.as_str() == "opcua" {
+        dsn.set("ua.nodes", point_config);
+    } else {
+        dsn.set("da.tags", point_config);
+    }
+    let stable_prefix = Some(String::from("opc"));
+    let mut column_configs = vec![];
+
+    column_configs.push(ColumnConfig {
+        column_name: String::from("value"),
+        column_type: None,
+        column_alias: Some(String::from("val")),
+        is_primary_key: false,
+    });
+    column_configs.push(ColumnConfig {
+        column_name: String::from("quality"),
+        column_type: Some(Ty::Int),
+        column_alias: None,
+        is_primary_key: false,
+    });
+    let opc_table_config = if table_primary_key == "received_ts" {
+        column_configs.push(ColumnConfig {
+            column_name: String::from("received_ts"),
+            column_type: Some(Ty::Timestamp),
+            column_alias: None,
+            is_primary_key: true,
+        });
+        column_configs.push(ColumnConfig {
+            column_name: String::from("original_ts"),
+            column_type: Some(Ty::Timestamp),
+            column_alias: None,
+            is_primary_key: false,
+        });
+        TableConfig {
+            stable_prefix,
+            column_configs,
+            tag_configs: None,
+        }
+    } else {
+        column_configs.push(ColumnConfig {
+            column_name: String::from("original_ts"),
+            column_type: Some(Ty::Timestamp),
+            column_alias: None,
+            is_primary_key: true,
+        });
+        TableConfig {
+            stable_prefix,
+            column_configs,
+            tag_configs: None,
+        }
+    };
+    dsn.set(
+        "opc_table_config",
+        serde_json::to_string(&opc_table_config)?,
+    );
+    Ok(())
+}
+
+/// TODO: should support more complicated pattern
+/// a expression like d00{point_id}_{tag1}_{tag2}
+/// for now only support <table_prfix>_{ns}_{id}_<table_suffix> for opcua
+/// <table_prfix>_{TagName}_<table_suffix> for opcda
+fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> String {
+    let tbname = if ty == "opcua" {
+        // ns=13;i=1003
+        let mut split = point_id.split(";");
+        let ns = if let Some(ns) = split.next() {
+            if ns.contains("ns=") {
+                let mut ns_split = ns.split("=");
+                ns_split.next();
+                ns_split.next()
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let id = if let Some(id) = split.next() {
+            if id.contains("i=") {
+                let mut id_split = id.split("=");
+                id_split.next();
+                id_split.next()
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        tb_name
+            .replace("{ns}", ns.unwrap_or(""))
+            .replace("{id}", id.unwrap_or(""))
+    } else {
+        let tag_index = point_id.rfind(".");
+        let tag_name = if let Some(index) = tag_index {
+            // should be Device.DeviceType.TagName pattern
+            &point_id[index + 1..]
+        } else {
+            &point_id
+        };
+        tb_name.replace("{TagName}", tag_name)
+    };
+    tbname
+}
+
 pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
-    let from: Dsn = req.from.parse().unwrap();
+    let from: Dsn = req.from.parse()?;
     if req.categories.is_empty() {
-        return Err(anyhow::anyhow!("categories is empty"));
+        anyhow::bail!("categories is empty");
     }
 
-    let mut config = OPCConfig::new(from.clone(), 0, OPCConfigMode::Points, None).await?;
+    let mut config = OPCConfig::from_dsn_point_mode(&from).await?;
     let points_config = PointsConfig {
         limit: req.limit,
         regex: req.pattern.clone(),
     };
     config.points = Some(points_config);
-    let toml =
-        toml::to_string(&config).with_context(|| format!("toml to_string error encountered"))?;
+    let toml = toml::to_string(&config).with_context(|| format!("toml to_string error encountered"))?;
     let mut config_file = tempfile::NamedTempFile::new()?;
     write!(config_file, "{}", &toml)?;
     let config_path = config_file.path().to_path_buf();
@@ -492,22 +398,10 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
         .output()
         .await
         .with_context(|| "Start OPC collector error")?;
-    // dbg!(output);
     let mut log_path = log_path();
     log_path.push(LOG_FILE);
 
-    let mut log_rotation = FileRotate::new(
-        &log_path,
-        AppendTimestamp::with_format(
-            "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::weeks(100)),
-            DateFrom::DateYesterday,
-        ),
-        ContentLimit::Time(TimeFrequency::Daily),
-        Compression::None,
-        #[cfg(unix)]
-            None,
-    );
+    let mut log_rotation = log_rotation(&log_path, 700);
 
     write!(log_rotation, "{}", String::from_utf8_lossy(&output.stderr))
         .context("writing logs error")?;
@@ -522,18 +416,16 @@ pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
             "Get OPC datasets error:\n{}",
             error
         );
-        let pattern =
-            regex::Regex::new(r#"level=PANIC msg="(?P<msg>.*)" error="(?<error>.*)"#).unwrap();
+        let pattern = regex::Regex::new(r#"level=PANIC msg="(?P<msg>.*)" error="(?<error>.*)"#).unwrap();
         let matches = pattern.captures(&error);
         if let Some(matches) = matches {
-            bail!("{}: {}", &matches["msg"], &matches["error"]);
+            anyhow::bail!("{}: {}", &matches["msg"], &matches["error"]);
         } else {
-            bail!("Get OPC datasets error: {}", &error);
+            anyhow::bail!("Get OPC datasets error: {}", &error);
         }
     }
 
     temp_path.close()?;
-    // let json = String::from_utf8_lossy(&output.stdout);
     let res: Vec<DataSet> = serde_json::from_slice(&output.stdout)?;
     tracing::debug!(
         "opc datasets : {}",
@@ -600,7 +492,8 @@ pub async fn is_valid(dsn: &Dsn) -> DataSourceValidation {
             "opcda only support windows".to_string(),
         );
     }
-    let config = OPCConfig::new(dsn.clone(), 0, OPCConfigMode::Points, None).await;
+
+    let config = OPCConfig::from_dsn_point_mode(dsn).await;
     match config {
         Err(err) => DataSourceValidation::invalid(
             "opc".to_string(),
