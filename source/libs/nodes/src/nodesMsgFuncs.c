@@ -2052,7 +2052,8 @@ enum {
   PHY_LAST_ROW_SCAN_CODE_SCAN = 1,
   PHY_LAST_ROW_SCAN_CODE_GROUP_TAGS,
   PHY_LAST_ROW_SCAN_CODE_GROUP_SORT,
-  PHY_LAST_ROW_SCAN_CODE_IGNULL
+  PHY_LAST_ROW_SCAN_CODE_IGNULL,
+  PHY_LAST_ROW_SCAN_CODE_TARGETS
 };
 
 static int32_t physiLastRowScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2067,6 +2068,9 @@ static int32_t physiLastRowScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_LAST_ROW_SCAN_CODE_IGNULL, pNode->ignoreNull);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_LAST_ROW_SCAN_CODE_TARGETS, nodeListToMsg, pNode->pTargets);
   }
 
   return code;
@@ -2090,6 +2094,9 @@ static int32_t msgToPhysiLastRowScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_LAST_ROW_SCAN_CODE_IGNULL:
         code = tlvDecodeBool(pTlv, &pNode->ignoreNull);
+        break;
+      case PHY_LAST_ROW_SCAN_CODE_TARGETS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pTargets);
         break;
       default:
         break;

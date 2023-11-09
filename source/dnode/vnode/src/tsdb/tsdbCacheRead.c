@@ -30,10 +30,12 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
   if (HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST)) {
     uint64_t ts = 0;
     SFirstLastRes* p;
+    col_id_t colId;
     for (int32_t i = 0; i < pReader->numOfCols; ++i) {
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotIds[i]);
       int32_t          slotId = slotIds[i];
       SLastCol*        pColVal = (SLastCol*)taosArrayGet(pRow, i);
+      colId = pColVal->colVal.cid;
       p = (SFirstLastRes*)varDataVal(pRes[i]);
 
       p->ts = pColVal->ts;
@@ -63,8 +65,7 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
       if (pCol->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID && pCol->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
         colDataSetVal(pCol, numOfRows, (const char*)&ts, false);
         continue;
-      }
-      if (pReader->numOfCols == 1 && dstSlotIds[0] != idx) {
+      } else if (pReader->numOfCols == 1 && idx != dstSlotIds[0] && pCol->info.colId == colId) {
         if (!p->isNull) {
           colDataSetVal(pCol, numOfRows, p->buf, false);
         } else {
