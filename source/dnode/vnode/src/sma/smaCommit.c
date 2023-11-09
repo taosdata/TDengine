@@ -179,12 +179,13 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma, bool isCommit) {
 
   if (!isCommit) goto _exit;
 
+  code = atomic_load_32(&pRSmaStat->execStat);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   code = tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat));
   TSDB_CHECK_CODE(code, lino, _exit);
 
   smaInfo("vgId:%d, rsma commit, operator state committed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
-
-
 
   // all rsma results are written completely
   STsdb *pTsdb = NULL;

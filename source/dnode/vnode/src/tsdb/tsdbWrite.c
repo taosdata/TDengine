@@ -39,7 +39,7 @@ int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq2 *pMsg, SSubmitRsp2
   arrSize = taosArrayGetSize(pMsg->aSubmitTbData);
 
   // scan and convert
-  if (tsdbScanAndConvertSubmitMsg(pTsdb, pMsg) < 0) {
+  if ((terrno = tsdbScanAndConvertSubmitMsg(pTsdb, pMsg)) < 0) {
     if (terrno != TSDB_CODE_TDB_TABLE_RECONFIGURE) {
       tsdbError("vgId:%d, failed to insert data since %s", TD_VID(pTsdb->pVnode), tstrerror(terrno));
     }

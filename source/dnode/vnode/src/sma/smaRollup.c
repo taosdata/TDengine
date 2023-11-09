@@ -682,13 +682,14 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
       }
 
       if (pReq && tdProcessSubmitReq(sinkTsdb, output->info.version, pReq) < 0) {
-        code = terrno ? terrno : TSDB_CODE_RSMA_RESULT;
+        if (terrno == TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE) {
+          // TODO: reconfigure SSubmitReq2
+        } else {
+          if (terrno == 0) terrno = TSDB_CODE_RSMA_RESULT;
+          code = terrno;
+        }
         tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
         taosMemoryFree(pReq);
-        smaError("vgId:%d, %s failed at line %d since %s, suid:%" PRIi64 ", level:%" PRIi8 ", uid:%" PRIi64
-                 ", ver:%" PRIi64,
-                 SMA_VID(pSma), __func__, lino, tstrerror(code), suid, pItem->level, output ? output->info.id.uid : -1,
-                 output ? output->info.version : -1);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
 
@@ -844,10 +845,10 @@ static int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t msgSize, 
     atomic_store_64(&pItem->submitReqVer, packData->ver);
   }
 
-  tdRSmaExecAndSubmitResult(pSma, qTaskInfo, pItem, pInfo, STREAM_NORMAL, &pResList, NULL);
+  terrno = tdRSmaExecAndSubmitResult(pSma, qTaskInfo, pItem, pInfo, STREAM_NORMAL, &pResList, NULL);
 
   taosArrayDestroy(pResList);
-  return TSDB_CODE_SUCCESS;
+  return terrno ? TSDB_CODE_FAILED : TDB_CODE_SUCCESS;
 }
 
 /**
@@ -953,7 +954,12 @@ int32_t tdProcessRSmaSubmit(SSma *pSma, int64_t version, void *pReq, void *pMsg,
   SSmaEnv *pEnv = SMA_RSMA_ENV(pSma);
   if (!pEnv) {
     // only applicable when rsma env exists
-    return TSDB_CODE_SUCCESS;
+    return TDB_CODE_SUCCESS;
+  }
+
+  if (0 != (terrno = atomic_load_32(&SMA_RSMA_STAT(pSma)->execStat))) {
+    smaError("vgId:%d, failed to process rsma submit since invalid exec code: %s", SMA_VID(pSma), terrstr());
+    goto _err;
   }
 
   STbUidStore uidStore = {0};
@@ -985,7 +991,7 @@ int32_t tdProcessRSmaSubmit(SSma *pSma, int64_t version, void *pReq, void *pMsg,
   return TSDB_CODE_SUCCESS;
 _err:
   tdUidStoreDestory(&uidStore);
-  return TSDB_CODE_FAILED;
+  return terrno;
 }
 
 /**
@@ -1417,6 +1423,7 @@ static int32_t tdRSmaFetchAllResult(SSma *pSma, SRSmaInfo *pInfo) {
         goto _err;
       }
       if (tdRSmaExecAndSubmitResult(pSma, taskInfo, pItem, pInfo, STREAM_GET_ALL, &pResList, NULL) < 0) {
+        atomic_store_32(&SMA_RSMA_STAT(pSma)->execStat, terrno);
         goto _err;
       }
 
@@ -1448,6 +1455,7 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
                               .msgStr = POINTER_SHIFT(msg, sizeof(int32_t) + sizeof(int64_t))};
 
       if (!taosArrayPush(pSubmitArr, &packData)) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
         tdFreeRSmaSubmitItems(pSubmitArr);
         goto _err;
       }
@@ -1467,6 +1475,7 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
   }
   return TSDB_CODE_SUCCESS;
 _err:
+  atomic_store_32(&SMA_RSMA_STAT(pSma)->execStat, terrno);
   smaError("vgId:%d, batch exec for suid:%" PRIi64 " execType:%d size:%d failed since %s", SMA_VID(pSma), pInfo->suid,
            type, (int32_t)taosArrayGetSize(pSubmitArr), terrstr());
   tdFreeRSmaSubmitItems(pSubmitArr);
