@@ -13,9 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "cos.h"
 #include "tsdb.h"
 #include "tsdbFS2.h"
-#include "cos.h"
 #include "vnd.h"
 
 typedef struct {
@@ -292,15 +292,15 @@ static int32_t tsdbDoRetentionOnFileSet(SRTNer *rtner, STFileSet *fset) {
   if (expLevel < 0) {  // remove the fileset
     for (int32_t ftype = 0; (ftype < TSDB_FTYPE_MAX) && (fobj = fset->farr[ftype], 1); ++ftype) {
       if (fobj == NULL) continue;
-
+      /*
       int32_t nlevel = tfsGetLevel(rtner->tsdb->pVnode->pTfs);
       if (tsS3Enabled && nlevel > 1 && TSDB_FTYPE_DATA == ftype && fobj->f->did.level == nlevel - 1) {
         code = tsdbRemoveFileObjectS3(rtner, fobj);
         TSDB_CHECK_CODE(code, lino, _exit);
-      } else {
-        code = tsdbDoRemoveFileObject(rtner, fobj);
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
+        } else {*/
+      code = tsdbDoRemoveFileObject(rtner, fobj);
+      TSDB_CHECK_CODE(code, lino, _exit);
+      //}
     }
 
     SSttLvl *lvl;

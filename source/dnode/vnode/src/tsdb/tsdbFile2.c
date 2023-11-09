@@ -14,6 +14,7 @@
  */
 
 #include "tsdbFile2.h"
+#include "cos.h"
 
 // to_json
 static int32_t head_to_json(const STFile *file, cJSON *json);
@@ -44,7 +45,17 @@ static const struct {
 void remove_file(const char *fname) {
   int32_t code = taosRemoveFile(fname);
   if (code) {
-    tsdbError("file:%s remove failed", fname);
+    if (tsS3Enabled) {
+      const char *object_name = taosDirEntryBaseName((char *)fname);
+      long        s3_size = tsS3Enabled ? s3Size(object_name) : 0;
+      if (!strncmp(fname + strlen(fname) - 5, ".data", 5) && s3_size > 0) {
+        s3DeleteObjects(&object_name, 1);
+      } else {
+        tsdbError("file:%s remove failed", fname);
+      }
+    } else {
+      tsdbError("file:%s remove failed", fname);
+    }
   } else {
     tsdbInfo("file:%s is removed", fname);
   }
