@@ -265,7 +265,8 @@ export default {
           Message.error(this.$t("login.servTaosdTip"));
           return;
         }
-        Message.error(this.$t("login.versiontip"));
+        console.log(err,'登陆错误提示')
+        Message.error(err?.desc);
       }
     },
   },
