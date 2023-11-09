@@ -399,7 +399,7 @@ int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* 
   return 0;
 }
 
-int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** pRefBlock, int8_t type) {
+int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** pRefBlock, int32_t type) {
   SDecoder*   pCoder = &(SDecoder){0};
   SDeleteRes* pRes = &(SDeleteRes){0};
 
@@ -452,8 +452,10 @@ int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** 
 
     ((SStreamRefDataBlock*)(*pRefBlock))->type = STREAM_INPUT__REF_DATA_BLOCK;
     ((SStreamRefDataBlock*)(*pRefBlock))->pBlock = pDelBlock;
-  } else {
+  } else if (type == 1) {
     *pRefBlock = pDelBlock;
+  } else {
+    ASSERTS(0, "unknown type:%d", type);
   }
 
   return TSDB_CODE_SUCCESS;
