@@ -192,8 +192,8 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chk
       taosArrayPush(pFile->pSst, &sst);
     }
   }
-  {
-    char* buf = taosMemoryCalloc(1, 512);
+  if (qDebugFlag & DEBUG_TRACE) {
+    char* buf = taosMemoryCalloc(1, 128 + taosArrayGetSize(pFile->pSst) * 16);
     sprintf(buf, "[current: %s,", pFile->pCurrent);
     sprintf(buf + strlen(buf), "MANIFEST: %s,", pFile->pMainfest);
     sprintf(buf + strlen(buf), "options: %s,", pFile->pOptions);
