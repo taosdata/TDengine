@@ -715,12 +715,10 @@ int32_t mndDropStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) 
 }
 
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
-  int32_t code = -1;
-
-  SMnode *    pMnode = pReq->info.node;
-  SStreamObj *pStream = NULL;
-  SDbObj *    pDb = NULL;
-
+  SMnode *           pMnode = pReq->info.node;
+  int32_t            code = -1;
+  SStreamObj *       pStream = NULL;
+  SDbObj *           pDb = NULL;
   SCMCreateStreamReq createStreamReq = {0};
   SStreamObj         streamObj = {0};
 
@@ -883,13 +881,12 @@ int64_t mndStreamGenChkpId(SMnode *pMnode) {
   SStreamObj *pStream = NULL;
   void *      pIter = NULL;
   SSdb *      pSdb = pMnode->pSdb;
-
-  int64_t maxChkpId = 0;
+  int64_t     maxChkpId = 0;
   while (1) {
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
 
-    maxChkpId = MAX(maxChkpId, pStream->checkpointId);
+    maxChkpId = TMAX(maxChkpId, pStream->checkpointId);
     sdbRelease(pSdb, pStream);
   }
   return maxChkpId + 1;
