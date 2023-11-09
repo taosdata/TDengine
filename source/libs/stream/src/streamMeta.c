@@ -499,6 +499,8 @@ void streamMetaCloseImpl(void* arg) {
   taosThreadMutexDestroy(&pMeta->backendMutex);
 
   taosCleanUpScheduler(pMeta->qHandle);
+  bkdMgtDestroy(pMeta->bkdChkptMgt);
+
   pMeta->role = NODE_ROLE_UNINIT;
   taosMemoryFree(pMeta);
   stDebug("end to close stream meta");
