@@ -369,6 +369,15 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
   }
 
   switch (pItem->dtype) {
+    case CFG_DTYPE_BOOL: {
+      int32_t ival = (int32_t)atoi(pVal);
+      if (ival != 0 && ival != 1) {
+        uError("cfg:%s, type:%s value:%d out of range[0, 1]", pItem->name,
+               cfgDtypeStr(pItem->dtype), ival);
+        terrno = TSDB_CODE_OUT_OF_RANGE;
+        return -1;
+      }
+    } break;
     case CFG_DTYPE_INT32: {
       int32_t ival = (int32_t)atoi(pVal);
       if (ival < pItem->imin || ival > pItem->imax) {

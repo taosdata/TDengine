@@ -77,6 +77,7 @@ struct SStreamSnapHandle {
 
   SArray* pDbSnapSet;
   int32_t currIdx;
+  int8_t  delFlag;  // 0 : not del, 1: del
 };
 struct SStreamSnapBlockHdr {
   int8_t  type;
@@ -163,7 +164,7 @@ void snapFileDebugInfo(SBackendSnapFile2* pSnapFile) {
   }
 }
 
-int32_t snapFileCvtMeta(SBackendSnapFile2* pSnapFile) {
+int32_t snapFileGenMeta(SBackendSnapFile2* pSnapFile) {
   SBackendFileItem item = {0};
   item.ref = 1;
   // current
@@ -253,7 +254,7 @@ int32_t streamBackendSnapInitFile(char* metaPath, SStreamTaskSnap* pSnap, SBacke
   if ((code = snapFileReadMeta(pSnapFile)) != 0) {
     goto _ERROR;
   }
-  if ((code = snapFileCvtMeta(pSnapFile)) != 0) {
+  if ((code = snapFileGenMeta(pSnapFile)) != 0) {
     goto _ERROR;
   }
 
@@ -399,7 +400,6 @@ _NEXT:
 
   uint8_t* buf = taosMemoryCalloc(1, sizeof(SStreamSnapBlockHdr) + kBlockSize);
   int64_t  nread = taosPReadFile(pSnapFile->fd, buf + sizeof(SStreamSnapBlockHdr), kBlockSize, pSnapFile->offset);
-
   if (nread == -1) {
     taosMemoryFree(buf);
     code = TAOS_SYSTEM_ERROR(terrno);
