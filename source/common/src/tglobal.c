@@ -128,12 +128,12 @@ char tsSmlAutoChildTableNameDelimiter[TSDB_TABLE_NAME_LEN] = "";
 // int32_t tsSmlBatchSize = 10000;
 
 // checkpoint backup
-char tsSnodeAddress[TSDB_FQDN_LEN] = {0};
+char    tsSnodeAddress[TSDB_FQDN_LEN] = {0};
 int32_t tsRsyncPort = 873;
 #ifdef WINDOWS
 char tsCheckpointBackupDir[PATH_MAX] = "C:\\TDengine\\data\\backup\\checkpoint\\";
 #else
-char tsCheckpointBackupDir[PATH_MAX] = "/var/lib/taos/backup/checkpoint/";
+char    tsCheckpointBackupDir[PATH_MAX] = "/var/lib/taos/backup/checkpoint/";
 #endif
 
 // tmq
@@ -335,7 +335,7 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   }
   if (tsS3BucketName[0] != '<') {
 #if defined(USE_COS) || defined(USE_S3)
-    if(tsDiskCfgNum > 1) tsS3Enabled = true;
+    if (tsDiskCfgNum > 1) tsS3Enabled = true;
     tsS3StreamEnabled = true;
 #endif
   }
@@ -678,7 +678,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   if (cfgAddInt32(pCfg, "rsyncPort", tsRsyncPort, 1, 65535, CFG_SCOPE_BOTH, CFG_DYN_SERVER) != 0) return -1;
   if (cfgAddString(pCfg, "snodeAddress", tsSnodeAddress, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
-  if (cfgAddString(pCfg, "checkpointBackupDir", tsCheckpointBackupDir, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
+  if (cfgAddString(pCfg, "checkpointBackupDir", tsCheckpointBackupDir, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0)
+    return -1;
 
   if (cfgAddInt32(pCfg, "tmqMaxTopicNum", tmqMaxTopicNum, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
     return -1;
@@ -748,7 +749,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "s3Accesskey", tsS3AccessKey, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddString(pCfg, "s3Endpoint", tsS3Endpoint, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddString(pCfg, "s3BucketName", tsS3BucketName, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
-  if (cfgAddInt32(pCfg, "s3BlockSize", tsS3BlockSize, 1024, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
+  if (cfgAddInt32(pCfg, "s3BlockSize", tsS3BlockSize, -1, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
     return -1;
   if (cfgAddInt32(pCfg, "s3BlockCacheSize", tsS3BlockCacheSize, 4, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) !=
       0)
