@@ -42,16 +42,16 @@ typedef struct SNodeEntry {
 } SNodeEntry;
 
 typedef struct SStreamVnodeRevertIndex {
-  SArray       *pNodeEntryList;
+  SArray *      pNodeEntryList;
   int64_t       ts;  // snapshot ts
-  SHashObj     *pTaskMap;
-  SArray       *pTaskList;
+  SHashObj *    pTaskMap;
+  SArray *      pTaskList;
   TdThreadMutex lock;
 } SStreamVnodeRevertIndex;
 
 typedef struct SVgroupChangeInfo {
   SHashObj *pDBMap;
-  SArray   *pUpdateNodeList;  // SArray<SNodeUpdateInfo>
+  SArray *  pUpdateNodeList;  // SArray<SNodeUpdateInfo>
 } SVgroupChangeInfo;
 
 static int32_t                 mndNodeCheckSentinel = 0;
@@ -80,8 +80,8 @@ static int32_t mndProcessNodeCheck(SRpcMsg *pReq);
 static int32_t mndProcessNodeCheckReq(SRpcMsg *pMsg);
 static void    keepStreamTasksInBuf(SStreamObj *pStream, SStreamVnodeRevertIndex *pExecNode);
 
-static SArray           *doExtractNodeListFromStream(SMnode *pMnode);
-static SArray           *mndTakeVgroupSnapshot(SMnode *pMnode);
+static SArray *          doExtractNodeListFromStream(SMnode *pMnode);
+static SArray *          mndTakeVgroupSnapshot(SMnode *pMnode);
 static SVgroupChangeInfo mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pPrevNodeList, const SArray *pNodeList);
 static int32_t           mndPersistTransLog(SStreamObj *pStream, STrans *pTrans);
 static void initTransAction(STransAction *pAction, void *pCont, int32_t contLen, int32_t msgType, const SEpSet *pEpset);
@@ -185,9 +185,9 @@ STREAM_ENCODE_OVER:
 
 SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
-  SSdbRow    *pRow = NULL;
+  SSdbRow *   pRow = NULL;
   SStreamObj *pStream = NULL;
-  void       *buf = NULL;
+  void *      buf = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) {
@@ -264,7 +264,7 @@ static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStream
 }
 
 SStreamObj *mndAcquireStream(SMnode *pMnode, char *streamName) {
-  SSdb       *pSdb = pMnode->pSdb;
+  SSdb *      pSdb = pMnode->pSdb;
   SStreamObj *pStream = sdbAcquire(pSdb, SDB_STREAM, streamName);
   if (pStream == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
     terrno = TSDB_CODE_MND_STREAM_NOT_EXIST;
@@ -317,7 +317,7 @@ static int32_t mndStreamGetPlanString(const char *ast, int8_t triggerType, int64
     return TSDB_CODE_SUCCESS;
   }
 
-  SNode  *pAst = NULL;
+  SNode * pAst = NULL;
   int32_t code = nodesStringToNode(ast, &pAst);
 
   SQueryPlan *pPlan = NULL;
@@ -342,7 +342,7 @@ static int32_t mndStreamGetPlanString(const char *ast, int8_t triggerType, int64
 }
 
 static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamReq *pCreate) {
-  SNode      *pAst = NULL;
+  SNode *     pAst = NULL;
   SQueryPlan *pPlan = NULL;
 
   mInfo("stream:%s to create", pCreate->name);
@@ -596,7 +596,7 @@ static int32_t mndSetStreamRecover(SMnode *pMnode, STrans *pTrans, const SStream
 
 static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStreamObj *pStream, const char *user) {
   SStbObj *pStb = NULL;
-  SDbObj  *pDb = NULL;
+  SDbObj * pDb = NULL;
 
   SMCreateStbReq createReq = {0};
   tstrncpy(createReq.name, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
@@ -722,10 +722,10 @@ int32_t mndDropStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) 
 }
 
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
-  SMnode            *pMnode = pReq->info.node;
+  SMnode *           pMnode = pReq->info.node;
   int32_t            code = -1;
-  SStreamObj        *pStream = NULL;
-  SDbObj            *pDb = NULL;
+  SStreamObj *       pStream = NULL;
+  SDbObj *           pDb = NULL;
   SCMCreateStreamReq createStreamReq = {0};
   SStreamObj         streamObj = {0};
 
@@ -768,7 +768,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     int32_t numOfStream = 0;
 
     SStreamObj *pStream = NULL;
-    void       *pIter = NULL;
+    void *      pIter = NULL;
 
     while (1) {
       pIter = sdbFetch(pMnode->pSdb, SDB_STREAM, pIter, (void **)&pStream);
@@ -875,12 +875,12 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   SName name = {0};
   tNameFromString(&name, createStreamReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-  //reuse this function for stream
-  
-  //TODO
+  // reuse this function for stream
+
+  // TODO
   if (createStreamReq.sql != NULL) {
-    auditRecord(pReq, pMnode->clusterId, "createStream", name.dbname, name.tname, 
-                createStreamReq.sql, strlen(createStreamReq.sql));
+    auditRecord(pReq, pMnode->clusterId, "createStream", name.dbname, name.tname, createStreamReq.sql,
+                strlen(createStreamReq.sql));
   }
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -894,16 +894,29 @@ _OVER:
   return code;
 }
 
+int64_t mndStreamGenChkpId(SMnode *pMnode) {
+  SStreamObj *pStream = NULL;
+  void *      pIter = NULL;
+  SSdb *      pSdb = pMnode->pSdb;
+  int64_t     maxChkpId = 0;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) break;
+
+    maxChkpId = TMAX(maxChkpId, pStream->checkpointId);
+    sdbRelease(pSdb, pStream);
+  }
+  return maxChkpId + 1;
+}
 static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
-  SSdb   *pSdb = pMnode->pSdb;
+  SSdb *  pSdb = pMnode->pSdb;
   if (sdbGetSize(pSdb, SDB_STREAM) <= 0) {
     return 0;
   }
 
-  int64_t                  checkpointId = taosGetTimestampMs();
   SMStreamDoCheckpointMsg *pMsg = rpcMallocCont(sizeof(SMStreamDoCheckpointMsg));
-  pMsg->checkpointId = checkpointId;
+  pMsg->checkpointId = mndStreamGenChkpId(pMnode);
 
   int32_t size = sizeof(SMStreamDoCheckpointMsg);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_BEGIN_CHECKPOINT, .pCont = pMsg, .contLen = size};
@@ -937,7 +950,7 @@ static int32_t mndBuildStreamCheckpointSourceReq2(void **pBuf, int32_t *pLen, in
     return -1;
   }
 
-  void    *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+  void *   abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
   SEncoder encoder;
   tEncoderInit(&encoder, abuf, tlen);
   tEncodeStreamCheckpointSourceReq(&encoder, &req);
@@ -1061,7 +1074,7 @@ static int32_t mndAddStreamCheckpointToTrans(STrans *pTrans, SStreamObj *pStream
 
   int32_t totLevel = taosArrayGetSize(pStream->tasks);
   for (int32_t i = 0; i < totLevel; i++) {
-    SArray      *pLevel = taosArrayGetP(pStream->tasks, i);
+    SArray *     pLevel = taosArrayGetP(pStream->tasks, i);
     SStreamTask *pTask = taosArrayGetP(pLevel, 0);
 
     if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
@@ -1078,7 +1091,7 @@ static int32_t mndAddStreamCheckpointToTrans(STrans *pTrans, SStreamObj *pStream
           return -1;
         }
 
-        void   *buf;
+        void *  buf;
         int32_t tlen;
         if (mndBuildStreamCheckpointSourceReq2(&buf, &tlen, pTask->info.nodeId, checkpointId, pTask->id.streamId,
                                                pTask->id.taskId) < 0) {
@@ -1128,9 +1141,9 @@ static int32_t mndAddStreamCheckpointToTrans(STrans *pTrans, SStreamObj *pStream
 }
 
 static const char *mndGetStreamDB(SMnode *pMnode) {
-  SSdb       *pSdb = pMnode->pSdb;
+  SSdb *      pSdb = pMnode->pSdb;
   SStreamObj *pStream = NULL;
-  void       *pIter = NULL;
+  void *      pIter = NULL;
 
   pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
   if (pIter == NULL) {
@@ -1144,9 +1157,9 @@ static const char *mndGetStreamDB(SMnode *pMnode) {
 }
 
 static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
-  SMnode     *pMnode = pReq->info.node;
-  SSdb       *pSdb = pMnode->pSdb;
-  void       *pIter = NULL;
+  SMnode *    pMnode = pReq->info.node;
+  SSdb *      pSdb = pMnode->pSdb;
+  void *      pIter = NULL;
   SStreamObj *pStream = NULL;
   int32_t     code = 0;
 
@@ -1245,7 +1258,7 @@ static int32_t mndProcessStreamDoCheckpoint(SRpcMsg *pReq) {
 }
 
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
-  SMnode     *pMnode = pReq->info.node;
+  SMnode *    pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
 
   SMDropStreamReq dropReq = {0};
@@ -1321,7 +1334,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   SName name = {0};
   tNameFromString(&name, dropReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-  //reuse this function for stream
+  // reuse this function for stream
 
   auditRecord(pReq, pMnode->clusterId, "dropStream", name.dbname, name.tname, dropReq.sql, dropReq.sqlLen);
 
@@ -1373,7 +1386,7 @@ int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
 }
 
 int32_t mndGetNumOfStreams(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams) {
-  SSdb   *pSdb = pMnode->pSdb;
+  SSdb *  pSdb = pMnode->pSdb;
   SDbObj *pDb = mndAcquireDb(pMnode, dbName);
   if (pDb == NULL) {
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
@@ -1381,7 +1394,7 @@ int32_t mndGetNumOfStreams(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams)
   }
 
   int32_t numOfStreams = 0;
-  void   *pIter = NULL;
+  void *  pIter = NULL;
   while (1) {
     SStreamObj *pStream = NULL;
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
@@ -1400,8 +1413,8 @@ int32_t mndGetNumOfStreams(SMnode *pMnode, char *dbName, int32_t *pNumOfStreams)
 }
 
 static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode     *pMnode = pReq->info.node;
-  SSdb       *pSdb = pMnode->pSdb;
+  SMnode *    pMnode = pReq->info.node;
+  SSdb *      pSdb = pMnode->pSdb;
   int32_t     numOfRows = 0;
   SStreamObj *pStream = NULL;
 
@@ -1477,8 +1490,8 @@ static void mndCancelGetNextStream(SMnode *pMnode, void *pIter) {
 }
 
 static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
-  SMnode     *pMnode = pReq->info.node;
-  SSdb       *pSdb = pMnode->pSdb;
+  SMnode *    pMnode = pReq->info.node;
+  SSdb *      pSdb = pMnode->pSdb;
   int32_t     numOfRows = 0;
   SStreamObj *pStream = NULL;
 
@@ -1679,7 +1692,7 @@ static int32_t mndPersistStreamLog(STrans *pTrans, const SStreamObj *pStream, in
 }
 
 static int32_t mndProcessPauseStreamReq(SRpcMsg *pReq) {
-  SMnode     *pMnode = pReq->info.node;
+  SMnode *    pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
 
   SMPauseStreamReq pauseReq = {0};
@@ -1794,7 +1807,7 @@ int32_t mndResumeAllStreamTasks(STrans *pTrans, SStreamObj *pStream, int8_t igUn
 }
 
 static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
-  SMnode     *pMnode = pReq->info.node;
+  SMnode *    pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
 
   SMResumeStreamReq pauseReq = {0};
@@ -1899,7 +1912,7 @@ static int32_t doBuildStreamTaskUpdateMsg(void **pBuf, int32_t *pLen, SVgroupCha
     return -1;
   }
 
-  void    *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+  void *   abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
   SEncoder encoder;
   tEncoderInit(&encoder, abuf, tlen);
   tEncodeStreamTaskUpdateMsg(&encoder, &req);
@@ -1977,7 +1990,7 @@ static int32_t createStreamUpdateTrans(SMnode *pMnode, SStreamObj *pStream, SVgr
     for (int32_t k = 0; k < numOfTasks; ++k) {
       SStreamTask *pTask = taosArrayGetP(pLevel, k);
 
-      void   *pBuf = NULL;
+      void *  pBuf = NULL;
       int32_t len = 0;
       streamTaskUpdateEpsetInfo(pTask, pInfo->pUpdateNodeList);
       doBuildStreamTaskUpdateMsg(&pBuf, &len, pInfo, pTask->info.nodeId, pTask->id.streamId, pTask->id.taskId);
@@ -2074,8 +2087,8 @@ static SVgroupChangeInfo mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pP
 }
 
 static SArray *mndTakeVgroupSnapshot(SMnode *pMnode) {
-  SSdb   *pSdb = pMnode->pSdb;
-  void   *pIter = NULL;
+  SSdb *  pSdb = pMnode->pSdb;
+  void *  pIter = NULL;
   SVgObj *pVgroup = NULL;
 
   SArray *pVgroupListSnapshot = taosArrayInit(4, sizeof(SNodeEntry));
@@ -2103,7 +2116,7 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
 
   // check all streams that involved this vnode should update the epset info
   SStreamObj *pStream = NULL;
-  void       *pIter = NULL;
+  void *      pIter = NULL;
   while (1) {
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) {
@@ -2128,9 +2141,9 @@ static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChange
 }
 
 static SArray *doExtractNodeListFromStream(SMnode *pMnode) {
-  SSdb       *pSdb = pMnode->pSdb;
+  SSdb *      pSdb = pMnode->pSdb;
   SStreamObj *pStream = NULL;
-  void       *pIter = NULL;
+  void *      pIter = NULL;
 
   SHashObj *pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   while (1) {
@@ -2175,9 +2188,9 @@ static SArray *doExtractNodeListFromStream(SMnode *pMnode) {
 }
 
 static void doExtractTasksFromStream(SMnode *pMnode) {
-  SSdb       *pSdb = pMnode->pSdb;
+  SSdb *      pSdb = pMnode->pSdb;
   SStreamObj *pStream = NULL;
-  void       *pIter = NULL;
+  void *      pIter = NULL;
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
@@ -2246,14 +2259,14 @@ typedef struct SMStreamNodeCheckMsg {
 
 static int32_t mndProcessNodeCheck(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
-  SSdb   *pSdb = pMnode->pSdb;
+  SSdb *  pSdb = pMnode->pSdb;
   if (sdbGetSize(pSdb, SDB_STREAM) <= 0) {
     return 0;
   }
 
   SMStreamNodeCheckMsg *pMsg = rpcMallocCont(sizeof(SMStreamNodeCheckMsg));
   SRpcMsg               rpcMsg = {
-                    .msgType = TDMT_MND_STREAM_NODECHANGE_CHECK, .pCont = pMsg, .contLen = sizeof(SMStreamNodeCheckMsg)};
+      .msgType = TDMT_MND_STREAM_NODECHANGE_CHECK, .pCont = pMsg, .contLen = sizeof(SMStreamNodeCheckMsg)};
   tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   return 0;
 }
