@@ -3,6 +3,18 @@ load_cargo_aliases = false
 skip_core_tasks = true
 default_to_workspace = false
 
+[env]
+VER_NUMBER = { script = [
+  "git tag |grep ver-|sed s/ver-//|tail -n1",
+], condition = { env_not_set = [
+  "VER_NUMBER",
+] } }
+
+[tasks.dump-env]
+script = """
+echo $VER_NUMBER
+"""
+
 [tasks.taosx]
 command = "cargo"
 args = ["build", "--release"]
@@ -131,10 +143,12 @@ dependencies = ["clean-plugins", "clean"]
 
 [tasks.docker-cloud]
 script = """
+set -e
 option="$1"
 commit=$(git rev-parse HEAD | cut -c 1-8)
 version=$(toml get Cargo.toml workspace.package.version -r)
-docker build -t image.cloud.taosdata.com/taosx/serve:$version-$commit .
+echo TDengine version in cloud image is "${VER_NUMBER}"
+docker build --build-arg VER_NUMBER=${VER_NUMBER} -t image.cloud.taosdata.com/taosx/serve:$version-$commit .
 if [ "$option" = "--push" ] || [ "$option" = "-p" ]; then
   docker push image.cloud.taosdata.com/taosx/serve:$version-$commit
 fi
