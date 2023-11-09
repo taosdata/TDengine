@@ -20,9 +20,9 @@ use tracing::instrument;
 use crate::serve::{controller::TaskControllerRef, task::Failed};
 use tokio::time::{sleep, Duration};
 
-const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
+const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(60);
 /// How long before lack of client response causes a timeout
-const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
+const CLIENT_TIMEOUT: Duration = Duration::from_secs(70);
 const SEND_METRICS_INTERVAL: Duration = Duration::from_secs(2);
 
 pub async fn echo_heartbeat_ws(
