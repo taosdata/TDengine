@@ -26,6 +26,7 @@
 #define OPTIMIZE_FLAG_PUSH_DOWN_CONDE OPTIMIZE_FLAG_MASK(1)
 
 #define OPTIMIZE_FLAG_SET_MASK(val, mask)  (val) |= (mask)
+#define OPTIMIZE_FLAG_CLEAR_MASK(val, mask)  (val) &= (~(mask))
 #define OPTIMIZE_FLAG_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 
 typedef struct SOptimizeContext {
@@ -2782,6 +2783,13 @@ static int32_t splitCacheLastFuncOptCreateAggLogicNode(SAggLogicNode** pNewAgg, 
   pNew->isPartTb = pAgg->isPartTb;
   pNew->hasGroup = pAgg->hasGroup;
   pNew->node.pChildren = nodesCloneList(pAgg->node.pChildren);
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pNew->node.pChildren) {
+    if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+      OPTIMIZE_FLAG_CLEAR_MASK(((SScanLogicNode*)pNode)->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
+    }
+  }
 
   *pNewAgg = pNew;
 

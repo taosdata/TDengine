@@ -87,6 +87,7 @@ extern "C" {
 #define EXPLAIN_WIDTH_FORMAT "width=%d"
 #define EXPLAIN_SCAN_ORDER_FORMAT "order=[asc|%d desc|%d]"
 #define EXPLAIN_SCAN_MODE_FORMAT "mode=%s"
+#define EXPLAIN_SCAN_DATA_LOAD_FORMAT "data_load=%s"
 #define EXPLAIN_GROUPS_FORMAT "groups=%d"
 #define EXPLAIN_WIDTH_FORMAT "width=%d"
 #define EXPLAIN_INTERVAL_VALUE_FORMAT "interval=%" PRId64 "%c"

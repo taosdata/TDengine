@@ -20,6 +20,7 @@
 #include "tcommon.h"
 #include "tdatablock.h"
 #include "systable.h"
+#include "functionMgt.h"
 
 int32_t qExplainGenerateResNode(SPhysiNode *pNode, SExplainGroup *group, SExplainResNode **pRes);
 int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t level, bool singleChannel);
@@ -312,6 +313,21 @@ static char* qExplainGetScanMode(STableScanPhysiNode* pScan) {
   return "ts_order";
 }
 
+static char* qExplainGetScanDataLoad(STableScanPhysiNode* pScan) {
+  switch (pScan->dataRequired) {
+    case FUNC_DATA_REQUIRED_DATA_LOAD:
+      return "data";
+    case FUNC_DATA_REQUIRED_SMA_LOAD:
+      return "sma";
+    case FUNC_DATA_REQUIRED_NOT_LOAD:
+      return "no";
+    default:
+      break;
+  }
+
+  return "unknown";
+}
+
 int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, int32_t level) {
   int32_t     tlen = 0;
   bool        isVerboseLine = false;
@@ -387,6 +403,8 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       EXPLAIN_ROW_APPEND(EXPLAIN_SCAN_ORDER_FORMAT, pTblScanNode->scanSeq[0], pTblScanNode->scanSeq[1]);
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_SCAN_MODE_FORMAT, qExplainGetScanMode(pTblScanNode));
+      EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      EXPLAIN_ROW_APPEND(EXPLAIN_SCAN_DATA_LOAD_FORMAT, qExplainGetScanDataLoad(pTblScanNode));
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
       EXPLAIN_ROW_END();
       QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
