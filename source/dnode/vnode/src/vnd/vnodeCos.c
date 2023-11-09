@@ -752,7 +752,7 @@ static S3Status getObjectDataCallback(int bufferSize, const char *buffer, void *
   }
 }
 
-int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, uint8_t **ppBlock) {
+int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, bool check, uint8_t **ppBlock) {
   int         status = 0;
   int64_t     ifModifiedSince = -1, ifNotModifiedSince = -1;
   const char *ifMatch = 0, *ifNotMatch = 0;
@@ -775,7 +775,7 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, 
     return TAOS_SYSTEM_ERROR(EIO);
   }
 
-  if (cbd.buf_pos != size) {
+  if (check && cbd.buf_pos != size) {
     vError("%s: %d(%s)", __func__, cbd.status, cbd.err_msg);
     return TAOS_SYSTEM_ERROR(EIO);
   }
@@ -1063,7 +1063,8 @@ bool s3Get(const char *object_name, const char *path) {
   return ret;
 }
 
-int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_size, uint8_t **ppBlock) {
+int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_size, bool check, uint8_t **ppBlock) {
+  (void)check;
   int32_t                code = 0;
   cos_pool_t            *p = NULL;
   int                    is_cname = 0;
@@ -1255,8 +1256,10 @@ void    s3DeleteObjectsByPrefix(const char *prefix) {}
 void    s3DeleteObjects(const char *object_name[], int nobject) {}
 bool    s3Exists(const char *object_name) { return false; }
 bool    s3Get(const char *object_name, const char *path) { return false; }
-int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, uint8_t **ppBlock) { return 0; }
-void    s3EvictCache(const char *path, long object_size) {}
-long    s3Size(const char *object_name) { return 0; }
+int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t size, bool check, uint8_t **ppBlock) {
+  return 0;
+}
+void s3EvictCache(const char *path, long object_size) {}
+long s3Size(const char *object_name) { return 0; }
 
 #endif
