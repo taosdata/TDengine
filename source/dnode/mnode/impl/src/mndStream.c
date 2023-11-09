@@ -894,6 +894,20 @@ _OVER:
   return code;
 }
 
+int64_t mndStreamGenChkpId(SMnode *pMnode) {
+  SStreamObj *pStream = NULL;
+  void *      pIter = NULL;
+  SSdb *      pSdb = pMnode->pSdb;
+  int64_t     maxChkpId = 0;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) break;
+
+    maxChkpId = MAX(maxChkpId, pStream->checkpointId);
+    sdbRelease(pSdb, pStream);
+  }
+  return maxChkpId + 1;
+}
 static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
   SSdb   *pSdb = pMnode->pSdb;
@@ -901,9 +915,8 @@ static int32_t mndProcessStreamCheckpointTmr(SRpcMsg *pReq) {
     return 0;
   }
 
-  int64_t                  checkpointId = taosGetTimestampMs();
   SMStreamDoCheckpointMsg *pMsg = rpcMallocCont(sizeof(SMStreamDoCheckpointMsg));
-  pMsg->checkpointId = checkpointId;
+  pMsg->checkpointId = mndStreamGenChkpId(pMnode);
 
   int32_t size = sizeof(SMStreamDoCheckpointMsg);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_BEGIN_CHECKPOINT, .pCont = pMsg, .contLen = size};
