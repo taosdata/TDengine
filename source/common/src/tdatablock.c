@@ -1978,6 +1978,10 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
     int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
     int32_t rows = pDataBlock->info.rows;
 
+    if(pDataBlock->info.type == STREAM_DELETE_RESULT) {
+
+    }
+
     if (colNum <= 1) {  // invalid if only with TS col
       continue;
     }

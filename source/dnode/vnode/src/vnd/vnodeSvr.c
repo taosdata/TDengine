@@ -412,6 +412,10 @@ static int32_t vnodePreProcessBatchDeleteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
   int32_t lino = 0;
 
+  if (pMsg->info.wrapper) { // skip for rsma
+    return code;
+  }
+
   int64_t         ctimeMs = taosGetTimestampMs();
   SBatchDeleteReq pReq = {0};
   SDecoder       *pCoder = &(SDecoder){0};
@@ -1905,6 +1909,7 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t ver, void *pRe
              TD_VID(pVnode), terrstr(), deleteReq.suid, uid, pOneReq->startTs, pOneReq->endTs);
     }
 
+    if()
     code = metaUpdateChangeTimeWithLock(pVnode->pMeta, uid, deleteReq.ctimeMs);
     if (code < 0) {
       terrno = code;
