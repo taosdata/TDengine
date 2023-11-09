@@ -65,16 +65,14 @@ groups:
         display: Begin Time
         description: The start time of the task is in rfc3339 format.
         required: false
-        placeholder: 1970-01-01T00:00:00Z
-        value: 1970-01-01T00:00:00Z
+        placeholder: e.g., 1970-01-01T00:00:00.000Z
         hint:
           type: time
       - name: endDateTime
         display: End Time
         description: The end time of the task is in rfc3339 format.
         required: false
-        placeholder: 2023-12-01T00:00:00Z
-        value: 2023-12-01T00:00:00Z
+        placeholder: e.g., 1970-01-01T00:00:00.000Z
         hint:
           type: time
       - name: retrieveInterval
