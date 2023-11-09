@@ -250,9 +250,9 @@ int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId);
 
 SBkdMgt* bkdMgtCreate(char* path);
 int32_t  bkdMgtAddChkp(SBkdMgt* bm, char* task, char* path);
-int32_t  bkdMgtGetDelta(SBkdMgt* bm, char* taskId, int64_t chkpId, SArray* list);
+int32_t  bkdMgtGetDelta(SBkdMgt* bm, char* taskId, int64_t chkpId, SArray* list, char* name);
 int32_t  bkdMgtDumpTo(SBkdMgt* bm, char* taskId, char* dname);
 void     bkdMgtDestroy(SBkdMgt* bm);
 
-int32_t taskDbGenChkpUploadPath(void* arg, int64_t chkpId, int8_t type, char** pathkj);
+int32_t taskDbGenChkpUploadPath(void* arg, void* bkdMgt, int64_t chkpId, int8_t type, char** pathkj);
 #endif

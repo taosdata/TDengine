@@ -340,8 +340,10 @@ int32_t doUploadChkp(void* param) {
   SAsyncUploadArg* arg = param;
   char*            path = NULL;
   int32_t          code = 0;
-  if ((code = taskDbGenChkpUploadPath(arg->pTask->pBackend, arg->chkpId, (int8_t)(arg->type), &path)) != 0) {
-    stError("s-task:%s faile to gen upload checkpoint:%" PRId64 "", arg->pTask->id.idStr, arg->chkpId);
+
+  if ((code = taskDbGenChkpUploadPath(arg->pTask->pBackend, arg->pTask->pMeta->bkdChkptMgt, arg->chkpId,
+                                      (int8_t)(arg->type), &path)) != 0) {
+    stError("s-task:%s failed to gen upload checkpoint:%" PRId64 "", arg->pTask->id.idStr, arg->chkpId);
   }
   if (code == 0 && uploadCheckpoint(arg->taskId, path) != 0) {
     stError("s-task:%s faile to upload checkpoint:%" PRId64 "", arg->pTask->id.idStr, arg->chkpId);

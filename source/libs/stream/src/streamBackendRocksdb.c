@@ -1717,14 +1717,30 @@ int32_t taskDbGenChkpUplaodPath__rsync(STaskDbWrapper* pDb, int64_t chkpId, char
 
   return code;
 }
-int32_t taskDbGenChkpUploadPath(void* arg, int64_t chkpId, int8_t type, char** path) {
+
+int32_t taskDbGenChkpUplaodPath__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64_t chkpId, char** path) {
+  SBkdMgt* p = (SBkdMgt*)bkdChkpMgt;
+
+  char* temp = taosMemoryCalloc(1, strlen(pDb->path));
+  sprintf(temp, "%s%s%s", pDb->path, TD_DIRSEP, "tmp");
+
+  if (!taosDirExist(temp)) {
+    taosMkDir(temp);
+  }
+  bkdMgtGetDelta(p, pDb->idstr, chkpId, NULL, temp);
+
+  *path = temp;
+
+  return 0;
+}
+int32_t taskDbGenChkpUploadPath(void* arg, void* mgt, int64_t chkpId, int8_t type, char** path) {
   STaskDbWrapper* pDb = arg;
   UPLOAD_TYPE     utype = type;
 
   if (utype == UPLOAD_RSYNC) {
-    return taskDbGenChkpUplaodPath__rsync(pDb, chkpId, path);
+    return taskDbGenChkpUplaodPath__rsync(pDb,chkpId, path);
   } else if (utype == UPLOAD_S3) {
-    return 0;
+    return taskDbGenChkpUplaodPath__s3(pDb,mgt, chkpId, path);
   }
   return -1;
 }
@@ -3603,14 +3619,28 @@ void bkdMgtDestroy(SBkdMgt* bm) {
 
   taosMemoryFree(bm);
 }
-int32_t bkdMgtGetDelta(SBkdMgt* bm, char* taskId, int64_t chkpId, SArray* list) {
+int32_t bkdMgtGetDelta(SBkdMgt* bm, char* taskId, int64_t chkpId, SArray* list, char* dname) {
   int32_t code = 0;
-  taosThreadRwlockWrlock(&bm->rwLock);
 
+  taosThreadRwlockWrlock(&bm->rwLock);
   SDbChkp* pChkp = taosHashGet(bm->pDbChkpTbl, taskId, strlen(taskId));
-  code = dbChkpGetDelta(pChkp, chkpId, list);
+
+  if (pChkp == NULL) {
+    char* taskPath = taosMemoryCalloc(1, strlen(bm->path) + 64);
+    sprintf(taskPath, "%s%s%s", bm->path, TD_DIRSEP, taskId);
+
+    SDbChkp* p = dbChkpCreate(taskPath, chkpId);
+    taosHashPut(bm->pDbChkpTbl, taskId, strlen(taskId), &p, sizeof(void*));
+
+    taosMemoryFree(taskPath);
+  }
 
   taosThreadRwlockUnlock(&bm->rwLock);
+
+  code = dbChkpGetDelta(pChkp, chkpId, list);
+
+  code = dbChkpDumpTo(pChkp, dname);
+
   return code;
 }
 

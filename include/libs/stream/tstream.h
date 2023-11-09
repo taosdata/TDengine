@@ -513,6 +513,8 @@ typedef struct SStreamMeta {
 
   void*   qHandle;
   int32_t pauseTaskNum;
+
+  void* bkdChkptMgt;
 } SStreamMeta;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);

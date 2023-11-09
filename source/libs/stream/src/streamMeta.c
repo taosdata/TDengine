@@ -356,6 +356,8 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->pHbInfo->stopFlag = 0;
   pMeta->qHandle = taosInitScheduler(32, 1, "stream-chkp", NULL);
 
+  pMeta->bkdChkptMgt = bkdMgtCreate(tpath);
+
   return pMeta;
 
 _err:
