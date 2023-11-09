@@ -21,6 +21,7 @@
 #define RSMA_FETCH_DELAY_MAX       (120000)  // ms
 #define RSMA_FETCH_ACTIVE_MAX      (1000)    // ms
 #define RSMA_FETCH_INTERVAL        (5000)    // ms
+#define RSMA_SUBMIT_HEAD_LEN       (13)      // type(int8_t) + len(int32_t) + version(int64_t)
 
 #define RSMA_NEED_FETCH(r) (RSMA_INFO_ITEM((r), 0)->fetchLevel || RSMA_INFO_ITEM((r), 1)->fetchLevel)
 
@@ -667,7 +668,7 @@ _exit:
  */
 static int32_t tdExecuteRSmaImplAsync(SSma *pSma, int64_t version, const void *pMsg, int32_t len, int32_t inputType,
                                       SRSmaInfo *pInfo, tb_uid_t suid) {
-  int32_t size = sizeof(int8_t) + sizeof(int32_t) + sizeof(int64_t) + len; // type + len + version + payload
+  int32_t size = RSMA_SUBMIT_HEAD_LEN + len; // header(type+len+version) + payload
   void   *qItem = taosAllocateQitem(size, DEF_QITEM, 0);
 
   if (!qItem) {
@@ -1222,7 +1223,7 @@ _end:
 static void tdFreeRSmaSubmitItems(SArray *pItems) {
   for (int32_t i = 0; i < taosArrayGetSize(pItems); ++i) {
     SPackedData *packData = taosArrayGet(pItems, i);
-    taosFreeQitem(POINTER_SHIFT(packData->msgStr, -sizeof(int8_t) - sizeof(int32_t) - sizeof(int64_t)));
+    taosFreeQitem(POINTER_SHIFT(packData->msgStr, -RSMA_SUBMIT_HEAD_LEN));
   }
   taosArrayClear(pItems);
 }
