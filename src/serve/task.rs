@@ -487,12 +487,20 @@ pub(super) async fn get_task_activities_by_id(
     ),
 )]
 #[get("/tasks/{id}/metrics")]
-pub(super) async fn get_task_metrics_by_id(
+pub(super) async fn get_task_metrics(
     snapshotter: Data<Snapshotter>,
     task_store: Data<TaskControllerRef>,
     id: Path<i64>,
 ) -> impl Responder {
     let id = id.into_inner();
+    get_task_metrics_by_id(&snapshotter, &task_store, id).await
+}
+
+pub(crate) async fn get_task_metrics_by_id(
+    snapshotter: &Data<Snapshotter>,
+    task_store: &Data<TaskControllerRef>,
+    id: i64,
+) -> serde_json::Result<String> {
     let snapshot = snapshotter.snapshot().into_hashmap();
     // dbg!(&snapshot);
     let mut map = snapshot
