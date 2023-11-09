@@ -1738,9 +1738,9 @@ int32_t taskDbGenChkpUploadPath(void* arg, void* mgt, int64_t chkpId, int8_t typ
   UPLOAD_TYPE     utype = type;
 
   if (utype == UPLOAD_RSYNC) {
-    return taskDbGenChkpUplaodPath__rsync(pDb,chkpId, path);
+    return taskDbGenChkpUplaodPath__rsync(pDb, chkpId, path);
   } else if (utype == UPLOAD_S3) {
-    return taskDbGenChkpUplaodPath__s3(pDb,mgt, chkpId, path);
+    return taskDbGenChkpUplaodPath__s3(pDb, mgt, chkpId, path);
   }
   return -1;
 }
@@ -3633,14 +3633,15 @@ int32_t bkdMgtGetDelta(SBkdMgt* bm, char* taskId, int64_t chkpId, SArray* list, 
     taosHashPut(bm->pDbChkpTbl, taskId, strlen(taskId), &p, sizeof(void*));
 
     taosMemoryFree(taskPath);
+    pChkp = p;
+
+    code = dbChkpDumpTo(pChkp, dname);
+    taosThreadRwlockUnlock(&bm->rwLock);
+    return code;
   }
 
-  taosThreadRwlockUnlock(&bm->rwLock);
-
   code = dbChkpGetDelta(pChkp, chkpId, list);
-
-  code = dbChkpDumpTo(pChkp, dname);
-
+  taosThreadRwlockUnlock(&bm->rwLock);
   return code;
 }
 
