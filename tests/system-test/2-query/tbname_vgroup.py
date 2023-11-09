@@ -169,6 +169,15 @@ class TDTestCase:
 
         tdSql.query("explain select * from st where tbname='ct1'")
         tdSql.checkRows(2)
+	
+        tdSql.query("select table_name, vgroup_id from information_schema.ins_tables where db_name='dbvg' and type='CHILD_TABLE'");
+        print(tdSql.queryResult);
+        
+        tdSql.query("explain select * from st where tbname in ('ct1', 'ct2')")
+        if tdSql.queryResult[0][0].count("Data Exchange 2:1") == 0:
+           tdLog.exit("failed, not two vgroups")
+        else:
+           tdLog.info("select * from st where tbname in ('ct1', 'ct2') involves two vgroups")	
 
         tdSql.execute('drop database dbvg;')
 
