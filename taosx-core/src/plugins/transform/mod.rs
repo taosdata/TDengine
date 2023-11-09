@@ -18,7 +18,6 @@ use arrow::{
 use bytes::Bytes;
 use either::Either;
 use itertools::Itertools;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use taos::{
     taos_query::{
@@ -44,11 +43,13 @@ mod filter;
 mod map;
 
 mod modeler;
+mod mutate;
 
 use crate::plugins::transform::parse::ArrayForTaos;
 
 use self::{
     modeler::Modeler,
+    mutate::Mutate,
     parse::{FieldParser, ParserImpl},
 };
 
@@ -82,6 +83,8 @@ use self::{
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Parser {
     parse: ParserImpl,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    mutate: Vec<Mutate>,
     model: Modeler,
 }
 
@@ -168,8 +171,15 @@ impl Parser {
         Some((idx, field.as_ref()))
     }
 
-    pub fn parse_message_from_records(&self, records: &RecordBatch) -> Result<Message, Error> {
+    fn transform_records(&self, records: &RecordBatch) -> Result<RecordBatch, Error> {
         let batch = self.parse.transform_record_batch(&records)?;
+        self.mutate.iter().fold(Ok(batch), |batch, mutate| {
+            batch.and_then(|batch| mutate.transform_record_batch(&batch))
+        })
+    }
+
+    pub fn parse_message_from_records(&self, records: &RecordBatch) -> Result<Message, Error> {
+        let batch = self.transform_records(&records)?;
         let schema = batch.schema();
         let batches = vec![batch];
         let batch = &batches[0];
@@ -712,11 +722,8 @@ pub trait TransformExt {
             .map(|batch| batch.schema())
     }
 
-    fn transform_record_batch(&self, records: &RecordBatch) -> Result<RecordBatch, Error> {
-        Ok(records.clone())
-    }
+    fn transform_record_batch(&self, records: &RecordBatch) -> Result<RecordBatch, Error>;
 }
-
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -745,6 +752,8 @@ pub enum Error {
     STableNameContainsDot(String),
     #[error(transparent)]
     ArrowError(#[from] ArrowError),
+    #[error(transparent)]
+    MapValueError(#[from] map::ValueBuilderError),
     #[error("Unknown error: {0}")]
     Other(#[from] anyhow::Error),
 }
