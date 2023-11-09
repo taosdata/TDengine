@@ -562,7 +562,6 @@ int32_t streamTaskPutTranstateIntoInputQ(SStreamTask* pTask) {
 
   taosMemoryFree(pBlock);
   if (streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTranstate) < 0) {
-    taosFreeQitem(pTranstate);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
