@@ -997,7 +997,7 @@ int32_t tdProcessRSmaDelete(SSma *pSma, int64_t version, void *pReq, void *pMsg,
   }
   return TSDB_CODE_SUCCESS;
 _err:
-  return TSDB_CODE_FAILED;
+  return terrno;
 }
 
 /**

@@ -1947,7 +1947,7 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t ver, void *pReq, in
     if (code) goto _err;
   }
 
-  tdProcessRSmaDelete(pVnode->pSma, ver, pRes, pReq, len);
+  code = tdProcessRSmaDelete(pVnode->pSma, ver, pRes, pReq, len);
 
   tDecoderClear(pCoder);
   taosArrayDestroy(pRes->uidList);
