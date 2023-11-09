@@ -21,6 +21,7 @@
 #include "tgrant.h"
 #include "tlog.h"
 #include "tmisce.h"
+#include "tunit.h"
 
 #if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
@@ -1645,7 +1646,7 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
     return;
   }
 
-  {  //  'bool/int32_t/int64_t' variables with general modification function
+  {  //  'bool/int32_t/int64_t/float/double' variables with general modification function
     const int32_t           nDebugFlag = 20;
     static OptionNameAndVar options[] = {
         {"dDebugFlag", &dDebugFlag},
@@ -1724,7 +1725,7 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
           *pVar = flag;
         } break;
         case CFG_DTYPE_INT32: {
-          int32_t  flag = atoi(value);
+          int32_t  flag = taosStrHumanToInt32(value);
           int32_t *pVar = options[d].optionVar;
           uInfo("%s set from %d to %d", optName, *pVar, flag);
           *pVar = flag;
@@ -1735,9 +1736,16 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
           }
         } break;
         case CFG_DTYPE_INT64: {
-          int64_t  flag = atoll(value);
+          int64_t  flag = taosStrHumanToInt64(value);
           int64_t *pVar = options[d].optionVar;
           uInfo("%s set from %" PRId64 " to %" PRId64, optName, *pVar, flag);
+          *pVar = flag;
+        } break;
+        case CFG_DTYPE_FLOAT:
+        case CFG_DTYPE_DOUBLE: {
+          float  flag = (float)atof(value);
+          float *pVar = options[d].optionVar;
+          uInfo("%s set from %f to %f", optName, *pVar, flag);
           *pVar = flag;
         } break;
         default:
