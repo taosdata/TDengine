@@ -1300,7 +1300,7 @@ export default {
   },
   docs: {
     taosxAgent: {
-      1: `Download the taosx-agent through the link <a href="{linuxDL}">Linux</a> or <a href="{windowDL}">Windows</a> to your local environment.<br/><br/>For Linux, please decompress the downloaded file to a specified folder and execute the <code>install.sh</code> file inside the folder. For Windows, please double-click the downloaded file to install the taox-agent and then add <code>C:\\Program Files\\taosX\\bin</code> to the Path variable of the system environments.<br/><br/>Open a shell, please execute the following command to check if taosx-agent is installed successfully.`,
+      1: `Download  taosx-agent through  link <a href="{linuxDL}">Linux</a> or <a href="{windowDL}">Windows</a> to your local environment.<br/><br/>For Linux, please decompress the downloaded file to a specified folder and execute the <code>install.sh</code> file inside the folder. For Windows, please double-click the downloaded file to install the taox-agent and then add <code>C:\\TDengine\\bin\\</code> to the Path variable of the system environments.<br/><br/>Open a shell, please execute the following command to check if taosx-agent is installed successfully.`,
       2: 'Input a unique name for the agent. The system will generate a connection token for the agent.',
       // 3: `IMPORTANT: Please save the endpoint and generated token to a local file BEFORE clicking on the "Next" button. TDengine Cloud does not save the generated token online and once you click "Next" you cannot retrieve this token and will have to create a new agent.<br/><br/>
       // To ensure your TDx agent works correctly you have to make changes to the <code>agent.toml</code> file. This file can be found in the following directory:<br/>
@@ -1308,7 +1308,7 @@ export default {
       3:`IMPORTANT: Please save the endpoint and the generated token to a local file BEFORE clicking on the "Next" button. You can not retrieve them and will have to create a new agent if you lose it.<br/><br/>
       To ensure your agent works, please copy the endpoint and the generated token to the <code>agent.toml</code> file. This file can be found in the following directory:<br/>
       Linux: <code>/etc/taos</code><br/>
-Windows: <code>C:\\Program Files\\taosx\\config</code>`,
+Windows: <code>C:\\TDengine\\cfg\\</code>`,
       4: `Execute the following command in the shell.`,
       5: 'Check the agent running status with the following command in the shell.',
       6: `<a target='_blank' href='{agenturl}'>Configure Agent Documentation</a>`,

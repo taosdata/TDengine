@@ -162,8 +162,8 @@ export default {
   backToPrev: "返回上一步",
   utcTip: "这里选择的是UTC时间",
   cloudError: "当前域名不在服务范围内!",
-  prev: "上一个",
-  next: "下一个",
+  prev: "上一步",
+  next: "下一步",
   pleaseSelect: "请选择",
   revoke: "收回",
   read: "读",
@@ -1133,14 +1133,14 @@ export default {
   },
   docs: {
     taosxAgent: {
-      1: `请您通过这个地址 <a href="{linuxDL}">Linux</a> 或者 <a href="{windowDL}">Windows</a> 下载 taosx-agent 的下载包到本地环境。<br/><br/>对于Linux系统，请将下载的文件解压到指定的文件夹中，然后执行文件夹中的 <code>install.sh</code>文件。对于Windows，请双击下载的文件安装taox-agent，然后在系统环境的路径变量中添加<code>C:\\Program Files\\taosX\\bin</code>。<br/><br/>打开命令行，请执行下面的命令来检查 taosx-agent 是否安装成功。`,
+      1: `请您通过这个地址 <a href="{linuxDL}">Linux</a> 或者 <a href="{windowDL}">Windows</a> 下载 taosx-agent 的下载包到本地环境。<br/><br/>对于Linux系统，请将下载的文件解压到指定的文件夹中，然后执行文件夹中的 <code>install.sh</code>文件。对于Windows，请双击下载的文件安装taox-agent，然后在系统环境的路径变量中添加<code>C:\\TDengine\\bin\\ </code>。<br/><br/>打开命令行，请执行下面的命令来检查 taosx-agent 是否安装成功。`,
       2: `请您输入代理的唯一名称，系统将为它生成一个连接令牌。`,
       // 3: `重要提示：请在单击“下一步”按钮之前将端点和生成的令牌保存到本地文件。TDengine Cloud 不会在线保存生成的令牌，一旦您单击“下一步”，您将无法检索此令牌，并且必须创建一个新的代理。<br/><br/>
       // 为了确保您的 TDx 代理正常工作，您必须对<code>agent.toml</code>文件进行更改。此文件可在以下目录中找到：<br/>
       3: `重要提示： 点击 "下一步 "按钮前，请将端点和生成的令牌保存到本地文件中。如果丢失，您将无法找回，并必须创建一个新的代理。<br/><br/>
       为确保代理正常运行，请将端点和生成的令牌复制到 <code>agent.toml</code> 文件中。该文件可在以下目录中找到：<br/>
       Linux： <code>/etc/taos</code><br/>
-Windows： <code>C:\\Program Files\\taosX\\config</code>`,
+Windows： <code>C:\\TDengine\\cfg\\</code>`,
       4: `请您在命令行中执行以下命令。`,
       5: `请您在命令行中执行以下命令来检查代理运行状态。`,
       6: `<a target='_blank' href='{agenturl}'>代理配置文档</a>`,
