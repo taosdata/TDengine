@@ -325,6 +325,7 @@ SSDataBlock* doColsMerge(SOperatorInfo* pOperator) {
   SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
   SSDataBlock*                pBlock = NULL;
   SColsMergeInfo*             pColsMerge = &pInfo->colsMergeInfo;
+  int32_t                     nullBlkNum = 0;
 
   qDebug("start to merge columns, %s", GET_TASKID(pTaskInfo));
 
@@ -333,9 +334,17 @@ SSDataBlock* doColsMerge(SOperatorInfo* pOperator) {
     if (pBlock && pBlock->info.rows > 1) {
       qError("more than 1 row returned from downstream, rows:%" PRId64, pBlock->info.rows);
       T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+    } else if (NULL == pBlock) {
+      nullBlkNum++;
     }
     
     copyColumnsValue(pColsMerge->pTargets, pColsMerge->srcBlkIds[i], pInfo->binfo.pRes, pBlock);    
+  }
+
+  setOperatorCompleted(pOperator);
+
+  if (2 == nullBlkNum) {
+    return NULL;
   }
 
   pInfo->binfo.pRes->info.rows = 1;

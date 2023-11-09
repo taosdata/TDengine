@@ -2590,6 +2590,7 @@ static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
 typedef struct SLastRowScanOptSetColDataTypeCxt {
   bool       doAgg;
   SNodeList* pLastCols;
+  SNodeList* pOtherCols;
 } SLastRowScanOptSetColDataTypeCxt;
 
 static EDealRes lastRowScanOptSetColDataType(SNode* pNode, void* pContext) {
@@ -2632,6 +2633,33 @@ static void lastRowScanOptSetLastTargets(SNodeList* pTargets, SNodeList* pLastCo
   }
 }
 
+static void lastRowScanOptRemoveUslessTargets(SNodeList* pTargets, SNodeList* pList1, SNodeList* pList2) {
+  SNode* pTarget = NULL;
+  WHERE_EACH(pTarget, pTargets) {
+    bool   found = false;
+    SNode* pCol = NULL;
+    FOREACH(pCol, pList1) {
+      if (nodesEqualNode(pCol, pTarget)) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      FOREACH(pCol, pList2) {
+        if (nodesEqualNode(pCol, pTarget)) {
+          found = true;
+          break;
+        }
+      }
+    }
+    if (!found) {
+      ERASE_NODE(pTargets);
+      continue;
+    }
+    WHERE_NEXT;
+  }
+}
+
 static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SAggLogicNode* pAgg = (SAggLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, lastRowScanOptMayBeOptimized);
 
@@ -2639,7 +2667,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
     return TSDB_CODE_SUCCESS;
   }
 
-  SLastRowScanOptSetColDataTypeCxt cxt = {.doAgg = true, .pLastCols = NULL};
+  SLastRowScanOptSetColDataTypeCxt cxt = {.doAgg = true, .pLastCols = NULL, .pOtherCols = NULL};
   SNode*                           pNode = NULL;
   SColumnNode*                     pPKTsCol = NULL;
   SColumnNode*                     pNonPKCol = NULL;
@@ -2660,14 +2688,18 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
         nodesWalkExpr(nodesListGetNode(pFunc->pParameterList, 0), lastRowScanOptSetColDataType, &cxt);
         nodesListErase(pFunc->pParameterList, nodesListGetCell(pFunc->pParameterList, 1));
       }
-    } else if (FUNCTION_TYPE_SELECT_VALUE == funcType) {
+    } else {
       pNode = nodesListGetNode(pFunc->pParameterList, 0);
-      if (nodeType(pNode) == QUERY_NODE_COLUMN) {
-        SColumnNode* pCol = (SColumnNode*)pNode;
-        if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-          pPKTsCol = pCol;
-        } else {
-          pNonPKCol = pCol;
+      nodesListMakeAppend(&cxt.pOtherCols, pNode);
+      
+      if (FUNCTION_TYPE_SELECT_VALUE == funcType) {
+        if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+          SColumnNode* pCol = (SColumnNode*)pNode;
+          if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+            pPKTsCol = pCol;
+          } else {
+            pNonPKCol = pCol;
+          }
         }
       }
     }
@@ -2681,6 +2713,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
     lastRowScanOptSetLastTargets(pScan->pScanCols, cxt.pLastCols, true);
     nodesWalkExprs(pScan->pScanPseudoCols, lastRowScanOptSetColDataType, &cxt);
     lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols, false);
+    lastRowScanOptRemoveUslessTargets(pScan->node.pTargets, cxt.pLastCols, cxt.pOtherCols);
     if (pPKTsCol && pScan->node.pTargets->length == 1) {
       // when select last(ts),ts from ..., we add another ts to targets
       sprintf(pPKTsCol->colName, "#sel_val.%p", pPKTsCol);

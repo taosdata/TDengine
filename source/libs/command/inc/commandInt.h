@@ -59,7 +59,7 @@ extern "C" {
 #define EXPLAIN_TIME_WINDOWS_FORMAT "Time Window: interval=%" PRId64 "%c offset=%" PRId64 "%c sliding=%" PRId64 "%c"
 #define EXPLAIN_WINDOW_FORMAT "Window: gap=%" PRId64
 #define EXPLAIN_RATIO_TIME_FORMAT "Ratio: %f"
-#define EXPLAIN_MERGE_FORMAT "SortMerge"
+#define EXPLAIN_MERGE_FORMAT "Merge"
 #define EXPLAIN_MERGE_KEYS_FORMAT "Merge Key: "
 #define EXPLAIN_IGNORE_GROUPID_FORMAT "Ignore Group Id: %s"
 #define EXPLAIN_PARTITION_KETS_FORMAT "Partition Key: "
