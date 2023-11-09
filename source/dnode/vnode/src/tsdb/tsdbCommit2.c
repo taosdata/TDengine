@@ -178,7 +178,7 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
       committer->ctx->tbid->uid = record->uid;
 
       if (metaGetInfo(committer->tsdb->pVnode->pMeta, record->uid, &info, NULL) != 0) {
-        code = tsdbIterMergerSkipTableData(committer->dataIterMerger, committer->ctx->tbid);
+        code = tsdbIterMergerSkipTableData(committer->tombIterMerger, committer->ctx->tbid);
         TSDB_CHECK_CODE(code, lino, _exit);
         continue;
       }
