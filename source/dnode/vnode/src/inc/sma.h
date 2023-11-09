@@ -149,6 +149,7 @@ struct SRSmaInfoItem {
   tmr_h   tmrId;
   void   *pStreamState;
   void   *pStreamTask;  // SStreamTask
+  SArray *pResList;
 };
 
 struct SRSmaInfo {
@@ -218,7 +219,7 @@ static FORCE_INLINE void tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat) {
 int32_t smaPreClose(SSma *pSma);
 
 // rsma
-void   *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree);
+void   *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo);
 int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer, int8_t rollback);
 int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
 int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type);
