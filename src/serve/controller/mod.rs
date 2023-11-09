@@ -557,9 +557,10 @@ impl TaskController {
 
         #[cfg(not(feature = "disable-enterprise-only-validation"))]
         if let Err(err) = assert_enterprise {
-            anyhow::bail!(format!(
+            /* anyhow::bail!(format!(
                 "{err:?}. A non-expired enterprise edition is required in most of steps."
-            ))
+            )) */
+            anyhow::bail!("Your TDengine Enterprise edition has bean expired, please contact the TDengine customer success team to get the activation code.")
         }
         // is cloud?
         if to
@@ -627,7 +628,7 @@ impl TaskController {
             ))
             .await
             .context("Cannot retrieve license")?
-            .ok_or_else(|| anyhow!("Connector {connector} is not supported by license"))
+            .ok_or_else(|| anyhow!("The current connector {connector} is not supported by license."))
             .and_then(|s| {
                 serde_json::from_str(&s)
                     .with_context(|| format!("Cannot parse license from str: {s}"))
@@ -635,16 +636,16 @@ impl TaskController {
 
         if let Some(days) = license.expired_days() {
             anyhow::bail!(
-                "Connector {} has been expired for {} days, please contact the database administrator for license",
+                "The current connector {} has been expired for {} days, please contact the TDengine customer success team to get the activation code.",
                 connector, days
             )
         } else {
             match license.number {
-                0 => anyhow::bail!("Connector {connector} is disabled by license"),
+                0 => anyhow::bail!("The current connector {connector} is disabled by license."),
                 n if n > 0 => {
                     if used > n as usize {
                         anyhow::bail!(
-                            "Connector {connector} reaches connection number limit({n}) by license"
+                            "The current connector {connector} reaches connection number limit({n}) by license"
                         );
                     }
                 }

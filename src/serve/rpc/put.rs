@@ -145,7 +145,7 @@ impl PutStream {
             if let Some(license) = license {
                 if license.is_expired() {
                     anyhow::bail!(
-                        "Connector expired, please contact the database administrator for license"
+                        "The current connector {connector} has bean expired, please contact the TDengine customer success team to get the activation code."
                     )
                 }
             }
