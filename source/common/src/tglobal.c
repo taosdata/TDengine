@@ -1674,7 +1674,7 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
         {"ttlBatchDropNum", &tsTtlBatchDropNum},
         {"ttlFlushThreshold", &tsTtlFlushThreshold},
         {"ttlPushInterval", &tsTtlPushIntervalSec},
-        {"s3BlockSize", &tsS3BlockSize},
+        //{"s3BlockSize", &tsS3BlockSize},
         {"s3BlockCacheSize", &tsS3BlockCacheSize},
         {"s3PageCacheSize", &tsS3PageCacheSize},
         {"s3UploadDelaySec", &tsS3UploadDelaySec},
