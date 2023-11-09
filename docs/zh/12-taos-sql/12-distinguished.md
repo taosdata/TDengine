@@ -39,17 +39,12 @@ TDengine 支持按时间窗口切分方式进行聚合结果查询，比如温�
 window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col)
-  | INTERVAL(interval_val [, interval_offset]) [SLIDING (interval_val)] [FILL(fill_mod_and_val)]
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
 }
-interval_val:
-    TK_NUMBER
-  | TK_STRING
-  | TK_DURATION
 ```
 
-INTERVAL和SLIDING的参数都表示时间段, 有三种表示方式:
-
+其中，interval_val 和 sliding_val 都表示时间段, 语法上支持三种方式，举例说明如下:
  - `INTERVAL(1s, 500a) SLIDING(1s)`, 单位是单字符表示, 分别为: `a (毫秒), b (纳秒), d (天), h (小时), m (分钟), n (月), s (秒), u (微妙), w (周), y (年)`.
  - `INTERVAL(1000, 500) SLIDING(1000)`, 不带单位的形式使用默认单位, 为表所在库的单位.
  - `INTERVAL('1s', '500a') SLIDING('1s')`, 第一种形式也可用引号括起来. 必须指定单位, 内部不能有任何空格.
