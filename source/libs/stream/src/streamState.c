@@ -191,7 +191,6 @@ SStreamState* streamStateOpen(char* path, void* pTask, bool specPath, int32_t sz
   }
 
   pState->pTdbState->pOwner = pTask;
-  pState->checkPointId = 0;
 
   return pState;
 
@@ -250,7 +249,6 @@ int32_t streamStateCommit(SStreamState* pState) {
     SStreamSnapshot* pShot = getSnapshot(pState->pFileState);
     flushSnapshot(pState->pFileState, pShot, true);
   }
-  pState->checkPointId++;
   return 0;
 #else
   if (tdbCommit(pState->pTdbState->db, pState->pTdbState->txn) < 0) {
@@ -264,7 +262,6 @@ int32_t streamStateCommit(SStreamState* pState) {
                TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
     return -1;
   }
-  pState->checkPointId++;
   return 0;
 #endif
 }

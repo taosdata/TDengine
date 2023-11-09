@@ -69,12 +69,14 @@ static int32_t doSetSMABlock(SOperatorInfo* pOperator, void* input, size_t numOf
     } else if (type == STREAM_INPUT__DATA_BLOCK) {
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
-        SPackedData  tmp = {
-             .pDataBlock = pDataBlock,
-        };
+        SPackedData tmp = {.pDataBlock = pDataBlock};
         taosArrayPush(pInfo->pBlockLists, &tmp);
       }
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
+    } else if (type == STREAM_INPUT__CHECKPOINT) {
+      SPackedData tmp = {.pDataBlock = input};
+      taosArrayPush(pInfo->pBlockLists, &tmp);
+      pInfo->blockType = STREAM_INPUT__CHECKPOINT;
     }
 
     return TSDB_CODE_SUCCESS;
@@ -633,7 +635,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
     blockIndex += 1;
 
     current += p->info.rows;
-    ASSERT(p->info.rows > 0);
+    ASSERT(p->info.rows > 0 || p->info.type == STREAM_CHECKPOINT);
     taosArrayPush(pResList, &p);
 
     if (current >= rowsThreshold) {

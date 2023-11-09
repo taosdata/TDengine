@@ -839,6 +839,7 @@ int32_t      streamMetaReopen(SStreamMeta* pMeta);
 int32_t      streamMetaCommit(SStreamMeta* pMeta);
 int32_t      streamMetaLoadAllTasks(SStreamMeta* pMeta);
 int32_t      streamMetaReloadAllTasks(SStreamMeta* pMeta);
+int64_t      streamMetaGetLatestCheckpointId(SStreamMeta* pMeta);
 void         streamMetaNotifyClose(SStreamMeta* pMeta);
 int32_t      streamTaskSetDb(SStreamMeta* pMeta, void* pTask, char* key);
 void         streamMetaStartHb(SStreamMeta* pMeta);
@@ -854,6 +855,7 @@ void         streamMetaResetStartInfo(STaskStartInfo* pMeta);
 // checkpoint
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq);
 int32_t streamProcessCheckpointReadyMsg(SStreamTask* pTask);
+int32_t streamTaskBuildCheckpoint(SStreamTask* pTask);
 void    streamTaskClearCheckInfo(SStreamTask* pTask);
 int32_t streamAlignTransferState(SStreamTask* pTask);
 int32_t streamBuildAndSendDropTaskMsg(SMsgCb* pMsgCb, int32_t vgId, SStreamTaskId* pTaskId);

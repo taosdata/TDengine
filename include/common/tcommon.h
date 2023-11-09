@@ -249,6 +249,7 @@ typedef struct SQueryTableDataCond {
   SColumnInfo* colList;
   int32_t*     pSlotList;  // the column output destation slot, and it may be null
   int32_t      type;       // data block load type:
+  bool         skipRollup;
   STimeWindow  twindows;
   int64_t      startVersion;
   int64_t      endVersion;

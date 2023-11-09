@@ -114,6 +114,7 @@ int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* p
 
 int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId);
 int32_t streamTaskBuildCheckpoint(SStreamTask* pTask);
+int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId);
 int32_t streamSendCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, int32_t nodeId, SEpSet* pEpSet);
 
 int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t srcTaskId, int32_t index, int64_t checkpointId);
