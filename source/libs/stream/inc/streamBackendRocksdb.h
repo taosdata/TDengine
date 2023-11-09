@@ -17,6 +17,7 @@
 #define _STREAM_BACKEDN_ROCKSDB_H_
 
 #include "rocksdb/c.h"
+//#include "streamInt.h"
 #include "streamState.h"
 #include "tcoding.h"
 #include "tcommon.h"
@@ -252,4 +253,6 @@ int32_t  bkdMgtAddChkp(SBkdMgt* bm, char* task, char* path);
 int32_t  bkdMgtGetDelta(SBkdMgt* bm, char* taskId, int64_t chkpId, SArray* list);
 int32_t  bkdMgtDumpTo(SBkdMgt* bm, char* taskId, char* dname);
 void     bkdMgtDestroy(SBkdMgt* bm);
+
+int32_t taskDbGenChkpUploadPath(void* arg, int64_t chkpId, int8_t type, char** pathkj);
 #endif

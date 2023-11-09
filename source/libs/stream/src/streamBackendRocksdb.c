@@ -1691,6 +1691,44 @@ void taskDbDestroy(void* pDb) {
   return;
 }
 
+int32_t taskDbGenChkpUplaodPath__rsync(STaskDbWrapper* pDb, int64_t chkpId, char** path) {
+  int64_t st = taosGetTimestampMs();
+  int32_t code = -1;
+  int64_t refId = pDb->refId;
+
+  if (taosAcquireRef(taskDbWrapperId, refId) == NULL) {
+    return -1;
+  }
+  char* pChkpDir = NULL;
+  char* pChkpIdDir = NULL;
+  if (chkpPreBuildDir(pDb->path, chkpId, &pChkpDir, &pChkpIdDir) != 0) {
+    code = -1;
+  }
+
+  if (taosIsDir(pChkpIdDir) && isValidCheckpoint(pChkpIdDir)) {
+    code = 0;
+    *path = pChkpIdDir;
+    pChkpIdDir = NULL;
+  }
+
+  taosMemoryFree(pChkpDir);
+  taosMemoryFree(pChkpIdDir);
+  taosReleaseRef(taskDbWrapperId, refId);
+
+  return code;
+}
+int32_t taskDbGenChkpUploadPath(void* arg, int64_t chkpId, int8_t type, char** path) {
+  STaskDbWrapper* pDb = arg;
+  UPLOAD_TYPE     utype = type;
+
+  if (utype == UPLOAD_RSYNC) {
+    return taskDbGenChkpUplaodPath__rsync(pDb, chkpId, path);
+  } else if (utype == UPLOAD_S3) {
+    return 0;
+  }
+  return -1;
+}
+
 int32_t taskDbOpenCfByKey(STaskDbWrapper* pDb, const char* key) {
   int32_t code = 0;
   char*   err = NULL;

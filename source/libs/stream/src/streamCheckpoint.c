@@ -15,8 +15,16 @@
 
 #include "cos.h"
 #include "rsync.h"
+#include "streamBackendRocksdb.h"
 #include "streamInt.h"
 
+typedef struct {
+  UPLOAD_TYPE type;
+  char*       taskId;
+  int64_t     chkpId;
+
+  SStreamTask* pTask;
+} SAsyncUploadArg;
 int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckpointSourceReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
@@ -328,6 +336,36 @@ void streamTaskSetFailedId(SStreamTask* pTask) {
   pTask->chkInfo.checkpointId = pTask->chkInfo.checkpointingId;
 }
 
+int32_t doUploadChkp(void* param) {
+  SAsyncUploadArg* arg = param;
+  char*            path = NULL;
+  int32_t          code = 0;
+  if ((code = taskDbGenChkpUploadPath(arg->pTask->pBackend, arg->chkpId, (int8_t)(arg->type), &path)) != 0) {
+    stError("s-task:%s faile to gen upload checkpoint:%" PRId64 "", arg->pTask->id.idStr, arg->chkpId);
+  }
+  if (code == 0 && uploadCheckpoint(arg->taskId, path) != 0) {
+    stError("s-task:%s faile to upload checkpoint:%" PRId64 "", arg->pTask->id.idStr, arg->chkpId);
+  }
+
+  taosMemoryFree(path);
+  taosMemoryFree(arg->taskId);
+  taosMemoryFree(arg);
+  return 0;
+}
+int32_t streamTaskUploadChkp(SStreamTask* pTask, int64_t chkpId, char* taskId) {
+  // async upload
+  UPLOAD_TYPE type = getUploadType();
+  if (type == UPLOAD_DISABLE) {
+    return 0;
+  }
+  SAsyncUploadArg* arg = taosMemoryCalloc(1, sizeof(SAsyncUploadArg));
+  arg->type = type;
+  arg->taskId = taosStrdup(taskId);
+  arg->chkpId = chkpId;
+  arg->pTask = pTask;
+
+  return streamMetaAsyncExec(pTask->pMeta, doUploadChkp, arg, NULL);
+}
 int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   int32_t code = TSDB_CODE_SUCCESS;
   int64_t startTs = pTask->chkInfo.startTs;
@@ -363,6 +401,11 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s commit taskInfo failed, checkpoint:%" PRId64 " failed, code:%s", pTask->id.idStr, ckId,
               tstrerror(terrno));
+    } else {
+      code = streamTaskUploadChkp(pTask, ckId, (char*)pTask->id.idStr);
+      if (code != 0) {
+        stError("s-task:%s failed to upload checkpoint:%" PRId64 " failed", pTask->id.idStr, ckId);
+      }
     }
   }
 
