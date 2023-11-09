@@ -19,7 +19,6 @@
 #include "streamBackendRocksdb.h"
 #include "streamInt.h"
 #include "tcommon.h"
-#include "streamInt.h"
 
 enum SBackendFileType {
   ROCKSDB_OPTIONS_TYPE = 1,
@@ -193,8 +192,8 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chk
       taosArrayPush(pFile->pSst, &sst);
     }
   }
-  {
-    char* buf = taosMemoryCalloc(1, 512);
+  if (qDebugFlag & DEBUG_TRACE) {
+    char* buf = taosMemoryCalloc(1, 128 + taosArrayGetSize(pFile->pSst) * 16);
     sprintf(buf, "[current: %s,", pFile->pCurrent);
     sprintf(buf + strlen(buf), "MANIFEST: %s,", pFile->pMainfest);
     sprintf(buf + strlen(buf), "options: %s,", pFile->pOptions);
@@ -344,10 +343,10 @@ int32_t streamSnapRead(SStreamSnapReader* pReader, uint8_t** ppData, int64_t* si
   stDebug("%s start to read file %s, current offset:%" PRId64 ", size:%" PRId64 ", file no.%d", STREAM_STATE_TRANSFER,
           item->name, (int64_t)pHandle->offset, item->size, pHandle->currFileIdx);
   uint8_t* buf = taosMemoryCalloc(1, sizeof(SStreamSnapBlockHdr) + kBlockSize);
-  if(buf == NULL){
+  if (buf == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  int64_t  nread = taosPReadFile(pHandle->fd, buf + sizeof(SStreamSnapBlockHdr), kBlockSize, pHandle->offset);
+  int64_t nread = taosPReadFile(pHandle->fd, buf + sizeof(SStreamSnapBlockHdr), kBlockSize, pHandle->offset);
   if (nread == -1) {
     taosMemoryFree(buf);
     code = TAOS_SYSTEM_ERROR(terrno);
@@ -480,8 +479,8 @@ int32_t streamSnapWrite(SStreamSnapWriter* pWriter, uint8_t* pData, uint32_t nDa
 }
 int32_t streamSnapWriterClose(SStreamSnapWriter* pWriter, int8_t rollback) {
   SStreamSnapHandle* handle = &pWriter->handle;
-  if (qDebugFlag & DEBUG_DEBUG) {
-    char* buf = (char*)taosMemoryMalloc(1024);
+  if (qDebugFlag & DEBUG_TRACE) {
+    char* buf = (char*)taosMemoryMalloc(128 + taosArrayGetSize(handle->pFileList) * 16);
     int   n = sprintf(buf, "[");
     for (int i = 0; i < taosArrayGetSize(handle->pFileList); i++) {
       SBackendFileItem* item = taosArrayGet(handle->pFileList, i);
