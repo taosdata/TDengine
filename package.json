@@ -9,7 +9,7 @@
     "prd": "node scripts/oem.js serve prd",
     "test": "node scripts/oem.js build test",
     "preview": "node scripts/oem.js build pre",
-    "build": "node scripts/oem.js ",
+    "build": "node scripts/oem.js",
     "build:bin": "node scripts/oem.js && cargo build --release",
     "build:musl": "node scripts/oem.js && cargo build --release --target x86_64-unknown-linux-musl",
     "inspect": "vue-cli-service inspect",
