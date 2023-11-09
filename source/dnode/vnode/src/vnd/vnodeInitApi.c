@@ -131,19 +131,19 @@ void initTqAPI(SStoreTqReader* pTq) {
   pTq->tqGetResultBlock = tqGetResultBlock;
 
   pTq->tqReaderNextBlockFilterOut = tqNextDataBlockFilterOut;
+  pTq->tqGetResultBlockTime = tqGetResultBlockTime;
 }
 
 void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamFileStateInit = streamFileStateInit;
   pStore->updateInfoDestoryColseWinSBF = updateInfoDestoryColseWinSBF;
 
-  pStore->streamStateGetByPos = streamStateGetByPos;
-
   pStore->streamStatePutParName = streamStatePutParName;
   pStore->streamStateGetParName = streamStateGetParName;
 
   pStore->streamStateAddIfNotExist = streamStateAddIfNotExist;
   pStore->streamStateReleaseBuf = streamStateReleaseBuf;
+  pStore->streamStateClearBuff = streamStateClearBuff;
   pStore->streamStateFreeVal = streamStateFreeVal;
 
   pStore->streamStatePut = streamStatePut;
@@ -198,8 +198,6 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateSessionSeekKeyNext = streamStateSessionSeekKeyNext;
   pStore->streamStateSessionSeekKeyCurrentPrev = streamStateSessionSeekKeyCurrentPrev;
   pStore->streamStateSessionSeekKeyCurrentNext = streamStateSessionSeekKeyCurrentNext;
-
-  pStore->streamFileStateInit = streamFileStateInit;
 
   pStore->streamFileStateDestroy = streamFileStateDestroy;
   pStore->streamFileStateClear = streamFileStateClear;

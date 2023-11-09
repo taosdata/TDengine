@@ -25,7 +25,7 @@
 
 static TdThread      cacheRefreshWorker = {0};
 static TdThreadOnce  cacheThreadInit = PTHREAD_ONCE_INIT;
-static TdThreadMutex guard = TD_PTHREAD_MUTEX_INITIALIZER;
+static TdThreadMutex guard;
 static SArray       *pCacheArrayList = NULL;
 static bool          stopRefreshWorker = false;
 static bool          refreshWorkerNormalStopped = false;
@@ -154,6 +154,8 @@ static void *taosCacheTimedRefresh(void *handle);
 
 static void doInitRefreshThread(void) {
   pCacheArrayList = taosArrayInit(4, POINTER_BYTES);
+
+  taosThreadMutexInit(&guard, NULL);
 
   TdThreadAttr thattr;
   taosThreadAttrInit(&thattr);
@@ -994,4 +996,16 @@ void *taosCacheIterGetKey(const SCacheIter *pIter, size_t *len) {
 void taosCacheDestroyIter(SCacheIter *pIter) {
   taosMemoryFreeClear(pIter->pCurrent);
   taosMemoryFreeClear(pIter);
+}
+
+void taosCacheTryExtendLifeSpan(SCacheObj *pCacheObj, void **data) {
+  if (!pCacheObj || !(*data)) return;
+
+  SCacheNode *pNode = (SCacheNode *)((char *)(*data) - sizeof(SCacheNode));
+  if (pNode->signature != pNode) return;
+
+  if (!pNode->inTrashcan) {
+    atomic_store_64(&pNode->expireTime, pNode->lifespan + taosGetTimestampMs());
+    uDebug("cache:%s, data:%p extend expire time: %" PRId64, pCacheObj->name, pNode->data, pNode->expireTime);
+  }
 }

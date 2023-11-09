@@ -176,6 +176,10 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
     goto _err;
   }
 
+  if (metaInitTbFilterCache(pMeta) != 0) {
+    goto _err;
+  }
+
   metaDebug("vgId:%d, meta is opened", TD_VID(pVnode));
 
   *ppMeta = pMeta;

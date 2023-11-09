@@ -428,6 +428,8 @@ static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans) {
   mInfo("trans:%d, perform insert action, row:%p stage:%s, callfunc:1, startFunc:%d", pTrans->id, pTrans,
         mndTransStr(pTrans->stage), pTrans->startFunc);
 
+  taosThreadMutexInit(&pTrans->mutex, NULL);
+
   if (pTrans->startFunc > 0) {
     TransCbFp fp = mndTransGetCbFp(pTrans->startFunc);
     if (fp) {
@@ -718,7 +720,7 @@ int32_t mndSetRpcInfoForDbTrans(SMnode *pMnode, SRpcMsg *pMsg, EOperType oper, c
 
 void mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname) {
   if (dbname != NULL) {
-    tstrncpy(pTrans->dbname, dbname, TSDB_TABLE_FNAME_LEN);
+    tstrncpy(pTrans->dbname, dbname, TSDB_DB_FNAME_LEN);
   }
   if (stbname != NULL) {
     tstrncpy(pTrans->stbname, stbname, TSDB_TABLE_FNAME_LEN);
@@ -1695,7 +1697,6 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
   int32_t numOfRows = 0;
   STrans *pTrans = NULL;
   int32_t cols = 0;
-  char   *pWrite;
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_TRANS, pShow->pIter, (void **)&pTrans);

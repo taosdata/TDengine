@@ -76,6 +76,17 @@ static int32_t tfile_to_json(const STFile *file, cJSON *json) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  if (file->minVer <= file->maxVer) {
+    /* minVer */
+    if (cJSON_AddNumberToObject(json, "minVer", file->minVer) == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    /* maxVer */
+    if (cJSON_AddNumberToObject(json, "maxVer", file->maxVer) == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
   return 0;
 }
 
@@ -122,6 +133,19 @@ static int32_t tfile_from_json(const cJSON *json, STFile *file) {
     return TSDB_CODE_FILE_CORRUPTED;
   }
 
+  /* minVer */
+  file->minVer = VERSION_MAX;
+  item = cJSON_GetObjectItem(json, "minVer");
+  if (cJSON_IsNumber(item)) {
+    file->minVer = item->valuedouble;
+  }
+
+  /* maxVer */
+  file->maxVer = VERSION_MIN;
+  item = cJSON_GetObjectItem(json, "maxVer");
+  if (cJSON_IsNumber(item)) {
+    file->maxVer = item->valuedouble;
+  }
   return 0;
 }
 
@@ -279,6 +303,7 @@ bool tsdbIsSameTFile(const STFile *f1, const STFile *f2) {
   if (f1->did.id != f2->did.id) return false;
   if (f1->fid != f2->fid) return false;
   if (f1->cid != f2->cid) return false;
+  if (f1->s3flag != f2->s3flag) return false;
   return true;
 }
 

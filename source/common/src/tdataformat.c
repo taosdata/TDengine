@@ -610,9 +610,13 @@ _exit:
   return code;
 }
 
-void tRowSort(SArray *aRowP) {
-  if (TARRAY_SIZE(aRowP) <= 1) return;
-  taosArraySort(aRowP, tRowPCmprFn);
+int32_t tRowSort(SArray *aRowP) {
+  if (TARRAY_SIZE(aRowP) <= 1) return 0;
+  int32_t code = taosArrayMSort(aRowP, tRowPCmprFn);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("taosArrayMSort failed caused by %d", code);
+  }
+  return code;
 }
 
 int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag) {
@@ -1557,11 +1561,13 @@ STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version) {
 
 // SColData ========================================
 void tColDataDestroy(void *ph) {
-  SColData *pColData = (SColData *)ph;
+  if (ph) {
+    SColData *pColData = (SColData *)ph;
 
-  tFree(pColData->pBitMap);
-  tFree(pColData->aOffset);
-  tFree(pColData->pData);
+    tFree(pColData->pBitMap);
+    tFree(pColData->aOffset);
+    tFree(pColData->pData);
+  }
 }
 
 void tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn) {
@@ -3588,5 +3594,5 @@ void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_
     NULL,                          // TSDB_DATA_TYPE_DECIMAL
     NULL,                          // TSDB_DATA_TYPE_BLOB
     NULL,                          // TSDB_DATA_TYPE_MEDIUMBLOB
-    NULL                           // TSDB_DATA_TYPE_GEOMETRY
+    tColDataCalcSMAVarType         // TSDB_DATA_TYPE_GEOMETRY
 };

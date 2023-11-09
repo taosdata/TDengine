@@ -104,6 +104,7 @@ extern "C" {
 #define EXPLAIN_VGROUP_SLOT_FORMAT "vgroup_slot=%d,%d"
 #define EXPLAIN_UID_SLOT_FORMAT "uid_slot=%d,%d"
 #define EXPLAIN_SRC_SCAN_FORMAT "src_scan=%d,%d"
+#define EXPLAIN_PLAN_BLOCKING "blocking=%d"
 
 #define COMMAND_RESET_LOG "resetLog"
 #define COMMAND_SCHEDULE_POLICY "schedulePolicy"
@@ -167,7 +168,7 @@ typedef struct SExplainCtx {
     }                                                                                                             \
     tlen += snprintf(tbuf + VARSTR_HEADER_SIZE + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE - tlen, __VA_ARGS__);         \
   } while (0)
-  
+
 #define EXPLAIN_ROW_APPEND(...) tlen += snprintf(tbuf + VARSTR_HEADER_SIZE + tlen, TSDB_EXPLAIN_RESULT_ROW_SIZE - VARSTR_HEADER_SIZE - tlen, __VA_ARGS__)
 #define EXPLAIN_ROW_END() do { varDataSetLen(tbuf, tlen); tlen += VARSTR_HEADER_SIZE; isVerboseLine = true; } while (0)
 

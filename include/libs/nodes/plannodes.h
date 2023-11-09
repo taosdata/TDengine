@@ -293,6 +293,7 @@ typedef struct SPartitionLogicNode {
   SNodeList* pPartitionKeys;
   SNodeList* pTags;
   SNode*     pSubtable;
+  SNodeList* pAggFuncs;
 
   bool    needBlockOutputTsOrder;  // if true, partition output block will have ts order maintained
   int32_t pkTsColId;

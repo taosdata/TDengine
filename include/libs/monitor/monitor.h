@@ -191,7 +191,7 @@ typedef struct {
 } SMonBmInfo;
 
 typedef struct {
-  SArray *pVloads;  // SVnodeLoad
+  SArray *pVloads;  // SVnodeLoad/SVnodeLoadLite
 } SMonVloadInfo;
 
 typedef struct {
@@ -205,6 +205,11 @@ typedef struct {
   int32_t     maxLogs;
   bool        comp;
 } SMonCfg;
+
+typedef struct {
+  int8_t state;
+  tsem_t sem;
+} SDmNotifyHandle;
 
 int32_t monInit(const SMonCfg *pCfg);
 void    monCleanup();

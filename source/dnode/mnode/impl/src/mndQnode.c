@@ -310,7 +310,7 @@ static int32_t mndProcessCreateQnodeReq(SRpcMsg *pReq) {
   char obj[33] = {0};
   sprintf(obj, "%d", createReq.dnodeId);
 
-  auditRecord(pReq, pMnode->clusterId, "createQnode", obj, "", "");
+  auditRecord(pReq, pMnode->clusterId, "createQnode", "", obj, createReq.sql, createReq.sqlLen);
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("qnode:%d, failed to create since %s", createReq.dnodeId, terrstr());
@@ -318,6 +318,7 @@ _OVER:
 
   mndReleaseQnode(pMnode, pObj);
   mndReleaseDnode(pMnode, pDnode);
+  tFreeSMCreateQnodeReq(&createReq);
   return code;
 }
 
@@ -423,7 +424,7 @@ static int32_t mndProcessDropQnodeReq(SRpcMsg *pReq) {
   char obj[33] = {0};
   sprintf(obj, "%d", dropReq.dnodeId);
 
-  auditRecord(pReq, pMnode->clusterId, "dropQnode", obj, "", "");
+  auditRecord(pReq, pMnode->clusterId, "dropQnode", "", obj, dropReq.sql, dropReq.sqlLen);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -431,6 +432,7 @@ _OVER:
   }
 
   mndReleaseQnode(pMnode, pObj);
+  tFreeSMCreateQnodeReq(&dropReq);
   return code;
 }
 

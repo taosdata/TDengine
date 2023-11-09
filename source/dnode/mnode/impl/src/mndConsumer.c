@@ -16,7 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "mndConsumer.h"
 #include "mndPrivilege.h"
+#include "mndVgroup.h"
 #include "mndShow.h"
+#include "mndDb.h"
 #include "mndSubscribe.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
@@ -123,30 +125,55 @@ void mndRebCntDec() {
   }
 }
 
-static int32_t validateTopics(STrans *pTrans, const SArray *pTopicList, SMnode *pMnode, const char *pUser) {
-  int32_t numOfTopics = taosArrayGetSize(pTopicList);
+static int32_t validateTopics(STrans *pTrans, const SArray *pTopicList, SMnode *pMnode, const char *pUser, bool enableReplay) {
+  SMqTopicObj *pTopic = NULL;
+  int32_t code = 0;
 
+  int32_t numOfTopics = taosArrayGetSize(pTopicList);
   for (int32_t i = 0; i < numOfTopics; i++) {
     char        *pOneTopic = taosArrayGetP(pTopicList, i);
-    SMqTopicObj *pTopic = mndAcquireTopic(pMnode, pOneTopic);
+    pTopic = mndAcquireTopic(pMnode, pOneTopic);
     if (pTopic == NULL) {  // terrno has been set by callee function
-      return -1;
+      code = -1;
+      goto FAILED;
     }
 
     if (mndCheckTopicPrivilege(pMnode, pUser, MND_OPER_SUBSCRIBE, pTopic) != 0) {
-      mndReleaseTopic(pMnode, pTopic);
-      return -1;
+      code = -1;
+      goto FAILED;
+    }
+
+    if(enableReplay){
+      if(pTopic->subType != TOPIC_SUB_TYPE__COLUMN){
+        code = TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT;
+        goto FAILED;
+      }else if(pTopic->ntbUid == 0 && pTopic->ctbStbUid == 0) {
+        SDbObj *pDb = mndAcquireDb(pMnode, pTopic->db);
+        if (pDb == NULL) {
+          code = -1;
+          goto FAILED;
+        }
+        if (pDb->cfg.numOfVgroups != 1) {
+          mndReleaseDb(pMnode, pDb);
+          code = TSDB_CODE_TMQ_REPLAY_NEED_ONE_VGROUP;
+          goto FAILED;
+        }
+        mndReleaseDb(pMnode, pDb);
+      }
     }
 
     mndTransSetDbName(pTrans, pOneTopic, NULL);
     if(mndTransCheckConflict(pMnode, pTrans) != 0){
-      mndReleaseTopic(pMnode, pTopic);
-      return -1;
+      code = -1;
+      goto FAILED;
     }
     mndReleaseTopic(pMnode, pTopic);
   }
 
   return 0;
+FAILED:
+  mndReleaseTopic(pMnode, pTopic);
+  return code;
 }
 
 static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
@@ -176,7 +203,7 @@ static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
   if (pTrans == NULL) {
     goto FAIL;
   }
-  if(validateTopics(pTrans, pConsumer->assignedTopics, pMnode, pMsg->info.conn.user) != 0){
+  if(validateTopics(pTrans, pConsumer->assignedTopics, pMnode, pMsg->info.conn.user, false) != 0){
     goto FAIL;
   }
 
@@ -310,6 +337,34 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
           taosArrayPush(pRebSub->removedConsumers, &pConsumer->consumerId);
         }
         taosRUnLockLatch(&pConsumer->lock);
+      }else{
+        int32_t newTopicNum = taosArrayGetSize(pConsumer->currentTopics);
+        for (int32_t i = 0; i < newTopicNum; i++) {
+          char *           topic = taosArrayGetP(pConsumer->currentTopics, i);
+          SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, pConsumer->cgroup, topic);
+          if (pSub == NULL) {
+            continue;
+          }
+          taosRLockLatch(&pSub->lock);
+
+          // 2.2 iterate all vg assigned to the consumer of that topic
+          SMqConsumerEp *pConsumerEp = taosHashGet(pSub->consumerHash, &pConsumer->consumerId, sizeof(int64_t));
+          int32_t        vgNum = taosArrayGetSize(pConsumerEp->vgs);
+
+          for (int32_t j = 0; j < vgNum; j++) {
+            SMqVgEp *pVgEp = taosArrayGetP(pConsumerEp->vgs, j);
+            SVgObj * pVgroup = mndAcquireVgroup(pMnode, pVgEp->vgId);
+            if (!pVgroup) {
+              char key[TSDB_SUBSCRIBE_KEY_LEN];
+              mndMakeSubscribeKey(key, pConsumer->cgroup, topic);
+              mndGetOrCreateRebSub(pRebMsg->rebSubHash, key);
+              mInfo("vnode splitted, vgId:%d rebalance will be triggered", pVgEp->vgId);
+            }
+            mndReleaseVgroup(pMnode, pVgroup);
+          }
+          taosRUnLockLatch(&pSub->lock);
+          mndReleaseSubscribe(pMnode, pSub);
+        }
       }
     } else if (status == MQ_CONSUMER_STATUS_LOST) {
       if (hbStatus > MND_CONSUMER_LOST_CLEAR_THRESHOLD) {   // clear consumer if lost a day
@@ -342,7 +397,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
   }
 
   if (taosHashGetSize(pRebMsg->rebSubHash) != 0) {
-      mInfo("mq rebalance will be triggered");
+    mInfo("mq rebalance will be triggered");
     SRpcMsg rpcMsg = {
         .msgType = TDMT_MND_TMQ_DO_REBALANCE,
         .pCont = pRebMsg,
@@ -401,6 +456,9 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
 
     SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, pConsumer->cgroup, data->topicName);
     if(pSub == NULL){
+#ifdef TMQ_DEBUG
+      ASSERT(0);
+#endif
       continue;
     }
     taosWLockLatch(&pSub->lock);
@@ -498,7 +556,9 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
       SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, pConsumer->cgroup, topic);
       // txn guarantees pSub is created
       if(pSub == NULL) {
+#ifdef TMQ_DEBUG
         ASSERT(0);
+#endif
         continue;
       }
       taosRLockLatch(&pSub->lock);
@@ -509,7 +569,9 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
       // 2.1 fetch topic schema
       SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
       if(pTopic == NULL) {
+#ifdef TMQ_DEBUG
         ASSERT(0);
+#endif
         taosRUnLockLatch(&pSub->lock);
         mndReleaseSubscribe(pMnode, pSub);
         continue;
@@ -540,8 +602,16 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
 
       for (int32_t j = 0; j < vgNum; j++) {
         SMqVgEp *pVgEp = taosArrayGetP(pConsumerEp->vgs, j);
-        char     offsetKey[TSDB_PARTITION_KEY_LEN];
-        mndMakePartitionKey(offsetKey, pConsumer->cgroup, topic, pVgEp->vgId);
+//        char     offsetKey[TSDB_PARTITION_KEY_LEN];
+//        mndMakePartitionKey(offsetKey, pConsumer->cgroup, topic, pVgEp->vgId);
+
+        if(epoch == -1){
+          SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVgEp->vgId);
+          if(pVgroup){
+            pVgEp->epSet = mndGetVgroupEpset(pMnode, pVgroup);
+            mndReleaseVgroup(pMnode, pVgroup);
+          }
+        }
         // 2.2.1 build vg ep
         SMqSubVgEp vgEp = {
             .epSet = pVgEp->epSet,
@@ -648,12 +718,12 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   }
 
   // check topic existence
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_TOPIC, pMsg, "subscribe");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pMsg, "subscribe");
   if (pTrans == NULL) {
     goto _over;
   }
 
-  code = validateTopics(pTrans, pTopicList, pMnode, pMsg->info.conn.user);
+  code = validateTopics(pTrans, pTopicList, pMnode, pMsg->info.conn.user, subscribe.enableReplay);
   if (code != TSDB_CODE_SUCCESS) {
     goto _over;
   }

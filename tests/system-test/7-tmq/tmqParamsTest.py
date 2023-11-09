@@ -19,7 +19,7 @@ class TDTestCase:
         self.wal_retention_period1 = 3600
         self.wal_retention_period2 = 1
         self.commit_value_list = ["true", "false"]
-        self.offset_value_list = ["", "earliest", "latest", "none"]
+        self.offset_value_list = ["earliest", "latest", "none"]
         self.tbname_value_list = ["true", "false"]
         self.snapshot_value_list = ["false"]
 
@@ -92,7 +92,7 @@ class TDTestCase:
                         }
                         consumer_commit = 1 if consumer_dict["enable.auto.commit"] == "true" else 0
                         consumer_tbname = 1 if consumer_dict["msg.with.table.name"] == "true" else 0
-                        consumer_ret = "earliest" if offset_value == "" else offset_value
+                        consumer_ret = "latest" if offset_value == "" else offset_value
                         expected_parameters=f'tbname:{consumer_tbname},commit:{consumer_commit},interval:{paraDict["auto_commit_interval"]}ms,reset:{consumer_ret}'
                         if len(offset_value) == 0:
                             del consumer_dict["auto.offset.reset"]

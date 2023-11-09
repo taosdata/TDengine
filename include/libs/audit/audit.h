@@ -29,7 +29,7 @@
 extern "C" {
 #endif
 
-#define AUDIT_DETAIL_MAX 16000
+#define AUDIT_DETAIL_MAX 65472
 
 typedef struct {
   const char *server;
@@ -39,7 +39,8 @@ typedef struct {
 
 int32_t auditInit(const SAuditCfg *pCfg);
 void    auditSend(SJson *pJson);
-void    auditRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, char *detail);
+void    auditRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
+                    char *detail, int32_t len);
 
 #ifdef __cplusplus
 }

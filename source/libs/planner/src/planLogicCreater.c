@@ -88,6 +88,7 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
             pCxt->pOutputs[index] = true;
             break;
           }
+          index++;
         }
       }
       break;
@@ -174,6 +175,7 @@ static int32_t cloneRewriteExprs(SNodeList* pExprs, bool* pOutputs, SNodeList** 
         break;
       }
     }
+    index++;
   }
   return code;
 }
@@ -264,7 +266,7 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols
 
   if (NULL == pScanCols) {
     if (NULL == pScanPseudoCols) {
-      return SCAN_TYPE_TABLE;
+      return (!tagScan) ? SCAN_TYPE_TABLE : SCAN_TYPE_TAG;
     }
     return FUNCTION_TYPE_BLOCK_DIST_INFO == ((SFunctionNode*)nodesListGetNode(pScanPseudoCols, 0))->funcType
                ? SCAN_TYPE_BLOCK_INFO
@@ -566,6 +568,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     if (TSDB_CODE_SUCCESS == code && NULL != pColList) {
       code = createColumnByRewriteExprs(pColList, &pJoin->node.pTargets);
     }
+    nodesDestroyList(pColList);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -585,6 +588,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     if (TSDB_CODE_SUCCESS == code && NULL != pColList) {
       code = createColumnByRewriteExprs(pColList, &pJoin->node.pTargets);
     }
+    nodesDestroyList(pColList);
   }
 
   if (NULL == pJoin->node.pTargets && NULL != pLeft) {
@@ -1254,6 +1258,10 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
   if (TSDB_CODE_SUCCESS == code && NULL == pPartition->node.pTargets) {
     code = nodesListMakeStrictAppend(&pPartition->node.pTargets,
                                      nodesCloneNode(nodesListGetNode(pCxt->pCurrRoot->pTargets, 0)));
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, NULL, fmIsAggFunc, &pPartition->pAggFuncs);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

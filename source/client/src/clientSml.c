@@ -104,9 +104,9 @@ static int32_t smlCheckAuth(SSmlHandle *info,  SRequestConnInfo* conn, const cha
   SUserAuthRes authRes = {0};
 
   code = catalogChkAuth(info->pCatalog, conn, &pAuth, &authRes);
-  nodesDestroyNode(authRes.pCond);
+  nodesDestroyNode(authRes.pCond[AUTH_RES_BASIC]);
 
-  return (code == TSDB_CODE_SUCCESS) ? (authRes.pass ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED) : code;
+  return (code == TSDB_CODE_SUCCESS) ? (authRes.pass[AUTH_RES_BASIC] ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED) : code;
 
 }
 inline bool smlDoubleToInt64OverFlow(double num) {
@@ -193,20 +193,46 @@ cleanup:
 }
 
 static int32_t smlParseTableName(SArray *tags, char *childTableName) {
-  size_t childTableNameLen = strlen(tsSmlChildTableName);
-  if (childTableNameLen <= 0) return TSDB_CODE_SUCCESS;
-
-  for (int i = 0; i < taosArrayGetSize(tags); i++) {
-    SSmlKv *tag = (SSmlKv *)taosArrayGet(tags, i);
-    // handle child table name
-    if (childTableNameLen == tag->keyLen && strncmp(tag->key, tsSmlChildTableName, tag->keyLen) == 0) {
-      memset(childTableName, 0, TSDB_TABLE_NAME_LEN);
-      strncpy(childTableName, tag->value, (tag->length < TSDB_TABLE_NAME_LEN ? tag->length : TSDB_TABLE_NAME_LEN));
-      if(tsSmlDot2Underline){
-        smlStrReplace(childTableName, strlen(childTableName));
+  bool autoChildName = false;
+  size_t delimiter = strlen(tsSmlAutoChildTableNameDelimiter);
+  if(delimiter > 0){
+    size_t totalNameLen = delimiter * (taosArrayGetSize(tags) - 1);
+    for (int i = 0; i < taosArrayGetSize(tags); i++) {
+      SSmlKv *tag = (SSmlKv *)taosArrayGet(tags, i);
+      totalNameLen += tag->length;
+    }
+    if(totalNameLen < TSDB_TABLE_NAME_LEN){
+      autoChildName = true;
+    }
+  }
+  if(autoChildName){
+    memset(childTableName, 0, TSDB_TABLE_NAME_LEN);
+    for (int i = 0; i < taosArrayGetSize(tags); i++) {
+      SSmlKv *tag = (SSmlKv *)taosArrayGet(tags, i);
+      strncat(childTableName, tag->value, tag->length);
+      if(i != taosArrayGetSize(tags) - 1){
+        strcat(childTableName, tsSmlAutoChildTableNameDelimiter);
       }
-      taosArrayRemove(tags, i);
-      break;
+    }
+    if(tsSmlDot2Underline){
+      smlStrReplace(childTableName, strlen(childTableName));
+    }
+  }else{
+    size_t childTableNameLen = strlen(tsSmlChildTableName);
+    if (childTableNameLen <= 0) return TSDB_CODE_SUCCESS;
+
+    for (int i = 0; i < taosArrayGetSize(tags); i++) {
+      SSmlKv *tag = (SSmlKv *)taosArrayGet(tags, i);
+      // handle child table name
+      if (childTableNameLen == tag->keyLen && strncmp(tag->key, tsSmlChildTableName, tag->keyLen) == 0) {
+        memset(childTableName, 0, TSDB_TABLE_NAME_LEN);
+        strncpy(childTableName, tag->value, (tag->length < TSDB_TABLE_NAME_LEN ? tag->length : TSDB_TABLE_NAME_LEN));
+        if(tsSmlDot2Underline){
+          smlStrReplace(childTableName, strlen(childTableName));
+        }
+        taosArrayRemove(tags, i);
+        break;
+      }
     }
   }
 
@@ -683,7 +709,7 @@ static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols, bool 
     SSmlKv *kv = (SSmlKv *)taosArrayGet(cols, i);
     if (taosHashGet(hashTmp, kv->key, kv->keyLen) == NULL) {
       taosHashCleanup(hashTmp);
-      return -1;
+      return TSDB_CODE_SML_INVALID_DATA;
     }
   }
   taosHashCleanup(hashTmp);

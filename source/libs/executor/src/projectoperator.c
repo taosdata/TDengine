@@ -110,7 +110,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   pInfo->binfo.inputTsOrder = pProjPhyNode->node.inputTsOrder;
   pInfo->binfo.outputTsOrder = pProjPhyNode->node.outputTsOrder;
 
-  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
+  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM || pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
     pInfo->mergeDataBlocks = false;
   } else {
     if (!pProjPhyNode->ignoreGroupId) {
@@ -152,9 +152,11 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
    setOperatorStreamStateFn(pOperator, streamOperatorReleaseState, streamOperatorReloadState);
 
-  code = appendDownstream(pOperator, &downstream, 1);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
+  if (NULL != downstream) {
+    code = appendDownstream(pOperator, &downstream, 1);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _error;
+    }
   }
 
   return pOperator;
@@ -263,7 +265,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     st = taosGetTimestampUs();
   }
 
-  SOperatorInfo* downstream = pOperator->pDownstream[0];
+  SOperatorInfo* downstream = pOperator->numOfDownstream > 0 ? pOperator->pDownstream[0] : NULL;
   SLimitInfo*    pLimitInfo = &pProjectInfo->limitInfo;
 
   if (downstream == NULL) {
@@ -293,7 +295,8 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
       // for stream interval
       if (pBlock->info.type == STREAM_RETRIEVE || pBlock->info.type == STREAM_DELETE_RESULT ||
-          pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
+          pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_CREATE_CHILD_TABLE ||
+          pBlock->info.type == STREAM_CHECKPOINT) {
         return pBlock;
       }
 

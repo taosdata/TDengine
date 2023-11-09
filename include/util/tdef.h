@@ -109,6 +109,15 @@ extern const int32_t TYPE_BYTES[21];
 
 #define TSDB_INS_USER_STABLES_DBNAME_COLID 2
 
+static const int64_t TICK_PER_SECOND[] = {
+  1000LL, // MILLISECOND
+  1000000LL, // MICROSECOND
+  1000000000LL, // NANOSECOND
+  0LL, // HOUR
+  0LL, // MINUTE
+  1LL // SECOND
+};
+
 #define TSDB_TICK_PER_SECOND(precision)               \
   ((int64_t)((precision) == TSDB_TIME_PRECISION_MILLI \
                  ? 1000LL                             \
@@ -231,6 +240,9 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_SQL_SHOW_LEN    1024
 #define TSDB_MAX_ALLOWED_SQL_LEN (1 * 1024 * 1024u)  // sql length should be less than 1mb
 
+#define TSDB_VIEW_NAME_LEN       193
+#define TSDB_VIEW_FNAME_LEN      (TSDB_DB_FNAME_LEN + TSDB_VIEW_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
+
 #define TSDB_APP_NAME_LEN   TSDB_UNI_LEN
 #define TSDB_TB_COMMENT_LEN 1025
 
@@ -249,7 +261,7 @@ typedef enum ELogicConditionType {
 #define TSDB_PASSWORD_LEN      32
 #define TSDB_USET_PASSWORD_LEN 129
 #define TSDB_VERSION_LEN       32
-#define TSDB_LABEL_LEN         8
+#define TSDB_LABEL_LEN         12 
 #define TSDB_JOB_STATUS_LEN    32
 
 #define TSDB_CLUSTER_ID_LEN       40
@@ -294,6 +306,8 @@ typedef enum ELogicConditionType {
 #define TSDB_SYNC_APPLYQ_SIZE_LIMIT    512
 #define TSDB_SYNC_NEGOTIATION_WIN      512
 
+#define TSDB_SYNC_SNAP_BUFFER_SIZE 2048
+
 #define TSDB_TBNAME_COLUMN_INDEX     (-1)
 #define TSDB_MULTI_TABLEMETA_MAX_NUM 100000  // maximum batch size allowed to load table meta
 
@@ -316,12 +330,15 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_DAYS_PER_FILE          (3650 * 1440)
 #define TSDB_DEFAULT_DAYS_PER_FILE      (10 * 1440)
 #define TSDB_MIN_DURATION_PER_FILE      60  // unit minute
-#define TSDB_MAX_DURATION_PER_FILE      (3650 * 1440)
+#define TSDB_MAX_DURATION_PER_FILE      (90 * 1440)
 #define TSDB_DEFAULT_DURATION_PER_FILE  (10 * 1440)
 #define TSDB_MIN_KEEP                   (1 * 1440)          // data in db to be reserved. unit minute
 #define TSDB_MAX_KEEP                   (365000 * 1440)     // data in db to be reserved.
 #define TSDB_MAX_KEEP_NS                (365 * 292 * 1440)  // data in db to be reserved.
 #define TSDB_DEFAULT_KEEP               (3650 * 1440)       // ten years
+#define TSDB_MIN_KEEP_TIME_OFFSET       0
+#define TSDB_MAX_KEEP_TIME_OFFSET       23
+#define TSDB_DEFAULT_KEEP_TIME_OFFSET   0
 #define TSDB_MIN_MINROWS_FBLOCK         10
 #define TSDB_MAX_MINROWS_FBLOCK         1000000
 #define TSDB_DEFAULT_MINROWS_FBLOCK     100
@@ -379,6 +396,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_STT_TRIGGER     1
 #define TSDB_DEFAULT_SST_TRIGGER 1
 #endif
+#define TSDB_STT_TRIGGER_ARRAY_SIZE     16 // maximum of TSDB_MAX_STT_TRIGGER of TD_ENTERPRISE and TD_COMMUNITY
 #define TSDB_MIN_HASH_PREFIX     (2 - TSDB_TABLE_NAME_LEN)
 #define TSDB_MAX_HASH_PREFIX     (TSDB_TABLE_NAME_LEN - 2)
 #define TSDB_DEFAULT_HASH_PREFIX 0

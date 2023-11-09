@@ -880,32 +880,6 @@ int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, SArray* pExecInfoList) {
   return getOperatorExplainExecInfo(pTaskInfo->pRoot, pExecInfoList);
 }
 
-int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len) {
-  SExecTaskInfo* pTaskInfo = (struct SExecTaskInfo*)tinfo;
-  if (pTaskInfo->pRoot == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  int32_t nOptrWithVal = 0;
-  //  int32_t code = encodeOperator(pTaskInfo->pRoot, pOutput, len, &nOptrWithVal);
-  //  if ((code == TSDB_CODE_SUCCESS) && (nOptrWithVal == 0)) {
-  //    taosMemoryFreeClear(*pOutput);
-  //    *len = 0;
-  //  }
-  return 0;
-}
-
-int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t len) {
-  SExecTaskInfo* pTaskInfo = (struct SExecTaskInfo*)tinfo;
-
-  if (pTaskInfo == NULL || pInput == NULL || len == 0) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  return 0;
-  //  return decodeOperator(pTaskInfo->pRoot, pInput, len);
-}
-
 int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
@@ -1081,7 +1055,7 @@ int32_t qRestoreStreamOperatorOption(qTaskInfo_t tinfo) {
   }
 }
 
-bool qStreamRecoverScanFinished(qTaskInfo_t tinfo) {
+bool qStreamScanhistoryFinished(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   return pTaskInfo->streamInfo.recoverScanFinished;
 }

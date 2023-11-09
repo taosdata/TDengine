@@ -40,6 +40,8 @@ SHashObj *mndDupTopicHash(SHashObj *pOld);
 int32_t   mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_t numOfUses, void **ppRsp,
                                   int32_t *pRspLen);
 int32_t   mndUserRemoveDb(SMnode *pMnode, STrans *pTrans, char *db);
+int32_t   mndUserRemoveStb(SMnode *pMnode, STrans *pTrans, char *stb);
+int32_t   mndUserRemoveView(SMnode *pMnode, STrans *pTrans, char *view);
 int32_t   mndUserRemoveTopic(SMnode *pMnode, STrans *pTrans, char *topic);
 
 int32_t mndUserDupObj(SUserObj *pUser, SUserObj *pNew);
@@ -47,7 +49,7 @@ void    mndUserFreeObj(SUserObj *pUser);
 
 int64_t mndGetIpWhiteVer(SMnode *pMnode);
 
-void mndUpdateIpWhite(SMnode *pMnode, char *user, char *fqdn, int8_t type, int8_t lock);
+void mndUpdateIpWhiteForAllUser(SMnode *pMnode, char *user, char *fqdn, int8_t type, int8_t lock);
 
 int32_t mndRefreshUserIpWhiteList(SMnode *pMnode);
 

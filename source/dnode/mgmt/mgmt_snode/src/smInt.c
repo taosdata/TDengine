@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "smInt.h"
 #include "libs/function/function.h"
+#include "libs/function/tudf.h"
 
 static int32_t smRequire(const SMgmtInputOpt *pInput, bool *required) {
   return dmReadFile(pInput->path, pInput->name, required);

@@ -23,22 +23,30 @@ import CDemo from "./_sub_c.mdx";
 
 为了实现上述功能，TDengine 会为 WAL (Write-Ahead-Log) 文件自动创建索引以支持快速随机访问，并提供了灵活可配置的文件切换与保留机制：用户可以按需指定 WAL 文件保留的时间以及大小（详见 create database 语句）。通过以上方式将 WAL 改造成了一个保留事件到达顺序的、可持久化的存储引擎（但由于 TSDB 具有远比 WAL 更高的压缩率，我们不推荐保留太长时间，一般来说，不超过几天）。 对于以 topic 形式创建的查询，TDengine 将对接 WAL 而不是 TSDB 作为其存储引擎。在消费时，TDengine 根据当前消费进度从 WAL 直接读取数据，并使用统一的查询引擎实现过滤、变换等操作，将数据推送给消费者。
 
-本文档不对消息队列本身的基础知识做介绍，如果需要了解，请自行搜索。
+下面为关于数据订阅的一些说明，需要对TDengine的架构有一些了解，结合各个语言链接器的接口使用。
+- 一个消费组消费同一个topic下的所有数据，不同消费组之间相互独立；
+- 一个消费组消费同一个topic所有的vgroup，消费组可由多个消费者组成，但一个vgroup仅被一个消费者消费，如果消费者数量超过了vgroup数量，多余的消费者不消费数据；
+- 在服务端每个vgroup仅保存一个offset，每个vgroup的offset是单调递增的，但不一定连续。各个vgroup的offset之间没有关联；
+- 每次poll服务端会返回一个结果block，该block属于一个vgroup，可能包含多个wal版本的数据，可以通过 offset 接口获得是该block第一条记录的offset；
+- 一个消费组如果从未commit过offset，当其成员消费者重启重新拉取数据时，均从参数auto.offset.reset设定值开始消费；在一个消费者生命周期中，客户端本地记录了最近一次拉取数据的offset，不会拉取重复数据；
+- 消费者如果异常终止（没有调用tmq_close），需等约12秒后触发其所属消费组rebalance，该消费者在服务端状态变为LOST，约1天后该消费者自动被删除；正常退出，退出后就会删除消费者；新增消费者，需等约2秒触发rebalance，该消费者在服务端状态变为ready；
+- 消费组rebalance会对该组所有ready状态的消费者成员重新进行vgroup分配，消费者仅能对自己负责的vgroup进行assignment/seek/commit/poll操作；
+- 消费者可利用 position 获得当前消费的offset，并seek到指定offset，重新消费；
+- seek将position指向指定offset，不执行commit操作，一旦seek成功，可poll拉取指定offset及以后的数据；
+- seek 操作之前须调用 assignment 接口获取该consumer的vgroup ID和offset范围。seek 操作会检测vgroup ID 和 offset是否合法，如非法将报错；
+- position是获取当前的消费位置，是下次要取的位置，不是当前消费到的位置
+- commit是提交消费位置，不带参数的话，是提交当前消费位置（下次要取的位置，不是当前消费到的位置），带参数的话，是提交参数里的位置（也即下次退出重启后要取的位置）
+- seek是设置consumer消费位置，seek到哪，position就返回哪，都是下次要取的位置
+- seek不会影响commit，commit不影响seek，相互独立，两个是不同的概念
+- begin接口为wal 第一条数据的offset，end 接口为wal 最后一条数据的offset + 1
+- offset接口获取的是记录所在结果block块里的第一条数据的offset，当seek至该offset时，将消费到这个block里的全部数据。参见第四点；
+- 由于存在 WAL 过期删除机制，即使seek 操作成功，poll数据时有可能offset已失效。如果poll 的offset 小于 WAL 最小版本号，将会从WAL最小版本号消费；
+- 数据订阅是从 WAL 消费数据，如果一些 WAL 文件被基于 WAL 保留策略删除，则已经删除的 WAL 文件中的数据就无法再消费到。需要根据业务需要在创建数据库时合理设置 `WAL_RETENTION_PERIOD` 或 `WAL_RETENTION_SIZE` ，并确保应用及时消费数据，这样才不会产生数据丢失的现象。数据订阅的行为与 Kafka 等广泛使用的消息队列类产品的行为相似；
 
-说明（以c接口为例）：
-1. 一个消费组消费同一个topic下的所有数据，不同消费组之间相互独立；
-2. 一个消费组消费同一个topic所有的vgroup，消费组可由多个消费者组成，但一个vgroup仅被一个消费者消费，如果消费者数量超过了vgroup数量，多余的消费者不消费数据；
-3. 在服务端每个vgroup仅保存一个offset，每个vgroup的offset是单调递增的，但不一定连续。各个vgroup的offset之间没有关联；
-4. 每次poll服务端会返回一个结果block，该block属于一个vgroup，可能包含多个wal版本的数据，可以通过 tmq_get_vgroup_offset 接口获得是该block第一条记录的offset；
-5. 一个消费组如果从未commit过offset，当其成员消费者重启重新拉取数据时，均从参数auto.offset.reset设定值开始消费；在一个消费者生命周期中，客户端本地记录了最近一次拉取数据的offset，不会拉取重复数据；
-6. 消费者如果异常终止（没有调用tmq_close），需等约12秒后触发其所属消费组rebalance，该消费者在服务端状态变为LOST，约1天后该消费者自动被删除；正常退出，退出后就会删除消费者；新增消费者，需等约2秒触发rebalance，该消费者在服务端状态变为ready；
-7. 消费组rebalance会对该组所有ready状态的消费者成员重新进行vgroup分配，消费者仅能对自己负责的vgroup进行assignment/seek/commit/poll操作；
-8. 消费者可利用 tmq_position 获得当前消费的offset，并seek到指定offset，重新消费；
-9. seek将position指向指定offset，不执行commit操作，一旦seek成功，可poll拉取指定offset及以后的数据；
-10. seek 操作之前须调用 tmq_get_topic_assignment 接口获取该consumer的vgroup ID和offset范围。seek 操作会检测vgroup ID 和 offset是否合法，如非法将报错；
-11. tmq_get_vgroup_offset接口获取的是记录所在结果block块里的第一条数据的offset，当seek至该offset时，将消费到这个block里的全部数据。参见第四点；
-12. 由于存在 WAL 过期删除机制，即使seek 操作成功，poll数据时有可能offset已失效。如果poll 的offset 小于 WAL 最小版本号，将会从WAL最小版本号消费；
-13. 数据订阅是从 WAL 消费数据，如果一些 WAL 文件被基于 WAL 保留策略删除，则已经删除的 WAL 文件中的数据就无法再消费到。需要根据业务需要在创建数据库时合理设置 `WAL_RETENTION_PERIOD` 或 `WAL_RETENTION_SIZE` ，并确保应用及时消费数据，这样才不会产生数据丢失的现象。数据订阅的行为与 Kafka 等广泛使用的消息队列类产品的行为相似；
+本文档不对消息队列本身的知识做更多的介绍，如果需要了解，请自行搜索。
+
+从3.2.0.0版本开始，数据订阅支持vnode迁移和分裂。
+由于数据订阅依赖wal文件，而在vnode迁移和分裂的过程中，wal并不会同步过去，所以迁移或分裂后，之前没消费完的wal数据后消费不到。所以请保证之前把数据全部消费完后，再进行vnode迁移或分裂，否则，消费会丢失数据。
 
 ## 主要数据结构和 API
 
@@ -55,17 +63,17 @@ import CDemo from "./_sub_c.mdx";
     typedef void(tmq_commit_cb(tmq_t *tmq, int32_t code, void *param));
 
     typedef enum tmq_conf_res_t {
-    TMQ_CONF_UNKNOWN = -2,
-    TMQ_CONF_INVALID = -1,
-    TMQ_CONF_OK = 0,
-} tmq_conf_res_t;
+        TMQ_CONF_UNKNOWN = -2,
+        TMQ_CONF_INVALID = -1,
+        TMQ_CONF_OK = 0,
+    } tmq_conf_res_t;
 
     typedef struct tmq_topic_assignment {
-    int32_t vgId;
-    int64_t currentOffset;
-    int64_t begin;
-    int64_t end;
-} tmq_topic_assignment;
+        int32_t vgId;
+        int64_t currentOffset;
+        int64_t begin;
+        int64_t end;
+    } tmq_topic_assignment;
 
     DLL_EXPORT tmq_conf_t    *tmq_conf_new();
     DLL_EXPORT tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value);
@@ -98,7 +106,7 @@ import CDemo from "./_sub_c.mdx";
     DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
     DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
     DLL_EXPORT int64_t     tmq_get_vgroup_offset(TAOS_RES* res);
-    DLL_EXPORT const char *tmq_err2str(int32_t code);DLL_EXPORT void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb, void *param);
+    DLL_EXPORT const char *tmq_err2str(int32_t code);
 ```
 
 下面介绍一下它们的具体用法（超级表和子表结构请参考“数据建模”一节），完整的示例代码请见下面 C 语言的示例代码。
@@ -343,10 +351,11 @@ CREATE TOPIC topic_name [with meta] AS DATABASE db_name;
 |       `td.connect.port`        | integer | 服务端的端口号                         |  |
 |           `group.id`           | string  | 消费组 ID，同一消费组共享消费进度                        | <br />**必填项**。最大长度：192。<br />每个topic最多可建立100个 consumer group                 |
 |          `client.id`           | string  | 客户端 ID                                                | 最大长度：192。                             |
-|      `auto.offset.reset`       |  enum   | 消费组订阅的初始位置                                     | <br />`earliest`: default;从头开始订阅; <br/>`latest`: 仅从最新数据开始订阅; <br/>`none`: 没有提交的 offset 无法订阅 |
+|      `auto.offset.reset`       |  enum   | 消费组订阅的初始位置                                     | <br />`earliest`: default(version < 3.2.0.0);从头开始订阅; <br/>`latest`: default(version >= 3.2.0.0);仅从最新数据开始订阅; <br/>`none`: 没有提交的 offset 无法订阅 |
 |      `enable.auto.commit`      | boolean | 是否启用消费位点自动提交，true: 自动提交，客户端应用无需commit；false：客户端应用需要自行commit     | 默认值为 true                   |
 |   `auto.commit.interval.ms`    | integer | 消费记录自动提交消费位点时间间隔，单位为毫秒           | 默认值为 5000                                |
-|     `msg.with.table.name`      | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句）               |默认关闭 |
+|     `msg.with.table.name`      | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句）（从3.2.0.0版本该参数废弃，恒为true）               |默认关闭 |
+|     `enable.replay`            | boolean | 是否开启数据回放功能               |默认关闭 |
 
 对于不同编程语言，其设置方式如下：
 
@@ -362,7 +371,7 @@ tmq_conf_set(conf, "auto.commit.interval.ms", "1000");
 tmq_conf_set(conf, "group.id", "cgrpName");
 tmq_conf_set(conf, "td.connect.user", "root");
 tmq_conf_set(conf, "td.connect.pass", "taosdata");
-tmq_conf_set(conf, "auto.offset.reset", "earliest");
+tmq_conf_set(conf, "auto.offset.reset", "latest");
 tmq_conf_set(conf, "msg.with.table.name", "true");
 tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
 
@@ -392,7 +401,7 @@ properties.setProperty("group.id", "cgrpName");
 properties.setProperty("bootstrap.servers", "127.0.0.1:6030");
 properties.setProperty("td.connect.user", "root");
 properties.setProperty("td.connect.pass", "taosdata");
-properties.setProperty("auto.offset.reset", "earliest");
+properties.setProperty("auto.offset.reset", "latest");
 properties.setProperty("msg.with.table.name", "true");
 properties.setProperty("value.deserializer", "com.taos.example.MetersDeserializer");
 
@@ -412,7 +421,7 @@ public class MetersDeserializer extends ReferenceDeserializer<Meters> {
 ```go
 conf := &tmq.ConfigMap{
  "group.id":                     "test",
- "auto.offset.reset":            "earliest",
+ "auto.offset.reset":            "latest",
  "td.connect.ip":                "127.0.0.1",
  "td.connect.user":              "root",
  "td.connect.pass":              "taosdata",
@@ -432,7 +441,7 @@ consumer, err := NewConsumer(conf)
 let mut dsn: Dsn = "taos://".parse()?;
 dsn.set("group.id", "group1");
 dsn.set("client.id", "test");
-dsn.set("auto.offset.reset", "earliest");
+dsn.set("auto.offset.reset", "latest");
 
 let tmq = TmqBuilder::from_dsn(dsn)?;
 
@@ -451,7 +460,19 @@ from taos.tmq import Consumer
 # Syntax: `consumer = Consumer(configs)`
 #
 # Example:
-consumer = Consumer({"group.id": "local", "td.connect.ip": "127.0.0.1"})
+consumer = Consumer(
+    {
+        "group.id": "local",
+        "client.id": "1",
+        "enable.auto.commit": "true",
+        "auto.commit.interval.ms": "1000",
+        "td.connect.ip": "127.0.0.1",
+        "td.connect.user": "root",
+        "td.connect.pass": "taosdata",
+        "auto.offset.reset": "latest",
+        "msg.with.table.name": "true",
+    }
+)
 ```
 
 </TabItem>
@@ -468,7 +489,7 @@ let consumer = taos.consumer({
   'group.id': 'tg2',
   'td.connect.user': 'root',
   'td.connect.pass': 'taosdata',
-  'auto.offset.reset','earliest',
+  'auto.offset.reset','latest',
   'msg.with.table.name': 'true',
   'td.connect.ip','127.0.0.1',
   'td.connect.port','6030'  
@@ -491,7 +512,7 @@ var cfg = new ConsumerConfig
     GourpId = "TDengine-TMQ-C#",
     TDConnectUser = "root",
     TDConnectPasswd = "taosdata",
-    AutoOffsetReset = "earliest"
+    AutoOffsetReset = "latest"
     MsgWithTableName = "true",
     TDConnectIp = "127.0.0.1",
     TDConnectPort = "6030"
@@ -506,6 +527,24 @@ var consumer = new ConsumerBuilder(cfg).Build();
 </Tabs>
 
 上述配置中包括 consumer group ID，如果多个 consumer 指定的 consumer group ID 一样，则自动形成一个 consumer group，共享消费进度。
+
+数据回放功能说明：
+- 订阅增加 replay 功能，按照数据写入的时间回放。
+  比如，如下时间写入三条数据
+  ```sql
+    2023/09/22 00:00:00.000
+    2023/09/22 00:00:05.000
+    2023/09/22 00:00:08.000
+    ```
+  则订阅出第一条数据 5s 后返回第二条数据，获取第二条数据 3s 后返回第三条数据。
+- 仅列订阅支持数据回放
+  - 回放需要保证独立时间线
+  - 如果是子表订阅或者普通表订阅，只有一个vnode上有数据，保证是一个时间线
+  - 如果超级表订阅，则需保证该 DB 只有一个vnode，否则报错（因为多个vnode上订阅出的数据不在一个时间线上）
+- 超级表和库订阅不支持回放
+- 增加 enable.replay 参数，true表示开启订阅回放功能，false表示不开启订阅回放功能，默认不开启。
+- 回放不支持进度保存，所以回放参数 enable.replay = true 时，auto commit 自动关闭
+- 因为数据回放本身需要处理时间，所以回放的精度存在几十ms的误差
 
 ## 订阅 *topics*
 

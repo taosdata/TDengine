@@ -307,7 +307,6 @@ typedef struct STagScanInfo {
   SSDataBlock*          pRes;
   SColMatchInfo         matchInfo;
   int32_t               curPos;
-  SLimitNode*           pSlimit;
   SReadHandle           readHandle;
   STableListInfo*       pTableListInfo;
   uint64_t              suid;
@@ -318,6 +317,7 @@ typedef struct STagScanInfo {
   SArray*               aUidTags;     // SArray<STUidTagInfo>
   SArray*               aFilterIdxs;  // SArray<int32_t>
   SStorageAPI*          pStorageAPI;
+  SLimitInfo           limitInfo;
 } STagScanInfo;
 
 typedef enum EStreamScanMode {
@@ -548,9 +548,9 @@ typedef struct SWindowRowsSup {
 } SWindowRowsSup;
 
 typedef struct SResultWindowInfo {
-  void*       pOutputBuf;
-  SSessionKey sessionWin;
-  bool        isOutput;
+  SRowBuffPos* pStatePos;
+  SSessionKey  sessionWin;
+  bool         isOutput;
 } SResultWindowInfo;
 
 typedef struct SStreamSessionAggOperatorInfo {
@@ -579,6 +579,8 @@ typedef struct SStreamSessionAggOperatorInfo {
   bool                isHistoryOp;
   bool                reCkBlock;
   SSDataBlock*        pCheckpointRes;
+  bool                clearState;
+  bool                recvGetAll;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct SStreamStateAggOperatorInfo {
@@ -602,6 +604,7 @@ typedef struct SStreamStateAggOperatorInfo {
   SArray*             historyWins;
   bool                reCkBlock;
   SSDataBlock*        pCheckpointRes;
+  bool                recvGetAll;
 } SStreamStateAggOperatorInfo;
 
 typedef struct SStreamPartitionOperatorInfo {
@@ -635,6 +638,7 @@ typedef struct SStreamFillSupporter {
   SSHashObj*     pResMap;
   bool           hasDelete;
   SStorageAPI*   pAPI;
+  STimeWindow    winRange;
 } SStreamFillSupporter;
 
 typedef struct SStreamFillOperatorInfo {
@@ -672,10 +676,14 @@ void    cleanupAggSup(SAggSupporter* pAggSup);
 
 void initResultSizeInfo(SResultInfo* pResultInfo, int32_t numOfRows);
 
-void doBuildStreamResBlock(struct SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo,
-                           SDiskbasedBuf* pBuf);
 void doBuildResultDatablock(struct SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo,
                             SDiskbasedBuf* pBuf);
+
+/**
+ * @brief copydata from hash table, instead of copying from SGroupResInfo's pRow
+ */
+int32_t doCopyToSDataBlockByHash(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup, SDiskbasedBuf* pBuf,
+                           SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t threshold, bool ignoreGroup);
 
 bool hasLimitOffsetInfo(SLimitInfo* pLimitInfo);
 bool hasSlimitOffsetInfo(SLimitInfo* pLimitInfo);
@@ -739,12 +747,6 @@ int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPos
                            SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 
 bool    groupbyTbname(SNodeList* pGroupList);
-int32_t buildDataBlockFromGroupRes(struct SOperatorInfo* pOperator, void* pState, SSDataBlock* pBlock, SExprSupp* pSup,
-                                   SGroupResInfo* pGroupResInfo);
-int32_t saveSessionDiscBuf(void* pState, SSessionKey* key, void* buf, int32_t size, SStateStore* pAPI);
-int32_t buildSessionResultDataBlock(struct SOperatorInfo* pOperator, void* pState, SSDataBlock* pBlock, SExprSupp* pSup,
-                                    SGroupResInfo* pGroupResInfo);
-int32_t releaseOutputBuf(void* pState, SWinKey* pKey, SResultRow* pResult, SStateStore* pAPI);
 void    getNextIntervalWindow(SInterval* pInterval, STimeWindow* tw, int32_t order);
 int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t searchFn, TSKEY ekey, int32_t pos, int32_t order,
                                int64_t* pData);
@@ -777,6 +779,7 @@ SSDataBlock* getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int
 bool inSlidingWindow(SInterval* pInterval, STimeWindow* pWin, SDataBlockInfo* pBlockInfo);
 bool inCalSlidingWindow(SInterval* pInterval, STimeWindow* pWin, TSKEY calStart, TSKEY calEnd, EStreamType blockType);
 bool compareVal(const char* v, const SStateKeys* pKey);
+bool inWinRange(STimeWindow* range, STimeWindow* cur);
 
 int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
                                TSKEY* primaryKeys, int32_t prevPosition, int32_t order);

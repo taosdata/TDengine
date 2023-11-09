@@ -55,8 +55,8 @@ typedef struct SSessionKey {
 } SSessionKey;
 
 typedef struct SVersionRange {
-  uint64_t minVer;
-  uint64_t maxVer;
+  int64_t minVer;
+  int64_t maxVer;
 } SVersionRange;
 
 static inline int winKeyCmprImpl(const void* pKey1, const void* pKey2) {
@@ -135,13 +135,11 @@ static inline int STupleKeyCmpr(const void* pKey1, int kLen1, const void* pKey2,
 }
 
 enum {
-  TMQ_MSG_TYPE__DUMMY = 0,
-  TMQ_MSG_TYPE__POLL_DATA_RSP,
+  TMQ_MSG_TYPE__POLL_DATA_RSP = 0,
   TMQ_MSG_TYPE__POLL_META_RSP,
   TMQ_MSG_TYPE__EP_RSP,
   TMQ_MSG_TYPE__POLL_DATA_META_RSP,
   TMQ_MSG_TYPE__WALINFO_RSP,
-  TMQ_MSG_TYPE__END_RSP,
 };
 
 enum {

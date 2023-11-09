@@ -9,6 +9,12 @@ add_executable(get_db_name_test get_db_name_test.c)
 add_executable(tmq_offset tmqOffset.c)
 add_executable(tmq_offset_test tmq_offset_test.c)
 add_executable(varbinary_test varbinary_test.c)
+add_executable(replay_test replay_test.c)
+
+if(${TD_LINUX})
+add_executable(tsz_test tsz_test.c)
+endif(${TD_LINUX})
+
 target_link_libraries(
     tmq_offset
     PUBLIC taos
@@ -53,6 +59,14 @@ target_link_libraries(
 )
 
 target_link_libraries(
+        replay_test
+        PUBLIC taos
+        PUBLIC util
+        PUBLIC common
+        PUBLIC os
+)
+
+target_link_libraries(
     write_raw_block_test
     PUBLIC taos
     PUBLIC util
@@ -85,3 +99,13 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
+if(${TD_LINUX})
+target_link_libraries(
+    tsz_test
+    PUBLIC taos
+    PUBLIC util
+    PUBLIC common
+    PUBLIC os
+)
+endif(${TD_LINUX})

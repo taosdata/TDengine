@@ -46,6 +46,7 @@ typedef struct {
     STFileSet *fset;
     TABLEID    tbid[1];
     bool       hasTSData;
+    bool       skipTsRow;
   } ctx[1];
 
   // reader
@@ -127,8 +128,21 @@ static int32_t tsdbCommitTSData(SCommitter2 *committer) {
         continue;
       }
     }
+    /*
+    extern int8_t tsS3Enabled;
 
+    int32_t nlevel = tfsGetLevel(committer->tsdb->pVnode->pTfs);
+    committer->ctx->skipTsRow = false;
+    if (tsS3Enabled && nlevel > 1 && committer->ctx->did.level == nlevel - 1) {
+      committer->ctx->skipTsRow = true;
+    }
+    */
     int64_t ts = TSDBROW_TS(&row->row);
+
+    if (committer->ctx->skipTsRow && ts <= committer->ctx->maxKey) {
+      ts = committer->ctx->maxKey + 1;
+    }
+
     if (ts > committer->ctx->maxKey) {
       committer->ctx->nextKey = TMIN(committer->ctx->nextKey, ts);
       code = tsdbIterMergerSkipTableData(committer->dataIterMerger, committer->ctx->tbid);
@@ -185,29 +199,22 @@ static int32_t tsdbCommitTombData(SCommitter2 *committer) {
     }
 
     if (record->ekey < committer->ctx->minKey) {
-      goto _next;
+      // do nothing
     } else if (record->skey > committer->ctx->maxKey) {
-      committer->ctx->maxKey = TMIN(record->skey, committer->ctx->maxKey);
-      goto _next;
+      committer->ctx->nextKey = TMIN(record->skey, committer->ctx->nextKey);
+    } else {
+      if (record->ekey > committer->ctx->maxKey) {
+        committer->ctx->nextKey = TMIN(committer->ctx->nextKey, committer->ctx->maxKey + 1);
+      }
+
+      record->skey = TMAX(record->skey, committer->ctx->minKey);
+      record->ekey = TMIN(record->ekey, committer->ctx->maxKey);
+
+      numRecord++;
+      code = tsdbFSetWriteTombRecord(committer->writer, record);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
-    TSKEY maxKey = committer->ctx->maxKey;
-    if (record->ekey > committer->ctx->maxKey) {
-      maxKey = committer->ctx->maxKey + 1;
-    }
-
-    if (record->ekey > committer->ctx->maxKey && committer->ctx->nextKey > maxKey) {
-      committer->ctx->nextKey = maxKey;
-    }
-
-    record->skey = TMAX(record->skey, committer->ctx->minKey);
-    record->ekey = TMIN(record->ekey, maxKey);
-
-    numRecord++;
-    code = tsdbFSetWriteTombRecord(committer->writer, record);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-  _next:
     code = tsdbIterMergerNext(committer->tombIterMerger);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -361,7 +368,12 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
   int32_t lino = 0;
   STsdb  *tsdb = committer->tsdb;
 
-  committer->ctx->fid = tsdbKeyFid(committer->ctx->nextKey, committer->minutes, committer->precision);
+  int32_t fid = tsdbKeyFid(committer->ctx->nextKey, committer->minutes, committer->precision);
+
+  // check if can commit
+  tsdbFSCheckCommit(tsdb, fid);
+
+  committer->ctx->fid = fid;
   committer->ctx->expLevel = tsdbFidLevel(committer->ctx->fid, &tsdb->keepCfg, committer->ctx->now);
   tsdbFidKeyRange(committer->ctx->fid, committer->minutes, committer->precision, &committer->ctx->minKey,
                   &committer->ctx->maxKey);
@@ -390,6 +402,32 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
 
   // reset nextKey
   committer->ctx->nextKey = TSKEY_MAX;
+
+  committer->ctx->skipTsRow = false;
+
+  extern int8_t  tsS3Enabled;
+  extern int32_t tsS3UploadDelaySec;
+  long           s3Size(const char *object_name);
+  int32_t        nlevel = tfsGetLevel(committer->tsdb->pVnode->pTfs);
+  committer->ctx->skipTsRow = false;
+  if (tsS3Enabled && nlevel > 1 && committer->ctx->fset) {
+    STFileObj *fobj = committer->ctx->fset->farr[TSDB_FTYPE_DATA];
+    if (fobj && fobj->f->did.level == nlevel - 1) {
+      // if exists on s3 or local mtime < committer->ctx->now - tsS3UploadDelay
+      const char *object_name = taosDirEntryBaseName((char *)fobj->fname);
+
+      if (taosCheckExistFile(fobj->fname)) {
+        int32_t mtime = 0;
+        taosStatFile(fobj->fname, NULL, &mtime, NULL);
+        if (mtime < committer->ctx->now - tsS3UploadDelaySec) {
+          committer->ctx->skipTsRow = true;
+        }
+      } else if (s3Size(object_name) > 0) {
+        committer->ctx->skipTsRow = true;
+      }
+    }
+    // new fset can be written with ts data
+  }
 
 _exit:
   if (code) {
@@ -543,11 +581,11 @@ _exit:
 }
 
 int32_t tsdbPreCommit(STsdb *tsdb) {
-  taosThreadRwlockWrlock(&tsdb->rwLock);
+  taosThreadMutexLock(&tsdb->mutex);
   ASSERT(tsdb->imem == NULL);
   tsdb->imem = tsdb->mem;
   tsdb->mem = NULL;
-  taosThreadRwlockUnlock(&tsdb->rwLock);
+  taosThreadMutexUnlock(&tsdb->mutex);
   return 0;
 }
 
@@ -562,9 +600,9 @@ int32_t tsdbCommitBegin(STsdb *tsdb, SCommitInfo *info) {
   int64_t    nDel = imem->nDel;
 
   if (nRow == 0 && nDel == 0) {
-    taosThreadRwlockWrlock(&tsdb->rwLock);
+    taosThreadMutexLock(&tsdb->mutex);
     tsdb->imem = NULL;
-    taosThreadRwlockUnlock(&tsdb->rwLock);
+    taosThreadMutexUnlock(&tsdb->mutex);
     tsdbUnrefMemTable(imem, NULL, true);
   } else {
     SCommitter2 committer[1];
@@ -597,14 +635,14 @@ int32_t tsdbCommitCommit(STsdb *tsdb) {
   if (tsdb->imem == NULL) goto _exit;
 
   SMemTable *pMemTable = tsdb->imem;
-  taosThreadRwlockWrlock(&tsdb->rwLock);
+  taosThreadMutexLock(&tsdb->mutex);
   code = tsdbFSEditCommit(tsdb->pFS);
   if (code) {
-    taosThreadRwlockUnlock(&tsdb->rwLock);
+    taosThreadMutexUnlock(&tsdb->mutex);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
   tsdb->imem = NULL;
-  taosThreadRwlockUnlock(&tsdb->rwLock);
+  taosThreadMutexUnlock(&tsdb->mutex);
   tsdbUnrefMemTable(pMemTable, NULL, true);
 
 _exit:

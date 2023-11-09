@@ -1543,6 +1543,15 @@ EDealRes fltTreeToGroup(SNode *pNode, void *pContext) {
     return DEAL_RES_IGNORE_CHILD;
   }
 
+  if (QUERY_NODE_VALUE == nType && ((SValueNode*)pNode)->node.resType.type == TSDB_DATA_TYPE_BOOL) {
+    if (((SValueNode*)pNode)->datum.b) {
+      FILTER_SET_FLAG(ctx->info->status, FI_STATUS_ALL);
+    } else {
+      FILTER_SET_FLAG(ctx->info->status, FI_STATUS_EMPTY);
+    }
+    return DEAL_RES_END;
+  }
+  
   fltError("invalid node type for filter, type:%d", nodeType(pNode));
 
   code = TSDB_CODE_QRY_INVALID_INPUT;
@@ -3450,7 +3459,9 @@ int32_t fltInitFromNode(SNode *tree, SFilterInfo *info, uint32_t options) {
   return code;
 
 _return:
-  qInfo("init from node failed, code:%d", code);
+  if (code) {
+    qInfo("init from node failed, code:%d", code);
+  }
   return code;
 }
 
@@ -3983,24 +3994,43 @@ _return:
   return code;
 }
 
-static int32_t fltSclGetDatumValueFromPoint(SFltSclPoint *point, SFltSclDatum *d) {
+static int32_t fltSclGetTimeStampDatum(SFltSclPoint *point, SFltSclDatum *d) {
   *d = point->val;
-  if (point->val.kind == FLT_SCL_DATUM_KIND_NULL) {
-    return TSDB_CODE_SUCCESS;
-  }
-  if (point->val.kind == FLT_SCL_DATUM_KIND_MAX) {
-    getDataMax(d->type.type, &(d->i));
-  } else if (point->val.kind == FLT_SCL_DATUM_KIND_MIN) {
-    getDataMin(d->type.type, &(d->i));
-  }
+  d->kind = FLT_SCL_DATUM_KIND_INT64;
 
-  if (IS_INTEGER_TYPE(d->type.type) || IS_TIMESTAMP_TYPE(d->type.type)) {
+  if (point->val.kind == FLT_SCL_DATUM_KIND_MAX) {
+    getDataMax(point->val.type.type, &(d->i));
+  } else if (point->val.kind == FLT_SCL_DATUM_KIND_MIN) {
+    getDataMin(point->val.type.type, &(d->i));
+  } else if (point->val.kind == FLT_SCL_DATUM_KIND_INT64) {
     if (point->excl) {
       if (point->start) {
         ++d->i;
       } else {
         --d->i;
       }
+    }
+  } else if (point->val.kind == FLT_SCL_DATUM_KIND_FLOAT64) {
+    double v = d->d;
+    if (point->excl) {
+      if (point->start) {
+        d->i = v + 1;
+      }  else {
+        d->i = v - 1;
+      }
+    } else {
+      d->i = v;
+    }
+  } else if (point->val.kind == FLT_SCL_DATUM_KIND_UINT64) {
+    uint64_t v = d->u;
+    if (point->excl) {
+      if (point->start) {
+        d->i = v + 1;
+      }  else {
+        d->i = v - 1;
+      }
+    } else {
+      d->i = v;
     }
   } else {
     qError("not supported type %d when get datum from point", d->type.type);
@@ -4022,12 +4052,13 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
       SFltSclColumnRange *colRange = taosArrayGet(colRanges, 0);
       SArray             *points = colRange->points;
       if (taosArrayGetSize(points) == 2) {
+        *win = TSWINDOW_DESC_INITIALIZER;
         SFltSclPoint *startPt = taosArrayGet(points, 0);
         SFltSclPoint *endPt = taosArrayGet(points, 1);
         SFltSclDatum  start;
         SFltSclDatum  end;
-        fltSclGetDatumValueFromPoint(startPt, &start);
-        fltSclGetDatumValueFromPoint(endPt, &end);
+        fltSclGetTimeStampDatum(startPt, &start);
+        fltSclGetTimeStampDatum(endPt, &end);
         win->skey = start.i;
         win->ekey = end.i;
         *isStrict = true;
