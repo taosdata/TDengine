@@ -886,7 +886,7 @@ int64_t mndStreamGenChkpId(SMnode *pMnode) {
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
 
-    maxChkpId = MAX(maxChkpId, pStream->checkpointId);
+    maxChkpId = TMAX(maxChkpId, pStream->checkpointId);
     sdbRelease(pSdb, pStream);
   }
   return maxChkpId + 1;
