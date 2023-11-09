@@ -38,20 +38,15 @@ Aggregation by time window is supported in TDengine. For example, in the case wh
 window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col)
-  | INTERVAL(interval [, offset]) [SLIDING (interval)] [FILL({NONE | VALUE | PREV | NULL | LINEAR | NEXT})]
+  | INTERVAL(interval_val [, offset]) [SLIDING (sliding_value)] [FILL({NONE | VALUE | PREV | NULL | LINEAR | NEXT})]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
 }
-interval:
-    TK_NUMBER
-  | TK_STRING
-  | TK_DURATION
 ```
 
-The parameters of INTERVAL(`interval` or `offset`) and SLIDING are time durations which have 3 forms of representation.
-
-- `INTERVAL(1s, 500a) SLIDING(1s)`, the unit char should be one of `a (millisecond), b (nanosecond), d (day), h (hour), m (minute), n (month), s (second), u (microsecond), w (week), y (year)`.
-- `INTERVAL(1000, 500) SLIDING(1000)`, the unit will the same as the database.
-- `INTERVAL('1s', '500a') SLIDING('1s')`, or double quoted. Unit must be specified, no spaces allowed.
+Both interval_val and sliding_value are time durations which have 3 forms of representation.
+- INTERVAL(1s, 500a) SLIDING(1s), the unit char should be any one of a (millisecond), b (nanosecond), d (day), h (hour), m (minute), n (month), s (second), u (microsecond), w (week), y (year).
+- INTERVAL(1000, 500) SLIDING(1000), the unit will the same as the queried database, if there are more than one databases, higher precision will be used.
+- INTERVAL('1s', '500a') SLIDING('1s'), unit must be specified, no spaces allowed.
 
 The following restrictions apply:
 
