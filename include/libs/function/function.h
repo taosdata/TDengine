@@ -168,7 +168,6 @@ typedef struct {
   struct SStreamFileState *pFileState;
   int32_t                  number;
   SSHashObj               *parNameMap;
-  int64_t                  checkPointId;
   int32_t                  taskId;
   int64_t                  streamId;
   int64_t                  streamBackendRid;
