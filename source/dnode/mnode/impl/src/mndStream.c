@@ -1020,7 +1020,6 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
     }
   }
   // 2. reset tick
-  pStream->checkpointFreq = checkpointId;
   pStream->checkpointId = checkpointId;
   pStream->checkpointFreq = taosGetTimestampMs();
   pStream->currentTick = 0;
