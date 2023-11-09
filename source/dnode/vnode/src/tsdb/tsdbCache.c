@@ -12,11 +12,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include "cos.h"
 #include "tsdb.h"
 #include "tsdbDataFileRW.h"
 #include "tsdbReadUtil.h"
 #include "vnd.h"
-#include "vndCos.h"
 
 #define ROCKS_BATCH_SIZE (4096)
 

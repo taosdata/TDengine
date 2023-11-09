@@ -14,9 +14,9 @@
  */
 
 #include "tsdbFS2.h"
+#include "cos.h"
 #include "tsdbUpgrade.h"
 #include "vnd.h"
-#include "vndCos.h"
 
 #define BLOCK_COMMIT_FACTOR 3
 

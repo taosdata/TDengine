@@ -237,6 +237,12 @@ void syslog(int unused, const char *format, ...);
 #define TD_DIRSEP "/"
 #endif
 
+#if defined(_WIN32)
+#define TD_DIRSEP_CHAR '\\'
+#else
+#define TD_DIRSEP_CHAR '/'
+#endif
+
 #define TD_LOCALE_LEN   64
 #define TD_CHARSET_LEN  64
 #define TD_TIMEZONE_LEN 96
