@@ -14,6 +14,8 @@
  */
 
 #include "streamInt.h"
+#include "rsync.h"
+#include "cos.h"
 
 int32_t tEncodeStreamCheckpointSourceReq(SEncoder* pEncoder, const SStreamCheckpointSourceReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
@@ -371,4 +373,92 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   }
 
   return code;
+}
+
+static int uploadCheckpointToS3(char* id, char* path){
+  TdDirPtr pDir = taosOpenDir(path);
+  if (pDir == NULL) return -1;
+
+  TdDirEntryPtr de = NULL;
+  while ((de = taosReadDir(pDir)) != NULL) {
+    char* name = taosGetDirEntryName(de);
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0 ||
+        taosDirEntryIsDir(de)) continue;
+
+    char filename[PATH_MAX] = {0};
+    if(path[strlen(path) - 1] == TD_DIRSEP_CHAR){
+      snprintf(filename, sizeof(filename), "%s%s", path, name);
+    }else{
+      snprintf(filename, sizeof(filename), "%s%s%s", path, TD_DIRSEP, name);
+    }
+
+    char object[PATH_MAX] = {0};
+    snprintf(object, sizeof(object), "%s%s%s", id, TD_DIRSEP, name);
+
+    if(s3PutObjectFromFile2(filename, object) != 0){
+      taosCloseDir(&pDir);
+      return -1;
+    }
+    stDebug("[s3] upload checkpoint:%s", filename);
+  }
+  taosCloseDir(&pDir);
+
+  return 0;
+}
+
+UPLOAD_TYPE getUploadType(){
+  if(strlen(tsSnodeAddress) != 0){
+    return UPLOAD_RSYNC;
+  }else if(tsS3StreamEnabled){
+    return UPLOAD_S3;
+  }else{
+    return UPLOAD_DISABLE;
+  }
+}
+
+int uploadCheckpoint(char* id, char* path){
+  if(id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0 || strlen(path) >= PATH_MAX){
+    stError("uploadCheckpoint parameters invalid");
+    return -1;
+  }
+  if(strlen(tsSnodeAddress) != 0){
+    return uploadRsync(id, path);
+  }else if(tsS3StreamEnabled){
+    return uploadCheckpointToS3(id, path);
+  }
+  return 0;
+}
+
+int downloadCheckpoint(char* id, char* path){
+  if(id == NULL || path == NULL || strlen(id) == 0 || strlen(path) == 0 || strlen(path) >= PATH_MAX){
+    stError("downloadCheckpoint parameters invalid");
+    return -1;
+  }
+  if(strlen(tsSnodeAddress) != 0){
+    return downloadRsync(id, path);
+  }else if(tsS3StreamEnabled){
+    return s3GetObjectsByPrefix(id, path);
+  }
+  return 0;
+}
+
+int deleteCheckpoint(char* id){
+  if(id == NULL || strlen(id) == 0){
+    stError("deleteCheckpoint parameters invalid");
+    return -1;
+  }
+  if(strlen(tsSnodeAddress) != 0){
+    return deleteRsync(id);
+  }else if(tsS3StreamEnabled){
+    s3DeleteObjectsByPrefix(id);
+  }
+  return 0;
+}
+
+int deleteCheckpointFile(char* id, char* name){
+  char object[128] = {0};
+  snprintf(object, sizeof(object), "%s/%s", id, name);
+  char *tmp = object;
+  s3DeleteObjects((const char**)&tmp, 1);
+  return 0;
 }

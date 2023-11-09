@@ -140,6 +140,18 @@ void*         streamQueueNextItem(SStreamQueue* pQueue);
 void          streamFreeQitem(SStreamQueueItem* data);
 int32_t       streamQueueGetItemSize(const SStreamQueue* pQueue);
 
+typedef enum UPLOAD_TYPE{
+  UPLOAD_DISABLE = -1,
+  UPLOAD_S3 = 0,
+  UPLOAD_RSYNC = 1,
+} UPLOAD_TYPE;
+
+UPLOAD_TYPE getUploadType();
+int uploadCheckpoint(char* id, char* path);
+int downloadCheckpoint(char* id, char* path);
+int deleteCheckpoint(char* id);
+int deleteCheckpointFile(char* id, char* name);
+
 int32_t onNormalTaskReady(SStreamTask* pTask);
 int32_t onScanhistoryTaskReady(SStreamTask* pTask);
 

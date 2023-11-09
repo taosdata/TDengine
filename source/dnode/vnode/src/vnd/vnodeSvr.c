@@ -18,7 +18,7 @@
 #include "tmsg.h"
 #include "tstrbuild.h"
 #include "vnd.h"
-#include "vndCos.h"
+#include "cos.h"
 #include "vnode.h"
 #include "vnodeInt.h"
 
