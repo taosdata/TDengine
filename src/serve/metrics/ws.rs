@@ -5,7 +5,7 @@ use actix_web::{
     web::{Data, Payload},
     Error, HttpRequest, HttpResponse,
 };
-use actix_ws::Session;
+use actix_ws::{CloseCode, CloseReason, Session};
 use actix_ws::{Closed, Message};
 use futures_util::{
     future::{self, Either},
@@ -123,6 +123,11 @@ async fn send_task_metrics_ws(task_id: i64, req: HttpRequest, mut session: Sessi
             }
             Err(err) => {
                 tracing::error!("{:#?}", err);
+                let resson = Some(CloseReason {
+                    code: CloseCode::Abnormal,
+                    description: Some(format!("get task metrics error: {:?}", err)),
+                });
+                let _ = session.close(resson).await;
                 break;
             }
         };
@@ -131,7 +136,10 @@ async fn send_task_metrics_ws(task_id: i64, req: HttpRequest, mut session: Sessi
 }
 
 #[instrument(skip_all)]
-pub(crate) async fn send_task_metrics(req: HttpRequest, stream: Payload) -> Result<HttpResponse, Error> {
+pub(crate) async fn send_task_metrics(
+    req: HttpRequest,
+    stream: Payload,
+) -> Result<HttpResponse, Error> {
     let match_info = req.match_info();
     let task_id = match_info.get("task_id").unwrap();
     let task_id = i64::from_str_radix(task_id, 10);
