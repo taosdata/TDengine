@@ -30,6 +30,7 @@ ADD ./plugins/mqtt/dist/taosx-mqtt /taosx/plugins/mqtt/
 ADD ./target/release/taosx /usr/bin/taosx
 
 ENV TAOSX_DATA_DIR=/data/taosx/
+ENV TAOSX_LOGS_HOME=/data/taosx/log/
 
 VOLUME /data/taosx/
 EXPOSE 6050
