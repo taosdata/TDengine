@@ -15,7 +15,8 @@
 
 #include "tsdb.h"
 #include "tsdbFS2.h"
-#include "vndCos.h"
+#include "cos.h"
+#include "vnd.h"
 
 typedef struct {
   STsdb  *tsdb;
@@ -387,6 +388,8 @@ _exit:
   return code;
 }
 
+static void tsdbFreeRtnArg(void *arg) { taosMemoryFree(arg); }
+
 static int32_t tsdbDoRetentionSync(void *arg) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -409,6 +412,7 @@ _exit:
     TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
   }
   tsem_post(&((SRtnArg *)arg)->tsdb->pVnode->canCommit);
+  tsdbFreeRtnArg(arg);
   return code;
 }
 
@@ -438,7 +442,7 @@ _exit:
   return code;
 }
 
-static void tsdbFreeRtnArg(void *arg) { taosMemoryFree(arg); }
+
 
 int32_t tsdbRetention(STsdb *tsdb, int64_t now, int32_t sync) {
   int32_t code = 0;

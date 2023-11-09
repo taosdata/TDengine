@@ -51,6 +51,7 @@ struct SStreamSnapHandle {
   int8_t         filetype;
   SArray*        pFileList;
   int32_t        currFileIdx;
+  int8_t         delFlag;  // 0 : not del, 1: del
 };
 struct SStreamSnapBlockHdr {
   int8_t  type;
@@ -147,6 +148,7 @@ int32_t streamSnapHandleInit(SStreamSnapHandle* pHandle, char* path, int64_t chk
       taosMemoryFree(tdir);
       return code;
     }
+    pHandle->delFlag = 1;
     chkpId = 0;
   }
 
@@ -273,7 +275,7 @@ void streamSnapHandleDestroy(SStreamSnapHandle* handle) {
   if (handle->checkpointId == 0) {
     // del tmp dir
     if (pFile && taosIsDir(pFile->path)) {
-      taosRemoveDir(pFile->path);
+      if (handle->delFlag) taosRemoveDir(pFile->path);
     }
   } else {
     streamBackendDelInUseChkp(handle->handle, handle->checkpointId);
@@ -422,6 +424,7 @@ int32_t streamSnapWriterOpen(void* pMeta, int64_t sver, int64_t ever, char* path
   pHandle->pFileList = list;
   pHandle->currFileIdx = 0;
   pHandle->offset = 0;
+  pHandle->delFlag = 0;
 
   *ppWriter = pWriter;
   return 0;
