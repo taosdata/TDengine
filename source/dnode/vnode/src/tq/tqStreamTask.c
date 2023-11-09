@@ -451,7 +451,7 @@ bool doPutDataIntoInputQFromWal(SStreamTask* pTask, int64_t maxVer, int32_t* num
         numOfNewItems += 1;
         int64_t ver = walReaderGetCurrentVer(pTask->exec.pWalReader);
         pTask->chkInfo.nextProcessVer = ver;
-        tqDebug("s-task:%s set the ver:%" PRId64 " from WALReader after extract block from WAL", id, ver);
+        tqDebug("s-task:%s set ver:%" PRId64 " for reader after extract data from WAL", id, ver);
 
         bool itemInFillhistory = handleFillhistoryScanComplete(pTask, ver);
         if (itemInFillhistory) {
@@ -514,7 +514,6 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, bool* pScanIdle) {
     int64_t maxVer = (pTask->info.fillHistory == 1) ? pTask->dataRange.range.maxVer : INT64_MAX;
 
     taosThreadMutexLock(&pTask->lock);
-    tqDebug("s-task:%s lock", pTask->id.idStr);
 
     char* p = NULL;
     ETaskStatus status = streamTaskGetStatus(pTask, &p);

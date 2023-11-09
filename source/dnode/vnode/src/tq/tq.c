@@ -1958,7 +1958,6 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
       } else {
         tqInfo("vgId:%d, follower node not start stream tasks", vgId);
       }
-      taosArrayDestroy(req.pNodeList);
       streamMetaWUnLock(pMeta);
 #endif
     }
