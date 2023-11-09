@@ -15,7 +15,8 @@
 
 #include "tsdb.h"
 #include "tsdbFS2.h"
-#include "vndCos.h"
+#include "cos.h"
+#include "vnd.h"
 
 typedef struct {
   STsdb  *tsdb;
