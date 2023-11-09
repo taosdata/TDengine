@@ -43,7 +43,7 @@ static int32_t    tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t msgSiz
                                     ERsmaExecType type, int8_t level);
 static SRSmaInfo *tdAcquireRSmaInfoBySuid(SSma *pSma, int64_t suid);
 static void       tdReleaseRSmaInfo(SSma *pSma, SRSmaInfo *pInfo);
-static void       tdFreeRSmaSubmitItems(SArray *pItems);
+static void       tdFreeRSmaSubmitItems(SArray *pItems, int32_t type);
 static int32_t    tdRSmaFetchAllResult(SSma *pSma, SRSmaInfo *pInfo);
 static int32_t    tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSmaInfoItem *pItem, SRSmaInfo *pInfo,
                                             int32_t execType, int8_t *streamFlushed);
@@ -723,7 +723,7 @@ _exit:
  */
 static int32_t tdExecuteRSmaImplAsync(SSma *pSma, int64_t version, const void *pMsg, int32_t len, int32_t inputType,
                                       SRSmaInfo *pInfo, tb_uid_t suid) {
-  int32_t size = RSMA_SUBMIT_HEAD_LEN + len; // header(type+len+version) + payload
+  int32_t size = RSMA_SUBMIT_HEAD_LEN + len;  // header + payload
   void   *qItem = taosAllocateQitem(size, DEF_QITEM, 0);
 
   if (!qItem) {
@@ -940,12 +940,8 @@ static int32_t tdExecuteRSmaAsync(SSma *pSma, int64_t version, const void *pMsg,
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tdProcessRSmaSubmit(SSma *pSma, int64_t version, void *pReq, void *pMsg, int32_t len, int32_t inputType) {
-  SSmaEnv *pEnv = SMA_RSMA_ENV(pSma);
-  if (!pEnv) {
-    // only applicable when rsma env exists
-    return TDB_CODE_SUCCESS;
-  }
+int32_t tdProcessRSmaSubmit(SSma *pSma, int64_t version, void *pReq, void *pMsg, int32_t len) {
+  if (!SMA_RSMA_ENV(pSma)) return TSDB_CODE_SUCCESS;
 
   if ((terrno = atomic_load_32(&SMA_RSMA_STAT(pSma)->execStat))) {
     smaError("vgId:%d, failed to process rsma submit since invalid exec code: %s", SMA_VID(pSma), terrstr());
@@ -954,26 +950,24 @@ int32_t tdProcessRSmaSubmit(SSma *pSma, int64_t version, void *pReq, void *pMsg,
 
   STbUidStore uidStore = {0};
 
-  if (inputType == STREAM_INPUT__DATA_SUBMIT) {
-    if (tdFetchSubmitReqSuids(pReq, &uidStore) < 0) {
-      smaError("vgId:%d, failed to process rsma submit fetch suid since: %s", SMA_VID(pSma), terrstr());
+  if (tdFetchSubmitReqSuids(pReq, &uidStore) < 0) {
+    smaError("vgId:%d, failed to process rsma submit fetch suid since: %s", SMA_VID(pSma), terrstr());
+    goto _err;
+  }
+
+  if (uidStore.suid != 0) {
+    if (tdExecuteRSmaAsync(pSma, version, pMsg, len, STREAM_INPUT__DATA_SUBMIT, uidStore.suid) < 0) {
+      smaError("vgId:%d, failed to process rsma submit exec 1 since: %s", SMA_VID(pSma), terrstr());
       goto _err;
     }
 
-    if (uidStore.suid != 0) {
-      if (tdExecuteRSmaAsync(pSma, version, pMsg, len, inputType, uidStore.suid) < 0) {
-        smaError("vgId:%d, failed to process rsma submit exec 1 since: %s", SMA_VID(pSma), terrstr());
+    void *pIter = NULL;
+    while ((pIter = taosHashIterate(uidStore.uidHash, pIter))) {
+      tb_uid_t *pTbSuid = (tb_uid_t *)taosHashGetKey(pIter, NULL);
+      if (tdExecuteRSmaAsync(pSma, version, pMsg, len, STREAM_INPUT__DATA_SUBMIT, *pTbSuid) < 0) {
+        smaError("vgId:%d, failed to process rsma submit exec 2 since: %s", SMA_VID(pSma), terrstr());
+        taosHashCancelIterate(uidStore.uidHash, pIter);
         goto _err;
-      }
-
-      void *pIter = NULL;
-      while ((pIter = taosHashIterate(uidStore.uidHash, pIter))) {
-        tb_uid_t *pTbSuid = (tb_uid_t *)taosHashGetKey(pIter, NULL);
-        if (tdExecuteRSmaAsync(pSma, version, pMsg, len, inputType, *pTbSuid) < 0) {
-          smaError("vgId:%d, failed to process rsma submit exec 2 since: %s", SMA_VID(pSma), terrstr());
-          taosHashCancelIterate(uidStore.uidHash, pIter);
-          goto _err;
-        }
       }
     }
   }
@@ -984,19 +978,18 @@ _err:
   return terrno;
 }
 
-int32_t tdProcessRSmaDelete(SSma *pSma, int64_t version, void *pReq, void *pMsg, int32_t len, int32_t inputType) {
-  SSmaEnv *pEnv = SMA_RSMA_ENV(pSma);
-  if (!pEnv) {
-    // only applicable when rsma env exists
-    return TSDB_CODE_SUCCESS;
+int32_t tdProcessRSmaDelete(SSma *pSma, int64_t version, void *pReq, void *pMsg, int32_t len) {
+  if (!SMA_RSMA_ENV(pSma)) return TSDB_CODE_SUCCESS;
+
+  if ((terrno = atomic_load_32(&SMA_RSMA_STAT(pSma)->execStat))) {
+    smaError("vgId:%d, failed to process rsma delete since invalid exec code: %s", SMA_VID(pSma), terrstr());
+    goto _err;
   }
 
-  if (inputType == STREAM_INPUT__REF_DATA_BLOCK) {
-    SDeleteRes *pReq = pReq;
-    if (tdExecuteRSmaAsync(pSma, version, pMsg, len, inputType, pReq->suid) < 0) {
-      smaError("vgId:%d, failed to process rsma submit exec 1 since: %s", SMA_VID(pSma), terrstr());
-      goto _err;
-    }
+  SDeleteRes *pDelRes = pReq;
+  if (tdExecuteRSmaAsync(pSma, version, pMsg, len, STREAM_INPUT__REF_DATA_BLOCK, pDelRes->suid) < 0) {
+    smaError("vgId:%d, failed to process rsma submit exec 1 since: %s", SMA_VID(pSma), terrstr());
+    goto _err;
   }
   return TSDB_CODE_SUCCESS;
 _err:
@@ -1381,10 +1374,20 @@ _end:
   tdReleaseSmaRef(smaMgmt.rsetId, pRSmaRef->refId);
 }
 
-static void tdFreeRSmaSubmitItems(SArray *pItems) {
-  for (int32_t i = 0; i < taosArrayGetSize(pItems); ++i) {
-    SPackedData *packData = taosArrayGet(pItems, i);
-    taosFreeQitem(POINTER_SHIFT(packData->msgStr, -RSMA_SUBMIT_HEAD_LEN));
+static void tdFreeRSmaSubmitItems(SArray *pItems, int32_t type) {
+  int32_t arrSize = taosArrayGetSize(pItems);
+  if (type == STREAM_INPUT__MERGED_SUBMIT) {
+    for (int32_t i = 0; i < arrSize; ++i) {
+      SPackedData *packData = TARRAY_GET_ELEM(pItems, i);
+      taosFreeQitem(POINTER_SHIFT(packData->msgStr, -RSMA_SUBMIT_HEAD_LEN));
+    }
+  } else if (type == STREAM_INPUT__REF_DATA_BLOCK) {
+    for (int32_t i = 0; i < arrSize; ++i) {
+      SPackedData *packData = TARRAY_GET_ELEM(pItems, i);
+      blockDataDestroy(packData->pDataBlock);
+    }
+  } else {
+    ASSERTS(0, "unknown type:%d", type);
   }
   taosArrayClear(pItems);
 }
@@ -1448,34 +1451,37 @@ _err:
   return TSDB_CODE_FAILED;
 }
 
+#define RSMA_SUBMIT_MSG_TYPE(msg) (*(int8_t *)(msg))
+#define RSMA_SUBMIT_MSG_LEN(msg)  (*(int32_t *)POINTER_SHIFT((msg), sizeof(int8_t)))
+#define RSMA_SUBMIT_MSG_VER(msg)  (*(int64_t *)POINTER_SHIFT((msg), sizeof(int8_t) + sizeof(int32_t)))
+#define RSMA_SUBMIT_MSG_BODY(msg) (POINTER_SHIFT((msg), sizeof(int8_t) + sizeof(int32_t) + sizeof(int64_t)))
+
 static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SArray *pSubmitArr, ERsmaExecType type) {
-  
-  void       *msg = NULL;
-  int8_t      resume = 0;
-  int32_t     nSubmit = 0;
-  int32_t     nDelete = 0;
+  void   *msg = NULL;
+  int8_t  resume = 0;
+  int32_t nSubmit = 0;
+  int32_t nDelete = 0;
 
   SPackedData packData;
 
   taosArrayClear(pSubmitArr);
 
+  // the submitReq/deleteReq msg may exsit alternately in the msg queue, consume them sequentially in batch mode
   while (1) {
     taosGetQitem(qall, (void **)&msg);
     if (msg) {
-      int8_t inputType = *(int8_t *)msg;
-
-      msg = POINTER_SHIFT(msg, sizeof(int8_t));
-
+      int8_t inputType = RSMA_SUBMIT_MSG_TYPE(msg);
       if (inputType == STREAM_INPUT__DATA_SUBMIT) {
         if (nDelete > 0) {
           resume = 1;
           break;
         }
       _resume_submit:
-        packData.msgLen = *(int32_t *)msg;
-        packData.ver = *(int64_t *)POINTER_SHIFT(msg, sizeof(int32_t));
-        packData.msgStr = POINTER_SHIFT(msg, sizeof(int32_t) + sizeof(int64_t));
+        packData.msgLen = RSMA_SUBMIT_MSG_LEN(msg);
+        packData.ver = RSMA_SUBMIT_MSG_VER(msg);
+        packData.msgStr = RSMA_SUBMIT_MSG_BODY(msg);
         if (!taosArrayPush(pSubmitArr, &packData)) {
+          taosFreeQitem(msg);
           terrno = TSDB_CODE_OUT_OF_MEMORY;
           goto _err;
         }
@@ -1486,46 +1492,49 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
           break;
         }
       _resume_delete:
-        ++nDelete;
-#if 0
-      if (!taosArrayPush(pSubmitArr, &packData)) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        tdFreeRSmaSubmitItems(pSubmitArr);
-        goto _err;
-      }
-#endif
-    } else {
-      break;
-    }
-  }
-
-  if (nSubmit > 0) {
-    int32_t size = taosArrayGetSize(pSubmitArr);
-    if (size > 0) {
-      for (int32_t i = 1; i <= TSDB_RETENTION_L2; ++i) {
-        if (tdExecuteRSmaImpl(pSma, pSubmitArr->pData, size, STREAM_INPUT__MERGED_SUBMIT, pInfo, type, i) < 0) {
+        extractDelDataBlock(RSMA_SUBMIT_MSG_BODY(msg), RSMA_SUBMIT_MSG_LEN(msg), RSMA_SUBMIT_MSG_VER(msg),
+                            &packData.pDataBlock, 1);
+        if (!taosArrayPush(pSubmitArr, &packData)) {
+          taosFreeQitem(msg);
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
           goto _err;
         }
+        taosFreeQitem(msg);
+        ++nDelete;
+      } else {
+        ASSERTS(0, "unknown msg type:%d", inputType);
+        break;
       }
-      tdFreeRSmaSubmitItems(pSubmitArr);
     }
-  } else if (nDelete > 0) {
-  }
 
-  if (resume == 0) {
-    goto _rtn;
-  } else if (resume == 1) {
-    nSubmit = 0;
-    nDelete = 0;
-    resume = 0;
-    taosArrayClear(pSubmitArr);
-    goto _resume_submit;
-  } else {
-    nSubmit = 0;
-    nDelete = 0;
-    resume = 0;
-    taosArrayClear(pSubmitArr);
-    goto _resume_delete;
+    if (nSubmit > 0 || nDelete > 0) {
+      int32_t size = TARRAY_SIZE(pSubmitArr);
+      if (size > 0) {
+        int32_t inputType = nSubmit > 0 ? STREAM_INPUT__MERGED_SUBMIT : STREAM_INPUT__REF_DATA_BLOCK;
+        for (int32_t i = 1; i <= TSDB_RETENTION_L2; ++i) {
+          if (tdExecuteRSmaImpl(pSma, pSubmitArr->pData, size, inputType, pInfo, type, i) < 0) {
+            goto _err;
+          }
+        }
+        tdFreeRSmaSubmitItems(pSubmitArr, inputType);
+      }
+    }
+
+    if (resume == 0) {
+      goto _rtn;
+    } else if (resume == 1) {
+      nSubmit = 0;
+      nDelete = 0;
+      resume = 0;
+      tdFreeRSmaSubmitItems(pSubmitArr, STREAM_INPUT__REF_DATA_BLOCK);
+      goto _resume_submit;
+    } else {
+      nSubmit = 0;
+      nDelete = 0;
+      resume = 0;
+      tdFreeRSmaSubmitItems(pSubmitArr, STREAM_INPUT__MERGED_SUBMIT);
+      goto _resume_delete;
+    }
   }
 
 _rtn:
@@ -1534,7 +1543,7 @@ _err:
   atomic_store_32(&SMA_RSMA_STAT(pSma)->execStat, terrno);
   smaError("vgId:%d, batch exec for suid:%" PRIi64 " execType:%d size:%d failed since %s", SMA_VID(pSma), pInfo->suid,
            type, (int32_t)taosArrayGetSize(pSubmitArr), terrstr());
-  tdFreeRSmaSubmitItems(pSubmitArr);
+  tdFreeRSmaSubmitItems(pSubmitArr, nSubmit ? STREAM_INPUT__MERGED_SUBMIT : STREAM_INPUT__REF_DATA_BLOCK);
   while (1) {
     void *msg = NULL;
     taosGetQitem(qall, (void **)&msg);

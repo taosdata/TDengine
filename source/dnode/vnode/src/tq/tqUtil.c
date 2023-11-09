@@ -399,7 +399,7 @@ int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* 
   return 0;
 }
 
-int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStreamRefDataBlock** pRefBlock) {
+int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** pRefBlock, int8_t type) {
   SDecoder*   pCoder = &(SDecoder){0};
   SDeleteRes* pRes = &(SDeleteRes){0};
 
@@ -442,14 +442,19 @@ int32_t extractDelDataBlock(const void* pData, int32_t len, int64_t ver, SStream
   }
 
   taosArrayDestroy(pRes->uidList);
-  *pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
-  if (*pRefBlock == NULL) {
-    blockDataCleanup(pDelBlock);
-    taosMemoryFree(pDelBlock);
-    return TSDB_CODE_OUT_OF_MEMORY;
+  if (type == 0) {
+    *pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM, 0);
+    if (*pRefBlock == NULL) {
+      blockDataCleanup(pDelBlock);
+      taosMemoryFree(pDelBlock);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    ((SStreamRefDataBlock*)(*pRefBlock))->type = STREAM_INPUT__REF_DATA_BLOCK;
+    ((SStreamRefDataBlock*)(*pRefBlock))->pBlock = pDelBlock;
+  } else {
+    *pRefBlock = pDelBlock;
   }
 
-  (*pRefBlock)->type = STREAM_INPUT__REF_DATA_BLOCK;
-  (*pRefBlock)->pBlock = pDelBlock;
   return TSDB_CODE_SUCCESS;
 }
