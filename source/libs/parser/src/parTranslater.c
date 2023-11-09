@@ -4116,6 +4116,10 @@ static int32_t findEqualCondTbname(STranslateContext* pCxt, SNode* pWhere, SArra
 static int32_t findVgroupsFromEqualTbname(STranslateContext* pCxt, SEqCondTbNameTableInfo* pInfo, SVgroupsInfo* vgsInfo) {
   int32_t nVgroups = 0;
   int32_t nTbls = taosArrayGetSize(pInfo->aTbnames);
+  
+  if (nTbls >= pInfo->pRealTable->pVgroupList->numOfVgroups) {
+    vgsInfo->numOfVgroups = 0;
+  }
 
   for (int j = 0; j < nTbls; ++j) {
     char* dbName = pInfo->pRealTable->table.dbName;
