@@ -63,6 +63,8 @@ pub async fn generate_scheduler_for_test(
                         }
                         crate::serve::controller::AgentAction::ListDataSets(_, _) => todo!(),
                         crate::serve::controller::AgentAction::RetrieveDataSets(_, _) => todo!(),
+                        crate::serve::controller::AgentAction::Interrupt(_) => todo!(),
+                        crate::serve::controller::AgentAction::Check(_, _) => todo!(),
                     }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => {

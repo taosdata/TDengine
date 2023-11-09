@@ -266,6 +266,11 @@ impl TaskControllerRef {
         for mut task in tasks {
             let id = task.id;
             task.load_breakpoints();
+            push_task_activity(
+                &self.pool,
+                &TaskActivity::info(id, format!("Automatically wake up task."), "waken"),
+            )
+            .await?;
             if let Err(err) = self.scheduler.push_task(task).await {
                 tracing::error!(task.id = id, "Push task to scheduler error: {err:?}");
             }
@@ -310,6 +315,7 @@ pub(super) enum Schedule {
 }
 
 async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::Result<()> {
+    let transaction = pool.begin().await?;
     if activity.status == "completed" {
         let _ = sqlx::query!(
             "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ? AND status != ?",
@@ -350,6 +356,7 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
             activity.context)
         .execute(pool)
         .await?;
+    transaction.commit().await?;
     Ok(())
 }
 
@@ -382,16 +389,45 @@ async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::
 }
 
 async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
-    sqlx::query("update tasks set status = ? where status in (?, ?, ?, ?, ?, ?)")
-        .bind(Status::Suspended)
+    let tasks = sqlx::query_scalar::<_, TaskId>("select id from tasks where status in (?, ?, ?, ?, ?, ?)")
         .bind(Status::Running)
         .bind(Status::Waiting)
         .bind(Status::Suspending)
         .bind(Status::Queued)
         .bind(Status::Interrupted)
         .bind(Status::Ticked)
-        .execute(pool)
+        .fetch_all(pool)
         .await?;
+    if tasks.len() > 0 {
+        tracing::info!(
+            "{} tasks are in running status, set them to suspended",
+            tasks.len()
+        );
+
+        let trans = pool.begin().await?;
+        sqlx::query("update tasks set status = ? where status in (?, ?, ?, ?, ?, ?)")
+            .bind(Status::Suspended)
+            .bind(Status::Running)
+            .bind(Status::Waiting)
+            .bind(Status::Suspending)
+            .bind(Status::Queued)
+            .bind(Status::Interrupted)
+            .bind(Status::Ticked)
+            .execute(pool)
+            .await?;
+        for id in tasks {
+            sqlx::query("insert into task_activities (`id`,`at`, `level`, `activity`, `status`) values(?, ?, ?, ?, ?)")
+            .bind(id)
+            .bind(Utc::now())
+            .bind(LevelFilter::Info)
+            .bind("Database initiated")
+            .bind("suspended")
+            .execute(pool)
+            .await?;
+        }
+        trans.commit().await?;
+    }
+
     sqlx::query("update tasks set status = ? where status = ?")
         .bind(Status::Stopped)
         .bind(Status::Stopping)
@@ -421,10 +457,6 @@ impl TaskController {
             .connect_with(connect_options)
             .await?;
         MIGRATOR.run(&pool).await?;
-        // extra migrations
-        sqlx::query!("UPDATE agent_activities SET status = 'transferring' where status = 'busy'")
-            .execute(&pool)
-            .await?;
 
         let notify_channel = scheduler.notify_channel();
         let pool_cloned = pool.clone();
@@ -1048,9 +1080,9 @@ impl TaskController {
 
     pub async fn shutdown(&self) -> anyhow::Result<()> {
         let scheduler = self.scheduler.clone();
-        let _ = tokio::time::timeout(Duration::from_secs(17), scheduler.suspend_all()).await;
+        let _ = tokio::time::timeout(Duration::from_secs(11), scheduler.suspend_all()).await;
         scheduler.shutdown().await;
-        let _ = tokio::time::timeout(Duration::from_secs(5), self.shutdown_notify.notified()).await;
+        let _ = tokio::time::timeout(Duration::from_secs(2), self.shutdown_notify.notified()).await;
 
         // Set all running status to suspended?
         Ok(())
@@ -1723,6 +1755,16 @@ impl TaskActivity {
             context: None,
         }
     }
+    pub fn stopping_timeout(id: i64) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Info,
+            activity: "Stopping task timed out.".to_string(),
+            status: "stopped".to_string(),
+            context: None,
+        }
+    }
     pub fn scheduled(id: i64) -> Self {
         Self {
             id,
@@ -1839,6 +1881,16 @@ impl TaskActivity {
             at: Utc::now(),
             level: LevelFilter::Info,
             activity: format!("Suspended with job id: {jid}."),
+            status: "suspended".to_string(),
+            context: None,
+        }
+    }
+    pub fn suspending_timeout(id: i64, jid: Uuid) -> Self {
+        Self {
+            id,
+            at: Utc::now(),
+            level: LevelFilter::Info,
+            activity: format!("Suspending timed out with job id: {jid}."),
             status: "suspended".to_string(),
             context: None,
         }

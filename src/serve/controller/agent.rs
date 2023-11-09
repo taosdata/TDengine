@@ -74,6 +74,10 @@ impl Activity {
             }),
         }
     }
+
+    pub fn info(id: i64, activity: impl Into<String>, status: impl Into<String>) -> Self {
+        Self::new::<String>(id, Utc::now(), LevelFilter::Info, activity, status, None)
+    }
 }
 
 #[test]

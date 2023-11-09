@@ -82,7 +82,6 @@ pub(super) struct FlightServiceImpl {
     notify_sender: AgentNotifySender,
     activity_receiver: Arc<AgentActionsReceiver>,
     agent_connections: Arc<RwLock<HashMap<AgentId, ConnectionId>>>,
-    connection_id: Arc<AtomicU64>,
     request_id: Arc<AtomicU64>,
     datasets_senders: Arc<RwLock<LinkedHashMap<u64, AgentDataSetsSender>>>,
     dsv_senders: Arc<RwLock<LinkedHashMap<u64, DsvSender>>>,
@@ -519,7 +518,7 @@ impl FlightService for FlightServiceImpl {
         req: Request<Streaming<FlightData>>,
     ) -> Result<Response<Self::DoExchangeStream>, Status> {
         let remote = req.remote_addr();
-        let (meta, extension, req) = req.into_parts();
+        let (mut meta, extension, req) = req.into_parts();
 
         let token = meta
             .get("x-token")
@@ -537,7 +536,11 @@ impl FlightService for FlightServiceImpl {
 
         let (tx, rx) = self.subscribe_agent_action_flight(agent_id);
 
-        let connection_id = self.connection_id.fetch_add(1, Ordering::SeqCst);
+        let connection_id = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos() as u64;
+        meta.append("x-cid", connection_id.to_string().parse().unwrap());
         {
             // Update agent connection id to ensure only one connection per agent.
             self.agent_connections
@@ -699,12 +702,12 @@ impl FlightService for FlightServiceImpl {
                                                 )
                                             })
                                             .unwrap();
-                                        // dbg!(&activity);
-                                        // let _ =
-                                        //     controller_runner.push_task_activity(&activity).await;
-                                        info!(?activity, "task activity");
-                                        let _ = notify_sender
-                                            .send(AgentNotify::TaskActivity(agent_id, activity));
+                                        let notify_sender = notify_sender.clone();
+                                        tokio::spawn(async move {
+                                            info!(?activity, "task activity");
+                                            let _ = notify_sender
+                                                .send(AgentNotify::TaskActivity(agent_id, activity));
+                                        });
                                     }
                                     "heartbeat-ok" => {
                                         let resp: HeartbeatResponse =
@@ -844,8 +847,6 @@ impl FlightService for FlightServiceImpl {
         // dbg!(_meta, _part, &action);
         match action.r#type.as_str() {
             "TaskStatus" => {
-                // task.
-
                 let mut status: TaskActivity = serde_json::from_slice(&action.body)
                     .map_err(|err| Status::invalid_argument(format!("{err}: {:?}", action.body)))?;
 
@@ -970,7 +971,6 @@ impl RpcConfig {
             dsv_senders: Arc::new(RwLock::new(LinkedHashMap::new())),
             request_id: Arc::new(AtomicU64::new(0)),
             agent_connections: Arc::new(RwLock::new(HashMap::new())),
-            connection_id: Arc::new(AtomicU64::new(0)),
         };
         let flight_service = FlightServiceServer::new(service);
         let flight_service = flight_service

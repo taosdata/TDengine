@@ -959,12 +959,17 @@ impl TaskJob {
                                         activity.status = "running".to_string();
                                         global.send_task_activity(activity);
                                     }
-                                    "suspended" => {
-                                        tracing::info!("task suspended");
-                                        global.send_task_activity(activity);
-                                        state.state.write().await.stopped();
-                                        break Ok(AgentTaskState::Suspended);
-                                    }
+                                    "suspended" => match operator.operator() {
+                                        Operator::Suspend => {
+                                            tracing::info!("task suspended");
+                                            global.send_task_activity(activity);
+                                            state.state.write().await.stopped();
+                                            break Ok(AgentTaskState::Suspended);
+                                        }
+                                        _ => {
+                                            warn!("Received `suspended` status but not in suspending, skip");
+                                        }
+                                    },
                                     "completed" => {
                                         tracing::info!("task completed");
                                         if is_cron_job {
@@ -977,12 +982,17 @@ impl TaskJob {
                                         state.state.write().await.completed();
                                         break Ok(AgentTaskState::Completed);
                                     }
-                                    "stopped" => {
-                                        tracing::info!("task stopped");
-                                        global.send_task_activity(activity);
-                                        state.state.write().await.stopped();
-                                        break Ok(AgentTaskState::Stopped);
-                                    }
+                                    "stopped" => match operator.operator() {
+                                        Operator::Stop => {
+                                            tracing::info!("task stopped");
+                                            global.send_task_activity(activity);
+                                            state.state.write().await.stopped();
+                                            break Ok(AgentTaskState::Stopped);
+                                        }
+                                        _ => {
+                                            warn!("Received `stopped` status but not in stopping, skip");
+                                        }
+                                    },
                                     "failed" => {
                                         tracing::error!("task failed: {}", activity.activity);
                                         if is_cron_job {
@@ -1033,11 +1043,11 @@ impl TaskJob {
                             Err(_) => {
                                 match operator {
                                     Operator::Suspend => {
-                                        global.send_task_activity(TaskActivity::suspended(task_id, jid));
+                                        global.send_task_activity(TaskActivity::suspending_timeout(task_id, jid));
                                         state.state.write().await.stopped();
                                     }
                                     Operator::Stop => {
-                                        global.send_task_activity(TaskActivity::stopped(task_id));
+                                        global.send_task_activity(TaskActivity::stopping_timeout(task_id));
                                         state.state.write().await.stopped();
                                     }
                                     Operator::Run => {
