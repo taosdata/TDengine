@@ -16,7 +16,7 @@ options:
     display: Server 端口
     description: AVEVA™ Historian SQL Server 的端口
     placeholder: "1433"
-    required: true
+    required: false
 authentication:
   display: 认证
   description: 使用用户名和密码访问 AVEVA™ Historian SQL Server
@@ -28,9 +28,11 @@ authentication:
       username:
         display: 用户
         placeholder: username
+        required: true
       password:
         display: 密码
         placeholder: password
+        required: true
 groups:
   - name: Task
     display_order: 1

@@ -17,7 +17,7 @@ options:
     display: port
     description: AVEVA™ Historian SQL Server port
     placeholder: "1433"
-    required: true
+    required: false
 authentication:
   display: Authentication
   description: Use username and password of AVEVA™ Historian SQL Server
@@ -29,9 +29,11 @@ authentication:
       username:
         display: Username
         placeholder: aaAdmin
+        required: true
       password:
         display: Password
         placeholder: password
+        required: true
 groups:
   - name: Task
     display_order: 1
