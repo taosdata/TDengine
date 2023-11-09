@@ -944,7 +944,7 @@ int32_t tdProcessRSmaSubmit(SSma *pSma, int64_t version, void *pReq, void *pMsg,
     return TDB_CODE_SUCCESS;
   }
 
-  if (0 != (terrno = atomic_load_32(&SMA_RSMA_STAT(pSma)->execStat))) {
+  if ((terrno = atomic_load_32(&SMA_RSMA_STAT(pSma)->execStat))) {
     smaError("vgId:%d, failed to process rsma submit since invalid exec code: %s", SMA_VID(pSma), terrstr());
     goto _err;
   }
@@ -1224,9 +1224,9 @@ _checkpoint:
           }
 
           taosWLockLatch(&pMeta->lock);
-          if (0 != streamMetaSaveTask(pMeta, pTask)) {
+          if (streamMetaSaveTask(pMeta, pTask)) {
             taosWUnLockLatch(&pMeta->lock);
-            code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+            code = terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY;
             taosHashCancelIterate(pInfoHash, infoHash);
             TSDB_CHECK_CODE(code, lino, _exit);
           }
@@ -1239,9 +1239,9 @@ _checkpoint:
     }
     if (pMeta) {
       taosWLockLatch(&pMeta->lock);
-      if (0 != streamMetaCommit(pMeta)) {
+      if (streamMetaCommit(pMeta)) {
         taosWUnLockLatch(&pMeta->lock);
-        code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+        code = terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY;
         TSDB_CHECK_CODE(code, lino, _exit);
       }
       taosWUnLockLatch(&pMeta->lock);
