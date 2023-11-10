@@ -461,7 +461,7 @@ typedef struct STaskStartInfo {
   int32_t   taskStarting;          // restart flag, sentinel to guard the restart procedure.
   SHashObj* pReadyTaskSet;         // tasks that are all ready for running stream processing
   SHashObj* pFailedTaskSet;        // tasks that are done the check downstream process, may be successful or failed
-  int32_t   elapsedTime;
+  int64_t   elapsedTime;
 } STaskStartInfo;
 
 typedef struct STaskUpdateInfo {
