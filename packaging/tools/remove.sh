@@ -277,59 +277,10 @@ function remove_data_and_config() {
   if [ X"$log_dir" == X"" ]; then
     log_dir="/var/log/taos"
   fi
-  ${csudo}rm -rf ${config_dir}/*
-  ${csudo}rm -rf ${data_dir}/*
-  ${csudo}rm -rf ${log_dir}/*
+  [ -d "${config_dir}" ] && ${csudo}rm -rf ${config_dir}/*
+  [ -d "${data_dir}" ] && ${csudo}rm -rf ${data_dir}/*
+  [ -d "${log_dir}" ] && ${csudo}rm -rf ${log_dir}/*
 }
-
-function uninstall_taosx() {
-  if [ -f ${installDir}/uninstall.sh ]; then
-    cd ${installDir}
-    bash uninstall.sh
-  fi
-}
-
-if [ "$verMode" == "cluster" ]; then
-  uninstall_taosx
-fi
-
-# Stop service and disable booting start.
-clean_service
-# Remove binary file and links
-clean_bin
-# Remove links of local bin
-clean_local_bin
-# Remove header file.
-clean_header
-# Remove lib file
-clean_lib
-# Remove link log directory
-clean_log
-# Remove link configuration file
-clean_config
-# Remove data link directory
-${csudo}rm -rf ${data_link_dir} || :
-
-${csudo}rm -rf ${install_main_dir}
-if [[ -e /etc/os-release ]]; then
-  osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
-else
-  osinfo=""
-fi
-
-if echo $osinfo | grep -qwi "ubuntu"; then
-  #  echo "this is ubuntu system"
-  ${csudo}dpkg --force-all -P tdengine >/dev/null 2>&1 || :
-elif echo $osinfo | grep -qwi "debian"; then
-  #  echo "this is debian system"
-  ${csudo}dpkg --force-all -P tdengine >/dev/null 2>&1 || :
-elif echo $osinfo | grep -qwi "centos"; then
-  #  echo "this is centos system"
-  ${csudo}rpm -e --noscripts tdengine >/dev/null 2>&1 || :
-fi
-if [ "$osType" = "Darwin" ]; then
-  ${csudo}rm -rf /Applications/TDengine.app
-fi
 
 _kill_service_of() {
   _service=$1
@@ -391,10 +342,60 @@ remove_taoskeeper() {
   # remove taoskeeper bin
   _clean_service_of taoskeeper
   [ -e "${bin_link_dir}/taoskeeper" ] && ${csudo}rm -rf ${bin_link_dir}/taoskeeper
+  [ -e "${installDir}/taoskeeper" ] && ${csudo}rm -rf ${installDir}/taoskeeper
   [ -e "${cfg_link_dir}/metrics.toml" ] || ${csudo}rm -rf ${cfg_link_dir}/metrics.toml
   echo "taosKeeper is removed successfully!"
 }
+
+function uninstall_taosx() {
+  if [ -f ${installDir}/uninstall.sh ]; then
+    cd ${installDir}
+    bash uninstall.sh
+  fi
+}
+
+if [ "$verMode" == "cluster" ]; then
+  uninstall_taosx
+fi
+
 remove_taoskeeper
+# Stop service and disable booting start.
+clean_service
+# Remove binary file and links
+clean_bin
+# Remove links of local bin
+clean_local_bin
+# Remove header file.
+clean_header
+# Remove lib file
+clean_lib
+# Remove link log directory
+clean_log
+# Remove link configuration file
+clean_config
+# Remove data link directory
+${csudo}rm -rf ${data_link_dir} || :
+
+${csudo}rm -rf ${install_main_dir}
+if [[ -e /etc/os-release ]]; then
+  osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
+else
+  osinfo=""
+fi
+
+if echo $osinfo | grep -qwi "ubuntu"; then
+  #  echo "this is ubuntu system"
+  ${csudo}dpkg --force-all -P tdengine >/dev/null 2>&1 || :
+elif echo $osinfo | grep -qwi "debian"; then
+  #  echo "this is debian system"
+  ${csudo}dpkg --force-all -P tdengine >/dev/null 2>&1 || :
+elif echo $osinfo | grep -qwi "centos"; then
+  #  echo "this is centos system"
+  ${csudo}rpm -e --noscripts tdengine >/dev/null 2>&1 || :
+fi
+if [ "$osType" = "Darwin" ]; then
+  ${csudo}rm -rf /Applications/TDengine.app
+fi
 
 echo 
 echo "Do you want to remove all the data, log and configuration files? [y/n]"

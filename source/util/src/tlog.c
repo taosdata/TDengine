@@ -795,7 +795,12 @@ static void *taosAsyncOutputLog(void *param) {
       updateCron = 0;
     }
 
-    if (pLogBuf->stop || pSlowBuf->stop) break;
+    if (pLogBuf->stop || pSlowBuf->stop) {
+      pLogBuf->lastDuration = LOG_MAX_WAIT_MSEC;
+      taosWriteLog(pLogBuf);
+      taosWriteLog(pSlowBuf);
+      break;
+    }
   }
 
   return NULL;
@@ -822,7 +827,7 @@ bool taosAssertDebug(bool condition, const char *file, int32_t line, const char 
   taosPrintTrace(flags, level, dflag, -1);
 
   if (tsAssert) {
-    // taosCloseLog();
+    taosCloseLog();
     taosMsleep(300);
 
 #ifdef NDEBUG
