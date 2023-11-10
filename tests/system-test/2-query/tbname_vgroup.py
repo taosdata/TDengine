@@ -190,9 +190,14 @@ class TDTestCase:
 
         tdSql.execute("insert into ct24 using st2 tags(4) values('2021-04-19 00:00:04', 4)")
         
-        tdSql.query("select * from st, st2 where st.ts=st2.ts and st.tbname in ('ct1', 'ct2') and st2.tbname in ('ct1', 'ct3')");
-        tdSql.checkRows(0);
-        
+        tdSql.query("select * from st, st2 where st.ts=st2.ts and st.tbname in ('ct1', 'ct2') and st2.tbname in ('ct21', 'ct23')");
+        tdSql.checkRows(1);
+        tdSql.checkData(0, 0, datetime.datetime(2021, 4, 19, 0, 0, 1))
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, datetime.datetime(2021, 4, 19, 0, 0, 1))
+        tdSql.checkData(0, 4, 1)
+        tdSql.checkData(0, 5, 1)
                           
         #tdSql.execute('drop database dbvg;')
 
