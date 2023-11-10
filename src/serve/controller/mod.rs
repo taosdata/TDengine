@@ -7,7 +7,8 @@ use std::sync::Arc;
 use std::{collections::HashMap, time::Duration};
 
 use self::agent::{
-    Agent, AgentActivityFilter, AgentProps, AgentToken, AgentUpdates, AgentWithToken, LevelFilter,
+    Agent, AgentActivityFilter, AgentProps, AgentStatus, AgentToken, AgentUpdates, AgentWithToken,
+    LevelFilter,
 };
 use self::transferred::Transferred;
 use self::trigger::Strategy;
@@ -1176,12 +1177,12 @@ impl TaskController {
     ) -> anyhow::Result<Vec<Agent>> {
         let mut sql = if id.is_some() {
             format!(
-                "select * from agents_view where name = '{}' and id != '{}'",
+                "select * from agents where name = '{}' and id != '{}'",
                 name,
                 id.unwrap()
             )
         } else {
-            format!("select * from agents_view where name = '{}'", name)
+            format!("select * from agents where name = '{}'", name)
         };
         if cluster_id.is_some() {
             sql.push_str(format!(" and cluster_id = '{}'", cluster_id.unwrap()).as_str());
@@ -1227,30 +1228,51 @@ impl TaskController {
 
     pub async fn get_agents(&self, filter: AgentFilter) -> anyhow::Result<Vec<Agent>> {
         let sql = match filter.to_sql_condition() {
-            Some(cond) => format!("select * from agents_view where {cond}"),
-            None => format!("select * from agents_view"),
+            Some(cond) => format!("select * from agents where {cond}"),
+            None => format!("select * from agents"),
         };
-        let agent = sqlx::query_as(&sql).fetch_all(&self.pool).await?;
-        Ok(agent)
+        let mut agents: Vec<Agent> = sqlx::query_as(&sql).fetch_all(&self.pool).await?;
+        for agent in &mut agents {
+            agent.status.replace(self.agent_status(agent.id).await);
+        }
+        Ok(agents)
     }
 
     pub async fn get_agent_with_token(&self, token: &AgentToken) -> anyhow::Result<Option<Agent>> {
         let claims = token.jwt_decode(self.jwt_secret().await?)?;
         let agent = self.get_agent_by_id(claims.sub).await?;
-        if agent.is_some() {
-            //
-        }
         Ok(agent)
     }
 
     pub async fn get_agent_by_id(&self, agent_id: i64) -> anyhow::Result<Option<Agent>> {
-        let sql = format!("select * from agents_view where id = {agent_id}");
-        let agent = sqlx::query_as(&sql).fetch_optional(&self.pool).await?;
+        let sql = format!("select * from agents where id = {agent_id}");
+        let mut agent: Option<Agent> = sqlx::query_as(&sql).fetch_optional(&self.pool).await?;
+        if let Some(agent) = &mut agent {
+            agent.status.replace(self.agent_status(agent_id).await);
+        }
         Ok(agent)
     }
     /// Check if agent is connected.
     pub async fn agent_alive(&self, agent_id: i64) -> bool {
         self.scheduler.agent_is_alive(agent_id).await
+    }
+
+    pub async fn agent_status(&self, agent_id: i64) -> AgentStatus {
+        let activities = sqlx::query_scalar!(
+            "select count(*) from agent_activities where id = ? limit 2",
+            agent_id
+        )
+        .fetch_one(&self.pool)
+        .await
+        .unwrap_or_default();
+        if activities == 1 {
+            return AgentStatus::Created;
+        }
+        if self.scheduler.agent_is_alive(agent_id).await {
+            AgentStatus::Connected
+        } else {
+            AgentStatus::Disconnected
+        }
     }
     /// Update agent activities.
     pub async fn push_agent_activity(&self, activity: Activity) -> anyhow::Result<()> {
