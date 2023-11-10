@@ -75,6 +75,13 @@ extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
 extern int32_t tsHeartbeatTimeout;
 
+// snode
+extern int32_t tsRsyncPort;
+extern char tsCheckpointBackupDir[];
+
+// vnode checkpoint
+extern char tsSnodeAddress[];       //127.0.0.1:873
+
 // mnode
 extern int64_t tsMndSdbWriteDelta;
 extern int64_t tsMndLogRetention;

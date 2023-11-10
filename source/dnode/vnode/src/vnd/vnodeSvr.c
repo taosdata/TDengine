@@ -18,7 +18,7 @@
 #include "tmsg.h"
 #include "tstrbuild.h"
 #include "vnd.h"
-#include "vndCos.h"
+#include "cos.h"
 #include "vnode.h"
 #include "vnodeInt.h"
 
@@ -928,6 +928,17 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
       goto _exit;
     }
 
+    if(tsEnableAuditCreateTable){
+      char* str = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
+      if (str == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        rcode = -1;
+        goto _exit;
+      }
+      strcpy(str, pCreateReq->name);
+      taosArrayPush(tbNames, &str);
+    }
+
     // validate hash
     sprintf(tbName, "%s.%s", pVnode->config.dbname, pCreateReq->name);
     if (vnodeValidateTableHash(pVnode, tbName) < 0) {
@@ -951,12 +962,6 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     }
 
     taosArrayPush(rsp.pArray, &cRsp);
-
-    if (tsEnableAuditCreateTable) {
-      char *str = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
-      strcpy(str, pCreateReq->name);
-      taosArrayPush(tbNames, &str);
-    }
   }
 
   vDebug("vgId:%d, add %d new created tables into query table list", TD_VID(pVnode), (int32_t)taosArrayGetSize(tbUids));
@@ -985,10 +990,10 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     tNameFromString(&name, pVnode->config.dbname, T_NAME_ACCT | T_NAME_DB);
 
     SStringBuilder sb = {0};
-    for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
-      char **key = (char **)taosArrayGet(tbNames, iReq);
+    for(int32_t i = 0; i < tbNames->size; i++){
+      char** key = (char**)taosArrayGet(tbNames, i);
       taosStringBuilderAppendStringLen(&sb, *key, strlen(*key));
-      if (iReq < req.nReqs - 1) {
+      if(i < tbNames->size - 1){
         taosStringBuilderAppendChar(&sb, ',');
       }
       taosMemoryFreeClear(*key);
@@ -1669,7 +1674,7 @@ _exit:
   atomic_add_fetch_64(&pVnode->statis.nBatchInsert, 1);
   if (code == 0) {
     atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, 1);
-    tdProcessRSmaSubmit(pVnode->pSma, ver, pSubmitReq, pReq, len, STREAM_INPUT__DATA_SUBMIT);
+    code = tdProcessRSmaSubmit(pVnode->pSma, ver, pSubmitReq, pReq, len, STREAM_INPUT__DATA_SUBMIT);
   }
 
   // clear

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "cos.h"
 #include "tsdb.h"
-#include "vndCos.h"
 
 static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
   int32_t     code = 0;
@@ -340,7 +340,7 @@ static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64
     int64_t  retrieve_offset = PAGE_OFFSET(pgno, pFD->szPage);
     int64_t  pgnoEnd = pgno - 1 + (size - n + szPgCont - 1) / szPgCont;
     int64_t  retrieve_size = (pgnoEnd - pgno + 1) * pFD->szPage;
-    code = s3GetObjectBlock(pFD->objName, retrieve_offset, retrieve_size, &pBlock);
+    code = s3GetObjectBlock(pFD->objName, retrieve_offset, retrieve_size, 1, &pBlock);
     if (code != TSDB_CODE_SUCCESS) {
       goto _exit;
     }

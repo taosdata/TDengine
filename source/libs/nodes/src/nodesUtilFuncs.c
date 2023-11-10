@@ -1285,6 +1285,7 @@ void nodesDestroyNode(SNode* pNode) {
       SLastRowScanPhysiNode* pPhyNode = (SLastRowScanPhysiNode*)pNode;
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       nodesDestroyList(pPhyNode->pGroupTags);
+      nodesDestroyList(pPhyNode->pTargets);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:

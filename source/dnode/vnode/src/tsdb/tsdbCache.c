@@ -12,11 +12,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include "cos.h"
 #include "tsdb.h"
 #include "tsdbDataFileRW.h"
 #include "tsdbReadUtil.h"
 #include "vnd.h"
-#include "vndCos.h"
 
 #define ROCKS_BATCH_SIZE (4096)
 
@@ -3099,7 +3099,7 @@ static int32_t tsdbCacheLoadBlockS3(STsdbFD *pFD, uint8_t **ppBlock) {
   }
   */
   int64_t block_offset = (pFD->blkno - 1) * tsS3BlockSize * pFD->szPage;
-  code = s3GetObjectBlock(pFD->objName, block_offset, tsS3BlockSize * pFD->szPage, ppBlock);
+  code = s3GetObjectBlock(pFD->objName, block_offset, tsS3BlockSize * pFD->szPage, 0, ppBlock);
   if (code != TSDB_CODE_SUCCESS) {
     // taosMemoryFree(pBlock);
     // code = TSDB_CODE_OUT_OF_MEMORY;

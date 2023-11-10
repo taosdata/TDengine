@@ -18,6 +18,17 @@ TARGET_INCLUDE_DIRECTORIES(
   PRIVATE "${TD_SOURCE_DIR}/source/libs/stream/inc"
 )
 
+ADD_EXECUTABLE(checkpointTest checkpointTest.cpp)
+TARGET_LINK_LIBRARIES(
+        checkpointTest
+        PUBLIC os common gtest stream executor qcom index transport util
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        checkpointTest
+        PRIVATE "${TD_SOURCE_DIR}/source/libs/stream/inc"
+)
+
 add_test(
   NAME streamUpdateTest
   COMMAND streamUpdateTest

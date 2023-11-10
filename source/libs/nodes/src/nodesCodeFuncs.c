@@ -1773,6 +1773,7 @@ static int32_t jsonToPhysiTagScanNode(const SJson* pJson, void* pObj) {
 
 static const char* jkLastRowScanPhysiPlanGroupTags = "GroupTags";
 static const char* jkLastRowScanPhysiPlanGroupSort = "GroupSort";
+static const char* jkLastRowScanPhysiPlanTargets = "Targets";
 
 static int32_t physiLastRowScanNodeToJson(const void* pObj, SJson* pJson) {
   const SLastRowScanPhysiNode* pNode = (const SLastRowScanPhysiNode*)pObj;
@@ -1783,6 +1784,9 @@ static int32_t physiLastRowScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkLastRowScanPhysiPlanGroupSort, pNode->groupSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkLastRowScanPhysiPlanTargets, pNode->pTargets);
   }
 
   return code;
@@ -1797,6 +1801,9 @@ static int32_t jsonToPhysiLastRowScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkLastRowScanPhysiPlanGroupSort, &pNode->groupSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkLastRowScanPhysiPlanTargets, &pNode->pTargets);
   }
 
   return code;

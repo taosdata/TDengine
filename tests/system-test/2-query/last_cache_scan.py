@@ -283,6 +283,42 @@ class TDTestCase:
         tdSql.checkData(0, 3, 1001)
         tdSql.checkData(0, 4, "2018-11-25 19:30:00.000")
 
+        sql_template = 'select %s from meters partition by tbname'
+        select_items = ["ts, last(c10), c10, ts", "ts, ts, last(c10), c10, tbname", "last(c10), c10, ts"]
+        has_last_row_scan_res = [1,1,1]
+        sqls = self.format_sqls(sql_template, select_items)
+        self.explain_and_check_res(sqls, has_last_row_scan_res)
+        tdSql.query(sqls[0], queryTimes=1)
+        tdSql.checkRows(10)
+        tdSql.checkData(0,0, '2018-11-25 19:30:00.000')
+        tdSql.checkData(0,1, '2018-11-25 19:30:01.000')
+        tdSql.checkData(0,2, '2018-11-25 19:30:01.000')
+        tdSql.checkData(0,3, '2018-11-25 19:30:00.000')
+
+        tdSql.query(sqls[1], queryTimes=1)
+        tdSql.checkRows(10)
+        tdSql.checkData(0,0, '2018-11-25 19:30:00.000')
+        tdSql.checkData(0,1, '2018-11-25 19:30:00.000')
+        tdSql.checkData(0,2, '2018-11-25 19:30:01.000')
+        tdSql.checkData(0,3, '2018-11-25 19:30:01.000')
+
+        sql_template = 'select %s from meters partition by t1'
+        select_items = ["ts, last(c10), c10, ts", "ts, ts, last(c10), c10, t1", "last(c10), c10, ts"]
+        has_last_row_scan_res = [1,1,1]
+        sqls = self.format_sqls(sql_template, select_items)
+        self.explain_and_check_res(sqls, has_last_row_scan_res)
+        tdSql.query(sqls[0], queryTimes=1)
+        tdSql.checkRows(5)
+        tdSql.checkData(0,0, '2018-11-25 19:30:00.000')
+        tdSql.checkData(0,1, '2018-11-25 19:30:01.000')
+        tdSql.checkData(0,2, '2018-11-25 19:30:01.000')
+        tdSql.checkData(0,3, '2018-11-25 19:30:00.000')
+
+        tdSql.query("select ts, last(c10), t1, t2 from meters partition by t1, t2")
+        tdSql.checkRows(10)
+        tdSql.checkData(0, 0, '2018-11-25 19:30:00.000')
+        tdSql.checkData(0, 1, '2018-11-25 19:30:01.000')
+
     def run(self):
         self.prepareTestEnv()
         #time.sleep(99999999)

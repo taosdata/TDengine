@@ -552,6 +552,7 @@ static int32_t createLastRowScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSu
   if (NULL == pScan) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  pScan->pTargets = nodesCloneList(pScanLogicNode->node.pTargets);
 
   pScan->pGroupTags = nodesCloneList(pScanLogicNode->pGroupTags);
   if (NULL != pScanLogicNode->pGroupTags && NULL == pScan->pGroupTags) {
