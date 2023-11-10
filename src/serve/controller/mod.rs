@@ -556,7 +556,7 @@ impl TaskController {
         let assert_enterprise = builder.assert_enterprise_edition().await;
 
         #[cfg(not(feature = "disable-enterprise-only-validation"))]
-        if let Err(err) = assert_enterprise {
+        if let Err(_) = assert_enterprise {
             /* anyhow::bail!(format!(
                 "{err:?}. A non-expired enterprise edition is required in most of steps."
             )) */

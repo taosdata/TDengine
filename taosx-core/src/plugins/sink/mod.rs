@@ -1472,8 +1472,16 @@ async fn consume_flat_record(
                                                     )
                                                     .await
                                                     {
-                                                        Ok(_n) => (), // counter!(STABLE_CREATED, n as u64),
-                                                        Err(err) => return Err(err)?,
+                                                        Ok(_) => {
+                                                            counter!(METRIC_STABLE_CREATED, 1);
+                                                        }
+                                                        Err(err) => {
+                                                            let code: i32 = err.code().into();
+                                                            // STable already exists
+                                                            if code != 0x0360 {
+                                                                Err(err)?;
+                                                            }
+                                                        }
                                                     }
                                                     let sql = records.table_sql();
 
@@ -1485,7 +1493,12 @@ async fn consume_flat_record(
                                                         )
                                                         .await
                                                         {
-                                                            Ok(_n) => (), // counter!(CHILD_TABLE_CREATED,n as u64),
+                                                            Ok(_n) => {
+                                                                counter!(
+                                                                    METRIC_CHILD_TABLE_CREATED,
+                                                                    1
+                                                                );
+                                                            }
                                                             Err(err) => {
                                                                 if err
                                                                     .to_string()
@@ -1591,20 +1604,26 @@ async fn consume_flat_record(
                                                             .tables
                                                             .fetch_add(1, Ordering::SeqCst);
                                                     }
-                                                    if let Err(err) = exec(
+                                                    match exec(
                                                         taos.as_ref().unwrap(),
                                                         &sql,
                                                         data_trace_id,
                                                     )
                                                     .await
                                                     {
-                                                        let code: i32 = err.code().into();
-                                                        match code {
-                                                            0xE001 | 0xE002 | 0xE003 | 0x000B => {
-                                                                taos.replace(pool.get().await?);
-                                                                continue;
+                                                        Ok(_) => {
+                                                            counter!(METRIC_CHILD_TABLE_CREATED, 1);
+                                                        }
+                                                        Err(err) => {
+                                                            let code: i32 = err.code().into();
+                                                            match code {
+                                                                0xE001 | 0xE002 | 0xE003
+                                                                | 0x000B => {
+                                                                    taos.replace(pool.get().await?);
+                                                                    continue;
+                                                                }
+                                                                _ => Err(err)?,
                                                             }
-                                                            _ => Err(err)?,
                                                         }
                                                     }
                                                 }
@@ -1635,18 +1654,22 @@ async fn consume_flat_record(
                                         match exec(taos.as_ref().unwrap(), &sql, data_trace_id)
                                             .await
                                         {
-                                            Ok(_n) => (), // counter!(STABLE_CREATED, n as u64),
+                                            Ok(_n) => {
+                                                counter!(METRIC_STABLE_CREATED, 1);
+                                            }
                                             Err(err) => {
-                                                if err.to_string().contains("0x032C") {
+                                                let code: i32 = err.code().into();
+                                                let err_str = err.to_string();
+                                                if err_str.contains("0x032C") {
                                                     // Object is creating
                                                     tracing::warn!(
                                                         "error code [0x032C] encountered, ignore"
                                                     );
                                                     continue;
-                                                } else {
+                                                } else if code != 0x0360 {
                                                     anyhow::bail!(
                                                         "create stable sql err: {}",
-                                                        err.to_string()
+                                                        err_str
                                                     );
                                                 }
                                             }
@@ -1658,7 +1681,9 @@ async fn consume_flat_record(
                                             match exec(taos.as_ref().unwrap(), &sql, data_trace_id)
                                                 .await
                                             {
-                                                Ok(_n) => (), // counter!(CHILD_TABLE_CREATED, n as u64),
+                                                Ok(_n) => {
+                                                    counter!(METRIC_CHILD_TABLE_CREATED, 1);
+                                                }
                                                 Err(err) => {
                                                     if err.to_string().contains("[0x2605]") {
                                                         let table =
@@ -1701,7 +1726,14 @@ async fn consume_flat_record(
                                         if let Some(transferred) = transferred {
                                             transferred.tables.fetch_add(1, Ordering::SeqCst);
                                         }
-                                        exec(taos.as_ref().unwrap(), &sql, data_trace_id).await?;
+                                        match exec(taos.as_ref().unwrap(), &sql, data_trace_id)
+                                            .await
+                                        {
+                                            Ok(_n) => {
+                                                counter!(METRIC_CHILD_TABLE_CREATED, 1);
+                                            }
+                                            Err(err) => return Err(err)?,
+                                        }
                                     }
 
                                     continue;

@@ -590,7 +590,7 @@ impl MessageArrowRecords {
                 .map(|f| f.sql_repr())
                 .join(",");
             Some(format!(
-                "create table if not exists `{}` ({}) tags ({})",
+                "create table `{}` ({}) tags ({})",
                 using, columns, tags
             ))
         } else {
