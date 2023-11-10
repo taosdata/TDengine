@@ -1230,7 +1230,6 @@ int32_t toTimestampFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam
     code = taosChar2Ts(format, &formats, tsStr, &ts, precision, errMsg, 128);
     if (code) {
       qError("func to_timestamp failed %s", errMsg);
-      code = code == -1 ? TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_FORMAT_ERR : TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_TS_ERR;
       break;
     }
     colDataSetVal(pOutput->columnData, i, (char *)&ts, false);
