@@ -348,7 +348,7 @@ int32_t doUploadChkp(void* param) {
   if (code == 0 && uploadCheckpoint(arg->taskId, path) != 0) {
     stError("s-task:%s failed to upload checkpoint:%" PRId64, arg->pTask->id.idStr, arg->chkpId);
   }
-
+  taosRemoveDir(path);
   taosMemoryFree(path);
   taosMemoryFree(arg->taskId);
   taosMemoryFree(arg);
@@ -435,6 +435,7 @@ static int uploadCheckpointToS3(char* id, char* path) {
   if (pDir == NULL) return -1;
 
   TdDirEntryPtr de = NULL;
+  s3Init();
   while ((de = taosReadDir(pDir)) != NULL) {
     char* name = taosGetDirEntryName(de);
     if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0 || taosDirEntryIsDir(de)) continue;
@@ -454,6 +455,7 @@ static int uploadCheckpointToS3(char* id, char* path) {
       return -1;
     }
     stDebug("[s3] upload checkpoint:%s", filename);
+    break;
   }
   taosCloseDir(&pDir);
 
