@@ -365,7 +365,7 @@ typedef struct SSortExecInfo {
 } SSortExecInfo;
 
 typedef struct SNonSortExecInfo {
-
+  int32_t blkNums;
 } SNonSortExecInfo;
 
 
