@@ -29,7 +29,7 @@ int32_t doValidatePhysiNode(SValidatePlanContext* pCxt, SNode* pNode);
 
 int32_t validateMergePhysiNode(SValidatePlanContext* pCxt, SMergePhysiNode* pMerge) {
   if ((NULL != pMerge->node.pLimit || NULL != pMerge->node.pSlimit) && pMerge->type == MERGE_TYPE_NON_SORT) {
-    planError("no limit&slimit supported for non sort merge");
+    planError("no limit&slimit supported for non sort merge, pLimit:%p", pMerge->node.pLimit);
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 
