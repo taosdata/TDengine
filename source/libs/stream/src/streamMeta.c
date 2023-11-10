@@ -854,6 +854,37 @@ static void clearHbMsg(SStreamHbMsg* pMsg, SArray* pIdList) {
   taosArrayDestroy(pIdList);
 }
 
+static bool existInHbMsg(SStreamHbMsg* pMsg, SDownstreamTaskEpset* pTaskEpset) {
+  int32_t numOfExisted = taosArrayGetSize(pMsg->pUpdateNodes);
+  for (int k = 0; k < numOfExisted; ++k) {
+    if (pTaskEpset->nodeId == *(int32_t*)taosArrayGet(pMsg->pUpdateNodes, k)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static void addUpdateNodeIntoHbMsg(SStreamTask* pTask, SStreamHbMsg* pMsg) {
+  SStreamMeta* pMeta = pTask->pMeta;
+
+  taosThreadMutexLock(&pTask->lock);
+
+  int32_t num = taosArrayGetSize(pTask->outputInfo.pDownstreamUpdateList);
+  for (int j = 0; j < num; ++j) {
+    SDownstreamTaskEpset* pTaskEpset = taosArrayGet(pTask->outputInfo.pDownstreamUpdateList, j);
+
+    bool exist = existInHbMsg(pMsg, pTaskEpset);
+    if (!exist) {
+      taosArrayPush(pMsg->pUpdateNodes, &pTaskEpset->nodeId);
+      stDebug("vgId:%d nodeId:%d added into hb update list, total:%d", pMeta->vgId, pTaskEpset->nodeId,
+              (int32_t)taosArrayGetSize(pMsg->pUpdateNodes));
+    }
+  }
+
+  taosArrayClear(pTask->outputInfo.pDownstreamUpdateList);
+  taosThreadMutexUnlock(&pTask->lock);
+}
+
 void metaHbToMnode(void* param, void* tmrId) {
   int64_t rid = *(int64_t*)param;
 
@@ -949,30 +980,7 @@ void metaHbToMnode(void* param, void* tmrId) {
       walReaderValidVersionRange((*pTask)->exec.pWalReader, &entry.verStart, &entry.verEnd);
     }
 
-    taosThreadMutexLock(&(*pTask)->lock);
-    int32_t num = taosArrayGetSize((*pTask)->outputInfo.pDownstreamUpdateList);
-    for (int j = 0; j < num; ++j) {
-      SDownstreamTaskEpset* pTaskEpset = taosArrayGet((*pTask)->outputInfo.pDownstreamUpdateList, j);
-
-      bool    exist = false;
-      int32_t numOfExisted = taosArrayGetSize(hbMsg.pUpdateNodes);
-      for (int k = 0; k < numOfExisted; ++k) {
-        if (pTaskEpset->nodeId == *(int32_t*)taosArrayGet(hbMsg.pUpdateNodes, k)) {
-          exist = true;
-          break;
-        }
-      }
-
-      if (!exist) {
-        taosArrayPush(hbMsg.pUpdateNodes, &pTaskEpset->nodeId);
-        stDebug("vgId:%d nodeId:%d added into the update list, total:%d", pMeta->vgId, pTaskEpset->nodeId,
-                (int32_t)taosArrayGetSize(hbMsg.pUpdateNodes));
-      }
-    }
-
-    taosArrayClear((*pTask)->outputInfo.pDownstreamUpdateList);
-    taosThreadMutexUnlock(&(*pTask)->lock);
-
+    addUpdateNodeIntoHbMsg(*pTask, &hbMsg);
     taosArrayPush(hbMsg.pTaskStatus, &entry);
     if (!hasMnodeEpset) {
       epsetAssign(&epset, &(*pTask)->info.mnodeEpset);
