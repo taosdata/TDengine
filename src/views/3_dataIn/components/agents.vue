@@ -93,7 +93,11 @@
       <el-table-column
         :label="$t('taosagents.status')"
         prop="status"
-      ></el-table-column>
+      >
+        <span slot-scope="scope">{{
+          handleDSStatus(scope.row.status)
+        }}</span>
+      </el-table-column>
       <!-- <el-table-column
         :label="$t('taosagents.dsn')"
         prop="dsn"
@@ -579,6 +583,9 @@ export default {
           break;
       }
       return style;
+    },
+    handleDSStatus(value) {
+      return this.$t('statuses.' + value);
     },
   },
   created() {
