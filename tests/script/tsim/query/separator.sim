@@ -3,7 +3,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-sql select 'a;b' as x\G
+sql select 'a;b' as x
 if $rows != 1 then
   return -1
 endi
