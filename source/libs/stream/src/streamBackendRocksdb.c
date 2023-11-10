@@ -1724,7 +1724,8 @@ int32_t taskDbGenChkpUplaodPath__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64
   char* temp = taosMemoryCalloc(1, strlen(pDb->path));
   sprintf(temp, "%s%s%s", pDb->path, TD_DIRSEP, "tmp");
 
-  if (!taosDirExist(temp)) {
+  if (taosDirExist(temp)) {
+    taosRemoveDir(temp);
     taosMkDir(temp);
   }
   bkdMgtGetDelta(p, pDb->idstr, chkpId, NULL, temp);
