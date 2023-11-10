@@ -139,3 +139,13 @@ export function validPath(arg) {
   }
   
 }
+
+// 获取数据类型
+export function getType(data) {
+  return Object.prototype.toString.call(data).slice(8, -1).toLowerCase();
+}
+
+// 是否为对象
+export function isObject(arg) {
+  return getType(arg) === 'object';
+}

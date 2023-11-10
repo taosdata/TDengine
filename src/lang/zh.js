@@ -169,6 +169,7 @@ export default {
   read: "读",
   write: "写",
   subscribe: "订阅",
+  required: "{0}是必需的",
   plan: {
     pricePlan: "价格方案",
     selectPlan: "选择方案",
