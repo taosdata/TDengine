@@ -206,7 +206,8 @@ pub struct Agent {
     created_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
     last_modified_at: Option<DateTime<Utc>>,
-    status: Option<AgentStatus>,
+    #[sqlx(skip)]
+    pub status: Option<AgentStatus>,
 }
 
 impl Agent {

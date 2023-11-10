@@ -330,7 +330,6 @@ fn build_runtime(
     worker_threads: usize,
 ) -> std::result::Result<tokio::runtime::Runtime, std::io::Error> {
     tokio::runtime::Builder::new_multi_thread()
-        .disable_lifo_slot()
         .rng_seed(tokio::runtime::RngSeed::from_bytes(b"taosx rng seed"))
         .global_queue_interval(61)
         .max_blocking_threads(4096)

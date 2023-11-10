@@ -29,7 +29,7 @@ use crate::serve::controller::{
 
 use super::{
     agent::{AgentState, AgentTask, AgentWorker},
-    NotifySender, SchedulerNotify,
+    NotifySender, SchedulerNotify, StopError,
 };
 
 #[instrument(skip_all)]
@@ -669,6 +669,32 @@ impl Debug for MultiIndexTaskJobMap {
                 &self.iter().map(|(_, task)| task).collect::<Vec<_>>(),
             )
             .finish()
+    }
+}
+
+impl MultiIndexTaskJobMap {
+    pub async fn try_stop(&mut self, task: i64) -> Result<(), StopError> {
+        let task_job = self
+            .get_by_task_id(&task)
+            .ok_or_else(|| StopError::NotFound(task))?;
+        let job_id = task_job.job_id;
+        tracing::info!(task.id = task, job.id = %job_id, "task `{task}` will be removed");
+
+        if task_job.in_final_state().await {
+            return Err(StopError::AlreadyStopped(task));
+        }
+
+        let state = task_job.stop().await;
+
+        if state.ready_to_remove_job() {
+            // If job has not been ticked, remove task state handler directly.
+            self.remove_by_task_id(&task);
+            tracing::info!(task.id = task, job.id = %job_id, "task `{task}` is stopped");
+            Ok(())
+        } else {
+            tracing::info!(task.id = task, job.id = %job_id, "Try stop task in scheduler");
+            Ok(())
+        }
     }
 }
 
