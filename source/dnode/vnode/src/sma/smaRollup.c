@@ -711,8 +711,10 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
         continue;
       }
 
-      smaDebug("vgId:%d, result block, uid:%" PRIu64 ", groupid:%" PRIu64 ", rows:%" PRIi64, SMA_VID(pSma),
-               output->info.id.uid, output->info.id.groupId, output->info.rows);
+      smaDebug("vgId:%d, result block, execType:%d, ver:%" PRIi64 ", submitReqVer:%" PRIi64 ", fetchResultVer:%" PRIi64
+               ", suid:%" PRIi64 ", level:%" PRIi8 ", uid:%" PRIu64 ", groupid:%" PRIu64 ", rows:%" PRIi64,
+               SMA_VID(pSma), execType, output->info.version, pItem->submitReqVer, pItem->fetchResultVer, suid,
+               pItem->level, output->info.id.uid, output->info.id.groupId, output->info.rows);
 
       if (STREAM_GET_ALL == execType) {
         /**
@@ -723,7 +725,11 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
           // submitReqVer keeps unchanged since tdExecuteRSmaImpl and tdRSmaFetchAllResult are executed synchronously
           output->info.version = pItem->submitReqVer;
         } else if (output->info.version == pItem->fetchResultVer) {
-          ASSERTS(0, "duplicated fetch version:%" PRIi64, pItem->fetchResultVer);
+          smaWarn("vgId:%d, result block, skip dup version, execType:%d, ver:%" PRIi64 ", submitReqVer:%" PRIi64
+                  ", fetchResultVer:%" PRIi64 ", suid:%" PRIi64 ", level:%" PRIi8 ", uid:%" PRIu64 ", groupid:%" PRIu64
+                  ", rows:%" PRIi64,
+                  SMA_VID(pSma), execType, output->info.version, pItem->submitReqVer, pItem->fetchResultVer, suid,
+                  pItem->level, output->info.id.uid, output->info.id.groupId, output->info.rows);
           continue;
         }
       }
@@ -752,8 +758,9 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
         atomic_store_64(&pItem->fetchResultVer, output->info.version);
       }
 
-      smaDebug("vgId:%d, process submit req for rsma suid:%" PRIu64 ",uid:%" PRIu64 ", level %" PRIi8 " ver %" PRIi64,
-               SMA_VID(pSma), suid, output->info.id.groupId, pItem->level, output->info.version);
+      smaDebug("vgId:%d, process submit req for rsma suid:%" PRIu64 ",uid:%" PRIu64 ", level:%" PRIi8
+               ", execType:%d, ver:%" PRIi64,
+               SMA_VID(pSma), suid, output->info.id.groupId, pItem->level, execType, output->info.version);
 
       if (pReq) {
         tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
@@ -881,8 +888,8 @@ static int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t msgSize, 
     return TSDB_CODE_FAILED;
   }
 
-  smaDebug("vgId:%d, execute rsma %" PRIi8 " task for qTaskInfo:%p suid:%" PRIu64 " nMsg:%d", SMA_VID(pSma), level,
-           RSMA_INFO_QTASK(pInfo, idx), pInfo->suid, msgSize);
+  smaDebug("vgId:%d, execute rsma %" PRIi8 " task for qTaskInfo:%p, suid:%" PRIu64 ", nMsg:%d, submitReqVer:%" PRIi64 ", inputType:%d", SMA_VID(pSma), level,
+           RSMA_INFO_QTASK(pInfo, idx), pInfo->suid, msgSize, version, inputType);
 
   if ((terrno = qSetSMAInput(qTaskInfo, pMsg, msgSize, inputType)) < 0) {
     smaError("vgId:%d, rsma %" PRIi8 " qSetStreamInput failed since %s", SMA_VID(pSma), level, tstrerror(terrno));
