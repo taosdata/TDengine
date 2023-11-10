@@ -45,6 +45,7 @@ static void    setCreateTableMsgTableName(SVCreateTbReq* pCreateTableReq, SSData
 
 int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
                          const char* pIdStr) {
+  int32_t          code = 0;
   int32_t          totalRows = pDataBlock->info.rows;
   SColumnInfoData* pStartTsCol = taosArrayGet(pDataBlock->pDataBlock, START_TS_COLUMN_INDEX);
   SColumnInfoData* pEndTsCol = taosArrayGet(pDataBlock->pDataBlock, END_TS_COLUMN_INDEX);
@@ -73,16 +74,20 @@ int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* p
       pName = buildCtbNameByGroupId(stbFullName, groupId);
       name = pName;
     } else {
-      metaGetTableNameByUid(pTq->pVnode, groupId, tbName);
-      name = varDataVal(tbName);
+      if (metaGetTableNameByUid(pTq->pVnode, groupId, tbName) == 0) {
+        name = varDataVal(tbName);
+      } else {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+      }
     }
 
     if (!name || *name == '\0') {
       tqError("s-task:%s build delete msg groupId:%" PRId64 ", skey:%" PRId64 " ekey:%" PRId64
               " failed since invalid tbname:%s",
-              pIdStr, groupId, name, skey, ekey, name ? name : "NULL");
+              pIdStr, groupId, skey, ekey, name ? name : "NULL");
       taosArrayDestroy(deleteReq->deleteReqs);
-      return -1;
+      code = terrno ? terrno : TSDB_CODE_APP_ERROR;
+      return code;
     }
 
     tqDebug("s-task:%s build delete msg groupId:%" PRId64 ", name:%s, skey:%" PRId64 " ekey:%" PRId64, pIdStr, groupId,
@@ -95,7 +100,7 @@ int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* p
     taosArrayPush(deleteReq->deleteReqs, &req);
   }
 
-  return 0;
+  return code;
 }
 
 static int32_t encodeCreateChildTableForRPC(SVCreateTbBatchReq* pReqs, int32_t vgId, void** pBuf, int32_t* contLen) {
