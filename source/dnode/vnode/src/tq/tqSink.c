@@ -59,9 +59,9 @@ int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* p
     int64_t ekey = *(int64_t*)colDataGetData(pEndTsCol, row);
     int64_t groupId = *(int64_t*)colDataGetData(pGidCol, row);
 
-    char*   name = NULL;
-    char*   originName = NULL;
-    void*   varTbName = NULL;
+    char* name = NULL;
+    char* originName = NULL;
+    void* varTbName = NULL;
     if (!colDataIsNull(pTbNameCol, totalRows, row, NULL)) {
       varTbName = colDataGetVarData(pTbNameCol, row);
     }
@@ -75,30 +75,23 @@ int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* p
       originName = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE);
       if (metaGetTableNameByUid(pTq->pVnode, groupId, originName) == 0) {
         name = varDataVal(originName);
-      } else {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
       }
     }
 
     if (!name || *name == '\0') {
-      tqError("s-task:%s build delete msg groupId:%" PRId64 ", skey:%" PRId64 " ekey:%" PRId64
-              " failed since invalid tbname:%s",
-              pIdStr, groupId, skey, ekey, name ? name : "NULL");
-      taosArrayDestroy(deleteReq->deleteReqs);
-      code = terrno ? terrno : TSDB_CODE_APP_ERROR;
-      return code;
+      tqWarn("s-task:%s failed to build delete msg groupId:%" PRId64 ", skey:%" PRId64 " ekey:%" PRId64
+             " since invalid tbname:%s",
+             pIdStr, groupId, skey, ekey, name ? name : "NULL");
+    } else {
+      tqDebug("s-task:%s build delete msg groupId:%" PRId64 ", name:%s, skey:%" PRId64 " ekey:%" PRId64, pIdStr,
+              groupId, name, skey, ekey);
+
+      SSingleDeleteReq req = {.startTs = skey, .endTs = ekey};
+      strncpy(req.tbname, name, TSDB_TABLE_NAME_LEN - 1);
+      taosArrayPush(deleteReq->deleteReqs, &req);
     }
-
-    tqDebug("s-task:%s build delete msg groupId:%" PRId64 ", name:%s, skey:%" PRId64 " ekey:%" PRId64,
-            pIdStr, groupId, name, skey, ekey);
-
-    SSingleDeleteReq req = { .startTs = skey, .endTs = ekey};
-    strncpy(req.tbname, name, TSDB_TABLE_NAME_LEN - 1);
-
     if (originName) name = originName;
-    taosMemoryFree(name);
-
-    taosArrayPush(deleteReq->deleteReqs, &req);
+    taosMemoryFreeClear(name);
   }
 
   return 0;
