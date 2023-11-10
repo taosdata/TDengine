@@ -1550,13 +1550,17 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
           taosFreeQitem(msg);
           goto _err;
         }
-        if (!taosArrayPush(pSubmitArr, &packData)) {
+
+        if (packData.pDataBlock && !taosArrayPush(pSubmitArr, &packData)) {
           taosFreeQitem(msg);
           terrno = TSDB_CODE_OUT_OF_MEMORY;
           goto _err;
         }
         taosFreeQitem(msg);
-        ++nDelete;
+        if (packData.pDataBlock) {
+          // packData.pDataBlock is NULL if delete affects 0 row
+          ++nDelete;
+        }
       } else {
         ASSERTS(0, "unknown msg type:%d", inputType);
         break;
