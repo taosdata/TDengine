@@ -5,6 +5,8 @@ use std::{collections::BTreeMap, time::Duration};
 
 use crate::serve::data_sources::LangQuery;
 
+pub(crate) mod ws;
+
 #[derive(Debug, Default)]
 pub struct Metrics {
     push: Option<String>,

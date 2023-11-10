@@ -94,6 +94,7 @@ csv = "1.2"
 
 actix-cors = "0.6.4"
 actix-web = "4"
+actix-ws = "0.2.5"
 actix-multipart = "0.6.0"
 actix-files = "0.6.2"
 base64 = "0.21.2"
