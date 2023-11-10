@@ -175,6 +175,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->ahandle = ahandle;
   pMeta->expandFunc = expandFunc;
   pMeta->stage = stage;
+  pMeta->role = (vgId == SNODE_HANDLE) ? NODE_ROLE_LEADER : NODE_ROLE_UNINIT;
 
   // send heartbeat every 5sec.
   pMeta->rid = taosAddRef(streamMetaId, pMeta);
@@ -205,7 +206,6 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   }
   pMeta->streamBackendRid = taosAddRef(streamBackendId, pMeta->streamBackend);
 
-  pMeta->role = NODE_ROLE_UNINIT;
   code = streamBackendLoadCheckpointInfo(pMeta);
 
   taosInitRWLatch(&pMeta->lock);
@@ -1091,11 +1091,6 @@ void streamMetaStartHb(SStreamMeta* pMeta) {
   metaRefMgtAdd(pMeta->vgId, pRid);
   *pRid = pMeta->rid;
   metaHbToMnode(pRid, NULL);
-}
-
-void streamMetaInitForSnode(SStreamMeta* pMeta) {
-  pMeta->stage = 0;
-  pMeta->role = NODE_ROLE_LEADER;
 }
 
 void streamMetaResetStartInfo(STaskStartInfo* pStartInfo) {

@@ -117,7 +117,7 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
   }
 
   pSnode->msgCb = pOption->msgCb;
-  pSnode->pMeta = streamMetaOpen(path, pSnode, (FTaskExpand *)sndExpandTask, SNODE_HANDLE, -1);
+  pSnode->pMeta = streamMetaOpen(path, pSnode, (FTaskExpand *)sndExpandTask, SNODE_HANDLE, taosGetTimestampMs());
   if (pSnode->pMeta == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto FAIL;
@@ -126,8 +126,6 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
   stopRsync();
   startRsync();
 
-  // todo fix it: send msg to mnode to rollback to an existed checkpoint
-  streamMetaInitForSnode(pSnode->pMeta);
   return pSnode;
 
 FAIL:
@@ -270,6 +268,9 @@ int32_t sndProcessTaskDispatchRsp(SSnode *pSnode, SRpcMsg *pMsg) {
 
   pRsp->upstreamTaskId = htonl(pRsp->upstreamTaskId);
   pRsp->streamId = htobe64(pRsp->streamId);
+  pRsp->downstreamTaskId = htonl(pRsp->downstreamTaskId);
+  pRsp->downstreamNodeId = htonl(pRsp->downstreamNodeId);
+  pRsp->stage = htobe64(pRsp->stage);
   pRsp->msgId = htonl(pRsp->msgId);
 
   SStreamTask *pTask = streamMetaAcquireTask(pSnode->pMeta, pRsp->streamId, pRsp->upstreamTaskId);
@@ -333,6 +334,38 @@ int32_t sndProcessStreamTaskScanHistoryFinishReq(SSnode *pSnode, SRpcMsg *pMsg) 
 int32_t sndProcessTaskRecoverFinishRsp(SSnode *pSnode, SRpcMsg *pMsg) {
   //
   return 0;
+}
+
+// downstream task has complete the stream task checkpoint procedure, let's start the handle the rsp by execute task
+int32_t sndProcessTaskCheckpointReadyMsg(SSnode *pSnode, SRpcMsg* pMsg) {
+  SStreamMeta* pMeta = pSnode->pMeta;
+  char*        msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t      len = pMsg->contLen - sizeof(SMsgHead);
+  int32_t      code = 0;
+
+  SStreamCheckpointReadyMsg req = {0};
+
+  SDecoder decoder;
+  tDecoderInit(&decoder, (uint8_t*)msg, len);
+  if (tDecodeStreamCheckpointReadyMsg(&decoder, &req) < 0) {
+    code = TSDB_CODE_MSG_DECODE_ERROR;
+    tDecoderClear(&decoder);
+    return code;
+  }
+  tDecoderClear(&decoder);
+
+  SStreamTask* pTask = streamMetaAcquireTask(pMeta, req.streamId, req.upstreamTaskId);
+  if (pTask == NULL) {
+    qError("vgId:%d failed to find s-task:0x%x, it may have been destroyed already", pMeta->vgId, req.downstreamTaskId);
+    return code;
+  }
+
+  qDebug("snode vgId:%d s-task:%s received the checkpoint ready msg from task:0x%x (vgId:%d), handle it", pMeta->vgId,
+          pTask->id.idStr, req.downstreamTaskId, req.downstreamNodeId);
+
+  streamProcessCheckpointReadyMsg(pTask);
+  streamMetaReleaseTask(pMeta, pTask);
+  return code;
 }
 
 int32_t sndProcessStreamTaskCheckReq(SSnode *pSnode, SRpcMsg *pMsg) {
@@ -450,6 +483,8 @@ int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
       return sndProcessStreamTaskCheckReq(pSnode, pMsg);
     case TDMT_VND_STREAM_TASK_CHECK_RSP:
       return sndProcessStreamTaskCheckRsp(pSnode, pMsg);
+    case TDMT_STREAM_TASK_CHECKPOINT_READY:
+      return sndProcessTaskCheckpointReadyMsg(pSnode, pMsg);
     default:
       ASSERT(0);
   }
