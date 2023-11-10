@@ -320,6 +320,7 @@ import {
   refreshTask,
   getTaskActivities,
   getMetrics,
+  getMetricsDesc
 } from "@/api/explorer/datain";
 import { excuteStart, excuteStop, excuteDel } from "@/api/explorer/common";
 import AddDialog from "../components/addDialog.vue";
@@ -597,10 +598,12 @@ export default {
               return;
           }
         }
+        let metricsDesc = await getMetricsDesc()
         this.$store.commit("SET_DIALOG", {
           component: Metrics,
           params: {
             data: array,
+            metricsDesc
           },
           config: {
             title: this.$t("dataIn.metrics"),

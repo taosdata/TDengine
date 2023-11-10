@@ -151,3 +151,10 @@ export function downlaodAllNodes(data,agentid){
         //   }
     })
 }
+export function getMetricsDesc(data){
+    return request({
+        baseURL:process.env.VUE_APP_X_API,
+        url:`/metrics/description?lang=${i18n.locale}`,
+        method:'get',
+    })
+}

@@ -213,7 +213,7 @@ export default {
 
     clickCheckBtn() {
       this.checkResult = this.$options.data().checkResult;
-      this.submit(false);
+      this.validateForm(false);
     },
     // 数据源可用性和版本检查
     async getValidateResult(dns) {
@@ -230,67 +230,73 @@ export default {
       }
     },
 
-    async submit(isSubmit) {
-      let sourceTop = this.$refs.sourceTop;
-      isSubmit && sourceTop.$refs.ruleForm.validate(valid => {
-        if (!valid) {
-          return false
-        }
-        this.$refs.form.validate(async (valid) => {
-          if (valid) {
-            const dsn = getDsnData(
-              this.sourceForm.data,
-              this.currentDefinition,
-              isSubmit
-            );
-            const type = this.tagName;
-            let id = localStorage.getItem("local_clusterID");
-            // this.requestIng = true;
-            const params = {
-              from: type === "tmq" ? dsn : type + dsn,
-              name: this.sourceName,
-              to:
-                "taos+" +
-                localStorage.getItem("base_url") +
-                (this.targetDatabase ? "/" + this.targetDatabase : ""),
-              labels: [
-                "type::datain",
-                `cluster-id::${id}`,
-                `user::${localStorage.getItem("username")}`,
-              ],
-              // trigger: { "resume": this.resume }
-            };
-            if (this.agentId) {
-              params["via"] = this.agentId;
-            }
-            if (isSubmit) {
-              if (this.isEditable && this.editId && !this.isCopyable) {
-                let result = await EditSource(params, this.editId);
-                if (result.message) {
-                  Message.error(result.message);
-                  return;
-                }
-                this.$parent.changeEditable(false);
-                this.$parent.toggleComponent("tmqtable");
-              } else {
-                let result = await AddSource(params);
-                if (result.message) {
-                  Message.error(result.message);
-                  return;
-                }
-                this.$parent.changeEditable(false);
-                this.$parent.toggleComponent("tmqtable");
+    validateForm(isSubmit) {
+      this.$refs.form.validate(async (valid) => {
+        if (valid) {
+          const dsn = getDsnData(
+            this.sourceForm.data,
+            this.currentDefinition,
+            isSubmit
+          );
+          const type = this.tagName;
+          let id = localStorage.getItem("local_clusterID");
+          // this.requestIng = true;
+          const params = {
+            from: type === "tmq" ? dsn : type + dsn,
+            name: this.sourceName,
+            to:
+              "taos+" +
+              localStorage.getItem("base_url") +
+              (this.targetDatabase ? "/" + this.targetDatabase : ""),
+            labels: [
+              "type::datain",
+              `cluster-id::${id}`,
+              `user::${localStorage.getItem("username")}`,
+            ],
+            // trigger: { "resume": this.resume }
+          };
+          if (this.agentId) {
+            params["via"] = this.agentId;
+          }
+          if (isSubmit) {
+            if (this.isEditable && this.editId && !this.isCopyable) {
+              let result = await EditSource(params, this.editId);
+              if (result.message) {
+                Message.error(result.message);
+                return;
               }
+              this.$parent.changeEditable(false);
+              this.$parent.toggleComponent("tmqtable");
             } else {
-              this.getValidateResult(params.from);
+              let result = await AddSource(params);
+              if (result.message) {
+                Message.error(result.message);
+                return;
+              }
+              this.$parent.changeEditable(false);
+              this.$parent.toggleComponent("tmqtable");
             }
           } else {
-            console.log("error submit!!");
-            return false;
+            this.getValidateResult(params.from);
           }
-        });
+        } else {
+          console.log("error submit!!");
+          return false;
+        }
       });
     },
+    
+    async submit(isSubmit) {
+      let sourceTop = this.$refs.sourceTop;
+      isSubmit && sourceTop.$refs.ruleForm.validate(async valid => {
+        if (valid) {
+          this.validateForm(isSubmit)
+        } else {
+          return false
+        }
+      });
+    },
+    
 
     cancel() {
       this.$parent.currentName = "dbsource";

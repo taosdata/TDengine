@@ -10,7 +10,16 @@
         show-overflow-tooltip
         :label="$t('dataIn.metricName')"
         min-width="280"
-      ></el-table-column>
+      >
+      <template slot-scope="{ row }">
+        <el-tooltip
+          placement="top"
+          :content="metricsDesc[row.name]"
+        >
+          <span>{{ row.name }}</span>
+        </el-tooltip>
+      </template>
+      </el-table-column>
       <el-table-column
         prop="name"
         show-overflow-tooltip
@@ -32,6 +41,10 @@ export default {
     data: {
       type: Array,
       default: () => []
+    },
+    metricsDesc: {
+      type: Object,
+      default: () => {}
     }
   },
   components: {},
