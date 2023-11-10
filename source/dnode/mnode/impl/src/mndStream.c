@@ -2610,16 +2610,18 @@ int32_t mndResetFromCheckpoint(SMnode* pMnode) {
 
 int32_t setNodeEpsetExpiredFlag(const SArray* pNodeList) {
   int32_t num = taosArrayGetSize(pNodeList);
+  mInfo("set node expired for %d nodes", num);
 
   for (int k = 0; k < num; ++k) {
     int32_t* pVgId = taosArrayGet(pNodeList, k);
+    mInfo("set node expired for nodeId:%d, total:%d", *pVgId, num);
 
     int32_t numOfNodes = taosArrayGetSize(execInfo.pNodeEntryList);
     for (int i = 0; i < numOfNodes; ++i) {
       SNodeEntry* pNodeEntry = taosArrayGet(execInfo.pNodeEntryList, i);
 
       if (pNodeEntry->nodeId == *pVgId) {
-        mInfo("vgId:%d expired in stream task, needs update nodeEp", *pVgId);
+        mInfo("vgId:%d expired for some stream tasks, needs update nodeEp", *pVgId);
         pNodeEntry->stageUpdated = true;
         break;
       }
@@ -2670,8 +2672,11 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     doExtractTasksFromStream(pMnode);
   }
 
-  mDebug("%d stream nodes needs updated", (int32_t) taosArrayGetSize(req.pUpdateNodes));
-  setNodeEpsetExpiredFlag(req.pUpdateNodes);
+  int32_t numOfUpdated = taosArrayGetSize(req.pUpdateNodes);
+  if (numOfUpdated > 0) {
+    mDebug("%d stream nodes needs updated from tasks' report", (int32_t)taosArrayGetSize(req.pUpdateNodes));
+    setNodeEpsetExpiredFlag(req.pUpdateNodes);
+  }
 
   for (int32_t i = 0; i < req.numOfTasks; ++i) {
     STaskStatusEntry *p = taosArrayGet(req.pTaskStatus, i);
