@@ -2878,7 +2878,7 @@ static int32_t splitCacheLastFuncOptimize(SOptimizeContext* pCxt, SLogicSubplan*
   }
 
   if (NULL == pAggFuncList) {
-    planError("empty agg func list while splite projections");
+    planError("empty agg func list while splite projections, funcNum:%d", pAgg->pAggFuncs->length);
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 
@@ -2905,7 +2905,7 @@ static int32_t splitCacheLastFuncOptimize(SOptimizeContext* pCxt, SLogicSubplan*
   }
 
   if (NULL == pTargets) {
-    planError("empty target func list while splite projections");
+    planError("empty target func list while splite projections, targetsNum:%d", pAgg->node.pTargets->length);
     nodesDestroyList(pAggFuncList);
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }

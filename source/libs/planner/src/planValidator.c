@@ -154,6 +154,9 @@ int32_t validateQueryPlan(SPlanContext* pCxt, SQueryPlan* pPlan) {
         break;
       }
     }
+    if (code) {
+      break;
+    }
   }
 
   destoryValidatePlanContext(&cxt);
