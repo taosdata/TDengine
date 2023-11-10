@@ -1939,10 +1939,12 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
     } else {
       tqDebug("vgId:%d all %d task(s) nodeEp updated and closed", vgId, numOfTasks);
 
-      streamMetaWUnLock(pMeta);
 #if 1
       tqStartStreamTaskAsync(pTq, true);
+      streamMetaWUnLock(pMeta);
 #else
+      streamMetaWUnLock(pMeta);
+
       // For debug purpose.
       // the following procedure consume many CPU resource, result in the re-election of leader
       // with high probability. So we employ it as a test case for the stream processing framework, with
