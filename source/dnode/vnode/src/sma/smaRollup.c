@@ -22,12 +22,12 @@
 #define RSMA_FETCH_DELAY_MAX    (120000)  // ms
 #define RSMA_FETCH_ACTIVE_MAX   (1000)    // ms
 #define RSMA_FETCH_INTERVAL     (5000)    // ms
-#define RSMA_EXEC_MSG_HLEN      (13)      // type(int8_t) + len(int32_t) + version(int64_t)
+#define RSMA_EXEC_TASK_FLAG     "rsma"
+#define RSMA_EXEC_MSG_HLEN      (13)  // type(int8_t) + len(int32_t) + version(int64_t)
 #define RSMA_EXEC_MSG_TYPE(msg) (*(int8_t *)(msg))
 #define RSMA_EXEC_MSG_LEN(msg)  (*(int32_t *)POINTER_SHIFT((msg), sizeof(int8_t)))
 #define RSMA_EXEC_MSG_VER(msg)  (*(int64_t *)POINTER_SHIFT((msg), sizeof(int8_t) + sizeof(int32_t)))
-#define RSMA_EXEC_MSG_BODY(msg) (POINTER_SHIFT((msg), sizeof(int8_t) + sizeof(int32_t) + sizeof(int64_t)))
-#define RSMA_TASK_FLAG          "rsma"
+#define RSMA_EXEC_MSG_BODY(msg) (POINTER_SHIFT((msg), RSMA_EXEC_MSG_HLEN)
 
 #define RSMA_NEED_FETCH(r) (RSMA_INFO_ITEM((r), 0)->fetchLevel || RSMA_INFO_ITEM((r), 1)->fetchLevel)
 
@@ -293,8 +293,8 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     pStreamTask->id.streamId = pRSmaInfo->suid + idx;
     pStreamTask->chkInfo.startTs = taosGetTimestampMs();
     pStreamTask->pMeta = pVnode->pTq->pStreamMeta;
-    pStreamTask->exec.qmsg = taosMemoryMalloc(strlen(RSMA_TASK_FLAG) + 1);
-    sprintf(pStreamTask->exec.qmsg, "%s", RSMA_TASK_FLAG);
+    pStreamTask->exec.qmsg = taosMemoryMalloc(strlen(RSMA_EXEC_TASK_FLAG) + 1);
+    sprintf(pStreamTask->exec.qmsg, "%s", RSMA_EXEC_TASK_FLAG);
     pStreamTask->chkInfo.checkpointId = streamMetaGetLatestCheckpointId(pStreamTask->pMeta);
     tdRSmaTaskInit(pStreamTask->pMeta, pItem, &pStreamTask->id);
     pStreamState = streamStateOpen(taskInfDir, pStreamTask, true, -1, -1);
