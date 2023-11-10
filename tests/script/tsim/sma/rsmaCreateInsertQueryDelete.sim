@@ -29,8 +29,8 @@ sql insert into ct1 values(now, 10, NULL);
 sql insert into ct1 values(now+60m, 1, NULL);
 sql insert into ct1 values(now+120m, 100, NULL);
 
-print =============== wait 5 seconds for results
-sleep 5000
+print =============== wait 7 seconds for results
+sleep 7000
 
 print =============== select * from retention level 2 from memory
 sql select * from ct1;
@@ -125,8 +125,8 @@ print =============== delete row 0
 sql delete from ct1 where ts < now;
 sql delete from ct1 where ts < now;
 sql delete from ct1 where ts < now;
-print =============== wait 5 seconds for results
-sleep 5000
+print =============== wait 7 seconds for results
+sleep 7000
 
 print =============== select * from retention level 2 from memory after delete row 0
 sql select * from ct1;
@@ -206,8 +206,8 @@ sql delete from ct1 where ts < now + 60m;
 sql delete from ct1 where ts < now + 60m;
 sql delete from ct1 where ts < now + 60m;
 
-print =============== wait 5 seconds for results
-sleep 5000
+print =============== wait 7 seconds for results
+sleep 7000
 
 print =============== select * from retention level 2 from memory after delete row 1
 sql select * from ct1;
@@ -260,8 +260,8 @@ endi
 #===================================================================
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
-print =============== wait 5 seconds for results after reboot
-sleep 5000
+print =============== wait 7 seconds for results after reboot
+sleep 7000
 
 print =============== select * from retention level 2 from memory after reboot
 sql select * from ct1;
@@ -378,8 +378,8 @@ sql delete from ct1 where ts < now + 300m;
 sql delete from ct1 where ts < now + 60m;
 sql delete from ct1 where ts < now;
 
-print =============== wait 5 seconds for results
-sleep 5000
+print =============== wait 7 seconds for results
+sleep 7000
 
 print =============== select * from retention level 2 from memory after delete row 2
 sql select * from ct1;
@@ -411,8 +411,8 @@ endi
 #===================================================================
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
-print =============== wait 5 seconds for results after reboot
-sleep 5000
+print =============== wait 7 seconds for results after reboot
+sleep 7000
 
 print =============== select * from retention level 2 from memory after delete row 2
 sql select * from ct1;
@@ -452,8 +452,8 @@ sql insert into ct3 values(now, 10, NULL);
 sql insert into ct3 values(now+60m, 1, NULL);
 sql insert into ct3 values(now+120m, 100, NULL);
 
-print =============== wait 5 seconds for results
-sleep 5000
+print =============== wait 7 seconds for results
+sleep 7000
 
 print =============== select * from retention level 2 from memory
 sql select * from ct2;
@@ -492,8 +492,8 @@ sql delete from ct3 where ts < now + 60m;
 sql delete from ct3 where ts < now + 120m;
 sql delete from ct3 where ts < now;
 
-print =============== wait 5 seconds for results
-sleep 5000
+print =============== wait 7 seconds for results
+sleep 7000
 
 print =============== select * from retention level 2 from memory after delete ct2
 sql select * from ct2;
@@ -516,8 +516,8 @@ endi
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 #===================================================================
 system sh/exec.sh -n dnode1 -s start
-print =============== wait 5 seconds for results after reboot
-sleep 5000
+print =============== wait 7 seconds for results after reboot
+sleep 7000
 
 print =============== select * from retention level 1 from memory after delete ct2
 sql select * from ct2  where ts > now - 8d;
