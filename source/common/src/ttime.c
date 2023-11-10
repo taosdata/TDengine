@@ -1905,7 +1905,7 @@ int32_t taosChar2Ts(const char* format, SArray** formats, const char* tsStr, int
     snprintf(errMsg, errMsgLen, "timestamp format error: %s -> %s", tsStr, format);
     code = TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_TS_ERR;
   } else if (code == -3) {
-    snprintf(errMsg, errMsgLen, "not supported currently");
+    snprintf(errMsg, errMsgLen, "timestamp format not supported");
     code = TSDB_CODE_FUNC_TO_TIMESTAMP_FAILED_NOT_SUPPORTED;
   }
   return code;
