@@ -147,7 +147,7 @@ int32_t         tqOffsetDelete(STqOffsetStore* pStore, const char* subscribeKey)
 int32_t         tqOffsetCommitFile(STqOffsetStore* pStore);
 
 // tqSink
-int32_t tqBuildDeleteReq(const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
+int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
                          const char* pIdStr);
 void    tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data);
 

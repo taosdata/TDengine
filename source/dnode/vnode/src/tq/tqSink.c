@@ -43,7 +43,7 @@ static SArray* createDefaultTagColName();
 static void    setCreateTableMsgTableName(SVCreateTbReq* pCreateTableReq, SSDataBlock* pDataBlock, const char* stbFullName,
                                    int64_t gid);
 
-int32_t tqBuildDeleteReq(const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
+int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
                          const char* pIdStr) {
   int32_t          totalRows = pDataBlock->info.rows;
   SColumnInfoData* pStartTsCol = taosArrayGet(pDataBlock->pDataBlock, START_TS_COLUMN_INDEX);
@@ -53,30 +53,44 @@ int32_t tqBuildDeleteReq(const char* stbFullName, const SSDataBlock* pDataBlock,
 
   tqDebug("s-task:%s build %d rows delete msg for table:%s", pIdStr, totalRows, stbFullName);
 
+  char tbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE];
   for (int32_t row = 0; row < totalRows; row++) {
     int64_t skey = *(int64_t*)colDataGetData(pStartTsCol, row);
     int64_t ekey = *(int64_t*)colDataGetData(pEndTsCol, row);
     int64_t groupId = *(int64_t*)colDataGetData(pGidCol, row);
 
-    char*   name;
-    void*   varTbName = NULL;
+    char* name = NULL;
+    char* pName = NULL;
+    void* varTbName = NULL;
+    tbName[0] = '\0';
     if (!colDataIsNull(pTbNameCol, totalRows, row, NULL)) {
       varTbName = colDataGetVarData(pTbNameCol, row);
     }
 
     if (varTbName != NULL && varTbName != (void*)-1) {
-      name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
-      memcpy(name, varDataVal(varTbName), varDataLen(varTbName));
+      name = varDataVal(varTbName);
+    } else if (stbFullName) {
+      pName = buildCtbNameByGroupId(stbFullName, groupId);
+      name = pName;
     } else {
-      name = buildCtbNameByGroupId(stbFullName, groupId);
+      metaGetTableNameByUid(pTq->pVnode, groupId, tbName);
+      name = varDataVal(tbName);
     }
 
-    tqDebug("s-task:%s build delete msg groupId:%" PRId64 ", name:%s, skey:%" PRId64 " ekey:%" PRId64,
-            pIdStr, groupId, name, skey, ekey);
+    if (!name || *name == '\0') {
+      tqError("s-task:%s build delete msg groupId:%" PRId64 ", skey:%" PRId64 " ekey:%" PRId64
+              " failed since invalid tbname:%s",
+              pIdStr, groupId, name, skey, ekey, name ? name : "NULL");
+      taosArrayDestroy(deleteReq->deleteReqs);
+      return -1;
+    }
 
-    SSingleDeleteReq req = { .startTs = skey, .endTs = ekey};
+    tqDebug("s-task:%s build delete msg groupId:%" PRId64 ", name:%s, skey:%" PRId64 " ekey:%" PRId64, pIdStr, groupId,
+            name, skey, ekey);
+
+    SSingleDeleteReq req = {.startTs = skey, .endTs = ekey};
     strncpy(req.tbname, name, TSDB_TABLE_NAME_LEN - 1);
-    taosMemoryFree(name);
+    if (pName) taosMemoryFree(pName);
 
     taosArrayPush(deleteReq->deleteReqs, &req);
   }
@@ -345,7 +359,7 @@ int32_t doBuildAndSendDeleteMsg(SVnode* pVnode, char* stbFullName, SSDataBlock* 
                                 int64_t suid) {
   SBatchDeleteReq deleteReq = {.suid = suid, .deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq))};
 
-  int32_t code = tqBuildDeleteReq(stbFullName, pDataBlock, &deleteReq, pTask->id.idStr);
+  int32_t code = tqBuildDeleteReq(pVnode->pTq, stbFullName, pDataBlock, &deleteReq, pTask->id.idStr);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }

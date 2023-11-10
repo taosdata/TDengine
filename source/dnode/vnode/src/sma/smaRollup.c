@@ -43,8 +43,8 @@ static void       tdUidStoreDestory(STbUidStore *pStore);
 static int32_t    tdUpdateTbUidListImpl(SSma *pSma, tb_uid_t *suid, SArray *tbUids, bool isAdd);
 static int32_t    tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat *pStat, SRSmaInfo *pRSmaInfo,
                                           int8_t idx);
-static int32_t    tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t msgSize, int32_t inputType, SRSmaInfo *pInfo,
-                                    ERsmaExecType type, int8_t level);
+static int32_t    tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t msgSize, int64_t version, int32_t inputType,
+                                    SRSmaInfo *pInfo, ERsmaExecType type, int8_t level);
 static SRSmaInfo *tdAcquireRSmaInfoBySuid(SSma *pSma, int64_t suid);
 static void       tdReleaseRSmaInfo(SSma *pSma, SRSmaInfo *pInfo);
 static void       tdFreeRSmaSubmitItems(SArray *pItems, int32_t type);
@@ -654,7 +654,7 @@ static int32_t tdRSmaProcessDelReq(SSma *pSma, int64_t suid, int8_t level, SBatc
     SRpcMsg delMsg = {.msgType = TDMT_VND_BATCH_DEL,
                       .pCont = pBuf,
                       .contLen = len + sizeof(SMsgHead),
-                      .info.wrapper = level == 1 ? VND_RSMA1(pSma->pVnode) : VND_RSMA2(pSma->pVnode)};
+                      .info.ahandle = level == 1 ? VND_RSMA1(pSma->pVnode) : VND_RSMA2(pSma->pVnode)};
     code = tmsgPutToQueue(&pSma->pVnode->msgCb, WRITE_QUEUE, &delMsg);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -698,16 +698,15 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
         if (streamFlushed) *streamFlushed = 1;
         continue;
       } else if (output->info.type == STREAM_DELETE_RESULT) {
-        SBatchDeleteReq *pDeleteReq = NULL;
-        pDeleteReq->suid = suid;
-        pDeleteReq->deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq));
-        if (!pDeleteReq->deleteReqs) {
+        SBatchDeleteReq deleteReq = {.suid = suid, .level = pItem->level};
+        deleteReq.deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq));
+        if (!deleteReq.deleteReqs) {
           code = terrno;
           TSDB_CHECK_CODE(code, lino, _exit);
         }
-        code = tqBuildDeleteReq("", output, pDeleteReq, "");
+        code = tqBuildDeleteReq(pSma->pVnode->pTq, NULL, output, &deleteReq, "");
         TSDB_CHECK_CODE(code, lino, _exit);
-        code = tdRSmaProcessDelReq(pSma, suid, pItem->level, pDeleteReq);
+        code = tdRSmaProcessDelReq(pSma, suid, pItem->level, &deleteReq);
         TSDB_CHECK_CODE(code, lino, _exit);
         continue;
       }
@@ -715,6 +714,19 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
       smaDebug("vgId:%d, result block, uid:%" PRIu64 ", groupid:%" PRIu64 ", rows:%" PRIi64, SMA_VID(pSma),
                output->info.id.uid, output->info.id.groupId, output->info.rows);
 
+      if (STREAM_GET_ALL == execType) {
+        /**
+         * 1. reset the output version when reboot
+         * 2. delete msg version not updated from the result
+         */
+        if (output->info.version < pItem->submitReqVer) {
+          // submitReqVer keeps unchanged since tdExecuteRSmaImpl and tdRSmaFetchAllResult are executed synchronously
+          output->info.version = pItem->submitReqVer;
+        } else if (output->info.version == pItem->fetchResultVer) {
+          ASSERTS(0, "duplicated fetch version:%" PRIi64, pItem->fetchResultVer);
+          continue;
+        }
+      }
 
       STsdb       *sinkTsdb = (pItem->level == TSDB_RETENTION_L1 ? pSma->pRSmaTsdb[0] : pSma->pRSmaTsdb[1]);
       SSubmitReq2 *pReq = NULL;
@@ -722,12 +734,6 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
       if (buildSubmitReqFromDataBlock(&pReq, output, pTSchema, output->info.id.groupId, SMA_VID(pSma), suid) < 0) {
         code = terrno ? terrno : TSDB_CODE_RSMA_RESULT;
         TSDB_CHECK_CODE(code, lino, _exit);
-      }
-
-      // reset the output version when reboot
-      if (STREAM_GET_ALL == execType && output->info.version == 0) {
-        // the submitReqVer keeps unchanged since tdExecuteRSmaImpl and tdRSmaFetchAllResult are executed synchronously
-        output->info.version = pItem->submitReqVer;
       }
 
       if (pReq && tdProcessSubmitReq(sinkTsdb, output->info.version, pReq) < 0) {
@@ -858,7 +864,7 @@ static int32_t tdRsmaPrintSubmitReq(SSma *pSma, SSubmitReq *pReq) {
  * @param level
  * @return int32_t
  */
-static int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t msgSize, int32_t inputType, SRSmaInfo *pInfo,
+static int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t msgSize, int64_t version, int32_t inputType, SRSmaInfo *pInfo,
                                  ERsmaExecType type, int8_t level) {
   int32_t        idx = level - 1;
   void          *qTaskInfo = RSMA_INFO_QTASK(pInfo, idx);
@@ -878,22 +884,12 @@ static int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t msgSize, 
   smaDebug("vgId:%d, execute rsma %" PRIi8 " task for qTaskInfo:%p suid:%" PRIu64 " nMsg:%d", SMA_VID(pSma), level,
            RSMA_INFO_QTASK(pInfo, idx), pInfo->suid, msgSize);
 
-#if 0
-  for (int32_t i = 0; i < msgSize; ++i) {
-    SSubmitReq *pReq = *(SSubmitReq **)((char *)pMsg + i * sizeof(void *));
-    smaDebug("vgId:%d, [%d][%d] version %" PRIi64, SMA_VID(pSma), msgSize, i, pReq->version);
-    tdRsmaPrintSubmitReq(pSma, pReq);
-  }
-#endif
   if ((terrno = qSetSMAInput(qTaskInfo, pMsg, msgSize, inputType)) < 0) {
     smaError("vgId:%d, rsma %" PRIi8 " qSetStreamInput failed since %s", SMA_VID(pSma), level, tstrerror(terrno));
     return TSDB_CODE_FAILED;
   }
 
-  if (STREAM_INPUT__MERGED_SUBMIT == inputType) {
-    SPackedData *packData = POINTER_SHIFT(pMsg, sizeof(SPackedData) * (msgSize - 1));
-    atomic_store_64(&pItem->submitReqVer, packData->ver);
-  }
+  atomic_store_64(&pItem->submitReqVer, version);
 
   terrno = tdRSmaExecAndSubmitResult(pSma, qTaskInfo, pItem, pInfo, STREAM_NORMAL, NULL);
 
@@ -1515,6 +1511,7 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
   int8_t  resume = 0;
   int32_t nSubmit = 0;
   int32_t nDelete = 0;
+  int64_t version = 0;
 
   SPackedData packData;
 
@@ -1534,6 +1531,7 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
         packData.msgLen = RSMA_EXEC_MSG_LEN(msg);
         packData.ver = RSMA_EXEC_MSG_VER(msg);
         packData.msgStr = RSMA_EXEC_MSG_BODY(msg);
+        version = packData.ver;
         if (!taosArrayPush(pSubmitArr, &packData)) {
           taosFreeQitem(msg);
           terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1546,7 +1544,8 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
           break;
         }
       _resume_delete:
-        if ((terrno = extractDelDataBlock(RSMA_EXEC_MSG_BODY(msg), RSMA_EXEC_MSG_LEN(msg), RSMA_EXEC_MSG_VER(msg),
+        version = RSMA_EXEC_MSG_VER(msg);
+        if ((terrno = extractDelDataBlock(RSMA_EXEC_MSG_BODY(msg), RSMA_EXEC_MSG_LEN(msg), version,
                                           &packData.pDataBlock, 1))) {
           taosFreeQitem(msg);
           goto _err;
@@ -1569,7 +1568,7 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
       ASSERTS(size > 0, "size is %d", size);
       int32_t inputType = nSubmit > 0 ? STREAM_INPUT__MERGED_SUBMIT : STREAM_INPUT__REF_DATA_BLOCK;
       for (int32_t i = 1; i <= TSDB_RETENTION_L2; ++i) {
-        if (tdExecuteRSmaImpl(pSma, pSubmitArr->pData, size, inputType, pInfo, type, i) < 0) {
+        if (tdExecuteRSmaImpl(pSma, pSubmitArr->pData, size, version, inputType, pInfo, type, i) < 0) {
           goto _err;
         }
       }

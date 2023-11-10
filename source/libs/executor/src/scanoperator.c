@@ -2105,6 +2105,12 @@ FETCH_NEXT_BLOCK:
 
     SPackedData* pPacked = taosArrayGet(pInfo->pBlockLists, current);
     SSDataBlock* pBlock = pPacked->pDataBlock;
+
+    if(!pBlock) {
+      doClearBufferedBlocks(pInfo);
+      return NULL;
+    }
+
     if (pBlock->info.parTbName[0]) {
       pAPI->stateStore.streamStatePutParName(pStreamInfo->pState, pBlock->info.id.groupId, pBlock->info.parTbName);
     }
