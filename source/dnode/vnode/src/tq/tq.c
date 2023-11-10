@@ -1944,6 +1944,16 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
       // the following procedure consume many CPU resource, result in the re-election of leader
       // with high probability. So we employ it as a test case for the stream processing framework, with
       // checkpoint/restart/nodeUpdate etc.
+      while(1) {
+        int32_t startVal = atomic_val_compare_exchange_32(&pMeta->startInfo.taskStarting, 0, 1);
+        if (startVal == 0) {
+          break;
+        }
+
+        tqDebug("vgId:%d in start stream tasks procedure, wait for 500ms and recheck", vgId);
+        taosMsleep(500);
+      }
+
       while (streamMetaTaskInTimer(pMeta)) {
         tqDebug("vgId:%d some tasks in timer, wait for 100ms and recheck", pMeta->vgId);
         taosMsleep(100);
