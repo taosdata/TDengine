@@ -27,6 +27,7 @@ class TDTestCase:
         tdSql.execute("drop database if exists tbname_vgroup")
         tdSql.execute("create database if not exists tbname_vgroup")
         tdSql.execute('use tbname_vgroup')
+        tdSql.execute('drop database if exists dbvg')
         tdSql.execute('create database dbvg vgroups 8;')
 
         tdSql.execute('use dbvg;')
@@ -179,7 +180,21 @@ class TDTestCase:
         else:
            tdLog.info("select * from st where tbname in ('ct1', 'ct2') involves two vgroups")	
 
-        tdSql.execute('drop database dbvg;')
+        tdSql.execute('create table st2(ts timestamp, f int) tags (t int);')
+
+        tdSql.execute("insert into ct21 using st2 tags(1) values('2021-04-19 00:00:01', 1)")
+
+        tdSql.execute("insert into ct22 using st2 tags(2) values('2021-04-19 00:00:02', 2)")
+
+        tdSql.execute("insert into ct23 using st2 tags(3) values('2021-04-19 00:00:03', 3)")
+
+        tdSql.execute("insert into ct24 using st2 tags(4) values('2021-04-19 00:00:04', 4)")
+        
+        tdSql.query("select * from st, st2 where st.ts=st2.ts and st.tbname in ('ct1', 'ct2') and st2.tbname in ('ct1', 'ct3')");
+        tdSql.checkRows(0);
+        
+                          
+        #tdSql.execute('drop database dbvg;')
 
         tdSql.execute('drop database tbname_vgroup')
     def stop(self):
