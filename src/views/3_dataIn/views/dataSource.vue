@@ -173,11 +173,11 @@
                   style="max-height: 200px; overflow: auto"
                 ></div>
                 <span style="width: 80px; display: inline-block">{{
-                  scope.row.status
+                  handleDSStatus(scope.row.status)
                 }}</span>
               </el-tooltip>
               <span style="width: 80px; display: inline-block" v-else>{{
-                scope.row.status
+                handleDSStatus(scope.row.status)
               }}</span>
               <template v-if="permitStartStatus.includes(scope.row.status.toLowerCase())">
                 <el-tooltip
@@ -756,6 +756,9 @@ export default {
     filterHandler(value, row, column) {
       const property = column["property"];
       return row[property] === value;
+    },
+    handleDSStatus(value) {
+      return this.$t('statuses.' + value);
     },
   },
   mounted() {
