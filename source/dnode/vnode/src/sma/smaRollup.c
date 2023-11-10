@@ -653,8 +653,7 @@ static int32_t tdRSmaProcessDelReq(SSma *pSma, int64_t suid, int8_t level, SBatc
 
     SRpcMsg delMsg = {.msgType = TDMT_VND_BATCH_DEL,
                       .pCont = pBuf,
-                      .contLen = len + sizeof(SMsgHead),
-                      .info.ahandle = level == 1 ? VND_RSMA1(pSma->pVnode) : VND_RSMA2(pSma->pVnode)};
+                      .contLen = len + sizeof(SMsgHead)};
     code = tmsgPutToQueue(&pSma->pVnode->msgCb, WRITE_QUEUE, &delMsg);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
