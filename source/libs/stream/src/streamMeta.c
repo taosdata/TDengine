@@ -1020,7 +1020,7 @@ void metaHbToMnode(void* param, void* tmrId) {
 
     pMeta->pHbInfo->hbCount += 1;
 
-    stDebug("vgId:%d, build and send hb to mnode, numOfTasks:%d total:%d", pMeta->vgId, hbMsg.numOfTasks,
+    stDebug("vgId:%d build and send hb to mnode, numOfTasks:%d total:%d", pMeta->vgId, hbMsg.numOfTasks,
             pMeta->pHbInfo->hbCount);
     tmsgSendReq(&epset, &msg);
   } else {
