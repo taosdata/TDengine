@@ -315,7 +315,14 @@ pub(super) enum Schedule {
 }
 
 async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::Result<()> {
-    let transaction = pool.begin().await?;
+    if sqlx::query_scalar!("select id from tasks where id = ?", activity.id)
+        .fetch_optional(pool)
+        .await?
+        .is_none()
+    {
+        tracing::warn!("task {id} not found", id = activity.id);
+        return Ok(());
+    }
     if activity.status == "completed" {
         let _ = sqlx::query!(
             "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ? AND status != ?",
@@ -356,7 +363,6 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
             activity.context)
         .execute(pool)
         .await?;
-    transaction.commit().await?;
     Ok(())
 }
 
@@ -389,22 +395,22 @@ async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::
 }
 
 async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
-    let tasks = sqlx::query_scalar::<_, TaskId>("select id from tasks where status in (?, ?, ?, ?, ?, ?)")
-        .bind(Status::Running)
-        .bind(Status::Waiting)
-        .bind(Status::Suspending)
-        .bind(Status::Queued)
-        .bind(Status::Interrupted)
-        .bind(Status::Ticked)
-        .fetch_all(pool)
-        .await?;
+    let tasks =
+        sqlx::query_scalar::<_, TaskId>("select id from tasks where status in (?, ?, ?, ?, ?, ?)")
+            .bind(Status::Running)
+            .bind(Status::Waiting)
+            .bind(Status::Suspending)
+            .bind(Status::Queued)
+            .bind(Status::Interrupted)
+            .bind(Status::Ticked)
+            .fetch_all(pool)
+            .await?;
     if tasks.len() > 0 {
         tracing::info!(
             "{} tasks are in running status, set them to suspended",
             tasks.len()
         );
 
-        let trans = pool.begin().await?;
         sqlx::query("update tasks set status = ? where status in (?, ?, ?, ?, ?, ?)")
             .bind(Status::Suspended)
             .bind(Status::Running)
@@ -425,7 +431,6 @@ async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
             .execute(pool)
             .await?;
         }
-        trans.commit().await?;
     }
 
     sqlx::query("update tasks set status = ? where status = ?")
@@ -946,10 +951,9 @@ impl TaskController {
     }
     #[instrument(skip_all, name = "task::delete", fields(task.id = id))]
     pub async fn delete(&self, id: i64) -> anyhow::Result<Option<TaskDetail>> {
-        if !self.scheduler.safe_to_delete(id).await {
+        if !self.scheduler.stop_if_safe_to_delete(id).await {
             bail!("Task is in scheduler, please stop it first");
         }
-        let _ = self.scheduler.try_stop(id).await;
         let now = Utc::now();
         let res = sqlx::query_as_unchecked!(
             Task,
@@ -970,70 +974,83 @@ impl TaskController {
         if task.is_none() {
             return Ok(None);
         }
+
         let mut task = task.unwrap();
         task.backport_labels();
-        if let Some(topic) = task.oneshot_topic.as_deref() {
-            let mut dsn: Dsn = task.from.parse()?;
-            let _ = dsn.subject.take();
-            let builder = TaosBuilder::from_dsn(dsn).context("cannot drop oneshot topic")?;
-            let taos = builder.build().await.context("cannot drop oneshot topic")?;
-            let mut retries = 0;
-            loop {
-                if retries > 20 {
-                    tracing::error!("can not drop topic {topic}");
-                    break;
+        let task_out = task.clone();
+        let pool = self.pool.clone();
+        tokio::spawn(
+            async move {
+                if let Some(topic) = task.oneshot_topic.as_deref() {
+                    let mut dsn: Dsn = task.from.parse()?;
+                    let _ = dsn.subject.take();
+                    let builder =
+                        TaosBuilder::from_dsn(dsn).context("cannot drop oneshot topic")?;
+                    let taos = builder.build().await.context("cannot drop oneshot topic")?;
+                    let mut retries = 0;
+                    loop {
+                        if retries > 20 {
+                            tracing::error!("can not drop topic {topic}");
+                            break;
+                        }
+                        if let Err(_err) = taos.exec(format!("drop topic if exists {topic}")).await
+                        {
+                            retries += 1;
+                            tokio::time::sleep(Duration::from_millis(500)).await;
+                        } else {
+                            break;
+                        }
+                    }
                 }
-                if let Err(_err) = taos.exec(format!("drop topic if exists {topic}")).await {
-                    retries += 1;
-                    tokio::time::sleep(Duration::from_millis(500)).await;
-                } else {
-                    break;
+
+                if let Some(action) = task.after_delete.as_deref() {
+                    if task.to.starts_with("local") && action == "clear" {
+                        let dsn: Dsn = task.to.parse()?;
+                        // std::mem::drop(task);
+                        tokio::spawn(async move { taosx_core::utils::clear_local(&dsn).await });
+                    }
                 }
+                sqlx::query!("DELETE FROM tasks where id = ?", id)
+                    .execute(&pool)
+                    .await?;
+
+                let from: Dsn = task.from.parse()?;
+                let to: Dsn = task.to.parse()?;
+                let (tx, _rx) = flume::unbounded();
+                let opts = TaskOpts {
+                    from,
+                    transform: vec![],
+                    to,
+                    parser: None,
+                    jobs: 0,
+                    compression_level: None,
+                    force: false,
+                    cancel: Default::default(),
+                    with_agent: None,
+                    breakpoints: None,
+                    offsets: Arc::new(Default::default()),
+                    transferred: None,
+                    span: tracing::info_span!(
+                        "task::delete",
+                        task.id = id,
+                        trace_id = tracing::field::Empty
+                    ),
+                    task_id: Some(task.id.to_string()),
+                    notify: tx,
+                };
+                opts.delete_task().await?;
+
+                // breakpoints_clear
+                let task_id = id.to_string();
+                taosx_core::utils::breakpoints::breakpoints_clear(&task_id)?;
+
+                tracing::info!("successfully deleted task by id {id}");
+                anyhow::Ok(())
             }
-        }
+            .in_current_span(),
+        );
 
-        if let Some(action) = task.after_delete.as_deref() {
-            if task.to.starts_with("local") && action == "clear" {
-                let dsn: Dsn = task.to.parse()?;
-                // std::mem::drop(task);
-                tokio::spawn(async move { taosx_core::utils::clear_local(&dsn).await });
-            }
-        }
-        sqlx::query!("DELETE FROM tasks where id = ?", id)
-            .execute(&self.pool)
-            .await?;
-
-        let from: Dsn = task.from.parse()?;
-        let to: Dsn = task.to.parse()?;
-        let (tx, _rx) = flume::unbounded();
-        let opts = TaskOpts {
-            from,
-            transform: vec![],
-            to,
-            parser: None,
-            jobs: 0,
-            compression_level: None,
-            force: false,
-            cancel: Default::default(),
-            with_agent: None,
-            breakpoints: None,
-            offsets: Arc::new(Default::default()),
-            transferred: None,
-            span: tracing::info_span!(
-                "task::delete",
-                task.id = id,
-                trace_id = tracing::field::Empty
-            ),
-            task_id: Some(task.id.to_string()),
-            notify: tx,
-        };
-        opts.delete_task().await?;
-
-        // breakpoints_clear
-        let task_id = id.to_string();
-        taosx_core::utils::breakpoints::breakpoints_clear(&task_id)?;
-
-        Ok(Some(task.into()))
+        Ok(Some(task_out.into()))
     }
 
     #[instrument(skip_all, name = "task::stop", fields(task.id = id))]
