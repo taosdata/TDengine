@@ -202,6 +202,11 @@ void shellRunSingleCommandImp(char *command) {
     fname = sptr + 2;
     while (*fname == ' ') fname++;
     *sptr = '\0';
+
+    cptr = strstr(fname, ";");
+    if (cptr != NULL) {
+      *cptr = '\0';
+    }
   }
 
   if ((sptr = strstr(command, "\\G")) != NULL) {
