@@ -49,6 +49,7 @@ typedef struct {
   uint64_t    checkpointId;
   bool        initTableReader;
   bool        initTqReader;
+  bool        skipRollup;
   int32_t     numOfVgroups;
   void*       sContext;  // SSnapContext*
   void*       pStateBackend;

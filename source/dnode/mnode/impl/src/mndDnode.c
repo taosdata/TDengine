@@ -1310,6 +1310,22 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     }
     tFreeSMCfgDnodeReq(&cfgReq);
     return 0;
+  } else if (strncasecmp(cfgReq.config, "s3blocksize", 11) == 0) {
+    int32_t optLen = strlen("s3blocksize");
+    int32_t flag = -1;
+    int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
+    if (code < 0) return code;
+
+    if (flag > 1024 * 1024 || (flag > -1 && flag < 4) || flag < -1) {
+      mError("dnode:%d, failed to config s3blocksize since value:%d. Valid range: -1 or [4, 1024 * 1024]",
+             cfgReq.dnodeId, flag);
+      terrno = TSDB_CODE_INVALID_CFG;
+      tFreeSMCfgDnodeReq(&cfgReq);
+      return -1;
+    }
+
+    strcpy(dcfgReq.config, "s3blocksize");
+    snprintf(dcfgReq.value, TSDB_DNODE_VALUE_LEN, "%d", flag);
 #endif
   } else {
     mndMCfg2DCfg(&cfgReq, &dcfgReq);

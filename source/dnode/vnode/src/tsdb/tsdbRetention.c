@@ -13,9 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "cos.h"
 #include "tsdb.h"
 #include "tsdbFS2.h"
-#include "cos.h"
 #include "vnd.h"
 
 typedef struct {
@@ -292,15 +292,15 @@ static int32_t tsdbDoRetentionOnFileSet(SRTNer *rtner, STFileSet *fset) {
   if (expLevel < 0) {  // remove the fileset
     for (int32_t ftype = 0; (ftype < TSDB_FTYPE_MAX) && (fobj = fset->farr[ftype], 1); ++ftype) {
       if (fobj == NULL) continue;
-
+      /*
       int32_t nlevel = tfsGetLevel(rtner->tsdb->pVnode->pTfs);
       if (tsS3Enabled && nlevel > 1 && TSDB_FTYPE_DATA == ftype && fobj->f->did.level == nlevel - 1) {
         code = tsdbRemoveFileObjectS3(rtner, fobj);
         TSDB_CHECK_CODE(code, lino, _exit);
-      } else {
-        code = tsdbDoRemoveFileObject(rtner, fobj);
-        TSDB_CHECK_CODE(code, lino, _exit);
-      }
+        } else {*/
+      code = tsdbDoRemoveFileObject(rtner, fobj);
+      TSDB_CHECK_CODE(code, lino, _exit);
+      //}
     }
 
     SSttLvl *lvl;
@@ -388,6 +388,8 @@ _exit:
   return code;
 }
 
+static void tsdbFreeRtnArg(void *arg) { taosMemoryFree(arg); }
+
 static int32_t tsdbDoRetentionSync(void *arg) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -410,6 +412,7 @@ _exit:
     TSDB_ERROR_LOG(TD_VID(rtner->tsdb->pVnode), lino, code);
   }
   tsem_post(&((SRtnArg *)arg)->tsdb->pVnode->canCommit);
+  tsdbFreeRtnArg(arg);
   return code;
 }
 
@@ -439,7 +442,7 @@ _exit:
   return code;
 }
 
-static void tsdbFreeRtnArg(void *arg) { taosMemoryFree(arg); }
+
 
 int32_t tsdbRetention(STsdb *tsdb, int64_t now, int32_t sync) {
   int32_t code = 0;

@@ -388,6 +388,7 @@ typedef struct SLastRowScanPhysiNode {
   SNodeList*     pGroupTags;
   bool           groupSort;
   bool           ignoreNull;
+  SNodeList*     pTargets;
 } SLastRowScanPhysiNode;
 
 typedef SLastRowScanPhysiNode STableCountScanPhysiNode;

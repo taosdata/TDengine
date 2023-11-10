@@ -1035,7 +1035,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   }
 
   initLimitInfo(pScanNode->node.pLimit, pScanNode->node.pSlimit, &pInfo->base.limitInfo);
-  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode);
+  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, readHandle);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -3535,7 +3535,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
     goto _error;
   }
 
-  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode);
+  code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode, readHandle);
   if (code != TSDB_CODE_SUCCESS) {
     taosArrayDestroy(pInfo->base.matchInfo.pList);
     goto _error;

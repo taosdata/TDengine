@@ -144,6 +144,10 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
   char path[TSDB_FILENAME_LEN] = {0};
   bool atExit = true;
 
+  if (pVnode->failed) {
+    ASSERT(pVnode->pImpl == NULL);
+    goto _closed;
+  }
   if (vnodeIsLeader(pVnode->pImpl)) {
     vnodeProposeCommitOnNeed(pVnode->pImpl, atExit);
   }
@@ -202,6 +206,8 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
 
   vnodeClose(pVnode->pImpl);
   pVnode->pImpl = NULL;
+
+_closed:
   dInfo("vgId:%d, vnode is closed", pVnode->vgId);
 
   if (commitAndRemoveWal) {
@@ -386,7 +392,6 @@ static void *vmCloseVnodeInThread(void *param) {
 
   for (int32_t v = 0; v < pThread->vnodeNum; ++v) {
     SVnodeObj *pVnode = pThread->ppVnodes[v];
-    if (pVnode->failed) continue;
 
     char stepDesc[TSDB_STEP_DESC_LEN] = {0};
     snprintf(stepDesc, TSDB_STEP_DESC_LEN, "vgId:%d, start to close, %d of %d have been closed", pVnode->vgId,
