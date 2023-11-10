@@ -1940,7 +1940,7 @@ int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg) {
       tqDebug("vgId:%d all %d task(s) nodeEp updated and closed", vgId, numOfTasks);
 
       streamMetaWUnLock(pMeta);
-#if 0
+#if 1
       tqStartStreamTaskAsync(pTq, true);
 #else
       // For debug purpose.
