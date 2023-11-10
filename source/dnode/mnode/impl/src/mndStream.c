@@ -2584,7 +2584,7 @@ int32_t doKillActiveCheckpointTrans(SMnode *pMnode) {
   }
 
   if (transId == 0) {
-    mError("failed to find the checkpoint trans, reset not executed");
+    mDebug("failed to find the checkpoint trans, reset not executed");
     return TSDB_CODE_SUCCESS;
   }
 

@@ -195,10 +195,10 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   taosInitRWLatch(&pMeta->chkpDirLock);
 
   pMeta->chkpId = streamGetLatestCheckpointId(pMeta);
-  pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
+  pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId, vgId);
   while (pMeta->streamBackend == NULL) {
     taosMsleep(100);
-    pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
+    pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId, vgId);
     if (pMeta->streamBackend == NULL) {
       stInfo("vgId:%d failed to init stream backend, retry in 100ms", pMeta->vgId);
     }
@@ -263,7 +263,8 @@ int32_t streamMetaReopen(SStreamMeta* pMeta) {
     }
   }
 
-  while ((pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId)) == NULL) {
+  // todo: not wait in a critical region
+  while ((pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId, pMeta->vgId)) == NULL) {
     stInfo("vgId:%d failed to init stream backend, retry in 100ms", pMeta->vgId);
     taosMsleep(100);
   }
