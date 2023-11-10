@@ -264,7 +264,7 @@ export default {
               params["via"] = this.agentId;
             }
             if (isSubmit) {
-              if (this.isEditable) {
+              if (this.isEditable && this.editId && !this.isCopyable) {
                 let result = await EditSource(params, this.editId);
                 if (result.message) {
                   Message.error(result.message);
