@@ -183,6 +183,7 @@ export default {
   read: "read",
   write: "write",
   subscribe: 'Subscribe',
+  required: "{0} is required",
   plan: {
     pricePlan: "Price Plan",
     planTitle: "TDengine  Price Plan",

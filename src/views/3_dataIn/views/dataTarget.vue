@@ -153,6 +153,7 @@ export default {
         "influxdb",
         "opentsdb",
         "mqtt",
+        "historian"
       ],
       ruleForm: {
         name: "",
