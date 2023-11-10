@@ -54,28 +54,27 @@ int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* p
 
   tqDebug("s-task:%s build %d rows delete msg for table:%s", pIdStr, totalRows, stbFullName);
 
-  char tbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE];
   for (int32_t row = 0; row < totalRows; row++) {
     int64_t skey = *(int64_t*)colDataGetData(pStartTsCol, row);
     int64_t ekey = *(int64_t*)colDataGetData(pEndTsCol, row);
     int64_t groupId = *(int64_t*)colDataGetData(pGidCol, row);
 
-    char* name = NULL;
-    char* pName = NULL;
-    void* varTbName = NULL;
-    tbName[0] = '\0';
+    char*   name = NULL;
+    char*   originName = NULL;
+    void*   varTbName = NULL;
     if (!colDataIsNull(pTbNameCol, totalRows, row, NULL)) {
       varTbName = colDataGetVarData(pTbNameCol, row);
     }
 
     if (varTbName != NULL && varTbName != (void*)-1) {
-      name = varDataVal(varTbName);
+      name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
+      memcpy(name, varDataVal(varTbName), varDataLen(varTbName));
     } else if (stbFullName) {
-      pName = buildCtbNameByGroupId(stbFullName, groupId);
-      name = pName;
+      name = buildCtbNameByGroupId(stbFullName, groupId);
     } else {
-      if (metaGetTableNameByUid(pTq->pVnode, groupId, tbName) == 0) {
-        name = varDataVal(tbName);
+      originName = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE);
+      if (metaGetTableNameByUid(pTq->pVnode, groupId, originName) == 0) {
+        name = varDataVal(originName);
       } else {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
       }
@@ -90,17 +89,19 @@ int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* p
       return code;
     }
 
-    tqDebug("s-task:%s build delete msg groupId:%" PRId64 ", name:%s, skey:%" PRId64 " ekey:%" PRId64, pIdStr, groupId,
-            name, skey, ekey);
+    tqDebug("s-task:%s build delete msg groupId:%" PRId64 ", name:%s, skey:%" PRId64 " ekey:%" PRId64,
+            pIdStr, groupId, name, skey, ekey);
 
-    SSingleDeleteReq req = {.startTs = skey, .endTs = ekey};
+    SSingleDeleteReq req = { .startTs = skey, .endTs = ekey};
     strncpy(req.tbname, name, TSDB_TABLE_NAME_LEN - 1);
-    if (pName) taosMemoryFree(pName);
+
+    if (originName) name = originName;
+    taosMemoryFree(name);
 
     taosArrayPush(deleteReq->deleteReqs, &req);
   }
 
-  return code;
+  return 0;
 }
 
 static int32_t encodeCreateChildTableForRPC(SVCreateTbBatchReq* pReqs, int32_t vgId, void** pBuf, int32_t* contLen) {
