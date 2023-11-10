@@ -16,7 +16,7 @@ options:
     display: Server 端口
     description: AVEVA™ Historian SQL Server 的端口
     placeholder: "1433"
-    required: true
+    required: false
 authentication:
   display: 认证
   description: 使用用户名和密码访问 AVEVA™ Historian SQL Server
@@ -28,9 +28,11 @@ authentication:
       username:
         display: 用户
         placeholder: username
+        required: true
       password:
         display: 密码
         placeholder: password
+        required: true
 groups:
   - name: Task
     display_order: 1
@@ -38,16 +40,19 @@ groups:
     required: false
     params:
       - name: table
-        display: Table
+        display: 表
         description: >
-          迁移历史数据使用 Runtime.dbo.History，同步实时数据使用 Runtime.dbo.Live。
+          检索 historian 中的数据库表，历史数据在 Runtime.dbo.History 中，实时数据在 Runtime.dbo.Live 中。
         required: false
         placeholder: Runtime.dbo.History
         value: Runtime.dbo.History
         hint:
           type: str
+          choices:
+            - Runtime.dbo.History
+            - Runtime.dbo.Live
       - name: tags
-        display: tags
+        display: 标签
         description: >
           需要迁移/同步的tag，*代表同步除了Sys开头的全部tag。
         required: false
@@ -56,43 +61,41 @@ groups:
         hint:
           type: str
       - name: beginDateTime
-        display: beginDateTime
+        display: 任务开始时间
         description: >
           任务的开始时间，rfc3339格式的日期时间。
         required: false
-        placeholder: 1970-01-01T00:00:00Z
-        value: 1970-01-01T00:00:00Z
+        placeholder: 如：1970-01-01T00:00:00+08:00
         hint:
           type: time
       - name: endDateTime
-        display: endDateTime
+        display: 任务结束时间
         description: >
           任务的结束时间，rfc3339格式的日期时间。
         required: false
-        placeholder: 2023-12-01T00:00:00Z
-        value: 2023-12-01T00:00:00Z
+        placeholder: 如：1970-01-01T00:00:00+08:00
         hint:
           type: time
       - name: retrieveInterval
-        display: retrieveInterval
+        display: 实时同步的间隔
         description: >
-          实时数据同步的拉取间隔。
+          实时数据同步时，每次查询的时间间隔。
         required: false
         placeholder: 1 day
         value: 1 day
         hint:
           type: str
       - name: timeWindow
-        display: timeWindow
+        display: 查询的时间窗口
         description: >
-          历史数据同步的时间窗口。
+          历史数据迁移时，每次查询的时间窗口。
         required: false
         placeholder: 1 hour
         value: 1 hour
         hint:
           type: str
       - name: tolerance
-        display: tolerance
+        display: 乱序时间上限
         description: >
           容忍乱序数据延迟到达的时间上限。
         required: false

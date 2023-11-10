@@ -477,9 +477,7 @@ impl FlightService for FlightServiceImpl {
             .unwrap();
         let task_id: i64 = task_id.to_str().unwrap().parse().unwrap();
         let stream_trace_id = match meta.get("x-trace-id") {
-            Some(stream_trace_id) => {
-                stream_trace_id.to_str().unwrap()
-            },
+            Some(stream_trace_id) => stream_trace_id.to_str().unwrap(),
             None => "0",
         };
 
@@ -815,13 +813,17 @@ impl FlightService for FlightServiceImpl {
         request: Request<Action>,
     ) -> Result<Response<Self::DoActionStream>, Status> {
         let (_meta, _part, action) = request.into_parts();
-        dbg!(_meta, _part, &action);
+        // dbg!(_meta, _part, &action);
         match action.r#type.as_str() {
             "TaskStatus" => {
                 // task.
 
-                let status: TaskActivity = serde_json::from_slice(&action.body)
+                let mut status: TaskActivity = serde_json::from_slice(&action.body)
                     .map_err(|err| Status::invalid_argument(format!("{err}: {:?}", action.body)))?;
+
+                if status.activity == "taosx-agent is suspended by SIGINT" {
+                    status.status = "waiting".to_string();
+                }
 
                 tracing::info!(?status, "Received task status");
                 let task_id = status.id;

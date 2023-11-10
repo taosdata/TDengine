@@ -1,18 +1,12 @@
-use std::{collections::HashMap, fmt::Display, str::FromStr, sync::Arc};
+use std::{collections::HashMap, fmt::Display, str::FromStr};
 
-use arrow::{
-    datatypes::{DataType, Field, FieldRef, Fields, Schema},
-    error::ArrowError,
-    record_batch::RecordBatch,
-};
+use arrow::datatypes::{DataType, Field, FieldRef, Fields, Schema};
 use itertools::Itertools;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use taosx_ipc::prelude::IpcDataType;
-
-use super::{MessageArrowRecords, TransformExt};
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 struct SelectItem {
@@ -322,56 +316,59 @@ impl Select {
         }
     }
 
-    pub fn record_batch(&self, batch: &RecordBatch) -> Result<RecordBatch, ArrowError> {
-        let schema = self.schema(&batch.schema());
-        let schema_ref = Arc::new(schema);
-        let columns = schema_ref
-            .fields()
-            .iter()
-            .map(|field| {
-                // dbg!(&field);
-                let metadata = field.metadata();
-                let name = &metadata["name"];
-                let column = batch.column_by_name(&name).unwrap();
-                // let dt0 = column.data_type();
-                let dt = field.data_type();
+    // pub fn record_batch(&self, batch: &RecordBatch) -> Result<RecordBatch, ArrowError> {
+    //     let schema = self.schema(&batch.schema());
+    //     let schema_ref = Arc::new(schema);
+    //     let columns = schema_ref
+    //         .fields()
+    //         .iter()
+    //         .map(|field| {
+    //             // dbg!(&field);
+    //             let metadata = field.metadata();
+    //             let name = &metadata["name"];
+    //             let column = batch.column_by_name(&name).unwrap();
+    //             // let dt0 = column.data_type();
+    //             let dt = field.data_type();
 
-                arrow::compute::cast(column, dt)
-            })
-            .try_collect()?;
+    //             arrow::compute::cast(column, dt)
+    //         })
+    //         .try_collect()?;
 
-        Ok(RecordBatch::try_new(schema_ref, columns)?)
-    }
+    //     Ok(RecordBatch::try_new(schema_ref, columns)?)
+    // }
 }
 
-impl TransformExt for Select {
-    fn transform_message(
-        &self,
-        item: super::Message,
-    ) -> Result<Option<super::Message>, super::Error> {
-        match item {
-            super::Message::Records(records) => Ok(Some(super::Message::Records(
-                records
-                    .into_iter()
-                    .map(|batch| {
-                        self.record_batch(&batch.records)
-                            .map(|records| MessageArrowRecords {
-                                table: batch.table.clone(),
-                                records,
-                            })
-                    })
-                    .try_collect()?,
-            ))),
-            item => Ok(Some(item)),
-        }
-    }
-}
+// impl TransformExt for Select {
+//     fn transform_message(
+//         &self,
+//         item: super::Message,
+//     ) -> Result<Option<super::Message>, super::Error> {
+//         match item {
+//             super::Message::Records(records) => Ok(Some(super::Message::Records(
+//                 records
+//                     .into_iter()
+//                     .map(|batch| {
+//                         self.record_batch(&batch.records)
+//                             .map(|records| MessageArrowRecords {
+//                                 table: batch.table.clone(),
+//                                 records,
+//                             })
+//                     })
+//                     .try_collect()?,
+//             ))),
+//             item => Ok(Some(item)),
+//         }
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
-    use arrow::array::{ArrayRef, StringArray};
+    use std::sync::Arc;
 
-    use crate::plugins::transform::{Message, MessageTableMeta};
+    use arrow::{
+        array::{ArrayRef, StringArray},
+        record_batch::RecordBatch,
+    };
 
     use super::*;
 
@@ -462,12 +459,13 @@ mod tests {
 
         let records = RecordBatch::try_from_iter(vec![("a", b.clone()), ("b", b)]).unwrap();
 
-        let item = Message::records(vec![MessageArrowRecords {
-            table: MessageTableMeta::new(Arc::new("tb1".to_string()), None, None),
-            records,
-        }]);
+        // let item = Message::records(vec![MessageArrowRecords {
+        //     table: MessageTableMeta::new(Arc::new("tb1".to_string()), None, None),
+        //     records,
+        // }]);
 
-        let records = select.transform_message(item).unwrap();
+        // let records = select.transform_message(item).unwrap();
+        let _ = select;
 
         dbg!(&records);
     }

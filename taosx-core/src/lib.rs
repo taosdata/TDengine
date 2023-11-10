@@ -216,9 +216,7 @@ impl TaskOpts {
                             .await
                             .context("Failed to check target edition")?
                     {
-                        anyhow::bail!(
-                        "Source or target should be enterprise edition. If it's not your case, please contact us."
-                    )
+                        anyhow::bail!("Both the source and destination databases are not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
                     }
                 }
                 ("tmq" | "taos", _) => {
@@ -231,9 +229,7 @@ impl TaskOpts {
                         .await
                         .context("Failed to check source edition")?
                     {
-                        anyhow::bail!(
-                        "Only enterprise edition is supported. If it's not your case, please contact us."
-                    )
+                        anyhow::bail!("The source database is TDengine, but it is not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
                     }
                 }
                 (_, "tmq" | "taos") => {
@@ -246,9 +242,7 @@ impl TaskOpts {
                         .await
                         .context("Failed to check target edition")?
                     {
-                        anyhow::bail!(
-                        "Only enterprise edition is supported. If it's not your case, please contact us."
-                    )
+                        anyhow::bail!("The destination database is TDengine, but it is not the TDengine enterprise edition, please contact the TDengine customer success team for further assistance.")
                     }
                 }
                 _ => (),
@@ -509,5 +503,26 @@ mod tests {
         let dsn = Dsn::from_str("opentsdb://?param1=abc&param2=123").unwrap();
         let dsn = TaskOpts::append_breakpoints_in_dsn(&None, &dsn);
         assert_eq!(None, dsn.params.get("breakpoints"));
+    }
+
+    #[tokio::test]
+    async fn test_wrong_taos_in_dsn() -> Result<(), anyhow::Error> {
+        dbg!(format!("test start: {}", chrono::Local::now()));
+        let to = Dsn::from_str("taos://localhost:6031?test_db_n").unwrap();
+        let builder = TaosBuilder::from_dsn(to)?;
+        let _ = builder.build().await.context(format!("Target connection error: {}", chrono::Local::now()))?;
+        dbg!(format!("test end: {}", chrono::Local::now()));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_wrong_taos_in_dsn_pool() -> Result<(), anyhow::Error> {
+        dbg!(format!("test start: {}", chrono::Local::now()));
+        let to = Dsn::from_str("taos://localhost:6031?test_db_n").unwrap();
+        let builder = taos::TaosBuilder::from_dsn(to)?;
+        let pool = builder.pool()?;
+        let _ = pool.get().await.context(format!("Target connection error: {}", chrono::Local::now()))?;
+        dbg!(format!("test end: {}", chrono::Local::now()));
+        Ok(())
     }
 }

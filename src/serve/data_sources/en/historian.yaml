@@ -17,7 +17,7 @@ options:
     display: port
     description: AVEVA™ Historian SQL Server port
     placeholder: "1433"
-    required: true
+    required: false
 authentication:
   display: Authentication
   description: Use username and password of AVEVA™ Historian SQL Server
@@ -29,9 +29,11 @@ authentication:
       username:
         display: Username
         placeholder: aaAdmin
+        required: true
       password:
         display: Password
         placeholder: password
+        required: true
 groups:
   - name: Task
     display_order: 1
@@ -41,14 +43,17 @@ groups:
       - name: table
         display: Table
         description: >
-          Use Runtime.dbo.History to migrate historical data and Runtime.dbo.Live to synchronize real-time data.
+          Retrieves database tables in historian, with historical data in Runtime.dbo.History and real-time data in Runtime.dbo.Live.
         required: false
         placeholder: Runtime.dbo.History
         value: Runtime.dbo.History
         hint:
           type: str
+          choices:
+            - Runtime.dbo.History
+            - Runtime.dbo.Live
       - name: tags
-        display: tags
+        display: Tags
         description: >
           tags to be migrated/synchronized. `*` indicates that all tags.
         required: false
@@ -57,23 +62,21 @@ groups:
         hint:
           type: str
       - name: beginDateTime
-        display: beginDateTime
+        display: Begin Time
         description: The start time of the task is in rfc3339 format.
         required: false
-        placeholder: 1970-01-01T00:00:00Z
-        value: 1970-01-01T00:00:00Z
+        placeholder: e.g., 1970-01-01T00:00:00.000Z
         hint:
           type: time
       - name: endDateTime
-        display: endDateTime
+        display: End Time
         description: The end time of the task is in rfc3339 format.
         required: false
-        placeholder: 2023-12-01T00:00:00Z
-        value: 2023-12-01T00:00:00Z
+        placeholder: e.g., 1970-01-01T00:00:00.000Z
         hint:
           type: time
       - name: retrieveInterval
-        display: retrieveInterval
+        display: Retrieve Interval
         description: Pull interval for real-time data synchronization.
         required: false
         placeholder: 1 day
@@ -81,7 +84,7 @@ groups:
         hint:
           type: str
       - name: timeWindow
-        display: timeWindow
+        display: Time Window
         description: Time window for historical data synchronization.
         required: false
         placeholder: 1 hour
@@ -89,7 +92,7 @@ groups:
         hint:
           type: str
       - name: tolerance
-        display: tolerance
+        display: Tolerance
         description: The maximum time limit for tolerating out-of-order data delay.
         required: false
         placeholder: 0 ms

@@ -6,11 +6,13 @@ use anyhow::Result;
 
 use clap::Parser;
 
+use actix_web::web;
 use actix_web::{
     middleware::Compat,
-    web::{Data, PayloadConfig, ServiceConfig},
+    web::{resource, Data, PayloadConfig, ServiceConfig},
     App, HttpServer,
 };
+
 use metrics_tracing_context::TracingContextLayer;
 use metrics_util::layers::{FanoutBuilder, Layer};
 use serde::{Deserialize, Serialize};
@@ -127,6 +129,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(start_task)
             .service(stop_task)
             .service(metrics::metrics_exporter)
+            .service(metrics::metrics_desc)
             .service(data_source_is_valid)
             .service(data_sources_in)
             .service(data_sources_in_one)
@@ -139,7 +142,7 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(get_agent_activities)
             .service(get_cluster_connector_transferred)
             .service(get_task_activities_by_id)
-            .service(get_task_metrics_by_id)
+            .service(get_task_metrics)
             .service(download_files)
             .service(upload_files)
             .service(metrics::profile)
@@ -277,10 +280,11 @@ impl Cli {
                 task::upload_files,
                 task::filemeta,
                 task::download_files,
-                task::get_task_metrics_by_id,
+                task::get_task_metrics,
 
                 metrics::metrics_exporter,
                 metrics::profile,
+                metrics::metrics_desc,
 
                 data_source_is_valid,
                 data_sources_in,
@@ -331,7 +335,6 @@ impl Cli {
         ::metrics::set_boxed_recorder(Box::new(fanout))?;
 
         let recorder = Data::new(handle);
-
         let addr = self.listen.as_deref().unwrap_or("0.0.0.0:6050");
         let server = HttpServer::new(move || {
             let cors = Cors::default()
@@ -354,6 +357,10 @@ impl Cli {
                 .service(
                     SwaggerUi::new("/swagger-ui/{_:.*}")
                         .url("/api-doc/openapi.json", openapi.clone()),
+                )
+                .service(
+                    resource("/metrics/task/{task_id}")
+                        .route(web::get().to(metrics::ws::send_task_metrics)),
                 )
         })
         .bind(addr)

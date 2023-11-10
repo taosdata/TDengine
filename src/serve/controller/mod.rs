@@ -32,7 +32,7 @@ use taos::taos_query::tmq::Assignment;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::dsv::DataSourceValidation;
 use taosx_core::utils::breakpoints::breakpoints_get_all;
-use taosx_core::{validate_dsn, ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
+use taosx_core::{get_data_dir, validate_dsn, ConnectorLicense, DataSet, DataSetsReq, Response, TaskOpts};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -332,7 +332,7 @@ async fn push_task_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::R
                 .await?;
         }
         _ => {
-            sqlx::query("UPDATE tasks SET status = ? WHERE id = ?")
+            sqlx::query("UPDATE tasks SET status = ?, reason = NULL WHERE id = ?")
                 .bind(activity.status.as_str())
                 .bind(activity.id)
                 .execute(pool)
@@ -382,11 +382,12 @@ async fn push_agent_activity(pool: &SqlitePool, activity: &Activity) -> anyhow::
 }
 
 async fn database_initiate(pool: &SqlitePool) -> anyhow::Result<()> {
-    sqlx::query("update tasks set status = ? where status in (?, ?, ?, ?, ?)")
+    sqlx::query("update tasks set status = ? where status in (?, ?, ?, ?, ?, ?)")
         .bind(Status::Suspended)
         .bind(Status::Running)
         .bind(Status::Waiting)
         .bind(Status::Suspending)
+        .bind(Status::Queued)
         .bind(Status::Interrupted)
         .bind(Status::Ticked)
         .execute(pool)
@@ -555,10 +556,11 @@ impl TaskController {
         let assert_enterprise = builder.assert_enterprise_edition().await;
 
         #[cfg(not(feature = "disable-enterprise-only-validation"))]
-        if let Err(err) = assert_enterprise {
-            anyhow::bail!(format!(
+        if let Err(_) = assert_enterprise {
+            /* anyhow::bail!(format!(
                 "{err:?}. A non-expired enterprise edition is required in most of steps."
-            ))
+            )) */
+            anyhow::bail!("Your TDengine Enterprise edition has bean expired, please contact the TDengine customer success team to get the activation code.")
         }
         // is cloud?
         if to
@@ -626,7 +628,7 @@ impl TaskController {
             ))
             .await
             .context("Cannot retrieve license")?
-            .ok_or_else(|| anyhow!("Connector {connector} is not supported by license"))
+            .ok_or_else(|| anyhow!("The current connector {connector} is not supported by license."))
             .and_then(|s| {
                 serde_json::from_str(&s)
                     .with_context(|| format!("Cannot parse license from str: {s}"))
@@ -634,16 +636,16 @@ impl TaskController {
 
         if let Some(days) = license.expired_days() {
             anyhow::bail!(
-                "Connector {} has been expired for {} days, please contact the database administrator for license",
+                "The current connector {} has been expired for {} days, please contact the TDengine customer success team to get the activation code.",
                 connector, days
             )
         } else {
             match license.number {
-                0 => anyhow::bail!("Connector {connector} is disabled by license"),
+                0 => anyhow::bail!("The current connector {connector} is disabled by license."),
                 n if n > 0 => {
                     if used > n as usize {
                         anyhow::bail!(
-                            "Connector {connector} reaches connection number limit({n}) by license"
+                            "The current connector {connector} reaches connection number limit({n}) by license"
                         );
                     }
                 }
@@ -737,6 +739,13 @@ impl TaskController {
         .execute(&self.pool)
         .await?;
         let id = res.last_insert_rowid();
+
+        let path = get_data_dir();
+        let path = path.join("tasks").join(id.to_string());
+        if path.exists() {
+            tracing::info!("task dir already exists and will be deleted");
+            std::fs::remove_dir_all(&path)?;
+        }
 
         if let Some(labels) = &task.labels {
             let values = labels
@@ -861,9 +870,17 @@ impl TaskController {
         .await?;
 
         if res.rows_affected() == 1 {
-            let task = self.get(id).await?.unwrap();
-            self.stop(task.task.id.clone()).await?;
-            self.start_task(&task.task).await?;
+            let task = self
+                .get(id)
+                .await?
+                .ok_or_else(|| anyhow!("Task not found: {}", id))?;
+            let scheduler = self.scheduler.clone();
+            let task_in_spawn = task.task.clone();
+            tokio::spawn(async move {
+                let _ = scheduler.stop_task(id, Duration::from_secs(60)).await;
+                tokio::time::sleep(Duration::from_secs(2)).await;
+                let _ = scheduler.push_task(task_in_spawn).await;
+            });
             Ok(Some(task.into()))
         } else {
             Ok(None)

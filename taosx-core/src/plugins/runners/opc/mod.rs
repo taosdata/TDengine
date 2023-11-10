@@ -10,6 +10,7 @@ use anyhow::Context;
 use itertools::Itertools;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder, Ty};
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
+use tokio_process_terminate::TerminateExt;
 pub use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Span};
@@ -186,7 +187,8 @@ pub async fn opc_to_taos(
     tokio::spawn(async move {
         macro_rules! safe_exit {
             () => {
-                let _ = child.kill().await;
+                use std::time::Duration;
+                let _ = child.terminate_timeout(Duration::from_secs(2)).await;
                 tokio::spawn(async move {
                     tracing::info!("Wait for IPC handlers finished");
                     let _ = ipc_handler.close().await;
@@ -595,50 +597,230 @@ mod tests {
         assert_eq!("2.4.0", dsv.version.unwrap());
     }
 
-    // #[tokio::test(flavor = "multi_thread")]
-    // async fn test_with_agent() -> anyhow::Result<()> {
-    //     env::set_var("RUST_LOG", "debug");
-    //     pretty_env_logger::init();
-    //
-    //     let opc = "opc+ua://192.168.0.133:53530/OPCUA/SimulationServer?\
-    // ua.nodes=ns=10;i=1004::t1::c1::double&connect_timeout=5&request_timeout=5&\
-    // concurrent=1&batch_size=5&batch_timeout=5&debug=true";
-    //     let target = "taos:///opcua";
-    //     let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
-    //     opc_to_taos(
-    //         opc.parse().unwrap(),
-    //         vec![],
-    //         target.parse().unwrap(),
-    //         1,
-    //         &PortPool::default(),
-    //         CancellationToken::new(),
-    //         Some((2, "http://127.0.0.1:6051".into(), "".into())),
-    //         None,
-    //         span.clone(),
-    //     )
-    //         .await?;
-    //     Ok(())
-    // }
+/*
+    #[tokio::test]
+    async fn test_opc_config_to_toml() -> anyhow::Result<()> {
+        let mut map = HashMap::new();
+        map.insert(
+            String::from("123"),
+            PointConfig {
+                code: "567".to_string(),
+                stable: None,
+                tag_values: None,
+                value_type: None,
+            },
+        );
+        let mut column_configs = Vec::new();
+        let column_config = ColumnConfig {
+            column_name: String::from("received_time"),
+            column_type: Some(Ty::Timestamp),
+            column_alias: Some("ts".to_string()),
+            is_primary_key: true,
+        };
+        column_configs.push(column_config);
+        let column_config = ColumnConfig {
+            column_name: String::from("original_time"),
+            column_type: Some(Ty::Timestamp),
+            column_alias: None,
+            is_primary_key: false,
+        };
+        column_configs.push(column_config);
+        let column_config = ColumnConfig {
+            column_name: String::from("value"),
+            column_type: Some(Ty::Timestamp),
+            column_alias: None,
+            is_primary_key: true,
+        };
+        column_configs.push(column_config);
+        let opc_table_config = TableConfig {
+            stable_prefix: Some("meters".to_string()),
+            column_configs,
+            tag_configs: None,
+        };
+        let config = OPCConfig {
+            opc_type: OpcType::OPCUA,
+            debug: true,
+            points: Some(PointsConfig {
+                limit: 32,
+                regex: Some(String::from("123")),
+            }),
+            // use_received_time: true,
+            connect: ConnectConfig {
+                ua: Some(UaConnectConfig {
+                    endpoint: String::from("endpoint.123"),
+                    connect_timeout: 10,
+                    request_timeout: 20,
+                    security_policy: String::from("None"),
+                    security_mode: String::from("None"),
+                    certificate: None,
+                    private_key: None,
+                    auth_method: AuthMethod::Anonymous,
+                    username: None,
+                    password: None,
+                }),
+                da: Some(DaConnectConfig {
+                    server: String::from("server.server"),
+                    nodes: vec![String::from("localhost")],
+                }),
+            },
+            collect: CollectConfig {
+                interval: Some(10),
+                ua: Some(UaCollectConfig {
+                    collect_mode: "observe"
+                        .to_string()
+                        .parse::<CollectMode>()
+                        .map_err(|err| OpcError::ParseError("collect_mode", err))?,
+                    nodes: vec![UANodeConfig {
+                        id: String::from("1"),
+                        // value_type: String::from("DOUBLE"),
+                    }],
+                }),
+                da: Some(DaCollectConfig {
+                    tags: vec![DaNodeConfig {
+                        tag: String::from("123"),
+                        // value_type: String::from("VARCHAR"),
+                    }],
+                }),
+                dump: Some(DumpConfig {
+                    enable: true,
+                    path: Some("/usr/loacl/taosx/".to_string()),
+                    keep: Some(10 as usize),
+                }),
+            },
+            report: ReportConfig {
+                remote: String::from("remote.remote"),
+                concurrent: Some(10),
+                batch_size: None,
+                batch_timeout: Some(100),
+            },
+            param_mapping: map,
+            // table_info: HashMap::new(),
+            opc_table_config: Some(opc_table_config),
+        };
+        let toml = toml::to_string(&config)?;
+        assert_eq!(
+            r#"opc_type = "opcua"
+debug = true
 
-    // #[tokio::test(flavor = "multi_thread")]
-    // async fn test_with_agent_all_nodes() -> anyhow::Result<()> {
-    //     std::env::set_var("RUST_LOG", "debug");
-    //     // tracing_subscriber::fmt::init();
-    //     let opc = "opcua://192.168.0.34:53530/OPCUA/SimulationServer?connect_timeout=1&request_timeout=1&interval=10&collect_mode=observe&enable=false&keep=10&concurrent=1&batch_size=1&batch_timeout=1&debug=false&select_all_points=true&table_primary_key=original_ts&child_table_expression=meter_{ns}_{id}&&select_all_points=true";
-    //     let target = "taos:///opc";
-    //     let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
-    //     opc_to_taos(
-    //         opc.parse().unwrap(),
-    //         vec![],
-    //         target.parse().unwrap(),
-    //         1,
-    //         &PortPool::default(),
-    //         CancellationToken::new(),
-    //         Some((2, "http://127.0.0.1:6051".into(), "".into())),
-    //         None,
-    //         span.clone(),
-    //     )
-    //         .await?;
-    //     Ok(())
-    // }
+[connect.ua]
+endpoint = "endpoint.123"
+connect_timeout = 10
+request_timeout = 20
+security_policy = "None"
+security_mode = "None"
+auth_method = "Anonymous"
+
+[connect.da]
+server = "server.server"
+nodes = ["localhost"]
+
+[points]
+limit = 32
+regex = "123"
+
+[collect]
+interval = 10
+
+[collect.ua]
+collect_mode = "observe"
+
+[[collect.ua.nodes]]
+id = "1"
+
+[[collect.da.tags]]
+tag = "123"
+
+[collect.dump]
+enable = true
+path = "/usr/loacl/taosx/"
+keep = 10
+
+[report]
+remote = "remote.remote"
+concurrent = 10
+batch_timeout = 100
+"#,
+            toml
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_string_vec_from_param_or_file() -> anyhow::Result<()> {
+        use taos::IntoDsn;
+        let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double".into_dsn()?;
+        let vec_string = crate::runners::get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
+            .map_err(|s| OpcError::FileParseFound(s))?;
+        assert_eq!(
+            vec_string,
+            vec![
+                String::from("ns=3;i=1004::ntb1::c0::double"),
+                String::from("ns=3;i=1008::ntb1::c1::double"),
+            ]
+        );
+        let mut dsn = "opc+ua://Win10-2021XIVKQ:53530/OPCUA/SimulationServer?ua.nodes=ns=3;i=1004::ntb1::c0::double,ns=3;i=1008::ntb1::c1::double,@/Users/zmlgirl/Downloads/test_opc.csv".into_dsn()?;
+        let vec_string = crate::runners::get_string_vec_from_param_or_file(&mut dsn, "ua.nodes")
+            .map_err(|s| OpcError::FileParseFound(s))?;
+        assert_eq!(
+            vec_string,
+            vec![
+                String::from("ns=3;i=1004::ntb1::c0::double"),
+                String::from("ns=3;i=1008::ntb1::c1::double"),
+                String::from("ns=2;i=2::ntb2::c1::double"),
+                String::from("ns=2;i=3::ntb3::c2::int"),
+            ]
+        );
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_with_agent() -> anyhow::Result<()> {
+        std::env::set_var("RUST_LOG", "debug");
+        pretty_env_logger::init();
+        let opc = "opc+ua://192.168.0.133:53530/OPCUA/SimulationServer?\
+    ua.nodes=ns=10;i=1004::t1::c1::double&connect_timeout=5&request_timeout=5&\
+    concurrent=1&batch_size=5&batch_timeout=5&debug=true";
+        let target = "taos:///opcua";
+        let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
+        let (notify, _) = flume::unbounded();
+        opc_to_taos(
+            opc.parse().unwrap(),
+            vec![],
+            target.parse().unwrap(),
+            1,
+            &PortPool::default(),
+            CancellationToken::new(),
+            Some((2, "http://127.0.0.1:6051".into(), "".into())),
+            None,
+            span.clone(),
+            notify,
+        )
+        .await?;
+        Ok(())
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_with_agent_all_nodes() -> anyhow::Result<()> {
+        std::env::set_var("RUST_LOG", "debug");
+        // tracing_subscriber::fmt::init();
+        let opc = "opcua://192.168.0.34:53530/OPCUA/SimulationServer?connect_timeout=1&request_timeout=1&interval=10&collect_mode=observe&enable=false&keep=10&concurrent=1&batch_size=1&batch_timeout=1&debug=false&select_all_points=true&table_primary_key=original_ts&child_table_expression=meter_{ns}_{id}&&select_all_points=true";
+        let target = "taos:///opc";
+        let span = tracing::info_span!("task::spawned", trace_id = tracing::field::Empty);
+        let (notify, _) = flume::unbounded();
+        opc_to_taos(
+            opc.parse().unwrap(),
+            vec![],
+            target.parse().unwrap(),
+            1,
+            &PortPool::default(),
+            CancellationToken::new(),
+            Some((2, "http://127.0.0.1:6051".into(), "".into())),
+            None,
+            span.clone(),
+            notify,
+        )
+        .await?;
+        Ok(())
+    }
+*/
 }
