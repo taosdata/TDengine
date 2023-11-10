@@ -106,7 +106,6 @@ int32_t streamBroadcastToChildren(SStreamTask* pTask, const SSDataBlock* pBlock)
 int32_t tEncodeStreamRetrieveReq(SEncoder* pEncoder, const SStreamRetrieveReq* pReq);
 
 int32_t streamSaveAllTaskStatus(SStreamMeta* pMeta, int64_t checkpointId);
-int32_t streamTaskBuildCheckpoint(SStreamTask* pTask);
 int32_t streamSendCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, int32_t nodeId, SEpSet* pEpSet);
 
 int32_t streamAddCheckpointReadyMsg(SStreamTask* pTask, int32_t srcTaskId, int32_t index, int64_t checkpointId);
@@ -127,12 +126,10 @@ int32_t streamNotifyUpstreamContinue(SStreamTask* pTask);
 int32_t streamTaskFillHistoryFinished(SStreamTask* pTask);
 int32_t streamTransferStateToStreamTask(SStreamTask* pTask);
 
-int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate);
+int32_t streamTaskInitTokenBucket(STokenBucket* pBucket, int32_t numCap, int32_t numRate, float quotaRate, const char*);
 STaskId streamTaskExtractKey(const SStreamTask* pTask);
 void    streamTaskInitForLaunchHTask(SHistoryTaskInfo* pInfo);
 void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
-
-void    streamMetaResetStartInfo(STaskStartInfo* pMeta);
 
 SStreamQueue* streamQueueOpen(int64_t cap);
 void          streamQueueClose(SStreamQueue* pQueue, int32_t taskId);
@@ -141,6 +138,21 @@ void          streamQueueProcessFail(SStreamQueue* queue);
 void*         streamQueueNextItem(SStreamQueue* pQueue);
 void          streamFreeQitem(SStreamQueueItem* data);
 int32_t       streamQueueGetItemSize(const SStreamQueue* pQueue);
+
+typedef enum UPLOAD_TYPE{
+  UPLOAD_DISABLE = -1,
+  UPLOAD_S3 = 0,
+  UPLOAD_RSYNC = 1,
+} UPLOAD_TYPE;
+
+UPLOAD_TYPE getUploadType();
+int uploadCheckpoint(char* id, char* path);
+int downloadCheckpoint(char* id, char* path);
+int deleteCheckpoint(char* id);
+int deleteCheckpointFile(char* id, char* name);
+
+int32_t onNormalTaskReady(SStreamTask* pTask);
+int32_t onScanhistoryTaskReady(SStreamTask* pTask);
 
 #ifdef __cplusplus
 }

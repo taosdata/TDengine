@@ -112,7 +112,6 @@ extern "C" {
 #define COMMAND_CATALOG_DEBUG "catalogDebug"
 #define COMMAND_ENABLE_MEM_DEBUG "enableMemDebug"
 #define COMMAND_DISABLE_MEM_DEBUG "disableMemDebug"
-#define COMMAND_ASYNCLOG          "asynclog"
 
 typedef struct SExplainGroup {
   int32_t   nodeNum;

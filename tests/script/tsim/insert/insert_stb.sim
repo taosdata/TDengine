@@ -51,10 +51,26 @@ print $rows
 if $rows != 5 then
   return -1
 endi
+
+sql create database dgxy;
+sql use dgxy;
+sql create table st(ts timestamp, f int) tags(t int);
+sql insert into ct1 using st tags(1) values(now, 1);
+sql insert into st(tbname, ts, f) values('ct1', now, 2);
+sql select * from ct1;
+if $rows != 2 then
+  return -1
+endi
+sql show tables like 'ct1';
+if $rows != 1 then 
+  return -1
+endi
+
 sql_error insert into d2.st values(now, 1, 1)
 sql_error insert into d2.st(ts, f) values(now, 1);
 sql_error insert into d2.st(ts, f, tbname) values(now, 1);
 sql_error insert into d2.st(ts, f, tbname) values(now, 1, '');
+sql_error insert into d2.st(ts, f, tbname) values(now, 1, 'd2.ct2');
 sql_error insert into d2.st(ts, tbname) values(now, 1, 34)
 sql_error insert into st using st2 tags(2) values(now,1);
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

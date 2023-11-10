@@ -310,6 +310,7 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
   GRANT_CFG_SET;
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if (pItem == NULL) {
+    terrno = TSDB_CODE_CFG_NOT_FOUND;
     return -1;
   }
 
@@ -338,6 +339,7 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
       break;
   }
 
+_err_out:
   terrno = TSDB_CODE_INVALID_CFG;
   return -1;
 }
@@ -355,6 +357,59 @@ SConfigItem *cfgGetItem(SConfig *pCfg, const char *name) {
   // uError("name:%s, cfg not found", name);
   terrno = TSDB_CODE_CFG_NOT_FOUND;
   return NULL;
+}
+
+int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer) {
+  ECfgDynType  dynType = isServer ? CFG_DYN_SERVER : CFG_DYN_CLIENT;
+  SConfigItem *pItem = cfgGetItem(pCfg, name);
+  if (!pItem || (pItem->dynScope & dynType) == 0) {
+    uError("failed to config:%s, not support", name);
+    terrno = TSDB_CODE_INVALID_CFG;
+    return -1;
+  }
+
+  switch (pItem->dtype) {
+    case CFG_DTYPE_BOOL: {
+      int32_t ival = (int32_t)atoi(pVal);
+      if (ival != 0 && ival != 1) {
+        uError("cfg:%s, type:%s value:%d out of range[0, 1]", pItem->name,
+               cfgDtypeStr(pItem->dtype), ival);
+        terrno = TSDB_CODE_OUT_OF_RANGE;
+        return -1;
+      }
+    } break;
+    case CFG_DTYPE_INT32: {
+      int32_t ival = (int32_t)atoi(pVal);
+      if (ival < pItem->imin || ival > pItem->imax) {
+        uError("cfg:%s, type:%s value:%d out of range[%" PRId64 ", %" PRId64 "]", pItem->name,
+               cfgDtypeStr(pItem->dtype), ival, pItem->imin, pItem->imax);
+        terrno = TSDB_CODE_OUT_OF_RANGE;
+        return -1;
+      }
+    } break;
+    case CFG_DTYPE_INT64: {
+      int64_t ival = (int64_t)atoll(pVal);
+      if (ival < pItem->imin || ival > pItem->imax) {
+        uError("cfg:%s, type:%s value:%" PRId64 " out of range[%" PRId64 ", %" PRId64 "]", pItem->name,
+               cfgDtypeStr(pItem->dtype), ival, pItem->imin, pItem->imax);
+        terrno = TSDB_CODE_OUT_OF_RANGE;
+        return -1;
+      }
+    } break;
+    case CFG_DTYPE_FLOAT:
+    case CFG_DTYPE_DOUBLE: {
+      float fval = (float)atof(pVal);
+      if (fval < pItem->fmin || fval > pItem->fmax) {
+        uError("cfg:%s, type:%s value:%f out of range[%f, %f]", pItem->name, cfgDtypeStr(pItem->dtype), fval,
+               pItem->fmin, pItem->fmax);
+        terrno = TSDB_CODE_OUT_OF_RANGE;
+        return -1;
+      }
+    } break;
+    default:
+      break;
+  }
+  return 0;
 }
 
 static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
@@ -381,43 +436,61 @@ static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
   return 0;
 }
 
-int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, int8_t scope) {
-  SConfigItem item = {.dtype = CFG_DTYPE_BOOL, .bval = defaultVal, .scope = scope};
+int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, int8_t scope, int8_t dynScope) {
+  SConfigItem item = {.dtype = CFG_DTYPE_BOOL, .bval = defaultVal, .scope = scope, .dynScope = dynScope};
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, int8_t scope) {
+int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, int8_t scope,
+                    int8_t dynScope) {
   if (defaultVal < minval || defaultVal > maxval) {
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
 
-  SConfigItem item = {.dtype = CFG_DTYPE_INT32, .i32 = defaultVal, .imin = minval, .imax = maxval, .scope = scope};
+  SConfigItem item = {.dtype = CFG_DTYPE_INT32,
+                      .i32 = defaultVal,
+                      .imin = minval,
+                      .imax = maxval,
+                      .scope = scope,
+                      .dynScope = dynScope};
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval, int8_t scope) {
+int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval, int8_t scope,
+                    int8_t dynScope) {
   if (defaultVal < minval || defaultVal > maxval) {
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
 
-  SConfigItem item = {.dtype = CFG_DTYPE_INT64, .i64 = defaultVal, .imin = minval, .imax = maxval, .scope = scope};
+  SConfigItem item = {.dtype = CFG_DTYPE_INT64,
+                      .i64 = defaultVal,
+                      .imin = minval,
+                      .imax = maxval,
+                      .scope = scope,
+                      .dynScope = dynScope};
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, float minval, float maxval, int8_t scope) {
+int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, float minval, float maxval, int8_t scope,
+                    int8_t dynScope) {
   if (defaultVal < minval || defaultVal > maxval) {
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
 
-  SConfigItem item = {.dtype = CFG_DTYPE_FLOAT, .fval = defaultVal, .fmin = minval, .fmax = maxval, .scope = scope};
+  SConfigItem item = {.dtype = CFG_DTYPE_FLOAT,
+                      .fval = defaultVal,
+                      .fmin = minval,
+                      .fmax = maxval,
+                      .scope = scope,
+                      .dynScope = dynScope};
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope) {
-  SConfigItem item = {.dtype = CFG_DTYPE_STRING, .scope = scope};
+int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope) {
+  SConfigItem item = {.dtype = CFG_DTYPE_STRING, .scope = scope, .dynScope = dynScope};
   item.str = taosStrdup(defaultVal);
   if (item.str == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -426,8 +499,8 @@ int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, in
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope) {
-  SConfigItem item = {.dtype = CFG_DTYPE_DIR, .scope = scope};
+int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope) {
+  SConfigItem item = {.dtype = CFG_DTYPE_DIR, .scope = scope, .dynScope = dynScope};
   if (cfgCheckAndSetDir(&item, defaultVal) != 0) {
     return -1;
   }
@@ -435,8 +508,8 @@ int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, int8_
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope) {
-  SConfigItem item = {.dtype = CFG_DTYPE_LOCALE, .scope = scope};
+int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope) {
+  SConfigItem item = {.dtype = CFG_DTYPE_LOCALE, .scope = scope, .dynScope = dynScope};
   if (cfgCheckAndSetLocale(&item, defaultVal) != 0) {
     return -1;
   }
@@ -444,8 +517,8 @@ int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal, in
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope) {
-  SConfigItem item = {.dtype = CFG_DTYPE_CHARSET, .scope = scope};
+int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope) {
+  SConfigItem item = {.dtype = CFG_DTYPE_CHARSET, .scope = scope, .dynScope = dynScope};
   if (cfgCheckAndSetCharset(&item, defaultVal) != 0) {
     return -1;
   }
@@ -453,8 +526,8 @@ int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal, i
   return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope) {
-  SConfigItem item = {.dtype = CFG_DTYPE_TIMEZONE, .scope = scope};
+int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope) {
+  SConfigItem item = {.dtype = CFG_DTYPE_TIMEZONE, .scope = scope, .dynScope = dynScope};
   if (cfgCheckAndSetTimezone(&item, defaultVal) != 0) {
     return -1;
   }

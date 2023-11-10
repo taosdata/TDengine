@@ -209,6 +209,7 @@ int32_t tsdbBegin(STsdb* pTsdb);
 // int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
 int32_t tsdbCacheCommit(STsdb* pTsdb);
 int32_t tsdbCompact(STsdb* pTsdb, SCompactInfo* pInfo);
+int32_t tsdbRetention(STsdb *tsdb, int64_t now, int32_t sync);
 // int32_t tsdbFinishCommit(STsdb* pTsdb);
 // int32_t tsdbRollbackCommit(STsdb* pTsdb);
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
@@ -231,7 +232,12 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqLaunchStreamTaskAsync(STQ* pTq);
+
+int32_t tqStartStreamTaskAsync(STQ* pTq, bool restart);
+int32_t tqRestartStreamTasks(STQ* pTq);
+int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver);
+int32_t tqScanWal(STQ* pTq);
+int32_t tqStartStreamTasks(STQ* pTq);
 
 int     tqCommit(STQ*);
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
@@ -274,7 +280,7 @@ int32_t smaPrepareAsyncCommit(SSma* pSma);
 int32_t smaCommit(SSma* pSma, SCommitInfo* pInfo);
 int32_t smaFinishCommit(SSma* pSma);
 int32_t smaPostCommit(SSma* pSma);
-int32_t smaDoRetention(SSma* pSma, int64_t now);
+int32_t smaRetention(SSma* pSma, int64_t now);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);

@@ -1584,8 +1584,7 @@ typedef union SRowsDataContext{
   SStbRowsDataContext* pStbRowsCxt;
 } SRowsDataContext;
 
-static int32_t parseTbnameToken(SInsertParseContext* pCxt, SStbRowsDataContext* pStbRowsCxt, SToken* pToken, 
-                                char* ctbName, bool* pFoundCtbName) {
+static int32_t parseTbnameToken(SInsertParseContext* pCxt, SStbRowsDataContext* pStbRowsCxt, SToken* pToken, bool* pFoundCtbName) {
   *pFoundCtbName = false;
   int32_t code = checkAndTrimValue(pToken, pCxt->tmpTokenBuf, &pCxt->msg);
   if (code == TSDB_CODE_SUCCESS){
@@ -1595,7 +1594,13 @@ static int32_t parseTbnameToken(SInsertParseContext* pCxt, SStbRowsDataContext* 
 
     if (pToken->n > 0) {
       if (pToken->n <= TSDB_TABLE_NAME_LEN - 1) {
-        memcpy(pStbRowsCxt->ctbName.tname, pToken->z, pToken->n);
+        for (int i = 0; i < pToken->n; ++i) {
+          if (pToken->z[i] == '.') {
+            return buildInvalidOperationMsg(&pCxt->msg, "tbname can not contain '.'");
+          } else {
+            pStbRowsCxt->ctbName.tname[i] = pToken->z[i]; 
+          }
+        }
         pStbRowsCxt->ctbName.tname[pToken->n] = '\0';
         *pFoundCtbName = true;
       } else {
@@ -1677,8 +1682,7 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
       }
     }
     else if (pCols->pColIndex[i] == tbnameIdx) {
-      char ctbName[TSDB_TABLE_NAME_LEN];
-      code = parseTbnameToken(pCxt, pStbRowsCxt, pToken, ctbName, bFoundTbName);
+      code = parseTbnameToken(pCxt, pStbRowsCxt, pToken, bFoundTbName);
     }
 
     if (code == TSDB_CODE_SUCCESS && i < pCols->numOfBound - 1) {
@@ -1757,7 +1761,7 @@ static int32_t processCtbAutoCreationAndCtbMeta(SInsertParseContext* pCxt, SVnod
                              .requestId = pCxt->pComCxt->requestId,
                              .requestObjRefId = pCxt->pComCxt->requestRid,
                              .mgmtEps = pCxt->pComCxt->mgmtEpSet};
-    code = catalogGetTableHashVgroup(pCxt->pComCxt->pCatalog, &conn, &pStmt->targetTableName, &vg);
+    code = catalogGetTableHashVgroup(pCxt->pComCxt->pCatalog, &conn, &pStbRowsCxt->ctbName, &vg);
     if (code == TSDB_CODE_SUCCESS) {
       taosHashPut(pStmt->pVgroupsHashObj, (const char*)(&vg.vgId), sizeof(vg.vgId), &vg, sizeof(vg));
       pStbRowsCxt->pCtbMeta->uid = taosHashGetSize(pStmt->pSubTableHashObj) + 1;

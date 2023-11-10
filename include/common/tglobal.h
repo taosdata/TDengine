@@ -44,10 +44,6 @@ extern int32_t  tsNumOfSupportVnodes;
 extern int32_t tsMaxShellConns;
 extern int32_t tsShellActivityTimer;
 extern int32_t tsCompressMsgSize;
-extern int32_t tsCompressColData;
-extern int32_t tsMaxNumOfDistinctResults;
-extern int32_t tsCompatibleModel;
-extern bool    tsPrintAuth;
 extern int64_t tsTickPerMin[3];
 extern int64_t tsTickPerHour[3];
 extern int32_t tsCountAlwaysReturnValue;
@@ -79,8 +75,12 @@ extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
 extern int32_t tsHeartbeatTimeout;
 
-// vnode
-extern int64_t tsVndCommitMaxIntervalMs;
+// snode
+extern int32_t tsRsyncPort;
+extern char tsCheckpointBackupDir[];
+
+// vnode checkpoint
+extern char tsSnodeAddress[];       //127.0.0.1:873
 
 // mnode
 extern int64_t tsMndSdbWriteDelta;
@@ -105,8 +105,6 @@ extern bool     tsMonitorComp;
 
 // audit
 extern bool     tsEnableAudit;
-extern char     tsAuditFqdn[];
-extern uint16_t tsAuditPort;
 extern bool     tsEnableAuditCreateTable;
 
 // telem
