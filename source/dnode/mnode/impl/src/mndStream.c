@@ -2670,6 +2670,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     doExtractTasksFromStream(pMnode);
   }
 
+  mDebug("%d stream nodes needs updated", (int32_t) taosArrayGetSize(req.pUpdateNodes));
   setNodeEpsetExpiredFlag(req.pUpdateNodes);
 
   for (int32_t i = 0; i < req.numOfTasks; ++i) {

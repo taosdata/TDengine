@@ -965,7 +965,8 @@ void metaHbToMnode(void* param, void* tmrId) {
 
       if (!exist) {
         taosArrayPush(hbMsg.pUpdateNodes, &pTaskEpset->nodeId);
-        stDebug("vgId:%d nodeId:%d added into the update list", pMeta->vgId, pTaskEpset->nodeId);
+        stDebug("vgId:%d nodeId:%d added into the update list, total:%d", pMeta->vgId, pTaskEpset->nodeId,
+                (int32_t)taosArrayGetSize(hbMsg.pUpdateNodes));
       }
     }
 
