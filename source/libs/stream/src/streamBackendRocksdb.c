@@ -1736,7 +1736,7 @@ int32_t taskDbGenChkpUploadData__s3(STaskDbWrapper* pDb, void* bkdChkpMgt, int64
 
   return 0;
 }
-int32_t taskDbGenChkpUploadPath(void* arg, void* mgt, int64_t chkpId, int8_t type, char** path) {
+int32_t taskDbGenChkpUploadData(void* arg, void* mgt, int64_t chkpId, int8_t type, char** path) {
   STaskDbWrapper* pDb = arg;
   UPLOAD_TYPE     utype = type;
 
@@ -3363,13 +3363,27 @@ _err:
   return code >= 0 ? 0 : -1;
 }
 
+int32_t isBkdDataMeta(char* name) {
+  const char* pCurrent = "CURRENT";
+  int32_t     currLen = strlen(pCurrent);
+
+  const char* pManifest = "MANIFEST-";
+  int32_t     maniLen = strlen(pManifest);
+
+  if (strlen(name) >= maniLen && strncmp(name, pManifest, maniLen) == 0) {
+    return 1;
+  } else if (strlen(name) == currLen && strcmp(name, pCurrent) == 0) {
+    return 1;
+  }
+  return 0;
+}
 int32_t compareHashTableImpl(SHashObj* p1, SHashObj* p2, SArray* diff) {
   int32_t code = 0;
   size_t  len = 0;
   void*   pIter = taosHashIterate(p2, NULL);
   while (pIter) {
     char* name = taosHashGetKey(pIter, &len);
-    if (!taosHashGet(p1, name, len)) {
+    if (!isBkdDataMeta(name) && !taosHashGet(p1, name, len)) {
       char* p = taosStrdup(name);
       taosArrayPush(diff, &p);
     }
@@ -3431,13 +3445,22 @@ int32_t dbChkpGetDelta(SDbChkp* p, int64_t chkpId, SArray* list) {
       continue;
     }
   }
+
+  void* pIter = taosHashIterate(p->pSstTbl[1 - p->idx], NULL);
+  while (pIter) {
+    char *name = taosHashGetKey(pIter, NULL);
+    stError("curr file list:  %s", name);
+    pIter = taosHashIterate(p->pSstTbl[1 - p->idx], pIter);
+  }
+
   if (p->init == 0) {
     void* pIter = taosHashIterate(p->pSstTbl[1 - p->idx], NULL);
     while (pIter) {
       size_t len;
       char*  name = taosHashGetKey(pIter, &len);
-      if (name != NULL && len != 0) {
-        taosArrayPush(p->pAdd, &name);
+      if (name != NULL && !isBkdDataMeta(name)) {
+        char* fname = taosStrdup(name);
+        taosArrayPush(p->pAdd, &fname);
       }
       pIter = taosHashIterate(p->pSstTbl[1 - p->idx], pIter);
     }
@@ -3538,12 +3561,12 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname) {
     goto _ERROR;
   }
 
-  code = taosMkDir(dstDir);
-  if (code != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    stError("failed to mkdir srcDir %s, reason: %s", dstDir, terrstr());
-    goto _ERROR;
-  }
+  // code = taosMkDir(dstDir);
+  // if (code != 0) {
+  //   terrno = TAOS_SYSTEM_ERROR(errno);
+  //   stError("failed to mkdir srcDir %s, reason: %s", dstDir, terrstr());
+  //   goto _ERROR;
+  // }
 
   // clear current file
   memset(dstBuf, 0, len);
@@ -3563,7 +3586,9 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname) {
     sprintf(srcBuf, "%s%s%s", srcDir, TD_DIRSEP, filename);
     sprintf(dstBuf, "%s%s%s", dstDir, TD_DIRSEP, filename);
 
-    taosCopyFile(srcBuf, dstBuf);
+    if (taosCopyFile(srcBuf, dstBuf) < 0) {
+      stError("failed to copy file from %s to %s", srcBuf, dstBuf);
+    }
   }
   // del file in $name
   for (int i = 0; i < taosArrayGetSize(p->pDel); i++) {
@@ -3580,14 +3605,18 @@ int32_t dbChkpDumpTo(SDbChkp* p, char* dname) {
   memset(dstBuf, 0, len);
   sprintf(srcBuf, "%s%s%s", srcDir, TD_DIRSEP, p->pCurrent);
   sprintf(dstBuf, "%s%s%s", dstDir, TD_DIRSEP, p->pCurrent);
-  taosCopyFile(srcBuf, dstBuf);
+  if (taosCopyFile(srcBuf, dstBuf) < 0) {
+    stError("failed to copy file from %s to %s", srcBuf, dstBuf);
+  }
 
   // copy manifest file to dst dir
   memset(srcBuf, 0, len);
   memset(dstBuf, 0, len);
   sprintf(srcBuf, "%s%s%s", srcDir, TD_DIRSEP, p->pManifest);
   sprintf(dstBuf, "%s%s%s", dstDir, TD_DIRSEP, p->pManifest);
-  taosCopyFile(srcBuf, dstBuf);
+  if (taosCopyFile(srcBuf, dstBuf) < 0) {
+    stError("failed to copy file from %s to %s", srcBuf, dstBuf);
+  }
 
   // clear delta data buf
   taosArrayClearP(p->pAdd, taosMemoryFree);
