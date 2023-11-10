@@ -3099,7 +3099,7 @@ static int32_t tsdbCacheLoadBlockS3(STsdbFD *pFD, uint8_t **ppBlock) {
   }
   */
   int64_t block_offset = (pFD->blkno - 1) * tsS3BlockSize * pFD->szPage;
-  code = s3GetObjectBlock(pFD->objName, block_offset, tsS3BlockSize * pFD->szPage, ppBlock);
+  code = s3GetObjectBlock(pFD->objName, block_offset, tsS3BlockSize * pFD->szPage, 0, ppBlock);
   if (code != TSDB_CODE_SUCCESS) {
     // taosMemoryFree(pBlock);
     // code = TSDB_CODE_OUT_OF_MEMORY;

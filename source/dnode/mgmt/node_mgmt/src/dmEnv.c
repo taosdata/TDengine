@@ -18,17 +18,17 @@
 #include "audit.h"
 #include "libs/function/tudf.h"
 
-#define DM_INIT_AUDIT()                 \
-  do {                                  \
-    auditCfg.port = tsMonitorPort;        \
-    auditCfg.server = tsMonitorFqdn;      \
-    auditCfg.comp = tsMonitorComp;      \
-    if (auditInit(&auditCfg) != 0) {    \
-      return -1;                        \
-    }                                   \
+#define DM_INIT_AUDIT()              \
+  do {                               \
+    auditCfg.port = tsMonitorPort;   \
+    auditCfg.server = tsMonitorFqdn; \
+    auditCfg.comp = tsMonitorComp;   \
+    if (auditInit(&auditCfg) != 0) { \
+      return -1;                     \
+    }                                \
   } while (0)
 
-static SDnode      globalDnode = {0};
+static SDnode globalDnode = {0};
 
 SDnode *dmInstance() { return &globalDnode; }
 
@@ -146,6 +146,13 @@ static bool dmCheckDataDirVersion() {
   return true;
 }
 
+#if defined(USE_S3)
+
+extern int32_t s3Begin();
+extern void    s3End();
+
+#endif
+
 int32_t dmInit() {
   dInfo("start to init dnode env");
   if (dmDiskInit() != 0) return -1;
@@ -156,6 +163,9 @@ int32_t dmInit() {
   if (dmInitMonitor() != 0) return -1;
   if (dmInitAudit() != 0) return -1;
   if (dmInitDnode(dmInstance()) != 0) return -1;
+#if defined(USE_S3)
+  if (s3Begin() != 0) return -1;
+#endif
 
   dInfo("dnode env is initialized");
   return 0;
@@ -181,6 +191,9 @@ void dmCleanup() {
   udfStopUdfd();
   taosStopCacheRefreshWorker();
   dmDiskClose();
+#if defined(USE_S3)
+  s3End();
+#endif
   dInfo("dnode env is cleaned up");
 
   taosCleanupCfg();
@@ -265,19 +278,19 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
 
   pWrapper = &pDnode->wrappers[ntype];
 
-  if(pWrapper->func.nodeRoleFp != NULL){
+  if (pWrapper->func.nodeRoleFp != NULL) {
     ESyncRole role = (*pWrapper->func.nodeRoleFp)(pWrapper->pMgmt);
     dInfo("node:%s, checking node role:%d", pWrapper->name, role);
-    if(role == TAOS_SYNC_ROLE_VOTER){
+    if (role == TAOS_SYNC_ROLE_VOTER) {
       dError("node:%s, failed to alter node type since node already is role:%d", pWrapper->name, role);
       terrno = TSDB_CODE_MNODE_ALREADY_IS_VOTER;
       return -1;
     }
   }
 
-  if(pWrapper->func.isCatchUpFp != NULL){
+  if (pWrapper->func.isCatchUpFp != NULL) {
     dInfo("node:%s, checking node catch up", pWrapper->name);
-    if((*pWrapper->func.isCatchUpFp)(pWrapper->pMgmt) != 1){
+    if ((*pWrapper->func.isCatchUpFp)(pWrapper->pMgmt) != 1) {
       terrno = TSDB_CODE_MNODE_NOT_CATCH_UP;
       return -1;
     }
@@ -394,7 +407,4 @@ void dmReportStartup(const char *pName, const char *pDesc) {
   dDebug("step:%s, %s", pStartup->name, pStartup->desc);
 }
 
-int64_t dmGetClusterId() {
-  return globalDnode.data.clusterId;
-}
-
+int64_t dmGetClusterId() { return globalDnode.data.clusterId; }
