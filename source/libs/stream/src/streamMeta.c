@@ -194,7 +194,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   taosInitRWLatch(&pMeta->chkpDirLock);
 
   pMeta->chkpId = streamMetaGetLatestCheckpointId(pMeta);
-  pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId);
+  pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId, pMeta->vgId);
   while (pMeta->streamBackend == NULL) {
     taosMsleep(100);
     pMeta->streamBackend = streamBackendInit(pMeta->path, pMeta->chkpId, vgId);

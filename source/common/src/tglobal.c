@@ -525,13 +525,13 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "enableCoreFile", 1, CFG_SCOPE_BOTH, CFG_DYN_CLIENT) != 0) return -1;
   if (cfgAddFloat(pCfg, "numOfCores", tsNumOfCores, 1, 100000, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
 
-  if (cfgAddBool(pCfg, "ssd42", tsSSE42Enable, CFG_SCOPE_BOTH) != 0) return -1;
-  if (cfgAddBool(pCfg, "avx", tsAVXEnable, CFG_SCOPE_BOTH) != 0) return -1;
-  if (cfgAddBool(pCfg, "avx2", tsAVX2Enable, CFG_SCOPE_BOTH) != 0) return -1;
-  if (cfgAddBool(pCfg, "fma", tsFMAEnable, CFG_SCOPE_BOTH) != 0) return -1;
-  if (cfgAddBool(pCfg, "avx512", tsAVX512Enable, CFG_SCOPE_BOTH) != 0) return -1;
-  if (cfgAddBool(pCfg, "simdEnable", tsSIMDEnable, CFG_SCOPE_BOTH) != 0) return -1;
-  if (cfgAddBool(pCfg, "tagFilterCache", tsTagFilterCache, CFG_SCOPE_BOTH) != 0) return -1;
+  if (cfgAddBool(pCfg, "ssd42", tsSSE42Enable, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddBool(pCfg, "avx", tsAVXEnable, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddBool(pCfg, "avx2", tsAVX2Enable, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddBool(pCfg, "fma", tsFMAEnable, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddBool(pCfg, "avx512", tsAVX512Enable, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddBool(pCfg, "simdEnable", tsSIMDEnable, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
+  if (cfgAddBool(pCfg, "tagFilterCache", tsTagFilterCache, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
 
   if (cfgAddInt64(pCfg, "openMax", tsOpenMax, 0, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
 #if !defined(_ALPINE)
