@@ -213,6 +213,7 @@ _exit:
 }
 
 extern int64_t tsMaxKeyByPrecision[];
+extern int32_t tsdbGetKeep(STsdb *pTsdb);
 static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int64_t btimeMs, int64_t ctimeMs) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -263,7 +264,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     now *= 1000000;
   }
 
-  int32_t keep = pVnode->config.tsdbCfg.keep2;
+  int32_t keep = tsdbGetKeep(pVnode->pTsdb);
   /*
   int32_t nlevel = tfsGetLevel(pVnode->pTfs);
   if (nlevel > 1 && tsS3Enabled) {
@@ -1494,10 +1495,11 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
   // scan
   TSKEY now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
-  TSKEY minKey = now - tsTickPerMin[pVnode->config.tsdbCfg.precision] * pVnode->config.tsdbCfg.keep2;
+  TSKEY minKey = now - tsTickPerMin[pVnode->config.tsdbCfg.precision] * tsdbGetKeep(pVnode->pTsdb);
   TSKEY maxKey = tsMaxKeyByPrecision[pVnode->config.tsdbCfg.precision];
+
   for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
-    SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
+    SSubmitTbData *pSubmitTbData = TARRAY_GET_ELEM(pSubmitReq->aSubmitTbData, i);
 
     if (pSubmitTbData->pCreateTbReq && pSubmitTbData->pCreateTbReq->uid == 0) {
       code = TSDB_CODE_INVALID_MSG;
@@ -1510,7 +1512,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
         goto _exit;
       }
 
-      SColData *pColData = (SColData *)taosArrayGet(pSubmitTbData->aCol, 0);
+      SColData *pColData = (SColData *)TARRAY_GET_ELEM(pSubmitTbData->aCol, 0);
       TSKEY    *aKey = (TSKEY *)(pColData->pData);
 
       for (int32_t iRow = 0; iRow < pColData->nVal; iRow++) {
@@ -1535,7 +1537,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
   }
 
   for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
-    SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
+    SSubmitTbData *pSubmitTbData = TARRAY_GET_ELEM(pSubmitReq->aSubmitTbData, i);
 
     if (pSubmitTbData->pCreateTbReq) {
       pSubmitTbData->uid = pSubmitTbData->pCreateTbReq->uid;
@@ -1593,7 +1595,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
 
   // loop to handle
   for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
-    SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
+    SSubmitTbData *pSubmitTbData = TARRAY_GET_ELEM(pSubmitReq->aSubmitTbData, i);
 
     // create table
     if (pSubmitTbData->pCreateTbReq) {

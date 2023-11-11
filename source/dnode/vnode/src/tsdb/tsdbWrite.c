@@ -27,6 +27,8 @@ int64_t tsMaxKeyByPrecision[] = {31556995200000L, 31556995200000000L, 9214646400
 
 // static int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg);
 
+int32_t tsdbGetKeep(STsdb *pTsdb) { return pTsdb->keepCfg.keep2; }
+
 int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq2 *pMsg, SSubmitRsp2 *pRsp) {
   int32_t arrSize = 0;
   int32_t affectedrows = 0;

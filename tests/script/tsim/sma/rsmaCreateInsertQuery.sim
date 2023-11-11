@@ -28,6 +28,7 @@ print =============== insert data and trigger rollup
 sql insert into ct1 values(now, 10);
 sql insert into ct1 values(now+1s, 1);
 sql insert into ct1 values(now+2s, 100);
+sql_error insert into ct1 values(now-604801s,0); // expired ts
 
 print =============== wait maxdelay 15+2 seconds for results
 sleep 17000
