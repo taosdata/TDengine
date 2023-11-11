@@ -593,7 +593,7 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     const SStreamQueueItem* pItem = pInput;
     stDebug("s-task:%s start to process batch of blocks, num:%d, type:%d", id, numOfBlocks, pItem->type);
 
-    int64_t ver = pTask->chkInfo.checkpointVer;
+    int64_t ver = pTask->chkInfo.processedVer;
     doSetStreamInputBlock(pTask, pInput, &ver, id);
 
     int64_t resSize = 0;
@@ -604,13 +604,16 @@ int32_t streamExecForAll(SStreamTask* pTask) {
     stDebug("s-task:%s batch of input blocks exec end, elapsed time:%.2fs, result size:%.2fMiB, numOfBlocks:%d", id, el,
            SIZE_IN_MiB(resSize), totalBlocks);
 
-    // update the currentVer if processing the submit blocks.
-    ASSERT(pTask->chkInfo.checkpointVer <= pTask->chkInfo.nextProcessVer && ver >= pTask->chkInfo.checkpointVer);
+    SCheckpointInfo* pInfo = &pTask->chkInfo;
 
-    if (ver != pTask->chkInfo.checkpointVer) {
-      stDebug("s-task:%s update checkpointVer(unsaved) from %" PRId64 " to %" PRId64 ", nextProcessVer:%" PRId64,
-             pTask->id.idStr, pTask->chkInfo.checkpointVer, ver, pTask->chkInfo.nextProcessVer);
-      pTask->chkInfo.checkpointVer = ver;
+    // update the currentVer if processing the submit blocks.
+    ASSERT(pInfo->checkpointVer <= pInfo->nextProcessVer && ver >= pInfo->checkpointVer);
+
+    if (ver != pInfo->processedVer) {
+      stDebug("s-task:%s update processedVer(unsaved) from %" PRId64 " to %" PRId64 " nextProcessVer:%" PRId64
+              " ckpt:%" PRId64,
+              pTask->id.idStr, pInfo->processedVer, ver, pInfo->nextProcessVer, pInfo->checkpointVer);
+      pInfo->processedVer = ver;
     }
 
     streamFreeQitem(pInput);

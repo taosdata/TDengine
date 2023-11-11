@@ -299,7 +299,7 @@ int32_t tqResetStreamTaskStatus(STQ* pTq) {
   int32_t      vgId = TD_VID(pTq->pVnode);
   int32_t      numOfTasks = taosArrayGetSize(pMeta->pTaskList);
 
-  tqDebug("vgId:%d start all %d stream task(s)", vgId, numOfTasks);
+  tqDebug("vgId:%d reset all %d stream task(s) status to be uninit", vgId, numOfTasks);
   if (numOfTasks == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -448,7 +448,7 @@ bool doPutDataIntoInputQFromWal(SStreamTask* pTask, int64_t maxVer, int32_t* num
         numOfNewItems += 1;
         int64_t ver = walReaderGetCurrentVer(pTask->exec.pWalReader);
         pTask->chkInfo.nextProcessVer = ver;
-        tqDebug("s-task:%s set the ver:%" PRId64 " from WALReader after extract block from WAL", id, ver);
+        tqDebug("s-task:%s set ver:%" PRId64 " for reader after extract data from WAL", id, ver);
 
         bool itemInFillhistory = handleFillhistoryScanComplete(pTask, ver);
         if (itemInFillhistory) {
