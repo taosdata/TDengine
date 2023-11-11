@@ -28,13 +28,18 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
   // bool    allNullRow = true;
 
   if (HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST)) {
+    uint64_t ts = 0;
+    SFirstLastRes* p;
+    col_id_t colId;
     for (int32_t i = 0; i < pReader->numOfCols; ++i) {
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotIds[i]);
-      SFirstLastRes*   p = (SFirstLastRes*)varDataVal(pRes[i]);
       int32_t          slotId = slotIds[i];
       SLastCol*        pColVal = (SLastCol*)taosArrayGet(pRow, i);
+      colId = pColVal->colVal.cid;
+      p = (SFirstLastRes*)varDataVal(pRes[i]);
 
       p->ts = pColVal->ts;
+      ts = p->ts;
       p->isNull = !COL_VAL_IS_VALUE(&pColVal->colVal);
       // allNullRow = p->isNull & allNullRow;
 
@@ -54,6 +59,19 @@ static int32_t saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* p
       p->hasResult = true;
       varDataSetLen(pRes[i], pColInfoData->info.bytes - VARSTR_HEADER_SIZE);
       colDataSetVal(pColInfoData, numOfRows, (const char*)pRes[i], false);
+    }
+    for (int32_t idx = 0; idx < taosArrayGetSize(pBlock->pDataBlock); ++idx) {
+      SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, idx);
+      if (pCol->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID && pCol->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+        colDataSetVal(pCol, numOfRows, (const char*)&ts, false);
+        continue;
+      } else if (pReader->numOfCols == 1 && idx != dstSlotIds[0] && pCol->info.colId == colId) {
+        if (!p->isNull) {
+          colDataSetVal(pCol, numOfRows, p->buf, false);
+        } else {
+          colDataSetNULL(pCol, numOfRows);
+        }
+      }
     }
 
     // pBlock->info.rows += allNullRow ? 0 : 1;

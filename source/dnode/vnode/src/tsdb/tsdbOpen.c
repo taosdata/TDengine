@@ -89,6 +89,8 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   return 0;
 
 _err:
+  tsdbCloseFS(&pTsdb->pFS);
+  taosThreadMutexDestroy(&pTsdb->mutex);
   taosMemoryFree(pTsdb);
   return -1;
 }

@@ -70,6 +70,7 @@ sql_error insert into d2.st values(now, 1, 1)
 sql_error insert into d2.st(ts, f) values(now, 1);
 sql_error insert into d2.st(ts, f, tbname) values(now, 1);
 sql_error insert into d2.st(ts, f, tbname) values(now, 1, '');
+sql_error insert into d2.st(ts, f, tbname) values(now, 1, 'd2.ct2');
 sql_error insert into d2.st(ts, tbname) values(now, 1, 34)
 sql_error insert into st using st2 tags(2) values(now,1);
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

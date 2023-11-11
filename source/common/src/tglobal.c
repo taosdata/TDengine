@@ -94,8 +94,8 @@ int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 
 // audit
-bool     tsEnableAudit = true;
-bool     tsEnableAuditCreateTable = true;
+bool tsEnableAudit = true;
+bool tsEnableAuditCreateTable = true;
 
 // telem
 #ifdef TD_ENTERPRISE
@@ -126,6 +126,15 @@ char tsSmlAutoChildTableNameDelimiter[TSDB_TABLE_NAME_LEN] = "";
 // true means that the name and order of cols in each line are the same(only for influx protocol)
 // bool    tsSmlDataFormat = false;
 // int32_t tsSmlBatchSize = 10000;
+
+// checkpoint backup
+char    tsSnodeAddress[TSDB_FQDN_LEN] = {0};
+int32_t tsRsyncPort = 873;
+#ifdef WINDOWS
+char tsCheckpointBackupDir[PATH_MAX] = "C:\\TDengine\\data\\backup\\checkpoint\\";
+#else
+char    tsCheckpointBackupDir[PATH_MAX] = "/var/lib/taos/backup/checkpoint/";
+#endif
 
 // tmq
 int32_t tmqMaxTopicNum = 20;
@@ -222,7 +231,7 @@ char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPR
 #ifdef WINDOWS
 bool tsStartUdfd = false;
 #else
-bool tsStartUdfd = true;
+bool    tsStartUdfd = true;
 #endif
 
 // wal
@@ -260,6 +269,7 @@ char   tsS3AccessKeySecret[TSDB_FQDN_LEN] = "<accesskeysecrect>";
 char   tsS3BucketName[TSDB_FQDN_LEN] = "<bucketname>";
 char   tsS3AppId[TSDB_FQDN_LEN] = "<appid>";
 int8_t tsS3Enabled = false;
+int8_t tsS3StreamEnabled = false;
 
 int8_t tsS3Https = true;
 char   tsS3Hostname[TSDB_FQDN_LEN] = "<hostname>";
@@ -323,16 +333,19 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
       tstrncpy(tsS3AppId, appid + 1, TSDB_FQDN_LEN);
     }
   }
-  if (tsS3BucketName[0] != '<' && tsDiskCfgNum > 1) {
+  if (tsS3BucketName[0] != '<') {
 #if defined(USE_COS) || defined(USE_S3)
-    tsS3Enabled = true;
+    if (tsDiskCfgNum > 1) tsS3Enabled = true;
+    tsS3StreamEnabled = true;
 #endif
   }
 
   return 0;
 }
 
-struct SConfig *taosGetCfg() { return tsCfg; }
+struct SConfig *taosGetCfg() {
+  return tsCfg;
+}
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -442,8 +455,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "enableScience", tsEnableScience, CFG_SCOPE_CLIENT, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddInt32(pCfg, "querySmaOptimize", tsQuerySmaOptimize, 0, 1, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0) return -1;
   if (cfgAddBool(pCfg, "queryPlannerTrace", tsQueryPlannerTrace, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0) return -1;
-  if (cfgAddInt32(pCfg, "queryNodeChunkSize", tsQueryNodeChunkSize, 1024, 128 * 1024, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) !=
-      0)
+  if (cfgAddInt32(pCfg, "queryNodeChunkSize", tsQueryNodeChunkSize, 1024, 128 * 1024, CFG_SCOPE_CLIENT,
+                  CFG_DYN_CLIENT) != 0)
     return -1;
   if (cfgAddBool(pCfg, "queryUseNodeAllocator", tsQueryUseNodeAllocator, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0)
     return -1;
@@ -459,7 +472,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   //  if (cfgAddInt32(pCfg, "smlBatchSize", tsSmlBatchSize, 1, INT32_MAX, CFG_SCOPE_CLIENT, CFG_DYN_NONE) != 0)
   //  return -1;
   if (cfgAddInt32(pCfg, "maxShellConns", tsMaxShellConns, 10, 50000000, CFG_SCOPE_CLIENT, CFG_DYN_NONE) != 0) return -1;
-  if (cfgAddInt32(pCfg, "maxInsertBatchRows", tsMaxInsertBatchRows, 1, INT32_MAX, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0)
+  if (cfgAddInt32(pCfg, "maxInsertBatchRows", tsMaxInsertBatchRows, 1, INT32_MAX, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) !=
+      0)
     return -1;
   if (cfgAddInt32(pCfg, "maxRetryWaitTime", tsMaxRetryWaitTime, 0, 86400000, CFG_SCOPE_BOTH, CFG_DYN_CLIENT) != 0)
     return -1;
@@ -547,7 +561,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "supportVnodes", tsNumOfSupportVnodes, 0, 4096, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
 
   if (cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
-  if (cfgAddInt32(pCfg, "minSlidingTime", tsMinSlidingTime, 1, 1000000, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0) return -1;
+  if (cfgAddInt32(pCfg, "minSlidingTime", tsMinSlidingTime, 1, 1000000, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0)
+    return -1;
   if (cfgAddInt32(pCfg, "minIntervalTime", tsMinIntervalTime, 1, 1000000, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT) != 0)
     return -1;
 
@@ -595,7 +610,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
       0)
     return -1;
 
-  tsNumOfVnodeRsmaThreads = tsNumOfCores;
+  tsNumOfVnodeRsmaThreads = tsNumOfCores / 2;
   tsNumOfVnodeRsmaThreads = TMAX(tsNumOfVnodeRsmaThreads, 4);
   if (cfgAddInt32(pCfg, "numOfVnodeRsmaThreads", tsNumOfVnodeRsmaThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
     return -1;
@@ -662,6 +677,11 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "telemetryServer", tsTelemServer, CFG_SCOPE_BOTH, CFG_DYN_BOTH) != 0) return -1;
   if (cfgAddInt32(pCfg, "telemetryPort", tsTelemPort, 1, 65056, CFG_SCOPE_BOTH, CFG_DYN_NONE) != 0) return -1;
 
+  if (cfgAddInt32(pCfg, "rsyncPort", tsRsyncPort, 1, 65535, CFG_SCOPE_BOTH, CFG_DYN_SERVER) != 0) return -1;
+  if (cfgAddString(pCfg, "snodeAddress", tsSnodeAddress, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0) return -1;
+  if (cfgAddString(pCfg, "checkpointBackupDir", tsCheckpointBackupDir, CFG_SCOPE_SERVER, CFG_DYN_SERVER) != 0)
+    return -1;
+
   if (cfgAddInt32(pCfg, "tmqMaxTopicNum", tmqMaxTopicNum, 1, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
     return -1;
 
@@ -686,7 +706,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "uptimeInterval", tsUptimeInterval, 1, 100000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryRsmaTolerance", tsQueryRsmaTolerance, 0, 900000, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
     return -1;
-  if (cfgAddInt32(pCfg, "timeseriesThreshold", tsTimeSeriesThreshold, 0, 2000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
+  if (cfgAddInt32(pCfg, "timeseriesThreshold", tsTimeSeriesThreshold, 0, 2000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) !=
+      0)
     return -1;
 
   if (cfgAddInt64(pCfg, "walFsyncDataSizeLimit", tsWalFsyncDataSizeLimit, 100 * 1024 * 1024, INT64_MAX,
@@ -729,7 +750,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "s3Accesskey", tsS3AccessKey, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddString(pCfg, "s3Endpoint", tsS3Endpoint, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
   if (cfgAddString(pCfg, "s3BucketName", tsS3BucketName, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0) return -1;
-  if (cfgAddInt32(pCfg, "s3BlockSize", tsS3BlockSize, -100, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE) != 0)
+  if (cfgAddInt32(pCfg, "s3BlockSize", tsS3BlockSize, -1, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) != 0)
     return -1;
   if (cfgAddInt32(pCfg, "s3BlockCacheSize", tsS3BlockCacheSize, 4, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER) !=
       0)
@@ -1100,7 +1121,10 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsTtlChangeOnWrite = cfgGetItem(pCfg, "ttlChangeOnWrite")->bval;
   tsTtlFlushThreshold = cfgGetItem(pCfg, "ttlFlushThreshold")->i32;
   tsTelemInterval = cfgGetItem(pCfg, "telemetryInterval")->i32;
+  tsRsyncPort = cfgGetItem(pCfg, "rsyncPort")->i32;
   tstrncpy(tsTelemServer, cfgGetItem(pCfg, "telemetryServer")->str, TSDB_FQDN_LEN);
+  tstrncpy(tsSnodeAddress, cfgGetItem(pCfg, "snodeAddress")->str, TSDB_FQDN_LEN);
+  tstrncpy(tsCheckpointBackupDir, cfgGetItem(pCfg, "checkpointBackupDir")->str, PATH_MAX);
   tsTelemPort = (uint16_t)cfgGetItem(pCfg, "telemetryPort")->i32;
 
   tmqMaxTopicNum = cfgGetItem(pCfg, "tmqMaxTopicNum")->i32;
@@ -1277,7 +1301,7 @@ int32_t taosApplyLocalCfg(SConfig *pCfg, char *name) {
       if (strcasecmp("keepColumnName", name) == 0) {
         tsKeepColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
       } else if (strcasecmp("keepAliveIdle", name) == 0) {
-        tsKeepAliveIdle = cfgGetItem(pCfg, "keepAliveIdle")->bval;
+        tsKeepAliveIdle = cfgGetItem(pCfg, "keepAliveIdle")->i32;
       } else {
         matchItem = false;
       }
@@ -1670,6 +1694,7 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
         {"ttlBatchDropNum", &tsTtlBatchDropNum},
         {"ttlFlushThreshold", &tsTtlFlushThreshold},
         {"ttlPushInterval", &tsTtlPushIntervalSec},
+        //{"s3BlockSize", &tsS3BlockSize},
         {"s3BlockCacheSize", &tsS3BlockCacheSize},
         {"s3PageCacheSize", &tsS3PageCacheSize},
         {"s3UploadDelaySec", &tsS3UploadDelaySec},
@@ -1693,8 +1718,8 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
 
       switch (pItem->dtype) {
         case CFG_DTYPE_BOOL: {
-          int32_t  flag = atoi(value);
-          bool *pVar = options[d].optionVar;
+          int32_t flag = atoi(value);
+          bool   *pVar = options[d].optionVar;
           uInfo("%s set from %d to %d", optName, *pVar, flag);
           *pVar = flag;
         } break;
