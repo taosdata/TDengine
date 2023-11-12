@@ -90,6 +90,13 @@ int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec
 
 void taosFormatUtcTime(char* buf, int32_t bufLen, int64_t ts, int32_t precision);
 
+/// @brief get offset seconds from zero timezone to input timezone
+///        for +XX timezone, the offset to zero is negative value
+/// @param tzStr timezonestr, eg: +0800, -0830, -08
+/// @param offset seconds, eg: +08 offset -28800, -01 offset 3600
+/// @return 0 success, other fail
+int32_t offsetOfTimezone(char* tzStr, int64_t* offset);
+
 #ifdef __cplusplus
 }
 #endif
