@@ -1297,6 +1297,7 @@ e
 ,,y,script,./test.sh -f tsim/tagindex/add_index.sim
 ,,n,script,./test.sh -f tsim/tagindex/sma_and_tag_index.sim
 ,,y,script,./test.sh -f tsim/view/view.sim
+,,y,script,./test.sh -f tsim/query/cache_last.sim 
 ,,y,script,./test.sh -f tsim/query/const.sim 
 
 
