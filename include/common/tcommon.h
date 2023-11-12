@@ -365,11 +365,6 @@ typedef struct SSortExecInfo {
   int32_t readBytes;   // read io bytes
 } SSortExecInfo;
 
-typedef struct SNonSortExecInfo {
-  int32_t blkNums;
-} SNonSortExecInfo;
-
-
 typedef struct STUidTagInfo {
   char*    name;
   uint64_t uid;

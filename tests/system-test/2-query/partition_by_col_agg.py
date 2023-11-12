@@ -210,7 +210,7 @@ class TDTestCase:
         #self.check_explain_res_has_row('SortMerge', explain_res)
         #self.check_explain_res_has_row("blocking=0", explain_res)
         explain_res = self.explain_sql(sql_hint)
-        self.check_explain_res_has_row('Merge', explain_res)
+        self.check_explain_res_has_row('SortMerge', explain_res)
         self.check_explain_res_has_row('blocking=0', explain_res)
 
     def test_pipelined_agg_plan_with_slimit(self):

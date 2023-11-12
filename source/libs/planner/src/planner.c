@@ -58,9 +58,6 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
     code = createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = validateQueryPlan(pCxt, *pPlan);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
     dumpQueryPlan(*pPlan);
   }
   nodesReleaseAllocator(pCxt->allocatorId);

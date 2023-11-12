@@ -2285,7 +2285,6 @@ static const char* jkMergePhysiPlanSrcGroupId = "SrcGroupId";
 static const char* jkMergePhysiPlanGroupSort = "GroupSort";
 static const char* jkMergePhysiPlanIgnoreGroupID = "IgnoreGroupID";
 static const char* jkMergePhysiPlanInputWithGroupId = "InputWithGroupId";
-static const char* jkMergePhysiPlanType = "Type";
 
 static int32_t physiMergeNodeToJson(const void* pObj, SJson* pJson) {
   const SMergePhysiNode* pNode = (const SMergePhysiNode*)pObj;
@@ -2312,9 +2311,6 @@ static int32_t physiMergeNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkMergePhysiPlanInputWithGroupId, pNode->inputWithGroupId);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkMergePhysiPlanType, pNode->type);
-  }
 
   return code;
 }
@@ -2340,9 +2336,6 @@ static int32_t jsonToPhysiMergeNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkMergePhysiPlanIgnoreGroupID, &pNode->ignoreGroupId);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetIntValue(pJson, jkMergePhysiPlanType, (int32_t*)&pNode->type);
   }
 
   return code;
