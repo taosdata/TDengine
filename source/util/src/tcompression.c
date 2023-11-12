@@ -860,7 +860,7 @@ uint32_t decodeFloatValue(const char *const input, int32_t *const ipos, uint8_t 
   return diff;
 }
 
-void tsDecompressFloatHelper(const char *const input, const int32_t nelements, float* ostream) {
+static void tsDecompressFloatHelper(const char *const input, const int32_t nelements, float* ostream) {
   uint8_t  flags = 0;
   int32_t  ipos = 1;
   int32_t  opos = 0;
