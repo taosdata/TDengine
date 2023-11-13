@@ -11,14 +11,12 @@ use tracing::Span;
 
 use crate::dsv::DataSourceValidation;
 use crate::runners::influxdb::influxdb_datasets;
+use crate::runners::opc::config::OpcTableConfig;
 use crate::utils::mask_dsn;
 use crate::Transferred;
 pub use runners::mqtt::mqtt_to_taos;
 use runners::opc::opc_datasets;
 pub use runners::opc::opc_to_taos;
-pub use runners::opc::ColumnConfig;
-pub use runners::opc::OPCConfig;
-pub use runners::opc::TableConfig;
 pub use runners::opentsdb::opentsdb_datasets;
 pub use runners::opentsdb::opentsdb_to_taos;
 use runners::pi::pi_datasets;
@@ -31,7 +29,6 @@ pub use sink::IpcStreamWorker;
 pub use taosx_ipc::types::*;
 pub use transform::Parser;
 
-use self::runners::opc::OpcTableConfig;
 use self::sink::IpcHandler;
 
 mod config;

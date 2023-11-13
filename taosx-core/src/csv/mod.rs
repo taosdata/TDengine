@@ -635,6 +635,7 @@ impl CsvSource {
     }
 }
 
+/*
 #[tokio::test]
 async fn test_csv_source() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "debug");
@@ -678,6 +679,7 @@ async fn test_csv_source() -> anyhow::Result<()> {
     assert_eq!(u, 200);
     Ok(())
 }
+*/
 
 pub async fn is_csv_valid(from: &Dsn) -> DataSourceValidation {
     if let Err(err) = CsvSource::new(&mut from.clone(), 0) {

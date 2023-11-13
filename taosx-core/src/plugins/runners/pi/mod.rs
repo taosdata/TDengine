@@ -1,11 +1,6 @@
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
-use file_rotate::{
-    compression::Compression,
-    suffix::{AppendTimestamp, DateFrom, FileLimit},
-    ContentLimit, FileRotate, TimeFrequency,
-};
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::{Map, Value};
@@ -374,18 +369,7 @@ pub async fn pi_datasets(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
 
     tracing::info!("log file dir: {}", &log_path.display());
 
-    let mut log_rotation = FileRotate::new(
-        &log_path,
-        AppendTimestamp::with_format(
-            "%Y-%m-%d",
-            FileLimit::Age(chrono::Duration::weeks(100)),
-            DateFrom::DateYesterday,
-        ),
-        ContentLimit::Time(TimeFrequency::Daily),
-        Compression::None,
-        #[cfg(unix)]
-        None,
-    );
+    let mut log_rotation = log_rotation(&log_path, 700);
 
     let output = command
         .arg("-f")
@@ -662,9 +646,11 @@ async fn validate_pi_backfill(config: PiConfig) -> anyhow::Result<DataSourceVali
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::str::FromStr;
+
     use taos::Dsn;
+
+    use super::*;
 
     #[ignore]
     #[tokio::test]

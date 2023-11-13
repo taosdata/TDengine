@@ -1,11 +1,3 @@
-use anyhow::{bail, Context};
-use arrow::{datatypes::Schema, ipc::writer::IpcWriteOptions, record_batch::RecordBatch};
-use arrow_flight::FlightClient;
-use async_backtrace::framed;
-use bytes::Bytes;
-use futures::TryStreamExt;
-use futures_util::StreamExt;
-use serde_json::json;
 use std::{
     any::Any,
     collections::{HashMap, HashSet},
@@ -19,6 +11,17 @@ use std::{
     },
     time::Duration,
 };
+
+use anyhow::{bail, Context};
+use arrow::{datatypes::Schema, ipc::writer::IpcWriteOptions, record_batch::RecordBatch};
+use arrow_flight::FlightClient;
+use async_backtrace::framed;
+use bytes::Bytes;
+use futures::TryStreamExt;
+use futures_util::StreamExt;
+use metrics::*;
+use serde_json::json;
+use taos::RawResult;
 use taos::{
     taos_query::{common::Describe, Manager},
     AsyncBindable, AsyncQueryable, Dsn, Itertools, RawBlock, Stmt, Taos, TaosPool, Ty, Value,
@@ -28,6 +31,14 @@ use tokio_util::sync::CancellationToken;
 use tonic::transport::Channel;
 use tracing::{debug, error, info, instrument, Instrument, Span};
 
+use taosx_ipc::{
+    prelude::*,
+    stream::{flat::FlatMessage, point::PointMessage},
+};
+
+use crate::plugins::runners::opc::config::table::ColumnConfig;
+use crate::plugins::runners::opc::config::OpcTableConfig;
+use crate::runners::opc::config::OPCConfig;
 use crate::{
     utils::{
         breakpoints::breakpoints_set,
@@ -36,16 +47,10 @@ use crate::{
             set_data_trace_id_for_current_span,
         },
     },
-    ConnectorLicense, OPCConfig, Parser, Transferred,
+    ConnectorLicense, Parser, Transferred,
 };
 
-use super::runners::opc::{ColumnConfig, OpcTableConfig};
 use super::*;
-use metrics::*;
-use taosx_ipc::{
-    prelude::*,
-    stream::{flat::FlatMessage, point::PointMessage},
-};
 
 // mod rpc_client;
 
@@ -2913,8 +2918,6 @@ pub async fn listen_tcp_socket(
     );
     Ok(IpcHandler::new(notify, handle, error_receiver))
 }
-
-use taos::RawResult;
 
 async fn exec<T: AsRef<str> + Send + Sync>(
     taos: &deadpool::managed::Object<Manager<TaosBuilder>>,
