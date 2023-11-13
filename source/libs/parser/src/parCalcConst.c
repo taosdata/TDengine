@@ -176,12 +176,15 @@ static int32_t calcConstStmtCondition(SCalcConstContext* pCxt, SNode** pCond, bo
 static EDealRes doFindAndReplaceNode(SNode** pNode, void* pContext) {
   SCalcConstContext* pCxt = pContext;
   if (pCxt->replaceCxt.pTarget == *pNode) {
+    char aliasName[TSDB_COL_NAME_LEN] = {0};
+    strcpy(aliasName, ((SExprNode*)*pNode)->aliasName);
     nodesDestroyNode(*pNode);
     *pNode = nodesCloneNode(pCxt->replaceCxt.pNew);
     if (NULL == *pNode) {
       pCxt->code = TSDB_CODE_OUT_OF_MEMORY;
       return DEAL_RES_ERROR;
     }
+    strcpy(((SExprNode*)*pNode)->aliasName, aliasName);
 
     pCxt->replaceCxt.replaced = true;
     return DEAL_RES_END;
@@ -211,7 +214,6 @@ static int32_t calcConstProject(SCalcConstContext* pCxt, SNode* pProject, bool d
   }
 
   char aliasName[TSDB_COL_NAME_LEN] = {0};
-  strcpy(aliasName, ((SExprNode*)pProject)->aliasName);
   int32_t code = TSDB_CODE_SUCCESS;
   if (dual) {
     code = scalarCalculateConstantsFromDual(pProject, pNew);
@@ -219,15 +221,20 @@ static int32_t calcConstProject(SCalcConstContext* pCxt, SNode* pProject, bool d
     code = scalarCalculateConstants(pProject, pNew);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    strcpy(((SExprNode*)*pNew)->aliasName, aliasName);
     if (QUERY_NODE_VALUE == nodeType(*pNew) && NULL != pAssociation) {
       int32_t size = taosArrayGetSize(pAssociation);
       for (int32_t i = 0; i < size; ++i) {
         SAssociationNode* pAssNode = taosArrayGet(pAssociation, i);
         SNode** pCol = pAssNode->pPlace;
         if (*pCol == pAssNode->pAssociationNode) {
+          strcpy(aliasName, ((SExprNode*)*pCol)->aliasName);
+          SArray* pOrigAss = NULL;
+          TSWAP(((SExprNode*)*pCol)->pAssociation, pOrigAss);
           nodesDestroyNode(*pCol);
           *pCol = nodesCloneNode(*pNew);
+          TSWAP(pOrigAss, ((SExprNode*)*pCol)->pAssociation);
+          taosArrayDestroy(pOrigAss);
+          strcpy(((SExprNode*)*pCol)->aliasName, aliasName);
           if (NULL == *pCol) {
             code = TSDB_CODE_OUT_OF_MEMORY;
             break;

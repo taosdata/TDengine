@@ -77,6 +77,12 @@ static int32_t doSetSMABlock(SOperatorInfo* pOperator, void* input, size_t numOf
       SPackedData tmp = {.pDataBlock = input};
       taosArrayPush(pInfo->pBlockLists, &tmp);
       pInfo->blockType = STREAM_INPUT__CHECKPOINT;
+    } else if (type == STREAM_INPUT__REF_DATA_BLOCK) {
+      for (int32_t i = 0; i < numOfBlocks; ++i) {       
+        SPackedData* pReq = POINTER_SHIFT(input, i * sizeof(SPackedData));
+        taosArrayPush(pInfo->pBlockLists, pReq);
+      }
+      pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
     }
 
     return TSDB_CODE_SUCCESS;

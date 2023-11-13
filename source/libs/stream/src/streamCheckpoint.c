@@ -288,8 +288,10 @@ int32_t streamSaveTaskCheckpointInfo(SStreamTask* p, int64_t checkpointId) {
 
   taosThreadMutexLock(&p->lock);
 
-  ASSERT(p->chkInfo.checkpointId < p->chkInfo.checkpointingId && p->chkInfo.checkpointingId == checkpointId);
+  ASSERT(p->chkInfo.checkpointId < p->chkInfo.checkpointingId && p->chkInfo.checkpointingId == checkpointId &&
+         p->chkInfo.checkpointVer <= p->chkInfo.processedVer);
   p->chkInfo.checkpointId = p->chkInfo.checkpointingId;
+  p->chkInfo.checkpointVer = p->chkInfo.processedVer;
 
   streamTaskClearCheckInfo(p);
 

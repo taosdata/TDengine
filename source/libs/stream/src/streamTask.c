@@ -432,8 +432,10 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   pTask->outputq.status = TASK_OUTPUT_STATUS__NORMAL;
   pTask->pMeta = pMeta;
 
-  pTask->chkInfo.checkpointVer = ver - 1;
-  pTask->chkInfo.nextProcessVer = ver;
+  pTask->chkInfo.checkpointVer = ver - 1;  // only update when generating checkpoint
+  pTask->chkInfo.processedVer = ver - 1;   // already processed version
+
+  pTask->chkInfo.nextProcessVer = ver;   // next processed version
   pTask->dataRange.range.maxVer = ver;
   pTask->dataRange.range.minVer = ver;
   pTask->pMsgCb = pMsgCb;

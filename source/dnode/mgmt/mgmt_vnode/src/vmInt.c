@@ -144,11 +144,7 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
   char path[TSDB_FILENAME_LEN] = {0};
   bool atExit = true;
 
-  if (pVnode->failed) {
-    ASSERT(pVnode->pImpl == NULL);
-    goto _closed;
-  }
-  if (vnodeIsLeader(pVnode->pImpl)) {
+  if (pVnode->pImpl && vnodeIsLeader(pVnode->pImpl)) {
     vnodeProposeCommitOnNeed(pVnode->pImpl, atExit);
   }
 
@@ -157,6 +153,10 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal)
   taosThreadRwlockUnlock(&pMgmt->lock);
   vmReleaseVnode(pMgmt, pVnode);
 
+  if (pVnode->failed) {
+    ASSERT(pVnode->pImpl == NULL);
+    goto _closed;
+  }
   dInfo("vgId:%d, pre close", pVnode->vgId);
   vnodePreClose(pVnode->pImpl);
 
