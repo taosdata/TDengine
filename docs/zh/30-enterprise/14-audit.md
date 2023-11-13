@@ -62,8 +62,8 @@ CREATE STABLE operations(ts timestamp, details VARCHAR(64000)， User VARCHAR(25
 | create stable   | createStb | db name  | stable name | SQL |
 | alter stable    | alterStb  | db name  | stable name | SQL |
 | drop stable     | dropStb   | db name  | stable name | SQL |
-| create user     | createUser | NULL |  被创建的用户名 | SQL |
-| alter user      | alterUser | NULL | 被修改的用户名 | 修改密码记录的是除密码外的详细信息，密码用xxx代替；其他操作记录SQL |
+| create user     | createUser | NULL |  被创建的用户名 | 用户属性参数,  (password除外) |
+| alter user      | alterUser | NULL | 被修改的用户名 | 修改密码操作记录的是被修改的参数和新值 (password除外) ；其他操作记录SQL |
 | drop user       | dropUser | NULL | 被删除的用户名 | SQL |
 | create topic    | createTopic | topic 所在 DB | 创建的 topic 名字 | SQL |
 | drop topic      | cropTopic | topic 所在 DB | 删除的 topic 名字 | SQL |
