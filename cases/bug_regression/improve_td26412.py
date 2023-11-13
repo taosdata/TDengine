@@ -10,6 +10,7 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
+# -*- taostest --setup=bug_regression/improve_td26412.yaml --case=bug_regression/improve_td26412.py --keep -*-
 
 from taostest import TDCase, T
 from taostest.util.common import TDCom
