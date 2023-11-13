@@ -685,8 +685,6 @@ typedef struct STFileSetRange STFileSetRange;
 typedef TARRAY2(STFileSetRange *) TFileSetRangeArray;  // disjoint ranges
 
 // util
-int32_t   tSerializeSnapRangeArray(void *buf, int32_t bufLen, TFileSetRangeArray *pSnapR);
-int32_t   tDeserializeSnapRangeArray(void *buf, int32_t bufLen, TFileSetRangeArray *pSnapR);
 void      tsdbFileSetRangeArrayDestroy(TFileSetRangeArray **ppSnap);
 SHashObj *tsdbGetSnapRangeHash(TFileSetRangeArray *pRanges);
 
