@@ -269,6 +269,7 @@ typedef struct list_parts_callback_data {
 typedef struct MultipartPartData {
   char                     err_msg[512];
   S3Status                 status;
+  uint64_t                 content_length;
   put_object_callback_data put_object_data;
   int                      seq;
   UploadManager           *manager;
@@ -458,13 +459,13 @@ int32_t s3PutObjectFromFile2(const char *file, const char *object) {
   int                      metaPropertiesCount = 0;
   S3NameValue              metaProperties[S3_MAX_METADATA_COUNT];
   char                     useServerSideEncryption = 0;
-  int                      noStatus = 0;
-  put_object_callback_data data;
+  put_object_callback_data data = {0};
+  // int                      noStatus = 0;
 
   // data.infile = 0;
-  data.infileFD = NULL;
-  data.gb = 0;
-  data.noStatus = noStatus;
+  // data.gb = 0;
+  // data.infileFD = NULL;
+  // data.noStatus = noStatus;
 
   if (taosStatFile(file, &contentLength, NULL, NULL) < 0) {
     uError("ERROR: %s Failed to stat file %s: ", __func__, file);
