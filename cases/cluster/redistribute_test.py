@@ -10,7 +10,6 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
-
 # -*- taostest --setup=cluster/redistribute_split_test.yaml --case=cluster/redistribute_test.py --keep -*-
 # -*- taostest --setup=cluster/redistribute_split_test_rep3.yaml --case=cluster/redistribute_test.py --keep -*-
 
@@ -109,6 +108,7 @@ class VnodeRedistribute(TDCase):
         self.source_dnode_id_list = list(map(lambda x:x[0], self.tdSql.query_data))
         self.cluster_to_redistribute_list = list()
         self.use_stream = True
+        self.stream_drop_after_test = True
         self.use_tmq = True
         self.topic_name = "tp_name"
         self.tmq_status = 0
@@ -371,6 +371,8 @@ class VnodeRedistribute(TDCase):
                     self.redistribute_vnode_in_reserve_dnode(reserver_dnode_count)
                 self.reserve_redistribute_status = 1
                 self.tdSql.execute('balance vgroup')
+                if self.stream_drop_after_test:
+                    self.tdSql.execute(f'drop stream if exists {self.stream_name}')
                 self.check_restored_true()
                 killCmd = "ps ef | grep %s | grep -v grep | awk '{print $2}' | xargs kill -9 " % self.taosBenchmark_env_setting[0]["spec"]["config_dir"]
                 self._remote.cmd(self.taosBenchmark_iplist[0], [killCmd])
