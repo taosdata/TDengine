@@ -52,6 +52,7 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
   int32_t     _pos = 0;
   int64_t     prev_value = 0;
 
+#if __AVX2__
   while (1) {
     if (_pos == nelements) break;
 
@@ -231,6 +232,7 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
     ip += LONG_BYTES;
   }
 
+#endif
   return nelements * word_length;
 }
 
